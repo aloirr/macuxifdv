@@ -9,6 +9,9 @@
 - [T-0010](../.coord/tarefas/T-0010.md) — Promotor: domínio de trade marketing (em revisão)
 
 ## Futuro
+- **Miniatura do produto no pull (pós-piloto, R-20261106-182000):** um campo de miniatura no contrato do pull do Catálogo, baixado sob demanda e fora do pacote offline obrigatório. Até lá, a lista por linha (T-0085 D) não reserva espaço para foto.
+- **Modelos CSV e dicionário para o admin da empresa (R-20261106-182000):** na v1, ficam só para o super-admin, porque a implantação é assistida. Liberar ao admin da empresa quando o BKO tiver carga self-service: basta trocar para `superAdmin: 'aceita'` e declarar uma ação no manifesto.
+- **Download do Conector (T-0087, R-20261106-182000, item 4):** bucket privado, com link temporário gerado pelo portal depois do login do super-admin. O portal mostra "em breve" até isso existir.
 - **⏰ Até 31/12/2026: faixa aberta de ano no índice local (T-0084, 06/11):** uma aplicação "2018 em diante" não cobre o ano novo até o índice local do aparelho ser reindexado (`modules/catalogo/app/indice.ts`), e "civic 2027" não aparece. Precisa de um gancho de reindexação na virada do ano no platform-sdk (engenheiro-software) e da troca no Catálogo. Também falta um caso de desempenho com aplicação e ano na busca, que mediu de 1,6 a 1,8 vez mais lenta.
 - **Aviso no monitor para marca concorrente desconhecida (T-0085, 06/11):** hoje o Catálogo descarta a referência e só registra no log. O aviso no monitor da integração depende de um retorno do consumidor para o Hub (modulo-integracao e modulo-catalogo). Também: referência sem marca ou com código fora do formato deve descartar só a referência, e não recusar a linha do produto (🟡 do engenheiro, R-20261106-032516).
 - **Kit de UI depois do portal (T-0087, 06/11):** os componentes Tabs (já são 5 cópias), Progress e ButtonLink em `packages/ui` (designer-ux), mais os 🟡 e 🟢 restantes da revisão de UX do portal (R-20261106-023316).
