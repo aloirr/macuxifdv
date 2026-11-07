@@ -30,5 +30,6 @@ export * from './pagamento';
 export * from './catalogo-produto';
 export * from './pedido-versao';
 export * from './carga-arquivo';
+export * from './modelos-csv';
 export * from './carga-arquivo-partes';
 export * from './portal-carga';

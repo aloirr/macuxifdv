@@ -156,10 +156,10 @@ const COLUNAS_COM_PADRAO = new Set(['alterado_em']);
 /** Listas simples que cabem numa célula do CSV (itens separados por barra). */
 const LISTAS_EM_CELULA = new Set(['parcelas_dias', 'formas_pagamento']);
 
-type Def = { typeName?: string; innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; type?: z.ZodTypeAny; shape?: () => Record<string, z.ZodTypeAny> };
-const defDe = (t: z.ZodTypeAny): Def => t._def as Def;
+export type Def = { typeName?: string; innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; type?: z.ZodTypeAny; shape?: () => Record<string, z.ZodTypeAny> };
+export const defDe = (t: z.ZodTypeAny): Def => t._def as Def;
 
-function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
+export function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
   let atual = t;
   for (let i = 0; i < 12; i++) {
     const d = defDe(atual);
@@ -170,31 +170,42 @@ function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
   return atual;
 }
 
-function coletar(shape: Record<string, z.ZodTypeAny>, prefixo: string, paiObrigatorio: boolean, saida: EstruturaEntidade): void {
+function coletar(shape: Record<string, z.ZodTypeAny>, prefixo: string, paiObrigatorio: boolean, saida: EstruturaEntidade, bases?: Map<string, z.ZodTypeAny>): void {
   for (const [nome, campo] of Object.entries(shape)) {
     const caminho = prefixo === '' ? nome : `${prefixo}.${nome}`;
     const base = desembrulhar(campo);
     const tipo = defDe(base).typeName;
     const obrigatoria = paiObrigatorio && !campo.isOptional() && !COLUNAS_COM_PADRAO.has(caminho);
-    if (tipo === 'ZodObject') coletar((defDe(base).shape as () => Record<string, z.ZodTypeAny>)(), caminho, obrigatoria, saida);
+    if (tipo === 'ZodObject') coletar((defDe(base).shape as () => Record<string, z.ZodTypeAny>)(), caminho, obrigatoria, saida, bases);
     else if (tipo === 'ZodArray') {
       const item = defDe(desembrulhar(base)) as Def & { type?: z.ZodTypeAny };
       // só as listas de escalares liberadas (T-0089); as demais (oferece_junto, etiquetas, contatos, paradas…) seguem só pelo Conector
       const tipoItem = LISTAS_EM_CELULA.has(caminho) && item.type ? defDe(desembrulhar(item.type)).typeName : undefined;
-      if (tipoItem === 'ZodNumber') saida.colunas.push({ caminho, tipo: 'lista_numeros', obrigatoria });
-      else if (tipoItem === 'ZodString') saida.colunas.push({ caminho, tipo: 'lista_textos', obrigatoria });
-      else saida.listas.push(caminho);
+      if (tipoItem === 'ZodNumber' || tipoItem === 'ZodString') {
+        saida.colunas.push({ caminho, tipo: tipoItem === 'ZodNumber' ? 'lista_numeros' : 'lista_textos', obrigatoria });
+        bases?.set(caminho, campo);
+      } else saida.listas.push(caminho);
+    } else {
+      saida.colunas.push({ caminho, tipo: tipo === 'ZodNumber' ? 'numero' : tipo === 'ZodBoolean' ? 'booleano' : 'texto', obrigatoria });
+      bases?.set(caminho, campo);
     }
-    else saida.colunas.push({ caminho, tipo: tipo === 'ZodNumber' ? 'numero' : tipo === 'ZodBoolean' ? 'booleano' : 'texto', obrigatoria });
   }
+}
+
+/**
+ * Colunas de QUALQUER schema de registro, com o schema declarado de cada coluna (com optional/nullable/default) em `bases`:
+ * o gerador de modelos CSV (`modelos-csv.ts`) desembrulha e lê daí os limites, formatos e opções.
+ */
+export function estruturaDoSchema(schema: z.ZodTypeAny): { estrutura: EstruturaEntidade; bases: Map<string, z.ZodTypeAny> } {
+  const estrutura: EstruturaEntidade = { colunas: [], listas: [] };
+  const bases = new Map<string, z.ZodTypeAny>();
+  coletar((defDe(desembrulhar(schema)).shape as () => Record<string, z.ZodTypeAny>)(), '', true, estrutura, bases);
+  return { estrutura, bases };
 }
 
 /** As colunas aceitas no CSV de uma entidade, lidas do schema do contrato (a fonte da verdade: mudou lá, muda aqui). */
 export function colunasDaEntidade(entidade: Entidade): EstruturaEntidade {
-  const raiz = desembrulhar(SCHEMA_REGISTRO[entidade]);
-  const saida: EstruturaEntidade = { colunas: [], listas: [] };
-  coletar((defDe(raiz).shape as () => Record<string, z.ZodTypeAny>)(), '', true, saida);
-  return saida;
+  return estruturaDoSchema(SCHEMA_REGISTRO[entidade]).estrutura;
 }
 
 // ---------------------------------------------------------------------------------------------------------------- conversão
