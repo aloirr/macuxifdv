@@ -171,10 +171,14 @@ export function Chip({ label, active, onPress, testID, rotuloAcessivel }: { labe
   );
 }
 
-export function Banner({ children, icon = 'wifiOff', tone = 'warning', testID }: { children: ReactNode; icon?: IconName; tone?: 'warning' | 'success' | 'danger'; testID?: string }) {
+/**
+ * Aviso em faixa. `anunciar` (T-0088): o leitor de tela lê o aviso quando ele aparece ou muda (região viva educada no
+ * Android); use nos avisos que surgem sozinhos (sem sinal, índice sendo organizado, falha), não nos fixos da tela.
+ */
+export function Banner({ children, icon = 'wifiOff', tone = 'warning', testID, anunciar = false }: { children: ReactNode; icon?: IconName; tone?: 'warning' | 'success' | 'danger'; testID?: string; anunciar?: boolean }) {
   const c = tone === 'warning' ? { bg: colors.warningBg, fg: colors.warningInk } : tone === 'success' ? { bg: colors.successBg, fg: colors.success } : { bg: colors.dangerBg, fg: colors.danger };
   return (
-    <View testID={testID} style={[styles.banner, { backgroundColor: c.bg }]}>
+    <View testID={testID} style={[styles.banner, { backgroundColor: c.bg }]} {...(anunciar ? { accessible: true, accessibilityLiveRegion: 'polite' as const } : {})}>
       <View style={{ marginTop: 1 }}>
         <Icon name={icon} size={18} color={c.fg} />
       </View>
@@ -187,10 +191,15 @@ export function Strong({ children }: { children: ReactNode }) {
   return <Text style={{ fontFamily: fonts.bold }}>{children}</Text>;
 }
 
-export function ProgressBar({ pct, color = colors.accent, track = colors.lineSoft, height = 8 }: { pct: number; color?: string; track?: string; height?: number }) {
+/**
+ * Barra de progresso 0 a 100. Sem `rotulo` é decorativa (o número já aparece em texto ao lado). Com `rotulo` (T-0088)
+ * vira um elemento do leitor de tela: papel "barra de progresso", o rótulo e o valor em por cento.
+ */
+export function ProgressBar({ pct, color = colors.accent, track = colors.lineSoft, height = 8, rotulo }: { pct: number; color?: string; track?: string; height?: number; rotulo?: string }) {
   const w = Math.max(0, Math.min(100, pct));
+  const a11y = rotulo ? { accessible: true, accessibilityRole: 'progressbar' as const, accessibilityLabel: rotulo, accessibilityValue: { min: 0, max: 100, now: Math.round(w) } } : {};
   return (
-    <View style={{ height, borderRadius: height / 2, backgroundColor: track, overflow: 'hidden' }}>
+    <View style={{ height, borderRadius: height / 2, backgroundColor: track, overflow: 'hidden' }} {...a11y}>
       <View style={{ width: `${w}%`, height, borderRadius: height / 2, backgroundColor: color }} />
     </View>
   );
