@@ -77,6 +77,23 @@ outbox ──► aplicarLote (A7, o mesmo) ──► validação por linha, upse
 - O staging do lote leva `origem: 'arquivo'` e `linhas_arquivo` (linha física de cada registro, em paralelo a `registros`); `aplicar-lote.ts` usa o mapa para anotar erros e avisos do Hub (`anotarLinhaDoArquivo`).
 - Auditoria (`carga.arquivo`) guarda só ids, entidade, modo e contagens; log idem. O conteúdo do arquivo fica apenas no staging, como o de qualquer lote.
 
+## 4b. Modelos de arquivo e dicionário (N1)
+
+- Rotas (`api/bko-modelos.ts`, sem leitura de banco):
+  - `GET /v1/integracao/modelos/:entidade.csv`: `text/csv; charset=utf-8`, baixa como `<entidade>.csv`.
+  - `GET /v1/integracao/modelos/:entidade/dicionario`: JSON `DicionarioModelo` (campo, obrigatório, tipo, tamanho máximo, formato, exemplo).
+  - Entidade desconhecida: 404 `ENTIDADE_DESCONHECIDA`.
+- **Acesso na v1: só o super-admin** (decisão do dono do produto, ADR 0029). Liberar ao admin da empresa está no backlog, para quando o BKO tiver carga self-service (basta tirar a recusa do handler e declarar uma ação no manifesto).
+  - Declaram `superAdmin: 'aceita'` + `perfis: ['admin']`; o handler recusa quem não é super-admin com 403 `PERFIL_SEM_ACESSO`.
+  - Ordem das checagens: licença do módulo (403 `MODULO_INATIVO`), perfil, handler. Com `'exige'` a API recusaria antes da licença.
+  - O super-admin precisa informar a empresa (`x-macuxi-tenant`) e ela precisa ter o módulo Integração; o conteúdo, porém, não depende da empresa.
+- Conteúdo (`domain/modelos-csv.ts`, gerado de `SCHEMA_REGISTRO`; tipos em `contracts/modelos.ts`):
+  - 15 entidades; `;`, UTF-8 com BOM, CRLF; duas linhas de exemplo válidas.
+  - Colunas: obrigatórios primeiro, na ordem do contrato; depois os opcionais (`alterado_em`, `ativo`).
+  - Listas em célula, itens separados por `/`: `parcelas_dias` (`30/60/90`) e `formas_pagamento` (`PIX/BOLETO`). `contatos`, `paradas`, `referencias` e `oferece_junto` ficam de fora.
+  - Todo modelo passa no mesmo parser da carga (`converterCsvParaLote`) e na validação por linha do Hub.
+- Ordem dos modelos: a de `ordemDeCargaDoPortal()` (`ENTIDADES_ORDEM_CARGA`, `RESUMO_MODELOS`); não há segunda lista.
+
 ## 5. Premissas e backlog
 
 - Premissas: CSV UTF-8; cabeçalho = campos do contrato; Excel = "salvar como CSV"; 1 arquivo = 1 entidade = 1 lote (≤ 5.000 linhas) = 1 sessão; Conector tipo arquivo cadastrado pelo admin.

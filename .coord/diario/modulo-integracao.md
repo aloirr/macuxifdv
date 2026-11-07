@@ -42,3 +42,5 @@
 2026-11-07 — T-0092 — rota pública GET openapi.json declarada no módulo (60/min, cache 1 h), publico.ts simplificado, rota BKO openapi removida, nota da §15 atualizada
 2026-11-07 — T-0092 — comentário do ajv no openapi.test.ts corrigido (devDependencies); §15 do hub-api.md enxuta sem perda de informação
 2026-11-07 — T-0092 — chave mxk_ corrigida para mxc_ no OpenAPI/guia/hub-api.md; regex do publico.test.ts apertada
+2026-11-07 — T-0089 I2 — exemplos do Conector (SQL Server 15 entidades, Oracle com as 3 novas e cliente) lendo vw_macuxi_<e>; teste de cobertura; conector.md alinhado à premissa de nulo; teste de fila com pagamento; mxk_ -> mxc_
+2026-11-07 — T-0087 — §4b (modelos CSV e dicionário, N1) aplicada em carga-arquivo.md, conferida contra o código; v1 só super-admin
