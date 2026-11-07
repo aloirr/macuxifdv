@@ -11,6 +11,7 @@ import { Badge, Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, Loadi
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FichaProduto, FiltrosCatalogo, ListaMarcasConcorrentes, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
 import { abrirEditores, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, mapaIdsPorCodigo, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
@@ -59,6 +60,7 @@ export function CatalogoPage() {
             </Button>
           ))}
       </nav>
+      {aba === 'produtos' && <ExportacaoCatalogo />}
       {aba === 'produtos' && <Produtos filtros={filtros} mudar={mudar} podeConteudo={podeConteudo} />}
       {aba === 'sinonimos' && <Sinonimos />}
       {aba === 'sem-resultado' && <SemResultado />}
