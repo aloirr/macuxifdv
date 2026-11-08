@@ -16,7 +16,7 @@ import { localDate } from '@macuxi/comum';
 // então mudança no contrato quebra o typecheck daqui (regra 3 do CLAUDE.md).
 import type { EventoFaturadoNoDesafio } from '../contracts';
 import { PARAMETROS_PADRAO, type ParametrosTreinamento } from './parametros';
-import type { CandidatoXp, LancamentoXp } from './xp';
+import { proporLancamento, type CandidatoXp, type LancamentoXp, type ResultadoLancamento } from './xp';
 
 export interface DesafioVendas {
   id: string;
@@ -50,7 +50,7 @@ export function avaliarPedidoNoDesafio(desafio: DesafioVendas, pedido: Omit<Even
   const dia = localDate(new Date(pedido.faturado_em), fuso);
   if (dia < desafio.vigencia_inicio || dia > desafio.vigencia_fim) return { elegivel: false, motivo: 'FORA_DA_VIGENCIA' };
   const campanha = new Set(desafio.produto_ids);
-  const unidades = pedido.itens.filter((i) => campanha.has(i.produto_id) && Number.isFinite(i.quantidade) && i.quantidade > 0).reduce((s, i) => s + i.quantidade, 0);
+  const unidades = pedido.itens.filter((i) => campanha.has(i.produto_id) && Number.isInteger(i.quantidade) && i.quantidade > 0).reduce((s, i) => s + i.quantidade, 0);
   if (unidades <= 0) return { elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' };
   return { elegivel: true, unidades, pontos_base: Math.min(Math.floor(unidades * desafio.xp_por_unidade), desafio.xp_max_por_pedido) };
 }
@@ -85,8 +85,8 @@ export const referenciaDoDesafio = (desafioId: string, pedido: Pick<EventoFatura
  * O candidato leva o teto do desafio (`teto_desafio`): `proporLancamento` paga só o saldo do vendedor no desafio e,
  * esgotado, grava lançamento de 0 ponto. O desafio não passa pelo teto diário. `lancamentoId` é o UUID do lançamento.
  * Fuso: o de `opcoes.fuso` define a vigência; use o mesmo do `processarLote` (veja `OpcoesDesafio`).
- * Limitação conhecida: o arredondamento para baixo é por evento (duas parciais de 0,5 un. a 1 XP/un. pagam 0 + 0);
- * o contrato oficial manda quantidade inteira > 0, então não ocorre hoje (regras.md §8).
+ * Quantidade: só conta item com quantidade INTEIRA > 0 (como manda o contrato oficial); fração é ignorada, então
+ * não há arredondamento por evento (duas parciais de 0,5 un. não pagam 0 + 0 por acaso: nenhuma conta).
  */
 export function candidatoDoDesafio(desafio: DesafioVendas, pedido: EventoFaturadoNoDesafio, lancamentoId: string, opcoes: OpcoesDesafio = {}): CandidatoXp | null {
   const a = avaliarPedidoNoDesafio(desafio, pedido, opcoes.fuso ?? PARAMETROS_PADRAO.fuso);
@@ -110,4 +110,21 @@ export function candidatoDoDesafio(desafio: DesafioVendas, pedido: EventoFaturad
     ocorrido_em: pedido.faturado_em,
     ...(max > 0 ? { teto_desafio: { desafio_id: desafio.id, max } } : {}),
   };
+}
+
+/**
+ * RF-TRE-06, RN-TRE-04, RN-TRE-08: caminho único do pedido faturado ao lançamento. Recebe o `params` do tenant UMA vez e o
+ * usa na vigência (candidato) e no `dia` do lançamento (`proporLancamento`), sem como os fusos divergirem.
+ * `null` = não paga (inelegível ou repetição); senão, o resultado de `proporLancamento` (aceito, duplicado, sem pontos).
+ * `existentes` = lançamentos já gravados do vendedor (idealmente os dele).
+ */
+export function lancarPedidoNoDesafio(
+  desafio: DesafioVendas,
+  pedido: EventoFaturadoNoDesafio,
+  lancamentoId: string,
+  existentes: readonly LancamentoXp[],
+  params: Pick<ParametrosTreinamento, 'fuso' | 'xp_max_por_desafio' | 'xp_teto_diario'> = PARAMETROS_PADRAO,
+): ResultadoLancamento | null {
+  const c = candidatoDoDesafio(desafio, pedido, lancamentoId, { fuso: params.fuso, xp_max_por_desafio: params.xp_max_por_desafio, lancamentos: existentes });
+  return c ? proporLancamento(existentes, c, params) : null;
 }

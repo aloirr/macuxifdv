@@ -152,7 +152,7 @@ function Linha({ l, ultima }: { l: LinhaRankingContrato; ultima: boolean }) {
       testID={`ranking-linha-${l.posicao}`}
       style={[styles.linha, !ultima && styles.divisor, l.eu && { backgroundColor: colors.accentTint }]}
     >
-      <Text style={[styles.posicao, l.posicao <= 3 && { color: colors.accent }]}>{l.posicao}º</Text>
+      <Text style={[styles.posicao, l.posicao <= 3 && { color: colors.accentInk }]}>{l.posicao}º</Text>
       <View style={{ flex: 1 }}>
         <Text style={t.bodyStrong} numberOfLines={1}>
           {l.nome}
