@@ -11,7 +11,7 @@ import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { Abas, AvisoRodape, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, RotuloSecao, Screen, Strong, Trilha, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
@@ -32,6 +32,7 @@ import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limit
 import { abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
+import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -70,8 +71,8 @@ function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; 
 // ---------------------------------------------------------------------------
 
 function CustomerPicker() {
-  const { dados } = useVendedor();
-  const { vendedorId } = useLocalSearchParams<{ vendedorId?: string }>();
+  const { dados, carteiras, pedidos, tz } = useVendedor();
+  const { vendedorId, vendedorNome } = useLocalSearchParams<{ vendedorId?: string; vendedorNome?: string }>();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   // lido no render sem reagir: o pendente só muda antes de navegar para cá, nunca com o seletor aberto
@@ -84,37 +85,65 @@ function CustomerPicker() {
     }
     return null;
   }, [dados.produtos, idEmEspera]);
-  const list = useMemo(() => filterCustomers(dados.clientes, q, []).slice(0, 60), [dados.clientes, q]);
+  // RN-VEN-35 (T-0101): pedido em nome mostra a carteira do vendedor dono; o Campo (sem vendedorId) segue como antes
+  const emNome = useMemo(() => {
+    if (!vendedorId) return null;
+    const nomes = nomesDosVendedores(pedidos, { id: vendedorId, nome: vendedorNome });
+    return seletorEmNome({ clientes: dados.clientes, carteiras, vendedorId, nomes, busca: q, agora: new Date(), tz });
+  }, [vendedorId, vendedorNome, pedidos, dados.clientes, carteiras, q, tz]);
+  const opcoes: OpcaoDoSeletor[] = useMemo(
+    () => emNome?.opcoes ?? filterCustomers(dados.clientes, q, []).slice(0, 60).map((cliente) => ({ cliente, selecionavel: true, nota: null })),
+    [emNome, dados.clientes, q],
+  );
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 12 }} keyboardShouldPersistTaps="handled">
       <BackLink label={rotuloVoltarNovoPedido(vendedorId)} fallback={hrefPedidos()} />
       <Text style={t.h1Small}>Novo pedido</Text>
       <Text style={t.sub}>Para qual cliente?</Text>
+      {emNome ? (
+        <Text style={t.small} testID="picker-carteira">
+          {subtituloDoSeletor(emNome.nomeDoDono)}
+        </Text>
+      ) : null}
       {produtoEmEspera ? <Text style={t.small}>Item: {produtoEmEspera}</Text> : null}
-      <SearchBox value={q} onChange={setQ} placeholder="Nome, código ou bairro" testID="picker-search" />
-      <Card>
-        {list.map((c, i) => (
-          <Pressable
-            key={c.id}
-            testID={`pick-${c.trade_name}`}
-            accessibilityRole="button"
-            onPress={() => {
-              fixarClienteDoPendente(c.id);
-              router.setParams({ customerId: c.id });
-            }}
-            style={({ pressed }) => [styles.pickRow, i < list.length - 1 && styles.divider, pressed && { backgroundColor: colors.ground }]}>
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text style={t.bodyStrong} numberOfLines={1}>
-                {c.trade_name}
-              </Text>
-              <Text style={t.small}>
-                {[c.city, c.district].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
-            <Icon name="chevron" size={16} color={colors.ink3} />
-          </Pressable>
-        ))}
-      </Card>
+      <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Nome, código ou bairro" rotuloAcessivel="Buscar cliente" testID="picker-search" />
+      {opcoes.length === 0 ? (
+        <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.'} />
+      ) : (
+        <Card>
+          {opcoes.map((o, i) => {
+            const c = o.cliente;
+            const ultima = i === opcoes.length - 1;
+            return (
+              <Pressable
+                key={c.id}
+                testID={`pick-${c.trade_name}`}
+                accessibilityRole="button"
+                accessibilityLabel={rotuloAcessivelDaOpcao(o)}
+                accessibilityState={o.selecionavel ? undefined : { disabled: true }}
+                disabled={!o.selecionavel}
+                onPress={() => {
+                  fixarClienteDoPendente(c.id);
+                  router.setParams({ customerId: c.id });
+                }}
+                style={({ pressed }) => [styles.pickRow, !ultima && styles.divider, pressed && o.selecionavel && { backgroundColor: colors.ground }]}>
+                <View style={{ flex: 1, gap: 1 }}>
+                  <Text style={o.selecionavel ? t.bodyStrong : [t.bodyStrong, { color: colors.ink2 }]} numberOfLines={1}>
+                    {c.trade_name}
+                  </Text>
+                  <Text style={t.small}>{[c.city, c.district].filter(Boolean).join(' · ')}</Text>
+                  {o.nota ? (
+                    <Text style={t.small} testID={`pick-outra-${c.trade_name}`}>
+                      {o.nota}
+                    </Text>
+                  ) : null}
+                </View>
+                {o.selecionavel ? <Icon name="chevron" size={16} color={colors.ink3} /> : null}
+              </Pressable>
+            );
+          })}
+        </Card>
+      )}
     </ScrollView>
   );
 }
@@ -638,26 +667,10 @@ function SentCard({ order, tipo, validadeData }: { order: OrderDetail; tipo: 'pe
   );
 }
 
-function SearchBox({ value, onChange, placeholder, testID }: { value: string; onChange: (v: string) => void; placeholder: string; testID?: string }) {
-  return (
-    <View style={styles.search}>
-      <Icon name="search" size={18} color={colors.ink2} />
-      <TextInput testID={testID} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.ink3} style={styles.searchInput} autoCorrect={false} returnKeyType="search" accessibilityLabel={placeholder} />
-      {value ? (
-        <Pressable accessibilityLabel="Limpar busca" onPress={() => onChange('')} hitSlop={12}>
-          <Icon name="close" size={16} color={colors.ink2} />
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14, minHeight: 56 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md },
-  searchInput: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 15, color: colors.ink, height: 44 },
   prod: { gap: 6, paddingVertical: 12, paddingHorizontal: 14 },
   qtyBtn: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   qty: { width: 44, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },

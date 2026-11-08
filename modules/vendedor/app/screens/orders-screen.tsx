@@ -19,6 +19,7 @@ import {
   chipsComAtivo,
   contarPorSituacao,
   destacarTrecho,
+  type TrechoDoTexto,
   deslocarPeriodo,
   diasComPedido,
   filtrarLista,
@@ -40,6 +41,7 @@ import { pedidoAFaturar } from '../../domain/resumo-inicio';
 import { orcamentosEmAberto } from '../lib/resumo-inicio';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
@@ -381,12 +383,12 @@ export default function OrdersScreen() {
   );
 }
 
-/** Texto com o trecho achado em destaque (sem acento e sem maiúscula). */
-function Destacado({ texto, busca, style }: { texto: string; busca: string; style?: object }) {
+/** Texto com o trecho achado em destaque (sem acento e sem maiúscula); fundo e tinta do kit, legíveis ao sol (Y11). */
+function Destacado({ texto, busca, style, mono, trechos, testID, testIDDestaque, linhaUnica = true }: { texto: string; busca: string; style?: object; mono?: boolean; trechos?: TrechoDoTexto[]; testID?: string; testIDDestaque?: string; linhaUnica?: boolean }) {
   return (
-    <Text style={style} numberOfLines={1}>
-      {destacarTrecho(texto, busca).map((p, i) => (
-        <Text key={i} style={p.destaque ? styles.destaque : undefined}>
+    <Text style={[style, mono && { fontFamily: fonts.mono }]} numberOfLines={linhaUnica ? 1 : undefined} testID={testID}>
+      {(trechos ?? destacarTrecho(texto, busca)).map((p, i) => (
+        <Text key={i} style={p.destaque ? styles.destaque : undefined} testID={p.destaque ? testIDDestaque : undefined}>
           {p.texto}
         </Text>
       ))}
@@ -431,13 +433,7 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
       <View style={styles.line}>
         <Text style={[t.small, { flex: 1 }]} numberOfLines={1}>
           {o.number ? (
-            <Text style={{ fontFamily: fonts.mono }} testID={`order-numero-${o.number}`}>
-              {destacarTrecho(o.number, busca).map((p, i) => (
-                <Text key={i} style={p.destaque ? styles.destaque : undefined}>
-                  {p.texto}
-                </Text>
-              ))}
-            </Text>
+            <Destacado texto={o.number} busca={busca} trechos={trechosDoNumero(o.number, busca)} mono linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
           ) : (
             <Text style={{ fontFamily: fonts.mono }}>no aparelho</Text>
           )}{' '}
@@ -462,7 +458,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: -6 },
-  destaque: { backgroundColor: colors.accentSoft },
+  destaque: { backgroundColor: colors.accentSoft, color: colors.accentInk },
   row: { gap: 3, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
