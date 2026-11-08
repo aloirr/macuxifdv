@@ -2,11 +2,18 @@
  * Portal de implantação (`config.macuxifdv.com.br`, T-0087; ADR 0029; desenho docs/desenho/T-0087.md §3–§6):
  * - rotas da plataforma sem tenant: `GET|POST /v1/plataforma/empresas` (o passo Empresa usa o `planoDeOnboarding` da
  *   T-0083 sobre TODOS os manifestos, por isso mora aqui, na raiz de composição, e não no Core);
- * - fonte de dados do super-admin (funções `SECURITY DEFINER` da 0035, banco-dados) e a auditoria de toda requisição
- *   feita com o token de plataforma (`plataforma.auditoria_plataforma`, no fim da resposta, também quando recusada).
+ * - fonte de dados do portal (funções `SECURITY DEFINER` `plataforma.sa_*`, banco-dados) e a auditoria de toda requisição
+ *   feita com o token do portal (`plataforma.auditoria_plataforma`, no fim da resposta, também quando recusada).
  * Sem dado pessoal no log nem na auditoria: ids, modelo da rota, status, `request_id` e o prefixo do IP.
  * T-0091: o `banco` que chega aqui é o do portal (papel `macuxi_portal`, só EXECUTE nas `sa_*`), nunca o `macuxi_app`.
+ * T-0093 (ADR 0031; desenho docs/desenho/T-0093.md §4 e §6): dois tipos de acesso ao portal. `GET empresas` vale para os dois
+ * (a `sa_listar_tenants` filtra: o admin do cliente só vê as empresas da sessão); `POST empresas` só o super-admin (403 para o
+ * cliente) e cria o admin inicial do cliente (RN-CORE-34) com a senha na RN-CORE-32 (regra e hash do Core). A auditoria leva
+ * `ator_tipo` e o `usuario_id` do admin do cliente.
  */
+import { normalizarEmail, validarSenhaInicial } from '@macuxi/core/api';
+import { faltasNaSenha } from '@macuxi/core/contracts';
+import { hashSenha } from '@macuxi/db';
 import {
   CriarEmpresaRespostaSchema,
   CriarEmpresaSchema,
@@ -14,9 +21,10 @@ import {
   ListaEmpresasSchema,
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
+  type AcessoPortalAutenticado,
   type Manifesto,
   type ModuloId,
-  type SuperAdminAutenticado,
+  type TipoAcessoPortal,
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -25,7 +33,12 @@ import { ErroHttp } from './erros';
 
 /** Linha de `plataforma.auditoria_plataforma` gravada pela API (a do login é do Core). */
 export interface LinhaAuditoriaPlataforma {
-  super_admin_id: string;
+  /** T-0093: quem fez (o super-admin ou o admin do cliente). */
+  ator_tipo: TipoAcessoPortal;
+  /** Super-admin; `null` quando o ator é o admin do cliente. */
+  super_admin_id: string | null;
+  /** `core.usuario.id` do admin do cliente na empresa escolhida; `null` para o super-admin e para o cliente sem empresa. */
+  usuario_id: string | null;
   sessao_id: string;
   tenant_id: string | null;
   acao: string;
@@ -37,7 +50,26 @@ export interface LinhaAuditoriaPlataforma {
   ip_prefixo: string | null;
 }
 
-/** Entrada de `plataforma.sa_provisionar_tenant(sid, p jsonb)` (desenho §5.1 e §6 item 5): a da T-0083 sem admin, com parâmetros. */
+/** Ator da linha de auditoria pelo tipo de acesso (nada de nome ou e-mail). */
+export function atorDaAuditoria(quem: AcessoPortalAutenticado): Pick<LinhaAuditoriaPlataforma, 'ator_tipo' | 'super_admin_id' | 'usuario_id' | 'sessao_id'> {
+  return quem.tipo === 'super_admin'
+    ? { ator_tipo: 'super_admin', super_admin_id: quem.id, usuario_id: null, sessao_id: quem.sessao_id }
+    : { ator_tipo: 'admin_cliente', super_admin_id: null, usuario_id: quem.empresa?.usuario_id ?? null, sessao_id: quem.sessao_id };
+}
+
+/** Admin inicial do cliente (RN-CORE-34) como vai ao banco: só o hash argon2id, nunca a senha. */
+export interface AdminInicialProvisionar {
+  email: string;
+  nome: string;
+  senha_hash: string;
+}
+
+/**
+ * Entrada de `plataforma.sa_provisionar_tenant(sid, p jsonb)` (desenho T-0087 §5.1 e §6 item 5; T-0093 §6): a da T-0083 com
+ * parâmetros e, desde a T-0093 (0039), com o admin inicial do cliente (RN-CORE-34). Sem `admin` = a função chama a
+ * `provisionar_tenant` com `sem_admin` (empresa que já existe). Nunca `sem_admin` nem `redefinir_senha` na entrada (a 0039 recusa
+ * com 22023; RN-CORE-31: o portal não troca senha de admin existente).
+ */
 export interface EntradaProvisionarPlataforma {
   codigo: string;
   nome: string;
@@ -45,18 +77,40 @@ export interface EntradaProvisionarPlataforma {
   fuso: string;
   plano: string;
   modulos: { modulo: ModuloId; licencas: number | null; perfis: string[] }[];
-  sem_admin: true;
   parametros: { modulo: string; chave: string; valor: unknown }[];
+  admin?: AdminInicialProvisionar;
 }
 
-/** Acesso às funções do super-admin (0035). Testes injetam a sua. */
+/**
+ * Senha do admin inicial (RN-CORE-32; desenho T-0093 §6 e §8): a regra e a normalização do e-mail são do Core; o hash é o
+ * argon2id (PHC) da plataforma (`@macuxi/db`, o mesmo do `tenant:criar` e dos seeds). A API só aplica. Testes injetam a sua.
+ */
+export interface SenhaDoPortal {
+  normalizarEmail(email: string): string;
+  /** `null` = serve; senão a mensagem do Core e as faltas da RN-CORE-32 (vazia quando o problema é ser igual ao e-mail). */
+  validar(senha: string, email: string): { mensagem: string; faltas: readonly string[] } | null;
+  /** argon2id (PHC). */
+  hash(senha: string): Promise<string>;
+}
+
+export const senhaDoCore: SenhaDoPortal = {
+  normalizarEmail,
+  validar: (senha, email) => {
+    const mensagem = validarSenhaInicial(senha, email);
+    return mensagem === null ? null : { mensagem, faltas: faltasNaSenha(senha) };
+  },
+  // argon2id síncrono (dezenas de ms): só no cadastro de empresa pelo super-admin, raro; o login usa o pool do Core
+  hash: async (senha) => hashSenha(senha),
+};
+
+/** Acesso às funções do portal (0035/0038/0039; T-0093: valem para os dois tipos de acesso). Testes injetam a sua. */
 export interface FontePlataforma {
-  /** Tenant existe, está ativo e a sessão está viva (`sa_tenant_ativo`). */
-  tenantAtivo(sa: SuperAdminAutenticado, tenantId: string, banco: AcessoBanco): Promise<boolean>;
-  /** Empresas para o portal (`sa_listar_tenants`); a resposta é conferida por `ListaEmpresasSchema`. */
-  listarEmpresas(sa: SuperAdminAutenticado, banco: AcessoBanco): Promise<unknown>;
-  /** `sa_provisionar_tenant`; `simular` = mesma chamada numa transação desfeita. */
-  provisionar(sa: SuperAdminAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown>;
+  /** Tenant existe, está ativo e a sessão está viva (`sa_tenant_ativo`; só o super-admin chega aqui). */
+  tenantAtivo(quem: AcessoPortalAutenticado, tenantId: string, banco: AcessoBanco): Promise<boolean>;
+  /** Empresas para o portal (`sa_listar_tenants`: super-admin = todas; admin do cliente = as da sessão); conferida por `ListaEmpresasSchema`. */
+  listarEmpresas(quem: AcessoPortalAutenticado, banco: AcessoBanco): Promise<unknown>;
+  /** `sa_provisionar_tenant` (só super-admin); `simular` = mesma chamada numa transação desfeita. */
+  provisionar(quem: AcessoPortalAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown>;
   auditar(linha: LinhaAuditoriaPlataforma, banco: AcessoBanco): Promise<void>;
 }
 
@@ -78,15 +132,15 @@ async function comSessaoViva<T>(f: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Implementação pelas funções da 0035 (`semTenant`: só funções SECURITY DEFINER; o RLS dá 0 linhas no resto). */
+/** Implementação pelas funções `sa_*` (`semTenant`: só funções SECURITY DEFINER; o RLS dá 0 linhas no resto). */
 export const fontePlataformaNoBanco: FontePlataforma = {
-  tenantAtivo: (sa, tenantId, banco) =>
-    banco.semTenant(async (db) => (await db.query<{ ok: boolean }>('select plataforma.sa_tenant_ativo($1, $2) as ok', [sa.sessao_id, tenantId])).rows[0]?.ok === true),
-  listarEmpresas: (sa, banco) =>
+  tenantAtivo: (quem, tenantId, banco) =>
+    banco.semTenant(async (db) => (await db.query<{ ok: boolean }>('select plataforma.sa_tenant_ativo($1, $2) as ok', [quem.sessao_id, tenantId])).rows[0]?.ok === true),
+  listarEmpresas: (quem, banco) =>
     comSessaoViva(() =>
-      banco.semTenant(async (db) => (await db.query<{ r: unknown }>('select plataforma.sa_listar_tenants($1) as r', [sa.sessao_id])).rows[0]?.r ?? { itens: [] }),
+      banco.semTenant(async (db) => (await db.query<{ r: unknown }>('select plataforma.sa_listar_tenants($1) as r', [quem.sessao_id])).rows[0]?.r ?? { itens: [] }),
     ),
-  provisionar: (sa, entrada, simular, banco) => comSessaoViva(() => provisionarNoBanco(sa, entrada, simular, banco)),
+  provisionar: (quem, entrada, simular, banco) => comSessaoViva(() => provisionarNoBanco(quem, entrada, simular, banco)),
   auditar: (linha, banco) =>
     banco.semTenant(async (db) => {
       await db.query('select plataforma.sa_auditar($1::jsonb)', [JSON.stringify(linha)]);
@@ -101,10 +155,10 @@ export const SQL_PRAZO_PROVISIONAR = `set local statement_timeout = '${PRAZO_PRO
  * T-0091: roda no papel `macuxi_portal`, invisível ao horizonte do pull do `macuxi_app`, e grava `plataforma.parametro`
  * (entidade de sync): o prazo curto da transação (abaixo da margem do horizonte) garante que a linha nunca fique atrás do cursor.
  */
-async function provisionarNoBanco(sa: SuperAdminAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown> {
+async function provisionarNoBanco(quem: AcessoPortalAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown> {
   const chamar = async (db: Parameters<Parameters<AcessoBanco['semTenant']>[0]>[0]) => {
     await db.query(SQL_PRAZO_PROVISIONAR);
-    return (await db.query<{ r: unknown }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [sa.sessao_id, JSON.stringify(entrada)])).rows[0]?.r;
+    return (await db.query<{ r: unknown }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [quem.sessao_id, JSON.stringify(entrada)])).rows[0]?.r;
   };
   if (!simular) return banco.semTenant(chamar);
   try {
@@ -132,31 +186,43 @@ export function prefixoDoIp(ip: string | undefined | null): string | null {
   return null;
 }
 
-/** Super-admin e tenant da requisição, guardados para a auditoria do `onResponse`. */
-export interface MarcaSuperAdmin {
-  sa: SuperAdminAutenticado;
+/** Quem entrou pelo portal (super-admin ou admin do cliente) e o tenant da requisição, guardados para a auditoria do `onResponse`. */
+export interface MarcaPortal {
+  quem: AcessoPortalAutenticado;
   tenantId: string | null;
 }
-const MARCAS = new WeakMap<FastifyRequest, MarcaSuperAdmin>();
-export const marcarSuperAdmin = (req: FastifyRequest, m: MarcaSuperAdmin): void => void MARCAS.set(req, m);
-export const marcaSuperAdmin = (req: FastifyRequest): MarcaSuperAdmin | undefined => MARCAS.get(req);
+const MARCAS = new WeakMap<FastifyRequest, MarcaPortal>();
+export const marcarPortal = (req: FastifyRequest, m: MarcaPortal): void => void MARCAS.set(req, m);
+export const marcaPortal = (req: FastifyRequest): MarcaPortal | undefined => MARCAS.get(req);
 
-/** Resposta da função `sa_provisionar_tenant` (o mesmo resumo da T-0083 §3, sem admin, com os parâmetros gravados). */
+/** Resposta da função `sa_provisionar_tenant` (o resumo da T-0083 §3, com os parâmetros gravados e, desde a T-0093, o admin). */
 const RespostaProvisionarPlataformaSchema = z.object({
   tenant_id: z.string().uuid().nullable(),
   resultado: z.enum(['criado', 'atualizado', 'sem_mudanca']),
   modulos_adicionados: z.array(z.string()).default([]),
   parametros_gravados: z.array(z.string()).default([]),
   avisos: z.array(z.string()).default([]),
+  admin: z.enum(['criado', 'existente', 'sem_admin']).optional(),
 });
+
+/**
+ * Empresa NOVA sem admin inicial (RN-CORE-34): a `sa_provisionar_tenant` recusa com SQLSTATE 22023 e `hint` `RN-CORE-34`
+ * (combinado com o banco-dados: só ele sabe, na mesma transação, se a empresa já existe).
+ */
+const ehSemAdminNaEmpresaNova = (e: unknown): boolean => {
+  const x = e as { code?: unknown; hint?: unknown } | null;
+  return x?.code === '22023' && x.hint === 'RN-CORE-34';
+};
 
 export interface DepsRotasPlataforma {
   manifestos: readonly Manifesto[];
   acesso: AcessoBanco;
   fonte: FontePlataforma;
-  /** Super-admin do cabeçalho (`autenticarSuperAdmin` do Core); `null` = 401. */
-  autenticar(req: FastifyRequest): Promise<SuperAdminAutenticado | null>;
+  /** Quem entrou pelo portal (`autenticarPortal` do Core); `null` = 401. */
+  autenticar(req: FastifyRequest): Promise<AcessoPortalAutenticado | null>;
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
+  /** Regra, e-mail e hash da senha do admin inicial (padrão: `senhaDoCore`). */
+  senha?: SenhaDoPortal;
 }
 
 /** Módulos que o portal liga sempre: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub). */
@@ -164,22 +230,26 @@ export const MODULOS_SEMPRE_NO_PORTAL: readonly ModuloId[] = ['core', 'integraca
 
 /** `GET|POST /v1/plataforma/empresas`. */
 export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPlataforma): void {
-  const exigir = async (req: FastifyRequest): Promise<SuperAdminAutenticado> => {
-    const sa = await dep.autenticar(req);
-    if (!sa) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Entre no portal para continuar.');
-    marcarSuperAdmin(req, { sa, tenantId: null });
-    return sa;
+  const senha = dep.senha ?? senhaDoCore;
+  const exigir = async (req: FastifyRequest): Promise<AcessoPortalAutenticado> => {
+    const quem = await dep.autenticar(req);
+    if (!quem) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Entre no portal para continuar.');
+    marcarPortal(req, { quem, tenantId: quem.tipo === 'admin_cliente' ? (quem.empresa?.tenant_id ?? null) : null });
+    return quem;
   };
 
+  // os dois tipos (T-0093 §4): a função filtra; o admin do cliente vê só as empresas da sessão, também antes de escolher
   app.get('/v1/plataforma/empresas', async (req) => {
-    const sa = await exigir(req);
-    const r = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(sa, dep.acesso));
+    const quem = await exigir(req);
+    const r = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     if (!r.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
     return r.data;
   });
 
   app.post('/v1/plataforma/empresas', async (req, reply) => {
-    const sa = await exigir(req);
+    const quem = await exigir(req);
+    // só o time da Macuxi cria ou altera empresa (RN-CORE-33/34; desenho T-0093 §4)
+    if (quem.tipo !== 'super_admin') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const e = dep.validar(CriarEmpresaSchema, req.body, 'corpo') as z.output<typeof CriarEmpresaSchema>;
     const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
     const licencas = Object.fromEntries(e.modulos.filter((m) => m.licencas !== null).map((m) => [m.modulo, m.licencas as number]));
@@ -190,18 +260,32 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
         erros: plano.erros.map((x) => ({ codigo: x.codigo, campo: x.campo, ...(x.modulo ? { modulo: x.modulo } : {}), ...(x.dependencia ? { dependencia: x.dependencia } : {}), mensagem: x.mensagem })),
       });
     }
+    // admin inicial (RN-CORE-34) com a senha master na RN-CORE-32; ao banco vai só o hash (também no simular: confere tudo)
+    let admin: AdminInicialProvisionar | null = null;
+    if (e.admin) {
+      const email = senha.normalizarEmail(e.admin.email);
+      const problema = senha.validar(e.admin.senha, email);
+      if (problema) throw new ErroHttp(422, 'RN-CORE-32', problema.mensagem, { campo: 'admin.senha', faltas: [...problema.faltas] });
+      admin = { email, nome: e.admin.nome, senha_hash: await senha.hash(e.admin.senha) };
+    }
     // parâmetros iniciais só valem para o Vendedor licenciado (sem ele, as chaves ficariam soltas)
     const parametros = pedidos.has('vendedor') ? linhasDosParametrosIniciais(e.parametros) : [];
     const entrada: EntradaProvisionarPlataforma = {
       ...plano.plano.tenant,
       modulos: plano.plano.modulos.map((m) => ({ modulo: m.modulo, licencas: m.licencas, perfis: [...m.perfis] })),
-      sem_admin: true,
       parametros,
+      ...(admin ? { admin } : {}),
     };
-    const bruto = await dep.fonte.provisionar(sa, entrada, e.simular, dep.acesso);
+    let bruto: unknown;
+    try {
+      bruto = await dep.fonte.provisionar(quem, entrada, e.simular, dep.acesso);
+    } catch (erro) {
+      if (ehSemAdminNaEmpresaNova(erro)) throw new ErroHttp(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
+      throw erro;
+    }
     const r = RespostaProvisionarPlataformaSchema.safeParse(bruto);
     if (!r.success) throw new Error('sa_provisionar_tenant devolveu formato diferente do combinado (desenho T-0087 §6)');
-    if (r.data.tenant_id) marcarSuperAdmin(req, { sa, tenantId: r.data.tenant_id });
+    if (r.data.tenant_id) marcarPortal(req, { quem, tenantId: r.data.tenant_id });
     const resposta = CriarEmpresaRespostaSchema.parse({
       tenant_id: r.data.tenant_id,
       codigo: plano.plano.tenant.codigo,
@@ -209,6 +293,7 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
       modulos_adicionados: r.data.modulos_adicionados.filter((m) => pedidos.has(m as ModuloId)),
       parametros_gravados: r.data.parametros_gravados,
       avisos: r.data.avisos,
+      admin: r.data.admin === 'criado' || r.data.admin === 'existente' ? r.data.admin : null,
       simulado: e.simular,
     });
     return reply.code(e.simular || r.data.resultado !== 'criado' ? 200 : 201).send(resposta);

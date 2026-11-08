@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "descricao": "Mapa de donos do repositório. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo em .coord/recados/<destino>/ e escreve no próprio .coord/diario/<agente>.md e .coord/lidos/<agente>.txt. Anexos de recado (.coord/recados/anexos/**) não são recados: valem as regras abaixo (dono alexandre). 'congelado' = ninguém altera; 'sem-dono' = caminho não mapeado (bloqueado). 'somente_leitura' = pastas fora do repositório que nenhum agente pode alterar (Fase M).",
+  "descricao": "Mapa de donos do repositório. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo em .coord/recados/<destino>/ e escreve no próprio .coord/diario/<agente>.md e .coord/lidos/<agente>.txt. 'congelado' = ninguém altera; 'sem-dono' = caminho não mapeado (bloqueado). 'somente_leitura' = pastas fora do repositório que nenhum agente pode alterar (Fase M).",
   "regras": [
     {
       "padrao": "_instalar/**",
@@ -20,10 +20,6 @@
     },
     {
       "padrao": "scripts/coord*.mjs",
-      "dono": "alexandre"
-    },
-    {
-      "padrao": ".coord/recados/anexos/**",
       "dono": "alexandre"
     },
     {

@@ -76,6 +76,25 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **único** com EXECUTE nas 20 `plataforma.sa_*`; `macuxi_app` e `macuxi_worker` perdem o EXECUTE (42501). `@macuxi/db` exporta
 > `PAPEL_PORTAL`, `urlPortal` e `garantirPapelPortal`; o banco dos testes traz `urlPortal` (`banco().urlPortal`). A migração
 > sozinha deixa o portal em 42501: vai junto da API com o 2º pool. Detalhes no [plataforma.md](plataforma.md) e no [rls.md](rls.md).
+>
+> **2026-11-07 (T-0093):** `0039_plataforma_portal_email_senha` (ADR 0031): o portal entra só com e-mail e senha. Tabelas novas
+> só por função, sem `tenant_id`: `plataforma.portal_tentativa` (bloqueio por chave HMAC do e-mail), `portal_sessao` e
+> `portal_sessao_empresa` (super-admin ou admin do cliente, empresa escolhida na sessão); `auditoria_plataforma` ganha `ator_tipo`
+> e `usuario_id`; índice `core.usuario_admin_email_ix`. 12 `sa_*` (EXECUTE só ao `macuxi_portal`), a `criar_super_admin` do deploy
+> (sem EXECUTE para app, worker ou portal) e saem as 14 do convite/TOTP/desafio. Vai no mesmo commit do Core e da API.
+> Detalhes no [plataforma.md](plataforma.md) ("Portal só com e-mail e senha") e no [rls.md](rls.md).
+>
+> **2026-11-07 (T-0095):** seção separada "T-0095: guarda de ordem do ERP" no fim da `0039` (up e down): `erp_alterado_em
+> timestamptz(3)` nula em `core.cliente`, `core.usuario` e `core.produto` (último `alterado_em` do ERP aplicado; reentrega mais
+> antiga é ignorada) e `core.usuario.desligado_no_bko_em timestamptz(3)` nula (o BKO marca ao desativar; a carga do ERP não
+> reativa). Aditiva, sem backfill, sem índice, fora do pull. Detalhes no [core.md](core.md); teste `db/testes/erp-ordem.test.ts`.
+>
+> **2026-11-07 (T-0094):** `0040_core_senha_email_saida` (aditiva, ADR 0032): `core.usuario` ganha o estado da senha
+> (`trocar_senha`, `senha_expira_em`, `senha_temporaria_*` do "Esqueci a senha") e a `sessao_versao`; outbox de e-mail
+> `plataforma.email_saida` (carga cifrada só no pendente; app só insere e lê; worker marca só a pendente; fora do sync);
+> `portal_sessao_empresa.sessao_versao` e as 4 `sa_*` do login do portal leem a versão e o `trocar_senha`; admin inicial nasce
+> com `trocar_senha`; anonimização limpa a temporária e a carga; convites pendentes revogados. Vai no mesmo commit do Core
+> (fatia C). Detalhes no [core.md](core.md) e no [plataforma.md](plataforma.md) ("Outbox de e-mail").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema } from '../contracts';
 import { criarAutenticacao } from './autenticacao';
-import { bancoDeTeste, contextoPublico, estadoInicial, fabricaEmMemoria, logSilencioso, SEGREDO, TENANT_A, type EstadoMemoria } from './apoio-teste';
+import { bancoDeTeste, contextoPublico, estadoInicial, fabricaEmMemoria, logSilencioso, SEGREDO, senhasDeTeste, TENANT_A, type EstadoMemoria } from './apoio-teste';
 import { ErroHttpModulo } from '@macuxi/platform-sdk';
 import { lerRefresh, verificarJwtAcesso } from './seguranca';
 
@@ -31,7 +31,7 @@ async function falha(p: Promise<unknown>): Promise<ErroHttpModulo> {
 beforeEach(async () => {
   t0 = new Date('2026-10-31T12:00:00Z');
   e = await estadoInicial();
-  auth = criarAutenticacao({ segredo: () => SEGREDO, repos: fabricaEmMemoria(e) });
+  auth = criarAutenticacao({ segredo: () => SEGREDO, repos: fabricaEmMemoria(e), senhas: senhasDeTeste() });
 });
 
 describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
@@ -43,8 +43,9 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
     const claims = verificarJwtAcesso(r.access_token, t0, SEGREDO)!;
     expect(claims).toMatchObject({ sub: r.usuario.id, tid: TENANT_A, perfil: 'vendedor' });
     expect(claims.exp - claims.iat).toBe(900);
-    // licença não vai no token (RN-CORE-01)
-    expect(Object.keys(claims).sort()).toEqual(['exp', 'iat', 'perfil', 'sub', 'tid']);
+    // licença não vai no token (RN-CORE-01); só a versão da sessão (sv, T-0094)
+    expect(Object.keys(claims).sort()).toEqual(['exp', 'iat', 'perfil', 'sub', 'sv', 'tid']);
+    expect(claims.sv).toBe(0);
     expect(lerRefresh(r.refresh_token)?.tenantId).toBe(TENANT_A);
   });
 
@@ -232,12 +233,12 @@ describe('aparelho de outro tenant (23503)', () => {
     const { repositorioTenantSql } = await import('./repositorio');
     for (const code of ['23503', '23505', '42501']) {
       const repo = repositorioTenantSql({ query: () => Promise.reject(Object.assign(new Error('pg'), { code })) });
-      const s = { id: 'a', usuario_id: 'u', familia_id: 'f', token_hash: 'h', dispositivo_id: 'd', expira_em: new Date() };
+      const s = { id: 'a', usuario_id: 'u', familia_id: 'f', token_hash: 'h', dispositivo_id: 'd', expira_em: relogio() };
       await expect(repo.criarSessao(s)).rejects.toMatchObject({ status: 403, codigo: 'DISPOSITIVO_INVALIDO' });
-      await expect(repo.upsertDispositivo('u', 'd', null, new Date())).rejects.toMatchObject({ status: 403, codigo: 'DISPOSITIVO_INVALIDO' });
+      await expect(repo.upsertDispositivo('u', 'd', null, relogio())).rejects.toMatchObject({ status: 403, codigo: 'DISPOSITIVO_INVALIDO' });
     }
     const outro = repositorioTenantSql({ query: () => Promise.reject(Object.assign(new Error('x'), { code: '57014' })) });
-    await expect(outro.upsertDispositivo('u', 'd', null, new Date())).rejects.not.toMatchObject({ status: 403 });
+    await expect(outro.upsertDispositivo('u', 'd', null, relogio())).rejects.not.toMatchObject({ status: 403 });
   });
 });
 

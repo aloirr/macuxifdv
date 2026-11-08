@@ -2,8 +2,8 @@
  * T-0029 (onda 3) — Pedidos no BKO pelo navegador (Playwright), contra a demo local com a API real.
  *
  * Fluxo: o vendedor tira um pedido de 8% pela API (push do sync, como o app) → o analista vê a lista, filtra por status
- * e pela busca, abre o detalhe com os itens e os botões de PDF → a supervisora (BKO) aprova pelo painel "Aguardando
- * aprovação" → a lista e a API mostram "Aprovado". No fim o pedido do teste é cancelado (a base da demo fica como estava,
+ * e pela busca, abre o detalhe com os itens e os botões de PDF → a supervisora não entra no BKO (RN-CORE-33, T-0094) e
+ * aprova pelo app Gestão (API) → a lista e a API mostram "Aprovado". No fim o pedido do teste é cancelado (a base da demo fica como estava,
  * a menos desse pedido cancelado com a observação "e2e testes").
  *
  * Pré-requisito (não sobe nada sozinho): demo no ar (`scripts\demo\subir-demo.ps1 -SemTunel`, API em 8100) e o BKO
@@ -160,16 +160,31 @@ test.describe.serial('T-0029 — Pedidos no BKO (lista, filtro, detalhe, aprovar
     await expect(page.getByRole('dialog')).toContainText(`Pedido ${numero}`);
   });
 
-  test('D-B26/RN-GES-08: a supervisora aprova pelo painel "Aguardando aprovação" (1 clique); a lista e a API mostram Aprovado', async ({ page, request }) => {
+  test('D-B26/RN-CORE-33 (T-0094): a supervisora NÃO entra no BKO — o login mostra para onde ir e nenhum menu aparece', async ({ page }) => {
+    await page.goto('/login');
+    const campos: Array<[string, string]> = [['login.codigo-empresa', 'demo'], ['login.email', 'supervisor@exemplo.com.br'], ['login.senha', SENHA]];
+    await expect(async () => {
+      for (const [id, valor] of campos) await page.getByTestId(id).fill(valor);
+      for (const [id, valor] of campos) await expect(page.getByTestId(id)).toHaveValue(valor, { timeout: 1_000 });
+      await page.getByTestId('login.entrar').click();
+      await expect(page.getByTestId('login.erro')).toContainText('não usa o backoffice', { timeout: 20_000 });
+    }).toPass({ timeout: 90_000 });
+    await expect(page.getByTestId('login.erro')).toContainText('Gestão');
+    await expect(page.getByTestId('nav-vendedor-pedidos')).toHaveCount(0);
+    await expect(page.getByTestId('login.tela')).toBeVisible();
+  });
+
+  test('D-B26/RN-GES-08: a supervisora aprova pelo app Gestão (API com app "gestao"); a lista do BKO (analista) e a API mostram Aprovado', async ({ page, request }) => {
+    const r = await request.post(`${API}/auth/login`, { data: { codigo_empresa: 'demo', email: 'supervisor@exemplo.com.br', senha: SENHA, app: 'gestao' }, headers: { 'x-forwarded-for': ip() } });
+    expect(r.status(), await r.text()).toBe(200);
+    const tokenSupervisora = ((await r.json()) as { access_token: string }).access_token;
+    const ap = await request.post(`${API}/vendedor/pedidos/${pedidoId}/aprovar`, { data: {}, headers: { authorization: `Bearer ${tokenSupervisora}` } });
+    expect(ap.status(), await ap.text()).toBe(200);
     const a = vigiar(page);
-    await entrar(page, 'supervisor@exemplo.com.br');
+    await entrar(page, 'analista@exemplo.com.br');
     await abrirPedidos(page);
-    const aprovar = page.getByTestId(`pedido.aprovar.${numero}`);
-    await expect(aprovar).toBeVisible({ timeout: 30_000 });
-    await aprovar.click();
     await expect(page.getByTestId('pedidos.pendentes')).not.toContainText(numero, { timeout: 30_000 });
     await expect(page.getByTestId(`pedido.linha.${numero}`)).toContainText('Aprovado', { timeout: 30_000 });
-    expect(a.chamadas).toContain(`POST /vendedor/pedidos/${pedidoId}/aprovar`);
     expect([...new Set(a.falhas)], 'rotas que responderam erro').toEqual([]);
     const d = await request.get(`${API}/vendedor/pedidos/${pedidoId}`, { headers: { authorization: `Bearer ${tokenVendedor}` } });
     expect(((await d.json()) as { status: string }).status).toBe('approved');

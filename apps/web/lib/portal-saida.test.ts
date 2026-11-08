@@ -1,7 +1,6 @@
 /** T-0087 fatia E, revisão de UX R-20261106-050553 R1 e Y2: os links que aparecem uma vez seguram a saída do portal. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { csvDosConvites, juntarConvites, MENSAGEM_CONVITE_INVALIDO } from './convite';
 import {
   assinarSaida,
   AVISO_TETO_MS,
@@ -70,39 +69,5 @@ describe('aviso antes do fim da sessão', () => {
     expect(avisoDeFimDaSessao(sessao(12, 120), agora, { pendente: true, usoRecente: false })).toEqual({ tipo: 'nenhum' });
     expect(avisoDeFimDaSessao(sessao(-1, 120), agora, { pendente: true, usoRecente: false })).toEqual({ tipo: 'nenhum' });
     expect(avisoDeFimDaSessao(null, agora, { pendente: true, usoRecente: false })).toEqual({ tipo: 'nenhum' });
-  });
-});
-
-describe('CSV dos convites gerado na tela', () => {
-  const c = (id: string, nome: string, link: string | null = null) => ({
-    usuario_id: id,
-    nome,
-    email: `${id}@empresa.com.br`,
-    perfil: 'vendedor',
-    caminho: `/convite#tok-${id}`,
-    link,
-    expira_em: '2026-11-13T12:00:00.000Z',
-  });
-
-  it('mesmas colunas do Core; link completo pela origem do BKO; neutraliza fórmula e escapa aspas', () => {
-    const csv = csvDosConvites([c('a', '=SOMA(1)'), c('b', 'Ana "Bia", Souza', 'https://bko.x/convite#t')], 'https://bko.macuxifdv.com.br');
-    expect(csv.split('\r\n')).toEqual([
-      'nome,email,perfil,link,expira_em',
-      "'=SOMA(1),a@empresa.com.br,vendedor,https://bko.macuxifdv.com.br/convite#tok-a,2026-11-13T12:00:00.000Z",
-      '"Ana ""Bia"", Souza",b@empresa.com.br,vendedor,https://bko.x/convite#t,2026-11-13T12:00:00.000Z',
-      '',
-    ]);
-  });
-
-  it('juntar: os novos primeiro, o anterior da mesma pessoa sai (deixou de valer)', () => {
-    const r = juntarConvites([c('b', 'B2'), c('c', 'C')], [c('a', 'A'), c('b', 'B1')]);
-    expect(r.map((x) => `${x.usuario_id}:${x.nome}`)).toEqual(['b:B2', 'c:C', 'a:A']);
-  });
-});
-
-describe('textos do convite', () => {
-  it('convite inválido: mensagem única que cita o link incompleto (Y7)', () => {
-    expect(MENSAGEM_CONVITE_INVALIDO).toMatch(/chegou incompleto/);
-    expect(MENSAGEM_CONVITE_INVALIDO).toMatch(/Abra o link inteiro/);
   });
 });

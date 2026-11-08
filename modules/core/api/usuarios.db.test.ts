@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UsuarioItemSchema } from '../contracts';
+import { perfisDeFabrica } from '../domain';
 import { criarAutenticacao } from './autenticacao';
 import { carteiraDoUsuario } from './carteira';
 import { assinarAcesso } from './seguranca';
@@ -33,7 +34,7 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
 
   function ctx(u: UsuarioAutenticado): ContextoBase {
     return {
-      usuario: u,
+      usuario: { ...u, perfis: perfisDeFabrica(u.perfil) },
       requestId: 'req-teste-usuarios',
       agora: () => new Date(),
       fuso: () => 'America/Manaus',
@@ -127,14 +128,14 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     expect((await entrar())?.id).toBe(criado.id);
   });
 
-  it('RF-CORE-01: redefinir senha troca o hash e audita só "senha alterada"', async () => {
+  it('RF-CORE-01: redefinir senha troca o hash, marca trocar_senha e audita sem senha', async () => {
     const criado = await chamar('POST', 'usuarios', admin, { corpo: novo('c1') });
     const hash = (id: string) => comTenant(pool, A.tenantId, async (c) => (await c.query<{ senha_hash: string }>('select senha_hash from core.usuario where id = $1', [id])).rows[0]!.senha_hash);
     const antes = await hash(criado.id);
     await chamar('PUT', 'usuarios/:id/senha', admin, { params: { id: criado.id }, corpo: { senha: 'Outra@Senha456' } });
     expect(await hash(criado.id)).not.toBe(antes);
     const [a] = await auditorias('usuario.senha_redefinir', criado.id);
-    expect(JSON.stringify(a)).toContain('senha_alterada');
+    expect(JSON.stringify(a)).toContain('trocar_senha');
     expect(JSON.stringify(a)).not.toContain('argon2');
   });
 

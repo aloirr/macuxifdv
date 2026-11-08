@@ -3,7 +3,16 @@
  * cancela, duplica nem exclui pedido, valendo pelo PERFIL (mesmo que ganhe o módulo Vendedor).
  * A API revalida sempre; o app só esconde. Ação desconhecida = negada (falha fechada).
  */
-import type { Perfil } from '@macuxi/platform-sdk';
+import {
+  matrizDeFabrica,
+  perfilDeFabrica,
+  podeEntrar,
+  resolverPerfil,
+  type AppComLogin,
+  type LugarDeAcesso,
+  type Perfil,
+  type PerfilDaRequisicao,
+} from '@macuxi/platform-sdk';
 
 export type Acesso = 'total' | 'leitura' | 'negado';
 export type EscopoMatriz = 'proprio' | 'carteira' | 'equipe' | 'tenant' | 'em_nome' | 'alcada' | 'acima_da_alcada';
@@ -44,9 +53,8 @@ const MATRIZ: Readonly<Record<string, Linha>> = {
   'pesquisa.responder': linha(T(), T(), T(), T(), N, N, N),
   'pesquisa.criar': linha(N, N, N, N, T(), N, T()),
   'modulo.gerir_licencas': linha(N, N, N, N, N, N, T()),
-  // Usuários no BKO (RF-CORE-02): leitura recortada pelo escopo (supervisor/gerente = equipe), gestão só do admin
-  'usuario.ver': linha(N, N, L('equipe'), L('equipe'), N, N, L('tenant')),
-  'usuario.gerir': linha(N, N, N, N, N, N, T()),
+  // Usuários no BKO (RF-CORE-02): leitura recortada pelo escopo (gerente = equipes abaixo; o supervisor não usa o BKO, RN-CORE-33); a gestão (criar, editar, desativar, senha) é do motor de permissões (ADR 0033)
+  'usuario.ver': linha(N, N, N, L('equipe'), N, N, L('tenant')),
 };
 
 export const ACOES_DA_MATRIZ: readonly string[] = Object.keys(MATRIZ);
@@ -73,6 +81,16 @@ export function podeVer(perfil: Perfil, acao: string): boolean {
   return decisao(perfil, acao).acesso !== 'negado';
 }
 
-/** Perfis que acessam o BKO na Sprint 0 (esclarecimento do doc 03): vendedor e promotor só usam o Campo. */
-export const PERFIS_DO_BKO: readonly Perfil[] = ['admin', 'analista', 'assistente', 'supervisor', 'gerente'];
-export const podeAcessarBko = (perfil: Perfil): boolean => PERFIS_DO_BKO.includes(perfil);
+/**
+ * ADR 0033: perfil de fábrica resolvido (sem sobreposição do tenant) para quem ainda não tem os perfis da requisição: rotas públicas
+ * (login, esqueci a senha) e tarefas de fundo. As chaves `acesso.*` são da plataforma, então a matriz sem manifestos basta.
+ */
+const MATRIZ_DE_ACESSO = matrizDeFabrica([]);
+export const perfisDeFabrica = (perfil: Perfil): PerfilDaRequisicao[] => [resolverPerfil(perfilDeFabrica(perfil), MATRIZ_DE_ACESSO)];
+
+/** Lugar de acesso (`acesso.*`) de cada app do login: o BKO entra como `web` no login e `bko` no motor. */
+export const lugarDoApp = (app: AppComLogin): LugarDeAcesso => (app === 'web' ? 'bko' : app);
+/** RN-CORE-33/35: os perfis dão acesso a este app? Quem decide é a chave `acesso.*`, não o nome do perfil. */
+export const podeUsarApp = (perfis: readonly PerfilDaRequisicao[], app: AppComLogin): boolean => podeEntrar(perfis, lugarDoApp(app));
+/** RN-CORE-33: entra no BKO (chave `acesso.bko`); vendedor, promotor e supervisor ficam fora na fábrica. */
+export const podeAcessarBko = (perfis: readonly PerfilDaRequisicao[]): boolean => podeEntrar(perfis, 'bko');

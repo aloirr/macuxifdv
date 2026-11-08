@@ -26,3 +26,18 @@ describe('perfis por app e conversão da Fase M', () => {
     expect(mensagemPerfilForaDoApp(null, 'web')).toMatch(/não foi reconhecido/);
   });
 });
+
+describe('T-0094: apps com login e superfície das rotas (RN-CORE-33)', () => {
+  it('os apps com login são exatamente os de PERFIS_DO_APP', async () => {
+    const { APPS_COM_LOGIN, PERFIS_DO_APP } = await import('./perfis');
+    expect([...APPS_COM_LOGIN].sort()).toEqual(Object.keys(PERFIS_DO_APP).sort());
+  });
+
+  it('superfície bko segue os perfis do BKO: vendedor e promotor fora; admin, analista, assistente e gerente dentro', async () => {
+    const { perfilUsaSuperficie, SUPERFICIES_ROTA } = await import('./perfis');
+    expect(SUPERFICIES_ROTA).toEqual(['bko']);
+    for (const p of ['vendedor', 'promotor'] as const) expect(perfilUsaSuperficie(p, 'bko')).toBe(false);
+    for (const p of ['admin', 'analista', 'assistente', 'gerente'] as const) expect(perfilUsaSuperficie(p, 'bko')).toBe(true);
+    expect(perfilUsaSuperficie(null, 'bko')).toBe(false);
+  });
+});

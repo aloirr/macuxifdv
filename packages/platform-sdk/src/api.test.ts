@@ -58,6 +58,15 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ metodo: 'POST', acao: 'rota.editar' })] })).toThrow(/não está em "acoes"/);
   });
 
+  it('ADR 0033: chave da plataforma (usuario.criar, senha.redefinir) vale como ação de rota só no core', () => {
+    const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin'] });
+    const r = (acao: string) => rota({ metodo: 'POST', caminho: 'usuarios', acao });
+    expect(definirModuloApi({ manifesto: core, rotas: [r('usuario.criar')] }).rotas).toHaveLength(1);
+    expect(definirModuloApi({ manifesto: core, rotas: [rota({ metodo: 'POST', caminho: 'usuarios/:id/senha', acao: 'senha.redefinir' })] }).rotas).toHaveLength(1);
+    expect(() => definirModuloApi({ manifesto: vendedor, rotas: [r('usuario.criar')] })).toThrow(/não está em "acoes"/);
+    expect(() => definirModuloApi({ manifesto: core, rotas: [r('usuario.inventada')] })).toThrow(/não está em "acoes"/);
+  });
+
   it('RN-PRO-01: rota de pedido que aceita promotor é recusada na definição', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ perfis: ['vendedor', 'promotor'] })] })).toThrow(/RN-PRO-01/);
   });

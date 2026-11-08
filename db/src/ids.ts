@@ -60,6 +60,22 @@ export function idMedida(tenantId: string, sigla: string): string {
   return idDeChave(`${tenantId}:core.medida:${sigla}`);
 }
 
+/**
+ * Id do perfil de FÁBRICA `base` no tenant (0041, ADR 0033; semeado pela migração e pelo gatilho tenant_semear_perfis):
+ * uuid_de_chave('<tenant>:plataforma.perfil:<base>').
+ */
+export function idPerfilFabrica(tenantId: string, base: string): string {
+  return idDeChave(`${tenantId}:plataforma.perfil:${base}`);
+}
+
+/**
+ * Id do vínculo usuário × perfil (0041): uuid_de_chave('<tenant>:plataforma.usuario_perfil:<usuario>:<perfil_id>'). É o id que o
+ * gatilho usuario_perfil_principal e a semeadura da 0041 usam; seeds e fixtures que gravam o mesmo vínculo usam este também.
+ */
+export function idUsuarioPerfil(tenantId: string, usuarioId: string, perfilId: string): string {
+  return idDeChave(`${tenantId}:plataforma.usuario_perfil:${usuarioId}:${perfilId}`);
+}
+
 /** UUID (formato v5) derivado de uma chave textual: mesma chave => mesmo id em toda execução. */
 export function idDeterministico(chave: string): string {
   const h = createHash('sha1').update(`macuxi:${chave}`).digest();

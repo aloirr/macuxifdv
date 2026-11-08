@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado } from '../../scripts/coord-lib.mjs';
+import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo } from '../../scripts/coord-lib.mjs';
 
 // ───────────────────────────── caminhos ─────────────────────────────
 
@@ -681,8 +681,7 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
   const conferir = (rel, acao) => {
     if (!doTime) return acusar(rel, `o agente "${agente}" não faz parte do time; só os agentes de .claude/agents podem alterar o repositório.`);
     if (permitidos.has(`${acao}:${rel}`)) return;
-    // Anexo de recado (.coord/recados/anexos/**) não é recado: o podeAlterar aplica a regra comum (dono alexandre).
-    if (/^\.coord\/recados\/[^/]+\/[^/]+$/i.test(rel) && !ehAnexoDeRecado(rel) && amb.existe(`${barras(raiz).replace(/\/+$/, '')}/${rel}`))
+    if (/^\.coord\/recados\/[^/]+\/[^/]+$/i.test(rel) && amb.existe(`${barras(raiz).replace(/\/+$/, '')}/${rel}`))
       return acusar(rel, 'recados são imutáveis: responda com um recado novo (node scripts/coord.mjs enviar --responde-a <id>)');
     const r = podeAlterar({ agente, ferramenta: 'Write', rel, raiz, regras });
     if (!r.ok) acusar(rel, r.motivo);
@@ -882,12 +881,11 @@ export function violacoesDasMudancas({ agente, mudancas, regras }) {
 /**
  * Como desfazer cada arquivo acusado (o guardião libera exatamente esse comando).
  * Só para o que estava limpo antes; nunca "rm" de recado novo em .coord/recados/** (pode ser de
- * outro agente, e recado é imutável: quem errou responde com recado novo). Anexo novo em
- * .coord/recados/anexos/** é arquivo comum: "rm", como qualquer arquivo de outro dono.
+ * outro agente, e recado é imutável: quem errou responde com recado novo).
  */
 export function comoDesfazer(v) {
   if (v.antes !== 'limpo') return null;
-  if (v.status === 'A') return /^\.coord\/recados\//i.test(v.caminho) && !ehAnexoDeRecado(v.caminho) ? null : `rm -- "${v.caminho}"`;
+  if (v.status === 'A') return /^\.coord\/recados\//i.test(v.caminho) ? null : `rm -- "${v.caminho}"`;
   return `git restore -- "${v.caminho}"`;
 }
 

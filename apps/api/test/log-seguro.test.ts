@@ -120,3 +120,21 @@ describe('logger real (opcoesLogger) e linha de métricas do worker', () => {
     expect(linhas[0]!.o).toMatchObject({ alertas: ['BANCO_FALHA'], erro: 'DatabaseError: erro do Postgres (SQLSTATE 23505, cliente_contato_email_key)' });
   });
 });
+
+describe('redação do pino (T-0093 §6: login do portal e admin inicial)', () => {
+  it('senha, e-mail e hash do corpo do login e do passo Empresa nunca saem no log', () => {
+    let texto = '';
+    const stream = new Writable({
+      write(c, _e, cb) {
+        texto += String(c);
+        cb();
+      },
+    });
+    const log = pino(opcoesLogger('trace'), stream);
+    log.info({ corpo: { email: EMAIL, senha: 'Segredo#2026', admin: { email: EMAIL, nome: 'Maria', senha: 'Master#2026' } } }, 'corpo');
+    log.info({ email: EMAIL, senha: 'Outra#2026', senha_hash: '$argon2id$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA', admin: { senha: 'X#1aaaaa' } }, 'solto');
+    expect(texto).not.toContain(EMAIL);
+    expect(texto).not.toMatch(/Segredo#2026|Master#2026|Outra#2026|X#1aaaaa|argon2id/);
+    expect(texto).toContain('[omitido]');
+  });
+});

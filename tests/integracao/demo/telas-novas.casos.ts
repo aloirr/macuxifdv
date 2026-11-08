@@ -119,38 +119,48 @@ export function casosUsuarios(ctx: CtxTelasNovas): void {
     expect(corpo<{ itens: { id: string }[] }>(eq).itens.map((e) => e.id)).toContain(por('vendedor')!.equipe_id);
   });
 
-  it('U2. escopo e perfil: a Renata (supervisora) vê a equipe dela (Lucas e Camila), não o admin nem o analista; vendedor e promotor 403; só o admin grava', async () => {
-    const daRenata = (await listar('supervisor')).map((u) => u.id);
-    expect(daRenata).toEqual(expect.arrayContaining([ctx.usuarioId('vendedor'), ctx.usuarioId('vendedor2')]));
-    expect(daRenata).not.toContain(ctx.usuarioId('admin'));
-    expect(daRenata).not.toContain(ctx.usuarioId('analista'));
-    for (const k of ['vendedor', 'promotor'] as const) {
+  it('U2. escopo e perfil (T-0094, RN-CORE-33): Usuários é tela do BKO — supervisora, vendedor e promotor 403 PERFIL_SEM_BKO; a Renata vê a equipe dela pela hierarquia (Gestão); só o admin grava', async () => {
+    for (const k of ['supervisor', 'vendedor', 'promotor'] as const) {
       const r = await ctx.api().chamar(ctx.token(k), { method: 'GET', url: '/v1/core/usuarios' });
-      expect([r.statusCode, erroDe(r).codigo], `${k}: ${r.body}`).toEqual([403, 'PERFIL_SEM_ACESSO']);
+      expect([r.statusCode, erroDe(r).codigo], `${k}: ${r.body}`).toEqual([403, 'PERFIL_SEM_BKO']);
     }
-    for (const k of ['supervisor', 'gerente', 'analista'] as const) {
+    const hier = await ctx.api().chamar(ctx.token('supervisor'), { method: 'GET', url: '/v1/core/equipe/hierarquia' });
+    expect(hier.statusCode, hier.body).toBe(200);
+    expect(hier.body).toContain(ctx.usuarioId('vendedor'));
+    expect(hier.body).toContain(ctx.usuarioId('vendedor2'));
+    for (const [k, codigo] of [
+      ['supervisor', 'PERFIL_SEM_BKO'],
+      ['gerente', 'PERFIL_SEM_ACESSO'],
+      ['analista', 'PERFIL_SEM_ACESSO'],
+    ] as const) {
       const r = await ctx.api().chamar(ctx.token(k), {
         method: 'POST',
         url: '/v1/core/usuarios',
         payload: { nome: 'Não Deve Gravar', email: `nao.grava.${randomUUID().slice(0, 8)}@exemplo.com.br`, perfil: 'vendedor', senha: senhaDescartavel() },
       });
-      expect([r.statusCode, erroDe(r).codigo], `${k} POST: ${r.body}`).toEqual([403, 'PERFIL_SEM_ACESSO']);
+      expect([r.statusCode, erroDe(r).codigo], `${k} POST: ${r.body}`).toEqual([403, codigo]);
     }
   });
 
-  it('U3. ciclo do admin: criar (201) → entra com a senha inicial → editar → e-mail repetido 409 → desativar (não apaga; login 423) → trocar a senha → reativar e entrar com a nova; tudo auditado', async () => {
+  it('U3. ciclo do admin (T-0094): criar (201) → 1º login pede a troca → "Crie sua senha" → editar → e-mail repetido 409 → desativar (não apaga; login 423; não redefine) → reativar → redefinir (troca de novo); tudo auditado', async () => {
     const api = ctx.api();
     const adm = ctx.token('admin');
     const lucas = (await listar('admin')).find((u) => u.id === ctx.usuarioId('vendedor'))!;
     const email = `smoke.${randomUUID().slice(0, 8)}@exemplo.com.br`;
     const senha1 = senhaDescartavel();
+    const senhaCriada = senhaDescartavel();
     const senha2 = senhaDescartavel();
+    const trocar = (atual: string, nova: string) =>
+      api.app.inject({ method: 'POST', url: '/v1/auth/senha/trocar', remoteAddress: `10.67.0.${Math.floor(Math.random() * 250) + 1}`, payload: { codigo_empresa: 'demo', email, senha_atual: atual, senha_nova: nova, app: 'campo' } });
     const criar = await api.chamar(adm, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Vendedor do Smoke', email, perfil: 'vendedor', equipe_id: lucas.equipe_id, senha: senha1 } });
     expect(criar.statusCode, criar.body).toBe(201);
     const novo = corpo<UsuarioBko>(criar);
     expect(novo).toMatchObject({ email, perfil: 'vendedor', equipe_id: lucas.equipe_id, ativo: true, superior_id: ctx.usuarioId('supervisor') });
     expect(criar.body).not.toContain(senha1);
-    expect((await api.entrar(email, { senha: senha1 })).statusCode).toBe(200);
+    const primeiro = await api.entrar(email, { senha: senha1, app: 'campo' });
+    expect([primeiro.statusCode, erroDe(primeiro).codigo], primeiro.body).toEqual([403, 'SENHA_A_TROCAR']);
+    expect((await trocar(senha1, senhaCriada)).statusCode).toBe(200);
+    expect((await api.entrar(email, { senha: senhaCriada, app: 'campo' })).statusCode).toBe(200);
 
     const editar = await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}`, payload: { nome: 'Vendedor do Smoke (editado)' } });
     expect(editar.statusCode, editar.body).toBe(200);
@@ -161,26 +171,30 @@ export function casosUsuarios(ctx: CtxTelasNovas): void {
     const desl = await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}/ativo`, payload: { ativo: false } });
     expect(desl.statusCode, desl.body).toBe(200);
     // inativo com a senha certa: 423 USUARIO_BLOQUEADO (autenticacao.ts: o bloqueio só é revelado a quem acertou a senha)
-    const bloqueado = await api.entrar(email, { senha: senha1 });
+    const bloqueado = await api.entrar(email, { senha: senhaCriada });
     expect([bloqueado.statusCode, erroDe(bloqueado).codigo], `desativado não entra: ${bloqueado.body}`).toEqual([423, 'USUARIO_BLOQUEADO']);
     const inativos = await listar('admin', '?ativo=false');
     expect(inativos.find((u) => u.id === novo.id), 'desativar não apaga: aparece no filtro de inativos').toMatchObject({ ativo: false });
     const [linha] = (await api.admin.query<{ deleted_at: Date | null; ativo: boolean }>('select deleted_at, ativo from core.usuario where id = $1', [novo.id])).rows;
     expect(linha).toEqual({ deleted_at: null, ativo: false });
+    // P7: usuário desativado não tem a senha redefinida (ative antes)
+    const inativo = await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}/senha`, payload: { senha: senha2 } });
+    expect([inativo.statusCode, erroDe(inativo).codigo], inativo.body).toEqual([422, 'USUARIO_INATIVO']);
 
+    expect((await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}/ativo`, payload: { ativo: true } })).statusCode).toBe(200);
     const troca = await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}/senha`, payload: { senha: senha2 } });
     expect(troca.statusCode, troca.body).toBe(200);
     expect(troca.body).not.toContain(senha2);
-    expect((await api.chamar(adm, { method: 'PUT', url: `/v1/core/usuarios/${novo.id}/ativo`, payload: { ativo: true } })).statusCode).toBe(200);
-    expect((await api.entrar(email, { senha: senha1 })).statusCode, 'senha antiga recusada').toBe(401);
-    expect((await api.entrar(email, { senha: senha2 })).statusCode, 'senha nova aceita').toBe(200);
+    expect((await api.entrar(email, { senha: senhaCriada })).statusCode, 'senha antiga recusada').toBe(401);
+    const comNova = await api.entrar(email, { senha: senha2, app: 'campo' });
+    expect([comNova.statusCode, erroDe(comNova).codigo], 'a redefinida é temporária: troca no próximo acesso').toEqual([403, 'SENHA_A_TROCAR']);
 
     const aud = await api.admin.query<{ acao: string; dados: string }>(
       "select acao, coalesce(antes::text, '') || coalesce(depois::text, '') dados from plataforma.auditoria where entidade_id = $1 order by created_at, id",
       [novo.id],
     );
-    expect(aud.rows.map((a) => a.acao)).toEqual(expect.arrayContaining(['usuario.criar', 'usuario.editar', 'usuario.desativar', 'usuario.senha_redefinir', 'usuario.ativar']));
-    expect(aud.rows.map((a) => a.dados).join(' '), 'auditoria sem senha').not.toMatch(new RegExp(`${senha1}|${senha2}|argon2`));
+    expect(aud.rows.map((a) => a.acao)).toEqual(expect.arrayContaining(['usuario.criar', 'usuario.senha_trocar', 'usuario.editar', 'usuario.desativar', 'usuario.senha_redefinir', 'usuario.ativar']));
+    expect(aud.rows.map((a) => a.dados).join(' '), 'auditoria sem senha').not.toMatch(new RegExp(`${senha1}|${senhaCriada}|${senha2}|argon2`));
   });
 }
 

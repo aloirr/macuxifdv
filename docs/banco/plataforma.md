@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `plataforma`
 
-Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) e `0038_plataforma_papel_portal` (papel `macuxi_portal` das `sa_*`) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
+Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) e `0038_plataforma_papel_portal` (papel `macuxi_portal` das `sa_*`) e `0039_plataforma_portal_email_senha` (portal só com e-mail e senha, sessão por empresa) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
 Campos comuns em toda tabela (regra 5): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → plataforma.tenant`,
 `created_at`, `updated_at` (trigger `definir_updated_at`, cursor do sync), `deleted_at` (exclusão lógica), `external_id text` (código no ERP).
 RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
@@ -185,7 +185,8 @@ fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao **`ma
 `db/testes/super-admin.test.ts`). Sem expurgo por ora (como `plataforma.auditoria`). `super_admin_id` tem FK (super-admin só é
 apagado logicamente); `sessao_id` não tem (a sessão pode ser expurgada no futuro sem tocar a auditoria).
 
-**Funções** (contrato com o modulo-core e a API; todas `SECURITY DEFINER`, `execute` só ao `macuxi_portal` desde a 0038):
+**Funções da 0035** (histórico: as 14 do convite, do TOTP e do desafio **saem na 0039** e as outras 6 mudam; ver "Portal só com
+e-mail e senha" abaixo. Todas `SECURITY DEFINER`, `execute` só ao `macuxi_portal` desde a 0038):
 
 | Função | Devolve | O que faz |
 |---|---|---|
@@ -251,6 +252,117 @@ Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na cas
 Índices: `super_admin_email_uk`, `super_admin_desafio_hash_uk`, `super_admin_desafio_aberto_ix`, `super_admin_sessao_viva_ix`,
 `auditoria_plataforma_ocorrido_ix`, `auditoria_plataforma_super_admin_ix`, `auditoria_plataforma_tenant_alvo_ix` (parcial).
 
+## Portal só com e-mail e senha (0039, T-0093, ADR 0031) — super-admin e admin do cliente, sessão por empresa
+Migração `0039_plataforma_portal_email_senha` (volta: `.down.sql`, recria as 20 `sa_*` e a interna com o texto exato da 0035 e
+os grants da 0038; APAGA as 3 tabelas novas, o índice `core.usuario_admin_email_ix` e as colunas `ator_tipo`/`usuario_id` da
+auditoria, cujas linhas ficam). Drizzle: `portalTentativa`, `portalSessao`, `portalSessaoEmpresa` e as 2 colunas novas em
+`auditoriaPlataforma`. Contrato com o Core e a API: R-20261107-150432-banco-dados. **Entra no `main` no mesmo commit do Core
+(fatia C) e da API (fatia S):** as 14 funções do convite/TOTP/desafio somem e a `sa_sessao_valida` muda o retorno.
+
+O portal passa a ter **dois tipos de acesso** (ADR 0031 §2): `super_admin` (`plataforma.super_admin`; vê todas as empresas) e
+`admin_cliente` (`core.usuario` com `perfil = 'admin'`, `ativo`, `bloqueado_em` nulo, `senha_hash` não nulo, sem `deleted_at`,
+em `plataforma.tenant` `ativo` e viva — RN-CORE-33; só nas empresas em que a senha conferiu). A senha é conferida **no Node**
+(argon2id): o banco só devolve os hashes das contas candidatas do e-mail. O bloqueio é por **chave do e-mail** (HMAC-SHA256 hex
+com o segredo da plataforma, calculado no Node): igual para e-mail que existe e que não existe; o e-mail nunca vai à tabela.
+
+| Tabela | Colunas principais | Regras |
+|---|---|---|
+| `portal_tentativa` | `chave` (64 hex, única), `falhas` (0 a 4), `bloqueado_ate` | sem e-mail; o acerto apaga a linha (bloqueio vivo fica); sem expurgo (1 linha por e-mail que errou) |
+| `portal_sessao` | `tipo` (`super_admin`/`admin_cliente`), `super_admin_id` (FK), `tenant_atual_id` e `usuario_atual_id` (a empresa escolhida; nulas = ainda não escolheu), `criada_em`, `ultimo_uso_em`, `expira_em`, `revogada_em` | CHECK do ator (super-admin sem empresa; cliente sem `super_admin_id`, empresa e usuário juntos); teto de 8 h; FK composta `(id, tenant_atual_id, usuario_atual_id)` → `portal_sessao_empresa`: a empresa atual é sempre uma das conferidas |
+| `portal_sessao_empresa` | `sessao_id` (FK), `tenant_alvo_id`, `usuario_id` (sem FK) | 1 a 20 por sessão (função); única por `(sessao_id, tenant_alvo_id)`. **`tenant_alvo_id`, não `tenant_id`, de propósito** (como na `auditoria_plataforma`): com `tenant_id` ela viraria tabela de tenant para a conformidade, o vazamento e a `excluir_tenant` |
+| `auditoria_plataforma` (+0039) | `ator_tipo` (`super_admin`/`admin_cliente`, CHECK; nulo nas linhas antigas, no login sem conta e nos fatos do deploy), `usuario_id` (`core.usuario.id` do admin do cliente, sem FK) | append-only continua; índice parcial `auditoria_plataforma_usuario_ix` |
+
+As 3 tabelas: sem `tenant_id` (exceção à regra 5; `TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`), RLS ligado e forçado, só a
+política `manutencao`, nenhum grant de tabela (app, worker e portal = 42501). Índice novo numa tabela do Core:
+`core.usuario_admin_email_ix (lower(email)) where deleted_at is null and perfil = 'admin'` (a busca entre empresas por e-mail).
+
+**Funções** (todas `SECURITY DEFINER`, `search_path = pg_catalog, plataforma, pg_temp`, `revoke` de `PUBLIC`/`macuxi_app`/
+`macuxi_worker`, `EXECUTE` **só** ao `macuxi_portal`; a 0039 confere pelo catálogo que são exatamente estas 12):
+
+| Função | Devolve | O que faz |
+|---|---|---|
+| `sa_tentativa_estado(p_chave text)` | `table (falhas integer, bloqueado_ate timestamptz)`, sempre 1 linha | chave sem registro = `(0, null)`; `bloqueado_ate` só com bloqueio vivo; chave fora de `^[0-9a-f]{64}$` = 22023 |
+| `sa_tentativa_falha(p_chave text)` | idem | bloqueio vivo: nada muda; senão +1; a 5ª seguida zera e bloqueia 15 min (grava `sa.bloqueio`) |
+| `sa_tentativa_sucesso(p_chave text)` | `void` | apaga o registro da chave se não houver bloqueio vivo |
+| `sa_contas_para_login(p_email text)` | `table (tipo text, conta_id uuid, tenant_id uuid, tenant_codigo text, tenant_nome text, senha_hash text)` | até **20 linhas no total**: super-admin ativo primeiro (tenant nulo), depois os admins qualificados por `tenant.nome`, `tenant.id`; e-mail por `lower(btrim())`; vazio ou fora do formato = 0 linhas, sem erro; grava `sa.login.consulta {contas: n}` (sem e-mail) |
+| `sa_abrir_sessao_portal(p jsonb)` | `table (sessao_id uuid, expira_em timestamptz)` | `{tipo:'super_admin', super_admin_id}` ou `{tipo:'admin_cliente', empresas:[{tenant_id, usuario_id}]}` (1 a 20, sem repetir tenant); reconfere TODAS as contas (uma que deixou de valer = 0 linhas, nada gravado); 1 empresa = já escolhida; 8 h; grava `sa.sessao.aberta`; formato errado = 22023 |
+| `sa_escolher_empresa(p_sid uuid, p_tenant uuid)` | `table (tenant_id uuid, usuario_id uuid, codigo text, nome text)` | só sessão viva de `admin_cliente`, só tenant da lista, reconferindo admin e empresa; troca a empresa atual; grava `sa.empresa.escolher`; senão 0 linhas |
+| `sa_sessao_valida(p_sid uuid)` | `table (tipo text, super_admin_id uuid, tenant_id uuid, usuario_id uuid, expira_em timestamptz)` | viva = não revogada e no prazo; super-admin ativo; cliente com empresa: 0 linhas **na hora** se o admin deixou de valer ou a empresa saiu de `ativo`; atualiza `ultimo_uso_em`. As sessões da `super_admin_sessao` (0035) não valem mais |
+| `sa_revogar(p_sid uuid)` | `boolean` | revoga (2ª vez = falso); grava `sa.sessao.revogada` com o ator |
+| `sa_auditar(p jsonb)` | `uuid` | como na 0035, mais `ator_tipo` (fora da lista = 22023) e `usuario_id` |
+| `sa_listar_tenants(p_sid uuid)` | `jsonb` = `ListaEmpresasSchema` (nome em `razao_social`) | super-admin: todas as vivas; cliente: só as conferidas no login; sessão inválida = 28000 |
+| `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | super-admin: tenant ativo; cliente: `p_tenant` é a empresa atual |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin |
+
+- Interna: `sa_registrar_auditoria(p_ator_tipo, p_super_admin, p_usuario, p_sessao, p_tenant, p_acao, p_detalhes)` (`SECURITY
+  INVOKER`, sem `EXECUTE` para ninguém), no lugar da de 5 argumentos.
+- **Deploy:** `plataforma.criar_super_admin(p jsonb) → jsonb` (fora do prefixo `sa_`; `SECURITY INVOKER`; sem `EXECUTE` para
+  app, worker ou portal: só a conexão de administração, pela CLI `super-admin`). Entrada `{acao: 'criar'|'redefinir'|'desativar',
+  email, nome?, senha_hash?}` (chave desconhecida = 22023; só hash argon2id PHC; mensagens sem e-mail nem hash). Saída
+  `{resultado, super_admin_id, sessoes_revogadas}`: `criar` → `criado` | `sem_mudanca` (já existe pelo `lower(email)`, ativo ou
+  não; nada muda); `redefinir` → `redefinido` (hash novo, zera `falhas`/`bloqueado_ate` da 0035, revoga as sessões) |
+  `nao_encontrado`; `desativar` → `desativado` (revoga as sessões) | `sem_mudanca` | `nao_encontrado`; desativar o **último
+  ativo** = 22023. Trava consultiva (uma mudança por vez). Grava `sa.super_admin.<acao>`. O bloqueio por chave do e-mail (15 min)
+  não é zerado aqui: o banco não conhece a chave.
+- **Saem** (o down recria): `sa_existe`, `sa_criar_primeiro`, `sa_para_login`, `sa_por_id`, `sa_registrar_falha`,
+  `sa_registrar_sucesso`, `sa_gravar_totp_pendente`, `sa_confirmar_totp`, `sa_marcar_passo`, `sa_usar_recuperacao`,
+  `sa_regerar_recuperacao`, `sa_abrir_desafio`, `sa_ver_desafio`, `sa_abrir_sessao`. Ficam as tabelas `super_admin_desafio` e
+  `super_admin_sessao` (histórico) e as colunas de TOTP da `super_admin` (TOTP opcional no backlog).
+
+Fatos gravados pelo banco desde a 0039: `sa.login.consulta`, `sa.bloqueio`, `sa.sessao.aberta`, `sa.empresa.escolher`,
+`sa.sessao.revogada`, `sa.tenant.provisionar` (com `admin`), `sa.super_admin.criar|redefinir|desativar`. O Core grava pelo
+`sa_auditar` o `sa.login.ok` e o `sa.login.falha`; a API, o `sa.requisicao` dos dois tipos, com `ator_tipo` e `usuario_id`.
+
+**Limite registrado (ADR 0031):** quem tiver a senha do `macuxi_portal` abre sessão sem senha também de admin do cliente e lê o
+hash dos admins de um e-mail que já conheça; toda consulta e toda sessão ficam na auditoria append-only pelo próprio banco.
+Volume: poucas sessões por dia; até 20 empresas por e-mail. Testes: `db/testes/portal-email-senha.test.ts` (estático, banco com a
+fixture dois-tenants e up/down num banco efêmero).
+
+### Portal com a versão da conta (0040, T-0094 §8.1)
+- `portal_sessao_empresa` ganha `sessao_versao integer not null default 0` (CHECK `>= 0`): a `core.usuario.sessao_versao` da
+  conta no login.
+- `sa_contas_para_login(p_email)` passa a devolver `table (tipo, conta_id, tenant_id, tenant_codigo, tenant_nome, senha_hash,
+  trocar_senha boolean, senha_expira_em timestamptz, sessao_versao integer)` — super-admin com `false`, nula e nula; **nunca** o
+  hash temporário (a senha do "Esqueci" não vale no portal). A API tira da lista a conta com `trocar_senha` e, se a senha só
+  conferiu nelas, responde 403 `SENHA_A_TROCAR`.
+- `sa_abrir_sessao_portal(p)`: cada empresa aceita `sessao_versao` opcional (inteiro `>= 0`; outro tipo = 22023); conta com
+  `trocar_senha` ou versão diferente da informada = 0 linhas, nada gravado; grava a versão de agora em `portal_sessao_empresa`.
+- `sa_escolher_empresa` e `sa_sessao_valida`: a sessão de `admin_cliente` cai **na hora** se a `sessao_versao` de qualquer conta
+  conferida no login mudou ou se ela ficou com `trocar_senha` (a sessão nasceu do conhecimento daquela senha). Super-admin não
+  muda.
+- Assinaturas (argumentos) iguais às da 0039: `apps/api/test/funcoes-sa.ts`, `db/testes/funcoes-sa.ts` e o `banco-dbaas.sh` não
+  mudam. As 4 são recriadas (drop + create) com EXECUTE só ao `macuxi_portal`; a 0040 refaz a conferência das 12 e confere que o
+  `macuxi_portal` não tem privilégio na `email_saida`.
+
+## Outbox de e-mail (0040, T-0094, ADR 0032 §6) — `email_saida`. Fora do sync
+Migração `0040_core_senha_email_saida` (volta: `.down.sql`, APAGA a tabela com os e-mails não enviados). Drizzle: `emailSaida`
+em `db/esquema/plataforma.ts`. No lugar do pg-boss: a API grava **na mesma transação** da senha (`macuxi_app` no contexto do
+tenant), então senha trocada ⇔ e-mail na fila. A porta `ServicoEmail.enfileirar` (SDK, frente N5) faz o `insert ... on conflict
+do nothing`; o despachante (`apps/api/src/email/`, papel `macuxi_worker`) lê o lote pendente com `for update skip locked`,
+decifra, envia e **zera a carga**.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| usuario_id | uuid not null | destinatário; FK composta `(tenant_id, usuario_id)` → `core.usuario` |
+| modelo | text not null | `acesso_inicial` ("Seu acesso ao Macuxi") \| `nova_senha` ("Sua nova senha") |
+| chave_idempotencia | text not null | única por tenant (`email_saida_chave_uk`); `^[A-Za-z0-9_.:+-]{1,200}$` (sem `@` nem espaço: nunca o e-mail). Ex.: `<usuario_id>:<sessao_versao>` |
+| carga | bytea | o texto **cifrado** (AES-256-GCM; `para` + dados do modelo, com a senha). Só no pendente: CHECK `(enviado_em is null and falhou_em is null) = (carga is not null)`; 1 a 16 KiB |
+| tentativas | integer not null default 0 | `>= 0` |
+| proxima_tentativa_em | timestamptz not null default now() | espera crescente entre falhas |
+| expira_em | timestamptz not null default now() + 72 h | passou = falha final (a senha temporária também venceu) |
+| enviado_em, falhou_em | timestamptz | excludentes (CHECK) |
+| ultimo_erro | text | só código curto `^[A-Za-z0-9_.:-]{1,60}$` (nada do texto do servidor SMTP, que pode repetir o e-mail); `anonimizado` na LGPD |
+
+Índices: `email_saida_chave_uk (tenant_id, chave_idempotencia)`, `email_saida_pendente_ix (proxima_tentativa_em) where enviado_em
+is null and falhou_em is null` (o lote do despachante) e `email_saida_usuario_ix (tenant_id, usuario_id)` (anonimização).
+RLS ligado e forçado: `isolamento_tenant` (`macuxi_app`: só `select, insert`; sem `update` nem `delete`), `manutencao`,
+`despacho_email` (`for select to macuxi_worker using (true)`: todos os tenants, como a `despacho_outbox`) e
+`despacho_email_marcar` (`for update to macuxi_worker using (enviado_em is null and falhou_em is null) with check (true)`:
+só linha pendente). `macuxi_worker`: `select` e `update (carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em,
+ultimo_erro)`, sem `insert` nem `delete`. `macuxi_portal`: nada. Volume: dezenas por tenant por mês; sem expurgo ainda (as
+enviadas ficam sem carga; um expurgo por idade entra com a política de retenção do [lgpd.md](lgpd.md)). Na exclusão do tenant,
+a `excluir_tenant` apaga as linhas pela ordem das FKs.
+
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
 - `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012).
@@ -270,4 +382,5 @@ Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na cas
   volta ao corpo da 0024 (`session_replication_role = replica`, só superusuário).
 - Papel `macuxi_manutencao` e política `manutencao` (0031, T-0075, B1 do DBaaS): ver [rls.md](rls.md), "Papel de manutenção".
 - Super-admin (0035, T-0087): as 20 funções `sa_*` (EXECUTE só ao `macuxi_portal` desde a 0038, T-0091) e a `provisionar_tenant`
-  com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima.
+  com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima. Desde a 0039 (T-0093): as 12 `sa_*` do
+  login só com e-mail e senha e a `criar_super_admin` (deploy): seção "Portal só com e-mail e senha" acima.

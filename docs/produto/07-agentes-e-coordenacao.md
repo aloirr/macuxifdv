@@ -164,6 +164,28 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Conflito no pull**: o gerente resolve só se o arquivo for dele (`.coord/`, `docs/produto/`); se for de outro dono, chama o dono para resolver e só então faz o push. O Alexandre é avisado por recado só se o conflito durar mais de uma rodada.
 - **Proibido**: force push, rebase do `main`, push com teste vermelho, apagar histórico.
 - **Permissão de push**: a regra do `.claude/settings.json` permite push para `main`, `nuvem/*`, `alexandre/*` e `agente/*` e nega force e delete (entregue pela T-0005 na nuvem). Enquanto a regra não chegar pelo pull, o gerente faz só o commit local e segue.
+- **Diff de governança aplicado**: o gerente aplica no worktree de verificação, com `Agente: alexandre`. O dono do caminho alinha também a árvore local ao `main` (`git restore --source=HEAD --worktree -- <arquivos>`), senão o guardião e o `verificar` locais seguem com a regra antiga.
+
+**4. Esteira permanente** (dono do produto, R-20261107-164646, vale até ele mandar parar)
+- Tudo o que o dono do produto pede, e tudo o que é necessário para entregar o que ele pediu, **entra na esteira e segue em execução**. Não se espera fase, piloto nem build.
+- **Backlog só com autorização escrita dele**: num recado, ou numa mensagem no chat com a palavra "backlog". Item adiado sem essa autorização vira tarefa com dono e ordem.
+- **Nenhum agente ocioso**: as **8 vagas locais** (dono do produto, 07/11 22h10; antes 6, e antes 4) ficam sempre ocupadas. Sem trabalho local que não colida, o gerente abre frentes na nuvem em caminhos exclusivos e manda ao dono do produto o prompt de abertura.
+- **Prioridade**: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. O que não colide roda em paralelo.
+- **Chat vira recado**: tudo o que o dono do produto disser no chat com o gerente é gravado como recado `aviso` para `todos`, com o texto literal.
+
+**5. Nome e versão dos builds** (dono do produto, R-20261107-151653)
+- **Nome no Expo** (`eas build --message`), nos recados e no WhatsApp:
+  - preview/demo: `Campo-Demo-vX.Y.Z` e `Gestao-Demo-vX.Y.Z`;
+  - produção: `Campo-Oficial-vX.Y.Z` e `Gestao-Oficial-vX.Y.Z`.
+- **Versão semântica no app**:
+  - `version` do app.config e `versionCode` do Android sempre crescendo, para instalar por cima;
+  - a demo começa em v1.0.0, e cada preview novo sobe o patch;
+  - funcionalidade nova relevante sobe o minor, com o motivo no recado;
+  - a produção começa em Oficial-v1.0.0, com numeração própria;
+  - Campo e Gestão sobem juntos quando saem no mesmo lote.
+- **Versão visível**: a versão aparece em Perfil → linha da versão, igual ao nome do build.
+- **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
+- **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
 
 ## Contratos entre módulos
 `.coord/contratos/` (dono: engenheiro-software) registra eventos, extensões e dependências. O módulo publicador é dono do schema do evento em `modules/<m>/contracts`; mudança incompatível = nova versão + recado a todos os consumidores.

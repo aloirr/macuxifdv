@@ -63,13 +63,14 @@ export interface LinhaClienteErp {
 
 export type PlanoCliente =
   | { tipo: 'upsert'; linha: LinhaClienteErp }
-  | { tipo: 'inativar'; external_id: string; alterado_em: string }
+  /** `alterado_em` = relógio do ERP (só quando o evento traz o registro); sem ele, a inativação não compara nem avança a ordem (RN-INT-02). */
+  | { tipo: 'inativar'; external_id: string; alterado_em: string | null }
   | { tipo: 'ignorar'; motivo: 'sem_registro' | 'mais_antigo_que_o_aplicado' };
 
 const nulo = (v: string | null | undefined): string | null => (v === undefined || v === null || v.trim() === '' ? null : v.trim());
 
 export function planejarClienteDoErp(evento: EventoClienteAtualizado, exigidos: readonly CampoCadastroCliente[], aplicadoAlteradoEm: string | null = null): PlanoCliente {
-  if (evento.acao === 'inativado') return { tipo: 'inativar', external_id: evento.external_id, alterado_em: evento.ocorrido_em };
+  if (evento.acao === 'inativado') return { tipo: 'inativar', external_id: evento.external_id, alterado_em: evento.registro?.alterado_em ?? null };
   const r = evento.registro;
   if (!r) return { tipo: 'ignorar', motivo: 'sem_registro' };
   if (aplicadoAlteradoEm && Date.parse(r.alterado_em) < Date.parse(aplicadoAlteradoEm)) return { tipo: 'ignorar', motivo: 'mais_antigo_que_o_aplicado' };

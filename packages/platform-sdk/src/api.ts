@@ -26,7 +26,9 @@ import { caminhoConectorParaRoteador, problemasApiConector, type ApiConector } f
 import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
-import { MODOS_SUPER_ADMIN, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
+import type { SuperficieRota } from './perfis';
+import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
+import { MODOS_SUPER_ADMIN, type AcessoPortalAutenticado, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
 import {
   ehAcaoDeEscritaDePedido,
   ehAcaoDeLeituraDePedido,
@@ -54,6 +56,13 @@ export interface UsuarioAutenticado {
 /** Usuário da requisição: o do token mais os módulos efetivos calculados AGORA (RN-CORE-01/03). */
 export interface UsuarioDaRequisicao extends UsuarioAutenticado {
   modulos: readonly ModuloId[];
+  /**
+   * ADR 0033 (T-0111/T-0112): perfis de acesso do usuário, resolvidos A CADA REQUISIÇÃO (fábrica da base + o que o tenant mudou
+   * + limites travados), como a licença. A API sempre preenche (super-admin = o Admin de fábrica). Consulte com
+   * `pode(ctx.usuario.perfis, 'usuario.criar')`, `nivelPermitido`, `escopoDosPerfis` ou `exigirPermissao`; nunca compare o
+   * perfil com um nome fixo. Ausente (contexto falso de teste) = nada permitido.
+   */
+  perfis?: readonly PerfilDaRequisicao[];
 }
 
 /**
@@ -138,6 +147,12 @@ export interface RegistroAuditoria {
   depois?: unknown;
 }
 
+/** ADR 0033: o que a plataforma entrega aos módulos sobre as permissões (`ContextoBase.permissoes`). */
+export interface MotorPermissoes {
+  catalogo: readonly DefinicaoChave[];
+  matriz: MatrizFabrica;
+}
+
 /** O que toda rota (e todo provedor de sync) recebe. */
 /** Módulo → módulos de que ele depende (`depende` do manifesto), de TODOS os módulos instalados (RN-CORE-03). */
 export type DependenciasModulos = Readonly<Partial<Record<ModuloId, readonly ModuloId[]>>>;
@@ -150,6 +165,12 @@ export interface ContextoBase {
    * manifesto de outro módulo (fronteiras). Só leitura; igual para todos os usuários do processo.
    */
   dependencias: DependenciasModulos;
+  /**
+   * ADR 0033 (T-0111): catálogo das chaves de permissão (plataforma + ações dos manifestos instalados) e o padrão de fábrica, para a
+   * página Perfis de acesso e para `validarAcessoDoTenant` no Core, que não importa o manifesto de outro módulo (fronteiras). Igual
+   * para todos os usuários do processo; a API sempre preenche (contexto falso de teste pode omitir).
+   */
+  permissoes?: MotorPermissoes;
   requestId: string;
   /** Relógio injetável (testes). Datas sempre em UTC. */
   agora(): Date;
@@ -288,8 +309,18 @@ export interface RotaModulo<
    * ADR 0029 (T-0087): o super-admin de plataforma também pode chamar a rota (`'aceita'`) ou só ele (`'exige'`), com o tenant no
    * cabeçalho `x-macuxi-tenant`. Licença do módulo NO TENANT, Zod e RLS continuam valendo; ação/perfil e carteira não (esta
    * opção é a autorização). Ausente = o token de plataforma não vale aqui (401). Ver `ModoSuperAdmin`.
+   * T-0093 (ADR 0031): com `'aceita'`, o token do portal do ADMIN DO CLIENTE também vale, só na empresa escolhida na sessão
+   * (`x-macuxi-tenant` igual a ela; senão 403). Ele entra como o usuário `admin` real do tenant: ação/perfil, licença do perfil
+   * e carteira valem como no BKO, e `ctx.superAdmin` fica ausente. `'exige'` continua só do super-admin.
    */
   superAdmin?: ModoSuperAdmin;
+  /**
+   * T-0094 (RN-CORE-33; ADR 0032): `'bko'` marca a rota que só o backoffice usa. A API recusa com 403 `PERFIL_SEM_BKO` o perfil
+   * fora de `PERFIS_DO_APP.web` (vendedor, promotor, supervisor), antes da ação/perfil, qualquer que seja o app do token; o
+   * admin do cliente e o super-admin do portal não são afetados (já são do BKO). Ausente = a rota serve também aos apps.
+   * A recusa na API entra na fatia S da T-0094; até lá a marca só documenta.
+   */
+  superficie?: SuperficieRota;
   executar(ctx: ContextoRota<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
 }
 
@@ -676,15 +707,16 @@ export interface ServicosCore {
    */
   usuariosVisiveis?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
   /**
-   * ADR 0029 (T-0087): token de PLATAFORMA (segredo e `aud` próprios) → super-admin com sessão viva e 2º fator, conferida no
-   * banco a cada chamada. `null` = não é token de plataforma válido. Token de tenant nunca passa aqui, e o `autenticar` acima
-   * nunca aceita token de plataforma. Sem o serviço, nenhuma rota aceita super-admin (falha fechada).
-   * T-0091: o `banco` recebido é a conexão do portal (papel `macuxi_portal`), que só abre `semTenant` e só executa as `sa_*`.
+   * T-0093 (ADR 0031; substitui o `autenticarSuperAdmin` da ADR 0029): token do PORTAL (segredo e `aud` próprios) → quem
+   * entrou (super-admin ou admin do cliente) com a sessão viva no banco a cada chamada; para o admin do cliente, o banco
+   * confere também que ele continua `admin` ativo na empresa da sessão e que a empresa está ativa. `null` = não vale.
+   * Token de tenant nunca passa aqui, e o `autenticar` acima nunca aceita token do portal. Sem o serviço, nenhuma rota aceita
+   * o portal (falha fechada). O `banco` é a conexão do portal (papel `macuxi_portal`, T-0091), que só executa as `sa_*`.
    */
-  autenticarSuperAdmin?(
+  autenticarPortal?(
     cabecalhos: Readonly<Record<string, string | undefined>>,
     banco: AcessoBanco,
-  ): Promise<SuperAdminAutenticado | null>;
+  ): Promise<AcessoPortalAutenticado | null>;
 }
 
 export interface ModuloApi {
@@ -761,6 +793,14 @@ export class ErroNaoEncontrado extends ErroHttpModulo {
     super(404, codigo, mensagem);
     this.name = 'ErroNaoEncontrado';
   }
+}
+
+/**
+ * ADR 0033: recusa com 403 `PERFIL_SEM_ACESSO` se os perfis do usuário não dão `chave` (sobre `alvo`, quando a ação recai num
+ * usuário, ex.: `senha.redefinir`). Para a rota inteira, prefira `acao` na `RotaModulo`; use esta no meio do `executar`.
+ */
+export function exigirPermissao(usuario: Pick<UsuarioDaRequisicao, 'perfis'>, chave: string, alvo?: AlvoPermissao): void {
+  if (!pode(usuario.perfis, chave, alvo)) throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
 }
 
 /** Corpo `ErroApiSchema` do erro do módulo (o mesmo que a API envia). */
@@ -859,7 +899,9 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     vistas.add(chave);
     if (r.metodo !== 'GET' && !r.acao)
       problemas.push(`${rotulo}: rota de escrita precisa de "acao" do manifesto (ADR 0004)`);
-    if (r.acao && !Object.hasOwn(m.manifesto.acoes, r.acao))
+    // ADR 0033: as chaves da plataforma (usuario.criar, senha.redefinir...) são do core; só as rotas dele as declaram em `acao`
+    const chaveDaPlataforma = !!r.acao && id === 'core' && ehChavePlataforma(r.acao);
+    if (r.acao && !chaveDaPlataforma && !Object.hasOwn(m.manifesto.acoes, r.acao))
       problemas.push(`${rotulo}: ação ${r.acao} não está em "acoes" do manifesto de ${id}`);
     if (r.acao && r.perfis) problemas.push(`${rotulo}: use "acao" ou "perfis", não os dois`);
     for (const p of r.perfis ?? [])

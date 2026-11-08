@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -52,6 +52,25 @@ export const usuario = core.table('usuario', {
   bloqueio_ate: timestamp('bloqueio_ate', { withTimezone: true }),
   /** Telefone do CSV da Equipe (0036, T-0087): dado pessoal; null ou 1..30 caracteres (formato validado no domain do Core). */
   telefone: text('telefone'),
+  /**
+   * Estado da senha (0040, T-0094, ADR 0032, RN-CORE-34). trocar_senha: a senha atual é temporária e, usada, leva à troca
+   * obrigatória. senha_expira_em: validade dela (72 h); nula = não vence (definitiva ou a master do admin inicial). CHECK:
+   * senha_expira_em só com trocar_senha. Fora do pull do usuário.
+   */
+  trocar_senha: boolean('trocar_senha').notNull().default(false),
+  senha_expira_em: timestamp('senha_expira_em', { withTimezone: true }),
+  /** Senha do "Esqueci a senha" (0040), PARALELA à atual (P6): argon2id; as três senha_temporaria_* juntas (CHECK). */
+  senha_temporaria_hash: text('senha_temporaria_hash'),
+  senha_temporaria_expira_em: timestamp('senha_temporaria_expira_em', { withTimezone: true }),
+  /** Quando a temporária foi gerada: teto de 15 min entre pedidos (T-0094 §5). */
+  senha_temporaria_criada_em: timestamp('senha_temporaria_criada_em', { withTimezone: true }),
+  /** Sobe a cada troca/redefinição/desativação (0040): token (claim sv) e sessão do portal só valem com a versão atual. >= 0. */
+  sessao_versao: integer('sessao_versao').notNull().default(0),
+  // --- T-0095 (seção da 0039; RN-INT-02/04): guarda de ordem do ERP e desligamento pelo BKO. Fora do pull. ---
+  /** Último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Reentrega mais antiga é ignorada. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
+  /** Gravada pela API do BKO ao desativar, limpa ao reativar; preenchida, a carga do ERP não reativa (o monitor avisa). */
+  desligado_no_bko_em: timestamp('desligado_no_bko_em', { withTimezone: true, precision: 3 }),
 });
 
 /**
@@ -87,6 +106,8 @@ export const produto = core.table('produto', {
   // juntas ou nenhuma, medida <> unidade.
   embalagem_medida: text('embalagem_medida'),
   embalagem_quantidade: integer('embalagem_quantidade'),
+  /** T-0095 (seção da 0039): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 export const cliente = core.table('cliente', {
@@ -122,6 +143,8 @@ export const cliente = core.table('cliente', {
    * ADR 0027). Nulo ou vazio = todas as ativas (§8 P1). Até 20 códigos de 1..20 caracteres, sem repetir (CHECK).
    */
   formas_pagamento: text('formas_pagamento').array(),
+  /** T-0095 (seção da 0039): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 /**

@@ -1,15 +1,26 @@
 /**
  * Usuários no BKO (RF-CORE-02, RF-CORE-01): regras puras da gestão de usuários pelo admin. A API revalida tudo.
- * - só o admin cria, edita, desativa e define senha (`usuario.gerir`); supervisor/gerente leem a lista recortada
+ * - quem cria, edita, desativa e redefine senha é decidido pelo motor de permissões (ADR 0033: `usuario.criar|editar|desativar`,
+ *   `senha.redefinir`; fábrica = só o admin), nunca por nome de perfil; supervisor/gerente leem a lista recortada
  *   pelo escopo (RN-CORE-04), reutilizando o conjunto de `usuariosVisiveis`;
  * - usuário nunca é apagado: desativar (`ativo = false`) corta o acesso na próxima requisição;
  * - toda alteração é auditada (RN-AUD-01) sem dado pessoal em claro e sem senha/hash.
  */
-import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
+import {
+  PERFIS,
+  perfilDeFabrica,
+  pode,
+  validarAcessoDoTenant,
+  type DefinicaoChave,
+  type MatrizFabrica,
+  type Perfil,
+  type PerfilDaRequisicao,
+  type ViolacaoLimite,
+} from '@macuxi/platform-sdk';
 import { montarHierarquia, type EquipeLinha } from './hierarquia';
-import { podeExecutar, podeVer } from './matriz';
+import { podeVer } from './matriz';
+import { faltasNaSenha, mensagemDaSenha } from './senha';
 
-export const podeGerirUsuarios = (perfil: Perfil): boolean => podeExecutar(perfil, 'usuario.gerir');
 export const podeVerUsuarios = (perfil: Perfil): boolean => podeVer(perfil, 'usuario.ver');
 
 export const normalizarEmail = (email: string): string => email.trim().toLowerCase();
@@ -45,43 +56,70 @@ export function validarDadosDeUsuario(d: DadosBasicosDeUsuario): ErroDeCampo[] {
   return erros;
 }
 
-/** Política da senha inicial definida pelo admin. Devolve a mensagem de erro ou `null` se a senha serve. */
+/**
+ * Política da senha definida pelo admin (RN-CORE-32 + não ser o e-mail). Devolve a mensagem de erro ou `null` se a senha serve.
+ */
 export function validarSenhaInicial(senha: string, email: string): string | null {
-  if (senha.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if (senha.length > 200) return 'A senha pode ter até 200 caracteres.';
-  if (!/[A-Za-z]/.test(senha) || !/[0-9]/.test(senha)) return 'A senha precisa ter letras e números.';
+  const faltas = faltasNaSenha(senha);
+  if (faltas.length > 0) return mensagemDaSenha(faltas, senha);
   if (senha.toLowerCase() === normalizarEmail(email)) return 'A senha não pode ser igual ao e-mail.';
   return null;
 }
 
-export type CodigoAlteracaoRecusada = 'USUARIO_SEM_PERMISSAO' | 'USUARIO_AUTODESATIVACAO' | 'USUARIO_AUTORREBAIXA' | 'ULTIMO_ADMIN';
+export type CodigoAlteracaoRecusada = 'USUARIO_SEM_PERMISSAO' | 'USUARIO_AUTODESATIVACAO' | 'USUARIO_AUTORREBAIXA' | 'ULTIMO_ADMIN' | ViolacaoLimite['codigo'];
 
-export interface EntradaAlteracaoUsuario {
-  ator: { id: string; perfil: Perfil };
-  alvo: { id: string; perfil: Perfil; ativo: boolean };
-  depois: { perfil: Perfil; ativo: boolean };
-  /** Admins ativos do tenant ANTES da alteração (inclui o alvo, se ele for admin ativo). */
-  adminsAtivos: number;
+export interface UsuarioDoEstado {
+  id: string;
+  perfil: Perfil;
+  ativo: boolean;
 }
 
-const MENSAGENS: Record<CodigoAlteracaoRecusada, string> = {
-  USUARIO_SEM_PERMISSAO: 'Só o administrador altera usuários.',
-  USUARIO_AUTODESATIVACAO: 'Você não pode desativar o seu próprio usuário. Peça a outro administrador.',
-  USUARIO_AUTORREBAIXA: 'Você não pode tirar o seu próprio perfil de administrador. Peça a outro administrador.',
-  ULTIMO_ADMIN: 'Esta empresa ficaria sem administrador ativo. Cadastre outro administrador antes.',
-};
-export const mensagemDaRecusa = (c: CodigoAlteracaoRecusada): string => MENSAGENS[c];
+export interface EntradaAlteracaoUsuario {
+  /** Quem altera: o id e os perfis resolvidos da requisição (`ctx.usuario.perfis`). */
+  ator: { id: string; perfis: readonly PerfilDaRequisicao[] };
+  alvo: UsuarioDoEstado;
+  depois: { perfil: Perfil; ativo: boolean };
+  /**
+   * Usuários do tenant ANTES da alteração (RN-CORE-35: o último admin e a autogestão olham o conjunto). Precisam incluir todos os
+   * admins ativos, o ator e o alvo; os demais não mudam o resultado.
+   */
+  usuarios: readonly UsuarioDoEstado[];
+  matriz: MatrizFabrica;
+  catalogo?: readonly DefinicaoChave[];
+}
 
-/** Guarda contra perda de acesso administrativo ao desativar ou mudar o perfil de um usuário. */
-export function avaliarAlteracaoDeUsuario(e: EntradaAlteracaoUsuario): { ok: true } | { ok: false; codigo: CodigoAlteracaoRecusada; mensagem: string } {
-  const recusa = (codigo: CodigoAlteracaoRecusada) => ({ ok: false as const, codigo, mensagem: MENSAGENS[codigo] });
-  if (!podeGerirUsuarios(e.ator.perfil)) return recusa('USUARIO_SEM_PERMISSAO');
+const MENSAGENS: Record<'USUARIO_SEM_PERMISSAO' | 'USUARIO_AUTODESATIVACAO', string> = {
+  USUARIO_SEM_PERMISSAO: 'Seu perfil não pode alterar usuários. Peça a quem administra a sua empresa.',
+  USUARIO_AUTODESATIVACAO: 'Você não pode desativar o seu próprio usuário. Peça a outro administrador.',
+};
+const CODIGO_DA_VIOLACAO: Partial<Record<ViolacaoLimite['codigo'], CodigoAlteracaoRecusada>> = { AUTOGESTAO: 'USUARIO_AUTORREBAIXA' };
+export const mensagemDaRecusa = (c: 'USUARIO_SEM_PERMISSAO' | 'USUARIO_AUTODESATIVACAO'): string => MENSAGENS[c];
+
+const refDoUsuario = (perfil: Perfil) => ({ codigo: perfil, base: perfil });
+
+/**
+ * Guarda da alteração de um usuário: a chave do motor (`usuario.desativar` ao desativar, `usuario.editar` no resto; nunca o próprio
+ * ao desativar), e os limites do tenant por `validarAcessoDoTenant` (RN-CORE-01/33/35: último admin com a gestão do acesso, autogestão,
+ * usuário sem perfil). Recusa 422 com `codigo` estável para a tela e `regra` da RN que explica.
+ */
+export function avaliarAlteracaoDeUsuario(
+  e: EntradaAlteracaoUsuario,
+): { ok: true } | { ok: false; codigo: CodigoAlteracaoRecusada; regra: string; mensagem: string } {
+  const sem = (codigo: 'USUARIO_SEM_PERMISSAO' | 'USUARIO_AUTODESATIVACAO') => ({ ok: false as const, codigo, regra: 'RN-CORE-35', mensagem: MENSAGENS[codigo] });
   const proprio = e.ator.id === e.alvo.id;
-  if (proprio && e.alvo.ativo && !e.depois.ativo) return recusa('USUARIO_AUTODESATIVACAO');
-  if (proprio && e.alvo.perfil === 'admin' && e.depois.perfil !== 'admin') return recusa('USUARIO_AUTORREBAIXA');
-  const eraAdminAtivo = e.alvo.perfil === 'admin' && e.alvo.ativo;
-  const continuaAdminAtivo = e.depois.perfil === 'admin' && e.depois.ativo;
-  if (eraAdminAtivo && !continuaAdminAtivo && e.adminsAtivos <= 1) return recusa('ULTIMO_ADMIN');
+  const desativando = e.alvo.ativo && !e.depois.ativo;
+  const chave = desativando ? 'usuario.desativar' : 'usuario.editar';
+  if (!pode(e.ator.perfis, chave)) return sem('USUARIO_SEM_PERMISSAO');
+  if (proprio && desativando) return sem('USUARIO_AUTODESATIVACAO');
+  if (!pode(e.ator.perfis, chave, { proprio, perfis: [refDoUsuario(e.alvo.perfil)] })) return sem('USUARIO_SEM_PERMISSAO');
+  const paraEstado = (us: readonly UsuarioDoEstado[]) => ({
+    perfis: PERFIS.map(perfilDeFabrica),
+    usuarios: us.map((u) => ({ id: u.id, ativo: u.ativo, perfis: [u.perfil] })),
+  });
+  const antes = paraEstado(e.usuarios);
+  const depois = paraEstado(e.usuarios.map((u) => (u.id === e.alvo.id ? { ...u, perfil: e.depois.perfil, ativo: e.depois.ativo } : u)));
+  const v = validarAcessoDoTenant({ antes, depois, atorId: e.ator.id, matriz: e.matriz, catalogo: e.catalogo })[0];
+  if (v) return { ok: false, codigo: CODIGO_DA_VIOLACAO[v.codigo] ?? v.codigo, regra: v.regra, mensagem: v.mensagem };
   return { ok: true };
 }
 

@@ -1,23 +1,25 @@
-import { PERFIS } from '@macuxi/platform-sdk';
+import { matrizDeFabrica, perfilDeFabrica, PERFIS, pode, resolverPerfil, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   avaliarAlteracaoDeUsuario,
   diffAuditavelDeUsuario,
   normalizarEmail,
-  podeGerirUsuarios,
   podeVerUsuarios,
   recortarUsuarios,
   superiorImediatoNaEquipe,
   validarDadosDeUsuario,
   validarSenhaInicial,
 } from './usuarios';
+import { perfisDeFabrica } from './matriz';
 
 describe('usuários no BKO (RF-CORE-02): quem pode gerir e ver', () => {
-  it('RF-CORE-02: só o admin cria, edita, desativa e define senha', () => {
-    expect(PERFIS.filter((p) => podeGerirUsuarios(p))).toEqual(['admin']);
+  it('RF-CORE-02 / RN-CORE-35: pelas chaves do motor, só o admin de fábrica cria, edita, desativa e redefine senha', () => {
+    for (const chave of ['usuario.criar', 'usuario.editar', 'usuario.desativar', 'senha.redefinir', 'perfil.gerir']) {
+      expect(PERFIS.filter((p) => pode(perfisDeFabrica(p), chave)), chave).toEqual(['admin']);
+    }
   });
-  it('RN-CORE-04: leitura da lista para supervisor, gerente e admin; os demais perfis não', () => {
-    expect(PERFIS.filter((p) => podeVerUsuarios(p))).toEqual(['supervisor', 'gerente', 'admin']);
+  it('RN-CORE-04/33: leitura da lista para gerente e admin; supervisor (sem BKO) e os demais perfis não', () => {
+    expect(PERFIS.filter((p) => podeVerUsuarios(p))).toEqual(['gerente', 'admin']);
   });
 });
 
@@ -40,38 +42,58 @@ describe('validação de entrada (RF-CORE-02)', () => {
   it('RF-CORE-02: external_id em branco é recusado (use vazio/nulo para "sem código")', () => {
     expect(validarDadosDeUsuario({ ...ok, external_id: '  ' }).map((x) => x.campo)).toEqual(['external_id']);
   });
-  it('RF-CORE-01: senha inicial exige 8+ caracteres com letra e número, e não pode ser o e-mail', () => {
-    expect(validarSenhaInicial('Abcdef12', 'a@b.co')).toBeNull();
-    expect(validarSenhaInicial('curta1', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('somenteletras', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('123456789', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('ana@exemplo.com.br', 'ana@exemplo.com.br')).not.toBeNull();
+  it('RN-CORE-32: senha inicial exige 8+ caracteres com letra, número e especial, e não pode ser o e-mail', () => {
+    expect(validarSenhaInicial('Abcdef1!', 'a@b.co')).toBeNull();
+    expect(validarSenhaInicial('Abcdef12', 'a@b.co')).toBe('Falta um caractere especial.');
+    expect(validarSenhaInicial('curta1!', 'a@b.co')).toContain('pelo menos 8 caracteres');
+    expect(validarSenhaInicial('somenteletras', 'a@b.co')).toBe('Faltam um número e um caractere especial.');
+    expect(validarSenhaInicial('123456789!', 'a@b.co')).toBe('Falta uma letra.');
+    expect(validarSenhaInicial('ana@exemplo.com.br', 'ana@exemplo.com.br')).toBe('Falta um número.');
+  });
+  it('RN-CORE-32: senha igual ao e-mail é recusada mesmo cumprindo a regra', () => {
+    expect(validarSenhaInicial('ana1@exemplo.com.br', 'ana1@exemplo.com.br')).toBe('A senha não pode ser igual ao e-mail.');
   });
 });
 
-describe('desativar e alterar perfil (RF-CORE-01/02)', () => {
-  const admin = { id: 'a1', perfil: 'admin' as const };
-  const alvo = (o: Partial<{ id: string; perfil: (typeof PERFIS)[number]; ativo: boolean }> = {}) => ({ id: 'u1', perfil: 'vendedor' as const, ativo: true, ...o });
-  it('RF-CORE-02: não-admin é recusado (USUARIO_SEM_PERMISSAO)', () => {
-    const r = avaliarAlteracaoDeUsuario({ ator: { id: 's1', perfil: 'supervisor' }, alvo: alvo(), depois: { perfil: 'vendedor', ativo: true }, adminsAtivos: 2 });
-    expect(r).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
+describe('desativar e alterar perfil (RF-CORE-01/02; RN-CORE-01/35)', () => {
+  const matriz = matrizDeFabrica([]);
+  const admin = { id: 'a1', perfis: perfisDeFabrica('admin') };
+  type U = { id: string; perfil: Perfil; ativo: boolean };
+  const u = (o: Partial<U> = {}): U => ({ id: 'u1', perfil: 'vendedor', ativo: true, ...o });
+  const adm = (id: string, o: Partial<U> = {}): U => u({ id, perfil: 'admin', ...o });
+  const avaliar = (ator: { id: string; perfis: ReturnType<typeof perfisDeFabrica> }, alvo: U, depois: { perfil: Perfil; ativo: boolean }, outros: U[]) =>
+    avaliarAlteracaoDeUsuario({ ator, alvo, depois, usuarios: [...outros, alvo], matriz });
+  it('RN-CORE-35: quem não tem usuario.editar é recusado (USUARIO_SEM_PERMISSAO), qualquer que seja o perfil', () => {
+    for (const p of PERFIS.filter((x) => x !== 'admin')) {
+      const r = avaliar({ id: 's1', perfis: perfisDeFabrica(p) }, u(), { perfil: 'vendedor', ativo: true }, [adm('a1')]);
+      expect(r, p).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
+    }
+  });
+  it('RN-CORE-35: a chave concedida a outro perfil por sobreposição basta, sem ser admin (nada de nome fixo)', () => {
+    const gerente = resolverPerfil({ ...perfilDeFabrica('gerente'), codigo: 'coord', fabrica: false, sobreposicoes: [{ chave: 'usuario.editar', concedida: true }] }, matriz);
+    expect(avaliar({ id: 'g1', perfis: [gerente] }, u(), { perfil: 'promotor', ativo: true }, [adm('a1')])).toEqual({ ok: true });
+    // desativar é outra chave
+    expect(avaliar({ id: 'g1', perfis: [gerente] }, u(), { perfil: 'vendedor', ativo: false }, [adm('a1')])).toMatchObject({ ok: false, codigo: 'USUARIO_SEM_PERMISSAO' });
   });
   it('RF-CORE-02: admin desativa outro usuário', () => {
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo: alvo(), depois: { perfil: 'vendedor', ativo: false }, adminsAtivos: 1 })).toEqual({ ok: true });
+    expect(avaliar(admin, u(), { perfil: 'vendedor', ativo: false }, [adm('a1')])).toEqual({ ok: true });
   });
-  it('RF-CORE-02: o admin não desativa a si mesmo (perderia o acesso)', () => {
-    const r = avaliarAlteracaoDeUsuario({ ator: admin, alvo: alvo({ id: 'a1', perfil: 'admin' }), depois: { perfil: 'admin', ativo: false }, adminsAtivos: 3 });
+  it('RF-CORE-02: o admin não desativa a si mesmo (usuario.desativar nunca no próprio)', () => {
+    const r = avaliar(admin, adm('a1'), { perfil: 'admin', ativo: false }, [adm('a2'), adm('a3')]);
     expect(r).toMatchObject({ ok: false, codigo: 'USUARIO_AUTODESATIVACAO' });
   });
-  it('RF-CORE-02: o admin não rebaixa o próprio perfil', () => {
-    const r = avaliarAlteracaoDeUsuario({ ator: admin, alvo: alvo({ id: 'a1', perfil: 'admin' }), depois: { perfil: 'gerente', ativo: true }, adminsAtivos: 3 });
-    expect(r).toMatchObject({ ok: false, codigo: 'USUARIO_AUTORREBAIXA' });
+  it('RN-CORE-35: o admin não tira de si mesmo a gestão do acesso (AUTOGESTAO, 422 com a regra)', () => {
+    const r = avaliar(admin, adm('a1'), { perfil: 'gerente', ativo: true }, [adm('a2'), adm('a3')]);
+    expect(r).toMatchObject({ ok: false, codigo: 'USUARIO_AUTORREBAIXA', regra: 'RN-CORE-35' });
   });
-  it('RF-CORE-02: o último admin ativo não é desativado nem rebaixado', () => {
-    const outro = alvo({ id: 'a2', perfil: 'admin' });
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo: outro, depois: { perfil: 'admin', ativo: false }, adminsAtivos: 1 })).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN' });
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo: outro, depois: { perfil: 'analista', ativo: true }, adminsAtivos: 1 })).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN' });
-    expect(avaliarAlteracaoDeUsuario({ ator: admin, alvo: outro, depois: { perfil: 'admin', ativo: false }, adminsAtivos: 2 })).toEqual({ ok: true });
+  it('RN-CORE-35: o último admin ativo não é desativado nem rebaixado (ULTIMO_ADMIN)', () => {
+    const outro = adm('a2');
+    expect(avaliar(admin, outro, { perfil: 'admin', ativo: false }, [])).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN', regra: 'RN-CORE-35' });
+    expect(avaliar(admin, outro, { perfil: 'analista', ativo: true }, [])).toMatchObject({ ok: false, codigo: 'ULTIMO_ADMIN' });
+    expect(avaliar(admin, outro, { perfil: 'admin', ativo: false }, [adm('a3')])).toEqual({ ok: true });
+  });
+  it('RN-CORE-01: reativar usa usuario.editar e não derruba ninguém', () => {
+    expect(avaliar(admin, u({ ativo: false }), { perfil: 'vendedor', ativo: true }, [adm('a1')])).toEqual({ ok: true });
   });
 });
 

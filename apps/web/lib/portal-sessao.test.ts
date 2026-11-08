@@ -1,4 +1,4 @@
-/** T-0087: sessão do super-admin no portal (lib/portal-sessao.ts) e erros do cliente do portal (lib/portal-api.ts). */
+/** T-0087/T-0093: sessão do portal (lib/portal-sessao.ts) e erros do cliente do portal (lib/portal-api.ts). */
 import { describe, expect, it } from 'vitest';
 
 import { ehRotaAusente, ErroPortal, lerErroDaApi, mensagemDoErro, MENSAGEM_PADRAO } from './portal-api';
@@ -25,7 +25,9 @@ const sessao = (tokenMin: number, tetoMin: number): SessaoPortal => ({
   token: 'x'.repeat(40),
   expira_em: new Date(T0 + tokenMin * 60_000).toISOString(),
   sessao_expira_em: new Date(T0 + tetoMin * 60_000).toISOString(),
-  recuperacao_restantes: 10,
+  tipo: 'super_admin',
+  empresa: null,
+  empresas: [],
 });
 
 class Memoria implements Storage {
@@ -74,7 +76,7 @@ describe('armazenamento da sessão (sessionStorage, nunca localStorage)', () => 
     const st = new Memoria();
     expect(lerSessaoPortal(st)).toBeNull();
     salvarSessaoPortal(sessao(15, 480), st);
-    expect(lerSessaoPortal(st)?.recuperacao_restantes).toBe(10);
+    expect(lerSessaoPortal(st)?.tipo).toBe('super_admin');
     limparSessaoPortal(st);
     expect(lerSessaoPortal(st)).toBeNull();
     st.setItem(CHAVE_SESSAO_PORTAL, '{"token":1}');

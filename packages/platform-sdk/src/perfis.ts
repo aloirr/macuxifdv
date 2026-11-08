@@ -57,3 +57,29 @@ export function mensagemPerfilForaDoApp(perfil: Perfil | null | undefined, app: 
   const onde = certo.map((a) => NOME_DO_APP[a]).join(' ou ');
   return `O perfil ${ROTULO_PERFIL[perfil].toLowerCase()} não usa ${NOME_DO_APP[app]}.${onde ? ` Entre pelo ${onde.replace(/^o /, '').replace(/ ou o /g, ' ou pelo ')}.` : ''}`;
 }
+
+/**
+ * T-0094 (RN-CORE-33; ADR 0032): apps com login de usuário do tenant. O shell manda o seu no `POST /v1/auth/login`
+ * (`app`) e a API recusa, já no login, o perfil que não usa aquele app (403 `PERFIL_FORA_DO_APP`, sem abrir sessão).
+ */
+export const APPS_COM_LOGIN = ['campo', 'gestao', 'web'] as const satisfies readonly (keyof typeof PERFIS_DO_APP)[];
+export type AppComLogin = (typeof APPS_COM_LOGIN)[number];
+
+/** 403 do login: perfil certo, app errado (ex.: vendedor no BKO). Mensagem: `mensagemPerfilForaDoApp`. */
+export const CODIGO_PERFIL_FORA_DO_APP = 'PERFIL_FORA_DO_APP';
+
+/**
+ * T-0094 (RN-CORE-33; ADR 0032): superfície exigida por uma rota de módulo (`RotaModulo.superficie`). `'bko'` = rota que só o
+ * backoffice usa: a API recusa com 403 `PERFIL_SEM_BKO` todo perfil fora de `PERFIS_DO_APP.web`, qualquer que seja o app que
+ * pediu o token. Rota usada também pelos apps (ex.: hierarquia da equipe no Gestão) não leva a marca.
+ */
+export const SUPERFICIES_ROTA = ['bko'] as const;
+export type SuperficieRota = (typeof SUPERFICIES_ROTA)[number];
+
+/** 403 da API: rota marcada `superficie: 'bko'` chamada por perfil que não usa o backoffice. */
+export const CODIGO_PERFIL_SEM_BKO = 'PERFIL_SEM_BKO';
+
+/** O perfil pode usar a superfície? Hoje `'bko'` = `PERFIS_DO_APP.web` (fonte única com o login do BKO). */
+export function perfilUsaSuperficie(perfil: Perfil | null | undefined, superficie: SuperficieRota): boolean {
+  return superficie === 'bko' && perfilUsaApp(perfil, 'web');
+}

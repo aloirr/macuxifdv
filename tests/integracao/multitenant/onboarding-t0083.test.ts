@@ -30,8 +30,11 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 /** Mesmo e-mail do admin de A e da demo: o login separa pelo código da empresa, nunca pelo e-mail. */
 const EMAIL_N = 'admin@exemplo.com.br';
-const SENHA_N = 'TenantNovo2026';
-const OUTRA_SENHA = 'TenantNovo2027';
+/** Senhas na RN-CORE-32 (T-0093: o tenant:criar recusa senha sem caractere especial). */
+const SENHA_N = 'Tenant#Novo2026';
+const OUTRA_SENHA = 'Tenant#Novo2027';
+/** T-0094 (0040, P5): o admin inicial nasce com 'trocar senha' (sem validade) e cria esta no 1º uso, antes de qualquer sessão. */
+const SENHA_N_CRIADA = 'Tenant#Criada2026';
 const MODULOS_N = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
 
 interface Execucao {
@@ -46,6 +49,8 @@ describe.skipIf(semBanco())('T-0083 — tenant novo do onboarding isolado de A, 
   let tabelas: Tabela[] = [];
   let N = '';
   let tokenN = '';
+  /** Resposta do 1º login do admin de N (com a senha do comando): 403 SENHA_A_TROCAR. */
+  let primeiroLoginN: { status: number; corpo: Record<string, unknown> } = { status: 0, corpo: {} };
   let tokenA = '';
   let tokenDemo = '';
   let primeira: Execucao;
@@ -177,7 +182,11 @@ describe.skipIf(semBanco())('T-0083 — tenant novo do onboarding isolado de A, 
     primeira = await rodar(MODULOS_N);
     N = String(primeira.json?.tenant_id ?? '');
     retratoDepoisDaPrimeira = await retrato();
-    tokenN = (await sessao(codigoN, EMAIL_N, SENHA_N)).access_token;
+    const primeiro = await login(codigoN, EMAIL_N, SENHA_N);
+    primeiroLoginN = { status: primeiro.statusCode, corpo: primeiro.json() as Record<string, unknown> };
+    const troca = await api.app.inject({ method: 'POST', url: '/v1/auth/senha/trocar', remoteAddress: novoIp(), payload: { codigo_empresa: codigoN, email: EMAIL_N, senha_atual: SENHA_N, senha_nova: SENHA_N_CRIADA, app: 'web' } });
+    if (troca.statusCode !== 200) throw new Error(`troca da senha do admin de N: ${troca.statusCode} ${troca.body}`);
+    tokenN = (await sessao(codigoN, EMAIL_N, SENHA_N_CRIADA)).access_token;
     tokenA = (await sessao(A.codigo, 'admin@exemplo.com.br', SENHA)).access_token;
     tokenDemo = (await sessao(CODIGO_DEMO, 'admin@exemplo.com.br', SENHA_DEMO)).access_token;
     // tudo o que O-05/O-06 puxam (demo, A, B e N) já foi gravado: o pull só enxerga depois que o horizonte passa daqui
@@ -247,11 +256,15 @@ describe.skipIf(semBanco())('T-0083 — tenant novo do onboarding isolado de A, 
   });
 
   it('O-04 o admin de N entra só no código de N; o mesmo e-mail em A e na demo segue com a senha de lá (RN-CORE-05)', async () => {
-    const s = await sessao(codigoN, EMAIL_N, SENHA_N);
+    // T-0094 (P5): o 1º login com a senha do comando pediu a troca (sem validade) e não abriu sessão
+    expect(primeiroLoginN).toMatchObject({ status: 403, corpo: { codigo: 'SENHA_A_TROCAR', detalhes: { motivo: 'primeiro_acesso', expira_em: null } } });
+    expect(primeiroLoginN.corpo).not.toHaveProperty('access_token');
+    expect((await login(codigoN, EMAIL_N, SENHA_N)).statusCode, 'a senha do comando não vale mais').toBe(401);
+    const s = await sessao(codigoN, EMAIL_N, SENHA_N_CRIADA);
     expect(s.tenant).toMatchObject({ id: N, codigo: codigoN, fuso: 'America/Manaus' });
     expect(s.usuario).toMatchObject({ perfil: 'admin' });
     // senha de N em outro código: recusa (mesmo e-mail existe lá)
-    for (const codigo of [A.codigo, B.codigo, CODIGO_DEMO]) expect((await login(codigo, EMAIL_N, SENHA_N)).statusCode, codigo).toBe(401);
+    for (const codigo of [A.codigo, B.codigo, CODIGO_DEMO]) expect((await login(codigo, EMAIL_N, SENHA_N_CRIADA)).statusCode, codigo).toBe(401);
     // senhas de A/B/demo no código de N: recusa
     for (const [email, senha] of [
       ['admin@exemplo.com.br', SENHA],
@@ -360,7 +373,7 @@ describe.skipIf(semBanco())('T-0083 — tenant novo do onboarding isolado de A, 
     const deNovo = await rodar(MODULOS_N);
     expect(deNovo.json).toMatchObject({ tenant_id: N, resultado: 'sem_mudanca', admin: 'existente' });
     expect(await retrato()).toEqual(antes);
-    expect((await login(codigoN, EMAIL_N, SENHA_N)).statusCode).toBe(200);
+    expect((await login(codigoN, EMAIL_N, SENHA_N_CRIADA)).statusCode).toBe(200);
     expect((await login(codigoN, EMAIL_N, OUTRA_SENHA)).statusCode).toBe(401);
   });
 

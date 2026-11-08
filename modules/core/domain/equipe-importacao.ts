@@ -1,8 +1,8 @@
 /**
- * Equipe por CSV com convite de 1º acesso (T-0087, fatia E; RN-CORE-31; desenho docs/modulos/core/equipe-csv.md).
+ * Equipe por CSV (T-0087, fatia E; T-0094 sem convite: cada pessoa nova recebe senha temporária por e-mail, RN-CORE-34; RN-CORE-31; desenho docs/modulos/core/equipe-csv.md).
  * Funções puras: leitura do CSV, conferência (erros por linha, sem gravar), plano de gravação ordenado
- * (gerentes → supervisores → campo) e regras do convite. A API só executa o plano e revalida tudo.
- * - o CSV NUNCA traz senha (coluna `senha` recusa o arquivo); o usuário define a senha ao aceitar o convite;
+ * (gerentes → supervisores → campo). A API só executa o plano e revalida tudo.
+ * - o CSV NUNCA traz senha (coluna `senha` recusa o arquivo); a senha inicial é gerada pelo servidor e vai por e-mail;
  * - idempotente pelo e-mail: existente é atualizado (nome, superior, codigo_erp, módulos), nunca troca perfil;
  * - módulos: a exceção por usuário só REMOVE (RN-CORE-01/02); passar da quantidade licenciada recusa a linha (RN-CORE-02);
  * - regra 7 (RN-CORE-29): promotor nunca recebe o módulo `vendedor` (pedido);
@@ -12,7 +12,6 @@ import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { EXTERNAL_ID_MAX, NOME_USUARIO_MAX, normalizarEmail } from './usuarios';
 
 export const MAX_LINHAS_EQUIPE_CSV = 5000;
-export const PRAZO_CONVITE_DIAS = 7;
 export const COLUNAS_EQUIPE_CSV = ['nome', 'email', 'telefone', 'perfil', 'email_superior', 'codigo_erp', 'modulos'] as const;
 const OBRIGATORIAS = ['nome', 'email', 'perfil'] as const;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -85,7 +84,7 @@ export function lerCsvDeEquipe(texto: string): LeituraCsvEquipe {
   });
   if (!cab || cab.every((c) => c === '')) return { ok: false, mensagem: 'O arquivo está vazio. Baixe o modelo, preencha e envie de novo.' };
   if (cab.some((c) => c === 'senha' || c === 'password')) {
-    return { ok: false, mensagem: 'O arquivo não pode ter coluna de senha. Remova a coluna: cada pessoa define a própria senha pelo convite.' };
+    return { ok: false, mensagem: 'O arquivo não pode ter coluna de senha. Remova a coluna: a senha inicial de cada pessoa é gerada pelo sistema e enviada por e-mail.' };
   }
   const faltam = OBRIGATORIAS.filter((c) => !cab.includes(c));
   if (faltam.length > 0) return { ok: false, mensagem: `Faltam colunas obrigatórias: ${faltam.join(', ')}. Baixe o modelo para ver o cabeçalho certo.` };
@@ -329,15 +328,6 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
   };
 }
 
-// ---------- convite de 1º acesso (sem e-mail: link de uso único) ----------
-
-export const prazoDoConvite = (agora: Date): Date => new Date(agora.getTime() + PRAZO_CONVITE_DIAS * 86_400_000);
-
-export function avaliarConvite(c: { expira_em: Date; usado_em: Date | null; revogado_em: Date | null }, agora: Date): 'valido' | 'invalido' {
-  if (c.usado_em || c.revogado_em) return 'invalido';
-  return c.expira_em.getTime() > agora.getTime() ? 'valido' : 'invalido';
-}
-
 /** Célula de CSV: aspas quando preciso e neutralização de fórmula de planilha (`= + - @`). */
 function celula(v: string): string {
   const seguro = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
@@ -346,16 +336,4 @@ function celula(v: string): string {
 
 export function errosParaCsv(erros: readonly ErroLinhaEquipe[]): string {
   return ['linha,coluna,mensagem', ...erros.map((e) => [String(e.linha), celula(e.coluna), celula(e.mensagem)].join(','))].join('\r\n') + '\r\n';
-}
-
-export interface ConviteSaida {
-  nome: string;
-  email: string;
-  perfil: string;
-  link: string;
-  expira_em: string;
-}
-
-export function convitesParaCsv(convites: readonly ConviteSaida[]): string {
-  return ['nome,email,perfil,link,expira_em', ...convites.map((c) => [c.nome, c.email, c.perfil, c.link, c.expira_em].map(celula).join(','))].join('\r\n') + '\r\n';
 }

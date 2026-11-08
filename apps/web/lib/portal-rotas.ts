@@ -6,12 +6,10 @@
 import type { Entidade } from '@macuxi/integracao/contracts';
 
 export const ROTAS_PORTAL = {
-  // Core (rotas públicas de autenticação do super-admin)
-  primeiroAcesso: '/plataforma/auth/primeiro-acesso',
+  // Core: acesso ao portal só com e-mail e senha (T-0093; ADR 0031). `login` é pública; `empresa`, `renovar` e `sair` levam o token.
   login: '/plataforma/auth/login',
-  totpIniciar: '/plataforma/auth/totp/iniciar',
-  totpConfirmar: '/plataforma/auth/totp/confirmar',
-  segundoFator: '/plataforma/auth/segundo-fator',
+  /** Admin do cliente: escolhe ou troca de empresa (`EscolherEmpresaPortalSchema`); devolve uma sessão nova (token novo). */
+  escolherEmpresa: '/plataforma/auth/empresa',
   renovar: '/plataforma/auth/renovar',
   sair: '/plataforma/auth/sair',
   // API da plataforma
@@ -25,11 +23,9 @@ export const ROTAS_PORTAL = {
   errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
   errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
   conectores: '/integracao/conectores',
-  // Core: Equipe por CSV e convites de 1º acesso (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`)
+  // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
   equipeModeloCsv: '/core/equipe/modelo.csv',
   equipeImportacoes: '/core/equipe/importacoes',
-  equipeConvites: '/core/equipe/convites',
-  equipeRenovarConvite: (usuarioId: string) => `/core/equipe/convites/${encodeURIComponent(usuarioId)}/renovar`,
   // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
   modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
   dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,
@@ -41,14 +37,8 @@ export const ROTAS_PORTAL = {
  */
 export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.json', viaProxy: '/api-proxy/_publico/integracao/v1/openapi.json' });
 
-/** Rotas públicas (sem token): a 1ª e a 2ª etapa do login e o cadastro do TOTP (o desafio é a credencial). */
-export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [
-  ROTAS_PORTAL.primeiroAcesso,
-  ROTAS_PORTAL.login,
-  ROTAS_PORTAL.totpIniciar,
-  ROTAS_PORTAL.totpConfirmar,
-  ROTAS_PORTAL.segundoFator,
-];
+/** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
+export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
 
 /**
  * Download do pacote do Conector on-premise (ADR 0013). Ainda sem endereço publicado: `null` mostra "em breve" na aba

@@ -24,3 +24,4 @@ export * from './periodo';
 export * from './suspensa';
 export * from './filtro';
 export * from './cartoes-pedido';
+export * from './senha';
