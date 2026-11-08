@@ -28,6 +28,7 @@ import { irParaListaPorLinha, irParaProduto } from '../rotas';
 import { ATALHO_POR_LINHA, mostrarAtalhoPorLinha } from '../lib/atalho-por-linha';
 import { NiveisArvore, type NoComContagem } from './arvore';
 import { CartaoProduto } from './comum';
+import { useMiniaturasDosItens } from './miniatura';
 import type { NoCatalogo } from '../../domain/arvore';
 
 const POR_PAGINA = 20;
@@ -69,6 +70,8 @@ export default function TelaCatalogo() {
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const agora = relogioReal().agora().toISOString();
+  const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
+  const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
 
   // espera o vendedor parar de digitar antes de buscar (economiza IA e bateria)
   useEffect(() => {
@@ -246,7 +249,7 @@ export default function TelaCatalogo() {
         </Text>
       ) : null}
       {lista.itens.map((item) => (
-        <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} onPress={() => irParaProduto(item.id, clienteId)} />
+        <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} />
       ))}
       <Text style={t.small} testID="catalogo-rodape-atualizacao">
         {auto.rodape}
