@@ -316,7 +316,7 @@ export function RoutesPage() {
           <KpiCard label="Visitas planejadas" value={formatInt(kpis.planned)} />
           <KpiCard label="Km total" value={formatInt(kpis.km)} sub="saída do CD, sem volta" />
           <KpiCard label="Visitadas" value={formatInt(kpis.done)} valueClass="text-success" sub={kpis.planned ? `${Math.round((kpis.done / kpis.planned) * 100)}% do planejado` : '—'} />
-          <KpiCard label="Em atendimento" value={formatInt(kpis.inProgress)} valueClass={kpis.inProgress ? 'text-accent' : undefined} />
+          <KpiCard label="Em atendimento" value={formatInt(kpis.inProgress)} valueClass={kpis.inProgress ? 'text-accent-ink' : undefined} />
           <KpiCard label="Pendentes" value={formatInt(kpis.pending)} />
         </KpiGrid>
       )}
@@ -378,7 +378,7 @@ export function RoutesPage() {
 
           {dense && (
             <label className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
-              <input type="checkbox" className="h-4 w-4 accent-[#c2540a]" checked={showAllLines} onChange={(e) => setLinesOverride(e.target.checked)} />
+              <input type="checkbox" className="h-4 w-4 accent-accent" checked={showAllLines} onChange={(e) => setLinesOverride(e.target.checked)} />
               Mostrar as linhas de todas as rotas (muitos dados: por padrão só os pontos; escolha uma rota na lista para ver o trajeto)
             </label>
           )}

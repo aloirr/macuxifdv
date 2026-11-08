@@ -57,7 +57,7 @@ export function CoordenadasPage() {
                   {v.lat.toFixed(6)}, {v.lng.toFixed(6)}
                 </span>
                 {v.precisao_m !== null ? <span className="text-ink-2">precisão {v.precisao_m} m</span> : null}
-                <a href={linkDoMapa(v.lat, v.lng)} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">
+                <a href={linkDoMapa(v.lat, v.lng)} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink underline">
                   Ver no mapa
                 </a>
                 <Button variant="primary" disabled={!pode || aprovar.isPending} onClick={() => aprovar.mutate({ clienteId: c.cliente_id, visitaId: v.visita_id })} data-testid={`coordenadas.aprovar.${v.visita_id}`}>

@@ -1,16 +1,18 @@
-import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { criarPermissoes, matrizDeFabrica, perfilDeFabrica, resolverPerfil, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { UsuarioItemSchema } from '../contracts';
+import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema } from '../contracts';
+import type { MensagemEmail, ServicoEmail } from './email';
 import { manifest } from '../manifest';
+import { perfisDeFabrica } from '../domain';
 import { rotasDeUsuarios } from './usuarios';
 
 const TENANT = '0a000000-0000-4000-8000-0000000000aa';
-const ADMIN = { id: '0b000000-0000-4000-8000-0000000000ad', tenant_id: TENANT, perfil: 'admin' as const, modulos: ['core' as const] };
+const ADMIN = { id: '0b000000-0000-4000-8000-0000000000ad', tenant_id: TENANT, perfil: 'admin' as const, modulos: ['core' as const], perfis: perfisDeFabrica('admin') };
 const ALVO = '0b000000-0000-4000-8000-000000000001';
 const EQUIPE = '0c000000-0000-4000-8000-000000000001';
 const SENHA = 'Senha@Forte123';
 
-type Resposta = [RegExp, unknown[] | (() => unknown[])];
+type Resposta = [RegExp, unknown[] | ((valores: readonly unknown[]) => unknown[])];
 /** Banco falso: responde por trecho do SQL (primeira regra que casa) e guarda tudo o que foi executado. */
 function fakeDb(respostas: Resposta[] = [], falhaNoInsert?: { code: string; constraint: string }) {
   const chamadas: Array<{ sql: string; valores: readonly unknown[] }> = [];
@@ -19,14 +21,28 @@ function fakeDb(respostas: Resposta[] = [], falhaNoInsert?: { code: string; cons
       chamadas.push({ sql, valores });
       if (falhaNoInsert && /insert into core.usuario/.test(sql)) throw Object.assign(new Error('duplicate key'), falhaNoInsert);
       const r = respostas.find(([re]) => re.test(sql));
-      const rows = ((typeof r?.[1] === 'function' ? r[1]() : r?.[1]) ?? []) as never[];
+      const rows = ((typeof r?.[1] === 'function' ? r[1](valores) : r?.[1]) ?? []) as never[];
       return { rows, rowCount: rows.length };
     },
   };
   return { db, chamadas };
 }
 
-function contexto(db: ClienteBanco, extra: { usuario?: typeof ADMIN; visiveis?: ReadonlySet<string> | 'tenant' } = {}) {
+/** E-mail falso em memória (a porta real chega pela fatia S / N5): guarda o que foi enfileirado. */
+function emailFalso(disponivel = true) {
+  const enviados: MensagemEmail[] = [];
+  const servico: ServicoEmail = {
+    disponivel: () => disponivel,
+    enfileirar: async (_db, m) => {
+      if (!disponivel) return 'indisponivel';
+      enviados.push(m);
+      return 'enfileirado';
+    },
+  };
+  return { servico, enviados };
+}
+
+function contexto(db: ClienteBanco, extra: { usuario?: typeof ADMIN; visiveis?: ReadonlySet<string> | 'tenant'; email?: ServicoEmail } = {}) {
   const tx = { publicar: async () => ({}) } as unknown as TransacaoTenant;
   return {
     usuario: extra.usuario ?? ADMIN,
@@ -35,6 +51,7 @@ function contexto(db: ClienteBanco, extra: { usuario?: typeof ADMIN; visiveis?: 
     fuso: () => 'America/Manaus',
     comTenant: (fn: (d: ClienteBanco, t: TransacaoTenant) => Promise<unknown>) => fn(db, tx),
     usuariosVisiveis: async () => extra.visiveis ?? 'tenant',
+    email: extra.email,
     log: { info() {}, warn() {}, error() {} },
   } as unknown as ContextoBase;
 }
@@ -44,24 +61,38 @@ const executar = (r: RotaModulo, ctx: ContextoBase, extra: Record<string, unknow
   r.executar({ ...ctx, corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never);
 
 const linhaItem = (o: Record<string, unknown> = {}) => ({
-  id: ALVO, nome: 'Vera', nome_curto: null, email: 'vera@x.com', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true, external_id: null, ultimo_login_em: null, ...o,
+  id: ALVO, nome: 'Vera', nome_curto: null, email: 'vera@x.com', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false, ...o,
 });
+const estado: Resposta = [/id = any\(/,[{ id: '0b000000-0000-4000-8000-0000000000ad', perfil: 'admin', ativo: true }, { id: 'a2', perfil: 'admin', ativo: true }, { id: '0b000000-0000-4000-8000-000000000001', perfil: 'vendedor', ativo: true }]];
+/** Estado real do tenant (T-0111): os 7 perfis de fábrica, sem sobreposição, e cada usuário com os códigos dos seus perfis. */
+type UsuarioReal = { id: string; ativo?: boolean; perfis: string[] };
+const carga = (us: UsuarioReal[]): Resposta[] => [
+  [/from plataforma\.perfil where deleted_at is null order by codigo/, PERFIS.map((p) => ({ id: `p-${p}`, codigo: p, nome: p, descricao: null, base: p, fabrica: true, ativo: true }))],
+  [/from plataforma\.perfil_permissao/, []],
+  [/from core\.usuario u\s+left join plataforma\.usuario_perfil/, us.map((u) => ({ id: u.id, ativo: u.ativo ?? true, perfis: u.perfis }))],
+  // refsDoUsuario: os perfis (código e base) do usuário pedido
+  [/p\.codigo, p\.base from plataforma\.usuario_perfil/, (v) => (us.find((u) => u.id === v[0])?.perfis ?? []).map((c) => ({ codigo: c, base: c }))],
+];
 const bruto = (o: Record<string, unknown> = {}) => ({ id: ALVO, nome: 'Vera', nome_curto: null, email: 'vera@x.com', perfil: 'vendedor', equipe_id: null, ativo: true, external_id: null, ...o });
+const cargaPadrao = carga([{ id: ADMIN.id, perfis: ['admin'] }, { id: 'a2', perfis: ['admin'] }, { id: ALVO, perfis: ['vendedor'] }]);
 const aud = (c: Array<{ sql: string; valores: readonly unknown[] }>) => c.filter((x) => /insert into plataforma.auditoria/.test(x.sql));
 const jsonDaAuditoria = (c: Array<{ sql: string; valores: readonly unknown[] }>) => aud(c).map((x) => JSON.stringify(x.valores)).join('|');
 
 describe('RF-CORE-02: permissões das rotas de usuários (T-0067)', () => {
   const permissoes = criarPermissoes([manifest]);
-  it('RF-CORE-02: só o admin cria, edita, desativa e define senha (403 para os demais perfis)', () => {
-    for (const perfil of PERFIS.filter((p) => p !== 'admin')) {
-      expect(verificarAcao({ id: 'x', tenant_id: 'y', perfil, modulos: ['core'] }, permissoes, 'usuario.gerir').ok, perfil).toBe(false);
+  it('RF-CORE-02/RN-CORE-35: criar, editar, desativar e redefinir senha são chaves do motor (fábrica = só o admin; 403 para os demais)', () => {
+    const chaves = { 'POST usuarios': 'usuario.criar', 'PUT usuarios/:id': 'usuario.editar', 'PUT usuarios/:id/ativo': 'usuario.desativar', 'PUT usuarios/:id/senha': 'senha.redefinir' };
+    for (const r of rotasDeUsuarios.filter((x) => x.metodo !== 'GET')) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe(chaves[`${r.metodo} ${r.caminho}` as keyof typeof chaves]);
+    for (const chave of Object.values(chaves)) {
+      for (const perfil of PERFIS.filter((p) => p !== 'admin')) {
+        expect(verificarAcao({ id: 'x', tenant_id: 'y', perfil, modulos: ['core'], perfis: perfisDeFabrica(perfil) }, permissoes, chave).ok, `${perfil} ${chave}`).toBe(false);
+      }
+      expect(verificarAcao(ADMIN, permissoes, chave).ok, chave).toBe(true);
     }
-    expect(verificarAcao(ADMIN, permissoes, 'usuario.gerir').ok).toBe(true);
-    for (const r of rotasDeUsuarios.filter((x) => x.metodo !== 'GET')) expect(r.acao, `${r.metodo} ${r.caminho}`).toBe('usuario.gerir');
   });
-  it('RN-CORE-04: a leitura é de supervisor, gerente e admin; vendedor, promotor, analista e assistente recebem 403', () => {
+  it('RN-CORE-04/33: a leitura é de gerente e admin; vendedor, promotor, supervisor, analista e assistente recebem 403', () => {
     const quem = PERFIS.filter((perfil) => verificarAcao({ id: 'x', tenant_id: 'y', perfil, modulos: ['core'] }, permissoes, 'usuario.ver').ok);
-    expect(quem).toEqual(['supervisor', 'gerente', 'admin']);
+    expect(quem).toEqual(['gerente', 'admin']);
     for (const r of rotasDeUsuarios.filter((x) => x.metodo === 'GET')) expect(r.acao).toBe('usuario.ver');
   });
   it('RF-CORE-02: não existe rota de remoção (nunca apaga usuário)', () => {
@@ -69,9 +100,18 @@ describe('RF-CORE-02: permissões das rotas de usuários (T-0067)', () => {
   });
 });
 
+/** Perfis do tenant como a 0041 deixa (7 de fábrica + um admin ativo com seu vínculo): o estado que a conferência de limites lê (T-0111). */
+export const respostasDoTenant = (): Resposta[] => [
+  [/select id, codigo, nome, descricao, base, fabrica, ativo from plataforma.perfil/, PERFIS.map((b) => ({ id: `0d000000-0000-4000-8000-00000000000${PERFIS.indexOf(b)}`, codigo: b, nome: b, descricao: null, base: b, fabrica: true, ativo: true }))],
+  [/from plataforma.perfil_permissao/, []],
+  [/coalesce\(array_agg/, [{ id: ADMIN.id, ativo: true, perfis: ['admin'] }]],
+  [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }]],
+];
+
 describe('RF-CORE-02: criar usuário', () => {
   const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
   const respostas: Resposta[] = [
+    ...respostasDoTenant(),
     [/select 1 from core.equipe where id/, [{ '?column?': 1 }]],
     [/insert into core.usuario/, [{ id: ALVO }]],
     [/from core.usuario u left join/, [linhaItem({ equipe_id: EQUIPE, equipe_nome: 'Equipe 1', external_id: 'V-100' })]],
@@ -79,8 +119,9 @@ describe('RF-CORE-02: criar usuário', () => {
 
   it('RF-CORE-01: grava hash argon2id (nunca a senha), e-mail em minúsculas e audita sem senha, hash, nome nem e-mail (RN-AUD-01)', async () => {
     const { db, chamadas } = fakeDb(respostas);
-    const r = UsuarioItemSchema.parse(await executar(rota('POST', 'usuarios'), contexto(db), { corpo }));
+    const r = CriarUsuarioRespostaSchema.parse(await executar(rota('POST', 'usuarios'), contexto(db), { corpo }));
     expect(r.id).toBe(ALVO);
+    expect(r.email_acesso).toBe('indisponivel'); // sem ctx.email o usuário nasce do mesmo jeito e o BKO avisa
     const ins = chamadas.find((c) => /insert into core.usuario/.test(c.sql))!;
     expect(ins.valores).toContain('nova@exemplo.com.br');
     const hash = ins.valores.find((v) => typeof v === 'string' && v.startsWith('$argon2id$'));
@@ -91,6 +132,36 @@ describe('RF-CORE-02: criar usuário', () => {
     expect(a).toContain('usuario.criar');
     expect(a).toContain('senha_definida');
     for (const proibido of [SENHA, '$argon2id', 'Nova Pessoa', 'exemplo.com.br']) expect(a).not.toContain(proibido);
+  });
+
+  it('RN-CORE-34: nasce com trocar_senha, validade de 72 h e a senha inicial só na mensagem de e-mail (mesma transação)', async () => {
+    const { db, chamadas } = fakeDb(respostas);
+    const mail = emailFalso();
+    const r = CriarUsuarioRespostaSchema.parse(await executar(rota('POST', 'usuarios'), contexto(db, { email: mail.servico }), { corpo }));
+    expect(r.email_acesso).toBe('enfileirado');
+    const ins = chamadas.find((c) => /insert into core.usuario/.test(c.sql))!;
+    expect(ins.sql).toContain('trocar_senha');
+    expect(ins.valores.find((v) => v instanceof Date)).toEqual(new Date('2026-11-06T12:00:00Z')); // 2026-11-03T12:00 + 72 h
+    expect(mail.enviados).toHaveLength(1);
+    expect(mail.enviados[0]).toMatchObject({ modelo: 'acesso_inicial', usuario_id: ALVO, para: 'nova@exemplo.com.br', dados: { senha: SENHA, validade_horas: 72, login: 'nova@exemplo.com.br' } });
+    expect(mail.enviados[0]!.chave_idempotencia).toBe(`${ALVO}:acesso`);
+    // a senha, o e-mail e o nome não vão à auditoria, nem a SQL nenhuma além do hash
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toMatch(/trocar_senha[\\]*":true/);
+    for (const proibido of [SENHA, 'nova@exemplo.com.br', 'Nova Pessoa']) expect(a).not.toContain(proibido);
+    expect(chamadas.some((c) => c.valores.includes(SENHA))).toBe(false);
+  });
+
+  it('RN-CORE-01/35: com vários perfis grava os vínculos e o principal é a base do primeiro; perfil desativado ou inexistente é 422 PERFIL_INDISPONIVEL', async () => {
+    const escolhidos = [{ codigo: 'promotor', nome: 'Promotor', base: 'promotor' }, { codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }];
+    const { db, chamadas } = fakeDb([[/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, escolhidos], ...respostas]);
+    await executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, perfil: undefined, perfis: ['promotor', 'vendedor'] } });
+    expect(chamadas.find((c) => /insert into core.usuario/.test(c.sql))!.valores[3]).toBe('promotor');
+    expect(chamadas.filter((c) => /insert into plataforma.usuario_perfil/.test(c.sql)).map((c) => c.valores[1])).toEqual(['promotor', 'vendedor']);
+    expect(jsonDaAuditoria(chamadas)).toContain('promotor');
+    const sem = fakeDb([[/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, []], ...respostas]);
+    await expect(executar(rota('POST', 'usuarios'), contexto(sem.db), { corpo: { ...corpo, perfil: undefined, perfis: ['fantasma'] } })).rejects.toMatchObject({ codigo: 'PERFIL_INDISPONIVEL' });
+    expect(sem.chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
   });
 
   it('RF-CORE-02: e-mail já usado no tenant responde 409 USUARIO_EMAIL_DUPLICADO e não grava nem audita', async () => {
@@ -134,6 +205,9 @@ describe('RF-CORE-02: criar usuário', () => {
 describe('RF-CORE-02: editar usuário', () => {
   it('RN-AUD-01: audita só o que mudou, sem nome e e-mail em claro', async () => {
     const { db, chamadas } = fakeDb([
+      estado,
+      ...cargaPadrao,
+      [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'supervisor', nome: 'Supervisor', base: 'supervisor' }]],
       [/for update/, [bruto()]],
       [/from core.usuario u left join/, [linhaItem({ nome: 'Vera Lúcia', perfil: 'supervisor' })]],
     ]);
@@ -147,14 +221,14 @@ describe('RF-CORE-02: editar usuário', () => {
   });
 
   it('RN-AUD-01: edição sem mudança não grava nem audita', async () => {
-    const { db, chamadas } = fakeDb([[/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem()]]]);
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem()]]]);
     await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { nome: 'Vera' } });
     expect(chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
     expect(aud(chamadas)).toHaveLength(0);
   });
 
   it('RF-CORE-02: e-mail de outro usuário do tenant é 409', async () => {
-    const { db } = fakeDb([[/lower\(email\) = \$1/, [{ '?column?': 1 }]], [/for update/, [bruto()]]]);
+    const { db } = fakeDb([estado, ...cargaPadrao, [/lower\(email\) = \$1/, [{ '?column?': 1 }]], [/for update/, [bruto()]]]);
     await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { email: 'outro@x.com' } })).rejects.toMatchObject({ status: 409, codigo: 'USUARIO_EMAIL_DUPLICADO' });
   });
 
@@ -164,16 +238,19 @@ describe('RF-CORE-02: editar usuário', () => {
   });
 
   it('RF-CORE-02: o último admin ativo não pode ser rebaixado', async () => {
-    const { db } = fakeDb([[/perfil = 'admin' and ativo/, [{ id: ALVO }]], [/for update/, [bruto({ perfil: 'admin' })]]]);
+    const { db } = fakeDb([[/id = any\(/,[{ id: ALVO, perfil: 'admin', ativo: true }]], ...carga([{ id: ALVO, perfis: ['admin'] }]), [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'gerente', nome: 'Gerente', base: 'gerente' }]], [/for update/, [bruto({ perfil: 'admin' })]]]);
     await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { perfil: 'gerente' } })).rejects.toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
   });
 });
 
 describe('RF-CORE-01/02: desativar e ativar', () => {
-  const admins = (n: number): Resposta => [/perfil = 'admin' and ativo/, () => Array.from({ length: n }, (_, i) => ({ id: `a${i}` }))];
+  const admins = (n: number): Resposta[] => [
+    [/id = any\(/, () => Array.from({ length: n }, (_, i) => ({ id: `a${i}`, perfil: 'admin', ativo: true }))],
+    ...carga([...Array.from({ length: n }, (_, i) => ({ id: `a${i}`, perfis: ['admin'] })), { id: ALVO, perfis: ['vendedor'] }]),
+  ];
 
   it('RF-CORE-01: desativar não apaga (sem delete/deleted_at), revoga sessões, limpa o push e audita', async () => {
-    const { db, chamadas } = fakeDb([admins(2), [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem({ ativo: false })]]]);
+    const { db, chamadas } = fakeDb([...admins(2), [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem({ ativo: false })]]]);
     const r = UsuarioItemSchema.parse(await executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: false } }));
     expect(r.ativo).toBe(false);
     expect(chamadas.some((c) => /update core.usuario set ativo = \$2/.test(c.sql) && c.valores[1] === false)).toBe(true);
@@ -184,7 +261,7 @@ describe('RF-CORE-01/02: desativar e ativar', () => {
   });
 
   it('RF-CORE-01: reativar audita usuario.ativar e não mexe nas sessões', async () => {
-    const { db, chamadas } = fakeDb([admins(2), [/for update/, [bruto({ ativo: false })]], [/from core.usuario u left join/, [linhaItem()]]]);
+    const { db, chamadas } = fakeDb([...admins(2), [/for update/, [bruto({ ativo: false })]], [/from core.usuario u left join/, [linhaItem()]]]);
     await executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: true } });
     expect(jsonDaAuditoria(chamadas)).toContain('usuario.ativar');
     expect(chamadas.some((c) => /core.sessao/.test(c.sql))).toBe(false);
@@ -197,33 +274,187 @@ describe('RF-CORE-01/02: desativar e ativar', () => {
   });
 
   it('RF-CORE-02: o admin não desativa o próprio usuário (422) e o último admin ativo não é desativado', async () => {
-    const proprio = fakeDb([admins(3), [/for update/, [bruto({ id: ADMIN.id, perfil: 'admin' })]]]);
+    const proprio = fakeDb([...admins(3), [/for update/, [bruto({ id: ADMIN.id, perfil: 'admin' })]]]);
     await expect(executar(rota('PUT', 'usuarios/:id/ativo'), contexto(proprio.db), { params: { id: ADMIN.id }, corpo: { ativo: false } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_AUTODESATIVACAO' });
-    const ultimo = fakeDb([admins(1), [/for update/, [bruto({ perfil: 'admin' })]]]);
+    const ultimo = fakeDb([[/id = any\(/,[{ id: ALVO, perfil: 'admin', ativo: true }]], ...carga([{ id: ALVO, perfis: ['admin'] }]), [/for update/, [bruto({ perfil: 'admin' })]]]);
     await expect(executar(rota('PUT', 'usuarios/:id/ativo'), contexto(ultimo.db), { params: { id: ALVO }, corpo: { ativo: false } })).rejects.toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
   });
 });
 
-describe('RF-CORE-01: redefinir senha', () => {
-  it('RN-AUD-01: grava o hash, zera falhas, revoga sessões e audita só "senha alterada" (nunca senha nem hash)', async () => {
-    const { db, chamadas } = fakeDb([[/for update/, [bruto()]]]);
-    const r = await executar(rota('PUT', 'usuarios/:id/senha'), contexto(db), { params: { id: ALVO }, corpo: { senha: SENHA } });
-    expect(r).toEqual({ ok: true });
-    const upd = chamadas.find((c) => /update core.usuario set senha_hash/.test(c.sql))!;
+describe('T-0111 (RN-CORE-35): PUT com o campo legado perfil', () => {
+  it('RN-CORE-35: {perfil} sem perfis num alvo [admin, analista] vale como perfis: [perfil]: termina só com o vendedor e a auditoria bate', async () => {
+    const { db, chamadas } = fakeDb([
+      [/id = any\(/, [{ id: ALVO, perfil: 'admin', ativo: true }]],
+      ...carga([{ id: ALVO, perfis: ['admin', 'analista'] }, { id: 'a2', perfis: ['admin'] }]),
+      [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }]],
+      [/select p\.codigo from plataforma\.usuario_perfil/, [{ codigo: 'admin' }, { codigo: 'analista' }]],
+      [/select up\.id, p\.codigo/, [{ id: 'v1', codigo: 'admin' }, { id: 'v2', codigo: 'analista' }]],
+      [/for update/, [bruto({ perfil: 'admin' })]],
+      [/from core.usuario u left join/, [linhaItem({ perfil: 'vendedor' })]],
+    ]);
+    await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { perfil: 'vendedor' } });
+    const apagados = chamadas.filter((c) => /update plataforma.usuario_perfil set deleted_at/.test(c.sql)).map((c) => c.valores[0]);
+    expect(apagados).toEqual(['v1', 'v2']);
+    expect(chamadas.filter((c) => /insert into plataforma.usuario_perfil/.test(c.sql)).map((c) => c.valores[1])).toEqual(['vendedor']);
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toContain('perfis');
+    expect(a).toContain('vendedor');
+  });
+});
+
+describe('T-0111 (RN-CORE-35): editar e desativar olham todos os perfis do alvo e o estado real do tenant', () => {
+  it('RN-CORE-35: desativar o único admin que é [analista, admin] (principal analista) é recusado: ULTIMO_ADMIN', async () => {
+    const { db, chamadas } = fakeDb([
+      [/id = any\(/, [{ id: ALVO, perfil: 'analista', ativo: true }]],
+      ...carga([{ id: ALVO, perfis: ['analista', 'admin'] }]),
+      [/for update/, [bruto({ perfil: 'analista' })]],
+    ]);
+    await expect(executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: false } })).rejects.toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
+    expect(chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
+  });
+  it('RN-CORE-35: com outro admin ativo, desativar o [analista, admin] passa', async () => {
+    const { db } = fakeDb([
+      [/id = any\(/, [{ id: ALVO, perfil: 'analista', ativo: true }]],
+      ...carga([{ id: ALVO, perfis: ['analista', 'admin'] }, { id: 'a2', perfis: ['admin'] }]),
+      [/for update/, [bruto({ perfil: 'analista' })]],
+      [/from core.usuario u left join/, [linhaItem({ ativo: false })]],
+    ]);
+    const r = UsuarioItemSchema.parse(await executar(rota('PUT', 'usuarios/:id/ativo'), contexto(db), { params: { id: ALVO }, corpo: { ativo: false } }));
+    expect(r.ativo).toBe(false);
+  });
+});
+
+describe('RN-CORE-34: redefinir senha (BKO)', () => {
+  const ROTA = () => rota('PUT', 'usuarios/:id/senha');
+  const alvo = (o: Record<string, unknown> = {}) => bruto(o);
+  const base = (alvoLinha = alvo()): Resposta[] => [
+    [/for update/, [alvoLinha]],
+    [/select \(senha_hash is null\) as sem_senha/, [{ sem_senha: false }]],
+    [/returning sessao_versao/, [{ sessao_versao: 4 }]],
+  ];
+
+  it('RN-CORE-34: com a senha informada grava o hash, marca trocar_senha (72 h), sobe a sessao_versao, revoga as sessões e audita sem senha', async () => {
+    const { db, chamadas } = fakeDb(base());
+    const mail = emailFalso();
+    const r = RedefinirSenhaRespostaSchema.parse(await executar(ROTA(), contexto(db, { email: mail.servico }), { params: { id: ALVO }, corpo: { senha: SENHA } }));
+    expect(r).toEqual({ ok: true, email_acesso: 'enfileirado' });
+    const upd = chamadas.find((c) => /update core.usuario\s+set senha_hash/.test(c.sql))!;
+    expect(upd.sql).toContain('trocar_senha = true');
+    expect(upd.sql).toContain('sessao_versao = sessao_versao + 1');
+    expect(upd.sql).toContain('senha_temporaria_hash = null');
     expect(String(upd.valores[1])).toMatch(/^\$argon2id\$/);
-    expect(chamadas.some((c) => /update core.sessao set revogado_em/.test(c.sql))).toBe(true);
+    expect(chamadas.some((c) => /update core.sessao set revogado_em/.test(c.sql) && c.valores[0] === ALVO)).toBe(true);
+    expect(mail.enviados[0]).toMatchObject({ modelo: 'nova_senha', dados: { senha: SENHA, motivo: 'redefinida', validade_horas: 72 }, chave_idempotencia: `${ALVO}:redefinida:4` });
     const a = jsonDaAuditoria(chamadas);
     expect(a).toContain('usuario.senha_redefinir');
-    expect(a).toContain('senha_alterada');
-    expect(a).not.toContain(SENHA);
-    expect(a).not.toContain('argon2');
+    expect(a).toMatch(/sessoes_revogadas[\\]*":true/);
+    for (const proibido of [SENHA, 'argon2', 'vera@x.com']) expect(a).not.toContain(proibido);
     expect(JSON.stringify(r)).not.toContain('argon2');
   });
 
-  it('RF-CORE-01: senha fraca é 422 e não grava', async () => {
-    const { db, chamadas } = fakeDb([[/for update/, [bruto()]]]);
-    await expect(executar(rota('PUT', 'usuarios/:id/senha'), contexto(db), { params: { id: ALVO }, corpo: { senha: 'abc' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SENHA_FRACA' });
+  it('RN-CORE-34: sem senha no corpo o servidor gera (12 caracteres) e ela só aparece no e-mail', async () => {
+    const { db, chamadas } = fakeDb(base());
+    const mail = emailFalso();
+    await executar(ROTA(), contexto(db, { email: mail.servico }), { params: { id: ALVO }, corpo: {} });
+    const gerada = mail.enviados[0]!.dados.senha;
+    expect(gerada).toHaveLength(12);
+    expect(chamadas.some((c) => c.valores.includes(gerada))).toBe(false);
+    expect(jsonDaAuditoria(chamadas)).toMatch(/gerada[\\]*":true/);
+    expect(jsonDaAuditoria(chamadas)).not.toContain(gerada);
+  });
+
+  it('RN-CORE-34 (P7): recusa a própria conta e outro admin (422), sem gravar', async () => {
+    const proprio = fakeDb(base(alvo({ id: ADMIN.id, perfil: 'admin' })));
+    await expect(executar(ROTA(), contexto(proprio.db, { email: emailFalso().servico }), { params: { id: ADMIN.id }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_PROPRIA' });
+    const outroAdmin = fakeDb(base(alvo({ perfil: 'admin' })));
+    await expect(executar(ROTA(), contexto(outroAdmin.db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_DE_ADMIN' });
+    for (const x of [proprio, outroAdmin]) expect(x.chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
+  });
+
+  const REFS = /p\.codigo, p\.base from plataforma\.usuario_perfil/;
+  const ref = (p: string) => ({ codigo: p, base: p });
+  it('T-0111 / RN-CORE-34: alvo [analista, admin] (principal analista) NÃO tem a senha redefinida, nem com senha informada pelo admin', async () => {
+    const { db, chamadas } = fakeDb([[REFS, [ref('analista'), ref('admin')]], ...base(alvo({ perfil: 'analista' }))]);
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_DE_ADMIN' });
+    expect(chamadas.some((c) => /update core\.(usuario|sessao)/.test(c.sql))).toBe(false);
+  });
+  it('T-0111 / RN-CORE-35: alvo [vendedor, supervisor]: o admin redefine; quem só tem a lista de vendedor é recusado', async () => {
+    const ok = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
+    await expect(executar(ROTA(), contexto(ok.db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).resolves.toMatchObject({ ok: true });
+    const coord = (alvos: string[]) => ({
+      ...ADMIN,
+      id: '0b000000-0000-4000-8000-0000000000c0',
+      perfil: 'gerente' as never,
+      perfis: [resolverPerfil({ ...perfilDeFabrica('gerente'), codigo: 'coord', fabrica: false, sobreposicoes: [{ chave: 'senha.redefinir', concedida: true, alvos }] }, matrizDeFabrica([]))],
+    });
+    const so = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
+    await expect(executar(ROTA(), contexto(so.db, { usuario: coord(['vendedor']), email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SEM_PERMISSAO' });
+    expect(so.chamadas.some((c) => /update core\.(usuario|sessao)/.test(c.sql))).toBe(false);
+    const ambos = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
+    await expect(executar(ROTA(), contexto(ambos.db, { usuario: coord(['vendedor', 'supervisor']), email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).resolves.toMatchObject({ ok: true });
+  });
+  it('T-0111 / RN-CORE-34: a própria conta com vários perfis continua recusada', async () => {
+    const { db } = fakeDb([[REFS, [ref('admin'), ref('analista')]], ...base(alvo({ id: ADMIN.id, perfil: 'admin' }))]);
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ADMIN.id }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_PROPRIA' });
+  });
+  it('T-0111 / RN-CORE-05: alvo de outro tenant (o RLS esconde a linha) responde 404 e nada é gravado', async () => {
+    const { db, chamadas } = fakeDb([]);
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 404, codigo: 'USUARIO_NAO_ENCONTRADO' });
+    expect(chamadas.some((c) => /update core\./.test(c.sql))).toBe(false);
+  });
+  it('T-0111 / RN-CORE-33: os apps do e-mail vêm de todos os perfis: [vendedor, analista] não entra no BKO', async () => {
+    const { db } = fakeDb([
+      [/perfis_do_usuario/, [{ codigo: 'vendedor', base: 'vendedor', fabrica: true, sobreposicoes: [] }, { codigo: 'analista', base: 'analista', fabrica: true, sobreposicoes: [] }]],
+      [REFS, [ref('vendedor'), ref('analista')]],
+      ...base(alvo({ perfil: 'analista' })),
+    ]);
+    const mail = emailFalso();
+    await executar(ROTA(), contexto(db, { email: mail.servico }), { params: { id: ALVO }, corpo: { senha: SENHA } });
+    expect(mail.enviados[0]!.dados.apps).not.toContain('web');
+  });
+  it('RN-CORE-34: usuário inativo não tem a senha redefinida', async () => {
+    const { db } = fakeDb(base(alvo({ ativo: false })));
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_INATIVO' });
+  });
+
+  it('RN-CORE-34: sem e-mail configurado e sem senha informada, 503 antes de mexer (ninguém conheceria a senha gerada)', async () => {
+    const { db, chamadas } = fakeDb(base());
+    await expect(executar(ROTA(), contexto(db), { params: { id: ALVO }, corpo: {} })).rejects.toMatchObject({ status: 503, codigo: 'EMAIL_INDISPONIVEL' });
+    expect(chamadas.some((c) => /update core\./.test(c.sql))).toBe(false);
+  });
+
+  it('RN-CORE-34: sem e-mail, com senha informada, redefine e avisa que o e-mail não saiu', async () => {
+    const { db } = fakeDb(base());
+    const r = await executar(ROTA(), contexto(db), { params: { id: ALVO }, corpo: { senha: SENHA } });
+    expect(r).toEqual({ ok: true, email_acesso: 'indisponivel' });
+  });
+
+  it('RN-CORE-34: usuário sem senha (Equipe por CSV antiga) recebe o acesso inicial ("Enviar acesso")', async () => {
+    const { db } = fakeDb([[/for update/, [alvo()]], [/select \(senha_hash is null\) as sem_senha/, [{ sem_senha: true }]], [/returning sessao_versao/, [{ sessao_versao: 1 }]]]);
+    const mail = emailFalso();
+    await executar(ROTA(), contexto(db, { email: mail.servico }), { params: { id: ALVO }, corpo: {} });
+    expect(mail.enviados[0]).toMatchObject({ modelo: 'acesso_inicial' });
+    expect(mail.enviados[0]!.dados.motivo).toBeUndefined();
+  });
+
+  it('RF-CORE-01: senha fraca informada é 422 e não grava', async () => {
+    const { db, chamadas } = fakeDb(base());
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: 'abc' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SENHA_FRACA' });
     expect(chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
+  });
+
+  it('RN-CORE-33: as rotas de usuários são do BKO (superficie bko); o supervisor não vê a lista', () => {
+    for (const r of rotasDeUsuarios) expect(r.superficie, `${r.metodo} ${r.caminho}`).toBe('bko');
+  });
+});
+
+describe('RN-CORE-34: desativar derruba o token (sessao_versao)', () => {
+  it('RN-CORE-34: desativar sobe a sessao_versao; reativar não', async () => {
+    const admins: Resposta = [/perfil = 'admin' and ativo/, [{ id: 'a1' }, { id: 'a2' }]];
+    const des = fakeDb([estado, admins, ...cargaPadrao, [/for update/, [bruto()]], [/from core.usuario u left join/, [linhaItem({ ativo: false })]]]);
+    await executar(rota('PUT', 'usuarios/:id/ativo'), contexto(des.db), { params: { id: ALVO }, corpo: { ativo: false } });
+    const upd = des.chamadas.find((c) => /update core.usuario set ativo = \$2/.test(c.sql))!;
+    expect(upd.sql).toContain('sessao_versao = case when $2::boolean then sessao_versao else sessao_versao + 1 end');
   });
 });
 

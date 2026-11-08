@@ -5,7 +5,7 @@
  * - O app compara `versao_licencas` no sync para saber quando desmontar/remontar módulos (RN-CORE-02).
  * - Erros usam o corpo comum da API v1 (`ErroApiSchema` do platform-sdk): `{ codigo, mensagem, detalhes? }`.
  */
-import { MODULOS } from '@macuxi/platform-sdk';
+import { MODULOS, PerfilDaRequisicaoSchema } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
 export const ModuloIdSchema = z.enum(MODULOS);
@@ -29,6 +29,8 @@ export const MeusModulosRespostaSchema = z
     versao_licencas: z.string().min(1),
     /** Instante UTC do cálculo (ISO 8601). */
     calculado_em: z.string(),
+    /** T-0111 (aditivo): perfis de acesso do usuário já resolvidos (fábrica + o que a empresa mudou), para o shell decidir telas e ações. Ausente = fábrica. */
+    perfis: z.array(PerfilDaRequisicaoSchema).optional(),
   })
   .strict()
   .superRefine((r, ctx) => {

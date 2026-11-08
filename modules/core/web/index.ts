@@ -13,6 +13,7 @@ import { VisitasPage } from './components/visitas/visitas-page';
 import { AparelhosPage } from './components/aparelhos/aparelhos-page';
 import { LicencasPage } from './components/licencas/licencas-page';
 import { UsuariosPage } from './components/usuarios/usuarios-page';
+import { PerfisPage } from './components/perfis/perfis-page';
 import { MetasPage } from './components/metas/metas-page';
 import { IndicadoresPage } from './components/indicadores/indicadores-page';
 import { RecadosPage } from './components/recados/recados-page';
@@ -63,6 +64,8 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       acao: 'usuario.ver',
       componente: UsuariosPage,
     },
+    // T-0111 (desenho docs/design/perfis-de-acesso.md): lista em /core/perfis e edição em /core/perfis?perfil=<codigo> (o shell não tem rota dinâmica)
+    { id: 'perfis', caminho: 'perfis', titulo: 'Perfis de acesso', navegacao: 'Perfis de acesso', grupo: 'administracao', ordem: 16, acao: 'perfil.gerir', componente: PerfisPage },
     {
       id: 'aparelhos',
       caminho: 'aparelhos',

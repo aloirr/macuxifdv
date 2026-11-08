@@ -53,7 +53,9 @@ describe('RN-CORE-16/17: cliente do ERP vira core.cliente com o cadastro mínimo
   });
 
   it('RN-INT-06: inativado só desativa; registro com ativo=false também; nunca apaga', () => {
-    expect(planejarClienteDoErp({ ...base, acao: 'inativado' } as EventoClienteAtualizado, CAMPOS_CADASTRO_PADRAO)).toEqual({ tipo: 'inativar', external_id: 'C-1', alterado_em: base.ocorrido_em });
+    expect(planejarClienteDoErp({ ...base, acao: 'inativado' } as EventoClienteAtualizado, CAMPOS_CADASTRO_PADRAO)).toEqual({ tipo: 'inativar', external_id: 'C-1', alterado_em: null });
+    // RN-INT-02: o ocorrido_em é o relógio do Hub; só o alterado_em do registro (relógio do ERP) entra na ordem
+    expect(planejarClienteDoErp({ ...base, acao: 'inativado', registro: evento().registro } as EventoClienteAtualizado, CAMPOS_CADASTRO_PADRAO)).toMatchObject({ tipo: 'inativar', alterado_em: evento().registro!.alterado_em });
     expect(planejarClienteDoErp(evento({ ativo: false }), CAMPOS_CADASTRO_PADRAO)).toMatchObject({ tipo: 'upsert', linha: { ativo: false } });
   });
 

@@ -11,7 +11,7 @@
  * (`core.produto_unidade`), o ERP prevalece: `embalagem_quantidade` passa a ser o `fator` (log só com external_id e sigla).
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
+import { decidirOrdemErp, planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
 import { comMedidaAusente, ReferenciaAusenteErp } from './erp-apoio';
 import { EVENTO_ERP_PRODUTO_ATUALIZADO } from '../../integracao/contracts';
 
@@ -20,10 +20,14 @@ export const EventoIntegracaoProdutoAtualizado = eventoTolerante(EVENTO_ERP_PROD
 export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoProdutoAtualizado,
   async executar(p, ctx: ContextoConsumo) {
-    const plano = planejarProdutoDoErp(p as EventoProdutoAtualizado);
+    // T-0095 (RN-INT-02): reentrega fora de ordem da outbox não sobrescreve a versão mais nova já aplicada
+    const aplicado = (await ctx.db.query<{ erp_alterado_em: string | null }>('select erp_alterado_em::text from core.produto where external_id = $1 and deleted_at is null', [p.external_id])).rows[0]?.erp_alterado_em ?? null;
+    const plano = planejarProdutoDoErp(p as EventoProdutoAtualizado, aplicado);
     if (plano.tipo === 'ignorar') return;
     if (plano.tipo === 'inativar') {
-      await ctx.db.query('update core.produto set ativo = false where external_id = $1 and deleted_at is null and ativo', [plano.external_id]);
+      // RN-INT-02: só o alterado_em do registro (relógio do ERP) entra na ordem; o ocorrido_em é do Hub. Sem registro, inativa sem avançar a ordem
+      if (plano.alterado_em !== null && decidirOrdemErp(aplicado, plano.alterado_em) === 'ignorar_antigo') return;
+      await ctx.db.query('update core.produto set ativo = false, erp_alterado_em = coalesce($2::timestamptz, erp_alterado_em) where external_id = $1 and deleted_at is null and ativo', [plano.external_id, plano.alterado_em]);
       return;
     }
     const l = plano.linha;
@@ -51,11 +55,11 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
     if (l.embalagem_descartada) ctx.log.warn({ external_id: l.external_id }, 'embalagem do produto do ERP descartada: informe medida e quantidade inteira de 2 a 9999, com medida diferente da unidade');
 
     const gravado = await comMedidaAusente(() => ctx.db.query<{ id: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>(
-      `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade, erp_alterado_em)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
        do update set sku = excluded.sku, ean = excluded.ean, nome = excluded.nome, marca = excluded.marca,
-                     categoria = excluded.categoria, unidade = excluded.unidade, ativo = excluded.ativo,
+                     categoria = excluded.categoria, unidade = excluded.unidade, ativo = excluded.ativo, erp_alterado_em = excluded.erp_alterado_em,
                      -- embalagem: o ERP que informa vence; evento sem embalagem NÃO apaga a que o BKO cadastrou (par medida + quantidade)
                      -- (se a nova unidade passa a ser igual à embalagem guardada, esta é limpa para não ferir a regra "embalagem diferente da unidade")
                      embalagem_medida = case when excluded.embalagem_medida is not null then excluded.embalagem_medida
@@ -65,7 +69,7 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
                                                  when core.produto.embalagem_medida = excluded.unidade then null
                                                  else core.produto.embalagem_quantidade end
        returning id, embalagem_medida, embalagem_quantidade`,
-      [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade],
+      [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade, l.alterado_em],
     ));
 
     // RN-VEN-15: o ERP prevalece sobre a embalagem do produto quando a mesma sigla existe como unidade de venda viva.

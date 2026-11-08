@@ -56,7 +56,7 @@ function Cliente360Conteudo() {
           ) : undefined
         }
         actions={
-          <Link href="/carteira" className="text-[13px] font-semibold text-accent no-underline hover:underline">
+          <Link href="/carteira" className="text-[13px] font-semibold text-accent-ink no-underline hover:underline">
             Voltar à carteira
           </Link>
         }
@@ -83,12 +83,12 @@ function Cliente360Conteudo() {
                   {c.cargo ? <span className="block font-normal text-ink-2">{c.cargo}</span> : null}
                 </span>
                 {links.tel ? (
-                  <a href={links.tel} className="font-semibold text-accent underline">
+                  <a href={links.tel} className="font-semibold text-accent-ink underline">
                     Ligar
                   </a>
                 ) : null}
                 {links.whatsapp ? (
-                  <a href={links.whatsapp} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">
+                  <a href={links.whatsapp} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink underline">
                     WhatsApp
                   </a>
                 ) : null}

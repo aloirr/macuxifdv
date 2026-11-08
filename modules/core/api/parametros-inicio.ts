@@ -31,6 +31,7 @@ export const rotasDeParametrosInicio: RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'parametros/inicio',
+    superficie: 'bko',
     acao: 'parametro.inicio',
     carteira: 'nao_se_aplica',
     executar: (ctx) => ctx.comTenant(async (db): Promise<ParametrosInicio> => ParametrosInicioSchema.parse(await lerParametrosInicio(db))),
@@ -38,6 +39,7 @@ export const rotasDeParametrosInicio: RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'parametros/inicio',
+    superficie: 'bko',
     acao: 'parametro.inicio',
     carteira: 'nao_se_aplica',
     corpo: ParametrosInicioPutSchema,

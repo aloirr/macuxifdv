@@ -3,7 +3,9 @@
  * linhas locais (app) e sobre as do banco (API), então o número é igual nos dois lugares.
  * Dinheiro em centavos; cobertura em pontos-base (8500 = 85,00%).
  */
-import { businessDays, yearMonthOf } from '@macuxi/comum';
+import { yearMonthOf } from '@macuxi/comum';
+
+import { CALENDARIO_PADRAO, diasUteisRestantes, type CalendarioTenant } from './meta-do-dia';
 import { positivadosDoPeriodo, realizadoPorTipo, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from './apuracao';
 
 export type BaseApuracao = 'aprovado' | 'faturado';
@@ -67,6 +69,8 @@ export interface EntradaIndicadores {
   paradas: Array<{ rota_parada_id?: string; cliente_id: string; data: string }>;
   visitas: Array<{ cliente_id: string; data_local: string }>;
   hoje: string;
+  /** Calendário do tenant (RN-CORE-26): padrão segunda a sábado. Fonte única dos dias úteis do Início, Metas e BKO. */
+  calendario?: CalendarioTenant;
   feriados?: Iterable<string>;
   /** Pedidos já filtrados pelo escopo do usuário; ausente = ainda não há pedido no servidor (positivação/realizado nulos). */
   pedidos?: PedidoApuravel[];
@@ -101,7 +105,8 @@ export function indicadoresDoPeriodo(e: EntradaIndicadores): IndicadoresCalculad
   const planejadas = new Set(doMes.map((p) => `${p.cliente_id}|${p.data}`));
   const checkins = new Set(e.visitas.map((v) => `${v.cliente_id}|${v.data_local}`));
   const visitados = [...planejadas].filter((k) => checkins.has(k)).length;
-  const dias = businessDays(e.periodo, e.hoje, e.feriados ?? []).remaining;
+  const cal = e.calendario ?? CALENDARIO_PADRAO;
+  const dias = diasUteisRestantes(e.periodo, e.hoje, { ...cal, feriados: [...(cal.feriados ?? []), ...(e.feriados ?? [])] });
   let positivados: number | null = null;
   let realizado: number | null = null;
   if (e.apurado) {
@@ -175,6 +180,7 @@ export interface LinhasDoPainel {
   periodo: string;
   usuario_id: string;
   hoje: string;
+  calendario?: CalendarioTenant;
   feriados?: Iterable<string>;
   base?: BaseApuracao;
   paradas: ReadonlyArray<Removivel & { usuario_id: string; cliente_id: string; data: string }>;
@@ -205,6 +211,7 @@ export function painelDoUsuario(l: LinhasDoPainel): PainelDeMetas {
       periodo: l.periodo,
       usuario_id: l.usuario_id,
       hoje: l.hoje,
+      calendario: l.calendario,
       feriados: l.feriados,
       base: l.base,
       paradas: l.paradas.filter(meu).map((p) => ({ cliente_id: p.cliente_id, data: p.data })),

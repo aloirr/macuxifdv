@@ -39,7 +39,7 @@ describe.skipIf(semBanco())('Core T-0019 × Postgres: central de notificações'
     return {
       usuario: u,
       requestId: 'req-teste',
-      agora: () => new Date(),
+      agora: () => new Date(), // hora-fixa-ok: Postgres real grava com now(); o contexto acompanha o relógio verdadeiro
       fuso: () => 'America/Manaus',
       comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, tx)),
       usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),
@@ -50,7 +50,7 @@ describe.skipIf(semBanco())('Core T-0019 × Postgres: central de notificações'
     const r = rota(metodo, caminho);
     return r.executar({ ...ctx(u), corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 });
+  const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 }); // hora-fixa-ok: janela do pull precisa cobrir linhas gravadas agora pelo banco real
   const prov = (n: string) => provedoresDeNotificacao.find((p) => p.entidade.nome === n)!;
   const puxar = (u: UsuarioAutenticado): Promise<LinhaSync[]> => prov('notificacao').puxar!(ctx(u), pedido());
   const enviar = (u: UsuarioAutenticado, n: number, extra: Record<string, unknown> = {}) =>

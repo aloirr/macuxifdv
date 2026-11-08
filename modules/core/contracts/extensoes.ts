@@ -11,6 +11,7 @@
  * Tela dona de cada slot (app Campo/Gestão):
  *  - `cliente.abas`            → ficha do cliente (caminho `cliente`)
  *  - `cliente.acoes`           → rodapé da ficha do cliente; só a ação com `destaque: true` (o "+ Novo pedido") entra, ao lado do Visitado (T-0076)
+ *  - `cliente.avisos`          → logo abaixo do cabeçalho da ficha e acima das abas/ações; Banners de módulos (T-0102: etapa pendente da equipe, Gestor)
  *  - `visita.etapas_checkout`  → folha de checkout (RN-CORE-12)
  *  - `inicio.cards`            → tela Início do shell
  *  - `menu.itens`              → menu/Perfil do shell
@@ -40,6 +41,17 @@ export interface AbaCliente<C = unknown> {
    * desligada (RN-PRO-01; T-0061). Itens com `acao` `pedido.*` já são filtrados sem esta marca.
    */
   mostraPedidos?: boolean;
+}
+
+/**
+ * Slot `cliente.avisos` (aditivo, T-0102): aviso/Banner de módulo na ficha do cliente, abaixo do cabeçalho e acima das abas.
+ * O componente decide sozinho se aparece (devolve `null` quando não há o que avisar); lê só o aparelho (offline-first).
+ * Ex.: Gestor registra `AvisoEtapaEquipe` com `apps: ['gestao']` e `acao: 'painel_equipe.ver'`.
+ */
+export interface AvisoCliente<C = unknown> {
+  testID: string;
+  /** Componente que recebe `{ contexto: ContextoCliente }`. */
+  componente: C;
 }
 
 /** Slot `cliente.acoes`: botão no rodapé da ficha (ex.: "Novo pedido"; o vendedor registra com `acao: 'pedido.criar'`). */
@@ -105,9 +117,10 @@ export interface ItemMenu {
 export interface SlotsCore<C = unknown> {
   'cliente.abas': AbaCliente<C>;
   'cliente.acoes': AcaoCliente;
+  'cliente.avisos': AvisoCliente<C>;
   'visita.etapas_checkout': EtapaCheckout<C>;
   'inicio.cards': CardInicio<C>;
   'menu.itens': ItemMenu;
 }
 
-export const SLOTS_CORE = ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'] as const;
+export const SLOTS_CORE = ['cliente.abas', 'cliente.acoes', 'cliente.avisos', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'] as const;
