@@ -9,7 +9,8 @@
  *  2. busca do catálogo (`/v1/catalogo/busca`, modo padrão `inteligente` SEM provedor de IA = regras locais sobre os 20 mil,
  *     como no servidor sem chave de IA) em rajada com concorrência fixa;
  *  3. 100 pedidos em paralelo (`/v1/sync/push`, 1 pedido por requisição, 3 vendedores, clientes das carteiras) com no máximo
- *     `MACUXI_CARGA_PEDIDOS_CONCORRENCIA` (padrão 5 = metade do pool) em voo — ver D-T0107a abaixo;
+ *     `MACUXI_CARGA_PEDIDOS_CONCORRENCIA` (padrão 5) em voo — mede o p95 com concorrência controlada; os 100 AO MESMO TEMPO
+ *     são o caso 6 (D-T0107a, corrigido na T-0118);
  *  4. retorno ao ERP pela fila: despachante → `GET /integracao/v1/pedidos/pendentes` até esvaziar → `POST .../retorno`
  *     `integrado` dos 100 → despachante → os 100 `integrated` em vendedor.pedido.
  *
@@ -30,7 +31,10 @@
  *  - O "ciclo da fila" roda o despachante em ciclos seguidos (sem o intervalo de 1 s do processo `worker`): mede o trabalho,
  *    não a espera do agendamento.
  *
- * D-T0107a (defeito ABERTO, caso 6 em `it.fails`): pedidos SIMULTÂNEOS em número >= pool da API travam o pool. O push abre a
+ * D-T0107a (CORRIGIDO na T-0118, R-20261108-141127; caso 6 virou `it`): pedidos SIMULTÂNEOS em número >= pool da API
+ * travavam o pool. Hoje, dentro de `ctx.comTenant`, `ctx.carteira()` e `ctx.usuariosVisiveis()` leem pela transação corrente
+ * (apps/api/src/transacao-corrente.ts, AsyncLocalStorage), sem 2ª conexão ao pool; e a guarda `MACUXI_GUARDA_CONEXAO`
+ * (modo `erro` no Vitest) recusa conexão do mesmo pool pedida dentro de transação. Histórico do defeito: o push abria a
  * transação do pedido (`ctx.comTenant` em modules/vendedor/api/receber.ts, `receberPedidos`) e, já dentro dela, chama
  * `ctx.carteira()` (apps/api/src/app.ts, `carteiraDe(token, acesso, …)`), que pede OUTRA conexão ao mesmo pool. Com 10 (= pool)
  * pushes em voo, as 10 conexões ficam "idle in transaction" esperando a 11ª, que nunca vem: sem `connectionTimeoutMillis` o
@@ -38,8 +42,8 @@
  * lote volta 5xx. Visto na 1ª rodada desta carga (100 pushes ao mesmo tempo: 10 sessões paradas no `select … from
  * vendedor.pedido where id = $1`, a consulta logo antes do `ctx.carteira()`). Por isso o caso 3 limita a concorrência e o
  * caso 6 reproduz os 100 ao mesmo tempo numa 2ª instância da API com `connectionTimeoutMillis` (falha em vez de travar).
- * Quando corrigir (ex.: resolver `ctx.carteira()` antes de abrir a transação), o caso 6 fica vermelho: vira `it` e o caso 3
- * pode voltar aos 100 ao mesmo tempo.
+ * O caso 6 segue como regressão (100 ao mesmo tempo, pool 10, `connectionTimeoutMillis` de 10 s); o caso 3 fica com a
+ * concorrência controlada para medir o p95 sem fila do pg-pool (a variável sobe se quiser o ensaio cheio).
  *
  * D-T0107b (achado de TEMPO, não reprova a suíte comum): a busca carrega o catálogo INTEIRO do tenant a cada requisição
  * (modules/catalogo/api/rotas.ts `busca` → `repo.produtos()` + preços/saldos de todos os candidatos → `buscarProdutos` do
@@ -96,7 +100,7 @@ const BUSCAS = Number(process.env.MACUXI_CARGA_BUSCAS ?? 200);
 const CONCORRENCIA_BUSCA = Number(process.env.MACUXI_CARGA_BUSCA_CONCORRENCIA ?? 4);
 const BUSCA_SEGUNDOS = Number(process.env.MACUXI_CARGA_BUSCA_SEGUNDOS ?? 30);
 const PEDIDOS = 100;
-/** Pushes em voo no caso 3 (D-T0107a: >= pool da API trava; 5 = metade do pool de 10 deixa a conexão aninhada livre). */
+/** Pushes em voo no caso 3 (p95 com concorrência controlada; os 100 simultâneos são o caso 6, D-T0107a corrigido na T-0118). */
 const CONCORRENCIA_PEDIDOS = Number(process.env.MACUXI_CARGA_PEDIDOS_CONCORRENCIA ?? 5);
 /** Pool da API (o padrão de `MACUXI_API_POOL` no servidor). */
 const POOL_API = 10;
@@ -510,13 +514,13 @@ describe.skipIf(semBanco())('T-0107 — carga de 20 mil produtos: sync inicial, 
     expect(r.corpo.metricas.erros_5xx).toBe(0);
   });
   /**
-   * D-T0107a (aberto; ver o cabeçalho): os 100 pedidos AO MESMO TEMPO numa 2ª instância da API (mesmo banco, mesmos módulos e
-   * tokens), pool de 10 com `connectionTimeoutMillis` de 2 s (folga: sem o defeito, a espera por conexão é de centenas de ms) para o travamento virar erro em vez de pendurar o arquivo.
-   * Hoje: as 10 conexões ficam presas em transação esperando a conexão da carteira, e a rajada volta 5xx. `it.fails` = defeito
-   * aberto (fica vermelho quando corrigir e vira `it`).
+   * D-T0107a (corrigido na T-0118; ver o cabeçalho): os 100 pedidos AO MESMO TEMPO numa 2ª instância da API (mesmo banco,
+   * mesmos módulos e tokens), pool de 10 com `connectionTimeoutMillis` de 10 s (R-20261108-141127: 100 pushes numa fila de 10
+   * conexões ainda esperam no pg-pool; 2 s dava falso vermelho no CI dividido, 10 s ainda transforma travamento em erro).
+   * Antes da correção as 10 conexões ficavam presas em transação esperando a conexão da carteira e a rajada voltava 5xx.
    */
-  it.fails(`6. D-T0107a: ${PEDIDOS} pedidos ao MESMO TEMPO com pool de ${POOL_API} — todos aceitos (hoje o pool trava: conexão da carteira pedida dentro da transação)`, async () => {
-    const pool2 = poolComEncerramento(new pg.Pool({ connectionString: api.banco.urlApp, max: POOL_API, connectionTimeoutMillis: 2_000 }));
+  it(`6. D-T0107a (corrigido na T-0118): ${PEDIDOS} pedidos ao MESMO TEMPO com pool de ${POOL_API} — todos aceitos`, async () => {
+    const pool2 = poolComEncerramento(new pg.Pool({ connectionString: api.banco.urlApp, max: POOL_API, connectionTimeoutMillis: 10_000 }));
     const app2 = createApp({ banco: criarBancoApp(pool2.pool), modulos: api.modulos, logger: false });
     try {
       await app2.listen({ port: 0, host: '127.0.0.1' });

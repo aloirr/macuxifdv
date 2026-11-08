@@ -10,8 +10,9 @@
  *     duplica (RN-VEN-33); o orçamento não mexe no saldo de estoque (RN-VEN-18/32).
  *  C2 Transformar (RN-VEN-18): pedido novo com UUID do aparelho, enfileirado 2× e reenviado depois da resposta perdida → um
  *     pedido só, um criado@1 e um aprovado@1, a meta sobe uma vez; o orçamento vira "Virou pedido 0000nn".
- *  C3 Transformar com preço alterado: a reconferência do aparelho avisa "Café 18,90 → 19,50" e o servidor grava o preço de hoje
- *     (RN-VEN-01/02); o total do aparelho = o do servidor; o orçamento guarda o preço dele.
+ *  C3 Transformar com preço alterado DENTRO da validade: preço congelado (RN-VEN-18, T-0134, decisão do dono de 08/11/2026) —
+ *     a reconferência do aparelho NÃO acusa "Café 18,90 → 19,50" (só estoque e preço mínimo) e o servidor grava o preço do
+ *     orçamento (18,90); o total do aparelho = o do servidor; o orçamento guarda o preço dele.
  *  C4 vencido: selo "Vencido" (no detalhe e na linha da lista), só Duplicar e PDF; na lista fica depois dos abertos.
  *  C5 Duplicar o vencido: orçamento novo (número e validade novos, sem origem) ou pedido, com o preço de hoje; o vencido não muda.
  *  C6 RN-VEN-11 (preço mínimo = preço de venda × (1 − desconto máximo efetivo), do core.cadastro_resumo@1) no envio, no PUT do
@@ -330,27 +331,29 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       if (precoCafe) await api.admin.query('update catalogo.tabela_preco_item set preco_cents = $2 where id = $1', [precoCafe.id, precoCafe.preco_cents]);
     });
 
-    it('C3. o Café sobe de R$ 18,90 para R$ 19,50 depois do orçamento: a reconferência do aparelho avisa só essa mudança e continua dentro da alçada', async () => {
+    // RN-VEN-18 "Preço congelado" (T-0134, decisão do dono do produto de 08/11/2026): dentro da validade, Transformar mantém
+    // o preço do orçamento e reconfere só estoque e preço mínimo.
+    it('C3. o Café sobe de R$ 18,90 para R$ 19,50 depois do orçamento: dentro da validade a reconferência do aparelho NÃO acusa mudança de preço (preço congelado, RN-VEN-18) e continua dentro da alçada', async () => {
       await api.admin.query('update catalogo.tabela_preco_item set preco_cents = 1950 where id = $1', [precoCafe.id]);
       await sincronizarComHorizonte(lucas);
       const r = await reconferirNoAparelho(lucas, ORC);
-      expect(r.mudancas.filter((m) => m.tipo === 'preco'), 'Café 18,90 → 19,50').toEqual([{ tipo: 'preco', produto_id: prod.CAF, de_cents: 1890, para_cents: 1950 }]);
+      expect(r.mudancas.filter((m) => m.tipo === 'preco'), 'preço congelado: a tabela nova (19,50) não reprecifica o orçamento').toEqual([]);
       expect(r.mudancas.filter((m) => m.tipo === 'alcada'), 'a alçada não muda').toEqual([]);
       expect(r).toMatchObject({ pode_enviar: true, bloqueio: null });
       expect(r.calculo.nivel).toBeNull();
     });
 
-    it('C3b. Transformar → o servidor grava o preço de HOJE (19,50; R$ 1,00 por unidade mantido), o total do aparelho = o do servidor; o orçamento guarda 18,90 e 37979', async () => {
+    it('C3b. Transformar → o servidor grava o preço CONGELADO do orçamento (18,90; R$ 1,00 por unidade mantido), não o de hoje (19,50); o total do aparelho = o do servidor; o orçamento guarda 18,90 e 37979', async () => {
       const r = await reconferirNoAparelho(lucas, ORC);
       const payload = await transformarNoAparelho(lucas, ORC, PED);
       await lucas.motor.enfileirar({ id: PED, entidade: 'pedido', payload });
       expect(await lucas.sincronizar(), lucas.motor.estado().erro ?? '').toBe(true);
       expect(filaIds(lucas)).toEqual([]);
       const p = (await noBanco(PED))!;
-      expect(p).toMatchObject({ tipo: 'pedido', status: 'approved', orcamento_id: ORC, total_tabela_cents: 39830 + 12 * 60 });
+      expect(p).toMatchObject({ tipo: 'pedido', status: 'approved', orcamento_id: ORC, total_tabela_cents: 39830 });
       expect(p.total_cents, 'o total que a folha do Transformar mostrou é o que o servidor gravou').toBe(r.calculo.totais.total_cents);
       const caf = (await itensNoBanco(PED)).find((i) => i.produto_id === prod.CAF)!;
-      expect(caf).toMatchObject({ preco_tabela_cents: 1950, preco_unitario_cents: 1850, desconto_unitario_cents: 100, ajuste_em: 'valor' });
+      expect(caf, 'preço congelado do orçamento, não o 19,50 de hoje').toMatchObject({ preco_tabela_cents: 1890, preco_unitario_cents: 1790, desconto_unitario_cents: 100, ajuste_em: 'valor' });
       const o = (await noBanco(ORC))!;
       expect(o).toMatchObject({ tipo: 'orcamento', total_tabela_cents: 39830, total_cents: 37979 });
       expect((await itensNoBanco(ORC)).find((i) => i.produto_id === prod.CAF)!.preco_tabela_cents, 'o orçamento guarda o preço dele').toBe(1890);

@@ -37,8 +37,9 @@ fila ~3 s, D-T0107a ~4 s).
 | Suíte comum (padrão) | só erro FUNCIONAL: status >= 400 ou falha de rede; linha gerada que não entrou no banco (colisão escondida pelo `on conflict do nothing`); sync incompleto (aparelho com menos de 20 mil linhas de `produto`, `tabela_preco_item`, `produto_conteudo`, `produto_no`, `produto_atributo` ou de 40 mil de `estoque_saldo`; id repetido entre páginas; cliente/carteira diferente dos 100 do vendedor); busca por SKU que não acha o produto; pedido não `aceito` ou não `approved`; fila com retenção ou incompleta; Conector que não recebe os 100; retorno recusado; pedido que não chega a `integrated`; evento com falha na outbox; `/v1/saude` com 5xx. |
 | `MACUXI_CARGA_MEDIR=1` | tudo acima **e** o tempo contra `METAS` (p95 de cada métrica e o ciclo da fila). |
 
-O caso 6 é `it.fails` (defeito aberto D-T0107a, abaixo): passa enquanto o defeito existir e fica VERMELHO quando for
-corrigido — aí vira `it` e o caso 3 volta aos 100 pedidos ao mesmo tempo.
+O caso 6 é `it` desde a T-0118 (D-T0107a corrigido, abaixo): os 100 pedidos ao mesmo tempo, pool 10,
+`connectionTimeoutMillis` de 10 s, todos aceitos. O caso 3 segue com a concorrência controlada (padrão 5) para medir o p95
+sem a fila do pg-pool.
 
 ### Onde ler os números
 
@@ -88,7 +89,10 @@ Preparo: gerar 0,8 s; gravar 233.204 linhas 7,2 s; `analyze` 0,7 s.
 
 ### Achados
 
-- **D-T0107a — pool da API trava com pedidos simultâneos (defeito, aberto).** O push do pedido abre a transação
+- **D-T0107a — pool da API trava com pedidos simultâneos (CORRIGIDO na T-0118).** Correção: dentro de `ctx.comTenant`,
+  `ctx.carteira()` e `ctx.usuariosVisiveis()` leem pela transação corrente (`apps/api/src/transacao-corrente.ts`), e a guarda
+  `MACUXI_GUARDA_CONEXAO` (modo `erro` no Vitest, `aviso` em produção) recusa conexão do mesmo pool pedida dentro de
+  transação (teste próprio: `apps/api/test/conexao-na-transacao.banco.test.ts`). Histórico: o push do pedido abria a transação
   (`ctx.comTenant`, `modules/vendedor/api/receber.ts` → `receberPedidos`) e, dentro dela, chama `ctx.carteira()`
   (`apps/api/src/app.ts` → `carteiraDe(token, acesso, …)`), que pede OUTRA conexão ao mesmo pool. Com pushes em voo >= pool
   (10), todas as conexões ficam "idle in transaction" esperando a 11ª: no teste sem `connectionTimeoutMillis` o arquivo
@@ -135,7 +139,7 @@ Preparo: gerar 0,8 s; gravar 233.204 linhas 7,2 s; `analyze` 0,7 s.
 | `MACUXI_CARGA_MEDIR` | — | `1` = metas de tempo reprovam |
 | `MACUXI_CARGA_APARELHOS` | 5 | aparelhos no sync inicial |
 | `MACUXI_CARGA_BUSCAS` / `_BUSCA_CONCORRENCIA` / `_BUSCA_SEGUNDOS` | 200 / 4 / 30 | alvo, concorrência e orçamento de tempo da rajada de busca (o ensaio pedido: 200 / 10 / 900) |
-| `MACUXI_CARGA_PEDIDOS_CONCORRENCIA` | 5 | pushes em voo no caso 3 (>= 10 trava hoje: D-T0107a) |
+| `MACUXI_CARGA_PEDIDOS_CONCORRENCIA` | 5 | pushes em voo no caso 3 (os 100 simultâneos são o caso 6; D-T0107a corrigido na T-0118) |
 
 ### Premissas
 
