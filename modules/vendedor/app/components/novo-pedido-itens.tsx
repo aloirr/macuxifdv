@@ -9,15 +9,16 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { CampoAjuste, Cartao, colors, fonts, larguraSegmentadoCompacto, lerDecimal, Passo, sanearDecimal, Segmentado, TIPOS_AJUSTE, type as t } from '@macuxi/ui/mobile';
+import { Cartao, DescontoCompacto, colors, fonts, larguraSegmentadoCompacto, Passo, sanearDecimal, Segmentado, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { partirTrecho, type TrechoServeEm } from '../../domain/busca-seletor';
 import { rotuloMedida } from '../../domain/preco-pedido';
 import { medidasVisiveis, trocarMedidaDaLinha } from '../lib/medida-do-item';
-import { centsParaCampo, chaveDaLinha, ajusteDoTipo, alternarAplicacao, tipoDoAjuste, trocarTipoDoAjuste, unidadesDoProduto, valorDoAjuste, type Ajuste, type CalculoPedido, type TipoDoAjuste, type UnidadeDaTela } from '../lib/novo-pedido';
+import { chaveDaLinha, ajusteDoTipo, alternarAplicacao, tipoDoAjuste, trocarTipoDoAjuste, unidadesDoProduto, valorDoAjuste, type Ajuste, type CalculoPedido, type TipoDoAjuste, type UnidadeDaTela } from '../lib/novo-pedido';
 import type { Rascunho } from '../lib/pedidos';
+import { textoDoAjuste, valorDoTexto } from '../lib/ajuste-pedido';
 import { CaixaAplicacao } from './novo-pedido';
 
 export const TEXTO_VALOR_TOTAL = 'Valor total:';
@@ -229,7 +230,7 @@ function MedidaDoItem({
             desligadoAumentar={semPreco}
             testID={`qty-${k}`}
           />
-          {qtd > 0 ? <AjusteDoItem k={k} nome={nome} p={p} ajuste={ajuste} equivalente={linha?.equivalente ?? null} onAjuste={onAjuste} /> : null}
+          {qtd > 0 ? <AjusteDoItem k={k} nome={nome} p={p} ajuste={ajuste} medida={medidas[idx]?.unidade ?? null} equivalente={linha?.equivalente ?? null} onAjuste={onAjuste} /> : null}
         </View>
       )}
       {qtd > 0 && p.applications && !somenteLeitura ? <CaixaAplicacao testID={`aplicacao-${k}`} marcada={Boolean(linha?.aplicacao_marcada)} onPress={onAplicacao} nome={nome} /> : null}
@@ -243,21 +244,13 @@ function MedidaDoItem({
   );
 }
 
-/** Texto do campo para o tipo e o valor: % com até 2 casas, R$ com 2 casas. */
-export function textoDoAjuste(tipo: TipoDoAjuste, valor: number): string {
-  if (!(valor > 0)) return '';
-  return tipo.endsWith('reais') ? centsParaCampo(valor) : valor.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: false });
-}
+export { textoDoAjuste, valorDoTexto };
 
-/** O número que o texto digitado representa para o tipo (% ou centavos); vazio ou inválido = 0. */
-export function valorDoTexto(tipo: TipoDoAjuste, texto: string): number {
-  const n = lerDecimal(texto);
-  if (n === null || n < 0) return 0;
-  return tipo.endsWith('reais') ? Math.round(n * 100) : Math.min(100, Math.round(n * 100) / 100);
-}
-
-/** Desconto/acréscimo sempre aberto, com o tipo ao lado; cada número válido vale na hora (RN-VEN-02). */
-function AjusteDoItem({ k, nome, p, ajuste, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
+/**
+ * Desconto/acréscimo do item: o `DescontoCompacto` do kit, o mesmo do pedido (T-0130: um componente só para item e pedido).
+ * Sempre aberto, com o tipo ao lado; cada número válido vale na hora (RN-VEN-02); o equivalente (% ↔ R$ por unidade) fica na linha.
+ */
+function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; medida: string | null; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
   const valorAtual = valorDoAjuste(ajuste);
   const [escolhido, setEscolhido] = useState<TipoDoAjuste>(tipoDoAjuste(ajuste));
   // com valor, o tipo é o do ajuste; sem valor, o que a pessoa escolheu
@@ -269,10 +262,9 @@ function AjusteDoItem({ k, nome, p, ajuste, equivalente, onAjuste }: { k: string
   }, [valorAtual, tipo]);
   const teto = tipo === 'desc_reais' && p.price_cents !== null ? p.price_cents : undefined;
   return (
-    <CampoAjuste
+    <DescontoCompacto
       testID={`ajuste-${k}`}
       style={{ flexGrow: 1, minWidth: 124 }}
-      tipos={TIPOS_AJUSTE}
       tipo={tipo}
       onChangeTipo={(novo) => {
         setEscolhido(novo);
@@ -287,6 +279,8 @@ function AjusteDoItem({ k, nome, p, ajuste, equivalente, onAjuste }: { k: string
         onAjuste(ajusteDoTipo(tipo, teto !== undefined ? Math.min(teto, n) : n));
       }}
       onConfirmar={() => setTexto(textoDoAjuste(tipo, valorDoAjuste(ajuste)))}
+      equivalente={equivalente ? { cents: equivalente.cents, pct: equivalente.pct_exibicao } : null}
+      medida={medida}
       placeholder="0"
       rotuloAcessivel={`Valor do ajuste de ${nome}`}
       rotuloTipo={`Tipo do ajuste de ${nome}`}
@@ -300,7 +294,7 @@ function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) 
   const partes = partirTrecho(trecho.texto, trecho.marcas);
   return (
     <Text style={s.aplicacao} numberOfLines={2} testID={`serve-em-${codigo}`}>
-      Serve em: {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      <Text style={t.smallStrong}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
       {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
     </Text>
   );
@@ -314,7 +308,7 @@ const s = StyleSheet.create({
   nome: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   separador: { fontFamily: fonts.body, fontSize: 12, color: colors.ink3 },
   embalagem: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  aplicacao: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
+  aplicacao: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   controles: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0 },
   total: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'baseline', gap: 6, minHeight: 24 },
   totalRotulo: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },

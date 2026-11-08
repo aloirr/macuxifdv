@@ -43,7 +43,8 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
-import { orderNote, statusBadge } from '../lib/order-status';
+import { orderNote, statusBadgeDaLinha } from '../lib/order-status';
+import { clienteDoRascunho } from '../lib/salvar-na-fila';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
@@ -413,7 +414,7 @@ const TEXTOS_DA_FOLHA = {
 };
 
 const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null }) {
-  const b = statusBadge(o.status);
+  const b = statusBadgeDaLinha(o);
   const note = orderNote(o);
   const buscando = normalizarTexto(busca) !== '';
   // T-0053: orçamento mostra a situação (offline, pela validade; RN-VEN-32); V7: o mesmo selo do detalhe
@@ -423,7 +424,12 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
     <Pressable
       testID={`order-${o.number || o.id}`}
       accessibilityRole="button"
-      onPress={() => irParaPedido(o.id)}
+      onPress={() => {
+        // T-0130: o rascunho "Salvo" reabre o editor no Resumo (com o que falta); o resto abre o detalhe
+        const clienteRascunho = clienteDoRascunho(o.id);
+        if (clienteRascunho) irParaNovoPedido({ customerId: clienteRascunho });
+        else irParaPedido(o.id);
+      }}
       style={({ pressed }) => [styles.row, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
       <View style={styles.line}>
         <Destacado texto={o.customer_name || 'Pedido no aparelho'} busca={busca} style={[t.bodyStrong, { flex: 1 }]} />

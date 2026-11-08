@@ -20,7 +20,8 @@ export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
 /** T-0076: a lista de Pedidos já filtrada pelos cards do Início. */
 export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
-export const hrefPedido = (id: string) => rota(CAMINHO_PEDIDO, { id });
+/** `transformar`: abre o detalhe do orçamento já com a folha "Transformar em pedido" (T-0137). */
+export const hrefPedido = (id: string, transformar = false) => rota(CAMINHO_PEDIDO, { id, transformar: transformar ? '1' : undefined });
 /** `vendedorId`/`autorId`: pedido em nome do vendedor (RN-VEN-35), aberto pelo gestor; o autor da API é sempre o token. */
 export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string; vendedorNome?: string };
 export const hrefNovoPedido = (params: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, params);

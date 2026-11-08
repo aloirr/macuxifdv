@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   acoesDoOrcamento,
+  dataDaValidade,
   historicoDoOrcamento,
   momentoDaConversao,
   pedidoDoOrcamento,
@@ -40,6 +41,23 @@ describe('RN-VEN-32: validade do orçamento', () => {
 
   it('RN-VEN-18: vale até o fim do dia civil de criação + N dias no fuso (instante UTC)', () => {
     expect(validadeDoOrcamento(CRIADO, 7, 'America/Manaus')).toEqual({ data: '2026-11-09', ate: '2026-11-10T04:00:00.000Z' });
+  });
+
+  it('RN-VEN-18 (T-0135): salvo às 22h de Manaus (já é outro dia em UTC), a tag e o histórico dizem a mesma data', () => {
+    const salvo = '2026-11-09T02:00:00.000Z'; // 08/11 22h em Manaus
+    const v = validadeDoOrcamento(salvo, 7, 'America/Manaus');
+    expect(v.data).toBe('2026-11-15');
+    expect(dataDaValidade(v.data)).toBe('15/11');
+    expect(historicoDoOrcamento(v.data)[0]!.motivo).toMatch(/válido até 15\/11\/2026/);
+    // vale até 23:59 de Manaus do dia 15: 03:59:59Z do dia 16 ainda aberto; 04:00Z vencido
+    expect(v.ate).toBe('2026-11-16T04:00:00.000Z');
+  });
+
+  it('RN-VEN-18 (T-0135): virada de mês — salvo em 28/10 às 22h de Manaus, 7 dias → 04/11/2026', () => {
+    const v = validadeDoOrcamento('2026-10-29T02:00:00.000Z', 7, 'America/Manaus');
+    expect(v.data).toBe('2026-11-04');
+    expect(historicoDoOrcamento(v.data)[0]!.motivo).toMatch(/04\/11\/2026/);
+    expect(dataDaValidade(v.data, true)).toBe('04/11/2026');
   });
 
   it('RN-VEN-32: situação aberto → expirado; cancelado e convertido prevalecem', () => {
@@ -145,7 +163,7 @@ describe('RF-VEN-03 / RN-VEN-32: converter orçamento em pedido', () => {
   });
 
   it('RN-VEN-32: o histórico do orçamento diz que não reserva estoque nem consome crédito e quando expira', () => {
-    const h = historicoDoOrcamento('2026-11-09T12:00:00.000Z', 'America/Manaus');
+    const h = historicoDoOrcamento('2026-11-09');
     expect(h).toHaveLength(1);
     expect(h[0]).toMatchObject({ de: null, para: 'received' });
     expect(h[0]!.motivo).toMatch(/não reserva estoque nem consome crédito/);

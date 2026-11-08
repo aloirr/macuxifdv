@@ -120,6 +120,37 @@ export function exigeAprovacaoPorVencido(i: { maior_atraso_dias: number; prazo_m
   return i.maior_atraso_dias > i.limite_dias && i.prazo_medio_dias > 0;
 }
 
+export const MOTIVO_FORMA_NAO_ACEITA = 'Este cliente não aceita esta forma';
+
+/**
+ * RN-VEN-25 (T-0129): todas as formas ativas, por ordem; a que o cadastro do cliente não aceita vem desabilitada, com o motivo
+ * (nunca some nem é trocada em silêncio). Lista do cliente nula ou vazia = todas habilitadas.
+ */
+export function formasDaLista(formas: readonly FormaDePagamento[], codigosDoCliente: readonly string[] | null | undefined): { forma: FormaDePagamento; habilitada: boolean; motivo?: string }[] {
+  const permitidos = codigosDoCliente && codigosDoCliente.length > 0 ? new Set(codigosDoCliente) : null;
+  return formas
+    .filter((f) => f.ativo)
+    .sort(porOrdem)
+    .map((forma) => (permitidos && !permitidos.has(forma.codigo) ? { forma, habilitada: false, motivo: MOTIVO_FORMA_NAO_ACEITA } : { forma, habilitada: true }));
+}
+
+/**
+ * RN-VEN-13 + RN-VEN-24/25 (T-0129): o título vencido nunca bloqueia a forma ou o prazo; só decide o destino. Prazo a prazo com
+ * título vencido há mais que o limite = aprovação; à vista = direto. Forma ou prazo fora do cadastro do cliente segue recusado.
+ */
+export function avaliarPagamentoComVencido(i: {
+  forma: FormaDePagamento | undefined | null;
+  prazo: PrazoDePagamento | undefined | null;
+  cliente: LimitePagamentoDoCliente;
+  maior_atraso_dias: number;
+  limite_dias: number;
+}): { ok: true; destino: 'direto' | 'aprovacao' } | Extract<ResultadoPagamento, { ok: false }> {
+  const v = validarPagamento(i);
+  if (!v.ok) return v;
+  const aprova = exigeAprovacaoPorVencido({ maior_atraso_dias: i.maior_atraso_dias, prazo_medio_dias: i.prazo!.prazo_medio_dias, limite_dias: i.limite_dias });
+  return { ok: true, destino: aprova ? 'aprovacao' : 'direto' };
+}
+
 /** Parâmetro `titulo_vencido_dias` do Vendedor (padrão 5; nenhum parâmetro do Vendedor é semeado por migração). */
 export const TITULO_VENCIDO_DIAS_PADRAO = 5;
 

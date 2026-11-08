@@ -10,6 +10,8 @@ import {
   duplicarDocumento,
   opcoesDoSalvar,
   pedidoDoOrcamento,
+  precoDoItemNaEdicao,
+  precosCongelados,
   reconferirOrcamento,
   situacaoDoOrcamento,
   validadeDoOrcamento,
@@ -105,20 +107,27 @@ describe('RN-VEN-18: reconferir o orçamento ao transformar (offline, dados de h
     expect(r.pode_enviar).toBe(true);
     expect(r.bloqueio).toBeNull();
   });
-  it('RN-VEN-18: preço alterado (café 18,90 → 19,50) mantém o R$ 1,00 e registra a mudança', () => {
+  it('RN-VEN-18 (T-0134): preço congelado — a tabela de hoje subiu (café 18,90 → 19,50) e o Transformar mantém 18,90, sem mudança de preço', () => {
     const r = reconferirOrcamento(orc, hoje({ itens: { ...hoje().itens, caf: dado(1950) } }));
-    expect(r.mudancas).toEqual([{ tipo: 'preco', produto_id: 'caf', de_cents: 1890, para_cents: 1950 }]);
-    expect(r.calculo.totais.total_cents).toBe(38692);
-    expect(r.calculo.totais.desconto_efetivo_exibicao_pct).toBe(4.6);
-    expect(r.calculo.nivel).toBeNull();
+    expect(r.mudancas).toEqual([]);
+    expect(r.rascunho.itens.find((i) => i.product_id === 'caf')!.tabela_cents).toBe(1890);
+    expect(r.calculo.totais.total_cents).toBe(37979);
+    expect(r.pode_enviar).toBe(true);
+  });
+  it('RN-VEN-18 (T-0134): preço congelado vale mesmo sem preço na tabela de hoje (só produto fora do catálogo sai)', () => {
+    const r = reconferirOrcamento(orc, hoje({ itens: { ...hoje().itens, bis: { ...dado(0), tabela_cents: null } } }));
+    expect(r.rascunho.itens.map((i) => i.product_id)).toEqual(['agu', 'caf', 'bis']);
+    expect(r.mudancas).toEqual([]);
   });
   it('RN-VEN-10: a alçada recalculada aparece como mudança', () => {
     const r = reconferirOrcamento({ ...orc, ajuste_pedido: desc(4) }, hoje());
     expect(r.calculo.nivel).toBe('supervisor');
     expect(r.mudancas).toContainEqual({ tipo: 'alcada', de: null, para: 'supervisor' });
   });
-  it('RN-CAT-06: produto sem preço hoje sai do pedido', () => {
-    const r = reconferirOrcamento(orc, hoje({ itens: { ...hoje().itens, bis: { ...dado(0), tabela_cents: null } } }));
+  it('RN-CAT-06: produto que saiu do catálogo do aparelho sai do pedido', () => {
+    const { bis: _bis, ...resto } = hoje().itens;
+    void _bis;
+    const r = reconferirOrcamento(orc, hoje({ itens: resto }));
     expect(r.mudancas).toContainEqual({ tipo: 'sem_preco', produto_id: 'bis' });
     expect(r.rascunho.itens.map((i) => i.product_id)).toEqual(['agu', 'caf']);
   });
@@ -127,11 +136,14 @@ describe('RN-VEN-18: reconferir o orçamento ao transformar (offline, dados de h
     expect(r.mudancas).toContainEqual({ tipo: 'medida_inativa', produto_id: 'bis', unidade: 'CX' });
     expect(r.rascunho.itens).toHaveLength(2);
   });
-  it('RN-VEN-11: o mínimo subiu — o ajuste do item é reduzido ao teto', () => {
-    // mínimo base 1850 → café não pode ficar abaixo de 1850: R$ 1,00 → R$ 0,40
+  it('RN-VEN-11 (T-0134): o mínimo subiu — avisa o item, não troca preço nem desconto sozinho e não envia', () => {
+    // mínimo base 1850 → café (R$ 18,90 − R$ 1,00 = 17,90) fica abaixo do mínimo
     const r = reconferirOrcamento(orc, hoje({ itens: { ...hoje().itens, caf: dado(1890, { minimo_base_cents: 1850 }) } }));
-    expect(r.mudancas).toContainEqual({ tipo: 'ajuste_travado', produto_id: 'caf', de: descR(100), para: descR(40) });
-    expect(r.rascunho.itens[1]!.ajuste).toEqual(descR(40));
+    expect(r.mudancas).toContainEqual({ tipo: 'abaixo_minimo', produto_id: 'caf', unidade: 'UN' });
+    expect(r.rascunho.itens[1]!.ajuste).toEqual(descR(100));
+    expect(r.rascunho.itens[1]!.tabela_cents).toBe(1890);
+    expect(r.pode_enviar).toBe(false);
+    expect(r.bloqueio).toMatch(/mínimo/);
   });
   it('RN-VEN-20: estoque insuficiente avisa; com o parâmetro de bloqueio, não envia', () => {
     const itens = { ...hoje().itens, caf: dado(1890, { estoque_base: 5 }) };
@@ -253,5 +265,20 @@ describe('RN-VEN-18 / RN-VEN-02: a cópia leva só o modo gravado (ajuste_em), c
     const p = pedidoDoOrcamento({ ...DO_PULL, desconto_pct: 0, desconto_valor_cents: 0, acrescimo_pct: 2, ajuste_em: undefined }, 'novo', 'agora');
     expect(p).toMatchObject({ discount_pct: 0, acrescimo_pct: 2 });
     expect(p).not.toHaveProperty('desconto_valor_cents');
+  });
+});
+
+describe('RN-VEN-18 (T-0134): preço congelado no orçamento', () => {
+  it('RN-VEN-18: precosCongelados devolve o preço de tabela por UNIDADE do que foi salvo (CX c/ 12 de R$ 21,48 = R$ 1,79 a unidade)', () => {
+    expect(precosCongelados([{ product_id: 'agu', preco_tabela_cents: 2148, fator: 12 }, { product_id: 'caf', preco_tabela_cents: 1890, fator: 1 }])).toEqual({ agu: 179, caf: 1890 });
+    expect(precosCongelados([{ product_id: 'x', preco_tabela_cents: 0, fator: 1 }])).toEqual({});
+  });
+  it('RN-VEN-18: editar não reprecifica item salvo (a tabela de hoje e as faixas de hoje são ignoradas)', () => {
+    const r = precoDoItemNaEdicao({ congelado_cents: 1890, hoje_cents: 1950, faixas_hoje: ['faixa'] });
+    expect(r).toEqual({ preco_unidade_cents: 1890, faixas: undefined, congelado: true });
+  });
+  it('RN-VEN-18: o item NOVO da edição entra pelo preço de hoje (com as faixas de hoje)', () => {
+    expect(precoDoItemNaEdicao({ hoje_cents: 1950, faixas_hoje: ['faixa'] })).toEqual({ preco_unidade_cents: 1950, faixas: ['faixa'], congelado: false });
+    expect(precoDoItemNaEdicao({ congelado_cents: null, hoje_cents: null })).toMatchObject({ preco_unidade_cents: null, congelado: false });
   });
 });

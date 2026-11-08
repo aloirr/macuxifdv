@@ -16,6 +16,7 @@ import { acoesDoOrcamento, conteudoDoEnvio, situacaoDoOrcamento } from '../domai
 import { calcularDocumento } from './receber';
 import { valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
+import { precosCongeladosDoDocumento } from './preco-congelado';
 
 const ParamsOrcamento = z.object({ id: z.string().uuid() });
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -88,7 +89,7 @@ export const rotaEditarOrcamento: RotaModulo = {
         throw new ErroHttpModulo(409, 'ORCAMENTO_ALTERADO', 'Este orçamento foi alterado em outro aparelho. Abra de novo para ver a versão atual.');
       }
 
-      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, { data: doc.validade_data, ate: doc.validade_ate });
+      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, { data: doc.validade_data, ate: doc.validade_ate }, await precosCongeladosDoDocumento(db, id));
       if ('status' in calc) {
         const codigo = calc.status === 'rejeitado' ? calc.codigo : 'PAYLOAD_INVALIDO';
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';

@@ -26,6 +26,8 @@ export interface Rascunho {
   visit_id: string | null;
   route_stop_id: string | null;
   updated_at: string;
+  /** T-0137 (RN-VEN-38): "Apenas salvar" — quando o vendedor guardou o rascunho de propósito (aceita pendências); reabre no Resumo e não vira "Pedido não terminado" */
+  salvo_em?: string | null;
   /** edição: id do pedido editado (rascunho guardado na chave `edit:<id>`) */
   edit_order_id?: string | null;
   /** aviso do duplicar/editar: de onde veio e itens removidos (sem preço/inativos) */
@@ -35,6 +37,8 @@ export interface Rascunho {
   // --- T-0061: a chave de `lines` é o produto (unidade base) ou `produto@CX` (embalagem) ---
   /** desconto OU acréscimo por linha (RN-VEN-02), por chave de `lines` */
   ajustes?: Record<string, Ajuste>;
+  /** T-0134 (RN-VEN-18): edição de orçamento — produto → preço de tabela por unidade já salvo; o item salvo não é reprecificado */
+  precos_congelados?: Record<string, number>;
   /** acréscimo do pedido (excludente com `discount_pct`) */
   acrescimo_pct?: number;
   /** T-0071 (RN-VEN-02): ajuste do pedido em R$ sobre o total dos itens e o modo digitado (seletor % | R$); ausente = % */
@@ -165,6 +169,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     faixas: e.faixas,
+    ...(e.rascunho.precos_congelados ? { congelados: e.rascunho.precos_congelados } : {}),
     aplicacao: e.aplicacao,
     politica,
     vendedor_id: vendedorId,
@@ -285,7 +290,7 @@ export function pedidosNaFila(fila: readonly ItemFilaPedido[], exibicoes: Record
     .map((i) => ({ ...i, payload: i.payload as PedidoPush, display: exibicoes[i.id] ?? null, failed: i.situacao !== 'pendente' && i.situacao !== 'aceito' }));
 }
 
-export type PedidoDaLista = Order & { local: boolean; local_error: string };
+export type PedidoDaLista = Order & { local: boolean; local_error: string; /** T-0130: a API recusou o pedido (item `falhou` da fila) */ local_failed?: boolean };
 
 /** Pedido da fila exibido na lista como "Na fila" · "no aparelho". */
 export function pedidoDaFilaComoPedido(item: PedidoNaFila, vendedor: VendedorLogado): PedidoDaLista {
@@ -318,6 +323,7 @@ export function pedidoDaFilaComoPedido(item: PedidoNaFila, vendedor: VendedorLog
     units: d?.units ?? p.items.reduce((s, i) => s + i.quantity, 0),
     local: true,
     local_error: item.ultimo_erro,
+    ...(item.failed ? { local_failed: true } : {}),
     ...(p.tipo ? { tipo: p.tipo } : {}),
     ...(p.orcamento_origem_id ? { orcamento_origem_id: p.orcamento_origem_id } : {}),
   };

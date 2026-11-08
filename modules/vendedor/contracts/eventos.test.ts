@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { conferirEventosPublicados } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import * as contracts from './index';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA } from './index';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CANCELADO } from './index';
 
 describe('T-0024: eventos do Vendedor no contracts', () => {
   it('todo evento publicado tem definição exportada e nenhuma é de evento alheio', () => {
@@ -34,5 +34,25 @@ describe('T-0024: eventos do Vendedor no contracts', () => {
     expect(s.safeParse({ ...cheio, historico: { ultima_compra_em: null, pedidos_90d: 0, ticket_medio_cents: null } }).success).toBe(true);
     expect(s.safeParse({ ...cheio, credito: { ...cheio.credito, limite_cents: -1 } }).success).toBe(false);
     expect(s.safeParse({ ...cheio, historico: { ...cheio.historico, pedidos_90d: 1.5 } }).success).toBe(false);
+  });
+
+  it('RN-VEN-31 (T-0114): cancelado@1 leva ids, número, external_id do ERP, motivo, autor e data UTC; sem dado pessoal', () => {
+    const s = EVENTO_PEDIDO_CANCELADO.schema;
+    const ok = {
+      tenant_id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e21',
+      pedido_id: base.pedido_id,
+      numero: '000010',
+      external_id: null,
+      enviado_ao_erp: false,
+      motivo: 'Cliente desistiu',
+      cancelado_por: base.vendedor_id,
+      cancelado_em: '2026-11-07T12:00:00.000Z',
+    };
+    expect(EVENTO_PEDIDO_CANCELADO.nome).toBe('vendedor.pedido.cancelado@1');
+    expect(s.safeParse(ok).success).toBe(true);
+    expect(s.safeParse({ ...ok, external_id: 'ERP-123', enviado_ao_erp: true, motivo: null }).success).toBe(true);
+    expect(s.safeParse({ ...ok, motivo: 'x'.repeat(501) }).success).toBe(false);
+    const { cancelado_por: _, ...sem } = ok;
+    expect(s.safeParse(sem).success).toBe(false);
   });
 });

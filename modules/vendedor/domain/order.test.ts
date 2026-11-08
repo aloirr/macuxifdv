@@ -194,3 +194,21 @@ describe('P-2 (T-0029): pedido aprovado não é editável nesta fatia', () => {
     expect(canTransition('sent_to_erp', 'cancelled')).toBe(false);
   });
 });
+
+describe('RN-VEN-31 (exceção T-0114): cancelar pedido já integrado ao ERP', () => {
+  it.each(['sent_to_erp', 'integrated', 'enviado', 'integrado_erp'])('RN-VEN-31: %s cancela só se o conector aceita (cancelamento solicitado)', (st) => {
+    expect(verificarCancelamento(st, { erpAceitaCancelamento: true })).toEqual({ ok: true, solicitado_ao_erp: true });
+    expect(orderActions(st as never, { erpAceitaCancelamento: true }).can_cancel).toBe(true);
+  });
+  it('RN-VEN-31: sem aceite segue 422 RN-VEN-CANCELAR-APOS-ENVIO', () => {
+    expect(verificarCancelamento('integrated', { erpAceitaCancelamento: false })).toMatchObject({ ok: false, status: 422, codigo: 'RN-VEN-CANCELAR-APOS-ENVIO' });
+    expect(orderActions('integrated', { erpAceitaCancelamento: false }).can_cancel).toBe(false);
+  });
+  it('RN-VEN-31: antes do envio o aceite é irrelevante (cancela na hora)', () => {
+    expect(verificarCancelamento('approved', { erpAceitaCancelamento: true })).toEqual({ ok: true });
+  });
+  it('RN-VEN-31: faturado não cancela mesmo com aceite', () => {
+    expect(verificarCancelamento('invoiced', { erpAceitaCancelamento: true })).toMatchObject({ ok: false, status: 422 });
+    expect(verificarCancelamento('faturado_parcial', { erpAceitaCancelamento: true })).toMatchObject({ ok: false });
+  });
+});

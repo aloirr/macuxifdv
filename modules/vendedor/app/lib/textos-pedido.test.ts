@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abasDoPedido, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync, textoDaFaixa, tituloDaFolhaSalvar } from './textos-pedido';
+import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync, textoDaFaixa } from './textos-pedido';
 
 describe('rotuloCurtoDaCondicao (referência enxuta, §6.1)', () => {
   it('RN-VEN-14: "À vista", "28 d" e "28/56" cabem no chip', () => {
@@ -33,16 +33,19 @@ describe('textoDaFaixa (aba Resumo)', () => {
 });
 
 describe('abasDoPedido e folha do Salvar', () => {
-  it('RF-VEN-11: três abas — Itens (com a contagem), Detalhes e Resumo', () => {
+  it('RF-VEN-11: quatro abas — Venda, Itens (com a contagem, também 0), Entrega e Resumo', () => {
     expect(abasDoPedido(3)).toEqual([
+      { id: 'venda', rotulo: 'Venda' },
       { id: 'itens', rotulo: 'Itens', contador: 3 },
-      { id: 'detalhes', rotulo: 'Detalhes' },
+      { id: 'entrega', rotulo: 'Entrega' },
       { id: 'resumo', rotulo: 'Resumo' },
     ]);
-    expect(abasDoPedido(0)[0]!.contador).toBeNull();
+    expect(abasDoPedido(0)[1]!.contador).toBe(0);
   });
-  it('RN-VEN-18: título da folha', () => {
-    expect(tituloDaFolhaSalvar()).toBe('Salvar pedido');
+  it('RF-VEN-11: a tela abre na Venda e o Avançar/voltar seguem Venda → Itens → Entrega → Resumo', () => {
+    expect(ABA_INICIAL_DO_PEDIDO).toBe('venda');
+    expect(['venda', 'itens', 'entrega'].map((a) => proximaAbaDoPedido(a as AbaNovoPedido))).toEqual(['itens', 'entrega', 'resumo']);
+    expect(['resumo', 'entrega', 'itens', 'venda'].map((a) => abaAnteriorDoPedido(a as AbaNovoPedido))).toEqual(['entrega', 'itens', 'venda', null]);
   });
 });
 
@@ -117,5 +120,16 @@ describe('trilha do catálogo e aviso do orçamento salvo (T-0071 V3 e V8)', () 
     const { avisoDoOrcamentoSalvo } = await import('./textos-pedido');
     expect(avisoDoOrcamentoSalvo('000012')).toBe('Orçamento 000012 salvo');
     expect(avisoDoOrcamentoSalvo(null)).toBe('Orçamento salvo no aparelho');
+  });
+});
+
+describe('RN-VEN-38 (T-0137): Apenas salvar', () => {
+  it('RN-VEN-38: o rascunho guardado reabre no Resumo e o novo abre em Venda', () => {
+    expect(abaInicialDoRascunho({ salvo_em: '2026-11-08T14:00:00Z' })).toBe('resumo');
+    expect(abaInicialDoRascunho({})).toBe(ABA_INICIAL_DO_PEDIDO);
+    expect(abaInicialDoRascunho({ salvo_em: null })).toBe('venda');
+  });
+  it('RN-VEN-38: o aviso depois de Apenas salvar', () => {
+    expect(AVISO_PEDIDO_SALVO).toBe('Pedido salvo');
   });
 });

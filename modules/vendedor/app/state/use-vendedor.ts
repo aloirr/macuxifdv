@@ -20,10 +20,11 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
+import { avisoDoSalvar, rascunhosSalvosComoPedidos } from '../lib/salvar-na-fila';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
@@ -172,8 +173,10 @@ export function useVendedor() {
     const eu = { id: vendedor.id, name: vendedor.name, branch_id: vendedor.branch_id };
     const noServidor = new Set(dados.pedidos.map((o) => o.id));
     const todos = mergeOrders(dados.pedidos, fila, eu);
-    return v1 ? [...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : todos;
-  }, [dados.pedidos, fila, aceitos, vendedor, v1]);
+    // T-0130: o rascunho de "Apenas salvar" aparece na lista com a tag "Salvo"
+    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '').map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
+    return v1 ? [...salvos, ...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : [...salvos, ...todos];
+  }, [dados.pedidos, dados.rascunhos, dados.clientes, fila, aceitos, vendedor, v1]);
 
   const offline = !ambiente.online();
 
@@ -396,7 +399,28 @@ export function useVendedor() {
     [v1, usuario],
   );
 
-  /** Envia o pedido: grava na fila (persistida) e tenta enviar; erro definitivo volta para o vendedor corrigir. */
+  /** Envio da fila em segundo plano (T-0130): aceito, traz a linha do servidor; recusado, o item fica `falhou` para o vendedor corrigir. */
+  const seguirEnvioEmSegundoPlano = useCallback(
+    async (id: string): Promise<void> => {
+      if (!motor || !repo) return;
+      try {
+        const r = (await motor.enviar()).find((x) => x.id === id);
+        if (r && r.status === 'aceito') {
+          if (v1) await motor.sincronizar().catch(() => false);
+          else {
+            await carregarPedido(id);
+            await repo.removerExibicao(id);
+          }
+        }
+      } catch {
+        // sem rede no meio do caminho: o item segue `pendente` e o motor tenta de novo sozinho
+      }
+      await recarregar();
+    },
+    [motor, repo, v1, carregarPedido, recarregar],
+  );
+
+  /** Salva o pedido: grava na fila (persistida) e devolve na hora; o envio segue em segundo plano (T-0130). */
   const enviarPedido = useCallback(
     async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
       if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
@@ -407,41 +431,13 @@ export function useVendedor() {
       await repo.guardarExibicao(id, display);
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${cliente.trade_name}`, detalhe: `${(display.total_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · ${display.items_count} ${display.items_count === 1 ? 'item' : 'itens'}` });
       await repo.limparRascunho(draftKeyFor(cliente.id));
-      if (!ambiente.online()) {
-        await recarregar();
-        return { kind: 'queued', id, message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
-      }
-      const resultados = await motor.enviar();
-      const r = resultados.find((x) => x.id === id);
-      if (r && r.status === 'aceito') {
-        if (v1) {
-          // traz a linha do servidor (número, status, nível); sem rede ou com falha, o pedido segue como "Recebido" até o próximo pull
-          await motor.sincronizar().catch(() => false);
-          await recarregar();
-          const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
-          if (det) return { kind: 'sent', order: det };
-          return { kind: 'queued', id, message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
-        }
-        await carregarPedido(id);
-        await repo.removerExibicao(id);
-        await recarregar();
-        const det = dadosRef.current.detalhes[id];
-        if (det) return { kind: 'sent', order: det };
-        return { kind: 'queued', id, message: 'Pedido enviado. Os detalhes aparecem na próxima atualização.' };
-      }
-      if (r) {
-        // recusado pelo servidor: sai da fila e volta para o vendedor corrigir
-        await motor.descartar(id);
-        await repo.removerExibicao(id);
-        await recarregar();
-        const mensagem = 'mensagem' in r && r.mensagem ? r.mensagem : '';
-        throw new Error(mensagem || 'O servidor recusou o pedido. Revise os itens e tente de novo.');
-      }
       await recarregar();
-      const item = motor.estado().fila.find((i) => i.id === id);
-      return { kind: 'queued', id, message: item?.ultimo_erro || 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
+      // T-0130 (RN-VEN-30, RN-CORE-23 item 2): a tela fecha na hora; o envio sai pela fila comum do motor, em segundo plano, com
+      // retentativa e o UUID do aparelho. A recusa da API deixa o item `falhou` na fila ("Não aceito", com o motivo) para corrigir.
+      if (ambiente.online()) void seguirEnvioEmSegundoPlano(id);
+      return { kind: 'queued', id, message: avisoDoSalvar(!ambiente.online()) };
     },
-    [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente, v1, perfil],
+    [motor, repo, prepararDoRascunho, recarregar, ambiente, seguirEnvioEmSegundoPlano],
   );
 
   const unidadesTransportadoras = useCallback(() => (v1 ? transportadorasDaTela(linhasRef.current) : []), [v1]);
@@ -472,9 +468,11 @@ export function useVendedor() {
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
       const origem = src.number ? `pedido ${src.number}` : 'pedido no aparelho';
-      const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : 'Preços atualizados pela tabela de hoje do cliente.';
       const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
+      // T-0134 (RN-VEN-18): editar orçamento mantém os preços salvos (sem aviso de "preços atualizados"); duplicar entra pelos preços de hoje
+      const congelados = modo === 'edit' && ehOrcamento ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
+      const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : congelados ? '' : 'Preços atualizados pela tabela de hoje do cliente.';
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -484,6 +482,7 @@ export function useVendedor() {
         route_stop_id: null,
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
+        ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
         notice: [cabeca, aviso].filter(Boolean).join(' '),
       });
