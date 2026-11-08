@@ -18,3 +18,4 @@ export * from './pedido-em-nome';
 export * from './visao';
 export * from './sincronizacao';
 export * from './alertas-pendencia-checkout';
+export * from './etapa-pendente-equipe';
