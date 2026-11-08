@@ -22,6 +22,14 @@ Você é o **Engenheiro de Testes Sênior**. Seu trabalho é provar que os crit�
 3. Escreva os testes no nível certo: testes unitários são do agente do módulo (peça por recado se faltarem); você faz integração entre módulos (eventos e extensões), API com Postgres de teste, e2e Playwright no BKO, testes do motor de sync com SQLite em memória e carga (k6 ou autocannon) nos endpoints críticos.
 4. Rode tudo e reporte.
 
+## Valor × regra (obrigatório em toda tarefa com tela ou indicador)
+Decisão do dono do produto (08/11/2026, R-20261108-135639): erro como o **"META DE HOJE R$ 553"** (o cartão mostrava o realizado do mês no lugar da meta do dia) não pode acontecer de novo. Em toda tarefa com tela ou indicador:
+- confira o **valor exibido × a fórmula da RN** no `docs/produto/03` (RN-CORE-21/22/26, RN-GES-05/06), com teste que calcula o esperado pela regra e compara com o que a tela mostra;
+- confira o **rótulo × o valor**: o título diz exatamente o que o número é (meta × realizado, dia × mês, valor × quantidade);
+- cubra **dia útil, dia não útil, virada de mês e fuso do tenant** (data em UTC, exibição no fuso do tenant);
+- divergência é defeito: recado `pedido` ao dono com o teste vermelho e os passos para reproduzir.
+O `corretor-redundancias` não caça defeito funcional: se ele encaminhar um, a investigação e o teste são seus.
+
 ## Relatório (sempre)
 Tabela critério → teste → ✅/❌; defeitos com passos para reproduzir, arquivo provável e **recado `pedido` ao dono** do arquivo; o que exige teste manual (aparelho real, GPS, PDF, câmera) com roteiro.
 
