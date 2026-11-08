@@ -1,11 +1,11 @@
 diff --git a/.claude/hooks/guarda-bash.mjs b/.claude/hooks/guarda-bash.mjs
-index eb2ecff..a5e07b6 100644
+index 047d702..dc534b8 100644
 --- a/.claude/hooks/guarda-bash.mjs
 +++ b/.claude/hooks/guarda-bash.mjs
-@@ -47,6 +47,10 @@
- //    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
- //    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
- //    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
+@@ -50,6 +50,10 @@
+ //  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do macuxifdv-recados, o alvo pelo
+ //    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
+ //    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
 +//  - Guardião v7 (T-0122), PreToolUse, também ANTES da liberação da sessão manual: `gh api` só de LEITURA (GET/HEAD;
 +//    GraphQL só "query"). Leitura passa mesmo com $VAR ou "merge" no --jq; POST/PUT/PATCH/DELETE, método incerto,
 +//    opção desconhecida e gh api escondido em bash -c/node -e são bloqueados (conferirGhApi em guarda-merge-lib.mjs;
@@ -13,7 +13,7 @@ index eb2ecff..a5e07b6 100644
  // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
  import { readFileSync, statSync } from 'node:fs';
  import { join } from 'node:path';
-@@ -58,7 +62,7 @@ import {
+@@ -61,7 +65,7 @@ import {
    lerJson, gravarJson, apagarArquivo, limparAntigos,
  } from './guarda-bash-lib.mjs';
  import {
@@ -22,7 +22,7 @@ index eb2ecff..a5e07b6 100644
    motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados,
  } from './guarda-merge-lib.mjs';
  
-@@ -95,6 +99,12 @@ if (evento === 'PreToolUse') {
+@@ -98,6 +102,12 @@ if (evento === 'PreToolUse') {
      process.stderr.write(m.mensagem + '\n');
      process.exit(2);
    }
@@ -241,10 +241,10 @@ index 0000000..ef74c2f
 +});
 diff --git a/.claude/hooks/guarda-mcp-lib.mjs b/.claude/hooks/guarda-mcp-lib.mjs
 new file mode 100644
-index 0000000..972f2e0
+index 0000000..301b0db
 --- /dev/null
 +++ b/.claude/hooks/guarda-mcp-lib.mjs
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,242 @@
 +// Guardião v7 (T-0122) — ferramentas MCP (mcp__*) no PreToolUse (hook .claude/hooks/guarda-mcp.mjs).
 +// Funções puras; o donos.json, a identidade e "o arquivo já existe?" são injetados (testes: guarda-mcp.test.mjs).
 +// Sem dependências externas.
@@ -263,7 +263,8 @@ index 0000000..972f2e0
 +//                       segredo, configuração...) ou nome desconhecido: BLOQUEADO (falha fechada);
 +//  - 'arquivo-local'    outro servidor com verbo de escrita (write/edit/create/move/delete...) e caminho na entrada:
 +//                       cada caminho dentro do repositório passa pelo podeAlterar (as mesmas regras do guarda-donos),
-+//                       fora do repositório só as pastas somente leitura do donos.json bloqueiam;
++//                       o caminho de verdade do clone de recados (junção, ADR 0035) vira .coord/recados/... (mesmas
++//                       regras) e o resto do clone é bloqueado; fora disso só as pastas somente leitura do donos.json;
 +//  - 'outro'            outra ferramenta de outro servidor (Canva, documentos...): passa.
 +//
 +// Regras do 'github-arquivo' (todas as sessões; MACUXI_GUARDA=off desliga, como nos outros guardiões):
@@ -391,10 +392,11 @@ index 0000000..972f2e0
 + * Confere uma chamada de ferramenta MCP (PreToolUse). Função pura.
 + * @param {{ferramenta: string, entrada?: object, agente: string, origem?: string, subagente?: boolean,
 + *   podeAlterar: (p: {agente: string, ferramenta: string, rel: string, conteudo?: string}) => {ok: boolean, motivo?: string},
-+ *   caminhoRelativo: (c: string) => (string|null), somenteLeitura?: string[]}} p
++ *   caminhoRelativo: (c: string) => (string|null), somenteLeitura?: string[],
++ *   porJuncao?: (c: string) => ({rel: string}|{bloqueio: string}|null)}} p  caminho fora da raiz pela junção de recados
 + * @returns {{ok: boolean, classe: string|null, mensagem?: string}}
 + */
-+export function conferirFerramentaMcp({ ferramenta, entrada = {}, agente, origem = '', subagente = false, podeAlterar, caminhoRelativo, somenteLeitura = [] }) {
++export function conferirFerramentaMcp({ ferramenta, entrada = {}, agente, origem = '', subagente = false, podeAlterar, caminhoRelativo, somenteLeitura = [], porJuncao = () => null }) {
 +  const classe = classificarFerramentaMcp(ferramenta, entrada);
 +  if (!classe || classe === 'merge' || classe === 'leitura' || classe === 'outro') return { ok: true, classe };
 +  const erros = [];
@@ -451,7 +453,13 @@ index 0000000..972f2e0
 +
 +  if (classe === 'arquivo-local') {
 +    for (const caminho of caminhosLocais(entrada)) {
-+      const rel = caminhoRelativo(caminho);
++      let rel = caminhoRelativo(caminho);
++      if (rel === null) {
++        // ADR 0035 (T-0139): escrita direta no clone de recados (por fora da junção), como no guarda-donos.
++        const j = porJuncao(caminho);
++        if (j?.bloqueio) { erros.push(`"${caminho}": ${j.bloqueio}`); continue; }
++        if (j?.rel) rel = j.rel;
++      }
 +      if (rel === null) {
 +        const norm = (x) => String(x).replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '');
 +        const pasta = somenteLeitura.find((s) => norm(caminho) === norm(s) || norm(caminho).startsWith(norm(s) + '/'));
@@ -481,10 +489,10 @@ index 0000000..972f2e0
 +}
 diff --git a/.claude/hooks/guarda-mcp.mjs b/.claude/hooks/guarda-mcp.mjs
 new file mode 100644
-index 0000000..bbb8ea8
+index 0000000..3d9bdb1
 --- /dev/null
 +++ b/.claude/hooks/guarda-mcp.mjs
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,69 @@
 +#!/usr/bin/env node
 +// Guardião v7 (T-0122) — ferramentas MCP (mcp__*). Hook PreToolUse; matcher no .claude/settings.json: "mcp__.*".
 +// Uso: node .claude/hooks/guarda-mcp.mjs [nome-do-agente]
@@ -492,7 +500,7 @@ index 0000000..bbb8ea8
 +//  - regras e classes: .claude/hooks/guarda-mcp-lib.mjs (conferirFerramentaMcp). Em resumo: leitura passa; o merge fica
 +//    com o guarda-merge-mcp.mjs; gravar arquivo pelo MCP do GitHub segue os donos, nunca no main, com o trailer
 +//    "Agente:" do próprio agente, governança só pelo Alexandre; escrita do GitHub fora da lista aceita é bloqueada;
-+//    servidor de arquivos local segue o podeAlterar (como o guarda-donos);
++//    servidor de arquivos local segue o podeAlterar (como o guarda-donos, inclusive o clone de recados da ADR 0035);
 +//  - sem rede: não consulta o GitHub;
 +//  - leitura e ferramenta de outro servidor passam antes de qualquer coisa que possa falhar; nas demais, erro inesperado
 +//    do próprio hook ou entrada ilegível = BLOQUEADO (exit 2, falha fechada);
@@ -527,18 +535,27 @@ index 0000000..bbb8ea8
 +  const { classificarFerramentaMcp, conferirFerramentaMcp } = await import('./guarda-mcp-lib.mjs');
 +  const classe = classificarFerramentaMcp(ferramenta, entrada.tool_input || {});
 +  if (!classe || classe === 'merge' || classe === 'leitura' || classe === 'outro') process.exit(0);
-+  const { RAIZ, agenteDaSessao, podeAlterar, caminhoRelativo, carregarDonos } = await import('../../scripts/coord-lib.mjs');
++  const {
++    RAIZ, agenteDaSessao, podeAlterar, caminhoRelativo, carregarDonos, juncoesDeRecados, relativoPorJuncao, MOTIVO_CLONE_DE_RECADOS,
++  } = await import('../../scripts/coord-lib.mjs');
 +  const { agente, origem } = agenteDaSessao({ argumento: process.argv[2], entrada });
 +  const regras = carregarDonos(RAIZ); // donos.json ilegível = erro = bloqueado (falha fechada)
 +  let somenteLeitura = [];
 +  try { somenteLeitura = JSON.parse(readFileSync(join(RAIZ, '.coord', 'donos.json'), 'utf8')).somente_leitura || []; } catch { somenteLeitura = []; }
++  const abs = (c) => (isAbsolute(c) ? c : resolve(String(entrada.cwd || RAIZ), c));
++  let juncoes;
++  const porJuncao = (c) => {
++    juncoes ??= juncoesDeRecados(RAIZ);
++    const j = relativoPorJuncao(abs(c), juncoes);
++    return j?.clone ? { bloqueio: MOTIVO_CLONE_DE_RECADOS } : j?.rel ? { rel: j.rel } : null;
++  };
 +  const r = conferirFerramentaMcp({
 +    ferramenta, entrada: entrada.tool_input || {}, agente, origem,
 +    subagente: Boolean(String(entrada.agent_id || '').trim()),
 +    podeAlterar: (p) => podeAlterar({ ...p, raiz: RAIZ, regras }),
 +    // relativo = a partir do cwd da sessão (como o Bash); absoluto fora do repositório → null
-+    caminhoRelativo: (c) => caminhoRelativo(isAbsolute(c) ? c : resolve(String(entrada.cwd || RAIZ), c), RAIZ),
-+    somenteLeitura,
++    caminhoRelativo: (c) => caminhoRelativo(abs(c), RAIZ),
++    somenteLeitura, porJuncao,
 +  });
 +  if (!r.ok) bloquear(r.mensagem);
 +  process.exit(0);
@@ -547,10 +564,10 @@ index 0000000..bbb8ea8
 +}
 diff --git a/.claude/hooks/guarda-mcp.test.mjs b/.claude/hooks/guarda-mcp.test.mjs
 new file mode 100644
-index 0000000..88dff32
+index 0000000..09fa8c8
 --- /dev/null
 +++ b/.claude/hooks/guarda-mcp.test.mjs
-@@ -0,0 +1,262 @@
+@@ -0,0 +1,268 @@
 +// Testes do guardião v7 (T-0122): ferramentas MCP (mcp__*) no PreToolUse (node:test, sem dependências).
 +// Rodar: node --test .claude/hooks/guarda-mcp.test.mjs
 +// Parte 1: funções puras (guarda-mcp-lib.mjs) com o podeAlterar REAL (scripts/coord-lib.mjs) sobre regras de teste.
@@ -584,8 +601,10 @@ index 0000000..88dff32
 +const NUVEM_CORE = { agente: 'modulo-core', origem: 'trailer "Agente:" do branch nuvem/T-0099-x' };
 +const msg = (agente = 'modulo-core') => `T-0099: x\n\nAgente: ${agente}`;
 +const push = (o = {}) => ({ owner: 'aloirr', repo: 'macuxifdv', branch: 'nuvem/T-0099-x', message: msg(), files: [{ path: 'modules/core/domain/x.ts', content: 'export {}' }], ...o });
++/** Junção de recados de teste (ADR 0035): /clone/recados/... = .coord/recados/...; o resto de /clone é do clone. */
++const juncao = (c) => (c.startsWith('/clone/recados/') ? { rel: `.coord/recados/${c.slice('/clone/recados/'.length)}` } : c.startsWith('/clone/') ? { bloqueio: 'o clone do repositório de recados só muda pelo coord.mjs' } : null);
 +const conferir = ({ ferramenta = PUSH, entrada = push(), ident = NUVEM_CORE, subagente = false, somenteLeitura = [] } = {}) =>
-+  conferirFerramentaMcp({ ferramenta, entrada, ...ident, subagente, podeAlterar: pode, caminhoRelativo: rel, somenteLeitura });
++  conferirFerramentaMcp({ ferramenta, entrada, ...ident, subagente, podeAlterar: pode, caminhoRelativo: rel, somenteLeitura, porJuncao: juncao });
 +const bloqueia = (o, re) => {
 +  const r = conferir(o);
 +  assert.equal(r.ok, false, JSON.stringify(o));
@@ -713,6 +732,10 @@ index 0000000..88dff32
 +  assert.equal(conferir({ ferramenta: W, entrada: { path: '/tmp/x.txt', content: '' } }).ok, true, 'fora do repositório e fora das pastas somente leitura');
 +  assert.equal(conferir({ ferramenta: W, entrada: { path: '/repo/modules/vendedor/a.ts' }, ident: { agente: '', origem: 'sessão manual local' } }).ok, true, 'sessão manual local');
 +  bloqueia({ ferramenta: W, entrada: { path: '/repo/modules/core/a.ts' }, ident: { agente: 'sessao-sem-agente', origem: 'x' } }, /não faz parte do time/);
++  // ADR 0035: o clone de recados por fora da junção segue as regras de .coord/recados; o resto do clone é bloqueado
++  assert.equal(conferir({ ferramenta: W, entrada: { path: '/clone/recados/gerente-projetos/R-20261108-1-modulo-core.md', content: '---\nde: modulo-core\n---\n' } }).ok, true);
++  bloqueia({ ferramenta: W, entrada: { path: '/clone/recados/gerente-projetos/R-20261108-1-alexandre.md', content: '---\nde: alexandre\n---\n' } }, /terminar com o remetente/);
++  bloqueia({ ferramenta: W, entrada: { path: '/clone/.git/config', content: '' } }, /"\/clone\/\.git\/config": o clone do repositório de recados só muda pelo coord\.mjs/);
 +});
 +
 +test('v7 mcp: funções auxiliares — caminhoRemoto e arquivosDaEntrada', () => {
@@ -969,10 +992,10 @@ index 85e336a..b5e5215 100644
  
  const PROIBIDAS = {
 diff --git a/.claude/settings.json b/.claude/settings.json
-index cf4586c..bca3e9e 100644
+index 868bf55..0b7df73 100644
 --- a/.claude/settings.json
 +++ b/.claude/settings.json
-@@ -80,6 +80,15 @@
+@@ -103,6 +103,15 @@
              "timeout": 120
            }
          ]
