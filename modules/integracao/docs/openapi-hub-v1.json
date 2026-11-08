@@ -2429,6 +2429,52 @@
           "mensagem"
         ]
       },
+      "CancelamentoParaErp": {
+        "type": "object",
+        "properties": {
+          "pedido_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "numero_erp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancelado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "tentativa": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "default": 1
+          }
+        },
+        "required": [
+          "pedido_uuid",
+          "cancelado_em",
+          "tentativa"
+        ]
+      },
       "CatalogoNoPayload": {
         "type": "object",
         "properties": {
@@ -4554,6 +4600,12 @@
             "items": {
               "$ref": "#/components/schemas/PedidoParaErp"
             }
+          },
+          "cancelamentos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CancelamentoParaErp"
+            }
           }
         },
         "required": [
@@ -5395,7 +5447,7 @@
             "format": "uuid"
           },
           "status": {
-            "$ref": "#/components/schemas/StatusRetornoErp"
+            "$ref": "#/components/schemas/StatusRetornoRecebido"
           },
           "numero_erp": {
             "anyOf": [
@@ -5659,14 +5711,15 @@
           "cancelado"
         ]
       },
-      "StatusRetornoErp": {
+      "StatusRetornoRecebido": {
         "type": "string",
         "enum": [
           "integrado",
           "rejeitado_erp",
           "faturado_parcial",
           "faturado_total",
-          "cancelado"
+          "cancelado",
+          "cancelamento_recusado"
         ]
       },
       "TabelaEscalonadaPayload": {

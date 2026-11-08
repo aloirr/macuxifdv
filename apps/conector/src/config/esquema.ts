@@ -132,6 +132,13 @@ export const PedidosConfig = z
         mapaStatus: MapaStatus,
       })
       .strict(),
+    /**
+     * T-0114 (opcional; exceção da RN-INT-08): cancelamento feito no Macuxi devolvido ao ERP. Só é chamado quando o Hub entrega
+     * `cancelamentos` (o conector precisa estar cadastrado com "aceita cancelamento" no BKO). INSERT/EXEC/UPDATE (view ou procedure)
+     * executado numa transação, uma vez por pedido. Parâmetros: pedido_uuid, numero_erp (nulo se ainda não gravado), motivo, cancelado_em.
+     * Sem esta chave o cancelamento recebido fica pendente e o log avisa (`cancelamento_sem_configuracao`).
+     */
+    cancelamento: z.object({ executar: Consulta }).strict().optional(),
   })
   .strict();
 export type PedidosConfig = z.infer<typeof PedidosConfig>;

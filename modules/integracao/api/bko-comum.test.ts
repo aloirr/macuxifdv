@@ -8,6 +8,7 @@ const conector = (extra: Partial<LinhaConector>): LinhaConector => ({
   tipo: 'conector',
   ativo: true,
   recebe_pedidos: true,
+  aceita_cancelamento: false,
   entidades: ['cliente'],
   ips_permitidos: [],
   versao_conector: '1.2.0',

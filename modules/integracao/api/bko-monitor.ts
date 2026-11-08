@@ -112,6 +112,14 @@ export const rotaMonitor: RotaModulo = {
         [tenantId],
       );
 
+      // T-0114: cancelamento recusado pelo ERP e ainda sem desfecho (o `cancelado` posterior confirma e tira o pedido daqui)
+      const { rows: recusados } = await db.query<{ pedido_uuid: string; numero_erp: string | null; cancelamento_recusa_motivo: string }>(
+        `select pedido_uuid, numero_erp, cancelamento_recusa_motivo from integracao.pedido_fila_erp
+          where tenant_id = $1 and deleted_at is null and cancelamento_estado = 'recusado' and estado <> 'cancelado'
+          order by cancelamento_recusado_em desc limit 1000`,
+        [tenantId],
+      );
+
       const { rows: falhos } = await db.query<{ entidade: Entidade; conector_id: string }>(
         `select l.entidade, c.identificador as conector_id from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
           where l.tenant_id = $1 and l.status = 'falhou' and l.recebido_em > $2::timestamptz and l.deleted_at is null`,
@@ -142,6 +150,7 @@ export const rotaMonitor: RotaModulo = {
         },
         retornosComItensDescartados24h: descartes,
         pedidosAguardandoConector: pedidosAguardandoConector(esperandoConector, recebedor[0]?.versao_conector ?? null),
+        cancelamentosRecusados: recusados.map((r) => ({ pedido_uuid: r.pedido_uuid, numero_erp: r.numero_erp, motivo: r.cancelamento_recusa_motivo })),
       });
 
       const contagem = Object.fromEntries(ESTADOS_PEDIDO_ERP.map((e) => [e, 0])) as Record<(typeof ESTADOS_PEDIDO_ERP)[number], number>;

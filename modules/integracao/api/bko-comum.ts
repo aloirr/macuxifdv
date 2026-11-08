@@ -15,6 +15,7 @@ export interface LinhaConector {
   tipo: 'conector' | 'nuvem' | 'arquivo';
   ativo: boolean;
   recebe_pedidos: boolean;
+  aceita_cancelamento: boolean;
   entidades: Entidade[];
   ips_permitidos: string[];
   versao_conector: string | null;
@@ -23,7 +24,7 @@ export interface LinhaConector {
   created_at: Date;
 }
 
-export const COLUNAS_CONECTOR = `id, identificador, nome, tipo, ativo, recebe_pedidos, entidades, ips_permitidos::text[] as ips_permitidos,
+export const COLUNAS_CONECTOR = `id, identificador, nome, tipo, ativo, recebe_pedidos, aceita_cancelamento, entidades, ips_permitidos::text[] as ips_permitidos,
   versao_conector, parado_por_versao, ultimo_sinal_em, created_at`;
 
 /** RN-INT-11: o tenant tem algum Conector ativo que recebe pedidos (então vale o piso 1.2.1). */
@@ -87,6 +88,7 @@ export function montarResumo(
     tipo: c.tipo,
     ativo: c.ativo,
     recebe_pedidos: c.recebe_pedidos,
+    aceita_cancelamento: c.aceita_cancelamento,
     entidades: c.entidades,
     ips_permitidos: c.ips_permitidos.map((ip) => ip.replace(/\/(32|128)$/, '')),
     versao_conector: c.versao_conector,

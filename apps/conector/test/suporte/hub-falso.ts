@@ -11,6 +11,7 @@ import {
   ENTIDADES,
   LIMITE_REGISTROS_LOTE,
   LoteEnvelope,
+  CancelamentoParaErp,
   PedidoParaErp,
   RetornoErp,
   SCHEMA_REGISTRO,
@@ -66,6 +67,8 @@ export class HubFalso {
   readonly cursores = new Map<string, Cursor>();
   readonly registros = new Map<string, Map<string, Record<string, unknown>>>();
   pedidosParaEntregar: PedidoParaErp[] = [];
+  /** T-0114: cancelamentos entregues em /pedidos/pendentes (só se preenchido; o campo some quando vazio). */
+  cancelamentosParaEntregar: CancelamentoParaErp[] = [];
   readonly retornos: unknown[] = [];
   readonly sinais: unknown[] = [];
   readonly reconciliacoes: unknown[] = [];
@@ -182,7 +185,7 @@ export class HubFalso {
     }
     if (req.method === 'GET' && caminho === '/pedidos/pendentes') {
       const pedidos = this.pedidosParaEntregar.map((p) => PedidoParaErp.parse(p));
-      return this.responder(res, 200, { pedidos });
+      return this.responder(res, 200, this.cancelamentosParaEntregar.length > 0 ? { pedidos, cancelamentos: this.cancelamentosParaEntregar } : { pedidos });
     }
     m = /^\/pedidos\/([^/]+)\/retorno$/.exec(caminho);
     if (req.method === 'POST' && m) {
