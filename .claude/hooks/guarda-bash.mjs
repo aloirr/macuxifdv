@@ -47,10 +47,13 @@
 //    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
 //    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
 //    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
+//  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do macuxifdv-recados, o alvo pelo
+//    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
+//    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { RAIZ, carregarDonos, agenteDaSessao } from '../../scripts/coord-lib.mjs';
+import { RAIZ, carregarDonos, agenteDaSessao, juncoesDeRecados } from '../../scripts/coord-lib.mjs';
 import {
   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
   violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
@@ -107,12 +110,14 @@ try {
   process.exit(0); // donos.json ilegível: o guarda-donos/verificar acusam; aqui não trava o Bash
 }
 
+const juncoes = juncoesDeRecados(RAIZ);
+
 if (evento === 'PreToolUse') {
-  const amb = ambienteReal(RAIZ);
+  const amb = ambienteReal(RAIZ, juncoes);
   const acusados = lerJson(arquivoAcusados(entrada, agente), {});
   const { violacoes, soLeitura, alvos, instala } = analisarComando({
     comando, agente, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, regras, somenteLeitura,
-    permitidos: permitidosDe(acusados), amb,
+    permitidos: permitidosDe(acusados), amb, juncoes,
   });
   if (violacoes.length) {
     process.stderr.write(mensagemPre(agente, violacoes) + '\n');
@@ -154,7 +159,7 @@ if (evento === 'PostToolUse' || evento === 'PostToolUseFailure') {
   let inicio;
   try { inicio = statSync(arq).mtimeMs; } catch { process.exit(0); }
   apagarArquivo(arq);
-  const status = lerStatus(RAIZ);
+  const status = lerStatus(RAIZ, juncoes);
   if (!status) process.exit(0);
   const arqAcusados = arquivoAcusados(entrada, agente);
   const antes = lerJson(arqAcusados, {});

@@ -4,7 +4,7 @@
 // .coord/donos.json de exemplo, para que RAIZ (pasta do script) seja o repositório temporário.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, unlinkSync, appendFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, unlinkSync, appendFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
-  donoDaMudanca, podeAlterar, ehAnexoDeRecado,
+  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono,
 } from './coord-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -1317,4 +1317,117 @@ test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta pas
   const exc = secao(v.saida, 'Exceções do protocolo').join('\n');
   assert.match(exc, new RegExp(`A \\.coord/recados/engenheiro-software/${idVolta}\\.md — recado novo para engenheiro-software`));
   assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
+});
+
+// ───────────────────── ADR 0035 (T-0139): recados no repositório próprio ─────────────────────
+// O corte tira .coord/recados e .coord/lidos do índice e põe as duas pastas no .gitignore (a marca).
+// Antes da marca vale a regra de sempre; no commit que a traz (corte) só o alexandre apaga as pastas;
+// depois dela (fora) nada entra nessas pastas.
+
+const MARCA_GITIGNORE = '# Recados e lidos moram no macuxifdv-recados (ADR 0035)\n.coord/recados/\n.coord/lidos/\n';
+const LIDOS_CORE = '.coord/lidos/modulo-core.txt';
+const RECADO_INICIAL = '.coord/recados/testes/R-20261031-000000-modulo-core.md';
+
+/** Corte como o scripts/recados/corte.ps1 deixa: índice sem as pastas e a marca no .gitignore. */
+function cortar(dir) {
+  git(dir, 'rm', '-r', '--cached', '-q', '--', '.coord/recados', '.coord/lidos');
+  appendFileSync(join(dir, '.gitignore'), MARCA_GITIGNORE);
+}
+
+function repoComLidos() {
+  const dir = criarRepo();
+  escrever(dir, LIDOS_CORE, 'R-1\n');
+  // como no repositório real, o .gitignore tem dono (engenheiro-software); o alexandre pode alterá-lo
+  escrever(dir, '.coord/donos.json', JSON.stringify({ ...DONOS, regras: [{ padrao: '.gitignore', dono: 'engenheiro-software' }, ...DONOS.regras] }, null, 2));
+  escrever(dir, '.gitignore', 'node_modules/\n');
+  commitarComo(dir, 'modulo-core', 'lidos');
+  return dir;
+}
+
+test('ADR 0035: estadoDosRecados e recadosForaDoRepo pela marca do .gitignore', () => {
+  assert.equal(recadosForaDoRepo(MARCA_GITIGNORE), true);
+  assert.equal(recadosForaDoRepo('/.coord/recados\r\n'), true);
+  assert.equal(recadosForaDoRepo('.coord/recados/anexos/\n.coord/recadosx/\n# .coord/recados/\n'), false);
+  assert.equal(estadoDosRecados({ gitignoreBase: '', gitignoreTopo: '' }), 'no-repo');
+  assert.equal(estadoDosRecados({ gitignoreBase: 'node_modules/\n', gitignoreTopo: MARCA_GITIGNORE }), 'corte');
+  assert.equal(estadoDosRecados({ gitignoreBase: MARCA_GITIGNORE, gitignoreTopo: MARCA_GITIGNORE }), 'fora');
+  assert.equal(estadoDosRecados({ gitignoreBase: MARCA_GITIGNORE, gitignoreTopo: '' }), 'no-repo', 'a volta segue a regra de sempre');
+  assert.equal(estadoDosRecados(), 'no-repo');
+});
+
+test('ADR 0035: classificarMudancas no corte aceita só a saída (D) pelo alexandre; no fora recusa tudo nas pastas', () => {
+  const regras = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
+  const saida = [{ status: 'D', caminho: RECADO_INICIAL }, { status: 'D', caminho: LIDOS_CORE }];
+  const alex = classificarMudancas({ agente: 'alexandre', mudancas: saida, regras, estrito: true, recados: 'corte' });
+  assert.equal(alex.violacoes.length, 0, JSON.stringify(alex.violacoes));
+  assert.equal(alex.excecoes.length, 2);
+  assert.match(alex.excecoes[0].motivo, /corte da ADR 0035/);
+  const ger = classificarMudancas({ agente: 'gerente-projetos', mudancas: saida, regras, estrito: true, recados: 'corte' });
+  assert.equal(ger.violacoes.length, 2);
+  assert.match(ger.violacoes[0].motivo, /só o commit do corte, com "Agente: alexandre"/);
+  const hoje = classificarMudancas({ agente: 'alexandre', mudancas: saida.slice(0, 1), regras, estrito: true });
+  assert.match(hoje.violacoes[0].motivo, /recados são imutáveis \(apagado\)/, 'sem a marca, apagar recado continua proibido');
+  const fora = classificarMudancas({
+    agente: 'modulo-core', regras, estrito: false, recados: 'fora',
+    mudancas: [{ status: 'A', caminho: '.coord/recados/testes/R-20261201-000000-modulo-core.md' }, { status: 'M', caminho: LIDOS_CORE }, { status: 'M', caminho: 'modules/core/a.ts' }],
+  });
+  assert.equal(fora.violacoes.length, 2, JSON.stringify(fora));
+  assert.ok(fora.violacoes.every((v) => /ficam no repositório macuxifdv-recados/.test(v.motivo)));
+  assert.deepEqual(fora.ok.map((i) => i.caminho), ['modules/core/a.ts']);
+  const grupos = agruparPorDono({ mudancas: saida, regras, recados: 'corte' });
+  assert.equal(grupos.violacoes.length, 0);
+  assert.equal(grupos.grupos.alexandre.length, 2);
+});
+
+test('ADR 0035: commit do corte com "Agente: alexandre" passa no --por-commit e no verificar alexandre da árvore', () => {
+  const dir = repoComLidos();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  cortar(dir);
+  const arvore = rodar(dir, ['verificar', 'alexandre']);
+  assert.equal(arvore.codigo, 0, arvore.tudo);
+  assert.match(arvore.saida, /D \.coord\/recados\/testes\/R-20261031-000000-modulo-core\.md — recados e lidos saem/);
+  const porDono = rodar(dir, ['verificar', '--por-dono']);
+  assert.equal(porDono.codigo, 0, porDono.tudo);
+  git(dir, 'add', '.gitignore');
+  git(dir, 'commit', '-q', '-m', 'T-0139: recados saem do repositório de código\n\nAgente: alexandre');
+  const corte = git(dir, 'rev-parse', '--short', 'HEAD').trim();
+  const pc = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(pc.codigo, 0, pc.tudo);
+  assert.match(blocoDoCommit(pc.saida, corte), /D \.coord\/lidos\/modulo-core\.txt — recados e lidos saem/);
+  assert.equal(existsSync(join(dir, RECADO_INICIAL)), true, 'o corte não apaga nada do disco');
+  const depois = rodar(dir, ['verificar', 'modulo-core']);
+  assert.equal(depois.codigo, 0, depois.tudo);
+  assert.match(depois.saida, /nenhum arquivo alterado/, 'pastas ignoradas somem do verificar');
+});
+
+test('ADR 0035: corte com o trailer de outro agente é VIOLAÇÃO', () => {
+  const dir = repoComLidos();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  cortar(dir);
+  git(dir, 'add', '.gitignore');
+  const c = commitarComo(dir, 'gerente-projetos', 'T-0139: corte');
+  const pc = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(pc.codigo, 1, pc.tudo);
+  assert.match(blocoDoCommit(pc.saida, c), /VIOLAÇÃO[\s\S]*D \.coord\/recados\/testes\/R-20261031-000000-modulo-core\.md → dono: alexandre — só o commit do corte/);
+});
+
+test('ADR 0035: depois do corte, recado ou lidos forçados no repositório são VIOLAÇÃO (--por-commit e --base)', () => {
+  const dir = repoComLidos();
+  cortar(dir);
+  git(dir, 'add', '.gitignore');
+  commitarComo(dir, 'alexandre', 'T-0139: corte');
+  const depois = git(dir, 'rev-parse', 'HEAD').trim();
+  git(dir, 'checkout', '-q', '-b', 'nuvem/T-0200-x');
+  const novo = '.coord/recados/gerente-projetos/R-20261201-000000-modulo-core.md';
+  escrever(dir, novo, RECADO);
+  escrever(dir, 'modules/core/a.ts', 'mudou\n');
+  git(dir, 'add', '-f', novo, 'modules/core/a.ts');
+  const c = commitarComo(dir, 'modulo-core', 'T-0200: recado pela nuvem');
+  const pc = rodar(dir, ['verificar', '--por-commit', `${depois}..HEAD`]);
+  assert.equal(pc.codigo, 1, pc.tudo);
+  assert.match(blocoDoCommit(pc.saida, c), /A \.coord\/recados\/gerente-projetos\/R-20261201-000000-modulo-core\.md → dono: ninguém — recados e lidos agora ficam no repositório macuxifdv-recados/);
+  const base = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(base.codigo, 1, base.tudo);
+  assert.equal(secao(base.saida, 'VIOLAÇÃO').length, 1, base.saida);
+  assert.deepEqual(secao(base.saida, 'OK'), ['M modules/core/a.ts']);
 });
