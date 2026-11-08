@@ -6,7 +6,7 @@
  */
 import { LIMITE_LINHAS_INVALIDAS_PADRAO, LIMITE_REGISTROS_LOTE } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
-import { camposDoContrato, ehEntidade, PERIODICIDADE_PADRAO, type Entidade } from './entidades';
+import { campoAceitaNulo, camposDoContrato, ehEntidade, PERIODICIDADE_PADRAO, type Entidade } from './entidades';
 
 export const TRANSFORMACOES = [
   'texto',
@@ -20,9 +20,16 @@ export const TRANSFORMACOES = [
 ] as const;
 export type Transformacao = (typeof TRANSFORMACOES)[number];
 
+/**
+ * O que fazer com o NULL da coluna (T-0099): `omite` (padrão, comportamento da v1) tira o campo do registro — campo ausente não
+ * altera o que o Macuxi já tem; `limpa` envia `null` e o Hub LIMPA o campo. Só vale para campo que o contrato aceita nulo.
+ */
+export const MODOS_NULO = ['omite', 'limpa'] as const;
+export type ModoNulo = (typeof MODOS_NULO)[number];
+
 const Coluna = z.union([
   z.string().min(1, 'informe o nome da coluna'),
-  z.object({ coluna: z.string().min(1), transformar: z.enum(TRANSFORMACOES).optional() }).strict(),
+  z.object({ coluna: z.string().min(1), transformar: z.enum(TRANSFORMACOES).optional(), nulo: z.enum(MODOS_NULO).optional() }).strict(),
   z.object({ valor: z.union([z.string(), z.number(), z.boolean()]) }).strict(),
 ]);
 export type ColunaConfig = z.infer<typeof Coluna>;
@@ -253,10 +260,19 @@ export const ConfigConector = z
         }
       }
       const conhecidos = new Set(camposDoContrato(nome));
-      for (const campo of Object.keys(e.campos)) {
+      for (const [campo, spec] of Object.entries(e.campos)) {
         const raiz = campo.split('.')[0] as string;
         if (!conhecidos.has(raiz)) {
           ctx.addIssue({ code: 'custom', path: [...caminho, 'campos', campo], message: `o contrato de "${nome}" não tem o campo "${raiz}" (campos: ${[...conhecidos].join(', ')})` });
+          continue;
+        }
+        // `nulo: limpa` (T-0099) só onde o contrato aceita null: num campo obrigatório o null tornaria a linha inválida
+        if (typeof spec === 'object' && 'coluna' in spec && spec.nulo === 'limpa' && !campoAceitaNulo(nome, campo)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [...caminho, 'campos', campo, 'nulo'],
+            message: `"nulo": "limpa" só vale para campo que o contrato aceita nulo; "${campo}" de "${nome}" é obrigatório (tire o "nulo" ou use "omite")`,
+          });
         }
       }
     }

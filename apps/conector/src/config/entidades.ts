@@ -44,6 +44,25 @@ export function camposDoContrato(entidade: Entidade): string[] {
   return s instanceof z.ZodObject ? Object.keys(s.shape as Record<string, unknown>) : [];
 }
 
+/**
+ * O campo (caminho com ponto, ex. `endereco.cidade`) aceita `null` no contrato? Base do opt-in `nulo: limpa` (T-0099): `external_id`
+ * e `alterado_em` nunca (são o cursor). Caminho que não se resolve no schema conta como "não aceita" (lado seguro).
+ */
+export function campoAceitaNulo(entidade: Entidade, caminho: string): boolean {
+  if (caminho === 'external_id' || caminho === 'alterado_em') return false;
+  let atual: z.ZodTypeAny = SCHEMA_REGISTRO[entidade];
+  const partes = caminho.split('.');
+  for (const [i, parte] of partes.entries()) {
+    const obj = desembrulhar(atual);
+    if (!(obj instanceof z.ZodObject)) return false;
+    const filho = (obj.shape as Record<string, z.ZodTypeAny>)[parte];
+    if (!filho) return false;
+    if (i === partes.length - 1) return filho.safeParse(null).success;
+    atual = filho;
+  }
+  return false;
+}
+
 export function ehEntidade(x: string): x is Entidade {
   return (ENTIDADES as readonly string[]).includes(x);
 }
