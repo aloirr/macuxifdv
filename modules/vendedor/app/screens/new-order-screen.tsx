@@ -26,6 +26,7 @@ import { PendenciasDoPedido } from '../components/novo-pedido';
 import { ListaDeItens } from '../components/novo-pedido-itens';
 import { AbaDetalhes, AbaResumo, CardPagamento, CreditoDoClienteCard, DialogoDescartar, FolhaSalvar, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
+import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { pendenciaDoPagamento, rascunhoComPagamentoPadrao } from '../lib/pagamento-pedido';
 import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
@@ -278,7 +279,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         : null,
     [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
-  const calculo = sent ? sent.snapshot.calculo : calculoAtual;
+  const calculoBase = sent ? sent.snapshot.calculo : calculoAtual;
   // T-0071 (RF-CAT-03): sugestões da aba Detalhes, calculadas no aparelho (offline) só quando a aba está aberta
   const [sugestoes, setSugestoes] = useState<SugestoesDaTela>(SUGESTOES_VAZIAS);
   const chaveSugestoes = JSON.stringify(draft.lines);
@@ -294,6 +295,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   }, [aba, sent, chaveSugestoes, catalog.length, customer?.id]);
   // RN-VEN-12/13: cartão "Crédito do cliente" (core.financeiro_cliente@1 no aparelho, vale offline), lido ao abrir Detalhes
   const [credito, setCredito] = useState<ModeloDoCredito | null | undefined>(undefined);
+  // RN-VEN-13 (T-0129): título vencido há mais que o limite com prazo a prazo nunca bloqueia a forma; o pedido vai ao supervisor (aprovação)
+  const prazoEscolhido = prazos.find((p) => p.id === draft.prazo_pagamento_id);
+  const vencidoAprova =
+    !sent && credito?.tipo === 'dados' && credito.alerta !== null && prazoEscolhido !== undefined && exigeAprovacaoPorVencido({ maior_atraso_dias: credito.alerta.dias, prazo_medio_dias: prazoEscolhido.prazo_medio_dias, limite_dias: tituloVencidoDias(parametrosVendedor) });
+  const calculo = calculoBase && vencidoAprova && calculoBase.nivel === null ? { ...calculoBase, nivel: 'supervisor' as const } : calculoBase;
   useEffect(() => {
     if (aba !== 'detalhes' || sent) return;
     let vivo = true;

@@ -110,16 +110,20 @@ describe.skipIf(semBanco())('Promotor: pull dos cadastros de trade × Postgres (
   });
 
   it('horizonte seguro: linha com updated_at >= `ate` não vem ainda', async () => {
-    const p = prov('concorrente');
+    const p = prov('categoria_gondola');
     const id = randomUUID();
-    await comTenant(pool, A.tenantId, (c) => c.query('insert into promotor.concorrente (id, tenant_id, nome, ativo) values ($1, $2, $3, true)', [id, A.tenantId, `Rival ${id.slice(0, 8)}`]));
+    await comTenant(pool, A.tenantId, (c) => c.query('insert into promotor.categoria_gondola (id, tenant_id, nome, ordem, ativo) values ($1, $2, $3, 1, true)', [id, A.tenantId, `Cat ${id.slice(0, 8)}`]));
     const antesDela = new Date(Date.now() - 3_600_000).toISOString();
     expect((await pagina(p, A.tenantId, { desde: null, ate: antesDela, limite: 500 })).map((l) => l.id)).not.toContain(id);
     expect((await pagina(p, A.tenantId, { desde: null, ate: await horizonte(), limite: 500 })).map((l) => l.id)).toContain(id);
   });
 
-  it('RN-CORE-05: o tenant B recebe só os cadastros dele, em todos os 9; nenhum id de A', async () => {
-    for (const p of provedoresPullCadastros) {
+  it('ADR 0034: a entidade legada `concorrente` devolve página vazia (o APK antigo não recebe 404 e a lista é do Catálogo)', async () => {
+    expect(await pagina(prov('concorrente'), A.tenantId, { desde: null, ate: await horizonte(), limite: 500 })).toEqual([]);
+  });
+
+  it('RN-CORE-05: o tenant B recebe só os cadastros dele, nos 8 com tabela; nenhum id de A', async () => {
+    for (const p of provedoresPullCadastros.filter((x) => x.entidade.nome !== 'concorrente')) {
       const deA = new Set((await tudo(p, A.tenantId, 50)).linhas.map((l) => l.id));
       const deB = (await tudo(p, B.tenantId, 50)).linhas.map((l) => l.id);
       expect(deB.length, p.entidade.nome).toBeGreaterThan(0);

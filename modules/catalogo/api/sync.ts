@@ -6,7 +6,7 @@
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeMarcaConcorrente, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { SQL_MINIATURA_DO_CONTEUDO } from './miniatura';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
@@ -53,11 +53,21 @@ const TABELAS = {
       ${SQL_MINIATURA_DO_CONTEUDO}`,
     colunaCliente: false,
   },
-  // referência cruzada (RN-CAT-09, 0033): marca_id é o id do concorrente do Promotor; o codigo_compacto não vai ao aparelho; marca_nome é o retrato do nome (0034)
-  produto_referencia: { tabela: 'catalogo.produto_referencia', colunas: 'produto_id, marca_id, codigo, ordem::int as ordem, marca_nome', colunaCliente: false },
+  // referência cruzada (RN-CAT-09, 0033): marca_id é o id de catalogo.marca_concorrente; o codigo_compacto não vai ao aparelho; marca_nome é o retrato
+  // do nome (0034). ADR 0034 §6: a referência de marca inativa ou apagada vai como apagada (lápide) e volta ao reativar (o toque no updated_at é do cadastro).
+  produto_referencia: {
+    tabela: `(select r.id, r.updated_at, case when m.id is not null and m.ativo and m.deleted_at is null then r.deleted_at else coalesce(r.deleted_at, r.updated_at) end as deleted_at,
+                     r.external_id, r.produto_id, r.marca_id, r.codigo, r.ordem, r.marca_nome
+                from catalogo.produto_referencia r
+                left join catalogo.marca_concorrente m on m.tenant_id = r.tenant_id and m.id = r.marca_id) as produto_referencia`,
+    colunas: 'produto_id, marca_id, codigo, ordem::int as ordem, marca_nome',
+    colunaCliente: false,
+  },
+  // marcas concorrentes (RN-CAT-13, 0045): lista única do tenant, com ou sem o Promotor; sem preço, todos os perfis recebem
+  marca_concorrente: { tabela: 'catalogo.marca_concorrente', colunas: 'nome, ativo', colunaCliente: false },
 } as const;
 
-const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao', 'sinonimo', 'produto_atributo', 'produto_conteudo', 'produto_referencia']);
+const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao', 'sinonimo', 'produto_atributo', 'produto_conteudo', 'produto_referencia', 'marca_concorrente']);
 
 export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, clientes: readonly string[] | null): { sql: string; valores: unknown[] } {
   const t = TABELAS[nome];
@@ -98,4 +108,5 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeProdutoAtributo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_atributo', ctx, p) },
   { entidade: entidadeProdutoConteudo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_conteudo', ctx, p) },
   { entidade: entidadeProdutoReferencia, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_referencia', ctx, p) },
+  { entidade: entidadeMarcaConcorrente, escopo: 'tenant', puxar: (ctx, p) => puxar('marca_concorrente', ctx, p) },
 ];

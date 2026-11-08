@@ -276,8 +276,8 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
           </label>
           <fieldset className="flex flex-col gap-2" data-testid="catalogo.cadastro.referencias">
             <legend className="text-[12px] font-semibold text-ink-2">Referência cruzada (até {LIMITES_CADASTRO_CATALOGO.referencias}): marca concorrente e código</legend>
-            {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Confira se o módulo Promotor está ativo para este cliente e tente de novo.</Notice>}
-            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Nenhuma marca concorrente ativa. Cadastre as marcas em Concorrentes (módulo Promotor) para usar a referência cruzada.</Notice>}
+            {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Atualize a página e tente de novo.</Notice>}
+            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Nenhuma marca concorrente ativa. <a className="font-semibold underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">Cadastrar marca</a> para usar a referência cruzada.</Notice>}
             {form.referencias.map((r, i) => (
               <div key={i} className="flex flex-wrap items-end gap-3">
                 <SelectField label={`Marca ${i + 1}`} value={r.marca_id} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, marca_id: e.target.value } : x)) })} data-testid={`catalogo.cadastro.marca.${i}`}>

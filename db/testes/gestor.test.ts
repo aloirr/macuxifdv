@@ -265,7 +265,7 @@ describe.skipIf(semBanco())('seed da demo do Gestor (banco)', () => {
 
   /** O que demo.ts fará quando ligar a linha: carregarDemo + carregarDemoGestor na mesma carga. */
   const carregar = (admin: pg.Client) =>
-    carregarDemo(admin, { senha: 'senha-do-teste-demo', hoje: relogio.hoje() }).then(async (r) => {
+    carregarDemo(admin, { senha: 'Demo@teste1', hoje: relogio.hoje() }).then(async (r) => {
       await admin.query('begin');
       try {
         const g = await carregarDemoGestor(admin, r.dados);

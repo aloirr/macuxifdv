@@ -25,6 +25,8 @@ export const manifest = defineModule({
     'integracao.prazo_pagamento.atualizado@1',
     'integracao.tabela_escalonada.atualizado@1',
     'integracao.pedido.retorno_erp@1',
+    // T-0114: o ERP recusou o cancelamento devolvido pelo Hub (consumidor previsto: vendedor)
+    'integracao.pedido.cancelamento_recusado@1',
     'integracao.lote.concluido@1',
     'integracao.reconciliacao.divergente@1',
     // interno (T-0025): o POST /lotes publica, o próprio módulo consome e aplica o lote em segundo plano (outbox como fila)
@@ -33,8 +35,10 @@ export const manifest = defineModule({
   // RN-INT-14: o Hub pergunta ao Core se o cadastro do cliente do lote está completo (aviso `cadastro_incompleto`, nunca erro de linha);
   // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
   usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1'],
+  // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
+  ofereceConsultas: ['integracao.cancelamento_erp@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
-  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'integracao.lote.recebido@1'],
+  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1'],
   // T-0025: ações do BKO (ADR 0004). As rotas do Hub para o Conector (`/integracao/v1`) NÃO usam perfil: autenticam por chave de
   // API do Conector (RN-INT-10) e o escopo é fixo `integracao.v1`. P-3 (T-0031): Conector, chave de API e política de versão só
   // admin; confirmar/recusar a inativação em massa admin ou analista, com auditoria; carga por arquivo admin ou analista. A mesma tabela está em domain/permissoes.ts.

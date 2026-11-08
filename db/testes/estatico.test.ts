@@ -36,7 +36,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { FUNCOES_SA } from './funcoes-sa';
+import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { hashSenha, verificarSenha } from '../src/senha';
@@ -85,11 +85,19 @@ const TABELAS_0028 = ['core.plano_rv'] as const;
 /** Tabelas novas da 0033 (T-0085, referência cruzada do produto; a 0033 também traz a aplicação da T-0084). */
 const TABELAS_0033 = ['catalogo.produto_referencia'] as const;
 /** Tabelas novas da 0035 (T-0087, super-admin de plataforma, ADR 0029): sem tenant_id, só por função (super-admin.test.ts). */
-const TABELAS_0035 = [...TABELAS_SO_POR_FUNCAO];
+const TABELAS_0035 = ['plataforma.super_admin', 'plataforma.super_admin_desafio', 'plataforma.super_admin_sessao', 'plataforma.auditoria_plataforma'] as const;
+/** Tabelas novas da 0039 (T-0093, portal só com e-mail e senha, ADR 0031): sem tenant_id, só por função (portal-email-senha.test.ts). */
+const TABELAS_0039 = ['plataforma.portal_tentativa', 'plataforma.portal_sessao', 'plataforma.portal_sessao_empresa'] as const;
+/** Tabela nova da 0040 (T-0094, ADR 0032: outbox de e-mail; fora do sync; senha-email-saida.test.ts). */
+const TABELAS_0040 = ['plataforma.email_saida'] as const;
+/** Tabelas novas da 0041 (T-0111/T-0112, ADR 0033: perfis de acesso; fora do sync; perfis-acesso.test.ts). */
+const TABELAS_0041 = ['plataforma.perfil', 'plataforma.perfil_permissao', 'plataforma.usuario_perfil'] as const;
 /** Tabelas novas da 0036 (T-0087 fatia E, convite de 1º acesso; fora do sync; usuario-convite.test.ts). */
 const TABELAS_0036 = ['core.usuario_convite'] as const;
 /** Tabelas novas da 0037 (T-0089, formas e prazos do Vendedor e tabela escalonada do Catálogo; forma-prazo-escalonada.test.ts). */
 const TABELAS_0037 = ['vendedor.forma_pagamento', 'vendedor.prazo_pagamento', 'catalogo.tabela_escalonada'] as const;
+/** Tabela nova da 0045 (T-0113, ADR 0034: marcas concorrentes no Catálogo, copiadas do Promotor; vai ao aparelho; marca-concorrente.test.ts). */
+const TABELAS_0045 = ['catalogo.marca_concorrente'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -145,6 +153,14 @@ describe('migrações (estático)', () => {
     expect(nomes[36]).toBe('0037_forma_prazo_escalonada'); // T-0089: forma_pagamento e prazo_pagamento (Vendedor), pagamento do pedido, formas e prazo médio do cliente (Core), tabela_escalonada (Catálogo) e a forma "À vista" semeada (forma-prazo-escalonada.test.ts)
     expect(nomes[35]).toBe('0036_core_usuario_convite'); // T-0087 fatia E (RN-CORE-31): core.usuario_convite (só o hash do token, uso único, sem DEFINER), core.usuario.telefone e anonimizar_usuario com convites (usuario-convite.test.ts)
     expect(nomes[37]).toBe('0038_plataforma_papel_portal'); // T-0091 (ADR 0029): papel macuxi_portal, EXECUTE das 20 sa_* só a ele, macuxi_app e macuxi_worker sem (papel-portal.test.ts)
+    expect(nomes[38]).toBe('0039_plataforma_portal_email_senha'); // T-0093 (ADR 0031): login do portal só com e-mail e senha, bloqueio por chave, sessão por empresa, criar_super_admin; saem 14 sa_* (portal-email-senha.test.ts)
+    expect(nomes[39]).toBe('0040_core_senha_email_saida'); // T-0094 (ADR 0032): estado da senha e sessao_versao em core.usuario, outbox de e-mail, portal com a versão (senha-email-saida.test.ts)
+    expect(nomes[41]).toBe('0042_plataforma_portal_redefinir_senha_admin'); // T-0094 (padrão de fábrica da T-0111): super-admin lista os admins da empresa e redefine a senha do admin pelo portal, com o e-mail na outbox (portal-redefinir-senha.test.ts)
+    expect(nomes[42]).toBe('0043_integracao_cancelamento_erp'); // T-0114: conector.aceita_cancelamento e pedido_fila_erp.cancelamento_* com CHECKs e índice do poll (cancelamento-erp.test.ts)
+    expect(nomes[43]).toBe('0044_treinamento_xp_referencia'); // T-0106: xp_lancamento.referencia_id 1..160 e único (tenant_id, id); a chave natural da 0017 fica total (xp-referencia.test.ts)
+    expect(nomes[44]).toBe('0045_catalogo_marca_concorrente'); // T-0113 (ADR 0034): catalogo.marca_concorrente copiada de promotor.concorrente (mesmos ids), FK da referência, Promotor só leitura (marca-concorrente.test.ts)
+    expect(nomes[45]).toBe('0046_plataforma_portal_multiperfil'); // D-MP2 (T-0094/T-0111): o portal pelos perfis do usuário (todos de base admin + acesso.portal), usuario_entra_no_portal e as 4 sa_* do login (portal-multiperfil.test.ts)
+    expect(nomes[46]).toBe('0047_plataforma_portal_admin_multiperfil'); // resto do D-MP2 (T-0094/T-0111): sa_admins_da_empresa e sa_redefinir_senha_admin pela soma dos perfis de base admin (usuario_tem_perfil_admin), lista com entra_no_portal (portal-admin-multiperfil.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -185,6 +201,10 @@ describe('migrações (estático)', () => {
         ...TABELAS_0035,
         ...TABELAS_0036,
         ...TABELAS_0037,
+        ...TABELAS_0039,
+        ...TABELAS_0040,
+        ...TABELAS_0041,
+        ...TABELAS_0045,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -254,6 +274,8 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'execute on function integracao.expurgar_retencao(timestamptz, integer)',
       'execute on function plataforma.expurgar_outbox(timestamptz, integer)',
       'execute on function plataforma.tenants_ativos()', // 0027 (T-0039, ADR 0022): agendador das tarefas periódicas
+      'select on plataforma.email_saida', // 0040 (T-0094, ADR 0032): despachante da outbox de e-mail
+      'update (carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em, ultimo_erro) on plataforma.email_saida',
     ]);
   });
 
@@ -693,8 +715,16 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     const novas = depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer\s+set search_path = ([^\n]+)/g)]);
     // 0024 (T-0078): só agregados da outbox; 0027 (T-0039, ADR 0022): só ids dos tenants ativos, ao worker
     // 0035 (T-0087, ADR 0029): as 20 funções do super-admin (super-admin.test.ts confere grant e search_path no banco)
+    // 0039 (T-0093, ADR 0031): as sa_* novas com create function (as reescritas usam create or replace; a sa_sessao_valida
+    // volta a ser criada porque mudou o retorno); portal-email-senha.test.ts confere todas, inclusive as or replace
+    const nome = (f: string) => f.slice(0, f.indexOf('('));
+    const reescritas039 = ['plataforma.sa_revogar', 'plataforma.sa_auditar', 'plataforma.sa_listar_tenants', 'plataforma.sa_tenant_ativo', 'plataforma.sa_provisionar_tenant'];
+    // 0040 (T-0094, ADR 0032): as 4 sa_* do login do portal recriadas (drop + create) com a versão da conta (senha-email-saida.test.ts)
+    const recriadas040 = ['plataforma.sa_contas_para_login', 'plataforma.sa_abrir_sessao_portal', 'plataforma.sa_escolher_empresa', 'plataforma.sa_sessao_valida'];
+    // 0042 (T-0094, padrão de fábrica da T-0111): as 2 sa_* do super-admin para o admin do cliente (portal-redefinir-senha.test.ts)
+    // 0047 (resto do D-MP2): a sa_admins_da_empresa recriada (drop + create, o retorno ganha entra_no_portal; portal-admin-multiperfil.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA.map((f) => f.slice(0, f.indexOf('(')))].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -838,6 +868,10 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
     const completos = [...checksDe(criadas.get('plataforma.perfil_modulo') ?? ''), ...checksDe(criadas.get('core.usuario') ?? '')];
     expect(completos.length, 'CHECKs de perfil (plataforma.perfil_modulo e core.usuario)').toBe(2);
     for (const lista of completos) expect(lista).toEqual(doSdk);
+    // 0041 (ADR 0033): o CHECK de perfil_modulo sai (o perfil vira o código do perfil do tenant, com FK) e entra a base do perfil
+    expect(sqlUp).toContain('alter table plataforma.perfil_modulo drop constraint perfil_modulo_perfil_valido;');
+    const base = /perfil_base_valida\s+check \(base in \(([^)]*)\)\)/.exec(criadas.get('plataforma.perfil') ?? '');
+    expect([...(base?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort()).toEqual(doSdk);
     // integracao.inativacao_auditoria.perfil (P-3): só quem decide a inativação, e dentro dos PERFIS
     const auditoria = checksDe(criadas.get('integracao.inativacao_auditoria') ?? '');
     expect(auditoria).toEqual([['admin', 'analista']]);
@@ -846,7 +880,8 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
   });
 
   it('colunas perfil do Drizzle usam os PERFIS do platform-sdk', () => {
-    expect([...(esquemaPlataforma.perfilModulo.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
+    // 0041: perfil_modulo.perfil é o código do perfil do tenant (texto livre); a base fica em plataforma.perfil
+    expect([...(esquemaPlataforma.perfil.base.enumValues ?? [])].sort()).toEqual(doSdk);
     expect([...(nuvemCore.usuario.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
   });
 });
@@ -871,7 +906,13 @@ describe('fixture dois-tenants (estático)', () => {
   });
 
   it('UUIDs fixos com prefixo do tenant e sem repetição', () => {
-    const ids = Object.values(dados).flat().map((l) => String(l.id));
+    // 0045 (T-0113, ADR 0034): a marca ativa do Catálogo É o concorrente do Promotor copiado (mesmo id, de propósito)
+    const doPromotor = new Set(dados['promotor.concorrente'].map((l) => String(l.id)));
+    const copias = dados['catalogo.marca_concorrente'].filter((l) => doPromotor.has(String(l.id)));
+    expect(copias.map((l) => l.id).sort()).toEqual([...doPromotor].sort());
+    const ids = Object.entries(dados)
+      .flatMap(([t, linhas]) => (t === 'catalogo.marca_concorrente' ? linhas.filter((l) => !doPromotor.has(String(l.id))) : linhas))
+      .map((l) => String(l.id));
     expect(new Set(ids).size).toBe(ids.length);
     for (const t of Object.keys(dados)) {
       for (const l of dados[t as keyof typeof dados]) {
@@ -1045,9 +1086,9 @@ describe('utilitários', () => {
   });
 
   it.skipIf(!('argon2Sync' in crypto))('hash argon2id em PHC e verificação', () => {
-    const h = hashSenha('segredo');
+    const h = hashSenha('Segredo@1');
     expect(h.startsWith('$argon2id$v=19$m=19456,t=2,p=1$')).toBe(true);
-    expect(verificarSenha('segredo', h)).toBe(true);
-    expect(verificarSenha('outra', h)).toBe(false);
+    expect(verificarSenha('Segredo@1', h)).toBe(true);
+    expect(verificarSenha('Outra@123', h)).toBe(false);
   });
 });

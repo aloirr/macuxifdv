@@ -5,7 +5,9 @@
  *   ▲                                   │ guarda o pedido localmente ANTES de gravar (idempotente pelo pedido_uuid)
  *   └──POST /pedidos/{uuid}/retorno─────┘ `integrado` (nº do ERP) | `rejeitado_erp` (motivo)
  *  Depois, a cada ciclo de status, consulta o ERP por pedido aberto e informa `faturado_parcial` (uma nota por vez, com itens
- *  faturados quando a consulta existir), `faturado_total` e `cancelado` (o Macuxi nunca escreve cancelamento no ERP).
+ *  faturados quando a consulta existir), `faturado_total` e `cancelado` (o Macuxi só escreve cancelamento no ERP quando o conector é cadastrado com "aceita cancelamento"
+ *  (T-0114): o Hub então entrega `cancelamentos` em /pedidos/pendentes, o Conector executa `pedidos.cancelamento.executar` e confirma
+ *  com o retorno `cancelado`; sem isso, nada é escrito.
  *
  *  - Erro de CONEXÃO com o ERP não conta como tentativa (volta depois). Erro do SQL/regra do ERP conta; esgotadas as tentativas
  *    o pedido é devolvido ao Hub como `rejeitado_erp` com o motivo (sem dado pessoal).
@@ -70,13 +72,18 @@ export async function cicloPedidos(ctx: Contexto, partes: { buscar?: boolean; st
   };
   if (partes.buscar) await etapa('buscar', () => buscarPedidos(ctx, r));
   await etapa('gravar', () => gravarPedidos(ctx, cfg, r));
+  await etapa('cancelar', () => executarCancelamentos(ctx, cfg, r));
   if (partes.status) await etapa('status', () => acompanharStatus(ctx, cfg, r));
   await etapa('retornos', () => enviarRetornos(ctx, r));
   return r;
 }
 
 export async function buscarPedidos(ctx: Contexto, r: ResultadoPedidos = novoResultado()): Promise<ResultadoPedidos> {
-  const { pedidos } = await ctx.hub.pedidosPendentes();
+  const { pedidos, cancelamentos } = await ctx.hub.pedidosPendentes();
+  for (const c of cancelamentos ?? []) {
+    // guarda ANTES de executar: se o Hub reentregar (timeout), não executa duas vezes (idempotente pelo pedido_uuid)
+    if (ctx.store.registrarCancelamento(c.pedido_uuid, JSON.stringify(c), ctx.relogio.agora())) ctx.log.info('cancelamento_recebido', { pedido_uuid: c.pedido_uuid, tentativa: c.tentativa });
+  }
   for (const p of pedidos) {
     // guarda ANTES de qualquer outra coisa: se o Hub reentregar (timeout de 10 min), não grava duas vezes
     if (ctx.store.registrarPedido(p.pedido_uuid, JSON.stringify(p), ctx.relogio.agora())) {
@@ -164,6 +171,69 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
 }
 
 class ErroRegraErp extends Error {}
+
+/**
+ * T-0114: executa no ERP o cancelamento recebido do Hub (view/procedure `pedidos.cancelamento.executar`) e confirma com o retorno
+ * `cancelado`. Pedido que nunca chegou a ser gravado no ERP (ainda `recebido`) não chama o ERP: só é encerrado e confirmado.
+ * Erro de CONEXÃO não conta tentativa; erro do SQL conta e, esgotadas as tentativas, o cancelamento fica `falhou` no log e no status
+ * (o pedido continua vivo no ERP; o operador resolve lá). O Conector então envia o retorno `cancelamento_recusado` com o motivo (já mascarado) para o monitor do BKO alertar.
+ */
+export async function executarCancelamentos(ctx: Contexto, cfg: PedidosConfig, r: ResultadoPedidos = novoResultado()): Promise<ResultadoPedidos> {
+  const abertos = ctx.store.cancelamentosAbertos(ctx.relogio.agora());
+  if (abertos.length === 0) return r;
+  if (!cfg.cancelamento) {
+    ctx.log.aviso('cancelamento_sem_configuracao', { pendentes: abertos.length, dica: 'o Hub entregou cancelamentos, mas pedidos.cancelamento.executar não está configurado; nada foi escrito no ERP' });
+    return r;
+  }
+  const agora = () => ctx.relogio.agora();
+  for (const c of abertos) {
+    const dados = JSON.parse(c.payload) as { numero_erp?: string | null; motivo?: string | null; cancelado_em: string };
+    const local = ctx.store.pedido(c.pedidoUuid);
+    if (local?.estado === 'cancelado') {
+      ctx.store.atualizarCancelamento(c.pedidoUuid, { estado: 'confirmado', final: true }, agora());
+      enfileirar(ctx, r, c.pedidoUuid, 'cancelado', { status: 'cancelado', numero_erp: local.numeroErp ?? undefined, motivo: dados.motivo?.slice(0, 300), ocorrido_em: iso(agora()) });
+      continue;
+    }
+    if (local?.estado === 'rejeitado_erp') {
+      ctx.store.atualizarCancelamento(c.pedidoUuid, { estado: 'dispensado', final: true, erro: 'o ERP já havia rejeitado o pedido' }, agora());
+      continue;
+    }
+    try {
+      if (local && local.estado !== 'recebido') {
+        await ctx.erp.transacao(async (tx) => {
+          await tx.executar((cfg.cancelamento as { executar: string }).executar, {
+            pedido_uuid: c.pedidoUuid,
+            numero_erp: dados.numero_erp ?? local.numeroErp ?? null,
+            motivo: dados.motivo ?? null,
+            cancelado_em: new Date(dados.cancelado_em),
+          });
+        });
+      }
+      ctx.store.atualizarCancelamento(c.pedidoUuid, { estado: 'confirmado', final: true, erro: null }, agora());
+      if (local) ctx.store.atualizarPedido(c.pedidoUuid, { estado: 'cancelado', final: true }, agora());
+      enfileirar(ctx, r, c.pedidoUuid, 'cancelado', { status: 'cancelado', numero_erp: local?.numeroErp ?? dados.numero_erp ?? undefined, motivo: dados.motivo?.slice(0, 300), ocorrido_em: iso(agora()) });
+      ctx.log.info('cancelamento_executado_no_erp', { pedido_uuid: c.pedidoUuid, chamou_erp: Boolean(local && local.estado !== 'recebido') });
+    } catch (e) {
+      const motivo = mascararTexto(resumoErro(e));
+      if (ehErroDeConexao(e)) {
+        ctx.store.atualizarCancelamento(c.pedidoUuid, { proximaMs: espera(ctx, Math.max(1, c.tentativas + 1)), erro: motivo }, agora());
+        ctx.log.aviso('cancelamento_adiado_erp_indisponivel', { pedido_uuid: c.pedidoUuid });
+        throw e;
+      }
+      const tentativas = c.tentativas + 1;
+      if (tentativas >= cfg.maxTentativasGravacao) {
+        ctx.store.atualizarCancelamento(c.pedidoUuid, { estado: 'falhou', final: true, tentativas, erro: motivo }, agora());
+        // T-0114: avisa o Hub (aditivo na v1) para o monitor do BKO mostrar a recusa; Hub antigo recusaria o status novo (422) e o retorno fica na fila local
+        enfileirar(ctx, r, c.pedidoUuid, 'cancelamento_recusado', { status: 'cancelamento_recusado', numero_erp: local?.numeroErp ?? dados.numero_erp ?? undefined, motivo: motivo.slice(0, 300) || 'o ERP recusou o cancelamento', ocorrido_em: iso(agora()) });
+        ctx.log.erro('cancelamento_falhou_no_erp', { pedido_uuid: c.pedidoUuid, tentativas, motivo, dica: 'o pedido continua ativo no ERP; cancele por lá ou corrija a procedure e peça novo cancelamento' });
+      } else {
+        ctx.store.atualizarCancelamento(c.pedidoUuid, { tentativas, proximaMs: espera(ctx, tentativas), erro: motivo }, agora());
+        ctx.log.aviso('cancelamento_falhou_ao_executar', { pedido_uuid: c.pedidoUuid, tentativas, motivo });
+      }
+    }
+  }
+  return r;
+}
 
 /** Lê o pedido guardado na fila local pelo contrato; na falha devolve só os caminhos dos campos (sem valores). */
 function lerPedidoLocal(payload: string): { ok: true; pedido: PedidoParaErp } | { ok: false; campos: string } {

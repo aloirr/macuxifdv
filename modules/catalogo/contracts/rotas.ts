@@ -164,7 +164,7 @@ export const SalvarCadastroCatalogo = z.object({
 });
 export type SalvarCadastroCatalogo = z.infer<typeof SalvarCadastroCatalogo>;
 
-/** Marcas concorrentes ativas (cadastro do Promotor) para o seletor da referência cruzada no BKO. */
+/** Marcas concorrentes ativas (cadastro do Catálogo, ADR 0034) para o seletor da referência cruzada no BKO. */
 export const ListaMarcasConcorrentes = z.object({ items: z.array(z.object({ id: Id, nome: z.string() })) });
 export type ListaMarcasConcorrentes = z.infer<typeof ListaMarcasConcorrentes>;
 
@@ -247,6 +247,8 @@ export const ROTAS_CATALOGO = {
   termosSemResultado: 'termos-sem-resultado',
   cadastroCatalogo: 'produtos/:id/cadastro-catalogo',
   marcasConcorrentes: 'marcas-concorrentes',
+  marcas: 'marcas',
+  marca: 'marcas/:id',
   exportacao: 'exportacao',
   tabelasPreco: 'tabelas-preco',
   precosTabela: 'tabelas-preco/:id/precos',
@@ -324,6 +326,8 @@ export type ConsultaEscalonadaQuery = z.infer<typeof ConsultaEscalonadaQuery>;
 export const PaginaEscalonada = z.object({ items: z.array(FaixaCadastrada), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
 export type PaginaEscalonada = z.infer<typeof PaginaEscalonada>;
 
+export const ParamsMarca = z.object({ id: Id });
+export type ParamsMarca = z.infer<typeof ParamsMarca>;
 export const ParamsFaixa = z.object({ id: Id });
 export type ParamsFaixa = z.infer<typeof ParamsFaixa>;
 

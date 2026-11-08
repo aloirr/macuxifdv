@@ -1,24 +1,36 @@
 /**
- * E-mail transacional (T-0094; premissas RN-CORE-32/33/34 em docs/desenho/T-0094-email.md): modelos, tipos Zod e
- * renderização. Puro TypeScript (sem `node:*`): a API usa para validar e montar a mensagem; o BKO pode usar para pré-visualizar.
+ * E-mail transacional (T-0094; ADR 0032; desenho docs/desenho/T-0094.md §10; textos docs/design/ciclo-de-senha.md §8): modelos,
+ * tipos Zod e renderização. Puro TypeScript (sem `node:*`): a API valida, cifra e monta a mensagem; o BKO pode pré-visualizar.
  *
- * Modelos (texto curto, português):
- * - `acesso_inicial` — "Seu acesso ao Macuxi": código da empresa, login, senha inicial, troca obrigatória no 1º acesso,
- *   validade de 72 h (RN-CORE-32).
- * - `nova_senha` — "Sua nova senha": esqueci a senha ou redefinição pelo BKO; senha provisória com a mesma troca
- *   obrigatória e validade (RN-CORE-33).
+ * Modelos (português, texto curto):
+ * - `acesso_inicial` — "Seu acesso ao Macuxi": código da empresa, e-mail, senha temporária, onde entrar, troca no 1º acesso e
+ *   validade (RN-CORE-34; `validade_horas = null` = não vence, P5).
+ * - `nova_senha` — "Sua nova senha do Macuxi": "Esqueci a senha" (`esqueci`) ou redefinição pelo BKO/portal (`redefinida`;
+ *   `redefinida_por = 'macuxi'` quando foi o suporte da Macuxi, pelo portal).
  *
  * Nada aqui loga. `renderizarEmailParaLog` devolve a mesma mensagem com nome, e-mail e senha trocados por marcadores
- * (RN-CORE-34: nenhum e-mail, nome ou senha em log ou evento); `renderizarEmailSemSenha` troca só a senha (caixa da demo).
+ * (RN-CORE-34: nenhum e-mail, nome ou senha em log ou evento); `renderizarEmailSemSenha` troca só a senha.
  */
 import { z } from 'zod';
+import { APPS_COM_LOGIN } from '../perfis';
 
-/** Validade da senha inicial/provisória (RN-CORE-32/33): depois disso o login recusa e o admin gera outra. */
+/** Validade da senha temporária (RN-CORE-34, P4): depois disso o login recusa e o admin gera outra. */
 export const VALIDADE_SENHA_PROVISORIA_HORAS = 72;
 
 export const MODELOS_EMAIL = ['acesso_inicial', 'nova_senha'] as const;
 export const ModeloEmailSchema = z.enum(MODELOS_EMAIL);
 export type ModeloEmail = z.infer<typeof ModeloEmailSchema>;
+
+/** Motivo do "Sua nova senha": pedido em "Esqueci a senha" ou redefinida pelo BKO (ou pelo portal). */
+export const MOTIVOS_NOVA_SENHA = ['esqueci', 'redefinida'] as const;
+export type MotivoNovaSenha = (typeof MOTIVOS_NOVA_SENHA)[number];
+
+/**
+ * Quem redefiniu (só com `motivo = 'redefinida'`; aditivo, T-0094 🟢 do testes R-20261108-063325): `empresa` (padrão, o admin
+ * pelo BKO) ou `macuxi` (o time da Macuxi pelo portal do super-admin, ADR 0029). Só muda a frase de abertura do e-mail.
+ */
+export const AUTORES_REDEFINICAO = ['empresa', 'macuxi'] as const;
+export type AutorRedefinicao = (typeof AUTORES_REDEFINICAO)[number];
 
 /**
  * Sem caractere de controle (CR/LF/TAB/NUL…): os textos vão para cabeçalho MIME (`To`) e para o corpo; um `\r\n` num nome
@@ -26,74 +38,50 @@ export type ModeloEmail = z.infer<typeof ModeloEmailSchema>;
  */
 // eslint-disable-next-line no-control-regex -- é justamente a faixa de controle que se recusa
 const SEM_CONTROLE = /^[^\u0000-\u001f\u007f]*$/;
-const textoLivre = (max: number) => z.string().trim().min(1).max(max).regex(SEM_CONTROLE, 'caractere de controle');
-const EmailSchema = z.string().trim().toLowerCase().email().max(254).regex(SEM_CONTROLE, 'caractere de controle');
+const texto = (min: number, max: number) => z.string().trim().min(min).max(max).regex(SEM_CONTROLE, 'caractere de controle');
+export const EmailDestinoSchema = z.string().trim().toLowerCase().email().max(254).regex(SEM_CONTROLE, 'caractere de controle');
 
-/** Para quem vai. O nome só aparece na saudação e no cabeçalho `To`; nunca em log. */
-export const DestinatarioEmailSchema = z
+/** Dados do modelo (vão só dentro da carga cifrada da outbox). */
+export const DadosMensagemEmailSchema = z
   .object({
-    email: EmailSchema,
-    nome: textoLivre(120),
+    /** Vazio = "Olá." */
+    nome: texto(0, 120),
+    empresa_nome: texto(1, 120),
+    codigo_empresa: texto(1, 40),
+    login: EmailDestinoSchema,
+    /** Segredo: só na carga cifrada e no corpo do e-mail. 8 a 128, sem espaço nas pontas nem caractere de controle. */
+    senha: z
+      .string()
+      .min(8)
+      .max(128)
+      .regex(SEM_CONTROLE, 'caractere de controle')
+      .refine((s) => s === s.trim(), 'senha com espaço nas pontas'),
+    /** 72 (P4); `null` = não vence (senha master do admin inicial, P5). */
+    validade_horas: z.number().int().positive().max(720).nullable(),
+    /** Onde entrar (PERFIS_DO_APP do perfil): textos do modelo. */
+    apps: z.array(z.enum(APPS_COM_LOGIN)).max(APPS_COM_LOGIN.length),
+    /** Só no `nova_senha` (obrigatório nele). */
+    motivo: z.enum(MOTIVOS_NOVA_SENHA).optional(),
+    /** Só com `motivo = 'redefinida'`; ausente = `empresa`. */
+    redefinida_por: z.enum(AUTORES_REDEFINICAO).optional(),
   })
   .strict();
-export type DestinatarioEmail = z.input<typeof DestinatarioEmailSchema>;
+export type DadosMensagemEmail = z.input<typeof DadosMensagemEmailSchema>;
 
-/** Senha provisória como sai no e-mail: sem espaço nas pontas, sem caractere de controle, 8 a 128 caracteres. */
-const SenhaProvisoriaSchema = z
-  .string()
-  .min(8)
-  .max(128)
-  .regex(SEM_CONTROLE, 'caractere de controle')
-  .refine((s) => s === s.trim(), 'senha com espaço nas pontas');
+/** O que fica dentro da carga cifrada de `plataforma.email_saida`: destinatário + dados do modelo. */
+export const CargaEmailSchema = z.object({ para: EmailDestinoSchema, dados: DadosMensagemEmailSchema }).strict();
+export type CargaEmail = z.output<typeof CargaEmailSchema>;
 
-/** Só http(s): o endereço sai como texto no corpo, mas nunca `javascript:`/`data:`. */
-const UrlAcessoSchema = z
-  .string()
-  .url()
-  .max(300)
-  .refine((u) => /^https?:\/\//i.test(u), 'url sem http(s)');
-
-const BaseAcessoSchema = z.object({
-  /** Nome da empresa (tenant) como o usuário conhece. */
-  empresa: textoLivre(120),
-  /** Código da empresa pedido na tela de login (RF-CORE-01). */
-  codigoEmpresa: textoLivre(40),
-  /** Login (e-mail do usuário no tenant). */
-  login: EmailSchema,
-  /** Endereço do BKO ou da página de download do app (opcional). */
-  urlAcesso: UrlAcessoSchema.optional(),
-  validadeHoras: z.number().int().positive().max(720).default(VALIDADE_SENHA_PROVISORIA_HORAS),
-});
-
-export const DadosAcessoInicialSchema = BaseAcessoSchema.extend({ senhaInicial: SenhaProvisoriaSchema }).strict();
-export type DadosAcessoInicial = z.input<typeof DadosAcessoInicialSchema>;
-
-/** `esqueci`: pedido do próprio usuário na tela de login; `redefinicao_bko`: o admin redefiniu pelo BKO. */
-export const MOTIVOS_NOVA_SENHA = ['esqueci', 'redefinicao_bko'] as const;
-export const DadosNovaSenhaSchema = BaseAcessoSchema.extend({
-  senhaProvisoria: SenhaProvisoriaSchema,
-  motivo: z.enum(MOTIVOS_NOVA_SENHA),
-}).strict();
-export type DadosNovaSenha = z.input<typeof DadosNovaSenhaSchema>;
-
-/** Dados de cada modelo (entrada, antes do `parse`). */
-export interface DadosPorModelo {
-  acesso_inicial: DadosAcessoInicial;
-  nova_senha: DadosNovaSenha;
+/**
+ * Confere a coerência modelo × dados: `motivo` obrigatório no `nova_senha` e proibido no `acesso_inicial`; `redefinida_por`
+ * só com `motivo = 'redefinida'`.
+ */
+export function problemaModeloDados(modelo: ModeloEmail, dados: { motivo?: unknown; redefinida_por?: unknown }): string | null {
+  if (modelo === 'nova_senha' && dados.motivo === undefined) return 'motivo obrigatório no modelo nova_senha';
+  if (modelo === 'acesso_inicial' && dados.motivo !== undefined) return 'motivo só no modelo nova_senha';
+  if (dados.redefinida_por !== undefined && dados.motivo !== 'redefinida') return 'redefinida_por só com motivo redefinida';
+  return null;
 }
-
-export const SCHEMAS_DADOS_EMAIL = {
-  acesso_inicial: DadosAcessoInicialSchema,
-  nova_senha: DadosNovaSenhaSchema,
-} as const;
-
-/** Pedido completo (o que vai, cifrado, para a fila). */
-export const PedidoEmailSchema = z.discriminatedUnion('modelo', [
-  z.object({ modelo: z.literal('acesso_inicial'), destinatario: DestinatarioEmailSchema, dados: DadosAcessoInicialSchema }).strict(),
-  z.object({ modelo: z.literal('nova_senha'), destinatario: DestinatarioEmailSchema, dados: DadosNovaSenhaSchema }).strict(),
-]);
-/** Pedido validado (saída do `parse`: e-mails em minúsculas, `validadeHoras` preenchida). */
-export type PedidoEmail = z.infer<typeof PedidoEmailSchema>;
 
 /** Mensagem pronta para o transporte (SMTP/arquivo). */
 export interface EmailRenderizado {
@@ -104,7 +92,7 @@ export interface EmailRenderizado {
 
 export const ASSUNTOS_EMAIL: Readonly<Record<ModeloEmail, string>> = {
   acesso_inicial: 'Seu acesso ao Macuxi',
-  nova_senha: 'Sua nova senha',
+  nova_senha: 'Sua nova senha do Macuxi',
 };
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -112,125 +100,137 @@ export function escaparHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
 }
 
-/** Linha do texto: rótulo + valor (o valor sai em negrito no HTML). */
-type Linha = string | { rotulo: string; valor: string };
+const ONDE_ENTRAR: Readonly<Record<(typeof APPS_COM_LOGIN)[number], string>> = {
+  campo: 'no app Macuxi Campo',
+  gestao: 'no app Macuxi Gestão',
+  web: 'no backoffice do Macuxi, pelo navegador',
+};
+
+/** "no app Macuxi Campo ou no backoffice…" na ordem campo, gestão, web (design §8). */
+export function ondeEntrar(apps: readonly (typeof APPS_COM_LOGIN)[number][]): string {
+  return APPS_COM_LOGIN.filter((a) => apps.includes(a))
+    .map((a) => ONDE_ENTRAR[a])
+    .join(' ou ');
+}
+
+/** Linha do texto: parágrafo, rótulo + valor, ou a senha (monoespaçada no HTML). */
+type Linha = string | { rotulo: string; valor: string; senha?: boolean };
+
+const RODAPE = 'Macuxi FDV · e-mail automático, não responda.';
 
 function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
-  const texto = linhas.map((l) => (typeof l === 'string' ? l : `${l.rotulo}: ${l.valor}`)).join('\n') + '\n';
+  const textoPuro = linhas.map((l) => (typeof l === 'string' ? l : `${l.rotulo}: ${l.valor}`)).join('\n') + '\n';
   const corpo = linhas
-    .map((l) =>
-      typeof l === 'string'
-        ? l === ''
-          ? ''
-          : `<p>${escaparHtml(l)}</p>`
-        : `<p>${escaparHtml(l.rotulo)}: <strong>${escaparHtml(l.valor)}</strong></p>`,
-    )
+    .map((l) => {
+      if (typeof l === 'string') return l === '' ? '' : `<p style="margin:0 0 12px">${escaparHtml(l)}</p>`;
+      if (l.senha) {
+        return (
+          `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}:</p>` +
+          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F3F4F1;padding:8px 12px;font-family:Consolas,'Courier New',monospace;font-size:18px">${escaparHtml(l.valor)}</span></p>`
+        );
+      }
+      return `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}: <strong>${escaparHtml(l.valor)}</strong></p>`;
+    })
     .filter(Boolean)
     .join('\n');
   const html =
     '<!doctype html>\n<html lang="pt-BR"><head><meta charset="utf-8"><title>' +
     escaparHtml(assunto) +
-    '</title></head>\n<body style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2933">\n' +
+    '</title></head>\n<body style="margin:0;background:#FFFFFF">\n' +
+    '<div style="max-width:560px;margin:0 auto;padding:24px;font-family:\'IBM Plex Sans\',Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1f2933">\n' +
+    `<h1 style="font-family:Archivo,Arial,Helvetica,sans-serif;font-size:20px;margin:0 0 16px">${escaparHtml(assunto)}</h1>\n` +
     corpo +
-    '\n</body></html>\n';
-  return { assunto, texto, html };
+    '\n</div>\n</body></html>\n';
+  return { assunto, texto: textoPuro, html };
 }
 
-function primeiroNome(nome: string): string {
-  return nome.trim().split(/\s+/)[0] || nome;
-}
-
-function rodape(urlAcesso: string | undefined): Linha[] {
-  return [
-    ...(urlAcesso ? [{ rotulo: 'Acesse', valor: urlAcesso }] : []),
-    '',
-    'Não pediu este acesso? Ignore este e-mail e avise o administrador da sua empresa.',
-    'Macuxi — mensagem automática, não responda.',
+function renderizarValidado(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
+  const d = c.dados;
+  const ola = d.nome ? `Olá, ${d.nome}.` : 'Olá.';
+  const onde = ondeEntrar(d.apps);
+  const comApp = d.apps.includes('campo') || d.apps.includes('gestao');
+  const credenciais: Linha[] = [
+    { rotulo: 'Código da empresa', valor: d.codigo_empresa },
+    { rotulo: 'E-mail', valor: d.login },
+    { rotulo: 'Senha temporária', valor: d.senha, senha: true },
   ];
-}
-
-function renderizarValidado(p: PedidoEmail): EmailRenderizado {
-  const ola = `Olá, ${primeiroNome(p.destinatario.nome)}.`;
-  const validade = `A senha vale por ${p.dados.validadeHoras} h e precisa ser trocada no 1º acesso.`;
-  if (p.modelo === 'acesso_inicial') {
-    const d = p.dados;
+  if (modelo === 'acesso_inicial') {
+    const validade =
+      d.validade_horas === null
+        ? ['No primeiro acesso, você cria a sua senha.']
+        : [`No primeiro acesso, você cria a sua senha. A senha temporária vale por ${d.validade_horas} horas.`, 'Se ela vencer, use "Esqueci a senha" na tela de entrada.'];
     return montar(ASSUNTOS_EMAIL.acesso_inicial, [
       ola,
-      `Seu acesso ao Macuxi (${d.empresa}) está pronto.`,
       '',
-      { rotulo: 'Código da empresa', valor: d.codigoEmpresa },
-      { rotulo: 'Login', valor: d.login },
-      { rotulo: 'Senha inicial', valor: d.senhaInicial },
+      `Seu acesso ao Macuxi na ${d.empresa_nome} está pronto.`,
       '',
-      validade,
-      ...rodape(d.urlAcesso),
+      ...credenciais,
+      '',
+      ...(onde ? [`Entre ${onde}.`] : []),
+      ...(comApp ? ['Ainda não tem o app? Peça ao administrador da sua empresa.'] : []),
+      '',
+      ...validade,
+      '',
+      RODAPE,
     ]);
   }
-  const d = p.dados;
-  const motivo =
-    d.motivo === 'esqueci'
-      ? 'Recebemos o pedido de nova senha do seu acesso ao Macuxi.'
-      : `O administrador de ${d.empresa} redefiniu a senha do seu acesso ao Macuxi.`;
+  const esqueci = d.motivo === 'esqueci';
+  const abertura = esqueci
+    ? `Recebemos um pedido de senha nova para o seu acesso na ${d.empresa_nome}.`
+    : d.redefinida_por === 'macuxi'
+      ? `O suporte da Macuxi definiu uma senha nova para o seu acesso na ${d.empresa_nome}.`
+      : `O administrador da ${d.empresa_nome} definiu uma senha nova para você.`;
+  const fecho = esqueci ? 'Se não foi você, ignore este e-mail: a sua senha atual continua valendo.' : 'A senha anterior não vale mais.';
+  const validade = d.validade_horas === null ? '' : ` A senha temporária vale por ${d.validade_horas} horas.`;
   return montar(ASSUNTOS_EMAIL.nova_senha, [
     ola,
-    motivo,
     '',
-    { rotulo: 'Código da empresa', valor: d.codigoEmpresa },
-    { rotulo: 'Login', valor: d.login },
-    { rotulo: 'Senha provisória', valor: d.senhaProvisoria },
+    abertura,
     '',
-    validade,
-    'A senha anterior deixou de valer.',
-    ...rodape(d.urlAcesso),
+    ...credenciais,
+    '',
+    `Entre ${onde || 'no Macuxi'} e crie a sua senha.${validade}`,
+    '',
+    fecho,
+    '',
+    RODAPE,
   ]);
 }
 
-/** Valida o pedido (Zod). Lança `ZodError` (o `serializarErro` da API só loga caminho e código, nunca o valor). */
-export function validarPedidoEmail<M extends ModeloEmail>(modelo: M, destinatario: DestinatarioEmail, dados: DadosPorModelo[M]): PedidoEmail {
-  return PedidoEmailSchema.parse({ modelo, destinatario, dados });
+/** Valida a carga (Zod) e a coerência com o modelo. Lança `ZodError`/`Error` (sem valores: a mensagem é fixa). */
+export function validarCargaEmail(modelo: ModeloEmail, carga: unknown): CargaEmail {
+  const m = ModeloEmailSchema.parse(modelo);
+  const c = CargaEmailSchema.parse(carga);
+  const problema = problemaModeloDados(m, c.dados);
+  if (problema) throw new Error(`carga de e-mail incoerente: ${problema}`);
+  return c;
 }
 
 /** Renderiza o e-mail (valida antes). */
-export function renderizarEmail<M extends ModeloEmail>(modelo: M, destinatario: DestinatarioEmail, dados: DadosPorModelo[M]): EmailRenderizado {
-  return renderizarValidado(validarPedidoEmail(modelo, destinatario, dados));
-}
-
-/** Renderiza um pedido (o que sai da fila depois de decifrado); valida de novo. */
-export function renderizarPedidoEmail(pedido: PedidoEmail): EmailRenderizado {
-  return renderizarValidado(PedidoEmailSchema.parse(pedido));
+export function renderizarEmail(modelo: ModeloEmail, carga: unknown): EmailRenderizado {
+  return renderizarValidado(modelo, validarCargaEmail(modelo, carga));
 }
 
 /** Marcadores que substituem os dados pessoais na versão de log. */
 export const MARCADORES_EMAIL = { nome: '[nome]', email: '[e-mail]', senha: '********' } as const;
 
-function mascarar(pedido: PedidoEmail, pessoais: boolean): EmailRenderizado {
-  const destinatario = pessoais ? { nome: MARCADORES_EMAIL.nome, email: MARCADORES_EMAIL.email } : pedido.destinatario;
-  const login = pessoais ? MARCADORES_EMAIL.email : pedido.dados.login;
-  if (pedido.modelo === 'acesso_inicial') {
-    return renderizarValidado({ ...pedido, destinatario, dados: { ...pedido.dados, login, senhaInicial: MARCADORES_EMAIL.senha } });
-  }
-  return renderizarValidado({ ...pedido, destinatario, dados: { ...pedido.dados, login, senhaProvisoria: MARCADORES_EMAIL.senha } });
-}
-
 /**
  * A mesma mensagem com nome, e-mail/login e senha trocados por marcadores (RN-CORE-34): é o que pode ir para console/log.
- * Não revalida (recebe um pedido já validado e só troca os campos sensíveis).
+ * Recebe a carga já validada.
  */
-export function renderizarEmailParaLog(pedido: PedidoEmail): EmailRenderizado {
-  return mascarar(pedido, true);
+export function renderizarEmailParaLog(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
+  return renderizarValidado(modelo, {
+    para: MARCADORES_EMAIL.email,
+    dados: { ...c.dados, nome: c.dados.nome ? MARCADORES_EMAIL.nome : '', login: MARCADORES_EMAIL.email, senha: MARCADORES_EMAIL.senha },
+  });
 }
 
-/** A mensagem com só a senha mascarada (nome e login reais): opção do transporte de arquivo na demo. */
-export function renderizarEmailSemSenha(pedido: PedidoEmail): EmailRenderizado {
-  return mascarar(pedido, false);
+/** A mensagem com só a senha mascarada (nome e login reais): opção do adaptador de arquivo. */
+export function renderizarEmailSemSenha(modelo: ModeloEmail, c: CargaEmail): EmailRenderizado {
+  return renderizarValidado(modelo, { ...c, dados: { ...c.dados, senha: MARCADORES_EMAIL.senha } });
 }
 
-/**
- * Os valores sensíveis do pedido (para conferir que nada vazou num log; uso em teste e em auditoria de log): e-mail,
- * nome completo, primeiro nome (o que vai na saudação), login e senha.
- */
-export function valoresSensiveisEmail(pedido: PedidoEmail): string[] {
-  const senha = pedido.modelo === 'acesso_inicial' ? pedido.dados.senhaInicial : pedido.dados.senhaProvisoria;
-  const valores = [pedido.destinatario.email, pedido.destinatario.nome, primeiroNome(pedido.destinatario.nome), pedido.dados.login, senha];
-  return [...new Set(valores)];
+/** Os valores sensíveis da carga (para conferir em teste que nada vazou num log): e-mail, nome, login e senha. */
+export function valoresSensiveisEmail(c: CargaEmail): string[] {
+  return [...new Set([c.para, c.dados.nome, c.dados.login, c.dados.senha].filter((v) => v.length > 0))];
 }

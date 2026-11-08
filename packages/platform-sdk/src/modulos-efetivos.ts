@@ -11,13 +11,21 @@ export interface EntradaModulosEfetivos {
   manifestos: readonly Manifesto[];
   /** Ativos no tenant (plataforma.tenant_modulo). */
   ativosNoTenant: readonly ModuloId[];
-  /** Padrão do perfil do usuário (plataforma.perfil_modulo). */
+  /**
+   * Padrão do perfil do usuário (plataforma.perfil_modulo). Multiperfil (RN-CORE-01; T-0112): a UNIÃO dos módulos de todos os
+   * perfis do usuário (`uniaoDosModulosDosPerfis`).
+   */
   doPerfil: readonly ModuloId[];
   /**
    * Exceções do usuário (plataforma.usuario_modulo). Esclarecimento do doc 03 (2026-10-30): na
    * Sprint 0 a exceção só REMOVE módulos; acrescentar módulo que o perfil não tem está no backlog.
    */
   removidosDoUsuario?: readonly ModuloId[];
+}
+
+/** RN-CORE-01 (multiperfil, T-0112): união dos módulos padrão dos perfis do usuário, sem repetir. */
+export function uniaoDosModulosDosPerfis(porPerfil: readonly (readonly ModuloId[])[]): ModuloId[] {
+  return [...new Set(porPerfil.flat())];
 }
 
 /**

@@ -34,7 +34,7 @@ export function RodapeTotal({
   testID?: string;
 }) {
   const off = Boolean(acao.desligado || acao.ocupado);
-  const corTexto = acao.desligado ? BOTAO_DESABILITADO.texto : colors.surface;
+  const corTexto = acao.desligado ? BOTAO_DESABILITADO.texto : colors.onAccent;
   return (
     <View style={[s.rodape, { paddingBottom: 10 + respiroInferior }]} testID={testID}>
       <View style={s.rodapeValor} accessible accessibilityLabel={`${rotulo}: ${valor}`}>
@@ -221,7 +221,7 @@ const s = StyleSheet.create({
   /** botão principal do guia (52 dp, raio 14, 16 semibold) */
   rodapeBotao: { minHeight: ALTURA.principal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 22, borderRadius: radius.botao, backgroundColor: colors.accent },
   rodapeBotaoDesligado: { backgroundColor: BOTAO_DESABILITADO.fundo },
-  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.surface },
+  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onAccent },
   // .line
   linha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingVertical: 3 },
   linhaDivisor: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 4, paddingTop: 7 },

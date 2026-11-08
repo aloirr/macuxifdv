@@ -7,17 +7,22 @@
  * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`). Itens do slot
  * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
+ * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
+ * no motor de permissões do SDK, `lib/acesso.ts`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
+ * Entrar com o aviso. Nenhuma lista de perfis no shell: onde entra e o que aparece vêm do motor (ADR 0033).
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { perfilUsaApp, ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { Button, cx, ErrorBlock, IconLogout, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconLogout, LoadingBlock } from '@macuxi/ui/web';
+import { entraEm } from '@/lib/acesso';
 import { criarAmbienteWeb } from '@/lib/ambiente';
+import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDoConteudo } from '@/lib/estado-shell';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
@@ -29,10 +34,11 @@ interface NavItem {
   testId: string;
 }
 
-/** Páginas da própria plataforma (não são de módulo). RN-AUD-01: trilha de auditoria. */
-const PLATAFORMA: (NavItem & { perfis: readonly Perfil[] })[] = [
-  { href: '/auditoria', label: 'Auditoria', testId: 'nav-plataforma-auditoria', perfis: ['admin', 'analista', 'assistente', 'gerente'] },
-];
+/**
+ * Páginas da própria plataforma (não são de módulo). RN-AUD-01: trilha de auditoria, para todo perfil que entra no BKO (a API
+ * filtra as linhas pela licença dos módulos e pelo escopo do perfil).
+ */
+const PLATAFORMA: NavItem[] = [{ href: '/auditoria', label: 'Auditoria', testId: 'nav-plataforma-auditoria' }];
 
 const ROTULO_GRUPO = { operacao: 'Operação', cadastros: 'Cadastros', analise: 'Análise', administracao: 'Administração' } as const;
 
@@ -76,7 +82,7 @@ function gruposDoMenu(visao: VisaoShell<ComponentePagina>, perfil: Perfil | null
   const saida: { titulo: string; itens: NavItem[] }[] = [...grupos].map(([g, itens]) => ({ titulo: ROTULO_GRUPO[g as keyof typeof ROTULO_GRUPO], itens }));
   const mais = visao.extensoes<ItemMenu>('menu.itens').map((i) => ({ href: `/${i.payload.caminho.replace(/^\/+/, '')}`, label: i.payload.rotulo, testId: i.payload.testID }));
   if (mais.length > 0) saida.push({ titulo: 'Mais', itens: mais });
-  const plataforma = PLATAFORMA.filter((p) => perfil && p.perfis.includes(perfil));
+  const plataforma = entraEm('bko', perfil) ? PLATAFORMA : [];
   if (plataforma.length > 0) saida.push({ titulo: 'Plataforma', itens: plataforma });
   return saida;
 }
@@ -105,6 +111,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace('/login');
   };
 
+  // RN-CORE-33: perfil sem backoffice durante o uso (403 PERFIL_SEM_BKO): sai e mostra o motivo no Entrar
+  useEffect(
+    () =>
+      aoPerfilSemBko(() => {
+        guardarAvisoDoLogin(mensagemSemBko(perfil));
+        encerrarSessao();
+        qc.clear();
+        router.replace('/login');
+      }),
+    [perfil, qc, router],
+  );
+
   if (session.status !== 'authenticated') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ground">
@@ -121,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const grupos = gruposDoMenu(visao, perfil);
   const todos = grupos.flatMap((g) => g.itens);
-  const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: perfilUsaApp(perfil, 'web'), modulos });
+  const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: entraEm('bko', perfil), modulos });
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
@@ -173,13 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {conteudo === 'erro_me' ? (
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
         ) : conteudo === 'perfil_fora_do_bko' ? (
-          <Notice tone="info">
-            {perfil ? `O perfil ${roleLabel.toLowerCase()} usa o app Macuxi Campo no celular.` : 'Perfil não reconhecido.'} O backoffice é para admin, analista, assistente,
-            supervisor e gerente.{' '}
-            <Button variant="link" onClick={switchProfile}>
-              Trocar perfil
-            </Button>
-          </Notice>
+          <SemBko perfil={perfil} />
         ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
         ) : conteudo === 'carregando_modulos' ? (
@@ -192,6 +204,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ShellProvider>
         )}
       </main>
+    </div>
+  );
+}
+
+/** Sessão de um perfil sem backoffice (ex.: aberta antes da RN-CORE-33): encerra e volta ao Entrar com o aviso do SDK. */
+function SemBko({ perfil }: { perfil: Perfil | null }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  useEffect(() => {
+    guardarAvisoDoLogin(mensagemSemBko(perfil));
+    encerrarSessao();
+    qc.clear();
+    router.replace('/login');
+  }, [perfil, qc, router]);
+  return (
+    <div data-testid="shell-sem-bko">
+      <LoadingBlock label="Indo para o login…" />
     </div>
   );
 }

@@ -7,15 +7,14 @@
  * tabela de preço no tenant (cadastro pelo Core: sku, nome, unidade, ativo; marca, categoria e EAN ainda não vêm na
  * consulta — pedido ao modulo-core).
  */
-import { ehConsultaIndisponivel, ErroHttpModulo, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { CONSULTA_CONCORRENTES } from '@macuxi/promotor/contracts';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { codigoCompacto } from '../domain/ranking';
 import type { ProdutoCatalogo } from '../domain/vitrine';
-import type { FabricaRepositorio, RepositorioCatalogo } from './repositorio';
+import type { FabricaRepositorio, MarcaGuardada, RepositorioCatalogo } from './repositorio';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const LOTE_CONSULTA = 500;
@@ -42,27 +41,16 @@ async function cadastroDoCore(tx: TransacaoTenant, ids: readonly string[]): Prom
   return saida;
 }
 
-/** Marcas concorrentes (id → nome e ativo), do cadastro do Promotor pelo contrato dele (ADR 0012). */
-export type ResolvedorMarcas = (tx: TransacaoTenant) => Promise<Map<string, { nome: string; ativo: boolean }>>;
+/** Marcas concorrentes (id → nome e ativo), do cadastro do próprio Catálogo (RN-CAT-13, ADR 0034). */
+export type ResolvedorMarcas = (tx: TransacaoTenant, db: ClienteBanco) => Promise<Map<string, { nome: string; ativo: boolean }>>;
 
-/**
- * Sem o contrato do Promotor (tenant ou usuário sem a licença dele) não há nome de marca: lista vazia, a referência não aparece
- * e o PUT a recusa com mensagem clara (risco 1 da ADR 0027). Usado em testes e quando a consulta não existe.
- */
+/** Sem cadastro: lista vazia (testes). */
 export const SEM_MARCAS: ResolvedorMarcas = async () => new Map();
 
-/**
- * Marcas pelo `promotor.concorrentes@1` (ADR 0012/0027): todas, inclusive inativas (para dizer "inativa" em vez de
- * "desconhecida"; quem lista filtra os ativos). Consulta indisponível → mapa vazio.
- */
-export const MARCAS_DO_PROMOTOR: ResolvedorMarcas = async (tx) => {
-  try {
-    const r = await tx.consultar(CONSULTA_CONCORRENTES, { incluir_inativos: true });
-    return new Map(r.concorrentes.map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
-  } catch (e) {
-    if (ehConsultaIndisponivel(e)) return new Map();
-    throw e;
-  }
+/** Todas as marcas vivas do tenant, inclusive inativas (para dizer "inativa" em vez de "desconhecida"; quem lista filtra). */
+export const MARCAS_DO_CATALOGO: ResolvedorMarcas = async (_tx, db) => {
+  const r = await db.query<{ id: string; nome: string; ativo: boolean }>(`select id, nome, ativo from catalogo.marca_concorrente where deleted_at is null`);
+  return new Map(r.rows.map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
 };
 
 /** Atributos, destaque, aplicação, referências cruzadas e miniatura do próprio Catálogo (0013, 0033) sobre o cadastro do Core. */
@@ -95,7 +83,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   const aplicacao = new Map(co.rows.map((r) => [r.produto_id, r.aplicacao ?? '']));
   const referencias = new Map<string, Referencia[]>();
   for (const r of rf.rows) {
-    // cadastro do Promotor disponível: manda (marca inativa/ausente esconde); indisponível (vendedor): retrato marca_nome (RN-CAT-09, ADR 0027 risco 2)
+    // cadastro de marcas disponível: manda (marca inativa/ausente esconde); vazio: retrato marca_nome (RN-CAT-09)
     const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
     if (nome === null) continue;
     referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo }]);
@@ -111,18 +99,86 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   }));
 }
 
+/**
+ * Retrato do catálogo por tenant em memória (T-0119, D-T0107b): a busca lia os 20 mil produtos (155 consultas, ~0,7 s) a cada
+ * pedido. O retrato vale `TTL_RETRATO_MS`; as gravações do próprio Catálogo o descartam na hora; quem renova é uma só
+ * requisição por vez (as outras esperam a mesma leitura). O que muda por usuário (preço, estoque) NUNCA entra aqui.
+ */
+export const TTL_RETRATO_MS = 60_000;
+const MAX_TENANTS_RETRATO = 20;
+const RETRATOS = new Map<string, { em: number; produtos: ProdutoCatalogo[] | null; carregando: Promise<ProdutoCatalogo[]> | null }>();
+export function esquecerRetratoCatalogo(tenantId?: string): void {
+  if (tenantId === undefined) RETRATOS.clear();
+  else RETRATOS.delete(tenantId);
+}
+
+async function lerProdutos(db: ClienteBanco, tx: TransacaoTenant, marcas: ResolvedorMarcas): Promise<ProdutoCatalogo[]> {
+  return enriquecer(db, await cadastroDoCore(tx, await idsComPreco(db)), await marcas(tx, db));
+}
+
 export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } = {}): FabricaRepositorio {
-  const resolverMarcas = opcoes.marcas ?? MARCAS_DO_PROMOTOR;
+  const resolverMarcas = opcoes.marcas ?? MARCAS_DO_CATALOGO;
   return (ctx, db, tx): RepositorioCatalogo => ({
     async produtos() {
-      return enriquecer(db, await cadastroDoCore(tx, await idsComPreco(db)), await resolverMarcas(tx));
+      return lerProdutos(db, tx, resolverMarcas);
+    },
+    async produtosEmCache() {
+      const tenant = ctx.usuario.tenant_id;
+      const r = RETRATOS.get(tenant);
+      if (r?.produtos && Date.now() - r.em < TTL_RETRATO_MS) return r.produtos;
+      if (r?.carregando) return r.carregando;
+      const carregando = lerProdutos(db, tx, resolverMarcas).then(
+        (produtos) => {
+          if (RETRATOS.size >= MAX_TENANTS_RETRATO && !RETRATOS.has(tenant)) RETRATOS.delete(RETRATOS.keys().next().value!);
+          RETRATOS.set(tenant, { em: Date.now(), produtos, carregando: null });
+          return produtos;
+        },
+        (e: unknown) => {
+          RETRATOS.delete(tenant);
+          throw e;
+        },
+      );
+      RETRATOS.set(tenant, { em: 0, produtos: null, carregando });
+      return carregando;
     },
     async produto(id) {
-      const [p] = await enriquecer(db, await cadastroDoCore(tx, [id]), await resolverMarcas(tx));
+      const [p] = await enriquecer(db, await cadastroDoCore(tx, [id]), await resolverMarcas(tx, db));
       return p ?? null;
     },
     async marcasConcorrentes() {
-      return resolverMarcas(tx);
+      return resolverMarcas(tx, db);
+    },
+    async marcasCadastro() {
+      const r = await db.query<MarcaGuardada>(
+        `select m.id, m.nome, m.ativo, m.external_id,
+                (select count(*)::int from catalogo.produto_referencia r where r.tenant_id = m.tenant_id and r.marca_id = m.id and r.deleted_at is null) as referencias
+           from catalogo.marca_concorrente m where m.deleted_at is null order by lower(m.nome), m.id`,
+      );
+      return r.rows;
+    },
+    async gravarMarca(id, m) {
+      esquecerRetratoCatalogo(ctx.usuario.tenant_id);
+      const gravou = await db
+        .query(
+          `insert into catalogo.marca_concorrente (id, tenant_id, nome, ativo, external_id)
+           values ($1::uuid, plataforma.tenant_atual(), $2, $3, $4)
+           on conflict (id) do update set nome = excluded.nome, ativo = excluded.ativo, external_id = excluded.external_id
+             where catalogo.marca_concorrente.deleted_at is null`,
+          [id, m.nome, m.ativo, m.external_id],
+        )
+        .catch((e: unknown) => {
+          const err = e as { code?: string; constraint?: string };
+          if (err.code === '23505' && err.constraint === 'marca_concorrente_nome_uk') throw new ErroRegraNegocio('RN-CAT-13', `Já existe a marca "${m.nome}". Use a que existe ou escolha outro nome.`, { campo: 'nome' });
+          if (err.code === '23505' && err.constraint === 'marca_concorrente_external_uk') throw new ErroRegraNegocio('RN-CAT-13', 'Este código do ERP já está em outra marca. Confira o código e salve de novo.', { campo: 'external_id' });
+          // 42501: o id existe em OUTRO tenant (linha invisível pela RLS no conflito); trata como id em uso, sem dizer de quem
+          if (err.code === '42501') return null;
+          throw e;
+        });
+      // 0 linhas = o id é de uma marca apagada deste tenant (o `where deleted_at is null` do upsert não grava); 42501 = de outro tenant
+      if (gravou === null || gravou.rowCount === 0) return false;
+      // retrato do nome e toque nas referências (sync: some/volta conforme a marca estiver ativa, ADR 0034 §6), na mesma transação
+      await db.query(`update catalogo.produto_referencia set marca_nome = $2 where marca_id = $1::uuid and deleted_at is null`, [id, m.nome.trim().slice(0, 120)]);
+      return true;
     },
     async dadosExportacao() {
       const nos = await db.query<NoCatalogo>(`select id, pai_id, nivel, codigo, nome, ordem, ativo from catalogo.catalogo_no where deleted_at is null`);
@@ -201,6 +257,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       return (r.rowCount ?? 0) > 0;
     },
     async salvarCadastroCatalogo(produtoId, c, em) {
+      esquecerRetratoCatalogo(ctx.usuario.tenant_id);
       const r = await db.query<{ criado: boolean }>(
         `insert into catalogo.produto_conteudo (tenant_id, produto_id, aplicacoes, etiquetas, updated_at)
          values (plataforma.tenant_atual(), $1::uuid, $2, $3::text[], $4::timestamptz)
@@ -213,8 +270,8 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       // `referencias` ausente = não mexe (B1); lista vazia explícita = apaga todas
       if (c.referencias !== undefined) await db.query(`update catalogo.produto_referencia set deleted_at = now() where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       let ordem = 1;
-      // retrato do nome da marca (0034): a rota já validou o marca_id contra o mapa do Promotor
-      const marcasDoPromotor = (c.referencias ?? []).length > 0 ? await resolverMarcas(tx) : new Map<string, { nome: string; ativo: boolean }>();
+      // retrato do nome da marca (0034): a rota já validou o marca_id contra o cadastro de marcas
+      const marcasDoPromotor = (c.referencias ?? []).length > 0 ? await resolverMarcas(tx, db) : new Map<string, { nome: string; ativo: boolean }>();
       for (const ref of c.referencias ?? []) {
         await db.query(
           `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
@@ -360,6 +417,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       return (r.rowCount ?? 0) > 0;
     },
     async marcarDestaque(produtoId, destaque) {
+      esquecerRetratoCatalogo(ctx.usuario.tenant_id);
       await db.query(
         `insert into catalogo.produto_conteudo (tenant_id, produto_id, campanha, destaque) values (plataforma.tenant_atual(), $1::uuid, $2, $2)
          on conflict (tenant_id, produto_id) where deleted_at is null do update set campanha = excluded.campanha, destaque = excluded.destaque`,
@@ -367,6 +425,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
     },
     async salvarConteudo(produtoId, c, em) {
+      esquecerRetratoCatalogo(ctx.usuario.tenant_id);
       const r = await db.query<{ criado: boolean }>(
         `insert into catalogo.produto_conteudo (tenant_id, produto_id, descricao, argumentos_venda, faq, updated_at, aplicacoes)
          values (plataforma.tenant_atual(), $1::uuid, $2, $3, $4::jsonb, $5::timestamptz, $6)

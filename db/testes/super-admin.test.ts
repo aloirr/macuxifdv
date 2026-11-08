@@ -10,12 +10,15 @@
  *   códigos de recuperação de uso único; 5 falhas = bloqueio de 15 min;
  * - auditoria append-only (update/delete/truncate recusados para todos), sem dado pessoal, que sobrevive à exclusão do tenant;
  * - sa_provisionar_tenant recusa sessão revogada/vencida; provisionar_tenant com sem_admin e parametros é idempotente.
+ * Desde a 0039 (T-0093, ADR 0031) o 1º acesso, o TOTP, o desafio e o bloqueio por conta SAEM: o que vale no banco migrado até
+ * a última (tabelas só por função, auditoria append-only, provisionar_tenant, retenção) fica aqui, com o super-admin criado pela
+ * criar_super_admin; as funções novas estão em portal-email-senha.test.ts. As 20 da 0035 continuam provadas no banco efêmero
+ * parado na 0035 (abaixo) e, depois do down da 0039, em portal-email-senha.test.ts.
  * Banco: fixture dois-tenants (migrada até a última: as sa_* rodam como macuxi_portal), sempre com ROLLBACK (admin, com SET
  * ROLE para o papel testado); up/down e a corrida do primeiro acesso num banco efêmero parado na 0035 (lá, como macuxi_app).
  * Nada roda em base real.
  */
-import { createHash } from 'node:crypto';
-import { ListaEmpresasSchema, MODULOS } from '@macuxi/platform-sdk';
+import { MODULOS } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -23,20 +26,19 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA } from './funcoes-sa';
-import { emTransacao, erroDe, retratoDoCatalogo, tabelasComTenant } from './util';
+import { FUNCOES_SA_0035 } from './funcoes-sa';
+import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m35 = migracoes.find((m) => m.versao === '0035')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
+/** As 4 tabelas criadas pela 0035 (a 0039 acrescenta as do portal a TABELAS_SO_POR_FUNCAO). */
+const TABELAS_0035 = ['plataforma.super_admin', 'plataforma.super_admin_desafio', 'plataforma.super_admin_sessao', 'plataforma.auditoria_plataforma'] as const;
 
 /** Dados de mentira (nunca de uma pessoa real). */
 const EMAIL = 'operador.t87@macuxi.exemplo';
 const NOME = 'Operador T87';
 const H1 = '$argon2id$v=19$m=1,t=1,p=1$c2FsdW0$aGFzaHVt';
-const CIFRADO = 'v1.aXZpdml2aXZpdg.dGFndGFndGFn.Y2lmcmFjaWZyYQ';
-const sha = (s: string) => createHash('sha256').update(s).digest('hex');
-const RECUPERACAO = Array.from({ length: 10 }, (_, i) => sha(`codigo-recuperacao-${i}`));
 const PARAMETROS = [
   { modulo: 'vendedor', chave: 'alcada.vendedor_pct', valor: 5 },
   { modulo: 'vendedor', chave: 'alcada.supervisor_pct', valor: 10 },
@@ -66,14 +68,14 @@ describe('0035 super-admin (estático)', () => {
   it('20 funções sa_*: SECURITY DEFINER, search_path com pg_temp por último, revoke de PUBLIC e EXECUTE só ao macuxi_app', () => {
     const sql = semComentarios(m35.up);
     const definers = [...sql.matchAll(/create function (plataforma\.sa_[a-z_]+)\([^)]*\)[^;]*?language [a-z]+ [a-z]+ security definer\s+set search_path = ([^\n]+)/g)];
-    expect(definers.map((x) => x[1]).sort()).toEqual(FUNCOES_SA.map((f) => f.slice(0, f.indexOf('('))).sort());
+    expect(definers.map((x) => x[1]).sort()).toEqual(FUNCOES_SA_0035.map((f) => f.slice(0, f.indexOf('('))).sort());
     for (const x of definers) expect(x[2], x[1]).toBe('pg_catalog, plataforma, pg_temp');
-    for (const f of FUNCOES_SA) {
+    for (const f of FUNCOES_SA_0035) {
       expect(sql).toContain(`revoke all on function ${f} from public;`);
       expect(sql).toContain(`grant execute on function ${f} to macuxi_app;`);
       expect(m35.down).toContain(`drop function if exists ${f};`);
     }
-    expect([...sql.matchAll(/grant execute on function ([^;]+) to macuxi_app;/g)].map((x) => x[1]).sort()).toEqual([...FUNCOES_SA].sort());
+    expect([...sql.matchAll(/grant execute on function ([^;]+) to macuxi_app;/g)].map((x) => x[1]).sort()).toEqual([...FUNCOES_SA_0035].sort());
     expect(sql).not.toMatch(/to macuxi_worker/);
     // plano B do DBaaS: nada de atributo de papel nem papel novo
     expect(sql).not.toMatch(/alter role|create role|bypassrls|\bsuperuser\b/i);
@@ -86,7 +88,7 @@ describe('0035 super-admin (estático)', () => {
 
   it('tabelas sem tenant_id (tenant_alvo_id na auditoria, sem FK), RLS forçado, só a manutencao, nenhum grant de tabela', () => {
     const sql = semComentarios(m35.up);
-    for (const t of TABELAS_SO_POR_FUNCAO) {
+    for (const t of TABELAS_0035) {
       const corpo = new RegExp(`create table ${t.replace('.', '\\.')} \\(([\\s\\S]*?)\\n\\);`).exec(sql)?.[1] ?? '';
       expect(corpo, t).not.toBe('');
       expect(corpo, t).not.toMatch(/^\s+tenant_id\s/m);
@@ -109,13 +111,13 @@ describe('0035 super-admin (estático)', () => {
     const m29 = migracoes.find((m) => m.versao === '0029')!;
     const corpo29 = m29.up.slice(m29.up.indexOf('drop function if exists plataforma.provisionar_tenant(jsonb);'));
     expect(m35.down.endsWith(corpo29)).toBe(true);
-    for (const t of TABELAS_SO_POR_FUNCAO) expect(m35.down).toContain(`drop table if exists ${t};`);
+    for (const t of TABELAS_0035) expect(m35.down).toContain(`drop table if exists ${t};`);
     expect(m35.down).toContain('drop function if exists plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb);');
     expect(m35.down).toContain('drop function if exists plataforma.auditoria_plataforma_recusar();');
   });
 });
 
-describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants, depois da 0039)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -139,26 +141,30 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       throw e;
     }
   }
-  /** Como o portal do super-admin: desde a 0038 (T-0091) o único papel com EXECUTE nas sa_*. */
+  /** Como o portal: desde a 0038 (T-0091) o único papel com EXECUTE nas sa_*. */
   const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params);
   const um = async <T>(sql: string, params: unknown[] = []): Promise<T> => ((await portal<{ r: T }>(`select ${sql} as r`, params))[0]!).r;
 
-  /** Super-admin com TOTP confirmado e uma sessão aberta, tudo pelas funções, como o Core fará. */
-  async function prontoComSessao(): Promise<{ id: string; sid: string; expira: Date }> {
-    const id = await um<string>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1]);
-    await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-cadastro')]);
-    expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(true);
-    expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, RECUPERACAO])).toBe(true);
-    const [s] = await portal<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-cadastro')]);
-    expect(s?.super_admin_id).toBe(id);
-    return { id, sid: s!.sessao_id, expira: s!.expira_em };
+  /**
+   * Super-admin criado como o deploy faz desde a 0039 (plataforma.criar_super_admin, conexão de administração) e uma sessão
+   * aberta pelo portal (sa_abrir_sessao_portal). As funções do 1º acesso, do TOTP e do desafio saíram na 0039
+   * (portal-email-senha.test.ts testa as novas; o down da 0039 as recria).
+   */
+  async function prontoComSessao(): Promise<{ id: string; sid: string }> {
+    const r = (await admin.query<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [
+      JSON.stringify({ acao: 'criar', email: EMAIL, nome: NOME, senha_hash: H1 }),
+    ])).rows[0]!.r;
+    const [s] = await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [
+      JSON.stringify({ tipo: 'super_admin', super_admin_id: r.super_admin_id }),
+    ]);
+    return { id: r.super_admin_id, sid: s!.sessao_id };
   }
   const auditoria = async () =>
     (await admin.query<{ acao: string; super_admin_id: string | null; sessao_id: string | null; tenant_alvo_id: string | null; detalhes: unknown }>(
       'select acao, super_admin_id, sessao_id, tenant_alvo_id, detalhes from plataforma.auditoria_plataforma order by ocorrido_em, acao',
     )).rows;
 
-  it('macuxi_app e macuxi_worker não leem nem gravam direto (42501); com um grant indevido, a RLS dá 0 linhas', async () => {
+  it('macuxi_app e macuxi_worker não leem nem gravam direto nas tabelas só por função (42501); com um grant indevido, a RLS dá 0 linhas', async () => {
     await emTransacao(admin, DOIS_TENANTS.A.tenantId, async () => {
       await prontoComSessao();
       for (const papel of ['macuxi_app', 'macuxi_worker']) {
@@ -172,183 +178,6 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
         await admin.query(`grant select on ${t} to macuxi_app`);
         expect(await como('macuxi_app', `select * from ${t}`), t).toEqual([]);
       }
-    });
-  });
-
-  it('catálogo: as 20 funções são SECURITY DEFINER, search_path fixo, sem PUBLIC, EXECUTE só do macuxi_portal (0038), nem app nem worker', async () => {
-    const r = await admin.query<{ f: string; definer: boolean; config: string[]; portal: boolean; app: boolean; worker: boolean; publico: boolean }>(
-      `select f, p.prosecdef as definer, p.proconfig as config,
-              has_function_privilege('macuxi_portal', p.oid, 'execute') as portal,
-              has_function_privilege('macuxi_app', p.oid, 'execute') as app,
-              has_function_privilege('macuxi_worker', p.oid, 'execute') as worker,
-              coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a where a.privilege_type = 'EXECUTE'), false) as publico
-         from unnest($1::text[]) f join pg_proc p on p.oid = f::regprocedure`,
-      [[...FUNCOES_SA]],
-    );
-    expect(r.rows).toHaveLength(FUNCOES_SA.length);
-    for (const { f, ...resto } of r.rows) {
-      expect(resto, f).toEqual({ definer: true, config: ['search_path=pg_catalog, plataforma, pg_temp'], portal: true, app: false, worker: false, publico: false });
-    }
-    const internas = await admin.query<{ app: boolean; definer: boolean }>(
-      `select has_function_privilege('macuxi_app', p.oid, 'execute') or has_function_privilege('macuxi_portal', p.oid, 'execute') as app,
-              p.prosecdef as definer from pg_proc p
-        where p.oid in ('plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb)'::regprocedure, 'plataforma.provisionar_tenant(jsonb)'::regprocedure)`,
-    );
-    expect(internas.rows).toEqual([{ app: false, definer: false }, { app: false, definer: false }]);
-  });
-
-  it('macuxi_app (desde a 0038, T-0091) e macuxi_worker recebem 42501 em TODAS as funções sa_*', async () => {
-    await emTransacao(admin, null, async () => {
-      for (const papel of ['macuxi_app', 'macuxi_worker']) {
-        for (const f of FUNCOES_SA) {
-          const nome = f.slice(0, f.indexOf('('));
-          const tipos = f.slice(f.indexOf('(') + 1, -1).split(', ').filter(Boolean);
-          const erro = await erroDe(como(papel, `select ${nome}(${tipos.map((t) => `null::${t}`).join(', ')})`));
-          expect(erro?.code, `${papel} ${f}`).toBe('42501');
-        }
-      }
-    });
-  });
-
-  it('primeiro acesso: só com zero linhas (2x = 1 linha, a 2ª devolve nulo); entrada inválida = 22023 sem dado pessoal', async () => {
-    await emTransacao(admin, null, async () => {
-      expect(await um<boolean>('plataforma.sa_existe()')).toBe(false);
-      for (const [email, nome, hash] of [['sem-arroba', NOME, H1], [EMAIL, '  ', H1], [EMAIL, NOME, 'senha-em-claro-123']]) {
-        const erro = await erroDe(portal('select plataforma.sa_criar_primeiro($1, $2, $3)', [email, nome, hash]));
-        expect(erro?.code).toBe('22023');
-        for (const segredo of [EMAIL, 'senha-em-claro-123', H1]) expect(erro!.message).not.toContain(segredo);
-      }
-      const id = await um<string>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1]);
-      expect(id).toMatch(/^[0-9a-f-]{36}$/);
-      expect(await um<string | null>('plataforma.sa_criar_primeiro($1, $2, $3)', ['outro.t87@macuxi.exemplo', 'Outro', H1])).toBeNull();
-      expect((await admin.query('select count(*)::int as n from plataforma.super_admin')).rows[0].n).toBe(1);
-      expect(await um<boolean>('plataforma.sa_existe()')).toBe(true);
-      // apagado continua contando: o primeiro acesso nunca reabre
-      await admin.query('update plataforma.super_admin set deleted_at = now()');
-      expect(await um<boolean>('plataforma.sa_existe()')).toBe(true);
-      expect(await um<string | null>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1])).toBeNull();
-    });
-  });
-
-  it('login: sem TOTP o desafio é cadastrar_totp e não abre sessão (e é consumido); com TOTP abre sessão de 8 h; desafio de uso único', async () => {
-    await emTransacao(admin, null, async () => {
-      const id = await um<string>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1]);
-      const [linha] = await portal('select * from plataforma.sa_para_login($1)', [EMAIL.toUpperCase()]);
-      expect(linha).toMatchObject({ id, email: EMAIL, nome: NOME, senha_hash: H1, ativo: true, falhas: 0, bloqueado_ate: null, totp_confirmado_em: null,
-        totp_segredo_cifrado: null, totp_pendente_cifrado: null, totp_ultimo_passo: null, recuperacao_restantes: 0 });
-      expect(Object.keys(linha!)).not.toContain('recuperacao_hashes');
-      expect(await portal('select * from plataforma.sa_para_login($1)', ['ninguem@macuxi.exemplo'])).toEqual([]);
-      expect((await portal('select * from plataforma.sa_por_id($1)', [id]))[0]).toEqual(linha);
-      expect((await erroDe(portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, 'nao-e-hash'])))?.code).toBe('22023');
-
-      expect(await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d1')])).toEqual([{ etapa: 'cadastrar_totp', expira_em: expect.any(Date) }]);
-      expect(await portal('select super_admin_id, etapa from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([{ super_admin_id: id, etapa: 'cadastrar_totp' }]);
-      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('d1')])).toEqual([]);
-      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([]);
-
-      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d2')]);
-      expect((await erroDe(portal('select plataforma.sa_gravar_totp_pendente($1, $2)', [id, 'segredo-em-claro'])))?.code).toBe('22023');
-      expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(true);
-      expect((await erroDe(portal('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, ['x']])))?.code).toBe('22023');
-      expect((await erroDe(portal('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, [RECUPERACAO[0], RECUPERACAO[0]]])))?.code).toBe('22023');
-      expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, RECUPERACAO])).toBe(true);
-      expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1001, RECUPERACAO])).toBe(false);
-      // redefinir o 2º fator não é pelo portal (comando de administração, ADR 0029 §2)
-      expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(false);
-      const [depois] = await portal('select * from plataforma.sa_por_id($1)', [id]);
-      expect(depois).toMatchObject({ totp_segredo_cifrado: CIFRADO, totp_pendente_cifrado: null, totp_ultimo_passo: '1000', recuperacao_restantes: 10 }); // bigint chega como texto no node-pg
-
-      const [s] = await portal<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')]);
-      expect(s?.super_admin_id).toBe(id);
-      const agora = (await admin.query<{ t: Date }>('select now() as t')).rows[0]!.t;
-      expect(s!.expira_em.getTime() - agora.getTime()).toBe(8 * 3600 * 1000);
-      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')])).toEqual([]);
-      expect(await portal('select super_admin_id from plataforma.sa_sessao_valida($1)', [s!.sessao_id])).toEqual([{ super_admin_id: id }]);
-      // um desafio novo invalida o anterior ainda aberto
-      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d3')]);
-      expect(await portal('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d4')])).toEqual([{ etapa: 'segundo_fator' }]);
-      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('d3')])).toEqual([]);
-    });
-  });
-
-  it('sessão: falsa depois de sa_revogar, depois do teto de 8 h, de super-admin inativo; CHECK do teto', async () => {
-    await emTransacao(admin, null, async () => {
-      const { id, sid } = await prontoComSessao();
-      expect(await um<boolean>('plataforma.sa_revogar($1)', [sid])).toBe(true);
-      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [sid])).toEqual([]);
-      expect(await um<boolean>('plataforma.sa_revogar($1)', [sid])).toBe(false);
-
-      const vencida = (await admin.query<{ id: string }>(
-        `insert into plataforma.super_admin_sessao (super_admin_id, criada_em, ultimo_uso_em, expira_em)
-         values ($1, now() - interval '8 hours 1 minute', now() - interval '8 hours 1 minute', now() - interval '1 minute') returning id`,
-        [id],
-      )).rows[0]!.id;
-      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [vencida])).toEqual([]);
-      const erro = await erroDe(admin.query('savepoint teto').then(() => admin.query(
-        "insert into plataforma.super_admin_sessao (super_admin_id, expira_em) values ($1, now() + interval '9 hours')", [id])));
-      expect(erro?.code).toBe('23514');
-      await admin.query('rollback to savepoint teto');
-
-      const [s2] = await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('x')]);
-      expect(s2).toBeUndefined();
-      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-viva')]);
-      const [viva] = await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-viva')]);
-      await admin.query('update plataforma.super_admin set ativo = false where id = $1', [id]);
-      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [viva!.sessao_id])).toEqual([]);
-      expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [viva!.sessao_id, DOIS_TENANTS.A.tenantId])).toBe(false);
-    });
-  });
-
-  it('desafio vencido não vale; TOTP sem reuso de passo; recuperação de uso único; regerar', async () => {
-    await emTransacao(admin, null, async () => {
-      const { id } = await prontoComSessao();
-      await admin.query(
-        `insert into plataforma.super_admin_desafio (super_admin_id, desafio_hash, etapa, expira_em, created_at)
-         values ($1, $2, 'segundo_fator', now() - interval '1 minute', now() - interval '6 minutes')`,
-        [id, sha('vencido')],
-      );
-      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('vencido')])).toEqual([]);
-      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('vencido')])).toEqual([]);
-
-      expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 1000])).toBe(false);
-      expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 999])).toBe(false);
-      expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 1001])).toBe(true);
-      expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 1001])).toBe(false);
-
-      expect(await um<number>('plataforma.sa_usar_recuperacao($1, $2)', [id, RECUPERACAO[3]])).toBe(9);
-      expect(await um<number | null>('plataforma.sa_usar_recuperacao($1, $2)', [id, RECUPERACAO[3]])).toBeNull();
-      expect(await um<number | null>('plataforma.sa_usar_recuperacao($1, $2)', [id, sha('nunca-gerado')])).toBeNull();
-      expect(await um<number | null>('plataforma.sa_usar_recuperacao($1, $2)', [id, 'XXXXX-XXXXX'])).toBeNull();
-      const novos = Array.from({ length: 10 }, (_, i) => sha(`novo-${i}`));
-      expect(await um<number>('plataforma.sa_regerar_recuperacao($1, $2)', [id, novos])).toBe(10);
-      expect(await um<number | null>('plataforma.sa_usar_recuperacao($1, $2)', [id, RECUPERACAO[0]])).toBeNull();
-      expect(await um<number>('plataforma.sa_usar_recuperacao($1, $2)', [id, novos[0]])).toBe(9);
-    });
-  });
-
-  it('5 falhas seguidas = bloqueio de 15 min (sem desafio, sem sessão nova); sucesso não desbloqueia; bloqueio vencido limpa', async () => {
-    await emTransacao(admin, null, async () => {
-      const { id } = await prontoComSessao();
-      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('antes-do-bloqueio')]);
-      for (let i = 1; i <= 4; i++) {
-        expect(await portal('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([{ falhas: i, bloqueado_ate: null }]);
-      }
-      const [bloq] = await portal<{ falhas: number; bloqueado_ate: Date }>('select * from plataforma.sa_registrar_falha($1)', [id]);
-      const agora = (await admin.query<{ t: Date }>('select now() as t')).rows[0]!.t;
-      expect(bloq!.falhas).toBe(0);
-      expect(bloq!.bloqueado_ate.getTime() - agora.getTime()).toBe(15 * 60 * 1000);
-      // bloqueado: falha não estende, desafio não abre, o aberto não vale, sucesso não desbloqueia
-      expect(await portal('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([bloq]);
-      expect(await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('durante')])).toEqual([]);
-      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('antes-do-bloqueio')])).toEqual([]);
-      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('antes-do-bloqueio')])).toEqual([]);
-      await portal('select plataforma.sa_registrar_sucesso($1)', [id]);
-      expect((await portal('select bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ bloqueado_ate: bloq!.bloqueado_ate });
-      await admin.query("update plataforma.super_admin set bloqueado_ate = now() - interval '1 second' where id = $1", [id]);
-      await portal('select plataforma.sa_registrar_sucesso($1)', [id]);
-      expect((await portal('select falhas, bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ falhas: 0, bloqueado_ate: null });
-      expect(await portal('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('depois')])).toEqual([{ etapa: 'segundo_fator' }]);
-      expect((await auditoria()).filter((a) => a.acao === 'sa.bloqueio')).toHaveLength(1);
     });
   });
 
@@ -369,7 +198,7 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       for (const ruim of [{ acao: 'Login Falhou' }, { acao: 'sa.x', detalhes: [1] }, { acao: 'sa.x', metodo: 'get /x' }, { acao: 'sa.x', detalhes: { t: 'x'.repeat(5000) } }]) {
         expect((await erroDe(portal('select plataforma.sa_auditar($1::jsonb)', [JSON.stringify(ruim)])))?.code, JSON.stringify(ruim).slice(0, 40)).toBe('22023');
       }
-      // append-only: o app não tem grant; o dono esbarra no gatilho
+      // append-only: o portal não tem grant; o dono esbarra no gatilho
       expect((await erroDe(portal('update plataforma.auditoria_plataforma set acao = acao')))?.code).toBe('42501');
       for (const sql of ['update plataforma.auditoria_plataforma set acao = acao', 'delete from plataforma.auditoria_plataforma', 'truncate plataforma.auditoria_plataforma']) {
         await admin.query('savepoint ap');
@@ -380,71 +209,9 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       }
       // fatos gravados pelo próprio banco, sem e-mail, nome, hash ou segredo
       const acoes = (await auditoria()).map((a) => a.acao);
-      expect(acoes).toEqual(expect.arrayContaining(['sa.primeiro_acesso', 'sa.totp.confirmado', 'sa.sessao.aberta', 'sa.requisicao', 'sa.login.falha']));
+      expect(acoes).toEqual(expect.arrayContaining(['sa.super_admin.criar', 'sa.sessao.aberta', 'sa.requisicao', 'sa.login.falha']));
       const texto = JSON.stringify(await auditoria());
-      for (const segredo of [EMAIL, NOME, H1, CIFRADO, RECUPERACAO[0]!, 'Fulano']) expect(texto).not.toContain(segredo);
-    });
-  });
-
-  it('sa_listar_tenants e sa_tenant_ativo conferem a sessão; a lista bate com ListaEmpresasSchema e só tem módulos do contrato', async () => {
-    await emTransacao(admin, null, async () => {
-      const { sid } = await prontoComSessao();
-      const lista = ListaEmpresasSchema.parse(await um('plataforma.sa_listar_tenants($1)', [sid]));
-      const a = lista.itens.find((t) => t.id === DOIS_TENANTS.A.tenantId);
-      expect(a).toMatchObject({ codigo: DOIS_TENANTS.A.codigo, fuso: 'America/Manaus', status: 'ativo' });
-      expect(a!.modulos.map((m) => m.modulo)).not.toContain('teste');
-      expect(lista.itens.some((t) => t.id === DOIS_TENANTS.B.tenantId)).toBe(true);
-      expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, DOIS_TENANTS.A.tenantId])).toBe(true);
-      expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, '00000000-0000-4000-8000-000000000000'])).toBe(false);
-      await admin.query("update plataforma.tenant set status = 'suspenso' where id = $1", [DOIS_TENANTS.B.tenantId]);
-      expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, DOIS_TENANTS.B.tenantId])).toBe(false);
-      await portal('select plataforma.sa_revogar($1)', [sid]);
-      expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, DOIS_TENANTS.A.tenantId])).toBe(false);
-      expect((await erroDe(portal('select plataforma.sa_listar_tenants($1)', [sid])))?.code).toBe('28000');
-    });
-  });
-
-  it('sa_provisionar_tenant: sem admin, com parâmetros, idempotente (2x = mesmas linhas); sessão revogada ou vencida = 28000; admin = 22023', async () => {
-    await emTransacao(admin, null, async () => {
-      const { id, sid } = await prontoComSessao();
-      const r1 = await um<Record<string, unknown>>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-portal'))]);
-      expect(r1).toEqual({ tenant_id: expect.any(String), resultado: 'criado', modulos_adicionados: ['catalogo', 'core', 'integracao', 'vendedor'],
-        parametros_gravados: ['alcada.gerente_pct', 'alcada.supervisor_pct', 'alcada.vendedor_pct', 'aplicacao_no_orcamento_padrao', 'validade_orcamento_dias'],
-        admin: 'sem_admin', avisos: [] });
-      const tenant = r1.tenant_id as string;
-      expect((await admin.query('select count(*)::int as n from core.usuario where tenant_id = $1', [tenant])).rows[0].n).toBe(0);
-      const params = await admin.query('select chave, valor from plataforma.parametro where tenant_id = $1 and modulo = $2 order by chave', [tenant, 'vendedor']);
-      expect(params.rows).toEqual([...PARAMETROS].sort((x, y) => x.chave.localeCompare(y.chave)).map((p) => ({ chave: p.chave, valor: p.valor })));
-      const aud = await admin.query('select usuario_id, depois from plataforma.auditoria where tenant_id = $1 and acao = $2', [tenant, 'tenant.provisionar']);
-      expect(aud.rows).toEqual([{ usuario_id: id, depois: { resultado: 'criado', modulos_adicionados: ['catalogo', 'core', 'integracao', 'vendedor'], admin: 'sem_admin',
-        parametros_gravados: r1.parametros_gravados } }]);
-
-      const retrato = async () => {
-        const out: Record<string, number> = {};
-        for (const t of await tabelasComTenant(admin)) {
-          out[t.nome] = (await admin.query<{ n: number }>(`select count(*)::int as n from ${t.schema}.${t.tabela} where tenant_id = $1`, [tenant])).rows[0]!.n;
-        }
-        return out;
-      };
-      const antes = await retrato();
-      // 2ª chamada (até com valor diferente e ator forjado): nada muda
-      const r2 = await um<Record<string, unknown>>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-portal', {
-        parametros: PARAMETROS.map((p) => ({ ...p, valor: 99 })), ator_id: '00000000-0000-4000-8000-000000000000' }))]);
-      expect(r2).toEqual({ tenant_id: tenant, resultado: 'sem_mudanca', modulos_adicionados: [], parametros_gravados: [], admin: 'sem_admin', avisos: [] });
-      expect(await retrato()).toEqual(antes);
-      expect((await admin.query('select count(*)::int as n from plataforma.parametro where tenant_id = $1 and valor = $2', [tenant, '99'])).rows[0].n).toBe(0);
-      expect((await auditoria()).filter((a) => a.acao === 'sa.tenant.provisionar').map((a) => a.tenant_alvo_id)).toEqual([tenant, tenant]);
-
-      for (const extra of [{ admin: { email: 'a@b.com', nome: 'A', senha_hash: H1 } }, { redefinir_senha: true }]) {
-        expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-adm', extra))])))?.code).toBe('22023');
-      }
-      await portal('select plataforma.sa_revogar($1)', [sid]);
-      expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-revogada'))])))?.code).toBe('28000');
-      const vencida = (await admin.query<{ id: string }>(
-        `insert into plataforma.super_admin_sessao (super_admin_id, criada_em, ultimo_uso_em, expira_em)
-         values ($1, now() - interval '8 hours', now() - interval '8 hours', now()) returning id`, [id])).rows[0]!.id;
-      expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [vencida, JSON.stringify(entradaPortal('t87-vencida'))])))?.code).toBe('28000');
-      expect((await admin.query("select count(*)::int as n from plataforma.tenant where codigo in ('t87-adm', 't87-revogada', 't87-vencida')")).rows[0].n).toBe(0);
+      for (const segredo of [EMAIL, NOME, H1, 'Fulano']) expect(texto).not.toContain(segredo);
     });
   });
 
@@ -477,7 +244,10 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
   it('retenção: a auditoria da plataforma sobrevive à plataforma.excluir_tenant (tenant_alvo_id sem FK)', async () => {
     await emTransacao(admin, null, async () => {
       const { sid } = await prontoComSessao();
-      const r = await um<{ tenant_id: string }>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-excluir'))]);
+      // desde a 0039 o portal não aceita a chave sem_admin e empresa nova exige o admin inicial (RN-CORE-34)
+      const entrada: Record<string, unknown> = { ...entradaPortal('t87-excluir'), admin: { email: 'admin.t87@exemplo.com.br', nome: 'Admin T87', senha_hash: H1 } };
+      delete entrada.sem_admin;
+      const r = await um<{ tenant_id: string }>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entrada)]);
       await um('plataforma.sa_auditar($1::jsonb)', [JSON.stringify({ acao: 'sa.requisicao', tenant_id: r.tenant_id, status: 200 })]);
       const antes = (await auditoria()).filter((a) => a.tenant_alvo_id === r.tenant_id).length;
       expect(antes).toBe(2);

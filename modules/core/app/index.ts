@@ -57,5 +57,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
 });
 
 export { TelaLogin, type PropsTelaLogin } from './components/tela-login';
+export { TelaCrieSuaSenha, type PropsTelaCrieSuaSenha } from './components/tela-crie-sua-senha';
+export { TelaEsqueciSenha, type PropsTelaEsqueciSenha } from './components/tela-esqueci-senha';
 export { entrarComSenha, mensagemDeErroDeLogin, validarLogin, type CamposLogin } from './lib/login';
+export { AVISO_SENHA_CRIADA, detalhesDaTroca, ehSenhaATrocar, pedirSenhaTemporaria, trocarSenhaPeloApp, type CamposEsqueci, type DadosDaTroca } from './lib/senha';
 export { ehAparelhoBloqueado, tratarAparelhoBloqueado, type AcoesAparelhoBloqueado } from './lib/aparelho-bloqueado';

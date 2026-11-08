@@ -142,7 +142,8 @@ export function Button({ variant = 'secondary', className, size = 'md', ...rest 
     primary: 'bg-ink text-white hover:bg-[#0b1218] disabled:bg-disabled',
     secondary: 'border border-field bg-surface text-ink hover:bg-ground disabled:text-disabled',
     danger: 'bg-danger text-white hover:bg-[#8d1f16] disabled:bg-disabled',
-    link: 'h-auto px-0 text-accent hover:text-accent-ink disabled:text-disabled',
+    // T-0094: texto laranja sobre claro é accent-ink (6,70:1 no fundo); o accent dá 4,17:1. Hover: sublinhado.
+    link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-disabled disabled:no-underline',
   };
   return <button type="button" className={cx(base, variant === 'link' ? 'text-[13px]' : sizes, variants[variant], className)} {...rest} />;
 }

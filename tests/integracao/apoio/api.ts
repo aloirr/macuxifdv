@@ -18,7 +18,9 @@ import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
 import type { ArmazenamentoArquivos } from '../../../apps/api/src/arquivos';
 import { criarBancoApp, criarBancoPortal } from '../../../apps/api/src/banco';
+import type { ServicoEmailDaApi } from '../../../apps/api/src/email';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
+import { comEmail, type criarEspiaoEmail } from './email';
 
 export const A = DOIS_TENANTS.A;
 export const B = DOIS_TENANTS.B;
@@ -40,7 +42,8 @@ export interface ApiDeTeste {
   banco: BancoDeTeste;
   modulos: readonly ModuloApi[];
   /** POST /v1/auth/login (cada chamada vem de um IP próprio, para não esbarrar no limite de 5/5 min). */
-  entrar(email: string, opcoes?: { senha?: string; tenant?: Tenant; ip?: string; dispositivo_id?: string }): Promise<LightMyRequestResponse>;
+  /** `app` (T-0094, RN-CORE-33): o app que pede o login; ausente = não confere (APK antigo). */
+  entrar(email: string, opcoes?: { senha?: string; tenant?: Tenant; ip?: string; dispositivo_id?: string; app?: 'campo' | 'gestao' | 'web' }): Promise<LightMyRequestResponse>;
   /** Login que precisa dar certo: devolve a sessão validada pelo contrato do Core. */
   sessao(email: string, tenant?: Tenant): Promise<SessaoResposta>;
   chamar(token: string | null, op: InjectOptions): Promise<LightMyRequestResponse>;
@@ -132,6 +135,13 @@ export async function subirApi(
     semPortal?: boolean;
     /** T-0091: guarda o SQL de cada pool em `sqlApp`/`sqlPortal` (desligado por padrão: a carga não acumula memória). */
     espiarSql?: boolean;
+    /** T-0094: espião da porta de e-mail (desenho §10) no `ctx.email` das rotas do Core (apoio/email.ts). */
+    email?: ReturnType<typeof criarEspiaoEmail>;
+    /**
+     * T-0094 fatia S: a porta REAL da API (`createApp({ email })`: `ctx.email` de todas as rotas e o `cifrar` do portal que
+     * redefine a senha do admin). Sem ela, a porta fica desligada, como no servidor sem adaptador (portal = 503).
+     */
+    emailReal?: ServicoEmailDaApi;
   } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
@@ -148,7 +158,8 @@ export async function subirApi(
     if (portal_) espiarPool(portal_.pool, sqlPortal);
   }
   const coreApi = opcoes.plataforma ? criarModuloApiCore({ segredo: () => SEGREDO_JWT }, opcoes.plataforma) : criarModuloApiCore({ segredo: () => SEGREDO_JWT });
-  const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
+  const coreComEmail = opcoes.email ? comEmail(coreApi, opcoes.email) : coreApi;
+  const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreComEmail : m));
   const app = createApp({
     banco: criarBancoApp(pool),
     bancoPortal: portal_ ? criarBancoPortal(portal_.pool) : null,
@@ -156,6 +167,7 @@ export async function subirApi(
     logger: opcoes.logger ?? false,
     arquivos: opcoes.arquivos ?? null,
     ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}),
+    ...(opcoes.emailReal ? { email: opcoes.emailReal } : {}),
   });
   await app.ready();
 
@@ -164,7 +176,7 @@ export async function subirApi(
       method: 'POST',
       url: '/v1/auth/login',
       remoteAddress: o.ip ?? novoIp(),
-      payload: { codigo_empresa: (o.tenant ?? A).codigo, email, senha: o.senha ?? SENHA, ...(o.dispositivo_id ? { dispositivo_id: o.dispositivo_id } : {}) },
+      payload: { codigo_empresa: (o.tenant ?? A).codigo, email, senha: o.senha ?? SENHA, ...(o.dispositivo_id ? { dispositivo_id: o.dispositivo_id } : {}), ...(o.app ? { app: o.app } : {}) },
     });
 
   const api: ApiDeTeste = {

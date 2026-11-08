@@ -10,6 +10,9 @@
  * ADR 0022: o agendador das tarefas periódicas dos módulos (`ModuloApi.tarefas`, a cada 15 min, por tenant ativo) roda
  * aqui também; os tenants vêm de `plataforma.tenants_ativos()` (papel `macuxi_worker`). Sem a função no banco (migração
  * ainda não aplicada) ou sem tarefa instalada, o agendador não liga e o despachante segue.
+ * T-0094 (ADR 0032; desenho §10 item 3): o despachante da outbox de e-mail (`plataforma.email_saida`) roda aqui também, no mesmo
+ * pool do `macuxi_worker`, com o adaptador da configuração (`MACUXI_SMTP_*` ou `MACUXI_EMAIL_ARQUIVO_DIR`; chave HKDF do
+ * `MACUXI_JWT_SEGREDO`, o mesmo da API). Sem adaptador: desligado. Variável: `MACUXI_EMAIL_INTERVALO_MS` (padrão 5000).
  */
 import { lerConfigApp, urlApp, urlWorker } from '@macuxi/db';
 import pg from 'pg';
@@ -17,6 +20,7 @@ import pino from 'pino';
 import { criarAgendador } from './agendador';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
+import { criarCifraEmail, criarDespachanteEmail, criarTransporteDaConfig, descreverConfigEmail, lerConfigEmail } from './email';
 import { MODULOS_API } from './modulos';
 import { mensagemSegura, serializarErro } from './log-seguro';
 import { registrarMetricasWorker, SQL_RESUMO_OUTBOX } from './observabilidade';
@@ -55,15 +59,32 @@ async function principal(): Promise<void> {
   const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
   timerMetricas?.unref();
   const agendamento = await iniciarAgendador();
+  const envioEmail = iniciarEmail();
   const encerrar = async () => {
     if (timerMetricas) clearInterval(timerMetricas);
     await agendamento?.parar();
+    await envioEmail?.parar();
     await execucao.parar();
     await Promise.all([poolWorker.end(), poolApp.end()]);
     process.exit(0);
   };
   process.on('SIGINT', encerrar);
   process.on('SIGTERM', encerrar);
+}
+
+/** T-0094: despachante da outbox de e-mail (falha fechada: configuração inválida derruba o worker na subida). */
+function iniciarEmail(): { parar(): Promise<void> } | undefined {
+  const logEmail = {
+    info: (o: Record<string, unknown>, msg?: string) => log.info(o, msg),
+    warn: (o: Record<string, unknown>, msg?: string) => log.warn(o, msg),
+    error: (o: Record<string, unknown>, msg?: string) => log.error(o, msg),
+  };
+  const config = lerConfigEmail(process.env);
+  log.info({ tipo: 'email', ...descreverConfigEmail(config), avisos: config.avisos }, 'e-mail transacional');
+  const transporte = criarTransporteDaConfig(config, { log: logEmail });
+  if (!transporte) return undefined;
+  const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, log: logEmail });
+  return despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_EMAIL_INTERVALO_MS ?? 5_000) });
 }
 
 /** ADR 0022: liga o agendador se houver tarefa instalada e a função de tenants ativos existir no banco. */

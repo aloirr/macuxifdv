@@ -15,7 +15,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
-import { dadosDoisTenants, DOIS_TENANTS, REFERENCIAS_FIXTURE } from '../seeds/fixtures/dois-tenants';
+import { dadosDoisTenants, DOIS_TENANTS, MARCAS_FIXTURE, REFERENCIAS_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { PROMOTOR_FIXTURE } from '../seeds/fixtures/promotor';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
@@ -232,7 +232,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await achar(A.tenantId, 'cb3401')).rows).toEqual([{ produto_id: A.produtos.p1 }]);
   });
 
-  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir marca+compacto, sem FK, updated_at', async () => {
+  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir marca+compacto, FK só da marca (0045), updated_at', async () => {
     const inserir = (o: { produto?: string; marca?: string; codigo?: string; compacto?: string; ordem?: number | null; external?: string | null }) =>
       q('insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, external_id) values ($1, $2, $3, $4, $5, $6, $7)', [
         A.tenantId,
@@ -261,12 +261,16 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     // mesma marca e mesmo compacto com outra grafia ("cb-3401" x "CB 3401") no mesmo produto: recusado
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'cb-3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
     // outra marca com o mesmo código passa; o compacto da apagada (cb3400) volta a valer
-    expect(await erroEmA(() => inserir({ produto: A.produtos.p1, marca: idFixo('aaaaaaaa', 0x88, 9), codigo: 'CB 3401', compacto: 'cb3401', ordem: 3 }))).toBeNull();
+    expect(await erroEmA(() => inserir({ produto: A.produtos.p1, marca: MARCAS_FIXTURE.A.inativa, codigo: 'CB 3401', compacto: 'cb3401', ordem: 3 }))).toBeNull();
     expect(await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'CB-3400', compacto: 'cb3400', ordem: 3 }))).toBeNull();
     // external_id único vivo por tenant
     expect((await erroEmA(() => inserir({ external: 'REF-A-1' })))?.code).toBe('23505');
-    // sem FK: produto e marca que não existem em nenhum schema passam (a API valida pelo Core e pelo contrato do Promotor)
-    expect(await erroEmA(() => q("insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, gen_random_uuid(), gen_random_uuid(), 'A1', 'a1', 1)", [A.tenantId]))).toBeNull();
+    // produto sem FK (core.produto, a API valida pelo Core); marca com FK desde a 0045 (T-0113): inexistente = 23503
+    expect(await erroEmA(() => q("insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, gen_random_uuid(), $2, 'A1', 'a1', 1)", [A.tenantId, MARCAS_FIXTURE.A.ativa]))).toBeNull();
+    expect(await erroEmA(() => q("insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, gen_random_uuid(), gen_random_uuid(), 'A1', 'a1', 1)", [A.tenantId]))).toMatchObject({
+      code: '23503',
+      message: expect.stringContaining('produto_referencia_marca_fk'),
+    });
     // gatilho de updated_at
     await emTransacao(app, A.tenantId, async () => {
       const r = await q<{ mudou: boolean }>("update catalogo.produto_referencia set codigo = 'CB  3401' where id = $1 returning updated_at > created_at as mudou", [REFERENCIAS_FIXTURE.A.cb3401]);
@@ -290,6 +294,7 @@ describe.skipIf(semBanco())('0033 up/down com dados (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000033';
   const P = 'cccccccc-0033-4000-8000-000000000001';
+  const M = 'cccccccc-0033-4000-8000-000000000002';
   const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
   const anterior = nomes[nomes.indexOf('0033_catalogo_aplicacao_referencia') - 1]!.slice(0, 4);
   const desde0033 = nomes.filter((n) => n >= '0033');
@@ -322,7 +327,9 @@ describe.skipIf(semBanco())('0033 up/down com dados (banco efêmero)', () => {
       )).rows[0]!;
       expect(busca).toEqual({ ok: true, igual: true });
       // com referência, etiqueta e retrato gravados, o down apaga e volta ao catálogo anterior
-      await c.query("insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, $2, gen_random_uuid(), 'CB 3401', 'cb3401', 1)", [T, P]);
+      // 0045 (T-0113): a marca tem de existir no Catálogo (FK produto_referencia_marca_fk)
+      await c.query("insert into catalogo.marca_concorrente (id, tenant_id, nome) values ($1, $2, 'Freiomax')", [M, T]);
+      await c.query("insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, $2, $3, 'CB 3401', 'cb3401', 1)", [T, P, M]);
       await c.query("update catalogo.produto_conteudo set etiquetas = '{Dianteira}' where tenant_id = $1", [T]);
       expect((await migrarDown(c, { passos: desde0033.length })).aplicadas).toEqual([...desde0033].reverse());
       expect(await retratoDoCatalogo(c)).toEqual(antes);

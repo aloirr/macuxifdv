@@ -3,18 +3,21 @@
  *
  * | Variável | Padrão | Uso |
  * |---|---|---|
- * | `MACUXI_EMAIL_TRANSPORTE` | `smtp` se houver `MACUXI_SMTP_HOST`, senão `arquivo` | `smtp`, `arquivo` (demo/testes) ou `desligado` |
+ * | `MACUXI_EMAIL_TRANSPORTE` | `smtp` com `MACUXI_SMTP_HOST`; `arquivo` com `MACUXI_EMAIL_ARQUIVO_DIR`; senão `desligado` | `smtp`, `arquivo` (demo/testes) ou `desligado` |
  * | `MACUXI_SMTP_HOST` | — | servidor SMTP (obrigatório com `smtp`) |
  * | `MACUXI_SMTP_PORTA` | 587 (465 com `tls`) | porta; 465 ⇒ TLS implícito se `MACUXI_SMTP_TLS` não vier |
  * | `MACUXI_SMTP_TLS` | `starttls` (465: `tls`) | `starttls` (exige o anúncio), `tls` (implícito) ou `nenhum` (só fora de produção com credencial) |
  * | `MACUXI_SMTP_USUARIO` / `MACUXI_SMTP_SENHA` | — | credencial AUTH (as duas ou nenhuma) |
- * | `MACUXI_SMTP_REMETENTE` | `Macuxi <nao-responda@macuxifdv.com.br>` | `Nome <email>` ou só o e-mail |
+ * | `MACUXI_SMTP_REMETENTE` | `Macuxi FDV <nao-responda@macuxifdv.com.br>` | `Nome <email>` ou só o e-mail |
  * | `MACUXI_SMTP_TIMEOUT_MS` | 15000 | prazo de cada etapa SMTP |
- * | `MACUXI_EMAIL_PASTA` | `<tmp>/macuxi-email` | pasta do transporte `arquivo` (a "caixa" da demo) |
+ * | `MACUXI_EMAIL_ARQUIVO_DIR` | — (`<tmp>/macuxi-email` com `arquivo` explícito) | pasta do adaptador `arquivo` (a "caixa" da demo e dos testes) |
  * | `MACUXI_EMAIL_ARQUIVO_MASCARAR` | desligado | `1`: o `.eml` sai com a senha mascarada |
- * | `MACUXI_EMAIL_CHAVE` | HKDF do `MACUXI_JWT_SEGREDO` | 32 bytes em base64 (ou 64 hex): cifra AES-256-GCM da carga na fila |
  *
- * Falha fechada: em produção, sem `MACUXI_EMAIL_CHAVE` nem `MACUXI_JWT_SEGREDO` (≥ 32) a configuração é recusada; credencial
+ * Chave da carga da outbox (`plataforma.email_saida.carga`, AES-256-GCM): HKDF-SHA256 do `MACUXI_JWT_SEGREDO` com
+ * `info = macuxi.email_saida.v1` (ADR 0032; sem secret novo: trocar o segredo invalida só os e-mails pendentes, que vencem em 72 h).
+ * `desligado` = `disponivel() = false` (a rota avisa ou recusa com 503 `EMAIL_INDISPONIVEL`; nada vai para a outbox).
+ *
+ * Falha fechada: em produção, sem `MACUXI_JWT_SEGREDO` (≥ 32) a configuração é recusada; credencial
  * SMTP com `MACUXI_SMTP_TLS=nenhum` também. Nenhuma mensagem de erro, aviso ou `descreverConfigEmail` traz senha, usuário
  * (costuma ser e-mail: só `autenticado: true`) ou chave.
  */
@@ -31,12 +34,12 @@ export type TransporteEmailConfig = (typeof TRANSPORTES_EMAIL)[number];
 export const MODOS_TLS_SMTP = ['starttls', 'tls', 'nenhum'] as const;
 export type ModoTlsSmtp = (typeof MODOS_TLS_SMTP)[number];
 
-export const REMETENTE_PADRAO = 'Macuxi <nao-responda@macuxifdv.com.br>';
+export const REMETENTE_PADRAO = 'Macuxi FDV <nao-responda@macuxifdv.com.br>';
 export const PORTA_SMTP_PADRAO = 587;
 export const PORTA_SMTP_TLS_IMPLICITO = 465;
 export const TIMEOUT_SMTP_PADRAO_MS = 15_000;
-/** Rótulo do HKDF que deriva a chave da fila a partir do `MACUXI_JWT_SEGREDO` (troca de rótulo = chave nova). */
-export const ROTULO_HKDF_FILA = 'macuxi.email.fila.v1';
+/** `info` do HKDF que deriva a chave da outbox de e-mail a partir do `MACUXI_JWT_SEGREDO` (desenho T-0094 §10; troca = chave nova). */
+export const ROTULO_HKDF_EMAIL = 'macuxi.email_saida.v1';
 
 export interface ConfigSmtp {
   host: string;
@@ -54,12 +57,12 @@ export interface ConfigEmail {
   producao: boolean;
   remetente: EnderecoEmail;
   smtp?: ConfigSmtp;
-  /** Pasta do transporte `arquivo`. */
+  /** Pasta do adaptador `arquivo` (`MACUXI_EMAIL_ARQUIVO_DIR`). */
   pasta: string;
   mascararSenhaNoArquivo: boolean;
   /** 32 bytes (AES-256-GCM). */
   chave: Uint8Array;
-  origemChave: 'MACUXI_EMAIL_CHAVE' | 'MACUXI_JWT_SEGREDO' | 'efemera';
+  origemChave: 'MACUXI_JWT_SEGREDO' | 'efemera';
   /** Avisos para a subida (sem valor de segredo). */
   avisos: string[];
   /** Se alguém registrar o objeto inteiro por engano, sai só a descrição segura. */
@@ -79,17 +82,9 @@ export function lerRemetente(valor: string): EnderecoEmail | null {
   return nome ? { email: email.data, nome } : { email: email.data };
 }
 
-function decodificarChave(v: string): Uint8Array | null {
-  const t = v.trim();
-  if (/^[0-9a-fA-F]{64}$/.test(t)) return new Uint8Array(Buffer.from(t, 'hex'));
-  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(t)) return null;
-  const b = Buffer.from(t.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-  return b.length === 32 ? new Uint8Array(b) : null;
-}
-
-/** Chave da fila derivada do segredo do JWT (HKDF-SHA256, rótulo `macuxi.email.fila.v1`). */
-export function derivarChaveFila(segredoJwt: string): Uint8Array {
-  return new Uint8Array(hkdfSync('sha256', segredoJwt, '', ROTULO_HKDF_FILA, 32));
+/** Chave da outbox de e-mail derivada do segredo do JWT (HKDF-SHA256, sal vazio, `info = macuxi.email_saida.v1`, 32 bytes). */
+export function derivarChaveEmail(segredoJwt: string): Uint8Array {
+  return new Uint8Array(hkdfSync('sha256', segredoJwt, '', ROTULO_HKDF_EMAIL, 32));
 }
 
 function erroConfig(problemas: string[]): ErroEmail {
@@ -114,7 +109,8 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
 
   const host = valor('MACUXI_SMTP_HOST');
   const transporteBruto = valor('MACUXI_EMAIL_TRANSPORTE')?.toLowerCase();
-  let transporte: TransporteEmailConfig = host ? 'smtp' : 'arquivo';
+  const dirArquivo = valor('MACUXI_EMAIL_ARQUIVO_DIR');
+  let transporte: TransporteEmailConfig = host ? 'smtp' : dirArquivo ? 'arquivo' : 'desligado';
   if (transporteBruto !== undefined) {
     if ((TRANSPORTES_EMAIL as readonly string[]).includes(transporteBruto)) transporte = transporteBruto as TransporteEmailConfig;
     else problemas.push(`MACUXI_EMAIL_TRANSPORTE deve ser ${TRANSPORTES_EMAIL.join(', ')}`);
@@ -173,33 +169,26 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
     };
   }
 
-  const pasta = valor('MACUXI_EMAIL_PASTA') ?? join(tmpdir(), 'macuxi-email');
+  const pasta = dirArquivo ?? join(tmpdir(), 'macuxi-email');
   if (transporte === 'arquivo') {
-    avisos.push('e-mail no transporte "arquivo": nada sai para a internet; os .eml ficam em MACUXI_EMAIL_PASTA');
+    avisos.push('e-mail no adaptador "arquivo": nada sai para a internet; os .eml ficam em MACUXI_EMAIL_ARQUIVO_DIR');
     if (producao) avisos.push('transporte "arquivo" em produção: use só na demo');
   }
-  if (transporte === 'desligado') avisos.push('envio de e-mail desligado (MACUXI_EMAIL_TRANSPORTE=desligado)');
+  if (transporte === 'desligado') avisos.push('envio de e-mail desligado: sem MACUXI_SMTP_HOST nem MACUXI_EMAIL_ARQUIVO_DIR (ou MACUXI_EMAIL_TRANSPORTE=desligado)');
   const mascararBruto = (valor('MACUXI_EMAIL_ARQUIVO_MASCARAR') ?? '').toLowerCase();
   const mascararSenhaNoArquivo = mascararBruto === '1' || mascararBruto === 'true' || mascararBruto === 'sim';
 
   let chave: Uint8Array | null = null;
   let origemChave: ConfigEmail['origemChave'] = 'efemera';
-  const chaveBruta = valor('MACUXI_EMAIL_CHAVE');
   const segredoJwt = env.MACUXI_JWT_SEGREDO;
-  if (chaveBruta !== undefined) {
-    chave = decodificarChave(chaveBruta);
-    origemChave = 'MACUXI_EMAIL_CHAVE';
-    if (!chave) problemas.push('MACUXI_EMAIL_CHAVE deve ter 32 bytes em base64 (44 caracteres) ou 64 caracteres hexadecimais');
-  } else if (segredoJwt && segredoJwt.length >= SEGREDO_JWT_MIN) {
-    chave = derivarChaveFila(segredoJwt);
+  if (segredoJwt && segredoJwt.length >= SEGREDO_JWT_MIN) {
+    chave = derivarChaveEmail(segredoJwt);
     origemChave = 'MACUXI_JWT_SEGREDO';
   } else if (transporte !== 'desligado') {
     if (producao) {
-      problemas.push(
-        `sem MACUXI_EMAIL_CHAVE nem MACUXI_JWT_SEGREDO (mín. ${SEGREDO_JWT_MIN}) em produção: a fila de e-mail não sobe (falha fechada)`,
-      );
+      problemas.push(`sem MACUXI_JWT_SEGREDO (mín. ${SEGREDO_JWT_MIN}) em produção: a outbox de e-mail não sobe (falha fechada)`);
     } else {
-      avisos.push('sem MACUXI_EMAIL_CHAVE nem MACUXI_JWT_SEGREDO: chave da fila efêmera (pedidos pendentes não sobrevivem à reinicialização)');
+      avisos.push('sem MACUXI_JWT_SEGREDO: chave da outbox de e-mail efêmera (API e despachante em processos diferentes não se entendem)');
     }
   }
 
@@ -222,7 +211,7 @@ export function lerConfigEmail(env: NodeJS.ProcessEnv, opcoes: { producao?: bool
 
 /**
  * Descrição para log da subida: nunca usuário, senha ou chave (só `autenticado` e uma impressão curta da chave para
- * conferir que API e worker usam a mesma — 8 hex do SHA-256, não reversível).
+ * conferir que API e despachante usam a mesma — 8 hex do SHA-256, não reversível).
  */
 export function descreverConfigEmail(cfg: ConfigEmail): Record<string, unknown> {
   return {

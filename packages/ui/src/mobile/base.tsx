@@ -329,7 +329,7 @@ export function BarraAbas({
   tomContador?: 'destaque' | 'aviso';
   testID?: string;
 }) {
-  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.accent, fg: colors.surface };
+  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.accent, fg: colors.onAccent };
   return (
     <View accessibilityRole="tablist" testID={testID} style={[s.barra, { height: ALTURA.barraAbas + respiroInferior, paddingBottom: respiroInferior }]}>
       {itens.map((item) => {

@@ -16,10 +16,15 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.super_admin_sessao': 'sessão do super-admin (ADR 0029); só por função',
   /** tenant_alvo_id (nulo fora de tenant, sem FK) no lugar de tenant_id: sobrevive à plataforma.excluir_tenant. */
   'plataforma.auditoria_plataforma': 'auditoria append-only do super-admin, sobrevive à exclusão do tenant (ADR 0029); só por função',
+  /** Portal só com e-mail e senha (0039, T-0093, ADR 0031): fora dos tenants, só pelas funções plataforma.sa_*. */
+  'plataforma.portal_tentativa': 'bloqueio do login do portal por chave HMAC do e-mail (ADR 0031); só por função',
+  'plataforma.portal_sessao': 'sessão do portal, super-admin ou admin do cliente (ADR 0031); só por função',
+  /** tenant_alvo_id (sem FK) no lugar de tenant_id, como na auditoria_plataforma: não é tabela de tenant. */
+  'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
 } as const;
 
 /**
- * Tabelas com RLS ligado e FORÇADO e SEM política nem grant para o macuxi_app e o macuxi_worker (0035, ADR 0029): a
+ * Tabelas com RLS ligado e FORÇADO e SEM política nem grant para o macuxi_app e o macuxi_worker (0035, ADR 0029; 0039, ADR 0031): a
  * aplicação lê 0 linhas (42501 direto, sem grant) e só chega aos dados pelas funções SECURITY DEFINER revisadas. Têm só a
  * política manutencao (0031). Os testes de conformidade aceitam "sem política para o macuxi_app" SÓ nestas.
  */
@@ -28,6 +33,10 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.super_admin_desafio',
   'plataforma.super_admin_sessao',
   'plataforma.auditoria_plataforma',
+  /** 0039 (T-0093, ADR 0031): bloqueio por chave do e-mail e sessão do portal por empresa. */
+  'plataforma.portal_tentativa',
+  'plataforma.portal_sessao',
+  'plataforma.portal_sessao_empresa',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
@@ -40,6 +49,15 @@ export const TABELAS_FORA_DO_SYNC = [
   'core.dispositivo',
   /** Convite de 1º acesso (0036, T-0087, RN-CORE-31): só o hash do token; o aceite é na API, nunca vai ao aparelho. */
   'core.usuario_convite',
+  /** Outbox de e-mail (0040, T-0094, ADR 0032): carga cifrada com a senha; só a API grava e só o despachante lê. */
+  'plataforma.email_saida',
+  /**
+   * Perfis de acesso (0041, T-0111/T-0112, ADR 0033): a API resolve a cada requisição (plataforma.perfis_do_usuario) e o
+   * aparelho recebe só as chaves efetivas por GET /v1/me/modulos; as linhas nunca são puxadas.
+   */
+  'plataforma.perfil',
+  'plataforma.perfil_permissao',
+  'plataforma.usuario_perfil',
   /** Metadados de arquivo (0005, ADR 0010): a foto vai pela fila de arquivos, a linha nunca é puxada. */
   'plataforma.arquivo',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */

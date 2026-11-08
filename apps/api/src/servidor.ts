@@ -21,6 +21,7 @@ import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { criarBancoApp, criarBancoPortal, POOL_PORTAL_PADRAO } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
+import { criarServicoEmailDaConfig, lerConfigEmail, type ConfigEmail } from './email';
 import { registrarMetricasApi } from './observabilidade';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/) antes de ler as variáveis abaixo; fora do local não exige a senha do admin
@@ -32,6 +33,14 @@ if (!segredoJwt.ok && segredoJwt.fatal) {
 let arquivos: ReturnType<typeof lerArmazenamentoDoAmbiente>;
 try {
   arquivos = lerArmazenamentoDoAmbiente(process.env);
+} catch (e) {
+  console.error(`[api] ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+}
+// T-0094: e-mail transacional (porta da outbox; o despachante roda no worker). Configuração inválida = não sobe (falha fechada)
+let configEmail: ConfigEmail;
+try {
+  configEmail = lerConfigEmail(process.env);
 } catch (e) {
   console.error(`[api] ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
@@ -56,6 +65,7 @@ const app = createApp({
   banco: criarBancoApp(pool),
   bancoPortal: poolPortal ? criarBancoPortal(poolPortal) : null,
   arquivos: arquivos.armazenamento,
+  email: (log) => criarServicoEmailDaConfig(configEmail, log),
   trustProxy: lerTrustProxy(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),

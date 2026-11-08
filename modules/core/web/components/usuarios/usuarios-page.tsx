@@ -5,20 +5,33 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
-import { EquipeListaRespostaSchema, UsuarioListaRespostaSchema, type UsuarioItem } from '../../../contracts';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, AJUDA_PREVIA_MODULOS, ERRO_SEM_PERFIL, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, textoOndeEntra, TITULO_PREVIA_MODULOS } from '@macuxi/ui/web';
+import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, type UsuarioItem } from '../../../contracts';
 import {
+  acaoDeSenha,
+  AJUDA_SENHA_INICIAL,
+  corpoDeRedefinicao,
+  etiquetaDeSenha,
+  faltasDaSenhaDigitada,
+  gerarSenhaNoNavegador,
+  resultadoDeCriar,
+  resultadoDeRedefinir,
+  TEXTO_ENVIAR_ACESSO_SEM_EMAIL,
+  TEXTO_SENHA_NAO_REDEFINIVEL,
+  textoAcessoEnviado,
+  type ResultadoDoEmail,
   corpoDeCriacao,
   corpoDeEdicao,
   csvDeUsuarios,
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
-  PERFIS_DO_FORMULARIO,
+  ondeEntraDosPerfis,
   ROTULO_PERFIL,
   textoDoSuperiorDaEquipe,
   type FormularioUsuario,
 } from '../../lib/usuarios';
+import { useMe } from '../../lib/queries';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
@@ -36,22 +49,41 @@ function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; chil
 }
 
 /**
- * Tela "Usuários" do BKO (RF-CORE-02; T-0067): lista com busca e filtros na URL, exportar CSV e, só para o admin
- * (`usuario.gerir`), criar, editar, ativar/desativar e redefinir senha. Supervisor e gerente consultam a própria equipe
- * (a API recorta pelo escopo, RN-CORE-04). O superior imediato deriva da equipe. Nunca apaga usuário. testIDs: docs/modulos/core/test-ids.md.
+ * Tela "Usuários" do BKO (RF-CORE-02; T-0067; T-0094): lista com busca e filtros na URL, exportar CSV e, só para quem tem as chaves do motor
+ * (`usuario.criar|editar|desativar`, `senha.redefinir`; fábrica = admin), criar (senha inicial por e-mail, com "Gerar senha"), editar, ativar/desativar e "Redefinir senha" /
+ * "Enviar acesso" (nunca para admin, P7). O gerente consulta as equipes abaixo (a API recorta pelo escopo, RN-CORE-04);
+ * supervisor não usa o BKO (RN-CORE-33). O superior imediato deriva da equipe. Nunca apaga usuário. A senha nunca é guardada
+ * na tela depois de salvar. testIDs: docs/modulos/core/test-ids.md.
  */
 function UsuariosConteudo() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
-  const pode = usePode('usuario.gerir');
+  const podeCriar = usePode('usuario.criar');
+  const podeEditar = usePode('usuario.editar');
+  const podeDesativar = usePode('usuario.desativar');
+  const podeSenha = usePode('senha.redefinir');
+  const pode = podeCriar || podeEditar || podeDesativar || podeSenha;
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
   const [tentou, setTentou] = useState(false);
   const [erroApi, setErroApi] = useState<string | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
+  // e-mail que não saiu: a senha aparece UMA vez, da memória da tela, e some ao fechar o aviso ou sair da página
+  const [semEmail, setSemEmail] = useState<Extract<ResultadoDoEmail, { tipo: 'sem_email' }> | null>(null);
+  const fuso = useMe().data.tenant.timezone;
+  const toast = useToast();
+  const copiarSenha = async (senha: string) => {
+    try {
+      await navigator.clipboard.writeText(senha);
+      toast('success', 'Senha copiada.');
+    } catch {
+      toast('danger', 'Não foi possível copiar. Selecione a senha e copie.');
+    }
+  };
 
   const q = params.get('q') ?? '';
   const perfil = params.get('perfil') ?? '';
@@ -71,24 +103,44 @@ function UsuariosConteudo() {
   });
   const equipesQ = useQuery({ queryKey: ['core', 'equipes'], queryFn: async () => EquipeListaRespostaSchema.parse(await api('/core/equipes')).itens });
   const equipes = equipesQ.data ?? [];
+  const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: async () => PerfilOpcoesRespostaSchema.parse(await api('/core/perfis/opcoes')).itens });
+  const opcoesDePerfil = perfisQ.data ?? [];
 
   const fechar = () => {
     setModal(null);
     setErroApi(null);
     setTentou(false);
     setNovaSenha('');
+    setSenhaVisivel(false);
   };
-  const concluir = async (msg: string) => {
+  const concluir = async (msg: string | null) => {
     fechar();
     setAviso(msg);
     await qc.invalidateQueries({ queryKey: ['core', 'usuarios'] });
     await qc.invalidateQueries({ queryKey: ['core', 'equipes'] });
   };
 
+  const mostrar = (res: ResultadoDoEmail) => {
+    if (res.tipo === 'enviado') {
+      setSemEmail(null);
+      return concluir(res.texto);
+    }
+    setSemEmail(res);
+    return concluir(null);
+  };
+
   const salvar = useMutation({
     mutationFn: async (editando: UsuarioItem | null) =>
       editando ? api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(form) }) : api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(form) }),
-    onSuccess: (_r, editando) => concluir(editando ? 'Usuário atualizado.' : 'Usuário criado. Passe a senha inicial a ele por um canal seguro.'),
+    onSuccess: (r, editando) => {
+      if (editando) {
+        setForm(FORMULARIO_VAZIO);
+        return concluir('Usuário atualizado.');
+      }
+      const res = resultadoDeCriar(CriarUsuarioRespostaSchema.parse(r).email_acesso, form.email.trim().toLowerCase(), form.senha);
+      setForm(FORMULARIO_VAZIO); // a senha digitada sai da memória da tela assim que o servidor responde
+      return mostrar(res);
+    },
     onError: (e) => setErroApi(errorMessage(e)),
   });
   const alternar = useMutation({
@@ -97,9 +149,18 @@ function UsuariosConteudo() {
     onError: (e) => setErroApi(errorMessage(e)),
   });
   const redefinir = useMutation({
-    mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/senha`, { method: 'PUT', body: { senha: novaSenha } }),
-    onSuccess: () => concluir('Senha redefinida e sessões encerradas. Passe a nova senha ao usuário por um canal seguro.'),
-    onError: (e) => setErroApi(errorMessage(e)),
+    mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/senha`, { method: 'PUT', body: corpoDeRedefinicao(novaSenha) }),
+    onSuccess: (r, u) => {
+      const email = RedefinirSenhaRespostaSchema.parse(r).email_acesso;
+      if (u.sem_senha) return concluir(textoAcessoEnviado(u.email));
+      return mostrar(resultadoDeRedefinir(email, u.email, novaSenha));
+    },
+    onError: (e, u) => {
+      const codigo = (e as { code?: string } | null)?.code;
+      if (codigo === 'EMAIL_INDISPONIVEL' && u.sem_senha) setErroApi(TEXTO_ENVIAR_ACESSO_SEM_EMAIL);
+      else if (codigo === 'SENHA_PROPRIA' || codigo === 'SENHA_DE_ADMIN') setErroApi(TEXTO_SENHA_NAO_REDEFINIVEL);
+      else setErroApi(errorMessage(e));
+    },
   });
 
   const set = (patch: Record<string, string | null>) => {
@@ -114,6 +175,7 @@ function UsuariosConteudo() {
 
   const abrirForm = (u: UsuarioItem | null) => {
     setAviso(null);
+    setSemEmail(null);
     setErroApi(null);
     setTentou(false);
     setForm(u ? formularioDoUsuario(u) : FORMULARIO_VAZIO);
@@ -133,7 +195,7 @@ function UsuariosConteudo() {
         subtitle="Quem entra no Macuxi, com qual perfil e em qual equipe. O superior imediato vem da equipe. Usuário não se apaga: desative para cortar o acesso."
         actions={
           <>
-            {pode && (
+            {podeCriar && (
               <Button variant="primary" onClick={() => abrirForm(null)} data-testid="usuarios.novo">
                 Novo usuário
               </Button>
@@ -144,7 +206,19 @@ function UsuariosConteudo() {
           </>
         }
       />
-      {!pode && <Notice tone="info">Só o administrador cria e altera usuários. Você consulta a sua equipe.</Notice>}
+      {!pode && <Notice tone="info">O seu perfil só consulta usuários. Para criar ou alterar, peça a quem administra a sua empresa.</Notice>}
+      {semEmail && (
+        <Notice tone="warning" onClose={() => setSemEmail(null)}>
+          <span data-testid="usuarios.aviso-sem-email">
+            {semEmail.antes}
+            <strong className="font-mono">{semEmail.senha}</strong>
+            {semEmail.depois}
+          </span>{' '}
+          <button type="button" className={BOTAO_LINHA} onClick={() => void copiarSenha(semEmail.senha)} data-testid="usuarios.copiar-senha">
+            Copiar senha
+          </button>
+        </Notice>
+      )}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
           {aviso}
@@ -163,9 +237,9 @@ function UsuariosConteudo() {
         </label>
         <SelectField label="Perfil" value={perfil} onChange={(e) => set({ perfil: e.target.value })} data-testid="usuarios.filtro-perfil">
           <option value="">Todos</option>
-          {PERFIS_DO_FORMULARIO.map((p) => (
-            <option key={p} value={p}>
-              {ROTULO_PERFIL[p]}
+          {opcoesDePerfil.map((p) => (
+            <option key={p.codigo} value={p.codigo}>
+              {p.nome}
             </option>
           ))}
         </SelectField>
@@ -195,7 +269,7 @@ function UsuariosConteudo() {
                 <tr>
                   <th className={th}>Nome</th>
                   <th className={th}>E-mail</th>
-                  <th className={th}>Perfil</th>
+                  <th className={th}>Perfis</th>
                   <th className={th}>Equipe</th>
                   <th className={th}>Superior imediato</th>
                   <th className={th}>Código do ERP</th>
@@ -215,19 +289,34 @@ function UsuariosConteudo() {
                   <tr key={u.id} data-testid={`usuarios.linha.${u.id}`}>
                     <td className={td}>{u.nome}</td>
                     <td className={td}>{u.email}</td>
-                    <td className={td}>{ROTULO_PERFIL[u.perfil]}</td>
+                    <td className={td} title={u.perfis.map((p) => p.nome).join(', ')}>
+                      {u.perfis.length === 0 ? ROTULO_PERFIL[u.perfil] : u.perfis.length <= 2 ? u.perfis.map((p) => p.nome).join(', ') : `${u.perfis.slice(0, 2).map((p) => p.nome).join(', ')} +${u.perfis.length - 2}`}
+                    </td>
                     <td className={td}>{u.equipe_nome ?? '—'}</td>
                     <td className={td}>{u.superior_nome ?? '—'}</td>
                     <td className={td}>{u.external_id ?? '—'}</td>
                     <td className={td}>
-                      <Badge tone={u.ativo ? 'success' : 'neutral'}>{u.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge tone={u.ativo ? 'success' : 'neutral'}>{u.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                        {(() => {
+                          const e = etiquetaDeSenha(u, fuso);
+                          return e ? (
+                            <span data-testid={`usuarios.etiqueta-senha.${u.id}`}>
+                              <Badge tone={e.tom}>{e.texto}</Badge>
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </td>
                     {pode && (
                       <td className={td}>
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" className={BOTAO_LINHA} onClick={() => abrirForm(u)} data-testid={`usuarios.editar.${u.id}`}>
-                            Editar
-                          </button>
+                          {podeEditar && (
+                            <button type="button" className={BOTAO_LINHA} onClick={() => abrirForm(u)} data-testid={`usuarios.editar.${u.id}`}>
+                              Editar
+                            </button>
+                          )}
+                          {podeDesativar && (
                           <button
                             type="button"
                             className={BOTAO_LINHA}
@@ -240,19 +329,22 @@ function UsuariosConteudo() {
                           >
                             {u.ativo ? 'Desativar' : 'Reativar'}
                           </button>
-                          <button
-                            type="button"
-                            className={BOTAO_LINHA}
-                            onClick={() => {
-                              setAviso(null);
-                              setErroApi(null);
-                              setNovaSenha('');
-                              setModal({ tipo: 'senha', usuario: u });
-                            }}
-                            data-testid={`usuarios.senha.${u.id}`}
-                          >
-                            Senha
-                          </button>
+                          )}
+                          {podeSenha && acaoDeSenha(u) && (
+                            <button
+                              type="button"
+                              className={`${BOTAO_LINHA} px-4`}
+                              onClick={() => {
+                                setAviso(null);
+                                setErroApi(null);
+                                setNovaSenha('');
+                                setModal({ tipo: 'senha', usuario: u });
+                              }}
+                              data-testid={`usuarios.senha.${u.id}`}
+                            >
+                              {acaoDeSenha(u)?.rotulo}
+                            </button>
+                          )}
                         </div>
                       </td>
                     )}
@@ -295,15 +387,31 @@ function UsuariosConteudo() {
           <Campo rotulo="E-mail (usado no login)" erro={erroDe('email')}>
             <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
           </Campo>
-          <Campo rotulo="Perfil" erro={erroDe('perfil')}>
-            <select value={form.perfil} onChange={(e) => upd({ perfil: e.target.value as FormularioUsuario['perfil'] })} className={CAMPO} data-testid="usuarios.campo-perfil">
-              {PERFIS_DO_FORMULARIO.map((p) => (
-                <option key={p} value={p}>
-                  {ROTULO_PERFIL[p]}
-                </option>
-              ))}
-            </select>
-          </Campo>
+          <div className={opcoesDePerfil.length > 10 ? 'max-h-[280px] overflow-y-auto' : undefined}>
+            <SeletorDePerfis
+              nome="usuario-perfis"
+              legenda={ROTULO_CAMPO_PERFIS}
+              ajuda={AJUDA_CAMPO_PERFIS}
+              opcoes={opcoesDePerfil.map((p) => ({ valor: p.codigo, rotulo: p.nome, detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`, selo: p.fabrica ? SELO_PADRAO : undefined }))}
+              marcados={form.perfis}
+              onChange={(valor) => upd({ perfis: alternarMarcado(form.perfis, valor, opcoesDePerfil.map((p) => p.codigo)) })}
+              erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : null}
+              testId="usuarios.campo-perfis"
+            />
+          </div>
+          <div className="flex flex-col gap-1 rounded-[10px] border border-line bg-ground p-3" aria-live="polite" data-testid="usuarios.previa">
+            <span className="text-[12px] font-semibold text-ink-2">{TITULO_PREVIA_MODULOS}</span>
+            {form.perfis.length === 0 ? (
+              <span className="text-[12px] text-ink-2">Marque um perfil para ver onde a pessoa entra.</span>
+            ) : (
+              <>
+                <span className="text-[13px]" data-testid="usuarios.previa.onde-entra">
+                  {textoOndeEntra(ondeEntraDosPerfis(opcoesDePerfil.filter((p) => form.perfis.includes(p.codigo))))}
+                </span>
+                <span className="text-[12px] text-ink-2">{AJUDA_PREVIA_MODULOS}</span>
+              </>
+            )}
+          </div>
           <Campo rotulo="Equipe">
             <select value={form.equipe_id} onChange={(e) => upd({ equipe_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe">
               <option value="">Sem equipe</option>
@@ -321,9 +429,39 @@ function UsuariosConteudo() {
             <input value={form.external_id} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
           </Campo>
           {!editando && (
-            <Campo rotulo="Senha inicial (8+ caracteres, com letras e números)" erro={erroDe('senha')}>
-              <input type="password" autoComplete="new-password" value={form.senha} onChange={(e) => upd({ senha: e.target.value })} className={CAMPO} data-testid="usuarios.campo-senha" />
-            </Campo>
+            <div className="flex flex-col gap-2">
+              <Campo rotulo="Senha inicial" erro={erroDe('senha')}>
+                <input
+                  type={senhaVisivel ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={form.senha}
+                  onChange={(e) => upd({ senha: e.target.value })}
+                  aria-describedby="usuarios-regras-senha"
+                  className={CAMPO}
+                  data-testid="usuarios.campo-senha"
+                />
+              </Campo>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={BOTAO_LINHA}
+                  onClick={() => {
+                    upd({ senha: gerarSenhaNoNavegador() });
+                    setSenhaVisivel(true);
+                  }}
+                  data-testid="usuarios.gerar-senha"
+                >
+                  Gerar senha
+                </button>
+                <button type="button" className={BOTAO_LINHA} onClick={() => setSenhaVisivel((v) => !v)} aria-pressed={senhaVisivel} data-testid="usuarios.mostrar-senha">
+                  {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
+                </button>
+              </div>
+              <RegrasDaSenha id="usuarios-regras-senha" faltas={faltasDaSenhaDigitada(form.senha)} destacar={tentou && !!erroDe('senha')} />
+              <p className="m-0 text-[12px] text-ink-2" data-testid="usuarios.aviso-email">
+                {AJUDA_SENHA_INICIAL}
+              </p>
+            </div>
           )}
           {erroApi && (
             <Notice tone="danger">
@@ -367,25 +505,61 @@ function UsuariosConteudo() {
 
       <Dialog
         open={modal?.tipo === 'senha'}
-        title="Redefinir senha"
+        title={modal?.tipo === 'senha' ? (modal.usuario.sem_senha ? `Enviar acesso para ${modal.usuario.nome}?` : `Redefinir a senha de ${modal.usuario.nome}?`) : 'Redefinir senha'}
         onClose={fechar}
         footer={
           <>
             <Button onClick={fechar} data-testid="usuarios.senha-cancelar">
               Cancelar
             </Button>
-            <Button variant="primary" disabled={ocupado || novaSenha.length === 0} onClick={() => modal?.tipo === 'senha' && redefinir.mutate(modal.usuario)} data-testid="usuarios.senha-confirmar">
-              {redefinir.isPending ? 'Salvando…' : 'Redefinir'}
+            <Button
+              variant="primary"
+              disabled={ocupado || (modal?.tipo === 'senha' && !modal.usuario.sem_senha && faltasDaSenhaDigitada(novaSenha).length > 0)}
+              onClick={() => modal?.tipo === 'senha' && redefinir.mutate(modal.usuario)}
+              data-testid="usuarios.senha-confirmar"
+            >
+              {modal?.tipo === 'senha' && modal.usuario.sem_senha ? (redefinir.isPending ? 'Enviando…' : 'Enviar acesso') : redefinir.isPending ? 'Redefinindo…' : 'Redefinir senha'}
             </Button>
           </>
         }
       >
         {modal?.tipo === 'senha' && (
           <div className="flex flex-col gap-3">
-            <p className="m-0">Defina uma nova senha para {modal.usuario.nome}. As sessões abertas dele são encerradas. Passe a senha por um canal seguro.</p>
-            <Campo rotulo="Nova senha (8+ caracteres, com letras e números)">
-              <input type="password" autoComplete="new-password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} className={CAMPO} data-testid="usuarios.senha-campo" />
-            </Campo>
+            {modal.usuario.sem_senha ? (
+              <p className="m-0">O Macuxi gera uma senha temporária e manda para {modal.usuario.email}. A pessoa cria a dela no primeiro acesso.</p>
+            ) : (
+              <>
+                <p className="m-0">A pessoa recebe a senha nova por e-mail e cria a dela no próximo acesso. Ela sai do Macuxi agora em todos os aparelhos.</p>
+                <Campo rotulo="Senha nova">
+                  <input
+                    type={senhaVisivel ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={novaSenha}
+                    onChange={(e) => setNovaSenha(e.target.value)}
+                    aria-describedby="usuarios-regras-senha-nova"
+                    className={CAMPO}
+                    data-testid="usuarios.senha-campo"
+                  />
+                </Campo>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={BOTAO_LINHA}
+                    onClick={() => {
+                      setNovaSenha(gerarSenhaNoNavegador());
+                      setSenhaVisivel(true);
+                    }}
+                    data-testid="usuarios.senha-gerar"
+                  >
+                    Gerar senha
+                  </button>
+                  <button type="button" className={BOTAO_LINHA} onClick={() => setSenhaVisivel((v) => !v)} aria-pressed={senhaVisivel} data-testid="usuarios.senha-mostrar">
+                    {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
+                  </button>
+                </div>
+                <RegrasDaSenha id="usuarios-regras-senha-nova" faltas={faltasDaSenhaDigitada(novaSenha)} />
+              </>
+            )}
             {erroApi && <Notice tone="danger">{erroApi}</Notice>}
           </div>
         )}

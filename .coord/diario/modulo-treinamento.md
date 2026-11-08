@@ -15,3 +15,4 @@
 2026-11-03 — T-0070 — 4 🟡 da revisão de telas: BKO (aviso warning, campos de equipe escondidos) e app (voltar do quiz, catch no Linking)
 2026-11-05 — T-0072 — 6 amarelos da revisão de UX do #92 corrigidos nas telas do Treinamento
 2026-11-05 — T-0024 — PedidoFaturadoLido passa a ser tolerante(PedidoFaturadoEvento) do Vendedor; teste conferirEventosPublicados
+2026-11-07 — T-0106 — domain: lancarPedidoNoDesafio (params/fuso único), quantidade inteira no desafio (sem arredondamento por evento); PedidoFaturadoLido já era fonte única no contracts; recado ao banco-dados (xp_lancamento)

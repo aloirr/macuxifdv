@@ -124,7 +124,7 @@ export function Button({
 /** Variantes antigas → níveis do guia (T-0072). */
 const BUTTON: Record<ButtonVariant, { bg: string; fg: string; border: string; borderWidth: number }> = {
   /** = nível principal (um só por tela) */
-  accent: { bg: colors.accent, fg: '#FFFFFF', border: 'transparent', borderWidth: 0 },
+  accent: { bg: colors.accent, fg: colors.onAccent, border: 'transparent', borderWidth: 0 },
   dark: { bg: colors.ink, fg: '#FFFFFF', border: 'transparent', borderWidth: 0 },
   /** secundário claro (borda cinza) */
   outline: { bg: colors.surface, fg: colors.ink, border: colors.lineStrong, borderWidth: 1 },
@@ -222,6 +222,45 @@ export function SectionHeader({ title, right, onRightPress, rightTestID }: { tit
   );
 }
 
+/**
+ * Link de texto (T-0094, contraste do laranja): "Esqueci a senha", "Ver todos", "Trocar". Texto laranja sobre claro é sempre
+ * `accentInk` (6,70:1 no fundo, 7,40:1 no branco); o `accent` puro dá 4,17:1 no fundo e não passa. `sobreEscuro` usa o
+ * `accentLight` (7,56:1 no grafite). Alvo de toque de 48 dp. Desligado: cinza `ink3`, sem toque.
+ */
+export function LinkTexto({
+  rotulo,
+  onPress,
+  rotuloAcessivel,
+  desligado,
+  sobreEscuro,
+  testID,
+}: {
+  rotulo: string;
+  onPress: () => void;
+  /** Leitura do TalkBack quando o rótulo visível é curto ("Ver todos" → "Ver todos os pedidos"). */
+  rotuloAcessivel?: string;
+  desligado?: boolean;
+  sobreEscuro?: boolean;
+  testID?: string;
+}) {
+  const cor = desligado ? colors.ink3 : sobreEscuro ? colors.accentLight : colors.accentInk;
+  return (
+    <Pressionavel
+      testID={testID}
+      accessibilityRole="link"
+      accessibilityLabel={rotuloAcessivel ?? rotulo}
+      accessibilityState={{ disabled: Boolean(desligado) }}
+      disabled={desligado}
+      escala={false}
+      onPress={onPress}
+      style={styles.linkTexto}>
+      <Text style={[styles.linkTextoRotulo, { color: cor }]} numberOfLines={1}>
+        {rotulo}
+      </Text>
+    </Pressionavel>
+  );
+}
+
 export function Card({ children, style, testID }: { children: ReactNode; style?: StyleProp<ViewStyle>; testID?: string }) {
   return (
     <View testID={testID} style={[styles.card, style]}>
@@ -289,7 +328,9 @@ export const styles = StyleSheet.create({
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.cartao, paddingVertical: 12, paddingHorizontal: 14 },
   bannerText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionLink: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
+  sectionLink: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  linkTexto: { minHeight: TOUCH, alignSelf: 'flex-start', justifyContent: 'center' },
+  linkTextoRotulo: { fontFamily: fonts.semibold, fontSize: 14 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.cartao },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   stampText: { fontFamily: fonts.body, fontSize: 12 },

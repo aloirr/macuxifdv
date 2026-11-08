@@ -47,3 +47,9 @@
 2026-11-07 — T-0085 — lista por linha com 20 mil produtos: raiz só conta (sem ordenar/carregar itens), chave de ordenação única, memória por nível, teste de desempenho; raiz de cerca de 1,4 s (0,2-0,5 s no código antigo) para 0,06-0,12 s
 2026-11-07 — T-0085 — lista por linha: 'Mostrar mais' (+100), LRU de 40 nós no cache, teste de acento, porNome removido
 2026-11-07 — T-0085 — Mostrar mais: milhar, ocupado/toque duplo, anúncio e foco no último lote; título do teste do LRU
+2026-11-07 — T-0096/T-0097/T-0103 — teste de desempenho com entidades do shell; foto principal toca o conteúdo (definirFotoPrincipal); evento catalogo.referencia.marca_desconhecida@1 (contrato, domain, consumidor)
+2026-11-08 — T-0097 — (a) resolvedor da miniatura exportado e file:// aceito (lib/miniatura-resolvedor.ts + teste)
+2026-11-08 — T-0113 — parte 1: domain/marcas-cadastro + contracts/marcas (consulta, entidade, evento, rotas); API/BKO aguardam migração do banco-dados
+2026-11-08 — T-0113 K — marcas concorrentes no Catálogo: rotas /v1/catalogo/marcas (GET, POST, PUT; marca.gerenciar), consulta catalogo.marcas@1, evento catalogo.marca_concorrente.alterada@1, entidade de sync marca_concorrente (+ lápide da referência de marca inativa), marca_nome regravado na mesma transação, fim do @macuxi/promotor no Catálogo, página BKO /catalogo/marcas; testes de rota, de banco (CI) e da página
+2026-11-08 — T-0113 — 🟡 1 da revisão final: gravarMarca devolve boolean e a rota responde 409 ID_EM_USO para id de marca apagada ou de outro tenant (42501 mapeado), sem gravar nem publicar; testes de rota e de banco
+2026-11-08 — T-0119 — busca da API com 20 mil: retrato do catálogo por tenant (60 s) + índice invertido de pré-seleção (domain/indice-busca) + preço/estoque só dos candidatos; teste de equivalência (30 consultas) e db.test de volume (EXPLAIN, cache, p95 < 300 ms); sem migração nova

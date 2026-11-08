@@ -476,3 +476,97 @@ describe('RN-INT-08: pedido fora do contrato não trava a gravação dos outros 
     expect(amb.logs.join('\n')).not.toMatch(/123\.456/);
   });
 });
+
+describe('T-0114: cancelamento do Macuxi devolvido ao ERP (exceção da RN-INT-08)', () => {
+  const CANCELAMENTO = '/*canc*/ EXEC cancelar_pedido :pedido_uuid, :motivo';
+  const cancelamento = (extra: Record<string, unknown> = {}) => ({ pedido_uuid: UUID, numero_erp: 'PV-1001', motivo: 'Cliente desistiu', cancelado_em: '2026-03-10T12:00:00Z', tentativa: 1, ...extra });
+  async function comCancelamentoConfigurado() {
+    const execucoes = await preparar();
+    amb.ctx.config.pedidos = { ...(amb.ctx.config.pedidos as NonNullable<typeof amb.ctx.config.pedidos>), cancelamento: { executar: CANCELAMENTO } };
+    const sqls: { sql: string; p: Record<string, unknown> }[] = [];
+    const gravar = amb.erp.onExecucao;
+    amb.erp.onExecucao = (sql, p) => {
+      if (sql.includes('/*canc*/')) sqls.push({ sql, p });
+      gravar?.(sql, p);
+    };
+    await cicloPedidos(amb.ctx); // grava e integra
+    return { execucoes, sqls };
+  }
+
+  it('RN-INT-08: o cancelamento entregue pelo Hub chama a view/procedure configurada e confirma com o retorno cancelado', async () => {
+    const { sqls } = await comCancelamentoConfigurado();
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste()];
+    const r = await cicloPedidos(amb.ctx);
+    expect(sqls).toHaveLength(1);
+    expect(sqls[0]?.p).toMatchObject({ pedido_uuid: UUID, numero_erp: 'PV-1001', motivo: 'Cliente desistiu' });
+    expect(r.retornosEnviados).toBe(1);
+    expect(amb.hub.retornos.at(-1)).toMatchObject({ pedido_uuid: UUID, status: 'cancelado', numero_erp: 'PV-1001', motivo: 'Cliente desistiu' });
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'cancelado', final: true });
+  });
+
+  it('RN-INT-08: o Hub reentrega o mesmo cancelamento (timeout) e o ERP é chamado uma vez só (idempotente pelo pedido)', async () => {
+    const { sqls } = await comCancelamentoConfigurado();
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste()];
+    await cicloPedidos(amb.ctx);
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste({ tentativa: 2 })];
+    await cicloPedidos(amb.ctx);
+    expect(sqls).toHaveLength(1);
+    expect(amb.hub.retornos.filter((x) => (x as { status: string }).status === 'cancelado')).toHaveLength(1);
+  });
+
+  it('RN-INT-08 (T-0114): erro do SQL do cancelamento conta tentativa e, esgotadas, não confirma nem mexe no pedido: avisa o Hub com cancelamento_recusado e o motivo', async () => {
+    await comCancelamentoConfigurado();
+    amb.erp.onExecucao = (sql) => {
+      if (sql.includes('/*canc*/')) throw new Error('pedido já faturado');
+    };
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste()];
+    for (let i = 0; i < 3; i++) {
+      await cicloPedidos(amb.ctx);
+      amb.relogio.avancar(600_000);
+    }
+    expect(amb.ctx.store.cancelamento(UUID)).toMatchObject({ estado: 'falhou', tentativas: 3 });
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'gravado' });
+    expect(amb.hub.retornos.filter((x) => (x as { status: string }).status === 'cancelado')).toHaveLength(0);
+    expect(amb.logs.some((l) => l.includes('cancelamento_falhou_no_erp'))).toBe(true);
+    const recusas = amb.hub.retornos.filter((x) => (x as { status: string }).status === 'cancelamento_recusado');
+    expect(recusas).toHaveLength(1);
+    expect(recusas[0]).toMatchObject({ pedido_uuid: UUID, status: 'cancelamento_recusado', numero_erp: 'PV-1001' });
+    expect((recusas[0] as { motivo: string }).motivo).toContain('pedido já faturado');
+  });
+
+  it('RN-INT-08: pedido que ainda não foi gravado no ERP é cancelado sem chamar o ERP', async () => {
+    await preparar();
+    amb.ctx.config.pedidos = { ...(amb.ctx.config.pedidos as NonNullable<typeof amb.ctx.config.pedidos>), cancelamento: { executar: CANCELAMENTO } };
+    const chamadas: string[] = [];
+    amb.erp.onExecucao = (sql) => void chamadas.push(sql);
+    await buscarPedidos(amb.ctx); // recebido, não gravado
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste({ numero_erp: null })];
+    await cicloPedidos(amb.ctx, { buscar: true, status: false });
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'cancelado', final: true });
+    expect(chamadas.filter((s) => s.includes('/*canc*/'))).toHaveLength(0);
+    expect(amb.hub.retornos.at(-1)).toMatchObject({ status: 'cancelado' });
+  });
+
+  it('RN-INT-08: sem pedidos.cancelamento no arquivo de configuração, o ERP não é tocado e o aviso diz o que configurar', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    const chamadas: string[] = [];
+    amb.erp.onExecucao = (sql) => void chamadas.push(sql);
+    amb.hub.cancelamentosParaEntregar = [CancelamentoParaErpTeste()];
+    await cicloPedidos(amb.ctx);
+    expect(chamadas).toHaveLength(0);
+    expect(amb.logs.some((l) => l.includes('cancelamento_sem_configuracao'))).toBe(true);
+    expect(amb.ctx.store.cancelamento(UUID)).toMatchObject({ estado: 'recebido' });
+  });
+
+  it('RN-INT-08: Hub sem cancelamentos (conector que não aceita): o ciclo é o de sempre, nada a cancelar', async () => {
+    const { sqls } = await comCancelamentoConfigurado();
+    const r = await cicloPedidos(amb.ctx);
+    expect(sqls).toHaveLength(0);
+    expect(r.retornosEnfileirados).toBe(0);
+  });
+
+  function CancelamentoParaErpTeste(extra: Record<string, unknown> = {}) {
+    return cancelamento(extra) as unknown as (typeof amb.hub.cancelamentosParaEntregar)[number];
+  }
+});

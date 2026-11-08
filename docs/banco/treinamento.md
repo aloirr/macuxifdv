@@ -43,11 +43,28 @@ seria uma segunda fonte do mesmo dado. Se o desafio de vendas precisar de públi
 |---|---|---|
 | `progresso` | `usuario_id`, `trilha_id`, `licao_id`, `concluida_em`, `tempo_gasto_seg` (≥ 0) | **`progresso_usuario_licao_uk (tenant_id, usuario_id, licao_id)`** (reenvio = `duplicado`); `progresso_usuario_sync_ix`; `progresso_trilha_ix (tenant_id, trilha_id, usuario_id)` (painel) |
 | `tentativa` | `usuario_id`, `quiz_id`, `realizada_em`, `respostas jsonb` (array `[{questao_id, alternativa_ids}]`), `acertos`, `total_questoes`, `nota_pct numeric(5,2)` (0–100), `aprovada`, `primeira_tentativa`, `finalizada` (padrão true) | id = UUID do aparelho; `0 ≤ acertos ≤ total_questoes`; `tentativa_usuario_sync_ix`; `tentativa_usuario_quiz_ix (tenant_id, usuario_id, quiz_id, realizada_em)` (limite diário); `tentativa_quiz_ix` (painel) |
-| `xp_lancamento` | `usuario_id`, `origem`, `referencia_id` (1–128), `pontos`, `pontos_base`, `limitado_pelo_teto`, `ocorrido_em`, `dia date` (civil do tenant) | **`xp_lancamento_chave_uk (tenant_id, usuario_id, origem, referencia_id)`** (RN-TRE-01/04/08; violação = `duplicado`); `0 ≤ pontos ≤ pontos_base`; `limitado_pelo_teto = (pontos < pontos_base)` (lançamento de 0 ponto vale); `xp_lancamento_usuario_dia_ix` (teto diário); `xp_lancamento_ranking_ix (tenant_id, dia) include (usuario_id, pontos)` (ranking semanal/mensal/acumulado) |
+| `xp_lancamento` | `usuario_id`, `origem`, `referencia_id` (1–160 desde a 0044; 1–128 na 0017), `pontos`, `pontos_base`, `limitado_pelo_teto`, `ocorrido_em`, `dia date` (civil do tenant) | **`xp_lancamento_chave_uk (tenant_id, usuario_id, origem, referencia_id)`** (RN-TRE-01/04/08; violação = `duplicado`; TOTAL, alvo do `on conflict`); `xp_lancamento_tenant_id_uk (tenant_id, id)` (0044); `0 ≤ pontos ≤ pontos_base`; `limitado_pelo_teto = (pontos < pontos_base)` (lançamento de 0 ponto vale); `xp_lancamento_usuario_dia_ix` (teto diário); `xp_lancamento_ranking_ix (tenant_id, dia) include (usuario_id, pontos)` (ranking semanal/mensal/acumulado) |
 | `medalha_usuario` | `usuario_id`, `medalha_codigo` (`^[a-z0-9_]{1,60}$`), `conquistada_em` | **`medalha_usuario_uk (tenant_id, usuario_id, medalha_codigo)`** |
 
 Desafio de vendas: `referencia_id` = `desafio_id:pedido_id:evento_id` (parcial) ou `desafio_id:pedido_id:total`. A
 serialização dos tetos (diário e por desafio) é da API: `pg_advisory_xact_lock` por (tenant, usuário) na transação.
+
+### Lançamento de XP (0044) — T-0106 (R-20261107-233051-modulo-treinamento)
+Migração `0044_treinamento_xp_referencia`, só em `xp_lancamento`, sem tabela, índice, política nem grant novo:
+- `xp_lancamento_referencia_tamanho` passa a `char_length(referencia_id) between 1 and 160` (3 UUIDs com `:` = 110).
+- `xp_lancamento_tenant_id_uk unique (tenant_id, id)`: idempotência por id com o tenant (duplicado motivo ID; o PK `id` fica).
+- A chave natural `xp_lancamento_chave_uk` fica **total**, não parcial em `deleted_at is null`: a tabela é append-only (o
+  `macuxi_app` não grava `deleted_at`), então as duas barram o mesmo, e só a total serve ao
+  `on conflict (tenant_id, usuario_id, origem, referencia_id) do nothing` do repositório (com a parcial: 42P10).
+- Sem o índice `text_pattern_ops` pedido: sob RLS o `LIKE` não é leakproof e nunca vira Index Cond para o `macuxi_app`. O
+  teto do desafio (`origem = 'desafio_vendas' and referencia_id like '<desafio_id>:%'`) entra por `xp_lancamento_chave_uk`
+  com igualdade em (tenant, usuário, origem) e filtra o LIKE entre os lançamentos de desafio do usuário.
+- "XP processado por usuário": sem tabela de controle nesta migração — a idempotência do evento já vem de
+  `plataforma.evento_consumo` (ADR 0007) e da chave natural; se o modulo-treinamento precisar de um marcador por usuário, pede
+  com colunas e consulta.
+- Down: para com P0001 (e a contagem) se houver referência acima de 128; senão tira o único e volta o CHECK a 1..128.
+- Testes: `db/testes/xp-referencia.test.ts` (128 e 160 entram, 161 e vazia = 23514, chave natural = 23505 e `on conflict`
+  sem duplicar, mesmo id = 23505, plano do teto do desafio, vazamento, up/down com dados).
 Níveis, streak, ranking e painel de adesão são **calculados** (domain) — sem tabela própria.
 
 ## Catálogos e desafio de vendas

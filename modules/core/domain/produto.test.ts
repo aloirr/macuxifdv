@@ -16,7 +16,7 @@ describe('ADR-0005: produto do ERP vira core.produto (integracao.produto.atualiz
   });
 
   it('RN-INT-06: inativado só marca ativo=false (nunca apaga) e não precisa de registro', () => {
-    expect(planejarProdutoDoErp({ ...base, acao: 'inativado' } as EventoProdutoAtualizado)).toEqual({ tipo: 'inativar', external_id: 'P-100', alterado_em: '2026-10-31T12:00:00Z' });
+    expect(planejarProdutoDoErp({ ...base, acao: 'inativado' } as EventoProdutoAtualizado)).toEqual({ tipo: 'inativar', external_id: 'P-100', alterado_em: null });
   });
 
   it('ADR-0005: registro com ativo=false inativa pelo upsert', () => {

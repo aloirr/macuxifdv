@@ -7,3 +7,4 @@ export { comTenant, definirTenant } from './contexto';
 export { migrarUp, migrarDown, lerMigracoes, listarAplicadas } from './migrador';
 export { garantirPapelApp, garantirPapelWorker, garantirPapelPortal, diagnosticarPapelApp } from './papeis';
 export { hashSenha, verificarSenha } from './senha';
+export { idPerfilFabrica, idUsuarioPerfil } from './ids';

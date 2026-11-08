@@ -309,7 +309,7 @@ export function Dialogo({
               onPress={confirmar.onPress}
               vibrar
               style={[s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado]}>
-              <Text style={[s.dialogoBotaoTexto, { color: colors.surface }]} numberOfLines={1}>
+              <Text style={[s.dialogoBotaoTexto, { color: perigo ? colors.surface : colors.onAccent }]} numberOfLines={1}>
                 {confirmar.rotulo}
               </Text>
             </Pressionavel>

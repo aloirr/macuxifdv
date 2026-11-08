@@ -11,4 +11,6 @@ export * from './tokens';
 export * from './movimento';
 export * from './selecao';
 export * from './periodo';
+export * from './pendencias';
 export * from '../comum/cadastro';
+export * from '../comum/senha';

@@ -19,6 +19,7 @@
     "@macuxi/catalogo": "workspace:*",
     "@macuxi/comum": "workspace:*",
     "@macuxi/core": "workspace:*",
+    "@macuxi/integracao": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",
     "zod": "^3.25.76",
     "@macuxi/ui": "workspace:*",

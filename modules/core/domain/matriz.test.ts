@@ -1,6 +1,6 @@
 import { PERFIS } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { ACOES_DA_MATRIZ, decisao, podeAcessarBko, podeExecutar, podeVer } from './matriz';
+import { ACOES_DA_MATRIZ, decisao, perfisDeFabrica, podeAcessarBko, podeExecutar, podeVer } from './matriz';
 
 const ACOES_DE_PEDIDO_DO_PROMOTOR = ['pedido.criar', 'pedido.editar', 'pedido.cancelar', 'pedido.duplicar', 'pedido.excluir'];
 
@@ -91,8 +91,9 @@ describe('matriz perfil × ação (S0-060)', () => {
   });
 
   it('esclarecimento Q6: vendedor e promotor não acessam o BKO; os demais perfis sim', () => {
-    expect(podeAcessarBko('vendedor')).toBe(false);
-    expect(podeAcessarBko('promotor')).toBe(false);
-    for (const p of ['admin', 'analista', 'assistente', 'supervisor', 'gerente'] as const) expect(podeAcessarBko(p)).toBe(true);
+    expect(podeAcessarBko(perfisDeFabrica('vendedor'))).toBe(false);
+    expect(podeAcessarBko(perfisDeFabrica('promotor'))).toBe(false);
+    expect(podeAcessarBko(perfisDeFabrica('supervisor'))).toBe(false);
+    for (const p of ['admin', 'analista', 'assistente', 'gerente'] as const) expect(podeAcessarBko(perfisDeFabrica(p))).toBe(true);
   });
 });

@@ -7,12 +7,13 @@
 ## 1. Identidade (não muda sem pedido do Alexandre)
 | Token | Valor | Uso |
 |---|---|---|
-| `colors.accent` | `#C2540A` | botão principal, aba ativa (ícone), barra de progresso, contador |
+| `colors.accent` | `#C2540A` | **preenchimento e gráfico**: botão principal, aba ativa (ícone e borda), barra, contador, foco. **Nunca texto sobre claro** (§1.1) |
 | `colors.ink` | `#16202A` | texto, botão secundário (borda), cartão escuro (recado), aviso no rodapé |
 | `colors.ground` | `#F3F4F1` | fundo das telas |
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
 | `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco) |
 | `colors.accentInk` | `#8F3D06` | texto laranja sobre claro (aba ativa, link, cartão em destaque) |
+| `colors.onAccent` | `#FFFFFF` | texto e ícone sobre o laranja cheio (botão principal, contador, selo) |
 
 Fontes (já carregadas no shell por `@expo-google-fonts/*`; nenhuma dependência nova): **Archivo** nos títulos e números
 (`fonts.display` 800, `displayBold` 700), **IBM Plex Sans** no texto (`body` 400, `medium` 500, `semibold` 600, `bold` 700).
@@ -20,6 +21,50 @@ Uma família por peso: não use `fontWeight`.
 
 Tipografia (`type`): `saudacao` 26/800 · `titulo` 19/800 (folha, diálogo) · `secao` 17/700 · `numeroGrande` 19/700 tabular ·
 `body` 14 · `sub` 13 · `small` 12 · `rotulo` 12/600 maiúsculas. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
+
+### 1.1 Contraste do destaque (T-0094, 08/11; vale para o app e para o BKO/portal)
+Código: `packages/ui/src/comum/contraste.ts` (`DESTAQUE`, `PARES_DO_DESTAQUE`, `contraste`, `MINIMO_CONTRASTE`), testado em
+`contraste.test.ts` com as razões abaixo. Web: as classes em `packages/ui/src/web/cores.ts` (`CLASSES_DESTAQUE`); os valores
+moram em `apps/web/app/globals.css` (`--color-accent*`) e o teste confere que são os mesmos. Não há tema escuro no app nem no BKO
+(`color-scheme: light`); o "escuro" aqui é o grafite `ink` dos cartões, do aviso no rodapé e do menu do BKO.
+
+**Regra (a mesma da referência de 03/11: `a{color:#8F3D06}`, aba ativa com rótulo `#8F3D06` e ícone `#C2540A`):**
+1. Texto laranja sobre claro (fundo, cartão, `accentSoft`, `accentTint`) é **sempre `accentInk` / `text-accent-ink`**: link,
+   rótulo de ação ("Trocar"), link da seção, "Esqueci a senha", número em destaque, chip, aba ativa.
+2. O `accent` é **preenchimento e gráfico**: fundo do botão principal, contador, selo, barra, borda da aba, ícone, foco.
+3. Texto e ícone **sobre** o laranja cheio: `onAccent` (branco) / `text-white`.
+4. Sobre o grafite, o laranja de texto é `accentLight` (`#F59A52`).
+5. Nenhuma tela escreve `colors.accent` em estilo de texto, `text-accent` sem `-ink` nem `#C2540A` à mão: é 🟡 na revisão.
+
+Mínimos WCAG 2.1 AA: texto normal **4,5:1**; texto grande (≥ 24 px, ou ≥ 18,66 px em negrito) **3:1**; ícone, borda e foco **3:1**.
+
+| Uso | Frente × fundo | Razão | Mínimo | Resultado |
+|---|---|---|---|---|
+| texto do botão principal, contador, selo | `#FFFFFF` × `#C2540A` | 4,60:1 | 4,5 | passa |
+| link e rótulo de ação no fundo | `#8F3D06` × `#F3F4F1` | 6,70:1 | 4,5 | passa |
+| link, aba ativa (rótulo) no cartão e na barra | `#8F3D06` × `#FFFFFF` | 7,40:1 | 4,5 | passa |
+| chip e cartão em destaque | `#8F3D06` × `#FBE9DC` | 6,27:1 | 4,5 | passa |
+| texto no bloco `accentTint` | `#8F3D06` × `#FDF4EC` | 6,81:1 | 4,5 | passa |
+| ícone, borda e foco no fundo | `#C2540A` × `#F3F4F1` | 4,17:1 | 3 | passa |
+| ícone, borda e foco no cartão | `#C2540A` × `#FFFFFF` | 4,60:1 | 3 | passa |
+| ícone no quadrado `accentSoft` (opção da folha) | `#C2540A` × `#FBE9DC` | 3,90:1 | 3 | passa |
+| ícone no bloco `accentTint` | `#C2540A` × `#FDF4EC` | 4,23:1 | 3 | passa |
+| botão principal e foco sobre o grafite (forma) | `#C2540A` × `#16202A` | 3,58:1 | 3 | passa |
+| "Desfazer", ícone de erro no grafite | `#F59A52` × `#16202A` | 7,56:1 | 4,5 | passa |
+| texto `accent` no fundo | `#C2540A` × `#F3F4F1` | 4,17:1 | 4,5 | **não passa** → `accentInk` |
+| texto `accent` no `accentSoft` | `#C2540A` × `#FBE9DC` | 3,90:1 | 4,5 | **não passa** → `accentInk` |
+| texto `accent` no `accentTint` | `#C2540A` × `#FDF4EC` | 4,23:1 | 4,5 | **não passa** → `accentInk` |
+| texto `accent` no grafite | `#C2540A` × `#16202A` | 3,58:1 | 4,5 | **não passa** → `accentLight` |
+
+Por que não escurecer o próprio `accent`: para o texto no fundo passar de 4,5:1 o laranja teria de ir a `#B84F09` ou mais escuro (4,57:1), o
+que muda a cor da marca no botão principal e no contador (identidade só muda a pedido do dono do produto). O texto branco no
+`#C2540A` já passa (4,60:1), e a referência de 03/11 já separa o laranja de preenchimento (`#C2540A`) do de texto (`#8F3D06`).
+
+Ajustes do kit (T-0094): `rotuloAcaoTexto` (formulario.tsx) e `sectionLink` (ui.tsx) passaram a `accentInk`; `NIVEIS_BOTAO.principal`,
+`Button variant="accent"`, contador da `BarraAbas`, selo do `BotaoFiltro`, `RodapeTotal` e o confirmar do `Dialogo` usam `onAccent`;
+novo `LinkTexto` (mobile: `accentInk`, `sobreEscuro` → `accentLight`, alvo 48 dp). Web: `Button variant="link"` em `text-accent-ink`
+com sublinhado no hover (antes `text-accent`); `TONE_TEXT.accent` (número da positivação) em `text-accent-ink`, a barra continua
+`bg-accent`; o foco de todos os botões continua `outline-accent` (gráfico, ≥ 3:1).
 
 ## 2. Espaço, raio, sombra
 - `space`: 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 (`xxs`…`xxxl`).
@@ -112,6 +157,23 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
 - `EtiquetaFiltro`: pílula `accentSoft` de 32 dp ("Ontem ✕") num alvo de 44 dp; tocar remove o filtro.
 - `FolhaPeriodo`: atalhos (aplica e fecha), "Escolher dia, mês ou ano ›" com Dia/Mês/Ano e "Limpar" (volta ao padrão).
   Comportamento puro em `eventoDaFolha` (`periodo.ts`). Ícones novos: `filtro`, `abaixo` (seta do campo), `subir` (Leve mais).
+
+### 4.3 Regras da senha (T-0093, RN-CORE-32; spec `docs/design/portal-entrar.md` §5)
+- `RegrasDaSenha` (web e mobile, mesma API): "A senha precisa ter" + 8 caracteres ou mais · Uma letra · Um número · Um caractere
+  especial, ao vivo pelas `faltas` do Core (`faltasNaSenha`); ✓ verde cumprida, círculo vazio neutro faltando, ✕ vermelho com
+  `destacar` (depois de tentar salvar). Leitor de tela: "ok"/"falta" por regra (web) e resumo em região viva ("Falta um número.").
+  Nunca no login; o kit não recebe a senha. Textos e frases em `comum/senha.ts`.
+- Olho do campo de senha (web): `IconEye` no botão "Mostrar senha" (senha escondida) e `IconEyeOff` no "Esconder senha"
+  (`MOSTRAR_SENHA`/`ESCONDER_SENHA`), 18 px, `text-ink-2`, botão de 44 × 44 dentro do campo, à direita. Vale no login (o olho
+  ajuda a conferir o que digitou; a lista de regras é que não entra no login).
+
+### 4.4 Permissões e perfis (BKO; T-0111; spec `docs/design/perfis-de-acesso.md` §12)
+- `LinhaDePermissao`: rótulo, ajuda, "Padrão: X" e o controle à direita; com `trava`, o `Cadeado` logo depois do rótulo.
+- `Interruptor`: liga/desliga com "Sim"/"Não"/"Em parte" escrito, `role="switch"`, alvo de 44 px; trilho desligado em `disabled`
+  (3:1 sobre branco), ligado em `ink`. Em toda página de permissões, liga/desliga é sempre interruptor; caixa fica para listas.
+- `SeletorDeNivel`: botões lado a lado sobre rádios nativos (setas do teclado); opção acima do permitido com cadeado e motivo.
+- `SeletorDePerfis`: caixas num `fieldset`, opção "todos" opcional, opção travada com motivo. `Cadeado`: regra no hover, foco e
+  toque, e como descrição para o leitor de tela. `ResumoDasMudancas`: "Rótulo: antes → depois" por seção, falado sem a seta.
 
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do

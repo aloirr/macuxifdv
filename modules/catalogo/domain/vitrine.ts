@@ -152,6 +152,8 @@ export interface EntradaBuscaProdutos {
   anoAtual?: number;
   /** Fuso do tenant: com ele o ano padrão é o civil nesse fuso (e não o UTC). */
   fuso?: string;
+  /** T-0119: `produtos` já veio pré-selecionado por `candidatosDaBusca`; este é o `maxVendas` do universo completo. */
+  maxVendas?: number;
   limit: number;
   offset: number;
 }
@@ -182,7 +184,7 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
   }
   const filtros = filtrosParaPerfil(aplicarChips(e.filtros, e.chips ?? {}), ctx.perfil, ctx.parametros);
   const anoAtual = e.anoAtual ?? anoCivilNoFuso(ctx.agora, e.fuso);
-  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, ...(e.semantica ? { semantica: e.semantica } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
+  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, ...(e.semantica ? { semantica: e.semantica } : {}), ...(e.maxVendas !== undefined ? { maxVendas: e.maxVendas } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
   const limit = Math.max(1, Math.trunc(e.limit));
   const offset = Math.max(0, Math.trunc(e.offset));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);

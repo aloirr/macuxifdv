@@ -296,7 +296,7 @@ describe.skipIf(semBanco())('base de demo do Treinamento no banco', () => {
   beforeAll(async () => {
     b = await criarBancoDeTeste();
     await comAdmin(b.nome, async (c) => {
-      await carregarDemo(c, { senha: 'senha-do-teste-treinamento', hoje: relogio.hoje() });
+      await carregarDemo(c, { senha: 'Treino@teste1', hoje: relogio.hoje() });
       await carregarTreinamentoDemo(c, { hoje: relogio.hoje(), agora: relogio.agora() });
     });
     pool = new pg.Pool({ connectionString: b.urlApp, max: 1 });

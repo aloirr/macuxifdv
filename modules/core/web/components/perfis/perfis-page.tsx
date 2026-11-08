@@ -1,0 +1,743 @@
+'use client';
+
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePode } from '@macuxi/platform-sdk/react';
+import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
+import {
+  alternarMarcado,
+  Badge,
+  Button,
+  contagemNaoSalva,
+  descricaoDaLinha,
+  Dialog,
+  Drawer,
+  ErrorBlock,
+  idsDaLinha,
+  Interruptor,
+  LinhaDePermissao,
+  LoadingBlock,
+  NOTA_DO_RESUMO,
+  Notice,
+  ORDEM_PERFIL_BASE,
+  PageHeader,
+  Panel,
+  ResumoDasMudancas,
+  ROTULO_ALVO_TODOS,
+  ROTULO_LUGAR,
+  ROTULO_PERFIL_BASE,
+  SECOES_DO_PERFIL,
+  SELO_PADRAO,
+  SeletorDeNivel,
+  SeletorDePerfis,
+  TableScroll,
+  textoDoPadrao,
+  CADEADO,
+  td,
+  th,
+  useToast,
+  type SecaoDoPerfil,
+} from '@macuxi/ui/web';
+import { PerfilDetalheSchema, PerfilHistoricoRespostaSchema, PerfilListaRespostaSchema, type PerfilHistoricoItem, type PerfilResumo } from '../../../contracts';
+import {
+  ALVO_TODOS_PERFIS,
+  corpoDoPerfil,
+  edicaoDaFabrica,
+  edicaoInicial,
+  erroDeAlvos,
+  escolherNivel,
+  frasesDaRecusa,
+  ligadoDaLinha,
+  ligarLinha,
+  marcarAlvos,
+  montarLinhas,
+  mudancasDaEdicao,
+  mudancasPorSecao,
+  nivelDaLinha,
+  textoDoValor,
+  type Edicao,
+  type Identificacao,
+  type LinhaDoPerfil,
+} from '../../lib/perfis';
+
+const CAMPO = 'h-[44px] w-full rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink disabled:bg-ground disabled:text-ink-2';
+const BOTAO_LINHA = 'min-h-[44px] rounded-xl px-2 text-[13px] font-semibold text-accent hover:underline disabled:text-disabled';
+const SEM_PERMISSAO = 'O seu perfil não gerencia perfis de acesso. Fale com o admin da sua empresa.';
+const SEM_CONEXAO = 'Sem conexão. Confira a internet e tente de novo.';
+
+const ehSemPermissao = (e: unknown) => e instanceof ApiRequestError && e.status === 403;
+const ehSemConexao = (e: unknown) => e instanceof TypeError || (e instanceof ApiRequestError && e.status === 0);
+
+// ---------------------------------------------------------------- lista
+
+function ListaDePerfis() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [novo, setNovo] = useState<{ copiaDe: PerfilResumo | null } | null>(null);
+  const [acao, setAcao] = useState<{ tipo: 'desativar' | 'reativar'; perfil: PerfilResumo } | null>(null);
+  const lista = useQuery({ queryKey: ['core', 'perfis'], queryFn: async () => PerfilListaRespostaSchema.parse(await api('/core/perfis')).itens });
+  const itens = lista.data ?? [];
+
+  const abrir = (codigo: string) => router.push(`${pathname}?perfil=${encodeURIComponent(codigo)}`);
+
+  const mudarSituacao = useMutation({
+    mutationFn: async ({ perfil, ativo }: { perfil: PerfilResumo; ativo: boolean }) => {
+      const d = PerfilDetalheSchema.parse(await api(`/core/perfis/${perfil.codigo}`));
+      return api(`/core/perfis/${perfil.codigo}`, {
+        method: 'PUT',
+        body: { ...corpoDoPerfil(edicaoInicial(d), { nome: perfil.nome, descricao: perfil.descricao ?? '', ativo }, false) },
+      });
+    },
+    onSuccess: async () => {
+      setAcao(null);
+      await qc.invalidateQueries({ queryKey: ['core', 'perfis'] });
+    },
+  });
+
+  if (lista.isPending) return <LoadingBlock label="Carregando perfis…" />;
+  if (lista.isError) {
+    if (ehSemPermissao(lista.error)) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
+    return <ErrorBlock message={ehSemConexao(lista.error) ? SEM_CONEXAO : errorMessage(lista.error)} onRetry={() => void lista.refetch()} />;
+  }
+  const soPadrao = itens.every((p) => p.fabrica);
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="perfis.lista">
+      <PageHeader
+        title="Perfis de acesso"
+        subtitle="O que cada perfil pode fazer e onde entra. Mudanças valem na próxima ação de quem usa o perfil, sem sair e entrar de novo."
+        actions={
+          <Button variant="primary" onClick={() => setNovo({ copiaDe: null })} data-testid="perfis.novo">
+            Novo perfil
+          </Button>
+        }
+      />
+      <Panel label="Perfis de acesso">
+        <TableScroll minWidth={760}>
+          <thead>
+            <tr>
+              <th className={th}>Nome</th>
+              <th className={th}>Perfil base</th>
+              <th className={th}>Onde entra</th>
+              <th className={`${th} text-right`}>Usuários</th>
+              <th className={th}>Situação</th>
+              <th className={th}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {itens.map((p) => (
+              <tr key={p.codigo} data-testid={`perfis.linha.${p.codigo}`}>
+                <td className={td}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className="text-[14px] font-semibold text-ink hover:underline" onClick={() => abrir(p.codigo)}>
+                      {p.nome}
+                    </button>
+                    {p.fabrica && <Badge tone="neutral">{SELO_PADRAO}</Badge>}
+                  </div>
+                  {p.descricao && <div className="max-w-[320px] truncate text-[12px] text-ink-2">{p.descricao}</div>}
+                </td>
+                <td className={td}>{ROTULO_PERFIL_BASE[p.base]}</td>
+                <td className={td}>
+                  {p.onde_entra.length === 0 ? (
+                    <span className="text-ink-2">Nenhum</span>
+                  ) : (
+                    <span className="flex flex-wrap gap-1">
+                      {p.onde_entra.map((l) => (
+                        <Badge key={l} tone="neutral">
+                          {ROTULO_LUGAR[l]}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
+                </td>
+                <td className={`${td} text-right`}>
+                  {p.usuarios === 0 ? (
+                    <span className="text-ink-2">0</span>
+                  ) : (
+                    <button type="button" className="font-semibold text-accent hover:underline" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
+                      {p.usuarios}
+                    </button>
+                  )}
+                </td>
+                <td className={td}>{p.ativo ? <Badge tone="success">Ativo</Badge> : <Badge tone="neutral">Inativo</Badge>}</td>
+                <td className={td}>
+                  <span className="flex flex-wrap">
+                    <button type="button" className={BOTAO_LINHA} onClick={() => abrir(p.codigo)} data-testid={`perfis.editar.${p.codigo}`}>
+                      Editar
+                    </button>
+                    <button type="button" className={BOTAO_LINHA} onClick={() => setNovo({ copiaDe: p })} data-testid={`perfis.copiar.${p.codigo}`}>
+                      Novo a partir deste
+                    </button>
+                    {!p.fabrica && p.ativo && (
+                      <button type="button" className={BOTAO_LINHA} onClick={() => setAcao({ tipo: 'desativar', perfil: p })} data-testid={`perfis.desativar.${p.codigo}`}>
+                        Desativar
+                      </button>
+                    )}
+                    {!p.fabrica && !p.ativo && (
+                      <button type="button" className={BOTAO_LINHA} onClick={() => setAcao({ tipo: 'reativar', perfil: p })} data-testid={`perfis.reativar.${p.codigo}`}>
+                        Reativar
+                      </button>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </TableScroll>
+      </Panel>
+      {soPadrao && (
+        <Notice tone="info">
+          <span data-testid="perfis.vazio">Os 7 perfis padrão já vêm prontos. Para ajustar as permissões de um grupo de pessoas, crie um perfil a partir de um deles.</span>
+        </Notice>
+      )}
+      {novo && <DialogoNovoPerfil copiaDe={novo.copiaDe} onClose={() => setNovo(null)} onCriado={(codigo) => { toast('success', 'Perfil criado. Ajuste as permissões e salve.'); setNovo(null); void qc.invalidateQueries({ queryKey: ['core', 'perfis'] }); abrir(codigo); }} />}
+      {acao && (
+        <Dialog
+          open
+          title={acao.tipo === 'desativar' ? (acao.perfil.usuarios > 0 ? 'Desativar este perfil?' : 'Desativar este perfil?') : 'Reativar este perfil?'}
+          onClose={() => setAcao(null)}
+          footer={
+            acao.tipo === 'desativar' && acao.perfil.usuarios > 0 ? (
+              <>
+                <Button onClick={() => setAcao(null)}>Fechar</Button>
+                <Button variant="primary" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(acao.perfil.codigo)}`)}>
+                  Ver os usuários
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => setAcao(null)}>Cancelar</Button>
+                <Button
+                  variant={acao.tipo === 'desativar' ? 'danger' : 'primary'}
+                  disabled={mudarSituacao.isPending}
+                  onClick={() => mudarSituacao.mutate({ perfil: acao.perfil, ativo: acao.tipo === 'reativar' })}
+                >
+                  {acao.tipo === 'desativar' ? 'Desativar' : 'Reativar'}
+                </Button>
+              </>
+            )
+          }
+        >
+          <p className="m-0 text-[14px]">
+            {acao.tipo === 'reativar'
+              ? `${acao.perfil.nome} volta a aparecer no cadastro de usuários.`
+              : acao.perfil.usuarios > 0
+                ? `${acao.perfil.nome} tem ${acao.perfil.usuarios} ${acao.perfil.usuarios === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.`
+                : `${acao.perfil.nome} deixa de aparecer no cadastro de usuários. Dá para reativar depois. Fica registrado no histórico.`}
+          </p>
+          {mudarSituacao.isError && <Notice tone="danger">{ehSemConexao(mudarSituacao.error) ? SEM_CONEXAO : errorMessage(mudarSituacao.error)}</Notice>}
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function DialogoNovoPerfil({ copiaDe, onClose, onCriado }: { copiaDe: PerfilResumo | null; onClose: () => void; onCriado: (codigo: string) => void }) {
+  const [nome, setNome] = useState(copiaDe ? `${copiaDe.nome} (cópia)` : '');
+  const [base, setBase] = useState<string>(copiaDe?.base ?? '');
+  const [descricao, setDescricao] = useState('');
+  const [tentou, setTentou] = useState(false);
+  const [erroApi, setErroApi] = useState<string | null>(null);
+  const criar = useMutation({
+    mutationFn: async () =>
+      PerfilDetalheSchema.parse(await api('/core/perfis', { method: 'POST', body: { nome: nome.trim(), base, descricao: descricao.trim() || null, ...(copiaDe ? { copiar_de: copiaDe.codigo } : {}) } })),
+    onSuccess: (d) => onCriado(d.perfil.codigo),
+    onError: (e) => setErroApi(e instanceof ApiRequestError && e.code === 'CODIGO_REPETIDO' ? 'Já existe um perfil com este nome.' : 'Não foi possível criar agora. Tente de novo.'),
+  });
+  const erroNome = tentou && nome.trim() === '' ? 'Dê um nome ao perfil.' : erroApi === 'Já existe um perfil com este nome.' ? erroApi : null;
+  const erroBase = tentou && !base ? 'Escolha o perfil base.' : null;
+  const semBko = ['vendedor', 'promotor', 'supervisor'].includes(base);
+  const enviar = () => {
+    setTentou(true);
+    setErroApi(null);
+    if (nome.trim() === '' || !base) return;
+    criar.mutate();
+  };
+  return (
+    <Dialog
+      open
+      title={copiaDe ? `Novo a partir de ${copiaDe.nome}` : 'Novo perfil'}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" disabled={criar.isPending} onClick={enviar} data-testid="perfis.novo.criar">
+            {criar.isPending ? 'Criando…' : 'Criar e editar'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
+          Nome
+          <input className={CAMPO} value={nome} maxLength={40} autoFocus onFocus={(e) => copiaDe && e.currentTarget.select()} onChange={(e) => setNome(e.target.value)} data-testid="perfis.novo.nome" />
+          {erroNome && <span className="text-[12px] font-medium text-danger">{erroNome}</span>}
+        </label>
+        {copiaDe ? (
+          <p className="m-0 text-[13px]">Perfil base: {ROTULO_PERFIL_BASE[copiaDe.base]}</p>
+        ) : (
+          <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
+            Perfil base
+            <select className={CAMPO} value={base} onChange={(e) => setBase(e.target.value)} data-testid="perfis.novo.base">
+              <option value="">Escolha…</option>
+              {ORDEM_PERFIL_BASE.map((b) => (
+                <option key={b} value={b}>
+                  {ROTULO_PERFIL_BASE[b]}
+                </option>
+              ))}
+            </select>
+            {erroBase && <span className="text-[12px] font-medium text-danger">{erroBase}</span>}
+          </label>
+        )}
+        {base && (
+          <p className="m-0 text-[12px] text-ink-2">
+            Começa com as permissões do {ROTULO_PERFIL_BASE[base as keyof typeof ROTULO_PERFIL_BASE]}. {semBko && 'Este perfil nunca entra no BKO nem no portal (RN-CORE-33).'}
+          </p>
+        )}
+        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
+          Descrição (opcional)
+          <textarea className="min-h-[64px] rounded-xl border border-field bg-surface px-3 py-2 text-[14px] font-normal text-ink" rows={2} maxLength={200} value={descricao} onChange={(e) => setDescricao(e.target.value)} data-testid="perfis.novo.descricao" />
+          <span className="text-[12px] font-normal text-ink-2">Para quem é este perfil. Aparece na lista.</span>
+        </label>
+        {erroApi && erroApi !== 'Já existe um perfil com este nome.' && (
+          <Notice tone="danger">
+            <span data-testid="perfis.novo.erro">{erroApi}</span>
+          </Notice>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------- edição
+
+function EdicaoDoPerfil({ codigo }: { codigo: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ['core', 'perfis', codigo], queryFn: async () => PerfilDetalheSchema.parse(await api(`/core/perfis/${codigo}`)) });
+  const d = q.data;
+  const [edicao, setEdicao] = useState<Edicao | null>(null);
+  const [ident, setIdent] = useState<Identificacao | null>(null);
+  const [resumo, setResumo] = useState(false);
+  const [recusa, setRecusa] = useState<string[] | null>(null);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  const [sair, setSair] = useState<'voltar' | 'descartar' | null>(null);
+  const [restaurar, setRestaurar] = useState(false);
+  const [historico, setHistorico] = useState(false);
+  const [maisAberto, setMaisAberto] = useState(false);
+  const [sem403, setSem403] = useState(false);
+
+  const identDe = (x: NonNullable<typeof d>): Identificacao => ({ nome: x.perfil.nome, descricao: x.perfil.descricao ?? '', ativo: x.perfil.ativo });
+  // o estado de edição nasce do servidor e é refeito depois de salvar
+  useEffect(() => {
+    if (d) {
+      setEdicao(edicaoInicial(d));
+      setIdent(identDe(d));
+    }
+  }, [d]);
+
+  const { linhas, outras } = useMemo(() => (d ? montarLinhas(d) : { linhas: [], outras: [] }), [d]);
+  const rotulos = useMemo(() => Object.fromEntries((d?.alvos_possiveis ?? []).map((p) => [p.codigo, p.nome])), [d]);
+  const inicial = useMemo(() => (d ? edicaoInicial(d) : {}), [d]);
+  const fabrica = useMemo(() => (d ? edicaoDaFabrica(d) : {}), [d]);
+  const identInicial = d ? identDe(d) : null;
+  const todasOutras = outras.flatMap((g) => g.linhas);
+  const mudancas =
+    d && edicao && ident && identInicial ? mudancasDaEdicao({ linhas, outras: todasOutras, inicial, atual: edicao, identInicial, identAtual: ident, rotulosDosPerfis: rotulos }) : [];
+  const porSecao = mudancasPorSecao(mudancas);
+  const sujo = mudancas.length > 0;
+
+  useEffect(() => {
+    if (!sujo) return;
+    const aviso = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', aviso);
+    return () => window.removeEventListener('beforeunload', aviso);
+  }, [sujo]);
+
+  const salvar = useMutation({
+    mutationFn: async () => {
+      if (!d || !edicao || !ident) throw new Error('sem estado');
+      return PerfilDetalheSchema.parse(await api(`/core/perfis/${codigo}`, { method: 'PUT', body: corpoDoPerfil(edicao, ident, d.perfil.fabrica) }));
+    },
+    onSuccess: async (novo) => {
+      qc.setQueryData(['core', 'perfis', codigo], novo);
+      setEdicao(edicaoInicial(novo));
+      setIdent(identDe(novo));
+      setResumo(false);
+      setRecusa(null);
+      setErroSalvar(null);
+      toast('success', 'Perfil salvo. Vale na próxima ação de quem o usa.');
+      await qc.invalidateQueries({ queryKey: ['core', 'perfis'], exact: true });
+    },
+    onError: (e) => {
+      if (ehSemPermissao(e)) {
+        setResumo(false);
+        setSem403(true);
+      } else if (e instanceof ApiRequestError && e.status === 422) setRecusa(frasesDaRecusa(e.details, e.message));
+      else setRecusa([ehSemConexao(e) ? 'Sem conexão. Suas mudanças continuam na tela. Tente de novo.' : 'Não foi possível salvar agora. Suas mudanças continuam na tela. Tente de novo.']);
+    },
+  });
+
+  const voltar = () => router.push(pathname);
+  if (sem403 || (q.isError && ehSemPermissao(q.error))) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
+  if (q.isPending || !d || !edicao || !ident) return q.isError ? <ErrorBlock message={ehSemConexao(q.error) ? SEM_CONEXAO : 'Este perfil não existe mais.'} onRetry={() => void q.refetch()} /> : <LoadingBlock label="Carregando o perfil…" />;
+
+  const fab = d.perfil.fabrica;
+  const base = d.perfil.base;
+  const alteraLinha = (fn: (e: Edicao) => Edicao) => setEdicao((e) => fn(e ?? {}));
+  const erroDaLinha = (l: LinhaDoPerfil) => erroDeAlvos(l, edicao);
+  const algumErro = linhas.some((l) => erroDaLinha(l));
+  const secoesVisiveis = SECOES_DO_PERFIL.filter((s) => s.id === 'identificacao' || s.id === 'modulos' || (s.id === 'outras' ? outras.length > 0 : linhas.some((l) => l.secao === s.id)));
+
+  const renderLinha = (l: LinhaDoPerfil): ReactNode => {
+    const ids = idsDaLinha(`permissao-${l.id}`);
+    const travada = !!l.trava;
+    const padrao = textoDoValor(l, fabrica, rotulos);
+    const atual = textoDoValor(l, edicao, rotulos);
+    const desc = descricaoDaLinha(`permissao-${l.id}`, { ajuda: !!l.ajuda, travada });
+    let controle: ReactNode;
+    let abaixo: ReactNode = null;
+    if (l.tipo === 'nivel') {
+      controle = (
+        <SeletorDeNivel
+          nome={`nivel-${l.id}`}
+          opcoes={[...(l.opcoes ?? [])]}
+          valor={nivelDaLinha(l, edicao)}
+          onChange={(n) => alteraLinha((e) => escolherNivel(l, e, n))}
+          rotuloId={ids.rotulo}
+          descricaoId={desc}
+        />
+      );
+    } else {
+      const lig = ligadoDaLinha(l, edicao);
+      controle = (
+        <Interruptor ligado={lig !== 'nao'} misto={lig === 'misto'} desabilitado={travada} onChange={(v) => alteraLinha((e) => ligarLinha(l, e, v))} rotuloId={ids.rotulo} descricaoId={desc} />
+      );
+      if (l.tipo === 'alvos' && lig !== 'nao') {
+        const opcoes = d.alvos_possiveis.map((p) => ({
+          valor: p.codigo,
+          rotulo: p.nome,
+          detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`,
+          selo: p.fabrica ? SELO_PADRAO : undefined,
+          desabilitada: p.base === 'admin',
+          motivo: p.base === 'admin' ? CADEADO.senhaDeAdmin : undefined,
+        }));
+        const marcados = edicao[l.chaves[0]!]?.alvos ?? [];
+        abaixo = (
+          <SeletorDePerfis
+            nome={`alvos-${l.id}`}
+            legenda="De quais perfis"
+            opcoes={opcoes}
+            marcados={marcados}
+            todos={{ rotulo: ROTULO_ALVO_TODOS }}
+            onChange={(valor) => alteraLinha((e) => marcarAlvos(l, e, alternarMarcado(marcados, valor, [ALVO_TODOS_PERFIS, ...opcoes.map((o) => o.valor)])))}
+            erro={erroDaLinha(l)}
+          />
+        );
+      }
+    }
+    return (
+      <LinhaDePermissao key={l.id} id={`permissao-${l.id}`} rotulo={l.rotulo} ajuda={l.ajuda} padrao={atual !== padrao ? textoDoPadrao(padrao) : undefined} trava={l.trava ? { mensagem: l.trava } : null} erro={erroDaLinha(l)} abaixo={abaixo} testId={`permissao.${l.id}`}>
+        {controle}
+      </LinhaDePermissao>
+    );
+  };
+
+  const secao = (id: SecaoDoPerfil, titulo: string, corpo: ReactNode) => (
+    <Panel key={id} title={titulo} label={titulo}>
+      <div data-testid={`perfil.secao.${id}`} id={`secao-${id}`} className="flex flex-col gap-3">
+        {corpo}
+      </div>
+    </Panel>
+  );
+
+  const restaurarPadrao = () => {
+    setEdicao(edicaoDaFabrica(d));
+    setRestaurar(false);
+  };
+  const temDiferencaDoPadrao = d.chaves.some((c) => JSON.stringify(c.atual) !== JSON.stringify(c.fabrica));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow={
+          <button type="button" className="text-accent hover:underline" onClick={() => (sujo ? setSair('voltar') : voltar())}>
+            ‹ Perfis de acesso
+          </button>
+        }
+        title={d.perfil.nome}
+        badge={fab ? <Badge tone="neutral">{SELO_PADRAO}</Badge> : d.perfil.ativo ? undefined : <Badge tone="neutral">Inativo</Badge>}
+        subtitle={`Perfil base: ${ROTULO_PERFIL_BASE[base]} · ${d.perfil.usuarios} ${d.perfil.usuarios === 1 ? 'usuário' : 'usuários'}`}
+        actions={
+          <>
+            <Button size="sm" onClick={() => setHistorico(true)} data-testid="perfil.historico">
+              Histórico
+            </Button>
+            {temDiferencaDoPadrao && (
+              <Button size="sm" onClick={() => setRestaurar(true)} data-testid="perfil.restaurar">
+                Restaurar o padrão
+              </Button>
+            )}
+          </>
+        }
+      />
+      {!d.perfil.ativo && (
+        <Notice tone="info">Este perfil está inativo: não aparece no cadastro de usuários. Ligue &quot;Ativo&quot; em Identificação para usar de novo.</Notice>
+      )}
+      <div className="flex gap-6">
+        <nav aria-label="Seções do perfil" className="sticky top-4 hidden h-fit w-[200px] shrink-0 flex-col gap-1 lg:flex" data-testid="perfil.indice">
+          {secoesVisiveis.map((s) => (
+            <a key={s.id} href={`#secao-${s.id}`} className="flex items-center justify-between rounded-lg px-2 py-2 text-[13px] text-ink hover:bg-ground">
+              {s.titulo}
+              {porSecao[s.id] ? <Badge tone="pending">{porSecao[s.id]}</Badge> : null}
+            </a>
+          ))}
+        </nav>
+        <div className="flex min-w-0 flex-1 flex-col gap-4 pb-24">
+          {secao(
+            'identificacao',
+            'Identificação',
+            <>
+              <LinhaDePermissao id="ident-nome" rotulo="Nome">
+                {fab ? <span className="text-[14px]">{ident.nome}</span> : <input className={CAMPO} value={ident.nome} maxLength={40} onChange={(e) => setIdent({ ...ident, nome: e.target.value })} aria-label="Nome" />}
+              </LinhaDePermissao>
+              <LinhaDePermissao id="ident-base" rotulo="Perfil base" trava={{ mensagem: CADEADO.baseImutavel }}>
+                <span className="text-[14px]">{ROTULO_PERFIL_BASE[base]}</span>
+              </LinhaDePermissao>
+              <LinhaDePermissao id="ident-descricao" rotulo="Descrição">
+                <textarea className="min-h-[64px] w-full rounded-xl border border-field bg-surface px-3 py-2 text-[14px] text-ink" rows={2} maxLength={200} value={ident.descricao} onChange={(e) => setIdent({ ...ident, descricao: e.target.value })} aria-label="Descrição" />
+              </LinhaDePermissao>
+              <LinhaDePermissao
+                id="ident-ativo"
+                rotulo="Ativo"
+                trava={fab ? { mensagem: CADEADO.padraoNaoDesativa } : null}
+                ajuda={!fab && d.perfil.usuarios > 0 ? `Tem ${d.perfil.usuarios} ${d.perfil.usuarios === 1 ? 'usuário' : 'usuários'}. Troque o perfil deles em Usuários antes de desativar.` : undefined}
+              >
+                <Interruptor ligado={ident.ativo} desabilitado={fab || (d.perfil.usuarios > 0 && ident.ativo)} onChange={(v) => setIdent({ ...ident, ativo: v })} rotulo="Ativo" />
+              </LinhaDePermissao>
+            </>,
+          )}
+          {SECOES_DO_PERFIL.filter((s) => !['identificacao', 'modulos', 'outras'].includes(s.id) && linhas.some((l) => l.secao === s.id)).map((s) =>
+            secao(
+              s.id,
+              s.titulo,
+              <>
+                {s.id === 'onde-entra' && <p className="m-0 text-[13px] text-ink-2">Em quais apps e sites quem tem este perfil consegue entrar.</p>}
+                {linhas.filter((l) => l.secao === s.id).map(renderLinha)}
+                {s.id === 'usuarios' && (
+                  <LinhaDePermissao id="senha-regra" rotulo="Regra da senha" trava={{ mensagem: CADEADO.senhaSempreComRegra }}>
+                    <span className="text-[13px]">8 caracteres ou mais, com letra, número e caractere especial.</span>
+                  </LinhaDePermissao>
+                )}
+              </>,
+            ),
+          )}
+          {secao(
+            'modulos',
+            'Módulos',
+            <>
+              <p className="m-0 text-[13px] text-ink-2">Os módulos que quem tem este perfil usa. Só aparecem os contratados pela empresa. Para ligar ou desligar, use Usuários e módulos.</p>
+              <div className="flex flex-wrap gap-1">
+                {d.modulos.map((m) => (
+                  <Badge key={m} tone="neutral">
+                    {m}
+                  </Badge>
+                ))}
+              </div>
+            </>,
+          )}
+          {outras.length > 0 &&
+            secao(
+              'outras',
+              'Outras permissões',
+              <>
+                <button type="button" className="self-start text-[13px] font-semibold text-accent hover:underline" aria-expanded={maisAberto} onClick={() => setMaisAberto(!maisAberto)} data-testid="perfil.outras">
+                  {maisAberto ? 'Menos permissões' : `Mais permissões (${todasOutras.length})`}
+                </button>
+                {maisAberto &&
+                  outras.map((g) => (
+                    <div key={g.area} className="flex flex-col gap-3">
+                      <h3 className="m-0 text-[13px] font-bold text-ink-2">{g.titulo}</h3>
+                      {g.linhas.map(renderLinha)}
+                    </div>
+                  ))}
+              </>,
+            )}
+        </div>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 md:left-[220px] z-30 flex items-center justify-between gap-3 border-t border-line bg-surface px-6 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+        <span className="text-[13px] font-semibold" role="status" aria-live="polite" data-testid="perfil.contagem">
+          {contagemNaoSalva(mudancas.length)}
+        </span>
+        <span className="flex gap-2">
+          <Button disabled={!sujo} onClick={() => setSair('descartar')} data-testid="perfil.descartar">
+            Descartar
+          </Button>
+          <Button variant="primary" disabled={!sujo || algumErro} onClick={() => { setRecusa(null); setResumo(true); }} data-testid="perfil.salvar">
+            Salvar
+          </Button>
+        </span>
+      </div>
+
+      {resumo && (
+        <Dialog
+          open
+          title="Confira antes de salvar"
+          onClose={() => !salvar.isPending && setResumo(false)}
+          footer={
+            <>
+              <Button disabled={salvar.isPending} onClick={() => setResumo(false)} data-testid="perfil.resumo.voltar">
+                Voltar e ajustar
+              </Button>
+              <Button variant="primary" disabled={salvar.isPending} onClick={() => salvar.mutate()} data-testid="perfil.resumo.salvar">
+                {salvar.isPending ? 'Salvando…' : 'Salvar'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3" data-testid="perfil.resumo">
+            {recusa && (
+              <Notice tone="danger">
+                <span data-testid="perfil.resumo.erro">{recusa.join(' ')}</span>
+              </Notice>
+            )}
+            <ResumoDasMudancas mudancas={mudancas} afetados={d.perfil.usuarios} />
+            <p className="m-0 text-[12px] text-ink-2">{NOTA_DO_RESUMO}</p>
+            {erroSalvar}
+          </div>
+        </Dialog>
+      )}
+      {sair && (
+        <Dialog
+          open
+          title={sair === 'voltar' ? 'Sair sem salvar?' : 'Descartar as mudanças?'}
+          onClose={() => setSair(null)}
+          footer={
+            <>
+              <Button onClick={() => setSair(null)}>Continuar editando</Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (sair === 'voltar') voltar();
+                  else { setEdicao(inicial); setIdent(identInicial); }
+                  setSair(null);
+                }}
+              >
+                {sair === 'voltar' ? 'Sair sem salvar' : 'Descartar'}
+              </Button>
+            </>
+          }
+        >
+          <p className="m-0 text-[14px]">{mudancas.length === 1 ? 'A mudança não salva se perde.' : `As ${mudancas.length} mudanças não salvas se perdem.`}</p>
+        </Dialog>
+      )}
+      {restaurar && (
+        <Dialog
+          open
+          title="Voltar ao padrão?"
+          onClose={() => setRestaurar(false)}
+          footer={
+            <>
+              <Button onClick={() => setRestaurar(false)}>Cancelar</Button>
+              <Button variant="primary" onClick={restaurarPadrao}>
+                Voltar ao padrão
+              </Button>
+            </>
+          }
+        >
+          <p className="m-0 text-[14px]">
+            {fab ? `As permissões de ${d.perfil.nome} voltam a ser as que vêm prontas. Confira e salve para valer.` : `As permissões voltam a ser as do perfil base ${ROTULO_PERFIL_BASE[base]}. Confira e salve para valer.`}
+          </p>
+        </Dialog>
+      )}
+      {historico && <HistoricoDoPerfil codigo={codigo} nome={d.perfil.nome} onClose={() => setHistorico(false)} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- histórico
+
+interface RegistroSobre {
+  chave: string;
+  concedida: boolean;
+  nivel?: string | null;
+  alvos?: string[] | null;
+}
+const textoDaSobreposicao = (s: RegistroSobre): string => (!s.concedida ? 'Não' : s.nivel ? s.nivel : s.alvos && s.alvos.length > 0 ? s.alvos.join(', ') : 'Sim');
+
+function HistoricoDoPerfil({ codigo, nome, onClose }: { codigo: string; nome: string; onClose: () => void }) {
+  const [antes, setAntes] = useState<string | null>(null);
+  const [itens, setItens] = useState<PerfilHistoricoItem[]>([]);
+  const q = useQuery({
+    queryKey: ['core', 'perfis', codigo, 'historico', antes],
+    queryFn: async () => PerfilHistoricoRespostaSchema.parse(await api(`/core/perfis/${codigo}/historico${antes ? `?antes=${encodeURIComponent(antes)}` : ''}`)),
+  });
+  useEffect(() => {
+    if (q.data) setItens((atual) => (antes ? [...atual, ...q.data.itens.filter((i) => !atual.some((a) => a.id === i.id))] : q.data.itens));
+  }, [q.data, antes]);
+  const data = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return (
+    <Drawer open title={`Histórico de ${nome}`} onClose={onClose}>
+      {q.isPending && itens.length === 0 ? (
+        <LoadingBlock />
+      ) : q.isError ? (
+        <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />
+      ) : itens.length === 0 ? (
+        <p className="text-[13px] text-ink-2">Nada mudou neste perfil desde que foi criado.</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {itens.map((i) => {
+            const a = i.antes as { sobreposicoes?: RegistroSobre[]; ativo?: boolean } | null;
+            const dpo = i.depois as { sobreposicoes?: RegistroSobre[]; ativo?: boolean; base?: string } | null;
+            const antesPor = new Map((a?.sobreposicoes ?? []).map((s) => [s.chave, s]));
+            const depoisPor = new Map((dpo?.sobreposicoes ?? []).map((s) => [s.chave, s]));
+            const chaves = [...new Set([...antesPor.keys(), ...depoisPor.keys()])].sort();
+            return (
+              <div key={i.id} className="flex flex-col gap-1 border-b border-line pb-3">
+                <strong className="text-[13px]">
+                  {data(i.em)} · {i.usuario_nome ?? 'Sistema'}
+                </strong>
+                {i.acao === 'perfil.criar' && <span className="text-[13px]">Perfil criado a partir de {dpo?.base ? ROTULO_PERFIL_BASE[dpo.base as keyof typeof ROTULO_PERFIL_BASE] : 'um perfil base'}.</span>}
+                {a && dpo && a.ativo !== undefined && dpo.ativo !== undefined && a.ativo !== dpo.ativo && <span className="text-[13px]">{dpo.ativo ? 'Perfil reativado.' : 'Perfil desativado.'}</span>}
+                {chaves.map((c) => (
+                  <span key={c} className="text-[13px]">
+                    {c}: {antesPor.has(c) ? textoDaSobreposicao(antesPor.get(c)!) : 'Padrão'} → {depoisPor.has(c) ? textoDaSobreposicao(depoisPor.get(c)!) : 'Padrão'}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+          {q.data?.proximo && (
+            <Button onClick={() => setAntes(q.data.proximo)} disabled={q.isFetching}>
+              Mostrar mais
+            </Button>
+          )}
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+// ---------------------------------------------------------------- página
+
+function PerfisConteudo() {
+  const params = useSearchParams();
+  const podeGerir = usePode('perfil.gerir');
+  const codigo = params.get('perfil');
+  if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
+  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis />;
+}
+
+export function PerfisPage() {
+  return (
+    <Suspense fallback={<LoadingBlock label="Carregando perfis…" />}>
+      <PerfisConteudo />
+    </Suspense>
+  );
+}
+

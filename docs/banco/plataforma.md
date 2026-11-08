@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `plataforma`
 
-Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) e `0038_plataforma_papel_portal` (papel `macuxi_portal` das `sa_*`) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
+Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) e `0038_plataforma_papel_portal` (papel `macuxi_portal` das `sa_*`) e `0039_plataforma_portal_email_senha` (portal só com e-mail e senha, sessão por empresa) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
 Campos comuns em toda tabela (regra 5): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → plataforma.tenant`,
 `created_at`, `updated_at` (trigger `definir_updated_at`, cursor do sync), `deleted_at` (exclusão lógica), `external_id text` (código no ERP).
 RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
@@ -55,7 +55,7 @@ chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`
 ## perfil_modulo — módulos por perfil (RN-CORE-01)
 | Coluna | Tipo | Regra |
 |---|---|---|
-| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor` |
+| perfil | text not null | até a 0040: CHECK `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. **Desde a 0041** (ADR 0033): CÓDIGO do perfil do tenant, FK `perfil_modulo_perfil_fk (tenant_id, perfil) → plataforma.perfil (tenant_id, codigo)` (de fábrica ou personalizado) |
 | modulo | text not null | único `(tenant_id, perfil, modulo)` |
 
 ## usuario_modulo — exceção por usuário (RN-CORE-01)
@@ -67,6 +67,7 @@ chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`
 | motivo | text | |
 
 Módulos efetivos = ativos do tenant ∩ perfil − exceções (calculado no `domain` do Core, revalidado por requisição).
+Desde a 0041 (multiperfil, T-0112): (união dos módulos dos perfis do usuário) ∩ ativos do tenant − exceções.
 
 ## evento — outbox (doc 04 "Comunicação entre módulos")
 | Coluna | Tipo | Regra |
@@ -185,7 +186,8 @@ fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao **`ma
 `db/testes/super-admin.test.ts`). Sem expurgo por ora (como `plataforma.auditoria`). `super_admin_id` tem FK (super-admin só é
 apagado logicamente); `sessao_id` não tem (a sessão pode ser expurgada no futuro sem tocar a auditoria).
 
-**Funções** (contrato com o modulo-core e a API; todas `SECURITY DEFINER`, `execute` só ao `macuxi_portal` desde a 0038):
+**Funções da 0035** (histórico: as 14 do convite, do TOTP e do desafio **saem na 0039** e as outras 6 mudam; ver "Portal só com
+e-mail e senha" abaixo. Todas `SECURITY DEFINER`, `execute` só ao `macuxi_portal` desde a 0038):
 
 | Função | Devolve | O que faz |
 |---|---|---|
@@ -251,6 +253,286 @@ Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na cas
 Índices: `super_admin_email_uk`, `super_admin_desafio_hash_uk`, `super_admin_desafio_aberto_ix`, `super_admin_sessao_viva_ix`,
 `auditoria_plataforma_ocorrido_ix`, `auditoria_plataforma_super_admin_ix`, `auditoria_plataforma_tenant_alvo_ix` (parcial).
 
+## Portal só com e-mail e senha (0039, T-0093, ADR 0031) — super-admin e admin do cliente, sessão por empresa
+Migração `0039_plataforma_portal_email_senha` (volta: `.down.sql`, recria as 20 `sa_*` e a interna com o texto exato da 0035 e
+os grants da 0038; APAGA as 3 tabelas novas, o índice `core.usuario_admin_email_ix` e as colunas `ator_tipo`/`usuario_id` da
+auditoria, cujas linhas ficam). Drizzle: `portalTentativa`, `portalSessao`, `portalSessaoEmpresa` e as 2 colunas novas em
+`auditoriaPlataforma`. Contrato com o Core e a API: R-20261107-150432-banco-dados. **Entra no `main` no mesmo commit do Core
+(fatia C) e da API (fatia S):** as 14 funções do convite/TOTP/desafio somem e a `sa_sessao_valida` muda o retorno.
+
+O portal passa a ter **dois tipos de acesso** (ADR 0031 §2): `super_admin` (`plataforma.super_admin`; vê todas as empresas) e
+`admin_cliente` (`core.usuario` com `perfil = 'admin'`, `ativo`, `bloqueado_em` nulo, `senha_hash` não nulo, sem `deleted_at`,
+em `plataforma.tenant` `ativo` e viva — RN-CORE-33; só nas empresas em que a senha conferiu). A senha é conferida **no Node**
+(argon2id): o banco só devolve os hashes das contas candidatas do e-mail. O bloqueio é por **chave do e-mail** (HMAC-SHA256 hex
+com o segredo da plataforma, calculado no Node): igual para e-mail que existe e que não existe; o e-mail nunca vai à tabela.
+
+| Tabela | Colunas principais | Regras |
+|---|---|---|
+| `portal_tentativa` | `chave` (64 hex, única), `falhas` (0 a 4), `bloqueado_ate` | sem e-mail; o acerto apaga a linha (bloqueio vivo fica); sem expurgo (1 linha por e-mail que errou) |
+| `portal_sessao` | `tipo` (`super_admin`/`admin_cliente`), `super_admin_id` (FK), `tenant_atual_id` e `usuario_atual_id` (a empresa escolhida; nulas = ainda não escolheu), `criada_em`, `ultimo_uso_em`, `expira_em`, `revogada_em` | CHECK do ator (super-admin sem empresa; cliente sem `super_admin_id`, empresa e usuário juntos); teto de 8 h; FK composta `(id, tenant_atual_id, usuario_atual_id)` → `portal_sessao_empresa`: a empresa atual é sempre uma das conferidas |
+| `portal_sessao_empresa` | `sessao_id` (FK), `tenant_alvo_id`, `usuario_id` (sem FK) | 1 a 20 por sessão (função); única por `(sessao_id, tenant_alvo_id)`. **`tenant_alvo_id`, não `tenant_id`, de propósito** (como na `auditoria_plataforma`): com `tenant_id` ela viraria tabela de tenant para a conformidade, o vazamento e a `excluir_tenant` |
+| `auditoria_plataforma` (+0039) | `ator_tipo` (`super_admin`/`admin_cliente`, CHECK; nulo nas linhas antigas, no login sem conta e nos fatos do deploy), `usuario_id` (`core.usuario.id` do admin do cliente, sem FK) | append-only continua; índice parcial `auditoria_plataforma_usuario_ix` |
+
+As 3 tabelas: sem `tenant_id` (exceção à regra 5; `TABELAS_SEM_TENANT_ID` e `TABELAS_SO_POR_FUNCAO`), RLS ligado e forçado, só a
+política `manutencao`, nenhum grant de tabela (app, worker e portal = 42501). Índice novo numa tabela do Core:
+`core.usuario_admin_email_ix (lower(email)) where deleted_at is null and perfil = 'admin'` (a busca entre empresas por e-mail).
+
+**Funções** (todas `SECURITY DEFINER`, `search_path = pg_catalog, plataforma, pg_temp`, `revoke` de `PUBLIC`/`macuxi_app`/
+`macuxi_worker`, `EXECUTE` **só** ao `macuxi_portal`; a 0039 confere pelo catálogo que são exatamente estas 12):
+
+| Função | Devolve | O que faz |
+|---|---|---|
+| `sa_tentativa_estado(p_chave text)` | `table (falhas integer, bloqueado_ate timestamptz)`, sempre 1 linha | chave sem registro = `(0, null)`; `bloqueado_ate` só com bloqueio vivo; chave fora de `^[0-9a-f]{64}$` = 22023 |
+| `sa_tentativa_falha(p_chave text)` | idem | bloqueio vivo: nada muda; senão +1; a 5ª seguida zera e bloqueia 15 min (grava `sa.bloqueio`) |
+| `sa_tentativa_sucesso(p_chave text)` | `void` | apaga o registro da chave se não houver bloqueio vivo |
+| `sa_contas_para_login(p_email text)` | `table (tipo text, conta_id uuid, tenant_id uuid, tenant_codigo text, tenant_nome text, senha_hash text)` | até **20 linhas no total**: super-admin ativo primeiro (tenant nulo), depois os admins qualificados por `tenant.nome`, `tenant.id`; e-mail por `lower(btrim())`; vazio ou fora do formato = 0 linhas, sem erro; grava `sa.login.consulta {contas: n}` (sem e-mail) |
+| `sa_abrir_sessao_portal(p jsonb)` | `table (sessao_id uuid, expira_em timestamptz)` | `{tipo:'super_admin', super_admin_id}` ou `{tipo:'admin_cliente', empresas:[{tenant_id, usuario_id}]}` (1 a 20, sem repetir tenant); reconfere TODAS as contas (uma que deixou de valer = 0 linhas, nada gravado); 1 empresa = já escolhida; 8 h; grava `sa.sessao.aberta`; formato errado = 22023 |
+| `sa_escolher_empresa(p_sid uuid, p_tenant uuid)` | `table (tenant_id uuid, usuario_id uuid, codigo text, nome text)` | só sessão viva de `admin_cliente`, só tenant da lista, reconferindo admin e empresa; troca a empresa atual; grava `sa.empresa.escolher`; senão 0 linhas |
+| `sa_sessao_valida(p_sid uuid)` | `table (tipo text, super_admin_id uuid, tenant_id uuid, usuario_id uuid, expira_em timestamptz)` | viva = não revogada e no prazo; super-admin ativo; cliente com empresa: 0 linhas **na hora** se o admin deixou de valer ou a empresa saiu de `ativo`; atualiza `ultimo_uso_em`. As sessões da `super_admin_sessao` (0035) não valem mais |
+| `sa_revogar(p_sid uuid)` | `boolean` | revoga (2ª vez = falso); grava `sa.sessao.revogada` com o ator |
+| `sa_auditar(p jsonb)` | `uuid` | como na 0035, mais `ator_tipo` (fora da lista = 22023) e `usuario_id` |
+| `sa_listar_tenants(p_sid uuid)` | `jsonb` = `ListaEmpresasSchema` (nome em `razao_social`) | super-admin: todas as vivas; cliente: só as conferidas no login; sessão inválida = 28000 |
+| `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | super-admin: tenant ativo; cliente: `p_tenant` é a empresa atual |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | só sessão de super-admin (cliente ou inválida = 28000); aceita `admin {email, nome, senha_hash}` (RN-CORE-34; empresa existente: o admin existente fica e a senha não muda, RN-CORE-31); empresa **nova** sem `admin` = 22023 com `hint = 'RN-CORE-34'` (a API traduz em 422); empresa existente sem `admin` = `sem_admin`; `redefinir_senha` ou `sem_admin` na entrada = 22023; `ator_id` = super-admin |
+
+- Interna: `sa_registrar_auditoria(p_ator_tipo, p_super_admin, p_usuario, p_sessao, p_tenant, p_acao, p_detalhes)` (`SECURITY
+  INVOKER`, sem `EXECUTE` para ninguém), no lugar da de 5 argumentos.
+- **Deploy:** `plataforma.criar_super_admin(p jsonb) → jsonb` (fora do prefixo `sa_`; `SECURITY INVOKER`; sem `EXECUTE` para
+  app, worker ou portal: só a conexão de administração, pela CLI `super-admin`). Entrada `{acao: 'criar'|'redefinir'|'desativar',
+  email, nome?, senha_hash?}` (chave desconhecida = 22023; só hash argon2id PHC; mensagens sem e-mail nem hash). Saída
+  `{resultado, super_admin_id, sessoes_revogadas}`: `criar` → `criado` | `sem_mudanca` (já existe pelo `lower(email)`, ativo ou
+  não; nada muda); `redefinir` → `redefinido` (hash novo, zera `falhas`/`bloqueado_ate` da 0035, revoga as sessões) |
+  `nao_encontrado`; `desativar` → `desativado` (revoga as sessões) | `sem_mudanca` | `nao_encontrado`; desativar o **último
+  ativo** = 22023. Trava consultiva (uma mudança por vez). Grava `sa.super_admin.<acao>`. O bloqueio por chave do e-mail (15 min)
+  não é zerado aqui: o banco não conhece a chave.
+- **Saem** (o down recria): `sa_existe`, `sa_criar_primeiro`, `sa_para_login`, `sa_por_id`, `sa_registrar_falha`,
+  `sa_registrar_sucesso`, `sa_gravar_totp_pendente`, `sa_confirmar_totp`, `sa_marcar_passo`, `sa_usar_recuperacao`,
+  `sa_regerar_recuperacao`, `sa_abrir_desafio`, `sa_ver_desafio`, `sa_abrir_sessao`. Ficam as tabelas `super_admin_desafio` e
+  `super_admin_sessao` (histórico) e as colunas de TOTP da `super_admin` (TOTP opcional no backlog).
+
+Fatos gravados pelo banco desde a 0039: `sa.login.consulta`, `sa.bloqueio`, `sa.sessao.aberta`, `sa.empresa.escolher`,
+`sa.sessao.revogada`, `sa.tenant.provisionar` (com `admin`), `sa.super_admin.criar|redefinir|desativar`. O Core grava pelo
+`sa_auditar` o `sa.login.ok` e o `sa.login.falha`; a API, o `sa.requisicao` dos dois tipos, com `ator_tipo` e `usuario_id`.
+
+**Limite registrado (ADR 0031):** quem tiver a senha do `macuxi_portal` abre sessão sem senha também de admin do cliente e lê o
+hash dos admins de um e-mail que já conheça; toda consulta e toda sessão ficam na auditoria append-only pelo próprio banco.
+Volume: poucas sessões por dia; até 20 empresas por e-mail. Testes: `db/testes/portal-email-senha.test.ts` (estático, banco com a
+fixture dois-tenants e up/down num banco efêmero).
+
+### Portal com a versão da conta (0040, T-0094 §8.1)
+- `portal_sessao_empresa` ganha `sessao_versao integer not null default 0` (CHECK `>= 0`): a `core.usuario.sessao_versao` da
+  conta no login.
+- `sa_contas_para_login(p_email)` passa a devolver `table (tipo, conta_id, tenant_id, tenant_codigo, tenant_nome, senha_hash,
+  trocar_senha boolean, senha_expira_em timestamptz, sessao_versao integer)` — super-admin com `false`, nula e nula; **nunca** o
+  hash temporário (a senha do "Esqueci" não vale no portal). A API tira da lista a conta com `trocar_senha` e, se a senha só
+  conferiu nelas, responde 403 `SENHA_A_TROCAR`.
+- `sa_abrir_sessao_portal(p)`: cada empresa aceita `sessao_versao` opcional (inteiro `>= 0`; outro tipo = 22023); conta com
+  `trocar_senha` ou versão diferente da informada = 0 linhas, nada gravado; grava a versão de agora em `portal_sessao_empresa`.
+- `sa_escolher_empresa` e `sa_sessao_valida`: a sessão de `admin_cliente` cai **na hora** se a `sessao_versao` de qualquer conta
+  conferida no login mudou ou se ela ficou com `trocar_senha` (a sessão nasceu do conhecimento daquela senha). Super-admin não
+  muda.
+- Assinaturas (argumentos) iguais às da 0039: `apps/api/test/funcoes-sa.ts`, `db/testes/funcoes-sa.ts` e o `banco-dbaas.sh` não
+  mudam. As 4 são recriadas (drop + create) com EXECUTE só ao `macuxi_portal`; a 0040 refaz a conferência das 12 e confere que o
+  `macuxi_portal` não tem privilégio na `email_saida`.
+
+### Portal e multiperfil (0046, D-MP2, T-0094/T-0111; RN-CORE-33, RN-CORE-35, ADR 0033)
+Migração `0046_plataforma_portal_multiperfil` (em cima da 0045; volta: `.down.sql`, recria as 4 com o texto da 0040 e apaga a
+função nova; nenhum dado muda). Até a 0045, o portal decidia a entrada do admin do cliente só pelo perfil **principal**
+(`core.usuario.perfil = 'admin'`): com o multiperfil da 0041, admin + vendedor (ou com `acesso.portal` revogado) entrava.
+Ficou numa migração nova porque o filtro lê `usuario_perfil`, `perfil` e `perfil_permissao` (0041): a 0040 não pode depender
+da 0041.
+- `plataforma.usuario_entra_no_portal(p_tenant uuid, p_usuario uuid) -> boolean`: gêmea de `podeEntrar(perfis, 'portal')` do SDK
+  sobre os perfis **vivos e ativos** do usuário (os de `perfis_do_usuario`): ao menos um; **todos de base admin** (regra mais
+  restritiva: um perfil de qualquer outra base — vendedor, promotor, supervisor, gerente, analista ou assistente — fecha o
+  portal); `acesso.portal` pela **união** (sobreposição viva, senão a fábrica: só o admin). Um personalizado de base admin com
+  `acesso.portal` revogado, sozinho, fecha; junto do admin de fábrica, não (igual ao SDK e à tela). SECURITY INVOKER, stable,
+  `search_path` fixo, **sem EXECUTE** para app, worker, portal e PUBLIC (só as `sa_*`, como dono, a chamam). Sem o prefixo
+  `sa_`: as listas `SA_PORTAL`/`SA_INTERNAS` e o `banco-dbaas.sh` não mudam.
+- `sa_contas_para_login` (admin do cliente só com a função: quem não entra = 0 linhas, a mesma resposta de e-mail inexistente),
+  `sa_abrir_sessao_portal` (reconfere na abertura), `sa_escolher_empresa` (reconfere na troca de empresa) e `sa_sessao_valida`
+  (a sessão cai **na hora** quando a conta da empresa atual ganha um perfil de outra base ou perde o `acesso.portal`, sem
+  depender da `sessao_versao`): o texto da 0040 + o filtro; `create or replace` com as mesmas assinaturas, retornos e ACLs
+  (EXECUTE só ao `macuxi_portal`; continuam 14 `sa_*`).
+- Não mudaram na 0046: `sa_admins_da_empresa` e `sa_redefinir_senha_admin` (0042) — são o resgate da senha do admin pelo suporte,
+  não a entrada no portal. A 0047 (abaixo) passa as duas para os perfis reais.
+- Volume: a função roda por conta candidata (até 20 no login; 1 por chamada de sessão), pelos índices da 0041
+  (`usuario_perfil_usuario_ix`, `perfil_tenant_id_uk`, `perfil_permissao_uk`). Teste: `db/testes/portal-multiperfil.test.ts`
+  (estático; banco com a fixture dois-tenants: admin só, admin + cada outra base = `podeEntrar` do SDK, dois perfis admin e
+  `acesso.portal` revogado, sessão que cai, a mesma pessoa em duas empresas; up/down num banco efêmero).
+
+### Resgate da senha do admin pelos perfis (0047, resto do D-MP2, T-0094/T-0111; RN-CORE-33, RN-CORE-35, ADR 0033)
+Migração `0047_plataforma_portal_admin_multiperfil` (em cima da 0046; volta: `.down.sql`, recria as 2 `sa_*` com o texto exato da
+0042 e apaga a função nova; nenhum dado muda). Até a 0046, as 2 funções do resgate decidiam "é admin" pelo perfil **principal**:
+quem tinha vendedor (ou outra base) como principal e admin como extra não era alcançado nem pelo suporte nem pelo BKO
+(`senha.redefinir` nunca alcança alvo com algum perfil de base admin), e a lista não dizia que o admin + vendedor não entra no
+portal. Decisão do gerente (08/11, igual ao SDK e à ADR 0033): entre perfis de base admin vale a **soma**; admin + qualquer base
+não admin fecha o portal.
+- `plataforma.usuario_tem_perfil_admin(p_tenant uuid, p_usuario uuid) -> boolean`: algum perfil **vivo e ativo** de base admin
+  entre os do usuário (os mesmos de `perfis_do_usuario` e da `usuario_entra_no_portal`). É o complemento exato do BKO: o suporte
+  alcança quem o BKO não alcança, sem buraco nem sobreposição. SECURITY INVOKER, stable, `search_path` fixo, **sem EXECUTE** para
+  app, worker, portal e PUBLIC (só as `sa_*`, como dono, a chamam). Sem o prefixo `sa_`: `SA_PORTAL`/`SA_INTERNAS` não mudam.
+- `sa_admins_da_empresa`: mesma assinatura; o retorno **ganha a última coluna `entra_no_portal boolean`** (drop + create, ACL
+  igual). Lista quem tem algum perfil de base admin (admin principal, admin extra, admin + vendedor, personalizado de base
+  admin); `entra_no_portal` = `usuario_entra_no_portal` (0046, a regra mais restritiva): só admin = true; admin + outra base ou
+  personalizado sem `acesso.portal`, sozinho = false. A coluna fala só dos perfis: `ativo`, `bloqueado`, `tem_senha` e
+  `trocar_senha` completam se a conta entra de fato. O `AdminDaEmpresaSchema` do SDK (z.object) ignora a coluna até expô-la.
+- `sa_redefinir_senha_admin`: mesma assinatura e retorno (`create or replace`, ACL igual). O alvo passa a ser quem tem algum
+  perfil vivo e ativo de base admin, mesmo que o principal seja outro; o resto é o da 0042. Sem perfil de base admin (ou só com
+  um inativo / vínculo apagado) = P0002.
+- RN-CORE-35, regra mais restritiva: vale para os **acessos** (BKO, portal), não para as ações. Redefinir é ação do super-admin
+  sobre a conta e não dá acesso (admin + vendedor segue sem portal e sem BKO). Aplicada ao alvo, devolveria o buraco; ela entra
+  só na coluna `entra_no_portal`.
+- Volume: raro (suporte). Semi-join por usuário em `usuario_perfil_usuario_ix` + `perfil_tenant_id_uk`; a `usuario_entra_no_portal`
+  só nas até 50 linhas devolvidas. Continuam 14 `sa_*` do portal. Teste: `db/testes/portal-admin-multiperfil.test.ts` (estático:
+  o texto da 0042 com as trocas exatas; banco com a fixture dois-tenants: admin principal, admin + vendedor, vendedor + admin
+  extra, perfil inativo/vínculo apagado, personalizado sem portal, multi-tenant com a mesma pessoa em A e B, complemento do BKO
+  pelo `pode` do SDK; up/down num banco efêmero).
+
+### Redefinir a senha do admin pelo portal (0042, T-0094, padrão de fábrica da T-0111)
+> **0047:** a lista e o alvo da redefinição passaram do perfil principal `admin` para "algum perfil vivo e ativo de base admin", e a
+> lista ganhou `entra_no_portal` (seção acima). A tabela abaixo é o texto da 0042.
+Migração `0042_plataforma_portal_redefinir_senha_admin` (em cima da 0041, mesmo lote; volta: `.down.sql`, só o drop das 2
+funções — senhas já redefinidas continuam temporárias, e-mails enfileirados seguem e a auditoria fica). Decisão do dono do
+produto R-20261107-185546 (doc 03 §2): o super-admin da Macuxi redefine pelo portal a senha do admin do cliente. Só funções
+(nenhuma tabela, coluna ou política nova); SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`, EXECUTE **só** ao
+`macuxi_portal` (app, worker e PUBLIC sem); só com sessão viva de **super-admin** (admin do cliente ou sessão inválida = 28000).
+O portal continua sem privilégio direto em `core.usuario` e na `email_saida`. Agora são **14** `sa_*` do portal
+(`FUNCOES_SA_ATUAIS` em `db/testes/funcoes-sa.ts`; a 0042 confere pelo catálogo).
+
+| Função | Retorno | Regras |
+|---|---|---|
+| `sa_admins_da_empresa(p_sid uuid, p_tenant uuid)` | `table (usuario_id uuid, nome text, email text, ativo boolean, bloqueado boolean, tem_senha boolean, trocar_senha boolean, senha_expira_em timestamptz, sessao_versao integer)` | os admins (`core.usuario.perfil = 'admin'`, o perfil principal, mesmo critério do login do portal) **vivos** da empresa, por nome e id, até 50; empresa inexistente/apagada = 0 linhas; nunca hash; grava `sa.admin.listar {admins: n}` |
+| `sa_redefinir_senha_admin(p_sid uuid, p_tenant uuid, p_usuario uuid, p_senha_hash text, p_email text, p_email_id uuid, p_carga bytea)` | `table (email_id uuid, chave_idempotencia text, sessao_versao integer, senha_expira_em timestamptz, repetida boolean)` | ver abaixo |
+
+`sa_redefinir_senha_admin`, numa transação só (a da chamada):
+1. alvo = admin vivo, **ativo** e sem `bloqueado_em` da empresa `p_tenant`, empresa `ativo` e viva; senão **P0002** (API: 404);
+2. `p_email` = e-mail **atual** do alvo (`lower(btrim())`): a API cifrou a carga para ele; diferente = **55000** (API: 409 e
+   recarrega a lista) — a senha nunca vai para um endereço antigo;
+3. senha temporária como a 0040 (o mesmo `update` do reset do BKO): `senha_hash = p_senha_hash` (argon2id PHC; só o hash),
+   `trocar_senha = true`, `senha_expira_em = now() + 72 h` (P4), `senha_temporaria_*` nulas, `tentativas_falhas = 0`,
+   `bloqueio_ate` nulo, `sessao_versao + 1` (token, refresh e sessão do portal do admin caem na hora) e refresh revogados;
+4. `email_saida` com `id = p_email_id`, `modelo 'nova_senha'`, `carga = p_carga` (já cifrada pela API, AAD `id|tenant|modelo`;
+   1 a 16384 bytes), `chave_idempotencia = '<usuario>:redefinida_portal:<versão nova>'`, `expira_em` = validade da senha;
+5. auditoria sem dado pessoal: `plataforma.auditoria` do tenant (`core`, `usuario.senha_redefinir`, entidade `usuario`,
+   `usuario_id` nulo, `depois {trocar_senha, sessoes_revogadas, origem: 'portal', email: 'enfileirado'}`) e
+   `auditoria_plataforma` (`sa.admin.senha_redefinir {alvo, email_id, sessoes_revogadas}`).
+
+Idempotente por `p_email_id`: a retentativa devolve a linha gravada com `repetida = true` e nada muda; o mesmo id com outro
+tenant/usuário = 22023. Entrada inválida (nulo, hash fora do PHC argon2id, e-mail fora do formato, carga vazia/grande) = 22023,
+sem dado pessoal na mensagem. Volume: raro (suporte). Teste: `db/testes/portal-redefinir-senha.test.ts` (estático; banco com a
+fixture dois-tenants; up/down num banco efêmero).
+
+## Outbox de e-mail (0040, T-0094, ADR 0032 §6) — `email_saida`. Fora do sync
+Migração `0040_core_senha_email_saida` (volta: `.down.sql`, APAGA a tabela com os e-mails não enviados). Drizzle: `emailSaida`
+em `db/esquema/plataforma.ts`. No lugar do pg-boss: a API grava **na mesma transação** da senha (`macuxi_app` no contexto do
+tenant), então senha trocada ⇔ e-mail na fila. A porta `ServicoEmail.enfileirar` (SDK, frente N5) faz o `insert ... on conflict
+do nothing`; o despachante (`apps/api/src/email/`, papel `macuxi_worker`) lê o lote pendente com `for update skip locked`,
+decifra, envia e **zera a carga**.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| usuario_id | uuid not null | destinatário; FK composta `(tenant_id, usuario_id)` → `core.usuario` |
+| modelo | text not null | `acesso_inicial` ("Seu acesso ao Macuxi") \| `nova_senha` ("Sua nova senha") |
+| chave_idempotencia | text not null | única por tenant (`email_saida_chave_uk`); `^[A-Za-z0-9_.:+-]{1,200}$` (sem `@` nem espaço: nunca o e-mail). Ex.: `<usuario_id>:<sessao_versao>` |
+| carga | bytea | o texto **cifrado** (AES-256-GCM; `para` + dados do modelo, com a senha). Só no pendente: CHECK `(enviado_em is null and falhou_em is null) = (carga is not null)`; 1 a 16 KiB |
+| tentativas | integer not null default 0 | `>= 0` |
+| proxima_tentativa_em | timestamptz not null default now() | espera crescente entre falhas |
+| expira_em | timestamptz not null default now() + 72 h | passou = falha final (a senha temporária também venceu) |
+| enviado_em, falhou_em | timestamptz | excludentes (CHECK) |
+| ultimo_erro | text | só código curto `^[A-Za-z0-9_.:-]{1,60}$` (nada do texto do servidor SMTP, que pode repetir o e-mail); `anonimizado` na LGPD |
+
+Índices: `email_saida_chave_uk (tenant_id, chave_idempotencia)`, `email_saida_pendente_ix (proxima_tentativa_em) where enviado_em
+is null and falhou_em is null` (o lote do despachante) e `email_saida_usuario_ix (tenant_id, usuario_id)` (anonimização).
+RLS ligado e forçado: `isolamento_tenant` (`macuxi_app`: só `select, insert`; sem `update` nem `delete`), `manutencao`,
+`despacho_email` (`for select to macuxi_worker using (true)`: todos os tenants, como a `despacho_outbox`) e
+`despacho_email_marcar` (`for update to macuxi_worker using (enviado_em is null and falhou_em is null) with check (true)`:
+só linha pendente). `macuxi_worker`: `select` e `update (carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em,
+ultimo_erro)`, sem `insert` nem `delete`. `macuxi_portal`: nada. Volume: dezenas por tenant por mês; sem expurgo ainda (as
+enviadas ficam sem carga; um expurgo por idade entra com a política de retenção do [lgpd.md](lgpd.md)). Na exclusão do tenant,
+a `excluir_tenant` apaga as linhas pela ordem das FKs.
+
+## Perfis de acesso (0041, T-0111/T-0112, ADR 0033) — `perfil`, `perfil_permissao`, `usuario_perfil`. Fora do sync
+Migração `0041_plataforma_perfis_de_acesso` (em cima da 0040; volta: `.down.sql`, APAGA perfis personalizados, sobreposições,
+multiperfil e as linhas de `perfil_modulo` de perfis personalizados; o perfil volta a ser só `core.usuario.perfil`). Drizzle:
+`perfil`, `perfilPermissao`, `usuarioPerfil` em `db/esquema/plataforma.ts`; ids determinísticos `idPerfilFabrica(tenant, base)` e
+`idUsuarioPerfil(tenant, usuario, perfil)` em `db/src/ids.ts`. Modelo: o **padrão de fábrica** de cada perfil base mora no SDK
+(`packages/platform-sdk/src/permissoes-perfil.ts` + `perfis` das ações dos manifestos); o banco guarda os perfis do tenant, **só o
+que o tenant mudou** e os perfis de cada usuário. Registro: `.coord/contratos/permissoes.md`. Regras: RN-CORE-01, RN-CORE-04,
+RN-CORE-33, RN-CORE-35, RN-PRO-01.
+
+### perfil — perfil de acesso do tenant
+| Coluna | Tipo | Regra |
+|---|---|---|
+| codigo | text not null | `^[a-z][a-z0-9_]{1,39}$` (= `CODIGO_PERFIL_RE`); único por tenant **entre todos, apagados inclusive** (`perfil_codigo_uk (tenant_id, codigo)`): é a chave da FK de `perfil_modulo`, dos alvos de `senha.redefinir` e da auditoria. Imutável |
+| nome | text not null | não vazio, até 80; os de fábrica = `ROTULO_PERFIL` do SDK |
+| descricao | text | até 500 |
+| base | text not null | um dos 7 `PERFIS` (`perfil_base_valida`); imutável |
+| fabrica | boolean not null default false | `fabrica` ⇒ `codigo = base` (`perfil_fabrica_codigo`) e sempre ativo e não apagado (`perfil_fabrica_ativo`); imutável |
+| ativo | boolean not null default true | perfil em uso por usuário não desativa (`perfil_em_uso`, no COMMIT) |
+
+Único `perfil_tenant_id_uk (tenant_id, id)` (alvo das FKs compostas). Os 7 de fábrica existem em todo tenant: semeados pela 0041
+nos existentes e pelo gatilho `tenant_semear_perfis` (AFTER INSERT em `plataforma.tenant`) nos novos — `provisionar_tenant`,
+`sa_provisionar_tenant` e os seeds ganham os perfis sem mudar de texto. Gatilho `perfil_imutavel` (código, base e fábrica, 23514).
+`macuxi_app`: `select, insert, update` (sem `delete`: perfil sai por soft delete).
+
+### perfil_permissao — sobreposição do tenant numa chave (tabela vazia = padrão de fábrica)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| perfil_id | uuid not null | FK composta `perfil_permissao_perfil_fk (tenant_id, perfil_id)` → `perfil` |
+| chave | text not null | `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$` (= `ACAO_RE`), ex.: `usuario.criar`, `senha.redefinir`, `dados.escopo` |
+| concedida | boolean not null | `false` = tira a chave que a fábrica dá; revogada não leva `nivel` nem `alvos` |
+| nivel | text | `NIVEIS_ESCOPO ∪ NIVEIS_ALCADA` (`proprio, carteira, equipe, equipes_abaixo, tenant, ate_alcada, acima_alcada`); em `dados.escopo`, só os de escopo. Nulo = o da fábrica |
+| alvos | text[] | 1 a 50 códigos de perfil ou `*` (todos que não são de base admin); nulo = os da fábrica |
+
+Único vivo `perfil_permissao_uk (tenant_id, perfil_id, chave) where deleted_at is null`. "Restaurar o padrão" = apagar as linhas.
+A migração não grava nenhuma linha. Travas no banco (gatilho `perfil_permissao_travas`, 23514, cópia de `travaDaChave` do SDK):
+`acesso.bko` concedido a base vendedor/promotor/supervisor e `acesso.portal` a base que não é admin (RN-CORE-33); escrita de
+pedido (`pedido*.` menos `ver`) concedida a base promotor (RN-PRO-01); `dados.escopo` acima do da base (RN-CORE-04).
+
+### usuario_perfil — perfis do usuário (multiperfil, RN-CORE-01)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| usuario_id | uuid not null | FK composta `usuario_perfil_usuario_fk` → `core.usuario` (on delete cascade) |
+| perfil_id | uuid not null | FK composta `usuario_perfil_perfil_fk` → `perfil` |
+
+Único vivo `usuario_perfil_uk (tenant_id, usuario_id, perfil_id) where deleted_at is null`; índices `usuario_perfil_usuario_ix
+(tenant_id, usuario_id)` (a leitura por requisição) e `usuario_perfil_perfil_ix (tenant_id, perfil_id) where deleted_at is null`
+(contagem de usuários por perfil na página). Semeadura da 0041: um vínculo por `core.usuario` (ativos, inativos e apagados) com o
+perfil de fábrica de `core.usuario.perfil`. Gravar com `on conflict do nothing`.
+
+`core.usuario.perfil` continua (perfil **principal**, vai no token). Garantias:
+- gatilho `usuario_perfil_principal` (AFTER INSERT/UPDATE OF perfil, deleted_at em `core.usuario`): sem perfil vivo e ativo da
+  base do principal, liga o de fábrica dessa base. Na troca de perfil de quem tem SÓ o vínculo de fábrica do perfil anterior, o
+  vínculo anterior é apagado (soft delete): o Core que só grava `core.usuario.perfil` continua certo. Com 2+ perfis, só acrescenta.
+- no **COMMIT** (gatilhos de restrição adiáveis, 23514): todo usuário não apagado tem 1+ perfil vivo (`usuario_sem_perfil`),
+  nenhum vínculo vivo com perfil inativo/apagado (`usuario_perfil_indisponivel`) e um perfil cuja base = `core.usuario.perfil`
+  (`usuario_perfil_principal`).
+- **último admin** (`tenant_ultimo_admin`, RN-CORE-35): toda mudança que mexe na condição de admin (desativar/apagar usuário com
+  perfil de base admin; tirar o vínculo admin; ligar perfil vendedor/promotor/supervisor a um admin; desativar perfil de base
+  admin; sobreposição de `acesso.bko`, `perfil.gerir`, `usuario.criar|editar|desativar`) exige que sobre um usuário ativo com
+  perfil de base admin, nenhum perfil que feche o BKO e, pela união dos perfis, `acesso.bko` e a gestão do acesso. Tenant
+  provisionado sem admin não é afetado por quem não mexe em admin. A autogestão (o ator não tira a gestão de si) fica no domain
+  do Core.
+
+### Leitura da API e funções
+- `plataforma.perfis_do_usuario(p_usuario uuid)` → `(perfil_id uuid, codigo text, base text, nome text, fabrica boolean,
+  sobreposicoes jsonb, modulos text[])`: os perfis vivos e ativos do usuário **no tenant do contexto** (sem contexto = 0 linhas),
+  ordem `fabrica desc, codigo`; `sobreposicoes` = `[{chave, concedida, nivel, alvos}]` por chave (= `SobreposicaoPermissao` do
+  SDK); `modulos` = `perfil_modulo` do código. A API chama a cada requisição na transação das licenças
+  (`apps/api/src/licencas.ts`) e resolve com `resolverPerfil`/`combinarPerfis`. Plano esperado (sem Postgres local; EXPLAIN a
+  confirmar no CI/VM): buscas por índice (`usuario_perfil_usuario_ix`, `perfil_tenant_id_uk`, `perfil_permissao_uk`, único de
+  `perfil_modulo`), poucas linhas por usuário.
+- `plataforma.usuario_admin_com_gestao(tenant, usuario)` e `plataforma.tenant_tem_admin_com_gestao(tenant)`: gêmeas de
+  `ehAdminComGestao` do SDK; o Core pode usar para mensagem antecipada (o COMMIT confere de qualquer jeito).
+- Internas: `semear_perfis_fabrica(uuid)`, `conferir_perfis_do_usuario(uuid, uuid)`, `conferir_ultimo_admin(uuid)` e as funções
+  de gatilho. Todas SECURITY INVOKER (a RLS vale), `search_path` fixo com `pg_temp` no fim, sem EXECUTE para PUBLIC.
+
+RLS (como `perfil_modulo`): `isolamento_tenant` do `macuxi_app` e `manutencao`; `macuxi_worker` e `macuxi_portal`: nada. Fora do
+sync (o aparelho recebe as chaves efetivas por `GET /v1/me/modulos`). Auditoria das mudanças: `plataforma.auditoria`, pelo Core.
+Volume: 7 + poucos perfis por tenant, dezenas de sobreposições, 1 a 3 vínculos por usuário. Na exclusão do tenant, a
+`excluir_tenant` apaga pela ordem das FKs; as conferências do COMMIT ignoram tenant que não existe mais e, no `--recriar` da demo,
+os ids determinísticos fazem os perfis e vínculos recriados casarem com os apagados.
+
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
 - `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012).
@@ -270,4 +552,5 @@ Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na cas
   volta ao corpo da 0024 (`session_replication_role = replica`, só superusuário).
 - Papel `macuxi_manutencao` e política `manutencao` (0031, T-0075, B1 do DBaaS): ver [rls.md](rls.md), "Papel de manutenção".
 - Super-admin (0035, T-0087): as 20 funções `sa_*` (EXECUTE só ao `macuxi_portal` desde a 0038, T-0091) e a `provisionar_tenant`
-  com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima.
+  com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima. Desde a 0039 (T-0093): as 12 `sa_*` do
+  login só com e-mail e senha e a `criar_super_admin` (deploy): seção "Portal só com e-mail e senha" acima.

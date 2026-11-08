@@ -28,6 +28,11 @@ export interface RegistroBuscaNovo extends RegistroBusca {
 export interface RepositorioCatalogo {
   /** Todos os produtos do tenant (ativos e inativos) com o enriquecimento do Catálogo. */
   produtos(): Promise<ProdutoCatalogo[]>;
+  /**
+   * T-0119: o mesmo que `produtos()`, do retrato em memória do tenant (renovado a cada 60 s e a cada gravação do Catálogo). A lista
+   * devolvida NÃO pode ser alterada; é o mesmo objeto entre pedidos (a busca guarda o índice dela). Opcional: sem ela, vale `produtos()`.
+   */
+  produtosEmCache?(): Promise<readonly ProdutoCatalogo[]>;
   produto(id: string): Promise<ProdutoCatalogo | null>;
   sinonimos(): Promise<Sinonimo[]>;
   precos(clienteId: string | null, produtoIds: readonly string[]): Promise<PrecosDoCliente>;
@@ -56,6 +61,15 @@ export interface RepositorioCatalogo {
    * Tenant sem a licença do Promotor: mapa vazio (a referência não é gravada nem aparece).
    */
   marcasConcorrentes(): Promise<Map<string, { nome: string; ativo: boolean }>>;
+  /** RN-CAT-13 (T-0113): todas as marcas vivas, inclusive inativas, com a contagem de referências vivas; ordem `lower(nome), id`. */
+  marcasCadastro(): Promise<MarcaGuardada[]>;
+  /**
+   * RN-CAT-13: cria ou altera a marca (idempotente pelo id) e, na MESMA transação, regrava `marca_nome` das referências dela
+   * (renomear, inativar e reativar tocam o `updated_at` delas para o sync). A rota já validou nome e unicidade.
+   * Devolve `false` (sem gravar nada) quando o id já é de uma marca apagada ou de outro tenant: a rota responde 409 ID_EM_USO,
+   * sem publicar evento e sem revelar de quem é (não restaura marca apagada).
+   */
+  gravarMarca(id: string, m: { nome: string; ativo: boolean; external_id: string | null }): Promise<boolean>;
   /** T-0085 fatia C: árvore, vínculos e "oferece junto" de todos os produtos, para a exportação do catálogo (RF-CAT-09). */
   dadosExportacao(): Promise<{ nos: NoCatalogo[]; vinculos: VinculoProdutoNo[]; ofereceJunto: Map<string, string[]> }>;
   /**
@@ -72,6 +86,15 @@ export interface RepositorioCatalogo {
   salvarFaixa(id: string, f: SalvarFaixa): Promise<{ criado: boolean }>;
   /** Remove (soft delete); falso se não existia. */
   removerFaixa(id: string): Promise<boolean>;
+}
+
+/** Marca do cadastro de concorrentes com o número de referências vivas que a usam. */
+export interface MarcaGuardada {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  external_id: string | null;
+  referencias: number;
 }
 
 /** Faixa guardada: a linha do domain + id e `external_id` (nulo = cadastrada à mão no BKO). */
@@ -98,8 +121,14 @@ export type FabricaRepositorio = (ctx: ContextoBase, db: ClienteBanco, tx: Trans
 
 export interface DadosTenantMemoria {
   produtos: ProdutoCatalogo[];
-  /** Marcas concorrentes do Promotor (id → nome e ativo); ausente = tenant sem o Promotor. */
+  /** Marcas concorrentes do Catálogo (id → nome e ativo). */
   marcas?: Map<string, { nome: string; ativo: boolean }>;
+  /** `external_id` das marcas (memória). */
+  marcasExternas?: Map<string, string | null>;
+  /** ids que o banco recusaria no insert (marca apagada ou de outro tenant): `gravarMarca` devolve false */
+  marcasIdsEmUso?: Set<string>;
+  /** Referências por produto (memória), só para contar o uso da marca. */
+  referencias?: Map<string, { marca_id: string }[]>;
   /** "Oferece junto" por produto (ids na ordem) e etiquetas por produto. */
   ofereceJunto?: Map<string, string[]>;
   etiquetas?: Map<string, string[]>;
@@ -225,6 +254,18 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       },
       async marcasConcorrentes() {
         return new Map(d.marcas ?? []);
+      },
+      async marcasCadastro() {
+        const refs = d.referencias ?? new Map<string, { marca_id: string }[]>();
+        return [...(d.marcas ?? new Map()).entries()]
+          .map(([id, m]) => ({ id, nome: m.nome, ativo: m.ativo, external_id: d.marcasExternas?.get(id) ?? null, referencias: [...refs.values()].flat().filter((r) => r.marca_id === id).length }))
+          .sort((a, b) => a.nome.toLowerCase().localeCompare(b.nome.toLowerCase(), 'pt-BR') || a.id.localeCompare(b.id));
+      },
+      async gravarMarca(id, m) {
+        if (d.marcasIdsEmUso?.has(id)) return false;
+        (d.marcas ??= new Map()).set(id, { nome: m.nome, ativo: m.ativo });
+        (d.marcasExternas ??= new Map()).set(id, m.external_id);
+        return true;
       },
       async dadosExportacao() {
         return { nos: copia(d.nos ?? []), vinculos: copia(d.vinculos ?? []), ofereceJunto: new Map([...(d.ofereceJunto ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v]])) };

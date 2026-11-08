@@ -86,7 +86,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c);
-      await carregarFaseM(c, { senha: 'x' });
+      await carregarFaseM(c, { senha: 'Teste@1234' });
       await expect(migrarDown(c, { tudo: true })).resolves.toBeDefined();
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname in ('core', 'plataforma')");
       expect(r.rows[0].n).toBe(0);
@@ -132,7 +132,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0004' })).aplicadas).toEqual(['0004_core_sessao']);
       const com0004 = await retratoDoCatalogo(c);
       await migrarUp(c);
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       const n = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n.rows[0]).toEqual({ s: 2, d: 3 });
       // down com dados (última..0004): apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
@@ -146,7 +146,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       const t = await c.query('select count(*)::int as n from core.usuario where tentativas_falhas <> 0 or bloqueio_ate is not null');
       expect(t.rows[0].n).toBe(0);
       await migrarUp(c);
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       const n2 = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n2.rows[0]).toEqual({ s: 2, d: 3 });
     });
@@ -182,7 +182,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       // a fixture tem tabelas da 0010+: carrega com tudo aplicado e desce da última até a 0010 antes (integracao, gestor e promotor somem junto)
       await migrarUp(c);
       const completo = await retratoDoCatalogo(c);
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       expect((await migrarDown(c, { passos: aPartirDe('0010').length })).aplicadas).toEqual(descendoAte('0010'));
       expect(await retratoDoCatalogo(c)).toEqual(ate0009);
       // down com dados: apaga preço, condições, histórico e as colunas novas; os pedidos continuam
@@ -192,7 +192,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect(n.rows[0]).toEqual({ p: 9, s: 0 });
       await migrarUp(c);
       expect(await retratoDoCatalogo(c)).toEqual(completo);
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       const e = await c.query('select (select count(*) from vendedor.pedido_evento)::int as e, (select count(*) from catalogo.tabela_preco_item)::int as i');
       expect(e.rows[0]).toEqual({ e: 5, i: 3 });
     });
@@ -214,7 +214,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
                  (select count(*) from core.motivo where tenant_id = 'cccccccc-0000-4000-8000-000000000001' and sistema)::int as s,
                  (select count(*) from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001')::int as p`)).rows[0];
       expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       // down com dados: apaga as tabelas novas e os parâmetros semeados (o parâmetro do próprio tenant fica)
       expect((await migrarDown(c, { passos: aPartirDe('0005').length })).aplicadas).toEqual(descendoAte('0005'));
       expect(await retratoDoCatalogo(c)).toEqual(ate0004);
@@ -224,7 +224,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       await migrarUp(c);
       expect(await retratoDoCatalogo(c)).toEqual(completo);
       expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
-      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      await carregarDoisTenants(c, { senha: 'Teste@1234', hoje: '2026-11-03' });
       const v = await c.query('select (select count(*) from core.visita)::int as v, (select count(*) from vendedor.pedido)::int as p');
       expect(v.rows[0]).toEqual({ v: 7, p: 4 });
     });

@@ -227,11 +227,25 @@ export const produtoRelacao = catalogo.table('produto_relacao', {
   ativo: boolean('ativo').notNull().default(true),
 });
 
+// --- 0045 (T-0113, ADR 0034): marcas concorrentes, lista única do tenant ---
+/**
+ * Marca concorrente (RN-CAT-09; trade do Promotor lê por `catalogo.marcas@1`). Copiada de promotor.concorrente na 0045 com os
+ * MESMOS ids. nome: btrim não vazio e até 120 (CHECK marca_concorrente_nome_valido). Índices: marca_concorrente_tenant_id_uk
+ * (tenant_id, id); marca_concorrente_nome_uk (tenant_id, lower(nome)) e marca_concorrente_external_uk (tenant_id,
+ * external_id) entre as vivas; marca_concorrente_sync_ix (tenant_id, updated_at, id). macuxi_app: select, insert, update
+ * (apagar = deleted_at). Vai ao aparelho (entidade `marca_concorrente`, pull escopo tenant).
+ */
+export const marcaConcorrente = catalogo.table('marca_concorrente', {
+  ...comuns(),
+  nome: text('nome').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
 // --- 0033 (T-0085, RN-CAT-09; desenho T-0085 §2 e §7): referência cruzada do produto ---
 /**
  * Referência cruzada ("Equivale a: <marca> <código>"): até 3 vivas por produto (ordem 1..3, único vivo por (tenant, produto,
- * ordem)). marca_id = id do cadastro `concorrente` do PROMOTOR, lido pelo contrato do Promotor — SEM FK (outro schema,
- * regra 1); produto_id sem FK (core.produto). codigo = como foi escrito (1..30, não vazio). codigo_compacto = forma
+ * ordem)). marca_id = id de catalogo.marca_concorrente, desde a 0045 com FK produto_referencia_marca_fk (tenant_id, marca_id)
+ * e índice produto_referencia_marca_ix (antes, o cadastro `concorrente` do Promotor, sem FK); produto_id sem FK (core.produto). codigo = como foi escrito (1..30, não vazio). codigo_compacto = forma
  * normalizada para a busca, GRAVADA PELA API com `codigoCompacto` do domain (o banco só confere `^[a-z0-9]{1,30}$`);
  * (tenant, produto, marca, compacto) único vivo. Pull escopo tenant (o aparelho recalcula o compacto; ele não vai no pull).
  */
@@ -243,9 +257,9 @@ export const produtoReferencia = catalogo.table('produto_referencia', {
   codigo_compacto: text('codigo_compacto').notNull(),
   ordem: smallint('ordem').notNull(),
   /**
-   * 0034 (ADR 0027, risco 2): RETRATO do nome da marca no cadastro do Promotor no momento da gravação (nulo ou 1..120). Quem
-   * grava valida a marca por `promotor.concorrentes@1`; vai no pull para o vendedor ver a referência sem o Promotor. Nulo =
-   * linha anterior à 0034 ainda não regravada (a migração não lê o schema promotor): o leitor cai no fallback.
+   * 0034 (ADR 0027, risco 2): RETRATO do nome da marca no momento da gravação (nulo ou 1..120); vai no pull para o vendedor
+   * ver a referência sem o Promotor. Desde a 0045 (ADR 0034 §6) quem grava lê a marca em catalogo.marca_concorrente na mesma
+   * transação, e renomear a marca regrava o retrato das referências dela; a 0045 preencheu os nulos.
    */
   marca_nome: text('marca_nome'),
 });

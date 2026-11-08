@@ -2,16 +2,24 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
-> **Próximo build de preview (R-20261107-092152, dono do produto):** um build só, de Campo e Gestão juntos. Ele sai quando todas as condições valerem:
-> 1. #95, #96 e #97 integrados ao main ou devolvidos com o motivo;
-> 2. o atalho "Ver por linha" no main;
-> 3. CI verde e demo publicada no commit exato;
-> 4. nenhum lote ou tarefa em andamento mexendo em `apps/mobile` ou `modules/*/app`;
-> 5. com as correções dos bugs do teste do e9a65286 que chegarem antes.
+> **Rodada do teste de campo de 08/11 (T-0123 a T-0130):** os 4 bugs do Novo pedido entram antes do build, em sequência no modulo-vendedor para não colidir: F (T-0129) → D (T-0127) → E (T-0128) → G (T-0130); a B (T-0124) depende da A (T-0123); a C (T-0125) já está nos docs e a T-0126 (padrão de pendências) fica com o designer-ux. Depois de D a G: APK de teste e entrega ao dono do produto com o que retestar.
 >
-> Ao sair, o recado "BUILD PRONTO <sha>" leva os links e o roteiro. Se até as 18h de 07/11 as condições não se fecharem, mando recado com o que falta. Nenhum build intermediário.
+> **Fila do lote 2 (08/11 10h):** D-1 no Vendedor (depois do SDK); botão de cancelar pedido integrado e `erp_aceita_cancelamento` no pull; 9 🟡 de UX da página Perfis de acesso e 🟡 das telas de senha; aviso da etapa pendente do Gestão ligado na ficha do cliente (Core) e no registro (Gestor), achado do roteiro R-20261108-095042; fotos de produto no seed da demo, para testar a miniatura; troca do laranja cru por `accentInk` nas telas (lista em R-20261108-103725: modulo-core, engenheiro-apps, pesquisa, treinamento, gestor, promotor); T-0097 b; T-0118; T-0119. Roteiro: `apps/mobile/docs/roteiro-campo-demo-v1.0.0.md` (recriar a base antes de testar).
 >
-> **Saiu em 07/11 13h45: BUILD PRONTO d1e0d2a** (R-20261107-124025). O próximo build espera os resultados do teste do dono do produto.
+> **Build único só com todas as correções (dono do produto, 08/11 ~09h):** sem defeito conhecido; antes dele, o lote 1 (pronto e revisado) e o lote 2 (D-1, D-MP1/2, 🟡 de UX, T-0114 completa, T-0118, T-0119, T-0097 b, contraste do kit). Sem pressa de horário.
+>
+> **Próximo build único (R-20261107-163525, substitui as condições anteriores):** Campo e Gestão juntos, com o nome **Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0** (R-20261107-151653, doc 07 §5). Ele sai quando:
+> 1. a T-0093 e a T-0094 estiverem no main, com CI verde e a demo publicada no commit exato;
+> 2. a T-0109 (nome e versão) estiver no main;
+> 3. nada estiver em andamento em `apps/mobile` ou `modules/*/app`.
+>
+> O build leva tudo o que entrou desde o d1e0d2a e um **roteiro único desde o e9a65286**, incluindo a passagem para o SQLite e o ciclo de senha. O dono do produto não testa o d1e0d2a.
+>
+> **Esteira permanente (R-20261107-164646):** backlog só com a autorização escrita do dono do produto; 4 vagas locais sempre ocupadas; frentes na nuvem quando não houver trabalho local sem colisão. Prioridade: T-0093 → T-0094 → build único → o resto.
+>
+> **Vagas locais (07/11 22h40, limite de 7 pelo dono do produto):** 1. modulo-core — T-0094 C (+ 🟡 da T-0095); 2. banco-dados — 0041 (T-0111/T-0112); 3. engenheiro-apps — T-0094 W; 4. testes — T-0094 T; 5. engenheiro-software — T-0094 S (e-mail na outbox, perfis na API, RN-CORE-35); 6. designer-ux — spec visual da T-0111. 7. modulo-catalogo — pendências da T-0096 e da T-0097; 8. modulo-integracao — pendências da T-0099 e T-0103 (aplicar-lote). Na fila para a próxima vaga: testes, com a T-0110 (conferência).
+>
+> **Nuvem (07/11 21h55):** N4 #103, N5 #104, N6 #100, N7 #105, N8 #101 e N9 #102 integrados no main (até e00a52df). Abertos ainda: #85–#89 (04/11), em conferência na T-0110.
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
@@ -25,10 +33,19 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `modules/catalogo/web/exportacao/**` (novo) | T-0085 fatia C (exportação PDF/Excel) | `nuvem/T-0085-exportacao-bko` | 2026-11-05 21h |
-| `modules/catalogo/app/telas/lista-por-linha*.tsx` e `modules/catalogo/app/lib/lista-por-linha*.ts` (novos) | T-0085 fatia D (lista por linha) | `nuvem/T-0085-lista-por-linha` | 2026-11-05 21h |
-| `modules/integracao/domain/modelos-csv/**`, `modules/integracao/api/modelos-csv*.ts`, `docs/integracao/modelos/**` (novos) | T-0087 N1 (modelos CSV e dicionário) | `claude/modelos-csv-dicionario-qjuxry` (PR #97; o nome previsto era `nuvem/T-0087-modelos-csv`) | 2026-11-05 22h |
-| `modules/integracao/domain/openapi/**`, `modules/integracao/api/openapi*.ts`, `docs/integracao/api/**` (novos) | T-0087 N2 (OpenAPI e documentação) | `nuvem/T-0087-openapi` | 2026-11-05 22h |
+| `modules/integracao/docs/exemplos/**` (novo) | T-0108 (N4) kit do TI do cliente | `nuvem/T-0108-kit-ti` | 2026-11-07 17h |
+| `packages/platform-sdk/src/email/**`, `apps/api/src/email/**` (novos); no `packages/platform-sdk/src/index.ts`, só a linha de export | T-0094 (N5) envio de e-mail transacional | `nuvem/T-0094-email` | 2026-11-07 17h |
+| `apps/mobile/app.config.ts`, `apps/mobile/eas.json`, `apps/mobile/src/app/profile.tsx` (só a linha da versão), `docs/eas*`, `scripts/eas/**` (novo) | T-0109 (N6) nome e versão dos builds | `nuvem/T-0109-versao-builds` | 2026-11-07 17h |
+| `modules/catalogo/app/indice*.ts` e testes | T-0096 (N7) faixa aberta de ano | `nuvem/T-0096-faixa-ano` | 2026-11-07 17h |
+| `apps/conector/**`, `docs/modulos/integracao/conector.md` | T-0099 (N8) Conector: ordem divergente e "nulo: limpa" | `nuvem/T-0099-conector` | 2026-11-07 17h |
+| `modules/catalogo/contracts/**` (só aditivo), `modules/catalogo/api/**` do pull, `modules/catalogo/app/telas/**` e `modules/catalogo/app/lib/miniatura*` (novo) | T-0097 (N9) miniatura no pull | `nuvem/T-0097-miniatura` | 2026-11-07 17h |
+
+| `packages/comum/src/calendar*.ts`, `packages/comum/src/feriados*.ts` (novo) | T-0105 (N10) feriados | `nuvem/T-0105-feriados` | 2026-11-08 05h45 |
+| `modules/vendedor/app/**` | T-0101 (N11) telas do Vendedor (merge depois do build único) | `nuvem/T-0101-vendedor-telas` | 2026-11-08 05h45 |
+| `modules/gestor/**` | T-0102 (N12) etapa pendente no Gestão (merge depois do build único) | `nuvem/T-0102-gestao-etapa` | 2026-11-08 05h45 |
+
+| `docs/desenho/T-0105-ci-*.diff` e `docs/desenho/T-0105-ci.md` (novos) | T-0105 (N13) jobs de desempenho e de relógio deslocado, em diff para o ok do dono do produto | `nuvem/T-0105-ci-jobs` | 2026-11-08 07h |
+| `tests/carga/t0107/**` (novo) | T-0107 (N14) carga com 20 mil SKUs | `nuvem/T-0107-carga` | 2026-11-08 07h |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
 Destravados em 2026-11-05: T-0072 visual (`modules/core/app/**` PR #94 21aa690, regra A, revisões do designer-ux e do engenheiro-software sem 🔴); T-0072 visual (`modules/promotor/app/**` PR #91 7f97cd2; `modules/treinamento/app/**` PR #92 0be65bf; `modules/pesquisa/app/**` PR #93 ae7b7ce). Destravados em 2026-11-03: T-0067/T-0068 (`modules/core/{api,contracts,domain,web}/**`, PRs #82 faad794 e #83 ac4ca3b); T-0069 (`modules/promotor/{api,contracts,domain,web}/**`, PR #81, 4d6b443). Destravados em 2026-11-02: T-0054 (`modules/vendedor/**`, PR #44, f894246); T-0055 (`modules/gestor/**`, PR #40, ad7f643); T-0058 (`modules/treinamento/**`, PR #42, d64dd76); T-0057 (`modules/pesquisa/**`, PR #43, 15698e6); T-0056 (`modules/promotor/**`, PR #41, 2bacad4); T-0051 (`modules/integracao/web/**`, PR #38, cf13f6d); T-0053 (`modules/vendedor/**`, PR #39, 4067742; travado de novo pela T-0054) e T-0052 etapa 1 (`modules/catalogo/**`, PR #45, 39a7e9c); T-0050 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; 7d87a32). Destravados em 2026-11-01: T-0046 (`modules/gestor/**`, PR #33); T-0048 (`apps/conector/**`, `conector.md`; 12e45b3) e T-0049 (`.github/**`, `scripts/ci/**`; 78cce46); T-0044 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; f86f59b) e T-0043 (`packages/config/**`, `packages/comum/**`, `eslint.config.*`; dd9ff94); T-0033 (`.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**`; fa6d5fa) e T-0040 (`modules/promotor/contracts|domain/**`, 3090263); T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
@@ -130,6 +147,44 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0090](tarefas/T-0090.md) | Pedidos: filtro de período num botão só (modelo A) e troca sem atraso (< 100 ms) — Sprint 9 | modulo-vendedor, designer-ux, engenheiro-apps, testes | local | em_teste (07/11 11h: 🟡 de UX no main em 638faa69, reconferência sem 🔴; falta a conferência no APK do próximo build único) |
 | [T-0091](tarefas/T-0091.md) | Super-admin em papel de banco próprio (condição da ADR 0029, antes do 1º cliente real) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, testes | local | em_teste (07/11 13h30: diffs aprovados e aplicados, main d1e0d2ad com CI e stack verdes; portal da demo responde 401 pelo macuxi_portal; falta o secret e a rota config-demo, do dono do produto, e o 1º acesso) |
 | [T-0092](tarefas/T-0092.md) | Hub: openapi.json público, ajv/ajv-formats devDependency, hub-api.md §15 (pendências do #99) — Sprint 10 | engenheiro-software, modulo-integracao | local | em_revisao (07/11 11h: no main em 638faa69, revisão final sem 🔴, matriz em docs/testes/T-0092.md; fecha com o CI do main verde e o botão do portal no lote seguinte) |
+| [T-0093](tarefas/T-0093.md) | Portal config.: login só com e-mail e senha (8+ com letra, número e especial), sem convite e sem TOTP, com escolha de empresa — Sprint 10 | engenheiro-software, banco-dados, modulo-core, engenheiro-apps, designer-ux, testes | local | em_andamento (07/11 15h: desenho com o engenheiro-software) |
+| [T-0094](tarefas/T-0094.md) | Acesso e senhas: admin cria usuários no BKO com senha inicial por e-mail, troca no 1º uso, Esqueci a senha no app, reset pelo BKO; vendedor e supervisor sem BKO e sem config — Sprint 10 | engenheiro-software, banco-dados, modulo-core, engenheiro-apps, designer-ux, testes | local | em_andamento (07/11 18h: desenho e ADR 0032 prontos; fatia B rodando; C, U e N5 em seguida) |
+| [T-0095](tarefas/T-0095.md) | ERP: guarda de ordem nos consumidores e não reativar o que o admin desligou — Sprint 10 | banco-dados, modulo-core, modulo-catalogo, modulo-integracao | local | aberta (07/11 17h: esteira, 1ª depois do build único (antes do 1º tenant real)) |
+| [T-0096](tarefas/T-0096.md) | Catálogo: faixa aberta de ano no índice local (prazo 31/12/2026) — Sprint 10 | modulo-catalogo | nuvem | aberta (07/11 17h: esteira, em paralelo, já) |
+| [T-0097](tarefas/T-0097.md) | Catálogo: miniatura do produto no contrato do pull, baixada sob demanda — Sprint 10 | modulo-catalogo, engenheiro-software | nuvem | aberta (07/11 17h: esteira, em paralelo, já) |
+| [T-0098](tarefas/T-0098.md) | Portal: download do Conector por link temporário de bucket privado — Sprint 10 | engenheiro-software, modulo-integracao, engenheiro-apps | local | aberta (07/11 17h: esteira, 2ª depois do build único) |
+| [T-0099](tarefas/T-0099.md) | Conector: aviso de ordem divergente e opt-in "nulo: limpa" por campo — Sprint 10 | modulo-integracao | nuvem | aberta (07/11 17h: esteira, em paralelo, já) |
+| [T-0100](tarefas/T-0100.md) | BKO: carga por arquivo self-service e modelos CSV liberados ao admin da empresa — Sprint 10 | modulo-integracao, engenheiro-apps, designer-ux | local | aberta (07/11 17h: esteira, 3ª depois do build único) |
+| [T-0101](tarefas/T-0101.md) | Vendedor: triagem de 05/11 e acabamento visual de Início, Cliente 360 e Pedidos — Sprint 10 | modulo-vendedor, modulo-core, designer-ux | local | aberta (07/11 17h: esteira, 4ª depois do build único) |
+| [T-0102](tarefas/T-0102.md) | Core: etapa pendente, positivação do mês, base recriada no app, RN-CORE-12 no domain, canApprove no SDK, limpeza de sessões — Sprint 10 | modulo-core, banco-dados, engenheiro-software | local | aberta (07/11 17h: esteira, 5ª depois do build único) |
+| [T-0103](tarefas/T-0103.md) | Integração: aplicar-lote com parâmetros do tenant e aviso de marca desconhecida no monitor — Sprint 10 | modulo-integracao, modulo-catalogo | local | aberta (07/11 17h: esteira, 6ª depois do build único) |
+| [T-0104](tarefas/T-0104.md) | Kit: Tabs, Progress e ButtonLink; cartões das bases do portal com a última carga — Sprint 10 | designer-ux, modulo-integracao, engenheiro-apps | local | aberta (07/11 17h: esteira, 7ª depois do build único) |
+| [T-0105](tarefas/T-0105.md) | Plataforma e CI: lint hora-fixa como erro (16/11), zod ≥ 4.6.6, job de desempenho, relógio deslocado, CI sem superusuário, feriados, gh no PATH do guardião — Sprint 10 | engenheiro-software, banco-dados | local | aberta (07/11 17h: esteira, o lint até 16/11; o resto em 8º) |
+| [T-0106](tarefas/T-0106.md) | Treinamento: 🟡 da revisão final e tabela de lançamento de XP — Sprint 10 | modulo-treinamento, banco-dados | local | aberta (07/11 17h: esteira, 9ª) |
+| [T-0107](tarefas/T-0107.md) | Carga com 20 mil SKUs e onboarding de tenant (antes do piloto real) — Sprint 10 | testes, engenheiro-software | local | aberta (07/11 17h: esteira, 10ª) |
+| [T-0108](tarefas/T-0108.md) | Kit do TI do cliente: coleção Postman/Insomnia e exemplos em Node, C# e Python — Sprint 10 | modulo-integracao | nuvem | aberta (07/11 17h: esteira, em paralelo, já) |
+| [T-0109](tarefas/T-0109.md) | Nome e versão dos builds (Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z) — Sprint 10 | engenheiro-apps | nuvem | aberta (07/11 17h: esteira, em paralelo, já; precisa estar no main antes do build único) |
+| [T-0110](tarefas/T-0110.md) | Backlog antigo (Sprints 0 a 2): conferir o que já foi feito e executar o resto — Sprint 10 | gerente-projetos, testes | local | aberta (07/11 17h: esteira, contínua, sem ocupar vaga de implementação) |
+| [T-0111](tarefas/T-0111.md) | Perfis de acesso no BKO e motor de permissões por perfil (entra com a T-0094) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, designer-ux, engenheiro-apps, testes | local | em_andamento (07/11 19h: desenho da tela enviado ao dono do produto; motor junto com a T-0094) |
+| [T-0112](tarefas/T-0112.md) | Multiperfil: usuário com um ou mais perfis (RN-CORE-01) — Sprint 10 | banco-dados, modulo-core, engenheiro-software | local | aberta (07/11 19h: esteira, junto com a T-0111 (mesmo motor)) |
+| [T-0113](tarefas/T-0113.md) | Cadastro de marcas no Catálogo (ADR que substitui a 0027) — Sprint 10 | engenheiro-software, banco-dados, modulo-catalogo, modulo-promotor | local | aberta (07/11 19h: esteira, logo depois da T-0094, antes do 1º cliente real) |
+| [T-0114](tarefas/T-0114.md) | Cancelamento do pedido devolvido ao ERP (para ERPs que aceitam) — Sprint 10 | modulo-vendedor, modulo-integracao, engenheiro-software | local | aberta (07/11 19h: esteira, depois da T-0113) |
+| [T-0115](tarefas/T-0115.md) | Campo "canal" no cliente do Core (público-alvo da Pesquisa) — Sprint 10 | banco-dados, modulo-core, modulo-pesquisa, modulo-integracao | local | aberta (07/11 19h: esteira, junto com a T-0114) |
+| [T-0116](tarefas/T-0116.md) | Conector v2: atualização automática — Sprint 10 | modulo-integracao, engenheiro-software | local | aberta (07/11 19h: esteira, logo depois da T-0098 (mesma área)) |
+| [T-0117](tarefas/T-0117.md) | BKO: refresh em cookie httpOnly (+ CSRF), no lugar do localStorage — antes de ligar a produção — Sprint 10 | engenheiro-software, engenheiro-apps | local | aberta (08/11 08h30: esteira, 1ª depois do build único) |
+| [T-0118](tarefas/T-0118.md) | API: pool de conexões trava com pushes de pedido simultâneos (D-T0107a) — Sprint 10 | engenheiro-software, modulo-vendedor, modulo-core | local | aberta (08/11 08h30: esteira, 2ª depois do build único (antes do piloto)) |
+| [T-0119](tarefas/T-0119.md) | Catálogo: busca da API com 20 mil produtos em ~5 s (p95 15–20 s), meta 300 ms (D-T0107b) — Sprint 10 | modulo-catalogo, banco-dados, engenheiro-software | local | aberta (08/11 08h30: esteira, 3ª depois do build único (antes do piloto)) |
+| [T-0120](tarefas/T-0120.md) | Onboarding: de-para da condição de pagamento no BKO e vínculo cliente → tabela de preço vindo do ERP — Sprint 10 | modulo-integracao, modulo-vendedor, modulo-catalogo, engenheiro-apps | local | aberta (08/11 08h30: esteira, 4ª depois do build único) |
+| [T-0121](tarefas/T-0121.md) | Plataforma: push do Expo fora da transação do consumidor, poda local e variacaoEscopo no sync (N2, N3 da T-0110) — Sprint 10 | engenheiro-software, modulo-core, modulo-catalogo | local | aberta (08/11 08h30: esteira, 5ª depois do build único) |
+| [T-0122](tarefas/T-0122.md) | Pequenos itens da conferência T-0110 (N4, N5, N7, N8) e job de CI da carga — Sprint 10 | banco-dados, engenheiro-software, modulo-core, modulo-integracao | local | aberta (08/11 08h30: esteira, 6ª depois do build único) |
+| [T-0123](tarefas/T-0123.md) | Frente A — novo agente corretor-redundancias (definição, donos, CLI e guardião) — Sprint 10 | engenheiro-software, gerente-projetos | local | aberta (08/11 11h: agora, em paralelo ao lote) |
+| [T-0124](tarefas/T-0124.md) | Frente B — 1ª auditoria do corretor-redundancias: Início do app Campo (vendedor), RD-0001..0011 — Sprint 10 | corretor-redundancias, modulo-core, modulo-vendedor | local | aberta (08/11 11h: depois da T-0123) |
+| [T-0125](tarefas/T-0125.md) | Frente C — decisões de produto de 08/11 nos docs 02 e 03 (RN-CORE-36, RN-VEN-38, RN-VEN-16, RN-VEN-30, RF-VEN-11) — Sprint 10 | gerente-projetos | local | concluída (08/11 11h: docs 02 e 03) |
+| [T-0126](tarefas/T-0126.md) | Frente C — padrão de pendências de preenchimento em docs/design (vale para o app inteiro) — Sprint 10 | designer-ux | local | aberta (08/11 11h: depois do contraste do kit (em andamento)) |
+| [T-0127](tarefas/T-0127.md) | Frente D — bug: pendência fora do Resumo e botão "Corrigir frete" no Novo pedido — Sprint 10 | modulo-vendedor, designer-ux, testes | local | aberta (08/11 11h: 2ª do Novo pedido (F → D → E → G), antes do build) |
+| [T-0128](tarefas/T-0128.md) | Frente E — bug: sair do Novo pedido sem salvar apaga o pedido (RN-VEN-38) — Sprint 10 | modulo-vendedor, engenheiro-apps, testes | local | aberta (08/11 11h: 3ª do Novo pedido (F → D → E → G), antes do build) |
+| [T-0129](tarefas/T-0129.md) | Frente F — bug: forma de pagamento volta sozinha para Pix / À vista (cliente inadimplente) — Sprint 10 | modulo-vendedor, testes | local | aberta (08/11 11h: 1ª do Novo pedido (F → D → E → G), antes do build) |
+| [T-0130](tarefas/T-0130.md) | Frente G — bug: Salvar fica processando com a tela do pedido aberta (fila em segundo plano) — Sprint 10 | modulo-vendedor, modulo-core, testes | local | aberta (08/11 11h: 4ª do Novo pedido (F → D → E → G), antes do build) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |

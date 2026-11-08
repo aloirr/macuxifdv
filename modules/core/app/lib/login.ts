@@ -4,8 +4,8 @@
  * O código da empresa fica salvo no aparelho depois do primeiro login (doc 03, esclarecimentos).
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
-import { ehSemConexao } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
+import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { tolerante } from './leitor-tolerante';
 
 export interface CamposLogin {
@@ -57,6 +57,11 @@ export function mensagemDeErroDeLogin(e: unknown): string {
       return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
     case CODIGOS_AUTH.sessao:
       return 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
+    case CODIGOS_AUTH.senhaVencida:
+      return MENSAGEM_SENHA_VENCIDA;
+    case CODIGOS_AUTH.senhaATrocar:
+      // o app novo navega para "Crie sua senha" pelo código (senha.ts); este texto é só a rede de segurança
+      return MENSAGEM_SENHA_A_TROCAR;
     case 'PERFIL_FORA_DO_APP':
       return typeof x?.message === 'string' && x.message ? x.message : 'Este perfil não usa este aplicativo. Use o aplicativo ou o painel indicado pela sua empresa.';
     case 'AUTENTICACAO_INDISPONIVEL':
@@ -74,14 +79,19 @@ export function rotuloOlhoSenha(visivel: boolean): string {
 /** Transporte sem token (o shell entrega): POST do corpo no caminho `/auth/login` da API v1. */
 export type PostSemSessao = (caminho: string, corpo: unknown) => Promise<unknown>;
 
-/** Entra com a senha. Valida a resposta (contrato) antes de devolver; o shell guarda tokens e abre o app. */
-export async function entrarComSenha(post: PostSemSessao, campos: CamposLogin, aparelho: { id?: string; nome?: string } = {}): Promise<SessaoResposta> {
+/**
+ * Entra com a senha. Valida a resposta (contrato) antes de devolver; o shell guarda tokens e abre o app. `app` (RN-CORE-33): a
+ * variante do shell (`campo` ou `gestao`); a API recusa o perfil de outro app (403 `PERFIL_FORA_DO_APP`) sem abrir sessão.
+ * `SENHA_A_TROCAR` (403) sobe como erro: o shell navega para a "Crie sua senha" (`detalhesDaTroca`, senha.ts).
+ */
+export async function entrarComSenha(post: PostSemSessao, campos: CamposLogin, aparelho: { id?: string; nome?: string } = {}, app?: AppComLogin): Promise<SessaoResposta> {
   const corpo: LoginSenhaRequest = LoginSenhaRequestSchema.parse({
     codigo_empresa: campos.codigo_empresa.trim(),
     email: campos.email.trim(),
     senha: campos.senha,
     ...(aparelho.id ? { dispositivo_id: aparelho.id } : {}),
     ...(aparelho.nome ? { dispositivo_nome: aparelho.nome } : {}),
+    ...(app ? { app } : {}),
   });
   return tolerante(SessaoRespostaSchema).parse(await post('/auth/login', corpo));
 }

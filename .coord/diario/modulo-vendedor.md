@@ -77,3 +77,7 @@
 2026-11-07 — T-0090 — 5 🟡 da revisão de UX: resumo da busca com vendedor e etiqueta, chips A faturar/Em aberto voltam a Todos ao escolher período, Banner de aviso no sem sinal/erro, vazio sem sinal explicado, 'Remover filtro <nome>'.
 2026-11-07 — T-0090 — Banners de Pedidos: anunciar nos dois avisos e icon=alert no de erro; entrega também cobre os 5 amarelos anteriores; lint/typecheck/test 0
 2026-11-07 — T-0089 — pendências do Resumo (PendenciasDoPedido) acima de Cancelar/Salvar, via prop pendencias em AbaResumo
+2026-11-07 — T-0114 — vendedor.pedido.cancelado@1 (contrato, teste, publicação na transação do cancelamento, manifesto) e recado ao modulo-integracao
+2026-11-08 — T-0114 — RN-VEN-31 (exceção): verificarCancelamento/orderActions com erpAceitaCancelamento; API consulta integracao.cancelamento_erp@1 (opcional), pedido enviado fica com cancelamento solicitado (status intacto + motivo_cancelamento) e evento cancelado com enviado_ao_erp=true; sem telas
+2026-11-08 — T-0114 — D-1: diagnóstico e pedido ao engenheiro-software (licença 'tenant' em escrita, ADR 0025); correção do Vendedor aguarda a liberação
+2026-11-08 — T-0129 — Frente F: fim da troca silenciosa Boleto→Pix/À vista (padrão só em rascunho novo), forma não aceita desabilitada com motivo, título vencido + prazo a prazo vai ao supervisor no Resumo; testes do domain e do app.

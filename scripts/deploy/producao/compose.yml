@@ -3,11 +3,11 @@
 # privado na VPC, sempre com TLS. Arquivos ao lado, todos fora do git, todos modo 600 (nomes em env.modelo):
 #   .env          GERADO NA VM pelo preparar-vm.sh: senhas de macuxi_app/macuxi_worker, JWT e pepper do Hub. Nunca sai da VM.
 #   portal.env    GERADO NA VM pelo preparar-vm.sh (T-0091): MACUXI_PG_PORTAL_SENHA do papel macuxi_portal, o único com EXECUTE
-#                 nas plataforma.sa_* (super-admin). SÓ a api e o passo de papéis (banco) leem; worker, tenant, bko e
-#                 cloudflared nunca recebem. Nunca sai da VM.
+#                 nas plataforma.sa_* (portal). SÓ a api e o passo de papéis (banco) leem; worker, tenant, super-admin, bko
+#                 e cloudflared nunca recebem. Nunca sai da VM.
 #   banco.env     MACUXI_PG_HOST/MACUXI_PG_PORTA do DBaaS (secrets PROD_PG_HOST/PROD_PG_PORTA), gravado pelo workflow.
 #   admin.env     MACUXI_PG_ADMIN_USUARIO/MACUXI_PG_ADMIN_SENHA (secrets PROD_PG_ADMIN_*), gravado pelo workflow; SÓ os
-#                 serviços de ferramenta (banco, pgcliente, tenant) leem. api e worker nunca recebem a senha do admin.
+#                 serviços de ferramenta (banco, pgcliente, tenant, super-admin) leem. api e worker nunca recebem a senha do admin.
 #   segredos.env  S3 (PROD_S3_KEY_ID/PROD_S3_SECRET → MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO), gravado pelo workflow.
 #   tunel.env     TUNNEL_TOKEN (PROD_CLOUDFLARE_TUNNEL_TOKEN), gravado pelo workflow; só o cloudflared lê.
 #   alerta.env    MACUXI_ALERTA_WEBHOOK (PROD_ALERTA_WEBHOOK, opcional), lido só pelo alerta-saude.sh no host.
@@ -25,6 +25,7 @@
 #   bash ~/macuxi-deploy/banco-dbaas.sh                     (papéis, banco, extensão vector, migrações e conferências)
 #   dc --profile ferramentas run --rm -T pgcliente psql -d macuxi -c 'select 1'   (psql 16 no DBaaS, como admin)
 #   dc --profile ferramentas run --rm tenant criar ...       (pnpm tenant:criar da T-0083; ver producao-tenant.yml)
+#   dc --profile ferramentas run --rm super-admin criar --email ... --nome ... --confirmar ...   (T-0093; producao-super-admin.yml)
 name: macuxi-prod
 
 x-imagem-api: &imagem-api
@@ -154,6 +155,25 @@ services:
     profiles: [ferramentas]
     restart: 'no'
     entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/tenant.ts']
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: admin.env
+    environment:
+      <<: *ambiente-api
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Super-admin do portal config. (T-0093, ADR 0031, P3: não há convite nem autocadastro) pela conexão de administração:
+  # criar | redefinir | desativar --email ... (workflow producao-super-admin.yml). A senha entra por MACUXI_SUPERADMIN_SENHA
+  # (stdin do workflow → -e sem valor no argv) ou digitada com eco desligado. Sem o portal.env: a criar_super_admin não é do
+  # macuxi_portal.
+  super-admin:
+    <<: *imagem-api
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/super-admin.ts']
     env_file:
       - path: .env
       - path: banco.env

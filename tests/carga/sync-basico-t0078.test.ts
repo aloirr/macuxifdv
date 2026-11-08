@@ -123,7 +123,7 @@ describe('T-0078 C1 — carga básica do sync SEM banco (API real, provedores em
     it(
       `${n} aparelhos × ${RODADAS} rodadas: nenhum erro, sincronização completa em todos e /v1/saude sem alerta${MEDIR ? `; p95 ≤ ${P95_MS} ms` : ''}`,
       async () => {
-        const r = await rodarFerramenta({ url, empresa: 'demo', email: 'vendedor.carga@exemplo.com.br', senha: 'senha-so-de-teste', aparelhos: n });
+        const r = await rodarFerramenta({ url, empresa: 'demo', email: 'vendedor.carga@exemplo.com.br', senha: 'Senha-so-de-teste1', aparelhos: n });
         expect(r.resultado, `saída ${r.codigo}: ${r.stderr}`).not.toBeNull();
         registrar(`sem banco, ${n} aparelhos`, r.resultado!);
         expect(r.resultado!.erros).toEqual({});
@@ -153,7 +153,7 @@ describe('T-0078 C1 — carga básica do sync SEM banco (API real, provedores em
       const legado = await real.app.inject({ method: 'POST', url: '/v1/core/auth/login', payload: { codigo_empresa: 'demo', email: 'x@exemplo.com.br', senha: 'x' } });
       expect(legado.statusCode).toBe(404);
       const u = await escutar(real.app);
-      const r = await rodarFerramenta({ url: u, empresa: 'demo', email: 'vendedor.carga@exemplo.com.br', senha: 'senha-so-de-teste', aparelhos: 1 });
+      const r = await rodarFerramenta({ url: u, empresa: 'demo', email: 'vendedor.carga@exemplo.com.br', senha: 'Senha-so-de-teste1', aparelhos: 1 });
       expect(r.stderr).not.toMatch(/login falhou/);
       expect(r.codigo).toBe(0);
       expect(r.resultado?.erros).toEqual({});

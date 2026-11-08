@@ -541,7 +541,7 @@ const s = StyleSheet.create({
   rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
   rotulo: { flexShrink: 1, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
   rotuloAcao: { minHeight: 24, justifyContent: 'center' },
-  rotuloAcaoTexto: { fontFamily: fonts.bold, fontSize: 13, color: colors.accent },
+  rotuloAcaoTexto: { fontFamily: fonts.bold, fontSize: 13, color: colors.accentInk },
   // .chip (medida)
   medida: { alignSelf: 'flex-start', minHeight: ALTURA_MEDIDA, justifyContent: 'center', paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   medidaTocavel: { borderColor: colors.lineStrong },

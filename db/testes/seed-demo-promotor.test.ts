@@ -10,6 +10,7 @@ import {
   AcaoConcorrencia, ChecklistResposta, ColetaPreco, FotoColeta, GondolaRegistro, MedicaoShare, PontoExtra, RupturaItem, TarefaExecucao, ValidadeItem,
   VisitaLoja,
 } from '../../modules/promotor/contracts/coletas';
+import { marcasConcorrentesDemo } from '../seeds/demo/catalogo-cadastro';
 import { carregarDemo, dadosDemo, diasUteisAtras, idClienteDemo, idUsuarioDemo, TENANT_DEMO } from '../seeds/demo/demo';
 import {
   CARTEIRA_PROMOTOR_DEMO, dadosDemoPromotor, gravarDemoPromotor, MARCAS_CONCORRENTES_DEMO, MIX_DEMO, ORDEM_DEMO_PROMOTOR, PERFIS_PROMOTOR_DEMO, ROTA_HOJE_PROMOTOR_DEMO,
@@ -113,7 +114,7 @@ describe('base de demo: Promotor (estático)', () => {
     expect(ORDEM_DEMO_PROMOTOR.flatMap((t) => amanha[t].map((l) => l.id))).toEqual(ORDEM_DEMO_PROMOTOR.flatMap((t) => d[t].map((l) => l.id)));
   });
 
-  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), 2 concorrentes de trade + 4 marcas de autopeças (T-0085), 4 produtos (um por categoria), tarefa e ponto extra', () => {
+  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), as marcas no Catálogo (T-0113: 2 do trade + 4 de autopeças, mesmos ids), 4 produtos (um por categoria), tarefa e ponto extra', () => {
     expect(d['promotor.categoria_gondola'].map((c) => c.nome)).toEqual(['Mercearia', 'Bebidas', 'Limpeza']);
     const categoriasDoDemo = new Set(demo['core.produto'].map((p) => p.categoria));
     for (const c of d['promotor.categoria_gondola']) expect(categoriasDoDemo.has(c.nome)).toBe(true);
@@ -124,9 +125,15 @@ describe('base de demo: Promotor (estático)', () => {
     expect(d['promotor.meta_share'].map((m) => m.cliente_id)).toEqual([null, null, null, idClienteDemo(0)]);
     const itens = d['promotor.checklist_loja'][0]!.itens as Array<{ obrigatoria: boolean }>;
     expect([d['promotor.checklist_loja'].length, itens.length, itens.filter((i) => i.obrigatoria).length]).toEqual([1, 5, 2]);
-    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([6, 4, 1]);
+    // T-0113 (0045, ADR 0034): o cadastro antigo do Promotor fica vazio; as 6 marcas são do Catálogo (catalogo-cadastro.ts)
+    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([0, 4, 1]);
+    const todas = marcasConcorrentesDemo(TENANT_DEMO);
+    expect(todas.map((m) => m.nome)).toEqual(['Sabor Real Alimentos', 'Limpa Mais', 'Freiomax', 'Rodaforte', 'Filtrobom', 'Vialume']);
+    // os ids de antes (demo:promotor:concorrente:<chave>): a cópia da 0045 numa base carregada e a recarga gravam a mesma linha
+    expect(todas.map((m) => m.id)).toEqual(['sabor-real', 'limpa-mais', 'freiomax', 'rodaforte', 'filtrobom', 'vialume'].map((k) => idDeterministico(`demo:promotor:concorrente:${k}`)));
+    expect(d['promotor.produto_concorrente'].every((p) => todas.slice(0, 2).some((m) => m.id === p.concorrente_id))).toBe(true);
     // T-0085 (RN-CAT-09): as 4 marcas da referência cruzada do Catálogo, fictícias, sem produto comparado
-    const marcas = d['promotor.concorrente'].filter((m) => Object.values(MARCAS_CONCORRENTES_DEMO).includes(m.nome as never));
+    const marcas = todas.filter((m) => Object.values(MARCAS_CONCORRENTES_DEMO).includes(m.nome as never));
     expect(marcas.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte', 'Filtrobom', 'Vialume']);
     expect(marcas.every((m) => m.ativo === true && String(m.external_id).startsWith('MARCA-'))).toBe(true);
     expect(d['promotor.produto_concorrente'].some((p) => marcas.some((m) => m.id === p.concorrente_id))).toBe(false);

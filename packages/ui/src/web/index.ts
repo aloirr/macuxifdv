@@ -9,5 +9,8 @@ export * from './overlay';
 export * from './format';
 export * from './erros';
 export * from './tones';
+export * from './cores';
 export * from './cliente';
+export * from './senha';
 export * from '../comum/sincronizacao';
+export * from './permissoes';

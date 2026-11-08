@@ -152,6 +152,42 @@ export class ApiClient {
     return { status: res.status, data: data as T };
   }
 
+  /**
+   * Bytes de uma rota autenticada (ex.: `GET /v1/arquivos/<id>`, ADR 0010; miniatura do catálogo, T-0097), com a mesma
+   * renovação do acesso no 401. `maxBytes`: acima disso (pelo `content-length` ou pelo que chegou) devolve `null` sem guardar.
+   * Erro HTTP sobe como `HttpError`; sem rede, `NetworkError`. Nada vai a log.
+   */
+  async bytes(path: string, opts: { maxBytes: number; timeoutMs?: number }): Promise<Uint8Array | null> {
+    const baixar = async (token: string | null): Promise<Uint8Array | null> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
+      try {
+        let res: Response;
+        try {
+          res = await fetch(this.url(path), { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
+        } catch (e) {
+          const aborted = e instanceof Error && e.name === 'AbortError';
+          throw new NetworkError(aborted ? 'O servidor demorou para responder.' : `Sem conexão com ${this.baseUrl}.`);
+        }
+        if (!res.ok) throw new HttpError(res.status, `http_${res.status}`, `Erro ${res.status} do servidor.`);
+        const declarado = Number(res.headers.get('content-length'));
+        if (Number.isFinite(declarado) && declarado > opts.maxBytes) return null;
+        const dados = new Uint8Array(await res.arrayBuffer());
+        return dados.byteLength > 0 && dados.byteLength <= opts.maxBytes ? dados : null;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    try {
+      return await this.comAviso(() => baixar(this.token));
+    } catch (e) {
+      if (!(e instanceof HttpError) || e.status !== 401 || !this.token || !this.renovar) throw e;
+      const novo = await this.renovar();
+      if (!novo) throw e;
+      return this.comAviso(() => baixar(novo));
+    }
+  }
+
   private async get<T>(path: string, query?: Query, timeoutMs?: number): Promise<T> {
     return (await this.request<T>('GET', path, { query, timeoutMs })).data;
   }

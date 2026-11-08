@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { derivarChaveFila, descreverConfigEmail, lerConfigEmail, lerRemetente, REMETENTE_PADRAO } from './config';
+import { derivarChaveEmail, descreverConfigEmail, lerConfigEmail, lerRemetente, REMETENTE_PADRAO } from './config';
 import { ErroEmail } from './erros';
 
 const SEGREDO_JWT = 'j'.repeat(40);
@@ -18,14 +18,19 @@ function erroDe(f: () => unknown): ErroEmail {
 }
 
 describe('lerConfigEmail — transporte e SMTP', () => {
-  it('sem nada: transporte arquivo, remetente padrão, chave efêmera fora de produção', () => {
+  it('sem nada: desligado (sem adaptador: disponivel() = false), remetente padrão "Macuxi FDV"', () => {
     const c = lerConfigEmail({});
-    expect(c.transporte).toBe('arquivo');
+    expect(c.transporte).toBe('desligado');
     expect(c.remetente).toEqual(lerRemetente(REMETENTE_PADRAO));
-    expect(c.origemChave).toBe('efemera');
+    expect(c.remetente.nome).toBe('Macuxi FDV');
+    expect(c.avisos.join(' ')).toContain('desligado');
+  });
+
+  it('MACUXI_EMAIL_ARQUIVO_DIR liga o adaptador de arquivo; sem segredo do JWT fora de produção, chave efêmera com aviso', () => {
+    const c = lerConfigEmail({ MACUXI_EMAIL_ARQUIVO_DIR: '/tmp/caixa' });
+    expect(c).toMatchObject({ transporte: 'arquivo', pasta: '/tmp/caixa', origemChave: 'efemera' });
     expect(c.chave).toHaveLength(32);
     expect(c.avisos.join(' ')).toContain('efêmera');
-    expect(c.pasta).toContain('macuxi-email');
   });
 
   it('com host: smtp, porta 587, starttls', () => {
@@ -46,7 +51,7 @@ describe('lerConfigEmail — transporte e SMTP', () => {
 
   it('transporte explícito desligado/arquivo mesmo com host', () => {
     expect(lerConfigEmail({ MACUXI_SMTP_HOST: 'h', MACUXI_EMAIL_TRANSPORTE: 'desligado' }).transporte).toBe('desligado');
-    expect(lerConfigEmail({ MACUXI_SMTP_HOST: 'h', MACUXI_EMAIL_TRANSPORTE: 'ARQUIVO', MACUXI_EMAIL_PASTA: '/tmp/x' })).toMatchObject({
+    expect(lerConfigEmail({ MACUXI_SMTP_HOST: 'h', MACUXI_EMAIL_TRANSPORTE: 'ARQUIVO', MACUXI_EMAIL_ARQUIVO_DIR: '/tmp/x' })).toMatchObject({
       transporte: 'arquivo',
       pasta: '/tmp/x',
     });
@@ -85,55 +90,46 @@ describe('lerConfigEmail — transporte e SMTP', () => {
   });
 });
 
-describe('chave da fila (MACUXI_EMAIL_CHAVE / HKDF do MACUXI_JWT_SEGREDO)', () => {
-  it('MACUXI_EMAIL_CHAVE em base64 ou hex (32 bytes)', () => {
-    const bruta = randomBytes(32);
-    expect(Buffer.from(lerConfigEmail({ MACUXI_EMAIL_CHAVE: bruta.toString('base64') }).chave)).toEqual(bruta);
-    expect(Buffer.from(lerConfigEmail({ MACUXI_EMAIL_CHAVE: bruta.toString('hex') }).chave)).toEqual(bruta);
-    expect(lerConfigEmail({ MACUXI_EMAIL_CHAVE: bruta.toString('base64') }).origemChave).toBe('MACUXI_EMAIL_CHAVE');
-  });
-
-  it('chave inválida: erro sem o valor', () => {
-    const ruim = randomBytes(16).toString('base64');
-    const e = erroDe(() => lerConfigEmail({ MACUXI_EMAIL_CHAVE: ruim }));
-    expect(e.message).toContain('MACUXI_EMAIL_CHAVE');
-    expect(e.message + JSON.stringify(e)).not.toContain(ruim);
-  });
-
-  it('sem chave: deriva do JWT por HKDF-SHA256 (determinística, diferente do segredo)', () => {
-    const c = lerConfigEmail({ MACUXI_JWT_SEGREDO: SEGREDO_JWT, NODE_ENV: 'production' });
+describe('chave da outbox (HKDF-SHA256 do MACUXI_JWT_SEGREDO, info macuxi.email_saida.v1; sem MACUXI_EMAIL_CHAVE)', () => {
+  it('deriva do JWT (determinística, diferente do segredo e de outro segredo)', () => {
+    const c = lerConfigEmail({ MACUXI_SMTP_HOST: 'h', MACUXI_JWT_SEGREDO: SEGREDO_JWT, NODE_ENV: 'production' });
     expect(c.origemChave).toBe('MACUXI_JWT_SEGREDO');
-    expect(Buffer.from(c.chave)).toEqual(Buffer.from(derivarChaveFila(SEGREDO_JWT)));
+    expect(Buffer.from(c.chave)).toEqual(Buffer.from(derivarChaveEmail(SEGREDO_JWT)));
     expect(Buffer.from(c.chave).toString('utf8')).not.toContain(SEGREDO_JWT.slice(0, 8));
-    expect(Buffer.from(derivarChaveFila('k'.repeat(40)))).not.toEqual(Buffer.from(c.chave));
+    expect(Buffer.from(derivarChaveEmail('k'.repeat(40)))).not.toEqual(Buffer.from(c.chave));
   });
 
-  it('produção sem chave nem JWT (ou JWT curto): falha fechada', () => {
-    expect(erroDe(() => lerConfigEmail({ NODE_ENV: 'production' })).message).toContain('falha fechada');
-    expect(erroDe(() => lerConfigEmail({ MACUXI_JWT_SEGREDO: 'curto' }, { producao: true })).message).toContain('falha fechada');
-    // desligado não precisa de chave
-    expect(lerConfigEmail({ NODE_ENV: 'production', MACUXI_EMAIL_TRANSPORTE: 'desligado' }).transporte).toBe('desligado');
+  it('MACUXI_EMAIL_CHAVE não existe mais: ignorada', () => {
+    const c = lerConfigEmail({ MACUXI_SMTP_HOST: 'h', MACUXI_JWT_SEGREDO: SEGREDO_JWT, MACUXI_EMAIL_CHAVE: randomBytes(32).toString('base64') });
+    expect(Buffer.from(c.chave)).toEqual(Buffer.from(derivarChaveEmail(SEGREDO_JWT)));
+  });
+
+  it('produção sem JWT (ou JWT curto): falha fechada; desligado não precisa de chave', () => {
+    expect(erroDe(() => lerConfigEmail({ NODE_ENV: 'production', MACUXI_SMTP_HOST: 'h' })).message).toContain('falha fechada');
+    expect(erroDe(() => lerConfigEmail({ MACUXI_EMAIL_ARQUIVO_DIR: '/x', MACUXI_JWT_SEGREDO: 'curto' }, { producao: true })).message).toContain('falha fechada');
+    expect(lerConfigEmail({ NODE_ENV: 'production' }).transporte).toBe('desligado');
   });
 });
 
 describe('descreverConfigEmail / toJSON — nunca usuário, senha nem chave', () => {
   it('só autenticado: true', () => {
-    const chave = randomBytes(32);
     const c = lerConfigEmail({
       MACUXI_SMTP_HOST: 'smtp.exemplo.com',
       MACUXI_SMTP_USUARIO: USUARIO,
       MACUXI_SMTP_SENHA: SENHA,
       MACUXI_SMTP_REMETENTE: 'Macuxi <nao-responda@macuxifdv.com.br>',
-      MACUXI_EMAIL_CHAVE: chave.toString('base64'),
+      MACUXI_JWT_SEGREDO: SEGREDO_JWT,
     });
+    const chave = Buffer.from(c.chave);
     const d = descreverConfigEmail(c);
-    expect(d).toMatchObject({ transporte: 'smtp', host: 'smtp.exemplo.com', porta: 587, tls: 'starttls', autenticado: true, origem_chave: 'MACUXI_EMAIL_CHAVE' });
+    expect(d).toMatchObject({ transporte: 'smtp', host: 'smtp.exemplo.com', porta: 587, tls: 'starttls', autenticado: true, origem_chave: 'MACUXI_JWT_SEGREDO' });
     expect(d.impressao_chave).toMatch(/^[0-9a-f]{8}$/);
     for (const texto of [JSON.stringify(d), JSON.stringify(c), JSON.stringify({ config: c })]) {
       expect(texto).not.toContain(USUARIO);
       expect(texto).not.toContain(SENHA);
       expect(texto).not.toContain(chave.toString('base64'));
       expect(texto).not.toContain(chave.toString('hex'));
+      expect(texto).not.toContain(SEGREDO_JWT);
     }
   });
 });

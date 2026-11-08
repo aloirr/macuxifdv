@@ -46,7 +46,7 @@ O tipo da etapa do checklist (`TIPOS_ETAPA_CHECKLIST`) fica dentro do jsonb `ite
 ## Grants (`macuxi_app`)
 | Tabelas | Privilégios |
 |---|---|
-| 9 cadastros de trade | `select, insert, update` (BKO edita; removido = `deleted_at`, o pull leva a lápide) |
+| 9 cadastros de trade | `select, insert, update` (BKO edita; removido = `deleted_at`, o pull leva a lápide). **Exceção desde a 0045:** `concorrente` só `select` (legado, ADR 0034) |
 | `visita_loja` | `select, insert` + `update (payload)` — o checkout troca o payload; o gatilho rederiva o resto |
 | 10 coletas | `select, insert` (somente inserção; correção = nova coleta) |
 | todas | **sem DELETE** (42501), sem TRUNCATE/REFERENCES/TRIGGER |
@@ -62,8 +62,8 @@ Alvo (RN-PRO-10): `cliente_id` (uma loja) **ou** `segmento` (lojas do segmento, 
 | checklist_loja | alvo, vigência, nome text, itens jsonb (array de `ChecklistItem`: id, rotulo, tipo, obrigatoria, ordem, categoria_gondola_id) | **uma versão por (alvo, início)** entre vivas (`checklist_loja_versao_uk`, `nulls not distinct`); `(tenant_id, cliente_id)` |
 | mix_obrigatorio | alvo, vigência, produto_id uuid, categoria_gondola_id uuid → categoria (FK composta) | uma versão por (produto, alvo, início) (`mix_obrigatorio_versao_uk`, `nulls not distinct`) |
 | meta_share | alvo, vigência, categoria_gondola_id → categoria, meta_pct numeric(5,2) 0–100 | uma versão por (categoria, alvo, início) (`meta_share_versao_uk`) |
-| concorrente | nome (1–120), ativo | nome único entre vivos. **Desde a T-0085 (0033)** também é a lista de marcas da referência cruzada do Catálogo (`catalogo.produto_referencia.marca_id`, sem FK, lida pelo contrato do Promotor; a ADR 0027 não vale). Inativar uma marca tira as referências dela da busca e da ficha |
-| produto_concorrente | concorrente_id → concorrente, nome (1–200), produto_id (nosso), categoria_gondola_id → categoria, ativo | nome único por concorrente; `(tenant_id, produto_id)` |
+| concorrente | nome (1–120), ativo | nome único entre vivos. **LEGADO desde a 0045 (T-0113, ADR 0034):** as linhas foram copiadas com os mesmos ids para `catalogo.marca_concorrente` (o cadastro de marcas é do Catálogo; o Promotor lê por `catalogo.marcas@1`); a tabela fica **só de leitura** para o `macuxi_app` (insert/update revogados = 42501) até a fase 2 (drop, não antes de 2026-12-08) |
+| produto_concorrente | concorrente_id = id da marca do Catálogo (**sem FK desde a 0045**; antes → concorrente), nome (1–200), produto_id (nosso), categoria_gondola_id → categoria, ativo | nome único por concorrente; `(tenant_id, produto_id)` |
 | foto_referencia | alvo, vigência, categoria_gondola_id → categoria, arquivo_id (sem FK, ADR 0010), descricao (≤ 300) | `(tenant_id, categoria_gondola_id)` |
 | tarefa_trade | alvo, vigência, titulo (1–160), instrucao (≤ 1000), prazo date | `(tenant_id, cliente_id)` |
 | ponto_extra_negociado | cliente_id (obrigatório), tipo, local_combinado (1–500), produto_id, vigência | `(tenant_id, cliente_id)` |
@@ -157,4 +157,4 @@ Ex.: em Manaus (UTC−4) o dia D vai de `D 04:00Z` a `D+1 04:00Z` (exclusivo): c
 - Esquema local `modules/promotor/db/local.ts`, se o app usar (banco-dados local). O espelho Drizzle da nuvem entrou na T-0070.
 - `criarRepositorioSql()` em `modules/promotor/api` com o SQL acima (modulo-promotor).
 
-**Base de demo, T-0085 (0033):** 4 marcas de autopeças fictícias no cadastro `concorrente`: Freiomax, Rodaforte, Filtrobom e Vialume (`external_id` `MARCA-<NOME>`, sem produto comparado nem coleta). São as marcas das referências cruzadas do Catálogo da demo, em `db/seeds/demo/catalogo-cadastro.ts`.
+**Base de demo, T-0085 (0033) e T-0113 (0045):** desde a 0045 as 6 marcas da demo (2 do trade e 4 de autopeças) são gravadas em `catalogo.marca_concorrente` pelo seed do Catálogo, antes deste, com os mesmos ids; o seed do Promotor só as grava no cadastro antigo numa base sem a 0045. As 4 de autopeças: Freiomax, Rodaforte, Filtrobom e Vialume (`external_id` `MARCA-<NOME>`, sem produto comparado nem coleta). São as marcas das referências cruzadas do Catálogo da demo, em `db/seeds/demo/catalogo-cadastro.ts`.

@@ -18,10 +18,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VERSAO_CONTRATO } from '../contracts';
 import manifest from '../manifest';
 import { aplicarLote } from './aplicar-lote';
-import { entrarNaFila, sairDaFila } from './consumidores-pedido';
+import { consultaCancelamentoErp } from './consulta-cancelamento';
+import { entrarNaFila, sairDaFila, tratarCancelamento } from './consumidores-pedido';
 import { rotaMonitor } from './bko-monitor';
 import { moduloApi } from './index';
-import { pedidosPendentes } from './rotas-pedidos';
+import { pedidosPendentes, retornoPedido } from './rotas-pedidos';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -39,10 +40,10 @@ interface Capturado {
 
 describe('A7/A8: ligação no manifesto e no moduloApi', () => {
   it('manifesto declara o consumo e o moduloApi expõe os 3 consumidores (o despachante só entrega o que está em consome)', () => {
-    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'integracao.lote.recebido@1']) {
+    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1']) {
       expect(manifest.consome).toContain(nome);
     }
-    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1']);
+    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
   });
 });
 
@@ -310,6 +311,34 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect((await registros(A.tenantId, 'vendedor')).every((x) => x.deleted_at === null)).toBe(true);
       const p = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ estado: string; candidatos: number; total_ativos: number; amostra: string[] }>('select estado, candidatos, total_ativos, amostra from integracao.pendencia_inativacao where lote_id = $1', [lote])).rows);
       expect(p.map((x) => ({ ...x, amostra: [...x.amostra].sort() }))).toEqual([{ estado: 'aguardando', candidatos: 2, total_ativos: 4, amostra: [`${P}-L3`, `${P}-L4`] }]);
+    });
+
+    it('RN-INT-06 (T-0103): o aplicar-lote usa o limite e o prazo do tenant, não o padrão: 50% inativa sem pendência; 10% e 3 dias travam o que o padrão deixaria passar', async () => {
+      const carga = async (prefixo: string, total: number, mantidos: number, parametros: Record<string, unknown>) => {
+        await limpar();
+        const todos = Array.from({ length: total }, (_, i) => vend(`${prefixo}${i + 1}`));
+        await aplicar(A.tenantId, await novoLote(A.tenantId, A.integracao.conector, 'vendedor', { registros: todos }), 'vendedor', ID_A);
+        const sessao = randomUUID();
+        const lote = await novoLote(A.tenantId, A.integracao.conector, 'vendedor', { registros: todos.slice(0, mantidos) }, { id: sessao, parte: 1, ultimo: true });
+        await admin.query('update integracao.sessao_carga set external_id = $2 where sessao_uuid = $1', [sessao, P]);
+        await aplicar(A.tenantId, lote, 'vendedor', ID_A, { parametros: () => parametros });
+        return lote;
+      };
+      const pendencias = (lote: string) =>
+        comTenant(pool, A.tenantId, async (db) => (await db.query<{ limite_pct: number; expira_em: Date }>('select limite_pct, expira_em from integracao.pendencia_inativacao where lote_id = $1', [lote])).rows);
+
+      // 2 de 4 ausentes = 50%: o padrão (30%) travaria; o tenant com 50% deixa inativar
+      const folgado = await carga('PF', 4, 2, { limiteInativacaoPct: 50 });
+      expect(await lerLote(A.tenantId, folgado)).toMatchObject({ inativadas: 2 });
+      expect(await pendencias(folgado)).toEqual([]);
+
+      // 2 de 10 ausentes = 20%: o padrão deixaria passar; o tenant com 10% trava e a pendência vale 3 dias
+      const rigido = await carga('PR', 10, 8, { limiteInativacaoPct: 10, ttlConfirmacaoInativacaoDias: 3 });
+      expect(await lerLote(A.tenantId, rigido)).toMatchObject({ inativadas: 0 });
+      const pend = await pendencias(rigido);
+      expect(pend).toHaveLength(1);
+      expect(pend[0]?.limite_pct).toBe(10);
+      expect(pend[0]!.expira_em.getTime() - AGORA.getTime()).toBe(3 * 24 * 3600 * 1000);
     });
 
     it('multi-tenant: o evento de um lote do tenant A entregue no contexto do B é no-op, e o registro de A não aparece em B', async () => {
@@ -652,6 +681,121 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       const novo = (await retirar('1.3.0')).pedidos.find((x) => x.pedido_uuid === fob);
       expect(novo?.frete).toEqual(frete);
       await limpar();
+    });
+
+    const aceite = (valor: boolean) => admin.query('update integracao.conector set aceita_cancelamento = $2 where tenant_id = $1 and id = $3', [A.tenantId, valor, A.integracao.conector]);
+    const cancelamento = (tenantId: string, uuid: string, motivo: string | null = 'Cliente desistiu') =>
+      rodar(tenantId, (ctx) => tratarCancelamento({ pedido_id: uuid, motivo, cancelado_em: AGORA.toISOString() }, ctx));
+    const estadoCanc = (uuid: string) =>
+      comTenant(pool, A.tenantId, async (db) => (await db.query<{ cancelamento_estado: string | null; cancelamento_motivo: string | null; cancelamento_tentativas: number; deleted_at: Date | null }>('select cancelamento_estado, cancelamento_motivo, cancelamento_tentativas, deleted_at from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rows[0]);
+    const cancelamentosRetirados = async () => (await retirar() as { cancelamentos?: { pedido_uuid: string; motivo?: string | null }[] }).cancelamentos ?? [];
+
+    it('RN-INT-08 (T-0114): cancelado ainda não entregue ao Conector sai da fila, com ou sem aceite, e nunca vira cancelamento ao ERP', async () => {
+      await limpar();
+      for (const aceita of [false, true]) {
+        await aceite(aceita);
+        const uuid = randomUUID();
+        await aprovar(A.tenantId, pedido(uuid));
+        await cancelamento(A.tenantId, uuid);
+        expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: null });
+        expect((await estadoCanc(uuid))?.deleted_at).not.toBeNull();
+        expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).not.toContain(uuid);
+        expect((await cancelamentosRetirados()).map((x) => x.pedido_uuid)).not.toContain(uuid);
+      }
+      await aceite(false);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0114): entregue e Conector com aceita_cancelamento: fica pendente, sai em GET /pedidos/pendentes (cancelamentos), conta tentativa e o retorno cancelado confirma', async () => {
+      await limpar();
+      await aceite(true);
+      const uuid = randomUUID();
+      await aprovar(A.tenantId, pedido(uuid));
+      await retirar();
+      await cancelamento(A.tenantId, uuid, '  Cliente desistiu  ');
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: 'pendente', cancelamento_motivo: 'Cliente desistiu', cancelamento_tentativas: 0, deleted_at: null });
+      const c = (await cancelamentosRetirados()).find((x) => x.pedido_uuid === uuid);
+      expect(c).toMatchObject({ pedido_uuid: uuid, motivo: 'Cliente desistiu' });
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: 'enviado', cancelamento_tentativas: 1 });
+      // outro tenant não enxerga
+      expect(await comTenant(pool, B.tenantId, async (db) => (await db.query('select 1 from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rowCount)).toBe(0);
+      await aceite(false);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0114): sem o aceite do Conector nada muda (opção b): o pedido entregue segue enviado e o campo cancelamentos nem aparece', async () => {
+      await limpar();
+      await aceite(false);
+      const uuid = randomUUID();
+      await aprovar(A.tenantId, pedido(uuid));
+      await retirar();
+      await cancelamento(A.tenantId, uuid);
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: null, deleted_at: null });
+      expect(await fila(A.tenantId, uuid)).toMatchObject({ estado: 'enviado' });
+      const r = await retirar();
+      expect('cancelamentos' in r).toBe(false);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0114): o mesmo evento 2x não duplica nem reinicia o cancelamento já enviado; pedido fora da fila é ignorado sem lançar', async () => {
+      await limpar();
+      await aceite(true);
+      const uuid = randomUUID();
+      await aprovar(A.tenantId, pedido(uuid));
+      await retirar();
+      await cancelamento(A.tenantId, uuid);
+      await cancelamentosRetirados();
+      await cancelamento(A.tenantId, uuid, 'outro motivo');
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: 'enviado', cancelamento_motivo: 'Cliente desistiu', cancelamento_tentativas: 1 });
+      await expect(cancelamento(A.tenantId, randomUUID())).resolves.toBeUndefined();
+      await aceite(false);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0114): o ERP recusa o cancelamento: fica recusado com o motivo, o pedido segue enviado, o evento sai uma vez e o monitor tem o que alertar; B não recusa o pedido de A', async () => {
+      await limpar();
+      await aceite(true);
+      const uuid = randomUUID();
+      await aprovar(A.tenantId, pedido(uuid));
+      await retirar();
+      await cancelamento(A.tenantId, uuid);
+      await cancelamentosRetirados();
+      const publicar = vi.fn(async () => undefined);
+      const retornar = (tenantId: string, corpo: Record<string, unknown>) =>
+        retornoPedido({
+          tenantId,
+          conector: { id: A.integracao.conector, identificador: ID_A, recebe_pedidos: true },
+          corpo: { versao_contrato: 'v1', pedido_uuid: uuid, ocorrido_em: AGORA.toISOString(), ...corpo },
+          params: { pedido_uuid: uuid },
+          log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+          comTenant: (fn: (db: pg.PoolClient, tx: unknown) => Promise<unknown>) => comTenant(pool, tenantId, (db) => fn(db, { publicar })),
+        } as never);
+      await expect(retornar(B.tenantId, { status: 'cancelamento_recusado', motivo: 'x' })).rejects.toMatchObject({ status: 422 });
+      expect(await retornar(A.tenantId, { status: 'cancelamento_recusado', motivo: 'Pedido já faturado no ERP' })).toMatchObject({ pedido_uuid: uuid, status: 'enviado', repetido: false });
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: 'recusado' });
+      expect(await fila(A.tenantId, uuid)).toMatchObject({ estado: 'enviado' });
+      const linha = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ cancelamento_recusa_motivo: string; cancelamento_recusado_em: Date }>('select cancelamento_recusa_motivo, cancelamento_recusado_em from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rows[0]);
+      expect(linha?.cancelamento_recusa_motivo).toBe('Pedido já faturado no ERP');
+      expect(await retornar(A.tenantId, { status: 'cancelamento_recusado', motivo: 'Pedido já faturado no ERP' })).toMatchObject({ repetido: true });
+      expect(publicar).toHaveBeenCalledTimes(1);
+      // não volta ao Conector como cancelamento pendente
+      expect((await cancelamentosRetirados()).map((x) => x.pedido_uuid)).not.toContain(uuid);
+      // o ERP cancela por conta própria depois: o retorno de sempre confirma e a recusa deixa de alertar
+      await retornar(A.tenantId, { status: 'cancelado' });
+      expect(await estadoCanc(uuid)).toMatchObject({ cancelamento_estado: 'confirmado' });
+      await aceite(false);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0114): a consulta integracao.cancelamento_erp@1 responde pelo Conector do tenant da transação', async () => {
+      const consultar = (tenantId: string) =>
+        comTenant(pool, tenantId, (db) => consultaCancelamentoErp.executar({}, { db, usuario: { id: randomUUID(), tenant_id: tenantId, perfil: 'vendedor', modulos: [] } } as never));
+      await aceite(false);
+      expect(await consultar(A.tenantId)).toEqual({ aceita: false });
+      await aceite(true);
+      expect(await consultar(A.tenantId)).toEqual({ aceita: true });
+      expect(await consultar(B.tenantId)).toEqual({ aceita: false });
+      await aceite(false);
     });
 
     it('multi-tenant: a fila do tenant B não enxerga o pedido de A e a aprovação em B usa o de-para de B', async () => {

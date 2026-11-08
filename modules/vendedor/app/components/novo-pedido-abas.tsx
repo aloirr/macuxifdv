@@ -127,6 +127,11 @@ export function CardPagamento({
           />
         </View>
       )}
+      {opcoesForma.filter((o) => o.desabilitada).map((o) => (
+        <Text key={o.id} style={[t.small, { color: colors.ink3 }]} testID={`forma-indisponivel-${o.id}`}>
+          {o.rotulo} indisponível: {o.motivo}.
+        </Text>
+      ))}
       <View style={s.totalDoPedido} testID="total-do-pedido">
         <Text style={s.totalRotulo}>{rotuloTotalDoPedido(itens)}</Text>
         <Text style={s.totalValor} testID="total-do-pedido-valor">
