@@ -31,3 +31,4 @@ export * from './saude';
 export * from './fuso';
 export * from './onboarding';
 export * from './plataforma';
+export * from './email';
