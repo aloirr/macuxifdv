@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { z } from 'zod';
 import { lerPedidoFaturado, type EventoFaturadoNoDesafio, type PedidoFaturadoLido } from '../contracts';
-import { avaliarPedidoNoDesafio, candidatoDoDesafio, referenciaDoDesafio, type DesafioVendas } from './desafio';
+import { avaliarPedidoNoDesafio, candidatoDoDesafio, lancarPedidoNoDesafio, referenciaDoDesafio, type DesafioVendas } from './desafio';
 import { resolverParametros } from './parametros';
 import { processarLote, type LancamentoXp } from './xp';
 
@@ -62,11 +62,6 @@ describe('RF-TRE-06: desafio de vendas ligado a campanha (paga no faturamento)',
 
   it('RF-TRE-06: quantidade inválida (zero, negativa) é ignorada', () => {
     expect(avaliarPedidoNoDesafio(desafio, pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0 }, { produto_id: 'cafe-500', quantidade: -2 }] }))).toEqual({ elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' });
-  });
-
-  it('RF-TRE-06: unidades fracionadas (kg) arredondam o XP para baixo — XP é inteiro', () => {
-    const r = avaliarPedidoNoDesafio({ ...desafio, xp_por_unidade: 3 }, pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 1.5 }] }));
-    expect(r).toMatchObject({ unidades: 1.5, pontos_base: 4 });
   });
 
   it('RF-TRE-06: vira candidato de XP para o vendedor, na hora do faturamento, com referência desafio:pedido:total', () => {
@@ -342,5 +337,31 @@ describe('T-0036: leitura do evento `vendedor.pedido.faturado@1` com o tipo úni
     const c = candidatoDoDesafio(dUuid, ev, u(82), { ...sp, lancamentos: [] })!;
     expect(processarLote([], [c], sp).lancamentos[0]).toMatchObject({ dia: '2026-10-26', pontos: 8 });
     expect(candidatoDoDesafio(dUuid, ev, u(83), { ...manaus, lancamentos: [] })).toBeNull();
+  });
+});
+
+describe('T-0106: fuso único e quantidade inteira no desafio', () => {
+  it('RF-TRE-06: lancarPedidoNoDesafio usa UM params — vigência e dia do XP não divergem de fuso', () => {
+    const sp = resolverParametros({ fuso: 'America/Sao_Paulo' });
+    const manaus = resolverParametros({ fuso: 'America/Manaus' });
+    // 26/10 03:30Z = 00:30 de 26/10 em São Paulo (dentro da vigência) e 23:30 de 25/10 em Manaus (fora).
+    const ev = pedido({ faturado_em: '2026-10-26T03:30:00Z' });
+    const r = lancarPedidoNoDesafio(desafio, ev, 'L1', [], sp);
+    expect(r).toMatchObject({ resultado: 'aceito', lancamento: { dia: '2026-10-26', pontos: 6 } });
+    expect(lancarPedidoNoDesafio(desafio, ev, 'L2', [], manaus)).toBeNull();
+  });
+
+  it('RN-TRE-08: lancarPedidoNoDesafio é idempotente — o mesmo evento entregue de novo não paga', () => {
+    const params = resolverParametros({});
+    const r = lancarPedidoNoDesafio(desafio, pedido(), 'L1', [], params);
+    if (r?.resultado !== 'aceito') throw new Error('esperava aceito');
+    expect(lancarPedidoNoDesafio(desafio, pedido(), 'L2', [r.lancamento], params)).toBeNull();
+  });
+
+  it('RF-TRE-06: quantidade fracionária não conta (contrato manda inteiro; sem arredondamento por evento)', () => {
+    const p = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.5 }, { produto_id: 'cafe-500', quantidade: 2 }] });
+    expect(avaliarPedidoNoDesafio(desafio, p)).toEqual({ elegivel: true, unidades: 2, pontos_base: 4 });
+    const so = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 0.5 }] });
+    expect(avaliarPedidoNoDesafio(desafio, so)).toEqual({ elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' });
   });
 });

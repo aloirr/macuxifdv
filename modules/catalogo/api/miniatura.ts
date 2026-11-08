@@ -6,7 +6,7 @@
  *
  * ATENÇÃO (cursor do pull): o cursor de `produto_conteudo` é `produto_conteudo.updated_at`. Quem gravar, trocar ou remover
  * uma `produto_midia` principal DEVE chamar `tocarConteudoPelaMidia` NA MESMA TRANSAÇÃO, senão a mudança da foto não
- * chega ao aparelho (hoje nenhum código da API grava `produto_midia`).
+ * chega ao aparelho (escreva SEMPRE por `definirFotoPrincipal`/`removerFotoPrincipal`, que já tocam; um teste trava `insert/update` direto de `produto_midia` fora deste arquivo).
  */
 import { BYTES_MAX_MINIATURA, LADO_MAX_MINIATURA_PX } from '../contracts';
 
@@ -48,4 +48,37 @@ export interface ClienteSql {
 
 export async function tocarConteudoPelaMidia(db: ClienteSql, tenantId: string, produtoId: string): Promise<void> {
   await db.query(SQL_TOCAR_CONTEUDO_PELA_MIDIA, [tenantId, produtoId]);
+}
+
+/** Entrada da foto principal: `arquivo_id` (plataforma.arquivo) ou `url` externa; ao menos um dos dois. */
+export interface FotoPrincipal {
+  id: string;
+  arquivoId?: string | null;
+  url?: string | null;
+  titulo?: string | null;
+}
+
+export const SQL_APOSENTAR_FOTO_PRINCIPAL = `update catalogo.produto_midia set deleted_at = now()
+  where tenant_id = $1::uuid and produto_id = $2::uuid and principal and deleted_at is null`;
+
+export const SQL_INSERIR_FOTO_PRINCIPAL = `insert into catalogo.produto_midia (id, tenant_id, produto_id, tipo, arquivo_id, url, titulo, principal)
+  values ($1::uuid, $2::uuid, $3::uuid, 'foto', $4::uuid, $5, $6, true)`;
+
+/**
+ * Ponto ÚNICO de escrita da foto principal (T-0097 pendência c): aposenta a principal anterior, grava a nova e toca o
+ * `produto_conteudo`, tudo no mesmo `db` (o chamador entrega um cliente já dentro da transação do tenant). Assim a
+ * versão da miniatura muda sempre que a foto muda. Idempotente por `id` não é tratado aqui: o chamador repete a
+ * transação inteira.
+ */
+export async function definirFotoPrincipal(db: ClienteSql, tenantId: string, produtoId: string, foto: FotoPrincipal): Promise<void> {
+  if (!foto.arquivoId && !foto.url) throw new Error('Informe o arquivo ou o endereço da foto principal.');
+  await db.query(SQL_APOSENTAR_FOTO_PRINCIPAL, [tenantId, produtoId]);
+  await db.query(SQL_INSERIR_FOTO_PRINCIPAL, [foto.id, tenantId, produtoId, foto.arquivoId ?? null, foto.url ?? null, foto.titulo ?? null]);
+  await tocarConteudoPelaMidia(db, tenantId, produtoId);
+}
+
+/** Remove a foto principal viva (se houver) e toca o conteúdo na mesma transação. */
+export async function removerFotoPrincipal(db: ClienteSql, tenantId: string, produtoId: string): Promise<void> {
+  await db.query(SQL_APOSENTAR_FOTO_PRINCIPAL, [tenantId, produtoId]);
+  await tocarConteudoPelaMidia(db, tenantId, produtoId);
 }

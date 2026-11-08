@@ -38,6 +38,8 @@ export const ConectorCriar = z.object({
   tipo: TipoConector.default('conector'),
   /** Só Conectores com `recebe_pedidos` recebem os pedidos aprovados (um por empresa em v1, P-7; padrão `true`). */
   recebe_pedidos: z.boolean().default(true),
+  /** T-0114: o ERP deste Conector aceita cancelamento vindo do Macuxi (padrão desligado; sem isso nada é escrito no ERP, RN-INT-08). */
+  aceita_cancelamento: z.boolean().default(false),
   /**
    * Entidades que ESTE Conector alimenta (T-0027, P-6/RN-INT-13: um Conector por entidade por empresa na v1). Padrão: as 8.
    * O Hub recusa o cadastro que repete entidade de outro Conector ativo (`verificarTopologiaConectores`) e o lote de entidade
@@ -80,6 +82,8 @@ export const ConectorAtualizar = z.object({
   nome: z.string().trim().min(1).max(120).optional(),
   ips_permitidos: z.array(z.string().trim().min(2).max(60)).max(20).optional(),
   recebe_pedidos: z.boolean().optional(),
+  /** T-0114: liga/desliga a devolução do cancelamento ao ERP. */
+  aceita_cancelamento: z.boolean().optional(),
   /** Troca as entidades do Conector (P-6; o Hub confere conflito com os outros Conectores ativos). */
   entidades: ListaEntidadesConector.optional(),
   /** `false` desativa o Conector e revoga as chaves (RN-INT-10). */
@@ -104,6 +108,8 @@ export const ConectorResumo = z.object({
   tipo: TipoConector,
   ativo: z.boolean(),
   recebe_pedidos: z.boolean(),
+  /** T-0114: devolve ao ERP o cancelamento feito no Macuxi. */
+  aceita_cancelamento: z.boolean(),
   /** Entidades que este Conector alimenta (P-6). */
   entidades: z.array(Entidade),
   ips_permitidos: z.array(z.string()),
@@ -315,6 +321,8 @@ export const CODIGOS_ALERTA_MONITOR = [
   'retorno_com_itens_descartados',
   // ADR 0016: pedidos que usam recurso novo (embalagem, acréscimo, FOB, endereço) esperam um Conector mais novo
   'pedido_aguardando_conector',
+  // T-0114 (exceção da RN-INT-08): o ERP recusou o cancelamento de pedido devolvido pelo Hub
+  'cancelamento_recusado',
 ] as const;
 export const AlertaMonitor = z.object({
   codigo: z.enum(CODIGOS_ALERTA_MONITOR),

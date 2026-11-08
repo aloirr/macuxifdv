@@ -7,7 +7,7 @@ import { formatBRL, formatPct, formatarDocumento } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, Icon, LinhaValor, Loading, OpcaoFolha, SectionHeader, Selo, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,7 +25,8 @@ import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, 
 import { errorMessage } from '../lib/erros';
 import { rotuloDoFrete, textoDoEndereco } from '../lib/novo-pedido';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
-import { orderNote, statusBadge } from '../lib/order-status';
+import { orderNote, statusBadge, statusBadgeDaLinha } from '../lib/order-status';
+import { estadoNaFila, ROTULO_CORRIGIR_PEDIDO } from '../lib/salvar-na-fila';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
@@ -54,7 +55,7 @@ interface Line {
 }
 
 export default function OrderDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, transformar: abrirTransformar } = useLocalSearchParams<{ id: string; transformar?: string }>();
   const app = useVendedor();
   const ambiente = useAmbiente();
   const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing, perfil, v1 } = app;
@@ -76,6 +77,15 @@ export default function OrderDetailScreen() {
   const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number } | null>(null);
   /** desenho §1.5: a folha do Transformar abre sempre (toque 1); o envio é o toque 2 */
   const [transformarAberto, setTransformarAberto] = useState(false);
+  // T-0137: "Transformar em pedido" da edição do orçamento salva e chega aqui com a folha do Transformar já aberta (uma vez)
+  const transformarAoAbrir = useRef<(() => void) | null>(null);
+  const jaAbriuTransformar = useRef(false);
+  useEffect(() => {
+    if (abrirTransformar === '1' && !jaAbriuTransformar.current && transformarAoAbrir.current) {
+      jaAbriuTransformar.current = true;
+      transformarAoAbrir.current();
+    }
+  });
   const detail = app.detalhe(id ?? '');
   const summary = orders.find((o) => o.id === id) ?? null;
   const queued = fila.find((o) => o.payload.id === id) ?? null;
@@ -120,7 +130,8 @@ export default function OrderDetailScreen() {
   }
 
   const status = queued ? 'queued' : (detail?.status ?? summary?.status ?? 'received');
-  const b = statusBadge(status);
+  const naFila = queued ? estadoNaFila({ recusado: queued.failed, offline, motivoBruto: queued.ultimo_erro ?? '' }) : null;
+  const b = queued && queued.failed ? statusBadgeDaLinha({ status: 'queued', local_failed: true }) : statusBadge(status);
   const sellerNameHeader = queued ? (ambiente.usuario()?.nome ?? '') : (base?.seller_name ?? '');
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
@@ -155,7 +166,7 @@ export default function OrderDetailScreen() {
     return base!.delivery_address ? textoDoEndereco({ ...base!.delivery_address, numero: base!.delivery_address.numero ?? null, complemento: base!.delivery_address.complemento ?? null, bairro: base!.delivery_address.bairro ?? null }) : null;
   })();
   const terms = queued ? queued.payload.payment_terms : base!.payment_terms;
-  const note = queued ? queued.ultimo_erro : base ? orderNote(base) : '';
+  const note = queued ? '' : base ? orderNote(base) : '';
   const history: OrderEvent[] = queued
     ? [{ at: queued.criado_em, status: 'queued', by: 'aparelho', note: queued.payload.created_offline_at ? 'Criado no aparelho sem sinal' : 'Aguardando envio' }]
     : (detail?.history ?? []);
@@ -180,6 +191,7 @@ export default function OrderDetailScreen() {
   const { podeEditar: canEdit, podeExcluir: canDelete, motivoBloqueio: lockedReason } = estadoDasAcoes({
     status,
     naFila: Boolean(queued),
+    recusado: Boolean(queued?.failed),
     offline,
     v1,
     ehVendedor,
@@ -221,6 +233,8 @@ export default function OrderDetailScreen() {
       setBusy(null);
     }
   };
+
+  transformarAoAbrir.current = acoesOrc?.pode_converter && !queued && podeCriar && hasLines ? () => void transformar() : null;
 
   const startDraft = async (mode: 'duplicate' | 'edit') => {
     setBusy(mode);
@@ -340,7 +354,9 @@ export default function OrderDetailScreen() {
   const modalidadeOrc = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const entregaOrc = modalidadeOrc ? linhaDeEntrega({ modalidade: modalidadeOrc, prazo: terms, endereco: null }) : terms;
   const vencido = ehOrc && situacaoOrc === 'expirado';
-  const mostrarEditar = ehOrc ? Boolean(acoesOrc?.pode_editar) : true;
+  // T-0130: o pedido na fila é só de leitura (sem Editar); o recusado pela API volta com "Corrigir pedido"
+  const mostrarEditar = ehOrc ? Boolean(acoesOrc?.pode_editar) : !queued || queued.failed;
+  const rotuloEditar = queued ? ROTULO_CORRIGIR_PEDIDO : 'Editar';
   const mostrarDuplicar = ehOrc ? Boolean(acoesOrc?.pode_duplicar) : true;
   const mostrarPdf = ehOrc ? Boolean(acoesOrc?.pode_pdf) : true;
   const mostrarCancelar = ehOrc ? Boolean(acoesOrc?.pode_cancelar) : true;
@@ -352,7 +368,7 @@ export default function OrderDetailScreen() {
       </View>
     ) : null;
   };
-  const botaoEditar = mostrarEditar && ehVendedor ? <Botao key="editar" testID="pedido-editar" rotulo="Editar" icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} /> : null;
+  const botaoEditar = mostrarEditar && ehVendedor ? <Botao key="editar" testID="pedido-editar" rotulo={rotuloEditar} icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} /> : null;
   const botaoPdf = mostrarPdf ? (
     <Botao
       key="pdf"
@@ -445,7 +461,7 @@ export default function OrderDetailScreen() {
         {ehVendedor && (mostrarEditar || mostrarDuplicar) ? (
           <View style={styles.actionsRow}>
             {mostrarEditar ? (
-              <Botao testID="pedido-editar" rotulo="Editar" icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} />
+              <Botao testID="pedido-editar" rotulo={rotuloEditar} icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} />
             ) : null}
             {mostrarDuplicar ? (
               <Botao
@@ -533,10 +549,12 @@ export default function OrderDetailScreen() {
 
       {queued ? (
         <View style={{ gap: 8 }}>
-          <Banner>
-            {queued.failed ? textoNaoFoiAceito(queued.ultimo_erro ?? '') : offline ? 'Na fila do aparelho. Envio automático quando o sinal voltar.' : 'Na fila do aparelho. Nova tentativa a cada 15 s.'}
-          </Banner>
-          {!offline ? <Button label="Enviar agora" icon="send" variant="dark" loading={flushing} onPress={() => void reenviarFila().then(() => irParaPedidos())} /> : null}
+          {naFila ? (
+            <Banner testID="pedido-faixa-fila" tone={naFila.faixa.tom} icon={naFila.faixa.icone} anunciar>
+              {naFila.faixa.texto}
+            </Banner>
+          ) : null}
+          {naFila?.podeEnviarAgora ? <Button label="Enviar agora" icon="send" variant="dark" loading={flushing} onPress={() => void reenviarFila().then(() => irParaPedidos())} /> : null}
           {qd && qd.notes.length > 0 ? <Text style={[t.small, { color: colors.accentInk }]}>{qd.notes.join(' ')}</Text> : null}
         </View>
       ) : null}

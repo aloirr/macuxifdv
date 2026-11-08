@@ -39,9 +39,13 @@ const ONDE = definirConsulta({
   entrada: z.object({}),
   saida: z.object({ txid: z.string(), tenant: z.string(), papel: z.string(), tenants_visiveis: z.array(z.string()) }),
 });
+// O Catálogo real (rotas e consultas, ex.: catalogo.marcas@1 que o Promotor usa desde a T-0113) + a consulta de teste
+const catalogoReal = MODULOS_API.find((m) => m.manifesto.id === 'catalogo')!;
 const catalogoApi = definirModuloApi({
-  manifesto: defineModule({ ...catalogo, ofereceConsultas: ['catalogo.onde_estou@1'] }),
+  ...catalogoReal,
+  manifesto: defineModule({ ...catalogo, ofereceConsultas: [...(catalogo.ofereceConsultas ?? []), 'catalogo.onde_estou@1'] }),
   consultas: [
+    ...(catalogoReal.consultas ?? []),
     implementarConsulta(ONDE, async (_e, ctx) => {
       const r = (await ctx.db.query<{ txid: string; tenant: string; papel: string }>('select txid_current()::text as txid, plataforma.tenant_atual()::text as tenant, current_user as papel')).rows[0]!;
       const t = (await ctx.db.query<{ tenant_id: string }>('select distinct tenant_id::text from plataforma.auditoria')).rows.map((x) => x.tenant_id);

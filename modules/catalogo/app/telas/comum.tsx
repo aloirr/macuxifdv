@@ -65,12 +65,18 @@ function LinhasDaBusca({ item }: { item: ItemVitrine }) {
     <View style={{ gap: 2 }}>
       {item.serve_em ? (
         <View testID={`catalogo-serve-em-${item.erp_code}`}>
-          <TextoMarcado texto={`Serve em: ${item.serve_em.texto}${incluiAno ? ` · ${incluiAno}` : ''}`} marcas={item.serve_em.marcas.map(([a, b]) => [a + 10, b + 10] as const)} estilo={t.small} />
+          <Text style={t.sub}>
+            <Text style={t.smallStrong}>Serve em: </Text>
+            <TextoMarcado texto={`${item.serve_em.texto}${incluiAno ? ` · ${incluiAno}` : ''}`} marcas={item.serve_em.marcas} estilo={t.sub} />
+          </Text>
         </View>
       ) : null}
       {item.equivale_a && equivale ? (
         <View testID={`catalogo-equivale-a-${item.erp_code}`}>
-          <TextoMarcado texto={`Equivale a: ${equivale}`} marcas={item.equivale_a.marcas.map(([a, b]) => [a + 12, b + 12] as const)} estilo={t.small} />
+          <Text style={t.sub}>
+            <Text style={t.smallStrong}>Equivale a: </Text>
+            <TextoMarcado texto={equivale} marcas={item.equivale_a.marcas} estilo={t.sub} />
+          </Text>
         </View>
       ) : null}
     </View>

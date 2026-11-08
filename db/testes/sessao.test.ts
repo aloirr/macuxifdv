@@ -52,7 +52,7 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
   let app: pg.Client;
 
   beforeAll(async () => {
-    b = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: 'x', agora: AGORA }).then(() => undefined) });
+    b = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: 'Teste@1234', agora: AGORA }).then(() => undefined) });
     app = new pg.Client({ connectionString: b.urlApp });
     await app.connect();
   });
@@ -67,8 +67,8 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         const antes = await retratoDosDados(c);
         expect(antes['core.sessao']!.startsWith('2:')).toBe(true);
         expect(antes['core.dispositivo']!.startsWith('3:')).toBe(true);
-        await carregarDoisTenants(c, { senha: 'x', agora: AGORA });
-        await carregarDoisTenants(c, { senha: 'x', agora: AGORA });
+        await carregarDoisTenants(c, { senha: 'Teste@1234', agora: AGORA });
+        await carregarDoisTenants(c, { senha: 'Teste@1234', agora: AGORA });
         expect(await retratoDosDados(c)).toEqual(antes);
       });
     });
@@ -80,7 +80,7 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         await c.query("update core.usuario set tentativas_falhas = 5, bloqueio_ate = now() + interval '15 min' where id = $1", [A.usuarios.vendedor1]);
         await c.query('update core.sessao set usado_em = now(), revogado_em = now() where id = $1', [A.sessoes.vendedor1]);
         await c.query('update core.dispositivo set bloqueado_em = now() where id = $1', [A.dispositivos.vendedor1]);
-        await carregarDoisTenants(c, { senha: 'outra', agora: AGORA });
+        await carregarDoisTenants(c, { senha: 'Outra@1234', agora: AGORA });
         expect(await retratoDosDados(c)).toEqual(antes);
         const depois = await c.query('select senha_hash from core.usuario where id = $1', [A.usuarios.vendedor1]);
         expect(depois.rows[0].senha_hash).toBe(senha.rows[0].senha_hash);

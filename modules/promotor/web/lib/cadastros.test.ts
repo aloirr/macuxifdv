@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EDICAO_CADASTRO } from '../../contracts';
-import { cadastroCsv, corpoDoForm, formDaLinha, formVazio, lerAbaCadastro, lerPercentual, paraBuscaAba, problemasDoForm, rotuloAlvo } from './cadastros';
+import { ACAO_MARCAS, avisoMarcas, cadastroCsv, corpoDoForm, formDaLinha, formVazio, lerAbaCadastro, lerPercentual, paraBuscaAba, problemasDoForm, rotuloAlvo } from './cadastros';
 
 const ID = '00000000-0000-4000-8000-000000000001';
 const CAT = '00000000-0000-4000-8000-0000000000e1';
@@ -68,5 +68,13 @@ describe('CSV dos cadastros', () => {
   });
   it('desativado aparece como tal', () => {
     expect(cadastroCsv('concorrente', [{ nome: 'Rival', ativo: false, deleted_at: '2026-11-03T10:00:00.000Z' }])).toContain('Rival;Desativado');
+  });
+});
+
+describe('aviso das marcas concorrentes (ADR 0034)', () => {
+  it('ADR 0033: o link para o Catálogo aparece só com a permissão marca.gerenciar', () => {
+    expect(ACAO_MARCAS).toBe('marca.gerenciar');
+    expect(avisoMarcas(true).link).toBe(true);
+    expect(avisoMarcas(false).link).toBe(false);
   });
 });

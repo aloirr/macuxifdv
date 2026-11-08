@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import { EditarOrcamentoRequest, PedidoPush, type OrderDetail } from '../../contracts';
-import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from './documento';
+import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from './documento';
 import { calcularPedido, linhasParaPush, reaisParaCents, centsParaCampo, trocarModoDoAjuste } from './novo-pedido';
 import { aplicarAjusteDoPedido, montarPedido, rascunhoVazio } from './pedidos';
 import { pedidoDaConversao, validadeCivilDoDocumento } from './pre-venda';
@@ -195,13 +195,21 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
   });
   it('RN-VEN-18: preço alterado (café 18,90 → 19,50) aparece em português e mantém o desconto em R$', () => {
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1950), P(GAS, 11780)]));
-    const preco = r.mudancas.find((m) => m.tipo === 'preco');
-    expect(preco).toMatchObject({ produto_id: CAFE, de_cents: 1890, para_cents: 1950 });
-    expect(textoDaMudanca(preco!, nomes).replace(/\s/g, ' ')).toBe('Café: preço de R$ 18,90 para R$ 19,50.');
+    expect(r.mudancas.some((m) => m.tipo === 'preco')).toBe(false);
+    expect(r.rascunho.itens.find((i) => i.product_id === CAFE)!.tabela_cents).toBe(1890);
+    expect(textoDaMudanca({ tipo: 'abaixo_minimo', produto_id: CAFE, unidade: 'UN' }, nomes)).toBe('Café: o desconto passa do preço mínimo de hoje. Ajuste o desconto do item.');
   });
-  it('RN-CAT-06: item sem preço sai; RN-VEN-13: cliente bloqueado só com orçamento (bloqueia o envio)', () => {
+  it('RN-VEN-18 (T-0134): editar o orçamento — preços congelados vêm do detalhe salvo (tabela da medida ÷ fator)', () => {
+    expect(precosCongeladosDoOrcamento({ items: [{ product_id: CAFE, unit_price_cents: 1890, factor: 1 }, { product_id: AGUA, unit_price_cents: 1788, factor: 12 }] } as never, undefined, [])).toEqual({ [CAFE]: 1890, [AGUA]: 149 });
+  });
+  it('RN-VEN-18 (T-0134): orçamento ainda na fila usa a exibição guardada (CX c/ 12 → fator 12)', () => {
+    const unidades = [{ produto_id: AGUA, unidade: 'CX', fator: 12, padrao: false }];
+    expect(precosCongeladosDoOrcamento(null, [{ product_id: AGUA, unit_price_cents: 1788, unit_label: 'CX c/ 12' }, { product_id: CAFE, unit_price_cents: 1890 }], unidades)).toEqual({ [AGUA]: 149, [CAFE]: 1890 });
+  });
+  it('RN-VEN-18 (T-0134): item sem preço hoje segue com o preço congelado; RN-VEN-13: cliente bloqueado só com orçamento (bloqueia o envio)', () => {
     const r = reconferirDocumento({ ...entrada([P(AGUA, 149), P(CAFE, null), P(GAS, 11780)]), cliente: { ativo: true, bloqueado: true, cadastro_incompleto: false, campos_faltantes: [] } });
-    expect(r.mudancas.some((m) => m.tipo === 'sem_preco' && m.produto_id === CAFE)).toBe(true);
+    expect(r.mudancas.some((m) => m.tipo === 'sem_preco' && m.produto_id === CAFE)).toBe(false); // T-0134: preço congelado vale sem preço hoje
+    expect(r.rascunho.itens.some((i) => i.product_id === CAFE)).toBe(true);
     expect(r.pode_enviar).toBe(false);
     expect(r.bloqueio).toBeTruthy();
     expect(textoDaMudanca({ tipo: 'sem_preco', produto_id: CAFE }, nomes)).toMatch(/sem preço na tabela de hoje/);

@@ -159,7 +159,10 @@ describe('pesquisa — seed demo e fixture (estático)', () => {
     for (const t of TABELAS_PESQUISA_DO_GATILHO) expect(ORDEM_TABELAS as readonly string[]).not.toContain(t);
     const f = dadosDoisTenants(HASH_FALSO, { agora: agoraDaFixture() });
     const linhas = Object.entries(f).flatMap(([t, ls]) => ls.map((l) => ({ t, id: String(l.id) })));
-    expect(new Set(linhas.map((l) => l.id)).size).toBe(linhas.length);
+    // 0045 (T-0113, ADR 0034): a marca ativa do Catálogo É o concorrente do Promotor copiado (mesmo id, de propósito)
+    const doPromotor = new Set(f['promotor.concorrente'].map((l) => String(l.id)));
+    const unicas = linhas.filter((l) => !(l.t === 'catalogo.marca_concorrente' && doPromotor.has(l.id)));
+    expect(new Set(unicas.map((l) => l.id)).size).toBe(unicas.length);
     // grupo (2º bloco do UUID fixo) da Pesquisa (0x160–0x165) só aparece em linhas da Pesquisa e nas fotos dela
     const grupo = (id: string) => parseInt(id.split('-')[1]!, 16);
     const daPesquisa = new Set<string>([PA.arquivos.fotoV1c1, PB.arquivos.fotoC1]);
@@ -442,7 +445,7 @@ describe.skipIf(semBanco())('pesquisa — seed demo (Postgres)', () => {
     b = await criarBancoDeTeste({
       preparar: async (c) => {
         await carregarDoisTenants(c, { agora: agoraDaFixture() });
-        await carregarDemo(c, { senha: 'senha-do-teste-pesquisa', hoje });
+        await carregarDemo(c, { senha: 'Pesquisa@teste1', hoje });
       },
     });
     await comAdmin(b.nome, (c) => carregarPesquisaDemo(c, { hoje }));
@@ -491,7 +494,7 @@ describe.skipIf(semBanco())('pesquisa — seed demo (Postgres)', () => {
   it('dentro da transação do carregarDemo (a linha que liga o seed no demo.ts) também carrega', async () => {
     const outro = await criarBancoDeTeste({
       preparar: async (c) => {
-        await carregarDemo(c, { senha: 'senha-do-teste-pesquisa', hoje });
+        await carregarDemo(c, { senha: 'Pesquisa@teste1', hoje });
         await c.query('begin');
         await gravarPesquisaDemo(c, { hoje });
         await c.query('commit');

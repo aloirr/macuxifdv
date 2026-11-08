@@ -1,72 +1,35 @@
 /**
- * Identidade do super-admin de plataforma (T-0087; ADR 0029; RN-CORE-31; desenho docs/desenho/T-0087.md §2 e §4).
- * Rotas públicas `plataforma/auth/*`: primeiro acesso por convite, login em 2 etapas (senha -> desafio -> código TOTP ou de
- * recuperação), cadastro do TOTP, renovar, sair e regerar códigos; mais `autenticarSuperAdmin` (token + sessão viva no banco).
+ * Acesso ao portal de implantação só com e-mail e senha (T-0093; ADR 0031; RN-CORE-31/32/33; desenho docs/desenho/T-0093.md §2 a §4).
+ * Rotas públicas `plataforma/auth/{login,empresa,renovar,sair}` e `autenticarPortal` (token + sessão viva no banco).
+ * Quem entra: o super-admin (vê todas as empresas) ou o `admin` do cliente (só nas empresas em que a senha conferiu; escolhe uma).
  * Segurança:
- * - e-mail inexistente e senha errada: MESMA resposta e o mesmo tempo (`gastarTempoDeSenha`);
- * - 5 falhas (senha ou código) = 423 por 15 min, contadas no banco; senha certa NÃO zera a contagem (só o 2º fator completo);
- * - desafio de uso único e 5 min; o mesmo passo do TOTP nunca vale duas vezes; código de recuperação é de uso único;
- * - sem os 3 segredos do portal a rota responde 503 (falha fechada);
- * - tudo auditado em `plataforma.auditoria_plataforma` (sa_auditar), sem e-mail, senha, código nem segredo; nada disso vai a log.
+ * - e-mail inexistente e senha errada: MESMA resposta e o mesmo número de conferências (`gastarTempoDeSenha` quando não há conta);
+ * - 5 falhas seguidas na chave HMAC do e-mail = 423 por 15 min, antes de tudo e também para e-mail inexistente (sem oráculo);
+ * - as contas do e-mail são conferidas em paralelo; a precedência é do super-admin; a lista de empresas nunca traz empresa em
+ *   que a senha não conferiu;
+ * - sem `MACUXI_JWT_SEGREDO_PLATAFORMA` a rota responde 503 (falha fechada);
+ * - tudo auditado em `plataforma.auditoria_plataforma` (sa_auditar), sem e-mail, senha nem token; nada disso vai a log.
  */
-import {
-  type AcessoBanco,
-  type ContextoPublico,
-  type SuperAdminAutenticado,
-} from '@macuxi/platform-sdk';
-import {
-  base32Codificar,
-  estadoDoSuperAdmin,
-  expiracaoDoTokenPlataforma,
-  uriOtpauth,
-} from '../domain/super-admin';
-import {
-  CODIGOS_PORTAL,
-  type EtapaLogin,
-  type LoginPlataforma,
-  type PrimeiroAcesso,
-  type RegerarRecuperacao,
-  type SegundoFator,
-  type SessaoPlataforma,
-  type TotpConfirmado,
-  type TotpConfirmar,
-  type TotpInicio,
-  type DesafioEntrada,
-} from '../contracts/plataforma';
+import { type AcessoBanco, type AcessoPortalAutenticado, type ContextoPublico } from '@macuxi/platform-sdk';
+import { chaveBloqueada, decidirAcessoDoLogin, expiracaoDoTokenPlataforma } from '../domain/super-admin';
+import { CODIGOS_PORTAL, MENSAGEM_PORTAL_SENHA_A_TROCAR, type EscolherEmpresaPortal, type LoginPortal, type SessaoPortal } from '../contracts/plataforma';
 import { erroHttp } from './erros';
-import { fabricaSuperAdminSql, type EtapaDesafio, type FabricaSuperAdmin, type LinhaAuditoriaAuth, type RepositorioSuperAdmin, type SuperAdminLinha } from './super-admin-repositorio';
-import { gastarTempoDeSenha, hashSenha, tokenDoCabecalho, verificarSenha } from './seguranca';
-import {
-  ConfiguracaoPlataformaInvalida,
-  assinarTokenPlataforma,
-  cifrarSegredoTotp,
-  conviteConfere,
-  decifrarSegredoTotp,
-  exigirSegredoPlataforma,
-  gerarCodigosRecuperacao,
-  hashCodigoRecuperacao,
-  hashDoDesafio,
-  novoDesafio,
-  novoSegredoTotp,
-  verificarTokenPlataforma,
-  verificarTotp,
-} from './seguranca-plataforma';
+import { fabricaSuperAdminSql, type EmpresaDaSessao, type FabricaSuperAdmin, type LinhaAuditoriaAuth, type RepositorioSuperAdmin, type SessaoViva } from './super-admin-repositorio';
+import { gastarTempoDeSenha, tokenDoCabecalho, verificarSenha } from './seguranca';
+import { ConfiguracaoPlataformaInvalida, assinarTokenPlataforma, chaveDeTentativa, exigirSegredoPlataforma, verificarTokenPlataforma, type ClaimsPlataforma } from './seguranca-plataforma';
 
 export interface DepsSuperAdmin {
-  /** `MACUXI_JWT_SEGREDO_PLATAFORMA` (lido a cada uso). */
+  /** `MACUXI_JWT_SEGREDO_PLATAFORMA` (lido a cada uso). Único segredo do portal: sem TOTP e sem convite (ADR 0031). */
   segredo(): string | undefined;
-  /** `MACUXI_CHAVE_TOTP` (32 bytes em base64). */
-  chaveTotp(): string | undefined;
-  /** `MACUXI_SUPERADMIN_CONVITE` (≥ 32 caracteres). */
-  convite(): string | undefined;
   repo?: FabricaSuperAdmin;
+  /** Conferência de senha (teste injeta contadores). Padrão: argon2id real. */
+  senha?: { verificar(senha: string, hash: string): Promise<boolean>; gastar(senha: string): Promise<void> };
 }
 
 const MENSAGEM_CREDENCIAIS = 'E-mail ou senha incorretos. Confira e tente de novo.';
 const MENSAGEM_BLOQUEADO = 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.';
-const MENSAGEM_DESAFIO = 'Esta etapa expirou. Volte e entre de novo com e-mail e senha.';
-const MENSAGEM_CODIGO = 'Código incorreto. Confira o aplicativo autenticador e tente de novo.';
 const MENSAGEM_SESSAO = 'Sua sessão do portal expirou. Entre de novo.';
+const MENSAGEM_EMPRESA = 'Você não tem acesso a esta empresa. Escolha uma da lista.';
 
 /** Prefixo do IP para a auditoria (LGPD): IPv4 /24, IPv6 /48. */
 export function prefixoDoIp(ip: string | undefined | null): string | null {
@@ -82,28 +45,35 @@ export function prefixoDoIp(ip: string | undefined | null): string | null {
 }
 
 type Ctx<C> = ContextoPublico<C>;
+type Quem = Pick<LinhaAuditoriaAuth, 'super_admin_id' | 'sessao_id' | 'ator_tipo' | 'usuario_id'>;
+const ANONIMO: Quem = { super_admin_id: null, sessao_id: null, ator_tipo: null, usuario_id: null };
+
+/** Os claims do token batem com a sessão viva (tipo, `sub` e `tid`)? Token sem empresa só serve a sessão sem empresa atual. */
+export function claimsBatemComSessao(c: ClaimsPlataforma, s: SessaoViva): boolean {
+  if (c.typ === 'sa') return s.tipo === 'super_admin' && s.super_admin_id === c.sub && c.tid === undefined;
+  if (s.tipo !== 'admin_cliente') return false;
+  if (c.tid === undefined) return s.tenant_id === null && c.sub === c.sid;
+  return s.tenant_id === c.tid && s.usuario_id === c.sub;
+}
 
 export function criarSuperAdmin(deps: DepsSuperAdmin) {
   const fabrica = deps.repo ?? fabricaSuperAdminSql;
+  const conferir = deps.senha?.verificar ?? verificarSenha;
+  const gastar = deps.senha?.gastar ?? gastarTempoDeSenha;
 
-  /** Confere os 3 segredos; sem eles, 503 antes de qualquer consulta. */
-  const config = (exigeConvite = false): { segredo: string; chave: string | undefined } => {
+  /** Confere o segredo; sem ele, 503 antes de qualquer consulta. */
+  const config = (): string => {
     try {
-      const segredo = exigirSegredoPlataforma(deps.segredo());
-      const chave = deps.chaveTotp();
-      cifrarSegredoTotp(Buffer.alloc(1), chave, '0'); // valida a chave (32 bytes)
-      if (exigeConvite && (deps.convite()?.length ?? 0) < 32) throw new ConfiguracaoPlataformaInvalida('MACUXI_SUPERADMIN_CONVITE');
-      return { segredo, chave };
+      return exigirSegredoPlataforma(deps.segredo());
     } catch (e) {
       if (e instanceof ConfiguracaoPlataformaInvalida) throw erroHttp(503, CODIGOS_PORTAL.indisponivel, 'O acesso ao portal está indisponível no momento. Avise o suporte da Macuxi.');
       throw e;
     }
   };
 
-  const auditar = async (repo: RepositorioSuperAdmin, ctx: Ctx<unknown>, acao: string, status: number, rota: string, quem: { superAdminId?: string | null; sessaoId?: string | null }, detalhes?: LinhaAuditoriaAuth['detalhes']): Promise<void> => {
+  const auditar = async (repo: RepositorioSuperAdmin, ctx: Ctx<unknown>, acao: string, status: number, rota: string, quem: Quem, detalhes?: LinhaAuditoriaAuth['detalhes']): Promise<void> => {
     await repo.auditar({
-      super_admin_id: quem.superAdminId ?? null,
-      sessao_id: quem.sessaoId ?? null,
+      ...quem,
       acao,
       metodo: 'POST',
       rota,
@@ -114,213 +84,146 @@ export function criarSuperAdmin(deps: DepsSuperAdmin) {
     });
   };
 
-  /** A etapa e o prazo (5 min) vêm do banco; o desafio em claro só vai ao chamador. */
-  async function abrirDesafio(repo: RepositorioSuperAdmin, id: string): Promise<EtapaLogin> {
-    const { desafio, hash } = novoDesafio();
-    const aberto = await repo.abrirDesafio(id, hash);
-    if (!aberto) throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
-    return { etapa: aberto.etapa, desafio, expira_em: aberto.expira_em.toISOString() };
-  }
-
-  /** CONSOME o desafio, abre a sessão (teto de 8 h, do banco) e emite o primeiro token de 15 min. */
-  async function abrirSessao(repo: RepositorioSuperAdmin, id: string, hashDoDesafio: string, agora: Date, segredo: string, restantes: number): Promise<{ sessao: SessaoPlataforma; sid: string }> {
-    const aberta = await repo.abrirSessao(hashDoDesafio);
-    if (!aberta || aberta.super_admin_id !== id) throw erroHttp(401, CODIGOS_PORTAL.desafio, MENSAGEM_DESAFIO);
-    const sid = aberta.sessao_id;
-    const teto = aberta.expira_em;
-    const expiraEm = expiracaoDoTokenPlataforma(agora, teto);
-    return {
-      sid,
-      sessao: {
-        token: assinarTokenPlataforma({ sub: id, sid }, agora, expiraEm, segredo),
-        expira_em: expiraEm.toISOString(),
-        sessao_expira_em: teto.toISOString(),
-        recuperacao_restantes: restantes,
-      },
-    };
-  }
-
-  /** Desafio vivo da etapa pedida e o super-admin dele; qualquer problema = 401 DESAFIO_INVALIDO. */
-  async function desafioDaEtapa(repo: RepositorioSuperAdmin, desafio: string, etapa: EtapaDesafio, agora: Date): Promise<{ sa: SuperAdminLinha; hash: string }> {
-    const hash = hashDoDesafio(desafio);
-    const d = await repo.lerDesafio(hash);
-    const sa = d && d.etapa === etapa ? await repo.porId(d.super_admin_id) : null;
-    if (!sa || !sa.ativo) throw erroHttp(401, CODIGOS_PORTAL.desafio, MENSAGEM_DESAFIO);
-    if (estadoDoSuperAdmin({ ativo: sa.ativo, bloqueadoAte: sa.bloqueado_ate, agora }) === 'bloqueado') throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
-    return { sa, hash };
-  }
-
-  /** Falha de código/senha: conta no banco, audita e responde 401 (ou 423 se esta foi a 5ª). */
-  async function falharCodigo(repo: RepositorioSuperAdmin, ctx: Ctx<unknown>, rota: string, saId: string, motivo: string): Promise<never> {
-    const r = await repo.registrarFalha(saId);
-    const bloqueou = r.bloqueado_ate !== null && r.bloqueado_ate.getTime() > ctx.agora().getTime();
-    await auditar(repo, ctx, 'sa.login.falha', bloqueou ? 423 : 401, rota, { superAdminId: saId }, { motivo, falhas: r.falhas });
-    if (bloqueou) throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
-    throw erroHttp(401, CODIGOS_PORTAL.codigoInvalido, MENSAGEM_CODIGO);
-  }
-
-  async function primeiroAcesso(ctx: Ctx<PrimeiroAcesso>): Promise<EtapaLogin> {
-    config(true);
-    const repo = fabrica(ctx.banco);
-    const rota = '/v1/plataforma/auth/primeiro-acesso';
-    if (await repo.existe()) throw erroHttp(410, CODIGOS_PORTAL.primeiroAcessoEncerrado, 'O primeiro acesso já foi feito. Entre com seu e-mail e senha.');
-    if (!conviteConfere(deps.convite(), ctx.corpo.convite)) {
-      await auditar(repo, ctx, 'sa.primeiro_acesso', 401, rota, {}, { motivo: 'convite' });
-      throw erroHttp(401, CODIGOS_PORTAL.conviteInvalido, 'Código de convite incorreto. Confira o valor combinado com a Macuxi.');
+  /** Monta a resposta e o token do estado da sessão: super-admin, admin sem empresa (escolher) ou admin com empresa. */
+  async function sessaoDoPortal(repo: RepositorioSuperAdmin, sid: string, viva: SessaoViva, agora: Date, segredo: string): Promise<SessaoPortal> {
+    const expiraEm = expiracaoDoTokenPlataforma(agora, viva.expira_em);
+    const base = { expira_em: expiraEm.toISOString(), sessao_expira_em: viva.expira_em.toISOString() };
+    if (viva.tipo === 'super_admin') {
+      if (!viva.super_admin_id) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+      return { ...base, token: assinarTokenPlataforma({ sub: viva.super_admin_id, sid, typ: 'sa' }, agora, expiraEm, segredo), tipo: 'super_admin', empresa: null, empresas: [] };
     }
-    const id = await repo.criarPrimeiro(ctx.corpo.email, ctx.corpo.nome, await hashSenha(ctx.corpo.senha));
-    if (!id) throw erroHttp(410, CODIGOS_PORTAL.primeiroAcessoEncerrado, 'O primeiro acesso já foi feito. Entre com seu e-mail e senha.');
-    await auditar(repo, ctx, 'sa.primeiro_acesso', 200, rota, { superAdminId: id });
-    return abrirDesafio(repo, id);
+    const empresas: EmpresaDaSessao[] = await repo.listarEmpresas(sid);
+    if (viva.tenant_id === null) {
+      return { ...base, token: assinarTokenPlataforma({ sub: sid, sid, typ: 'cli' }, agora, expiraEm, segredo), tipo: 'admin_cliente', empresa: null, empresas };
+    }
+    const empresa = empresas.find((e) => e.id === viva.tenant_id);
+    if (!empresa || !viva.usuario_id) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    return { ...base, token: assinarTokenPlataforma({ sub: viva.usuario_id, sid, typ: 'cli', tid: empresa.id }, agora, expiraEm, segredo), tipo: 'admin_cliente', empresa, empresas };
   }
 
-  async function login(ctx: Ctx<LoginPlataforma>): Promise<EtapaLogin> {
-    config();
+  async function login(ctx: Ctx<LoginPortal>): Promise<SessaoPortal> {
+    const segredo = config();
     const repo = fabrica(ctx.banco);
     const rota = '/v1/plataforma/auth/login';
     const agora = ctx.agora();
-    const sa = await repo.paraLogin(ctx.corpo.email);
-    if (!sa) {
-      await gastarTempoDeSenha(ctx.corpo.senha);
-      await auditar(repo, ctx, 'sa.login.falha', 401, rota, {}, { motivo: 'credenciais' });
-      throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
-    }
-    const estado = estadoDoSuperAdmin({ ativo: sa.ativo, bloqueadoAte: sa.bloqueado_ate, agora });
-    if (estado === 'bloqueado') {
-      // RN-CORE-31: bloqueado = 423 para QUALQUER senha, sem conferi-la (sem oráculo) e sem contar nem estender o bloqueio
-      await gastarTempoDeSenha(ctx.corpo.senha);
-      await auditar(repo, ctx, 'sa.login.falha', 423, rota, { superAdminId: sa.id }, { motivo: 'bloqueado' });
+    const chave = chaveDeTentativa(segredo, ctx.corpo.email);
+
+    // RN-CORE-31: bloqueado = 423 para QUALQUER senha e QUALQUER e-mail (existente ou não), sem conferir nem contar
+    const estado = await repo.tentativaEstado(chave);
+    if (chaveBloqueada(estado.bloqueado_ate, agora)) {
+      await gastar(ctx.corpo.senha);
+      await auditar(repo, ctx, 'sa.login.falha', 423, rota, ANONIMO, { motivo: 'bloqueado' });
       throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
     }
-    const certa = await verificarSenha(ctx.corpo.senha, sa.senha_hash);
-    if (!certa || estado === 'inativo') {
-      if (estado === 'ok') await repo.registrarFalha(sa.id);
-      await auditar(repo, ctx, 'sa.login.falha', 401, rota, { superAdminId: sa.id }, { motivo: 'credenciais' });
+
+    const contas = await repo.contasParaLogin(ctx.corpo.email);
+    // em paralelo: 0, 1 ou poucas contas custam o tempo de uma conferência
+    if (contas.length === 0) await gastar(ctx.corpo.senha);
+    const conferidas = await Promise.all(contas.map(async (c) => ({ ...c, conferiu: await conferir(ctx.corpo.senha, c.senha_hash) })));
+    const decidido = decidirAcessoDoLogin(conferidas);
+
+    if (decidido?.tipo === 'senha_a_trocar') {
+      // senha certa, mas só em conta com senha temporária (T-0094): a troca é no BKO; o portal não ganha tela de troca
+      await repo.tentativaSucesso(chave);
+      await auditar(repo, ctx, 'sa.login.falha', 403, rota, ANONIMO, { motivo: 'senha_a_trocar' });
+      throw erroHttp(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
+    }
+    if (!decidido) {
+      const r = await repo.tentativaFalha(chave);
+      const bloqueou = chaveBloqueada(r.bloqueado_ate, agora);
+      await auditar(repo, ctx, 'sa.login.falha', bloqueou ? 423 : 401, rota, ANONIMO, { motivo: 'credenciais', falhas: r.falhas });
+      if (bloqueou) throw erroHttp(423, CODIGOS_PORTAL.bloqueado, MENSAGEM_BLOQUEADO);
       throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
     }
-    return abrirDesafio(repo, sa.id);
-  }
 
-  async function totpIniciar(ctx: Ctx<DesafioEntrada>): Promise<TotpInicio> {
-    const { chave } = config();
-    const repo = fabrica(ctx.banco);
-    const { sa } = await desafioDaEtapa(repo, ctx.corpo.desafio, 'cadastrar_totp', ctx.agora());
-    if (sa.totp_confirmado) throw erroHttp(401, CODIGOS_PORTAL.desafio, MENSAGEM_DESAFIO);
-    const segredo = novoSegredoTotp();
-    await repo.gravarTotpPendente(sa.id, cifrarSegredoTotp(segredo, chave, sa.id));
-    const base32 = base32Codificar(segredo);
-    return { otpauth_uri: uriOtpauth(base32, sa.email), segredo_base32: base32 };
-  }
-
-  async function totpConfirmar(ctx: Ctx<TotpConfirmar>): Promise<TotpConfirmado> {
-    const { segredo: segredoJwt, chave } = config();
-    const repo = fabrica(ctx.banco);
-    const rota = '/v1/plataforma/auth/totp/confirmar';
-    const agora = ctx.agora();
-    const { sa, hash } = await desafioDaEtapa(repo, ctx.corpo.desafio, 'cadastrar_totp', agora);
-    const estado = await repo.totpEstado(sa.id);
-    const segredo = estado.pendente_cifrado ? decifrarSegredoTotp(estado.pendente_cifrado, chave, sa.id) : null;
-    if (!segredo || sa.totp_confirmado) throw erroHttp(409, CODIGOS_PORTAL.totpNaoIniciado, 'Escaneie o QR code no aplicativo autenticador antes de digitar o código.');
-    const r = verificarTotp(segredo, ctx.corpo.codigo, agora, estado.ultimo_passo);
-    if (!r.ok) return falharCodigo(repo, ctx, rota, sa.id, 'totp');
-    const codigos = gerarCodigosRecuperacao(10);
-    if (!(await repo.confirmarTotp(sa.id, r.passo, codigos.map(hashCodigoRecuperacao)))) throw erroHttp(409, CODIGOS_PORTAL.totpNaoIniciado, 'O segundo fator já foi cadastrado. Entre com e-mail, senha e código.');
-    await repo.registrarSucesso(sa.id);
-    const { sessao, sid } = await abrirSessao(repo, sa.id, hash, agora, segredoJwt, codigos.length);
-    await auditar(repo, ctx, 'sa.totp.cadastrar', 200, rota, { superAdminId: sa.id, sessaoId: sid });
-    await auditar(repo, ctx, 'sa.login.ok', 200, rota, { superAdminId: sa.id, sessaoId: sid }, { metodo_2fa: 'totp' });
-    return { codigos_recuperacao: codigos, sessao };
-  }
-
-  async function segundoFator(ctx: Ctx<SegundoFator>): Promise<SessaoPlataforma> {
-    const { segredo: segredoJwt, chave } = config();
-    const repo = fabrica(ctx.banco);
-    const rota = '/v1/plataforma/auth/segundo-fator';
-    const agora = ctx.agora();
-    const { sa, hash } = await desafioDaEtapa(repo, ctx.corpo.desafio, 'segundo_fator', agora);
-    const estado = await repo.totpEstado(sa.id);
-    let restantes = estado.recuperacao_restantes;
-    let metodo: 'totp' | 'recuperacao';
-    if ('codigo_recuperacao' in ctx.corpo) {
-      const usado = await repo.usarRecuperacao(sa.id, hashCodigoRecuperacao(ctx.corpo.codigo_recuperacao));
-      if (usado === null) return falharCodigo(repo, ctx, rota, sa.id, 'recuperacao');
-      restantes = usado;
-      metodo = 'recuperacao';
-    } else {
-      const segredo = estado.segredo_cifrado ? decifrarSegredoTotp(estado.segredo_cifrado, chave, sa.id) : null;
-      const r = segredo ? verificarTotp(segredo, ctx.corpo.codigo, agora, estado.ultimo_passo) : ({ ok: false } as const);
-      // o passo é gravado de forma atômica: dois pedidos com o mesmo código, só um passa
-      if (!r.ok || !(await repo.marcarPasso(sa.id, r.passo))) return falharCodigo(repo, ctx, rota, sa.id, 'totp');
-      metodo = 'totp';
-    }
-    await repo.registrarSucesso(sa.id);
-    const { sessao, sid } = await abrirSessao(repo, sa.id, hash, agora, segredoJwt, restantes);
-    if (metodo === 'recuperacao') await auditar(repo, ctx, 'sa.recuperacao.usar', 200, rota, { superAdminId: sa.id, sessaoId: sid }, { restantes });
-    await auditar(repo, ctx, 'sa.login.ok', 200, rota, { superAdminId: sa.id, sessaoId: sid }, { metodo_2fa: metodo });
+    await repo.tentativaSucesso(chave);
+    const aberta = await repo.abrirSessao(
+      decidido.tipo === 'super_admin'
+        ? { tipo: 'super_admin', super_admin_id: decidido.conta_id }
+        : { tipo: 'admin_cliente', empresas: decidido.empresas.map((e) => ({ tenant_id: e.tenant_id, usuario_id: e.usuario_id, sessao_versao: e.sessao_versao })) },
+    );
+    // o banco reconfere a conta; se ela deixou de valer entre a conferência e a abertura, é credencial inválida
+    if (!aberta) throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
+    const viva = await repo.sessaoValida(aberta.sessao_id);
+    if (!viva) throw erroHttp(401, CODIGOS_PORTAL.credenciais, MENSAGEM_CREDENCIAIS);
+    const sessao = await sessaoDoPortal(repo, aberta.sessao_id, viva, agora, segredo);
+    await auditar(
+      repo,
+      ctx,
+      'sa.login.ok',
+      200,
+      rota,
+      { super_admin_id: viva.super_admin_id, sessao_id: aberta.sessao_id, ator_tipo: viva.tipo, usuario_id: viva.tipo === 'admin_cliente' ? viva.usuario_id : null },
+      { empresas: decidido.tipo === 'admin_cliente' ? decidido.empresas.length : 0 },
+    );
     return sessao;
   }
 
-  /** Token do `Authorization` de uma rota pública (renovar, sair, regerar): assinatura, `aud`, prazo e sessão viva. */
-  async function sessaoDoCabecalho(ctx: Ctx<unknown>, segredo: string): Promise<{ id: string; sid: string; tetoEm: Date }> {
+  /** Token do `Authorization` de uma rota pública (empresa, renovar, sair): assinatura, `aud`, `typ`, prazo e sessão viva igual ao token. */
+  async function sessaoDoCabecalho(ctx: Ctx<unknown>, segredo: string): Promise<{ claims: ClaimsPlataforma; viva: SessaoViva }> {
     const token = tokenDoCabecalho(ctx.cabecalhos?.authorization);
     const claims = token ? verificarTokenPlataforma(token, ctx.agora(), segredo) : null;
     const viva = claims ? await fabrica(ctx.banco).sessaoValida(claims.sid) : null;
-    if (!claims || !viva || viva.super_admin_id !== claims.sub) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
-    return { id: claims.sub, sid: claims.sid, tetoEm: viva.expira_em };
+    if (!claims || !viva || !claimsBatemComSessao(claims, viva)) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    return { claims, viva };
   }
 
-  async function renovar(ctx: Ctx<unknown>): Promise<SessaoPlataforma> {
-    const { segredo } = config();
-    const s = await sessaoDoCabecalho(ctx, segredo);
-    const agora = ctx.agora();
-    const expiraEm = expiracaoDoTokenPlataforma(agora, s.tetoEm);
-    const estado = await fabrica(ctx.banco).totpEstado(s.id);
-    return {
-      token: assinarTokenPlataforma({ sub: s.id, sid: s.sid }, agora, expiraEm, segredo),
-      expira_em: expiraEm.toISOString(),
-      sessao_expira_em: s.tetoEm.toISOString(),
-      recuperacao_restantes: estado.recuperacao_restantes,
-    };
+  const quemDe = (c: ClaimsPlataforma, viva: SessaoViva): Quem => ({
+    super_admin_id: viva.super_admin_id,
+    sessao_id: c.sid,
+    ator_tipo: viva.tipo,
+    usuario_id: viva.tipo === 'admin_cliente' ? viva.usuario_id : null,
+  });
+
+  /** Escolhe ou troca a empresa (admin do cliente): o token anterior morre (o `tid`/`sub` dele deixa de bater com a sessão). */
+  async function escolherEmpresa(ctx: Ctx<EscolherEmpresaPortal>): Promise<SessaoPortal> {
+    const segredo = config();
+    const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
+    const repo = fabrica(ctx.banco);
+    const rota = '/v1/plataforma/auth/empresa';
+    if (viva.tipo !== 'admin_cliente') throw erroHttp(403, CODIGOS_PORTAL.empresaNaoPermitida, 'O acesso do time da Macuxi já vê todas as empresas. Escolha a empresa na lista.');
+    const escolhida = await repo.escolherEmpresa(claims.sid, ctx.corpo.tenant_id);
+    if (!escolhida) {
+      await auditar(repo, ctx, 'sa.empresa.escolher', 403, rota, quemDe(claims, viva), { motivo: 'fora_da_lista' });
+      throw erroHttp(403, CODIGOS_PORTAL.empresaNaoPermitida, MENSAGEM_EMPRESA);
+    }
+    const nova = await repo.sessaoValida(claims.sid);
+    if (!nova) throw erroHttp(401, CODIGOS_PORTAL.sessao, MENSAGEM_SESSAO);
+    return sessaoDoPortal(repo, claims.sid, nova, ctx.agora(), segredo);
+  }
+
+  async function renovar(ctx: Ctx<unknown>): Promise<SessaoPortal> {
+    const segredo = config();
+    const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
+    return sessaoDoPortal(fabrica(ctx.banco), claims.sid, viva, ctx.agora(), segredo);
   }
 
   async function sair(ctx: Ctx<unknown>): Promise<void> {
-    const { segredo } = config();
-    const s = await sessaoDoCabecalho(ctx, segredo);
+    const segredo = config();
+    const { claims, viva } = await sessaoDoCabecalho(ctx, segredo);
     const repo = fabrica(ctx.banco);
-    await repo.revogarSessao(s.sid);
-    await auditar(repo, ctx, 'sa.sair', 204, '/v1/plataforma/auth/sair', { superAdminId: s.id, sessaoId: s.sid });
-  }
-
-  async function regerarRecuperacao(ctx: Ctx<RegerarRecuperacao>): Promise<{ codigos_recuperacao: string[] }> {
-    const { segredo, chave } = config();
-    const s = await sessaoDoCabecalho(ctx, segredo);
-    const repo = fabrica(ctx.banco);
-    const rota = '/v1/plataforma/auth/recuperacao/regerar';
-    const estado = await repo.totpEstado(s.id);
-    const seg = estado.segredo_cifrado ? decifrarSegredoTotp(estado.segredo_cifrado, chave, s.id) : null;
-    const r = seg ? verificarTotp(seg, ctx.corpo.codigo, ctx.agora(), estado.ultimo_passo) : ({ ok: false } as const);
-    if (!r.ok || !(await repo.marcarPasso(s.id, r.passo))) return falharCodigo(repo, ctx, rota, s.id, 'totp');
-    const codigos = gerarCodigosRecuperacao(10);
-    await repo.regerarRecuperacao(s.id, codigos.map(hashCodigoRecuperacao));
-    await auditar(repo, ctx, 'sa.recuperacao.regerar', 200, rota, { superAdminId: s.id, sessaoId: s.sid });
-    return { codigos_recuperacao: codigos };
+    await repo.revogarSessao(claims.sid);
+    await auditar(repo, ctx, 'sa.sair', 204, '/v1/plataforma/auth/sair', quemDe(claims, viva));
   }
 
   /**
-   * `servicos.autenticarSuperAdmin`: assinatura (segredo próprio), `aud`, `exp` E sessão viva no banco, com o mesmo `sub`.
-   * Qualquer outra coisa (inclusive token de tenant ou segredo ausente) = `null`.
+   * `servicos.autenticarPortal`: assinatura (segredo próprio), `aud`, `typ`, `exp` E sessão viva no banco com o mesmo tipo,
+   * `sub` e `tid`. Qualquer outra coisa (token de tenant, token sem `typ`, token antigo de outra empresa, segredo ausente) = `null`.
    */
-  async function autenticarSuperAdmin(cabecalhos: Readonly<Record<string, string | undefined>>, banco: AcessoBanco, agora: Date = new Date()): Promise<SuperAdminAutenticado | null> {
+  async function autenticarPortal(cabecalhos: Readonly<Record<string, string | undefined>>, banco: AcessoBanco, agora: Date = new Date()): Promise<AcessoPortalAutenticado | null> {
     const segredo = deps.segredo();
     if (!segredo || segredo.length < 32) return null;
     const token = tokenDoCabecalho(cabecalhos.authorization);
     const claims = token ? verificarTokenPlataforma(token, agora, segredo) : null;
     if (!claims) return null;
     const viva = await fabrica(banco).sessaoValida(claims.sid);
-    return viva && viva.super_admin_id === claims.sub ? { id: claims.sub, sessao_id: claims.sid } : null;
+    if (!viva || !claimsBatemComSessao(claims, viva)) return null;
+    if (viva.tipo === 'super_admin') return { tipo: 'super_admin', id: claims.sub, sessao_id: claims.sid };
+    if (viva.tenant_id === null || !viva.usuario_id) return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: null };
+    return { tipo: 'admin_cliente', sessao_id: claims.sid, empresa: { tenant_id: viva.tenant_id, usuario_id: viva.usuario_id } };
   }
 
-  return { primeiroAcesso, login, totpIniciar, totpConfirmar, segundoFator, renovar, sair, regerarRecuperacao, autenticarSuperAdmin };
+  return { login, escolherEmpresa, renovar, sair, autenticarPortal };
 }
 
 export type SuperAdmin = ReturnType<typeof criarSuperAdmin>;

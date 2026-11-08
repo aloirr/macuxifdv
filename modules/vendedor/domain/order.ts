@@ -277,8 +277,16 @@ const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', inte
 export function normalizarStatus(status: string): string {
   return ALIAS_STATUS[status] ?? status;
 }
-export type VerificacaoCancelamento = { ok: true } | { ok: false; codigo: string; status: number; mensagem: string };
-export function verificarCancelamento(status: string): VerificacaoCancelamento {
+export type VerificacaoCancelamento = { ok: true; solicitado_ao_erp?: true } | { ok: false; codigo: string; status: number; mensagem: string };
+const FATURADO: ReadonlySet<string> = new Set(['invoiced_partial', 'invoiced', 'invoiced_total', 'faturado_parcial', 'faturado_total', 'faturado']);
+/**
+ * RN-VEN-31 (exceção da T-0114): o pedido enviado/integrado só cancela se o conector do tenant aceita cancelamento
+ * (`integracao.cancelamento_erp@1`); nesse caso fica "cancelamento solicitado" (`solicitado_ao_erp`) até o ERP devolver
+ * 'cancelado'. Faturado nunca cancela no Macuxi. Sem aceite, vale a regra de sempre (422).
+ */
+export interface OpcoesCancelamento { erpAceitaCancelamento?: boolean }
+export function verificarCancelamento(status: string, opcoes: OpcoesCancelamento = {}): VerificacaoCancelamento {
+  if (enviadoAoErp(status) && opcoes.erpAceitaCancelamento === true && !FATURADO.has(status)) return { ok: true, solicitado_ao_erp: true };
   return enviadoAoErp(status) ? { ok: false, codigo: CODIGO_CANCELAR_APOS_ENVIO, status: HTTP_CANCELAR_APOS_ENVIO, mensagem: MSG_CANCELAR_APOS_ENVIO } : { ok: true };
 }
 
@@ -290,10 +298,10 @@ export interface OrderActions {
   locked_reason: string;
 }
 
-export function orderActions(status: OrderStatus): OrderActions {
+export function orderActions(status: OrderStatus, opcoes: OpcoesCancelamento = {}): OrderActions {
   const editable = EDITABLE.has(status) && !enviadoAoErp(status);
-  // P-2: aprovado não se edita, mas cancela até ser enviado ao ERP (doc 03 §4)
-  const cancelavel = editable || status === 'approved';
+  // P-2: aprovado não se edita, mas cancela até ser enviado ao ERP (doc 03 §4); RN-VEN-31 (T-0114): enviado cancela se o ERP aceita
+  const cancelavel = editable || status === 'approved' || (enviadoAoErp(status) && verificarCancelamento(status, opcoes).ok);
   const locked_reason = editable
     ? ''
     : status === 'cancelled'

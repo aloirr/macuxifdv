@@ -76,6 +76,7 @@ export const rotasDeLicencas: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'licencas',
+    superficie: 'bko',
     perfis: ['admin'],
     carteira: 'nao_se_aplica',
     executar: (ctx) => ctx.comTenant((db) => lerEstadoDeLicencas(db, dependenciasDoContexto(ctx))),
@@ -83,6 +84,7 @@ export const rotasDeLicencas: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'licencas/tenant/:modulo',
+    superficie: 'bko',
     acao: 'modulo.gerir_licencas',
     carteira: 'nao_se_aplica',
     params: ModuloParam,
@@ -111,6 +113,7 @@ export const rotasDeLicencas: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'licencas/perfis/:perfil/:modulo',
+    superficie: 'bko',
     acao: 'modulo.gerir_licencas',
     carteira: 'nao_se_aplica',
     params: PerfilModuloParam,
@@ -135,6 +138,7 @@ export const rotasDeLicencas: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'licencas/usuarios/:id/:modulo',
+    superficie: 'bko',
     acao: 'modulo.gerir_licencas',
     carteira: 'nao_se_aplica',
     params: UsuarioModuloParam,

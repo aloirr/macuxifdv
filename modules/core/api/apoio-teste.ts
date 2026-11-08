@@ -4,6 +4,8 @@
  */
 import * as crypto from 'node:crypto';
 import type { AcessoBanco, ClienteBanco, ContextoPublico, LogRota } from '@macuxi/platform-sdk';
+import type { ServicoDeSenhas } from './autenticacao';
+import { verificarSenha } from './seguranca';
 import type { FabricaRepositorios, NovaSessao, RepositorioPublico, RepositorioTenant, SessaoRefresh, UsuarioLogin } from './repositorio';
 
 export const TENANT_A = '0a000000-0000-4000-8000-0000000000aa';
@@ -20,7 +22,7 @@ export interface EstadoMemoria {
 }
 
 /** Hash argon2id PHC com custo mínimo (m=8, t=1): só para os testes; o verificarSenha de produção lê os parâmetros do próprio hash. */
-function hashBarato(senha: string): Promise<string> {
+export function hashBarato(senha: string): Promise<string> {
   const fn = (crypto as unknown as { argon2: (a: 'argon2id', p: Record<string, unknown>, cb: (e: Error | null, t: Buffer) => void) => void }).argon2;
   const sal = crypto.randomBytes(16);
   const b64 = (b: Buffer) => b.toString('base64').replace(/=+$/, '');
@@ -29,12 +31,48 @@ function hashBarato(senha: string): Promise<string> {
   );
 }
 
+/** Senhas com argon2 barato e contagem das conferências (o tempo constante do login = sempre 2 conferências). */
+export function senhasDeTeste(): ServicoDeSenhas & { contagem: { verificar: number; gastar: number; hash: number } } {
+  const contagem = { verificar: 0, gastar: 0, hash: 0 };
+  let falso: Promise<string> | null = null;
+  return {
+    contagem,
+    verificar: async (s, phc) => {
+      contagem.verificar += 1;
+      return verificarSenha(s, phc);
+    },
+    gastar: async (s) => {
+      contagem.gastar += 1;
+      falso ??= hashBarato('senha-falsa');
+      await verificarSenha(s, await falso);
+    },
+    hash: async (s) => {
+      contagem.hash += 1;
+      return hashBarato(s);
+    },
+  };
+}
+
 export async function estadoInicial(): Promise<EstadoMemoria> {
   const e: EstadoMemoria = { tenants: new Map(), usuarios: new Map(), sessoes: [], dispositivos: new Map(), leituraDeExibicao: [] };
   e.tenants.set('alfa', { id: TENANT_A, codigo: 'alfa', nome: 'Distribuidora Alfa', fuso: 'America/Manaus', status: 'ativo' });
   e.tenants.set('beta', { id: TENANT_B, codigo: 'beta', nome: 'Comercial Beta', fuso: 'America/Sao_Paulo', status: 'ativo' });
   const hash = await hashBarato('Teste@1234');
-  const base = { nome_curto: null, senha_hash: hash, ativo: true, bloqueado_em: null, bloqueio_ate: null, tentativas_falhas: 0 };
+  const base = {
+    nome_curto: null,
+    senha_hash: hash,
+    ativo: true,
+    bloqueado_em: null,
+    bloqueio_ate: null,
+    tentativas_falhas: 0,
+    ultimo_login_em: null,
+    trocar_senha: false,
+    senha_expira_em: null,
+    senha_temporaria_hash: null,
+    senha_temporaria_expira_em: null,
+    senha_temporaria_criada_em: null,
+    sessao_versao: 0,
+  };
   e.usuarios.set('u-vend', { ...base, id: '0b000000-0000-4000-8000-000000000001', tenant_id: TENANT_A, nome: 'Vera Vendedora', email: 'vendedor@exemplo.com.br', perfil: 'vendedor' });
   e.usuarios.set('u-prom', { ...base, id: '0b000000-0000-4000-8000-000000000002', tenant_id: TENANT_A, nome: 'Paulo Promotor', email: 'promotor@exemplo.com.br', perfil: 'promotor' });
   e.usuarios.set('u-beta', { ...base, id: '0b000000-0000-4000-8000-000000000003', tenant_id: TENANT_B, nome: 'Beto Beta', email: 'vendedor@exemplo.com.br', perfil: 'vendedor' });
@@ -55,10 +93,24 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
           u.tentativas_falhas = falhas;
           u.bloqueio_ate = ate;
         },
-        registrarLoginOk: async (id) => {
+        registrarLoginOk: async (id, agora) => {
           const u = meus().find((x) => x.id === id)!;
           u.tentativas_falhas = 0;
           u.bloqueio_ate = null;
+          u.ultimo_login_em = agora;
+        },
+        trocarSenha: async (id, senhaHash, agora) => {
+          const u = meus().find((x) => x.id === id)!;
+          Object.assign(u, { senha_hash: senhaHash, trocar_senha: false, senha_expira_em: null, senha_temporaria_hash: null, senha_temporaria_expira_em: null, senha_temporaria_criada_em: null, tentativas_falhas: 0, bloqueio_ate: null });
+          u.sessao_versao += 1;
+          for (const s of sessoes()) if (s.usuario_id === id && !s.revogado_em) s.revogado_em = agora;
+          return u.sessao_versao;
+        },
+        gravarSenhaTemporaria: async (id, hash, criadaEm, expiraEm) => {
+          Object.assign(meus().find((x) => x.id === id)!, { senha_temporaria_hash: hash, senha_temporaria_criada_em: criadaEm, senha_temporaria_expira_em: expiraEm });
+        },
+        descartarSenhaTemporaria: async (id) => {
+          Object.assign(meus().find((x) => x.id === id)!, { senha_temporaria_hash: null, senha_temporaria_criada_em: null, senha_temporaria_expira_em: null });
         },
         dispositivoBloqueado: async (d) => e.dispositivos.get(d)?.bloqueado ?? false,
         upsertDispositivo: async (usuarioId, d) => {
@@ -93,16 +145,23 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
 }
 
 /** Banco falso: `comTenant` entrega um "db" que só carrega o tenant (o repositório em memória lê dele). */
-export function bancoDeTeste(): { banco: AcessoBanco; tenantsUsados: string[] } {
+export function bancoDeTeste(): { banco: AcessoBanco; tenantsUsados: string[]; consultas: Array<{ sql: string; valores: readonly unknown[] }> } {
   const tenantsUsados: string[] = [];
+  const consultas: Array<{ sql: string; valores: readonly unknown[] }> = [];
   const banco: AcessoBanco = {
     comTenant: async (tenantId, fn) => {
       tenantsUsados.push(tenantId);
-      return fn({ tenantId, query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco);
+      return fn({
+        tenantId,
+        query: async (sql: string, valores: readonly unknown[] = []) => {
+          consultas.push({ sql, valores });
+          return { rows: [], rowCount: 0 };
+        },
+      } as unknown as ClienteBanco);
     },
     semTenant: async (fn) => fn({ query: async () => ({ rows: [], rowCount: 0 }) }),
   };
-  return { banco, tenantsUsados };
+  return { banco, tenantsUsados, consultas };
 }
 
 export const logSilencioso: LogRota & { linhas: string[] } = {

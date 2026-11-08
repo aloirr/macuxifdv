@@ -24,8 +24,12 @@
 import {
   ehAparelhoBloqueado,
   entrarComSenha,
+  pedirSenhaTemporaria,
+  trocarSenhaPeloApp,
   tratarAparelhoBloqueado,
+  type CamposEsqueci,
   type CamposLogin,
+  type DadosDaTroca,
 } from '@macuxi/core/app';
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
@@ -114,6 +118,7 @@ import {
 } from '@/services/segundo-plano';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
+import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
@@ -283,6 +288,10 @@ function usePlataformaValor() {
       }),
     [api],
   );
+
+  // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
+  // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
+  useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
 
   /** Etapa de plataforma: perfil/tenant do usuário (`GET /v1/me`), guardado no armazenamento do core. */
   const etapaMe = useMemo<EtapaSync>(
@@ -565,36 +574,28 @@ function usePlataformaValor() {
     [abrirSessao, garantirServidorMacuxi],
   );
 
-  /**
-   * Login real (RF-CORE-01). Erros saem no contrato do SDK (`ErroHttp`/`ErroSemConexao`) para a `TelaLogin` do Core
-   * mostrar a mensagem certa. Perfil de outro app: encerra a sessão recém-criada e lança `PERFIL_FORA_DO_APP`.
-   */
-  const loginComSenha = useCallback(
-    async (campos: CamposLogin) => {
-      // o login vai só para o endereço que acabou de passar no teste (nunca para o que mudar no meio)
-      const endereco = await garantirServidorMacuxi();
-      const cliente = new ApiClient(endereco, null);
-      // o servidor acabou de responder: é a hora de mandar as saídas que ficaram na fila (logout sem sinal)
-      void reenviarSaidasPendentes(endereco).catch(() => undefined);
-      const post = async (caminho: string, corpo: unknown) => {
-        try {
-          return (await cliente.request<unknown>('POST', caminho, { body: corpo })).data;
-        } catch (e) {
-          throw traduzirErro(e);
-        }
-      };
-      const nome = (Device.modelName ?? Device.deviceName ?? '').slice(0, 80);
-      let r: Awaited<ReturnType<typeof entrarComSenha>>;
+  /** Transporte sem sessão para o endereço que acabou de passar no teste (login, troca e "Esqueci a senha"). */
+  const postSemSessao = useCallback(async () => {
+    // o pedido vai só para o endereço que acabou de passar no teste (nunca para o que mudar no meio)
+    const endereco = await garantirServidorMacuxi();
+    const cliente = new ApiClient(endereco, null);
+    const post = async (caminho: string, corpo: unknown) => {
       try {
-        r = await entrarComSenha(post, campos, { id: await dispositivoId(), ...(nome ? { nome } : {}) });
+        return (await cliente.request<unknown>('POST', caminho, { body: corpo })).data;
       } catch (e) {
-        // RN-CORE-15: senha certa num aparelho bloqueado — limpa o aparelho; a tela de login mostra o aviso
-        await aparelhoBloqueadoRef.current?.(e);
-        throw e;
+        throw traduzirErro(e);
       }
+    };
+    return { endereco, post };
+  }, [garantirServidorMacuxi]);
+
+  /** Sessão recebida do login ou da troca de senha: salva o código da empresa, confere o perfil da variante e abre o app. */
+  const concluirLogin = useCallback(
+    async (r: Awaited<ReturnType<typeof entrarComSenha>>, post: (caminho: string, corpo: unknown) => Promise<unknown>) => {
       const codigo = r.tenant.codigo;
       setCodigoSalvo(codigo);
       await writeJson(CHAVE_CODIGO_EMPRESA, codigo);
+      // reserva para a API sem a conferência do `app` (RN-CORE-33): encerra a sessão recém-criada
       const fora = mensagemPerfilForaDoApp(r.usuario.perfil, variante);
       if (fora) {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
@@ -608,7 +609,64 @@ function usePlataformaValor() {
       };
       await abrirSessao({ token: r.access_token, user, tenant: r.tenant, modo: 'v1' }, r.refresh_token);
     },
-    [abrirSessao, garantirServidorMacuxi, variante],
+    [abrirSessao, variante],
+  );
+
+  /** Identificação do aparelho no login e na troca (bloqueio remoto, RN-CORE-15). */
+  const aparelhoDoLogin = useCallback(async () => {
+    const nome = (Device.modelName ?? Device.deviceName ?? '').slice(0, 80);
+    return { id: await dispositivoId(), ...(nome ? { nome } : {}) };
+  }, []);
+
+  /**
+   * Login real (RF-CORE-01). Erros saem no contrato do SDK (`ErroHttp`/`ErroSemConexao`) para a `TelaLogin` do Core
+   * mostrar a mensagem certa. RN-CORE-33 (T-0094): manda `app` = variante; a API recusa o perfil de outro app (403
+   * `PERFIL_FORA_DO_APP`, sem sessão). 403 `SENHA_A_TROCAR` sobe como erro: a tela de login vai à "Crie sua senha".
+   */
+  const loginComSenha = useCallback(
+    async (campos: CamposLogin) => {
+      const { endereco, post } = await postSemSessao();
+      // o servidor acabou de responder: é a hora de mandar as saídas que ficaram na fila (logout sem sinal)
+      void reenviarSaidasPendentes(endereco).catch(() => undefined);
+      let r: Awaited<ReturnType<typeof entrarComSenha>>;
+      try {
+        r = await entrarComSenha(post, campos, await aparelhoDoLogin(), variante);
+      } catch (e) {
+        // RN-CORE-15: senha certa num aparelho bloqueado — limpa o aparelho; a tela de login mostra o aviso
+        await aparelhoBloqueadoRef.current?.(e);
+        throw e;
+      }
+      await concluirLogin(r, post);
+    },
+    [aparelhoDoLogin, concluirLogin, postSemSessao, variante],
+  );
+
+  /**
+   * "Crie sua senha" (T-0094; RN-CORE-34): troca com a senha usada no login (que a tela de login guarda só na memória) e entra
+   * direto com a sessão da resposta. Nada do app abre antes: a sessão só existe depois daqui.
+   */
+  const trocarSenha = useCallback(
+    async (dados: DadosDaTroca) => {
+      const { post } = await postSemSessao();
+      let r: Awaited<ReturnType<typeof trocarSenhaPeloApp>>;
+      try {
+        r = await trocarSenhaPeloApp(post, dados, variante, await aparelhoDoLogin());
+      } catch (e) {
+        await aparelhoBloqueadoRef.current?.(e);
+        throw e;
+      }
+      await concluirLogin(r, post);
+    },
+    [aparelhoDoLogin, concluirLogin, postSemSessao, variante],
+  );
+
+  /** "Esqueci a senha" (T-0094): a resposta é sempre a mesma; a tela mostra a confirmação de sempre. */
+  const pedirSenha = useCallback(
+    async (campos: CamposEsqueci) => {
+      const { post } = await postSemSessao();
+      await pedirSenhaTemporaria(post, campos);
+    },
+    [postSemSessao],
   );
 
   /** Fecha a sessão em memória (motor, usuário, módulos); quem chama cuida dos tokens e do disco. */
@@ -941,6 +999,8 @@ function usePlataformaValor() {
     modulosAtivos,
     loginDemo,
     loginComSenha,
+    trocarSenha,
+    pedirSenha,
     logout,
     setApiUrl,
     testApiUrl,

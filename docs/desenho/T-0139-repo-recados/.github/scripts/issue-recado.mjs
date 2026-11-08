@@ -15,7 +15,7 @@ function saida(chave, valor) {
 }
 
 /** Ids que já existem em recados/<destino>/ (o id não pode repetir em pasta nenhuma). */
-function idsExistentes(raiz) {
+export function idsExistentes(raiz) {
   const ids = new Set();
   const pasta = join(raiz, 'recados');
   if (!existsSync(pasta)) return ids;

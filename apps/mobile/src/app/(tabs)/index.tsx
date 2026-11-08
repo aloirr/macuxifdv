@@ -1,27 +1,29 @@
 /**
  * Início (T-0076, referência aprovada R-20261104-164000-alexandre; substitui o layout da T-0073 onde conflitar): primeira
  * tela depois do login e da carga, nas variantes Campo e Gestão. De cima para baixo:
- * - boas-vindas (data, saudação no fuso do tenant, "6 visitas hoje · 3 feitas");
- * - Recados de hoje (recado do dia destacado + notificações mais recentes, até 3; selo "N novos"; "Ver todos" abre a
- *   central de notificações, RF-CORE-09);
- * - Meta de hoje (Campo) ou Meta de hoje da equipe (Gestão): realizado do dia × necessidade diária (RN-CORE-22/26),
- *   barra, "Faltam R$ X hoje" e o % do mês;
+ * - boas-vindas (data, saudação no fuso do tenant, "6 visitas hoje · 3 feitas" ou "Sem rota hoje · não é dia útil");
+ * - Recados (as 3 primeiras da caixa, o recado do dia destacado; selo "N novos"; o topo e o "Ver todos" abrem a central
+ *   de notificações, RF-CORE-09);
+ * - Meta do mês (Campo) ou Meta do mês da equipe (Gestão), T-0124/RD-0002: realizado do mês de meta do mês, barra, o %
+ *   uma vez e a última linha do dia ("Meta de hoje R$ X" no dia útil, RN-CORE-26);
  * - cards do slot `inicio.cards` (Orçamentos e A faturar do Vendedor; Pedidos para aprovar do Gestor), só de módulos
  *   efetivos, do perfil e com a ação (o promotor não recebe card de pedido, RN-PRO-01);
  * - Gestão: Equipe agora;
- * - no fim, SÓ o botão Sincronizar com "Última sincronização hh:mm · N na fila" (RN-CORE-23).
+ * - no fim, SÓ o botão Sincronizar com "Última sincronização hh:mm · N na fila" (RN-CORE-23) e, quando os dados estão
+ *   antigos, o aviso único "Dados de 06/11, 6h28" (RD-0008).
  * Tudo sai do aparelho (`useInicio()` do Core sobre a última sincronização; offline-first). Puxar para baixo = Sincronizar
  * (RN-CORE-23 item 5). Nenhum timer. O shell só desenha: textos e tons em `lib/inicio.ts`.
  */
 import { useInicio, useNotificacoes } from '@macuxi/core/app';
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoSincronizar, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoSincronizar, colors, firstName, Loading, Screen, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 
+import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
-import { BoasVindas, EquipeAgora, MetaDeHoje, RecadosDeHoje } from '@/components/inicio';
-import { dataDoCabecalho, recadosDeHoje, saudacao, textoBaseDefasada, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
+import { BoasVindas, EquipeAgora, MetaDoMes, Recados } from '@/components/inicio';
+import { avisoDosDados, dataDoCabecalho, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function Inicio() {
@@ -38,18 +40,19 @@ export default function Inicio() {
   const agora = new Date();
   const equipe = inicio.escopo === 'equipe';
   const nomeEquipe = inicio.equipe_nome ?? sessao?.user.team_name ?? me?.seller?.team_name ?? null;
-  // Indicadores com meta e sem realizado na cópia de `core.inicio@1` (o Core decide em `sem_realizado`; o contorno
-  // `base.dia === null` vale para cópias antigas). O promotor não vende.
-  const semCopia = inicio.sem_realizado ? inicio.sem_realizado.length > 0 : inicio.base.dia === null && visaoShell.perfil !== 'promotor';
-  const aviso = semCopia ? 'Sincronize para ver as vendas' : textoBaseDefasada(inicio.base, tz);
+  // T-0124/RD-0012: só os campos prontos do Core (`saudacao`, `recados_hoje`, `meta_hoje`, `sem_realizado`), sem contornos
+  // que repitam o domain. Enquanto forem opcionais no core.inicio@1, a falta vira vazio, nunca uma regra local.
+  const semVendas = (inicio.sem_realizado?.length ?? 0) > 0;
+  const aviso = avisoDosDados(inicio, tz);
   const navegar = (href: string) => router.navigate(href as never);
 
   return (
-    <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
+    <View style={{ flex: 1 }}>
+      <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
       <BoasVindas
         data={dataDoCabecalho(agora, tz, equipe ? nomeEquipe : null)}
-        saudacao={nomeado(inicio.saudacao ?? saudacao(agora, tz, ''), firstName(sessao?.user.name ?? ''))}
-        visitas={textoVisitasHoje(equipe ? visitasDaEquipe(inicio.equipe_agora) : inicio.rota)}
+        saudacao={nomeado(inicio.saudacao ?? '', firstName(sessao?.user.name ?? ''))}
+        visitas={textoVisitasHoje(equipe ? visitasDaEquipe(inicio.equipe_agora) : inicio.rota, inicio.dia_util)}
         onPerfil={() => router.push('/profile')}
       />
       {estado.limpezaPendente.length > 0 ? (
@@ -58,9 +61,10 @@ export default function Inicio() {
         </Banner>
       ) : null}
 
-      <RecadosDeHoje
-        itens={recadosDeHoje(inicio, agora, tz)}
-        naoLidas={inicio.recados_hoje?.novos ?? inicio.notificacoes.nao_lidas}
+      <Recados
+        itens={recadosDoInicio(inicio.recados_hoje)}
+        naoLidas={inicio.recados_hoje?.novos ?? 0}
+        verTodos={mostrarVerTodos(inicio.recados_hoje)}
         onAbrir={(r) => {
           // tocar marca como lida (como a central); a navegação não espera o banco do aparelho
           if (r.notificacao_id) void marcarLida(r.notificacao_id).catch(() => undefined);
@@ -68,7 +72,7 @@ export default function Inicio() {
         }}
         onVerTodos={() => navegar('/m/notificacoes')}
       />
-      <MetaDeHoje metas={inicio.metas} pronto={inicio.meta_hoje} equipe={equipe} aviso={aviso} />
+      <MetaDoMes metas={inicio.metas} pronto={inicio.meta_hoje} equipe={equipe} semVendas={semVendas} />
       <CardsDoInicio />
       {equipe ? (
         <EquipeAgora
@@ -80,12 +84,21 @@ export default function Inicio() {
 
       {/* o Sincronizar fica no pé da tela quando sobra espaço (referência), e logo depois dos blocos quando rola */}
       <View style={{ flex: 1, minHeight: 4 }} />
+      {/* RD-0008: aviso único de dado antigo, no bloco Sincronizar (provisório até a prop do kit, R-20261108-164227) */}
+      {aviso ? (
+        <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID="inicio.aviso-dados">
+          {aviso}
+        </Text>
+      ) : null}
       <BotaoSincronizar testID="inicio-sincronizar" />
-    </Screen>
+      </Screen>
+      {/* T-0094: "Senha criada." depois da troca obrigatória, uma vez */}
+      <AvisoPosLogin />
+    </View>
   );
 }
 
-/** "Boa tarde" + "Lucas" → "Boa tarde, Lucas". */
+/** "Boa tarde" + "Lucas" → "Boa tarde, Lucas"; sem a saudação do Core, só o nome. */
 function nomeado(parte: string, primeiroNome: string): string {
-  return primeiroNome ? `${parte}, ${primeiroNome}` : parte;
+  return parte && primeiroNome ? `${parte}, ${primeiroNome}` : parte || primeiroNome;
 }

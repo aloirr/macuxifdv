@@ -39,3 +39,23 @@ export const BuscaRealizadaSchema = z
   .strict();
 export type BuscaRealizada = z.infer<typeof BuscaRealizadaSchema>;
 export const EVENTO_BUSCA_REALIZADA = definirEvento('catalogo.busca.realizada@1', BuscaRealizadaSchema);
+
+/**
+ * `catalogo.referencia.marca_desconhecida@1` (T-0103, aditivo): o consumidor de `integracao.produto.atualizado@1` não achou, no
+ * cadastro de concorrentes do Promotor, a marca de uma referência cruzada do ERP (RN-CAT-09). Um evento por (lote, produto);
+ * o Hub o consome para o aviso `marca_concorrente_desconhecida` do monitor. Sem dado pessoal.
+ */
+export const MarcaConcorrenteDesconhecidaSchema = z
+  .object({
+    produto_external_id: z.string().min(1).max(200),
+    produto_codigo: z.string().max(60).nullable(),
+    /** As marcas como vieram do ERP (nome ou external_id), até 3. */
+    marcas: z.array(z.string().min(1).max(120)).min(1).max(3),
+    marca_external_id: z.string().min(1).max(200).nullish(),
+    lote_id: Uuid,
+    entidade: z.literal('produto'),
+    ocorrido_em: InstanteUtc,
+  })
+  .strict();
+export type MarcaConcorrenteDesconhecida = z.infer<typeof MarcaConcorrenteDesconhecidaSchema>;
+export const EVENTO_REFERENCIA_MARCA_DESCONHECIDA = definirEvento('catalogo.referencia.marca_desconhecida@1', MarcaConcorrenteDesconhecidaSchema);

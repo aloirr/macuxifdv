@@ -5,17 +5,17 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { aplicacaoPrecisaRecolher, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotoesAcao } from './comum';
 
-type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto } | { fase: 'nao_encontrado' };
+type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto; noAparelho: boolean } | { fase: 'nao_encontrado' };
 
 export default function TelaProduto() {
   const params = useLocalSearchParams<{ id?: string; cliente?: string }>();
@@ -33,11 +33,11 @@ export default function TelaProduto() {
     let vivo = true;
     const carregar = async (): Promise<Estado> => {
       const local = motor ? await fichaLocal(motor, { perfil: usuario?.perfil ?? null, parametros, agora: relogioReal().agora().toISOString(), clienteId, produtoId: id }) : null;
-      if (local) return { fase: 'pronta', ficha: local };
+      if (local) return { fase: 'pronta', ficha: local, noAparelho: true };
       if (!ambiente.online() || !id) return { fase: 'nao_encontrado' };
       try {
         const ficha = await ambiente.http.get<FichaProduto>(caminhoCatalogo('produto', { id }), { customer_id: clienteId });
-        return { fase: 'pronta', ficha };
+        return { fase: 'pronta', ficha, noAparelho: false };
       } catch {
         return { fase: 'nao_encontrado' };
       }
@@ -80,6 +80,13 @@ export default function TelaProduto() {
           {item.ean ? ` · EAN ${item.ean}` : ''}
         </Text>
         {item.is_campaign ? <Badge label="Destaque" tone="accent" style={{ alignSelf: 'flex-start', marginTop: 4 }} /> : null}
+        {catalogo && catalogo.etiquetas.length > 0 ? (
+          <View style={[s.etiquetas, { marginTop: 4 }]} testID="produto-etiquetas">
+            {catalogo.etiquetas.map((e) => (
+              <Badge key={e} label={e} tone="neutral" />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {preco || estoque ? (
@@ -114,6 +121,18 @@ export default function TelaProduto() {
 
       <BotoesAcao item={item} clienteId={clienteId} />
 
+      {content.description || content.selling_points.length > 0 ? (
+        <Card style={s.card}>
+          <SectionHeader title="Sobre o produto" />
+          {content.description ? <Text style={t.body}>{content.description}</Text> : null}
+          {content.selling_points.map((a) => (
+            <Text key={a} style={t.body}>
+              • {a}
+            </Text>
+          ))}
+        </Card>
+      ) : null}
+
       {aplicacao ? (
         <Card style={s.card} testID="produto-aplicacao">
           <SectionHeader title="Aplicação" />
@@ -122,9 +141,36 @@ export default function TelaProduto() {
           </Text>
           {aplicacaoPrecisaRecolher(aplicacao) ? (
             <Pressable accessibilityRole="button" accessibilityLabel={aplicacaoAberta ? 'Ver menos da aplicação' : 'Ver mais da aplicação'} onPress={() => setAplicacaoAberta((v) => !v)} style={s.verMais}>
-              <Text style={t.bodyStrong}>{aplicacaoAberta ? 'Ver menos' : 'Ver mais'}</Text>
+              <Text style={s.verMaisTexto}>{aplicacaoAberta ? 'Ver menos' : 'Ver mais'}</Text>
             </Pressable>
           ) : null}
+        </Card>
+      ) : null}
+
+      {catalogo && catalogo.oferece_junto.length > 0 ? (
+        <Card style={s.card} testID="produto-oferece-junto">
+          <SectionHeader title="Oferece junto" />
+          {catalogo.oferece_junto.map((o, i) => {
+            const e = estadoOfereceJunto({ online: ambiente.online(), fichaNoAparelho: estado.noAparelho });
+            const ultima = i === catalogo.oferece_junto.length - 1;
+            return (
+              <Pressable
+                key={o.produto_id}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir ${o.description}`}
+                accessibilityState={{ disabled: !e.toca }}
+                disabled={!e.toca}
+                onPress={() => irParaProduto(o.produto_id, clienteId)}
+                style={({ pressed }) => [s.ofereceJunto, ultima && { borderBottomWidth: 0 }, pressed && { backgroundColor: colors.ground, transform: [{ scale: 0.97 }] }]}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={t.bodyStrong}>{o.description}</Text>
+                  <Text style={t.small}>{e.apoio ? `${o.erp_code} · ${e.apoio}` : o.erp_code}</Text>
+                </View>
+                {e.toca ? <Icon name="chevron" size={18} color={colors.ink3} /> : null}
+              </Pressable>
+            );
+          })}
         </Card>
       ) : null}
 
@@ -134,38 +180,6 @@ export default function TelaProduto() {
           {catalogo.referencias.map((r) => (
             <Text key={`${r.marca_id}:${r.codigo}`} style={t.body}>
               {r.marca_nome} <Text style={t.bodyStrong}>{r.codigo}</Text>
-            </Text>
-          ))}
-        </Card>
-      ) : null}
-
-      {catalogo && catalogo.oferece_junto.length > 0 ? (
-        <Card style={s.card} testID="produto-oferece-junto">
-          <SectionHeader title="Oferece junto" />
-          {catalogo.oferece_junto.map((o) => (
-            <Pressable key={o.produto_id} accessibilityRole="button" accessibilityLabel={`Abrir ${o.description}`} onPress={() => irParaProduto(o.produto_id, clienteId)} style={s.ofereceJunto}>
-              <Text style={t.bodyStrong}>{o.description}</Text>
-              <Text style={t.small}>{o.erp_code}</Text>
-            </Pressable>
-          ))}
-        </Card>
-      ) : null}
-
-      {catalogo && catalogo.etiquetas.length > 0 ? (
-        <View style={s.etiquetas} testID="produto-etiquetas">
-          {catalogo.etiquetas.map((e) => (
-            <Badge key={e} label={e} tone="neutral" />
-          ))}
-        </View>
-      ) : null}
-
-      {content.description || content.selling_points.length > 0 ? (
-        <Card style={s.card}>
-          <SectionHeader title="Sobre o produto" />
-          {content.description ? <Text style={t.body}>{content.description}</Text> : null}
-          {content.selling_points.map((a) => (
-            <Text key={a} style={t.body}>
-              • {a}
             </Text>
           ))}
         </Card>
@@ -205,7 +219,8 @@ const s = StyleSheet.create({
   semPreco: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
   riscado: { fontFamily: fonts.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },
   verMais: { minHeight: 48, justifyContent: 'center' },
-  ofereceJunto: { minHeight: 48, justifyContent: 'center', gap: 2, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  verMaisTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
+  ofereceJunto: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   atributo: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

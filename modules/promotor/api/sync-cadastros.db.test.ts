@@ -67,7 +67,9 @@ describe.skipIf(semBanco())('Promotor: pull dos cadastros de trade × Postgres (
   it('cada provedor devolve as linhas do tenant A no formato estrito do contrato (colunas, datas, números, itens do checklist)', async () => {
     for (const p of provedoresPullCadastros) {
       const { linhas } = await tudo(p, A.tenantId, 50);
-      expect(linhas.length, p.entidade.nome).toBeGreaterThan(0);
+      // ADR 0034: o provedor legado `concorrente` devolve página vazia de propósito (a lista é do Catálogo)
+      if (p.entidade.nome === 'concorrente') expect(linhas, p.entidade.nome).toEqual([]);
+      else expect(linhas.length, p.entidade.nome).toBeGreaterThan(0);
       for (const l of linhas) expect(() => p.entidade.schema.parse(l), p.entidade.nome).not.toThrow();
     }
     const metas = (await tudo(prov('meta_share'), A.tenantId, 50)).linhas as unknown as { meta_pct: number; vigencia_inicio: string; vigencia_fim: string | null }[];
@@ -84,42 +86,49 @@ describe.skipIf(semBanco())('Promotor: pull dos cadastros de trade × Postgres (
       // transações separadas: cada uma com o próprio updated_at (now() do banco)
       await comTenant(pool, A.tenantId, (c) => c.query('insert into promotor.categoria_gondola (id, tenant_id, nome, ordem, ativo) values ($1, $2, $3, $4, true)', [n.id, A.tenantId, n.nome, 99]));
     }
+    // Outros arquivos .db.test gravam no mesmo banco/tenant em paralelo: as asserções valem sobre o que existia ANTES da
+    // paginação (nenhuma pulada) e sobre os ids deste caso (ordem), nunca sobre o total nem sobre as últimas linhas.
+    const existentes = (await comTenant(pool, A.tenantId, (c) => c.query<{ id: string }>('select id from promotor.categoria_gondola'))).rows.map((r) => r.id);
     const antes = await tudo(p, A.tenantId, 2);
     const idsAntes = antes.linhas.map((l) => l.id);
     expect(new Set(idsAntes).size).toBe(idsAntes.length); // nenhuma repetida
     expect(antes.paginas).toBeGreaterThan(2); // de fato paginou
-    const total = (await comTenant(pool, A.tenantId, (c) => c.query<{ n: string }>('select count(*) as n from promotor.categoria_gondola'))).rows[0]!.n;
-    expect(idsAntes.length).toBe(Number(total)); // nenhuma pulada (inclui removidas)
+    for (const id of existentes) expect(idsAntes, `linha ${id} pulada pela paginação`).toContain(id); // nenhuma pulada (inclui removidas)
     const ordenada = [...antes.linhas].sort((x, y) => Date.parse(x.updated_at) - Date.parse(y.updated_at) || (x.id < y.id ? -1 : 1));
     expect(idsAntes).toEqual(ordenada.map((l) => l.id));
-    expect(idsAntes.slice(-5)).toEqual(novos.map((n) => n.id)); // a ordem de gravação
+    const ids = new Set(novos.map((n) => n.id));
+    expect(idsAntes.filter((id) => ids.has(id))).toEqual(novos.map((n) => n.id)); // a ordem de gravação
 
     // remoção lógica de um e edição de outro: voltam depois do cursor, o removido como lápide
     const [remover, editar] = [novos[1]!, novos[3]!];
     await comTenant(pool, A.tenantId, (c) => c.query('update promotor.categoria_gondola set deleted_at = now() where id = $1', [remover.id]));
     await comTenant(pool, A.tenantId, (c) => c.query('update promotor.categoria_gondola set nome = $2 where id = $1', [editar.id, `${editar.nome} editada`]));
     const ult = antes.linhas[antes.linhas.length - 1]!;
-    const depois = await pagina(p, A.tenantId, { desde: { updated_at: ult.updated_at, id: ult.id }, ate: await horizonte(), limite: 50 });
+    const depois = (await pagina(p, A.tenantId, { desde: { updated_at: ult.updated_at, id: ult.id }, ate: await horizonte(), limite: 50 })).filter((l) => ids.has(l.id)); // só as deste caso
     expect(depois.map((l) => l.id)).toEqual([remover.id, editar.id]);
     expect(depois[0]!.deleted_at).toMatch(/Z$/); // lápide
     expect(depois[1]!.deleted_at).toBeNull();
     expect((depois[1] as unknown as { nome: string }).nome).toBe(`${editar.nome} editada`);
     // cursor no fim: nada mais
     const fim = depois[depois.length - 1]!;
-    expect(await pagina(p, A.tenantId, { desde: { updated_at: fim.updated_at, id: fim.id }, ate: await horizonte(), limite: 50 })).toEqual([]);
+    expect((await pagina(p, A.tenantId, { desde: { updated_at: fim.updated_at, id: fim.id }, ate: await horizonte(), limite: 50 })).filter((l) => ids.has(l.id))).toEqual([]);
   });
 
   it('horizonte seguro: linha com updated_at >= `ate` não vem ainda', async () => {
-    const p = prov('concorrente');
+    const p = prov('categoria_gondola');
     const id = randomUUID();
-    await comTenant(pool, A.tenantId, (c) => c.query('insert into promotor.concorrente (id, tenant_id, nome, ativo) values ($1, $2, $3, true)', [id, A.tenantId, `Rival ${id.slice(0, 8)}`]));
+    await comTenant(pool, A.tenantId, (c) => c.query('insert into promotor.categoria_gondola (id, tenant_id, nome, ordem, ativo) values ($1, $2, $3, 1, true)', [id, A.tenantId, `Cat ${id.slice(0, 8)}`]));
     const antesDela = new Date(Date.now() - 3_600_000).toISOString();
     expect((await pagina(p, A.tenantId, { desde: null, ate: antesDela, limite: 500 })).map((l) => l.id)).not.toContain(id);
     expect((await pagina(p, A.tenantId, { desde: null, ate: await horizonte(), limite: 500 })).map((l) => l.id)).toContain(id);
   });
 
-  it('RN-CORE-05: o tenant B recebe só os cadastros dele, em todos os 9; nenhum id de A', async () => {
-    for (const p of provedoresPullCadastros) {
+  it('ADR 0034: a entidade legada `concorrente` devolve página vazia (o APK antigo não recebe 404 e a lista é do Catálogo)', async () => {
+    expect(await pagina(prov('concorrente'), A.tenantId, { desde: null, ate: await horizonte(), limite: 500 })).toEqual([]);
+  });
+
+  it('RN-CORE-05: o tenant B recebe só os cadastros dele, nos 8 com tabela; nenhum id de A', async () => {
+    for (const p of provedoresPullCadastros.filter((x) => x.entidade.nome !== 'concorrente')) {
       const deA = new Set((await tudo(p, A.tenantId, 50)).linhas.map((l) => l.id));
       const deB = (await tudo(p, B.tenantId, 50)).linhas.map((l) => l.id);
       expect(deB.length, p.entidade.nome).toBeGreaterThan(0);

@@ -126,3 +126,11 @@ export function useParametros(modulo: ModuloId): Readonly<Record<string, unknown
 export function useHttp(): ClienteHttp {
   return useValor().ambiente.http;
 }
+
+export {
+  ProvedorBloqueioDeSaida,
+  useBloquearSaida,
+  type AoTentarSair,
+  type BloqueioDeSaida,
+  type FormularioAlterado,
+} from './bloqueio-saida';

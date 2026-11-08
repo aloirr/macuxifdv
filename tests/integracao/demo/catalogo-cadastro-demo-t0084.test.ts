@@ -10,7 +10,9 @@
  *      orçamento com "…") e o "a partir de 2018"; produtos fora das autopeças sem aplicação (controle).
  *  D-3 (T-0085 c4/c8): "cb3401" acha a PST-D01 em 1º com "Equivale a: Freiomax CB 3401" para o vendedor da demo (sem o
  *      Promotor: retrato `marca_nome`); "fb0207" acha o FOL-G01.
- *  D-4 (T-0085 c8): marcas fictícias (Freiomax, Rodaforte, Filtrobom, Vialume) e só elas nas referências.
+ *  D-4 (T-0085 c8; T-0113): marcas fictícias (Freiomax, Rodaforte, Filtrobom, Vialume) no cadastro do CATÁLOGO
+ *      (`catalogo.marca_concorrente`, ADR 0034) e só elas nas referências; o cadastro antigo do Promotor fica vazio no seed.
+ *  D-4b (T-0113): os produtos do concorrente do Trade apontam para marcas do Catálogo do mesmo tenant (mesmo id, sem órfão).
  *  D-5 (T-0085 c7/c8): o promotor da demo abre a ficha da PST-D01 com aplicação, 2 referências, oferece junto (disco e fluido)
  *      e etiquetas, sem preço.
  *  D-6 (T-0085 c6): o analista exporta o catálogo com sistema › grupo › linha e as marcas; o vendedor não.
@@ -94,12 +96,15 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     expect(f[0]).toMatchObject({ erp_code: 'FOL-G01', equivale_a: { marca_nome: 'Filtrobom', codigo: 'FB-0207' } });
   });
 
-  it('D-4 (T-0085 c8): marcas concorrentes fictícias — as 4 no cadastro do Promotor e só elas nas referências', async () => {
-    const marcas = (await api.admin.query<{ nome: string }>('select nome from promotor.concorrente where tenant_id = $1 and deleted_at is null order by nome', [TENANT_DEMO])).rows.map((x) => x.nome);
+  it('D-4 (T-0085 c8, T-0113): marcas concorrentes fictícias — as 4 no cadastro do Catálogo e só elas nas referências; o do Promotor vazio', async () => {
+    const marcas = (await api.admin.query<{ nome: string }>('select nome from catalogo.marca_concorrente where tenant_id = $1 and deleted_at is null and ativo order by nome', [TENANT_DEMO])).rows.map((x) => x.nome);
     expect(marcas).toEqual(expect.arrayContaining(MARCAS_FICTICIAS));
+    // desenho T-0113 B7: as marcas saíram do seed do Promotor (a tabela antiga é só de leitura até a fase 2)
+    expect((await api.admin.query('select 1 from promotor.concorrente where tenant_id = $1', [TENANT_DEMO])).rows).toEqual([]);
     const refs = (
       await api.admin.query<{ marca: string | null; retrato: string | null }>(
-        `select c.nome as marca, r.marca_nome as retrato from catalogo.produto_referencia r left join promotor.concorrente c on c.id = r.marca_id
+        `select m.nome as marca, r.marca_nome as retrato from catalogo.produto_referencia r
+           left join catalogo.marca_concorrente m on m.tenant_id = r.tenant_id and m.id = r.marca_id
           where r.tenant_id = $1 and r.deleted_at is null`,
         [TENANT_DEMO],
       )
@@ -109,6 +114,19 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect(MARCAS_FICTICIAS, JSON.stringify(x)).toContain(x.marca);
       expect(x.retrato).toBe(x.marca);
     }
+  });
+
+  it('D-4b (T-0113, ADR 0034 §3): todo produto do concorrente do Trade aponta para uma marca viva do Catálogo do mesmo tenant (mesmo id, sem órfão)', async () => {
+    const orfaos = (
+      await api.admin.query<{ nome: string; concorrente_id: string }>(
+        `select p.nome, p.concorrente_id from promotor.produto_concorrente p
+          where p.tenant_id = $1 and p.deleted_at is null
+            and not exists (select 1 from catalogo.marca_concorrente m where m.tenant_id = p.tenant_id and m.id = p.concorrente_id and m.deleted_at is null)`,
+        [TENANT_DEMO],
+      )
+    ).rows;
+    expect(orfaos).toEqual([]);
+    expect(Number((await api.admin.query<{ n: number }>('select count(*)::int as n from promotor.produto_concorrente where tenant_id = $1 and deleted_at is null', [TENANT_DEMO])).rows[0]!.n)).toBeGreaterThan(0);
   });
 
   it('D-5 (RN-CAT-05, T-0085 c7): o promotor da demo abre a ficha da PST-D01 com aplicação, referências, oferece junto e etiquetas, sem preço', async () => {
@@ -132,7 +150,7 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     expect(pst.hierarquia.linha).toBeTruthy();
     expect(pst.referencias).toHaveLength(2);
     expect(pst.oferece_junto).toEqual([idPorSku.get('DSC-D01'), idPorSku.get('FLU-DOT4')]);
-    // as 4 de autopeças (e os 2 concorrentes fictícios de mercearia/limpeza que o Promotor já tinha); nenhuma marca real
+    // as 6 do cadastro do Catálogo (T-0113): as 4 de autopeças e as 2 fictícias de mercearia/limpeza do Trade; nenhuma marca real
     expect(e.marcas.map((m) => m.nome)).toEqual(expect.arrayContaining(MARCAS_FICTICIAS));
     const v = await api.chamar(tk.vendedor, { method: 'GET', url: '/v1/catalogo/exportacao' });
     expect(v.statusCode).toBe(403);

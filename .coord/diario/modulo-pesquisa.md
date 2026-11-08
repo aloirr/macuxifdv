@@ -11,3 +11,4 @@
 2026-11-05 — T-0039 — etapas_checkout@1: respostasParaCheckout filtrado (memória/Postgres) e ctx.fuso() no lugar do fuso fixo; testes verdes
 2026-11-05 — T-0039 — complemento: fuso por ctx.fuso(); teste de virada não demonstrável porque o domain filtra por visita
 2026-11-05 — T-0039 — consulta etapas_checkout usa ctx.fuso(); teste de virada de semana/mês em 3 fusos; método filtrado confirmado
+2026-11-08 — contraste do laranja (text-accent-ink em 4 pontos da web) e encerramento do pedido do #56

@@ -10,9 +10,11 @@
  *   categoria + Mercearia específica do Supermercado Bom Preço, loja 0), 1 checklist vigente com 5 etapas (2 obrigatórias,
  *   RN-PRO-06), 2 concorrentes fictícios com 4 produtos comparados (um por categoria, T-0070: o BKO de trade da T-0069 mostra
  *   as 3 categorias), 1 tarefa de campanha e 1 ponto extra negociado na loja 0.
- * - T-0085 (0033): 4 marcas concorrentes de autopeças, fictícias (Freiomax, Rodaforte, Filtrobom e Vialume; nenhuma real),
- *   no MESMO cadastro `concorrente` — é a lista de marcas da referência cruzada do Catálogo (RN-CAT-09), lida pelo contrato
- *   do Promotor (correção do gerente às 21h de 05/11: nada no Core). Sem produto comparado nem coleta nelas.
+ * - T-0085 (0033): 4 marcas concorrentes de autopeças, fictícias (Freiomax, Rodaforte, Filtrobom e Vialume; nenhuma real).
+ *   Sem produto comparado nem coleta nelas.
+ * - T-0113 (0045, ADR 0034): as 6 marcas (2 do trade + 4 de autopeças) são do CATÁLOGO (catalogo.marca_concorrente,
+ *   catalogo-cadastro.ts, gravado antes deste seed) com os mesmos ids de antes; o produto comparado aponta para a marca do
+ *   Catálogo (sem FK). Só numa base sem a 0045 este seed ainda grava as 6 no cadastro antigo promotor.concorrente.
  * - Histórico da Joana (promotor): as visitas de loja das visitas do Core `v-pr1` (loja 0, 2 dias úteis atrás) e `v-pr2`
  *   (loja 4, 1 dia útil atrás) do demo.ts — mesmo check-in/checkout/coordenada (lidos de `dadosDemo`, função pura) — com
  *   fotos, gôndola (antes/depois), share das 3 categorias calculado pelo domain (calcularShare/atingimentoShare, meta
@@ -33,6 +35,7 @@ import { anoMes, hojeNoFuso, somarDias } from '../../src/datas';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import { ORDEM_PROMOTOR } from '../fixtures/promotor';
+import { idMarcaConcorrenteDemo, marcasConcorrentesDemo } from './catalogo-cadastro';
 import { dadosDemo, FUSO_DEMO, idClienteDemo, idUsuarioDemo, TENANT_DEMO } from './demo';
 
 /** Tabelas gravadas por este seed, na ordem das FKs (licença primeiro; depois o schema promotor). */
@@ -86,11 +89,11 @@ const id = (chave: string) => idDeterministico(`demo:promotor:${chave}`);
 const idDemo = (chave: string) => idDeterministico(`demo:${chave}`);
 const comuns = { deleted_at: null, external_id: null } as const;
 
-/** Marcas concorrentes de autopeças da demo (T-0085, RN-CAT-09): fictícias; a referência cruzada do Catálogo aponta para elas. */
-export const MARCAS_CONCORRENTES_DEMO = { freiomax: 'Freiomax', rodaforte: 'Rodaforte', filtrobom: 'Filtrobom', vialume: 'Vialume' } as const;
-export type ChaveMarcaConcorrenteDemo = keyof typeof MARCAS_CONCORRENTES_DEMO;
-/** Id da marca em promotor.concorrente (o marca_id de catalogo.produto_referencia). */
-export const idMarcaConcorrenteDemo = (chave: ChaveMarcaConcorrenteDemo) => id(`concorrente:${chave}`);
+/**
+ * T-0113 (0045, ADR 0034): as marcas concorrentes moram no Catálogo (catalogo-cadastro.ts, gravado ANTES deste seed) com os
+ * mesmos ids; reexportadas aqui para quem ainda importa daqui.
+ */
+export { idMarcaConcorrenteDemo, MARCAS_CONCORRENTES_DEMO, MARCAS_TRADE_DEMO, type ChaveMarcaConcorrenteDemo } from './catalogo-cadastro';
 const mais = (iso: string, minutos: number) => new Date(Date.parse(iso) + minutos * 60_000).toISOString().replace('.000Z', 'Z');
 
 export interface OpcoesDemoPromotor {
@@ -119,7 +122,8 @@ export function dadosDemoPromotor(opcoes: OpcoesDemoPromotor = {}): DadosDemoPro
     { chave: 'preco', rotulo: 'Coletar os preços do concorrente', tipo: 'preco', obrigatoria: false, categoria: null },
   ] as const;
   const checklistId = id('checklist_loja:padrao');
-  const concorrentes = { saborReal: id('concorrente:sabor-real'), limpaMais: id('concorrente:limpa-mais') };
+  // marcas do Catálogo (0045), mesmos ids de quando eram promotor.concorrente
+  const concorrentes = { saborReal: idMarcaConcorrenteDemo('sabor-real'), limpaMais: idMarcaConcorrenteDemo('limpa-mais') };
   const produtosConcorrentes = [
     { chave: 'cafe', concorrente: concorrentes.saborReal, nome: 'Café Sabor Real 500 g', sku: 'CAF-500', categoria: 'mercearia' as Categoria },
     { chave: 'oleo', concorrente: concorrentes.saborReal, nome: 'Óleo de soja Sabor Real 900 ml', sku: 'OLE-900', categoria: 'mercearia' as Categoria },
@@ -158,14 +162,9 @@ export function dadosDemoPromotor(opcoes: OpcoesDemoPromotor = {}): DadosDemoPro
       })),
       { id: metaId('mercearia', 0), tenant_id: t, ...alvo(c(0)), categoria_gondola_id: cat('mercearia'), meta_pct: METAS_SHARE_DEMO.loja0Mercearia, ...comuns },
     ],
-    'promotor.concorrente': [
-      { id: concorrentes.saborReal, tenant_id: t, nome: 'Sabor Real Alimentos', ativo: true, ...comuns },
-      { id: concorrentes.limpaMais, tenant_id: t, nome: 'Limpa Mais', ativo: true, ...comuns },
-      // T-0085: marcas de autopeças da referência cruzada (external_id = código da marca no ERP fictício)
-      ...(Object.keys(MARCAS_CONCORRENTES_DEMO) as ChaveMarcaConcorrenteDemo[]).map((k) => ({
-        id: idMarcaConcorrenteDemo(k), tenant_id: t, nome: MARCAS_CONCORRENTES_DEMO[k], ativo: true, deleted_at: null, external_id: `MARCA-${k.toUpperCase()}`,
-      })),
-    ],
+    // T-0113 (0045): o cadastro antigo fica vazio aqui; as 6 marcas vão para catalogo.marca_concorrente (catalogo-cadastro.ts).
+    // Base sem a 0045: gravarDemoPromotor grava as mesmas 6 neste cadastro, como antes.
+    'promotor.concorrente': [],
     'promotor.produto_concorrente': produtosConcorrentes.map((p) => ({
       id: id(`produto_concorrente:${p.chave}`), tenant_id: t, concorrente_id: p.concorrente, nome: p.nome, produto_id: produto(p.sku), categoria_gondola_id: cat(p.categoria), ativo: true, ...comuns,
     })),
@@ -311,6 +310,10 @@ export async function gravarDemoPromotor(admin: ClientBase, opcoes: OpcoesDemoPr
   if (tenant.rowCount === 0) throw new Error('[db] seed demo promotor: o tenant demo não existe — carregue a base demo (carregarDemo) antes.');
   const dados = dadosDemoPromotor(opcoes);
   conferirSoTenantDemoPromotor(dados);
-  for (const tabela of ORDEM_DEMO_PROMOTOR) await gravarLinhas(admin, tabela, dados[tabela]);
+  // T-0113: sem a 0045 na base, as marcas continuam no cadastro do Promotor (a FK produto_concorrente_concorrente_fk existe)
+  const semMarcasNoCatalogo = (await admin.query<{ ok: boolean }>("select to_regclass('catalogo.marca_concorrente') is null as ok")).rows[0]?.ok === true;
+  for (const tabela of ORDEM_DEMO_PROMOTOR) {
+    await gravarLinhas(admin, tabela, tabela === 'promotor.concorrente' && semMarcasNoCatalogo ? marcasConcorrentesDemo(T()) : dados[tabela]);
+  }
   return dados;
 }

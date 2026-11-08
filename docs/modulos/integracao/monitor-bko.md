@@ -18,7 +18,7 @@
 | Carga por entidade | `MonitorResumo.cargas` | ordem de dependência, estado, lotes, erros, o que espera |
 | Lotes recentes | `MonitorResumo.lotes_recentes` (20 mais recentes) | filtros **na URL** (`conector`, `entidade`, `status`, `com_erro=1`), CSV do que está filtrado; clique abre a gaveta (`?lote=<uuid>`) |
 | Erros por linha (gaveta) | `GET /v1/integracao/lotes/{id}/erros` (`ErrosLoteQuery` → `ErrosLoteResposta`) | filtro por código, "Carregar mais" (100 por página), CSV com todos os erros do filtro (páginas de 500, teto 20.000) |
-| Pedidos no ERP | `MonitorResumo.pedidos` + alertas `pedido_preso`, `pedido_retido_sem_mapeamento`, `retorno_com_itens_descartados` | contagem por estado, presos, retidos e os erros de retorno das últimas 24 h |
+| Pedidos no ERP | `MonitorResumo.pedidos` + alertas `pedido_preso`, `pedido_retido_sem_mapeamento`, `retorno_com_itens_descartados`, `cancelamento_recusado` (T-0114) | contagem por estado, presos, retidos, os erros de retorno das últimas 24 h e os cancelamentos que o ERP recusou (pedido e motivo; some quando o ERP informa o cancelamento) |
 
 Atualização automática a cada 30 s (o sinal do Conector é a cada 1 min). Toda resposta passa pelo schema Zod do contrato antes de chegar à tela.
 

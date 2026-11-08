@@ -7,12 +7,12 @@
  *      · alerta dispensado pelo gestor não reabre enquanto a condição persiste; se sumir e voltar, abre outro.
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
-import { businessDays, diffDays } from '@macuxi/comum';
+import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { horasUteisEntre } from './horario-comercial';
 import { arredondar, percentual, somarDias } from './numeros';
-import { atendida, diaLocal, painelDoMes } from './painel';
+import { atendida, diaLocal, diasUteisDoMes, painelDoMes } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
 
@@ -160,7 +160,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   // --- ritmo abaixo da meta ---
   if (ativos.has('ritmo_abaixo_meta')) {
     const r = e.regras.ritmo_abaixo_meta;
-    const decorridos = businessDays(hoje.slice(0, 7), hoje, params.feriados).elapsed;
+    const decorridos = diasUteisDoMes(hoje.slice(0, 7), hoje, params).elapsed;
     if (decorridos >= (r.amostra_min ?? 0)) {
       for (const m of e.membros) {
         if (m.perfil !== 'vendedor' || !m.ativo) continue;

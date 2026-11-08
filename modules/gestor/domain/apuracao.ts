@@ -45,7 +45,7 @@ export interface VendaApurada {
   visita_id: string | null;
   total_cents: number;
   total_tabela_cents: number | null;
-  /** Instante UTC da apuração (o "dia" sai do fuso do tenant na consulta). */
+  /** Instante UTC da apuração: emissão (base aprovado) ou faturamento (base faturado) (o "dia" sai do fuso do tenant na consulta). */
   apurada_em: string;
 }
 
@@ -62,7 +62,8 @@ export function vendasApuradas(estado: EstadoProjecao, base: BaseApuracao): Vend
       visita_id: p.criado.visita_id,
       total_cents: p.criado.total_cents,
       total_tabela_cents: p.criado.total_tabela_cents,
-      apurada_em: a.desde!,
+      // RN-CORE-21: base 'aprovado' conta na data de EMISSÃO (aprovar depois não muda o mês); base 'faturado' na data do faturamento
+      apurada_em: base === 'aprovado' ? p.criado.criado_em : a.desde!,
     });
   }
   return out.sort((a, b) => (a.pedido_id < b.pedido_id ? -1 : 1));

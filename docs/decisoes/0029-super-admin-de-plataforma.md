@@ -4,6 +4,10 @@
   real**, as funções `plataforma.sa_*` passam para um papel de banco próprio (`macuxi_portal`), usado só pela API do portal, e o
   `macuxi_app` deixa de conseguir abrir sessão de super-admin (Decisão §8). Caminho: T-0091 (desenho
   [docs/desenho/T-0091.md](../desenho/T-0091.md)). Até lá, a produção liga só com o tenant de teste.
+- **Parcialmente substituída** em 2026-11-07 pela [ADR 0031](0031-portal-so-email-e-senha.md) (decisão do dono do produto, T-0093):
+  saem o §2 (primeiro acesso por convite), o §3 (TOTP obrigatório e a dependência `qrcode`), o `amr=["pwd","otp"]` e o "2º fator"
+  do §4 e o mínimo de 12 caracteres da senha (agora RN-CORE-32 para todas). O portal entra só com e-mail e senha, também para o
+  admin do cliente, e o super-admin nasce pelo deploy. Continuam valendo o §1, a sessão curta do §4, o bloqueio, os §5 a §8.
 - **Data**: 2026-11-06
 - **Tarefa**: T-0087 (desenho: [docs/desenho/T-0087.md](../desenho/T-0087.md))
 - **Autor**: engenheiro-software

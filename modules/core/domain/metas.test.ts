@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CALENDARIO_PADRAO, diasUteisRestantes } from './meta-do-dia';
 import { indicadoresDoPeriodo, necessidadeDiaria, painelDeMetas, painelDoUsuario, realizadoDaMeta, realizadoDosDiarios, type PedidoApuravel } from './metas';
 
 const ped = (over: Partial<PedidoApuravel>): PedidoApuravel => ({
@@ -102,17 +103,23 @@ describe('indicadores do período (RN-CORE-20)', () => {
       usuario_id: 'u1',
       paradas,
       visitas,
-      hoje: '2026-10-26', // seg 26, ter 27, qua 28, qui 29, sex 30 = 5 dias
+      hoje: '2026-10-26', // RN-CORE-26: seg a sáb do tenant: 26..31 = 6 dias
       pedidos: [{ ...ped({ total_cents: 500_00 }), cliente_id: 'c1' }],
       base: 'aprovado',
       meta_cents: 1_000_00,
     });
-    expect(r.dias_uteis_restantes).toBe(5);
-    expect(r.necessidade_diaria_cents).toBe(100_00);
+    expect(r.dias_uteis_restantes).toBe(6);
+    expect(r.necessidade_diaria_cents).toBe(Math.ceil(500_00 / 6));
   });
   it('feriados reduzem os dias úteis restantes', () => {
     const r = indicadoresDoPeriodo({ periodo: '2026-10', usuario_id: 'u1', paradas: [], visitas: [], hoje: '2026-10-26', feriados: ['2026-10-28'] });
-    expect(r.dias_uteis_restantes).toBe(4);
+    expect(r.dias_uteis_restantes).toBe(5);
+  });
+  it('RN-CORE-26: dias úteis da necessidade diária vêm do calendário do tenant (seg–sáb por padrão), o mesmo do Início', () => {
+    const base = { periodo: '2026-11', usuario_id: 'u1', paradas: [], visitas: [], hoje: '2026-11-10' };
+    expect(indicadoresDoPeriodo(base).dias_uteis_restantes).toBe(diasUteisRestantes('2026-11', '2026-11-10', CALENDARIO_PADRAO));
+    expect(indicadoresDoPeriodo(base).dias_uteis_restantes).toBe(18);
+    expect(indicadoresDoPeriodo({ ...base, calendario: { dias_uteis_semana: [1, 2, 3, 4, 5] } }).dias_uteis_restantes).toBe(15);
   });
 });
 

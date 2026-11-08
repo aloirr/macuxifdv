@@ -15,7 +15,7 @@ import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
 import { painelDoMes } from '../../modules/gestor/domain/painel';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
-import { dadosDemoPromotor, MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
+import { MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { dadosDemoCatalogoCadastro, ETIQUETAS_DEMO, REFERENCIAS_DEMO } from '../seeds/demo/catalogo-cadastro';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
 import {
@@ -223,7 +223,7 @@ describe('base de demo (estático)', () => {
     const aplicacao = new Map(d['catalogo.produto_conteudo'].map((c) => [sku.get(c.produto_id as string)!, c.aplicacoes as string | null]));
     const autopecas = d['core.produto'].filter((p) => p.categoria === 'Automotivo').map((p) => p.sku as string);
     const cad = dadosDemoCatalogoCadastro({ tenantId: TENANT_DEMO, hoje, dados: d });
-    const marcas = dadosDemoPromotor({ hoje })['promotor.concorrente'];
+    const marcas = cad['catalogo.marca_concorrente']; // T-0113 (0045): as marcas são do Catálogo
 
     it('RN-CAT-11: aplicação em ~40% das autopeças (5 de 12), com os casos do Uno, do Gol, do "a partir de 2018" e do texto > 300 sem separador; o resto sem', () => {
       expect(autopecas).toHaveLength(12);
@@ -305,7 +305,7 @@ describe('base de demo (estático)', () => {
       expect(new Set(refs.map((r) => r.id)).size).toBe(refs.length);
     });
 
-    it('marcas concorrentes fictícias no cadastro do Promotor (Freiomax, Rodaforte, Filtrobom, Vialume), diferentes das marcas próprias', () => {
+    it('marcas concorrentes fictícias no Catálogo (Freiomax, Rodaforte, Filtrobom, Vialume), diferentes das marcas próprias', () => {
       expect(marcas.map((m) => m.nome)).toEqual(expect.arrayContaining(Object.values(MARCAS_CONCORRENTES_DEMO)));
       const proprias = new Set(d['core.produto'].map((p) => String(p.marca).toLowerCase()));
       for (const m of Object.values(MARCAS_CONCORRENTES_DEMO)) expect(proprias.has(m.toLowerCase()), m).toBe(false);
@@ -813,7 +813,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       cb3401: (await c.query<{ sku: string; marca: string; marca_nome: string | null }>(
         `select b.sku, m.nome as marca, r.marca_nome from catalogo.produto_referencia r
            join catalogo.produto_busca b on b.produto_id = r.produto_id and b.deleted_at is null
-           join promotor.concorrente m on m.id = r.marca_id
+           join catalogo.marca_concorrente m on m.tenant_id = r.tenant_id and m.id = r.marca_id
           where r.codigo_compacto = 'cb3401' and r.deleted_at is null`,
       )).rows,
       unoC: (await c.query<{ sku: string }>(
@@ -823,7 +823,8 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       etiquetas: (await c.query<{ e: string[] }>(
         "select c.etiquetas as e from catalogo.produto_conteudo c join catalogo.produto_busca b on b.produto_id = c.produto_id where b.sku = 'PST-D01'",
       )).rows,
-      marcas: (await c.query<{ nome: string }>('select nome from promotor.concorrente where deleted_at is null order by nome')).rows.map((x) => x.nome),
+      marcas: (await c.query<{ nome: string }>('select nome from catalogo.marca_concorrente where deleted_at is null order by nome')).rows.map((x) => x.nome),
+      marcasNoPromotor: (await c.query<{ n: number }>('select count(*)::int as n from promotor.concorrente')).rows[0]!.n,
     }));
     expect(r.refs).toBe(REFERENCIAS_DEMO.length);
     expect(r.cb3401).toEqual([{ sku: 'PST-D01', marca: 'Freiomax', marca_nome: 'Freiomax' }]); // 0034: retrato do nome
@@ -831,6 +832,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.golA).toEqual(['FOL-G01']);
     expect(r.etiquetas).toEqual([{ e: ['Dianteira', 'Novo'] }]);
     expect(r.marcas).toEqual(expect.arrayContaining(Object.values(MARCAS_CONCORRENTES_DEMO)));
+    expect(r.marcasNoPromotor).toBe(0); // T-0113: a base nova não grava mais no cadastro antigo
   });
 
   it('T-0089 (0037) ligado no carregarDemo: 4 formas e 7 prazos vivos (a "À vista" padrão apagada), clientes com prazo médio, 3 faixas, pelo papel macuxi_app', async () => {
@@ -1088,13 +1090,16 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   it('T-0026: repetido de verdade (base sem o único pedido_numero_uk) é renumerado pela recarga, o mais antigo fica, e a 2ª recarga não mexe', async () => {
     const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
     const p1 = seed.find((p) => p.numero === '000001')!;
-    let ids: string[] = [];
+    // ids preenchidos a cada pedido aceito: se o teste cair no meio, o finally apaga o repetido antes de recriar o único
+    const ids: string[] = [];
     await comAdmin(b.nome, (c) => c.query('drop index vendedor.pedido_numero_uk'));
     try {
       const velho = await aceitarPedido();
+      ids.push(velho.id);
       const repetido = await aceitarPedido(velho.numero); // mesmo número, recebido depois
+      ids.push(repetido.id);
       const noDoSeed = await aceitarPedido('000001'); // pedido de verdade no número de um pedido do seed
-      ids = [velho.id, repetido.id, noDoSeed.id];
+      ids.push(noDoSeed.id);
       // hora-fixa-ok: só a ordem de chegada entre os três importa (o mais antigo guarda o número); nunca comparado ao relógio
       const chegada: Array<[string, string]> = [[velho.id, '2026-11-02T10:00:00Z'], [noDoSeed.id, '2026-11-02T10:30:00Z'], [repetido.id, '2026-11-02T11:00:00Z']];
       for (const [id, em] of chegada) await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set recebido_em = $2 where id = $1', [id, em]));

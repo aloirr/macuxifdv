@@ -20,3 +20,5 @@ export * from './aplicacao';
 export * from './busca-seletor';
 export * from './preco-item';
 export * from './pagamento';
+export * from './pendencias-preenchimento';
+export * from './alertas-venda';

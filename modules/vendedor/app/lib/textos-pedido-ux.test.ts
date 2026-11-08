@@ -103,11 +103,15 @@ describe('Textos sem jargão e estados vazios (revisão de UX 🟡 10, 15, 16)',
   });
 });
 
-describe('abasDoPedido com pendência (revisão de UX 🟡 14)', () => {
-  it('RN-VEN-16: a aba Itens fica marcada quando há pendência de frete ou de item', () => {
-    expect(abasDoPedido(2, true).find((a) => a.id === 'itens')?.pendente).toBe(true);
-    expect(abasDoPedido(2, false).find((a) => a.id === 'itens')?.pendente).toBe(false);
-    expect(abasDoPedido(2).find((a) => a.id === 'detalhes')?.pendente).toBeUndefined();
+describe('abasDoPedido com pendência (RN-CORE-36, RF-VEN-11)', () => {
+  it('RN-CORE-36: a bolinha fica só na aba da correção (Venda, Itens ou Entrega) e nunca no Resumo', () => {
+    const marcadas = (p: { venda?: boolean; itens?: boolean; entrega?: boolean }) => abasDoPedido(2, p).filter((a) => a.pendente).map((a) => a.id);
+    expect(marcadas({ venda: true })).toEqual(['venda']);
+    expect(marcadas({ itens: true })).toEqual(['itens']);
+    expect(marcadas({ entrega: true })).toEqual(['entrega']);
+    expect(marcadas({ venda: true, itens: true, entrega: true })).toEqual(['venda', 'itens', 'entrega']);
+    expect(abasDoPedido(2, { venda: true }).find((a) => a.id === 'resumo')?.pendente).toBeUndefined();
+    expect(abasDoPedido(2).find((a) => a.id === 'entrega')?.pendente).toBeUndefined();
   });
 });
 

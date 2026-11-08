@@ -1,117 +1,65 @@
 /**
- * Super-admin de plataforma como regras puras (T-0087; ADR 0029; RN-CORE-31 e desenho docs/desenho/T-0087.md §2).
- * - TOTP RFC 6238: SHA-1, 6 dígitos, 30 s, janela ±1, sem reuso do mesmo passo (nem de passo anterior ao último usado).
- * - Código de recuperação `XXXXX-XXXXX` (alfabeto base32): só o SHA-256 vai ao banco.
- * - Convite do primeiro acesso: comparação em tempo constante, mínimo de 32 caracteres.
- * - 5 falhas = 15 min de bloqueio; token de 15 min limitado ao teto de 8 h da sessão.
- * O relógio e as primitivas criptográficas (HMAC-SHA1, SHA-256) entram por parâmetro (a api injeta `node:crypto`);
- * nada aqui lê banco, ambiente ou grava log.
+ * Acesso ao portal de implantação como regras puras (T-0093; ADR 0031; RN-CORE-31/33 e desenho docs/desenho/T-0093.md §2 a §4).
+ * Entrada só com e-mail e senha (sem TOTP nem convite):
+ * - 5 falhas seguidas na chave do e-mail = 15 min de bloqueio, também para e-mail que não existe (sem oráculo);
+ * - precedência: senha certa de super-admin vale sobre qualquer empresa; senão, só as empresas em que a senha conferiu;
+ * - token de 15 min limitado ao teto de 8 h da sessão.
+ * O relógio entra por parâmetro; nada aqui lê banco, ambiente nem grava log.
  */
-
-/** Primitivas injetadas pela api (domain sem `node:crypto`). */
-export type HmacSha1 = (chave: Uint8Array, dados: Uint8Array) => Uint8Array;
-export type Sha256 = (texto: string) => Uint8Array;
-
-export const TOTP_PERIODO_S = 30;
-export const TOTP_DIGITOS = 6;
-export const TOTP_JANELA = 1;
 export const MAX_FALHAS_SUPER_ADMIN = 5;
 export const BLOQUEIO_SUPER_ADMIN_MIN = 15;
 export const TOKEN_PLATAFORMA_MIN = 15;
-export const CONVITE_MIN = 32;
-const ALFABETO_BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+export const MAX_EMPRESAS_LOGIN = 20;
 
-export function base32Codificar(dados: Uint8Array): string {
-  let bits = 0;
-  let valor = 0;
-  let saida = '';
-  for (const byte of dados) {
-    valor = (valor << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      saida += ALFABETO_BASE32[(valor >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-    valor &= (1 << bits) - 1;
-  }
-  if (bits > 0) saida += ALFABETO_BASE32[(valor << (5 - bits)) & 31];
-  return saida;
+/** Conta que o banco achou para o e-mail (`sa_contas_para_login`), já com o resultado da conferência da senha. */
+export interface ContaConferida {
+  tipo: 'super_admin' | 'admin_cliente';
+  conta_id: string;
+  tenant_id: string | null;
+  tenant_codigo: string | null;
+  tenant_nome: string | null;
+  conferiu: boolean;
+  /** T-0094 (RN-CORE-34, §8.1): conta do admin com a senha temporária a trocar — não entra no portal; a troca é no BKO. */
+  trocar_senha?: boolean;
+  /** `core.usuario.sessao_versao` na conferência; vai à abertura da sessão (fecha a corrida com uma troca de senha). */
+  sessao_versao?: number;
 }
 
-/** Passo de 30 s desde a época Unix. */
-export const passoTotp = (agora: Date): number => Math.floor(agora.getTime() / 1000 / TOTP_PERIODO_S);
-
-/** Comparação em tempo constante de dois vetores (tamanhos diferentes = falso). */
-export function iguaisEmTempoConstante(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
-  return diff === 0;
-}
-
-const bytesDe = (t: string): Uint8Array => Uint8Array.from(t, (c) => c.charCodeAt(0));
-
-/** HOTP (RFC 4226) sobre o passo; 6 dígitos com zeros à esquerda. */
-export function codigoTotp(segredo: Uint8Array, passo: number, hmacSha1: HmacSha1): string {
-  const contador = new Uint8Array(8);
-  new DataView(contador.buffer).setBigUint64(0, BigInt(passo));
-  const h = hmacSha1(segredo, contador);
-  const o = h[h.length - 1]! & 0x0f;
-  const n = ((h[o]! & 0x7f) << 24) | (h[o + 1]! << 16) | (h[o + 2]! << 8) | h[o + 3]!;
-  return String(n % 10 ** TOTP_DIGITOS).padStart(TOTP_DIGITOS, '0');
-}
-
-export type ResultadoTotp = { ok: true; passo: number } | { ok: false };
+export type AcessoDecidido =
+  | { tipo: 'super_admin'; conta_id: string }
+  | { tipo: 'admin_cliente'; empresas: { tenant_id: string; usuario_id: string; codigo: string; nome: string; sessao_versao: number }[] }
+  /** A senha conferiu só em contas com `trocar_senha`: 403 `SENHA_A_TROCAR` (revelado só a quem acertou a senha). */
+  | { tipo: 'senha_a_trocar' }
+  | null;
 
 /**
- * Confere o código nos passos atual ±1. Só vale passo MAIOR que o último usado (`ultimoPasso`; 0 = nunca): o mesmo código
- * não entra duas vezes e um código anterior ao já usado não é aceito. Quem chama grava `passo` de forma atômica.
+ * Quem entra, dado o que a senha conferiu. Super-admin com a senha certa tem precedência (já vê todas as empresas); senão, o
+ * admin do cliente só recebe as empresas em que a senha conferiu (até 20). Nada conferiu = `null` (credenciais inválidas).
  */
-export function verificarTotp(segredo: Uint8Array, codigo: string, agora: Date, ultimoPasso: number, hmacSha1: HmacSha1): ResultadoTotp {
-  if (!/^\d{6}$/.test(codigo)) return { ok: false };
-  const alvo = bytesDe(codigo);
-  const atual = passoTotp(agora);
-  let achado: number | null = null;
-  for (let d = -TOTP_JANELA; d <= TOTP_JANELA; d++) {
-    const passo = atual + d;
-    const igual = iguaisEmTempoConstante(bytesDe(codigoTotp(segredo, passo, hmacSha1)), alvo);
-    if (igual && passo > ultimoPasso && achado === null) achado = passo;
-  }
-  return achado === null ? { ok: false } : { ok: true, passo: achado };
+export function decidirAcessoDoLogin(contas: readonly ContaConferida[]): AcessoDecidido {
+  const sa = contas.find((c) => c.tipo === 'super_admin' && c.conferiu);
+  if (sa) return { tipo: 'super_admin', conta_id: sa.conta_id };
+  const certas = contas.filter((c) => c.tipo === 'admin_cliente' && c.conferiu && c.tenant_id !== null);
+  // T-0094: conta com senha temporária (trocar_senha) não abre o portal; a lista só leva as definitivas
+  const empresas = certas
+    .filter((c) => !c.trocar_senha)
+    .slice(0, MAX_EMPRESAS_LOGIN)
+    .map((c) => ({ tenant_id: c.tenant_id as string, usuario_id: c.conta_id, codigo: c.tenant_codigo ?? '', nome: c.tenant_nome ?? '', sessao_versao: c.sessao_versao ?? 0 }));
+  if (empresas.length > 0) return { tipo: 'admin_cliente', empresas };
+  return certas.length > 0 ? { tipo: 'senha_a_trocar' } : null;
 }
 
-/** `otpauth://` para o aplicativo autenticador (o portal desenha o QR). */
-export function uriOtpauth(segredoBase32: string, rotulo: string): string {
-  const emissor = encodeURIComponent('Macuxi FDV');
-  return `otpauth://totp/${emissor}:${encodeURIComponent(rotulo)}?secret=${segredoBase32}&issuer=${emissor}&algorithm=SHA1&digits=${TOTP_DIGITOS}&period=${TOTP_PERIODO_S}`;
-}
-
-export const normalizarRecuperacao = (c: string): string => c.replace(/[\s-]/g, '').toUpperCase();
-export const formatarCodigoRecuperacao = (c: string): string => {
-  const n = normalizarRecuperacao(c);
-  return `${n.slice(0, 5)}-${n.slice(5, 10)}`;
-};
-/** Convite do primeiro acesso: o configurado precisa ter ≥ 32 caracteres; comparação em tempo constante (por hash, sem vazar o tamanho). */
-export function conviteConfere(configurado: string | undefined, informado: string, sha256: Sha256): boolean {
-  if (!configurado || configurado.length < CONVITE_MIN) return false;
-  const a = sha256(configurado);
-  const b = sha256(informado);
-  return iguaisEmTempoConstante(a, b);
-}
-
-export type EstadoSuperAdmin = 'ok' | 'inativo' | 'bloqueado';
-export function estadoDoSuperAdmin(e: { ativo: boolean; bloqueadoAte: Date | null; agora: Date }): EstadoSuperAdmin {
-  if (!e.ativo) return 'inativo';
-  if (e.bloqueadoAte && e.bloqueadoAte.getTime() > e.agora.getTime()) return 'bloqueado';
-  return 'ok';
+/** A chave do e-mail está bloqueada enquanto `bloqueadoAte` for futuro. */
+export function chaveBloqueada(bloqueadoAte: Date | null, agora: Date): boolean {
+  return bloqueadoAte !== null && bloqueadoAte.getTime() > agora.getTime();
 }
 
 /**
- * Falha de senha ou de código (espelha sa_registrar_falha da 0035): com bloqueio vivo nada muda (não conta nem estende);
- * passado o bloqueio a contagem recomeça; a 5ª falha seguida bloqueia por 15 min e zera o contador.
+ * Falha de senha (espelha `sa_tentativa_falha`): com bloqueio vivo nada muda (não conta nem estende); passado o bloqueio a
+ * contagem recomeça; a 5ª falha seguida bloqueia por 15 min e zera o contador.
  */
 export function decidirFalhaSuperAdmin(atual: { falhas: number; bloqueadoAte: Date | null }, agora: Date): { falhas: number; bloqueadoAte: Date | null } {
-  if (atual.bloqueadoAte !== null && atual.bloqueadoAte.getTime() > agora.getTime()) return atual;
+  if (chaveBloqueada(atual.bloqueadoAte, agora)) return atual;
   const expirou = atual.bloqueadoAte !== null;
   const falhas = (expirou ? 0 : atual.falhas) + 1;
   if (falhas >= MAX_FALHAS_SUPER_ADMIN) return { falhas: 0, bloqueadoAte: new Date(agora.getTime() + BLOQUEIO_SUPER_ADMIN_MIN * 60_000) };

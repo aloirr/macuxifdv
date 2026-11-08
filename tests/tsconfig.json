@@ -5,7 +5,9 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "ESNext",
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    // T-0124: o componente do shell (apps/mobile) importa a lib pelo alias do Metro; o teste do cartão renderiza o componente real
+    "paths": { "@/*": ["../apps/mobile/src/*"] }
   },
   "include": ["**/*.ts"],
   "exclude": ["fixtures/**", "node_modules"]

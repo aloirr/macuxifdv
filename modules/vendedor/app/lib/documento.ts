@@ -1,13 +1,15 @@
 /**
  * Cópia completa do pedido ou orçamento no aparelho (T-0071; RN-VEN-18): Transformar, Duplicar e Editar levam medida,
  * ajustes do item (% ou R$ por unidade), ajuste do pedido, frete, endereço, condição, observação e visita. Funções puras,
- * offline. O preço NÃO é copiado: vale o da tabela de hoje (RN-VEN-01) e o servidor revalida a alçada (RN-VEN-10).
+ * offline. Duplicar entra pelos preços de hoje (RN-VEN-01); Editar orçamento e Transformar mantêm o preço salvo (preço congelado,
+ * RN-VEN-18, T-0134). O servidor revalida alçada, estoque e mínimo (RN-VEN-10/11).
  */
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { formatBRL } from '@macuxi/comum';
 import type { OrderDetail, PedidoPush } from '../../contracts';
 import {
+  precosCongelados,
   reconferirOrcamento,
   type DadosAtuais,
   type FreteParaCopia,
@@ -112,6 +114,27 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
       }),
     ),
   };
+}
+
+/**
+ * T-0134 (RN-VEN-18): preços congelados de um orçamento para a edição. Recebido pelo servidor: itens do detalhe
+ * (`unit_price_cents` = tabela da medida). Ainda na fila: a exibição guardada na hora de salvar. Sem nenhum dos dois, {}.
+ */
+export function precosCongeladosDoOrcamento(
+  detalhe: Pick<OrderDetail, 'items'> | null | undefined,
+  exibicao: ReadonlyArray<{ product_id: string; unit_price_cents: number; unit_label?: string }> | undefined,
+  unidades: readonly UnidadeDaTela[],
+): Record<string, number> {
+  if (detalhe && detalhe.items.length > 0) {
+    return precosCongelados(detalhe.items.map((it) => ({ product_id: it.product_id, preco_tabela_cents: it.unit_price_cents, fator: it.factor ?? 1 })));
+  }
+  return precosCongelados(
+    (exibicao ?? []).map((l) => {
+      const sigla = l.unit_label?.split(' ')[0];
+      const fator = sigla ? (unidades.find((u) => u.produto_id === l.product_id && u.unidade === sigla)?.fator ?? 1) : 1;
+      return { product_id: l.product_id, preco_tabela_cents: l.unit_price_cents, fator };
+    }),
+  );
 }
 
 export interface RascunhoDaCopia {
@@ -257,6 +280,8 @@ export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[
 /** Uma frase por mudança, em português, com o nome do produto (a tela mostra antes de enviar o pedido). */
 export function textoDaMudanca(m: MudancaNaConversao, nome: (produtoId: string) => string): string {
   switch (m.tipo) {
+    case 'abaixo_minimo':
+      return `${nome(m.produto_id)}: o desconto passa do preço mínimo de hoje. Ajuste o desconto do item.`;
     case 'preco':
       return `${nome(m.produto_id)}: preço de ${formatBRL(m.de_cents)} para ${formatBRL(m.para_cents)}.`;
     case 'sem_preco':

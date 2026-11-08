@@ -16,11 +16,14 @@
     "fronteiras": "node scripts/fronteiras.mjs",
     "timers": "node scripts/ci/timers-sync.mjs",
     "contar-testes": "node scripts/contar-testes.mjs",
+    "redundancia:codigo": "jscpd --config .jscpd.json apps modules packages scripts db tests",
+    "redundancia:mortos": "knip --no-exit-code",
     "format": "prettier --write .",
     "db:subir": "pnpm --filter @macuxi/db banco subir",
     "db:derrubar": "pnpm --filter @macuxi/db banco derrubar",
     "db:migrar": "pnpm --filter @macuxi/db migrar",
-    "tenant:criar": "pnpm --filter api tenant criar"
+    "tenant:criar": "pnpm --filter api tenant criar",
+    "super-admin": "pnpm --filter api super-admin"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -29,6 +32,8 @@
     "dependency-cruiser": "^17.0.0",
     "eslint": "^9.39.0",
     "globals": "^16.5.0",
+    "jscpd": "5.4.2",
+    "knip": "6.44.2",
     "prettier": "^3.6.2",
     "turbo": "^2.6.0",
     "typescript": "~5.9.3",

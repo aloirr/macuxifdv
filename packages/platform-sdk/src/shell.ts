@@ -12,6 +12,7 @@
 import { ordenarPorDependencia, problemasDasConsultas, type Manifesto } from './manifesto';
 import type { AppId, ModuloId, Perfil } from './nomes';
 import { criarPermissoes, type Permissoes } from './permissoes';
+import type { PerfilDaRequisicao } from './permissoes-perfil';
 import type { EtapaSync } from './motor-sync';
 import type { DefinicaoEntidadeSync } from './sync';
 import { criarRegistroSync } from './sync';
@@ -95,6 +96,11 @@ export interface ContextoShell {
   perfil: Perfil | null;
   /** Módulos efetivos do usuário, em ordem de dependência (`modulosEfetivos`). */
   modulosAtivos: readonly ModuloId[];
+  /**
+   * ADR 0033 (T-0111): perfis de acesso já resolvidos (fábrica + o que o tenant mudou + limites travados). Presentes, o motor decide
+   * as ações da visão (`pode`); ausentes, vale o manifesto pelo `perfil` (legado).
+   */
+  perfis?: readonly PerfilDaRequisicao[];
 }
 
 export interface ItemNavegacao<C> {
@@ -243,7 +249,7 @@ function montarVisao<C>(
   ctx: Omit<ContextoShell, 'app'>,
 ): VisaoShell<C> {
   const ativos = ctx.modulosAtivos;
-  const pode = (acao: string) => permissoes.pode(acao, { perfil: ctx.perfil, modulosAtivos: ativos });
+  const pode = (acao: string) => permissoes.pode(acao, { perfil: ctx.perfil, modulosAtivos: ativos, ...(ctx.perfis ? { perfis: ctx.perfis } : {}) });
   const visiveis = new Map<string, PaginaShell<C> & { modulo: ModuloId }>();
   const navegacao: ItemNavegacao<C>[] = [];
   const posicaoModulo = new Map(ativos.map((id, i) => [id, i] as const));

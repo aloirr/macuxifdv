@@ -35,6 +35,7 @@ export function ConectoresPanel({ conectores, agora, tz }: { conectores: readonl
                   <div className="font-mono text-[12px] text-ink-2">
                     {c.conector_id}
                     {c.recebe_pedidos ? ' · recebe pedidos' : ''}
+                    {c.aceita_cancelamento ? ' · aceita cancelamento' : ''}
                   </div>
                 </td>
                 <td className={td}>

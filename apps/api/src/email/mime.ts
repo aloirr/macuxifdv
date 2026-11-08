@@ -4,7 +4,7 @@
  * determinístico `<idEnvio@dominio-do-remetente>` (a mesma mensagem reenviada numa nova tentativa tem o mesmo id, e o
  * provedor pode deduplicar). Sem `node:*` além do `Buffer` global.
  */
-import type { EnderecoEmail, MensagemEmail } from '@macuxi/platform-sdk';
+import type { EnderecoEmail, EmailParaEnvio } from '@macuxi/platform-sdk';
 
 const CRLF = '\r\n';
 /** Bytes por encoded-word: 45 bytes → 60 caracteres base64; `=?UTF-8?B?` + 60 + `?=` = 72 ≤ 75 (RFC 2047 §2). */
@@ -66,7 +66,7 @@ export interface MimeMontado {
 
 /** Monta a mensagem. `conteudo` permite trocar o corpo (ex.: versão sem senha no arquivo da demo). */
 export function montarMime(
-  msg: MensagemEmail,
+  msg: EmailParaEnvio,
   opcoes: { agora: Date; conteudo?: { assunto: string; texto: string; html: string } },
 ): MimeMontado {
   const c = opcoes.conteudo ?? msg;

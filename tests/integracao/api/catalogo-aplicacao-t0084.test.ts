@@ -23,7 +23,8 @@
  *       leva o texto (1.000 = inteiro); desmarcado (null) e APK antigo (ausente): o item e o pedido saem iguais, sem o texto.
  *  P-3  (T-0084 c8, regra 7): o promotor vê a aplicação na ficha (só leitura), não grava cadastro e não cria pedido.
  *  R-1  (T-0085 c4, RN-CAT-09) online: o código do concorrente acha o produto em 1º com "Equivale a" (retrato `marca_nome`
- *       para o vendedor sem o Promotor); marca inativa some para quem lê o cadastro do Promotor; multi-tenant.
+ *       para o vendedor sem o Promotor); marca inativa some da busca e da ficha de TODOS (T-0113: o cadastro é do Catálogo,
+ *       `catalogo.marca_concorrente`, ADR 0034); multi-tenant. O cadastro de marcas em si: marcas-concorrentes-t0113.test.ts.
  *  R-2  (T-0085 c3/c6) limites, perfis e auditoria do `PUT .../cadastro-catalogo`.
  *  E-1  (T-0085 c6/c8) exportação: perfil, licença, tenant e `truncado` (20.001 produtos).
  */
@@ -38,6 +39,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
+import { MARCAS_FIXTURE } from '../../../db/seeds/fixtures/dois-tenants';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { retratoAplicacao } from '../../../modules/vendedor/domain/aplicacao';
 import { buildOrderPdfHtml, escapeHtml, pdfDoPedido } from '../../../modules/vendedor/domain/pdf-pedido';
@@ -146,7 +148,9 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
     // eventos antigos da fixture e lotes `recebido` sem staging não podem segurar a fila da carga (mesma premissa do ciclo-erp)
     await despachar();
     await api.admin.query("update integracao.lote set status = 'concluido', concluido_em = now() where status in ('recebido', 'processando')");
-    concorrenteA = (await q<{ id: string }>('select id from promotor.concorrente where tenant_id = $1 and deleted_at is null order by created_at limit 1', [A.tenantId]))[0]!.id;
+    // T-0113 (0045, ADR 0034): a marca é do Catálogo; a ativa da fixture tem o MESMO id do concorrente antigo do Promotor
+    concorrenteA = MARCAS_FIXTURE.A.ativa;
+    expect(await q('select 1 from catalogo.marca_concorrente where tenant_id = $1 and id = $2 and ativo and deleted_at is null', [A.tenantId, concorrenteA])).toHaveLength(1);
     alfa1 = A.produtos.p1;
     alfa2 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-002'", [A.tenantId]))[0]!.id;
   }, 300_000);
@@ -296,12 +300,12 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       expect((await itensDaBusca(tk.vB, 'lb0099'))[0]?.erp_code).toBe('BETA-001');
     });
 
-    describe('promotor com o Catálogo no perfil (lê o cadastro de concorrentes do Promotor)', () => {
+    describe('promotor com o Catálogo no perfil (marcas do cadastro do Catálogo, T-0113)', () => {
       beforeAll(async () => {
         expect((await licenca(api, tk.adminA, 'perfil', 'catalogo', true, 'promotor')).statusCode).toBe(200);
       });
       afterAll(async () => {
-        await api.admin.query('update promotor.concorrente set ativo = true where id = $1', [concorrenteA]);
+        await api.admin.query('update catalogo.marca_concorrente set ativo = true where id = $1', [concorrenteA]);
         expect((await licenca(api, tk.adminA, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
       });
 
@@ -326,12 +330,25 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
         expect((await aplicacaoNoBanco(alfa1))?.aplicacoes).toBe(APL_UNO);
       });
 
-      it('R-1d (RN-CAT-09): marca inativa no cadastro do Promotor tira o "Equivale a" de quem lê o cadastro (promotor, analista)', async () => {
-        await api.admin.query('update promotor.concorrente set ativo = false where id = $1', [concorrenteA]);
-        const r = await itensDaBusca(tk.promotorA, 'cb3401');
-        expect(r.find((i) => i.erp_code === 'ALFA-001')?.equivale_a ?? null).toBeNull();
-        expect(((await ficha(tk.analistaA, alfa1)).json() as { catalogo: { referencias: unknown[] } }).catalogo.referencias).toEqual([]);
-        await api.admin.query('update promotor.concorrente set ativo = true where id = $1', [concorrenteA]);
+      it('R-1d (RN-CAT-09, ADR 0034 §6): marca inativa no cadastro do Catálogo tira o "Equivale a" da busca e da ficha de todos (promotor, analista e vendedor)', async () => {
+        // T-0119 (D-T0107b): a busca lê um retrato do catálogo do tenant em memória (TTL 60 s) que só as gravações do PRÓPRIO
+        // Catálogo descartam; por isso a marca é inativada e reativada pela rota do cadastro de marcas (RN-CAT-13, marca.gerenciar),
+        // como no BKO — um UPDATE direto no banco ficaria invisível à busca até o TTL vencer
+        const marca = (ativo: boolean) => api.chamar(tk.analistaA, { method: 'PUT', url: `/v1/catalogo/marcas/${concorrenteA}`, payload: { ativo } });
+        const inativar = await marca(false);
+        expect(inativar.statusCode, inativar.body).toBe(200);
+        try {
+          for (const t of [tk.promotorA, tk.vA]) {
+            const r = await itensDaBusca(t, 'cb3401');
+            expect(r.find((i) => i.erp_code === 'ALFA-001')?.equivale_a ?? null).toBeNull();
+          }
+          expect(((await ficha(tk.analistaA, alfa1)).json() as { catalogo: { referencias: unknown[] } }).catalogo.referencias).toEqual([]);
+        } finally {
+          const reativar = await marca(true);
+          expect(reativar.statusCode, reativar.body).toBe(200);
+        }
+        // reativada, volta (o retrato marca_nome não se perdeu)
+        expect((await itensDaBusca(tk.vA, 'cb3401'))[0]).toMatchObject({ erp_code: 'ALFA-001', equivale_a: { marca_id: concorrenteA, marca_nome: 'Freios Rivais' } });
       });
     });
 
@@ -340,6 +357,10 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
         ['4 referências', { referencias: ['A1', 'A2', 'A3', 'A4'].map((codigo) => ({ marca_id: concorrenteA, codigo })) }, 'RN-CAT-09'],
         ['código com 31', { referencias: [{ marca_id: concorrenteA, codigo: 'X'.repeat(31) }] }, 'RN-CAT-09'],
         ['marca inexistente', { referencias: [{ marca_id: randomUUID(), codigo: 'CB 1' }] }, 'RN-CAT-09'],
+        // T-0113 (ADR 0034): a marca é validada no cadastro do próprio Catálogo
+        ['marca inativa', { referencias: [{ marca_id: MARCAS_FIXTURE.A.inativa, codigo: 'CB 1' }] }, 'RN-CAT-09'],
+        ['marca apagada', { referencias: [{ marca_id: MARCAS_FIXTURE.A.apagada, codigo: 'CB 1' }] }, 'RN-CAT-09'],
+        ['marca de outro tenant', { referencias: [{ marca_id: MARCAS_FIXTURE.B.ativa, codigo: 'CB 1' }] }, 'RN-CAT-09'],
         ['6 em oferece junto', { oferece_junto: Array.from({ length: 6 }, () => randomUUID()) }, 'RN-CAT-09'],
         ['o próprio produto', { oferece_junto: [alfa1] }, 'RN-CAT-09'],
         ['5 etiquetas', { etiquetas: ['a', 'b', 'c', 'd', 'e'] }, 'RN-CAT-09'],
@@ -518,6 +539,8 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       const p1 = e.produtos.find((p) => p.codigo === 'ALFA-001');
       expect(p1).toMatchObject({ aplicacao: APL_UNO, oferece_junto: [alfa2], referencias: [{ marca_id: concorrenteA, codigo: 'CB 3401' }, { marca_id: concorrenteA, codigo: 'FR-77.2' }] });
       expect(e.marcas).toEqual(expect.arrayContaining([{ id: concorrenteA, nome: 'Freios Rivais' }]));
+      // T-0113: só as ativas do cadastro do Catálogo de A (nem a inativa, nem a apagada, nem as de B)
+      for (const id of [MARCAS_FIXTURE.A.inativa, MARCAS_FIXTURE.A.apagada, MARCAS_FIXTURE.B.ativa]) expect(e.marcas.map((m) => m.id)).not.toContain(id);
       expect(e.produtos.map((p) => p.codigo)).not.toContain('BETA-001');
       expect(r.body).not.toMatch(/price|preco/);
     });
@@ -532,6 +555,8 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
       const eb = RespostaExportacao.parse(b.json());
       expect(eb.produtos.map((x) => x.codigo)).toEqual(['BETA-001']);
       expect(eb.produtos[0]!.referencias.map((x) => x.codigo)).toEqual(['LB 0099']);
+      // T-0113 (fecha o achado T-0085-A1): B não tem o Promotor e mesmo assim exporta as marcas, do cadastro do Catálogo
+      expect(eb.marcas).toEqual([{ id: MARCAS_FIXTURE.B.ativa, nome: 'Lubri Rival' }]);
     });
 
     it('E-1c (RN-CORE-01): Catálogo desligado no tenant = 403 MODULO_INATIVO na exportação; religado, volta', async () => {

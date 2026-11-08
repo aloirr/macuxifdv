@@ -282,3 +282,18 @@ Rotas Fastify, persistência, fila (pg-boss), telas do monitor/mapeamento/upload
   - (3) **Quantidade/saldo fracionário**: mantém `number` no contrato (o ERP define a precisão). A soma de controle de estoque é comparada com a tolerância de 0,5 %, que absorve ruído de ponto flutuante; a API deve somar em milésimos (`Math.round(x*1000)`) antes de enviar ao `reconciliar`. Sem mudança de contrato.
   - Revisão: precisão do cursor — `Date.parse` trunca a milissegundos; o Conector deve enviar `alterado_em` em ms (ex.: `datetime2(3)` ou `rowversion` convertido). Entra no guia do Conector e nas views-modelo.
 - **Abertas, de produto/outro dono (não decididas aqui)**: (1) ~~pedido cancelado no Vendedor depois de `enviado`~~ — decidido: opção (b), o Macuxi não escreve no ERP; só recebe `cancelado` pelo retorno. Opção (a) no backlog. (Histórico: exigia regra no doc 03 (RN do Vendedor/Integração) e possivelmente estado `cancelado` em RN-INT-08 e evento consumido novo; decisão do Alexandre com o `modulo-vendedor`.)
+
+## 14. Retorno do Catálogo ao Hub: aviso de marca desconhecida (T-0103, desenho aditivo)
+
+**Problema (T-0085 K11).** O Hub não conhece o cadastro de marcas (é do Catálogo): quem resolve a marca de uma referência cruzada é o consumidor do Catálogo, depois do lote. Hoje a referência com marca concorrente desconhecida só gera log; o operador do BKO não vê.
+
+**Caminho escolhido: o Catálogo publica, o Hub consome** (nenhum módulo lê tabela do outro; regra 1).
+
+1. **Evento novo do Catálogo (dono: modulo-catalogo)** `catalogo.referencia.marca_desconhecida@1`, payload: `produto_external_id`, `produto_codigo`, `marca` (nome ou external_id como veio), `marca_external_id` (nullable), `lote_id` (uuid do `integracao.lote.recebido@1` que originou a linha, vindo do envelope/causa), `entidade` (`produto`), `ocorrido_em`. Um evento por produto e lote com uma lista `marcas` seria mais barato: **decisão: um evento por (lote, produto), com `marcas: string[]` (até 3, o limite de referências)**. Sem dado pessoal.
+2. **Hub (este módulo) consome** o evento (entra em `consome` do manifesto; consumidor idempotente por `evento_id`) e **acrescenta ao `avisos` do lote** um aviso `marca_concorrente_desconhecida` (`indice` da linha, `external_id` = `produto_external_id`, mensagem "Produto <codigo>: marca <marca> não cadastrada; a referência foi carregada sem marca resolvida"). O lote já pode estar `concluido`: o aviso é um acréscimo, não muda o status nem as contagens.
+3. **Monitor.** `apresentacao.ts` ganha o rótulo e o monitor mostra o aviso na tela do lote com o **código do produto e a marca** (critério 2 da T-0103). O ícone é de aviso (amarelo), nunca de erro.
+4. **Contrato (aditivo, v1).** `CODIGOS_AVISO_LINHA` ganha `marca_concorrente_desconhecida`. Como o aviso é gravado **depois** da resposta ao Conector, ele aparece só no monitor do BKO e na consulta do lote autenticada pelo operador. O resultado do `POST /lotes` para o Conector não o inclui (o Conector 1.3.x não o espera; o esquema do Conector lê `avisos` como texto livre, então a leitura posterior continua compatível).
+5. **Banco (pedir ao banco-dados).** Nada de tabela nova: `integracao.lote.avisos` (jsonb) já existe; o consumidor faz `jsonb ||` com limite de 200 avisos por lote (acima disso, um último aviso "e mais N" ). Sem migração.
+6. **Pronto quando**: o Catálogo publica o evento no consumidor de `integracao.produto.atualizado@1` ao descartar a marca; o Hub consome e o monitor exibe; teste de contrato do evento nos dois módulos.
+
+**Ordem.** (a) modulo-catalogo cria o evento em `modules/catalogo/contracts/eventos.ts` e registra em `.coord/contratos/eventos.md` (engenheiro-software); (b) modulo-integracao consome e apresenta, só depois do contrato publicado.

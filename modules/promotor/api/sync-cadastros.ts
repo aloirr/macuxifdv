@@ -36,7 +36,6 @@ export const TABELAS_CADASTRO = {
   checklist_loja: { tabela: 'promotor.checklist_loja', colunas: `${ALVO}, ${VIGENCIA}, nome, itens` },
   mix_obrigatorio: { tabela: 'promotor.mix_obrigatorio', colunas: `${ALVO}, ${VIGENCIA}, produto_id, categoria_gondola_id` },
   meta_share: { tabela: 'promotor.meta_share', colunas: `${ALVO}, ${VIGENCIA}, categoria_gondola_id, meta_pct::float8 as meta_pct` },
-  concorrente: { tabela: 'promotor.concorrente', colunas: 'nome, ativo' },
   produto_concorrente: { tabela: 'promotor.produto_concorrente', colunas: 'concorrente_id, nome, produto_id, categoria_gondola_id, ativo' },
   foto_referencia: { tabela: 'promotor.foto_referencia', colunas: `${ALVO}, ${VIGENCIA}, categoria_gondola_id, arquivo_id, descricao` },
   tarefa_trade: { tabela: 'promotor.tarefa_trade', colunas: `${ALVO}, ${VIGENCIA}, titulo, instrucao, to_char(prazo, 'YYYY-MM-DD') as prazo` },
@@ -67,7 +66,8 @@ export const provedoresPullCadastros: readonly ProvedorSync[] = [
   { entidade: entidadeChecklistLoja, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.checklist_loja) },
   { entidade: entidadeMixObrigatorio, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.mix_obrigatorio) },
   { entidade: entidadeMetaShare, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.meta_share) },
-  { entidade: entidadeConcorrente, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.concorrente) },
+  // ADR 0034 §5: legado até 2026-12-08; página vazia para o APK Campo-Demo-v1.0.0 não receber 404. A lista de marcas é do Catálogo.
+  { entidade: entidadeConcorrente, escopo: 'tenant', puxar: async () => [] },
   { entidade: entidadeProdutoConcorrente, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.produto_concorrente) },
   { entidade: entidadeFotoReferencia, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.foto_referencia) },
   { entidade: entidadeTarefaTrade, escopo: 'tenant', puxar: puxarDe(TABELAS_CADASTRO.tarefa_trade) },

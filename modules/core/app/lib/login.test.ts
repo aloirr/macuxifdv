@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin } from './login';
 
 const U = '0b000000-0000-4000-8000-000000000001';
 const resposta = {
@@ -65,5 +65,14 @@ describe('RF-CORE-01: login do app', () => {
   it('RF-CORE-01: rótulo do botão de olho alterna entre mostrar e ocultar', () => {
     expect(rotuloOlhoSenha(false)).toBe('Mostrar senha');
     expect(rotuloOlhoSenha(true)).toBe('Ocultar senha');
+  });
+});
+
+describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {
+  it('RF-CORE-01: o e-mail devolvido pelo shell vem preenchido, junto do código; a senha começa vazia', () => {
+    expect(camposIniciaisDoLogin('alfa', 'v@x.com')).toEqual({ codigo_empresa: 'alfa', email: 'v@x.com', senha: '' });
+  });
+  it('RF-CORE-01: sem emailInicial nem código salvo, os campos abrem vazios', () => {
+    expect(camposIniciaisDoLogin(null, undefined)).toEqual({ codigo_empresa: '', email: '', senha: '' });
   });
 });

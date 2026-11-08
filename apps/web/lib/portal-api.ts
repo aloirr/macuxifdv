@@ -1,37 +1,43 @@
 /**
- * Cliente HTTP do portal `config.` (T-0087; ADR 0029). Separado do cliente do BKO (`@macuxi/platform-sdk/web`), que guarda o
+ * Cliente HTTP do portal `config.` (T-0087; T-0093, ADR 0031). Separado do cliente do BKO (`@macuxi/platform-sdk/web`), que guarda o
  * token do tenant no `localStorage`: aqui o token é o de plataforma, no `sessionStorage` (`lib/portal-sessao.ts`).
  * - Chamada pelo proxy same-origin (`/api-proxy`), com `Authorization: Bearer` e, nas rotas de módulo, `x-macuxi-tenant`.
  * - Antes de cada chamada autenticada: token perto do fim → renova (uma renovação por vez); vencido → limpa e manda entrar.
  * - 401 numa rota autenticada → limpa a sessão (a guarda leva a `/entrar`).
- * - Nada vai ao `console`: nem e-mail, nem código, nem token, nem o corpo do erro.
+ * - Admin do cliente: 403 `EMPRESA_NAO_PERMITIDA` e 409 `EMPRESA_NAO_ESCOLHIDA` → a guarda leva à "Escolha a empresa" (ou à
+ *   entrada, com 1 empresa só): `desvioDoErro` em `lib/portal-sessao.ts`.
+ * - Nada vai ao `console`: nem e-mail, nem senha, nem token, nem o corpo do erro.
  * - Modo falso (`NEXT_PUBLIC_PORTAL_FALSO=1`, só fora de produção): as mesmas chamadas respondidas no navegador por
  *   `lib/portal-falso.ts`, contra os mesmos schemas, para navegar o fluxo antes de as rotas reais chegarem.
  */
-import { CABECALHO_TENANT_PLATAFORMA, SessaoPlataformaSchema } from '@macuxi/platform-sdk';
+import { CABECALHO_TENANT_PLATAFORMA, SessaoPortalSchema } from '@macuxi/platform-sdk';
 import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
-import { estadoDaSessao, lerSessaoPortal, limparSessaoPortal, marcarSaidaPedida, salvarSessaoPortal, USO_RECENTE_MS, type SessaoPortal } from './portal-sessao';
+import {
+  desvioDoErro,
+  estadoDaSessao,
+  guardarAvisoPortal,
+  guardarEmpresaIndisponivel,
+  lerSessaoPortal,
+  limparSessaoPortal,
+  marcarSaidaPedida,
+  pedirDesvioPortal,
+  salvarSessaoPortal,
+  sessaoSemEmpresa,
+  USO_RECENTE_MS,
+  type SessaoPortal,
+} from './portal-sessao';
 
 export const MODO_PORTAL_FALSO = process.env.NEXT_PUBLIC_PORTAL_FALSO === '1' && process.env.NODE_ENV !== 'production';
 
 export const MENSAGEM_SEM_CONEXAO = 'Sem conexão com o servidor. Confira a internet e tente de novo.';
-export const MENSAGEM_SESSAO_TERMINOU = 'Sua sessão terminou. Entre de novo para continuar.';
+/** Aviso da entrada quando a guarda manda para cá (spec docs/design/portal-entrar.md §4). */
+export const MENSAGEM_SESSAO_TERMINOU = 'Sua sessão terminou. Entre de novo.';
 export const MENSAGEM_FORMATO = 'A resposta do servidor veio num formato inesperado. Atualize a página; se continuar, avise o suporte.';
 export const MENSAGEM_PADRAO = 'Algo deu errado. Tente de novo; se continuar, avise o suporte.';
-/** 503 do portal: faltam os segredos no servidor (quem resolve é o próprio super-admin, no deploy; R-20261106-023316 🟡 3). */
+/** 503 do portal: faltam os segredos no servidor (quem resolve é quem opera o deploy; R-20261106-023316 🟡 3). */
 export const MENSAGEM_PORTAL_SEM_SEGREDOS = 'Faltam os segredos do portal neste servidor. Confira as chaves da plataforma no deploy deste ambiente.';
-/**
- * Código de convite do 1º acesso (T-0091): texto neutro, vale na produção e na demo, sem expor valor. Nomes dos secrets no
- * GitHub: `PROD_SUPERADMIN_CONVITE` (environment PRODUCAO) e `DEMO_SUPERADMIN_CONVITE` (environment DEMO_SSH_KEY).
- */
-export const AJUDA_CONVITE_SUPER_ADMIN =
-  'O convite de super-admin configurado no servidor: o valor do secret PROD_SUPERADMIN_CONVITE na produção ou DEMO_SUPERADMIN_CONVITE na demo.';
-export const MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO = 'Código de convite incorreto. Confira o convite de super-admin configurado no servidor deste ambiente.';
-/** Código do aplicativo errado (login e cadastro do 2º fator): a causa mais comum é a hora do celular fora do automático. */
-export const MENSAGEM_TOTP_INCORRETO = 'Código incorreto. Confira se a hora do celular está no automático e digite o código que aparece agora.';
-export const MENSAGEM_RECUPERACAO_INCORRETA = 'Código de recuperação incorreto ou já usado. Cada código vale uma vez.';
 
 export class ErroPortal extends Error {
   constructor(
@@ -112,7 +118,7 @@ export function renovarSessaoPortal(): Promise<SessaoPortal | null> {
         limparSessaoPortal();
         return null;
       }
-      const nova = SessaoPlataformaSchema.safeParse(await res.json());
+      const nova = SessaoPortalSchema.safeParse(await res.json());
       if (!nova.success) return null;
       salvarSessaoPortal(nova.data);
       return nova.data;
@@ -186,10 +192,41 @@ async function enviar(caminho: string, o: { metodo: Metodo; corpo?: unknown; ten
     } catch {
       // corpo não é JSON
     }
-    if (res.status === 401 && !publica) limparSessaoPortal();
-    throw lerErroDaApi(res.status, corpo);
+    const erro = lerErroDaApi(res.status, corpo);
+    // a própria escolha (POST auth/empresa) trata o 403 na tela: só o 401 muda a sessão
+    if (!publica) desviarPeloErro(erro, caminho === ROTAS_PORTAL.escolherEmpresa, o.tenant);
+    throw erro;
   }
   return res;
+}
+
+/**
+ * Rota autenticada com erro de sessão ou de empresa: 401 limpa a sessão (a guarda leva à entrada); 403/409 de empresa do admin do
+ * cliente pedem à guarda a "Escolha a empresa" (2+) ou a entrada com aviso (1 empresa: a sessão acaba). No 403 com 2+, a empresa
+ * da chamada sai da sessão (quando o resto ainda é sessão válida) e vai para a Escolha tirá-la da lista e dizer o nome: sem isso ela
+ * ficava como "Atual" e levava de volta à página do 403 (R-20261107-174216 🟡 2).
+ */
+function desviarPeloErro(e: ErroPortal, soSessao: boolean, tenant: string | undefined) {
+  if (e.status === 401) {
+    limparSessaoPortal();
+    return;
+  }
+  if (soSessao) return;
+  const s = lerSessaoPortal();
+  const d = desvioDoErro(s, e.status, e.codigo, tenant);
+  if (!d) return;
+  if (d.empresa && s) {
+    guardarEmpresaIndisponivel(d.empresa);
+    const sem = sessaoSemEmpresa(s, d.empresa.id);
+    if (sem) salvarSessaoPortal(sem);
+  } else if (d.aviso) guardarAvisoPortal(d.aviso);
+  if (d.para === 'entrar') {
+    // não é "sessão terminou": a guarda não guarda volta nem mostra esse aviso; a entrada mostra o da empresa
+    marcarSaidaPedida();
+    limparSessaoPortal();
+    return;
+  }
+  pedirDesvioPortal(d);
 }
 
 /** Chamada JSON do portal. 204 = `undefined`. */

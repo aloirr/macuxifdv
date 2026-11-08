@@ -240,7 +240,8 @@ describe.skipIf(semBanco())('T-0003 C3.3 / T-0015 O-3 — promotor lê pedidos d
 
   it('promotor também não administra licenças (ação só do admin) nem lê o estado delas', async () => {
     const r = await licenca(api, promotor, 'perfil', 'vendedor', true, 'promotor');
-    expect([r.statusCode, erroDe(r).codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
+    // RN-CORE-33 (ADR 0032, T-0094): Licenças é rota `superficie: 'bko'`; o promotor (só Campo) cai antes, em PERFIL_SEM_BKO
+    expect([r.statusCode, erroDe(r).codigo]).toEqual([403, 'PERFIL_SEM_BKO']);
     expect((await api.chamar(promotor, { method: 'GET', url: '/v1/core/licencas' })).statusCode).toBe(403);
   });
 });

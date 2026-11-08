@@ -5,8 +5,8 @@
  */
 import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 
-import type { IndicadorDiarioSync, MetaSync, RotaParadaSync, VisitaSync } from '../../contracts';
-import { aplicarPendentesVisita, dataLocal, painelDoUsuario, type PainelDeMetas } from '../../domain';
+import type { IndicadorDiarioSync, MetaSync, ParametroSync, RotaParadaSync, VisitaSync } from '../../contracts';
+import { aplicarPendentesVisita, calendarioDoTenant, dataLocal, painelDoUsuario, type PainelDeMetas } from '../../domain';
 import { pendentesDaFila } from './rota-local';
 
 export interface LinhasMetas {
@@ -14,6 +14,8 @@ export interface LinhasMetas {
   visitas: readonly VisitaSync[];
   diarios: readonly IndicadorDiarioSync[];
   metas: readonly MetaSync[];
+  /** Pull `parametro`: traz `metas.dias_uteis_semana` (RN-CORE-26); ausente = seg–sáb. */
+  parametros?: readonly ParametroSync[];
 }
 
 export function painelLocal(
@@ -33,6 +35,7 @@ export function painelLocal(
     visitas,
     diarios: l.diarios,
     metas: l.metas,
+    calendario: calendarioDoTenant((l.parametros ?? []).map((p) => ({ ...p, valor: p.valor }))),
   });
   return { ...p, periodo };
 }

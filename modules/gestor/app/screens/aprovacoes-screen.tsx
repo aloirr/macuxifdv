@@ -70,7 +70,7 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
       </Text>
       <View style={styles.linha}>
         <ChipEstado texto={prazo.label} tom={TOM_PARA_CHIP[prazo.tom]} pequeno />
-        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accent }]}>{i.acima_do_nivel ? 'Decidir (nível do supervisor)' : 'Decidir'}</Text> : <Text style={t.small}>Acompanhar</Text>}
+        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>{i.acima_do_nivel ? 'Decidir (nível do supervisor)' : 'Decidir'}</Text> : <Text style={t.small}>Acompanhar</Text>}
       </View>
     </Pressable>
   );

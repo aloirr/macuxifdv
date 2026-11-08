@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
+import { buscaDosFiltros, cadastroCatalogoDoForm, contadorAplicacao, limiteAplicacao, mensagemDoCadastro, mensagemDoConteudo, nomesDoOfereceJunto, textoRemoverFaixa, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
 
 describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
   it('conteúdo: ida e volta entre a ficha e o formulário', () => {
@@ -100,5 +100,49 @@ describe('editores do produto e oferece junto (T-0085, BKO)', () => {
     const form = { ...formCadastroDaFicha({ catalogo: { aplicacao: null, referencias: [], oferece_junto: [{ produto_id: 'id-z9', erp_code: 'Z9', description: 'Z' }], etiquetas: [] } }) };
     const r = cadastroCatalogoDoForm('p1', form, { idsPorCodigo: mapa, aplicacaoMax: 2000 });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe('UX B5: mensagens sem o caminho técnico do campo', () => {
+  const ids = new Map([['A-1', 'id-a1']]);
+  const form = { aplicacao: '', ofereceJunto: '', referencias: [{ marca_id: '', codigo: '' }], etiquetas: '' };
+  const erro = (f: object) => {
+    const r = cadastroCatalogoDoForm('p1', { ...form, ...f }, { idsPorCodigo: ids, aplicacaoMax: 2000 });
+    return r.ok ? '' : r.erro;
+  };
+  it('RN-CAT-09: código do concorrente acima de 30 → "Código 1: use até 30 caracteres."', () => {
+    const e = erro({ referencias: [{ marca_id: '00000000-0000-4000-8000-000000000001', codigo: 'x'.repeat(31) }] });
+    expect(e).toBe('Código 1: use até 30 caracteres.');
+  });
+  it('RN-CAT-10: mais de 4 etiquetas ou etiqueta longa → "Use até 4 etiquetas, com até 20 caracteres cada."', () => {
+    expect(erro({ etiquetas: 'a,b,c,d,e' })).toBe('Use até 4 etiquetas, com até 20 caracteres cada.');
+    expect(erro({ etiquetas: 'x'.repeat(21) })).toBe('Use até 4 etiquetas, com até 20 caracteres cada.');
+  });
+  it('RN-CAT-10: mais de 5 em oferece junto → "Oferece junto: use até 5 produtos."', () => {
+    expect(erro({ ofereceJunto: 'A-1\nA-1\nA-1\nA-1\nA-1\nA-1' })).toBe('Oferece junto: use até 5 produtos.');
+  });
+  it('nenhuma mensagem mostra "Confira o campo"', () => {
+    expect(mensagemDoCadastro({ path: ['referencias', 0, 'codigo'], message: 'x' })).not.toMatch(/Confira o campo|referencias\.0/);
+    expect(mensagemDoConteudo({ path: ['faq', 0, 'answer'], message: 'Use até 500 caracteres.' })).toBe('Perguntas frequentes: Use até 500 caracteres.');
+  });
+});
+
+describe('UX B2/B4 e T-0089 K3: contador, nomes e diálogo', () => {
+  it('RN-CAT-11: o limite vem de aplicacao_max_cadastro (padrão 2.000) e o contador fica vermelho acima dele', () => {
+    expect(limiteAplicacao({})).toBe(2000);
+    expect(limiteAplicacao({ aplicacao_max_cadastro: 500 })).toBe(500);
+    expect(limiteAplicacao({ aplicacao_max_cadastro: 50 })).toBe(2000);
+    expect(contadorAplicacao(1234, 2000)).toEqual({ texto: '1.234 / 2.000', excede: false });
+    expect(contadorAplicacao(501, 500).excede).toBe(true);
+  });
+  it('RN-CAT-09: Oferece junto mostra o nome do produto embaixo do código achado', () => {
+    const r = nomesDoOfereceJunto('cb-0002\n\nXX-9', [{ erp_code: 'CB-0002', description: 'Disco de freio ventilado' }]);
+    expect(r).toEqual([
+      { codigo: 'cb-0002', rotulo: 'cb-0002 · Disco de freio ventilado' },
+      { codigo: 'XX-9', rotulo: null },
+    ]);
+  });
+  it('RN-VEN-23: remover a faixa pergunta com título e consequência', () => {
+    expect(textoRemoverFaixa(10, 'Café 500 g')).toEqual({ titulo: 'Remover a faixa de 10 para Café 500 g?', corpo: 'O vendedor deixa de ver esta faixa no pedido na próxima sincronização.' });
   });
 });

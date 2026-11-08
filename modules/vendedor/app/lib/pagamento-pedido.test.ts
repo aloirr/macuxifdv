@@ -32,7 +32,10 @@ describe('RN-VEN-24/25: listas de forma e prazo no Novo pedido', () => {
   });
   it('RN-VEN-24: sem forma escolhida, o Prazo não tem opções', () => expect(opcoesDePrazo(prazos, null, cliente)).toEqual([]));
   it('RN-VEN-25: as formas seguem a lista do cliente', () => {
-    expect(opcoesDeForma(formas, { prazo_medio_max_dias: null, formas_pagamento: ['PIX'] }).map((x) => x.id)).toEqual(['fpix']);
+    const o = opcoesDeForma(formas, { prazo_medio_max_dias: null, formas_pagamento: ['PIX'] });
+    expect(o.map((x) => x.id)).toEqual(['fpix', 'fbol']);
+    expect(o[1]).toMatchObject({ desabilitada: true, motivo: 'Este cliente não aceita esta forma' });
+    expect(o[0]!.desabilitada).toBeUndefined();
   });
 });
 
@@ -45,9 +48,21 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
     const r = comPrazo({ ...r0, forma_pagamento_id: 'fbol' }, 'b2856', formas, prazos);
     expect(rascunhoComPagamentoPadrao(r, formas, prazos, cliente)).toBe(r);
   });
-  it('RN-VEN-25: prazo que ficou acima do prazo médio do cliente volta ao padrão', () => {
+  it('T-0129: escolher Boleto sem prazo ainda não volta para Pix / À vista (sem troca silenciosa)', () => {
+    const r = comForma(rascunhoComPagamentoPadrao(r0, formas, prazos, cliente), formas[1]!, prazos, cliente);
+    expect(r.prazo_pagamento_id).toBeNull();
+    expect(rascunhoComPagamentoPadrao(r, formas, prazos, cliente)).toBe(r);
+  });
+  it('RN-VEN-25: prazo acima do prazo médio do cliente não é trocado; a pendência explica', () => {
     const r = comPrazo(r0, 'b306090', formas, prazos);
-    expect(rascunhoComPagamentoPadrao(r, formas, prazos, cliente).prazo_pagamento_id).toBe('avista');
+    expect(rascunhoComPagamentoPadrao(r, formas, prazos, cliente)).toBe(r);
+    expect(pendenciaDoPagamento(r, formas, prazos, cliente)).toMatch(/prazo/i);
+  });
+  it('RN-VEN-25: forma que o cadastro não aceita não é trocada; a pendência pede outra forma', () => {
+    const r = comPrazo(r0, 'b28', formas, prazos);
+    const c = { prazo_medio_max_dias: 45, formas_pagamento: ['PIX'] };
+    expect(rascunhoComPagamentoPadrao(r, formas, prazos, c)).toBe(r);
+    expect(pendenciaDoPagamento(r, formas, prazos, c)).toMatch(/não aceita/);
   });
   it('RN-VEN-24: trocar a forma limpa o prazo que não é dela e o envio fica pendente até escolher', () => {
     const r = comForma(comPrazo(r0, 'avista', formas, prazos), formas[1]!, prazos, cliente);

@@ -403,7 +403,7 @@ const s = StyleSheet.create({
   botao: { width: ALVO_TOQUE, height: ALVO_TOQUE, borderRadius: 11, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   botaoAtivo: { borderColor: colors.ink, borderWidth: 1.5 },
   selo: { position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.ground, alignItems: 'center', justifyContent: 'center' },
-  seloTexto: { fontFamily: fonts.bold, fontSize: 11, color: colors.surface, fontVariant: ['tabular-nums'] },
+  seloTexto: { fontFamily: fonts.bold, fontSize: 11, color: colors.onAccent, fontVariant: ['tabular-nums'] },
   // .tag
   etiquetaAlvo: { alignSelf: 'flex-start', minHeight: ALVO_ETIQUETA, justifyContent: 'center' },
   etiqueta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: ALTURA_ETIQUETA, paddingHorizontal: 12, borderRadius: radius.pilula, backgroundColor: colors.accentSoft },

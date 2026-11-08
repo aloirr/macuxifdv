@@ -97,7 +97,7 @@ describe('garantirPapelApp: senha pública nunca vai para papel de banco não lo
 describe('seed Fase M (senha demo-macuxi): só no Postgres local', () => {
   it.each(['db.exemplo.com.br', '10.0.0.5', undefined])('recusa host %s sem nenhuma consulta', async (host) => {
     const c = clienteFalso(host);
-    await expect(carregarFaseM(c, { senha: 'x' })).rejects.toThrow(/Seed de demonstração da Fase M recusado/);
+    await expect(carregarFaseM(c, { senha: 'Teste@1234' })).rejects.toThrow(/Seed de demonstração da Fase M recusado/);
     expect(c.consultas).toEqual([]);
   });
 
@@ -106,7 +106,7 @@ describe('seed Fase M (senha demo-macuxi): só no Postgres local', () => {
     process.env.NODE_ENV = 'production';
     try {
       const c = clienteFalso('localhost');
-      await expect(carregarFaseM(c, { senha: 'x' })).rejects.toThrow(/NODE_ENV=production/);
+      await expect(carregarFaseM(c, { senha: 'Teste@1234' })).rejects.toThrow(/NODE_ENV=production/);
       expect(c.consultas).toEqual([]);
     } finally {
       if (antes === undefined) delete process.env.NODE_ENV;
@@ -135,11 +135,11 @@ describe('exigirBancoDemo: seed da demo num servidor só com MACUXI_AMBIENTE=dem
       process.env.NODE_ENV = 'production';
       delete process.env.MACUXI_AMBIENTE;
       const semMarca = clienteFalso('postgres');
-      await expect(carregarDemo(semMarca, { senha: 'x' })).rejects.toThrow(/Seed da base de demonstração recusado/);
+      await expect(carregarDemo(semMarca, { senha: 'Teste@1234' })).rejects.toThrow(/Seed da base de demonstração recusado/);
       expect(semMarca.consultas).toEqual([]);
       process.env.MACUXI_AMBIENTE = 'demo';
       const comMarca = clienteFalso('postgres');
-      await expect(carregarDemo(comMarca, { senha: 'x' })).rejects.toThrow(/precisa das migrações/);
+      await expect(carregarDemo(comMarca, { senha: 'Teste@1234' })).rejects.toThrow(/precisa das migrações/);
       expect(comMarca.consultas.length).toBeGreaterThan(0);
     } finally {
       if (antes.amb === undefined) delete process.env.MACUXI_AMBIENTE;
@@ -156,7 +156,7 @@ describe('exigirBancoDemo: seed da demo num servidor só com MACUXI_AMBIENTE=dem
     process.env.MACUXI_AMBIENTE = 'demo';
     try {
       const c = clienteFalso('db.exemplo.com.br');
-      await expect(carregarFaseM(c, { senha: 'x' })).rejects.toThrow(/Seed de demonstração da Fase M recusado/);
+      await expect(carregarFaseM(c, { senha: 'Teste@1234' })).rejects.toThrow(/Seed de demonstração da Fase M recusado/);
       expect(c.consultas).toEqual([]);
     } finally {
       if (antes === undefined) delete process.env.MACUXI_AMBIENTE;

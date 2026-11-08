@@ -31,9 +31,23 @@ export function arquivosLocais(): ArquivosLocais {
   };
 }
 
-/** RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila. */
+/**
+ * RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila, e as
+ * miniaturas do catálogo guardadas no cache (T-0097).
+ */
 export async function apagarFotosLocais(): Promise<void> {
   if (Platform.OS === 'web') return;
   const pasta = new Directory(Paths.document, PASTA_FOTOS);
+  if (pasta.exists) pasta.delete();
+  apagarMiniaturas();
+}
+
+/** Pasta das miniaturas do catálogo dentro do cache do app (T-0097; `services/miniaturas.ts`). */
+export const PASTA_MINIATURAS = 'miniaturas';
+
+/** RN-CORE-15: apaga as miniaturas guardadas (junto com as fotos, no bloqueio do aparelho). */
+export function apagarMiniaturas(): void {
+  if (Platform.OS === 'web') return;
+  const pasta = new Directory(Paths.cache, PASTA_MINIATURAS);
   if (pasta.exists) pasta.delete();
 }

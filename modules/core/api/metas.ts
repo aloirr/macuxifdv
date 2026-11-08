@@ -33,7 +33,7 @@ import {
   type PutMeta,
   type MetasLista,
 } from '../contracts';
-import { copiarMetas, dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
+import { calendarioDoTenant, copiarMetas, dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
 import { auditar } from './auditoria';
 import { erroHttp } from './erros';
 import { EQUIPES_DO_RESPONSAVEL } from './carteira';
@@ -156,9 +156,13 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
     'select usuario_id, periodo, indicador, valor::float8 as valor, tipo from core.meta where deleted_at is null and usuario_id = any($1::uuid[]) and periodo = $2',
     [ids, periodo],
   );
+  const parametros = await db.query<{ modulo: string; chave: string; valor: unknown; deleted_at: string | null }>(
+    "select modulo, chave, valor, null::text as deleted_at from plataforma.parametro where modulo = 'core' and chave = 'metas.dias_uteis_semana' and deleted_at is null",
+  );
+  const calendario = calendarioDoTenant(parametros.rows);
   const vendas = fonte ? await fonte({ usuario_ids: ids, periodo }) : null;
   const itens = usuarios.map((u) => {
-    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(metas.rows, u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
+    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, calendario, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(metas.rows, u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
     return { usuario_id: u.id, usuario_nome: u.nome, indicadores: p.indicadores, metas: p.metas };
   });
   return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens });

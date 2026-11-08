@@ -6,11 +6,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ALTURA_OPCAO_COM_MOTIVO,
+  ALTURA_OPCAO_MENU,
+  alturaDoMenu,
   alvoDoPassoCompacto,
   CONSEQUENCIA_VENCIDO,
   larguraSegmentadoCompacto,
   lerDecimal,
   leituraDaOpcao,
+  MOTIVO_OPCAO,
+  motivoVisivel,
   PASSO_COMPACTO,
   passoComTexto,
   posicaoDoMenu,
@@ -23,6 +28,7 @@ import {
   textosLeveMais,
   TIPOS_AJUSTE,
 } from './selecao';
+import { colors, contraste } from './tokens';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 const bloco = (fonte: string, nome: string) => /* corpo da função exportada até a próxima função de topo */ new RegExp(`export function ${nome}[\\s\\S]*?\\n}\\n`).exec(fonte)?.[0] ?? '';
@@ -34,7 +40,7 @@ describe('lista suspensa (Forma de pagamento e Prazo)', () => {
     { id: 'p306090', rotulo: '30/60/90 dias', desabilitada: true, motivo: 'Acima do prazo médio do cliente' },
   ];
 
-  it('RN-VEN-25: a lista mostra só o prazo; o motivo da opção desabilitada vai só para o leitor de tela', () => {
+  it('RN-VEN-25: o rótulo é só o prazo; o leitor de tela lê o rótulo e o motivo da opção desabilitada', () => {
     expect(prazos.map((p) => p.rotulo)).toEqual(['28 dias', '28/56 dias', '30/60/90 dias']);
     expect(prazos.some((p) => /médio/.test(p.rotulo))).toBe(false);
     expect(leituraDaOpcao(prazos[2]!)).toBe('30/60/90 dias. Acima do prazo médio do cliente');
@@ -43,6 +49,45 @@ describe('lista suspensa (Forma de pagamento e Prazo)', () => {
     expect(leituraDaOpcao({ rotulo: '28 dias', motivo: 'x' })).toBe('28 dias');
     // rótulo abreviado lê por extenso
     expect(leituraDaOpcao(TIPOS_AJUSTE[1]!)).toBe('Desconto em reais');
+  });
+
+  it('T-0129: a opção desabilitada mostra o motivo na tela; a habilitada e a sem motivo ficam numa linha só', () => {
+    expect(motivoVisivel(prazos[2]!)).toBe('Acima do prazo médio do cliente');
+    expect(motivoVisivel(prazos[0]!)).toBeNull();
+    expect(motivoVisivel({ desabilitada: false, motivo: 'x' })).toBeNull();
+    expect(motivoVisivel({ desabilitada: true, motivo: '  ' })).toBeNull();
+    expect(motivoVisivel({ desabilitada: true, motivo: null })).toBeNull();
+    expect(motivoVisivel({ desabilitada: true, motivo: ' Cliente com título vencido ' })).toBe('Cliente com título vencido');
+  });
+
+  it('T-0129: o motivo tem contraste AA (≥ 4,5:1) no fundo da opção desabilitada e não usa o tom apagado do rótulo', () => {
+    expect(MOTIVO_OPCAO.fundo).toBe(colors.ground);
+    expect(contraste(MOTIVO_OPCAO.cor, MOTIVO_OPCAO.fundo)).toBeGreaterThanOrEqual(4.5);
+    expect(MOTIVO_OPCAO.cor).not.toBe(colors.inkDisabled);
+    expect(MOTIVO_OPCAO.tamanhoFonte).toBeGreaterThanOrEqual(12);
+    expect(MOTIVO_OPCAO.linhas).toBe(2);
+  });
+
+  it('T-0129: o menu reserva altura para a opção com motivo (70 dp) e as outras seguem com 48 dp', () => {
+    expect(ALTURA_OPCAO_COM_MOTIVO).toBe(70);
+    expect(alturaDoMenu(prazos)).toBe(2 * ALTURA_OPCAO_MENU + ALTURA_OPCAO_COM_MOTIVO + 2);
+    expect(alturaDoMenu(prazos.slice(0, 2))).toBe(2 * ALTURA_OPCAO_MENU + 2);
+    expect(alturaDoMenu([])).toBe(ALTURA_OPCAO_MENU + 2);
+    // acima de 5 opções conta só as 5 primeiras (o resto rola)
+    const muitas = Array.from({ length: 8 }, (_, i) => ({ desabilitada: true, motivo: `m${i}` }));
+    expect(alturaDoMenu(muitas)).toBe(5 * ALTURA_OPCAO_COM_MOTIVO + 2);
+    const p = posicaoDoMenu({ campo: { x: 16, y: 120, largura: 160, altura: 48 }, janela: { largura: 360, altura: 780 }, quantidade: 3, alturaConteudo: alturaDoMenu(prazos) });
+    expect(p).toEqual({ left: 16, width: 160, top: 172, maxHeight: 2 * 48 + 70 + 2, acima: false });
+  });
+
+  it('T-0129: o componente desenha o motivo abaixo do rótulo, lê o motivo no TalkBack e mede o menu com alturaDoMenu', () => {
+    const f = ler('./suspensa.tsx');
+    expect(f).toContain('const motivo = motivoVisivel(o);');
+    expect(f).toContain('accessibilityLabel={leituraDaOpcao(o)}');
+    expect(f).toMatch(/\{motivo !== null \? \(\s*<Text testID=\{`\$\{o\.testID \?\? `\$\{testID\}-\$\{o\.id\}`\}-motivo`\} style=\{s\.opcaoMotivo\} numberOfLines=\{MOTIVO_OPCAO\.linhas\}>/);
+    expect(f).toMatch(/opcaoMotivo: \{[^}]*color: MOTIVO_OPCAO\.cor/);
+    expect(f).toContain('const alturaConteudo = alturaDoMenu(opcoes);');
+    expect(f).toContain('larguraMinima, alturaConteudo }');
   });
 
   it('campo fechado: rótulo da marcada; sem marcada ou id fora da lista, o placeholder', () => {

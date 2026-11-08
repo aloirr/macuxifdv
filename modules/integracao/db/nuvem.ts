@@ -64,6 +64,8 @@ const comuns = () => ({
 });
 const quando = (nome: string) => timestamp(nome, { withTimezone: true });
 const quandoMs = (nome: string) => timestamp(nome, { withTimezone: true, precision: 3 });
+/** 0043 + 0048 ('recusado'): os valores do CHECK pedido_fila_erp_cancelamento_estado_valido (= EstadoCancelamento do domain da Integração). */
+export const ESTADOS_CANCELAMENTO_BANCO = ['pendente', 'enviado', 'confirmado', 'recusado'] as const;
 const entidade = () => text('entidade', { enum: ENTIDADES }).notNull();
 
 /**
@@ -88,6 +90,8 @@ export const conector = integracao.table('conector', {
   parado_por_versao: boolean('parado_por_versao').notNull().default(false),
   sinal_resumo: jsonb('sinal_resumo').$type<Record<string, unknown>>(),
   deriva_relogio_s: integer('deriva_relogio_s'),
+  /** 0043 (T-0114): o Conector executa no ERP o cancelamento feito no Macuxi; padrão false (o ERP é quem avisa). */
+  aceita_cancelamento: boolean('aceita_cancelamento').notNull().default(false),
 });
 
 /**
@@ -377,6 +381,25 @@ export const pedidoFilaErp = integracao.table('pedido_fila_erp', {
   aprovado_em: quando('aprovado_em').notNull(),
   /** 0013 (ADR 0016): versão mínima do Conector para levar este pedido (semver 1.3.0); nulo = qualquer versão. */
   exige_conector: text('exige_conector'),
+  /**
+   * 0043 (T-0114, RN-INT-08/RN-VEN-31): cancelamento do pedido já entregue ao Conector com `aceita_cancelamento`.
+   * Estado nulo <=> solicitado_em nulo; 'enviado' => enviado_em preenchido (CHECK pedido_fila_erp_cancelamento_coerente).
+   * Poll: pedido_fila_erp_cancelamento_ix (tenant_id, cancelamento_solicitado_em, pedido_uuid) where pendente/enviado e vivo.
+   */
+  cancelamento_estado: text('cancelamento_estado', { enum: ESTADOS_CANCELAMENTO_BANCO }),
+  /** 1..500, sem só espaços. */
+  cancelamento_motivo: text('cancelamento_motivo'),
+  cancelamento_solicitado_em: quando('cancelamento_solicitado_em'),
+  cancelamento_enviado_em: quando('cancelamento_enviado_em'),
+  cancelamento_tentativas: integer('cancelamento_tentativas').notNull().default(0),
+  /**
+   * 0048 (T-0114): o ERP recusou o cancelamento (retorno `cancelamento_recusado`). 'recusado' => os dois preenchidos; andam juntos;
+   * preenchidos só em 'recusado' ou 'confirmado' (o `cancelado` posterior guarda a recusa). CHECK pedido_fila_erp_cancelamento_coerente.
+   * Monitor: pedido_fila_erp_cancelamento_recusado_ix (tenant_id, cancelamento_recusado_em desc) where 'recusado' e vivo.
+   */
+  cancelamento_recusado_em: quando('cancelamento_recusado_em'),
+  /** 1..300, sem só espaços; texto do ERP mascarado pelo Conector, nunca em log. */
+  cancelamento_recusa_motivo: text('cancelamento_recusa_motivo'),
 });
 
 /** Trilha de retorno aceito e não repetido; único (tenant, pedido, status, nota_numero, nota_serie) com nulos iguais. Só insert. */

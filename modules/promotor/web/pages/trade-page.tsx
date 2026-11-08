@@ -119,7 +119,7 @@ export function TradePage() {
                   {share.dados.linhas.map((l) => (
                     <tr key={`${l.cliente_id}-${l.categoria_gondola_id}`}>
                       <td className={td}>
-                        <button type="button" className="text-left font-semibold text-accent underline-offset-2 hover:underline" onClick={() => setFiltros({ ...filtros, cliente_id: l.cliente_id })}>
+                        <button type="button" className="text-left font-semibold text-accent-ink underline-offset-2 hover:underline" onClick={() => setFiltros({ ...filtros, cliente_id: l.cliente_id })}>
                           {l.cliente_nome ?? 'Loja sem cadastro'}
                         </button>
                       </td>

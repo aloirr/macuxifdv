@@ -56,6 +56,8 @@ export const ParametrosGestorSchema = z
     base_apuracao: BaseApuracao.default('aprovado'),
     /** Feriados (datas civis) fora dos dias úteis (RN-CORE-22) e do horário comercial (RN-GES-03). */
     feriados: z.array(IsoDate).default([]),
+    /** RN-CORE-26: dias úteis da semana do tenant (0 = domingo … 6 = sábado; chave do Core `metas.dias_uteis_semana`). Padrão segunda a sábado. */
+    dias_uteis_semana: z.array(z.number().int().min(0).max(6)).min(1, 'Informe ao menos um dia útil na semana.').default([1, 2, 3, 4, 5, 6]),
     /** RN-PRO-07: permanência mínima do promotor na loja (min). Mesmo parâmetro do Promotor. */
     permanencia_min_min: z.number().nonnegative().default(10),
     /** RN-PRO-11: peso do parcial na conformidade de gôndola, 0 a 1. Mesmo parâmetro do Promotor. */

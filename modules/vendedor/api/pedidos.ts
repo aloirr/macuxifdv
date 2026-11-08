@@ -5,7 +5,9 @@
  */
 import { z } from 'zod';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
 import {
+  ehConsultaIndisponivel,
   ErroHttpModulo,
   ErroNaoEncontrado,
   ErroRegraNegocio,
@@ -17,6 +19,7 @@ import {
 import {
   AprovarPedidoRequest,
   EVENTO_PEDIDO_APROVADO,
+  EVENTO_PEDIDO_CANCELADO,
   EVENTO_PEDIDO_STATUS_ALTERADO,
   OrderListQuery,
   RejeitarPedidoRequest,
@@ -24,7 +27,7 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
-import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
@@ -303,6 +306,27 @@ export const rotaRejeitarPedido = decidir('rejeitar');
 
 // ---------- cancelar ----------
 /**
+ * T-0114: pedido já enviado ao ERP (conector aceita). O status NÃO muda: fica "cancelamento solicitado" (motivo_cancelamento
+ * preenchido + status de envio) até o retorno `cancelado` do ERP (integracao.pedido.retorno_erp@1) levar a 'cancelled'.
+ * Repetição (reenvio da fila) não republica o evento. O evento sai com enviado_ao_erp = true.
+ */
+async function solicitarCancelamentoAoErp(
+  ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant, id: string, linha: LinhaPedido, motivo: string | null, agora: string,
+): Promise<{ id: string; status: string; cancelamento_solicitado: true }> {
+  const ja = (await db.query<{ motivo_cancelamento: string | null }>('select motivo_cancelamento from vendedor.pedido where id = $1', [id])).rows[0];
+  const resposta = { id, status: linha.status, cancelamento_solicitado: true as const };
+  if (ja?.motivo_cancelamento !== null && ja?.motivo_cancelamento !== undefined) return resposta;
+  await db.query('update vendedor.pedido set motivo_cancelamento = $2 where id = $1', [id, motivo ?? 'Cancelamento solicitado']);
+  await tx.auditar({ acao: 'pedido.cancelar', entidade: 'pedido', entidade_id: id, antes: { status: linha.status }, depois: { status: linha.status, cancelamento_solicitado: true } });
+  await tx.publicar(
+    EVENTO_PEDIDO_CANCELADO,
+    { tenant_id: ctx.usuario.tenant_id, pedido_id: id, numero: linha.numero ?? null, external_id: linha.numero_erp ?? null, enviado_ao_erp: true, motivo, cancelado_por: ctx.usuario.id, cancelado_em: agora },
+    id,
+  );
+  return resposta;
+}
+
+/**
  * POST /v1/vendedor/pedidos/:id/cancelar — `pedido.cancelar` (promotor 403). RN-VEN-CANCELAR-APOS-ENVIO: enviado ao ERP ou
  * posterior → 422 (cancele no ERP). Antes do envio (inclui aprovado, P-2) → 200, com histórico, auditoria e evento.
  */
@@ -321,9 +345,20 @@ export const rotaCancelarPedido: RotaModulo = {
       const atual = await carregarDetalhe(ctx, db, id, true);
       if (!atual) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       const { linha } = atual;
-      const v = verificarCancelamento(linha.status);
-      if (!v.ok) throw new ErroRegraNegocio(v.codigo, v.mensagem);
       if (linha.status === 'cancelled') return { id, status: 'cancelled' };
+      // RN-VEN-31 (exceção T-0114): depois do envio só cancela se o conector aceita; a API consulta na hora (sem cópia).
+      // Integração sem licença/indisponível = não aceita (422 da regra atual).
+      let erpAceitaCancelamento = false;
+      if (enviadoAoErp(linha.status)) {
+        try {
+          erpAceitaCancelamento = (await tx.consultar(CONSULTA_CANCELAMENTO_ERP, {}, { licenca: 'tenant' })).aceita;
+        } catch (e) {
+          if (!ehConsultaIndisponivel(e)) throw e;
+        }
+      }
+      const v = verificarCancelamento(linha.status, { erpAceitaCancelamento });
+      if (!v.ok) throw new ErroRegraNegocio(v.codigo, v.mensagem);
+      if (v.solicitado_ao_erp) return solicitarCancelamentoAoErp(ctx, db, tx, id, linha, motivo, agora);
       await db.query("update vendedor.pedido set status = 'cancelled', motivo_cancelamento = $2 where id = $1", [id, motivo]);
       const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], produto_ids: [], usuario_ids: [ctx.usuario.id] });
       await db.query(
@@ -338,6 +373,12 @@ export const rotaCancelarPedido: RotaModulo = {
       await tx.publicar(
         EVENTO_PEDIDO_STATUS_ALTERADO,
         { pedido_id: id, vendedor_id: linha.vendedor_id, de: statusDoContrato(linha.status), para: 'cancelado', alterado_em: agora, autor_id: ctx.usuario.id, motivo, pedido_numero: linha.numero },
+        id,
+      );
+      // T-0114: o Hub devolve o cancelamento ao ERP (conectores que aceitam). Mesma transação: ou tudo, ou nada.
+      await tx.publicar(
+        EVENTO_PEDIDO_CANCELADO,
+        { tenant_id: ctx.usuario.tenant_id, pedido_id: id, numero: linha.numero ?? null, external_id: linha.numero_erp ?? null, enviado_ao_erp: false, motivo, cancelado_por: ctx.usuario.id, cancelado_em: agora },
         id,
       );
       return { id, status: 'cancelled' };

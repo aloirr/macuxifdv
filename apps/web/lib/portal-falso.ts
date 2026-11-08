@@ -3,19 +3,26 @@
  * schemas (`@macuxi/platform-sdk` e `@macuxi/integracao/contracts`), para navegar o fluxo antes de as rotas reais chegarem.
  * Liga só com `NEXT_PUBLIC_PORTAL_FALSO=1` fora de produção (`MODO_PORTAL_FALSO` em `lib/portal-api.ts`, import dinâmico: o build
  * de produção não chama isto). Dados fictícios guardados no `sessionStorage` (o F5 não perde o que foi criado).
- * Regras: qualquer convite com 32+ caracteres; qualquer senha com 12+; qualquer código de 6 dígitos, menos `000000` (para ver o
- * erro); na carga, linha sem `external_id` ou com `erro` no texto vira erro de linha.
+ * Acesso (T-0093; ADR 0031), só e-mail e senha, com qualquer senha que não seja `errada` (401) e 5 erros seguidos = 423:
+ * - `time@macuxi.com.br`: time da Macuxi (vê todas as empresas e cria empresa);
+ * - `admin@uma.com.br`: admin do cliente com 1 empresa (entra direto);
+ * - `admin@duas.com.br`: admin do cliente com 2 empresas (escolhe; "Trocar de empresa");
+ * - `troca@uma.com.br`: admin do cliente com a senha ainda por trocar (403 `SENHA_A_TROCAR`, T-0094).
+ * Outro e-mail = 401 (mesma resposta da senha errada). Na carga, linha sem `external_id` ou com `erro` no texto vira erro de linha.
+ * Admins da empresa (T-0094 fatia S, só o time da Macuxi): na Distribuidora Uma, um admin normal, um bloqueado, um em
+ * `@sem-email.` (o redefinir dele responde 503 `EMAIL_INDISPONIVEL`, como a API sem e-mail configurado) e um admin + vendedor
+ * (`entra_no_portal = false`, migração 0047, RN-CORE-35); nas outras, o admin
+ * inicial com a troca pendente. Só na memória da aba (nada de e-mail no `sessionStorage`).
  */
 import {
   CriarEmpresaSchema,
-  EtapaLoginSchema,
-  LoginPlataformaSchema,
-  PrimeiroAcessoSchema,
-  SegundoFatorSchema,
-  SessaoPlataformaSchema,
-  TotpConfirmarSchema,
+  EscolherEmpresaPortalSchema,
+  LoginPortalSchema,
+  RedefinirSenhaAdminSchema,
+  SessaoPortalSchema,
   linhasDosParametrosIniciais,
-  type Perfil,
+  type AdminDaEmpresa,
+  type RedefinirSenhaAdminResposta,
 } from '@macuxi/platform-sdk';
 import {
   CargaArquivoEntrada,
@@ -27,7 +34,7 @@ import {
   type LoteResultado,
 } from '@macuxi/integracao/contracts';
 
-import { ImportarEquipeRequestSchema, PerfilSchema, RenovarConviteRequestSchema, type ConviteEmitido, type ImportarEquipeResposta } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, ImportarEquipeRequestSchema, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, PerfilSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -52,23 +59,99 @@ interface LoteFalso {
   total: number;
   pronto_em: number;
 }
+/** Sessão do modo falso: o token é a chave; o admin do cliente tem a lista conferida e a escolhida. */
+interface SessaoFalsa {
+  tipo: 'super_admin' | 'admin_cliente';
+  empresas: string[];
+  empresa: string | null;
+  teto: string;
+}
 interface Estado {
-  admin: { email: string; nome: string } | null;
-  totp: boolean;
+  sessoes: Record<string, SessaoFalsa>;
   empresas: EmpresaFalsa[];
   conectores: Record<string, ConectorResumo[]>;
   lotes: Record<string, LoteFalso>;
-  convites: Record<string, ConviteFalso[]>;
-}
-interface ConviteFalso {
-  usuario_id: string;
-  nome: string;
-  email: string;
-  perfil: Perfil;
-  expira_em: string;
 }
 
-const vazio = (): Estado => ({ admin: null, totp: false, empresas: [], conectores: {}, lotes: {}, convites: {} });
+/** Empresas dos admins do cliente falsos (ids fixos: o F5 e os testes acham as mesmas). */
+const EMPRESAS_DOS_CLIENTES: EmpresaFalsa[] = [
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'distribuidora-uma', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'comercial-boa-vista', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }] },
+];
+/** Contas falsas por e-mail: `null` = time da Macuxi; lista = admin do cliente nessas empresas (por nome). */
+export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> = Object.freeze({
+  'time@macuxi.com.br': null,
+  'admin@uma.com.br': ['0b6f1a52-5c1e-4c4e-9a43-000000000001'],
+  'admin@duas.com.br': ['0b6f1a52-5c1e-4c4e-9a43-000000000002', '0b6f1a52-5c1e-4c4e-9a43-000000000003'],
+});
+
+/** Conta falsa com a senha certa, mas ainda temporária: o portal responde 403 `SENHA_A_TROCAR` (T-0094). */
+export const CONTA_SENHA_A_TROCAR = 'troca@uma.com.br';
+
+/** E-mails já gravados pela Equipe por CSV, por empresa: só na memória da aba (nada de e-mail no `sessionStorage`). */
+const equipeFalsa = new Map<string, Set<string>>();
+
+/** Admins por empresa e redefinições já feitas (por `email_id`): só na memória da aba (e-mail não vai ao `sessionStorage`). */
+const adminsFalsos = new Map<string, AdminDaEmpresa[]>();
+let adminsSemeados = false;
+const redefinicoesFalsas = new Map<string, { tenant: string; usuario: string; resposta: RedefinirSenhaAdminResposta }>();
+
+function adminsIniciais(): Map<string, AdminDaEmpresa[]> {
+  const admin = (n: number, nome: string, email: string, x: Partial<AdminDaEmpresa> = {}): AdminDaEmpresa => ({
+    usuario_id: `5d1e2c0a-7b3f-4a51-8c2d-0000000000${String(n).padStart(2, '0')}`,
+    nome,
+    email,
+    ativo: true,
+    bloqueado: false,
+    tem_senha: true,
+    trocar_senha: false,
+    senha_expira_em: null,
+    // 0047: só admin + vendedor/promotor/supervisor fica fora do portal (RN-CORE-35)
+    entra_no_portal: true,
+    ...x,
+  });
+  const [uma, norte, boaVista] = EMPRESAS_DOS_CLIENTES.map((e) => e.id);
+  return new Map([
+    [uma ?? '', [admin(1, 'Ana Souza', 'admin@uma.com.br'), admin(2, 'Carlos Lima', 'carlos@uma.com.br', { bloqueado: true }), admin(3, 'Suporte TI', 'ti@sem-email.uma.com.br'), admin(7, 'Marcos Reis', 'marcos@uma.com.br', { entra_no_portal: false })]],
+    [norte ?? '', [admin(4, 'Bruno Dias', 'admin@duas.com.br', { trocar_senha: true })]],
+    [boaVista ?? '', [admin(5, 'Bruno Dias', 'admin@duas.com.br'), admin(6, 'Rita Melo', 'rita@boavista.com.br', { tem_senha: false })]],
+  ]);
+}
+
+/** Erros seguidos por e-mail: só na memória da aba (nem o e-mail vai ao `sessionStorage`). */
+const falhas = new Map<string, number>();
+
+const ADMINS_M = /^\/plataforma\/empresas\/([^/]+)\/admins(?:\/([^/]+)\/redefinir-senha)?$/;
+
+/** `GET/POST /plataforma/empresas/:id/admins[/:usuario/redefinir-senha]` como a API (fatia S da T-0094). */
+function responderAdmins(metodo: string, tenant: string, usuario: string | undefined, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
+  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi redefine a senha do administrador.');
+  if (!e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
+  if (!adminsSemeados) {
+    adminsSemeados = true;
+    for (const [k, v] of adminsIniciais()) if (!adminsFalsos.has(k)) adminsFalsos.set(k, v);
+  }
+  const lista = adminsFalsos.get(tenant) ?? [];
+  if (metodo === 'GET' && !usuario) return json(200, { itens: lista });
+  if (metodo !== 'POST' || !usuario) return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+  const c = lerCorpo(RedefinirSenhaAdminSchema, corpo);
+  if (c instanceof Response) return c;
+  const feita = redefinicoesFalsas.get(c.email_id);
+  if (feita) {
+    if (feita.tenant !== tenant || feita.usuario !== usuario) return erro(409, 'PEDIDO_REPETIDO_DIFERENTE', 'Este pedido já foi usado para outro administrador. Tente de novo.');
+    return json(200, { ...feita.resposta, repetida: true });
+  }
+  const alvo = lista.find((a) => a.usuario_id === usuario);
+  if (alvo && /@sem-email\./i.test(alvo.email)) return erro(503, 'EMAIL_INDISPONIVEL', 'O envio de e-mail não está configurado: a senha não foi trocada. Fale com o suporte da Macuxi.');
+  if (!alvo || !alvo.ativo || alvo.bloqueado) return erro(404, 'USUARIO_NAO_ENCONTRADO', 'Administrador não encontrado nesta empresa.');
+  const resposta: RedefinirSenhaAdminResposta = { email_id: c.email_id, email: 'enfileirado', senha_expira_em: agoraIso(72 * 60), repetida: false };
+  redefinicoesFalsas.set(c.email_id, { tenant, usuario, resposta });
+  adminsFalsos.set(tenant, lista.map((a) => (a.usuario_id === usuario ? { ...a, tem_senha: true, trocar_senha: true, senha_expira_em: resposta.senha_expira_em } : a)));
+  return json(200, resposta);
+}
+
+const vazio = (): Estado => ({ sessoes: {}, empresas: [...EMPRESAS_DOS_CLIENTES], conectores: {}, lotes: {} });
 
 function ler(): Estado {
   try {
@@ -90,14 +173,25 @@ const json = (status: number, corpo: unknown, cabecalhos: Record<string, string>
   new Response(status === 204 ? null : JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json', ...cabecalhos } });
 const erro = (status: number, codigo: string, mensagem: string, detalhes?: Record<string, unknown>) => json(status, { codigo, mensagem, ...(detalhes ? { detalhes } : {}) });
 const agoraIso = (deslocMin = 0) => new Date(Date.now() + deslocMin * 60_000).toISOString();
-const desafio = () => `desafio-falso-${crypto.randomUUID()}-${crypto.randomUUID()}`;
-const sessaoNova = (tetoIso?: string) =>
-  SessaoPlataformaSchema.parse({ token: `token-falso-${crypto.randomUUID()}`, expira_em: agoraIso(15), sessao_expira_em: tetoIso ?? agoraIso(480), recuperacao_restantes: 10 });
-const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-const codigoRecuperacao = () => {
-  const c = Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => ALFABETO[b % 32]).join('');
-  return `${c.slice(0, 5)}-${c.slice(5)}`;
-};
+const nomeDaEmpresa = (e: EmpresaFalsa) => ({ id: e.id, codigo: e.codigo, nome: e.razao_social });
+
+/** Abre (ou reabre, no escolher e no renovar) a sessão: token novo; o anterior deixa de valer. */
+function emitirSessao(e: Estado, s: SessaoFalsa, tokenAnterior?: string): { estado: Estado; corpo: unknown } {
+  const token = `token-falso-${crypto.randomUUID()}`;
+  const sessoes = { ...e.sessoes, [token]: s };
+  if (tokenAnterior) delete sessoes[tokenAnterior];
+  const lista = s.empresas.map((id) => e.empresas.find((x) => x.id === id)).filter((x): x is EmpresaFalsa => !!x);
+  const escolhida = s.empresa ? (lista.find((x) => x.id === s.empresa) ?? null) : null;
+  const corpo = SessaoPortalSchema.parse({
+    token,
+    expira_em: agoraIso(15),
+    sessao_expira_em: s.teto,
+    tipo: s.tipo,
+    empresa: escolhida ? nomeDaEmpresa(escolhida) : null,
+    empresas: s.tipo === 'super_admin' ? [] : lista.map(nomeDaEmpresa),
+  });
+  return { estado: { ...e, sessoes }, corpo };
+}
 
 function lerCorpo<T>(schema: { safeParse(x: unknown): { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } }, corpo: unknown): T | Response {
   const p = schema.safeParse(corpo);
@@ -130,7 +224,7 @@ function errosFalsos(texto: string, linhaInicial = 2): { total: number; erros: L
   return { total: dados.length, erros };
 }
 
-function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorResumo['tipo']; recebe_pedidos: boolean; entidades: Entidade[] }): ConectorResumo {
+function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorResumo['tipo']; recebe_pedidos: boolean; aceita_cancelamento?: boolean; entidades: Entidade[] }): ConectorResumo {
   return {
     id: crypto.randomUUID(),
     conector_id: c.conector_id,
@@ -138,6 +232,8 @@ function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorRe
     tipo: c.tipo,
     ativo: true,
     recebe_pedidos: c.recebe_pedidos,
+    // T-0114: devolução do cancelamento ao ERP (desligada, como o padrão do contrato)
+    aceita_cancelamento: c.aceita_cancelamento ?? false,
     entidades: c.entidades,
     ips_permitidos: [],
     versao_conector: null,
@@ -162,47 +258,66 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   const autenticado = (cabecalhos.Authorization ?? '').startsWith('Bearer token-falso-');
   const rota = `${metodo} ${caminho}`;
 
-  // ---------- autenticação
-  if (rota === `POST ${ROTAS_PORTAL.primeiroAcesso}`) {
-    const c = lerCorpo(PrimeiroAcessoSchema, corpo);
-    if (c instanceof Response) return c;
-    if (e.admin) return erro(410, 'PRIMEIRO_ACESSO_ENCERRADO', 'O primeiro acesso já foi feito. Entre com o seu e-mail e a sua senha.');
-    gravar({ ...e, admin: { email: c.email, nome: c.nome } });
-    return json(200, EtapaLoginSchema.parse({ etapa: 'cadastrar_totp', desafio: desafio(), expira_em: agoraIso(5) }));
-  }
+  // ---------- autenticação (T-0093: só e-mail e senha)
   if (rota === `POST ${ROTAS_PORTAL.login}`) {
-    const c = lerCorpo(LoginPlataformaSchema, corpo);
+    const c = lerCorpo(LoginPortalSchema, corpo);
     if (c instanceof Response) return c;
-    if (!e.admin || e.admin.email !== c.email || c.senha.length < 12) return erro(401, 'CREDENCIAIS_INVALIDAS', 'E-mail ou senha incorretos.');
-    return json(200, { etapa: e.totp ? 'segundo_fator' : 'cadastrar_totp', desafio: desafio(), expira_em: agoraIso(5) });
+    if ((falhas.get(c.email) ?? 0) >= 5) return erro(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas. Tente de novo em 15 minutos.');
+    // T-0094 (RN-CORE-34): admin do cliente com a senha master ainda por trocar; a troca é no backoffice (só para a senha certa)
+    if (c.email === CONTA_SENHA_A_TROCAR && c.senha !== 'errada') return erro(403, CODIGOS_PORTAL.senhaATrocar, MENSAGEM_PORTAL_SENHA_A_TROCAR);
+    const conta = CONTAS_FALSAS[c.email];
+    if (conta === undefined || c.senha === 'errada') {
+      falhas.set(c.email, (falhas.get(c.email) ?? 0) + 1);
+      return erro(401, 'CREDENCIAIS_INVALIDAS', 'E-mail ou senha incorretos. Confira e tente de novo.');
+    }
+    falhas.delete(c.email);
+    const base: Estado = { ...e, empresas: [...e.empresas, ...EMPRESAS_DOS_CLIENTES.filter((x) => !e.empresas.some((y) => y.id === x.id))] };
+    const s: SessaoFalsa =
+      conta === null
+        ? { tipo: 'super_admin', empresas: [], empresa: null, teto: agoraIso(480) }
+        : { tipo: 'admin_cliente', empresas: [...conta], empresa: conta.length === 1 ? (conta[0] ?? null) : null, teto: agoraIso(480) };
+    const r = emitirSessao(base, s);
+    gravar(r.estado);
+    return json(200, r.corpo);
   }
-  if (rota === `POST ${ROTAS_PORTAL.totpIniciar}`) {
-    const rotulo = encodeURIComponent(`Macuxi FDV:${e.admin?.email ?? 'super-admin'}`);
-    const segredo = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-    return json(200, { otpauth_uri: `otpauth://totp/${rotulo}?secret=${segredo}&issuer=Macuxi%20FDV&digits=6&period=30`, segredo_base32: segredo });
-  }
-  if (rota === `POST ${ROTAS_PORTAL.totpConfirmar}`) {
-    const c = lerCorpo(TotpConfirmarSchema, corpo);
+  const token = (cabecalhos.Authorization ?? '').replace(/^Bearer /, '');
+  const sessao = autenticado ? e.sessoes[token] : undefined;
+  if (!sessao) return erro(401, 'SESSAO_PLATAFORMA_INVALIDA', 'Sua sessão do portal expirou. Entre de novo.');
+  if (rota === `POST ${ROTAS_PORTAL.escolherEmpresa}`) {
+    const c = lerCorpo(EscolherEmpresaPortalSchema, corpo);
     if (c instanceof Response) return c;
-    if (c.codigo === '000000') return erro(401, 'CODIGO_INVALIDO', 'Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.');
-    gravar({ ...e, totp: true });
-    return json(200, { codigos_recuperacao: Array.from({ length: 10 }, codigoRecuperacao), sessao: sessaoNova() });
+    if (sessao.tipo !== 'admin_cliente') return erro(403, 'EMPRESA_NAO_PERMITIDA', 'O acesso do time da Macuxi já vê todas as empresas. Escolha a empresa na lista.');
+    if (!sessao.empresas.includes(c.tenant_id)) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha uma da lista.');
+    const r = emitirSessao(e, { ...sessao, empresa: c.tenant_id }, token);
+    gravar(r.estado);
+    return json(200, r.corpo);
   }
-  if (rota === `POST ${ROTAS_PORTAL.segundoFator}`) {
-    const c = lerCorpo(SegundoFatorSchema, corpo);
-    if (c instanceof Response) return c;
-    if ('codigo' in c && c.codigo === '000000') return erro(401, 'CODIGO_INVALIDO', 'Código incorreto ou vencido. Confira a hora do celular e digite o código que aparece agora.');
-    return json(200, { ...sessaoNova(), recuperacao_restantes: 'codigo_recuperacao' in c ? 9 : 10 });
+  if (rota === `POST ${ROTAS_PORTAL.renovar}`) {
+    const r = emitirSessao(e, sessao, token);
+    gravar(r.estado);
+    return json(200, r.corpo);
   }
-  if (!autenticado) return erro(401, 'NAO_AUTENTICADO', 'Sua sessão terminou. Entre de novo.');
-  if (rota === `POST ${ROTAS_PORTAL.renovar}`) return json(200, sessaoNova());
-  if (rota === `POST ${ROTAS_PORTAL.sair}`) return json(204, null);
+  if (rota === `POST ${ROTAS_PORTAL.sair}`) {
+    const sessoes = { ...e.sessoes };
+    delete sessoes[token];
+    gravar({ ...e, sessoes });
+    return json(204, null);
+  }
 
   // ---------- empresas
-  if (rota === `GET ${ROTAS_PORTAL.empresas}`) return json(200, { itens: e.empresas });
+  if (rota === `GET ${ROTAS_PORTAL.empresas}`) return json(200, { itens: sessao.tipo === 'super_admin' ? e.empresas : e.empresas.filter((x) => sessao.empresas.includes(x.id)) });
   if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
+    if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const c = lerCorpo(CriarEmpresaSchema, corpo);
     if (c instanceof Response) return c;
+    const jaExiste = e.empresas.some((x) => x.codigo === c.codigo);
+    // RN-CORE-34 e RN-CORE-32 como a API: empresa nova sem admin = 422; senha fora da regra do Core = 422 com as faltas
+    if (!jaExiste && !c.admin) return erro(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
+    if (!jaExiste && c.admin) {
+      const faltas = faltasNaSenha(c.admin.senha);
+      const m = mensagemDaSenha(faltas, c.admin.senha);
+      if (m) return erro(422, 'RN-CORE-32', m, { campo: 'admin.senha', faltas });
+    }
     const modulos = [...new Map([{ modulo: 'core', licencas: null }, { modulo: 'integracao', licencas: null }, ...c.modulos].map((m) => [m.modulo, m])).values()];
     const existente = e.empresas.find((x) => x.codigo === c.codigo);
     const adicionados = modulos.filter((m) => !existente?.modulos.some((x) => x.modulo === m.modulo)).map((m) => m.modulo);
@@ -213,6 +328,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
       modulos_adicionados: adicionados,
       parametros_gravados: existente ? [] : linhasDosParametrosIniciais(c.parametros).map((l) => l.chave),
       avisos: existente ? ['A empresa já existe: razão social e fuso não mudam.'] : [],
+      admin: existente ? (c.admin ? 'existente' : null) : 'criado',
       simulado: c.simular,
     };
     if (!c.simular) {
@@ -220,11 +336,24 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
         ? e.empresas.map((x) => (x.id === existente.id ? { ...x, modulos: [...x.modulos, ...modulos.filter((m) => adicionados.includes(m.modulo))] } : x))
         : [...e.empresas, { id: resposta.tenant_id as string, codigo: c.codigo, razao_social: c.razao_social, cnpj: c.cnpj, fuso: c.fuso, status: 'ativo', criada_em: agoraIso(), modulos }];
       gravar({ ...e, empresas: lista });
+      // o admin inicial da empresa nova entra na lista de admins (só na memória), com a troca pendente (RN-CORE-34)
+      if (!existente && c.admin && resposta.tenant_id) {
+        adminsFalsos.set(resposta.tenant_id, [
+          { usuario_id: crypto.randomUUID(), nome: c.admin.nome, email: c.admin.email, ativo: true, bloqueado: false, tem_senha: true, trocar_senha: true, senha_expira_em: null, entra_no_portal: true },
+        ]);
+      }
     }
     return json(c.simular ? 200 : 201, resposta);
   }
 
-  // ---------- rotas de módulo (com tenant)
+  const adminsM = ADMINS_M.exec(caminho);
+  if (adminsM) return responderAdmins(metodo, decodeURIComponent(adminsM[1] ?? ''), adminsM[2] ? decodeURIComponent(adminsM[2]) : undefined, sessao, e, corpo);
+
+  // ---------- rotas de módulo (com tenant): o admin do cliente só na empresa escolhida (desenho T-0093 §4)
+  if (sessao.tipo === 'admin_cliente') {
+    if (!sessao.empresa) return erro(409, 'EMPRESA_NAO_ESCOLHIDA', 'Escolha a empresa para continuar.');
+    if (tenant !== sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
+  }
   if (!tenant || !e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
   if (rota === `GET ${ROTAS_PORTAL.ordemCarga}`) {
     return json(200, { itens: ORDEM.map((entidade, i) => ({ entidade, posicao: i + 1, opcional: entidade === 'titulo' || entidade === 'nota', depende_de: [] })) });
@@ -320,7 +449,7 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (conflito.length) {
       return erro(409, 'topologia_conflitante', `As bases ${conflito.join(', ')} já são recebidas por outro Conector. Na v1 cada base vem de um único Conector por empresa.`, { entidades_livres: c.entidades.filter((x) => !ocupadas.has(x)) });
     }
-    const novo = conectorResumo({ conector_id: c.conector_id, nome: c.nome, tipo: c.tipo, recebe_pedidos: c.recebe_pedidos, entidades: c.entidades });
+    const novo = conectorResumo({ conector_id: c.conector_id, nome: c.nome, tipo: c.tipo, recebe_pedidos: c.recebe_pedidos, aceita_cancelamento: c.aceita_cancelamento, entidades: c.entidades });
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: [...lista, novo] } });
     return json(201, { conector: novo, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
   }
@@ -333,7 +462,8 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
-  // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova ganha um convite
+  // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova recebe o acesso por e-mail
+  //            (T-0094); arquivo com alguém em `@sem-email.` simula o 503 EMAIL_INDISPONIVEL no gravar
   if (rota === `GET ${ROTAS_PORTAL.equipeModeloCsv}`) {
     const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos', 'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,,,', 'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,vendedor', ''].join(NL);
     return new Response(csv, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="modelo-equipe.csv"' } });
@@ -341,36 +471,18 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
   if (rota === `POST ${ROTAS_PORTAL.equipeImportacoes}`) {
     const c = lerCorpo(ImportarEquipeRequestSchema, corpo);
     if (c instanceof Response) return c;
-    return json(200, importarEquipeFalsa(e, tenant, c.csv, c.modo, c.origem ?? null));
-  }
-  if (rota === `GET ${ROTAS_PORTAL.equipeConvites}`) {
-    return json(200, { itens: (e.convites[tenant] ?? []).map((x) => ({ ...x, vencido: Date.parse(x.expira_em) <= Date.now() })) });
-  }
-  const renovarM = /^\/core\/equipe\/convites\/([^/]+)\/renovar$/.exec(caminho);
-  if (metodo === 'POST' && renovarM) {
-    const c = lerCorpo(RenovarConviteRequestSchema, corpo);
-    if (c instanceof Response) return c;
-    const lista = e.convites[tenant] ?? [];
-    const x = lista.find((y) => y.usuario_id === renovarM[1]);
-    if (!x) return erro(404, 'USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
-    const novo = { ...x, expira_em: agoraIso(7 * 24 * 60) };
-    gravar({ ...e, convites: { ...e.convites, [tenant]: lista.map((y) => (y.usuario_id === x.usuario_id ? novo : y)) } });
-    return json(200, conviteEmitido(novo, c.origem ?? null));
+    if (c.modo === 'gravar' && /@sem-email\./i.test(c.csv)) return erro(503, 'EMAIL_INDISPONIVEL', 'O envio de e-mail não está configurado. Fale com o suporte da Macuxi.');
+    return json(200, importarEquipeFalsa(tenant, c.csv, c.modo));
   }
   // N1/N2 (nuvem) ainda não existem: igual à API real antes do merge
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
 }
 
-function conviteEmitido(x: ConviteFalso, origem: string | null): ConviteEmitido {
-  const caminho = `/convite#${'f'.repeat(8)}.${crypto.randomUUID().replace(/-/g, '')}`;
-  return { ...x, caminho, link: origem ? `${origem}${caminho}` : null };
-}
-
-function importarEquipeFalsa(e: Estado, tenant: string, csv: string, modo: 'conferir' | 'gravar', origem: string | null): ImportarEquipeResposta {
+function importarEquipeFalsa(tenant: string, csv: string, modo: 'conferir' | 'gravar'): ImportarEquipeResposta {
   const [cab = [], ...dados] = linhasDoCsv(csv);
   const col = (nome: string) => cab.findIndex((x) => x.trim().toLowerCase() === nome);
   const [iNome, iEmail, iPerfil, iSup] = [col('nome'), col('email'), col('perfil'), col('email_superior')];
-  const existentes = new Set((e.convites[tenant] ?? []).map((x) => x.email));
+  const existentes = equipeFalsa.get(tenant) ?? new Set<string>();
   const erros: ImportarEquipeResposta['erros'] = [];
   const plano: ImportarEquipeResposta['plano'] = [];
   dados.forEach((cols, i) => {
@@ -384,16 +496,19 @@ function importarEquipeFalsa(e: Estado, tenant: string, csv: string, modo: 'conf
   const comErro = new Set(erros.map((x) => x.linha)).size;
   const resumo = { total: dados.length, novos: plano.filter((p) => p.acao === 'criar').length, atualizados: 0, sem_mudanca: plano.filter((p) => p.acao === 'sem_mudanca').length, com_erro: comErro };
   const erros_csv = erros.length ? ['linha,coluna,mensagem', ...erros.map((x) => `${x.linha},${x.coluna},"${x.mensagem.replace(/"/g, '""')}"`)].join(NL) + NL : '';
-  const base = { modo, resumo, erros, avisos: [], plano, erros_csv, convites: [], convites_csv: '' };
+  const base = { modo, resumo, erros, avisos: [], plano, erros_csv, acessos_enviados: 0, email_acesso: null };
   if (modo === 'conferir' || erros.length) return { ...base, gravado: false };
-  const novos: ConviteFalso[] = plano.filter((p) => p.acao === 'criar').map((p) => ({ usuario_id: crypto.randomUUID(), nome: p.nome, email: p.email, perfil: p.perfil, expira_em: agoraIso(7 * 24 * 60) }));
-  gravar({ ...e, convites: { ...e.convites, [tenant]: [...(e.convites[tenant] ?? []), ...novos] } });
-  const convites = novos.map((x) => conviteEmitido(x, origem));
-  const convites_csv = ['nome,email,perfil,link,expira_em', ...convites.map((x) => [x.nome, x.email, x.perfil, x.link ?? x.caminho, x.expira_em].join(','))].join(NL) + NL;
-  return { ...base, gravado: true, convites, convites_csv };
+  const novos = plano.filter((p) => p.acao === 'criar').map((p) => p.email);
+  equipeFalsa.set(tenant, new Set([...existentes, ...novos]));
+  return { ...base, gravado: true, acessos_enviados: novos.length, email_acesso: novos.length > 0 ? 'enfileirado' : null };
 }
 
 /** Para os testes e para "recomeçar" o modo falso. */
 export function zerarModoFalso() {
+  falhas.clear();
+  equipeFalsa.clear();
+  adminsFalsos.clear();
+  adminsSemeados = false;
+  redefinicoesFalsas.clear();
   gravar(vazio());
 }

@@ -177,6 +177,28 @@ export const PedidoAprovadoEvento = z.object({
 });
 export type PedidoAprovadoEvento = z.infer<typeof PedidoAprovadoEvento>;
 
+/**
+ * `vendedor.pedido.cancelado@1` (T-0114, R-20261107-173950 d) — o pedido foi cancelado no Macuxi. O Hub consome e, nos
+ * conectores que aceitam, devolve o cancelamento ao ERP pelo retorno de pedidos; sem aceite, nada muda (ignora). Publicado
+ * na mesma transação do cancelamento, junto do `status_alterado@1`. Orçamento não publica (RN-VEN-32). Sem dado pessoal:
+ * só ids, números e o motivo digitado.
+ */
+export const PedidoCanceladoEvento = z.object({
+  tenant_id: Id,
+  pedido_id: Id,
+  /** número do pedido no Macuxi (ex.: "000010") */
+  numero: z.string().nullable(),
+  /** número do pedido no ERP, se o pedido já foi integrado (external_id do ERP); null antes do envio */
+  external_id: z.string().nullable(),
+  /** true se o pedido já tinha sido retirado pelo Conector (enviado/integrado): o Hub só devolve o cancelamento se o ERP aceitar */
+  enviado_ao_erp: z.boolean(),
+  motivo: z.string().max(500).nullable(),
+  /** quem cancelou (usuário do Macuxi) */
+  cancelado_por: Id,
+  cancelado_em: IsoDateTime,
+});
+export type PedidoCanceladoEvento = z.infer<typeof PedidoCanceladoEvento>;
+
 // ---------- definições (publicação na outbox: `tx.publicar(EVENTO_..., payload, agregadoId)`) ----------
 export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', PedidoCriadoEvento);
 export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
@@ -184,3 +206,5 @@ export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido
 export const EVENTO_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoEvento);
 /** T-0053/T-0054: publicado pelo consumidor do retorno do ERP (`api/retorno-erp.ts`), um por nota faturada com itens (desenho T-0011). */
 export const EVENTO_PEDIDO_FATURADO = definirEvento('vendedor.pedido.faturado@1', PedidoFaturadoEvento);
+/** T-0114: cancelamento do pedido (consumido pelo Hub, que devolve ao ERP conforme o conector). */
+export const EVENTO_PEDIDO_CANCELADO = definirEvento('vendedor.pedido.cancelado@1', PedidoCanceladoEvento);

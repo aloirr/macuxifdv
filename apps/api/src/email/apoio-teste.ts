@@ -3,33 +3,62 @@
  * Só usado pelos `*.test.ts` desta pasta.
  */
 import net from 'node:net';
-import { PedidoEmailSchema, valoresSensiveisEmail, type DadosAcessoInicial, type DadosNovaSenha, type LogRota, type PedidoEmail } from '@macuxi/platform-sdk';
+import tls from 'node:tls';
+import { CargaEmailSchema, valoresSensiveisEmail, type CargaEmail, type DadosMensagemEmail, type LogRota } from '@macuxi/platform-sdk';
 
 export const ID_ENVIO = '7d0f1f8e-3c4b-4a8e-9f61-2b5c9a0d1e23';
 export const ID_ENVIO_2 = '9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d';
 export const TENANT = '3f2a1b0c-9d8e-4f7a-8b6c-5d4e3f2a1b0c';
+export const TENANT_2 = '5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c';
+export const USUARIO = '11111111-2222-4333-8444-555555555555';
 /** Instante fixo dos testes (relógio injetado). */
 export const INSTANTE = new Date('2026-11-07T12:00:00Z');
 export const relogio = () => INSTANTE;
 
 export const destinatario = { email: 'joaquina.teste@exemplo.com.br', nome: 'Joaquina Teste' };
-export const dadosAcesso: DadosAcessoInicial = {
-  empresa: 'Distribuidora Rio Branco',
-  codigoEmpresa: 'RIOBRANCO',
-  login: 'joaquina.teste@exemplo.com.br',
-  senhaInicial: 'Prov1sor1a-Xq7',
+export const dadosAcesso: DadosMensagemEmail = {
+  nome: destinatario.nome,
+  empresa_nome: 'Distribuidora Rio Branco',
+  codigo_empresa: 'RIOBRANCO',
+  login: destinatario.email,
+  senha: 'Prov1sor1a-Xq7',
+  validade_horas: 72,
+  apps: ['campo'],
 };
-export const dadosNovaSenha: DadosNovaSenha = {
-  empresa: 'Distribuidora Rio Branco',
-  codigoEmpresa: 'RIOBRANCO',
-  login: 'joaquina.teste@exemplo.com.br',
-  senhaProvisoria: 'N0va-Senh4-Kz',
-  motivo: 'redefinicao_bko',
+export const dadosNovaSenha: DadosMensagemEmail = { ...dadosAcesso, senha: 'N0va-Senh4-Kz', motivo: 'redefinida' };
+export const cargaAcesso: CargaEmail = CargaEmailSchema.parse({ para: destinatario.email, dados: dadosAcesso });
+export const cargaNovaSenha: CargaEmail = CargaEmailSchema.parse({ para: destinatario.email, dados: dadosNovaSenha });
+/** Tudo que nunca pode aparecer em log, banco (fora da carga) ou erro. */
+export const SENSIVEIS = [...new Set([...valoresSensiveisEmail(cargaAcesso), ...valoresSensiveisEmail(cargaNovaSenha), 'Joaquina'])];
+
+/**
+ * Certificado autoassinado SÓ DE TESTE (CN=localhost, SAN localhost e 127.0.0.1, EC P-256, vale até 2126): o SMTP falso com
+ * TLS implícito (porta 465). Não protege nada; gerado com `openssl req -x509 -newkey ec …`.
+ */
+export const TLS_TESTE = {
+  key: [
+    '-----BEGIN PRIVATE KEY-----',
+    'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg17D1KbLLP4aRcqKt',
+    'zApU2FdjxglygxfwGPjtCOfdafmhRANCAARsyzwUbjLbyc3Ua+RALwp5sGiKaoUP',
+    'Oq0FA1Hj6yZWTiR6Jiq9yEhtCoNscq3wk1VByaCMpOMtW2h5uGEjKdBc',
+    '-----END PRIVATE KEY-----',
+    '',
+  ].join('\n'),
+  cert: [
+    '-----BEGIN CERTIFICATE-----',
+    'MIIBmjCCAUGgAwIBAgIUPVT/xySLyIXJCzSq8rGHrB9XzXgwCgYIKoZIzj0EAwIw',
+    'FDESMBAGA1UEAwwJbG9jYWxob3N0MCAXDTI2MTEwODAzMTA0MFoYDzIxMjYxMDE1',
+    'MDMxMDQwWjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwWTATBgcqhkjOPQIBBggqhkjO',
+    'PQMBBwNCAARsyzwUbjLbyc3Ua+RALwp5sGiKaoUPOq0FA1Hj6yZWTiR6Jiq9yEht',
+    'CoNscq3wk1VByaCMpOMtW2h5uGEjKdBco28wbTAdBgNVHQ4EFgQUBv5SpEJJ3sLI',
+    'wWbFdqPAcCwcy9EwHwYDVR0jBBgwFoAUBv5SpEJJ3sLIwWbFdqPAcCwcy9EwDwYD',
+    'VR0TAQH/BAUwAwEB/zAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCgYIKoZI',
+    'zj0EAwIDRwAwRAIgcFopPuFQOuyvliOwQng3oION41mfj5f8soojINsqzNgCIGxL',
+    '5OXEcvBNrP4sNOKNMqCONYH54M4vC/YhDWTvPmKb',
+    '-----END CERTIFICATE-----',
+    '',
+  ].join('\n'),
 };
-export const pedidoAcesso: PedidoEmail = PedidoEmailSchema.parse({ modelo: 'acesso_inicial', destinatario, dados: dadosAcesso });
-export const pedidoNovaSenha: PedidoEmail = PedidoEmailSchema.parse({ modelo: 'nova_senha', destinatario, dados: dadosNovaSenha });
-/** Tudo que nunca pode aparecer em log, job ou erro. */
-export const SENSIVEIS = [...new Set([...valoresSensiveisEmail(pedidoAcesso), ...valoresSensiveisEmail(pedidoNovaSenha)])];
 
 export interface LinhaLog {
   nivel: 'info' | 'warn' | 'error';
@@ -72,6 +101,8 @@ export interface RoteiroSmtp {
   mudo?: boolean;
   saudacao?: string;
   /** Respostas por comando (linha completa, sem CRLF; pode ter várias linhas com \r\n). */
+  /** TLS implícito desde a conexão (porta 465), com o certificado de teste. */
+  tlsImplicito?: boolean;
   respostas?: Partial<Record<'EHLO' | 'MAIL' | 'RCPT' | 'DATA' | 'CORPO' | 'AUTH' | 'STARTTLS', string>>;
 }
 
@@ -93,7 +124,7 @@ export async function criarSmtpFalso(roteiro: RoteiroSmtp = {}): Promise<SmtpFal
   const sockets = new Set<net.Socket>();
   const extensoes = roteiro.extensoes ?? ['AUTH PLAIN LOGIN', '8BITMIME'];
 
-  const servidor = net.createServer((s) => {
+  const tratar = (s: net.Socket) => {
     sockets.add(s);
     s.on('close', () => sockets.delete(s));
     s.on('error', () => undefined);
@@ -181,7 +212,8 @@ export async function criarSmtpFalso(roteiro: RoteiroSmtp = {}): Promise<SmtpFal
         }
       }
     });
-  });
+  };
+  const servidor = roteiro.tlsImplicito ? tls.createServer({ key: TLS_TESTE.key, cert: TLS_TESTE.cert }, tratar) : net.createServer(tratar);
   await new Promise<void>((resolve) => servidor.listen(0, '127.0.0.1', resolve));
   const porta = (servidor.address() as net.AddressInfo).port;
   return {

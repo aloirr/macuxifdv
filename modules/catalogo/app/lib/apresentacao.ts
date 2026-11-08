@@ -105,3 +105,11 @@ export function aplicacaoPrecisaRecolher(texto: string): boolean {
   const linhas = texto.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 46)), 0);
   return linhas > LINHAS_APLICACAO_RECOLHIDA;
 }
+
+/**
+ * Ficha, "Oferece junto" (UX A3): o item abre quando o produto está no aparelho ou há sinal para buscá-lo na API.
+ * Sem sinal e com a ficha vinda da API (produto fora do aparelho), a linha não toca e explica o motivo.
+ */
+export function estadoOfereceJunto(e: { online: boolean; fichaNoAparelho: boolean }): { toca: boolean; apoio: string | null } {
+  return e.online || e.fichaNoAparelho ? { toca: true, apoio: null } : { toca: false, apoio: 'Ainda não está no aparelho' };
+}

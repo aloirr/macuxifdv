@@ -108,11 +108,11 @@ describe.skipIf(semBanco())('Promotor: cadastros do BKO × pull no Postgres (upd
   it('nome duplicado entre as vivas = 409; categoria inexistente na meta = 422; leitura lista só as vivas', async () => {
     const nome = `Dup ${randomUUID().slice(0, 8)}`;
     const id = randomUUID();
-    await post('concorrente', { id, nome, ativo: true });
-    expect(await erro(post('concorrente', { id: randomUUID(), nome: nome.toUpperCase(), ativo: true }))).toMatchObject({ status: 409, codigo: 'CADASTRO_DUPLICADO' });
+    await post('categoria_gondola', { id, nome, ordem: 1, ativo: true });
+    expect(await erro(post('categoria_gondola', { id: randomUUID(), nome: nome.toUpperCase(), ordem: 2, ativo: true }))).toMatchObject({ status: 409, codigo: 'CADASTRO_DUPLICADO' });
     expect(await erro(post('meta_share', { id: randomUUID(), categoria_gondola_id: randomUUID(), meta_pct: 10, cliente_id: null, segmento: null, vigencia_inicio: '2026-11-01', vigencia_fim: null }))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
-    await del('concorrente', id);
-    const lista = (await rota('GET', CAMINHO_CADASTRO.concorrente).executar(ctxRota(A.tenantId).rota({ query: FiltroCadastro.parse({}) }))) as { itens: { id: string }[] };
+    await del('categoria_gondola', id);
+    const lista = (await rota('GET', CAMINHO_CADASTRO.categoria_gondola).executar(ctxRota(A.tenantId).rota({ query: FiltroCadastro.parse({}) }))) as { itens: { id: string }[] };
     expect(lista.itens.map((i) => i.id)).not.toContain(id);
   });
 

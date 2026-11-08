@@ -1,0 +1,23 @@
+{
+  "minTokens": 50,
+  "format": ["typescript", "tsx", "javascript", "jsx", "sql"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**",
+    "**/.expo/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/.redundancia/**",
+    "**/__fixtures__/**",
+    "tests/fixtures/**",
+    "db/migrations/**",
+    "**/*.d.ts"
+  ],
+  "gitignore": true,
+  "reporters": ["console", "markdown", "json"],
+  "output": ".redundancia/jscpd"
+}

@@ -6,10 +6,11 @@
  * (`tabela_preco.gerenciar`); a proteção real é na API. Faixa que veio do ERP é só leitura.
  */
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, TableScroll, td, th } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, TableScroll, td, th } from '@macuxi/ui/web';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { ListaTabelasPreco, PaginaEscalonada, PaginaPrecosTabela, RespostaBusca, type FaixaCadastrada } from '../../contracts';
+import { textoRemoverFaixa } from '../lib/formularios';
 import { buscaDosFiltrosTabelas, faixaDoForm, faixasParaCsv, FORM_FAIXA_VAZIO, formDaFaixa, lerFiltrosTabelas, precosParaCsv, textoDosCentavos, type FiltrosTabelas, type FormFaixa } from '../lib/tabelas-preco';
 
 const BASE = '/catalogo';
@@ -163,7 +164,14 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
       limpar();
     },
   });
-  const remover = useMutation({ mutationFn: (f: FaixaCadastrada) => api(`${BASE}/escalonada/${f.id}`, { method: 'DELETE' }), onSuccess: invalidar });
+  const [aRemover, setARemover] = useState<FaixaCadastrada | null>(null);
+  const remover = useMutation({
+    mutationFn: (f: FaixaCadastrada) => api(`${BASE}/escalonada/${f.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      invalidar();
+      setARemover(null);
+    },
+  });
   const editar = (f: FaixaCadastrada) => {
     setForm(formDaFaixa(f));
     setProdutoRotulo(`${f.sku} · ${f.nome}`);
@@ -332,7 +340,7 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
                         <Button size="sm" variant="link" onClick={() => editar(f)}>
                           Editar
                         </Button>{' '}
-                        <Button size="sm" variant="link" disabled={remover.isPending} onClick={() => window.confirm(`Remover a faixa de ${f.quantidade_minima} para "${f.nome}"?`) && remover.mutate(f)}>
+                        <Button size="sm" variant="link" disabled={remover.isPending} onClick={() => setARemover(f)}>
                           Remover
                         </Button>
                       </>
@@ -346,6 +354,22 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
           </table>
         </TableScroll>
       )}
+      <Dialog
+        open={aRemover !== null}
+        title={aRemover ? textoRemoverFaixa(aRemover.quantidade_minima, aRemover.nome).titulo : ''}
+        onClose={() => setARemover(null)}
+        footer={
+          <>
+            <Button onClick={() => setARemover(null)} data-testid="escalonada.remover.cancelar">
+              Cancelar
+            </Button>
+            <Button variant="danger" disabled={remover.isPending} onClick={() => aRemover && remover.mutate(aRemover)} data-testid="escalonada.remover.confirmar">
+              {remover.isPending ? 'Removendo…' : 'Remover'}
+            </Button>
+          </>
+        }>
+        {aRemover ? <p className="m-0">{textoRemoverFaixa(aRemover.quantidade_minima, aRemover.nome).corpo}</p> : null}
+      </Dialog>
       {lista.data && <span className="text-[12px] text-ink-2">{lista.data.items.length} de {lista.data.total} faixas{lista.data.next_offset !== null ? ' — refine os filtros para ver as demais' : ''}.</span>}
     </Panel>
   );

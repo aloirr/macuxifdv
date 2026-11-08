@@ -3,7 +3,13 @@
  * Sem react-native: roda em Node (Vitest) e é reexportado por `@macuxi/ui/mobile/puro` e por `theme.ts`.
  * Referência: docs/design/referencia-2026-11-03/Componentes.dc.html · especificação: docs/design/componentes.md.
  * Identidade mantida (destaque #C2540A, grafite #16202A, fundo #F3F4F1; Archivo nos títulos e números, IBM Plex Sans no texto).
+ * Contraste do destaque (T-0094): `accent` é preenchimento e gráfico; texto laranja sobre claro é `accentInk`; sobre o laranja,
+ * `onAccent`. Pares e razões em `../comum/contraste.ts` e docs/design/componentes.md §1.1.
  */
+
+import { DESTAQUE } from '../comum/contraste';
+
+export * from '../comum/contraste';
 
 export const colors = {
   ground: '#F3F4F1',
@@ -16,11 +22,16 @@ export const colors = {
   line: '#E1E4DE',
   lineSoft: '#ECEEE9',
   lineStrong: '#C9CEC6',
-  accent: '#C2540A',
-  accentLight: '#F59A52',
-  accentSoft: '#FBE9DC',
-  accentInk: '#8F3D06',
-  accentTint: '#FDF4EC',
+  /** laranja da marca: PREENCHIMENTO e GRÁFICO (botão principal, contador, barra, borda da aba, ícone). Nunca texto sobre claro (4,17:1 no fundo). */
+  accent: DESTAQUE.accent,
+  /** laranja de texto e ação sobre o grafite (7,56:1) */
+  accentLight: DESTAQUE.accentLight,
+  accentSoft: DESTAQUE.accentSoft,
+  /** TEXTO laranja sobre claro: link, rótulo de ação, chip, aba ativa (6,70:1 no fundo, 7,40:1 no branco, 6,27:1 no accentSoft) */
+  accentInk: DESTAQUE.accentInk,
+  /** texto e ícone SOBRE o laranja cheio (4,60:1) */
+  onAccent: DESTAQUE.onAccent,
+  accentTint: DESTAQUE.accentTint,
   /** borda do cartão em destaque (ex.: "Pedidos para aprovar" da Gestão) */
   accentLine: '#F3C9A8',
   success: '#1D6B4F',
@@ -119,7 +130,7 @@ export interface EstiloNivel {
 }
 
 export const NIVEIS_BOTAO: Record<NivelBotao, EstiloNivel> = {
-  principal: { altura: ALTURA.principal, raio: radius.botao, fundo: colors.accent, texto: '#FFFFFF', borda: null, larguraBorda: 0, tamanhoFonte: 16 },
+  principal: { altura: ALTURA.principal, raio: radius.botao, fundo: colors.accent, texto: colors.onAccent, borda: null, larguraBorda: 0, tamanhoFonte: 16 },
   secundario: { altura: ALTURA.secundario, raio: radius.botaoMedio, fundo: colors.surface, texto: colors.ink, borda: colors.ink, larguraBorda: 1.5, tamanhoFonte: 14 },
   neutro: { altura: ALTURA.secundario, raio: radius.botaoMedio, fundo: colors.lineSoft, texto: colors.ink, borda: null, larguraBorda: 0, tamanhoFonte: 14 },
   perigo: { altura: ALTURA.secundario, raio: radius.botaoMedio, fundo: colors.dangerBg, texto: colors.danger, borda: null, larguraBorda: 0, tamanhoFonte: 14 },
@@ -176,25 +187,3 @@ export const TONS_ESTADO: Record<TomEstado, { fg: string; bg: string }> = {
   destaque: { fg: colors.accentInk, bg: colors.accentSoft },
   roxo: { fg: colors.violet, bg: colors.violetBg },
 };
-
-// ---------- contraste (WCAG 2.x) ----------
-function canal(c: number): number {
-  const s = c / 255;
-  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-}
-
-/** Luminância relativa de "#RRGGBB". */
-export function luminancia(hex: string): number {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
-  if (!m) throw new Error(`cor inválida: ${hex}`);
-  const [r, g, b] = [m[1], m[2], m[3]].map((x) => canal(Number.parseInt(x ?? '0', 16)));
-  return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
-}
-
-/** Razão de contraste entre duas cores opacas (1 a 21). Texto normal pede ≥ 4,5. */
-export function contraste(a: string, b: string): number {
-  const la = luminancia(a);
-  const lb = luminancia(b);
-  const [claro, escuro] = la > lb ? [la, lb] : [lb, la];
-  return (claro + 0.05) / (escuro + 0.05);
-}

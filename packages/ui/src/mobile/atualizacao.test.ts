@@ -112,6 +112,8 @@ describe('textos', () => {
     expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true })).toBe('Atualizado às 11:00');
     expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true, recente: true })).toBe('Atualizado às 11:00');
     expect(rodapeAtualizacao(null, 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
+    expect(rodapeAtualizacao(undefined, 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
+    expect(rodapeAtualizacao('', 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
   });
 });
 

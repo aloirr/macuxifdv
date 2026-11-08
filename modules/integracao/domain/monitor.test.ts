@@ -123,4 +123,25 @@ describe('RF-INT-04/06: alertas do monitor em português com a ação seguinte',
     });
     expect(a.map((x) => x.severidade)).toEqual(['critico', 'atencao', 'info']);
   });
+
+  it('RN-INT-08 (T-0114): cancelamento recusado pelo ERP → atenção, com o pedido, o motivo e a ação seguinte; sem recusa, nenhum alerta', () => {
+    expect(montarAlertasMonitor(vazio).some((x) => x.codigo === 'cancelamento_recusado')).toBe(false);
+    const uuid = '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b';
+    const a = montarAlertasMonitor({ ...vazio, cancelamentosRecusados: [{ pedido_uuid: uuid, numero_erp: 'PV-9', motivo: 'Pedido já faturado no ERP' }] });
+    expect(a).toEqual([expect.objectContaining({ codigo: 'cancelamento_recusado', severidade: 'atencao', conector_id: null })]);
+    expect(a[0]?.mensagem).toContain('PV-9');
+    expect(a[0]?.mensagem).toContain(uuid);
+    expect(a[0]?.mensagem).toContain('Pedido já faturado no ERP');
+    expect(a[0]?.mensagem).toMatch(/Cancele no ERP/);
+  });
+
+  it('RN-INT-08 (T-0114): vários cancelamentos recusados viram um alerta só, com os 3 primeiros e a contagem do resto', () => {
+    const lista = ['a', 'b', 'c', 'd', 'e'].map((x) => ({ pedido_uuid: `uuid-${x}`, numero_erp: null, motivo: `motivo ${x}` }));
+    const a = montarAlertasMonitor({ ...vazio, cancelamentosRecusados: lista }).filter((x) => x.codigo === 'cancelamento_recusado');
+    expect(a).toHaveLength(1);
+    expect(a[0]?.mensagem).toContain('5 pedidos');
+    expect(a[0]?.mensagem).toContain('uuid-c');
+    expect(a[0]?.mensagem).not.toContain('uuid-d');
+    expect(a[0]?.mensagem).toContain('e mais 2');
+  });
 });

@@ -1,0 +1,293 @@
+diff --git a/.claude/agents/corretor-redundancias.md b/.claude/agents/corretor-redundancias.md
+new file mode 100644
+index 0000000..71d59ed
+--- /dev/null
++++ b/.claude/agents/corretor-redundancias.md
+@@ -0,0 +1,83 @@
++---
++name: corretor-redundancias
++description: Engenheiro sênior de testes e otimização. Use para auditar redundâncias em telas (textos, rótulos, indicadores repetidos, estados vazios), layouts, código (duplicação, exports mortos, regra repetida entre módulos), rotinas (sync, jobs, CI), testes, docs e tarefas/recados do quadro. Entrega relatório com achados RD-nnnn e recados aos donos; não altera código de outro agente.
++tools: Read, Grep, Glob, Bash, Write
++model: opus
++---
++
++# Corretor de Redundâncias — Engenheiro Sênior de Testes e Otimização
++
++Você é o especialista do Macuxi FDV em **eliminar o que se repete sem necessidade**: palavras, indicadores, blocos de tela, código, rotinas, testes, docs e tarefas. Seu filtro é o princípio **Enxuto** (entra só o que o usuário usa toda semana ou o que o gestor precisa para decidir) e a regra dos **3 toques**. Responde e escreve em português do Brasil.
++
++## O que é seu (guardião)
++- `docs/qualidade/redundancias/**` (relatórios e o catálogo de achados `catalogo.md`)
++- `.coord/diario/corretor-redundancias.md`
++- Recados que você cria pela CLI (`node scripts/coord.mjs enviar --de corretor-redundancias ...`)
++
++Você **não corrige** código, tela, schema, doc de produto ou quadro de outro agente. Para cada achado, abre recado `pedido` ao **dono** (consulte `.coord/donos.json`) com cópia ao `gerente-projetos`. Pode anexar no recado o trecho sugerido (antes → depois) para o dono aplicar.
++
++## Rotina
++1. `node scripts/coord.mjs caixa corretor-redundancias` e trate os recados abertos.
++2. Defina o escopo pedido (tela, módulo, PR, pasta, rotina) e rode o checklist abaixo.
++3. Grave o relatório `docs/qualidade/redundancias/AAAA-MM-DD-<escopo>.md` e acrescente os achados ao `catalogo.md`.
++4. Um recado por dono (agrupe os achados do mesmo dono), cc `gerente-projetos`, tarefa = a T-nnnn recebida.
++5. Recado `entrega` ao gerente + linha no diário.
++6. Quando o dono entregar, **reteste** e feche o achado no catálogo (status `corrigido` ou `reaberto`).
++
++## Checklist
++
++### A. Texto e rótulos de tela (app Campo, app Gestão, BKO, PDFs)
++- **Palavra de contexto repetida**: se o cabeçalho já fixa o contexto (data, "hoje", "mês", nome do cliente), os títulos e linhas abaixo não repetem. Limite: a mesma palavra de contexto aparece **no máximo 1 vez por cartão** e não repete o que o cabeçalho já disse.
++- **Unidade repetida na mesma frase**: "1 cliente de 15 clientes", "0 visitas de 90 visitas" → "1 de 15", com o rótulo dizendo a unidade.
++- **Mesmo fato dito duas vezes** em lugares diferentes da tela (ex.: "sem rota hoje" e "hoje não é dia útil").
++- **Rótulo que contradiz o valor** (título diz "meta" e o número é realizado) → classificar como **bug**, não só redundância.
++- **Formatos diferentes para o mesmo tipo de indicador** na mesma lista (contagem "x de y" em uma linha, "% meta %" em outra).
++- **Estado vazio duplicado**: "0" e "R$ 0" juntos; três barras vazias seguidas. Estado zero deve ter uma frase só.
++- **Selo + marcador** indicando o mesmo "novo"; "Ver todos" quando já se vê tudo.
++- **Texto truncado** que obriga a abrir a tela para entender o que já poderia caber em 2 linhas.
++
++### B. Indicadores
++- O mesmo número em mais de uma representação no mesmo cartão (%, barra, "de X", "faltam Y") → no máximo **2 representações** (número principal + barra **ou** %), e "faltam" só quando muda decisão.
++- Indicadores que medem quase a mesma coisa lado a lado (positivação × cobertura × visitas): justificar cada um pela decisão que ele dispara; senão, propor fundir ou mover para a tela Metas.
++- Indicador repetido entre Início e outra aba sem acrescentar ação (atalho sem toque não conta como ação).
++- Conferir a fórmula contra o `docs/produto/03` (RN-CORE-21/22/26, RN-GES-05/06): divergência é bug.
++
++### C. Layout
++- Cartões com área vazia grande; cartões que poderiam ser uma linha.
++- O que está **acima da dobra** no celular de 6" precisa ser o que o vendedor usa primeiro no dia.
++- Aviso de dado desatualizado repetido em vários cartões → um único aviso global de sincronização (RN-CORE-23).
++- Mesmos componentes reimplementados em telas diferentes (pedir componente comum ao dono do shell).
++
++### D. Código
++- Duplicação: `pnpm dlx jscpd --min-tokens 50 --reporters markdown <pasta>` (só leitura; se faltar a ferramenta no repositório, peça ao engenheiro-software como devDependency).
++- Exports, arquivos e dependências mortas: `pnpm dlx knip` (leitura).
++- **Regra de negócio repetida fora do `domain`** do módulo ou copiada entre módulos (viola "Modular de verdade") → recado ao engenheiro-software e ao dono.
++- Consultas SQL/Drizzle repetidas que poderiam ser uma função do módulo; formatação de dinheiro/data reimplementada em vez de `packages/comum`.
++- Strings de tela repetidas em vários arquivos sem constante comum.
++
++### E. Rotinas
++- Sync baixando a mesma entidade duas vezes no mesmo ciclo; jobs pg-boss com o mesmo efeito; timers que se sobrepõem ao push (RN-CORE-23).
++- Passos de CI repetidos entre workflows (instalar, buildar duas vezes, rodar o mesmo teste em dois jobs).
++
++### F. Testes, docs e coordenação
++- Testes que cobrem o mesmo caso com outro nome; e2e repetindo o que o teste de unidade já garante, sem valor extra.
++- Mesma regra descrita em dois docs com textos diferentes (aponte qual é a fonte da verdade).
++- Tarefas T-nnnn sobrepostas no quadro; recados duplicados sobre o mesmo assunto → sugerir ao gerente fundir.
++
++## Redundância útil (não remover)
++Confirmação de ação destrutiva, rótulo de acessibilidade, indicador de offline/fila, total repetido no rodapé de pedido longo, aviso de dado antigo quando o dado guia uma decisão. Na dúvida, marque `manter?` e explique.
++
++## Formato do achado
++| Campo | Conteúdo |
++|---|---|
++| ID | `RD-nnnn` (sequencial no `catalogo.md`) |
++| Onde | app/tela/cartão ou arquivo:linha |
++| Tipo | texto · indicador · layout · código · rotina · teste · doc · tarefa · **bug** |
++| O que se repete | citação literal e contagem |
++| Impacto | leitura, decisão, toques, desempenho, manutenção |
++| Severidade | alta (confunde ou contradiz) · média (polui) · baixa (estética) |
++| Proposta | antes → depois, com o texto final pronto |
++| Dono | agente por `.coord/donos.json` |
++
++## Pronto quando
++Relatório gravado, catálogo atualizado, recados enviados aos donos, entrega ao gerente e, depois da correção, reteste com evidência (print ou teste) e achado fechado.
+diff --git a/.claude/hooks/guarda-agente.test.mjs b/.claude/hooks/guarda-agente.test.mjs
+index 166fd17..e7e1722 100644
+--- a/.claude/hooks/guarda-agente.test.mjs
++++ b/.claude/hooks/guarda-agente.test.mjs
+@@ -284,6 +284,35 @@ test('hook (v4): subagente numa sessão com MACUXI_AGENTE=alexandre continua res
+   }
+ });
+ 
++test('hook (T-0123): corretor-redundancias só escreve em docs/qualidade/redundancias/**, no próprio diário e em recado novo', () => {
++  const dir = criarRepo();
++  // donos.json real (com a regra do corretor), como no repositório
++  writeFileSync(join(dir, '.coord', 'donos.json'), readFileSync(join(RAIZ_REAL, '.coord', 'donos.json'), 'utf8'));
++  // Subagente local (como o gerente o chama): todos os casos.
++  const sub = { entrada: { agent_type: 'corretor-redundancias', agent_id: 'sub-cr' } };
++  for (const f of ['docs/qualidade/redundancias/2026-11-08-inicio-campo.md', 'docs/qualidade/redundancias/catalogo.md', '.coord/diario/corretor-redundancias.md', '.coord/lidos/corretor-redundancias.txt', '.coord/recados/modulo-core/R-20261108-120000-corretor-redundancias.md']) {
++    const r = editar(dir, f, sub);
++    assert.equal(r.codigo, 0, `${f}: ${r.erro}`);
++  }
++  for (const f of ['modules/core/a.ts', 'apps/api/x.ts', 'docs/qualidade/outra-coisa.md', 'docs/produto/03-regras-e-permissoes.md', '.coord/quadro.md', '.coord/donos.json', '.claude/agents/corretor-redundancias.md', '.coord/diario/modulo-core.md', '.coord/recados/modulo-core/R-20261108-120000-modulo-core.md']) {
++    const r = editar(dir, f, sub);
++    assert.equal(r.codigo, 2, `${f} deveria ser bloqueado`);
++    assert.match(r.erro, /BLOQUEADO/);
++  }
++  assert.match(editar(dir, 'modules/core/a.ts', sub).erro, /pertence a modulo-core\. deixe um recado: node scripts\/coord\.mjs enviar --de corretor-redundancias --para modulo-core/);
++  assert.equal(bash(dir, 'echo "# RD" > docs/qualidade/redundancias/relatorio.md', sub).codigo, 0, 'Bash no próprio caminho');
++  assert.equal(bash(dir, 'echo x > modules/core/a.ts', sub).codigo, 2, 'Bash fora');
++  assert.equal(bash(dir, 'sed -i s/a/b/ apps/api/x.ts', sub).codigo, 2, 'sed -i fora');
++  assert.equal(bash(dir, 'cp docs/qualidade/redundancias/relatorio.md docs/produto/copia.md', sub).codigo, 2, 'cp para fora');
++  // Na nuvem e como sessão de agente sem agent_id: mesma fronteira.
++  for (const o of [{ entrada: sub.entrada, env: NUVEM }, { entrada: { agent_type: 'corretor-redundancias' } }]) {
++    const quem = o.env ? 'nuvem' : 'sessão sem agent_id';
++    assert.equal(editar(dir, 'docs/qualidade/redundancias/catalogo.md', o).codigo, 0, quem);
++    assert.equal(editar(dir, 'modules/core/a.ts', o).codigo, 2, quem);
++    assert.equal(bash(dir, 'echo x > docs/produto/x.md', o).codigo, 2, quem);
++  }
++});
++
+ // ───────────────────────── Parte 3: cache da identificação por HEAD ─────────────────────────
+ 
+ test('commitsDoBranch: cache por HEAD num arquivo temporário (só refaz o git log quando HEAD ou a base mudam)', () => {
+diff --git a/.coord/donos.json b/.coord/donos.json
+index b611219..abc24b3 100644
+--- a/.coord/donos.json
++++ b/.coord/donos.json
+@@ -30,6 +30,10 @@
+       "padrao": ".coord/contratos/**",
+       "dono": "engenheiro-software"
+     },
++    {
++      "padrao": ".coord/diario/corretor-redundancias.md",
++      "dono": "corretor-redundancias"
++    },
+     {
+       "padrao": ".coord/**",
+       "dono": "gerente-projetos"
+@@ -102,6 +106,10 @@
+       "padrao": "docs/design/**",
+       "dono": "designer-ux"
+     },
++    {
++      "padrao": "docs/qualidade/redundancias/**",
++      "dono": "corretor-redundancias"
++    },
+     {
+       "padrao": "docs/**",
+       "dono": "gerente-projetos"
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index 09a5e9b..d998a52 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -25,6 +25,9 @@ export const AGENTES = [
+   'modulo-pesquisa',
+   'modulo-treinamento',
+   'modulo-integracao',
++  // T-0123: engenheiro sênior de testes e otimização; audita redundâncias e só escreve em
++  // docs/qualidade/redundancias/** (donos.json), no próprio diário/lidos e em recados novos.
++  'corretor-redundancias',
+ ];
+ /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
+ export const PESSOAS = [...AGENTES, 'alexandre'];
+diff --git a/scripts/coord-verificar.test.mjs b/scripts/coord-verificar.test.mjs
+index b518da8..49e64a2 100644
+--- a/scripts/coord-verificar.test.mjs
++++ b/scripts/coord-verificar.test.mjs
+@@ -1202,3 +1202,119 @@ test('anexos: recado normal continua igual ao lado de um anexo (exceção, desti
+   assert.ok(v.some((l) => /fulano\/.* — destino de recado inválido: fulano$/.test(l)), v.join('\n'));
+   assert.ok(v.some((l) => l.startsWith(`M ${RECADO_ENG} → dono: ninguém — recados são imutáveis`)), v.join('\n'));
+ });
++
++// ───────────── T-0123: agente corretor-redundancias (donos, guardião Edit/Write, verificar e recados) ─────────────
++
++const REDUNDANCIAS = 'docs/qualidade/redundancias/2026-11-08-inicio-campo.md';
++
++test('T-0123 corretor-redundancias: donos.json real dá a ele só docs/qualidade/redundancias/** e o próprio diário', () => {
++  const regras = carregarDonos(join(AQUI, '..'));
++  assert.deepEqual(donoDaMudanca(REDUNDANCIAS, regras), { tipo: 'comum', dono: 'corretor-redundancias' });
++  assert.deepEqual(donoDaMudanca('docs/qualidade/redundancias/catalogo.md', regras), { tipo: 'comum', dono: 'corretor-redundancias' });
++  assert.deepEqual(donoDaMudanca('docs/qualidade/outra-coisa.md', regras), { tipo: 'comum', dono: 'gerente-projetos' }, 'só a subpasta redundancias é dele');
++  assert.deepEqual(donoDaMudanca('.coord/diario/corretor-redundancias.md', regras), { tipo: 'diario', dono: 'corretor-redundancias' });
++  assert.equal(remetenteDoRecado('R-20261108-120000-corretor-redundancias.md'), 'corretor-redundancias');
++  assert.equal(remetenteDoRecado('R-20261108-120000-2-corretor-redundancias.md'), 'corretor-redundancias');
++
++  const raiz = mkdtempSync(join(tmpdir(), 'coord-corretor-'));
++  temporarios.push(raiz);
++  const pode = (rel, ferramenta = 'Write', conteudo) => podeAlterar({ agente: 'corretor-redundancias', ferramenta, rel, raiz, regras, conteudo });
++  for (const ferramenta of ['Write', 'Edit']) {
++    assert.equal(pode(REDUNDANCIAS, ferramenta).ok, true, `${ferramenta} no relatório`);
++    assert.equal(pode('docs/qualidade/redundancias/catalogo.md', ferramenta).ok, true, `${ferramenta} no catálogo`);
++    assert.equal(pode('.coord/diario/corretor-redundancias.md', ferramenta).ok, true, `${ferramenta} no diário`);
++    assert.equal(pode('.coord/lidos/corretor-redundancias.txt', ferramenta).ok, true, `${ferramenta} nos lidos`);
++  }
++  // Fora de docs/qualidade/redundancias/**: bloqueado, com o dono e a dica do recado.
++  for (const [rel, dono] of [
++    ['modules/core/app/inicio.tsx', 'modulo-core'],
++    ['modules/vendedor/app/pedidos.tsx', 'modulo-vendedor'],
++    ['packages/ui/src/mobile/cartao.tsx', 'designer-ux'],
++    ['docs/produto/03-regras-e-permissoes.md', 'gerente-projetos'],
++    ['docs/qualidade/outra-coisa.md', 'gerente-projetos'],
++    ['.coord/quadro.md', 'gerente-projetos'],
++    ['.claude/agents/corretor-redundancias.md', 'alexandre'],
++    ['.coord/donos.json', 'alexandre'],
++    ['scripts/coord.mjs', 'alexandre'],
++  ]) {
++    const r = pode(rel);
++    assert.equal(r.ok, false, rel);
++    assert.equal(r.dono, dono, rel);
++    assert.match(r.motivo, new RegExp(`pertence a ${dono}`), rel);
++  }
++  assert.match(pode('modules/core/app/inicio.tsx').motivo, /enviar --de corretor-redundancias --para modulo-core --tipo pedido/);
++  assert.equal(pode('.coord/diario/modulo-core.md').ok, false, 'diário de outro agente');
++  // Recado novo dele (para outro) e recado de outro para ele: aceitos; em nome de outro, não.
++  const recadoDele = '---\nid: R-20261108-120000-corretor-redundancias\nde: corretor-redundancias\npara: [modulo-core]\n---\n# RD-0001\n';
++  assert.deepEqual(pode('.coord/recados/modulo-core/R-20261108-120000-corretor-redundancias.md', 'Write', recadoDele), { ok: true });
++  assert.equal(pode('.coord/recados/modulo-core/R-20261108-120000-modulo-core.md').ok, false, 'nome com outro remetente');
++  const emNomeDeOutro = recadoDele.replace('de: corretor-redundancias', 'de: modulo-vendedor');
++  assert.match(pode('.coord/recados/modulo-core/R-20261108-120001-corretor-redundancias.md', 'Write', emNomeDeOutro).motivo, /em nome de outro/);
++  assert.deepEqual(podeAlterar({ agente: 'modulo-core', ferramenta: 'Write', rel: '.coord/recados/corretor-redundancias/R-20261108-120002-modulo-core.md', raiz, regras }), { ok: true }, 'destino corretor-redundancias é válido');
++});
++
++test('T-0123 corretor-redundancias: verificar acusa a escrita dele fora de docs/qualidade/redundancias/**', () => {
++  const dir = criarRepoReal();
++  git(dir, 'checkout', '-q', '-b', 'corretor-redundancias/T-0124-inicio-campo');
++  escrever(dir, REDUNDANCIAS, '# Auditoria\n');
++  escrever(dir, 'docs/qualidade/redundancias/catalogo.md', '| ID |\n');
++  escrever(dir, '.coord/diario/corretor-redundancias.md', '2026-11-08 — T-0124 — auditoria\n');
++  commitarCom(dir, 'T-0124: relatório', 'corretor-redundancias');
++  const ok = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(ok.codigo, 0, ok.tudo);
++  assert.match(ok.saida, /nenhuma violação para corretor-redundancias/);
++
++  mudar(dir, 'modules/core/app/lib/cargas.ts');
++  commitarCom(dir, 'T-0124: corrigiu o Início por conta própria', 'corretor-redundancias');
++  const r = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(r.codigo, 1, r.tudo);
++  const v = secao(r.saida, 'VIOLAÇÃO');
++  assert.equal(v.length, 1, r.saida);
++  assert.match(v[0], /^M modules\/core\/app\/lib\/cargas\.ts → dono: modulo-core — fora dos caminhos de corretor-redundancias/);
++  assert.ok(secao(r.saida, 'OK').includes(`A ${REDUNDANCIAS}`), r.saida);
++});
++
++test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta passa pela CLI', () => {
++  const dir = criarRepoReal();
++  const env = { MACUXI_AGENTE: '' };
++  const vazia = rodar(dir, ['caixa', 'corretor-redundancias'], env);
++  assert.equal(vazia.codigo, 0, vazia.tudo);
++  assert.match(vazia.saida, /Caixa de corretor-redundancias: nada pendente/);
++
++  const ida = rodar(dir, ['enviar', '--de', 'engenheiro-software', '--para', 'corretor-redundancias', '--tipo', 'pedido', '--tarefa', 'T-0123',
++    '--assunto', 'Recado de teste (ida)', '--corpo', 'Contexto | Confirme o recebimento | Resposta com --encerra'], env);
++  assert.equal(ida.codigo, 0, ida.tudo);
++  const idIda = ida.saida.match(/Recado (R-\S+-engenheiro-software) enviado para corretor-redundancias/)?.[1];
++  assert.ok(idIda, ida.saida);
++  assert.match(readFileSync(join(dir, '.coord/recados/corretor-redundancias', `${idIda}.md`), 'utf8'), /^de: engenheiro-software\npara: \[corretor-redundancias\]$/m);
++  const caixa = rodar(dir, ['caixa', 'corretor-redundancias'], env);
++  assert.match(caixa.saida, /Caixa de corretor-redundancias: 1 exigem ação, 0 informativos não lidos/);
++  assert.match(caixa.saida, new RegExp(`${idIda}\\s+\\[pedido\\] de engenheiro-software`));
++
++  const volta = rodar(dir, ['enviar', '--de', 'corretor-redundancias', '--para', 'engenheiro-software', '--cc', 'gerente-projetos', '--tipo', 'resposta',
++    '--responde-a', idIda, '--encerra', '--tarefa', 'T-0123', '--assunto', 'Recado de teste (volta)', '--corpo', 'Recebido.'], env);
++  assert.equal(volta.codigo, 0, volta.tudo);
++  const idVolta = volta.saida.match(/Recado (R-\S+-corretor-redundancias) enviado para engenheiro-software, gerente-projetos \(cc\)/)?.[1];
++  assert.ok(idVolta, volta.saida);
++  const texto = readFileSync(join(dir, '.coord/recados/engenheiro-software', `${idVolta}.md`), 'utf8');
++  assert.match(texto, /^de: corretor-redundancias$/m);
++  assert.match(texto, new RegExp(`^responde_a: ${idIda}$`, 'm'));
++  assert.match(texto, /^encerra: true$/m);
++
++  assert.match(rodar(dir, ['caixa', 'corretor-redundancias'], env).saida, /nada pendente/, 'o pedido foi encerrado pela resposta');
++  const doEng = rodar(dir, ['caixa', 'engenheiro-software'], env).saida;
++  assert.match(doEng, new RegExp(`${idVolta}\\s+\\[resposta\\] de corretor-redundancias`));
++  const fio = rodar(dir, ['fio', idIda], env);
++  assert.equal(fio.codigo, 0, fio.tudo);
++  assert.match(fio.saida, /engenheiro-software → corretor-redundancias {2}\[pedido\]/);
++  assert.match(fio.saida, /corretor-redundancias → engenheiro-software {2}\[resposta, encerra\]/);
++  const lido = rodar(dir, ['lido', 'corretor-redundancias', idIda], env);
++  assert.equal(lido.codigo, 0, lido.tudo);
++
++  // verificar: o recado novo e os lidos dele são exceções do protocolo, sem violação.
++  const v = rodar(dir, ['verificar', 'corretor-redundancias']);
++  assert.equal(v.codigo, 0, v.tudo);
++  const exc = secao(v.saida, 'Exceções do protocolo').join('\n');
++  assert.match(exc, new RegExp(`A \\.coord/recados/engenheiro-software/${idVolta}\\.md — recado novo para engenheiro-software`));
++  assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
++});

@@ -130,11 +130,19 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
       ...venda(2, { total: 100_000, em: '2026-10-20T15:00:00Z', cliente: CLIENTE_B }),
       ...venda(3, { total: 999_999, em: '2026-10-21T15:00:00Z' }), // depois do dia consultado: fora
     ]);
-    const m = painelDoMes(s, VENDEDOR, '2026-10-20');
-    expect(m).toMatchObject({ mes: '2026-10', vendas_cents: 1_000_000, pedidos: 2, clientes_positivados: 2, meta_cents: 2_200_000, falta_cents: 1_200_000, dias_uteis_restantes: 9, necessidade_diaria_cents: 133_333, ritmo_pct: 69.23 });
-    const comFeriado = painelDoMes(s, VENDEDOR, '2026-10-20', { feriados: ['2026-10-23'] });
+    const SEG_SEX = { dias_uteis_semana: [1, 2, 3, 4, 5] };
+    const m = painelDoMes(s, VENDEDOR, '2026-10-20', SEG_SEX);
+    expect(m).toMatchObject({ mes: '2026-10', vendas_cents: 1_000_000, pedidos: 2, clientes_positivados: 2, meta_cents: 2_200_000, falta_cents: 1_200_000, dias_uteis_restantes: 9 });
+    const comFeriado = painelDoMes(s, VENDEDOR, '2026-10-20', { ...SEG_SEX, feriados: ['2026-10-23'] });
     expect(comFeriado.dias_uteis_restantes).toBe(8);
-    expect(comFeriado.necessidade_diaria_cents).toBe(150_000);
+  });
+
+  it('RN-CORE-26: "Precisa por dia" usa o calendário do tenant (seg–sáb) como o Início, não seg–sex', () => {
+    const s = montar([meta(VENDEDOR, '2026-10', 2_200_000, '2026-10-01T08:00:00Z'), ...venda(1, { total: 1_000_000, em: '2026-10-15T15:00:00Z' })]);
+    const m = painelDoMes(s, VENDEDOR, '2026-10-20');
+    expect(m.dias_uteis_restantes).toBe(11); // 20 a 31/10 sem domingos
+    expect(m.necessidade_diaria_cents).toBe(109_091); // R$ 12.000 ÷ 11
+    expect(painelDoMes(s, VENDEDOR, '2026-10-20', { dias_uteis_semana: [1, 2, 3, 4, 5] })).toMatchObject({ dias_uteis_restantes: 9, necessidade_diaria_cents: 133_333 });
   });
 
   it('meta de outro mês não vale; sem meta definida o mês vem com meta null', () => {

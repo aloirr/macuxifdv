@@ -41,9 +41,11 @@ const app: SessaoNaBase[] = [{ quem: 'macuxi_app', n: 1 }];
 function opcoesFalsas(prazoMs = 30_000) {
   let t = 0;
   const esperas: number[] = [];
+  const avisos: string[] = [];
   return {
     esperas,
-    opcoes: { prazoMs, agora: () => t, esperar: async (ms: number) => { esperas.push(ms); t += ms; } },
+    avisos,
+    opcoes: { prazoMs, agora: () => t, esperar: async (ms: number) => { esperas.push(ms); t += ms; }, avisar: (m: string) => { avisos.push(m); } },
   };
 }
 
@@ -56,18 +58,24 @@ describe('apagarBancoForcado (sem superusuário, T-0075)', () => {
 
   it('42501 com sessão do macuxi_app saindo: DROP comum (o Postgres espera e encerra o autovacuum) e pronto', async () => {
     const c = clienteFalso([negado(), null], [app]);
-    const { opcoes, esperas } = opcoesFalsas();
+    const { opcoes, esperas, avisos } = opcoesFalsas();
     await apagarBancoForcado(c, NOME, opcoes);
     expect(c.sqls.filter((s) => s.startsWith('drop'))).toEqual([forcado, comum]);
     expect(esperas).toEqual([]);
+    expect(avisos).toEqual([]); // uma volta só: quem estava saindo saiu, nada a avisar
   });
 
   it('sessão que demora a sair: repete com espera crescente até passar', async () => {
     const c = clienteFalso([negado(), emUso(), negado(), emUso(), null], [app]);
-    const { opcoes, esperas } = opcoesFalsas();
+    const { opcoes, esperas, avisos } = opcoesFalsas();
     await apagarBancoForcado(c, NOME, opcoes);
     expect(c.sqls.filter((s) => s.startsWith('drop'))).toEqual([forcado, comum, forcado, comum, forcado]);
     expect(esperas).toEqual([100, 200]);
+    // passou, mas o log do CI mostra quem segurou a base (sem consulta nem dado pessoal): vazamento não some
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toContain('2 voltas');
+    expect(avisos[0]).toContain('macuxi_app (1)');
+    expect(avisos[0]).toContain('pool sem end()');
   });
 
   it('42501 e a sessão já saiu: tenta o FORCE de novo na hora, sem esperar', async () => {

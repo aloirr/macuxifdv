@@ -121,8 +121,27 @@ export const PedidoParaErp = z.object({
 });
 export type PedidoParaErp = z.infer<typeof PedidoParaErp>;
 
+/**
+ * T-0114 (exceção da RN-INT-08; aditivo na v1): cancelamento feito no Macuxi, entregue só ao Conector cadastrado com
+ * `aceita_cancelamento`. O Conector executa o cancelamento no ERP e confirma com o retorno `cancelado` de sempre
+ * (`POST /pedidos/{pedido_uuid}/retorno`); sem confirmação o Hub reentrega depois do timeout. Idempotente pelo `pedido_uuid`.
+ */
+export const CancelamentoParaErp = z.object({
+  pedido_uuid: Uuid,
+  /** Número do pedido no ERP, quando o Conector já o confirmou (`integrado`); nulo se o pedido ainda não foi gravado. */
+  numero_erp: TextoOpcional(40),
+  /** Motivo digitado no Macuxi (até 500). Sem dado pessoal além do que o vendedor escreveu. */
+  motivo: z.string().max(500).nullish(),
+  cancelado_em: DataHoraUtc,
+  /** Quantas vezes já foi entregue ao Conector (reenvio por timeout). */
+  tentativa: z.number().int().positive().default(1),
+});
+export type CancelamentoParaErp = z.infer<typeof CancelamentoParaErp>;
+
 export const PedidosPendentes = z.object({
   pedidos: z.array(PedidoParaErp),
+  /** T-0114 (aditivo): ausente para quem não aceita cancelamento e para Conector antigo, que ignora o campo. */
+  cancelamentos: z.array(CancelamentoParaErp).optional(),
 });
 export type PedidosPendentes = z.infer<typeof PedidosPendentes>;
 
@@ -157,10 +176,19 @@ export const NotaRetorno = z.object({
 });
 export type NotaRetorno = z.infer<typeof NotaRetorno>;
 
+/**
+ * T-0114 (aditivo na v1): estado que SÓ existe no corpo do retorno do Conector, nunca como estado do pedido nem no evento
+ * `integracao.pedido.retorno_erp@1`. Diz que o ERP recusou o cancelamento pedido pelo Hub (`motivo` obrigatório, texto do ERP sem
+ * dado pessoal). Conector antigo não o envia e segue válido; o pedido continua como estava e o monitor do BKO alerta.
+ */
+export const STATUS_CANCELAMENTO_RECUSADO = 'cancelamento_recusado' as const;
+export const StatusRetornoRecebido = z.enum([...StatusRetornoErp.options, STATUS_CANCELAMENTO_RECUSADO]);
+export type StatusRetornoRecebido = z.infer<typeof StatusRetornoRecebido>;
+
 const RetornoErpBase = z.object({
   versao_contrato: z.literal(VERSAO_CONTRATO),
   pedido_uuid: Uuid,
-  status: StatusRetornoErp,
+  status: StatusRetornoRecebido,
   numero_erp: TextoOpcional(40),
   motivo: TextoOpcional(300),
   nota: NotaRetorno.nullish(),
@@ -175,12 +203,18 @@ export const RetornoErp = RetornoErpBase.superRefine((r, ctx) => {
     falta('numero_erp', 'informe o número do pedido no ERP');
   }
   if (r.status === 'rejeitado_erp' && !r.motivo) falta('motivo', 'informe o motivo da rejeição');
+  if (r.status === STATUS_CANCELAMENTO_RECUSADO && !r.motivo) falta('motivo', 'informe o motivo da recusa do cancelamento (texto do ERP)');
   if ((r.status === 'faturado_parcial' || r.status === 'faturado_total') && !r.nota) falta('nota', 'informe a nota fiscal do faturamento');
   if (r.itens_faturados && r.status !== 'faturado_parcial' && r.status !== 'faturado_total') {
     falta('itens_faturados', 'itens_faturados só vale em retorno faturado_parcial ou faturado_total');
   }
 });
 export type RetornoErp = z.infer<typeof RetornoErp>;
+
+/** Retorno que muda o estado do pedido (todos menos `cancelamento_recusado`): é o que `aplicarRetornoPedido` e o evento `retorno_erp@1` conhecem. */
+export type RetornoDeStatus = Omit<RetornoErp, 'status'> & { status: StatusRetornoErp };
+export type RetornoCancelamentoRecusado = Omit<RetornoErp, 'status'> & { status: typeof STATUS_CANCELAMENTO_RECUSADO };
+export const ehCancelamentoRecusado = (r: RetornoErp): r is RetornoCancelamentoRecusado => r.status === STATUS_CANCELAMENTO_RECUSADO;
 
 /**
  * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado (sequência inexistente, produto divergente, acima

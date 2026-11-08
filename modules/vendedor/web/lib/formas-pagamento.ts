@@ -75,6 +75,12 @@ export function validarPrazo(f: FormPrazo, existentes: readonly PrazoPagamento[]
   return e;
 }
 
+/** T-0089: registro vindo do ERP (tem `external_id`) tem código e parcelas fixos; a tela mostra os campos só para leitura ("Vem do ERP"). */
+export const TEXTO_VEM_DO_ERP = 'Vem do ERP';
+export function registroDoErp(r: { external_id?: string | null } | null | undefined): boolean {
+  return Boolean(r?.external_id);
+}
+
 export function formDaForma(f: FormaPagamento): FormForma {
   return { codigo: f.codigo, nome: f.nome, ordem: String(f.ordem), ativo: f.ativo };
 }

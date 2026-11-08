@@ -12,6 +12,10 @@
  * - T-0091 (0038, condição da ADR 0029): as plataforma.sa_* têm EXECUTE só para o dono e o macuxi_portal (conferido pelo
  *   catálogo, não por lista fixa); o macuxi_portal não tem grant de tabela, não herda papel, não é dono de nada e só tem
  *   USAGE no schema plataforma.
+ * - T-0094 (0042): mais 2 sa_* do portal (sa_admins_da_empresa e sa_redefinir_senha_admin), 14 no total.
+ * - T-0093 (0039, ADR 0031): as 12 sa_* do portal só com e-mail e senha substituem as 20 da 0035 (as 14 do convite/TOTP/
+ *   desafio não existem mais); criar_super_admin e provisionar_tenant (deploy) são SECURITY INVOKER sem EXECUTE para app,
+ *   worker ou portal; as 3 tabelas novas do portal entram na varredura "nenhum privilégio efetivo em tabela" do portal.
  * - Perfis: o CHECK do banco aceita exatamente os PERFIS do @macuxi/platform-sdk ("gerente", nunca
  *   "manager" da Fase M) — provado com INSERT real, não lendo o SQL.
  */
@@ -26,11 +30,11 @@ import { conectar, schemasDeDominio, tabelasDoCatalogo, tentar, type Tabela } fr
 const A = DOIS_TENANTS.A.tenantId;
 const PAPEL = 'macuxi_app';
 const PAPEL_WORKER = 'macuxi_worker';
-/** Função interna da 0035: só o dono executa (as sa_* públicas a chamam por dentro). */
+/** Função interna (0035; 7 argumentos desde a 0039): só o dono executa (as sa_* públicas a chamam por dentro). */
 const SA_INTERNAS: ReadonlySet<string> = new Set(['sa_registrar_auditoria']);
 /** Tabelas sem política nem grant para o app e o worker (0035): exceção SÓ para estas, lida do @macuxi/db/teste. */
 const SO_POR_FUNCAO: ReadonlySet<string> = new Set(TABELAS_SO_POR_FUNCAO);
-const SA = 'super-admin de plataforma (ADR 0029): confere a sessão/desafio; tabelas só por função';
+const SA = 'portal config. (ADR 0029/0031): confere a sessão; tabelas só por função';
 
 /**
  * Funções SECURITY DEFINER que o papel da aplicação pode chamar, revisadas pelo agente testes, pela
@@ -46,32 +50,37 @@ const DEFINER_REVISADAS: Record<string, string> = {
 };
 
 /**
- * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091, condição da ADR 0029) pode chamar: as 20
- * plataforma.sa_* da 0035 (§10) e NADA mais. Saíram de DEFINER_REVISADAS na 0038 (R-20261106-234527-banco-dados): se o
- * macuxi_app ou o macuxi_worker voltar a executar alguma, o caso do papel deles reprova (igualdade exata).
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091) pode chamar: as 14 plataforma.sa_* — as 12 da 0039
+ * (T-0093, ADR 0031: portal só com e-mail e senha; contrato R-20261107-150432-banco-dados) e as 2 da 0042 (T-0094: o super-admin
+ * redefine a senha do admin do cliente; R-20261108-001804-banco-dados) — e NADA mais. As 14 do convite,
+ * do TOTP e do desafio (0035) saíram na 0039. Igualdade exata: se o macuxi_app ou o macuxi_worker voltar a executar alguma,
+ * o caso do papel deles reprova; se sair ou entrar uma sa_* sem revisão, este reprova.
  */
 const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
-  'plataforma.sa_existe()': `${SA}; só diz se já houve super-admin`,
-  'plataforma.sa_criar_primeiro(p_email text, p_nome text, p_senha_hash text)': `${SA}; cria só com zero linhas (trava consultiva)`,
-  'plataforma.sa_para_login(p_email text)': `${SA}; linha viva para conferir senha/TOTP, sem hashes de recuperação`,
-  'plataforma.sa_por_id(p_id uuid)': `${SA}; linha viva, sem hashes de recuperação`,
-  'plataforma.sa_registrar_falha(p_id uuid)': `${SA}; 5 falhas = bloqueio de 15 min`,
-  'plataforma.sa_registrar_sucesso(p_id uuid)': `${SA}; zera o contador de falhas`,
-  'plataforma.sa_gravar_totp_pendente(p_id uuid, p_cifrado text)': `${SA}; só antes do TOTP confirmado`,
-  'plataforma.sa_confirmar_totp(p_id uuid, p_passo bigint, p_recuperacao_hashes text[])': `${SA}; pendente vira segredo + hashes`,
-  'plataforma.sa_marcar_passo(p_id uuid, p_passo bigint)': `${SA}; passo TOTP só avança (sem reuso)`,
-  'plataforma.sa_usar_recuperacao(p_id uuid, p_hash text)': `${SA}; consome um código de recuperação`,
-  'plataforma.sa_regerar_recuperacao(p_id uuid, p_hashes text[])': `${SA}; troca os códigos de recuperação`,
-  'plataforma.sa_abrir_desafio(p_id uuid, p_desafio_hash text)': `${SA}; desafio da 2ª etapa, 5 min, só o SHA-256`,
-  'plataforma.sa_ver_desafio(p_desafio_hash text)': `${SA}; etapa do desafio vivo`,
-  'plataforma.sa_abrir_sessao(p_desafio_hash text)': `${SA}; consome o desafio; exige TOTP confirmado, ativo e sem bloqueio`,
-  'plataforma.sa_sessao_valida(p_sid uuid)': `${SA}; sessão viva (não revogada, no prazo, ativo, TOTP confirmado)`,
+  'plataforma.sa_tentativa_estado(p_chave text)': `${SA}; bloqueio por chave HMAC do e-mail (nunca o e-mail); 1 linha (falhas, bloqueado_ate)`,
+  'plataforma.sa_tentativa_falha(p_chave text)': `${SA}; a 5ª falha seguida bloqueia 15 min; bloqueio vivo não conta nem estende`,
+  'plataforma.sa_tentativa_sucesso(p_chave text)': `${SA}; apaga a chave sem bloqueio vivo`,
+  'plataforma.sa_contas_para_login(p_email text)':
+    `${SA}; até 20 contas (super-admin e admins ativos de empresa ativa) com o hash; grava sa.login.consulta só com a contagem`,
+  'plataforma.sa_abrir_sessao_portal(p jsonb)': `${SA}; reconfere cada conta antes de abrir; 1 empresa = já escolhida; teto 8 h`,
+  'plataforma.sa_escolher_empresa(p_sid uuid, p_tenant uuid)': `${SA}; só admin_cliente, só tenant da lista, reconferindo admin e empresa`,
+  'plataforma.sa_sessao_valida(p_sid uuid)': `${SA}; (tipo, super_admin_id, tenant_id, usuario_id, expira_em); cliente rebaixado cai na hora`,
   'plataforma.sa_revogar(p_sid uuid)': `${SA}; revoga a sessão`,
-  'plataforma.sa_auditar(p jsonb)': `${SA}; 1 linha append-only na auditoria_plataforma`,
-  'plataforma.sa_listar_tenants(p_sid uuid)': `${SA}; confere a sessão antes de listar`,
-  'plataforma.sa_tenant_ativo(p_sid uuid, p_tenant uuid)': `${SA}; confere a sessão`,
-  'plataforma.sa_provisionar_tenant(p_sid uuid, p jsonb)': `${SA}; confere a sessão; sem admin nem redefinir_senha`,
+  'plataforma.sa_auditar(p jsonb)': `${SA}; 1 linha append-only na auditoria_plataforma, com ator_tipo e usuario_id`,
+  'plataforma.sa_listar_tenants(p_sid uuid)': `${SA}; super-admin todas; cliente só as da sessão`,
+  'plataforma.sa_tenant_ativo(p_sid uuid, p_tenant uuid)': `${SA}; cliente só a empresa atual da sessão`,
+  'plataforma.sa_provisionar_tenant(p_sid uuid, p jsonb)': `${SA}; só super-admin; aceita admin (RN-CORE-34), recusa redefinir_senha e sem_admin`,
+  // T-0094 (0042; padrão de fábrica da T-0111; R-20261108-001804-banco-dados): o super-admin redefine a senha do admin do cliente
+  'plataforma.sa_admins_da_empresa(p_sid uuid, p_tenant uuid)':
+    `${SA}; só super-admin (28000); admins vivos da empresa (0047: algum perfil vivo e ativo de base admin, plataforma.usuario_tem_perfil_admin), ` +
+    'até 50, sem hash, com entra_no_portal; grava sa.admin.listar só com a contagem',
+  'plataforma.sa_redefinir_senha_admin(p_sid uuid, p_tenant uuid, p_usuario uuid, p_senha_hash text, p_email text, p_email_id uuid, p_carga bytea)':
+    `${SA}; só super-admin (28000); alvo ativo com algum perfil vivo de base admin (0047; P0002) e o e-mail atual (55000); temporária 72 h + trocar_senha + ` +
+    'sessao_versao+1 + refresh revogados; e-mail cifrado na email_saida na mesma transação; auditoria sem dado pessoal; idempotente por p_email_id',
 };
+
+/** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
+const SO_ADMINISTRACAO: readonly string[] = ['plataforma.criar_super_admin(jsonb)', 'plataforma.provisionar_tenant(jsonb)'];
 
 /**
  * Funções SECURITY DEFINER que o worker (macuxi_worker) pode chamar. Os expurgos NÃO entram em
@@ -172,6 +181,31 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
         if (!(n in TABELAS_SEM_TENANT_ID)) problemas.push(`${n}: fora de TABELAS_SEM_TENANT_ID`);
       }
       expect(problemas).toEqual([]);
+    });
+
+    it('T-0094 plataforma.email_saida (0040, ADR 0032): RLS forçado; app só SELECT e INSERT; worker SELECT e UPDATE só nas colunas do despacho; portal e PUBLIC nada; ninguém apaga', async () => {
+      const t = 'plataforma.email_saida';
+      const rls = await admin.query<{ ligado: boolean; forcado: boolean }>('select relrowsecurity as ligado, relforcerowsecurity as forcado from pg_class where oid = $1::regclass', [t]);
+      expect(rls.rows[0]).toEqual({ ligado: true, forcado: true });
+      const privs = async (papel: string) => {
+        const tem: string[] = [];
+        for (const priv of ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+          if ((await admin.query<{ tem: boolean }>('select has_table_privilege($1, $2::regclass, $3) as tem', [papel, t, priv])).rows[0]!.tem) tem.push(priv);
+        }
+        return tem;
+      };
+      expect(await privs(PAPEL)).toEqual(['SELECT', 'INSERT']);
+      expect(await privs(PAPEL_WORKER)).toEqual(['SELECT']);
+      expect(await privs(PAPEL_PORTAL)).toEqual([]);
+      const colunasWorker = await admin.query<{ coluna: string }>(
+        `select a.attname as coluna from pg_attribute a
+          where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped and has_column_privilege($2, a.attrelid, a.attnum, 'UPDATE')
+          order by 1`,
+        [t, PAPEL_WORKER],
+      );
+      expect(colunasWorker.rows.map((x) => x.coluna)).toEqual(['carga', 'enviado_em', 'falhou_em', 'proxima_tentativa_em', 'tentativas', 'ultimo_erro']);
+      const publico = await admin.query<{ n: number }>("select count(*)::int as n from information_schema.role_table_grants where table_schema = 'plataforma' and table_name = 'email_saida' and grantee = 'PUBLIC'");
+      expect(publico.rows[0]!.n).toBe(0);
     });
 
     it('TABELAS_SO_POR_FUNCAO: nenhuma política nem privilégio de tabela para o app, o worker ou PUBLIC', async () => {
@@ -380,6 +414,40 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       expect(problemas).toEqual([]);
     });
 
+    it('T-0093 funções de deploy (criar_super_admin, provisionar_tenant): existem, SECURITY INVOKER, EXECUTE só para o dono (nem PUBLIC, app, worker ou portal)', async () => {
+      const problemas: string[] = [];
+      for (const assinatura of SO_ADMINISTRACAO) {
+        const r = await admin.query<{ definer: boolean; dono: string; grantees: string[] }>(
+          `select p.prosecdef as definer, pg_get_userbyid(p.proowner) as dono,
+                  coalesce((select array_agg(distinct case when a.grantee = 0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end)
+                              from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.privilege_type = 'EXECUTE'), '{}')::text[] as grantees
+             from pg_proc p where p.oid = to_regprocedure($1)`,
+          [assinatura],
+        );
+        if (r.rows.length !== 1) {
+          problemas.push(`${assinatura}: não existe`);
+          continue;
+        }
+        const f = r.rows[0]!;
+        if (f.definer) problemas.push(`${assinatura}: SECURITY DEFINER`);
+        if (JSON.stringify(f.grantees) !== JSON.stringify([f.dono])) problemas.push(`${assinatura}: EXECUTE para ${f.grantees.join(', ')}`);
+        for (const papel of [PAPEL, PAPEL_WORKER, PAPEL_PORTAL]) {
+          const t = await admin.query<{ tem: boolean }>(`select has_function_privilege($1, $2::regprocedure, 'EXECUTE') as tem`, [papel, assinatura]);
+          if (t.rows[0]!.tem) problemas.push(`${assinatura}: ${papel} executa`);
+        }
+      }
+      expect(problemas).toEqual([]);
+    });
+
+    it('T-0093 as 14 sa_* do convite, do TOTP e do desafio (0035) e a sa_registrar_auditoria de 5 argumentos não existem mais (0039)', async () => {
+      const r = await admin.query<{ nome: string }>(
+        `select p.oid::regprocedure::text as nome from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'plataforma' and (p.proname = any($1) or (p.proname = 'sa_registrar_auditoria' and p.pronargs = 5))`,
+        [['sa_existe', 'sa_criar_primeiro', 'sa_para_login', 'sa_por_id', 'sa_registrar_falha', 'sa_registrar_sucesso', 'sa_gravar_totp_pendente', 'sa_confirmar_totp', 'sa_marcar_passo', 'sa_usar_recuperacao', 'sa_regerar_recuperacao', 'sa_abrir_desafio', 'sa_ver_desafio', 'sa_abrir_sessao']],
+      );
+      expect(r.rows.map((x) => x.nome)).toEqual([]);
+    });
+
     it('views legíveis pelo papel usam security_invoker (senão rodam como o dono e ignoram RLS); matviews não são legíveis', async () => {
       const r = await admin.query<{ nome: string; tipo: string; opcoes: string[] | null }>(
         `select n.nspname || '.' || c.relname as nome, c.relkind::text as tipo, c.reloptions as opcoes
@@ -467,10 +535,13 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       for (const faseM of ['manager', 'seller', 'analyst', 'bko_assistant']) expect(PERFIS as readonly string[]).not.toContain(faseM);
     });
 
+    // 0041 (ADR 0033, RN-CORE-35) §5/§11: plataforma.perfil_modulo.perfil virou o CÓDIGO do perfil do tenant — sai o CHECK
+    // perfil_modulo_perfil_valido, entra a FK perfil_modulo_perfil_fk; nome da Fase M (ou fora do formato) não existe em
+    // plataforma.perfil e cai na FK (23503). core.usuario.perfil segue com o CHECK dos 7 (23514).
     it.each([
-      ['core.usuario', (perfil: string, i: number) => [`insert into core.usuario (tenant_id, nome, email, perfil) values ($1, 'Perfil', $2, $3)`, [A, `perfil-${i}@exemplo.com.br`, perfil]] as const],
-      ['plataforma.perfil_modulo', (perfil: string, i: number) => [`insert into plataforma.perfil_modulo (tenant_id, perfil, modulo) values ($1, $2, $3)`, [A, perfil, `modulo-perfil-${i}`]] as const],
-    ])('%s aceita cada perfil do platform-sdk e recusa os da Fase M (23514)', async (_t, montar) => {
+      ['core.usuario', '23514', (perfil: string, i: number) => [`insert into core.usuario (tenant_id, nome, email, perfil) values ($1, 'Perfil', $2, $3)`, [A, `perfil-${i}@exemplo.com.br`, perfil]] as const],
+      ['plataforma.perfil_modulo', '23503', (perfil: string, i: number) => [`insert into plataforma.perfil_modulo (tenant_id, perfil, modulo) values ($1, $2, $3)`, [A, perfil, `modulo-perfil-${i}`]] as const],
+    ])('%s aceita cada perfil do platform-sdk e recusa os da Fase M (%s)', async (_t, codigo, montar) => {
       for (const [i, perfil] of PERFIS.entries()) {
         const [sql, params] = montar(perfil, i);
         const r = await tentar(app, A, () => app.query(sql, [...params]));
@@ -479,7 +550,7 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       for (const [i, perfil] of ['manager', 'seller', 'analyst', 'bko_assistant', 'Gerente', ''].entries()) {
         const [sql, params] = montar(perfil, 100 + i);
         const r = await tentar(app, A, () => app.query(sql, [...params]));
-        expect(r.ok ? `aceitou ${perfil}` : r.codigo, perfil).toBe('23514');
+        expect(r.ok ? `aceitou ${perfil}` : r.codigo, perfil).toBe(codigo);
       }
     });
   });

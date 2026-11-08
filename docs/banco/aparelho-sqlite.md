@@ -12,7 +12,7 @@ cada módulo ficam em `modules/<m>/db/aparelho.ts` (dono: banco-dados), seção 
 
 | Item | Valor | Por quê |
 |---|---|---|
-| Arquivo | um por usuário: `macuxi-u-<userId>.db` (+ `-wal`, `-shm`; `-journal` só se o modo cair para rollback) | isolamento sem coluna de usuário; `userId` validado `^[0-9a-f-]{36}$` antes de montar o nome |
+| Arquivo | um por usuário **e tenant**: `macuxi-u-<usuario>-t-<tenant\|demo>.db` (+ `-wal`, `-shm`; `-journal` só se o modo cair para rollback), montado só por `arquivoDoUsuario` do SDK (`packages/platform-sdk/src/sqlite/arquivo.ts`; T-0088 §1.1 e §10). Cada id vira um segmento: UUID em minúsculas; qualquer outro id = `h` + 32 hex do SHA-256 do id exato; sem tenant (demonstração no mock-api) = `demo` | isolamento sem coluna de usuário; o tenant entra porque uma base recriada pode repetir o UUID do usuário num tenant novo; o id nunca entra cru no nome |
 | `auto_vacuum` | `INCREMENTAL`, **antes da primeira tabela** (só vale na criação do arquivo) | RN-CORE-02 devolve espaço com `PRAGMA incremental_vacuum` sem `VACUUM` inteiro |
 | `journal_mode` | `WAL` | leitura das telas durante a gravação do pull |
 | `synchronous` | `NORMAL`; `FULL` só durante a gravação de `sync:fila` (fora de transação, na fila de escrita) | pedido na fila sobrevive a queda de energia; o resto volta do servidor |
@@ -34,11 +34,18 @@ CREATE TABLE IF NOT EXISTS _entidades (nome TEXT PRIMARY KEY, modulo TEXT NOT NU
 
 | Tabela | Conteúdo | Regras |
 |---|---|---|
-| `kv` | `sync:*` (fila `sync:fila` como uma linha JSON, cursores `sync:cursor:<e>`, módulos, limpeza pendente), `mod:<m>:*` (blobs do módulo), `_busca:<indice>:sujo`, `_migracao:asyncstorage` (§5 do desenho) | `valor` é JSON; `chaves(prefixo)` por faixa (`>= p AND < p+'￿'`), nunca `LIKE` |
+| `kv` | `sync:*` (fila `sync:fila` como uma linha JSON, cursores `sync:cursor:<e>`, módulos, limpeza pendente), `mod:<m>:*` (blobs do módulo), `_busca:<indice>:sujo`, `_migracao:asyncstorage` (marcador da passagem do AsyncStorage, abaixo) | `valor` é JSON; `chaves(prefixo)` por faixa (`>= p AND < p+'￿'`), nunca `LIKE` |
 | `_esquema` | versão do esquema local por dono (`plataforma` e cada módulo) | atualizada na MESMA transação da versão aplicada |
 | `_entidades` | `ent_<e>` existentes e o módulo dono (`''` se a entidade não estava no registro quando foi criada) | permite limpar entidade que saiu do registro |
 
 `aplicado_em` e `criada_em` em ISO 8601 UTC (`toISOString()`).
+
+**Marcador da passagem do AsyncStorage** (`kv`, chave `_migracao:asyncstorage`; `MARCADOR_PASSAGEM`/`MarcadorPassagem` do SDK,
+desenho T-0088 §2): JSON com `estado` (`copiando` | `concluida`), `tentativas`, `iniciada_em` e `concluida_em` (ISO UTC),
+`pull` (`copiado` | `refazer`: falha no grupo C apaga o que foi copiado e o próximo pull recomeça do início) e `contagens`
+por grupo (`a`, `b`, `c`, `linhas`). Gravado em `synchronous=FULL`, como a fila. `concluida` nunca copia de novo; ausente ou
+`copiando` (app caiu no meio) limpa o que a tentativa deixou e recomeça. O espelho `fv:u:<usuarioId>:armazenamento =
+{ arquivo, desde }` fica no **AsyncStorage**, fora do SQLite (é ele que diz ao shell qual arquivo abrir).
 
 ### 2.1 Entidade de sync com pull: `ent_<entidade>`
 Criada pelo adaptador na primeira gravação (DDL fixa) e registrada em `_entidades`:
@@ -267,8 +274,10 @@ módulo **vazias** (uma página cada) com sua linha em `_entidades`. Reativaçã
 e o shell já apaga as chaves do AsyncStorage de **todos** os usuários que entraram no aparelho; no SQLite vale o mesmo.
 
 **Caminho normal (obrigatório)**: `motor.limparAparelho()` (estado em memória) → fechar a conexão → **apagar os arquivos**
-de todos os usuários: nomes que casam `^macuxi-u-[0-9a-f-]{36}\.db(-wal|-shm|-journal)?$` na pasta do SQLite
-(`deleteDatabaseAsync` no expo-sqlite apaga `.db`, `-wal` e `-shm`). Motivo, provado no teste: `DELETE` lógico (o que o
+de todos os usuários e tenants: nomes que casam `ARQUIVO_DE_USUARIO_RE` do SDK,
+`^macuxi-u-([0-9a-f-]{36}|h[0-9a-f]{32})-t-([0-9a-f-]{36}|h[0-9a-f]{32}|demo)\.db(-wal|-shm|-journal)?$`, na pasta do SQLite
+(`bancosDeUsuario`; nome fora do padrão, ex. `macuxi-diagnostico-carga.db`, fica), e as chaves `macuxi:u:` e `fv:u:` do
+AsyncStorage, que levam o espelho (`deleteDatabaseAsync` no expo-sqlite apaga `.db`, `-wal` e `-shm`). Motivo, provado no teste: `DELETE` lógico (o que o
 `limparAparelho` faz) deixa o conteúdo apagado nas páginas livres e no WAL — num aparelho perdido ou roubado o
 arquivo ainda teria clientes e pedidos.
 

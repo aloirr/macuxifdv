@@ -14,7 +14,10 @@
  * DELETE sinonimos/:id            sinonimo.gerenciar
  * PUT  produtos/:id/destaque      destaque.gerenciar
  * PUT  produtos/:id/conteudo      produto.enriquecer
- * GET  marcas-concorrentes        produto.enriquecer  marcas ativas do Promotor para o seletor da referência cruzada
+ * PUT  produtos/:id/foto-principal produto.enriquecer  registra o arquivo e define a foto principal; os bytes vão por PUT /v1/arquivos/:id (T-0097)
+ * GET  marcas-concorrentes        produto.enriquecer  marcas ativas do Catálogo para o seletor da referência cruzada
+ * GET  marcas                     produto.consultar   cadastro de marcas com a contagem de referências (RN-CAT-13, ADR 0034)
+ * POST marcas, PUT marcas/:id     marca.gerenciar     cria/edita/inativa/reativa; evento catalogo.marca_concorrente.alterada@1
  * PUT  produtos/:id/cadastro-catalogo produto.enriquecer  aplicação, referências, oferece junto e etiquetas (RN-CAT-09, RN-CAT-11)
  * GET  exportacao               produto.enriquecer  cadastro do catálogo para PDF/Excel do BKO, página única até 20 mil (RF-CAT-09)
  * GET  termos-sem-resultado       busca.ver_sem_resultado
@@ -34,6 +37,15 @@ import {
   ConsultaTermosQuery,
   ConsultaVitrineQuery,
   ParamsProduto,
+  ParamsMarca,
+  MarcaAlterarSchema,
+  MarcaCriarSchema,
+  MarcaListaQuerySchema,
+  EVENTO_MARCA_CONCORRENTE_ALTERADA,
+  type MarcaAlterar,
+  type MarcaCriar,
+  type MarcaListaQuery,
+  type MarcaListaSaida,
   ParamsSinonimo,
   ROTAS_CATALOGO,
   SalvarCadastroCatalogo,
@@ -43,6 +55,7 @@ import {
   ParamsFaixa,
   ParamsTabelaPreco,
   SalvarDestaque,
+  SalvarFotoPrincipal,
   SalvarFaixa,
   SalvarSinonimo,
   type FaixaCadastrada,
@@ -61,6 +74,7 @@ import {
   type RespostaExportacao,
 } from '../contracts';
 import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
+import { fatoDaEscritaMarca, nomeMarcaIgual, validarNomeMarca } from '../domain/marcas-cadastro';
 import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domain/marcas';
 import { montarExportacao } from '../domain/exportacao';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
@@ -71,6 +85,7 @@ import { diaDoTenant, verificarConsultaIa } from '../domain/limite-ia';
 import { parametrosDoTenant, timeoutIaDoTenant, type ParametrosCatalogo } from '../domain/parametros';
 import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
 import { podeVerPrecoEstoque } from '../domain/visibilidade';
+import { candidatosDaBusca } from '../domain/indice-busca';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
 import { interpretarComMedicao } from './ia/buscar';
 import type { FabricaRepositorio, RepositorioCatalogo } from './repositorio';
@@ -80,6 +95,19 @@ export interface DependenciasRotas {
   /** Porta do LLM da busca para o tempo limite dado (ms); `null` = sem provedor configurado (busca por regras, sem aviso). */
   portaIa?: (timeoutMs: number) => PortaInterpretacaoLlm | null;
 }
+
+/** T-0119: o vocabulário (marcas e categorias de 20 mil produtos) sai uma vez por retrato do catálogo, não por busca. */
+const VOCABULARIOS = new WeakMap<readonly ProdutoCatalogo[], ReturnType<typeof vocabularioDe>>();
+function vocabularioEmCache(produtos: readonly ProdutoCatalogo[]): ReturnType<typeof vocabularioDe> {
+  let v = VOCABULARIOS.get(produtos);
+  if (!v) {
+    v = vocabularioDe(produtos);
+    VOCABULARIOS.set(produtos, v);
+  }
+  return v;
+}
+
+const semAcentoMarca = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
@@ -164,15 +192,19 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       const clienteId = await conferirCliente(ctx, q.customer_id);
       const dia = diaDoTenant(ctx.agora(), ctx.fuso());
       // 1) leitura curta: produtos, sinônimos e uso de IA do dia
-      const leitura = await comRepo(ctx, async (repo) => ({ produtos: await repo.produtos(), sinonimos: await repo.sinonimos(), uso: q.mode === 'basica' ? null : await repo.usoIa(dia) }));
-      const vocab = vocabularioDe(leitura.produtos);
+      const leitura = await comRepo(ctx, async (repo) => ({ produtos: await (repo.produtosEmCache?.() ?? repo.produtos()), sinonimos: await repo.sinonimos(), uso: q.mode === 'basica' ? null : await repo.usoIa(dia) }));
+      const vocab = vocabularioEmCache(leitura.produtos);
       // 2) interpretação (provedor fora da transação)
       const interp = await interpretar(ctx, dep, q, vocab, p, leitura.uso, dia);
       // 3) preço/estoque do usuário, ranking e registro da busca (RF-CAT-07)
       return comRepo(ctx, async (repo) => {
-        const contexto = await contextoVitrine(ctx, repo, p, clienteId, leitura.produtos);
         const sinonimos: readonly SinonimoDoTenant[] = leitura.sinonimos;
-        const pagina = buscarProdutos({ produtos: leitura.produtos, contexto, filtros: interp.filtros, chips: { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock }, sinonimos, limit: q.limit, offset: q.offset });
+        const chips = { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock };
+        // T-0119 (D-T0107b): com catálogo grande o índice separa os candidatos; preço e estoque são lidos só deles
+        const candidatos = candidatosDaBusca({ produtos: leitura.produtos, contexto: { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString() }, filtros: interp.filtros, chips, sinonimos });
+        const produtosDaBusca = candidatos?.produtos ?? leitura.produtos;
+        const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtosDaBusca);
+        const pagina = buscarProdutos({ produtos: produtosDaBusca, contexto, filtros: interp.filtros, chips, sinonimos, limit: q.limit, offset: q.offset, ...(candidatos ? { maxVendas: candidatos.maxVendas } : {}) });
         const termo = termoDeBusca(q.q);
         if (termo && q.offset === 0) {
           // melhor esforço (T-0052 🟢7): falha no registro não derruba a busca; o log não leva o termo (dado do usuário)
@@ -306,6 +338,28 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
+  const fotoPrincipal: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.fotoPrincipal,
+    acao: 'produto.enriquecer',
+    carteira: 'nao_se_aplica',
+    params: ParamsProduto,
+    corpo: SalvarFotoPrincipal,
+    async executar(ctx: Ctx<SalvarFotoPrincipal, unknown, ParamsProduto>): Promise<RespostaEscrita> {
+      return ctx.comTenant(async (db, tx) => {
+        const repo = dep.repositorio(ctx, db, tx);
+        const produto = await repo.produto(ctx.params.id);
+        if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
+        const { arquivo_id: arquivoId, titulo } = ctx.corpo;
+        // a foto é do produto (vale para o tenant inteiro), não de um cliente: cliente_id nulo
+        await tx.registrarArquivo({ id: arquivoId, finalidade: 'foto_produto', entidade: 'produto', entidade_id: produto.id, cliente_id: null });
+        const r = await repo.definirFotoPrincipal(produto.id, arquivoId, titulo);
+        if (r.alterou) await tx.auditar({ acao: 'produto.enriquecer', entidade: 'produto', entidade_id: produto.id, antes: null, depois: { foto_principal: arquivoId } });
+        return { id: produto.id, criado: r.alterou };
+      });
+    },
+  };
+
   const conteudo: RotaModulo = {
     metodo: 'PUT',
     caminho: ROTAS_CATALOGO.conteudo,
@@ -390,6 +444,73 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     async executar(ctx: Ctx): Promise<ListaMarcasConcorrentes> {
       const marcas = await comRepo(ctx, (repo) => repo.marcasConcorrentes());
       return { items: [...marcas.entries()].filter(([, m]) => m.ativo).map(([id, m]) => ({ id, nome: m.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id)) };
+    },
+  };
+
+  // T-0113 / RN-CAT-13 (ADR 0034): cadastro de marcas concorrentes do Catálogo; a lista é única, com ou sem o Promotor
+  const listarMarcas: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.marcas,
+    acao: 'produto.consultar',
+    carteira: 'nao_se_aplica',
+    query: MarcaListaQuerySchema,
+    async executar(ctx: Ctx<unknown, MarcaListaQuery>): Promise<MarcaListaSaida> {
+      const q = ctx.query;
+      const busca = q.busca ? semAcentoMarca(q.busca) : '';
+      const todas = await comRepo(ctx, (repo) => repo.marcasCadastro());
+      return {
+        marcas: todas.filter((m) => (q.situacao === 'todas' || (q.situacao === 'ativas' ? m.ativo : !m.ativo)) && (busca === '' || semAcentoMarca(m.nome).includes(busca))),
+      };
+    },
+  };
+
+  /** Valida (RN-CAT-13), grava, publica o fato e audita (só ids), tudo na transação da rota. */
+  async function escreverMarca(ctx: Ctx<unknown, unknown, unknown>, id: string, pedido: { nome?: string | undefined; ativo?: boolean | undefined; external_id?: string | null | undefined }, criar: boolean): Promise<RespostaEscrita> {
+    return ctx.comTenant(async (db, tx) => {
+      const repo = dep.repositorio(ctx, db, tx);
+      const todas = await repo.marcasCadastro();
+      const atual = todas.find((m) => m.id === id) ?? null;
+      if (!atual && !criar) throw new ErroNaoEncontrado('MARCA_NAO_ENCONTRADA', 'Marca não encontrada. Atualize a lista e tente de novo.');
+      // POST repetido com o mesmo id (reenvio da outbox) não muda nada
+      if (atual && criar) return { id, criado: false };
+      const nome = pedido.nome ?? atual?.nome ?? '';
+      const v = validarNomeMarca(nome);
+      if (!v.ok) throw new ErroRegraNegocio(v.erro.regra, v.erro.mensagem, { campo: v.erro.campo });
+      const repetida = todas.find((m) => m.id !== id && nomeMarcaIgual(m.nome, v.nome));
+      if (repetida) throw new ErroRegraNegocio('RN-CAT-13', `Já existe a marca "${repetida.nome}"${repetida.ativo ? '' : ' (inativa)'}. Use a que existe ou escolha outro nome.`, { campo: 'nome' });
+      const depois = { nome: v.nome, ativo: pedido.ativo ?? atual?.ativo ?? true, external_id: pedido.external_id !== undefined ? pedido.external_id : (atual?.external_id ?? null) };
+      const fato = fatoDaEscritaMarca(atual ? { nome: atual.nome, ativo: atual.ativo, external_id: atual.external_id } : null, depois);
+      if (fato === null) return { id, criado: false };
+      // id de marca apagada ou de outro tenant: nada é gravado nem publicado; a mensagem não revela de quem é o id
+      if (!(await repo.gravarMarca(id, depois))) throw new ErroHttpModulo(409, 'ID_EM_USO', 'Esse identificador já foi usado em outro cadastro. Recarregue a página e tente de novo.');
+      await tx.publicar(EVENTO_MARCA_CONCORRENTE_ALTERADA, { id, ...depois, fato, alterada_em: ctx.agora().toISOString() }, id);
+      // auditoria só com ids e fato (RN-AUD-01): o nome da marca não é dado pessoal, mas o log fica enxuto
+      await tx.auditar({ acao: 'marca.gerenciar', entidade: 'marca_concorrente', entidade_id: id, depois: { fato, ativo: depois.ativo } });
+      return { id, criado: fato === 'criada' };
+    });
+  }
+
+  const criarMarca: RotaModulo = {
+    metodo: 'POST',
+    caminho: ROTAS_CATALOGO.marcas,
+    acao: 'marca.gerenciar',
+    carteira: 'nao_se_aplica',
+    corpo: MarcaCriarSchema,
+    async executar(ctx: Ctx<MarcaCriar>): Promise<RespostaEscrita> {
+      const { id, ...resto } = ctx.corpo;
+      return escreverMarca(ctx, id, resto, true);
+    },
+  };
+
+  const alterarMarca: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.marca,
+    acao: 'marca.gerenciar',
+    carteira: 'nao_se_aplica',
+    params: ParamsMarca,
+    corpo: MarcaAlterarSchema,
+    async executar(ctx: Ctx<MarcaAlterar, unknown, ParamsMarca>): Promise<RespostaEscrita> {
+      return escreverMarca(ctx, ctx.params.id, ctx.corpo, false);
     },
   };
 
@@ -553,5 +674,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
+  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

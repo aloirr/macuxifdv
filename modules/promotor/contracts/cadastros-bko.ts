@@ -62,8 +62,19 @@ export type ConcorrenteEdicao = z.infer<typeof ConcorrenteEdicao>;
 export const ProdutoConcorrenteEdicao = comDomain(ProdutoConcorrenteSync.omit(SERVIDOR), validarProdutoConcorrente);
 export type ProdutoConcorrenteEdicao = z.infer<typeof ProdutoConcorrenteEdicao>;
 
+/** Linha da lista de marcas concorrentes no BKO (T-0113, ADR 0034): vem de `catalogo.marcas@1`, só leitura. */
+export const MarcaConcorrenteListaSchema = z.object({ id: z.string().uuid(), nome: z.string(), ativo: z.boolean(), external_id: z.string().nullable() }).strict();
+export type MarcaConcorrenteLista = z.infer<typeof MarcaConcorrenteListaSchema>;
+
 export const CADASTROS_BKO = ['categoria_gondola', 'checklist_loja', 'meta_share', 'mix_obrigatorio', 'concorrente', 'produto_concorrente'] as const;
 export type CadastroBko = (typeof CADASTROS_BKO)[number];
+
+/**
+ * T-0113 (ADR 0034): as marcas concorrentes são do Catálogo (`catalogo.marcas@1`); o cadastro `concorrente` do Promotor é só
+ * leitura (seletor do BKO, pela consulta). Escrita, desativação e repositório valem só para estes.
+ */
+export const CADASTROS_GRAVAVEIS = CADASTROS_BKO.filter((c) => c !== 'concorrente') as readonly Exclude<CadastroBko, 'concorrente'>[];
+export type CadastroGravavel = Exclude<CadastroBko, 'concorrente'>;
 
 /** Caminho (relativo a `/v1/promotor`) de cada cadastro; compartilhado pela API e pela tela. */
 export const CAMINHO_CADASTRO: Readonly<Record<CadastroBko, string>> = {
@@ -102,7 +113,7 @@ export const LINHA_CADASTRO = {
   checklist_loja: ChecklistLojaSync,
   meta_share: MetaShareSync,
   mix_obrigatorio: MixObrigatorioSync,
-  concorrente: ConcorrenteSync,
+  concorrente: MarcaConcorrenteListaSchema,
   produto_concorrente: ProdutoConcorrenteSync,
 } as const;
 

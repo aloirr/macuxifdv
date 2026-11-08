@@ -12,3 +12,8 @@
 2026-11-05 — ajuste de UX — ícone camera nos botões Foto antes/depois da gôndola (tela-loja.tsx)
 2026-11-05 — T-0024 — teste conferirEventosPublicados do Promotor (contracts/eventos-definicoes.test.ts); schemas já no padrão
 2026-11-06 — T-0085 — consulta promotor.concorrentes@1 (contrato, provedor na API, manifest, testes) para o Catálogo ler as marcas; avisos enviados
+2026-11-08 — T-0113 — Promotor lê marcas por catalogo.marcas@1 (produto do concorrente valida pela consulta, concorrente só leitura, entidade legada vazia, consulta promotor.concorrentes@1 deprecada, BKO com aviso); lint/tsc/vitest verdes
+2026-11-08 — T-0113 — 🟡2 (PUT do produto do concorrente revalida a marca só quando muda) e 🟡4 (comentário da consulta deprecada alinhado ao desenho); testes de rota; lint/typecheck/test verdes
+2026-11-08 — T-0094 — contraste do laranja (trade-page.tsx:122 accent-ink); sync-cadastros.db e 🟡2/4 da T-0113 conferidos; lint/typecheck/test verdes
+2026-11-08 — T-0056/T-0010/T-0071/T-0085/T-0113 — recados antigos encerrados: preço da Loja sem defeito (teste novo 10,90 -> R$ 10,90), sync-cadastros.db.test isolado e corrigido p/ ADR 0034, link de marcas só com marca.gerenciar (teste), 🟡 3 registrado
+2026-11-08 — T-0056/T-0010/T-0071/T-0085/T-0113 — recados antigos encerrados: preço da Loja sem defeito (teste 10,90 -> R$ 10,90), sync-cadastros.db.test isolado e corrigido p/ ADR 0034, link de marcas só com marca.gerenciar (teste), 🟡 3 registrado

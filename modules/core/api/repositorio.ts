@@ -30,6 +30,15 @@ export interface UsuarioLogin {
   bloqueado_em: Date | null;
   bloqueio_ate: Date | null;
   tentativas_falhas: number;
+  ultimo_login_em: Date | null;
+  /** T-0094 (0040): a senha atual é temporária; `senha_expira_em` nulo = não vence. */
+  trocar_senha: boolean;
+  senha_expira_em: Date | null;
+  /** Senha do "Esqueci a senha", paralela à atual (P6). */
+  senha_temporaria_hash: string | null;
+  senha_temporaria_expira_em: Date | null;
+  senha_temporaria_criada_em: Date | null;
+  sessao_versao: number;
 }
 
 export interface UsuarioAtual {
@@ -37,6 +46,8 @@ export interface UsuarioAtual {
   perfil: Perfil;
   ativo: boolean;
   bloqueado_em: Date | null;
+  /** T-0094: o token só vale com esta versão (claim `sv`). */
+  sessao_versao: number;
 }
 
 export interface SessaoRefresh {
@@ -84,6 +95,12 @@ export interface RepositorioTenant {
   sessaoPorHash(hash: string): Promise<SessaoRefresh | null>;
   marcarSessaoUsada(id: string, agora: Date): Promise<void>;
   revogarFamilia(familiaId: string, agora: Date): Promise<void>;
+  /** T-0094: senha definitiva nova — limpa a temporária e o prazo, zera tentativas, sobe a `sessao_versao` e revoga TODOS os refresh do usuário. Devolve a versão nova. */
+  trocarSenha(usuarioId: string, senhaHash: string, agora: Date): Promise<number>;
+  /** T-0094 (P6): grava a senha temporária paralela do "Esqueci a senha"; a senha atual e as sessões não mudam. */
+  gravarSenhaTemporaria(usuarioId: string, hash: string, criadaEm: Date, expiraEm: Date): Promise<void>;
+  /** T-0094: o usuário entrou com a senha atual — a temporária paralela deixa de existir. */
+  descartarSenhaTemporaria(usuarioId: string): Promise<void>;
 }
 
 /** Operações fora de tenant (só funções SECURITY DEFINER). */
@@ -98,7 +115,8 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
   return {
     async usuarioPorEmail(email) {
       const r = await db.query<Record<string, unknown>>(
-        `select id, nome, nome_curto, email, perfil, senha_hash, ativo, bloqueado_em, bloqueio_ate, tentativas_falhas
+        `select id, nome, nome_curto, email, perfil, senha_hash, ativo, bloqueado_em, bloqueio_ate, tentativas_falhas, ultimo_login_em,
+                trocar_senha, senha_expira_em, senha_temporaria_hash, senha_temporaria_expira_em, senha_temporaria_criada_em, sessao_versao
            from core.usuario
           where lower(email) = lower($1) and deleted_at is null`,
         [email],
@@ -116,12 +134,19 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
         bloqueado_em: data(l.bloqueado_em),
         bloqueio_ate: data(l.bloqueio_ate),
         tentativas_falhas: Number(l.tentativas_falhas ?? 0),
+        ultimo_login_em: data(l.ultimo_login_em),
+        trocar_senha: Boolean(l.trocar_senha),
+        senha_expira_em: data(l.senha_expira_em),
+        senha_temporaria_hash: (l.senha_temporaria_hash as string | null) ?? null,
+        senha_temporaria_expira_em: data(l.senha_temporaria_expira_em),
+        senha_temporaria_criada_em: data(l.senha_temporaria_criada_em),
+        sessao_versao: Number(l.sessao_versao ?? 0),
       };
     },
     async usuarioAtual(id) {
-      const r = await db.query<Record<string, unknown>>('select id, perfil, ativo, bloqueado_em from core.usuario where id = $1 and deleted_at is null', [id]);
+      const r = await db.query<Record<string, unknown>>('select id, perfil, ativo, bloqueado_em, sessao_versao from core.usuario where id = $1 and deleted_at is null', [id]);
       const l = r.rows[0];
-      return l ? { id: String(l.id), perfil: l.perfil as Perfil, ativo: Boolean(l.ativo), bloqueado_em: data(l.bloqueado_em) } : null;
+      return l ? { id: String(l.id), perfil: l.perfil as Perfil, ativo: Boolean(l.ativo), bloqueado_em: data(l.bloqueado_em), sessao_versao: Number(l.sessao_versao ?? 0) } : null;
     },
     async gravarTentativas(usuarioId, falhas, bloqueioAte) {
       await db.query('update core.usuario set tentativas_falhas = $2, bloqueio_ate = $3 where id = $1', [usuarioId, falhas, bloqueioAte]);
@@ -174,6 +199,25 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
     },
     async revogarFamilia(familiaId, agora) {
       await db.query('update core.sessao set revogado_em = $2 where familia_id = $1 and revogado_em is null', [familiaId, agora]);
+    },
+    async trocarSenha(usuarioId, senhaHash, agora) {
+      const r = await db.query<{ sessao_versao: number }>(
+        `update core.usuario
+            set senha_hash = $2, trocar_senha = false, senha_expira_em = null,
+                senha_temporaria_hash = null, senha_temporaria_expira_em = null, senha_temporaria_criada_em = null,
+                tentativas_falhas = 0, bloqueio_ate = null, sessao_versao = sessao_versao + 1
+          where id = $1
+        returning sessao_versao`,
+        [usuarioId, senhaHash],
+      );
+      await db.query('update core.sessao set revogado_em = $2 where usuario_id = $1 and revogado_em is null', [usuarioId, agora]);
+      return Number(r.rows[0]?.sessao_versao ?? 0);
+    },
+    async gravarSenhaTemporaria(usuarioId, hash, criadaEm, expiraEm) {
+      await db.query('update core.usuario set senha_temporaria_hash = $2, senha_temporaria_criada_em = $3, senha_temporaria_expira_em = $4 where id = $1', [usuarioId, hash, criadaEm, expiraEm]);
+    },
+    async descartarSenhaTemporaria(usuarioId) {
+      await db.query('update core.usuario set senha_temporaria_hash = null, senha_temporaria_criada_em = null, senha_temporaria_expira_em = null where id = $1 and senha_temporaria_hash is not null', [usuarioId]);
     },
   };
 }

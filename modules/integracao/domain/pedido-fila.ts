@@ -395,6 +395,8 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
   if (item === null || item.removido_em !== null) {
     return falha('pedido_desconhecido', 'O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.');
   }
+  // T-0114: `cancelamento_recusado` não é estado do pedido (a rota usa `aplicarCancelamentoRecusado`); nunca chega aqui pela rota
+  if (retorno.status === 'cancelamento_recusado') return falha('transicao_invalida', 'cancelamento_recusado não muda o estado do pedido; use o fluxo da recusa de cancelamento.', 'status');
   let de: EstadoPedidoErp = item.estado;
   if (de === 'pendente') {
     if (item.tentativas === 0) return falha('pedido_nao_entregue', 'Este pedido ainda não foi entregue ao Conector (GET /pedidos/pendentes). Busque os pedidos pendentes antes de enviar o retorno.');
