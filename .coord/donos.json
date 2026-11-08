@@ -31,6 +31,10 @@
       "dono": "engenheiro-software"
     },
     {
+      "padrao": ".coord/diario/corretor-redundancias.md",
+      "dono": "corretor-redundancias"
+    },
+    {
       "padrao": ".coord/**",
       "dono": "gerente-projetos"
     },
@@ -101,6 +105,10 @@
     {
       "padrao": "docs/design/**",
       "dono": "designer-ux"
+    },
+    {
+      "padrao": "docs/qualidade/redundancias/**",
+      "dono": "corretor-redundancias"
     },
     {
       "padrao": "docs/**",

@@ -25,6 +25,9 @@ export const AGENTES = [
   'modulo-pesquisa',
   'modulo-treinamento',
   'modulo-integracao',
+  // T-0123: engenheiro sênior de testes e otimização; audita redundâncias e só escreve em
+  // docs/qualidade/redundancias/** (donos.json), no próprio diário/lidos e em recados novos.
+  'corretor-redundancias',
 ];
 /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
 export const PESSOAS = [...AGENTES, 'alexandre'];

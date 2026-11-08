@@ -1202,3 +1202,119 @@ test('anexos: recado normal continua igual ao lado de um anexo (exceção, desti
   assert.ok(v.some((l) => /fulano\/.* — destino de recado inválido: fulano$/.test(l)), v.join('\n'));
   assert.ok(v.some((l) => l.startsWith(`M ${RECADO_ENG} → dono: ninguém — recados são imutáveis`)), v.join('\n'));
 });
+
+// ───────────── T-0123: agente corretor-redundancias (donos, guardião Edit/Write, verificar e recados) ─────────────
+
+const REDUNDANCIAS = 'docs/qualidade/redundancias/2026-11-08-inicio-campo.md';
+
+test('T-0123 corretor-redundancias: donos.json real dá a ele só docs/qualidade/redundancias/** e o próprio diário', () => {
+  const regras = carregarDonos(join(AQUI, '..'));
+  assert.deepEqual(donoDaMudanca(REDUNDANCIAS, regras), { tipo: 'comum', dono: 'corretor-redundancias' });
+  assert.deepEqual(donoDaMudanca('docs/qualidade/redundancias/catalogo.md', regras), { tipo: 'comum', dono: 'corretor-redundancias' });
+  assert.deepEqual(donoDaMudanca('docs/qualidade/outra-coisa.md', regras), { tipo: 'comum', dono: 'gerente-projetos' }, 'só a subpasta redundancias é dele');
+  assert.deepEqual(donoDaMudanca('.coord/diario/corretor-redundancias.md', regras), { tipo: 'diario', dono: 'corretor-redundancias' });
+  assert.equal(remetenteDoRecado('R-20261108-120000-corretor-redundancias.md'), 'corretor-redundancias');
+  assert.equal(remetenteDoRecado('R-20261108-120000-2-corretor-redundancias.md'), 'corretor-redundancias');
+
+  const raiz = mkdtempSync(join(tmpdir(), 'coord-corretor-'));
+  temporarios.push(raiz);
+  const pode = (rel, ferramenta = 'Write', conteudo) => podeAlterar({ agente: 'corretor-redundancias', ferramenta, rel, raiz, regras, conteudo });
+  for (const ferramenta of ['Write', 'Edit']) {
+    assert.equal(pode(REDUNDANCIAS, ferramenta).ok, true, `${ferramenta} no relatório`);
+    assert.equal(pode('docs/qualidade/redundancias/catalogo.md', ferramenta).ok, true, `${ferramenta} no catálogo`);
+    assert.equal(pode('.coord/diario/corretor-redundancias.md', ferramenta).ok, true, `${ferramenta} no diário`);
+    assert.equal(pode('.coord/lidos/corretor-redundancias.txt', ferramenta).ok, true, `${ferramenta} nos lidos`);
+  }
+  // Fora de docs/qualidade/redundancias/**: bloqueado, com o dono e a dica do recado.
+  for (const [rel, dono] of [
+    ['modules/core/app/inicio.tsx', 'modulo-core'],
+    ['modules/vendedor/app/pedidos.tsx', 'modulo-vendedor'],
+    ['packages/ui/src/mobile/cartao.tsx', 'designer-ux'],
+    ['docs/produto/03-regras-e-permissoes.md', 'gerente-projetos'],
+    ['docs/qualidade/outra-coisa.md', 'gerente-projetos'],
+    ['.coord/quadro.md', 'gerente-projetos'],
+    ['.claude/agents/corretor-redundancias.md', 'alexandre'],
+    ['.coord/donos.json', 'alexandre'],
+    ['scripts/coord.mjs', 'alexandre'],
+  ]) {
+    const r = pode(rel);
+    assert.equal(r.ok, false, rel);
+    assert.equal(r.dono, dono, rel);
+    assert.match(r.motivo, new RegExp(`pertence a ${dono}`), rel);
+  }
+  assert.match(pode('modules/core/app/inicio.tsx').motivo, /enviar --de corretor-redundancias --para modulo-core --tipo pedido/);
+  assert.equal(pode('.coord/diario/modulo-core.md').ok, false, 'diário de outro agente');
+  // Recado novo dele (para outro) e recado de outro para ele: aceitos; em nome de outro, não.
+  const recadoDele = '---\nid: R-20261108-120000-corretor-redundancias\nde: corretor-redundancias\npara: [modulo-core]\n---\n# RD-0001\n';
+  assert.deepEqual(pode('.coord/recados/modulo-core/R-20261108-120000-corretor-redundancias.md', 'Write', recadoDele), { ok: true });
+  assert.equal(pode('.coord/recados/modulo-core/R-20261108-120000-modulo-core.md').ok, false, 'nome com outro remetente');
+  const emNomeDeOutro = recadoDele.replace('de: corretor-redundancias', 'de: modulo-vendedor');
+  assert.match(pode('.coord/recados/modulo-core/R-20261108-120001-corretor-redundancias.md', 'Write', emNomeDeOutro).motivo, /em nome de outro/);
+  assert.deepEqual(podeAlterar({ agente: 'modulo-core', ferramenta: 'Write', rel: '.coord/recados/corretor-redundancias/R-20261108-120002-modulo-core.md', raiz, regras }), { ok: true }, 'destino corretor-redundancias é válido');
+});
+
+test('T-0123 corretor-redundancias: verificar acusa a escrita dele fora de docs/qualidade/redundancias/**', () => {
+  const dir = criarRepoReal();
+  git(dir, 'checkout', '-q', '-b', 'corretor-redundancias/T-0124-inicio-campo');
+  escrever(dir, REDUNDANCIAS, '# Auditoria\n');
+  escrever(dir, 'docs/qualidade/redundancias/catalogo.md', '| ID |\n');
+  escrever(dir, '.coord/diario/corretor-redundancias.md', '2026-11-08 — T-0124 — auditoria\n');
+  commitarCom(dir, 'T-0124: relatório', 'corretor-redundancias');
+  const ok = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(ok.codigo, 0, ok.tudo);
+  assert.match(ok.saida, /nenhuma violação para corretor-redundancias/);
+
+  mudar(dir, 'modules/core/app/lib/cargas.ts');
+  commitarCom(dir, 'T-0124: corrigiu o Início por conta própria', 'corretor-redundancias');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  const v = secao(r.saida, 'VIOLAÇÃO');
+  assert.equal(v.length, 1, r.saida);
+  assert.match(v[0], /^M modules\/core\/app\/lib\/cargas\.ts → dono: modulo-core — fora dos caminhos de corretor-redundancias/);
+  assert.ok(secao(r.saida, 'OK').includes(`A ${REDUNDANCIAS}`), r.saida);
+});
+
+test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta passa pela CLI', () => {
+  const dir = criarRepoReal();
+  const env = { MACUXI_AGENTE: '' };
+  const vazia = rodar(dir, ['caixa', 'corretor-redundancias'], env);
+  assert.equal(vazia.codigo, 0, vazia.tudo);
+  assert.match(vazia.saida, /Caixa de corretor-redundancias: nada pendente/);
+
+  const ida = rodar(dir, ['enviar', '--de', 'engenheiro-software', '--para', 'corretor-redundancias', '--tipo', 'pedido', '--tarefa', 'T-0123',
+    '--assunto', 'Recado de teste (ida)', '--corpo', 'Contexto | Confirme o recebimento | Resposta com --encerra'], env);
+  assert.equal(ida.codigo, 0, ida.tudo);
+  const idIda = ida.saida.match(/Recado (R-\S+-engenheiro-software) enviado para corretor-redundancias/)?.[1];
+  assert.ok(idIda, ida.saida);
+  assert.match(readFileSync(join(dir, '.coord/recados/corretor-redundancias', `${idIda}.md`), 'utf8'), /^de: engenheiro-software\npara: \[corretor-redundancias\]$/m);
+  const caixa = rodar(dir, ['caixa', 'corretor-redundancias'], env);
+  assert.match(caixa.saida, /Caixa de corretor-redundancias: 1 exigem ação, 0 informativos não lidos/);
+  assert.match(caixa.saida, new RegExp(`${idIda}\\s+\\[pedido\\] de engenheiro-software`));
+
+  const volta = rodar(dir, ['enviar', '--de', 'corretor-redundancias', '--para', 'engenheiro-software', '--cc', 'gerente-projetos', '--tipo', 'resposta',
+    '--responde-a', idIda, '--encerra', '--tarefa', 'T-0123', '--assunto', 'Recado de teste (volta)', '--corpo', 'Recebido.'], env);
+  assert.equal(volta.codigo, 0, volta.tudo);
+  const idVolta = volta.saida.match(/Recado (R-\S+-corretor-redundancias) enviado para engenheiro-software, gerente-projetos \(cc\)/)?.[1];
+  assert.ok(idVolta, volta.saida);
+  const texto = readFileSync(join(dir, '.coord/recados/engenheiro-software', `${idVolta}.md`), 'utf8');
+  assert.match(texto, /^de: corretor-redundancias$/m);
+  assert.match(texto, new RegExp(`^responde_a: ${idIda}$`, 'm'));
+  assert.match(texto, /^encerra: true$/m);
+
+  assert.match(rodar(dir, ['caixa', 'corretor-redundancias'], env).saida, /nada pendente/, 'o pedido foi encerrado pela resposta');
+  const doEng = rodar(dir, ['caixa', 'engenheiro-software'], env).saida;
+  assert.match(doEng, new RegExp(`${idVolta}\\s+\\[resposta\\] de corretor-redundancias`));
+  const fio = rodar(dir, ['fio', idIda], env);
+  assert.equal(fio.codigo, 0, fio.tudo);
+  assert.match(fio.saida, /engenheiro-software → corretor-redundancias {2}\[pedido\]/);
+  assert.match(fio.saida, /corretor-redundancias → engenheiro-software {2}\[resposta, encerra\]/);
+  const lido = rodar(dir, ['lido', 'corretor-redundancias', idIda], env);
+  assert.equal(lido.codigo, 0, lido.tudo);
+
+  // verificar: o recado novo e os lidos dele são exceções do protocolo, sem violação.
+  const v = rodar(dir, ['verificar', 'corretor-redundancias']);
+  assert.equal(v.codigo, 0, v.tudo);
+  const exc = secao(v.saida, 'Exceções do protocolo').join('\n');
+  assert.match(exc, new RegExp(`A \\.coord/recados/engenheiro-software/${idVolta}\\.md — recado novo para engenheiro-software`));
+  assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
+});

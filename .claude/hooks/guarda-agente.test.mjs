@@ -284,6 +284,35 @@ test('hook (v4): subagente numa sessão com MACUXI_AGENTE=alexandre continua res
   }
 });
 
+test('hook (T-0123): corretor-redundancias só escreve em docs/qualidade/redundancias/**, no próprio diário e em recado novo', () => {
+  const dir = criarRepo();
+  // donos.json real (com a regra do corretor), como no repositório
+  writeFileSync(join(dir, '.coord', 'donos.json'), readFileSync(join(RAIZ_REAL, '.coord', 'donos.json'), 'utf8'));
+  // Subagente local (como o gerente o chama): todos os casos.
+  const sub = { entrada: { agent_type: 'corretor-redundancias', agent_id: 'sub-cr' } };
+  for (const f of ['docs/qualidade/redundancias/2026-11-08-inicio-campo.md', 'docs/qualidade/redundancias/catalogo.md', '.coord/diario/corretor-redundancias.md', '.coord/lidos/corretor-redundancias.txt', '.coord/recados/modulo-core/R-20261108-120000-corretor-redundancias.md']) {
+    const r = editar(dir, f, sub);
+    assert.equal(r.codigo, 0, `${f}: ${r.erro}`);
+  }
+  for (const f of ['modules/core/a.ts', 'apps/api/x.ts', 'docs/qualidade/outra-coisa.md', 'docs/produto/03-regras-e-permissoes.md', '.coord/quadro.md', '.coord/donos.json', '.claude/agents/corretor-redundancias.md', '.coord/diario/modulo-core.md', '.coord/recados/modulo-core/R-20261108-120000-modulo-core.md']) {
+    const r = editar(dir, f, sub);
+    assert.equal(r.codigo, 2, `${f} deveria ser bloqueado`);
+    assert.match(r.erro, /BLOQUEADO/);
+  }
+  assert.match(editar(dir, 'modules/core/a.ts', sub).erro, /pertence a modulo-core\. deixe um recado: node scripts\/coord\.mjs enviar --de corretor-redundancias --para modulo-core/);
+  assert.equal(bash(dir, 'echo "# RD" > docs/qualidade/redundancias/relatorio.md', sub).codigo, 0, 'Bash no próprio caminho');
+  assert.equal(bash(dir, 'echo x > modules/core/a.ts', sub).codigo, 2, 'Bash fora');
+  assert.equal(bash(dir, 'sed -i s/a/b/ apps/api/x.ts', sub).codigo, 2, 'sed -i fora');
+  assert.equal(bash(dir, 'cp docs/qualidade/redundancias/relatorio.md docs/produto/copia.md', sub).codigo, 2, 'cp para fora');
+  // Na nuvem e como sessão de agente sem agent_id: mesma fronteira.
+  for (const o of [{ entrada: sub.entrada, env: NUVEM }, { entrada: { agent_type: 'corretor-redundancias' } }]) {
+    const quem = o.env ? 'nuvem' : 'sessão sem agent_id';
+    assert.equal(editar(dir, 'docs/qualidade/redundancias/catalogo.md', o).codigo, 0, quem);
+    assert.equal(editar(dir, 'modules/core/a.ts', o).codigo, 2, quem);
+    assert.equal(bash(dir, 'echo x > docs/produto/x.md', o).codigo, 2, quem);
+  }
+});
+
 // ───────────────────────── Parte 3: cache da identificação por HEAD ─────────────────────────
 
 test('commitsDoBranch: cache por HEAD num arquivo temporário (só refaz o git log quando HEAD ou a base mudam)', () => {
