@@ -4,10 +4,18 @@
  * Dois modos de feriado:
  *  - Funções da Fase M (`isBusinessDay`, `businessDays`): os feriados vêm SÓ do parâmetro (lista da empresa); os
  *    nacionais não entram sozinhos. Assinatura e comportamento mantidos (Gestor, Treinamento e Promotor usam).
- *  - Funções de prazo (T-0105; RN-GES-03: `ehFeriado`, `ehDiaUtilSegSex`, `somarDiasUteis`, `diasUteisEntre`,
- *    `prazoEmDiasUteis`): semana de segunda a sexta. Com a lista do tenant INFORMADA (mesmo `[]`), pulam os feriados
- *    nacionais (`./feriados`) e os da lista; com a lista OMITIDA (`undefined`), só pulam sábado e domingo.
- *    A lista do tenant são datas civis 'AAAA-MM-DD' já no fuso do tenant; o calendário não sabe de onde ela vem.
+ *  - Funções de prazo (T-0105; RN-GES-03: `ehFeriado`, `ehDiaUtilDoTenant`, `somarDiasUteis`, `diasUteisEntre`,
+ *    `prazoEmDiasUteis`): dia útil = dia da SEMANA ÚTIL do tenant e, com a lista de feriados do tenant INFORMADA
+ *    (mesmo `[]`), fora dos feriados nacionais (`./feriados`) e dos da lista; com a lista OMITIDA (`undefined`), só a
+ *    semana conta. A lista do tenant são datas civis 'AAAA-MM-DD' já no fuso do tenant; o calendário não sabe de onde
+ *    ela vem.
+ *
+ * Semana útil (decisão do dono do produto, T-0105): padrão segunda a sexta (`DIAS_UTEIS_PADRAO`) em todo o sistema; o
+ * tenant pode alterá-la no BKO. Convenção 0 = domingo … 6 = sábado, a mesma de `Date.getUTCDay` e do parâmetro do Core
+ * `metas.dias_uteis_semana` (modules/core/contracts/inicio-parametros.ts). O Gestor guarda ISO 1..7 (1 = segunda,
+ * 7 = domingo) em `horario_comercial.dias_semana` (modules/gestor/contracts/parametros.ts) e converte do lado dele
+ * (`iso % 7`) antes de chamar estas funções. Semana omitida = padrão; informada = inteiros 0..6, ao menos um, sem
+ * repetição (senão erro).
  */
 import { ehFeriadoNacional, exigirDataCivil, somarDias } from './feriados';
 
@@ -79,12 +87,34 @@ export function diffDays(a: string, b: string): number {
 
 // ===== T-0105 / RN-GES-03 — dias úteis com feriados (nacionais + tenant) =====
 
-/** Teto de um prazo: ≈ 10 anos de dias úteis (a API revalida; evita laço enorme com entrada hostil). */
+/** Teto de um prazo: ≈ 10 anos de dias úteis na semana padrão; com semana de 1 dia, ≤ 18.200 voltas (a API revalida). */
 const MAX_DIAS_UTEIS = 2_600;
 /** Teto do intervalo de `diasUteisEntre` em dias civis (≈ 20 anos). */
 const MAX_DIAS_CIVIS = 7_305;
 
-/** Conjunto validado dos feriados do tenant, ou `null` quando a lista não foi informada (modo só fim de semana). */
+/** Semana útil padrão de todo o sistema: segunda a sexta (0 = domingo … 6 = sábado). Congelada. */
+export const DIAS_UTEIS_PADRAO: readonly number[] = Object.freeze([1, 2, 3, 4, 5]);
+
+/** Semana útil validada como tabela por dia da semana (índice = `getUTCDay`). */
+type SemanaUtil = readonly boolean[];
+const SEMANA_PADRAO: SemanaUtil = Object.freeze([false, true, true, true, true, true, false]);
+
+function semanaUtil(diasUteisSemana: readonly number[] | undefined): SemanaUtil {
+  if (diasUteisSemana === undefined) return SEMANA_PADRAO;
+  if (!Array.isArray(diasUteisSemana)) throw new TypeError('Informe a semana útil como lista de dias de 0 (domingo) a 6 (sábado).');
+  if (diasUteisSemana.length === 0) throw new RangeError('Semana útil vazia: informe ao menos um dia de 0 (domingo) a 6 (sábado).');
+  const tabela = [false, false, false, false, false, false, false];
+  for (const d of diasUteisSemana) {
+    if (!Number.isInteger(d) || d < 0 || d > 6) {
+      throw new RangeError(`Dia da semana inválido: ${String(d)} (use inteiros de 0 = domingo a 6 = sábado).`);
+    }
+    if (tabela[d]) throw new RangeError(`Dia da semana repetido na semana útil: ${d}.`);
+    tabela[d] = true;
+  }
+  return tabela;
+}
+
+/** Conjunto validado dos feriados do tenant, ou `null` quando a lista não foi informada (modo só semana útil). */
 function conjuntoDoTenant(feriadosTenant: Iterable<string> | undefined): ReadonlySet<string> | null {
   if (feriadosTenant === undefined) return null;
   if (typeof feriadosTenant === 'string') throw new TypeError('Informe os feriados do tenant como lista de datas AAAA-MM-DD.');
@@ -94,9 +124,8 @@ function conjuntoDoTenant(feriadosTenant: Iterable<string> | undefined): Readonl
 }
 
 /** `data` já validada. */
-function ehUtil(data: string, tenant: ReadonlySet<string> | null): boolean {
-  const dow = new Date(`${data}T12:00:00Z`).getUTCDay();
-  if (dow === 0 || dow === 6) return false;
+function ehUtil(data: string, tenant: ReadonlySet<string> | null, semana: SemanaUtil): boolean {
+  if (!semana[new Date(`${data}T12:00:00Z`).getUTCDay()]) return false;
   return tenant === null || !(tenant.has(data) || ehFeriadoNacional(data));
 }
 
@@ -107,12 +136,13 @@ export function ehFeriado(data: string, feriadosTenant: Iterable<string> = []): 
 }
 
 /**
- * Dia útil de segunda a sexta. Lista informada (mesmo `[]`): fora dos feriados nacionais e do tenant; omitida: só
- * fim de semana não é útil. Para semana configurável do tenant (ex.: sábado útil), o módulo combina `ehFeriado` com a
- * semana dele.
+ * Dia útil do tenant: dia da semana útil (`diasUteisSemana`, padrão segunda a sexta) e, com a lista de feriados
+ * informada (mesmo `[]`), fora dos feriados nacionais e do tenant; lista omitida: só a semana conta.
  */
-export function ehDiaUtilSegSex(data: string, feriadosTenant?: Iterable<string>): boolean {
-  return ehUtil(exigirDataCivil(data), conjuntoDoTenant(feriadosTenant));
+export function ehDiaUtilDoTenant(data: string, feriadosTenant?: Iterable<string>, diasUteisSemana?: readonly number[]): boolean {
+  exigirDataCivil(data);
+  const semana = semanaUtil(diasUteisSemana);
+  return ehUtil(data, conjuntoDoTenant(feriadosTenant), semana);
 }
 
 function exigirDiasUteis(dias: number): number {
@@ -123,16 +153,18 @@ function exigirDiasUteis(dias: number): number {
 
 /**
  * Data civil do `dias`-ésimo dia útil DEPOIS de `data` (a própria data não conta; `dias = 0` devolve `data`, útil ou
- * não). Sexta + 1 = segunda; véspera de feriado + 1 pula o feriado (quando a lista é informada).
+ * não). Na semana padrão, sexta + 1 = segunda; com sábado útil, sexta + 1 = sábado. Véspera de feriado + 1 pula o
+ * feriado (quando a lista é informada). Termina sempre: a semana tem ao menos um dia e a lista de feriados é finita.
  */
-export function somarDiasUteis(data: string, dias: number, feriadosTenant?: Iterable<string>): string {
+export function somarDiasUteis(data: string, dias: number, feriadosTenant?: Iterable<string>, diasUteisSemana?: readonly number[]): string {
   exigirDataCivil(data);
   exigirDiasUteis(dias);
+  const semana = semanaUtil(diasUteisSemana);
   const tenant = conjuntoDoTenant(feriadosTenant);
   let dia = data;
   for (let faltam = dias; faltam > 0; ) {
     dia = somarDias(dia, 1);
-    if (ehUtil(dia, tenant)) faltam--;
+    if (ehUtil(dia, tenant, semana)) faltam--;
   }
   return dia;
 }
@@ -141,22 +173,25 @@ export function somarDiasUteis(data: string, dias: number, feriadosTenant?: Iter
  * Dias úteis no intervalo (a, b] — `a` não conta, `b` conta. Inverso de `somarDiasUteis`:
  * `diasUteisEntre(a, somarDiasUteis(a, n)) === n`. Negativo quando `b` < `a` (−diasUteisEntre(b, a)).
  */
-export function diasUteisEntre(a: string, b: string, feriadosTenant?: Iterable<string>): number {
+export function diasUteisEntre(a: string, b: string, feriadosTenant?: Iterable<string>, diasUteisSemana?: readonly number[]): number {
   exigirDataCivil(a);
   exigirDataCivil(b);
+  const semana = semanaUtil(diasUteisSemana);
   const tenant = conjuntoDoTenant(feriadosTenant);
   const [ini, fim, sinal] = a <= b ? [a, b, 1] : [b, a, -1];
   if (diffDays(ini, fim) > MAX_DIAS_CIVIS) throw new RangeError(`Intervalo grande demais: até ${MAX_DIAS_CIVIS} dias.`);
   let n = 0;
-  for (let dia = somarDias(ini, 1); dia <= fim; dia = somarDias(dia, 1)) if (ehUtil(dia, tenant)) n++;
+  for (let dia = somarDias(ini, 1); dia <= fim; dia = somarDias(dia, 1)) if (ehUtil(dia, tenant, semana)) n++;
   return n === 0 ? 0 : sinal * n; // sem -0
 }
 
 export interface OpcoesPrazo {
   /** Fuso IANA do tenant (padrão America/Manaus): define a data civil do instante de início. */
   fuso?: string;
-  /** Feriados do tenant (datas civis no fuso do tenant). Omitido = só fim de semana (sem feriado nacional). */
+  /** Feriados do tenant (datas civis no fuso do tenant). Omitido = só a semana útil conta (sem feriado nacional). */
   feriados?: Iterable<string>;
+  /** Semana útil do tenant, 0 = domingo … 6 = sábado. Omitida = `DIAS_UTEIS_PADRAO` (segunda a sexta). */
+  diasUteisSemana?: readonly number[];
 }
 
 /** ISO 8601 com data, hora e fuso explícito (Z ou ±hh:mm): sem fuso o JS leria no fuso do servidor. */
@@ -181,5 +216,5 @@ export function prazoEmDiasUteis(inicio: Date | string | number, dias: number, o
   } catch {
     throw new RangeError(`Fuso inválido: ${fuso} (use um fuso IANA, ex.: America/Manaus).`);
   }
-  return somarDiasUteis(data, dias, opcoes.feriados);
+  return somarDiasUteis(data, dias, opcoes.feriados, opcoes.diasUteisSemana);
 }

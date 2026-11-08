@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DIAS_UTEIS_PADRAO,
   businessDays,
   diasUteisEntre,
   diffDays,
-  ehDiaUtilSegSex,
+  ehDiaUtilDoTenant,
   ehFeriado,
   isBusinessDay,
   localDate,
@@ -43,11 +44,12 @@ describe('API pública de @macuxi/comum (T-0105)', () => {
     const indice = await import('./index');
     const calendario = await import('./calendar');
     for (const nome of ['pascoa', 'feriadosNacionais', 'feriadosNacionaisDoAno', 'ehFeriadoNacional', 'nomeDoFeriadoNacional',
-      'ehDataCivil', 'exigirDataCivil', 'ehFeriado', 'ehDiaUtilSegSex', 'somarDiasUteis', 'diasUteisEntre', 'prazoEmDiasUteis']) {
+      'ehDataCivil', 'exigirDataCivil', 'ehFeriado', 'ehDiaUtilDoTenant', 'somarDiasUteis', 'diasUteisEntre', 'prazoEmDiasUteis']) {
       expect(typeof (indice as Record<string, unknown>)[nome], nome).toBe('function');
       expect(typeof (calendario as Record<string, unknown>)[nome], nome).toBe('function');
     }
     expect('somarDias' in indice).toBe(false);
+    expect(indice.DIAS_UTEIS_PADRAO).toBe(calendario.DIAS_UTEIS_PADRAO);
   });
 });
 
@@ -68,26 +70,26 @@ describe('ehFeriado', () => {
   });
 });
 
-describe('ehDiaUtilSegSex', () => {
+describe('ehDiaUtilDoTenant', () => {
   it('sem lista = comportamento antigo (feriado nacional conta como útil)', () => {
-    expect(ehDiaUtilSegSex('2026-02-16')).toBe(true);
-    expect(ehDiaUtilSegSex('2026-02-14')).toBe(false); // sábado
-    expect(ehDiaUtilSegSex('2026-02-15')).toBe(false); // domingo
+    expect(ehDiaUtilDoTenant('2026-02-16')).toBe(true);
+    expect(ehDiaUtilDoTenant('2026-02-14')).toBe(false); // sábado
+    expect(ehDiaUtilDoTenant('2026-02-15')).toBe(false); // domingo
   });
   it('com [] pula os nacionais', () => {
-    expect(ehDiaUtilSegSex('2026-02-16', [])).toBe(false);
-    expect(ehDiaUtilSegSex('2026-04-03', [])).toBe(false);
-    expect(ehDiaUtilSegSex('2026-02-18', [])).toBe(true); // Quarta de Cinzas
+    expect(ehDiaUtilDoTenant('2026-02-16', [])).toBe(false);
+    expect(ehDiaUtilDoTenant('2026-04-03', [])).toBe(false);
+    expect(ehDiaUtilDoTenant('2026-02-18', [])).toBe(true); // Quarta de Cinzas
   });
   it('com lista do tenant pula também os do tenant', () => {
-    expect(ehDiaUtilSegSex('2027-10-25', [])).toBe(true);
-    expect(ehDiaUtilSegSex('2027-10-25', ['2027-10-25'])).toBe(false);
-    expect(ehDiaUtilSegSex('2027-10-25', new Set(['2027-10-25']))).toBe(false); // qualquer Iterable
+    expect(ehDiaUtilDoTenant('2027-10-25', [])).toBe(true);
+    expect(ehDiaUtilDoTenant('2027-10-25', ['2027-10-25'])).toBe(false);
+    expect(ehDiaUtilDoTenant('2027-10-25', new Set(['2027-10-25']))).toBe(false); // qualquer Iterable
   });
   it('entrada inválida na lista do tenant dá erro', () => {
-    expect(() => ehDiaUtilSegSex('2027-10-26', ['2027-10-25', '25/10/2027'])).toThrow('Data inválida: 25/10/2027 (use AAAA-MM-DD).');
-    expect(() => ehDiaUtilSegSex('2027-10-26', ['2027-02-29'])).toThrow(/Data inválida/);
-    expect(() => ehDiaUtilSegSex('2027-10-26', '2027-10-25' as unknown as string[])).toThrow(/lista de datas/);
+    expect(() => ehDiaUtilDoTenant('2027-10-26', ['2027-10-25', '25/10/2027'])).toThrow('Data inválida: 25/10/2027 (use AAAA-MM-DD).');
+    expect(() => ehDiaUtilDoTenant('2027-10-26', ['2027-02-29'])).toThrow(/Data inválida/);
+    expect(() => ehDiaUtilDoTenant('2027-10-26', '2027-10-25' as unknown as string[])).toThrow(/lista de datas/);
   });
 });
 
@@ -181,5 +183,76 @@ describe('prazoEmDiasUteis (fuso do tenant)', () => {
     expect(() => prazoEmDiasUteis(Number.NaN, 1)).toThrow(/Instante inválido/);
     expect(() => prazoEmDiasUteis('2026-02-13T15:00:00Z', 1, { fuso: 'Marte/Base' })).toThrow(/Fuso inválido: Marte\/Base/);
     expect(() => prazoEmDiasUteis('2026-02-13T15:00:00Z', -1)).toThrow(/inteira e não negativa/);
+  });
+});
+
+// ===== Semana útil do tenant (decisão do dono do produto: padrão seg–sex, alterável no BKO) =====
+// 0 = domingo … 6 = sábado. 2026-11-06 sexta, 2026-11-07 sábado, 2026-11-09 segunda; 2027-04-30 sexta,
+// 2027-05-01 sábado (Dia do Trabalho), 2027-05-03 segunda.
+const SEG_SAB = [1, 2, 3, 4, 5, 6] as const;
+
+describe('semana útil do tenant', () => {
+  it('padrão = segunda a sexta, congelado', () => {
+    expect(DIAS_UTEIS_PADRAO).toEqual([1, 2, 3, 4, 5]);
+    expect(Object.isFrozen(DIAS_UTEIS_PADRAO)).toBe(true);
+    expect(ehDiaUtilDoTenant('2026-11-07')).toBe(false); // sábado
+    expect(ehDiaUtilDoTenant('2026-11-07', [], DIAS_UTEIS_PADRAO)).toBe(false);
+    expect(somarDiasUteis('2026-11-06', 1, [], DIAS_UTEIS_PADRAO)).toBe('2026-11-09');
+  });
+  it('segunda a sábado: sexta + 1 = sábado; sábado + 1 = segunda', () => {
+    expect(ehDiaUtilDoTenant('2026-11-07', [], SEG_SAB)).toBe(true);
+    expect(ehDiaUtilDoTenant('2026-11-08', [], SEG_SAB)).toBe(false); // domingo
+    expect(somarDiasUteis('2026-11-06', 1, [], SEG_SAB)).toBe('2026-11-07');
+    expect(somarDiasUteis('2026-11-07', 1, [], SEG_SAB)).toBe('2026-11-09');
+    expect(somarDiasUteis('2026-11-06', 1, undefined, SEG_SAB)).toBe('2026-11-07');
+  });
+  it('feriado nacional num sábado útil só é pulado com a lista informada', () => {
+    expect(ehDiaUtilDoTenant('2027-05-01', undefined, SEG_SAB)).toBe(true);
+    expect(ehDiaUtilDoTenant('2027-05-01', [], SEG_SAB)).toBe(false);
+    expect(somarDiasUteis('2027-04-30', 1, undefined, SEG_SAB)).toBe('2027-05-01');
+    expect(somarDiasUteis('2027-04-30', 1, [], SEG_SAB)).toBe('2027-05-03');
+    // feriado do tenant num sábado útil
+    expect(somarDiasUteis('2026-11-06', 1, ['2026-11-07'], SEG_SAB)).toBe('2026-11-09');
+  });
+  it('semana sem segunda (ter–sáb) e semana de um dia só', () => {
+    expect(somarDiasUteis('2026-11-07', 1, [], [2, 3, 4, 5, 6])).toBe('2026-11-10'); // sábado → terça
+    // só domingo: 08, 15 (Proclamação da República, feriado nacional), 22 e 29/11
+    expect(somarDiasUteis('2026-11-06', 2, undefined, [0])).toBe('2026-11-15');
+    expect(somarDiasUteis('2026-11-06', 2, [], [0])).toBe('2026-11-22');
+    expect(diasUteisEntre('2026-11-01', '2026-11-30', undefined, [0])).toBe(4);
+    expect(diasUteisEntre('2026-11-01', '2026-11-30', [], [0])).toBe(3);
+  });
+  it('prazoEmDiasUteis respeita a semana do tenant', () => {
+    // sexta 06/11 17:00 em Manaus
+    expect(prazoEmDiasUteis('2026-11-06T21:00:00Z', 1, { feriados: [], diasUteisSemana: SEG_SAB })).toBe('2026-11-07');
+    expect(prazoEmDiasUteis('2026-11-06T21:00:00Z', 1, { feriados: [] })).toBe('2026-11-09');
+    expect(prazoEmDiasUteis('2027-04-30T21:00:00Z', 1, { feriados: [], diasUteisSemana: SEG_SAB })).toBe('2027-05-03');
+  });
+  it('diasUteisEntre é coerente com somarDiasUteis numa semana custom', () => {
+    for (const semana of [SEG_SAB, [0, 3], [6]]) {
+      for (const lista of [undefined, [], ['2026-11-07', '2027-10-25']]) {
+        for (const a of ['2026-11-06', '2027-04-30', '2026-12-31']) {
+          for (let n = 0; n <= 30; n++) {
+            const b = somarDiasUteis(a, n, lista, semana);
+            expect(diasUteisEntre(a, b, lista, semana)).toBe(n);
+            expect(diasUteisEntre(b, a, lista, semana)).toBe(n === 0 ? 0 : -n);
+          }
+        }
+      }
+    }
+  });
+  it('semana inválida dá erro (sem laço infinito)', () => {
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [])).toThrow('Semana útil vazia: informe ao menos um dia de 0 (domingo) a 6 (sábado).');
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [1, 7])).toThrow('Dia da semana inválido: 7 (use inteiros de 0 = domingo a 6 = sábado).');
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [-1])).toThrow(/Dia da semana inválido: -1/);
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [1, 1.5])).toThrow(/Dia da semana inválido: 1.5/);
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [1, Number.NaN])).toThrow(/Dia da semana inválido: NaN/);
+    expect(() => somarDiasUteis('2026-11-06', 1, [], [1, 2, 1])).toThrow('Dia da semana repetido na semana útil: 1.');
+    expect(() => ehDiaUtilDoTenant('2026-11-06', [], [])).toThrow(/Semana útil vazia/);
+    expect(() => diasUteisEntre('2026-11-06', '2026-11-09', [], [8])).toThrow(/Dia da semana inválido/);
+    expect(() => prazoEmDiasUteis('2026-11-06T21:00:00Z', 1, { diasUteisSemana: [] })).toThrow(/Semana útil vazia/);
+    expect(() => somarDiasUteis('2026-11-06', 1, [], '12345' as unknown as number[])).toThrow(/lista de dias/);
+    // semana inválida dá erro mesmo com 0 dias (a entrada é validada antes)
+    expect(() => somarDiasUteis('2026-11-06', 0, [], [])).toThrow(/Semana útil vazia/);
   });
 });
