@@ -1,0 +1,1012 @@
+diff --git a/.claude/hooks/guarda-bash-lib.mjs b/.claude/hooks/guarda-bash-lib.mjs
+index 90d0bf0a..070eac8c 100644
+--- a/.claude/hooks/guarda-bash-lib.mjs
++++ b/.claude/hooks/guarda-bash-lib.mjs
+@@ -11,12 +11,18 @@
+ // Depois do comando (PostToolUse): compara o git status (+ data e tamanho de cada arquivo) de
+ // antes × depois. Só bloqueia e manda desfazer ALVO EVIDENTE do comando que estava limpo antes;
+ // o resto (outro agente em paralelo na mesma árvore) vira aviso não bloqueante. Não desfaz nada.
++// Junções de recados (ADR 0035, T-0139): alvo no clone de recados (C:/macuxifdv-recados/recados/...) é tratado como
++// .coord/recados/... (mesmas regras); o resto do clone e o git que escreve nele são bloqueados (só o coord.mjs e o
++// sincronizar-recados.ps1 mexem lá); o git status do clone entra na foto do PostToolUse com os caminhos de .coord/.
+ import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
+ import { execFileSync } from 'node:child_process';
+ import { posix, join } from 'node:path';
+ import { tmpdir } from 'node:os';
+ import { createHash } from 'node:crypto';
+-import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado } from '../../scripts/coord-lib.mjs';
++import {
++  PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado,
++  relativoPorJuncao, MOTIVO_CLONE_DE_RECADOS,
++} from '../../scripts/coord-lib.mjs';
+ 
+ // ───────────────────────────── caminhos ─────────────────────────────
+ 
+@@ -239,6 +245,11 @@ export const SO_LEITURA = new Set([
+   'realpath', 'readlink', 'jq', 'sleep', 'seq', 'expr', 'export', 'set', 'unset', 'ps',
+ ]);
+ export const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
++/**
++ * Git no clone de recados (ADR 0035): só estes subcomandos passam para os agentes. Mais estrito que GIT_SO_LEITURA
++ * (sem config, remote, branch e tag, que gravam): commit, pull, push, reset, rebase... são do sincronizar-recados.ps1.
++ */
++export const GIT_LEITURA_NO_CLONE = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'fetch', 'reflog', 'version', 'help', 'rev-list', 'for-each-ref', 'show-ref', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
+ /** Subcomandos de scripts/coord.mjs que só leem (caixa, ler, fio, dono, pendencias, verificar). */
+ export const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
+ /** pnpm/npm/yarn que só consultam (view, info, why, list...). */
+@@ -328,6 +339,7 @@ function alvosGit(args, ctx, res) {
+   }
+   const sub = args[i]?.valor;
+   if (!sub || args[i].incerto) return;
++  res.gitSub = sub;
+   if (GIT_SO_LEITURA.has(sub)) { res.soLeitura = !res.temRedir; return; }
+   const resto = args.slice(i + 1);
+   const iSep = resto.findIndex((a) => a.valor === '--');
+@@ -374,6 +386,7 @@ function alvosGit(args, ctx, res) {
+     case 'clean': {
+       const o = opcoes(resto, 'e', ['--exclude']);
+       if (!o.tem('-f', '--force') || o.tem('-n', '--dry-run', '-i', '--interactive')) return;
++      if (o.tem('-x', '-X')) res.limpaIgnorados = true; // ADR 0035: os ignorados incluem as junções de recados
+       for (const a of o.pos.length ? o.pos : [{ valor: '.', incerto: false }]) push(a, 'nao-rastreados'); // só a pasta atual
+       return;
+     }
+@@ -661,13 +674,14 @@ function soLeituraPorArgumentos(nome, args) {
+  * @param {any[]} p.regras      regras de donos (carregarDonos)
+  * @param {string[]} [p.somenteLeitura]  pastas fora do repo que ninguém altera
+  * @param {Set<string>} [p.permitidos]   "acao:rel" que o agente pode desfazer (acusados no PostToolUse)
++ * @param {{mapas: {rel: string, real: string}[], clone: string|null}} [p.juncoes]  junções de recados (ADR 0035)
+  * @param {{existe(abs: string): boolean, ehDiretorio(abs: string): boolean, sujos(): {xy: string, rel: string}[], rastreadosSob(rel: string): string[], ler?(abs: string): string|null}} p.amb
+  * @returns {{violacoes: {rel: string, motivo: string}[], soLeitura: boolean, alvos: {rel: string, sub: boolean}[], instala: boolean}}
+  *   alvos: ALVOS EVIDENTES do comando (arquivo exato ou, com sub, a pasta inteira), dentro do
+  *   repositório, de qualquer dono. O PostToolUse só acusa e manda desfazer o que estiver aqui.
+  *   instala: pnpm/npm/yarn install/add/remove/update (pode reescrever o pnpm-lock.yaml).
+  */
+-export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLeitura = [], permitidos = new Set(), amb }) {
++export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLeitura = [], permitidos = new Set(), amb, juncoes = { mapas: [], clone: null } }) {
+   const violacoes = [];
+   const vistos = new Set();
+   const alvos = new Map(); // rel → sub
+@@ -688,6 +702,12 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
+     if (!r.ok) acusar(rel, r.motivo);
+   };
+   const minus = (x) => barras(x).toLowerCase().replace(/\/+$/, '');
++  // Pasta no clone de recados: o caminho de verdade (C:/macuxifdv-recados/...) ou a junção (.coord/recados, .coord/lidos).
++  const dentroDoClone = (abs) => {
++    if (relativoPorJuncao(abs, juncoes)) return true;
++    const r = relativoDaRaiz(abs, raiz);
++    return r !== null && (juncoes.mapas || []).some((m) => r === m.rel || r.startsWith(`${m.rel}/`));
++  };
+ 
+   const analisar = (texto, cwdInicial, profundidade) => {
+     let cwdAtual = cwdInicial;
+@@ -707,11 +727,26 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
+       if ('cd' in r) { cwdAtual = r.cd == null ? null : abs(r.cd); continue; }
+       if (r.subcomando && profundidade < 3) analisar(r.subcomando, cwdAtual, profundidade + 1);
+       const cwdCmd = r.cwdGit === undefined ? cwdAtual : r.cwdGit === null ? null : abs(r.cwdGit);
++      // ADR 0035: git que grava dentro do clone de recados (commit, pull, push, reset...) é só do sincronizar-recados.ps1.
++      if (r.gitSub && !GIT_LEITURA_NO_CLONE.has(r.gitSub) && cwdCmd && dentroDoClone(cwdCmd)) {
++        soLeitura = false;
++        acusar(`git ${r.gitSub} @ ${cwdCmd}`, `git ${r.gitSub} no clone de recados: ${MOTIVO_CLONE_DE_RECADOS}`);
++      }
++      // ADR 0035: git clean -x/-X apaga ignorados, e as junções de recados são ignoradas no repositório de código.
++      if (r.limpaIgnorados && (juncoes.mapas || []).length) {
++        acusar('git clean -x', 'git clean -x/-X apagaria os recados e lidos pelas junções .coord/recados e .coord/lidos (ADR 0035); limpe sem -x ou só a pasta que precisa');
++      }
+       for (const t of r.alvos) {
+         if (t.alvo.incerto) continue; // em dúvida, não bloqueia (o PostToolUse confere)
+         const a = t.alvo.raiz ? barras(raiz).replace(/\/+$/, '') : abs(t.alvo.valor, cwdCmd);
+         if (!a) continue;
+-        const rel = relativoDaRaiz(a, raiz);
++        let rel = relativoDaRaiz(a, raiz);
++        if (rel === null) {
++          // ADR 0035: alvo no clone de recados (por fora da junção) = .coord/recados/... ou .coord/lidos/...
++          const j = relativoPorJuncao(a, juncoes);
++          if (j?.clone) { acusar(a, `"${t.alvo.valor}": ${MOTIVO_CLONE_DE_RECADOS}`); continue; }
++          if (j?.rel) rel = j.rel;
++        }
+         if (rel === null) {
+           const pasta = somenteLeitura.find((sl) => minus(a) === minus(sl) || minus(a).startsWith(minus(sl) + '/'));
+           if (pasta) acusar(a, `"${t.alvo.valor}" está numa pasta somente leitura (${pasta}). Copie o que precisar para dentro do repositório.`);
+@@ -791,16 +826,49 @@ function git(raiz, args) {
+ }
+ 
+ /** git status: [{xy, rel}] (sem renomeações; inclui não rastreados). null se o git falhar. */
+-export function lerStatus(raiz) {
++export function lerStatus(raiz, juncoes) {
+   const saida = git(raiz, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames']);
+   if (saida === null) return null;
+-  return saida.split('\0').filter(Boolean).map((e) => ({ xy: e.slice(0, 2), rel: e.slice(3) }));
++  const status = saida.split('\0').filter(Boolean).map((e) => ({ xy: e.slice(0, 2), rel: e.slice(3) }));
++  return [...status, ...statusDoClone(juncoes)];
++}
++
++/** Pasta de cada junção dentro do clone ("recados", "lidos") e o caminho dela no repositório de código (ADR 0035). */
++function pastasNoClone(juncoes) {
++  if (!juncoes?.clone) return [];
++  const semFim = (p) => barras(p).replace(/\/+$/, '');
++  const clone = semFim(juncoes.clone);
++  return (juncoes.mapas || [])
++    .map(({ rel, real }) => ({ rel, noClone: semFim(real).slice(clone.length + 1) }))
++    .filter((p) => p.noClone && !p.noClone.includes('..'));
++}
++
++/** Converte "recados/x/R.md" do clone em ".coord/recados/x/R.md"; null fora das pastas mapeadas. */
++export function doCloneParaRepo(caminho, juncoes) {
++  for (const p of pastasNoClone(juncoes)) {
++    if (caminho === p.noClone || caminho.startsWith(`${p.noClone}/`)) return `${p.rel}${caminho.slice(p.noClone.length)}`;
++  }
++  return null;
++}
++
++/**
++ * git status do clone de recados com os caminhos de .coord/ (ADR 0035): depois do corte as pastas são ignoradas no
++ * repositório de código, e o PostToolUse continua vendo recado criado, alterado ou apagado por comando opaco.
++ */
++export function statusDoClone(juncoes, ler = (dir, args) => git(dir, args)) {
++  const pastas = pastasNoClone(juncoes);
++  if (!pastas.length) return [];
++  const saida = ler(juncoes.clone, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--', ...pastas.map((p) => p.noClone)]);
++  if (!saida) return [];
++  return saida.split('\0').filter(Boolean)
++    .map((e) => ({ xy: e.slice(0, 2), rel: doCloneParaRepo(e.slice(3), juncoes) }))
++    .filter((e) => e.rel);
+ }
+ 
+ /** Ambiente real; o git status é lido uma vez só por execução. */
+-export function ambienteReal(raiz) {
++export function ambienteReal(raiz, juncoes) {
+   let st;
+-  const status = () => (st === undefined ? (st = lerStatus(raiz)) : st);
++  const status = () => (st === undefined ? (st = lerStatus(raiz, juncoes)) : st);
+   return {
+     status,
+     existe: (abs) => existsSync(abs),
+@@ -809,10 +877,28 @@ export function ambienteReal(raiz) {
+     ler: (abs) => {
+       try { return statSync(abs).size > 8 * 1024 * 1024 ? null : readFileSync(abs, 'utf8'); } catch { return null; }
+     },
+-    rastreadosSob: (rel) => (git(raiz, ['ls-files', '-z', '--', rel === '' ? '.' : rel]) || '').split('\0').filter(Boolean),
++    rastreadosSob: (rel) => [
++      ...(git(raiz, ['ls-files', '-z', '--', rel === '' ? '.' : rel]) || '').split('\0').filter(Boolean),
++      ...rastreadosNoClone(rel, juncoes),
++    ],
+   };
+ }
+ 
++/** Arquivos rastreados no clone de recados sob `rel` (do repositório de código), com os caminhos de .coord/. */
++function rastreadosNoClone(rel, juncoes) {
++  const sob = (x) => rel === '' || x === rel || x.startsWith(`${rel}/`);
++  const res = [];
++  for (const p of pastasNoClone(juncoes)) {
++    if (!(sob(p.rel) || rel.startsWith(`${p.rel}/`))) continue;
++    const lista = (git(juncoes.clone, ['ls-files', '-z', '--', p.noClone]) || '').split('\0').filter(Boolean);
++    for (const c of lista) {
++      const r = doCloneParaRepo(c, juncoes);
++      if (r && sob(r)) res.push(r);
++    }
++  }
++  return res;
++}
++
+ // ───────────────────────────── foto antes × depois (PostToolUse) ─────────────────────────────
+ 
+ /** [mtimeMs, tamanho] do arquivo; [null, null] se não existir. */
+diff --git a/.claude/hooks/guarda-bash.mjs b/.claude/hooks/guarda-bash.mjs
+index eb2ecff3..047d7021 100644
+--- a/.claude/hooks/guarda-bash.mjs
++++ b/.claude/hooks/guarda-bash.mjs
+@@ -47,10 +47,13 @@
+ //    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
+ //    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
+ //    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
++//  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do macuxifdv-recados, o alvo pelo
++//    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
++//    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
+ // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
+ import { readFileSync, statSync } from 'node:fs';
+ import { join } from 'node:path';
+-import { RAIZ, carregarDonos, agenteDaSessao } from '../../scripts/coord-lib.mjs';
++import { RAIZ, carregarDonos, agenteDaSessao, juncoesDeRecados } from '../../scripts/coord-lib.mjs';
+ import {
+   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
+   violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
+@@ -107,12 +110,14 @@ try {
+   process.exit(0); // donos.json ilegível: o guarda-donos/verificar acusam; aqui não trava o Bash
+ }
+ 
++const juncoes = juncoesDeRecados(RAIZ);
++
+ if (evento === 'PreToolUse') {
+-  const amb = ambienteReal(RAIZ);
++  const amb = ambienteReal(RAIZ, juncoes);
+   const acusados = lerJson(arquivoAcusados(entrada, agente), {});
+   const { violacoes, soLeitura, alvos, instala } = analisarComando({
+     comando, agente, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, regras, somenteLeitura,
+-    permitidos: permitidosDe(acusados), amb,
++    permitidos: permitidosDe(acusados), amb, juncoes,
+   });
+   if (violacoes.length) {
+     process.stderr.write(mensagemPre(agente, violacoes) + '\n');
+@@ -154,7 +159,7 @@ if (evento === 'PostToolUse' || evento === 'PostToolUseFailure') {
+   let inicio;
+   try { inicio = statSync(arq).mtimeMs; } catch { process.exit(0); }
+   apagarArquivo(arq);
+-  const status = lerStatus(RAIZ);
++  const status = lerStatus(RAIZ, juncoes);
+   if (!status) process.exit(0);
+   const arqAcusados = arquivoAcusados(entrada, agente);
+   const antes = lerJson(arqAcusados, {});
+diff --git a/.claude/hooks/guarda-donos.mjs b/.claude/hooks/guarda-donos.mjs
+index a68fc4d8..1111a71c 100644
+--- a/.claude/hooks/guarda-donos.mjs
++++ b/.claude/hooks/guarda-donos.mjs
+@@ -17,10 +17,15 @@
+ //  - "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
+ //  - Recado (guardião v5, T-0044): só arquivo novo cujo nome termina com o remetente (R-...-<agente>.md)
+ //    e, no Write, com "de: <agente>" no cabeçalho — nenhum agente grava "de: alexandre".
++//  - Junções de recados (ADR 0035, T-0139): o caminho por .coord/recados/... fica dentro da raiz (nada aqui usa
++//    realpath). O caminho de verdade no clone (C:/macuxifdv-recados/recados/...) volta a ser .coord/recados/...
++//    (mesmas regras) e o resto do clone (.git, .github, README) é bloqueado.
+ //  - sessão manual local (sem agente) → liberado. Desligar tudo: variável MACUXI_GUARDA=off.
+ import { readFileSync } from 'node:fs';
+-import { join } from 'node:path';
+-import { PESSOAS, RAIZ, caminhoRelativo, podeAlterar, agenteDaSessao } from '../../scripts/coord-lib.mjs';
++import { join, resolve } from 'node:path';
++import {
++  PESSOAS, RAIZ, caminhoRelativo, podeAlterar, agenteDaSessao, juncoesDeRecados, relativoPorJuncao, MOTIVO_CLONE_DE_RECADOS,
++} from '../../scripts/coord-lib.mjs';
+ 
+ function lerEntrada() {
+   return new Promise((ok) => {
+@@ -49,7 +54,13 @@ const alvo = ti.file_path || ti.notebook_path || ti.path;
+ if (!agente) process.exit(0); // sessão manual, sem agente
+ if (!alvo) process.exit(0);
+ 
+-const rel = caminhoRelativo(alvo, RAIZ);
++let rel = caminhoRelativo(alvo, RAIZ);
++if (rel === null) {
++  // ADR 0035: escrita direta no clone de recados (por fora da junção) segue as regras de .coord/recados.
++  const j = relativoPorJuncao(resolve(RAIZ, alvo), juncoesDeRecados(RAIZ));
++  if (j?.clone) bloquear(`"${alvo}": ${MOTIVO_CLONE_DE_RECADOS}.`);
++  if (j?.rel) rel = j.rel;
++}
+ if (rel === null) {
+   // Fora do repositório: só bloqueia as pastas marcadas como somente leitura (ex.: Fase M).
+   let somenteLeitura = [];
+diff --git a/.claude/settings.json b/.claude/settings.json
+index cf4586c1..868bf55c 100644
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -48,10 +48,33 @@
+       "Bash(gh pr merge*--auto*)"
+     ],
+     "additionalDirectories": [
+-      "C:/Users/domon/dev/forca-vendas"
++      "C:/Users/domon/dev/forca-vendas",
++      "C:/macuxifdv-recados"
+     ]
+   },
+   "hooks": {
++    "SessionStart": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "node .claude/hooks/sincronizar-recados.mjs --esperar",
++            "timeout": 45
++          }
++        ]
++      }
++    ],
++    "Stop": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "node .claude/hooks/sincronizar-recados.mjs",
++            "timeout": 15
++          }
++        ]
++      }
++    ],
+     "PreToolUse": [
+       {
+         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index d998a527..722498fd 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -1,7 +1,7 @@
+ // Biblioteca comum do protocolo de coordenação do time Macuxi.
+ // Usada pelo guardião (.claude/hooks/guarda-donos.mjs) e pela CLI (scripts/coord.mjs).
+ // Sem dependências externas.
+-import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs';
++import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync } from 'node:fs';
+ import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import { execFileSync } from 'node:child_process';
+@@ -75,6 +75,102 @@ export function caminhoRelativo(caminho, raiz = RAIZ) {
+   return rel;
+ }
+ 
++// ───────────────────── recados no repositório próprio (ADR 0035, T-0139) ─────────────────────
++// No PC, .coord/recados e .coord/lidos viram junções (mklink /J) para o clone do macuxifdv-recados.
++// Nada aqui resolve caminho por realpath: quem escreve por .coord/recados/... continua dentro da raiz e
++// cai nas regras de sempre. O risco é o caminho de verdade (C:\macuxifdv-recados\recados\...), que fica
++// fora da raiz: juncoesDeRecados + relativoPorJuncao o trazem de volta para .coord/recados/... (mesmas
++// regras), e o resto do clone (.git, .github, README) é bloqueado para os agentes.
++
++/** Pastas de coordenação que moram no repositório de recados depois do corte. */
++export const PASTAS_DE_RECADOS = ['.coord/recados', '.coord/lidos'];
++
++const comBarras = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '');
++const mesmoCaminho = (a, b) => (process.platform === 'win32' || /^[A-Za-z]:\//.test(a)
++  ? comBarras(a).toLowerCase() === comBarras(b).toLowerCase()
++  : comBarras(a) === comBarras(b));
++
++/**
++ * Junções das pastas de recados (ADR 0035): [{rel, real}] das PASTAS_DE_RECADOS cujo caminho de verdade
++ * (realpath) é outro, e `clone` = pasta-mãe comum dos destinos (a raiz do clone) ou null.
++ * Sem junção (antes do corte, na nuvem, no CI): {mapas: [], clone: null}. `realpath` é injetável (testes).
++ */
++export function juncoesDeRecados(raiz = RAIZ, { realpath = (p) => realpathSync.native(p) } = {}) {
++  const mapas = [];
++  for (const rel of PASTAS_DE_RECADOS) {
++    const lexico = join(raiz, ...rel.split('/'));
++    let real;
++    try { real = realpath(lexico); } catch { continue; } // pasta ausente: nada a mapear
++    let raizReal = raiz;
++    try { raizReal = realpath(raiz); } catch { /* raiz sem realpath: compara com a léxica */ }
++    if (mesmoCaminho(real, lexico) || mesmoCaminho(real, join(raizReal, ...rel.split('/')))) continue;
++    mapas.push({ rel, real: comBarras(real) });
++  }
++  const maes = [...new Set(mapas.map((m) => comBarras(dirname(m.real))))];
++  return { mapas, clone: maes.length === 1 ? maes[0] : null };
++}
++
++/**
++ * Caminho absoluto que cai numa junção de recados (função pura): {rel: '.coord/recados/...'} dentro de um
++ * destino mapeado; {clone: true} no resto do clone de recados (.git, .github, README...); null fora dos dois.
++ */
++export function relativoPorJuncao(abs, juncoes) {
++  if (!abs || !juncoes) return null;
++  const a = comBarras(abs);
++  const sob = (base) => mesmoCaminho(a, base) || a.toLowerCase().startsWith(comBarras(base).toLowerCase() + '/');
++  for (const { rel, real } of juncoes.mapas || []) {
++    if (!sob(real)) continue;
++    const resto = a.slice(comBarras(real).length).replace(/^\/+/, '');
++    return { rel: resto ? `${rel}/${resto}` : rel };
++  }
++  if (juncoes.clone && sob(juncoes.clone)) return { clone: true };
++  return null;
++}
++
++export const MOTIVO_CLONE_DE_RECADOS = 'o clone do repositório de recados só muda pelo node scripts/coord.mjs (enviar, lido) e pelo scripts/sincronizar-recados.ps1 (ADR 0035)';
++
++/**
++ * Estado dos recados no repositório de código pela marca do .gitignore (ADR 0035), para o verificar:
++ * 'no-repo' (marca nem na base nem no topo: regra de sempre) · 'corte' (a marca entra no topo: só o
++ * alexandre tira os recados e lidos do repositório) · 'fora' (marca na base: nada de recado ou lidos aqui).
++ * Marca na base e não no topo é a volta (plano de volta da ADR): vale a regra de sempre.
++ */
++export function estadoDosRecados({ gitignoreBase = '', gitignoreTopo = '' } = {}) {
++  const base = recadosForaDoRepo(gitignoreBase);
++  const topo = recadosForaDoRepo(gitignoreTopo);
++  if (base && topo) return 'fora';
++  if (!base && topo) return 'corte';
++  return 'no-repo';
++}
++
++/** O .gitignore tira .coord/recados/ do repositório (linha exata, com ou sem a barra inicial)? */
++export function recadosForaDoRepo(gitignore) {
++  return /^\/?\.coord\/recados\/?[ \t]*\r?$/m.test(String(gitignore || ''));
++}
++
++const ehDePastaDeRecados = (caminho) => PASTAS_DE_RECADOS.some((p) => {
++  const c = String(caminho).toLowerCase();
++  return c === p || c.startsWith(`${p}/`);
++});
++
++/**
++ * Regra das pastas de recados conforme o estado (ADR 0035). null = vale a regra de sempre.
++ * @returns {null | {excecao?: string, violacao?: string, dono?: string}}
++ */
++function regraDosRecadosForaDoRepo(status, caminho, agente, estado) {
++  if (estado !== 'corte' && estado !== 'fora') return null;
++  if (!ehDePastaDeRecados(caminho)) return null;
++  if (estado === 'corte' && status === 'D') {
++    return agente === 'alexandre'
++      ? { excecao: 'recados e lidos saem para o repositório macuxifdv-recados (corte da ADR 0035)' }
++      : { violacao: 'só o commit do corte, com "Agente: alexandre", tira recados e lidos do repositório (ADR 0035)', dono: 'alexandre' };
++  }
++  return {
++    violacao: 'recados e lidos agora ficam no repositório macuxifdv-recados (ADR 0035): no PC use node scripts/coord.mjs enviar; na nuvem, escreva o recado no corpo do PR',
++    dono: 'ninguém',
++  };
++}
++
+ /** Primeira regra que casa vence. */
+ export function donoDe(rel, regras) {
+   for (const r of regras) if (r.re.test(rel)) return r.dono;
+@@ -217,13 +313,18 @@ function* mudancasUnicas(mudancas) {
+  * Com `lockAcompanha` (só no estrito, uso do `verificar --base/--por-commit`), aplica a regra
+  * "o lock acompanha a dependência" (lockAcompanhaDependencia): o lock que seria violação vai
+  * para `acompanhando`, para revisão do engenheiro-software.
++ * `recados` (ADR 0035, estadoDosRecados): 'corte' aceita só do alexandre a saída (D) de .coord/recados e
++ * .coord/lidos; 'fora' recusa qualquer mudança nessas pastas; 'no-repo' (padrão) é a regra de sempre.
+  * @param {{agente: string, mudancas: {status: string, caminho: string}[], regras: any[], estrito?: boolean,
+- *   lockAcompanha?: boolean, workspaceSoBuilds?: boolean | (() => boolean)}} p
++ *   lockAcompanha?: boolean, workspaceSoBuilds?: boolean | (() => boolean), recados?: 'no-repo'|'corte'|'fora'}} p
+  * @returns {{ok: any[], excecoes: any[], outros: any[], violacoes: any[], acompanhando: any[]}}
+  */
+-export function classificarMudancas({ agente, mudancas, regras, estrito = false, lockAcompanha = false, workspaceSoBuilds = false }) {
++export function classificarMudancas({ agente, mudancas, regras, estrito = false, lockAcompanha = false, workspaceSoBuilds = false, recados = 'no-repo' }) {
+   const res = { ok: [], excecoes: [], outros: [], violacoes: [], acompanhando: [] };
+   for (const item of mudancasUnicas(mudancas)) {
++    const fora = regraDosRecadosForaDoRepo(item.status, item.caminho, agente, recados);
++    if (fora?.excecao) { res.excecoes.push({ ...item, motivo: fora.excecao }); continue; }
++    if (fora?.violacao) { res.violacoes.push({ ...item, dono: fora.dono, motivo: fora.violacao }); continue; }
+     const info = donoDaMudanca(item.caminho, regras);
+     const universal = violacaoUniversal(item.status, info);
+     if (universal) {
+@@ -330,12 +431,17 @@ export function mudancasDeGovernanca(mudancas, padroes = CAMINHOS_DE_GOVERNANCA)
+ /**
+  * Agrupa as mudanças por dono, sem agente (`verificar` sem agente e sem --base, ou --por-dono).
+  * Recados vão para o remetente e diário/lidos para o próprio agente.
++ * `recados` (ADR 0035): no 'corte', a saída das pastas de recados vai para o grupo alexandre; no 'fora',
++ * qualquer mudança nelas é violação.
+  * @returns {{grupos: Record<string, any[]>, violacoes: any[]}}
+  */
+-export function agruparPorDono({ mudancas, regras }) {
++export function agruparPorDono({ mudancas, regras, recados = 'no-repo' }) {
+   const grupos = {};
+   const violacoes = [];
+   for (const item of mudancasUnicas(mudancas)) {
++    const fora = regraDosRecadosForaDoRepo(item.status, item.caminho, 'alexandre', recados);
++    if (fora?.excecao) { (grupos.alexandre ||= []).push({ ...item, dono: 'alexandre' }); continue; }
++    if (fora?.violacao) { violacoes.push({ ...item, dono: fora.dono, motivo: fora.violacao }); continue; }
+     const info = donoDaMudanca(item.caminho, regras);
+     const universal = violacaoUniversal(item.status, info);
+     if (universal) violacoes.push({ ...item, dono: info.tipo.startsWith('recado') ? 'ninguém' : info.dono, motivo: universal });
+diff --git a/scripts/coord-verificar.test.mjs b/scripts/coord-verificar.test.mjs
+index 49e64a25..4950c550 100644
+--- a/scripts/coord-verificar.test.mjs
++++ b/scripts/coord-verificar.test.mjs
+@@ -4,7 +4,7 @@
+ // .coord/donos.json de exemplo, para que RAIZ (pasta do script) seja o repositório temporário.
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, unlinkSync, appendFileSync, readFileSync } from 'node:fs';
++import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, unlinkSync, appendFileSync, readFileSync, existsSync } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join, dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+@@ -12,7 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
+ import {
+   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
+   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
+-  donoDaMudanca, podeAlterar, ehAnexoDeRecado,
++  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono,
+ } from './coord-lib.mjs';
+ 
+ const AQUI = dirname(fileURLToPath(import.meta.url));
+@@ -1318,3 +1318,116 @@ test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta pas
+   assert.match(exc, new RegExp(`A \\.coord/recados/engenheiro-software/${idVolta}\\.md — recado novo para engenheiro-software`));
+   assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
+ });
++
++// ───────────────────── ADR 0035 (T-0139): recados no repositório próprio ─────────────────────
++// O corte tira .coord/recados e .coord/lidos do índice e põe as duas pastas no .gitignore (a marca).
++// Antes da marca vale a regra de sempre; no commit que a traz (corte) só o alexandre apaga as pastas;
++// depois dela (fora) nada entra nessas pastas.
++
++const MARCA_GITIGNORE = '# Recados e lidos moram no macuxifdv-recados (ADR 0035)\n.coord/recados/\n.coord/lidos/\n';
++const LIDOS_CORE = '.coord/lidos/modulo-core.txt';
++const RECADO_INICIAL = '.coord/recados/testes/R-20261031-000000-modulo-core.md';
++
++/** Corte como o scripts/recados/corte.ps1 deixa: índice sem as pastas e a marca no .gitignore. */
++function cortar(dir) {
++  git(dir, 'rm', '-r', '--cached', '-q', '--', '.coord/recados', '.coord/lidos');
++  appendFileSync(join(dir, '.gitignore'), MARCA_GITIGNORE);
++}
++
++function repoComLidos() {
++  const dir = criarRepo();
++  escrever(dir, LIDOS_CORE, 'R-1\n');
++  // como no repositório real, o .gitignore tem dono (engenheiro-software); o alexandre pode alterá-lo
++  escrever(dir, '.coord/donos.json', JSON.stringify({ ...DONOS, regras: [{ padrao: '.gitignore', dono: 'engenheiro-software' }, ...DONOS.regras] }, null, 2));
++  escrever(dir, '.gitignore', 'node_modules/\n');
++  commitarComo(dir, 'modulo-core', 'lidos');
++  return dir;
++}
++
++test('ADR 0035: estadoDosRecados e recadosForaDoRepo pela marca do .gitignore', () => {
++  assert.equal(recadosForaDoRepo(MARCA_GITIGNORE), true);
++  assert.equal(recadosForaDoRepo('/.coord/recados\r\n'), true);
++  assert.equal(recadosForaDoRepo('.coord/recados/anexos/\n.coord/recadosx/\n# .coord/recados/\n'), false);
++  assert.equal(estadoDosRecados({ gitignoreBase: '', gitignoreTopo: '' }), 'no-repo');
++  assert.equal(estadoDosRecados({ gitignoreBase: 'node_modules/\n', gitignoreTopo: MARCA_GITIGNORE }), 'corte');
++  assert.equal(estadoDosRecados({ gitignoreBase: MARCA_GITIGNORE, gitignoreTopo: MARCA_GITIGNORE }), 'fora');
++  assert.equal(estadoDosRecados({ gitignoreBase: MARCA_GITIGNORE, gitignoreTopo: '' }), 'no-repo', 'a volta segue a regra de sempre');
++  assert.equal(estadoDosRecados(), 'no-repo');
++});
++
++test('ADR 0035: classificarMudancas no corte aceita só a saída (D) pelo alexandre; no fora recusa tudo nas pastas', () => {
++  const regras = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
++  const saida = [{ status: 'D', caminho: RECADO_INICIAL }, { status: 'D', caminho: LIDOS_CORE }];
++  const alex = classificarMudancas({ agente: 'alexandre', mudancas: saida, regras, estrito: true, recados: 'corte' });
++  assert.equal(alex.violacoes.length, 0, JSON.stringify(alex.violacoes));
++  assert.equal(alex.excecoes.length, 2);
++  assert.match(alex.excecoes[0].motivo, /corte da ADR 0035/);
++  const ger = classificarMudancas({ agente: 'gerente-projetos', mudancas: saida, regras, estrito: true, recados: 'corte' });
++  assert.equal(ger.violacoes.length, 2);
++  assert.match(ger.violacoes[0].motivo, /só o commit do corte, com "Agente: alexandre"/);
++  const hoje = classificarMudancas({ agente: 'alexandre', mudancas: saida.slice(0, 1), regras, estrito: true });
++  assert.match(hoje.violacoes[0].motivo, /recados são imutáveis \(apagado\)/, 'sem a marca, apagar recado continua proibido');
++  const fora = classificarMudancas({
++    agente: 'modulo-core', regras, estrito: false, recados: 'fora',
++    mudancas: [{ status: 'A', caminho: '.coord/recados/testes/R-20261201-000000-modulo-core.md' }, { status: 'M', caminho: LIDOS_CORE }, { status: 'M', caminho: 'modules/core/a.ts' }],
++  });
++  assert.equal(fora.violacoes.length, 2, JSON.stringify(fora));
++  assert.ok(fora.violacoes.every((v) => /ficam no repositório macuxifdv-recados/.test(v.motivo)));
++  assert.deepEqual(fora.ok.map((i) => i.caminho), ['modules/core/a.ts']);
++  const grupos = agruparPorDono({ mudancas: saida, regras, recados: 'corte' });
++  assert.equal(grupos.violacoes.length, 0);
++  assert.equal(grupos.grupos.alexandre.length, 2);
++});
++
++test('ADR 0035: commit do corte com "Agente: alexandre" passa no --por-commit e no verificar alexandre da árvore', () => {
++  const dir = repoComLidos();
++  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
++  cortar(dir);
++  const arvore = rodar(dir, ['verificar', 'alexandre']);
++  assert.equal(arvore.codigo, 0, arvore.tudo);
++  assert.match(arvore.saida, /D \.coord\/recados\/testes\/R-20261031-000000-modulo-core\.md — recados e lidos saem/);
++  const porDono = rodar(dir, ['verificar', '--por-dono']);
++  assert.equal(porDono.codigo, 0, porDono.tudo);
++  git(dir, 'add', '.gitignore');
++  git(dir, 'commit', '-q', '-m', 'T-0139: recados saem do repositório de código\n\nAgente: alexandre');
++  const corte = git(dir, 'rev-parse', '--short', 'HEAD').trim();
++  const pc = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
++  assert.equal(pc.codigo, 0, pc.tudo);
++  assert.match(blocoDoCommit(pc.saida, corte), /D \.coord\/lidos\/modulo-core\.txt — recados e lidos saem/);
++  assert.equal(existsSync(join(dir, RECADO_INICIAL)), true, 'o corte não apaga nada do disco');
++  const depois = rodar(dir, ['verificar', 'modulo-core']);
++  assert.equal(depois.codigo, 0, depois.tudo);
++  assert.match(depois.saida, /nenhum arquivo alterado/, 'pastas ignoradas somem do verificar');
++});
++
++test('ADR 0035: corte com o trailer de outro agente é VIOLAÇÃO', () => {
++  const dir = repoComLidos();
++  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
++  cortar(dir);
++  git(dir, 'add', '.gitignore');
++  const c = commitarComo(dir, 'gerente-projetos', 'T-0139: corte');
++  const pc = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
++  assert.equal(pc.codigo, 1, pc.tudo);
++  assert.match(blocoDoCommit(pc.saida, c), /VIOLAÇÃO[\s\S]*D \.coord\/recados\/testes\/R-20261031-000000-modulo-core\.md → dono: alexandre — só o commit do corte/);
++});
++
++test('ADR 0035: depois do corte, recado ou lidos forçados no repositório são VIOLAÇÃO (--por-commit e --base)', () => {
++  const dir = repoComLidos();
++  cortar(dir);
++  git(dir, 'add', '.gitignore');
++  commitarComo(dir, 'alexandre', 'T-0139: corte');
++  const depois = git(dir, 'rev-parse', 'HEAD').trim();
++  git(dir, 'checkout', '-q', '-b', 'nuvem/T-0200-x');
++  const novo = '.coord/recados/gerente-projetos/R-20261201-000000-modulo-core.md';
++  escrever(dir, novo, RECADO);
++  escrever(dir, 'modules/core/a.ts', 'mudou\n');
++  git(dir, 'add', '-f', novo, 'modules/core/a.ts');
++  const c = commitarComo(dir, 'modulo-core', 'T-0200: recado pela nuvem');
++  const pc = rodar(dir, ['verificar', '--por-commit', `${depois}..HEAD`]);
++  assert.equal(pc.codigo, 1, pc.tudo);
++  assert.match(blocoDoCommit(pc.saida, c), /A \.coord\/recados\/gerente-projetos\/R-20261201-000000-modulo-core\.md → dono: ninguém — recados e lidos agora ficam no repositório macuxifdv-recados/);
++  const base = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(base.codigo, 1, base.tudo);
++  assert.equal(secao(base.saida, 'VIOLAÇÃO').length, 1, base.saida);
++  assert.deepEqual(secao(base.saida, 'OK'), ['M modules/core/a.ts']);
++});
+diff --git a/scripts/coord.mjs b/scripts/coord.mjs
+index a4f8e2e5..d82c93f3 100644
+--- a/scripts/coord.mjs
++++ b/scripts/coord.mjs
+@@ -54,7 +54,7 @@ import {
+   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
+   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
+   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
+-  WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA,
++  WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
+ } from './coord-lib.mjs';
+ 
+ const PASTA = join(RAIZ, '.coord', 'recados');
+@@ -206,7 +206,19 @@ function coletarMudancas(base) {
+   // com <ref> = merge-base equivale a <merge-base>...HEAD somado ao que não foi commitado.
+   const rastreados = lerNameStatusZ(git(['-c', 'core.quotepath=off', 'diff', '--name-status', '--no-renames', '-z', ref, '--']));
+   const novos = String(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).map((caminho) => ({ status: 'A', caminho }));
+-  return { mudancas: [...rastreados, ...novos], descricao, mb: base ? ref : null };
++  const recados = estadoDosRecados({ gitignoreBase: conteudoNoGit(ref, '.gitignore'), gitignoreTopo: gitignoreDoDisco() });
++  return { mudancas: [...rastreados, ...novos], descricao, mb: base ? ref : null, recados };
++}
++
++/** .gitignore da árvore de trabalho ('' se não existir): o topo do verificar sem --por-commit (ADR 0035). */
++function gitignoreDoDisco() {
++  try { return readFileSync(join(RAIZ, '.gitignore'), 'utf8'); } catch { return ''; }
++}
++
++/** Estado dos recados (ADR 0035) num commit, contra o primeiro pai (commit raiz: contra a árvore vazia). */
++function recadosDoCommit(sha) {
++  const pai = git(['rev-parse', '--verify', '-q', `${sha}^1`], { falha: null })?.trim();
++  return estadoDosRecados({ gitignoreBase: pai ? conteudoNoGit(pai, '.gitignore') : '', gitignoreTopo: conteudoNoGit(sha, '.gitignore') });
+ }
+ 
+ /** Branch atual (nulo com HEAD destacado) e o do PR no CI (GITHUB_HEAD_REF). */
+@@ -282,8 +294,8 @@ function imprimirLista(tituloSecao, itens, fmt) {
+ }
+ 
+ /** Lista agrupada por dono (sem agente): recados pelo remetente, diário/lidos pelo agente. */
+-function listarPorDono(mudancas, descricao, regras) {
+-  const { grupos, violacoes } = agruparPorDono({ mudancas, regras });
++function listarPorDono(mudancas, descricao, regras, recados) {
++  const { grupos, violacoes } = agruparPorDono({ mudancas, regras, recados });
+   console.log(`Alterações por dono — ${descricao}`);
+   for (const [d, itens] of Object.entries(grupos).sort()) console.log(`${d} (${itens.length}):\n` + itens.map((i) => `  ${i.status} ${i.caminho}`).join('\n'));
+   imprimirLista('VIOLAÇÃO', violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
+@@ -347,6 +359,7 @@ function verificarPorCommit(intervalo, regras) {
+     conferidos++;
+     const r = classificarMudancas({
+       agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true, lockAcompanha: true, workspaceSoBuilds: workspaceSoBuildsCommit(c.sha),
++      recados: recadosDoCommit(c.sha),
+     });
+     console.log(`${cab} — agente: ${agente} (trailer)`);
+     if (agente === 'alexandre') {
+@@ -402,8 +415,8 @@ function verificar(args) {
+     }
+ 
+     if (o['por-dono']) {
+-      const { mudancas, descricao } = coletarMudancas(base);
+-      listarPorDono(mudancas, descricao, regras);
++      const { mudancas, descricao, recados } = coletarMudancas(base);
++      listarPorDono(mudancas, descricao, regras, recados);
+     }
+ 
+     // Ordem: agente informado > branch (local ou GITHUB_HEAD_REF) > trailers dos commits (só com --base).
+@@ -413,10 +426,10 @@ function verificar(args) {
+     if (agente && !PESSOAS.includes(agente)) erroUso(`agente desconhecido: ${agente}`);
+     if (!agente) ({ agente, origem, nuvem } = agentePeloBranch(branches()));
+ 
+-    const { mudancas, descricao, mb } = coletarMudancas(base);
++    const { mudancas, descricao, mb, recados } = coletarMudancas(base);
+     if (!agente) {
+       // Sem --base a árvore é compartilhada: sem agente, só a lista por dono (os commits não dizem quem mexeu nela).
+-      if (!base) listarPorDono(mudancas, descricao, regras);
++      if (!base) listarPorDono(mudancas, descricao, regras, recados);
+       if (!mudancas.length) {
+         console.log(`Verificação de donos — sem agente\nComparação: ${descricao}\n\nResultado: OK — nenhum arquivo alterado.`);
+         process.exit(0);
+@@ -426,6 +439,7 @@ function verificar(args) {
+ 
+     const r = classificarMudancas({
+       agente, mudancas, regras, estrito: Boolean(base), lockAcompanha: Boolean(base), workspaceSoBuilds: base ? workspaceSoBuildsBase(mb) : false,
++      recados,
+     });
+     const declarada = agente !== 'alexandre' ? '' : origem.startsWith('trailer') ? DECLARADA_TRAILER : origem.startsWith('branch') ? DECLARADA_BRANCH : '';
+     console.log(`Verificação de donos — agente: ${agente} (${origem})`);
+diff --git a/.claude/hooks/sincronizar-recados.mjs b/.claude/hooks/sincronizar-recados.mjs
+new file mode 100644
+index 00000000..888191e7
+--- /dev/null
++++ b/.claude/hooks/sincronizar-recados.mjs
+@@ -0,0 +1,56 @@
++#!/usr/bin/env node
++// Sincronização dos recados no início e no fim da sessão (ADR 0035, T-0139) — hooks SessionStart e Stop.
++// Uso: node .claude/hooks/sincronizar-recados.mjs [--esperar]
++//  - Roda scripts/sincronizar-recados.ps1 (pull --rebase, commit e push do clone C:\macuxifdv-recados) só quando
++//    há junção de recados (depois do corte), no Windows. Antes do corte, na nuvem e no CI: não faz nada.
++//  - --esperar (SessionStart): espera até 40 s, para a caixa já abrir atualizada. Sem ele (Stop): dispara em
++//    segundo plano e sai na hora (o .ps1 tem trava de execução única e timeout próprio).
++//  - Nunca bloqueia a sessão: sai sempre com 0. Não lê nem grava segredo (a credencial é a do Git Credential
++//    Manager do Windows). Desligar: MACUXI_RECADOS_SYNC=off.
++import { existsSync } from 'node:fs';
++import { join } from 'node:path';
++import { spawn, spawnSync } from 'node:child_process';
++import { RAIZ, juncoesDeRecados } from '../../scripts/coord-lib.mjs';
++
++/** Decide se e como sincronizar (função pura, exportada para os testes). */
++export function planoDeSincronizacao({ plataforma, env, juncoes, scriptExiste, esperar }) {
++  if (String(env.MACUXI_RECADOS_SYNC || '').toLowerCase() === 'off') return { rodar: false, motivo: 'desligado (MACUXI_RECADOS_SYNC=off)' };
++  if (plataforma !== 'win32') return { rodar: false, motivo: 'fora do Windows' };
++  if (!juncoes?.clone || !juncoes.mapas?.length) return { rodar: false, motivo: 'sem junção de recados (antes do corte)' };
++  if (!scriptExiste) return { rodar: false, motivo: 'scripts/sincronizar-recados.ps1 ausente' };
++  return { rodar: true, esperar: Boolean(esperar), clone: juncoes.clone };
++}
++
++if (import.meta.main) {
++  // O hook recebe o JSON da sessão no stdin; não precisamos dele, mas não deixamos o pipe pendurado.
++  process.stdin.resume();
++  process.stdin.on('error', () => {});
++  const script = join(RAIZ, 'scripts', 'sincronizar-recados.ps1');
++  let plano;
++  try {
++    plano = planoDeSincronizacao({
++      plataforma: process.platform, env: process.env, juncoes: juncoesDeRecados(RAIZ),
++      scriptExiste: existsSync(script), esperar: process.argv.includes('--esperar'),
++    });
++  } catch {
++    process.exit(0);
++  }
++  if (!plano.rodar) process.exit(0);
++  const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Clone', plano.clone.replace(/\//g, '\\'), '-Origem', 'sessao'];
++  try {
++    if (plano.esperar) {
++      const r = spawnSync('powershell.exe', args, { stdio: 'ignore', windowsHide: true, timeout: 40_000 });
++      if (r.status !== 0) {
++        // SessionStart: a saída vai para o contexto da sessão; uma linha curta, sem dado sensível.
++        process.stdout.write('[recados] a sincronização do início da sessão não terminou bem; a caixa pode estar desatualizada (log em %LOCALAPPDATA%\\Macuxi\\recados-sync.log).\n');
++      }
++    } else {
++      const filho = spawn('powershell.exe', args, { stdio: 'ignore', windowsHide: true, detached: true });
++      filho.on('error', () => {});
++      filho.unref();
++    }
++  } catch {
++    // powershell ausente ou falha ao iniciar: a sessão segue; o Agendador sincroniza a cada 2 min.
++  }
++  process.exit(0);
++}
+diff --git a/.claude/hooks/guarda-juncao.test.mjs b/.claude/hooks/guarda-juncao.test.mjs
+new file mode 100644
+index 00000000..ab5c79c6
+--- /dev/null
++++ b/.claude/hooks/guarda-juncao.test.mjs
+@@ -0,0 +1,250 @@
++// Testes das junções de recados (ADR 0035, T-0139) no guardião e na coord-lib (node:test, sem dependências).
++// Rodar: node --test .claude/hooks/guarda-juncao.test.mjs
++// Depois do corte, .coord/recados e .coord/lidos são junções (mklink /J) para o clone do macuxifdv-recados.
++// Nada no guardião resolve caminho por realpath: pela junção o caminho segue dentro da raiz e as regras são as de
++// sempre. Os casos novos são o caminho de verdade no clone (volta a ser .coord/recados/...), o resto do clone
++// (bloqueado), o git que grava no clone (bloqueado), o git clean -x (bloqueado) e a foto do PostToolUse (git status
++// do clone com os caminhos de .coord/). Num Linux (CI), a "junção" vira link simbólico de pasta: mesmo efeito.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, symlinkSync, readFileSync, appendFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join, dirname } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { execFileSync, spawnSync } from 'node:child_process';
++import { juncoesDeRecados, relativoPorJuncao, globParaRegex } from '../../scripts/coord-lib.mjs';
++import { analisarComando, lerStatus, statusDoClone, doCloneParaRepo, relativoDaRaiz } from './guarda-bash-lib.mjs';
++import { planoDeSincronizacao } from './sincronizar-recados.mjs';
++
++const AQUI = dirname(fileURLToPath(import.meta.url));
++const RAIZ_REAL = join(AQUI, '..', '..');
++const barras = (p) => p.replace(/\\/g, '/');
++
++const DONOS = {
++  versao: 1,
++  regras: [
++    { padrao: '.claude/**', dono: 'alexandre' },
++    { padrao: 'scripts/coord*.mjs', dono: 'alexandre' },
++    { padrao: '.coord/recados/anexos/**', dono: 'alexandre' },
++    { padrao: '.coord/**', dono: 'gerente-projetos' },
++    { padrao: 'modules/core/**', dono: 'modulo-core' },
++    { padrao: '*', dono: 'engenheiro-software' },
++  ],
++  somente_leitura: [],
++};
++const REGRAS = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
++const EXISTENTE = 'recados/testes/R-20261031-000000-modulo-core.md';
++
++const temporarios = [];
++process.on('exit', () => { for (const d of temporarios) rmSync(d, { recursive: true, force: true }); });
++
++function git(dir, ...args) {
++  return execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
++}
++function escrever(dir, rel, conteudo = `${rel}\n`) {
++  mkdirSync(dirname(join(dir, rel)), { recursive: true });
++  writeFileSync(join(dir, rel), conteudo);
++}
++function iniciar(dir) {
++  git(dir, 'init', '-q', '-b', 'main');
++  git(dir, 'config', 'user.name', 'Teste');
++  git(dir, 'config', 'user.email', 'teste@exemplo.invalid');
++  git(dir, 'config', 'commit.gpgsign', 'false');
++}
++
++/**
++ * Cenário depois do corte: repositório de código (com cópia dos hooks e da coord-lib) e clone de recados irmão,
++ * com .coord/recados e .coord/lidos em junção para o clone e a marca no .gitignore.
++ */
++function cenario() {
++  const pai = mkdtempSync(join(tmpdir(), 'guarda-juncao-'));
++  temporarios.push(pai);
++  const repo = join(pai, 'macuxifdv');
++  const clone = join(pai, 'macuxifdv-recados');
++  mkdirSync(repo);
++  mkdirSync(clone);
++  iniciar(clone);
++  escrever(clone, EXISTENTE, '---\nid: R-20261031-000000-modulo-core\nde: modulo-core\n---\n# Olá\n');
++  escrever(clone, 'lidos/modulo-core.txt', 'R-1\n');
++  escrever(clone, 'README.md', '# recados\n');
++  git(clone, 'add', '-A');
++  git(clone, 'commit', '-q', '-m', 'inicial');
++  iniciar(repo);
++  escrever(repo, '.coord/donos.json', JSON.stringify(DONOS, null, 2));
++  escrever(repo, '.gitignore', '/.coord/recados\n/.coord/lidos\n');
++  escrever(repo, 'modules/core/a.ts');
++  mkdirSync(join(repo, 'scripts'));
++  mkdirSync(join(repo, '.claude', 'hooks'), { recursive: true });
++  copyFileSync(join(RAIZ_REAL, 'scripts', 'coord-lib.mjs'), join(repo, 'scripts', 'coord-lib.mjs'));
++  for (const f of ['guarda-bash.mjs', 'guarda-bash-lib.mjs', 'guarda-merge-lib.mjs', 'guarda-donos.mjs']) copyFileSync(join(AQUI, f), join(repo, '.claude', 'hooks', f));
++  git(repo, 'add', '-A');
++  git(repo, 'commit', '-q', '-m', 'inicial');
++  symlinkSync(join(clone, 'recados'), join(repo, '.coord', 'recados'), 'junction');
++  symlinkSync(join(clone, 'lidos'), join(repo, '.coord', 'lidos'), 'junction');
++  return { pai, repo, clone };
++}
++
++function rodar(repo, hook, entrada) {
++  const base = { ...process.env };
++  delete base.MACUXI_AGENTE;
++  delete base.CLAUDE_CODE_REMOTE;
++  const r = spawnSync(process.execPath, [join(repo, '.claude', 'hooks', hook)], {
++    cwd: repo, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '' },
++  });
++  return { codigo: r.status, erro: r.stderr, saida: r.stdout };
++}
++let seq = 0;
++const escrita = (repo, caminho, agente, conteudo) => rodar(repo, 'guarda-donos.mjs', {
++  session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Write', agent_type: agente, cwd: repo,
++  tool_input: { file_path: caminho, ...(conteudo === undefined ? {} : { content: conteudo }) },
++});
++const bash = (repo, evento, comando, agente, id = `toolu_j${++seq}`) => rodar(repo, 'guarda-bash.mjs', {
++  session_id: 's-juncao', tool_use_id: id, hook_event_name: evento, tool_name: 'Bash', agent_type: agente, cwd: repo,
++  tool_input: { command: comando },
++});
++
++// ───────────────────────── coord-lib: juncoesDeRecados e relativoPorJuncao ─────────────────────────
++
++test('juncoesDeRecados: sem junção (antes do corte, nuvem, CI) não mapeia nada', () => {
++  const dir = mkdtempSync(join(tmpdir(), 'guarda-juncao-sem-'));
++  temporarios.push(dir);
++  mkdirSync(join(dir, '.coord', 'recados'), { recursive: true });
++  assert.deepEqual(juncoesDeRecados(dir), { mapas: [], clone: null });
++  assert.deepEqual(juncoesDeRecados(join(dir, 'nao-existe')), { mapas: [], clone: null });
++});
++
++test('juncoesDeRecados: com as duas junções devolve os destinos e a raiz do clone', () => {
++  const { repo, clone } = cenario();
++  const j = juncoesDeRecados(repo);
++  const real = (p) => barras(execFileSync(process.execPath, ['-e', `process.stdout.write(require('fs').realpathSync.native(${JSON.stringify(p)}))`], { encoding: 'utf8' }));
++  assert.deepEqual(j.mapas.map((m) => m.rel), ['.coord/recados', '.coord/lidos']);
++  assert.equal(j.mapas[0].real.toLowerCase(), real(join(clone, 'recados')).toLowerCase());
++  assert.equal(j.clone.toLowerCase(), real(clone).toLowerCase());
++});
++
++test('juncoesDeRecados: realpath injetável; destinos em pastas diferentes não têm raiz de clone', () => {
++  const realpath = (p) => barras(p).replace(/\/repo\/\.coord\/(recados|lidos)$/, '/fora/$1');
++  const j = juncoesDeRecados('/repo', { realpath });
++  assert.deepEqual(j, { mapas: [{ rel: '.coord/recados', real: '/fora/recados' }, { rel: '.coord/lidos', real: '/fora/lidos' }], clone: '/fora' });
++  const separado = juncoesDeRecados('/repo', { realpath: (p) => barras(p).replace('/repo/.coord/lidos', '/x/lidos').replace('/repo/.coord/recados', '/y/recados') });
++  assert.equal(separado.clone, null);
++});
++
++test('relativoPorJuncao: destino mapeado vira .coord/...; resto do clone = clone; fora = null (Windows sem diferença de caixa)', () => {
++  const j = { mapas: [{ rel: '.coord/recados', real: 'C:/macuxifdv-recados/recados' }, { rel: '.coord/lidos', real: 'C:/macuxifdv-recados/lidos' }], clone: 'C:/macuxifdv-recados' };
++  assert.deepEqual(relativoPorJuncao('C:\\macuxifdv-recados\\recados\\testes\\R-1-modulo-core.md', j), { rel: '.coord/recados/testes/R-1-modulo-core.md' });
++  assert.deepEqual(relativoPorJuncao('c:/MACUXIFDV-RECADOS/Lidos/testes.txt', j), { rel: '.coord/lidos/testes.txt' });
++  assert.deepEqual(relativoPorJuncao('C:/macuxifdv-recados/recados', j), { rel: '.coord/recados' });
++  assert.deepEqual(relativoPorJuncao('C:/macuxifdv-recados/.github/workflows/issue-recado.yml', j), { clone: true });
++  assert.deepEqual(relativoPorJuncao('C:/macuxifdv-recados', j), { clone: true });
++  assert.equal(relativoPorJuncao('C:/macuxifdv-recados-backup/recados/x.md', j), null);
++  assert.equal(relativoPorJuncao('C:/macuxifdv/.coord/recados/x.md', j), null, 'o caminho pela junção já está dentro da raiz');
++  assert.equal(relativoPorJuncao('C:/x', { mapas: [], clone: null }), null);
++});
++
++// ───────────────────────── guarda-donos (Write/Edit) ─────────────────────────
++
++test('guarda-donos: pelo caminho de verdade do clone valem as regras de .coord/recados e .coord/lidos', () => {
++  const { repo, clone } = cenario();
++  const proprio = join(clone, 'recados', 'gerente-projetos', 'R-20261108-100000-modulo-core.md');
++  assert.equal(escrita(repo, proprio, 'modulo-core', '---\nde: modulo-core\n---\n# x\n').codigo, 0);
++  const falso = escrita(repo, join(clone, 'recados', 'gerente-projetos', 'R-20261108-100000-alexandre.md'), 'modulo-core', '---\nde: alexandre\n---\n');
++  assert.equal(falso.codigo, 2);
++  assert.match(falso.erro, /BLOQUEADO/);
++  const existente = escrita(repo, join(clone, ...EXISTENTE.split('/')), 'modulo-core');
++  assert.equal(existente.codigo, 2);
++  assert.match(existente.erro, /recados são imutáveis/);
++  assert.equal(escrita(repo, join(clone, 'lidos', 'modulo-core.txt'), 'modulo-core').codigo, 0);
++  const alheio = escrita(repo, join(clone, 'lidos', 'testes.txt'), 'modulo-core');
++  assert.equal(alheio.codigo, 2);
++  assert.match(alheio.erro, /pertence a testes/);
++});
++
++test('guarda-donos: o resto do clone (.github, README, .git) é bloqueado; pela junção a regra é a de sempre', () => {
++  const { repo, clone } = cenario();
++  for (const c of [join(clone, '.github', 'workflows', 'issue-recado.yml'), join(clone, 'README.md'), join(clone, '.git', 'config')]) {
++    const r = escrita(repo, c, 'gerente-projetos');
++    assert.equal(r.codigo, 2, c);
++    assert.match(r.erro, /clone do repositório de recados só muda/);
++  }
++  const pelaJuncao = escrita(repo, join(repo, '.coord', ...EXISTENTE.split('/')), 'modulo-core');
++  assert.equal(pelaJuncao.codigo, 2);
++  assert.match(pelaJuncao.erro, /recados são imutáveis/);
++  assert.equal(escrita(repo, join(repo, '.coord', 'recados', 'testes', 'R-20261108-100001-modulo-core.md'), 'modulo-core', '---\nde: modulo-core\n---\n').codigo, 0);
++});
++
++// ───────────────────────── guarda-bash (PreToolUse) ─────────────────────────
++
++test('guarda-bash: escrita pelo caminho do clone segue as regras; resto do clone, git que grava nele e git clean -x bloqueados', () => {
++  const { repo, clone } = cenario();
++  const c = barras(clone);
++  const casos = [
++    [`rm ${c}/${EXISTENTE}`, /recados são imutáveis/],
++    [`echo x >> ${c}/lidos/testes.txt`, /pertence a testes/],
++    [`echo x > ${c}/README.md`, /clone do repositório de recados só muda/],
++    [`git -C ${c} commit -qm x`, /git commit no clone de recados/],
++    [`git -C ${c} push origin main`, /git push no clone de recados/],
++    [`cd ${c} && git reset --hard`, /no clone de recados/],
++    ['cd .coord/recados && git pull', /git pull no clone de recados/],
++    [`git -C ${c} config remote.origin.url x`, /git config no clone de recados/],
++    ['git clean -fdx', /git clean -x\/-X apagaria os recados/],
++  ];
++  for (const [comando, motivo] of casos) {
++    const r = bash(repo, 'PreToolUse', comando, 'modulo-core');
++    assert.equal(r.codigo, 2, `${comando}\n${r.erro}`);
++    assert.match(r.erro, motivo, comando);
++  }
++  for (const comando of [`git -C ${c} log --oneline -3`, `git -C ${c} status`, `cat ${c}/${EXISTENTE}`, `echo x >> ${c}/lidos/modulo-core.txt`, 'git clean -fd modules/core', 'node scripts/coord.mjs caixa modulo-core']) {
++    const r = bash(repo, 'PreToolUse', comando, 'modulo-core');
++    assert.equal(r.codigo, 0, `${comando}\n${r.erro}`);
++  }
++});
++
++test('analisarComando: sem junção, git no mesmo caminho e git clean -x seguem a regra de antes', () => {
++  const amb = { existe: () => false, ehDiretorio: () => false, sujos: () => [], rastreadosSob: () => [], ler: () => null };
++  const r = analisarComando({ comando: 'git -C C:/macuxifdv-recados commit -m x && git clean -fdx', agente: 'modulo-core', cwd: 'C:/macuxifdv', raiz: 'C:/macuxifdv', regras: REGRAS, amb });
++  assert.deepEqual(r.violacoes, []);
++});
++
++// ───────────────────────── foto do PostToolUse (git status do clone) ─────────────────────────
++
++test('lerStatus/statusDoClone: o git status do clone entra com os caminhos de .coord/', () => {
++  const { repo, clone } = cenario();
++  const j = juncoesDeRecados(repo);
++  escrever(clone, 'recados/testes/R-20261108-110000-modulo-core.md', '---\nde: modulo-core\n---\n');
++  appendFileSync(join(clone, 'lidos', 'modulo-core.txt'), 'R-2\n');
++  const st = lerStatus(repo, j);
++  assert.ok(st.some((e) => e.xy === '??' && e.rel === '.coord/recados/testes/R-20261108-110000-modulo-core.md'), JSON.stringify(st));
++  assert.ok(st.some((e) => e.xy.trim() === 'M' && e.rel === '.coord/lidos/modulo-core.txt'), JSON.stringify(st));
++  assert.ok(!st.some((e) => e.rel.startsWith('.coord/recados') && !e.rel.includes('/testes/')), 'a junção ignorada não aparece no repositório de código');
++  assert.equal(doCloneParaRepo('README.md', j), null);
++  assert.deepEqual(statusDoClone({ mapas: [], clone: null }), []);
++  assert.deepEqual(statusDoClone(j, () => '?? recados/x/R-1-modulo-core.md\0?? README.md\0'), [{ xy: '??', rel: '.coord/recados/x/R-1-modulo-core.md' }]);
++});
++
++test('PostToolUse: recado alterado no clone por comando opaco aparece no aviso com o caminho de .coord/', () => {
++  const { repo, clone } = cenario();
++  const id = 'toolu_opaco';
++  assert.equal(bash(repo, 'PreToolUse', 'node gera.mjs', 'modulo-core', id).codigo, 0);
++  appendFileSync(join(clone, ...EXISTENTE.split('/')), 'editado\n');
++  const pos = bash(repo, 'PostToolUse', 'node gera.mjs', 'modulo-core', id);
++  assert.equal(pos.codigo, 0, pos.erro);
++  assert.match(pos.saida, /\.coord\/recados\/testes\/R-20261031-000000-modulo-core\.md/);
++  assert.equal(readFileSync(join(clone, ...EXISTENTE.split('/')), 'utf8').endsWith('editado\n'), true, 'o guardião não desfaz nada');
++  assert.equal(relativoDaRaiz(barras(join(repo, '.coord', 'recados')), barras(repo)), '.coord/recados');
++});
++
++// ───────────────────────── hook de sessão (SessionStart/Stop) ─────────────────────────
++
++test('sincronizar-recados (hook): só roda no Windows, com junção e com o .ps1; desliga com MACUXI_RECADOS_SYNC=off', () => {
++  const juncoes = { mapas: [{ rel: '.coord/recados', real: 'C:/macuxifdv-recados/recados' }], clone: 'C:/macuxifdv-recados' };
++  const base = { plataforma: 'win32', env: {}, juncoes, scriptExiste: true };
++  assert.deepEqual(planoDeSincronizacao({ ...base, esperar: true }), { rodar: true, esperar: true, clone: 'C:/macuxifdv-recados' });
++  assert.equal(planoDeSincronizacao({ ...base, env: { MACUXI_RECADOS_SYNC: 'OFF' } }).rodar, false);
++  assert.equal(planoDeSincronizacao({ ...base, plataforma: 'linux' }).rodar, false);
++  assert.equal(planoDeSincronizacao({ ...base, juncoes: { mapas: [], clone: null } }).rodar, false);
++  assert.equal(planoDeSincronizacao({ ...base, scriptExiste: false }).rodar, false);
++  // o hook de verdade, sem junção: sai 0 na hora, sem saída (não bloqueia nem polui o contexto)
++  const r = spawnSync(process.execPath, [join(AQUI, 'sincronizar-recados.mjs'), '--esperar'], { input: '{}', encoding: 'utf8', timeout: 20_000 });
++  assert.equal(r.status, 0);
++});

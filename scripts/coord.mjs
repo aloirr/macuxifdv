@@ -54,7 +54,7 @@ import {
   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
-  WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA,
+  WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -206,7 +206,19 @@ function coletarMudancas(base) {
   // com <ref> = merge-base equivale a <merge-base>...HEAD somado ao que não foi commitado.
   const rastreados = lerNameStatusZ(git(['-c', 'core.quotepath=off', 'diff', '--name-status', '--no-renames', '-z', ref, '--']));
   const novos = String(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).map((caminho) => ({ status: 'A', caminho }));
-  return { mudancas: [...rastreados, ...novos], descricao, mb: base ? ref : null };
+  const recados = estadoDosRecados({ gitignoreBase: conteudoNoGit(ref, '.gitignore'), gitignoreTopo: gitignoreDoDisco() });
+  return { mudancas: [...rastreados, ...novos], descricao, mb: base ? ref : null, recados };
+}
+
+/** .gitignore da árvore de trabalho ('' se não existir): o topo do verificar sem --por-commit (ADR 0035). */
+function gitignoreDoDisco() {
+  try { return readFileSync(join(RAIZ, '.gitignore'), 'utf8'); } catch { return ''; }
+}
+
+/** Estado dos recados (ADR 0035) num commit, contra o primeiro pai (commit raiz: contra a árvore vazia). */
+function recadosDoCommit(sha) {
+  const pai = git(['rev-parse', '--verify', '-q', `${sha}^1`], { falha: null })?.trim();
+  return estadoDosRecados({ gitignoreBase: pai ? conteudoNoGit(pai, '.gitignore') : '', gitignoreTopo: conteudoNoGit(sha, '.gitignore') });
 }
 
 /** Branch atual (nulo com HEAD destacado) e o do PR no CI (GITHUB_HEAD_REF). */
@@ -282,8 +294,8 @@ function imprimirLista(tituloSecao, itens, fmt) {
 }
 
 /** Lista agrupada por dono (sem agente): recados pelo remetente, diário/lidos pelo agente. */
-function listarPorDono(mudancas, descricao, regras) {
-  const { grupos, violacoes } = agruparPorDono({ mudancas, regras });
+function listarPorDono(mudancas, descricao, regras, recados) {
+  const { grupos, violacoes } = agruparPorDono({ mudancas, regras, recados });
   console.log(`Alterações por dono — ${descricao}`);
   for (const [d, itens] of Object.entries(grupos).sort()) console.log(`${d} (${itens.length}):\n` + itens.map((i) => `  ${i.status} ${i.caminho}`).join('\n'));
   imprimirLista('VIOLAÇÃO', violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
@@ -347,6 +359,7 @@ function verificarPorCommit(intervalo, regras) {
     conferidos++;
     const r = classificarMudancas({
       agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true, lockAcompanha: true, workspaceSoBuilds: workspaceSoBuildsCommit(c.sha),
+      recados: recadosDoCommit(c.sha),
     });
     console.log(`${cab} — agente: ${agente} (trailer)`);
     if (agente === 'alexandre') {
@@ -402,8 +415,8 @@ function verificar(args) {
     }
 
     if (o['por-dono']) {
-      const { mudancas, descricao } = coletarMudancas(base);
-      listarPorDono(mudancas, descricao, regras);
+      const { mudancas, descricao, recados } = coletarMudancas(base);
+      listarPorDono(mudancas, descricao, regras, recados);
     }
 
     // Ordem: agente informado > branch (local ou GITHUB_HEAD_REF) > trailers dos commits (só com --base).
@@ -413,10 +426,10 @@ function verificar(args) {
     if (agente && !PESSOAS.includes(agente)) erroUso(`agente desconhecido: ${agente}`);
     if (!agente) ({ agente, origem, nuvem } = agentePeloBranch(branches()));
 
-    const { mudancas, descricao, mb } = coletarMudancas(base);
+    const { mudancas, descricao, mb, recados } = coletarMudancas(base);
     if (!agente) {
       // Sem --base a árvore é compartilhada: sem agente, só a lista por dono (os commits não dizem quem mexeu nela).
-      if (!base) listarPorDono(mudancas, descricao, regras);
+      if (!base) listarPorDono(mudancas, descricao, regras, recados);
       if (!mudancas.length) {
         console.log(`Verificação de donos — sem agente\nComparação: ${descricao}\n\nResultado: OK — nenhum arquivo alterado.`);
         process.exit(0);
@@ -426,6 +439,7 @@ function verificar(args) {
 
     const r = classificarMudancas({
       agente, mudancas, regras, estrito: Boolean(base), lockAcompanha: Boolean(base), workspaceSoBuilds: base ? workspaceSoBuildsBase(mb) : false,
+      recados,
     });
     const declarada = agente !== 'alexandre' ? '' : origem.startsWith('trailer') ? DECLARADA_TRAILER : origem.startsWith('branch') ? DECLARADA_BRANCH : '';
     console.log(`Verificação de donos — agente: ${agente} (${origem})`);

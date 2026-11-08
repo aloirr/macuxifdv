@@ -17,10 +17,15 @@
 //  - "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
 //  - Recado (guardião v5, T-0044): só arquivo novo cujo nome termina com o remetente (R-...-<agente>.md)
 //    e, no Write, com "de: <agente>" no cabeçalho — nenhum agente grava "de: alexandre".
+//  - Junções de recados (ADR 0035, T-0139): o caminho por .coord/recados/... fica dentro da raiz (nada aqui usa
+//    realpath). O caminho de verdade no clone (C:/macuxifdv-recados/recados/...) volta a ser .coord/recados/...
+//    (mesmas regras) e o resto do clone (.git, .github, README) é bloqueado.
 //  - sessão manual local (sem agente) → liberado. Desligar tudo: variável MACUXI_GUARDA=off.
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PESSOAS, RAIZ, caminhoRelativo, podeAlterar, agenteDaSessao } from '../../scripts/coord-lib.mjs';
+import { join, resolve } from 'node:path';
+import {
+  PESSOAS, RAIZ, caminhoRelativo, podeAlterar, agenteDaSessao, juncoesDeRecados, relativoPorJuncao, MOTIVO_CLONE_DE_RECADOS,
+} from '../../scripts/coord-lib.mjs';
 
 function lerEntrada() {
   return new Promise((ok) => {
@@ -49,7 +54,13 @@ const alvo = ti.file_path || ti.notebook_path || ti.path;
 if (!agente) process.exit(0); // sessão manual, sem agente
 if (!alvo) process.exit(0);
 
-const rel = caminhoRelativo(alvo, RAIZ);
+let rel = caminhoRelativo(alvo, RAIZ);
+if (rel === null) {
+  // ADR 0035: escrita direta no clone de recados (por fora da junção) segue as regras de .coord/recados.
+  const j = relativoPorJuncao(resolve(RAIZ, alvo), juncoesDeRecados(RAIZ));
+  if (j?.clone) bloquear(`"${alvo}": ${MOTIVO_CLONE_DE_RECADOS}.`);
+  if (j?.rel) rel = j.rel;
+}
 if (rel === null) {
   // Fora do repositório: só bloqueia as pastas marcadas como somente leitura (ex.: Fase M).
   let somenteLeitura = [];

@@ -1,7 +1,7 @@
 // Biblioteca comum do protocolo de coordenação do time Macuxi.
 // Usada pelo guardião (.claude/hooks/guarda-donos.mjs) e pela CLI (scripts/coord.mjs).
 // Sem dependências externas.
-import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync, realpathSync } from 'node:fs';
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -73,6 +73,102 @@ export function caminhoRelativo(caminho, raiz = RAIZ) {
   }
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return null;
   return rel;
+}
+
+// ───────────────────── recados no repositório próprio (ADR 0035, T-0139) ─────────────────────
+// No PC, .coord/recados e .coord/lidos viram junções (mklink /J) para o clone do macuxifdv-recados.
+// Nada aqui resolve caminho por realpath: quem escreve por .coord/recados/... continua dentro da raiz e
+// cai nas regras de sempre. O risco é o caminho de verdade (C:\macuxifdv-recados\recados\...), que fica
+// fora da raiz: juncoesDeRecados + relativoPorJuncao o trazem de volta para .coord/recados/... (mesmas
+// regras), e o resto do clone (.git, .github, README) é bloqueado para os agentes.
+
+/** Pastas de coordenação que moram no repositório de recados depois do corte. */
+export const PASTAS_DE_RECADOS = ['.coord/recados', '.coord/lidos'];
+
+const comBarras = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '');
+const mesmoCaminho = (a, b) => (process.platform === 'win32' || /^[A-Za-z]:\//.test(a)
+  ? comBarras(a).toLowerCase() === comBarras(b).toLowerCase()
+  : comBarras(a) === comBarras(b));
+
+/**
+ * Junções das pastas de recados (ADR 0035): [{rel, real}] das PASTAS_DE_RECADOS cujo caminho de verdade
+ * (realpath) é outro, e `clone` = pasta-mãe comum dos destinos (a raiz do clone) ou null.
+ * Sem junção (antes do corte, na nuvem, no CI): {mapas: [], clone: null}. `realpath` é injetável (testes).
+ */
+export function juncoesDeRecados(raiz = RAIZ, { realpath = (p) => realpathSync.native(p) } = {}) {
+  const mapas = [];
+  for (const rel of PASTAS_DE_RECADOS) {
+    const lexico = join(raiz, ...rel.split('/'));
+    let real;
+    try { real = realpath(lexico); } catch { continue; } // pasta ausente: nada a mapear
+    let raizReal = raiz;
+    try { raizReal = realpath(raiz); } catch { /* raiz sem realpath: compara com a léxica */ }
+    if (mesmoCaminho(real, lexico) || mesmoCaminho(real, join(raizReal, ...rel.split('/')))) continue;
+    mapas.push({ rel, real: comBarras(real) });
+  }
+  const maes = [...new Set(mapas.map((m) => comBarras(dirname(m.real))))];
+  return { mapas, clone: maes.length === 1 ? maes[0] : null };
+}
+
+/**
+ * Caminho absoluto que cai numa junção de recados (função pura): {rel: '.coord/recados/...'} dentro de um
+ * destino mapeado; {clone: true} no resto do clone de recados (.git, .github, README...); null fora dos dois.
+ */
+export function relativoPorJuncao(abs, juncoes) {
+  if (!abs || !juncoes) return null;
+  const a = comBarras(abs);
+  const sob = (base) => mesmoCaminho(a, base) || a.toLowerCase().startsWith(comBarras(base).toLowerCase() + '/');
+  for (const { rel, real } of juncoes.mapas || []) {
+    if (!sob(real)) continue;
+    const resto = a.slice(comBarras(real).length).replace(/^\/+/, '');
+    return { rel: resto ? `${rel}/${resto}` : rel };
+  }
+  if (juncoes.clone && sob(juncoes.clone)) return { clone: true };
+  return null;
+}
+
+export const MOTIVO_CLONE_DE_RECADOS = 'o clone do repositório de recados só muda pelo node scripts/coord.mjs (enviar, lido) e pelo scripts/sincronizar-recados.ps1 (ADR 0035)';
+
+/**
+ * Estado dos recados no repositório de código pela marca do .gitignore (ADR 0035), para o verificar:
+ * 'no-repo' (marca nem na base nem no topo: regra de sempre) · 'corte' (a marca entra no topo: só o
+ * alexandre tira os recados e lidos do repositório) · 'fora' (marca na base: nada de recado ou lidos aqui).
+ * Marca na base e não no topo é a volta (plano de volta da ADR): vale a regra de sempre.
+ */
+export function estadoDosRecados({ gitignoreBase = '', gitignoreTopo = '' } = {}) {
+  const base = recadosForaDoRepo(gitignoreBase);
+  const topo = recadosForaDoRepo(gitignoreTopo);
+  if (base && topo) return 'fora';
+  if (!base && topo) return 'corte';
+  return 'no-repo';
+}
+
+/** O .gitignore tira .coord/recados/ do repositório (linha exata, com ou sem a barra inicial)? */
+export function recadosForaDoRepo(gitignore) {
+  return /^\/?\.coord\/recados\/?[ \t]*\r?$/m.test(String(gitignore || ''));
+}
+
+const ehDePastaDeRecados = (caminho) => PASTAS_DE_RECADOS.some((p) => {
+  const c = String(caminho).toLowerCase();
+  return c === p || c.startsWith(`${p}/`);
+});
+
+/**
+ * Regra das pastas de recados conforme o estado (ADR 0035). null = vale a regra de sempre.
+ * @returns {null | {excecao?: string, violacao?: string, dono?: string}}
+ */
+function regraDosRecadosForaDoRepo(status, caminho, agente, estado) {
+  if (estado !== 'corte' && estado !== 'fora') return null;
+  if (!ehDePastaDeRecados(caminho)) return null;
+  if (estado === 'corte' && status === 'D') {
+    return agente === 'alexandre'
+      ? { excecao: 'recados e lidos saem para o repositório macuxifdv-recados (corte da ADR 0035)' }
+      : { violacao: 'só o commit do corte, com "Agente: alexandre", tira recados e lidos do repositório (ADR 0035)', dono: 'alexandre' };
+  }
+  return {
+    violacao: 'recados e lidos agora ficam no repositório macuxifdv-recados (ADR 0035): no PC use node scripts/coord.mjs enviar; na nuvem, escreva o recado no corpo do PR',
+    dono: 'ninguém',
+  };
 }
 
 /** Primeira regra que casa vence. */
@@ -217,13 +313,18 @@ function* mudancasUnicas(mudancas) {
  * Com `lockAcompanha` (só no estrito, uso do `verificar --base/--por-commit`), aplica a regra
  * "o lock acompanha a dependência" (lockAcompanhaDependencia): o lock que seria violação vai
  * para `acompanhando`, para revisão do engenheiro-software.
+ * `recados` (ADR 0035, estadoDosRecados): 'corte' aceita só do alexandre a saída (D) de .coord/recados e
+ * .coord/lidos; 'fora' recusa qualquer mudança nessas pastas; 'no-repo' (padrão) é a regra de sempre.
  * @param {{agente: string, mudancas: {status: string, caminho: string}[], regras: any[], estrito?: boolean,
- *   lockAcompanha?: boolean, workspaceSoBuilds?: boolean | (() => boolean)}} p
+ *   lockAcompanha?: boolean, workspaceSoBuilds?: boolean | (() => boolean), recados?: 'no-repo'|'corte'|'fora'}} p
  * @returns {{ok: any[], excecoes: any[], outros: any[], violacoes: any[], acompanhando: any[]}}
  */
-export function classificarMudancas({ agente, mudancas, regras, estrito = false, lockAcompanha = false, workspaceSoBuilds = false }) {
+export function classificarMudancas({ agente, mudancas, regras, estrito = false, lockAcompanha = false, workspaceSoBuilds = false, recados = 'no-repo' }) {
   const res = { ok: [], excecoes: [], outros: [], violacoes: [], acompanhando: [] };
   for (const item of mudancasUnicas(mudancas)) {
+    const fora = regraDosRecadosForaDoRepo(item.status, item.caminho, agente, recados);
+    if (fora?.excecao) { res.excecoes.push({ ...item, motivo: fora.excecao }); continue; }
+    if (fora?.violacao) { res.violacoes.push({ ...item, dono: fora.dono, motivo: fora.violacao }); continue; }
     const info = donoDaMudanca(item.caminho, regras);
     const universal = violacaoUniversal(item.status, info);
     if (universal) {
@@ -330,12 +431,17 @@ export function mudancasDeGovernanca(mudancas, padroes = CAMINHOS_DE_GOVERNANCA)
 /**
  * Agrupa as mudanças por dono, sem agente (`verificar` sem agente e sem --base, ou --por-dono).
  * Recados vão para o remetente e diário/lidos para o próprio agente.
+ * `recados` (ADR 0035): no 'corte', a saída das pastas de recados vai para o grupo alexandre; no 'fora',
+ * qualquer mudança nelas é violação.
  * @returns {{grupos: Record<string, any[]>, violacoes: any[]}}
  */
-export function agruparPorDono({ mudancas, regras }) {
+export function agruparPorDono({ mudancas, regras, recados = 'no-repo' }) {
   const grupos = {};
   const violacoes = [];
   for (const item of mudancasUnicas(mudancas)) {
+    const fora = regraDosRecadosForaDoRepo(item.status, item.caminho, 'alexandre', recados);
+    if (fora?.excecao) { (grupos.alexandre ||= []).push({ ...item, dono: 'alexandre' }); continue; }
+    if (fora?.violacao) { violacoes.push({ ...item, dono: fora.dono, motivo: fora.violacao }); continue; }
     const info = donoDaMudanca(item.caminho, regras);
     const universal = violacaoUniversal(item.status, info);
     if (universal) violacoes.push({ ...item, dono: info.tipo.startsWith('recado') ? 'ninguém' : info.dono, motivo: universal });

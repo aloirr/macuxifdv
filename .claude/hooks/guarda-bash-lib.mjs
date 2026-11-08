@@ -11,12 +11,18 @@
 // Depois do comando (PostToolUse): compara o git status (+ data e tamanho de cada arquivo) de
 // antes × depois. Só bloqueia e manda desfazer ALVO EVIDENTE do comando que estava limpo antes;
 // o resto (outro agente em paralelo na mesma árvore) vira aviso não bloqueante. Não desfaz nada.
+// Junções de recados (ADR 0035, T-0139): alvo no clone de recados (C:/macuxifdv-recados/recados/...) é tratado como
+// .coord/recados/... (mesmas regras); o resto do clone e o git que escreve nele são bloqueados (só o coord.mjs e o
+// sincronizar-recados.ps1 mexem lá); o git status do clone entra na foto do PostToolUse com os caminhos de .coord/.
 import { readFileSync, writeFileSync, mkdirSync, statSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado } from '../../scripts/coord-lib.mjs';
+import {
+  PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado,
+  relativoPorJuncao, MOTIVO_CLONE_DE_RECADOS,
+} from '../../scripts/coord-lib.mjs';
 
 // ───────────────────────────── caminhos ─────────────────────────────
 
@@ -239,6 +245,11 @@ export const SO_LEITURA = new Set([
   'realpath', 'readlink', 'jq', 'sleep', 'seq', 'expr', 'export', 'set', 'unset', 'ps',
 ]);
 export const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
+/**
+ * Git no clone de recados (ADR 0035): só estes subcomandos passam para os agentes. Mais estrito que GIT_SO_LEITURA
+ * (sem config, remote, branch e tag, que gravam): commit, pull, push, reset, rebase... são do sincronizar-recados.ps1.
+ */
+export const GIT_LEITURA_NO_CLONE = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'fetch', 'reflog', 'version', 'help', 'rev-list', 'for-each-ref', 'show-ref', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
 /** Subcomandos de scripts/coord.mjs que só leem (caixa, ler, fio, dono, pendencias, verificar). */
 export const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
 /** pnpm/npm/yarn que só consultam (view, info, why, list...). */
@@ -328,6 +339,7 @@ function alvosGit(args, ctx, res) {
   }
   const sub = args[i]?.valor;
   if (!sub || args[i].incerto) return;
+  res.gitSub = sub;
   if (GIT_SO_LEITURA.has(sub)) { res.soLeitura = !res.temRedir; return; }
   const resto = args.slice(i + 1);
   const iSep = resto.findIndex((a) => a.valor === '--');
@@ -374,6 +386,7 @@ function alvosGit(args, ctx, res) {
     case 'clean': {
       const o = opcoes(resto, 'e', ['--exclude']);
       if (!o.tem('-f', '--force') || o.tem('-n', '--dry-run', '-i', '--interactive')) return;
+      if (o.tem('-x', '-X')) res.limpaIgnorados = true; // ADR 0035: os ignorados incluem as junções de recados
       for (const a of o.pos.length ? o.pos : [{ valor: '.', incerto: false }]) push(a, 'nao-rastreados'); // só a pasta atual
       return;
     }
@@ -661,13 +674,14 @@ function soLeituraPorArgumentos(nome, args) {
  * @param {any[]} p.regras      regras de donos (carregarDonos)
  * @param {string[]} [p.somenteLeitura]  pastas fora do repo que ninguém altera
  * @param {Set<string>} [p.permitidos]   "acao:rel" que o agente pode desfazer (acusados no PostToolUse)
+ * @param {{mapas: {rel: string, real: string}[], clone: string|null}} [p.juncoes]  junções de recados (ADR 0035)
  * @param {{existe(abs: string): boolean, ehDiretorio(abs: string): boolean, sujos(): {xy: string, rel: string}[], rastreadosSob(rel: string): string[], ler?(abs: string): string|null}} p.amb
  * @returns {{violacoes: {rel: string, motivo: string}[], soLeitura: boolean, alvos: {rel: string, sub: boolean}[], instala: boolean}}
  *   alvos: ALVOS EVIDENTES do comando (arquivo exato ou, com sub, a pasta inteira), dentro do
  *   repositório, de qualquer dono. O PostToolUse só acusa e manda desfazer o que estiver aqui.
  *   instala: pnpm/npm/yarn install/add/remove/update (pode reescrever o pnpm-lock.yaml).
  */
-export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLeitura = [], permitidos = new Set(), amb }) {
+export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLeitura = [], permitidos = new Set(), amb, juncoes = { mapas: [], clone: null } }) {
   const violacoes = [];
   const vistos = new Set();
   const alvos = new Map(); // rel → sub
@@ -688,6 +702,12 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
     if (!r.ok) acusar(rel, r.motivo);
   };
   const minus = (x) => barras(x).toLowerCase().replace(/\/+$/, '');
+  // Pasta no clone de recados: o caminho de verdade (C:/macuxifdv-recados/...) ou a junção (.coord/recados, .coord/lidos).
+  const dentroDoClone = (abs) => {
+    if (relativoPorJuncao(abs, juncoes)) return true;
+    const r = relativoDaRaiz(abs, raiz);
+    return r !== null && (juncoes.mapas || []).some((m) => r === m.rel || r.startsWith(`${m.rel}/`));
+  };
 
   const analisar = (texto, cwdInicial, profundidade) => {
     let cwdAtual = cwdInicial;
@@ -707,11 +727,26 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
       if ('cd' in r) { cwdAtual = r.cd == null ? null : abs(r.cd); continue; }
       if (r.subcomando && profundidade < 3) analisar(r.subcomando, cwdAtual, profundidade + 1);
       const cwdCmd = r.cwdGit === undefined ? cwdAtual : r.cwdGit === null ? null : abs(r.cwdGit);
+      // ADR 0035: git que grava dentro do clone de recados (commit, pull, push, reset...) é só do sincronizar-recados.ps1.
+      if (r.gitSub && !GIT_LEITURA_NO_CLONE.has(r.gitSub) && cwdCmd && dentroDoClone(cwdCmd)) {
+        soLeitura = false;
+        acusar(`git ${r.gitSub} @ ${cwdCmd}`, `git ${r.gitSub} no clone de recados: ${MOTIVO_CLONE_DE_RECADOS}`);
+      }
+      // ADR 0035: git clean -x/-X apaga ignorados, e as junções de recados são ignoradas no repositório de código.
+      if (r.limpaIgnorados && (juncoes.mapas || []).length) {
+        acusar('git clean -x', 'git clean -x/-X apagaria os recados e lidos pelas junções .coord/recados e .coord/lidos (ADR 0035); limpe sem -x ou só a pasta que precisa');
+      }
       for (const t of r.alvos) {
         if (t.alvo.incerto) continue; // em dúvida, não bloqueia (o PostToolUse confere)
         const a = t.alvo.raiz ? barras(raiz).replace(/\/+$/, '') : abs(t.alvo.valor, cwdCmd);
         if (!a) continue;
-        const rel = relativoDaRaiz(a, raiz);
+        let rel = relativoDaRaiz(a, raiz);
+        if (rel === null) {
+          // ADR 0035: alvo no clone de recados (por fora da junção) = .coord/recados/... ou .coord/lidos/...
+          const j = relativoPorJuncao(a, juncoes);
+          if (j?.clone) { acusar(a, `"${t.alvo.valor}": ${MOTIVO_CLONE_DE_RECADOS}`); continue; }
+          if (j?.rel) rel = j.rel;
+        }
         if (rel === null) {
           const pasta = somenteLeitura.find((sl) => minus(a) === minus(sl) || minus(a).startsWith(minus(sl) + '/'));
           if (pasta) acusar(a, `"${t.alvo.valor}" está numa pasta somente leitura (${pasta}). Copie o que precisar para dentro do repositório.`);
@@ -791,16 +826,49 @@ function git(raiz, args) {
 }
 
 /** git status: [{xy, rel}] (sem renomeações; inclui não rastreados). null se o git falhar. */
-export function lerStatus(raiz) {
+export function lerStatus(raiz, juncoes) {
   const saida = git(raiz, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames']);
   if (saida === null) return null;
-  return saida.split('\0').filter(Boolean).map((e) => ({ xy: e.slice(0, 2), rel: e.slice(3) }));
+  const status = saida.split('\0').filter(Boolean).map((e) => ({ xy: e.slice(0, 2), rel: e.slice(3) }));
+  return [...status, ...statusDoClone(juncoes)];
+}
+
+/** Pasta de cada junção dentro do clone ("recados", "lidos") e o caminho dela no repositório de código (ADR 0035). */
+function pastasNoClone(juncoes) {
+  if (!juncoes?.clone) return [];
+  const semFim = (p) => barras(p).replace(/\/+$/, '');
+  const clone = semFim(juncoes.clone);
+  return (juncoes.mapas || [])
+    .map(({ rel, real }) => ({ rel, noClone: semFim(real).slice(clone.length + 1) }))
+    .filter((p) => p.noClone && !p.noClone.includes('..'));
+}
+
+/** Converte "recados/x/R.md" do clone em ".coord/recados/x/R.md"; null fora das pastas mapeadas. */
+export function doCloneParaRepo(caminho, juncoes) {
+  for (const p of pastasNoClone(juncoes)) {
+    if (caminho === p.noClone || caminho.startsWith(`${p.noClone}/`)) return `${p.rel}${caminho.slice(p.noClone.length)}`;
+  }
+  return null;
+}
+
+/**
+ * git status do clone de recados com os caminhos de .coord/ (ADR 0035): depois do corte as pastas são ignoradas no
+ * repositório de código, e o PostToolUse continua vendo recado criado, alterado ou apagado por comando opaco.
+ */
+export function statusDoClone(juncoes, ler = (dir, args) => git(dir, args)) {
+  const pastas = pastasNoClone(juncoes);
+  if (!pastas.length) return [];
+  const saida = ler(juncoes.clone, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--', ...pastas.map((p) => p.noClone)]);
+  if (!saida) return [];
+  return saida.split('\0').filter(Boolean)
+    .map((e) => ({ xy: e.slice(0, 2), rel: doCloneParaRepo(e.slice(3), juncoes) }))
+    .filter((e) => e.rel);
 }
 
 /** Ambiente real; o git status é lido uma vez só por execução. */
-export function ambienteReal(raiz) {
+export function ambienteReal(raiz, juncoes) {
   let st;
-  const status = () => (st === undefined ? (st = lerStatus(raiz)) : st);
+  const status = () => (st === undefined ? (st = lerStatus(raiz, juncoes)) : st);
   return {
     status,
     existe: (abs) => existsSync(abs),
@@ -809,8 +877,26 @@ export function ambienteReal(raiz) {
     ler: (abs) => {
       try { return statSync(abs).size > 8 * 1024 * 1024 ? null : readFileSync(abs, 'utf8'); } catch { return null; }
     },
-    rastreadosSob: (rel) => (git(raiz, ['ls-files', '-z', '--', rel === '' ? '.' : rel]) || '').split('\0').filter(Boolean),
+    rastreadosSob: (rel) => [
+      ...(git(raiz, ['ls-files', '-z', '--', rel === '' ? '.' : rel]) || '').split('\0').filter(Boolean),
+      ...rastreadosNoClone(rel, juncoes),
+    ],
   };
+}
+
+/** Arquivos rastreados no clone de recados sob `rel` (do repositório de código), com os caminhos de .coord/. */
+function rastreadosNoClone(rel, juncoes) {
+  const sob = (x) => rel === '' || x === rel || x.startsWith(`${rel}/`);
+  const res = [];
+  for (const p of pastasNoClone(juncoes)) {
+    if (!(sob(p.rel) || rel.startsWith(`${p.rel}/`))) continue;
+    const lista = (git(juncoes.clone, ['ls-files', '-z', '--', p.noClone]) || '').split('\0').filter(Boolean);
+    for (const c of lista) {
+      const r = doCloneParaRepo(c, juncoes);
+      if (r && sob(r)) res.push(r);
+    }
+  }
+  return res;
 }
 
 // ───────────────────────────── foto antes × depois (PostToolUse) ─────────────────────────────
