@@ -23,6 +23,8 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   aplicarMigracoes,
+  ARQUIVO_DE_USUARIO_RE,
+  arquivoDoUsuario,
   criarArmazenamentoSqlite,
   ddlDaEntidade,
   definirIndiceBusca,
@@ -715,8 +717,9 @@ describe('aparelho: RN-CORE-02 (módulo desativado: dados locais dele apagados d
 
 // ---------- 4. RN-CORE-15 ----------
 
-/** Arquivos SQLite de usuário no aparelho: `macuxi-u-<uuid>.db` e os anexos do WAL/rollback. */
-const ARQUIVO_DE_USUARIO_RE = /^macuxi-u-[0-9a-f-]{36}\.db(-wal|-shm|-journal)?$/;
+// Arquivos SQLite de usuário no aparelho: `ARQUIVO_DE_USUARIO_RE` e `arquivoDoUsuario` do SDK (T-0088 §1.1 e §10:
+// `macuxi-u-<usuario>-t-<tenant|demo>.db`, id fora do formato de UUID vira `h` + 32 hex do SHA-256) e os anexos do WAL.
+const TENANT_RN15 = 'aaaaaaaa-0000-4000-8000-000000000015';
 
 /**
  * Reserva da RN-CORE-15 quando o arquivo NÃO pode ser apagado (ex.: outra conexão aberta): esvazia tudo e reescreve o
@@ -742,7 +745,9 @@ describe('aparelho: RN-CORE-15 (aparelho bloqueado: dados locais do tenant e fil
   const MARCA = 'SIGILO-CLIENTE-RN15';
 
   async function arquivoComDados(pasta: string, usuario: string) {
-    const arquivo = join(pasta, `macuxi-u-${usuario}.db`);
+    const nome = arquivoDoUsuario({ usuarioId: usuario, tenantId: TENANT_RN15 });
+    if (!nome) throw new Error('arquivoDoUsuario sem nome para um usuário com id');
+    const arquivo = join(pasta, nome);
     const a = abrirArmazenamento(criarDriverNode(arquivo));
     await puxar(a, 'cliente', Array.from({ length: 300 }, (_, i) => ({ ...cliente(i), razao_social: `${MARCA} ${i}` })));
     await puxar(a, 'produto', Array.from({ length: 300 }, (_, i) => ({ ...produto(i), nome: `${MARCA} produto ${i}` })));

@@ -113,7 +113,7 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
               const ex = byDate.get(d);
               return (
                 <label key={d} className="flex min-h-[40px] items-center gap-2.5 rounded-lg px-1 text-[14px] hover:bg-ground">
-                  <input type="checkbox" className="h-4 w-4 accent-[#c2540a]" checked={selected.includes(d)} onChange={() => toggle(d)} />
+                  <input type="checkbox" className="h-4 w-4 accent-accent" checked={selected.includes(d)} onChange={() => toggle(d)} />
                   <span className="w-[86px] font-semibold tabular-nums">{dayShortLabel(d)}</span>
                   <span className={cx('text-[12px]', ex ? 'font-semibold text-accent-ink' : 'text-ink-2')}>
                     {existing.isPending ? 'verificando…' : ex ? `já tem rota (${ex.stops.length} visitas)` : 'sem rota'}

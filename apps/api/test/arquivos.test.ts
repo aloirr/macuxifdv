@@ -1,17 +1,19 @@
 /**
  * Arquivos sem banco (ADR 0010; desenho T-0016 §1 E4): sessão antes do corpo, tipo, assinatura JPEG, limite de 2 MB,
- * adaptador de disco (chave fechada, gravação atômica) e a proteção do Zod (GHSA-mrhx-c7xc-m3w5) no createApp.
+ * adaptador de disco (chave fechada, gravação atômica), a proteção do Zod (GHSA-mrhx-c7xc-m3w5) no createApp e o escopo
+ * do GET sem cliente: foto de produto do Catálogo vale para o tenant (T-0097, RN-CAT-04); as outras, os usuários visíveis.
  */
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { definirModuloApi, LIMITE_ARQUIVO_BYTES } from '@macuxi/platform-sdk';
+import { definirModuloApi, LIMITE_ARQUIVO_BYTES, type ClienteBanco } from '@macuxi/platform-sdk';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp, excedeElementos, MAX_ELEMENTOS_CORPO } from '../src/app';
 import { chaveDoArquivo, criarArmazenamentoEmDisco, criarArmazenamentoEmMemoria } from '../src/arquivos';
-import { bancoFalso, cab, modulosDeTeste, opcoesDeTeste, TENANT } from './apoio';
+import type { BancoApp } from '../src/banco';
+import { bancoFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
 
 const ID = '0f000000-0000-4000-8000-0000000000b1';
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x02, 0xff, 0xd9]);
@@ -141,6 +143,61 @@ describe('proteção do Zod (GHSA-mrhx-c7xc-m3w5)', () => {
     const d = (r.json() as { detalhes: { problemas: unknown[]; total_problemas: number } }).detalhes;
     expect(d.problemas).toHaveLength(50);
     expect(d.total_problemas).toBe(120);
+    await app.close();
+  });
+});
+
+describe('GET /v1/arquivos/:id — foto sem cliente (T-0097, RN-CAT-04)', () => {
+  const CHAVE = `${TENANT}/catalogo/2026-11/${ID}.jpg`;
+
+  /** Banco com uma linha `recebido` em plataforma.arquivo, sem cliente, enviada pelo analista. */
+  async function montarCom(finalidade: string, licencas = LICENCAS_PADRAO) {
+    const linha = {
+      modulo: 'catalogo',
+      finalidade,
+      enviado_por: usuarios.analista!.id,
+      situacao: 'recebido',
+      sha256: 'a'.repeat(64),
+      tamanho_bytes: JPEG.length,
+      cliente_id: null,
+      chave_armazenamento: CHAVE,
+    };
+    const cliente: ClienteBanco = {
+      query: async <R>(sql: string) => (/from plataforma\.arquivo/.test(sql) ? { rows: [linha] as R[], rowCount: 1 } : { rows: [] as R[], rowCount: 0 }),
+    };
+    const banco: BancoApp = { ...bancoFalso().banco, comTenant: async (_t, fn) => fn(cliente), semTenant: async (fn) => fn(cliente) };
+    const arquivos = criarArmazenamentoEmMemoria();
+    await arquivos.gravar(CHAVE, JPEG);
+    // vendedor e promotor só enxergam a si mesmos (como no Core)
+    return createApp(opcoesDeTeste(licencas, { banco, arquivos, usuariosVisiveis: async (u) => (u.perfil === 'analista' ? 'tenant' : new Set([u.id])) }));
+  }
+  const get = (app: ReturnType<typeof createApp>, quem: 'vendedor' | 'promotor' | 'supervisor') =>
+    app.inject({ method: 'GET', url: `/v1/arquivos/${ID}`, headers: cab(quem) });
+
+  it('foto_produto enviada pelo analista: vendedor, promotor e supervisor leem (200, os bytes)', async () => {
+    const app = await montarCom('foto_produto');
+    for (const quem of ['vendedor', 'promotor', 'supervisor'] as const) {
+      const r = await get(app, quem);
+      expect(r.statusCode, quem).toBe(200);
+      expect(r.headers['content-type']).toBe('image/jpeg');
+      expect(r.rawPayload).toEqual(JPEG);
+    }
+    await app.close();
+  });
+
+  it('outra finalidade sem cliente: quem não enviou nem enxerga o remetente recebe 404', async () => {
+    const app = await montarCom('anexo_interno');
+    const r = await get(app, 'vendedor');
+    expect(r.statusCode).toBe(404);
+    expect(r.json()).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+    await app.close();
+  });
+
+  it('foto_produto continua exigindo a licença do Catálogo (403 MODULO_INATIVO sem ela)', async () => {
+    const app = await montarCom('foto_produto', { ...LICENCAS_PADRAO, perfil: { ...LICENCAS_PADRAO.perfil, vendedor: ['core', 'vendedor'] } });
+    const r = await get(app, 'vendedor');
+    expect(r.statusCode).toBe(403);
+    expect(r.json()).toMatchObject({ codigo: 'MODULO_INATIVO' });
     await app.close();
   });
 });

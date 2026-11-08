@@ -63,6 +63,16 @@ export function validadeDoOrcamento(momento: string, dias: number, fuso: string)
   return { data, ate: inicioDoDia(somarDias(data, 1), fuso) };
 }
 
+/**
+ * T-0135 (RN-VEN-18): a ÚNICA forma de escrever a validade na tela, no histórico, no PDF e no BKO. Recebe a data civil
+ * (`validadeDoOrcamento(...).data`, AAAA-MM-DD) e devolve "dd/mm" ou "dd/mm/aaaa". Nunca derive a data do instante `ate`
+ * (início do dia seguinte), que mostra um dia a mais.
+ */
+export function dataDaValidade(data: string, comAno = false): string {
+  const [a, m, d] = data.split('-');
+  return comAno ? `${d}/${m}/${a}` : `${d}/${m}`;
+}
+
 export const SITUACOES_ORCAMENTO = ['aberto', 'expirado', 'convertido', 'cancelado'] as const;
 export type SituacaoOrcamento = (typeof SITUACOES_ORCAMENTO)[number];
 
@@ -172,9 +182,38 @@ export function verificarConversao(e: { orcamento: OrcamentoParaConversao | null
 }
 
 /** RN-VEN-32: histórico do orçamento recebido (não passa pela alçada: quem passa é o pedido convertido). */
-export function historicoDoOrcamento(validadeAte: string, fuso: string): EventoHistorico[] {
-  const [a, m, d] = localIsoDate(validadeAte, fuso).split('-');
-  return [{ de: null, para: 'received', motivo: `Orçamento salvo, válido até ${d}/${m}/${a}; não reserva estoque nem consome crédito` }];
+export function historicoDoOrcamento(validadeData: string): EventoHistorico[] {
+  return [{ de: null, para: 'received', motivo: `Orçamento salvo, válido até ${dataDaValidade(validadeData, true)}; não reserva estoque nem consome crédito` }];
+}
+
+// ---------- preço congelado (T-0134; RN-VEN-18) ----------
+/** Item salvo do orçamento: o que o aparelho e o servidor guardaram (preço de tabela da MEDIDA vendida e o fator). */
+export interface ItemSalvoParaCongelar {
+  product_id: string;
+  preco_tabela_cents: number;
+  fator: number;
+}
+
+/**
+ * RN-VEN-18 (preço congelado): produto → preço de tabela por UNIDADE como o orçamento gravou. Reeditar ou transformar usa
+ * este preço, nunca a tabela de hoje. Produto repetido em medidas diferentes vale o da 1ª linha salva.
+ */
+export function precosCongelados(itens: ReadonlyArray<ItemSalvoParaCongelar>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const i of itens) {
+    if (i.product_id in out || !(i.preco_tabela_cents > 0)) continue;
+    out[i.product_id] = i.preco_tabela_cents / (i.fator > 0 ? i.fator : 1);
+  }
+  return out;
+}
+
+/**
+ * RN-VEN-18: o preço de UM item ao editar ou transformar. Item já salvo no orçamento (`congelado_cents` presente) mantém o
+ * preço salvo e ignora a tabela de hoje e as faixas de hoje; só o item NOVO entra pelo preço de hoje. `null` = sem preço.
+ */
+export function precoDoItemNaEdicao<F>(i: { congelado_cents?: number | null; hoje_cents: number | null; faixas_hoje?: F }): { preco_unidade_cents: number | null; faixas: F | undefined; congelado: boolean } {
+  if (i.congelado_cents != null) return { preco_unidade_cents: i.congelado_cents, faixas: undefined, congelado: true };
+  return { preco_unidade_cents: i.hoje_cents, faixas: i.faixas_hoje, congelado: false };
 }
 
 // ---------- cópia completa: transformar e duplicar (T-0071; desenho §1.4 c) ----------
@@ -252,8 +291,8 @@ function copiarCabecalho(o: OrcamentoParaPedido): { discount_pct: number } & Rec
 
 /**
  * RF-VEN-03 / RN-VEN-18: o pedido que nasce do orçamento (vai para a fila do aparelho como um pedido novo). Copia medida,
- * ajustes do item e do pedido, frete, endereço, condição, observação e visita. O preço NÃO é copiado: o servidor usa a tabela
- * vigente na data do pedido (RN-VEN-01) e revalida a alçada (RN-VEN-10).
+ * ajustes do item e do pedido, frete, endereço, condição, observação e visita. O preço não vai no payload: o servidor
+ * reaplica o preço salvo no orçamento (preço congelado, RN-VEN-18) e revalida estoque, mínimo e alçada (RN-VEN-10/11).
  */
 export function pedidoDoOrcamento(o: OrcamentoParaPedido, novoId: string, criadoEm: string) {
   return {
@@ -316,6 +355,8 @@ export type MudancaNaConversao =
   | { tipo: 'sem_preco'; produto_id: string }
   | { tipo: 'estoque'; produto_id: string; pedido_base: number; disponivel_base: number }
   | { tipo: 'ajuste_travado'; produto_id: string; de: AjusteItem; para: AjusteItem }
+  /** T-0134 (RN-VEN-11): com o preço congelado, o desconto do item passa do mínimo de hoje; avisa o item, não troca o preço */
+  | { tipo: 'abaixo_minimo'; produto_id: string; unidade: string }
   | { tipo: 'medida_inativa'; produto_id: string; unidade: string }
   | { tipo: 'alcada'; de: NivelDePreco | null; para: NivelDePreco | null }
   | { tipo: 'cliente'; motivo: 'bloqueado' | 'inativo' | 'cadastro_incompleto'; campos: string[] };
@@ -340,8 +381,9 @@ function limitarAjuste(a: AjusteItem, tabela: number, minimo: number): AjusteIte
 }
 
 /**
- * RN-VEN-18: o que muda ao transformar o orçamento em pedido com os dados de hoje (puro, offline). Item sem preço ou com
- * medida inativa sai; o preço novo vale e o ajuste do item é mantido (reduzido se o mínimo subiu, RN-VEN-11); a alçada é
+ * RN-VEN-18 (preço congelado, T-0134): o que muda ao transformar o orçamento em pedido (puro, offline). O PREÇO é o do
+ * orçamento; só se reconfere estoque e preço mínimo (RN-VEN-11): item abaixo do mínimo é avisado (mudança `abaixo_minimo` e
+ * bloqueio), sem trocar preço nem desconto. Item de produto que saiu do catálogo ou com medida inativa sai; a alçada é
  * recalculada (RN-VEN-10). Cliente bloqueado, inativo ou incompleto não transforma (RN-VEN-13).
  */
 export function reconferirOrcamento(
@@ -361,7 +403,8 @@ export function reconferirOrcamento(
 
   for (const it of o.itens) {
     const d = hoje.itens[it.product_id];
-    if (!d || d.tabela_cents == null) {
+    // T-0134: o preço é o do orçamento; sem preço na tabela de hoje não impede (só produto fora do catálogo do aparelho)
+    if (!d) {
       mudancas.push({ tipo: 'sem_preco', produto_id: it.product_id });
       continue;
     }
@@ -369,20 +412,19 @@ export function reconferirOrcamento(
       mudancas.push({ tipo: 'medida_inativa', produto_id: it.product_id, unidade: it.unidade });
       continue;
     }
-    if (d.tabela_cents !== it.tabela_cents) mudancas.push({ tipo: 'preco', produto_id: it.product_id, de_cents: it.tabela_cents, para_cents: d.tabela_cents });
-    let ajuste = it.ajuste;
+    const ajuste = it.ajuste;
     if (d.minimo_base_cents != null) {
-      const limitado = limitarAjuste(ajuste, d.tabela_cents, d.minimo_base_cents * d.fator);
+      const limitado = limitarAjuste(ajuste, it.tabela_cents, d.minimo_base_cents * d.fator);
       if (JSON.stringify(limitado) !== JSON.stringify(ajuste)) {
-        mudancas.push({ tipo: 'ajuste_travado', produto_id: it.product_id, de: ajuste, para: limitado });
-        ajuste = limitado;
+        mudancas.push({ tipo: 'abaixo_minimo', produto_id: it.product_id, unidade: it.unidade });
+        if (!bloqueio) bloqueio = 'Um item ficou abaixo do preço mínimo de hoje. Ajuste o desconto do item e envie de novo.';
       }
     }
     if (d.estoque_base != null && it.quantity * d.fator > d.estoque_base) {
       mudancas.push({ tipo: 'estoque', produto_id: it.product_id, pedido_base: it.quantity * d.fator, disponivel_base: d.estoque_base });
       if (hoje.estoque_bloqueia && !bloqueio) bloqueio = 'Sem estoque suficiente para um dos itens.';
     }
-    itens.push({ product_id: it.product_id, unidade: it.unidade, quantity: it.quantity, ajuste, tabela_cents: d.tabela_cents });
+    itens.push({ product_id: it.product_id, unidade: it.unidade, quantity: it.quantity, ajuste, tabela_cents: it.tabela_cents });
   }
 
   const precos = itens.map((i) => precoDoItem({ preco_tabela_unidade_cents: i.tabela_cents, fator: 1, quantidade: i.quantity, desconto_pct: 0, acrescimo_pct: 0, ajuste: i.ajuste }));
@@ -406,7 +448,6 @@ const SUBTITULO_ENVIAR = {
 /** RN-VEN-13/16/10: o que a folha "Salvar pedido" oferece. Cliente incompleto ou bloqueado: só o orçamento, com o motivo. */
 export function opcoesDoSalvar(e: { cliente: SituacaoCliente; calculo: { nivel: NivelDePreco | null }; frete_erro: string | null; validade_data: string }) {
   const motivo = motivoSoOrcamento(e.cliente);
-  const [, m, d] = e.validade_data.split('-');
   return {
     enviar: {
       visivel: motivo === null,
@@ -414,7 +455,7 @@ export function opcoesDoSalvar(e: { cliente: SituacaoCliente; calculo: { nivel: 
       subtitulo: e.calculo.nivel ? SUBTITULO_ENVIAR[e.calculo.nivel] : ('Vai direto ao ERP.' as const),
       erro: e.frete_erro,
     },
-    orcamento: { visivel: true as const, subtitulo: `Válido até ${d}/${m}.` },
+    orcamento: { visivel: true as const, subtitulo: `Válido até ${dataDaValidade(e.validade_data)}.` },
     motivo_so_orcamento: motivo,
   };
 }

@@ -44,6 +44,8 @@ export const ORDEM_TABELAS_CARGA = [
   'catalogo.produto_no',
   'catalogo.produto_conteudo',
   'catalogo.produto_atributo',
+  // 0045 (T-0113, ADR 0034): produto_referencia.marca_id tem FK (tenant_id, marca_id) -> catalogo.marca_concorrente
+  'catalogo.marca_concorrente',
   'catalogo.produto_referencia',
   'catalogo.sinonimo',
   'catalogo.produto_busca',
@@ -479,6 +481,8 @@ export function gerarBaseCarga(op: OpcoesBase): { base: BaseCarga; resumo: Resum
     'catalogo.produto_no': produtoNo,
     'catalogo.produto_conteudo': conteudos,
     'catalogo.produto_atributo': atributos,
+    // as marcas das referências cruzadas, com o MESMO id que a referência usa (FK da 0045)
+    'catalogo.marca_concorrente': CONCORRENTES.map(([nome]) => ({ id: id(`concorrente:${nome}`), nome, ativo: true, external_id: null, ...comuns })),
     'catalogo.produto_referencia': referencias,
     'catalogo.sinonimo': SINONIMOS.map(([termo, lista]) => ({ id: id(`sinonimo:${termo}`), termo, sinonimos: [...lista], ativo: true, external_id: null, ...comuns })),
     'catalogo.produto_busca': busca,

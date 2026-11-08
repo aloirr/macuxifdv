@@ -31,6 +31,7 @@ export function Botao({
   ocupado,
   vibrar,
   sobreEscuro,
+  quebrarLinha,
   rotuloAcessivel,
   style,
   testID,
@@ -54,6 +55,11 @@ export function Botao({
    * neutro só com contorno claro e texto branco. Sem a prop, nada muda.
    */
   sobreEscuro?: boolean;
+  /**
+   * Rótulo em até 2 linhas, centralizado (T-0133): para dois botões lado a lado, metade da largura cada, com rótulo longo
+   * ("Salvar como orçamento" no Resumo do pedido). Use com `alto` (52 dp) para caber as 2 linhas. Sem a prop, 1 linha.
+   */
+  quebrarLinha?: boolean;
   rotuloAcessivel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -76,7 +82,7 @@ export function Botao({
         style,
       ]}>
       {ocupado ? <ActivityIndicator color={v.texto} size="small" /> : icone ? <Icon name={icone} size={v.tamanhoFonte + 2} color={v.texto} /> : null}
-      <Text style={[s.botaoTexto, { color: v.texto, fontSize: v.tamanhoFonte }]} numberOfLines={1}>
+      <Text style={[s.botaoTexto, { color: v.texto, fontSize: v.tamanhoFonte }, quebrarLinha && s.botaoTextoQuebra]} numberOfLines={quebrarLinha ? 2 : 1}>
         {rotulo}
       </Text>
       {seta ? <Icon name="chevron" size={v.tamanhoFonte} color={v.texto} strokeWidth={2.4} /> : null}
@@ -329,7 +335,7 @@ export function BarraAbas({
   tomContador?: 'destaque' | 'aviso';
   testID?: string;
 }) {
-  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.accent, fg: colors.surface };
+  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.accent, fg: colors.onAccent };
   return (
     <View accessibilityRole="tablist" testID={testID} style={[s.barra, { height: ALTURA.barraAbas + respiroInferior, paddingBottom: respiroInferior }]}>
       {itens.map((item) => {
@@ -396,6 +402,7 @@ export function EstadoVazio({
 const s = StyleSheet.create({
   botao: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.lg },
   botaoTexto: { fontFamily: fonts.semibold },
+  botaoTextoQuebra: { flexShrink: 1, textAlign: 'center', lineHeight: 18 },
   chip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.pilula },
   chipTexto: { fontFamily: fonts.semibold },
   avisoCamada: { position: 'absolute', left: space.lg, right: space.lg },

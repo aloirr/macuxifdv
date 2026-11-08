@@ -6,7 +6,7 @@ import { itensParaSobrepor } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { IndicadorDiarioSync, MetaSync, RotaParadaSync, VisitaSync } from '../../contracts';
+import type { IndicadorDiarioSync, MetaSync, ParametroSync, RotaParadaSync, VisitaSync } from '../../contracts';
 import { fusoDe } from './estado';
 import { painelLocal, type LinhasMetas } from './metas-local';
 import { useCore } from './usar-core';
@@ -20,13 +20,14 @@ export function usePainelMetas() {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [paradas, visitas, diarios, metas] = await Promise.all([
+      const [paradas, visitas, diarios, metas, parametros] = await Promise.all([
         motor.linhas<RotaParadaSync>('rota_parada'),
         motor.linhas<VisitaSync>('visita'),
         motor.linhas<IndicadorDiarioSync>('indicador_diario'),
         motor.linhas<MetaSync>('meta'),
+        motor.linhas<ParametroSync>('parametro'),
       ]);
-      if (ativo) setLinhas({ paradas, visitas, diarios, metas });
+      if (ativo) setLinhas({ paradas, visitas, diarios, metas, parametros });
     })();
     return () => {
       ativo = false;

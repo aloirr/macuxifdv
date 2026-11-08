@@ -8,9 +8,11 @@
 --   ignoraria a RLS; aparece como tabela "(papel) <nome>".
 -- Portal do super-admin (0038, T-0091, ADR 0029): o macuxi_portal só executa as plataforma.sa_*; política ou qualquer grant de
 --   tabela para ele (em qualquer tabela, direto ou via PUBLIC) aparece como problema.
+-- Despachantes (0003, ADR 0007; 0040, ADR 0032): política para o macuxi_worker (que lê todos os tenants) só em plataforma.evento
+--   e plataforma.email_saida; em qualquer outra tabela aparece como problema.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
--- Super-admin (0035, ADR 0029; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
+-- Super-admin e portal (0035, ADR 0029; 0039, ADR 0031; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
 -- SECURITY DEFINER); para elas o problema é o contrário: política ou qualquer grant de tabela para o macuxi_app/macuxi_worker.
 -- Prova: db/testes/conformidade.test.ts ("B1 conferência de RLS") roda este arquivo no Postgres de testes do CI.
 -- À mão (só leitura): psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql
@@ -35,13 +37,19 @@ sem_tenant_id (nome) as (
          ('plataforma.super_admin'),
          ('plataforma.super_admin_desafio'),
          ('plataforma.super_admin_sessao'),
-         ('plataforma.auditoria_plataforma')
+         ('plataforma.auditoria_plataforma'),
+         ('plataforma.portal_tentativa'),
+         ('plataforma.portal_sessao'),
+         ('plataforma.portal_sessao_empresa')
 ),
 so_por_funcao (nome) as (
   values ('plataforma.super_admin'),
          ('plataforma.super_admin_desafio'),
          ('plataforma.super_admin_sessao'),
-         ('plataforma.auditoria_plataforma')
+         ('plataforma.auditoria_plataforma'),
+         ('plataforma.portal_tentativa'),
+         ('plataforma.portal_sessao'),
+         ('plataforma.portal_sessao_empresa')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
@@ -76,6 +84,10 @@ problemas as (
       or exists (select 1 from pg_roles r where r.rolname = 'macuxi_portal'
                   and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'))
   union all
+  select t.nome, 'política para o macuxi_worker fora das outboxes (plataforma.evento, plataforma.email_saida)' from tabelas t
+   where t.nome not in ('plataforma.evento', 'plataforma.email_saida')
+     and exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+                  where p.polrelid = t.oid and r.rolname = 'macuxi_worker')  union all
   select '(papel) ' || a.rolname, 'membro de macuxi_manutencao (ignoraria a RLS)'
     from pg_roles a join pg_roles m on m.rolname = 'macuxi_manutencao'
    where a.rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal') and pg_has_role(a.oid, m.oid, 'MEMBER')

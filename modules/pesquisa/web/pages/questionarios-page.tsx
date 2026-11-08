@@ -119,11 +119,11 @@ export function QuestionariosPage() {
                       <td className={td}>{formatDateTime(q.atualizado_em, fuso)}</td>
                       <td className={td}>
                         <div className="flex gap-3">
-                          <a className="font-semibold text-accent hover:text-accent-ink" href={`/pesquisa?id=${q.id}`}>
+                          <a className="font-semibold text-accent-ink hover:underline" href={`/pesquisa?id=${q.id}`}>
                             {podeCriar ? 'Abrir construtor' : 'Ver questionário'}
                           </a>
                           {podeResultados && q.versao_vigente !== null ? (
-                            <a className="font-semibold text-accent hover:text-accent-ink" href={`/pesquisa-resultados?id=${q.id}`}>
+                            <a className="font-semibold text-accent-ink hover:underline" href={`/pesquisa-resultados?id=${q.id}`}>
                               Resultados
                             </a>
                           ) : null}

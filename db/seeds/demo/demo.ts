@@ -6,7 +6,9 @@
  * - Tenant "Distribuidora Exemplo", código da empresa `demo`, fuso America/Manaus; módulos core, catálogo, vendedor e
  *   promotor (licença do tenant + módulos por perfil).
  * - Usuários (e-mails @exemplo.com.br): vendedor, vendedor2, supervisor, gerente, promotor, analista e admin. Senha de
- *   todos = MACUXI_SENHA_DEMO (padrão "demo-macuxi"), gravada só como hash argon2id; nunca é impressa.
+ *   todos = MACUXI_SENHA_DEMO (padrão "demo-macuxi"), gravada só como hash argon2id; nunca é impressa. O seed grava o HASH
+ *   direto (não passa pela RN-CORE-32, que vale na criação e na troca pela API): "demo-macuxi" continua valendo (decisão
+ *   R-20261107-174523); a carga deixa a senha definitiva (0040: trocar_senha falso, sem temporária).
  *   Equipes: "Regional Norte" (gerente) é pai da "Equipe Manaus" (supervisora): o gerente vê a equipe (RN-CORE-04).
  * - 30 clientes de Manaus (endereço, bairro, coordenadas), contato principal com telefone fictício, financeiro e
  *   títulos (8 com título vencido, 1 bloqueado), 12 meses de histórico, pedidos em vários estados e visitas passadas.
@@ -721,6 +723,10 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     return {
       id: u(k), tenant_id: T, nome: x.nome, nome_curto: x.curto, email: x.email, perfil: x.perfil, equipe_id,
       senha_hash: hashDe(k), ativo: true, bloqueado_em: null, tentativas_falhas: 0, bloqueio_ate: null, deleted_at: null, external_id: x.externo,
+      // 0040 (T-0094, RN-CORE-34): a senha da demo é definitiva (sem "trocar no 1º uso", sem validade) e a carga desfaz uma
+      // temporária ou um "trocar senha" deixados por um ensaio de redefinição/"Esqueci a senha" (a demo volta a entrar com a
+      // MACUXI_SENHA_DEMO). A sessao_versao não volta atrás (token antigo continua morto).
+      trocar_senha: false, senha_expira_em: null, senha_temporaria_hash: null, senha_temporaria_expira_em: null, senha_temporaria_criada_em: null,
     };
   });
 
@@ -974,7 +980,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   });
   const notificacoes: Linha[] = [
     notificacao('recado-vendedor', 'vendedor', {
-      tipo: 'recado', titulo: 'Prioridade de hoje', corpo: 'Passe cedo no Mercadinho São Jorge: tem título vencido e o pedido de ontem aguarda aprovação.',
+      tipo: 'recado', titulo: 'Prioridade', corpo: 'Passe cedo no Mercadinho São Jorge: tem título vencido e o pedido de ontem aguarda aprovação.',
       link: '/m/core-rota', envio_id: id('notificacao-envio:recado-vendedor'), autor_id: u('supervisor'), prioridade: 'alta',
     }),
     notificacao('aprovacoes-supervisor', 'supervisor', {
@@ -1272,6 +1278,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
   }
   const metaTipo = await admin.query("select 1 from information_schema.columns where table_schema = 'core' and table_name = 'meta' and column_name = 'tipo'");
   if (metaTipo.rowCount === 0) throw new Error(`[db] base de demo precisa das migrações até a ${MIGRACAO_MINIMA} (falta core.meta.tipo): rode "banco migrar up" antes.`);
+  const trocarSenha = await admin.query("select 1 from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name = 'trocar_senha'");
+  if (trocarSenha.rowCount === 0) throw new Error('[db] base de demo precisa das migrações até a 0040_core_senha_email_saida (falta core.usuario.trocar_senha): rode "banco migrar up" antes.');
   await admin.query('begin');
   try {
     // T-0026 (R-20261104-163228): o --recriar apaga o tenant, mas o número legível já saiu para os aparelhos (e para o ERP);
@@ -1297,6 +1305,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     // T-0026: número já emitido (a um aparelho ou a um pedido do seed) não volta nem muda de dono (numerarPedidosDemo)
     const pedidosSeed = dados['vendedor.pedido'];
     const idsSeed = new Set(pedidosSeed.map((p) => String(p.id)));
+    // inclui os excluídos (deleted_at): contam para o teto. Com o único pedido_numero_uk sem filtro de deleted_at não há
+    // efeito; se ele virar parcial (deleted_at is null), o "mais antigo fica" pode renumerar o vivo e deixar o excluído
     const ficam = (
       await admin.query<{ id: string; numero: string | null; recebido_em: string | null }>(
         "select id::text as id, numero, to_char(recebido_em at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') as recebido_em from vendedor.pedido where tenant_id = $1",
@@ -1366,10 +1376,11 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       await gravarDemoMedidas(admin, tabela, dados);
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
+    // 0033/0045 (T-0084/T-0085/T-0113): marcas concorrentes do Catálogo (ADR 0034), referências cruzadas, etiquetas e
+    // aplicação/referências no documento de busca — ANTES do Promotor, que passa a ler as marcas do Catálogo
+    await gravarDemoCatalogoCadastro(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0015 (T-0056): cadastros de trade e histórico da Joana (visitas de loja v-pr1/v-pr2), licença do Promotor
     await gravarDemoPromotor(admin, { hoje: dados['core.rota'][0]!.data as string });
-    // 0033 (T-0084/T-0085): referências cruzadas (marcas do Promotor), etiquetas e aplicação/referências no documento de busca
-    await gravarDemoCatalogoCadastro(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0016 (T-0057): questionários da Pesquisa (exposição do café e satisfação no checkout), 16 respostas, licença
     await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0017 (T-0058): licença do Treinamento (7 perfis), 3 trilhas, jornada de Lucas/Camila/Joana e desafio do mês

@@ -267,7 +267,7 @@ function AbaTrilhas() {
                 {itens.map((t) => (
                   <tr key={t.id} data-testid={`treinamento.trilha-${t.id}`}>
                     <td className={td}>
-                      <Link href={hrefEditarTrilha(t.id)} className="font-semibold text-accent no-underline hover:underline">
+                      <Link href={hrefEditarTrilha(t.id)} className="font-semibold text-accent-ink no-underline hover:underline">
                         {t.titulo}
                       </Link>
                       {t.obrigatoria && <span className="ml-2 text-[11px] text-ink-2">obrigatória{t.prazo ? ` até ${t.prazo.split('-').reverse().join('/')}` : ''}</span>}

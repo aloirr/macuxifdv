@@ -4,7 +4,7 @@
  * O "dia" é a data civil no fuso do tenant (`parametros.fuso`); o armazenado é sempre UTC.
  * Módulo opcional desativado (ou seção que não se aplica ao perfil) ⇒ a seção é `null`, o painel continua válido.
  */
-import { businessDays, localDate } from '@macuxi/comum';
+import { daysInMonth, ehDiaUtilDoTenant, localDate, type BusinessDays } from '@macuxi/comum';
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
 import { situacaoDaRota } from './agora';
 import { statusAtual, vendasApuradas } from './apuracao';
@@ -262,6 +262,17 @@ export function calcularMeta(e: EntradaMeta): ResultadoMeta {
   return { atingimento_pct: percentual(e.realizado_cents, meta), falta_cents: falta, necessidade_diaria_cents: necessidade, ritmo_pct: ritmo };
 }
 
+/**
+ * RN-CORE-22/26: dias úteis do mês pelo calendário do tenant (`dias_uteis_semana`, padrão seg–sáb; a MESMA função de `packages/comum`
+ * que o Core usa), com os feriados do tenant quando cadastrados. Hoje conta como restante.
+ */
+export function diasUteisDoMes(mes: string, hoje: string, params: Pick<ParametrosGestor, 'feriados' | 'dias_uteis_semana'>): BusinessDays {
+  const feriados = params.feriados.length > 0 ? params.feriados : undefined; // sem cadastro, só a semana conta (RN-CORE-26)
+  const dias = daysInMonth(mes).filter((d) => ehDiaUtilDoTenant(d, feriados, params.dias_uteis_semana));
+  const decorridos = dias.filter((d) => d < hoje).length;
+  return { total: dias.length, elapsed: decorridos, remaining: dias.length - decorridos };
+}
+
 /** Acumulado do mês de `data` até `data` e meta (RN-CORE-21/22). */
 export function painelDoMes(estado: EstadoProjecao, vendedorId: string, data: string, paramsParciais: Partial<ParametrosGestor> = {}): PainelMes {
   const params = resolverParametros(paramsParciais);
@@ -269,7 +280,7 @@ export function painelDoMes(estado: EstadoProjecao, vendedorId: string, data: st
   const primeiro = `${mes}-01`;
   const vendas = vendasDoPeriodo(estado, vendedorId, primeiro, data, params);
   const ontem = data === primeiro ? null : vendasDoPeriodo(estado, vendedorId, primeiro, somarDias(data, -1), params);
-  const dias = businessDays(mes, data, params.feriados);
+  const dias = diasUteisDoMes(mes, data, params);
   const meta = estado.metas[`${vendedorId}|${mes}`]?.meta_cents ?? null;
   const r = calcularMeta({
     meta_cents: meta,

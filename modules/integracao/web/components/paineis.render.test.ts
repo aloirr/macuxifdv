@@ -8,9 +8,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
-import type { ConectorResumo, PendenciaInativacao } from '../../contracts';
+import type { AlertaMonitor, ConectorResumo, MonitorResumo, PendenciaInativacao } from '../../contracts';
 import { ConectoresPanel } from './conectores-panel';
+import { AlertasPanel } from './alertas-panel';
 import { InativacoesPanel } from './inativacoes-panel';
+import { PedidosPanel } from './pedidos-panel';
 
 // O vitest do módulo transforma .tsx com o JSX clássico (`React.createElement`) e o kit de UI não tem tsconfig próprio: o React
 // global supre isso só neste teste (pedido de `esbuild.jsx: 'automatic'` no vitest do módulo ao engenheiro-software).
@@ -78,6 +80,7 @@ describe('ConectoresPanel (sinal de vida e versão)', () => {
     tipo: 'conector',
     ativo: true,
     recebe_pedidos: true,
+    aceita_cancelamento: false,
     entidades: ['cliente', 'produto'],
     ips_permitidos: [],
     versao_conector: '1.2.1',
@@ -102,5 +105,31 @@ describe('ConectoresPanel (sinal de vida e versão)', () => {
   it('sem Conector: orienta o próximo passo', () => {
     const h = html(createElement(ConectoresPanel, { conectores: [], agora: relogio.agora(), tz: relogio.fuso }));
     expect(h).toContain('Nenhum Conector cadastrado');
+  });
+});
+
+describe('Monitor: cancelamento recusado pelo ERP (T-0114, exceção da RN-INT-08)', () => {
+  const alerta: AlertaMonitor = {
+    codigo: 'cancelamento_recusado',
+    severidade: 'atencao',
+    conector_id: null,
+    entidade: null,
+    mensagem: 'O ERP recusou o cancelamento de 1 pedido (PV-9 (3f2b8c1e): Pedido já faturado no ERP). O pedido segue ativo no ERP.',
+  };
+  const pedidos: MonitorResumo['pedidos'] = { por_estado: {}, presos: 0, retidos: 0 } as MonitorResumo['pedidos'];
+
+  it('o painel de alertas mostra o alerta com o pedido e o motivo', () => {
+    const h = html(createElement(AlertasPanel, { alertas: [alerta] }));
+    expect(h).toContain('integracao.alerta.cancelamento_recusado');
+    expect(h).toContain('PV-9');
+    expect(h).toContain('Pedido já faturado no ERP');
+  });
+
+  it('o painel de pedidos lista o alerta em "Erros de retorno" com o rótulo próprio; sem alerta, a mensagem de vazio', () => {
+    const com = html(createElement(PedidosPanel, { pedidos, alertas: [alerta] }));
+    expect(com).toContain('integracao.retorno.cancelamento_recusado');
+    expect(com).toContain('Cancelamento recusado');
+    expect(com).toContain('Pedido já faturado no ERP');
+    expect(html(createElement(PedidosPanel, { pedidos, alertas: [] }))).toContain('integracao.retornos.vazio');
   });
 });

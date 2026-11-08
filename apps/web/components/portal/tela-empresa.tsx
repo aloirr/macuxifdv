@@ -5,7 +5,11 @@
  * `GET /v1/integracao/ordem-carga`; o portal não tem lista própria), "Integração automática" e "Empresa" (resumo + acrescentar
  * módulos pelo passo Empresa, idempotente). A Equipe por CSV (Core, fatia E) é o primeiro cartão da aba Bases, visível mesmo sem
  * a Integração. A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
+ * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
+ * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
+ * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
  */
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { OrdemCargaResposta } from '@macuxi/integracao/contracts';
@@ -15,7 +19,9 @@ import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/p
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { AbaIntegracao } from './aba-integracao';
-import { MolduraPortal } from './base';
+import { CartaoAdmins } from './cartao-admins';
+import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { MolduraPortal, useSessaoPortal } from './base';
 import { CartaoBase } from './cartao-base';
 import { CartaoEquipe } from './cartao-equipe';
 import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
@@ -29,11 +35,11 @@ const ABAS = [
 type Aba = (typeof ABAS)[number]['id'];
 
 /** Bases da empresa: a Equipe (Core) primeiro, sempre visível; depois as bases do Hub na ordem de carga (precisam da Integração). */
-function AbaBases({ tenant, fuso }: { tenant: string; fuso: string }) {
+function AbaBases({ tenant }: { tenant: string }) {
   return (
     <div data-testid="empresa-pagina.bases" className="flex flex-col gap-3">
       <span className="text-[13px] text-ink-2">Carregue na ordem: cada base usa as anteriores. Confira sem gravar, corrija pelo "Baixar erros" e importe.</span>
-      <CartaoEquipe tenant={tenant} fuso={fuso} />
+      <CartaoEquipe tenant={tenant} />
       <BasesDoHub tenant={tenant} />
     </div>
   );
@@ -57,6 +63,23 @@ function BasesDoHub({ tenant }: { tenant: string }) {
 }
 
 export function TelaEmpresa({ id }: { id: string }) {
+  const sessao = useSessaoPortal();
+  const router = useRouter();
+  const desvio = sessao ? desvioDaPaginaDaEmpresa(sessao, id) : null;
+  useEffect(() => {
+    if (desvio) router.replace(desvio);
+  }, [desvio, router]);
+  if (desvio) {
+    return (
+      <MolduraPortal>
+        <LoadingBlock label="Abrindo a sua empresa…" />
+      </MolduraPortal>
+    );
+  }
+  return <PaginaDaEmpresa id={id} timeMacuxi={ehTimeMacuxi(sessao)} />;
+}
+
+function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }) {
   const empresas = useEmpresas();
   const qc = useQueryClient();
   const [aba, setAba] = useState<Aba>('bases');
@@ -126,7 +149,7 @@ export function TelaEmpresa({ id }: { id: string }) {
           </div>
           {abertas.has('bases') && (
             <div role="tabpanel" id="empresa-painel-bases" aria-labelledby="empresa-aba-bases" hidden={aba !== 'bases'}>
-              <AbaBases tenant={empresa.id} fuso={empresa.fuso} />
+              <AbaBases tenant={empresa.id} />
             </div>
           )}
           {abertas.has('integracao') && (
@@ -148,10 +171,14 @@ export function TelaEmpresa({ id }: { id: string }) {
                   ))}
                 </ul>
               </Panel>
-              <PassoEmpresa
-                existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
-                aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
-              />
+              {/* T-0094 fatia S: só o time da Macuxi redefine a senha do admin (o admin do cliente usa "Esqueci a senha") */}
+              {timeMacuxi && <CartaoAdmins tenant={empresa.id} fuso={empresa.fuso} />}
+              {timeMacuxi && (
+                <PassoEmpresa
+                  existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
+                  aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
+                />
+              )}
             </div>
           )}
         </>

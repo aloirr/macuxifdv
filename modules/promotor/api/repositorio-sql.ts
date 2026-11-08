@@ -8,7 +8,7 @@
  * SQL de referência: docs/banco/promotor.md ("SQL da RepositorioPromotor"). Sem dado pessoal em log nem em erro.
  */
 import { ErroHttpModulo } from '@macuxi/platform-sdk';
-import type { CadastroBko } from '../contracts';
+import type { CadastroGravavel as CadastroBko } from '../contracts';
 import type { ColetaDaVisita, VisitaLojaGuardada } from '../domain';
 import type { ColetaGuardada, FiltroVisitas, LinhaCadastro, RepositorioPromotor, SessaoTenant } from './repositorio';
 import { COLUNAS_BASE, TABELAS_CADASTRO } from './sync-cadastros';
@@ -70,22 +70,19 @@ export const COLUNAS_ESCRITA: Readonly<Record<CadastroBko, readonly string[]>> =
   checklist_loja: [...ALVO_VIGENCIA, 'nome', 'itens'],
   mix_obrigatorio: [...ALVO_VIGENCIA, 'produto_id', 'categoria_gondola_id'],
   meta_share: [...ALVO_VIGENCIA, 'categoria_gondola_id', 'meta_pct'],
-  concorrente: ['nome', 'ativo'],
   produto_concorrente: ['concorrente_id', 'nome', 'produto_id', 'categoria_gondola_id', 'ativo'],
 };
-const COM_ATIVO: ReadonlySet<CadastroBko> = new Set(['categoria_gondola', 'concorrente', 'produto_concorrente']);
+const COM_ATIVO: ReadonlySet<CadastroBko> = new Set(['categoria_gondola', 'produto_concorrente']);
 const ORDEM: Readonly<Record<CadastroBko, string>> = {
   categoria_gondola: 'ordem, lower(nome), id',
   checklist_loja: 'lower(nome), vigencia_inicio desc, id',
   mix_obrigatorio: 'vigencia_inicio desc, id',
   meta_share: 'vigencia_inicio desc, id',
-  concorrente: 'lower(nome), id',
   produto_concorrente: 'lower(nome), id',
 };
 /** Índice único violado (23505) → mensagem em português com a ação seguinte. */
 const MENSAGEM_RESTRICAO: Readonly<Record<string, string>> = {
   categoria_gondola_nome_uk: 'Já existe uma categoria com esse nome.',
-  concorrente_nome_uk: 'Já existe um concorrente com esse nome.',
   produto_concorrente_nome_uk: 'Esse concorrente já tem um produto com esse nome.',
   checklist_loja_versao_uk: 'Já existe um checklist para esse alvo com o mesmo início de vigência. Edite o existente ou escolha outro início.',
   mix_obrigatorio_versao_uk: 'Esse produto já está no mix desse alvo com o mesmo início de vigência.',
@@ -112,7 +109,7 @@ export function sqlDoCadastro(cadastro: CadastroBko): { inserir: string; atualiz
 function traduzirErroDeCadastro(e: unknown): never {
   const err = e as { code?: string; constraint?: string };
   if (err.code === '23505') throw new ErroHttpModulo(409, 'CADASTRO_DUPLICADO', (err.constraint && MENSAGEM_RESTRICAO[err.constraint]) || 'Já existe um cadastro igual a este. Revise os dados.');
-  if (err.code === '23503') throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', 'A categoria ou o concorrente escolhido não existe mais. Recarregue a tela e escolha outro.');
+  if (err.code === '23503') throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', 'A categoria escolhida não existe mais. Recarregue a tela e escolha outro.');
   if (err.code === '23514') throw new ErroHttpModulo(422, 'CADASTRO_INVALIDO', 'Os dados não passaram na validação do banco. Revise os campos.');
   throw e;
 }
@@ -172,7 +169,6 @@ export function criarRepositorioSql(): RepositorioPromotor {
           produtos_concorrente: await n('produto_concorrente', 'categoria_gondola_id'),
         };
       }
-      if (c === 'concorrente') return { metas_share: 0, mix_obrigatorio: 0, produtos_concorrente: await n('produto_concorrente', 'concorrente_id') };
       return { metas_share: 0, mix_obrigatorio: 0, produtos_concorrente: 0 };
     },
 

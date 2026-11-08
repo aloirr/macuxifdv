@@ -55,3 +55,20 @@ describe('RN-VEN-11: core.cadastro_resumo@1 traz preço de venda e desconto máx
     expect(CadastroResumoSaidaSchema.safeParse(com({ preco_venda_cents: 10.5 })).success).toBe(false);
   });
 });
+
+describe('RN-CAT-01: core.cadastro_resumo@1 seleciona marca, categoria e ean do produto (T-0119)', () => {
+  const P1 = '0ea00000-0000-4000-8000-0000000000b1';
+  it('RN-CAT-01: o select de core.produto inclui os três campos e a saída os repassa', async () => {
+    const sqls: string[] = [];
+    const db: ClienteBanco = {
+      query: async (sql) => {
+        sqls.push(sql);
+        if (/from core\.produto where/.test(sql)) return { rows: [{ id: P1, sku: 'S', nome: 'P', unidade: 'UN', ativo: true, external_id: null, marca: 'Acme', categoria: 'Bebidas', ean: '7891234567895', preco_venda_cents: null, desconto_maximo_pct: null }], rowCount: 1 } as never;
+        return { rows: [], rowCount: 0 } as never;
+      },
+    };
+    const r = await consultaCadastroResumo.executar(CadastroResumoEntradaSchema.parse({ produto_ids: [P1] }), { db } as unknown as ContextoConsulta);
+    expect(sqls.find((q) => /from core\.produto where/.test(q))).toMatch(/external_id, marca, categoria, ean,/);
+    expect(CadastroResumoSaidaSchema.parse(r).produtos[0]).toMatchObject({ marca: 'Acme', categoria: 'Bebidas', ean: '7891234567895' });
+  });
+});

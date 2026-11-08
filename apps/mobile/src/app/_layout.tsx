@@ -19,7 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 
-import { ShellProvider } from '@macuxi/platform-sdk/react';
+import { ProvedorBloqueioDeSaida, ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
@@ -27,6 +27,7 @@ import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
+import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
 import { PlataformaProvider, usePlataforma } from '@/state/plataforma';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -115,34 +116,37 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   if (!show) return sobre;
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
-      {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
-      {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
-      <SincronizacaoDoShell>
-        {/* T-0088: com a tela de preparo ou de erro por cima, o TalkBack não alcança o login nem as abas por baixo
-            (`accessibilityViewIsModal` da tela só vale no iOS) */}
-        <View
-          style={{ flex: 1 }}
-          importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
-          accessibilityElementsHidden={sobre !== null}
-        >
-          <AreaSeguraSuperior>
-            {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.ground },
-                ...transicaoDeAvancar(reduzir),
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-              <Stack.Screen name="login" options={{ animation: 'none' }} />
-              <Stack.Screen name="sync" options={{ animation: 'none' }} />
-              <Stack.Screen name="profile" />
-            </Stack>
-          </AreaSeguraSuperior>
-        </View>
-        {sobre}
-      </SincronizacaoDoShell>
+      {/* RN-VEN-38 (T-0128): formulário alterado segura a barra inferior e o Voltar do Android (useBloquearSaida do SDK) */}
+      <ProvedorBloqueioDeSaida value={bloqueioDoShell}>
+        {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
+        {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
+        <SincronizacaoDoShell>
+          {/* T-0088: com a tela de preparo ou de erro por cima, o TalkBack não alcança o login nem as abas por baixo
+              (`accessibilityViewIsModal` da tela só vale no iOS) */}
+          <View
+            style={{ flex: 1 }}
+            importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
+            accessibilityElementsHidden={sobre !== null}
+          >
+            <AreaSeguraSuperior>
+              {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.ground },
+                  ...transicaoDeAvancar(reduzir),
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+                <Stack.Screen name="login" options={{ animation: 'none' }} />
+                <Stack.Screen name="sync" options={{ animation: 'none' }} />
+                <Stack.Screen name="profile" />
+              </Stack>
+            </AreaSeguraSuperior>
+          </View>
+          {sobre}
+        </SincronizacaoDoShell>
+      </ProvedorBloqueioDeSaida>
     </ShellProvider>
   );
 }

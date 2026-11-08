@@ -287,7 +287,7 @@ export function TrilhaEditarPage() {
 
 function VoltarParaTrilhas() {
   return (
-    <Link href={hrefTrilhas('trilhas')} className="text-[13px] font-semibold text-accent no-underline hover:underline">
+    <Link href={hrefTrilhas('trilhas')} className="text-[13px] font-semibold text-accent-ink no-underline hover:underline">
       ← Trilhas
     </Link>
   );

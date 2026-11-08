@@ -184,7 +184,7 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
         </View>
       ) : inProgress || isNext ? (
         <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
-          <Text style={[styles.numText, { color: colors.surface, fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
+          <Text style={[styles.numText, { color: colors.onAccent, fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
         </View>
       ) : (
         <View style={[styles.num, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink }]}>

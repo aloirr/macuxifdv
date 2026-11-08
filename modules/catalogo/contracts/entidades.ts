@@ -1,6 +1,7 @@
 /** Entidades de sync do Catálogo (só pull; o servidor vence). Usadas pela API e pelo shell do aparelho. */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
 import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, ProdutoRelacaoSyncSchema, TabelaEscalonadaSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
+import { entidadeMarcaConcorrente } from './marcas';
 import { DepositoSyncSchema, EstoqueSaldoSyncSchema, ProdutoAtributoSyncSchema, ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema, SinonimoSyncSchema } from './sync-conteudo';
 
 export const entidadeTabelaPreco = definirEntidadeSync({ nome: 'tabela_preco', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaPrecoSyncSchema });
@@ -17,7 +18,7 @@ export const entidadeEstoqueSaldo = definirEntidadeSync({ nome: 'estoque_saldo',
 export const entidadeProdutoConteudo = definirEntidadeSync({ nome: 'produto_conteudo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoConteudoSyncSchema });
 // T-0085 / RN-CAT-09: referência cruzada (marca do concorrente + código), até 3 por produto
 export const entidadeProdutoReferencia = definirEntidadeSync({ nome: 'produto_referencia', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoReferenciaSyncSchema });
-export const ENTIDADES_CONTEUDO = [entidadeProdutoAtributo, entidadeSinonimo, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoConteudo, entidadeProdutoReferencia] as const;
+export const ENTIDADES_CONTEUDO = [entidadeProdutoAtributo, entidadeSinonimo, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoConteudo, entidadeProdutoReferencia, entidadeMarcaConcorrente] as const;
 
 // T-0061 / RF-CAT-04: árvore do catálogo (níveis e nomes do ERP) para navegar offline
 export const entidadeCatalogoNo = definirEntidadeSync({ nome: 'catalogo_no', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: CatalogoNoSyncSchema });

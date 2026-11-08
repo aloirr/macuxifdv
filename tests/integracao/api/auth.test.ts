@@ -176,17 +176,22 @@ describe.skipIf(semBanco())('T-0003 — login, sessão e bloqueio pela API real 
   });
 
   it('o perfil vale do BANCO na hora (troca de perfil não espera o token expirar)', async () => {
-    const s = await api.sessao('vendedor2@exemplo.com.br');
+    // ADR 0033 / RN-CORE-35 (0041): o acesso vem dos VÍNCULOS (plataforma.usuario_perfil). Trocar core.usuario.perfil só troca o
+    // vínculo de quem tem um só (o de fábrica do perfil anterior). O vendedor-2 da fixture tem também o vendedor_externo (base
+    // vendedor), então seguiria vendedor; o vendedor-1 tem só o de fábrica e vira promotor de verdade.
+    const s = await api.sessao('vendedor@exemplo.com.br');
     expect(ids(await api.meusModulos(s.access_token))).toContain('vendedor');
     const c = await api.admin.connect();
     try {
-      await c.query("update core.usuario set perfil = 'promotor' where id = $1", [A.usuarios.vendedor2]);
+      await c.query("update core.usuario set perfil = 'promotor' where id = $1", [A.usuarios.vendedor1]);
+      expect(ids(await api.meusModulos(s.access_token)), 'o mesmo token já sem o Vendedor').not.toContain('vendedor');
       const r = await api.chamar(s.access_token, { method: 'POST', url: '/v1/vendedor/pedidos/x/cancelar', payload: {} });
       expect(r.statusCode).toBe(403);
     } finally {
-      await c.query("update core.usuario set perfil = 'vendedor' where id = $1", [A.usuarios.vendedor2]);
+      await c.query("update core.usuario set perfil = 'vendedor' where id = $1", [A.usuarios.vendedor1]);
       c.release();
     }
+    expect(ids(await api.meusModulos(s.access_token)), 'de volta a vendedor, o mesmo token volta a ter o Vendedor').toContain('vendedor');
   });
 });
 

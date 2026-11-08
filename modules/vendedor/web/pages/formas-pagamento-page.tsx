@@ -20,6 +20,8 @@ import {
   formDoPrazo,
   lerFiltrosFormas,
   previaDoPrazo,
+  registroDoErp,
+  TEXTO_VEM_DO_ERP,
   validarForma,
   validarPrazo,
   type FiltrosFormas,
@@ -118,6 +120,9 @@ export function FormasPagamentoPage() {
   const previa = prazoEmEdicao ? previaDoPrazo(prazoEmEdicao.form.parcelas) : null;
   const setF = (k: keyof FormForma, v: string | boolean) => setFormaEmEdicao((e) => (e ? { ...e, form: { ...e.form, [k]: v } } : e));
   const setP = (k: keyof FormPrazo, v: string | boolean) => setPrazoEmEdicao((e) => (e ? { ...e, form: { ...e.form, [k]: v } } : e));
+  // T-0089: registro do ERP tem código e parcelas fixos (a próxima carga do ERP desfaria a mudança)
+  const formaDoErp = Boolean(formaEmEdicao && !formaEmEdicao.novo && registroDoErp(formas.find((f) => f.id === formaEmEdicao.id)));
+  const prazoDoErp = Boolean(prazoEmEdicao && !prazoEmEdicao.novo && registroDoErp(prazos.find((p) => p.id === prazoEmEdicao.id)));
   const nomeDaForma = (id: string) => formas.find((f) => f.id === id)?.nome ?? '—';
 
   return (
@@ -164,8 +169,8 @@ export function FormasPagamentoPage() {
       {formaEmEdicao && podeGerenciar && (
         <Panel label="Cadastro" title={formaEmEdicao.novo ? 'Nova forma de pagamento' : 'Editar forma de pagamento'}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="formas-pagamento.form-forma">
-            <Campo rotulo="Código" erro={tentou ? errosForma.codigo : undefined}>
-              <input className={campo} value={formaEmEdicao.form.codigo} maxLength={20} onChange={(e) => setF('codigo', e.target.value)} data-testid="formas-pagamento.codigo" />
+            <Campo rotulo={formaDoErp ? `Código · ${TEXTO_VEM_DO_ERP}` : 'Código'} erro={tentou ? errosForma.codigo : undefined}>
+              <input className={campo} value={formaEmEdicao.form.codigo} maxLength={20} readOnly={formaDoErp} aria-readonly={formaDoErp} onChange={(e) => setF('codigo', e.target.value)} data-testid="formas-pagamento.codigo" />
             </Campo>
             <Campo rotulo="Nome" erro={tentou ? errosForma.nome : undefined}>
               <input className={campo} value={formaEmEdicao.form.nome} maxLength={60} onChange={(e) => setF('nome', e.target.value)} data-testid="formas-pagamento.nome" />
@@ -206,11 +211,11 @@ export function FormasPagamentoPage() {
                 ))}
               </select>
             </Campo>
-            <Campo rotulo="Código" erro={tentou ? errosPrazo.codigo : undefined}>
-              <input className={campo} value={prazoEmEdicao.form.codigo} maxLength={20} onChange={(e) => setP('codigo', e.target.value)} data-testid="formas-pagamento.prazo-codigo" />
+            <Campo rotulo={prazoDoErp ? `Código · ${TEXTO_VEM_DO_ERP}` : 'Código'} erro={tentou ? errosPrazo.codigo : undefined}>
+              <input className={campo} value={prazoEmEdicao.form.codigo} maxLength={20} readOnly={prazoDoErp} aria-readonly={prazoDoErp} onChange={(e) => setP('codigo', e.target.value)} data-testid="formas-pagamento.prazo-codigo" />
             </Campo>
-            <Campo rotulo="Dias das parcelas (ex.: 28/56 ou à vista)" erro={tentou ? errosPrazo.parcelas : undefined}>
-              <input className={campo} value={prazoEmEdicao.form.parcelas} maxLength={120} onChange={(e) => setP('parcelas', e.target.value)} data-testid="formas-pagamento.prazo-parcelas" />
+            <Campo rotulo={prazoDoErp ? `Dias das parcelas · ${TEXTO_VEM_DO_ERP}` : 'Dias das parcelas (ex.: 28/56 ou à vista)'} erro={tentou ? errosPrazo.parcelas : undefined}>
+              <input className={campo} value={prazoEmEdicao.form.parcelas} maxLength={120} readOnly={prazoDoErp} aria-readonly={prazoDoErp} onChange={(e) => setP('parcelas', e.target.value)} data-testid="formas-pagamento.prazo-parcelas" />
             </Campo>
             <Campo rotulo="Ordem na lista" erro={tentou ? errosPrazo.ordem : undefined}>
               <input className={campo} value={prazoEmEdicao.form.ordem} inputMode="numeric" maxLength={4} onChange={(e) => setP('ordem', e.target.value)} data-testid="formas-pagamento.prazo-ordem" />

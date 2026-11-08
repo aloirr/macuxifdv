@@ -2,7 +2,8 @@
  * T-0076 — teste de componente do Início (referência aprovada), renderizado com `react-dom/server`, com `react-native`,
  * o roteador, o estado da plataforma e o `useInicio()` do Core simulados. Os cards saem do `criarShell` REAL com os
  * manifestos instalados reais (`MANIFESTOS_INSTALADOS`): o filtro por módulo efetivo, perfil e ação é o da plataforma.
- * - ordem da referência: boas-vindas → Recados de hoje → Meta de hoje → cards → (Gestão: Equipe agora) → Sincronizar;
+ * - ordem da referência: boas-vindas → Recados → Meta do mês → cards → (Gestão: Equipe agora) → Sincronizar;
+ * - T-0124 (RD-0002 a RD-0012): textos sem repetição de "hoje"/"mês"/unidade, aviso de dado antigo único no Sincronizar;
  * - sem "Seus módulos", sem selo de hora duplicado e sem "Começar a rota";
  * - com o Vendedor: Orçamentos e A faturar lado a lado; sem o Vendedor (licença desligada): os cards somem, sem erro;
  * - promotor: nenhum card de pedido (RN-PRO-01); Gestão: Pedidos para aprovar só com o Gestor ativo.
@@ -92,21 +93,10 @@ function montar(app: 'campo' | 'gestao', perfil: Perfil, modulosAtivos: ModuloId
 }
 
 const UUID = '11111111-1111-4111-8111-111111111111';
-const visaoInicio = (escopo: 'proprio' | 'equipe', metas: VisaoInicio['metas'] = [VENDAS]): VisaoInicio => ({
-  escopo,
-  hoje: '2026-11-04',
-  dia_util: true,
-  dias_uteis_restantes: 19,
-  recado: { origem: 'recado', texto: 'Supervisor: priorize o Atacadinho hoje', titulo: null, autor_nome: 'Marcos', autor_perfil: 'supervisor', notificacao_id: null },
-  metas,
-  notificacoes: { nao_lidas: 3, ultimas: [{ id: UUID, titulo: 'Pedido 000010 aprovado', tipo: 'pedido_aprovado', criada_em: '2026-11-04T18:02:00Z', lida: false, link: null }] },
-  rota: escopo === 'proprio' ? { paradas_hoje: 6, visitadas_hoje: 3, restantes: 3, proxima: null, visita_aberta: null } : null,
-  equipe_agora:
-    escopo === 'equipe'
-      ? [{ usuario_id: UUID, nome: 'Lucas Prado', status: 'em_rota', desde: null, cliente_id: null, paradas_hoje: 6, visitadas_hoje: 3, vendas_hoje_cents: 124_000, minutos_sem_atividade: null }]
-      : null,
-  base: { dia: '2026-11-04', calculado_em: '2026-11-04T20:00:00Z', defasado: false },
-});
+const UUID2 = '22222222-2222-4222-8222-222222222222';
+const UUID3 = '33333333-3333-4333-8333-333333333333';
+type ItemRecado = NonNullable<VisaoInicio['recados_hoje']>['itens'][number];
+const recado = (x: Partial<ItemRecado> = {}): ItemRecado => ({ id: UUID, titulo: 'Pedido 000010 aprovado', subtitulo: 'Mercadinho São Jorge', tipo: 'pedido_aprovado', criada_em: '2026-11-04T18:02:00Z', hora: '14:02', lida: false, link: null, destaque: false, ...x });
 const VENDAS: VisaoInicio['metas'][number] = {
   indicador: 'venda_cents',
   situacao: 'a_cumprir',
@@ -119,9 +109,31 @@ const VENDAS: VisaoInicio['metas'][number] = {
   membros: 1,
   membros_mes_batido: 0,
 };
+/** A visão como o `montarInicio` do Core entrega hoje: saudacao, recados_hoje, meta_hoje e sem_realizado sempre preenchidos. */
+const visaoInicio = (escopo: 'proprio' | 'equipe', metas: VisaoInicio['metas'] = [VENDAS]): VisaoInicio => ({
+  escopo,
+  hoje: '2026-11-04',
+  dia_util: true,
+  dias_uteis_restantes: 19,
+  recado: { origem: 'recado', texto: 'Supervisor: priorize o Atacadinho hoje', titulo: null, autor_nome: 'Marcos', autor_perfil: 'supervisor', notificacao_id: null },
+  metas,
+  notificacoes: { nao_lidas: 3, ultimas: [] },
+  rota: escopo === 'proprio' ? { paradas_hoje: 6, visitadas_hoje: 3, restantes: 3, proxima: null, visita_aberta: null } : null,
+  equipe_agora:
+    escopo === 'equipe'
+      ? [{ usuario_id: UUID, nome: 'Lucas Prado', status: 'em_rota', desde: null, cliente_id: null, paradas_hoje: 6, visitadas_hoje: 3, vendas_hoje_cents: 124_000, minutos_sem_atividade: null }]
+      : null,
+  base: { dia: '2026-11-04', calculado_em: '2026-11-04T20:00:00Z', defasado: false },
+  saudacao: 'Boa tarde',
+  recados_hoje: { novos: 3, itens: [recado({ id: UUID2, titulo: 'Prioridade', subtitulo: 'Passe cedo no Mercadinho São Jorge', hora: '09:15', destaque: true }), recado(), recado({ id: UUID3, lida: true })] },
+  meta_hoje: metas[0] ? { indicador: metas[0].indicador, situacao: metas[0].situacao, realizado_hoje: metas[0].realizado_hoje, meta_dia: metas[0].meta_dia, faltam_hoje: null, mes_pct: 4000 } : null,
+  sem_realizado: [],
+});
 
 const render = () => renderToStaticMarkup(createElement(Inicio));
 const pos = (html: string, testID: string) => html.indexOf(`data-testid="${testID}"`);
+const conta = (html: string, re: RegExp) => html.match(re)?.length ?? 0;
+const rotulo = (html: string) => /data-testid="inicio\.meta"[^>]*><div><span>([^<]*)<\/span>/.exec(html)?.[1];
 
 beforeEach(() => {
   sim.inicio = visaoInicio('proprio');
@@ -134,10 +146,9 @@ describe('Início do Campo (vendedor)', () => {
     const ordem = ['inicio.saudacao', 'inicio.visitas', 'inicio.recados', 'inicio.meta', 'inicio-cards', 'inicio-sincronizar'].map((id) => pos(html, id));
     expect(ordem.every((p) => p > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    expect(html).toContain('Boa tarde, Lucas');
     expect(html).toContain('6 visitas hoje · 3 feitas');
     expect(html).toContain('3 novos');
-    expect(html).toContain('Faltam R$ 1.960 hoje');
-    expect(html).toContain('mês 40%');
     expect(html.lastIndexOf('<button')).toBe(pos(html, 'inicio-sincronizar') - '<button '.length);
   });
 
@@ -150,7 +161,7 @@ describe('Início do Campo (vendedor)', () => {
     expect(html.match(/Última sincronização/g)).toHaveLength(1);
   });
 
-  it('COM o Vendedor: Orçamentos e A faturar logo abaixo da Meta de hoje, na linha inteira', () => {
+  it('COM o Vendedor: Orçamentos e A faturar logo abaixo da Meta do mês, na linha inteira', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
     const html = render();
     expect(pos(html, 'inicio.cards-vendedor')).toBeGreaterThan(pos(html, 'inicio.meta'));
@@ -169,23 +180,23 @@ describe('Início do Campo (vendedor)', () => {
   });
 });
 
-describe('Início do Campo com os campos prontos do Core (core.inicio@1 aditivo)', () => {
-  it('usa recados_hoje, meta_hoje, sem_realizado e saudacao do Core', () => {
+/** T-0124 / RD-0002 e RD-0004: cartão do mês também no dia útil, com a meta do dia só na última linha. */
+describe('Meta do mês (RD-0002, RD-0004)', () => {
+  it('dia útil: "Meta do mês", "R$ 12.400 de R$ 31.000", "40%" uma vez e "Meta de hoje R$ 3.200"; "mês" só no título', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
-    sim.inicio = {
-      ...visaoInicio('proprio'),
-      saudacao: 'Boa tarde',
-      recados_hoje: { novos: 2, itens: [{ id: UUID, titulo: 'Pedido 000010 aprovado', subtitulo: 'Mercadinho São Jorge', tipo: 'pedido_aprovado', criada_em: '2026-11-04T18:02:00Z', hora: '14:02', lida: false, link: null, destaque: false }] },
-      meta_hoje: { indicador: 'venda_cents', situacao: 'a_cumprir', realizado_hoje: 124_000, meta_dia: 320_000, faltam_hoje: 196_000, mes_pct: 4000 },
-      sem_realizado: ['positivacao'],
-    } satisfies VisaoInicio;
     const html = render();
-    expect(html).toContain('Boa tarde, Lucas');
-    expect(html).toContain('2 novos');
-    expect(html).toContain('Mercadinho São Jorge · 14:02');
-    expect(html).toContain('Faltam R$ 1.960 hoje');
-    expect(html).toContain('mês 40%');
-    expect(html).toContain('Sincronize para ver as vendas');
+    expect(rotulo(html)).toBe('Meta do mês');
+    expect(html).toContain('>R$ 12.400</span><span>de R$ 31.000</span>');
+    expect(conta(html, /40%/g)).toBe(1);
+    expect(html).toContain('>Meta de hoje R$ 3.200<');
+    expect(html).not.toContain('Faltam');
+    expect(conta(html, /mês/gi)).toBe(1);
+  });
+
+  it('Gestão: "Meta do mês da equipe"', () => {
+    montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
+    sim.inicio = visaoInicio('equipe');
+    expect(rotulo(render())).toBe('Meta do mês da equipe');
   });
 });
 
@@ -195,7 +206,8 @@ describe('Início do Campo (promotor, RN-PRO-01)', () => {
     sim.inicio = visaoInicio('proprio', [{ ...VENDAS, indicador: 'visitas', meta_mes: 120, realizado_ate_ontem: 40, realizado_hoje: 3, meta_dia: 6, atingimento_hoje_pct: 5000 }]);
     const html = render();
     expect(html).not.toContain('inicio.card-');
-    expect(html).toContain('Faltam 3 visitas hoje');
+    expect(rotulo(html)).toBe('Meta do mês · Visitas');
+    expect(html).toContain('Meta de hoje 6 visitas');
     expect(html).not.toContain('Sincronize para ver as vendas');
   });
 });
@@ -219,5 +231,141 @@ describe('Início da Gestão (supervisor)', () => {
   it('sem o Gestor: nada de Pedidos para aprovar', () => {
     montar('gestao', 'supervisor', ['core', 'vendedor']);
     expect(render()).not.toContain('inicio.card-aprovacoes');
+  });
+});
+
+/**
+ * T-0124 — domingo 08/11 do teste de campo (dia não útil, RN-CORE-26; vendedor Lucas, base de 06/11 6h28). A tela tem de
+ * sair como a proposta do dono do produto (relatório docs/qualidade/redundancias/2026-11-08-inicio-campo.md §3).
+ */
+describe('domingo 08/11 do teste de campo (RD-0001 a RD-0010)', () => {
+  const POSITIVACAO = { ...VENDAS, indicador: 'positivacao' as const, situacao: 'dia_nao_util' as const, meta_mes: 15, realizado_ate_ontem: 1, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null };
+  const domingo = (escopo: 'proprio' | 'equipe', meta: Partial<NonNullable<VisaoInicio['meta_hoje']>> & Record<string, unknown> = {}): VisaoInicio => ({
+    ...visaoInicio(escopo, [
+      { ...VENDAS, situacao: 'dia_nao_util', meta_mes: 18_000_000, realizado_ate_ontem: 55_300, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null, dias_uteis_restantes: 19 },
+      POSITIVACAO,
+      { ...POSITIVACAO, indicador: 'visitas', meta_mes: 90, realizado_ate_ontem: 0 },
+      { ...POSITIVACAO, indicador: 'cobertura_pct', situacao: 'do_mes', meta_mes: 9000, realizado_ate_ontem: 0 },
+    ]),
+    hoje: '2026-11-08',
+    dia_util: false,
+    rota: escopo === 'proprio' ? { paradas_hoje: 0, visitadas_hoje: 0, restantes: 0, proxima: null, visita_aberta: null } : null,
+    base: { dia: '2026-11-06', calculado_em: '2026-11-06T10:28:00Z', defasado: true },
+    recados_hoje: { novos: 1, itens: [recado({ id: UUID2, titulo: 'Prioridade', subtitulo: 'Passe cedo no Mercadinho São Jorge: tem título vencido e o cliente quer negociar.', hora: '09:15', destaque: true })] },
+    meta_hoje: { indicador: 'venda_cents', situacao: 'dia_nao_util', realizado_hoje: 0, meta_dia: null, faltam_hoje: null, mes_pct: 31, ...meta },
+  });
+  const COM_ADITIVO = { faltam_mes: 17_944_700, por_dia_util: 944_458, dias_uteis_por_dia: 19 };
+
+  it('RD-0001/RD-0002: "Meta do mês", "R$ 553 de R$ 180.000", "0,3%" e "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" com os números do Core', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio', COM_ADITIVO);
+    const html = render();
+    expect(rotulo(html)).toBe('Meta do mês');
+    expect(html).not.toContain('Meta de hoje');
+    expect(html).toContain('>R$ 553</span><span>de R$ 180.000</span>');
+    expect(html).toContain('data-testid="inicio.meta.mes">0,3%<');
+    expect(html).toContain('>Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)<');
+    expect(html).not.toMatch(/Faltam [^<]* hoje/);
+  });
+
+  it('RD-0002: sem o aditivo do Core a última linha fica oculta (o shell não calcula)', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio');
+    const html = render();
+    expect(html).not.toContain('inicio.meta.apoio');
+    expect(html).not.toContain('por dia útil');
+  });
+
+  it('RD-0003/RD-0006: "Sem rota hoje · não é dia útil" uma vez; "Recados" sem "de hoje"; no máximo 1 "hoje" fora dos recados', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio', COM_ADITIVO);
+    const html = render();
+    expect(html).toContain('data-testid="inicio.visitas">Sem rota hoje · não é dia útil<');
+    expect(conta(html, /não é dia útil/gi)).toBe(1);
+    expect(html).toContain('<span>Recados</span>');
+    expect(html).not.toMatch(/Recados de hoje/i);
+    expect(conta(html.replace(/data-testid="inicio\.recados".*?<\/section>/s, ''), /hoje/gi)).toBe(1);
+  });
+
+  it('RD-0004/RD-0005/RD-0007/RD-0010: "mês" só no título; "1 de 15 clientes", "0 de 90", "0% de 90%"; só a barra principal', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio', COM_ADITIVO);
+    const html = render();
+    expect(conta(html, /mês/gi)).toBe(1);
+    expect(html).toMatch(/data-testid="inicio\.meta\.positivacao"><span>Positivação<\/span><span>1 de 15 clientes<\/span>/);
+    expect(html).toMatch(/data-testid="inicio\.meta\.visitas"><span>Visitas<\/span><span>0 de 90<\/span>/);
+    expect(html).toMatch(/data-testid="inicio\.meta\.cobertura_pct"><span>Cobertura<\/span><span>0% de 90%<\/span>/);
+    expect(html).not.toMatch(/clientes? de \d+ clientes?|visitas de \d+ visitas|meta \d+%/);
+    expect(conta(html, /<progress/g)).toBe(1);
+  });
+
+  it('RD-0008: um aviso só de dado antigo, no bloco Sincronizar ("Dados de 06/11, 6h28"), fora do cartão Meta', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio', COM_ADITIVO);
+    const html = render();
+    expect(html).toContain('data-testid="inicio.aviso-dados">Dados de 06/11, 6h28<');
+    expect(pos(html, 'inicio.aviso-dados')).toBeGreaterThan(pos(html, 'inicio.meta'));
+    expect(pos(html, 'inicio.aviso-dados')).toBeLessThan(pos(html, 'inicio-sincronizar'));
+    expect(html).not.toContain('inicio.meta.aviso');
+    expect(conta(html, /Sincronize/g)).toBe(0);
+  });
+
+  it('RD-0009: 1 recado — sem bolinha, sem "Ver todos", título e corpo num texto de 2 linhas com a hora à parte; selo "1 novo"', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio', COM_ADITIVO);
+    const html = render();
+    expect(html).toContain('1 novo');
+    expect(html).not.toContain('inicio.recado.ponto');
+    expect(html).not.toContain('inicio.recados.ver-todos');
+    expect(html).toContain('data-testid="inicio.recado.texto">Prioridade: Passe cedo no Mercadinho São Jorge: tem título vencido e o cliente quer negociar.<');
+    expect(html).toContain('<span>09:15</span>');
+    expect(pos(html, 'inicio.recados.topo')).toBeGreaterThan(0); // o topo do cartão abre a central
+  });
+
+  it('RD-0009: com 3 recados, bolinhas e "Ver todos"', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    const html = render();
+    expect(conta(html, /data-testid="inicio\.recado\.ponto"/g)).toBe(3);
+    expect(pos(html, 'inicio.recados.ver-todos')).toBeGreaterThan(0);
+  });
+
+  it('Gestão: "Meta do mês da equipe", sem "Meta de hoje da equipe"', () => {
+    montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
+    sim.inicio = domingo('equipe', COM_ADITIVO);
+    const html = render();
+    expect(rotulo(html)).toBe('Meta do mês da equipe');
+    expect(html).not.toContain('Meta de hoje');
+    expect(html).toContain('Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)');
+  });
+});
+
+/** T-0124 / RD-0010 e RD-0012: estado zero e campos do Core sem contorno local. */
+describe('estado zero e campos prontos do Core (RD-0010, RD-0012)', () => {
+  it('sem as vendas na cópia (`sem_realizado`): o cartão some e uma frase só, no Sincronizar, explica', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = { ...visaoInicio('proprio', []), meta_hoje: null, sem_realizado: ['venda_cents'] } satisfies VisaoInicio;
+    const html = render();
+    expect(html).not.toContain('inicio.meta');
+    expect(conta(html, /Sincronize para ver as vendas/g)).toBe(1);
+    expect(html).not.toContain('<progress');
+  });
+
+  it('sem meta nenhuma: uma frase, sem barra', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = { ...visaoInicio('proprio', []), meta_hoje: null } satisfies VisaoInicio;
+    const html = render();
+    expect(html).toContain('Nenhuma meta cadastrada.');
+    expect(html).not.toContain('<progress');
+  });
+
+  it('sem os campos opcionais do @1 (cópia antiga), a tela não repete regra do Core: sem saudação calculada, recados vazios', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    const { saudacao: _s, recados_hoje: _r, meta_hoje: _m, sem_realizado: _x, ...antiga } = visaoInicio('proprio');
+    sim.inicio = antiga satisfies VisaoInicio;
+    const html = render();
+    expect(html).toContain('data-testid="inicio.saudacao">Lucas<');
+    expect(html).toContain('Nenhum recado por enquanto.');
+    expect(html).not.toContain('Supervisor: priorize'); // o `recado` antigo não é mais lido
+    expect(html).not.toContain('Sincronize para ver as vendas'); // sem `base.dia === null` local
   });
 });

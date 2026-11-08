@@ -1,34 +1,33 @@
-# Super-admin de plataforma (Core) — T-0087, ADR 0029
+# Acesso ao portal de implantação (Core) — T-0087 (ADR 0029), revisto na T-0093 (ADR 0031)
 
-Identidade do operador da Macuxi, fora dos tenants. Desenho: `docs/desenho/T-0087.md` §2–§4 · regra: RN-CORE-31 · código:
-`modules/core/domain/super-admin.ts` (regras puras), `modules/core/api/super-admin*.ts`, `seguranca-plataforma.ts`, contratos em
-`modules/core/contracts/plataforma.ts` (schemas Zod no `platform-sdk`, `plataforma.ts`).
+Entrada do time da Macuxi (super-admin) e do `admin` do cliente no portal `config.`, **só com e-mail e senha** (sem TOTP e sem convite).
+Desenho: `docs/desenho/T-0093.md` §2–§4 e §8 · regras: RN-CORE-31, RN-CORE-32 (senha), RN-CORE-33 (quem entra) · código:
+`modules/core/domain/super-admin.ts` (regras puras), `domain/senha.ts` (RN-CORE-32), `modules/core/api/super-admin*.ts`,
+`seguranca-plataforma.ts`, contratos em `modules/core/contracts/plataforma.ts` e `senha.ts` (schemas Zod no `platform-sdk`).
 
-## Rotas públicas (`POST /v1/plataforma/auth/*`)
+## Rotas públicas (`POST /v1/plataforma/auth/*`, `conexao: 'portal'`)
 | Rota | Limite por IP | Resposta | Erros |
 |---|---|---|---|
-| `primeiro-acesso` | 5 / 15 min | `EtapaLogin` (`cadastrar_totp`) | 410 `PRIMEIRO_ACESSO_ENCERRADO`, 401 `CONVITE_INVALIDO`, 503 `PORTAL_INDISPONIVEL` |
-| `login` | 10 / 5 min | `EtapaLogin` (`segundo_fator` ou `cadastrar_totp`) | 401 `CREDENCIAIS_INVALIDAS` (e-mail inexistente = senha errada), 423 `BLOQUEADO` |
-| `totp/iniciar` | 10 / 5 min | `{ otpauth_uri, segredo_base32 }` | 401 `DESAFIO_INVALIDO` |
-| `totp/confirmar` | 10 / 5 min | 10 códigos de recuperação (uma vez) + sessão | 401 `CODIGO_INVALIDO`, 409 `TOTP_NAO_INICIADO` |
-| `segundo-fator` | 10 / 5 min | sessão | 401 `CODIGO_INVALIDO` / `DESAFIO_INVALIDO`, 423 `BLOQUEADO` |
-| `renovar`, `sair` (204), `recuperacao/regerar` | 10 / 5 min | sessão / — / 10 códigos novos | 401 `SESSAO_PLATAFORMA_INVALIDA` |
+| `login` | 10 / 5 min | `SessaoPortal` | 401 `CREDENCIAIS_INVALIDAS` (e-mail inexistente = senha errada), 423 `BLOQUEADO` (também e-mail inexistente), 503 `PORTAL_INDISPONIVEL` |
+| `empresa` (token no `Authorization`) | 30 / 5 min | `SessaoPortal` com token novo | 403 `EMPRESA_NAO_PERMITIDA`, 401 `SESSAO_PLATAFORMA_INVALIDA` |
+| `renovar`, `sair` (204) | 10 / 5 min | `SessaoPortal` / — | 401 `SESSAO_PLATAFORMA_INVALIDA` |
 
-`renovar`, `sair` e `regerar` leem o `Authorization` de `ctx.cabecalhos` (pedido ao engenheiro-software R-20261106-010602; sem o campo, 401).
+`EMPRESA_NAO_ESCOLHIDA` (409) é do `apps/api` (fatia S): rota de módulo com token do admin do cliente que ainda não escolheu empresa.
 
 ## Regras
-- Variáveis: `MACUXI_JWT_SEGREDO_PLATAFORMA` (≥ 32), `MACUXI_CHAVE_TOTP` (32 bytes em base64), `MACUXI_SUPERADMIN_CONVITE` (≥ 32). Faltou uma: 503.
-- TOTP RFC 6238 (SHA-1, 6 dígitos, 30 s, janela ±1); o passo só avança (`sa_marcar_passo`, atômico): o mesmo código não vale duas vezes.
-- Segredo do TOTP: 20 bytes, AES-256-GCM, `v1.<iv>.<tag>.<cifra>`, AAD = id do super-admin. Recuperação: `XXXXX-XXXXX`, só SHA-256, uso único.
-- 5 falhas (senha ou código) = 15 min de bloqueio, contadas no banco. A senha certa não zera a contagem; só o 2º fator completo.
-- Token: JWT HS256 com segredo próprio, `aud=macuxi-plataforma`, `sub`, `sid`, `amr=["pwd","otp"]`, 15 min; teto da sessão 8 h (do banco).
-  `autenticarSuperAdmin` exige assinatura, `aud`, `exp` e sessão viva (`sa_sessao_valida`) com o mesmo `sub`. O `autenticar` de tenant recusa o token de plataforma.
-- Auditoria (`sa_auditar`): `sa.primeiro_acesso`, `sa.login.ok`, `sa.login.falha`, `sa.totp.cadastrar`, `sa.recuperacao.usar`,
-  `sa.recuperacao.regerar`, `sa.sair`. Só ids, motivo, contagens, `request_id` e prefixo do IP. Nada de e-mail, senha, código ou segredo, nem em log
-  (o código TOTP só existe em `corpo`, redigido pelo pino).
-- A etapa do desafio (cadastrar TOTP ou 2º fator), os 5 min e o teto de 8 h são decididos pelas funções `sa_*` da 0035; o Core só chama.
+- Único segredo: `MACUXI_JWT_SEGREDO_PLATAFORMA` (≥ 32); falta = 503. Sem `MACUXI_CHAVE_TOTP` nem `MACUXI_SUPERADMIN_CONVITE`.
+- Bloqueio: 5 falhas seguidas na chave `HMAC-SHA256(segredo, "portal.login:" + e-mail)` = 15 min, conferido antes de tudo; o e-mail não vai à tabela de tentativas.
+- Login: `sa_contas_para_login` (até 20), senhas conferidas em paralelo (`Promise.all`); sem conta, `gastarTempoDeSenha` uma vez, para igualar o custo.
+  Precedência do super-admin; admin do cliente só recebe as empresas em que a senha conferiu (`decidirAcessoDoLogin`, no domain).
+- Token: JWT HS256, `aud=macuxi-plataforma`, `amr=["pwd"]`, `typ` `sa`|`cli`, 15 min, teto de 8 h. `sub` = super-admin | usuário da empresa | `sid` (sem
+  empresa); `tid` = empresa escolhida. `autenticarPortal` confere assinatura, `aud`, `typ`, prazo e a sessão viva (`sa_sessao_valida`: tipo, `sub` e `tid`
+  iguais). Trocar de empresa mata o token anterior; token sem `typ` (ADR 0029) é recusado.
+- Auditoria (`sa_auditar`): `sa.login.ok`, `sa.login.falha` (motivo `credenciais` ou `bloqueado`), `sa.empresa.escolher` (recusa), `sa.sair`. Só ids, `ator_tipo`,
+  motivo, contagens, `request_id` e prefixo do IP. Nada de e-mail, senha ou token, nem em log.
+- RN-CORE-32 (`domain/senha.ts`): 8 a 200 caracteres (pontos de código), com letra, número e caractere especial; `validarSenhaInicial` usa a regra e a API
+  responde 422 `USUARIO_SENHA_FRACA` com `detalhes.faltas`. O login aceita qualquer senha já gravada.
 
 ## Testes
-`domain/super-admin.test.ts` (vetores do RFC 6238, janela, reuso, bloqueio, convite) e `api/super-admin.test.ts` (fluxo completo com repositório em
-memória que imita a atomicidade das funções, cifra com AAD trocada, separação dos tokens, varredura de auditoria e log). O SQL real
-(`fabricaSuperAdminSql`) é exercitado pelos testes de banco da 0035 e pelo CI do stack isolado.
+`domain/senha.test.ts` (cada falta, combinações, acento, emoji, espaço, 7/8/200/201), `domain/super-admin.test.ts` (bloqueio, precedência, teto),
+`api/super-admin.test.ts` (fluxo completo com repositório em memória: mesma resposta e mesmo número de conferências, 423 para e-mail inexistente,
+duas empresas, troca de empresa, token sem `typ`, auditoria e log sem dado pessoal). O SQL real (`fabricaSuperAdminSql`) é exercitado pelos testes de banco e pelo CI.

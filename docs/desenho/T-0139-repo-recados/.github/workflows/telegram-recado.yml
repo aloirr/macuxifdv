@@ -1,0 +1,85 @@
+# Mensagem do dono do produto no Telegram → recado R-...-alexandre.md (ADR 0035 §8 do aloirr/macuxifdv, T-0139).
+# A cada 5 min (o mínimo do GitHub; o cron pode atrasar) lê o getUpdates do bot e aceita só o chat TELEGRAM_CHAT_ID:
+#   - resposta a um aviso de recado → tipo resposta, responde_a = id do aviso, para = remetente do recado;
+#   - mensagem solta → aviso para gerente-projetos;  /para <agente> <texto> → aviso para o agente (validado).
+# Idempotência: o último update gravado fica em estado/telegram-ultimo-update.txt, NO MESMO COMMIT dos recados. O
+# getUpdates com offset = último + 1 só confirma ao Telegram o que já está no main; se o push falhar, o lote volta na
+# próxima execução, com os mesmos ids (vêm da hora da mensagem). A confirmação no Telegram sai só depois do push.
+# Custo: cada execução conta 1 min de Actions (arredondado). 12 por hora = ~8.600 min/mês no repositório privado
+# (ADR 0035 §8, "Custo"). Para gastar menos, troque o cron por uma das linhas comentadas.
+# Secrets: TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID, só nas variáveis dos passos que os usam (mascarados pelo script).
+# O texto das mensagens nunca passa pelo shell nem pelo log: o Node lê a API e grava os arquivos.
+name: recado pelo Telegram
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *' # a cada 5 min, fora do minuto 0 (o pico de agendamentos do GitHub atrasa mais)
+    # - cron: '2-59/10 * * * *'          # a cada 10 min: ~4.300 min/mês
+    # - cron: '2-59/5 10-23,0-3 * * *'   # a cada 5 min das 6h à meia-noite de Boa Vista (UTC-4): ~6.500 min/mês
+  workflow_dispatch:
+
+permissions: {}
+
+# Uma execução por vez (cron e manual no mesmo grupo). Grupo próprio, e não o "escrita-no-main" do formulário: no
+# GitHub, um pendente novo cancela o pendente anterior do mesmo grupo, e o cron não pode cancelar um recado do
+# formulário. Disputa de push com o formulário e com o PC: nova tentativa abaixo.
+concurrency:
+  group: telegram-recado
+  cancel-in-progress: false
+
+jobs:
+  ler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: gravar os recados, commit e push (com nova tentativa)
+        id: gravar
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ESTADO: estado/telegram-ultimo-update.txt
+          RESPOSTAS: ${{ runner.temp }}/respostas-telegram.json
+          MENSAGEM: ${{ runner.temp }}/mensagem-commit.txt
+          FUSO: America/Boa_Vista
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for i in 1 2 3 4 5; do
+            # Sempre a partir do main atual: o lote é relido e regravado (mesmos ids), sem rebase de recado.
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            git clean -fdq -- recados estado
+            node .github/scripts/telegram-recado.mjs gravar
+            if [ -z "$(git status --porcelain -- recados estado)" ]; then
+              echo "nada novo"
+              echo "push=nada" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git add -- recados estado
+            git commit -q -F "$MENSAGEM"
+            if git push -q origin HEAD:main; then
+              echo "push=ok" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep $((i * 3))
+          done
+          echo "::error::push recusado 5 vezes; as mensagens continuam no Telegram e voltam na próxima execução"
+          exit 1
+
+      - name: confirmar no Telegram
+        if: steps.gravar.outputs.push == 'ok'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESPOSTAS: ${{ runner.temp }}/respostas-telegram.json
+        run: node .github/scripts/telegram-recado.mjs responder

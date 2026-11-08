@@ -1,6 +1,7 @@
 # ADR 0027 — Marcas concorrentes da referência cruzada: o Promotor é o dono, o Catálogo lê pelo contrato dele
 
-- **Status**: aceita (2026-11-05, decisão do Alexandre às 21h, repassada pelo gerente-projetos em R-20261105-213304). Substitui a
+- **Status**: **substituída pela [0034](0034-marcas-concorrentes-no-catalogo.md)** em 2026-11-08 (decisão do dono do produto, R-20261107-173950 b: o cadastro de marcas passa a ser do Catálogo). Fica como histórico.
+- **Status anterior**: aceita (2026-11-05, decisão do Alexandre às 21h, repassada pelo gerente-projetos em R-20261105-213304). Substitui a
   proposta anterior desta ADR, que levava a tabela para o Core e **não vale**.
 - **Tarefa**: T-0085 (RN-CAT-09; [desenho](../desenho/T-0085.md))
 - **Autor**: engenheiro-software

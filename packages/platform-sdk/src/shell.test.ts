@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
+import { matrizDeFabrica, perfilDeFabrica, resolverPerfil } from './permissoes-perfil';
 import { criarShell, definirModuloShell } from './shell';
 import { definirEntidadeSync } from './sync';
 
@@ -52,6 +53,14 @@ describe('registro de telas dos módulos no shell', () => {
     expect(promotor.pagina('novo-pedido')).toBeNull();
     expect(promotor.pode('pedido.criar')).toBe(false);
     expect(shell.montar({ perfil: 'vendedor', modulosAtivos: ['core', 'vendedor'] }).pagina('/novo-pedido')?.modulo).toBe('vendedor');
+  });
+
+  it('RN-CORE-35 no shell: com os perfis resolvidos, vendedor + promotor pode criar pedido (o motor decide)', () => {
+    const shell = criarShell('campo', [core, vendedor]);
+    const matriz = matrizDeFabrica([core.manifesto, vendedor.manifesto]);
+    const perfis = [resolverPerfil(perfilDeFabrica('vendedor'), matriz), resolverPerfil(perfilDeFabrica('promotor'), matriz)];
+    expect(shell.montar({ perfil: 'promotor', modulosAtivos: ['core', 'vendedor'], perfis }).pode('pedido.criar')).toBe(true);
+    expect(shell.montar({ perfil: 'promotor', modulosAtivos: ['core', 'vendedor'], perfis: [perfis[1]!] }).pode('pedido.criar')).toBe(false);
   });
 
   it('extensões de UI: botão de pedido do Vendedor na ficha do cliente (core) some para o promotor e sem o módulo', () => {

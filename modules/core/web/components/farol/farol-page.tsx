@@ -310,7 +310,7 @@ function FarolConteudo() {
                         <td className={td}>
                           <button
                             type="button"
-                            className="min-h-[44px] bg-transparent p-0 text-left font-semibold text-accent hover:underline"
+                            className="min-h-[44px] bg-transparent p-0 text-left font-semibold text-accent-ink hover:underline"
                             onClick={() => set({ vendedor: v.usuario_id })}
                             aria-label={`Ver só os clientes de ${v.nome}`}
                           >
@@ -379,7 +379,7 @@ function FarolConteudo() {
                         <td className={td}>
                           <Link
                             href={`/cliente?id=${c.cliente_id}`}
-                            className="font-semibold text-accent no-underline hover:underline"
+                            className="font-semibold text-accent-ink no-underline hover:underline"
                           >
                             {c.nome}
                           </Link>

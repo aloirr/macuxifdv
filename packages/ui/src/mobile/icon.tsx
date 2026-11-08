@@ -46,7 +46,8 @@ export type IconName =
   | 'arvore'
   | 'filtro'
   | 'abaixo'
-  | 'subir';
+  | 'subir'
+  | 'mais';
 
 interface Props {
   name: IconName;
@@ -248,6 +249,15 @@ function render(name: IconName, c: Common) {
         <>
           <Path d="M5.5 5h13l2.5 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z" {...c} />
           <Path d="M3 13h5l1.5 3h5l1.5-3h5" {...c} />
+        </>
+      );
+    case 'mais':
+      // ⋮ (menu de mais ações no cabeçalho do detalhe: Cancelar orçamento, T-0133)
+      return (
+        <>
+          <Circle cx={12} cy={5} r={1.2} {...c} />
+          <Circle cx={12} cy={12} r={1.2} {...c} />
+          <Circle cx={12} cy={19} r={1.2} {...c} />
         </>
       );
     case 'arvore':

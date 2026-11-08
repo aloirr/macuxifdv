@@ -8,13 +8,39 @@ import { opcoesDoSalvar, type SituacaoCliente, type SituacaoOrcamento } from '..
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import type { CalculoPedido } from './novo-pedido';
 
-export type AbaNovoPedido = 'itens' | 'detalhes' | 'resumo';
+export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
 
-/** Abas do novo pedido: Itens (com a contagem), Detalhes e Resumo. */
-export function abasDoPedido(itens: number, itensPendente?: boolean): Array<{ id: AbaNovoPedido; rotulo: string; contador?: number | null; pendente?: boolean }> {
+/** Aba que abre o Novo pedido (RF-VEN-11). */
+export const ABA_INICIAL_DO_PEDIDO: AbaNovoPedido = 'venda';
+
+/** T-0137: o pedido guardado por "Apenas salvar" reabre no Resumo, onde está o bloco "Falta para salvar"; o novo abre em Venda. */
+export function abaInicialDoRascunho(r: { salvo_em?: string | null }): AbaNovoPedido {
+  return r.salvo_em ? 'resumo' : ABA_INICIAL_DO_PEDIDO;
+}
+
+/** Aviso ao fechar a tela depois de "Apenas salvar" (sem Desfazer). */
+export const AVISO_PEDIDO_SALVO = 'Pedido salvo';
+
+/** Próxima aba do "Avançar": Venda → Itens → Entrega → Resumo. */
+export function proximaAbaDoPedido(aba: AbaNovoPedido): AbaNovoPedido {
+  return aba === 'venda' ? 'itens' : aba === 'itens' ? 'entrega' : 'resumo';
+}
+
+/** Aba anterior (voltar do Android): Resumo → Entrega → Itens → Venda; da Venda não há anterior. */
+export function abaAnteriorDoPedido(aba: AbaNovoPedido): AbaNovoPedido | null {
+  return aba === 'resumo' ? 'entrega' : aba === 'entrega' ? 'itens' : aba === 'itens' ? 'venda' : null;
+}
+
+/**
+ * Abas do novo pedido (RF-VEN-11): Venda · Itens (n) · Entrega · Resumo. O contador de Itens aparece sempre ("Itens (0)").
+ * A bolinha (RN-CORE-36) fica na aba da correção; o Resumo nunca a recebe (o bloco "Falta para salvar" está nele).
+ */
+export function abasDoPedido(itens: number, pendentes?: { venda?: boolean; itens?: boolean; entrega?: boolean }): Array<{ id: AbaNovoPedido; rotulo: string; contador?: number | null; pendente?: boolean }> {
+  const marca = (v: boolean | undefined) => (v === undefined ? {} : { pendente: v });
   return [
-    { id: 'itens', rotulo: 'Itens', contador: itens > 0 ? itens : null, ...(itensPendente === undefined ? {} : { pendente: itensPendente }) },
-    { id: 'detalhes', rotulo: 'Detalhes' },
+    { id: 'venda', rotulo: 'Venda', ...marca(pendentes?.venda) },
+    { id: 'itens', rotulo: 'Itens', contador: Math.max(0, Math.trunc(itens)), ...marca(pendentes?.itens) },
+    { id: 'entrega', rotulo: 'Entrega', ...marca(pendentes?.entrega) },
     { id: 'resumo', rotulo: 'Resumo' },
   ];
 }
@@ -45,10 +71,6 @@ export function textoDaFaixa(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'ni
   if (c.bloqueado) return { texto: `${formatPct(pct)} · acima da alçada`, tom: 'erro', icone: 'alert' };
   if (c.nivel) return { texto: `${formatPct(pct)} · vai para o ${c.nivel}`, tom: 'aviso', icone: 'alert' };
   return { texto: `${formatPct(pct)} · dentro da alçada`, tom: 'ok', icone: 'check' };
-}
-
-export function tituloDaFolhaSalvar(): string {
-  return 'Salvar pedido';
 }
 
 /** Selo do orçamento (tela 5 e lista): "Orçamento · até 10/11", "Vencido", "Cancelado", "Virou pedido 000015". */
@@ -116,7 +138,7 @@ export function rotuloDoAjusteDoPedido(sentido: 'desconto' | 'acrescimo'): strin
   return sentido === 'acrescimo' ? 'Acréscimo do pedido' : 'Desconto do pedido';
 }
 
-// ---------- sugestões da aba Detalhes ----------
+// ---------- sugestões do fim da aba Itens ----------
 export const TITULO_COMBINA = 'Combina com o pedido';
 export const TITULO_LEVE_MAIS = 'Leve mais';
 

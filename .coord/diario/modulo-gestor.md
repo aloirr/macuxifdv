@@ -19,3 +19,5 @@
 2026-11-05 — T-0039 — Gestor: tipo do Core, janela de 30 dias, detecção por subtipo com reserva por título, 🟢 da revisão final
 2026-11-05 — T-0039 — G1 (notificações só na aba Alertas) e 🟢 da revisão; interseção de subtipo removida
 2026-11-05 — T-0071 — item 5: lista de orçamentos da equipe é do Vendedor (recado enviado); 4 testes de não-contagem de orçamento no Gestor (orcamento-equipe.test.ts)
+2026-11-08 — T-0102 — AvisoEtapaEquipe registrado no slot cliente.avisos (teste); accentInk em Decidir/Em rota; histórico em tags não se aplica ao Gestor (detalhe do pedido é do Vendedor)
+2026-11-08 — T-0124 — Gestor: typecheck do slot cliente.avisos, apuracao pela data de emissao (RN-CORE-21) e dias uteis pelo calendario do tenant (RN-CORE-26, param dias_uteis_semana); testes G2/G5 prontos para virar it

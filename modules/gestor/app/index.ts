@@ -1,9 +1,11 @@
 import type { ComponentType } from 'react';
+import type { ContextoCliente } from '@macuxi/core/contracts';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { CardAprovacoes } from './components/card-aprovacoes';
+import { AvisoEtapaEquipe } from './components/aviso-etapa-equipe';
 import { etapasGestor } from './etapas';
-import { extensoesDoInicio } from './registro-inicio';
+import { extensoesDaFicha, extensoesDoInicio } from './registro-inicio';
 import AlertasScreen from './screens/alertas-screen';
 import AprovacoesScreen from './screens/aprovacoes-screen';
 import EquipeScreen from './screens/equipe-screen';
@@ -27,5 +29,5 @@ export const moduloApp = definirModuloShell<ComponentType>({
   ],
   etapasSync: etapasGestor,
   // T-0073: card "Pedidos para aprovar" no Início (slot `inicio.cards`, ordem 10)
-  extensoes: extensoesDoInicio<ComponentType>(CardAprovacoes),
+  extensoes: [...extensoesDoInicio<ComponentType>(CardAprovacoes), ...extensoesDaFicha<ComponentType<{ contexto: ContextoCliente }>>(AvisoEtapaEquipe)],
 });

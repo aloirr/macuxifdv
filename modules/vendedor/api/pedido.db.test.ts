@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_PROMOTOR_VE_PEDIDOS } from '@macuxi/core/contracts';
+import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import {
@@ -100,6 +101,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
                   itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: tabela?.[p] ?? null, motivo_sem_preco: tabela?.[p] ? null : 'Sem preço para este cliente.' })),
                 };
               }
+              if (def.nome === CONSULTA_CANCELAMENTO_ERP.nome) return { aceita: false }; // sem conector que aceite cancelar: mantém o 422 da RN-VEN-31
               if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor }; // Core simulado, lido a cada requisição
               throw new Error(`consulta não simulada: ${def.nome}`);
             },

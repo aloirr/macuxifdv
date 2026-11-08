@@ -14,6 +14,8 @@ export interface EntradaAcoes {
   /** vendedor dono do pedido (na Gestão a edição/duplicação não existe) */
   ehVendedor: boolean;
   temItens: boolean;
+  /** T-0130 (RN-VEN-30): o pedido na_fila é só de leitura; só o recusado pela API (falhou) reabre para correção */
+  recusado?: boolean;
   /** T-0071 (RN-VEN-18): orçamento aberto já recebido também edita (pela API, com sinal) */
   orcamentoAberto?: boolean;
   pode: { editar: boolean; cancelar: boolean };
@@ -29,9 +31,10 @@ export interface EstadoAcoes {
 
 export function estadoDasAcoes(e: EntradaAcoes): EstadoAcoes {
   const precisaSinal = !e.naFila && e.offline;
-  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : (e.naFila && editavelNaFatia(e.status as OrderStatus)) || (e.orcamentoAberto === true && !precisaSinal);
+  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : (e.naFila && e.recusado === true && editavelNaFatia(e.status as OrderStatus)) || (e.orcamentoAberto === true && !precisaSinal);
   const podeEditar = e.ehVendedor && e.pode.editar && editavel && e.temItens;
-  const podeExcluir = e.pode.cancelar && e.acoes.can_cancel && !precisaSinal;
+  // T-0130: na fila (sem recusa) não há Editar nem Excluir; o recusado pode ser corrigido ou descartado
+  const podeExcluir = e.pode.cancelar && e.acoes.can_cancel && !precisaSinal && (!e.naFila || e.recusado === true);
   let motivoBloqueio = '';
   if (e.acoes.locked_reason) motivoBloqueio = e.acoes.locked_reason;
   else if (e.v1 && !e.naFila && e.ehVendedor && !editavel && !e.orcamentoAberto) motivoBloqueio = 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.';

@@ -121,6 +121,12 @@ describe('T-0107 — gerador determinístico da base de carga (sem banco)', () =
     const porProduto = new Map<string, Linha[]>();
     for (const r of t('catalogo.produto_referencia')) porProduto.set(s(r, 'produto_id'), [...(porProduto.get(s(r, 'produto_id')) ?? []), r]);
     expect(porProduto.size).toBeGreaterThan(10_000);
+    // 0045 (T-0113, ADR 0034): FK (tenant_id, marca_id) -> catalogo.marca_concorrente; a marca é gravada antes da referência
+    const marcas = new Map(t('catalogo.marca_concorrente').map((m) => [s(m, 'id'), s(m, 'nome')]));
+    expect(marcas.size).toBe(10);
+    const orfas = t('catalogo.produto_referencia').filter((r) => marcas.get(s(r, 'marca_id')) !== s(r, 'marca_nome')).map((r) => s(r, 'id'));
+    expect(orfas, 'referência sem a marca (ou com outro nome) em catalogo.marca_concorrente').toEqual([]);
+    expect(ORDEM_TABELAS_CARGA.indexOf('catalogo.marca_concorrente')).toBeLessThan(ORDEM_TABELAS_CARGA.indexOf('catalogo.produto_referencia'));
     for (const refs of porProduto.values()) {
       expect(refs.length).toBeLessThanOrEqual(3);
       expect(new Set(refs.map((r) => r.ordem))).toEqual(new Set(refs.map((_, i) => i + 1)));

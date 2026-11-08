@@ -62,6 +62,20 @@ export const PedidoRetornoErpEvento = z.object({
 });
 export type PedidoRetornoErpEvento = z.infer<typeof PedidoRetornoErpEvento>;
 
+/**
+ * `integracao.pedido.cancelamento_recusado@1` (T-0114, aditivo): o ERP recusou o cancelamento que o Hub pediu para um pedido já
+ * entregue. O pedido continua vivo no ERP. Publicado uma vez por pedido, na transação do retorno `cancelamento_recusado`.
+ * `motivo` é o texto do ERP (até 300 caracteres, mascarado pelo Conector; sem dado pessoal). Consumidor previsto: Vendedor
+ * (avisar quem cancelou); a Integração não depende dele para mostrar o alerta no monitor.
+ */
+export const PedidoCancelamentoRecusadoEvento = z.object({
+  pedido_uuid: Uuid,
+  numero_erp: z.string().nullable(),
+  motivo: z.string().min(1).max(300),
+  recusado_em: DataHoraUtc,
+});
+export type PedidoCancelamentoRecusadoEvento = z.infer<typeof PedidoCancelamentoRecusadoEvento>;
+
 /** `integracao.lote.concluido@1` — lote chegou a estado final (monitor e notificações). */
 export const LoteConcluidoEvento = z.object({
   lote_id: Uuid,
@@ -105,6 +119,7 @@ export type LoteRecebidoEvento = z.infer<typeof LoteRecebidoEvento>;
 export const EVENTO_LOTE_RECEBIDO = definirEvento('integracao.lote.recebido@1', LoteRecebidoEvento);
 export const EVENTO_LOTE_CONCLUIDO = definirEvento('integracao.lote.concluido@1', LoteConcluidoEvento);
 export const EVENTO_PEDIDO_RETORNO_ERP = definirEvento('integracao.pedido.retorno_erp@1', PedidoRetornoErpEvento);
+export const EVENTO_PEDIDO_CANCELAMENTO_RECUSADO = definirEvento('integracao.pedido.cancelamento_recusado@1', PedidoCancelamentoRecusadoEvento);
 export const EVENTO_RECONCILIACAO_DIVERGENTE = definirEvento('integracao.reconciliacao.divergente@1', ReconciliacaoDivergenteEvento);
 
 export const EVENTO_ERP_VENDEDOR_ATUALIZADO = definirEvento('integracao.vendedor.atualizado@1', EVENTOS_ATUALIZADO.vendedor);

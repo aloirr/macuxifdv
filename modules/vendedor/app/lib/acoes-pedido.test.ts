@@ -14,8 +14,9 @@ const base: EntradaAcoes = {
 };
 
 describe('ações do detalhe do pedido', () => {
-  it('P-2: pedido ainda no aparelho pode ser editado e excluído pelo vendedor', () => {
-    expect(estadoDasAcoes(base)).toEqual({ podeEditar: true, podeExcluir: true, motivoBloqueio: '' });
+  it('RN-VEN-30: pedido na fila é só de leitura; o recusado pela API pode ser corrigido (editado) e descartado', () => {
+    expect(estadoDasAcoes(base)).toEqual({ podeEditar: false, podeExcluir: false, motivoBloqueio: '' });
+    expect(estadoDasAcoes({ ...base, recusado: true })).toEqual({ podeEditar: true, podeExcluir: true, motivoBloqueio: '' });
   });
   it('P-2: pedido aceito pelo servidor não se edita, explica e manda duplicar', () => {
     const r = estadoDasAcoes({ ...base, naFila: false, status: 'approved' });
@@ -23,10 +24,10 @@ describe('ações do detalhe do pedido', () => {
     expect(r.motivoBloqueio).toMatch(/Duplique/);
   });
   it('RN-PRO-01: sem a permissão da ação não edita nem exclui', () => {
-    expect(estadoDasAcoes({ ...base, pode: { editar: false, cancelar: false } })).toMatchObject({ podeEditar: false, podeExcluir: false });
+    expect(estadoDasAcoes({ ...base, recusado: true, pode: { editar: false, cancelar: false } })).toMatchObject({ podeEditar: false, podeExcluir: false });
   });
   it('Gestão (não é o vendedor): não edita', () => {
-    expect(estadoDasAcoes({ ...base, ehVendedor: false }).podeEditar).toBe(false);
+    expect(estadoDasAcoes({ ...base, recusado: true, ehVendedor: false }).podeEditar).toBe(false);
   });
   it('sem sinal, pedido já enviado não exclui e diz por quê', () => {
     const r = estadoDasAcoes({ ...base, naFila: false, offline: true, ehVendedor: false });

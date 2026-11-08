@@ -84,14 +84,14 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
         recusarTopologia(verificarTopologiaConectores({ id, conector_id: c.conector_id, ativo: true, recebe_pedidos: c.recebe_pedidos, entidades: c.entidades }, existentes.map(topologia)));
 
         const { rows } = await db.query<LinhaConector>(
-          `insert into integracao.conector (id, tenant_id, identificador, nome, tipo, recebe_pedidos, entidades, ips_permitidos)
-           values ($1, $2, $3, $4, $5, $6, $7::text[], $8::inet[])
+          `insert into integracao.conector (id, tenant_id, identificador, nome, tipo, recebe_pedidos, entidades, ips_permitidos, aceita_cancelamento)
+           values ($1, $2, $3, $4, $5, $6, $7::text[], $8::inet[], $9)
            returning ${COLUNAS_CONECTOR}`,
-          [id, tenantId, c.conector_id, c.nome, c.tipo, c.recebe_pedidos, c.entidades, c.ips_permitidos],
+          [id, tenantId, c.conector_id, c.nome, c.tipo, c.recebe_pedidos, c.entidades, c.ips_permitidos, c.aceita_cancelamento],
         );
         const k = gerarChave();
         await db.query(`insert into integracao.credencial (tenant_id, conector_id, prefixo, hash_chave, papel) values ($1, $2, $3, $4, 'atual')`, [tenantId, id, k.prefixo, hashDaChave(pepper, k.chave)]);
-        await tx.auditar({ acao: 'conector.criar', entidade: 'conector', entidade_id: id, depois: { identificador: c.conector_id, entidades: c.entidades, recebe_pedidos: c.recebe_pedidos } });
+        await tx.auditar({ acao: 'conector.criar', entidade: 'conector', entidade_id: id, depois: { identificador: c.conector_id, entidades: c.entidades, recebe_pedidos: c.recebe_pedidos, aceita_cancelamento: c.aceita_cancelamento } });
         const linha = rows[0] as LinhaConector;
         const chaves = await lerChaves(db, tenantId, [id]);
         const politica = await lerPolitica(db, tenantId);
@@ -128,15 +128,16 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
           recebe_pedidos: c.recebe_pedidos ?? atual.recebe_pedidos,
           entidades: (c.entidades ?? atual.entidades) as Entidade[],
           ativo: c.ativo ?? atual.ativo,
+          aceita_cancelamento: c.aceita_cancelamento ?? atual.aceita_cancelamento,
         };
         // ativo (ou sendo reativado) confere de novo contra os OUTROS Conectores ativos; desativar sempre pode (RN-INT-13)
         recusarTopologia(verificarTopologiaConectores({ id: atual.id, conector_id: atual.identificador, ...novo }, todos.filter((x) => x.id !== atual.id).map(topologia)));
 
         const { rows } = await db.query<LinhaConector>(
-          `update integracao.conector set nome = $3, ips_permitidos = $4::inet[], recebe_pedidos = $5, entidades = $6::text[], ativo = $7
+          `update integracao.conector set nome = $3, ips_permitidos = $4::inet[], recebe_pedidos = $5, entidades = $6::text[], ativo = $7, aceita_cancelamento = $8
             where tenant_id = $1 and id = $2
             returning ${COLUNAS_CONECTOR}`,
-          [tenantId, atual.id, novo.nome, novo.ips_permitidos, novo.recebe_pedidos, novo.entidades, novo.ativo],
+          [tenantId, atual.id, novo.nome, novo.ips_permitidos, novo.recebe_pedidos, novo.entidades, novo.ativo, novo.aceita_cancelamento],
         );
         // desativar o Conector revoga as chaves (RN-INT-10); reativar exige gerar chave nova
         if (atual.ativo && !novo.ativo) {
@@ -150,8 +151,8 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
           acao: 'conector.atualizar',
           entidade: 'conector',
           entidade_id: atual.id,
-          antes: { ativo: atual.ativo, recebe_pedidos: atual.recebe_pedidos, entidades: atual.entidades },
-          depois: { ativo: novo.ativo, recebe_pedidos: novo.recebe_pedidos, entidades: novo.entidades },
+          antes: { ativo: atual.ativo, recebe_pedidos: atual.recebe_pedidos, aceita_cancelamento: atual.aceita_cancelamento, entidades: atual.entidades },
+          depois: { ativo: novo.ativo, recebe_pedidos: novo.recebe_pedidos, aceita_cancelamento: novo.aceita_cancelamento, entidades: novo.entidades },
         });
         const chaves = await lerChaves(db, tenantId, [atual.id]);
         const politica = await lerPolitica(db, tenantId);

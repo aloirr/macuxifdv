@@ -76,6 +76,70 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **único** com EXECUTE nas 20 `plataforma.sa_*`; `macuxi_app` e `macuxi_worker` perdem o EXECUTE (42501). `@macuxi/db` exporta
 > `PAPEL_PORTAL`, `urlPortal` e `garantirPapelPortal`; o banco dos testes traz `urlPortal` (`banco().urlPortal`). A migração
 > sozinha deixa o portal em 42501: vai junto da API com o 2º pool. Detalhes no [plataforma.md](plataforma.md) e no [rls.md](rls.md).
+>
+> **2026-11-07 (T-0093):** `0039_plataforma_portal_email_senha` (ADR 0031): o portal entra só com e-mail e senha. Tabelas novas
+> só por função, sem `tenant_id`: `plataforma.portal_tentativa` (bloqueio por chave HMAC do e-mail), `portal_sessao` e
+> `portal_sessao_empresa` (super-admin ou admin do cliente, empresa escolhida na sessão); `auditoria_plataforma` ganha `ator_tipo`
+> e `usuario_id`; índice `core.usuario_admin_email_ix`. 12 `sa_*` (EXECUTE só ao `macuxi_portal`), a `criar_super_admin` do deploy
+> (sem EXECUTE para app, worker ou portal) e saem as 14 do convite/TOTP/desafio. Vai no mesmo commit do Core e da API.
+> Detalhes no [plataforma.md](plataforma.md) ("Portal só com e-mail e senha") e no [rls.md](rls.md).
+>
+> **2026-11-07 (T-0095):** seção separada "T-0095: guarda de ordem do ERP" no fim da `0039` (up e down): `erp_alterado_em
+> timestamptz(3)` nula em `core.cliente`, `core.usuario` e `core.produto` (último `alterado_em` do ERP aplicado; reentrega mais
+> antiga é ignorada) e `core.usuario.desligado_no_bko_em timestamptz(3)` nula (o BKO marca ao desativar; a carga do ERP não
+> reativa). Aditiva, sem backfill, sem índice, fora do pull. Detalhes no [core.md](core.md); teste `db/testes/erp-ordem.test.ts`.
+>
+> **2026-11-07 (T-0094):** `0040_core_senha_email_saida` (aditiva, ADR 0032): `core.usuario` ganha o estado da senha
+> (`trocar_senha`, `senha_expira_em`, `senha_temporaria_*` do "Esqueci a senha") e a `sessao_versao`; outbox de e-mail
+> `plataforma.email_saida` (carga cifrada só no pendente; app só insere e lê; worker marca só a pendente; fora do sync);
+> `portal_sessao_empresa.sessao_versao` e as 4 `sa_*` do login do portal leem a versão e o `trocar_senha`; admin inicial nasce
+> com `trocar_senha`; anonimização limpa a temporária e a carga; convites pendentes revogados. Vai no mesmo commit do Core
+> (fatia C). Detalhes no [core.md](core.md) e no [plataforma.md](plataforma.md) ("Outbox de e-mail").
+>
+> **2026-11-07 (T-0111/T-0112):** `0041_plataforma_perfis_de_acesso` (em cima da 0040, mesmo lote; ADR 0033): perfis de acesso
+> do tenant (`plataforma.perfil`, 7 de fábrica semeados em todo tenant e pelo gatilho do tenant novo), sobreposições por chave
+> (`plataforma.perfil_permissao`, vazia = padrão de fábrica do SDK; travas RN-CORE-33, RN-PRO-01 e RN-CORE-04 no banco) e
+> multiperfil (`plataforma.usuario_perfil`; todo usuário com o perfil principal de `core.usuario.perfil`, conferido no COMMIT,
+> e sempre um admin ativo com a gestão, RN-CORE-35). `perfil_modulo.perfil` vira o código do perfil (FK). Leitura da API:
+> `plataforma.perfis_do_usuario(uuid)`. Detalhes no [plataforma.md](plataforma.md) ("Perfis de acesso") e no [rls.md](rls.md).
+>
+> **2026-11-08 (T-0094, padrão de fábrica da T-0111):** `0042_plataforma_portal_redefinir_senha_admin` (em cima da 0041, mesmo
+> lote; só funções): o super-admin redefine pelo portal a senha do admin do cliente. `sa_admins_da_empresa(sid, tenant)` lista os
+> admins vivos; `sa_redefinir_senha_admin(sid, tenant, usuario, senha_hash, email, email_id, carga)` grava a temporária de 72 h
+> com `trocar_senha` e `sessao_versao + 1`, revoga os refresh, enfileira o e-mail cifrado na `email_saida` na mesma transação e
+> audita sem dado pessoal; idempotente por `email_id`. EXECUTE só ao `macuxi_portal` (agora 14 `sa_*`). Detalhes no
+> [plataforma.md](plataforma.md) ("Redefinir a senha do admin pelo portal").
+>
+> **2026-11-08 (T-0114):** `0043_integracao_cancelamento_erp` (em cima da 0042; aditiva, só no schema integracao):
+> `conector.aceita_cancelamento` (false) e `pedido_fila_erp.cancelamento_estado|motivo|solicitado_em|enviado_em|tentativas`,
+> 4 CHECKs e o índice parcial do poll `pedido_fila_erp_cancelamento_ix`. Detalhes no [integracao.md](integracao.md)
+> ("Cancelamento para o ERP (0043)").
+>
+> **2026-11-08 (T-0106):** `0044_treinamento_xp_referencia` (em cima da 0043; só `treinamento.xp_lancamento`): `referencia_id`
+> 1..160 e `xp_lancamento_tenant_id_uk (tenant_id, id)`; a chave natural da 0017 fica total. Detalhes no
+> [treinamento.md](treinamento.md) ("Lançamento de XP (0044)").
+>
+> **2026-11-08 (T-0113, ADR 0034):** `0045_catalogo_marca_concorrente` (em cima da 0044; lote único com o Catálogo e o
+> Promotor): `catalogo.marca_concorrente` copiada de `promotor.concorrente` com os mesmos ids (conferida campo a campo), FK
+> `produto_referencia_marca_fk` e retrato preenchido; o Promotor perde a FK do produto do concorrente e a escrita no cadastro
+> antigo. Detalhes no [catalogo.md](catalogo.md) ("0045 — marcas concorrentes no Catálogo").
+>
+> **2026-11-08 (D-MP2, T-0094/T-0111):** `0046_plataforma_portal_multiperfil` (em cima da 0045; só funções): o portal decide a
+> entrada do admin do cliente pelos perfis (`plataforma.usuario_entra_no_portal`: todos de base admin + `acesso.portal`) nas 4
+> `sa_*` do login e da sessão. `0047_plataforma_portal_admin_multiperfil` (em cima da 0046; só funções): o suporte lista
+> (`sa_admins_da_empresa`, com a coluna nova `entra_no_portal`) e redefine (`sa_redefinir_senha_admin`) a senha de quem tem
+> algum perfil de base admin, mesmo que o principal seja outro (`plataforma.usuario_tem_perfil_admin`). Continuam 14 `sa_*`.
+> Detalhes no [plataforma.md](plataforma.md) ("Portal e multiperfil" e "Resgate da senha do admin pelos perfis").
+>
+> **2026-11-08 (T-0114):** `0048_integracao_cancelamento_recusado` (em cima da 0047; aditiva, só `integracao.pedido_fila_erp`):
+> `cancelamento_recusado_em` e `cancelamento_recusa_motivo` (1..300), estado `recusado` nos CHECKs (a recusa fica de histórico no
+> `confirmado`) e o índice parcial do monitor `pedido_fila_erp_cancelamento_recusado_ix`. Detalhes no [integracao.md](integracao.md)
+> ("Cancelamento recusado pelo ERP (0048)").
+>
+> **2026-11-08 (defeito R-20261108-130423-testes, T-0093/T-0094):** `0049_plataforma_conferencias_no_commit_definer` (em cima da
+> 0048; só `ALTER FUNCTION`): as 4 funções dos gatilhos adiáveis da 0041 viram `SECURITY DEFINER` (search_path fixo, EXECUTE só do
+> dono). Criar empresa com o admin pelo portal dava 500 no COMMIT (a conferência rodava como `macuxi_portal`). Detalhes no
+> [plataforma.md](plataforma.md) ("0049 — conferências do COMMIT como dono").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -210,7 +274,11 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   do `--recriar`) guarda o dele; pedido novo do seed só usa o número da base nova (000001…) se estiver acima do maior já
   emitido (contador e maior número gravado, lidos antes do `--recriar`), senão ganha o próximo do contador. Repetido de
   verdade (só sem o único `pedido_numero_uk`): o mais antigo fica, os outros ganham número novo, e o `seed demo` imprime
-  `número do pedido <id> (seed|aparelho): de -> para`. A linha do contador fica travada durante a carga.
+  `número do pedido <id> (seed|aparelho): de -> para`. A linha do contador fica travada durante a carga. Roteiro e teste
+  só podem contar com o número de um pedido específico do seed (ex.: 000010 no S6 e no M-D19) em **base nova**; numa base
+  já usada o número fica com quem o recebeu primeiro. Na VM nada muda no deploy comum: só no `demo — recriar base demo`.
+  Com a API no ar, o `--recriar` pode dar `deadlock detected` contra um pedido que converte orçamento do seed (ordens de
+  trava opostas: pedido → contador × contador → pedido); tudo volta no rollback e basta rodar o workflow de novo.
 - **Limitação no começo do mês** (R-20261101-045314, O-2): pedidos, visitas e `core.indicador_diario` da base são dos dias
   úteis ANTERIORES ao "hoje". Até o 1º dia útil depois do dia 1º, eles caem todos no mês anterior e Metas (app) e
   Indicadores (BKO) do mês mostram 0%. Para o ensaio nesses dias, rode o ensaio a partir do 2º dia útil do mês ou mostre

@@ -14,4 +14,11 @@ export interface DefinicaoConsulta<E extends z.ZodTypeAny = z.ZodTypeAny, S exte
   readonly versao: number;
   readonly entrada: E;
   readonly saida: S;
+  /**
+   * ADR 0025 §4.1 (T-0114): o DONO declara que a resposta é CONFIGURAÇÃO DO TENANT — a mesma para qualquer usuário, sem
+   * recorte por perfil, carteira ou usuário (ex.: `integracao.cancelamento_erp@1`, "o ERP deste tenant aceita
+   * cancelamento?"). Só com isso uma rota de ESCRITA pode pedir `{ licenca: 'tenant' }`, e a API então executa a consulta
+   * num savepoint somente leitura (o Postgres recusa qualquer escrita) desfeito ao fim. Ausente = consulta comum.
+   */
+  readonly configuracaoDoTenant?: true;
 }

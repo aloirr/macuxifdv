@@ -1,58 +1,60 @@
 /**
- * Novo pedido em 3 abas — Itens · Detalhes · Resumo (T-0071, desenho §6.2) sobre os componentes do `packages/ui`.
+ * Novo pedido em 4 abas — Venda · Itens (n) · Entrega · Resumo (RF-VEN-11, T-0136; spec docs/design/pedido-v2.md) sobre os componentes do
+ * `packages/ui`. Venda: alertas, forma, prazo e crédito. Itens: busca e itens (na tela). Entrega: endereço, frete e observações.
  * Textos só os da referência enxuta, vindos de `lib/textos-pedido` (com teste). Só lê e escreve o rascunho do aparelho
  * (offline-first); o cálculo vem de `lib/novo-pedido`. Alvos de toque ≥ 48 dp (o ui já garante).
  */
 import { formatBRL } from '@macuxi/comum';
 import {
   BlocoTotais,
-  Button,
+  Botao,
   Card,
   Cartao,
-  CartaoCredito,
   CartaoLeveMais,
   Chip,
   colors,
-  CONSEQUENCIA_VENCIDO,
+  DescontoCompacto,
   Dialogo,
   Faixa,
   Folha,
   fonts,
+  leituraDoSalvar,
   Icon,
+  LinhaResumo,
   LinhaValor,
   ListaSuspensa,
   OpcaoFolha,
   RotuloSecao,
+  sanearDecimal,
   Segmentado,
   Selo,
   textoAtualizacao,
-  textoInadimplencia,
   textosLeveMais,
   type as t,
   type ItemLeveMais,
 } from '@macuxi/ui/mobile';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { opcoesDoSalvar } from '../../domain/orcamento';
+import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
+import type { AlertaDaVenda } from '../../domain/alertas-venda';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rotuloTotalDoPedido, TEXTO_ESCOLHA_A_FORMA, TEXTO_SEM_FORMAS, type LimitesDoCliente } from '../lib/pagamento-pedido';
-import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, trocarModoDoAjuste, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
-import { aplicarAjusteDoPedido, type Rascunho } from '../lib/pedidos';
+import { ajusteDoPedidoDoRascunho, rascunhoComTextoDoPedido, rascunhoComTipoDoPedido, textoDoAjuste, valorDoTexto } from '../lib/ajuste-pedido';
+import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
+import type { Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TEXTO_SEM_ITEM_NO_RESUMO, TITULO_COMBINA, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa, textoEquivalente, tituloDaFolhaSalvar } from '../lib/textos-pedido';
-import { CampoPct, CampoReais } from './novo-pedido';
+import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TEXTO_SEM_ITEM_NO_RESUMO, TITULO_COMBINA, itemCompacto, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa } from '../lib/textos-pedido';
+import { fraseDoFrete, linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, linhaDoLimite, ROTULOS_DO_RESUMO, TEXTO_OBS_VAZIA, ROTULO_ALERTAS, ROTULO_ENDERECO_ENTREGA, ROTULO_LIMITE, ROTULO_PRAZO_MEDIO, TEXTO_ENDERECO_DO_CADASTRO, TEXTO_SEM_ALERTA, TEXTO_SEM_DADOS_DE_CREDITO, textoDoAlerta, textoDoPrazoMedio } from '../lib/textos-venda';
 
-type OpcoesDoSalvar = ReturnType<typeof opcoesDoSalvar>;
 type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
 
-// ---------- aba 1 · Itens: pagamento no topo ----------
+// ---------- aba 1 · Venda ----------
 export const TITULO_LEVE_MAIS_PAGUE_MENOS = 'Leve mais e pague menos';
 
 /**
- * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25) e, logo abaixo, o total do pedido (sem rodapé fixo
- * na aba). O Prazo mostra só os prazos da forma, só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado.
+ * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma, só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado.
  * Sem formas no aparelho (antes do primeiro sync com a 0037) vale a lista de condições de antes.
  */
 export function CardPagamento({
@@ -61,8 +63,6 @@ export function CardPagamento({
   prazos,
   cliente,
   legado,
-  itens,
-  totalCents,
   onRascunho,
 }: {
   rascunho: Rascunho;
@@ -71,8 +71,6 @@ export function CardPagamento({
   cliente: LimitesDoCliente;
   /** condições de antes (APK anterior / tenant sem formas) */
   legado: Array<{ id: string | null; rotulo: string }>;
-  itens: number;
-  totalCents: number;
   onRascunho: OnRascunho;
 }) {
   const semFormas = formas.length === 0;
@@ -105,7 +103,6 @@ export function CardPagamento({
             rotulo="Forma de pagamento"
             opcoes={opcoesForma}
             valor={r.forma_pagamento_id ?? null}
-            erro={!r.forma_pagamento_id}
             placeholder="Escolha"
             rotuloFechar="Fechar a lista"
             onChange={(id) => {
@@ -120,13 +117,20 @@ export function CardPagamento({
             opcoes={opcoesPrazo.map((o) => ({ id: o.id, rotulo: o.rotulo, desabilitada: o.desabilitada, motivo: o.motivo }))}
             valor={r.prazo_pagamento_id ?? null}
             desligado={!r.forma_pagamento_id}
-            erro={Boolean(r.forma_pagamento_id) && !r.prazo_pagamento_id}
             placeholder={r.forma_pagamento_id ? 'Escolha' : TEXTO_ESCOLHA_A_FORMA}
             rotuloFechar="Fechar a lista"
             onChange={(id) => onRascunho((d) => comPrazo(d, id, formas, prazos))}
           />
         </View>
       )}
+    </Cartao>
+  );
+}
+
+/** Total do pedido no topo da aba Itens ("Total do pedido · 2 itens" · R$ x). Sem rodapé fixo. */
+export function TotalDoPedido({ itens, totalCents }: { itens: number; totalCents: number }) {
+  return (
+    <Cartao gap={0} testID="card-total-do-pedido">
       <View style={s.totalDoPedido} testID="total-do-pedido">
         <Text style={s.totalRotulo}>{rotuloTotalDoPedido(itens)}</Text>
         <Text style={s.totalValor} testID="total-do-pedido-valor">
@@ -137,7 +141,76 @@ export function CardPagamento({
   );
 }
 
-/** Frete CIF/FOB e transportadora (RN-VEN-16): saiu de Itens e abre a aba Detalhes logo depois do crédito. */
+/**
+ * Aba Venda (RF-VEN-11): caixa Alertas (RN-VEN-12/13) ou a linha "Cliente liberado", forma e prazo (RN-VEN-24/25), limite
+ * total e disponível e prazo médio do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
+ * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
+ */
+export function AbaVenda({
+  alertas,
+  pagamento,
+  credito,
+  prazoMedioDias,
+  sincronizadoEm,
+  agora,
+  tz,
+  semSinal,
+}: {
+  alertas: readonly AlertaDaVenda[];
+  /** cartão de forma e prazo já montado pela tela (`CardPagamento`) */
+  pagamento: ReactNode;
+  credito: ModeloDoCredito | null | undefined;
+  prazoMedioDias: number | null | undefined;
+  sincronizadoEm: string | null;
+  agora: Date;
+  tz: string;
+  semSinal: boolean;
+}) {
+  const limite = linhaDoLimite(credito);
+  const prazoMedio = textoDoPrazoMedio(prazoMedioDias);
+  const mostraCredito = credito !== undefined && credito !== null;
+  const disponivelNegativo = credito?.tipo === 'dados' && credito.disponivel_cents < 0;
+  return (
+    <View style={{ gap: 12 }} testID="aba-venda-conteudo">
+      <View style={{ gap: 6 }} testID="venda-alertas">
+        {alertas.length > 0 ? (
+          <>
+            <RotuloSecao texto={ROTULO_ALERTAS} />
+            {alertas.map((a) => {
+              const x = textoDoAlerta(a);
+              return <Faixa key={a.tipo} tom={x.tom} texto={x.texto} apoio={x.apoio} testID={`alerta-${a.tipo}`} />;
+            })}
+          </>
+        ) : (
+          <Faixa tom="ok" texto={TEXTO_SEM_ALERTA} testID="alerta-liberado" />
+        )}
+      </View>
+      {pagamento}
+      {mostraCredito || prazoMedio ? (
+        <Cartao gap={8} testID="venda-credito">
+          {mostraCredito ? (
+            limite ? (
+              <LinhaValor rotulo={ROTULO_LIMITE} valor={limite} tomValor={disponivelNegativo ? 'erro' : undefined} testID="venda-limite" />
+            ) : (
+              <Text style={t.small} testID="venda-sem-credito">
+                {TEXTO_SEM_DADOS_DE_CREDITO}
+              </Text>
+            )
+          ) : null}
+          {prazoMedio ? <LinhaValor rotulo={ROTULO_PRAZO_MEDIO} valor={prazoMedio} testID="venda-prazo-medio" /> : null}
+          {mostraCredito ? (
+            <View style={s.linha} testID="venda-atualizacao">
+              <Icon name={semSinal ? 'wifiOff' : 'sync'} size={13} color={colors.ink2} />
+              <Text style={t.small}>{textoAtualizacao(sincronizadoEm, agora, tz)}</Text>
+            </View>
+          ) : null}
+        </Cartao>
+      ) : null}
+    </View>
+  );
+}
+
+/** Frete CIF/FOB e transportadora (RN-VEN-16), na aba Entrega: só a frase da modalidade, sem valor de frete. */
 export function CartaoFrete({
   rascunho: r,
   fretePadrao,
@@ -167,6 +240,9 @@ export function CartaoFrete({
         ]}
         onChange={(m) => setFrete(m === 'CIF' ? { modalidade: 'CIF' } : { modalidade: 'FOB', transportadora_id: frete.transportadora_id ?? null, transportadora_digitada: frete.transportadora_digitada ?? null })}
       />
+      <Text style={t.small} testID="frete-frase">
+        {fraseDoFrete({ modalidade: frete.modalidade, transportadora: frete.transportadora_id ? (ativas.find((x) => x.id === frete.transportadora_id)?.nome ?? null) : (frete.transportadora_digitada?.nome ?? null) })}
+      </Text>
       {frete.modalidade === 'FOB' ? (
         <View style={{ gap: 8 }} testID="frete-transportadora">
           <Text style={s.rotuloLinha}>Transportadora</Text>
@@ -202,73 +278,38 @@ function CampoTexto({ rotulo, valor, onChange, testID, teclado }: { rotulo: stri
   return <TextInput testID={testID} value={valor} onChangeText={onChange} keyboardType={teclado} placeholder={rotulo} placeholderTextColor={colors.ink3} accessibilityLabel={rotulo} style={s.texto} autoCorrect={false} />;
 }
 
-// ---------- aba 2 · Detalhes ----------
-/** Crédito do cliente (RN-VEN-12/13): `undefined` = ainda lendo; `null` = consulta indisponível (o cartão não aparece). */
-export function CreditoDoClienteCard({ credito, sincronizadoEm, agora, tz, semSinal }: { credito: ModeloDoCredito | null | undefined; sincronizadoEm: string | null; agora: Date; tz: string; semSinal: boolean }) {
-  if (!credito) return null;
-  const atualizacao = textoAtualizacao(sincronizadoEm, agora, tz);
-  if (credito.tipo === 'vazio') {
-    return <CartaoCredito titulo="Crédito do cliente" limiteTotal={{ rotulo: 'Limite total', valor: '' }} limiteDisponivel={{ rotulo: 'Limite disponível', valor: '' }} vazio="Sem dados de crédito deste cliente." atualizacao={atualizacao} semSinal={semSinal} />;
-  }
-  return (
-    <CartaoCredito
-      titulo="Crédito do cliente"
-      limiteTotal={{ rotulo: 'Limite total', valor: formatBRL(credito.limite_cents) }}
-      limiteDisponivel={{ rotulo: 'Limite disponível', valor: formatBRL(credito.disponivel_cents), negativo: credito.disponivel_cents < 0 }}
-      alerta={credito.alerta ? textoInadimplencia({ ...credito.alerta, consequencia: CONSEQUENCIA_VENCIDO }) : null}
-      atualizacao={atualizacao}
-      semSinal={semSinal}
-    />
-  );
-}
-
-export function AbaDetalhes({
+// ---------- aba 3 · Entrega ----------
+export function AbaEntrega({
   rascunho: r,
   clienteId,
   enderecos,
   motivoCadastro,
-  sugestoes,
-  nomeDoProduto,
-  onAdicionar,
-  onTrocar,
   onRascunho,
-  credito,
   fretePadrao,
   transportadoras,
-  leveMais,
 }: {
   rascunho: Rascunho;
   clienteId: string;
   enderecos: readonly EnderecoDaTela[];
   /** RN-CORE-17: linha automática só de leitura (não é copiada para a observação do pedido) */
   motivoCadastro: string | null;
-  /** T-0071 (RF-CAT-03): "Combina com o pedido", do aparelho (offline) */
-  sugestoes: SugestoesDaTela;
-  nomeDoProduto: (produtoId: string) => string;
-  onAdicionar: (produtoId: string) => void;
-  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
   onRascunho: OnRascunho;
-  /** cartão "Crédito do cliente" já montado pela tela (a consulta é do hook) */
-  credito: ReactNode;
   fretePadrao: 'CIF' | 'FOB';
   transportadoras: readonly TransportadoraDaTela[];
-  /** RN-VEN-23: linhas do cartão "Leve mais e pague menos"; vazio = o cartão some */
-  leveMais: ReadonlyArray<ItemLeveMais>;
 }) {
   const [trocando, setTrocando] = useState(false);
   const lista = enderecosDoCliente(enderecos, clienteId);
   const principal = lista.find((e) => e.principal || e.tipo === 'principal') ?? null;
   const escolhido = r.endereco_entrega_id ? (lista.find((e) => e.id === r.endereco_entrega_id) ?? null) : principal;
   return (
-    <View style={{ gap: 12 }} testID="aba-detalhes-conteudo">
-      {credito}
-      <CartaoFrete rascunho={r} fretePadrao={fretePadrao} transportadoras={transportadoras} onRascunho={onRascunho} />
+    <View style={{ gap: 12 }} testID="aba-entrega-conteudo">
       <Card style={s.card}>
-        <RotuloSecao texto="Entrega" acao={lista.length > 1 ? { rotulo: 'Trocar', onPress: () => setTrocando(true), testID: 'entrega-trocar' } : undefined} />
+        <RotuloSecao texto={ROTULO_ENDERECO_ENTREGA} acao={lista.length > 1 ? { rotulo: 'Trocar', onPress: () => setTrocando(true), testID: 'entrega-trocar' } : undefined} />
         <Text style={t.body} testID="entrega-endereco">
-          {escolhido ? textoDoEndereco(escolhido) : 'Endereço do cadastro'}
+          {escolhido ? textoDoEndereco(escolhido) : TEXTO_ENDERECO_DO_CADASTRO}
         </Text>
       </Card>
+      <CartaoFrete rascunho={r} fretePadrao={fretePadrao} transportadoras={transportadoras} onRascunho={onRascunho} />
       <Card style={s.card}>
         <RotuloSecao texto="Observações" />
         {motivoCadastro ? (
@@ -281,12 +322,12 @@ export function AbaDetalhes({
           value={r.observacao ?? ''}
           onChangeText={(v) => onRascunho((d) => ({ ...d, observacao: v.slice(0, 500) }))}
           multiline
+          placeholder="Observação para a entrega ou o pedido"
+          placeholderTextColor={colors.ink3}
           accessibilityLabel="Observações"
           style={[s.texto, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
         />
       </Card>
-      <CartaoLeveMais titulo={TITULO_LEVE_MAIS_PAGUE_MENOS} itens={leveMais} />
-      <BlocoSugestoes titulo={TITULO_COMBINA} testID="sugestoes-combina" itens={sugestoes.combina} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
       <Folha visivel={trocando} onFechar={() => setTrocando(false)} rotuloFechar="Fechar" titulo="Entrega" testID="folha-entrega" rodape={{ rotulo: 'Voltar', onPress: () => setTrocando(false) }}>
         {lista.map((e) => {
           const ehPrincipal = e.principal || e.tipo === 'principal';
@@ -306,6 +347,30 @@ export function AbaDetalhes({
           );
         })}
       </Folha>
+    </View>
+  );
+}
+
+/** "Leve mais e pague menos" (RN-VEN-23) e "Combina com o pedido" (RF-CAT-03): vieram do antigo Detalhes para o fim da aba Itens. */
+export function FimDaAbaItens({
+  sugestoes,
+  nomeDoProduto,
+  onAdicionar,
+  onTrocar,
+  leveMais,
+}: {
+  /** do aparelho (offline) */
+  sugestoes: SugestoesDaTela;
+  nomeDoProduto: (produtoId: string) => string;
+  onAdicionar: (produtoId: string) => void;
+  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
+  /** linhas do cartão; vazio = o cartão some */
+  leveMais: ReadonlyArray<ItemLeveMais>;
+}) {
+  return (
+    <View style={{ gap: 12 }} testID="itens-fim">
+      <CartaoLeveMais titulo={TITULO_LEVE_MAIS_PAGUE_MENOS} itens={leveMais} />
+      <BlocoSugestoes titulo={TITULO_COMBINA} testID="sugestoes-combina" itens={sugestoes.combina} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
     </View>
   );
 }
@@ -369,60 +434,80 @@ function BlocoSugestoes({
   );
 }
 
-// ---------- aba 3 · Resumo ----------
+// ---------- aba 4 · Resumo ----------
+/**
+ * Resumo completo (RF-VEN-11, T-0137; docs/design/pedido-v2.md §2): só leitura (cliente, venda, itens, entrega, observações), o
+ * desconto do pedido numa linha (o mesmo `DescontoCompacto` do item), totais, alçada, "Falta para salvar" e os botões. Os botões e
+ * os estados vêm do domain (`botoesDoResumo`); aqui só desenha. Sem folha intermediária: cada botão faz o que diz em 1 toque.
+ */
 export function AbaResumo({
   rascunho: r,
+  clienteNome,
+  clienteCodigo,
   calculo,
   nomes,
   prazo,
   endereco,
+  transportadora,
+  alertaVenda,
   limiteVendedor,
   fretePadrao,
   onRascunho,
-  onSalvar,
+  botoes,
+  onEnviar,
+  onApenasSalvar,
+  onOrcamento,
+  onSalvarOrcamento,
+  onTransformar,
   onCancelar,
   salvando,
-  podeSalvar,
-  rotuloSalvar,
   somenteLeitura,
   pendencias,
 }: {
   rascunho: Rascunho;
+  clienteNome: string;
+  clienteCodigo: string;
   calculo: CalculoPedido;
   nomes: ReadonlyMap<string, string>;
   prazo: string;
   endereco: string | null;
+  /** nome da transportadora escolhida ou digitada (só vale no FOB) */
+  transportadora: string | null;
+  alertaVenda: { tom: 'aviso' | 'erro'; texto: string } | null;
   limiteVendedor: number;
   fretePadrao: 'CIF' | 'FOB';
   onRascunho: OnRascunho;
-  onSalvar: () => void;
+  botoes: BotoesDoResumo;
+  onEnviar: () => void;
+  onApenasSalvar: () => void;
+  onOrcamento: () => void;
+  onSalvarOrcamento: () => void;
+  onTransformar: () => void;
   onCancelar: () => void;
   salvando: boolean;
-  podeSalvar: boolean;
-  rotuloSalvar: string;
   somenteLeitura: boolean;
   pendencias?: ReactNode;
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
-  // T-0071 (RN-VEN-02): o ajuste do pedido é em % ou em R$ sobre o total dos itens
-  const modoPedido: 'pct' | 'valor' = r.ajuste_em === 'valor' ? 'valor' : 'pct';
-  const tipoPedido: 'desconto' | 'acrescimo' = modoPedido === 'valor' ? ((r.acrescimo_valor_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (r.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
-  const valorPct = tipoPedido === 'acrescimo' ? (r.acrescimo_pct ?? 0) : r.discount_pct;
-  const valorCents = tipoPedido === 'acrescimo' ? (r.acrescimo_valor_cents ?? 0) : (r.desconto_valor_cents ?? 0);
-  const valorPedido = modoPedido === 'valor' ? valorCents : valorPct;
-  const equivalentePedido = textoEquivalente({ ajuste_em: modoPedido, equivalente: calculo.ajuste_pedido });
   const totais = linhasDeTotais({ total_tabela_cents: calculo.total_tabela_cents, desconto_cents: Math.max(0, calculo.descontos_cents), acrescimo_cents: Math.max(0, -calculo.descontos_cents), total_cents: calculo.total_cents });
   const faixa = textoDaFaixa(calculo, limiteVendedor);
   const linhaSomenteLeitura = linhaDoAjusteSomenteLeitura(calculo.ajuste_pedido);
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <Card style={s.card} testID="resumo-pedido">
-        {calculo.linhas.map((l) => (
-          <LinhaValor key={l.chave} rotulo={itemCompacto(nomes.get(l.product_id) ?? '', l.quantity, l.unidade_sigla)} valor={formatReais(l.total_cents)} />
-        ))}
-        <Text style={t.small} testID="resumo-entrega">
-          {linhaDeEntrega({ modalidade: frete.modalidade, prazo, endereco })}
+        <Text style={t.bodyStrong} testID="resumo-cliente">
+          {clienteNome} · cód. {clienteCodigo}
         </Text>
+        <LinhaResumo testID="resumo-venda" rotulo={ROTULOS_DO_RESUMO.venda} texto={linhaDaVendaNoResumo(prazo)} alerta={alertaVenda} />
+        <LinhaResumo
+          testID="resumo-itens"
+          rotulo={ROTULOS_DO_RESUMO.itens}
+          {...(calculo.linhas.length > 0
+            ? { linhas: calculo.linhas.map((l) => ({ id: l.chave, rotulo: itemCompacto(nomes.get(l.product_id) ?? '', l.quantity, l.unidade_sigla), valor: formatReais(l.total_cents) })) }
+            : { texto: TEXTO_OBS_VAZIA })}
+        />
+        <LinhaResumo testID="resumo-entrega" rotulo={ROTULOS_DO_RESUMO.entrega} texto={linhaDaEntregaNoResumo({ endereco, modalidade: frete.modalidade, transportadora })} />
+        <LinhaResumo testID="resumo-obs" rotulo={ROTULOS_DO_RESUMO.obs} texto={linhaDaObsNoResumo(r.observacao)} />
       </Card>
       {somenteLeitura ? (
         linhaSomenteLeitura ? (
@@ -431,50 +516,9 @@ export function AbaResumo({
           </Card>
         ) : null
       ) : (
-      <Card style={s.card}>
-        <RotuloSecao texto={rotuloDoAjusteDoPedido(tipoPedido)} />
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Segmentado
-            testID="pedido-ajuste-tipo"
-            rotuloAcessivel="Tipo do ajuste do pedido"
-            compacto
-            style={{ flex: 1 }}
-            valor={tipoPedido}
-            opcoes={[
-              { id: 'desconto', rotulo: 'Desc.', rotuloAcessivel: 'Desconto' },
-              { id: 'acrescimo', rotulo: 'Acrésc.', rotuloAcessivel: 'Acréscimo' },
-            ]}
-            onChange={(novo) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: modoPedido, sentido: novo, valor: valorPedido }))}
-          />
-          <Segmentado
-            testID="pedido-ajuste-modo"
-            rotuloAcessivel="Ajuste do pedido em porcentagem ou em reais"
-            compacto
-            style={{ flex: 1 }}
-            valor={modoPedido}
-            opcoes={[
-              { id: 'pct', rotulo: '%', rotuloAcessivel: 'Porcentagem' },
-              { id: 'valor', rotulo: 'R$', rotuloAcessivel: 'Reais sobre o total dos itens' },
-            ]}
-            onChange={(novo) => {
-              const atual: Parameters<typeof trocarModoDoAjuste>[0] = modoPedido === 'valor' ? { em: 'valor', desconto_cents: tipoPedido === 'desconto' ? valorCents : 0, acrescimo_cents: tipoPedido === 'acrescimo' ? valorCents : 0 } : { em: 'pct', desconto_pct: tipoPedido === 'desconto' ? valorPct : 0, acrescimo_pct: tipoPedido === 'acrescimo' ? valorPct : 0 };
-              const convertido = trocarModoDoAjuste(atual, novo, calculo.ajuste_pedido);
-              const v = novo === 'valor' ? (tipoPedido === 'acrescimo' ? (convertido.acrescimo_cents ?? 0) : (convertido.desconto_cents ?? 0)) : tipoPedido === 'acrescimo' ? (convertido.acrescimo_pct ?? 0) : (convertido.desconto_pct ?? 0);
-              onRascunho((d) => aplicarAjusteDoPedido(d, { modo: novo, sentido: tipoPedido, valor: v }));
-            }}
-          />
-        </View>
-        {modoPedido === 'valor' ? (
-          <CampoReais valor={valorCents} rotulo={rotuloDoAjusteDoPedido(tipoPedido).toLowerCase()} testID="discount-valor" onChange={(n) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: 'valor', sentido: tipoPedido, valor: n }))} />
-        ) : (
-          <CampoPct valor={valorPct} rotulo={rotuloDoAjusteDoPedido(tipoPedido).toLowerCase()} testID="discount-input" onChange={(n) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: 'pct', sentido: tipoPedido, valor: n }))} />
-        )}
-        {equivalentePedido ? (
-          <Text style={[t.smallStrong, { color: tipoPedido === 'acrescimo' ? colors.ink2 : colors.success }]} testID="pedido-equivalente">
-            {equivalentePedido}
-          </Text>
-        ) : null}
-      </Card>
+        <Card style={s.card}>
+          <DescontoDoPedido rascunho={r} calculo={calculo} onRascunho={onRascunho} />
+        </Card>
       )}
       <BlocoTotais linhas={totais.linhas} total={totais.total} testID="totais-pedido">
         {faixa ? <Faixa tom={faixa.tom} texto={faixa.texto} icone={faixa.icone} testID="faixa-alcada" /> : null}
@@ -486,11 +530,131 @@ export function AbaResumo({
       ) : null}
       {somenteLeitura ? null : pendencias}
       {somenteLeitura ? null : (
-        <View style={s.botoes}>
-          <Button testID="cancelar-pedido" label="Cancelar" variant="outline" height={52} style={{ flex: 1 }} onPress={onCancelar} />
-          <Button testID="send-order" label={rotuloSalvar} height={52} style={{ flex: 1 }} loading={salvando} disabled={!podeSalvar} onPress={onSalvar} />
-        </View>
+        <BotoesDoResumoView botoes={botoes} salvando={salvando} onEnviar={onEnviar} onApenasSalvar={onApenasSalvar} onOrcamento={onOrcamento} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />
       )}
+    </View>
+  );
+}
+
+/**
+ * Desconto do pedido numa linha (RN-VEN-02): o `DescontoCompacto` do kit, o mesmo do item. Tipo (Desc %, Desc R$, Acrésc %, Acrésc R$)
+ * e valor digitável; cada número válido vale na hora; o equivalente (% ↔ R$) fica ao lado. O motivo de um desconto alto vem na
+ * faixa da alçada logo abaixo.
+ */
+export function DescontoDoPedido({ rascunho: r, calculo, onRascunho }: { rascunho: Rascunho; calculo: CalculoPedido; onRascunho: OnRascunho }) {
+  const atual = ajusteDoPedidoDoRascunho(r);
+  const [escolhido, setEscolhido] = useState<TipoDoAjuste>(atual.tipo);
+  // com valor, o tipo é o do rascunho; sem valor, o que a pessoa escolheu
+  const tipo = atual.valor > 0 ? atual.tipo : escolhido;
+  const [texto, setTexto] = useState(textoDoAjuste(tipo, atual.valor));
+  // mudança de fora (trocar o tipo, desfazer): o texto acompanha; o que foi digitado e já vale não é reescrito
+  useEffect(() => {
+    setTexto((digitado) => (valorDoTexto(tipo, digitado) === atual.valor ? digitado : textoDoAjuste(tipo, atual.valor)));
+  }, [atual.valor, tipo]);
+  const eq = calculo.ajuste_pedido;
+  const equivalente = eq ? { cents: eq.cents, pct: eq.pct_exibicao } : null;
+  return (
+    <DescontoCompacto
+      testID="desconto-pedido"
+      rotulo={rotuloDoAjusteDoPedido(tipo.startsWith('acresc') ? 'acrescimo' : 'desconto')}
+      tipo={tipo}
+      onChangeTipo={(novo) => {
+        setEscolhido(novo);
+        if (atual.valor > 0) onRascunho((d) => rascunhoComTipoDoPedido(d, novo, equivalente));
+        else setTexto('');
+      }}
+      texto={texto}
+      onChangeTexto={(digitado) => {
+        const limpo = sanearDecimal(digitado, 2);
+        setTexto(limpo);
+        onRascunho((d) => rascunhoComTextoDoPedido(d, tipo, limpo, calculo.total_itens_cents));
+      }}
+      onConfirmar={() => setTexto(textoDoAjuste(tipo, ajusteDoPedidoDoRascunho(r).valor))}
+      equivalente={equivalente}
+      placeholder="0"
+      rotuloAcessivel="Valor do desconto do pedido"
+      rotuloTipo="Tipo do ajuste do pedido"
+      rotuloFechar="Fechar a lista"
+    />
+  );
+}
+
+interface BotaoNaTela {
+  chave: string;
+  botao: BotaoDoResumo;
+  onPress: () => void;
+  testID: string;
+}
+
+/** Os botões do Resumo, na hierarquia da spec (§2.2): um principal de largura total com o destino embaixo, os secundários e o Cancelar em texto. */
+function BotoesDoResumoView({
+  botoes: b,
+  salvando,
+  onEnviar,
+  onApenasSalvar,
+  onOrcamento,
+  onSalvarOrcamento,
+  onTransformar,
+  onCancelar,
+}: {
+  botoes: BotoesDoResumo;
+  salvando: boolean;
+  onEnviar: () => void;
+  onApenasSalvar: () => void;
+  onOrcamento: () => void;
+  onSalvarOrcamento: () => void;
+  onTransformar: () => void;
+  onCancelar: () => void;
+}) {
+  const principal: BotaoNaTela =
+    b.principal === 'enviar'
+      ? { chave: 'enviar', botao: b.enviar, onPress: onEnviar, testID: 'send-order' }
+      : b.principal === 'orcamento'
+        ? { chave: 'orcamento', botao: b.orcamento, onPress: onOrcamento, testID: 'salvar-orcamento' }
+        : { chave: 'salvar_orcamento', botao: b.salvarOrcamento, onPress: onSalvarOrcamento, testID: 'send-order' };
+  const secundarios = [
+    b.apenasSalvar.visivel ? { chave: 'apenas', botao: b.apenasSalvar, onPress: onApenasSalvar, testID: 'apenas-salvar' } : null,
+    b.principal !== 'orcamento' && b.orcamento.visivel ? { chave: 'orcamento', botao: b.orcamento, onPress: onOrcamento, testID: 'salvar-orcamento' } : null,
+    b.transformar.visivel ? { chave: 'transformar', botao: b.transformar, onPress: onTransformar, testID: 'transformar-em-pedido' } : null,
+  ].filter((x): x is BotaoNaTela => x !== null);
+  // dois secundários dividem a linha (metade cada); um só ocupa a largura toda
+  const linhaDupla = secundarios.length === 2;
+  return (
+    <View style={s.botoesResumo} testID="botoes-resumo">
+      {b.aviso ? <Faixa tom="erro" texto={b.aviso} testID="resumo-aviso-so-orcamento" /> : null}
+      <Botao
+        testID={principal.testID}
+        nivel="principal"
+        rotulo={principal.botao.rotulo}
+        rotuloAcessivel={principal.botao.habilitado ? principal.botao.rotulo : leituraDoSalvar(principal.botao.rotulo, b.pendencias)}
+        desligado={!principal.botao.habilitado}
+        ocupado={salvando}
+        onPress={principal.onPress}
+      />
+      {principal.botao.destino ? (
+        <Text style={s.destino} testID="resumo-destino">
+          {principal.botao.destino}
+        </Text>
+      ) : null}
+      <View style={linhaDupla ? s.linhaDupla : s.colunaSecundarios}>
+        {secundarios.map((x) => (
+          <Botao
+            key={x.chave}
+            testID={x.testID}
+            nivel="secundario"
+            alto
+            quebrarLinha
+            rotulo={x.botao.rotulo}
+            rotuloAcessivel={x.botao.habilitado ? x.botao.rotulo : leituraDoSalvar(x.botao.rotulo, b.pendencias)}
+            desligado={!x.botao.habilitado}
+            style={linhaDupla ? { flex: 1 } : undefined}
+            onPress={x.onPress}
+          />
+        ))}
+      </View>
+      <Pressable testID="cancelar-pedido" accessibilityRole="button" accessibilityLabel="Cancelar" onPress={onCancelar} style={({ pressed }) => [s.cancelar, pressed && { opacity: 0.6 }]}>
+        <Text style={s.cancelarTexto}>Cancelar</Text>
+      </Pressable>
     </View>
   );
 }
@@ -499,27 +663,7 @@ function formatReais(cents: number): string {
   return linhasDeTotais({ total_tabela_cents: cents, desconto_cents: 0, acrescimo_cents: 0, total_cents: cents }).total.valor;
 }
 
-// ---------- Salvar e Cancelar ----------
-/** Folha do Salvar (RN-VEN-13/16/10): "Enviar pedido" e "Salvar como orçamento"; cliente incompleto ou bloqueado, só o orçamento. */
-export function FolhaSalvar({ visivel, opcoes, comOrcamento, onEnviar, onOrcamento, onFechar }: { visivel: boolean; opcoes: OpcoesDoSalvar; comOrcamento: boolean; onEnviar: () => void; onOrcamento: () => void; onFechar: () => void }) {
-  return (
-    <Folha visivel={visivel} onFechar={onFechar} rotuloFechar="Fechar" titulo={tituloDaFolhaSalvar()} testID="folha-salvar" rodape={{ rotulo: 'Voltar', onPress: onFechar, testID: 'salvar-voltar' }}>
-      {opcoes.enviar.visivel ? (
-        <OpcaoFolha
-          testID="salvar-enviar"
-          icone="send"
-          titulo="Enviar pedido"
-          subtitulo={opcoes.enviar.erro ?? opcoes.enviar.subtitulo}
-          subtituloErro={opcoes.enviar.erro !== null}
-          desligado={!opcoes.enviar.habilitado}
-          onPress={onEnviar}
-        />
-      ) : null}
-      {comOrcamento ? <OpcaoFolha testID="salvar-orcamento" icone="edit" tom="neutro" titulo="Salvar como orçamento" subtitulo={opcoes.motivo_so_orcamento ?? opcoes.orcamento.subtitulo} subtituloErro={opcoes.motivo_so_orcamento !== null} onPress={onOrcamento} /> : opcoes.motivo_so_orcamento ? <Text style={[t.smallStrong, { color: colors.danger }]}>{opcoes.motivo_so_orcamento}</Text> : null}
-    </Folha>
-  );
-}
-
+// ---------- Cancelar ----------
 /** Cancelar: o rascunho só é descartado depois de confirmar. */
 export function DialogoDescartar({ visivel, onVoltar, onDescartar }: { visivel: boolean; onVoltar: () => void; onDescartar: () => void }) {
   return <Dialogo visivel={visivel} titulo="Descartar este pedido?" cancelar={{ rotulo: 'Voltar', onPress: onVoltar, testID: 'descartar-voltar' }} confirmar={{ rotulo: 'Descartar', onPress: onDescartar, testID: 'descartar-confirmar' }} perigo testID="dialogo-descartar" />;
@@ -534,7 +678,12 @@ const s = StyleSheet.create({
   totalValor: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
   rotuloLinha: { width: 64, fontFamily: fonts.bold, fontSize: 12, color: colors.ink2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  botoes: { flexDirection: 'row', gap: 10 },
+  botoesResumo: { gap: 10 },
+  destino: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textAlign: 'center', marginTop: -4 },
+  linhaDupla: { flexDirection: 'row', gap: 8 },
+  colunaSecundarios: { gap: 8 },
+  cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  cancelarTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
   sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
   sugestaoPressionada: { backgroundColor: colors.ground },
   sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },

@@ -58,6 +58,12 @@ describe('RN-CORE-16: contrato do cadastro mínimo', () => {
     expect(saida.produtos[0]?.unidades?.[0]?.fator).toBe(12);
     expect(CadastroResumoSaidaSchema.safeParse({ clientes: [], produtos: [], usuarios: [] }).success).toBe(true);
   });
+  it('RN-CAT-01: core.cadastro_resumo@1 traz marca, categoria e ean do produto como aditivo opcional (T-0119)', () => {
+    const base = { id: U, sku: 'A', nome: 'A', unidade: 'UN', ativo: true, external_id: null };
+    expect(CadastroResumoSaidaSchema.safeParse({ clientes: [], usuarios: [], produtos: [base] }).success).toBe(true);
+    const p = CadastroResumoSaidaSchema.parse({ clientes: [], usuarios: [], produtos: [{ ...base, marca: 'Acme', categoria: null, ean: '7891234567895' }] }).produtos[0];
+    expect(p).toMatchObject({ marca: 'Acme', categoria: null, ean: '7891234567895' });
+  });
   it('RN-INT-14: core.cadastro_cliente@1 limita o lote a 500 e responde só chave e nomes de campo', () => {
     expect(CONSULTA_CADASTRO_CLIENTE.nome).toBe('core.cadastro_cliente@1');
     const linha = { chave: 'C1', razao_social: null, nome_fantasia: null, documento: null, inscricao_estadual: null, telefone: null, email: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, uf: null, cep: null, latitude: null, longitude: null };

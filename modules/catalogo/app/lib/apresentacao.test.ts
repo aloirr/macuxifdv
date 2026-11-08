@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
-import { aplicacaoPrecisaRecolher, contagem, partirPorMarcas, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
+import { aplicacaoPrecisaRecolher, contagem, estadoOfereceJunto, partirPorMarcas, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
 
 // Relógio fixo (meio-dia em Manaus): a hora da atualização (-5 min) nunca cruza a meia-noite local. Ver o teste da virada do dia.
 const relogio = criarRelogio({ agora: '2026-11-03T16:00:00Z' });
@@ -110,5 +110,15 @@ describe('RN-CAT-12 / RN-CAT-09: aplicação e equivalência na tela', () => {
     expect(aplicacaoPrecisaRecolher('Fiat Uno 2010–2014')).toBe(false);
     expect(aplicacaoPrecisaRecolher('x'.repeat(400))).toBe(true);
     expect(aplicacaoPrecisaRecolher('a\nb\nc\nd\ne\nf\ng')).toBe(true);
+  });
+});
+
+describe('UX A3: Oferece junto na ficha', () => {
+  it('RF-CAT-03: com sinal ou com a ficha no aparelho a linha toca, sem apoio', () => {
+    expect(estadoOfereceJunto({ online: true, fichaNoAparelho: false })).toEqual({ toca: true, apoio: null });
+    expect(estadoOfereceJunto({ online: false, fichaNoAparelho: true })).toEqual({ toca: true, apoio: null });
+  });
+  it('RF-CAT-03: sem sinal e fora do aparelho a linha não toca e diz "Ainda não está no aparelho"', () => {
+    expect(estadoOfereceJunto({ online: false, fichaNoAparelho: false })).toEqual({ toca: false, apoio: 'Ainda não está no aparelho' });
   });
 });

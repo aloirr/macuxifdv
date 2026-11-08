@@ -262,6 +262,51 @@ consulta do Promotor.
 Drizzle, aparelho sem versão nova, fixture; no CI: retrato no pull de A e B, limites 1..120, vazamento entre tenants e up/down
 com dados).
 
+## 0045 — marcas concorrentes no Catálogo (`0045_catalogo_marca_concorrente`; T-0113, ADR 0034 §4)
+Decisão do dono R-20261107-173950 b; desenho `docs/desenho/T-0113.md` §2 B. O cadastro de marcas concorrentes passa do Promotor
+para o Catálogo, com os **mesmos ids**. Lote único com as fatias K (Catálogo) e P (Promotor).
+
+**`marca_concorrente`** (nova): lista única de marcas concorrentes do tenant — referência cruzada (RN-CAT-09) e trade do Promotor
+(que lê pelo contrato `catalogo.marcas@1`). Pull escopo **tenant** (entidade `marca_concorrente`; no aparelho, o SDK cria
+`ent_marca_concorrente`, sem versão nova do esquema local). Volume: dezenas por tenant.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| regra 5 | `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id` | gatilho `marca_concorrente_updated_at` |
+| `nome` | text not null | CHECK `marca_concorrente_nome_valido`: `btrim` não vazio e até 120 |
+| `ativo` | boolean not null default true | inativar tira as referências da marca da busca (ADR 0034 §6, na API) |
+
+Índices: `marca_concorrente_tenant_id_uk (tenant_id, id)`; `marca_concorrente_nome_uk (tenant_id, lower(nome)) where deleted_at is
+null`; `marca_concorrente_external_uk (tenant_id, external_id) where external_id is not null and deleted_at is null`;
+`marca_concorrente_sync_ix (tenant_id, updated_at, id)`. RLS e FORCE, `isolamento_tenant` e `manutencao`; `macuxi_app`:
+**select, insert, update** (sem delete: apagar = `deleted_at`).
+
+**Cópia (a única leitura entre schemas, ADR 0034 §4.2):** todas as linhas de `promotor.concorrente` (inativas e apagadas
+também) com `id`, `tenant_id`, `nome`, `ativo`, `created_at`, `updated_at`, `deleted_at` e `external_id` idênticos;
+conferência campo a campo nos dois sentidos (`except`), com `raise` e as contagens se divergir.
+
+**`produto_referencia`:** sem órfã (`raise` com a contagem; apagadas inclusive); `marca_nome` nulo ganha o nome da marca (o
+gatilho sobe `updated_at` e o aparelho recebe no pull); FK **`produto_referencia_marca_fk (tenant_id, marca_id) →
+catalogo.marca_concorrente (tenant_id, id)`** e índice **`produto_referencia_marca_ix (tenant_id, marca_id)`** (FK e "renomear
+ou inativar a marca toca as referências dela na mesma transação", ADR 0034 §6).
+
+**Promotor:** sai `promotor.produto_concorrente.produto_concorrente_concorrente_fk` (o `concorrente_id` aponta para a marca do
+Catálogo, sem FK entre schemas) e o `macuxi_app` perde `insert, update` em `promotor.concorrente` (só leitura até a fase 2,
+não antes de 2026-12-08). Gravação da API antiga no meio do deploy = 42501 (refeita na tela nova).
+
+**Volta:** devolve ao Promotor as linhas do Catálogo por id, campo a campo (apaga as de mesmo id e insere todas: sem colisão
+momentânea do nome único), confere que o produto do concorrente não fica órfão, recria a FK e as permissões do Promotor, tira a
+FK e o índice da referência e apaga a tabela. O retrato `marca_nome` fica. Só vale com o código anterior.
+
+**Seeds:** demo — as 6 marcas (2 do trade + 4 de autopeças) em `db/seeds/demo/catalogo-cadastro.ts` (`marcasConcorrentesDemo`),
+com os ids de antes (`demo:promotor:concorrente:<chave>`), gravadas **antes** do Promotor; base sem a 0045: o seed do
+Promotor ainda as grava no cadastro antigo. Fixture — `MARCAS_FIXTURE` (grupo 0x3c): por tenant a ativa (= o concorrente do
+Promotor, mesmo id), uma inativa e uma apagada.
+
+**Testes:** `db/testes/marca-concorrente.test.ts` (estático: tabela, índices, RLS, grants, leitura do Promotor só na cópia,
+ordem, down, espelho, fixture; no CI: RLS, gravação e unicidades, Promotor só leitura = 42501, FK nova = 23503 e a do Promotor
+ausente; banco efêmero: cópia campo a campo e por tenant, retrato, órfã para a migração, down e up de novo sem perda).
+
 ## 0037 — tabela escalonada (`0037_forma_prazo_escalonada`; T-0089, RN-VEN-23, RN-VEN-15 nova; desenho docs/desenho/T-0089.md §3, §6 e §8)
 ### tabela_escalonada — faixa de preço por quantidade. Pull escopo tenant
 | Coluna | Tipo | Regra |

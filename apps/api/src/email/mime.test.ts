@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { renderizarEmail } from '@macuxi/platform-sdk';
-import { decodificarPartes, destinatario, dadosAcesso, ID_ENVIO, INSTANTE } from './apoio-teste';
+import { cargaAcesso, decodificarPartes, destinatario, ID_ENVIO, INSTANTE } from './apoio-teste';
 import { base64EmLinhas, codificarCabecalho, dataRfc5322, formatarEndereco, montarMime, prepararData } from './mime';
 
 describe('MIME (RFC 5322/2045/2047)', () => {
-  const r = renderizarEmail('acesso_inicial', { ...destinatario, nome: 'Joaquina Conceição' }, dadosAcesso);
+  const r = renderizarEmail('acesso_inicial', { ...cargaAcesso, dados: { ...cargaAcesso.dados, nome: 'Joaquina Conceição' } });
   const msg = {
     idEnvio: ID_ENVIO,
     modelo: 'acesso_inicial' as const,

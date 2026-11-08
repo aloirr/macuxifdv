@@ -40,7 +40,7 @@ describe('T-0091: portal na demo (config-demo.macuxifdv.com.br)', () => {
   it('reescreve como o config.: raiz, /entrar, /empresas e o /login do BKO', () => {
     expect(destinoNoPortal(demo, '/')).toBe(ROTA_DO_PORTAL);
     expect(destinoNoPortal(demo, '/entrar')).toBe('/config/entrar');
-    expect(destinoNoPortal(demo, '/primeiro-acesso')).toBe('/config/primeiro-acesso');
+    expect(destinoNoPortal(demo, '/escolher-empresa')).toBe('/config/escolher-empresa');
     expect(destinoNoPortal(demo, '/empresas/abc')).toBe('/config/empresas/abc');
     expect(destinoNoPortal(demo, '/login')).toBe(ENTRADA_DO_PORTAL);
   });
@@ -88,7 +88,7 @@ describe('destino no portal (T-0086)', () => {
 describe('T-0087: /config só no host config. (ADR 0029 §7)', () => {
   it('fora do config., /config e /config/* dão 404', () => {
     for (const h of ['bko.macuxifdv.com.br', 'bko-demo.macuxifdv.com.br', 'localhost', '127.0.0.1', 'meuconfig.macuxifdv.com.br', null]) {
-      for (const c of ['/config', '/config/', '/config/entrar', '/config/empresas/1', '/CONFIG/primeiro-acesso']) expect(bloqueadoForaDoPortal(h, c)).toBe(true);
+      for (const c of ['/config', '/config/', '/config/entrar', '/config/empresas/1', '/CONFIG/escolher-empresa']) expect(bloqueadoForaDoPortal(h, c)).toBe(true);
     }
   });
   it('fora do config., o resto do BKO segue (inclusive caminhos parecidos)', () => {

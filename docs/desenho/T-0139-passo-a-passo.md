@@ -47,6 +47,20 @@ No repositório `macuxifdv-recados`, abra **Settings → Secrets and variables �
 
 Os valores não aparecem mais depois de salvos, e os workflows os escondem no log.
 
+Os mesmos 2 secrets servem para a resposta pelo Telegram (seção 7). Não há secret novo.
+
+## 4a. Decidir o intervalo da resposta pelo Telegram (1 min)
+
+O workflow `telegram-recado.yml` lê o Telegram a cada 5 min. Cada leitura conta 1 min de Actions, mesmo sem mensagem: são **cerca de 8.600 min por mês**. O plano gratuito tem 2.000 min por mês para a conta toda, e o CI do código já passa disso. A tabela com as opções está na [ADR 0035 §8](../decisoes/0035-recados-em-repositorio-proprio.md).
+
+1. Confira em **github.com → Settings (da conta aloirr) → Billing and plans** o uso de Actions e o limite de gasto.
+   - Se o limite for US$ 0 e a cota acabar, **todas** as Actions param, inclusive o CI do código.
+2. Escolha uma opção e avise o gerente-projetos:
+   - **a cada 5 min**: é o padrão do arquivo, cerca de 8.600 min por mês;
+   - **a cada 5 min, das 6h à meia-noite**: cerca de 6.500 min por mês;
+   - **a cada 10 min**: cerca de 4.300 min por mês, com latência de 10 a 15 min.
+3. Para trocar depois, basta editar a linha `cron:` do `.github/workflows/telegram-recado.yml` no repositório de recados. As alternativas já estão comentadas no arquivo.
+
 ## 5. Parar os agentes e rodar o corte (10 min)
 
 1. Peça ao gerente-projetos para fechar a rodada: commit e push de tudo, com o índice limpo.
@@ -112,6 +126,53 @@ Rode os dois em dois terminais, junto com uma marcação pelo GitHub. Depois de 
 - o log `%LOCALAPPDATA%\Macuxi\recados-sync.log` não tem `conflito`.
 
 O teste automático equivalente é o "dois PCs/agentes marcando lidos..." de `scripts/recados/recados-ps.test.mjs`.
+
+## 7. Responder pelo Telegram
+
+O workflow `telegram-recado.yml` lê as suas mensagens ao bot a cada 5 min e grava cada uma como recado seu (`R-...-alexandre`). Só as mensagens do seu chat (`TELEGRAM_CHAT_ID`) entram. As de outras pessoas são descartadas, sem resposta.
+
+**Quatro jeitos de mandar:**
+
+| Você faz | Vira recado para | Tipo |
+|---|---|---|
+| **Responde a um aviso** "Recado para você — ..." (arraste a mensagem para o lado, ou toque e segure → Responder) | quem mandou o recado; o aviso mostra o nome na linha `de ...` e no fim | `resposta`, ligado ao recado do aviso (`responde_a`) |
+| **Responde à confirmação** "Recado R-... gravado para ..." | o mesmo destino, para complementar | `resposta` |
+| **Manda uma mensagem solta** | `gerente-projetos` | `aviso` |
+| **`/para modulo-core Revisar o login`** | o agente indicado; vários com vírgula (`/para testes,modulo-core ...`) ou `/para todos ...` | `aviso` |
+
+- **A 1ª linha vira o assunto.** Na resposta a um aviso, o assunto é `Re: <título do aviso>`.
+- **Agente com nome errado:** o bot responde "Agente inválido: ...", com a lista de agentes, e nada é gravado. Mande de novo com o nome certo.
+- **`/ajuda`** mostra esse resumo no próprio Telegram.
+- **Só texto.** Uma foto com legenda vale pela legenda. Áudio e figurinha não viram recado: o bot avisa.
+- **Responder ao resumo de hora em hora** não tem destino certo, porque o resumo traz vários recados. Vira mensagem solta, para o gerente. Para responder a um recado do resumo, use `/para <agente>` ou responda ao aviso dele.
+
+**Quanto demora:**
+- A confirmação "Recado R-... gravado para <destino>." chega **de 5 a 10 min** depois da mensagem. Às vezes passa disso, porque o cron do GitHub atrasa.
+- O recado chega ao PC até 2 min depois da confirmação, pela sincronização.
+- **Sem confirmação em 30 min:** abra **Actions → recado pelo Telegram** no repositório de recados e veja a última execução. A mensagem fica guardada no Telegram por 24 h e entra na próxima execução que der certo. Depois de 24 h, ela se perde: mande de novo.
+- Para não esperar o cron: **Actions → recado pelo Telegram → Run workflow**.
+
+**Teste (critério da extensão):**
+1. Peça ao gerente um recado de teste para `alexandre`.
+2. Quando chegar o aviso no Telegram, responda a ele com `ok, recebido`.
+3. Em até 10 min, chega "Recado R-...-alexandre gravado para gerente-projetos.".
+4. No PC, `node C:\macuxifdv\scripts\coord.mjs fio <id do recado do gerente>` mostra o recado e a sua resposta.
+5. Mande `/para fulano teste`. O bot responde "Agente inválido: fulano".
+
+**Segurança:**
+- Quem entrar no seu Telegram pode mandar recado em seu nome, inclusive "autorizo o merge".
+- Ligue a verificação em duas etapas do Telegram: **Configurações → Privacidade e Segurança → Verificação em duas etapas**.
+- Não configure webhook no bot. Com webhook, o `getUpdates` para de funcionar.
+
+**Se o corte já foi feito antes desta extensão:** o corte só copia os arquivos que faltam no clone, e a sincronização só sobe `recados/` e `lidos/`. Os agentes não podem gravar no clone, então a publicação é sua, numa vez só:
+```powershell
+robocopy C:\macuxifdv\docs\desenho\T-0139-repo-recados\.github C:\macuxifdv-recados\.github /E
+Copy-Item C:\macuxifdv\docs\desenho\T-0139-repo-recados\README.md C:\macuxifdv-recados\README.md -Force
+git -C C:\macuxifdv-recados add .github README.md
+git -C C:\macuxifdv-recados commit -m "telegram: resposta pelo Telegram (ADR 0035 §8)"
+git -C C:\macuxifdv-recados push
+```
+Depois, faça o passo 4a.
 
 ## Se algo der errado
 - **Ver o log da sincronização**:

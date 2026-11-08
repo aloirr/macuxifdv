@@ -41,3 +41,78 @@ describe('T-0101 (RN-VEN-35): seletor de clientes do novo pedido', () => {
     expect(s).toContain('testID={`pick-${c.trade_name}`}');
   });
 });
+
+describe('T-0127 (RN-CORE-36, RN-VEN-16): pendências só no Resumo', () => {
+  const s = fonte('new-order-screen.tsx');
+  it('RN-CORE-36: bloco "Falta para salvar" no Resumo, sem o botão "Corrigir frete" nem alerta nas outras abas', () => {
+    expect(s).toContain('<BlocoPendencias pendencias={pendencias}');
+    expect(s).not.toContain('PendenciasDoPedido');
+    expect(s).not.toContain('Corrigir frete');
+    expect(fonte('../components/novo-pedido.tsx')).not.toContain('Corrigir frete');
+  });
+  it('RN-CORE-36: bolinha só nas abas com pendência e salvar desabilitado enquanto houver', () => {
+    expect(s).toContain('abasComPendencia(pendencias, ABAS_DO_PEDIDO)');
+    expect(s).toContain('pendencias: pendencias.length');
+    expect(s).toContain('botoesDoResumo(');
+  });
+  it('RN-VEN-13 (T-0129): o crédito do cliente é carregado ao abrir o pedido, não só na aba Venda', () => {
+    const efeito = s.slice(s.indexOf('void creditoDoCliente(customerId)') - 120, s.indexOf('void creditoDoCliente(customerId)'));
+    expect(efeito).toContain('if (sent) return;');
+    expect(efeito).not.toContain("aba !== 'venda'");
+  });
+});
+
+describe('T-0136 (RF-VEN-11): Novo pedido em 4 abas', () => {
+  const s = fonte('new-order-screen.tsx');
+  it('RF-VEN-11: abre na Venda e as abas seguem Venda · Itens · Entrega · Resumo', () => {
+    expect(s).toContain('useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft))');
+    expect(s).toMatch(/ABAS_DO_PEDIDO = \[\s*\{ id: 'venda'[\s\S]*\{ id: 'itens'[\s\S]*\{ id: 'entrega'[\s\S]*\{ id: 'resumo'/);
+    expect(s).not.toContain('AbaDetalhes');
+  });
+  it('RF-VEN-11: forma e prazo saem de Itens e vão para a aba Venda; Itens traz Leve mais e Combina no fim', () => {
+    const venda = s.slice(s.indexOf("aba === 'venda' ? ("), s.indexOf("aba === 'itens' ? ("));
+    expect(venda).toContain('<CardPagamento');
+    expect(venda).toContain('alertas={alertasVenda}');
+    const itens = s.slice(s.indexOf("aba === 'itens' ? ("), s.indexOf("aba === 'entrega' ? ("));
+    expect(itens).not.toContain('<CardPagamento');
+    expect(itens.indexOf('<FimDaAbaItens')).toBeGreaterThan(itens.indexOf('order-lines'));
+  });
+  it('RF-VEN-11: a aba Entrega leva endereço, frete e observações; o prazo médio sai do cabeçalho', () => {
+    expect(s).toContain('<AbaEntrega');
+    expect(s).not.toContain('prazo médio do cliente ${');
+  });
+  it('RF-VEN-11: a tela e as abas não têm campo de valor de frete (RN-VEN-16)', () => {
+    expect(fonte('../components/novo-pedido-abas.tsx')).not.toMatch(/frete.*valor_cents|testID="frete-valor"/);
+  });
+});
+
+describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => {
+  const s = fonte('new-order-screen.tsx');
+  const abas = fonte('../components/novo-pedido-abas.tsx');
+  it('RN-VEN-38: acabou a folha intermediária "Salvar pedido"; cada botão faz o que diz em 1 toque', () => {
+    expect(s).not.toContain('FolhaSalvar');
+    expect(s).not.toContain('salvarAberto');
+    expect(abas).not.toContain('FolhaSalvar');
+    expect(s).toContain("sendRef.current('pedido')");
+    expect(s).toContain("sendRef.current('orcamento')");
+  });
+  it('RF-VEN-11: o desconto do pedido é o DescontoCompacto do kit, sem os 4 botões grandes nem o campo com − e +', () => {
+    expect(abas).toContain('<DescontoCompacto');
+    expect(abas).not.toContain('CampoPct');
+    expect(abas).not.toContain('CampoReais');
+    expect(abas).not.toContain('pedido-ajuste-tipo');
+  });
+  it('RF-VEN-11: o Resumo mostra cliente, venda, itens, entrega e observações em LinhaResumo', () => {
+    for (const id of ['resumo-venda', 'resumo-itens', 'resumo-entrega', 'resumo-obs']) expect(abas).toContain(`testID="${id}"`);
+    expect(abas).toContain('resumo-cliente');
+  });
+  it('RN-VEN-38: a folha Sair do pedido trata Apenas salvar e Apenas salvar não exige o Resumo sem pendência', () => {
+    expect(s).toContain("acao === 'apenas_salvar'");
+    expect(fonte('../components/saida-do-pedido.tsx')).toContain('apenasSalvar=');
+  });
+  it('revisão técnica T-0089 (🟡): confirmar o campo não depende de setTimeout; salvar usa o rascunho do render seguinte', () => {
+    expect(s).not.toContain('setTimeout(fn');
+    expect(s).not.toContain('saveEditRef.current(), 0');
+    expect(s).toContain('aposConfirmar');
+  });
+});

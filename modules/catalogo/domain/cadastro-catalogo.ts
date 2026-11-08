@@ -21,15 +21,15 @@ export function validarCadastroCatalogo(produtoId: string, c: SalvarCadastroCata
   const erro = (regra: ErroCadastro['regra'], campo: ErroCadastro['campo'], mensagem: string) => erros.push({ regra, campo, mensagem });
 
   if (c.aplicacao !== null && c.aplicacao.trim().length > opcoes.aplicacaoMax) {
-    erro('RN-CAT-11', 'aplicacao', `A aplicação passa de ${opcoes.aplicacaoMax} caracteres. Encurte o texto e salve de novo.`);
+    erro('RN-CAT-11', 'aplicacao', `Aplicação: use até ${opcoes.aplicacaoMax.toLocaleString('pt-BR')} caracteres (agora: ${c.aplicacao.trim().length.toLocaleString('pt-BR')}).`);
   }
 
   const referencias = c.referencias ?? [];
-  if (referencias.length > L.referencias) erro('RN-CAT-09', 'referencias', `Use até ${L.referencias} referências cruzadas por produto. Tire uma e salve de novo.`);
+  if (referencias.length > L.referencias) erro('RN-CAT-09', 'referencias', `Use até ${L.referencias} referências de concorrente.`);
   const vistas = new Set<string>();
-  for (const r of referencias) {
+  for (const [i, r] of referencias.entries()) {
     const codigo = r.codigo.trim();
-    if (codigo.length > L.codigo) erro('RN-CAT-09', 'referencias', `O código "${codigo.slice(0, 12)}…" passa de ${L.codigo} caracteres. Use o código curto do concorrente.`);
+    if (codigo.length > L.codigo) erro('RN-CAT-09', 'referencias', `Código ${i + 1}: use até ${L.codigo} caracteres.`);
     const compacto = codigoCompacto(codigo);
     if (compacto === '') {
       erro('RN-CAT-09', 'referencias', 'Informe o código do concorrente com letras ou números.');
@@ -40,11 +40,11 @@ export function validarCadastroCatalogo(produtoId: string, c: SalvarCadastroCata
     vistas.add(chave);
   }
 
-  if (c.oferece_junto.length + (c.oferece_junto_codigos?.length ?? 0) > L.ofereceJunto) erro('RN-CAT-09', 'oferece_junto', `Use até ${L.ofereceJunto} produtos em "Oferece junto". Tire um e salve de novo.`);
+  if (c.oferece_junto.length + (c.oferece_junto_codigos?.length ?? 0) > L.ofereceJunto) erro('RN-CAT-09', 'oferece_junto', `Oferece junto: use até ${L.ofereceJunto} produtos.`);
   if (c.oferece_junto.includes(produtoId)) erro('RN-CAT-09', 'oferece_junto', 'O produto não pode oferecer ele mesmo. Escolha outro.');
   if (new Set(c.oferece_junto).size !== c.oferece_junto.length) erro('RN-CAT-09', 'oferece_junto', 'Há produto repetido em "Oferece junto". Deixe só um de cada.');
 
-  if (c.etiquetas.length > L.etiquetas) erro('RN-CAT-09', 'etiquetas', `Use até ${L.etiquetas} etiquetas por produto.`);
-  if (c.etiquetas.some((e) => e.trim().length > L.etiqueta || e.trim() === '')) erro('RN-CAT-09', 'etiquetas', `Cada etiqueta tem de 1 a ${L.etiqueta} caracteres.`);
+  if (c.etiquetas.length > L.etiquetas) erro('RN-CAT-09', 'etiquetas', `Use até ${L.etiquetas} etiquetas, com até ${L.etiqueta} caracteres cada.`);
+  if (c.etiquetas.some((e) => e.trim().length > L.etiqueta || e.trim() === '')) erro('RN-CAT-09', 'etiquetas', `Use até ${L.etiquetas} etiquetas, com até ${L.etiqueta} caracteres cada.`);
   return erros;
 }

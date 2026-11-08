@@ -402,7 +402,7 @@ describe.skipIf(semBanco())('restauração: base de demo → pg_dump → bucket 
       ctx.skip();
       return;
     }
-    origem = await criarBancoDeTeste({ preparar: async (c) => void (await carregarDemo(c, { senha: 'senha-do-teste-backup' })) });
+    origem = await criarBancoDeTeste({ preparar: async (c) => void (await carregarDemo(c, { senha: 'Backup@teste1' })) });
     destino = await criarBancoDeTeste({ migrar: false });
 
     const dump = ferramentas.dump(origem.nome);

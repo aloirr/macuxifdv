@@ -98,21 +98,13 @@ if [ "$BKO" = 1 ]; then
   done
   log "bko: /login ok"
 fi
-# Portal do super-admin (T-0087/T-0091; R-20261107-103434: funciona na demo para ensaiar a implantação). Só confere se as
-# variáveis existem (nunca lê nem imprime valor; do convite, só o tamanho). Aviso, nunca falha: o resto da demo não
-# depende do portal. Sem as chaves, o login do portal dá 503 PORTAL_INDISPONIVEL; sem o convite, só o 1º acesso dá 503.
-if grep -q '^MACUXI_JWT_SEGREDO_PLATAFORMA=.' .env && grep -q '^MACUXI_CHAVE_TOTP=.' .env; then
-  log "portal: chaves da plataforma ok"
+# Portal config-demo (T-0087/T-0091; T-0093/ADR 0031: só e-mail e senha, sem convite nem TOTP). Só confere se a chave do
+# token existe (nunca lê nem imprime valor). Aviso, nunca falha: o resto da demo não depende do portal. Sem ela, o login do
+# portal dá 503 PORTAL_INDISPONIVEL. O super-admin nasce pelo workflow "demo — super-admin" (secret DEMO_SUPERADMIN_SENHA).
+if grep -q '^MACUXI_JWT_SEGREDO_PLATAFORMA=.' .env; then
+  log "portal: chave da plataforma ok"
 else
-  echo "::warning::portal: .env sem MACUXI_JWT_SEGREDO_PLATAFORMA ou MACUXI_CHAVE_TOTP (o preparar-vm.sh gera); login do portal dará 503"
-fi
-tam_convite="$(awk 'index($0, "MACUXI_SUPERADMIN_CONVITE=") == 1 { print length($0) - 26 }' segredos.env 2>/dev/null | tail -n 1 || true)"
-if [ -z "$tam_convite" ]; then
-  log "portal: sem convite do 1º acesso (secret DEMO_SUPERADMIN_CONVITE); o 1º acesso responde 503 até ele existir"
-elif [ "$tam_convite" -lt 32 ]; then
-  echo "::warning::portal: o convite do 1º acesso tem $tam_convite caracteres (mínimo 32): troque o secret DEMO_SUPERADMIN_CONVITE"
-else
-  log "portal: convite do 1º acesso presente"
+  echo "::warning::portal: .env sem MACUXI_JWT_SEGREDO_PLATAFORMA (o preparar-vm.sh gera); login do portal dará 503"
 fi
 
 # ---------- backup (db/backup/, dono banco-dados; timer macuxi-backup.timer do preparar-vm.sh) ----------

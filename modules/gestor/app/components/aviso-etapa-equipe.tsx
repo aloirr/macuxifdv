@@ -3,8 +3,7 @@
  * RN-CORE-12). Mesmo `Banner` do §1.2 (warning, `clock`), com o texto do supervisor e SEM botão.
  * Lê só o aparelho (offline-first, RN-CORE-23): visitas da equipe do pull `visita` do Core e nomes da visão do Gestor;
  * relê quando o motor termina uma sincronização. Pendência zerada no pull ⇒ o Banner some, sem texto de "resolvido".
- * AINDA NÃO REGISTRADO: a ficha do cliente (Core) não oferece ponto de montagem acima das abas (ver PR da T-0102).
- * Quando o Core oferecer o slot, o Gestor registra este componente com `apps: ['gestao']` e `acao: 'painel_equipe.ver'`.
+ * Registrado no slot `cliente.avisos` do Core (`registro-inicio.ts`): `apps: ['gestao']`, `acao: 'painel_equipe.ver'`.
  */
 import type { ContextoCliente } from '@macuxi/core/contracts';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';

@@ -8,6 +8,7 @@ import {
   lerFiltrosFormas,
   parcelasDoTexto,
   previaDoPrazo,
+  registroDoErp,
   textoDasParcelas,
   validarForma,
   validarPrazo,
@@ -100,5 +101,14 @@ describe('RN-VEN-24: filtros na URL e CSV', () => {
     expect(csv).toContain('Prazo médio (dias)');
     expect(csv).toContain('Boleto;BOLETO;28 dias;BOL-28;28;Inativo;BKO');
     expect(csv.split('\r\n').filter(Boolean)).toHaveLength(1 + 3);
+  });
+});
+
+describe('T-0089: registro do ERP', () => {
+  it('RN-VEN-24: registro com external_id é do ERP (código e parcelas só para leitura); do BKO é editável', () => {
+    expect(registroDoErp({ external_id: 'ERP-1' })).toBe(true);
+    expect(registroDoErp({ external_id: null })).toBe(false);
+    expect(registroDoErp({})).toBe(false);
+    expect(registroDoErp(undefined)).toBe(false);
   });
 });

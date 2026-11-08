@@ -9,7 +9,8 @@ import type { AcessoBanco, ClienteBanco, ContextoBase, RotaModulo, UsuarioAutent
 import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { UsuarioItemSchema } from '../contracts';
+import { CriarUsuarioRespostaSchema } from '../contracts';
+import { perfisDeFabrica } from '../domain';
 import { criarAutenticacao } from './autenticacao';
 import { carteiraDoUsuario } from './carteira';
 import { assinarAcesso } from './seguranca';
@@ -33,7 +34,7 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
 
   function ctx(u: UsuarioAutenticado): ContextoBase {
     return {
-      usuario: u,
+      usuario: { ...u, perfis: perfisDeFabrica(u.perfil) },
       requestId: 'req-teste-usuarios',
       agora: () => new Date(),
       fuso: () => 'America/Manaus',
@@ -86,7 +87,8 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
   });
 
   it('RF-CORE-02: criar, 409 em e-mail e external_id duplicados (índices reais) e auditoria sem dado sensível', async () => {
-    const criado = UsuarioItemSchema.parse(await chamar('POST', 'usuarios', admin, { corpo: novo('a1') }));
+    // T-0094: a resposta do POST leva `email_acesso` (CriarUsuarioRespostaSchema)
+    const criado = CriarUsuarioRespostaSchema.parse(await chamar('POST', 'usuarios', admin, { corpo: novo('a1') }));
     expect(criado).toMatchObject({ email: 'teste.a1@exemplo.com.br', ativo: true, external_id: 'T0067-a1' });
     await expect(chamar('POST', 'usuarios', admin, { corpo: novo('a1', { external_id: 'T0067-outro' }) })).rejects.toMatchObject({ status: 409, codigo: 'USUARIO_EMAIL_DUPLICADO' });
     await expect(chamar('POST', 'usuarios', admin, { corpo: novo('a2', { external_id: 'T0067-a1' }) })).rejects.toMatchObject({ status: 409, codigo: 'USUARIO_EXTERNAL_ID_DUPLICADO' });
@@ -124,17 +126,21 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     expect(apagado).toBeNull(); // nunca apaga
 
     await chamar('PUT', 'usuarios/:id/ativo', admin, { params: { id: criado.id }, corpo: { ativo: true } });
-    expect((await entrar())?.id).toBe(criado.id);
+    // ADR 0032 §4 / T-0094: a desativação sobe a sessao_versao; o MESMO token não volta, um token novo (sv atual) entra
+    expect(await entrar()).toBeNull();
+    const sv = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ sessao_versao: number }>('select sessao_versao from core.usuario where id = $1', [criado.id])).rows[0]!.sessao_versao);
+    const novoToken = assinarAcesso({ sub: criado.id, tid: A.tenantId, perfil: 'vendedor', sv }, agora, new Date(agora.getTime() + 15 * 60_000), segredo);
+    expect((await auth.autenticar({ authorization: `Bearer ${novoToken}` }, acesso, agora))?.id).toBe(criado.id);
   });
 
-  it('RF-CORE-01: redefinir senha troca o hash e audita só "senha alterada"', async () => {
+  it('RF-CORE-01: redefinir senha troca o hash, marca trocar_senha e audita sem senha', async () => {
     const criado = await chamar('POST', 'usuarios', admin, { corpo: novo('c1') });
     const hash = (id: string) => comTenant(pool, A.tenantId, async (c) => (await c.query<{ senha_hash: string }>('select senha_hash from core.usuario where id = $1', [id])).rows[0]!.senha_hash);
     const antes = await hash(criado.id);
     await chamar('PUT', 'usuarios/:id/senha', admin, { params: { id: criado.id }, corpo: { senha: 'Outra@Senha456' } });
     expect(await hash(criado.id)).not.toBe(antes);
     const [a] = await auditorias('usuario.senha_redefinir', criado.id);
-    expect(JSON.stringify(a)).toContain('senha_alterada');
+    expect(JSON.stringify(a)).toContain('trocar_senha');
     expect(JSON.stringify(a)).not.toContain('argon2');
   });
 

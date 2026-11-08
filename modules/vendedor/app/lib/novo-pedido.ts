@@ -10,6 +10,7 @@ import type { NivelAprovacao } from '../../domain/aprovacao';
 import { checkDiscount, clampPct, type DiscountPolicy } from '../../domain/order';
 import { retratoAplicacao } from '../../domain/aplicacao';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
+import { precoDoItemNaEdicao } from '../../domain/orcamento';
 import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
 import {
   ajusteDePct,
@@ -133,6 +134,8 @@ export interface EntradaCalculo {
   vendedor_id: string;
   /** RN-VEN-23: faixas vigentes da tabela escalonada por produto (de `catalogo.precos_cliente@1` faixas[]); ausente = sem faixa */
   faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
+  /** T-0134 (RN-VEN-18): produto → preço de tabela por unidade já gravado no orçamento em edição; esses itens não são reprecificados */
+  congelados?: Record<string, number>;
   /** T-0084 (RN-VEN-19): parâmetros do tenant; ausente = a linha não leva aplicação */
   aplicacao?: { padrao: boolean; max: number };
 }
@@ -218,7 +221,9 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     const produto = porId.get(product_id);
     if (!produto) continue;
     const nome = `${produto.erp_code} ${produto.description}`.trim();
-    if (produto.price_cents === null) {
+    // T-0134 (RN-VEN-18): item salvo no orçamento mantém o preço salvo; só o item novo entra pelo preço de hoje
+    const escolhido = precoDoItemNaEdicao({ congelado_cents: e.congelados?.[product_id], hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id] });
+    if (escolhido.preco_unidade_cents === null) {
       erros.push(`${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.`);
       continue;
     }
@@ -237,7 +242,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     const desconto_pct = aj.em === 'valor' ? 0 : pct2(aj.desconto_pct);
     const acrescimo_pct = aj.em === 'valor' ? 0 : pct2(aj.acrescimo_pct);
     // RN-VEN-15/23: a base é o menor entre a tabela e a faixa da quantidade; a embalagem é sempre UN × fator
-    const base = precoBaseDoItem({ preco_tabela_unidade_cents: produto.price_cents, faixas: e.faixas?.[product_id], medida: medidaDaFaixa(medida.unidade, medida.fator), fator: medida.fator, quantidade: quantity });
+    const base = precoBaseDoItem({ preco_tabela_unidade_cents: escolhido.preco_unidade_cents, faixas: escolhido.faixas, medida: medidaDaFaixa(medida.unidade, medida.fator), fator: medida.fator, quantidade: quantity });
     let preco;
     try {
       preco = precoDoItem({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste });
@@ -377,6 +382,13 @@ export function freteValido(f: FreteDoRascunho): string | null {
   if (!codigo) return null;
   if (codigo === 'transportadora_invalida' && dig && !cnpjValido(dig.cnpj)) return 'CNPJ da transportadora inválido. Confira os 14 dígitos.';
   return MSG_RECUSA_FRETE[codigo];
+}
+
+/** RN-VEN-16 / RN-CORE-36: o código da pendência do frete para o bloco "Falta para salvar" (a aba é Detalhes). */
+export function situacaoDoFrete(f: FreteDoRascunho): 'ok' | 'transportadora' | 'cnpj' {
+  const msg = freteValido(f);
+  if (!msg) return 'ok';
+  return f.transportadora_digitada && !cnpjValido(f.transportadora_digitada.cnpj) && msg.startsWith('CNPJ') ? 'cnpj' : 'transportadora';
 }
 
 export function rotuloDoFrete(f: FreteDoRascunho, transportadoras: readonly TransportadoraDaTela[]): string {

@@ -124,7 +124,7 @@ export function ConstrutorPage() {
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="construtor.tela">
       <PageHeader
-        eyebrow={<a href="/pesquisas" className="text-accent">← Pesquisas</a>}
+        eyebrow={<a href="/pesquisas" className="text-accent-ink">← Pesquisas</a>}
         title={form.titulo || 'Questionário'}
         subtitle={`Versão ${exibida.numero} · ${exibida.status === 'rascunho' ? 'rascunho' : `publicada em ${formatDateTime(exibida.publicada_em, fuso)}`} · ${d.data.respostas} resposta(s)`}
         badge={arquivado ? <Badge tone="neutral">Arquivado</Badge> : rascunho ? <Badge tone="pending">Rascunho v{rascunho.numero}</Badge> : <Badge tone="success">Publicada</Badge>}

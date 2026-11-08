@@ -13,7 +13,7 @@
 import { hostname } from 'node:os';
 import net from 'node:net';
 import tls from 'node:tls';
-import { CODIGOS_EMAIL, type MensagemEmail, type ResultadoTransporteEmail, type TransporteEmail } from '@macuxi/platform-sdk';
+import { CODIGOS_EMAIL, type EmailParaEnvio, type ResultadoTransporteEmail, type TransporteEmail } from '@macuxi/platform-sdk';
 import type { ConfigSmtp } from './config';
 import { ErroEmail } from './erros';
 import { montarMime, prepararData } from './mime';
@@ -330,7 +330,7 @@ export function criarTransporteSmtp(op: OpcoesClienteSmtp, opcoes: { agora?: () 
   const agora = opcoes.agora ?? (() => new Date());
   return {
     nome: 'smtp',
-    async entregar(msg: MensagemEmail): Promise<ResultadoTransporteEmail> {
+    async entregar(msg: EmailParaEnvio): Promise<ResultadoTransporteEmail> {
       const { bruto, messageId } = montarMime(msg, { agora: agora() });
       await enviarSmtp(op, { de: msg.de.email, para: msg.para.email }, bruto);
       return { idMensagem: messageId };
