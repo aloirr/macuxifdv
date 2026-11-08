@@ -30,6 +30,27 @@ export function formDaFicha(f: Pick<FichaProduto, 'content' | 'attributes'>): Fo
   };
 }
 
+type Problema = { path: PropertyKey[]; message: string };
+
+const CAMPOS_CONTEUDO: Record<string, string> = { description: 'Descrição', selling_points: 'Argumentos de venda', faq: 'Perguntas frequentes', attributes: 'Ficha técnica' };
+
+/** Conteúdo: nunca o caminho técnico do campo (ex.: `faq.0.answer`), só o nome que a tela mostra. */
+export function mensagemDoConteudo(i: Problema): string {
+  const nome = CAMPOS_CONTEUDO[String(i.path[0])];
+  return nome ? `${nome}: ${i.message}` : i.message;
+}
+
+/** Cadastro do Catálogo: mensagens da spec docs/design/catalogo-aplicacao.md §4.1 no lugar de "Confira o campo referencias.0.codigo". */
+export function mensagemDoCadastro(i: Problema): string {
+  const [campo, indice] = i.path;
+  if (campo === 'referencias' && typeof indice === 'number') return `Código ${indice + 1}: use até ${LIMITES_CADASTRO_CATALOGO.codigo} caracteres.`;
+  if (campo === 'referencias') return `Use até ${LIMITES_CADASTRO_CATALOGO.referencias} referências de concorrente.`;
+  if (campo === 'oferece_junto' || campo === 'oferece_junto_codigos') return `Oferece junto: use até ${LIMITES_CADASTRO_CATALOGO.ofereceJunto} produtos.`;
+  if (campo === 'etiquetas') return `Use até ${LIMITES_CADASTRO_CATALOGO.etiquetas} etiquetas, com até ${LIMITES_CADASTRO_CATALOGO.etiqueta} caracteres cada.`;
+  if (campo === 'aplicacao') return `Aplicação: ${i.message}`;
+  return i.message;
+}
+
 export type ResultadoForm<T> = { ok: true; valor: T } | { ok: false; erro: string };
 
 /** Formulário → corpo do `PUT produtos/:id/conteudo`. */
@@ -57,8 +78,7 @@ export function conteudoDoForm(f: FormConteudo): ResultadoForm<SalvarConteudo> {
   if (pergunta !== null) return { ok: false, erro: `FAQ: a pergunta "${pergunta}" está sem resposta.` };
   const r = SalvarConteudo.safeParse({ description: f.descricao.trim() || null, selling_points: linhas(f.argumentos), faq, attributes });
   if (!r.success) {
-    const i = r.error.issues[0]!;
-    return { ok: false, erro: `Confira o campo ${i.path.join('.')}: ${i.message}` };
+    return { ok: false, erro: mensagemDoConteudo(r.error.issues[0]!) };
   }
   return { ok: true, valor: r.data };
 }
@@ -114,7 +134,7 @@ export function cadastroCatalogoDoForm(
     referencias: opcoes.semReferencias ? undefined : referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })),
     etiquetas: f.etiquetas.split(',').map((e) => e.trim()).filter(Boolean),
   });
-  if (!corpo.success) return { ok: false, erro: `Confira o campo ${corpo.error.issues[0]!.path.join('.')}: ${corpo.error.issues[0]!.message}` };
+  if (!corpo.success) return { ok: false, erro: mensagemDoCadastro(corpo.error.issues[0]!) };
   const erros = validarCadastroCatalogo(produtoId, corpo.data, { aplicacaoMax: opcoes.aplicacaoMax });
   if (erros.length > 0) return { ok: false, erro: erros[0]!.mensagem };
   return { ok: true, valor: corpo.data };
@@ -183,6 +203,40 @@ export function mapaIdsPorCodigo(produtos: readonly Pick<ItemVitrine, 'erp_code'
   for (const o of ofereceJunto) mapa.set(o.erp_code, o.produto_id);
   for (const p of produtos) mapa.set(p.erp_code, p.id);
   return mapa;
+}
+
+/** RN-CAT-11: limite da Aplicação do tenant (`aplicacao_max_cadastro`, 100 a 2.000); sem o parâmetro vale o padrão 2.000. */
+export function limiteAplicacao(parametros: Readonly<Record<string, unknown>>): number {
+  const v = parametros['aplicacao_max_cadastro'];
+  return typeof v === 'number' && Number.isInteger(v) && v >= 100 && v <= 2000 ? v : 2000;
+}
+
+/** UX B2: "1.234 / 2.000", em vermelho (`excede`) quando passa do limite. */
+export function contadorAplicacao(tamanho: number, max: number): { texto: string; excede: boolean } {
+  return { texto: `${tamanho.toLocaleString('pt-BR')} / ${max.toLocaleString('pt-BR')}`, excede: tamanho > max };
+}
+
+/** UX B4: o nome do produto embaixo de cada código achado em "Oferece junto" (`null` = código não achado ainda). */
+export function nomesDoOfereceJunto(
+  texto: string,
+  produtos: readonly { erp_code: string; description: string }[],
+  ofereceJunto: readonly { erp_code: string; description: string }[] = [],
+): { codigo: string; rotulo: string | null }[] {
+  const nomes = new Map<string, string>();
+  for (const o of [...ofereceJunto, ...produtos]) nomes.set(o.erp_code.toLowerCase(), o.description);
+  return texto
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((codigo) => {
+      const nome = nomes.get(codigo.toLowerCase());
+      return { codigo, rotulo: nome ? `${codigo} · ${nome}` : null };
+    });
+}
+
+/** UX (T-0089 K3): texto do diálogo de remover a faixa escalonada. */
+export function textoRemoverFaixa(quantidadeMinima: number, produto: string): { titulo: string; corpo: string } {
+  return { titulo: `Remover a faixa de ${quantidadeMinima} para ${produto}?`, corpo: 'O vendedor deixa de ver esta faixa no pedido na próxima sincronização.' };
 }
 
 /** Editores do produto abertos (Conteúdo e Catálogo): cada um abre e fecha sem afetar o outro nem perder o texto não salvo. */

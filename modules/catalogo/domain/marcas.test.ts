@@ -1,6 +1,6 @@
 /** RN-CAT-09 (marca da referência vem do cadastro de concorrentes do Promotor) e RN-CAT-11 (oferece junto por código). */
 import { describe, expect, it } from 'vitest';
-import { nomeMarcaDaReferencia, resolverCodigosOfereceJunto, resolverReferenciasDoErp, validarMarcasDaReferencia } from './marcas';
+import { marcasDesconhecidasDaLinha, nomeMarcaDaReferencia, resolverCodigosOfereceJunto, resolverReferenciasDoErp, validarMarcasDaReferencia } from './marcas';
 
 const M1 = '00000000-0000-4000-8000-0000000000a1';
 const M2 = '00000000-0000-4000-8000-0000000000a2';
@@ -22,10 +22,10 @@ describe('validarMarcasDaReferencia', () => {
     ]);
     expect(e[1]!.mensagem).toMatch(/inativa/);
   });
-  it('RN-CAT-09: consulta sem nenhuma marca (Promotor indisponível) recusa com mensagem clara e a ação seguinte', () => {
+  it('RN-CAT-09: cadastro sem nenhuma marca ativa (RN-CAT-13) recusa com mensagem clara e a ação seguinte', () => {
     const e = validarMarcasDaReferencia([{ marca_id: M1 }], new Map());
     expect(e).toHaveLength(1);
-    expect(e[0]!.mensagem).toMatch(/Promotor/);
+    expect(e[0]!.mensagem).toMatch(/Marcas concorrentes/);
   });
   it('RN-CAT-09: sem referências nada é exigido, mesmo sem marcas', () => {
     expect(validarMarcasDaReferencia([], new Map())).toEqual([]);
@@ -100,5 +100,28 @@ describe('RN-CAT-09: nome da marca da referência (retrato marca_nome da 0034)',
     expect(nomeMarcaDaReferencia(M1, null, new Map())).toBeNull();
     expect(nomeMarcaDaReferencia(M1, undefined, new Map())).toBeNull();
     expect(nomeMarcaDaReferencia(M1, '   ', new Map())).toBeNull();
+  });
+});
+
+describe('marcasDesconhecidasDaLinha (T-0103: aviso de marca concorrente desconhecida no monitor)', () => {
+  it('RN-CAT-09: só as descartadas por marca_desconhecida entram, com o nome como veio, sem repetir e até 3', () => {
+    const entrada = [
+      { marca_nome: 'Nenhuma', codigo: 'A1' },
+      { marca_external_id: 'ZZ', codigo: 'A2' },
+      { marca_nome: 'nenhuma', codigo: 'A3' },
+      { marca_nome: 'Velha', codigo: 'A4' },
+      { marca_nome: 'Outra', codigo: 'A5' },
+    ];
+    const descartadas = [
+      { codigo: 'A1', motivo: 'marca_desconhecida' as const },
+      { codigo: 'A2', motivo: 'marca_desconhecida' as const },
+      { codigo: 'A3', motivo: 'marca_desconhecida' as const },
+      { codigo: 'A4', motivo: 'marca_inativa' as const },
+      { codigo: 'A5', motivo: 'marca_desconhecida' as const },
+    ];
+    expect(marcasDesconhecidasDaLinha(entrada, descartadas)).toEqual({ marcas: ['Nenhuma', 'ZZ', 'Outra'], marca_external_id: 'ZZ' });
+  });
+  it('RN-CAT-09: sem descarte por marca desconhecida devolve nada', () => {
+    expect(marcasDesconhecidasDaLinha([{ marca_nome: 'X', codigo: 'A1' }], [{ codigo: 'A1', motivo: 'repetida' }])).toBeNull();
   });
 });

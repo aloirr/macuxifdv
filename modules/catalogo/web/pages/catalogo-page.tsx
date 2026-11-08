@@ -5,7 +5,7 @@
  * termos buscados sem resultado. Filtros na URL, CSV da tabela e permissões refletidas na tela (RN-CAT-04: conteúdo,
  * sinônimos, destaques e termos só analista e admin) — a proteção real é na API.
  */
-import { usePode } from '@macuxi/platform-sdk/react';
+import { useParametros, usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage, useSession } from '@macuxi/platform-sdk/web';
 import { Badge, Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ import { FichaProduto, FiltrosCatalogo, ListaMarcasConcorrentes, ListaSinonimos,
 import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
-import { abrirEditores, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, mapaIdsPorCodigo, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
+import { abrirEditores, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
 const POR_PAGINA = 100;
 const BASE = '/catalogo';
@@ -212,7 +212,6 @@ function EditorConteudo({ item, fechar }: { item: ItemVitrine; fechar: () => voi
           {(erro || salvar.isError) && <Notice tone="danger">{erro ?? errorMessage(salvar.error)}</Notice>}
           <div className="flex gap-2">
             <Button
-              variant="primary"
               disabled={salvar.isPending}
               data-testid="catalogo.conteudo.salvar"
               onClick={() => {
@@ -251,7 +250,9 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
       fechar();
     },
   });
-  const tamanho = form?.aplicacao.length ?? 0;
+  const parametros = useParametros('catalogo');
+  const limite = limiteAplicacao(parametros);
+  const contador = contadorAplicacao(form?.aplicacao.length ?? 0, limite);
   const campoTexto = 'h-[38px] rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink';
   return (
     <section className="mt-4 flex flex-col gap-3 rounded-xl border border-line p-4" aria-label={`Catálogo de ${item.description}`} data-testid="catalogo.cadastro">
@@ -265,19 +266,27 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
           <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
             Aplicação
             <textarea rows={4} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.aplicacao} onChange={(e) => setForm({ ...form, aplicacao: e.target.value })} data-testid="catalogo.cadastro.aplicacao" />
-            <span className={`font-normal ${tamanho > 2000 ? 'text-danger' : 'text-ink-2'}`} data-testid="catalogo.cadastro.contador">
-              {tamanho.toLocaleString('pt-BR')} / 2.000 · Ex.: "Fiat Uno 1.0/1.4 2010–2014". A busca acha o ano dentro da faixa.
+            <span className={`self-end font-normal ${contador.excede ? 'text-danger' : 'text-ink-2'}`} data-testid="catalogo.cadastro.contador">
+              {contador.texto}
             </span>
+            <span className="font-normal text-ink-2">Ex.: "Fiat Uno 1.0/1.4 2010–2014". A busca acha o ano dentro da faixa.</span>
           </label>
           <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
             Oferece junto (até {LIMITES_CADASTRO_CATALOGO.ofereceJunto})
             <textarea rows={3} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.ofereceJunto} onChange={(e) => setForm({ ...form, ofereceJunto: e.target.value })} data-testid="catalogo.cadastro.oferece-junto" />
             <span className="font-normal text-ink-2">Um código do produto por linha, na ordem em que o vendedor vê.</span>
+            <ul className="m-0 list-none p-0 font-normal text-ink-2" data-testid="catalogo.cadastro.oferece-junto-nomes">
+              {nomesDoOfereceJunto(form.ofereceJunto, produtos, ficha.data?.catalogo?.oferece_junto).map((n, i) => (
+                <li key={`${i}:${n.codigo}`} className={n.rotulo ? undefined : 'text-danger'}>
+                  {n.rotulo ?? `${n.codigo} · produto não achado`}
+                </li>
+              ))}
+            </ul>
           </label>
           <fieldset className="flex flex-col gap-2" data-testid="catalogo.cadastro.referencias">
             <legend className="text-[12px] font-semibold text-ink-2">Referência cruzada (até {LIMITES_CADASTRO_CATALOGO.referencias}): marca concorrente e código</legend>
-            {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Confira se o módulo Promotor está ativo para este cliente e tente de novo.</Notice>}
-            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Nenhuma marca concorrente ativa. Cadastre as marcas em Concorrentes (módulo Promotor) para usar a referência cruzada.</Notice>}
+            {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Atualize a página e tente de novo.</Notice>}
+            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Cadastre as marcas em Cadastros → <a className="font-semibold underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">Marcas concorrentes</a> para usar a referência cruzada.</Notice>}
             {form.referencias.map((r, i) => (
               <div key={i} className="flex flex-wrap items-end gap-3">
                 <SelectField label={`Marca ${i + 1}`} value={r.marca_id} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, marca_id: e.target.value } : x)) })} data-testid={`catalogo.cadastro.marca.${i}`}>
@@ -307,7 +316,7 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
               disabled={salvar.isPending}
               data-testid="catalogo.cadastro.salvar"
               onClick={() => {
-                const r = cadastroCatalogoDoForm(item.id, form, { idsPorCodigo, aplicacaoMax: 2000, semReferencias: !marcas.data || marcas.data.length === 0 });
+                const r = cadastroCatalogoDoForm(item.id, form, { idsPorCodigo, aplicacaoMax: limite, semReferencias: !marcas.data || marcas.data.length === 0 });
                 setErro(r.ok ? null : r.erro);
                 if (r.ok) salvar.mutate(r.valor);
               }}>

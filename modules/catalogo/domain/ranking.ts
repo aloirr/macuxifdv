@@ -399,6 +399,8 @@ export interface EntradaRanking {
   semantica?: ReadonlyMap<string, number>;
   /** Ano civil no fuso do tenant (relógio injetado, ADR 0015): expande as faixas de anos da aplicação. */
   anoAtual: number;
+  /** T-0119: maior `vendas` do universo completo, quando `docs` já veio pré-selecionado (normaliza o boost sem mudar a nota). */
+  maxVendas?: number;
 }
 
 const mesmaChave = (a: string, b: string) => chaveDeTermo(a) === chaveDeTermo(b);
@@ -470,7 +472,7 @@ export function rankear(docs: readonly DocBusca[], entrada: EntradaRanking): Ite
     }
   }
 
-  const maxVendas = candidatos.reduce((m, d) => Math.max(m, d.vendas), 0);
+  const maxVendas = entrada.maxVendas ?? candidatos.reduce((m, d) => Math.max(m, d.vendas), 0);
   const itens: ItemRankeado[] = [];
   for (const doc of candidatos) {
     const pt = pontuacaoTextual(grupos, doc, { pesoAplicacao: p.peso_aplicacao, anoAtual: entrada.anoAtual });

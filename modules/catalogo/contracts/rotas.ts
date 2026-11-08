@@ -144,6 +144,13 @@ export type ListaSinonimos = z.infer<typeof ListaSinonimos>;
 export const SalvarDestaque = z.object({ is_campaign: z.boolean() });
 export type SalvarDestaque = z.infer<typeof SalvarDestaque>;
 
+/**
+ * Corpo do `PUT /v1/catalogo/produtos/:id/foto-principal` (T-0097, RF-CAT-03): o aparelho/BKO gera o UUID da foto, chama esta rota
+ * (que registra o arquivo e define a principal) e depois envia os bytes JPEG por `PUT /v1/arquivos/:id` (ADR 0010).
+ */
+export const SalvarFotoPrincipal = z.object({ arquivo_id: z.string().uuid(), titulo: z.string().trim().min(1).max(120).optional() });
+export type SalvarFotoPrincipal = z.infer<typeof SalvarFotoPrincipal>;
+
 /** Corpo do `PUT /v1/catalogo/produtos/:id/conteudo` (RF-CAT-07): substitui conteúdo e atributos do produto. */
 export const SalvarConteudo = ConteudoProduto.extend({ attributes: z.array(AtributoProduto).max(30).default([]) });
 export type SalvarConteudo = z.infer<typeof SalvarConteudo>;
@@ -164,7 +171,7 @@ export const SalvarCadastroCatalogo = z.object({
 });
 export type SalvarCadastroCatalogo = z.infer<typeof SalvarCadastroCatalogo>;
 
-/** Marcas concorrentes ativas (cadastro do Promotor) para o seletor da referência cruzada no BKO. */
+/** Marcas concorrentes ativas (cadastro do Catálogo, ADR 0034) para o seletor da referência cruzada no BKO. */
 export const ListaMarcasConcorrentes = z.object({ items: z.array(z.object({ id: Id, nome: z.string() })) });
 export type ListaMarcasConcorrentes = z.infer<typeof ListaMarcasConcorrentes>;
 
@@ -244,9 +251,12 @@ export const ROTAS_CATALOGO = {
   sinonimo: 'sinonimos/:id',
   destaque: 'produtos/:id/destaque',
   conteudo: 'produtos/:id/conteudo',
+  fotoPrincipal: 'produtos/:id/foto-principal',
   termosSemResultado: 'termos-sem-resultado',
   cadastroCatalogo: 'produtos/:id/cadastro-catalogo',
   marcasConcorrentes: 'marcas-concorrentes',
+  marcas: 'marcas',
+  marca: 'marcas/:id',
   exportacao: 'exportacao',
   tabelasPreco: 'tabelas-preco',
   precosTabela: 'tabelas-preco/:id/precos',
@@ -324,6 +334,8 @@ export type ConsultaEscalonadaQuery = z.infer<typeof ConsultaEscalonadaQuery>;
 export const PaginaEscalonada = z.object({ items: z.array(FaixaCadastrada), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
 export type PaginaEscalonada = z.infer<typeof PaginaEscalonada>;
 
+export const ParamsMarca = z.object({ id: Id });
+export type ParamsMarca = z.infer<typeof ParamsMarca>;
 export const ParamsFaixa = z.object({ id: Id });
 export type ParamsFaixa = z.infer<typeof ParamsFaixa>;
 

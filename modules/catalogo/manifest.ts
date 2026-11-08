@@ -24,7 +24,7 @@ export const manifest = defineModule({
   versao: '0.1.0',
   depende: ['core'],
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço'] } },
+  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço', 'Marcas concorrentes'] } },
   sync: [
     // preço
     'tabela_preco',
@@ -42,8 +42,10 @@ export const manifest = defineModule({
     'produto_atributo',
     'produto_midia',
     'produto_conteudo',
-    // referência cruzada do concorrente (RN-CAT-09, T-0085); a marca vem do cadastro de concorrentes do Promotor
+    // referência cruzada do concorrente (RN-CAT-09, T-0085); a marca vem do cadastro de marcas do Catálogo
     'produto_referencia',
+    // marcas concorrentes (RN-CAT-13, T-0113, ADR 0034): lista única do tenant, com ou sem o Promotor
+    'marca_concorrente',
     'sinonimo',
     // árvore do catálogo (RF-CAT-04, T-0061; nomes e níveis do ERP)
     'catalogo_no',
@@ -51,7 +53,7 @@ export const manifest = defineModule({
     // relação entre produtos: complementar, superior, substituto (RF-CAT-03; T-0071)
     'produto_relacao',
   ],
-  publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
+  publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1', 'catalogo.referencia.marca_desconhecida@1', 'catalogo.marca_concorrente.alterada@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
   consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
@@ -59,11 +61,9 @@ export const manifest = defineModule({
   usaExtensoes: [],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
   // T-0084: textos (aplicação e referências) e busca do seletor do Novo pedido, com o mesmo ranking da vitrine
-  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1'],
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   usaConsultas: ['core.cadastro_resumo@1'],
-  // ADR 0027: marcas da referência cruzada pelo cadastro de concorrentes do Promotor; sem o Promotor a consulta fica indisponível
-  usaConsultasOpcionais: ['promotor.concorrentes@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
@@ -77,6 +77,7 @@ export const manifest = defineModule({
     'sinonimo.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Cadastrar sinônimos do tenant para a busca (RF-CAT-02, RF-CAT-07)' },
     'destaque.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Marcar produtos de campanha e destaques que ganham boost na busca (RF-CAT-01)' },
     'tabela_preco.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Tabelas de preço no BKO: ver o preço da unidade e cadastrar a tabela escalonada (faixas por quantidade; RN-VEN-23)' },
+    'marca.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Cadastrar, editar, inativar e reativar as marcas concorrentes do tenant (RN-CAT-13; ADR 0034)' },
     'busca.ver_sem_resultado': { perfis: [...PERFIS_CONTEUDO], descricao: 'Ver os termos buscados sem resultado (RF-CAT-07)' },
   },
 });

@@ -9,11 +9,11 @@
  * Os payloads vêm do `contracts` do Integracao (`EVENTO_ERP_*_ATUALIZADO`, leitura tolerante; T-0024), sem cópia local.
  */
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { CONSULTA_CONCORRENTES, type ConcorrentesSaida } from '@macuxi/promotor/contracts';
-import { definirConsumidor, ehConsultaIndisponivel, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { EVENTO_REFERENCIA_MARCA_DESCONHECIDA } from '../contracts';
 import { CatalogoNoPayload, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO, PrecoPayload, ProdutoPayload, TabelaEscalonadaPayload } from '../../integracao/contracts';
-import { codigoCompacto, decidirColisaoEscalonada, parametrosDoTenant, planejarCadastroCatalogoDoErp, resolverReferenciasDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, precoDoErpEhDaBase, type EventoErpBase } from '../domain';
+import { codigoCompacto, decidirColisaoEscalonada, parametrosDoTenant, planejarCadastroCatalogoDoErp, marcasDesconhecidasDaLinha, resolverReferenciasDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, precoDoErpEhDaBase, type EventoErpBase, type MarcaDoPromotor } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -192,20 +192,20 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
   });
 }
 
-/** RN-CAT-09: referências cruzadas do ERP (substituem o conjunto atual; ordem 1..3). `marca_nome` é o retrato do nome da marca do Promotor (0034). */
-async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>): Promise<void> {
-  let marcas: ConcorrentesSaida['concorrentes'] = [];
-  if (entrada.length > 0) {
-    try {
-      marcas = (await ctx.consultar(CONSULTA_CONCORRENTES, { incluir_inativos: true })).concorrentes;
-    } catch (e) {
-      if (!ehConsultaIndisponivel(e)) throw e;
-      ctx.log.warn({ external_id: externalId }, 'referências do produto do ERP ignoradas: o cadastro de concorrentes (Promotor) não está disponível neste tenant');
-      return;
-    }
-  }
+/** RN-CAT-09: referências cruzadas do ERP (substituem o conjunto atual; ordem 1..3). `marca_nome` é o retrato do nome da marca do cadastro do Catálogo (0034). */
+async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>, origem: { lote_id: string | undefined; sku: string | null }): Promise<void> {
+  const marcas = entrada.length > 0 ? (await ctx.db.query<MarcaDoPromotor>(`select id, nome, ativo, external_id from catalogo.marca_concorrente where deleted_at is null`)).rows : [];
   const r = resolverReferenciasDoErp(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), marcas);
   if (r.descartadas.length > 0) ctx.log.warn({ external_id: externalId, descartadas: r.descartadas.map((d) => d.motivo) }, 'referências do produto do ERP descartadas (marca desconhecida ou inativa, código inválido, repetida ou acima de 3)');
+  // T-0103: um aviso por (lote, produto) para o monitor do Hub; sem lote no evento não há a quem avisar
+  const desconhecidas = marcasDesconhecidasDaLinha(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), r.descartadas);
+  if (desconhecidas && origem.lote_id) {
+    await ctx.publicar(
+      EVENTO_REFERENCIA_MARCA_DESCONHECIDA,
+      { produto_external_id: externalId, produto_codigo: origem.sku, ...desconhecidas, lote_id: origem.lote_id, entidade: 'produto', ocorrido_em: ctx.agora().toISOString() },
+      produto,
+    );
+  }
   await ctx.db.query(`update catalogo.produto_referencia set deleted_at = now() where produto_id = $1::uuid and deleted_at is null`, [produto]);
   let ordem = 1;
   for (const ref of r.referencias) {
@@ -220,17 +220,17 @@ async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, ex
 /**
  * RN-CAT-11 / RN-CAT-09: aplicação, etiquetas e "oferece junto" do produto do ERP (upsert idempotente em `produto_conteudo` e
  * `produto_relacao` 'complementar'). Produto de "oferece junto" que ainda não chegou lança `ReferenciaAusenteErp` (a outbox
- * repete). Referências cruzadas: a marca é resolvida por `promotor.concorrentes@1` (doc 06); marca desconhecida ou inativa
- * descarta a referência, com aviso no log. Sem o Promotor no tenant, as referências do ERP são ignoradas (não apaga as atuais).
+ * repete). Referências cruzadas: a marca é resolvida pelo cadastro de marcas do Catálogo (doc 06, RN-CAT-13); marca desconhecida ou inativa
+ * descarta a referência, com aviso no log.
  */
-async function aplicarCadastroCatalogoDoErp(p: { external_id: string; acao: 'criado' | 'atualizado' | 'inativado'; registro?: unknown }, ctx: ContextoConsumo, resolver: ResolverProdutos): Promise<void> {
+async function aplicarCadastroCatalogoDoErp(p: { external_id: string; acao: 'criado' | 'atualizado' | 'inativado'; registro?: unknown; lote_id?: string }, ctx: ContextoConsumo, resolver: ResolverProdutos): Promise<void> {
   const lido = p.registro === undefined ? undefined : CadastroCatalogoErp.safeParse(p.registro);
   if (!lido?.success) return;
   const plano = planejarCadastroCatalogoDoErp({ external_id: p.external_id, acao: p.acao, registro: lido.data }, { aplicacaoMax: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro });
   const referenciasDoErp = p.acao === 'inativado' ? undefined : lido.data.referencias;
   if (plano.aplicacao === undefined && plano.etiquetas === undefined && plano.ofereceJunto === undefined && referenciasDoErp === undefined) return;
   const produto = await produtoId(ctx, resolver, p.external_id);
-  if (referenciasDoErp !== undefined) await aplicarReferenciasDoErp(ctx, produto, p.external_id, referenciasDoErp ?? []);
+  if (referenciasDoErp !== undefined) await aplicarReferenciasDoErp(ctx, produto, p.external_id, referenciasDoErp ?? [], { lote_id: p.lote_id, sku: typeof (p.registro as { sku?: unknown } | undefined)?.sku === 'string' ? ((p.registro as { sku: string }).sku).slice(0, 60) : null });
   if (plano.aplicacao !== undefined || plano.etiquetas !== undefined) {
     await ctx.db.query(
       `insert into catalogo.produto_conteudo (tenant_id, produto_id, aplicacoes, etiquetas)

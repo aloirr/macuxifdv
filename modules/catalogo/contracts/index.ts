@@ -61,3 +61,4 @@ export * from './rotas';
 export * from './extensoes';
 export * from './sync-conteudo';
 export * from './eventos';
+export * from './marcas';

@@ -10,7 +10,7 @@
  *
  * Download: URL absoluta http(s) → HEAD (confere `content-length` ≤ `bytes_max`) + `Image.prefetch` (cache de disco
  * nativo). URL relativa (`/v1/arquivos/<id>`, autenticada) só baixa se o shell injetar um resolvedor
- * (`definirResolvedorMiniatura`), que devolve uma URL absoluta utilizável (ex.: assinada); sem resolvedor fica vazio.
+ * (`definirResolvedorMiniatura`), que devolve URL http(s) ou file:// (cache local do app, aceito sem HEAD); sem resolvedor fica vazio.
  */
 import { useAmbiente } from '@macuxi/platform-sdk/react';
 import { colors } from '@macuxi/ui/mobile';
@@ -19,6 +19,7 @@ import { Dimensions, Image, StyleSheet, View } from 'react-native';
 import type { MiniaturaProduto as Miniatura } from '../../contracts';
 import type { LeitorLocal } from '../lib/local';
 import { miniaturasLocais } from '../lib/miniatura-local';
+import { baixarMiniatura, definirResolvedorMiniatura, urlBaixavel, type ResolvedorMiniatura } from '../lib/miniatura-resolvedor';
 import { chaveMiniatura, criarCacheMiniaturas, estaNaJanela, miniaturaNoTeto, type ResultadoDownload } from '../lib/miniatura';
 
 /** Lado da caixa da miniatura na lista, em dp. */
@@ -27,33 +28,11 @@ const INTERVALO_MEDICAO_MS = 350;
 const FOLGA_JANELA_DP = 160;
 const TENTATIVAS_MAX = 3;
 
-/** Shell: transforma a referência relativa (`/v1/arquivos/<id>`) numa URL absoluta baixável; `null` = não consegue. */
-export type ResolvedorMiniatura = (url: string, m: Miniatura) => string | null | Promise<string | null>;
-let resolvedor: ResolvedorMiniatura | null = null;
-export function definirResolvedorMiniatura(r: ResolvedorMiniatura | null): void {
-  resolvedor = r;
-}
-
-const absoluta = (u: string) => /^https?:\/\//i.test(u);
-async function urlBaixavel(m: Miniatura): Promise<string | null> {
-  if (absoluta(m.url)) return m.url;
-  return resolvedor ? resolvedor(m.url, m) : null;
-}
+export { definirResolvedorMiniatura, type ResolvedorMiniatura };
 
 /** Baixador padrão do RN. Falha silenciosa: devolve 'falhou' e o item fica vazio. */
-export async function baixarMiniaturaPadrao(_produtoId: string, m: Miniatura): Promise<ResultadoDownload> {
-  try {
-    const uri = await urlBaixavel(m);
-    if (!uri || !absoluta(uri)) return 'falhou';
-    const cabecalho = await fetch(uri, { method: 'HEAD' });
-    if (!cabecalho.ok) return 'falhou';
-    const tamanho = Number(cabecalho.headers.get('content-length'));
-    if (!Number.isFinite(tamanho) || tamanho <= 0) return 'falhou';
-    if (tamanho > m.bytes_max) return 'grande';
-    return (await Image.prefetch(uri)) ? 'ok' : 'falhou';
-  } catch {
-    return 'falhou';
-  }
+export function baixarMiniaturaPadrao(_produtoId: string, m: Miniatura): Promise<ResultadoDownload> {
+  return baixarMiniatura(m, { fetch: (u, i) => fetch(u, i), prefetch: (u) => Image.prefetch(u) });
 }
 
 let fonteOnline: () => boolean = () => false;
