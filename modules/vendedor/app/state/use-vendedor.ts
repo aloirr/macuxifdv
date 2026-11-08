@@ -315,6 +315,8 @@ export function useVendedor() {
   /** T-0089 (RN-VEN-24): formas e prazos do aparelho; vazios antes do primeiro sync com a 0037 (vale a condição legada). */
   const formas = useMemo(() => (v1 ? formasDaTela(linhas) : []), [v1, linhas]);
   const prazos = useMemo(() => (v1 ? prazosDaTela(linhas) : []), [v1, linhas]);
+  /** RN-VEN-35 (T-0101): vínculos de carteira do aparelho, para o seletor do pedido em nome */
+  const carteiras = useMemo(() => (v1 ? (linhas.carteiras ?? []) : []), [v1, linhas.carteiras]);
   /** Limites do cadastro do cliente (RN-VEN-25), do pull do Core: nulo = sem teto / todas as formas. */
   const limitesDe = useCallback(
     (clienteId: string) => {
@@ -783,6 +785,7 @@ export function useVendedor() {
     transportadoras,
     formas,
     prazos,
+    carteiras,
     limitesDe,
     creditoDoCliente,
     sincronizadoEm: estado.sincronizado_em ?? dadosRepo.sincronizado_em ?? null,
