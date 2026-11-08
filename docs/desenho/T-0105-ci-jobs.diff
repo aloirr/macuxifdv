@@ -1,7 +1,8 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 1f6522e..5a361c0 100644
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -10,6 +10,10 @@
+@@ -10,6 +10,10 @@ name: CI
  #   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
  #   testes-db-sem-superusuario  suíte do @macuxi/db com admin sem superusuário, como o do DBaaS (T-0075)
  #   ci-ok       agrega todos: é o check a olhar.
@@ -12,7 +13,7 @@ diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
  # Matrizes (ADR 0014 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
  #   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
  #   agendado (07:00 UTC) e manual → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
-@@ -381,6 +385,168 @@
+@@ -381,6 +385,169 @@ jobs:
            APP_VARIANT: gestao
          run: pnpm --filter mobile bundle:android
  
@@ -71,6 +72,7 @@ diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
 +
 +      # S0-110 (tests/carga/fundacao.test.ts) e C1 da T-0078 (tests/carga/sync-basico-t0078.test.ts): com
 +      # MACUXI_CARGA_MEDIR=1 o p95 e o login reprovam acima do teto do próprio teste. S0-111 (isolamento) reprova sempre.
++      # Sem a carga da T-0107 (tests/carga/t0107): ela tem workflow próprio, semanal e manual (carga-t0107.yml, T-0122).
 +      - name: carga S0-110 e sync T-0078 (MACUXI_CARGA_MEDIR=1)
 +        id: carga
 +        if: ${{ !cancelled() }}
@@ -78,7 +80,7 @@ diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
 +          MACUXI_CARGA_MEDIR: '1'
 +        run: |
 +          set -o pipefail
-+          pnpm test:tests carga/ 2>&1 | tee "$RUNNER_TEMP/desempenho-carga.log"
++          pnpm test:tests carga/ '--exclude=**/carga/t0107/**' 2>&1 | tee "$RUNNER_TEMP/desempenho-carga.log"
 +
 +      # Roda mesmo com falha acima: o resumo mostra o tempo que estourou. Só linhas com prefixo conhecido (nunca
 +      # credencial: os testes imprimem só tempos, contagens e a URL local já removida).
