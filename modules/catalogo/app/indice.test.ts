@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { COLUNAS_BUSCA_CATALOGO, TABELAS_BUSCA_CATALOGO } from '../db/aparelho';
-import { anoDe, INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO } from './indice';
+import { INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO, textoIndiceAplicacao } from './indice';
 
 const QUANDO = criarRelogio().iso();
 const P = '00000000-0000-4000-8000-000000000001';
@@ -36,19 +36,20 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(null))).toBeNull();
   });
 
-  it('RN-CAT-12: "civic 2028" acha "2018 em diante" depois da virada do ano (versaoDocumentos muda; fuso do tenant)', async () => {
-    const ler = (produto: LinhaSync) => ({
-      porIds: async <L extends LinhaSync>() => [produto] as L[],
-      porCampo: async <L extends LinhaSync>(entidade: string) => (entidade === 'produto_conteudo' ? [linha({ id: 'c1', aplicacao: 'Honda Civic 2018 em diante' })] : []) as L[],
-    });
-    const p = linha({ sku: 'X', ean: null, nome: 'Filtro', marca: 'M', categoria: 'C', unidade: 'UN', ativo: true });
-    const em = (iso: string) => ({ agora: new Date(iso), fuso: 'America/Manaus' }) as never;
-    const antes = await INDICE_BUSCA_CATALOGO.documento(P, ler(p), em('2026-12-31T12:00:00Z'));
-    const depois = await INDICE_BUSCA_CATALOGO.documento(P, ler(p), em('2027-01-01T12:00:00Z'));
-    expect(antes?.aplicacao).not.toContain('2028');
-    expect(depois?.aplicacao).toContain('2028');
-    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.(em('2026-12-31T12:00:00Z'))).not.toBe(INDICE_BUSCA_CATALOGO.versaoDocumentos?.(em('2027-01-01T12:00:00Z')));
-    // 01/01 02:00 UTC ainda é 31/12 em Manaus (UTC-4)
-    expect(anoDe({ agora: new Date('2027-01-01T02:00:00Z'), fuso: 'America/Manaus' } as never)).toBe(2026);
+  it('T-0096: a faixa aberta vai até o teto do domain (início + 40) e o documento não depende do relógio', () => {
+    const anos = (de: number, ate: number) => Array.from({ length: ate - de + 1 }, (_, k) => de + k);
+    expect(textoIndiceAplicacao('Honda Civic 2018 em diante')).toBe(`Honda Civic 2018 em diante ${anos(2019, 2058).join(' ')}`);
+    expect(textoIndiceAplicacao('Gol 2015>')).toBe(`Gol 2015> ${anos(2016, 2055).join(' ')}`);
+    expect(textoIndiceAplicacao('a partir de 1990')).toBe(`a partir de 1990 ${anos(1991, 2030).join(' ')}`);
+    // fechada, lista e texto sem ano: iguais ao domain
+    expect(textoIndiceAplicacao('Fiat Uno 2010–2014')).toBe('Fiat Uno 2010–2014 2011 2012 2013');
+    expect(textoIndiceAplicacao('Uno 2010/2012/2014')).toBe('Uno 2010/2012/2014');
+    expect(textoIndiceAplicacao('Palio 1.0 flex')).toBe('Palio 1.0 flex');
+    expect(textoIndiceAplicacao(null)).toBe('');
+    // aberta + fechada + aberta em outra janela de 41 anos; anos literais não se repetem
+    const t = 'Fusca 1960 em diante; Civic 2018 em diante; Fit 2015–2020';
+    const extras = textoIndiceAplicacao(t).slice(t.length + 1).split(' ').map(Number);
+    expect(extras).toEqual([...new Set([...anos(1961, 2000), ...anos(2016, 2017), ...anos(2019, 2058)])].sort((a, b) => a - b).filter((a) => a !== 2020));
+    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.({ agora: criarRelogio().agora(), fuso: 'America/Manaus' })).toBe('v4');
   });
 });
