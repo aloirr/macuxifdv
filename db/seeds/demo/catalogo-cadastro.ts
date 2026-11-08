@@ -1,15 +1,19 @@
 /**
  * Base de DEMONSTRAÇÃO — Catálogo do cadastro (migração 0033; T-0084 aplicação e T-0085 referência cruzada). Dono:
  * banco-dados. Arquivo próprio: o demo.ts chama `gravarDemoCatalogoCadastro(admin, { hoje, dados })` na MESMA transação do
- * carregarDemo, depois do Promotor (as marcas concorrentes são o cadastro `concorrente` do Promotor, promotor.ts).
+ * carregarDemo, ANTES do Promotor (T-0113, ADR 0034: as marcas concorrentes são do Catálogo desde a 0045; o Promotor as lê).
  *
  * O que fica no demo.ts (colunas que existem desde a 0013/0020): a aplicação em `produto_conteudo.aplicacoes` (cerca de 40%
  * das autopeças, com os casos do Uno e do Gol, um texto acima de 300 caracteres sem separador e um "a partir de 2018"),
  * os produtos novos (pastilha, disco, filtro de óleo e amortecedor), a árvore sistema › grupo › linha, os sinônimos VW e GM
- * e o "oferece junto" (`produto_relacao` complementar). Aqui, só o que depende da 0033:
+ * e o "oferece junto" (`produto_relacao` complementar). Aqui, só o que depende da 0033 e da 0045:
+ * - marcas concorrentes (`catalogo.marca_concorrente`, 0045): as 6 da demo — 2 do trade do Promotor (Sabor Real, Limpa Mais)
+ *   e 4 de autopeças (Freiomax, Rodaforte, Filtrobom, Vialume) — com os MESMOS ids de quando moravam em promotor.concorrente
+ *   (a cópia da 0045 numa base já carregada e a recarga do seed batem). Base sem a 0045: o seed do Promotor as grava no
+ *   cadastro antigo (promotor.ts);
  * - referências cruzadas (`catalogo.produto_referencia`, RN-CAT-09): "CB 3401" (Freiomax) na pastilha do Uno, "FB-0207"
- *   (Filtrobom) no filtro do Gol e outras nas autopeças; marca_id = id da marca no cadastro do Promotor (sem FK) e, desde a
- *   0034, marca_nome = o nome dela (retrato; sem a 0034 na base, grava sem a coluna);
+ *   (Filtrobom) no filtro do Gol e outras nas autopeças; marca_id = id da marca (FK para catalogo.marca_concorrente desde a
+ *   0045) e, desde a 0034, marca_nome = o nome dela (retrato; sem a 0034 na base, grava sem a coluna);
  *   codigo_compacto = `codigoCompacto` do domain do Catálogo (a mesma função da API);
  * - etiquetas curtas (`produto_conteudo.etiquetas`): "Dianteira", "Traseira" e "Novo";
  * - documento de busca do servidor (`produto_busca.aplicacao` e `.referencias`): a aplicação já expandida por
@@ -27,10 +31,31 @@ import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import type { DadosDemo } from './demo';
-import { idMarcaConcorrenteDemo, MARCAS_CONCORRENTES_DEMO, type ChaveMarcaConcorrenteDemo } from './promotor';
 
 const id = (chave: string) => idDeterministico(`demo:${chave}`);
 const comuns = { deleted_at: null, external_id: null } as const;
+
+/** Marcas concorrentes de autopeças da demo (T-0085, RN-CAT-09): fictícias; a referência cruzada do Catálogo aponta para elas. */
+export const MARCAS_CONCORRENTES_DEMO = { freiomax: 'Freiomax', rodaforte: 'Rodaforte', filtrobom: 'Filtrobom', vialume: 'Vialume' } as const;
+export type ChaveMarcaConcorrenteDemo = keyof typeof MARCAS_CONCORRENTES_DEMO;
+/** Marcas do trade do Promotor (produtos comparados, coletas de preço e ponto extra; T-0056/T-0070). */
+export const MARCAS_TRADE_DEMO = { 'sabor-real': 'Sabor Real Alimentos', 'limpa-mais': 'Limpa Mais' } as const;
+export type ChaveMarcaTradeDemo = keyof typeof MARCAS_TRADE_DEMO;
+/**
+ * Id da marca: a MESMA chave de quando ela morava em promotor.concorrente (`demo:promotor:concorrente:<chave>`), para a cópia
+ * da 0045 numa base já carregada e a recarga deste seed gravarem a mesma linha (T-0113, ADR 0034).
+ */
+export const idMarcaConcorrenteDemo = (chave: ChaveMarcaConcorrenteDemo | ChaveMarcaTradeDemo) => idDeterministico(`demo:promotor:concorrente:${chave}`);
+/** As 6 marcas da demo (catalogo.marca_concorrente desde a 0045; antes, promotor.concorrente), com os valores de sempre. */
+export function marcasConcorrentesDemo(tenantId: string): Linha[] {
+  return [
+    ...(Object.keys(MARCAS_TRADE_DEMO) as ChaveMarcaTradeDemo[]).map((k) => ({ id: idMarcaConcorrenteDemo(k), tenant_id: tenantId, nome: MARCAS_TRADE_DEMO[k], ativo: true, ...comuns })),
+    // T-0085: marcas de autopeças da referência cruzada (external_id = código da marca no ERP fictício)
+    ...(Object.keys(MARCAS_CONCORRENTES_DEMO) as ChaveMarcaConcorrenteDemo[]).map((k) => ({
+      id: idMarcaConcorrenteDemo(k), tenant_id: tenantId, nome: MARCAS_CONCORRENTES_DEMO[k], ativo: true, deleted_at: null, external_id: `MARCA-${k.toUpperCase()}`,
+    })),
+  ];
+}
 
 /** Referências cruzadas da demo (RN-CAT-09; até 3 por produto): [sku, marca concorrente, código como o catálogo imprime, ordem]. */
 export const REFERENCIAS_DEMO: ReadonlyArray<readonly [string, ChaveMarcaConcorrenteDemo, string, 1 | 2 | 3]> = [
@@ -54,6 +79,8 @@ export const ETIQUETAS_DEMO: Readonly<Record<string, readonly string[]>> = {
 export const idProdutoReferenciaDemo = (sku: string, ordem: number) => id(`produto_referencia:${sku}:${ordem}`);
 
 export interface DadosDemoCatalogoCadastro {
+  /** 0045 (T-0113): as 6 marcas concorrentes da demo. */
+  'catalogo.marca_concorrente': Linha[];
   'catalogo.produto_referencia': Linha[];
   /** Etiquetas por linha de produto_conteudo (todas as linhas da demo: '{}' quando não há). */
   etiquetas: Array<{ id: string; etiquetas: string[] }>;
@@ -75,7 +102,7 @@ export function dadosDemoCatalogoCadastro(p: { tenantId: string; hoje: string; d
     tenant_id: p.tenantId,
     produto_id: idProduto(sku),
     marca_id: idMarcaConcorrenteDemo(marca),
-    // 0034: retrato do nome da marca do Promotor (o que a rota do BKO grava depois de validar por promotor.concorrentes@1)
+    // 0034: retrato do nome da marca (o que a rota do BKO grava; desde a 0045, lido na própria catalogo.marca_concorrente)
     marca_nome: MARCAS_CONCORRENTES_DEMO[marca],
     codigo,
     codigo_compacto: codigoCompacto(codigo),
@@ -95,7 +122,7 @@ export function dadosDemoCatalogoCadastro(p: { tenantId: string; hoje: string; d
       referencias: refs.length > 0 ? refs.flatMap((r) => [r.codigo, r.codigo_compacto]).join(' ') : null,
     };
   });
-  return { 'catalogo.produto_referencia': referencias, etiquetas, busca };
+  return { 'catalogo.marca_concorrente': marcasConcorrentesDemo(p.tenantId), 'catalogo.produto_referencia': referencias, etiquetas, busca };
 }
 
 /** Grava a parte da 0033 (dentro da transação do carregarDemo). Devolve quantas referências gravou (0 sem a 0033). */
@@ -104,6 +131,9 @@ export async function gravarDemoCatalogoCadastro(admin: ClientBase, p: { tenantI
   const existe = await admin.query<{ ok: boolean }>("select to_regclass('catalogo.produto_referencia') is not null as ok");
   if (!existe.rows[0]?.ok) return 0;
   const d = dadosDemoCatalogoCadastro(p);
+  // 0045 (T-0113): as marcas antes das referências (FK produto_referencia_marca_fk); sem a 0045, o Promotor as grava (promotor.ts)
+  const comMarcas = await admin.query<{ ok: boolean }>("select to_regclass('catalogo.marca_concorrente') is not null as ok");
+  if (comMarcas.rows[0]?.ok) await gravarLinhas(admin, 'catalogo.marca_concorrente', d['catalogo.marca_concorrente']);
   // base em 0033 sem a 0034: grava sem o retrato do nome (a coluna não existe ainda)
   const comNome = await admin.query<{ ok: boolean }>(
     "select exists (select 1 from information_schema.columns where table_schema = 'catalogo' and table_name = 'produto_referencia' and column_name = 'marca_nome') as ok",

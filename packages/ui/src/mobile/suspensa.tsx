@@ -2,8 +2,9 @@
  * Lista suspensa e campo de ajuste do Novo pedido (T-0089, fatia U1; referência
  * docs/produto/referencias/R-20261106-0703-alexandre-novo-pedido-itens-v2.png; spec docs/design/novo-pedido-itens.md):
  * - `ListaSuspensa`: campo com rótulo em cima ("FORMA DE PAGAMENTO", "PRAZO") e menu ancorado logo abaixo (ou acima, sem
- *   espaço). A opção desabilitada aparece apagada, com cadeado e sem toque; o motivo vai só para o leitor de tela (RN-VEN-25:
- *   a lista mostra só o prazo, "28/56 dias");
+ *   espaço). A opção desabilitada aparece apagada, com cadeado e sem toque, e mostra o motivo numa linha secundária abaixo do
+ *   rótulo (T-0129; 12/16 em `ink2`, AA sobre o fundo da opção); o leitor de tela lê o rótulo e o motivo. O rótulo continua só o
+ *   valor (RN-VEN-25: "30/60/90 dias", com "Acima do prazo médio do cliente" embaixo);
  * - `CampoAjuste`: desconto/acréscimo sempre aberto, com o tipo ao lado (Desc %, Desc R$, Acrésc %, Acrésc R$) num menu do
  *   mesmo tipo, e o valor digitável à direita.
  * Regras do kit: alvo de toque ≥ 48 dp (44 dp na linha densa do item, sempre dentro do contêiner, sem `hitSlop`), nenhum texto fixo (tudo chega por props ou dos ids e
@@ -17,7 +18,20 @@ import { ALVO_TOQUE } from './componentes';
 import { Icon } from './icon';
 import { duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
-import { ALTURA_OPCAO_MENU, leituraDaOpcao, MAX_OPCOES_VISIVEIS, PASSO_COMPACTO, posicaoDoMenu, textoDaSelecao, type OpcaoLista, type PosicaoMenu } from './selecao';
+import {
+  alturaDoMenu,
+  ALTURA_OPCAO_MENU,
+  leituraDaOpcao,
+  MAX_OPCOES_VISIVEIS,
+  motivoVisivel,
+  MOTIVO_OPCAO,
+  PASSO_COMPACTO,
+  posicaoDoMenu,
+  RESPIRO_OPCAO_COM_MOTIVO,
+  textoDaSelecao,
+  type OpcaoLista,
+  type PosicaoMenu,
+} from './selecao';
 import { colors, fonts, radius, shadow } from './theme';
 
 /** Altura visual (moldura) e alvo do campo do ajuste: os mesmos do `Passo compacto` da linha 3 do item. */
@@ -28,17 +42,19 @@ const LARGURA_MENU_TIPO = 168;
 
 // ---------- menu ancorado (interno) ----------
 
-/** Mede o campo na janela e devolve onde abrir o menu. */
-function useAncora(quantidade: number, larguraMinima?: number) {
+/** Mede o campo na janela e devolve onde abrir o menu (a altura conta a opção com motivo, que tem 2 linhas a mais). */
+function useAncora(opcoes: ReadonlyArray<OpcaoLista>, larguraMinima?: number) {
+  const quantidade = opcoes.length;
+  const alturaConteudo = alturaDoMenu(opcoes);
   const ancora = useRef<View | null>(null);
   const janela = useWindowDimensions();
   const [posicao, setPosicao] = useState<PosicaoMenu | null>(null);
   const abrir = useCallback(() => {
     Keyboard.dismiss();
     ancora.current?.measureInWindow((x, y, largura, altura) => {
-      setPosicao(posicaoDoMenu({ campo: { x, y, largura, altura }, janela: { largura: janela.width, altura: janela.height }, quantidade, larguraMinima }));
+      setPosicao(posicaoDoMenu({ campo: { x, y, largura, altura }, janela: { largura: janela.width, altura: janela.height }, quantidade, larguraMinima, alturaConteudo }));
     });
-  }, [janela.width, janela.height, quantidade, larguraMinima]);
+  }, [janela.width, janela.height, quantidade, larguraMinima, alturaConteudo]);
   const fechar = useCallback(() => setPosicao(null), []);
   return { ancora, posicao, abrir, fechar };
 }
@@ -86,7 +102,8 @@ function MenuAncorado<T extends string>({
   }, [visivel, reduzir, opacidade]);
   const p = posicao ?? ultima;
   if (!(montado || visivel) || !p) return null;
-  const rolar = opcoes.length > MAX_OPCOES_VISIVEIS;
+  // com motivo, a altura é um teto estimado: deixa rolar para nunca cortar a última opção
+  const rolar = opcoes.length > MAX_OPCOES_VISIVEIS || opcoes.some((o) => motivoVisivel(o) !== null);
   return (
     <Modal visible transparent animationType="none" onRequestClose={onFechar} statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fora`} />
@@ -100,6 +117,7 @@ function MenuAncorado<T extends string>({
           {opcoes.map((o, i) => {
             const marcada = o.id === valor;
             const off = Boolean(o.desabilitada);
+            const motivo = motivoVisivel(o);
             return (
               <Pressionavel
                 key={o.id}
@@ -110,10 +128,17 @@ function MenuAncorado<T extends string>({
                 disabled={off}
                 escala={false}
                 onPress={() => onEscolher(o.id)}
-                style={[s.opcao, i > 0 && s.opcaoDivisor, off && s.opcaoDesligada]}>
-                <Text style={[s.opcaoTexto, marcada && s.opcaoTextoMarcada, off && s.opcaoTextoDesligada]} numberOfLines={1}>
-                  {o.rotulo}
-                </Text>
+                style={[s.opcao, motivo !== null && s.opcaoComMotivo, i > 0 && s.opcaoDivisor, off && s.opcaoDesligada]}>
+                <View style={s.opcaoTextos}>
+                  <Text style={[s.opcaoTexto, marcada && s.opcaoTextoMarcada, off && s.opcaoTextoDesligada]} numberOfLines={1}>
+                    {o.rotulo}
+                  </Text>
+                  {motivo !== null ? (
+                    <Text testID={`${o.testID ?? `${testID}-${o.id}`}-motivo`} style={s.opcaoMotivo} numberOfLines={MOTIVO_OPCAO.linhas}>
+                      {motivo}
+                    </Text>
+                  ) : null}
+                </View>
                 {marcada ? <Icon name="check" size={16} color={colors.accent} strokeWidth={2.6} /> : off ? <Icon name="lock" size={14} color={colors.inkDisabled} /> : null}
               </Pressionavel>
             );
@@ -157,7 +182,7 @@ export function ListaSuspensa<T extends string>({
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
-  const { ancora, posicao, abrir, fechar } = useAncora(opcoes.length);
+  const { ancora, posicao, abrir, fechar } = useAncora(opcoes);
   const { texto, vazio } = textoDaSelecao(opcoes, valor, placeholder);
   const aberto = posicao !== null;
   const off = Boolean(desligado) || opcoes.length === 0;
@@ -243,7 +268,7 @@ export function CampoAjuste<T extends string>({
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
-  const { ancora, posicao, abrir, fechar } = useAncora(tipos.length, LARGURA_MENU_TIPO);
+  const { ancora, posicao, abrir, fechar } = useAncora(tipos, LARGURA_MENU_TIPO);
   const atual = tipos.find((t) => t.id === tipo);
   const aberto = posicao !== null;
   return (
@@ -313,10 +338,13 @@ const s = StyleSheet.create({
   menu: { position: 'absolute', backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', ...shadow.aviso },
   opcao: { minHeight: ALTURA_OPCAO_MENU, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
   opcaoDivisor: { borderTopWidth: 1, borderTopColor: colors.line },
-  opcaoDesligada: { backgroundColor: colors.ground },
-  opcaoTexto: { flexShrink: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
+  opcaoComMotivo: { paddingVertical: RESPIRO_OPCAO_COM_MOTIVO },
+  opcaoDesligada: { backgroundColor: MOTIVO_OPCAO.fundo },
+  opcaoTextos: { flexShrink: 1, gap: 2 },
+  opcaoTexto: { fontFamily: fonts.body, fontSize: 15, lineHeight: 20, color: colors.ink },
   opcaoTextoMarcada: { fontFamily: fonts.bold },
   opcaoTextoDesligada: { color: colors.inkDisabled },
+  opcaoMotivo: { fontFamily: fonts.body, fontSize: MOTIVO_OPCAO.tamanhoFonte, lineHeight: MOTIVO_OPCAO.alturaLinha, color: MOTIVO_OPCAO.cor },
   // .desc (ajuste com o tipo ao lado): contêiner de 44 dp com os alvos dentro; moldura de 30 dp atrás
   ajuste: { flexDirection: 'row', alignItems: 'center', height: ALVO_AJUSTE, minWidth: 112 },
   ajusteMoldura: { position: 'absolute', left: 0, right: 0, top: (ALVO_AJUSTE - ALTURA_AJUSTE) / 2, height: ALTURA_AJUSTE, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface },

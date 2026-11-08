@@ -4,11 +4,15 @@
  * Falha fechada: na subida, recusa conexão com outro papel, superusuário ou papel com BYPASSRLS.
  * T-0091: a sessão do super-admin (funções `plataforma.sa_*`) vai por um 2º pool, do papel `macuxi_portal` (`criarBancoPortal`).
  * O horizonte do pull (§5) também mora aqui, porque olha as transações abertas no Postgres.
+ * T-0118 (D-T0107a): toda transação aberta aqui fica marcada na cadeia assíncrona (`dentroDaTransacao`) e todo pedido de
+ * conexão passa pela guarda: outra conexão do MESMO pool com uma transação dele aberta é acusada (erro em teste e
+ * desenvolvimento, aviso em produção; `transacao-corrente.ts`).
  */
 import { comTenant, PAPEL_APP, PAPEL_PORTAL } from '@macuxi/db';
 import type { AcessoBanco, ClienteBanco } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import { resumoDaLinha, type ResumoOutbox } from './observabilidade';
+import { criarGuardaConexao, dentroDaTransacao, type OpcoesGuardaConexao } from './transacao-corrente';
 
 export interface BancoApp extends AcessoBanco {
   /** Confere o papel da conexão; erro = a API não sobe. */
@@ -42,6 +46,8 @@ export class ErroPapelBanco extends Error {
 export interface OpcoesBanco {
   /** Margem mínima do horizonte (padrão 2 s): cobre o atraso entre o início da transação e o registro em pg_stat_activity. */
   margemHorizonteMs?: number;
+  /** T-0118: guarda de conexão pedida dentro de transação do mesmo pool (padrão: `MACUXI_GUARDA_CONEXAO` / `NODE_ENV`). */
+  guardaConexao?: OpcoesGuardaConexao;
 }
 
 export const MARGEM_HORIZONTE_PADRAO_MS = 2_000;
@@ -68,6 +74,7 @@ const SQL_HORIZONTE = `
 
 export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
   const margem = op.margemHorizonteMs ?? MARGEM_HORIZONTE_PADRAO_MS;
+  const guardar = criarGuardaConexao(pool, op.guardaConexao);
   let semColunaAte = 0;
   let semResumoAte = 0;
   return {
@@ -80,18 +87,27 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
       if (papel.usuario !== PAPEL_APP) throw new ErroPapelBanco(`A API só conecta como ${PAPEL_APP} (conectou como ${papel.usuario}).`);
       if (papel.superusuario || papel.ignora_rls) throw new ErroPapelBanco(`${PAPEL_APP} não pode ser superusuário nem ter BYPASSRLS.`);
     },
-    comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as ClienteBanco)),
-    semTenant: (fn) => transacaoSemTenant(pool, fn),
+    async comTenant(tenantId, fn) {
+      guardar('comTenant');
+      return comTenant(pool, tenantId, (c) => dentroDaTransacao(pool, c as ClienteBanco, tenantId, () => fn(c as ClienteBanco)));
+    },
+    async semTenant(fn) {
+      guardar('semTenant');
+      return transacaoSemTenant(pool, (c) => dentroDaTransacao(pool, c, null, () => fn(c)));
+    },
     async horizonteSync() {
+      guardar('horizonteSync');
       const r = await pool.query<{ horizonte: Date }>(SQL_HORIZONTE, [margem]);
       return r.rows[0]!.horizonte;
     },
     async instanteSync() {
+      guardar('instanteSync');
       const r = await pool.query<{ agora: Date }>('select clock_timestamp() as agora');
       return r.rows[0]!.agora;
     },
     async geracaoBase(tenantId) {
       if (Date.now() < semColunaAte) return undefined;
+      guardar('geracaoBase');
       try {
         return await comTenant(pool, tenantId, async (c) => {
           const r = await c.query<{ geracao: string | null }>(
@@ -108,6 +124,7 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
     },
     async resumoOutbox(nomes, maxTentativas) {
       if (Date.now() < semResumoAte) return undefined;
+      guardar('resumoOutbox');
       try {
         const r = await pool.query<{ pendentes: number; parados: number; mais_antigo_s: number | null }>(
           'select pendentes, parados, mais_antigo_s from plataforma.resumo_outbox($1::text[], $2::int)',

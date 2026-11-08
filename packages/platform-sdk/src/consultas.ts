@@ -24,15 +24,29 @@ import type { ValorCampoLinha } from './motor-sync';
 
 export type { DefinicaoConsulta } from './consultas-tipos';
 
-/** Declara o contrato. Nome fora do padrão = erro no import do `contracts`. Limite as listas da entrada no schema (ex.: ≤ 500 ids). */
+/**
+ * Declara o contrato. Nome fora do padrão = erro no import do `contracts`. Limite as listas da entrada no schema (ex.: ≤ 500 ids).
+ * `configuracaoDoTenant: true` (ADR 0025 §4.1): a resposta é configuração do tenant, igual para qualquer usuário; libera
+ * `{ licenca: 'tenant' }` também em rota de escrita (executada só leitura). Só o dono declara, e a revisão final confere.
+ */
 export function definirConsulta<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(d: {
   nome: string;
   entrada: E;
   saida: S;
+  configuracaoDoTenant?: boolean;
 }): DefinicaoConsulta<E, S> {
   const n = lerNomeConsulta(d.nome);
   if (!n) throw new Error(`Nome de consulta inválido: ${d.nome} (use <modulo>.<consulta>@vN)`);
-  return Object.freeze({ nome: d.nome, modulo: n.modulo as ModuloId, versao: n.versao, entrada: d.entrada, saida: d.saida });
+  if (d.configuracaoDoTenant !== undefined && typeof d.configuracaoDoTenant !== 'boolean')
+    throw new Error(`Consulta ${d.nome}: configuracaoDoTenant precisa ser booleano (ADR 0025 §4.1)`);
+  return Object.freeze({
+    nome: d.nome,
+    modulo: n.modulo as ModuloId,
+    versao: n.versao,
+    entrada: d.entrada,
+    saida: d.saida,
+    ...(d.configuracaoDoTenant ? { configuracaoDoTenant: true as const } : {}),
+  });
 }
 
 export const CODIGO_CONSULTA_INDISPONIVEL = 'CONSULTA_INDISPONIVEL';

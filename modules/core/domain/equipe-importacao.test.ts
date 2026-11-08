@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  avaliarConvite,
   conferirImportacaoDeEquipe,
-  convitesParaCsv,
   errosParaCsv,
   lerCsvDeEquipe,
   MAX_LINHAS_EQUIPE_CSV,
   modeloCsvDeEquipe,
-  PRAZO_CONVITE_DIAS,
-  prazoDoConvite,
   type ContextoImportacao,
   type UsuarioExistente,
 } from './equipe-importacao';
@@ -121,21 +117,10 @@ describe('RN-CORE-31: conferir sem gravar, erros por linha', () => {
   });
 });
 
-describe('RN-CORE-31: convite de 1º acesso e CSVs de saída', () => {
-  const t0 = new Date('2026-11-06T12:00:00.000Z');
-  it('RN-CORE-31: validade de 7 dias, uso único, revogado vale como inválido', () => {
-    const exp = prazoDoConvite(t0);
-    expect((exp.getTime() - t0.getTime()) / 86_400_000).toBe(PRAZO_CONVITE_DIAS);
-    expect(avaliarConvite({ expira_em: exp, usado_em: null, revogado_em: null }, t0)).toBe('valido');
-    expect(avaliarConvite({ expira_em: exp, usado_em: t0, revogado_em: null }, t0)).toBe('invalido');
-    expect(avaliarConvite({ expira_em: exp, usado_em: null, revogado_em: t0 }, t0)).toBe('invalido');
-    expect(avaliarConvite({ expira_em: exp, usado_em: null, revogado_em: null }, exp)).toBe('invalido');
-  });
-  it('RN-CORE-31: CSV de erros sem o dado da célula e CSV de convites com neutralização de fórmula', () => {
+describe('RN-CORE-31/34: CSV de erros', () => {
+  it('RN-CORE-31: CSV de erros sem o dado da célula e com neutralização de fórmula', () => {
     expect(errosParaCsv([{ linha: 3, coluna: 'email', mensagem: 'E-mail inválido.' }])).toBe('linha,coluna,mensagem\r\n3,email,E-mail inválido.\r\n');
-    const c = convitesParaCsv([{ nome: '=cmd', email: 'a@x.com', perfil: 'vendedor', link: 'https://b/convite/abc', expira_em: '2026-11-13T12:00:00.000Z' }]);
-    expect(c).toContain("'=cmd");
-    expect(c.split('\r\n')[0]).toBe('nome,email,perfil,link,expira_em');
+    expect(errosParaCsv([{ linha: 1, coluna: '=cmd', mensagem: 'x' }])).toContain("'=cmd");
   });
 });
 

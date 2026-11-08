@@ -12,3 +12,5 @@
 2026-11-05 — ajuste de UX — ícone camera nos botões Foto antes/depois da gôndola (tela-loja.tsx)
 2026-11-05 — T-0024 — teste conferirEventosPublicados do Promotor (contracts/eventos-definicoes.test.ts); schemas já no padrão
 2026-11-06 — T-0085 — consulta promotor.concorrentes@1 (contrato, provedor na API, manifest, testes) para o Catálogo ler as marcas; avisos enviados
+2026-11-08 — T-0113 — Promotor lê marcas por catalogo.marcas@1 (produto do concorrente valida pela consulta, concorrente só leitura, entidade legada vazia, consulta promotor.concorrentes@1 deprecada, BKO com aviso); lint/tsc/vitest verdes
+2026-11-08 — T-0113 — 🟡2 (PUT do produto do concorrente revalida a marca só quando muda) e 🟡4 (comentário da consulta deprecada alinhado ao desenho); testes de rota; lint/typecheck/test verdes

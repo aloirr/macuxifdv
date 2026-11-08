@@ -4,8 +4,9 @@
  * - rota de módulo opta por ele com `RotaModulo.superAdmin` (`'aceita'` | `'exige'`) e o tenant vem no cabeçalho
  *   `x-macuxi-tenant`; a API monta um usuário `admin` do tenant com os módulos licenciados AO TENANT e `ctx.superAdmin`;
  * - rotas sem tenant (empresas) são da plataforma, em `/v1/plataforma/*`, montadas pela API;
- * - autenticação (primeiro acesso, login, TOTP, renovar, sair) são rotas públicas do Core em `/v1/plataforma/auth/*`.
- * Nada aqui vai ao log: e-mail, senha, convite, código TOTP, código de recuperação e segredo só trafegam no corpo.
+ * - autenticação (login com e-mail e senha, escolha de empresa, renovar, sair; T-0093, ADR 0031) são rotas públicas do Core em
+ *   `/v1/plataforma/auth/*`. O primeiro acesso com convite, o TOTP e os códigos de recuperação da ADR 0029 saíram.
+ * Nada aqui vai ao log: e-mail e senha só trafegam no corpo.
  */
 import { z } from 'zod';
 import { MODULOS } from './nomes';
@@ -15,7 +16,7 @@ export const CABECALHO_TENANT_PLATAFORMA = 'x-macuxi-tenant';
 /** `aud` do token de plataforma (o token de tenant nunca tem este `aud`; o segredo também é outro). */
 export const AUDIENCIA_TOKEN_PLATAFORMA = 'macuxi-plataforma';
 /** Sessão curta (ADR 0029 §4): token de 15 min renovável com uso; teto absoluto de 8 h; 5 falhas = 15 min de bloqueio. */
-export const SESSAO_PLATAFORMA = Object.freeze({ tokenMin: 15, maximaHoras: 8, desafioMin: 5, falhasParaBloquear: 5, bloqueioMin: 15 });
+export const SESSAO_PLATAFORMA = Object.freeze({ tokenMin: 15, maximaHoras: 8, falhasParaBloquear: 5, bloqueioMin: 15 });
 /** Prefixo das rotas da plataforma (API) e das rotas públicas de autenticação do Core (`plataforma/auth/*`). */
 export const PREFIXO_ROTAS_PLATAFORMA = 'plataforma';
 
@@ -30,66 +31,82 @@ export const PREFIXO_ROTAS_PLATAFORMA = 'plataforma';
 export type ModoSuperAdmin = 'aceita' | 'exige';
 export const MODOS_SUPER_ADMIN = ['aceita', 'exige'] as const satisfies readonly ModoSuperAdmin[];
 
-/** Super-admin da requisição (token de plataforma com sessão viva e 2º fator). Sem nome nem e-mail: não vai a log. */
+/** Super-admin da requisição (`ctx.superAdmin`; token do portal com sessão viva). Sem nome nem e-mail: não vai a log. */
 export interface SuperAdminAutenticado {
   id: string;
   sessao_id: string;
 }
 
+/**
+ * T-0093 (ADR 0031; RN-CORE-32/33/34): quem entra no portal com e-mail e senha.
+ * - `super_admin`: o time da Macuxi (`plataforma.super_admin`); vê todas as empresas; o tenant vem no cabeçalho `x-macuxi-tenant`.
+ * - `admin_cliente`: usuário `admin` ativo de uma ou mais empresas ativas (`core.usuario`), só nas empresas em que a senha
+ *   conferiu no login; a empresa escolhida fica na sessão e no token (trocar = escolher de novo).
+ */
+export const TIPOS_ACESSO_PORTAL = ['super_admin', 'admin_cliente'] as const;
+export type TipoAcessoPortal = (typeof TIPOS_ACESSO_PORTAL)[number];
+
+/**
+ * Quem chamou com o token do portal (assinatura, `aud`, prazo e sessão viva conferidos no banco a cada requisição). Sem nome
+ * nem e-mail: não vai a log.
+ * - super-admin: `id` = `plataforma.super_admin.id`; o tenant de cada requisição vem do cabeçalho `x-macuxi-tenant`;
+ * - admin do cliente: `empresa` = a escolhida na sessão (o `usuario_id` é o `core.usuario.id` dele NESSA empresa; em outra
+ *   empresa ele é outro usuário); `null` = ainda não escolheu (o token só serve para escolher, renovar, sair e listar).
+ */
+export type AcessoPortalAutenticado =
+  | { tipo: 'super_admin'; id: string; sessao_id: string }
+  | { tipo: 'admin_cliente'; sessao_id: string; empresa: { tenant_id: string; usuario_id: string } | null };
+
+/** Teto de empresas conferidas num login (o mesmo e-mail admin em mais empresas: só as primeiras por nome; ADR 0031). */
+export const MAX_EMPRESAS_LOGIN_PORTAL = 20;
+
 const Uuid = z.string().uuid();
 const Instante = z.string().datetime({ offset: true });
 const Email = z.string().trim().toLowerCase().email().max(254);
-/** Senha do super-admin: ≥ 12 caracteres (mais que a do tenant: é o acesso mais poderoso do produto). */
-export const SENHA_SUPER_ADMIN_MIN = 12;
-const Senha = z.string().min(SENHA_SUPER_ADMIN_MIN).max(200);
-const CodigoTotp = z.string().regex(/^\d{6}$/, 'O código tem 6 dígitos.');
-/** Código de recuperação `XXXXX-XXXXX` (alfabeto base32 sem 0/1/8/9); aceita minúsculas e sem hífen na digitação. */
-export const CodigoRecuperacaoSchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .transform((s) => s.replace(/[\s-]/g, ''))
-  .pipe(z.string().regex(/^[A-Z2-7]{10}$/, 'Código de recuperação inválido.'));
-const Desafio = z.string().min(32).max(200);
-
-// ---------- autenticação (Core, rotas públicas `plataforma/auth/*`) ----------
-export const PrimeiroAcessoSchema = z.object({
-  email: Email,
-  nome: z.string().trim().min(2).max(120),
-  senha: Senha,
-  convite: z.string().min(32).max(200),
-});
-export const LoginPlataformaSchema = z.object({ email: Email, senha: z.string().min(1).max(200) });
-/** Resposta da 1ª etapa: o desafio leva à 2ª (código) ou, sem TOTP confirmado, ao cadastro dele. */
-export const EtapaLoginSchema = z.object({
-  etapa: z.enum(['segundo_fator', 'cadastrar_totp']),
-  desafio: Desafio,
-  expira_em: Instante,
-});
-export const DesafioSchema = z.object({ desafio: Desafio });
-export const TotpInicioSchema = z.object({
-  /** `otpauth://totp/Macuxi%20FDV:<rótulo>?secret=...&issuer=Macuxi%20FDV&digits=6&period=30` (o portal desenha o QR). */
-  otpauth_uri: z.string().startsWith('otpauth://totp/'),
-  /** O mesmo segredo, para digitar à mão. Só nesta resposta. */
-  segredo_base32: z.string().regex(/^[A-Z2-7]{32}$/),
-});
-export const TotpConfirmarSchema = z.object({ desafio: Desafio, codigo: CodigoTotp });
-export const SegundoFatorSchema = z.union([
-  z.object({ desafio: Desafio, codigo: CodigoTotp }).strict(),
-  z.object({ desafio: Desafio, codigo_recuperacao: CodigoRecuperacaoSchema }).strict(),
-]);
-export const SessaoPlataformaSchema = z.object({
-  token: z.string().min(20),
-  /** Fim do token (15 min); renove antes com `POST /v1/plataforma/auth/renovar`. */
-  expira_em: Instante,
-  /** Teto da sessão (8 h): depois dele, login de novo. */
-  sessao_expira_em: Instante,
-  recuperacao_restantes: z.number().int().min(0).max(10),
-});
-export const CodigosRecuperacaoSchema = z.object({ codigos_recuperacao: z.array(z.string().regex(/^[A-Z2-7]{5}-[A-Z2-7]{5}$/)).length(10) });
-/** Cadastro do TOTP confirmado: códigos de recuperação (mostrados UMA vez) e a sessão já aberta. */
-export const TotpConfirmadoSchema = CodigosRecuperacaoSchema.extend({ sessao: SessaoPlataformaSchema });
-export const RegerarRecuperacaoSchema = z.object({ codigo: CodigoTotp });
+// ---------- acesso ao portal só com e-mail e senha (T-0093; ADR 0031) ----------
+/** `POST /v1/plataforma/auth/login`. Senha só `min(1)`: senhas já gravadas continuam valendo (RN-CORE-32 vale na criação e na troca). */
+export const LoginPortalSchema = z.object({ email: Email, senha: z.string().min(1).max(200) }).strict();
+/** Empresa em que o admin do cliente pode entrar (a senha conferiu nela no login). */
+export const EmpresaDoAcessoSchema = z.object({ id: Uuid, codigo: z.string(), nome: z.string() });
+/**
+ * Resposta do login, da escolha de empresa e do renovar. Token de 15 min, teto de 8 h (`SESSAO_PLATAFORMA`).
+ * - `super_admin`: `empresa` nula e `empresas` vazia (a lista de todas vem de `GET /v1/plataforma/empresas`);
+ * - `admin_cliente`: `empresas` = as que conferiram (1 a 20); com uma só, `empresa` já vem escolhida; com mais, `empresa`
+ *   nula até `POST /v1/plataforma/auth/empresa`. O token sem empresa só vale para escolher, renovar, sair e listar.
+ */
+export const SessaoPortalSchema = z
+  .object({
+    token: z.string().min(20),
+    expira_em: Instante,
+    sessao_expira_em: Instante,
+    tipo: z.enum(TIPOS_ACESSO_PORTAL),
+    empresa: EmpresaDoAcessoSchema.nullable(),
+    empresas: z.array(EmpresaDoAcessoSchema).max(MAX_EMPRESAS_LOGIN_PORTAL),
+  })
+  .superRefine((s, ctx) => {
+    const problema =
+      s.tipo === 'super_admin'
+        ? s.empresa !== null || s.empresas.length > 0
+          ? 'super_admin não tem empresa na sessão'
+          : null
+        : s.empresas.length === 0
+          ? 'admin_cliente sem empresa'
+          : s.empresa !== null && !s.empresas.some((e) => e.id === s.empresa?.id)
+            ? 'empresa fora da lista conferida'
+            : s.empresas.length === 1 && s.empresa === null
+              ? 'com uma empresa só, ela já vem escolhida'
+              : null;
+    if (problema) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problema, path: ['empresa'] });
+  });
+/** `POST /v1/plataforma/auth/empresa` (token do admin do cliente): escolhe ou troca de empresa; devolve um token novo. */
+export const EscolherEmpresaPortalSchema = z.object({ tenant_id: Uuid }).strict();
+/**
+ * Admin inicial do cliente no passo Empresa (RN-CORE-34): login e senha master definidos pelo time da Macuxi. A senha segue a
+ * RN-CORE-32, conferida pela API com a regra do Core (o SDK não importa módulo). Nunca volta em resposta nem vai a log.
+ */
+export const AdminInicialEmpresaSchema = z
+  .object({ email: Email, nome: z.string().trim().min(2).max(120), senha: z.string().min(1).max(200) })
+  .strict();
 
 // ---------- plataforma (API, `/v1/plataforma/*`) ----------
 const ModuloId = z.enum(MODULOS);
@@ -175,6 +192,11 @@ export const CriarEmpresaSchema = z.object({
     .max(MODULOS.length)
     .refine((l) => new Set(l.map((m) => m.modulo)).size === l.length, 'Módulo repetido.'),
   parametros: ParametrosIniciaisSchema.default({}),
+  /**
+   * T-0093 (RN-CORE-34): admin inicial do cliente. A API exige na criação da empresa (422 `RN-CORE-34` sem ele) e ignora a
+   * senha quando o admin já existe (idempotente pelo código, como a RN-CORE-31: nunca troca senha).
+   */
+  admin: AdminInicialEmpresaSchema.optional(),
   simular: z.boolean().default(false),
 });
 export type CriarEmpresa = z.output<typeof CriarEmpresaSchema>;
@@ -186,5 +208,44 @@ export const CriarEmpresaRespostaSchema = z.object({
   modulos_adicionados: z.array(ModuloId),
   parametros_gravados: z.array(z.string()),
   avisos: z.array(z.string()),
+  /** T-0093: o admin inicial (RN-CORE-34) foi criado agora, já existia, ou não veio no pedido (`null`). */
+  admin: z.enum(['criado', 'existente']).nullable().default(null),
   simulado: z.boolean(),
 });
+
+/**
+ * T-0094 fatia S (padrão de fábrica da T-0111; R-20261107-220900): o super-admin redefine a senha do admin do cliente pelo portal.
+ * `GET /v1/plataforma/empresas/:tenant_id/admins` lista os admins da empresa (`sa_admins_da_empresa`, 0042; nunca hash);
+ * `POST /v1/plataforma/empresas/:tenant_id/admins/:usuario_id/redefinir-senha` gera a senha temporária (RN-CORE-32, 72 h,
+ * `trocar_senha`), enfileira o "Sua nova senha" na outbox e encerra as sessões (`sessao_versao + 1`), auditado. Só o super-admin
+ * (o admin do cliente recupera pelo "Esqueci a senha"); sem e-mail configurado, 503 `EMAIL_INDISPONIVEL` antes de mudar nada.
+ */
+export const AdminDaEmpresaSchema = z.object({
+  usuario_id: Uuid,
+  nome: z.string(),
+  email: z.string(),
+  ativo: z.boolean(),
+  bloqueado: z.boolean(),
+  tem_senha: z.boolean(),
+  trocar_senha: z.boolean(),
+  senha_expira_em: Instante.nullable(),
+  /**
+   * 0047 (R-20261108-111043): a lista traz quem tem algum perfil vivo e ativo de base admin, não só o principal; `false` = a
+   * conta não entra no portal (`plataforma.usuario_entra_no_portal`, 0046: ex. admin + vendedor), mas segue resgatável aqui.
+   */
+  entra_no_portal: z.boolean(),
+});
+export const ListaAdminsDaEmpresaSchema = z.object({ itens: z.array(AdminDaEmpresaSchema) });
+export type AdminDaEmpresa = z.output<typeof AdminDaEmpresaSchema>;
+
+/** Corpo do redefinir: `email_id` é a chave de idempotência (UUID gerado no portal; repetir = mesma resposta, nada muda). */
+export const RedefinirSenhaAdminSchema = z.object({ email_id: Uuid }).strict();
+export const RedefinirSenhaAdminRespostaSchema = z.object({
+  email_id: Uuid,
+  /** O e-mail com a senha temporária foi para a fila (a senha nunca volta na resposta). */
+  email: z.literal('enfileirado'),
+  senha_expira_em: Instante,
+  /** Já tinha sido feito com este `email_id` (retentativa). */
+  repetida: z.boolean(),
+});
+export type RedefinirSenhaAdminResposta = z.output<typeof RedefinirSenhaAdminRespostaSchema>;

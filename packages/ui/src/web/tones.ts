@@ -27,7 +27,8 @@ export function integratedTone(pct: number, target: number): Tone {
 
 export const TONE_TEXT: Record<Tone, string> = {
   success: 'text-success',
-  accent: 'text-accent',
+  /** T-0094: número laranja é texto → accent-ink (o accent dá 4,17:1 no fundo); a barra continua `bg-accent`. */
+  accent: 'text-accent-ink',
   danger: 'text-danger',
   ink: 'text-ink',
   warning: 'text-accent-ink',

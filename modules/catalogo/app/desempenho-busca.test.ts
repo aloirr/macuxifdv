@@ -13,6 +13,7 @@ import { migracoesAparelho } from '../db/aparelho';
 import { pontuacaoTextual, type DocBusca } from '../domain/ranking';
 import { INDICE_BUSCA_CATALOGO } from './indice';
 import { buscarLocal, comAplicacao, contextoLocal, esquecerMemoriaLocal, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
+import { entidadesSyncCatalogo } from '../../../tests/modulos/apoio/entidades-catalogo';
 import { buscarProdutos } from '../domain/vitrine';
 import { interpretarConsulta } from '../domain/consulta';
 import { consultaBuscaProdutosAparelho, esquecerMemoriaTextos } from './texto-consultas';
@@ -79,18 +80,7 @@ describe('desempenho da busca offline: 20 mil produtos com aplicação de 2.000 
     const agora = () => new Date(AGORA);
     const armazenamento = criarArmazenamentoSqlite(criarDriverNode(':memory:'), {
       migracoesModulos: { catalogo: migracoesAparelho },
-      entidades: [
-        { nome: 'produto', modulo: 'core' },
-        { nome: 'produto_atributo', modulo: 'catalogo' },
-        { nome: 'produto_conteudo', modulo: 'catalogo' },
-        { nome: 'produto_referencia', modulo: 'catalogo' },
-        { nome: 'sinonimo', modulo: 'catalogo' },
-        { nome: 'estoque_saldo', modulo: 'catalogo' },
-        { nome: 'tabela_preco', modulo: 'catalogo' },
-        { nome: 'tabela_preco_item', modulo: 'catalogo' },
-        { nome: 'cliente_tabela_preco', modulo: 'catalogo' },
-        { nome: 'deposito', modulo: 'catalogo' },
-      ],
+      entidades: [{ nome: 'produto', modulo: 'core' }, ...entidadesSyncCatalogo()],
       indicesBusca: [INDICE_BUSCA_CATALOGO],
       agora,
       registrarErro: (m) => marca("ERRO " + m),

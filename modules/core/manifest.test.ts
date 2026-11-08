@@ -22,4 +22,7 @@ describe('RN-CORE-26: ações do Início de boas-vindas no manifesto (T-0073)', 
   it('RN-PRO-01: o manifesto do Core não ganha ação de pedido', () => {
     expect(Object.keys(manifest.acoes ?? {}).filter((a) => /^pedido/.test(a))).toEqual([]);
   });
+  it('RN-CORE-12: o Core oferece cliente.avisos (aviso de etapa pendente da equipe no Gestão, T-0102)', () => {
+    expect(manifest.ofereceExtensoes).toContain('cliente.avisos');
+  });
 });

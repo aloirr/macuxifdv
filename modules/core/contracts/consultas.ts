@@ -49,6 +49,10 @@ export const CadastroResumoSaidaSchema = z.object({
       unidade: z.string(),
       ativo: z.boolean(),
       external_id: Texto,
+      /** T-0119 (aditivo): marca, categoria e EAN do cadastro; ausente = emissor antigo. O Catálogo os usa nos chips e na busca (RN-CAT-01). */
+      marca: Texto.optional(),
+      categoria: Texto.optional(),
+      ean: Texto.optional(),
       /** T-0071 / RN-VEN-11 (aditivo): preço de venda em centavos; null = não informado (sem preço mínimo). Ausente = emissor antigo. */
       preco_venda_cents: z.number().int().nonnegative().nullable().optional(),
       /** T-0071 / RN-VEN-11 (aditivo): desconto máximo EFETIVO em % (próprio ?? parâmetro core.desconto_maximo_produto_pct do tenant ?? 15). */

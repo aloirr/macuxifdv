@@ -2,8 +2,8 @@ import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { renderizarEmailParaLog, renderizarEmailSemSenha, renderizarPedidoEmail, type MensagemEmail } from '@macuxi/platform-sdk';
-import { capturarLog, decodificarPartes, ID_ENVIO, pedidoAcesso, relogio, vazamentos } from './apoio-teste';
+import { renderizarEmail, renderizarEmailParaLog, renderizarEmailSemSenha, type EmailParaEnvio } from '@macuxi/platform-sdk';
+import { capturarLog, cargaAcesso, decodificarPartes, destinatario, ID_ENVIO, relogio, vazamentos } from './apoio-teste';
 import { carimboArquivo, criarTransporteArquivo } from './arquivo';
 
 let pasta = '';
@@ -14,14 +14,14 @@ afterEach(async () => {
   await rm(pasta, { recursive: true, force: true });
 });
 
-const msg: MensagemEmail = {
+const msg: EmailParaEnvio = {
   idEnvio: ID_ENVIO,
   modelo: 'acesso_inicial',
-  de: { email: 'nao-responda@macuxifdv.com.br', nome: 'Macuxi' },
-  para: pedidoAcesso.destinatario,
-  ...renderizarPedidoEmail(pedidoAcesso),
-  paraLog: renderizarEmailParaLog(pedidoAcesso),
-  semSenha: renderizarEmailSemSenha(pedidoAcesso),
+  de: { email: 'nao-responda@macuxifdv.com.br', nome: 'Macuxi FDV' },
+  para: destinatario,
+  ...renderizarEmail('acesso_inicial', cargaAcesso),
+  paraLog: renderizarEmailParaLog('acesso_inicial', cargaAcesso),
+  semSenha: renderizarEmailSemSenha('acesso_inicial', cargaAcesso),
 };
 
 describe('transporte arquivo (caixa da demo)', () => {
@@ -39,13 +39,13 @@ describe('transporte arquivo (caixa da demo)', () => {
     }
     const eml = await readFile(caminho, 'utf8');
     expect(eml).toContain('Subject: Seu acesso ao Macuxi');
-    expect(decodificarPartes(eml).texto).toContain('Senha inicial: Prov1sor1a-Xq7');
+    expect(decodificarPartes(eml).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
 
     expect(cap.linhas).toHaveLength(1);
     const linha = cap.linhas[0]!;
-    expect(linha.obj).toMatchObject({ id_envio: ID_ENVIO, modelo: 'acesso_inicial', arquivo: caminho, transporte: 'arquivo' });
-    expect(String(linha.obj.corpo)).toContain('Senha inicial: ********');
-    expect(String(linha.obj.corpo)).toContain('Login: [e-mail]');
+    expect(linha.obj).toMatchObject({ email_id: ID_ENVIO, modelo: 'acesso_inicial', arquivo: caminho, transporte: 'arquivo' });
+    expect(String(linha.obj.corpo)).toContain('Senha temporária: ********');
+    expect(String(linha.obj.corpo)).toContain('E-mail: [e-mail]');
     expect(vazamentos(cap.json())).toEqual([]);
   });
 
@@ -55,8 +55,8 @@ describe('transporte arquivo (caixa da demo)', () => {
     const [arquivo] = await readdir(pasta);
     const eml = await readFile(join(pasta, arquivo!), 'utf8');
     const { texto, html } = decodificarPartes(eml);
-    expect(texto).toContain('Senha inicial: ********');
-    expect(texto).toContain('Login: joaquina.teste@exemplo.com.br');
+    expect(texto).toContain('Senha temporária: ********');
+    expect(texto).toContain('E-mail: joaquina.teste@exemplo.com.br');
     expect(texto + html + eml).not.toContain('Prov1sor1a-Xq7');
     expect(cap.linhas[0]!.obj.senha_mascarada_no_arquivo).toBe(true);
     expect(vazamentos(cap.json())).toEqual([]);

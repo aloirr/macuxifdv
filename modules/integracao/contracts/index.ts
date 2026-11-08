@@ -13,3 +13,4 @@ export * from './eventos';
 export * from './carga-arquivo';
 export * from './modelos';
 export * from './portal-carga';
+export * from './consulta-cancelamento';

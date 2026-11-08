@@ -67,6 +67,8 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
     // "teste" da fixture não é módulo do produto; o Catálogo vem junto do Vendedor (ADR 0005, RN-CORE-03)
     expect(v1.ativosNoTenant.sort()).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
     expect(v1.doPerfil.sort()).toEqual(['catalogo', 'core', 'vendedor']);
+    // ADR 0033 (0041): perfis de acesso pela plataforma.perfis_do_usuario, o de fábrica do perfil principal sem sobreposição
+    expect(v1.perfis).toEqual([{ codigo: 'vendedor', base: 'vendedor', ativo: true, fabrica: true, sobreposicoes: [] }]);
     const adminB = await licencasDoBanco(quem.adminB!, b);
     expect(adminB.ativosNoTenant.sort()).toEqual(['catalogo', 'core', 'vendedor']);
     expect(adminB.removidosDoUsuario).toEqual(['vendedor']);

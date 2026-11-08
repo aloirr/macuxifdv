@@ -1,17 +1,24 @@
-/** T-0087: partes puras das telas do portal (passo Empresa, primeiro acesso, aba Integração). */
+/** T-0087/T-0093: partes puras das telas do portal (passo Empresa com o administrador inicial, entrada, aba Integração). */
 import { describe, expect, it } from 'vitest';
 import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { entidadesLivres } from '@/components/portal/aba-integracao';
-import { textoCodigosRestantes } from '@/components/portal/base';
-import { apenasDigitos } from '@/components/portal/cadastro-totp';
 import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS } from '@/components/portal/cartao-base';
-import { corpoDaEmpresa, errosDaEmpresa, mascararCnpj, rotuloDoFuso, sugerirCodigo } from '@/components/portal/passo-empresa';
+import {
+  corpoDaEmpresa,
+  erroDoAdminNaApi,
+  errosDaEmpresa,
+  errosDoAdmin,
+  mascararCnpj,
+  rotuloDoFuso,
+  sugerirCodigo,
+  TEXTOS_ADMIN,
+  textoDoAdminNoResultado,
+} from '@/components/portal/passo-empresa';
 import { rotuloDoStatus } from '@/components/portal/tela-empresas';
-import { validarPrimeiroAcesso } from '@/components/portal/tela-primeiro-acesso';
-import { mensagemDoCodigoPortal, mensagemDoLoginPortal } from '@/components/portal/tela-entrar';
-import { AJUDA_CONVITE_SUPER_ADMIN, ErroPortal, MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_RECUPERACAO_INCORRETA, MENSAGEM_TOTP_INCORRETO } from './portal-api';
+import { mensagemDoLoginPortal, TEXTOS_ENTRAR } from '@/components/portal/tela-entrar';
+import { ErroPortal, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_SEM_CONEXAO } from './portal-api';
 
 const form = {
   codigo: 'distribuidora-norte',
@@ -61,41 +68,74 @@ describe('passo Empresa', () => {
   });
 });
 
-describe('primeiro acesso e entrada', () => {
-  it('confere e-mail, nome, senha de 12+, confirmação e convite de 32+', () => {
-    expect(validarPrimeiroAcesso({ email: 'a@b.com', nome: 'Alê', senha: 'x'.repeat(12), confirmacao: 'x'.repeat(12), convite: 'c'.repeat(32) })).toEqual({});
-    expect(Object.keys(validarPrimeiroAcesso({ email: 'a', nome: '', senha: 'curta', confirmacao: 'outra', convite: 'c' })).sort()).toEqual(['confirmacao', 'convite', 'email', 'nome', 'senha']);
+describe('passo Empresa: administrador inicial (RN-CORE-34, RN-CORE-32; spec portal-entrar §6)', () => {
+  const admin = { nome: 'Ana Souza', email: 'Ana@Empresa.com.br', senha: 'Norte#2026' };
+  it('empresa nova leva o admin no corpo (senha sem trim) e passa no CriarEmpresaSchema', () => {
+    const c = corpoDaEmpresa({ ...form, admin: { ...admin, senha: ' Norte#2026 ' } }, false) as { admin: { email: string; nome: string; senha: string } };
+    expect(c.admin).toEqual({ nome: 'Ana Souza', email: 'Ana@Empresa.com.br', senha: ' Norte#2026 ' });
+    expect(CriarEmpresaSchema.parse(c).admin?.email).toBe('ana@empresa.com.br');
+    expect(errosDaEmpresa(c)).toEqual({});
+    expect(errosDoAdmin(admin)).toEqual({});
   });
-  it('código só com dígitos, até 6', () => {
-    expect(apenasDigitos('12 34-567')).toBe('123456');
+  it('empresa existente (sem bloco do admin) não manda admin', () => {
+    expect(corpoDaEmpresa(form, false)).not.toHaveProperty('admin');
   });
-  it('mensagem do login: mesma frase para e-mail inexistente e senha errada', () => {
-    expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'qualquer'))).toBe('E-mail ou senha incorretos.');
+  it('campos vazios com os textos da spec', () => {
+    expect(errosDoAdmin({ nome: '', email: '', senha: '' })).toEqual({
+      'admin.nome': TEXTOS_ADMIN.nomeVazio,
+      'admin.email': TEXTOS_ADMIN.emailVazio,
+      'admin.senha': TEXTOS_ADMIN.senhaVazia,
+    });
+    expect(TEXTOS_ADMIN.senhaVazia).toBe('Informe a senha inicial.');
+  });
+  it('senha fora da RN-CORE-32: a mensagem do Core diz o que falta', () => {
+    expect(errosDoAdmin({ ...admin, senha: 'Norte2026' })['admin.senha']).toBe('Falta um caractere especial.');
+    expect(errosDoAdmin({ ...admin, senha: 'abc' })['admin.senha']).toBe('A senha precisa ter pelo menos 8 caracteres. Faltam um número e um caractere especial.');
+  });
+  it('nome curto e e-mail inválido em pt-BR (nada de mensagem em inglês do Zod)', () => {
+    const e = errosDoAdmin({ nome: 'A', email: 'ana@', senha: 'Norte#2026' });
+    expect(e).toEqual({ 'admin.nome': TEXTOS_ADMIN.nomeCurto, 'admin.email': TEXTOS_ADMIN.emailInvalido });
+  });
+  it('422 da API: RN-CORE-34 no topo do bloco; RN-CORE-32 embaixo do campo, pelas faltas; outro motivo = mensagem da API', () => {
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-34', 'x', { campo: 'admin' }), '')).toEqual({ bloco: 'Informe o administrador da empresa.' });
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'x', { campo: 'admin.senha', faltas: ['numero', 'especial'] }), 'Senhaforte')).toEqual({ senha: 'Faltam um número e um caractere especial.' });
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-32', 'A senha não pode ser igual ao e-mail.', { faltas: [] }), 'ana@empresa.com.br')).toEqual({ senha: 'A senha não pode ser igual ao e-mail.' });
+    expect(erroDoAdminNaApi(new ErroPortal(422, 'RN-CORE-31', 'x'), '')).toBeNull();
+    expect(erroDoAdminNaApi(new Error('x'), '')).toBeNull();
+  });
+  it('resultado: criado com o e-mail; existente sem trocar a senha; sem admin no pedido = nada', () => {
+    expect(textoDoAdminNoResultado({ admin: 'criado', simulado: false }, 'ana@empresa.com.br')).toBe('Administrador criado: ana@empresa.com.br.');
+    expect(textoDoAdminNoResultado({ admin: 'existente', simulado: false }, 'ana@empresa.com.br')).toBe('Administrador mantido: a senha não mudou.');
+    // no Conferir nada foi gravado (R-20261107-174216 🟡 6)
+    expect(textoDoAdminNoResultado({ admin: 'existente', simulado: true }, null)).toBe('Administrador mantido: a senha não muda.');
+    expect(textoDoAdminNoResultado({ admin: null, simulado: false }, null)).toBeNull();
+  });
+});
+
+describe('entrada só com e-mail e senha (T-0093; spec portal-entrar §1 e §4)', () => {
+  it('401: a mesma frase para e-mail inexistente, senha errada e conta sem empresa (nunca a da API)', () => {
+    expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'E-mail ou senha incorretos. Confira e tente de novo.'))).toBe('E-mail ou senha incorretos.');
+    expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'qualquer'))).toBe(TEXTOS_ENTRAR.credenciais);
+  });
+  it('423 (também para e-mail inexistente), 429, 503 e sem rede', () => {
+    expect(mensagemDoLoginPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado por tentativas erradas.'))).toBe('Muitas tentativas erradas. Espere 15 minutos e tente de novo.');
+    expect(mensagemDoLoginPortal(new ErroPortal(429, 'LIMITE', 'x'))).toBe('Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.');
     expect(mensagemDoLoginPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'))).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
+    expect(mensagemDoLoginPortal(new ErroPortal(0, 'sem_conexao', MENSAGEM_SEM_CONEXAO))).toBe(MENSAGEM_SEM_CONEXAO);
   });
-  it('mensagem do 2º passo: recuperação fala do código usado; TOTP fala da hora do celular (R-20261106-023316 🟡 3)', () => {
-    const errado = new ErroPortal(401, 'CODIGO_INVALIDO', 'Código incorreto. Confira o aplicativo autenticador e tente de novo.');
-    expect(mensagemDoCodigoPortal(errado, true)).toBe(MENSAGEM_RECUPERACAO_INCORRETA);
-    expect(mensagemDoCodigoPortal(errado, false)).toBe(MENSAGEM_TOTP_INCORRETO);
-    expect(MENSAGEM_TOTP_INCORRETO).toMatch(/hora do celular/);
-    expect(mensagemDoCodigoPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado.'), true)).toBe('Acesso bloqueado.');
-    expect(mensagemDoCodigoPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'), false)).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
+  it('textos da tela, sem convite, código de verificação, TOTP nem super-admin', () => {
+    expect(TEXTOS_ENTRAR.esqueceu).toBe('Esqueceu a senha? Use "Esqueci a senha" no backoffice.');
+    expect(TEXTOS_ENTRAR.vazio).toBe('Informe o e-mail e a senha.');
+    for (const t of Object.values(TEXTOS_ENTRAR)) expect(t).not.toMatch(/convite|código de|6 dígitos|TOTP|autenticador|super-admin|2º fator/i);
   });
-  it('T-0091: textos do convite e dos segredos valem na produção e na demo (nomes dos secrets, nunca valor)', () => {
-    expect(AJUDA_CONVITE_SUPER_ADMIN).toMatch(/PROD_SUPERADMIN_CONVITE na produção/);
-    expect(AJUDA_CONVITE_SUPER_ADMIN).toMatch(/DEMO_SUPERADMIN_CONVITE na demo/);
-    for (const t of [MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO, MENSAGEM_PORTAL_SEM_SEGREDOS]) {
-      expect(t).not.toMatch(/PRODUCAO|PROD_|DEMO_/);
-    }
+  it('T-0094: 403 SENHA_A_TROCAR manda criar a senha no backoffice (spec ciclo-de-senha §7), nunca a frase da API', () => {
+    const e = new ErroPortal(403, 'SENHA_A_TROCAR', 'Antes de entrar no portal, crie a sua senha no backoffice com o código da empresa.');
+    expect(mensagemDoLoginPortal(e)).toBe('Crie a sua senha no backoffice antes de entrar aqui. Use o código da empresa, o e-mail e a senha que você recebeu.');
+    expect(TEXTOS_ADMIN.passeASenha).toBe('Passe esta senha ao administrador. No primeiro acesso ao backoffice, ele cria a dele.');
   });
 });
 
 describe('textos do portal (revisão de UX R-20261106-023316)', () => {
-  it('selo dos códigos de recuperação restantes', () => {
-    expect(textoCodigosRestantes(3)).toBe('Restam 3 códigos de recuperação');
-    expect(textoCodigosRestantes(1)).toBe('Resta 1 código de recuperação');
-    expect(textoCodigosRestantes(0)).toBe('Nenhum código de recuperação');
-  });
   it('fuso e situação da empresa em rótulo', () => {
     expect(rotuloDoFuso('America/Manaus')).toBe('Manaus (AM, RR, RO) — UTC−4');
     expect(rotuloDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');

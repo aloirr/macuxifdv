@@ -20,7 +20,7 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
@@ -472,9 +472,11 @@ export function useVendedor() {
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
       const origem = src.number ? `pedido ${src.number}` : 'pedido no aparelho';
-      const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : 'Preços atualizados pela tabela de hoje do cliente.';
       const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
+      // T-0134 (RN-VEN-18): editar orçamento mantém os preços salvos (sem aviso de "preços atualizados"); duplicar entra pelos preços de hoje
+      const congelados = modo === 'edit' && ehOrcamento ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
+      const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : congelados ? '' : 'Preços atualizados pela tabela de hoje do cliente.';
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -484,6 +486,7 @@ export function useVendedor() {
         route_stop_id: null,
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
+        ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
         notice: [cabeca, aviso].filter(Boolean).join(' '),
       });

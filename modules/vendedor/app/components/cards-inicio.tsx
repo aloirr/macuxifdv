@@ -6,6 +6,7 @@ import { Cartao, colors, fonts, type as t } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 import { linhaAFaturar, linhaOrcamentos } from '../lib/resumo-inicio';
 import { irParaPedidosFiltrados } from '../rotas';
+import { RetomadaDoPedido } from './retomada-do-pedido';
 import { useResumoInicio } from '../state/use-resumo-inicio';
 
 function CardResumo({ testID, titulo, quantidade, linha, onPress }: { testID: string; titulo: string; quantidade: number; linha: string; onPress: () => void }) {
@@ -20,11 +21,16 @@ function CardResumo({ testID, titulo, quantidade, linha, onPress }: { testID: st
 
 export function CardsPedidosInicio() {
   const r = useResumoInicio();
-  if (!r) return null;
+  // RN-VEN-38: a retomada do pedido não terminado sobe aqui, na primeira tela depois de reabrir o app
   return (
-    <View testID="inicio.cards-vendedor" style={{ flexDirection: 'row', gap: 12 }}>
-      {r.orcamentos ? <CardResumo testID="inicio.card-orcamentos" titulo="Orçamentos" quantidade={r.orcamentos.quantidade} linha={linhaOrcamentos(r.orcamentos)} onPress={() => irParaPedidosFiltrados('orcamentos')} /> : null}
-      <CardResumo testID="inicio.card-a-faturar" titulo="A faturar" quantidade={r.aFaturar.quantidade} linha={linhaAFaturar(r.aFaturar)} onPress={() => irParaPedidosFiltrados('a_faturar')} />
-    </View>
+    <>
+      <RetomadaDoPedido />
+      {r ? (
+      <View testID="inicio.cards-vendedor" style={{ flexDirection: 'row', gap: 12 }}>
+        {r.orcamentos ? <CardResumo testID="inicio.card-orcamentos" titulo="Orçamentos" quantidade={r.orcamentos.quantidade} linha={linhaOrcamentos(r.orcamentos)} onPress={() => irParaPedidosFiltrados('orcamentos')} /> : null}
+        <CardResumo testID="inicio.card-a-faturar" titulo="A faturar" quantidade={r.aFaturar.quantidade} linha={linhaAFaturar(r.aFaturar)} onPress={() => irParaPedidosFiltrados('a_faturar')} />
+      </View>
+      ) : null}
+    </>
   );
 }

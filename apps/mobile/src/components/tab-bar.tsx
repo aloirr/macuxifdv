@@ -8,6 +8,7 @@
  * Aba de módulo (T-0071): volta ao topo da pilha guardada da aba; tocada de novo numa tela de módulo, volta à raiz da aba
  * (lib/historico-telas.ts). Troca de aba não desliza (T-0072).
  * Aba acesa (T-0072, R-20261105-125027): a dona da pilha da tela de módulo em uso, não o caminho (`abaAcesa`).
+ * Formulário alterado (RN-VEN-38, T-0128): todo toque passa por `bloqueioDoShell.tentarSair` (state/bloqueio-do-shell.ts).
  */
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { BarraAbas } from '@macuxi/ui/mobile';
 
 import { abaAcesa, type AbasDoShell } from '@/lib/abas';
 import { abrirAba } from '@/lib/historico-telas';
+import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
 import { useDonoDaPilha } from '@/state/historico-do-shell';
 
 export { abasDoShell, type AbaShell, type AbasDoShell } from '@/lib/abas';
@@ -37,9 +39,13 @@ export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<R
       contador,
       rotuloContador: contador ? `${contador} na fila` : undefined,
       testID: tab.testID,
+      // RN-VEN-38 (T-0128): com formulário alterado em foco, a tela pergunta antes ("Sair do pedido?"); a aba só abre no
+      // `prosseguir`, e a pilha guardada é lida nessa hora
       onPress: () => {
-        const destino = tab.href.startsWith('/m/') ? abrirAba(tab.href, atual.startsWith('/m/')) : tab.href;
-        router.navigate(destino as never);
+        bloqueioDoShell.tentarSair(() => {
+          const destino = tab.href.startsWith('/m/') ? abrirAba(tab.href, atual.startsWith('/m/')) : tab.href;
+          router.navigate(destino as never);
+        });
       },
     };
   });

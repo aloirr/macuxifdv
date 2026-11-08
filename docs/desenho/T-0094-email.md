@@ -1,6 +1,7 @@
 # Desenho T-0094 — E-mail transacional (acesso inicial e nova senha)
 
-> 2026-11-07 · engenheiro-software · status: **implementado (porta, SDK, cliente SMTP, fila cifrada); não ligado no worker** ·
+> 2026-11-07 · engenheiro-software · status: **ligado (fatia S, 08/11): porta `ServicoEmail` sobre a outbox `plataforma.email_saida`,
+> despachante no worker; o pg-boss saiu (ADR 0032 §6; desenho T-0094 §10)** ·
 > frente N5 da nuvem, branch `nuvem/T-0094-email` · regras: RN-CORE-32, RN-CORE-33, RN-CORE-34 (premissas abaixo) ·
 > relacionados: RF-CORE-01/02, `docs/modulos/core/usuarios.md`, ADR 0007 (outbox/pg-boss), CLAUDE.md regras 4 e 8.
 
@@ -88,28 +89,25 @@ guardada (pode ecoar o destinatário), nem credencial. Credencial em conexão se
 ## 7. Variáveis de ambiente
 | Variável | Padrão | Uso |
 |---|---|---|
-| `MACUXI_EMAIL_TRANSPORTE` | `smtp` com `MACUXI_SMTP_HOST`, senão `arquivo` | `smtp`, `arquivo` ou `desligado` |
+| `MACUXI_EMAIL_TRANSPORTE` | `smtp` com `MACUXI_SMTP_HOST`; `arquivo` com `MACUXI_EMAIL_ARQUIVO_DIR`; senão `desligado` | `smtp`, `arquivo` ou `desligado` |
 | `MACUXI_SMTP_HOST` | — | servidor SMTP |
 | `MACUXI_SMTP_PORTA` | 587 (465 com `tls`) | porta |
 | `MACUXI_SMTP_TLS` | `starttls` (porta 465: `tls`) | `starttls`, `tls` ou `nenhum` (credencial com `nenhum` é recusada em produção) |
 | `MACUXI_SMTP_USUARIO` / `MACUXI_SMTP_SENHA` | — | AUTH (as duas ou nenhuma) |
-| `MACUXI_SMTP_REMETENTE` | `Macuxi <nao-responda@macuxifdv.com.br>` | `Nome <email>` ou só o e-mail |
+| `MACUXI_SMTP_REMETENTE` | `Macuxi FDV <nao-responda@macuxifdv.com.br>` | `Nome <email>` ou só o e-mail |
 | `MACUXI_SMTP_TIMEOUT_MS` | 15000 | prazo de cada etapa (1000–120000) |
-| `MACUXI_EMAIL_PASTA` | `<tmp>/macuxi-email` | pasta do transporte `arquivo` |
+| `MACUXI_EMAIL_ARQUIVO_DIR` | — (`<tmp>/macuxi-email` com `arquivo` explícito) | pasta do adaptador `arquivo` (demo e testes) |
 | `MACUXI_EMAIL_ARQUIVO_MASCARAR` | desligado | `1`: o `.eml` sai com a senha mascarada |
-| `MACUXI_EMAIL_CHAVE` | HKDF-SHA256 do `MACUXI_JWT_SEGREDO`, rótulo `macuxi.email.fila.v1` | 32 bytes em base64 (ou 64 hex) |
+| `MACUXI_EMAIL_INTERVALO_MS` | 5000 | intervalo do despachante no worker |
 
-Falha fechada: em produção (`NODE_ENV=production`), sem `MACUXI_EMAIL_CHAVE` nem `MACUXI_JWT_SEGREDO` (≥ 32) a configuração é
-recusada. Fora de produção, sem nenhum dos dois, a chave é efêmera (aviso). API e worker precisam da **mesma** chave:
-`descreverConfigEmail` mostra `impressao_chave` (8 hex de um SHA-256 com rótulo, não reversível) para conferir.
+Chave da carga: HKDF-SHA256 do `MACUXI_JWT_SEGREDO` (sal vazio, `info = macuxi.email_saida.v1`, 32 bytes). **Não há
+`MACUXI_EMAIL_CHAVE`.** Falha fechada: em produção (`NODE_ENV=production`) com adaptador e sem `MACUXI_JWT_SEGREDO` (≥ 32), a API e
+o worker não sobem. API e worker usam o mesmo segredo: `descreverConfigEmail` mostra `impressao_chave` (8 hex, não reversível).
+Trocar o segredo do JWT invalida só os e-mails pendentes (viram `EMAIL_CIFRA_INVALIDA`, carga apagada); eles venceriam em 72 h.
 
 ### Secrets que o dono do produto cria (GitHub Actions e `.env` da VM da demo)
-`MACUXI_SMTP_HOST`, `MACUXI_SMTP_PORTA`, `MACUXI_SMTP_USUARIO`, `MACUXI_SMTP_SENHA`, `MACUXI_SMTP_REMETENTE`, `MACUXI_SMTP_TLS`,
-`MACUXI_EMAIL_CHAVE`. Gerar a chave:
-```
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-Trocar a chave invalida os e-mails ainda na fila (viram `EMAIL_CIFRA_INVALIDA`, descartados): trocar com a fila vazia.
+`MACUXI_SMTP_HOST`, `MACUXI_SMTP_PORTA`, `MACUXI_SMTP_USUARIO`, `MACUXI_SMTP_SENHA`, `MACUXI_SMTP_REMETENTE`, `MACUXI_SMTP_TLS`
+(nenhum secret de chave: a cifra deriva do `MACUXI_JWT_SEGREDO`, que já existe).
 No DNS do domínio remetente (`macuxifdv.com.br`): **SPF** autorizando o provedor SMTP, **DKIM** publicado pelo provedor e,
 de preferência, **DMARC** (`p=quarantine` depois de validar). Sem SPF/DKIM o e-mail cai no spam ou é recusado (5xx ⇒ descartado).
 
@@ -118,7 +116,9 @@ de preferência, **DMARC** (`p=quarantine` depois de validar). Sem SPF/DKIM o e-
   Erro do Zod: só caminho e código. Erro desconhecido: vira `EMAIL_TRANSPORTE` com mensagem genérica (`comoErroEmail`).
   `ConfigEmail.toJSON()` devolve a descrição segura (log por engano não vaza credencial). O transporte `arquivo` loga a versão
   de log do corpo (nome/e-mail em marcadores, senha `********`).
-- **Fila**: a carga é AES-256-GCM (IV aleatório, AAD = `idEnvio`); o job e a coluna `output` do pg-boss não têm dado pessoal.
+- **Outbox**: a carga é AES-256-GCM (`0x01 | IV | tag | cifrado`, AAD = `id|tenant_id|modelo` da linha); fora dela só
+  `tenant_id`, `usuario_id`, `modelo`, `chave_idempotencia` e o controle; `ultimo_erro` só leva o código `EMAIL_*`; a carga é
+  zerada no envio e na falha final (CHECK da 0040).
 - **Eventos**: nenhum evento de outbox é publicado pelo e-mail. Quem auditar (ex.: `usuario.criar`) grava só
   `email_enfileirado: true`/o código, nunca o endereço.
 - **Conexão**: STARTTLS exigido por padrão; nunca manda credencial em claro (fora de produção, só com `MACUXI_SMTP_TLS=nenhum`
@@ -126,21 +126,16 @@ de preferência, **DMARC** (`p=quarantine` depois de validar). Sem SPF/DKIM o e-
 - Testes conferem, em todo log capturado, que nenhum de `valoresSensiveisEmail(pedido)` aparece.
 
 ## 9. Testes
-- SDK: `packages/platform-sdk/src/email/{modelos,porta}.test.ts` (26) — renderização (login, código, senha, 72 h, troca no 1º
-  acesso), escape de HTML, recusas do Zod (CRLF, url `javascript:`, strict), versão de log sem valor sensível, contrato do resultado.
-- API: `apps/api/src/email/*.test.ts` (63) — config (sem senha/usuário/chave em erro e descrição), MIME, SMTP contra servidor
-  falso em 127.0.0.1 (feliz com AUTH PLAIN/LOGIN em `nenhum`, 5xx sem destinatário na mensagem, 4xx retentável, sem STARTTLS ⇒
-  recusa antes do AUTH, injeção pré-TLS, tempo esgotado, conexão recusada), arquivo, cifra (ida e volta, adulteração, AAD),
-  serviço + fila em memória (volta na hora, retentativa, não retentável, esgotado, idempotência), pg-boss com boss falso.
-  Rodar: `pnpm --filter api exec vitest run --config src/email/vitest.config.ts` (o `vitest.config.ts` da API só inclui `test/**`).
+- SDK: `packages/platform-sdk/src/email/{modelos,porta}.test.ts` — textos do design (§8 de `docs/design/ciclo-de-senha.md`),
+  escape de HTML, recusas do Zod, coerência modelo × motivo, versão de log sem valor sensível, `criarServicoEmailMemoria`.
+- API: `apps/api/src/email/*.test.ts` (no `vitest.config.ts` da API desde a fatia S, rodam no CI) — config (desligado sem
+  adaptador, HKDF do JWT, nada de segredo na descrição), MIME, SMTP contra servidor falso (inclusive **porta 465 com TLS
+  implícito** e certificado de teste; CA desconhecida = `EMAIL_TLS_INDISPONIVEL` antes de qualquer comando), arquivo, cifra (AAD
+  id|tenant|modelo), porta (`insert … on conflict do nothing`, mesma chave = sem 2ª linha, desligado sem tocar o banco) e
+  despachante com o pool do worker falso (envio zera a carga; 4xx adia com espera; 5xx, esgotado, vencido e cifra inválida falham
+  com carga zerada; ponta a ponta com o adaptador de arquivo).
 
-## 10. Pendências (fora do escopo desta frente)
-- **(a)** `pnpm add pg-boss` (v10) no `apps/api` e ligar no `worker.ts` (`ligarEmail({ config: lerConfigEmail(process.env), log,
-  boss }).iniciar()`) e na API (`envio` disponível às rotas do Core, ex.: em `ServicosCore`) — **depois do T-0093** (login do
-  portal mexe em `app.ts`/`api.ts`/`plataforma.ts`). Até lá, `ligarEmail` sem `boss` usa a fila em memória.
-- **(b)** Incluir `src/**/*.test.ts` no `apps/api/vitest.config.ts` para o CI rodar os testes desta pasta.
-- **(c)** Registrar RN-CORE-32..34 no doc 03 e criar `.coord/tarefas/T-0094.md` (gerente-projetos).
-- **(d)** Coluna de troca obrigatória e validade da senha provisória em `core.usuario` (ex.: `senha_provisoria_ate timestamptz`)
-  — `banco-dados` + `modulo-core`; o login passa a recusar após 72 h e devolver `trocar_senha`.
-- **(e)** Rotas do Core chamarem a porta: `POST /usuarios` (acesso inicial), `PUT /usuarios/:id/senha` (redefinição) e a rota
-  pública "esqueci a senha" (nova; resposta sempre igual exista ou não o e-mail, com limite por IP/e-mail) — `modulo-core`.
+## 10. Pendências
+- Os testes de banco da outbox (RLS da 0040, papel `macuxi_worker`) e o ciclo de ponta com o adaptador de arquivo ficam com a fatia
+  T no CI (`tests/integracao/api/ciclo-senha-t0094.test.ts`, CS-09).
+- SPF/DKIM/DMARC do domínio remetente e os secrets `MACUXI_SMTP_*` (dono do produto) antes de ligar o SMTP na demo e na produção.

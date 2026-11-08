@@ -7,7 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { z } from 'zod';
-import { CAMINHO_CADASTRO, CAMINHO_PARAMETROS_TRADE, LINHA_CADASTRO, ParametrosTradeApi, type CadastroBko } from '../../contracts';
+import { CAMINHO_CADASTRO, CAMINHO_PARAMETROS_TRADE, LINHA_CADASTRO, ParametrosTradeApi, type CadastroBko, type MarcaConcorrenteLista } from '../../contracts';
 
 export const qkCadastro = (c: CadastroBko, removidos: boolean) => ['promotor', 'cadastro', c, removidos] as const;
 const rota = (caminho: string) => `/promotor/${caminho}`;
@@ -26,6 +26,8 @@ export function useListaCadastro(c: CadastroBko, incluirRemovidos: boolean) {
     placeholderData: (anterior) => anterior,
     queryFn: async ({ signal }): Promise<LinhaDoCadastro[]> => {
       const r = z.object({ itens: z.array(LINHA_CADASTRO[c]) }).parse(await api<unknown>(rota(CAMINHO_CADASTRO[c]), { query: { incluir_removidos: String(incluirRemovidos) }, signal }));
+      // marcas concorrentes (Catálogo, ADR 0034): sem datas; a inativa aparece só com `incluirRemovidos` e fica marcada `ativo: false`
+      if (c === 'concorrente') return (r.itens as MarcaConcorrenteLista[]).map((m) => ({ ...m, deleted_at: null, updated_at: '' }));
       return r.itens as unknown as LinhaDoCadastro[];
     },
   });

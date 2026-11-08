@@ -14,10 +14,10 @@ export const ROTULO_ABA: Readonly<Record<AbaCadastro, string>> = {
   categorias: 'Categorias',
   metas: 'Metas de share',
   mix: 'Mix de ruptura',
-  concorrentes: 'Concorrentes e produtos',
+  concorrentes: 'Produtos do concorrente',
 };
 
-/** Cadastros de cada aba (a de concorrentes edita dois). */
+/** Cadastros de cada aba (a de concorrentes mostra o aviso das marcas, que são do Catálogo, e edita os produtos). */
 export const CADASTROS_DA_ABA: Readonly<Record<AbaCadastro, readonly CadastroBko[]>> = {
   checklists: ['checklist_loja'],
   categorias: ['categoria_gondola'],

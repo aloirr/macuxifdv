@@ -3,7 +3,7 @@
  * (se o engenheiro-apps promover algum para `packages/ui`, trocamos). Alvos de toque ≥ 48 dp; só lê e escreve o rascunho
  * do aparelho (offline-first). O cálculo e as regras vêm de `lib/novo-pedido.ts` (domain de preço), nada é calculado aqui.
  */
-import { Banner, Botao, colors, fonts, Icon, radius, type as t } from '@macuxi/ui/mobile';
+import { colors, fonts, Icon, radius, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -127,21 +127,6 @@ export function CaixaAplicacao({ marcada, onPress, nome, testID }: { marcada: bo
     </Pressable>
   );
 }
-
-/** Aviso do que falta (aparece acima do rodapé quando o botão está desligado por regra). */
-export function PendenciasDoPedido({ erros, freteAviso, onIrPara }: { erros: string[]; freteAviso: string | null; onIrPara: () => void }) {
-  if (erros.length === 0 && !freteAviso) return null;
-  return (
-    <View style={{ gap: 8 }} testID="pendencias-pedido">
-      <Banner icon="alert" tone="danger">
-        {erros.length > 0 ? <Text>{erros.join(' ')} </Text> : null}
-        {freteAviso ? <Text>{freteAviso}</Text> : null}
-      </Banner>
-      {freteAviso ? <Botao testID="pendencia-corrigir-frete" nivel="neutro" rotulo="Corrigir frete" onPress={onIrPara} /> : null}
-    </View>
-  );
-}
-
 
 const s = StyleSheet.create({
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },

@@ -158,7 +158,7 @@ export function RecadosPage() {
                     <td className="py-1 pr-2">
                       {e.titulo}{' '}
                       {e.recado_do_dia_hoje && (
-                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent" data-testid={`recados.chip-recado-do-dia.${e.envio_id}`}>
+                        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent-ink" data-testid={`recados.chip-recado-do-dia.${e.envio_id}`}>
                           Recado do dia · hoje
                         </span>
                       )}
@@ -204,7 +204,7 @@ export function RecadosPage() {
                     <td className="py-1 pr-2">{r.titulo}</td>
                     <td className="py-1 pr-2">{r.destinatario_nome}</td>
                     <td className="py-1 pr-2">{new Date(r.enviada_em).toLocaleString('pt-BR')}</td>
-                    <td className="py-1">{r.lida_em ? `Lida em ${new Date(r.lida_em).toLocaleString('pt-BR')}` : <span className="font-semibold text-accent">Não lida</span>}</td>
+                    <td className="py-1">{r.lida_em ? `Lida em ${new Date(r.lida_em).toLocaleString('pt-BR')}` : <span className="font-semibold text-accent-ink">Não lida</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -220,7 +220,7 @@ export function RecadosPage() {
         <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="recados.caixa">
           {(caixa.data ?? []).map((n) => (
             <li key={n.id} className="rounded-xl border border-line px-3 py-2 text-[13px]" data-testid={`recados.item.${n.id}`}>
-              <strong>{n.titulo}</strong> {n.lida_em ? <span className="text-ink-2">· lida</span> : <span className="font-semibold text-accent">· não lida</span>}
+              <strong>{n.titulo}</strong> {n.lida_em ? <span className="text-ink-2">· lida</span> : <span className="font-semibold text-accent-ink">· não lida</span>}
               <div>{n.corpo}</div>
             </li>
           ))}

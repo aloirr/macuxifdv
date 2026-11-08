@@ -150,9 +150,12 @@ describe.skipIf(semBanco())('0034 up/down com dados (banco efêmero)', () => {
   const T = 'cccccccc-0000-4000-8000-000000000034';
   const P = 'cccccccc-0034-4000-8000-000000000001';
   const R = 'cccccccc-0034-4000-8000-000000000002';
+  const M = 'cccccccc-0034-4000-8000-000000000003';
   const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
   const anterior = nomes[nomes.indexOf('0034_catalogo_referencia_marca_nome') - 1]!.slice(0, 4);
   const desde0034 = nomes.filter((n) => n >= '0034');
+  // até a 0044: a 0045 (T-0113) preenche os nulos com o nome da marca; a 0034 sozinha não
+  const ate0044 = desde0034.filter((n) => n < '0045');
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
   });
@@ -160,27 +163,30 @@ describe.skipIf(semBanco())('0034 up/down com dados (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('linha anterior fica nula (sem backfill) e intacta; down volta ao catálogo da 0033 com a referência; up de novo igual', async () => {
+  it('linha anterior fica nula (sem backfill) e intacta até a 0044; a 0045 preenche pelo nome da marca; down volta ao catálogo da 0033 com a referência; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: anterior });
       const antes = await retratoDoCatalogo(c);
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo34', 'Antigo')", [T]);
+      // a marca no cadastro antigo do Promotor (0015): a 0045 copia e confere que não há referência órfã
+      await c.query("insert into promotor.concorrente (id, tenant_id, nome) values ($1, $2, 'Freiomax')", [M, T]);
       await c.query(
-        "insert into catalogo.produto_referencia (id, tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, $2, $3, gen_random_uuid(), 'CB 3401', 'cb3401', 1)",
-        [R, T, P],
+        "insert into catalogo.produto_referencia (id, tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem) values ($1, $2, $3, $4, 'CB 3401', 'cb3401', 1)",
+        [R, T, P, M],
       );
       const linha = () => c.query('select id, marca_id, codigo, codigo_compacto, ordem, updated_at from catalogo.produto_referencia where id = $1', [R]).then((r) => r.rows[0]);
       const linhaAntes = await linha();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0034);
+      expect((await migrarUp(c, { ate: '0044' })).aplicadas).toEqual(ate0044);
+      expect((await c.query('select marca_nome from catalogo.produto_referencia where id = $1', [R])).rows).toEqual([{ marca_nome: null }]);
+      expect(await linha()).toEqual(linhaAntes);
+      expect((await migrarUp(c)).aplicadas).toEqual(desde0034.filter((n) => n >= '0045'));
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col catalogo.produto_referencia.marca_nome text nn=false');
       expect(depois.filter((l) => l.startsWith('idx ') && l.includes('marca_nome'))).toEqual([]);
       expect(depois.filter((l) => l.startsWith('pol ') && l.includes('catalogo.produto_referencia'))).toEqual(
         antes.filter((l) => l.startsWith('pol ') && l.includes('catalogo.produto_referencia')),
       );
-      expect((await c.query('select marca_nome from catalogo.produto_referencia where id = $1', [R])).rows).toEqual([{ marca_nome: null }]);
-      expect(await linha()).toEqual(linhaAntes);
-      await c.query("update catalogo.produto_referencia set marca_nome = 'Freiomax' where id = $1", [R]);
+      expect((await c.query('select marca_nome from catalogo.produto_referencia where id = $1', [R])).rows).toEqual([{ marca_nome: 'Freiomax' }]);
       expect((await migrarDown(c, { passos: desde0034.length })).aplicadas).toEqual([...desde0034].reverse());
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       expect((await c.query('select codigo from catalogo.produto_referencia where id = $1', [R])).rows).toEqual([{ codigo: 'CB 3401' }]);

@@ -1,7 +1,7 @@
 /**
  * Arquivos enviados pelo aparelho (ADR 0010; desenho T-0016 §1 E4) — rotas de plataforma, como `/v1/sync/*`:
  *   PUT /v1/arquivos/:id  corpo `image/jpeg` cru (sem multipart), até 2 MB → completa a linha `aguardando`
- *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`)
+ *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`; foto de produto vale para o tenant)
  *
  * Quem CRIA a linha em `plataforma.arquivo` é o módulo, na transação do comando que referencia a foto
  * (`tx.registrarArquivo`, `outbox.ts`). O upload só completa uma linha do mesmo tenant (RLS) e do mesmo usuário:
@@ -106,6 +106,7 @@ export function criarArmazenamentoEmMemoria(): ArmazenamentoArquivos & { chaves(
 
 interface LinhaArquivo {
   modulo: string;
+  finalidade: string;
   enviado_por: string;
   situacao: 'aguardando' | 'recebido';
   sha256: string | null;
@@ -113,6 +114,13 @@ interface LinhaArquivo {
   cliente_id: string | null;
   chave_armazenamento: string | null;
 }
+
+/**
+ * Arquivos SEM cliente que valem para o tenant inteiro (`<modulo>/<finalidade>`): quem tem a licença e o perfil do módulo
+ * lê, não importa quem enviou. Foto de produto (T-0097): sobe pelo gerente/analista e aparece na miniatura do vendedor e do
+ * promotor (RN-CAT-04: todos os perfis consultam o catálogo). As demais fotos sem cliente seguem os usuários visíveis.
+ */
+export const ARQUIVOS_DO_TENANT: ReadonlySet<string> = new Set(['catalogo/foto_produto']);
 
 const indisponivel = () =>
   new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
@@ -167,7 +175,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         const r = await ctx.comTenant(async (db) => {
           const linha = (
             await db.query<LinhaArquivo>(
-              `select modulo, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento
+              `select modulo, finalidade, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento
                  from plataforma.arquivo where id = $1 and deleted_at is null for update`,
               [id],
             )
@@ -207,7 +215,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
       const linha = await ctx.comTenant(async (db) =>
         (
           await db.query<LinhaArquivo>(
-            `select modulo, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento
+            `select modulo, finalidade, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento
                from plataforma.arquivo where id = $1 and deleted_at is null`,
             [id],
           )
@@ -222,11 +230,12 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         if (acesso.codigo === 'MODULO_INATIVO') throw moduloInativo(linha.modulo);
         throw new ErroHttp(acesso.status, acesso.codigo, acesso.mensagem);
       }
-      // escopo (RN-CORE-04): carteira do cliente da foto; sem cliente, os usuários visíveis
+      // escopo (RN-CORE-04): carteira do cliente da foto; sem cliente, os usuários visíveis — menos as fotos do tenant
+      // (foto de produto: o catálogo é do tenant, RN-CAT-04), que a licença e o perfil acima já liberam
       if (linha.cliente_id) {
         const c = verificarCarteira(linha.cliente_id, await ctx.carteira());
         if (!c.ok) throw new ErroHttp(c.status, c.codigo, c.mensagem);
-      } else {
+      } else if (!ARQUIVOS_DO_TENANT.has(`${linha.modulo}/${linha.finalidade}`)) {
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }

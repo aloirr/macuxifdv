@@ -18,6 +18,8 @@
   --color-accent-light: #f59a52;
   --color-accent-ink: #8f3d06;
   --color-accent-soft: #fbe9dc;
+  /* texto e ícone sobre o laranja cheio (onAccent do kit; 4,60:1, docs/design/componentes.md §1.1) */
+  --color-on-accent: #ffffff;
   --color-success: #1d6b4f;
   --color-success-soft: #e2f1ea;
   --color-warning: #7a4f00;

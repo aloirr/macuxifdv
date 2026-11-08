@@ -73,7 +73,7 @@ export const manifest = defineModule({
   // T-0055: nomes e perfis da equipe pelo cadastro do Core (ADR 0012), na mesma transação da rota.
   usaConsultas: ['core.cadastro_resumo@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
-  usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'inicio.cards'],
+  usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'cliente.avisos', 'inicio.cards'],
 });
 
 export default manifest;

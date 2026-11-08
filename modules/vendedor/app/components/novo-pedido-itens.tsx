@@ -300,7 +300,7 @@ function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) 
   const partes = partirTrecho(trecho.texto, trecho.marcas);
   return (
     <Text style={s.aplicacao} numberOfLines={2} testID={`serve-em-${codigo}`}>
-      Serve em: {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      <Text style={t.smallStrong}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
       {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
     </Text>
   );
@@ -314,7 +314,7 @@ const s = StyleSheet.create({
   nome: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   separador: { fontFamily: fonts.body, fontSize: 12, color: colors.ink3 },
   embalagem: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
-  aplicacao: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
+  aplicacao: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   controles: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0 },
   total: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'baseline', gap: 6, minHeight: 24 },
   totalRotulo: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },

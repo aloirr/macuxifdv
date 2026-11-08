@@ -82,10 +82,8 @@ describe('validarDesativacao (RN-PRO-12: cadastro em uso não se desativa)', () 
       expect(r.mensagem).toContain('os 2 produtos de concorrentes');
     }
   });
-  it('RN-PRO-12: concorrente só olha os produtos do concorrente; singular com 1', () => {
-    const r = validarDesativacao('concorrente', { metas_share: 9, mix_obrigatorio: 9, produtos_concorrente: 1 });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.mensagem).toBe('Desative antes o 1 produto de concorrente deste concorrente.');
+  it('RN-PRO-12 (ADR 0034): a marca concorrente é do Catálogo; o Promotor não barra a inativação dela', () => {
+    expect(validarDesativacao('concorrente', { metas_share: 9, mix_obrigatorio: 9, produtos_concorrente: 1 })).toEqual({ ok: true });
   });
   it('RN-PRO-12: meta, mix, produto do concorrente e checklist são folhas e sempre liberam', () => {
     expect(validarDesativacao('meta_share', { metas_share: 5, mix_obrigatorio: 5, produtos_concorrente: 5 })).toEqual({ ok: true });

@@ -194,6 +194,12 @@ export interface DesenhoMetaDeHoje {
   /** "mês 40%" */
   mes: string;
   verde: boolean;
+  /**
+   * De que período são `valor` e `de` (regra rótulo × valor, T-0124/RD-0001): `hoje` = realizado do dia × meta do dia da
+   * RN-CORE-26; `mes` = números do mês (dia não útil, que não tem meta do dia, e indicador só do mês, como a cobertura).
+   * O rótulo do cartão sai daqui (`rotuloDaMeta`), nunca fixo.
+   */
+  periodo: 'hoje' | 'mes';
 }
 
 /** Números já prontos do Core (`meta_hoje`, aditivo no @1): quando vêm, valem sobre a conta de exibição do shell. */
@@ -203,7 +209,7 @@ export type MetaHojePronta = Pick<NonNullable<VisaoInicio['meta_hoje']>, 'faltam
 export function desenhoMetaDeHoje(m: MetaDoDia, pronto?: MetaHojePronta | null): DesenhoMetaDeHoje {
   const doMes = m.realizado_ate_ontem + m.realizado_hoje;
   const mes = `mês ${pronto?.mes_pct != null ? Math.round(pronto.mes_pct / 100) : pctInteiro(doMes, m.meta_mes)}%`;
-  const base = { mes, trilho: colors.lineSoft, verde: false };
+  const base = { mes, trilho: colors.lineSoft, verde: false, periodo: 'hoje' as const };
   const metaDia = m.meta_dia ?? 0;
   switch (m.situacao) {
     case 'dia_batido':
@@ -211,11 +217,13 @@ export function desenhoMetaDeHoje(m: MetaDoDia, pronto?: MetaHojePronta | null):
     case 'mes_batido':
       return { ...base, verde: true, valor: valorDe(m.indicador, m.realizado_hoje), de: null, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: `Meta do mês batida · ${valorDe(m.indicador, doMes)} de ${valorDe(m.indicador, m.meta_mes)}` };
     case 'dia_nao_util': {
+      // RN-CORE-26: dia não útil NÃO tem meta do dia. O cartão vira a linha do mês (rótulo "Meta do mês", RD-0001):
+      // realizado do mês de meta do mês e quanto falta no mês; nada de "Meta de hoje" nem de "Faltam … hoje".
       const falta = Math.max(0, m.meta_mes - doMes);
-      return { ...base, valor: valorDe(m.indicador, doMes), de: `de ${valorDe(m.indicador, m.meta_mes)} no mês`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.ink3, apoio: falta > 0 ? `Hoje não é dia útil · faltam ${valorDe(m.indicador, falta)} no mês` : 'Hoje não é dia útil' };
+      return { ...base, periodo: 'mes', valor: valorDe(m.indicador, doMes), de: `de ${valorDe(m.indicador, m.meta_mes)}`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.ink3, apoio: falta > 0 ? `Hoje não é dia útil · faltam ${valorDe(m.indicador, falta)} no mês` : 'Hoje não é dia útil' };
     }
     case 'do_mes':
-      return { ...base, valor: pctDePontos(doMes), de: `meta ${pctDePontos(m.meta_mes)}`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.accent, apoio: 'Acumulado do mês' };
+      return { ...base, periodo: 'mes', valor: pctDePontos(doMes), de: `meta ${pctDePontos(m.meta_mes)}`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.accent, apoio: 'Acumulado do mês' };
     case 'a_cumprir':
     default: {
       const pct = m.atingimento_hoje_pct != null ? Math.round(m.atingimento_hoje_pct / 100) : pctInteiro(m.realizado_hoje, metaDia);
@@ -223,6 +231,15 @@ export function desenhoMetaDeHoje(m: MetaDoDia, pronto?: MetaHojePronta | null):
       return { ...base, valor: valorDe(m.indicador, m.realizado_hoje), de: `de ${valorDe(m.indicador, metaDia)}`, pct, corBarra: colors.accent, apoio: `Faltam ${valorDe(m.indicador, falta)} hoje` };
     }
   }
+}
+
+/**
+ * Rótulo do cartão a partir do período do desenho (rótulo × valor, T-0124/RD-0001): "Meta de hoje" só quando o número é o
+ * do dia; com os números do mês, "Meta do mês". Gestão: "… da equipe". Indicador que não é vendas: " · Visitas".
+ */
+export function rotuloDaMeta(periodo: DesenhoMetaDeHoje['periodo'], equipe: boolean, indicador?: MetaDoDia['indicador'] | null): string {
+  const base = `${periodo === 'mes' ? 'Meta do mês' : 'Meta de hoje'}${equipe ? ' da equipe' : ''}`;
+  return indicador && indicador !== 'venda_cents' ? `${base} · ${ROTULO_INDICADOR[indicador]}` : base;
 }
 
 /** Linha compacta de um indicador secundário (e de cada indicador da equipe): "Positivação 2 clientes de 6 clientes". */

@@ -93,6 +93,17 @@ export interface PedidoLocal {
   erro: string | null;
 }
 
+/** T-0114: cancelamento recebido do Hub, guardado antes de executar no ERP (idempotente pelo pedido_uuid). */
+export interface CancelamentoLocal {
+  pedidoUuid: string;
+  estado: string;
+  /** JSON do `CancelamentoParaErp` recebido. */
+  payload: string;
+  tentativas: number;
+  proximaMs: number;
+  erro: string | null;
+}
+
 export interface RetornoLocal {
   id: number;
   pedidoUuid: string;
@@ -132,6 +143,10 @@ CREATE TABLE IF NOT EXISTS pedido(
   pedido_uuid TEXT PRIMARY KEY, estado TEXT NOT NULL, payload TEXT NOT NULL, tentativas INTEGER NOT NULL DEFAULT 0,
   numero_erp TEXT, final INTEGER NOT NULL DEFAULT 0, recebido_ms INTEGER NOT NULL, proxima_ms INTEGER NOT NULL DEFAULT 0,
   erro TEXT, atualizado_ms INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cancelamento(
+  pedido_uuid TEXT PRIMARY KEY, estado TEXT NOT NULL, payload TEXT NOT NULL, tentativas INTEGER NOT NULL DEFAULT 0,
+  proxima_ms INTEGER NOT NULL DEFAULT 0, final INTEGER NOT NULL DEFAULT 0, erro TEXT, recebido_ms INTEGER NOT NULL, atualizado_ms INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS retorno(
   id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_uuid TEXT NOT NULL, assinatura TEXT NOT NULL, corpo TEXT NOT NULL,
@@ -408,6 +423,36 @@ export class Armazenamento {
     return this.all('SELECT estado, COUNT(*) AS total FROM pedido GROUP BY estado ORDER BY estado').map((r) => ({ estado: String(r.estado), total: Number(r.total) }));
   }
 
+  // ---------- cancelamentos (T-0114) ----------
+  private paraCancelamento(r: Linha): CancelamentoLocal {
+    return { pedidoUuid: String(r.pedido_uuid), estado: String(r.estado), payload: String(r.payload), tentativas: Number(r.tentativas), proximaMs: Number(r.proxima_ms), erro: s(r.erro) };
+  }
+  cancelamento(uuid: string): CancelamentoLocal | null {
+    const r = this.one('SELECT * FROM cancelamento WHERE pedido_uuid = ?', uuid);
+    return r ? this.paraCancelamento(r) : null;
+  }
+  /** Guarda o cancelamento recebido antes de executar no ERP. `true` se é novo (o reenvio do Hub não duplica). */
+  registrarCancelamento(uuid: string, payload: string, agoraMs: number): boolean {
+    return this.run("INSERT OR IGNORE INTO cancelamento(pedido_uuid, estado, payload, recebido_ms, atualizado_ms) VALUES(?, 'recebido', ?, ?, ?)", uuid, payload, agoraMs, agoraMs) > 0;
+  }
+  atualizarCancelamento(uuid: string, p: Partial<{ estado: string; tentativas: number; proximaMs: number; final: boolean; erro: string | null }>, agoraMs: number): void {
+    const cols = ['atualizado_ms = ?'];
+    const vals: unknown[] = [agoraMs];
+    const add = (c: string, v: unknown) => (cols.push(`${c} = ?`), vals.push(v));
+    if (p.estado !== undefined) add('estado', p.estado);
+    if (p.tentativas !== undefined) add('tentativas', p.tentativas);
+    if (p.proximaMs !== undefined) add('proxima_ms', p.proximaMs);
+    if (p.final !== undefined) add('final', p.final ? 1 : 0);
+    if (p.erro !== undefined) add('erro', p.erro);
+    this.run(`UPDATE cancelamento SET ${cols.join(', ')} WHERE pedido_uuid = ?`, ...vals, uuid);
+  }
+  cancelamentosAbertos(agoraMs: number): CancelamentoLocal[] {
+    return this.all("SELECT * FROM cancelamento WHERE final = 0 AND estado = 'recebido' AND proxima_ms <= ? ORDER BY recebido_ms", agoraMs).map((r) => this.paraCancelamento(r));
+  }
+  contarCancelamentos(): { estado: string; total: number }[] {
+    return this.all('SELECT estado, COUNT(*) AS total FROM cancelamento GROUP BY estado ORDER BY estado').map((r) => ({ estado: String(r.estado), total: Number(r.total) }));
+  }
+
   // ---------- retornos (fila de POST /pedidos/{uuid}/retorno) ----------
   /** Enfileira um retorno; a assinatura evita duplicar o mesmo fato. `true` se é novo. */
   enfileirarRetorno(uuid: string, assinatura: string, corpo: string, agoraMs: number): boolean {
@@ -453,6 +498,7 @@ export class Armazenamento {
     this.run('DELETE FROM erro_linha WHERE criado_ms < ?', limite);
     this.run("DELETE FROM retorno WHERE estado = 'enviado' AND criado_ms < ?", limite);
     this.run('DELETE FROM pedido WHERE final = 1 AND atualizado_ms < ?', limite);
+    this.run('DELETE FROM cancelamento WHERE final = 1 AND atualizado_ms < ?', limite);
   }
 
   resumoFila(): { estado: string; total: number; linhas: number; maisAntigoMs: number | null }[] {

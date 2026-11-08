@@ -6,7 +6,7 @@
  *   parâmetro nenhum);
  * - idempotente pelo código: 2x a mesma entrada = mesmas contagens em TODAS as tabelas com tenant_id; tenant existente não
  *   muda (aviso); só módulos que faltam entram, com os perfis; perfis de módulo existente não são tocados;
- * - redefinir_senha troca SÓ o senha_hash; sem ela a senha fica;
+ * - redefinir_senha troca o senha_hash (e, desde a 0040, sobe a sessao_versao e volta a trocar_senha); sem ela a senha fica;
  * - uma linha de auditoria 'tenant.provisionar' (ator nulo) quando algo muda, sem e-mail, nome ou hash;
  * - entrada inválida = 22023 sem e-mail nem hash na mensagem; tenant encerrado = 55000;
  * - SECURITY INVOKER, search_path fixo, sem EXECUTE para PUBLIC, macuxi_app e macuxi_worker (42501).
@@ -233,7 +233,11 @@ describe.skipIf(semBanco())('0029 provisionar_tenant (banco, fixture dois-tenant
       expect(r3).toMatchObject({ resultado: 'atualizado', admin: 'senha_redefinida', modulos_adicionados: [] });
       const depois = await linha();
       expect(depois.senha_hash).toBe(H2);
-      const semHash = (l: Record<string, unknown>) => Object.fromEntries(Object.entries(l).filter(([k]) => k !== 'senha_hash' && k !== 'updated_at'));
+      // 0040: a redefinição também sobe a sessao_versao (tokens e sessão do portal caem) e volta a trocar_senha; o resto fica
+      expect(depois.sessao_versao).toBe((antes.sessao_versao as number) + 1);
+      expect(depois.trocar_senha).toBe(true);
+      const semHash = (l: Record<string, unknown>) =>
+        Object.fromEntries(Object.entries(l).filter(([k]) => !['senha_hash', 'updated_at', 'sessao_versao', 'trocar_senha'].includes(k)));
       expect(semHash(depois)).toEqual(semHash(antes));
       const r4 = await provisionar(entrada('t29-senha', { redefinir_senha: true }, { senha_hash: H2 }));
       expect(r4).toMatchObject({ resultado: 'sem_mudanca', admin: 'existente' });

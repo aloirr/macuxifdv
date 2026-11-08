@@ -75,7 +75,7 @@ de preço em `catalogo.precos_cliente@1`, número do pedido nos eventos (T-0065)
 ## T-0071 — fatia 6 (app Campo, 04/11)
 - **Ajuste em % ou R$** no item (R$ por unidade da medida vendida) e no pedido (R$ sobre o total dos itens): `app/lib/novo-pedido.ts` usa o preço v2 do domain (arredondamento no unitário, rateio pelo maior resto, RN-VEN-02). O rascunho guarda `ajustes[chave].em` e `ajuste_em`/`desconto_valor_cents`/`acrescimo_valor_cents` no pedido; o push leva `desconto_unitario_cents`/`acrescimo_unitario_cents` (+ `ajuste_em: 'valor'`) e nunca % e R$ juntos. Referência: 398,30 → 379,79 (39830/1467/384/37979, 4,6%) com teste no app.
 - **Aba Itens**: chip da medida ("FD c/ 12"), "R$ 17,90 → 17,01", equivalente ("−R$ 0,89" / "= 5,3%"), seletor Desc.|Acrésc. e %|R$ (a troca de modo leva o equivalente) e trilha do catálogo ("Mercearia › Bebidas") que abre a árvore do Catálogo só com os produtos da tabela do cliente.
-- **Aba Detalhes**: "Combina com o pedido" e "Leve mais" pela consulta `catalogo.sugestoes_pedido@1` (roda no aparelho) mais clientes parecidos e embalagem maior; "+" soma 1 UN, "⇄" troca pela embalagem maior (ajuste zerado).
+- **Aba Detalhes (hoje: fim da aba Itens, T-0136)**: "Combina com o pedido" e "Leve mais" pela consulta `catalogo.sugestoes_pedido@1` (roda no aparelho) mais clientes parecidos e embalagem maior; "+" soma 1 UN, "⇄" troca pela embalagem maior (ajuste zerado).
 - **Aba Resumo**: Descontos = tabela − total, faixa com o % de 1 casa calculado dos inteiros (4,6%), seletor %|R$ do pedido.
 - Código: `app/lib/documento.ts` (cópia completa), `app/lib/sugestoes-pedido.ts`, `app/components/novo-pedido*.tsx`.
 
@@ -93,3 +93,12 @@ Referência: `docs/produto/referencias/R-20261106-0703-alexandre-novo-pedido-ite
 **App (aba Itens)**: sem rodapé fixo; card de pagamento (Forma e Prazo em lista suspensa, só o texto do prazo, desabilitado o que passa do prazo médio do cliente) com "Total do pedido · n itens" logo abaixo; item em 3 linhas (código · nome · embalagem / aplicação / UN|CX, − n +, desconto sempre aberto com o tipo) e "Valor total:" à direita. Aba **Detalhes**: Crédito do cliente (`core.financeiro_cliente@1`, offline, alerta de inadimplência, data da última sincronização) · Frete · Entrega · Observações · Leve mais e pague menos (some enquanto o Catálogo não publica `faixas`) · Combina com o pedido. O "Leve mais" antigo (troca por embalagem maior) saiu de Detalhes: sem preço de caixa não há vantagem a mostrar.
 
 **BKO**: Formas de pagamento e prazos (lista por forma com os prazos e o prazo médio, busca e situação na URL, CSV, criar/editar/inativar).
+
+## T-0136 — Novo pedido em 4 abas: Venda · Itens (n) · Entrega · Resumo (RF-VEN-11, 08/11)
+Substitui as 3 abas (Itens · Detalhes · Resumo) acima. A tela abre na **Venda**; vale no Campo e no Gestão (pedido em nome), em Novo pedido, Editar orçamento e Editar pedido, tudo do aparelho (offline).
+- **Venda** (`AbaVenda`): caixa **Alertas** (domain `alertasDaVenda`, `domain/alertas-venda.ts`: bloqueado, inativo, cadastro incompleto, título vencido com quantidade/valor/dias, crédito excedido; erro antes de aviso; textos em `app/lib/textos-venda.ts`). Sem alerta, uma linha: "Cliente liberado · sem título vencido". Depois Forma de pagamento e Prazo (RN-VEN-24/25), Limite (total e disponível), Prazo médio do cliente e "Atualizado ..." (data da última sincronização). O prazo médio saiu do cabeçalho.
+- **Itens (n)** (`Itens (0)` no início): total do pedido, busca, árvore do Catálogo e itens, como antes, sem o card de forma e prazo; no fim, **Leve mais e pague menos** e **Combina com o pedido** (`FimDaAbaItens`).
+- **Entrega** (`AbaEntrega`): endereço de entrega (RN-VEN-17), frete CIF/FOB só com a frase da modalidade ("CIF: frete incluso no preço" / "FOB: transportadora ...") e transportadora no FOB, sem valor de frete (RN-VEN-16), e Observações.
+- **Resumo**: inalterado nesta frente (refeito na T-0137).
+- **Pendências** (RN-CORE-36): forma e prazo apontam a "aba Venda"; itens, a "aba Itens"; FOB sem transportadora e CNPJ, a "aba Entrega". A bolinha fica na aba da correção; o Resumo nunca a recebe. O voltar do Android percorre Resumo → Entrega → Itens → Venda e só então sai (RN-VEN-38).
+- **Toques do pedido mais simples** (cliente sem alerta, CIF, 1 item): ver o recado de entrega da T-0136.

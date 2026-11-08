@@ -8,6 +8,7 @@
 import { ErroConector, type ContextoConector } from '@macuxi/platform-sdk';
 import {
   CABECALHO_CONECTOR_VERSAO,
+  ehCancelamentoRecusado,
   ParamsPedido,
   QueryPedidosPendentes,
   RetornoErp,
@@ -17,9 +18,10 @@ import {
   type RetornoAceito,
   type SinalConector,
 } from '../contracts';
-import { aplicarRetornoPedido, conectorAtendePedido, selecionarPendentes, versaoInformada, type PedidoNaFila } from '../domain';
+import { aplicarCancelamentoRecusado, aplicarRetornoPedido, conectorAtendePedido, selecionarCancelamentos, selecionarPendentes, versaoInformada, type PedidoNaFila } from '../domain';
+import { COLUNAS_CANCELAMENTO, paraCancelar } from './consumidores-pedido';
 import type { ConectorHub } from './autenticacao';
-import { EVENTO_PEDIDO_RETORNO_ERP } from './eventos';
+import { EVENTO_PEDIDO_CANCELAMENTO_RECUSADO, EVENTO_PEDIDO_RETORNO_ERP } from './eventos';
 import { lerParametrosHub } from './parametros';
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, C, Q, P>;
@@ -95,7 +97,24 @@ export async function pedidosPendentes(ctx: Ctx<unknown, ReturnType<typeof Query
       );
     }
     if (sel.entregar.length > 0) ctx.log.info({ entregues: sel.entregar.length, reenviados: sel.reenviados.length }, 'pedidos entregues ao Conector');
-    return { pedidos: sel.entregar };
+    // T-0114: cancelamentos so para o Conector que aceita (nada muda para os demais; o campo nem aparece)
+    const { rows: cfg } = await db.query<{ aceita_cancelamento: boolean }>('select aceita_cancelamento from integracao.conector where tenant_id = $1 and id = $2', [ctx.tenantId, ctx.conector.id]);
+    if (cfg[0]?.aceita_cancelamento !== true) return { pedidos: sel.entregar };
+    const { rows: pend } = await db.query<Parameters<typeof paraCancelar>[0]>(
+      `select ${COLUNAS_CANCELAMENTO} from integracao.pedido_fila_erp
+        where tenant_id = $1 and deleted_at is null and estado <> 'cancelado' and cancelamento_estado in ('pendente', 'enviado')
+        order by cancelamento_solicitado_em, pedido_uuid limit $2 for update skip locked`,
+      [ctx.tenantId, limite],
+    );
+    const canc = selecionarCancelamentos(pend.map(paraCancelar), agora, { limite, timeoutMin: parametros.timeoutEnvioMin });
+    for (const a of canc.atualizacoes) {
+      await db.query(
+        `update integracao.pedido_fila_erp set cancelamento_estado = 'enviado', cancelamento_enviado_em = $3, cancelamento_tentativas = $4 where tenant_id = $1 and pedido_uuid = $2`,
+        [ctx.tenantId, a.pedido_uuid, a.cancelamento_enviado_em, a.cancelamento_tentativas],
+      );
+    }
+    if (canc.entregar.length > 0) ctx.log.info({ cancelamentos: canc.entregar.length }, 'cancelamentos entregues ao Conector');
+    return canc.entregar.length > 0 ? { pedidos: sel.entregar, cancelamentos: canc.entregar } : { pedidos: sel.entregar };
   });
 }
 
@@ -111,6 +130,8 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
     });
   }
   if (!ctx.conector.recebe_pedidos) throw acessoNegadoSemPedidos();
+
+  if (ehCancelamentoRecusado(retorno)) return cancelamentoRecusado(ctx, retorno);
 
   return ctx.comTenant(async (db, tx) => {
     const { rows } = await db.query<LinhaFila>(
@@ -130,6 +151,7 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
       const a = r.atualizacao;
       await db.query(
         `update integracao.pedido_fila_erp set
+           cancelamento_estado = case when $3 = 'cancelado' and cancelamento_estado is not null then 'confirmado' else cancelamento_estado end,
            estado = $3, numero_erp = $4, motivo = $5, notas_aplicadas = $6::jsonb, itens_faturados_acumulados = $7::jsonb,
            ultimo_retorno_em = $8, conector_id = $9,
            nota_numero = case when $10::boolean then $11 else nota_numero end,
@@ -221,6 +243,32 @@ export async function retornoPedido(ctx: Ctx<RetornoErp, unknown, ReturnType<typ
       repetido: r.repetido,
       ...(r.itens_descartados.length > 0 ? { itens_descartados: r.itens_descartados } : {}),
     } as RetornoAceito;
+  });
+}
+
+/**
+ * T-0114: `cancelamento_recusado` — o ERP recusou o cancelamento pedido. Não muda o estado do pedido nem entra em `pedido_retorno`
+ * nem no evento `retorno_erp@1`: grava a recusa na linha da fila e publica `integracao.pedido.cancelamento_recusado@1` na mesma transação.
+ */
+async function cancelamentoRecusado(ctx: Ctx<RetornoErp, unknown, ReturnType<typeof ParamsPedido.parse>>, retorno: RetornoErp): Promise<RetornoAceito> {
+  return ctx.comTenant(async (db, tx) => {
+    const { rows } = await db.query<Parameters<typeof paraCancelar>[0] & { cancelamento_recusa_motivo: string | null; estado: PedidoNaFila['estado'] }>(
+      `select ${COLUNAS_CANCELAMENTO}, cancelamento_recusa_motivo from integracao.pedido_fila_erp where tenant_id = $1 and pedido_uuid = $2 for update`,
+      [ctx.tenantId, retorno.pedido_uuid],
+    );
+    const linha = rows[0];
+    const r = aplicarCancelamentoRecusado(linha ? { ...paraCancelar(linha), cancelamento_recusa_motivo: linha.cancelamento_recusa_motivo } : null, { motivo: retorno.motivo, ocorrido_em: retorno.ocorrido_em });
+    if (!r.ok) throw new ErroConector(422, { codigo: r.codigo, mensagem: r.mensagem, erros: [{ codigo: r.codigo, campo: null, mensagem: r.mensagem }] });
+    if (!r.repetido) {
+      await db.query(
+        `update integracao.pedido_fila_erp set cancelamento_estado = 'recusado', cancelamento_recusa_motivo = $3, cancelamento_recusado_em = $4::timestamptz, conector_id = $5
+          where tenant_id = $1 and pedido_uuid = $2`,
+        [ctx.tenantId, retorno.pedido_uuid, r.atualizacao.cancelamento_recusa_motivo, r.atualizacao.cancelamento_recusado_em, ctx.conector.id],
+      );
+      await tx.publicar(EVENTO_PEDIDO_CANCELAMENTO_RECUSADO, r.evento, retorno.pedido_uuid);
+      ctx.log.warn({ pedido_uuid: retorno.pedido_uuid }, 'o ERP recusou o cancelamento do pedido');
+    }
+    return { pedido_uuid: retorno.pedido_uuid, status: linha?.estado ?? 'integrado', repetido: r.repetido } as RetornoAceito;
   });
 }
 

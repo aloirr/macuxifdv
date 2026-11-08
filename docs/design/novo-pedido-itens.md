@@ -8,7 +8,7 @@
 ## 1. Aba Itens, de cima para baixo
 **Sem rodapé fixo.** Nada flutua sobre a lista; o único principal da tela continua no Resumo ("Enviar pedido").
 Para ir de Itens a Detalhes e de Detalhes ao Resumo: botão **"Avançar"** no fim do conteúdo da aba (inline, rola com a lista;
-premissa do Vendedor aceita na T-0089). As pendências do pedido ficam **antes** dele.
+premissa do Vendedor aceita na T-0089). ~~As pendências do pedido ficam **antes** dele.~~ Superado em 08/11 (RN-CORE-36): pendências só no Resumo, no bloco "Falta para salvar" (`formulario-pendencias.md`).
 
 0. **Cabeçalho:** "{cliente} · cód. {código} · prazo médio do cliente {n} dias" (até 2 linhas; sem prazo médio, a parte final
    não aparece). Explica por que alguns prazos aparecem desabilitados.
@@ -18,7 +18,9 @@ premissa do Vendedor aceita na T-0089). As pendências do pedido ficam **antes**
    - o Prazo mostra só os prazos da forma escolhida; antes da forma, o Prazo fica `desligado` com o placeholder "Escolha a forma";
    - a lista do Prazo mostra **só o prazo** ("28/56 dias", "À vista"), sem "médio 42";
    - prazo acima do prazo médio do cliente (RN-VEN-25): `desabilitada: true`, `motivo: 'Acima do prazo médio do cliente'`
-     (o motivo só é lido pelo TalkBack; na tela, texto cinza com cadeado e sem toque);
+     (na tela, rótulo cinza com cadeado e sem toque, e o motivo numa linha abaixo, em `ink2`; o TalkBack lê os dois, T-0129);
+   - forma de pagamento que o cadastro do cliente não permite (RN-VEN-24, RN-VEN-13): o mesmo padrão, `desabilitada: true` com o
+     `motivo` que o domain do Vendedor devolve; nada de texto solto abaixo das listas;
    - trocar a forma e o prazo atual não existir nela: o Prazo volta ao placeholder e fica com `erro` até escolher;
    - divisor e, abaixo, **"Total do pedido · 2 itens"** à esquerda e **"R$ 99,09"** à direita (Archivo 18, tabular). O total
      não se repete no rótulo da aba Resumo.

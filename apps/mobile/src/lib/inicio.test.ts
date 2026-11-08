@@ -19,6 +19,7 @@ import {
   quandoCurto,
   recadosDeHoje,
   resumoDoMembro,
+  rotuloDaMeta,
   saudacao,
   seloNovos,
   situacaoDoMembro,
@@ -145,9 +146,10 @@ describe('Meta de hoje', () => {
     expect(desenhoMetaDeHoje(meta({ situacao: 'dia_batido', realizado_hoje: 100_000, atingimento_hoje_pct: 10000 }))).toMatchObject({ verde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: 'Meta de hoje batida' });
     expect(desenhoMetaDeHoje(meta({ situacao: 'mes_batido', realizado_ate_ontem: 3_100_000, realizado_hoje: 20_000, meta_dia: 0 })).apoio).toBe('Meta do mês batida · R$ 31.200 de R$ 30.000');
   });
-  it('dia_nao_util: realizado do mês, barra cinza e quanto falta no mês', () => {
+  it('dia_nao_util (RD-0001): é a linha do MÊS, com período "mes" (rótulo "Meta do mês"), barra cinza e quanto falta no mês', () => {
     const d = desenhoMetaDeHoje(meta({ situacao: 'dia_nao_util', realizado_ate_ontem: 2_820_000, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null }));
-    expect(d).toMatchObject({ valor: 'R$ 28.200', corBarra: colors.ink3, pct: 94, apoio: 'Hoje não é dia útil · faltam R$ 1.800 no mês' });
+    expect(d).toMatchObject({ periodo: 'mes', valor: 'R$ 28.200', de: 'de R$ 30.000', corBarra: colors.ink3, pct: 94, apoio: 'Hoje não é dia útil · faltam R$ 1.800 no mês' });
+    expect(rotuloDaMeta(d.periodo, false)).toBe('Meta do mês');
   });
   it('cobertura (do_mes) em pontos-base; visitas e positivação com unidade', () => {
     expect(desenhoMetaDeHoje(meta({ indicador: 'cobertura_pct', situacao: 'do_mes', meta_mes: 8000, realizado_ate_ontem: 6200, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null }))).toMatchObject({ valor: '62%', de: 'meta 80%', pct: 78 });
@@ -174,6 +176,57 @@ describe('Meta de hoje', () => {
   it('base defasada: "Vendas até 02/11 às 18h40. Sincronize para atualizar."; base de hoje sem aviso', () => {
     expect(textoBaseDefasada({ dia: '2026-11-02', calculado_em: '2026-11-02T22:40:00.000Z', defasado: true }, TZ)).toBe('Vendas até 02/11 às 18h40. Sincronize para atualizar.');
     expect(textoBaseDefasada({ dia: '2026-11-03', calculado_em: '2026-11-03T12:00:00.000Z', defasado: false }, TZ)).toBeNull();
+  });
+});
+
+/**
+ * T-0124 / RD-0001 — rótulo × valor do cartão (RN-CORE-26). O "hoje" (fuso do tenant), o dia útil e a meta do dia são do
+ * domain do Core (`metaDoDia`); aqui entram as `MetaDoDia` que ele entrega em cada caso e confere-se que o cartão só se
+ * chama "Meta de hoje" quando o número é o do dia. A cadeia de ponta (pull → Core → cartão) está em
+ * tests/modulos/meta-de-hoje-rd0001-t0124.test.ts.
+ */
+describe('RD-0001: "Meta de hoje" só com a meta do dia (RN-CORE-26)', () => {
+  // caso do teste de campo: meta R$ 180.000, R$ 553 até ontem
+  const campo = (m: Partial<MetaDoDia>) => meta({ meta_mes: 18_000_000, realizado_ate_ontem: 55_300, realizado_hoje: 0, ...m });
+  const rotulo = (m: MetaDoDia, equipe = false) => rotuloDaMeta(desenhoMetaDeHoje(m).periodo, equipe, m.indicador);
+
+  it('dia útil (terça 10/11): "Meta de hoje", de R$ 9.969 (= ⌈(180.000 − 553) ÷ 18⌉, vindo do Core) e "Faltam … hoje"', () => {
+    const m = campo({ meta_dia: 996_928, atingimento_hoje_pct: 0, dias_uteis_restantes: 18 });
+    expect(desenhoMetaDeHoje(m)).toMatchObject({ periodo: 'hoje', valor: 'R$ 0', de: 'de R$ 9.969', apoio: 'Faltam R$ 9.969 hoje', mes: 'mês 0%' });
+    expect(rotulo(m)).toBe('Meta de hoje');
+    expect(rotulo(m, true)).toBe('Meta de hoje da equipe');
+  });
+
+  it('dia não útil (domingo 08/11): sem meta do dia — "Meta do mês", R$ 553 de R$ 180.000, faltam R$ 179.447 no mês; nada de "hoje"', () => {
+    const m = campo({ situacao: 'dia_nao_util', meta_dia: null, atingimento_hoje_pct: null });
+    const d = desenhoMetaDeHoje(m, { faltam_hoje: null, mes_pct: 31 });
+    expect(d).toMatchObject({ periodo: 'mes', valor: 'R$ 553', de: 'de R$ 180.000', apoio: 'Hoje não é dia útil · faltam R$ 179.447 no mês', mes: 'mês 0%' });
+    expect(d.apoio).not.toMatch(/Faltam .* hoje/);
+    expect(rotulo(m)).toBe('Meta do mês');
+    expect(rotulo(m, true)).toBe('Meta do mês da equipe');
+    expect(rotuloDaMeta('mes', false, 'visitas')).toBe('Meta do mês · Visitas');
+  });
+
+  it('fuso de Manaus: domingo 23h30 (segunda 03h30 UTC) o Core ainda manda dia_nao_util → "Meta do mês"; segunda 23h30 manda a_cumprir com 19 dias → "Meta de hoje"', () => {
+    expect(rotulo(campo({ situacao: 'dia_nao_util', meta_dia: null, atingimento_hoje_pct: null }))).toBe('Meta do mês');
+    const segunda = campo({ meta_dia: 944_458, dias_uteis_restantes: 19, atingimento_hoje_pct: 0 });
+    expect(rotulo(segunda)).toBe('Meta de hoje');
+    expect(desenhoMetaDeHoje(segunda).de).toBe('de R$ 9.445');
+  });
+
+  it('virada de mês: 30/11 (último dia útil) a meta do dia é tudo o que falta; 01/12 com a cópia nova o mês recomeça do zero', () => {
+    const ultimo = campo({ meta_dia: 18_000_000 - 55_300, dias_uteis_restantes: 1, atingimento_hoje_pct: 0 });
+    expect(desenhoMetaDeHoje(ultimo)).toMatchObject({ periodo: 'hoje', de: 'de R$ 179.447', apoio: 'Faltam R$ 179.447 hoje' });
+    const primeiro = meta({ meta_mes: 18_000_000, realizado_ate_ontem: 0, realizado_hoje: 0, meta_dia: 666_667, dias_uteis_restantes: 27, atingimento_hoje_pct: 0 });
+    expect(desenhoMetaDeHoje(primeiro)).toMatchObject({ periodo: 'hoje', valor: 'R$ 0', de: 'de R$ 6.667', mes: 'mês 0%' });
+    expect(rotulo(primeiro)).toBe('Meta de hoje');
+  });
+
+  it('cobertura (só do mês) também sai como "Meta do mês · Cobertura"; dia batido e mês batido continuam no período do dia', () => {
+    expect(rotulo(meta({ indicador: 'cobertura_pct', situacao: 'do_mes', meta_dia: null, atingimento_hoje_pct: null }))).toBe('Meta do mês · Cobertura');
+    expect(desenhoMetaDeHoje(meta({ situacao: 'dia_batido' })).periodo).toBe('hoje');
+    const batido = desenhoMetaDeHoje(meta({ situacao: 'mes_batido', realizado_ate_ontem: 3_100_000, meta_dia: 0 }));
+    expect(batido).toMatchObject({ periodo: 'hoje', de: null });
   });
 });
 

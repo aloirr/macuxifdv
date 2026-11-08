@@ -1,13 +1,13 @@
 # Ambiente demo/homologação na Magalu Cloud (T-0074, ADR 0020). Roda na VM macuxi-demo-se1 em /opt/macuxi/compose.yml
 # (copiado pelo workflow de deploy). Arquivos ao lado, todos fora do git, todos modo 600:
 #   .env           segredos GERADOS NA VM pelo preparar-vm.sh (senhas do Postgres, JWT, pepper do Hub e, para o portal do
-#                  super-admin, MACUXI_JWT_SEGREDO_PLATAFORMA e MACUXI_CHAVE_TOTP, como na produção). Também é o
+#                  portal, MACUXI_JWT_SEGREDO_PLATAFORMA e MACUXI_CHAVE_TOTP (sem uso desde a ADR 0031; reserva para o
+#                  TOTP opcional do backlog), como na produção). Também é o
 #                  arquivo de interpolação do compose (${MACUXI_PG_ADMIN_SENHA} abaixo).
 #   portal.env     MACUXI_PG_PORTAL_SENHA do papel macuxi_portal (T-0091; único com EXECUTE nas plataforma.sa_*), GERADO NA VM
 #                  pelo preparar-vm.sh. SÓ a api e o passo de papéis (banco) leem; o worker e o seed nunca recebem.
-#   segredos.env   S3 (DEMO_S3_KEY_ID/DEMO_S3_SECRET → MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO) e, se o secret existir,
-#                  DEMO_SUPERADMIN_CONVITE → MACUXI_SUPERADMIN_CONVITE (≥ 32 caracteres; só o 1º acesso do super-admin),
-#                  gravado pelo workflow a cada publicação (como o PROD_SUPERADMIN_CONVITE na produção).
+#   segredos.env   S3 (DEMO_S3_KEY_ID/DEMO_S3_SECRET → MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO), gravado pelo workflow a cada
+#                  publicação. Sem convite do super-admin (T-0093, ADR 0031): ele nasce pelo workflow "demo — super-admin".
 #   tunel.env      TUNNEL_TOKEN (DEMO_CLOUDFLARE_TUNNEL_TOKEN), gravado pelo workflow; só o cloudflared lê.
 #   imagens.env    MACUXI_TAG (sha publicado) e COMPOSE_PROFILES, gravado pelo workflow.
 #
@@ -23,6 +23,8 @@
 #   docker compose --env-file .env --env-file imagens.env up -d
 #   docker compose --env-file .env --env-file imagens.env run --rm banco migrar up
 #   docker compose --env-file .env --env-file imagens.env run --rm seed-demo --recriar
+#   docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm super-admin criar --email ... --nome ...
+#     (T-0093; senha por MACUXI_SUPERADMIN_SENHA ou digitada; workflow demo-super-admin.yml)
 #   /opt/macuxi/backup/backup-vm.sh  ·  /opt/macuxi/backup/restaurar-vm.sh [ultimo|<chave>] [--trocar]   (backup)
 name: macuxi-demo
 
@@ -172,6 +174,23 @@ services:
       - path: segredos.env
         required: false
       - path: portal.env
+    environment:
+      <<: *ambiente-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [interna]
+
+  # Super-admin do portal config-demo. (T-0093, ADR 0031, P3: não há convite nem autocadastro) pela conexão de administração
+  # do Postgres da demo (o .env): criar | redefinir | desativar --email ... (workflow demo-super-admin.yml). A senha entra por
+  # MACUXI_SUPERADMIN_SENHA (stdin do workflow → -e sem valor no argv) ou digitada com eco desligado. Sem portal.env nem segredos.env.
+  super-admin:
+    <<: *imagem-api
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/super-admin.ts']
+    env_file:
+      - path: .env
     environment:
       <<: *ambiente-api
     depends_on:

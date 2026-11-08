@@ -9,7 +9,7 @@
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
 import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
-import { camposExigidos, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
+import { camposExigidos, decidirOrdemErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
 import { consumidorProdutoDoErp } from './consumidores-erp-produto';
@@ -34,10 +34,17 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
   async executar(p, ctx: ContextoConsumo) {
     const exigidos = camposExigidos(ctx.parametros()[PARAMETRO_CAMPOS_OBRIGATORIOS]);
     let evento = p as EventoClienteAtualizado;
-    let plano = planejarClienteDoErp(evento, exigidos);
+    // T-0095 (RN-INT-02): última versão do ERP já aplicada a este cliente; mais antiga que ela (reentrega fora de ordem) é ignorada
+    const aplicado = (await ctx.db.query<{ erp_alterado_em: string | null }>('select erp_alterado_em::text from core.cliente where external_id = $1 and deleted_at is null', [evento.external_id])).rows[0]?.erp_alterado_em ?? null;
+    let plano = planejarClienteDoErp(evento, exigidos, aplicado);
 
     if (plano.tipo === 'inativar') {
-      const r = await ctx.db.query<{ id: string }>('update core.cliente set ativo = false where external_id = $1 and deleted_at is null and ativo returning id', [plano.external_id]);
+      // RN-INT-02: só o alterado_em do registro (relógio do ERP) entra na ordem; o ocorrido_em é do Hub. Sem registro, inativa sem avançar a ordem
+      if (plano.alterado_em !== null && decidirOrdemErp(aplicado, plano.alterado_em) === 'ignorar_antigo') return;
+      const r = await ctx.db.query<{ id: string }>(
+        'update core.cliente set ativo = false, erp_alterado_em = coalesce($2::timestamptz, erp_alterado_em) where external_id = $1 and deleted_at is null and ativo returning id',
+        [plano.external_id, plano.alterado_em],
+      );
       if (r.rows[0]) await ctx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: r.rows[0].id, campos: ['ativo'], origem: 'erp', ...(await carteiraDoEvento(ctx.db, r.rows[0].id)) }, r.rows[0].id);
       return;
     }
@@ -54,10 +61,11 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     }
 
     const l = plano.linha;
-    const valores = [l.external_id, ...COLUNAS_GRAVADAS.map((c) => l[c])];
-    const colunas = COLUNAS_GRAVADAS.join(', ');
-    const marcas = COLUNAS_GRAVADAS.map((_, i) => `$${i + 2}`).join(', ');
-    const atualizar = COLUNAS_GRAVADAS.map((c) => `${c} = excluded.${c}`).join(', ');
+    const todas = [...COLUNAS_GRAVADAS, 'erp_alterado_em'];
+    const valores = [l.external_id, ...COLUNAS_GRAVADAS.map((c) => l[c]), l.alterado_em];
+    const colunas = todas.join(', ');
+    const marcas = todas.map((_, i) => `$${i + 2}`).join(', ');
+    const atualizar = todas.map((c) => `${c} = excluded.${c}`).join(', ');
     const r = await ctx.db.query<{ id: string }>(
       `insert into core.cliente (tenant_id, external_id, ${colunas}) values (plataforma.tenant_atual(), $1, ${marcas})
          on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set ${atualizar}

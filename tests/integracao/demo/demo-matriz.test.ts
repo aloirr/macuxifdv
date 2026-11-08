@@ -116,7 +116,8 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
         vendedor: { perfil: 'vendedor', campo: true, gestao: false, web: false },
         vendedor2: { perfil: 'vendedor', campo: true, gestao: false, web: false },
         promotor: { perfil: 'promotor', campo: true, gestao: false, web: false },
-        supervisor: { perfil: 'supervisor', campo: false, gestao: true, web: true },
+        // T-0094 (RN-CORE-33): o supervisor usa só o Gestão; não entra no BKO nem no portal
+        supervisor: { perfil: 'supervisor', campo: false, gestao: true, web: false },
         gerente: { perfil: 'gerente', campo: false, gestao: true, web: true },
         analista: { perfil: 'analista', campo: false, gestao: false, web: true },
         admin: { perfil: 'admin', campo: false, gestao: false, web: true },
@@ -128,6 +129,11 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
         expect(mensagemPerfilForaDoApp(s.usuario.perfil, 'campo') === null, `${k} no Campo`).toBe(e.campo);
         expect(mensagemPerfilForaDoApp(s.usuario.perfil, 'gestao') === null, `${k} no Gestão`).toBe(e.gestao);
         expect(mensagemPerfilForaDoApp(s.usuario.perfil, 'web') === null, `${k} no BKO`).toBe(e.web);
+        // T-0094 (RN-CORE-33): a API recusa no próprio login o app que não é do perfil (403 PERFIL_FORA_DO_APP, sem sessão)
+        for (const app of ['campo', 'gestao', 'web'] as const) {
+          const r = await api.app.inject({ method: 'POST', url: '/v1/auth/login', payload: { codigo_empresa: 'demo', email: DEMO[k], senha: 'demo-macuxi', app }, remoteAddress: `10.28.1.${Math.floor(Math.random() * 250) + 1}` });
+          expect(r.statusCode === 200 ? 'entra' : `${r.statusCode} ${(r.json() as { codigo?: string }).codigo}`, `${k} com app ${app}`).toBe(e[app] ? 'entra' : '403 PERFIL_FORA_DO_APP');
+        }
       }
     });
 

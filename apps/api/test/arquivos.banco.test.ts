@@ -4,7 +4,9 @@
  *  - upload antes do comando → 409 ARQUIVO_SEM_REFERENCIA (retentável); depois → 201; repetido → 200; sha diferente → 409;
  *  - comando repetido não duplica; o mesmo id em outra entidade → 409 ARQUIVO_JA_REFERENCIADO;
  *  - GET: dono lê os bytes; fora da carteira → 403; módulo inativo → 403 MODULO_INATIVO; outro tenant → 404 (RLS);
- *  - upload de outro usuário não completa a linha (não revela que existe).
+ *  - upload de outro usuário não completa a linha (não revela que existe);
+ *  - foto de produto do Catálogo (sem cliente) vale para o tenant (T-0097, RN-CAT-04): vendedor e promotor leem a do analista;
+ *    outra finalidade sem cliente segue os usuários visíveis (404); outro tenant → 404 (RLS).
  * Pula sem Docker/Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
  */
 import { randomUUID } from 'node:crypto';
@@ -40,7 +42,7 @@ const CARTEIRAS: Record<string, string[]> = {
 // licenças fixas: outros arquivos de teste mudam licenças da fixture no mesmo banco (o resultado aqui não pode depender da ordem)
 const licencas = async (u: UsuarioAutenticado) => ({
   ativosNoTenant: ['core', 'catalogo', 'vendedor', 'promotor'] as ModuloId[],
-  doPerfil: (u.perfil === 'promotor' ? ['core', 'promotor'] : ['core', 'catalogo', 'vendedor', 'promotor']) as ModuloId[],
+  doPerfil: (u.perfil === 'promotor' ? ['core', 'catalogo', 'promotor'] : ['core', 'catalogo', 'vendedor', 'promotor']) as ModuloId[],
   removidosDoUsuario: [] as ModuloId[],
   parametros: {},
 });
@@ -71,6 +73,25 @@ const vendedorApi = definirModuloApi({
   ],
 });
 
+/** Catálogo real + rota de teste que registra a foto sem cliente (como o PUT produtos/:id/foto-principal da T-0097). */
+const catalogoReal = MODULOS_API.find((m) => m.manifesto.id === 'catalogo')!;
+const catalogoApi = definirModuloApi({
+  ...catalogoReal,
+  rotas: [
+    ...(catalogoReal.rotas ?? []),
+    {
+      metodo: 'POST',
+      caminho: 'teste-fotos',
+      acao: 'produto.enriquecer',
+      status: 201,
+      carteira: 'nao_se_aplica',
+      corpo: z.object({ foto_id: z.string().uuid(), produto_id: z.string().uuid(), finalidade: z.enum(['foto_produto', 'anexo_interno']) }),
+      executar: (ctx) =>
+        ctx.comTenant(async (_db, tx) => tx.registrarArquivo({ id: ctx.corpo.foto_id, finalidade: ctx.corpo.finalidade, entidade: 'produto', entidade_id: ctx.corpo.produto_id })),
+    },
+  ],
+});
+
 describe.skipIf(semBanco())('arquivos × Postgres (ADR 0010)', () => {
   let pool: pg.Pool;
   const armazenamento = criarArmazenamentoEmMemoria();
@@ -86,7 +107,7 @@ describe.skipIf(semBanco())('arquivos × Postgres (ADR 0010)', () => {
       carteira,
       arquivos: armazenamento,
       relogio: () => AGORA,
-      modulos: MODULOS_API.map((m) => (m.manifesto.id === 'vendedor' ? vendedorApi : m)),
+      modulos: MODULOS_API.map((m) => (m.manifesto.id === 'vendedor' ? vendedorApi : m.manifesto.id === 'catalogo' ? catalogoApi : m)),
     });
   });
   afterAll(async () => {
@@ -165,6 +186,29 @@ describe.skipIf(semBanco())('arquivos × Postgres (ADR 0010)', () => {
     const promotor = await get('promotor', foto);
     expect(promotor.statusCode).toBe(403);
     expect(promotor.json()).toMatchObject({ codigo: 'MODULO_INATIVO' });
+    expect((await get('adminB', foto)).statusCode).toBe(404);
+  });
+
+  it('foto_produto do Catálogo (sem cliente): vendedor e promotor leem a do analista; outra finalidade → 404; outro tenant → 404', async () => {
+    const foto = randomUUID();
+    const anexo = randomUUID();
+    const registrar = (id: string, finalidade: string) =>
+      app.inject({ method: 'POST', url: '/v1/catalogo/teste-fotos', headers: { 'x-teste-usuario': 'analista' }, payload: { foto_id: id, produto_id: randomUUID(), finalidade } });
+    expect((await registrar(foto, 'foto_produto')).statusCode).toBe(201);
+    expect((await registrar(anexo, 'anexo_interno')).statusCode).toBe(201);
+    expect(await linha(foto)).toMatchObject({ modulo: 'catalogo', finalidade: 'foto_produto', cliente_id: null, enviado_por: A.usuarios.analista });
+    expect((await put('analista', foto, jpeg(6))).statusCode).toBe(201);
+    expect((await put('analista', anexo, jpeg(7))).statusCode).toBe(201);
+
+    for (const quem of ['vendedor1', 'vendedor2', 'promotor']) {
+      const r = await get(quem, foto);
+      expect(r.statusCode, quem).toBe(200);
+      expect(r.rawPayload).toEqual(jpeg(6));
+    }
+    const outro = await get('vendedor1', anexo);
+    expect(outro.statusCode).toBe(404);
+    expect(outro.json()).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+    expect((await get('analista', anexo)).statusCode).toBe(200);
     expect((await get('adminB', foto)).statusCode).toBe(404);
   });
 });

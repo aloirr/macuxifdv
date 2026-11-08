@@ -162,7 +162,7 @@ function CarteiraConteudo() {
                   {itens.map((c) => (
                     <tr key={c.id} data-testid={`carteira.linha.${c.id}`}>
                       <td className={td}>
-                        <Link href={`/cliente?id=${c.id}`} className="font-semibold text-accent no-underline hover:underline">
+                        <Link href={`/cliente?id=${c.id}`} className="font-semibold text-accent-ink no-underline hover:underline">
                           {c.nome}
                         </Link>
                       </td>

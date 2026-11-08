@@ -15,7 +15,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { AbaCliente, AcaoCliente, ContextoCliente } from '../../contracts';
+import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
 import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
 import { AcoesContato, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -36,6 +36,7 @@ export function TelaCliente() {
   const sheets = useVisitSheets();
   const abasTodas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
   const acoesTodas = useExtensoes<AcaoCliente>('cliente.acoes');
+  const avisosExt = useExtensoes<AvisoCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.avisos');
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
   // RN-PRO-01 / RN-CORE-01: promotor com `promotor_ve_pedidos` desligado não vê pedidos (offline, pelo parâmetro sincronizado):
@@ -109,6 +110,10 @@ export function TelaCliente() {
           <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} />
           <CabecalhoCliente ficha={ficha} />
           <AcoesContato ficha={ficha} />
+          {avisosExt.map((a) => {
+            const Aviso = a.payload.componente;
+            return <Aviso key={`${a.modulo}-${a.id}`} contexto={{ clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, visitaId: null, paradaId: null }} />;
+          })}
           <SecoesCliente360 ficha={ficha} />
           {abas.map((a) => {
             const Aba = a.payload.componente;
@@ -187,6 +192,11 @@ export function TelaCliente() {
             {avisoPendente.linha2}
           </Banner>
         ) : null}
+
+        {avisosExt.map((a) => {
+          const Aviso = a.payload.componente;
+          return <Aviso key={`${a.modulo}-${a.id}`} contexto={contexto} />;
+        })}
 
         {locked && openVisit ? (
           <View style={styles.lockedBox} testID="checkin-locked">

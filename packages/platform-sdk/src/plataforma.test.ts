@@ -2,13 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
 import { definirModuloApi, problemasConexaoRotaPublica, type RotaModulo, type RotaPublica } from './api';
-import {
-  CodigoRecuperacaoSchema,
-  CriarEmpresaSchema,
-  linhasDosParametrosIniciais,
-  ParametrosIniciaisSchema,
-  SegundoFatorSchema,
-} from './plataforma';
+import { CriarEmpresaSchema, linhasDosParametrosIniciais, ParametrosIniciaisSchema } from './plataforma';
 
 describe('CriarEmpresaSchema (passo Empresa; RN-CORE-31)', () => {
   const base = { codigo: 'Distribuidora-X', razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'vendedor' }] };
@@ -34,17 +28,12 @@ describe('CriarEmpresaSchema (passo Empresa; RN-CORE-31)', () => {
   });
 });
 
-describe('2º fator (ADR 0029 §3)', () => {
-  const desafio = 'd'.repeat(40);
-  it('aceita código TOTP ou de recuperação, nunca os dois', () => {
-    expect(SegundoFatorSchema.safeParse({ desafio, codigo: '123456' }).success).toBe(true);
-    expect(SegundoFatorSchema.safeParse({ desafio, codigo_recuperacao: 'abcde-fghij' }).success).toBe(true);
-    expect(SegundoFatorSchema.safeParse({ desafio, codigo: '123456', codigo_recuperacao: 'ABCDEFGHIJ' }).success).toBe(false);
-    expect(SegundoFatorSchema.safeParse({ desafio, codigo: '12345' }).success).toBe(false);
-  });
-  it('código de recuperação: maiúsculas, sem hífen nem espaço; recusa 0, 1, 8 e 9', () => {
-    expect(CodigoRecuperacaoSchema.parse(' abcde-fgh23 ')).toBe('ABCDEFGH23');
-    expect(CodigoRecuperacaoSchema.safeParse('ABCDE-FGH01').success).toBe(false);
+describe('sem 2º fator nem primeiro acesso (ADR 0031 substitui a 0029 nesses pontos)', () => {
+  it('o SDK não exporta mais os contratos de convite, desafio, TOTP e recuperação', async () => {
+    const sdk: Record<string, unknown> = await import('./plataforma');
+    for (const nome of ['PrimeiroAcessoSchema', 'EtapaLoginSchema', 'DesafioSchema', 'TotpInicioSchema', 'TotpConfirmarSchema', 'SegundoFatorSchema', 'CodigoRecuperacaoSchema', 'CodigosRecuperacaoSchema', 'TotpConfirmadoSchema', 'RegerarRecuperacaoSchema', 'SessaoPlataformaSchema', 'LoginPlataformaSchema', 'SENHA_SUPER_ADMIN_MIN']) {
+      expect(sdk[nome], nome).toBeUndefined();
+    }
   });
 });
 

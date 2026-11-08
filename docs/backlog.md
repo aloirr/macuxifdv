@@ -8,7 +8,37 @@
 - [T-0009](../.coord/tarefas/T-0009.md) — Integração: domínio e contratos do Hub (em revisão)
 - [T-0010](../.coord/tarefas/T-0010.md) — Promotor: domínio de trade marketing (em revisão)
 
-## Futuro
+## Regra (R-20261107-164646)
+Só fica neste arquivo o que o dono do produto autorizou por escrito. **Autorizado hoje:** a revisão de segurança do login (TOTP do time Macuxi e link de definição de senha no lugar de senha por e-mail), que ele revisa quando tudo estiver rodando.
+
+**Trazidos para a esteira em 07/11 17h** (tarefas com dono e ordem no quadro):
+- **Itens da lista "Futuro":**
+  - T-0095: ERP, guarda de ordem e reativação;
+  - T-0096: faixa aberta de ano;
+  - T-0097: miniatura;
+  - T-0098: download do Conector;
+  - T-0099: ordem divergente e "nulo: limpa" no Conector;
+  - T-0100: modelos CSV e carga self-service ao admin;
+  - T-0101: triagem do Vendedor e acabamento visual;
+  - T-0102: itens do Core;
+  - T-0103: aplicar-lote e aviso de marca;
+  - T-0104: kit Tabs/Progress/ButtonLink e cartões do portal;
+  - T-0105: plataforma e CI;
+  - T-0106: Treinamento;
+  - T-0107: carga com 20 mil SKUs e onboarding;
+  - T-0110: conferência dos itens antigos (Sprints 0 a 2).
+- **Pedidos do R-20261107-164452:** T-0108 (kit do TI) e T-0109 (nome e versão dos builds).
+- **🟢 de segurança do portal:** os da área de transferência do TOTP e do nome do secret caem com a T-0093, e os do hosts-bko e do limite atrás do rewrite entram na revisão R da T-0093.
+- **Decididos pelo dono do produto em 07/11 (R-20261107-173950), todos na esteira:**
+  - seletor da RN-VEN-35: T-0101;
+  - marcas no Catálogo: T-0113;
+  - multiperfil: T-0112;
+  - cancelamento devolvido ao ERP: T-0114;
+  - canal no cliente: T-0115;
+  - Conector v2: T-0116.
+- **Autorizado a ficar fora da fila (R-20261107-173950 d):** adaptadores do Conector para **Firebird e MySQL, sob demanda do 1º cliente que usar**.
+
+## Futuro (histórico; cada item acima já tem tarefa)
 - **Portal config., 🟢 de segurança (T-0087 P, revisões de 07/11; registrado pelo gerente):**
   - o segredo do TOTP fica no histórico da área de transferência;
   - o nome do secret aparece nas páginas públicas;

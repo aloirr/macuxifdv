@@ -1,7 +1,8 @@
 /**
  * Parte PURA dos campos de escolha do Novo pedido (T-0089, fatia U1; referência
  * docs/produto/referencias/R-20261106-0703-alexandre-novo-pedido-itens-v2.png):
- * - lista suspensa (Forma de pagamento, Prazo, tipo do ajuste): leitura da opção desabilitada e posição do menu ancorado;
+ * - lista suspensa (Forma de pagamento, Prazo, tipo do ajuste): motivo e leitura da opção desabilitada, altura e posição do
+ *   menu ancorado;
  * - campo de ajuste (Desc %, Desc R$, Acrésc %, Acrésc R$): leitura e saneamento do decimal digitado;
  * - passo compacto (− n +): medidas e o passo a partir do texto em edição (o "+" com o teclado aberto);
  * - textos dos cartões "Crédito do cliente" e "Leve mais e pague menos" (aprovados na spec docs/design/novo-pedido-itens.md).
@@ -13,25 +14,35 @@ import { dateTimeLabel } from '@macuxi/comum/fuso';
 
 import { ALVO_TOQUE, lerQuantidade, proximoPasso } from './componentes';
 import { plural } from './text';
+import { colors } from './tokens';
 
 // ---------- lista suspensa ----------
 
-/** Opção de lista suspensa. `motivo` só é lido pelo leitor de tela (a lista mostra só o rótulo, RN-VEN-25). */
+/**
+ * Opção de lista suspensa. A opção desabilitada mostra o `motivo` na tela, numa linha secundária abaixo do rótulo, e o leitor de
+ * tela lê os dois (T-0129). O rótulo continua só o valor ("30/60/90 dias", RN-VEN-25): o motivo nunca entra no rótulo.
+ */
 export interface OpcaoLista<T extends string = string> {
   id: T;
   rotulo: string;
   desabilitada?: boolean;
-  /** Por que está desabilitada (ex.: "Acima do prazo médio do cliente"). Não aparece na tela. */
+  /** Por que está desabilitada (ex.: "Acima do prazo médio do cliente"). Aparece abaixo do rótulo, só na opção desabilitada. */
   motivo?: string | null;
   /** Leitura completa quando o rótulo é abreviado ("Desc %" → "Desconto em porcentagem"). */
   rotuloAcessivel?: string;
   testID?: string;
 }
 
+/** Motivo que a opção mostra na tela: só na desabilitada e com texto; senão, null (a opção fica numa linha só). */
+export function motivoVisivel(o: Pick<OpcaoLista, 'desabilitada' | 'motivo'>): string | null {
+  const m = o.desabilitada ? (o.motivo ?? '').trim() : '';
+  return m || null;
+}
+
 /** Leitura da opção no TalkBack: o rótulo e, se desabilitada com motivo, o motivo ("30/60/90 dias. Acima do prazo médio do cliente"). */
 export function leituraDaOpcao(o: Pick<OpcaoLista, 'rotulo' | 'rotuloAcessivel' | 'desabilitada' | 'motivo'>): string {
   const base = (o.rotuloAcessivel ?? o.rotulo).trim();
-  const motivo = o.desabilitada ? (o.motivo ?? '').trim() : '';
+  const motivo = motivoVisivel(o);
   return motivo ? `${base}. ${motivo}` : base;
 }
 
@@ -45,6 +56,33 @@ export function textoDaSelecao<T extends string>(opcoes: ReadonlyArray<OpcaoList
 export const ALTURA_OPCAO_MENU = ALVO_TOQUE;
 /** Opções visíveis sem rolar; mais que isso, o menu rola. */
 export const MAX_OPCOES_VISIVEIS = 5;
+
+/**
+ * Linha do motivo na opção desabilitada (T-0129): 12/16, até 2 linhas, no tom neutro `ink2` sobre o fundo da opção desabilitada
+ * (`ground`), 6,87:1 (AA). O rótulo da opção fica em `inkDisabled` com cadeado; o motivo não fica apagado, porque é o que a pessoa
+ * precisa ler para resolver.
+ */
+export const MOTIVO_OPCAO = { cor: colors.ink2, fundo: colors.ground, tamanhoFonte: 12, alturaLinha: 16, linhas: 2 } as const;
+/** Respiro em cima e embaixo da opção com motivo (a de uma linha só centraliza nos 48 dp). */
+export const RESPIRO_OPCAO_COM_MOTIVO = 8;
+/** Altura do rótulo da opção (15/20) e espaço entre o rótulo e o motivo. */
+const ALTURA_ROTULO_OPCAO = 20;
+const ESPACO_ROTULO_MOTIVO = 2;
+/** Altura máxima da opção com motivo (motivo em 2 linhas): 8 + 20 + 2 + 32 + 8 = 70 dp. */
+export const ALTURA_OPCAO_COM_MOTIVO = Math.max(
+  ALVO_TOQUE,
+  2 * RESPIRO_OPCAO_COM_MOTIVO + ALTURA_ROTULO_OPCAO + ESPACO_ROTULO_MOTIVO + MOTIVO_OPCAO.linhas * MOTIVO_OPCAO.alturaLinha,
+);
+
+/**
+ * Altura do conteúdo do menu sem rolar: as primeiras `maxVisiveis` opções (a com motivo conta 70 dp, as outras 48) mais a borda.
+ * É um teto: a opção com motivo curto ocupa menos, e o menu encolhe ao conteúdo.
+ */
+export function alturaDoMenu(opcoes: ReadonlyArray<Pick<OpcaoLista, 'desabilitada' | 'motivo'>>, maxVisiveis = MAX_OPCOES_VISIVEIS): number {
+  const visiveis = opcoes.slice(0, Math.max(1, maxVisiveis));
+  const soma = visiveis.reduce((t, o) => t + (motivoVisivel(o) ? ALTURA_OPCAO_COM_MOTIVO : ALTURA_OPCAO_MENU), 0);
+  return Math.max(ALTURA_OPCAO_MENU, soma) + 2;
+}
 /** Distância mínima do menu até a borda da janela. */
 export const MARGEM_MENU = 8;
 /** Espaço entre o campo e o menu. */
@@ -79,6 +117,7 @@ export function posicaoDoMenu({
   larguraMinima = 0,
   alturaOpcao = ALTURA_OPCAO_MENU,
   maxVisiveis = MAX_OPCOES_VISIVEIS,
+  alturaConteudo,
 }: {
   campo: Retangulo;
   janela: { largura: number; altura: number };
@@ -86,8 +125,10 @@ export function posicaoDoMenu({
   larguraMinima?: number;
   alturaOpcao?: number;
   maxVisiveis?: number;
+  /** Altura do conteúdo sem rolar (use `alturaDoMenu(opcoes)` quando alguma opção mostra motivo); sem ela, quantidade × alturaOpcao. */
+  alturaConteudo?: number;
 }): PosicaoMenu {
-  const desejada = Math.max(1, Math.min(Math.max(0, quantidade), maxVisiveis)) * alturaOpcao + 2;
+  const desejada = alturaConteudo ?? Math.max(1, Math.min(Math.max(0, quantidade), maxVisiveis)) * alturaOpcao + 2;
   const espacoAbaixo = janela.altura - (campo.y + campo.altura) - FOLGA_MENU - MARGEM_MENU;
   const espacoAcima = campo.y - FOLGA_MENU - MARGEM_MENU;
   const largura = Math.min(Math.max(campo.largura, larguraMinima), Math.max(0, janela.largura - 2 * MARGEM_MENU));
@@ -196,6 +237,22 @@ export function textoInadimplencia({ titulos, valorCents, dias, consequencia }: 
   const fim = (consequencia ?? '').trim();
   return `Cliente inadimplente: ${qtd} · ${formatBRL(valorCents)} · ${quando}.${fim ? ` ${fim.endsWith('.') ? fim : `${fim}.`}` : ''}`;
 }
+
+/**
+ * Alerta de inadimplência da caixa Alertas da aba Venda (T-0133, desenho do dono do produto de 08/11 tarde), em 2 linhas
+ * para a `Faixa` (`texto` + `apoio`): "Cliente inadimplente · 1 título vencido · R$ 3.400,00 · 12 dias" e
+ * "Só à vista ou com aprovação". `dias` é o atraso do título mais antigo; `consequencia` vem do módulo (null = sem 2ª linha).
+ */
+export function alertaInadimplencia({ titulos, valorCents, dias, consequencia }: { titulos: number; valorCents: Cents; dias: number; consequencia?: string | null }): { texto: string; apoio: string | null } {
+  const qtd = plural(Math.max(0, Math.trunc(titulos)), 'título vencido', 'títulos vencidos');
+  const d = Math.max(0, Math.trunc(dias));
+  const quando = d === 0 ? 'vence hoje' : d === 1 ? '1 dia' : `${d} dias`;
+  const fim = (consequencia ?? '').trim().replace(/\.$/, '');
+  return { texto: `Cliente inadimplente · ${qtd} · ${formatBRL(valorCents)} · ${quando}`, apoio: fim || null };
+}
+
+/** A linha única da caixa Alertas quando não há alerta (RF-VEN-11, aba Venda). */
+export const TEXTO_CLIENTE_LIBERADO = 'Cliente liberado · sem título vencido';
 
 /**
  * Consequência da RN-VEN-13 no alerta: só o texto aprovado. A regra é do Vendedor; é o módulo que decide se o passa em

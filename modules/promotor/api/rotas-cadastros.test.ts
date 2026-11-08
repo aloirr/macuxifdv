@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ACAO_CADASTRO,
   CADASTROS_BKO,
+  CADASTROS_GRAVAVEIS,
   CAMINHO_CADASTRO,
   CAMINHO_PARAMETROS_TRADE,
   EDICAO_CADASTRO,
@@ -11,6 +12,7 @@ import {
   ParametrosTradeApi,
   PERFIS_RELATORIO,
   type CadastroBko,
+  type CadastroGravavel,
 } from '../contracts';
 import { manifest } from '../manifest';
 import { criarCtx, LOJA, PRODUTO, SUPERVISOR, T1, T2, uuid } from './apoio-teste';
@@ -27,19 +29,26 @@ const CONC = uuid(0x711);
 let api: ReturnType<typeof criarModuloApiPromotor>;
 let repo: ReturnType<typeof repositorioMemoria>;
 const rota = (metodo: string, caminho: string): RotaModulo => api.rotas!.find((r) => r.metodo === metodo && r.caminho === caminho)!;
-const analista = (op: Parameters<typeof criarCtx>[1] = {}) => criarCtx(relogio, { usuario: ANALISTA, perfil: 'analista', carteira: 'tenant', usuarios: 'tenant', ...op });
+/** Marcas do Catálogo (`catalogo.marcas@1`, ADR 0034): CONC ativa, CONC_INATIVA inativa; CONC_INEXISTENTE não existe. */
+const CONC_INATIVA = uuid(0x712);
+const CONC_INEXISTENTE = uuid(0x7ff);
+const MARCAS = [
+  { id: CONC, nome: 'Rival', ativo: true },
+  { id: CONC_INATIVA, nome: 'Antiga', ativo: false },
+];
+const analista = (op: Parameters<typeof criarCtx>[1] = {}) => criarCtx(relogio, { usuario: ANALISTA, perfil: 'analista', carteira: 'tenant', usuarios: 'tenant', marcas: MARCAS, ...op });
 /** O pipeline do createApp valida o corpo com o Zod da rota (que chama o domain) antes do `executar`; o teste faz o mesmo. */
-const corpoValido = (c: CadastroBko, corpo: unknown) => EDICAO_CADASTRO[c].parse(corpo);
+const corpoValido = (c: CadastroGravavel, corpo: unknown) => EDICAO_CADASTRO[c].parse(corpo);
 const base = CAMINHO_CADASTRO;
 const erro = async (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as ErroHttpModulo);
 
-async function post(c: CadastroBko, corpo: unknown, ctx = analista()) {
+async function post(c: CadastroGravavel, corpo: unknown, ctx = analista()) {
   return rota('POST', base[c]).executar(ctx.rota({ corpo: corpoValido(c, corpo) })) as Promise<Record<string, unknown>>;
 }
-async function put(c: CadastroBko, id: string, corpo: unknown, ctx = analista()) {
+async function put(c: CadastroGravavel, id: string, corpo: unknown, ctx = analista()) {
   return rota('PUT', `${base[c]}/:id`).executar(ctx.rota({ corpo: corpoValido(c, corpo), params: { id } })) as Promise<Record<string, unknown>>;
 }
-async function del(c: CadastroBko, id: string, ctx = analista()) {
+async function del(c: CadastroGravavel, id: string, ctx = analista()) {
   return rota('DELETE', `${base[c]}/:id`).executar(ctx.rota({ params: { id } })) as Promise<Record<string, unknown>>;
 }
 async function lista(c: CadastroBko, removidos = false, ctx = analista()) {
@@ -62,7 +71,7 @@ describe('permissões e licença dos cadastros (regra 6, RN-PRO-01)', () => {
     PERFIS.filter((perfil) => criarPermissoes([manifest]).pode(acao, { perfil, modulosAtivos: ativos as never }));
 
   it('escrita: só analista e admin; supervisor, gerente e promotor recebem 403 (a ação não os inclui)', () => {
-    for (const c of CADASTROS_BKO) {
+    for (const c of CADASTROS_GRAVAVEIS) {
       for (const metodo of ['POST', 'PUT', 'DELETE']) {
         const r = rota(metodo, metodo === 'POST' ? base[c] : `${base[c]}/:id`);
         expect(r.acao, `${metodo} ${base[c]}`).toBe(ACAO_CADASTRO[c]);
@@ -71,8 +80,13 @@ describe('permissões e licença dos cadastros (regra 6, RN-PRO-01)', () => {
     }
   });
 
+  it('ADR 0034: a marca concorrente é só leitura no Promotor (sem POST, PUT nem DELETE)', () => {
+    expect(rota('GET', base.concorrente)).toBeDefined();
+    for (const [m, cam] of [['POST', base.concorrente], ['PUT', `${base.concorrente}/:id`], ['DELETE', `${base.concorrente}/:id`]] as const) expect(rota(m, cam), `${m} ${cam}`).toBeUndefined();
+  });
+
   it('RN-CORE-02: com o Promotor inativo ninguém escreve nos cadastros', () => {
-    for (const c of CADASTROS_BKO) expect(quem(ACAO_CADASTRO[c], ['core']), c).toEqual([]);
+    for (const c of CADASTROS_GRAVAVEIS) expect(quem(ACAO_CADASTRO[c], ['core']), c).toEqual([]);
   });
 
   it('leitura (listas e parâmetros): supervisor, gerente, analista e admin; nunca o promotor', () => {
@@ -212,14 +226,44 @@ describe('criar, listar, editar e desativar', () => {
     expect(await erro(post('mix_obrigatorio', mix(uuid(0x933), { cliente_id: uuid(0xc9) })))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
   });
 
-  it('concorrente e produto do concorrente (com o produto nosso comparado); produto exige concorrente vivo', async () => {
+  it('produto do concorrente (com o produto nosso comparado): a marca vem do Catálogo e precisa existir e estar ativa', async () => {
     const prod = (id: string, extra = {}) => ({ id, concorrente_id: CONC, nome: 'Macarrão 500 g', produto_id: PRODUTO, categoria_gondola_id: null, ativo: true, ...extra });
-    expect(await erro(post('produto_concorrente', prod(uuid(0x940))))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
-    await post('concorrente', { id: CONC, nome: 'Rival', ativo: true });
+    // marca ativa
     expect(await post('produto_concorrente', prod(uuid(0x940)))).toMatchObject({ concorrente_id: CONC, produto_id: PRODUTO });
     expect(await erro(post('produto_concorrente', prod(uuid(0x941))))).toMatchObject({ status: 409 });
     await put('produto_concorrente', uuid(0x940), prod(uuid(0x940), { ativo: false }));
     expect((await lista('produto_concorrente'))[0]).toMatchObject({ ativo: false });
+    // marca inativa e marca inexistente: 422
+    expect(await erro(post('produto_concorrente', prod(uuid(0x942), { concorrente_id: CONC_INATIVA })))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
+    expect(await erro(post('produto_concorrente', prod(uuid(0x943), { concorrente_id: CONC_INEXISTENTE })))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
+  });
+
+  it('ADR 0034: PUT revalida a marca só quando ela muda (marca inativada depois no Catálogo não trava a edição); trocar para marca inativa = 422; multi-tenant', async () => {
+    const prod = (extra = {}) => ({ id: uuid(0x950), concorrente_id: CONC, nome: 'Macarrão 500 g', produto_id: PRODUTO, categoria_gondola_id: null, ativo: true, ...extra });
+    await post('produto_concorrente', prod());
+    // a marca CONC é inativada no Catálogo depois do cadastro
+    const marcaInativada = analista({ marcas: [{ id: CONC, nome: 'Rival', ativo: false }, { id: CONC_INATIVA, nome: 'Antiga', ativo: false }] });
+    // sem trocar a marca: aceita
+    expect(await put('produto_concorrente', uuid(0x950), prod({ nome: 'Macarrão 500 g (novo)' }), marcaInativada)).toMatchObject({ concorrente_id: CONC, nome: 'Macarrão 500 g (novo)' });
+    // trocando para marca inativa: recusa
+    expect(await erro(put('produto_concorrente', uuid(0x950), prod({ concorrente_id: CONC_INATIVA }), marcaInativada))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
+    // multi-tenant: o tenant 2 não enxerga o produto do tenant 1
+    expect(await erro(put('produto_concorrente', uuid(0x950), prod({ nome: 'Outro' }), analista({ tenant: T2 })))).toMatchObject({ status: 404 });
+  });
+
+  it('ADR 0034: Catálogo indisponível (inativo no tenant) = 422 com a ação seguinte, e nada é gravado', async () => {
+    const semCatalogo = analista({ marcas: 'indisponivel' });
+    const e = await erro(post('produto_concorrente', { id: uuid(0x944), concorrente_id: CONC, nome: 'Macarrão 500 g', produto_id: PRODUTO, categoria_gondola_id: null, ativo: true }, semCatalogo));
+    expect(e).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
+    expect(e?.message).toMatch(/Cadastre as marcas concorrentes no Catálogo/);
+    expect(await lista('produto_concorrente', true)).toEqual([]);
+  });
+
+  it('ADR 0034: a lista de marcas do BKO vem de catalogo.marcas@1, só ativas por padrão e com as inativas no histórico; Catálogo indisponível = 422', async () => {
+    const GET = (ctx: ReturnType<typeof analista>, removidos: boolean) => rota('GET', base.concorrente).executar(ctx.rota({ query: FiltroCadastro.parse({ incluir_removidos: String(removidos) }) })) as Promise<{ itens: Array<Record<string, unknown>> }>;
+    expect((await GET(analista(), false)).itens.map((m) => m.id)).toEqual([CONC]);
+    expect((await GET(analista(), true)).itens.map((m) => m.id)).toEqual([CONC, CONC_INATIVA]);
+    expect(await erro(GET(analista({ marcas: 'indisponivel' }), false) as Promise<unknown>)).toMatchObject({ status: 422, codigo: 'MARCAS_INDISPONIVEIS' });
   });
 
   it('multi-tenant: o tenant 2 não vê nem altera cadastros do tenant 1', async () => {
@@ -238,7 +282,6 @@ describe('desativar cadastro em uso (RN-PRO-12)', () => {
   it('RN-PRO-12: categoria com meta, mix e produto de concorrente vivos = 422 CADASTRO_EM_USO com as contagens; nada é desativado nem auditado', async () => {
     const c = analista();
     await post('categoria_gondola', categoria(), c);
-    await post('concorrente', { id: CONC, nome: 'Rival', ativo: true });
     await post('meta_share', meta(uuid(0x920), 40));
     await post('meta_share', meta(uuid(0x921), 50, { vigencia_inicio: '2026-12-01' }));
     await post('mix_obrigatorio', mixDe(uuid(0x930)));
@@ -260,23 +303,10 @@ describe('desativar cadastro em uso (RN-PRO-12)', () => {
     expect(ok.deleted_at).toBeTruthy();
     expect(await del('categoria_gondola', CAT)).toEqual(ok);
   });
-
-  it('RN-PRO-12: concorrente com produto vivo = 422; sem produto vivo desativa; dependentes de outro tenant não contam', async () => {
-    await post('categoria_gondola', categoria());
-    await post('concorrente', { id: CONC, nome: 'Rival', ativo: true });
-    await post('produto_concorrente', prod(uuid(0x940)));
-    expect(await erro(del('concorrente', CONC))).toMatchObject({ status: 422, codigo: 'CADASTRO_EM_USO', detalhes: { produtos_concorrente: 1 } });
-    await del('produto_concorrente', uuid(0x940));
-    await expect(del('concorrente', CONC)).resolves.toMatchObject({ ativo: false });
-    const outro = analista({ tenant: T2 });
-    await post('categoria_gondola', categoria(CAT2), outro);
-    await post('meta_share', meta(uuid(0x950), 40, { categoria_gondola_id: CAT2 }), outro);
-    await expect(del('categoria_gondola', CAT)).resolves.toMatchObject({ ativo: false });
-  });
 });
 
 describe('pull: a escrita precisa chegar ao aparelho no próximo pull, sem migração (RF-PRO-11)', () => {
-  it.each(CADASTROS_BKO)('%s: escreve na MESMA tabela que o provedor de pull lê e renova updated_at / deleted_at', (c) => {
+  it.each(CADASTROS_GRAVAVEIS)('%s: escreve na MESMA tabela que o provedor de pull lê e renova updated_at / deleted_at', (c) => {
     const sql = sqlDoCadastro(c);
     const { tabela, colunas } = TABELAS_CADASTRO[c];
     for (const texto of [sql.inserir, sql.atualizar, sql.desativar, sql.ler, sql.listar(true)]) expect(texto).toContain(tabela);
@@ -290,7 +320,7 @@ describe('pull: a escrita precisa chegar ao aparelho no próximo pull, sem migra
 
   it('as colunas escritas são todas colunas que o pull entrega (nenhuma coluna nova)', async () => {
     const { COLUNAS_ESCRITA } = await import('./repositorio-sql');
-    for (const c of CADASTROS_BKO) for (const col of COLUNAS_ESCRITA[c]) expect(TABELAS_CADASTRO[c].colunas, `${c}.${col}`).toContain(col);
+    for (const c of CADASTROS_GRAVAVEIS) for (const col of COLUNAS_ESCRITA[c]) expect(TABELAS_CADASTRO[c].colunas, `${c}.${col}`).toContain(col);
   });
 });
 

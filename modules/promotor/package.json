@@ -16,6 +16,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@macuxi/catalogo": "workspace:*",
     "@macuxi/core": "workspace:*",
     "@macuxi/comum": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",

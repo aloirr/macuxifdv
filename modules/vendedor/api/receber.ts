@@ -41,6 +41,7 @@ import {
   statusDoContrato,
   validadeDoOrcamento,
   validadeOrcamentoDias,
+  precoDoItemNaEdicao,
   validarFrete,
   verificarPedidoEmNome,
   verificarConversao,
@@ -52,6 +53,7 @@ import {
 import { payloadAprovado } from './aprovado-erp';
 import { resolverPagamento, valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
+import { precosCongeladosDoDocumento } from './preco-congelado';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const aceito = (id: string, em?: string): ResultadoItemPush => (em ? { id, status: 'aceito', em } : { id, status: 'aceito' });
@@ -107,6 +109,8 @@ export async function calcularDocumento(
   tipo: 'pedido' | 'orcamento',
   itemId: string,
   validadeFixa?: { data: string; ate: string },
+  /** T-0134 (RN-VEN-18): produto → preço de tabela por unidade já gravado no orçamento (edição ou Transformar) */
+  congelados?: Record<string, number>,
 ) {
   const eu = ctx.usuario.id;
   const agora = ctx.agora();
@@ -176,6 +180,14 @@ export async function calcularDocumento(
     if (faixas.length > 0) mapaFaixas[i.produto_id] = faixas;
   }
 
+  // T-0134 (RN-VEN-18): item que já estava no orçamento mantém o preço salvo; só o item novo usa a tabela de hoje
+  for (const pid of produtoIds) {
+    if (congelados?.[pid] === undefined) continue;
+    const e = precoDoItemNaEdicao({ congelado_cents: congelados[pid], hoje_cents: mapaPreco[pid] ?? null, faixas_hoje: mapaFaixas[pid] });
+    mapaPreco[pid] = e.preco_unidade_cents;
+    delete mapaFaixas[pid];
+  }
+
   // 6) pagamento: forma + prazo (RN-VEN-24/25, T-0089) ou, no APK anterior, a condição de pagamento (RN-VEN-14 legado)
   const pg = await resolverPagamento(ctx, db, tx, p, cliente, tipo);
   if (!pg.ok) return rejeitado(itemId, pg.codigo, pg.mensagem);
@@ -231,8 +243,8 @@ export async function calcularDocumento(
   // edição do orçamento recebido NÃO renova a validade (desenho §1.3): `validadeFixa` traz a original
   const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
   const validade = validadeCivil?.ate ?? null;
-  const v = validade
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
+  const v = validadeCivil
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data) }
     : rv;
   return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm };
 }
@@ -287,7 +299,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     if (r) return recusa(item.id, r);
   }
 
-  const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id);
+  // T-0134: Transformar mantém os preços do orçamento (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
+  const congelados = origem ? await precosCongeladosDoDocumento(db, origem) : undefined;
+  const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
   const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm } = calc;
 

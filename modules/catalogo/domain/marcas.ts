@@ -9,7 +9,7 @@ import { codigoCompacto } from './ranking';
 export type MapaMarcas = ReadonlyMap<string, { nome: string; ativo: boolean }>;
 
 const MSG_SEM_MARCAS =
-  'O cadastro de marcas concorrentes não está disponível: o módulo Promotor precisa estar ativo no seu acesso e ter marcas ativas. Peça ao administrador ou salve o produto sem referência cruzada.';
+  'Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou salve o produto sem referência cruzada.';
 
 /** Cada referência precisa apontar para uma marca ativa do Promotor. Mapa vazio = consulta indisponível ou sem marcas. */
 export function validarMarcasDaReferencia(referencias: readonly { marca_id: string }[], marcas: MapaMarcas): ErroCadastro[] {
@@ -19,7 +19,7 @@ export function validarMarcasDaReferencia(referencias: readonly { marca_id: stri
   for (const r of referencias) {
     const m = marcas.get(r.marca_id);
     if (!m) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: 'Uma marca da referência não existe mais no cadastro de concorrentes. Escolha outra marca da lista e salve de novo.' });
-    else if (!m.ativo) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: `A marca ${m.nome} está inativa em Concorrentes. Ative a marca ou escolha outra e salve de novo.` });
+    else if (!m.ativo) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: `A marca ${m.nome} está inativa em Marcas concorrentes. Ative a marca ou escolha outra e salve de novo.` });
   }
   return erros;
 }
@@ -98,4 +98,27 @@ export function nomeMarcaDaReferencia(marcaId: string, retrato: string | null | 
   }
   const r = retrato?.trim();
   return r ? r : null;
+}
+
+/**
+ * T-0103 / RN-CAT-09: marcas citadas pela linha do ERP que o Promotor não conhece (descarte `marca_desconhecida`), como vieram
+ * (nome, ou o external_id se não houve nome), sem repetir (sem caixa/acento) e até 3. Nenhuma = `null` (não há aviso).
+ */
+export function marcasDesconhecidasDaLinha(
+  entrada: readonly ReferenciaDoErp[],
+  descartadas: readonly { codigo: string; motivo: MotivoDescarte }[],
+): { marcas: string[]; marca_external_id?: string } | null {
+  const marcas: string[] = [];
+  const vistas = new Set<string>();
+  let externalId: string | undefined;
+  for (const d of descartadas) {
+    if (d.motivo !== 'marca_desconhecida') continue;
+    const e = entrada.find((x) => x.codigo.trim() === d.codigo);
+    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
+    if (bruta === '' || vistas.has(semAcento(bruta)) || marcas.length >= 3) continue;
+    vistas.add(semAcento(bruta));
+    marcas.push(bruta);
+    externalId ??= e?.marca_external_id?.trim() || undefined;
+  }
+  return marcas.length === 0 ? null : externalId ? { marcas, marca_external_id: externalId } : { marcas };
 }

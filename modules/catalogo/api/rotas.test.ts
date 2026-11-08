@@ -41,6 +41,8 @@ interface Resposta<T> {
 }
 
 const auditoria: unknown[] = [];
+const eventos: Array<{ tenant: string; nome: string; payload: Record<string, unknown> }> = [];
+const arquivosRegistrados: Array<Record<string, unknown>> = [];
 const logs: Array<{ nivel: string; obj: Record<string, unknown>; msg?: string }> = [];
 
 function dadosA(): DadosTenantMemoria {
@@ -83,10 +85,14 @@ async function chamar<T>(rota: RotaModulo, u: Usuario, e: { query?: unknown; par
     usuariosVisiveis: async () => new Set([u.id]),
     comTenant: async (fn) =>
       fn({ query: async () => ({ rows: [], rowCount: 0 }) }, {
-        publicar: async () => {
-          throw new Error('o Catálogo não publica nesta fatia');
+        publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
+          eventos.push({ tenant: u.tenant_id, nome: def.nome, payload });
+          return {} as never;
         },
-        registrarArquivo: async () => ({ criado: false }),
+        registrarArquivo: async (a) => {
+          arquivosRegistrados.push(a as unknown as Record<string, unknown>);
+          return { criado: true };
+        },
         consultar: async () => {
           throw new Error('consulta não usada pelo repositório em memória');
         },
@@ -130,6 +136,7 @@ function portaFalsa(resposta: unknown | Error): PortaInterpretacaoLlm & { chamad
 beforeEach(() => {
   memoria = criarRepositorioMemoria({ [TENANT_A]: dadosA(), [TENANT_B]: dadosB() });
   auditoria.length = 0;
+  eventos.length = 0;
   logs.length = 0;
 });
 
@@ -356,6 +363,24 @@ describe('BKO de conteúdo (RF-CAT-07, RN-CAT-04: analista e admin)', () => {
     expect(f.corpo).toMatchObject({ product: { is_campaign: true, price: null }, content: { description: 'Feijão novo, cozimento rápido.' }, content_updated_at: relogio.iso() });
     expect(auditoria.map((a) => (a as { acao: string }).acao)).toEqual(['destaque.gerenciar', 'produto.enriquecer']);
     expect((await chamar(rota('PUT', 'produtos/:id/destaque'), usuario('analista'), { params: { id: idDemo('x') }, corpo: { is_campaign: true } })).status).toBe(404);
+  });
+
+  it('RF-CAT-03: PUT produtos/:id/foto-principal registra o arquivo do produto (sem cliente), define a principal, audita e é idempotente; vendedor 403, produto inexistente 404', async () => {
+    const { rota } = montar();
+    const id = idProdutoDemo('CAF-500');
+    const arquivo_id = idDemo('foto:cafe');
+    arquivosRegistrados.length = 0;
+    auditoria.length = 0;
+    expect((await chamar(rota('PUT', 'produtos/:id/foto-principal'), usuario('vendedor'), { params: { id }, corpo: { arquivo_id } })).status).toBe(403);
+    expect((await chamar(rota('PUT', 'produtos/:id/foto-principal'), usuario('analista'), { params: { id: idDemo('x') }, corpo: { arquivo_id } })).status).toBe(404);
+    expect((await chamar(rota('PUT', 'produtos/:id/foto-principal'), usuario('analista'), { params: { id }, corpo: { arquivo_id: 'nao-e-uuid' } })).status).toBe(400);
+    const r = await chamar(rota('PUT', 'produtos/:id/foto-principal'), usuario('analista'), { params: { id }, corpo: { arquivo_id } });
+    expect(r.corpo).toEqual({ id, criado: true });
+    expect(arquivosRegistrados).toEqual([{ id: arquivo_id, finalidade: 'foto_produto', entidade: 'produto', entidade_id: id, cliente_id: null }]);
+    const ficha = await chamar<FichaProduto>(rota('GET', 'produtos/:id'), usuario('vendedor'), { params: { id } });
+    expect(ficha.corpo.product.thumbnail_url).toBe(`/v1/arquivos/${arquivo_id}`);
+    expect((await chamar(rota('PUT', 'produtos/:id/foto-principal'), usuario('analista'), { params: { id }, corpo: { arquivo_id } })).corpo).toEqual({ id, criado: false });
+    expect(auditoria).toHaveLength(1);
   });
 
   it('GET termos-sem-resultado: a busca sem resultado entra (normalizada), a com resultado não; outro tenant não vê', async () => {
@@ -715,5 +740,98 @@ describe('BKO Tabelas de preço e Escalonada (RN-VEN-23, RN-VEN-15; T-0089: anal
     const { rota } = montar();
     const lista = await chamar<{ total: number }>(rota('GET', 'escalonada'), usuario('analista', { tenant_id: TENANT_B }));
     expect(lista.corpo.total).toBe(0);
+  });
+});
+
+describe('Marcas concorrentes do Catálogo (RN-CAT-13, T-0113, ADR 0034)', () => {
+  const M1 = idDemo('marca:1');
+  const M2 = idDemo('marca:2');
+  type Item = { id: string; nome: string; ativo: boolean; referencias: number };
+  const lista = async (rota: ReturnType<typeof montar>['rota'], situacao?: string, busca?: string) =>
+    (await chamar<{ marcas: Item[] }>(rota('GET', 'marcas'), usuario('analista'), { query: { ...(situacao ? { situacao } : {}), ...(busca ? { busca } : {}) } })).corpo.marcas;
+
+  it('RN-CAT-13: o analista cria a marca sem o Promotor nos módulos, ela aparece na lista e o evento sai com o fato "criada"', async () => {
+    const { rota } = montar();
+    const analista = usuario('analista', { modulos: ['core', 'catalogo'] });
+    const r = await chamar<{ id: string; criado: boolean }>(rota('POST', 'marcas'), analista, { corpo: { id: M1, nome: '  Freiomax ' } });
+    expect(r.status).toBe(200);
+    expect(r.corpo).toEqual({ id: M1, criado: true });
+    expect((await lista(rota)).map((m) => m.nome)).toEqual(['Freiomax']);
+    expect(eventos.map((e) => [e.nome, e.payload.fato, e.payload.nome, e.payload.ativo])).toEqual([['catalogo.marca_concorrente.alterada@1', 'criada', 'Freiomax', true]]);
+    expect(JSON.stringify(auditoria)).not.toContain('Freiomax');
+  });
+
+  it('RN-CAT-13: criar de novo com o mesmo id é idempotente (não duplica nem publica de novo)', async () => {
+    const { rota } = montar();
+    await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Freiomax' } });
+    const r = await chamar<{ criado: boolean }>(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Freiomax' } });
+    expect(r.corpo.criado).toBe(false);
+    expect(await lista(rota)).toHaveLength(1);
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('RN-CAT-13: POST com id de marca apagada ou de outro tenant é 409 ID_EM_USO, sem gravar nem publicar evento', async () => {
+    const { rota } = montar();
+    memoria.estado(TENANT_A).dados.marcasIdsEmUso = new Set([M1]);
+    const r = await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Freiomax' } });
+    expect([r.status, r.codigo]).toEqual([409, 'ID_EM_USO']);
+    expect(await lista(rota, 'todas')).toEqual([]);
+    expect(eventos).toHaveLength(0);
+    expect(auditoria).toHaveLength(0);
+  });
+
+  it('RN-CAT-13: nome repetido sem diferenciar caixa, acento ou espaços é 422; nome vazio ou com mais de 120 é recusado', async () => {
+    const { rota } = montar();
+    await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Pneu Máximo' } });
+    const repetida = await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M2, nome: ' pneu maximo ' } });
+    expect([repetida.status, repetida.codigo]).toEqual([422, 'RN-CAT-13']);
+    expect((await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M2, nome: '   ' } })).status).toBe(400);
+    expect((await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: M1 }, corpo: { nome: 'x'.repeat(121) } })).status).toBe(400);
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('RN-CAT-13: renomear, inativar e reativar publicam o fato certo; a inativa some da lista padrão e volta em "inativas" e "todas"', async () => {
+    const { rota } = montar();
+    await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Freiomax' } });
+    await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: M1 }, corpo: { nome: 'Freio Max' } });
+    await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: M1 }, corpo: { ativo: false } });
+    expect(await lista(rota)).toEqual([]);
+    expect((await lista(rota, 'inativas')).map((m) => m.nome)).toEqual(['Freio Max']);
+    expect(await lista(rota, 'todas')).toHaveLength(1);
+    await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: M1 }, corpo: { ativo: true } });
+    expect(eventos.map((e) => e.payload.fato)).toEqual(['criada', 'alterada', 'inativada', 'reativada']);
+    // nada mudou: não publica
+    await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: M1 }, corpo: { nome: 'Freio Max' } });
+    expect(eventos).toHaveLength(4);
+  });
+
+  it('RN-CAT-13: a busca ignora caixa e acento; marca inexistente no PUT é 404', async () => {
+    const { rota } = montar();
+    await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M1, nome: 'Pneu Máximo' } });
+    await chamar(rota('POST', 'marcas'), usuario('analista'), { corpo: { id: M2, nome: 'Rodaforte' } });
+    expect((await lista(rota, undefined, 'MAXIMO')).map((m) => m.nome)).toEqual(['Pneu Máximo']);
+    expect((await chamar(rota('PUT', 'marcas/:id'), usuario('analista'), { params: { id: idDemo('marca:x') }, corpo: { ativo: false } })).status).toBe(404);
+  });
+
+  it('RN-CAT-13: todos consultam a lista; só analista e admin escrevem (marca.gerenciar), e o módulo precisa estar ativo', async () => {
+    const { rota } = montar();
+    for (const p of ['vendedor', 'promotor', 'supervisor', 'gerente', 'assistente'] as const) {
+      expect((await chamar(rota('GET', 'marcas'), usuario(p))).status).toBe(200);
+      expect((await chamar(rota('POST', 'marcas'), usuario(p), { corpo: { id: M1, nome: 'X' } })).status).toBe(403);
+      expect((await chamar(rota('PUT', 'marcas/:id'), usuario(p), { params: { id: M1 }, corpo: { ativo: false } })).status).toBe(403);
+    }
+    expect((await chamar(rota('POST', 'marcas'), usuario('admin'), { corpo: { id: M1, nome: 'X' } })).status).toBe(200);
+    expect((await chamar(rota('POST', 'marcas'), usuario('analista', { modulos: ['core'] }), { corpo: { id: M2, nome: 'Y' } })).status).toBe(403);
+  });
+
+  it('RN-CAT-13 + RN-CAT-09: um tenant sem o Promotor cadastra a marca e grava a referência cruzada do produto', async () => {
+    const { rota } = montar();
+    const analista = usuario('analista', { modulos: ['core', 'catalogo'] });
+    await chamar(rota('POST', 'marcas'), analista, { corpo: { id: M1, nome: 'Freiomax' } });
+    const r = await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), analista, {
+      params: { id: PRODUTOS_DEMO[0]!.id },
+      corpo: { aplicacao: null, oferece_junto: [], etiquetas: [], referencias: [{ marca_id: M1, codigo: 'FM-100' }] },
+    });
+    expect(r.status).toBe(200);
   });
 });

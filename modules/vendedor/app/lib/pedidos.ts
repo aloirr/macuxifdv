@@ -35,6 +35,8 @@ export interface Rascunho {
   // --- T-0061: a chave de `lines` é o produto (unidade base) ou `produto@CX` (embalagem) ---
   /** desconto OU acréscimo por linha (RN-VEN-02), por chave de `lines` */
   ajustes?: Record<string, Ajuste>;
+  /** T-0134 (RN-VEN-18): edição de orçamento — produto → preço de tabela por unidade já salvo; o item salvo não é reprecificado */
+  precos_congelados?: Record<string, number>;
   /** acréscimo do pedido (excludente com `discount_pct`) */
   acrescimo_pct?: number;
   /** T-0071 (RN-VEN-02): ajuste do pedido em R$ sobre o total dos itens e o modo digitado (seletor % | R$); ausente = % */
@@ -165,6 +167,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     faixas: e.faixas,
+    ...(e.rascunho.precos_congelados ? { congelados: e.rascunho.precos_congelados } : {}),
     aplicacao: e.aplicacao,
     politica,
     vendedor_id: vendedorId,

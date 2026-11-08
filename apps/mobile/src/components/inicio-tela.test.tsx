@@ -221,3 +221,43 @@ describe('Início da Gestão (supervisor)', () => {
     expect(render()).not.toContain('inicio.card-aprovacoes');
   });
 });
+
+/** T-0124 / RD-0001: domingo 08/11 (dia não útil, RN-CORE-26) — o cartão não pode chamar o realizado do mês de "Meta de hoje". */
+describe('Início em dia não útil (RD-0001)', () => {
+  const domingo = (escopo: 'proprio' | 'equipe'): VisaoInicio => ({
+    ...visaoInicio(escopo, [{ ...VENDAS, situacao: 'dia_nao_util', meta_mes: 18_000_000, realizado_ate_ontem: 55_300, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null, dias_uteis_restantes: 18 }]),
+    hoje: '2026-11-08',
+    dia_util: false,
+    meta_hoje: { indicador: 'venda_cents', situacao: 'dia_nao_util', realizado_hoje: 0, meta_dia: null, faltam_hoje: null, mes_pct: 31 },
+  });
+  const rotulo = (html: string) => /data-testid="inicio\.meta"[^>]*><div><span>([^<]*)<\/span>/.exec(html)?.[1];
+
+  it('Campo: "Meta do mês" com R$ 553 de R$ 180.000 e quanto falta no mês; sem "Meta de hoje" e sem "Faltam … hoje"', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.inicio = domingo('proprio');
+    const html = render();
+    expect(rotulo(html)).toBe('Meta do mês');
+    expect(html).not.toContain('Meta de hoje');
+    expect(html).toContain('R$ 553');
+    expect(html).toContain('de R$ 180.000');
+    expect(html).toContain('Hoje não é dia útil · faltam R$ 179.447 no mês');
+    expect(html).not.toMatch(/Faltam [^<]* hoje/);
+  });
+
+  it('Gestão: "Meta do mês da equipe", sem "Meta de hoje da equipe"', () => {
+    montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
+    sim.inicio = domingo('equipe');
+    const html = render();
+    expect(rotulo(html)).toBe('Meta do mês da equipe');
+    expect(html).not.toContain('Meta de hoje');
+    expect(html).toContain('Hoje não é dia útil · faltam R$ 179.447 no mês');
+  });
+
+  it('dia útil continua "Meta de hoje" / "Meta de hoje da equipe"', () => {
+    montar('campo', 'vendedor', ['core', 'vendedor']);
+    expect(rotulo(render())).toBe('Meta de hoje');
+    montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
+    sim.inicio = visaoInicio('equipe');
+    expect(rotulo(render())).toBe('Meta de hoje da equipe');
+  });
+});

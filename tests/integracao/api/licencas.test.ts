@@ -170,7 +170,8 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
       const t = (await api.sessao(email)).access_token;
       const r = await licenca(api, t, 'tenant', 'promotor', false);
       expect(r.statusCode, email).toBe(403);
-      expect(erroDe(r).codigo, email).toBe('PERFIL_SEM_ACESSO');
+      // T-0094 (RN-CORE-33): licenças é rota do BKO — o vendedor nem chega à ação (PERFIL_SEM_BKO); os do BKO param na ação
+      expect(erroDe(r).codigo, email).toBe(email.startsWith('vendedor') ? 'PERFIL_SEM_BKO' : 'PERFIL_SEM_ACESSO');
       const leitura = await api.chamar(t, { method: 'GET', url: '/v1/core/licencas' });
       expect(leitura.statusCode, email).toBe(403);
     }
@@ -301,7 +302,7 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect([religada.statusCode, religada.json()], religada.body).toEqual([200, { ligado: true }]);
   });
 
-  it('S0-054: precedência 401 → 403 MODULO_INATIVO → 403 PERFIL_SEM_ACESSO → 400 → 404', async () => {
+  it('S0-054: precedência 401 → 403 MODULO_INATIVO → 403 PERFIL_SEM_BKO (rota do BKO, T-0094) / PERFIL_SEM_ACESSO → 400 → 404', async () => {
     const url = `/v1/vendedor/pedidos/${NAO_UUID}/cancelar`;
     const sem = await api.chamar(null, { method: 'POST', url, payload: {} });
     expect([sem.statusCode, erroDe(sem).codigo]).toEqual([401, 'NAO_AUTENTICADO']);
@@ -309,9 +310,12 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect([lixo.statusCode, erroDe(lixo).codigo]).toEqual([401, 'NAO_AUTENTICADO']);
     const inativo = await api.chamar(admin, { method: 'POST', url, payload: {} });
     expect([inativo.statusCode, erroDe(inativo).codigo]).toEqual([403, 'MODULO_INATIVO']);
-    // vendedor ativo, mas a ação do Core é só do admin
+    // vendedor ativo: licenças é rota do BKO (RN-CORE-33, T-0094) — recusa antes da ação; a ação do Core é só do admin
     const v1 = (await api.sessao('vendedor@exemplo.com.br')).access_token;
-    const perfil = await licenca(api, v1, 'tenant', 'vendedor', false);
+    const bko = await licenca(api, v1, 'tenant', 'vendedor', false);
+    expect([bko.statusCode, erroDe(bko).codigo]).toEqual([403, 'PERFIL_SEM_BKO']);
+    const ger = (await api.sessao('gerente@exemplo.com.br')).access_token;
+    const perfil = await licenca(api, ger, 'tenant', 'vendedor', false);
     expect([perfil.statusCode, erroDe(perfil).codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
     const zod = await api.chamar(v1, { method: 'POST', url, payload: {} });
     expect([zod.statusCode, erroDe(zod).codigo]).toEqual([400, 'VALIDACAO']);
@@ -319,10 +323,12 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect(naoExiste.statusCode).toBe(404);
   });
 
-  it('S0-055: licença nunca vai no JWT (payload só sub/tid/perfil/iat/exp)', async () => {
+  it('S0-055: licença nunca vai no JWT (payload só sub/tid/perfil/sv/iat/exp)', async () => {
     const s = await api.sessao('vendedor@exemplo.com.br');
     const payload = JSON.parse(Buffer.from(s.access_token.split('.')[1]!, 'base64url').toString('utf8')) as Record<string, unknown>;
-    expect(Object.keys(payload).sort()).toEqual(['exp', 'iat', 'perfil', 'sub', 'tid']);
+    // ADR 0032 §4 (T-0094): `sv` = versão da sessão (core.usuario.sessao_versao), número; não é licença nem dado pessoal
+    expect(Object.keys(payload).sort()).toEqual(['exp', 'iat', 'perfil', 'sub', 'sv', 'tid']);
+    expect(typeof payload.sv).toBe('number');
     expect(JSON.stringify(payload)).not.toMatch(/vendedor@|catalogo|modulos/);
   });
 });

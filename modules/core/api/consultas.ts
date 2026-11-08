@@ -35,7 +35,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
       ? []
       : (
           await ctx.db.query(
-            'select id, sku, nome, unidade, ativo, external_id, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct from core.produto where deleted_at is null and (id = any($1::uuid[]) or external_id = any($2::text[])) order by id',
+            'select id, sku, nome, unidade, ativo, external_id, marca, categoria, ean, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct from core.produto where deleted_at is null and (id = any($1::uuid[]) or external_id = any($2::text[])) order by id',
             [entrada.produto_ids, entrada.produto_external_ids],
           )
         ).rows

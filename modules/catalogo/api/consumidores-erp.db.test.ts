@@ -42,6 +42,10 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     try {
       await c.query('begin');
       await definirTenant(c, tenant);
+      // RN-CAT-13 (0045): as marcas são do próprio Catálogo
+      for (const m of concorrentes) {
+        await c.query(`insert into catalogo.marca_concorrente (id, tenant_id, nome, ativo, external_id) values ($1, plataforma.tenant_atual(), $2, $3, $4)`, [m.id, m.nome, m.ativo, m.external_id]);
+      }
       const entregar = async (cons: ConsumidorEvento, payload: unknown) => {
         const ctx = {
           db: c,
@@ -50,7 +54,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
           parametros: () => ({}),
           envelope: { evento_id: 'x', tenant_id: tenant },
           publicar: vi.fn(async () => ({})),
-          consultar: vi.fn(async () => ({ concorrentes })),
+          consultar: vi.fn(),
           log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         } as unknown as ContextoConsumo;
         await cons.executar(cons.evento.schema.parse(payload), ctx);
@@ -198,7 +202,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     });
   });
 
-  // T-0085 / RN-CAT-09: referência cruzada do produto do ERP; a marca vem de promotor.concorrentes@1 (mock por tenant, como o Promotor devolveria sob RLS)
+  // T-0085 / RN-CAT-09: referência cruzada do produto do ERP; a marca vem de catalogo.marca_concorrente (RN-CAT-13, 0045; linhas inseridas por tenant sob RLS)
   const MARCA_A = '0ca00000-0000-4000-8000-0000000000e1';
   const MARCA_B = '0ca00000-0000-4000-8000-0000000000e2';
   const concA = [

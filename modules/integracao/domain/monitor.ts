@@ -54,6 +54,8 @@ export interface EntradaAlertas {
   retornosComItensDescartados24h?: readonly { pedido_uuid: string; produto_external_id: string }[];
   /** ADR 0016: pedidos na fila que esperam um Conector mais novo (`pedidosAguardandoConector`). Opcional: ausente = nenhum. */
   pedidosAguardandoConector?: { pedidos: readonly string[]; exigida: string | null };
+  /** T-0114: cancelamentos que o ERP recusou e que seguem sem desfecho (pedido ainda não cancelado). Opcional: ausente = nenhum. */
+  cancelamentosRecusados?: readonly { pedido_uuid: string; numero_erp: string | null; motivo: string }[];
 }
 
 const PESO = { critico: 0, atencao: 1, info: 2 } as const;
@@ -126,6 +128,15 @@ export function montarAlertasMonitor(e: EntradaAlertas): AlertaMonitor[] {
     const pedidos = new Set(descartes.map((d) => d.pedido_uuid)).size;
     const itens = descartes.length;
     novo({ codigo: 'retorno_com_itens_descartados', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${itens} ${itens > 1 ? 'itens' : 'item'} faturado${itens > 1 ? 's' : ''} de ${pedidos} pedido${pedidos > 1 ? 's' : ''} ${itens > 1 ? 'ficaram' : 'ficou'} de fora do retorno do ERP nas últimas 24 h (sequência, produto ou quantidade não batem com o pedido enviado). O status dos pedidos foi atualizado. Abra Integração ERP > Pedidos > Erros de retorno, confira a consulta de itens da nota no Conector e o pedido no ERP.` });
+  }
+
+  const recusados = e.cancelamentosRecusados ?? [];
+  if (recusados.length > 0) {
+    const MOSTRAR = 3;
+    const nomes = recusados.slice(0, MOSTRAR).map((r) => `${r.numero_erp ? `${r.numero_erp} (${r.pedido_uuid})` : r.pedido_uuid}: ${r.motivo}`).join('; ');
+    const mais = recusados.length > MOSTRAR ? ` e mais ${recusados.length - MOSTRAR}` : '';
+    const pl = recusados.length > 1;
+    novo({ codigo: 'cancelamento_recusado', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `O ERP recusou o cancelamento de ${recusados.length} pedido${pl ? 's' : ''} (${nomes}${mais}). ${pl ? 'Os pedidos seguem' : 'O pedido segue'} ativo${pl ? 's' : ''} no ERP. Cancele no ERP ou, se o pedido deve valer, avise o vendedor; o alerta some quando o ERP informar o cancelamento.` });
   }
 
   return a.map((x, i) => ({ x, i })).sort((p, q) => PESO[p.x.severidade] - PESO[q.x.severidade] || p.i - q.i).map(({ x }) => x);

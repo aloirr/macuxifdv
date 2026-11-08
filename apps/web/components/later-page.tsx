@@ -11,7 +11,7 @@ export function LaterPage({ title, icon, summary, items }: { title: string; icon
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent-ink">{icon}</span>
           <div className="flex flex-col">
-            <span className="text-[11px] font-semibold tracking-[0.06em] text-accent uppercase">Em breve</span>
+            <span className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">Em breve</span>
             <span className="font-display text-[18px] font-bold">{summary}</span>
           </div>
         </div>
@@ -22,7 +22,7 @@ export function LaterPage({ title, icon, summary, items }: { title: string; icon
         </ul>
         <span className="text-[13px] text-ink-2">
           Esta tela entra depois da aprovação do MVP. Enquanto isso, acompanhe pelo{' '}
-          <Link href="/pedidos" className="font-semibold text-accent no-underline hover:text-accent-ink">
+          <Link href="/pedidos" className="font-semibold text-accent-ink no-underline hover:underline">
             farol de pedidos
           </Link>
           .

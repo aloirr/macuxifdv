@@ -1,5 +1,6 @@
 /**
- * Novo pedido em 3 abas — Itens · Detalhes · Resumo (T-0071, desenho §6.2) sobre os componentes do `packages/ui`.
+ * Novo pedido em 4 abas — Venda · Itens (n) · Entrega · Resumo (RF-VEN-11, T-0136; spec docs/design/pedido-v2.md) sobre os componentes do
+ * `packages/ui`. Venda: alertas, forma, prazo e crédito. Itens: busca e itens (na tela). Entrega: endereço, frete e observações.
  * Textos só os da referência enxuta, vindos de `lib/textos-pedido` (com teste). Só lê e escreve o rascunho do aparelho
  * (offline-first); o cálculo vem de `lib/novo-pedido`. Alvos de toque ≥ 48 dp (o ui já garante).
  */
@@ -9,15 +10,14 @@ import {
   Button,
   Card,
   Cartao,
-  CartaoCredito,
   CartaoLeveMais,
   Chip,
   colors,
-  CONSEQUENCIA_VENCIDO,
   Dialogo,
   Faixa,
   Folha,
   fonts,
+  leituraDoSalvar,
   Icon,
   LinhaValor,
   ListaSuspensa,
@@ -26,7 +26,6 @@ import {
   Segmentado,
   Selo,
   textoAtualizacao,
-  textoInadimplencia,
   textosLeveMais,
   type as t,
   type ItemLeveMais,
@@ -36,23 +35,24 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { opcoesDoSalvar } from '../../domain/orcamento';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
+import type { AlertaDaVenda } from '../../domain/alertas-venda';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rotuloTotalDoPedido, TEXTO_ESCOLHA_A_FORMA, TEXTO_SEM_FORMAS, type LimitesDoCliente } from '../lib/pagamento-pedido';
 import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, trocarModoDoAjuste, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import { aplicarAjusteDoPedido, type Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TEXTO_SEM_ITEM_NO_RESUMO, TITULO_COMBINA, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa, textoEquivalente, tituloDaFolhaSalvar } from '../lib/textos-pedido';
+import { fraseDoFrete, linhaDoLimite, ROTULO_ALERTAS, ROTULO_ENDERECO_ENTREGA, ROTULO_LIMITE, ROTULO_PRAZO_MEDIO, TEXTO_ENDERECO_DO_CADASTRO, TEXTO_SEM_ALERTA, TEXTO_SEM_DADOS_DE_CREDITO, textoDoAlerta, textoDoPrazoMedio } from '../lib/textos-venda';
 import { CampoPct, CampoReais } from './novo-pedido';
 
 type OpcoesDoSalvar = ReturnType<typeof opcoesDoSalvar>;
 type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
 
-// ---------- aba 1 · Itens: pagamento no topo ----------
+// ---------- aba 1 · Venda ----------
 export const TITULO_LEVE_MAIS_PAGUE_MENOS = 'Leve mais e pague menos';
 
 /**
- * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25) e, logo abaixo, o total do pedido (sem rodapé fixo
- * na aba). O Prazo mostra só os prazos da forma, só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado.
+ * Forma de pagamento e Prazo lado a lado em lista suspensa (RN-VEN-24/25), na aba Venda. O Prazo mostra só os prazos da forma, só o texto do prazo; o que passa do prazo médio do cliente fica desabilitado.
  * Sem formas no aparelho (antes do primeiro sync com a 0037) vale a lista de condições de antes.
  */
 export function CardPagamento({
@@ -61,8 +61,6 @@ export function CardPagamento({
   prazos,
   cliente,
   legado,
-  itens,
-  totalCents,
   onRascunho,
 }: {
   rascunho: Rascunho;
@@ -71,8 +69,6 @@ export function CardPagamento({
   cliente: LimitesDoCliente;
   /** condições de antes (APK anterior / tenant sem formas) */
   legado: Array<{ id: string | null; rotulo: string }>;
-  itens: number;
-  totalCents: number;
   onRascunho: OnRascunho;
 }) {
   const semFormas = formas.length === 0;
@@ -105,7 +101,6 @@ export function CardPagamento({
             rotulo="Forma de pagamento"
             opcoes={opcoesForma}
             valor={r.forma_pagamento_id ?? null}
-            erro={!r.forma_pagamento_id}
             placeholder="Escolha"
             rotuloFechar="Fechar a lista"
             onChange={(id) => {
@@ -120,13 +115,20 @@ export function CardPagamento({
             opcoes={opcoesPrazo.map((o) => ({ id: o.id, rotulo: o.rotulo, desabilitada: o.desabilitada, motivo: o.motivo }))}
             valor={r.prazo_pagamento_id ?? null}
             desligado={!r.forma_pagamento_id}
-            erro={Boolean(r.forma_pagamento_id) && !r.prazo_pagamento_id}
             placeholder={r.forma_pagamento_id ? 'Escolha' : TEXTO_ESCOLHA_A_FORMA}
             rotuloFechar="Fechar a lista"
             onChange={(id) => onRascunho((d) => comPrazo(d, id, formas, prazos))}
           />
         </View>
       )}
+    </Cartao>
+  );
+}
+
+/** Total do pedido no topo da aba Itens ("Total do pedido · 2 itens" · R$ x). Sem rodapé fixo. */
+export function TotalDoPedido({ itens, totalCents }: { itens: number; totalCents: number }) {
+  return (
+    <Cartao gap={0} testID="card-total-do-pedido">
       <View style={s.totalDoPedido} testID="total-do-pedido">
         <Text style={s.totalRotulo}>{rotuloTotalDoPedido(itens)}</Text>
         <Text style={s.totalValor} testID="total-do-pedido-valor">
@@ -137,7 +139,76 @@ export function CardPagamento({
   );
 }
 
-/** Frete CIF/FOB e transportadora (RN-VEN-16): saiu de Itens e abre a aba Detalhes logo depois do crédito. */
+/**
+ * Aba Venda (RF-VEN-11): caixa Alertas (RN-VEN-12/13) ou a linha "Cliente liberado", forma e prazo (RN-VEN-24/25), limite
+ * total e disponível e prazo médio do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
+ * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
+ */
+export function AbaVenda({
+  alertas,
+  pagamento,
+  credito,
+  prazoMedioDias,
+  sincronizadoEm,
+  agora,
+  tz,
+  semSinal,
+}: {
+  alertas: readonly AlertaDaVenda[];
+  /** cartão de forma e prazo já montado pela tela (`CardPagamento`) */
+  pagamento: ReactNode;
+  credito: ModeloDoCredito | null | undefined;
+  prazoMedioDias: number | null | undefined;
+  sincronizadoEm: string | null;
+  agora: Date;
+  tz: string;
+  semSinal: boolean;
+}) {
+  const limite = linhaDoLimite(credito);
+  const prazoMedio = textoDoPrazoMedio(prazoMedioDias);
+  const mostraCredito = credito !== undefined && credito !== null;
+  const disponivelNegativo = credito?.tipo === 'dados' && credito.disponivel_cents < 0;
+  return (
+    <View style={{ gap: 12 }} testID="aba-venda-conteudo">
+      <View style={{ gap: 6 }} testID="venda-alertas">
+        {alertas.length > 0 ? (
+          <>
+            <RotuloSecao texto={ROTULO_ALERTAS} />
+            {alertas.map((a) => {
+              const x = textoDoAlerta(a);
+              return <Faixa key={a.tipo} tom={x.tom} texto={x.texto} apoio={x.apoio} testID={`alerta-${a.tipo}`} />;
+            })}
+          </>
+        ) : (
+          <Faixa tom="ok" texto={TEXTO_SEM_ALERTA} testID="alerta-liberado" />
+        )}
+      </View>
+      {pagamento}
+      {mostraCredito || prazoMedio ? (
+        <Cartao gap={8} testID="venda-credito">
+          {mostraCredito ? (
+            limite ? (
+              <LinhaValor rotulo={ROTULO_LIMITE} valor={limite} tomValor={disponivelNegativo ? 'erro' : undefined} testID="venda-limite" />
+            ) : (
+              <Text style={t.small} testID="venda-sem-credito">
+                {TEXTO_SEM_DADOS_DE_CREDITO}
+              </Text>
+            )
+          ) : null}
+          {prazoMedio ? <LinhaValor rotulo={ROTULO_PRAZO_MEDIO} valor={prazoMedio} testID="venda-prazo-medio" /> : null}
+          {mostraCredito ? (
+            <View style={s.linha} testID="venda-atualizacao">
+              <Icon name={semSinal ? 'wifiOff' : 'sync'} size={13} color={colors.ink2} />
+              <Text style={t.small}>{textoAtualizacao(sincronizadoEm, agora, tz)}</Text>
+            </View>
+          ) : null}
+        </Cartao>
+      ) : null}
+    </View>
+  );
+}
+
+/** Frete CIF/FOB e transportadora (RN-VEN-16), na aba Entrega: só a frase da modalidade, sem valor de frete. */
 export function CartaoFrete({
   rascunho: r,
   fretePadrao,
@@ -167,6 +238,9 @@ export function CartaoFrete({
         ]}
         onChange={(m) => setFrete(m === 'CIF' ? { modalidade: 'CIF' } : { modalidade: 'FOB', transportadora_id: frete.transportadora_id ?? null, transportadora_digitada: frete.transportadora_digitada ?? null })}
       />
+      <Text style={t.small} testID="frete-frase">
+        {fraseDoFrete({ modalidade: frete.modalidade, transportadora: frete.transportadora_id ? (ativas.find((x) => x.id === frete.transportadora_id)?.nome ?? null) : (frete.transportadora_digitada?.nome ?? null) })}
+      </Text>
       {frete.modalidade === 'FOB' ? (
         <View style={{ gap: 8 }} testID="frete-transportadora">
           <Text style={s.rotuloLinha}>Transportadora</Text>
@@ -202,73 +276,38 @@ function CampoTexto({ rotulo, valor, onChange, testID, teclado }: { rotulo: stri
   return <TextInput testID={testID} value={valor} onChangeText={onChange} keyboardType={teclado} placeholder={rotulo} placeholderTextColor={colors.ink3} accessibilityLabel={rotulo} style={s.texto} autoCorrect={false} />;
 }
 
-// ---------- aba 2 · Detalhes ----------
-/** Crédito do cliente (RN-VEN-12/13): `undefined` = ainda lendo; `null` = consulta indisponível (o cartão não aparece). */
-export function CreditoDoClienteCard({ credito, sincronizadoEm, agora, tz, semSinal }: { credito: ModeloDoCredito | null | undefined; sincronizadoEm: string | null; agora: Date; tz: string; semSinal: boolean }) {
-  if (!credito) return null;
-  const atualizacao = textoAtualizacao(sincronizadoEm, agora, tz);
-  if (credito.tipo === 'vazio') {
-    return <CartaoCredito titulo="Crédito do cliente" limiteTotal={{ rotulo: 'Limite total', valor: '' }} limiteDisponivel={{ rotulo: 'Limite disponível', valor: '' }} vazio="Sem dados de crédito deste cliente." atualizacao={atualizacao} semSinal={semSinal} />;
-  }
-  return (
-    <CartaoCredito
-      titulo="Crédito do cliente"
-      limiteTotal={{ rotulo: 'Limite total', valor: formatBRL(credito.limite_cents) }}
-      limiteDisponivel={{ rotulo: 'Limite disponível', valor: formatBRL(credito.disponivel_cents), negativo: credito.disponivel_cents < 0 }}
-      alerta={credito.alerta ? textoInadimplencia({ ...credito.alerta, consequencia: CONSEQUENCIA_VENCIDO }) : null}
-      atualizacao={atualizacao}
-      semSinal={semSinal}
-    />
-  );
-}
-
-export function AbaDetalhes({
+// ---------- aba 3 · Entrega ----------
+export function AbaEntrega({
   rascunho: r,
   clienteId,
   enderecos,
   motivoCadastro,
-  sugestoes,
-  nomeDoProduto,
-  onAdicionar,
-  onTrocar,
   onRascunho,
-  credito,
   fretePadrao,
   transportadoras,
-  leveMais,
 }: {
   rascunho: Rascunho;
   clienteId: string;
   enderecos: readonly EnderecoDaTela[];
   /** RN-CORE-17: linha automática só de leitura (não é copiada para a observação do pedido) */
   motivoCadastro: string | null;
-  /** T-0071 (RF-CAT-03): "Combina com o pedido", do aparelho (offline) */
-  sugestoes: SugestoesDaTela;
-  nomeDoProduto: (produtoId: string) => string;
-  onAdicionar: (produtoId: string) => void;
-  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
   onRascunho: OnRascunho;
-  /** cartão "Crédito do cliente" já montado pela tela (a consulta é do hook) */
-  credito: ReactNode;
   fretePadrao: 'CIF' | 'FOB';
   transportadoras: readonly TransportadoraDaTela[];
-  /** RN-VEN-23: linhas do cartão "Leve mais e pague menos"; vazio = o cartão some */
-  leveMais: ReadonlyArray<ItemLeveMais>;
 }) {
   const [trocando, setTrocando] = useState(false);
   const lista = enderecosDoCliente(enderecos, clienteId);
   const principal = lista.find((e) => e.principal || e.tipo === 'principal') ?? null;
   const escolhido = r.endereco_entrega_id ? (lista.find((e) => e.id === r.endereco_entrega_id) ?? null) : principal;
   return (
-    <View style={{ gap: 12 }} testID="aba-detalhes-conteudo">
-      {credito}
-      <CartaoFrete rascunho={r} fretePadrao={fretePadrao} transportadoras={transportadoras} onRascunho={onRascunho} />
+    <View style={{ gap: 12 }} testID="aba-entrega-conteudo">
       <Card style={s.card}>
-        <RotuloSecao texto="Entrega" acao={lista.length > 1 ? { rotulo: 'Trocar', onPress: () => setTrocando(true), testID: 'entrega-trocar' } : undefined} />
+        <RotuloSecao texto={ROTULO_ENDERECO_ENTREGA} acao={lista.length > 1 ? { rotulo: 'Trocar', onPress: () => setTrocando(true), testID: 'entrega-trocar' } : undefined} />
         <Text style={t.body} testID="entrega-endereco">
-          {escolhido ? textoDoEndereco(escolhido) : 'Endereço do cadastro'}
+          {escolhido ? textoDoEndereco(escolhido) : TEXTO_ENDERECO_DO_CADASTRO}
         </Text>
       </Card>
+      <CartaoFrete rascunho={r} fretePadrao={fretePadrao} transportadoras={transportadoras} onRascunho={onRascunho} />
       <Card style={s.card}>
         <RotuloSecao texto="Observações" />
         {motivoCadastro ? (
@@ -281,12 +320,12 @@ export function AbaDetalhes({
           value={r.observacao ?? ''}
           onChangeText={(v) => onRascunho((d) => ({ ...d, observacao: v.slice(0, 500) }))}
           multiline
+          placeholder="Observação para a entrega ou o pedido"
+          placeholderTextColor={colors.ink3}
           accessibilityLabel="Observações"
           style={[s.texto, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
         />
       </Card>
-      <CartaoLeveMais titulo={TITULO_LEVE_MAIS_PAGUE_MENOS} itens={leveMais} />
-      <BlocoSugestoes titulo={TITULO_COMBINA} testID="sugestoes-combina" itens={sugestoes.combina} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
       <Folha visivel={trocando} onFechar={() => setTrocando(false)} rotuloFechar="Fechar" titulo="Entrega" testID="folha-entrega" rodape={{ rotulo: 'Voltar', onPress: () => setTrocando(false) }}>
         {lista.map((e) => {
           const ehPrincipal = e.principal || e.tipo === 'principal';
@@ -306,6 +345,30 @@ export function AbaDetalhes({
           );
         })}
       </Folha>
+    </View>
+  );
+}
+
+/** "Leve mais e pague menos" (RN-VEN-23) e "Combina com o pedido" (RF-CAT-03): vieram do antigo Detalhes para o fim da aba Itens. */
+export function FimDaAbaItens({
+  sugestoes,
+  nomeDoProduto,
+  onAdicionar,
+  onTrocar,
+  leveMais,
+}: {
+  /** do aparelho (offline) */
+  sugestoes: SugestoesDaTela;
+  nomeDoProduto: (produtoId: string) => string;
+  onAdicionar: (produtoId: string) => void;
+  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
+  /** linhas do cartão; vazio = o cartão some */
+  leveMais: ReadonlyArray<ItemLeveMais>;
+}) {
+  return (
+    <View style={{ gap: 12 }} testID="itens-fim">
+      <CartaoLeveMais titulo={TITULO_LEVE_MAIS_PAGUE_MENOS} itens={leveMais} />
+      <BlocoSugestoes titulo={TITULO_COMBINA} testID="sugestoes-combina" itens={sugestoes.combina} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
     </View>
   );
 }
@@ -369,7 +432,7 @@ function BlocoSugestoes({
   );
 }
 
-// ---------- aba 3 · Resumo ----------
+// ---------- aba 4 · Resumo ----------
 export function AbaResumo({
   rascunho: r,
   calculo,
@@ -386,6 +449,7 @@ export function AbaResumo({
   rotuloSalvar,
   somenteLeitura,
   pendencias,
+  nPendencias = 0,
 }: {
   rascunho: Rascunho;
   calculo: CalculoPedido;
@@ -402,6 +466,7 @@ export function AbaResumo({
   rotuloSalvar: string;
   somenteLeitura: boolean;
   pendencias?: ReactNode;
+  nPendencias?: number;
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
   // T-0071 (RN-VEN-02): o ajuste do pedido é em % ou em R$ sobre o total dos itens
@@ -488,7 +553,7 @@ export function AbaResumo({
       {somenteLeitura ? null : (
         <View style={s.botoes}>
           <Button testID="cancelar-pedido" label="Cancelar" variant="outline" height={52} style={{ flex: 1 }} onPress={onCancelar} />
-          <Button testID="send-order" label={rotuloSalvar} height={52} style={{ flex: 1 }} loading={salvando} disabled={!podeSalvar} onPress={onSalvar} />
+          <Button testID="send-order" label={rotuloSalvar} height={52} style={{ flex: 1 }} loading={salvando} disabled={!podeSalvar} accessibilityLabel={leituraDoSalvar(rotuloSalvar, nPendencias)} onPress={onSalvar} />
         </View>
       )}
     </View>

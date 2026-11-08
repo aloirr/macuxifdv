@@ -7,18 +7,19 @@
  * transação. As escritas renovam `updated_at` (e `deleted_at` ao desativar) nas MESMAS tabelas que o pull lê
  * (`sync-cadastros.ts`): a promotora recebe a mudança no próximo pull, sem migração. RN-PRO-01: nada de pedido aqui.
  */
+import { CONSULTA_MARCAS } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { ErroHttpModulo, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ErroHttpModulo, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   ACAO_CADASTRO,
-  CADASTROS_BKO,
+  CADASTROS_GRAVAVEIS,
   CAMINHO_CADASTRO,
   CAMINHO_PARAMETROS_TRADE,
   EDICAO_CADASTRO,
   FiltroCadastro,
   IdCadastroParams,
   PERFIS_RELATORIO,
-  type CadastroBko,
+  type CadastroGravavel,
   type ParametrosTradeApi,
 } from '../contracts';
 import { mesmoConteudo, validarDesativacao } from '../domain';
@@ -26,25 +27,22 @@ import { parametrosDoTenant } from './parametros';
 import type { LinhaCadastro, RepositorioPromotor, SessaoTenant } from './repositorio';
 
 /** O que cada cadastro aponta para outros (validado antes de gravar, com mensagem em português). */
-const REFERENCIAS: Readonly<Record<CadastroBko, { categoria?: boolean; concorrente?: boolean; cliente?: boolean; produto?: boolean }>> = {
+const REFERENCIAS: Readonly<Record<CadastroGravavel, { categoria?: boolean; concorrente?: boolean; cliente?: boolean; produto?: boolean }>> = {
   categoria_gondola: {},
   checklist_loja: { cliente: true },
   mix_obrigatorio: { categoria: true, cliente: true, produto: true },
   meta_share: { categoria: true, cliente: true },
-  concorrente: {},
   produto_concorrente: { categoria: true, concorrente: true, produto: true },
 };
 
 const naoEncontrado = () => new ErroHttpModulo(404, 'CADASTRO_NAO_ENCONTRADO', 'Cadastro não encontrado. Recarregue a lista.');
 
 /** RN-AUD-01: só ids, códigos e valores (nunca o nome da categoria, do concorrente ou do produto). */
-export function resumoParaAuditoria(c: CadastroBko, l: Readonly<Record<string, unknown>>): Record<string, unknown> {
+export function resumoParaAuditoria(c: CadastroGravavel, l: Readonly<Record<string, unknown>>): Record<string, unknown> {
   const alvo = { cliente_id: l.cliente_id ?? null, segmento: l.segmento ?? null, vigencia_inicio: l.vigencia_inicio, vigencia_fim: l.vigencia_fim ?? null };
   switch (c) {
     case 'categoria_gondola':
       return { ordem: l.ordem, ativo: l.ativo };
-    case 'concorrente':
-      return { ativo: l.ativo };
     case 'produto_concorrente':
       return { concorrente_id: l.concorrente_id, produto_id: l.produto_id ?? null, categoria_gondola_id: l.categoria_gondola_id ?? null, ativo: l.ativo };
     case 'meta_share':
@@ -58,16 +56,33 @@ export function resumoParaAuditoria(c: CadastroBko, l: Readonly<Record<string, u
   }
 }
 
-/** Categoria e concorrente têm de existir e estar vivos; loja e produto, no Core (ADR 0012). */
-async function conferirReferencias(repo: RepositorioPromotor, s: SessaoTenant, tx: TransacaoTenant, c: CadastroBko, d: Readonly<Record<string, unknown>>): Promise<void> {
+/**
+ * T-0113 (ADR 0034): a marca concorrente é do Catálogo. A referência é lógica e se valida na escrita por `catalogo.marcas@1`:
+ * a marca precisa existir e estar ativa. Sem o Catálogo ativo para o tenant, 422 com a ação seguinte.
+ */
+async function marcaAtiva(tx: TransacaoTenant, id: unknown): Promise<void> {
+  if (typeof id !== 'string') return;
+  let marcas;
+  try {
+    marcas = (await tx.consultar(CONSULTA_MARCAS, { ids: [id] })).marcas;
+  } catch (e) {
+    if (ehConsultaIndisponivel(e)) throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', 'Não foi possível conferir a marca concorrente. Cadastre as marcas concorrentes no Catálogo.');
+    throw e;
+  }
+  if (!marcas.some((m) => m.id === id && m.ativo)) throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', 'A marca concorrente escolhida não existe ou foi inativada. Escolha outra (as marcas ficam no Catálogo).');
+}
+
+/** Categoria tem de existir e estar viva; marca no Catálogo; loja e produto, no Core (ADR 0012). */
+async function conferirReferencias(repo: RepositorioPromotor, s: SessaoTenant, tx: TransacaoTenant, c: CadastroGravavel, d: Readonly<Record<string, unknown>>, atual?: Readonly<Record<string, unknown>>): Promise<void> {
   const ref = REFERENCIAS[c];
-  const vivo = async (cad: CadastroBko, id: unknown, msg: string) => {
+  const vivo = async (cad: CadastroGravavel, id: unknown, msg: string) => {
     if (typeof id !== 'string') return;
     const l = await repo.cadastro(s, cad, id);
     if (!l || l.deleted_at) throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', msg);
   };
   if (ref.categoria) await vivo('categoria_gondola', d.categoria_gondola_id, 'A categoria escolhida não existe ou foi desativada. Escolha outra.');
-  if (ref.concorrente) await vivo('concorrente', d.concorrente_id, 'O concorrente escolhido não existe ou foi desativado. Escolha outro.');
+  // ADR 0034: na edição a marca só é revalidada quando muda (marca inativada depois no Catálogo não trava o resto do cadastro)
+  if (ref.concorrente && !(atual && atual.concorrente_id === d.concorrente_id)) await marcaAtiva(tx, d.concorrente_id);
   const cliente = ref.cliente && typeof d.cliente_id === 'string' ? d.cliente_id : null;
   const produto = ref.produto && typeof d.produto_id === 'string' ? d.produto_id : null;
   if (!cliente && !produto) return;
@@ -80,7 +95,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
   const sessao = (ctx: ContextoBase, db: SessaoTenant['db']): SessaoTenant => ({ db, tenant_id: ctx.usuario.tenant_id });
 
   const rotas: RotaModulo[] = [];
-  for (const c of CADASTROS_BKO) {
+  for (const c of CADASTROS_GRAVAVEIS) {
     const base = CAMINHO_CADASTRO[c];
     const acao = ACAO_CADASTRO[c];
     const corpo = EDICAO_CADASTRO[c];
@@ -140,7 +155,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
           if (atual.deleted_at) throw new ErroHttpModulo(409, 'CADASTRO_DESATIVADO', 'Esse cadastro foi desativado e não pode ser editado. Crie um novo.');
           // reenvio igual (PUT idempotente): nada muda, não renova updated_at nem audita
           if (Object.keys(dados).every((k) => mesmoConteudo(atual[k], dados[k]))) return atual;
-          await conferirReferencias(repo, s, tx, c, dados);
+          await conferirReferencias(repo, s, tx, c, dados, atual);
           const gravada = await repo.atualizarCadastro(s, c, id, dados, ctx.agora().toISOString());
           await tx.auditar({ acao: `${c}.editar`, entidade: c, entidade_id: id, antes: resumoParaAuditoria(c, atual), depois: resumoParaAuditoria(c, gravada) });
           return gravada;
@@ -161,7 +176,7 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
           const atual = await repo.cadastro(s, c, id);
           if (!atual) throw naoEncontrado();
           if (atual.deleted_at) return atual; // já desativado: idempotente
-          // RN-PRO-12: categoria/concorrente com dependentes vivos não se desativa (evita órfãos no aparelho)
+          // RN-PRO-12: categoria com dependentes vivos não se desativa (evita órfãos no aparelho)
           const veredito = validarDesativacao(c, await repo.usosDoCadastro(s, c, id));
           if (!veredito.ok) throw new ErroHttpModulo(422, veredito.codigo, veredito.mensagem, { ...veredito.usos });
           const gravada: LinhaCadastro = await repo.desativarCadastro(s, c, id, ctx.agora().toISOString());
@@ -171,6 +186,27 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
       },
     });
   }
+
+  // T-0113 (ADR 0034): `concorrente` é só leitura aqui (seletor e nomes do BKO), pela consulta do Catálogo; sem POST, PUT nem DELETE.
+  rotas.push({
+    metodo: 'GET',
+    caminho: CAMINHO_CADASTRO.concorrente,
+    perfis: [...PERFIS_RELATORIO],
+    carteira: 'nao_se_aplica',
+    query: FiltroCadastro,
+    async executar(ctx) {
+      const f = ctx.query as FiltroCadastro;
+      return ctx.comTenant(async (_db, tx) => {
+        try {
+          const { marcas } = await tx.consultar(CONSULTA_MARCAS, { incluir_inativas: f.incluir_removidos === 'true' });
+          return { itens: marcas.map((m) => ({ id: m.id, nome: m.nome, ativo: m.ativo, external_id: m.external_id })) };
+        } catch (e) {
+          if (ehConsultaIndisponivel(e)) throw new ErroHttpModulo(422, 'MARCAS_INDISPONIVEIS', 'A lista de marcas concorrentes não está disponível. Cadastre as marcas concorrentes no Catálogo.');
+          throw e;
+        }
+      });
+    },
+  });
 
   rotas.push({
     metodo: 'GET',

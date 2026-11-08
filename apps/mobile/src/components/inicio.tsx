@@ -15,7 +15,7 @@ import {
   metaPrincipal,
   notaDaEquipe,
   resumoDoMembro,
-  ROTULO_INDICADOR,
+  rotuloDaMeta,
   seloNovos,
   situacaoDoMembro,
   type ItemRecado,
@@ -106,16 +106,16 @@ export function RecadosDeHoje({ itens, naoLidas, onAbrir, onVerTodos }: { itens:
 
 // ---------- Meta de hoje ----------
 /**
- * Cartão "Meta de hoje" (Campo) ou "Meta de hoje da equipe" (Gestão): o indicador principal em destaque (vendas; para o
- * promotor, o primeiro com meta — RN-PRO-01, o Core já filtra) e os demais em linhas compactas.
+ * Cartão "Meta de hoje" (Campo) ou "Meta de hoje da equipe" (Gestão); em dia não útil, "Meta do mês" (RD-0001: o rótulo
+ * sai do período do desenho, `rotuloDaMeta`). O indicador principal em destaque (vendas; para o promotor, o primeiro com
+ * meta — RN-PRO-01, o Core já filtra) e os demais em linhas compactas.
  */
 export function MetaDeHoje({ metas, pronto, equipe, aviso }: { metas: readonly MetaDoDia[]; pronto?: VisaoInicio['meta_hoje']; equipe: boolean; aviso?: string | null }) {
-  const rotulo = equipe ? 'Meta de hoje da equipe' : 'Meta de hoje';
   const { principal, outras } = metaPrincipal(metas, pronto?.indicador);
   if (!principal) {
     return (
       <Cartao gap={8} testID="inicio.meta.vazio">
-        <TopoDoCartao rotulo={rotulo} />
+        <TopoDoCartao rotulo={rotuloDaMeta('hoje', equipe)} />
         <Text style={t.small}>{aviso ?? 'Nenhuma meta cadastrada para este mês.'}</Text>
       </Cartao>
     );
@@ -124,7 +124,7 @@ export function MetaDeHoje({ metas, pronto, equipe, aviso }: { metas: readonly M
   const nota = equipe ? notaDaEquipe(principal) : null;
   return (
     <Cartao gap={8} testID="inicio.meta" tom={d.verde ? 'sucesso' : 'padrao'}>
-      <TopoDoCartao rotulo={principal.indicador === 'venda_cents' ? rotulo : `${rotulo} · ${ROTULO_INDICADOR[principal.indicador]}`} direita={<Text style={t.sub} testID="inicio.meta.mes">{d.mes}</Text>} />
+      <TopoDoCartao rotulo={rotuloDaMeta(d.periodo, equipe, principal.indicador)} direita={<Text style={t.sub} testID="inicio.meta.mes">{d.mes}</Text>} />
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
         <Text style={{ fontFamily: fonts.display, fontSize: 30, color: d.verde ? colors.success : colors.ink, fontVariant: ['tabular-nums'] }} numberOfLines={1} testID="inicio.meta.valor">
           {d.valor}

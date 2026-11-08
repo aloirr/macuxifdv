@@ -289,6 +289,64 @@ EXPLAIN com volume (20 mil SKUs, 1 milhão de preços, lote de 5.000) fica para 
   staging, registro_atual e cursor das 3 gravando e entidade desconhecida = 23514); `estatico.test.ts` (ENTIDADES ⊆
   ENTIDADES_BANCO; a 0013 com as 12).
 
+## Cancelamento para o ERP (0043) — T-0114 (R-20261107-235216-modulo-integracao; RN-INT-08, RN-VEN-31)
+Migração `0043_integracao_cancelamento_erp`, aditiva, só no schema `integracao`; RLS, políticas e grants herdados (o
+`macuxi_app` já tem `update` nas duas tabelas).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `conector.aceita_cancelamento` | boolean not null default **false** | O Conector executa no ERP o cancelamento feito no Macuxi. False = como antes (o ERP é quem avisa). Ligado pelo BKO |
+| `pedido_fila_erp.cancelamento_estado` | text null | nulo (nunca pedido) · `pendente` (consumidor de `vendedor.pedido.cancelado@1`) · `enviado` (poll) · `confirmado` (retorno `cancelado`) · `recusado` (0048, abaixo). CHECK `pedido_fila_erp_cancelamento_estado_valido` = `ESTADOS_CANCELAMENTO_BANCO` (Drizzle) = `EstadoCancelamento` (domain) |
+| `pedido_fila_erp.cancelamento_motivo` | text null | 1..500 caracteres, não só espaços (CHECK `pedido_fila_erp_cancelamento_motivo_tamanho`). Texto livre do vendedor: nunca em log |
+| `pedido_fila_erp.cancelamento_solicitado_em` | timestamptz null | `cancelado_em` do evento; ordem do poll |
+| `pedido_fila_erp.cancelamento_enviado_em` | timestamptz null | última entrega ao Conector (reentrega depois do timeout de envio) |
+| `pedido_fila_erp.cancelamento_tentativas` | integer not null default 0 | entregas ao Conector; ≥ 0 (CHECK `pedido_fila_erp_cancelamento_tentativas_validas`) |
+
+- CHECK `pedido_fila_erp_cancelamento_coerente`: estado nulo ⇔ `cancelamento_solicitado_em` nulo; `enviado` ⇒
+  `cancelamento_enviado_em` preenchido. `confirmado` sem `enviado_em` vale (o ERP cancelou antes do poll).
+- Índice `pedido_fila_erp_cancelamento_ix (tenant_id, cancelamento_solicitado_em, pedido_uuid) where cancelamento_estado in
+  ('pendente','enviado') and deleted_at is null`: a consulta do poll (`order by cancelamento_solicitado_em, pedido_uuid limit n
+  for update skip locked`), só para o Conector com a opção ligada. Volume: poucas linhas com cancelamento vivo.
+- Sem backfill: linhas antigas ficam com estado nulo e 0 tentativas; Conectores existentes com a opção desligada.
+- Down (`0043_..._down.sql`, idempotente): apaga índice, CHECKs e as 6 colunas — cancelamentos pendentes se perdem e a opção
+  volta desligada num novo up. Desfazer junto o código do Hub da T-0114.
+- Views-modelo do Conector: sem mudança (o cancelamento vai do Hub ao Conector pela API, não pela view).
+- Testes: `db/testes/cancelamento-erp.test.ts` (estático: só colunas/CHECKs/índice no schema integracao, down completo,
+  espelho; no CI: fixture com os padrões, ciclo pendente → enviado → confirmado, cada CHECK com 23514, vazamento entre
+  tenants, EXPLAIN do poll no índice, up/down com dados); o teste de banco do consumidor é do modulo-integracao.
+
+## Cancelamento recusado pelo ERP (0048) — T-0114 (R-20261108-095741-modulo-integracao; RN-INT-08, RN-VEN-31)
+Migração `0048_integracao_cancelamento_recusado`, aditiva, só em `integracao.pedido_fila_erp`; RLS, políticas e grants herdados.
+O Conector devolve o retorno `cancelamento_recusado` (com motivo) para um cancelamento já `enviado`; o Hub (`retornoPedido`) grava a
+recusa na própria linha da fila, publica `integracao.pedido.cancelamento_recusado@1` e o monitor do BKO (`bko-monitor.ts`) alerta.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `pedido_fila_erp.cancelamento_recusado_em` | timestamptz null | instante informado pelo ERP/Conector (`ocorrido_em` do retorno) |
+| `pedido_fila_erp.cancelamento_recusa_motivo` | text null | 1..300 caracteres, não só espaços (CHECK `pedido_fila_erp_cancelamento_recusa_motivo_tamanho`). Texto do ERP mascarado pelo Conector: nunca em log |
+
+- CHECK `pedido_fila_erp_cancelamento_estado_valido` trocado: nulo · `pendente` · `enviado` · `confirmado` · **`recusado`**
+  (= `ESTADOS_CANCELAMENTO_BANCO` no Drizzle = `EstadoCancelamento` do domain; o teste confere no typecheck).
+- CHECK `pedido_fila_erp_cancelamento_coerente` trocado: as 2 regras da 0043, letra por letra, e mais três:
+  `recusado` ⇒ `cancelamento_recusado_em` e `cancelamento_recusa_motivo` preenchidos; os dois andam juntos (ambos nulos ou
+  ambos preenchidos); preenchidos só em `recusado` ou `confirmado`. **Diferença do pedido** (que pedia os dois nulos fora de
+  `recusado`): o retorno `cancelado` posterior (o ERP cancelou por conta própria) só troca o estado para `confirmado` e não
+  limpa as colunas; a recusa fica de histórico e o alerta some porque o monitor filtra `recusado`.
+- Transições: `enviado` → `recusado` (retorno `cancelamento_recusado`, idempotente) → `confirmado` (retorno `cancelado`). O
+  poll não leva de novo a recusa ao Conector (só `pendente`/`enviado`) e o consumidor do `cancelado@1` só grava em estado nulo.
+- Índice `pedido_fila_erp_cancelamento_recusado_ix (tenant_id, cancelamento_recusado_em desc) where cancelamento_estado =
+  'recusado' and deleted_at is null`: a consulta do monitor (`where tenant_id = $1 and cancelamento_estado = 'recusado' and
+  estado <> 'cancelado' order by cancelamento_recusado_em desc limit 1000`). Volume: poucas linhas, uma por pedido.
+- `integracao.pedido_retorno` e o evento `integracao.pedido.retorno_erp@1` **não** mudam (a recusa não entra nessa trilha).
+- Sem backfill (nenhuma linha antiga tem recusa).
+- Down (`0048_..._down.sql`, idempotente): apaga o índice e os CHECKs, volta as linhas `recusado` a `enviado` (`enviado_em`
+  garantido), apaga as 2 colunas e recria os 2 CHECKs da 0043 — a recusa e o motivo se perdem; `confirmado` fica. Desfazer
+  junto o código do Hub que grava a recusa.
+- Testes: `db/testes/cancelamento-recusado.test.ts` (estático: só colunas/CHECKs/índice em `pedido_fila_erp`, regras da 0043
+  preservadas, down simétrico, espelho; no CI: a recusa grava pelo update do Hub e aparece no monitor, `cancelado` posterior
+  confirma, cada CHECK com 23514, vazamento entre tenants e WITH CHECK, EXPLAIN do monitor no índice, up/down com dados); o
+  teste de banco do Hub (`modules/integracao/api/consumidores.db.test.ts`) é do modulo-integracao.
+
 ## Views-modelo do Conector (`db/conector/views-modelo.sql`)
 Criado na T-0089 (fatia B2), com as 15 entidades do Hub (citado em docs/produto/06-integracao-erp.md e em
 docs/modulos/integracao/conector.md §3). É um **modelo**: as tabelas de origem (`erp_*`) são fictícias e o técnico do cliente

@@ -1,40 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { passoTotp } from '../domain/super-admin';
-import { codigoTotp, conviteConfere, hashCodigoRecuperacao, verificarTotp } from './seguranca-plataforma';
+import { assinarTokenPlataforma, chaveDeTentativa, exigirSegredoPlataforma, verificarTokenPlataforma } from './seguranca-plataforma';
 
-// RFC 6238 apêndice B (SHA-1), segredo ASCII "12345678901234567890"; os 6 últimos dígitos dos valores de 8 dígitos.
-const SEGREDO = Buffer.from('12345678901234567890', 'ascii');
-const VETORES: [number, string][] = [
-  [59, '287082'],
-  [1111111109, '081804'],
-  [1111111111, '050471'],
-  [1234567890, '005924'],
-  [2000000000, '279037'],
-  [20000000000, '353130'],
-];
+const SEGREDO = 'segredo-da-plataforma-diferente-do-tenant-0123456789';
+const SUB = '0a000000-0000-4000-8000-0000000000aa';
+const SID = '0a000000-0000-4000-8000-0000000000bb';
+const TID = '0a000000-0000-4000-8000-0000000000cc';
+const agora = new Date('2026-11-07T12:00:00Z');
+const depois = new Date(agora.getTime() + 15 * 60_000);
 
-describe('RN-CORE-31/ADR 0029: primitivas reais injetadas no domain', () => {
-  it.each(VETORES)('RN-CORE-31: vetor do RFC 6238 em t=%i dá %s', (t, esperado) => {
-    expect(codigoTotp(SEGREDO, passoTotp(new Date(t * 1000)))).toBe(esperado);
+describe('ADR 0031: token do portal e chave de tentativas', () => {
+  it('ADR 0031: a chave de tentativas é HMAC de 64 hex, estável por e-mail e diferente por segredo', () => {
+    const a = chaveDeTentativa(SEGREDO, 'ana@x.com');
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(chaveDeTentativa(SEGREDO, 'ana@x.com')).toBe(a);
+    expect(chaveDeTentativa(SEGREDO, 'bia@x.com')).not.toBe(a);
+    expect(chaveDeTentativa(`${SEGREDO}x`, 'ana@x.com')).not.toBe(a);
   });
 
-  it('RN-CORE-31: verificarTotp com HMAC real aceita o passo atual e recusa reuso', () => {
-    const t = new Date(1111111109 * 1000);
-    const passo = passoTotp(t);
-    expect(verificarTotp(SEGREDO, codigoTotp(SEGREDO, passo), t, 0)).toEqual({ ok: true, passo });
-    expect(verificarTotp(SEGREDO, codigoTotp(SEGREDO, passo), t, passo).ok).toBe(false);
+  it('ADR 0031: token sa e cli (com e sem tid) fazem o caminho de ida e volta', () => {
+    const sa = verificarTokenPlataforma(assinarTokenPlataforma({ sub: SUB, sid: SID, typ: 'sa' }, agora, depois, SEGREDO), agora, SEGREDO);
+    expect(sa).toMatchObject({ typ: 'sa', sub: SUB, sid: SID, amr: ['pwd'], aud: 'macuxi-plataforma' });
+    const cli = verificarTokenPlataforma(assinarTokenPlataforma({ sub: SUB, sid: SID, typ: 'cli', tid: TID }, agora, depois, SEGREDO), agora, SEGREDO);
+    expect(cli).toMatchObject({ typ: 'cli', tid: TID });
+    const semEmpresa = verificarTokenPlataforma(assinarTokenPlataforma({ sub: SID, sid: SID, typ: 'cli' }, agora, depois, SEGREDO), agora, SEGREDO);
+    expect(semEmpresa?.tid).toBeUndefined();
   });
 
-  it('RN-CORE-31: hash do código de recuperação é SHA-256 estável, sem hífen nem caixa', () => {
-    expect(hashCodigoRecuperacao('abcde-23456')).toBe(hashCodigoRecuperacao('ABCDE23456'));
-    expect(hashCodigoRecuperacao('ABCDE23456')).toMatch(/^[0-9a-f]{64}$/);
-    expect(hashCodigoRecuperacao('ABCDE23456')).not.toContain('ABCDE');
+  it('ADR 0031: recusa vencido, segredo errado, adulterado e tid em token de super-admin', () => {
+    const t = assinarTokenPlataforma({ sub: SUB, sid: SID, typ: 'cli', tid: TID }, agora, depois, SEGREDO);
+    expect(verificarTokenPlataforma(t, new Date(depois.getTime() + 1000), SEGREDO)).toBeNull();
+    expect(verificarTokenPlataforma(t, agora, 'outro-segredo-com-mais-de-32-caracteres-xx')).toBeNull();
+    const [c, p, s] = t.split('.') as [string, string, string];
+    const adulterado = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(p, 'base64url').toString()), tid: SUB })).toString('base64url');
+    expect(verificarTokenPlataforma(`${c}.${adulterado}.${s}`, agora, SEGREDO)).toBeNull();
+    const saComTid = assinarTokenPlataforma({ sub: SUB, sid: SID, typ: 'sa', tid: TID }, agora, depois, SEGREDO);
+    expect(verificarTokenPlataforma(saComTid, agora, SEGREDO)).toBeNull();
   });
 
-  it('RN-CORE-31: convite com SHA-256 real confere e exige 32 caracteres', () => {
-    const convite = 'c'.repeat(40);
-    expect(conviteConfere(convite, convite)).toBe(true);
-    expect(conviteConfere(convite, 'd'.repeat(40))).toBe(false);
-    expect(conviteConfere('curto', 'curto')).toBe(false);
+  it('ADR 0031: segredo ausente ou curto = erro de configuração (falha fechada)', () => {
+    expect(() => exigirSegredoPlataforma(undefined)).toThrow();
+    expect(() => exigirSegredoPlataforma('curto')).toThrow();
+    expect(exigirSegredoPlataforma(SEGREDO)).toBe(SEGREDO);
   });
 });

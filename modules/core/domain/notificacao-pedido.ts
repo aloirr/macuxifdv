@@ -54,7 +54,8 @@ export function entidadesDoPush(tipo: string, link?: string | null): string[] {
 export interface NotificacaoDeSistema {
   titulo: string;
   corpo: string;
-  link: string;
+  /** Deep link do app (`/m/...`, restrição notificacao_link_formato) ou nulo quando o aviso é do BKO. */
+  link: string | null;
   prioridade: 'normal' | 'alta';
 }
 

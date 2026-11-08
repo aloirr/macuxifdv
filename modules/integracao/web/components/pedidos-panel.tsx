@@ -4,8 +4,14 @@ import { Badge, Panel } from '@macuxi/ui/web';
 import { ESTADOS_PEDIDO_ERP, type AlertaMonitor, type MonitorResumo } from '../../contracts';
 import { ROTULO_ESTADO_PEDIDO } from '../lib/apresentacao';
 
-/** Alertas da fila de pedidos e do retorno do ERP (RN-INT-08, P-4). */
-const ALERTAS_DE_PEDIDO: ReadonlySet<AlertaMonitor['codigo']> = new Set(['pedido_preso', 'pedido_retido_sem_mapeamento', 'retorno_com_itens_descartados']);
+/** Alertas da fila de pedidos e do retorno do ERP (RN-INT-08, P-4; cancelamento recusado pelo ERP, T-0114). */
+const ALERTAS_DE_PEDIDO: ReadonlySet<AlertaMonitor['codigo']> = new Set(['pedido_preso', 'pedido_retido_sem_mapeamento', 'retorno_com_itens_descartados', 'cancelamento_recusado']);
+
+const ROTULO_ALERTA_PEDIDO: Partial<Record<AlertaMonitor['codigo'], string>> = {
+  retorno_com_itens_descartados: 'Itens descartados',
+  pedido_preso: 'Preso',
+  cancelamento_recusado: 'Cancelamento recusado',
+};
 
 /**
  * Pedidos no ERP (RN-INT-08): contagem por estado, presos (entregues ao Conector várias vezes sem retorno) e retidos sem
@@ -35,13 +41,13 @@ export function PedidosPanel({ pedidos, alertas }: { pedidos: MonitorResumo['ped
       <h3 className="m-0 mt-2 text-[14px] font-semibold">Erros de retorno</h3>
       {deRetorno.length === 0 ? (
         <span className="text-[13px] text-ink-2" data-testid="integracao.retornos.vazio">
-          Nenhum erro de retorno do ERP nas últimas 24 h.
+          Nenhum erro de retorno do ERP nem cancelamento recusado.
         </span>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0" data-testid="integracao.retornos">
           {deRetorno.map((a, i) => (
-            <li key={`${a.codigo}-${i}`} className="flex items-start gap-2 text-[14px]">
-              <Badge tone={a.severidade === 'critico' ? 'danger' : 'warning'}>{a.codigo === 'retorno_com_itens_descartados' ? 'Itens descartados' : a.codigo === 'pedido_preso' ? 'Preso' : 'Retido'}</Badge>
+            <li key={`${a.codigo}-${i}`} className="flex items-start gap-2 text-[14px]" data-testid={`integracao.retorno.${a.codigo}`}>
+              <Badge tone={a.severidade === 'critico' ? 'danger' : 'warning'}>{ROTULO_ALERTA_PEDIDO[a.codigo] ?? 'Retido'}</Badge>
               <span>{a.mensagem}</span>
             </li>
           ))}

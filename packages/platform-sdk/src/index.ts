@@ -16,6 +16,7 @@ export * from './arquivos';
 export * from './auditoria';
 export * from './acesso';
 export * from './permissoes';
+export * from './permissoes-perfil';
 export * from './perfis';
 export * from './ambiente';
 export * from './motor-sync';

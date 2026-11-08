@@ -150,10 +150,15 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
 - **`catalogo.produto_referencia`** (grupo **0x4f**, ids em `REFERENCIAS_FIXTURE`):
   - A: p1 com "CB 3401" (ordem 1) e "FR-77.2" (ordem 2) vivas, mais "CB-3400" **apagada** na ordem 1;
   - B: p1 com "LB 0099";
-  - a marca é o concorrente do Promotor do mesmo tenant (`PROMOTOR_FIXTURE.X.concorrente`), sem FK;
+  - a marca é o concorrente do Promotor do mesmo tenant (`PROMOTOR_FIXTURE.X.concorrente`); desde a 0045 essa é a marca ativa
+    de `catalogo.marca_concorrente` (mesmo id), com FK `produto_referencia_marca_fk`;
   - 0034: as vivas levam `marca_nome` = o nome desse concorrente (`MARCA_NOME_FIXTURE`: A "Freios Rivais", B "Lubri Rival");
     a apagada fica com `marca_nome` nulo (como uma linha anterior à 0034);
   - `codigo_compacto` segue a regra do `codigoCompacto`.
+- **`catalogo.marca_concorrente`** (0045, T-0113; grupo **0x3c**, ids em `MARCAS_FIXTURE`): por tenant a **ativa** com o mesmo
+  id, nome, ativo, `deleted_at` e `external_id` do concorrente do Promotor (o que a cópia da migração faz), uma **inativa**
+  (`external_id` `MARCA-INATIVA-ALFA`/`-BETA`) e uma **apagada**. O teste de ids sem repetição aceita só esse id repetido
+  (ativa = concorrente do Promotor). `promotor.concorrente` segue na fixture (só de leitura para o `macuxi_app`).
 - **`vendedor.pedido_item`:** o item 1 do p1 de A tem o retrato "Motos 150 cc"; os demais ficam nulos.
 - **Literal de `text[]` com texto livre:** use `arrayDeTextoLivre` (`db/src/gravar.ts`). O `arrayDeTexto` só aceita códigos `[a-z0-9_]`.
 
@@ -177,6 +182,17 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
 - **`core.cliente`**: c1 de A com `prazo_medio_max_dias = 45` e `formas_pagamento = {PIX,BOLETO}`; c1 de B com 30 e nulo; os
   demais nulos. Nenhum pedido da fixture tem forma e prazo (como os do APK antigo).
 - Ids em `PAGAMENTO_FIXTURE` (exportado por `@macuxi/db/teste`). Literal de `integer[]`: `arrayDeInteiros` (`db/src/gravar.ts`).
+
+### T-0111/T-0112 (migração 0041; perfis de acesso e multiperfil, ADR 0033)
+- **Semeados pelos gatilhos** (fora das listas): os 7 perfis de fábrica em A e em B (`tenant_semear_perfis`, ids
+  `idPerfilFabrica(tenant, base)`) e o vínculo de cada usuário com o perfil de fábrica de `core.usuario.perfil`
+  (`usuario_perfil_principal`, ids `idUsuarioPerfil`).
+- **`plataforma.perfil`** (grupo **0x17**): A `vendedor_externo` (base vendedor); B `vendedor_balcao` (base vendedor, sem usuário).
+- **`plataforma.perfil_permissao`** (grupo **0x18**): A `dados.escopo = proprio` no `vendedor_externo`; B `acesso.campo` revogado
+  no `vendedor_balcao`.
+- **`plataforma.usuario_perfil`** (grupo **0x19**, só os vínculos ALÉM do principal): A vendedor-2 com `vendedor_externo`;
+  B **multiperfil** vendedor + promotor de fábrica no vendedor-B (B não tem o módulo promotor: a união dos módulos não muda).
+- Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes, vinculos}`.
 
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
