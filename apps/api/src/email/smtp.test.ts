@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { renderizarEmail, type MensagemEmail } from '@macuxi/platform-sdk';
-import { criarSmtpFalso, dadosAcesso, decodificarPartes, destinatario, ID_ENVIO, portaFechada, relogio, vazamentos, type SmtpFalso } from './apoio-teste';
+import { renderizarEmail, type EmailParaEnvio } from '@macuxi/platform-sdk';
+import { cargaAcesso, criarSmtpFalso, dadosAcesso, decodificarPartes, destinatario, ID_ENVIO, portaFechada, relogio, TLS_TESTE, vazamentos, type SmtpFalso } from './apoio-teste';
 import { ErroEmail } from './erros';
 import { criarTransporteSmtp, enviarSmtp, type OpcoesClienteSmtp } from './smtp';
 
 const USUARIO = 'conta.smtp@macuxifdv.com.br';
 const SENHA = 'S3nha-do-SMTP-nao-vaza';
 
-const msg: MensagemEmail = {
+const msg: EmailParaEnvio = {
   idEnvio: ID_ENVIO,
   modelo: 'acesso_inicial',
   de: { email: 'nao-responda@macuxifdv.com.br', nome: 'Macuxi' },
   para: destinatario,
-  ...renderizarEmail('acesso_inicial', destinatario, dadosAcesso),
+  ...renderizarEmail('acesso_inicial', cargaAcesso),
 };
 
 let servidor: SmtpFalso | null = null;
@@ -38,7 +38,7 @@ async function erroDe(p: Promise<unknown>): Promise<ErroEmail> {
 /** Nada sensível (destinatário, senha do e-mail, credencial SMTP) na mensagem, na pilha ou no JSON do erro. */
 function erroSeguro(e: ErroEmail): void {
   const texto = `${e.message}\n${e.stack ?? ''}\n${JSON.stringify(e)}`;
-  expect(vazamentos(texto, [destinatario.email, destinatario.nome, dadosAcesso.senhaInicial, USUARIO, SENHA])).toEqual([]);
+  expect(vazamentos(texto, [destinatario.email, destinatario.nome, dadosAcesso.senha, USUARIO, SENHA])).toEqual([]);
 }
 
 describe('cliente SMTP contra servidor falso (127.0.0.1)', () => {
@@ -60,7 +60,7 @@ describe('cliente SMTP contra servidor falso (127.0.0.1)', () => {
     const recebida = servidor.mensagens[0]!;
     expect(recebida).toContain('Subject: Seu acesso ao Macuxi');
     expect(recebida).toContain('Date: Sat, 07 Nov 2026 12:00:00 +0000');
-    expect(decodificarPartes(recebida).texto).toContain('Senha inicial: Prov1sor1a-Xq7');
+    expect(decodificarPartes(recebida).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
   });
 
   it('AUTH LOGIN quando o servidor só anuncia LOGIN', async () => {
@@ -166,5 +166,32 @@ describe('cliente SMTP contra servidor falso (127.0.0.1)', () => {
   it('endereço de envelope com quebra de linha: recusado sem conectar', async () => {
     const e = await erroDe(enviarSmtp(opcoes(1), { de: 'a@b.com', para: 'c@d.com>\r\nRCPT TO:<x@y.z' }, 'x'));
     expect(e).toMatchObject({ codigo: 'EMAIL_DADOS_INVALIDOS', retentavel: false });
+  });
+});
+
+describe('porta 465: TLS implícito desde a conexão (T-0094 fatia S)', () => {
+  it('entrega com AUTH dentro do TLS, conferindo o certificado pela CA dada', async () => {
+    servidor = await criarSmtpFalso({ tlsImplicito: true });
+    const t = criarTransporteSmtp(
+      opcoes(servidor.porta, { tls: 'tls', permitirCredencialSemTls: false, credencial: { usuario: USUARIO, senha: SENHA }, tlsOpcoes: { ca: TLS_TESTE.cert, servername: 'localhost' } }),
+      { agora: relogio },
+    );
+    const r = await t.entregar(msg);
+    expect(r.idMensagem).toBe(`<${ID_ENVIO}@macuxifdv.com.br>`);
+    // sem STARTTLS: o canal já nasce cifrado
+    expect(servidor.comandos).toEqual(['EHLO teste.local', 'AUTH PLAIN ***', 'MAIL FROM:<nao-responda@macuxifdv.com.br>', `RCPT TO:<${destinatario.email}>`, 'DATA', '<dados>', 'QUIT']);
+    expect(servidor.auths).toEqual([{ usuario: USUARIO, senha: SENHA }]);
+    expect(decodificarPartes(servidor.mensagens[0]!).texto).toContain('Senha temporária: Prov1sor1a-Xq7');
+  });
+
+  it('certificado não confiável: EMAIL_TLS_INDISPONIVEL antes de qualquer comando (credencial nunca sai)', async () => {
+    servidor = await criarSmtpFalso({ tlsImplicito: true });
+    const e = await erroDe(
+      criarTransporteSmtp(opcoes(servidor.porta, { tls: 'tls', permitirCredencialSemTls: false, credencial: { usuario: USUARIO, senha: SENHA } }), { agora: relogio }).entregar(msg),
+    );
+    expect(e.codigo).toBe('EMAIL_TLS_INDISPONIVEL');
+    expect(servidor.comandos).toEqual([]);
+    expect(servidor.auths).toEqual([]);
+    erroSeguro(e);
   });
 });

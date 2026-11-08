@@ -59,6 +59,17 @@ describe('E1 — contrato e manifesto (ADR 0012)', () => {
     expect(() => definirConsulta({ nome: 'catalogo.precos.cliente@1', entrada: z.object({}), saida: z.object({}) })).toThrow();
   });
 
+  it('ADR 0025 §4.1: configuracaoDoTenant só aparece quando o dono declara true; o contrato fica congelado', () => {
+    const CONFIG = definirConsulta({ nome: 'integracao.cancelamento_erp@1', entrada: z.object({}).strict(), saida: z.object({ aceita: z.boolean() }), configuracaoDoTenant: true });
+    expect(CONFIG).toMatchObject({ nome: 'integracao.cancelamento_erp@1', modulo: 'integracao', versao: 1, configuracaoDoTenant: true });
+    expect(Object.isFrozen(CONFIG)).toBe(true);
+    // padrão e false: consulta comum, sem a chave (contratos antigos não mudam de forma)
+    expect('configuracaoDoTenant' in PRECOS).toBe(false);
+    const comum = definirConsulta({ nome: 'catalogo.x@1', entrada: z.object({}), saida: z.object({}), configuracaoDoTenant: false });
+    expect('configuracaoDoTenant' in comum).toBe(false);
+    expect(() => definirConsulta({ nome: 'catalogo.y@1', entrada: z.object({}), saida: z.object({}), configuracaoDoTenant: 'sim' as never })).toThrow('precisa ser booleano');
+  });
+
   it('manifesto: só oferece consultas próprias; só usa de módulo em depende/opcionais; nome no padrão', () => {
     expect(() => mCatalogo({ ofereceConsultas: ['core.cadastro_resumo@1'] })).toThrow('só oferece consultas catalogo.*');
     expect(() => mVendedor({ depende: ['core'], usaConsultas: ['catalogo.precos_cliente@1'] })).toThrow('precisa estar em depende ou opcionais');

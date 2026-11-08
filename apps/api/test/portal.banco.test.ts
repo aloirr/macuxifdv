@@ -64,6 +64,13 @@ describe.skipIf(semBanco())('API × Postgres: papel macuxi_portal (T-0091)', () 
     await expect(app.query('select plataforma.sa_auditar($1::jsonb)', ['{}'])).rejects.toMatchObject({ code: SEM_PERMISSAO });
   });
 
+  it('T-0093: plataforma.criar_super_admin (deploy) não executa como macuxi_app nem macuxi_portal (42501)', async () => {
+    const entrada = JSON.stringify({ acao: 'desativar', email: 'ninguem@x.com.br' });
+    await expect(app.query('select plataforma.criar_super_admin($1::jsonb)', [entrada])).rejects.toMatchObject({ code: SEM_PERMISSAO });
+    expect(portal).not.toBeNull();
+    await expect(portal!.query('select plataforma.criar_super_admin($1::jsonb)', [entrada])).rejects.toMatchObject({ code: SEM_PERMISSAO });
+  });
+
   it('o pool do portal recusa subir com o macuxi_app; o do app recusa o macuxi_portal', async () => {
     await expect(criarBancoPortal(app).verificar()).rejects.toBeInstanceOf(ErroPapelBanco);
     expect(portal, 'banco de teste sem urlPortal (MACUXI_PG_PORTAL_SENHA)').not.toBeNull();
@@ -74,7 +81,8 @@ describe.skipIf(semBanco())('API × Postgres: papel macuxi_portal (T-0091)', () 
     expect(portal).not.toBeNull();
     const p = portal!;
     await expect(criarBancoPortal(p).verificar()).resolves.toBeUndefined();
-    for (const tabela of ['plataforma.tenant', 'plataforma.auditoria_plataforma', 'core.usuario']) {
+    // T-0093 (0039): também as tabelas novas do portal (bloqueio por e-mail e sessão por empresa)
+    for (const tabela of ['plataforma.tenant', 'plataforma.auditoria_plataforma', 'core.usuario', 'plataforma.portal_tentativa', 'plataforma.portal_sessao', 'plataforma.portal_sessao_empresa']) {
       await expect(p.query(`select 1 from ${tabela} limit 1`), tabela).rejects.toMatchObject({ code: SEM_PERMISSAO });
     }
     const api = createApp({ banco: criarBancoApp(app), bancoPortal: criarBancoPortal(p) });

@@ -1,7 +1,7 @@
 /**
  * Erro do e-mail transacional (T-0094, RN-CORE-34). A mensagem é sempre montada aqui, só com etapa e código: nunca a
  * resposta textual do servidor SMTP (pode ecoar o destinatário), credenciais, e-mail, nome ou senha. É seguro ir para log
- * e para a coluna de saída do job do pg-boss.
+ * e para `plataforma.email_saida.ultimo_erro` (só o `codigo`).
  */
 import { CODIGOS_EMAIL, type CodigoEmail } from '@macuxi/platform-sdk';
 

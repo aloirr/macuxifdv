@@ -1,53 +1,62 @@
 /**
- * Cifra da carga da fila de e-mail (T-0094, RN-CORE-34): AES-256-GCM do pedido (destinatário + dados) antes de ir para o
- * job. O banco (tabela do pg-boss) nunca guarda e-mail, nome ou senha em claro.
+ * Cifra da carga da outbox de e-mail (T-0094; ADR 0032; desenho §10 item 1; RN-CORE-34): AES-256-GCM do destinatário e dos
+ * dados do modelo (`CargaEmail`) antes do `insert` em `plataforma.email_saida.carga` (`bytea`). O banco nunca guarda e-mail, nome
+ * ou senha em claro.
  *
- * Formato: `v1.<iv>.<tag>.<cifrado>` (base64url; IV de 12 bytes aleatório por cifra). O `idEnvio` entra como dado
- * associado (AAD): a carga de um job não decifra em outro (troca de carga entre jobs é detectada).
+ * Formato (bytes): `0x01` (versão) | IV (12, aleatório por cifra) | tag (16) | texto cifrado. Dado associado (AAD) =
+ * `id|tenant_id|modelo` da linha: a carga de uma linha não decifra em outra (troca de carga entre linhas ou tenants é detectada).
+ * Chave: `derivarChaveEmail(MACUXI_JWT_SEGREDO)` (`config.ts`).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { CODIGOS_EMAIL, PedidoEmailSchema, type PedidoEmail } from '@macuxi/platform-sdk';
+import { CODIGOS_EMAIL, validarCargaEmail, type CargaEmail, type ModeloEmail } from '@macuxi/platform-sdk';
 import { ErroEmail } from './erros';
 
-const VERSAO = 'v1';
+const VERSAO = 0x01;
 const ALGORITMO = 'aes-256-gcm';
+const TAM_IV = 12;
+const TAM_TAG = 16;
+
+/** O que amarra a carga à linha da outbox. */
+export interface AadEmail {
+  id: string;
+  tenant_id: string;
+  modelo: ModeloEmail;
+}
 
 export interface CifraEmail {
-  cifrar(pedido: PedidoEmail, idEnvio: string): string;
+  cifrar(carga: CargaEmail, aad: AadEmail): Buffer;
   /** Lança `ErroEmail` `EMAIL_CIFRA_INVALIDA` (não retentável) se a carga não decifra ou não valida. */
-  decifrar(carga: string, idEnvio: string): PedidoEmail;
+  decifrar(carga: Uint8Array, aad: AadEmail): CargaEmail;
 }
+
+const aadDe = (a: AadEmail) => Buffer.from(`${a.id.toLowerCase()}|${a.tenant_id.toLowerCase()}|${a.modelo}`, 'utf8');
 
 function erroCifra(motivo: string): ErroEmail {
   return new ErroEmail(CODIGOS_EMAIL.CIFRA_INVALIDA, `carga do e-mail ${motivo}`, { retentavel: false, etapa: 'cifra' });
 }
 
 export function criarCifraEmail(chave: Uint8Array): CifraEmail {
-  if (chave.length !== 32) throw new ErroEmail(CODIGOS_EMAIL.CONFIG_INVALIDA, 'chave da fila de e-mail deve ter 32 bytes', { retentavel: false, etapa: 'config' });
+  if (chave.length !== 32) throw new ErroEmail(CODIGOS_EMAIL.CONFIG_INVALIDA, 'chave da outbox de e-mail deve ter 32 bytes', { retentavel: false, etapa: 'config' });
   const k = Buffer.from(chave);
   return {
-    cifrar(pedido, idEnvio) {
-      const iv = randomBytes(12);
+    cifrar(carga, aad) {
+      const iv = randomBytes(TAM_IV);
       const c = createCipheriv(ALGORITMO, k, iv);
-      c.setAAD(Buffer.from(idEnvio, 'utf8'));
-      const cifrado = Buffer.concat([c.update(JSON.stringify(pedido), 'utf8'), c.final()]);
-      return [VERSAO, iv.toString('base64url'), c.getAuthTag().toString('base64url'), cifrado.toString('base64url')].join('.');
+      c.setAAD(aadDe(aad));
+      const cifrado = Buffer.concat([c.update(JSON.stringify(carga), 'utf8'), c.final()]);
+      return Buffer.concat([Buffer.from([VERSAO]), iv, c.getAuthTag(), cifrado]);
     },
-    decifrar(carga, idEnvio) {
-      const partes = typeof carga === 'string' ? carga.split('.') : [];
-      if (partes.length !== 4 || partes[0] !== VERSAO) throw erroCifra('em formato desconhecido');
-      const [, ivB, tagB, dadosB] = partes as [string, string, string, string];
+    decifrar(bruto, aad) {
+      const b = Buffer.from(bruto);
+      if (b.length < 1 + TAM_IV + TAM_TAG + 1 || b[0] !== VERSAO) throw erroCifra('em formato desconhecido');
       let texto: string;
       try {
-        const iv = Buffer.from(ivB, 'base64url');
-        const tag = Buffer.from(tagB, 'base64url');
-        if (iv.length !== 12 || tag.length !== 16) throw new Error('tamanho');
-        const d = createDecipheriv(ALGORITMO, k, iv);
-        d.setAAD(Buffer.from(idEnvio, 'utf8'));
-        d.setAuthTag(tag);
-        texto = Buffer.concat([d.update(Buffer.from(dadosB, 'base64url')), d.final()]).toString('utf8');
+        const d = createDecipheriv(ALGORITMO, k, b.subarray(1, 1 + TAM_IV));
+        d.setAAD(aadDe(aad));
+        d.setAuthTag(b.subarray(1 + TAM_IV, 1 + TAM_IV + TAM_TAG));
+        texto = Buffer.concat([d.update(b.subarray(1 + TAM_IV + TAM_TAG)), d.final()]).toString('utf8');
       } catch {
-        throw erroCifra('não decifra (chave diferente ou adulterada)');
+        throw erroCifra('não decifra (segredo diferente ou adulterada)');
       }
       let json: unknown;
       try {
@@ -55,9 +64,11 @@ export function criarCifraEmail(chave: Uint8Array): CifraEmail {
       } catch {
         throw erroCifra('decifrada não é JSON');
       }
-      const r = PedidoEmailSchema.safeParse(json);
-      if (!r.success) throw erroCifra('decifrada não valida');
-      return r.data;
+      try {
+        return validarCargaEmail(aad.modelo, json);
+      } catch {
+        throw erroCifra('decifrada não valida');
+      }
     },
   };
 }

@@ -1,167 +1,85 @@
 /**
- * Serviço do e-mail transacional (T-0094; RN-CORE-32/33/34).
+ * Porta `ServicoEmail` na API (T-0094; ADR 0032; desenho §10 itens 1, 2 e 6; RN-CORE-34) e as fábricas do adaptador.
  *
- * Fluxo: rota → `envio.enviar(modelo, destinatario, dados)` → valida (Zod) → cifra (AES-256-GCM, AAD = idEnvio) → enfileira
- * (`id` = idEnvio) → devolve `{ ok: true, situacao: 'enfileirado' }` na hora. O worker (`criarProcessadorEmail`) decifra,
- * renderiza e entrega pelo transporte; erro retentável ⇒ lança (a fila tenta de novo); não retentável ⇒ conclui e registra.
+ * `enfileirar(db, m)`: valida (Zod), cifra (AES-256-GCM, AAD = id|tenant|modelo) e faz UM `insert` em
+ * `plataforma.email_saida` pela conexão recebida — a da transação do tenant (`comTenant`, papel `macuxi_app`, RLS): a senha muda
+ * ⇔ o e-mail entra na fila. `on conflict (tenant_id, chave_idempotencia) do nothing`: a mesma chave não gera 2º e-mail. Sem
+ * adaptador (`desligado`): `disponivel() = false` e `'indisponivel'` sem gravar. Mensagem inválida ou banco fora: lança
+ * (`ErroEmail`/erro do pg) e a rota desfaz a transação.
  *
- * Log: só `id_envio`, `modelo`, `tenant_id`, `tentativa`, `codigo`, `transporte` — nunca e-mail, nome ou senha. Nenhum
- * evento de outbox é publicado aqui (quem quiser auditar registra `email_enviado: true` sem dado pessoal).
+ * O despachante (`despachante.ts`, papel `macuxi_worker`) entrega depois. Log: só `email_id`, `tenant_id`, `modelo`.
  */
 import { randomUUID } from 'node:crypto';
 import {
   CODIGOS_EMAIL,
-  MODELOS_EMAIL,
-  OpcoesEnvioEmailSchema,
-  PedidoEmailSchema,
-  renderizarEmailParaLog,
-  renderizarEmailSemSenha,
-  renderizarPedidoEmail,
-  type EnderecoEmail,
-  type EnvioEmail,
+  MensagemEmailSchema,
+  type CargaEmail,
+  type ClienteBanco,
   type LogRota,
-  type MensagemEmail,
-  type ModeloEmail,
-  type ResultadoEnvioEmail,
+  type ResultadoEnfileirarEmail,
+  type ServicoEmail,
   type TransporteEmail,
 } from '@macuxi/platform-sdk';
-import type { ZodIssue } from 'zod';
 import { criarTransporteArquivo } from './arquivo';
-import { criarCifraEmail, type CifraEmail } from './cifra';
+import { criarCifraEmail, type AadEmail, type CifraEmail } from './cifra';
 import { descreverConfigEmail, type ConfigEmail } from './config';
-import { comoErroEmail } from './erros';
-import { criarFilaMemoria, criarFilaPgBoss, type FilaEmail, type JobEmail, type PgBossLike, type ProcessarJobEmail } from './fila';
+import { ErroEmail } from './erros';
 import { criarTransporteSmtp } from './smtp';
 
-/** Só caminho e código do Zod (a mensagem pode trazer o valor recebido). */
-function problemasSeguros(issues: readonly ZodIssue[]): { caminho: string; codigo: string }[] {
-  return issues.slice(0, 10).map((i) => ({ caminho: i.path.join('.'), codigo: i.code }));
-}
+const SQL_TENANT = 'select plataforma.tenant_atual() as tenant_id';
+const SQL_INSERIR = `
+  insert into plataforma.email_saida (id, tenant_id, usuario_id, modelo, chave_idempotencia, carga, expira_em)
+  values ($1, $2, $3, $4, $5, $6, now() + make_interval(hours => $7))
+  on conflict (tenant_id, chave_idempotencia) do nothing
+  returning id`;
 
-function modeloParaLog(m: unknown): ModeloEmail | 'desconhecido' {
-  return (MODELOS_EMAIL as readonly unknown[]).includes(m) ? (m as ModeloEmail) : 'desconhecido';
-}
-
-export interface OpcoesEnvioServico {
-  fila: FilaEmail;
-  cifra: CifraEmail;
+export interface OpcoesServicoEmail {
+  /** `null` = desligado (`disponivel() = false`). */
+  cifra: CifraEmail | null;
   log: LogRota;
   novoId?: () => string;
 }
 
-/** Implementa a porta `EnvioEmail` (o que a rota recebe). Nunca lança. */
-export function criarEnvioEmail(op: OpcoesEnvioServico): EnvioEmail {
+/**
+ * A porta das rotas (`ctx.email`) e, só na API, `cifrar`: a rota do portal que redefine a senha do admin (T-0094) manda a carga
+ * já cifrada à `sa_redefinir_senha_admin`, que grava a outbox na mesma transação (o `macuxi_portal` não escreve na tabela).
+ */
+export type ServicoEmailDaApi = ServicoEmail & { cifrar(carga: CargaEmail, aad: AadEmail): Buffer };
+
+export function criarServicoEmail(op: OpcoesServicoEmail): ServicoEmailDaApi {
   const novoId = op.novoId ?? randomUUID;
   return {
-    async enviar(modelo, destinatario, dados, opcoes = {}): Promise<ResultadoEnvioEmail> {
-      const opc = OpcoesEnvioEmailSchema.safeParse(opcoes);
-      const pedido = PedidoEmailSchema.safeParse({ modelo, destinatario, dados });
-      if (!opc.success || !pedido.success) {
-        op.log.warn(
-          {
-            tipo: 'email',
-            evento: 'recusado',
-            modelo: modeloParaLog(modelo),
-            codigo: CODIGOS_EMAIL.DADOS_INVALIDOS,
-            problemas: problemasSeguros([...(opc.success ? [] : opc.error.issues), ...(pedido.success ? [] : pedido.error.issues)]),
-          },
-          'pedido de e-mail inválido',
-        );
-        return { ok: false, codigo: CODIGOS_EMAIL.DADOS_INVALIDOS, retentavel: false };
+    disponivel: () => op.cifra !== null,
+    cifrar(carga, aad) {
+      if (!op.cifra) throw new ErroEmail(CODIGOS_EMAIL.CONFIG_INVALIDA, 'e-mail desligado: nada a cifrar', { retentavel: false, etapa: 'config' });
+      return op.cifra.cifrar(carga, aad);
+    },
+    async enfileirar(db: ClienteBanco, m): Promise<ResultadoEnfileirarEmail> {
+      const cifra = op.cifra;
+      if (!cifra) return 'indisponivel';
+      const v = MensagemEmailSchema.safeParse(m);
+      if (!v.success) {
+        // só caminho e código do Zod (a mensagem pode trazer o valor recebido)
+        const problemas = v.error.issues.slice(0, 10).map((i) => `${i.path.join('.')}:${i.code}`);
+        op.log.warn({ tipo: 'email', evento: 'recusado', codigo: CODIGOS_EMAIL.DADOS_INVALIDOS, problemas }, 'pedido de e-mail inválido');
+        throw new ErroEmail(CODIGOS_EMAIL.DADOS_INVALIDOS, `pedido de e-mail inválido (${problemas.join(', ')})`, { retentavel: false, etapa: 'validacao' });
       }
-      const idEnvio = opc.data.idEnvio ?? novoId();
-      const tenantId = opc.data.tenantId;
-      const base = { tipo: 'email', id_envio: idEnvio, modelo: pedido.data.modelo, ...(tenantId ? { tenant_id: tenantId } : {}) };
-      try {
-        const job: JobEmail = {
-          v: 1,
-          idEnvio,
-          modelo: pedido.data.modelo,
-          ...(tenantId ? { tenantId } : {}),
-          carga: op.cifra.cifrar(pedido.data, idEnvio),
-        };
-        await op.fila.enfileirar(job);
-      } catch (e) {
-        const err = comoErroEmail(e);
-        op.log.warn({ ...base, evento: 'fila_indisponivel', codigo: CODIGOS_EMAIL.FILA_INDISPONIVEL, causa: err.codigo }, 'e-mail não enfileirado');
-        return { ok: false, codigo: CODIGOS_EMAIL.FILA_INDISPONIVEL, retentavel: true };
-      }
-      op.log.info({ ...base, evento: 'enfileirado' }, 'e-mail enfileirado');
-      return { ok: true, idEnvio, situacao: 'enfileirado' };
+      const msg = v.data;
+      const tenantId = (await db.query<{ tenant_id: string | null }>(SQL_TENANT)).rows[0]?.tenant_id;
+      if (!tenantId) throw new ErroEmail(CODIGOS_EMAIL.DADOS_INVALIDOS, 'enfileirar fora da transação do tenant (comTenant)', { retentavel: false, etapa: 'validacao' });
+      const id = novoId();
+      const carga = cifra.cifrar({ para: msg.para, dados: msg.dados }, { id, tenant_id: tenantId, modelo: msg.modelo });
+      // a linha vive até a senha temporária vencer; sem validade (admin inicial, P5), o padrão de 72 h para sair
+      const horas = msg.dados.validade_horas ?? 72;
+      const r = await db.query<{ id: string }>(SQL_INSERIR, [id, tenantId, msg.usuario_id, msg.modelo, msg.chave_idempotencia, carga, horas]);
+      const novo = r.rows.length > 0;
+      op.log.info({ tipo: 'email', evento: novo ? 'enfileirado' : 'duplicado', email_id: novo ? id : undefined, tenant_id: tenantId, modelo: msg.modelo }, novo ? 'e-mail na outbox' : 'e-mail já estava na outbox (mesma chave)');
+      return 'enfileirado';
     },
   };
 }
 
-/** Porta para envio desligado: recusa com `EMAIL_DESLIGADO` (a rota segue; o admin informa a senha por outro meio). */
-export function criarEnvioEmailDesligado(log: LogRota): EnvioEmail {
-  return {
-    async enviar(modelo) {
-      log.warn({ tipo: 'email', evento: 'desligado', modelo: modeloParaLog(modelo), codigo: CODIGOS_EMAIL.DESLIGADO }, 'envio de e-mail desligado');
-      return { ok: false, codigo: CODIGOS_EMAIL.DESLIGADO, retentavel: false };
-    },
-  };
-}
-
-export interface OpcoesProcessador {
-  transporte: TransporteEmail;
-  cifra: CifraEmail;
-  remetente: EnderecoEmail;
-  log: LogRota;
-}
-
-/** Handler do worker: decifra, renderiza e entrega. Retentável ⇒ lança `ErroEmail`; não retentável ⇒ conclui. */
-export function criarProcessadorEmail(op: OpcoesProcessador): ProcessarJobEmail {
-  return async (job, ctx) => {
-    const base = {
-      tipo: 'email',
-      id_envio: job.idEnvio,
-      modelo: job.modelo,
-      ...(job.tenantId ? { tenant_id: job.tenantId } : {}),
-      tentativa: ctx.tentativa,
-      transporte: op.transporte.nome,
-    };
-    try {
-      const pedido = op.cifra.decifrar(job.carga, job.idEnvio);
-      const r = renderizarPedidoEmail(pedido);
-      const msg: MensagemEmail = {
-        idEnvio: job.idEnvio,
-        modelo: pedido.modelo,
-        de: op.remetente,
-        para: { email: pedido.destinatario.email, nome: pedido.destinatario.nome },
-        ...r,
-        paraLog: renderizarEmailParaLog(pedido),
-        semSenha: renderizarEmailSemSenha(pedido),
-      };
-      const { idMensagem } = await op.transporte.entregar(msg);
-      op.log.info({ ...base, evento: 'enviado', ...(idMensagem ? { id_mensagem: idMensagem } : {}) }, 'e-mail entregue ao transporte');
-    } catch (e) {
-      const err = comoErroEmail(e);
-      const campos = { ...base, codigo: err.codigo, ...(err.etapa ? { etapa: err.etapa } : {}), ...(err.codigoSmtp ? { codigo_smtp: err.codigoSmtp } : {}) };
-      if (err.retentavel && !ctx.ultima) {
-        op.log.warn({ ...campos, evento: 'falha_temporaria', retentavel: true }, 'falha temporária no envio de e-mail; nova tentativa');
-        throw err;
-      }
-      if (err.retentavel) {
-        op.log.error({ ...campos, evento: 'esgotado', retentavel: true }, 'e-mail não entregue: tentativas esgotadas');
-        throw err;
-      }
-      op.log.warn({ ...campos, evento: 'descartado', retentavel: false }, 'e-mail não entregue: falha definitiva');
-    }
-  };
-}
-
-export interface EmailLigado {
-  /** Porta para as rotas. */
-  envio: EnvioEmail;
-  /** Transporte em uso (`null` com envio desligado). */
-  transporte: TransporteEmail | null;
-  fila: FilaEmail | null;
-  /** Liga o consumo da fila (no worker). */
-  iniciar(): Promise<void>;
-  parar(): Promise<void>;
-}
-
-/** Transporte a partir da configuração (`null` se desligado). */
+/** Adaptador a partir da configuração (`null` se desligado). */
 export function criarTransporteDaConfig(cfg: ConfigEmail, op: { log: LogRota; agora?: () => Date }): TransporteEmail | null {
   if (cfg.transporte === 'desligado') return null;
   const agora = op.agora ? { agora: op.agora } : {};
@@ -170,25 +88,14 @@ export function criarTransporteDaConfig(cfg: ConfigEmail, op: { log: LogRota; ag
   return criarTransporteSmtp(cfg.smtp, agora);
 }
 
-/**
- * Fábrica para o worker/API (ainda NÃO ligada em `worker.ts`/`app.ts`: pendência do desenho). Com `boss` usa o pg-boss;
- * sem ele, a fila em memória (demo/testes: API e worker no mesmo processo).
- */
-export function ligarEmail(op: { config: ConfigEmail; log: LogRota; boss?: PgBossLike; fila?: FilaEmail; agora?: () => Date }): EmailLigado {
-  const { config, log } = op;
-  log.info({ tipo: 'email', evento: 'configuracao', ...descreverConfigEmail(config), avisos: config.avisos }, 'e-mail transacional');
-  const transporte = criarTransporteDaConfig(config, { log, ...(op.agora ? { agora: op.agora } : {}) });
-  if (!transporte) {
-    return { envio: criarEnvioEmailDesligado(log), transporte: null, fila: null, iniciar: async () => undefined, parar: async () => undefined };
-  }
-  const cifra = criarCifraEmail(config.chave);
-  const fila = op.fila ?? (op.boss ? criarFilaPgBoss(op.boss, { log }) : criarFilaMemoria());
-  const processador = criarProcessadorEmail({ transporte, cifra, remetente: config.remetente, log });
-  return {
-    envio: criarEnvioEmail({ fila, cifra, log }),
-    transporte,
-    fila,
-    iniciar: () => fila.processar(processador),
-    parar: () => fila.parar(),
-  };
+/** O `ctx.email` da API a partir da configuração (registra a configuração sem segredo). */
+export function criarServicoEmailDaConfig(cfg: ConfigEmail, log: LogRota): ServicoEmailDaApi {
+  log.info({ tipo: 'email', evento: 'configuracao', ...descreverConfigEmail(cfg), avisos: cfg.avisos }, 'e-mail transacional');
+  return criarServicoEmail({ cifra: cfg.transporte === 'desligado' ? null : criarCifraEmail(cfg.chave), log });
 }
+
+/** Porta desligada (padrão do `createApp` sem e-mail configurado: `disponivel() = false`). */
+export const SERVICO_EMAIL_DESLIGADO: ServicoEmail = {
+  disponivel: () => false,
+  enfileirar: async () => 'indisponivel',
+};

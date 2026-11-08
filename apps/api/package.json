@@ -10,6 +10,7 @@
     "start": "tsx src/servidor.ts",
     "worker": "tsx src/worker.ts",
     "tenant": "tsx src/cli/tenant.ts",
+    "super-admin": "tsx src/cli/super-admin.ts",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

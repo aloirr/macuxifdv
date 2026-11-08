@@ -17,6 +17,7 @@ import {
   PERFIS,
   type ModuloId,
 } from './nomes';
+import { ehChavePlataforma } from './permissoes-perfil';
 
 const ModuloIdSchema = z.enum(MODULOS);
 const PerfilSchema = z.enum(PERFIS);
@@ -180,6 +181,8 @@ export function validarConjunto(manifestos: readonly Manifesto[]): string[] {
     for (const acao of Object.keys(m.acoes)) {
       const dono = donoDaAcao.get(acao);
       if (dono && dono !== m.id) problemas.push(`ação ${acao} declarada por ${dono} e por ${m.id}`);
+      // ADR 0033: onde entra, escopo, usuários, senhas e perfis são chaves da plataforma (o SDK é o dono)
+      if (ehChavePlataforma(acao)) problemas.push(`ação ${acao} de ${m.id} é chave da plataforma (ADR 0033)`);
       donoDaAcao.set(acao, m.id);
     }
   }

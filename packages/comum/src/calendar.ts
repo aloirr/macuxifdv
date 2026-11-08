@@ -5,7 +5,7 @@
  *  - Funções da Fase M (`isBusinessDay`, `businessDays`): os feriados vêm SÓ do parâmetro (lista da empresa); os
  *    nacionais não entram sozinhos. Assinatura e comportamento mantidos (Gestor, Treinamento e Promotor usam).
  *  - Funções de prazo (T-0105; RN-GES-03: `ehFeriado`, `ehDiaUtilDoTenant`, `somarDiasUteis`, `diasUteisEntre`,
- *    `prazoEmDiasUteis`): dia útil = dia da SEMANA ÚTIL do tenant e, com a lista de feriados do tenant INFORMADA
+ *    `prazoEmDiasUteis`) e de meta (T-0124; RN-CORE-22/26: `diasUteisDoPeriodo`): dia útil = dia da SEMANA ÚTIL do tenant e, com a lista de feriados do tenant INFORMADA
  *    (mesmo `[]`), fora dos feriados nacionais (`./feriados`) e dos da lista; com a lista OMITIDA (`undefined`), só a
  *    semana conta. A lista do tenant são datas civis 'AAAA-MM-DD' já no fuso do tenant; o calendário não sabe de onde
  *    ela vem.
@@ -183,6 +183,23 @@ export function diasUteisEntre(a: string, b: string, feriadosTenant?: Iterable<s
   let n = 0;
   for (let dia = somarDias(ini, 1); dia <= fim; dia = somarDias(dia, 1)) if (ehUtil(dia, tenant, semana)) n++;
   return n === 0 ? 0 : sinal * n; // sem -0
+}
+
+/**
+ * RN-CORE-22/26 (T-0124): dias úteis do mês `periodo` (AAAA-MM) em relação a `hoje` (AAAA-MM-DD, data civil no fuso do
+ * tenant), no calendário do tenant. FONTE ÚNICA da conta de Metas, Início, BKO Indicadores (Core) e painel do Gestor: nenhum
+ * módulo reimplementa a semana útil nem os feriados. Hoje conta como restante (o dia ainda não fechou); `hoje` antes do mês =
+ * todos restantes; depois do mês = nenhum. Semana e feriados com a regra de `ehDiaUtilDoTenant`: lista de feriados OMITIDA = só
+ * a semana conta (RN-CORE-26 sem cadastro de feriados); informada (mesmo `[]`) = fora os nacionais e os da lista; semana omitida
+ * = `DIAS_UTEIS_PADRAO` (quem segue `metas.dias_uteis_semana` passa a semana do tenant).
+ */
+export function diasUteisDoPeriodo(periodo: string, hoje: string, feriadosTenant?: Iterable<string>, diasUteisSemana?: readonly number[]): BusinessDays {
+  exigirDataCivil(hoje);
+  const semana = semanaUtil(diasUteisSemana);
+  const tenant = conjuntoDoTenant(feriadosTenant);
+  const uteis = daysInMonth(periodo).filter((d) => ehUtil(d, tenant, semana));
+  const elapsed = uteis.filter((d) => d < hoje).length;
+  return { total: uteis.length, elapsed, remaining: uteis.length - elapsed };
 }
 
 export interface OpcoesPrazo {

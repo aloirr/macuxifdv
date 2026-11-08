@@ -6,7 +6,8 @@
  *
  * Na mesma transação, o comando que referencia uma foto registra a linha `aguardando` em `plataforma.arquivo`
  * (`registrarArquivo`, ADR 0010); o upload (`arquivos.ts`) só a completa. Também na mesma transação: a consulta a outro
- * módulo (`consultar`, ADR 0012: mesmo `ClienteBanco`, tenant e RLS; `{ licenca: 'tenant' }` só em leitura, ADR 0025) e a
+ * módulo (`consultar`, ADR 0012: mesmo `ClienteBanco`, tenant e RLS; `{ licenca: 'tenant' }` em leitura e, em escrita, só para
+ * consulta `configuracaoDoTenant` num savepoint somente leitura, ADR 0025 §4.1) e a
  * auditoria (`auditar`, RN-AUD-01).
  */
 import {
@@ -79,16 +80,49 @@ export interface OrigemTransacao {
   /** Para `consultar` (ADR 0012): usuário com os módulos efetivos AGORA, consultas instaladas, parâmetros e log. */
   usuario?: UsuarioDaRequisicao;
   /**
-   * ADR 0025: módulos efetivos do TENANT para `consultar(def, entrada, { licenca: 'tenant' })`. Presente só onde a opção vale:
-   * rota de usuário em GET/HEAD (leitura), consumidor de evento e tarefa periódica. Ausente (rota de escrita, push do sync) =
-   * pedir `'tenant'` é erro de programação.
+   * ADR 0025: módulos efetivos do TENANT para `consultar(def, entrada, { licenca: 'tenant' })`. Presente onde a opção vale:
+   * rota de usuário (leitura e escrita), consumidor de evento e tarefa periódica. Ausente (Conector) = pedir `'tenant'` é
+   * erro de programação.
    */
   modulosDoTenant?: readonly ModuloId[];
+  /**
+   * ADR 0025 §4.1 (T-0114): rota de usuário de ESCRITA (método ≠ GET/HEAD, inclusive o push do sync). Com `true`,
+   * `'tenant'` só vale para consulta que o dono declarou `configuracaoDoTenant`, executada num savepoint somente leitura;
+   * outra consulta = erro de programação. Consumidor e tarefa não marcam (a licença já é a do tenant).
+   */
+  escrita?: boolean;
   consultas?: RegistroConsultasApi;
   parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
   /** Fuso do tenant para `ContextoConsulta.fuso()` (o mesmo `ctx.fuso()` de quem consulta). Ausente/inválido = America/Manaus. */
   fuso?: () => string;
   log?: LogComFilho;
+}
+
+/** Savepoint da consulta de configuração do tenant em escrita (ADR 0025 §4.1). */
+export const SAVEPOINT_SOMENTE_LEITURA = 'macuxi_consulta_tenant';
+
+/**
+ * ADR 0025 §4.1: roda `fn` num savepoint com `transaction_read_only` ligado, no meio da transação da rota de escrita. O
+ * Postgres recusa qualquer escrita (SQLSTATE 25006) e o `rollback to savepoint` devolve a transação ao modo leitura e
+ * escrita (a consulta não escreveu nada, então não há o que perder); depois o savepoint é liberado. Erro da consulta
+ * desfaz o savepoint e segue para quem chamou (a transação continua utilizável).
+ */
+export async function emSomenteLeitura<T>(db: ClienteBanco, fn: () => Promise<T>): Promise<T> {
+  const desfazer = async () => {
+    await db.query(`rollback to savepoint ${SAVEPOINT_SOMENTE_LEITURA}`);
+    await db.query(`release savepoint ${SAVEPOINT_SOMENTE_LEITURA}`);
+  };
+  await db.query(`savepoint ${SAVEPOINT_SOMENTE_LEITURA}`);
+  let r: T;
+  try {
+    await db.query('set transaction read only');
+    r = await fn();
+  } catch (e) {
+    await desfazer().catch(() => undefined);
+    throw e;
+  }
+  await desfazer();
+  return r;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -131,10 +165,17 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       const impl = o.consultas?.get(def.nome);
       // sem usuário (rota de Conector, ADR 0013): indisponível com qualquer licença
       if (!impl || !o.usuario) throw new ConsultaIndisponivel(def.nome, def.modulo);
-      // ADR 0025: 'tenant' só em leitura; só a checagem de módulo muda (o usuário, o escopo, o tenant e a RLS são os mesmos)
+      // ADR 0025: só a checagem de módulo muda (o usuário, o escopo, o tenant e a RLS são os mesmos). Em escrita, só consulta
+      // que o DONO declarou configuracaoDoTenant (o registro da implementação manda, não a definição que o consumidor passou)
       let ativos: readonly ModuloId[] = o.usuario.modulos;
+      let somenteLeitura = false;
       if (licenca === 'tenant') {
-        if (!o.modulosDoTenant) throw new Error(`Consulta ${def.nome}: licenca 'tenant' só vale em leitura (GET), nunca em escrita (ADR 0025)`);
+        if (!o.modulosDoTenant) throw new Error(`Consulta ${def.nome}: licenca 'tenant' indisponível neste contexto (ADR 0025)`);
+        if (o.escrita) {
+          if (impl.consulta.configuracaoDoTenant !== true)
+            throw new Error(`Consulta ${def.nome}: licenca 'tenant' em escrita só para consulta configuracaoDoTenant do dono (ADR 0025 §4.1)`);
+          somenteLeitura = true;
+        }
         ativos = o.modulosDoTenant;
       }
       // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo agora (licença do usuário ou do tenant, RN-CORE-02/03)
@@ -143,9 +184,11 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       const base = o.log ?? logMudo;
       // log da consulta: dono, consulta, licença e request_id; nunca a entrada nem a saída
       const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo, licenca }) ?? base;
-      return executarConsulta(def, entrada, (e) =>
-        impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, fuso: () => fusoDoTenantOuPadrao(o.fuso?.()), log }),
-      );
+      const executar = () =>
+        executarConsulta(def, entrada, (e) =>
+          impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, fuso: () => fusoDoTenantOuPadrao(o.fuso?.()), log }),
+        );
+      return somenteLeitura ? emSomenteLeitura(db, executar) : executar();
     },
     async auditar(r) {
       if (!o.modulo) throw new Error('Rota da plataforma não audita fato de módulo');
