@@ -16,8 +16,8 @@ describe('usuários no BKO (RF-CORE-02): quem pode gerir e ver', () => {
   it('RF-CORE-02: só o admin cria, edita, desativa e define senha', () => {
     expect(PERFIS.filter((p) => podeGerirUsuarios(p))).toEqual(['admin']);
   });
-  it('RN-CORE-04: leitura da lista para supervisor, gerente e admin; os demais perfis não', () => {
-    expect(PERFIS.filter((p) => podeVerUsuarios(p))).toEqual(['supervisor', 'gerente', 'admin']);
+  it('RN-CORE-04/33: leitura da lista para gerente e admin; supervisor (sem BKO) e os demais perfis não', () => {
+    expect(PERFIS.filter((p) => podeVerUsuarios(p))).toEqual(['gerente', 'admin']);
   });
 });
 
@@ -40,12 +40,16 @@ describe('validação de entrada (RF-CORE-02)', () => {
   it('RF-CORE-02: external_id em branco é recusado (use vazio/nulo para "sem código")', () => {
     expect(validarDadosDeUsuario({ ...ok, external_id: '  ' }).map((x) => x.campo)).toEqual(['external_id']);
   });
-  it('RF-CORE-01: senha inicial exige 8+ caracteres com letra e número, e não pode ser o e-mail', () => {
-    expect(validarSenhaInicial('Abcdef12', 'a@b.co')).toBeNull();
-    expect(validarSenhaInicial('curta1', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('somenteletras', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('123456789', 'a@b.co')).not.toBeNull();
-    expect(validarSenhaInicial('ana@exemplo.com.br', 'ana@exemplo.com.br')).not.toBeNull();
+  it('RN-CORE-32: senha inicial exige 8+ caracteres com letra, número e especial, e não pode ser o e-mail', () => {
+    expect(validarSenhaInicial('Abcdef1!', 'a@b.co')).toBeNull();
+    expect(validarSenhaInicial('Abcdef12', 'a@b.co')).toBe('Falta um caractere especial.');
+    expect(validarSenhaInicial('curta1!', 'a@b.co')).toContain('pelo menos 8 caracteres');
+    expect(validarSenhaInicial('somenteletras', 'a@b.co')).toBe('Faltam um número e um caractere especial.');
+    expect(validarSenhaInicial('123456789!', 'a@b.co')).toBe('Falta uma letra.');
+    expect(validarSenhaInicial('ana@exemplo.com.br', 'ana@exemplo.com.br')).toBe('Falta um número.');
+  });
+  it('RN-CORE-32: senha igual ao e-mail é recusada mesmo cumprindo a regra', () => {
+    expect(validarSenhaInicial('ana1@exemplo.com.br', 'ana1@exemplo.com.br')).toBe('A senha não pode ser igual ao e-mail.');
   });
 });
 

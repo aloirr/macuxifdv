@@ -6,6 +6,7 @@
  */
 import { z } from 'zod';
 import type { ModuloId, Perfil } from './nomes';
+import type { PerfilDaRequisicao } from './permissoes-perfil';
 
 /**
  * Corpo de erro da API v1 (todas as rotas, todos os módulos): 401/403 de acesso e 422 de regra
@@ -29,6 +30,11 @@ export interface UsuarioAcesso {
   perfil: Perfil;
   /** Módulos efetivos (ver `modulosEfetivos`). */
   modulos: Iterable<ModuloId>;
+  /**
+   * ADR 0033 (T-0111/T-0112): os perfis de acesso do usuário já resolvidos (fábrica + o que o tenant mudou + limites travados).
+   * Presentes, a lista `perfis` da regra aceita qualquer perfil base deles, e a ação (`verificarAcao`) consulta o motor.
+   */
+  perfis?: readonly PerfilDaRequisicao[];
 }
 
 export type CodigoAcesso = 'NAO_AUTENTICADO' | 'MODULO_INATIVO' | 'PERFIL_SEM_ACESSO' | 'FORA_DA_CARTEIRA';
@@ -46,7 +52,7 @@ export function verificarAcesso(usuario: UsuarioAcesso | null | undefined, regra
   if (![...usuario.modulos].includes(regra.modulo)) {
     return { ok: false, status: 403, codigo: 'MODULO_INATIVO', mensagem: `O módulo ${regra.modulo} não está ativo para você.` };
   }
-  if (!regra.perfis.includes(usuario.perfil)) {
+  if (!regra.perfis.includes(usuario.perfil) && !usuario.perfis?.some((p) => regra.perfis.includes(p.base))) {
     return { ok: false, status: 403, codigo: 'PERFIL_SEM_ACESSO', mensagem: 'Seu perfil não tem acesso a esta ação.' };
   }
   return { ok: true };

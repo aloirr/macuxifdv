@@ -1,40 +1,41 @@
 /**
- * Equipe por CSV com convite de 1º acesso (T-0087, fatia E; RN-CORE-31; docs/modulos/core/equipe-csv.md).
+ * Equipe por CSV (T-0087, fatia E; T-0094 sem convite: RN-CORE-31/34; docs/modulos/core/equipe-csv.md).
  * Rotas `/v1/core/equipe/*` (`usuario.gerir`; o super-admin do portal entra por `superAdmin: 'aceita'` com `x-macuxi-tenant`):
  * - `modelo.csv`; `importacoes` (modo `conferir` valida sem gravar; `gravar` só grava se NÃO houver erro, tudo numa transação);
  * - idempotente pelo e-mail; a árvore sai do `email_superior` (cada superior ganha uma equipe que ele responde; o subordinado
  *   entra nela); ordem gerentes → supervisores → campo; módulos por exceção do usuário (só remove) com evento
  *   `core.usuario.modulos_alterados@1`; quantidade licenciada por módulo e regra 7 conferidas no `domain`;
- * - sem senha no CSV: cada usuário novo nasce sem senha e recebe um convite (token só na resposta; no banco, o SHA-256);
- * - LGPD: o CSV não é guardado; nada de nome, e-mail, telefone ou token em log ou auditoria (só ids, perfil e contagens).
+ * - sem senha no CSV: cada usuário novo nasce com uma senha temporária gerada pelo servidor (72 h, `trocar_senha`), enviada só por
+ *   e-mail na mesma transação do lote (se o lote desfaz, nenhum e-mail sai). Sem e-mail configurado e com gente nova, `gravar`
+ *   responde 503 `EMAIL_INDISPONIVEL` ANTES de gravar (ninguém conheceria as senhas); `conferir` funciona sempre;
+ * - LGPD: o CSV não é guardado; nada de nome, e-mail, telefone ou senha em log ou auditoria (só ids, perfil e contagens).
  * Nunca grava `ctx.usuario.id` em coluna com FK (o super-admin não é usuário do tenant).
  */
-import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, PERFIS, ehModulo, type ClienteBanco, type ContextoBase, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
+import { randomBytes } from 'node:crypto';
+import { ErroHttpModulo, ErroRegraNegocio, PERFIS, ehModulo, type ClienteBanco, type ContextoBase, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import {
   CODIGOS_EQUIPE_CSV,
   EVENTO_MODULOS_ALTERADOS,
   ImportarEquipeRequestSchema,
-  RenovarConviteRequestSchema,
-  UsuarioConviteParamsSchema,
-  type ConviteEmitido,
   type ImportarEquipeResposta,
 } from '../contracts';
 import {
+  SENHA_TEMPORARIA_HORAS,
   conferirImportacaoDeEquipe,
-  convitesParaCsv,
   errosParaCsv,
+  gerarSenhaTemporaria,
   lerCsvDeEquipe,
   modeloCsvDeEquipe,
   montarHierarquia,
-  prazoDoConvite,
+  validadeDaSenhaTemporaria,
   type ContextoImportacao,
   type PlanoUsuarioEquipe,
   type UsuarioExistente,
 } from '../domain';
-import { novoConvite } from './seguranca-convite';
+import { appsDoPerfil, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
+import { hashSenha } from './seguranca';
 
 type Tx = Parameters<Parameters<ContextoBase['comTenant']>[0]>[1];
-const ISO = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
 const MSG_CONCORRENCIA = 'Outra pessoa gravou o mesmo e-mail ou código do ERP ao mesmo tempo. Confira o arquivo e envie de novo.';
 
 interface Estado {
@@ -81,19 +82,6 @@ async function lerEstado(db: ClienteBanco): Promise<Estado> {
   return { existentes, removidos, grants, contexto: { existentes, modulosDoTenant: [...tenant], modulosDoPerfil, limites, emUso } };
 }
 
-const caminhoDoConvite = (token: string): string => `/convite#${token}`;
-const linkDoConvite = (origem: string | undefined, token: string): string | null => (origem ? `${new URL(origem).origin}${caminhoDoConvite(token)}` : null);
-
-/** Quem gerou o convite: admin do tenant ou super-admin do portal (colunas sem FK, 0036). */
-const autorDoConvite = (ctx: ContextoBase): [string, string] => (ctx.superAdmin ? [ctx.superAdmin.id, 'super_admin'] : [ctx.usuario.id, 'usuario']);
-
-async function gravarConvite(db: ClienteBanco, tenantId: string, usuarioId: string, agora: Date, autor: [string, string]): Promise<{ token: string; expira: Date }> {
-  const { token, hash } = novoConvite(tenantId);
-  const expira = prazoDoConvite(agora);
-  await db.query('insert into core.usuario_convite (tenant_id, usuario_id, token_hash, expira_em, criado_por_id, criado_por_tipo) values (plataforma.tenant_atual(), $1, $2, $3, $4, $5)', [usuarioId, hash, expira.toISOString(), autor[0], autor[1]]);
-  return { token, expira };
-}
-
 /** Equipe que o superior responde: reaproveita a que existe; senão cria "Equipe de <nome>" sob a equipe dele. */
 async function equipeDoSuperior(db: ClienteBanco, superiorId: string, cache: Map<string, string>): Promise<string> {
   const c = cache.get(superiorId);
@@ -133,13 +121,23 @@ async function sincronizarModulos(db: ClienteBanco, tx: Tx, p: PlanoUsuarioEquip
   }
 }
 
-const vazio = (modo: 'conferir' | 'gravar'): Pick<ImportarEquipeResposta, 'modo' | 'convites' | 'convites_csv'> => ({ modo, convites: [], convites_csv: '' });
+const vazio = (modo: 'conferir' | 'gravar'): Pick<ImportarEquipeResposta, 'modo' | 'acessos_enviados' | 'email_acesso'> => ({ modo, acessos_enviados: 0, email_acesso: null });
+
+const MSG_SEM_EMAIL = 'O envio de e-mail não está configurado. Fale com o suporte da Macuxi.';
+
+/** Hash das senhas temporárias em lotes paralelos (o argon2 roda no pool de threads; 5000 linhas em série seria minutos). */
+async function hashesEmLotes(senhas: readonly string[]): Promise<string[]> {
+  const saida: string[] = [];
+  for (let i = 0; i < senhas.length; i += 8) saida.push(...(await Promise.all(senhas.slice(i, i + 8).map((x) => hashSenha(x)))));
+  return saida;
+}
 
 export const rotasDeEquipeCsv: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'equipe/modelo.csv',
     acao: 'usuario.gerir',
+    superficie: 'bko',
     superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     tipoConteudo: 'text/csv; charset=utf-8',
@@ -150,15 +148,17 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
     metodo: 'POST',
     caminho: 'equipe/importacoes',
     acao: 'usuario.gerir',
+    superficie: 'bko',
     superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     corpo: ImportarEquipeRequestSchema,
     limiteCorpoBytes: 2_500_000,
     executar: async (ctx): Promise<ImportarEquipeResposta> => {
-      const { csv, modo, origem } = ctx.corpo;
+      const { csv, modo } = ctx.corpo;
       const lido = lerCsvDeEquipe(csv);
       if (!lido.ok) throw new ErroRegraNegocio(CODIGOS_EQUIPE_CSV.arquivoInvalido, lido.mensagem);
       const tenantId = ctx.usuario.tenant_id;
+      const semEmail = !emailDisponivel(ctx);
       try {
         return await ctx.comTenant(async (db, tx) => {
           await db.query("select pg_advisory_xact_lock(hashtext('equipe_csv:' || plataforma.tenant_atual()::text))");
@@ -172,11 +172,19 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
             erros_csv: r.erros.length > 0 ? errosParaCsv(r.erros) : '',
           };
           if (modo === 'conferir' || r.erros.length > 0) return { ...vazio(modo), ...base, gravado: false };
+          const novos = r.plano.filter((p) => p.acao === 'criar');
+          // RN-CORE-34: sem e-mail ninguém conheceria as senhas geradas — recusa ANTES de gravar qualquer coisa
+          if (novos.length > 0 && semEmail) throw new ErroHttpModulo(503, CODIGOS_EQUIPE_CSV.emailIndisponivel, MSG_SEM_EMAIL);
+          const empresa = novos.length > 0 ? await empresaDoTenant(db) : { nome: '', codigo: '' };
+          const senhasNovas = new Map(novos.map((p) => [p.email, gerarSenhaTemporaria((n) => randomBytes(n))]));
+          const hashes = new Map<string, string>();
+          const emails = [...senhasNovas.keys()];
+          (await hashesEmLotes(emails.map((e) => senhasNovas.get(e)!))).forEach((h, k) => hashes.set(emails[k]!, h));
 
           // gravar: ordem do plano (gerentes → supervisores → campo), numa transação só
           const idPorEmail = new Map(est.existentes.map((u) => [u.email.toLowerCase(), u.id]));
           const equipes = new Map<string, string>();
-          const convites: ConviteEmitido[] = [];
+          let acessosEnviados = 0;
           const agora = ctx.agora();
           for (const p of r.plano) {
             if (p.acao === 'sem_mudanca') continue;
@@ -186,15 +194,21 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
             if (p.acao === 'criar') {
               id = (
                 await db.query<{ id: string }>(
-                  `insert into core.usuario (tenant_id, nome, email, perfil, equipe_id, senha_hash, ativo, external_id, telefone)
-                   values (plataforma.tenant_atual(), $1, $2, $3, $4, null, true, $5, $6) returning id`,
-                  [p.nome, p.email, p.perfil, equipeId, p.external_id, p.telefone],
+                  `insert into core.usuario (tenant_id, nome, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, telefone)
+                   values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, true, $6, true, $7, $8) returning id`,
+                  [p.nome, p.email, p.perfil, equipeId, hashes.get(p.email), validadeDaSenhaTemporaria(agora), p.external_id, p.telefone],
                 )
               ).rows[0]!.id;
               idPorEmail.set(p.email, id);
-              const { token, expira } = await gravarConvite(db, tenantId, id, agora, autorDoConvite(ctx));
-              convites.push({ usuario_id: id, nome: p.nome, email: p.email, perfil: p.perfil, caminho: caminhoDoConvite(token), link: linkDoConvite(origem, token), expira_em: expira.toISOString() });
-              await tx.auditar({ acao: 'usuario.convidar', entidade: 'usuario', entidade_id: id, antes: null, depois: { perfil: p.perfil, equipe_id: equipeId, origem: 'csv', senha_definida: false } });
+              const envio = await enviarEmail(ctx, db, {
+                modelo: 'acesso_inicial',
+                usuario_id: id,
+                para: p.email,
+                dados: { nome: p.nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: p.email, senha: senhasNovas.get(p.email)!, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDoPerfil(p.perfil) },
+                chave_idempotencia: `${id}:acesso`,
+              });
+              if (envio === 'enfileirado') acessosEnviados += 1;
+              await tx.auditar({ acao: 'usuario.criar', entidade: 'usuario', entidade_id: id, antes: null, depois: { perfil: p.perfil, equipe_id: equipeId, origem: 'csv', trocar_senha: true, email: envio } });
             } else {
               // RN-CORE-04: quem responde por equipe leva a equipe junto ao trocar de superior (o escopo é a árvore de equipes)
               if (equipeId) {
@@ -215,8 +229,8 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
             ...base,
             modo,
             gravado: true,
-            convites,
-            convites_csv: convitesParaCsv(convites.map((c) => ({ nome: c.nome, email: c.email, perfil: c.perfil, link: c.link ?? c.caminho, expira_em: c.expira_em }))),
+            acessos_enviados: acessosEnviados,
+            email_acesso: novos.length > 0 ? 'enfileirado' : null,
           };
         });
       } catch (e) {
@@ -224,44 +238,5 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
         throw e;
       }
     },
-  },
-  {
-    metodo: 'GET',
-    caminho: 'equipe/convites',
-    acao: 'usuario.gerir',
-    superAdmin: 'aceita',
-    carteira: 'nao_se_aplica',
-    executar: async (ctx) =>
-      ctx.comTenant(async (db) => {
-        // sem o token: ele só existe na resposta que o criou ou renovou
-        const r = await db.query<{ usuario_id: string; nome: string; email: string; perfil: Perfil; expira_em: string; vencido: boolean }>(
-          `select c.usuario_id, u.nome, u.email, u.perfil, to_char(c.expira_em at time zone 'UTC', ${ISO}) as expira_em, (c.expira_em <= now()) as vencido
-             from core.usuario_convite c join core.usuario u on u.id = c.usuario_id and u.deleted_at is null
-            where c.usado_em is null and c.revogado_em is null and c.deleted_at is null and u.senha_hash is null
-            order by u.nome, c.id limit 5000`,
-        );
-        return { itens: r.rows };
-      }),
-  },
-  {
-    metodo: 'POST',
-    caminho: 'equipe/convites/:usuario_id/renovar',
-    acao: 'usuario.gerir',
-    superAdmin: 'aceita',
-    carteira: 'nao_se_aplica',
-    params: UsuarioConviteParamsSchema,
-    corpo: RenovarConviteRequestSchema,
-    executar: async (ctx): Promise<ConviteEmitido> =>
-      ctx.comTenant(async (db, tx) => {
-        const id = ctx.params.usuario_id;
-        const u = (await db.query<{ nome: string; email: string; perfil: Perfil; ativo: boolean; senha_hash: string | null }>('select nome, email, perfil, ativo, senha_hash from core.usuario where id = $1 and deleted_at is null for update', [id])).rows[0];
-        if (!u) throw new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
-        if (!u.ativo) throw new ErroRegraNegocio(CODIGOS_EQUIPE_CSV.usuarioSemConvite, 'Esta pessoa está desativada. Ative o usuário em Usuários antes de enviar um novo convite.');
-        if (u.senha_hash) throw new ErroRegraNegocio(CODIGOS_EQUIPE_CSV.usuarioSemConvite, 'Esta pessoa já criou a senha e entra normalmente. Para trocar a senha, use "Redefinir senha" em Usuários.');
-        await db.query('update core.usuario_convite set revogado_em = now() where usuario_id = $1 and usado_em is null and revogado_em is null', [id]);
-        const { token, expira } = await gravarConvite(db, ctx.usuario.tenant_id, id, ctx.agora(), autorDoConvite(ctx));
-        await tx.auditar({ acao: 'usuario.convidar', entidade: 'usuario', entidade_id: id, antes: null, depois: { renovado: true, senha_definida: false } });
-        return { usuario_id: id, nome: u.nome, email: u.email, perfil: u.perfil, caminho: caminhoDoConvite(token), link: linkDoConvite(ctx.corpo.origem, token), expira_em: expira.toISOString() };
-      }),
   },
 ];

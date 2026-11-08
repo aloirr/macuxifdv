@@ -1,25 +1,33 @@
 /**
  * Usuários no BKO (RF-CORE-02; T-0067). Leitura: supervisor/gerente (recortada pelo escopo, `usuariosVisiveis`, RN-CORE-04) e
- * admin (`usuario.ver`). Escrita só do admin (`usuario.gerir`; a API revalida). Nunca apaga: desativar põe `ativo = false`,
+ * admin (`usuario.ver`). Escrita só do admin (`usuario.gerir`; a API revalida). Criar e redefinir a senha (T-0094, RN-CORE-34): a senha é temporária (72 h,
+ * `trocar_senha`), vai por e-mail na mesma transação (`ctx.email`) e encerra as sessões (`sessao_versao + 1`); nunca vai a log,
+ * auditoria nem resposta. Nunca apaga: desativar põe `ativo = false`,
  * revoga as sessões e limpa o push; o acesso cai na próxima requisição porque `autenticar` confere `ativo` a cada chamada.
  * Superior imediato não é coluna: deriva da equipe (`montarHierarquia`). Toda alteração é auditada (RN-AUD-01) na mesma
  * transação, sem senha, hash, nome nem e-mail em claro. A senha é hasheada em argon2id (`hashSenha`) e nunca vai a log.
  */
+import { randomBytes } from 'node:crypto';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   AtivarUsuarioRequestSchema,
   CODIGOS_USUARIO,
   CriarUsuarioRequestSchema,
+  CriarUsuarioRespostaSchema,
+  CODIGOS_EQUIPE_CSV,
   EditarUsuarioRequestSchema,
   EquipeOpcaoSchema,
   RedefinirSenhaRequestSchema,
   UsuarioItemSchema,
   UsuarioListaQuerySchema,
+  type CriarUsuarioResposta,
   type EquipeOpcao,
+  type RedefinirSenhaResposta,
   type UsuarioItem,
 } from '../contracts';
 import {
+  SENHA_TEMPORARIA_HORAS,
   avaliarAlteracaoDeUsuario,
   diffAuditavelDeUsuario,
   montarHierarquia,
@@ -27,12 +35,17 @@ import {
   recortarUsuarios,
   superiorImediatoNaEquipe,
   validarDadosDeUsuario,
+  faltasNaSenha,
+  gerarSenhaTemporaria,
+  podeRedefinirSenha,
+  validadeDaSenhaTemporaria,
   validarSenhaInicial,
   type EquipeLinha,
   type ErroDeCampo,
   type UsuarioAuditavel,
 } from '../domain';
 import { auditar } from './auditoria';
+import { appsDoPerfil, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { hashSenha } from './seguranca';
 
 type Visiveis = ReadonlySet<string> | 'tenant';
@@ -66,10 +79,14 @@ interface LinhaUsuario {
   ativo: boolean;
   external_id: string | null;
   ultimo_login_em: string | null;
+  trocar_senha: boolean;
+  senha_expira_em: string | null;
+  sem_senha: boolean;
 }
 
 const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
-         to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em
+         to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
+         u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha
     from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null`;
 
 async function equipesAtivas(db: ClienteBanco): Promise<EquipeLinha[]> {
@@ -150,6 +167,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'usuarios',
+    superficie: 'bko',
     acao: 'usuario.ver',
     carteira: 'nao_se_aplica',
     query: UsuarioListaQuerySchema,
@@ -180,6 +198,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'GET',
     caminho: 'equipes',
+    superficie: 'bko',
     acao: 'usuario.ver',
     carteira: 'nao_se_aplica',
     executar: async (ctx) => {
@@ -218,11 +237,12 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'POST',
     caminho: 'usuarios',
+    superficie: 'bko',
     acao: 'usuario.gerir',
     carteira: 'nao_se_aplica',
     status: 201,
     corpo: CriarUsuarioRequestSchema,
-    executar: async (ctx) => {
+    executar: async (ctx): Promise<CriarUsuarioResposta> => {
       const c = ctx.corpo;
       const email = normalizarEmail(c.email);
       const nome = c.nome.trim();
@@ -230,20 +250,29 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       const erros = validarDadosDeUsuario({ nome, email, perfil: c.perfil, external_id: externalId });
       if (erros.length > 0) throw dadosInvalidos(erros);
       const fraca = validarSenhaInicial(c.senha, email);
-      if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca);
+      if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca, { faltas: faltasNaSenha(c.senha) });
       const senhaHash = await hashSenha(c.senha);
       try {
         return await ctx.comTenant(async (db) => {
           await exigirEquipe(db, c.equipe_id);
           await exigirUnicos(db, email, externalId, null);
           const r = await db.query<{ id: string }>(
-            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, ativo, external_id)
-             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8) returning id`,
-            [nome, c.nome_curto?.trim() || null, email, c.perfil, c.equipe_id, senhaHash, c.ativo, externalId],
+            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id)
+             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9) returning id`,
+            [nome, c.nome_curto?.trim() || null, email, c.perfil, c.equipe_id, senhaHash, validadeDaSenhaTemporaria(ctx.agora()), c.ativo, externalId],
           );
           const id = r.rows[0]!.id;
-          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: c.perfil, equipe_id: c.equipe_id, ativo: c.ativo, external_id: externalId, senha_definida: true } });
-          return itemPorId(db, id);
+          const empresa = await empresaDoTenant(db);
+          // a senha só sai na carga cifrada do e-mail (mesma transação: criou <=> enfileirou)
+          const envio = await enviarEmail(ctx, db, {
+            modelo: 'acesso_inicial',
+            usuario_id: id,
+            para: email,
+            dados: { nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: email, senha: c.senha, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDoPerfil(c.perfil) },
+            chave_idempotencia: `${id}:acesso`,
+          });
+          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: c.perfil, equipe_id: c.equipe_id, ativo: c.ativo, external_id: externalId, senha_definida: true, trocar_senha: true, email: envio } });
+          return CriarUsuarioRespostaSchema.parse({ ...(await itemPorId(db, id)), email_acesso: envio });
         });
       } catch (e) {
         return traduzirErroDeBanco(e);
@@ -253,6 +282,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'usuarios/:id',
+    superficie: 'bko',
     acao: 'usuario.gerir',
     carteira: 'nao_se_aplica',
     params: IdParam,
@@ -298,6 +328,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'usuarios/:id/ativo',
+    superficie: 'bko',
     acao: 'usuario.gerir',
     carteira: 'nao_se_aplica',
     params: IdParam,
@@ -308,11 +339,14 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
         const { ativo } = ctx.corpo;
         if (antes.ativo === ativo) return itemPorId(db, antes.id); // idempotente: sem auditoria nem nova revogação
         await conferirAlteracao(ctx, db, antes, { perfil: antes.perfil as Perfil, ativo });
-        await db.query('update core.usuario set ativo = $2 where id = $1', [antes.id, ativo]);
+        // T-0095: desativar no BKO marca `desligado_no_bko_em`; a carga do ERP não reativa enquanto estiver preenchida (reativar limpa)
+        await db.query(
+          'update core.usuario set ativo = $2, desligado_no_bko_em = case when $2::boolean then null else now() end, sessao_versao = case when $2::boolean then sessao_versao else sessao_versao + 1 end where id = $1',
+          [antes.id, ativo],
+        );
         if (!ativo) {
           // o acesso já cai na próxima requisição (autenticar confere `ativo`); aqui também mata o refresh e o push
           await db.query('update core.sessao set revogado_em = now() where usuario_id = $1 and revogado_em is null', [antes.id]);
-          await db.query('update core.usuario_convite set revogado_em = now() where usuario_id = $1 and usado_em is null and revogado_em is null', [antes.id]);
           await db.query('update core.dispositivo set push_token = null, push_plataforma = null where usuario_id = $1', [antes.id]);
         }
         await auditar(db, ctx, {
@@ -328,23 +362,52 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
   {
     metodo: 'PUT',
     caminho: 'usuarios/:id/senha',
+    superficie: 'bko',
     acao: 'usuario.gerir',
     carteira: 'nao_se_aplica',
     params: IdParam,
     corpo: RedefinirSenhaRequestSchema,
-    executar: (ctx) =>
+    executar: (ctx): Promise<RedefinirSenhaResposta> =>
       ctx.comTenant(async (db) => {
         const alvo = await buscarParaAlterar(db, ctx.params.id);
-        const fraca = validarSenhaInicial(ctx.corpo.senha, alvo.email);
-        if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca);
-        const senhaHash = await hashSenha(ctx.corpo.senha);
-        // zera a contagem de falhas e o bloqueio temporário; a senha antiga não vale mais em nenhuma sessão
-        await db.query('update core.usuario set senha_hash = $2, tentativas_falhas = 0, bloqueio_ate = null where id = $1', [alvo.id, senhaHash]);
+        // P7: nunca a própria conta nem um admin; o alvo precisa estar ativo (o super-admin do portal age como admin)
+        const pode = podeRedefinirSenha({ id: ctx.usuario.id, perfil: ctx.usuario.perfil }, { id: alvo.id, perfil: alvo.perfil as Perfil, ativo: alvo.ativo });
+        if (!pode.ok) throw new ErroRegraNegocio(pode.codigo, pode.mensagem);
+        const informada = ctx.corpo.senha;
+        // sem senha informada o servidor gera: ninguém a conhece além do e-mail — sem e-mail configurado, recusa antes de mexer
+        if (informada === undefined && !emailDisponivel(ctx)) {
+          throw new ErroHttpModulo(503, CODIGOS_EQUIPE_CSV.emailIndisponivel, 'O envio de e-mail não está configurado. Informe uma senha para passar à pessoa ou fale com o suporte da Macuxi.');
+        }
+        if (informada !== undefined) {
+          const fraca = validarSenhaInicial(informada, alvo.email);
+          if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca, { faltas: faltasNaSenha(informada) });
+        }
+        const senha = informada ?? gerarSenhaTemporaria((n) => randomBytes(n));
+        const senhaHash = await hashSenha(senha);
+        const semSenha = ((await db.query<{ sem_senha: boolean }>('select (senha_hash is null) as sem_senha from core.usuario where id = $1', [alvo.id])).rows[0]?.sem_senha ?? false) === true;
+        // zera tentativas e bloqueio temporário; a senha antiga e todas as sessões deixam de valer (sessao_versao + 1 derruba o token na hora)
+        const v = await db.query<{ sessao_versao: number }>(
+          `update core.usuario
+              set senha_hash = $2, trocar_senha = true, senha_expira_em = $3,
+                  senha_temporaria_hash = null, senha_temporaria_expira_em = null, senha_temporaria_criada_em = null,
+                  tentativas_falhas = 0, bloqueio_ate = null, sessao_versao = sessao_versao + 1
+            where id = $1
+          returning sessao_versao`,
+          [alvo.id, senhaHash, validadeDaSenhaTemporaria(ctx.agora())],
+        );
+        const versao = Number(v.rows[0]?.sessao_versao ?? 0);
         await db.query('update core.sessao set revogado_em = now() where usuario_id = $1 and revogado_em is null', [alvo.id]);
-        // o link de 1º acesso antigo não pode mais trocar a senha que o admin definiu (RN-CORE-31)
-        await db.query('update core.usuario_convite set revogado_em = now() where usuario_id = $1 and usado_em is null and revogado_em is null', [alvo.id]);
-        await auditar(db, ctx, { acao: 'usuario.senha_redefinir', entidade: 'usuario', entidadeId: alvo.id, antes: null, depois: { senha_alterada: true, sessoes_revogadas: true } });
-        return { ok: true };
+        const empresa = await empresaDoTenant(db);
+        const envio = await enviarEmail(ctx, db, {
+          modelo: semSenha ? 'acesso_inicial' : 'nova_senha',
+          usuario_id: alvo.id,
+          para: alvo.email,
+          dados: { nome: alvo.nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: alvo.email, senha, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDoPerfil(alvo.perfil as Perfil), ...(semSenha ? {} : { motivo: 'redefinida' as const }) },
+          chave_idempotencia: `${alvo.id}:redefinida:${versao}`,
+        });
+        // RN-AUD-01: o fato, nunca a senha nem o hash
+        await auditar(db, ctx, { acao: 'usuario.senha_redefinir', entidade: 'usuario', entidadeId: alvo.id, antes: null, depois: { trocar_senha: true, sessoes_revogadas: true, gerada: informada === undefined, email: envio } });
+        return { ok: true as const, email_acesso: envio };
       }),
   },
 ];

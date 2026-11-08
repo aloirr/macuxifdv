@@ -7,6 +7,8 @@
  * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`). Itens do slot
  * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
+ * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão de um perfil fora de
+ * `PERFIS_DO_APP.web` do SDK, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao Entrar com o aviso.
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,8 +18,9 @@ import type { ItemMenu } from '@macuxi/core/contracts';
 import { perfilUsaApp, ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { Button, cx, ErrorBlock, IconLogout, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconLogout, LoadingBlock } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
+import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDoConteudo } from '@/lib/estado-shell';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
@@ -105,6 +108,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace('/login');
   };
 
+  // RN-CORE-33: perfil sem backoffice durante o uso (403 PERFIL_SEM_BKO): sai e mostra o motivo no Entrar
+  useEffect(
+    () =>
+      aoPerfilSemBko(() => {
+        guardarAvisoDoLogin(mensagemSemBko(perfil));
+        encerrarSessao();
+        qc.clear();
+        router.replace('/login');
+      }),
+    [perfil, qc, router],
+  );
+
   if (session.status !== 'authenticated') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-ground">
@@ -173,13 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {conteudo === 'erro_me' ? (
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
         ) : conteudo === 'perfil_fora_do_bko' ? (
-          <Notice tone="info">
-            {perfil ? `O perfil ${roleLabel.toLowerCase()} usa o app Macuxi Campo no celular.` : 'Perfil não reconhecido.'} O backoffice é para admin, analista, assistente,
-            supervisor e gerente.{' '}
-            <Button variant="link" onClick={switchProfile}>
-              Trocar perfil
-            </Button>
-          </Notice>
+          <SemBko perfil={perfil} />
         ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
         ) : conteudo === 'carregando_modulos' ? (
@@ -192,6 +201,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ShellProvider>
         )}
       </main>
+    </div>
+  );
+}
+
+/** Sessão de um perfil sem backoffice (ex.: aberta antes da RN-CORE-33): encerra e volta ao Entrar com o aviso do SDK. */
+function SemBko({ perfil }: { perfil: Perfil | null }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  useEffect(() => {
+    guardarAvisoDoLogin(mensagemSemBko(perfil));
+    encerrarSessao();
+    qc.clear();
+    router.replace('/login');
+  }, [perfil, qc, router]);
+  return (
+    <div data-testid="shell-sem-bko">
+      <LoadingBlock label="Indo para o login…" />
     </div>
   );
 }

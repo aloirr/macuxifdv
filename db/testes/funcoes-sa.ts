@@ -1,9 +1,12 @@
 /**
- * Funções SECURITY DEFINER do super-admin de plataforma (0035, T-0087, ADR 0029), na forma do regprocedure. Na 0035, EXECUTE só
- * ao macuxi_app; desde a 0038 (T-0091), só ao macuxi_portal (nunca PUBLIC, o macuxi_app nem o macuxi_worker). Usadas por
- * estatico.test.ts, super-admin.test.ts e papel-portal.test.ts (que confere também pelo catálogo: nenhuma sa_* fora da lista).
+ * Funções SECURITY DEFINER do portal de plataforma, na forma do regprocedure. EXECUTE só ao macuxi_portal desde a 0038
+ * (T-0091; nunca PUBLIC, o macuxi_app nem o macuxi_worker).
+ *
+ * FUNCOES_SA_0035: as 20 da 0035 (T-0087, ADR 0029; na 0035, EXECUTE ao macuxi_app). Valem até a 0038: a 0039 apaga 14
+ * delas e reescreve as outras 6 (o down da 0039 as recria). Usadas pelos testes estáticos da 0035 e da 0038 e pelos bancos
+ * efêmeros parados nessas versões.
  */
-export const FUNCOES_SA = [
+export const FUNCOES_SA_0035 = [
   'plataforma.sa_existe()',
   'plataforma.sa_criar_primeiro(text, text, text)',
   'plataforma.sa_para_login(text)',
@@ -25,3 +28,47 @@ export const FUNCOES_SA = [
   'plataforma.sa_tenant_ativo(uuid, uuid)',
   'plataforma.sa_provisionar_tenant(uuid, jsonb)',
 ] as const;
+
+/** As 14 da 0035 que a 0039 (T-0093, ADR 0031) apaga: convite, TOTP, recuperação, desafio e o login por conta. */
+export const FUNCOES_SA_REMOVIDAS_0039 = [
+  'plataforma.sa_existe()',
+  'plataforma.sa_criar_primeiro(text, text, text)',
+  'plataforma.sa_para_login(text)',
+  'plataforma.sa_por_id(uuid)',
+  'plataforma.sa_registrar_falha(uuid)',
+  'plataforma.sa_registrar_sucesso(uuid)',
+  'plataforma.sa_gravar_totp_pendente(uuid, text)',
+  'plataforma.sa_confirmar_totp(uuid, bigint, text[])',
+  'plataforma.sa_marcar_passo(uuid, bigint)',
+  'plataforma.sa_usar_recuperacao(uuid, text)',
+  'plataforma.sa_regerar_recuperacao(uuid, text[])',
+  'plataforma.sa_abrir_desafio(uuid, text)',
+  'plataforma.sa_ver_desafio(text)',
+  'plataforma.sa_abrir_sessao(text)',
+] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a última (0039, T-0093, ADR 0031): login só com e-mail e senha, bloqueio por chave do
+ * e-mail, sessão por empresa. EXECUTE só ao macuxi_portal. Contrato com o Core e a API: R-20261107-150432-banco-dados.
+ */
+export const FUNCOES_SA = [
+  'plataforma.sa_tentativa_estado(text)',
+  'plataforma.sa_tentativa_falha(text)',
+  'plataforma.sa_tentativa_sucesso(text)',
+  'plataforma.sa_contas_para_login(text)',
+  'plataforma.sa_abrir_sessao_portal(jsonb)',
+  'plataforma.sa_escolher_empresa(uuid, uuid)',
+  'plataforma.sa_sessao_valida(uuid)',
+  'plataforma.sa_revogar(uuid)',
+  'plataforma.sa_auditar(jsonb)',
+  'plataforma.sa_listar_tenants(uuid)',
+  'plataforma.sa_tenant_ativo(uuid, uuid)',
+  'plataforma.sa_provisionar_tenant(uuid, jsonb)',
+] as const;
+
+/** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
+export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';
+/** A interna da 0035 (5 argumentos), que a 0039 troca pela SA_INTERNA. */
+export const SA_INTERNA_0035 = 'plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb)';
+/** Do deploy (0039): sem EXECUTE para app, worker ou portal; só a conexão de administração (dono) chama. */
+export const CRIAR_SUPER_ADMIN = 'plataforma.criar_super_admin(jsonb)';

@@ -113,6 +113,15 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
 - `FolhaPeriodo`: atalhos (aplica e fecha), "Escolher dia, mês ou ano ›" com Dia/Mês/Ano e "Limpar" (volta ao padrão).
   Comportamento puro em `eventoDaFolha` (`periodo.ts`). Ícones novos: `filtro`, `abaixo` (seta do campo), `subir` (Leve mais).
 
+### 4.3 Regras da senha (T-0093, RN-CORE-32; spec `docs/design/portal-entrar.md` §5)
+- `RegrasDaSenha` (web e mobile, mesma API): "A senha precisa ter" + 8 caracteres ou mais · Uma letra · Um número · Um caractere
+  especial, ao vivo pelas `faltas` do Core (`faltasNaSenha`); ✓ verde cumprida, círculo vazio neutro faltando, ✕ vermelho com
+  `destacar` (depois de tentar salvar). Leitor de tela: "ok"/"falta" por regra (web) e resumo em região viva ("Falta um número.").
+  Nunca no login; o kit não recebe a senha. Textos e frases em `comum/senha.ts`.
+- Olho do campo de senha (web): `IconEye` no botão "Mostrar senha" (senha escondida) e `IconEyeOff` no "Esconder senha"
+  (`MOSTRAR_SENHA`/`ESCONDER_SENHA`), 18 px, `text-ink-2`, botão de 44 × 44 dentro do campo, à direita. Vale no login (o olho
+  ajuda a conferir o que digitou; a lista de regras é que não entra no login).
+
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
   Android fecha. Use para filtros, quantidade, desconto, escolha entre 2–5 opções. Mesmas props da T-0071.

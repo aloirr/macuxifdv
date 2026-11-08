@@ -5,10 +5,11 @@
  *
  * - `GET  /v1/core/usuarios?q=&perfil=&equipe_id=&ativo=` — supervisor/gerente (recortado pelo escopo) e admin (`usuario.ver`)
  * - `GET  /v1/core/equipes` — equipes para o filtro e o formulário, com o superior resultante (`usuario.ver`)
- * - `POST /v1/core/usuarios` — cria com senha inicial (`usuario.gerir`, só admin) → 201
+ * - `POST /v1/core/usuarios` — cria com senha inicial (`usuario.gerir`, só admin) → 201 `CriarUsuarioResposta`; a senha vai por e-mail e a pessoa troca no 1º acesso (RN-CORE-34)
  * - `PUT  /v1/core/usuarios/:id` — edita (campos enviados; ausente = mantém) (`usuario.gerir`)
  * - `PUT  /v1/core/usuarios/:id/ativo` — ativa/desativa; desativar revoga as sessões (`usuario.gerir`)
- * - `PUT  /v1/core/usuarios/:id/senha` — redefine a senha (`usuario.gerir`); a resposta nunca devolve senha nem hash
+ * - `PUT  /v1/core/usuarios/:id/senha` — redefine a senha (`usuario.gerir`; corpo `{ senha? }`, ausente = o servidor gera); recusa a própria conta e admin (P7);
+ *   encerra as sessões; a pessoa recebe por e-mail e troca no próximo acesso. A resposta nunca devolve senha nem hash
  * Erros: 403 não-admin; 404 usuário/equipe inexistente; 409 `USUARIO_EMAIL_DUPLICADO` / `USUARIO_EXTERNAL_ID_DUPLICADO`;
  * 422 `USUARIO_DADOS_INVALIDOS`, `USUARIO_SENHA_FRACA`, `USUARIO_AUTODESATIVACAO`, `USUARIO_AUTORREBAIXA`, `ULTIMO_ADMIN`, `EQUIPE_INVALIDA`.
  */
@@ -33,6 +34,12 @@ export const UsuarioItemSchema = z
     ativo: z.boolean(),
     external_id: z.string().nullable(),
     ultimo_login_em: z.string().datetime().nullable(),
+    /** T-0094: a senha atual é temporária; a pessoa troca no próximo acesso (etiqueta "Troca de senha pendente"). */
+    trocar_senha: z.boolean(),
+    /** Quando a senha temporária vence (72 h); nulo = não vence (senha definitiva ou master do admin inicial). */
+    senha_expira_em: z.string().datetime().nullable(),
+    /** Sem senha gravada (usuário antigo da Equipe por CSV que nunca aceitou o convite): ação "Enviar acesso". */
+    sem_senha: z.boolean(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -46,6 +53,10 @@ export const UsuarioListaQuerySchema = z
   })
   .strict();
 export type UsuarioListaQuery = z.infer<typeof UsuarioListaQuerySchema>;
+
+/** Resultado do e-mail do acesso: `indisponivel` = e-mail não configurado; o BKO manda o admin passar a senha pessoalmente. */
+export const EmailAcessoSchema = z.enum(['enfileirado', 'indisponivel']);
+export type EmailAcesso = z.infer<typeof EmailAcessoSchema>;
 
 export const UsuarioListaRespostaSchema = z.object({ itens: z.array(UsuarioItemSchema) }).strict();
 export type UsuarioListaResposta = z.infer<typeof UsuarioListaRespostaSchema>;
@@ -90,6 +101,10 @@ export const CriarUsuarioRequestSchema = z
   .strict();
 export type CriarUsuarioRequest = z.infer<typeof CriarUsuarioRequestSchema>;
 
+/** POST /usuarios (T-0094): o usuário criado + o resultado do e-mail com o acesso. */
+export const CriarUsuarioRespostaSchema = UsuarioItemSchema.extend({ email_acesso: EmailAcessoSchema }).strict();
+export type CriarUsuarioResposta = z.infer<typeof CriarUsuarioRespostaSchema>;
+
 export const EditarUsuarioRequestSchema = z
   .object({
     nome: CamposEditaveis.nome.optional(),
@@ -103,7 +118,11 @@ export const EditarUsuarioRequestSchema = z
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;
 
 export const AtivarUsuarioRequestSchema = z.object({ ativo: z.boolean() }).strict();
-export const RedefinirSenhaRequestSchema = z.object({ senha: z.string().min(1).max(200) }).strict();
+/** `senha` ausente = o servidor gera uma senha temporária (nunca devolvida; vai só por e-mail). */
+export const RedefinirSenhaRequestSchema = z.object({ senha: z.string().min(1).max(200).optional() }).strict();
+export type RedefinirSenhaRequest = z.infer<typeof RedefinirSenhaRequestSchema>;
+export const RedefinirSenhaRespostaSchema = z.object({ ok: z.literal(true), email_acesso: EmailAcessoSchema }).strict();
+export type RedefinirSenhaResposta = z.infer<typeof RedefinirSenhaRespostaSchema>;
 
 export const CODIGOS_USUARIO = {
   emailDuplicado: 'USUARIO_EMAIL_DUPLICADO',
@@ -111,4 +130,8 @@ export const CODIGOS_USUARIO = {
   dadosInvalidos: 'USUARIO_DADOS_INVALIDOS',
   senhaFraca: 'USUARIO_SENHA_FRACA',
   equipeInvalida: 'EQUIPE_INVALIDA',
+  /** 422 — redefinição recusada (própria conta, admin, usuário inativo; `podeRedefinirSenha`). */
+  senhaPropria: 'SENHA_PROPRIA',
+  senhaDeAdmin: 'SENHA_DE_ADMIN',
+  usuarioInativo: 'USUARIO_INATIVO',
 } as const;

@@ -12,3 +12,4 @@ export * from './movimento';
 export * from './selecao';
 export * from './periodo';
 export * from '../comum/cadastro';
+export * from '../comum/senha';

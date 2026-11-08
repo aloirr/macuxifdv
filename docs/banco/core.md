@@ -28,6 +28,10 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 | tentativas_falhas | smallint not null default 0 | (0004) falhas de senha seguidas, `>= 0`; 5 falhas => `bloqueio_ate` = agora + 15 min; login certo zera (regra no domain do Core) |
 | bloqueio_ate | timestamptz | (0004) bloqueio TEMPORÁRIO por tentativas |
 | telefone | text | (0036) telefone do CSV da Equipe; null ou 1..30 caracteres (CHECK `usuario_telefone_preenchido`; formato no domain do Core). Dado pessoal: a anonimização apaga. Fora do pull |
+| trocar_senha | boolean not null default false | (0040, RN-CORE-34) a senha atual é temporária: usada, leva à troca obrigatória ("Crie sua senha") |
+| senha_expira_em | timestamptz | (0040) validade da senha atual quando temporária (72 h); nula = não vence. CHECK `usuario_senha_expira_so_trocar`: só com `trocar_senha` |
+| senha_temporaria_hash, senha_temporaria_expira_em, senha_temporaria_criada_em | text, timestamptz, timestamptz | (0040) a senha do "Esqueci a senha", **paralela** à atual (P6), argon2id (CHECK); as três juntas (CHECK `usuario_senha_temporaria_completa`) |
+| sessao_versao | integer not null default 0 | (0040) sobe a cada troca, redefinição e desativação; o token (claim `sv`) e a sessão do portal só valem com a versão atual. `>= 0` |
 
 Login: código da empresa → `plataforma.tenant_por_codigo` → transação com o tenant → `where lower(email) = lower($1)`.
 
@@ -517,3 +521,42 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 Vêm do ERP no `integracao.cliente.atualizado@1` (ausente = não altera; nulo/`[]` = limpa) e da ficha do cliente no BKO. Volta: o
 down da 0037 apaga as duas colunas com os valores. Base de demo: 45 dias em todos, 30 na Panificadora Pão Dourado, Conveniência
 Rota 10 sem boleto (`PIX`, `DINHEIRO`, `CARTAO`). Fixture: c1 de A com 45 e `{PIX,BOLETO}`; c1 de B com 30 e nulo.
+
+## 0039, seção T-0095 — guarda de ordem do ERP e vendedor desligado no BKO (`0039_plataforma_portal_email_senha`, seção "T-0095"; RN-INT-02/04, pedido R-20261107-175135-modulo-core)
+Viaja no fim da 0039 (seção separada e comentada no up e no down) porque a 0039 ainda não estava no `main` quando a T-0095
+entrou e o executor só aceita `NNNN_nome`. Colunas novas, **nulas, sem padrão, sem backfill e sem índice** (o consumidor lê e
+grava na mesma linha que já acha por `(tenant_id, external_id)`); RLS e grants herdados da tabela; **fora do pull** (o
+`TABELAS_SYNC` lista as colunas e estas não entram) e fora do aparelho.
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| cliente.erp_alterado_em, usuario.erp_alterado_em, produto.erp_alterado_em | timestamptz(3) | último `alterado_em` do ERP **já aplicado** à linha; nulo = nunca veio do ERP. O consumidor do Core (`modules/core/api/consumidores-erp*.ts`, `decidirOrdemErp`) ignora a reentrega com `alterado_em` menor (fora de ordem pela outbox); igual reaplica (idempotente) |
+| usuario.desligado_no_bko_em | timestamptz(3) | a API do BKO (`modules/core/api/usuarios.ts`) grava `now()` ao desativar e limpa ao reativar; preenchida, a carga do ERP **não reativa** o vendedor (`decidirReativacaoDoErp`) e o monitor avisa |
+
+Volta: o down da 0039 (seção T-0095) faz `drop column if exists` das 4 — perde só as marcas; a próxima carga do ERP aplica
+tudo de novo e um vendedor desligado no BKO pode voltar ativo (desfaça junto o Core da T-0095). Teste: `db/testes/erp-ordem.test.ts`.
+
+## 0040 — estado da senha e versão da sessão (`0040_core_senha_email_saida`; T-0094 fatia B, ADR 0032, RN-CORE-32/33/34, desenho docs/desenho/T-0094.md §2 e §13)
+Colunas novas em `usuario` (tabela acima): `trocar_senha`, `senha_expira_em`, `senha_temporaria_hash`, `senha_temporaria_expira_em`,
+`senha_temporaria_criada_em` e `sessao_versao`. Padrões que não reescrevem linha (`false` e `0`): quem já tinha senha continua
+com ela, definitiva (RN-CORE-32 vale na criação e na troca). Nenhum índice novo (lidas pela chave do usuário no login e no
+`autenticar`). Fora do pull (o Core seleciona as colunas do sync). Drizzle: `usuario` em `modules/core/db/nuvem.ts`.
+
+| Estado | `senha_hash` | `trocar_senha` | `senha_expira_em` | `senha_temporaria_*` |
+|---|---|---|---|---|
+| definitiva | a do usuário | false | nula | nulas |
+| temporária (BKO cria/redefine, Equipe por CSV) | a temporária | true | agora + 72 h | nulas |
+| master do admin inicial (portal ou `tenant:criar`, P5) | a master | true | **nula** (não vence) | nulas |
+| "Esqueci a senha" pendente (P6) | a atual, intacta | como estava | como estava | hash, +72 h, agora |
+
+Regras no Core (domain e API): `avaliarSenhaDoLogin` confere sempre as duas senhas; usar a temporária ou a de `trocar_senha` leva
+a `SENHA_A_TROCAR`; a troca grava a nova, zera `trocar_senha`/validade/temporárias e faz `sessao_versao + 1` (com os refresh
+revogados) na mesma transação do e-mail (`plataforma.email_saida`, ver [plataforma.md](plataforma.md)). Volume: 1 linha por
+usuário (já existente). Consultas: por `(tenant_id, lower(email))` no login (`usuario_email_uk`) e por `(tenant_id, id)` no
+`autenticar` (PK).
+
+Também na 0040: a `plataforma.provisionar_tenant` cria o admin inicial com `trocar_senha = true` e sem validade (P5) e, com
+`redefinir_senha`, volta a pedir a troca, limpa a temporária, sobe a `sessao_versao` e revoga os refresh; a
+`plataforma.anonimizar_usuario` limpa também o estado da senha e sobe a versão ([lgpd.md](lgpd.md)); os convites **pendentes** de
+`usuario_convite` saem revogados (o convite sai do Core; a tabela fica de histórico). Caminho de volta: o `.down.sql` apaga as
+6 colunas (quem estava com senha temporária fica com ela como definitiva; o "Esqueci" pendente se perde); os convites revogados
+continuam revogados. Testes: `db/testes/senha-email-saida.test.ts`.

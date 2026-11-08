@@ -45,6 +45,8 @@
  *   levam marca_nome (MARCA_NOME_FIXTURE, retrato do nome do concorrente); a apagada fica nula (linha anterior à 0034).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
+ * - T-0094 (0040): usuários com senha definitiva (trocar_senha falso, sem temporária); outbox de e-mail
+ *   (plataforma.email_saida, grupo 0x09; EMAILS_FIXTURE) só com linhas despachadas, sem carga.
  * - T-0089 (0037; PAGAMENTO_FIXTURE): o gatilho tenant_semear_pagamento cria em A e em B a forma "À vista" (AVISTA) com o
  *   prazo "À vista" [0] (fora das listas, como os motivos e as medidas; ids em PAGAMENTO_FIXTURE.X.semeada). Nas listas
  *   (grupos 0x37 e 0x3a): A com as formas PIX (prazo PIX-AV [0]) e BOLETO (external_id FP-BOL; prazos BOL-28-56 [28,56]
@@ -145,6 +147,8 @@ const G = {
   plano_rv: 0x39,
   // 0036 (T-0087)
   usuario_convite: 0x08,
+  // 0040 (T-0094)
+  email_saida: 0x09,
   // 0037 (T-0089)
   forma_pagamento: 0x37,
   prazo_pagamento: 0x3a,
@@ -180,6 +184,16 @@ export const CONVITES_FIXTURE = {
   B: {
     pendente: { id: b('usuario_convite', 1), ...refreshFixture(b('tenant', 1), 'fixtureConviteBetaPendenteSomenteTesteT0087b') },
   },
+} as const;
+
+/**
+ * 0040 (T-0094, ADR 0032): outbox de e-mail. Só linhas JÁ DESPACHADAS (carga nula; um despachante de teste não acha nada
+ * pendente): A com 1 enviada ao vendedor-1 ("Seu acesso ao Macuxi") e 1 que falhou ao vendedor-2 ("Sua nova senha"); B com 1
+ * enviada ao vendedor-B. Os testes que precisam de pendente gravam a sua em transação desfeita.
+ */
+export const EMAILS_FIXTURE = {
+  A: { enviado: a('email_saida', 1), falhou: a('email_saida', 2) },
+  B: { enviado: b('email_saida', 1) },
 } as const;
 
 /**
@@ -463,6 +477,8 @@ export const ORDEM_TABELAS = [
   'core.sessao',
   // 0036 (T-0087): convite de 1º acesso (FK composta -> core.usuario)
   'core.usuario_convite',
+  // 0040 (T-0094): outbox de e-mail (FK composta -> core.usuario); só linhas já despachadas (sem carga)
+  'plataforma.email_saida',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -507,6 +523,12 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   ativo: true,
   tentativas_falhas: 0,
   bloqueio_ate: null,
+  // 0040 (T-0094): senha definitiva; recarregar desfaz "trocar senha" e a temporária paralela (a sessao_versao não volta)
+  trocar_senha: false,
+  senha_expira_em: null,
+  senha_temporaria_hash: null,
+  senha_temporaria_expira_em: null,
+  senha_temporaria_criada_em: null,
   external_id: null,
 });
 
@@ -729,6 +751,11 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       convite(CONVITES_FIXTURE.A.revogado.id, tA, A.usuarios.vendedor2, CONVITES_FIXTURE.A.revogado.hash, { revogado_em: DATA_FIXA_ACESSO, criado_por_id: A.usuarios.admin, criado_por_tipo: 'usuario' }),
       convite(CONVITES_FIXTURE.A.usado.id, tA, A.usuarios.promotor, CONVITES_FIXTURE.A.usado.hash, { usado_em: DATA_FIXA_ACESSO }),
       convite(CONVITES_FIXTURE.B.pendente.id, tB, B.usuarios.vendedor, CONVITES_FIXTURE.B.pendente.hash, { criado_por_id: idFixo('5a5a5a5a', 0x08, 1), criado_por_tipo: 'super_admin' }),
+    ],
+    'plataforma.email_saida': [
+      emailSaida(EMAILS_FIXTURE.A.enviado, tA, A.usuarios.vendedor1, 'acesso_inicial', { enviado_em: DATA_FIXA_ACESSO }),
+      emailSaida(EMAILS_FIXTURE.A.falhou, tA, A.usuarios.vendedor2, 'nova_senha', { tentativas: 8, falhou_em: DATA_FIXA_ACESSO, ultimo_erro: 'smtp_recusado' }),
+      emailSaida(EMAILS_FIXTURE.B.enviado, tB, B.usuarios.vendedor, 'acesso_inicial', { enviado_em: DATA_FIXA_ACESSO }),
     ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
@@ -1348,6 +1375,14 @@ function sessao(id: string, tenant_id: string, usuario_id: string, familia_id: s
 
 function convite(id: string, tenant_id: string, usuario_id: string, token_hash: string, extra: Partial<Linha> = {}): Linha {
   return { id, tenant_id, usuario_id, token_hash, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, criado_por_id: null, criado_por_tipo: null, external_id: null, ...extra };
+}
+
+function emailSaida(id: string, tenant_id: string, usuario_id: string, modelo: 'acesso_inicial' | 'nova_senha', extra: Partial<Linha>): Linha {
+  return {
+    id, tenant_id, usuario_id, modelo, chave_idempotencia: `${usuario_id}:fixture`, carga: null, tentativas: 1,
+    proxima_tentativa_em: DATA_FIXA_ACESSO, expira_em: VALIDADE_FIXA_REFRESH, enviado_em: null, falhou_em: null, ultimo_erro: null,
+    external_id: null, ...extra,
+  };
 }
 
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {

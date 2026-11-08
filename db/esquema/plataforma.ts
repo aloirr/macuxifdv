@@ -1,7 +1,8 @@
 /**
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
  * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql, 0022_plataforma_geracao_base.up.sql
- * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), para consultas da API.
+ * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
+ * e-mail e senha, só por função) e 0040_core_senha_email_saida.up.sql (outbox de e-mail), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -9,7 +10,7 @@
  * do SQL é comparado com eles em db/testes/estatico.test.ts.
  */
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
@@ -206,7 +207,80 @@ export const auditoriaPlataforma = plataforma.table('auditoria_plataforma', {
   status: integer('status'),
   request_id: text('request_id'),
   ip_prefixo: text('ip_prefixo'),
+  /** 0039 (ADR 0031): quem agiu no portal; nulo nas linhas antigas, no login sem conta e nos fatos do deploy. */
+  ator_tipo: text('ator_tipo', { enum: ['super_admin', 'admin_cliente'] }),
+  /** 0039: core.usuario.id do admin do cliente (sem FK: sobrevive à exclusão do tenant). */
+  usuario_id: uuid('usuario_id'),
   detalhes: jsonb('detalhes').$type<Record<string, unknown>>().notNull().default({}),
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
   ...auditaveis(),
+});
+
+/**
+ * Bloqueio do login do portal (0039, T-0093, ADR 0031) por CHAVE do e-mail: HMAC-SHA256 hex calculado no Node com o segredo
+ * da plataforma (o e-mail nunca chega ao banco por aqui). Igual para e-mail que existe e que não existe. Só por função
+ * (plataforma.sa_tentativa_*).
+ */
+export const portalTentativa = plataforma.table('portal_tentativa', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chave: text('chave').notNull(),
+  /** 0 a 4; a 5ª falha seguida zera e bloqueia 15 min. */
+  falhas: integer('falhas').notNull().default(0),
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  ...auditaveis(),
+});
+
+/**
+ * Sessão do portal (0039, ADR 0031): super-admin (super_admin_id) ou admin do cliente (empresa atual em tenant_atual_id e
+ * usuario_atual_id; nulas = ainda não escolheu). Teto de 8 h, revogável, conferida a cada requisição (sa_sessao_valida).
+ */
+export const portalSessao = plataforma.table('portal_sessao', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tipo: text('tipo', { enum: ['super_admin', 'admin_cliente'] }).notNull(),
+  super_admin_id: uuid('super_admin_id'),
+  tenant_atual_id: uuid('tenant_atual_id'),
+  usuario_atual_id: uuid('usuario_atual_id'),
+  criada_em: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+  ultimo_uso_em: timestamp('ultimo_uso_em', { withTimezone: true }).notNull().defaultNow(),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  revogada_em: timestamp('revogada_em', { withTimezone: true }),
+  ...auditaveis(),
+});
+
+/**
+ * Empresas conferidas no login do admin do cliente (0039, ADR 0031): 1 a 20 por sessão. tenant_alvo_id e não tenant_id de
+ * propósito (como na auditoria_plataforma): não é tabela de tenant.
+ */
+export const portalSessaoEmpresa = plataforma.table('portal_sessao_empresa', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessao_id: uuid('sessao_id').notNull(),
+  tenant_alvo_id: uuid('tenant_alvo_id').notNull(),
+  usuario_id: uuid('usuario_id').notNull(),
+  /** sessao_versao da conta no login (0040, T-0094): versão diferente na conta = a sessão cai (sa_sessao_valida). >= 0. */
+  sessao_versao: integer('sessao_versao').notNull().default(0),
+  ...auditaveis(),
+});
+
+/** bytea do Postgres (Buffer no node-postgres). */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+/**
+ * Outbox de e-mail (0040, T-0094, ADR 0032 §6): gravada pela API na MESMA transação da senha (macuxi_app, só select e insert
+ * no próprio tenant); o despachante (macuxi_worker, todos os tenants, só linha pendente) envia e zera a carga. carga = texto
+ * CIFRADO (AES-256-GCM: destinatário e dados do modelo), só no pendente (CHECK). chave_idempotencia única por tenant (sem
+ * '@': nunca o e-mail). ultimo_erro só código curto. Fora do sync.
+ */
+export const emailSaida = plataforma.table('email_saida', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  modelo: text('modelo', { enum: ['acesso_inicial', 'nova_senha'] }).notNull(),
+  chave_idempotencia: text('chave_idempotencia').notNull(),
+  carga: bytea('carga'),
+  tentativas: integer('tentativas').notNull().default(0),
+  proxima_tentativa_em: timestamp('proxima_tentativa_em', { withTimezone: true }).notNull().defaultNow(),
+  /** Padrão do banco: now() + 72 h (a validade da senha temporária). */
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull().default(sql`now() + interval '72 hours'`),
+  enviado_em: timestamp('enviado_em', { withTimezone: true }),
+  falhou_em: timestamp('falhou_em', { withTimezone: true }),
+  ultimo_erro: text('ultimo_erro'),
 });

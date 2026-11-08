@@ -3,8 +3,8 @@
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
 import type { Perfil } from '@macuxi/platform-sdk';
-import type { CriarUsuarioRequest, EditarUsuarioRequest, EquipeOpcao, UsuarioItem } from '../../contracts';
-import { validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo } from '../../domain';
+import type { CriarUsuarioRequest, EditarUsuarioRequest, EmailAcesso, EquipeOpcao, UsuarioItem } from '../../contracts';
+import { faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -81,3 +81,69 @@ export function csvDeUsuarios(itens: readonly UsuarioItem[]): string {
   );
   return BOM + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
+
+// ---------- T-0094: senha por e-mail, troca no 1º acesso, "Redefinir senha" / "Enviar acesso" (RN-CORE-34; docs/design/ciclo-de-senha.md §5) ----------
+
+/** Faltas da senha digitada (campo vazio = as quatro), para o componente `RegrasDaSenha`. */
+export const faltasDaSenhaDigitada = (senha: string): string[] => faltasNaSenha(senha);
+
+/** "Gerar senha": 12 caracteres sem ambíguos, gerada no navegador com `crypto.getRandomValues` (mesma regra do servidor). */
+export function gerarSenhaNoNavegador(aleatorio: (n: number) => Uint8Array = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n))): string {
+  return gerarSenhaTemporaria(aleatorio);
+}
+
+export interface EtiquetaDeSenha {
+  texto: string;
+  tom: 'warning' | 'danger' | 'neutral';
+}
+
+function diaEHora(iso: string, fuso: string): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.day}/${p.month} às ${p.hour}:${p.minute}`;
+}
+
+/** Etiqueta da coluna de situação, depois de Ativo/Inativo. Nenhuma para senha definitiva. */
+export function etiquetaDeSenha(u: Pick<UsuarioItem, 'sem_senha' | 'trocar_senha' | 'senha_expira_em'>, fuso: string, agora: Date = new Date()): EtiquetaDeSenha | null {
+  if (u.sem_senha) return { texto: 'Sem senha', tom: 'neutral' };
+  if (!u.trocar_senha) return null;
+  if (!u.senha_expira_em) return { texto: 'Troca de senha pendente', tom: 'warning' };
+  if (new Date(u.senha_expira_em).getTime() <= agora.getTime()) return { texto: 'Senha temporária vencida', tom: 'danger' };
+  return { texto: `Troca de senha pendente · vence em ${diaEHora(u.senha_expira_em, fuso)}`, tom: 'warning' };
+}
+
+export type RotuloAcaoDeSenha = 'Redefinir senha' | 'Enviar acesso';
+
+/** Ação de senha da linha: nunca para admin (P7: admin recupera pelo "Esqueci a senha"); "Enviar acesso" para quem não tem senha. */
+export function acaoDeSenha(u: Pick<UsuarioItem, 'perfil' | 'ativo' | 'sem_senha'>): { rotulo: RotuloAcaoDeSenha } | null {
+  if (u.perfil === 'admin' || !u.ativo) return null;
+  return { rotulo: u.sem_senha ? 'Enviar acesso' : 'Redefinir senha' };
+}
+
+/** Corpo do `PUT usuarios/:id/senha`: "Enviar acesso" não leva senha (o servidor gera e manda por e-mail). */
+export const corpoDeRedefinicao = (senha: string): { senha?: string } => (senha === '' ? {} : { senha });
+
+export type ResultadoDoEmail =
+  | { tipo: 'enviado'; texto: string }
+  /** E-mail não saiu: o aviso fica no topo da lista e mostra a senha UMA vez (da memória do formulário). */
+  | { tipo: 'sem_email'; antes: string; senha: string; depois: string };
+
+/** Depois de criar: toast quando o e-mail foi na fila; aviso com a senha quando não foi. */
+export function resultadoDeCriar(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no primeiro acesso.' };
+  return { tipo: 'enviado', texto: `Usuário criado. O acesso vai para ${destino} em alguns minutos.` };
+}
+
+/** Depois de redefinir (com senha definida na tela). */
+export function resultadoDeRedefinir(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Senha redefinida, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no próximo acesso.' };
+  return { tipo: 'enviado', texto: `Senha redefinida. A senha nova vai para ${destino} em alguns minutos.` };
+}
+
+export const textoAcessoEnviado = (destino: string): string => `Acesso enviado para ${destino}.`;
+export const TEXTO_ENVIAR_ACESSO_SEM_EMAIL = 'Não conseguimos enviar o e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa.';
+export const TEXTO_SENHA_NAO_REDEFINIVEL = 'Esta senha não pode ser redefinida aqui. O administrador usa "Esqueci a senha".';
+export const AJUDA_SENHA_INICIAL = 'Ela vai para o e-mail da pessoa, que cria a dela no primeiro acesso. Vale por 72 horas.';

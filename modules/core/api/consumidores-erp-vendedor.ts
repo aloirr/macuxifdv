@@ -5,11 +5,14 @@
  * recebe e-mail provisório estável (`emailDoVendedorErp`). Usuário já existente com o mesmo e-mail e sem `external_id`
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
+ * T-0095: versão com `alterado_em` menor que `core.usuario.erp_alterado_em` (reentrega fora de ordem) é ignorada; vendedor
+ * desligado pelo admin no BKO (`desligado_no_bko_em`) não é reativado pela carga: segue inativo e o admin recebe aviso.
  */
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { emailDoVendedorErp } from '../domain';
+import { decidirOrdemErp, decidirReativacaoDoErp, emailDoVendedorErp } from '../domain';
 
 import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
+import { notificarSistema } from './consumidores-sistema';
 
 export const EventoIntegracaoVendedorAtualizado = eventoTolerante(EVENTO_ERP_VENDEDOR_ATUALIZADO);
 
@@ -18,38 +21,65 @@ async function completarNotasDoVendedor(ctx: ContextoConsumo, usuarioId: string,
   await ctx.db.query('update core.nota_erp set usuario_id = $1 where vendedor_external_id = $2 and usuario_id is null and deleted_at is null', [usuarioId, externalId.trim()]);
 }
 
+/** O ERP mandou ativo um vendedor que o admin desligou no BKO: não reativa; avisa os admins (sem nome nem e-mail; só o código do ERP). */
+async function avisarDesligadoNoBko(ctx: ContextoConsumo, externalId: string): Promise<void> {
+  ctx.log.warn({ external_id: externalId }, 'vendedor do ERP segue desligado: o admin desativou no BKO');
+  const admins = await ctx.db.query<{ id: string }>("select id from core.usuario where perfil = 'admin' and ativo and deleted_at is null");
+  for (const a of admins.rows) {
+    await notificarSistema(ctx, a.id, {
+      titulo: 'Vendedor do ERP segue desligado',
+      corpo: `A carga do ERP trouxe o vendedor ${externalId} como ativo, mas ele foi desativado no BKO. Reative em Usuários se for o caso.`,
+      link: '/usuarios',
+      prioridade: 'normal',
+    });
+  }
+}
+
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,
   async executar(p, ctx: ContextoConsumo) {
     const r = p.registro;
     if (p.acao === 'inativado' || !r || r.ativo === false) {
-      await ctx.db.query('update core.usuario set ativo = false where external_id = $1 and deleted_at is null and ativo', [p.external_id]);
+      // evento antigo reentregue depois de uma versão mais nova não inativa; o 'inativado' compara por `ocorrido_em`
+      const quando = r?.alterado_em ?? p.ocorrido_em;
+      await ctx.db.query(
+        `update core.usuario set ativo = false, erp_alterado_em = greatest(coalesce(erp_alterado_em, $2::timestamptz), $2::timestamptz)
+          where external_id = $1 and deleted_at is null and (erp_alterado_em is null or erp_alterado_em <= $2::timestamptz)`,
+        [p.external_id, quando],
+      );
       return;
     }
     const nome = r.nome.trim();
     if (!nome) return;
     const { email, provisorio } = emailDoVendedorErp(r.email, r.external_id);
 
-    const atual = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
+    const atual = (await ctx.db.query<{ id: string; erp_alterado_em: string | null; desligado_no_bko_em: string | null }>(
+      'select id, erp_alterado_em::text, desligado_no_bko_em::text from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
     if (atual) {
+      if (decidirOrdemErp(atual.erp_alterado_em, r.alterado_em) === 'ignorar_antigo') {
+        ctx.log.warn({ external_id: r.external_id }, 'vendedor do ERP ignorado: versão mais antiga que a já aplicada');
+        return;
+      }
+      const reativacao = decidirReativacaoDoErp({ desligadoNoBkoEm: atual.desligado_no_bko_em, ativoNoErp: true });
+      if (reativacao.avisar) await avisarDesligadoNoBko(ctx, r.external_id);
       // E-mail real só troca se ninguém mais o usa (índice único por tenant); o provisório nunca sobrescreve um e-mail real.
       const livre = provisorio ? false : (await ctx.db.query('select 1 from core.usuario where lower(email) = $1 and deleted_at is null and id <> $2', [email, atual.id])).rows.length === 0;
-      await ctx.db.query('update core.usuario set nome = $2, ativo = true, email = case when $3::boolean then $4 else email end where id = $1', [atual.id, nome, livre, email]);
+      await ctx.db.query('update core.usuario set nome = $2, ativo = $5::boolean, erp_alterado_em = $6::timestamptz, email = case when $3::boolean then $4 else email end where id = $1', [atual.id, nome, livre, email, reativacao.ativo, r.alterado_em]);
       await completarNotasDoVendedor(ctx, atual.id, r.external_id);
       return;
     }
 
     const igual = (await ctx.db.query<{ id: string; external_id: string | null; perfil: string }>('select id, external_id, perfil from core.usuario where lower(email) = $1 and deleted_at is null', [email])).rows[0];
     if (igual && !igual.external_id && !provisorio && (igual.perfil === 'vendedor' || igual.perfil === 'promotor')) {
-      await ctx.db.query('update core.usuario set external_id = $2, ativo = true where id = $1', [igual.id, r.external_id]);
+      await ctx.db.query('update core.usuario set external_id = $2, ativo = true, erp_alterado_em = $3::timestamptz where id = $1', [igual.id, r.external_id, r.alterado_em]);
       await completarNotasDoVendedor(ctx, igual.id, r.external_id);
       return;
     }
     const emailFinal = igual ? emailDoVendedorErp(null, r.external_id).email : email;
     await ctx.db.query(
-      `insert into core.usuario (tenant_id, external_id, nome, email, perfil, ativo) values (plataforma.tenant_atual(), $1, $2, $3, 'vendedor', true)
-       on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set nome = excluded.nome, ativo = true`,
-      [r.external_id, nome, emailFinal],
+      `insert into core.usuario (tenant_id, external_id, nome, email, perfil, ativo, erp_alterado_em) values (plataforma.tenant_atual(), $1, $2, $3, 'vendedor', true, $4::timestamptz)
+       on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set nome = excluded.nome, ativo = true, erp_alterado_em = excluded.erp_alterado_em`,
+      [r.external_id, nome, emailFinal, r.alterado_em],
     );
     const criado = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
     if (criado) await completarNotasDoVendedor(ctx, criado.id, r.external_id);

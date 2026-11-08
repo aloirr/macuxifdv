@@ -17,7 +17,7 @@ import { TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { ATRIBUTOS_DO_PAPEL, garantirPapelPortal, garantirPapelSemLogin } from '../src/papeis';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA } from './funcoes-sa';
+import { CRIAR_SUPER_ADMIN, FUNCOES_SA, FUNCOES_SA_0035, SA_INTERNA } from './funcoes-sa';
 import { comCliente, emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -36,13 +36,13 @@ describe('0038 papel do portal (estático)', () => {
     expect(sql).toContain('create role macuxi_portal nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication;');
     expect(sql).not.toMatch(/alter role|\bpassword\b|\blogin\b/i);
     expect(sql).toContain('grant usage on schema plataforma to macuxi_portal;');
-    for (const f of FUNCOES_SA) {
+    for (const f of FUNCOES_SA_0035) {
       expect(sql).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(sql).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
     // grants do up: só os 20 EXECUTE e o USAGE; nada de tabela, sequência, outro schema, filiação ou política
     const grants = [...sql.matchAll(/^grant ([^;]+);/gm)].map((g) => g[1]!);
-    expect(grants).toHaveLength(FUNCOES_SA.length + 1);
+    expect(grants).toHaveLength(FUNCOES_SA_0035.length + 1);
     for (const g of grants) expect(g).toMatch(/^(execute on function plataforma\.sa_[a-z_]+\([^)]*\)|usage on schema plataforma) to macuxi_portal$/);
     expect(sql).not.toMatch(/create policy|alter policy|on table|on all tables|sequence|create function|create or replace/i);
     // trava: filiação a outro papel aborta com 42501 (atributos: o passo de papéis confere antes, garantirPapelSemLogin/Portal)
@@ -54,8 +54,8 @@ describe('0038 papel do portal (estático)', () => {
 
   it('down: EXECUTE de volta ao macuxi_app nas mesmas 20, sem o portal; tira o USAGE; o papel fica', () => {
     const sql = semComentarios(m38.down);
-    for (const f of FUNCOES_SA) expect(sql).toContain(`'${f}'`);
-    expect([...sql.matchAll(/'(plataforma\.sa_[^']+)'/g)].map((x) => x[1]).sort()).toEqual([...FUNCOES_SA].sort());
+    for (const f of FUNCOES_SA_0035) expect(sql).toContain(`'${f}'`);
+    expect([...sql.matchAll(/'(plataforma\.sa_[^']+)'/g)].map((x) => x[1]).sort()).toEqual([...FUNCOES_SA_0035].sort());
     expect(sql).toContain("execute format('revoke all on function %s from macuxi_portal', v_f);");
     expect(sql).toContain("execute format('grant execute on function %s to macuxi_app', v_f);");
     expect(sql).toContain('revoke usage on schema plataforma from macuxi_portal;');
@@ -175,7 +175,7 @@ describe.skipIf(semBanco())('0038 papel do portal (banco, fixture dois-tenants)'
     }
   }
 
-  it('catálogo: toda sa_* executável só pelo macuxi_portal (nem app, nem worker, nem PUBLIC); as internas por ninguém', async () => {
+  it('catálogo (banco na última, 0039): toda sa_* executável só pelo macuxi_portal (nem app, nem worker, nem PUBLIC); a interna e a criar_super_admin por ninguém', async () => {
     const r = await admin.query<{ f: string; portal: boolean; app: boolean; worker: boolean; publico: boolean }>(
       `with sa as (${SQL_SA_DO_CATALOGO})
        select f, has_function_privilege('macuxi_portal', sa.oid, 'execute') as portal,
@@ -190,7 +190,8 @@ describe.skipIf(semBanco())('0038 papel do portal (banco, fixture dois-tenants)'
     const internas = await admin.query<{ algum: boolean }>(
       `select bool_or(has_function_privilege(r, p.oid, 'execute')) as algum
          from pg_proc p cross join unnest(array['macuxi_portal', 'macuxi_app', 'macuxi_worker']) r
-        where p.oid in ('plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb)'::regprocedure, 'plataforma.provisionar_tenant(jsonb)'::regprocedure)`,
+        where p.oid in ($1::regprocedure, $2::regprocedure, 'plataforma.provisionar_tenant(jsonb)'::regprocedure)`,
+      [SA_INTERNA, CRIAR_SUPER_ADMIN],
     );
     expect(internas.rows[0]!.algum).toBe(false);
   });
@@ -233,24 +234,24 @@ describe.skipIf(semBanco())('0038 papel do portal (banco, fixture dois-tenants)'
     expect(schemas.rows).toEqual([{ s: 'plataforma', p: 'USAGE' }]);
   });
 
-  it('macuxi_portal não lê nem grava tabela nenhuma (42501): as 4 do super-admin, tenant, parametro, core.*; executa a sa_existe', async () => {
+  it('macuxi_portal não lê nem grava tabela nenhuma (42501): as só por função (0035 e 0039), tenant, parametro, core.*; executa a sa_tentativa_estado', async () => {
     await emTransacao(admin, null, async () => {
       for (const t of [...TABELAS_SO_POR_FUNCAO, 'plataforma.tenant', 'plataforma.parametro', 'plataforma.evento', 'core.usuario', 'core.cliente']) {
         expect((await erroDe(como('macuxi_portal', `select 1 from ${t} limit 1`)))?.code, t).toBe('42501');
         expect((await erroDe(como('macuxi_portal', `delete from ${t}`)))?.code, `delete ${t}`).toBe('42501');
       }
       expect((await erroDe(como('macuxi_portal', 'update plataforma.auditoria_plataforma set acao = acao')))?.code).toBe('42501');
-      expect(await como('macuxi_portal', 'select plataforma.sa_existe() as r')).toEqual([{ r: expect.any(Boolean) }]);
+      expect(await como('macuxi_portal', "select falhas from plataforma.sa_tentativa_estado(repeat('0', 64))")).toEqual([{ falhas: 0 }]);
     });
   });
 
-  it('login real com MACUXI_PG_PORTAL_SENHA (urlPortal): current_user = macuxi_portal, sa_existe responde, tabela = 42501', async (ctx) => {
+  it('login real com MACUXI_PG_PORTAL_SENHA (urlPortal): current_user = macuxi_portal, sa_tentativa_estado responde, tabela = 42501', async (ctx) => {
     const url = banco().urlPortal;
     if (!url) ctx.skip();
     await comCliente(url!, async (c) => {
       const eu = await c.query<{ u: string; s: string }>("select current_user as u, current_setting('is_superuser') as s");
       expect(eu.rows[0]).toEqual({ u: 'macuxi_portal', s: 'off' });
-      expect((await c.query<{ r: boolean }>('select plataforma.sa_existe() as r')).rows[0]!.r).toEqual(expect.any(Boolean));
+      expect((await c.query<{ falhas: number }>("select falhas from plataforma.sa_tentativa_estado(repeat('0', 64))")).rows).toEqual([{ falhas: 0 }]);
       expect((await erroDe(c.query('select 1 from core.usuario limit 1')))?.code).toBe('42501');
       expect((await erroDe(c.query('select 1 from plataforma.super_admin limit 1')))?.code).toBe('42501');
     });
@@ -287,11 +288,11 @@ describe.skipIf(semBanco())('0038 up/down (banco efêmero)', () => {
       await migrarUp(c, { ate: '0037' });
       const catalogo = await retratoDoCatalogo(c);
       const antes = await retratoAcl(c);
-      expect(antes).toEqual(expect.arrayContaining(FUNCOES_SA.map((f) => expect.stringMatching(new RegExp(`^fn ${f.replace(/[()[\]]/g, '\\$&').replace(/, /g, ',')} macuxi_app EXECUTE$`)))));
+      expect(antes).toEqual(expect.arrayContaining(FUNCOES_SA_0035.map((f) => expect.stringMatching(new RegExp(`^fn ${f.replace(/[()[\]]/g, '\\$&').replace(/, /g, ',')} macuxi_app EXECUTE$`)))));
       expect(antes.filter((l) => l.includes('macuxi_portal'))).toEqual([]);
       await migrarUp(c, { ate: '0038' });
       const depois = await retratoAcl(c);
-      expect(depois.filter((l) => / macuxi_portal /.test(l))).toHaveLength(FUNCOES_SA.length + 1);
+      expect(depois.filter((l) => / macuxi_portal /.test(l))).toHaveLength(FUNCOES_SA_0035.length + 1);
       expect(depois).toContain('schema plataforma macuxi_portal USAGE');
       expect(depois.filter((l) => /^fn plataforma\.sa_/.test(l) && / (macuxi_app|macuxi_worker|PUBLIC) /.test(l))).toEqual([]);
       expect(await retratoDoCatalogo(c)).toEqual(catalogo); // nenhum objeto novo neste banco (o papel é do cluster)

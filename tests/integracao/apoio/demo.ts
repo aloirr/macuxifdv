@@ -85,7 +85,7 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
       method: 'POST',
       url: '/v1/auth/login',
       remoteAddress: o.ip ?? novoIp(),
-      payload: { codigo_empresa: CODIGO_DEMO, email, senha: o.senha ?? SENHA_DEMO, ...(o.dispositivo_id ? { dispositivo_id: o.dispositivo_id } : {}) },
+      payload: { codigo_empresa: CODIGO_DEMO, email, senha: o.senha ?? SENHA_DEMO, ...(o.dispositivo_id ? { dispositivo_id: o.dispositivo_id } : {}), ...(o.app ? { app: o.app } : {}) },
     });
 
   return {

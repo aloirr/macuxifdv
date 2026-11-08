@@ -8,6 +8,7 @@
 import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { montarHierarquia, type EquipeLinha } from './hierarquia';
 import { podeExecutar, podeVer } from './matriz';
+import { faltasNaSenha, mensagemDaSenha } from './senha';
 
 export const podeGerirUsuarios = (perfil: Perfil): boolean => podeExecutar(perfil, 'usuario.gerir');
 export const podeVerUsuarios = (perfil: Perfil): boolean => podeVer(perfil, 'usuario.ver');
@@ -45,11 +46,12 @@ export function validarDadosDeUsuario(d: DadosBasicosDeUsuario): ErroDeCampo[] {
   return erros;
 }
 
-/** Política da senha inicial definida pelo admin. Devolve a mensagem de erro ou `null` se a senha serve. */
+/**
+ * Política da senha definida pelo admin (RN-CORE-32 + não ser o e-mail). Devolve a mensagem de erro ou `null` se a senha serve.
+ */
 export function validarSenhaInicial(senha: string, email: string): string | null {
-  if (senha.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if (senha.length > 200) return 'A senha pode ter até 200 caracteres.';
-  if (!/[A-Za-z]/.test(senha) || !/[0-9]/.test(senha)) return 'A senha precisa ter letras e números.';
+  const faltas = faltasNaSenha(senha);
+  if (faltas.length > 0) return mensagemDaSenha(faltas, senha);
   if (senha.toLowerCase() === normalizarEmail(email)) return 'A senha não pode ser igual ao e-mail.';
   return null;
 }

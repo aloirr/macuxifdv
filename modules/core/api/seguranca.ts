@@ -2,7 +2,8 @@
  * Primitivas de segurança do login do Core (sem dependência externa; `node:crypto`).
  * - Senha: argon2id no formato PHC (`$argon2id$v=19$m=…,t=…,p=…$sal$hash`), o mesmo gravado pelo banco-dados
  *   (`core.usuario.senha_hash`, constraint `usuario_senha_argon2id`). Precisa de Node >= 24.7.
- * - JWT de acesso: HS256, 15 min, só `sub`, `tid`, `perfil`, `iat`, `exp` (licença nunca vai no token, RN-CORE-01).
+ * - JWT de acesso: HS256, 15 min, só `sub`, `tid`, `perfil`, `iat`, `exp` (+ `did` e `sv`; licença nunca vai no token, RN-CORE-01).
+ *   `sv` (T-0094, ADR 0032) = `core.usuario.sessao_versao` na emissão: troca/redefinição de senha sobe a versão e o token cai na hora.
  * - Refresh: opaco, `<tenant_id>.<segredo base64url>`; o banco guarda só o sha256 do segredo.
  * Nada daqui registra senha, token ou e-mail em log.
  */
@@ -74,15 +75,17 @@ export interface ClaimsAcesso {
   perfil: Perfil;
   /** Aparelho da sessão (RN-CORE-15): conferido a cada requisição; ausente em sessão sem aparelho. */
   did?: string;
+  /** T-0094: versão da sessão do usuário na emissão; ausente (token antigo) vale 0. */
+  sv?: number;
   iat: number;
   exp: number;
 }
 
 const assinar = (dados: string, segredo: string) => crypto.createHmac('sha256', segredo).update(dados).digest();
 
-export function assinarAcesso(c: { sub: string; tid: string; perfil: Perfil; did?: string | null }, agora: Date, expiraEm: Date, segredo: string): string {
+export function assinarAcesso(c: { sub: string; tid: string; perfil: Perfil; did?: string | null; sv?: number }, agora: Date, expiraEm: Date, segredo: string): string {
   const cab = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const corpo = b64url(JSON.stringify({ sub: c.sub, tid: c.tid, perfil: c.perfil, ...(c.did ? { did: c.did } : {}), iat: Math.floor(agora.getTime() / 1000), exp: Math.floor(expiraEm.getTime() / 1000) }));
+  const corpo = b64url(JSON.stringify({ sub: c.sub, tid: c.tid, perfil: c.perfil, ...(c.did ? { did: c.did } : {}), ...(c.sv !== undefined ? { sv: c.sv } : {}), iat: Math.floor(agora.getTime() / 1000), exp: Math.floor(expiraEm.getTime() / 1000) }));
   return `${cab}.${corpo}.${b64url(assinar(`${cab}.${corpo}`, segredo))}`;
 }
 
@@ -103,6 +106,7 @@ export function verificarJwtAcesso(token: string, agora: Date, segredo: string):
     if (typeof c.sub !== 'string' || !UUID_RE.test(c.sub) || typeof c.tid !== 'string' || !UUID_RE.test(c.tid)) return null;
     if (typeof c.perfil !== 'string' || !(PERFIS as readonly string[]).includes(c.perfil)) return null;
     if (c.did !== undefined && (typeof c.did !== 'string' || !UUID_RE.test(c.did))) return null;
+    if (c.sv !== undefined && (typeof c.sv !== 'number' || !Number.isInteger(c.sv) || c.sv < 0)) return null;
     if (typeof c.exp !== 'number' || typeof c.iat !== 'number' || c.exp * 1000 <= agora.getTime()) return null;
     return c as ClaimsAcesso;
   } catch {

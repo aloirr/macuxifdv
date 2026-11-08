@@ -9,7 +9,7 @@
  *   (RN-CORE-01: calculados a cada requisição — use `GET /v1/me/modulos`).
  * - Refresh: opaco, rotativo (cada um vale uma vez), 30 dias; formato `<tenant_id>.<segredo>`.
  */
-import { PERFIS } from '@macuxi/platform-sdk';
+import { APPS_COM_LOGIN, CODIGO_PERFIL_FORA_DO_APP, PERFIS } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
 export const PerfilSchema = z.enum(PERFIS);
@@ -17,6 +17,9 @@ export const PerfilSchema = z.enum(PERFIS);
 export const ROTA_LOGIN = '/v1/auth/login';
 export const ROTA_REFRESH = '/v1/auth/refresh';
 export const ROTA_LOGOUT = '/v1/auth/logout';
+/** T-0094 (ADR 0032): troca obrigatória ("Crie sua senha") e "Esqueci a senha"; públicas, sem token. */
+export const ROTA_TROCAR_SENHA = '/v1/auth/senha/trocar';
+export const ROTA_ESQUECI_SENHA = '/v1/auth/senha/esqueci';
 
 /** Código da empresa: letras, dígitos e hífen (igual a `plataforma.tenant.codigo`, sem diferenciar maiúsculas). */
 export const CodigoEmpresaSchema = z
@@ -34,6 +37,8 @@ export const LoginSenhaRequestSchema = z
     /** UUID gerado no aparelho (bloqueio remoto de aparelho, RF-CORE-01). Opcional no BKO. */
     dispositivo_id: z.string().uuid().optional(),
     dispositivo_nome: z.string().trim().max(80).optional(),
+    /** RN-CORE-33: app que está pedindo o login. A API recusa (403 ) o perfil que não usa este app. Ausente = não confere (APK antigo). */
+    app: z.enum(APPS_COM_LOGIN).optional(),
   })
   .strict();
 export type LoginSenhaRequest = z.infer<typeof LoginSenhaRequestSchema>;
@@ -79,6 +84,44 @@ export const CODIGOS_AUTH = {
   sessao: 'SESSAO_INVALIDA',
   /** 429 — limite por IP + código da empresa (plataforma). */
   muitasTentativas: 'MUITAS_TENTATIVAS',
+  /** 403 — só depois de senha certa (T-0094): a senha é temporária; sem sessão. Siga para "Crie sua senha" (POST /v1/auth/senha/trocar). */
+  senhaATrocar: 'SENHA_A_TROCAR',
+  /** 410 — só depois de senha certa: a senha temporária passou de 72 h. Use "Esqueci a senha" ou fale com o administrador. */
+  senhaVencida: 'SENHA_TEMPORARIA_VENCIDA',
+  /** 403 — só depois de senha certa (RN-CORE-33): o perfil não usa o app que pediu o login. A mensagem da API diz onde entrar. */
+  perfilForaDoApp: CODIGO_PERFIL_FORA_DO_APP,
 } as const;
 
 export const MENSAGEM_CREDENCIAIS = 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
+
+export const MENSAGEM_SENHA_VENCIDA = 'Esta senha temporária venceu. Peça outra em "Esqueci a senha" ou fale com o administrador da sua empresa.';
+/** Só o APK antigo mostra esta frase (o app novo navega para "Crie sua senha" pelo código). */
+export const MENSAGEM_SENHA_A_TROCAR = 'Você precisa criar uma senha nova. Atualize o app para continuar.';
+
+/** `detalhes` do 403 SENHA_A_TROCAR (T-0094; RN-CORE-34). `expira_em` nulo = a senha não vence (master do admin inicial, P5). */
+export const DetalhesSenhaATrocarSchema = z.object({ motivo: z.enum(['primeiro_acesso', 'senha_temporaria']), expira_em: z.string().datetime().nullable() }).strict();
+export type DetalhesSenhaATrocar = z.infer<typeof DetalhesSenhaATrocarSchema>;
+
+/**
+ * "Crie sua senha" (T-0094; RN-CORE-32/34): a senha atual (a temporária) só existe na memória da tela. Responde SessaoResposta:
+ * a pessoa entra direto, com todas as sessões antigas encerradas. Mesmos erros do login mais 422 RN-CORE-32 (detalhes.faltas) e
+ * 422 RN-CORE-34 (repetiu a senha usada para entrar). Vale também como troca voluntária com a senha atual.
+ */
+export const TrocarSenhaRequestSchema = z
+  .object({
+    codigo_empresa: CodigoEmpresaSchema,
+    email: z.string().trim().min(3).max(254),
+    senha_atual: z.string().min(1).max(200),
+    senha_nova: z.string().min(1).max(200),
+    app: z.enum(APPS_COM_LOGIN).optional(),
+    dispositivo_id: z.string().uuid().optional(),
+    dispositivo_nome: z.string().trim().max(80).optional(),
+  })
+  .strict();
+export type TrocarSenhaRequest = z.infer<typeof TrocarSenhaRequestSchema>;
+
+/** "Esqueci a senha" (T-0094; P8): o código da empresa como no login. A resposta é sempre 202 {}, exista ou não o cadastro. */
+export const EsqueciSenhaRequestSchema = z.object({ codigo_empresa: CodigoEmpresaSchema, email: z.string().trim().min(3).max(254) }).strict();
+export type EsqueciSenhaRequest = z.infer<typeof EsqueciSenhaRequestSchema>;
+
+export const MENSAGEM_ESQUECI_SENHA = 'Se o e-mail estiver cadastrado nesta empresa, você vai receber uma senha temporária em alguns minutos. Ela vale por 72 horas.';

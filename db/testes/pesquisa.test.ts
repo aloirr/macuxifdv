@@ -442,7 +442,7 @@ describe.skipIf(semBanco())('pesquisa — seed demo (Postgres)', () => {
     b = await criarBancoDeTeste({
       preparar: async (c) => {
         await carregarDoisTenants(c, { agora: agoraDaFixture() });
-        await carregarDemo(c, { senha: 'senha-do-teste-pesquisa', hoje });
+        await carregarDemo(c, { senha: 'Pesquisa@teste1', hoje });
       },
     });
     await comAdmin(b.nome, (c) => carregarPesquisaDemo(c, { hoje }));
@@ -491,7 +491,7 @@ describe.skipIf(semBanco())('pesquisa — seed demo (Postgres)', () => {
   it('dentro da transação do carregarDemo (a linha que liga o seed no demo.ts) também carrega', async () => {
     const outro = await criarBancoDeTeste({
       preparar: async (c) => {
-        await carregarDemo(c, { senha: 'senha-do-teste-pesquisa', hoje });
+        await carregarDemo(c, { senha: 'Pesquisa@teste1', hoje });
         await c.query('begin');
         await gravarPesquisaDemo(c, { hoje });
         await c.query('commit');

@@ -83,14 +83,11 @@ export function donoDe(rel, regras) {
  * @returns {{ok: boolean, motivo?: string, dono?: string}}
  */
 export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo }) {
-  // Anexo de recado (.coord/recados/anexos/**) não é recado: segue a regra comum, com o dono do
-  // donos.json (alexandre). Só ele cria e altera; para os outros vale "arquivo de outro dono".
-  const anexo = ehAnexoDeRecado(rel);
   // Recados: só criar arquivo novo, na pasta de um destino válido, com o próprio nome como remetente
   // (R-...-<agente>.md) e, se o conteúdo vier junto (Write), "de: <agente>" no cabeçalho.
   // Guardião v5 (T-0044): o nome só CONTER "-<agente>" não basta (R-1-modulo-core-alexandre.md é
   // do remetente alexandre), e ninguém além do Alexandre grava "de: alexandre".
-  const mRecado = !anexo && rel.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
+  const mRecado = rel.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
   if (mRecado) {
     const [, destino, arquivo] = mRecado;
     if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
@@ -103,7 +100,7 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
       return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
     return { ok: true };
   }
-  if (!anexo && rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
+  if (rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
 
   // Diário e marcação de lidos: só o próprio agente.
   const mDiario = rel.match(/^\.coord\/(diario|lidos)\/([^/.]+)\.(md|txt)$/i);
@@ -129,14 +126,6 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
   return { ok: false, dono, motivo: `"${rel}" pertence a ${dono}. ${dica}` };
 }
 
-/**
- * Anexo de recado (imagem, HTML... citados nos recados do Alexandre): .coord/recados/anexos/**.
- * Não é recado (não tem destino nem remetente): é arquivo comum, com o dono vindo do donos.json.
- */
-export function ehAnexoDeRecado(caminho) {
-  return /^\.coord\/recados\/anexos\//i.test(normalizarCaminho(caminho));
-}
-
 /** Normaliza caminho vindo do git ou do Windows: barras "/", sem "./" no início. */
 export function normalizarCaminho(caminho) {
   return String(caminho).replace(/\\/g, '/').replace(/^(\.\/)+/, '');
@@ -159,11 +148,9 @@ export function remetenteDoRecado(arquivo) {
 /**
  * De quem é a mudança, pelas regras do protocolo (função pura):
  * recado → remetente do nome do arquivo; diário/lidos → o próprio agente; resto → donos.json.
- * Anexo de recado (.coord/recados/anexos/**) é arquivo comum: dono pelo donos.json (alexandre).
  * @returns {{tipo: 'recado'|'recado-fora'|'diario'|'lidos'|'comum', dono: string, destino?: string, arquivo?: string}}
  */
 export function donoDaMudanca(caminho, regras) {
-  if (ehAnexoDeRecado(caminho)) return { tipo: 'comum', dono: donoDe(caminho, regras) };
   const mRecado = caminho.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
   if (mRecado) return { tipo: 'recado', destino: mRecado[1], arquivo: mRecado[2], dono: remetenteDoRecado(mRecado[2]) || 'sem-remetente' };
   if (/^\.coord\/recados\//i.test(caminho)) return { tipo: 'recado-fora', dono: 'sem-dono' };

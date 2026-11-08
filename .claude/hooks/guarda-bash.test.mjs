@@ -27,7 +27,6 @@ const DONOS = {
     { padrao: '.claude/**', dono: 'alexandre' },
     { padrao: 'scripts/coord*.mjs', dono: 'alexandre' },
     { padrao: 'legado/**', dono: 'congelado' },
-    { padrao: '.coord/recados/anexos/**', dono: 'alexandre' },
     { padrao: '.coord/**', dono: 'gerente-projetos' },
     { padrao: 'docs/banco/**', dono: 'banco-dados' },
     { padrao: 'docs/modulos/promotor/**', dono: 'modulo-promotor' },
@@ -661,27 +660,6 @@ test('T-0005: separarAcusacoes — só alvo evidente limpo antes bloqueia; recad
   assert.equal(msg.split(TEXTO_AVISO).length - 1, avisos.length);
   assert.match(mensagemPos('modulo-core', bloqueantes), /git restore -- "docs\/produto\/01\.md"[\s\S]*rm -- "apps\/novo\.ts"/);
   assert.deepEqual(separarAcusacoes({ violacoes: lista }).bloqueantes, [], 'foto sem alvos (hook antigo): nada bloqueia');
-});
-
-test('anexos de recado (.coord/recados/anexos/**): arquivo comum do alexandre no Bash; recado normal igual', () => {
-  const anexo = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.html';
-  const arquivos = [...ARQUIVOS, anexo];
-  // alexandre cria e altera anexo existente (não é recado: não é imutável nem tem destino)
-  libera(`echo x > ${anexo}`, { agente: 'alexandre', arquivos });
-  libera('echo x > .coord/recados/anexos/novo.png', { agente: 'alexandre', arquivos });
-  // outro agente: regra comum de arquivo de outro dono
-  for (const cmd of [`echo x >> ${anexo}`, 'cp apps/api/x.ts .coord/recados/anexos/novo.png']) {
-    const v = bloqueia(cmd, { agente: 'gerente-projetos', arquivos });
-    assert.match(v[0].motivo, /pertence a alexandre\. só o Alexandre altera este arquivo/, cmd);
-    assert.doesNotMatch(v[0].motivo, /destino de recado inválido|imutáveis/, cmd);
-  }
-  // recado normal: sem mudança
-  assert.match(bloqueia('echo x >> .coord/recados/testes/R-20261031-000000-modulo-core.md', { agente: 'alexandre', arquivos })[0].motivo, /imutáveis/);
-  assert.match(bloqueia('echo x > .coord/recados/ninguem/R-20261031-120000-modulo-core.md', { arquivos })[0].motivo, /destino de recado inválido/);
-  // PostToolUse: anexo novo de outro agente se desfaz com rm, como arquivo comum; recado novo continua sem rm
-  const v = (caminho) => ({ caminho, status: 'A', antes: 'limpo', dono: 'alexandre', motivo: 'fora dos caminhos' });
-  assert.equal(comoDesfazer(v('.coord/recados/anexos/novo.png')), 'rm -- ".coord/recados/anexos/novo.png"');
-  assert.equal(comoDesfazer(v('.coord/recados/testes/R-20261031-120000-testes.md')), null);
 });
 
 test('T-0005: PostToolUse num repositório de verdade — alvo evidente alheio bloqueia; mudança paralela de outro agente vira aviso', () => {

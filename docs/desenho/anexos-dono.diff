@@ -1,0 +1,281 @@
+diff --git a/.claude/hooks/guarda-bash-lib.mjs b/.claude/hooks/guarda-bash-lib.mjs
+index 7356f0f3..90d0bf0a 100644
+--- a/.claude/hooks/guarda-bash-lib.mjs
++++ b/.claude/hooks/guarda-bash-lib.mjs
+@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
+ import { posix, join } from 'node:path';
+ import { tmpdir } from 'node:os';
+ import { createHash } from 'node:crypto';
+-import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo } from '../../scripts/coord-lib.mjs';
++import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo, ehAnexoDeRecado } from '../../scripts/coord-lib.mjs';
+ 
+ // ───────────────────────────── caminhos ─────────────────────────────
+ 
+@@ -681,7 +681,8 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
+   const conferir = (rel, acao) => {
+     if (!doTime) return acusar(rel, `o agente "${agente}" não faz parte do time; só os agentes de .claude/agents podem alterar o repositório.`);
+     if (permitidos.has(`${acao}:${rel}`)) return;
+-    if (/^\.coord\/recados\/[^/]+\/[^/]+$/i.test(rel) && amb.existe(`${barras(raiz).replace(/\/+$/, '')}/${rel}`))
++    // Anexo de recado (.coord/recados/anexos/**) não é recado: o podeAlterar aplica a regra comum (dono alexandre).
++    if (/^\.coord\/recados\/[^/]+\/[^/]+$/i.test(rel) && !ehAnexoDeRecado(rel) && amb.existe(`${barras(raiz).replace(/\/+$/, '')}/${rel}`))
+       return acusar(rel, 'recados são imutáveis: responda com um recado novo (node scripts/coord.mjs enviar --responde-a <id>)');
+     const r = podeAlterar({ agente, ferramenta: 'Write', rel, raiz, regras });
+     if (!r.ok) acusar(rel, r.motivo);
+@@ -881,11 +882,12 @@ export function violacoesDasMudancas({ agente, mudancas, regras }) {
+ /**
+  * Como desfazer cada arquivo acusado (o guardião libera exatamente esse comando).
+  * Só para o que estava limpo antes; nunca "rm" de recado novo em .coord/recados/** (pode ser de
+- * outro agente, e recado é imutável: quem errou responde com recado novo).
++ * outro agente, e recado é imutável: quem errou responde com recado novo). Anexo novo em
++ * .coord/recados/anexos/** é arquivo comum: "rm", como qualquer arquivo de outro dono.
+  */
+ export function comoDesfazer(v) {
+   if (v.antes !== 'limpo') return null;
+-  if (v.status === 'A') return /^\.coord\/recados\//i.test(v.caminho) ? null : `rm -- "${v.caminho}"`;
++  if (v.status === 'A') return /^\.coord\/recados\//i.test(v.caminho) && !ehAnexoDeRecado(v.caminho) ? null : `rm -- "${v.caminho}"`;
+   return `git restore -- "${v.caminho}"`;
+ }
+ 
+diff --git a/.claude/hooks/guarda-bash.test.mjs b/.claude/hooks/guarda-bash.test.mjs
+index b34f1338..8945f1b8 100644
+--- a/.claude/hooks/guarda-bash.test.mjs
++++ b/.claude/hooks/guarda-bash.test.mjs
+@@ -27,6 +27,7 @@ const DONOS = {
+     { padrao: '.claude/**', dono: 'alexandre' },
+     { padrao: 'scripts/coord*.mjs', dono: 'alexandre' },
+     { padrao: 'legado/**', dono: 'congelado' },
++    { padrao: '.coord/recados/anexos/**', dono: 'alexandre' },
+     { padrao: '.coord/**', dono: 'gerente-projetos' },
+     { padrao: 'docs/banco/**', dono: 'banco-dados' },
+     { padrao: 'docs/modulos/promotor/**', dono: 'modulo-promotor' },
+@@ -662,6 +663,27 @@ test('T-0005: separarAcusacoes — só alvo evidente limpo antes bloqueia; recad
+   assert.deepEqual(separarAcusacoes({ violacoes: lista }).bloqueantes, [], 'foto sem alvos (hook antigo): nada bloqueia');
+ });
+ 
++test('anexos de recado (.coord/recados/anexos/**): arquivo comum do alexandre no Bash; recado normal igual', () => {
++  const anexo = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.html';
++  const arquivos = [...ARQUIVOS, anexo];
++  // alexandre cria e altera anexo existente (não é recado: não é imutável nem tem destino)
++  libera(`echo x > ${anexo}`, { agente: 'alexandre', arquivos });
++  libera('echo x > .coord/recados/anexos/novo.png', { agente: 'alexandre', arquivos });
++  // outro agente: regra comum de arquivo de outro dono
++  for (const cmd of [`echo x >> ${anexo}`, 'cp apps/api/x.ts .coord/recados/anexos/novo.png']) {
++    const v = bloqueia(cmd, { agente: 'gerente-projetos', arquivos });
++    assert.match(v[0].motivo, /pertence a alexandre\. só o Alexandre altera este arquivo/, cmd);
++    assert.doesNotMatch(v[0].motivo, /destino de recado inválido|imutáveis/, cmd);
++  }
++  // recado normal: sem mudança
++  assert.match(bloqueia('echo x >> .coord/recados/testes/R-20261031-000000-modulo-core.md', { agente: 'alexandre', arquivos })[0].motivo, /imutáveis/);
++  assert.match(bloqueia('echo x > .coord/recados/ninguem/R-20261031-120000-modulo-core.md', { arquivos })[0].motivo, /destino de recado inválido/);
++  // PostToolUse: anexo novo de outro agente se desfaz com rm, como arquivo comum; recado novo continua sem rm
++  const v = (caminho) => ({ caminho, status: 'A', antes: 'limpo', dono: 'alexandre', motivo: 'fora dos caminhos' });
++  assert.equal(comoDesfazer(v('.coord/recados/anexos/novo.png')), 'rm -- ".coord/recados/anexos/novo.png"');
++  assert.equal(comoDesfazer(v('.coord/recados/testes/R-20261031-120000-testes.md')), null);
++});
++
+ test('T-0005: PostToolUse num repositório de verdade — alvo evidente alheio bloqueia; mudança paralela de outro agente vira aviso', () => {
+   const dir = criarRepo();
+   const cmd = 'echo invasao >> docs/produto/01.md && echo meu >> modules/core/a.ts';
+diff --git a/.coord/donos.json b/.coord/donos.json
+index 79d2e277..b6112199 100644
+--- a/.coord/donos.json
++++ b/.coord/donos.json
+@@ -1,6 +1,6 @@
+ {
+   "versao": 1,
+-  "descricao": "Mapa de donos do repositório. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo em .coord/recados/<destino>/ e escreve no próprio .coord/diario/<agente>.md e .coord/lidos/<agente>.txt. 'congelado' = ninguém altera; 'sem-dono' = caminho não mapeado (bloqueado). 'somente_leitura' = pastas fora do repositório que nenhum agente pode alterar (Fase M).",
++  "descricao": "Mapa de donos do repositório. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo em .coord/recados/<destino>/ e escreve no próprio .coord/diario/<agente>.md e .coord/lidos/<agente>.txt. Anexos de recado (.coord/recados/anexos/**) não são recados: valem as regras abaixo (dono alexandre). 'congelado' = ninguém altera; 'sem-dono' = caminho não mapeado (bloqueado). 'somente_leitura' = pastas fora do repositório que nenhum agente pode alterar (Fase M).",
+   "regras": [
+     {
+       "padrao": "_instalar/**",
+@@ -22,6 +22,10 @@
+       "padrao": "scripts/coord*.mjs",
+       "dono": "alexandre"
+     },
++    {
++      "padrao": ".coord/recados/anexos/**",
++      "dono": "alexandre"
++    },
+     {
+       "padrao": ".coord/contratos/**",
+       "dono": "engenheiro-software"
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index 9e20eb3b..09a5e9b8 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -83,11 +83,14 @@ export function donoDe(rel, regras) {
+  * @returns {{ok: boolean, motivo?: string, dono?: string}}
+  */
+ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo }) {
++  // Anexo de recado (.coord/recados/anexos/**) não é recado: segue a regra comum, com o dono do
++  // donos.json (alexandre). Só ele cria e altera; para os outros vale "arquivo de outro dono".
++  const anexo = ehAnexoDeRecado(rel);
+   // Recados: só criar arquivo novo, na pasta de um destino válido, com o próprio nome como remetente
+   // (R-...-<agente>.md) e, se o conteúdo vier junto (Write), "de: <agente>" no cabeçalho.
+   // Guardião v5 (T-0044): o nome só CONTER "-<agente>" não basta (R-1-modulo-core-alexandre.md é
+   // do remetente alexandre), e ninguém além do Alexandre grava "de: alexandre".
+-  const mRecado = rel.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
++  const mRecado = !anexo && rel.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
+   if (mRecado) {
+     const [, destino, arquivo] = mRecado;
+     if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
+@@ -100,7 +103,7 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
+       return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
+     return { ok: true };
+   }
+-  if (rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
++  if (!anexo && rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
+ 
+   // Diário e marcação de lidos: só o próprio agente.
+   const mDiario = rel.match(/^\.coord\/(diario|lidos)\/([^/.]+)\.(md|txt)$/i);
+@@ -126,6 +129,14 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
+   return { ok: false, dono, motivo: `"${rel}" pertence a ${dono}. ${dica}` };
+ }
+ 
++/**
++ * Anexo de recado (imagem, HTML... citados nos recados do Alexandre): .coord/recados/anexos/**.
++ * Não é recado (não tem destino nem remetente): é arquivo comum, com o dono vindo do donos.json.
++ */
++export function ehAnexoDeRecado(caminho) {
++  return /^\.coord\/recados\/anexos\//i.test(normalizarCaminho(caminho));
++}
++
+ /** Normaliza caminho vindo do git ou do Windows: barras "/", sem "./" no início. */
+ export function normalizarCaminho(caminho) {
+   return String(caminho).replace(/\\/g, '/').replace(/^(\.\/)+/, '');
+@@ -148,9 +159,11 @@ export function remetenteDoRecado(arquivo) {
+ /**
+  * De quem é a mudança, pelas regras do protocolo (função pura):
+  * recado → remetente do nome do arquivo; diário/lidos → o próprio agente; resto → donos.json.
++ * Anexo de recado (.coord/recados/anexos/**) é arquivo comum: dono pelo donos.json (alexandre).
+  * @returns {{tipo: 'recado'|'recado-fora'|'diario'|'lidos'|'comum', dono: string, destino?: string, arquivo?: string}}
+  */
+ export function donoDaMudanca(caminho, regras) {
++  if (ehAnexoDeRecado(caminho)) return { tipo: 'comum', dono: donoDe(caminho, regras) };
+   const mRecado = caminho.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
+   if (mRecado) return { tipo: 'recado', destino: mRecado[1], arquivo: mRecado[2], dono: remetenteDoRecado(mRecado[2]) || 'sem-remetente' };
+   if (/^\.coord\/recados\//i.test(caminho)) return { tipo: 'recado-fora', dono: 'sem-dono' };
+diff --git a/scripts/coord-verificar.test.mjs b/scripts/coord-verificar.test.mjs
+index 3c41886b..b518da8c 100644
+--- a/scripts/coord-verificar.test.mjs
++++ b/scripts/coord-verificar.test.mjs
+@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
+ import {
+   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
+   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
++  donoDaMudanca, podeAlterar, ehAnexoDeRecado,
+ } from './coord-lib.mjs';
+ 
+ const AQUI = dirname(fileURLToPath(import.meta.url));
+@@ -1093,3 +1094,111 @@ test('v4 funções puras: workspaceMudouSoEmBuilds, pacoteDoPackageJson, lockAco
+   ]).map((m) => m.caminho), ['.claude/hooks/x.mjs', '.coord/donos.json', 'scripts/coord-novo.mjs', '.github/workflows/ci.yml']);
+   assert.ok(carregarDonos);
+ });
++
++// ───────────── anexos de recado (.coord/recados/anexos/**): arquivo comum, dono alexandre ─────────────
++// Antes, o regex de recado casava "anexos" como destino e todo verificar acusava "destino de recado inválido".
++
++const ANEXO_PNG = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.png';
++const ANEXO_HTML = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.html';
++
++test('anexos: donos.json real tem a regra .coord/recados/anexos/** → alexandre antes de .coord/**', () => {
++  const regras = JSON.parse(DONOS_REAIS).regras.map((r) => r.padrao);
++  const iAnexos = regras.indexOf('.coord/recados/anexos/**');
++  assert.ok(iAnexos >= 0, 'regra dos anexos ausente');
++  assert.equal(JSON.parse(DONOS_REAIS).regras[iAnexos].dono, 'alexandre');
++  assert.ok(iAnexos < regras.indexOf('.coord/**'), 'a regra dos anexos precisa vir antes da genérica de .coord/**');
++});
++
++test('anexos: donoDaMudanca e podeAlterar tratam o anexo como arquivo comum do alexandre; recado normal igual', () => {
++  const regras = carregarDonos(join(AQUI, '..'));
++  assert.deepEqual(donoDaMudanca(ANEXO_PNG, regras), { tipo: 'comum', dono: 'alexandre' });
++  assert.deepEqual(donoDaMudanca('.coord/recados/anexos/sub/pasta/x.html', regras), { tipo: 'comum', dono: 'alexandre' });
++  assert.equal(ehAnexoDeRecado('.coord\\recados\\anexos\\a.png'), true, 'barra invertida');
++  assert.equal(ehAnexoDeRecado('.coord/recados/alexandre/R-1-anexos.md'), false);
++  assert.equal(ehAnexoDeRecado('.coord/recados/anexos'), false, 'a pasta sem arquivo não é anexo');
++  // recado normal: sem mudança
++  assert.deepEqual(donoDaMudanca('.coord/recados/alexandre/R-20261106-1-engenheiro-software.md', regras),
++    { tipo: 'recado', destino: 'alexandre', arquivo: 'R-20261106-1-engenheiro-software.md', dono: 'engenheiro-software' });
++  assert.deepEqual(donoDaMudanca('.coord/recados/fulano/x/y.md', regras), { tipo: 'recado-fora', dono: 'sem-dono' });
++  // guardião (Edit/Write): alexandre cria e altera; os outros recebem a regra comum de arquivo de outro dono
++  const raiz = mkdtempSync(join(tmpdir(), 'coord-anexos-'));
++  temporarios.push(raiz);
++  escrever(raiz, ANEXO_HTML, '<p>anexo</p>\n');
++  for (const ferramenta of ['Write', 'Edit']) {
++    assert.deepEqual(podeAlterar({ agente: 'alexandre', ferramenta, rel: ANEXO_HTML, raiz, regras }), { ok: true, dono: 'alexandre' }, `${ferramenta} do alexandre em anexo existente`);
++    const r = podeAlterar({ agente: 'gerente-projetos', ferramenta, rel: ANEXO_PNG, raiz, regras });
++    assert.equal(r.ok, false);
++    assert.equal(r.dono, 'alexandre');
++    assert.match(r.motivo, /pertence a alexandre\. só o Alexandre altera este arquivo/);
++  }
++  // recado normal no guardião: sem mudança
++  assert.match(podeAlterar({ agente: 'alexandre', ferramenta: 'Write', rel: '.coord/recados/fulano/R-1-alexandre.md', raiz, regras }).motivo, /destino de recado inválido: fulano/);
++  escrever(raiz, '.coord/recados/alexandre/R-1-engenheiro-software.md', RECADO);
++  assert.match(podeAlterar({ agente: 'engenheiro-software', ferramenta: 'Edit', rel: '.coord/recados/alexandre/R-1-engenheiro-software.md', raiz, regras }).motivo, /imutáveis/);
++  assert.deepEqual(podeAlterar({ agente: 'engenheiro-software', ferramenta: 'Write', rel: '.coord/recados/alexandre/R-2-engenheiro-software.md', raiz, regras }), { ok: true });
++});
++
++test('anexos: anexo novo ou alterado pelo alexandre não viola (verificar alexandre, sem agente e branch alexandre/*)', () => {
++  const dir = criarRepoReal();
++  escrever(dir, ANEXO_PNG, 'png\n');
++  escrever(dir, ANEXO_HTML, '<p>v1</p>\n');
++  const sem = rodar(dir, ['verificar']);
++  assert.equal(sem.codigo, 0, sem.tudo);
++  assert.doesNotMatch(sem.tudo, /destino de recado inválido/);
++  const alexandre = rodar(dir, ['verificar', 'alexandre']);
++  assert.equal(alexandre.codigo, 0, alexandre.tudo);
++  assert.deepEqual(secao(alexandre.saida, 'OK').sort(), [`A ${ANEXO_HTML}`, `A ${ANEXO_PNG}`]);
++  git(dir, 'checkout', '-q', '-b', 'alexandre/T-0090-anexos');
++  commitar(dir, 'anexos');
++  writeFileSync(join(dir, ANEXO_HTML), '<p>v2</p>\n'); // anexo não é imutável: o alexandre altera
++  commitar(dir, 'anexo v2');
++  const base = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(base.codigo, 0, base.tudo);
++  assert.deepEqual(secao(base.saida, 'OK').sort(), [`A ${ANEXO_HTML}`, `A ${ANEXO_PNG}`]);
++});
++
++test('anexos: anexo criado ou alterado por outro agente viola (--base e --por-commit); sem --base é "Outros donos"', () => {
++  const dir = criarRepoReal();
++  git(dir, 'checkout', '-q', '-b', 'gerente-projetos/T-0090');
++  escrever(dir, ANEXO_PNG, 'png\n');
++  commitar(dir, 'T-0090: anexo');
++  const r = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(r.codigo, 1, r.tudo);
++  const v = secao(r.saida, 'VIOLAÇÃO');
++  assert.equal(v.length, 1, r.saida);
++  assert.match(v[0], /^A \.coord\/recados\/anexos\/R-20261106-alexandre-filtro-periodo\.png → dono: alexandre — fora dos caminhos de gerente-projetos/);
++  assert.doesNotMatch(r.tudo, /destino de recado inválido/);
++
++  const dir2 = criarRepoReal();
++  const inicio = git(dir2, 'rev-parse', 'HEAD').trim();
++  escrever(dir2, ANEXO_HTML, '<p>v1</p>\n');
++  const doAlexandre = commitarComo(dir2, 'alexandre', 'T-0090: anexos do alexandre');
++  writeFileSync(join(dir2, ANEXO_HTML), '<p>editado pelo gerente</p>\n');
++  const doGerente = commitarComo(dir2, 'gerente-projetos', 'T-0090: mexeu no anexo');
++  const pc = rodar(dir2, ['verificar', '--por-commit', `${inicio}..HEAD`]);
++  assert.equal(pc.codigo, 1, pc.tudo);
++  assert.doesNotMatch(blocoDoCommit(pc.saida, doAlexandre), /VIOLAÇÃO/);
++  assert.match(blocoDoCommit(pc.saida, doGerente), /VIOLAÇÃO[\s\S]*M \.coord\/recados\/anexos\/R-20261106-alexandre-filtro-periodo\.html → dono: alexandre/);
++
++  const dir3 = criarRepoReal();
++  escrever(dir3, ANEXO_PNG, 'png\n');
++  const arvore = rodar(dir3, ['verificar', 'engenheiro-software']);
++  assert.equal(arvore.codigo, 0, arvore.tudo);
++  assert.deepEqual(secao(arvore.saida, 'Outros donos'), [`A ${ANEXO_PNG} → alexandre`]);
++});
++
++test('anexos: recado normal continua igual ao lado de um anexo (exceção, destino inválido e imutável)', () => {
++  const dir = criarRepoReal();
++  escrever(dir, ANEXO_PNG, 'png\n');
++  escrever(dir, '.coord/recados/alexandre/R-20261106-090000-engenheiro-software.md', RECADO);
++  escrever(dir, '.coord/recados/fulano/R-20261106-090001-engenheiro-software.md', RECADO);
++  mudar(dir, RECADO_ENG);
++  const r = rodar(dir, ['verificar', 'engenheiro-software']);
++  assert.equal(r.codigo, 1, r.tudo);
++  assert.deepEqual(secao(r.saida, 'Exceções do protocolo'), ['A .coord/recados/alexandre/R-20261106-090000-engenheiro-software.md — recado novo para alexandre']);
++  assert.deepEqual(secao(r.saida, 'Outros donos'), [`A ${ANEXO_PNG} → alexandre`]);
++  const v = secao(r.saida, 'VIOLAÇÃO');
++  assert.equal(v.length, 2, r.saida);
++  assert.ok(v.some((l) => /fulano\/.* — destino de recado inválido: fulano$/.test(l)), v.join('\n'));
++  assert.ok(v.some((l) => l.startsWith(`M ${RECADO_ENG} → dono: ninguém — recados são imutáveis`)), v.join('\n'));
++});

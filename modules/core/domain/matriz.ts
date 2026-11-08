@@ -3,7 +3,7 @@
  * cancela, duplica nem exclui pedido, valendo pelo PERFIL (mesmo que ganhe o módulo Vendedor).
  * A API revalida sempre; o app só esconde. Ação desconhecida = negada (falha fechada).
  */
-import type { Perfil } from '@macuxi/platform-sdk';
+import { perfilUsaApp, type Perfil } from '@macuxi/platform-sdk';
 
 export type Acesso = 'total' | 'leitura' | 'negado';
 export type EscopoMatriz = 'proprio' | 'carteira' | 'equipe' | 'tenant' | 'em_nome' | 'alcada' | 'acima_da_alcada';
@@ -44,8 +44,8 @@ const MATRIZ: Readonly<Record<string, Linha>> = {
   'pesquisa.responder': linha(T(), T(), T(), T(), N, N, N),
   'pesquisa.criar': linha(N, N, N, N, T(), N, T()),
   'modulo.gerir_licencas': linha(N, N, N, N, N, N, T()),
-  // Usuários no BKO (RF-CORE-02): leitura recortada pelo escopo (supervisor/gerente = equipe), gestão só do admin
-  'usuario.ver': linha(N, N, L('equipe'), L('equipe'), N, N, L('tenant')),
+  // Usuários no BKO (RF-CORE-02): leitura recortada pelo escopo (gerente = equipes abaixo; o supervisor não usa o BKO, RN-CORE-33), gestão só do admin
+  'usuario.ver': linha(N, N, N, L('equipe'), N, N, L('tenant')),
   'usuario.gerir': linha(N, N, N, N, N, N, T()),
 };
 
@@ -73,6 +73,5 @@ export function podeVer(perfil: Perfil, acao: string): boolean {
   return decisao(perfil, acao).acesso !== 'negado';
 }
 
-/** Perfis que acessam o BKO na Sprint 0 (esclarecimento do doc 03): vendedor e promotor só usam o Campo. */
-export const PERFIS_DO_BKO: readonly Perfil[] = ['admin', 'analista', 'assistente', 'supervisor', 'gerente'];
-export const podeAcessarBko = (perfil: Perfil): boolean => PERFIS_DO_BKO.includes(perfil);
+/** RN-CORE-33 (T-0094): quem entra no BKO é decidido no SDK (`PERFIS_DO_APP.web`); vendedor, promotor e supervisor ficam fora. */
+export const podeAcessarBko = (perfil: Perfil): boolean => perfilUsaApp(perfil, 'web');

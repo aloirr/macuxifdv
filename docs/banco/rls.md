@@ -8,8 +8,8 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 | admin / migrador (`postgres` no Docker local; `macuxi_admin` no DBaaS) | superusuário, dono de todos os objetos (no DBaaS: sem SUPERUSER/BYPASSRLS, com CREATEDB/CREATEROLE, membro com INHERIT do `macuxi_manutencao`) | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** (superusuário ou política `manutencao`) — nunca é usado pela API nem para provar isolamento |
 | `macuxi_manutencao` (0031) | NOLOGIN, NOSUPERUSER, **NOBYPASSRLS**; ninguém conecta com ele | só existe para a política `manutencao` (`for all ... using (true) with check (true)`) valer para o migrador, que o herda. **Nunca** concedido a `macuxi_app`, `macuxi_worker` nem `macuxi_portal` |
 | `macuxi_app` | `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`, não é dono de nada | **único** papel da API e dos testes de vazamento |
-| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante da outbox (ADR 0007): só lê e marca `plataforma.evento` de todos os tenants |
-| `macuxi_portal` (0038, T-0091) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel, **nenhum grant de tabela** | portal do super-admin (ADR 0029): 2º pool da API; só `USAGE` em `plataforma` e `EXECUTE` nas 20 `plataforma.sa_*` (o único papel com ele) |
+| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante das outboxes (ADR 0007; 0040, ADR 0032): só lê e marca `plataforma.evento` e `plataforma.email_saida` (só a linha pendente) de todos os tenants |
+| `macuxi_portal` (0038, T-0091) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel, **nenhum grant de tabela** | portal do super-admin (ADR 0029): 2º pool da API; só `USAGE` em `plataforma` e `EXECUTE` nas `plataforma.sa_*` (20 na 0038; 12 desde a 0039, T-0093) (o único papel com ele) |
 
 - A migração 0001 cria `macuxi_app` como `NOLOGIN` se não existir; o executor (`db/src/papeis.ts`)
   liga o `LOGIN` e define a senha a partir de `MACUXI_PG_APP_SENHA`. Papéis são do cluster: o `down` não os remove.
@@ -109,6 +109,7 @@ Nunca "todas as linhas". Coberto por S0-026 em `db/testes/vazamento.test.ts`.
 | `plataforma.tenant` | o próprio `id` é o tenant; RLS por `id` |
 | `public.macuxi_migracao` | controle do executor de migrações; sem RLS e sem acesso do `macuxi_app` |
 | `plataforma.super_admin`, `super_admin_desafio`, `super_admin_sessao`, `auditoria_plataforma` (0035, ADR 0029) | super-admin de plataforma, fora dos tenants: **só por função** (`TABELAS_SO_POR_FUNCAO`): RLS forçado sem política e sem grant para `macuxi_app`/`macuxi_worker` (42501 direto), só a `manutencao`; acesso pelas 20 `plataforma.sa_*` SECURITY DEFINER (só `macuxi_portal` desde a 0038; na 0035, `macuxi_app`). A auditoria guarda o tenant em `tenant_alvo_id` (sem FK) para sobreviver à `excluir_tenant`. Dicionário: [plataforma.md](plataforma.md) |
+| `plataforma.portal_tentativa`, `portal_sessao`, `portal_sessao_empresa` (0039, T-0093, ADR 0031) | login do portal só com e-mail e senha: **só por função**, como as da 0035 (RLS forçado, só a `manutencao`, nenhum grant: app, worker e portal 42501); acesso pelas 12 `plataforma.sa_*` da 0039 (só `macuxi_portal`). A empresa da sessão fica em `tenant_alvo_id` (não `tenant_id`, de propósito). Dicionário: [plataforma.md](plataforma.md) |
 
 Fora do índice de sync `(tenant_id, updated_at, id)` (não são puxadas pelo app): `plataforma.evento`
 (índices próprios: pendentes e por tenant/ocorrido_em), `plataforma.evento_consumo` (único por consumidor/evento)
@@ -129,6 +130,11 @@ e `plataforma.auditoria`.
   dos módulos nem nas outras tabelas da plataforma (42501). O handler do consumidor roda como `macuxi_app` em
   `comTenant(envelope.tenant_id)` e registra o consumo em `plataforma.evento_consumo` (RLS por tenant).
   pg-boss (schema `pgboss`) entra com o primeiro consumidor real. Plano B: funções `SECURITY DEFINER`.
+- **Despacho do e-mail** (0040, ADR 0032 §6): `plataforma.email_saida` tem a `isolamento_tenant` do `macuxi_app` (grant só
+  `select, insert`) e, só para o `macuxi_worker`, `despacho_email` (`for select ... using (true)`) e `despacho_email_marcar`
+  (`for update ... using (enviado_em is null and falhou_em is null) with check (true)`), com `select` e `update` por coluna
+  (`carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em, ultimo_erro`). O `db/scripts/conferir-rls.sql` acusa
+  política do `macuxi_worker` em qualquer tabela fora de `plataforma.evento` e `plataforma.email_saida`.
 - **Hub de Integração** (0010, T-0032): `integracao.autenticar_chave(hash)` (`SECURITY DEFINER`, só `macuxi_app`) é a única
   leitura sem tenant: devolve no máximo a linha da chave (sem o hash) com o `tenant_id` e o Conector; depois a API abre
   `comTenant` com o tenant da chave. `integracao.expurgar_retencao` e `plataforma.expurgar_outbox` (0011) são `SECURITY DEFINER`
@@ -171,6 +177,8 @@ e `plataforma.auditoria`.
 | Super-admin (0035/0038): app e worker 42501 direto nas 4 tabelas (e 0 linhas com grant indevido); app e worker 42501 nas 20 `sa_*` (rodam como `macuxi_portal`); primeiro acesso 2x (e em paralelo) = 1 linha; sessão falsa após revogar e após o teto; auditoria append-only que sobrevive à `excluir_tenant`; `sa_provisionar_tenant` recusa sessão revogada ou vencida; `sem_admin` + parâmetros idempotente | `db/testes/super-admin.test.ts` + `db/testes/estatico.test.ts` + `db/scripts/conferir-rls.sql` |
 | `core.plano_rv`: A não lê nem grava B; sem contexto = 0; FK do autor no próprio tenant | `db/testes/plano-rv.test.ts` |
 | `macuxi_portal` (0038): EXECUTE só nas `sa_*` (pelo catálogo; app, worker e PUBLIC sem); sem atributo indevido, filiação, posse ou grant de tabela (42501 nas 4 do super-admin, `tenant`, `parametro`, `core.*`); só `USAGE` em `plataforma`; login real pela `urlPortal`; up/down devolve a 0035 e é idempotente | `db/testes/papel-portal.test.ts` + `db/testes/conformidade.test.ts` + `db/scripts/conferir-rls.sql` |
+| Portal só com e-mail e senha (0039): app e worker 42501 nas 12 `sa_*` e na `criar_super_admin`; portal 42501 em `core.usuario`, `tenant` e nas 3 tabelas novas; contas do e-mail só de admin ativo de empresa ativa (até 20, sem e-mail na auditoria); bloqueio por chave; escolha de empresa só da lista e com admin ainda admin; sessão do cliente cai na hora; `criar_super_admin` idempotente e não desativa o último; down volta ao catálogo e às ACLs da 0038 | `db/testes/portal-email-senha.test.ts` + `db/testes/papel-portal.test.ts` + `db/scripts/conferir-rls.sql` |
 | macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |
+| Outbox de e-mail (0040): app só insere e lê o próprio tenant (update/delete 42501); worker lê A e B, marca só a linha pendente e só as colunas do despacho, sem insert/delete; política do worker só nas duas outboxes; portal sem privilégio; CHECKs da carga e da senha temporária; sessão do portal cai com `sessao_versao` nova e com `trocar_senha` | `db/testes/senha-email-saida.test.ts` + `db/scripts/conferir-rls.sql` |
 | B1 do DBaaS (0031): política `manutencao` em toda tabela com RLS; tabela nova sem ela é acusada; app e worker não são membros (nem herdam nem assumem); o migrador herda | `db/testes/conformidade.test.ts` + `db/testes/estatico.test.ts` |
 | B2 do DBaaS (0032): `excluir_tenant` sem `session_replication_role`, por um papel sem superusuário só com a política `manutencao` (sem ela: P0002) | `db/testes/lgpd-outbox.test.ts` |

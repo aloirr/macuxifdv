@@ -88,6 +88,17 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'corpo.codigo',
   'corpo.codigo_recuperacao',
   'corpo.desafio',
+  // T-0093 (desenho §6): senha e e-mail do login do portal e do admin inicial no passo Empresa, se alguém registrar o corpo
+  'email',
+  'corpo.email',
+  '*.senha',
+  '*.email',
+  'senha_hash',
+  '*.senha_hash',
+  'admin.senha',
+  'admin.email',
+  'corpo.admin.senha',
+  'corpo.admin.email',
 ];
 
 export function opcoesLogger(nivel: string) {

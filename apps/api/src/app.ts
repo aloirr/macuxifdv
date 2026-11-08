@@ -14,10 +14,14 @@
  * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012; `{ licenca: 'tenant' }` só em GET/HEAD, ADR 0025) e
  * `tx.auditar` grava a auditoria (RN-AUD-01).
  *
- * T-0091 (condição da ADR 0029): a sessão do super-admin vai por um 2º banco (`bancoPortal`, papel `macuxi_portal`, o único com
+ * T-0091 (condição da ADR 0029): a sessão do portal vai por um 2º banco (`bancoPortal`, papel `macuxi_portal`, o único com
  * EXECUTE nas `plataforma.sa_*`): rotas públicas com `conexao: 'portal'`, `/v1/plataforma/*`, a conferência da sessão
- * (`autenticarSuperAdmin`), o `sa_tenant_ativo` e a auditoria do `onResponse`. Dado de tenant (inclusive nas rotas com
+ * (`autenticarPortal`), o `sa_tenant_ativo` e a auditoria do `onResponse`. Dado de tenant (inclusive nas rotas com
  * `superAdmin`) segue no `macuxi_app`. Sem `bancoPortal`, o portal responde 503 `PORTAL_INDISPONIVEL` e os tenants seguem.
+ * T-0093 (ADR 0031): o token do portal é do super-admin OU do admin do cliente (`autenticarPortal`). Numa rota com
+ * `superAdmin: 'aceita'`, o admin do cliente entra como o usuário `admin` REAL da empresa escolhida na sessão (cabeçalho
+ * `x-macuxi-tenant` igual a ela; senão 403 `EMPRESA_NAO_PERMITIDA`; sem empresa escolhida, 409 `EMPRESA_NAO_ESCOLHIDA`), com
+ * licença do perfil, ação/perfil e carteira como no BKO e sem `ctx.superAdmin`; `'exige'` = 403 para ele.
  *
  * Rotas de Conector (ADR 0013): `conector.ts` monta `/<modulo>/v1/*` do módulo com `conector` (chave de API, sem JWT).
  *
@@ -39,6 +43,12 @@ import {
   corpoDoErroModulo,
   retryAfterDoErroModulo,
   criarPermissoes,
+  catalogoDePermissoes,
+  matrizDeFabrica,
+  perfilDeFabrica,
+  type PerfilDeAcesso,
+  resolverPerfil,
+  temPerfilDeBase,
   dependenciasDosManifestos,
   erroCorpoGrande,
   ErroHttpModulo,
@@ -69,7 +79,7 @@ import {
   type RotaModulo,
   type RotaPublica,
   type ServicosCore,
-  type SuperAdminAutenticado,
+  type AcessoPortalAutenticado,
   CABECALHO_TENANT_PLATAFORMA,
   cabecalhosPublicos,
   type ModoSuperAdmin,
@@ -92,7 +102,7 @@ import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
-import { fontePlataformaNoBanco, marcaSuperAdmin, marcarSuperAdmin, prefixoDoIp, registrarRotasPlataforma, type FontePlataforma } from './plataforma';
+import { atorDaAuditoria, fontePlataformaNoBanco, marcaPortal, marcarPortal, prefixoDoIp, registrarRotasPlataforma, type FontePlataforma, type SenhaDoPortal } from './plataforma';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
 
@@ -130,8 +140,13 @@ export interface OpcoesApp {
   licencasTenant?: FonteLicencasTenant;
   /** Contagem de respostas (T-0078; padrão: uma nova por app). O servidor passa a mesma para o log periódico. */
   metricas?: MetricasApi;
-  /** Super-admin de plataforma (ADR 0029; padrão: o do Core; sem ele, nenhuma rota aceita super-admin). */
-  autenticarSuperAdmin?: ServicosCore['autenticarSuperAdmin'];
+  /**
+   * Quem entrou pelo portal (T-0093, ADR 0031: super-admin ou admin do cliente; padrão: o `autenticarPortal` do Core; sem ele,
+   * nenhuma rota aceita o token do portal).
+   */
+  autenticarPortal?: ServicosCore['autenticarPortal'];
+  /** Regra, e-mail e hash da senha do admin inicial no passo Empresa (padrão: os do Core; RN-CORE-32/34). Testes injetam a sua. */
+  senhaPortal?: SenhaDoPortal;
   /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
   plataforma?: FontePlataforma;
   /**
@@ -206,6 +221,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
+  // ADR 0033 (T-0111): padrão de fábrica dos perfis de acesso (plataforma + `perfis` das ações dos manifestos instalados)
+  const matriz = matrizDeFabrica(manifestos);
+  const motorPermissoes = { catalogo: catalogoDePermissoes(manifestos), matriz };
   const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
   const consultas = registroDeConsultas(modulos);
@@ -225,8 +243,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     op.usuariosVisiveis ??
     core?.servicos?.usuariosVisiveis ??
     (async (u: UsuarioAutenticado) => (escopoDoPerfil(u.perfil) === 'tenant' ? ('tenant' as const) : new Set<string>([u.id])));
-  // ADR 0029: super-admin de plataforma (falha fechada sem o serviço do Core) e as funções dele no banco
-  const autenticarSA = op.autenticarSuperAdmin ?? core?.servicos?.autenticarSuperAdmin ?? (async () => null);
+  // ADR 0029/0031: quem entrou pelo portal (falha fechada sem o serviço do Core) e as funções do portal no banco
+  const autenticarPortal: NonNullable<ServicosCore['autenticarPortal']> = op.autenticarPortal ?? core?.servicos?.autenticarPortal ?? (async () => null);
   const fontePlataforma = op.plataforma ?? fontePlataformaNoBanco;
   const licencasTenant = op.licencasTenant ?? licencasDoTenantNoBanco;
 
@@ -247,14 +265,14 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const metricas = op.metricas ?? criarMetricasApi({ relogio });
   app.addHook('onResponse', async (req, reply) => {
     metricas.registrar(reply.statusCode);
-    // ADR 0029 §6: toda requisição do super-admin vira uma linha de auditoria da plataforma (também as recusadas)
-    const marca = marcaSuperAdmin(req);
+    // ADR 0029 §6: toda requisição com o token do portal (super-admin ou admin do cliente, T-0093) vira uma linha de
+    // auditoria da plataforma (também as recusadas)
+    const marca = marcaPortal(req);
     if (!marca) return;
     try {
       await fontePlataforma.auditar(
         {
-          super_admin_id: marca.sa.id,
-          sessao_id: marca.sa.sessao_id,
+          ...atorDaAuditoria(marca.quem),
           tenant_id: marca.tenantId,
           acao: 'sa.requisicao',
           metodo: req.method,
@@ -308,13 +326,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));
 
   /**
-   * ADR 0029 §5: só nas rotas com `superAdmin`, o token de plataforma vale, com o tenant do cabeçalho `x-macuxi-tenant`. O
-   * usuário vira um `admin` sintético do tenant, com os módulos licenciados AO TENANT; carteira e equipe = `'tenant'`.
+   * ADR 0029 §5: só nas rotas com `superAdmin`, o token do portal vale.
+   * - super-admin: tenant do cabeçalho `x-macuxi-tenant` (ativo); vira um `admin` sintético do tenant, com os módulos licenciados
+   *   AO TENANT; carteira e equipe = `'tenant'`; `ctx.superAdmin` presente.
+   * - admin do cliente (T-0093 §4): só `'aceita'`; o cabeçalho tem de ser a empresa escolhida na sessão; vira o usuário `admin`
+   *   REAL dela (licença do perfil, ação/perfil e carteira como no BKO); `ctx.superAdmin` ausente.
    */
-  const superAdminDaRequisicao = async (req: FastifyRequest, modo: ModoSuperAdmin | undefined): Promise<{ sa: SuperAdminAutenticado; tenantId: string } | null> => {
+  type DoPortal = { quem: AcessoPortalAutenticado; usuario: UsuarioAutenticado; superAdmin: { id: string; sessao_id: string } | null };
+  const portalDaRequisicao = async (req: FastifyRequest, modo: ModoSuperAdmin | undefined): Promise<DoPortal | null> => {
     if (!modo) return null;
-    const sa = await autenticarSA(cabecalhos(req), acessoPortal);
-    if (!sa) {
+    const quem = await autenticarPortal(cabecalhos(req), acessoPortal);
+    if (!quem) {
       if (modo === 'exige') {
         // usuário do tenant numa rota só do super-admin: 401 se nem login tiver, 403 se tiver
         if (await autenticar(cabecalhos(req), acesso)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
@@ -323,22 +345,33 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       return null;
     }
     const bruto = cabecalhos(req)[CABECALHO_TENANT_PLATAFORMA];
-    marcarSuperAdmin(req, { sa, tenantId: null });
+    if (quem.tipo === 'admin_cliente') {
+      const empresa = quem.empresa;
+      marcarPortal(req, { quem, tenantId: empresa?.tenant_id ?? null });
+      if (modo === 'exige') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
+      if (!empresa) throw new ErroHttp(409, 'EMPRESA_NAO_ESCOLHIDA', 'Escolha a empresa para continuar.');
+      if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
+      if (bruto.toLowerCase() !== empresa.tenant_id.toLowerCase()) throw new ErroHttp(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
+      return { quem, usuario: { id: empresa.usuario_id, tenant_id: empresa.tenant_id, perfil: 'admin' }, superAdmin: null };
+    }
+    marcarPortal(req, { quem, tenantId: null });
     if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
     const tenantId = bruto.toLowerCase();
-    if (!(await fontePlataforma.tenantAtivo(sa, tenantId, acessoPortal))) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
-    marcarSuperAdmin(req, { sa, tenantId });
-    return { sa, tenantId };
+    if (!(await fontePlataforma.tenantAtivo(quem, tenantId, acessoPortal))) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
+    marcarPortal(req, { quem, tenantId });
+    return { quem, usuario: { id: quem.id, tenant_id: tenantId, perfil: 'admin' }, superAdmin: { id: quem.id, sessao_id: quem.sessao_id } };
   };
 
   const preparar: Plataforma['preparar'] = async (req, modulo, modoSuperAdmin) => {
-    const doSA = await superAdminDaRequisicao(req, modoSuperAdmin);
-    const token: UsuarioAutenticado | null = doSA ? { id: doSA.sa.id, tenant_id: doSA.tenantId, perfil: 'admin' } : await autenticar(cabecalhos(req), acesso);
+    const doPortal = await portalDaRequisicao(req, modoSuperAdmin);
+    // super-admin: autorização pela opção da rota, licença do tenant, carteira 'tenant'; admin do cliente: como um usuário do BKO
+    const doSA = doPortal?.superAdmin ? { sa: doPortal.superAdmin, tenantId: doPortal.usuario.tenant_id } : null;
+    const token: UsuarioAutenticado | null = doPortal ? doPortal.usuario : await autenticar(cabecalhos(req), acesso);
     if (!token) {
-      // ADR 0029 §6: token de plataforma válido numa rota SEM a opção também é requisição do super-admin (recusada) e vai à auditoria
+      // ADR 0029 §6: token do portal válido numa rota SEM a opção também é requisição do portal (recusada) e vai à auditoria
       if (!modoSuperAdmin) {
-        const sa = await autenticarSA(cabecalhos(req), acessoPortal);
-        if (sa) marcarSuperAdmin(req, { sa, tenantId: null });
+        const quem = await autenticarPortal(cabecalhos(req), acessoPortal);
+        if (quem) marcarPortal(req, { quem, tenantId: quem.tipo === 'admin_cliente' ? (quem.empresa?.tenant_id ?? null) : null });
       }
       throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
     }
@@ -348,7 +381,18 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       ? await licencasTenant(doSA.tenantId, acesso).then((t) => ({ ...t, doPerfil: t.ativosNoTenant, removidosDoUsuario: [] as ModuloId[] }))
       : await fonteLicencas(token, acesso);
     const efetivos = modulosEfetivos({ manifestos, ...licencas });
-    const usuario: UsuarioDaRequisicao = { id: token.id, tenant_id: token.tenant_id, perfil: token.perfil, modulos: efetivos };
+    // ADR 0033 (T-0111/T-0112): perfis de acesso resolvidos A CADA REQUISIÇÃO (fábrica + o que o tenant mudou + limites travados).
+    // Fonte sem perfis (antes das tabelas de perfil) = o perfil de fábrica do token; lista vazia = nenhum perfil (nada permitido).
+    // Super-admin: o Admin de fábrica do tenant.
+    const perfisDaFonte: readonly PerfilDeAcesso[] | undefined = doSA ? undefined : (licencas as { perfis?: PerfilDeAcesso[] }).perfis;
+    const perfisDeAcesso = doSA ? [perfilDeFabrica('admin')] : (perfisDaFonte ?? [perfilDeFabrica(token.perfil)]);
+    const usuario: UsuarioDaRequisicao = {
+      id: token.id,
+      tenant_id: token.tenant_id,
+      perfil: token.perfil,
+      modulos: efetivos,
+      perfis: perfisDeAcesso.map((p) => resolverPerfil(p, matriz)),
+    };
     // ADR 0025: `tx.consultar(..., { licenca: 'tenant' })` só em leitura (GET/HEAD; o pull do sync é GET, o push não):
     // efetivos do TENANT (todos os instalados no lugar do perfil), com as mesmas dependências (RN-CORE-03) e o core sempre ativo
     const leitura = req.method === 'GET' || req.method === 'HEAD';
@@ -362,6 +406,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
+      permissoes: motorPermissoes,
       requestId: req.id,
       agora: relogio,
       comTenant: (fn) =>
@@ -389,7 +434,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       usuariosVisiveis: () => (usuariosVisiveis ??= doSA ? Promise.resolve('tenant' as const) : usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
       parametros: () => (m ? parametros(m) : {}),
       fuso: () => fuso,
-      log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id, ...(doSA ? { super_admin: true } : {}) }),
+      log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id, ...(doSA ? { super_admin: true } : doPortal ? { portal: true } : {}) }),
       ...(doSA ? { superAdmin: doSA.sa } : {}),
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
@@ -435,14 +480,15 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
-  // ADR 0029: rotas do portal sem tenant (empresas); a autenticação do super-admin é do Core (`plataforma/auth/*`)
+  // ADR 0029/0031: rotas do portal sem tenant (empresas); a autenticação do portal é do Core (`plataforma/auth/*`)
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   registrarRotasPlataforma(app, {
     manifestos,
     acesso: acessoPortal,
     fonte: fontePlataforma,
-    autenticar: async (req) => (bancoPortal ? autenticarSA(cabecalhos(req), acessoPortal) : semPortal()),
+    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
     validar,
+    ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
   });
 
   // ---------- rotas dos módulos ----------
@@ -495,7 +541,7 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
       if (!ctx.superAdmin) {
       // 2) perfil: RN-PRO-01 (escrita de pedido sempre barrada; leitura GET pedido.ver segue o manifesto — O-3),
       //    depois ação do manifesto (ADR 0004) ou lista de perfis
-      if (u.perfil === 'promotor' && promotorBarradoNaRota(rota)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
+      if ((u.perfil === 'promotor' || temPerfilDeBase(u.perfis, 'promotor')) && promotorBarradoNaRota(rota)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
       const perfil = rota.acao ? verificarAcao(u, permissoes, rota.acao) : verificarAcesso(u, { modulo, perfis: rota.perfis ?? manifesto.perfis });
       if (!perfil.ok) negar(perfil, rota.acao ? permissoes.regraDaAcao(rota.acao).modulo : modulo);
       }

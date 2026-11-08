@@ -1,7 +1,11 @@
 /**
- * Login do app (T-0003 F2).
+ * Login do app (T-0003 F2; T-0094).
  * - API real (padrão): a tela do Core (`TelaLogin`: código da empresa + e-mail + senha; o código fica salvo no
- *   aparelho). Perfil de outro app (ex.: supervisor no Campo) não entra: a sessão é encerrada e o aviso diz qual app usar.
+ *   aparelho). O login manda `app` = variante (RN-CORE-33): perfil de outro app (ex.: supervisor no Campo) recebe 403
+ *   `PERFIL_FORA_DO_APP` sem sessão, e o aviso diz qual app usar.
+ * - T-0094: 403 `SENHA_A_TROCAR` leva à "Crie sua senha" (`TelaCrieSuaSenha` do Core) e o link "Esqueci a senha" à
+ *   `TelaEsqueciSenha`, as duas nesta mesma rota: nada do app abre antes da troca. Depois da troca, a sessão vem na resposta e o
+ *   Início mostra "Senha criada.".
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante (`PERFIS_DO_APP`).
  * Servidor (T-0038, `endereco-do-build.ts`): nos builds preview e producao NÃO há campo Servidor; o app usa sempre o
@@ -12,17 +16,26 @@
  * Teclado e área segura (R-20261101-023401 e 023857): `KeyboardAvoidingView` (padding; o Android edge-to-edge não
  * redimensiona a janela) e o espaço da barra de navegação embaixo do cartão quando o teclado está fechado.
  */
-import { ehAparelhoBloqueado, TelaLogin, type CamposLogin } from '@macuxi/core/app';
-import type { FakeUser } from '@macuxi/core/contracts';
+import {
+  AVISO_SENHA_CRIADA,
+  detalhesDaTroca,
+  ehAparelhoBloqueado,
+  TelaCrieSuaSenha,
+  TelaEsqueciSenha,
+  TelaLogin,
+  type CamposLogin,
+} from '@macuxi/core/app';
+import type { DetalhesSenhaATrocar, FakeUser } from '@macuxi/core/contracts';
 import { ErroHttp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFaixaSuperior } from '@/components/area-segura';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
+import { guardarAvisoPosLogin } from '@/lib/aviso-pos-login';
 import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
 import { ApiClient, errorMessage } from '@/services/api';
 import { usePlataforma, usuarioDaFaseM } from '@/state/plataforma';
@@ -60,13 +73,36 @@ export default function LoginScreen() {
   return modo === 'demo' ? <LoginDemo /> : <LoginReal />;
 }
 
-/** Login real: tela do Core + aviso de perfil de outro app + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
+/**
+ * Etapa do login real (T-0094; spec docs/design/ciclo-de-senha.md §1 a §3). A "Crie sua senha" e a "Esqueci a senha" moram na
+ * mesma rota `/login`: nenhuma rota do app abre antes da troca (a sessão só nasce na resposta). A senha usada no login fica só
+ * no estado desta tela (`etapa.senha_atual`), nunca em SecureStore, AsyncStorage, URL ou log, e some ao voltar ou entrar.
+ */
+type EtapaLogin =
+  | { tipo: 'entrar'; aviso: string | null; codigo: string | null }
+  | { tipo: 'trocar'; codigo_empresa: string; email: string; senha_atual: string; motivo: DetalhesSenhaATrocar['motivo'] }
+  | { tipo: 'esqueci'; codigo_empresa: string; email: string };
+
+/** Login real: tela do Core + "Crie sua senha" + "Esqueci a senha" + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
 function LoginReal() {
-  const { avisoLogin, codigoSalvo, loginComSenha, perfilBuild, variante } = usePlataforma();
+  const { avisoLogin, codigoSalvo, loginComSenha, offline, pedirSenha, perfilBuild, trocarSenha, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
   const [servidorFora, setServidorFora] = useState<string | null>(null);
+  const [etapa, setEtapa] = useState<EtapaLogin>({ tipo: 'entrar', aviso: null, codigo: null });
   const insets = useSafeAreaInsets();
   const teclado = useTecladoAberto();
+  const voltarAoLogin = useCallback((avisoDoLogin?: string | null, codigo?: string | null) => setEtapa({ tipo: 'entrar', aviso: avisoDoLogin ?? null, codigo: codigo ?? null }), []);
+
+  // voltar do Android na troca ou no pedido: volta ao login (nunca para dentro do app, que não abriu)
+  useEffect(() => {
+    if (etapa.tipo === 'entrar') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      voltarAoLogin(null, etapa.codigo_empresa);
+      return true;
+    });
+    return () => sub.remove();
+  }, [etapa, voltarAoLogin]);
+
   const entrar = async (campos: CamposLogin) => {
     setAviso(null);
     setServidorFora(null);
@@ -74,6 +110,12 @@ function LoginReal() {
       await loginComSenha(campos);
       router.replace('/sync');
     } catch (e) {
+      // senha certa e temporária: direto à "Crie sua senha", sem texto
+      const troca = detalhesDaTroca(e);
+      if (troca) {
+        setEtapa({ tipo: 'trocar', codigo_empresa: campos.codigo_empresa.trim(), email: campos.email.trim(), senha_atual: campos.senha, motivo: troca.motivo });
+        return;
+      }
       if (e instanceof ErroHttp && e.codigo === 'PERFIL_FORA_DO_APP') {
         setAviso(e.message);
         return;
@@ -89,9 +131,51 @@ function LoginReal() {
       throw e;
     }
   };
+
+  if (etapa.tipo === 'trocar') {
+    const atual = etapa;
+    return (
+      <AcimaDoTeclado>
+        <TelaCrieSuaSenha
+          motivo={atual.motivo}
+          email={atual.email}
+          codigoEmpresa={atual.codigo_empresa}
+          semInternet={offline}
+          onSalvar={async (senhaNova) => {
+            await trocarSenha({ codigo_empresa: atual.codigo_empresa, email: atual.email, senha_atual: atual.senha_atual, senha_nova: senhaNova });
+            guardarAvisoPosLogin(AVISO_SENHA_CRIADA);
+            router.replace('/sync');
+          }}
+          onVoltar={(avisoDaTroca) => voltarAoLogin(avisoDaTroca, atual.codigo_empresa)}
+        />
+      </AcimaDoTeclado>
+    );
+  }
+
+  if (etapa.tipo === 'esqueci') {
+    return (
+      <AcimaDoTeclado>
+        <TelaEsqueciSenha
+          inicial={{ codigo_empresa: etapa.codigo_empresa, email: etapa.email }}
+          semInternet={offline}
+          onPedir={pedirSenha}
+          onVoltar={(c) => voltarAoLogin(null, c.codigo_empresa)}
+        />
+      </AcimaDoTeclado>
+    );
+  }
+
   return (
     <AcimaDoTeclado>
-      <TelaLogin codigoSalvo={codigoSalvo} onEntrar={entrar} rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'} />
+      <TelaLogin
+        // o código que veio da troca ou do pedido; senão, o do último login neste aparelho
+        key={etapa.codigo ?? 'salvo'}
+        codigoSalvo={etapa.codigo ?? codigoSalvo}
+        aviso={etapa.aviso}
+        onEntrar={entrar}
+        onEsqueci={(c) => setEtapa({ tipo: 'esqueci', codigo_empresa: c.codigo_empresa.trim(), email: c.email.trim() })}
+        rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'}
+      />
       <View style={[styles.rodape, { paddingBottom: 12 + (teclado ? 0 : insets.bottom) }]} testID="login.rodape">
         {avisoLogin ? (
           <Banner icon="alert" tone="danger" testID="login.aparelho-bloqueado">

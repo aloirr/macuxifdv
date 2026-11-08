@@ -101,13 +101,23 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `usuarios.tela` · `usuarios.novo` · `usuarios.exportar-csv` | página; botão "Novo usuário" (só admin, ausente para os demais); CSV |
 | `usuarios.busca` · `usuarios.filtro-perfil` · `usuarios.filtro-equipe` · `usuarios.filtro-situacao` | filtros (ficam na URL: `q`, `perfil`, `equipe`, `situacao`) |
 | `usuarios.linha.<id>` | linha do usuário |
-| `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e Senha (só admin; ausentes para os demais) |
+| `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e "Redefinir senha"/"Enviar acesso" (só admin; a senha não aparece para admin nem inativo) |
+| `usuarios.etiqueta-senha.<id>` | etiqueta "Troca de senha pendente · vence em …", "Senha temporária vencida" ou "Sem senha" |
+| `usuarios.gerar-senha` · `usuarios.mostrar-senha` · `usuarios.aviso-email` | formulário: "Gerar senha", olho e ajuda do e-mail |
+| `usuarios.aviso-sem-email` · `usuarios.copiar-senha` | aviso quando o e-mail não saiu (mostra a senha uma vez) e "Copiar senha" |
 | `usuarios.campo-nome` · `-email` · `-perfil` · `-equipe` · `-external-id` · `-senha` | campos do formulário (senha só na criação) |
 | `usuarios.superior` | texto do superior imediato resultante da equipe escolhida |
 | `usuarios.salvar` · `usuarios.cancelar` · `usuarios.erro` | formulário e erro da API (ex.: e-mail duplicado) |
 | `usuarios.ativo-confirmar` · `usuarios.ativo-cancelar` | diálogo de desativar/reativar |
-| `usuarios.senha-campo` · `usuarios.senha-confirmar` · `usuarios.senha-cancelar` | diálogo de redefinir senha |
-| `nav-core-usuarios` | item de menu do shell (supervisor, gerente e admin) |
+| `usuarios.senha-campo` · `usuarios.senha-gerar` · `usuarios.senha-mostrar` · `usuarios.senha-confirmar` · `usuarios.senha-cancelar` | diálogo de redefinir senha / enviar acesso |
+| `nav-core-usuarios` | item de menu do shell (gerente e admin; supervisor não usa o BKO, RN-CORE-33) |
+
+## Senha no app (T-0094)
+| testID | O que é |
+|---|---|
+| `login.esqueci` | link "Esqueci a senha" do login |
+| `crie-senha.tela` · `.nova` · `.repita` · `.olho` · `.regras` · `.salvar` · `.erro` · `.voltar` · `.sem-internet` · `.quem` | "Crie sua senha" (`TelaCrieSuaSenha`) |
+| `esqueci.tela` · `.codigo-empresa` · `.email` · `.enviar` · `.erro` · `.confirmacao` · `.voltar` · `.voltar-login` · `.sem-internet` | "Esqueci a senha" (`TelaEsqueciSenha`) |
 
 ## Metas e RV (BKO, T-0068)
 

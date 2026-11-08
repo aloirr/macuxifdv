@@ -205,6 +205,44 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
     });
   });
 
+  describe('T-0095: guarda de ordem e desligamento no BKO', () => {
+    const ANTIGO = '2026-11-04T09:00:00Z';
+    const NOVO = '2026-11-04T11:00:00Z';
+    it('RN-INT-02: vendedor reentregue fora de ordem (antigo depois do novo) não sobrescreve; o mais novo vence', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor('V-ORD', { nome: 'Nome Novo', alterado_em: NOVO }));
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor('V-ORD', { nome: 'Nome Antigo', alterado_em: ANTIGO }));
+        expect((await t.q<{ nome: string }>("select nome from core.usuario where external_id = 'V-ORD'"))[0]?.nome).toBe('Nome Novo');
+      });
+    });
+    it('RN-INT-02: vendedor desligado no BKO não volta com a carga do ERP; o admin recebe aviso', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor('V-OFF', { alterado_em: ANTIGO }));
+        await t.q("update core.usuario set ativo = false, desligado_no_bko_em = '2026-11-04T10:30:00Z' where external_id = 'V-OFF'");
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor('V-OFF', { nome: 'Renomeado', alterado_em: NOVO }));
+        const u = await t.q<{ ativo: boolean; nome: string }>("select ativo, nome from core.usuario where external_id = 'V-OFF'");
+        expect(u).toEqual([{ ativo: false, nome: 'Renomeado' }]);
+        expect(t.warn).toHaveBeenCalled();
+      });
+    });
+    it('RN-INT-02: cliente reentregue fora de ordem não sobrescreve; o mais novo vence', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.vendedor.atualizado@1', vendedor());
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-ORD', { razao_social: 'Novo', alterado_em: NOVO }));
+        await t.entregar('integracao.cliente.atualizado@1', cliente('C-ORD', { razao_social: 'Antigo', alterado_em: ANTIGO }));
+        expect((await t.q<{ razao_social: string }>("select razao_social from core.cliente where external_id = 'C-ORD'"))[0]?.razao_social).toBe('Novo');
+      });
+    });
+    it('RN-INT-02: produto reentregue fora de ordem não sobrescreve; o mais novo vence', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        const prod = (extra: Record<string, unknown>) => ev('produto', 'P-ORD', { sku: 'SKU-ORD', nome: 'x', unidade: 'un', ...extra });
+        await t.entregar('integracao.produto.atualizado@1', prod({ nome: 'Novo', alterado_em: NOVO }));
+        await t.entregar('integracao.produto.atualizado@1', prod({ nome: 'Antigo', alterado_em: ANTIGO }));
+        expect((await t.q<{ nome: string }>("select nome from core.produto where external_id = 'P-ORD'"))[0]?.nome).toBe('Novo');
+      });
+    });
+  });
+
   describe('produto', () => {
     const produto = (extra: Record<string, unknown> = {}) => ev('produto', 'P-T66', { sku: 'SKU-T66', nome: 'Arroz 5kg', marca: 'Boa', categoria: 'Grãos', unidade: 'pct', ean: '7891234567895', ...extra });
     it('RN-INT-02/RN-CORE-18: upsert idempotente, mantém custo e preço de venda, inativa pelo evento', async () => {

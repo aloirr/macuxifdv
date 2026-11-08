@@ -93,6 +93,6 @@ describe('matriz perfil × ação (S0-060)', () => {
   it('esclarecimento Q6: vendedor e promotor não acessam o BKO; os demais perfis sim', () => {
     expect(podeAcessarBko('vendedor')).toBe(false);
     expect(podeAcessarBko('promotor')).toBe(false);
-    for (const p of ['admin', 'analista', 'assistente', 'supervisor', 'gerente'] as const) expect(podeAcessarBko(p)).toBe(true);
+    for (const p of ['admin', 'analista', 'assistente', 'gerente'] as const) expect(podeAcessarBko(p)).toBe(true);
   });
 });

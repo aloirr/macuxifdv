@@ -102,17 +102,14 @@ esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
 # T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
 # As sa_* por classe (espelho de apps/api/test/funcoes-sa.ts; o funcoes-sa.test.ts confere que as listas batem):
-# SA_PORTAL = as 20 com grant da 0035 §10 (0038: só o macuxi_portal executa); SA_INTERNAS = sem EXECUTE para ninguém
-# além do dono. Nenhuma executa como macuxi_app, macuxi_worker ou PUBLIC; sa_* do catálogo fora das duas listas = erro.
-SA_PORTAL="'plataforma.sa_existe()', 'plataforma.sa_criar_primeiro(text, text, text)', 'plataforma.sa_para_login(text)',
-  'plataforma.sa_por_id(uuid)', 'plataforma.sa_registrar_falha(uuid)', 'plataforma.sa_registrar_sucesso(uuid)',
-  'plataforma.sa_gravar_totp_pendente(uuid, text)', 'plataforma.sa_confirmar_totp(uuid, bigint, text[])',
-  'plataforma.sa_marcar_passo(uuid, bigint)', 'plataforma.sa_usar_recuperacao(uuid, text)',
-  'plataforma.sa_regerar_recuperacao(uuid, text[])', 'plataforma.sa_abrir_desafio(uuid, text)',
-  'plataforma.sa_ver_desafio(text)', 'plataforma.sa_abrir_sessao(text)', 'plataforma.sa_sessao_valida(uuid)',
-  'plataforma.sa_revogar(uuid)', 'plataforma.sa_auditar(jsonb)', 'plataforma.sa_listar_tenants(uuid)',
-  'plataforma.sa_tenant_ativo(uuid, uuid)', 'plataforma.sa_provisionar_tenant(uuid, jsonb)'"
-SA_INTERNAS="'plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb)'"
+# SA_PORTAL = as 12 do login só com e-mail e senha (0039, T-0093/ADR 0031; só o macuxi_portal executa); SA_INTERNAS = sem
+# EXECUTE para ninguém além do dono. Nenhuma executa como macuxi_app, macuxi_worker ou PUBLIC; sa_* do catálogo fora das duas
+# listas = erro.
+SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falha(text)', 'plataforma.sa_tentativa_sucesso(text)',
+  'plataforma.sa_contas_para_login(text)', 'plataforma.sa_abrir_sessao_portal(jsonb)', 'plataforma.sa_escolher_empresa(uuid, uuid)',
+  'plataforma.sa_sessao_valida(uuid)', 'plataforma.sa_revogar(uuid)', 'plataforma.sa_auditar(jsonb)',
+  'plataforma.sa_listar_tenants(uuid)', 'plataforma.sa_tenant_ativo(uuid, uuid)', 'plataforma.sa_provisionar_tenant(uuid, jsonb)'"
+SA_INTERNAS="'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'"
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
            has_function_privilege('macuxi_app', p.oid, 'EXECUTE')
@@ -135,6 +132,11 @@ grants_portal="$(psqlc -d "$BANCO" -c "select count(*) from pg_class c, aclexplo
 # (a 1ª linha é a frase exata que o stack-isolado.yml procura: não mudar)
 log "super-admin: plataforma.sa_* só pelo macuxi_portal, sem grant em tabela"
 log "super-admin: as internas ($SA_INTERNAS) só pelo dono"
+# T-0093 (0039): o super-admin nasce pelo deploy (CLI super-admin, conexão de administração); ninguém além do dono executa
+criar_sa="$(psqlc -d "$BANCO" -c "select coalesce(string_agg(r, ', '), '') from unnest(array['macuxi_app', 'macuxi_worker', 'macuxi_portal']) r
+  where has_function_privilege(r, 'plataforma.criar_super_admin(jsonb)', 'EXECUTE')")"
+[ -z "$criar_sa" ] || erro 1 "plataforma.criar_super_admin executável por $criar_sa: só a conexão de administração cria super-admin"
+log "super-admin: criar_super_admin só pela conexão de administração (T-0093)"
 [ "$(psqlc -d "$BANCO" -c "select pg_has_role(current_user, 'macuxi_manutencao', 'USAGE')")" = t ] \
   || erro 1 "o admin não herda o macuxi_manutencao (0031): seed, DEFINER entre tenants e backup com RLS veriam 0 linhas"
 log "admin herda o macuxi_manutencao (0031, B1)"

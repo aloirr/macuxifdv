@@ -1,14 +1,15 @@
 'use client';
 
 /**
- * Peças comuns do portal `config.` (T-0087): moldura, cabeçalho com a sessão, campo de formulário e a guarda de sessão.
+ * Peças comuns do portal `config.` (T-0087; T-0093): moldura, cabeçalho com a sessão (e o "Trocar de empresa" do admin do
+ * cliente), campo de formulário, campo de senha com o olho e a guarda de sessão.
  * Visual pelos tokens e componentes de `@macuxi/ui/web` (os do login do BKO); sem menu dos módulos (o portal não é o BKO).
  * Caminhos sem o prefixo `/config`: no host `config.` o navegador vê `/empresas` e o `proxy.ts` reescreve.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
-import { Badge, Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
+import { Button, cx, Dialog, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
 
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
 import {
@@ -24,12 +25,18 @@ import {
 } from '@/lib/portal-saida';
 import {
   assinarSessaoPortal,
+  CAMINHO_ESCOLHER_EMPRESA,
+  destinoDaSessao,
   estadoDaSessao,
   guardarRetornoPortal,
+  lerDesvioPortal,
   lerSessaoPortal,
   limparSessaoPortal,
+  podeTrocarDeEmpresa,
+  retirarDesvioPortal,
   retirarSaidaPedida,
   versaoDaSessaoPortal,
+  type DesvioPortal,
   type SessaoPortal,
 } from '@/lib/portal-sessao';
 
@@ -42,7 +49,7 @@ export function Marca() {
       <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-accent font-display text-[17px] font-extrabold text-white">M</span>
       <div className="flex flex-col">
         <span className="font-display text-[15px] font-bold">Portal de implantação</span>
-        <span className="text-[12px] text-ink-2">Macuxi FDV · acesso só da equipe Macuxi</span>
+        <span className="text-[12px] text-ink-2">Macuxi FDV</span>
       </div>
     </div>
   );
@@ -74,7 +81,7 @@ export function AvisoModoFalso() {
   );
 }
 
-/** Tela estreita (entrar, primeiro acesso). */
+/** Tela estreita (entrar, escolha a empresa). */
 export function MolduraEstreita({ children, testId }: { children: ReactNode; testId: string }) {
   return (
     <div className="min-h-screen bg-ground">
@@ -118,12 +125,70 @@ export function Campo({
   );
 }
 
+/**
+ * Campo de senha com o botão do olho dentro, à direita (spec docs/design/portal-entrar.md §1 e §6): "Mostrar senha" /
+ * "Esconder senha" (`MOSTRAR_SENHA`/`ESCONDER_SENHA` do kit) com `IconEye`/`IconEyeOff` do kit, alvo de 44 px. `descrito` liga a lista das regras (`RegrasDaSenha`)
+ * ao campo pelo `aria-describedby`, junto com o erro.
+ */
+export function CampoSenha({
+  rotulo,
+  erro,
+  testId,
+  descrito,
+  className,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string; erro?: string | null; testId: string; descrito?: string }) {
+  const [mostrar, setMostrar] = useState(false);
+  const idCampo = useId();
+  const idErro = `${idCampo}-erro`;
+  const ligados = [descrito, erro ? idErro : null].filter(Boolean).join(' ') || undefined;
+  return (
+    <div className={cx('flex flex-col gap-1', className)}>
+      <label htmlFor={idCampo} className="text-[13px] font-semibold text-ink">
+        {rotulo}
+      </label>
+      <div className="relative">
+        <input
+          id={idCampo}
+          data-testid={testId}
+          type={mostrar ? 'text' : 'password'}
+          spellCheck={false}
+          autoCapitalize="none"
+          aria-invalid={erro ? true : undefined}
+          aria-describedby={ligados}
+          className={cx(campoCss, 'pr-12')}
+          {...rest}
+        />
+        <button
+          type="button"
+          data-testid={`${testId}.olho`}
+          aria-label={mostrar ? ESCONDER_SENHA : MOSTRAR_SENHA}
+          onClick={() => setMostrar((m) => !m)}
+          className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        >
+          {mostrar ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+        </button>
+      </div>
+      {erro && (
+        <span id={idErro} className="text-[12px] text-danger">
+          {erro}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------------------------------------------- sessão
 
 /** Sessão do portal no `sessionStorage`; `undefined` = ainda não leu (render do servidor e 1º render do cliente). */
 export function useSessaoPortal(): SessaoPortal | null | undefined {
   const versao = useSyncExternalStore(assinarSessaoPortal, versaoDaSessaoPortal, () => -1);
   return useMemo(() => (versao < 0 ? undefined : lerSessaoPortal()), [versao]);
+}
+
+/** Desvio pedido por um 403/409 de empresa (admin do cliente): a guarda leva à "Escolha a empresa". */
+function useDesvioPortal(): DesvioPortal | null {
+  return useSyncExternalStore(assinarSessaoPortal, lerDesvioPortal, () => null);
 }
 
 /** O que aparece uma vez e ainda não foi baixado (links dos convites): `lib/portal-saida`. */
@@ -173,6 +238,14 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
       if (!segurando) router.replace('/entrar');
     }
   }, [sessao, router, segurando]);
+
+  // 403 `EMPRESA_NAO_PERMITIDA` / 409 `EMPRESA_NAO_ESCOLHIDA` do admin do cliente com 2+ empresas: escolher de novo (T-0093 §4)
+  const desvio = useDesvioPortal();
+  useEffect(() => {
+    if (!desvio || segurando) return;
+    retirarDesvioPortal();
+    router.replace(CAMINHO_ESCOLHER_EMPRESA);
+  }, [desvio, router, segurando]);
 
   useEffect(() => {
     if (!segurando) return;
@@ -279,12 +352,6 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
-/** Selo do cabeçalho quando restam poucos códigos de recuperação (R-20261106-023316 🟡 12). */
-export function textoCodigosRestantes(n: number): string {
-  if (n <= 0) return 'Nenhum código de recuperação';
-  return n === 1 ? 'Resta 1 código de recuperação' : `Restam ${n} códigos de recuperação`;
-}
-
 /** Hora local (fuso do navegador do operador; o portal não é de um tenant). */
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -292,8 +359,11 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: 
 const naMesmaAba = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 /**
- * Moldura das páginas internas: cabeçalho com "Empresas", o fim da sessão e "Sair". Com links por baixar, a marca, o "← voltar"
- * e o "Sair" abrem o Dialog "Baixar os convites antes de sair?" (revisão de UX R-20261106-050553 R1).
+ * Moldura das páginas internas: cabeçalho com a marca, o fim da sessão e "Sair"; para o admin do cliente, o nome da empresa atual
+ * e, com 2+ empresas, "Trocar de empresa" (T-0093; spec docs/design/portal-entrar.md §3). A marca leva à página inicial de quem
+ * entrou (time da Macuxi: Empresas; admin do cliente: a empresa dele), e o "← voltar" para a lista só aparece para o time da
+ * Macuxi. Com links por baixar, a marca, o "← voltar", o "Trocar de empresa" e o "Sair" abrem o Dialog "Baixar os convites antes
+ * de sair?" (revisão de UX R-20261106-050553 R1).
  */
 export function MolduraPortal({ children, titulo, voltar }: { children: ReactNode; titulo?: ReactNode; voltar?: { href: string; rotulo: string } }) {
   const sessao = useSessaoPortal();
@@ -314,6 +384,11 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
     e.preventDefault();
     pedirSaida(() => router.push(href));
   };
+  const trocar = () => pedirSaida(() => router.push(CAMINHO_ESCOLHER_EMPRESA));
+  const inicio = sessao ? destinoDaSessao(sessao) : '/empresas';
+  const cliente = sessao?.tipo === 'admin_cliente';
+  // o admin do cliente não tem a lista de empresas: o "← Empresas" não aparece para ele
+  const voltarVisivel = voltar && !(cliente && voltar.href === '/empresas') ? voltar : undefined;
   const seguir = (baixar: boolean) => {
     const acao = saida;
     setSaida(null);
@@ -328,38 +403,42 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
         <AvisoModoFalso />
         <header className="border-b border-line bg-surface">
           <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <Link href="/empresas" className="no-underline" data-testid="portal.marca" onClick={navegar('/empresas')}>
+            <Link href={inicio} className="no-underline" data-testid="portal.marca" onClick={navegar(inicio)}>
               <Marca />
             </Link>
-            <div className="flex items-center gap-3 text-[13px] text-ink-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-3 text-[13px] text-ink-2">
+              {/* o nome da empresa (contexto) vem antes do prazo da sessão (R-20261107-174216 🟢 3) */}
+              {cliente && sessao?.empresa && (
+                <span data-testid="portal.empresa-atual" title={sessao.empresa.nome} className="max-w-[220px] truncate text-[13px] font-semibold text-ink">
+                  {sessao.empresa.nome}
+                </span>
+              )}
               {sessao && (
                 <span data-testid="portal.sessao-ate">
                   Sessão até {hora(sessao.sessao_expira_em)}
                   <span className="hidden sm:inline"> · encerra após 15 min sem uso</span>
-                  {sessao.recuperacao_restantes <= 3 && (
-                    <span title="Gere novos códigos com o suporte técnico.">
-                      <Badge tone="warning" className="ml-2">
-                        {textoCodigosRestantes(sessao.recuperacao_restantes)}
-                      </Badge>
-                    </span>
-                  )}
                 </span>
               )}
-              <Button data-testid="portal.sair" size="sm" onClick={sair}>
+              {podeTrocarDeEmpresa(sessao) && (
+                <Button data-testid="portal.trocar-empresa" size="sm" className="min-h-11" onClick={trocar}>
+                  Trocar de empresa
+                </Button>
+              )}
+              <Button data-testid="portal.sair" size="sm" className="min-h-11" onClick={sair}>
                 Sair
               </Button>
             </div>
           </div>
         </header>
         <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-5 px-4 py-6">
-          {voltar && (
+          {voltarVisivel && (
             <Link
-              href={voltar.href}
+              href={voltarVisivel.href}
               data-testid="portal.voltar"
-              onClick={navegar(voltar.href)}
+              onClick={navegar(voltarVisivel.href)}
               className="text-[13px] font-semibold text-accent-ink no-underline hover:underline"
             >
-              ← {voltar.rotulo}
+              ← {voltarVisivel.rotulo}
             </Link>
           )}
           {titulo}

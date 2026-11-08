@@ -10,7 +10,7 @@
  * Fuso do tenant (`plataforma.tenant.fuso`): lido aqui também e entregue às rotas como `ctx.fuso()` (T-0035).
  * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
  */
-import { ehModulo, type AcessoBanco, type ClienteBanco, type ModuloId, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { ehModulo, type AcessoBanco, type ClienteBanco, type ModuloId, type PerfilDeAcesso, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 
 export interface LicencasUsuario {
   ativosNoTenant: ModuloId[];
@@ -20,6 +20,11 @@ export interface LicencasUsuario {
   parametros: Partial<Record<ModuloId, Record<string, unknown>>>;
   /** Fuso IANA do tenant (`plataforma.tenant.fuso`); vira `ctx.fuso()` (ausente/inválido = America/Manaus, T-0035). */
   fuso?: string | null;
+  /**
+   * ADR 0033 (T-0111/T-0112): perfis de acesso do usuário (`plataforma.perfil` + sobreposições), lidos com as licenças. Ausente =
+   * a fonte ainda não lê perfis (vale o perfil de fábrica do token); vazio = usuário sem perfil (nada permitido, RN-CORE-01).
+   */
+  perfis?: PerfilDeAcesso[];
 }
 
 export type FonteLicencas = (usuario: UsuarioAutenticado, banco: AcessoBanco) => Promise<LicencasUsuario>;

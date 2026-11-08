@@ -10,4 +10,5 @@ export * from './format';
 export * from './erros';
 export * from './tones';
 export * from './cliente';
+export * from './senha';
 export * from '../comum/sincronizacao';

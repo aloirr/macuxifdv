@@ -4,6 +4,7 @@
  * funções num caminho sem React Native, o BKO passa a usá-las (recado ao modulo-core).
  */
 import { CODIGOS_AUTH } from '@macuxi/core/contracts';
+import { CODIGO_PERFIL_FORA_DO_APP } from '@macuxi/platform-sdk';
 
 export interface CamposLogin {
   codigo_empresa: string;
@@ -27,9 +28,15 @@ export function validarCampos(c: CamposLogin): Partial<Record<keyof CamposLogin,
   return erros;
 }
 
+/** Frase da API que serve para a tela (nem JSON nem pilha). */
+function fraseDaApi(m: unknown): string | null {
+  const t = typeof m === 'string' ? m.trim() : '';
+  return t && !t.startsWith('{') && !t.startsWith('[') && !/\n\s+at\s/.test(t) ? t : null;
+}
+
 /** Erro da API (`ApiRequestError`: `status`, `code`) ou de rede (status 0) → mensagem para o usuário. */
 export function mensagemDoLogin(e: unknown): string {
-  const x = (e ?? {}) as { status?: unknown; code?: unknown };
+  const x = (e ?? {}) as { status?: unknown; code?: unknown; message?: unknown };
   if (x.status === 0) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
   switch (x.code) {
     case CODIGOS_AUTH.credenciais:
@@ -38,6 +45,12 @@ export function mensagemDoLogin(e: unknown): string {
       return 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
     case CODIGOS_AUTH.muitasTentativas:
       return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+    // T-0094 (spec ciclo-de-senha §1): a temporária passou de 72 h; o link "Esqueci a senha" fica logo abaixo
+    case CODIGOS_AUTH.senhaVencida:
+      return 'Esta senha temporária venceu. Peça outra em "Esqueci a senha" ou fale com o administrador da sua empresa.';
+    // RN-CORE-33: a API diz onde entrar (`mensagemPerfilForaDoApp` do SDK)
+    case CODIGO_PERFIL_FORA_DO_APP:
+      return fraseDaApi(x.message) ?? 'Seu perfil não tem acesso ao backoffice.';
     case 'AUTENTICACAO_INDISPONIVEL':
       return 'O login está indisponível no momento. Tente de novo em alguns minutos; se continuar, avise o suporte.';
     default:

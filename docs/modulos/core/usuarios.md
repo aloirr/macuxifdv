@@ -25,10 +25,12 @@ Não existe DELETE: usuário nunca é apagado nem recebe `deleted_at`. Perfis ac
 ## Auditoria (RN-AUD-01, `plataforma.auditoria`, mesma transação)
 | acao | antes / depois |
 |---|---|
-| `usuario.criar` | `null` / `{perfil, equipe_id, ativo, external_id, senha_definida: true}` |
+| `usuario.criar` | `null` / `{perfil, equipe_id, ativo, external_id, senha_definida: true, trocar_senha: true, email: 'enfileirado' | 'indisponivel'}` |
 | `usuario.editar` | `{campos alterados não pessoais, campos_alterados[]}` / `{novos valores não pessoais}`; nome, nome curto e e-mail só aparecem como nome do campo em `campos_alterados`. Sem mudança, nada é gravado. |
 | `usuario.desativar` / `usuario.ativar` | `{ativo}` / `{ativo[, sessoes_revogadas]}` |
-| `usuario.senha_redefinir` | `null` / `{senha_alterada: true, sessoes_revogadas: true}` |
+| `usuario.senha_redefinir` | `null` / `{trocar_senha: true, sessoes_revogadas: true, gerada: bool, email: 'enfileirado' | 'indisponivel'}` |
+| `usuario.senha_trocar` (rota pública `senha/trocar`) | `null` / `{motivo: 'primeiro_acesso' | 'senha_temporaria' | 'voluntaria', sessoes_revogadas: true}` |
+| `usuario.senha_esqueci` (rota pública `senha/esqueci`) | `null` / `{email: 'enfileirado' | 'indisponivel'}` |
 Nunca entram senha, hash, nome ou e-mail em claro.
 
 ## Testes
@@ -40,3 +42,21 @@ Nunca entram senha, hash, nome ou e-mail em claro.
 3. **Gestão de equipes** (criar equipe, definir responsável e equipe-pai) segue só por carga/ERP; esta tela só escolhe equipe existente.
 4. **IDs de regra**: as regras novas citam RF-CORE-01/02, RN-CORE-04/05 e RN-AUD-01. Se o gerente quiser, formalizar no doc 03 "RN-CORE-24" (guardas de autodesativação e último admin) e "RN-CORE-25" (desativar revoga sessões).
 5. Fonte da senha em CSV/e-mail de boas-vindas e fluxo "esqueci a senha" não existem; fora do escopo.
+
+## Senha por e-mail, troca no 1º uso e "Esqueci a senha" (T-0094; ADR 0032; RN-CORE-33/34)
+Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.md`. Resolve a pendência 1 e a 5 acima.
+- **Criar** (`POST usuarios`): a senha inicial (RN-CORE-32; o BKO oferece "Gerar senha" no navegador) vira **temporária**: `trocar_senha = true`, `senha_expira_em = agora + 72 h`,
+  e vai por e-mail (`acesso_inicial`, `ctx.email`, mesma transação). Resposta: o item + `email_acesso` (`enfileirado` | `indisponivel`; sem e-mail o usuário nasce do mesmo jeito e o
+  BKO mostra a senha uma vez). O item ganha `trocar_senha`, `senha_expira_em`, `sem_senha`.
+- **Redefinir** (`PUT usuarios/:id/senha`, corpo `{ senha? }`): só `usuario.gerir` (admin, P2); **não** a própria conta nem um admin (P7: 422 `SENHA_PROPRIA` / `SENHA_DE_ADMIN`), alvo ativo
+  (422 `USUARIO_INATIVO`). Ausente a senha, o servidor gera (12 caracteres) e a manda só por e-mail; sem e-mail configurado, 503 `EMAIL_INDISPONIVEL` antes de mexer. Grava
+  `trocar_senha = true` (72 h), limpa a temporária do "Esqueci", zera tentativas e bloqueio, `sessao_versao + 1` e revoga os refresh. Usuário "Sem senha" recebe o modelo
+  `acesso_inicial` ("Enviar acesso"). Desativar também sobe a `sessao_versao`.
+- **Sessões**: o token de acesso leva `sv` = `sessao_versao`; `autenticar` recusa (401) o token com versão diferente na próxima requisição (token antigo, sem `sv`, vale 0).
+- **Login** (`POST /v1/auth/login`, `app` opcional): sempre 2 conferências argon2id; senha certa e temporária → 403 `SENHA_A_TROCAR` (`detalhes {motivo, expira_em}`, sem sessão e sem `ultimo_login_em`);
+  72 h vencidas → 410 `SENHA_TEMPORARIA_VENCIDA`; perfil fora do app → 403 `PERFIL_FORA_DO_APP` (RN-CORE-33). Tudo só depois da senha certa.
+- **`POST /v1/auth/senha/trocar`** ("Crie sua senha"): `{ codigo_empresa, email, senha_atual, senha_nova, app?, dispositivo_* }` → `SessaoResposta`; 422 `RN-CORE-32` (faltas) e 422 `RN-CORE-34` (repetiu a senha usada).
+- **`POST /v1/auth/senha/esqueci`**: 202 `{}` sempre igual; limites 5/15 min por IP e 3/h por empresa+e-mail (429 igual para e-mail que não existe), 15 min no banco; grava a temporária PARALELA
+  (a senha atual continua valendo, P6) e manda `nova_senha`.
+- **Rotas do BKO** (`superficie: 'bko'`): usuários, equipes, Equipe por CSV, licenças e parâmetros do Início. `usuario.ver` é do gerente e do admin (o supervisor não usa o BKO).
+- Testes: `domain/acesso-senha.test.ts`, `api/senha-acesso.test.ts`, `api/autenticacao.test.ts`, `api/usuarios.test.ts`, `web/lib/usuarios.test.ts`, `app/lib/senha.test.ts`.

@@ -18,7 +18,7 @@ import {
 } from '../src/cli/tenant';
 import { MODULOS_API } from '../src/modulos';
 
-const SENHA = 'Segredo123xyz';
+const SENHA = 'Segredo#123xyz';
 const HASH = '$argon2id$v=19$m=19456,t=2,p=1$c2FsLWZhbHNv$dGFnLWZhbHNhLWRvLXRlc3Rl';
 const EMAIL = 'Fulana.Admin@Distribuidora.com.br';
 const NOME = 'Fulana de Tal';
@@ -177,7 +177,7 @@ describe('pnpm tenant:criar (RN-CORE-31)', () => {
   it('RN-CORE-31 item 5: o comando usa a política real do Core (import estático de @macuxi/core/api)', async () => {
     expect(POLITICA_DO_CORE.normalizarEmail('  Fulana.Admin@X.com.BR ')).toBe('fulana.admin@x.com.br');
     expect(POLITICA_DO_CORE.validarSenhaInicial('curta1', 'a@x.com')).toMatch(/pelo menos 8/);
-    expect(POLITICA_DO_CORE.validarSenhaInicial('semnumeros', 'a@x.com')).toMatch(/letras e números/);
+    expect(POLITICA_DO_CORE.validarSenhaInicial('semnumeros', 'a@x.com')).toMatch(/Faltam um número e um caractere especial/);
     expect(POLITICA_DO_CORE.validarSenhaInicial(SENHA, EMAIL)).toBeNull();
 
     const c = cenario({ politica: POLITICA_DO_CORE });
