@@ -1,0 +1,183 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -10,6 +10,10 @@
+ #   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
+ #   testes-db-sem-superusuario  suíte do @macuxi/db com admin sem superusuário, como o do DBaaS (T-0075)
+ #   ci-ok       agrega todos: é o check a olhar.
++#   desempenho  (T-0105) SÓ agendado e manual, FORA do ci-ok: metas de tempo com MACUXI_PERF=1 (busca do SQLite),
++#               MACUXI_DESEMPENHO=1 (busca do catálogo) e MACUXI_CARGA_MEDIR=1 (carga S0-110 e C1 da T-0078); tempos no resumo.
++#   relogio-deslocado  (T-0105) SÓ agendado e manual, FORA do ci-ok: suítes sem banco com o relógio do Node em 23:59 e
++#               01:30 de Manaus, fim de mês e virada de ano (tests/scripts/varrer-relogio.mjs); acusa o que reprova pela hora.
+ # Matrizes (ADR 0014 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
+ #   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
+ #   agendado (07:00 UTC) e manual → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
+@@ -381,6 +385,168 @@
+           APP_VARIANT: gestao
+         run: pnpm --filter mobile bundle:android
+ 
++  # T-0105 (docs/desenho/T-0105-ci.md). Metas de TEMPO, à parte: no PR e no push ao main estes tempos só são impressos ou
++  # têm limite folgado (máquina dividida); aqui cada medição roda sozinha no runner, com Postgres próprio. SÓ no agendado
++  # (07:00 UTC) e no manual; FORA do ci-ok (não bloqueia PR nem push). Falha só se um teste passar do teto que ELE define
++  # (300 ms da busca no SQLite e no catálogo; MACUXI_CARGA_TETO_P95_MS/TETO_LOGIN_MS e MACUXI_CARGA_P95_MS nos de carga):
++  # este job não muda teto nenhum. Os tempos ([aparelho], [desempenho T-0084], [carga], [carga T-0078]) vão para o
++  # resumo do run (Actions → CI → run → Summary).
++  desempenho:
++    name: desempenho (SQLite, catálogo e carga S0-110)
++    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 40
++
++    services:
++      postgres:
++        image: pgvector/pgvector:pg16
++        env:
++          POSTGRES_USER: postgres
++          POSTGRES_PASSWORD: postgres
++          POSTGRES_DB: postgres
++          TZ: UTC
++          PGTZ: UTC
++        ports:
++          - 5432:5432
++        options: >-
++          --health-cmd "pg_isready -U postgres -d postgres"
++          --health-interval 2s
++          --health-timeout 3s
++          --health-retries 30
++
++    steps:
++      - uses: actions/checkout@v4
++      - uses: ./.github/actions/preparar
++
++      # T-0008 §8.1 (docs/banco/aparelho-sqlite.md): só o caso de carga + busca; com MACUXI_PERF=1 o teto vira 300 ms.
++      - name: busca do SQLite do aparelho (MACUXI_PERF=1, meta 300 ms)
++        id: sqlite
++        env:
++          MACUXI_PERF: '1'
++        run: |
++          set -o pipefail
++          pnpm --filter @macuxi/db exec vitest run testes/aparelho-sqlite.test.ts -t 'carga de 20 mil SKUs' 2>&1 | tee "$RUNNER_TEMP/desempenho-sqlite.log"
++
++      # T-0084 critério 5 (modules/catalogo/app/desempenho-busca.test.ts): opt-in "job próprio do CI"; sem folga
++      # (MACUXI_FATOR_DESEMPENHO fica em 1: o teto é o do teste).
++      - name: busca do catálogo no app (MACUXI_DESEMPENHO=1, meta 300 ms)
++        id: catalogo
++        if: ${{ !cancelled() }}
++        env:
++          MACUXI_DESEMPENHO: '1'
++        run: |
++          set -o pipefail
++          pnpm --filter @macuxi/catalogo exec vitest run app/desempenho-busca.test.ts 2>&1 | tee "$RUNNER_TEMP/desempenho-catalogo.log"
++
++      # S0-110 (tests/carga/fundacao.test.ts) e C1 da T-0078 (tests/carga/sync-basico-t0078.test.ts): com
++      # MACUXI_CARGA_MEDIR=1 o p95 e o login reprovam acima do teto do próprio teste. S0-111 (isolamento) reprova sempre.
++      - name: carga S0-110 e sync T-0078 (MACUXI_CARGA_MEDIR=1)
++        id: carga
++        if: ${{ !cancelled() }}
++        env:
++          MACUXI_CARGA_MEDIR: '1'
++        run: |
++          set -o pipefail
++          pnpm test:tests carga/ 2>&1 | tee "$RUNNER_TEMP/desempenho-carga.log"
++
++      # Roda mesmo com falha acima: o resumo mostra o tempo que estourou. Só linhas com prefixo conhecido (nunca
++      # credencial: os testes imprimem só tempos, contagens e a URL local já removida).
++      - name: tempos no resumo do run
++        if: ${{ !cancelled() }}
++        env:
++          R_SQLITE: ${{ steps.sqlite.outcome }}
++          R_CATALOGO: ${{ steps.catalogo.outcome }}
++          R_CARGA: ${{ steps.carga.outcome }}
++        run: |
++          icone() { case "$1" in success) echo "✅ $1" ;; failure) echo "🔴 $1" ;; *) echo "⚪ ${1:-não rodou}" ;; esac; }
++          bloco() {
++            echo "### $1 — $(icone "$2")"
++            echo '```text'
++            grep -hoE "$3" "$4" 2>/dev/null | cut -c1-1500 | head -n 40 || true
++            echo '```'
++            echo
++          }
++          {
++            echo "## Desempenho (${GITHUB_EVENT_NAME}, ${GITHUB_SHA:0:7})"
++            echo
++            echo "Tetos: os dos próprios testes (docs/desenho/T-0105-ci.md). 🔴 = passou do teto ou outro critério do teste reprovou."
++            echo
++            bloco 'Busca do SQLite do aparelho (MACUXI_PERF=1, p95 < 300 ms)' "$R_SQLITE" '\[aparelho\].*' "$RUNNER_TEMP/desempenho-sqlite.log"
++            bloco 'Busca do catálogo no app (MACUXI_DESEMPENHO=1, p95 < 300 ms)' "$R_CATALOGO" '\[desempenho T-0084\].*' "$RUNNER_TEMP/desempenho-catalogo.log"
++            bloco 'Carga S0-110 e sync T-0078 (MACUXI_CARGA_MEDIR=1)' "$R_CARGA" '\[carga[^]]*\].*' "$RUNNER_TEMP/desempenho-carga.log"
++          } >> "$GITHUB_STEP_SUMMARY"
++
++  # T-0105 (docs/desenho/T-0105-ci.md). Testes que dependem da data, com o relógio do Node deslocado para os instantes
++  # críticos de um tenant em Manaus (UTC−4, sem horário de verão): 23:59 (já é amanhã em UTC), 01:30 (janela dos
++  # "now − N horas" que cruzam a meia-noite), fim de mês e virada de ano. Runner do agente testes
++  # (tests/scripts/varrer-relogio.mjs + preload tests/scripts/relogio-deslocado.cjs): roda as suítes Vitest SEM banco
++  # sem deslocar e deslocadas, e falha só com teste que reprova POR CAUSA da hora (o que já falha sem deslocar fica de
++  # fora: é do resto do CI). O now() do Postgres não é deslocável por aqui (sem serviço de banco no job). Instantes
++  # RELATIVOS ao dia do run (sempre no futuro próximo, nunca uma data fixa que vira passado). SÓ agendado e manual;
++  # FORA do ci-ok.
++  relogio-deslocado:
++    name: relógio deslocado (${{ matrix.rotulo }})
++    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 45
++    strategy:
++      fail-fast: false
++      matrix:
++        rotulo: [manaus-23h59, manaus-01h30, fim-de-mes, virada-de-ano]
++    steps:
++      - uses: actions/checkout@v4
++      - uses: ./.github/actions/preparar
++
++      # Data "de parede" de Manaus = UTC − 4 h. Instante = hora de parede + 4 h. Date.UTC normaliza dia 32 e dia 0.
++      #   manaus-23h59: amanhã 23:59:30 · manaus-01h30: amanhã 01:30 · fim-de-mes: último dia do mês 23:59:30 ·
++      #   virada-de-ano: 31/12 do ano corrente 23:59:30 (todos em Manaus).
++      - name: instante do relógio (${{ matrix.rotulo }})
++        id: alvo
++        env:
++          ROTULO: ${{ matrix.rotulo }}
++        run: |
++          node -e '
++            const M = 4 * 3600e3;
++            const p = new Date(Date.now() - M);
++            const [y, m, d] = [p.getUTCFullYear(), p.getUTCMonth(), p.getUTCDate()];
++            const parede = (Y, Mo, D, h, mi, s) => new Date(Date.UTC(Y, Mo, D, h, mi, s) + M).toISOString().replace(".000Z", "Z");
++            const alvos = {
++              "manaus-23h59": parede(y, m, d + 1, 23, 59, 30),
++              "manaus-01h30": parede(y, m, d + 1, 1, 30, 0),
++              "fim-de-mes": parede(y, m + 1, 0, 23, 59, 30),
++              "virada-de-ano": parede(y, 11, 31, 23, 59, 30),
++            };
++            const a = alvos[process.env.ROTULO];
++            if (!a) { console.error(`rótulo desconhecido: ${process.env.ROTULO}`); process.exit(2); }
++            console.log(`alvo=${a}`);
++          ' >> "$GITHUB_OUTPUT"
++          cat "$GITHUB_OUTPUT"
++
++      # Saída 1 = há teste que reprova só com o relógio deslocado (a lista sai no log e no resumo).
++      - name: suítes sem banco com o relógio em ${{ steps.alvo.outputs.alvo }}
++        id: varrer
++        env:
++          ALVO: ${{ steps.alvo.outputs.alvo }}
++        run: |
++          set -o pipefail
++          node tests/scripts/varrer-relogio.mjs --alvo "$ALVO" --saida "$RUNNER_TEMP/relogio" 2>&1 | tee "$RUNNER_TEMP/relogio.log"
++
++      - name: resultado no resumo do run
++        if: ${{ !cancelled() }}
++        env:
++          ROTULO: ${{ matrix.rotulo }}
++          ALVO: ${{ steps.alvo.outputs.alvo }}
++          R_VARRER: ${{ steps.varrer.outcome }}
++        run: |
++          case "$R_VARRER" in success) icone='✅' ;; failure) icone='🔴' ;; *) icone='⚪' ;; esac
++          {
++            echo "## Relógio deslocado: $ROTULO ($ALVO) — $icone ${R_VARRER:-não rodou}"
++            echo
++            echo '```text'
++            head -c 60000 "$RUNNER_TEMP/relogio.log" 2>/dev/null || echo '(sem saída)'
++            echo '```'
++          } >> "$GITHUB_STEP_SUMMARY"
++
+   # Check obrigatório (ADR 0014). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coordenacao: verde
+   # só se a governança passar e TODOS os outros forem "skipped". Qualquer outra combinação (falha, cancelado, pulado
+   # sem motivo, escopo vazio) = vermelho. Roda sempre (if: always()) para nunca ficar "pulado".
