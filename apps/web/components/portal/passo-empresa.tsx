@@ -5,15 +5,19 @@
  * `tenant:criar` da T-0083 (RN-CORE-31, idempotente pelo código). "Conferir" = `simular: true` (nada é gravado). Core e
  * Integração entram sempre (marcados e travados). Empresa existente: código, razão social, CNPJ e fuso ficam travados (não mudam) e
  * o passo só acrescenta módulos. A API revalida tudo (dependências entre módulos, RN-CORE-03). testIDs: empresa.*.
+ * T-0093 (RN-CORE-34; spec docs/design/portal-entrar.md §6): empresa nova leva o administrador inicial (nome, e-mail e senha
+ * master, na RN-CORE-32 com a lista das regras ao vivo); empresa existente não troca a senha dele (RN-CORE-31). A senha só vive no
+ * estado da tela: nunca vai ao `sessionStorage`, à URL nem a log, e o campo é limpo depois de gravar.
  */
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
-import { Badge, Button, Notice, Panel, parseDecimalInput, SelectField } from '@macuxi/ui/web';
+import { faltasNaSenha, mensagemDaSenha, type FaltaNaSenha } from '@macuxi/core/contracts';
+import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
+import { Badge, Button, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
-import { chamarPortal, mensagemDoErro } from '@/lib/portal-api';
+import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { Campo, campoCss } from './base';
+import { Campo, campoCss, CampoSenha } from './base';
 
 type Resposta = ReturnType<typeof CriarEmpresaRespostaSchema.parse>;
 export interface EmpresaExistente {
@@ -71,6 +75,52 @@ interface Form {
   alcada_gerente_pct: string;
   validade_orcamento_dias: string;
   aplicacao_no_orcamento_padrao: boolean;
+  /** Administrador inicial (só na empresa nova; RN-CORE-34). */
+  admin?: AdminDoForm;
+}
+
+export interface AdminDoForm {
+  nome: string;
+  email: string;
+  senha: string;
+}
+
+/** Textos do bloco "Administrador da empresa" (spec §6), sem variação. */
+export const TEXTOS_ADMIN = Object.freeze({
+  titulo: 'Administrador da empresa',
+  ajuda: 'É o primeiro acesso da empresa. Ele cria os outros usuários no BKO.',
+  passeASenha: 'Passe esta senha ao administrador. No primeiro acesso ao backoffice, ele cria a dele.',
+  existente: 'Esta empresa já tem administrador. A senha dele não muda aqui.',
+  faltaAdmin: 'Informe o administrador da empresa.',
+  nomeVazio: 'Informe o nome.',
+  emailVazio: 'Informe o e-mail.',
+  senhaVazia: 'Informe a senha inicial.',
+  nomeCurto: 'Informe o nome, de 2 a 120 caracteres.',
+  emailInvalido: 'Informe um e-mail válido, como nome@empresa.com.br.',
+});
+
+/**
+ * Erros do administrador inicial por campo (`admin.nome`, `admin.email`, `admin.senha`): vazio, formato do contrato
+ * (`AdminInicialEmpresaSchema`) e a RN-CORE-32 pela regra do Core (`faltasNaSenha`/`mensagemDaSenha`); a API revalida.
+ */
+export function errosDoAdmin(a: AdminDoForm): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (!a.nome.trim()) e['admin.nome'] = TEXTOS_ADMIN.nomeVazio;
+  if (!a.email.trim()) e['admin.email'] = TEXTOS_ADMIN.emailVazio;
+  if (!a.senha) e['admin.senha'] = TEXTOS_ADMIN.senhaVazia;
+  else {
+    const m = mensagemDaSenha(faltasNaSenha(a.senha), a.senha);
+    if (m) e['admin.senha'] = m;
+  }
+  const p = AdminInicialEmpresaSchema.safeParse({ nome: a.nome, email: a.email, senha: a.senha });
+  if (!p.success) {
+    for (const i of p.error.issues) {
+      const campo = String(i.path[0] ?? '');
+      if (campo === 'nome') e['admin.nome'] ??= TEXTOS_ADMIN.nomeCurto;
+      else if (campo === 'email') e['admin.email'] ??= TEXTOS_ADMIN.emailInvalido;
+    }
+  }
+  return e;
 }
 
 /** Sugestão de código a partir da razão social: minúsculas, sem acento, hífens, até 40. */
@@ -112,7 +162,9 @@ export function corpoDaEmpresa(f: Form, simular: boolean): unknown {
       aplicacao_no_orcamento_padrao: f.aplicacao_no_orcamento_padrao,
     }).filter(([, v]) => v !== undefined),
   );
-  return { codigo: f.codigo.trim(), razao_social: f.razao_social.trim(), cnpj: f.cnpj, fuso: f.fuso, modulos, parametros, simular };
+  // sem `trim` na senha (RN-CORE-32); o e-mail o contrato normaliza
+  const admin = f.admin ? { admin: { nome: f.admin.nome.trim(), email: f.admin.email.trim(), senha: f.admin.senha } } : {};
+  return { codigo: f.codigo.trim(), razao_social: f.razao_social.trim(), cnpj: f.cnpj, fuso: f.fuso, modulos, parametros, ...admin, simular };
 }
 
 /**
@@ -139,6 +191,8 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
   if (p.success) return {};
   const e: Record<string, string> = {};
   for (const i of p.error.issues) {
+    // o administrador tem mensagens próprias (`errosDoAdmin`)
+    if (i.path[0] === 'admin') continue;
     const k = i.path[0] === 'parametros' || i.path[0] === 'modulos' ? `${String(i.path[0])}.${String(i.path.at(-1) ?? '')}` : String(i.path[0]);
     const pt = CODIGOS_GENERICOS.has(i.code) ? MENSAGEM_DO_CAMPO[k] : undefined;
     e[k] ??= pt ?? i.message;
@@ -147,6 +201,37 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
 }
 
 const ROTULO_RESULTADO: Record<Resposta['resultado'], string> = { criado: 'Empresa criada', atualizado: 'Empresa atualizada', sem_mudanca: 'Nada mudou' };
+
+const FALTAS_CONHECIDAS: readonly FaltaNaSenha[] = ['caracteres', 'letra', 'numero', 'especial'];
+
+/** Linha do administrador no resultado (spec §6). `null` quando ele não veio no pedido. */
+export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin' | 'simulado'>, email: string | null): string | null {
+  // no Conferir nada foi gravado: "não muda"; depois de gravar, "não mudou" (spec §6; R-20261107-174216 🟡 6)
+  if (r.admin === 'existente') return r.simulado ? 'Administrador mantido: a senha não muda.' : 'Administrador mantido: a senha não mudou.';
+  if (r.admin === 'criado') return r.simulado ? `Administrador que será criado: ${email ?? ''}.` : `Administrador criado: ${email ?? ''}.`;
+  return null;
+}
+
+/**
+ * Erro 422 da API no administrador (desenho T-0093 §6): `RN-CORE-34` = falta o administrador (aviso no topo do bloco);
+ * `RN-CORE-32` = a senha não serve (mensagem do Core pelas `detalhes.faltas`, embaixo do campo). Outro erro: `null`.
+ */
+export function erroDoAdminNaApi(x: unknown, senha: string): { bloco: string } | { senha: string } | null {
+  if (!(x instanceof ErroPortal) || x.status !== 422) return null;
+  if (x.codigo === 'RN-CORE-34') return { bloco: TEXTOS_ADMIN.faltaAdmin };
+  if (x.codigo === 'RN-CORE-32') {
+    // faltas vazias = outro motivo do Core (ex.: igual ao e-mail): vale a mensagem da API
+    const lista: unknown[] = Array.isArray(x.detalhes?.faltas) ? x.detalhes.faltas : [];
+    const faltas = lista.filter((f): f is FaltaNaSenha => typeof f === 'string' && (FALTAS_CONHECIDAS as readonly string[]).includes(f));
+    return { senha: (faltas.length > 0 ? mensagemDaSenha(faltas, senha) : null) ?? x.message };
+  }
+  return null;
+}
+
+/** Cópia de `e` sem a chave `k`. */
+function semChave(e: Record<string, string>, k: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(e).filter(([c]) => c !== k));
+}
 
 export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExistente; aoGravar?: (r: Resposta) => void }) {
   const router = useRouter();
@@ -166,16 +251,29 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
     alcada_gerente_pct: '15',
     validade_orcamento_dias: '7',
     aplicacao_no_orcamento_padrao: true,
+    ...(existente ? {} : { admin: { nome: '', email: '', senha: '' } }),
   }));
   const [codigoTocado, setCodigoTocado] = useState(!!existente);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resposta | null>(null);
   const [enviando, setEnviando] = useState<'conferir' | 'gravar' | null>(null);
+  // tentou conferir ou gravar com a senha fora da RN-CORE-32: a lista pinta as faltas de vermelho
+  const [destacarSenha, setDestacarSenha] = useState(false);
+  const [erroAdmin, setErroAdmin] = useState<string | null>(null);
+  // e-mail do administrador do último envio (o resultado diz "Administrador criado: <e-mail>.")
+  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   const travado = !!existente;
+  const faltasDaSenha = f.admin ? faltasNaSenha(f.admin.senha) : [];
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     setF((x) => ({ ...x, [k]: v }));
+    setResultado(null);
+  };
+  const setAdmin = (k: keyof AdminDoForm, v: string) => {
+    setF((x) => (x.admin ? { ...x, admin: { ...x.admin, [k]: v } } : x));
+    // o erro antigo do campo some ao digitar: a lista das regras segue ao vivo (spec §6; R-20261107-174216 🟡 5)
+    setErros((e) => (`admin.${k}` in e ? semChave(e, `admin.${k}`) : e));
     setResultado(null);
   };
   const setModulo = (m: ModuloId, v: Partial<{ marcado: boolean; licencas: string }>) => {
@@ -186,20 +284,33 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
   const enviar = async (simular: boolean) => {
     if (enviando) return;
     const corpo = corpoDaEmpresa(f, simular);
-    const e = errosDaEmpresa(corpo);
+    const e = { ...errosDaEmpresa(corpo), ...(f.admin ? errosDoAdmin(f.admin) : {}) };
     setErros(e);
     setErro(null);
+    setErroAdmin(null);
+    setDestacarSenha(faltasDaSenha.length > 0);
     if (Object.keys(e).length > 0) return setErro('Confira os campos marcados.');
     setEnviando(simular ? 'conferir' : 'gravar');
+    setEmailEnviado(f.admin ? f.admin.email.trim().toLowerCase() : null);
     try {
       const r = await chamarPortal(ROTAS_PORTAL.empresas, { metodo: 'POST', corpo, schema: CriarEmpresaRespostaSchema });
       setResultado(r);
       if (!simular) {
+        // a senha master não fica na tela depois de gravar
+        setF((x) => (x.admin ? { ...x, admin: { ...x.admin, senha: '' } } : x));
         aoGravar?.(r);
         if (!existente && r.tenant_id) router.push(`/empresas/${r.tenant_id}`);
       }
     } catch (x) {
-      setErro(mensagemDoErro(x));
+      const doAdmin = erroDoAdminNaApi(x, f.admin?.senha ?? '');
+      if (doAdmin && 'bloco' in doAdmin) {
+        setErroAdmin(doAdmin.bloco);
+        setErro('Confira os campos marcados.');
+      } else if (doAdmin) {
+        setErros((atuais) => ({ ...atuais, 'admin.senha': doAdmin.senha }));
+        setDestacarSenha(true);
+        setErro('Confira os campos marcados.');
+      } else setErro(mensagemDoErro(x));
     } finally {
       setEnviando(null);
     }
@@ -252,6 +363,57 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
           </div>
         </div>
       </Panel>
+
+      {f.admin ? (
+        <Panel title={TEXTOS_ADMIN.titulo}>
+          <div data-testid="empresa.admin" className="flex flex-col gap-4">
+            <span className="text-[13px] text-ink-2">{TEXTOS_ADMIN.ajuda}</span>
+            {erroAdmin && (
+              <div data-testid="empresa.admin-erro">
+                <Notice tone="danger">{erroAdmin}</Notice>
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Campo rotulo="Nome" testId="empresa.admin-nome" autoComplete="off" value={f.admin.nome} erro={erros['admin.nome']} onChange={(e) => setAdmin('nome', e.target.value)} />
+              <Campo
+                rotulo="E-mail"
+                testId="empresa.admin-email"
+                type="email"
+                autoComplete="off"
+                spellCheck={false}
+                value={f.admin.email}
+                erro={erros['admin.email']}
+                onChange={(e) => setAdmin('email', e.target.value)}
+              />
+            </div>
+            <div className="flex max-w-[420px] flex-col gap-2">
+              <CampoSenha
+                rotulo="Senha inicial"
+                testId="empresa.admin-senha"
+                autoComplete="new-password"
+                descrito="empresa-admin-senha-regras"
+                value={f.admin.senha}
+                erro={erros['admin.senha']}
+                onChange={(e) => setAdmin('senha', e.target.value)}
+              />
+              <RegrasDaSenha
+                id="empresa-admin-senha-regras"
+                testId="empresa.admin-regras"
+                faltas={faltasDaSenha}
+                destacar={destacarSenha && faltasDaSenha.length > 0}
+                resumo={mensagemDaSenha(faltasDaSenha, f.admin.senha) ?? SENHA_ATENDE_AS_REGRAS}
+              />
+              <span className="text-[12px] text-ink-2">{TEXTOS_ADMIN.passeASenha}</span>
+            </div>
+          </div>
+        </Panel>
+      ) : (
+        <Panel title={TEXTOS_ADMIN.titulo}>
+          <span data-testid="empresa.admin-existente" className="text-[13px] text-ink-2">
+            {TEXTOS_ADMIN.existente}
+          </span>
+        </Panel>
+      )}
 
       <Panel title="Módulos e licenças">
         <div className="flex flex-col divide-y divide-line-2">
@@ -318,7 +480,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
           <Notice tone="danger">{erro}</Notice>
         </div>
       )}
-      {resultado && <ResultadoEmpresa r={resultado} />}
+      {resultado && <ResultadoEmpresa r={resultado} emailAdmin={emailEnviado} />}
 
       <div className="flex flex-wrap gap-2">
         <Button data-testid="empresa.conferir" onClick={() => void enviar(true)} disabled={enviando !== null}>
@@ -332,7 +494,8 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
   );
 }
 
-function ResultadoEmpresa({ r }: { r: Resposta }) {
+function ResultadoEmpresa({ r, emailAdmin }: { r: Resposta; emailAdmin: string | null }) {
+  const admin = textoDoAdminNoResultado(r, emailAdmin);
   return (
     <div data-testid="empresa.resultado">
       <Notice tone={r.simulado ? 'info' : 'success'}>
@@ -340,6 +503,7 @@ function ResultadoEmpresa({ r }: { r: Resposta }) {
           <strong>{r.simulado ? `Conferido, nada gravado: ${ROTULO_RESULTADO[r.resultado].toLowerCase()} ao gravar.` : `${ROTULO_RESULTADO[r.resultado]}.`}</strong>
           {r.modulos_adicionados.length > 0 && <span>Módulos {r.simulado ? 'que entram' : 'que entraram'}: {r.modulos_adicionados.map((m) => ROTULO_MODULO[m].nome).join(', ')}.</span>}
           {r.parametros_gravados.length > 0 && <span>Parâmetros {r.simulado ? 'que serão gravados' : 'gravados'}: {r.parametros_gravados.length}.</span>}
+          {admin && <span data-testid="empresa.resultado-admin">{admin}</span>}
           {r.avisos.map((a) => (
             <span key={a}>{a}</span>
           ))}

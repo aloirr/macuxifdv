@@ -185,7 +185,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
       <Panel title="Conector e documentação">
         <div className="flex flex-col gap-2 text-[14px]">
           {LINK_DOWNLOAD_CONECTOR ? (
-            <a data-testid="integracao.baixar-conector" href={LINK_DOWNLOAD_CONECTOR} target="_blank" rel="noreferrer" className="font-semibold text-accent no-underline hover:text-accent-ink">
+            <a data-testid="integracao.baixar-conector" href={LINK_DOWNLOAD_CONECTOR} target="_blank" rel="noreferrer" className="font-semibold text-accent-ink no-underline hover:underline">
               Baixar o Conector
             </a>
           ) : (

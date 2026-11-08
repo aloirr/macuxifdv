@@ -11,13 +11,6 @@ import { colors, localIsoDate, longDateLabel, zonedParts } from '@macuxi/ui/mobi
 
 // ---------- Boas-vindas ----------
 
-/** "Bom dia" 5h–11h59 · "Boa tarde" 12h–17h59 · "Boa noite" 18h–4h59, no fuso do tenant; só o primeiro nome. */
-export function saudacao(agora: Date | string | number, tz: string, primeiroNome: string): string {
-  const h = zonedParts(agora, tz).hour;
-  const parte = h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 18 ? 'Boa tarde' : 'Boa noite';
-  return primeiroNome ? `${parte}, ${primeiroNome}` : parte;
-}
-
 /** "Quarta, 4 de novembro" · na Gestão "Quarta, 4 de novembro · Equipe Manaus". */
 export function dataDoCabecalho(agora: Date | string | number, tz: string, equipe?: string | null): string {
   const d = longDateLabel(agora, tz);
@@ -30,18 +23,15 @@ export function horaCurta(at: Date | string | number, tz: string): string {
   return `${p.hour}h${String(p.minute).padStart(2, '0')}`;
 }
 
-/** "09:15" no fuso do tenant (hora de relógio dos recados, como na referência). */
-export function horaRelogio(at: Date | string | number, tz: string): string {
-  const p = zonedParts(at, tz);
-  return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
-}
-
 const visitas = (n: number) => `${n} ${n === 1 ? 'visita' : 'visitas'}`;
 
-/** "6 visitas hoje · 3 feitas" (rota do aparelho). Sem paradas: "Nenhuma visita na rota de hoje". */
-export function textoVisitasHoje(rota: { paradas_hoje: number; visitadas_hoje: number } | null): string | null {
+/**
+ * "6 visitas hoje · 3 feitas" (rota do aparelho). Sem paradas: "Sem rota hoje", e em dia não útil (`dia_util` do Core)
+ * "Sem rota hoje · não é dia útil" — o único lugar da tela que diz isso (T-0124/RD-0006; o cartão Meta não repete).
+ */
+export function textoVisitasHoje(rota: { paradas_hoje: number; visitadas_hoje: number } | null, diaUtil = true): string | null {
   if (!rota) return null;
-  if (rota.paradas_hoje === 0) return 'Nenhuma visita na rota de hoje';
+  if (rota.paradas_hoje === 0) return diaUtil ? 'Sem rota hoje' : 'Sem rota hoje · não é dia útil';
   return `${visitas(rota.paradas_hoje)} hoje · ${rota.visitadas_hoje} ${rota.visitadas_hoje === 1 ? 'feita' : 'feitas'}`;
 }
 
@@ -54,20 +44,7 @@ export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null):
   return membros.reduce((s, m) => ({ paradas_hoje: s.paradas_hoje + m.paradas_hoje, visitadas_hoje: s.visitadas_hoje + m.visitadas_hoje }), { paradas_hoje: 0, visitadas_hoje: 0 });
 }
 
-// ---------- Recados de hoje ----------
-
-const DIAS_CURTOS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'] as const;
-
-/** Hora à direita do recado: "14:02" (hoje) · "ontem" · "seg" (na semana) · "28/10". */
-export function quandoCurto(at: string, agora: Date | string | number, tz: string): string {
-  const dia = localIsoDate(at, tz);
-  const hoje = localIsoDate(agora, tz);
-  const diff = Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${dia}T12:00:00Z`)) / 86_400_000);
-  if (diff <= 0) return horaRelogio(at, tz);
-  if (diff === 1) return 'ontem';
-  if (diff < 7) return DIAS_CURTOS[new Date(`${dia}T12:00:00Z`).getUTCDay()] ?? dia;
-  return `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
-}
+// ---------- Recados ----------
 
 /** Só navega para link interno de módulo (`/m/<caminho>`); o resto abre a central de notificações. */
 export function destinoDaNotificacao(link: string | null): string {
@@ -85,13 +62,14 @@ export type PontoRecado = 'destaque' | 'sucesso' | 'novo' | 'lido';
 
 export interface ItemRecado {
   id: string;
-  titulo: string;
-  /** "Marcos · 09:15" · "14:02" */
-  apoio: string;
+  /** Título e corpo num texto só, em até 2 linhas: "Prioridade: Passe cedo no Mercadinho São Jorge…" (T-0124/RD-0009). */
+  texto: string;
+  /** "09:15" (hora pronta do Core, fuso do tenant). */
+  hora: string;
   ponto: PontoRecado;
   /** Destino ao tocar (link interno de módulo ou a central). */
   destino: string;
-  /** id da notificação a marcar como lida ao tocar (quando o Core expuser a função). */
+  /** id da notificação a marcar como lida ao tocar; null se já lida. */
   notificacao_id: string | null;
 }
 
@@ -105,52 +83,44 @@ export const COR_DO_PONTO: Record<PontoRecado, string> = {
 /** Tipos de notificação que são boa notícia (ponto verde). Só aparência; o tipo vem pronto do Core. */
 const TIPOS_SUCESSO = /aprovad|faturad|meta_batida|batid/;
 
-/**
- * "Recados de hoje" (premissa da T-0076): o recado do dia marcado pelo supervisor vem primeiro e destacado; depois as
- * notificações mais recentes (sem repetir a do recado), até 3 itens. A frase padrão (sem recado) não entra na lista.
- */
-export function recadosDeHoje(visao: Pick<VisaoInicio, 'recado' | 'notificacoes' | 'recados_hoje'>, agora: Date | string | number, tz: string): ItemRecado[] {
-  // T-0076: o Core já entrega a lista pronta (`recados_hoje`, aditivo no @1); o resto é o contorno para cópias antigas.
-  if (visao.recados_hoje) {
-    return visao.recados_hoje.itens.map((r) => ({
-      id: r.id,
-      titulo: r.titulo,
-      apoio: [r.subtitulo, r.hora].filter(Boolean).join(' · '),
-      ponto: r.destaque ? 'destaque' : r.lida ? 'lido' : TIPOS_SUCESSO.test(r.tipo) ? 'sucesso' : 'novo',
-      destino: destinoDaNotificacao(r.link),
-      notificacao_id: r.lida ? null : r.id,
-    }));
-  }
-  const itens: ItemRecado[] = [];
-  const { recado, notificacoes } = visao;
-  if (recado.origem === 'recado') {
-    const n = recado.notificacao_id ? notificacoes.ultimas.find((x) => x.id === recado.notificacao_id) : undefined;
-    const apoio = [recado.autor_nome, n ? quandoCurto(n.criada_em, agora, tz) : null].filter(Boolean).join(' · ');
-    itens.push({
-      id: recado.notificacao_id ?? 'recado-do-dia',
-      titulo: recado.texto,
-      apoio,
-      ponto: 'destaque',
-      destino: destinoDaNotificacao(n?.link ?? null),
-      notificacao_id: recado.notificacao_id,
-    });
-  }
-  for (const n of notificacoes.ultimas) {
-    if (itens.length >= 3) break;
-    if (n.id === recado.notificacao_id) continue;
-    itens.push({
-      id: n.id,
-      titulo: n.titulo,
-      apoio: quandoCurto(n.criada_em, agora, tz),
-      ponto: n.lida ? 'lido' : TIPOS_SUCESSO.test(n.tipo) ? 'sucesso' : 'novo',
-      destino: destinoDaNotificacao(n.link),
-      notificacao_id: n.id,
-    });
-  }
-  return itens;
+/** "Prioridade" + "Passe cedo…" → "Prioridade: Passe cedo…"; título que já termina em pontuação só ganha o espaço. */
+export function textoDoRecado(titulo: string, corpo: string): string {
+  const t = titulo.trim();
+  const c = corpo.trim();
+  if (!c) return t;
+  if (!t) return c;
+  return /[.:!?…—-]$/.test(t) ? `${t} ${c}` : `${t}: ${c}`;
 }
 
-// ---------- Meta de hoje ----------
+/** `recados_hoje` (lista do Core): até 3 da caixa, o recado do dia primeiro e destacado. O shell só escolhe texto e ponto. */
+export type RecadosProntos = NonNullable<VisaoInicio['recados_hoje']> & { /** Total da caixa (aditivo pedido ao Core, RD-0009). */ total?: number };
+
+export function recadosDoInicio(recados: RecadosProntos | null | undefined): ItemRecado[] {
+  return (recados?.itens ?? []).map((r) => ({
+    id: r.id,
+    texto: textoDoRecado(r.titulo, r.subtitulo),
+    hora: r.hora,
+    ponto: r.destaque ? 'destaque' : r.lida ? 'lido' : TIPOS_SUCESSO.test(r.tipo) ? 'sucesso' : 'novo',
+    destino: destinoDaNotificacao(r.link),
+    notificacao_id: r.lida ? null : r.id,
+  }));
+}
+
+/**
+ * "Ver todos" só quando há mais na caixa do que o cartão mostra (RD-0009). Com o `total` do Core, total > mostrados; sem
+ * ele, o Core corta em 3, então menos de 3 itens = a caixa inteira já está no cartão.
+ */
+export function mostrarVerTodos(recados: RecadosProntos | null | undefined): boolean {
+  const mostrados = recados?.itens.length ?? 0;
+  return recados?.total != null ? recados.total > mostrados : mostrados >= 3;
+}
+
+/** Bolinha só quando ajuda a distinguir itens: com 1 recado o selo "1 novo" já diz tudo (RD-0009). */
+export function mostrarPontos(itens: readonly ItemRecado[]): boolean {
+  return itens.length > 1;
+}
+
+// ---------- Meta do mês ----------
 
 export const ROTULO_INDICADOR: Record<MetaDoDia['indicador'], string> = {
   venda_cents: 'Vendas',
@@ -159,17 +129,36 @@ export const ROTULO_INDICADOR: Record<MetaDoDia['indicador'], string> = {
   cobertura_pct: 'Cobertura',
 };
 
-const pctInteiro = (parte: number, todo: number) => (todo > 0 ? Math.round((parte / todo) * 100) : 0);
-/** pontos-base (8500) → "85%" */
+/** pontos-base (8500) → "85%". */
 const pctDePontos = (pb: number) => `${Math.round(pb / 100)}%`;
 
+/** Percentual do mês em pontos-base, pronto do Core: abaixo de 1% com 1 casa ("0,3%"), senão inteiro ("40%"). */
+export function percentualDoMes(pb: number): string {
+  const decimos = Math.round(pb / 10);
+  if (pb > 0 && decimos < 10) return decimos === 0 ? '0%' : `0,${decimos}%`;
+  return pctDePontos(pb);
+}
+
+/** Um número do indicador, com a unidade: "R$ 553" · "85%" · "6 visitas" · "1 cliente". */
 function valorDe(indicador: MetaDoDia['indicador'], n: number): string {
   if (indicador === 'venda_cents') return formatBRL0(n);
   if (indicador === 'cobertura_pct') return pctDePontos(n);
   if (indicador === 'positivacao') return `${n} ${n === 1 ? 'cliente' : 'clientes'}`;
-  if (indicador === 'visitas') return visitas(n);
-  return String(n);
+  return visitas(n);
 }
+
+/**
+ * "x de y" com a unidade uma vez só, no fim, e só quando o rótulo não a diz (T-0124/RD-0005 e RD-0007):
+ * "R$ 553 de R$ 180.000" · "1 de 15 clientes" · "0 de 90" (Visitas) · "0% de 90%" (Cobertura).
+ */
+export function xDeY(indicador: MetaDoDia['indicador'], feito: number, meta: number): { valor: string; de: string } {
+  if (indicador === 'venda_cents' || indicador === 'cobertura_pct') return { valor: valorDe(indicador, feito), de: `de ${valorDe(indicador, meta)}` };
+  if (indicador === 'positivacao') return { valor: String(feito), de: `de ${meta} ${meta === 1 ? 'cliente' : 'clientes'}` };
+  return { valor: String(feito), de: `de ${meta}` };
+}
+
+/** Realizado do mês = até ontem + hoje, as duas partes prontas do Core (só soma para exibir). */
+const realizadoDoMes = (m: MetaDoDia) => m.realizado_ate_ontem + m.realizado_hoje;
 
 /**
  * Indicador do cartão grande: o que o Core escolheu em `meta_hoje.indicador`; sem ele, vendas quando há meta de vendas,
@@ -180,74 +169,117 @@ export function metaPrincipal(metas: readonly MetaDoDia[], escolhido?: MetaDoDia
   return { principal, outras: metas.filter((m) => m !== principal) };
 }
 
-export interface DesenhoMetaDeHoje {
-  /** "R$ 1.240" */
+/**
+ * Números prontos do Core para o cartão (`meta_hoje`, core.inicio@1). `faltam_mes`, `por_dia_util` e `dias_uteis_por_dia`
+ * são o aditivo pedido ao modulo-core (R-20261108-164114, RD-0002): enquanto não vierem, a linha do dia não útil fica
+ * oculta (o shell não faz a conta da RN-CORE-22/26).
+ */
+export type MetaHojePronta = Pick<NonNullable<VisaoInicio['meta_hoje']>, 'mes_pct'> & {
+  faltam_mes?: number | null;
+  por_dia_util?: number | null;
+  dias_uteis_por_dia?: number | null;
+};
+
+export interface DesenhoMetaDoMes {
+  /** Realizado do mês: "R$ 553" · "62%" · "1". */
   valor: string;
-  /** "de R$ 3.200" (meta do dia) · null sem meta do dia */
-  de: string | null;
-  /** 0–100 (a barra limita) */
+  /** "de R$ 180.000" · "de 15 clientes" · "de 80%". */
+  de: string;
+  /** "0,3%" (pronto do Core) · null sem o número do Core. */
+  mes: string | null;
+  /** 0–100 (a barra limita), do mesmo número do Core. */
   pct: number;
   corBarra: string;
   trilho: string;
-  /** "Faltam R$ 1.960 hoje" · "Meta de hoje batida" · … */
-  apoio: string;
-  /** "mês 40%" */
-  mes: string;
+  /**
+   * Última linha (RD-0002): dia útil "Meta de hoje R$ 9.969" (meta do dia da RN-CORE-26, pronta do Core); dia não útil
+   * "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" (números do Core); mês batido "Meta batida"; null sem o que dizer.
+   */
+  apoio: string | null;
+  /** Mês batido: cartão e barra verdes. */
   verde: boolean;
+  /** Dia ou mês batido: a última linha fica verde. */
+  apoioVerde: boolean;
 }
 
-/** Números já prontos do Core (`meta_hoje`, aditivo no @1): quando vêm, valem sobre a conta de exibição do shell. */
-export type MetaHojePronta = Pick<NonNullable<VisaoInicio['meta_hoje']>, 'faltam_hoje' | 'mes_pct'>;
-
-/** Cartão "Meta de hoje" (referência T-0076): realizado do dia × necessidade diária, barra, quanto falta e o % do mês. */
-export function desenhoMetaDeHoje(m: MetaDoDia, pronto?: MetaHojePronta | null): DesenhoMetaDeHoje {
-  const doMes = m.realizado_ate_ontem + m.realizado_hoje;
-  const mes = `mês ${pronto?.mes_pct != null ? Math.round(pronto.mes_pct / 100) : pctInteiro(doMes, m.meta_mes)}%`;
-  const base = { mes, trilho: colors.lineSoft, verde: false };
-  const metaDia = m.meta_dia ?? 0;
+/**
+ * Cartão "Meta do mês" do Início (T-0124/RD-0002, decisão do gerente R-20261108-161557 pela proposta do dono do produto;
+ * substitui o §1.3 da T-0076): realizado do mês de meta do mês, barra e o % uma vez; a última linha muda conforme o dia.
+ * Tudo vem pronto do Core (`MetaDoDia` e `meta_hoje`); aqui só se escolhe texto e cor pela `situacao`.
+ */
+export function desenhoMetaDoMes(m: MetaDoDia, pronto?: MetaHojePronta | null): DesenhoMetaDoMes {
+  const { valor, de } = xDeY(m.indicador, realizadoDoMes(m), m.meta_mes);
+  const mesPct = pronto?.mes_pct ?? null;
+  const base = {
+    valor,
+    de,
+    mes: mesPct != null ? percentualDoMes(mesPct) : null,
+    pct: mesPct != null ? Math.min(100, mesPct / 100) : 0,
+    corBarra: colors.accent,
+    trilho: colors.lineSoft,
+    verde: false,
+    apoioVerde: false,
+  };
   switch (m.situacao) {
-    case 'dia_batido':
-      return { ...base, verde: true, valor: valorDe(m.indicador, m.realizado_hoje), de: `de ${valorDe(m.indicador, metaDia)}`, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: 'Meta de hoje batida' };
     case 'mes_batido':
-      return { ...base, verde: true, valor: valorDe(m.indicador, m.realizado_hoje), de: null, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: `Meta do mês batida · ${valorDe(m.indicador, doMes)} de ${valorDe(m.indicador, m.meta_mes)}` };
-    case 'dia_nao_util': {
-      const falta = Math.max(0, m.meta_mes - doMes);
-      return { ...base, valor: valorDe(m.indicador, doMes), de: `de ${valorDe(m.indicador, m.meta_mes)} no mês`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.ink3, apoio: falta > 0 ? `Hoje não é dia útil · faltam ${valorDe(m.indicador, falta)} no mês` : 'Hoje não é dia útil' };
-    }
-    case 'do_mes':
-      return { ...base, valor: pctDePontos(doMes), de: `meta ${pctDePontos(m.meta_mes)}`, pct: pctInteiro(doMes, m.meta_mes), corBarra: colors.accent, apoio: 'Acumulado do mês' };
+      return { ...base, verde: true, apoioVerde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: 'Meta batida' };
+    case 'dia_batido':
+      return { ...base, apoioVerde: true, apoio: m.meta_dia != null ? `Meta de hoje ${valorDe(m.indicador, m.meta_dia)} · batida` : null };
     case 'a_cumprir':
-    default: {
-      const pct = m.atingimento_hoje_pct != null ? Math.round(m.atingimento_hoje_pct / 100) : pctInteiro(m.realizado_hoje, metaDia);
-      const falta = pronto?.faltam_hoje ?? Math.max(0, metaDia - m.realizado_hoje);
-      return { ...base, valor: valorDe(m.indicador, m.realizado_hoje), de: `de ${valorDe(m.indicador, metaDia)}`, pct, corBarra: colors.accent, apoio: `Faltam ${valorDe(m.indicador, falta)} hoje` };
-    }
+      return { ...base, apoio: m.meta_dia != null ? `Meta de hoje ${valorDe(m.indicador, m.meta_dia)}` : null };
+    case 'dia_nao_util':
+      // RN-CORE-26: sem meta do dia. "não é dia útil" já está nas boas-vindas (RD-0006); aqui só quanto falta e por dia útil.
+      return { ...base, corBarra: colors.ink3, apoio: linhaDoDiaNaoUtil(m.indicador, pronto) };
+    case 'do_mes':
+    default:
+      // indicador só do mês (cobertura): o título já diz o período; nada a acrescentar.
+      return { ...base, apoio: null };
   }
 }
 
-/** Linha compacta de um indicador secundário (e de cada indicador da equipe): "Positivação 2 clientes de 6 clientes". */
+/** "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)", só com os números prontos do Core. */
+function linhaDoDiaNaoUtil(indicador: MetaDoDia['indicador'], p?: MetaHojePronta | null): string | null {
+  const partes: string[] = [];
+  if (p?.faltam_mes != null && p.faltam_mes > 0) partes.push(`Faltam ${valorDe(indicador, p.faltam_mes)}`);
+  if (p?.por_dia_util != null && p.por_dia_util > 0 && p.dias_uteis_por_dia != null && p.dias_uteis_por_dia > 0) {
+    partes.push(`${valorDe(indicador, p.por_dia_util)} por dia útil (${p.dias_uteis_por_dia} ${p.dias_uteis_por_dia === 1 ? 'dia' : 'dias'})`);
+  }
+  return partes.length > 0 ? partes.join(' · ') : null;
+}
+
+/** Rótulo do cartão: "Meta do mês" (Gestão: "… da equipe"); indicador que não é vendas: " · Visitas". "Mês" só aqui (RD-0004). */
+export function rotuloDaMeta(equipe: boolean, indicador?: MetaDoDia['indicador'] | null): string {
+  const base = `Meta do mês${equipe ? ' da equipe' : ''}`;
+  return indicador && indicador !== 'venda_cents' ? `${base} · ${ROTULO_INDICADOR[indicador]}` : base;
+}
+
+/** Linha compacta de um indicador secundário, sem barra (RD-0010): "Positivação  1 de 15 clientes". */
 export interface DesenhoLinha {
   rotulo: string;
   valor: string;
-  pct: number;
   verde: boolean;
 }
 
 export function desenhoDaLinha(m: MetaDoDia): DesenhoLinha {
-  const d = desenhoMetaDeHoje(m);
-  return { rotulo: ROTULO_INDICADOR[m.indicador], valor: d.de ? `${d.valor} ${d.de}` : d.valor, pct: d.pct, verde: d.verde };
+  const { valor, de } = xDeY(m.indicador, realizadoDoMes(m), m.meta_mes);
+  return { rotulo: ROTULO_INDICADOR[m.indicador], valor: `${valor} ${de}`, verde: m.situacao === 'mes_batido' };
 }
 
-/** Nota da equipe: "1 de 3 já bateu o mês" (contagem pronta do Core). */
+/** Nota da equipe: "1 de 3 já bateu a meta" (contagem pronta do Core; "mês" só no título, RD-0004). */
 export function notaDaEquipe(m: MetaDoDia): string | null {
-  return m.membros_mes_batido > 0 && m.membros_mes_batido < m.membros ? `${m.membros_mes_batido} de ${m.membros} já bateu o mês` : null;
+  return m.membros_mes_batido > 0 && m.membros_mes_batido < m.membros ? `${m.membros_mes_batido} de ${m.membros} já bateu a meta` : null;
 }
 
-/** "Vendas até 02/11 às 18h40. Sincronize para atualizar." (`base.defasado`). */
-export function textoBaseDefasada(base: VisaoInicio['base'], tz: string): string | null {
+/**
+ * Aviso único de dado antigo (RD-0008), no bloco Sincronizar: sem cópia de vendas (`sem_realizado` do Core),
+ * "Sincronize para ver as vendas"; base defasada (`base.defasado`), "Dados de 06/11, 6h28" no fuso do tenant; em dia, nada.
+ */
+export function avisoDosDados(visao: Pick<VisaoInicio, 'base' | 'sem_realizado'>, tz: string): string | null {
+  if ((visao.sem_realizado?.length ?? 0) > 0) return 'Sincronize para ver as vendas';
+  const { base } = visao;
   if (!base.defasado || !base.calculado_em) return null;
   const dia = localIsoDate(base.calculado_em, tz);
-  return `Vendas até ${dia.slice(8, 10)}/${dia.slice(5, 7)} às ${horaCurta(base.calculado_em, tz)}. Sincronize para atualizar.`;
+  return `Dados de ${dia.slice(8, 10)}/${dia.slice(5, 7)}, ${horaCurta(base.calculado_em, tz)}`;
 }
 
 // ---------- Equipe agora (Gestão) ----------
