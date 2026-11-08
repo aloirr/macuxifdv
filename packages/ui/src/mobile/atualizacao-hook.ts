@@ -24,7 +24,7 @@ export interface UsoAtualizacaoAutomatica {
   puxar: () => void;
   /** Última sincronização concluída (ms) ou null. */
   atualizadoEm: number | null;
-  /** "Atualizado às hh:mm · puxe para sincronizar", "Atualizado há instantes" ou, sem sinal, só "Atualizado às hh:mm". */
+  /** "Atualizado às hh:mm · puxe para sincronizar", "Atualizado há instantes" ou, sem sinal, só "Atualizado às hh:mm" ("Ainda não sincronizado" sem hora). */
   rodape: string;
 }
 

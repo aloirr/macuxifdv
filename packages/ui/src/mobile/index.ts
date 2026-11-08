@@ -24,3 +24,13 @@ export * from './periodo';
 export * from './suspensa';
 export * from './filtro';
 export * from './cartoes-pedido';
+export * from './senha';
+export * from './pendencias';
+export * from './pendencias-rn';
+// T-0133 (Novo pedido v2): desconto compacto único (item e pedido), histórico em tags e rodapé de ações compacto
+export * from './desconto';
+export * from './desconto-rn';
+export * from '../comum/historico';
+export * from './historico-rn';
+export * from './acoes';
+export * from './acoes-rn';

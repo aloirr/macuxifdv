@@ -34,7 +34,7 @@ export function RodapeTotal({
   testID?: string;
 }) {
   const off = Boolean(acao.desligado || acao.ocupado);
-  const corTexto = acao.desligado ? BOTAO_DESABILITADO.texto : colors.surface;
+  const corTexto = acao.desligado ? BOTAO_DESABILITADO.texto : colors.onAccent;
   return (
     <View style={[s.rodape, { paddingBottom: 10 + respiroInferior }]} testID={testID}>
       <View style={s.rodapeValor} accessible accessibilityLabel={`${rotulo}: ${valor}`}>
@@ -100,6 +100,48 @@ export function LinhaValor({
   );
 }
 
+// ---------- LinhaResumo ----------
+/**
+ * Linha do Resumo (T-0133, RF-VEN-11): rótulo curto em maiúsculas numa coluna fixa à esquerda (VENDA, ITENS, ENTREGA, OBS.)
+ * e o conteúdo à direita, quebrando em quantas linhas precisar; `alerta` é uma linha extra no tom de aviso ou erro
+ * ("Vai para aprovação (título vencido)"). Só leitura.
+ */
+export function LinhaResumo({
+  rotulo,
+  texto,
+  linhas,
+  alerta,
+  testID,
+}: {
+  /** "Venda", "Itens", "Entrega", "Obs." (mostrado em maiúsculas). */
+  rotulo: string;
+  /** Conteúdo numa linha lógica ("Boleto · 28/56 dias"); vazio = "—" passado pelo módulo. */
+  texto?: string;
+  /** Várias linhas rótulo ··· valor (itens compactos). */
+  linhas?: ReadonlyArray<{ id: string; rotulo: string; valor: string }>;
+  alerta?: { tom: 'aviso' | 'erro'; texto: string } | null;
+  testID?: string;
+}) {
+  const corAlerta = alerta?.tom === 'erro' ? colors.danger : colors.warningInk;
+  return (
+    <View style={s.resumo} testID={testID}>
+      <Text style={s.resumoRotulo} numberOfLines={1}>
+        {rotulo}
+      </Text>
+      <View style={s.resumoConteudo}>
+        {texto ? <Text style={s.resumoTexto}>{texto}</Text> : null}
+        {linhas?.map((l) => <LinhaValor key={l.id} rotulo={l.rotulo} valor={l.valor} testID={testID ? `${testID}-${l.id}` : undefined} />)}
+        {alerta ? (
+          <View style={s.resumoAlerta} accessibilityRole={alerta.tom === 'erro' ? 'alert' : 'text'}>
+            <Icon name="alert" size={14} color={corAlerta} strokeWidth={2.4} />
+            <Text style={[s.resumoAlertaTexto, { color: corAlerta }]}>{alerta.texto}</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 // ---------- BlocoTotais ----------
 export interface LinhaTotal {
   id: string;
@@ -147,12 +189,15 @@ const TOM_FAIXA: Record<TomFaixa, { fg: string; bg: string; icone: IconName }> =
 export function Faixa({
   tom,
   texto,
+  apoio,
   icone,
   testID = 'faixa',
 }: {
   tom: TomFaixa;
   /** Texto curto, sem o ✓ (o ícone já vem do tom). Ex.: "4,6% · dentro da alçada". */
   texto: string;
+  /** Segunda linha, sem negrito (T-0133, alerta da aba Venda: "Só à vista ou com aprovação"). */
+  apoio?: string | null;
   /** Troca o ícone do tom; `null` esconde. */
   icone?: IconName | null;
   testID?: string;
@@ -162,7 +207,14 @@ export function Faixa({
   return (
     <View style={[s.faixa, { backgroundColor: c.bg }]} testID={testID} accessibilityLiveRegion="polite" accessibilityRole={tom === 'erro' ? 'alert' : 'text'}>
       {nomeIcone ? <Icon name={nomeIcone} size={15} color={c.fg} strokeWidth={2.4} /> : null}
-      <Text style={[s.faixaTexto, { color: c.fg }]}>{texto}</Text>
+      {apoio ? (
+        <View style={s.faixaTextos}>
+          <Text style={[s.faixaTexto, { color: c.fg }]}>{texto}</Text>
+          <Text style={[s.faixaApoio, { color: c.fg }]}>{apoio}</Text>
+        </View>
+      ) : (
+        <Text style={[s.faixaTexto, { color: c.fg }]}>{texto}</Text>
+      )}
     </View>
   );
 }
@@ -221,7 +273,7 @@ const s = StyleSheet.create({
   /** botão principal do guia (52 dp, raio 14, 16 semibold) */
   rodapeBotao: { minHeight: ALTURA.principal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 22, borderRadius: radius.botao, backgroundColor: colors.accent },
   rodapeBotaoDesligado: { backgroundColor: BOTAO_DESABILITADO.fundo },
-  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.surface },
+  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onAccent },
   // .line
   linha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingVertical: 3 },
   linhaDivisor: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 4, paddingTop: 7 },
@@ -230,12 +282,21 @@ const s = StyleSheet.create({
   linhaValor: { fontFamily: fonts.body, fontSize: 13, fontVariant: ['tabular-nums'] },
   linhaValorForte: { fontFamily: fonts.bold },
   linhaValorDestaque: { fontFamily: fonts.display, fontSize: 19 },
+  // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" em 11/bold)
+  resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
+  resumoRotulo: { width: 64, paddingTop: 2, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  resumoConteudo: { flex: 1, minWidth: 0, gap: 2 },
+  resumoTexto: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink },
+  resumoAlerta: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingTop: 1 },
+  resumoAlertaTexto: { flex: 1, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18 },
   // card dos totais
   bloco: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, paddingVertical: 11, paddingHorizontal: 12 },
   blocoExtra: { marginTop: 7 },
   // .okbox
   faixa: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 9 },
   faixaTexto: { flex: 1, fontFamily: fonts.semibold, fontSize: 12.5 },
+  faixaTextos: { flex: 1, gap: 1 },
+  faixaApoio: { fontFamily: fonts.body, fontSize: 12.5 },
   // .tag / .pill
   selo: { alignSelf: 'flex-start', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   seloM: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
