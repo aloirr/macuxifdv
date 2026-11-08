@@ -1,0 +1,3044 @@
+{
+  "info": {
+    "name": "Macuxi FDV — Hub de Integração v1",
+    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`.\n\nGerada de `openapi-hub-v1.json` (OpenAPI 3.1.0, contrato v1) por `docs/exemplos/colecao/gerar-colecao.mjs`. Não edite à mão.\n\nComo usar: importe também o ambiente `macuxi-hub-v1.postman_environment.json`, preencha `chave_conector` e `conector_id` e selecione o ambiente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{chave_conector}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://{{servidor}}/integracao/v1",
+      "description": "Base do Hub (montada a partir de {{servidor}})."
+    },
+    {
+      "key": "lote_id",
+      "value": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+      "description": "Identificador do lote (`lote_id` devolvido pelo `POST /lotes`)."
+    },
+    {
+      "key": "entidade",
+      "value": "produto",
+      "description": "Entidade do contrato."
+    },
+    {
+      "key": "pedido_uuid",
+      "value": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+      "description": "UUID do pedido (`pedido_uuid` de `GET /pedidos/pendentes`)."
+    }
+  ],
+  "item": [
+    {
+      "name": "Lotes",
+      "description": "Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária.",
+      "item": [
+        {
+          "name": "POST /lotes",
+          "description": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).",
+          "item": [
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — vendedor",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "16936778e2106ba4b6b25e5c097fb7b8fe51db66b3ec0fbf01079640315dc988"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"V001\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Vendedor Exemplo\",\n      \"email\": \"vendedor@example.com\",\n      \"telefone\": \"+55 95 3000-0001\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `vendedor` (Vendedores (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": [
+                {
+                  "name": "202 — aceito: Lote recebido (processamento assíncrono)",
+                  "status": "OK",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"status\": \"recebido\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"recebidos\": 1,\n  \"consulta\": \"/integracao/v1/lotes/5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\"\n}"
+                },
+                {
+                  "name": "202 — repetido: Mesma Idempotency-Key e mesmo conteúdo: o lote que já existia (Idempotent-Replay: true)",
+                  "status": "OK",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"status\": \"recebido\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"recebidos\": 1,\n  \"repetido\": true,\n  \"consulta\": \"/integracao/v1/lotes/5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\"\n}"
+                },
+                {
+                  "name": "400 — envelope_invalido: Corpo fora do envelope (todos os problemas voltam juntos)",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"envelope_invalido\",\n  \"mensagem\": \"modo: use \\\"completo\\\" ou \\\"delta\\\".\",\n  \"erros\": [\n    {\n      \"codigo\": \"envelope_invalido\",\n      \"campo\": \"modo\",\n      \"mensagem\": \"modo: use \\\"completo\\\" ou \\\"delta\\\".\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "400 — chave_idempotencia_invalida: Idempotency-Key ausente ou fora do formato",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"chave_idempotencia_invalida\",\n  \"mensagem\": \"O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.\",\n  \"erros\": [\n    {\n      \"codigo\": \"chave_idempotencia_invalida\",\n      \"campo\": \"Idempotency-Key\",\n      \"mensagem\": \"O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "409 — chave_idempotencia_reutilizada: Mesma Idempotency-Key com conteúdo diferente",
+                  "status": "Erro",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"chave_idempotencia_reutilizada\",\n  \"mensagem\": \"A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.\",\n  \"erros\": [\n    {\n      \"codigo\": \"chave_idempotencia_reutilizada\",\n      \"campo\": \"Idempotency-Key\",\n      \"mensagem\": \"A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "413 — corpo_grande: Corpo acima de 8 MiB",
+                  "status": "Erro",
+                  "code": 413,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"corpo_grande\",\n  \"mensagem\": \"O corpo da requisição passa do limite desta rota.\",\n  \"detalhes\": {\n    \"limite_bytes\": 8388608\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — lote_vazio: Sem registros e sem linhas inválidas",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"lote_vazio\",\n  \"mensagem\": \"O lote não tem registros. Envie ao menos um registro.\",\n  \"erros\": [\n    {\n      \"codigo\": \"lote_vazio\",\n      \"campo\": \"registros\",\n      \"mensagem\": \"O lote não tem registros. Envie ao menos um registro.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — acima_do_limite: Mais de 5.000 registros",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acima_do_limite\",\n  \"mensagem\": \"O lote tem 5200 registros e o limite é 5000. Divida em lotes menores (na carga completa, use partes da mesma sessão).\",\n  \"erros\": [\n    {\n      \"codigo\": \"acima_do_limite\",\n      \"campo\": \"registros\",\n      \"mensagem\": \"O lote tem 5200 registros e o limite é 5000. Divida em lotes menores (na carga completa, use partes da mesma sessão).\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — sessao_ausente: Carga completa sem sessão",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"sessao_ausente\",\n  \"mensagem\": \"A carga completa exige \\\"sessao\\\" (id, parte e ultimo).\",\n  \"erros\": [\n    {\n      \"codigo\": \"sessao_ausente\",\n      \"campo\": \"sessao\",\n      \"mensagem\": \"A carga completa exige \\\"sessao\\\" (id, parte e ultimo).\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — entidade_de_outro_conector: A entidade é alimentada por outro Conector da empresa",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"entidade_de_outro_conector\",\n  \"mensagem\": \"A entidade \\\"cliente\\\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.\",\n  \"erros\": [\n    {\n      \"codigo\": \"entidade_de_outro_conector\",\n      \"campo\": \"entidade\",\n      \"mensagem\": \"A entidade \\\"cliente\\\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — cliente",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "270fa216bb745c7b6b0f549af4ca9bd96414a7d162a3a6ae36637d6e1b99cc86"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"C000123\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"C000123\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"razao_social\": \"Mercado Exemplo Ltda\",\n      \"nome_fantasia\": \"Mercado Exemplo\",\n      \"documento\": \"11222333000181\",\n      \"vendedor_external_id\": \"V001\",\n      \"endereco\": {\n        \"logradouro\": \"Rua das Palmeiras\",\n        \"numero\": \"100\",\n        \"bairro\": \"Centro\",\n        \"cidade\": \"Boa Vista\",\n        \"uf\": \"RR\",\n        \"cep\": \"69301000\"\n      },\n      \"latitude\": 2.8235,\n      \"longitude\": -60.6758,\n      \"telefone\": \"+55 95 3000-0002\",\n      \"email\": \"compras@example.com\",\n      \"limite_credito_cents\": 5000000,\n      \"inscricao_estadual\": \"ISENTO\",\n      \"bloqueado\": false,\n      \"contatos\": [\n        {\n          \"nome\": \"Contato Exemplo\",\n          \"cargo\": \"Comprador\",\n          \"telefone\": \"+55 95 3000-0003\",\n          \"email\": \"contato@example.com\"\n        }\n      ],\n      \"prazo_medio_max_dias\": 60,\n      \"formas_pagamento\": [\n        \"BOL\",\n        \"PIX\"\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `cliente` (Clientes (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — produto",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "3f34f221dbd0e17a6ab33b978798dd324ad1d7b42c81da1cd7bebb779bab292e"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"sku\": \"REF-0045\",\n      \"ean\": \"7891234567895\",\n      \"nome\": \"Refrigerante Cola 2 L\",\n      \"marca\": \"Marca Exemplo\",\n      \"categoria\": \"Bebidas\",\n      \"unidade\": \"UN\",\n      \"embalagem_medida\": \"CX\",\n      \"embalagem_quantidade\": 6,\n      \"catalogo_no_external_id\": \"N010\",\n      \"custo_cents\": 450,\n      \"preco_venda_cents\": 790,\n      \"desconto_maximo_pct\": 5\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `produto` (Produtos (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — preco",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "f1bda4a6d8ae97fc2532a12f2323711c626e73b65aa1111638b203eb347b9d71"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"preco\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"TAB01:P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"TAB01:P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"tabela_external_id\": \"TAB01\",\n      \"tabela_nome\": \"Tabela Atacado\",\n      \"vigencia_inicio\": \"2026-11-01\",\n      \"vigencia_fim\": null,\n      \"produto_external_id\": \"P000045\",\n      \"preco_cents\": 790,\n      \"unidade\": \"UN\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `preco` (Preços: um registro por item de tabela (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — estoque",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "4451756eabfc4273ea8e7dfe6b7c04009a91e7e5f4383c94d7c5661a64faa937"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"estoque\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"DEP01:P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"DEP01:P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"deposito_external_id\": \"DEP01\",\n      \"deposito_nome\": \"Depósito Central\",\n      \"produto_external_id\": \"P000045\",\n      \"saldo\": 1250\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `estoque` (Estoque: um registro por depósito e produto (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — titulo",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "d8f39ac59f4ef104192d93c258fe1697a1c032b610bd5d3c0b9f4861e2e2dfe3"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"titulo\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"TIT-2026-5531-1\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"TIT-2026-5531-1\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"numero\": \"5531\",\n      \"parcela\": 1,\n      \"emissao\": \"2026-10-20\",\n      \"vencimento\": \"2026-11-20\",\n      \"valor_cents\": 125000,\n      \"saldo_cents\": 125000,\n      \"situacao\": \"aberto\",\n      \"baixado_em\": null\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `titulo` (Títulos financeiros (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — nota",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "f4dce0d587b49e071a81ef7daf5312226ef3a4cc126f3a01c390ba68426ba207"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"nota\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"NF-1-8841\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"NF-1-8841\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"vendedor_external_id\": \"V001\",\n      \"tipo\": \"faturamento\",\n      \"numero\": \"8841\",\n      \"serie\": \"1\",\n      \"emitida_em\": \"2026-11-05T12:30:00Z\",\n      \"total_cents\": 125000,\n      \"quantidade_itens\": 12,\n      \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n      \"cancelada\": false\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `nota` (Notas fiscais e devoluções (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — rota",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "1f4b582a335b471072f430e2a5abbf51cf4f0281010a5c81359e2a9d59850d67"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"rota\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"R-SEG-01\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"R-SEG-01\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Rota Segunda Centro\",\n      \"vendedor_external_id\": \"V001\",\n      \"dia_semana\": 1,\n      \"paradas\": [\n        {\n          \"ordem\": 1,\n          \"cliente_external_id\": \"C000123\"\n        },\n        {\n          \"ordem\": 2,\n          \"cliente_external_id\": \"C000124\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `rota` (Rotas com as paradas (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — catalogo_no",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "d388f8d8be562a555f8a1c41b446cc0e1d97b67c4fe080ffb2603d6d8584d4c7"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"catalogo_no\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"N010\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"N010\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"codigo\": \"BEB-REF\",\n      \"nome\": \"Refrigerantes\",\n      \"pai_external_id\": \"N001\",\n      \"nivel\": 2,\n      \"ordem\": 1\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `catalogo_no` (Árvore do catálogo (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — produto_unidade",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "debe9306e231f32ec0da685e159e7c8db1ff16a122638bb88bc89969a24a9dae"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"produto_unidade\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045:CX\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"P000045:CX\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"produto_external_id\": \"P000045\",\n      \"unidade\": \"CX\",\n      \"fator\": 6,\n      \"ean\": \"17891234567892\",\n      \"padrao\": false\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `produto_unidade` (Medidas e embalagens do produto (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — cliente_endereco",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "5a06bce359934e1437d87b29e90cd6c934d9a044082e6932590e5160f7ad9fd0"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente_endereco\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"C000123:ENT1\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"C000123:ENT1\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"tipo\": \"entrega\",\n      \"descricao\": \"Depósito dos fundos\",\n      \"logradouro\": \"Avenida das Flores\",\n      \"numero\": \"250\",\n      \"bairro\": \"Industrial\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69313000\",\n      \"principal\": false\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `cliente_endereco` (Endereços de entrega e cobrança do cliente (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — transportadora",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "428321d70ca9ebf8a116b897b8e691871e4515a54520d6914f4e316820cce6cd"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"transportadora\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"T001\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"T001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Transportadora Exemplo\",\n      \"documento\": \"11222333000181\",\n      \"telefone\": \"+55 95 3000-0004\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `transportadora` (Transportadoras (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — forma_pagamento",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "475b5141d8c3c18b2c8c9abd2efb48058eab09edb68a18ead26944fa8afedd14"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"forma_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"FP-BOL\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"FP-BOL\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"codigo\": \"BOL\",\n      \"nome\": \"Boleto\",\n      \"ordem\": 1\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `forma_pagamento` (Formas de pagamento (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — prazo_pagamento",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "2c3ebca7dd0c14cc57b8268140d96a1797ed9da5f34a64b4c1846193a32348ed"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"prazo_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"PZ-30-60-90\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"PZ-30-60-90\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"forma_external_id\": \"FP-BOL\",\n      \"codigo\": \"306090\",\n      \"descricao\": \"30/60/90 dias\",\n      \"parcelas_dias\": [\n        30,\n        60,\n        90\n      ],\n      \"prazo_medio_dias\": 60,\n      \"ordem\": 2\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `prazo_pagamento` (Prazos de pagamento com as parcelas em dias (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — tabela_escalonada",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "afd96a44d72e0dc952af16dd516a1e986d4e3472ef01c768d8fe0134038e805b"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"tabela_escalonada\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"ESC:P000045:CX:12\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"ESC:P000045:CX:12\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"produto_external_id\": \"P000045\",\n      \"medida\": \"CX\",\n      \"quantidade_minima\": 12,\n      \"preco_unidade_cents\": 740,\n      \"vigencia_inicio\": \"2026-11-01\",\n      \"vigencia_fim\": null,\n      \"tabela_external_id\": \"TAB01\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `tabela_escalonada` (Tabela escalonada: preço da unidade por quantidade mínima (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — carga_completa_parte_1",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "ce9184833789c04b7af8e781d101d12a5edd616faa90b6a1362c20da41b70c13"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"completo\",\n  \"sessao\": {\n    \"id\": \"c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635\",\n    \"parte\": 1,\n    \"ultimo\": false\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Vendedor Exemplo\",\n      \"email\": \"vendedor@example.com\",\n      \"telefone\": \"+55 95 3000-0001\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `carga_completa_parte_1` (Carga completa, parte 1 de 2 (sessão aberta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — carga_completa_ultima_parte",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "f2a4da9f7adc775ee9e2f680489a894b3028711c77a34a935aea2db1a2ac06d3"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"completo\",\n  \"sessao\": {\n    \"id\": \"c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635\",\n    \"parte\": 2,\n    \"ultimo\": true\n  },\n  \"enviado_em\": \"2026-11-05T13:47:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V002\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Outro Vendedor Exemplo\",\n      \"email\": null,\n      \"telefone\": null\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `carga_completa_ultima_parte` (Carga completa, última parte (ultimo: true fecha a sessão)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — so_linhas_invalidas",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "6a9624ea8ddef7d2d9a806814a0abd209fc981df0172aaa22e155e9080e32b36"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"modo\": \"delta\",\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [],\n  \"linhas_invalidas\": [\n    {\n      \"external_id\": \"C000999\",\n      \"codigo\": \"campo_obrigatorio\",\n      \"campo\": \"razao_social\",\n      \"mensagem\": \"razao_social está vazio no ERP.\"\n    },\n    {\n      \"external_id\": null,\n      \"codigo\": \"registro_invalido\",\n      \"mensagem\": \"Linha sem código do cliente; não foi possível identificá-la.\"\n    }\n  ],\n  \"linhas_invalidas_omitidas\": 0\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `so_linhas_invalidas` (Lote só com linhas que o Conector recusou (aceito, termina com erros)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "GET /lotes/{id}",
+          "description": "Resultado do lote com os erros por linha.\n\nResultado do lote: status, contagens, erros por linha (as `falha_processamento` primeiro), avisos, cursor e, no último lote de uma carga completa, a situação da inativação.",
+          "item": [
+            {
+              "name": "Resultado do lote com os erros por linha",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/lotes/{{lote_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes",
+                    "{{lote_id}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "limite_erros",
+                      "value": "1000",
+                      "description": "Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500.",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**GET /lotes/{id}** — Resultado do lote com os erros por linha.\n\nResultado do lote: status, contagens, erros por linha (as `falha_processamento` primeiro), avisos, cursor e, no último lote de uma carga completa, a situação da inativação.\n\n- `?limite_erros=`: Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500."
+              },
+              "response": [
+                {
+                  "name": "200 — processando: Ainda em processamento (consulte de novo em alguns segundos)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"status\": \"processando\",\n  \"contagens\": {\n    \"recebidas\": 1,\n    \"duplicadas_no_lote\": 0,\n    \"com_erro\": 0,\n    \"novas\": 0,\n    \"atualizadas\": 0,\n    \"inalteradas\": 0,\n    \"obsoletas\": 0\n  },\n  \"erros\": [],\n  \"avisos\": [],\n  \"cursor\": null,\n  \"inativadas\": 0,\n  \"recebido_em\": \"2026-11-05T13:46:01Z\",\n  \"concluido_em\": null\n}"
+                },
+                {
+                  "name": "200 — concluido: Concluído sem erros; o cursor avançou",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"status\": \"concluido\",\n  \"contagens\": {\n    \"recebidas\": 1,\n    \"duplicadas_no_lote\": 0,\n    \"com_erro\": 0,\n    \"novas\": 1,\n    \"atualizadas\": 0,\n    \"inalteradas\": 0,\n    \"obsoletas\": 0\n  },\n  \"erros\": [],\n  \"avisos\": [],\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045\"\n  },\n  \"erros_total\": 0,\n  \"erros_omitidos\": 0,\n  \"inativadas\": 0,\n  \"recebido_em\": \"2026-11-05T13:46:01Z\",\n  \"concluido_em\": \"2026-11-05T13:46:04Z\"\n}"
+                },
+                {
+                  "name": "200 — concluido_com_erros: Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"entidade\": \"preco\",\n  \"modo\": \"delta\",\n  \"status\": \"concluido_com_erros\",\n  \"contagens\": {\n    \"recebidas\": 5,\n    \"duplicadas_no_lote\": 0,\n    \"com_erro\": 2,\n    \"novas\": 1,\n    \"atualizadas\": 2,\n    \"inalteradas\": 0,\n    \"obsoletas\": 0\n  },\n  \"erros\": [\n    {\n      \"indice\": 3,\n      \"external_id\": \"TAB01:P000044\",\n      \"codigo\": \"referencia_ausente\",\n      \"campo\": \"produto_external_id\",\n      \"mensagem\": \"O campo \\\"produto_external_id\\\" aponta para um produto que ainda não foi carregado. Envie o produto; o Hub reprocessa a linha.\",\n      \"reprocessavel\": true,\n      \"origem\": \"hub\"\n    },\n    {\n      \"indice\": 4,\n      \"external_id\": \"TAB01:P000046\",\n      \"codigo\": \"valor_fora_da_faixa\",\n      \"campo\": \"preco_cents\",\n      \"mensagem\": \"O campo \\\"preco_cents\\\" não pode ser negativo. Corrija no ERP; o registro volta no próximo delta.\",\n      \"reprocessavel\": false,\n      \"origem\": \"hub\"\n    }\n  ],\n  \"avisos\": [\n    {\n      \"indice\": 1,\n      \"external_id\": \"TAB01:P000045\",\n      \"codigo\": \"duplicado_no_lote\",\n      \"mensagem\": \"O external_id aparece mais de uma vez no lote; valeu a última ocorrência.\"\n    }\n  ],\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"TAB01:P000045\"\n  },\n  \"erros_total\": 2,\n  \"erros_omitidos\": 0,\n  \"inativadas\": 0,\n  \"recebido_em\": \"2026-11-05T13:46:01Z\",\n  \"concluido_em\": \"2026-11-05T13:46:06Z\"\n}"
+                },
+                {
+                  "name": "200 — inativacao_aguardando: Última parte de uma carga completa: a trava de 30 % segurou a inativação",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"lote_id\": \"5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1\",\n  \"entidade\": \"cliente\",\n  \"modo\": \"completo\",\n  \"status\": \"concluido\",\n  \"contagens\": {\n    \"recebidas\": 600,\n    \"duplicadas_no_lote\": 0,\n    \"com_erro\": 0,\n    \"novas\": 0,\n    \"atualizadas\": 12,\n    \"inalteradas\": 588,\n    \"obsoletas\": 0\n  },\n  \"erros\": [],\n  \"avisos\": [],\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"C000899\"\n  },\n  \"inativacao\": {\n    \"situacao\": \"aguardando_confirmacao\",\n    \"motivo\": \"excede_limite_inativacao\",\n    \"candidatos\": 412,\n    \"percentual\": 40.7\n  },\n  \"inativadas\": 0,\n  \"recebido_em\": \"2026-11-05T13:46:01Z\",\n  \"concluido_em\": \"2026-11-05T13:47:30Z\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "404 — lote_nao_encontrado: Lote inexistente, de outro Conector ou de outra empresa (não se distingue)",
+                  "status": "Erro",
+                  "code": 404,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"lote_nao_encontrado\",\n  \"mensagem\": \"Lote não encontrado para este Conector. Se o envio foi interrompido, reenvie o lote com a mesma Idempotency-Key.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "GET /cursores/{entidade}",
+          "description": "De onde o Conector continua o delta (cursor nulo = carga inicial completa).\n\nDe onde o Conector continua o delta. `cursor: null` significa que o Hub nunca recebeu a entidade deste Conector: faça a carga inicial completa.",
+          "item": [
+            {
+              "name": "De onde o Conector continua o delta (cursor nulo = carga inicial completa)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/cursores/{{entidade}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "cursores",
+                    "{{entidade}}"
+                  ]
+                },
+                "description": "**GET /cursores/{entidade}** — De onde o Conector continua o delta (cursor nulo = carga inicial completa).\n\nDe onde o Conector continua o delta. `cursor: null` significa que o Hub nunca recebeu a entidade deste Conector: faça a carga inicial completa."
+              },
+              "response": [
+                {
+                  "name": "200 — com_cursor: Delta: continue a partir do cursor",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"entidade\": \"produto\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045\"\n  },\n  \"atualizado_em\": \"2026-11-05T13:46:04Z\"\n}"
+                },
+                {
+                  "name": "200 — sem_cursor: Cursor nulo: nunca recebeu, faça a carga inicial completa",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"entidade\": \"cliente\",\n  \"cursor\": null,\n  \"atualizado_em\": null\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "404 — entidade_desconhecida: Entidade fora da lista",
+                  "status": "Erro",
+                  "code": 404,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"entidade_desconhecida\",\n  \"mensagem\": \"Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "POST /reconciliacoes",
+          "description": "Contagem e soma de controle do dia, por entidade (RN-INT-07).\n\nContagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.",
+          "item": [
+            {
+              "name": "Contagem e soma de controle do dia, por entidade (RN-INT-07) — estoque",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"estoque\",\n  \"data_referencia\": \"2026-11-05\",\n  \"contagem\": 1250,\n  \"soma\": 48230500\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/reconciliacoes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "reconciliacoes"
+                  ]
+                },
+                "description": "**POST /reconciliacoes** — Contagem e soma de controle do dia, por entidade (RN-INT-07).\n\nContagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.\n\nExemplo do OpenAPI: `estoque` (Estoque: contagem e soma de controle (saldo))."
+              },
+              "response": [
+                {
+                  "name": "200 — comparada: Contagem e soma batem",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"situacao\": \"comparada\",\n  \"entidade\": \"estoque\",\n  \"data_referencia\": \"2026-11-05\",\n  \"divergente\": false,\n  \"motivos\": [],\n  \"contagem\": {\n    \"erp\": 1250,\n    \"macuxi\": 1250,\n    \"diferenca\": 0,\n    \"dentro\": true\n  },\n  \"soma\": {\n    \"erp\": 48230500,\n    \"macuxi\": 48230500,\n    \"diferenca\": 0,\n    \"diferenca_pct\": 0,\n    \"dentro\": true\n  }\n}"
+                },
+                {
+                  "name": "200 — divergente: Divergência de contagem (aparece como alerta no monitor)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"situacao\": \"comparada\",\n  \"entidade\": \"cliente\",\n  \"data_referencia\": \"2026-11-05\",\n  \"divergente\": true,\n  \"motivos\": [\n    \"contagem_divergente\"\n  ],\n  \"contagem\": {\n    \"erp\": 842,\n    \"macuxi\": 790,\n    \"diferenca\": 52,\n    \"dentro\": false\n  },\n  \"soma\": null\n}"
+                },
+                {
+                  "name": "400 — requisicao_invalida: Corpo fora do contrato",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"requisicao_invalida\",\n  \"mensagem\": \"Dados inválidos em corpo.\",\n  \"detalhes\": {\n    \"problemas\": [\n      {\n        \"caminho\": \"corpo.data_referencia\",\n        \"mensagem\": \"data deve estar no formato AAAA-MM-DD\"\n      }\n    ]\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — entidade_de_outro_conector: A entidade é alimentada por outro Conector da empresa",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"entidade_de_outro_conector\",\n  \"mensagem\": \"A entidade \\\"cliente\\\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.\",\n  \"erros\": [\n    {\n      \"codigo\": \"entidade_de_outro_conector\",\n      \"campo\": \"entidade\",\n      \"mensagem\": \"A entidade \\\"cliente\\\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Contagem e soma de controle do dia, por entidade (RN-INT-07) — so_contagem",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"data_referencia\": \"2026-11-05\",\n  \"contagem\": 842,\n  \"soma\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/reconciliacoes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "reconciliacoes"
+                  ]
+                },
+                "description": "**POST /reconciliacoes** — Contagem e soma de controle do dia, por entidade (RN-INT-07).\n\nContagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.\n\nExemplo do OpenAPI: `so_contagem` (Entidade só com contagem (soma nula))."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pedidos",
+      "description": "Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento).",
+      "item": [
+        {
+          "name": "GET /pedidos/pendentes",
+          "description": "Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+          "item": [
+            {
+              "name": "Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const p = pm.response.json().pedidos;",
+                      "  if (p.length) { pm.collectionVariables.set('pedido_uuid', p[0].pedido_uuid); }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/pedidos/pendentes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "pendentes"
+                  ],
+                  "query": [
+                    {
+                      "key": "limite",
+                      "value": "50",
+                      "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos devolver por consulta. Padrão 50, máximo 100."
+              },
+              "response": [
+                {
+                  "name": "200 — com_pedido: Um pedido aprovado (o Hub o marca como enviado ao entregar)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"pedidos\": [\n    {\n      \"versao_contrato\": \"v1\",\n      \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n      \"cliente_external_id\": \"C000123\",\n      \"vendedor_external_id\": \"V001\",\n      \"condicao_pagamento_erp\": \"30DD\",\n      \"criado_em\": \"2026-11-05T13:10:00Z\",\n      \"aprovado_em\": \"2026-11-05T13:40:00Z\",\n      \"observacao\": \"Entregar pela manhã.\",\n      \"itens\": [\n        {\n          \"sequencia\": 1,\n          \"produto_external_id\": \"P000045\",\n          \"quantidade\": 24,\n          \"preco_unitario_cents\": 250,\n          \"desconto_cents\": 0,\n          \"total_cents\": 6000,\n          \"unidade\": \"CX\",\n          \"fator\": 6,\n          \"quantidade_venda\": 4\n        },\n        {\n          \"sequencia\": 2,\n          \"produto_external_id\": \"P000051\",\n          \"quantidade\": 10,\n          \"preco_unitario_cents\": 1990,\n          \"desconto_cents\": 900,\n          \"total_cents\": 19000\n        }\n      ],\n      \"desconto_total_cents\": 900,\n      \"total_cents\": 25000,\n      \"tentativa\": 1,\n      \"frete\": {\n        \"modalidade\": \"FOB\",\n        \"transportadora\": {\n          \"tipo\": \"cadastrada\",\n          \"id\": \"8d3c5e7a-1b2f-4c6d-a9e0-4f5a6b7c8d9e\",\n          \"external_id\": \"T001\",\n          \"nome\": \"Transportadora Exemplo\",\n          \"cnpj\": \"11222333000181\"\n        }\n      },\n      \"endereco_entrega\": {\n        \"logradouro\": \"Avenida das Flores\",\n        \"numero\": \"250\",\n        \"bairro\": \"Industrial\",\n        \"cidade\": \"Boa Vista\",\n        \"uf\": \"RR\",\n        \"cep\": \"69313000\",\n        \"principal\": false\n      }\n    }\n  ]\n}"
+                },
+                {
+                  "name": "200 — vazio: Nenhum pedido pendente (normal)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"pedidos\": []\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "POST /pedidos/{pedido_uuid}/retorno",
+          "description": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.",
+          "item": [
+            {
+              "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — integrado",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"integrado\",\n  \"numero_erp\": \"PV-004512\",\n  \"ocorrido_em\": \"2026-11-05T14:02:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/pedidos/{{pedido_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "{{pedido_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `integrado` (Pedido gravado no ERP (informe o número))."
+              },
+              "response": [
+                {
+                  "name": "200 — integrado: Retorno aplicado",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"integrado\",\n  \"repetido\": false\n}"
+                },
+                {
+                  "name": "200 — repetido: Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"integrado\",\n  \"repetido\": true\n}"
+                },
+                {
+                  "name": "200 — itens_descartados: Faturamento aceito; um item não bate com o pedido enviado e foi descartado (P-4)",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_parcial\",\n  \"repetido\": false,\n  \"itens_descartados\": [\n    {\n      \"indice\": 1,\n      \"sequencia\": 9,\n      \"produto_external_id\": \"P000099\",\n      \"quantidade\": 3,\n      \"codigo\": \"sequencia_inexistente\",\n      \"codigos\": [\n        \"sequencia_inexistente\"\n      ],\n      \"campo\": \"itens_faturados[1].sequencia\",\n      \"motivo\": \"O pedido enviado não tem o item de sequência 9. O item foi ignorado; o status do retorno valeu.\"\n    }\n  ]\n}"
+                },
+                {
+                  "name": "400 — requisicao_invalida: Corpo fora do contrato (ou pedido_uuid do caminho diferente do corpo)",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"requisicao_invalida\",\n  \"mensagem\": \"Dados inválidos em corpo.\",\n  \"detalhes\": {\n    \"problemas\": [\n      {\n        \"caminho\": \"corpo.numero_erp\",\n        \"mensagem\": \"informe o número do pedido no ERP\"\n      }\n    ]\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — pedido_desconhecido: O Hub não conhece o pedido",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"pedido_desconhecido\",\n  \"mensagem\": \"O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.\",\n  \"erros\": [\n    {\n      \"codigo\": \"pedido_desconhecido\",\n      \"campo\": null,\n      \"mensagem\": \"O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — transicao_invalida: Estado informado não é possível a partir do estado atual",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"transicao_invalida\",\n  \"mensagem\": \"Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final.\",\n  \"erros\": [\n    {\n      \"codigo\": \"transicao_invalida\",\n      \"campo\": \"status\",\n      \"mensagem\": \"Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "422 — numero_erp_divergente: O mesmo pedido já tem outro número no ERP",
+                  "status": "Erro",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"numero_erp_divergente\",\n  \"mensagem\": \"O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes.\",\n  \"erros\": [\n    {\n      \"codigo\": \"numero_erp_divergente\",\n      \"campo\": \"numero_erp\",\n      \"mensagem\": \"O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes.\"\n    }\n  ],\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",
+                  "status": "Erro",
+                  "code": 426,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"versao_conector_nao_suportada\",\n  \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\",\n  \"erros\": [\n    {\n      \"codigo\": \"versao_conector_nao_suportada\",\n      \"campo\": null,\n      \"mensagem\": \"A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.\"\n    }\n  ],\n  \"detalhes\": {\n    \"versao_minima\": \"1.2.1\"\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — rejeitado_erp",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"rejeitado_erp\",\n  \"motivo\": \"Cliente com bloqueio financeiro no ERP.\",\n  \"ocorrido_em\": \"2026-11-05T14:02:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/pedidos/{{pedido_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "{{pedido_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o pedido (o motivo é obrigatório))."
+              },
+              "response": []
+            },
+            {
+              "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — faturado_parcial",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_parcial\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8841\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-05T16:30:00Z\",\n    \"total_cents\": 6000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 1,\n      \"produto_external_id\": \"P000045\",\n      \"quantidade\": 24,\n      \"valor_cents\": 6000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-05T16:31:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/pedidos/{{pedido_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "{{pedido_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `faturado_parcial` (Faturamento parcial: nota e itens faturados NESTA nota)."
+              },
+              "response": []
+            },
+            {
+              "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — faturado_total",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/pedidos/{{pedido_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "{{pedido_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `faturado_total` (Faturamento total: última nota do pedido)."
+              },
+              "response": []
+            },
+            {
+              "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — cancelado",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"cancelado\",\n  \"motivo\": \"Cancelado pelo cliente.\",\n  \"ocorrido_em\": \"2026-11-06T11:00:00Z\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/pedidos/{{pedido_uuid}}/retorno",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "pedidos",
+                    "{{pedido_uuid}}",
+                    "retorno"
+                  ]
+                },
+                "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `cancelado` (Cancelamento feito no ERP (o Macuxi nunca cancela no ERP))."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Conector",
+      "description": "Sinal de vida e política de versão.",
+      "item": [
+        {
+          "name": "POST /sinal",
+          "description": "Sinal de vida (1 min); responde com a política de versão do tenant.\n\nSinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.",
+          "item": [
+            {
+              "name": "Sinal de vida (1 min); responde com a política de versão do tenant — sinal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"versao_contrato\": \"v1\",\n  \"em\": \"2026-11-05T14:00:00Z\",\n  \"fila\": [\n    {\n      \"estado\": \"pendente\",\n      \"lotes\": 1,\n      \"linhas\": 320,\n      \"maisAntigo\": \"2026-11-05T13:59:10Z\"\n    }\n  ],\n  \"entidades\": [\n    {\n      \"entidade\": \"produto\",\n      \"fase\": \"delta\",\n      \"ultimo_sucesso\": \"2026-11-05T13:58:00Z\",\n      \"bloqueada\": false,\n      \"lotes_na_fila\": 1\n    }\n  ],\n  \"parado_por_versao\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/sinal",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "sinal"
+                  ]
+                },
+                "description": "**POST /sinal** — Sinal de vida (1 min); responde com a política de versão do tenant.\n\nSinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.\n\nExemplo do OpenAPI: `sinal` (Sinal de vida a cada minuto)."
+              },
+              "response": [
+                {
+                  "name": "200 — com_politica: Política de versão vigente para este Conector",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"politica_versao\": {\n    \"versao_minima\": \"1.2.1\",\n    \"versao_recomendada\": \"1.2.1\",\n    \"mensagem\": \"O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.\",\n    \"pacote\": null\n  },\n  \"conector_id\": \"erp-matriz\",\n  \"recebido_em\": \"2026-11-05T14:00:01Z\"\n}"
+                },
+                {
+                  "name": "400 — requisicao_invalida: Corpo fora do contrato",
+                  "status": "Erro",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"requisicao_invalida\",\n  \"mensagem\": \"Dados inválidos em corpo.\",\n  \"detalhes\": {\n    \"problemas\": [\n      {\n        \"caminho\": \"corpo.versao_conector\",\n        \"mensagem\": \"versão deve seguir o formato MAIOR.MENOR.PATCH (ex.: 1.1.0)\"\n      }\n    ]\n  },\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "401 — credencial_invalida: Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                  "status": "Erro",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"credencial_invalida\",\n  \"mensagem\": \"Credencial inválida. Confira a chave de API e o identificador do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — acesso_negado: Conector desativado, IP fora da lista ou sem permissão para a rota",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"acesso_negado\",\n  \"mensagem\": \"Acesso negado para este Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "403 — modulo_inativo: A empresa não tem o módulo Integração ativo",
+                  "status": "Erro",
+                  "code": 403,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"modulo_inativo\",\n  \"mensagem\": \"O módulo Integração não está ativo para esta empresa.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — limite_de_taxa: Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "429 — falhas_de_autenticacao: Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                  "status": "Erro",
+                  "code": 429,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"limite_de_taxa\",\n  \"mensagem\": \"Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "500 — erro_interno: Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                  "status": "Erro",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"erro_interno\",\n  \"mensagem\": \"Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                },
+                {
+                  "name": "503 — servico_indisponivel: Banco ou fila indisponível; repita com backoff",
+                  "status": "Erro",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Retry-After",
+                      "value": "30"
+                    }
+                  ],
+                  "body": "{\n  \"codigo\": \"servico_indisponivel\",\n  \"mensagem\": \"O Hub está indisponível no momento. O Conector tenta de novo sozinho.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
