@@ -108,6 +108,7 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
 
     it('motivo de sistema não é removido, desativado nem muda de código (23514); o de não venda é editável', async () => {
       for (const sql of [
+        // hora-fixa-ok: soft delete, o instante nunca é comparado
         'update core.motivo set deleted_at = now() where id = $1',
         'update core.motivo set ativo = false where id = $1',
         "update core.motivo set codigo = 'outro_codigo' where id = $1",

@@ -88,13 +88,17 @@ export const metaShare = promotor.table('meta_share', {
   meta_pct: numeric('meta_pct', { precision: 5, scale: 2 }).notNull(),
 });
 
+/**
+ * LEGADO desde a 0045 (T-0113, ADR 0034): as marcas passaram para catalogo.marca_concorrente com os mesmos ids; esta tabela fica
+ * SÓ DE LEITURA para o macuxi_app (insert/update revogados = 42501) até a fase 2 (drop, não antes de 2026-12-08).
+ */
 export const concorrente = promotor.table('concorrente', {
   ...comuns(),
   nome: text('nome').notNull(),
   ativo: boolean('ativo').notNull().default(true),
 });
 
-/** Produto do concorrente, comparado com o nosso `produto_id` (RN-PRO-04). */
+/** Produto do concorrente, comparado com o nosso `produto_id` (RN-PRO-04). concorrente_id = id da marca do Catálogo (0045: sem FK). */
 export const produtoConcorrente = promotor.table('produto_concorrente', {
   ...comuns(),
   concorrente_id: uuid('concorrente_id').notNull(),

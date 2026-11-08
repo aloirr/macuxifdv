@@ -122,6 +122,7 @@ describe.skipIf(semBanco())('T-0029: regras garantidas pelo banco (papel de apli
         expect((await tentar(() => ins('INATIVA', false, false))) === null).toBe(true);
         expect((await tentar(() => ins('PAD-INATIVA', true, false)))?.code).toBe('23514');
         // a padrão removida libera outra padrão
+        // hora-fixa-ok: soft delete, o instante nunca é comparado
         await app.query('update vendedor.condicao_pagamento set deleted_at = now(), padrao = false where id = $1', [A.condicoes.avista]);
         expect(await tentar(() => ins('NOVA', true))).toBeNull();
       });

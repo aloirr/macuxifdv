@@ -20,7 +20,11 @@ import { validarNomeBanco } from './config';
 export const SEM_PRIVILEGIO = '42501';
 /** SQLSTATE object_in_use: DROP comum com sessão que não saiu nos 5 s de espera do próprio Postgres. */
 export const BASE_EM_USO = '55006';
-/** Prazo padrão para as sessões que estão saindo sumirem da base. */
+/**
+ * Prazo padrão para as sessões que estão saindo sumirem da base. Fica em 30 s por ora (acima do idleTimeoutMillis de
+ * 10 s do pg.Pool, o que pode esconder um pool sem end()); para não esconder, quem precisa de mais de uma volta avisa no
+ * log (`avisar`). Baixar para 8 s (revisão R-20261106-042954, 🟡 1) fica para depois do build único, com o CI verde.
+ */
 export const PRAZO_APAGAR_MS = 30_000;
 
 /** O que se usa do pg.Client (e o que um cliente falso de teste precisa ter). */
@@ -34,6 +38,8 @@ export interface OpcoesApagarBanco {
   /** Relógio e espera injetáveis (teste sem banco). */
   agora?: () => number;
   esperar?: (ms: number) => Promise<void>;
+  /** Aviso quando o DROP precisou de mais de uma volta (padrão console.warn): mostra no log do CI quem segurou a base. */
+  avisar?: (mensagem: string) => void;
 }
 
 /** Quem ainda está conectado à base (papel, ou o tipo do processo quando não há papel, ex.: autovacuum worker). */
@@ -76,11 +82,23 @@ export async function apagarBancoForcado(c: ClienteSql, nome: string, opcoes: Op
   const agora = opcoes.agora ?? Date.now;
   const esperar = opcoes.esperar ?? ((ms: number) => new Promise<void>((ok) => setTimeout(ok, ms)));
   const limite = agora() + (opcoes.prazoMs ?? PRAZO_APAGAR_MS);
+  const avisar = opcoes.avisar ?? ((m: string) => console.warn(m));
   let semSessaoAntes = false;
+  // voltas com sessão alheia na base e quem estava nela na 1ª: mais de uma volta = alguém demorou a sair (pool sem end()?)
+  let voltas = 0;
+  let quemSegurou: SessaoNaBase[] = [];
+  const pronto = () => {
+    if (voltas > 1)
+      avisar(
+        `apagar ${nome}: a base só caiu depois de ${voltas} voltas; sessões na 1ª: ${descreverSessoes(quemSegurou)}` +
+          ' (conexão de teste não fechada ou pool sem end()?)',
+      );
+  };
   for (let tentativa = 0; ; tentativa += 1) {
     let erro: unknown;
     try {
       await c.query(`drop database if exists ${nome} with (force)`);
+      pronto();
       return;
     } catch (e) {
       if (codigoDe(e) !== SEM_PRIVILEGIO) throw e;
@@ -95,9 +113,12 @@ export async function apagarBancoForcado(c: ClienteSql, nome: string, opcoes: Op
       continue;
     }
     semSessaoAntes = false;
+    if (voltas === 0) quemSegurou = sessoes;
+    voltas += 1;
     try {
       // DROP comum: o Postgres encerra o autovacuum worker sozinho e espera até 5 s quem está saindo, sem sinal do admin
       await c.query(`drop database if exists ${nome}`);
+      pronto();
       return;
     } catch (e) {
       if (codigoDe(e) !== BASE_EM_USO) throw e;
@@ -111,7 +132,7 @@ function comContexto(erro: unknown, nome: string, sessoes: SessaoNaBase[]): Erro
   const msg = erro instanceof Error ? erro.message : String(erro);
   const e = new Error(
     `drop database ${nome}: ${msg} — sessões que o admin sem superusuário não pode encerrar continuam na base: ${descreverSessoes(sessoes)}` +
-      ' (conexão de teste não fechada? feche o cliente/pool antes do apagar())',
+      ' (conexão de teste não fechada ou pool sem end()? feche o cliente/pool antes do apagar())',
     { cause: erro },
   );
   (e as Error & { code?: string }).code = codigoDe(erro);

@@ -5,6 +5,7 @@
  * (descoberta dinâmica de toda tabela com tenant_id); o up/down/up em migracoes.test.ts. Os expurgos rodam numa transação do
  * admin com `set local role macuxi_worker` (o worker não grava nas tabelas; prepara-se o dado antigo como admin).
  */
+import { relogioDoBanco } from '@macuxi/comum/relogio';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -67,6 +68,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
         expect(r.rowCount, h).toBe(0);
       }
       await comA(async () => {
+        // hora-fixa-ok: soft delete, o instante nunca é comparado
         await app.query('update integracao.conector set deleted_at = now() where id = $1', [IA.conector]);
         const r = await app.query('select * from integracao.autenticar_chave($1)', [IA.chave.hash]);
         expect(r.rowCount).toBe(0);
@@ -400,11 +402,13 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
       const x = await comoWorker(
         async (c) => {
           const ev = `insert into plataforma.evento (id, tenant_id, nome, modulo, publicado_em) values ($1, $2, 'integracao.lote.recebido@1', 'integracao', $3)`;
-          await c.query(ev, [P(1), tA, new Date(Date.now() - 31 * 86_400_000)]); // A: 31 dias > 30 (padrão) => sai
-          await c.query(ev, [P(2), tA, new Date(Date.now() - 29 * 86_400_000)]); // A: 29 dias => fica
+          // a retenção é contada pelo now() do banco (expurgar_outbox(now(), …)): os instantes saem do mesmo relógio
+          const relogio = await relogioDoBanco(c);
+          await c.query(ev, [P(1), tA, relogio.relativo({ dias: -31 })]); // A: 31 dias > 30 (padrão) => sai
+          await c.query(ev, [P(2), tA, relogio.relativo({ dias: -29 })]); // A: 29 dias => fica
           await c.query(ev, [P(3), tA, null]); // pendente => nunca sai
           await c.query("insert into plataforma.evento_consumo (tenant_id, consumidor, evento_id) values ($1, 'integracao', $2)", [tA, P(1)]);
-          await c.query(ev, [P(4).replace('9d0c2f4e', 'bbbbbbbb'), tB, new Date(Date.now() - 10 * 86_400_000)]); // B: 10 dias, retenção 3 => mínimo 7 => sai
+          await c.query(ev, [P(4).replace('9d0c2f4e', 'bbbbbbbb'), tB, relogio.relativo({ dias: -10 })]); // B: 10 dias, retenção 3 => mínimo 7 => sai
           await c.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ($1, 'plataforma', 'outbox.retencao_dias', '3')", [tB]);
         },
         async (c) => {

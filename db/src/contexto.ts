@@ -23,6 +23,8 @@ export async function definirTenant(c: ClientBase, tenantId: string): Promise<vo
  */
 export async function comTenant<T>(pool: Pool, tenantId: string, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const c = await pool.connect();
+  // conexão em estado incerto (o ROLLBACK falhou: socket caído, backend encerrado) não volta ao pool: release(erro) a descarta
+  let descartar: Error | undefined;
   try {
     await c.query('begin');
     await definirTenant(c, tenantId);
@@ -30,9 +32,11 @@ export async function comTenant<T>(pool: Pool, tenantId: string, fn: (c: PoolCli
     await c.query('commit');
     return r;
   } catch (e) {
-    await c.query('rollback').catch(() => undefined);
+    await c.query('rollback').catch((erroRollback: unknown) => {
+      descartar = erroRollback instanceof Error ? erroRollback : new Error(String(erroRollback));
+    });
     throw e;
   } finally {
-    c.release();
+    c.release(descartar);
   }
 }

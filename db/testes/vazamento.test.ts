@@ -159,7 +159,9 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
           ),
         );
         expect(e?.code, `${t.nome}: ${e?.message ?? 'INSERT passou!'}`).toBe('42501');
-        expect(e?.message, t.nome).toMatch(/row-level security/);
+        // tabela só de leitura para a aplicação (ex.: promotor.concorrente desde a 0045, ADR 0034): o GRANT barra antes da política
+        const podeInserir = (await app.query<{ p: boolean }>("select has_table_privilege(current_user, $1, 'INSERT') as p", [t.nome])).rows[0]!.p;
+        expect(e?.message, t.nome).toMatch(podeInserir ? /row-level security/ : /permission denied/);
       }
     });
 
