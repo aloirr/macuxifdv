@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { apuracaoDoPedido, statusAtual, vendasApuradas } from './apuracao';
 import { CLIENTE_A, CLIENTE_B, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR, meta } from './fixtures';
 import { aplicarEvento, aplicarEventos, estadoInicial } from './projecao';
+import { vendasDoPeriodo } from './painel';
 
 describe('projeção idempotente dos eventos consumidos (read-model painel_vendedor_dia)', () => {
   it('RF-GES-01: reentrega do mesmo evento_id não muda o estado (dedup por evento)', () => {
@@ -69,6 +70,14 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
     const p = s.pedidos[u(1000)]!;
     expect(apuracaoDoPedido(p, 'aprovado')).toEqual({ conta: true, desde: '2026-10-30T15:00:00Z' });
     expect(apuracaoDoPedido(p, 'faturado')).toEqual({ conta: false, desde: null });
+  });
+
+  it('RN-CORE-21: base aprovado apura na data de EMISSÃO — pedido de 31/10 aprovado em 02/11 é de outubro', () => {
+    const s = montar([pedidoCriado({ total: 10_000, em: '2026-10-31T14:00:00Z' }), statusAlterado({ para: 'aprovado', em: '2026-11-02T15:00:00Z' })]);
+    const [v] = vendasApuradas(s, 'aprovado');
+    expect(v!.apurada_em).toBe('2026-10-31T14:00:00Z');
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-10-01', '2026-10-31')).toMatchObject({ vendas_cents: 10_000, pedidos: 1 });
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-11-01', '2026-11-30')).toMatchObject({ vendas_cents: 0, pedidos: 0 });
   });
 
   it('RN-CORE-21: base faturado só conta com faturado_parcial ou faturado_total', () => {

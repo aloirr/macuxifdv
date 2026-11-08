@@ -171,25 +171,27 @@ describe('RN-GES-02: cliente nunca visitado só alerta depois de PASSAR de 15 di
 });
 
 describe('RF-GES-07: ritmo abaixo da meta', () => {
+  // contas do 14º dia útil em seg–sex (o padrão do tenant é seg–sáb, RN-CORE-26)
+  const SEG_SEX = { dias_uteis_semana: [1, 2, 3, 4, 5] };
   const metaEv = meta(VENDEDOR, '2026-10', 2_200_000, '2026-10-01T08:00:00Z');
   const vende = (total: number, em: string) => [pedidoCriado({ pedido: u(1000 + total), total, em }), statusAlterado({ pedido: u(1000 + total), para: 'aprovado', em })];
 
   it('ritmo 69,23% (< 80%) no 14º dia útil alerta; valor e limiar vão no alerta', () => {
     const s = montar([metaEv, ...vende(900_000, '2026-10-15T15:00:00Z')]);
-    const cs = doTipo(avaliar(s, '2026-10-20T20:00:00Z'), 'ritmo_abaixo_meta');
+    const cs = doTipo(avaliar(s, '2026-10-20T20:00:00Z', { params: SEG_SEX }), 'ritmo_abaixo_meta');
     expect(cs).toHaveLength(1);
     expect(cs[0]).toMatchObject({ chave: `ritmo_abaixo_meta:${VENDEDOR}`, alvo_tipo: 'usuario', valor: 69.23, limiar: 80, responsavel_id: VENDEDOR });
   });
 
   it('ritmo igual ao limite (80%) não alerta; acima também não', () => {
     const s = montar([metaEv, ...vende(1_040_000, '2026-10-15T15:00:00Z')]); // esperado até 19/10 = 1.300.000 → 80%
-    expect(doTipo(avaliar(s, '2026-10-20T20:00:00Z'), 'ritmo_abaixo_meta')).toHaveLength(0);
+    expect(doTipo(avaliar(s, '2026-10-20T20:00:00Z', { params: SEG_SEX }), 'ritmo_abaixo_meta')).toHaveLength(0);
   });
 
   it('antes de 3 dias úteis decorridos a regra não vale (amostra mínima)', () => {
     const s = montar([metaEv]);
-    expect(doTipo(avaliar(s, '2026-10-05T20:00:00Z'), 'ritmo_abaixo_meta')).toHaveLength(0); // 2 decorridos (01/10 e 02/10)
-    expect(doTipo(avaliar(s, '2026-10-06T20:00:00Z'), 'ritmo_abaixo_meta')).toHaveLength(1); // 3 decorridos (01, 02 e 05/10)
+    expect(doTipo(avaliar(s, '2026-10-05T20:00:00Z', { params: SEG_SEX }), 'ritmo_abaixo_meta')).toHaveLength(0); // 2 decorridos (01/10 e 02/10)
+    expect(doTipo(avaliar(s, '2026-10-06T20:00:00Z', { params: SEG_SEX }), 'ritmo_abaixo_meta')).toHaveLength(1); // 3 decorridos (01, 02 e 05/10)
   });
 
   it('sem meta ou sem módulo Vendedor não alerta', () => {

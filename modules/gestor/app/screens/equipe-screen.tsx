@@ -74,7 +74,7 @@ function Resumo({ r, linhas }: { r: ResumoEquipe; linhas: readonly LinhaAgora[] 
     <Cartao testID="gestor-resumo" gap={8} preenchimento={14}>
       <View style={styles.linha}>
         <Indicador rotulo="Em visita" valor={String(n('em_visita'))} cor={colors.success} />
-        <Indicador rotulo="Em rota" valor={String(n('em_rota'))} cor={colors.accent} />
+        <Indicador rotulo="Em rota" valor={String(n('em_rota'))} cor={colors.accentInk} />
       </View>
       <View style={styles.linha}>
         <Indicador rotulo="Parados" valor={String(parados)} cor={parados > 0 ? colors.warningInk : undefined} />
