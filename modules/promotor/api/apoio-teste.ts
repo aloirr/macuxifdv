@@ -4,7 +4,7 @@
  * O pipeline real (login, licença, perfil, Zod, carteira) é do `createApp` (apps/api); aqui se testa o que o módulo faz.
  */
 import type { RelogioDeTeste } from '@macuxi/comum/relogio';
-import type { ContextoBase, ContextoRota, NovoArquivo, Perfil, TransacaoTenant } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, type ContextoBase, type ContextoRota, type NovoArquivo, type Perfil, type TransacaoTenant } from '@macuxi/platform-sdk';
 import type { z } from 'zod';
 import type { ChecklistResposta, ColetaPreco, FotoColeta, GondolaRegistro, MedicaoShare, RupturaItem, TarefaExecucao, VisitaLoja } from '../contracts';
 
@@ -44,7 +44,7 @@ export interface CtxTeste {
   rota<C = unknown, Q = unknown, P = unknown>(e: { corpo?: C; query?: Q; params?: P }): ContextoRota<C, Q, P>;
 }
 
-export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario?: string; perfil?: Perfil; carteira?: ReadonlySet<string> | 'tenant'; usuarios?: ReadonlySet<string> | 'tenant'; parametros?: Record<string, unknown> } = {}): CtxTeste {
+export function criarCtx(relogio: RelogioDeTeste, op: { marcas?: ReadonlyArray<{ id: string; nome: string; ativo: boolean }> | 'indisponivel'; tenant?: string; usuario?: string; perfil?: Perfil; carteira?: ReadonlySet<string> | 'tenant'; usuarios?: ReadonlySet<string> | 'tenant'; parametros?: Record<string, unknown> } = {}): CtxTeste {
   const eventos: EventoPublicado[] = [];
   const arquivos: NovoArquivo[] = [];
   const auditorias: AuditoriaGravada[] = [];
@@ -59,6 +59,13 @@ export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario
       return { criado: true };
     },
     async consultar(def, entrada) {
+      if (def.nome === 'catalogo.marcas@1') {
+        // T-0113 (ADR 0034): marcas concorrentes do Catálogo; 'indisponivel' = Catálogo inativo/ausente no tenant
+        if (op.marcas === 'indisponivel') throw new ConsultaIndisponivel(def.nome, 'catalogo');
+        const { ids, incluir_inativas } = entrada as { ids?: string[]; incluir_inativas?: boolean };
+        const marcas = (op.marcas ?? []).filter((m) => (!ids || ids.includes(m.id)) && (incluir_inativas || m.ativo)).map((m) => ({ ...m, external_id: null }));
+        return { marcas } as never;
+      }
       if (def.nome !== 'core.cadastro_resumo@1') throw new Error(`consulta ${def.nome} não usada pelo Promotor`);
       const ids = (entrada as { cliente_ids?: string[] }).cliente_ids ?? [];
       const clientes = ids.filter((id) => NOMES_LOJA[id]).map((id) => ({ id, razao_social: `${NOMES_LOJA[id]} Ltda`, nome_fantasia: NOMES_LOJA[id]!, documento: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, ativo: true, external_id: null }));

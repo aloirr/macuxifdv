@@ -1,3 +1,4 @@
+import { formatBRL } from '@macuxi/comum/money';
 import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import { FotoColeta, GondolaRegistro, MedicaoShare, RupturaItem, VisitaLoja } from '../../contracts';
@@ -85,6 +86,13 @@ describe('coletas montadas com o domain (válidas pelo contrato)', () => {
     expect(montarPreco({ ...base, preco: '599,00', confirmar_variacao: true })).toMatchObject({ ok: true, coleta: { preco_cents: 59900, variacao_confirmada: true } });
     expect(montarPreco({ ...base, preco: '6,10', confirmar_variacao: false })).toMatchObject({ ok: true, coleta: { variacao_confirmada: false } });
   });
+
+  it('RN-PRO-04: preço digitado 10,90 segue em 1090 centavos até a tela e aparece como R$ 10,90 (não dividido por 100 de novo)', () => {
+    const r = montarPreco({ id: u(48), visita_loja_id: V, produto_id: u(7), preco: '10,90', anterior_cents: null, confirmar_variacao: false, limite_pct: 50, agora: em(7) });
+    expect(r).toMatchObject({ ok: true, coleta: { preco_cents: 1090 } });
+    if (r.ok) expect(formatBRL(r.coleta.preco_cents)).toBe('R$ 10,90');
+  });
+
 
   it('RF-PRO-03: gôndola exige as duas fotos e motivo quando não conforme', () => {
     const base = { id: u(50), visita_loja_id: V, categoria_gondola_id: u(5), foto_referencia_id: null, agora: em(8) };

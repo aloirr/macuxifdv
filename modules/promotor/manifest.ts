@@ -53,8 +53,9 @@ export const manifest = defineModule({
   consome: ['core.visita.checkin@1', 'core.visita.checkout@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
   // ADR 0012: nome da loja nos relatórios do BKO de trade (T-0056)
+  // T-0113 (ADR 0034): promotor.concorrentes@1 está DEPRECADA (sem consumidor; responde sempre ConsultaIndisponivel apontando catalogo.marcas@1, sem ler tabela); sai na fase 2, não antes de 2026-12-08.
   ofereceConsultas: ['promotor.concorrentes@1'],
-  usaConsultas: ['core.cadastro_resumo@1'],
+  usaConsultas: ['core.cadastro_resumo@1', 'catalogo.marcas@1'],
   acoes: {
     // --- coletas (app Macuxi Campo; só com check-in aberto, RN-PRO-02) ---
     'coleta.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar a visita de loja e as fotos da coleta (RN-PRO-02)' },
@@ -71,7 +72,7 @@ export const manifest = defineModule({
     'mix_obrigatorio.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Mix obrigatório por loja, rede ou canal, com vigência (RN-PRO-10)' },
     'meta_share.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Metas de share por loja/categoria, com vigência (RN-PRO-10)' },
     'categoria_gondola.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Categorias de gôndola' },
-    'concorrente.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Concorrentes e seus produtos' },
+    'concorrente.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Produtos do concorrente (as marcas são do Catálogo)' },
     'foto_referencia.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Fotos e planogramas de referência' },
     'checklist_modelo.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Checklists por loja, rede ou canal, com vigência (RN-PRO-10)' },
     'ponto_extra_negociado.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Pontos extras negociados com a loja' },

@@ -14,10 +14,17 @@ export const ROTULO_ABA: Readonly<Record<AbaCadastro, string>> = {
   categorias: 'Categorias',
   metas: 'Metas de share',
   mix: 'Mix de ruptura',
-  concorrentes: 'Concorrentes e produtos',
+  concorrentes: 'Produtos do concorrente',
 };
 
-/** Cadastros de cada aba (a de concorrentes edita dois). */
+/** Cadastros de cada aba (a de concorrentes mostra o aviso das marcas, que são do Catálogo, e edita os produtos). */
+/** Ação do Catálogo que libera o cadastro de marcas concorrentes (ADR 0034); a decisão é do motor de permissões (ADR 0033), não do perfil. */
+export const ACAO_MARCAS = 'marca.gerenciar';
+/** O aviso das marcas só leva ao Catálogo para quem pode gerenciá-las; os demais veem o texto sem o link. */
+export function avisoMarcas(podeGerenciar: boolean): { link: boolean } {
+  return { link: podeGerenciar };
+}
+
 export const CADASTROS_DA_ABA: Readonly<Record<AbaCadastro, readonly CadastroBko[]>> = {
   checklists: ['checklist_loja'],
   categorias: ['categoria_gondola'],

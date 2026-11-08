@@ -6,7 +6,7 @@
  * Sem dado pessoal: as coletas guardam só ids, números, instantes e textos curtos da própria coleta.
  */
 import { ErroHttpModulo, type ClienteBanco } from '@macuxi/platform-sdk';
-import type { CadastroBko } from '../contracts';
+import type { CadastroGravavel as CadastroBko } from '../contracts';
 import type { ColetaDaVisita, UsosCadastro, VisitaLojaGuardada } from '../domain';
 
 export interface SessaoTenant {
@@ -63,7 +63,7 @@ export interface RepositorioPromotor {
   atualizarCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string, dados: Readonly<Record<string, unknown>>, agora: string): Promise<LinhaCadastro>;
   /** Desativação lógica: `deleted_at` (e `ativo = false` onde existe) + `updated_at`. Nunca apaga a linha. */
   desativarCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string, agora: string): Promise<LinhaCadastro>;
-  /** Dependentes VIVOS (`deleted_at` nulo) da categoria ou do concorrente, no tenant (RN-PRO-12); zeros para os demais cadastros. */
+  /** Dependentes VIVOS (`deleted_at` nulo) da categoria, no tenant (RN-PRO-12; a marca concorrente é do Catálogo, ADR 0034); zeros para os demais cadastros. */
   usosDoCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string): Promise<UsosCadastro>;
 }
 
@@ -87,7 +87,7 @@ export function criarRepositorioMemoria(
   const doCadastro = (t: string, c: CadastroBko) => doTenant(cadastros, `${t}|${c}`);
   /** Duplicidade que o banco recusa por índice único entre os vivos (nome sem diferenciar maiúsculas). */
   const duplicado = (t: string, c: CadastroBko, dados: Readonly<Record<string, unknown>>, ignorar: string | null): boolean => {
-    if (c !== 'categoria_gondola' && c !== 'concorrente' && c !== 'produto_concorrente') return false;
+    if (c !== 'categoria_gondola' && c !== 'produto_concorrente') return false;
     const nome = String(dados.nome).trim().toLowerCase();
     return [...doCadastro(t, c).values()].some(
       (l) => l.id !== ignorar && !l.deleted_at && String(l.nome).trim().toLowerCase() === nome && (c !== 'produto_concorrente' || l.concorrente_id === dados.concorrente_id),
@@ -95,7 +95,6 @@ export function criarRepositorioMemoria(
   };
   const MSG_DUP: Partial<Record<CadastroBko, string>> = {
     categoria_gondola: 'Já existe uma categoria com esse nome.',
-    concorrente: 'Já existe um concorrente com esse nome.',
     produto_concorrente: 'Esse concorrente já tem um produto com esse nome.',
   };
   const ordenar = (c: CadastroBko, a: LinhaCadastro, b: LinhaCadastro) =>
@@ -167,7 +166,7 @@ export function criarRepositorioMemoria(
       return {
         metas_share: c === 'categoria_gondola' ? vivos('meta_share', 'categoria_gondola_id') : 0,
         mix_obrigatorio: c === 'categoria_gondola' ? vivos('mix_obrigatorio', 'categoria_gondola_id') : 0,
-        produtos_concorrente: c === 'categoria_gondola' ? vivos('produto_concorrente', 'categoria_gondola_id') : c === 'concorrente' ? vivos('produto_concorrente', 'concorrente_id') : 0,
+        produtos_concorrente: c === 'categoria_gondola' ? vivos('produto_concorrente', 'categoria_gondola_id') : 0,
       };
     },
     definirCategoria(tenant_id, id, nome) {

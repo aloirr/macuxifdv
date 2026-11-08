@@ -27,6 +27,8 @@ import {
   ROTULO_ABA,
   rotuloAlvo,
   rotuloVigencia,
+  ACAO_MARCAS,
+  avisoMarcas,
   TIPOS_ETAPA,
   type AbaCadastro,
   type EtapaForm,
@@ -88,9 +90,7 @@ export function CadastrosTradePage() {
         <input type="checkbox" data-testid="cadastros-trade.desativados" checked={desativados} onChange={(e) => mudar(aba, e.target.checked)} />
         Mostrar desativados
       </label>
-      {CADASTROS_DA_ABA[aba].map((c) => (
-        <SecaoCadastro key={c} cadastro={c} incluirDesativados={desativados} />
-      ))}
+      {CADASTROS_DA_ABA[aba].map((c) => (c === 'concorrente' ? <AvisoMarcas key={c} /> : <SecaoCadastro key={c} cadastro={c} incluirDesativados={desativados} />))}
     </div>
   );
 }
@@ -124,13 +124,27 @@ function Parametro({ rotulo, valor, testid }: { rotulo: string; valor: string; t
   );
 }
 
+/** T-0113 (ADR 0034): as marcas concorrentes são do Catálogo; aqui só o aviso, sem cadastro (a aba de produtos usa a lista). */
+function AvisoMarcas() {
+  const { link } = avisoMarcas(usePode(ACAO_MARCAS));
+  return (
+    <Notice tone="info">
+      <span data-testid="cadastros-trade.aviso-marcas">
+        As marcas concorrentes agora ficam em{' '}
+        {link ? <a className="font-semibold underline" href="/catalogo/marcas" data-testid="cadastros-trade.link-marcas">Catálogo → Marcas concorrentes</a> : 'Catálogo → Marcas concorrentes'}.
+        {link ? ' Cadastre ou inative a marca lá; aqui você cadastra os produtos de cada concorrente.' : ' Peça a quem gerencia o Catálogo para cadastrar ou inativar a marca; aqui você cadastra os produtos de cada concorrente.'}
+      </span>
+    </Notice>
+  );
+}
+
 function SecaoCadastro({ cadastro, incluirDesativados }: { cadastro: CadastroBko; incluirDesativados: boolean }) {
   const fuso = useSession<{ fuso?: string }>().user?.fuso ?? DEFAULT_TZ;
   const pode = usePode(ACAO_CADASTRO[cadastro]);
   const lista = useListaCadastro(cadastro, incluirDesativados);
   // seletores de categoria e de concorrente (nomes também para o CSV e as tabelas)
   const categorias = useListaCadastro('categoria_gondola', false);
-  const concorrentes = useListaCadastro('concorrente', false);
+  const concorrentes = useListaCadastro('concorrente', true); // com inativas: o nome aparece no histórico e no CSV (ADR 0034)
   const nomeCategorias = useMemo(() => new Map((categorias.data ?? []).map((l) => [l.id, String(l.nome)] as const)), [categorias.data]);
   const nomeConcorrentes = useMemo(() => new Map((concorrentes.data ?? []).map((l) => [l.id, String(l.nome)] as const)), [concorrentes.data]);
   const [editando, setEditando] = useState<{ id: string; nova: boolean; form: FormCadastro } | null>(null);
@@ -354,7 +368,7 @@ function FormularioDialog({ cadastro, estado, categorias, concorrentes, aoFechar
   const comAtivo = cadastro === 'categoria_gondola' || cadastro === 'concorrente' || cadastro === 'produto_concorrente';
   const comNome = cadastro !== 'meta_share' && cadastro !== 'mix_obrigatorio';
   const categoriasVivas = categorias.filter((c) => !c.deleted_at);
-  const concorrentesVivos = concorrentes.filter((c) => !c.deleted_at);
+  const concorrentesVivos = concorrentes.filter((c) => !c.deleted_at && c.ativo !== false); // seletor: só marcas ativas
 
   const salvar = () => {
     const p = problemasDoForm(cadastro, f, estado.id);
