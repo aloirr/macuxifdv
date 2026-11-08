@@ -110,7 +110,7 @@ export function ResultadosPage() {
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="resultado.tela">
       <PageHeader
-        eyebrow={<a href="/pesquisas" className="text-accent">← Pesquisas</a>}
+        eyebrow={<a href="/pesquisas" className="text-accent-ink">← Pesquisas</a>}
         title={`Resultados · ${titulo}`}
         subtitle="Respostas no seu escopo: supervisor e gerente veem a equipe; analista e admin, a empresa."
         actions={
