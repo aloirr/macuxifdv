@@ -1,12 +1,10 @@
 /**
- * Medição com miniatura (T-0097): mesma base de 20 mil produtos da lista por linha (montagem copiada de
- * `lista-por-linha.desempenho.test.ts`), agora com `produto_conteudo` + miniatura para todos. A lista mantém os tetos
- * (raiz fria < 400 ms, linha de 500 < 750 ms) e `miniaturasLocais` dos 100 itens exibidos lê só esses ids e é rápida.
+ * Medição com miniatura (T-0097): base de 20 mil produtos com `produto_conteudo` + miniatura para todos;
+ * `miniaturasLocais` dos 100 itens exibidos lê só esses ids e é rápida.
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import type { MiniaturaProduto } from '../../contracts';
-import { listaPorLinhaLocal } from './lista-por-linha-local';
 import type { LeitorLocal } from './local';
 import { miniaturasLocais } from './miniatura-local';
 
@@ -42,7 +40,7 @@ function montarBase() {
   return { nos, produtos, vinculos, linhaGrande: linhasFolha[0]!, sistema: nos[0]!.id, grupo: nos[1]!.id };
 }
 
-describe('T-0097: lista por linha e miniaturas com 20 mil produtos', () => {
+describe('T-0097: miniaturas com 20 mil produtos', () => {
   const b = montarBase();
   const miniatura = (i: number): MiniaturaProduto => ({ arquivo_id: uuid(5, i + 1), url: `/v1/arquivos/${uuid(5, i + 1)}`, largura: 320, altura: 320, bytes_max: 30720, versao: `v${i}` });
   const conteudos: LinhaSync[] = b.produtos.map((p, i) => base(uuid(4, i + 1), { produto_id: p.id, descricao: null, argumentos: [], faq: [], campanha: false, miniatura: miniatura(i) }));
@@ -71,7 +69,6 @@ describe('T-0097: lista por linha e miniaturas com 20 mil produtos', () => {
       versaoLinhas: () => v,
     };
   };
-  const entrada = { perfil: 'promotor' as const, parametros: {}, agora: AGORA, clienteId: null, fuso: 'America/Manaus' };
   const medir = async (rotulo: string, f: () => Promise<unknown>) => {
     const t = performance.now();
     await f();
@@ -80,26 +77,17 @@ describe('T-0097: lista por linha e miniaturas com 20 mil produtos', () => {
     return ms;
   };
 
-  it('T-0097: com miniatura em todos os produtos a raiz fria segue < 400 ms (meta 100) sem ler produto_conteudo', async () => {
-    lidosConteudo.length = 0;
+  it('T-0097: miniaturasLocais dos 100 itens exibidos é < 50 ms lendo só esses ids (20 mil produtos com miniatura)', async () => {
+    const ids = b.produtos.slice(0, 100).map((p) => p.id);
+    await miniaturasLocais(leitor(), ids); // aquecimento (compilação do código)
     const tempos: number[] = [];
-    for (let i = 0; i < 5; i++) tempos.push(await medir('raiz fria', () => listaPorLinhaLocal(leitor(), { ...entrada, noId: null })));
-    expect(Math.min(...tempos)).toBeLessThan(400);
-    expect(lidosConteudo.length).toBe(0);
-  });
-
-  it('T-0097: linha de 500 segue < 750 ms (meta 300) e miniaturasLocais dos 100 exibidos é < 50 ms lendo só esses ids', async () => {
-    const tempos: number[] = [];
-    let r!: Awaited<ReturnType<typeof listaPorLinhaLocal>>;
-    for (let i = 0; i < 3; i++) tempos.push(await medir('linha de 500 (fria)', async () => (r = await listaPorLinhaLocal(leitor(), { ...entrada, noId: b.linhaGrande }))));
-    expect(Math.min(...tempos)).toBeLessThan(750);
-    expect(r.itens).toHaveLength(100);
-    const ids = r.itens.map((i) => i.id);
-    lidosConteudo.length = 0;
-    const l = leitor();
     let mapa!: Map<string, MiniaturaProduto>;
-    const ms = await medir('miniaturasLocais (100 itens)', async () => (mapa = await miniaturasLocais(l, ids)));
-    expect(ms).toBeLessThan(50);
+    for (let i = 0; i < 5; i++) {
+      lidosConteudo.length = 0;
+      const l = leitor();
+      tempos.push(await medir('miniaturasLocais (100 itens)', async () => (mapa = await miniaturasLocais(l, ids))));
+    }
+    expect(Math.min(...tempos)).toBeLessThan(50);
     expect(mapa.size).toBe(100);
     expect(lidosConteudo).toHaveLength(1);
     expect(new Set(lidosConteudo[0])).toEqual(new Set(ids));

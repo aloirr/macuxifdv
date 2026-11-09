@@ -29,7 +29,7 @@ export interface EntradaExportacao {
   vinculos: readonly VinculoProdutoNo[];
   /** produto_id → ids "oferece junto" na ordem do cadastro. */
   ofereceJunto: ReadonlyMap<string, readonly string[]>;
-  /** Marcas do Promotor (RN-CAT-09); vazio/ausente = usa o retrato `marca_nome` da referência. */
+  /** Cadastro de marcas do Catálogo (`catalogo.marca_concorrente`, RN-CAT-09); vazio/ausente = usa o retrato `marca_nome` da referência. */
   marcas?: MapaMarcas;
 }
 

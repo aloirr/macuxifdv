@@ -24,7 +24,7 @@ function ctx() {
   const lidas: string[] = [];
   const linhas = vi.fn(async (entidade: string) => {
     lidas.push(entidade);
-    if (entidade === 'concorrente') throw new Error('Promotor fora de depende');
+    if (entidade === 'concorrente' || entidade === 'marca_concorrente') throw new Error('a consulta não lê marcas: usa o retrato marca_nome');
     return TABELAS[entidade] ?? [];
   });
   const versaoLinhas = vi.fn(() => 1);
@@ -46,6 +46,7 @@ describe('catalogo.busca_produtos@1 no aparelho', () => {
     expect(JSON.stringify(itens.find((i) => i.produto_id === P1)?.serve_em)).toMatch(/Uno/i);
     expect(lidas).toContain('produto');
     expect(lidas).not.toContain('concorrente');
+    expect(lidas).not.toContain('marca_concorrente');
   });
 
   it('RN-CAT-11: "pastilha uno 2015" não acha a pastilha do Uno (aplicação só até 2013)', async () => {
@@ -54,7 +55,7 @@ describe('catalogo.busca_produtos@1 no aparelho', () => {
     expect(itens.map((i) => i.produto_id)).not.toContain(P1);
   });
 
-  it('RN-CAT-09: o "Equivale a" usa a marca do retrato da referência, sem o cadastro do Promotor', async () => {
+  it('RN-CAT-09: o "Equivale a" usa a marca do retrato da referência, sem o cadastro de marcas', async () => {
     const { c } = ctx();
     const { itens } = await buscar(c, 'N-123');
     expect(JSON.stringify(itens.find((i) => i.produto_id === P1)?.equivale_a)).toMatch(/Cobreq/);

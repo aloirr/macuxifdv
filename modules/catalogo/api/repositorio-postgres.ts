@@ -293,12 +293,12 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       if (c.referencias !== undefined) await db.query(`update catalogo.produto_referencia set deleted_at = now() where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       let ordem = 1;
       // retrato do nome da marca (0034): a rota já validou o marca_id contra o cadastro de marcas
-      const marcasDoPromotor = (c.referencias ?? []).length > 0 ? await resolverMarcas(tx, db) : new Map<string, { nome: string; ativo: boolean }>();
+      const marcasDoCadastro = (c.referencias ?? []).length > 0 ? await resolverMarcas(tx, db) : new Map<string, { nome: string; ativo: boolean }>();
       for (const ref of c.referencias ?? []) {
         await db.query(
           `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
            values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int, $6)`,
-          [produtoId, ref.marca_id, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++, marcasDoPromotor.get(ref.marca_id)?.nome.trim().slice(0, 120) || null],
+          [produtoId, ref.marca_id, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++, marcasDoCadastro.get(ref.marca_id)?.nome.trim().slice(0, 120) || null],
         );
       }
       // oferece junto: relação complementar, até 5, na ordem recebida

@@ -2,6 +2,7 @@
  * Formulários do BKO de conteúdo (RF-CAT-07), puros e testáveis: texto da tela ↔ contrato. A API revalida tudo
  * (Zod + domain); aqui só a conversão com mensagem em português.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
 import { LIMITES_CADASTRO_CATALOGO, validarCadastroCatalogo } from '../../domain/cadastro-catalogo';
 
@@ -156,8 +157,6 @@ export function sinonimoDoForm(f: FormSinonimo): ResultadoForm<SalvarSinonimo> {
   return { ok: true, valor: r.data };
 }
 
-/** BOM para o Excel abrir em UTF-8 sem perguntar. */
-const BOM = '﻿';
 const celula = (v: string | number | null | undefined) => {
   const s = v === null || v === undefined ? '' : String(v);
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -167,29 +166,30 @@ const celula = (v: string | number | null | undefined) => {
 export function produtosParaCsv(itens: readonly ItemVitrine[]): string {
   const cab = ['Código', 'Produto', 'Marca', 'Categoria', 'Unidade', 'EAN', 'Destaque'];
   const corpo = itens.map((i) => [i.erp_code, i.description, i.brand, i.line, i.unit, i.ean ?? '', i.is_campaign ? 'Sim' : 'Não']);
-  return BOM + [cab, ...corpo].map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + [cab, ...corpo].map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
 }
 
 export type AbaBko = 'produtos' | 'sinonimos' | 'sem-resultado';
 export interface FiltrosBko {
   aba: AbaBko;
   q: string;
-  linha: string;
+  /** Nível da hierarquia aberto (RF-CAT-09): id do nível ou `sem-linha`; vazio = começo. */
+  no: string;
 }
 const ABAS: readonly AbaBko[] = ['produtos', 'sinonimos', 'sem-resultado'];
 
-/** Filtros na URL (`?aba=&q=&linha=`), para o link da tela abrir no mesmo lugar. */
+/** Filtros na URL (`?aba=&q=&no=`; o filtro "Categoria" saiu: a hierarquia o substitui), para o link da tela abrir no mesmo lugar. */
 export function lerFiltrosBko(busca: string): FiltrosBko {
   const p = new URLSearchParams(busca);
   const aba = p.get('aba') as AbaBko | null;
-  return { aba: aba && ABAS.includes(aba) ? aba : 'produtos', q: p.get('q') ?? '', linha: p.get('linha') ?? '' };
+  return { aba: aba && ABAS.includes(aba) ? aba : 'produtos', q: p.get('q') ?? '', no: p.get('no') ?? '' };
 }
 
 export function buscaDosFiltros(f: FiltrosBko): string {
   const p = new URLSearchParams();
   if (f.aba !== 'produtos') p.set('aba', f.aba);
   if (f.q) p.set('q', f.q);
-  if (f.linha) p.set('linha', f.linha);
+  if (f.no) p.set('no', f.no);
   const s = p.toString();
   return s ? `?${s}` : '';
 }

@@ -1,4 +1,5 @@
 /** Layout do catálogo exportado (RF-CAT-09): funções puras, sem DOM. */
+import { NO_SEM_LINHA } from '../../domain/hierarquia';
 import { MAX_APLICACAO, MAX_OFERECE_JUNTO, MAX_REFERENCIAS, type DadosExportacao } from './formato';
 
 export const COLUNAS = ['Código', 'Aplicação', 'Oferece junto', 'Equivale a'] as const;
@@ -30,7 +31,30 @@ export function sistemasDisponiveis(dados: DadosExportacao): string[] {
   return [...s].sort((a, b) => cmpNulos(a, b, SEM_SISTEMA));
 }
 
-export function montarCatalogo(dados: DadosExportacao, opcoes: { sistema?: string } = {}): Catalogo {
+/** Recorte da exportação: o nível aberto na hierarquia (RF-CAT-09 "exportação por sistema/linha"); vazio = catálogo inteiro. */
+export interface EscopoExportacao {
+  sistema?: string;
+  grupo?: string;
+  linha?: string;
+}
+
+/** Escopo do nível aberto: a trilha dá sistema › grupo › linha (os que existirem); "Sem classificação" = produtos sem sistema. */
+export function escopoDoNivel(h: { trilha: readonly { nome: string }[]; no: string | null } | undefined): EscopoExportacao {
+  if (!h) return {};
+  if (h.no === NO_SEM_LINHA) return { sistema: SEM_SISTEMA };
+  const [sistema, grupo, linha] = h.trilha.map((n) => n.nome);
+  return { ...(sistema ? { sistema } : {}), ...(grupo ? { grupo } : {}), ...(linha ? { linha } : {}) };
+}
+
+/** "Freios › Pastilhas › Cerâmica" (só o que existe); `null` = catálogo inteiro. */
+export const rotuloDoEscopo = (e: EscopoExportacao): string | null => [e.sistema, e.grupo, e.linha].filter(Boolean).join(' › ') || null;
+
+/** Coluna "Caminho" da busca no BKO: "Sistema › Grupo › Linha", só com o que o produto tem; sem hierarquia, "Sem classificação". */
+export function caminhoDoProduto(h: { sistema: string | null; grupo: string | null; linha: string | null } | undefined): string {
+  return [h?.sistema, h?.grupo, h?.linha].map((x) => x?.trim()).filter(Boolean).join(' › ') || 'Sem classificação';
+}
+
+export function montarCatalogo(dados: DadosExportacao, opcoes: EscopoExportacao = {}): Catalogo {
   const porId = new Map(dados.produtos.map((p) => [p.id, p]));
   const marcas = new Map(dados.marcas.map((m) => [m.id, m.nome]));
   const secoes = new Map<string, SecaoCatalogo>();
@@ -38,7 +62,9 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: { sistema?: strin
     const sistema = nome(p.hierarquia.sistema, SEM_SISTEMA);
     if (opcoes.sistema && sistema !== opcoes.sistema) continue;
     const grupo = nome(p.hierarquia.grupo, SEM_GRUPO);
+    if (opcoes.grupo && grupo !== opcoes.grupo) continue;
     const linha = nome(p.hierarquia.linha, SEM_LINHA);
+    if (opcoes.linha && linha !== opcoes.linha) continue;
     const chave = JSON.stringify([sistema, grupo, linha]);
     let sec = secoes.get(chave);
     if (!sec) secoes.set(chave, (sec = { sistema, grupo, linha, itens: [] }));
@@ -51,7 +77,7 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: { sistema?: strin
         .filter((c): c is string => !!c)
         .slice(0, MAX_OFERECE_JUNTO),
       equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => {
-        // marca ativa do cadastro do Promotor; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
+        // marca ativa do cadastro de marcas do Catálogo; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
         const m = marcas.get(r.marca_id) ?? r.marca_nome?.trim();
         return m ? `${m} ${r.codigo}` : r.codigo;
       }),

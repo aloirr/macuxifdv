@@ -1,4 +1,5 @@
 /** PDF do catálogo (RF-CAT-09): HTML A4 para `imprimirHtml`. Tudo escapado. */
+import { semAcento } from '../../domain/texto';
 import { COLUNAS, sumario, type Catalogo } from './layout';
 
 export function escapeHtml(v: string): string {
@@ -19,15 +20,14 @@ function partesData(iso: string, tz: string) {
 }
 
 const slug = (v: string) =>
-  v
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+  semAcento(v)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-export function nomeArquivoCatalogo(opc: { sistema?: string; tz: string; gerado_em: string }): string {
-  const s = opc.sistema ? slug(opc.sistema) || 'completo' : 'completo';
+/** `escopo` = o nível exportado (a linha, ou o grupo, ou o sistema); sem ele, o catálogo inteiro. */
+export function nomeArquivoCatalogo(opc: { escopo?: string; tz: string; gerado_em: string }): string {
+  const s = opc.escopo ? slug(opc.escopo) || 'completo' : 'completo';
   return `catalogo-${s}-${partesData(opc.gerado_em, opc.tz).dia}`;
 }
 

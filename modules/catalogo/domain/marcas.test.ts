@@ -1,4 +1,4 @@
-/** RN-CAT-09 (marca da referência vem do cadastro de concorrentes do Promotor) e RN-CAT-11 (oferece junto por código). */
+/** RN-CAT-09 (marca da referência vem de Marcas concorrentes) e RN-CAT-11 (oferece junto por código). */
 import { describe, expect, it } from 'vitest';
 import { marcasDesconhecidasDaLinha, nomeMarcaDaReferencia, resolverCodigosOfereceJunto, resolverReferenciasDoErp, validarMarcasDaReferencia } from './marcas';
 
@@ -11,7 +11,7 @@ const marcas = new Map([
 ]);
 
 describe('validarMarcasDaReferencia', () => {
-  it('RN-CAT-09: marca ativa do Promotor passa', () => {
+  it('RN-CAT-09: marca ativa do cadastro do Catálogo passa', () => {
     expect(validarMarcasDaReferencia([{ marca_id: M1 }], marcas)).toEqual([]);
   });
   it('RN-CAT-09: marca desconhecida e marca inativa são recusadas no campo referencias', () => {
@@ -86,7 +86,7 @@ describe('resolverCodigosOfereceJunto', () => {
 });
 
 describe('RN-CAT-09: nome da marca da referência (retrato marca_nome da 0034)', () => {
-  it('RN-CAT-09: com o cadastro do Promotor disponível, vale o nome atual da marca ativa (renomeou, mostra o novo)', () => {
+  it('RN-CAT-09: com o cadastro de marcas do Catálogo disponível, vale o nome atual da marca ativa (renomeou, mostra o novo)', () => {
     expect(nomeMarcaDaReferencia(M1, 'Nome antigo', marcas)).toBe('Freiomax');
   });
   it('RN-CAT-09: com o cadastro disponível, marca inativa ou ausente esconde a referência, mesmo com retrato', () => {

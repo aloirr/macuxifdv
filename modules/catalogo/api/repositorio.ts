@@ -59,8 +59,7 @@ export interface RepositorioCatalogo {
   /** T-0085: "oferece junto" (até 5, relação complementar viva e ativa) e etiquetas do produto, para a ficha. */
   extrasFicha(produtoId: string): Promise<{ ofereceJunto: OfereceJunto[]; etiquetas: string[] }>;
   /**
-   * RN-CAT-09: marcas concorrentes do tenant, do cadastro do Promotor (contrato do Promotor; sem ler a tabela dele).
-   * Tenant sem a licença do Promotor: mapa vazio (a referência não é gravada nem aparece).
+   * RN-CAT-09: marcas concorrentes do tenant, do cadastro do Catálogo (RN-CAT-13, ADR 0034), com ou sem o Promotor.
    */
   marcasConcorrentes(): Promise<Map<string, { nome: string; ativo: boolean }>>;
   /** RN-CAT-13 (T-0113): todas as marcas vivas, inclusive inativas, com a contagem de referências vivas; ordem `lower(nome), id`. */
@@ -90,7 +89,7 @@ export interface RepositorioCatalogo {
   removerFaixa(id: string): Promise<boolean>;
 }
 
-/** Marca do cadastro de concorrentes com o número de referências vivas que a usam. */
+/** Marca concorrente (Marcas concorrentes) com o número de referências vivas que a usam. */
 export interface MarcaGuardada {
   id: string;
   nome: string;

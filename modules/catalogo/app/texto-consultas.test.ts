@@ -39,7 +39,7 @@ describe('aplicacoesDosProdutos', () => {
   });
 });
 
-describe('referenciasDoRetrato (RN-CAT-09: sem o cadastro do Promotor no aparelho, vale o marca_nome)', () => {
+describe('referenciasDoRetrato (RN-CAT-09: sem o cadastro de marcas no aparelho, vale o marca_nome)', () => {
   const ref = (produto_id: string, ordem: number, marca_nome: string | null | undefined, deleted_at: string | null = null) => ({ id: `r-${produto_id}-${ordem}`, produto_id, marca_id: '00000000-0000-4000-8000-0000000000a1', codigo: `CB ${ordem}`, ordem, marca_nome, deleted_at });
   const ctxRef = (linhas: unknown[]) => ({ linhas: vi.fn(async () => linhas) }) as unknown as ContextoConsultaAparelho;
 
