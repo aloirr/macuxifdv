@@ -46,9 +46,21 @@ export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null):
 
 // ---------- Recados ----------
 
-/** Só navega para link interno de módulo (`/m/<caminho>`); o resto abre a central de notificações. */
-export function destinoDaNotificacao(link: string | null): string {
-  return link && /^\/m\/[a-z0-9-]+/.test(link) ? link : '/m/notificacoes';
+/** Caminho da tela de um link interno (`/m/rota?x=1` → `rota`); null fora do padrão `/m/<caminho>`. */
+export function caminhoDoLink(link: string | null | undefined): string | null {
+  if (!link || !/^\/m\/[a-z0-9-]+/.test(link)) return null;
+  return link.slice(3).split(/[?#]/)[0] ?? null;
+}
+
+/**
+ * Só navega para link interno de módulo (`/m/<caminho>`) cuja tela existe na visão do usuário (`telaExiste`, ligado a
+ * `visao.pagina`); o resto abre a central de notificações. Link com tela inexistente (ex.: `/m/core-rota` gravado no
+ * recado) caía em "Esta tela não está disponível para o seu perfil…" (relato do dono do produto, 08/11).
+ */
+export function destinoDaNotificacao(link: string | null, telaExiste?: (caminho: string) => boolean): string {
+  const caminho = caminhoDoLink(link);
+  if (!link || !caminho) return '/m/notificacoes';
+  return !telaExiste || telaExiste(caminho) ? link : '/m/notificacoes';
 }
 
 /** Selo do bloco: "3 novos" · "1 novo" · nada com tudo lido. */

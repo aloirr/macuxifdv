@@ -25,6 +25,7 @@ import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobi
 import { AreaSeguraSuperior } from '@/components/area-segura';
 import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
+import { TelaDeErroDaRaiz } from '@/components/tela-de-erro';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
@@ -45,6 +46,9 @@ const theme = {
     border: colors.line,
   },
 };
+
+/** Erro fora das telas de módulo (abertura, carga inicial, abas): tela de erro em vez de fechar o app (relato de 08/11). */
+export const ErrorBoundary = TelaDeErroDaRaiz;
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

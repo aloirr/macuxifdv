@@ -1048,7 +1048,7 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
     'core.notificacao': [
       ...Object.values(A.usuarios).map((usuario_id, i) => notificacao(a('notificacao', i + 1), tA, usuario_id, usuario_id === A.usuarios.admin ? { lida_em: DATA_FIXA_ACESSO } : {})),
       notificacao(a('notificacao', 9), tA, A.usuarios.vendedor1, {
-        tipo: 'recado', titulo: 'Visite o Auto Peças Três', corpo: 'Cliente com título vencendo hoje: confirme o pagamento na visita.', link: '/m/core-rota',
+        tipo: 'recado', titulo: 'Visite o Auto Peças Três', corpo: 'Cliente com título vencendo hoje: confirme o pagamento na visita.', link: '/m/rota',
         origem_modulo: 'core', envio_id: a('notificacao', 109), autor_id: A.usuarios.supervisor, prioridade: 'alta',
       }),
       ...Object.values(B.usuarios).map((usuario_id, i) => notificacao(b('notificacao', i + 1), tB, usuario_id)),

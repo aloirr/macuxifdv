@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   avisoDosDados,
+  caminhoDoLink,
   dataDoCabecalho,
   desenhoDaLinha,
   desenhoMetaDoMes,
@@ -129,6 +130,15 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
     expect(destinoDaNotificacao('/m/pedido?id=1')).toBe('/m/pedido?id=1');
     expect(destinoDaNotificacao('https://fora.com')).toBe('/m/notificacoes');
     expect(destinoDaNotificacao(null)).toBe('/m/notificacoes');
+  });
+  it('link para tela que não existe na visão do usuário vai à central (recado com /m/core-rota)', () => {
+    const telas = new Set(['rota', 'clientes', 'notificacoes']);
+    const existe = (c: string) => telas.has(c);
+    expect(destinoDaNotificacao('/m/core-rota', existe)).toBe('/m/notificacoes');
+    expect(destinoDaNotificacao('/m/rota', existe)).toBe('/m/rota');
+    expect(destinoDaNotificacao('/m/rota?data=2026-11-08', existe)).toBe('/m/rota?data=2026-11-08');
+    expect(caminhoDoLink('/m/cliente?id=1#x')).toBe('cliente');
+    expect(caminhoDoLink('/x/rota')).toBeNull();
   });
 });
 

@@ -3,6 +3,7 @@
  * interno, navega. testIDs: docs/modulos/core/test-ids.md. Alvos de toque >= 48 dp.
  */
 import { Cartao, ChipEstado, colors, EstadoVazio, Screen, type as t } from '@macuxi/ui/mobile';
+import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
@@ -13,10 +14,11 @@ import { useNotificacoes } from '../lib/usar-notificacoes';
 export function TelaNotificacoes() {
   const core = useCore();
   const { caixa, naoLidas, marcarLida, carregado } = useNotificacoes();
+  const visao = useVisaoShell();
 
   const abrir = (n: NotificacaoLocal) => {
     void marcarLida(n.id);
-    const destino = linkNavegavel(n.link);
+    const destino = linkNavegavel(n.link, (c) => visao.pagina(c) !== null);
     if (destino) router.navigate(destino as never);
   };
 

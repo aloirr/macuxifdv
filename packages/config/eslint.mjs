@@ -5,6 +5,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
 import { ARQUIVOS_DE_TESTE, pluginMacuxi } from './regras/hora-fixa.mjs';
 
 export const macuxiEslint = tseslint.config(
@@ -40,6 +41,14 @@ export const macuxiEslint = tseslint.config(
         },
       ],
     },
+  },
+  {
+    // Regra dos hooks do React (relato de 08/11): hook depois de `return` antecipado no Novo pedido derrubava o app no
+    // aparelho (o build de produção não tem tela de erro: o React lança e o Android fecha o app). Só a `rules-of-hooks`;
+    // a `exhaustive-deps` fica de fora (as telas escolhem as dependências de propósito).
+    files: ['**/*.tsx', '**/*.jsx'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: { 'react-hooks/rules-of-hooks': 'error' },
   },
   {
     // T-0043 (ADR 0015): teste não mistura instante fixo com o relógio real. AVISO até virar erro (data no ADR);

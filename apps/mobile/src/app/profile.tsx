@@ -33,18 +33,20 @@ import {
 } from '@macuxi/ui/mobile';
 import Constants from 'expo-constants';
 import { Redirect, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
+import { textoDoUltimoErro, type ErroRegistrado } from '@/lib/erro-de-tela';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
+import { lerUltimoErro } from '@/services/erros';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function ProfileScreen() {
@@ -58,6 +60,16 @@ export default function ProfileScreen() {
   const auto = useAtualizacaoAutomatica();
   const falha = app.falhaSync;
   const segundoPlano = app.segundoPlano;
+  // relato de 08/11: o último erro que teria fechado o app (tela de erro ou fatal), lido ao abrir o Diagnóstico
+  const [ultimoErro, setUltimoErro] = useState<ErroRegistrado | null>(null);
+  useEffect(() => {
+    if (!diagnosticoAberto) return;
+    let vivo = true;
+    void lerUltimoErro().then((r) => vivo && setUltimoErro(r));
+    return () => {
+      vivo = false;
+    };
+  }, [diagnosticoAberto]);
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
@@ -288,6 +300,9 @@ export default function ProfileScreen() {
               {segundoPlano
                 ? `Última sincronização em segundo plano: ${dateTimeLabel(segundoPlano.quando, new Date(), tz)} · ${textoDoResultado(segundoPlano)}`
                 : 'Nenhuma sincronização em segundo plano registrada neste aparelho.'}
+            </Text>
+            <Text selectable style={styles.mono} testID="diagnostico-ultimo-erro">
+              {textoDoUltimoErro(ultimoErro, (iso) => dateTimeLabel(iso, new Date(), tz))}
             </Text>
             {estado.avisos.length > 0 ? (
               <Text selectable style={styles.mono}>

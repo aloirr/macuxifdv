@@ -73,6 +73,14 @@ export default function OrderDetailScreen() {
   const [deleting, setDeleting] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState<OrderPdfView | null>(null);
+  // tentativa de PDF em andamento (fechar a folha ou sair da tela encerra; ver `exportPdfFor`)
+  const tentativaPdf = useRef(0);
+  useEffect(
+    () => () => {
+      tentativaPdf.current += 1;
+    },
+    [],
+  );
   /** RN-VEN-18: o que mudou desde o orçamento; o vendedor confirma antes de transformar */
   const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number } | null>(null);
   /** desenho §1.5: a folha do Transformar abre sempre (toque 1); o envio é o toque 2 */
@@ -329,7 +337,20 @@ export default function OrderDetailScreen() {
     };
   };
 
+  /**
+   * Relato de 08/11 ("ao clicar duas vezes em gerar ele fica só gerando"): a geração vale enquanto a folha está aberta. Cada
+   * toque é uma tentativa; fechar a folha (ou sair da tela) encerra a tentativa: "Gerando…" some na hora, o resultado que
+   * chegar depois é ignorado e o compartilhar não abre. Reabrir a folha começa do zero.
+   */
+  const fecharPdf = () => {
+    tentativaPdf.current += 1;
+    setPdfBusy(null);
+    setSheetError(null);
+    setSheet(null);
+  };
   const exportPdfFor = async (view: OrderPdfView) => {
+    const minha = ++tentativaPdf.current;
+    const vigente = () => tentativaPdf.current === minha;
     setPdfBusy(view);
     setSheetError(null);
     try {
@@ -340,12 +361,12 @@ export default function OrderDetailScreen() {
         tz,
         generated_at: new Date().toISOString(),
       });
-      await exportPdf(html, orderPdfFileName(number, view, pdfOrder().tipo));
-      setSheet(null);
+      const r = await exportPdf(html, orderPdfFileName(number, view, pdfOrder().tipo), () => !vigente());
+      if (r.kind !== 'cancelado' && vigente()) setSheet(null);
     } catch (e) {
-      setSheetError(errorMessage(e));
+      if (vigente()) setSheetError(errorMessage(e));
     } finally {
-      setPdfBusy(null);
+      if (vigente()) setPdfBusy(null);
     }
   };
 
@@ -722,7 +743,7 @@ export default function OrderDetailScreen() {
       <Text style={[t.small, { textAlign: 'center' }]} testID="order-sync-rodape">
         {auto.rodape}
       </Text>
-      <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />
+      <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={fecharPdf} onPick={(v) => void exportPdfFor(v)} />
     </ScrollView>
     <AvisoRapido aviso={sheets.aviso} />
     </View>

@@ -981,7 +981,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   const notificacoes: Linha[] = [
     notificacao('recado-vendedor', 'vendedor', {
       tipo: 'recado', titulo: 'Prioridade', corpo: 'Passe cedo no Mercadinho São Jorge: tem título vencido e o pedido de ontem aguarda aprovação.',
-      link: '/m/core-rota', envio_id: id('notificacao-envio:recado-vendedor'), autor_id: u('supervisor'), prioridade: 'alta',
+      link: '/m/rota', envio_id: id('notificacao-envio:recado-vendedor'), autor_id: u('supervisor'), prioridade: 'alta',
     }),
     notificacao('aprovacoes-supervisor', 'supervisor', {
       tipo: 'pedido', titulo: '2 pedidos aguardando aprovação', corpo: 'Lucas Andrade e Camila Freitas enviaram pedidos com desconto acima da alçada.',

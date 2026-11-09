@@ -427,6 +427,22 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     };
   }, [chaveDosTextos, lerTextos]);
 
+  /**
+   * T-0089 / T-0137: `fn` de `depoisDeConfirmar` roda depois do render que já tem o rascunho novo. Estes hooks ficam ANTES dos
+   * `return` antecipados (regra dos hooks): depois deles, o render que saía cedo ("Cliente não encontrado") e o seguinte tinham
+   * número diferente de hooks, o React lançava e o app fechava ao tocar em "Novo pedido" (relato do dono do produto, 08/11).
+   */
+  const [rodadaDeConfirmar, setRodadaDeConfirmar] = useState(0);
+  const aposConfirmar = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const fn = aposConfirmar.current;
+    aposConfirmar.current = null;
+    fn?.();
+  }, [rodadaDeConfirmar]);
+
+  // o `useVendedor` daqui é outra instância (começa vazia): até ler o aparelho, carregando — não "Cliente não encontrado"
+  if (!app.carregado) return <Loading />;
+
   if (editId && (!dados.rascunhos[draftKey] || !editTarget)) {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20, gap: 8 }]}>
@@ -552,13 +568,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
    * em seguida; `fn` roda depois do render que já tem o rascunho novo (sem `setTimeout`, que dependia de o aparelho ser rápido).
    * `saveEditRef` e `sendRef` são lidos nesse momento, então salvam a versão nova.
    */
-  const [rodadaDeConfirmar, setRodadaDeConfirmar] = useState(0);
-  const aposConfirmar = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    const fn = aposConfirmar.current;
-    aposConfirmar.current = null;
-    fn?.();
-  }, [rodadaDeConfirmar]);
   const depoisDeConfirmar = (fn: () => void) => {
     if (Keyboard.isVisible()) Keyboard.dismiss();
     aposConfirmar.current = fn;

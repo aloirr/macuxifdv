@@ -16,10 +16,14 @@ import { useLocalSearchParams, useRoute } from 'expo-router';
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { Animated, useWindowDimensions } from 'react-native';
 
+import { TelaDeErroDoModulo } from '@/components/tela-de-erro';
 import { chaveDosParams, registrarTelaAberta, type ParamsDaRota } from '@/lib/historico-telas';
 import { animacaoDeEntrada } from '@/lib/transicao-modulo';
 import type { ComponenteTela } from '@/lib/modulos';
 import { useVoltarDoShell } from '@/state/historico-do-shell';
+
+/** Erro de render numa tela de módulo: troca só a tela (a barra inferior segue) e grava o erro (relato de 08/11). */
+export const ErrorBoundary = TelaDeErroDoModulo;
 
 export default function TelaDeModulo() {
   const { caminho } = useLocalSearchParams<{ caminho: string | string[] }>();

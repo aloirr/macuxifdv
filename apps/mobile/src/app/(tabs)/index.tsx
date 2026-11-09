@@ -23,7 +23,7 @@ import { Text, View } from 'react-native';
 import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
 import { BoasVindas, EquipeAgora, MetaDoMes, Recados } from '@/components/inicio';
-import { avisoDosDados, dataDoCabecalho, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
+import { avisoDosDados, dataDoCabecalho, destinoDaNotificacao, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function Inicio() {
@@ -68,7 +68,8 @@ export default function Inicio() {
         onAbrir={(r) => {
           // tocar marca como lida (como a central); a navegação não espera o banco do aparelho
           if (r.notificacao_id) void marcarLida(r.notificacao_id).catch(() => undefined);
-          navegar(r.destino);
+          // RD do relato de 08/11: link de tela que o usuário não tem (ou que não existe) abre a central, não a tela vazia
+          navegar(destinoDaNotificacao(r.destino, (c) => visaoShell.pagina(c) !== null));
         }}
         onVerTodos={() => navegar('/m/notificacoes')}
       />
