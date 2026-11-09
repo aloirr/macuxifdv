@@ -4,7 +4,7 @@
  *   novo pedido      Salvar e enviar pedido (principal, com o destino) · Apenas salvar · Salvar como orçamento · Cancelar
  *   RN-VEN-13        Salvar como orçamento (principal, "Válido até dd/mm") · Apenas salvar · Cancelar
  *   editar orçamento Salvar orçamento (principal) · Transformar em pedido · Cancelar
- *   editar pedido    um botão só ("Salvar alterações") · Cancelar
+ *   editar pedido    um botão só ("Salvar alterações", com o destino embaixo) · Cancelar
  * Pendência (RN-CORE-36) desliga tudo o que valida; Apenas salvar grava `rascunho` e aceita pendências.
  */
 import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
@@ -86,7 +86,7 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       ...comum,
       modo: 'editar_pedido',
       principal: 'enviar',
-      enviar: { visivel: true, habilitado: livre, rotulo: 'Salvar alterações', destino: null },
+      enviar: { visivel: true, habilitado: livre, rotulo: 'Salvar alterações', destino: livre ? destinoDoEnvio(e.nivel) : null },
       apenasSalvar: OCULTO('Apenas salvar'),
       orcamento: OCULTO('Salvar como orçamento'),
       salvarOrcamento: OCULTO('Salvar orçamento'),

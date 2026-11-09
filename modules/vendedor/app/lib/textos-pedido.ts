@@ -192,17 +192,20 @@ export function linhaDoAjusteSomenteLeitura(a: { sentido: 'desconto' | 'acrescim
   return { rotulo: `${rotuloDoAjusteDoPedido(a.sentido)} (${formatPct(a.pct_exibicao)})`, valor: `${a.sentido === 'acrescimo' ? '+' : '−'} ${formatBRL(a.cents)}` };
 }
 
-/** Folha de cancelar: o orçamento é "cancelado", o pedido é "excluído" (RF-VEN-03/04). */
-export function textoCancelarDocumento(e: { ehOrcamento: boolean; naFila: boolean; titulo: string }): { rotuloAcessivel: string; titulo: string; descricao: string; confirmar: string; ocupado: string } {
+/**
+ * Confirmação de cancelar (spec pedido-v2.md §4.4, T-0138): "Cancelar este orçamento?" / "Cancelar este pedido?". Com o aceite do
+ * conector (RN-VEN-31, T-0114) e o pedido já enviado, o texto diz que o cancelamento é pedido ao ERP (`solicitaAoErp`).
+ */
+export function textoCancelarDocumento(e: { ehOrcamento: boolean; naFila: boolean; titulo: string; solicitaAoErp?: boolean }): { rotuloAcessivel: string; titulo: string; descricao: string; confirmar: string; ocupado: string } {
   if (e.ehOrcamento) {
-    return { rotuloAcessivel: 'Cancelar orçamento', titulo: 'Cancelar este orçamento?', descricao: e.naFila ? 'O orçamento sai da fila do aparelho e não será enviado.' : 'O orçamento fica como Cancelado no histórico; não é apagado.', confirmar: 'Cancelar orçamento', ocupado: 'Cancelando…' };
+    return { rotuloAcessivel: 'Cancelar orçamento', titulo: 'Cancelar este orçamento?', descricao: e.naFila ? 'O orçamento sai da fila do aparelho e não será enviado.' : 'Ele continua na lista como cancelado e não pode mais virar pedido.', confirmar: 'Cancelar orçamento', ocupado: 'Cancelando…' };
   }
   return {
-    rotuloAcessivel: 'Excluir pedido',
-    titulo: `Excluir ${e.titulo.toLowerCase()}?`,
-    descricao: e.naFila ? 'O pedido sai da fila do aparelho e não será enviado.' : 'O pedido fica como Excluído no histórico; não é apagado.',
-    confirmar: 'Excluir pedido',
-    ocupado: 'Excluindo…',
+    rotuloAcessivel: 'Cancelar pedido',
+    titulo: 'Cancelar este pedido?',
+    descricao: e.naFila ? 'O pedido sai da fila do aparelho e não será enviado.' : e.solicitaAoErp ? 'O cancelamento será pedido ao ERP.' : 'O pedido não será enviado ao ERP.',
+    confirmar: 'Cancelar pedido',
+    ocupado: 'Cancelando…',
   };
 }
 
@@ -224,8 +227,6 @@ export function estadoDoDetalheAusente(e: { offline: boolean; carregando: boolea
 export function textoDoAviso(texto: string): string {
   return texto.trim().replace(/\.+$/, '');
 }
-
-export const TEXTO_SEM_ITEM_NO_RESUMO = 'Adicione um item na aba Itens.';
 
 export function textoBuscaSemResultado(busca: string): { titulo: string; texto: string } {
   return { titulo: `Nenhum produto com “${busca.trim()}”`, texto: 'Confira o código ou a descrição.' };

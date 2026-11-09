@@ -47,5 +47,9 @@ describe('RF-CORE-09: caixa de notificações offline', () => {
     expect(linkNavegavel('/m/pedido?id=1')).toBe('/m/pedido?id=1');
     expect(linkNavegavel('https://x.com')).toBeNull();
     expect(linkNavegavel(null)).toBeNull();
+    // tela que não existe na visão do usuário (recado com /m/core-rota): não navega
+    const existe = (c: string) => c === 'rota';
+    expect(linkNavegavel('/m/core-rota', existe)).toBeNull();
+    expect(linkNavegavel('/m/rota?data=1', existe)).toBe('/m/rota?data=1');
   });
 });

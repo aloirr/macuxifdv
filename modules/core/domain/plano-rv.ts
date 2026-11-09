@@ -1,4 +1,4 @@
-import { daysInMonth, type BusinessDays } from '@macuxi/comum';
+import { diasUteisDoPeriodo, type BusinessDays } from '@macuxi/comum';
 import { situacaoDoPeriodo } from './apuracao';
 import {
   computeIncentive,
@@ -197,9 +197,7 @@ export function calcularRvDaPessoa(
 
 /** RN-CORE-29: dias úteis do mês pelo calendário do tenant (`metas.dias_uteis_semana`, 0 = domingo); encerrados = úteis antes de `hoje`. */
 export function diasUteisDoMes(periodo: string, hoje: string, diasUteisSemana: readonly number[]): BusinessDays {
-  const uteis = daysInMonth(periodo).filter((d) => diasUteisSemana.includes(new Date(`${d}T12:00:00Z`).getUTCDay()));
-  const elapsed = uteis.filter((d) => d < hoje).length;
-  return { total: uteis.length, elapsed, remaining: uteis.length - elapsed };
+  return diasUteisDoPeriodo(periodo, hoje, undefined, diasUteisSemana);
 }
 
 /** RN-CORE-21/30: meses fechados (2º dia útil do mês seguinte já passou) de `primeiro` até o mês de `hoje`, em ordem. */

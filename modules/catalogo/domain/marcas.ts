@@ -1,9 +1,10 @@
 /**
- * Marcas concorrentes da referência cruzada (RN-CAT-09). O cadastro é do Promotor (`promotor.concorrentes@1`, ADR 0012 e
- * 0027); aqui só as regras puras: validar o `marca_id` do PUT, casar a marca que vem do ERP (doc 06) e resolver os códigos
+ * Marcas concorrentes da referência cruzada (RN-CAT-09). O cadastro é do próprio Catálogo (Marcas concorrentes, RN-CAT-13,
+ * ADR 0034); aqui só as regras puras: validar o `marca_id` do PUT, casar a marca que vem do ERP (doc 06) e resolver os códigos
  * de "Oferece junto" digitados no BKO (RN-CAT-09, T-0085).
  */
 import { LIMITES_CADASTRO_CATALOGO, type ErroCadastro } from './cadastro-catalogo';
+import { chaveDoNomeMarca, nomeMarcaIgual } from './marcas-cadastro';
 import { codigoCompacto } from './ranking';
 
 export type MapaMarcas = ReadonlyMap<string, { nome: string; ativo: boolean }>;
@@ -11,20 +12,20 @@ export type MapaMarcas = ReadonlyMap<string, { nome: string; ativo: boolean }>;
 const MSG_SEM_MARCAS =
   'Não há marcas concorrentes ativas. Cadastre a marca em Catálogo → Marcas concorrentes ou salve o produto sem referência cruzada.';
 
-/** Cada referência precisa apontar para uma marca ativa do Promotor. Mapa vazio = consulta indisponível ou sem marcas. */
+/** Cada referência precisa apontar para uma marca ativa de Marcas concorrentes. Mapa vazio = consulta indisponível ou sem marcas. */
 export function validarMarcasDaReferencia(referencias: readonly { marca_id: string }[], marcas: MapaMarcas): ErroCadastro[] {
   if (referencias.length === 0) return [];
   if (marcas.size === 0) return [{ regra: 'RN-CAT-09', campo: 'referencias', mensagem: MSG_SEM_MARCAS }];
   const erros: ErroCadastro[] = [];
   for (const r of referencias) {
     const m = marcas.get(r.marca_id);
-    if (!m) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: 'Uma marca da referência não existe mais no cadastro de concorrentes. Escolha outra marca da lista e salve de novo.' });
+    if (!m) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: 'Uma marca da referência não existe mais em Marcas concorrentes. Escolha outra marca da lista e salve de novo.' });
     else if (!m.ativo) erros.push({ regra: 'RN-CAT-09', campo: 'referencias', mensagem: `A marca ${m.nome} está inativa em Marcas concorrentes. Ative a marca ou escolha outra e salve de novo.` });
   }
   return erros;
 }
 
-export interface MarcaDoPromotor {
+export interface MarcaDoCadastro {
   id: string;
   nome: string;
   ativo: boolean;
@@ -44,21 +45,19 @@ export interface ResolucaoReferenciasErp {
   descartadas: { codigo: string; motivo: MotivoDescarte }[];
 }
 
-const semAcento = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
-
 /**
- * Doc 06: a marca vem do ERP pelo `external_id` ou pelo nome do concorrente cadastrado no Promotor. Marca desconhecida
+ * Doc 06: a marca vem do ERP pelo `external_id` ou pelo nome da marca cadastrada em Marcas concorrentes. Marca desconhecida
  * (ou inativa) descarta a referência, que o consumidor avisa no log; até 3 por produto, código de 1 a 30, sem repetir.
  */
-export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], marcas: readonly MarcaDoPromotor[]): ResolucaoReferenciasErp {
+export function resolverReferenciasDoErp(entrada: readonly ReferenciaDoErp[], marcas: readonly MarcaDoCadastro[]): ResolucaoReferenciasErp {
   const L = LIMITES_CADASTRO_CATALOGO;
   const saida: ResolucaoReferenciasErp = { referencias: [], descartadas: [] };
   const vistas = new Set<string>();
   for (const e of entrada) {
     const codigo = e.codigo.trim();
     const ext = e.marca_external_id?.trim();
-    const nome = e.marca_nome ? semAcento(e.marca_nome) : '';
-    const marca = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => semAcento(m.nome) === nome) : undefined);
+    const nome = e.marca_nome?.trim() ?? '';
+    const marca = (ext ? marcas.find((m) => m.external_id === ext) : undefined) ?? (nome ? marcas.find((m) => nomeMarcaIgual(m.nome, nome)) : undefined);
     const compacto = codigoCompacto(codigo);
     if (codigo === '' || codigo.length > L.codigo || compacto === '') saida.descartadas.push({ codigo, motivo: 'codigo_invalido' });
     else if (!marca) saida.descartadas.push({ codigo, motivo: 'marca_desconhecida' });
@@ -87,9 +86,8 @@ export function resolverCodigosOfereceJunto(codigos: readonly string[], produtos
 }
 
 /**
- * Nome da marca de uma referência cruzada (RN-CAT-09). Com o cadastro do Promotor disponível (mapa não vazio) ele manda:
- * marca inativa ou ausente esconde a referência (nulo). Sem o cadastro (vendedor sem o Promotor no perfil, risco 2 da
- * ADR 0027) usa o retrato `marca_nome` gravado na referência; sem retrato (linha anterior à 0034), nulo — não mostra a marca.
+ * Nome da marca de uma referência cruzada (RN-CAT-09). Com o cadastro de marcas disponível (mapa não vazio) ele manda:
+ * marca inativa ou ausente esconde a referência (nulo). Sem o cadastro (ex.: aparelho que ainda não baixou as marcas) usa o retrato `marca_nome` gravado na referência; sem retrato (linha anterior à 0034), nulo — não mostra a marca.
  */
 export function nomeMarcaDaReferencia(marcaId: string, retrato: string | null | undefined, marcas: MapaMarcas): string | null {
   if (marcas.size > 0) {
@@ -101,7 +99,7 @@ export function nomeMarcaDaReferencia(marcaId: string, retrato: string | null | 
 }
 
 /**
- * T-0103 / RN-CAT-09: marcas citadas pela linha do ERP que o Promotor não conhece (descarte `marca_desconhecida`), como vieram
+ * T-0103 / RN-CAT-09: marcas citadas pela linha do ERP que Marcas concorrentes não conhece (descarte `marca_desconhecida`), como vieram
  * (nome, ou o external_id se não houve nome), sem repetir (sem caixa/acento) e até 3. Nenhuma = `null` (não há aviso).
  */
 export function marcasDesconhecidasDaLinha(
@@ -115,8 +113,8 @@ export function marcasDesconhecidasDaLinha(
     if (d.motivo !== 'marca_desconhecida') continue;
     const e = entrada.find((x) => x.codigo.trim() === d.codigo);
     const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
-    if (bruta === '' || vistas.has(semAcento(bruta)) || marcas.length >= 3) continue;
-    vistas.add(semAcento(bruta));
+    if (bruta === '' || vistas.has(chaveDoNomeMarca(bruta)) || marcas.length >= 3) continue;
+    vistas.add(chaveDoNomeMarca(bruta));
     marcas.push(bruta);
     externalId ??= e?.marca_external_id?.trim() || undefined;
   }

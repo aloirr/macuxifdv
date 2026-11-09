@@ -5,7 +5,7 @@
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import type { ContextoConsumo } from '@macuxi/platform-sdk';
+import type { ContextoAposConfirmar, ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { manifest } from '../manifest';
@@ -29,13 +29,18 @@ describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', ()
   /** Relógio congelado uma vez (uma linha do tempo só, junto das colunas `now()` do banco); sem data fixa. */
   const agora = new Date();
   const consumo = (fn: (db: pg.ClientBase) => Promise<void>) => comTenant(pool, A.tenantId, (c) => fn(c));
-  const rodar = (opcoes: Parameters<typeof criarConsumidorPushNotificacao>[0], notificacaoId: string, tenant = A.tenantId) =>
-    comTenant(pool, tenant, (db) =>
+  /** Como o despachante: o handler roda na transação; os efeitos de `aposConfirmar` rodam depois do commit (T-0121 N2). */
+  const rodar = async (opcoes: Parameters<typeof criarConsumidorPushNotificacao>[0], notificacaoId: string, tenant = A.tenantId) => {
+    const efeitos: ((c: ContextoAposConfirmar) => Promise<void>)[] = [];
+    await comTenant(pool, tenant, (db) =>
       criarConsumidorPushNotificacao(opcoes).executar(
         { notificacao_id: notificacaoId, usuario_id: U.vendedor1, tipo: 'recado', prioridade: 'alta' },
-        { db, agora: () => agora, envelope: { evento_id: 'x', tenant_id: tenant }, publicar: vi.fn(), log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } } as unknown as ContextoConsumo,
+        { db, agora: () => agora, envelope: { evento_id: 'x', tenant_id: tenant }, publicar: vi.fn(), aposConfirmar: (e: never) => void efeitos.push(e), log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } } as unknown as ContextoConsumo,
       ),
     );
+    const c = { comTenant: (fn: (db: pg.ClientBase) => Promise<unknown>) => comTenant(pool, tenant, (db) => fn(db)), agora: () => agora, log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } } as unknown as ContextoAposConfirmar;
+    for (const e of efeitos) await e(c);
+  };
   const enviadoEm = (id: string) => comTenant(pool, A.tenantId, async (c) => (await c.query<{ push_enviado_em: Date | null }>('select push_enviado_em from core.notificacao where id = $1', [id])).rows[0]!.push_enviado_em);
 
   beforeAll(async () => {

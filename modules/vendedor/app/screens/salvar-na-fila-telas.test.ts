@@ -42,8 +42,9 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
   it('RF-VEN-04: o detalhe na fila é só de leitura (faixa "Pedido salvo · enviando", sem Editar); o recusado mostra "Corrigir pedido"', () => {
     const d = fonte('order-detail-screen.tsx');
     expect(d).toContain('estadoNaFila(');
-    expect(d).toContain('const mostrarEditar = ehOrc ? Boolean(acoesOrc?.pode_editar) : !queued || queued.failed');
-    expect(d).toContain('rotulo={rotuloEditar}');
+    // T-0138: quem decide é acoesDoDetalhe (detalhe-pedido.ts): na fila só PDF; o recusado volta com "Corrigir pedido"
+    expect(d).toContain('acoesDoDetalhe({');
+    expect(d).toContain('recusado: Boolean(queued?.failed)');
   });
 
   it('RN-VEN-30: a lista Pedidos mostra "Não aceito" e abre o rascunho "Salvo" no editor', () => {

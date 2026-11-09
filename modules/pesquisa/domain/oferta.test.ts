@@ -46,7 +46,7 @@ describe('RF-PES-03 / RN-PES-01: pesquisas no aparelho a partir do pull', () => 
 describe('RF-PES-03: oferta da aba "Pesquisas" (avulsas aplicáveis)', () => {
   const avulsa = publicada({ id: u(701), titulo: 'Avulsa', perguntas: [sim_nao(1)] });
   const obrig = publicada({ id: u(711), questionario_id: u(811), titulo: 'Obrigatória', modo: 'checkout_obrigatoria', perguntas: [sim_nao(1)] });
-  const soPromotor = publicada({ id: u(721), questionario_id: u(821), titulo: 'Promotor', perguntas: [sim_nao(1)], publico_alvo: { perfis: ['promotor'], equipes: [], segmentos: [], regioes: [], clientes: [] } });
+  const soPromotor = publicada({ id: u(721), questionario_id: u(821), titulo: 'Promotor', perguntas: [sim_nao(1)], publico_alvo: { perfis: ['promotor'], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] } });
   const pesquisas = montarPesquisasDoAparelho([linha(avulsa), linha(obrig), linha(soPromotor)]);
 
   it('RF-PES-03: a aba mostra só avulsas; a obrigatória fica no checkout', () => {
@@ -69,7 +69,7 @@ describe('RF-PES-03: oferta da aba "Pesquisas" (avulsas aplicáveis)', () => {
   });
 
   it('RF-PES-02: pesquisa só para clientes da lista pede o cliente quando aberta sem cliente', () => {
-    const lista = publicada({ id: u(741), questionario_id: u(841), titulo: 'Lista', perguntas: [sim_nao(1)], publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [u(51)] } });
+    const lista = publicada({ id: u(741), questionario_id: u(841), titulo: 'Lista', perguntas: [sim_nao(1)], publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [u(51)] } });
     const ps = montarPesquisasDoAparelho([linha(lista)]);
     const semCliente = ofertaDePesquisas({ pesquisas: ps, usuario: USUARIO, cliente: null, visita_id: null, agora: AGORA, respostas: [], fuso: 'America/Manaus' });
     expect(semCliente.indisponiveis).toEqual([expect.objectContaining({ motivo: 'CLIENTE_FORA_DO_PUBLICO' })]);

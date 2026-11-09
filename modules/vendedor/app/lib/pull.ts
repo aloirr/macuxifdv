@@ -291,6 +291,7 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     ...(p.forma_pagamento_id
       ? { forma_pagamento_id: p.forma_pagamento_id, forma_pagamento_nome: p.forma_pagamento_nome ?? null, prazo_pagamento_id: p.prazo_pagamento_id ?? null, prazo_descricao: p.prazo_descricao ?? null, prazo_parcelas_dias: p.prazo_parcelas_dias ?? null, prazo_medio_dias: p.prazo_medio_dias ?? null }
       : {}),
+    ...(p.erp_aceita_cancelamento ? { erp_aceita_cancelamento: true } : {}),
     ...(p.frete_modalidade ? { freight: freteDaLinha(p) } : {}),
     ...(p.endereco_entrega ? { delivery_address: enderecoDaLinha(p) } : {}),
     ...(p.tabela_preco_id ? { price_table_name: tabelasPreco.find((t) => t.id === p.tabela_preco_id)?.nome ?? null } : {}),

@@ -2,23 +2,12 @@
  * Visão da tela "Usuários" do BKO (RF-CORE-02; T-0067): funções puras sobre `GET /v1/core/usuarios`. Sem React e sem rede.
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
-import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
+import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import type { CriarUsuarioRequest, EditarUsuarioRequest, EmailAcesso, EquipeOpcao, UsuarioItem } from '../../contracts';
-import { faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo } from '../../domain';
+import { faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
-
-export const ROTULO_PERFIL: Record<Perfil, string> = {
-  vendedor: 'Vendedor',
-  promotor: 'Promotor',
-  supervisor: 'Supervisor',
-  gerente: 'Gerente',
-  analista: 'Analista',
-  assistente: 'Assistente',
-  admin: 'Administrador',
-};
-export const PERFIS_DO_FORMULARIO: readonly Perfil[] = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'];
 
 export interface FormularioUsuario {
   nome: string;
@@ -88,7 +77,7 @@ export function csvDeUsuarios(itens: readonly UsuarioItem[]): string {
 // ---------- T-0094: senha por e-mail, troca no 1º acesso, "Redefinir senha" / "Enviar acesso" (RN-CORE-34; docs/design/ciclo-de-senha.md §5) ----------
 
 /** Faltas da senha digitada (campo vazio = as quatro), para o componente `RegrasDaSenha`. */
-export const faltasDaSenhaDigitada = (senha: string): string[] => faltasNaSenha(senha);
+export const faltasDaSenhaDigitada = (senha: string): FaltaNaSenha[] => faltasNaSenha(senha);
 
 /** "Gerar senha": 12 caracteres sem ambíguos, gerada no navegador com `crypto.getRandomValues` (mesma regra do servidor). */
 export function gerarSenhaNoNavegador(aleatorio: (n: number) => Uint8Array = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n))): string {

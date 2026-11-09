@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { travaDaChave, type Perfil } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { useMe } from '../../lib/queries';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
@@ -40,8 +41,9 @@ import {
   th,
   useToast,
   type SecaoDoPerfil,
+  rotuloDoPerfil,
 } from '@macuxi/ui/web';
-import { PerfilDetalheSchema, PerfilHistoricoRespostaSchema, PerfilListaRespostaSchema, type PerfilDetalhe, type PerfilHistoricoItem, type PerfilResumo } from '../../../contracts';
+import { CODIGO_REPETIDO, REGRA_DA_SENHA, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO, PerfilDetalheSchema, PerfilHistoricoRespostaSchema, PerfilListaRespostaSchema, type PerfilDetalhe, type PerfilHistoricoItem, type PerfilResumo } from '../../../contracts';
 import {
   ALVO_TODOS_PERFIS,
   corpoDoPerfil,
@@ -139,7 +141,7 @@ function ListaDePerfis() {
                 <td className={td}>
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" className="min-h-[44px] text-left text-[14px] font-semibold text-ink hover:underline" onClick={() => abrir(p.codigo)}>
-                      {p.nome}
+                      {rotuloDoPerfil(p.codigo, { nome: p.nome })}
                     </button>
                     {p.fabrica && <Badge tone="neutral">{SELO_PADRAO}</Badge>}
                   </div>
@@ -251,11 +253,11 @@ function DialogoNovoPerfil({ copiaDe, onClose, onCriado }: { copiaDe: PerfilResu
     mutationFn: async () =>
       PerfilDetalheSchema.parse(await api('/core/perfis', { method: 'POST', body: { nome: nome.trim(), base, descricao: descricao.trim() || null, ...(copiaDe ? { copiar_de: copiaDe.codigo } : {}) } })),
     onSuccess: (d) => onCriado(d.perfil.codigo),
-    onError: (e) => setErroApi(e instanceof ApiRequestError && e.code === 'CODIGO_REPETIDO' ? 'Já existe um perfil com este nome.' : 'Não foi possível criar agora. Tente de novo.'),
+    onError: (e) => setErroApi(e instanceof ApiRequestError && e.code === CODIGO_REPETIDO ? CODIGO_REPETIDO : 'Não foi possível criar agora. Tente de novo.'),
   });
-  const erroNome = tentou && nome.trim() === '' ? 'Dê um nome ao perfil.' : erroApi === 'Já existe um perfil com este nome.' ? erroApi : null;
+  const erroNome = tentou && nome.trim() === '' ? MENSAGEM_NOME_OBRIGATORIO : erroApi === CODIGO_REPETIDO ? MENSAGEM_PERFIL_REPETIDO : null;
   const erroBase = tentou && !base ? 'Escolha o perfil base.' : null;
-  const semBko = ['vendedor', 'promotor', 'supervisor'].includes(base);
+  const travaBko = base ? travaDaChave(base as Perfil, 'acesso.bko') : null;
   const enviar = () => {
     setTentou(true);
     setErroApi(null);
@@ -300,7 +302,7 @@ function DialogoNovoPerfil({ copiaDe, onClose, onCriado }: { copiaDe: PerfilResu
         )}
         {base && (
           <p className="m-0 text-[12px] text-ink-2">
-            Começa com as permissões do {ROTULO_PERFIL_BASE[base as keyof typeof ROTULO_PERFIL_BASE]}. {semBko && 'Este perfil nunca entra no BKO nem no portal (RN-CORE-33).'}
+            Começa com as permissões do {ROTULO_PERFIL_BASE[base as keyof typeof ROTULO_PERFIL_BASE]}. {travaBko?.mensagem}
           </p>
         )}
         <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
@@ -308,7 +310,7 @@ function DialogoNovoPerfil({ copiaDe, onClose, onCriado }: { copiaDe: PerfilResu
           <textarea className="min-h-[64px] rounded-xl border border-field bg-surface px-3 py-2 text-[14px] font-normal text-ink" rows={2} maxLength={200} value={descricao} onChange={(e) => setDescricao(e.target.value)} data-testid="perfis.novo.descricao" />
           <span className="text-[12px] font-normal text-ink-2">Para quem é este perfil. Aparece na lista.</span>
         </label>
-        {erroApi && erroApi !== 'Já existe um perfil com este nome.' && (
+        {erroApi && erroApi !== CODIGO_REPETIDO && (
           <Notice tone="danger">
             <span data-testid="perfis.novo.erro">{erroApi}</span>
           </Notice>
@@ -350,7 +352,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   }, [d]);
 
   const { linhas, outras } = useMemo(() => (d ? montarLinhas(d) : { linhas: [], outras: [] }), [d]);
-  const rotulos = useMemo(() => Object.fromEntries((d?.alvos_possiveis ?? []).map((p) => [p.codigo, p.nome])), [d]);
+  const rotulos = useMemo(() => Object.fromEntries((d?.alvos_possiveis ?? []).map((p) => [p.codigo, rotuloDoPerfil(p.codigo, { nome: p.nome })])), [d]);
   const inicial = useMemo(() => (d ? edicaoInicial(d) : {}), [d]);
   const fabrica = useMemo(() => (d ? edicaoDaFabrica(d) : {}), [d]);
   const identInicial = d ? identDe(d) : null;
@@ -387,9 +389,9 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       if (ehSemPermissao(e)) {
         setResumo(false);
         setSem403(true);
-      } else if (e instanceof ApiRequestError && e.code === 'CODIGO_REPETIDO') {
+      } else if (e instanceof ApiRequestError && e.code === CODIGO_REPETIDO) {
         setResumo(false);
-        setErroNome('Já existe um perfil com este nome.');
+        setErroNome(MENSAGEM_PERFIL_REPETIDO);
         setRecusa(null);
         window.setTimeout(() => document.getElementById('perfil-nome')?.focus(), 0);
       } else if (e instanceof ApiRequestError && e.status === 422) {
@@ -439,7 +441,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
   const erroDaLinha = (l: LinhaDoPerfil) => erroDeAlvos(l, edicao) ?? l.chaves.map((c) => errosDeChave[c]).find((m) => !!m) ?? null;
   const algumErro = linhas.some((l) => erroDeAlvos(l, edicao));
   const nomeVazio = !fab && ident.nome.trim() === '';
-  const erroDoNome = nomeVazio ? 'Dê um nome ao perfil.' : erroNome;
+  const erroDoNome = nomeVazio ? MENSAGEM_NOME_OBRIGATORIO : erroNome;
   const irParaPrimeiroErro = () => {
     setResumo(false);
     const primeira = [...linhas, ...todasOutras].find((l) => erroDaLinha(l));
@@ -480,7 +482,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
       if (l.tipo === 'alvos' && lig !== 'nao') {
         const opcoes = d.alvos_possiveis.map((p) => ({
           valor: p.codigo,
-          rotulo: p.nome,
+          rotulo: rotuloDoPerfil(p.codigo, { nome: p.nome }),
           detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`,
           selo: p.fabrica ? SELO_PADRAO : undefined,
           desabilitada: p.base === 'admin',
@@ -617,7 +619,7 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
                     )}
                     {s.id === 'usuarios' && (
                       <LinhaDePermissao id="senha-regra" rotulo="Regra da senha" trava={{ mensagem: CADEADO.senhaSempreComRegra }}>
-                        <span className="text-[13px]">8 caracteres ou mais, com letra, número e caractere especial.</span>
+                        <span className="text-[13px]">{REGRA_DA_SENHA}</span>
                       </LinhaDePermissao>
                     )}
                   </>,
@@ -745,7 +747,7 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
     if (q.data) setItens((atual) => (antes ? [...atual, ...q.data.itens.filter((i) => !atual.some((a) => a.id === i.id))] : q.data.itens));
   }, [q.data, antes]);
   const { linhas, outras } = useMemo(() => montarLinhas(detalhe), [detalhe]);
-  const rotulos = useMemo(() => Object.fromEntries(detalhe.alvos_possiveis.map((p) => [p.codigo, p.nome])), [detalhe]);
+  const rotulos = useMemo(() => Object.fromEntries(detalhe.alvos_possiveis.map((p) => [p.codigo, rotuloDoPerfil(p.codigo, { nome: p.nome })])), [detalhe]);
   const fabrica = useMemo(() => edicaoDaFabrica(detalhe), [detalhe]);
   return (
     <Drawer open title={`Histórico de ${nome}`} onClose={onClose}>

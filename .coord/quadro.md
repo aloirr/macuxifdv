@@ -2,6 +2,8 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Lote 01 no main (08/11 19h04, 714d0d1b, 15 commits por dono; CI e stack verdes na verificacao/lote01-2026-11-08-1855):** T-0093, T-0094, T-0095, T-0097 (fotos), T-0099, T-0103, T-0106, T-0111, T-0113, T-0114, T-0118, T-0119 (p95 em it.fails), T-0124 (RD-0001 a RD-0012), T-0126, T-0127 a T-0130, T-0133 a T-0137; migrações 0039 a 0049. Recados e lidos ficaram fora do commit: vão para o repositório de recados no corte (T-0139). Build Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 com o engenheiro-apps. **v1.0.1 em andamento:** M (T-0138, com D1 e Equivale a), cursor do Hub e erp_aceita_cancelamento (Integração), p95 da busca e retrato (Catálogo), calendário único e RD do Core; depois Gestor (calendário e emitido_em) e os RD-0014 a RD-0031 restantes.
+>
 > **Redundâncias antes do build (gerente, 08/11 17h50):** como o dono do produto pediu todas as correções antes do build, os RD médios e baixos também entram (lote: RD-0014 a RD-0031, relatório docs/qualidade/redundancias/2026-11-08-lote.md; Início: RD-0002 a RD-0013). Ordem do RD-0019/0020 (ciclo de senha duplicado): modulo-core e engenheiro-software primeiro (contratos e packages/comum), depois engenheiro-apps. Rótulos dos 7 perfis (RD-0014): texto do designer-ux.
 >
 > **Organograma (08/11, T-0123):** dono do produto → gerente-projetos → engenheiro-software · engenheiro-apps · designer-ux · banco-dados · testes · **corretor-redundancias** (audita redundâncias; não corrige código de outro agente) → modulo-core · catalogo · vendedor · promotor · gestor · pesquisa · treinamento · integracao. Detalhe no doc 07.

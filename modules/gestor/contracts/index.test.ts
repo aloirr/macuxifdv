@@ -29,7 +29,7 @@ describe('contratos do Gestor: parâmetros do tenant (doc 03)', () => {
       fuso: 'America/Manaus',
       base_apuracao: 'aprovado',
       feriados: [],
-      dias_uteis_semana: [1, 2, 3, 4, 5, 6],
+      calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5, 6], feriados: [] },
       permanencia_min_min: 10,
       peso_parcial_conformidade: 0,
       prazo_aprovacao_dias_uteis: 1,

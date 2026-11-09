@@ -10,6 +10,33 @@
 > com o selo "Padrão"), **"perfil base"** e **"empresa"**. Nesta página, que só o admin vê, "BKO" pode aparecer (o desenho aprovado
 > usa "BKO" nos cadeados e na seção 12).
 
+## 0.1 Nome dos 7 perfis padrão — um só em todas as telas (RD-0014, 08/11/2026)
+Fixado pelo designer-ux (R-20261108-173629-corretor-redundancias). Vale igual no BKO (Perfis de acesso, Usuários, Licenças,
+menu do shell), no portal `config.`, no login (web e app), nos apps e no CSV de usuários. Constante no kit:
+`packages/ui/src/comum/perfis.ts` (`ROTULO_PERFIL_CURTO`, `ROTULO_PERFIL_LONGO`, `ORDEM_PERFIL_PADRAO`, `rotuloDoPerfil`),
+exportada por `@macuxi/ui/web`, `@macuxi/ui/mobile` e `@macuxi/ui/mobile/puro`.
+
+| Código | Curto (toda tela) | Longo (só para apresentar) |
+|---|---|---|
+| `vendedor` | Vendedor | Vendedor de campo |
+| `promotor` | Promotor | Promotor de trade marketing |
+| `supervisor` | Supervisor | Supervisor de vendas |
+| `gerente` | Gerente | Gerente comercial |
+| `analista` | Analista | Analista comercial |
+| `assistente` | Assistente | Assistente de backoffice |
+| `admin` | Admin | Administrador da empresa |
+
+- **Curto** em chip, coluna, seletor, "Perfil base: X", cadeado, mensagem do login ("O perfil assistente não usa o app Macuxi
+  Campo."), histórico, CSV e cabeçalho do shell. Saem "Administrador" (Usuários) e "Assistente de BKO" (SDK, login e seed).
+- **Longo** só onde o perfil é apresentado uma vez, com espaço: o cabeçalho do Perfil no app (embaixo do nome), a dica
+  (`title`/leitor) do chip do perfil e o convite por e-mail. O título "Administrador da empresa" do passo Empresa do portal já é
+  o longo do admin. Nunca o longo numa lista ou numa mensagem curta.
+- Perfil **padrão**: a tela mostra o texto fixo acima, mesmo que o banco traga outro `nome` (`rotuloDoPerfil(codigo, { nome })`).
+  Perfil **criado pela empresa**: o `nome` que ela deu. O código nunca aparece.
+- Fonte única (proposta ao engenheiro-software): o `ROTULO_PERFIL` do platform-sdk (hoje "Assistente de BKO") passa a estes
+  textos, com `ROTULO_PERFIL_LONGO` ao lado, e o kit reexporta quando depender do SDK; o motor (`ROTULO_BASE` de
+  `permissoes-perfil.ts`) usa o mesmo mapa. O seed (`plataforma.semear_perfis_fabrica`) grava os nomes curtos.
+
 ## 1. Onde fica e quem vê
 - Menu do BKO → grupo **Administração** → **Perfis de acesso** (logo depois de "Usuários"). Rotas: `/core/perfis` (lista) e
   `/core/perfis/<codigo>` (edição).

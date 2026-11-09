@@ -35,7 +35,9 @@ export {
   REGRAS_DA_SENHA,
   resumoComRepeticao,
   resumoDaSenha,
+  MINIMO_DA_SENHA_SEM_TELA,
   ROTULO_REGRA_SENHA,
+  rotuloDaRegraSenha,
   SENHA_ATENDE_AS_REGRAS,
   TEXTO_REPETICAO_SENHA,
   TITULO_REGRAS_DA_SENHA,
@@ -66,6 +68,7 @@ export function RegrasDaSenha({
   faltas,
   destacar = false,
   resumo,
+  minimo,
   id,
   className,
   repeticao,
@@ -75,8 +78,10 @@ export function RegrasDaSenha({
   faltas: readonly string[];
   /** Depois de tentar salvar com falta: as faltas ficam em vermelho, com ✕. */
   destacar?: boolean;
-  /** Frase da região viva; padrão `resumoDaSenha(faltas)` (passe `mensagemDaSenha(faltas)` do Core se preferir). */
+  /** Frase da região viva: passe `mensagemDaSenha(faltas)` do Core (RD-0021). Sem ela, o kit monta a mesma frase com `minimo`. */
   resumo?: string;
+  /** Mínimo de caracteres da RN-CORE-32: passe `SENHA_MIN_CARACTERES` do Core (RD-0021; o kit não escreve o número). */
+  minimo?: number;
   /** Para o `aria-describedby` do campo de senha. */
   id?: string;
   className?: string;
@@ -84,7 +89,7 @@ export function RegrasDaSenha({
   repeticao?: RepeticaoSenha;
   testId?: string;
 }) {
-  const itens = itensDasRegras(faltas, destacar);
+  const itens = itensDasRegras(faltas, destacar, minimo);
   const conferencia = itemDaRepeticao(repeticao, destacar);
   return (
     <div id={id} className={cx('flex flex-col gap-1.5', className)} data-testid={testId}>
@@ -115,7 +120,7 @@ export function RegrasDaSenha({
         </p>
       )}
       <span role="status" aria-live="polite" className="sr-only" data-testid={`${testId}.resumo`}>
-        {resumoComRepeticao(resumo ?? resumoDaSenha(faltas), repeticao, destacar)}
+        {resumoComRepeticao(resumo ?? resumoDaSenha(faltas, minimo), repeticao, destacar)}
       </span>
     </div>
   );

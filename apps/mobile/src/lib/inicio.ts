@@ -46,9 +46,21 @@ export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null):
 
 // ---------- Recados ----------
 
-/** Só navega para link interno de módulo (`/m/<caminho>`); o resto abre a central de notificações. */
-export function destinoDaNotificacao(link: string | null): string {
-  return link && /^\/m\/[a-z0-9-]+/.test(link) ? link : '/m/notificacoes';
+/** Caminho da tela de um link interno (`/m/rota?x=1` → `rota`); null fora do padrão `/m/<caminho>`. */
+export function caminhoDoLink(link: string | null | undefined): string | null {
+  if (!link || !/^\/m\/[a-z0-9-]+/.test(link)) return null;
+  return link.slice(3).split(/[?#]/)[0] ?? null;
+}
+
+/**
+ * Só navega para link interno de módulo (`/m/<caminho>`) cuja tela existe na visão do usuário (`telaExiste`, ligado a
+ * `visao.pagina`); o resto abre a central de notificações. Link com tela inexistente (ex.: `/m/core-rota` gravado no
+ * recado) caía em "Esta tela não está disponível para o seu perfil…" (T-0140, relato do dono do produto, 08/11).
+ */
+export function destinoDaNotificacao(link: string | null, telaExiste?: (caminho: string) => boolean): string {
+  const caminho = caminhoDoLink(link);
+  if (!link || !caminho) return '/m/notificacoes';
+  return !telaExiste || telaExiste(caminho) ? link : '/m/notificacoes';
 }
 
 /** Selo do bloco: "3 novos" · "1 novo" · nada com tudo lido. */
@@ -92,11 +104,11 @@ export function textoDoRecado(titulo: string, corpo: string): string {
   return /[.:!?…—-]$/.test(t) ? `${t} ${c}` : `${t}: ${c}`;
 }
 
-/** `recados_hoje` (lista do Core): até 3 da caixa, o recado do dia primeiro e destacado. O shell só escolhe texto e ponto. */
-export type RecadosProntos = NonNullable<VisaoInicio['recados_hoje']> & { /** Total da caixa (aditivo pedido ao Core, RD-0009). */ total?: number };
+/** `recados_hoje` (lista do Core): até 3 da caixa, o recado do dia primeiro e destacado; `total` = a caixa inteira (RD-0009). */
+export type RecadosProntos = VisaoInicio['recados_hoje'];
 
-export function recadosDoInicio(recados: RecadosProntos | null | undefined): ItemRecado[] {
-  return (recados?.itens ?? []).map((r) => ({
+export function recadosDoInicio(recados: RecadosProntos): ItemRecado[] {
+  return recados.itens.map((r) => ({
     id: r.id,
     texto: textoDoRecado(r.titulo, r.subtitulo),
     hora: r.hora,
@@ -106,13 +118,9 @@ export function recadosDoInicio(recados: RecadosProntos | null | undefined): Ite
   }));
 }
 
-/**
- * "Ver todos" só quando há mais na caixa do que o cartão mostra (RD-0009). Com o `total` do Core, total > mostrados; sem
- * ele, o Core corta em 3, então menos de 3 itens = a caixa inteira já está no cartão.
- */
-export function mostrarVerTodos(recados: RecadosProntos | null | undefined): boolean {
-  const mostrados = recados?.itens.length ?? 0;
-  return recados?.total != null ? recados.total > mostrados : mostrados >= 3;
+/** "Ver todos" só quando há mais na caixa do que o cartão mostra (RD-0009): `total` do Core maior que os itens. */
+export function mostrarVerTodos(recados: RecadosProntos): boolean {
+  return recados.total > recados.itens.length;
 }
 
 /** Bolinha só quando ajuda a distinguir itens: com 1 recado o selo "1 novo" já diz tudo (RD-0009). */
@@ -170,15 +178,10 @@ export function metaPrincipal(metas: readonly MetaDoDia[], escolhido?: MetaDoDia
 }
 
 /**
- * Números prontos do Core para o cartão (`meta_hoje`, core.inicio@1). `faltam_mes`, `por_dia_util` e `dias_uteis_por_dia`
- * são o aditivo pedido ao modulo-core (R-20261108-164114, RD-0002): enquanto não vierem, a linha do dia não útil fica
- * oculta (o shell não faz a conta da RN-CORE-22/26).
+ * Números prontos do Core para o cartão (`meta_hoje`, core.inicio@1, RD-0002): `mes_pct`, `faltam_mes`, `por_dia_util` e
+ * `dias_uteis_por_dia` (RN-CORE-22/26, os mesmos de Metas). O shell não faz conta: só escolhe o texto.
  */
-export type MetaHojePronta = Pick<NonNullable<VisaoInicio['meta_hoje']>, 'mes_pct'> & {
-  faltam_mes?: number | null;
-  por_dia_util?: number | null;
-  dias_uteis_por_dia?: number | null;
-};
+export type MetaHojePronta = Pick<NonNullable<VisaoInicio['meta_hoje']>, 'mes_pct' | 'faltam_mes' | 'por_dia_util' | 'dias_uteis_por_dia'>;
 
 export interface DesenhoMetaDoMes {
   /** Realizado do mês: "R$ 553" · "62%" · "1". */
@@ -193,13 +196,16 @@ export interface DesenhoMetaDoMes {
   trilho: string;
   /**
    * Última linha (RD-0002): dia útil "Meta de hoje R$ 9.969" (meta do dia da RN-CORE-26, pronta do Core); dia não útil
-   * "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" (números do Core); mês batido "Meta batida"; null sem o que dizer.
+   * "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" (números do Core); dia batido "Meta de hoje batida"; mês batido
+   * "Meta do mês batida" (docs/design/inicio.md §1.3); null sem o que dizer.
    */
   apoio: string | null;
   /** Mês batido: cartão e barra verdes. */
   verde: boolean;
   /** Dia ou mês batido: a última linha fica verde. */
   apoioVerde: boolean;
+  /** Dia batido: ✓ antes da última linha (§1.3). */
+  apoioMarca: boolean;
 }
 
 /**
@@ -219,12 +225,13 @@ export function desenhoMetaDoMes(m: MetaDoDia, pronto?: MetaHojePronta | null): 
     trilho: colors.lineSoft,
     verde: false,
     apoioVerde: false,
+    apoioMarca: false,
   };
   switch (m.situacao) {
     case 'mes_batido':
-      return { ...base, verde: true, apoioVerde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: 'Meta batida' };
+      return { ...base, verde: true, apoioVerde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, apoio: 'Meta do mês batida' };
     case 'dia_batido':
-      return { ...base, apoioVerde: true, apoio: m.meta_dia != null ? `Meta de hoje ${valorDe(m.indicador, m.meta_dia)} · batida` : null };
+      return { ...base, apoioVerde: true, apoioMarca: true, apoio: 'Meta de hoje batida' };
     case 'a_cumprir':
       return { ...base, apoio: m.meta_dia != null ? `Meta de hoje ${valorDe(m.indicador, m.meta_dia)}` : null };
     case 'dia_nao_util':
@@ -271,11 +278,15 @@ export function notaDaEquipe(m: MetaDoDia): string | null {
 }
 
 /**
- * Aviso único de dado antigo (RD-0008), no bloco Sincronizar: sem cópia de vendas (`sem_realizado` do Core),
- * "Sincronize para ver as vendas"; base defasada (`base.defasado`), "Dados de 06/11, 6h28" no fuso do tenant; em dia, nada.
+ * Aviso único de dado antigo (RD-0008), texto da prop `avisoDados` do `BotaoSincronizar` (docs/design/inicio.md §1.5): sem
+ * cópia de vendas (`sem_realizado` do Core), "Sincronize para ver as vendas"; base defasada (`base.defasado`), "Dados de
+ * 06/11, 6h28" no fuso do tenant; em dia, nada. Só com meta de vendas ou positivação (§2: o promotor só com visitas e
+ * cobertura não recebe o aviso).
  */
-export function avisoDosDados(visao: Pick<VisaoInicio, 'base' | 'sem_realizado'>, tz: string): string | null {
-  if ((visao.sem_realizado?.length ?? 0) > 0) return 'Sincronize para ver as vendas';
+export function avisoDosDados(visao: Pick<VisaoInicio, 'base' | 'sem_realizado' | 'metas'>, tz: string): string | null {
+  // `sem_realizado` do Core já é só de vendas e positivação
+  if (visao.sem_realizado.length > 0) return 'Sincronize para ver as vendas';
+  if (!visao.metas.some((m) => m.indicador === 'venda_cents' || m.indicador === 'positivacao')) return null;
   const { base } = visao;
   if (!base.defasado || !base.calculado_em) return null;
   const dia = localIsoDate(base.calculado_em, tz);

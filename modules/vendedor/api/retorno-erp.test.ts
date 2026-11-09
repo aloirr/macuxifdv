@@ -94,7 +94,8 @@ const EXTRAS_CONSUMO = {
   },
   parametros: () => ({}),
   fuso: () => 'America/Manaus',
-} as unknown as Pick<ContextoConsumo, 'consultar' | 'parametros' | 'fuso'>;
+  aposConfirmar: () => undefined,
+} as unknown as Pick<ContextoConsumo, 'consultar' | 'parametros' | 'fuso' | 'aposConfirmar'>;
 
 function cenario(pedidos: PedidoEmMemoria[] = [pedidoAprovado()]) {
   const banco: BancoEmMemoria = bancoEmMemoria(pedidos);

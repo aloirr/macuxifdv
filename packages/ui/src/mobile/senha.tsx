@@ -35,7 +35,9 @@ export {
   REGRAS_DA_SENHA,
   resumoComRepeticao,
   resumoDaSenha,
+  MINIMO_DA_SENHA_SEM_TELA,
   ROTULO_REGRA_SENHA,
+  rotuloDaRegraSenha,
   SENHA_ATENDE_AS_REGRAS,
   TEXTO_REPETICAO_SENHA,
   TITULO_REGRAS_DA_SENHA,
@@ -66,6 +68,7 @@ export function RegrasDaSenha({
   faltas,
   destacar = false,
   resumo,
+  minimo,
   repeticao,
   testID = 'regras-da-senha',
 }: {
@@ -73,15 +76,17 @@ export function RegrasDaSenha({
   faltas: readonly string[];
   /** Depois de tentar salvar com falta: as faltas ficam em vermelho, com ✕. */
   destacar?: boolean;
-  /** Rótulo falado; padrão `resumoDaSenha(faltas)` (passe `mensagemDaSenha(faltas)` do Core se preferir). */
+  /** Rótulo falado: passe `mensagemDaSenha(faltas)` do Core (RD-0021). Sem ele, o kit monta a mesma frase com `minimo`. */
   resumo?: string;
+  /** Mínimo de caracteres da RN-CORE-32: passe `SENHA_MIN_CARACTERES` do Core (RD-0021; o kit não escreve o número). */
+  minimo?: number;
   /** T-0094: resultado do campo "Repita a senha" (a tela compara). Ausente = sem a linha. */
   repeticao?: RepeticaoSenha;
   testID?: string;
 }) {
-  const itens = itensDasRegras(faltas, destacar);
+  const itens = itensDasRegras(faltas, destacar, minimo);
   const conferencia = itemDaRepeticao(repeticao, destacar);
-  const falado = resumoComRepeticao(resumo ?? resumoDaSenha(faltas), repeticao, destacar);
+  const falado = resumoComRepeticao(resumo ?? resumoDaSenha(faltas, minimo), repeticao, destacar);
   return (
     <View testID={testID} style={s.caixa} accessible accessibilityRole="text" accessibilityLabel={falado} accessibilityLiveRegion="polite">
       <Text style={s.titulo}>{TITULO_REGRAS_DA_SENHA}</Text>

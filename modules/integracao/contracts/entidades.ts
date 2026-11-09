@@ -71,6 +71,11 @@ export const ClientePayload = RegistroBase.extend({
   /** Observação do ERP; o Macuxi nunca a altera (a linha de cadastro incompleto é montada na exibição). */
   observacao: TextoOpcional(1000),
   bloqueado: z.boolean().default(false),
+  /**
+   * T-0115 (RN-PES-05, aditivo e opcional no v1): canal do cliente (até 60 caracteres). Ausente = não altera; `null` ou em branco = limpa.
+   * O Hub traduz o código do ERP pelo de-para `canal` (BKO) antes de publicar; sem de-para, vale o texto como veio.
+   */
+  canal: TextoOpcional(60),
   contatos: z.array(ContatoCliente).max(CONTATOS_MAX).default([]),
   /**
    * T-0089 (RN-VEN-25, aditivos e opcionais no v1): prazo médio máximo que o cliente aceita (dias) e códigos das formas de pagamento
@@ -79,6 +84,12 @@ export const ClientePayload = RegistroBase.extend({
    */
   prazo_medio_max_dias: z.number().int('prazo_medio_max_dias deve ser inteiro').min(0).max(365).nullish(),
   formas_pagamento: z.array(Texto(20)).max(20, 'formas_pagamento aceita até 20 itens').nullish(),
+  /**
+   * T-0120 (aditivo e opcional no v1): tabela de preço do cliente no ERP, pela MESMA chave `tabela_external_id` da entidade `preco`.
+   * Ausente = não altera; `null` = desvincula (volta à tabela padrão). A tabela pode ainda não existir (a ordem de carga põe `preco`
+   * antes do cliente, mas o vínculo é guardado pela chave). Quem guarda o vínculo é o Catálogo (`cliente_tabela_preco`).
+   */
+  tabela_preco_external_id: ExternalId.nullish(),
 });
 export type ClientePayload = z.infer<typeof ClientePayload>;
 

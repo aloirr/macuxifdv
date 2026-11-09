@@ -27,9 +27,11 @@ import {
   ErroNaoEncontrado,
   ErroRegraNegocio,
   verificarCarteira,
+  type ClienteBanco,
   type ContextoBase,
   type ContextoRota,
   type RotaModulo,
+  type TransacaoTenant,
 } from '@macuxi/platform-sdk';
 import {
   ConsultaBuscaQuery,
@@ -74,7 +76,7 @@ import {
   type RespostaExportacao,
 } from '../contracts';
 import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
-import { fatoDaEscritaMarca, nomeMarcaIgual, validarNomeMarca } from '../domain/marcas-cadastro';
+import { fatoDaEscritaMarca, filtrarMarcas, nomeMarcaIgual, validarNomeMarca } from '../domain/marcas-cadastro';
 import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domain/marcas';
 import { montarExportacao } from '../domain/exportacao';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
@@ -85,7 +87,7 @@ import { diaDoTenant, verificarConsultaIa } from '../domain/limite-ia';
 import { parametrosDoTenant, timeoutIaDoTenant, type ParametrosCatalogo } from '../domain/parametros';
 import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
 import { podeVerPrecoEstoque } from '../domain/visibilidade';
-import { candidatosDaBusca } from '../domain/indice-busca';
+import { candidatosDaBusca, cortarCandidatos, TETO_CANDIDATOS } from '../domain/indice-busca';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
 import { interpretarComMedicao } from './ia/buscar';
 import type { FabricaRepositorio, RepositorioCatalogo } from './repositorio';
@@ -94,6 +96,11 @@ export interface DependenciasRotas {
   repositorio: FabricaRepositorio;
   /** Porta do LLM da busca para o tempo limite dado (ms); `null` = sem provedor configurado (busca por regras, sem aviso). */
   portaIa?: (timeoutMs: number) => PortaInterpretacaoLlm | null;
+  /**
+   * Chamado DEPOIS da transação de uma gravação do Catálogo (commit ou falha) com o tenant: o repositório descarta o retrato do
+   * catálogo ali. O descarte de antes do commit não basta: uma busca no meio recarregaria o dado velho e o guardaria por 60 s.
+   */
+  aposGravar?: (tenantId: string) => void;
 }
 
 /** T-0119: o vocabulário (marcas e categorias de 20 mil produtos) sai uma vez por retrato do catálogo, não por busca. */
@@ -107,8 +114,6 @@ function vocabularioEmCache(produtos: readonly ProdutoCatalogo[]): ReturnType<ty
   return v;
 }
 
-const semAcentoMarca = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
-
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
 /** RN-CORE-04: cliente em contexto precisa estar na carteira (403 FORA_DA_CARTEIRA, como o `createApp`). */
@@ -120,12 +125,14 @@ async function conferirCliente(ctx: ContextoBase, clienteId: string | undefined)
 }
 
 /** Monta o contexto de preço/estoque do usuário. RN-CAT-05: para quem não vê, nada de preço/estoque é lido do banco. */
-async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[]): Promise<ContextoVitrine> {
+async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: ParametrosCatalogo, clienteId: string | null, produtos: readonly ProdutoCatalogo[], soEstoque = false): Promise<ContextoVitrine> {
   const base = { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString(), clienteId };
   if (!podeVerPrecoEstoque(ctx.usuario.perfil, p)) {
     return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
   }
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
+  // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
+  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario() };
   const precos = await repo.precos(clienteId, ids);
   const promocoes = await repo.promocoes(ids);
   const saldos = await repo.saldos(ids);
@@ -178,6 +185,14 @@ async function interpretar(ctx: ContextoBase, dep: DependenciasRotas, q: Consult
 }
 
 export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
+  /** Gravação que muda o cadastro do retrato (T-0119): descarta o retrato do tenant também DEPOIS do commit. */
+  const comTenantGravando = async <T>(ctx: ContextoBase, fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>): Promise<T> => {
+    try {
+      return await ctx.comTenant(fn);
+    } finally {
+      dep.aposGravar?.(ctx.usuario.tenant_id);
+    }
+  };
   const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(dep.repositorio(ctx, db, tx)));
 
   const busca: RotaModulo = {
@@ -201,7 +216,9 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
         const sinonimos: readonly SinonimoDoTenant[] = leitura.sinonimos;
         const chips = { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock };
         // T-0119 (D-T0107b): com catálogo grande o índice separa os candidatos; preço e estoque são lidos só deles
-        const candidatos = candidatosDaBusca({ produtos: leitura.produtos, contexto: { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString() }, filtros: interp.filtros, chips, sinonimos });
+        let candidatos = candidatosDaBusca({ produtos: leitura.produtos, contexto: { perfil: ctx.usuario.perfil, parametros: p, agora: ctx.agora().toISOString() }, filtros: interp.filtros, chips, sinonimos });
+        // teto de candidatos antes do ranking completo (só o estoque é lido para todos; o preço, só para os que ficam)
+        if (candidatos && candidatos.produtos.length > TETO_CANDIDATOS) candidatos = cortarCandidatos(candidatos, await contextoVitrine(ctx, repo, p, clienteId, candidatos.produtos, true));
         const produtosDaBusca = candidatos?.produtos ?? leitura.produtos;
         const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtosDaBusca);
         const pagina = buscarProdutos({ produtos: produtosDaBusca, contexto, filtros: interp.filtros, chips, sinonimos, limit: q.limit, offset: q.offset, ...(candidatos ? { maxVendas: candidatos.maxVendas } : {}) });
@@ -327,7 +344,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     params: ParamsProduto,
     corpo: SalvarDestaque,
     async executar(ctx: Ctx<SalvarDestaque, unknown, ParamsProduto>): Promise<RespostaEscrita> {
-      return ctx.comTenant(async (db, tx) => {
+      return comTenantGravando(ctx, async (db, tx) => {
         const repo = dep.repositorio(ctx, db, tx);
         const produto = await repo.produto(ctx.params.id);
         if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
@@ -346,7 +363,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     params: ParamsProduto,
     corpo: SalvarFotoPrincipal,
     async executar(ctx: Ctx<SalvarFotoPrincipal, unknown, ParamsProduto>): Promise<RespostaEscrita> {
-      return ctx.comTenant(async (db, tx) => {
+      return comTenantGravando(ctx, async (db, tx) => {
         const repo = dep.repositorio(ctx, db, tx);
         const produto = await repo.produto(ctx.params.id);
         if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
@@ -368,7 +385,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     params: ParamsProduto,
     corpo: SalvarConteudo,
     async executar(ctx: Ctx<SalvarConteudo, unknown, ParamsProduto>): Promise<RespostaEscrita> {
-      return ctx.comTenant(async (db, tx) => {
+      return comTenantGravando(ctx, async (db, tx) => {
         const repo = dep.repositorio(ctx, db, tx);
         const produto = await repo.produto(ctx.params.id);
         if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
@@ -392,7 +409,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     params: ParamsProduto,
     corpo: SalvarCadastroCatalogo,
     async executar(ctx: Ctx<SalvarCadastroCatalogo, unknown, ParamsProduto>): Promise<RespostaEscrita> {
-      return ctx.comTenant(async (db, tx) => {
+      return comTenantGravando(ctx, async (db, tx) => {
         const repo = dep.repositorio(ctx, db, tx);
         const produto = await repo.produto(ctx.params.id);
         if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
@@ -456,17 +473,16 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     query: MarcaListaQuerySchema,
     async executar(ctx: Ctx<unknown, MarcaListaQuery>): Promise<MarcaListaSaida> {
       const q = ctx.query;
-      const busca = q.busca ? semAcentoMarca(q.busca) : '';
       const todas = await comRepo(ctx, (repo) => repo.marcasCadastro());
       return {
-        marcas: todas.filter((m) => (q.situacao === 'todas' || (q.situacao === 'ativas' ? m.ativo : !m.ativo)) && (busca === '' || semAcentoMarca(m.nome).includes(busca))),
+        marcas: filtrarMarcas(todas, { situacao: q.situacao, busca: q.busca }),
       };
     },
   };
 
   /** Valida (RN-CAT-13), grava, publica o fato e audita (só ids), tudo na transação da rota. */
   async function escreverMarca(ctx: Ctx<unknown, unknown, unknown>, id: string, pedido: { nome?: string | undefined; ativo?: boolean | undefined; external_id?: string | null | undefined }, criar: boolean): Promise<RespostaEscrita> {
-    return ctx.comTenant(async (db, tx) => {
+    return comTenantGravando(ctx, async (db, tx) => {
       const repo = dep.repositorio(ctx, db, tx);
       const todas = await repo.marcasCadastro();
       const atual = todas.find((m) => m.id === id) ?? null;

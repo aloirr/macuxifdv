@@ -88,21 +88,52 @@ describe('textos', () => {
     expect(desenhoBotaoSincronizar({ semSinal: false, recente: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' })).toEqual({
       rotulo: 'Sincronizar',
       situacao: 'Última sincronização 11:00 · 0 na fila',
+      tom: 'neutro',
       aviso: null,
     });
     expect(desenhoBotaoSincronizar({ semSinal: false, recente: true, sincronizadoEm: INICIO, naFila: 2 }).situacao).toBe('Atualizado há instantes');
     const semSinal = desenhoBotaoSincronizar({ semSinal: true, recente: false, sincronizadoEm: null, naFila: 3 });
-    expect(semSinal).toEqual({ rotulo: 'Sem sinal', situacao: 'Ainda não sincronizado · 3 na fila', aviso: 'Desligue o modo sem sinal para sincronizar' });
+    expect(semSinal).toEqual({ rotulo: 'Sem sinal', situacao: 'Ainda não sincronizado · 3 na fila', tom: 'neutro', aviso: 'Desligue o modo sem sinal para sincronizar' });
     // o rótulo cabe numa linha do botão (o Button corta em uma linha)
     expect(semSinal.rotulo.length).toBeLessThanOrEqual(12);
+  });
+  it('BotaoSincronizar (RD-0008): avisoDados é o aviso único de dado antigo, no lugar da última sincronização, com a fila', () => {
+    const base = { semSinal: false, recente: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' };
+    expect(desenhoBotaoSincronizar({ ...base, avisoDados: 'Dados de 06/11, 6h28' })).toEqual({
+      rotulo: 'Sincronizar',
+      situacao: 'Dados de 06/11, 6h28 · 0 na fila',
+      tom: 'atencao',
+      aviso: null,
+    });
+    expect(desenhoBotaoSincronizar({ ...base, naFila: 2, avisoDados: 'Sincronize para ver as vendas' }).situacao).toBe('Sincronize para ver as vendas · 2 na fila');
+    // a cópia continua velha logo depois do toque: o aviso vale mais que "Atualizado há instantes"
+    expect(desenhoBotaoSincronizar({ ...base, recente: true, avisoDados: 'Dados de 06/11, 6h28' }).situacao).toBe('Dados de 06/11, 6h28 · 0 na fila');
+    // sem sinal: o motivo continua na linha própria e o aviso de dados na linha de situação
+    const semSinal = desenhoBotaoSincronizar({ ...base, semSinal: true, avisoDados: 'Dados de 06/11, 6h28' });
+    expect(semSinal).toMatchObject({ rotulo: 'Sem sinal', tom: 'atencao', aviso: 'Desligue o modo sem sinal para sincronizar' });
+    // sem texto (null, undefined, vazio), nada muda; o aviso não repete "Sincronizar" (o botão logo acima já diz)
+    for (const avisoDados of [null, undefined, '', '   ']) {
+      expect(desenhoBotaoSincronizar({ ...base, avisoDados })).toEqual(desenhoBotaoSincronizar(base));
+    }
+    expect(desenhoBotaoSincronizar({ ...base, avisoDados: 'Dados de 06/11, 6h28' }).situacao).not.toMatch(/Sincronizar/);
   });
   it('BotaoSincronizar (T-0076): botão de 52 dp e linha de situação centralizada, como na referência', () => {
     const src = readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
     expect(src).toContain('height={ALTURA.principal}');
-    expect(src).toMatch(/testID=\{`\$\{testID\}-situacao`\}/);
-    expect(src.match(/textAlign: 'center'/g)?.length).toBe(2);
+    expect(src.match(/testID=\{`\$\{testID\}-situacao`\}/g)?.length).toBe(2);
+    expect(src.match(/textAlign: 'center'/g)?.length).toBe(3);
     expect(src).toContain('desenhoBotaoSincronizar(');
     expect(src).not.toContain('Sem sinal: desligue');
+  });
+  it('BotaoSincronizar (RD-0008): prop opcional avisoDados, ícone sync e warningInk na linha, testID {testID}-aviso-dados', () => {
+    const src = readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('avisoDados?: string | null;');
+    expect(src).toMatch(/desenhoBotaoSincronizar\(\{[^}]*avisoDados \}\)/);
+    expect(src).toContain("d.tom === 'atencao'");
+    expect(src).toContain('<Icon name="sync" size={14} color={colors.warningInk} />');
+    expect(src).toMatch(/testID=\{`\$\{testID\}-aviso-dados`\}/);
+    // a linha inteira é lida de uma vez (ícone escondido do leitor), e avisa quando muda
+    expect(src).toContain('accessible accessibilityLabel={d.situacao} accessibilityLiveRegion="polite"');
   });
   it('rodapé das listas', () => {
     expect(rodapeAtualizacao(null)).toBe('Puxe para sincronizar');

@@ -78,9 +78,14 @@ export const clienteDoRascunho = (id: string): string | null => (id.startsWith(P
  * "Apenas salvar" (RN-VEN-38): o rascunho com `salvo_em` aparece na lista Pedidos com a tag "Salvo". Rascunho de edição
  * (`edit:<id>`), sem itens ou nunca guardado de propósito não entra (esse é o "Pedido não terminado" do Início).
  */
-export function rascunhosSalvosComoPedidos(rascunhos: Record<string, Rascunho>, nomeDoCliente: (customerId: string) => string): PedidoDaLista[] {
+export function rascunhosSalvosComoPedidos(
+  rascunhos: Record<string, Rascunho>,
+  nomeDoCliente: (customerId: string) => string,
+  /** v1.0.1: total do rascunho em centavos pelo catálogo do aparelho; `null`/ausente = sem tabela para calcular */
+  totalDoRascunho?: (r: Rascunho) => number | null,
+): PedidoDaLista[] {
   return Object.entries(rascunhos)
-    .filter(([chave, r]) => !chave.startsWith('edit:') && Boolean(r.salvo_em) && Object.keys(r.lines).length > 0 && !r.edit_order_id)
+    .filter(([chave, r]) => !chave.startsWith('edit:') && Boolean(r.salvo_em) && Object.values(r.lines).some((q) => q > 0) && !r.edit_order_id)
     .map(([, r]): PedidoDaLista => {
       const quando = r.salvo_em ?? r.updated_at;
       return {
@@ -95,9 +100,9 @@ export function rascunhosSalvosComoPedidos(rascunhos: Record<string, Rascunho>, 
         branch_name: '',
         price_table_id: null,
         discount_pct: r.discount_pct,
-        subtotal_cents: 0,
+        subtotal_cents: totalDoRascunho?.(r) ?? 0,
         discount_cents: 0,
-        total_cents: 0,
+        total_cents: totalDoRascunho?.(r) ?? 0,
         payment_terms: r.payment_terms,
         status: 'draft',
         pending_reason: '',
@@ -106,7 +111,7 @@ export function rascunhosSalvosComoPedidos(rascunhos: Record<string, Rascunho>, 
         created_offline_at: quando,
         received_at: quando,
         updated_at: quando,
-        items_count: Object.keys(r.lines).length,
+        items_count: Object.values(r.lines).filter((q) => q > 0).length,
         units: Object.values(r.lines).reduce((s, n) => s + n, 0),
         local: true,
         local_error: '',
@@ -114,4 +119,10 @@ export function rascunhosSalvosComoPedidos(rascunhos: Record<string, Rascunho>, 
       };
     })
     .sort((a, b) => b.received_at.localeCompare(a.received_at));
+}
+
+/** v1.0.1: o valor da linha "Salvo" da lista Pedidos: o total do rascunho, "Sem itens" sem item, "—" quando falta a tabela de preços no aparelho. */
+export function totalDaLinhaSalva(o: { total_cents: number; items_count?: number }, formatar: (cents: number) => string): string {
+  if ((o.items_count ?? 0) === 0) return 'Sem itens';
+  return o.total_cents > 0 ? formatar(o.total_cents) : '—';
 }

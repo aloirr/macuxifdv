@@ -7,7 +7,7 @@
  */
 import { createContext, useContext } from 'react';
 
-import type { VoltarDaTela } from './componentes';
+import type { SaidaDaTela, VoltarDaTela } from './componentes';
 
 const VoltarCtx = createContext<VoltarDaTela | null>(null);
 VoltarCtx.displayName = 'ProvedorVoltar';
@@ -18,4 +18,21 @@ export const ProvedorVoltar = VoltarCtx.Provider;
 /** Valor do `ProvedorVoltar` mais próximo; `null` sem provedor. */
 export function useVoltarDaTela(): VoltarDaTela | null {
   return useContext(VoltarCtx);
+}
+
+/**
+ * T-0128 (RN-VEN-38, R-20261108-150213-engenheiro-apps): saída da tela pelo Voltar do cabeçalho. O shell envolve as telas de
+ * módulo com `<ProvedorSaidaDaTela value={bloqueioDoShell}>`; o `BackLink` passa o toque por `tentarSair(seguir)`, e o
+ * formulário alterado (`useBloquearSaida`) pergunta antes de sair, como já faz a barra inferior e o Voltar do Android.
+ * Sem provedor (ou `value={null}`), o `BackLink` volta direto, como antes. Só apresentação: quem decide é o shell.
+ */
+const SaidaCtx = createContext<SaidaDaTela | null>(null);
+SaidaCtx.displayName = 'ProvedorSaidaDaTela';
+
+/** Provedor do bloqueio de saída do shell para o Voltar do cabeçalho; `null` = volta direto. */
+export const ProvedorSaidaDaTela = SaidaCtx.Provider;
+
+/** Valor do `ProvedorSaidaDaTela` mais próximo; `null` sem provedor. */
+export function useSaidaDaTela(): SaidaDaTela | null {
+  return useContext(SaidaCtx);
 }

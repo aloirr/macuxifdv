@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   CAMPO_REPITA_A_SENHA,
@@ -5,9 +6,12 @@ import {
   faltasEmOrdem,
   itemDaRepeticao,
   itensDasRegras,
+  MINIMO_DA_SENHA_SEM_TELA,
   REGRAS_DA_SENHA,
   resumoComRepeticao,
   resumoDaSenha,
+  ROTULO_REGRA_SENHA,
+  rotuloDaRegraSenha,
   SENHA_ATENDE_AS_REGRAS,
 } from './senha';
 
@@ -96,5 +100,34 @@ describe('RN-CORE-34: "Repita a senha" na "Crie sua senha" (T-0094)', () => {
     expect(resumoComRepeticao(resumoDaSenha([]), 'igual')).toBe('A senha atende às regras. As senhas conferem.');
     expect(resumoComRepeticao(resumoDaSenha([]), 'vazia')).toBe('A senha atende às regras.');
     expect(resumoComRepeticao(resumoDaSenha([]), undefined)).toBe('A senha atende às regras.');
+  });
+});
+
+describe('RD-0021: o mínimo de caracteres vem da tela (SENHA_MIN_CARACTERES do Core), sem 8 escrito à mão no kit', () => {
+  it('rótulo e frase acompanham o mínimo recebido', () => {
+    expect(rotuloDaRegraSenha('caracteres', 10)).toBe('10 caracteres ou mais');
+    expect(rotuloDaRegraSenha('numero', 10)).toBe('Um número');
+    expect(resumoDaSenha(['caracteres', 'letra'], 12)).toBe('A senha precisa ter pelo menos 12 caracteres. Falta uma letra.');
+    expect(itensDasRegras(['caracteres'], true, 10)[0]).toMatchObject({ rotulo: '10 caracteres ou mais', estado: 'erro', rotuloAcessivel: '10 caracteres ou mais: falta' });
+  });
+
+  it('sem mínimo da tela, vale o padrão de transição, num lugar só', () => {
+    expect(MINIMO_DA_SENHA_SEM_TELA).toBe(8);
+    expect(rotuloDaRegraSenha('caracteres')).toBe(`${MINIMO_DA_SENHA_SEM_TELA} caracteres ou mais`);
+    expect(ROTULO_REGRA_SENHA.caracteres).toBe(rotuloDaRegraSenha('caracteres'));
+    // o número aparece uma vez no código do kit: na constante de transição
+    const fonte = readFileSync(new URL('./senha.ts', import.meta.url), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*(\*|\/\*\*|\/\/)/.test(l));
+    expect(fonte.filter((l) => /\b8\b/.test(l))).toEqual(['export const MINIMO_DA_SENHA_SEM_TELA = 8;']);
+  });
+
+  it('os dois kits passam o minimo da tela para a lista e para a frase', () => {
+    for (const arq of ['../web/senha.tsx', '../mobile/senha.tsx']) {
+      const src = readFileSync(new URL(arq, import.meta.url), 'utf8');
+      expect(src).toContain('itensDasRegras(faltas, destacar, minimo)');
+      expect(src).toContain('resumoDaSenha(faltas, minimo)');
+      expect(src).toContain('minimo?: number;');
+    }
   });
 });

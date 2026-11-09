@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
 import { alertasDaVenda } from '../../domain/alertas-venda';
-import { botoesDoResumo } from '../../domain/botoes-resumo';
+import { botoesDoResumo, destinoDoEnvio } from '../../domain/botoes-resumo';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
@@ -26,7 +26,7 @@ import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { ListaDeItens } from '../components/novo-pedido-itens';
-import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, DialogoDescartar, FimDaAbaItens, linhasDoLeveMais, TotalDoPedido } from '../components/novo-pedido-abas';
+import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais, TotalDoPedido } from '../components/novo-pedido-abas';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
@@ -46,7 +46,7 @@ import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type Suge
 import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
 import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, guardarOrigemEditor, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
 import { pendenciasDePreenchimento } from '../../domain/pendencias-preenchimento';
-import { destinoDoSalvarDaSaida, opcoesDaSaida, pedidoAlterado } from '../../domain/sair-do-pedido';
+import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
 import { FolhaSaidaDoPedido, VoltarDoFormulario } from '../components/saida-do-pedido';
 import { useBloquearSaida } from '../lib/bloquear-saida';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
@@ -269,7 +269,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const [aba, setAba] = useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft));
   const saveEditRef = useRef<(opcoes?: { transformar?: boolean }) => Promise<void>>(async () => undefined);
   const sendRef = useRef<(tipo?: 'pedido' | 'orcamento') => Promise<boolean>>(async () => false);
-  const [descartarAberto, setDescartarAberto] = useState(false);
   // RN-VEN-38: folha "Sair do pedido?" e a saída que a pessoa pediu (cabeçalho, Android, barra inferior ou Cancelar)
   const [saidaAberta, setSaidaAberta] = useState(false);
   const saidaPedida = useRef<(() => void) | null>(null);
@@ -285,6 +284,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     saidaPedida.current = prosseguir;
     setSaidaAberta(true);
   };
+  /** v1.0.1: Cancelar na edição abre a mesma folha "Sair do pedido?", com as opções da edição; a saída é sempre perguntada. */
+  const pedirSaidaDaEdicao = () => {
+    saidaPedida.current = () => (router.canGoBack() ? router.back() : router.replace(hrefPedidos() as never));
+    setSaidaAberta(true);
+  };
   const pedirSaidaRef = useRef(pedirSaida);
   pedirSaidaRef.current = pedirSaida;
   useBloquearSaida(alterado, (prosseguir) => pedirSaidaRef.current(prosseguir));
@@ -294,7 +298,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (sent || descartarAberto || saidaAberta) return false;
+        if (sent || saidaAberta) return false;
         const anterior = abaAnteriorDoPedido(aba);
         if (anterior === null) {
           // RN-VEN-38: o botão Voltar do Android sai do pedido alterado só depois da folha (da aba Venda)
@@ -306,7 +310,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         return true;
       });
       return () => sub.remove();
-    }, [aba, sent, descartarAberto, saidaAberta, alterado]),
+    }, [aba, sent, saidaAberta, alterado]),
   );
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
@@ -426,6 +430,22 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       vivo = false;
     };
   }, [chaveDosTextos, lerTextos]);
+
+  /**
+   * T-0089 / T-0137: `fn` de `depoisDeConfirmar` roda depois do render que já tem o rascunho novo. Estes hooks ficam ANTES dos
+   * `return` antecipados (regra dos hooks): depois deles, o render que saía cedo ("Cliente não encontrado") e o seguinte tinham
+   * número diferente de hooks, o React lançava e o app fechava ao tocar em "Novo pedido" (relato do dono do produto, 08/11).
+   */
+  const [rodadaDeConfirmar, setRodadaDeConfirmar] = useState(0);
+  const aposConfirmar = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const fn = aposConfirmar.current;
+    aposConfirmar.current = null;
+    fn?.();
+  }, [rodadaDeConfirmar]);
+
+  // o `useVendedor` daqui é outra instância (começa vazia): até ler o aparelho, carregando — não "Cliente não encontrado"
+  if (!app.carregado) return <Loading />;
 
   if (editId && (!dados.rascunhos[draftKey] || !editTarget)) {
     return (
@@ -552,13 +572,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
    * em seguida; `fn` roda depois do render que já tem o rascunho novo (sem `setTimeout`, que dependia de o aparelho ser rápido).
    * `saveEditRef` e `sendRef` são lidos nesse momento, então salvam a versão nova.
    */
-  const [rodadaDeConfirmar, setRodadaDeConfirmar] = useState(0);
-  const aposConfirmar = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    const fn = aposConfirmar.current;
-    aposConfirmar.current = null;
-    fn?.();
-  }, [rodadaDeConfirmar]);
   const depoisDeConfirmar = (fn: () => void) => {
     if (Keyboard.isVisible()) Keyboard.dismiss();
     aposConfirmar.current = fn;
@@ -611,7 +624,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     apenasSalvar(destino);
   };
   const descartar = async () => {
-    setDescartarAberto(false);
     await app.descartarRascunho(draftKey);
     const destino = saidaPedida.current;
     saidaPedida.current = null;
@@ -627,6 +639,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       saidaPedida.current = null;
       depoisDeConfirmar(() => setAba('resumo'));
       setAnuncioPendencias((n) => n + 1);
+      return;
+    }
+    if (editId) {
+      saidaPedida.current = null;
+      depoisDeConfirmar(() => void saveEditRef.current());
       return;
     }
     const destino = saidaPedida.current;
@@ -787,7 +804,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             onOrcamento={aoSalvarComoOrcamento}
             onSalvarOrcamento={aoSalvarOrcamentoEditado}
             onTransformar={aoTransformarEmPedido}
-            onCancelar={() => (editId ? setDescartarAberto(true) : alterado ? pedirSaida(sairDoPedido) : void descartar())}
+            onCancelar={() => (editId ? pedirSaidaDaEdicao() : alterado ? pedirSaida(sairDoPedido) : void descartar())}
             salvando={sending}
             somenteLeitura={Boolean(sent)}
             pendencias={<BlocoPendencias pendencias={pendencias} abas={ABAS_DO_PEDIDO} onIr={(p) => irParaAba(p.aba as AbaNovoPedido)} anuncio={anuncioPendencias} />}
@@ -812,8 +829,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       ) : null}
 
       <AvisoRodape {...avisoRodape.props} respiroInferior={16} />
-      <FolhaSaidaDoPedido visivel={saidaAberta} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, validade_data: validade.data })} onAcao={aoEscolherNaSaida} />
-      <DialogoDescartar visivel={descartarAberto} onVoltar={() => setDescartarAberto(false)} onDescartar={() => void descartar()} />
+      <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido', destino: botoesBase.enviar.destino ?? destinoDoEnvio(calculo.nivel) }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, validade_data: validade.data })} onAcao={aoEscolherNaSaida} />
     </View>
   );
 }

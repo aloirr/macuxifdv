@@ -6,12 +6,13 @@
  * testIDs: crie-senha.tela, crie-senha.nova, crie-senha.repita, crie-senha.olho, crie-senha.salvar, crie-senha.erro,
  * crie-senha.voltar, crie-senha.sem-internet.
  */
-import { Banner, Button, colors, fonts, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { estilosDeAcesso } from './estilos-de-acesso';
+import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { RegrasDaSenha, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA } from '@macuxi/ui/mobile';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
-import type { DetalhesSenhaATrocar } from '../../contracts';
+import { SENHA_MIN_CARACTERES, mensagemDaSenha, type DetalhesSenhaATrocar } from '../../contracts';
 import { rotuloOlhoSenha } from '../lib/login';
 import { erroDaTroca, subtituloDaTroca, TEXTO_SEM_INTERNET_TROCA, TITULO_CRIE_SUA_SENHA, repeticaoDaSenha, validarTroca } from '../lib/senha';
 
@@ -108,7 +109,7 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
             placeholderTextColor={colors.ink3}
           />
           <Pressable testID="crie-senha.olho" accessibilityRole="button" accessibilityLabel={rotuloOlhoSenha(visivel)} hitSlop={4} onPress={() => setVisivel((x) => !x)} style={styles.olho}>
-            <Text style={styles.olhoTexto}>{visivel ? 'Ocultar' : 'Mostrar'}</Text>
+            <Text style={styles.olhoTexto}>{visivel ? 'Esconder' : 'Mostrar'}</Text>
           </Pressable>
         </View>
       </View>
@@ -133,7 +134,7 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
         />
       </View>
 
-      <RegrasDaSenha faltas={v.faltas} repeticao={repeticaoDaSenha(nova, repetida)} destacar={destacar} testID="crie-senha.regras" />
+      <RegrasDaSenha faltas={v.faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(v.faltas) ?? undefined} repeticao={repeticaoDaSenha(nova, repetida)} destacar={destacar} testID="crie-senha.regras" />
 
       <Button testID="crie-senha.salvar" label={salvando ? 'Salvando…' : 'Salvar e entrar'} variant="dark" height={52} loading={salvando} onPress={() => void salvar()} />
       <Pressable testID="crie-senha.voltar" accessibilityRole="button" accessibilityLabel="Voltar ao login" onPress={() => onVoltar()} style={styles.link}>
@@ -143,22 +144,4 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
   );
 }
 
-const styles = StyleSheet.create({
-  titulo: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
-  rotulo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
-  olho: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: 52, minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  olhoTexto: { fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk },
-  entrada: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    color: colors.ink,
-    backgroundColor: colors.surface,
-  },
-  link: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  linkTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
-});
+const styles = estilosDeAcesso;

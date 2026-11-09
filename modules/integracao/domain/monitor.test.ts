@@ -130,9 +130,12 @@ describe('RF-INT-04/06: alertas do monitor em português com a ação seguinte',
     const a = montarAlertasMonitor({ ...vazio, cancelamentosRecusados: [{ pedido_uuid: uuid, numero_erp: 'PV-9', motivo: 'Pedido já faturado no ERP' }] });
     expect(a).toEqual([expect.objectContaining({ codigo: 'cancelamento_recusado', severidade: 'atencao', conector_id: null })]);
     expect(a[0]?.mensagem).toContain('PV-9');
-    expect(a[0]?.mensagem).toContain(uuid);
+    expect(a[0]?.mensagem).not.toContain(uuid); // RD-0026: com número do ERP, o UUID não aparece
+    expect(a[0]?.mensagem).toBe('1 pedido segue ativo: PV-9 (Pedido já faturado no ERP). Cancele no ERP ou avise o vendedor. O alerta some quando o cancelamento chegar.');
+    expect((a[0]?.mensagem.match(/ERP/g) ?? []).length).toBeLessThanOrEqual(3);
     expect(a[0]?.mensagem).toContain('Pedido já faturado no ERP');
     expect(a[0]?.mensagem).toMatch(/Cancele no ERP/);
+    expect(a[0]?.mensagem).not.toMatch(/recusou/);
   });
 
   it('RN-INT-08 (T-0114): vários cancelamentos recusados viram um alerta só, com os 3 primeiros e a contagem do resto', () => {

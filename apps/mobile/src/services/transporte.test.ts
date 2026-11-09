@@ -72,3 +72,20 @@ describe('transporteV1.novidades', () => {
     expect(transporteFaseM(apiFalsa(() => RESPOSTA).api).novidades).toBeUndefined();
   });
 });
+
+describe('transporteV1.pull — carga inicial em páginas (T-0140, relato 6)', () => {
+  it('devolve a vez ao sistema antes de cada página (a carga grande não prende a thread de JS do começo ao fim)', async () => {
+    const ordem: string[] = [];
+    const { api } = apiFalsa((c) => {
+      ordem.push(`GET ${c.caminho}`);
+      return { itens: [], proximo_cursor: null };
+    });
+    const t = transporteV1(api, () => {
+      ordem.push('ceder');
+      return Promise.resolve();
+    });
+    await t.pull('cliente', null);
+    await t.pull('cliente', 'c1');
+    expect(ordem).toEqual(['ceder', 'GET /sync/pull', 'ceder', 'GET /sync/pull']);
+  });
+});

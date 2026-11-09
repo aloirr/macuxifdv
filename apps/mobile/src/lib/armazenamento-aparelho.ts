@@ -22,6 +22,8 @@ import {
   type SistemaSqlite,
 } from '@macuxi/platform-sdk';
 
+import { limparDadoPessoal } from './erro-de-tela';
+
 /** Trava de emergência (desenho §4): só vale para quem ainda não passou para o SQLite (sem espelho). */
 export function forcarAsyncStorage(valor: string | undefined | null): boolean {
   return (valor ?? '').trim().toLowerCase() === 'asyncstorage';
@@ -183,10 +185,7 @@ export const ROTULO_ENVIAR_SUPORTE = 'Enviar o detalhe ao suporte';
  * CNPJ, telefone) saem mascarados.
  */
 export function mensagemParaSuporte(detalhe: string): string {
-  const limpo = detalhe
-    .replace(/[^\s@]+@[^\s@]+/g, '[e-mail]')
-    .replace(/(?<![0-9a-z-])\d[\d.\-/() ]{9,}\d(?![0-9a-z-])/gi, '[número]');
-  return `Macuxi FDV · ${TITULO_ERRO_ARMAZENAMENTO}\n${limpo}`;
+  return `Macuxi FDV · ${TITULO_ERRO_ARMAZENAMENTO}\n${limparDadoPessoal(detalhe)}`;
 }
 
 /**

@@ -91,6 +91,9 @@ export const PedidoSyncSchema = z
     prazo_descricao: z.string().nullable().optional(),
     prazo_parcelas_dias: z.array(z.number().int()).nullable().optional(),
     prazo_medio_dias: z.number().int().nullable().optional(),
+    // --- T-0138 (RN-VEN-31, exceção T-0114): o conector do tenant aceita cancelar o pedido já enviado? Só vem nos enviados/integrados;
+    //     calculado na hora do pull por integracao.cancelamento_erp@1 (não é coluna). Ausente = não aceita. ---
+    erp_aceita_cancelamento: z.boolean().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;

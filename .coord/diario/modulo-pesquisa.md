@@ -12,3 +12,4 @@
 2026-11-05 — T-0039 — complemento: fuso por ctx.fuso(); teste de virada não demonstrável porque o domain filtra por visita
 2026-11-05 — T-0039 — consulta etapas_checkout usa ctx.fuso(); teste de virada de semana/mês em 3 fusos; método filtrado confirmado
 2026-11-08 — contraste do laranja (text-accent-ink em 4 pontos da web) e encerramento do pedido do #56
+2026-11-09 — T-0115 — canal no público-alvo (domain, contrato, construtor BKO por texto, filtro offline no app); lint/typecheck/test verdes

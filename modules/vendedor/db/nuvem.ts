@@ -4,7 +4,7 @@
  * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item),
  * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), 0033_catalogo_aplicacao_referencia
  * (retrato da aplicação no item, T-0084) e 0037_forma_prazo_escalonada (forma_pagamento, prazo_pagamento e o pagamento do
- * pedido, T-0089), para uso INTERNO do
+ * pedido, T-0089) e 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -327,4 +327,20 @@ export const pedidoFaturamento = vendedor.table('pedido_faturamento', {
   nota_total_cents: bigint('nota_total_cents', { mode: 'number' }),
   itens: jsonb('itens').$type<ItemFaturamentoPedido[]>().notNull().default([]),
   faturado_em: timestamp('faturado_em', { withTimezone: true }).notNull(),
+});
+
+/**
+ * Devolução do pedido (0050, RN-VEN-37): uma linha viva por nota de devolução do ERP (integracao.nota.atualizado@1, tipo
+ * devolucao com pedido_uuid). Upsert pelo external_id (a nota; único por tenant entre as linhas vivas); nota cancelada,
+ * inativada ou sem pedido = soft delete (update deleted_at). O devolvido do pedido é a SOMA das linhas vivas (sem coluna de
+ * resumo em pedido). Só o servidor usa (fora do sync). external_id aqui é NOT NULL (a chave da nota), ao contrário de comuns().
+ */
+export const pedidoDevolucao = vendedor.table('pedido_devolucao', {
+  ...comuns(),
+  external_id: text('external_id').notNull(),
+  pedido_id: uuid('pedido_id').notNull(),
+  nota_numero: text('nota_numero').notNull(),
+  nota_serie: text('nota_serie'),
+  emitida_em: timestamp('emitida_em', { withTimezone: true }).notNull(),
+  total_cents: bigint('total_cents', { mode: 'number' }).notNull(),
 });

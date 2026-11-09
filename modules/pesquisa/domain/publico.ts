@@ -18,6 +18,8 @@ export interface ClienteAlvo {
   id: string;
   segmento: string | null;
   regiao: string | null;
+  /** T-0115: canal do cliente (Core); ausente/nulo = sem canal. */
+  canal?: string | null;
 }
 
 export interface RespostaAnterior {
@@ -28,7 +30,8 @@ export interface RespostaAnterior {
   respondida_em: string;
 }
 
-const norm = (s: string) => s.trim().toLowerCase();
+/** Sem caixa, sem acento e sem espaços repetidos (o canal vem livre do ERP). */
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/s+/g, ' ').toLowerCase();
 const contem = (lista: readonly string[], valor: string | null) => valor !== null && lista.some((x) => norm(x) === norm(valor));
 
 /** RF-PES-02: o perfil do usuário está no público? Lista vazia = sem restrição. */
@@ -47,20 +50,23 @@ export function publicoContemUsuario(publico: PublicoAlvo, usuario: UsuarioAlvo)
 }
 
 /**
- * RF-PES-02: critérios de cliente. Segmento e região preenchidos (sem canal: RN-PES-05) valem juntos (E); a lista de clientes soma a
- * eles (OU). Sem nenhum critério, vale para qualquer cliente e também para pesquisa sem cliente (avulsa);
- * com critério e sem cliente em contexto, não se aplica.
+/**
+ * RF-PES-02 / RN-PES-05: critérios de cliente. Segmento e região preenchidos valem juntos (E); esse grupo, o canal do
+ * cliente (T-0115) e a lista de clientes se somam (OU). Sem nenhum critério, vale para qualquer cliente e também para
+ * pesquisa sem cliente (avulsa); com critério e sem cliente em contexto, não se aplica.
  */
 export function publicoContemCliente(publico: PublicoAlvo, cliente: ClienteAlvo | null): boolean {
   const temAtributos = publico.segmentos.length + publico.regioes.length > 0;
+  const temCanais = publico.canais.length > 0;
   const temLista = publico.clientes.length > 0;
-  if (!temAtributos && !temLista) return true;
+  if (!temAtributos && !temCanais && !temLista) return true;
   if (cliente === null) return false;
   const porAtributo =
     temAtributos &&
     (publico.segmentos.length === 0 || contem(publico.segmentos, cliente.segmento)) &&
     (publico.regioes.length === 0 || contem(publico.regioes, cliente.regiao));
-  return porAtributo || (temLista && publico.clientes.includes(cliente.id));
+  const porCanal = temCanais && contem(publico.canais, cliente.canal ?? null);
+  return porAtributo || porCanal || (temLista && publico.clientes.includes(cliente.id));
 }
 
 /** RF-PES-02: início e fim inclusivos, em UTC; fim nulo = sem prazo. */

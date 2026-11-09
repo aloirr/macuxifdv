@@ -6,6 +6,9 @@
  *    sai para a rede e `push_enviado_em` fica nulo; reabrir o evento não roda o handler de novo;
  *  - ligado, com `fetch` falso: um envio só ao token do aparelho; reentrega (evento reaberto) não repete; e mesmo sem
  *    o registro de consumo (reprocessamento manual) `push_enviado_em` segura o reenvio.
+ *  - T-0121 (N2): o envio ao Expo roda DEPOIS do commit do consumo (nenhuma transação do pool do `macuxi_app` aberta
+ *    durante o `fetch`, então o horizonte do pull não fica preso); Expo recusando desfaz o consumo, o evento volta e a
+ *    próxima entrega envia uma vez só.
  * O aparelho com token é criado aqui (outro usuário que não o vendedor1, cujo aparelho os testes de bloqueio mexem).
  * Pula sem Docker/Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
  */
@@ -27,6 +30,7 @@ const DISPOSITIVO = randomUUID();
 const TOKEN = `ExponentPushToken[t0022-${DISPOSITIVO}]`;
 const TITULO = `Aviso T-0022 ${DISPOSITIVO}`;
 const NOME = EVENTO_NOTIFICACAO_CRIADA.nome;
+const NOME_APP = `core-push-t0121-${DISPOSITIVO.slice(0, 8)}`;
 
 describe('worker monta o consumidor do Core', () => {
   it('MODULOS_API leva o moduloApi do Core com o consumidor de core.notificacao.criada@1', () => {
@@ -81,7 +85,8 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     const urlWorker = banco().urlWorker;
     if (!urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA)');
     poolWorker = new pg.Pool({ connectionString: urlWorker, max: 2 });
-    poolApp = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
+    // T-0121 (N2): nome próprio para achar as transações DESTE pool no pg_stat_activity (outros arquivos rodam em paralelo)
+    poolApp = new pg.Pool({ connectionString: banco().urlApp, max: 4, application_name: NOME_APP });
     app = criarBancoApp(poolApp);
     admin = new pg.Client({ connectionString: banco().urlAdmin });
     await admin.connect();
@@ -148,5 +153,41 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     await ate(despachante());
     expect(await consumos(eventoId)).toEqual([{ consumidor: 'core' }]);
     expect(envios()).toHaveLength(1);
+  });
+  it('T-0121 N2: o fetch do Expo roda sem transação aberta; recusa desfaz o consumo e a próxima entrega envia uma vez', async () => {
+    vi.stubEnv('MACUXI_PUSH_ATIVO', '1');
+    const abertasDuranteEnvio: number[] = [];
+    let recusar = true;
+    const fetchVigiado = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const corpo = JSON.parse(String(init?.body ?? '[]')) as { to: string }[];
+      if (corpo.some((m) => m.to === TOKEN)) {
+        // pelo próprio macuxi_app, como o horizonte do pull (`SQL_HORIZONTE`): ele vê o xact_start das sessões do papel
+        const r = await poolApp.query<{ n: number }>(
+          `select count(*)::int as n from pg_stat_activity
+            where application_name = $1 and xact_start is not null and datname = current_database() and pid <> pg_backend_pid()`,
+          [NOME_APP],
+        );
+        abertasDuranteEnvio.push(r.rows[0]!.n);
+        if (recusar) return new Response('{}', { status: 503 });
+      }
+      return new Response('{"data":[]}', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchVigiado);
+    const { id, eventoId } = await notificar();
+
+    // 1ª entrega: Expo recusa → consumo desfeito, evento com erro e sem publicado_em, nada marcado como enviado
+    await despachante().ciclo();
+    expect(abertasDuranteEnvio).toEqual([0]);
+    expect(await consumos(eventoId)).toEqual([]);
+    expect(await evento(eventoId)).toMatchObject({ publicado_em: null, tentativas: 1 });
+    expect(await enviadoEm(id)).toBeNull();
+
+    // 2ª entrega (despachante novo, sem a espera em memória): envia, marca e publica
+    recusar = false;
+    await ate(despachante());
+    expect(abertasDuranteEnvio).toEqual([0, 0]);
+    expect(await enviadoEm(id)).toEqual(expect.any(Date));
+    expect(await consumos(eventoId)).toEqual([{ consumidor: 'core' }]);
+    expect((await evento(eventoId)).publicado_em).not.toBeNull();
   });
 });

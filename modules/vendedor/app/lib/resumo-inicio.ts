@@ -51,8 +51,14 @@ export function linhaOrcamentos(r: ResumoOrcamentos): string {
   return r.vencem_amanha > 0 ? `${valor} · ${r.vencem_amanha} ${plural(r.vencem_amanha, 'vence', 'vencem')} amanhã` : valor;
 }
 
-/** "R$ 2.980 · 1 aguardando aprovação"; sem pendência mostra só o valor. */
-export function linhaAFaturar(r: ResumoAFaturar): string {
+/** RD-0010: cartão do Início, linha Orçamentos: sem nenhum, só "nenhum" (sem "0 · R$ 0"). */
+export function textoCartaoOrcamentos(r: ResumoOrcamentos): string {
+  return r.quantidade === 0 ? 'nenhum' : `${r.quantidade} · ${linhaOrcamentos(r)}`;
+}
+
+/** RD-0011: cartão do Início, linha de pedidos a faturar: "6 · R$ 3.989 (1 aguardando aprovação)"; sem nenhum, "nenhum". */
+export function textoCartaoAFaturar(r: ResumoAFaturar): string {
+  if (r.quantidade === 0) return 'nenhum';
   const valor = formatBRL0(r.valor_cents);
-  return r.aguardando_aprovacao > 0 ? `${valor} · ${r.aguardando_aprovacao} ${plural(r.aguardando_aprovacao, 'aguardando aprovação', 'aguardando aprovação')}` : valor;
+  return r.aguardando_aprovacao > 0 ? `${r.quantidade} · ${valor} (${r.aguardando_aprovacao} aguardando aprovação)` : `${r.quantidade} · ${valor}`;
 }

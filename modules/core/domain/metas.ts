@@ -41,11 +41,8 @@ export function realizadoDaMeta(pedidos: PedidoApuravel[], o: { usuario_id: stri
     .reduce((s, p) => s + liquido(p), 0);
 }
 
-/** RN-CORE-22: (meta − realizado) ÷ dias úteis restantes, em centavos (arredonda para cima); nunca negativa; null sem dias úteis. */
-export function necessidadeDiaria(meta_cents: number, realizado_cents: number, diasUteisRestantes: number): number | null {
-  if (diasUteisRestantes <= 0) return null;
-  return Math.max(0, Math.ceil((meta_cents - realizado_cents) / diasUteisRestantes));
-}
+import { necessidadeDiaria } from '../contracts/necessidade-diaria';
+export { necessidadeDiaria };
 
 /** Linha do read-model `indicador_diario` (vendas do vendedor no dia, já na base de apuração do tenant). */
 export interface DiarioApuravel {

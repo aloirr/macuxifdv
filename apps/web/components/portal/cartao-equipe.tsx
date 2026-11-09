@@ -11,8 +11,8 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { ImportarEquipeRespostaSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
-import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
-import { Badge, Button, IconDownload, Notice, useToast } from '@macuxi/ui/web';
+import { type ModuloId } from '@macuxi/platform-sdk';
+import { Badge, Button, IconDownload, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 
 import { ehEmailIndisponivel, formatarPessoas, lerArquivoDaEquipe, MENSAGEM_EQUIPE_SEM_EMAIL, textoDoResumo, textoDosAcessos } from '@/lib/equipe-csv';
 import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
@@ -197,7 +197,7 @@ export function CartaoEquipe({ tenant }: { tenant: string }) {
               <ul className="m-0 mt-1 max-h-[240px] list-none overflow-auto rounded-lg border border-line-2 bg-ground p-0">
                 {plano.map((p) => (
                   <li key={p.linha} className="border-b border-line-2 px-3 py-1.5 last:border-b-0">
-                    <span className="font-semibold">{ROTULO_ACAO[p.acao]}</span> · {p.nome} ({ROTULO_PERFIL[p.perfil]})
+                    <span className="font-semibold">{ROTULO_ACAO[p.acao]}</span> · {p.nome} ({rotuloDoPerfil(p.perfil)})
                     {p.superior_email && <span className="text-ink-2"> · responde a {p.superior_email}</span>}
                     {p.modulos_removidos.length > 0 && <span className="text-ink-2"> · tira: {p.modulos_removidos.map(rotuloDoModulo).join(', ')}</span>}
                   </li>

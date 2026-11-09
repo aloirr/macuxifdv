@@ -6,7 +6,8 @@
  * T-0094: `onEsqueci` (link "Esqueci a senha", alvo >= 48 dp) leva o código e o e-mail já digitados para a `TelaEsqueciSenha`;
  * `aviso` mostra, no lugar do erro, o texto de uma volta (ex.: "Esta senha não vale mais. Entre de novo.").
  */
-import { Banner, Button, colors, fonts, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { estilosDeAcesso } from './estilos-de-acesso';
+import { Banner, Button, colors, fonts, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -155,7 +156,7 @@ function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
             onPress={olho.alternar}
             style={styles.olho}
           >
-            <Text style={styles.olhoTexto}>{olho.visivel ? 'Ocultar' : 'Mostrar'}</Text>
+            <Text style={styles.olhoTexto}>{olho.visivel ? 'Esconder' : 'Mostrar'}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -165,21 +166,8 @@ function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
 }
 
 const styles = StyleSheet.create({
+  ...estilosDeAcesso,
   marca: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 1.6, color: colors.accentInk },
-  rotulo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
-  esqueci: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  esqueciTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
-  olho: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: 52, minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  olhoTexto: { fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk },
-  entrada: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    color: colors.ink,
-    backgroundColor: colors.surface,
-  },
+  esqueci: estilosDeAcesso.link,
+  esqueciTexto: estilosDeAcesso.linkTexto,
 });

@@ -93,7 +93,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
       apps: ['gestao'],
       payload: {
         rotulo: 'Fazer pedido em nome',
-        abrir: (ctx) => irParaNovoPedido({ vendedorId: ctx.vendedor_id, autorId: ctx.autor_id }),
+        abrir: (ctx) => irParaNovoPedido({ vendedorId: ctx.vendedor_id, autorId: ctx.autor_id, vendedorNome: ctx.vendedor_nome }),
       } satisfies AcaoPedidoEmNome,
     },
     // T-0076: cards Orçamentos e A faturar no Início do Campo. `acao: 'pedido.criar'` esconde o card do promotor (RN-PRO-01).

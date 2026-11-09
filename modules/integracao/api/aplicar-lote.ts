@@ -38,9 +38,11 @@ import {
   registrarParte,
   situacaoSessao,
   tratarLinhasInvalidasConector,
+  traduzirCanalDoCliente,
   validarLinhas,
   verificarReferencias,
   type LinhaValida,
+  type MapeamentoGravado,
   type LoteNaFila,
   type SessaoCargaEstado,
 } from '../domain';
@@ -217,6 +219,16 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     );
   }
   const evento = eventoAtualizado(lote.entidade);
+  // T-0115 (RN-INT-08): o canal do cliente sai traduzido pelo de-para do tenant; o registro_atual guarda o valor do ERP (hash estável)
+  const deParaCanal: MapeamentoGravado[] =
+    lote.entidade === 'cliente' && cls.novas.length + cls.atualizadas.length > 0
+      ? (
+          await db.query<MapeamentoGravado>(
+            "select id, tipo, codigo_erp, codigo_macuxi, ativo from integracao.mapeamento where tenant_id = $1 and tipo = 'canal' and ativo and deleted_at is null",
+            [tenantId],
+          )
+        ).rows
+      : [];
   for (const [lista, criada] of [
     [cls.novas, true],
     [cls.atualizadas, false],
@@ -231,7 +243,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
           external_id: l.external_id,
           acao: ativo ? (criada ? 'criado' : 'atualizado') : 'inativado',
           hash: l.hash,
-          ...(ativo ? { registro: l.registro } : {}),
+          ...(ativo ? { registro: lote.entidade === 'cliente' ? traduzirCanalDoCliente(l.registro as object, deParaCanal) : l.registro } : {}),
           ocorrido_em: agora,
         },
         null,

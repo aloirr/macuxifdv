@@ -140,6 +140,25 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > 0048; só `ALTER FUNCTION`): as 4 funções dos gatilhos adiáveis da 0041 viram `SECURITY DEFINER` (search_path fixo, EXECUTE só do
 > dono). Criar empresa com o admin pelo portal dava 500 no COMMIT (a conferência rodava como `macuxi_portal`). Detalhes no
 > [plataforma.md](plataforma.md) ("0049 — conferências do COMMIT como dono").
+>
+> **2026-11-08 (T-0054, RN-VEN-37):** `0050_vendedor_pedido_devolucao` (em cima da 0049; aditiva, 1 tabela nova):
+> `vendedor.pedido_devolucao`, uma linha viva por nota de devolução do ERP (único parcial por `external_id`, soft delete por
+> update), FK composta para o pedido, fora do sync; o devolvido é a soma das linhas vivas. Detalhes no [vendedor.md](vendedor.md)
+> ("0050 — devolução do pedido").
+>
+> **2026-11-08 (RD-0014, T-0111):** `0051_plataforma_perfil_assistente` (em cima da 0050; função e dados): o perfil de fábrica do
+> assistente se chama "Assistente" (semeadura do tenant novo e os tenants que ainda tinham "Assistente de BKO"). Detalhes no
+> [plataforma.md](plataforma.md) ("0051 — nome do perfil Assistente").
+>
+> **2026-11-09 (T-0122 N5):** `0052_plataforma_tenant_por_codigo_minimo` (em cima da 0051; funções e 2 CHECKs):
+> `tenant_por_codigo` só com (id, status) antes da senha, `tenant_da_sessao()` para o nome e o fuso depois, CHECKs de evento sem
+> hífen (= `EVENTO_RE`). **Só com o Core no mesmo lote.** Detalhes no [plataforma.md](plataforma.md) ("0052 — login sem nome do tenant").
+>
+> **2026-11-09 (T-0115, RN-PES-05):** `0053_core_cliente_canal` (em cima da 0052; aditiva, só `core.cliente`): coluna `canal`
+> (1..60, nula) e índice parcial `cliente_canal_ix`. Detalhes no [core.md](core.md) ("0053 — canal do cliente").
+>
+> **2026-11-09 (T-0115, RN-PES-05):** `0054_integracao_mapeamento_canal` (em cima da 0053; só `integracao.mapeamento`): CHECK
+> `mapeamento_tipo_valido` com `canal`; `vw_macuxi_cliente` com a coluna `canal`. Detalhes no [integracao.md](integracao.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -231,6 +250,13 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   Gestor montada pelo domain com os dados da demo (painel, ranking, fila de aprovação e alertas coerentes). Ver
   [gestor.md](gestor.md) §4. Enquanto a linha que chama `carregarDemoGestor` não estiver em `demo.ts`, o Gestor fica sem
   licença na demo.
+  **Integração ERP (T-0051):** seed próprio `db/seeds/demo/integracao.ts` (`gravarDemoIntegracao`, dentro de `carregarDemo`):
+  `integracao` no tenant e para admin e analista (sem perfis de campo); Conectores "ERP Matriz" (`erp-matriz`, recebe pedidos,
+  1.2.1, sinal 2 min antes do seed) e "ERP Filial Itacoatiara" (`erp-filial`, sem pedidos, sinal 3 h antes = alerta de sem
+  sinal), **sem credencial** (nenhum autentica no Hub); política 1.2.1; 5 lotes (produto e título concluídos, cliente completo
+  concluído, preço com 2 erros de linha sem payload, estoque que falhou) e 1 inativação de cliente **aguardando** (3 de 30,
+  limite 5%, validade de 7 dias). Tudo relativo ao `now()` do banco no seed: **rode o seed de novo (sem `--recriar`) antes da
+  demonstração** para o sinal da matriz voltar a "agora". Inativação já decidida no ensaio não volta a aguardar.
 - **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
   principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
   3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mercearia do Porto; até a T-0071 era o Mini Box Japiim, hoje o cliente da referência do novo pedido) e 12 meses de histórico.
@@ -369,7 +395,8 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
   sessão de papel que o admin não pode sinalizar (o admin tem só SET, sem INHERIT, no `macuxi_app`/`macuxi_worker`, e não
   tem `pg_signal_backend`) — ex.: o cliente do `macuxi_app` que acabou de dar `end()` e ainda sai do servidor, ou um
   autovacuum worker. Aí ele faz o DROP comum (o Postgres encerra o autovacuum e espera até 5 s) e repete com espera
-  crescente até 30 s; passado o prazo, o erro sobe com quem segura a base (papel/tipo e quantidade). Não se concede
+  crescente até 8 s (`PRAZO_APAGAR_MS`, abaixo dos 10 s de ociosidade do pg.Pool: pool sem `end()` não passa escondido;
+  R-20261106-042954); passado o prazo, o erro sobe com quem segura a base (papel/tipo e quantidade). Não se concede
   `pg_signal_backend` nem filiação com INHERIT ao admin (as políticas `to macuxi_app` passariam a valer para ele).
   Regra para teste: feche cliente/pool antes do `apagar()`; DROP DATABASE com FORCE em TS do `@macuxi/db` só por essa
   função (trava em `db/testes/apagar-banco.test.ts`).

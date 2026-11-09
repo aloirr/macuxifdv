@@ -10,11 +10,11 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
-import { layoutCarregando, rotuloDoVoltar } from './componentes';
+import { layoutCarregando, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
-import { useVoltarDaTela } from './voltar';
+import { useSaidaDaTela, useVoltarDaTela } from './voltar';
 import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 /** Área rolável da tela com o respiro do mockup (28 no topo, 20 nas laterais). */
@@ -68,12 +68,15 @@ export function BackLink({
   testID?: string;
 }) {
   const rotulo = rotuloDoVoltar(label, useVoltarDaTela());
+  // T-0128: sem `aoVoltar`, o toque passa pelo bloqueio de saída do shell (`ProvedorSaidaDaTela`), se houver
+  const saida = useSaidaDaTela();
+  const seguir = () => (router.canGoBack() ? router.back() : router.replace(fallback as never));
   return (
     <Pressionavel
       testID={testID}
       accessibilityRole="link"
       accessibilityLabel={rotulo.acessivel}
-      onPress={() => (aoVoltar ? aoVoltar() : router.canGoBack() ? router.back() : router.replace(fallback as never))}
+      onPress={() => tocarNoVoltar({ aoVoltar, saida, seguir })}
       escala={false}
       style={styles.back}>
       <Icon name="back" size={18} color={colors.ink2} />

@@ -7,6 +7,7 @@ import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import type { BadgeTone } from '@macuxi/ui/web';
 import type {
   AlertaMonitor,
+  AtualizacaoConector,
   Entidade,
   EstadoLote,
   EstadoPedidoErp,
@@ -97,6 +98,15 @@ export const ROTULO_AVISO_LINHA: Record<string, string> = {
   referencia_descartada: 'Referência sem marca ou com código inválido descartada',
   oferece_junto_cortado: 'Oferece junto cortado em 5',
   prazo_medio_divergente: 'Prazo médio diferente do calculado',
+  marca_concorrente_desconhecida: 'Marca concorrente não cadastrada',
+  avisos_omitidos: 'Outros avisos não mostrados',
+};
+
+export const ROTULO_TIPO_MAPEAMENTO: Record<'condicao_pagamento' | 'deposito' | 'status' | 'canal', string> = {
+  condicao_pagamento: 'Condição de pagamento',
+  deposito: 'Depósito',
+  status: 'Status',
+  canal: 'Canal do cliente',
 };
 
 export const ROTULO_ALERTA_PEDIDO_AGUARDANDO_CONECTOR = 'Pedido aguardando o Conector';
@@ -175,4 +185,23 @@ export function decisaoDaPendencia(p: PendenciaInativacao, perfil: Perfil | null
   }
   if (estado !== 'aguardando') return { pode: false, motivo: `Esta inativação já foi ${ROTULO_DECIDIDA[estado]}.` };
   return { pode: true };
+}
+
+export const ROTULO_ATUALIZACAO: Record<AtualizacaoConector['resultado'], string> = {
+  atualizado: 'Atualizado',
+  mantido: 'Versão mantida',
+  revertido: 'Revertido',
+};
+
+export const TOM_ATUALIZACAO: Record<AtualizacaoConector['resultado'], BadgeTone> = {
+  atualizado: 'success',
+  mantido: 'neutral',
+  revertido: 'danger',
+};
+
+/** Linha do monitor para a última atualização automática; sem informação (Conector antigo ou com a função desligada) é dito com todas as letras. */
+export function resumoAtualizacao(a: AtualizacaoConector | null | undefined): { rotulo: string; tom: BadgeTone; detalhe: string } {
+  if (!a) return { rotulo: 'Sem informação', tom: 'neutral', detalhe: 'O Conector ainda não informou atualização automática.' };
+  const versoes = a.resultado === 'atualizado' && a.versao_de && a.versao_para ? ` ${a.versao_de} → ${a.versao_para}.` : '';
+  return { rotulo: ROTULO_ATUALIZACAO[a.resultado], tom: TOM_ATUALIZACAO[a.resultado], detalhe: `${a.mensagem}${versoes}` };
 }

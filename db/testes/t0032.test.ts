@@ -20,6 +20,22 @@ const IA = A.integracao;
 const IB = B.integracao;
 const P = (n: number) => `9d0c2f4e-0032-4000-8000-${String(n).padStart(12, '0')}`;
 const HEX = (c: string) => c.repeat(64);
+/**
+ * Instantes informados pelo ERP/Conector (alterado_em, ocorrido_em, aprovado_em, decidida_em) e a validade longe: dados que o
+ * teste grava e compara ENTRE SI (upsert monotônico e cursor), nunca com o now() do banco, que aqui é a linha do tempo da
+ * retenção e das decisões. Por isso convivem no mesmo arquivo (ADR 0015).
+ */
+const ERP = {
+  dia: '2026-10-30T00:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  antesDoCursor: '2026-10-30T08:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  quaseNove: '2026-10-30T08:59:59.999Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  nove: '2026-10-30T09:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  cursor: '2026-10-30T09:00:00.123Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  dez: '2026-10-30T10:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  faturado: '2026-10-30T11:30:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  decisao: '2026-10-31T10:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+  expiraLonge: '2099-01-01T00:00:00Z', // hora-fixa-ok: instante do ERP, só comparado com outros instantes do ERP
+} as const;
 
 describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema integracao (papel de aplicação)', () => {
   let app: pg.Client;
@@ -89,6 +105,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
         expect((await tentar(() => inserir('credencial', { tenant_id: tA, conector_id: IA.conector, prefixo: 'nova0001', hash_chave: HEX('1') })))?.code).toBe('23505');
         expect(await tentar(() => inserir('credencial', { tenant_id: tA, conector_id: IA.conector, prefixo: 'nova0001', hash_chave: HEX('1'), papel: 'anterior' }))).toBeNull();
         expect((await tentar(() => inserir('credencial', { tenant_id: tA, conector_id: IA.conector, prefixo: 'nova0002', hash_chave: HEX('2'), papel: 'anterior' })))?.code).toBe('23505');
+        // hora-fixa-ok: revogação pelo now() do banco; o teste só confere o papel liberado, nunca compara com instante fixo
         await app.query("update integracao.credencial set revogada_em = now() where conector_id = $1 and papel = 'atual'", [IA.conector]);
         expect(await tentar(() => inserir('credencial', { tenant_id: tA, conector_id: IA.conector, prefixo: 'nova0003', hash_chave: HEX('3') }))).toBeNull();
         expect((await tentar(() => inserir('credencial', { tenant_id: tA, conector_id: IA.conector, prefixo: 'nova0004', hash_chave: 'ABC' })))?.code).toBe('23514');
@@ -132,12 +149,12 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
 
     it('registro_atual, sessao_carga_recebido, lote_linha_erro, cursor_entidade e pedido_retorno_erro: 200 passa, 201 e vazio => 23514', async () => {
       await comA(async () => {
-        const reg = (id: string) => inserir('registro_atual', { tenant_id: tA, entidade: 'cliente', conector_id: IA.conector, hash: HEX('a'), alterado_em: '2026-10-30T00:00:00Z', external_id: id });
+        const reg = (id: string) => inserir('registro_atual', { tenant_id: tA, entidade: 'cliente', conector_id: IA.conector, hash: HEX('a'), alterado_em: ERP.dia, external_id: id });
         const rec = (id: string) => inserir('sessao_carga_recebido', { tenant_id: tA, sessao_id: IA.sessoes.cliente, external_id: id });
         const err = (id: string | null, i: number) => inserir('lote_linha_erro', { tenant_id: tA, lote_id: IA.lotes.delta, indice: i, origem: 'conector', codigo: 'registro_invalido', mensagem: 'x', external_id: id });
-        const cur = (id: string) => inserir('cursor_entidade', { tenant_id: tA, conector_id: IA.conector, entidade: 'rota', cursor_alterado_em: '2026-10-30T00:00:00Z', cursor_external_id: id });
+        const cur = (id: string) => inserir('cursor_entidade', { tenant_id: tA, conector_id: IA.conector, entidade: 'rota', cursor_alterado_em: ERP.dia, cursor_external_id: id });
         const ret = (id: string) => inserir('pedido_retorno_erro', {
-          tenant_id: tA, pedido_uuid: A.pedidos.p3, status: 'faturado_parcial', ocorrido_em: '2026-10-30T00:00:00Z', indice: 5, sequencia: 7, produto_external_id: id,
+          tenant_id: tA, pedido_uuid: A.pedidos.p3, status: 'faturado_parcial', ocorrido_em: ERP.dia, indice: 5, sequencia: 7, produto_external_id: id,
           quantidade: 1, codigo: 'produto_divergente', codigos: ['produto_divergente'], campo: 'itens_faturados[5].produto_external_id', motivo: 'x', conector_id: IA.conector,
         });
         for (const [nome, f] of [['registro_atual', reg], ['sessao_carga_recebido', rec], ['cursor_entidade', cur], ['pedido_retorno_erro', ret]] as const) {
@@ -200,11 +217,11 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
              returning hash, (xmax = 0) as nova`,
             [tA, externalId, IA.conector, hash, alterado, IA.lotes.delta],
           );
-        const obsoleta = await upsert('PRD-1', '2026-10-30T08:59:59.999Z', HEX('d'));
+        const obsoleta = await upsert('PRD-1', ERP.quaseNove, HEX('d'));
         expect(obsoleta.rowCount).toBe(0); // mais antigo: nada muda
-        const igual = await upsert('PRD-1', '2026-10-30T09:00:00.123Z', HEX('e'));
+        const igual = await upsert('PRD-1', ERP.cursor, HEX('e'));
         expect(igual.rows).toEqual([{ hash: HEX('e'), nova: false }]);
-        const nova = await upsert('PRD-NOVO', '2026-10-30T09:00:00Z', HEX('f'));
+        const nova = await upsert('PRD-NOVO', ERP.nove, HEX('f'));
         expect(nova.rows).toEqual([{ hash: HEX('f'), nova: true }]);
         // milissegundos preservados (timestamptz(3))
         const ms = await app.query<{ t: string }>("select to_char(alterado_em at time zone 'UTC', 'HH24:MI:SS.MS') as t from integracao.registro_atual where external_id = 'PRD-1'");
@@ -223,12 +240,12 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
              where (c.cursor_alterado_em, c.cursor_external_id) < (excluded.cursor_alterado_em, excluded.cursor_external_id)`,
             [tA, IA.conector, alterado, id],
           );
-        expect((await avancar('2026-10-30T08:00:00Z', 'ZZZ')).rowCount).toBe(0); // instante menor
+        expect((await avancar(ERP.antesDoCursor, 'ZZZ')).rowCount).toBe(0); // instante menor
         // mesmo instante: 'PRD-1' < 'PRD-2' < 'prd-0' na ordem ordinal (maiúsculas antes de minúsculas)
-        expect((await avancar('2026-10-30T09:00:00.123Z', 'PRD-0')).rowCount).toBe(0);
-        expect((await avancar('2026-10-30T09:00:00.123Z', 'PRD-2')).rowCount).toBe(1);
-        expect((await avancar('2026-10-30T09:00:00.123Z', 'prd-0')).rowCount).toBe(1);
-        expect((await avancar('2026-10-30T09:00:00.123Z', 'PRD-9')).rowCount).toBe(0);
+        expect((await avancar(ERP.cursor, 'PRD-0')).rowCount).toBe(0);
+        expect((await avancar(ERP.cursor, 'PRD-2')).rowCount).toBe(1);
+        expect((await avancar(ERP.cursor, 'prd-0')).rowCount).toBe(1);
+        expect((await avancar(ERP.cursor, 'PRD-9')).rowCount).toBe(0);
         const c = await app.query('select cursor_external_id from integracao.cursor_entidade where conector_id = $1 and entidade = $2', [IA.conector, 'produto']);
         expect(c.rows[0]).toEqual({ cursor_external_id: 'prd-0' });
       });
@@ -258,7 +275,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
         const e = await tentar(() =>
           inserir('pendencia_inativacao', {
             tenant_id: tA, sessao_id: IA.sessoes.produto, entidade: 'cliente', conector_id: IA.conector, lote_id: IA.lotes.completoCliente, candidatos: 1, total_ativos: 2,
-            percentual: 50, limite_pct: 30, expira_em: '2099-01-01T00:00:00Z',
+            percentual: 50, limite_pct: 30, expira_em: ERP.expiraLonge,
           }),
         );
         expect(e?.code).toBe('23505');
@@ -269,7 +286,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
       await comA(async () => {
         const base = {
           tenant_id: tA, pendencia_id: IA.pendencias.aguardando, sessao_id: IA.sessoes.cliente, lote_id: IA.lotes.completoCliente, entidade: 'cliente', conector_id: IA.conector,
-          decidida_por: A.usuarios.analista, perfil: 'analista', decidida_em: '2026-10-31T10:00:00Z', quantidade: 1, total_ativos: 2, percentual: 50,
+          decidida_por: A.usuarios.analista, perfil: 'analista', decidida_em: ERP.decisao, quantidade: 1, total_ativos: 2, percentual: 50,
         };
         expect(await tentar(() => inserir('inativacao_auditoria', { ...base, acao: 'confirmar', inativadas: 1 }))).toBeNull();
         expect((await tentar(() => inserir('inativacao_auditoria', { ...base, acao: 'recusar', inativadas: 0 })))?.code).toBe('23514');
@@ -286,8 +303,8 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
   describe('fila de pedidos e retorno do ERP (RN-INT-08, P-4)', () => {
     it('fila única por pedido (mesmo removida); retido não tem payload', async () => {
       await comA(async () => {
-        expect((await tentar(() => inserir('pedido_fila_erp', { tenant_id: tA, pedido_uuid: A.pedidos.p3, payload_origem: {}, aprovado_em: '2026-10-30T00:00:00Z' })))?.code).toBe('23505');
-        const retido = { tenant_id: tA, pedido_uuid: A.pedidos.p2, payload_origem: {}, aprovado_em: '2026-10-30T00:00:00Z', retencao_codigo: 'mapeamento_ausente' };
+        expect((await tentar(() => inserir('pedido_fila_erp', { tenant_id: tA, pedido_uuid: A.pedidos.p3, payload_origem: {}, aprovado_em: ERP.dia })))?.code).toBe('23505');
+        const retido = { tenant_id: tA, pedido_uuid: A.pedidos.p2, payload_origem: {}, aprovado_em: ERP.dia, retencao_codigo: 'mapeamento_ausente' };
         expect((await tentar(() => inserir('pedido_fila_erp', { ...retido, payload: {} })))?.code).toBe('23514');
         expect(await tentar(() => inserir('pedido_fila_erp', retido))).toBeNull();
         expect((await tentar(() => app.query('delete from integracao.pedido_fila_erp')))?.code).toBe('42501');
@@ -296,7 +313,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
 
     it('pedido_retorno: segunda guarda de idempotência com nota nula igual a nota nula (23505); só select/insert', async () => {
       await comA(async () => {
-        const ret = () => inserir('pedido_retorno', { tenant_id: tA, pedido_uuid: A.pedidos.p3, status: 'integrado', numero_erp: 'PV1003', ocorrido_em: '2026-10-30T10:00:00Z', conector_id: IA.conector });
+        const ret = () => inserir('pedido_retorno', { tenant_id: tA, pedido_uuid: A.pedidos.p3, status: 'integrado', numero_erp: 'PV1003', ocorrido_em: ERP.dez, conector_id: IA.conector });
         expect(await tentar(ret)).toBeNull();
         expect((await tentar(ret))?.code).toBe('23505');
         expect((await tentar(() => app.query('update integracao.pedido_retorno set motivo = $1', ['x'])))?.code).toBe('42501');
@@ -307,7 +324,7 @@ describe.skipIf(semBanco())('T-0032: regras garantidas pelo banco no schema inte
       await comA(async () => {
         const erro = (extra: Record<string, unknown>) =>
           inserir('pedido_retorno_erro', {
-            tenant_id: tA, pedido_uuid: A.pedidos.p3, pedido_retorno_id: IA.retornos.p3, status: 'faturado_parcial', ocorrido_em: '2026-10-30T11:30:00Z', indice: 3,
+            tenant_id: tA, pedido_uuid: A.pedidos.p3, pedido_retorno_id: IA.retornos.p3, status: 'faturado_parcial', ocorrido_em: ERP.faturado, indice: 3,
             sequencia: 4, produto_external_id: 'PRD-4', quantidade: 2, codigo: 'sequencia_repetida', codigos: ['sequencia_repetida'], campo: 'itens_faturados[3].sequencia',
             motivo: 'Sequência repetida em itens_faturados.', conector_id: IA.conector, ...extra,
           });

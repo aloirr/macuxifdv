@@ -3,8 +3,9 @@
  * inteiro (155 consultas, ~0,7 s) e ranqueava 20 mil produtos no Node (~4 s). Trava:
  * - o plano (EXPLAIN) das leituras de preço e de estoque dos candidatos usa índice (nenhum Seq Scan nas tabelas grandes);
  * - o retrato do catálogo sai do banco uma vez e as buscas seguintes não voltam ao banco por produto (de cache);
- * - o caminho da busca (retrato → candidatos → preço/estoque → ranking) responde em menos de 300 ms (p95) com 20 mil;
- * - o resultado da busca com índice é o mesmo do ranking sobre a lista inteira.
+ * - o caminho da busca (retrato → candidatos → teto de candidatos → preço/estoque → ranking) responde em menos de 300 ms (p95) com 20 mil;
+ * - o resultado da busca com índice e teto de candidatos tem a mesma primeira página do ranking sobre a lista inteira (o total para
+ *   no teto: `TETO_CANDIDATOS`).
  * Pula sem Postgres; com MACUXI_PG_EXIGIR=1 (CI) falha. O tempo limite do CI é folgado (a máquina é compartilhada): a meta fina
  * de 300 ms por requisição HTTP é medida na carga da T-0107 (`MACUXI_CARGA_MEDIR=1`).
  */
@@ -13,7 +14,7 @@ import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { candidatosDaBusca } from '../domain/indice-busca';
+import { candidatosDaBusca, cortarCandidatos, TETO_CANDIDATOS } from '../domain/indice-busca';
 import { interpretarConsulta } from '../domain/consulta';
 import { PARAMETROS_PADRAO } from '../domain/parametros';
 import { buscarProdutos, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
@@ -176,11 +177,11 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
     await noTenant((repo) => repo.marcarDestaque(PRODUTO(5), false));
   });
 
-  // D-T0107b aberto: p95 9,2 s no CI (decisão do gerente, 08/11: segue para o v1.0.1). Causa provável: o catálogo sintético tem só 10 peças × 8 marcas,
-  // então cada consulta de texto vira 2 a 6 mil candidatos (10 a 30% do catálogo) e o ranking (acento, tolerância a erro, aplicação) custa ~0,7 ms por
-  // candidato; com a máquina compartilhada do CI chega a segundos. Catálogo real é mais diverso. Correção: teto de candidatos antes do ranking
-  // completo (pré-ranqueio barato por campo) — v1.0.1. Quando passar a ficar verde, trocar `it.fails` por `it`.
-  it.fails('RF-CAT-01 (T-0119): busca com 20 mil — mesmo resultado do ranking sobre a lista inteira e p95 < 300 ms no caminho da busca', async () => {
+  // D-T0107b: o catálogo sintético tem só 10 peças × 8 marcas, então cada consulta de texto vira 2 a 7 mil candidatos (10 a 35% do catálogo).
+  // Resolvido em duas frentes: (1) a varredura do vocabulário do índice deixou de montar a matriz de edição para cada termo (máscara de
+  // caracteres + distância com faixa e saída antecipada); (2) teto de `TETO_CANDIDATOS` antes do ranking completo (`cortarCandidatos`), que só
+  // lê o estoque dos candidatos, nunca o preço, e fica com os melhores pela nota barata + os boosts do ranking.
+  it('RF-CAT-01 (T-0119): busca com 20 mil — mesma primeira página do ranking sobre a lista inteira e p95 < 300 ms no caminho da busca', async () => {
     esquecerRetratoCatalogo();
     const tempos: number[] = [];
     await noTenant(async (repo) => {
@@ -190,7 +191,12 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
       const base = { perfil: 'vendedor' as const, parametros: PARAMETROS_PADRAO, agora: AGORA };
       const buscar = async (q: string, completa: boolean) => {
         const filtros = interpretarConsulta(q, vocab);
-        const cand = completa ? null : candidatosDaBusca({ produtos, contexto: base, filtros, sinonimos });
+        let cand = completa ? null : candidatosDaBusca({ produtos, contexto: base, filtros, sinonimos });
+        if (cand && cand.produtos.length > TETO_CANDIDATOS) {
+          // como na rota: o corte lê só o estoque de todos os candidatos; o preço fica para os que ficam
+          const saldosTodos = await repo.saldos(cand.produtos.filter((p) => p.ativo).map((p) => p.id));
+          cand = cortarCandidatos(cand, { ...base, clienteId: CLIENTE, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: saldosTodos, filiais: null });
+        }
         const lista = cand?.produtos ?? produtos;
         const precos = await repo.precos(CLIENTE, lista.filter((p) => p.ativo).map((p) => p.id));
         const saldos = await repo.saldos(lista.filter((p) => p.ativo).map((p) => p.id));
@@ -205,7 +211,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
         // a conferência com a lista inteira (lenta de propósito) só para as consultas de texto
         if (q === 'pastilha freio cobreq' || q === 'SKU-0012345' || q === 'CB-3100-X') {
           const cheia = await buscar(q, true);
-          expect(rapida.total, q).toBe(cheia.total);
+          // com o corte o total para no teto; sem corte (poucos candidatos) é o mesmo do ranking completo
+          expect(rapida.total, q).toBe(Math.min(cheia.total, TETO_CANDIDATOS));
           expect(rapida.items.map((x) => x.id), q).toEqual(cheia.items.map((x) => x.id));
         }
       }
