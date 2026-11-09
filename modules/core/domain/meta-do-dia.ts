@@ -4,7 +4,7 @@
  * dia de cada pessoa (o excesso de quem já bateu não cobre a falta do outro). Cobertura é razão do mês e não se divide por dia.
  * Dinheiro em centavos; datas civis AAAA-MM-DD no fuso do tenant; quem chama passa `hoje` (não lê o relógio).
  */
-import { daysInMonth } from '@macuxi/comum';
+import { diasUteisDoPeriodo, ehDiaUtilDoTenant } from '@macuxi/comum';
 import type { MetaDoDia } from '../contracts/inicio';
 import type { IndicadorMeta } from './metas';
 
@@ -17,7 +17,6 @@ export interface CalendarioTenant {
 /** Segunda a sábado, sem feriados (parâmetro `metas.dias_uteis_semana`, 0 = domingo). */
 export const CALENDARIO_PADRAO: CalendarioTenant = { dias_uteis_semana: [1, 2, 3, 4, 5, 6] };
 
-const diaDaSemana = (data: string): number => new Date(`${data}T12:00:00Z`).getUTCDay();
 const ehDiaSemana = (n: unknown): n is DiaSemana => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 6;
 
 /** Lê `metas.dias_uteis_semana` (módulo core) do pull `parametro`; ausente, removido ou inválido = padrão. */
@@ -28,13 +27,19 @@ export function calendarioDoTenant(parametros: ReadonlyArray<{ modulo: string; c
   return { dias_uteis_semana: [...new Set(v)].sort() as DiaSemana[] };
 }
 
+/**
+ * RN-CORE-26: dia útil pela função única de `@macuxi/comum`. Sem lista de feriados do tenant só a semana conta; com a lista
+ * informada (não vazia), os feriados NACIONAIS entram na conta junto com os do tenant (a lista do tenant não os repete).
+ */
+const feriadosDoCalendario = (cal: CalendarioTenant): readonly string[] | undefined => (cal.feriados?.length ? cal.feriados : undefined);
+
 export function ehDiaUtil(data: string, cal: CalendarioTenant): boolean {
-  return (cal.dias_uteis_semana as readonly number[]).includes(diaDaSemana(data)) && !(cal.feriados ?? []).includes(data);
+  return ehDiaUtilDoTenant(data, feriadosDoCalendario(cal), cal.dias_uteis_semana);
 }
 
 /** Dias úteis de `hoje` (inclusive, se for útil) até o fim de `periodo`; hoje antes do período = todos; depois = 0. */
 export function diasUteisRestantes(periodo: string, hoje: string, cal: CalendarioTenant): number {
-  return daysInMonth(periodo).filter((d) => d >= hoje && ehDiaUtil(d, cal)).length;
+  return diasUteisDoPeriodo(periodo, hoje, feriadosDoCalendario(cal), cal.dias_uteis_semana).remaining;
 }
 
 export interface EntradaMetaDoDia {
@@ -103,9 +108,18 @@ export interface ResumoMetaDeHoje {
   faltam_hoje: number | null;
   /** (realizado até ontem + hoje) ÷ meta do mês; null sem meta do mês. */
   mes_pct: number | null;
+  /** max(0, meta do mês − realizado do mês); null sem meta do mês. */
+  faltam_mes: number | null;
+  /** Necessidade diária ⌈faltam ÷ dias úteis restantes⌉ (RN-CORE-22, a mesma conta de `necessidadeDiaria` de Metas); null sem dias úteis, com o mês batido, sem meta ou em indicador do mês. */
+  por_dia_util: number | null;
+  /** Dias úteis restantes da divisão do `por_dia_util`. */
+  dias_uteis_por_dia: number;
 }
 export function resumoMetaDeHoje(m: MetaDoDia): ResumoMetaDeHoje {
   const faltam = m.meta_dia === null ? null : Math.max(0, m.meta_dia - m.realizado_hoje);
   const mes = m.meta_mes > 0 ? Math.round(((m.realizado_ate_ontem + m.realizado_hoje) / m.meta_mes) * 10_000) : null;
-  return { indicador: m.indicador, situacao: m.situacao, realizado_hoje: m.realizado_hoje, meta_dia: m.meta_dia, faltam_hoje: faltam, mes_pct: mes };
+  const realizadoMes = m.realizado_ate_ontem + m.realizado_hoje;
+  const faltamMes = m.meta_mes > 0 ? Math.max(0, m.meta_mes - realizadoMes) : null;
+  const porDia = m.indicador === 'cobertura_pct' || faltamMes === null || faltamMes === 0 || m.dias_uteis_restantes <= 0 ? null : Math.ceil(faltamMes / m.dias_uteis_restantes);
+  return { indicador: m.indicador, situacao: m.situacao, realizado_hoje: m.realizado_hoje, meta_dia: m.meta_dia, faltam_hoje: faltam, mes_pct: mes, faltam_mes: faltamMes, por_dia_util: porDia, dias_uteis_por_dia: m.dias_uteis_restantes };
 }

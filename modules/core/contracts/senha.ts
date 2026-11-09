@@ -1,9 +1,9 @@
 /**
  * Contrato da senha (RN-CORE-32; T-0093, ADR 0031): a mesma regra para API, BKO, portal e apps. A implementação pura vive em
- * `domain/senha.ts` (sem dependências); aqui ficam reexportadas e o schema Zod que as telas usam para validar o campo.
+ * `senha-regra.ts` (sem dependências); aqui ficam reexportadas e o schema Zod que as telas usam para validar o campo.
  */
 import { z } from 'zod';
-import { REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe, type FaltaNaSenha } from '../domain/senha';
+import { REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe, type FaltaNaSenha } from './senha-regra';
 
 export { REGRA_DA_SENHA, SENHA_MAX_CARACTERES, SENHA_MIN_CARACTERES, faltasNaSenha, mensagemDaSenha, senhaServe };
 export type { FaltaNaSenha };
@@ -15,4 +15,4 @@ export const SenhaNovaSchema = z.string().superRefine((s, ctx) => {
 });
 
 /** RN-CORE-34 (T-0094): validade da senha temporária em horas, para os textos das telas e dos e-mails. */
-export { SENHA_TEMPORARIA_HORAS } from '../domain/acesso-senha';
+export const SENHA_TEMPORARIA_HORAS = 72;

@@ -94,6 +94,15 @@ export function dataDoPreco(criadoNoAparelhoEm: string | null | undefined, agora
   return new Date(Math.min(agora.getTime(), Math.max(t, piso))).toISOString();
 }
 
+/**
+ * T-0138: instante de emissão do pedido para metas e relatórios (evento `vendedor.pedido.criado@1` e consulta `pedidos_da_meta@1`):
+ * a hora do aparelho LIMITADA (nunca depois do recebimento, no máximo `DIAS_PRECO_RETROATIVO` dias antes); sem hora do aparelho, o recebimento.
+ * Aparelho com o relógio errado não joga a venda para outro mês. A consulta repete esta regra em SQL (`EMITIDO_EM_SQL`).
+ */
+export function emitidoEm(criadoNoAparelhoEm: string | null | undefined, recebidoEm: string): string {
+  return dataDoPreco(criadoNoAparelhoEm, new Date(recebidoEm));
+}
+
 // ---------- recebimento ----------
 export interface EventoHistorico {
   de: OrderStatus | null;

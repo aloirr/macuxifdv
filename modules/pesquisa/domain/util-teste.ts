@@ -33,7 +33,7 @@ export const versao = (extra: Partial<QuestionarioVersao> = {}): QuestionarioVer
   titulo: 'Pesquisa de gôndola',
   modo: 'avulsa',
   frequencia: 'a_cada_visita',
-  publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] },
+  publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] },
   vigencia: { inicio: '2026-10-01T00:00:00Z', fim: null },
   perguntas: [sim_nao(1)],
   regras: [],

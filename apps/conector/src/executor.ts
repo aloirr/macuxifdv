@@ -6,10 +6,12 @@
 import { ORDEM_CARGA, type Entidade } from './config/entidades';
 import { periodicidadeDe } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
+import { cicloAtualizacao } from './atualizacao/ciclo';
 import { cicloPedidos } from './pedidos';
 import { processarFila } from './remetente';
 import { reconciliacaoVencida, reconciliarTudo } from './reconciliacao';
 import { sincronizarEntidade } from './sincronizador';
+import { atualizacaoParaSinal } from './atualizacao/sinal';
 import { montarStatus } from './status';
 import { dormir } from './util/retry';
 import { avaliarVersaoLocal, guardarPolitica, tratarRecusaPorVersao } from './politica';
@@ -57,6 +59,10 @@ export class Executor {
         if (reconciliacaoVencida(ctx)) await reconciliarTudo(ctx);
       },
     });
+    // T-0116: só entra na agenda se ligada na configuração (padrão desligada); primeira passada depois do primeiro sinal (política do Hub)
+    if (config.atualizacao?.ativa) {
+      this.tarefas.push({ nome: 'atualizacao', intervaloMs: config.atualizacao.verificarMinutos * 60_000, proxima: agora + 60_000, executar: async () => void (await cicloAtualizacao(ctx)) });
+    }
     this.tarefas.push({ nome: 'manutencao', intervaloMs: 3_600_000, proxima: agora, executar: async () => ctx.store.limpar(ctx.relogio.agora(), config.fila.retencaoDias) });
   }
 
@@ -84,6 +90,7 @@ export class Executor {
   private async sinal(): Promise<void> {
     const s = montarStatus(this.ctx.store, this.ctx.config, this.versao);
     const parado = s.versao.deveParar;
+    const atualizacao = atualizacaoParaSinal(s.atualizacao);
     // regra 3 (T-0048): o corpo é o tipo do contrato (`SinalConector`), não um objeto montado à mão
     const corpo: SinalConector = {
       conector_id: this.ctx.config.hub.conectorId,
@@ -93,6 +100,8 @@ export class Executor {
       fila: s.fila.map((f) => ({ estado: f.estado, lotes: f.lotes, linhas: f.linhas, maisAntigo: f.maisAntigo })),
       entidades: s.entidades.map((e) => ({ entidade: e.entidade, fase: e.fase, ultimo_sucesso: e.ultimoSucesso, bloqueada: e.bloqueio !== null, lotes_na_fila: e.lotesNaFila })),
       ...(parado ? { parado_por_versao: true } : {}),
+      // T-0100: o monitor do BKO mostra o último resultado da atualização automática; sem resultado, o campo nem vai
+      ...(atualizacao ? { atualizacao } : {}),
     };
     const resposta = await this.enviarSinal(corpo);
     // a política do Hub vale a partir daqui (inclusive para liberar o envio quando o Hub baixa a mínima)

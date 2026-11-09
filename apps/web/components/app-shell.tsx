@@ -16,10 +16,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconLogout, LoadingBlock } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
 import { entraEm } from '@/lib/acesso';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
@@ -135,7 +135,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const product = MODO_API === 'demo' ? (me.data?.tenant.product_name ?? '…') : 'Macuxi FDV';
   const company = MODO_API === 'demo' ? (me.data?.tenant.name ?? '') : (session.user?.empresa ?? '');
   const user = session.user;
-  const roleLabel = perfil ? ROTULO_PERFIL[perfil] : '';
+  // RD-0014: nome curto do perfil, o mesmo do login, do portal e do app (kit)
+  const roleLabel = perfil ? rotuloDoPerfil(perfil) : '';
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const grupos = gruposDoMenu(visao, perfil);
   const todos = grupos.flatMap((g) => g.itens);

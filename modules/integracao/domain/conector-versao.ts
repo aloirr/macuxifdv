@@ -3,7 +3,7 @@
  * os dados (426) e o Conector para de enviar; abaixo da RECOMENDADA só avisa "desatualizado". O sinal de vida segue sempre.
  * A comparação é semver 2.0, a mesma do Conector (`apps/conector/src/versao.ts`).
  */
-import { POLITICA_VERSAO_PADRAO_PEDIDOS, REGEX_SEMVER, VERSAO_PISO_PEDIDOS, type PoliticaVersaoConector } from '../contracts';
+import { AtualizacaoConector, POLITICA_VERSAO_PADRAO_PEDIDOS, REGEX_SEMVER, VERSAO_PISO_PEDIDOS, type PoliticaVersaoConector } from '../contracts';
 
 export interface Semver {
   maior: number;
@@ -128,4 +128,14 @@ export function validarPisoParaPedidos(p: Pick<PoliticaVersaoConector, 'versao_m
   if (!tenantRecebePedidos || lerSemver(p.versao_minima) === null) return { ok: true };
   if (compararSemver(p.versao_minima, VERSAO_PISO_PEDIDOS) >= 0) return { ok: true };
   return { ok: false, erros: [`Quem recebe pedidos exige Conector ${VERSAO_PISO_PEDIDOS} ou mais novo: a versão mínima (${p.versao_minima}) está abaixo. Informe ${VERSAO_PISO_PEDIDOS} ou maior.`] };
+}
+
+/**
+ * Lê, do `sinal_resumo` guardado no último sinal de vida, o resultado da atualização automática do Conector (T-0100 item 3).
+ * Falha fechada: ausente, de Conector antigo ou fora do formato = `null` (o monitor mostra "sem informação"); nunca derruba a listagem.
+ */
+export function atualizacaoDoSinal(sinalResumo: unknown): AtualizacaoConector | null {
+  if (typeof sinalResumo !== 'object' || sinalResumo === null || Array.isArray(sinalResumo)) return null;
+  const r = AtualizacaoConector.safeParse((sinalResumo as { atualizacao?: unknown }).atualizacao);
+  return r.success ? r.data : null;
 }

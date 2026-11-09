@@ -24,6 +24,7 @@ import {
 import {
   conteudoDoEnvio,
   dataDoPreco,
+  emitidoEm,
   faixasDaConsulta,
   historicoDoOrcamento,
   ehPedidoEmNome,
@@ -386,6 +387,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       total_cents: v.total_cents,
       total_tabela_cents: v.total_tabela_cents,
       criado_em: recebidoEm,
+      emitido_em: emitidoEm(p.created_offline_at, recebidoEm),
       itens: v.itens.map((i) => ({ produto_id: i.product_id, quantidade: i.quantidade_base, total_cents: i.total_cents })),
       status: statusDoContrato(v.status),
     },

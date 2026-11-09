@@ -213,15 +213,66 @@ export function distanciaEdicao(a: string, b: string): number {
   return d[a.length]![b.length]!;
 }
 
+/**
+ * `distanciaEdicao(a, b) <= max` sem montar a matriz inteira (T-0119, D-T0107b): só a faixa |i-j| <= max e saída assim que a
+ * linha e a anterior (por causa da troca de vizinhas) passam de `max`. Mesmo resultado da distância completa.
+ */
+export function dentroDaDistancia(a: string, b: string, max: number): boolean {
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > max) return false;
+  const INF = max + 1;
+  if (lb + 1 > LINHA_A.length) {
+    LINHA_A = new Int32Array(lb + 1);
+    LINHA_B = new Int32Array(lb + 1);
+    LINHA_C = new Int32Array(lb + 1);
+  }
+  let ant2 = LINHA_C;
+  let ant = LINHA_A;
+  let atual = LINHA_B;
+  for (let j = 0; j <= lb; j++) ant[j] = j <= max ? j : INF;
+  let minAnt = 0;
+  for (let i = 1; i <= la; i++) {
+    atual.fill(INF, 0, lb + 1);
+    if (i <= max) atual[0] = i;
+    let minAtual = atual[0]!;
+    const de = Math.max(1, i - max);
+    const ate = Math.min(lb, i + max);
+    for (let j = de; j <= ate; j++) {
+      const custo = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      let v = Math.min(ant[j]! + 1, atual[j - 1]! + 1, ant[j - 1]! + custo);
+      if (i > 1 && j > 1 && a.charCodeAt(i - 1) === b.charCodeAt(j - 2) && a.charCodeAt(i - 2) === b.charCodeAt(j - 1)) v = Math.min(v, ant2[j - 2]! + 1);
+      if (v > INF) v = INF;
+      atual[j] = v;
+      if (v < minAtual) minAtual = v;
+    }
+    if (minAtual > max && minAnt > max) return false;
+    const velha = ant2;
+    ant2 = ant;
+    ant = atual;
+    atual = velha;
+    minAnt = minAtual;
+  }
+  return ant[lb]! <= max;
+}
+let LINHA_A = new Int32Array(64);
+let LINHA_B = new Int32Array(64);
+let LINHA_C = new Int32Array(64);
+
+/** Medidas e códigos (com dígito) só casam exatos (usado pelo ranking e pelo índice de pré-seleção). */
+export const soCasaExato = (q: string): boolean => /\d/.test(q) || MEDIDA_RE.test(q);
+/** Erros de digitação aceitos para a palavra (4 a 7 letras: 1; 8 ou mais: 2; menos de 4: nenhum). */
+export const toleranciaDaPalavra = (q: string): number => (q.length >= 8 ? 2 : q.length >= 4 ? 1 : 0);
+
 /** Quanto a palavra da consulta casa com um termo do campo: exato 1; prefixo (3+ letras) 0,7; erro de digitação 0,5. */
 export function nivelDaPalavra(q: string, termo: string): number {
   if (q === termo) return NIVEL.exato;
-  if (/\d/.test(q) || MEDIDA_RE.test(q)) return 0; // medidas e códigos só casam exatos
+  if (soCasaExato(q)) return 0; // medidas e códigos só casam exatos
   if (q.length >= 3 && termo.length > q.length && termo.startsWith(q)) return NIVEL.prefixo;
   if (q.length >= 4) {
-    const tolerancia = q.length >= 8 ? 2 : 1;
+    const tolerancia = toleranciaDaPalavra(q);
     // T-0052-B4: a distância é no mínimo a diferença de tamanho; evita montar a matriz para quase todos os termos
-    if (Math.abs(q.length - termo.length) <= tolerancia && distanciaEdicao(q, termo) <= tolerancia) return NIVEL.digitacao;
+    if (Math.abs(q.length - termo.length) <= tolerancia && dentroDaDistancia(q, termo, tolerancia)) return NIVEL.digitacao;
   }
   return 0;
 }
@@ -410,14 +461,14 @@ export function codigoCompacto(s: string | null | undefined): string {
   return s ? s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 }
 
-function casaComCodigo(d: DocBusca, code: NonNullable<FiltrosInterpretados['code']>): boolean {
+export function casaComCodigo(d: Pick<DocBusca, 'ean' | 'sku'> & { referencias?: DocBusca['referencias'] | undefined }, code: NonNullable<FiltrosInterpretados['code']>): boolean {
   if (code.type === 'ean') return d.ean === code.value;
   const v = codigoCompacto(code.value);
   return d.ean === code.value || (v !== '' && (codigoCompacto(d.sku) === v || (d.referencias ?? []).some((r) => codigoCompacto(r.codigo) === v)));
 }
 
 /** Filtros estruturados (RN-CAT-01): marca, categoria, faixa de preço e estoque. O código é tratado à parte. */
-function casaComFiltros(d: DocBusca, f: FiltrosInterpretados): boolean {
+export function casaComFiltros(d: Pick<DocBusca, 'marca' | 'categoria' | 'preco_cents' | 'estoque'>, f: FiltrosInterpretados): boolean {
   if (f.brand !== null && !mesmaChave(d.marca, f.brand)) return false;
   if (f.line !== null && !mesmaChave(d.categoria, f.line)) return false;
   if (f.min_price_cents !== null || f.max_price_cents !== null) {
@@ -438,8 +489,8 @@ function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngram
   return i >= 0 ? i : null;
 }
 
-const nomeChave = (d: DocBusca) => d.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+export const nomeChave = (d: Pick<DocBusca, 'nome'>) => d.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * Aplica código exato, filtros e ranking. Devolve a lista completa ordenada (quem corta é o chamador).

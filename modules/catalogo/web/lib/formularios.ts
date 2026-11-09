@@ -248,6 +248,77 @@ export const EDITORES_FECHADOS: EditoresAbertos<never> = { conteudo: null, catal
 export function abrirEditores<T>(item: T): EditoresAbertos<T> {
   return { conteudo: item, catalogo: item };
 }
+/** Quem não tem `produto.enriquecer` só olha a seção Catálogo (aplicação, oferece junto, referências, etiquetas), sem editar o conteúdo. */
+export function abrirParaLeitura<T>(item: T): EditoresAbertos<T> {
+  return { conteudo: null, catalogo: item };
+}
 export function fecharEditor<T>(atual: EditoresAbertos<T>, qual: keyof EditoresAbertos<T>): EditoresAbertos<T> {
   return { ...atual, [qual]: null };
+}
+
+/* ---- Seletor reordenável do "Oferece junto" (B6 de UX, T-0085): o texto do formulário segue com um código por linha ---- */
+
+/** Códigos do "Oferece junto" na ordem em que o vendedor vê (sem linhas vazias). */
+export function listaOfereceJunto(texto: string): string[] {
+  return texto
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+function textoDaLista(codigos: readonly string[]): string {
+  return codigos.join('\n');
+}
+
+/** Põe o código no fim da lista; repetido (sem diferenciar maiúsculas) ou acima do limite não entra e devolve o motivo em português. */
+export function adicionarOfereceJunto(texto: string, codigo: string, max: number): { texto: string; erro: string | null } {
+  const lista = listaOfereceJunto(texto);
+  const novo = codigo.trim();
+  if (novo === '') return { texto, erro: 'Escolha um produto da lista para adicionar.' };
+  if (lista.some((c) => c.toLowerCase() === novo.toLowerCase())) return { texto, erro: `${novo} já está na lista.` };
+  if (lista.length >= max) return { texto, erro: `Use até ${max} produtos. Tire um para colocar outro.` };
+  return { texto: textoDaLista([...lista, novo]), erro: null };
+}
+
+export function removerOfereceJunto(texto: string, indice: number): string {
+  return textoDaLista(listaOfereceJunto(texto).filter((_, i) => i !== indice));
+}
+
+/** Troca o item de lugar (`delta` -1 sobe, +1 desce); nos extremos não muda nada. */
+export function moverOfereceJunto(texto: string, indice: number, delta: number): string {
+  const lista = listaOfereceJunto(texto);
+  const destino = indice + delta;
+  if (indice < 0 || indice >= lista.length || destino < 0 || destino >= lista.length) return textoDaLista(lista);
+  const item = lista[indice] as string;
+  lista.splice(indice, 1);
+  lista.splice(destino, 0, item);
+  return textoDaLista(lista);
+}
+
+/** Teclado do item da lista: Alt+Seta sobe/desce, Home/End levam ao começo/fim com Alt, Delete remove. `null` = tecla não tratada. */
+export function acaoTecladoOfereceJunto(tecla: { key: string; altKey?: boolean }, indice: number, total: number): { tipo: 'mover'; para: number } | { tipo: 'remover' } | null {
+  if (tecla.key === 'Delete') return { tipo: 'remover' };
+  if (!tecla.altKey) return null;
+  const alvo = tecla.key === 'ArrowUp' ? indice - 1 : tecla.key === 'ArrowDown' ? indice + 1 : tecla.key === 'Home' ? 0 : tecla.key === 'End' ? total - 1 : null;
+  if (alvo === null || alvo < 0 || alvo >= total || alvo === indice) return null;
+  return { tipo: 'mover', para: alvo };
+}
+
+/** Texto para o leitor de tela (aria-live) depois de mexer na lista; posições contadas a partir de 1. */
+export function anuncioOfereceJunto(acao: 'moveu' | 'removeu', rotulo: string, posicao: number, total: number): string {
+  return acao === 'removeu' ? `${rotulo} removido. ${total} ${total === 1 ? 'produto' : 'produtos'} na lista.` : `${rotulo} na posição ${posicao} de ${total}.`;
+}
+
+/** Sugestões do seletor: por código ou nome, sem as já escolhidas e sem o próprio produto; no máximo `limite`. */
+export function sugestoesOfereceJunto(
+  produtos: readonly { erp_code: string; description: string }[],
+  termo: string,
+  escolhidos: readonly string[],
+  proprio: string,
+  limite = 8,
+): { erp_code: string; description: string }[] {
+  const t = termo.trim().toLowerCase();
+  if (t === '') return [];
+  const fora = new Set([...escolhidos, proprio].map((c) => c.toLowerCase()));
+  return produtos.filter((p) => !fora.has(p.erp_code.toLowerCase()) && (p.erp_code.toLowerCase().includes(t) || p.description.toLowerCase().includes(t))).slice(0, limite);
 }

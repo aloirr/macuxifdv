@@ -233,7 +233,10 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   - vazio: `EstadoVazio` (título que diz o que falta + o que fazer; ação secundária opcional);
   - erro: `Banner tone="danger"` com o que aconteceu e o que fazer ("Não deu para enviar. O pedido está salvo e vai sozinho quando
     houver sinal.");
-  - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal.
+  - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal;
+  - a tela quebrou ao desenhar (erro de render, `ErrorBoundary` do shell): `TelaDeErro` com os textos de `TEXTOS_TELA_DE_ERRO`
+    ("Não foi possível mostrar esta tela" · Tentar de novo · Ir para o Início · Enviar o detalhe ao suporte). Nunca
+    `EstadoVazio` para erro. Spec: `docs/design/tela-de-erro.md` (T-0140).
 
 ### 5.1 Banner, Chip e ícones (decisão de 2026-11-04, revisão do #92)
 - **`Banner` continua no kit** e não é trocado pelo `AvisoRodape`: o Banner é o aviso **que fica na tela** enquanto a situação

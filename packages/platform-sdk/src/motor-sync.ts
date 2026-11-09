@@ -60,6 +60,7 @@ import {
   codificarCursor,
   CODIGOS_RETENTAVEIS,
   ehSyncNaoImplementado,
+  hojeParaPoda,
   MAX_ITENS_PUSH,
   SYNC_NAO_IMPLEMENTADO,
 } from './sync';
@@ -478,6 +479,8 @@ const CHAVE = {
   escopo: (e: string) => `sync:escopo:${e}`,
   /** Ressincronização em andamento da entidade (T-0059): retomada sem voltar ao início. */
   ressinc: (e: string) => `sync:ressinc:${e}`,
+  /** T-0121 (ADR 0009 §5): `hoje` da última poda local da entidade com janela (uma vez por dia). */
+  poda: (e: string) => `sync:poda:${e}`,
   /** Sincronização completa em andamento (T-0059): entidades e etapas já concluídas. */
   carga: 'sync:carga',
   /** Cursor de `GET /v1/sync/novidades` (RN-CORE-23, ADR 0018): grava só depois de puxar o que ele apontou. */
@@ -1032,6 +1035,62 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     }
   };
 
+  // ---------- poda local por janela (ADR 0009 §5; T-0121) ----------
+  /**
+   * Ids que a poda não apaga: os dos itens da fila e dos aceitos sobrepostos (o próprio `id` e os `id`/`*_id` de 1º nível
+   * do payload): a tela ainda casa o item com a linha.
+   */
+  const idsProtegidosDaPoda = (): Set<string> => {
+    const ids = new Set<string>();
+    for (const i of [...estado.fila, ...estado.aceitos]) {
+      ids.add(i.id);
+      if (i.payload && typeof i.payload === 'object')
+        for (const [k, v] of Object.entries(i.payload as Record<string, unknown>))
+          if (typeof v === 'string' && (k === 'id' || k.endsWith('_id'))) ids.add(v);
+    }
+    return ids;
+  };
+
+  /**
+   * Apaga do aparelho as linhas que saíram da janela do provedor (`DefinicaoEntidadeSync.naJanela`), no máximo uma vez
+   * por dia e por entidade. Predicado que lança ou linha protegida = a linha fica. `mapa` é o do caminho chave→JSON.
+   */
+  const podarJanela = async (entidade: string, mapa: Linhas): Promise<void> => {
+    const def = op.registro.entidade(entidade);
+    if (!def?.naJanela) return;
+    const a = op.armazenamento;
+    const hoje = hojeParaPoda(agora());
+    if ((await a.ler<string>(CHAVE.poda(entidade))) === hoje) return;
+    const protegidos = idsProtegidosDaPoda();
+    const fora = (l: LinhaSync): boolean => {
+      if (protegidos.has(l.id)) return false;
+      try {
+        return def.naJanela!(l as unknown as Readonly<Record<string, unknown>>, hoje) === false;
+      } catch {
+        return false;
+      }
+    };
+    if (a.linhas) {
+      const sair = (await a.linhas.listar(entidade)).filter(fora);
+      if (sair.length > 0) {
+        const quando = agora().toISOString();
+        try {
+          await a.linhas.aplicar(entidade, sair.map((l) => ({ id: l.id, updated_at: quando, deleted_at: quando })), null);
+        } finally {
+          linhasMudaram(entidade);
+        }
+      }
+    } else {
+      const sair = Object.values(mapa).filter(fora);
+      if (sair.length > 0) {
+        for (const l of sair) delete mapa[l.id];
+        await a.gravar(CHAVE.entidade(entidade), mapa);
+        linhasMudaram(entidade);
+      }
+    }
+    await a.gravar(CHAVE.poda(entidade), hoje);
+  };
+
   // ---------- recebimento (pull) ----------
   /**
    * Puxa todas as páginas da entidade. `'indisponivel'` = o servidor respondeu 501 `SYNC_NAO_IMPLEMENTADO` (nada
@@ -1144,6 +1203,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       await a.gravar(CHAVE.escopo(entidade), versao);
       await a.remover(CHAVE.ressinc(entidade));
     }
+    await podarJanela(entidade, mapa);
     coberturas?.set(entidade, { horizonte: semHorizonte ? null : horizonte, inicio });
     return 'ok';
   };

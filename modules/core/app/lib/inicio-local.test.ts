@@ -195,10 +195,9 @@ describe('RN-CORE-26: montarInicio (Início offline com as mesmas funções pura
 });
 
 describe('RN-CORE-26 / RN-CORE-23: Início pela referência aprovada (T-0076)', () => {
-  const sync = { sincronizadoEm: '2026-11-10T12:25:00.000Z', filaPendentes: 2 };
   it('RN-CORE-26: boas-vindas e visitas hoje/feitas vêm da rota do aparelho; saudação no fuso do tenant', () => {
     const l: LinhasInicio = { ...vazio, paradas: [parada(1, EU, 11, '2026-11-10'), parada(2, EU, 12, '2026-11-10')], visitas: [visita(1, EU, 11, '2026-11-10', '2026-11-10T12:00:00Z', '2026-11-10T12:30:00Z')] };
-    const v = montarInicio(l, null, [], { ...eu, ...sync });
+    const v = montarInicio(l, null, [], eu);
     expect(v.saudacao).toBe('Bom dia'); // 09h em Manaus
     expect(v.rota).toMatchObject({ paradas_hoje: 2, visitadas_hoje: 1 });
     expect(VisaoInicioSchema.safeParse(v).success).toBe(true);
@@ -224,11 +223,6 @@ describe('RN-CORE-26 / RN-CORE-23: Início pela referência aprovada (T-0076)', 
     expect(v.recados_hoje?.itens).toHaveLength(3);
     expect(v.recados_hoje?.itens[0]).toMatchObject({ id: id(504), destaque: true });
     expect(v.recados_hoje?.novos).toBe(4);
-  });
-  it('RN-CORE-23: sincronização mostra a hora da última (fuso do tenant) e o tamanho da fila', () => {
-    const v = montarInicio(vazio, null, [], { ...eu, ...sync });
-    expect(v.sincronizacao).toEqual({ ultima_em: '2026-11-10T12:25:00.000Z', hora: '08:25', fila: 2 });
-    expect(montarInicio(vazio, null, [], eu).sincronizacao).toEqual({ ultima_em: null, hora: null, fila: 0 });
   });
   it('RN-CORE-26: equipe_nome da cópia e cliente em visita do membro (Gestão)', () => {
     const c = copia('2026-11-10', {

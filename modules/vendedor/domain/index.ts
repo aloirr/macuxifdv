@@ -22,3 +22,4 @@ export * from './preco-item';
 export * from './pagamento';
 export * from './pendencias-preenchimento';
 export * from './alertas-venda';
+export * from './historico-pedido';

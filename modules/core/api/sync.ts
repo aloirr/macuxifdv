@@ -32,6 +32,7 @@ import {
   VisitaSyncSchema,
 } from '../contracts';
 import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
+import { JANELAS_CORE } from './janelas-sync';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 import { receberCheckins, receberCheckouts } from './visita-push';
 
@@ -64,7 +65,7 @@ export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal',
     colunaCliente: 'id',
   },
   carteira: {
@@ -212,8 +213,9 @@ function puxarDe(t: Tabela) {
   };
 }
 
+/** `naJanela` (poda local, ADR 0009 §5) só nas entidades que têm janela no provedor (`JANELAS_CORE`). */
 const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) =>
-  definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema });
+  definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema, ...(nome in JANELAS_CORE ? { naJanela: JANELAS_CORE[nome as keyof typeof JANELAS_CORE] } : {}) });
 
 export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
@@ -239,6 +241,7 @@ export const entidadeVisita = definirEntidadeSync({
   conflito: 'servidor_vence',
   schema: CheckinVisitaSchema,
   schemaLinha: VisitaSyncSchema,
+  naJanela: JANELAS_CORE.visita,
 });
 /** Checkout: comando só de envio, nunca conflita (a fechada sozinha cede ao checkout do usuário). */
 export const entidadeVisitaCheckout = definirEntidadeSync({

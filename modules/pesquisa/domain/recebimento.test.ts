@@ -81,7 +81,7 @@ describe('RF-PES-04 / RN-PES-04: recebimento da resposta no servidor', () => {
   });
 
   it('RF-PES-02 / doc 03 §2: perfil fora do público da versão respondida é recusado', () => {
-    const soPromotor = publicada({ perguntas: [sim_nao(1)], publico_alvo: { perfis: ['promotor'], equipes: [], segmentos: [], regioes: [], clientes: [] } });
+    const soPromotor = publicada({ perguntas: [sim_nao(1)], publico_alvo: { perfis: ['promotor'], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] } });
     const r = receberResposta(entrada({ versoes: [soPromotor] }));
     expect(r).toMatchObject({ ok: false, codigo: 'PERFIL_FORA_DO_PUBLICO' });
   });

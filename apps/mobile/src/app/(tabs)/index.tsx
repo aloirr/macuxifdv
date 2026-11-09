@@ -16,14 +16,14 @@
  */
 import { useInicio, useNotificacoes } from '@macuxi/core/app';
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoSincronizar, colors, firstName, Loading, Screen, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoSincronizar, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
 import { BoasVindas, EquipeAgora, MetaDoMes, Recados } from '@/components/inicio';
-import { avisoDosDados, dataDoCabecalho, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
+import { avisoDosDados, dataDoCabecalho, destinoDaNotificacao, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function Inicio() {
@@ -40,9 +40,8 @@ export default function Inicio() {
   const agora = new Date();
   const equipe = inicio.escopo === 'equipe';
   const nomeEquipe = inicio.equipe_nome ?? sessao?.user.team_name ?? me?.seller?.team_name ?? null;
-  // T-0124/RD-0012: só os campos prontos do Core (`saudacao`, `recados_hoje`, `meta_hoje`, `sem_realizado`), sem contornos
-  // que repitam o domain. Enquanto forem opcionais no core.inicio@1, a falta vira vazio, nunca uma regra local.
-  const semVendas = (inicio.sem_realizado?.length ?? 0) > 0;
+  // T-0124/RD-0012: só os campos prontos (e obrigatórios) do Core: `saudacao`, `recados_hoje`, `meta_hoje`, `sem_realizado`.
+  const semVendas = inicio.sem_realizado.length > 0;
   const aviso = avisoDosDados(inicio, tz);
   const navegar = (href: string) => router.navigate(href as never);
 
@@ -51,7 +50,7 @@ export default function Inicio() {
       <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
       <BoasVindas
         data={dataDoCabecalho(agora, tz, equipe ? nomeEquipe : null)}
-        saudacao={nomeado(inicio.saudacao ?? '', firstName(sessao?.user.name ?? ''))}
+        saudacao={nomeado(inicio.saudacao, firstName(sessao?.user.name ?? ''))}
         visitas={textoVisitasHoje(equipe ? visitasDaEquipe(inicio.equipe_agora) : inicio.rota, inicio.dia_util)}
         onPerfil={() => router.push('/profile')}
       />
@@ -63,12 +62,13 @@ export default function Inicio() {
 
       <Recados
         itens={recadosDoInicio(inicio.recados_hoje)}
-        naoLidas={inicio.recados_hoje?.novos ?? 0}
+        naoLidas={inicio.recados_hoje.novos}
         verTodos={mostrarVerTodos(inicio.recados_hoje)}
         onAbrir={(r) => {
           // tocar marca como lida (como a central); a navegação não espera o banco do aparelho
           if (r.notificacao_id) void marcarLida(r.notificacao_id).catch(() => undefined);
-          navegar(r.destino);
+          // T-0140 (relato de 08/11): link de tela que o usuário não tem (ou que não existe) abre a central, não a tela vazia
+          navegar(destinoDaNotificacao(r.destino, (c) => visaoShell.pagina(c) !== null));
         }}
         onVerTodos={() => navegar('/m/notificacoes')}
       />
@@ -84,13 +84,8 @@ export default function Inicio() {
 
       {/* o Sincronizar fica no pé da tela quando sobra espaço (referência), e logo depois dos blocos quando rola */}
       <View style={{ flex: 1, minHeight: 4 }} />
-      {/* RD-0008: aviso único de dado antigo, no bloco Sincronizar (provisório até a prop do kit, R-20261108-164227) */}
-      {aviso ? (
-        <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID="inicio.aviso-dados">
-          {aviso}
-        </Text>
-      ) : null}
-      <BotaoSincronizar testID="inicio-sincronizar" />
+      {/* RD-0008: aviso único de dado antigo, na linha de situação do Sincronizar (kit, docs/design/inicio.md §1.5) */}
+      <BotaoSincronizar testID="inicio-sincronizar" avisoDados={aviso} />
       </Screen>
       {/* T-0094: "Senha criada." depois da troca obrigatória, uma vez */}
       <AvisoPosLogin />
@@ -98,7 +93,7 @@ export default function Inicio() {
   );
 }
 
-/** "Boa tarde" + "Lucas" → "Boa tarde, Lucas"; sem a saudação do Core, só o nome. */
+/** "Boa tarde" + "Lucas" → "Boa tarde, Lucas"; sem o nome, só a saudação do Core. */
 function nomeado(parte: string, primeiroNome: string): string {
   return parte && primeiroNome ? `${parte}, ${primeiroNome}` : parte || primeiroNome;
 }

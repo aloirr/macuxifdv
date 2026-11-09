@@ -4,7 +4,7 @@
  * de negócio aqui. Visual da T-0072: `Cartao`, `ProgressBar height={6}`, rótulos em caixa alta. Alvos de toque ≥ 48 dp.
  */
 import type { MembroAgoraContrato, MetaDoDia, VisaoInicio } from '@macuxi/core/contracts';
-import { Cartao, colors, fonts, initials, ProgressBar, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, fonts, Icon, initials, ProgressBar, type as t } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -118,14 +118,14 @@ export function Recados({ itens, naoLidas, verTodos, onAbrir, onVerTodos }: { it
  * Os demais indicadores em linhas "x de y" sem barra (RD-0005, RD-0007, RD-0010). O aviso de dado antigo não fica aqui:
  * é único, no bloco Sincronizar (RD-0008). Sem meta: uma frase; sem as vendas na cópia, o cartão some e o aviso explica.
  */
-export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas: readonly MetaDoDia[]; pronto?: (NonNullable<VisaoInicio['meta_hoje']> & MetaHojePronta) | null; equipe: boolean; semVendas?: boolean }) {
+export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas: readonly MetaDoDia[]; pronto: (Pick<NonNullable<VisaoInicio['meta_hoje']>, 'indicador'> & MetaHojePronta) | null; equipe: boolean; semVendas?: boolean }) {
   const { principal, outras } = metaPrincipal(metas, pronto?.indicador);
   if (!principal) {
     if (semVendas) return null;
     return (
       <Cartao gap={8} testID="inicio.meta.vazio">
         <TopoDoCartao rotulo={rotuloDaMeta(equipe)} />
-        <Text style={t.small}>Nenhuma meta cadastrada.</Text>
+        <Text style={t.small}>Nenhuma meta cadastrada para este mês.</Text>
       </Cartao>
     );
   }
@@ -144,9 +144,12 @@ export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas:
       </View>
       <ProgressBar pct={d.pct} color={d.corBarra} track={d.trilho} height={6} />
       {d.apoio ? (
-        <Text style={[t.sub, d.apoioVerde ? { color: colors.success } : null]} testID="inicio.meta.apoio">
-          {d.apoio}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {d.apoioMarca ? <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} /> : null}
+          <Text style={[t.sub, d.apoioVerde ? { color: colors.success } : null]} testID="inicio.meta.apoio">
+            {d.apoio}
+          </Text>
+        </View>
       ) : null}
       {nota ? <Text style={t.small}>{nota}</Text> : null}
       {outras.map((m) => {
@@ -163,9 +166,6 @@ export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas:
     </Cartao>
   );
 }
-
-/** Nome anterior do cartão, mantido só até o teste de ponta do testes (tests/modulos/meta-de-hoje-rd0001-t0124.test.ts) trocar o import. */
-export const MetaDeHoje = MetaDoMes;
 
 // ---------- Equipe agora (Gestão) ----------
 export function EquipeAgora({ membros, tz, onAbrir }: { membros: readonly MembroAgoraContrato[]; tz: string; onAbrir: ((usuarioId: string) => void) | null }) {

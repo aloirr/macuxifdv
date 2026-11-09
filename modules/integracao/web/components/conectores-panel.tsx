@@ -2,7 +2,7 @@
 
 import { Badge, formatDateTime, Panel, TableScroll, td, th } from '@macuxi/ui/web';
 import type { ConectorResumo } from '../../contracts';
-import { ROTULO_ENTIDADE, ROTULO_SAUDE, ROTULO_SITUACAO_VERSAO, TOM_SAUDE, TOM_SITUACAO_VERSAO, tempoDesde } from '../lib/apresentacao';
+import { resumoAtualizacao, ROTULO_ENTIDADE, ROTULO_SAUDE, ROTULO_SITUACAO_VERSAO, TOM_SAUDE, TOM_SITUACAO_VERSAO, tempoDesde } from '../lib/apresentacao';
 
 /**
  * Conectores do tenant (RF-INT-04): sinal de vida (saúde calculada na API por `avaliarSaudeConector`), versão contra a política
@@ -16,13 +16,14 @@ export function ConectoresPanel({ conectores, agora, tz }: { conectores: readonl
           Nenhum Conector cadastrado. Peça ao administrador para cadastrar o Conector da empresa e instalar o serviço no servidor do ERP.
         </span>
       ) : (
-        <TableScroll minWidth={820}>
+        <TableScroll minWidth={980}>
           <thead>
             <tr>
               <th scope="col" className={th}>Conector</th>
               <th scope="col" className={th}>Sinal de vida</th>
               <th scope="col" className={th}>Último sinal</th>
               <th scope="col" className={th}>Versão</th>
+              <th scope="col" className={th}>Atualização automática</th>
               <th scope="col" className={th}>Entidades</th>
               <th scope="col" className={th}>Chave</th>
             </tr>
@@ -48,6 +49,9 @@ export function ConectoresPanel({ conectores, agora, tz }: { conectores: readonl
                   <span className="mr-1.5 font-mono">{c.versao_conector ?? '—'}</span>
                   <Badge tone={TOM_SITUACAO_VERSAO[c.situacao_versao]}>{ROTULO_SITUACAO_VERSAO[c.situacao_versao]}</Badge>
                 </td>
+                <td className={td} data-testid={`integracao.conector.atualizacao.${c.conector_id}`}>
+                  <AtualizacaoCelula c={c} tz={tz} />
+                </td>
                 <td className={`${td} text-[12px] text-ink-2`}>{c.entidades.map((e) => ROTULO_ENTIDADE[e]).join(', ')}</td>
                 <td className={`${td} whitespace-nowrap text-[12px]`}>
                   {c.chave ? (
@@ -67,5 +71,17 @@ export function ConectoresPanel({ conectores, agora, tz }: { conectores: readonl
         </TableScroll>
       )}
     </Panel>
+  );
+}
+
+/** Último resultado da atualização automática (T-0116), vindo do sinal de vida; ausente = o Conector ainda não informa. */
+function AtualizacaoCelula({ c, tz }: { c: ConectorResumo; tz: string }) {
+  const r = resumoAtualizacao(c.atualizacao);
+  return (
+    <>
+      <Badge tone={r.tom}>{r.rotulo}</Badge>
+      <div className="mt-0.5 max-w-[260px] text-[12px] text-ink-2">{r.detalhe}</div>
+      {c.atualizacao && <div className="text-[12px] text-ink-2">{formatDateTime(c.atualizacao.em, tz)}</div>}
+    </>
   );
 }

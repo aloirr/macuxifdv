@@ -68,6 +68,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'catalogo.busca_log',
   /** Notas do ERP (0019, T-0066): base do recálculo de core.historico_compra; só o resumo vai ao aparelho. */
   'core.nota_erp',
+  /** Devolução do pedido (0050, T-0054, RN-VEN-37): só o servidor grava e soma; o aparelho recebe o devolvido pelo resumo do pedido. */
+  'vendedor.pedido_devolucao',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

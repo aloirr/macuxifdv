@@ -249,6 +249,11 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
     expect(cols('cliente')).toEqual(expect.arrayContaining(['prazo_medio_max_dias', 'formas_pagamento']));
   });
 
+  it('T-0115 (RN-PES-05): o cliente devolve canal, campo do ClientePayload', () => {
+    expect(porEntidade.get('cliente')!.colunas.map((c) => c.alias)).toContain('canal');
+    expect(colunasDoContrato(SCHEMA_REGISTRO.cliente).map((c) => c.coluna)).toContain('canal');
+  });
+
   it('o guarda falha se o contrato ganhar um campo obrigatório sem a view acompanhar', () => {
     const forma = SCHEMA_REGISTRO.forma_pagamento;
     const comCampoNovo = forma.extend({ campo_novo_obrigatorio: forma.shape.codigo });

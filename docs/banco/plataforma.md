@@ -554,9 +554,29 @@ Volume: 7 + poucos perfis por tenant, dezenas de sobreposições, 1 a 3 vínculo
 `excluir_tenant` apaga pela ordem das FKs; as conferências do COMMIT ignoram tenant que não existe mais e, no `--recriar` da demo,
 os ids determinísticos fazem os perfis e vínculos recriados casarem com os apagados.
 
+
+### 0051 — nome do perfil Assistente (RD-0014, T-0111)
+Pedido R-20261108-202329-designer-ux; texto em `docs/design/perfis-de-acesso.md` §0.1. `plataforma.semear_perfis_fabrica(uuid)`
+(create or replace; mesmas ACLs, EXECUTE só ao `macuxi_app`) semeia o assistente de fábrica como **"Assistente"** (antes
+"Assistente de BKO"); os outros 6 nomes não mudam (Vendedor, Promotor, Supervisor, Gerente, Analista, Admin). Nos tenants que
+já existem, só o perfil `fabrica` de base `assistente` com o nome antigo exato passa a "Assistente"; quem renomeou fica. Código,
+base, marca de fábrica, ids e permissões não mudam. **Volta**: a função da 0041 e o nome antigo (um nome "Assistente" posto à mão
+também volta; o nome é só exibição). Testes: `db/testes/perfil-assistente.test.ts` (texto da função = 0041 com o nome trocado,
+update restrito, fixture com os 7 nomes da tela, up/down com tenant antigo, renomeado e novo).
+
+### 0052 — login sem nome do tenant (T-0122 N5)
+Pedido R-20261109-000053-engenheiro-software. `plataforma.tenant_por_codigo(text)` (login, SEM contexto, SECURITY DEFINER,
+search_path da 0012, EXECUTE só ao `macuxi_app`) devolve só **(id, status)**: o nome e o fuso das empresas não saem antes da
+senha (não dá para enumerar empresas pelo código). Função nova **`plataforma.tenant_da_sessao()`** → (id, codigo, nome, fuso)
+do tenant da sessão (`app.tenant_id`), SECURITY INVOKER (lê `plataforma.tenant` pela RLS; sem contexto = 0 linhas), EXECUTE só
+ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenant`. **Sobe no mesmo lote do Core**
+(`tenantParaExibicao`). `evento_nome_formato` e `evento_consumo_consumidor_formato` alinhados ao `EVENTO_RE` do SDK (segmento
+`[a-z][a-z0-9_]*`, sem hífen; NOT VALID + VALIDATE). **Volta**: a função da 0001 (id, nome, fuso, status) e os CHECKs com hífen;
+`tenant_da_sessao` sai. Testes: `db/testes/tenant-por-codigo-minimo.test.ts`.
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
-- `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012).
+- `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012); só (id, status) desde a 0052.
+- `plataforma.tenant_da_sessao()` (0052): id, codigo, nome e fuso do tenant da sessão (INVOKER, pela RLS), depois da senha.
 - `plataforma.uuid_de_chave(text)` (0005): UUID determinístico (md5 de `macuxi:<chave>` com versão 5 e variante RFC 4122),
   gêmeo de `idDeChave` em `db/src/ids.ts`. Usado nas linhas padrão semeadas em todo tenant.
 - `plataforma.resumo_outbox(text[], integer)` (0024): contagens da outbox para o `/v1/saude` (seção evento).

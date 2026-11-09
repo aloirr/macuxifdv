@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",
+    "@macuxi/platform-sdk": "workspace:*",
     "@types/node": "^22.18.0",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",

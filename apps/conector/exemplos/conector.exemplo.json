@@ -246,7 +246,7 @@
     "cliente": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, razao_social, nome_fantasia, documento, vendedor_external_id, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, latitude, longitude, telefone, email, limite_credito_cents, inscricao_estadual, observacao, bloqueado, contatos, prazo_medio_max_dias, formas_pagamento FROM dbo.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, razao_social, nome_fantasia, documento, vendedor_external_id, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, latitude, longitude, telefone, email, limite_credito_cents, inscricao_estadual, observacao, bloqueado, contatos, prazo_medio_max_dias, formas_pagamento, tabela_preco_external_id, canal FROM dbo.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -298,7 +298,9 @@
           "coluna": "formas_pagamento",
           "transformar": "json",
           "nulo": "limpa"
-        }
+        },
+        "tabela_preco_external_id": "tabela_preco_external_id",
+        "canal": "canal"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_cliente WHERE ativo = 1"

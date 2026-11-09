@@ -4,6 +4,7 @@
  * <e-mail>", nunca verde. Exige internet. testIDs: esqueci.tela, esqueci.codigo-empresa, esqueci.email, esqueci.enviar,
  * esqueci.erro, esqueci.confirmacao, esqueci.voltar.
  */
+import { estilosDeAcesso } from './estilos-de-acesso';
 import { Banner, Button, colors, fonts, radius, Screen, toneColors, type as t, Icon } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -140,21 +141,7 @@ function Campo({
 }
 
 const styles = StyleSheet.create({
-  titulo: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
-  rotulo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  ...estilosDeAcesso,
   aviso: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: radius.md },
   avisoTexto: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  entrada: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    color: colors.ink,
-    backgroundColor: colors.surface,
-  },
-  link: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  linkTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk },
 });

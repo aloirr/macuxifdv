@@ -12,6 +12,17 @@ import { BYTES_MAX_MINIATURA, LADO_MAX_MINIATURA_PX } from '../contracts';
 
 /** Prefixo da rota de arquivos da plataforma (`ROTA_ARQUIVOS` do SDK), relativa e autenticada. */
 export const PREFIXO_URL_ARQUIVO = '/v1/arquivos/';
+/** Sufixo da rota `GET /v1/arquivos/:id/miniatura` (320 px, até 30 KB; T-0097 b, ADR 0036). */
+export const SUFIXO_URL_MINIATURA = '/miniatura';
+
+/**
+ * Url da miniatura no pull: url externa (https) vale como está; com `arquivo_id` aponta para a rota da miniatura
+ * (nunca para o original, que o aparelho recusa pelo `bytes_max`); sem nenhum dos dois, `null`. Espelha o SQL abaixo.
+ */
+export function montarUrlMiniatura(arquivoId: string | null | undefined, url: string | null | undefined): string | null {
+  if (url) return url;
+  return arquivoId ? `${PREFIXO_URL_ARQUIVO}${arquivoId}${SUFIXO_URL_MINIATURA}` : null;
+}
 
 /**
  * Subconsulta escalar (JSON) usada na coluna `miniatura` do pull de `produto_conteudo`: foto principal viva do mesmo
@@ -20,7 +31,7 @@ export const PREFIXO_URL_ARQUIVO = '/v1/arquivos/';
 export const SQL_MINIATURA_DO_CONTEUDO = `(
       select jsonb_build_object(
                'arquivo_id', m.arquivo_id,
-               'url', coalesce(m.url, '${PREFIXO_URL_ARQUIVO}' || m.arquivo_id::text),
+               'url', coalesce(m.url, '${PREFIXO_URL_ARQUIVO}' || m.arquivo_id::text || '${SUFIXO_URL_MINIATURA}'),
                'largura', ${LADO_MAX_MINIATURA_PX},
                'altura', ${LADO_MAX_MINIATURA_PX},
                'bytes_max', ${BYTES_MAX_MINIATURA},

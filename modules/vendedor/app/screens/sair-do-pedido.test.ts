@@ -16,8 +16,10 @@ describe('RN-VEN-38 (T-0128): as saídas do Novo pedido passam pela folha "Sair 
   it('RN-VEN-38: barra inferior e gesto do Android: a tela se registra no ponto de extensão do shell', () => {
     expect(tela).toContain('useBloquearSaida(alterado, (prosseguir) => pedirSaidaRef.current(prosseguir))');
   });
-  it('RN-VEN-38: Cancelar do Resumo abre a folha quando alterado; só a edição de pedido salvo mantém o diálogo antigo', () => {
-    expect(tela).toContain('onCancelar={() => (editId ? setDescartarAberto(true) : alterado ? pedirSaida(');
+  it('RN-VEN-38: Cancelar do Resumo abre a folha quando alterado; na edição de pedido salvo abre a mesma folha com as opções da edição', () => {
+    expect(tela).toContain('onCancelar={() => (editId ? pedirSaidaDaEdicao() : alterado ? pedirSaida(');
+    expect(tela).toContain('edicao={editId ? opcoesDaSaidaEdicao(');
+    expect(tela).not.toContain('Descartar este pedido?');
   });
   it('RN-VEN-38: sem alteração a saída é direta (sem pergunta)', () => {
     expect(tela).toMatch(/const pedirSaida = \(prosseguir: \(\) => void\) => \{\s*if \(!alterado\) \{\s*prosseguir\(\);\s*return;/);

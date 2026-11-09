@@ -3,9 +3,9 @@ import { frequenciaPermite, pesquisaAplicavel, publicoContemCliente, publicoCont
 import type { PublicoAlvo, Questionario } from '../contracts';
 import { QUEST, TENANT, publicada, u, versao } from './util-teste';
 
-const publico = (p: Partial<PublicoAlvo> = {}): PublicoAlvo => ({ perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [], ...p });
+const publico = (p: Partial<PublicoAlvo> = {}): PublicoAlvo => ({ perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [], ...p });
 const usuario = (perfil = 'vendedor', equipe_ids: string[] = [u(50)]) => ({ id: u(1), perfil, equipe_ids });
-const cliente = (extra: Partial<{ segmento: string | null; regiao: string | null }> = {}) => ({ id: u(60), segmento: 'Atacado', regiao: 'Norte', ...extra });
+const cliente = (extra: Partial<{ segmento: string | null; regiao: string | null; canal: string | null }> = {}) => ({ id: u(60), segmento: 'Atacado', regiao: 'Norte', canal: 'Tradicional' as string | null, ...extra });
 const q: Questionario = { id: QUEST, tenant_id: TENANT, criado_em: '2026-10-01T00:00:00Z', arquivado_em: null };
 
 describe('RF-PES-02: público-alvo do usuário (perfis e equipes)', () => {
@@ -35,7 +35,7 @@ describe('RF-PES-02: público-alvo do cliente (segmento, canal, região, lista)'
     expect(publicoContemCliente(publico(), cliente())).toBe(true);
     expect(publicoContemCliente(publico(), null)).toBe(true);
   });
-  it('RN-PES-05: segmento e região são lidos sem diferenciar maiúsculas e valem juntos (E); canal fica fora do público', () => {
+  it('RN-PES-05: segmento e região são lidos sem diferenciar maiúsculas e valem juntos (E)', () => {
     const p = publico({ segmentos: ['atacado', 'varejo'], regioes: ['norte'] });
     expect(publicoContemCliente(p, cliente())).toBe(true);
     expect(publicoContemCliente(p, cliente({ regiao: 'Sul' }))).toBe(false);
@@ -50,6 +50,45 @@ describe('RF-PES-02: público-alvo do cliente (segmento, canal, região, lista)'
   it('RF-PES-02: pesquisa com critério de cliente não se aplica quando não há cliente em contexto', () => {
     expect(publicoContemCliente(publico({ segmentos: ['Atacado'] }), null)).toBe(false);
     expect(publicoContemCliente(publico({ clientes: [u(60)] }), null)).toBe(false);
+  });
+});
+
+describe('RN-PES-05: público legado sem canais (T-0115)', () => {
+  it('RN-PES-05: público gravado antes de canais não lança erro e mantém o comportamento anterior', () => {
+    const legado = { perfis: [], equipes: [], segmentos: ['Atacado'], regioes: [], clientes: [] } as unknown as PublicoAlvo;
+    expect(() => publicoContemCliente(legado, cliente())).not.toThrow();
+    expect(publicoContemCliente(legado, cliente())).toBe(true);
+    expect(publicoContemCliente(legado, cliente({ segmento: 'Varejo' }))).toBe(false);
+    expect(publicoContemCliente({ ...legado, segmentos: [] } as unknown as PublicoAlvo, null)).toBe(true);
+  });
+});
+
+describe('RN-PES-05: canal do cliente no público-alvo (T-0115)', () => {
+  it('RN-PES-05: só canal — o cliente entra se o canal dele estiver na lista, sem diferenciar maiúsculas, acentos e espaços', () => {
+    const p = publico({ canais: [' tradicional ', 'Auto Serviço'] });
+    expect(publicoContemCliente(p, cliente())).toBe(true);
+    expect(publicoContemCliente(p, cliente({ canal: 'AUTO SERVICO' }))).toBe(true);
+    expect(publicoContemCliente(p, cliente({ canal: 'Atacarejo' }))).toBe(false);
+  });
+  it('RN-PES-05: cliente sem canal (nulo ou ausente) não casa por canal', () => {
+    const p = publico({ canais: ['Tradicional'] });
+    expect(publicoContemCliente(p, cliente({ canal: null }))).toBe(false);
+    expect(publicoContemCliente(p, { id: u(60), segmento: 'Atacado', regiao: null })).toBe(false);
+  });
+  it('RN-PES-05: canal soma (OU) aos segmentos e à lista de clientes', () => {
+    const p = publico({ segmentos: ['Varejo'], canais: ['Tradicional'] });
+    expect(publicoContemCliente(p, cliente())).toBe(true); // casa só pelo canal
+    expect(publicoContemCliente(p, cliente({ canal: 'Outro', segmento: 'Varejo' }))).toBe(true); // só pelo segmento
+    expect(publicoContemCliente(p, cliente({ canal: 'Outro' }))).toBe(false);
+    const q2 = publico({ canais: ['Farma'], clientes: [u(60)] });
+    expect(publicoContemCliente(q2, cliente())).toBe(true); // só pela lista
+  });
+  it('RN-PES-05: com canal definido e sem cliente em contexto, não se aplica', () => {
+    expect(publicoContemCliente(publico({ canais: ['Tradicional'] }), null)).toBe(false);
+  });
+  it('RN-PES-05 / RF-PES-02: pesquisa só para um canal recusa cliente de outro canal com motivo de cliente', () => {
+    const ctx = { usuario: usuario(), cliente: cliente({ canal: 'Outro' }), agora: '2026-10-31T15:00:00Z', visita_id: null, respostas_anteriores: [], fuso: 'America/Manaus' };
+    expect(pesquisaAplicavel(q, [publicada({ publico_alvo: publico({ canais: ['Tradicional'] }) })], ctx)).toMatchObject({ aplicavel: false, motivo: 'CLIENTE_FORA_DO_PUBLICO' });
   });
 });
 

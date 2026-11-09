@@ -89,20 +89,20 @@ describe('pesquisa.etapas_checkout@1 (RN-PES-03, RN-CORE-12)', () => {
   });
 
   it('RF-PES-02: pesquisa só para vendedor não é etapa do promotor', async () => {
-    const restrita = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], regioes: [], clientes: [] } });
+    const restrita = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] } });
     const { consulta } = await ambiente(restrita);
     expect((await consulta.executar(entrada(), ctx('promotor'))).etapas).toEqual([]);
     expect((await consulta.executar(entrada(), ctx('vendedor'))).etapas).toHaveLength(1);
   });
 
   it('RF-PES-02: público por segmento, que a consulta não consegue verificar, não bloqueia a visita', async () => {
-    const porSegmento = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: [], equipes: [], segmentos: ['mercado'], regioes: [], clientes: [] } });
+    const porSegmento = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: [], equipes: [], segmentos: ['mercado'], regioes: [], canais: [], clientes: [] } });
     const { consulta } = await ambiente(porSegmento);
     expect((await consulta.executar(entrada(), ctx())).etapas).toEqual([]);
   });
 
   it('RF-PES-02: público com o cliente nominal é verificado normalmente', async () => {
-    const nominal = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: [], equipes: [], segmentos: ['mercado'], regioes: [], clientes: [CLIENTE] } });
+    const nominal = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: [], equipes: [], segmentos: ['mercado'], regioes: [], canais: [], clientes: [CLIENTE] } });
     const { consulta } = await ambiente(nominal);
     expect((await consulta.executar(entrada(), ctx())).etapas).toHaveLength(1);
   });

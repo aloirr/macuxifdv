@@ -265,20 +265,18 @@ export function editavelNaFatia(status: OrderStatus): boolean {
 export const CODIGO_CANCELAR_APOS_ENVIO = 'RN-VEN-CANCELAR-APOS-ENVIO';
 export const MSG_CANCELAR_APOS_ENVIO = 'Pedido já enviado ao ERP — cancele no ERP';
 export const HTTP_CANCELAR_APOS_ENVIO = 422;
-const ENVIADO_OU_POSTERIOR: ReadonlySet<string> = new Set([
-  'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced', 'invoiced_total',
-  'enviado', 'integrado', 'integrado_erp', 'faturado_parcial', 'faturado_total', 'faturado',
-]);
-export function enviadoAoErp(status: string): boolean {
-  return ENVIADO_OU_POSTERIOR.has(status);
-}
-/** Status do ERP/doc (EstadoPedidoErp da integração) -> OrderStatus do contrato; o que já é OrderStatus passa direto. */
-const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', integrado: 'integrated', integrado_erp: 'integrated', faturado_parcial: 'invoiced_partial', faturado_total: 'invoiced', faturado: 'invoiced', cancelado: 'cancelled' };
+/** Status do ERP/doc (EstadoPedidoErp da integração) -> OrderStatus do contrato; o que já é OrderStatus passa direto. Única lista de apelidos (RD-0028). */
+const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', integrado: 'integrated', integrado_erp: 'integrated', faturado_parcial: 'invoiced_partial', faturado_total: 'invoiced', faturado: 'invoiced', invoiced_total: 'invoiced', cancelado: 'cancelled' };
 export function normalizarStatus(status: string): string {
   return ALIAS_STATUS[status] ?? status;
 }
+const ENVIADO_OU_POSTERIOR: ReadonlySet<string> = new Set<OrderStatus>(['sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced']);
+export function enviadoAoErp(status: string): boolean {
+  return ENVIADO_OU_POSTERIOR.has(normalizarStatus(status) as OrderStatus);
+}
 export type VerificacaoCancelamento = { ok: true; solicitado_ao_erp?: true } | { ok: false; codigo: string; status: number; mensagem: string };
-const FATURADO: ReadonlySet<string> = new Set(['invoiced_partial', 'invoiced', 'invoiced_total', 'faturado_parcial', 'faturado_total', 'faturado']);
+const FATURADO: ReadonlySet<string> = new Set<OrderStatus>(['invoiced_partial', 'invoiced']);
+const foiFaturado = (status: string): boolean => FATURADO.has(normalizarStatus(status));
 /**
  * RN-VEN-31 (exceção da T-0114): o pedido enviado/integrado só cancela se o conector do tenant aceita cancelamento
  * (`integracao.cancelamento_erp@1`); nesse caso fica "cancelamento solicitado" (`solicitado_ao_erp`) até o ERP devolver
@@ -286,8 +284,13 @@ const FATURADO: ReadonlySet<string> = new Set(['invoiced_partial', 'invoiced', '
  */
 export interface OpcoesCancelamento { erpAceitaCancelamento?: boolean }
 export function verificarCancelamento(status: string, opcoes: OpcoesCancelamento = {}): VerificacaoCancelamento {
-  if (enviadoAoErp(status) && opcoes.erpAceitaCancelamento === true && !FATURADO.has(status)) return { ok: true, solicitado_ao_erp: true };
+  if (enviadoAoErp(status) && opcoes.erpAceitaCancelamento === true && !foiFaturado(status)) return { ok: true, solicitado_ao_erp: true };
   return enviadoAoErp(status) ? { ok: false, codigo: CODIGO_CANCELAR_APOS_ENVIO, status: HTTP_CANCELAR_APOS_ENVIO, mensagem: MSG_CANCELAR_APOS_ENVIO } : { ok: true };
+}
+
+/** O cancelamento deste status depende do aceite do conector (enviado/integrado, não faturado): só esses recebem a marca no pull. */
+export function dependeDoAceiteDoErp(status: string): boolean {
+  return enviadoAoErp(status) && !foiFaturado(status);
 }
 
 export interface OrderActions {
@@ -298,6 +301,9 @@ export interface OrderActions {
   locked_reason: string;
 }
 
+/** RN-VEN-31 (T-0114/T-0138): com o aceite do conector, o enviado/integrado não edita mas cancela no Macuxi; o texto não manda mais "cancele no ERP". */
+export const MSG_ENVIADO_NAO_EDITA = 'Pedido já enviado ao ERP: não pode ser editado. Duplique para fazer um novo.';
+
 export function orderActions(status: OrderStatus, opcoes: OpcoesCancelamento = {}): OrderActions {
   const editable = EDITABLE.has(status) && !enviadoAoErp(status);
   // P-2: aprovado não se edita, mas cancela até ser enviado ao ERP (doc 03 §4); RN-VEN-31 (T-0114): enviado cancela se o ERP aceita
@@ -307,7 +313,9 @@ export function orderActions(status: OrderStatus, opcoes: OpcoesCancelamento = {
     : status === 'cancelled'
       ? 'Pedido cancelado.'
       : enviadoAoErp(status)
-        ? MSG_CANCELAR_APOS_ENVIO
+        ? cancelavel
+          ? MSG_ENVIADO_NAO_EDITA
+          : MSG_CANCELAR_APOS_ENVIO
         : status === 'approved'
           ? 'Pedido aprovado: não pode ser editado. Duplique para fazer um novo ou cancele antes do envio ao ERP.'
           : 'Este pedido não pode mais ser alterado.';

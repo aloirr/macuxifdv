@@ -17,7 +17,7 @@ Convenções: instantes em UTC (ISO com `Z`); **dia/semana/mês = no fuso do ten
 | RN-PES-02 | Frequência por **cliente**, em períodos civis (semana/mês) no fuso do tenant | `publico.ts` (`frequenciaPermite`) |
 | RN-PES-03 | Obrigatória no checkout bloqueia o checkout até responder, exceto cliente fechado (RN-CORE-14) | `checkout.ts` (`avaliarEtapaCheckout`, `clienteFechadoNoContexto`) |
 | RN-PES-04 | Hora do aparelho + `recebida_em` do servidor; relógio adiantado > [24 h] ou fora da vigência: **aceita e sinalizada** | `resposta.ts` (`avaliarRecebimentoDaResposta`), contrato `suspeita`/`motivos_suspeita` |
-| RN-PES-05 | "Mostrar" em OU, "ocultar" vence; lista de clientes soma aos segmentos; sem "canal" | `condicional.ts`, `publico.ts` |
+| RN-PES-05 | "Mostrar" em OU, "ocultar" vence; lista de clientes e canal somam (OU) aos segmentos | `condicional.ts`, `publico.ts` |
 | RN-PES-06 | GS1 inválido = aviso; foto até [1600 px], JPEG [80] | `resposta-item.ts` (`avisarItem`, `dimensoesDaFoto`) |
 | RN-PES-07 | Limites do construtor como parâmetros do tenant | `parametros.ts`, `questionario.ts` |
 | RN-CORE-14 | Cliente fechado dispensa as etapas obrigatórias | `checkout.ts` |
@@ -85,7 +85,7 @@ Regra = `{ pergunta_id (alvo), acao: mostrar | ocultar, origem_id, operador, val
 
 ## 4. Público-alvo, vigência e frequência — RF-PES-02, RN-PES-02, RN-PES-04 (`publico.ts`)
 - **Público do usuário**: `perfis` (apenas vendedor, promotor, supervisor, gerente, que são quem responde, doc 03 §2) e `equipes`. Lista vazia = sem restrição; perfil e equipe preenchidos valem juntos (E). A equipe vale pela **lista de equipes do usuário (a dele e as acima na árvore)**, que o Core informa (premissa).
-- **Público do cliente** (RN-PES-05): `segmentos` e `regioes` valem juntos (E; comparação sem diferenciar maiúsculas); a lista `clientes` **soma** (OU). **Não há "canal"** no público-alvo até o Core ter esse campo (o contrato recusa `canais`). Sem nenhum critério de cliente vale para qualquer cliente e também sem cliente (pesquisa avulsa sem cliente). Com critério e sem cliente em contexto não se aplica ("Escolha o cliente para responder").
+- **Público do cliente** (RN-PES-05, T-0115): `segmentos` e `regioes` valem juntos (E); esse grupo, os `canais` (canal do cliente no Core, comparado sem caixa, sem acento e sem espaços repetidos) e a lista `clientes` se **somam** (OU). Cliente sem canal não casa por canal. Sem nenhum critério de cliente vale para qualquer cliente e também sem cliente (pesquisa avulsa sem cliente). Com critério e sem cliente em contexto não se aplica ("Escolha o cliente para responder"). No app o canal vem da linha local do cliente (offline); a consulta `pesquisa.etapas_checkout@1` no servidor ainda não recebe o canal.
 - **Vigência** (`vigenteEm`): `inicio` e `fim` em UTC, **inclusivos**; `fim = null` = sem prazo. Exemplo (Manaus, UTC−4): vigência 01/10 00:00 a 30/10 23:59:59 locais = `2026-10-01T04:00:00Z` a `2026-10-31T03:59:59Z`.
 - **Frequência** (`frequenciaPermite`, RN-PES-02) — controla a **oferta**, nunca recusa resposta já recebida. Chave = o **cliente** quando há cliente em contexto (qualquer usuário conta; RN-PES-02, decidido) e o **usuário** quando não há (premissa: a regra não fala de resposta sem cliente).
 
@@ -146,7 +146,7 @@ Assistente não responde nem cria (doc 03 §2). Ver resultados: o doc 03 não tr
 - Consome `core.visita.checkout@1` (já no manifesto) e usa `visita.etapas_checkout` e `cliente.abas`.
 
 ## Decididas (Alexandre, R-20261031-125833) — saíram das premissas
-Frequência por cliente em períodos civis (RN-PES-02) · "mostrar" em OU e "ocultar" vence, lista de clientes soma aos segmentos, sem "canal" (RN-PES-05) · relógio adiantado e fora da vigência aceitos com suspeita (RN-PES-04) · GS1 inválido só avisa e foto 1600 px/JPEG 80 (RN-PES-06) · limites 50/20/10/2000 como parâmetros do tenant (RN-PES-07) · consolidação entre versões só por id estável (RN-PES-01) · cliente fechado dispensa a pesquisa (RN-PES-03, RN-CORE-14).
+Frequência por cliente em períodos civis (RN-PES-02) · "mostrar" em OU e "ocultar" vence, lista de clientes e canal somam aos segmentos (RN-PES-05) · relógio adiantado e fora da vigência aceitos com suspeita (RN-PES-04) · GS1 inválido só avisa e foto 1600 px/JPEG 80 (RN-PES-06) · limites 50/20/10/2000 como parâmetros do tenant (RN-PES-07) · consolidação entre versões só por id estável (RN-PES-01) · cliente fechado dispensa a pesquisa (RN-PES-03, RN-CORE-14).
 
 ## Premissas T-0012 que continuam (a decidir pelo Alexandre)
 1. **Sem cliente em contexto** (pesquisa avulsa): a chave da frequência é o usuário.
@@ -172,6 +172,5 @@ API, sync e telas: `api-e-telas.md`.
 - Limite de armazenamento de foto (bytes): definir com o app/storage (dimensões e qualidade já decididas, RN-PES-06).
 - ~~Migração 0016 e implementação SQL do `RepositorioPesquisa`~~ — feito (T-0057, repositório Postgres); ver `api-e-telas.md`. Falta apurar resultados por SQL quando o volume pedir.
 - Equipe do usuário e universo do público (Core) para o público por equipe, o filtro por equipe e a taxa de resposta.
-- "Canal" volta ao público-alvo quando o Core tiver o campo (RN-PES-05).
 - Pesquisa que ofereça "Pesquisas" no Cliente 360 (`cliente.abas`) e o cartão na Gestão: telas e API, fora da T-0012.
 - Tabelas: banco-dados decide como gravar perguntas/opções/regras (o contrato aninha tudo na versão); o `sync` do manifesto pode ganhar `opcao`/`regra_condicional` se virarem tabelas próprias.

@@ -25,12 +25,21 @@ import { sincronizarEntidade } from '../src/sincronizador';
 import { relogioReal } from '../src/util/relogio';
 import { HubFalso } from './suporte/hub-falso';
 
-const cfgPg = {
-  host: process.env.MACUXI_PG_HOST ?? 'localhost',
-  port: Number(process.env.MACUXI_PG_PORTA ?? 5432),
-  user: process.env.MACUXI_PG_ADMIN_USUARIO ?? 'postgres',
-  password: process.env.MACUXI_PG_ADMIN_SENHA ?? 'postgres',
-};
+/** Com MACUXI_PG_TESTES_URL (postgres://usuario:senha@host:porta) usa o Postgres dos testes (5434), nunca o da demo; os MACUXI_PG_* continuam valendo. */
+function configPg(env: NodeJS.ProcessEnv) {
+  const url = env.MACUXI_PG_TESTES_URL?.trim();
+  if (url) {
+    const u = new URL(url);
+    return { host: u.hostname, port: Number(u.port || 5432), user: decodeURIComponent(u.username), password: decodeURIComponent(u.password) };
+  }
+  return {
+    host: env.MACUXI_PG_HOST ?? 'localhost',
+    port: Number(env.MACUXI_PG_PORTA ?? 5432),
+    user: env.MACUXI_PG_ADMIN_USUARIO ?? 'postgres',
+    password: env.MACUXI_PG_ADMIN_SENHA ?? 'postgres',
+  };
+}
+const cfgPg = configPg(process.env);
 
 async function postgresDisponivel(): Promise<string | null> {
   const c = new pg.Client({ ...cfgPg, database: 'postgres', connectionTimeoutMillis: 2000 });

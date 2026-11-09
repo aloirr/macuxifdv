@@ -185,6 +185,7 @@ Todas exigem os cabeçalhos da seção 2, autenticação (seção 3), taxa (seç
 ### 6.7 `POST /integracao/v1/sinal` — sinal de vida (1 min)
 - **Corpo**: `SinalConector` (`conector_id`, `versao_conector`, `versao_contrato`, `em`, `fila[]`, `entidades[]`, `parado_por_versao?`; sem dado pessoal). **Sucesso**: `200` `RespostaSinal { politica_versao?, conector_id?, recebido_em? }`.
 - Grava `ultimo_sinal_em` (relógio do servidor), `versao_conector`, `parado_por_versao`, o resumo da fila/entidades (só o último) e `deriva_relogio_s` = recebido − `em` (o monitor destaca > 5 min: o NTP do servidor do cliente está errado). Responde com a política de versão do tenant (seção 12). **Única rota liberada abaixo da versão mínima.** Resposta 4xx/5xx faz o Conector repetir no ciclo seguinte — nunca o derruba.
+- **`atualizacao` (opcional, aditivo na v1; T-0100)**: último resultado da atualização automática do Conector (`resultado` atualizado | mantido | revertido, `codigo` do motivo, `versao_de`, `versao_para`, `em`, `mensagem` de até 300 caracteres, sem URL, caminho nem usuário). O Hub grava o objeto validado em `sinal_resumo.atualizacao` (sem migração) e o monitor do BKO mostra na coluna "Atualização automática"; sinal sem o campo (Conector antigo ou sem atualização ligada) = "Sem informação".
 
 ## 7. Ingestão: do envelope ao evento
 
@@ -503,3 +504,6 @@ Referência sem marca (`marca_external_id`/`marca_nome`), com código vazio ou a
 - **Eventos:** `integracao.forma_pagamento.atualizado@1` e `integracao.prazo_pagamento.atualizado@1` (consumidor: Vendedor), `integracao.tabela_escalonada.atualizado@1` (consumidor: Catálogo). O cliente continua em `integracao.cliente.atualizado@1`, agora com os 2 campos novos (consumidor: Core).
 - **Pedido ao ERP:** bloco `pagamento` em `PedidoParaErp` (§11.1; tabela de resolução em `conector.md`). Vem do `vendedor.pedido.aprovado@1` e passa inteiro até o Conector; pedido antigo segue com o mesmo payload e o mesmo hash.
 - **Banco:** os CHECKs de `entidade` do schema `integracao` (e `ENTIDADES_BANCO`) precisam aceitar as 3 entidades novas: pedido ao `banco-dados`.
+
+## Vínculo cliente → tabela de preço do ERP (T-0120, aditivo no v1)
+`ClientePayload.tabela_preco_external_id` (opcional, `ExternalId`) é a mesma chave `tabela_external_id` da entidade `preco`. Ausente = não altera; `null` = desvincula (volta à tabela padrão). O Hub só repassa no registro do evento `integracao.cliente.atualizado@1`; quem grava o vínculo é o Catálogo (`catalogo.cliente_tabela_preco`), e o Core ignora o campo. A coluna `tabela_preco_external_id` na `vw_macuxi_cliente` é do banco-dados (recado R-20261108-230146). Rotas novas do BKO (A9, `contracts/bko.ts`): `GET/PUT /mapeamentos` e `DELETE /mapeamentos/:id`, `POST /pedidos/reprocessar-retidos` (`mapeamento.editar`). Avisos novos de linha: `marca_concorrente_desconhecida` (T-0103, §14 do desenho) e `avisos_omitidos`.

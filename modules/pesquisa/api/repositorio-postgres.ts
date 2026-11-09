@@ -14,6 +14,7 @@
  *  - 23503 (FK): versão fora do questionário, questionário ou arquivo inexistente.
  */
 import { ErroHttpModulo, type ClienteBanco } from '@macuxi/platform-sdk';
+import { PublicoAlvo } from '../contracts';
 import type { Questionario, QuestionarioVersao, QuestionarioVersaoSync, RespostaPesquisa, RespostaPesquisaSync } from '../contracts';
 import { conflito, naoEncontrado, recusar, RESPOSTA_JA_EXISTE } from './comum';
 import type { FabricaRepositorio, JanelaPull, QuestionarioCarregado, RepositorioPesquisa } from './repositorio';
@@ -116,7 +117,7 @@ function versaoDaLinha(l: LinhaVersao): QuestionarioVersao {
     ...(l.descricao !== null ? { descricao: l.descricao } : {}),
     modo: l.modo,
     frequencia: l.frequencia,
-    publico_alvo: l.publico_alvo,
+    publico_alvo: PublicoAlvo.parse(l.publico_alvo ?? {}),
     vigencia: { inicio: l.vigencia_inicio, fim: l.vigencia_fim },
     perguntas: l.perguntas,
     regras: l.regras,

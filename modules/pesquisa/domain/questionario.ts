@@ -24,7 +24,7 @@ export function criarPrimeiraVersao(a: { id: string; questionario_id: string; te
     titulo: a.titulo,
     modo: 'avulsa',
     frequencia: 'a_cada_visita',
-    publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] },
+    publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] },
     vigencia: { inicio: a.agora, fim: null },
     perguntas: [],
     regras: [],
@@ -121,7 +121,7 @@ export function validarVersao(versao: QuestionarioVersao, parametros: Parametros
   if (fim !== null && instanteMs(fim) < instanteMs(inicio)) erros.push({ codigo: 'VIGENCIA_INVALIDA', mensagem: 'O fim da vigência não pode ser anterior ao início. Ajuste as datas.' });
 
   const p = versao.publico_alvo;
-  const semCriterio = [p.perfis, p.equipes, p.segmentos, p.regioes, p.clientes].every((l) => l.length === 0);
+  const semCriterio = [p.perfis, p.equipes, p.segmentos, p.regioes, p.canais, p.clientes].every((l) => l.length === 0);
   if (semCriterio) avisos.push({ codigo: 'PUBLICO_ABERTO', mensagem: 'Nenhum público-alvo definido: a pesquisa vale para todos os perfis de campo do tenant.' });
 
   const regras = validarRegras(perguntas, versao.regras);

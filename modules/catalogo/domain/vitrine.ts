@@ -96,9 +96,8 @@ export function itemDaVitrine(p: ProdutoCatalogo, ctx: ContextoVitrine): ItemVit
  * estoque 0 e sem preço — os boosts e a ordem não revelam o que o cartão esconde. RN-CAT-07: com o número escondido, a
  * faixa basta (disponível/baixo = tem estoque).
  */
-export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine): DocBusca {
-  const a = item.availability;
-  const estoque = a === null ? 0 : a.quantity !== null ? a.quantity : a.band === 'sem_estoque' ? 0 : 1;
+export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine | null): DocBusca {
+  const estoque = estoqueDeBusca(item);
   return {
     id: p.id,
     sku: p.sku,
@@ -112,8 +111,33 @@ export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine): DocBusca {
     estoque,
     vendas: p.vendas,
     campanha: p.campanha,
-    preco_cents: item.price?.price_cents ?? null,
+    preco_cents: item?.price?.price_cents ?? null,
   };
+}
+
+/** Estoque que o ranking enxerga (RN-CAT-05/07): o número, ou 0/1 pela faixa quando o número está escondido. */
+export function estoqueDeBusca(item: ItemVitrine | null): number {
+  const a = item?.availability ?? null;
+  return a === null ? 0 : a.quantity !== null ? a.quantity : a.band === 'sem_estoque' ? 0 : 1;
+}
+
+/**
+ * O produto tem estoque para o ranking (`estoque > 0` do `docDeBusca`) sem montar o cartão nem ordenar filiais: soma as filiais
+ * do usuário (RN-CAT-07) e só diz se passa de zero. Quem não vê estoque (RN-CAT-05) nunca tem. O corte de candidatos usa só isto.
+ */
+export function temEstoqueParaBusca(p: ProdutoCatalogo, ctx: ContextoVitrine): boolean {
+  if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return false;
+  const filiais = ctx.filiais === null ? null : new Set(ctx.filiais);
+  for (const s of ctx.saldos.get(p.id) ?? []) {
+    if (filiais && !filiais.has(s.branch_id)) continue;
+    if (Number.isFinite(s.quantity) && Math.trunc(s.quantity) > 0) return true;
+  }
+  return false;
+}
+
+/** RN-CAT-01 + chips: o produto entra na busca (ativo, campanha e nó da árvore escolhidos). Usado pela busca e pelo índice. */
+export function entraNaVitrine(p: ProdutoCatalogo, chips: ChipsVitrine | undefined): boolean {
+  return p.ativo && !(chips?.campaign && !p.campanha) && (!chips?.only_product_ids || chips.only_product_ids.has(p.id));
 }
 
 /** Filtros explícitos da tela (chips): somam aos interpretados da frase. */
@@ -172,8 +196,7 @@ export interface PaginaProdutos {
  */
 export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
   const ctx = e.contexto;
-  const noArvore = e.chips?.only_product_ids;
-  const ativos = e.produtos.filter((p) => p.ativo && !(e.chips?.campaign && !p.campanha) && (!noArvore || noArvore.has(p.id)));
+  const ativos = e.produtos.filter((p) => entraNaVitrine(p, e.chips));
   const itens = new Map<string, ItemVitrine>();
   const docs: DocBusca[] = [];
   for (const p of ativos) {

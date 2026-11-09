@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { alturaMaximaDaFolha, coberturaDoTeclado, FOLGA_CAMPO_FOLHA, FOLGA_TOPO_FOLHA, rolagemAteCampo, rotuloDoVoltar } from './componentes';
+import { alturaMaximaDaFolha, coberturaDoTeclado, FOLGA_CAMPO_FOLHA, FOLGA_TOPO_FOLHA, rolagemAteCampo, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -87,5 +87,56 @@ describe('folha alta e teclado (T-0072): partes puras', () => {
     // o ouvinte de teclado é removido ao fechar
     expect(src).toContain('subMostrar.remove()');
     expect(src).toContain('subEsconder.remove()');
+  });
+});
+
+describe('BackLink pelo bloqueio de saída do shell (T-0128, RN-VEN-38)', () => {
+  const montar = (bloqueia: boolean) => {
+    const chamadas: string[] = [];
+    const saida = {
+      tentarSair: (seguir: () => void) => {
+        chamadas.push('tentarSair');
+        if (bloqueia) return true; // o shell guarda o seguir e pergunta "Sair…?"
+        seguir();
+        return false;
+      },
+    };
+    const seguir = () => chamadas.push('seguir');
+    return { chamadas, saida, seguir };
+  };
+
+  it('sem provedor, volta direto (como antes)', () => {
+    const { chamadas, seguir } = montar(false);
+    tocarNoVoltar({ saida: null, seguir });
+    expect(chamadas).toEqual(['seguir']);
+  });
+
+  it('com provedor e formulário sem mudança, passa pelo shell e volta', () => {
+    const { chamadas, saida, seguir } = montar(false);
+    tocarNoVoltar({ saida, seguir });
+    expect(chamadas).toEqual(['tentarSair', 'seguir']);
+  });
+
+  it('com provedor e formulário alterado, o shell segura: não volta na hora', () => {
+    const { chamadas, saida, seguir } = montar(true);
+    tocarNoVoltar({ saida, seguir });
+    expect(chamadas).toEqual(['tentarSair']);
+  });
+
+  it('aoVoltar da tela vale mais que o provedor (o Novo pedido abre a própria folha)', () => {
+    const { chamadas, saida, seguir } = montar(true);
+    tocarNoVoltar({ aoVoltar: () => chamadas.push('aoVoltar'), saida, seguir });
+    expect(chamadas).toEqual(['aoVoltar']);
+  });
+
+  it('o kit exporta ProvedorSaidaDaTela (padrão null) e o BackLink usa tocarNoVoltar com o seguir de sempre', () => {
+    const voltar = ler('./voltar.tsx');
+    expect(voltar).toMatch(/createContext<SaidaDaTela \| null>\(null\)/);
+    expect(voltar).toMatch(/export const ProvedorSaidaDaTela = SaidaCtx\.Provider;/);
+    expect(voltar).toMatch(/export function useSaidaDaTela\(\)/);
+    const ui = ler('./ui.tsx');
+    expect(ui).toContain('const saida = useSaidaDaTela();');
+    expect(ui).toContain('onPress={() => tocarNoVoltar({ aoVoltar, saida, seguir })}');
+    expect(ui).toContain('const seguir = () => (router.canGoBack() ? router.back() : router.replace(fallback as never));');
   });
 });

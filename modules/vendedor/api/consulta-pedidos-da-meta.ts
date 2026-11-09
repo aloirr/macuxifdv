@@ -7,8 +7,14 @@
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_PEDIDOS_DA_META } from '../contracts';
-import { janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
+import { DIAS_PRECO_RETROATIVO, janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
 
+/**
+ * Emissão LIMITADA (T-0138): o espelho em SQL de `emitidoEm` (domain/aprovacao.ts), com o recebimento como "agora". Sem hora do
+ * aparelho, a criação. É o mesmo instante do `emitido_em` de `vendedor.pedido.criado@1`.
+ */
+export const EMITIDO_EM_SQL = `(case when p.criado_no_aparelho_em is null then p.created_at
+    else least(greatest(p.criado_no_aparelho_em, coalesce(p.recebido_em, p.created_at) - interval '${DIAS_PRECO_RETROATIVO} days'), coalesce(p.recebido_em, p.created_at)) end)`;
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 interface LinhaPedidoMeta {
@@ -36,12 +42,12 @@ export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_MET
 
   const ped = await ctx.db.query<LinhaPedidoMeta>(
     `select p.vendedor_id, p.autor_id, p.cliente_id, p.status, p.total_cents::float8 as total_cents,
-            to_char(coalesce(p.criado_no_aparelho_em, p.created_at) at time zone 'UTC', ${UTC}) as emitido_em,
+            to_char(${EMITIDO_EM_SQL} at time zone 'UTC', ${UTC}) as emitido_em,
             to_char(p.decidido_em at time zone 'UTC', ${UTC}) as aprovado_em
        from vendedor.pedido p
       where p.deleted_at is null and p.tipo = 'pedido'
         and p.vendedor_id = any($1::uuid[]) and p.status = any($2::text[])
-        and coalesce(p.criado_no_aparelho_em, p.created_at) >= $3::timestamptz and coalesce(p.criado_no_aparelho_em, p.created_at) < $4::timestamptz
+        and ${EMITIDO_EM_SQL} >= $3::timestamptz and ${EMITIDO_EM_SQL} < $4::timestamptz
       order by emitido_em, p.id`,
     [ids, [...STATUS_QUE_CONTAM_NA_META], de, ate],
   );

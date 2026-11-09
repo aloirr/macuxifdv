@@ -145,6 +145,8 @@ export const cliente = core.table('cliente', {
   formas_pagamento: text('formas_pagamento').array(),
   /** T-0095 (seção da 0039): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Fora do pull. */
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
+  /** 0053 (T-0115, RN-PES-05): canal do cliente vindo do ERP (1..60 caracteres); nulo = sem canal. Vai no pull e no público da Pesquisa. */
+  canal: text('canal'),
 });
 
 /**

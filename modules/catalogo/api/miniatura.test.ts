@@ -1,9 +1,10 @@
 import type { PedidoPull } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { BYTES_MAX_MINIATURA_ARQUIVO, LADO_MINIATURA_ARQUIVO_PX, caminhoMiniaturaArquivo } from '@macuxi/platform-sdk';
 import { BYTES_MAX_MINIATURA, LADO_MAX_MINIATURA_PX } from '../contracts';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { definirFotoPrincipal, removerFotoPrincipal, SQL_MINIATURA_DO_CONTEUDO, SQL_TOCAR_CONTEUDO_PELA_MIDIA, tocarConteudoPelaMidia } from './miniatura';
+import { montarUrlMiniatura, definirFotoPrincipal, removerFotoPrincipal, SQL_MINIATURA_DO_CONTEUDO, SQL_TOCAR_CONTEUDO_PELA_MIDIA, tocarConteudoPelaMidia } from './miniatura';
 import { sqlPullPreco } from './sync';
 
 const pedido = { ate: '2099-01-01T00:00:00.000Z', desde: null, limite: 10 } as unknown as PedidoPull;
@@ -16,7 +17,7 @@ describe('T-0097: SQL da miniatura no pull de produto_conteudo', () => {
     expect(sql).toMatch(/m\.tenant_id = catalogo\.produto_conteudo\.tenant_id/);
     expect(sql).toMatch(/m\.produto_id = catalogo\.produto_conteudo\.produto_id/);
     expect(sql).toMatch(/m\.principal and m\.tipo = 'foto' and m\.deleted_at is null/);
-    expect(sql).toContain("coalesce(m.url, '/v1/arquivos/' || m.arquivo_id::text)");
+    expect(sql).toContain("coalesce(m.url, '/v1/arquivos/' || m.arquivo_id::text || '/miniatura')");
     expect(sql).toContain(`'largura', ${LADO_MAX_MINIATURA_PX}`);
     expect(sql).toContain(`'bytes_max', ${BYTES_MAX_MINIATURA}`);
     expect(sql).toContain('as miniatura');
@@ -61,5 +62,21 @@ describe('T-0097 (c): quem grava a foto principal toca o conteúdo na mesma tran
       .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'miniatura.ts')
       .filter((f) => /(insert\s+into|update|delete\s+from)\s+catalogo\.produto_midia/i.test(readFileSync(join(dir, f), 'utf8')));
     expect(culpados).toEqual([]);
+  });
+});
+
+describe('T-0097 b: url da miniatura aponta para a rota reduzida', () => {
+  const id = '0ca00000-0000-4000-8000-000000000003';
+  it('arquivo da plataforma vira /v1/arquivos/<id>/miniatura, igual ao caminho do SDK', () => {
+    expect(montarUrlMiniatura(id, null)).toBe(`/v1/arquivos/${id}/miniatura`);
+    expect(montarUrlMiniatura(id, null)).toBe(caminhoMiniaturaArquivo(id));
+  });
+  it('url externa https continua igual e sem foto devolve nulo', () => {
+    expect(montarUrlMiniatura(id, 'https://cdn.exemplo.com/a.jpg')).toBe('https://cdn.exemplo.com/a.jpg');
+    expect(montarUrlMiniatura(null, null)).toBeNull();
+  });
+  it('os tetos do contrato são os da rota do SDK', () => {
+    expect(LADO_MAX_MINIATURA_PX).toBe(LADO_MINIATURA_ARQUIVO_PX);
+    expect(BYTES_MAX_MINIATURA).toBe(BYTES_MAX_MINIATURA_ARQUIVO);
   });
 });

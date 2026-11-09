@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decidirColisaoEscalonada, planejarCadastroCatalogoDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, precoDoErpEhDaBase } from './erp';
+import { decidirColisaoEscalonada, planejarCadastroCatalogoDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, planejarVinculoTabelaDoErp, precoDoErpEhDaBase } from './erp';
 
 const preco = (extra: Record<string, unknown> = {}) => ({
   external_id: 'PR-1',
@@ -174,5 +174,23 @@ describe('RN-VEN-23: colisão da faixa do ERP na chave do índice único', () =>
   });
   it('RN-VEN-23: faixa de outro registro do ERP na mesma chave é substituída pela nova (nunca recusa nem repete)', () => {
     expect(decidirColisaoEscalonada('ESC-0', 'ESC-1', true)).toBe('substituir');
+  });
+});
+
+describe('RN-CAT-06: vínculo cliente -> tabela de preço vindo do ERP (T-0120)', () => {
+  const cli = (registro: Record<string, unknown> | undefined, acao: 'criado' | 'atualizado' | 'inativado' = 'atualizado') => ({ external_id: 'C-1', acao, ...(registro ? { registro } : {}) });
+  it('RN-CAT-06: campo com a chave da tabela vira vínculo do cliente', () => {
+    expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: ' TAB-A ' }))).toEqual({ tipo: 'vincular', cliente_external_id: 'C-1', tabela_external_id: 'TAB-A' });
+  });
+  it('RN-CAT-06: null desvincula (volta à tabela padrão)', () => {
+    expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: null }))).toEqual({ tipo: 'desvincular', cliente_external_id: 'C-1' });
+  });
+  it('RN-CAT-06: campo ausente não altera o vínculo', () => {
+    expect(planejarVinculoTabelaDoErp(cli({}))).toEqual({ tipo: 'ignorar' });
+    expect(planejarVinculoTabelaDoErp(cli(undefined))).toEqual({ tipo: 'ignorar' });
+  });
+  it('RN-CAT-06: cliente inativado no ERP ou chave vazia não mexem no vínculo', () => {
+    expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: 'TAB-A' }, 'inativado'))).toEqual({ tipo: 'ignorar' });
+    expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: '   ' }))).toEqual({ tipo: 'ignorar' });
   });
 });

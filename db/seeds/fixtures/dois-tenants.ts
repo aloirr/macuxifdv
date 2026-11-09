@@ -46,6 +46,8 @@
  * - T-0113 (0045, ADR 0034): catalogo.marca_concorrente (grupo 0x3c; MARCAS_FIXTURE) — por tenant a ativa com o MESMO id e
  *   nome do concorrente do Promotor (a cópia da migração; promotor.concorrente segue na fixture, só de leitura), uma inativa
  *   (com external_id) e uma apagada; as referências cruzadas apontam para a ativa (FK produto_referencia_marca_fk).
+ * - T-0054 (0050, RN-VEN-37): vendedor.pedido_devolucao (grupo 0x3d; DEVOLUCOES_FIXTURE) — A com devolução parcial viva no
+ *   p3 (R$ 200,00) e a mesma nota apagada; B com uma viva no p1 (mesma chave de nota: o único é por tenant).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
  * - T-0094 (0040): usuários com senha definitiva (trocar_senha falso, sem temporária); outbox de e-mail
@@ -162,6 +164,8 @@ const G = {
   tabela_escalonada: 0x3b,
   // 0045 (T-0113, ADR 0034): marcas concorrentes no Catálogo (a ativa de cada tenant tem o id do concorrente do Promotor)
   marca_concorrente: 0x3c,
+  // 0050 (T-0054, RN-VEN-37): devolução do pedido
+  pedido_devolucao: 0x3d,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -533,6 +537,8 @@ export const ORDEM_TABELAS = [
   'vendedor.forma_pagamento',
   'vendedor.prazo_pagamento',
   'catalogo.tabela_escalonada',
+  // 0050 (T-0054): devolução do pedido (FK composta -> vendedor.pedido)
+  'vendedor.pedido_devolucao',
   // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
   'core.plano_rv',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
@@ -624,6 +630,30 @@ export const MARCA_NOME_FIXTURE = { A: 'Freios Rivais', B: 'Lubri Rival' } as co
  * external_id do concorrente do Promotor (PROMOTOR_FIXTURE.X.concorrente, o que a cópia da 0045 faz), uma INATIVA e uma APAGADA
  * (criadas depois da migração, só no Catálogo). As referências cruzadas apontam para a ativa.
  */
+/**
+ * Devolução do pedido (0050, T-0054, RN-VEN-37; grupo 0x3d): A com uma devolução PARCIAL viva no p3 (faturado R$ 1.500,00,
+ * devolvido R$ 200,00) e a mesma nota antes de corrigida, apagada (soft delete; o único é só entre as vivas); B com uma viva
+ * no p1 (a mesma chave de nota de A: o único é por tenant).
+ */
+export const DEVOLUCOES_FIXTURE = {
+  A: { viva: a('pedido_devolucao', 1), apagada: a('pedido_devolucao', 2), external_id: 'NFD-1-7001', total_cents: 20_000 },
+  B: { viva: b('pedido_devolucao', 1), external_id: 'NFD-1-7001', total_cents: 5_000 },
+} as const;
+
+function dadosPedidoDevolucao(hojeA: string, hojeB: string): Linha[] {
+  const tA = DOIS_TENANTS.A.tenantId;
+  const tB = DOIS_TENANTS.B.tenantId;
+  const linha = (id: string, tenant_id: string, pedido_id: string, external_id: string, total_cents: number, emitida_em: string, deleted_at: string | null): Linha => ({
+    id, tenant_id, pedido_id, external_id, nota_numero: '7001', nota_serie: '1', emitida_em, total_cents, deleted_at,
+  });
+  const D = DEVOLUCOES_FIXTURE;
+  return [
+    linha(D.A.apagada, tA, DOIS_TENANTS.A.pedidos.p3, D.A.external_id, 30_000, instante(somarDias(hojeA, -10), '10:00'), DATA_FIXA_ACESSO),
+    linha(D.A.viva, tA, DOIS_TENANTS.A.pedidos.p3, D.A.external_id, D.A.total_cents, instante(somarDias(hojeA, -10), '10:00'), null),
+    linha(D.B.viva, tB, DOIS_TENANTS.B.pedidos.p1, D.B.external_id, D.B.total_cents, instante(hojeB, '14:00'), null),
+  ];
+}
+
 export const MARCAS_FIXTURE = {
   A: { ativa: PROMOTOR_FIXTURE.A.concorrente, inativa: a('marca_concorrente', 1), apagada: a('marca_concorrente', 2) },
   B: { ativa: PROMOTOR_FIXTURE.B.concorrente, inativa: b('marca_concorrente', 1), apagada: b('marca_concorrente', 2) },
@@ -847,6 +877,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.nota_erp': dadosNotaErp(hojeA, hojeB),
     'catalogo.produto_relacao': dadosProdutoRelacao(),
     'catalogo.marca_concorrente': dadosMarcaConcorrente(),
+    'vendedor.pedido_devolucao': dadosPedidoDevolucao(hojeA, hojeB),
     'catalogo.produto_referencia': dadosProdutoReferencia(),
     ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
@@ -1048,7 +1079,7 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
     'core.notificacao': [
       ...Object.values(A.usuarios).map((usuario_id, i) => notificacao(a('notificacao', i + 1), tA, usuario_id, usuario_id === A.usuarios.admin ? { lida_em: DATA_FIXA_ACESSO } : {})),
       notificacao(a('notificacao', 9), tA, A.usuarios.vendedor1, {
-        tipo: 'recado', titulo: 'Visite o Auto Peças Três', corpo: 'Cliente com título vencendo hoje: confirme o pagamento na visita.', link: '/m/core-rota',
+        tipo: 'recado', titulo: 'Visite o Auto Peças Três', corpo: 'Cliente com título vencendo hoje: confirme o pagamento na visita.', link: '/m/rota',
         origem_modulo: 'core', envio_id: a('notificacao', 109), autor_id: A.usuarios.supervisor, prioridade: 'alta',
       }),
       ...Object.values(B.usuarios).map((usuario_id, i) => notificacao(b('notificacao', i + 1), tB, usuario_id)),

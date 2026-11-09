@@ -236,3 +236,24 @@ export function decidirColisaoEscalonada(outraExternalId: string | null | undefi
   if (outraExternalId === externalIdDoEvento) return 'nenhuma';
   return outraExternalId ? 'substituir' : 'adotar';
 }
+
+export interface RegistroClienteErp {
+  tabela_preco_external_id?: string | null | undefined;
+}
+export type PlanoVinculoTabelaErp =
+  | { tipo: 'ignorar' }
+  | { tipo: 'desvincular'; cliente_external_id: string }
+  | { tipo: 'vincular'; cliente_external_id: string; tabela_external_id: string };
+
+/**
+ * RN-CAT-06 (T-0120): `integracao.cliente.atualizado@1` com `tabela_preco_external_id` -> vínculo cliente x tabela. Ausente = não
+ * altera; `null` = desvincula; texto = vincula. Cliente inativado no ERP não mexe no vínculo (a carteira e o cadastro são do Core).
+ */
+export function planejarVinculoTabelaDoErp(e: EventoErpBase<RegistroClienteErp>): PlanoVinculoTabelaErp {
+  if (e.acao === 'inativado' || !e.registro) return { tipo: 'ignorar' };
+  const t = e.registro.tabela_preco_external_id;
+  if (t === undefined) return { tipo: 'ignorar' };
+  if (t === null) return { tipo: 'desvincular', cliente_external_id: e.external_id };
+  const chave = t.trim();
+  return chave ? { tipo: 'vincular', cliente_external_id: e.external_id, tabela_external_id: chave } : { tipo: 'ignorar' };
+}

@@ -45,6 +45,7 @@ export function DeleteOrderSheet({
   title,
   queued,
   ehOrcamento = false,
+  solicitaAoErp = false,
   busy,
   error,
   onClose,
@@ -54,6 +55,8 @@ export function DeleteOrderSheet({
   title: string;
   queued: boolean;
   ehOrcamento?: boolean;
+  /** RN-VEN-31 (T-0114): pedido já enviado com o aceite do conector: o texto diz que o cancelamento é pedido ao ERP */
+  solicitaAoErp?: boolean;
   busy: boolean;
   error: string | null;
   onClose: () => void;
@@ -63,7 +66,7 @@ export function DeleteOrderSheet({
   useEffect(() => {
     if (visible) setReason('');
   }, [visible]);
-  const x = textoCancelarDocumento({ ehOrcamento, naFila: queued, titulo: title });
+  const x = textoCancelarDocumento({ ehOrcamento, naFila: queued, titulo: title, solicitaAoErp });
   return (
     <BottomSheet visible={visible} onClose={onClose} label={x.rotuloAcessivel} testID="delete-sheet">
       <View style={[styles.tile, { backgroundColor: colors.dangerBg }]}>
@@ -82,7 +85,7 @@ export function DeleteOrderSheet({
             placeholderTextColor={colors.ink3}
             maxLength={500}
             style={styles.input}
-            accessibilityLabel={ehOrcamento ? 'Motivo do cancelamento' : 'Motivo da exclusão'}
+            accessibilityLabel="Motivo do cancelamento"
           />
         </View>
       ) : null}

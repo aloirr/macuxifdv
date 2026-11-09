@@ -4,12 +4,6 @@
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_CANCELAMENTO_ERP } from '../contracts';
-import { erpAceitaCancelamento } from '../domain';
+import { aceiteDoTenant } from './aceite-cancelamento';
 
-export const consultaCancelamentoErp = implementarConsulta(CONSULTA_CANCELAMENTO_ERP, async (_entrada, ctx) => {
-  const { rows } = await ctx.db.query<{ ativo: boolean; recebe_pedidos: boolean; aceita_cancelamento: boolean }>(
-    'select ativo, recebe_pedidos, aceita_cancelamento from integracao.conector where tenant_id = $1 and deleted_at is null',
-    [ctx.usuario.tenant_id],
-  );
-  return { aceita: erpAceitaCancelamento(rows) };
-});
+export const consultaCancelamentoErp = implementarConsulta(CONSULTA_CANCELAMENTO_ERP, async (_entrada, ctx) => ({ aceita: await aceiteDoTenant(ctx.db, ctx.usuario.tenant_id) }));

@@ -290,7 +290,8 @@ export async function sinalDeVida(ctx: Ctx<SinalConector>, politica: PoliticaVer
         s.versao_contrato.slice(0, 10),
         agora.toISOString(),
         s.parado_por_versao === true,
-        JSON.stringify({ fila: s.fila, entidades: s.entidades }),
+        // só o que passou pelo schema vai ao jsonb; sinal sem `atualizacao` = sem informação (o Conector reenvia a última a cada sinal)
+        JSON.stringify({ fila: s.fila, entidades: s.entidades, ...(s.atualizacao ? { atualizacao: s.atualizacao } : {}) }),
         Number.isSafeInteger(deriva) && Math.abs(deriva) < 2_000_000_000 ? deriva : null,
       ],
     ),

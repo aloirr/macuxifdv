@@ -244,6 +244,10 @@ export function ConstrutorPage() {
               <input className={campo} disabled={ro} value={form.regioes} onChange={(e) => mudar({ regioes: e.target.value })} />
             </label>
             <label className={rotulo}>
+              Canais do cliente (separados por vírgula; somam aos segmentos e à lista)
+              <input className={campo} disabled={ro} value={form.canais} onChange={(e) => mudar({ canais: e.target.value })} placeholder="Ex.: Tradicional, Auto Serviço" data-testid="construtor.canais" />
+            </label>
+            <label className={rotulo}>
               Equipes (um id por linha)
               <textarea className={cx(campo, 'h-[76px] py-2')} disabled={ro} value={form.equipes} onChange={(e) => mudar({ equipes: e.target.value })} />
             </label>

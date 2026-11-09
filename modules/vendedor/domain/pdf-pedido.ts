@@ -42,6 +42,12 @@ export interface OrderPdfItem {
   surcharge_pct?: number;
   /** T-0084 (RN-VEN-19): retrato da aplicação, "Aplicação: …" abaixo da descrição nos dois PDFs; ausente/nulo = não sai */
   application?: string | null;
+  /**
+   * T-0138 (RN-CAT-09/10, desenho T-0085 §5): referências cruzadas do produto (`catalogo.textos_produto@1`, até 3), lidas na hora de
+   * gerar o PDF. NÃO são retrato do pedido. Saem como "Equivale a: <marca> <código>" no PDF interno (sempre) e no PDF do cliente só com
+   * `referencia_no_orcamento` ligado.
+   */
+  references?: ReadonlyArray<{ brand: string; code: string }>;
 }
 
 /** Frete CIF (empresa paga) ou FOB (cliente paga, com transportadora). Sem valor (RN-VEN-13, RN-VEN-16). */
@@ -106,6 +112,8 @@ export interface OrderPdfContext {
   tz: string;
   /** momento da geração (ISO) */
   generated_at: string;
+  /** `referencia_no_orcamento` do tenant (RN-CAT-10, padrão não): a referência cruzada também sai no PDF do cliente */
+  reference_on_customer_pdf?: boolean;
 }
 
 const ROTULO_EXTRA: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado' };
@@ -285,13 +293,27 @@ function aplicacaoHtml(it: Pick<OrderPdfItem, 'application'>): string {
   return texto ? `<span class="apl">Aplicação: ${escapeHtml(texto)}</span>` : '';
 }
 
+/** Máximo de referências por item (RN-CAT-09: 3 linhas no cadastro). */
+export const MAX_REFERENCIAS_NO_PDF = 3;
+
+/**
+ * T-0138 (RN-CAT-09/10): linha "Equivale a: <marca> <código>" abaixo da aplicação. PDF interno sempre; PDF do cliente só com
+ * `referencia_no_orcamento`. Sem referência (marca inativa, produto sem cadastro, consulta indisponível) a linha não sai.
+ */
+export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderPdfView, ctx: Pick<OrderPdfContext, 'reference_on_customer_pdf'>): string {
+  if (view === 'customer' && ctx.reference_on_customer_pdf !== true) return '';
+  const refs = (it.references ?? []).filter((r) => r.brand.trim() && r.code.trim()).slice(0, MAX_REFERENCIAS_NO_PDF);
+  if (refs.length === 0) return '';
+  return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${escapeHtml(r.brand.trim())} <strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
+}
+
 function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const rows = order.items
     .map(
       (it) => `
   <div class="row cols-customer">
     <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}</span>
+    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}${equivaleAHtml(it, 'customer', ctx)}</span>
     <span>${escapeHtml(it.unit_label || 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(netUnitCents(it))}</span>
@@ -331,7 +353,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
       (it) => `
   <div class="row cols-bko">
     <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}</span>
+    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}${equivaleAHtml(it, 'bko', ctx)}</span>
     <span>${escapeHtml(it.unit_label || 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(it.unit_price_cents)}</span>

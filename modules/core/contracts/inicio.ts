@@ -145,14 +145,16 @@ export const VisaoInicioSchema = z
     /** null no escopo proprio. */
     equipe_agora: z.array(MembroAgoraSchema).nullable(),
     base: z.object({ dia: Data.nullable(), calculado_em: z.string().nullable(), defasado: z.boolean() }).strict(),
-    /** T-0076 (aditivo; tudo opcional no @1): boas-vindas, recados, meta de hoje e sincronização do Início pela referência aprovada. */
-    saudacao: z.enum(['Bom dia', 'Boa tarde', 'Boa noite']).optional(),
+    /** T-0076 (RD-0012: obrigatórios; só visão local, sem payload de API): boas-vindas, recados, meta de hoje e sincronização do Início pela referência aprovada. */
+    saudacao: z.enum(['Bom dia', 'Boa tarde', 'Boa noite']),
     /** Nome da equipe do usuário (cabeçalho da Gestão); null = sem equipe ou sem a cópia. */
     equipe_nome: z.string().nullable().optional(),
     /** 'Recados de hoje': até 3 itens, o recado do dia primeiro e destacado; novos = não lidas da caixa. */
     recados_hoje: z
       .object({
         novos: Inteiro,
+        /** RD-0009: total de recados da caixa (o shell esconde "Ver todos" quando total ≤ itens mostrados). */
+        total: Inteiro,
         itens: z
           .array(
             z
@@ -172,8 +174,7 @@ export const VisaoInicioSchema = z
           )
           .max(3),
       })
-      .strict()
-      .optional(),
+      .strict(),
     /** Cartão 'Meta de hoje': a meta de venda (ou, sem ela, a primeira meta do usuário); null = sem meta/realizado. Pontos-base: 10000 = 100%. */
     meta_hoje: z
       .object({
@@ -183,14 +184,17 @@ export const VisaoInicioSchema = z
         meta_dia: Inteiro.nullable(),
         faltam_hoje: Inteiro.nullable(),
         mes_pct: Inteiro.nullable(),
+        /** RD-0002: max(0, meta do mês − realizado do mês) na unidade do indicador; null sem meta do mês. */
+        faltam_mes: Inteiro.nullable(),
+        /** RD-0002: necessidade diária (RN-CORE-22/26, a mesma de Metas); null sem dias úteis restantes, com o mês batido ou em indicador só do mês. */
+        por_dia_util: Inteiro.nullable(),
+        /** RD-0002: dias úteis restantes usados na divisão do `por_dia_util` (hoje conta se for útil). */
+        dias_uteis_por_dia: Inteiro,
       })
       .strict()
-      .nullable()
-      .optional(),
+      .nullable(),
     /** Indicadores COM meta no mês e SEM realizado na cópia ('Sincronize para ver as vendas'; não confundir com 'sem meta'). */
-    sem_realizado: z.array(z.enum(INDICADORES_META)).optional(),
-    /** Rodapé do Sincronizar (RN-CORE-23): última sincronização (UTC) e itens na fila de envio. */
-    sincronizacao: z.object({ ultima_em: z.string().nullable(), hora: z.string().nullable(), fila: Inteiro }).strict().optional(),
+    sem_realizado: z.array(z.enum(INDICADORES_META)),
   })
   .strict();
 export type VisaoInicio = z.infer<typeof VisaoInicioSchema>;

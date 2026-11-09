@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { apagarBancoForcado, BASE_EM_USO, esperaDaTentativa, SEM_PRIVILEGIO, type SessaoNaBase } from '../src/apagar-banco';
+import { apagarBancoForcado, BASE_EM_USO, esperaDaTentativa, PRAZO_APAGAR_MS, SEM_PRIVILEGIO, type SessaoNaBase } from '../src/apagar-banco';
 import { PASTA_DB } from '../src/config';
 
 const NOME = 'macuxi_teste_abc_1_0a0b0c';
@@ -38,7 +38,7 @@ const negado = () => erroPg(SEM_PRIVILEGIO, 'permission denied to terminate proc
 const emUso = () => erroPg(BASE_EM_USO, `database "${NOME}" is being accessed by other users`);
 const app: SessaoNaBase[] = [{ quem: 'macuxi_app', n: 1 }];
 
-function opcoesFalsas(prazoMs = 30_000) {
+function opcoesFalsas(prazoMs = PRAZO_APAGAR_MS) {
   let t = 0;
   const esperas: number[] = [];
   const avisos: string[] = [];
@@ -92,10 +92,21 @@ describe('apagarBancoForcado (sem superusuário, T-0075)', () => {
     await expect(apagarBancoForcado(c, NOME, opcoesFalsas().opcoes)).rejects.toBe(e);
   });
 
-  it('conexão vazada (não sai no prazo): falha com 42501 e o resumo de quem segura a base, sem dado pessoal', async () => {
+  it('R-20261106-042954 🟡 1: o prazo padrão (8 s) fica abaixo do idleTimeoutMillis de 10 s do pg.Pool (pool sem end() não passa escondido)', () => {
+    expect(PRAZO_APAGAR_MS).toBe(8_000);
+    expect(PRAZO_APAGAR_MS).toBeLessThan(10_000);
+  });
+
+  it('conexão vazada (não sai no prazo padrão de 8 s): falha com 42501 e o resumo de quem segura a base, sem dado pessoal', async () => {
     const drops = Array.from({ length: 200 }, (_, i) => (i % 2 === 0 ? negado() : emUso()));
     const c = clienteFalso(drops, [[{ quem: 'macuxi_app', n: 2 }, { quem: 'autovacuum worker', n: 1 }]]);
-    const erro = await apagarBancoForcado(c, NOME, opcoesFalsas(3_000).opcoes).catch((x: unknown) => x as Error & { code?: string });
+    const { opcoes, esperas } = opcoesFalsas();
+    const erro = await apagarBancoForcado(c, NOME, opcoes).catch((x: unknown) => x as Error & { code?: string });
+    // desiste no prazo padrão: esperou os 8 s (mais no máximo a última volta de 1 s), antes dos 10 s em que o pool fecharia as ociosas
+    const esperado = esperas.reduce((a, b) => a + b, 0);
+    expect(esperado).toBeGreaterThanOrEqual(PRAZO_APAGAR_MS);
+    expect(esperado).toBeLessThan(PRAZO_APAGAR_MS + esperaDaTentativa(99) + 1);
+    expect(esperado).toBeLessThan(10_000);
     expect(erro).toBeInstanceOf(Error);
     expect(erro!.code).toBe(SEM_PRIVILEGIO);
     expect(erro!.message).toContain('permission denied to terminate process');

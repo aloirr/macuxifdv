@@ -31,8 +31,8 @@ export async function lerRetrato(motor: Pick<LeitorLocal, 'linhas'>): Promise<Re
     motor.linhas<ClienteSync & LinhaSync>('cliente').catch(() => [] as (ClienteSync & LinhaSync)[]),
   ]);
   const mapa = new Map<string, ClienteAlvo>();
-  // Premissa T-0057: o cliente do Core ainda não tem "região"; vale só o segmento (RN-PES-05 sem canal).
-  for (const c of clientes) if (!c.deleted_at) mapa.set(c.id, { id: c.id, segmento: c.segmento, regiao: null });
+  // Premissa T-0057: o cliente do Core ainda não tem "região". T-0115/RN-PES-05: o canal vem da linha local do cliente (offline).
+  for (const c of clientes) if (!c.deleted_at) mapa.set(c.id, { id: c.id, segmento: c.segmento, regiao: null, canal: c.canal ?? null });
   return { pesquisas: montarPesquisasDoAparelho(versoes), respostasPull: respostas.filter((r) => !r.deleted_at), clientes: mapa };
 }
 

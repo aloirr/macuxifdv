@@ -54,7 +54,7 @@ describe('RN-PES-03 / RF-PES-03: pesquisa obrigatória no checkout', () => {
   });
 
   it('RF-PES-03: pesquisa fora do público (perfil), da vigência ou rascunho não bloqueia', () => {
-    const outroPerfil = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], regioes: [], clientes: [] } });
+    const outroPerfil = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] } });
     expect(avaliarEtapaCheckout(entrada({ pesquisas: [{ questionario: q(QUEST), versoes: [outroPerfil] }] })).bloqueia_checkout).toBe(false);
     const vencida = publicada({ modo: 'checkout_obrigatoria', vigencia: { inicio: '2026-09-01T00:00:00Z', fim: '2026-10-01T00:00:00Z' } });
     expect(avaliarEtapaCheckout(entrada({ pesquisas: [{ questionario: q(QUEST), versoes: [vencida] }] })).bloqueia_checkout).toBe(false);
@@ -119,7 +119,7 @@ describe('RN-PES-03 / RN-CORE-12: etapa verificada no servidor (pesquisa.etapas_
     respondida_em: '2026-10-31T14:00:00Z',
     ...extra,
   });
-  const semPublico = { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] };
+  const semPublico = { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] };
 
   it('RN-PES-03: pesquisa obrigatória aplicável e sem resposta na visita vira etapa obrigatória e não concluída', () => {
     expect(verificarEtapasCheckoutServidor(entrada())).toEqual([

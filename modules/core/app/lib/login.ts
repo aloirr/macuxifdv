@@ -5,34 +5,15 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
 import { tolerante } from './leitor-tolerante';
 
-export interface CamposLogin {
-  codigo_empresa: string;
-  email: string;
-  senha: string;
-}
+export { validarLogin, type CamposLogin, type ErrosLogin };
 
-export type ErrosLogin = Partial<Record<keyof CamposLogin, string>>;
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const CODIGO_RE = /^[A-Za-z0-9][A-Za-z0-9-]{1,39}$/;
-
-/** Validação antes de enviar (campo a campo, com a ação seguinte). Vazio = pode enviar. */
 /** Campos com que a TelaLogin abre: código lembrado do aparelho e e-mail devolvido pelo shell (volta de "Crie sua senha"/"Esqueci a senha"). A senha nunca volta. */
 export function camposIniciaisDoLogin(codigoSalvo?: string | null, emailInicial?: string | null): CamposLogin {
   return { codigo_empresa: codigoSalvo ?? '', email: emailInicial ?? '', senha: '' };
-}
-
-export function validarLogin(c: CamposLogin): ErrosLogin {
-  const erros: ErrosLogin = {};
-  if (!c.codigo_empresa.trim()) erros.codigo_empresa = 'Informe o código da empresa (quem administra o sistema na sua empresa sabe qual é).';
-  else if (!CODIGO_RE.test(c.codigo_empresa.trim())) erros.codigo_empresa = 'O código da empresa tem só letras, números e hífen. Confira e digite de novo.';
-  if (!c.email.trim()) erros.email = 'Informe o seu e-mail.';
-  else if (!EMAIL_RE.test(c.email.trim())) erros.email = 'Esse e-mail não parece certo. Confira e digite de novo.';
-  if (!c.senha) erros.senha = 'Informe a sua senha.';
-  return erros;
 }
 
 /** Códigos que o shell/SDK usam quando o endereço respondeu, mas não é um servidor Macuxi (ou a resposta não bate com o contrato). */
@@ -78,7 +59,7 @@ export function mensagemDeErroDeLogin(e: unknown): string {
 
 /** Rótulo acessível do botão de olho da senha. */
 export function rotuloOlhoSenha(visivel: boolean): string {
-  return visivel ? 'Ocultar senha' : 'Mostrar senha';
+  return visivel ? ESCONDER_SENHA : MOSTRAR_SENHA;
 }
 
 /** Transporte sem token (o shell entrega): POST do corpo no caminho `/auth/login` da API v1. */

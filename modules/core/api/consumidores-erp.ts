@@ -9,7 +9,7 @@
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
 import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
-import { camposExigidos, decidirOrdemErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
+import { camposExigidos, canalDoClienteDoErp, decidirOrdemErp, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
 import { consumidorProdutoDoErp } from './consumidores-erp-produto';
@@ -79,6 +79,7 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
       await aplicarCarteiraDoErp(ctx.db, id, l.external_id, bruto.vendedor_external_id?.trim() || null, ctx.agora());
       await aplicarContatosDoErp(ctx.db, id, l.external_id, bruto.contatos ?? [], ctx.agora());
       await aplicarPagamentoDoErp(ctx.db, id, bruto as Parameters<typeof pagamentoDoClienteDoErp>[0]);
+      await aplicarCanalDoErp(ctx.db, id, bruto as { canal?: string | null });
       await aplicarFinanceiroDoErp(ctx.db, id, l.external_id, bruto.limite_credito_cents, bruto.bloqueado, bruto.alterado_em);
     }
     await ctx.publicar(
@@ -105,6 +106,13 @@ async function aplicarPagamentoDoErp(db: ContextoConsumo['db'], clienteId: strin
   if ('formas_pagamento' in p) sets.push(`formas_pagamento = $${valores.push(p.formas_pagamento)}::text[]`);
   if (sets.length === 0) return;
   await db.query(`update core.cliente set ${sets.join(', ')} where id = $1`, valores);
+}
+
+/** T-0115 / RN-PES-05: grava o canal só se o Hub o mandou (ausente = não altera; `null` ou em branco = limpa). */
+async function aplicarCanalDoErp(db: ContextoConsumo['db'], clienteId: string, registro: { canal?: string | null }): Promise<void> {
+  const c = canalDoClienteDoErp(registro);
+  if (!('canal' in c)) return;
+  await db.query('update core.cliente set canal = $2 where id = $1', [clienteId, c.canal]);
 }
 
 /** Todos os consumidores do ERP no Core (T-0066), na ordem de dependência (RN-INT-04); o `index.ts` só repassa. */

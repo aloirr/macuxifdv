@@ -42,7 +42,7 @@ export const CLIENTE_A = u(501);
 export const CLIENTE_B = u(502);
 export const CLIENTE_C = u(503);
 
-export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: string; cliente?: string; total: number; tabela?: number; em?: string; visita?: string | null }, id?: string) {
+export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: string; cliente?: string; total: number; tabela?: number; em?: string; emitido?: string; visita?: string | null }, id?: string) {
   return ev(
     'vendedor.pedido.criado@1',
     o.em ?? '2026-10-30T14:00:00Z',
@@ -56,6 +56,7 @@ export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: st
       total_cents: o.total,
       total_tabela_cents: o.tabela === undefined ? o.total : o.tabela,
       criado_em: o.em ?? '2026-10-30T14:00:00Z',
+      ...(o.emitido ? { emitido_em: o.emitido } : {}),
     },
     id,
   );

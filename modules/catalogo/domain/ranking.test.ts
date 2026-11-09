@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
+import { codigoCompacto, combinarNotas, dentroDaDistancia, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
 import { expandirSinonimos } from './texto';
 
 const rankear = (docs: readonly DocBusca[], e: Omit<EntradaRanking, 'anoAtual'>) => rankearBase(docs, { anoAtual: 2026, ...e });
@@ -108,6 +108,18 @@ describe('RF-CAT-01 / RF-CAT-02: pontuação textual', () => {
     expect(distanciaEdicao('detregente', 'detergente')).toBe(1);
     expect(distanciaEdicao('abc', 'abc')).toBe(0);
     expect(distanciaEdicao('abc', 'xyz')).toBe(3);
+  });
+
+  it('T-0119: dentroDaDistancia dá o mesmo veredito da distância completa (2.000 pares aleatórios, tolerância 1 e 2)', () => {
+    let x = 7;
+    const r = (n: number) => ((x = (x * 1103515245 + 12345) >>> 0) % n);
+    const palavra = () => Array.from({ length: 3 + r(9) }, () => 'abcde'[r(5)]).join('');
+    for (let k = 0; k < 2000; k++) {
+      const a = palavra();
+      const b = k % 2 ? palavra() : a.slice(0, 1 + r(a.length)) + palavra().slice(0, r(3));
+      for (const max of [1, 2]) expect(dentroDaDistancia(a, b, max), a + ' ' + b + ' ' + max).toBe(distanciaEdicao(a, b) <= max);
+    }
+    expect(dentroDaDistancia('detregente', 'detergente', 1)).toBe(true);
   });
 });
 
@@ -308,16 +320,19 @@ describe('RF-CAT-02: desempenho do ranking com catálogo grande (T-0052-B4; limi
     return { ms: performance.now() - t0, r };
   };
 
+  // limite de relógio de parede: meta apertada só com MACUXI_PERF=1; no pnpm test, folga de 4x para não piscar por carga (R-20261105-164155)
+  const LIMITE_PERF = (meta: number) => (process.env['MACUXI_PERF'] === '1' ? meta : meta * 4);
+
   it('RF-CAT-02: 400 candidatos (o que o FTS5 entrega) rankeiam em menos de 3 s, mesmo na primeira busca (antes: 1,2 s sem carga; folga para máquina ocupada)', () => {
     const { ms, r } = medir(catalogo(400), 'freio dianteiro');
     expect(r.length).toBeGreaterThan(0);
-    expect(ms).toBeLessThan(3000);
+    expect(ms).toBeLessThan(LIMITE_PERF(3000));
   });
 
   it('RF-CAT-02: 2.154 produtos na varredura completa (pior caso, sem FTS5) não passam de 5 s (eram 3,8 a 14 s)', () => {
     const { ms, r } = medir(catalogo(2154), 'freio dianteiro');
     expect(r.length).toBeGreaterThan(0);
-    expect(ms).toBeLessThan(5000);
+    expect(ms).toBeLessThan(LIMITE_PERF(5000));
   });
 });
 

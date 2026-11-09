@@ -54,10 +54,10 @@ export function VisitSheetsProvider({ children }: { children: ReactNode }) {
   const [toastState, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((message: string, tone: ToastTone = 'success') => {
+  const toast = useCallback((message: string, tone: ToastTone = 'success', duracaoMs = 3800) => {
     setToast({ message, tone });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 3800);
+    timer.current = setTimeout(() => setToast(null), duracaoMs);
   }, []);
   useEffect(
     () => () => {
@@ -76,7 +76,8 @@ export function VisitSheetsProvider({ children }: { children: ReactNode }) {
     for (const item of fila) {
       if (item.situacao !== 'falhou') continue;
       if (item.entidade === 'visita_checkout') {
-        toast(item.ultimo_erro || 'O servidor não aceitou o checkout. Confira os dados e conclua de novo.', 'warning');
+        // T-0140 (relato 5): a folha já fechou com "Checkout feito"; a recusa precisa ficar na tela tempo de ser lida
+        toast(`O checkout não foi concluído. ${item.ultimo_erro || 'O servidor não aceitou o checkout. Confira os dados e conclua de novo.'}`, 'warning', 10000);
       } else {
         const minha = armazem.obter().visitas.find((v) => v.id === item.id);
         setSheet({ kind: 'blocked', target: minha?.customer_name || item.detalhe, serverMessage: item.ultimo_erro });
