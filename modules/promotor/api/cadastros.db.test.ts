@@ -12,7 +12,7 @@ import { type ContextoBase, type ErroHttpModulo, type LinhaSync, type RotaModulo
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CAMINHO_CADASTRO, EDICAO_CADASTRO, FiltroCadastro, type CadastroBko } from '../contracts';
+import { CAMINHO_CADASTRO, EDICAO_CADASTRO, FiltroCadastro, type CadastroBko, type CadastroGravavel } from '../contracts';
 import { criarCtx } from './apoio-teste';
 import { criarModuloApiPromotor, criarRepositorioSql, provedoresPullCadastros } from './index';
 
@@ -38,8 +38,8 @@ describe.skipIf(semBanco())('Promotor: cadastros do BKO × pull no Postgres (upd
     const ctx: ContextoBase = { ...c.ctx, comTenant: (fn) => c.ctx.comTenant((_falso, tx) => comTenant(pool, tenant, (db) => fn(db, tx))) };
     return { ...c, rota: <C, Q, P>(e: { corpo?: C; query?: Q; params?: P }) => ({ ...ctx, corpo: e.corpo as never, query: e.query as never, params: e.params as never }) };
   }
-  const post = (c: CadastroBko, corpo: unknown, t = A.tenantId) => rota('POST', CAMINHO_CADASTRO[c]).executar(ctxRota(t).rota({ corpo: EDICAO_CADASTRO[c].parse(corpo) })) as Promise<Record<string, unknown>>;
-  const put = (c: CadastroBko, id: string, corpo: unknown) => rota('PUT', `${CAMINHO_CADASTRO[c]}/:id`).executar(ctxRota(A.tenantId).rota({ corpo: EDICAO_CADASTRO[c].parse(corpo), params: { id } })) as Promise<Record<string, unknown>>;
+  const post = (c: CadastroGravavel, corpo: unknown, t = A.tenantId) => rota('POST', CAMINHO_CADASTRO[c]).executar(ctxRota(t).rota({ corpo: EDICAO_CADASTRO[c].parse(corpo) })) as Promise<Record<string, unknown>>;
+  const put = (c: CadastroGravavel, id: string, corpo: unknown) => rota('PUT', `${CAMINHO_CADASTRO[c]}/:id`).executar(ctxRota(A.tenantId).rota({ corpo: EDICAO_CADASTRO[c].parse(corpo), params: { id } })) as Promise<Record<string, unknown>>;
   const del = (c: CadastroBko, id: string, t = A.tenantId) => rota('DELETE', `${CAMINHO_CADASTRO[c]}/:id`).executar(ctxRota(t).rota({ params: { id } })) as Promise<Record<string, unknown>>;
   const erro = async (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as ErroHttpModulo);
 

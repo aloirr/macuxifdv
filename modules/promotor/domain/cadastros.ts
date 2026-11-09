@@ -47,10 +47,6 @@ export function validarCategoria(c: { nome: string; ordem: number }): Problemas 
   return p;
 }
 
-export function validarConcorrente(c: { nome: string }): Problemas {
-  return nomeValido(c.nome, 'do concorrente', 120);
-}
-
 export function validarProdutoConcorrente(c: { nome: string }): Problemas {
   return nomeValido(c.nome, 'do produto do concorrente', 200);
 }
