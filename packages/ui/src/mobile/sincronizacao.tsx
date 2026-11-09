@@ -5,11 +5,12 @@
  * O kit não depende do platform-sdk: o shell traduz o estado do motor para `ValorSincronizacao`.
  */
 import { createContext, useContext, type ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgendadorSync, EstadoAgendadorSync } from './atualizacao';
 import { desenhoBotaoSincronizar } from './atualizacao';
-import { ALTURA, colors, type as t } from './theme';
+import { Icon } from './icon';
+import { ALTURA, colors, fonts, type as t } from './theme';
 import { Button } from './ui';
 
 export interface ValorSincronizacao {
@@ -44,12 +45,26 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * T-0076 (referência do Início aprovada no R-20261104-164000): botão de 52 dp na largura toda (é o único botão do Início)
  * e a linha de situação CENTRALIZADA logo abaixo. Sem sinal, o botão fica "Sem sinal" desabilitado e o motivo vai numa
  * linha própria, acima da situação. Vale para o Início e para o Perfil (mesmo componente, mesmo desenho).
+ *
+ * RD-0008 (T-0124): `avisoDados` = o aviso único de dado antigo do Início ("Dados de 06/11, 6h28", "Sincronize para ver as
+ * vendas"), texto pronto do shell. Com ele, a linha de situação fica `⟳ {aviso} · N na fila` em `warningInk` (ícone sync de
+ * 14, mesma linha, centralizada), testID `{testID}-aviso-dados` no texto; a linha continua `{testID}-situacao`. Sem ele
+ * (null/undefined/vazio), nada muda. O Perfil não passa.
  */
-export function BotaoSincronizar({ testID = 'sincronizar', variant = 'dark' }: { testID?: string; variant?: 'dark' | 'outline' | 'accent' }) {
+export function BotaoSincronizar({
+  testID = 'sincronizar',
+  variant = 'dark',
+  avisoDados,
+}: {
+  testID?: string;
+  variant?: 'dark' | 'outline' | 'accent';
+  /** RD-0008: aviso de dado antigo, já no fuso do tenant; troca "Última sincronização…" e mantém o "N na fila". */
+  avisoDados?: string | null;
+}) {
   const s = useSincronizacao();
   if (!s) return null;
   const ocupado = s.estado.puxando || s.sincronizando;
-  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz });
+  const d = desenhoBotaoSincronizar({ semSinal: s.semSinal, recente: s.estado.recente, sincronizadoEm: s.sincronizadoEm, naFila: s.naFila, tz: s.tz, avisoDados });
   return (
     <View style={{ gap: 6 }} testID={`${testID}-bloco`}>
       <Button
@@ -68,9 +83,22 @@ export function BotaoSincronizar({ testID = 'sincronizar', variant = 'dark' }: {
           {d.aviso}
         </Text>
       ) : null}
-      <Text style={[t.small, { color: colors.ink2, textAlign: 'center' }]} testID={`${testID}-situacao`} accessibilityLiveRegion="polite">
-        {d.situacao}
-      </Text>
+      {d.tom === 'atencao' ? (
+        <View style={styles.linhaAviso} testID={`${testID}-situacao`} accessible accessibilityLabel={d.situacao} accessibilityLiveRegion="polite">
+          <Icon name="sync" size={14} color={colors.warningInk} />
+          <Text style={[t.small, { color: colors.warningInk, fontFamily: fonts.semibold, flexShrink: 1, textAlign: 'center' }]} testID={`${testID}-aviso-dados`}>
+            {d.situacao}
+          </Text>
+        </View>
+      ) : (
+        <Text style={[t.small, { color: colors.ink2, textAlign: 'center' }]} testID={`${testID}-situacao`} accessibilityLiveRegion="polite">
+          {d.situacao}
+        </Text>
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  linhaAviso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 20 },
+});

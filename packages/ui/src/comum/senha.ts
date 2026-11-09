@@ -3,8 +3,12 @@
  * (Campo e Gestão, "Crie sua senha" da T-0094). Puro (roda em Node nos testes). Spec: docs/design/portal-entrar.md §5.
  *
  * A REGRA (o que falta na senha) é do domain do Core (`faltasNaSenha`): a tela chama o Core a cada tecla e entrega aqui só as
- * faltas. O kit nunca confere a senha nem a recebe. `resumoDaSenha` monta a mesma frase de `mensagemDaSenha` do Core (texto
- * aprovado na spec); a tela pode passar a do Core em `resumo` para não haver duas fontes.
+ * faltas. O kit nunca confere a senha nem a recebe.
+ *
+ * RD-0021 (R-20261108-173629-corretor-redundancias): o mínimo de caracteres e a frase do que falta são do Core
+ * (`SENHA_MIN_CARACTERES`, `mensagemDaSenha`). A tela passa os dois ao `RegrasDaSenha` (`minimo` e `resumo`); o kit não escreve
+ * o número à mão. Enquanto houver tela que não passa, vale `MINIMO_DA_SENHA_SEM_TELA` (um lugar só, marcado para sair) e o
+ * `resumoDaSenha` monta a frase com o mínimo recebido. Quando todas passarem, `minimo` e `resumo` ficam obrigatórios e os dois saem.
  */
 
 /** Cada regra da RN-CORE-32, na ordem em que aparece na tela. Mesmos nomes de `faltasNaSenha` do Core. */
@@ -14,12 +18,32 @@ export const REGRAS_DA_SENHA: readonly RegraSenha[] = ['caracteres', 'letra', 'n
 
 export const TITULO_REGRAS_DA_SENHA = 'A senha precisa ter';
 
-/** Rótulo visível de cada regra. */
-export const ROTULO_REGRA_SENHA: Record<RegraSenha, string> = {
-  caracteres: '8 caracteres ou mais',
+/**
+ * Transição do RD-0021: mínimo usado só quando a tela não passa `minimo` (o valor certo é o `SENHA_MIN_CARACTERES` do Core).
+ * @deprecated a tela passa `minimo={SENHA_MIN_CARACTERES}`; sai quando todas passarem.
+ */
+export const MINIMO_DA_SENHA_SEM_TELA = 8;
+
+const ROTULO_FIXO: Record<Exclude<RegraSenha, 'caracteres'>, string> = {
   letra: 'Uma letra',
   numero: 'Um número',
   especial: 'Um caractere especial',
+};
+
+/** Rótulo visível de uma regra: "8 caracteres ou mais" (com o mínimo do Core), "Uma letra", "Um número"… */
+export function rotuloDaRegraSenha(regra: RegraSenha, minimo: number = MINIMO_DA_SENHA_SEM_TELA): string {
+  return regra === 'caracteres' ? `${minimo} caracteres ou mais` : ROTULO_FIXO[regra];
+}
+
+/**
+ * Rótulos das quatro regras com o mínimo padrão.
+ * @deprecated use `rotuloDaRegraSenha(regra, minimo)` com o mínimo do Core.
+ */
+export const ROTULO_REGRA_SENHA: Readonly<Record<RegraSenha, string>> = {
+  caracteres: rotuloDaRegraSenha('caracteres'),
+  letra: ROTULO_FIXO.letra,
+  numero: ROTULO_FIXO.numero,
+  especial: ROTULO_FIXO.especial,
 };
 
 /** Exemplo ao lado do rótulo (só na tela; o leitor de tela não lê os símbolos). */
@@ -55,18 +79,19 @@ export function faltasEmOrdem(faltas: readonly string[]): RegraSenha[] {
 }
 
 /**
- * Frase do que falta (texto aprovado; igual ao `mensagemDaSenha` do Core):
+ * Frase do que falta, para a tela que ainda não passa `resumo` (o certo é a tela passar `mensagemDaSenha` do Core; mesmo texto):
  * - nada: "A senha atende às regras."
- * - só o tamanho: "A senha precisa ter pelo menos 8 caracteres."
- * - tamanho e mais: "A senha precisa ter pelo menos 8 caracteres. Falta um número."
+ * - só o tamanho: "A senha precisa ter pelo menos {minimo} caracteres."
+ * - tamanho e mais: "A senha precisa ter pelo menos {minimo} caracteres. Falta um número."
  * - sem o tamanho: "Falta um número." / "Faltam um número e um caractere especial."
+ * @deprecated a tela passa `resumo={mensagemDaSenha(faltas)}` do Core; sai quando todas passarem (RD-0021).
  */
-export function resumoDaSenha(faltas: readonly string[]): string {
+export function resumoDaSenha(faltas: readonly string[], minimo: number = MINIMO_DA_SENHA_SEM_TELA): string {
   const f = faltasEmOrdem(faltas);
   if (f.length === 0) return SENHA_ATENDE_AS_REGRAS;
   const outras = f.filter((r): r is Exclude<RegraSenha, 'caracteres'> => r !== 'caracteres').map((r) => FALTA_NA_FRASE[r]);
   const partes: string[] = [];
-  if (f.includes('caracteres')) partes.push('A senha precisa ter pelo menos 8 caracteres.');
+  if (f.includes('caracteres')) partes.push(`A senha precisa ter pelo menos ${minimo} caracteres.`);
   if (outras.length > 0) partes.push(`${outras.length === 1 ? 'Falta' : 'Faltam'} ${emLista(outras)}.`);
   return partes.join(' ');
 }
@@ -83,13 +108,13 @@ export interface ItemRegraSenha {
   rotuloAcessivel: string;
 }
 
-/** Itens da lista, na ordem da tela. `destacar` (depois de tentar salvar) pinta as faltas como erro. */
-export function itensDasRegras(faltas: readonly string[], destacar = false): ItemRegraSenha[] {
+/** Itens da lista, na ordem da tela. `destacar` (depois de tentar salvar) pinta as faltas como erro; `minimo` = do Core. */
+export function itensDasRegras(faltas: readonly string[], destacar = false, minimo: number = MINIMO_DA_SENHA_SEM_TELA): ItemRegraSenha[] {
   const f = new Set(faltasEmOrdem(faltas));
   return REGRAS_DA_SENHA.map((regra) => {
     const cumprida = !f.has(regra);
     const estado: EstadoRegraSenha = cumprida ? 'ok' : destacar ? 'erro' : 'falta';
-    const rotulo = ROTULO_REGRA_SENHA[regra];
+    const rotulo = rotuloDaRegraSenha(regra, minimo);
     return { regra, rotulo, exemplo: EXEMPLO_REGRA_SENHA[regra] ?? null, estado, rotuloAcessivel: `${rotulo}: ${cumprida ? ESTADO_FALADO_REGRA.ok : ESTADO_FALADO_REGRA.falta}` };
   });
 }

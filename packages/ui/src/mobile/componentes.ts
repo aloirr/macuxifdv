@@ -71,6 +71,22 @@ export function rotuloDoVoltar(label: string, voltar: VoltarDaTela | null | unde
   return { visivel, acessivel: `Voltar para ${visivel}` };
 }
 
+/** T-0128: o bloqueio de saída do shell, visto pelo `BackLink` (`ProvedorSaidaDaTela`). Mesmo formato do `bloqueioDoShell`. */
+export interface SaidaDaTela {
+  /** Segura a saída se houver formulário alterado (`seguir` roda depois, se a pessoa confirmar) e devolve `true`; senão chama `seguir` na hora. */
+  tentarSair(seguir: () => void): boolean;
+}
+
+/**
+ * Toque no `BackLink` (T-0128, RN-VEN-38): a tela que passa `aoVoltar` decide sozinha; sem ela, o toque passa pelo bloqueio do
+ * shell (`saida.tentarSair(seguir)`), que pergunta "Sair…?" com o formulário alterado; sem provedor, volta direto (`seguir`).
+ */
+export function tocarNoVoltar(op: { aoVoltar?: (() => void) | undefined; saida: SaidaDaTela | null | undefined; seguir: () => void }): void {
+  if (op.aoVoltar) op.aoVoltar();
+  else if (op.saida) op.saida.tentarSair(op.seguir);
+  else op.seguir();
+}
+
 // ---------- folha com altura máxima e teclado (T-0072) ----------
 
 /** Faixa do fundo escurecido que fica sempre à vista acima da folha alta (dá para tocar fora e fechar). */

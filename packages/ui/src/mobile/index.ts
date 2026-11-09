@@ -31,6 +31,11 @@ export * from './pendencias-rn';
 export * from './desconto';
 export * from './desconto-rn';
 export * from '../comum/historico';
+// RD-0014: nome curto e longo dos 7 perfis padrão (o mesmo do BKO, do portal e do login)
+export * from '../comum/perfis';
 export * from './historico-rn';
 export * from './acoes';
 export * from './acoes-rn';
+// T-0140: tela de erro do shell (ErrorBoundary da tela de módulo e da raiz) e a linha do Diagnóstico
+export * from './tela-de-erro';
+export * from './tela-de-erro-rn';
