@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   avisoDosDados,
+  caminhoDoLink,
   dataDoCabecalho,
   desenhoDaLinha,
   desenhoMetaDoMes,
@@ -29,10 +30,13 @@ import {
   textoVisitasHoje,
   visitasDaEquipe,
   xDeY,
+  type MetaHojePronta,
   type RecadosProntos,
 } from './inicio';
 
 const TZ = 'America/Manaus'; // UTC−4
+/** `meta_hoje` do Core com os campos obrigatórios (core.inicio@1, RD-0002/RD-0012); null = o Core não tem o número. */
+const pr = (x: Partial<MetaHojePronta>): MetaHojePronta => ({ mes_pct: null, faltam_mes: null, por_dia_util: null, dias_uteis_por_dia: 0, ...x });
 const meta = (m: Partial<MetaDoDia>): MetaDoDia => ({
   indicador: 'venda_cents',
   situacao: 'a_cumprir',
@@ -89,7 +93,7 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
   const r = (x: Partial<Item>): Item => ({ id: A, titulo: 'Pedido 000010 aprovado', subtitulo: 'Mercadinho São Jorge', tipo: 'pedido_aprovado', criada_em: '2026-11-04T18:02:00Z', hora: '14:02', lida: false, link: '/m/pedido?id=1', destaque: false, ...x });
 
   it('a lista é a do Core (`recados_hoje`): título e corpo num texto só, hora à parte, destaque e lida', () => {
-    const itens = recadosDoInicio({ novos: 1, itens: [r({ id: B, titulo: 'Prioridade', subtitulo: 'Passe cedo no Mercadinho São Jorge: tem título vencido.', hora: '09:15', destaque: true, link: null }), r({}), r({ id: C, lida: true, subtitulo: '' })] });
+    const itens = recadosDoInicio({ novos: 1, total: 3, itens: [r({ id: B, titulo: 'Prioridade', subtitulo: 'Passe cedo no Mercadinho São Jorge: tem título vencido.', hora: '09:15', destaque: true, link: null }), r({}), r({ id: C, lida: true, subtitulo: '' })] });
     expect(itens.map((i) => [i.texto, i.hora, i.ponto, i.notificacao_id])).toEqual([
       ['Prioridade: Passe cedo no Mercadinho São Jorge: tem título vencido.', '09:15', 'destaque', B],
       ['Pedido 000010 aprovado: Mercadinho São Jorge', '14:02', 'sucesso', A],
@@ -98,9 +102,8 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
     expect(itens[0]!.destino).toBe('/m/notificacoes');
     expect(itens[1]!.destino).toBe('/m/pedido?id=1');
   });
-  it('sem `recados_hoje` (campo ainda opcional no @1) a lista fica vazia: nada de contorno que repete o domain', () => {
-    expect(recadosDoInicio(undefined)).toEqual([]);
-    expect(recadosDoInicio(null)).toEqual([]);
+  it('caixa vazia do Core: a lista fica vazia, sem contorno que repete o domain (RD-0012)', () => {
+    expect(recadosDoInicio({ novos: 0, total: 0, itens: [] })).toEqual([]);
   });
   it('texto do recado: "Título: corpo"; título com pontuação final só ganha o espaço; sem corpo, só o título', () => {
     expect(textoDoRecado('Prioridade', 'Passe cedo')).toBe('Prioridade: Passe cedo');
@@ -109,14 +112,12 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
     expect(textoDoRecado('', 'Só o corpo')).toBe('Só o corpo');
   });
   it('RD-0009: bolinha só com mais de 1 item; "Ver todos" só quando há mais na caixa do que o cartão mostra', () => {
-    const um = recadosDoInicio({ novos: 1, itens: [r({})] });
+    const um = recadosDoInicio({ novos: 1, total: 3, itens: [r({})] });
     expect(mostrarPontos(um)).toBe(false);
-    expect(mostrarPontos(recadosDoInicio({ novos: 2, itens: [r({}), r({ id: B })] }))).toBe(true);
-    // sem o total do Core: menos de 3 = a caixa inteira está no cartão
-    expect(mostrarVerTodos({ novos: 1, itens: [r({})] })).toBe(false);
-    expect(mostrarVerTodos({ novos: 0, itens: [r({}), r({ id: B }), r({ id: C })] })).toBe(true);
-    expect(mostrarVerTodos(undefined)).toBe(false);
-    // com o total do Core (aditivo pedido): exatamente 3 na caixa, sem "Ver todos"; 4, com
+    expect(mostrarPontos(recadosDoInicio({ novos: 2, total: 3, itens: [r({}), r({ id: B })] }))).toBe(true);
+    expect(mostrarVerTodos({ novos: 1, total: 1, itens: [r({})] })).toBe(false);
+    expect(mostrarVerTodos({ novos: 0, total: 0, itens: [] })).toBe(false);
+    // `total` do Core: exatamente 3 na caixa, sem "Ver todos"; 4, com
     expect(mostrarVerTodos({ novos: 0, total: 3, itens: [r({}), r({ id: B }), r({ id: C })] })).toBe(false);
     expect(mostrarVerTodos({ novos: 0, total: 4, itens: [r({}), r({ id: B }), r({ id: C })] })).toBe(true);
   });
@@ -130,6 +131,18 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
     expect(destinoDaNotificacao('https://fora.com')).toBe('/m/notificacoes');
     expect(destinoDaNotificacao(null)).toBe('/m/notificacoes');
   });
+  it('T-0140: link para tela que não existe na visão do usuário vai à central (recado com /m/core-rota)', () => {
+    const telas = new Set(['rota', 'clientes', 'notificacoes']);
+    const existe = (c: string) => telas.has(c);
+    expect(destinoDaNotificacao('/m/core-rota', existe)).toBe('/m/notificacoes');
+    expect(destinoDaNotificacao('/m/rota', existe)).toBe('/m/rota');
+    expect(destinoDaNotificacao('/m/rota?data=2026-11-08', existe)).toBe('/m/rota?data=2026-11-08');
+    expect(caminhoDoLink('/m/cliente?id=1#x')).toBe('cliente');
+    expect(caminhoDoLink('/x/rota')).toBeNull();
+    // mais de um segmento: `a/b` não é tela do `visao.pagina`, então vai à central (revisão R-20261108-215731)
+    expect(caminhoDoLink('/m/pedidos/novo')).toBe('pedidos/novo');
+    expect(destinoDaNotificacao('/m/rota/hoje', existe)).toBe('/m/notificacoes');
+  });
 });
 
 /**
@@ -141,27 +154,27 @@ describe('Meta do mês (RD-0002, RD-0004)', () => {
   const domingo = campo({ situacao: 'dia_nao_util', meta_dia: null, atingimento_hoje_pct: null });
 
   it('dia não útil (domingo 08/11) com os números do Core: "R$ 553 de R$ 180.000", "0,3%" e "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)"', () => {
-    const d = desenhoMetaDoMes(domingo, { mes_pct: 31, faltam_mes: 17_944_700, por_dia_util: 944_458, dias_uteis_por_dia: 19 });
+    const d = desenhoMetaDoMes(domingo, pr({ mes_pct: 31, faltam_mes: 17_944_700, por_dia_util: 944_458, dias_uteis_por_dia: 19 }));
     expect(d).toMatchObject({ valor: 'R$ 553', de: 'de R$ 180.000', mes: '0,3%', corBarra: colors.ink3, apoio: 'Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)', verde: false });
     expect(d.pct).toBeCloseTo(0.31);
   });
-  it('dia não útil sem o aditivo do Core: a linha fica oculta (o shell não faz a conta); só com o "faltam", só ele', () => {
-    expect(desenhoMetaDoMes(domingo, { mes_pct: 31 }).apoio).toBeNull();
-    expect(desenhoMetaDoMes(domingo, { mes_pct: 31, faltam_mes: 17_944_700 }).apoio).toBe('Faltam R$ 179.447');
-    expect(desenhoMetaDoMes(domingo, { mes_pct: 31, faltam_mes: 100_000, por_dia_util: 100_000, dias_uteis_por_dia: 1 }).apoio).toBe('Faltam R$ 1.000 · R$ 1.000 por dia útil (1 dia)');
+  it('dia não útil sem os números do Core (null): a linha fica oculta (o shell não faz a conta); só com o "faltam", só ele', () => {
+    expect(desenhoMetaDoMes(domingo, pr({ mes_pct: 31 })).apoio).toBeNull();
+    expect(desenhoMetaDoMes(domingo, pr({ mes_pct: 31, faltam_mes: 17_944_700 })).apoio).toBe('Faltam R$ 179.447');
+    expect(desenhoMetaDoMes(domingo, pr({ mes_pct: 31, faltam_mes: 100_000, por_dia_util: 100_000, dias_uteis_por_dia: 1 })).apoio).toBe('Faltam R$ 1.000 · R$ 1.000 por dia útil (1 dia)');
   });
   it('dia útil (terça 10/11): a mesma linha do mês e, no fim, "Meta de hoje R$ 9.969" (meta do dia da RN-CORE-26, vinda do Core)', () => {
-    const d = desenhoMetaDoMes(campo({ meta_dia: 996_928, atingimento_hoje_pct: 0 }), { mes_pct: 31 });
+    const d = desenhoMetaDoMes(campo({ meta_dia: 996_928, atingimento_hoje_pct: 0 }), pr({ mes_pct: 31 }));
     expect(d).toMatchObject({ valor: 'R$ 553', de: 'de R$ 180.000', mes: '0,3%', corBarra: colors.accent, apoio: 'Meta de hoje R$ 9.969', verde: false, apoioVerde: false });
     // o realizado de HOJE entra no mês e sai do Início (decisão do gerente): R$ 553 + R$ 1.240
-    expect(desenhoMetaDoMes(campo({ realizado_hoje: 124_000, meta_dia: 996_928 }), { mes_pct: 100 }).valor).toBe('R$ 1.793');
+    expect(desenhoMetaDoMes(campo({ realizado_hoje: 124_000, meta_dia: 996_928 }), pr({ mes_pct: 100 })).valor).toBe('R$ 1.793');
   });
-  it('dia batido: a linha do dia fica verde ("Meta de hoje R$ 1.000 · batida"); mês batido: cartão verde, barra cheia, "Meta batida"', () => {
-    expect(desenhoMetaDoMes(meta({ situacao: 'dia_batido', realizado_hoje: 100_000 }), { mes_pct: 4333 })).toMatchObject({ apoio: 'Meta de hoje R$ 1.000 · batida', apoioVerde: true, verde: false, mes: '43%' });
-    expect(desenhoMetaDoMes(meta({ situacao: 'mes_batido', realizado_ate_ontem: 3_100_000, realizado_hoje: 20_000, meta_dia: 0 }), { mes_pct: 10400 })).toMatchObject({ valor: 'R$ 31.200', de: 'de R$ 30.000', apoio: 'Meta batida', verde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, mes: '104%' });
+  it('dia batido: "Meta de hoje batida" verde com ✓; mês batido: cartão verde, barra cheia, "Meta do mês batida" (inicio.md §1.3)', () => {
+    expect(desenhoMetaDoMes(meta({ situacao: 'dia_batido', realizado_hoje: 100_000 }), pr({ mes_pct: 4333 }))).toMatchObject({ apoio: 'Meta de hoje batida', apoioVerde: true, apoioMarca: true, verde: false, mes: '43%' });
+    expect(desenhoMetaDoMes(meta({ situacao: 'mes_batido', realizado_ate_ontem: 3_100_000, realizado_hoje: 20_000, meta_dia: 0 }), pr({ mes_pct: 10400 }))).toMatchObject({ valor: 'R$ 31.200', de: 'de R$ 30.000', apoio: 'Meta do mês batida', apoioMarca: false, verde: true, pct: 100, corBarra: colors.success, trilho: colors.successTrack, mes: '104%' });
   });
   it('RD-0004: "mês" só no título — nem no %, nem na última linha', () => {
-    for (const d of [desenhoMetaDoMes(domingo, { mes_pct: 31, faltam_mes: 17_944_700, por_dia_util: 944_458, dias_uteis_por_dia: 19 }), desenhoMetaDoMes(campo({ meta_dia: 996_928 }), { mes_pct: 31 })]) {
+    for (const d of [desenhoMetaDoMes(domingo, pr({ mes_pct: 31, faltam_mes: 17_944_700, por_dia_util: 944_458, dias_uteis_por_dia: 19 })), desenhoMetaDoMes(campo({ meta_dia: 996_928 }), pr({ mes_pct: 31 }))]) {
       expect(`${d.mes} ${d.apoio}`).not.toMatch(/mês/);
     }
     expect(rotuloDaMeta(false)).toBe('Meta do mês');
@@ -178,10 +191,10 @@ describe('Meta do mês (RD-0002, RD-0004)', () => {
     expect(desenhoMetaDoMes(campo({}), null)).toMatchObject({ mes: null, pct: 0 });
   });
   it('cobertura principal (do_mes): "62% de 80%", sem última linha (o título já diz o período)', () => {
-    expect(desenhoMetaDoMes(meta({ indicador: 'cobertura_pct', situacao: 'do_mes', meta_mes: 8000, realizado_ate_ontem: 6200, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null }), { mes_pct: 7750 })).toMatchObject({ valor: '62%', de: 'de 80%', apoio: null, mes: '78%' });
+    expect(desenhoMetaDoMes(meta({ indicador: 'cobertura_pct', situacao: 'do_mes', meta_mes: 8000, realizado_ate_ontem: 6200, realizado_hoje: 0, meta_dia: null, atingimento_hoje_pct: null }), pr({ mes_pct: 7750 }))).toMatchObject({ valor: '62%', de: 'de 80%', apoio: null, mes: '78%' });
   });
   it('visitas como principal (promotor): "Meta de hoje 6 visitas" no dia útil', () => {
-    expect(desenhoMetaDoMes(meta({ indicador: 'visitas', meta_mes: 120, realizado_ate_ontem: 40, realizado_hoje: 3, meta_dia: 6 }), { mes_pct: 3583 })).toMatchObject({ valor: '43', de: 'de 120', apoio: 'Meta de hoje 6 visitas' });
+    expect(desenhoMetaDoMes(meta({ indicador: 'visitas', meta_mes: 120, realizado_ate_ontem: 40, realizado_hoje: 3, meta_dia: 6 }), pr({ mes_pct: 3583 }))).toMatchObject({ valor: '43', de: 'de 120', apoio: 'Meta de hoje 6 visitas' });
   });
   it('principal = o do Core; sem ele vendas; promotor sem meta de vendas usa o primeiro indicador com meta (RN-PRO-01)', () => {
     const vendas = meta({});
@@ -214,13 +227,19 @@ describe('linhas Positivação, Visitas e Cobertura (RD-0005, RD-0007, RD-0010)'
 
 describe('aviso de dado antigo (RD-0008, RD-0012)', () => {
   const base = (x: Partial<VisaoInicio['base']>): VisaoInicio['base'] => ({ dia: '2026-11-06', calculado_em: '2026-11-06T10:28:00.000Z', defasado: true, ...x });
+  const vendas = [meta({})];
   it('base defasada: "Dados de 06/11, 6h28" no fuso do tenant; base em dia: nada', () => {
-    expect(avisoDosDados({ base: base({}), sem_realizado: [] }, TZ)).toBe('Dados de 06/11, 6h28');
-    expect(avisoDosDados({ base: base({ defasado: false }), sem_realizado: [] }, TZ)).toBeNull();
+    expect(avisoDosDados({ base: base({}), sem_realizado: [], metas: vendas }, TZ)).toBe('Dados de 06/11, 6h28');
+    expect(avisoDosDados({ base: base({ defasado: false }), sem_realizado: [], metas: vendas }, TZ)).toBeNull();
   });
-  it('sem cópia de vendas (`sem_realizado` do Core): "Sincronize para ver as vendas"; sem o campo, nenhuma regra local', () => {
-    expect(avisoDosDados({ base: base({}), sem_realizado: ['venda_cents'] }, TZ)).toBe('Sincronize para ver as vendas');
-    expect(avisoDosDados({ base: base({ dia: null, calculado_em: null, defasado: false }) }, TZ)).toBeNull();
+  it('sem cópia de vendas (`sem_realizado` do Core): "Sincronize para ver as vendas"; sem base nem falta, nada', () => {
+    expect(avisoDosDados({ base: base({}), sem_realizado: ['venda_cents'], metas: [] }, TZ)).toBe('Sincronize para ver as vendas');
+    expect(avisoDosDados({ base: base({ dia: null, calculado_em: null, defasado: false }), sem_realizado: [], metas: vendas }, TZ)).toBeNull();
+  });
+  it('promotor só com visitas e cobertura: sem aviso (inicio.md §2); com positivação, recebe', () => {
+    const promotor = [meta({ indicador: 'visitas' }), meta({ indicador: 'cobertura_pct', situacao: 'do_mes' })];
+    expect(avisoDosDados({ base: base({}), sem_realizado: [], metas: promotor }, TZ)).toBeNull();
+    expect(avisoDosDados({ base: base({}), sem_realizado: [], metas: [...promotor, meta({ indicador: 'positivacao' })] }, TZ)).toBe('Dados de 06/11, 6h28');
   });
 });
 

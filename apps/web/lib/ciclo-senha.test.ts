@@ -1,29 +1,35 @@
-/** T-0094 (RN-CORE-32/33/34; spec docs/design/ciclo-de-senha.md §1 a §3): ciclo de senha no login do BKO. */
+/**
+ * T-0094 (RN-CORE-32/33/34; spec docs/design/ciclo-de-senha.md §1 a §3): ciclo de senha no login do BKO. RD-0019/RD-0020: as
+ * peças puras e os textos são os da fonte única do Core (`@macuxi/core/contracts`); aqui se confere que servem ao erro do SDK
+ * web (`code`/`details` do `ApiRequestError`) e o que é só do BKO.
+ */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { MENSAGEM_ESQUECI_SENHA } from '@macuxi/core/contracts';
+import {
+  detalhesDaTroca,
+  MENSAGEM_ESQUECI_SENHA,
+  repeticaoDaSenha,
+  subtituloDaTroca,
+  TEXTOS_CRIE_SENHA,
+  TEXTOS_ESQUECI,
+  TEXTOS_LOGIN_SENHA,
+  textoDeMuitosPedidos,
+  trocaProntaParaEnviar,
+  validarEsqueci,
+} from '@macuxi/core/contracts';
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 
 import {
   aoPerfilSemBko,
   avisarSePerfilSemBko,
   consumirAvisoDoLogin,
-  detalhesDaTroca,
   ehPerfilSemBko,
   guardarAvisoDoLogin,
   mensagemDoEsqueci,
   mensagemSemBko,
-  repeticaoDaSenha,
   resultadoDoErroDaTroca,
-  subtituloDaTroca,
-  TEXTOS_CRIE_SENHA,
-  TEXTOS_ESQUECI,
   TEXTOS_LINK_ANTIGO,
-  TEXTOS_LOGIN_SENHA,
-  textoDeMuitosPedidos,
-  trocaProntaParaEnviar,
-  validarEsqueci,
 } from './ciclo-senha';
 import { mensagemDoLogin } from './login';
 
@@ -86,11 +92,11 @@ describe('"Esqueci a senha" (§3)', () => {
     expect(TEXTOS_ESQUECI.confirmacao).toBe(MENSAGEM_ESQUECI_SENHA);
     expect(TEXTOS_ESQUECI.confirmacao).not.toMatch(/@|Enviamos para/);
   });
-  it('validação antes de enviar', () => {
-    expect(validarEsqueci({ codigo_empresa: '', email: 'a@b.com' })).toBe('Informe o código da empresa e o e-mail.');
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: ' ' })).toBe('Informe o código da empresa e o e-mail.');
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'ab.com' })).toBe('Informe um e-mail válido, como nome@empresa.com.br.');
-    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'a@b.com' })).toBeNull();
+  it('validação antes de enviar (validarEsqueci do Core, por campo; a tela mostra a do primeiro campo)', () => {
+    expect(validarEsqueci({ codigo_empresa: '', email: 'a@b.com' })).toEqual({ codigo_empresa: 'Informe o código da empresa e o e-mail.' });
+    expect(validarEsqueci({ codigo_empresa: 'alfa', email: ' ' })).toEqual({ email: 'Informe o código da empresa e o e-mail.' });
+    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'ab.com' })).toEqual({ email: 'Informe um e-mail válido, como nome@empresa.com.br.' });
+    expect(validarEsqueci({ codigo_empresa: 'alfa', email: 'a@b.com' })).toEqual({});
   });
   it('erros: 429 em minutos (mínimo 1), sem rede, 5xx; 400 = a mesma confirmação (não revela nada)', () => {
     expect(mensagemDoEsqueci(erro(429, 'MUITAS_TENTATIVAS', { retry_after_s: 61 }))).toBe('Muitos pedidos seguidos. Tente de novo em 2 minutos.');
@@ -142,5 +148,17 @@ describe('a senha nunca vai a storage, URL ou log (conferência do código das t
     expect(telas.login).toMatch(/senha_atual: troca\.senha/);
     expect(telas.login).not.toMatch(/router\.(push|replace)\([^)]*senha/);
     expect(telas.login).not.toMatch(/query:\s*\{[^}]*senha/);
+  });
+});
+
+describe('RD-0019/RD-0020: sem cópia das peças do Core no BKO', () => {
+  const fonte = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+  it('lib/ciclo-senha.ts e lib/login.ts não definem textos, validações nem a regex de e-mail; importam do Core', () => {
+    for (const rel of ['./ciclo-senha.ts', './login.ts']) {
+      const t = fonte(rel);
+      expect(t).not.toMatch(/EMAIL_RE|CODIGO_RE|export const TEXTOS_(CRIE_SENHA|ESQUECI|LOGIN_SENHA)|export function (detalhesDaTroca|validarEsqueci|validarCampos|textoDeMuitosPedidos)/);
+      expect(t).toContain("from '@macuxi/core/contracts'");
+    }
+    expect(fonte('../components/login-screen.tsx')).toMatch(/validarLogin\(campos\)/);
   });
 });

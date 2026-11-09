@@ -9,7 +9,14 @@
  * - app aberto no mesmo processo: usa o MESMO motor (mesma promessa); senão, o motor da tarefa segura o `sync:lease`
  *   (dono + expira em 2 min) para o app reaberto durante a tarefa não fazer uma segunda passada.
  * - sem notificação: o resultado vai para o Diagnóstico do Perfil ("Última sincronização em segundo plano").
+ * T-0140 (relatos 1 e 6: o app abria e fechava depois de atualizado e na carga inicial), proteções da tarefa sem tela:
+ * - não roda com o app em primeiro plano (o agendador do app sincroniza) nem com o app abrindo ou sincronizando no mesmo
+ *   processo (trava única, `lib/trava-sync.ts`);
+ * - não roda num build que ainda não abriu com tela (depois do `MY_PACKAGE_REPLACED` a 1ª abertura é do app);
+ * - orçamento esgotado = a passada é cortada na próxima página e a tarefa espera ela parar (até 10 s) antes de devolver;
+ * - nunca lança: qualquer erro vira `falhou` com a mensagem no Diagnóstico.
  */
+import type { TravaSync } from './trava-sync';
 
 export const TAREFA_SYNC_DELTA = 'macuxi-sync-delta';
 /** Minutos (o mínimo do WorkManager). O sistema decide o momento exato. */
@@ -48,7 +55,10 @@ export type MotivoPulo =
   | 'sessao-invalida'
   | 'sem-rede'
   | 'aparelho-bloqueado'
-  | 'em-andamento';
+  | 'em-andamento'
+  | 'app-aberto'
+  | 'app-ocupado'
+  | 'app-atualizado';
 
 export interface ResultadoSegundoPlano {
   /** ISO 8601 (UTC) do início. */
@@ -59,6 +69,8 @@ export interface ResultadoSegundoPlano {
   /** Mensagem técnica (do motor ou do transporte; sem token nem dado pessoal). */
   mensagem?: string;
   duracao_ms: number;
+  /** A passada usou o motor da tarefa (app fechado, sem tela). Ausente = o motor do app vivo no processo, ou não rodou. */
+  sem_tela?: boolean;
 }
 
 /**
@@ -90,7 +102,19 @@ export interface DepsTarefaSegundoPlano {
   lease(usuarioId: string): LeaseArmazenado;
   /** Abre (e carrega) o motor do usuário fora da interface. */
   abrirMotor(usuarioId: string): Promise<MotorSegundoPlano>;
+  /** T-0140: o app está em primeiro plano (o agendador do app cuida da sincronização). */
+  appEmPrimeiroPlano?(): boolean;
+  /** T-0140: trava única do processo (o app abrindo ou sincronizando = a tarefa desiste). */
+  trava?: Pick<TravaSync, 'tomarSegundoPlano' | 'liberarSegundoPlano'>;
+  /** T-0140: o build instalado ainda não abriu com tela (logo depois da atualização do APK). */
+  buildAindaNaoAberto?(): Promise<boolean>;
+  /** T-0140: o orçamento acabou: corta a passada do motor sem tela na próxima página. */
+  aoEsgotarOrcamento?(): void;
+  /** Espera pela passada cortada parar (padrão `ESPERA_DO_CORTE_MS`). */
+  esperaDoCorteMs?: number;
 }
+
+export const ESPERA_DO_CORTE_MS = 10_000;
 
 type Corrida<T> = { terminou: true; valor: T } | { terminou: false };
 
@@ -106,19 +130,36 @@ export function comOrcamento<T>(p: Promise<T>, ms: number): Promise<Corrida<T>> 
 /** Uma passada da tarefa `macuxi-sync-delta`. Nunca lança: o resultado vai para o Diagnóstico. */
 export async function executarTarefaSegundoPlano(d: DepsTarefaSegundoPlano): Promise<ResultadoSegundoPlano> {
   const inicio = d.agora();
+  /** A passada usa (ou tentaria usar) o motor da tarefa, sem tela. */
+  let semTela = false;
   const fim = (r: Omit<ResultadoSegundoPlano, 'quando' | 'duracao_ms'>): ResultadoSegundoPlano => ({
     quando: new Date(inicio).toISOString(),
     duracao_ms: Math.max(0, d.agora() - inicio),
     ...r,
+    ...(semTela ? { sem_tela: true } : {}),
   });
   const orcamento = d.orcamentoMs ?? ORCAMENTO_SEGUNDO_PLANO_MS;
   const dono = `${DONO_SEGUNDO_PLANO}:${inicio}`;
   let lease: LeaseArmazenado | null = null;
+  let comTrava = false;
   try {
     if (await d.modoSemSinal()) return fim({ resultado: 'pulado', motivo: 'modo-sem-sinal' });
+    if (d.appEmPrimeiroPlano?.()) return fim({ resultado: 'pulado', motivo: 'app-aberto' });
+    if (d.trava) {
+      if (!d.trava.tomarSegundoPlano()) return fim({ resultado: 'pulado', motivo: 'app-ocupado' });
+      comTrava = true;
+    }
 
     let motor = d.motorDoApp();
+    if (motor && comTrava) {
+      // motor do app vivo no processo (app em segundo plano): a sincronização dele já é uma por vez e entra na trava
+      // como do app; segurar a trava aqui faria o app esperar a tarefa que espera o app
+      d.trava?.liberarSegundoPlano();
+      comTrava = false;
+    }
     if (!motor) {
+      if (await d.buildAindaNaoAberto?.()) return fim({ resultado: 'pulado', motivo: 'app-atualizado' });
+      semTela = true;
       const usuario = await d.usuarioDaSessao();
       if (!usuario) return fim({ resultado: 'pulado', motivo: 'sem-sessao' });
       lease = d.lease(usuario);
@@ -145,8 +186,14 @@ export async function executarTarefaSegundoPlano(d: DepsTarefaSegundoPlano): Pro
     })();
     const r = await comOrcamento(passada, orcamento);
     if (!r.terminou) {
-      // o lease vence sozinho em 2 min: a passada ainda pode estar gravando até o sistema encerrar o processo
-      lease = null;
+      // T-0140: corta a passada sem tela na próxima página e espera ela parar antes de devolver ao sistema (que pode
+      // encerrar o processo logo depois, no meio de uma escrita); se nem assim parar, o lease vence sozinho em 2 min
+      let parou = false;
+      if (semTela && d.aoEsgotarOrcamento) {
+        d.aoEsgotarOrcamento();
+        parou = (await comOrcamento(passada.catch(() => undefined), d.esperaDoCorteMs ?? ESPERA_DO_CORTE_MS)).terminou;
+      }
+      if (!parou) lease = null;
       return fim({ resultado: 'parcial', mensagem: `Orçamento de ${Math.round(orcamento / 1000)} s esgotado; continua na próxima execução.` });
     }
     // aparelho bloqueado: a limpeza já apagou tudo (inclusive o lease)
@@ -156,6 +203,7 @@ export async function executarTarefaSegundoPlano(d: DepsTarefaSegundoPlano): Pro
     return fim({ resultado: 'falhou', mensagem: e instanceof Error ? e.message : String(e) });
   } finally {
     if (lease) await lease.remover().catch(() => undefined);
+    if (comTrava) d.trava?.liberarSegundoPlano();
   }
 }
 
@@ -169,6 +217,9 @@ export function textoDoResultado(r: ResultadoSegundoPlano): string {
     'sem-rede': 'sem conexão com o servidor',
     'aparelho-bloqueado': 'aparelho bloqueado',
     'em-andamento': 'outra sincronização em andamento',
+    'app-aberto': 'o app estava aberto (ele mesmo sincroniza)',
+    'app-ocupado': 'o app estava abrindo ou sincronizando',
+    'app-atualizado': 'app atualizado, espera a 1ª abertura',
   };
   const base =
     r.resultado === 'sincronizado'
@@ -178,5 +229,5 @@ export function textoDoResultado(r: ResultadoSegundoPlano): string {
         : r.resultado === 'pulado'
           ? `não rodou: ${r.motivo ? motivo[r.motivo] : 'sem motivo'}`
           : 'falhou';
-  return `${base} · ${Math.round(r.duracao_ms / 100) / 10} s${r.mensagem ? `\n${r.mensagem}` : ''}`;
+  return `${base} · ${Math.round(r.duracao_ms / 100) / 10} s${r.sem_tela ? ' · app fechado' : ''}${r.mensagem ? `\n${r.mensagem}` : ''}`;
 }

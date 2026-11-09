@@ -28,11 +28,23 @@ export function versaoAtual() {
 }
 
 /**
+ * Ambiente do `eas` (puro, para teste). Desde o v1.0.1 o build vai com `EAS_SKIP_AUTO_FINGERPRINT=1`: no v1.0.0 (714d0d1b) o
+ * cálculo automático do fingerprint levou ~20 min por build e o projeto não usa updates OTA nem reaproveita build pelo
+ * fingerprint. Quem já definiu a variável (ex.: `EAS_SKIP_AUTO_FINGERPRINT=0` para medir) é respeitado.
+ * @param {Record<string, string | undefined>} envAtual
+ */
+export function ambienteDoEas(envAtual) {
+  return { ...envAtual, EAS_SKIP_AUTO_FINGERPRINT: envAtual.EAS_SKIP_AUTO_FINGERPRINT ?? '1' };
+}
+
+/**
  * Roda `eas <args>` na pasta do app, com a saída na tela (ou capturada, `capturar: true`). No Windows o eas-cli é
- * `eas.cmd`, que só abre pelo shell; os argumentos montados aqui não têm espaço nem aspas.
+ * `eas.cmd`, que só abre pelo shell; os argumentos montados aqui não têm espaço nem aspas. O ambiente é o de
+ * `ambienteDoEas` (sem o fingerprint automático).
  */
 export function rodarEas(args, { capturar = false } = {}) {
   const r = spawnSync('eas', args, {
+    env: ambienteDoEas(process.env),
     cwd: PASTA_APP,
     stdio: capturar ? ['inherit', 'pipe', 'inherit'] : 'inherit',
     encoding: 'utf8',

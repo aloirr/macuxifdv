@@ -15,6 +15,9 @@ import { dispositivoId } from '@/services/motor-do-usuario';
 import { ouvirPush, registrarPush } from '@/services/push';
 import { usePlataforma } from '@/state/plataforma';
 
+/** Espera entre o fim da carga (ou a abertura com carga) e o registro do push, que pode pedir a permissão. */
+const ESPERA_REGISTRO_PUSH_MS = 4_000;
+
 export function SincronizacaoDoShell({ children }: { children: ReactNode }) {
   const app = usePlataforma();
   const { estado } = useMotorSync();
@@ -65,17 +68,22 @@ export function SincronizacaoDoShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!usuarioId || modo !== 'v1' || !cargaFeita) return;
     let vivo = true;
-    void (async () => {
-      const id = await dispositivoId();
-      if (!vivo) return;
-      await registrarPush({
-        usuarioId,
-        dispositivoId: id,
-        enviar: (corpo) => httpRef.current.requisitar('PUT', '/dispositivos/atual/push', { body: corpo }),
-      });
-    })();
+    // T-0140 (relato 6, "ao sincronizar inicialmente o app é minimizado"): o pedido de permissão de notificação do Android
+    // abre por cima do app; ele espera a passagem da tela de carga para o Início (e o agendamento da tarefa) assentar
+    const espera = setTimeout(() => {
+      void (async () => {
+        const id = await dispositivoId();
+        if (!vivo) return;
+        await registrarPush({
+          usuarioId,
+          dispositivoId: id,
+          enviar: (corpo) => httpRef.current.requisitar('PUT', '/dispositivos/atual/push', { body: corpo }),
+        });
+      })().catch(() => undefined);
+    }, ESPERA_REGISTRO_PUSH_MS);
     return () => {
       vivo = false;
+      clearTimeout(espera);
     };
   }, [usuarioId, modo, cargaFeita]);
 
