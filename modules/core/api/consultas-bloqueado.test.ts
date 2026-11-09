@@ -18,6 +18,33 @@ describe('RN-VEN-13 e RN-CORE-16: core.cadastro_resumo@1 traz o bloqueio do clie
   });
 });
 
+describe('T-0120: core.cadastro_resumo@1 acha o cliente por cliente_external_ids', () => {
+  it('T-0120: consulta por external_id (SQL aditivo, parametrizado, só core.*) e o principal do endereço segue o cliente achado', async () => {
+    const chamadas: Array<{ sql: string; params: unknown[] }> = [];
+    const db: ClienteBanco = {
+      query: async (sql, params) => {
+        chamadas.push({ sql, params: (params ?? []) as unknown[] });
+        return { rows: /from core.cliente c/.test(sql) ? [{ ...cliente(false), external_id: 'ERP-C1' }] : [], rowCount: 1 } as never;
+      },
+    };
+    const entrada = CadastroResumoEntradaSchema.parse({ cliente_external_ids: ['ERP-C1', 'ERP-nao-existe'] });
+    expect(entrada.cliente_ids).toEqual([]);
+    const r = await consultaCadastroResumo.executar(entrada, { db } as unknown as ContextoConsulta);
+    expect(CadastroResumoSaidaSchema.parse(r).clientes[0]).toMatchObject({ id: C1, external_id: 'ERP-C1' });
+    expect(chamadas[0]!.sql).toMatch(/c\.deleted_at is null and \(c\.id = any\(\$1::uuid\[\]\) or c\.external_id = any\(\$2::text\[\]\)\)/);
+    expect(chamadas[0]!.params).toEqual([[], ['ERP-C1', 'ERP-nao-existe']]);
+    expect(chamadas[1]!.params).toEqual([[], [C1]]);
+    expect(chamadas.map((c) => c.sql).join(' ')).not.toMatch(/vendedor\.|gestor\./);
+  });
+  it('T-0120: sem cliente achado (external_id inexistente) nada é consultado além do cliente', async () => {
+    const sqls: string[] = [];
+    const db: ClienteBanco = { query: async (sql) => { sqls.push(sql); return { rows: [], rowCount: 0 } as never; } };
+    const r = await consultaCadastroResumo.executar(CadastroResumoEntradaSchema.parse({ cliente_external_ids: ['X'] }), { db } as unknown as ContextoConsulta);
+    expect(r.clientes).toEqual([]);
+    expect(sqls).toHaveLength(1);
+  });
+});
+
 describe('RN-VEN-11: core.cadastro_resumo@1 traz preço de venda e desconto máximo efetivo do produto', () => {
   const P1 = '0ea00000-0000-4000-8000-0000000000a1';
   const P2 = '0ea00000-0000-4000-8000-0000000000a2';

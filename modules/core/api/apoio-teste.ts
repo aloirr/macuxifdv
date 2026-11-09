@@ -134,7 +134,7 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
           const t = e.tenants.get(codigo.toLowerCase());
           return t ? { id: t.id, status: t.status } : null;
         },
-        tenantParaExibicao: async (codigo) => {
+        tenantParaExibicao: async (codigo, _tenantId) => {
           e.leituraDeExibicao.push(codigo);
           const t = e.tenants.get(codigo.toLowerCase());
           return t ? { id: t.id, codigo: t.codigo, nome: t.nome, fuso: t.fuso } : null;

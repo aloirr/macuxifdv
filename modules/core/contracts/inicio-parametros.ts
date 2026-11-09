@@ -3,6 +3,7 @@
  * Guardados em `plataforma.parametro` (modulo `core`), uma linha por chave, sem tabela nova. Ausente = padrão do domain.
  * O pull `parametro` leva as linhas ao aparelho (sem mudança no contrato de sync). Os limites e as mensagens moram no domain.
  */
+import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
 export const PARAMETRO_DIAS_UTEIS = 'metas.dias_uteis_semana';
@@ -51,3 +52,25 @@ export type ParametrosInicio = z.infer<typeof ParametrosInicioSchema>;
 export const CAMPOS_PARAMETROS_INICIO = ['dias_uteis_semana', 'recado_do_dia_padrao', 'parado_min'] as const;
 export const ErroParametroInicioSchema = z.object({ campo: z.enum(CAMPOS_PARAMETROS_INICIO), mensagem: z.string().min(1) }).strict();
 export type ErroParametroInicio = z.infer<typeof ErroParametroInicioSchema>;
+
+/**
+ * Consulta `core.calendario_metas@1` (RN-CORE-26; T-0124): a semana de dias úteis do tenant (`metas.dias_uteis_semana`,
+ * 0 = domingo … 6 = sábado, padrão segunda a sábado) e os feriados do tenant (datas civis AAAA-MM-DD; vazia até existir
+ * o cadastro de feriados). Os feriados NACIONAIS não vêm na lista e, pela RN-CORE-26, só entram na conta
+ * quando a lista do tenant é informada (não vazia) à função `diasUteisDoPeriodo` de `@macuxi/comum`; lista vazia = só a
+ * semana de dias úteis conta. Configuração do tenant, igual para qualquer usuário
+ * (ADR 0025 §4.1); o Gestor a lê em `carregarContexto`.
+ */
+export const CalendarioMetasSchema = z
+  .object({
+    dias_uteis_semana: z.array(z.number().int().min(0).max(6)).min(1),
+    feriados: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  })
+  .strict();
+export type CalendarioMetas = z.infer<typeof CalendarioMetasSchema>;
+export const CONSULTA_CALENDARIO_METAS = definirConsulta({
+  nome: 'core.calendario_metas@1',
+  entrada: z.object({}).strict(),
+  saida: CalendarioMetasSchema,
+  configuracaoDoTenant: true,
+});

@@ -64,7 +64,7 @@ describe('RF-CORE-01: login do app', () => {
 
   it('RF-CORE-01: rótulo do botão de olho alterna entre mostrar e ocultar', () => {
     expect(rotuloOlhoSenha(false)).toBe('Mostrar senha');
-    expect(rotuloOlhoSenha(true)).toBe('Ocultar senha');
+    expect(rotuloOlhoSenha(true)).toBe('Esconder senha');
   });
 });
 

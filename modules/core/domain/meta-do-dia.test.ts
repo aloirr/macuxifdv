@@ -166,7 +166,7 @@ describe('RN-CORE-26: resumo da meta de hoje no Início (T-0076)', () => {
   it('RN-CORE-26: faltam hoje = meta do dia − realizado de hoje, e o mês = realizado ÷ meta do mês', () => {
     // meta 30.000 | até ontem 12.000 | 18 dias → meta do dia 1.000,00 (ceil 18000/18); hoje 400
     const r = resumoMetaDeHoje(m({ realizado_hoje: 40_000 }));
-    expect(r).toEqual({ indicador: 'venda_cents', situacao: 'a_cumprir', realizado_hoje: 40_000, meta_dia: 100_000, faltam_hoje: 60_000, mes_pct: 4_000 + 133 });
+    expect(r).toEqual({ indicador: 'venda_cents', situacao: 'a_cumprir', realizado_hoje: 40_000, meta_dia: 100_000, faltam_hoje: 60_000, mes_pct: 4_000 + 133, faltam_mes: 3_000_000 - 1_240_000, por_dia_util: 97_778, dias_uteis_por_dia: 18 });
   });
   it('RN-CORE-26: dia batido não tem falta (zero) e o realizado de hoje entra no % do mês', () => {
     const r = resumoMetaDeHoje(m({ realizado_hoje: 150_000 }));
@@ -177,5 +177,27 @@ describe('RN-CORE-26: resumo da meta de hoje no Início (T-0076)', () => {
     expect(resumoMetaDeHoje(m({ realizado_ate_ontem: 3_000_000 })).faltam_hoje).toBe(0);
     expect(resumoMetaDeHoje(m({ hoje: '2026-11-15' })).faltam_hoje).toBeNull();
     expect(resumoMetaDeHoje({ ...m(), meta_mes: 0 }).mes_pct).toBeNull();
+  });
+  it('RD-0002 / RN-CORE-22/26: no dia não útil o resumo traz o que falta no mês e o valor por dia útil (mesma conta de Metas)', () => {
+    // domingo 15/11, seg–sáb: 13 dias úteis restantes; falta 3.000.000 − 1.255.300
+    const r = resumoMetaDeHoje(m({ hoje: '2026-11-15', realizado_hoje: 55_300 }));
+    expect(r.meta_dia).toBeNull();
+    expect(r.faltam_mes).toBe(3_000_000 - 1_255_300);
+    expect(r.dias_uteis_por_dia).toBe(13);
+    expect(r.por_dia_util).toBe(Math.ceil((3_000_000 - 1_255_300) / 13));
+  });
+  it('RD-0002: por_dia_util é null com o mês batido, sem meta, sem dias úteis e na cobertura', () => {
+    expect(resumoMetaDeHoje(m({ realizado_ate_ontem: 3_000_000 })).por_dia_util).toBeNull();
+    expect(resumoMetaDeHoje({ ...m(), meta_mes: 0 }).faltam_mes).toBeNull();
+    expect(resumoMetaDeHoje(m({ hoje: '2026-11-30', realizado_hoje: 0 })).por_dia_util).toBe(1_800_000);
+    expect(resumoMetaDeHoje(metaDoDia({ ...base, indicador: 'cobertura_pct', meta_mes: 8_000, realizado_ate_ontem: 4_000, hoje: '2026-11-10' })).por_dia_util).toBeNull();
+    expect(resumoMetaDeHoje({ ...m(), dias_uteis_restantes: 0 }).por_dia_util).toBeNull();
+  });
+  it('RN-CORE-26: com a lista de feriados do tenant informada, os feriados nacionais contam junto (2 e 15/11 caem fora)', () => {
+    const cal: CalendarioTenant = { dias_uteis_semana: [1, 2, 3, 4, 5, 6], feriados: ['2026-11-20'] };
+    expect(ehDiaUtil('2026-11-20', cal)).toBe(false); // consciência negra (nacional e do tenant)
+    expect(ehDiaUtil('2026-11-16', cal)).toBe(true);
+    expect(ehDiaUtil('2026-11-02', cal)).toBe(false); // Finados, nacional
+    expect(diasUteisRestantes('2026-11', '2026-11-10', cal)).toBe(diasUteisRestantes('2026-11', '2026-11-10', CALENDARIO_PADRAO) - 1);
   });
 });

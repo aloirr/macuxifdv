@@ -40,6 +40,6 @@ export function useInicio(): VisaoInicio | null {
   return useMemo(() => {
     const u = motor?.ambiente.usuario();
     if (!dados || !u) return null;
-    return montarInicio(dados.linhas, dados.copia, itensParaSobrepor(estado), { usuarioId: u.id, perfil: u.perfil ?? 'vendedor', fuso: fusoDe(core.estado.me, u.fuso), agora: new Date(), sincronizadoEm: estado.sincronizado_em, filaPendentes: estado.fila.length });
+    return montarInicio(dados.linhas, dados.copia, itensParaSobrepor(estado), { usuarioId: u.id, perfil: u.perfil ?? 'vendedor', fuso: fusoDe(core.estado.me, u.fuso), agora: new Date() });
   }, [dados, estado.fila, estado.aceitos, motor, core.estado.me]);
 }

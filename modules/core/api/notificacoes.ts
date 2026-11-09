@@ -33,6 +33,8 @@ import { auditar } from './auditoria';
 import { BASE, sqlDoPull, type Tabela } from './sync';
 
 const IdParam = z.object({ id: z.string().uuid() });
+import { JANELAS_CORE } from './janelas-sync';
+
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 const TABELA_NOTIFICACAO: Tabela = {
@@ -44,7 +46,7 @@ const TABELA_NOTIFICACAO: Tabela = {
   janela: "created_at >= now() - interval '30 days' and (expira_em is null or expira_em > now())",
 };
 
-export const entidadeNotificacao = definirEntidadeSync({ nome: 'notificacao', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: NotificacaoSyncSchema });
+export const entidadeNotificacao = definirEntidadeSync({ nome: 'notificacao', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: NotificacaoSyncSchema, naJanela: JANELAS_CORE.notificacao });
 /** Leitura: comando só de envio; ler duas vezes mantém a primeira hora (ADR 0009). */
 export const entidadeNotificacaoLeitura = definirEntidadeSync({ nome: 'notificacao_leitura', modulo: 'core', direcao: 'push', conflito: 'somente_insercao', schema: LeituraNotificacaoSchema });
 

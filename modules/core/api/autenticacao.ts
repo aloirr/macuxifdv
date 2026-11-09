@@ -239,7 +239,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
 
   async function comDadosDoTenant(ctx: ContextoPublico<unknown>, codigo: string, tenantId: string, sessao: Sessao): Promise<SessaoResposta> {
     // senha validada: agora sim os dados da empresa
-    const exib = await repos.publico(ctx.banco).tenantParaExibicao(codigo);
+    const exib = await repos.publico(ctx.banco).tenantParaExibicao(codigo, tenantId);
     if (!exib) throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
     ctx.log.info({ tenant_id: tenantId, usuario_id: sessao.usuario.id }, 'login');
     return { ...sessao, tenant: { id: exib.id, codigo: exib.codigo, nome: exib.nome, fuso: exib.fuso } };

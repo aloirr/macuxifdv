@@ -18,6 +18,8 @@ import {
   type ViolacaoLimite,
 } from '@macuxi/platform-sdk';
 
+import { CODIGO_REPETIDO, MENSAGEM_NOME_OBRIGATORIO, MENSAGEM_PERFIL_REPETIDO } from '../contracts/perfis';
+
 export const NOME_PERFIL_MAX = 40;
 export const DESCRICAO_PERFIL_MAX = 200;
 
@@ -30,7 +32,7 @@ export function codigoDoPerfil(nome: string): string {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
   const comLetra = /^[a-z]/.test(base) ? base : `p_${base}`;
-  const cortado = comLetra.slice(0, 40).replace(/_+$/, '');
+  const cortado = comLetra.slice(0, NOME_PERFIL_MAX).replace(/_+$/, '');
   return CODIGO_PERFIL_RE.test(cortado) ? cortado : 'perfil';
 }
 
@@ -42,13 +44,13 @@ export interface ErroDoPerfil {
 export function validarNomeDoPerfil(nome: string, descricao: string | null | undefined): ErroDoPerfil[] {
   const erros: ErroDoPerfil[] = [];
   const n = nome.trim();
-  if (n === '') erros.push({ campo: 'nome', mensagem: 'Dê um nome ao perfil.' });
+  if (n === '') erros.push({ campo: 'nome', mensagem: MENSAGEM_NOME_OBRIGATORIO });
   else if (n.length > NOME_PERFIL_MAX) erros.push({ campo: 'nome', mensagem: `O nome vai até ${NOME_PERFIL_MAX} caracteres.` });
   if ((descricao ?? '').length > DESCRICAO_PERFIL_MAX) erros.push({ campo: 'descricao', mensagem: `A descrição vai até ${DESCRICAO_PERFIL_MAX} caracteres.` });
   return erros;
 }
 
-const mesmosAlvos = (a?: readonly string[], b?: readonly string[]): boolean => {
+export const mesmosAlvos = (a?: readonly string[] | null, b?: readonly string[] | null): boolean => {
   const x = [...(a ?? [])].sort().join(',');
   const y = [...(b ?? [])].sort().join(',');
   return x === y;
@@ -76,11 +78,10 @@ export function sobreposicoesDoDesejado(base: Perfil, desejado: PermissoesDoPerf
 /** Textos da recusa (página, §7.2); os de trava e escopo vêm do SDK. */
 const MENSAGEM_DA_TELA: Readonly<Record<string, string>> = {
   ULTIMO_ADMIN: 'A empresa ficaria sem admin. Mantenha pelo menos um admin ativo que entre no BKO e gerencie usuários e perfis.',
-  AUTOGESTAO: 'Você não pode tirar de si mesmo a gestão de usuários e perfis. Peça a outro admin.',
   SENHA_ALVO_INVALIDO: 'Um dos perfis da redefinição de senha não existe mais ou é de admin. Revise a lista.',
   USUARIO_SEM_PERFIL: 'Este perfil é o único de alguns usuários. Dê outro perfil a eles antes de desativar.',
   PERFIL_INDISPONIVEL: 'Este perfil é o único de alguns usuários. Dê outro perfil a eles antes de desativar.',
-  CODIGO_REPETIDO: 'Já existe um perfil com este nome.',
+  [CODIGO_REPETIDO]: MENSAGEM_PERFIL_REPETIDO,
 };
 
 export type ViolacaoDePerfil = ViolacaoLimite;

@@ -106,7 +106,7 @@ export interface RepositorioTenant {
 /** Operações fora de tenant (só funções SECURITY DEFINER). */
 export interface RepositorioPublico {
   tenantPorCodigo(codigo: string): Promise<TenantLogin | null>;
-  tenantParaExibicao(codigo: string): Promise<TenantExibicao | null>;
+  tenantParaExibicao(codigo: string, tenantId: string): Promise<TenantExibicao | null>;
 }
 
 const data = (v: unknown): Date | null => (v === null || v === undefined ? null : v instanceof Date ? v : new Date(String(v)));
@@ -229,8 +229,9 @@ export function repositorioPublicoSql(banco: AcessoBanco): RepositorioPublico {
       const r = await banco.semTenant((db) => db.query<{ id: string; status: string }>('select id, status from plataforma.tenant_por_codigo($1)', [codigo]));
       return r.rows[0] ?? null;
     },
-    async tenantParaExibicao(codigo) {
-      const r = await banco.semTenant((db) => db.query<{ id: string; nome: string; fuso: string }>('select id, nome, fuso from plataforma.tenant_por_codigo($1)', [codigo]));
+    async tenantParaExibicao(codigo, tenantId) {
+      // 0052 (T-0122 N5): depois da senha validada, nome e fuso vêm do tenant DA SESSÃO (RLS), não de tenant_por_codigo
+      const r = await banco.comTenant(tenantId, (db) => db.query<{ id: string; nome: string; fuso: string }>('select id, nome, fuso from plataforma.tenant_da_sessao()'));
       const l = r.rows[0];
       return l ? { id: l.id, codigo, nome: l.nome, fuso: l.fuso } : null;
     },

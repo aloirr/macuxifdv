@@ -3,10 +3,11 @@
 import { Suspense, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ROTULO_PERFIL } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ERRO_SEM_PERFIL, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, textoOndeEntra } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, type UsuarioItem } from '../../../contracts';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ERRO_SEM_PERFIL, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
+import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type UsuarioItem } from '../../../contracts';
 import {
   acaoDeSenha,
   AJUDA_SENHA_INICIAL,
@@ -27,7 +28,6 @@ import {
   FORMULARIO_VAZIO,
   formularioDoUsuario,
   ondeEntraDosPerfis,
-  ROTULO_PERFIL,
   textoDoSuperiorDaEquipe,
   type FormularioUsuario,
 } from '../../lib/usuarios';
@@ -239,7 +239,7 @@ function UsuariosConteudo() {
           <option value="">Todos</option>
           {opcoesDePerfil.map((p) => (
             <option key={p.codigo} value={p.codigo}>
-              {p.nome}
+              {rotuloDoPerfil(p.codigo, { nome: p.nome })}
             </option>
           ))}
         </SelectField>
@@ -289,8 +289,8 @@ function UsuariosConteudo() {
                   <tr key={u.id} data-testid={`usuarios.linha.${u.id}`}>
                     <td className={td}>{u.nome}</td>
                     <td className={td}>{u.email}</td>
-                    <td className={td} title={u.perfis.map((p) => p.nome).join(', ')}>
-                      {u.perfis.length === 0 ? ROTULO_PERFIL[u.perfil] : u.perfis.length <= 2 ? u.perfis.map((p) => p.nome).join(', ') : `${u.perfis.slice(0, 2).map((p) => p.nome).join(', ')} +${u.perfis.length - 2}`}
+                    <td className={td} title={u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')}>
+                      {u.perfis.length === 0 ? ROTULO_PERFIL[u.perfil] : u.perfis.length <= 2 ? u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ') : `${u.perfis.slice(0, 2).map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')} +${u.perfis.length - 2}`}
                     </td>
                     <td className={td}>{u.equipe_nome ?? '—'}</td>
                     <td className={td}>{u.superior_nome ?? '—'}</td>
@@ -392,7 +392,7 @@ function UsuariosConteudo() {
               nome="usuario-perfis"
               legenda={ROTULO_CAMPO_PERFIS}
               ajuda={AJUDA_CAMPO_PERFIS}
-              opcoes={opcoesDePerfil.map((p) => ({ valor: p.codigo, rotulo: p.nome, detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`, selo: p.fabrica ? SELO_PADRAO : undefined }))}
+              opcoes={opcoesDePerfil.map((p) => ({ valor: p.codigo, rotulo: rotuloDoPerfil(p.codigo, { nome: p.nome }), detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`, selo: p.fabrica ? SELO_PADRAO : undefined }))}
               marcados={form.perfis}
               onChange={(valor) => upd({ perfis: alternarMarcado(form.perfis, valor, opcoesDePerfil.map((p) => p.codigo)) })}
               erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : null}
@@ -456,7 +456,7 @@ function UsuariosConteudo() {
                   {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
                 </button>
               </div>
-              <RegrasDaSenha id="usuarios-regras-senha" faltas={faltasDaSenhaDigitada(form.senha)} destacar={tentou && !!erroDe('senha')} />
+              <RegrasDaSenha id="usuarios-regras-senha" faltas={faltasDaSenhaDigitada(form.senha)} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltasDaSenhaDigitada(form.senha)) ?? undefined} destacar={tentou && !!erroDe('senha')} />
               <p className="m-0 text-[12px] text-ink-2" data-testid="usuarios.aviso-email">
                 {AJUDA_SENHA_INICIAL}
               </p>
@@ -556,7 +556,7 @@ function UsuariosConteudo() {
                     {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
                   </button>
                 </div>
-                <RegrasDaSenha id="usuarios-regras-senha-nova" faltas={faltasDaSenhaDigitada(novaSenha)} />
+                <RegrasDaSenha id="usuarios-regras-senha-nova" faltas={faltasDaSenhaDigitada(novaSenha)} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltasDaSenhaDigitada(novaSenha)) ?? undefined} />
               </>
             )}
             {erroApi && <Notice tone="danger">{erroApi}</Notice>}
