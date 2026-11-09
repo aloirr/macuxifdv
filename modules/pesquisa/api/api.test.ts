@@ -253,6 +253,13 @@ describe('RF-PES-03/04: sync — o aparelho baixa as publicadas e envia resposta
     expect((await amb.push(ctx(VENDEDOR, 'vendedor'), [{ ...item(e), operacao: 'remover' }]))[0]).toMatchObject({ status: 'rejeitado', codigo: 'SOMENTE_INSERCAO' });
   });
 
+  it('RF-PES-04: payload fora do schema é rejeitado com PAYLOAD_INVALIDO em português, sem código nem nome de campo', async () => {
+    const e = envio(uu(1));
+    const [r] = await amb.push(ctx(VENDEDOR, 'vendedor'), [{ entidade: 'resposta_pesquisa', id: e.id, operacao: 'upsert', payload: { id: e.id } }]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO', mensagem: expect.stringMatching(/^O servidor não aceitou os dados deste registro/) });
+    expect((r as { mensagem: string }).mensagem).not.toMatch(/Required|Invalid|expected/i);
+  });
+
   it('RF-PES-01: resposta sem a obrigatória é rejeitada com o código do domain', async () => {
     const pub = await publicarV1();
     const [r] = await amb.push(ctx(VENDEDOR, 'vendedor'), [item(envio(pub.versao.id, { itens: [{ pergunta_id: P2, tipo: 'unica', opcao_id: OP_A }] }))]);

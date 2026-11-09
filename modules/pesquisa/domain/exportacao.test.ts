@@ -71,7 +71,9 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     expect(celulaCsv('linha\nnova')).toBe('"linha\nnova"');
     expect(celulaCsv('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
     expect(celulaCsv('+55')).toBe("'+55");
-    expect(celulaCsv('-3')).toBe('-3');
+    expect(celulaCsv('-3')).toBe("'-3");
+    expect(celulaCsv('-1+1')).toBe("'-1+1");
+    expect(celulaCsv('=1+1')).toBe("'=1+1");
   });
 
   it('RF-PES-06: nome do arquivo com o dia no fuso do tenant e sem caracteres estranhos', () => {
