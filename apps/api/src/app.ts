@@ -82,6 +82,8 @@ import {
   type RotaPublica,
   type ServicosCore,
   type ServicoEmail,
+  type ServicoPacotes,
+  SERVICO_PACOTES_DESLIGADO,
   type LogRota,
   type AcessoPortalAutenticado,
   CABECALHO_TENANT_PLATAFORMA,
@@ -96,6 +98,7 @@ import type { BancoApp, BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
 import { criarLimitador } from './limitador';
+import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './sessao-web';
 import { registrarConector, ehRotaConector } from './conector';
 import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
 import { MODULOS_API } from './modulos';
@@ -138,6 +141,8 @@ export interface OpcoesApp {
    * Sem CORS e sem cookie, de propósito (T-0038, desenho §3): o BKO (inclusive em `https://bko-demo.macuxifdv.com.br`)
    * chama a API pelo proxy same-origin do Next (`/api-proxy`, pelo loopback), que repassa o `X-Forwarded-For` do túnel;
    * o app usa `Authorization: Bearer`. Nenhum navegador fala direto com a API, então nenhuma origem é liberada.
+   * Exceção do cookie (T-0117, ADR 0038): as rotas públicas com `cookieSessao` gravam o token de renovação do BKO em cookie
+   * httpOnly, que o rewrite repassa como cookie do host do BKO (`sessaoWeb` abaixo).
    */
   trustProxy?: FastifyServerOptions['trustProxy'];
   /** Versão devolvida em `GET /v1/saude` (padrão: `MACUXI_VERSAO` ou a versão do package.json da API). */
@@ -158,6 +163,11 @@ export interface OpcoesApp {
    * Padrão: desligada (`disponivel() = false`); o `servidor.ts` passa a fábrica da configuração (`MACUXI_SMTP_*`/`MACUXI_EMAIL_ARQUIVO_DIR`).
    */
   email?: ServicoEmail | ((log: LogRota) => ServicoEmail);
+  /**
+   * T-0098 (ADR 0037): pacotes para download por link temporário (`ctx.pacotes` nas rotas de módulo). Padrão: desligada
+   * (`linkDoUltimo` responde 503); o `servidor.ts` passa a fábrica do ambiente (`lerPacotesDoAmbiente`, só com S3).
+   */
+  pacotes?: ServicoPacotes | ((log: LogRota) => ServicoPacotes);
   /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
   plataforma?: FontePlataforma;
   /**
@@ -165,6 +175,11 @@ export interface OpcoesApp {
    * token de plataforma) responde 503 `PORTAL_INDISPONIVEL`; as rotas dos tenants seguem normais.
    */
   bancoPortal?: BancoPortal | null;
+  /**
+   * T-0117 (ADR 0038): cookie do token de renovação do BKO (`cookieSessao` das rotas públicas do Core). Padrão: seguro
+   * (`__Secure-macuxi_rt`, `Secure`); o `servidor.ts` lê `MACUXI_SESSAO_COOKIE_SEGURO` (`lerSessaoWeb`).
+   */
+  sessaoWeb?: OpcoesSessaoWeb;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -254,6 +269,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const bancoPortal = op.bancoPortal ?? null;
   const acessoPortal: AcessoBanco = bancoPortal ?? portalIndisponivel;
   const relogio = op.relogio ?? (() => new Date());
+  const sessaoWeb = op.sessaoWeb ?? SESSAO_WEB_PADRAO;
   const fonteLicencas = op.licencas ?? licencasDoBanco;
   const autenticar = op.autenticar ?? core?.servicos?.autenticar ?? (async () => null);
   const carteiraDe =
@@ -281,10 +297,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     reply.header('x-request-id', req.id);
   });
   // T-0094: a fábrica recebe o log do app (o `servidor.ts` monta a porta da configuração com ele)
-  const email: ServicoEmail =
-    typeof op.email === 'function'
-      ? op.email({ info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m), error: (o, m) => app.log.error(o, m) })
-      : (op.email ?? SERVICO_EMAIL_DESLIGADO);
+  const logDoApp: LogRota = { info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m), error: (o, m) => app.log.error(o, m) };
+  const email: ServicoEmail = typeof op.email === 'function' ? op.email(logDoApp) : (op.email ?? SERVICO_EMAIL_DESLIGADO);
+  // T-0098 (ADR 0037): a fábrica dos pacotes também recebe o log do app
+  const pacotes: ServicoPacotes = typeof op.pacotes === 'function' ? op.pacotes(logDoApp) : (op.pacotes ?? SERVICO_PACOTES_DESLIGADO);
 
   // T-0078: contagem por status (5xx) na janela; o `/v1/saude` e o log periódico do servidor leem daqui
   const metricas = op.metricas ?? criarMetricasApi({ relogio });
@@ -480,6 +496,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id, ...(doSA ? { super_admin: true } : doPortal ? { portal: true } : {}) }),
       ...(doSA ? { superAdmin: doSA.sa } : {}),
       email,
+      pacotes,
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
   };
@@ -544,7 +561,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   for (const m of modulos) {
     for (const rota of m.rotas ?? []) montarRota(app, plataforma, permissoes, m.manifesto, rota);
     for (const rota of m.rotasPublicas ?? [])
-      montarRotaPublica(app, m.manifesto.id, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota, email);
+      montarRotaPublica(app, m.manifesto.id, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota, email, sessaoWeb);
     // ADR 0013: rotas do Conector em /<modulo>/v1 (chave de API, licença do tenant da chave)
     if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco });
   }
@@ -662,7 +679,15 @@ const SEM_CABECALHOS = Object.freeze({});
  * `acesso` = `null`: rota do portal (`conexao: 'portal'`) sem o banco do portal → 503 antes de validar ou contar tentativa (T-0091).
  * Com `cache` (T-0092): sem cabeçalhos para a rota, banco sem tenant, `Cache-Control` público, ETag e 304 por `If-None-Match`.
  */
-function montarRotaPublica(app: FastifyInstance, modulo: ModuloId, acesso: AcessoBanco | null, relogio: () => Date, rota: RotaPublica, email: ServicoEmail): void {
+function montarRotaPublica(
+  app: FastifyInstance,
+  modulo: ModuloId,
+  acesso: AcessoBanco | null,
+  relogio: () => Date,
+  rota: RotaPublica,
+  email: ServicoEmail,
+  sessaoWeb: OpcoesSessaoWeb,
+): void {
   const limitador = criarLimitador(rota.limite.max, rota.limite.janelaMs, () => relogio().getTime());
   const url = caminhoDaRotaPublica(modulo, rota.caminho);
   const cache = rota.cache;
@@ -673,30 +698,44 @@ function montarRotaPublica(app: FastifyInstance, modulo: ModuloId, acesso: Acess
     url,
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       if (!acesso) semPortal();
-      const params = validar(rota.params, req.params, 'params');
-      const query = validar(rota.query, req.query, 'query');
-      const corpo = validar(rota.corpo, req.body, 'corpo');
-      const extra = rota.limite.chave?.({ corpo, query, params }) ?? '';
-      const chave = `${req.ip}|${String(extra).toLowerCase()}`;
-      if (!limitador.tentar(chave)) {
-        reply.header('retry-after', String(limitador.esperaSegundos(chave)));
-        throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
+      // T-0117: modo cookie do BKO (só rotas com `cookieSessao`); 403 CSRF_RECUSADO antes de validar ou contar tentativa
+      const web = prepararSessaoWeb(req, reply, rota.cookieSessao, sessaoWeb);
+      if (!web) return atender(req, reply, req.body, (r) => r);
+      try {
+        if (web.semCookie) return rota.status === 204 ? reply.code(204).send() : reply.code(rota.status ?? 200).send({});
+        return await atender(req, reply, web.corpo, (r) => web.aoSucesso(r));
+      } catch (e) {
+        web.aoErro(e);
+        throw e;
       }
-      const log = req.log.child({ modulo, request_id: req.id });
-      // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum
-      const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);
-      const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco, log, cabecalhos: cabecalhosRota, ...(cache ? {} : { email }) } as never);
-      if (cache) {
-        const documento = corpoDoDocumento(resultado);
-        const etag = etagDe(documento);
-        reply.header('cache-control', `public, max-age=${cache.maxAgeSegundos}`).header('etag', etag);
-        if (ifNoneMatchAtende(req.headers['if-none-match'], etag)) return reply.code(304).send();
-        reply.header('content-type', TIPO_DOCUMENTO_PUBLICO).header('x-content-type-options', 'nosniff');
-        return reply.code(200).send(documento);
-      }
-      const status = rota.status ?? 200;
-      if (status === 204) return reply.code(204).send();
-      return reply.code(status).send(resultado ?? {});
     },
   });
+
+  async function atender(req: FastifyRequest, reply: FastifyReply, corpoBruto: unknown, saida: (resultado: unknown) => unknown) {
+    const params = validar(rota.params, req.params, 'params');
+    const query = validar(rota.query, req.query, 'query');
+    const corpo = validar(rota.corpo, corpoBruto, 'corpo');
+    const extra = rota.limite.chave?.({ corpo, query, params }) ?? '';
+    const chave = `${req.ip}|${String(extra).toLowerCase()}`;
+    if (!limitador.tentar(chave)) {
+      reply.header('retry-after', String(limitador.esperaSegundos(chave)));
+      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
+    }
+    const log = req.log.child({ modulo, request_id: req.id });
+    // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum
+    const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);
+    const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco, log, cabecalhos: cabecalhosRota, ...(cache ? {} : { email }) } as never);
+    if (cache) {
+      const documento = corpoDoDocumento(resultado);
+      const etag = etagDe(documento);
+      reply.header('cache-control', `public, max-age=${cache.maxAgeSegundos}`).header('etag', etag);
+      if (ifNoneMatchAtende(req.headers['if-none-match'], etag)) return reply.code(304).send();
+      reply.header('content-type', TIPO_DOCUMENTO_PUBLICO).header('x-content-type-options', 'nosniff');
+      return reply.code(200).send(documento);
+    }
+    const corpoResposta = saida(resultado);
+    const status = rota.status ?? 200;
+    if (status === 204) return reply.code(204).send();
+    return reply.code(status).send(corpoResposta ?? {});
+  }
 }

@@ -39,9 +39,19 @@ O Alexandre pediu também uma decisão sobre sincronizar em segundo plano.
      (RN-CORE-15), nem sem sessão válida (se a renovação do token falhar, não faz nada e o app pede login na próxima abertura);
    - orçamento de tempo: 60 s. Passou disso, a tarefa termina; o que já foi gravado vale (cursor por página) e a próxima
      execução continua;
-   - exclusão mútua com o app aberto: a tarefa e a tela usam o mesmo motor quando o processo está vivo (chamadas simultâneas
-     recebem a mesma promessa); com o app fechado, o processo da tarefa é o único. Um registro `sync:lease` (dono + expira em
-     2 min) no armazenamento evita duas passadas se o sistema reabrir o app durante a tarefa;
+   - exclusão mútua com o app aberto: a tarefa e a tela rodam no **mesmo processo JS** (no Android o `expo-task-manager`
+     acorda a tarefa pelo `HeadlessAppLoader`, que sobe o React host do próprio app no processo do app; a tela aberta depois
+     reaproveita esse host). A **trava única do processo (`TravaSync`) é a única porta**: obrigatória em
+     `DepsTarefaSegundoPlano`; com ela segura por outra passada da tarefa o motivo é `em-andamento`, com o app abrindo ou
+     sincronizando é `app-ocupado`. A passada cortada pelo orçamento que não para na espera de 10 s fica com a trava até
+     parar, no máximo `LIMITE_DA_PASSADA_CORTADA_MS` (2 min); o app que espera (`segundoPlanoAtivo` → `esperarSegundoPlano`)
+     é liberado quando ela para. **Nada é persistido**: processo morto = trava nova e livre na volta, então não existe trava
+     órfã. Nenhum caminho do Sincronizar devolve `false` sem mensagem ao usuário (os únicos `false` sem `motor.erro()` são a
+     troca de usuário e a saída);
+     *Atualização 2026-11-09 (T-0140, RD-0033):* o registro `sync:lease` (dono + expira em 2 min) da versão original **saiu**.
+     Ele protegia contra duas passadas em processos diferentes, caso que o engenheiro-apps confirmou não existir
+     (R-20261109-081901); deixado órfão por um processo morto, segurava o Sincronizar calado por até 2 min. O `sync:lease`
+     gravado por APK anterior fica sem leitor, não atrapalha e some com `limparAparelho`;
    - sem notificação ao usuário; erros vão para o diagnóstico da tela de sincronização ("Última sincronização em segundo plano").
 4. **iOS** fica fora (a v1 é Android). O `expo-background-task` funciona lá com regras próprias do sistema; reavaliar quando
    houver build iOS.

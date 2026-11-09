@@ -322,10 +322,7 @@ export async function buscarUpdates({ token, offset = null, limite = 100, fetch:
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(corpo),
   });
-  if (!resposta.ok) {
-    const dica = resposta.status === 409 ? ' (o bot tem webhook ativo: getUpdates não funciona com webhook)' : '';
-    throw new Error(`Telegram respondeu HTTP ${resposta.status} no getUpdates${dica}`);
-  }
+  if (!resposta.ok) throw await erroDoTelegram(resposta, 'getUpdates', [token]);
   const json = await resposta.json();
   if (!json?.ok || !Array.isArray(json.result)) throw new Error('getUpdates sem resultado');
   return json.result;
@@ -360,21 +357,69 @@ export function montarResumo({ caixa = [], todos = [], quando = '', link = '', m
 }
 
 /**
- * Envia uma mensagem de texto puro ao Telegram. O token só vai na URL da API; nada dele aparece em erro ou log.
- * `fetch` injetável (testes). Erro → lança Error com o código HTTP, sem a URL.
+ * O que fazer, a partir do código HTTP e da `description` de erro da API do Telegram (texto fixo da API, sem
+ * segredo nem dado pessoal). Função pura. Causa da falha de 09/11 (runs 42594210632 e 42608108894): HTTP 403,
+ * ou seja, token válido (seria 401) e chat existente (seria 400), mas o bot proibido de escrever nesse chat.
  */
-export async function enviarTelegram(texto, { token, chatId, responderA = null, fetch: buscar = globalThis.fetch } = {}) {
+export function dicaDoTelegram(status, descricao = '') {
+  const d = String(descricao || '');
+  if (/blocked by the user/i.test(d)) return 'o bot está bloqueado no Telegram do dono do produto: desbloqueie o bot e mande /start a ele';
+  if (/can't initiate conversation/i.test(d)) return 'o dono do produto nunca falou com o bot: abra o bot no Telegram e mande /start';
+  if (/bots can't send messages to bots/i.test(d)) return 'TELEGRAM_CHAT_ID é o id de um bot: troque pelo id do chat do dono do produto (o "id" de "chat" no getUpdates, depois de mandar /start)';
+  if (/not a member|kicked|have no rights/i.test(d)) return 'o bot não está no grupo ou canal de TELEGRAM_CHAT_ID: adicione o bot de novo';
+  if (/user is deactivated/i.test(d)) return 'a conta do Telegram de TELEGRAM_CHAT_ID foi desativada';
+  if (/chat not found/i.test(d)) return 'TELEGRAM_CHAT_ID não existe para este bot: confira o id do chat (getUpdates depois de mandar /start)';
+  if (status === 401) return 'TELEGRAM_BOT_TOKEN inválido ou revogado: copie o token de novo no BotFather';
+  if (status === 403) return 'o bot não pode escrever em TELEGRAM_CHAT_ID: mande /start ao bot e confira se o id é o do seu chat com ele';
+  return '';
+}
+
+/** Error da API do Telegram: código, `description` e dica; nunca a URL (que tem o token) nem os valores dos secrets. */
+async function erroDoTelegram(resposta, metodo, segredos = []) {
+  let json = null;
+  try { json = await resposta.json(); } catch { /* corpo ausente ou não JSON */ }
+  let descricao = typeof json?.description === 'string' ? cortar(json.description, 200) : '';
+  for (const s of segredos) if (s) descricao = descricao.split(String(s)).join('***');
+  const dica = resposta.status === 409 && metodo === 'getUpdates'
+    ? 'o bot tem webhook ativo: getUpdates não funciona com webhook'
+    : dicaDoTelegram(resposta.status, descricao);
+  const erro = new Error(`Telegram respondeu HTTP ${resposta.status}${metodo === 'getUpdates' ? ' no getUpdates' : ''}${descricao ? ` (${descricao})` : ''}${dica ? ` — ${dica}` : ''}`);
+  erro.status = resposta.status;
+  erro.retryAfter = Number(json?.parameters?.retry_after) || 0;
+  return erro;
+}
+
+/**
+ * Envia uma mensagem de texto puro ao Telegram. O token só vai na URL da API; nada dele aparece em erro ou log.
+ * `fetch` e `esperar` injetáveis (testes). Erro → lança Error com o código HTTP, a `description` da API e a dica.
+ * HTTP 429 (limite da API): espera o retry_after (até 60 s) e tenta mais uma vez.
+ */
+export async function enviarTelegram(texto, {
+  token, chatId, responderA = null, fetch: buscar = globalThis.fetch,
+  esperar = (ms) => new Promise((ok) => setTimeout(ok, ms)),
+} = {}) {
   if (!token || !chatId) throw new Error('faltam os secrets TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID');
+  // O número antes de ":" no token é o id do próprio bot: com ele no chat_id o Telegram responde 403.
+  if (String(chatId).trim() === String(token).split(':')[0].trim()) {
+    throw new Error('TELEGRAM_CHAT_ID é o id do próprio bot (o número antes de ":" no token): troque pelo id do chat do dono do produto com o bot');
+  }
   const corpo = { chat_id: chatId, text: texto, disable_web_page_preview: true };
   // Resposta encadeada à mensagem do dono do produto; se ela tiver sido apagada, manda solta.
   if (responderA) corpo.reply_parameters = { message_id: responderA, allow_sending_without_reply: true };
-  const resposta = await buscar(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(corpo),
-  });
-  if (!resposta.ok) throw new Error(`Telegram respondeu HTTP ${resposta.status}`);
-  return true;
+  for (let tentativa = 1; ; tentativa++) {
+    const resposta = await buscar(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(corpo),
+    });
+    if (resposta.ok) return true;
+    const erro = await erroDoTelegram(resposta, 'sendMessage', [token, chatId]);
+    if (erro.status === 429 && tentativa === 1 && erro.retryAfter > 0 && erro.retryAfter <= 60) {
+      await esperar(erro.retryAfter * 1000);
+      continue;
+    }
+    throw erro;
+  }
 }
 
 /** Máscara do GitHub Actions para os secrets (::add-mask::), antes de qualquer saída. */

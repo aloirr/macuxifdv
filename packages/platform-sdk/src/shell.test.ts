@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
 import { matrizDeFabrica, perfilDeFabrica, resolverPerfil } from './permissoes-perfil';
-import { criarShell, definirModuloShell } from './shell';
+import { caminhoDoLinkInterno, criarShell, definirModuloShell, linkInternoNavegavel } from './shell';
 import { definirEntidadeSync } from './sync';
 
 const core = definirModuloShell({
@@ -92,5 +92,34 @@ describe('registro de telas dos módulos no shell', () => {
       /caminho clientes usado por core e por gestor.*"Painel" não está em apps\.web\.menus.*ação equipe\.ver não declarada/,
     );
     expect(() => definirModuloShell({ manifesto: core.manifesto, paginas: [{ id: 'a', caminho: '/a', titulo: 'A', componente: 1 }] })).toThrow(/sem barra/);
+  });
+});
+
+describe('link interno do app (RD-0032: fonte única para o Início do shell e a central do Core)', () => {
+  it('caminhoDoLinkInterno: só /m/<caminho>, sem query nem âncora', () => {
+    expect(caminhoDoLinkInterno('/m/cliente?id=1#x')).toBe('cliente');
+    expect(caminhoDoLinkInterno('/m/rota')).toBe('rota');
+    expect(caminhoDoLinkInterno('/m/pedidos/novo')).toBe('pedidos/novo');
+    expect(caminhoDoLinkInterno('/x/rota')).toBeNull();
+    expect(caminhoDoLinkInterno('/m/')).toBeNull();
+    expect(caminhoDoLinkInterno('/m/Rota')).toBeNull();
+    expect(caminhoDoLinkInterno('https://x.com/m/rota')).toBeNull();
+    expect(caminhoDoLinkInterno('')).toBeNull();
+    expect(caminhoDoLinkInterno(null)).toBeNull();
+    expect(caminhoDoLinkInterno(undefined)).toBeNull();
+  });
+
+  it('linkInternoNavegavel: devolve o link inteiro; null fora do padrão ou com tela inexistente na visão', () => {
+    expect(linkInternoNavegavel('/m/pedido?id=1')).toBe('/m/pedido?id=1');
+    expect(linkInternoNavegavel('https://x.com')).toBeNull();
+    expect(linkInternoNavegavel(null)).toBeNull();
+    const telas = new Set(['rota', 'clientes', 'notificacoes']);
+    const existe = (c: string) => telas.has(c);
+    // recado gravado com /m/core-rota (T-0140): a tela não existe, não navega
+    expect(linkInternoNavegavel('/m/core-rota', existe)).toBeNull();
+    expect(linkInternoNavegavel('/m/rota', existe)).toBe('/m/rota');
+    expect(linkInternoNavegavel('/m/rota?data=2026-11-08', existe)).toBe('/m/rota?data=2026-11-08');
+    // mais de um segmento não é tela do visao.pagina
+    expect(linkInternoNavegavel('/m/rota/hoje', existe)).toBeNull();
   });
 });

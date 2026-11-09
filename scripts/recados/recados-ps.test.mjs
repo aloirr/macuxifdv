@@ -1,4 +1,5 @@
-// Testes dos scripts PowerShell dos recados (ADR 0035, T-0139): sincronizar-recados.ps1, corte.ps1 e volta.ps1.
+// Testes dos scripts PowerShell dos recados (ADR 0035, T-0139): sincronizar-recados.ps1, corte.ps1, volta.ps1 e
+// agendar-sincronizacao.ps1.
 // Rodar (Windows, PowerShell 5.1): node --test scripts/recados/recados-ps.test.mjs
 // Fora do Windows (CI do GitHub em Ubuntu) os testes são pulados: os scripts são do PC do dono do produto.
 // Cada teste monta um "GitHub" local (repositório bare) e clones em pastas temporárias; nada toca C:\macuxifdv-recados.
@@ -195,6 +196,12 @@ function codigoComRecados(pai) {
   escrever(repo, '.coord/recados/anexos/figura.png', 'png\n');
   escrever(repo, '.coord/lidos/testes.txt', 'R-1\nR-2\n');
   escrever(repo, 'modules/core/a.ts');
+  // modelo do repositório de recados: o corte publica só .gitattributes e README.md. O .github (a resposta pelo Telegram
+  // aguarda a decisão do intervalo) não pode ir para o clone: sobraria fora do commit e travaria o passo 5.
+  escrever(repo, 'docs/desenho/T-0139-repo-recados/.gitattributes', ATRIBUTOS);
+  escrever(repo, 'docs/desenho/T-0139-repo-recados/README.md', '# modelo do README\n');
+  escrever(repo, 'docs/desenho/T-0139-repo-recados/.github/workflows/telegram-recado.yml');
+  escrever(repo, 'docs/desenho/T-0139-repo-recados/.github/scripts/telegram-recado.mjs');
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'inicial');
   mkdirSync(join(repo, 'scripts', 'recados'), { recursive: true });
@@ -218,7 +225,8 @@ test('corte: simulação não muda nada; corte migra, cria as junções, tira do
   const clone = join(pai, 'macuxifdv-recados');
   const backup = join(pai, 'backup');
   const corte = join(repo, 'scripts', 'recados', 'corte.ps1');
-  const base = ['-Remoto', remoto, '-Clone', clone, '-Repo', repo, '-Backup', backup, '-IgnorarProcessos'];
+  // sem -Repo: a raiz sai da pasta do script (no PowerShell 5.1 com -File, $PSScriptRoot chega vazio no param())
+  const base = ['-Remoto', remoto, '-Clone', clone, '-Backup', backup, '-IgnorarProcessos'];
 
   const sim = rodarPs(corte, [...base, '-Simular']);
   assert.equal(sim.codigo, 0, sim.saida);
@@ -236,6 +244,9 @@ test('corte: simulação não muda nada; corte migra, cria as junções, tira do
   assert.deepEqual(noGit, ['.gitattributes', 'README.md', 'lidos/testes.txt', 'recados/anexos/figura.png',
     'recados/gerente-projetos/R-20261101-000001-testes.md', 'recados/testes/R-20261101-000000-modulo-core.md', 'recados/testes/R-20261108-090000-modulo-core.md']);
   assert.match(noRemoto(remoto, '.gitattributes'), /^lidos\/\*\.txt .*merge=union$/m);
+  assert.equal(noRemoto(remoto, 'README.md'), '# modelo do README\n', 'README vem do modelo');
+  assert.equal(git(clone, 'status', '--porcelain', '--untracked-files=all').trim(), '', 'clone sem sobra fora do commit');
+  assert.equal(existsSync(join(clone, '.github')), false, 'o .github do modelo não vai para o clone pelo corte');
   assert.match(execFileSync('git', ['--git-dir', remoto, 'log', '-1', '--format=%s', 'main'], { encoding: 'utf8' }), /^recados: migracao de macuxifdv@[0-9a-f]+ \(T-0139, ADR 0035\)/);
   // repositório de código: índice sem as pastas, marca no .gitignore, nada não rastreado, backup fora do repo
   assert.equal(git(repo, 'ls-files', '--', '.coord/recados', '.coord/lidos').trim(), '');
@@ -252,7 +263,12 @@ test('corte: simulação não muda nada; corte migra, cria as junções, tira do
   assert.match(de_novo.saida, /corte ja foi feito/);
 
   // volta: pastas de verdade com tudo (inclusive o recado novo, que ainda nem tinha subido), marca fora do .gitignore
-  const volta = rodarPs(join(repo, 'scripts', 'recados', 'volta.ps1'), ['-Clone', clone, '-Repo', repo, '-IgnorarProcessos', '-ManterAgendamento']);
+  const voltaSim = rodarPs(join(repo, 'scripts', 'recados', 'volta.ps1'), ['-Clone', clone, '-IgnorarProcessos', '-ManterAgendamento', '-SemSincronizar', '-Simular']);
+  assert.equal(voltaSim.codigo, 0, voltaSim.saida);
+  assert.match(voltaSim.saida, /\[simulacao\] remover a juncao/);
+  for (const p of ['recados', 'lidos']) assert.ok(ehJuncao(join(repo, '.coord', p)), 'a volta simulada não muda nada');
+  assert.doesNotMatch(git(repo, 'diff', '--cached', '--name-status', '--', '.coord/recados'), /^A\t/m);
+  const volta = rodarPs(join(repo, 'scripts', 'recados', 'volta.ps1'), ['-Clone', clone, '-IgnorarProcessos', '-ManterAgendamento']);
   assert.equal(volta.codigo, 0, volta.saida);
   for (const p of ['recados', 'lidos']) assert.equal(ehJuncao(join(repo, '.coord', p)), false);
   assert.ok(existsSync(join(repo, '.coord', 'recados', 'testes', 'R-20261108-140000-modulo-core.md')));
@@ -280,4 +296,85 @@ test('corte: recado com o mesmo nome e conteúdo diferente no clone para o corte
   assert.equal(ehJuncao(join(repo, '.coord', 'recados')), false);
   assert.ok(readdirSync(join(repo, '.coord', 'recados')).length > 0);
   assert.equal(readFileSync(join(clone, 'recados/testes/R-20261101-000000-modulo-core.md'), 'utf8'), 'outro conteúdo\n');
+});
+
+// ───────────────────────── agendamento ─────────────────────────
+
+const AGENDAR = join(AQUI, 'agendar-sincronizacao.ps1');
+
+test('agendar: -Simular sem -Repo roda no PowerShell 5.1, mostra a ação e não cadastra nada', { skip: pular }, () => {
+  const r = rodarPs(AGENDAR, ['-Simular']);
+  assert.equal(r.codigo, 0, r.saida);
+  assert.match(r.saida, /acao: conhost\.exe --headless powershell\.exe .*-File "[^"]+\\scripts\\sincronizar-recados\.ps1" -Origem agendador/);
+  assert.match(r.saida, /\[simulacao\] cadastrar \\Macuxi\\Sincronizar recados a cada 2 min/);
+});
+
+/**
+ * Variáveis usadas nos blocos passados a "Fazer" (comum.ps1) com o nome de um parâmetro dela: o bloco roda dentro da
+ * função, então o parâmetro encobre a variável do script (sem diferença de maiúsculas). Foi o defeito do $acao no
+ * agendar-sincronizacao.ps1 ("ScriptBlock no tipo CimInstance[]"), que o -Simular não pega porque não roda o bloco.
+ */
+function colisoesComFazer(arquivos) {
+  const pai = tmp('recados-ast-');
+  const analisador = join(pai, 'colisoes.ps1');
+  writeFileSync(analisador, [
+    'param([string]$Comum, [string]$Lista)',
+    '$Arquivos = $Lista -split [regex]::Escape("|")',
+    '$erros = $null; $tokens = $null',
+    '$ast = [System.Management.Automation.Language.Parser]::ParseFile($Comum, [ref]$tokens, [ref]$erros)',
+    '$fazer = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq "Fazer" }, $true)',
+    '$params = @($fazer.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath.ToLowerInvariant() })',
+    'if ($params.Count -lt 2) { Write-Output "ERRO: Fazer sem parametros em $Comum"; exit 1 }',
+    'foreach ($f in $Arquivos) {',
+    '  $a = [System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$tokens, [ref]$erros)',
+    '  if ($erros) { Write-Output ("ERRO de sintaxe em {0}: {1}" -f $f, $erros[0].Message); continue }',
+    '  $chamadas = $a.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq "Fazer" }, $true)',
+    '  foreach ($c in $chamadas) {',
+    '    foreach ($b in @($c.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.ScriptBlockExpressionAst] })) {',
+    '      foreach ($v in $b.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true)) {',
+    '        if ($params -contains $v.VariablePath.UserPath.ToLowerInvariant()) { Write-Output ((Split-Path -Leaf $f) + ":" + $v.Extent.StartLineNumber + ": " + $v.Extent.Text) }',
+    '      }',
+    '    }',
+    '  }',
+    '}',
+  ].join('\r\n'));
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', analisador, '-Comum', join(AQUI, 'comum.ps1'), '-Lista', arquivos.join('|')], { encoding: 'utf8', timeout: 60_000 });
+  assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+  return r.stdout.split(/\r?\n/).filter(Boolean);
+}
+
+test('agendar e demais scripts: nenhum bloco de "Fazer" usa variável com o nome de um parâmetro dela ($Descricao, $Acao)', { skip: pular }, () => {
+  const scripts = [...readdirSync(AQUI).filter((f) => f.endsWith('.ps1')).map((f) => join(AQUI, f)), SINCRONIZAR];
+  assert.deepEqual(colisoesComFazer(scripts), []);
+  // controle: o analisador acusa o defeito original
+  const ruim = join(tmp('recados-ast-ruim-'), 'ruim.ps1');
+  writeFileSync(ruim, "$acao = 1\r\nFazer 'cadastrar' { Register-ScheduledTask -Action $acao }\r\n");
+  assert.deepEqual(colisoesComFazer([ruim]), ['ruim.ps1:2: $acao']);
+});
+
+test('agendar: cadastro de verdade com nome de teste (repo de mentira) leva a ação certa ao Agendador; -Remover tira', { skip: pular }, () => {
+  const pai = tmp('recados-agendar-');
+  const repo = join(pai, 'macuxifdv');
+  mkdirSync(join(repo, 'scripts', 'recados'), { recursive: true });
+  for (const f of ['agendar-sincronizacao.ps1', 'comum.ps1']) copyFileSync(join(AQUI, f), join(repo, 'scripts', 'recados', f));
+  escrever(repo, 'scripts/sincronizar-recados.ps1', 'exit 0\r\n'); // a tarefa de teste, se chegar a disparar, não faz nada
+  const script = join(repo, 'scripts', 'recados', 'agendar-sincronizacao.ps1');
+  const nome = `Teste T-0139 ${process.pid}`;
+  const consultar = () => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `$t = Get-ScheduledTask -TaskPath '\\Macuxi\\' -TaskName '${nome}' -ErrorAction SilentlyContinue; if ($t) { $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments }`,
+  ], { encoding: 'utf8' }).stdout.trim();
+  try {
+    const r = rodarPs(script, ['-Nome', nome]); // sem -Repo: a raiz sai da pasta do script
+    assert.equal(r.codigo, 0, r.saida);
+    assert.match(r.saida, /tarefa cadastrada/);
+    const acao = consultar();
+    assert.ok(acao.startsWith('conhost.exe --headless powershell.exe '), acao);
+    assert.ok(acao.toLowerCase().includes(`-file "${join(repo, 'scripts', 'sincronizar-recados.ps1')}"`.toLowerCase()), acao);
+    const rm = rodarPs(script, ['-Nome', nome, '-Remover']);
+    assert.equal(rm.codigo, 0, rm.saida);
+    assert.equal(consultar(), '');
+  } finally {
+    spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `Unregister-ScheduledTask -TaskPath '\\Macuxi\\' -TaskName '${nome}' -Confirm:$false -ErrorAction SilentlyContinue`]);
+  }
 });

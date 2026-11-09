@@ -103,6 +103,39 @@ describe('push idempotente por UUID do aparelho', () => {
     expect(inval.rejeitados[0]).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
   });
 
+  it('PAYLOAD_INVALIDO chega à tela em português, sem código nem nome de campo; a mensagem do contrato é mantida', () => {
+    const r = criarRegistroSync(manifestos);
+    r.registrar(
+      definirEntidadeSync({
+        nome: 'visita',
+        modulo: 'core',
+        direcao: 'ambos',
+        conflito: 'somente_insercao',
+        schema: z.object({
+          cliente_id: z.string().uuid(),
+          data: z.string().refine((d) => d.startsWith('2026'), 'Data fora do ano da campanha.'),
+          nota: z.number().int().max(10),
+          tipo: z.enum(['a', 'b']),
+          obs: z.string({ required_error: 'Escreva a observação' }),
+        }),
+      }),
+    );
+    const enviar = (payload: unknown) => {
+      const x = rejeitarItensInvalidos(PushRequestSchema.parse({ itens: [{ entidade: 'visita', id: U1, payload }] }), r, ['core']).rejeitados[0]!;
+      expect(x).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
+      return x.status === 'rejeitado' ? x.mensagem : '';
+    };
+    // tudo faltando: o padrão do Zod ("Required") vira português, sem repetir; o required_error do contrato fica
+    expect(enviar({})).toBe('O servidor não aceitou os dados deste registro: falta um dado obrigatório; Escreva a observação.');
+    const m = enviar({ cliente_id: 'x', data: '2025-01-01', nota: 11.5, tipo: 'c', obs: 'ok' });
+    expect(m).toBe(
+      'O servidor não aceitou os dados deste registro: há um texto no formato errado; Data fora do ano da campanha; há um número que precisa ser inteiro e mais 2.',
+    );
+    for (const texto of [enviar({}), m]) {
+      expect(texto).not.toMatch(/Required|Invalid|Expected|received|PAYLOAD_INVALIDO|cliente_id|nota|tipo/);
+    }
+  });
+
   it('D-1 / RN-CORE-02: entidade do manifesto de módulo inativo volta MODULO_INATIVO mesmo sem definição registrada', () => {
     const r = registro();
     expect(r.dono('checklist_loja')).toBe('promotor');

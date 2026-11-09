@@ -37,6 +37,13 @@ O formato do recado é o do `node scripts/coord.mjs enviar` (doc 07, "Protocolo 
 
 Nenhum segredo fica em arquivo. Os workflows mascaram os dois valores no log.
 
+**Telegram falhou?** O log da execução traz o código, a mensagem do Telegram e o que fazer, por exemplo `HTTP 403 (Forbidden: bot can't initiate conversation with a user) — ... mande /start`.
+- **403:** o bot não pode escrever no chat. Mande `/start` ao bot (e desbloqueie, se estiver bloqueado). Confira o `TELEGRAM_CHAT_ID`: não é o número antes de `:` no token, que é o id do próprio bot.
+- **Para achar o id do seu chat:** mande `/start` ao bot e abra no navegador `https://api.telegram.org/bot<TOKEN>/getUpdates`. Use o número de `"chat":{"id":...}`. Não cole esse endereço em recado nem em issue, porque ele leva o token.
+- **401:** token inválido ou revogado. Copie de novo no BotFather.
+- **Teste:** **Actions → resumo de hora em hora → Run workflow**. Ele envia o que estiver pendente desde o último resumo que deu certo.
+- Carga em lote (mais de 10 recados novos num push só, como na migração): o aviso manda uma mensagem só, com o total e o link da caixa.
+
 ## Regras
 
 - Não edite nem apague recado: responda com um recado novo.

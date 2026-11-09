@@ -784,6 +784,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     http: ambiente.http,
     online,
     novoId: () => ambiente.novoId(),
+    posicaoAgora: () => ambiente.posicaoAgora(),
     usuario: () => ambiente.usuario(),
     consultar: ambiente.consultar,
     parametros: ambiente.parametros,

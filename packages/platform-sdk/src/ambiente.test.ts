@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { ambienteIndisponivel, criarClienteHttp, ehErroDeCliente, ehSemConexao, ErroHttp, ErroSemConexao, type AmbienteAparelho, type MetodoHttp, type OpcoesHttp } from './ambiente';
+import { ambienteIndisponivel, criarClienteHttp, ehErroDeCliente, ehSemConexao, ErroHttp, ErroSemConexao, semPosicao, type AmbienteAparelho, type MetodoHttp, type OpcoesHttp, type PosicaoDoAparelho } from './ambiente';
+import { completarAmbiente } from './consultas';
 import { defineModule } from './manifesto';
 import { criarArmazenamentoEmMemoria, criarMotorSync, type ContextoEtapaSync } from './motor-sync';
 import { criarServidorSyncSimulado } from './sync-simulado';
@@ -111,5 +112,37 @@ describe('ambiente do aparelho (ctx.http)', () => {
     await motor.aplicarModulosAtivos(['core']);
     expect(await motor.sincronizar()).toBe(false);
     expect(motor.estado().erro).toMatch(/ainda não está conectado/);
+  });
+});
+
+describe('posicaoAgora (GPS do aparelho em fonte única, RD-0046)', () => {
+  const POSICAO: PosicaoDoAparelho = { lat: 2.8235, lng: -60.6758, precisao_m: 12, lida_em: '2026-11-09T15:00:00.000Z' };
+
+  it('ambiente padrão (antes do login, testes, navegador) devolve null', async () => {
+    await expect(ambienteIndisponivel().posicaoAgora?.()).resolves.toBeNull();
+    await expect(semPosicao()).resolves.toBeNull();
+  });
+
+  it('shell sem GPS: o módulo recebe posicaoAgora() sempre presente e null; shell com GPS: a posição dele', async () => {
+    const semGps: AmbienteAparelho = { http: criarClienteHttp(transporteGravando().requisitar), online: () => true, novoId: () => 'x', usuario: () => null };
+    await expect(completarAmbiente(semGps).posicaoAgora()).resolves.toBeNull();
+    await expect(completarAmbiente({ ...semGps, posicaoAgora: async () => POSICAO }).posicaoAgora()).resolves.toEqual(POSICAO);
+  });
+
+  it('chega ao ctx das etapas e ao motor.ambiente (telas) como o novoId', async () => {
+    const manifestos = [defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'] })];
+    const registro = criarRegistroSync(manifestos);
+    let lida: PosicaoDoAparelho | null | undefined;
+    const motor = criarMotorSync({
+      registro,
+      armazenamento: criarArmazenamentoEmMemoria(),
+      transporte: criarServidorSyncSimulado(registro, { modulosAtivos: ['core'] }),
+      ambiente: { ...ambienteIndisponivel(), online: () => true, posicaoAgora: async () => POSICAO },
+      etapas: [{ id: 'gps', rotulo: 'GPS', modulo: 'core', executar: async (ctx) => void (lida = await ctx.posicaoAgora()) }],
+    });
+    await motor.aplicarModulosAtivos(['core']);
+    expect(await motor.sincronizar()).toBe(true);
+    expect(lida).toEqual(POSICAO);
+    await expect(motor.ambiente.posicaoAgora()).resolves.toEqual(POSICAO);
   });
 });
