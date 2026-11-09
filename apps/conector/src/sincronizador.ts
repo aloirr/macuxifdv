@@ -121,6 +121,12 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   // carga completa: toda linha inválida vai ao Hub com o external_id, qualquer que seja `linhasInvalidas` (RN-INT-06, T-0027 🔴)
   const m = mapearEValidar(entidade, cfg, pagina, estado.lido, { enviarInvalidas: completo });
   const motivoSemAvanco = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
+  if (m.ordemDivergente > 0) {
+    // T-0099 (R-20261107-111409 🟡 1b): linha "repetida" com external_id menor que o do cursor no mesmo alterado_em = colação não binária
+    const aviso = `Ordem do external_id divergente: ${m.exemploOrdemDivergente}. Linhas podem estar sendo perdidas; use colação binária na consulta (conector testar-conexao mostra como, conector.md §5).`;
+    log.aviso('ordem_divergente', { entidade, repetidas: m.ordemDivergente, dica: aviso });
+    store.atualizarEstado(entidade, { aviso });
+  }
   if (m.repetidas === pagina.length) {
     // sem mais páginas: só linhas já lidas (precisão de alterado_em), sem novidade. Com mais páginas: a próxima leitura
     // devolveria a mesma página para sempre; bloqueia com a causa visível em vez de parar em silêncio.

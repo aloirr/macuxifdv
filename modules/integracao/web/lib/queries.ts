@@ -14,7 +14,7 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ, intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
-import { DecidirInativacaoResposta, ErrosLoteResposta, MonitorResumo, type DecidirInativacaoEntrada, type LinhaErro } from '../../contracts';
+import { DecidirInativacaoResposta, ErrosLoteResposta, GravarMapeamentoResposta, MapeamentosResposta, MonitorResumo, type DecidirInativacaoEntrada, type LinhaErro, type Mapeamento } from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
 
 /**
@@ -28,13 +28,17 @@ export const CSV_ERROS_MAX = 20_000;
 
 export const qk = {
   monitor: ['integracao', 'monitor'] as const,
+  mapeamentos: ['integracao', 'mapeamentos'] as const,
   erros: (loteId: string, codigo: string) => ['integracao', 'lote', loteId, 'erros', codigo] as const,
 };
 
 const relogio = relogioReal();
 
 /** "Agora" da tela, renovado no intervalo do tenant (o tempo desde o último sinal anda sem recarregar). */
-export function useAgora(intervaloMs = useIntervaloSyncAutoMs()): Date {
+export function useAgora(intervaloInformadoMs?: number): Date {
+  // T-0140: o hook roda SEMPRE (antes ficava no valor padrão do parâmetro, que o React vê como chamada condicional)
+  const intervaloDoTenantMs = useIntervaloSyncAutoMs();
+  const intervaloMs = intervaloInformadoMs ?? intervaloDoTenantMs;
   const [agora, setAgora] = useState(() => relogio.agora());
   useEffect(() => {
     // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
@@ -122,5 +126,35 @@ export function useDecidirInativacao() {
     mutationFn: async ({ id, entrada }: { id: string; entrada: DecidirInativacaoEntrada }) =>
       DecidirInativacaoResposta.parse(await api<unknown>(`/integracao/inativacoes/${encodeURIComponent(id)}/decidir`, { method: 'POST', body: entrada })),
     onSettled: () => qc.invalidateQueries({ queryKey: qk.monitor }),
+  });
+}
+
+/** De-para de códigos (T-0120): lista e condições do Macuxi sem correspondente. */
+export function useMapeamentos() {
+  const enabled = useAutenticado();
+  return useQuery({
+    queryKey: qk.mapeamentos,
+    queryFn: async ({ signal }) => MapeamentosResposta.parse(await api<unknown>('/integracao/mapeamentos', { signal })),
+    enabled,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Grava (cria ou atualiza pelo código do ERP) e libera os pedidos retidos que passam a montar. */
+export function useGravarMapeamento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entrada: Mapeamento) => GravarMapeamentoResposta.parse(await api<unknown>('/integracao/mapeamentos', { method: 'PUT', body: entrada })),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: qk.mapeamentos }), qc.invalidateQueries({ queryKey: qk.monitor })]),
+  });
+}
+
+export function useApagarMapeamento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api<unknown>(`/integracao/mapeamentos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: qk.mapeamentos }), qc.invalidateQueries({ queryKey: qk.monitor })]),
   });
 }

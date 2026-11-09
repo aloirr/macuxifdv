@@ -27,7 +27,7 @@
     "cliente": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT external_id, alterado_em, ativo, razao_social, limite_credito_cents, bloqueado, prazo_medio_max_dias, formas_pagamento FROM macuxi.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "consulta": "SELECT external_id, alterado_em, ativo, razao_social, limite_credito_cents, bloqueado, prazo_medio_max_dias, formas_pagamento, tabela_preco_external_id, canal FROM macuxi.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -53,7 +53,9 @@
           "coluna": "formas_pagamento",
           "transformar": "json",
           "nulo": "limpa"
-        }
+        },
+        "tabela_preco_external_id": "tabela_preco_external_id",
+        "canal": "canal"
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_cliente WHERE ativo = 1"

@@ -14,8 +14,9 @@
 import { definirConsumidor, eventoTolerante, type ContextoConsumo } from '@macuxi/platform-sdk';
 // T-0024: a definição é do dono (Vendedor); leitura tolerante, sem espelho do payload
 import { EVENTO_PEDIDO_APROVADO, EVENTO_PEDIDO_CANCELADO, EVENTO_PEDIDO_STATUS_ALTERADO, type PedidoAprovadoEvento, type PedidoCanceladoEvento, type PedidoStatusAlteradoEvento } from '../../vendedor/contracts';
-import { decidirCancelamento, decidirEntradaNaFila, erpAceitaCancelamento, exigeConector, montarSnapshotParaFila, type ConectorParaAceite, type Mapeamento, type PedidoNaFila, type PedidoParaCancelar } from '../domain';
+import { decidirCancelamento, decidirEntradaNaFila, exigeConector, montarSnapshotParaFila, type Mapeamento, type PedidoNaFila, type PedidoParaCancelar } from '../domain';
 import { naFila, type LinhaFila } from './rotas-pedidos';
+import { aceiteDoTenant } from './aceite-cancelamento';
 
 
 async function lerFila(ctx: ContextoConsumo, pedidoUuid: string): Promise<PedidoNaFila | null> {
@@ -141,9 +142,9 @@ export async function tratarCancelamento(p: Pick<PedidoCanceladoEvento, 'pedido_
     [tenantId, p.pedido_id],
   );
   const existente = rows[0] ? paraCancelar(rows[0]) : null;
-  // a mesma regra da consulta integracao.cancelamento_erp@1: Conector ativo que recebe pedidos e aceita cancelamento
-  const { rows: cfg } = await ctx.db.query<ConectorParaAceite>('select ativo, recebe_pedidos, aceita_cancelamento from integracao.conector where tenant_id = $1 and deleted_at is null', [tenantId]);
-  const d = decidirCancelamento({ existente, aceitaCancelamento: erpAceitaCancelamento(cfg), motivo: p.motivo });
+  // a mesma leitura da consulta integracao.cancelamento_erp@1 (RD-0027)
+  const aceita = await aceiteDoTenant(ctx.db, tenantId);
+  const d = decidirCancelamento({ existente, aceitaCancelamento: aceita, motivo: p.motivo });
   if (d.acao === 'remover_da_fila') {
     await ctx.db.query('update integracao.pedido_fila_erp set deleted_at = now() where tenant_id = $1 and pedido_uuid = $2', [tenantId, p.pedido_id]);
   } else if (d.acao === 'solicitar_ao_erp') {

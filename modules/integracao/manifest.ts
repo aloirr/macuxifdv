@@ -5,7 +5,7 @@ export const manifest = defineModule({
   versao: '0.7.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
-  apps: { web: { menus: ['Integração ERP'] }, conector: {} },
+  apps: { web: { menus: ['Integração ERP', 'Carga por arquivo'] }, conector: {} },
   publica: [
     'integracao.cliente.atualizado@1',
     'integracao.produto.atualizado@1',
@@ -38,7 +38,7 @@ export const manifest = defineModule({
   // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
   ofereceConsultas: ['integracao.cancelamento_erp@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
-  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1'],
+  consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1'],
   // T-0025: ações do BKO (ADR 0004). As rotas do Hub para o Conector (`/integracao/v1`) NÃO usam perfil: autenticam por chave de
   // API do Conector (RN-INT-10) e o escopo é fixo `integracao.v1`. P-3 (T-0031): Conector, chave de API e política de versão só
   // admin; confirmar/recusar a inativação em massa admin ou analista, com auditoria; carga por arquivo admin ou analista. A mesma tabela está em domain/permissoes.ts.

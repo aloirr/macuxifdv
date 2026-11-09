@@ -48,6 +48,28 @@ describe('mapeamento coluna → campo do contrato', () => {
     expect(JSON.stringify(r.problemas)).not.toMatch(/Padaria|12\.345/);
   });
 
+  it('RN-INT-05: linha repetida com external_id MENOR que o do cursor no mesmo alterado_em conta como ordem_divergente (colação do banco)', () => {
+    const t = new Date('2026-01-01T00:00:00Z');
+    const cursor = { alterado_em: t.toISOString(), external_id: 'b' };
+    const r = mapearEValidar('cliente', cfgCliente(), [{ external_id: 'B', alterado_em: t, razao_social: 'x', bloqueado: false }], cursor);
+    expect(r.repetidas).toBe(1);
+    expect(r.ordemDivergente).toBe(1);
+    expect(r.exemploOrdemDivergente).toContain('"B"');
+  });
+
+  it('RN-INT-05: repetida pela precisão do alterado_em (mesmo par) ou de instante anterior não é ordem_divergente', () => {
+    const t = new Date('2026-01-01T00:00:00Z');
+    const cursor = { alterado_em: t.toISOString(), external_id: 'b' };
+    const linhas = [
+      { external_id: 'b', alterado_em: t, razao_social: 'x', bloqueado: false },
+      { external_id: 'a', alterado_em: new Date('2025-12-31T00:00:00Z'), razao_social: 'x', bloqueado: false },
+    ];
+    const r = mapearEValidar('cliente', cfgCliente(), linhas, cursor);
+    expect(r.repetidas).toBe(2);
+    expect(r.ordemDivergente).toBe(0);
+    expect(r.exemploOrdemDivergente).toBeNull();
+  });
+
   it('RN-INT-03: linha inválida vai ao Hub COM o motivo (em linhas_invalidas, não em registros); com linhasInvalidas=descartar fica só no log local', () => {
     const linhas = [{ external_id: 'c2', alterado_em: new Date('2026-01-01T00:00:01Z'), razao_social: null }];
     const enviar = mapearEValidar('cliente', cfgCliente(), linhas);

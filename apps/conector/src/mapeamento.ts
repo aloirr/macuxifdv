@@ -256,6 +256,13 @@ export interface ResultadoMapeamento {
   invalidas: number;
   /** Linhas já lidas antes (par não maior que o cursor de leitura): ignoradas. */
   repetidas: number;
+  /**
+   * T-0099: das repetidas, as de MESMO `alterado_em` do cursor e `external_id` MENOR que o dele na ordem binária. O banco as
+   * devolveu como "maiores" que o cursor: a colação do `external_id` na consulta não é binária e linhas podem estar sendo perdidas.
+   * Exemplo (primeira ocorrência) em `exemploOrdemDivergente`, sem valores além dos dois external_id.
+   */
+  ordemDivergente: number;
+  exemploOrdemDivergente: string | null;
 }
 
 /** Melhor esforço para identificar a linha cujo mapeamento falhou (ex.: JSON inválido em outra coluna): só a coluna do external_id. */
@@ -289,6 +296,8 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
   let descartadas = 0;
   let invalidas = 0;
   let repetidas = 0;
+  let ordemDivergente = 0;
+  let exemploOrdemDivergente: string | null = null;
   let cursor: Cursor | null = null;
   let ultimo: Cursor | null = null;
   /** Registra os problemas de UMA linha e (se configurado) a entrada única que irá ao Hub. */
@@ -322,6 +331,10 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
     const par: Cursor = { alterado_em: new Date(m.alterado_ms).toISOString(), external_id: m.external_id };
     if (depoisDe && compararCursor(par, depoisDe) <= 0) {
       repetidas++;
+      if (par.alterado_em === depoisDe.alterado_em && par.external_id !== depoisDe.external_id && par.external_id < depoisDe.external_id) {
+        ordemDivergente++;
+        exemploOrdemDivergente ??= `o banco devolveu o external_id ${JSON.stringify(par.external_id.slice(0, 40))} depois do cursor ${JSON.stringify(depoisDe.external_id.slice(0, 40))} no mesmo alterado_em, mas na ordem do Conector ele é menor`;
+      }
       continue;
     }
     if (cursor === null || compararCursor(par, cursor) > 0) cursor = par;
@@ -335,7 +348,7 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
       recusar(v.problemas);
     }
   }
-  return { registros, cursor, ultimo, problemas, linhasInvalidas, descartadas, invalidas, repetidas };
+  return { registros, cursor, ultimo, problemas, linhasInvalidas, descartadas, invalidas, repetidas, ordemDivergente, exemploOrdemDivergente };
 }
 
 /** Uma linha com vários campos ruins vira UMA entrada: campo e código do primeiro problema, mensagem resumindo todos (sem valores). */

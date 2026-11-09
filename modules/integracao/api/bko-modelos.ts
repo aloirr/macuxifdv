@@ -1,20 +1,17 @@
 /**
- * Modelos da carga por arquivo (RF-INT-03), BKO `/v1/integracao`, SÓ para o super-admin de plataforma (ADR 0029):
+ * Modelos da carga por arquivo (RF-INT-03, T-0100), BKO `/v1/integracao`, para quem tem a ação `carga.arquivo` no motor de permissões
+ * (ADR 0033: admin e analista de fábrica; o admin do cliente ajusta na página Perfis de acesso) e para o super-admin (ADR 0029):
  *  - `GET modelos/:entidade.csv`         → CSV de exemplo (BOM, `;`, CRLF; 2 linhas válidas), `text/csv`, baixa como `<entidade>.csv`;
  *  - `GET modelos/:entidade/dicionario`  → `DicionarioModelo` (campos, obrigatoriedade, tipo, limite, formato, exemplo).
- * Tudo sai do contrato (`domain/modelos-csv.ts`); não lê banco nem devolve dado de empresa.
- * `superAdmin: 'aceita'` + `perfis: ['admin']` (sem ação): a plataforma confere a licença ANTES (sem módulo → 403 MODULO_INATIVO, S0-052/S0-087)
- * e barra analista/vendedor com PERFIL_SEM_ACESSO; o `admin` do tenant passa e é recusado aqui (ver `entidadeDe`). Super-admin → 200.
+ * Tudo sai do contrato (`domain/modelos-csv.ts`); não lê banco nem devolve dado de empresa (nada é multi-tenant aqui: o modelo é igual para todos).
+ * `acao: 'carga.arquivo'` + `superAdmin: 'aceita'`: a plataforma confere a licença ANTES (sem módulo → 403 MODULO_INATIVO) e depois o motor
+ * (sem a chave → 403 PERFIL_SEM_ACESSO); quem baixa o modelo é quem pode enviar a carga. Não há perfil fixo no código (aviso R-20261107-191310).
  */
-import { ErroHttpModulo, ErroNaoEncontrado, type ContextoRota, type EntradaRota, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroNaoEncontrado, type ContextoRota, type EntradaRota, type RotaModulo } from '@macuxi/platform-sdk';
 import { Entidade, ParamsModelo, type DicionarioModelo } from '../contracts';
 import { dicionarioDaEntidade, gerarModeloCsv } from '../domain';
 
-const MSG_SO_SUPER_ADMIN = 'Os modelos de arquivo são só do administrador da plataforma Macuxi. Peça ao suporte da Macuxi o modelo da entidade.';
-
 function entidadeDe(ctx: ContextoRota<unknown, unknown, ParamsModelo>): Entidade {
-  // só super-admin (decisão do dono do produto, v1); 'aceita' + recusa no handler para a licença ser conferida antes, S0-052
-  if (!ctx.superAdmin) throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', MSG_SO_SUPER_ADMIN);
   const e = Entidade.safeParse(ctx.params.entidade);
   if (!e.success) throw new ErroNaoEncontrado('ENTIDADE_DESCONHECIDA', `Entidade desconhecida. Use uma de: ${Entidade.options.join(', ')}.`);
   return e.data;
@@ -23,8 +20,8 @@ function entidadeDe(ctx: ContextoRota<unknown, unknown, ParamsModelo>): Entidade
 export const rotaModeloCsv: RotaModulo = {
   metodo: 'GET',
   caminho: 'modelos/:entidade.csv',
+  acao: 'carga.arquivo',
   superAdmin: 'aceita',
-  perfis: ['admin'],
   carteira: 'nao_se_aplica',
   params: ParamsModelo,
   tipoConteudo: 'text/csv; charset=utf-8',
@@ -39,8 +36,8 @@ export const rotaModeloCsv: RotaModulo = {
 export const rotaModeloDicionario: RotaModulo = {
   metodo: 'GET',
   caminho: 'modelos/:entidade/dicionario',
+  acao: 'carga.arquivo',
   superAdmin: 'aceita',
-  perfis: ['admin'],
   carteira: 'nao_se_aplica',
   params: ParamsModelo,
   executar: async (ctx: ContextoRota<unknown, unknown, ParamsModelo>): Promise<DicionarioModelo> => dicionarioDaEntidade(entidadeDe(ctx)),
