@@ -93,10 +93,13 @@ describe('0041 perfis de acesso (estático)', () => {
     expect(alvo).toBe(CODIGO_PERFIL_RE.source.slice(1, -1));
   });
 
-  it('semeadura dos 7 de fábrica: nome = ROTULO_PERFIL; id = idPerfilFabrica (uuid_de_chave)', () => {
-    const valores = /from \(values([\s\S]*?)\) as f \(base, nome\)/.exec(up)![1]!;
+  it('semeadura dos 7 de fábrica: nome = ROTULO_PERFIL (texto vigente, desde a 0051 RD-0014); id = idPerfilFabrica (uuid_de_chave)', () => {
+    // a semear_perfis_fabrica vigente é a da ÚLTIMA migração que a (re)cria (0051: 'Assistente'); a 0041 nasceu com 'Assistente de BKO'
+    const vigente = [...migracoes].reverse().map((m) => semComentarios(m.up)).find((x) => /function plataforma\.semear_perfis_fabrica\(/.test(x))!;
+    const valores = /from \(values([\s\S]*?)\) as f \(base, nome\)/.exec(vigente)![1]!;
     const pares = Object.fromEntries([...valores.matchAll(/\('([a-z]+)', '([^']+)'\)/g)].map((x) => [x[1]!, x[2]!]));
     expect(pares).toEqual(ROTULO_PERFIL);
+    expect(/from \(values([\s\S]*?)\) as f \(base, nome\)/.exec(up)![1]).toContain("('assistente', 'Assistente de BKO')");
     expect(up).toContain("plataforma.uuid_de_chave(p_tenant::text || ':plataforma.perfil:' || f.base)");
     expect(idPerfilFabrica('t', 'admin')).toBe(idDeChave('t:plataforma.perfil:admin'));
     expect(up).toContain("plataforma.uuid_de_chave(u.tenant_id::text || ':plataforma.usuario_perfil:' || u.id::text || ':' || p.id::text)");

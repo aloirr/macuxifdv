@@ -160,6 +160,9 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   (`external_id` `MARCA-INATIVA-ALFA`/`-BETA`) e uma **apagada**. O teste de ids sem repetição aceita só esse id repetido
   (ativa = concorrente do Promotor). `promotor.concorrente` segue na fixture (só de leitura para o `macuxi_app`).
 - **`vendedor.pedido_item`:** o item 1 do p1 de A tem o retrato "Motos 150 cc"; os demais ficam nulos.
+- **`vendedor.pedido_devolucao`** (0050, T-0054; grupo **0x3d**, ids em `DEVOLUCOES_FIXTURE`): A com a devolução parcial
+  **viva** `NFD-1-7001` no p3 (R$ 200,00) e a mesma nota **apagada** (R$ 300,00, soft delete); B com a `NFD-1-7001` viva no p1
+  (R$ 50,00): a mesma chave de nota nos dois tenants (o único é por tenant).
 - **Literal de `text[]` com texto livre:** use `arrayDeTextoLivre` (`db/src/gravar.ts`). O `arrayDeTexto` só aceita códigos `[a-z0-9_]`.
 
 ### T-0087 fatia E (migração 0036; convite de 1º acesso)

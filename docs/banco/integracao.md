@@ -213,7 +213,7 @@ nulos ou os dois preenchidos, `atualizado_em`. Único `(tenant_id, conector_id, 
 desc) where divergente`.
 
 ## mapeamento
-`tipo` (`condicao_pagamento`\|`deposito`\|`status`), `codigo_erp` e `codigo_macuxi` (1..60), `descricao` (≤ 200), `ativo`.
+`tipo` (`condicao_pagamento`\|`deposito`\|`status`\|`canal`; `canal` desde a 0054), `codigo_erp` e `codigo_macuxi` (1..60), `descricao` (≤ 200), `ativo`.
 Único `(tenant_id, tipo, codigo_erp)` entre os vivos; **`condicao_pagamento`: um ativo por `codigo_macuxi`**.
 
 ## pedido_fila_erp
@@ -347,6 +347,12 @@ recusa na própria linha da fila, publica `integracao.pedido.cancelamento_recusa
   confirma, cada CHECK com 23514, vazamento entre tenants e WITH CHECK, EXPLAIN do monitor no índice, up/down com dados); o
   teste de banco do Hub (`modules/integracao/api/consumidores.db.test.ts`) é do modulo-integracao.
 
+## 0054 — tipo 'canal' no de-para (`0054_integracao_mapeamento_canal`; T-0115, RN-PES-05)
+Pedido R-20261109-014928-modulo-integracao. Só `integracao.mapeamento`: o CHECK `mapeamento_tipo_valido` é recriado com
+`canal` (= `TIPOS_MAPEAMENTO`). Índices, RLS e grants não mudam; o único-ativo por `codigo_macuxi` continua só da
+`condicao_pagamento`. Down: apaga as linhas `tipo = 'canal'` e volta ao CHECK da 0010. A view `vw_macuxi_cliente` ganhou a
+coluna `canal` (até 60; NULL/branco = limpa). Testes: `db/testes/mapeamento-canal.test.ts`, `views-modelo-conector.test.ts`.
+
 ## Views-modelo do Conector (`db/conector/views-modelo.sql`)
 Criado na T-0089 (fatia B2), com as 15 entidades do Hub (citado em docs/produto/06-integracao-erp.md e em
 docs/modulos/integracao/conector.md §3). É um **modelo**: as tabelas de origem (`erp_*`) são fictícias e o técnico do cliente
@@ -395,3 +401,4 @@ Regras que toda view-modelo segue (e que o técnico do cliente mantém ao adapta
 | `prazo_pagamento` | `forma_external_id`, `codigo` (1..20, único no tenant entre todas as formas), `descricao` (até 60, opcional: o Macuxi gera "28/56 dias"), `parcelas_dias` (JSON, 1..24 itens, 0..365, sem decrescer; `[0]` = à vista), `prazo_medio_dias` (opcional, informativo) | o Macuxi calcula o prazo médio (RN-VEN-24); divergente = aviso `prazo_medio_divergente` |
 | `tabela_escalonada` | `produto_external_id`, `medida` (sigla 1 a 4 letras; nula/vazia = unidade base), `quantidade_minima` (inteiro > 0, na medida), `preco_unidade_cents` (> 0, preço da UNIDADE BASE; `centavos_de_decimal` se o ERP guarda reais), `vigencia_inicio` e `vigencia_fim` (data civil `AAAA-MM-DD` no fuso do tenant, `transformar: "data_civil"`; fim nulo = aberta, fim >= início), `tabela_external_id` (nulo = todas as tabelas) | depois do produto (RN-VEN-23) |
 | `cliente` (campos novos) | `prazo_medio_max_dias` (0..365; `COALESCE(teto, 365)`, 365 = sem teto na v1), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir; `SELECT DISTINCT`; sem linha = `'[]'`) | depois das formas; código sem FK no banco (core.cliente) |
+| `cliente` (T-0120, R-20261108-230146) | `tabela_preco_external_id` (`CAST(c.id_tabela_preco AS VARCHAR(200))`, igual nos dois dialetos; a MESMA chave da `tabela_external_id` da view 10). **NULL = não altera** (cliente na tabela padrão do ERP fica com o vínculo que já tinha); para **desvincular**, o ERP devolve o id da tabela padrão (`COALESCE(c.id_tabela_preco, <padrão>)` se o ERP permite tirar a tabela) | aditivo e opcional no `ClientePayload` v1; o banco do Hub não muda (fica em `integracao.registro_atual.payload`) |
