@@ -129,10 +129,10 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento · `roxo` (selo de orçamento do novo pedido). `Badge` antigo virou pílula de 24 dp.
 - Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
-- `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Ver por linha" no Catálogo). Fundo
-  `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres, verbo no infinitivo), apoio 13
-  `ink2` (até 32); 48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em
-  `docs/design/catalogo-por-linha.md`. Ícone `arvore` = lista em níveis.
+- `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
+  `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
+  48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em `docs/design/pedido-v3.md`
+  §F.1. O atalho "Ver por linha" do Catálogo e o ícone `arvore` saíram (T-0142: o Catálogo é a hierarquia, sem tela "Por linha").
 
 ### 4.1 Escolha e valores do Novo pedido (T-0089; spec `docs/design/novo-pedido-itens.md`)
 - `ListaSuspensa`: rótulo 11/700 em maiúsculas em cima, campo de 48 dp (borda `lineStrong`, texto 15/600, seta ⌄), menu ancorado
@@ -206,9 +206,25 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   (⋮, ícone `mais`) com a ação destrutiva e confirmação (Voltar do diálogo volta à folha).
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
+### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
+- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor Archivo 700 17 tabular, linhas de 48 dp com traço);
+  sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
+  corrida para Limite, Disponível ou Prazo médio.
+- Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
+  "Orçamento · preço de 09/11" (roxo, não vence).
+
+### 4.8 Catálogo pela hierarquia (T-0142; spec `docs/design/catalogo-por-linha.md`)
+- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em Archivo negrito à direita
+  (`textoDaContagem`, "1.240"), seta; TalkBack `leituraDoNivel` ("Alimentos, 16 produtos").
+- `Trilha`: item com `desligado` = nível pulado (um item só), em `ink2` e sem toque.
+- Último nível: o `CartaoProduto` do módulo (o mesmo da busca), com "Serve em:" em até 2 linhas, "Equivale a:" e etiquetas em
+  `Selo` neutro; não há outra lista de produtos (a tela "Por linha" saiu). "Oferece junto" só na ficha.
+
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
   Android fecha. Use para filtros, quantidade, desconto, escolha entre 2–5 opções. Mesmas props da T-0071.
+  `fechar={{ rotulo: 'Fechar' }}` (T-0141): ✕ de 48 dp à direita do título, fixo fora da rolagem, chama o mesmo `onFechar`. Use em
+  folha com título e conteúdo longo ou formulário (endereço, Preços de hoje); nunca desenhe o ✕ dentro do conteúdo.
   Opções novas (T-0072; sem elas, a folha é a mesma de antes):
   - `rolavel`: altura máxima = tela − área segura do topo − 24 dp (sempre sobra uma faixa do fundo para tocar fora); o
     conteúdo rola, e alça, título e `rodape` ficam fixos. Use quando o conteúdo pode passar da tela (checkout com muitas
@@ -348,3 +364,6 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
 4. Chips com texto. 5. Tarefa principal em até 3 toques a partir do Início. 6. Estados vazio, erro, carregando e sem sinal desenhados.
 7. Textos da §7. 8. Sem animação própria fora dos tokens (ou com `useReduzirMovimento`).
 9. Voltar e abas pela §6.1: o voltar nunca sai do app no meio de uma pilha, e o rótulo do `BackLink` diz para onde ele leva.
+10. **Fiel à spec e com acabamento** (pedido do dono do produto, R-20261109-054659): a revisão compara o print do aparelho com a
+    imagem aprovada em `docs/design/telas/` (ordem, tamanhos, textos). Tela fora da spec ou com cara de rascunho (valores em
+    frase corrida, frase explicativa sobrando, alinhamento solto) é 🔴 e não passa.

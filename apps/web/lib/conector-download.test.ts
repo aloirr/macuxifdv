@@ -1,6 +1,6 @@
 /**
- * T-0098 — download do Conector por link temporário: validação da resposta (só `url` https é obrigatória; campos opcionais
- * até o contrato sair), textos do pacote e da validade, e o que a tela faz em cada falha (rota ausente = "em breve").
+ * T-0098 — download do Conector por link temporário: validação da resposta pelo contrato do Integração
+ * (`LinkDownloadConectorSchema`) e só https, textos do pacote e da validade, e o que a tela faz em cada falha (rota ausente = "em breve").
  */
 import { describe, expect, it } from 'vitest';
 
@@ -39,21 +39,20 @@ describe('LinkDownloadConectorResposta', () => {
     });
   });
 
-  it('só a url: o resto fica nulo (campo opcional até o contrato)', () => {
-    expect(LinkDownloadConectorResposta.safeParse({ url: URL_PRESIGN })).toEqual({
-      success: true,
-      data: { url: URL_PRESIGN, expira_em: null, versao: null, arquivo: null, tamanho_bytes: null, sha256: null },
-    });
-    const r = LinkDownloadConectorResposta.safeParse({ url: URL_PRESIGN, expira_em: 'amanhã', tamanho_bytes: -1 });
-    expect(r.success && r.data.expira_em).toBeNull();
-    expect(r.success && r.data.tamanho_bytes).toBeNull();
+  it('pelo contrato: tamanho e sha256 opcionais; expira_em, versao e arquivo obrigatórios; campo a mais sai', () => {
+    const minimo = { url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip' };
+    expect(LinkDownloadConectorResposta.safeParse({ ...minimo, publicado_em: 'x' })).toEqual({ success: true, data: minimo });
+    expect(LinkDownloadConectorResposta.safeParse({ url: URL_PRESIGN }).success).toBe(false);
+    expect(LinkDownloadConectorResposta.safeParse({ ...minimo, expira_em: 'amanhã' }).success).toBe(false);
+    expect(LinkDownloadConectorResposta.safeParse({ ...minimo, tamanho_bytes: -1 }).success).toBe(false);
   });
 
   it('sem url, url não https ou corpo estranho: formato inesperado', () => {
     expect(LinkDownloadConectorResposta.safeParse({}).success).toBe(false);
     expect(LinkDownloadConectorResposta.safeParse(null).success).toBe(false);
-    expect(LinkDownloadConectorResposta.safeParse({ url: 'javascript:alert(1)' }).success).toBe(false);
-    expect(LinkDownloadConectorResposta.safeParse({ url: 'ftp://x/y.zip' }).success).toBe(false);
+    const resto = { expira_em: '2026-11-09T05:15:00.000Z', versao: '1.0.0', arquivo: 'x.zip' };
+    expect(LinkDownloadConectorResposta.safeParse({ ...resto, url: 'javascript:alert(1)' }).success).toBe(false);
+    expect(LinkDownloadConectorResposta.safeParse({ ...resto, url: 'ftp://x/y.zip' }).success).toBe(false);
   });
 });
 
@@ -68,7 +67,7 @@ describe('urlDeDownloadValida', () => {
 });
 
 describe('textos', () => {
-  const base = { url: URL_PRESIGN, expira_em: null, versao: null, arquivo: null, tamanho_bytes: null, sha256: null };
+  const base = { url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '', arquivo: '' };
   it('pacote: versão · arquivo · tamanho, só o que veio', () => {
     expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 })).toBe(
       `Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · ${tamanhoLegivel(12_900_000)}`,
@@ -83,9 +82,8 @@ describe('textos', () => {
     expect(tamanhoLegivel(10)).toBe('1 KB');
   });
 
-  it('validade com a hora de quem vê; sem expira_em, texto genérico', () => {
-    expect(textoDaValidade({ ...base, expira_em: '2026-11-09T05:15:00.000Z' }, () => '01:15')).toBe('O link vale até 01:15. Depois disso, gere outro.');
-    expect(textoDaValidade(base, () => '')).toBe('O link vale por pouco tempo. Se não baixar, gere outro.');
+  it('validade com a hora de quem vê', () => {
+    expect(textoDaValidade(base, () => '01:15')).toBe('O link vale até 01:15. Depois disso, gere outro.');
   });
 
   it('botão com o arquivo quando veio', () => {

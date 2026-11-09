@@ -21,7 +21,7 @@
 [CmdletBinding()]
 param(
   [string]$Clone = 'C:\macuxifdv-recados',
-  [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
+  [string]$Repo = '',   # vazio = raiz do repositorio deste script (resolvida no corpo)
   [switch]$Simular,
   [switch]$IgnorarProcessos,
   [switch]$ManterAgendamento,
@@ -30,7 +30,10 @@ param(
 
 Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'comum.ps1')
+# No PowerShell 5.1 com -File, $PSScriptRoot chega vazio nos padroes do param(): a pasta sai daqui, no corpo.
+$aqui = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Repo) { $Repo = (Resolve-Path (Join-Path $aqui '..\..')).Path }
+. (Join-Path $aqui 'comum.ps1')
 
 $pastas = @('recados', 'lidos')
 $coord = Join-Path $Repo '.coord'

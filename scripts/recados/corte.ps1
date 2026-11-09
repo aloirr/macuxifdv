@@ -30,7 +30,7 @@
 param(
   [string]$Remoto = 'https://github.com/aloirr/macuxifdv-recados.git',
   [string]$Clone = 'C:\macuxifdv-recados',
-  [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
+  [string]$Repo = '',   # vazio = raiz do repositorio deste script (resolvida no corpo)
   [string]$Backup = ('C:\macuxifdv-backup-recados-' + (Get-Date -Format 'yyyyMMdd-HHmmss')),
   [string]$Ramo = 'main',
   [switch]$Simular,
@@ -39,7 +39,10 @@ param(
 
 Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'comum.ps1')
+# No PowerShell 5.1 com -File, $PSScriptRoot chega vazio nos padroes do param(): a pasta sai daqui, no corpo.
+$aqui = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Repo) { $Repo = (Resolve-Path (Join-Path $aqui '..\..')).Path }
+. (Join-Path $aqui 'comum.ps1')
 
 $pastas = @('recados', 'lidos')
 $coord = Join-Path $Repo '.coord'
@@ -121,7 +124,7 @@ Fazer 'garantir .gitattributes (lidos/*.txt merge=union) e README' {
   Garantir-ArquivosDoClone -Clone $Clone -Repo $Repo
 }
 Fazer ('commit "recados: migracao de macuxifdv@{0}" e push' -f $shaOrigem) {
-  Exigir (Git $Clone @('add', '--', 'recados', 'lidos', '.gitattributes', 'README.md')) 'add da migracao'
+  Exigir (Git $Clone (@('add', '--', 'recados', 'lidos') + $script:ArquivosDoClone)) 'add da migracao'
   if ((Git $Clone @('diff', '--cached', '--quiet')).Codigo -ne 0) {
     $msg = "recados: migracao de macuxifdv@$shaOrigem (T-0139, ADR 0035)`n`nCopia de .coord/recados e .coord/lidos do repositorio aloirr/macuxifdv no commit $shaOrigem.`nO historico de cada recado continua no repositorio de codigo (git log -- .coord/recados)."
     Exigir (Git $Clone @('commit', '-q', '--no-verify', '-m', $msg)) 'commit da migracao'

@@ -110,7 +110,7 @@ export function useMotorSync(): { motor: MotorSync | null; estado: EstadoMotorSy
 
 /**
  * Ambiente do aparelho/navegador: `http` (sessão do shell; respeita o modo sem sinal), `online()`, `novoId()`,
- * `usuario()`, `consultar(def, entrada)` (ADR 0012) e `parametros(modulo)`. Sempre devolve um ambiente: antes do login
+ * `posicaoAgora()` (GPS ou `null`), `usuario()`, `consultar(def, entrada)` (ADR 0012) e `parametros(modulo)`. Sempre devolve um ambiente: antes do login
  * é o "indisponível" (offline).
  */
 export function useAmbiente(): AmbienteModulo {

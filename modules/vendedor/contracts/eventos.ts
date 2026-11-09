@@ -123,6 +123,8 @@ const EnderecoEntregaEvento = z.object({
   cep: z.string().nullable(),
   /** true = o endereço principal do cadastro (o ERP já o assume; não exige Conector novo) */
   principal: z.boolean(),
+  /** T-0141 C (aditivo): 'erp' = endereço do cadastro vindo do ERP; 'editado' = ajustado no pedido. Ausente = retrato antigo. */
+  origem: z.enum(['erp', 'editado']).optional(),
 });
 
 /**

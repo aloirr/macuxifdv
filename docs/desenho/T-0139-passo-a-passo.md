@@ -164,7 +164,7 @@ O workflow `telegram-recado.yml` lê as suas mensagens ao bot a cada 5 min e gra
 - Ligue a verificação em duas etapas do Telegram: **Configurações → Privacidade e Segurança → Verificação em duas etapas**.
 - Não configure webhook no bot. Com webhook, o `getUpdates` para de funcionar.
 
-**Se o corte já foi feito antes desta extensão:** o corte só copia os arquivos que faltam no clone, e a sincronização só sobe `recados/` e `lidos/`. Os agentes não podem gravar no clone, então a publicação é sua, numa vez só:
+**Se o corte já foi feito antes desta extensão:** o corte só publica `.gitattributes` e `README.md` (nunca o `.github`), e a sincronização só sobe `recados/` e `lidos/`. Os agentes não podem gravar no clone, então a publicação é sua, numa vez só:
 ```powershell
 robocopy C:\macuxifdv\docs\desenho\T-0139-repo-recados\.github C:\macuxifdv-recados\.github /E
 Copy-Item C:\macuxifdv\docs\desenho\T-0139-repo-recados\README.md C:\macuxifdv-recados\README.md -Force

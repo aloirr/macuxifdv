@@ -5,7 +5,6 @@
  */
 export * from './numeros';
 export * from './parametros';
-export * from './feriados';
 export * from './horario-comercial';
 export * from './projecao';
 export * from './apuracao';

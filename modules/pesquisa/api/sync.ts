@@ -5,7 +5,7 @@
  * O recebimento revalida tudo no domain (`receberResposta`), grava, liga as fotos (ADR 0010) e publica
  * `pesquisa.resposta.registrada@1` na mesma transação.
  */
-import { ErroHttpModulo, type ContextoBase, type ItemPush, type LinhaSync, type PedidoPull, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, mapaDeErrosEmPortugues, mensagemPayloadInvalido, type ContextoBase, type ItemPush, type LinhaSync, type PedidoPull, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { DEF_RESPOSTA_REGISTRADA, entidadeQuestionarioVersao, entidadeRespostaPesquisa, PERFIS_QUE_RESPONDEM, RespostaEnvio } from '../contracts';
 import { receberResposta, respostaNoEscopoDoAparelho } from '../domain';
 import { comRepositorio, parametrosDaRota, RESPOSTA_JA_EXISTE } from './comum';
@@ -19,8 +19,8 @@ const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemP
 export async function receberUma(ctx: ContextoBase, fabrica: FabricaRepositorio, item: ItemPush, carteira: ReadonlySet<string> | 'tenant', tentativa = 1): Promise<ResultadoItemPush> {
   if (item.operacao === 'remover') return rejeitado(item.id, 'SOMENTE_INSERCAO', 'Resposta de pesquisa não pode ser apagada depois de enviada.');
   if (!(PERFIS_QUE_RESPONDEM as readonly string[]).includes(ctx.usuario.perfil)) return rejeitado(item.id, 'PERFIL_SEM_ACESSO', 'Seu perfil não responde pesquisas.');
-  const p = RespostaEnvio.safeParse(item.payload);
-  if (!p.success) return rejeitado(item.id, 'PAYLOAD_INVALIDO', p.error.issues[0]?.message ?? 'Resposta em formato inválido.');
+  const p = RespostaEnvio.safeParse(item.payload, { errorMap: mapaDeErrosEmPortugues });
+  if (!p.success) return rejeitado(item.id, 'PAYLOAD_INVALIDO', mensagemPayloadInvalido(p.error.issues));
   const envio = p.data;
   if (envio.id !== item.id) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'O id da resposta difere do id do item enviado.');
   // RN-CORE-04: resposta ligada a cliente só no escopo da carteira

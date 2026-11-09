@@ -20,7 +20,7 @@ import {
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
-import { EnderecoRetrato, Frete, FreteDoPedido, ItemPush } from './frete';
+import { EnderecoEditadoPedido, EnderecoEntregaPedido, Frete, FreteDoPedido, ItemPush } from './frete';
 export * from './formas-pagamento';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
@@ -156,7 +156,7 @@ export const Order = z.object({
   /** 1 − total dos itens ÷ total pela tabela; negativo = acréscimo; é o que a alçada olha (RN-VEN-10) */
   effective_discount_pct: z.number().optional(),
   freight: FreteDoPedido.nullable().optional(),
-  delivery_address: EnderecoRetrato.nullable().optional(),
+  delivery_address: EnderecoEntregaPedido.nullable().optional(),
   /** nome da tabela de preço (o PDF interno mostra o nome, não o id) */
   price_table_name: z.string().nullable().optional(),
   // --- T-0071: validade por data civil e ajuste do pedido em R$ (sobre o total dos itens); opcionais ---
@@ -303,6 +303,8 @@ export const PedidoPush = CreateOrderRequest.extend({
   frete: Frete.nullable().optional(),
   /** T-0061 (RN-VEN-17): ausente = endereço principal do cliente. */
   endereco_entrega_id: z.string().uuid().nullable().optional(),
+  /** T-0141 (RN-VEN-17): endereço digitado SÓ para este pedido; com ele o `endereco_entrega_id` é ignorado. Ausente/nulo = comportamento anterior. */
+  endereco_entrega_editado: EnderecoEditadoPedido.nullable().optional(),
 });
 export type PedidoPush = z.infer<typeof PedidoPush>;
 

@@ -50,7 +50,7 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
     try {
       await onSalvar(nova);
     } catch (x) {
-      const e = erroDaTroca(x);
+      const e = erroDaTroca(x, nova);
       if (e.acao === 'voltar_ao_login') {
         onVoltar(e.texto);
         return;

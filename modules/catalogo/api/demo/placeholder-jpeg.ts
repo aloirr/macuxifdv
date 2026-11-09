@@ -5,6 +5,7 @@
  * Só ASCII maiúsculo, dígitos e `.-/`; acento é removido e o resto vira espaço.
  */
 import { BYTES_MAX_MINIATURA, LADO_MAX_MINIATURA_PX } from '../../contracts';
+import { semAcento } from '../../domain/texto';
 
 export type Rgb = readonly [number, number, number];
 
@@ -29,7 +30,6 @@ export function corDaCategoria(categoria: string): Rgb {
   return CORES[h % CORES.length]!;
 }
 
-const semAcento = (t: string): string => t.normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 // ---------- fonte 5 x 7 ----------
 const FONTE: Record<string, string> = {

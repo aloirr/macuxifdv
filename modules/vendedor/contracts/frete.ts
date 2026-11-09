@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { Id, Pct } from '@macuxi/core/contracts';
+import { UFS_BRASIL } from '@macuxi/comum/endereco';
 
 export const TransportadoraDigitada = z
   .object({
@@ -62,6 +63,33 @@ export const EnderecoRetrato = z.object({
   principal: z.boolean().optional(),
 });
 export type EnderecoRetrato = z.infer<typeof EnderecoRetrato>;
+
+/** RN-VEN-17 (T-0141): limites do endereço DIGITADO no pedido = limites da NF-e (tag entrega) e cabem no EnderecoEntregaErp do Hub. */
+export const LIMITES_ENDERECO_PEDIDO = { logradouro: 60, numero: 20, complemento: 60, bairro: 60, cidade: 60 } as const;
+export const ORIGENS_ENDERECO_PEDIDO = ['erp', 'editado'] as const;
+export type OrigemEnderecoPedido = (typeof ORIGENS_ENDERECO_PEDIDO)[number];
+
+/** Endereço que o vendedor digitou SÓ para este pedido (RN-VEN-17). Não muda o cadastro do cliente. */
+export const EnderecoEditadoPedido = z
+  .object({
+    logradouro: z.string().trim().min(2).max(LIMITES_ENDERECO_PEDIDO.logradouro),
+    /** aceita "S/N" */
+    numero: z.string().trim().min(1).max(LIMITES_ENDERECO_PEDIDO.numero),
+    complemento: z.string().trim().max(LIMITES_ENDERECO_PEDIDO.complemento).nullable().optional(),
+    bairro: z.string().trim().min(2).max(LIMITES_ENDERECO_PEDIDO.bairro),
+    cidade: z.string().trim().min(2).max(LIMITES_ENDERECO_PEDIDO.cidade),
+    uf: z.enum(UFS_BRASIL),
+    /** só dígitos; a máscara 00000-000 é da tela */
+    cep: z.string().regex(/^\d{8}$/),
+  })
+  .strict();
+export type EnderecoEditadoPedido = z.infer<typeof EnderecoEditadoPedido>;
+
+/** Retrato gravado em vendedor.pedido.endereco_entrega (jsonb): o EnderecoRetrato + a origem (ausente = 'erp', linhas anteriores à T-0141). */
+export const EnderecoEntregaPedido = EnderecoRetrato.extend({
+  origem: z.enum(ORIGENS_ENDERECO_PEDIDO).optional(),
+});
+export type EnderecoEntregaPedido = z.infer<typeof EnderecoEntregaPedido>;
 
 /** Frete no detalhe (BKO, PDFs e telas): modalidade e transportadora do retrato do pedido. */
 export const FreteDoPedido = z.object({

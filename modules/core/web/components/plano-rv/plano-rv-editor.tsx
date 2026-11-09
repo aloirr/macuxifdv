@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, Notice, Panel, td, tdNum, th, thNum, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Notice, Panel, td, tdNum, th, thNum, TableScroll, rotuloDoPerfil } from '@macuxi/ui/web';
 import { formatBRL } from '@macuxi/comum';
 import type { PlanoRvPut } from '../../../contracts';
 import { INDICADORES_META } from '../../../contracts';
@@ -11,7 +11,6 @@ import {
   formularioAlterado,
   ROTULO_INDICADOR_RV,
   ROTULO_MODO,
-  ROTULO_PERFIL_RV,
   simularRv,
   somaDosPesos,
   textoDasFaixas,
@@ -246,7 +245,7 @@ export function PlanoRvEditor({
             {(['vendedor', 'promotor'] as const).map((p) => (
               <label key={p} className="flex min-h-[44px] items-center gap-2 text-[14px] text-ink">
                 <input type="checkbox" className="h-5 w-5" checked={form.perfis[p]} onChange={(e) => mudar({ perfis: { ...form.perfis, [p]: e.target.checked } })} data-testid={`plano-rv.perfil.${p}`} />
-                {ROTULO_PERFIL_RV[p]}
+                {rotuloDoPerfil(p)}
               </label>
             ))}
           </div>

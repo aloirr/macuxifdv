@@ -246,6 +246,65 @@ export type ResultadoItemPush =
   | { id: string; status: 'rejeitado'; codigo: string; mensagem: string }
   | { id: string; status: 'conflito'; mensagem: string; atual?: unknown };
 
+/** Início do texto de `PAYLOAD_INVALIDO`; os motivos (em português, sem nome de campo) vêm depois dos dois-pontos. */
+export const MENSAGEM_PAYLOAD_INVALIDO = 'O servidor não aceitou os dados deste registro';
+/** Quantos motivos diferentes, no máximo, vão no texto (o resto só alonga a frase na tela). */
+const MAX_MOTIVOS_PAYLOAD = 3;
+
+/** Motivo em português para um problema do Zod sem mensagem própria do contrato (o padrão do Zod é inglês). */
+function motivoEmPortugues(issue: z.ZodIssueOptionalMessage): string {
+  switch (issue.code) {
+    case z.ZodIssueCode.invalid_type:
+      if (issue.received === 'undefined' || issue.received === 'null') return 'falta um dado obrigatório';
+      if (issue.expected === 'integer') return 'há um número que precisa ser inteiro';
+      return 'há um dado no formato errado';
+    case z.ZodIssueCode.invalid_literal:
+    case z.ZodIssueCode.invalid_enum_value:
+    case z.ZodIssueCode.invalid_union:
+    case z.ZodIssueCode.invalid_union_discriminator:
+      return 'há uma opção que não é aceita';
+    case z.ZodIssueCode.unrecognized_keys:
+      return 'há dados que o servidor não reconhece';
+    case z.ZodIssueCode.invalid_date:
+      return 'há uma data inválida';
+    case z.ZodIssueCode.invalid_string:
+      return 'há um texto no formato errado';
+    case z.ZodIssueCode.too_small:
+      if (issue.type === 'string') return 'há um texto vazio ou curto demais';
+      if (issue.type === 'array' || issue.type === 'set') return 'há uma lista com menos itens que o mínimo';
+      if (issue.type === 'date') return 'há uma data antes do permitido';
+      return 'há um número abaixo do mínimo';
+    case z.ZodIssueCode.too_big:
+      if (issue.type === 'string') return 'há um texto longo demais';
+      if (issue.type === 'array' || issue.type === 'set') return 'há uma lista com mais itens que o máximo';
+      if (issue.type === 'date') return 'há uma data depois do permitido';
+      return 'há um número acima do máximo';
+    case z.ZodIssueCode.not_multiple_of:
+    case z.ZodIssueCode.not_finite:
+      return 'há um número inválido';
+    default:
+      return 'há um dado inválido';
+  }
+}
+
+/**
+ * Mapa de erros do push: troca o texto padrão do Zod (inglês) pelo motivo em português e mantém a mensagem que o contrato deu
+ * (`refine(fn, 'texto')`, `.min(1, 'texto')`, `required_error`…), que já é frase em português.
+ */
+export const mapaDeErrosEmPortugues: z.ZodErrorMap = (issue, ctx) => {
+  const padraoDoZod = z.defaultErrorMap(issue, { data: ctx.data, defaultError: '' }).message;
+  return { message: ctx.defaultError !== padraoDoZod ? ctx.defaultError : motivoEmPortugues(issue) };
+};
+
+/** Frase de `PAYLOAD_INVALIDO` para a tela: português, sem código nem nome de campo, sem repetir motivo. */
+export function mensagemPayloadInvalido(issues: readonly z.ZodIssue[]): string {
+  const motivos = [...new Set(issues.map((i) => i.message.trim().replace(/\.+$/, '')).filter((m) => m !== ''))];
+  if (motivos.length === 0) return `${MENSAGEM_PAYLOAD_INVALIDO}.`;
+  const resto = motivos.length - MAX_MOTIVOS_PAYLOAD;
+  const lista = motivos.slice(0, MAX_MOTIVOS_PAYLOAD).join('; ') + (resto > 0 ? ` e mais ${resto}` : '');
+  return `${MENSAGEM_PAYLOAD_INVALIDO}: ${lista}.`;
+}
+
 /**
  * Item rejeitado com código, nunca descartado em silêncio. Ordem (desenho T-0004 §5; D-1 da T-0003):
  *  1. dono da entidade (pelo `sync` do manifesto) inativo → `MODULO_INATIVO` (RN-CORE-02; o app guarda o item e o
@@ -276,9 +335,9 @@ export function rejeitarItensInvalidos(
     else if (!def || def.direcao === 'pull')
       rejeitar(item, 'ENTIDADE_DESCONHECIDA', `Entidade ${item.entidade} não aceita push`);
     else {
-      const p = def.schema.safeParse(item.payload);
+      const p = def.schema.safeParse(item.payload, { errorMap: mapaDeErrosEmPortugues });
       if (p.success) validos.push({ ...item, payload: p.data });
-      else rejeitar(item, 'PAYLOAD_INVALIDO', p.error.issues.map((i) => i.message).join('; '));
+      else rejeitar(item, 'PAYLOAD_INVALIDO', mensagemPayloadInvalido(p.error.issues));
     }
   }
   return { validos, rejeitados };

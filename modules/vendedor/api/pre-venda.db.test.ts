@@ -316,10 +316,10 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect(det).toMatchObject({ situacao_orcamento: 'convertido', convertido_pedido_id: id(17) });
     });
 
-    it('RN-VEN-32: orçamento expirado não converte; de outro vendedor ou de outro tenant é "não encontrado"; promotor nunca', async () => {
+    it('RN-VEN-18 (09/11): orçamento com o preço vencido converte pela tabela do dia (não é recusado); de outro vendedor ou de outro tenant é "não encontrado"; promotor nunca', async () => {
       await receber(contexto(vendedor1, { parametros: { 'orcamento.validade_dias': 1 } }).ctx, push(id(19), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       const depois = contexto(vendedor1, { agora: new Date(AGORA.getTime() + 2 * DIA) });
-      expect((await receber(depois.ctx, push(id(20), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(19) })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-18' });
+      expect((await receber(depois.ctx, push(id(20), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(19) })))[0]).toMatchObject({ status: 'aceito' });
 
       await receber(contexto(vendedor1).ctx, push(id(21), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       expect((await receber(contexto(vendedor2).ctx, push(id(22), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(21) })))[0]).toMatchObject({ codigo: 'ORCAMENTO_NAO_ENCONTRADO' });
@@ -405,13 +405,12 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect(igual[0]!.status).toBe('aceito');
     });
 
-    it('RN-VEN-18: editar/cancelar orçamento vencido, convertido ou cancelado = 422 RN-VEN-18; de outro vendedor ou tenant = 404', async () => {
+    it('RN-VEN-18 (09/11): o orçamento não vence (edita e cancela depois dos 7 dias); convertido ou cancelado = 422 RN-VEN-18; de outro vendedor ou tenant = 404', async () => {
       await receber(contexto(vendedor1, { parametros: { 'orcamento.validade_dias': 1 } }).ctx, push(id(30), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       const corpo = async (idDoc: string) => ({ customer_id: A.clientes.c1, discount_pct: 0, payment_terms: '28/56 dias', items: [{ product_id: prod1, quantity: 1 }], atualizado_em: await atualizadoEm(idDoc) });
-      // vencido (3 dias depois)
+      // 3 dias depois (preço vencido): edita e cancela normalmente
       const tarde = contexto(vendedor1, { agora: new Date(AGORA.getTime() + 3 * DIA) });
-      await expect(rotaEditarOrcamento.executar({ ...(tarde.ctx as object), params: { id: id(30) }, corpo: await corpo(id(30)) } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
-      await expect(rotaCancelarOrcamento.executar({ ...(tarde.ctx as object), params: { id: id(30) }, corpo: {} } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+      await expect(rotaEditarOrcamento.executar({ ...(tarde.ctx as object), params: { id: id(30) }, corpo: await corpo(id(30)) } as never)).resolves.toMatchObject({ id: id(30), tipo: 'orcamento' });
       // outro vendedor e outro tenant
       await expect(rotaEditarOrcamento.executar({ ...(contexto(vendedor2).ctx as object), params: { id: id(30) }, corpo: await corpo(id(30)) } as never)).rejects.toMatchObject({ status: 404 });
       await expect(rotaCancelarOrcamento.executar({ ...(contexto(vendedorB).ctx as object), params: { id: id(30) }, corpo: {} } as never)).rejects.toMatchObject({ status: 404 });

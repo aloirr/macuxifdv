@@ -6,6 +6,7 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, Badge, Button, Card, colors, fonts, type as t, type IconName } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
+import { etiquetasDoItem, textoEquivale, type ExtrasProduto } from '../lib/extras-item';
 import { partirPorMarcas, rotuloEstoque, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from '../lib/apresentacao';
 import { MiniaturaProduto } from './miniatura';
 
@@ -56,13 +57,33 @@ function TextoMarcado({ texto, marcas, estilo }: { texto: string; marcas: readon
   );
 }
 
-/** "Serve em: Fiat Uno 1.0/1.4 2010–2014 · inclui 2012" e "Equivale a: Freiomax CB 3401" (RN-CAT-12, RN-CAT-09). */
-function LinhasDaBusca({ item }: { item: ItemVitrine }) {
+/**
+ * "Serve em: Fiat Uno 1.0/1.4 2010–2014 · inclui 2012" e "Equivale a: Freiomax CB 3401" (RN-CAT-12, RN-CAT-09). Na busca
+ * vêm do item, com o trecho em negrito; sem busca (lista do último nível da hierarquia) vêm dos `extras` do aparelho, sem destaque.
+ */
+function LinhasDaBusca({ item, extras }: { item: ItemVitrine; extras?: ExtrasProduto }) {
   const incluiAno = rotuloIncluiAno(item);
   const equivale = textoEquivaleA(item);
-  if (!item.serve_em && !equivale) return null;
+  const aplicacao = !item.serve_em ? extras?.aplicacao ?? null : null;
+  const equivaleLocal = !equivale ? textoEquivale(extras?.referencias ?? []) : null;
+  if (!item.serve_em && !equivale && !aplicacao && !equivaleLocal) return null;
   return (
     <View style={{ gap: 2 }}>
+      {aplicacao ? (
+        <View testID={`catalogo-aplicacao-${item.erp_code}`}>
+          <Text style={t.sub} numberOfLines={2}>
+            <Text style={t.smallStrong}>Serve em: </Text>
+            {aplicacao}
+          </Text>
+        </View>
+      ) : null}
+      {equivaleLocal ? (
+        <View testID={`catalogo-equivale-a-${item.erp_code}`}>
+          <Text style={t.sub} numberOfLines={2}>
+            {equivaleLocal}
+          </Text>
+        </View>
+      ) : null}
       {item.serve_em ? (
         <View testID={`catalogo-serve-em-${item.erp_code}`}>
           <Text style={t.sub}>
@@ -83,7 +104,8 @@ function LinhasDaBusca({ item }: { item: ItemVitrine }) {
   );
 }
 
-export function CartaoProduto({ item, agora, fuso, clienteId, miniatura = null, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
+export function CartaoProduto({ item, agora, fuso, clienteId, miniatura = null, extras, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; miniatura?: Miniatura | null; extras?: ExtrasProduto; onPress: () => void }) {
+  const etiquetas = etiquetasDoItem(extras?.etiquetas ?? []);
   const preco = rotuloPreco(item);
   const estoque = rotuloEstoque(item, agora, fuso);
   return (
@@ -97,7 +119,14 @@ export function CartaoProduto({ item, agora, fuso, clienteId, miniatura = null, 
           {item.is_campaign ? <Badge label="Destaque" tone="accent" /> : null}
         </View>
         <Text style={t.small}>{subtituloProduto(item)}</Text>
-        <LinhasDaBusca item={item} />
+        <LinhasDaBusca item={item} extras={extras} />
+        {etiquetas.length > 0 ? (
+          <View style={s.linha} testID={`catalogo-etiquetas-${item.erp_code}`}>
+            {etiquetas.map((e) => (
+              <Badge key={e} label={e} tone="neutral" />
+            ))}
+          </View>
+        ) : null}
         {preco ? (
           <View style={s.linha}>
             <Text style={[preco.vendavel ? s.preco : s.semPreco]} testID={`catalogo-preco-${item.erp_code}`}>

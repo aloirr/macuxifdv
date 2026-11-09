@@ -91,7 +91,13 @@ const itensVendedorApp = lerModuloApp(FONTE_VENDEDOR_APP);
 describe('C3.3 no BKO (shell web real)', () => {
   it('S0-066: promotor (e vendedor) não entram no BKO: o login mostra o app certo e encerra a sessão', () => {
     expect(mensagemPerfilForaDoApp('promotor', 'web')).toMatch(/Macuxi Campo/);
-    expect(ler('apps/web/components/login-screen.tsx')).toMatch(/mensagemPerfilForaDoApp\(sessao\.usuario\.perfil, 'web'\)[\s\S]{0,400}\/auth\/logout/);
+    // T-0117: o login encerra a sessão pelo encerrarSessao() de lib/session, que chama o encerrarSessaoWeb() do SDK, que faz o
+    // POST /auth/logout (revoga a família do refresh e apaga o cookie). A cadeia é conferida elo a elo no fonte.
+    expect(ler('apps/web/components/login-screen.tsx')).toMatch(/mensagemPerfilForaDoApp\(sessao\.usuario\.perfil, 'web'\)[\s\S]{0,400}await encerrarSessao\(\);[\s\S]{0,40}setErro\(fora\)/);
+    expect(ler('apps/web/lib/session.ts')).toMatch(/export function encerrarSessao\(\)[^{]*\{\s*return encerrarSessaoWeb\(\);/);
+    const sdkWeb = ler('packages/platform-sdk/src/web/api.ts');
+    expect(sdkWeb).toMatch(/export async function encerrarSessaoWeb\(\)[\s\S]{0,200}clearSession\(\);[\s\S]{0,200}chamarSessaoWeb\('logout'\)/);
+    expect(sdkWeb).toMatch(/function chamarSessaoWeb\([\s\S]{0,120}fetch\(`\$\{PROXY_BASE\}\/auth\/\$\{rota\}`, \{\s*method: 'POST'/);
   });
 
   it('manifesto do Vendedor (O-3): a única ação de leitura é pedido.ver, com o promotor; nenhuma ação de escrita tem o promotor', () => {
@@ -134,7 +140,7 @@ const shellCampo = () => shellDoApp('campo');
 
 describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fonte)', () => {
   it('a leitura do fonte encontrou as páginas e extensões do Vendedor', () => {
-    expect(itensVendedorApp.filter((i) => i.tipo === 'pagina').map((i) => i.id)).toEqual(['pedidos', 'pedido', 'novo-pedido']);
+    expect(itensVendedorApp.filter((i) => i.tipo === 'pagina').map((i) => i.id)).toEqual(['pedidos', 'pedido', 'rascunhos', 'novo-pedido']);
     // T-0076: + card Orçamentos/A faturar no Início (inicio.cards/pedidos-resumo, também com acao pedido.criar)
     // T-0052: + "Adicionar ao pedido" no slot produto.acoes do Catálogo (acao pedido.criar, só Campo)
     expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual([
@@ -151,6 +157,10 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
       expect(e.apps, `${e.slot}/${e.id}`).toEqual(e.slot === 'pedido.criar_em_nome' ? ['gestao'] : ['campo']);
     // T-0085: a página novo-pedido vale no Campo e na Gestão (supervisor/gerente em nome do vendedor), sempre com acao pedido.criar
     expect(itensVendedorApp.find((i) => i.tipo === 'pagina' && i.id === 'novo-pedido')).toMatchObject({ acao: 'pedido.criar', apps: ['campo', 'gestao'], perfisDoManifesto: true });
+    // T-0141 F: a rota Rascunhos (rascunhos salvos de pedido) é de ESCRITA de pedido: acao pedido.criar e perfis do manifesto (sem
+    // promotor), então o promotor não a recebe em nenhum shell (RN-PRO-01; conferido rota a rota abaixo, junto do novo-pedido)
+    expect(itensVendedorApp.find((i) => i.tipo === 'pagina' && i.id === 'rascunhos')).toMatchObject({ acao: 'pedido.criar', apps: ['campo', 'gestao'], perfisDoManifesto: true });
+    expect(ehAcaoDeEscritaDePedido('pedido.criar')).toBe(true);
   });
 
   it('T-0077 (R-20261104-204823): toda página do Vendedor declara `perfis` = manifest.perfis, que não tem o promotor (RN-PRO-01)', () => {
@@ -175,6 +185,7 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
   it('S0-061/S0-062: promotor com o Vendedor licenciado — sem "Novo pedido" (rota direta nula), sem abas/ações de pedido na ficha', () => {
     const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] });
     expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pagina('rascunhos')).toBeNull();
     expect(v.extensoes('cliente.acoes')).toEqual([]);
     expect(v.extensoes('cliente.abas')).toEqual([]);
     for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), a).toBe(false);
@@ -182,6 +193,7 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     // controle positivo: o vendedor vê tudo
     const vend = shellCampo().montar({ perfil: 'vendedor', modulosAtivos: ['core', 'catalogo', 'vendedor'] });
     expect(vend.pagina('novo-pedido')).not.toBeNull();
+    expect(vend.pagina('rascunhos')).not.toBeNull();
     expect(vend.extensoes('cliente.acoes').map((e) => e.id)).toEqual(['novo-pedido']);
   });
 
@@ -196,6 +208,7 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     expect(v.pagina('pedidos')).toBeNull();
     expect(v.pagina('pedido')).toBeNull();
     expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pagina('rascunhos')).toBeNull();
     expect(v.pode('pedido.ver')).toBe(true); // leitura no Cliente 360 e na API
     for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), a).toBe(false);
     // controle positivo no mesmo shell: o vendedor recebe a aba e o detalhe
@@ -266,6 +279,7 @@ describe('T-0052 — "Adicionar ao pedido" (produto.acoes) nunca chega ao promot
     const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: [...TODOS] });
     expect(v.pode('pedido.criar')).toBe(false);
     expect(v.pagina('novo-pedido')).toBeNull(); // nem a rota que a ação abriria
+    expect(v.pagina('rascunhos')).toBeNull();
   });
 
   it('prova de que é a `acao: pedido.criar` que barra: a mesma extensão SEM a ação apareceria ao promotor (mutação controlada)', () => {
@@ -337,6 +351,7 @@ describe('T-0085 — pedido em nome: Gestão para supervisor/gerente, nunca para
         const v = visao(app, 'promotor', ativos);
         const rotulo = `${app} ${ativos.length} módulos`;
         expect(v.pagina('novo-pedido'), rotulo).toBeNull();
+        expect(v.pagina('rascunhos'), rotulo).toBeNull();
         expect(v.extensoes('pedido.criar_em_nome'), rotulo).toEqual([]);
         expect(v.extensoes('produto.acoes'), rotulo).toEqual([]);
         expect(v.extensoes('cliente.acoes'), rotulo).toEqual([]);
@@ -351,6 +366,7 @@ describe('T-0085 — pedido em nome: Gestão para supervisor/gerente, nunca para
     for (const app of APPS) {
       const v = visao(app, 'promotor', ef);
       expect(v.pagina('novo-pedido'), app).toBeNull();
+      expect(v.pagina('rascunhos'), app).toBeNull();
       expect(v.extensoes('pedido.criar_em_nome'), app).toEqual([]);
     }
   });
@@ -384,6 +400,7 @@ describe('T-0085 — pedido em nome: Gestão para supervisor/gerente, nunca para
   it('módulo desativado: sem o Vendedor ativo a Gestão do supervisor não tem novo-pedido nem pedido em nome (RN-CORE-03)', () => {
     const v = visao('gestao', 'supervisor', ['core', 'catalogo', 'promotor', 'gestor']);
     expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pagina('rascunhos')).toBeNull();
     expect(v.extensoes('pedido.criar_em_nome')).toEqual([]);
   });
 

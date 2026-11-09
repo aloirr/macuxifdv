@@ -13,8 +13,9 @@
  *  C3 Transformar com preço alterado DENTRO da validade: preço congelado (RN-VEN-18, T-0134, decisão do dono de 08/11/2026) —
  *     a reconferência do aparelho NÃO acusa "Café 18,90 → 19,50" (só estoque e preço mínimo) e o servidor grava o preço do
  *     orçamento (18,90); o total do aparelho = o do servidor; o orçamento guarda o preço dele.
- *  C4 vencido: selo "Vencido" (no detalhe e na linha da lista), só Duplicar e PDF; na lista fica depois dos abertos.
- *  C5 Duplicar o vencido: orçamento novo (número e validade novos, sem origem) ou pedido, com o preço de hoje; o vencido não muda.
+ *  C4 preço de mais de 7 dias (RN-VEN-18 de 09/11, T-0141: o orçamento NÃO vence; antes era o "vencido"): continua aberto, com o
+ *     selo "Orçamento · preço de dd/mm" (a data em que o preço foi tirado), todas as ações e na lista Orçamentos.
+ *  C5 Duplicar o de preço antigo: orçamento novo (número e validade novos, sem origem) ou pedido, com o preço de hoje; o vencido não muda.
  *  C6 RN-VEN-11 (preço mínimo = preço de venda × (1 − desconto máximo efetivo), do core.cadastro_resumo@1) no envio, no PUT do
  *     orçamento e no Transformar: recusa `preco_abaixo_minimo` (422 no PUT; `rejeitado` no push), nada gravado.
  *  C7 RN-VEN-20 (estoque) na reconferência do Transformar: o aparelho soma o saldo local por produto (produtosComPrecos).
@@ -26,6 +27,7 @@
  * Sem `it.fails` desde 05/11 (C6 e C7 corrigidos). Defeito novo vira `it.fails` com recado ao dono; corrigido, volta a `it` (agente testes).
  */
 import { randomUUID } from 'node:crypto';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { CONSULTA_PRECOS_CLIENTE, entidadeEstoqueSaldo } from '@macuxi/catalogo/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ItemPush, LinhaSync, ResultadoItemPush } from '@macuxi/platform-sdk';
@@ -303,7 +305,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect(depois.det.convertido_pedido_id).toBe(PED);
       expect(situacaoNaTela(depois.det, new Date())).toBe('convertido');
       expect(acoesNaTela(depois.det, new Date(), true)).toMatchObject({ pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true });
-      const selo = seloDoOrcamento({ situacao: 'convertido', validade_data: depois.det.validade_data!, pedido_numero: p.numero });
+      const selo = seloDoOrcamento({ situacao: 'convertido', preco_data: api.hoje, pedido_numero: p.numero });
       expect(selo.texto).toBe(`Virou pedido ${p.numero}`);
     });
   });
@@ -359,27 +361,27 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect((await itensNoBanco(ORC)).find((i) => i.produto_id === prod.CAF)!.preco_tabela_cents, 'o orçamento guarda o preço dele').toBe(1890);
     });
 
-    it('C4. vencido no aparelho: selo "Vencido", só Duplicar e PDF; na lista Orçamentos fica depois dos abertos', async () => {
+    // RN-VEN-18 mudou em 09/11 (T-0141): o orçamento não vence; os 7 dias limitam só o preço congelado. O VENC (validade = hoje − 2,
+    // ou seja, preço tirado há 9 dias) era "Vencido" (só Duplicar e PDF); agora continua aberto, com a data do preço no selo.
+    it('C4. preço de 9 dias atrás no aparelho: continua aberto, selo "Orçamento · preço de dd/mm" (data do preço), todas as ações, em Orçamentos', async () => {
       const { l, det } = await naTela(lucas, VENC);
-      expect(situacaoNaTela(det, new Date())).toBe('expirado');
-      expect(seloDoOrcamento({ situacao: 'expirado', validade_data: det.validade_data!, pedido_numero: null }).texto).toBe('Vencido');
-      expect(acoesNaTela(det, new Date(), true)).toMatchObject({ pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: true });
+      expect(situacaoNaTela(det, new Date())).toBe('aberto');
+      // oráculo da regra: data do preço = último dia do preço (orcamento_validade, D+7) − 7
+      const precoData = somarDiasCivis(vencido.orcamento_validade!, -7);
+      const [, m, d] = precoData.split('-');
+      expect(seloDoOrcamento({ situacao: 'aberto', preco_data: precoData, pedido_numero: null }).texto).toBe(`Orçamento · preço de ${d}/${m}`);
+      expect(acoesNaTela(det, new Date(), true)).toMatchObject({ pode_converter: true, pode_editar: true, pode_cancelar: true, pode_duplicar: true, pode_pdf: true });
       const orcs = porTipo(listaDePedidos(l, lucas.motor.parametros('vendedor')).map((o) => ({ ...o, local: false, local_error: '' })), 'orcamento', new Date());
-      const pos = orcs.findIndex((o) => o.id === VENC);
-      expect(pos, 'o vencido está em Orçamentos').toBeGreaterThanOrEqual(0);
-      const abertos = orcs.map((o) => situacaoNaTela(o, new Date())).lastIndexOf('aberto');
-      expect(pos, 'o vencido vem depois de todos os abertos').toBeGreaterThan(abertos);
+      expect(orcs.findIndex((o) => o.id === VENC), 'o de preço antigo está em Orçamentos').toBeGreaterThanOrEqual(0);
       expect(orcs.every((o) => o.tipo === 'orcamento'), 'o filtro Orçamentos só traz orçamento').toBe(true);
     });
 
-    // T-0071-C4b (corrigido, R-20261105-110818): a lista usa rotuloDoDocumento → SITUACAO_ORCAMENTO_LABEL.expirado = "Vencido"
-    // (desenho §1.2), o mesmo texto do selo do detalhe (seloDoOrcamento).
-    it('C4b. a linha do vencido na lista diz "Vencido" (desenho §1.2), não "Orçamento expirado"', async () => {
+    it('C4b. a linha do de preço antigo na lista diz "Orçamento" (a situação é aberto; "Vencido" saiu com a RN-VEN-18 de 09/11)', async () => {
       const { det } = await naTela(lucas, VENC);
-      expect(rotuloDoDocumento(det, new Date())).toBe('Vencido');
+      expect(rotuloDoDocumento(det, new Date())).toBe('Orçamento');
     });
 
-    it('C5. Duplicar o vencido → Salvar como orçamento: documento NOVO (número e validade novos, sem origem), mesma medida e ajustes, preço de hoje; o vencido não muda', async () => {
+    it('C5. Duplicar o de preço antigo → Salvar como orçamento: documento NOVO (número e validade novos, sem origem), mesma medida e ajustes, preço de hoje; o original não muda', async () => {
       const { l, det, linha } = await naTela(lucas, VENC);
       const copia = copiaDoDetalhe(det, { condicaoId: linha.condicao_pagamento_id ?? null, observacao: linha.observacao ?? null, transportadoras: transportadorasDaTela(l) });
       const novo = randomUUID();
@@ -406,7 +408,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect(await conversoesDe(VENC)).toEqual([]);
     });
 
-    it('C5b. Duplicar o vencido → Enviar pedido: pedido novo aprovado SEM origem, com o preço de hoje; o vencido continua vencido e não "convertido"', async () => {
+    it('C5b. Duplicar o de preço antigo → Enviar pedido: pedido novo aprovado SEM origem, com o preço de hoje; o original continua aberto, não "convertido"', async () => {
       const { l, det, linha } = await naTela(lucas, VENC);
       const novo = randomUUID();
       const rascunho = duplicarDocumento(copiaDoDetalhe(det, { condicaoId: linha.condicao_pagamento_id ?? null, observacao: linha.observacao ?? null, transportadoras: transportadorasDaTela(l) }), novo, new Date().toISOString());
@@ -417,7 +419,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect((await itensNoBanco(novo)).find((i) => i.produto_id === prod.CAF)!.preco_tabela_cents).toBe(1950);
       expect(await eventos(novo)).toEqual(expect.arrayContaining(['vendedor.pedido.criado@1', 'vendedor.pedido.aprovado@1']));
       expect(await conversoesDe(VENC)).toEqual([]);
-      const venc = await api.get(token.vendedor, '/v1/vendedor/pedidos?tipo=orcamento&situacao=expirado&limite=200');
+      const venc = await api.get(token.vendedor, '/v1/vendedor/pedidos?tipo=orcamento&situacao=aberto&limite=200');
       expect(listaDe(venc.corpo).map((x) => (x as { id: string }).id)).toContain(VENC);
     });
   });
@@ -532,11 +534,12 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       atualizado = String((await lucas.motor.linhas<LinhaSync>('pedido')).find((p) => p.id === ORC)!.updated_at);
     });
 
-    it('C8a. no aparelho da supervisora: o orçamento do Lucas está em Orçamentos ("Orçamento · até dd/mm"), sem Transformar, Editar nem Cancelar (só PDF), e fora de "Para aprovar"', async () => {
+    it('C8a. no aparelho da supervisora: o orçamento do Lucas está em Orçamentos ("Orçamento · preço de dd/mm"), sem Transformar, Editar nem Cancelar (só PDF), e fora de "Para aprovar"', async () => {
       const { l, det } = await naTela(sup, ORC, 'supervisor');
       expect(det).toMatchObject({ tipo: 'orcamento', seller_id: usuarioId.vendedor, total_cents: 37979 });
-      const [, m, d] = det.validade_data!.split('-');
-      expect(seloDoOrcamento({ situacao: situacaoNaTela(det, new Date())!, validade_data: det.validade_data!, pedido_numero: null }).texto).toBe(`Orçamento · até ${d}/${m}`);
+      // RN-VEN-18 (09/11): o selo mostra a data do preço (o ORC foi salvo hoje), nunca "até dd/mm"
+      const [, m, d] = api.hoje.split('-');
+      expect(seloDoOrcamento({ situacao: situacaoNaTela(det, new Date())!, preco_data: api.hoje, pedido_numero: null }).texto).toBe(`Orçamento · preço de ${d}/${m}`);
       // variante gestao (order-detail-screen: ehVendedor = !v1 || perfil === 'vendedor' → false): acoesNaTela zera converter, editar e
       // cancelar; Duplicar continua no domain, mas a tela só mostra Duplicar com ehVendedor (e a API recusa o pedido da supervisora)
       expect(acoesNaTela(det, new Date(), false)).toMatchObject({ pode_converter: false, pode_editar: false, pode_cancelar: false, pode_pdf: true });

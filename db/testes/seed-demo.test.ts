@@ -10,6 +10,7 @@ import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/d
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
   METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO, CLIENTE_REFERENCIA_DEMO, codigoErpDemo, RELACOES_DEMO, numerarPedidosDemo,
+  ENDERECO_EDITADO_DEMO, idPedidoDemo, PEDIDO_ENDERECO_EDITADO_DEMO,
 } from '../seeds/demo/demo';
 import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
@@ -190,14 +191,18 @@ describe('base de demo (estático)', () => {
       for (const sku of Object.keys(DESCONTO_MAXIMO_PROPRIO_DEMO)) expect(skusComDesconto.has(sku), sku).toBe(false);
     });
 
-    it('RN-VEN-15 e RF-CAT-04: toda unidade base é a padrão (fator 1); CX com fator > 1; árvore de 3 níveis com todo produto numa folha', () => {
+    it('RN-VEN-15 e RF-CAT-04: toda unidade base é a padrão (fator 1); CX com fator > 1; árvore de 3 e 4 níveis com todo produto numa folha', () => {
       const uns = d['core.produto_unidade'];
       expect(uns.filter((u) => u.padrao)).toHaveLength(d['core.produto'].length);
       expect(uns.filter((u) => u.padrao).every((u) => u.fator === 1)).toBe(true);
       expect(uns.filter((u) => u.unidade === 'CX').every((u) => Number(u.fator) > 1)).toBe(true);
       const nos = d['catalogo.catalogo_no'];
-      expect(new Set(nos.map((n) => n.nivel))).toEqual(new Set([1, 2, 3]));
-      const folhas = new Set(nos.filter((n) => n.nivel === 3).map((n) => n.id));
+      expect(new Set(nos.map((n) => n.nivel))).toEqual(new Set([1, 2, 3, 4]));
+      // nível = profundidade real (o check catalogo_no_raiz_nivel_1 só confere a raiz)
+      const porId = new Map(nos.map((n) => [n.id as string, n]));
+      for (const n of nos) expect(n.nivel, String(n.codigo)).toBe(n.pai_id ? Number(porId.get(n.pai_id as string)!.nivel) + 1 : 1);
+      const pais = new Set(nos.map((n) => n.pai_id).filter(Boolean));
+      const folhas = new Set(nos.filter((n) => !pais.has(n.id)).map((n) => n.id));
       expect(d['catalogo.produto_no']).toHaveLength(d['core.produto'].length);
       expect(d['catalogo.produto_no'].every((x) => folhas.has(x.no_id))).toBe(true);
       // RN-VEN-15 (T-0089): sem preço próprio da embalagem; toda linha de preço é da UN (unidade nula)
@@ -207,14 +212,31 @@ describe('base de demo (estático)', () => {
 
     it('RN-VEN-16/17: 2 transportadoras; pedidos com frete (FOB só com transportadora, sem valor de frete) e endereço de entrega principal', () => {
       expect(d['vendedor.transportadora']).toHaveLength(2);
+      const editado = idPedidoDemo(PEDIDO_ENDERECO_EDITADO_DEMO);
       for (const p of d['vendedor.pedido']) {
         expect(['CIF', 'FOB']).toContain(p.frete_modalidade);
         if (p.frete_modalidade === 'CIF') expect(p.transportadora_id).toBeNull();
         else expect(p.transportadora_id).toBeTruthy();
+        if (p.id === editado) continue;
         expect(d['core.cliente_endereco'].some((e) => e.id === p.endereco_entrega_id && e.principal)).toBe(true);
+        expect((p.endereco_entrega as { origem?: string }).origem).toBeUndefined(); // formato antigo = 'erp'
       }
       expect(d['core.cliente_endereco'].filter((e) => e.principal)).toHaveLength(30);
       expect(d['core.cliente_endereco'].filter((e) => !e.principal).length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('RN-VEN-17 (0055, T-0141 C): um pedido APROVADO com endereço editado só nele, no formato dos CHECKs, e o cadastro do cliente sem esse endereço', () => {
+      const p = d['vendedor.pedido'].find((x) => x.id === idPedidoDemo(PEDIDO_ENDERECO_EDITADO_DEMO))!;
+      expect(p).toMatchObject({ status: 'approved', endereco_entrega_id: null });
+      const e = p.endereco_entrega as Record<string, unknown>;
+      expect(e).toEqual(ENDERECO_EDITADO_DEMO);
+      // os mesmos limites dos CHECKs pedido_endereco_editado_sem_id e pedido_endereco_editado_completo
+      expect([e.id, e.external_id, e.principal, e.origem]).toEqual([null, null, false, 'editado']);
+      for (const k of ['logradouro', 'numero', 'bairro', 'cidade']) expect(String(e[k]).trim(), k).not.toBe('');
+      expect(e.uf).toMatch(/^[A-Z]{2}$/);
+      expect(e.cep).toMatch(/^[0-9]{8}$/);
+      // o endereço digitado não entra em core.cliente_endereco (RN-VEN-17: não muda o cadastro)
+      expect(d['core.cliente_endereco'].some((x) => x.logradouro === e.logradouro || x.cep === e.cep)).toBe(false);
     });
   });
 
@@ -276,10 +298,31 @@ describe('base de demo (estático)', () => {
         for (let n = nos.get(pn.no_id as string); n; n = n.pai_id ? nos.get(n.pai_id as string) : undefined) out.unshift(String(n.nome));
         return out.join(' › ');
       };
-      expect(trilha('PST-D01')).toBe('Freios › Pastilhas › Dianteiras');
-      expect(trilha('DSC-D01')).toBe('Freios › Discos › Dianteiros');
-      expect(trilha('FOL-G01')).toBe('Filtros › Filtros de óleo › Linha leve');
-      expect(trilha('AMR-T01')).toBe('Suspensão › Amortecedores › Traseiros');
+      expect(trilha('PST-D01')).toBe('Automotivo › Freios › Pastilhas › Dianteiras');
+      expect(trilha('DSC-D01')).toBe('Automotivo › Freios › Discos › Dianteiros');
+      expect(trilha('FOL-G01')).toBe('Automotivo › Filtros › Filtros de óleo › Linha leve');
+      expect(trilha('AMR-T01')).toBe('Automotivo › Suspensão › Amortecedores › Traseiros');
+    });
+
+    it('T-0142 (RF-CAT-09): raiz só com Alimentos, Bebidas, Limpeza e higiene e Automotivo; Automotivo com 5 grupos e as 12 autopeças, sem órfão', () => {
+      const nos = d['catalogo.catalogo_no'];
+      const filhos = (pai: unknown) => nos.filter((n) => n.pai_id === pai).sort((a, b) => Number(a.ordem) - Number(b.ordem)).map((n) => n.nome);
+      expect(filhos(null)).toEqual(['Alimentos', 'Bebidas', 'Limpeza e higiene', 'Automotivo']);
+      const aut = nos.find((n) => n.codigo === 'AUT')!;
+      expect(filhos(aut.id)).toEqual(['Lubrificantes e fluidos', 'Peças e acessórios', 'Freios', 'Filtros', 'Suspensão']);
+      // contagem do nível (produtos ativos da subárvore) = as 12 autopeças (8 antigas + 4 da T-0085)
+      const porId = new Map(nos.map((n) => [n.id as string, n]));
+      const raizDe = (noId: string): string => {
+        let n = porId.get(noId)!;
+        while (n.pai_id) n = porId.get(n.pai_id as string)!;
+        return String(n.codigo);
+      };
+      const ativos = new Set(d['core.produto'].filter((p) => p.ativo !== false && !p.deleted_at).map((p) => p.id));
+      const sobAut = d['catalogo.produto_no'].filter((x) => ativos.has(x.produto_id) && raizDe(x.no_id as string) === 'AUT');
+      expect(sobAut).toHaveLength(12);
+      expect(sobAut.map((x) => x.produto_id).sort()).toEqual(autopecas.map((s) => idDe.get(s)).sort());
+      // nenhum produto aponta para nó inexistente
+      for (const x of d['catalogo.produto_no']) expect(porId.has(x.no_id as string), String(x.produto_id)).toBe(true);
     });
 
     it('RN-CAT-09: referências até 3 por produto, "CB 3401" (Freiomax) na pastilha do Uno e "FB-0207" (Filtrobom) no filtro, marca = concorrente do Promotor, compacto da regra do domain', () => {

@@ -14,3 +14,5 @@ export { idDeChave, idMotivoPadrao, idParametroCore, MOTIVOS_PADRAO } from '../i
 export { hojeNoFuso, somarDias, anoMes, agoraDosTestes, VAR_AGORA } from '../datas';
 // Instante da carga da fixture no globalSetup (T-0042, B3): uma linha do tempo só entre a fixture e os testes.
 export { agoraDaFixture, hojeDaFixture } from '../../testes/estado';
+// T-0033: a fixture completa (dois-tenants + Treinamento) para quem cria o próprio banco; carregarDoisTenants sozinha deixa o treinamento vazio.
+export { carregarFixtureDosTestes, TREINAMENTO_FIXTURE } from '../../testes/fixture-treinamento';

@@ -125,7 +125,7 @@ export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas:
     return (
       <Cartao gap={8} testID="inicio.meta.vazio">
         <TopoDoCartao rotulo={rotuloDaMeta(equipe)} />
-        <Text style={t.small}>Nenhuma meta cadastrada para este mês.</Text>
+        <Text style={t.small}>Nenhuma meta cadastrada.</Text>
       </Cartao>
     );
   }

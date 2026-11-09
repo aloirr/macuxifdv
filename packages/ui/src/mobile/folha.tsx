@@ -123,6 +123,7 @@ export function Folha({
   onFechar,
   rotuloFechar,
   titulo,
+  fechar,
   rotuloAcessivel,
   rodape,
   rolavel,
@@ -136,6 +137,11 @@ export function Folha({
   rotuloFechar: string;
   /** Título visível ("Salvar pedido"); opcional. */
   titulo?: string;
+  /**
+   * ✕ à direita do título (T-0141, pranchas do Novo pedido v3): alvo de 48 dp, chama `onFechar` (o mesmo do toque fora e do
+   * Voltar do Android). Fica fixo com o título, fora da rolagem. `rotulo` é a leitura do leitor de tela ("Fechar").
+   */
+  fechar?: { rotulo: string; testID?: string };
   /** Nome da folha para o leitor de tela; sem ele usa o título. */
   rotuloAcessivel?: string;
   /** Ação de texto centralizada no fim (ex.: "Voltar"). */
@@ -178,7 +184,16 @@ export function Folha({
         accessibilityViewIsModal
         accessibilityLabel={rotuloAcessivel ?? titulo}>
         <View style={s.alca} />
-        {titulo ? (
+        {fechar ? (
+          <View style={s.cabecalho}>
+            <Text style={[s.titulo, s.tituloComFechar]} accessibilityRole={titulo ? 'header' : undefined}>
+              {titulo ?? ''}
+            </Text>
+            <Pressionavel testID={fechar.testID ?? `${testID}-fechar`} accessibilityRole="button" accessibilityLabel={fechar.rotulo} onPress={onFechar} style={s.fechar}>
+              <Icon name="close" size={20} color={colors.ink} strokeWidth={2.2} />
+            </Pressionavel>
+          </View>
+        ) : titulo ? (
           <Text style={s.titulo} accessibilityRole="header">
             {titulo}
           </Text>
@@ -331,6 +346,10 @@ const s = StyleSheet.create({
   /** alça visual no topo (indica que a folha desce) */
   alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
   titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
+  /** título + ✕ (T-0141): o ✕ ocupa o alvo inteiro de 48 dp, com o ícone de 20 alinhado à direita do conteúdo */
+  cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE },
+  tituloComFechar: { flex: 1, minWidth: 0 },
+  fechar: { width: ALVO_TOQUE, height: ALVO_TOQUE, alignItems: 'flex-end', justifyContent: 'center' },
   /** área rolável da folha alta: encolhe até caber na altura máxima; entre os filhos, o mesmo gap da folha (9) */
   rolagem: { flexGrow: 0, flexShrink: 1 },
   rolagemConteudo: { gap: 9 },

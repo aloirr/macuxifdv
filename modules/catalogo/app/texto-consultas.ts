@@ -3,7 +3,7 @@
  * Mesmo núcleo puro da API (`domain/busca-consulta.ts`), sobre as linhas locais; funcionam sem sinal.
  *
  * O contexto da consulta lê as entidades do Catálogo e as dos módulos em `depende` (o `produto` do Core). NÃO lê o Promotor
- * (`concorrente` lançaria Error): o "Equivale a" usa o `marca_nome` da referência (retrato, `nomeMarcaDaReferencia`).
+ * (nem a `concorrente` nem a `marca_concorrente`): o "Equivale a" usa o `marca_nome` da referência (retrato, `nomeMarcaDaReferencia`).
  * A montagem dos produtos é a da aba Catálogo (`lib/local.ts`), sem a leitura do concorrente.
  */
 import { implementarConsultaAparelho, type ContextoConsultaAparelho } from '@macuxi/platform-sdk';
@@ -48,7 +48,7 @@ export async function aplicacoesDosProdutos(ctx: ContextoConsultaAparelho, ids: 
 }
 
 /**
- * Referências cruzadas pelo retrato `marca_nome` (0034): a consulta não lê o cadastro do Promotor (limite do SDK acima), então é
+ * Referências cruzadas pelo retrato `marca_nome` (0034): a consulta não lê o cadastro de marcas (limite do SDK acima), então é
  * o caso "cadastro indisponível" da RN-CAT-09. Sem retrato, a marca daquela referência não aparece (sem quebrar).
  */
 export async function referenciasDoRetrato(ctx: ContextoConsultaAparelho, ids?: ReadonlySet<string>): Promise<Map<string, Referencia[]>> {

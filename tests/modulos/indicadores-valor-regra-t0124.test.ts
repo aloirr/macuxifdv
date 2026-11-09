@@ -161,16 +161,21 @@ describe('T-0124 — cards Orçamentos e A faturar do Início (RN-VEN-18, RN-VEN
     doc({ status: 'queued', total_cents: 11_000, local: true }),
     doc({ status: 'approved', total_cents: 77_700, seller_id: id(2) }),
   ];
-  const resumo = (agora: string) => resumoDoInicio(pedidos, { agora: new Date(agora), fuso: FUSO, diasValidade: 7, vendedorId: ANA, preVendaLigada: true });
+  // RN-VEN-18 (09/11): o resumo não depende mais da hora (o orçamento não vence); `agora` fica no nome dos casos para provar isso
+  const resumo = (_agora: string) => resumoDoInicio(pedidos, { vendedorId: ANA, preVendaLigada: true });
 
-  it('O1. fuso de Manaus: domingo 08/11 23h30 (09/11 03h30 UTC) o orçamento válido até 08/11 ainda conta, e o de 09/11 "vence amanhã"', () => {
+  // RN-VEN-18 mudou em 09/11 (dono do produto, R-20261109-064818; T-0141): o orçamento NÃO expira; os 7 dias limitam só o preço
+  // congelado. Antes O1/O2 conferiam a validade ("vence amanhã" e o de 08/11 saindo na virada); agora o card conta todo orçamento
+  // aberto (cancelado e convertido ficam fora), a qualquer hora, e a linha não fala em vencimento.
+  it('O1. RN-VEN-18 (09/11): orçamento aberto conta em qualquer dia, inclusive o de preço de 08/11; a linha não fala em vencimento', () => {
     const r = resumo('2026-11-09T03:30:00Z');
-    expect(r.orcamentos).toEqual({ quantidade: 2, valor_cents: 115_000, vencem_amanha: 1 });
-    expect(limpo(linhaOrcamentos(r.orcamentos!))).toBe('R$ 1.150 · 1 vence amanhã');
+    expect(r.orcamentos).toMatchObject({ quantidade: 2, valor_cents: 115_000 });
+    expect(limpo(linhaOrcamentos(r.orcamentos!))).toMatch(/^R\$ 1\.150/);
+    expect(limpo(linhaOrcamentos(r.orcamentos!))).not.toMatch(/venc/i);
   });
 
-  it('O2. virada do dia: 09/11 00h30 em Manaus o de 08/11 sai; cancelado nunca conta', () => {
-    expect(resumo('2026-11-09T04:30:00Z').orcamentos).toEqual({ quantidade: 1, valor_cents: 15_000, vencem_amanha: 0 });
+  it('O2. virada do dia em Manaus (09/11 00h30) e um mês depois: o mesmo total; cancelado nunca conta', () => {
+    for (const agora of ['2026-11-09T04:30:00Z', '2026-12-10T15:00:00Z']) expect(resumo(agora).orcamentos, agora).toMatchObject({ quantidade: 2, valor_cents: 115_000 });
   });
 
   it('F1. A faturar (RN-VEN-30, decisão de 04/11): aguardando aprovação + aprovado/enviado/integrado do próprio vendedor; faturado, cancelado, na fila e de outro vendedor ficam fora', () => {

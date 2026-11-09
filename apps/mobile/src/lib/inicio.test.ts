@@ -9,7 +9,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   avisoDosDados,
-  caminhoDoLink,
   dataDoCabecalho,
   desenhoDaLinha,
   desenhoMetaDoMes,
@@ -137,10 +136,8 @@ describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
     expect(destinoDaNotificacao('/m/core-rota', existe)).toBe('/m/notificacoes');
     expect(destinoDaNotificacao('/m/rota', existe)).toBe('/m/rota');
     expect(destinoDaNotificacao('/m/rota?data=2026-11-08', existe)).toBe('/m/rota?data=2026-11-08');
-    expect(caminhoDoLink('/m/cliente?id=1#x')).toBe('cliente');
-    expect(caminhoDoLink('/x/rota')).toBeNull();
-    // mais de um segmento: `a/b` não é tela do `visao.pagina`, então vai à central (revisão R-20261108-215731)
-    expect(caminhoDoLink('/m/pedidos/novo')).toBe('pedidos/novo');
+    // mais de um segmento: `a/b` não é tela do `visao.pagina`, então vai à central (revisão R-20261108-215731); o corte
+    // do caminho (`caminhoDoLinkInterno`) é testado no SDK (`shell.test.ts`, RD-0032)
     expect(destinoDaNotificacao('/m/rota/hoje', existe)).toBe('/m/notificacoes');
   });
 });

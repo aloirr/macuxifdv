@@ -11,7 +11,7 @@
  * `agora` da carga (nada de hora fixa). Idempotente: upsert por id.
  */
 import type { ClientBase } from 'pg';
-import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { hojeNoFuso, somarDias } from '../src/datas';
 import { gravarLinhas, type Linha } from '../src/gravar';
 import { idFixo } from '../src/ids';
@@ -158,4 +158,15 @@ export async function carregarTreinamentoDoisTenants(admin: ClientBase, opcoes: 
     throw e;
   }
   return dados;
+}
+
+/**
+ * A fixture COMPLETA dos testes (T-0033): dois-tenants + Treinamento, no mesmo instante `agora`. É o que o globalSetup carrega
+ * no banco compartilhado e o que um teste que cria o PRÓPRIO banco (`criarBancoDeTeste({ preparar })`) deve carregar para ter
+ * linha de A e de B em toda tabela com tenant_id: só `carregarDoisTenants` deixa o schema `treinamento` vazio.
+ * Exportada em `@macuxi/db/teste`.
+ */
+export async function carregarFixtureDosTestes(admin: ClientBase, opcoes: { agora: Date; senha?: string }): Promise<void> {
+  await carregarDoisTenants(admin, { agora: opcoes.agora, senha: opcoes.senha });
+  await carregarTreinamentoDoisTenants(admin, { agora: opcoes.agora });
 }

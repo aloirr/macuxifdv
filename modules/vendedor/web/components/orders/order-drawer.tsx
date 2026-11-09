@@ -9,7 +9,7 @@ import type { Order } from '../../../contracts';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
-import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega } from '../../lib/detalhe-pedido';
+import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { OrderStatusBadge } from './status';
@@ -42,9 +42,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      const html = buildOrderPdfHtml(pdfDoPedido(dados), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
+      const pdf = pdfDoPedido(dados);
+      const html = buildOrderPdfHtml(pdf, view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
       // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
-      await imprimirHtml(html, orderPdfFileName(dados.number || null, view, dados.tipo).replace(/\.pdf$/, ''));
+      await imprimirHtml(html, orderPdfFileName(pdf.number, pdf.created_at, tz, pdf.tipo).replace(/\.pdf$/, ''));
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
@@ -53,10 +54,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   };
 
   const aprovacao = dados?.aprovacao ?? null;
-  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Vencido · Cancelado (calculados); o pedido, o status de cada evento
+  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Cancelado (o orçamento não vence); o pedido, o status de cada evento
   const eventos = dados
     ? dados.tipo === 'orcamento'
-      ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, validadeAte: dados.validade_ate ?? null, convertidoEm: dados.updated_at, numeroPedido: null })
+      ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, convertidoEm: dados.updated_at, numeroPedido: null })
       : eventosDoPedido(dados.history, { vendedorNome: dados.seller_name, motivoDoFechamento: dados.rejection_reason })
     : [];
   // T-0054: coluna "Faturado" só quando o retorno do ERP trouxe quantidades
@@ -149,7 +150,16 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                   {textoDaTransportadora(o.freight) ? <Field label="Transportadora">{textoDaTransportadora(o.freight)}</Field> : null}
                 </div>
               ) : null}
-              {textoDoEnderecoEntrega(o.delivery_address) ? <Field label="Endereço de entrega">{textoDoEnderecoEntrega(o.delivery_address)}</Field> : null}
+              {textoDoEnderecoEntrega(o.delivery_address) ? (
+                <Field label="Endereço de entrega">
+                  {textoDoEnderecoEntrega(o.delivery_address)}
+                  {enderecoFoiEditado(o.delivery_address) ? (
+                    <span className="ml-2 rounded-md bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent-ink" data-testid="pedido.endereco-editado">
+                      {SELO_ENDERECO_EDITADO}
+                    </span>
+                  ) : null}
+                </Field>
+              ) : null}
               <span className="text-[12px] text-ink-2">O frete não tem valor no pedido: no FOB o cliente paga direto à transportadora.</span>
             </section>
           )}

@@ -287,7 +287,7 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   (`cadastro_incompleto`, falta `cep`: pedido dele só como orçamento, RN-VEN-13); pedidos com o CNPJ no retrato (o
   `000010` abre no BKO), frete (FOB com transportadora em 4 clientes, CIF no resto; sem valor de frete, R-20261102-105040) e endereço de entrega
   principal; custo com margem de 20% a 40%, desconto máximo próprio em `OLE-4T-1L` 25%, `VEL-150` 5% e `DET-5L` 10%
-  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (CX = UN × fator; o preço próprio da CX ligado na T-0071 foi desligado na T-0089, RN-VEN-15); árvore do catálogo de 3 níveis; conteúdo, atributos,
+  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (CX = UN × fator; o preço próprio da CX ligado na T-0071 foi desligado na T-0089, RN-VEN-15); árvore do catálogo de 3 e 4 níveis (raiz com 4 categorias; Freios, Filtros e Suspensão em Automotivo, T-0142); conteúdo, atributos,
   sinônimos e documento de busca ("óleo para moto 150 cilindradas" acha `OLE-4T-1L`); 2 depósitos com rupturas e
   saldos baixos; 2 transportadoras; endereço de entrega extra em 5 clientes.
 - **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título
@@ -357,7 +357,7 @@ parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar d
 | Carregar o seed da Fase M | `pnpm --filter @macuxi/db banco seed fase-m` |
 | Carregar a base de demo (`--recriar` = do zero) | `pnpm --filter @macuxi/db banco seed demo [--recriar]` |
 | Carregar a fixture dois-tenants | `pnpm --filter @macuxi/db banco fixture dois-tenants` |
-| Criar banco de teste efêmero (migrado) | `pnpm --filter @macuxi/db banco criar-teste [--fixture dois-tenants\|fase-m]` |
+| Criar banco de teste efêmero (migrado; cópia do banco modelo, T-0033) | `pnpm --filter @macuxi/db banco criar-teste [--fixture dois-tenants\|fase-m]` |
 | Apagar banco(s) de teste | `pnpm --filter @macuxi/db banco apagar-teste <nome> \| --todos` |
 | (Re)criar o papel de aplicação | `pnpm --filter @macuxi/db banco papeis` |
 | Recriar do zero (apaga volume, sobe e migra) | `pnpm --filter @macuxi/db banco recriar` |
@@ -384,6 +384,16 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 - **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
   `[db] Docker não está rodando: N testes de banco pulados.` (relator `db/testes/aviso-pulos.ts`).
 - **CI:** defina `MACUXI_PG_EXIGIR=1` — aí a ausência do banco é **erro** (não pula).
+- **Banco modelo** (T-0033, `db/src/banco-modelo.ts`, ADR 0013 §6): o 1º `criarBancoDeTeste` migrado de cada processo
+  garante `macuxi_modelo_<chave>` (todas as migrações aplicadas, `IS_TEMPLATE`, `ALLOW_CONNECTIONS false`) e os bancos
+  efêmeros saem por `create database <nome> template <modelo>`, já migrados (os papéis são do cluster: GRANTs, RLS e
+  `public.macuxi_migracao` vêm na cópia). Chave = 12 hex do sha256 de versão/nome/checksum up/down de cada migração, do
+  admin e de `VERSAO_MODELO`: migração nova ou editada = modelo novo. Construção com advisory lock próprio
+  (`CHAVE_LOCK_MODELO`, ≠ do migrador e dos papéis) no banco `postgres`; "pronto" = existe e `datistemplate` (sobra de
+  construção interrompida é apagada e refeita). Ligado por padrão só em Postgres local (o `localhost` do CI incluído);
+  `MACUXI_PG_MODELO=0` desliga (migra do zero, como antes), `=1` força. `migrar: false` cria vazio, como antes. Falha do
+  modelo (construção ou cópia) **não derruba** a suíte: aviso no log e o caminho antigo. Modelos de outra chave saem no
+  `banco apagar-teste --todos`; `banco status` lista os modelos. Teste: `db/testes/banco-modelo.test.ts`.
 - **Admin sem superusuário** (DBaaS da Magalu; modo do CI com `db/scripts/admin-sem-superusuario.ts` e
   `MACUXI_PG_ADMIN_SEM_SUPER=1`): o globalSetup mede `adminIgnoraRls` e `local` e os põe no estado. Up/down com dados numa
   versão anterior à 0031 pulam com `motivoSemSuperusuario('<versão>')`, e o seed da Fase M pula fora do local com
@@ -431,10 +441,11 @@ Utilitários do vazamento (`tabelasComTenant`, `emTransacao`, `erroDe`, `comClie
 
 **Opção 2 — banco por arquivo, sem globalSetup:**
 ```ts
-import { criarBancoDeTeste, carregarDoisTenants, comTenant, DOIS_TENANTS, TABELAS_SEM_TENANT_ID } from '@macuxi/db/teste';
+import { agoraDaFixture, carregarFixtureDosTestes, criarBancoDeTeste, comTenant, DOIS_TENANTS, TABELAS_SEM_TENANT_ID } from '@macuxi/db/teste';
 import pg from 'pg';
 
-const banco = await criarBancoDeTeste({ preparar: (admin) => carregarDoisTenants(admin).then(() => {}) });
+// a fixture COMPLETA (dois-tenants + Treinamento), a mesma do globalSetup; só carregarDoisTenants deixa o schema treinamento vazio (T-0033)
+const banco = await criarBancoDeTeste({ preparar: (admin) => carregarFixtureDosTestes(admin, { agora: agoraDaFixture() }) });
 const pool = new pg.Pool({ connectionString: banco.urlApp });           // papel macuxi_app (sujeito a RLS)
 const linhas = await comTenant(pool, DOIS_TENANTS.A.tenantId, (c) => c.query('select * from core.usuario'));
 await pool.end(); await banco.apagar();

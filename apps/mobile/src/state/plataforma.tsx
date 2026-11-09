@@ -18,7 +18,7 @@
  *
  * Armazenamento (T-0088, desenho docs/desenho/T-0088.md): o motor roda sobre o SQLite do usuário e tenant da sessão
  * (`services/armazenamento.ts`), aberto ANTES do motor (passagem do AsyncStorage na 1ª abertura, com a tela de preparo);
- * o lease e a tarefa em segundo plano usam a mesma instância; sair fecha sem apagar; aparelho bloqueado apaga os bancos
+ * a tarefa em segundo plano usa a mesma instância; sair fecha sem apagar; aparelho bloqueado apaga os bancos
  * de todos os usuários.
  */
 import {
@@ -86,13 +86,7 @@ import { varianteAtual } from '@/lib/variante';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/endereco-do-build';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
-import {
-  CHAVE_LEASE,
-  DONO_APP,
-  leaseOcupado,
-  type LeaseSync,
-  type ResultadoSegundoPlano,
-} from '@/lib/segundo-plano';
+import type { ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, HttpError, NetworkError } from '@/services/api';
@@ -114,7 +108,6 @@ import {
   ligarSyncEmSegundoPlano,
   lerUltimoSegundoPlano,
   marcarBuildAberto,
-  passadaEmSegundoPlano,
   registrarAppAberto,
   travaSync,
 } from '@/services/segundo-plano';
@@ -234,7 +227,7 @@ function usePlataformaValor() {
     recente: false,
   });
   /**
-   * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor, o lease e a
+   * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor e a
    * tarefa em segundo plano usam a MESMA instância; o logout fecha sem apagar.
    */
   const armazenamentoRef = useRef<{
@@ -481,27 +474,13 @@ function usePlataformaValor() {
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
       travaSync.entrar('sincronizacao');
       const p: Promise<boolean> = (async () => {
-        // T-0140: a tarefa sem tela já estava rodando neste processo (app aberto durante a passada): espera ela terminar
-        // e relê o que ela gravou, sem duas passadas no mesmo arquivo
+        // T-0140/RD-0033 (ADR 0017 §3): a tarefa sem tela já estava rodando neste processo (app aberto durante a passada,
+        // com o motor dela): espera ela terminar e relê o que ela gravou, sem duas passadas no mesmo arquivo. A trava é a
+        // única porta (a tarefa e a tela dividem o processo e o runtime JS); o único `false` calado é a troca de usuário
         if (travaSync.segundoPlanoAtivo()) {
           await travaSync.esperarSegundoPlano();
           if (motorRef.current !== m) return false;
           await m.carregar();
-        }
-        // ADR 0017: a tarefa em segundo plano está sincronizando com outro motor (app reaberto durante a tarefa): espera
-        // ela terminar e relê o que ela gravou; sem a passada neste processo, o lease vence em 2 min e a próxima segue
-        const s = sessaoRef.current;
-        const aberto = armazenamentoRef.current;
-        // T-0088: o lease é lido na MESMA instância do motor e da tarefa (uma fila de escrita só no arquivo)
-        if (s && aberto?.usuarioId === s.user.id) {
-          const lease = await aberto.armazenamento.ler<LeaseSync>(CHAVE_LEASE);
-          if (leaseOcupado(lease, DONO_APP, Date.now())) {
-            const tarefa = passadaEmSegundoPlano();
-            if (!tarefa) return false;
-            await tarefa.catch(() => undefined);
-            if (motorRef.current !== m) return false;
-            await m.carregar();
-          }
         }
         if (offlineRef.current) return m.sincronizar();
         // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)

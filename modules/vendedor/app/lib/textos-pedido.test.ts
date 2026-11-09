@@ -50,14 +50,13 @@ describe('abasDoPedido e folha do Salvar', () => {
 });
 
 describe('seloDoOrcamento (RN-VEN-18)', () => {
-  it('aberto: "Orçamento · até 10/11"', () => {
-    expect(seloDoOrcamento({ situacao: 'aberto', validade_data: '2026-11-10' })).toEqual({ texto: 'Orçamento · até 10/11', tom: 'roxo' });
+  it('aberto: "Orçamento · preço de 10/11"', () => {
+    expect(seloDoOrcamento({ situacao: 'aberto', preco_data: '2026-11-10' })).toEqual({ texto: 'Orçamento · preço de 10/11', tom: 'roxo' });
   });
-  it('vencido, cancelado e convertido', () => {
-    expect(seloDoOrcamento({ situacao: 'expirado', validade_data: '2026-11-10' }).texto).toBe('Vencido');
-    expect(seloDoOrcamento({ situacao: 'cancelado', validade_data: '2026-11-10' }).texto).toBe('Cancelado');
-    expect(seloDoOrcamento({ situacao: 'convertido', validade_data: '2026-11-10', pedido_numero: '000015' }).texto).toBe('Virou pedido 000015');
-    expect(seloDoOrcamento({ situacao: 'convertido', validade_data: '2026-11-10' }).texto).toBe('Virou pedido');
+  it('cancelado e convertido (não há vencido)', () => {
+    expect(seloDoOrcamento({ situacao: 'cancelado', preco_data: '2026-11-10' }).texto).toBe('Cancelado');
+    expect(seloDoOrcamento({ situacao: 'convertido', preco_data: '2026-11-10', pedido_numero: '000015' }).texto).toBe('Virou pedido 000015');
+    expect(seloDoOrcamento({ situacao: 'convertido', preco_data: '2026-11-10' }).texto).toBe('Virou pedido');
   });
 });
 
@@ -105,17 +104,7 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
   });
 });
 
-describe('trilha do catálogo e aviso do orçamento salvo (T-0071 V3 e V8)', () => {
-  it('V3: a trilha tem a linha e a marca do último item; sem item, um só nível Catálogo', async () => {
-    const { niveisDaTrilha } = await import('./textos-pedido');
-    expect(niveisDaTrilha({ line: 'Mercearia', brand: 'Bebidas' })).toEqual([
-      { id: 'nivel-0', rotulo: 'Mercearia' },
-      { id: 'nivel-1', rotulo: 'Bebidas' },
-    ]);
-    expect(niveisDaTrilha({ line: ' ', brand: null })).toEqual([{ id: 'catalogo', rotulo: 'Catálogo' }]);
-    expect(niveisDaTrilha(null)).toEqual([{ id: 'catalogo', rotulo: 'Catálogo' }]);
-  });
-
+describe('aviso do orçamento salvo (T-0071 V8)', () => {
   it('RN-VEN-18 V8: o aviso do orçamento salvo traz o número com sinal e "salvo no aparelho" sem sinal, sem ponto final', async () => {
     const { avisoDoOrcamentoSalvo } = await import('./textos-pedido');
     expect(avisoDoOrcamentoSalvo('000012')).toBe('Orçamento 000012 salvo');

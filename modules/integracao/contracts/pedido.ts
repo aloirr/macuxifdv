@@ -74,6 +74,12 @@ export const EnderecoEntregaErp = z.object({
   cep: TextoOpcional(9),
   /** O endereço principal do cadastro do cliente; o ERP já o assume, então não exige Conector novo. */
   principal: z.boolean().nullish(),
+  /**
+   * T-0141 (RN-VEN-17, aditivo no v1): `editado` = o vendedor digitou o endereço só para este pedido (`external_id` nulo);
+   * `erp` ou ausente = endereço do cadastro. Regra do SQL do Conector: `external_id` nulo = usar os campos de texto
+   * (vale também no Conector 1.3.x, que ignora `origem`).
+   */
+  origem: z.enum(['erp', 'editado']).nullish(),
 });
 export type EnderecoEntregaErp = z.infer<typeof EnderecoEntregaErp>;
 

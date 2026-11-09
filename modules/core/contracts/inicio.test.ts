@@ -36,8 +36,7 @@ describe('RN-CORE-26: contrato core.inicio@1', () => {
   it('RN-CORE-26: visão da tela (recado padrão, rota e equipe nulos conforme o escopo)', () => {
     const visao = {
       escopo: 'equipe', hoje: '2026-11-10', dia_util: true, dias_uteis_restantes: 18,
-      recado: { origem: 'padrao', texto: 'Bom trabalho hoje!', titulo: null, autor_nome: null, autor_perfil: null, notificacao_id: null },
-      metas: [meta], notificacoes: { nao_lidas: 0, ultimas: [] }, rota: null, equipe_agora: [],
+      metas: [meta], rota: null, equipe_agora: [],
       base: { dia: null, calculado_em: null, defasado: false },
       saudacao: 'Bom dia', recados_hoje: { novos: 0, total: 0, itens: [] }, meta_hoje: null, sem_realizado: [],
     };
@@ -45,7 +44,6 @@ describe('RN-CORE-26: contrato core.inicio@1', () => {
     // RD-0012: os quatro campos da boas-vindas são obrigatórios
     expect(VisaoInicioSchema.safeParse({ ...visao, saudacao: undefined }).success).toBe(false);
     expect(VisaoInicioSchema.safeParse({ ...visao, meta_hoje: undefined }).success).toBe(false);
-    expect(VisaoInicioSchema.safeParse({ ...visao, notificacoes: { nao_lidas: 4, ultimas: Array(4).fill({ id: N, titulo: 'x', tipo: 'recado', criada_em: '2026-11-10T10:00:00Z', lida: false, link: null }) } }).success).toBe(false);
   });
 });
 

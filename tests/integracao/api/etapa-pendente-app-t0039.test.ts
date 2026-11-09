@@ -18,7 +18,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { semBanco } from '@macuxi/db/teste/estado';
-import { USUARIO_SISTEMA_ID, type LinhaSync, type ModuloId } from '@macuxi/platform-sdk';
+import { linkInternoNavegavel as linkNavegavel, USUARIO_SISTEMA_ID, type LinhaSync, type ModuloId } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
@@ -29,7 +29,7 @@ import { alertarPendenciasVencidas } from '../../../modules/core/api/etapas-pend
 import { fazerCheckin, fazerCheckout, type ContextoAcao } from '../../../modules/core/app/lib/acoes-visita';
 import { armazemDe } from '../../../modules/core/app/lib/estado';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../../../modules/core/app/lib/etapa-pendente';
-import { linkNavegavel, montarCaixa } from '../../../modules/core/app/lib/notificacoes';
+import { montarCaixa } from '../../../modules/core/app/lib/notificacoes';
 import { effectiveRoute } from '../../../modules/core/app/lib/route';
 import type { NotificacaoSync } from '../../../modules/core/contracts';
 import { A, B, licenca, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';

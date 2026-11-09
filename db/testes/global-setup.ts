@@ -20,8 +20,7 @@ import type { TestProject } from 'vitest/node';
 import { comAdmin, criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { ehBancoLocal, lerConfigTestes, type ConfigBanco } from '../src/config';
 import { dockerRodando, subirPostgres } from '../src/docker';
-import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
-import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
+import { carregarFixtureDosTestes } from './fixture-treinamento';
 import { agoraDosTestes } from '../src/datas';
 import { VAR_MOTIVO_PULO } from './aviso-pulos';
 
@@ -76,10 +75,7 @@ export default async function setup(project: TestProject): Promise<(() => Promis
   // 0017 (T-0058): o schema treinamento tem fixture própria (testes/fixture-treinamento.ts), carregada logo depois
   const t = await criarBancoDeTeste({
     cfg,
-    preparar: async (c) => {
-      await carregarDoisTenants(c, { agora });
-      await carregarTreinamentoDoisTenants(c, { agora });
-    },
+    preparar: (c) => carregarFixtureDosTestes(c, { agora }),
   });
   const admin = await comAdmin(
     t.nome,

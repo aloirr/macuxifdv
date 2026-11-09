@@ -23,6 +23,28 @@ import { criarRegistroConsultasAparelho, type ImplementacaoConsultaAparelho } fr
 
 export type AppShell = Exclude<AppId, 'conector'>;
 
+/** Link interno do app: `/m/<caminho>` com caminho em minúsculas, dígitos e hífen (convenção de `PaginaShell.caminho`). */
+const LINK_INTERNO = /^\/m\/[a-z0-9-]+/;
+
+/**
+ * Caminho da tela de um link interno do app (`/m/rota?x=1#y` → `rota`; `/m/pedidos/novo` → `pedidos/novo`);
+ * null fora do padrão `/m/<caminho>`. Fonte única da regra (RD-0032): Início do shell e central de notificações do Core.
+ */
+export function caminhoDoLinkInterno(link: string | null | undefined): string | null {
+  if (!link || !LINK_INTERNO.test(link)) return null;
+  return link.slice(3).split(/[?#]/)[0] ?? null;
+}
+
+/**
+ * O próprio link, se for interno (`/m/<caminho>`) e, com `telaExiste` (a `visao.pagina` do shell), a tela existir na
+ * visão do usuário; senão null. Quem chama decide o destino do null (ex.: a central de notificações).
+ */
+export function linkInternoNavegavel(link: string | null | undefined, telaExiste?: (caminho: string) => boolean): string | null {
+  const caminho = caminhoDoLinkInterno(link);
+  if (!link || !caminho) return null;
+  return !telaExiste || telaExiste(caminho) ? link : null;
+}
+
 export interface PaginaShell<C> {
   /** Id único no módulo; vira o testID estável `nav-<modulo>-<id>` (menu/aba) e `pagina-<modulo>-<id>`. */
   id: string;

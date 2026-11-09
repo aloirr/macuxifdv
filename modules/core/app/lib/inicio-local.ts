@@ -26,7 +26,8 @@ import {
   type IndicadorMeta,
   type ItemEquipe,
 } from '../../domain';
-import { linkNavegavel, montarCaixa } from './notificacoes';
+import { linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
+import { montarCaixa } from './notificacoes';
 import { pendentesDaFila } from './rota-local';
 
 export interface LinhasInicio {
@@ -166,13 +167,7 @@ export function montarInicio(
     hoje,
     dia_util: ehDiaUtil(hoje, calendario),
     dias_uteis_restantes: dias,
-    recado,
     metas,
-    notificacoes: {
-      nao_lidas: caixa.filter((n) => !n.lida_em).length,
-      // O pull não traz created_at: "criada_em" é o updated_at da linha (mesmo critério de ordem da caixa).
-      ultimas: caixa.slice(0, 3).map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo, criada_em: n.updated_at, lida: Boolean(n.lida_em), link: linkNavegavel(n.link) })),
-    },
     rota,
     equipe_agora: equipeAgoraLista?.map((m) => (m.status === 'em_visita' && m.cliente_id ? { ...m, cliente_nome: nomeDe(m.cliente_id) || null } : m)) ?? null,
     saudacao: saudacaoDoDia(o.agora, o.fuso),

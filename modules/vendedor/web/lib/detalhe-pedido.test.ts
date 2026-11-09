@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OrderDetail } from '../../contracts';
-import { lerDetalheDoPedido, MSG_ITENS_INDISPONIVEIS, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega } from './detalhe-pedido';
+import { lerDetalheDoPedido, MSG_ITENS_INDISPONIVEIS, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from './detalhe-pedido';
 
 const base = {
   id: '11111111-1111-4111-8111-111111111111', number: '000010', status: 'pending', customer_id: 'c1', customer_name: 'Mercado', seller_id: 's1', seller_name: 'Ana',
@@ -37,6 +37,14 @@ describe('T-0061: frete, transportadora e endereço no detalhe do BKO', () => {
     expect(textoDaTransportadora(fob)).toBe('Rápido Norte · CNPJ 11.222.333/0001-81 · 92 3000-0000');
     expect(textoDaTransportadora({ ...fob, carrier_typed: true })).toMatch(/digitada pelo vendedor/);
     expect(textoDaTransportadora({ modality: 'CIF', carrier_name: null, carrier_document: null, carrier_phone: null, carrier_typed: false })).toBeNull();
+  });
+  it('RN-VEN-17: o selo "Editado neste pedido" só aparece quando a origem é editado (T-0141)', () => {
+    const e = { logradouro: 'Rua Pará', numero: '140', complemento: 'fundos', bairro: 'São Geraldo', cidade: 'Manaus', uf: 'AM', cep: '69053000' };
+    expect(SELO_ENDERECO_EDITADO).toBe('Editado neste pedido');
+    expect(enderecoFoiEditado({ ...e, origem: 'editado' })).toBe(true);
+    expect(enderecoFoiEditado({ ...e, origem: 'erp' })).toBe(false);
+    expect(enderecoFoiEditado(e)).toBe(false);
+    expect(enderecoFoiEditado(null)).toBe(false);
   });
   it('RN-VEN-17: endereço de entrega em uma linha', () => {
     expect(textoDoEnderecoEntrega({ logradouro: 'Av. do Depósito', numero: '500', complemento: 'Galpão 2', bairro: 'Distrito', cidade: 'Manaus', uf: 'AM', cep: '69100-000' })).toBe('Av. do Depósito, 500 – Galpão 2 · Distrito · Manaus/AM · CEP 69100-000');

@@ -233,7 +233,7 @@ function enderecoDaLinha(p: PedidoSync): Order['delivery_address'] {
   const e = p.endereco_entrega;
   if (!e || typeof e !== 'object') return null;
   const t = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
-  return { id: t(e.id), external_id: t(e.external_id), tipo: t(e.tipo) ?? undefined, descricao: t(e.descricao), logradouro: String(e.logradouro ?? ''), numero: t(e.numero), complemento: t(e.complemento), bairro: t(e.bairro), cidade: String(e.cidade ?? ''), uf: String(e.uf ?? ''), cep: t(e.cep), principal: e.principal === true };
+  return { id: t(e.id), external_id: t(e.external_id), tipo: t(e.tipo) ?? undefined, descricao: t(e.descricao), logradouro: String(e.logradouro ?? ''), numero: t(e.numero), complemento: t(e.complemento), bairro: t(e.bairro), cidade: String(e.cidade ?? ''), uf: String(e.uf ?? ''), cep: t(e.cep), principal: e.principal === true, origem: e.origem === 'editado' ? 'editado' : 'erp' };
 }
 
 // ---------- pedido ----------

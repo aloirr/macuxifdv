@@ -124,9 +124,7 @@ const visaoInicio = (escopo: 'proprio' | 'equipe', metas: VisaoInicio['metas'] =
   hoje: '2026-11-04',
   dia_util: true,
   dias_uteis_restantes: 19,
-  recado: { origem: 'recado', texto: 'Supervisor: priorize o Atacadinho hoje', titulo: null, autor_nome: 'Marcos', autor_perfil: 'supervisor', notificacao_id: null },
   metas,
-  notificacoes: { nao_lidas: 3, ultimas: [] },
   rota: escopo === 'proprio' ? { paradas_hoje: 6, visitadas_hoje: 3, restantes: 3, proxima: null, visita_aberta: null } : null,
   equipe_agora:
     escopo === 'equipe'
@@ -374,18 +372,17 @@ describe('estado zero e campos prontos do Core (RD-0010, RD-0012)', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
     sim.inicio = { ...visaoInicio('proprio', []), meta_hoje: null } satisfies VisaoInicio;
     const html = render();
-    expect(html).toContain('Nenhuma meta cadastrada para este mês.');
+    expect(html).toContain('Nenhuma meta cadastrada.');
     expect(html).not.toContain('<progress');
   });
 
-  it('só os campos prontos do Core (RD-0012): saudação do Core, caixa vazia = "Nenhum recado", o `recado` antigo não é lido', () => {
+  it('só os campos prontos do Core (RD-0012): saudação do Core, caixa vazia = "Nenhum recado"', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
     sim.inicio = { ...visaoInicio('proprio'), saudacao: 'Bom dia', recados_hoje: { novos: 0, total: 0, itens: [] }, base: { dia: null, calculado_em: null, defasado: false } } satisfies VisaoInicio;
     const html = render();
     expect(html).toContain('data-testid="inicio.saudacao">Bom dia, Lucas<');
     expect(html).toContain('Nenhum recado por enquanto.');
     expect(html).not.toContain('inicio.recados.ver-todos');
-    expect(html).not.toContain('Supervisor: priorize'); // o `recado` antigo não é mais lido
     expect(html).not.toContain('Sincronize para ver as vendas'); // sem `base.dia === null` local
   });
 });

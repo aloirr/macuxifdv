@@ -117,12 +117,13 @@ export interface EntradaLocal {
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
 
 /**
- * Marcas concorrentes (cadastro do Promotor, entidade `concorrente`; RN-CAT-09). O Catálogo só lê o contrato que o Promotor
- * publica. Tenant sem a licença do Promotor não tem a entidade: sem nome de marca a referência não aparece (risco registrado).
+ * Marcas concorrentes (cadastro do próprio Catálogo, entidade `marca_concorrente`; RN-CAT-09, RN-CAT-13, ADR 0034): a lista é
+ * única do tenant, com ou sem o Promotor. Antes lia a `concorrente` do Promotor, que a API deixou de enviar. Sem a entidade
+ * (primeiro sync): sem nome de marca a referência não aparece, salvo pelo retrato `marca_nome`.
  */
 export async function marcasConcorrentesLocais(leitor: LeitorLocal): Promise<Map<string, { nome: string; ativo: boolean }>> {
   try {
-    return new Map(vivas(await leitor.linhas<{ nome: string; ativo: boolean } & LinhaSync>('concorrente')).map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
+    return new Map(vivas(await leitor.linhas<{ nome: string; ativo: boolean } & LinhaSync>('marca_concorrente')).map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
   } catch {
     return new Map();
   }
@@ -132,7 +133,7 @@ export async function marcasConcorrentesLocais(leitor: LeitorLocal): Promise<Map
 export function produtosLocais(leitor: LeitorLocal, opcoes: { lerConcorrente?: boolean } = {}): Promise<ProdutoCatalogo[]> {
   const lerConcorrente = opcoes.lerConcorrente ?? true;
   // consulta do aparelho (C9): o contexto não lê o Promotor (lançaria Error); a marca da referência vai pelo retrato `marca_nome`
-  const entidades = ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', ...(lerConcorrente ? ['concorrente'] : [])];
+  const entidades = ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', ...(lerConcorrente ? ['marca_concorrente'] : [])];
   return lembrar(lerConcorrente ? 'produtos' : 'produtos-retrato', leitor, entidades, () => montarProdutosLocais(leitor, lerConcorrente));
 }
 

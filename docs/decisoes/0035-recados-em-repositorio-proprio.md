@@ -1,6 +1,7 @@
 # ADR 0035 — Recados online num repositório próprio (macuxifdv-recados), com junções no PC
 
 - **Status**: **proposta** em 2026-11-08. Vale com o ok do dono do produto aos diffs de governança e ao corte.
+- **Alterada pela [ADR 0039](0039-recados-direto-no-github.md)** (T-0143, 09/11/2026): o `coord.mjs` passa a gravar e ler direto no GitHub; saem as junções (§2), a sincronização a cada 2 min e os hooks de sessão (§4), e o plano de volta muda. O resto desta ADR continua valendo.
 - **Data**: 2026-11-08
 - **Tarefa**: T-0139 ([desenho](../desenho/T-0139.md) · [passo a passo](../desenho/T-0139-passo-a-passo.md) · [diff de governança](../desenho/T-0139-governanca.diff) · [arquivos do repositório novo](../desenho/T-0139-repo-recados/))
 - **Autor**: engenheiro-software

@@ -58,9 +58,11 @@ const STOPWORDS: ReadonlySet<string> = new Set(['de', 'do', 'da', 'dos', 'das', 
 
 const MEDIDA_RE = /^\d+(ml|g|cm|mm|un)$/;
 
-function semAcento(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
+/** Única definição de "sem acento" do módulo (RD-0041): decompõe e tira as marcas combinantes. */
+export const semAcento = (s: string): string => s.normalize('NFD').replace(/\p{M}/gu, '');
+
+/** Chave de comparação: sem acento, sem espaço nas pontas e em minúsculas. */
+export const chaveSemAcento = (s: string): string => semAcento(s).trim().toLowerCase();
 
 /** "0,5" → 0.5; "1.500" → 1500 (ponto com 3 casas após 1–3 dígitos, e parte inteira ≠ 0, é milhar); "0.500" → 0.5. */
 function lerNumero(bruto: string): number {

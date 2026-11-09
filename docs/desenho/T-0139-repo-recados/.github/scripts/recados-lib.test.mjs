@@ -12,10 +12,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
 import {
   lerFormulario, validarFormulario, horaLocal, idLivre, montarRecado, caminhosDoRecado, lerRecado, montarAviso,
-  separarNovidades, montarResumo, enviarTelegram, mascarar, DESTINOS, TIPOS, LIMITE_TELEGRAM,
+  separarNovidades, montarResumo, enviarTelegram, dicaDoTelegram, mascarar, DESTINOS, TIPOS, LIMITE_TELEGRAM,
 } from './recados-lib.mjs';
 import { processarEvento } from './issue-recado.mjs';
-import { recadosNovos } from './aviso-telegram.mjs';
+import { recadosNovos, mensagensDoAviso } from './aviso-telegram.mjs';
 import { baseDoResumo } from './status-horario.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -154,6 +154,59 @@ test('enviarTelegram: token só na URL da API, nunca no erro; mascarar emite ::a
   const linhas = [];
   mascarar(['123:ABC', '', '42'], (l) => linhas.push(l));
   assert.deepEqual(linhas, ['::add-mask::123:ABC\n', '::add-mask::42\n']);
+});
+
+// Falha de 09/11 (runs 42594210632 e 42608108894): só "HTTP 403" no log, sem dizer o que fazer.
+test('enviarTelegram: erro traz a description da API e a dica, sem token nem chat; chat = id do bot recusado antes de chamar', async () => {
+  const recusa = (status, description) => async () => ({ ok: false, status, json: async () => ({ ok: false, error_code: status, description }) });
+  const casos = [
+    [403, 'Forbidden: bot was blocked by the user', /HTTP 403 \(Forbidden: bot was blocked by the user\) — .*desbloqueie/],
+    [403, "Forbidden: bot can't initiate conversation with a user", /mande \/start/],
+    [403, "Forbidden: bots can't send messages to bots", /id de um bot/],
+    [400, 'Bad Request: chat not found', /HTTP 400 .*não existe para este bot/],
+    [401, 'Unauthorized', /HTTP 401 .*BotFather/],
+  ];
+  for (const [status, description, esperado] of casos) {
+    await assert.rejects(enviarTelegram('x', { token: '123:ABC', chatId: '42', fetch: recusa(status, description) }),
+      (e) => esperado.test(e.message) && !e.message.includes('123:ABC') && !e.message.includes('42'), description);
+  }
+  // Sem corpo JSON: ainda dá a dica pelo código.
+  await assert.rejects(enviarTelegram('x', { token: '123:ABC', chatId: '42', fetch: async () => ({ ok: false, status: 403 }) }), /HTTP 403 — .*\/start/);
+  // Description que por acaso repete um segredo sai mascarada.
+  await assert.rejects(enviarTelegram('x', { token: '123:ABC', chatId: '987654', fetch: recusa(400, 'chat 987654 invalid') }), (e) => !e.message.includes('987654') && /chat \*\*\* invalid/.test(e.message));
+  // chat_id igual ao id do bot (número antes de ":"): erro claro, sem chamar a API.
+  let chamou = false;
+  await assert.rejects(enviarTelegram('x', { token: '123:ABC', chatId: ' 123 ', fetch: async () => { chamou = true; return { ok: true }; } }), (e) => /id do próprio bot/.test(e.message) && !e.message.includes('123'));
+  assert.equal(chamou, false);
+  assert.equal(dicaDoTelegram(500, ''), '');
+});
+
+test('enviarTelegram: HTTP 429 espera o retry_after e tenta uma vez; 429 de novo falha', async () => {
+  const esperas = [];
+  const esperar = async (ms) => { esperas.push(ms); };
+  const respostas = [{ ok: false, status: 429, json: async () => ({ description: 'Too Many Requests: retry after 3', parameters: { retry_after: 3 } }) }, { ok: true, status: 200 }];
+  assert.equal(await enviarTelegram('x', { token: '1:A', chatId: '2', esperar, fetch: async () => respostas.shift() }), true);
+  assert.deepEqual(esperas, [3000]);
+  const sempre429 = async () => ({ ok: false, status: 429, json: async () => ({ description: 'Too Many Requests', parameters: { retry_after: 1 } }) });
+  await assert.rejects(enviarTelegram('x', { token: '1:A', chatId: '2', esperar, fetch: sempre429 }), /HTTP 429/);
+  const longo = async () => ({ ok: false, status: 429, json: async () => ({ parameters: { retry_after: 600 } }) });
+  esperas.length = 0;
+  await assert.rejects(enviarTelegram('x', { token: '1:A', chatId: '2', esperar, fetch: longo }), /HTTP 429/);
+  assert.deepEqual(esperas, [], 'retry_after acima de 60 s não segura o job');
+});
+
+test('mensagensDoAviso: até 10, um aviso por recado; carga em lote (migração de 295) vira uma mensagem só', () => {
+  const recado = (i) => montarRecado({ id: `R-20261109-0000${i}-testes`, de: 'testes', para: ['alexandre'], tipo: 'aviso', criado_em: 'x', assunto: `Assunto ${i}`, corpo: 'corpo' });
+  const caminhos = (n) => Array.from({ length: n }, (_, i) => `recados/alexandre/R-${i}.md`);
+  const ler = (c) => recado(c.match(/R-(\d+)/)[1]);
+  const poucos = mensagensDoAviso(caminhos(3), ler, { repo: 'https://r' });
+  assert.equal(poucos.length, 3);
+  assert.match(poucos[0], /^Recado para você — Assunto 0/);
+  assert.match(poucos[2], /https:\/\/r\/blob\/main\/recados\/alexandre\/R-2\.md/);
+  assert.equal(mensagensDoAviso(caminhos(10), ler).length, 10);
+  const lote = mensagensDoAviso(caminhos(295), () => { throw new Error('não lê no lote'); }, { repo: 'https://r' });
+  assert.deepEqual(lote, ['295 recados novos na sua caixa de uma vez (carga em lote). Veja a lista: https://r/tree/main/recados/alexandre']);
+  assert.deepEqual(mensagensDoAviso([], ler), []);
 });
 
 test('recadosNovos e baseDoResumo: git de verdade num repositório temporário', () => {

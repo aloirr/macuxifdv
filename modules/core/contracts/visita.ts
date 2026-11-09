@@ -2,6 +2,7 @@
  * Push de visita (desenho T-0016 §4): check-in (`visita`, id = id da visita, UUID do aparelho) e checkout
  * (`visita_checkout`, id = UUID do comando). Escrita idempotente; a API revalida RN-CORE-10/12/14.
  */
+import { ehDataCivil } from '@macuxi/comum/calendar';
 import { z } from 'zod';
 import { RESULTADOS_VISITA } from './sync';
 
@@ -57,7 +58,7 @@ export const CheckoutVisitaSchema = z
   });
 export type CheckoutVisita = z.infer<typeof CheckoutVisitaSchema>;
 
-const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(ehDataCivil, 'Data inexistente no calendário. Informe uma data válida (AAAA-MM-DD).');
 
 /** `GET visitas` (BKO): sem datas, os últimos 7 dias. */
 export const VisitasQuerySchema = z

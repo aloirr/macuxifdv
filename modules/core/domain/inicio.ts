@@ -27,7 +27,15 @@ export interface NotificacaoParaRecado {
   autor_perfil?: Perfil | null;
 }
 
-export type RecadoDoDia = VisaoInicio['recado'];
+/** Recado do dia já resolvido (a visão do Início só expõe `recados_hoje`; RD-0013). */
+export interface RecadoDoDia {
+  origem: 'recado' | 'padrao';
+  texto: string;
+  titulo: string | null;
+  autor_nome: string | null;
+  autor_perfil: Perfil | null;
+  notificacao_id: string | null;
+}
 
 /**
  * RN-CORE-26: recado do dia = recado do próprio usuário, vivo, não expirado, marcado para `hoje`; vários = o de `updated_at` mais novo.

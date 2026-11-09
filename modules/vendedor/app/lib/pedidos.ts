@@ -5,6 +5,7 @@
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
+import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
 import { toDomainPolicy } from './catalog';
@@ -28,6 +29,8 @@ export interface Rascunho {
   updated_at: string;
   /** T-0137 (RN-VEN-38): "Apenas salvar" — quando o vendedor guardou o rascunho de propósito (aceita pendências); reabre no Resumo e não vira "Pedido não terminado" */
   salvo_em?: string | null;
+  /** T-0141 (RN-VEN-39): aba em que o vendedor parou; a lista Rascunhos retoma por ela (gravar a aba não renova as 24 h) */
+  aba?: 'venda' | 'itens' | 'entrega' | 'resumo';
   /** edição: id do pedido editado (rascunho guardado na chave `edit:<id>`) */
   edit_order_id?: string | null;
   /** aviso do duplicar/editar: de onde veio e itens removidos (sem preço/inativos) */
@@ -49,6 +52,8 @@ export interface Rascunho {
   frete?: FreteDoRascunho;
   /** RN-VEN-17: ausente = endereço principal do cliente */
   endereco_entrega_id?: string | null;
+  /** T-0141 (RN-VEN-17): endereço digitado SÓ para este pedido (o cadastro do cliente não muda); com ele o id acima fica nulo */
+  endereco_entrega_editado?: EnderecoEditadoValido | null;
   /** RN-VEN-35: pedido em nome. Dono (vendedor) escolhido pelo gestor; ausente = pedido do próprio usuário. O autor é o token. */
   vendedor_em_nome_id?: string | null;
   /** RN-VEN-35: nome do dono, só para o PDF da fila (o servidor devolve o nome certo depois do pull) */
@@ -258,7 +263,7 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     ...(args.rascunho.ajuste_em === 'valor' && (args.rascunho.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: args.rascunho.acrescimo_valor_cents } : {}),
     ...(args.rascunho.ajuste_em ? { ajuste_em: args.rascunho.ajuste_em } : {}),
     ...(frete ? { frete } : {}),
-    ...(args.rascunho.endereco_entrega_id ? { endereco_entrega_id: args.rascunho.endereco_entrega_id } : {}),
+    ...(args.rascunho.endereco_entrega_editado ? { endereco_entrega_editado: args.rascunho.endereco_entrega_editado } : args.rascunho.endereco_entrega_id ? { endereco_entrega_id: args.rascunho.endereco_entrega_id } : {}),
     // RN-VEN-35: só o dono; o autor_id nunca sai do aparelho (a API usa o token)
     ...(args.rascunho.vendedor_em_nome_id ? { vendedor_id: args.rascunho.vendedor_em_nome_id } : {}),
   };

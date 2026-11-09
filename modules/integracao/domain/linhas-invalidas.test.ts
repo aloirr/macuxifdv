@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mascararDadoPessoal, tratarLinhasInvalidasConector } from './linhas-invalidas';
+import { mascararMensagemDoConector, tratarLinhasInvalidasConector } from './linhas-invalidas';
 
 const linha = (n: number, extra = {}) => ({ external_id: `C${n}`, codigo: 'campo_obrigatorio' as const, campo: 'razao_social', mensagem: `razao_social ausente (${n})`, ...extra });
 
@@ -45,8 +45,8 @@ describe('RN-INT-03 (T-0025): linhas inválidas informadas pelo Conector', () =>
     expect(m).toMatch(/inválido/);
   });
 
-  it('RN-INT-03: mascararDadoPessoal preserva texto comum e números curtos', () => {
-    expect(mascararDadoPessoal('o campo "limite" 1500 está fora da faixa')).toBe('o campo "limite" 1500 está fora da faixa');
-    expect(mascararDadoPessoal('11144477735')).toBe('***');
+  it('RN-INT-03: mascararMensagemDoConector preserva texto comum e números curtos', () => {
+    expect(mascararMensagemDoConector('o campo "limite" 1500 está fora da faixa')).toBe('o campo "limite" 1500 está fora da faixa');
+    expect(mascararMensagemDoConector('11144477735')).toBe('***');
   });
 });

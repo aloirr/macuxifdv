@@ -20,7 +20,7 @@ export const MINIMO_PARA_INDICE = 2000;
  * nota barata (acertos no índice + os mesmos boosts do ranking). Com o corte, o `total` da busca para em `TETO_CANDIDATOS` (a tela pede
  * para refinar; sem corte ele para em `LIMITE_RESULTADOS_BUSCA`, 500). Medido: ~0,3 ms por candidato no ranking completo.
  */
-export const TETO_CANDIDATOS = 300;
+export const TETO_CANDIDATOS = 200;
 
 /** Termos → posições, mais o vocabulário ordenado por tamanho (varre só os termos de tamanho compatível) e a máscara de cada termo. */
 export interface SubIndice {

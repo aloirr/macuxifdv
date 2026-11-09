@@ -23,6 +23,7 @@ import {
   th,
   thNum,
   TableScroll,
+  rotuloDoPerfil,
 } from '@macuxi/ui/web';
 import {
   EquipeListaRespostaSchema,
@@ -37,7 +38,6 @@ import {
   formDoPlano,
   formNovo,
   ROTULO_INDICADOR_RV,
-  ROTULO_PERFIL_RV,
   textoDaMeta,
   textoDaSituacao,
   textoDoErroRv,
@@ -102,7 +102,7 @@ function ListaDePlanos({
                 {textoDoMes(p.vigencia_inicio)} {p.id === vigenteId && <Badge tone="success">Vigente</Badge>}
               </td>
               <td className={td}>{p.nome}</td>
-              <td className={td}>{p.perfis.map((x) => ROTULO_PERFIL_RV[x]).join(', ')}</td>
+              <td className={td}>{p.perfis.map((x) => rotuloDoPerfil(x)).join(', ')}</td>
               <td className={tdNum}>{formatBRL(p.valor_maximo_cents)}</td>
               <td className={td}>
                 {p.regras

@@ -1644,7 +1644,8 @@
                             "cidade": "Boa Vista",
                             "uf": "RR",
                             "cep": "69313000",
-                            "principal": false
+                            "principal": false,
+                            "origem": "editado"
                           }
                         }
                       ]
@@ -3278,6 +3279,20 @@
             "anyOf": [
               {
                 "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origem": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "erp",
+                  "editado"
+                ]
               },
               {
                 "type": "null"

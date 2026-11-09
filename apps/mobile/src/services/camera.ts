@@ -17,7 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 import { FOTO_QUALIDADE_JPEG, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from '@/lib/foto';
-import { currentPosition, uuid } from './device';
+import { posicaoAgora, uuid } from './device';
 
 export type CapturaFoto = () => Promise<string | null>;
 
@@ -57,8 +57,8 @@ export async function capturarFotoGravada(): Promise<FotoGravada | null> {
 async function capturarFotoPromotor(): Promise<{ id: string; latitude: number | null; longitude: number | null } | null> {
   const foto = await capturarFotoGravada();
   if (!foto) return null;
-  const pos = await currentPosition({ lat: null, lng: null });
-  return { id: foto.id, latitude: pos.source === 'gps' ? pos.lat : null, longitude: pos.source === 'gps' ? pos.lng : null };
+  const pos = await posicaoAgora();
+  return { id: foto.id, latitude: pos?.lat ?? null, longitude: pos?.lng ?? null };
 }
 
 /**

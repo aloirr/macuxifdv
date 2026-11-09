@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync } from '../../contracts';
 import { manifest } from '../../manifest';
 import { entidadesCliente } from './entidades-cliente';
-import { agruparPorCliente, historicoNaJanela, listarClientesLocais, montarCliente360Local, somarDias, tituloNaJanela } from './cliente360-local';
+import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
+import { agruparPorCliente, historicoNaJanela, listarClientesLocais, montarCliente360Local, tituloNaJanela } from './cliente360-local';
 
 const HOJE = '2026-10-31';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { botoesDoResumo, DESTINO_DIRETO_ERP, destinoDoEnvio, type EntradaDosBotoes } from './botoes-resumo';
+import { botoesDoResumo, DESTINO_DIRETO_ERP, destinoDoEnvio, ROTULOS_DO_SALVAR, type EntradaDosBotoes } from './botoes-resumo';
 
 const liberado = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
-const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, pendencias: 0, nivel: null, validade_data: '2026-11-15' };
+const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, pendencias: 0, nivel: null, preco_data: '2026-11-09' };
 
 describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
   it('RN-VEN-38: Salvar e enviar pedido é o principal, habilitado, com o destino escrito embaixo', () => {
@@ -48,7 +48,7 @@ describe('RN-VEN-13: cliente só de orçamento', () => {
     expect(b.modo).toBe('so_orcamento');
     expect(b.enviar.visivel).toBe(false);
     expect(b.principal).toBe('orcamento');
-    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, destino: 'Válido até 15/11' });
+    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, destino: null });
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true });
     expect(b.aviso).toBe('Cliente bloqueado: só dá para salvar como orçamento');
   });
@@ -99,5 +99,14 @@ describe('RN-VEN-38: editar pedido já salvo', () => {
     expect(ok.apenasSalvar.visivel).toBe(false);
     expect(ok.orcamento.visivel).toBe(false);
     expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.habilitado).toBe(false);
+  });
+  it('RN-VEN-38 / RD-0036: o rótulo da edição sai do domain (aparelho, aprovação ou alterações)', () => {
+    expect(botoesDoResumo({ ...base, editando: 'pedido' }).enviar.rotulo).toBe(ROTULOS_DO_SALVAR.alteracoes);
+    expect(botoesDoResumo({ ...base, editando: 'pedido', nivel: 'gerente' }).enviar.rotulo).toBe('Salvar e enviar para aprovação');
+    expect(botoesDoResumo({ ...base, editando: 'pedido', editando_no_servidor: false, nivel: 'gerente' }).enviar.rotulo).toBe('Salvar alterações no aparelho');
+  });
+  it('RN-VEN-38 / RD-0036: os rótulos dos botões e da folha de saída vêm do mesmo mapa', () => {
+    const novo = botoesDoResumo(base);
+    expect([novo.enviar.rotulo, novo.apenasSalvar.rotulo, novo.orcamento.rotulo]).toEqual([ROTULOS_DO_SALVAR.enviar, ROTULOS_DO_SALVAR.apenasSalvar, ROTULOS_DO_SALVAR.orcamento]);
   });
 });

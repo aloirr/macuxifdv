@@ -111,7 +111,7 @@ Substitui as 3 abas (Itens · Detalhes · Resumo) acima. A tela abre na **Venda*
 |---|---|---|---|
 | Novo pedido sem pendência | **Salvar e enviar pedido** + destino escrito ("Vai direto ao ERP" / "Vai para o supervisor", RN-VEN-10) | Apenas salvar · Salvar como orçamento (metade cada) | texto, abre "Sair do pedido?" |
 | Novo pedido com pendência | Salvar e enviar pedido **desligado**, sem destino | Apenas salvar **habilitado** (aceita pendências) · Salvar como orçamento desligado | idem |
-| Cliente da RN-VEN-13 | **Salvar como orçamento** + "Válido até dd/mm" | Apenas salvar (largura total); faixa de erro acima | idem |
+| Cliente da RN-VEN-13 | **Salvar como orçamento** + "Preço de dd/mm" | Apenas salvar (largura total); faixa de erro acima | idem |
 | Editar orçamento | **Salvar orçamento** | Transformar em pedido (salva e abre o detalhe com a folha do Transformar; some na RN-VEN-13) | idem |
 | Editar pedido | uma ação ("Salvar alterações" etc.) | — | idem |
 A folha intermediária "Salvar pedido" acabou: o pedido simples volta a **3 toques** (escolher forma/prazo e item, Resumo, Salvar e enviar pedido). **Apenas salvar** guarda o rascunho (`salvo_em`), fecha com "Pedido salvo"; reabre direto no Resumo com o que falta e não vira "Pedido não terminado". A folha **Sair do pedido?** tem Salvar e enviar pedido · Apenas salvar · Salvar como orçamento · Descartar · Continuar editando (RN-VEN-13: sem o primeiro).

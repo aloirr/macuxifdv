@@ -1,8 +1,10 @@
 /**
  * Utilidades que dependem do aparelho: UUID, URL padrão da API, localização.
+ * RD-0046: o `uuid` daqui é a fonte única do UUID do aparelho; chega aos módulos como `ambiente.novoId` (services/ambiente.ts).
  */
 import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
+import type { PosicaoDoAparelho } from '@macuxi/platform-sdk';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
@@ -51,32 +53,26 @@ export function platformDefaultApiUrl(): string {
   });
 }
 
-export interface Position {
-  lat: number | null;
-  lng: number | null;
-  source: 'gps' | 'customer';
-}
-
 /**
- * Localização do check-in. No navegador, ou se a permissão for negada/demorar, usa a do cliente
- * (fase M: o mockup roda no PC, longe do cliente).
+ * Posição do momento (foto do promotor, RN-PRO-02): lida UMA vez, nunca rastro. Sem permissão, sem sinal de GPS em 8 s (tenta a
+ * última posição conhecida) ou no navegador devolve `null` e o registro segue "sem GPS". Sem reserva com a coordenada do
+ * cliente (a da fase M saiu, RD-0046): ela esconderia o fora do raio. Chega aos módulos como `ambiente.posicaoAgora()`
+ * (services/ambiente.ts); `lida_em` é o instante UTC da leitura (anterior à ação quando vem da última posição conhecida).
  */
-export async function currentPosition(fallback: { lat: number | null; lng: number | null }): Promise<Position> {
-  const fb: Position = { lat: fallback.lat, lng: fallback.lng, source: 'customer' };
-  if (Platform.OS === 'web') return fb;
+export async function posicaoAgora(): Promise<PosicaoDoAparelho | null> {
+  if (Platform.OS === 'web') return null;
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
-    if (perm.status !== 'granted') return fb;
+    if (perm.status !== 'granted') return null;
     const pos = await Promise.race([
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
     ]);
-    if (!pos) {
-      const last = await Location.getLastKnownPositionAsync();
-      return last ? { lat: last.coords.latitude, lng: last.coords.longitude, source: 'gps' } : fb;
-    }
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'gps' };
+    const p = pos ?? (await Location.getLastKnownPositionAsync());
+    if (!p) return null;
+    const lidaEm = Number.isFinite(p.timestamp) ? new Date(p.timestamp) : new Date();
+    return { lat: p.coords.latitude, lng: p.coords.longitude, precisao_m: p.coords.accuracy ?? null, lida_em: lidaEm.toISOString() };
   } catch {
-    return fb;
+    return null;
   }
 }
