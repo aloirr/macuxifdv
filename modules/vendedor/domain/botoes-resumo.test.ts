@@ -93,7 +93,9 @@ describe('RN-VEN-38: editar pedido já salvo', () => {
     const ok = botoesDoResumo({ ...base, editando: 'pedido' });
     expect(ok.modo).toBe('editar_pedido');
     expect(ok.principal).toBe('enviar');
-    expect(ok.enviar).toMatchObject({ visivel: true, habilitado: true });
+    expect(ok.enviar).toMatchObject({ visivel: true, habilitado: true, destino: 'Vai direto ao ERP' });
+    expect(botoesDoResumo({ ...base, editando: 'pedido', nivel: 'supervisor' }).enviar.destino).toBe('Vai para o supervisor');
+    expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.destino).toBeNull();
     expect(ok.apenasSalvar.visivel).toBe(false);
     expect(ok.orcamento.visivel).toBe(false);
     expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.habilitado).toBe(false);

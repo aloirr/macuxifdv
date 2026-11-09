@@ -11,7 +11,8 @@ const Ids = z.array(z.string().uuid()).max(500).default([]);
 /** `endereco_ids` (T-0061 §4.1): opcional, padrão []; o principal de cada cliente pedido vem sempre. */
 /** `produto_external_ids` (T-0066): opcional, padrão []; acha o produto pelo external_id do ERP (une-se a `produto_ids`, sem duplicar). */
 const ExternalIds = z.array(z.string().min(1).max(200)).max(500).default([]);
-export const CadastroResumoEntradaSchema = z.object({ cliente_ids: Ids, produto_ids: Ids, produto_external_ids: ExternalIds, usuario_ids: Ids, endereco_ids: Ids }).strict();
+/** `cliente_external_ids` (T-0120): opcional, padrão []; acha o cliente pelo external_id do ERP (une-se a `cliente_ids`, sem duplicar). */
+export const CadastroResumoEntradaSchema = z.object({ cliente_ids: Ids, cliente_external_ids: ExternalIds, produto_ids: Ids, produto_external_ids: ExternalIds, usuario_ids: Ids, endereco_ids: Ids }).strict();
 export type CadastroResumoEntrada = z.infer<typeof CadastroResumoEntradaSchema>;
 
 const Texto = z.string().nullable();
@@ -32,6 +33,8 @@ export const CadastroResumoSaidaSchema = z.object({
       /** Cadastro mínimo (T-0060): opcionais, mesma versão (ADR 0012). Só nomes de campo, nunca valores. */
       inscricao_estadual: Texto.optional(),
       cep: Texto.optional(),
+      /** T-0115 / RN-PES-05 (aditivo): canal do cliente (texto do ERP); nulo = sem canal. Ausente = emissor antigo. */
+      canal: Texto.optional(),
       cadastro_incompleto: z.boolean().optional(),
       cadastro_campos_faltantes: z.array(z.string()).optional(),
       /** T-0073 / RN-VEN-13 (aditivo): cliente bloqueado no financeiro (`cliente_financeiro.bloqueado`); só o Vendedor decide o que fazer (pedido vira orçamento). Ausente = não informado. */

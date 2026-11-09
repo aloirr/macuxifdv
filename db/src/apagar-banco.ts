@@ -21,11 +21,12 @@ export const SEM_PRIVILEGIO = '42501';
 /** SQLSTATE object_in_use: DROP comum com sessão que não saiu nos 5 s de espera do próprio Postgres. */
 export const BASE_EM_USO = '55006';
 /**
- * Prazo padrão para as sessões que estão saindo sumirem da base. Fica em 30 s por ora (acima do idleTimeoutMillis de
- * 10 s do pg.Pool, o que pode esconder um pool sem end()); para não esconder, quem precisa de mais de uma volta avisa no
- * log (`avisar`). Baixar para 8 s (revisão R-20261106-042954, 🟡 1) fica para depois do build único, com o CI verde.
+ * Prazo padrão para as sessões que estão saindo sumirem da base: 8 s (revisão R-20261106-042954, 🟡 1), ABAIXO do
+ * idleTimeoutMillis de 10 s do pg.Pool. Sessões que estão saindo somem em milissegundos; um pool sem end() segura a base
+ * até o próprio Pool fechar as ociosas (~10 s), então estoura o prazo e o erro mostra quem segurou (não fica escondido).
+ * Quem precisa de mais de uma volta e passa avisa no log (`avisar`).
  */
-export const PRAZO_APAGAR_MS = 30_000;
+export const PRAZO_APAGAR_MS = 8_000;
 
 /** O que se usa do pg.Client (e o que um cliente falso de teste precisa ter). */
 export interface ClienteSql {

@@ -79,6 +79,12 @@ export const ClientePayload = RegistroBase.extend({
    */
   prazo_medio_max_dias: z.number().int('prazo_medio_max_dias deve ser inteiro').min(0).max(365).nullish(),
   formas_pagamento: z.array(Texto(20)).max(20, 'formas_pagamento aceita até 20 itens').nullish(),
+  /**
+   * T-0120 (aditivo e opcional no v1): tabela de preço do cliente no ERP, pela MESMA chave `tabela_external_id` da entidade `preco`.
+   * Ausente = não altera; `null` = desvincula (volta à tabela padrão). A tabela pode ainda não existir (a ordem de carga põe `preco`
+   * antes do cliente, mas o vínculo é guardado pela chave). Quem guarda o vínculo é o Catálogo (`cliente_tabela_preco`).
+   */
+  tabela_preco_external_id: ExternalId.nullish(),
 });
 export type ClientePayload = z.infer<typeof ClientePayload>;
 

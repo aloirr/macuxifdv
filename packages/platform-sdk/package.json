@@ -19,6 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@macuxi/comum": "workspace:*",
     "zod": "^3.25.76"
   },
   "peerDependencies": {

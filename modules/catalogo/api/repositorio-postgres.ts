@@ -110,9 +110,23 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
 export const TTL_RETRATO_MS = 60_000;
 const MAX_TENANTS_RETRATO = 20;
 const RETRATOS = new Map<string, { em: number; produtos: ProdutoCatalogo[] | null; carregando: Promise<ProdutoCatalogo[]> | null }>();
+/**
+ * Geração do retrato por tenant: cada descarte a incrementa. Uma carga anota a geração ao começar e só guarda o resultado se ela não
+ * mudou — senão uma carga que já estava em andamento quando chegou o descarte gravaria de volta o dado velho (ou sobrescreveria uma
+ * carga mais nova). Quem pediu a carga velha recebe a lista dela (leu o catálogo antes da gravação), mas ela não vira retrato.
+ */
+const GERACAO = new Map<string, number>();
+let geracaoGlobal = 0;
+const geracaoDe = (tenant: string): number => geracaoGlobal + (GERACAO.get(tenant) ?? 0);
+/** Descarta o retrato (do tenant, ou todos). Chamado antes da gravação e, pela rota, DEPOIS do commit (`aposGravar`). */
 export function esquecerRetratoCatalogo(tenantId?: string): void {
-  if (tenantId === undefined) RETRATOS.clear();
-  else RETRATOS.delete(tenantId);
+  if (tenantId === undefined) {
+    geracaoGlobal++;
+    RETRATOS.clear();
+  } else {
+    GERACAO.set(tenantId, (GERACAO.get(tenantId) ?? 0) + 1);
+    RETRATOS.delete(tenantId);
+  }
 }
 
 async function lerProdutos(db: ClienteBanco, tx: TransacaoTenant, marcas: ResolvedorMarcas): Promise<ProdutoCatalogo[]> {
@@ -130,14 +144,18 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       const r = RETRATOS.get(tenant);
       if (r?.produtos && Date.now() - r.em < TTL_RETRATO_MS) return r.produtos;
       if (r?.carregando) return r.carregando;
-      const carregando = lerProdutos(db, tx, resolverMarcas).then(
+      const geracao = geracaoDe(tenant);
+      const carregando: Promise<ProdutoCatalogo[]> = lerProdutos(db, tx, resolverMarcas).then(
         (produtos) => {
-          if (RETRATOS.size >= MAX_TENANTS_RETRATO && !RETRATOS.has(tenant)) RETRATOS.delete(RETRATOS.keys().next().value!);
-          RETRATOS.set(tenant, { em: Date.now(), produtos, carregando: null });
+          // só guarda se nada foi descartado durante a carga e se esta carga ainda é a registrada (não há uma mais nova)
+          if (geracaoDe(tenant) === geracao && RETRATOS.get(tenant)?.carregando === carregando) {
+            if (RETRATOS.size >= MAX_TENANTS_RETRATO && !RETRATOS.has(tenant)) RETRATOS.delete(RETRATOS.keys().next().value!);
+            RETRATOS.set(tenant, { em: Date.now(), produtos, carregando: null });
+          }
           return produtos;
         },
         (e: unknown) => {
-          RETRATOS.delete(tenant);
+          if (RETRATOS.get(tenant)?.carregando === carregando) RETRATOS.delete(tenant);
           throw e;
         },
       );

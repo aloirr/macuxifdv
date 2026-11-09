@@ -99,6 +99,8 @@ const TABELAS_0036 = ['core.usuario_convite'] as const;
 const TABELAS_0037 = ['vendedor.forma_pagamento', 'vendedor.prazo_pagamento', 'catalogo.tabela_escalonada'] as const;
 /** Tabela nova da 0045 (T-0113, ADR 0034: marcas concorrentes no Catálogo, copiadas do Promotor; vai ao aparelho; marca-concorrente.test.ts). */
 const TABELAS_0045 = ['catalogo.marca_concorrente'] as const;
+/** Tabela nova da 0050 (T-0054, RN-VEN-37: devolução do pedido; fora do sync; pedido-devolucao.test.ts). */
+const TABELAS_0050 = ['vendedor.pedido_devolucao'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -164,6 +166,10 @@ describe('migrações (estático)', () => {
     expect(nomes[46]).toBe('0047_plataforma_portal_admin_multiperfil'); // resto do D-MP2 (T-0094/T-0111): sa_admins_da_empresa e sa_redefinir_senha_admin pela soma dos perfis de base admin (usuario_tem_perfil_admin), lista com entra_no_portal (portal-admin-multiperfil.test.ts)
     expect(nomes[47]).toBe('0048_integracao_cancelamento_recusado'); // T-0114: pedido_fila_erp.cancelamento_recusado_em e cancelamento_recusa_motivo, estado 'recusado' nos CHECKs e índice do monitor (cancelamento-recusado.test.ts)
     expect(nomes[48]).toBe('0049_plataforma_conferencias_no_commit_definer'); // R-20261108-130423-testes: as 4 conferências adiáveis da 0041 SECURITY DEFINER (o COMMIT do portal não dá 42501) (conferencias-no-commit.test.ts)
+    expect(nomes[49]).toBe('0050_vendedor_pedido_devolucao'); // T-0054 (RN-VEN-37): vendedor.pedido_devolucao, uma linha viva por nota de devolução do ERP, fora do sync (pedido-devolucao.test.ts)
+    expect(nomes[50]).toBe('0051_plataforma_perfil_assistente'); // RD-0014 (T-0111): semear_perfis_fabrica com 'Assistente' e o nome dos tenants que já existem (perfil-assistente.test.ts)
+    expect(nomes[51]).toBe('0052_plataforma_tenant_por_codigo_minimo'); // T-0122 N5: tenant_por_codigo só (id, status), tenant_da_sessao() e os CHECKs de evento iguais ao EVENTO_RE (tenant-por-codigo-minimo.test.ts)
+    expect(nomes[52]).toBe('0053_core_cliente_canal'); // T-0115 (RN-PES-05): core.cliente.canal (1..60, nulo) e índice parcial (tenant_id, canal) (cliente-canal.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -208,6 +214,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0040,
         ...TABELAS_0041,
         ...TABELAS_0045,
+        ...TABELAS_0050,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -726,8 +733,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     const recriadas040 = ['plataforma.sa_contas_para_login', 'plataforma.sa_abrir_sessao_portal', 'plataforma.sa_escolher_empresa', 'plataforma.sa_sessao_valida'];
     // 0042 (T-0094, padrão de fábrica da T-0111): as 2 sa_* do super-admin para o admin do cliente (portal-redefinir-senha.test.ts)
     // 0047 (resto do D-MP2): a sa_admins_da_empresa recriada (drop + create, o retorno ganha entra_no_portal; portal-admin-multiperfil.test.ts)
+    // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

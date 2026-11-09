@@ -143,6 +143,26 @@ export const PedidosConfig = z
   .strict();
 export type PedidosConfig = z.infer<typeof PedidosConfig>;
 
+/**
+ * Atualização automática (T-0116). DESLIGADA por padrão: só roda com `ativa: true`, com a `pasta` de instalação e com o download
+ * do pacote (T-0098, bucket privado) ligado ao Conector. A política do Hub é quem anuncia o pacote e a versão.
+ */
+export const AtualizacaoConfig = z
+  .object({
+    ativa: z.boolean().default(false),
+    /** Pasta de instalação do Conector (onde ficam `atualizacao/nova` e `atualizacao/anterior`); obrigatória com `ativa: true`. */
+    pasta: z.string().min(1).optional(),
+    /** De quanto em quanto tempo olha a política atrás de pacote novo (5 min a 24 h). */
+    verificarMinutos: z.number().int().min(5).max(1440).default(60),
+    /** Quanto espera a versão nova responder à saúde antes de voltar à anterior. */
+    limiteSaudeSegundos: z.number().int().min(10).max(600).default(60),
+  })
+  .strict()
+  .superRefine((a, ctx) => {
+    if (a.ativa && !a.pasta) ctx.addIssue({ code: 'custom', path: ['pasta'], message: 'atualizacao.pasta é obrigatória com atualizacao.ativa = true' });
+  });
+export type AtualizacaoConfig = z.infer<typeof AtualizacaoConfig>;
+
 const Erp = z
   .object({
     tipo: z.enum(['sqlserver', 'postgres', 'oracle']),
@@ -239,6 +259,7 @@ export const ConfigConector = z
     reconciliacaoHora: z.string().regex(/^\d{2}:\d{2}$/, 'use HH:MM').default('02:00'),
     entidades: z.record(z.string(), EntidadeConfig),
     pedidos: PedidosConfig.optional(),
+    atualizacao: AtualizacaoConfig.optional(),
   })
   .strict()
   .superRefine((cfg, ctx) => {

@@ -62,8 +62,8 @@ export function vendasApuradas(estado: EstadoProjecao, base: BaseApuracao): Vend
       visita_id: p.criado.visita_id,
       total_cents: p.criado.total_cents,
       total_tabela_cents: p.criado.total_tabela_cents,
-      // RN-CORE-21: base 'aprovado' conta na data de EMISSÃO (aprovar depois não muda o mês); base 'faturado' na data do faturamento
-      apurada_em: base === 'aprovado' ? p.criado.criado_em : a.desde!,
+      // RN-CORE-21: base 'aprovado' conta na data de EMISSÃO no aparelho (`emitido_em`, como o Core; pedido antigo sem o campo cai no `criado_em`) (aprovar depois não muda o mês); base 'faturado' na data do faturamento
+      apurada_em: base === 'aprovado' ? (p.criado.emitido_em ?? p.criado.criado_em) : a.desde!,
     });
   }
   return out.sort((a, b) => (a.pedido_id < b.pedido_id ? -1 : 1));

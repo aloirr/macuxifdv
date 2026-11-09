@@ -45,3 +45,4 @@ export * from './plano-rv';
 export * from './super-admin';
 export * from './equipe-importacao';
 export * from './pagamento-cliente';
+export * from './canal-cliente';

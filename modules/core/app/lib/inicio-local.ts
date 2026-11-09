@@ -5,7 +5,6 @@
  * `metaDoDiaDaEquipe`, `recadoDoDia`, `equipeAgora`). Meta do mês vem sempre do pull; visitas e cobertura são 100% locais
  * (RN-CORE-20); vendas e positivação vêm da cópia, recalculada na virada do dia sem sinal. Sem relógio: `agora` vem de quem chama.
  */
-import { formatHHMM } from '@macuxi/comum/fuso';
 import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 
 import type { ClienteSync, Inicio, InicioUsuario, MetaDoDia, MetaSync, NotificacaoSync, ParametroSync, RotaParadaSync, VisaoInicio, VisitaSync } from '../../contracts';
@@ -67,7 +66,7 @@ export function montarInicio(
   l: LinhasInicio,
   copia: Inicio | null,
   fila: readonly ItemSobreposicao[],
-  o: { usuarioId: string; perfil: string; fuso: string; agora: Date; /** Última sincronização (UTC) do motor e itens ainda na fila de envio (RN-CORE-23). */ sincronizadoEm?: string | null; filaPendentes?: number },
+  o: { usuarioId: string; perfil: string; fuso: string; agora: Date },
 ): VisaoInicio {
   const hoje = dataLocal(o.agora, o.fuso);
   const periodo = hoje.slice(0, 7);
@@ -185,7 +184,6 @@ export function montarInicio(
     ),
     meta_hoje: principal ? resumoMetaDeHoje(principal) : null,
     sem_realizado: semRealizado,
-    sincronizacao: { ultima_em: o.sincronizadoEm ?? null, hora: o.sincronizadoEm ? formatHHMM(o.sincronizadoEm, o.fuso) : null, fila: o.filaPendentes ?? fila.length },
     base: { dia: base ? (copia as Inicio).dia : null, calculado_em: base ? (copia as Inicio).calculado_em : null, defasado: base?.defasado ?? false },
   };
 }

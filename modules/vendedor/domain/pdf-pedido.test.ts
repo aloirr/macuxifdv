@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOrderPdfHtml, formatCnpj, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, statusText, textoFrete, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
+import { buildOrderPdfHtml, equivaleAHtml, formatCnpj, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, statusText, textoFrete, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
 
 const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-01T18:00:00.000Z' };
 
@@ -213,5 +213,28 @@ describe('RN-VEN-35: PDF do pedido feito em nome', () => {
   });
   it('RN-VEN-35: pedido comum não traz "feito por"', () => {
     expect(buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx)).not.toContain('feito por');
+  });
+});
+
+describe('"Equivale a" no PDF (T-0138, RN-CAT-09/10, desenho T-0085 §5)', () => {
+  const refs = [{ brand: 'Freiomax', code: 'CB 3401' }, { brand: 'Cobreq', code: 'N-123' }];
+  const pedido = () => ({ ...pdfDoPedido(detalhe()), items: [{ erp_code: 'P1', description: 'Pastilha', quantity: 1, unit_price_cents: 10_000, total_cents: 10_000, references: refs }] });
+
+  it('RN-CAT-10: o PDF interno sempre traz "Equivale a: <marca> <código>" abaixo do item', () => {
+    const html = buildOrderPdfHtml(pedido(), 'bko', ctx);
+    expect(html).toContain('Equivale a: Freiomax <strong>CB 3401</strong> · Cobreq <strong>N-123</strong>');
+  });
+  it('RN-CAT-10: o PDF do cliente NÃO traz a referência por padrão', () => {
+    expect(buildOrderPdfHtml(pedido(), 'customer', ctx)).not.toContain('Equivale a');
+  });
+  it('RN-CAT-10: com referencia_no_orcamento ligado, o PDF do cliente também traz', () => {
+    expect(buildOrderPdfHtml(pedido(), 'customer', { ...ctx, reference_on_customer_pdf: true })).toContain('Equivale a: Freiomax');
+  });
+  it('RN-CAT-09: até 3 referências, texto escapado; sem referência a linha não sai', () => {
+    const muitas = Array.from({ length: 5 }, (_, i) => ({ brand: `M${i}`, code: `C${i}` }));
+    expect(equivaleAHtml({ references: muitas }, 'bko', {}).match(/<strong>/g)).toHaveLength(3);
+    expect(equivaleAHtml({ references: [{ brand: '<b>', code: 'x' }] }, 'bko', {})).toContain('&lt;b&gt;');
+    expect(equivaleAHtml({}, 'bko', {})).toBe('');
+    expect(equivaleAHtml({ references: [] }, 'bko', {})).toBe('');
   });
 });

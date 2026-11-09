@@ -15,9 +15,10 @@ import Constants from 'expo-constants';
 import { AppState, Platform } from 'react-native';
 
 import { chaveRegistroPush, entidadesDoPush, precisaRegistrarPush, pushSilencioso, rotaDoPush, tokenExpoValido, type RegistroPush } from '@/lib/push';
+import { semDerrubar, semDerrubarAgora } from '@/lib/trava-sync';
 
 import { readJson, writeJson } from './storage';
-import { rodarPassadaEmSegundoPlano } from './segundo-plano';
+import { registrarErroDaTarefa, rodarPassadaEmSegundoPlano } from './segundo-plano';
 
 type ModNotificacoes = typeof import('expo-notifications');
 type ModTaskManager = typeof import('expo-task-manager');
@@ -52,7 +53,10 @@ function dadosDe(conteudo: { data?: unknown } | null | undefined): Record<string
 }
 
 // ---------- escopo global: o que aparece com o app aberto e a tarefa do push silencioso ----------
-if (nat) {
+// T-0140: roda na carga do bundle, também quando o Android acorda o app sem tela (depois da atualização do APK o
+// expo-task-manager restaura a tarefa): um erro aqui derrubaria o app a cada abertura, então vai ao Diagnóstico
+semDerrubarAgora(() => {
+  if (!nat) return;
   nat.n.setNotificationHandler({
     handleNotification: async (notificacao) => {
       const visivel = !pushSilencioso(notificacao.request.content);
@@ -61,16 +65,13 @@ if (nat) {
   });
   if (nat.tm && !nat.tm.isTaskDefined(TAREFA_PUSH_SYNC)) {
     nat.tm.defineTask(TAREFA_PUSH_SYNC, async () => {
-      // app aberto: o ouvinte do primeiro plano já sincroniza (sem passada dobrada)
+      // app aberto: o ouvinte do primeiro plano já sincroniza (sem passada dobrada); a passada nunca lança e grava o
+      // próprio resultado no Diagnóstico (abrindo, sincronizando ou com build novo, ela não roda: lib/segundo-plano.ts)
       if (AppState.currentState === 'active') return;
-      try {
-        await rodarPassadaEmSegundoPlano();
-      } catch {
-        // a passada grava o próprio resultado no Diagnóstico
-      }
+      await semDerrubar(() => rodarPassadaEmSegundoPlano(), registrarErroDaTarefa(TAREFA_PUSH_SYNC), null);
     });
   }
-}
+}, registrarErroDaTarefa(TAREFA_PUSH_SYNC));
 
 export interface OuvintesPush {
   /** Push recebido com o app aberto (visível ou silencioso): sincroniza as entidades indicadas (null = novidades). */

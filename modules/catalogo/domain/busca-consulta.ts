@@ -10,7 +10,7 @@ import type { ParametrosCatalogo } from './parametros';
 import { rankear } from './ranking';
 import { trechoServeEm } from './serve-em';
 import { expandirSinonimos, type SinonimoDoTenant } from './texto';
-import { equivaleA, vocabularioDe, type ProdutoCatalogo } from './vitrine';
+import { docDeBusca, equivaleA, vocabularioDe, type ProdutoCatalogo } from './vitrine';
 
 export interface EntradaBuscaConsulta {
   produtos: readonly ProdutoCatalogo[];
@@ -32,21 +32,7 @@ export function buscarParaConsulta(e: EntradaBuscaConsulta): BuscaProdutosSaida[
   const interpretado = interpretarConsulta(e.q, e.vocabulario ?? vocabularioDe(universo));
   // sem preço nem estoque nesta consulta: só o que é texto, marca, linha e código
   const filtros = { ...interpretado, min_price_cents: null, max_price_cents: null, stock: null, sort: null };
-  const docs = universo.map((p) => ({
-    id: p.id,
-    sku: p.sku,
-    ean: p.ean,
-    nome: p.nome,
-    marca: p.marca,
-    categoria: p.categoria,
-    atributos: p.atributos.map((x) => `${x.name} ${x.value}`).join(' '),
-    aplicacao: p.aplicacao ?? '',
-    referencias: p.referencias ?? [],
-    estoque: 0,
-    vendas: p.vendas,
-    campanha: p.campanha,
-    preco_cents: null,
-  }));
+  const docs = universo.map((p) => docDeBusca(p, null));
   const grupos = expandirSinonimos(filtros.text, e.sinonimos);
   return rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: e.parametros, anoAtual: e.anoAtual })
     .slice(0, e.limite)

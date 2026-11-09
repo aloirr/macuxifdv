@@ -22,6 +22,7 @@ import {
 } from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
+import { cederAVez } from '@/lib/trava-sync';
 
 import { HttpError, type ApiClient } from './api';
 
@@ -41,7 +42,11 @@ function rejeitarLote(itens: ItemPush[], e: unknown): ResultadoItemPush[] {
   return itens.map((i) => ({ id: i.id, status: 'rejeitado' as const, codigo: err.code, mensagem: err.message }));
 }
 
-export function transporteV1(api: () => ApiClient): TransporteSync {
+/**
+ * `ceder`: antes de cada página do pull, a vez volta ao sistema (toques, desenho, ouvintes): a carga inicial grande anda em
+ * páginas sem prender a thread de JS do começo ao fim (T-0140, relato 6). Nos testes, um ceder falso conta as páginas.
+ */
+export function transporteV1(api: () => ApiClient, ceder: () => Promise<void> = () => cederAVez()): TransporteSync {
   return {
     async push(itens) {
       try {
@@ -53,6 +58,7 @@ export function transporteV1(api: () => ApiClient): TransporteSync {
       }
     },
     async pull(entidade, cursor) {
+      await ceder();
       return (await api().request<PaginaSync<LinhaSync>>('GET', '/sync/pull', { query: { entidade, cursor } })).data;
     },
     async novidades(desde) {

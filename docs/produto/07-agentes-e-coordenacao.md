@@ -180,6 +180,16 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Prioridade**: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. O que não colide roda em paralelo.
 - **Chat vira recado**: tudo o que o dono do produto disser no chat com o gerente é gravado como recado `aviso` para `todos`, com o texto literal.
 
+**Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h; ADR 0035, T-0139)
+- **Fonte única:** o repositório privado `aloirr/macuxifdv-recados`, com `recados/<destino>/R-*.md` e `lidos/<agente>.txt` (`merge=union`). O `coord.mjs` continua igual: no PC, `.coord/recados` e `.coord/lidos` são junções para o clone `C:\macuxifdv-recados`.
+- **Sincronização:** o `scripts/sincronizar-recados.ps1` faz commit, `pull --rebase` e push. Roda a cada 2 min pelo Agendador e no início e no fim de cada sessão, pelo hook. Nunca apaga recado nem grava segredo.
+- **Conferência:** cada agente roda `node scripts/coord.mjs caixa <agente>` no início de cada tarefa. O gerente confere as caixas a cada 5 min e cobra recado não lido.
+- **Dono do produto:**
+  - escreve pelo formulário de issue "Recado", no celular;
+  - recebe aviso no Telegram de todo recado para ele e um resumo de hora em hora;
+  - responde pelo Telegram no intervalo que escolher, porque esse intervalo pesa nos minutos de Actions (ADR 0035 §8).
+- **Código:** recados e lidos ficam fora dos commits do repositório de código. Depois do corte, as duas pastas entram no `.gitignore`.
+
 **5. Nome e versão dos builds** (dono do produto, R-20261107-151653)
 - **Nome no Expo** (`eas build --message`), nos recados e no WhatsApp:
   - preview/demo: `Campo-Demo-vX.Y.Z` e `Gestao-Demo-vX.Y.Z`;

@@ -21,6 +21,7 @@ import { z } from 'zod';
 import type { Escopo } from './acesso';
 import type { Manifesto } from './manifesto';
 import { ACAO_RE, ehAcaoDeEscritaDePedido, PERFIS, type ModuloId, type Perfil } from './nomes';
+import { ROTULO_PERFIL } from './perfis';
 
 // ---------------------------------------------------------------- níveis
 
@@ -274,15 +275,8 @@ export function travaDaChave(base: Perfil, chave: string): TravaDaChave | null {
   return null;
 }
 
-const ROTULO_BASE: Readonly<Record<Perfil, string>> = {
-  vendedor: 'Vendedor',
-  promotor: 'Promotor',
-  supervisor: 'Supervisor',
-  gerente: 'Gerente',
-  analista: 'Analista',
-  assistente: 'Assistente',
-  admin: 'Admin',
-};
+/** RD-0014: o mesmo nome curto de toda tela (`ROTULO_PERFIL`, fonte única em `@macuxi/comum/perfis`). */
+const ROTULO_BASE: Readonly<Record<Perfil, string>> = ROTULO_PERFIL;
 
 function menorNivel(chave: string): NivelPermissao | undefined {
   const familia = ehChavePlataforma(chave) ? (CHAVES_PLATAFORMA[chave] as Partial<DefinicaoChave>).nivel : undefined;

@@ -20,56 +20,93 @@
 - Cada card de módulo só aparece se o módulo estiver ativo, no perfil e com a ação (ADR 0004, RN-CORE-03): sem Vendedor, nada
   de Orçamentos e A faturar; sem Gestor, nada de Pedidos para aprovar.
 
+> **Revisão de 08/11/2026 (T-0124, auditoria de redundâncias RD-0002 a RD-0011, `docs/qualidade/redundancias/2026-11-08-inicio-campo.md`;
+> decisões do gerente em R-20261108-161557).** Os §1.1 a §1.5, o §3 e o §5 abaixo já trazem o texto final. Regra que vale para
+> a tela inteira: **cada fato uma vez** — "hoje" no máximo uma vez por cartão (a data já está no topo), "mês" só no título do
+> cartão, a unidade uma vez por linha, um só aviso de dado antigo (no Sincronizar) e uma só barra (a do cartão principal).
+> Tela de referência (domingo, base de 06/11):
+> ```
+> Domingo, 8 de novembro
+> Bom dia, Lucas
+> Sem rota hoje · não é dia útil
+> RECADOS                                    1 novo
+> Prioridade: passe cedo no Mercadinho São Jorge — título vencido e …   (2 linhas)
+> META DO MÊS                                  0,3%
+> R$ 553 de R$ 180.000
+> [barra]
+> Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)
+> Positivação   1 de 15 clientes
+> Visitas       0 de 90
+> Cobertura     0% de 90%
+> Orçamentos    nenhum                                   ›
+> A faturar     6 · R$ 3.989 (1 aguardando aprovação)    ›
+> [ Sincronizar ]
+> ⟳ Dados de 06/11, 6h28 · 0 na fila
+> ```
+
 ## 1. Campo — vendedor (`escopo: 'proprio'`)
-Ordem: **boas-vindas → Recados de hoje → Meta de hoje → Orçamentos | A faturar → (espaço) → Sincronizar**.
+Ordem: **boas-vindas → Recados → Meta do mês → Orçamentos e A faturar → (espaço) → Sincronizar**.
 
 ### 1.1 Boas-vindas (sem cartão, direto no fundo)
 | Peça | Estilo | Texto |
 |---|---|---|
 | Data | `type.sub` (13, `ink2`) | "Quarta, 4 de novembro" |
 | Saudação | `type.saudacao` (Archivo 26/800, `ink`), 1 linha | "Bom dia, Lucas" (5h–11h59) · "Boa tarde, Lucas" (12h–17h59) · "Boa noite, Lucas" (18h–4h59), fuso do tenant, só o primeiro nome |
-| Visitas | `type.sub` | "6 visitas hoje · 3 feitas" · 1: "1 visita hoje · 1 feita" · sem paradas: "Nenhuma visita na rota de hoje" |
+| Visitas | `type.sub` | "6 visitas hoje · 3 feitas" · 1: "1 visita hoje · 1 feita" · sem paradas em dia útil: "Sem rota hoje" · sem paradas e `dia_util` falso: "Sem rota hoje · não é dia útil" (RD-0006: o "não é dia útil" fica só aqui; o cartão de meta não repete) |
 - O bloco inteiro abre o Perfil (alvo ≥ 48; leitor: "Boa tarde, Lucas. Abrir perfil"). Sem sino e sem hora no topo.
 - Começa abaixo da barra de status (área segura do shell; no Android o piso é `StatusBar.currentHeight`).
 
-### 1.2 Recados de hoje (`Cartao`, gap 4)
-- Topo: `type.rotulo` "RECADOS DE HOJE" à esquerda; à direita o selo pílula `accentSoft`/`accentInk` 12/600 "3 novos"
-  ("1 novo"; "99+ novos"; some com tudo lido).
-- Até 3 linhas (mín. 48 dp, divisor `lineSoft` entre elas): ponto 9 · título `bodyStrong` (até 2 linhas) · apoio `small`
-  "Mercadinho São Jorge · 14:02" / "Marcos · 09:15" (quem ou onde · hora de relógio; ontem: "ontem"; na semana: "seg").
-- Ponto: recado do dia do supervisor = `accent` (vem primeiro); boa notícia (aprovado, faturado, meta batida) = `success`;
-  novo = `accent`; lido = `ink3`. A cor nunca é a única pista: o leitor diz ", novo".
+### 1.2 Recados (`Cartao`, gap 4) — RD-0003, RD-0009
+- Topo (tocável, abre a central de notificações, alvo 44): `type.rotulo` **"RECADOS"** à esquerda (sem "de hoje": são os
+  primeiros da caixa, não só os de hoje); à direita o selo pílula `accentSoft`/`accentInk` 12/600 "3 novos" ("1 novo";
+  "99+ novos"; some com tudo lido).
+- Até 3 linhas (mín. 48 dp, divisor `lineSoft` entre elas). Cada linha é **um texto só em até 2 linhas**: título em
+  `bodyStrong` seguido do corpo em `body` ("**Prioridade:** passe cedo no Mercadinho São Jorge — título vencido e …"), corte com
+  "…" na 2ª linha; a hora (`small` `ink2`, "09:15"; ontem: "ontem"; na semana: "seg"; antes: "28/10") à direita da 1ª linha.
+- Ponto de 9 só com **2 ou mais** linhas (com 1 item, o selo já diz "1 novo"): recado do dia do supervisor = `accent` (vem
+  primeiro); boa notícia (aprovado, faturado, meta batida) = `success`; novo = `accent`; lido = `ink3`. A cor nunca é a única
+  pista: o leitor diz ", novo" em toda linha nova, com ou sem ponto.
 - Toque na linha marca como lida e abre o link interno (`/m/...`) ou a central.
-- Rodapé do cartão: link `accentInk` 14/600 "Ver todos" (alvo 44) → central de notificações (RF-CORE-09).
-- Vazio: `small` "Nenhum recado por enquanto." e o "Ver todos" continua.
+- Rodapé do cartão: link `accentInk` 14/600 "Ver todos" (alvo 44) → central (RF-CORE-09), **só quando há mais recados do que
+  as linhas mostradas** (`recados_hoje.total` > itens; sem o total do Core, com 3 itens). Com 1 ou 2, o topo tocável basta.
+- Vazio: `small` "Nenhum recado por enquanto." sem "Ver todos" (o topo continua tocável).
 
-### 1.3 Meta de hoje (`Cartao`, gap 8)
-- Topo: `type.rotulo` "META DE HOJE" · à direita `sub` "mês 40%" (`meta_hoje.mes_pct`).
-- Linha do valor: realizado de hoje em Archivo 30 tabular ("R$ 1.240") · à direita, na mesma linha de base, `sub` "de R$ 3.200"
-  (necessidade diária, RN-CORE-22/RN-CORE-26).
-- Barra 6 dp (`accent` sobre `lineSoft`, limitada a 100%).
-- Apoio `sub`: "Faltam R$ 1.960 hoje" (`meta_hoje.faltam_hoje`).
-- Outros indicadores com meta (positivação, visitas, cobertura) entram abaixo, em linhas compactas (rótulo · valor · barra 4).
+### 1.3 Meta do mês (`Cartao`, gap 8) — RD-0002, RD-0004, RD-0005, RD-0007, RD-0010; decisão R-20261108-161557
+**Substitui a referência da T-0076** (realizado de hoje como número grande): o cartão é sempre **do mês**, também em dia útil.
+O realizado de hoje sai do Início (está em Metas).
+- Topo: `type.rotulo` **"META DO MÊS"** · à direita `sub` o % do mês, uma vez: "40%"; abaixo de 1%, com 1 casa ("0,3%");
+  sem "mês" (o título já diz).
+- Linha do valor: `title16`/Archivo 22 tabular **"R$ 553 de R$ 180.000"** (realizado do mês **de** meta do mês, numa linha só,
+  sem "no mês").
+- Barra 6 dp (`accent` sobre `lineSoft`, limitada a 100%) — a **única** barra do cartão.
+- Última linha `sub`, uma das duas:
+  - dia útil: **"Meta de hoje R$ 9.969"** (RN-CORE-26, valor pronto do Core);
+  - dia não útil: **"Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)"** (`dias_uteis_por_dia` e `dias_uteis_restantes`
+    prontos do Core, RN-CORE-22/26; os mesmos de Metas). Sem dias úteis restantes: só "Faltam R$ 179.447".
+- Outros indicadores com meta, em linhas de 1 linha **sem barra** (rótulo `body` à esquerda · valor tabular à direita), no
+  formato **"x de y"**, unidade uma vez e só quando o rótulo não a diz (RD-0005/0007; as três ficam, decisão do gerente):
+  "Positivação   1 de 15 clientes" · "Visitas   0 de 90" · "Cobertura   0% de 90%".
 
-| Estado (`situacao`) | Cartão | Valor | Barra | Apoio |
-|---|---|---|---|---|
-| `a_cumprir` | padrão | realizado de hoje | `accent` | "Faltam R$ 1.960 hoje" |
-| `dia_batido` | `sucesso` (valor e apoio em `success`) | realizado de hoje | `success` 100%, trilho `successTrack` | "Meta de hoje batida" |
-| `mes_batido` | `sucesso` | realizado de hoje | `success` 100% | "Meta do mês batida · R$ 31.200 de R$ 30.000" |
-| `dia_nao_util` | padrão | realizado do mês | `ink3`, % do mês | "Hoje não é dia útil · faltam R$ 1.800 no mês" |
-| `do_mes` (cobertura) | padrão | "62%" | `accent` | "Acumulado do mês" |
-- Cópia defasada (`base.defasado`): linha `small` `warningInk` no cartão "Vendas até 02/11 às 18h40. Sincronize para atualizar".
-- Sem cópia de vendas (`sem_realizado`): linha "Sincronize para ver as vendas".
+| Estado (`situacao`) | Cartão | Última linha |
+|---|---|---|
+| `a_cumprir` (dia útil) | padrão | "Meta de hoje R$ 9.969" |
+| `dia_batido` | padrão; "Meta de hoje batida" em `success` com ✓ | "Meta de hoje batida" |
+| `mes_batido` | `sucesso` (valor em `success`, barra `success` 100%, trilho `successTrack`) | "Meta do mês batida" |
+| `dia_nao_util` | padrão | "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" |
+| `do_mes` (cobertura como principal) | padrão | valor "62% de 90%" e nenhuma última linha |
+- **Dado antigo ou sem cópia de vendas: nada no cartão** (RD-0008). O aviso único fica no Sincronizar (§1.5).
 - Sem meta no mês: o cartão fica só com o rótulo e "Nenhuma meta cadastrada para este mês."
 
-### 1.4 Orçamentos | A faturar (Vendedor, slot `inicio.cards`, id `pedidos-resumo`, `ordem: 20`)
-- Dois cartões **lado a lado** (mesma largura, gap 12), cada um tocável (abre Pedidos já filtrado), mín. 112 dp de altura.
-- Cartão: `type.rotulo` "ORÇAMENTOS" / "A FATURAR" · quantidade em Archivo 28 ("3") · `small` `ink2` "R$ 1.150 · 1 vence amanhã"
-  / "R$ 2.980 · 1 aguardando aprovação" (sem pendência: só o valor).
-- Sem pré-venda no tenant: só "A faturar", na largura toda.
+### 1.4 Orçamentos e A faturar (Vendedor, slot `inicio.cards`, id `pedidos-resumo`, `ordem: 20`) — RD-0010, RD-0011
+- **Um** `Cartao` com **2 linhas tocáveis** (mín. 48 dp cada, divisor `lineSoft`, `›` à direita), cada uma abre Pedidos já
+  filtrado (`irParaPedidosFiltrados`). No lugar dos 2 cartões de 112 dp lado a lado.
+- Linha: rótulo `bodyStrong` à esquerda ("Orçamentos" / "A faturar") · à direita, `body` tabular: quantidade · valor e a
+  pendência entre parênteses: "3 · R$ 1.150 (1 vence amanhã)" / "6 · R$ 3.989 (1 aguardando aprovação)". **Zero = "nenhum"**
+  (sem "0 · R$ 0").
+- Sem pré-venda no tenant: só a linha "A faturar".
 - "A faturar" = aguardando aprovação, aprovado, enviado ao ERP e integrado, sem faturamento (decisão do gerente na T-0076);
   pedido na fila do aparelho fica fora (já aparece no chip "Na fila" de Pedidos).
-- Leitor: "Orçamentos: 3. R$ 1.150 · 1 vence amanhã. Toque para ver a lista."
+- Leitor: "Orçamentos: 3, R$ 1.150, 1 vence amanhã. Toque para ver a lista." / "Orçamentos: nenhum. Toque para ver a lista."
 
 ### 1.5 Sincronizar (kit: `BotaoSincronizar`, `packages/ui/src/mobile/sincronizacao.tsx`)
 - Botão 52 na largura toda, `variant="dark"` (grafite `ink`, texto branco), ícone `sync`, rótulo "Sincronizar".
@@ -78,21 +115,31 @@ Ordem: **boas-vindas → Recados de hoje → Meta de hoje → Orçamentos | A fa
 - Sincronizando: o botão mostra o indicador de carregamento e fica sem toque.
 - Modo sem sinal ligado: botão desabilitado "Sem sinal" e, acima da linha de situação, centralizado em `warningInk`,
   "Desligue o modo sem sinal para sincronizar".
-- O mesmo componente, com o mesmo desenho, fica no Perfil (cartão Sincronização).
+- **Aviso único de dado antigo (RD-0008)**: prop `avisoDados` do `BotaoSincronizar` (texto pronto do shell, fuso do tenant).
+  Com ela, a linha de situação vira **"⟳ Dados de 06/11, 6h28 · 0 na fila"** (ícone `sync` 14 + `small` semibold, `warningInk`,
+  centralizada, testID `<testID>-aviso-dados`; a linha continua `<testID>-situacao`), no lugar de "Última sincronização…" e
+  também de "Atualizado há instantes" (se a cópia continua velha depois do toque, o aviso continua). Textos:
+  base defasada (`base.defasado`) **"Dados de 06/11, 6h28"**; sem cópia de vendas (`sem_realizado`) **"Sincronize para ver as
+  vendas"**. O "· N na fila" fica (redundância útil, RN-CORE-23). Não repete "Sincronizar": o botão logo acima já diz.
+  Vale para A faturar, Positivação e Meta ao mesmo tempo, por isso não fica em cartão nenhum.
+- Celular de 6" com o Sincronizar abaixo da dobra (o Início rola): o aviso **continua no Sincronizar**; não sobe para as
+  boas-vindas. Motivo: a data no topo e um segundo aviso lá voltariam a ser dois lugares; quem rola para ver a meta chega ao
+  botão que resolve o aviso. Revemos com o print do APK se o dono do produto pedir.
+- O mesmo componente, com o mesmo desenho, fica no Perfil (cartão Sincronização), sem `avisoDados`.
 
 ## 2. Campo — promotor (RN-PRO-01)
 Igual ao vendedor (§1), com estas diferenças:
 - Sem Orçamentos, A faturar e qualquer atalho de pedido (o slot não entrega o card ao promotor).
-- "Meta de hoje" mostra só os indicadores em que ele tem meta (em geral visitas e cobertura); o principal é o primeiro com meta.
-- Avisos de vendas (defasada, sem cópia) só se ele tiver meta de vendas ou positivação.
+- "Meta do mês" mostra só os indicadores em que ele tem meta (em geral visitas e cobertura); o principal é o primeiro com meta.
+- O aviso de dado antigo no Sincronizar (§1.5) só vai se ele tiver meta de vendas ou positivação (o shell não passa `avisoDados`).
 
 ## 3. Gestão — supervisor e gerente (`escopo: 'equipe'`)
-Ordem: **boas-vindas → Recados de hoje → Meta de hoje da equipe → Pedidos para aprovar → Equipe agora → (espaço) → Sincronizar**.
+Ordem: **boas-vindas → Recados → Meta do mês da equipe → Pedidos para aprovar → Equipe agora → (espaço) → Sincronizar**.
 (Sem imagem própria: segue a ordem do Campo com os blocos da equipe, premissa da T-0076.)
 - Boas-vindas: data com a equipe "Quarta, 4 de novembro · Equipe Manaus"; visitas somadas da equipe "18 visitas hoje · 7 feitas".
-- Recados de hoje: igual ao §1.2.
-- Meta de hoje da equipe: igual ao §1.3 com o rótulo "META DE HOJE DA EQUIPE" e, quando parte da equipe já bateu,
-  `small` "1 de 3 já bateu o mês".
+- Recados: igual ao §1.2.
+- Meta do mês da equipe: igual ao §1.3 com o rótulo "META DO MÊS DA EQUIPE" (em dia útil, a última linha é "Meta de hoje R$ X"
+  da equipe) e, quando parte da equipe já bateu, `small` "1 de 3 já bateu o mês".
 - Pedidos para aprovar (card do Gestor no `inicio.cards`): cartão tocável em destaque na largura toda, abre Aprovações;
   some sem o módulo Gestor ou sem a permissão da fila.
 - Equipe agora (`Cartao`): uma linha por pessoa (mín. 56 dp, tocável quando a página do membro existe): avatar 34 com iniciais ·
@@ -117,12 +164,17 @@ Ordem: **boas-vindas → Recados de hoje → Meta de hoje da equipe → Pedidos 
 | puxar para atualizar | `Screen onRefresh` (mesma ação do Sincronizar) |
 
 ## 5. Textos (pt-BR, sem ponto final em botão, rótulo e selo)
-Quarta, 4 de novembro · Bom dia / Boa tarde / Boa noite, {nome} · {n} visitas hoje · {m} feitas · Nenhuma visita na rota de hoje ·
-Recados de hoje · {n} novos · Ver todos · Nenhum recado por enquanto. · Meta de hoje · Meta de hoje da equipe · mês {pct}% ·
-de {meta} · Faltam {valor} hoje · Meta de hoje batida · Meta do mês batida · Hoje não é dia útil · Acumulado do mês ·
-Sincronize para ver as vendas · Nenhuma meta cadastrada para este mês. · Orçamentos · {valor} · {n} vence(m) amanhã · A faturar ·
-{n} aguardando aprovação · Pedidos para aprovar · Equipe agora · Sincronizar · Última sincronização {hh:mm} · {n} na fila ·
-Ainda não sincronizado · Atualizado há instantes · Sem sinal · Desligue o modo sem sinal para sincronizar.
+Quarta, 4 de novembro · Bom dia / Boa tarde / Boa noite, {nome} · {n} visitas hoje · {m} feitas · Sem rota hoje ·
+Sem rota hoje · não é dia útil · Recados · {n} novos · Ver todos · Nenhum recado por enquanto. · Meta do mês ·
+Meta do mês da equipe · {pct}% · R$ {realizado} de R$ {meta} · Meta de hoje R$ {valor} · Faltam R$ {valor} ·
+R$ {valor} por dia útil ({n} dias) · Meta de hoje batida · Meta do mês batida · {x} de {y} clientes · {x} de {y} ·
+{x}% de {y}% · Nenhuma meta cadastrada para este mês. · Orçamentos · A faturar · nenhum · {n} · R$ {valor} ({n} vence(m) amanhã) ·
+({n} aguardando aprovação) · Pedidos para aprovar · Equipe agora · Sincronizar · Última sincronização {hh:mm} · {n} na fila ·
+Ainda não sincronizado · Atualizado há instantes · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
+Desligue o modo sem sinal para sincronizar.
+Saíram (RD-0002 a RD-0011): "Recados de hoje", "Meta de hoje" como título, "mês {pct}%", "Faltam {valor} hoje", "Hoje não é dia
+útil" no cartão, "Nenhuma visita na rota de hoje", "Acumulado do mês", "meta {pct}%", "{x} clientes de {y} clientes",
+"Vendas até {data} às {hora}. Sincronize para atualizar.".
 
 ## 6. Cliente 360 (mesma referência, tela do Core)
 - Topo abaixo da barra de status: "‹ Rota de hoje" (de onde veio) · nome Archivo · endereço · "cliente desde 2026" · chips

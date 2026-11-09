@@ -169,3 +169,24 @@ const PEDIDOS = {
   gravacao: { cabecalho: '/*cab*/ INSERT INTO pedido VALUES (:pedido_uuid)', numeroErp: '/*num*/ SELECT numero_erp FROM pedido WHERE uuid = :pedido_uuid' },
   status: { consulta: '/*st*/ SELECT * FROM v WHERE pedido_uuid = :pedido_uuid', mapaStatus: { I: 'integrado' } },
 };
+
+describe('T-0100: o sinal de vida leva o resultado da atualização automática (campo opcional)', () => {
+  it('sem resultado guardado, o sinal não leva o campo `atualizacao` (Conector que nunca atualizou)', async () => {
+    amb = await criarAmbiente();
+    await new Executor(amb.ctx).ciclo();
+    expect(amb.hub.sinais[0]).not.toHaveProperty('atualizacao');
+  });
+
+  it('com o último resultado em `meta`, o sinal leva o resumo, válido no contrato e sem dado pessoal', async () => {
+    amb = await criarAmbiente();
+    amb.ctx.store.definirMeta(
+      'atualizacao_ultimo_resultado',
+      JSON.stringify({ resultado: 'revertido', de: '1.2.1', tentou: '1.3.0', motivo: 'sem_saude', anterior: 'saudavel', em: '2026-11-09T03:00:00.000Z', duracao_ms: 1200, mensagem: 'A versão nova não respondeu à verificação de saúde no prazo; a versão anterior foi restaurada.' }),
+    );
+    await new Executor(amb.ctx).ciclo();
+    const sinal = amb.hub.sinais[0] as SinalConector;
+    expect(SinalConector.safeParse(sinal).success).toBe(true);
+    expect(sinal).toMatchObject({ atualizacao: { resultado: 'revertido', codigo: 'sem_saude', versao_de: '1.2.1', versao_para: '1.3.0', em: '2026-11-09T03:00:00.000Z' } });
+    expect(JSON.stringify(sinal?.atualizacao)).not.toMatch(/https?:|[A-Za-z]:\|\/home\//);
+  });
+});

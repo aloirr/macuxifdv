@@ -55,7 +55,7 @@ export const manifest = defineModule({
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1', 'catalogo.referencia.marca_desconhecida@1', 'catalogo.marca_concorrente.alterada@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
-  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'catalogo.busca.realizada@1'],
+  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'integracao.cliente.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
   // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
   usaExtensoes: [],

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
+import { CargaArquivoPage } from './components/carga-arquivo-page';
 import { MonitorPage } from './components/monitor-page';
 
 /**
@@ -11,6 +12,8 @@ export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
     { id: 'monitor', caminho: 'integracao', titulo: 'Integração ERP', navegacao: 'Integração ERP', grupo: 'administracao', ordem: 30, acao: 'monitor.ver', componente: MonitorPage },
+    // T-0100: o admin da empresa baixa os modelos e carrega as bases sem o suporte; a página monta só com a ação carga.arquivo (motor, ADR 0033)
+    { id: 'carga-arquivo', caminho: 'integracao/carga-arquivo', titulo: 'Carga por arquivo', navegacao: 'Carga por arquivo', grupo: 'administracao', ordem: 31, acao: 'carga.arquivo', componente: CargaArquivoPage },
   ],
 });
 

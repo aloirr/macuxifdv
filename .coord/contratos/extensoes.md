@@ -12,7 +12,7 @@
 | `inicio.cards` | core | shell: Início do app (`apps/mobile/src/components/extensoes-shell.tsx`) | todos, por `ordem` (menor primeiro; ausente = 100): gestor "Pedidos para aprovar" (10, Gestão), vendedor `pedidos-resumo` Orçamentos e A faturar (20, só Campo, ação `pedido.criar`, T-0076) |
 | `menu.itens` | core | shell: Perfil do app (seção "Mais") e menu do BKO (grupo "Mais") | todos |
 | `produto.acoes` | catalogo | (catálogo, T-0007+) | vendedor |
-| `pedido.criar_em_nome` | vendedor | (vendedor) | gestor |
+| `pedido.criar_em_nome` | vendedor | (vendedor) | gestor · contexto `ContextoPedidoEmNomeSlot` (`modules/vendedor/contracts/extensoes.ts`): `vendedor_id`, `autor_id` e, desde o v1.0.1 (aditivo, 08/11, R-20261108-210156), `vendedor_nome?` para o PDF do pedido em nome; sem o campo nada muda |
 
 Itens só aparecem se o módulo registrante e o dono do slot forem efetivos, o perfil bater, a `acao` for permitida
 (ADR 0004) e, quando o item declara `apps` (T-0029 E4), o app atual estiver na lista; caso contrário somem sem erro (RN-CORE-03).

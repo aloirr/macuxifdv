@@ -69,7 +69,10 @@ function cenario() {
       registrarArquivo: async () => {
         throw new Error('sem arquivo');
       },
-      consultar: async (_def: unknown, entrada: { usuario_ids: string[] }) => ({ clientes: [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) }),
+      consultar: async (def: { nome: string }, entrada: { usuario_ids: string[] }) =>
+        def.nome === 'core.calendario_metas@1'
+          ? { dias_uteis_semana: DIAS_UTEIS_DO_CORE, feriados: [] }
+          : { clientes: [], produtos: [], usuarios: CADASTRO.filter((c) => entrada.usuario_ids.includes(c.id)).map((c) => ({ ...c, external_id: null })) },
       auditar: async (a: RegistroAuditoria) => {
         auditoria.push(a);
       },
@@ -119,6 +122,9 @@ const aprovacaoSolicitada = (r: ReturnType<typeof criarRelogio>, o: { pedido: st
   ocorrido_em: iso(r, '10:31'),
   payload: { pedido_id: o.pedido, vendedor_id: o.vendedor, cliente_id: u(505), solicitada_em: iso(r, '10:31'), nivel: o.nivel, motivos: ['desconto'], desconto_efetivo_pct: 12.5, total_cents: 80_000, credito: null, historico: null },
 });
+
+/** Semana útil devolvida pela consulta `core.calendario_metas@1` do Core nos testes (padrão seg–sáb). */
+const DIAS_UTEIS_DO_CORE = [1, 2, 3, 4, 5, 6];
 
 describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
   it('a API é válida no SDK: 9 rotas, um consumidor por evento de `consome`, escrita sempre com ação do manifesto', () => {

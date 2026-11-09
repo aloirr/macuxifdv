@@ -11,8 +11,11 @@
  *
  * A versão vem de scripts/eas/versao.json; o versionCode é do EAS (remoto, +1 a cada build; ver eas.json).
  * `--simular` só mostra os comandos. Tudo depois de `--` vai para o eas build (ex.: `-- --no-wait`).
+ * Desde o v1.0.1 o eas roda com `EAS_SKIP_AUTO_FINGERPRINT=1` (comum.mjs, `ambienteDoEas`): o fingerprint automático levou
+ * ~20 min por build no v1.0.0. Rodando o `eas build` à mão, defina a variável antes (PowerShell:
+ * `$env:EAS_SKIP_AUTO_FINGERPRINT=1`).
  */
-import { ehPrincipal, nomes, rodarEas, versaoAtual } from './comum.mjs';
+import { ambienteDoEas, ehPrincipal, nomes, rodarEas, versaoAtual } from './comum.mjs';
 
 const USO = 'uso: node scripts/eas/build.mjs <campo|gestao|ambos> <demo|oficial|dev> [--simular] [-- <opções do eas build>]';
 
@@ -50,7 +53,7 @@ function principal() {
     process.exit(2);
   }
   for (const b of plano.builds) {
-    console.log(`\n▶ ${b.nome} (perfil ${b.perfilEas})\n  eas ${b.args.join(' ')}`);
+    console.log(`\n▶ ${b.nome} (perfil ${b.perfilEas})\n  EAS_SKIP_AUTO_FINGERPRINT=${ambienteDoEas(process.env).EAS_SKIP_AUTO_FINGERPRINT} eas ${b.args.join(' ')}`);
     if (plano.simular) continue;
     const { codigo } = rodarEas(b.args);
     if (codigo !== 0) {

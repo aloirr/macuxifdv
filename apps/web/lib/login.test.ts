@@ -1,6 +1,7 @@
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { describe, expect, it } from 'vitest';
-import { mensagemDoLogin, validarCampos } from './login';
+import { validarLogin as validarCampos } from '@macuxi/core/contracts';
+import { mensagemDoLogin } from './login';
 
 describe('login do BKO (T-0003 F2)', () => {
   it('valida os três campos com a ação seguinte', () => {

@@ -104,7 +104,7 @@ interface Cartao {
   de: string | null;
   apoio: string | null;
 }
-const limpo = (s: string | undefined) => (s === undefined ? null : s.replace(/00a0/g, ' ').replace(/&#x27;/g, "'"));
+const limpo = (s: string | undefined) => (s === undefined ? null : s.replace(/\u00a0/g, ' ').replace(/&#x27;/g, "'"));
 function cartao(v: VisaoInicio, equipe = false): Cartao {
   const html = limpo(renderToStaticMarkup(createElement(MetaDoMes, { metas: v.metas, pronto: v.meta_hoje, equipe })))!;
   return {

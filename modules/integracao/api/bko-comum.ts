@@ -4,7 +4,13 @@
  */
 import type { ClienteBanco } from '@macuxi/platform-sdk';
 import type { ConectorResumo, Entidade, PoliticaVersaoConector } from '../contracts';
-import { avaliarSaudeConector, avaliarVersaoConector, politicaEfetiva } from '../domain';
+import { atualizacaoDoSinal, avaliarSaudeConector, avaliarVersaoConector, politicaEfetiva } from '../domain';
+
+/** `atualizacao` só entra no resumo quando o Conector informou (aditivo: resposta de quem não informa não muda). */
+const atualizacaoNoResumo = (resumo: unknown): Pick<ConectorResumo, 'atualizacao'> => {
+  const a = atualizacaoDoSinal(resumo);
+  return a ? { atualizacao: a } : {};
+};
 
 export const iso = (v: Date | string | null | undefined): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
@@ -21,11 +27,13 @@ export interface LinhaConector {
   versao_conector: string | null;
   parado_por_versao: boolean;
   ultimo_sinal_em: Date | null;
+  /** Resumo do último sinal (jsonb); só `atualizacao` é lida aqui. */
+  sinal_resumo?: unknown;
   created_at: Date;
 }
 
 export const COLUNAS_CONECTOR = `id, identificador, nome, tipo, ativo, recebe_pedidos, aceita_cancelamento, entidades, ips_permitidos::text[] as ips_permitidos,
-  versao_conector, parado_por_versao, ultimo_sinal_em, created_at`;
+  versao_conector, parado_por_versao, ultimo_sinal_em, sinal_resumo, created_at`;
 
 /** RN-INT-11: o tenant tem algum Conector ativo que recebe pedidos (então vale o piso 1.2.1). */
 export async function tenantRecebePedidos(db: ClienteBanco, tenantId: string): Promise<boolean> {
@@ -95,6 +103,7 @@ export function montarResumo(
     situacao_versao: situacao,
     ultimo_sinal_em: iso(c.ultimo_sinal_em),
     saude: avaliarSaudeConector({ ativo: c.ativo, ultimo_sinal_em: iso(c.ultimo_sinal_em), parado_por_versao: c.parado_por_versao }, agora),
+    ...atualizacaoNoResumo(c.sinal_resumo),
     chave: atual
       ? {
           prefixo: atual.prefixo,

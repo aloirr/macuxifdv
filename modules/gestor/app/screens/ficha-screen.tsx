@@ -25,7 +25,7 @@ import { useGestor } from '../state/use-gestor';
  */
 interface AcaoPedidoEmNome {
   rotulo?: string;
-  abrir(contexto: Pick<ContextoPedidoEmNome, 'vendedor_id' | 'autor_id'>): void;
+  abrir(contexto: Pick<ContextoPedidoEmNome, 'vendedor_id' | 'autor_id'> & { vendedor_nome?: string }): void;
 }
 
 export default function FichaScreen() {
@@ -76,7 +76,7 @@ export default function FichaScreen() {
           nivel="principal"
           rotulo={acao.payload.rotulo ?? `Fazer pedido em nome de ${f.membro.nome.split(' ')[0]}`}
           icone="plus"
-          onPress={() => acao.payload.abrir({ vendedor_id: f.membro.id, autor_id: g.usuarioId! })}
+          onPress={() => acao.payload.abrir({ vendedor_id: f.membro.id, autor_id: g.usuarioId!, vendedor_nome: f.membro.nome })}
         />
       ) : null}
       {f.pedido_em_nome.visivel && !f.pedido_em_nome.permitido && f.pedido_em_nome.mensagem ? <Text style={t.small}>{f.pedido_em_nome.mensagem}</Text> : null}

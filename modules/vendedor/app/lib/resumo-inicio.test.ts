@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PedidoDaLista } from './pedidos';
-import { linhaAFaturar, linhaOrcamentos, orcamentosEmAberto, resumoDoInicio } from './resumo-inicio';
+import { linhaOrcamentos, orcamentosEmAberto, resumoDoInicio, textoCartaoAFaturar, textoCartaoOrcamentos } from './resumo-inicio';
 
 const AGORA = new Date('2026-11-04T18:00:00.000Z');
 const ped = (o: Partial<PedidoDaLista>): PedidoDaLista => ({ id: 'x', seller_id: 'v1', status: 'approved', total_cents: 1000, received_at: '2026-11-04T12:00:00.000Z', local: false, local_error: '', ...o }) as PedidoDaLista;
@@ -44,7 +44,13 @@ describe('T-0076: resumo do Início no aparelho', () => {
     expect(linhaOrcamentos({ quantidade: 3, valor_cents: 115_000, vencem_amanha: 1 })).toBe('R$ 1.150 · 1 vence amanhã');
     expect(linhaOrcamentos({ quantidade: 3, valor_cents: 115_000, vencem_amanha: 2 })).toBe('R$ 1.150 · 2 vencem amanhã');
     expect(linhaOrcamentos({ quantidade: 3, valor_cents: 115_000, vencem_amanha: 0 })).toBe('R$ 1.150');
-    expect(linhaAFaturar({ quantidade: 5, valor_cents: 298_000, aguardando_aprovacao: 1 })).toBe('R$ 2.980 · 1 aguardando aprovação');
-    expect(linhaAFaturar({ quantidade: 5, valor_cents: 298_000, aguardando_aprovacao: 0 })).toBe('R$ 2.980');
+    expect(textoCartaoAFaturar({ quantidade: 6, valor_cents: 398_900, aguardando_aprovacao: 1 })).toBe('6 · R$ 3.989 (1 aguardando aprovação)');
+    expect(textoCartaoAFaturar({ quantidade: 5, valor_cents: 298_000, aguardando_aprovacao: 0 })).toBe('5 · R$ 2.980');
+  });
+
+  it('RD-0010: sem orçamento ou sem pedido a faturar o cartão diz só "nenhum" (sem R$ 0)', () => {
+    expect(textoCartaoOrcamentos({ quantidade: 0, valor_cents: 0, vencem_amanha: 0 })).toBe('nenhum');
+    expect(textoCartaoAFaturar({ quantidade: 0, valor_cents: 0, aguardando_aprovacao: 0 })).toBe('nenhum');
+    expect(textoCartaoOrcamentos({ quantidade: 3, valor_cents: 115_000, vencem_amanha: 1 })).toBe('3 · R$ 1.150 · 1 vence amanhã');
   });
 });

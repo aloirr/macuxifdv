@@ -254,6 +254,12 @@ FROM erp_produto_unidade u;
 --        como texto JSON ('["PIX","BOLETO"]'). '[]' = limpa (todas as formas ativas). Se o ERP não controla formas por
 --        cliente, devolva CAST(NULL AS VARCHAR(1)): o Macuxi mantém o que foi definido no BKO. Mais de 20 formas
 --        recusa a linha inteira do cliente: restrinja no ERP (ou filtre na view) antes.
+--    Campo da T-0120 (vínculo cliente -> tabela de preço; R-20261108-230146):
+--      tabela_preco_external_id — a MESMA chave da coluna tabela_external_id da view 10 (preco). NULL = NÃO ALTERA (o
+--        Conector omite nulos): o cliente que usa a tabela padrão do ERP sai NULL e fica com o vínculo que já tinha no
+--        Macuxi. Para DESVINCULAR, o ERP devolve o id da tabela padrão (troque a coluna por
+--        COALESCE(c.id_tabela_preco, <id da tabela padrão>) se o ERP permite tirar a tabela de um cliente). A comparação
+--        da chave segue binária (COLLATE Latin1_General_BIN2 / NLS_SORT=BINARY), como as demais external_id.
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_cliente AS
 SELECT
@@ -267,6 +273,8 @@ SELECT
     c.nome_fantasia                                          AS nome_fantasia,
     c.cnpj_cpf                                               AS documento,       -- só dígitos ou formatado (até 18)
     CAST(c.id_vendedor AS VARCHAR(200))                      AS vendedor_external_id, -- carteira (view 1)
+    -- T-0120: igual nos dois dialetos. NULL = não altera (tabela padrão do ERP); a chave é a tabela_external_id da view 10.
+    CAST(c.id_tabela_preco AS VARCHAR(200))                  AS tabela_preco_external_id,
     c.logradouro                                             AS endereco_logradouro,
     c.numero                                                 AS endereco_numero,
     c.complemento                                            AS endereco_complemento,

@@ -6,11 +6,12 @@
  * - O "Esqueci a senha" grava uma temporária PARALELA (P6): a senha atual continua valendo.
  */
 import { pode, type Perfil, type PerfilDaRequisicao } from '@macuxi/platform-sdk';
+import { SENHA_TEMPORARIA_HORAS } from '../contracts/senha';
 import { faltasNaSenha, type FaltaNaSenha } from './senha';
 import { validarSenhaInicial } from './usuarios';
 
 /** RN-CORE-34: validade da senha temporária, em horas. */
-export const SENHA_TEMPORARIA_HORAS = 72;
+export { SENHA_TEMPORARIA_HORAS };
 
 /** Instante em que a senha temporária emitida em `agora` vence (a partir dele já não vale: 72 h exatas = vencida). */
 export const validadeDaSenhaTemporaria = (agora: Date): Date => new Date(agora.getTime() + SENHA_TEMPORARIA_HORAS * 3_600_000);

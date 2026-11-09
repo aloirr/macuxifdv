@@ -33,9 +33,9 @@ const prom = { id: PROMOTOR, perfil: 'promotor' } as const;
 const trade = (st: ReturnType<typeof estadoInicial>, p: Parameters<typeof tradeDoPeriodo>[4] = {}) => tradeDoPeriodo(st, PROMOTOR, '2026-10-30', '2026-10-30', p);
 
 /** Pedido criado e aprovado no instante `em`. */
-function venda(n: number, o: { total: number; tabela?: number; cliente?: string; em: string; vendedor?: string; visita?: string | null }): EventoRecebido[] {
+function venda(n: number, o: { total: number; tabela?: number; cliente?: string; em: string; emitido?: string; vendedor?: string; visita?: string | null }): EventoRecebido[] {
   return [
-    pedidoCriado({ pedido: u(1000 + n), total: o.total, tabela: o.tabela ?? o.total, cliente: o.cliente, vendedor: o.vendedor, em: o.em, visita: o.visita }),
+    pedidoCriado({ pedido: u(1000 + n), total: o.total, tabela: o.tabela ?? o.total, cliente: o.cliente, vendedor: o.vendedor, em: o.em, emitido: o.emitido, visita: o.visita }),
     statusAlterado({ pedido: u(1000 + n), vendedor: o.vendedor, para: 'aprovado', em: o.em }),
   ];
 }
@@ -99,11 +99,11 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
   // Outubro/2026 tem 22 dias úteis; em 20/10: 13 decorridos (1–19), 9 restantes (20–30).
   const dias = { dias_uteis_total: 22, dias_uteis_decorridos: 13, dias_uteis_restantes: 9 };
 
-  it('RN-CORE-22: necessidade diária = (meta − realizado) ÷ dias úteis restantes (R$ 22.000 − R$ 10.000 ÷ 9 = R$ 1.333,33)', () => {
+  it('RN-CORE-22: necessidade diária = (meta − realizado) ÷ dias úteis restantes (R$ 12.000 ÷ 9 = R$ 1.333,33, arredondado para cima como o Core)', () => {
     expect(calcularMeta({ meta_cents: 2_200_000, realizado_cents: 1_000_000, realizado_ate_ontem_cents: 900_000, ...dias })).toEqual({
       atingimento_pct: 45.45,
       falta_cents: 1_200_000,
-      necessidade_diaria_cents: 133_333,
+      necessidade_diaria_cents: 133_334,
       ritmo_pct: 69.23, // 900.000 ÷ (2.200.000 × 13/22 = 1.300.000)
     });
   });
@@ -130,10 +130,10 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
       ...venda(2, { total: 100_000, em: '2026-10-20T15:00:00Z', cliente: CLIENTE_B }),
       ...venda(3, { total: 999_999, em: '2026-10-21T15:00:00Z' }), // depois do dia consultado: fora
     ]);
-    const SEG_SEX = { dias_uteis_semana: [1, 2, 3, 4, 5] };
+    const SEG_SEX = { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] } };
     const m = painelDoMes(s, VENDEDOR, '2026-10-20', SEG_SEX);
     expect(m).toMatchObject({ mes: '2026-10', vendas_cents: 1_000_000, pedidos: 2, clientes_positivados: 2, meta_cents: 2_200_000, falta_cents: 1_200_000, dias_uteis_restantes: 9 });
-    const comFeriado = painelDoMes(s, VENDEDOR, '2026-10-20', { ...SEG_SEX, feriados: ['2026-10-23'] });
+    const comFeriado = painelDoMes(s, VENDEDOR, '2026-10-20', { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: ['2026-10-23'] } });
     expect(comFeriado.dias_uteis_restantes).toBe(8);
   });
 
@@ -142,7 +142,29 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
     const m = painelDoMes(s, VENDEDOR, '2026-10-20');
     expect(m.dias_uteis_restantes).toBe(11); // 20 a 31/10 sem domingos
     expect(m.necessidade_diaria_cents).toBe(109_091); // R$ 12.000 ÷ 11
-    expect(painelDoMes(s, VENDEDOR, '2026-10-20', { dias_uteis_semana: [1, 2, 3, 4, 5] })).toMatchObject({ dias_uteis_restantes: 9, necessidade_diaria_cents: 133_333 });
+    expect(painelDoMes(s, VENDEDOR, '2026-10-20', { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] } })).toMatchObject({ dias_uteis_restantes: 9, necessidade_diaria_cents: 133_334 });
+  });
+
+  it('RN-CORE-26: tenant seg–sex (core.calendario_metas@1) dá 15 dias úteis restantes em 10/11/2026 (sem cadastro de feriados, só a semana do tenant)', () => {
+    const s = montar([meta(VENDEDOR, '2026-11', 3_000_000, '2026-11-01T08:00:00Z')]);
+    const m = painelDoMes(s, VENDEDOR, '2026-11-10', { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] } });
+    expect(m.dias_uteis_restantes).toBe(15); // 10 a 30/11 seg–sex = 15; feriados [] = sem cadastro (RN-CORE-26)
+    expect(painelDoMes(s, VENDEDOR, '2026-11-10', { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5, 6], feriados: [] } }).dias_uteis_restantes).toBe(18);
+  });
+
+  it('RN-GES-03: os feriados do Gestor não mexem no "Precisa por dia" (só o calendário do Core)', () => {
+    const s = montar([meta(VENDEDOR, '2026-10', 2_200_000, '2026-10-01T08:00:00Z')]);
+    const a = painelDoMes(s, VENDEDOR, '2026-10-20');
+    expect(painelDoMes(s, VENDEDOR, '2026-10-20', { feriados: ['2026-10-23'] }).dias_uteis_restantes).toBe(a.dias_uteis_restantes);
+  });
+
+  it('RN-CORE-21 / G2: pedido feito offline em 31/10 e recebido em 01/11 conta em outubro (emitido_em, como o Core); sem o campo cai no criado_em', () => {
+    const s = montar([
+      ...venda(1, { total: 500_000, em: '2026-11-01T12:00:00Z', emitido: '2026-10-31T20:00:00Z' }),
+      ...venda(2, { total: 100_000, em: '2026-11-01T12:00:00Z', cliente: CLIENTE_B }), // antigo, sem emitido_em
+    ]);
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-10-01', '2026-10-31')).toMatchObject({ vendas_cents: 500_000, pedidos: 1 });
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-11-01', '2026-11-30')).toMatchObject({ vendas_cents: 100_000, pedidos: 1 });
   });
 
   it('meta de outro mês não vale; sem meta definida o mês vem com meta null', () => {

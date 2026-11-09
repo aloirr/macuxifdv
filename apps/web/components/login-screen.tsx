@@ -19,22 +19,27 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  detalhesDaTroca,
   EsqueciSenhaRequestSchema,
   LoginSenhaRequestSchema,
   SessaoRespostaSchema,
+  TEXTOS_CRIE_SENHA,
+  TEXTOS_LOGIN_SENHA,
   TrocarSenhaRequestSchema,
+  validarLogin,
+  type CamposLogin,
   type DetalhesSenhaATrocar,
   type FakeUser,
   type LoginResponse,
   type SessaoResposta,
 } from '@macuxi/core/contracts';
-import { mensagemPerfilForaDoApp, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
+import { mensagemPerfilForaDoApp, type Perfil } from '@macuxi/platform-sdk';
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, useToast } from '@macuxi/ui/web';
+import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
 import { entraEm, perfisDeFabricaQueEntram } from '@/lib/acesso';
-import { CAMINHO_ESQUECI_SENHA, CAMINHO_TROCAR_SENHA, consumirAvisoDoLogin, detalhesDaTroca, TEXTOS_CRIE_SENHA, TEXTOS_LOGIN_SENHA } from '@/lib/ciclo-senha';
-import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin, validarCampos, type CamposLogin } from '@/lib/login';
+import { CAMINHO_ESQUECI_SENHA, CAMINHO_TROCAR_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
+import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
 import { salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
 
 const DICA: Partial<Record<Perfil, string>> = {
@@ -122,7 +127,7 @@ function LoginReal() {
   const entrar = async (ev: FormEvent) => {
     ev.preventDefault();
     if (entrando) return;
-    const e = validarCampos(campos);
+    const e = validarLogin(campos);
     setErros(e);
     setErro(null);
     setAviso(null);
@@ -335,7 +340,7 @@ function LoginDemo() {
                 }}
                 className="group flex min-h-[132px] flex-col gap-1.5 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-70"
               >
-                <span className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{ROTULO_PERFIL[u.perfil]}</span>
+                <span className="text-[11px] font-semibold tracking-[0.06em] text-accent-ink uppercase">{rotuloDoPerfil(u.perfil)}</span>
                 <span className="flex items-center justify-between gap-2 font-display text-[18px] font-bold">
                   {u.name}
                   <IconChevronRight size={18} className="text-ink-2 transition-transform group-hover:translate-x-0.5" />

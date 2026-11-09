@@ -18,6 +18,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { ehEmail } from '@macuxi/comum/email';
 import { normalizarEmail, validarSenhaInicial } from '@macuxi/core/api';
 import { ehBancoLocal, hashSenha, lerConfig, urlAdmin } from '@macuxi/db';
 import pg from 'pg';
@@ -120,9 +121,6 @@ async function obterSenha(doAmbiente: string | undefined, deps: DepsSuperAdmin):
   return senha;
 }
 
-/** E-mail mínimo (o banco confere de novo); a mensagem nunca repete o valor. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /**
  * `super-admin <acao> ...`. Devolve o código de saída (0 = ok). Nunca lança: todo erro vira uma linha em português no `erro`,
  * sem senha, hash, nome ou e-mail. `nao_encontrado` (redefinir/desativar de quem não existe) = saída 1.
@@ -142,7 +140,8 @@ export async function executarSuperAdmin(argv: readonly string[], deps: DepsSupe
     segredos.push(a.email);
     const email = deps.politica.normalizarEmail(a.email);
     segredos.push(email);
-    if (!EMAIL_RE.test(email) || email.length > 254) throw new ErroUso('E-mail inválido.');
+    // RD-0020: formato único do `@macuxi/comum` (o banco confere de novo); a mensagem nunca repete o valor
+    if (!ehEmail(email)) throw new ErroUso('E-mail inválido.');
     const nome = a.nome?.trim() ?? '';
     if (nome) segredos.push(nome);
     if (acao === 'criar' && (nome.length < 2 || nome.length > 120)) throw new ErroUso(`criar exige --nome com 2 a 120 caracteres. ${USO}`);

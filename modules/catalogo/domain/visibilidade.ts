@@ -37,3 +37,12 @@ export function verPrecoDoPerfil(perfil: Perfil, parametros: Readonly<Record<str
   const r = ParametrosCatalogo.safeParse({ ...PARAMETROS_PADRAO, ...(parametros ?? {}) });
   return podeVerPrecoEstoque(perfil, r.success ? r.data : PARAMETROS_PADRAO);
 }
+
+/**
+ * RN-CAT-05 (T-0121 N3): valor que entra na `versao_escopo` das entidades de preço e estoque. Quando o perfil deixa de ver
+ * (promotor_ve_preco_estoque de sim para não) o valor muda, o aparelho ressincroniza a entidade e o preço e o estoque que já
+ * estavam nele somem; o pull só devolve linhas a quem vê, então a ressincronização traz a entidade vazia.
+ */
+export function variacaoEscopoPrecoEstoque(perfil: Perfil, parametros: Readonly<Record<string, unknown>> | undefined): string {
+  return verPrecoDoPerfil(perfil, parametros) ? 'preco-estoque:visivel' : 'preco-estoque:oculto';
+}

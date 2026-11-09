@@ -107,7 +107,7 @@ export function TelaCliente() {
       <View style={styles.root}>
         <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
           <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
-          <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} />
+          <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} clienteAtual={id} />
           <CabecalhoCliente ficha={ficha} />
           <AcoesContato ficha={ficha} />
           {avisosExt.map((a) => {
@@ -169,7 +169,7 @@ export function TelaCliente() {
     <View style={styles.root}>
       <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
         <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
-        <OpenVisitBar from={customer.trade_name} />
+        <OpenVisitBar from={customer.trade_name} clienteAtual={id} />
         <View style={{ gap: 6 }}>
           <Text style={t.h1Small} testID="customer-name">
             {customer.trade_name}

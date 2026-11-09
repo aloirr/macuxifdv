@@ -7,12 +7,17 @@
  * - app aberto neste processo (`registrarAppAberto`): a tarefa usa o motor do app (mesma promessa de `sincronizar`);
  * - ligar (depois da carga inicial) e desligar (logout, aparelho bloqueado) o agendamento.
  * Só Android na v1 (§4). Build sem o módulo nativo (APK anterior a esta dependência): tudo vira no-op, sem quebrar o app.
+ * T-0140 (relatos 1 e 6, o app abria e fechava depois de atualizado e na carga inicial): a tarefa sem tela não toca em tela
+ * nem em estado de React (o app relê o resultado ao voltar ao primeiro plano), não roda com o app em primeiro plano, abrindo
+ * ou sincronizando (`travaSync`), nem num build que ainda não abriu com tela; a passada é cortada no fim do orçamento; e
+ * nenhum erro da tarefa (nem da definição dela, na carga do bundle) derruba o processo: vai ao Diagnóstico.
  */
 import { ehAparelhoBloqueado, tratarAparelhoBloqueado } from '@macuxi/core/app';
 import type { ArmazenamentoSync, Perfil } from '@macuxi/platform-sdk';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo';
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { AppState, Platform } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { enderecoSalvoValido } from '@/lib/endereco-do-build';
@@ -26,6 +31,7 @@ import {
   type MotorSegundoPlano,
   type ResultadoSegundoPlano,
 } from '@/lib/segundo-plano';
+import { buildAindaNaoAberto, criarCorteDaPassada, criarTravaSync, idDoBuild, semDerrubar, semDerrubarAgora, type CorteDaPassada } from '@/lib/trava-sync';
 import { varianteAtual } from '@/lib/variante';
 
 import { criarAmbienteDoAparelho } from './ambiente';
@@ -34,11 +40,32 @@ import { abrirArmazenamentoDoUsuario, apagarBancosDoAparelho } from './armazenam
 import { apagarFotosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from './device';
+import { gravarErro } from './erros';
 import { consultarModulosEfetivos, criarMotorDoUsuario, trocarRefresh } from './motor-do-usuario';
 import { keys, readJson, writeJson } from './storage';
 
 /** Última execução (Diagnóstico do Perfil: "Última sincronização em segundo plano"). */
 export const CHAVE_ULTIMO_SEGUNDO_PLANO = 'fv:diagnostico:segundo_plano';
+
+/** Build que já abriu com tela neste aparelho (`idDoBuild`): a tarefa sem tela só roda depois disso (T-0140). */
+export const CHAVE_BUILD_ABERTO = 'fv:app:build_aberto';
+
+/** Trava única do processo entre o app com tela e a tarefa sem tela (`lib/trava-sync.ts`). */
+export const travaSync = criarTravaSync();
+
+/** Versão do app + versionCode do EAS (sobe a cada build: a instalação por cima sempre muda). */
+export function idDoBuildAtual(): string {
+  const android = (Constants.platform as { android?: { versionCode?: number | string } } | undefined)?.android;
+  return idDoBuild(Constants.expoConfig?.version, android?.versionCode);
+}
+
+/** O app abriu com tela neste build (chamado ao fim da abertura): a tarefa sem tela fica liberada. */
+export async function marcarBuildAberto(): Promise<void> {
+  await writeJson(CHAVE_BUILD_ABERTO, idDoBuildAtual()).catch(() => undefined);
+}
+
+/** Erro da tarefa: Diagnóstico do Perfil (`gravarErro` não apaga um fatal ainda não visto) e nunca derruba. */
+export const registrarErroDaTarefa = (tarefa: string) => (e: unknown) => void gravarErro(e, 'nao-fatal', `tarefa ${tarefa}`);
 
 type ModBackgroundTask = typeof import('expo-background-task');
 type ModTaskManager = typeof import('expo-task-manager');
@@ -57,14 +84,16 @@ function nativos(): { bt: ModBackgroundTask; tm: ModTaskManager } | null {
 // ---------- app aberto neste processo ----------
 interface AppAberto {
   motor: MotorSegundoPlano;
-  aoResultado(r: ResultadoSegundoPlano): void;
 }
 let appAberto: AppAberto | null = null;
 let passada: Promise<ResultadoSegundoPlano> | null = null;
 
-/** O app (React) registra o próprio motor: a tarefa usa o mesmo enquanto o processo vive. Devolve o "desregistrar". */
-export function registrarAppAberto(motor: MotorSegundoPlano, aoResultado: (r: ResultadoSegundoPlano) => void): () => void {
-  const eu: AppAberto = { motor, aoResultado };
+/**
+ * O app (React) registra o próprio motor: a tarefa usa o mesmo enquanto o processo vive. Devolve o "desregistrar".
+ * A tarefa não chama nada do React (T-0140): o app relê o resultado (`lerUltimoSegundoPlano`) ao voltar ao primeiro plano.
+ */
+export function registrarAppAberto(motor: MotorSegundoPlano): () => void {
+  const eu: AppAberto = { motor };
   appAberto = eu;
   return () => {
     if (appAberto === eu) appAberto = null;
@@ -106,7 +135,11 @@ async function armazenamentoSemInterface(usuarioId: string): Promise<Armazenamen
   return r.armazenamento;
 }
 
-async function abrirMotorSemInterface(usuarioId: string, armazenamento: Promise<ArmazenamentoSync>): Promise<MotorSegundoPlano> {
+async function abrirMotorSemInterface(
+  usuarioId: string,
+  armazenamento: Promise<ArmazenamentoSync>,
+  corte: CorteDaPassada,
+): Promise<MotorSegundoPlano> {
   const modo = modoApi();
   const [s, settings] = await Promise.all([readJson<SessaoGuardada>(keys.session), readJson<{ apiUrl?: string | null }>(keys.settings)]);
   const apiUrl = enderecoSalvoValido(perfilBuildAtual(), settings?.apiUrl) ?? platformDefaultApiUrl();
@@ -150,10 +183,15 @@ async function abrirMotorSemInterface(usuarioId: string, armazenamento: Promise<
       return null;
     }
   };
-  const api = () => new ApiClient(apiUrl, token, modo === 'v1' ? renovar : undefined, (e) => void tratarBloqueio(e).catch(() => undefined));
+  // T-0140: depois do orçamento, a próxima requisição da passada é recusada (o motor para na página seguinte)
+  const api = () => {
+    corte.conferir();
+    return new ApiClient(apiUrl, token, modo === 'v1' ? renovar : undefined, (e) => void tratarBloqueio(e).catch(() => undefined));
+  };
+  const online = () => !bloqueado && !sessaoInvalida && !corte.cortada();
   const ambiente = criarAmbienteDoAparelho({
     api,
-    online: () => !bloqueado && !sessaoInvalida,
+    online,
     usuario: () => ({
       id: usuarioId,
       nome: s?.user?.name ?? '',
@@ -167,7 +205,7 @@ async function abrirMotorSemInterface(usuarioId: string, armazenamento: Promise<
     shell: shellDaVariante(varianteAtual()),
     modo,
     api,
-    online: () => !bloqueado && !sessaoInvalida,
+    online,
     ambiente,
   });
   motorRef.m = m;
@@ -200,37 +238,25 @@ async function abrirMotorSemInterface(usuarioId: string, armazenamento: Promise<
   };
 }
 
-/** Uma passada (chamada pelo sistema). Nunca duas ao mesmo tempo neste processo. */
+/** O build instalado ainda não abriu com tela (ou não dá para saber: na dúvida, a tarefa espera a abertura). */
+async function buildAindaNaoAbertoNoAparelho(): Promise<boolean> {
+  return buildAindaNaoAberto(idDoBuildAtual(), await readJson<string>(CHAVE_BUILD_ABERTO).catch(() => null));
+}
+
+/**
+ * Uma passada (chamada pelo sistema). Nunca duas ao mesmo tempo neste processo e nunca lança: qualquer erro vira `falhou`
+ * no Diagnóstico. Não toca em tela nem em estado de React (T-0140).
+ */
 export function rodarPassadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> {
-  passada ??= (async () => {
-    // lease e motor na mesma abertura (o reserva no AsyncStorage não fica guardado no SDK: uma tentativa por passada)
-    const abertos = new Map<string, Promise<ArmazenamentoSync>>();
-    const armazenamentoDe = (usuarioId: string) => {
-      let a = abertos.get(usuarioId);
-      if (!a) {
-        a = armazenamentoSemInterface(usuarioId);
-        abertos.set(usuarioId, a);
-      }
-      return a;
-    };
-    const r = await executarTarefaSegundoPlano({
-      agora: () => Date.now(),
-      modoSemSinal: async () => Boolean(await readJson<boolean>(keys.offline)),
-      motorDoApp: () => appAberto?.motor ?? null,
-      usuarioDaSessao,
-      lease: (usuarioId) => {
-        const a = armazenamentoDe(usuarioId);
-        return {
-          ler: async () => (await a).ler<LeaseSync>(CHAVE_LEASE),
-          gravar: async (l) => (await a).gravar(CHAVE_LEASE, l),
-          remover: async () => (await a).remover(CHAVE_LEASE),
-        };
-      },
-      abrirMotor: (usuarioId) => abrirMotorSemInterface(usuarioId, armazenamentoDe(usuarioId)),
-    });
-    await writeJson(CHAVE_ULTIMO_SEGUNDO_PLANO, r);
-    if (r.resultado === 'falhou' || r.resultado === 'parcial') console.warn(`[sync segundo plano] ${r.resultado}: ${r.mensagem ?? ''}`);
-    appAberto?.aoResultado(r);
+  passada ??= (async (): Promise<ResultadoSegundoPlano> => {
+    const inicio = Date.now();
+    const r = await semDerrubar<ResultadoSegundoPlano>(
+      () => passadaUnica(),
+      registrarErroDaTarefa(TAREFA_SYNC_DELTA),
+      { quando: new Date(inicio).toISOString(), resultado: 'falhou', mensagem: 'Erro inesperado na tarefa.', duracao_ms: Date.now() - inicio },
+    );
+    await writeJson(CHAVE_ULTIMO_SEGUNDO_PLANO, r).catch(() => undefined);
+    if (r.resultado === 'falhou' || r.resultado === 'parcial') console.warn(`[sync segundo plano] ${r.resultado}`);
     return r;
   })().finally(() => {
     passada = null;
@@ -238,14 +264,51 @@ export function rodarPassadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> {
   return passada;
 }
 
+async function passadaUnica(): Promise<ResultadoSegundoPlano> {
+  // T-0140: corte da passada sem tela quando o orçamento acaba (a próxima requisição dela é recusada)
+  const corte = criarCorteDaPassada();
+  // lease e motor na mesma abertura (o reserva no AsyncStorage não fica guardado no SDK: uma tentativa por passada)
+  const abertos = new Map<string, Promise<ArmazenamentoSync>>();
+  const armazenamentoDe = (usuarioId: string) => {
+    let a = abertos.get(usuarioId);
+    if (!a) {
+      a = armazenamentoSemInterface(usuarioId);
+      abertos.set(usuarioId, a);
+    }
+    return a;
+  };
+  return executarTarefaSegundoPlano({
+    agora: () => Date.now(),
+    modoSemSinal: async () => Boolean(await readJson<boolean>(keys.offline)),
+    motorDoApp: () => appAberto?.motor ?? null,
+    usuarioDaSessao,
+    lease: (usuarioId) => {
+      const a = armazenamentoDe(usuarioId);
+      return {
+        ler: async () => (await a).ler<LeaseSync>(CHAVE_LEASE),
+        gravar: async (l) => (await a).gravar(CHAVE_LEASE, l),
+        remover: async () => (await a).remover(CHAVE_LEASE),
+      };
+    },
+    abrirMotor: (usuarioId) => abrirMotorSemInterface(usuarioId, armazenamentoDe(usuarioId), corte),
+    // T-0140: app em primeiro plano, abrindo ou sincronizando = a tarefa não roda; build novo = espera a 1ª abertura
+    appEmPrimeiroPlano: () => AppState.currentState === 'active',
+    trava: travaSync,
+    buildAindaNaoAberto: buildAindaNaoAbertoNoAparelho,
+    aoEsgotarOrcamento: () => corte.cortar(),
+  });
+}
+
 // ---------- definição (escopo global) e agendamento ----------
 const nat = nativos();
-if (nat && !nat.tm.isTaskDefined(TAREFA_SYNC_DELTA)) {
+// na carga do bundle (também quando o Android acorda o app sem tela): um erro aqui derrubaria o app a cada abertura
+semDerrubarAgora(() => {
+  if (!nat || nat.tm.isTaskDefined(TAREFA_SYNC_DELTA)) return;
   nat.tm.defineTask(TAREFA_SYNC_DELTA, async () => {
     const r = await rodarPassadaEmSegundoPlano();
     return r.resultado === 'falhou' ? nat.bt.BackgroundTaskResult.Failed : nat.bt.BackgroundTaskResult.Success;
   });
-}
+}, registrarErroDaTarefa(TAREFA_SYNC_DELTA));
 
 /** Liga o agendamento (idempotente). Chamado pelo app quando há carga gravada (`sincronizado_em`). */
 export async function ligarSyncEmSegundoPlano(): Promise<void> {

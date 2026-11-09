@@ -221,6 +221,9 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 (tenant_id, usuario_id, origem_evento_id)` e `notificacao_envio_uk (tenant_id, usuario_id, envio_id)` quando preenchidos.
 Recado do dia (0021, T-0073): `recado_do_dia` date · `recado_do_dia_por` (FK usuário) — ver a seção 0021 abaixo.
 Subtipo (0030, T-0039): `subtipo` text null, formato `^[a-z_]{1,40}$` — ver a seção 0030 abaixo.
+Link do seed e das fixtures (T-0140): o `link` é `/m/<caminho>` de uma tela que existe nas `paginas` dos módulos
+(`modules/<m>/app`, ex.: `/m/rota`, nunca `/m/core-rota`); `db/testes/links-seed.test.ts` (estático) confere todo link
+gravado pelos seeds contra o formato e a lista de telas, lida do texto dos módulos sem importar o app.
 
 ## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
 `usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0
@@ -560,3 +563,12 @@ Também na 0040: a `plataforma.provisionar_tenant` cria o admin inicial com `tro
 `usuario_convite` saem revogados (o convite sai do Core; a tabela fica de histórico). Caminho de volta: o `.down.sql` apaga as
 6 colunas (quem estava com senha temporária fica com ela como definitiva; o "Esqueci" pendente se perde); os convites revogados
 continuam revogados. Testes: `db/testes/senha-email-saida.test.ts`.
+
+## 0053 — canal do cliente (`0053_core_cliente_canal`; T-0115, RN-PES-05)
+Pedido R-20261109-010010-modulo-core. `core.cliente.canal` text **nulo** (nulo = sem canal), vindo do ERP pelo consumidor do Core
+(ausente = não altera; nulo ou em branco = limpa), devolvido no pull de cliente e em `core.cadastro_resumo@1`; a Pesquisa filtra
+o público por ele. CHECK `cliente_canal_tamanho` (1..60 caracteres). Índice parcial `cliente_canal_ix` (tenant_id, canal) where
+deleted_at is null and canal is not null (filtro por canal). RLS, políticas, grants e índice de sync não mudam; sem backfill.
+Espelho Drizzle `cliente.canal`. **Volta**: apaga índice, CHECK e coluna (os canais se perdem; volte antes o Core).
+A view-modelo do Conector (`vw_macuxi_cliente`) ganha `canal` quando o `ClientePayload` da Integração tiver o campo (o teste das
+views recusa coluna fora do contrato). Testes: `db/testes/cliente-canal.test.ts`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransition, checkDiscount, orderActions, verificarCancelamento, computeOrderTotals, type DiscountPolicy, validateOrder } from './order';
+import { canTransition, MSG_CANCELAR_APOS_ENVIO, MSG_ENVIADO_NAO_EDITA, checkDiscount, orderActions, verificarCancelamento, computeOrderTotals, type DiscountPolicy, validateOrder } from './order';
 
 const policy: DiscountPolicy = { seller_pct: 5, supervisor_pct: 8, manager_pct: 12, above_manager: 'block', exceptions: { 'seller-x': 6 } };
 const credit = { credit_limit_cents: 2_000_000, open_receivables_cents: 0, overdue_cents: 0, open_orders_cents: 0 };
@@ -210,5 +210,18 @@ describe('RN-VEN-31 (exceção T-0114): cancelar pedido já integrado ao ERP', (
   it('RN-VEN-31: faturado não cancela mesmo com aceite', () => {
     expect(verificarCancelamento('invoiced', { erpAceitaCancelamento: true })).toMatchObject({ ok: false, status: 422 });
     expect(verificarCancelamento('faturado_parcial', { erpAceitaCancelamento: true })).toMatchObject({ ok: false });
+  });
+});
+
+describe('RN-VEN-31 (T-0114/T-0138 D1): ação liberada e texto do bloqueio dizem a mesma coisa', () => {
+  it.each(['sent_to_erp', 'integrated'] as const)('RN-VEN-31: %s com o aceite do conector cancela, não edita e o texto NÃO manda cancelar no ERP', (st) => {
+    const a = orderActions(st, { erpAceitaCancelamento: true });
+    expect(a).toMatchObject({ can_cancel: true, can_edit: false });
+    expect(a.locked_reason).toBe(MSG_ENVIADO_NAO_EDITA);
+    expect(a.locked_reason).not.toMatch(/cancele no ERP/i);
+  });
+  it('RN-VEN-31: sem o aceite e faturado com o aceite mantêm "cancele no ERP"', () => {
+    expect(orderActions('integrated', { erpAceitaCancelamento: false })).toMatchObject({ can_cancel: false, locked_reason: MSG_CANCELAR_APOS_ENVIO });
+    expect(orderActions('invoiced', { erpAceitaCancelamento: true })).toMatchObject({ can_cancel: false, locked_reason: MSG_CANCELAR_APOS_ENVIO });
   });
 });

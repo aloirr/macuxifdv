@@ -3,6 +3,7 @@
  * mostra. Padrão do Excel brasileiro (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens e mensagens do Hub: nenhum
  * valor de linha (o payload pode ter CPF/CNPJ) — §14 do hub-api.md.
  */
+import { protegerFormula } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull } from '@macuxi/ui/web';
 import type { LinhaErro, LoteListagemItem, PendenciaInativacao } from '../../contracts';
 import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE } from './apresentacao';
@@ -14,11 +15,11 @@ type Celula = string | number | null | undefined;
 
 /**
  * Escapa a célula: aspas quando houver `;`, `"` ou quebra de linha. Texto que começa com `=`, `+`, `-` ou `@` (código vindo do
- * ERP) ganha um apóstrofo na frente para o Excel não executar como fórmula.
+ * ERP) (ou tabulação/retorno) ganha um apóstrofo na frente (`protegerFormula` de @macuxi/comum/csv) para o Excel não executar como fórmula.
  */
 export function csvCell(v: Celula): string {
   if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? String(v) : /^[=+\-@]/.test(v) ? `'${v}` : v;
+  const s = typeof v === 'number' ? String(v) : protegerFormula(v);
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

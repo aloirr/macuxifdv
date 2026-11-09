@@ -45,8 +45,15 @@ export function comandoDeLeitura(notificacaoId: string, agora: Date, novoId: () 
   return { id: novoId(), notificacao_id: notificacaoId, lida_em: agora.toISOString() };
 }
 
-/** Link interno do app (`/m/<caminho>...`); qualquer outra coisa não navega. */
-export const linkNavegavel = (link: string | null | undefined): string | null => (link && /^\/m\/[a-z0-9-]+/.test(link) ? link : null);
+/**
+ * Link interno do app (`/m/<caminho>...`); qualquer outra coisa não navega. Com `telaExiste` (a `visao.pagina` do shell),
+ * link para tela que o usuário não tem também não navega (antes abria "Esta tela não está disponível…").
+ */
+export function linkNavegavel(link: string | null | undefined, telaExiste?: (caminho: string) => boolean): string | null {
+  if (!link || !/^\/m\/[a-z0-9-]+/.test(link)) return null;
+  if (telaExiste && !telaExiste(link.slice(3).split(/[?#]/)[0] ?? '')) return null;
+  return link;
+}
 
 export const rotuloDoTipo: Record<NotificacaoSync['tipo'], string> = {
   recado: 'Recado',

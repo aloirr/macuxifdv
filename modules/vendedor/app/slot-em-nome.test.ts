@@ -21,7 +21,7 @@ describe('RF-GES-05: item do slot pedido.criar_em_nome no app Gestão', () => {
     expect(bloco).toContain("apps: ['gestao']");
   });
   it('abre o novo pedido com o vendedor e o autor do contexto', () => {
-    expect(bloco).toMatch(/irParaNovoPedido\(\{ vendedorId: ctx\.vendedor_id, autorId: ctx\.autor_id \}\)/);
+    expect(bloco).toMatch(/irParaNovoPedido\(\{ vendedorId: ctx\.vendedor_id, autorId: ctx\.autor_id, vendedorNome: ctx\.vendedor_nome \}\)/);
     expect(rotas).toMatch(/ParamsNovoPedido = \{[^}]*vendedorId\?: string; autorId\?: string/);
   });
   it('a página do novo pedido também existe no app Gestão (o pedido em nome usa o mesmo motor)', () => {

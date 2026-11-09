@@ -281,3 +281,27 @@ do Vendedor (nenhuma migração semeia parâmetro do Vendedor).
 60); a "À vista" padrão apagada; as 4 condições antigas mantidas (`db/seeds/demo/pagamento.ts`).
 **Volta** (`.down.sql`): apaga gatilho e funções, as colunas do pedido (o pedido novo perde forma e prazo), as tabelas e as colunas
 do cliente. Testes: `db/testes/forma-prazo-escalonada.test.ts` (estático, CHECKs, únicos, FKs, semeadura, RLS, up/down).
+
+## 0050 — devolução do pedido (`0050_vendedor_pedido_devolucao`; T-0054, RN-VEN-37)
+Pedidos R-20261102-132023 (item 4) e R-20261102-190604 do modulo-vendedor. Consumidor: `integracao.nota.atualizado@1`
+(`criarConsumidorNotaDevolucao` em `modules/vendedor/api/retorno-erp.ts`), só nota `tipo = devolucao` com `pedido_uuid`.
+
+**pedido_devolucao** — uma linha **viva** por nota de devolução do ERP. Colunas: `pedido_id` uuid not null (FK composta
+`pedido_devolucao_pedido_fk` (tenant_id, pedido_id) → `vendedor.pedido`), `external_id` text **not null** (a chave da nota no ERP;
+CHECK `pedido_devolucao_external_id_preenchido`, sem só espaços), `nota_numero` text not null, `nota_serie` text, `emitida_em`
+timestamptz not null, `total_cents` bigint not null (CHECK `pedido_devolucao_total_nao_negativo`, >= 0) e as colunas comuns.
+- **Único parcial** `pedido_devolucao_external_uk` (tenant_id, external_id) where deleted_at is null: o upsert do consumidor acha a
+  linha viva pela nota (`select ... where external_id = $1 and deleted_at is null for update`); nota cancelada, inativada, sem
+  pedido ou que deixou de ser devolução sai por **soft delete** (update `deleted_at`), e a mesma nota pode voltar numa linha nova.
+- **Índice** `pedido_devolucao_pedido_ix` (tenant_id, pedido_id): a soma do devolvido e o detalhe do pedido.
+- **O devolvido do pedido é a soma das linhas vivas** (decisão do banco-dados; opção dada no R-20261102-190604): não há
+  `pedido.devolvido_cents`, para não haver duas verdades. A devolução não muda o status do pedido.
+- **Fora do sync** (`TABELAS_FORA_DO_SYNC`; sem índice (tenant_id, updated_at, id)): só o servidor grava e soma; o aparelho recebe
+  o devolvido pelo resumo do pedido. Volume baixo (devolução é rara; 1..2 por pedido).
+- RLS forçado, `isolamento_tenant`, `manutencao` (0031), gatilho `pedido_devolucao_updated_at`; **select, insert, update** ao
+  `macuxi_app` (sem delete). Sem dado pessoal.
+
+**Fixture** (`DEVOLUCOES_FIXTURE`, grupo 0x3d): A com a parcial viva no p3 (R$ 200,00) e a mesma nota apagada; B com uma viva no p1.
+**Volta** (`.down.sql`): `drop table if exists vendedor.pedido_devolucao` (as devoluções gravadas se perdem; volte antes o
+Vendedor para `DEVOLUCAO_LIGADA = false`). Testes: `db/testes/pedido-devolucao.test.ts` (estático, Drizzle, upsert/soft delete e
+soma com os comandos do consumidor, CHECKs, FK de outro tenant, sem DELETE, RLS entre tenants, EXPLAIN dos índices, up/down).

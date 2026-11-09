@@ -270,12 +270,14 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
       });
     });
 
-    it('público: tenant_por_codigo sem contexto (id e status antes da senha; nome e fuso depois)', async () => {
+    it('público: tenant_por_codigo sem contexto (id e status antes da senha; nome e fuso depois, pela tenant_da_sessao da 0052)', async () => {
       const acesso = { semTenant: async (fn: (db: ClienteBanco) => Promise<unknown>) => fn(cliente(app)) } as unknown as AcessoBanco;
       const p = repositorioPublicoSql(acesso);
       expect(await p.tenantPorCodigo('alfa')).toEqual({ id: A.tenantId, status: 'ativo' });
-      expect(await p.tenantParaExibicao('beta')).toEqual({ id: B.tenantId, codigo: 'beta', nome: 'Comercial Beta', fuso: B.fuso });
       expect(await p.tenantPorCodigo('nao-existe')).toBeNull();
+      // 0052 (T-0122 N5): nome e fuso só depois da senha, no contexto do tenant (tenant-por-codigo-minimo.test.ts)
+      const exibicao = await emTransacao(app, B.tenantId, () => app.query('select id, codigo, nome, fuso from plataforma.tenant_da_sessao()'));
+      expect(exibicao.rows).toEqual([{ id: B.tenantId, codigo: 'beta', nome: 'Comercial Beta', fuso: B.fuso }]);
     });
   });
 

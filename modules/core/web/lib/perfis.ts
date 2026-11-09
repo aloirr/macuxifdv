@@ -12,6 +12,8 @@ import {
   type MudancaDePermissao,
   type SecaoDoPerfil,
 } from '@macuxi/ui/web';
+import { NIVEIS_ESCOPO } from '@macuxi/platform-sdk';
+import { mesmosAlvos } from '../../domain/perfis';
 import type { ChaveDoPerfil, EditarPerfilRequest, PerfilDetalhe, ValorDaChave } from '../../contracts';
 
 export type Edicao = Record<string, ValorDaChave>;
@@ -55,7 +57,7 @@ const LINHAS: readonly DefLinha[] = [
   I('perfil-gerir', 'usuarios', 'Gerenciar perfis de acesso', ['perfil.gerir']),
   I('carteira-editar', 'clientes', 'Transferir cliente de carteira', ['carteira.editar'], 'Vincular e desvincular clientes de vendedor ou promotor.'),
   I('pedido-criar', 'pedidos', 'Criar e editar pedido', ['pedido.criar', 'pedido.editar']),
-  I('pedido-cancelar', 'pedidos', 'Cancelar pedido', ['pedido.cancelar'], 'Antes do envio ao ERP. Depois, só no ERP.'),
+  I('pedido-cancelar', 'pedidos', 'Cancelar pedido', ['pedido.cancelar'], 'Antes do envio ao ERP. Depois, só se a integração aceitar devolver o cancelamento ao ERP.'),
   I('pedido-ver', 'pedidos', 'Ver pedidos', ['pedido.ver']),
   I('pedido-aprovar', 'pedidos', 'Aprovar desconto e crédito', ['pedido.aprovar']),
   I('pedido-excluir', 'pedidos', 'Excluir rascunho', ['pedido.excluir']),
@@ -145,8 +147,6 @@ const NIVEIS_ESCOPO_ROTULO: Readonly<Record<string, string>> = {
 const NIVEIS_ALCADA_ROTULO: Readonly<Record<string, string>> = { ate_alcada: 'Até a alçada', acima_alcada: 'Acima da alçada' };
 export const rotuloDoNivel = (nivel: string): string => NIVEIS_ESCOPO_ROTULO[nivel] ?? NIVEIS_ALCADA_ROTULO[nivel] ?? nivel;
 
-const ORDEM_ESCOPO = ['proprio', 'carteira', 'equipe', 'equipes_abaixo', 'tenant'];
-
 /** Estado de edição inicial: o valor atual de cada chave do catálogo. */
 export const edicaoInicial = (d: PerfilDetalhe): Edicao => Object.fromEntries(d.chaves.map((c) => [c.chave, { ...c.atual }]));
 
@@ -176,17 +176,15 @@ export function montarLinhas(d: PerfilDetalhe): { linhas: LinhaDoPerfil[]; outra
     const chaves = def.chaves.filter((c) => porChave.has(c));
     if (chaves.length === 0) continue;
     chaves.forEach((c) => usadas.add(c));
-    const primeira = porChave.get(chaves[0]!)!;
     const linha: LinhaDoPerfil = { id: def.id, secao: def.secao, rotulo: def.rotulo, ajuda: def.ajuda, tipo: def.tipo, chaves };
     if (def.tipo === 'nivel') {
-      linha.opcoes = ORDEM_ESCOPO.filter((n) => (n !== 'proprio' || porChave.get('dados.escopo')?.atual.nivel === 'proprio') && (n !== 'equipes_abaixo' || base === 'gerente')).map((n) => {
-        const acima = ORDEM_ESCOPO.indexOf(n) > ORDEM_ESCOPO.indexOf(d.escopo_maximo);
+      linha.opcoes = NIVEIS_ESCOPO.filter((n) => (n !== 'proprio' || porChave.get('dados.escopo')?.atual.nivel === 'proprio') && (n !== 'equipes_abaixo' || base === 'gerente')).map((n) => {
+        const acima = (NIVEIS_ESCOPO as readonly string[]).indexOf(n) > (NIVEIS_ESCOPO as readonly string[]).indexOf(d.escopo_maximo);
         return { valor: n, rotulo: rotuloDoNivel(n), desabilitada: acima, motivo: acima ? CADEADO.escopoAcimaDaBase(base) : undefined };
       });
     }
     const travas = chaves.map((c) => porChave.get(c)!.trava).filter((t): t is NonNullable<typeof t> => !!t);
     if (def.tipo === 'interruptor' && travas.length === chaves.length) linha.trava = travas[0]!.mensagem;
-    else if (primeira.trava && def.tipo === 'interruptor') linha.trava = undefined;
     linhas.push(linha);
   }
   const outras = GRUPOS_OUTRAS.map((g) => ({
@@ -244,7 +242,7 @@ export const edicaoDaFabrica = (d: PerfilDetalhe): Edicao => Object.fromEntries(
 
 /** Chaves cujo valor difere do inicial. */
 const mudou = (a: ValorDaChave | undefined, b: ValorDaChave | undefined): boolean =>
-  !!a !== !!b || a?.concedida !== b?.concedida || (a?.nivel ?? null) !== (b?.nivel ?? null) || [...(a?.alvos ?? [])].sort().join(',') !== [...(b?.alvos ?? [])].sort().join(',');
+  !!a !== !!b || a?.concedida !== b?.concedida || (a?.nivel ?? null) !== (b?.nivel ?? null) || !mesmosAlvos(a?.alvos, b?.alvos);
 
 export interface Identificacao {
   nome: string;

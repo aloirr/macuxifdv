@@ -7,6 +7,7 @@ import {
   CHAVE_LEASE,
   comOrcamento,
   DONO_APP,
+  ESPERA_DO_CORTE_MS,
   executarTarefaSegundoPlano,
   INTERVALO_MINIMO_MIN,
   leaseOcupado,
@@ -19,6 +20,7 @@ import {
   type LeaseSync,
   type MotorSegundoPlano,
 } from './segundo-plano';
+import { criarCorteDaPassada, criarTravaSync } from './trava-sync';
 
 const AGORA = Date.parse('2026-11-02T15:00:00.000Z');
 
@@ -213,5 +215,163 @@ describe('textoDoResultado', () => {
   it('motivo legível para o suporte', () => {
     expect(textoDoResultado({ quando: '', resultado: 'pulado', motivo: 'sem-carga', duracao_ms: 1_234 })).toBe('não rodou: carga inicial ainda não concluída · 1.2 s');
     expect(textoDoResultado({ quando: '', resultado: 'sincronizado', duracao_ms: 8_000 })).toBe('concluída · 8 s');
+  });
+});
+
+/**
+ * T-0140 (relatos 1 e 6: o app abria e fechava depois de atualizado e na carga inicial): a tarefa sem tela não roda junto
+ * com o app (primeiro plano, abertura, sincronização), não roda num build que ainda não abriu com tela, corta a passada no
+ * fim do orçamento e nunca lança.
+ */
+describe('executarTarefaSegundoPlano — proteções da T-0140', () => {
+  it('app em primeiro plano → pula sem abrir motor nem ler sessão (o agendador do app sincroniza)', async () => {
+    const c = cenario();
+    const sessao = vi.fn(c.deps.usuarioDaSessao);
+    c.deps.usuarioDaSessao = sessao;
+    c.deps.appEmPrimeiroPlano = () => true;
+    expect(await executarTarefaSegundoPlano(c.deps)).toMatchObject({ resultado: 'pulado', motivo: 'app-aberto' });
+    expect(c.abertos).toEqual([]);
+    expect(sessao).not.toHaveBeenCalled();
+  });
+
+  it('app abrindo ou sincronizando no processo (trava única) → pula na hora, sem abrir o motor', async () => {
+    const trava = criarTravaSync();
+    trava.entrar('abertura');
+    const c = cenario();
+    c.deps.trava = trava;
+    expect(await executarTarefaSegundoPlano(c.deps)).toMatchObject({ resultado: 'pulado', motivo: 'app-ocupado' });
+    expect(c.abertos).toEqual([]);
+    trava.sair('abertura');
+    trava.entrar('sincronizacao');
+    expect(await executarTarefaSegundoPlano(c.deps)).toMatchObject({ resultado: 'pulado', motivo: 'app-ocupado' });
+    expect(trava.segundoPlanoAtivo()).toBe(false);
+  });
+
+  it('segura a trava durante a passada sem tela e solta no fim (também na falha)', async () => {
+    const trava = criarTravaSync();
+    let durante: boolean | null = null;
+    const motor = motorFalso({
+      sincronizar: () => {
+        durante = trava.segundoPlanoAtivo();
+        return Promise.resolve(true);
+      },
+    });
+    const c = cenario({ motor });
+    c.deps.trava = trava;
+    expect(await executarTarefaSegundoPlano(c.deps)).toMatchObject({ resultado: 'sincronizado', sem_tela: true });
+    expect(durante).toBe(true);
+    expect(trava.segundoPlanoAtivo()).toBe(false);
+
+    c.deps.abrirMotor = () => Promise.reject(new Error('banco local do usuário não abriu'));
+    expect(await executarTarefaSegundoPlano(c.deps)).toMatchObject({ resultado: 'falhou', mensagem: 'banco local do usuário não abriu' });
+    expect(trava.segundoPlanoAtivo()).toBe(false);
+  });
+
+  it('com o motor do app vivo (app em segundo plano) solta a trava antes de sincronizar: sem espera cruzada', async () => {
+    const trava = criarTravaSync();
+    let durante: boolean | null = null;
+    const doApp = motorFalso({
+      sincronizar: () => {
+        // a sincronização do app entra na trava como do app; com a tarefa segurando, o app esperaria a tarefa
+        durante = trava.segundoPlanoAtivo();
+        return Promise.resolve(true);
+      },
+    });
+    const c = cenario({ motorDoApp: doApp });
+    c.deps.trava = trava;
+    const r = await executarTarefaSegundoPlano(c.deps);
+    expect(r).toMatchObject({ resultado: 'sincronizado' });
+    expect(r.sem_tela).toBeUndefined();
+    expect(durante).toBe(false);
+  });
+
+  it('build ainda não aberto com tela (logo depois da atualização do APK) → pula sem ler sessão nem abrir o SQLite', async () => {
+    const c = cenario();
+    const sessao = vi.fn(c.deps.usuarioDaSessao);
+    c.deps.usuarioDaSessao = sessao;
+    c.deps.buildAindaNaoAberto = () => Promise.resolve(true);
+    const r = await executarTarefaSegundoPlano(c.deps);
+    expect(r).toMatchObject({ resultado: 'pulado', motivo: 'app-atualizado' });
+    expect(textoDoResultado(r)).toBe('não rodou: app atualizado, espera a 1ª abertura · 0 s');
+    expect(sessao).not.toHaveBeenCalled();
+    expect(c.abertos).toEqual([]);
+    expect(c.guardado.gravacoes).toEqual([]);
+    // com o app vivo no processo o build já abriu: usa o motor do app
+    const c2 = cenario({ motorDoApp: motorFalso() });
+    c2.deps.buildAindaNaoAberto = () => Promise.resolve(true);
+    expect(await executarTarefaSegundoPlano(c2.deps)).toMatchObject({ resultado: 'sincronizado' });
+  });
+
+  it('orçamento esgotado sem tela → corta a passada, espera ela parar e solta o lease e a trava', async () => {
+    vi.useFakeTimers();
+    try {
+      const trava = criarTravaSync();
+      const corte = criarCorteDaPassada();
+      // a passada só para quando o corte recusa a próxima página
+      const motor = motorFalso({
+        sincronizar: () =>
+          new Promise<boolean>((resolve) => {
+            const t = setInterval(() => {
+              if (corte.cortada()) {
+                clearInterval(t);
+                resolve(false);
+              }
+            }, 1_000);
+          }),
+      });
+      const c = cenario({ motor });
+      c.deps.trava = trava;
+      c.deps.aoEsgotarOrcamento = () => corte.cortar();
+      const p = executarTarefaSegundoPlano(c.deps);
+      await vi.advanceTimersByTimeAsync(ORCAMENTO_SEGUNDO_PLANO_MS + 2_000);
+      const r = await p;
+      expect(corte.cortada()).toBe(true);
+      expect(r).toMatchObject({ resultado: 'parcial', sem_tela: true });
+      expect(textoDoResultado(r)).toContain('app fechado');
+      expect(c.guardado.lease).toBeNull();
+      expect(trava.segundoPlanoAtivo()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('passada cortada que não para em 10 s → o lease fica até vencer; a tarefa devolve mesmo assim', async () => {
+    vi.useFakeTimers();
+    try {
+      const motor = motorFalso({ sincronizar: () => new Promise<boolean>(() => undefined) });
+      const c = cenario({ motor });
+      const cortou = vi.fn();
+      c.deps.aoEsgotarOrcamento = cortou;
+      const p = executarTarefaSegundoPlano(c.deps);
+      await vi.advanceTimersByTimeAsync(ORCAMENTO_SEGUNDO_PLANO_MS + ESPERA_DO_CORTE_MS + 1);
+      const r = await p;
+      expect(cortou).toHaveBeenCalledOnce();
+      expect(r.resultado).toBe('parcial');
+      expect(c.guardado.lease?.dono).toMatch(/^segundo-plano:/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('motor do app no orçamento esgotado: não corta a sincronização do app', async () => {
+    vi.useFakeTimers();
+    try {
+      const doApp = motorFalso({ sincronizar: () => new Promise<boolean>(() => undefined) });
+      const c = cenario({ motorDoApp: doApp });
+      const cortou = vi.fn();
+      c.deps.aoEsgotarOrcamento = cortou;
+      const p = executarTarefaSegundoPlano(c.deps);
+      await vi.advanceTimersByTimeAsync(ORCAMENTO_SEGUNDO_PLANO_MS + 1);
+      expect((await p).resultado).toBe('parcial');
+      expect(cortou).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('textos novos do Diagnóstico', () => {
+    expect(textoDoResultado({ quando: '', resultado: 'pulado', motivo: 'app-aberto', duracao_ms: 0 })).toBe('não rodou: o app estava aberto (ele mesmo sincroniza) · 0 s');
+    expect(textoDoResultado({ quando: '', resultado: 'pulado', motivo: 'app-ocupado', duracao_ms: 0 })).toBe('não rodou: o app estava abrindo ou sincronizando · 0 s');
+    expect(textoDoResultado({ quando: '', resultado: 'sincronizado', duracao_ms: 3_000, sem_tela: true })).toBe('concluída · 3 s · app fechado');
   });
 });

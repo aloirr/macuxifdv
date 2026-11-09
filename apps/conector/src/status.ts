@@ -3,6 +3,8 @@ import type { Armazenamento } from './armazenamento/armazenamento';
 import { ORDEM_CARGA } from './config/entidades';
 import type { ConfigConector } from './config/esquema';
 import { lerPolitica } from './politica';
+import { ultimoResultadoAtualizacao } from './atualizacao/ciclo';
+import type { ResultadoAtualizacao } from './atualizacao/resultado';
 import { avaliarVersao, VERSAO_CONECTOR, type SituacaoVersao } from './versao';
 
 export interface StatusEntidade {
@@ -37,6 +39,8 @@ export interface StatusConector {
   entidades: StatusEntidade[];
   pedidos: { estado: string; total: number }[];
   retornos: { estado: string; total: number }[];
+  /** T-0116: último resultado relevante da atualização automática (null = nunca tentou, ou só verificações de rotina). */
+  atualizacao: ResultadoAtualizacao | null;
   errosRecentes: { entidade: string; origem: string; codigo: string; campo: string | null; mensagem: string; quando: string }[];
 }
 
@@ -79,6 +83,7 @@ export function montarStatus(store: Armazenamento, config: ConfigConector, versa
     entidades,
     pedidos: store.contarPedidos(),
     retornos: store.contarRetornos(),
+    atualizacao: ultimoResultadoAtualizacao(store),
     errosRecentes: store.errosRecentes(null, 10).map((e) => ({ entidade: e.entidade, origem: e.origem, codigo: e.codigo, campo: e.campo, mensagem: e.mensagem, quando: new Date(e.criadoMs).toISOString() })),
   };
 }
@@ -106,6 +111,7 @@ export function formatarStatus(s: StatusConector): string {
     for (const p of s.pedidos) linhas.push(`  ${p.estado.padEnd(18)} ${p.total}`);
     for (const r of s.retornos) linhas.push(`  retorno ${r.estado.padEnd(10)} ${r.total}`);
   }
+  if (s.atualizacao) linhas.push('', 'ATUALIZAÇÃO AUTOMÁTICA', `  ${s.atualizacao.resultado.toUpperCase()}  ${s.atualizacao.mensagem} (${s.atualizacao.em})`);
   if (s.errosRecentes.length > 0) {
     linhas.push('', 'ERROS RECENTES (sem dados pessoais)');
     for (const e of s.errosRecentes) linhas.push(`  ${e.quando}  ${e.entidade}/${e.origem}  ${e.codigo}${e.campo ? ` [${e.campo}]` : ''}: ${e.mensagem}`);
