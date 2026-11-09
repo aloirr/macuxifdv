@@ -4,8 +4,8 @@
  * (`verificarEtapasCheckoutServidor`); aqui só se montam as entradas.
  *
  * Limites conhecidos (a consulta recebe só `visita_id`, `cliente_id`, `usuario_id`, `cliente_fechado`, e o contexto de consulta
- * não chama outros módulos): perfil vem do usuário da requisição (o checkout é do próprio usuário); equipe, segmento e região
- * do cliente não chegam. Pesquisa com público restrito por equipe, segmento ou região, que a consulta não consegue verificar,
+ * não chama outros módulos): perfil vem do usuário da requisição (o checkout é do próprio usuário); equipe, segmento, região e canal
+ * do cliente não chegam. Pesquisa com público restrito por equipe, segmento, região ou canal, que a consulta não consegue verificar,
  * NÃO vira etapa obrigatória (falha para o lado de liberar, nunca de bloquear a visita por engano); pesquisa sem restrição
  * ou restrita por perfil e por cliente nominal é verificada normalmente. Pedido de campos aditivos feito ao Core.
  */

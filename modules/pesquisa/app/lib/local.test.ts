@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ItemSobreposicao, LinhaSync } from '@macuxi/platform-sdk';
 import type { QuestionarioVersao, QuestionarioVersaoSync, RespostaEnvio } from '../../contracts';
 import { publicada, sim_nao, u } from '../../domain/util-teste';
+import { publicoContemCliente } from '../../domain';
 import { definirEstadoLocal, etapaConcluida, etapaDoCheckout, lerRetrato, respostasDaFila } from './local';
 
 const AGORA = new Date('2026-10-31T13:00:00Z');
@@ -55,6 +56,15 @@ describe('RN-PES-03: etapa obrigatória do checkout no aparelho (offline)', () =
 
   it('RF-PES-02: o segmento do cliente vem das linhas do Core', async () => {
     const r = await lerRetrato(leitor({ cliente: [{ id: CLIENTE, segmento: 'Varejo', deleted_at: null }, { id: u(52), segmento: 'X', deleted_at: '2026-10-01T00:00:00Z' }] }));
-    expect([...r.clientes.values()]).toEqual([{ id: CLIENTE, segmento: 'Varejo', regiao: null }]);
+    expect([...r.clientes.values()]).toEqual([{ id: CLIENTE, segmento: 'Varejo', regiao: null, canal: null }]);
+  });
+
+  it('RN-PES-05: o canal do cliente vem da linha local (offline) e filtra o público; sem canal fica nulo', async () => {
+    const r = await lerRetrato(leitor({ cliente: [{ id: CLIENTE, segmento: 'Varejo', canal: 'Tradicional', deleted_at: null }, { id: u(53), segmento: null, deleted_at: null }] }));
+    expect(r.clientes.get(CLIENTE)?.canal).toBe('Tradicional');
+    expect(r.clientes.get(u(53))?.canal).toBeNull();
+    const publico = { perfis: [], equipes: [], segmentos: [], regioes: [], canais: ['tradicional'], clientes: [] };
+    expect(publicoContemCliente(publico, r.clientes.get(CLIENTE)!)).toBe(true);
+    expect(publicoContemCliente(publico, r.clientes.get(u(53))!)).toBe(false);
   });
 });

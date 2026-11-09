@@ -13,7 +13,9 @@ export const PublicoAlvo = z
     equipes: z.array(Uuid).default([]),
     segmentos: z.array(TextoCurto).default([]),
     regioes: z.array(TextoCurto).default([]),
-    /** Lista explícita de clientes: entram além dos que casam por segmento/região (sem canal até o Core ter o campo: RN-PES-05). */
+    /** Canais do cliente (campo do Core, T-0115): soma (OU) aos segmentos/regiões e à lista de clientes (RN-PES-05). */
+    canais: z.array(TextoCurto).default([]),
+    /** Lista explícita de clientes: entram além dos que casam por segmento/região/canal (RN-PES-05). */
     clientes: z.array(Uuid).default([]),
   })
   .strict();

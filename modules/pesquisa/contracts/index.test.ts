@@ -150,10 +150,10 @@ describe('RF-PES-01: regra condicional', () => {
 
 describe('RF-PES-02: público-alvo e vigência', () => {
   it('RF-PES-02: público vazio vira "todos" (listas vazias)', () => {
-    expect(PublicoAlvo.parse({})).toEqual({ perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] });
+    expect(PublicoAlvo.parse({})).toEqual({ perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] });
   });
-  it('RN-PES-05: "canal" não faz parte do público-alvo (até o Core ter o campo)', () => {
-    expect(PublicoAlvo.safeParse({ canais: ['Tradicional'] }).success).toBe(false);
+  it('RN-PES-05: "canais" faz parte do público-alvo (T-0115)', () => {
+    expect(PublicoAlvo.parse({ canais: ['Tradicional'] }).canais).toEqual(['Tradicional']);
   });
   it('doc 03 §2: só perfis que respondem pesquisa entram no público (analista, assistente e admin não)', () => {
     expect(PublicoAlvo.safeParse({ perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'] }).success).toBe(true);

@@ -159,7 +159,7 @@ export function listaDeTexto(texto: string): string[] {
   return [...new Set(texto.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean))];
 }
 
-export const PUBLICO_VAZIO: PublicoAlvo = { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] };
+export const PUBLICO_VAZIO: PublicoAlvo = { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] };
 
 const dois = (n: number) => String(n).padStart(2, '0');
 
@@ -195,6 +195,7 @@ export interface FormRascunho {
   equipes: string;
   segmentos: string;
   regioes: string;
+  canais: string;
   clientes: string;
   inicio: string;
   fim: string;
@@ -213,6 +214,7 @@ export function formDaVersao(v: QuestionarioVersao, fuso: string): FormRascunho 
     equipes: v.publico_alvo.equipes.join('\n'),
     segmentos: v.publico_alvo.segmentos.join(', '),
     regioes: v.publico_alvo.regioes.join(', '),
+    canais: v.publico_alvo.canais.join(', '),
     clientes: v.publico_alvo.clientes.join('\n'),
     inicio: vig.inicio,
     fim: vig.fim,
@@ -235,7 +237,7 @@ export function corpoDoForm(f: FormRascunho, fuso: string): SalvarRascunhoReques
     ...(descricao ? { descricao } : {}),
     modo: f.modo,
     frequencia: f.frequencia,
-    publico_alvo: { perfis: f.perfis, equipes: ids(f.equipes), segmentos: listaDeTexto(f.segmentos), regioes: listaDeTexto(f.regioes), clientes: ids(f.clientes) },
+    publico_alvo: { perfis: f.perfis, equipes: ids(f.equipes), segmentos: listaDeTexto(f.segmentos), regioes: listaDeTexto(f.regioes), canais: listaDeTexto(f.canais), clientes: ids(f.clientes) },
     vigencia: vigenciaDoForm({ inicio: f.inicio, fim: f.fim }, fuso),
     perguntas: f.perguntas,
     regras: f.regras,
