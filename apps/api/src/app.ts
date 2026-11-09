@@ -82,6 +82,8 @@ import {
   type RotaPublica,
   type ServicosCore,
   type ServicoEmail,
+  type ServicoPacotes,
+  SERVICO_PACOTES_DESLIGADO,
   type LogRota,
   type AcessoPortalAutenticado,
   CABECALHO_TENANT_PLATAFORMA,
@@ -158,6 +160,11 @@ export interface OpcoesApp {
    * Padrão: desligada (`disponivel() = false`); o `servidor.ts` passa a fábrica da configuração (`MACUXI_SMTP_*`/`MACUXI_EMAIL_ARQUIVO_DIR`).
    */
   email?: ServicoEmail | ((log: LogRota) => ServicoEmail);
+  /**
+   * T-0098 (ADR 0037): pacotes para download por link temporário (`ctx.pacotes` nas rotas de módulo). Padrão: desligada
+   * (`linkDoUltimo` responde 503); o `servidor.ts` passa a fábrica do ambiente (`lerPacotesDoAmbiente`, só com S3).
+   */
+  pacotes?: ServicoPacotes | ((log: LogRota) => ServicoPacotes);
   /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
   plataforma?: FontePlataforma;
   /**
@@ -281,10 +288,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     reply.header('x-request-id', req.id);
   });
   // T-0094: a fábrica recebe o log do app (o `servidor.ts` monta a porta da configuração com ele)
-  const email: ServicoEmail =
-    typeof op.email === 'function'
-      ? op.email({ info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m), error: (o, m) => app.log.error(o, m) })
-      : (op.email ?? SERVICO_EMAIL_DESLIGADO);
+  const logDoApp: LogRota = { info: (o, m) => app.log.info(o, m), warn: (o, m) => app.log.warn(o, m), error: (o, m) => app.log.error(o, m) };
+  const email: ServicoEmail = typeof op.email === 'function' ? op.email(logDoApp) : (op.email ?? SERVICO_EMAIL_DESLIGADO);
+  // T-0098 (ADR 0037): a fábrica dos pacotes também recebe o log do app
+  const pacotes: ServicoPacotes = typeof op.pacotes === 'function' ? op.pacotes(logDoApp) : (op.pacotes ?? SERVICO_PACOTES_DESLIGADO);
 
   // T-0078: contagem por status (5xx) na janela; o `/v1/saude` e o log periódico do servidor leem daqui
   const metricas = op.metricas ?? criarMetricasApi({ relogio });
@@ -480,6 +487,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id, ...(doSA ? { super_admin: true } : doPortal ? { portal: true } : {}) }),
       ...(doSA ? { superAdmin: doSA.sa } : {}),
       email,
+      pacotes,
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
   };

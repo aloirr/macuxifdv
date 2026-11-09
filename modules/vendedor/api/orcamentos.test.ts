@@ -98,10 +98,11 @@ describe('T-0071 §1.4 b: pull com tipo, validade e janela do orçamento', () =>
     expect(valores).toHaveLength(8);
     expect(valores[7]).toBe('America/Manaus');
   });
-  it('janela: criado há ≤ 90 dias OU aberto (não convertido e orcamento_validade ≥ hoje no fuso); o pedido não final continua entrando', () => {
+  it('janela: criado há ≤ 90 dias OU aberto (não convertido; o orçamento não expira, RN-VEN-18); o pedido não final continua entrando', () => {
     const { sql } = sqlPedido(pull, e, false);
     expect(sql).toMatch(/p\.created_at >= \$1::timestamptz - make_interval\(days => 90\)/);
-    expect(sql).toMatch(/p\.tipo = 'pedido' or \(p\.convertido_em is null and p\.orcamento_validade >= \(\$1::timestamptz at time zone \$8\)::date\)/);
+    expect(sql).toMatch(/p\.tipo = 'pedido' or p\.convertido_em is null\)/);
+    expect(sql).not.toMatch(/orcamento_validade >= /);
   });
   it('item e evento usam a mesma janela e o item leva R$ por unidade e o modo digitado', () => {
     const item = sqlPedidoItem(pull, e, false, 'UTC');
@@ -110,6 +111,6 @@ describe('T-0071 §1.4 b: pull com tipo, validade e janela do orçamento', () =>
     expect(item.sql).toContain('i.ajuste_em');
     expect(item.valores).toHaveLength(8);
     expect(sqlPedidoEvento(pull, e).valores).toHaveLength(8);
-    expect(sqlPedidoEvento(pull, e).sql).toContain('p.orcamento_validade');
+    expect(sqlPedidoEvento(pull, e).sql).toContain('p.convertido_em is null');
   });
 });

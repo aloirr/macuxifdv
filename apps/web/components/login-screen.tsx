@@ -12,7 +12,7 @@
  *   (ex.: 403 `PERFIL_SEM_BKO` durante o uso) em `info`, uma vez.
  * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem os perfis que entram no BKO pelo motor de permissões do
- *   SDK (`lib/acesso.ts`; RN-CORE-33: supervisor fora).
+ *   SDK (`entraEm`; RN-CORE-33: supervisor fora).
  * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro, login.aviso, login.esqueci.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -33,11 +33,10 @@ import {
   type LoginResponse,
   type SessaoResposta,
 } from '@macuxi/core/contracts';
-import { mensagemPerfilForaDoApp, type Perfil } from '@macuxi/platform-sdk';
+import { entraEm, mensagemPerfilForaDoApp, perfisDeFabricaQueEntram, type Perfil } from '@macuxi/platform-sdk';
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
-import { entraEm, perfisDeFabricaQueEntram } from '@/lib/acesso';
 import { CAMINHO_ESQUECI_SENHA, CAMINHO_TROCAR_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
 import { salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';

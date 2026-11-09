@@ -11,7 +11,8 @@ import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { horasUteisEntre } from './horario-comercial';
-import { arredondar, percentual, somarDias } from './numeros';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { arredondar, percentual } from './numeros';
 import { atendida, diaLocal, diasUteisDoMes, painelDoMes } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
@@ -98,7 +99,7 @@ export interface EntradaAvaliacao {
 }
 
 const chaveDe = (tipo: TipoAlerta, alvo: string) => `${tipo}:${alvo}`;
-const naJanela = (dia: string, hoje: string, janela: number) => dia >= somarDias(hoje, -(janela - 1)) && dia <= hoje;
+const naJanela = (dia: string, hoje: string, janela: number) => dia >= somarDiasCivis(hoje, -(janela - 1)) && dia <= hoje;
 
 /** Condições de alerta que valem em `agora`, ordenadas por chave (resultado estável). */
 export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {

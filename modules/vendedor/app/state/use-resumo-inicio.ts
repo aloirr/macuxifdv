@@ -4,7 +4,6 @@
  */
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
-import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { mergeOrders, pedidosNaFila, type PedidoDaLista } from '../lib/pedidos';
 import { preVendaAtiva } from '../lib/pre-venda';
 import { lerLinhas, listaDePedidos } from '../lib/pull';
@@ -37,7 +36,7 @@ export function useResumoInicio(): ResumoDoInicio | null {
   return useMemo(
     () =>
       pedidos && usuario
-        ? resumoDoInicio(pedidos, { agora: new Date(), fuso: usuario.fuso || 'America/Sao_Paulo', diasValidade: validadeOrcamentoDias(parametros), vendedorId: usuario.id, preVendaLigada: preVendaAtiva(parametros) })
+        ? resumoDoInicio(pedidos, { vendedorId: usuario.id, preVendaLigada: preVendaAtiva(parametros) })
         : null,
     [pedidos, usuario?.id, usuario?.fuso],
   );

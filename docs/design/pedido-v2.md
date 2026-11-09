@@ -11,6 +11,10 @@
 > pedido com 4 botões grandes e campo −/+. Onde os textos da manhã dizem "aba Detalhes", vale **aba Venda** (forma, prazo, alertas)
 > ou **aba Entrega** (endereço, frete, transportadora, observações).
 
+> **2026-11-09 (T-0141):** partes desta spec foram substituídas por `pedido-v3.md`: §1.2 (crédito vira tabela), §1.3 (sai a
+> árvore/"Catálogo" da aba Itens), §1.4 (sai a frase do frete; endereço editável só no pedido), §2.3 (sai "Válido até"), §4.1,
+> §4.3 e §5.1 (orçamento sem validade: "Orçamento · preço de dd/mm", sem "vencido"), §8 (textos). Onde as duas divergem, vale a v3.
+
 ## 0. Princípios
 1. **Informação antes de botão.** No detalhe, o que o pedido é ocupa a tela; as ações cabem num rodapé de 2 linhas.
 2. **Um principal por tela**, sempre o próximo passo natural. As outras ações são secundárias ou ícone + rótulo curto.
@@ -50,8 +54,7 @@ ALERTAS
 FORMA DE PAGAMENTO        PRAZO
 [Boleto ˅]                [28/56 dias ˅]
 
-LIMITE              R$ 10.000,00 · disponível R$ 4.000,00
-PRAZO MÉDIO DO CLIENTE                            45 dias
+CRÉDITO DO CLIENTE          ← substituído (T-0141): tabela Limite · Disponível · Prazo médio, pedido-v3.md §A
 ⟳ Atualizado hoje às 10:27
 ```
 - **Alertas** (`RotuloSecao "Alertas"` + uma `Faixa` por alerta, empilhadas com 6 dp):
@@ -84,8 +87,7 @@ Rua Pará, 137 · São Geraldo · Manaus/AM
 
 FRETE
 [  CIF  ] [  FOB  ]
-Frete incluso no preço                       ← CIF
-Frete por conta do cliente                   ← FOB
+                                             ← sem frase (T-0141, pedido-v3.md §B)
 TRANSPORTADORA  [Escolha a transportadora ˅]  ← só FOB (lista ou digitar)
 
 OBSERVAÇÕES

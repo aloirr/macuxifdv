@@ -3,14 +3,15 @@
  * - `Trilha`: trilha clicável (breadcrumb). Itens anteriores são botões; o último é o lugar atual (não clicável, lido
  *   pelo leitor de tela como "atual"; com `atualTocavel` também vira botão). Quebra de linha quando não cabe; alvo de toque de 48 dp.
  * - `LinhaChips`: uma linha de chips com rolagem horizontal (não empurra a lista para baixo quando há muitos filtros).
- * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba ("Ver por linha" no Catálogo). Fundo laranja
- *   claro para não ser confundida com as linhas brancas da lista; ícone, rótulo, apoio e seta. Ver docs/design/catalogo-por-linha.md.
+ * - `ListaNiveis` (T-0142): os níveis do catálogo com a contagem de produtos ativos, um nível por tela.
+ * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba (ex.: "Rascunhos (2)" em Pedidos). Fundo laranja
+ *   claro para não ser confundida com as linhas brancas da lista; ícone, rótulo, apoio e seta. Ver docs/design/pedido-v3.md §F.1.
  * Só apresentação: quem decide o que entra na trilha ou nos chips é a tela/domain do módulo.
  */
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { leituraDoAtalho } from './componentes';
+import { leituraDoAtalho, leituraDoNivel, textoDaContagem } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { colors, fonts, radius } from './theme';
@@ -22,6 +23,11 @@ export interface ItemTrilha {
   /** Chave estável (id do nó). */
   id: string;
   rotulo: string;
+  /**
+   * Item sem toque fora o atual (T-0142): nível que a navegação pulou por ter um item só. Aparece em `ink2`, porque tocar
+   * nele levaria à mesma tela.
+   */
+  desligado?: boolean;
   testID?: string;
 }
 
@@ -55,19 +61,20 @@ export function Trilha({
     <View style={s.trilha} testID={testID}>
       {itens.map((item, i) => {
         const atual = i === itens.length - 1;
-        const desligado = atual && !atualTocavel;
+        const pulado = !atual && Boolean(item.desligado);
+        const desligado = (atual && !atualTocavel) || pulado;
         return (
           <View key={item.id} style={s.item}>
             {i > 0 ? <Icon name="chevron" size={compacta ? 12 : 14} color={colors.ink3} /> : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : desligado ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
-              accessibilityState={{ disabled: desligado, selected: desligado }}
+              accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : pulado ? item.rotulo : desligado ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
+              accessibilityState={{ disabled: desligado, selected: desligado && !pulado }}
               disabled={desligado}
               onPress={() => onEscolher(item.id)}
               style={({ pressed }) => [s.passo, compacta && s.passoCompacto, pressed && { opacity: 0.6 }]}
               testID={item.testID ?? `${testID}-${item.id}`}>
-              <Text style={compacta ? (atual ? s.atualCompacto : s.linkCompacto) : atual ? s.atual : s.link}>{item.rotulo}</Text>
+              <Text style={compacta ? (atual ? s.atualCompacto : s.linkCompacto) : atual ? s.atual : pulado ? s.pulado : s.link}>{item.rotulo}</Text>
             </Pressable>
           </View>
         );
@@ -135,6 +142,71 @@ export function LinhaAtalho({
   );
 }
 
+export interface NivelDaLista {
+  /** Id do nó (ou uma chave da tela para "Outros produtos" e "Sem classificação"). */
+  id: string;
+  nome: string;
+  /** Produtos ativos do nível, somando os de baixo (o domain conta; aqui só mostra). */
+  contagem: number;
+  /** Linha extra do fim ("Outros produtos", "Sem classificação"): nome em `ink2`. */
+  secundario?: boolean;
+  testID?: string;
+}
+
+/**
+ * Lista de níveis do catálogo (T-0142; spec docs/design/catalogo-por-linha.md §2): cabeçalho com o nome do nível no plural à
+ * esquerda ("Sistemas") e o da contagem à direita ("Produtos"); um cartão branco com traço entre as linhas; linha de 56 dp com o
+ * nome (15/600, até 2 linhas), a contagem em Archivo negrito tabular e a seta. A linha inteira é o toque (afunda 0,97). Quem
+ * decide quais níveis entram, quais pular e a contagem é a função do domain do Catálogo.
+ */
+export function ListaNiveis({
+  rotulo,
+  rotuloContagem,
+  itens,
+  onEscolher,
+  singular = 'produto',
+  plural = 'produtos',
+  testID = 'lista-niveis',
+}: {
+  /** "Sistemas", "Grupos", "Linhas" (o domain devolve; sem nome, "Categorias"). */
+  rotulo: string;
+  /** "Produtos". */
+  rotuloContagem: string;
+  itens: readonly NivelDaLista[];
+  onEscolher: (id: string) => void;
+  /** Leitura do TalkBack: "Alimentos, 16 produtos". */
+  singular?: string;
+  plural?: string;
+  testID?: string;
+}) {
+  if (itens.length === 0) return null;
+  return (
+    <View style={s.niveis} testID={testID}>
+      <View style={s.niveisCabecalho} accessibilityRole="header">
+        <Text style={s.niveisRotulo}>{rotulo}</Text>
+        <Text style={s.niveisRotulo}>{rotuloContagem}</Text>
+      </View>
+      <View style={s.niveisCartao}>
+        {itens.map((n, i) => (
+          <Pressionavel
+            key={n.id}
+            accessibilityRole="button"
+            accessibilityLabel={leituraDoNivel(n.nome, n.contagem, singular, plural)}
+            onPress={() => onEscolher(n.id)}
+            style={[s.nivel, i > 0 && s.nivelTraco]}
+            testID={n.testID ?? `${testID}-${n.id}`}>
+            <Text style={[s.nivelNome, n.secundario && s.nivelNomeSecundario]} numberOfLines={2}>
+              {n.nome}
+            </Text>
+            <Text style={s.nivelContagem}>{textoDaContagem(n.contagem)}</Text>
+            <Icon name="chevron" size={16} color={colors.ink3} />
+          </Pressionavel>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   trilha: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   item: { flexDirection: 'row', alignItems: 'center' },
@@ -142,6 +214,8 @@ const s = StyleSheet.create({
   // accentInk: o laranja `accent` sobre o fundo da tela dá 4,17:1 (abaixo de 4,5:1); accentInk dá 6,7:1 (T-0071, V3)
   link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accentInk },
   atual: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  // nível pulado (T-0142): ink2 7,6:1 no branco, 6,9:1 no fundo; sem toque
+  pulado: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
   // .crumb / .crumb b da referência do Novo pedido
   passoCompacto: { paddingHorizontal: 4 },
   linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
@@ -152,4 +226,14 @@ const s = StyleSheet.create({
   atalhoTexto: { flex: 1, gap: 2 },
   atalhoRotulo: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   atalhoApoio: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  // ListaNiveis (T-0142): ink 16,5:1, ink2 7,6:1 e ink3 5,8:1 no branco
+  niveis: { gap: 8 },
+  niveisCabecalho: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2 },
+  niveisRotulo: { fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
+  niveisCartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
+  nivel: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8 },
+  nivelTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
+  nivelNome: { flex: 1, minWidth: 0, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  nivelNomeSecundario: { color: colors.ink2 },
+  nivelContagem: { fontFamily: fonts.displayBold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

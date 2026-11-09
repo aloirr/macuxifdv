@@ -33,7 +33,7 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
   });
 
   it('RN-VEN-30: a tela fecha na hora (replace para o detalhe) com "Pedido salvo · enviando", sem o botão girando', () => {
-    const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const rotuloEdicao'));
+    const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const docEdicao'));
     expect(envio).toContain('router.replace(hrefPedido(destino) as never)');
     expect(envio).toContain('avisoDoSalvar(offline)');
     expect(envio.indexOf('router.replace')).toBeLessThan(envio.indexOf('setSent('));

@@ -7,3 +7,5 @@ export * from './money';
 export * from './calendar';
 export * from './documento';
 export * from './csv';
+export * from './dado-pessoal';
+export * from './endereco';

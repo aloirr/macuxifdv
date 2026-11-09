@@ -7,7 +7,7 @@
  *   `TelaEsqueciSenha`, as duas nesta mesma rota: nada do app abre antes da troca. Depois da troca, a sessão vem na resposta e o
  *   Início mostra "Senha criada.".
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
- *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis que entram na variante pelo motor de permissões do SDK (`lib/acesso.ts`).
+ *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis que entram na variante pelo motor de permissões do SDK (`entraEm`).
  * Servidor (T-0038, `endereco-do-build.ts`): nos builds preview e producao NÃO há campo Servidor; o app usa sempre o
  * endereço do build e, se a verificação de `/v1/saude` falhar, mostra só "Servidor indisponível — tente mais tarde".
  * No build de desenvolvimento o cartão Servidor fica embaixo, fechado em "Avançado" (rede local). Lá o endereço é usado
@@ -26,7 +26,7 @@ import {
   type CamposLogin,
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
-import { ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
+import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
@@ -34,7 +34,7 @@ import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressab
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFaixaSuperior } from '@/components/area-segura';
-import { entraEm, ondeOPerfilEntra } from '@/lib/acesso';
+import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
 import { ETAPA_INICIAL, etapaDeVolta, propsDoLogin, type EtapaLogin } from '@/lib/etapa-login';
 import { guardarAvisoPosLogin } from '@/lib/aviso-pos-login';

@@ -8,8 +8,9 @@
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
  * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
  */
+import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, abasComPendencia, AvisoRodape, BackLink, Badge, Banner, BlocoPendencias, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, LEITURA_ABA_COM_PENDENCIA, Loading, radius, RotuloSecao, Screen, Strong, Trilha, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, abasComPendencia, AvisoRodape, BackLink, Badge, Banner, BlocoPendencias, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, LEITURA_ABA_COM_PENDENCIA, Loading, radius, RotuloSecao, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -19,7 +20,7 @@ import type { OrderDetail } from '../../contracts';
 import { alertasDaVenda } from '../../domain/alertas-venda';
 import { botoesDoResumo, destinoDoEnvio } from '../../domain/botoes-resumo';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
-import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
+import { motivoSoOrcamento } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
 import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
@@ -31,8 +32,8 @@ import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
-import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, situacaoDoFrete, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, proximaAbaDoPedido, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
+import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
 import { alertaDaVendaNoResumo } from '../lib/textos-venda';
@@ -41,10 +42,10 @@ import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
-import { hrefPedido, hrefPedidos, irParaCatalogoDoPedido, irParaPedidos } from '../rotas';
+import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
-import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, guardarOrigemEditor, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
+import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
 import { pendenciasDePreenchimento } from '../../domain/pendencias-preenchimento';
 import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
 import { FolhaSaidaDoPedido, VoltarDoFormulario } from '../components/saida-do-pedido';
@@ -362,7 +363,6 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
   const nomes = useMemo(() => new Map<string, string>(sent ? sent.snapshot.nomes : catalog.map((p) => [p.id, p.description] as [string, string])), [sent, catalog]);
   const frete = draft.frete ?? { modalidade: fretePadrao };
-  const freteAviso = freteValido(frete);
 
   // RN-CORE-36: pendências só no Resumo ("Falta para salvar"); a aba com pendência ganha só a bolinha
   const pendencias = calculoBase
@@ -371,7 +371,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         quantidade_invalida: Object.values(draft.lines).some((q) => !Number.isFinite(q) || q < 0),
         pagamento: situacaoDoPagamento(draft, formas, prazos, limites),
         frete: situacaoDoFrete(frete),
-        erros_calculo: calculoBase.erros,
+        erros_calculo: calculoBase.pendencias,
       })
     : [];
   const abasComBolinha = abasComPendencia(pendencias, ABAS_DO_PEDIDO);
@@ -478,11 +478,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const limiteVendedor = limiteDoVendedor(politica, vendedorId);
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
   const editBlockedOffline = editingServer && offline;
-  const vaiParaAprovacao = calculo.nivel !== null;
   const situacaoCliente = app.situacaoDoCliente(customerId);
-  const diasValidade = validadeOrcamentoDias(ambiente.parametros('vendedor'));
-  const validade = validadeDoOrcamento(new Date().toISOString(), diasValidade, tz);
-  const opcoes = opcoesDoSalvar({ cliente: situacaoCliente, calculo, frete_erro: freteAviso, validade_data: validade.data });
+  // RN-VEN-18 (09/11): o orçamento não vence; a etiqueta mostra o dia do preço (hoje, no fuso do tenant)
+  const precoData = localIsoDate(new Date(), tz);
   const rascunhoVisivel: Draft = sent ? sent.snapshot.rascunho : draft;
   const enderecosCliente = enderecosDoCliente(app.enderecos, customerId);
   const enderecoPadrao = enderecosCliente.find((e) => e.principal || e.tipo === 'principal') ?? null;
@@ -544,17 +542,16 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     }
   };
 
-  const rotuloEdicao = !editingServer ? 'Salvar alterações no aparelho' : editTarget?.tipo === 'orcamento' ? 'Salvar orçamento' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
-  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, pendencias: pendencias.length, nivel: calculo.nivel, validade_data: validade.data });
+  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, pendencias: pendencias.length, nivel: calculo.nivel, preco_data: precoData, editando_no_servidor: editingServer });
   // permissão e sinal (edição de pedido já no servidor) valem além das pendências; na edição de pedido o rótulo diz para onde vai
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
   const liberaSalvar = (b: typeof botoesBase.enviar) => ({ ...b, habilitado: b.habilitado && podeAgir });
   const botoes = {
     ...botoesBase,
-    enviar: botoesBase.modo === 'editar_pedido' ? { ...liberaSalvar(botoesBase.enviar), rotulo: rotuloEdicao } : liberaSalvar(botoesBase.enviar),
+    enviar: liberaSalvar(botoesBase.enviar),
     orcamento: liberaSalvar(botoesBase.orcamento),
     salvarOrcamento: liberaSalvar(botoesBase.salvarOrcamento),
     transformar: liberaSalvar(botoesBase.transformar),
@@ -704,7 +701,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             <Strong>{avisoSalvoNoAparelho(sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido').titulo}</Strong> {avisoSalvoNoAparelho('pedido').nota}
           </Banner>
         ) : sent?.kind === 'sent' ? (
-          <SentCard order={sent.order} tipo={sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido'} validadeData={validade.data} />
+          <SentCard order={sent.order} tipo={sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido'} precoData={precoData} />
         ) : noSignal && !editBlockedOffline ? (
           <Banner testID="banner-offline">
             <Strong>Sem sinal.</Strong> Preço e estoque de {formatHHMM(productsAt, tz)}.
@@ -728,10 +725,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
           <>
             <TotalDoPedido itens={calculo.linhas.length} totalCents={calculo.total_cents} />
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
-            <Trilha compacta atualTocavel itens={niveisDaTrilha(produtosDoRascunho[produtosDoRascunho.length - 1] ?? null)} onEscolher={() => {
-                guardarOrigemEditor({ customerId, editId: editId ?? undefined, visitId: visitId ?? undefined, stopId: stopId ?? undefined });
-                irParaCatalogoDoPedido(customerId);
-              }} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
+            {/* T-0141 (D): item novo só pela busca desta aba; o botão "Catálogo" saiu (Alexandre, R-20261109-064818) */}
             {query.trim() ? (
               erroBusca ? (
                 <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
@@ -781,7 +775,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         ) : null}
 
         {!sent && aba === 'entrega' ? (
-          <AbaEntrega rascunho={draft} clienteId={customerId} enderecos={app.enderecos} motivoCadastro={opcoes.motivo_so_orcamento} onRascunho={emRascunho} fretePadrao={fretePadrao} transportadoras={app.transportadoras} />
+          <AbaEntrega rascunho={draft} clienteId={customerId} enderecos={app.enderecos} motivoCadastro={motivoSoOrcamento(situacaoCliente)} onRascunho={emRascunho} fretePadrao={fretePadrao} transportadoras={app.transportadoras} />
         ) : null}
 
         {noResumo ? (
@@ -829,14 +823,14 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       ) : null}
 
       <AvisoRodape {...avisoRodape.props} respiroInferior={16} />
-      <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido', destino: botoesBase.enviar.destino ?? destinoDoEnvio(calculo.nivel) }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, validade_data: validade.data })} onAcao={aoEscolherNaSaida} />
+      <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido', destino: botoesBase.enviar.destino ?? destinoDoEnvio(calculo.nivel) }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, preco_data: precoData })} onAcao={aoEscolherNaSaida} />
     </View>
   );
 }
 
-function SentCard({ order, tipo, validadeData }: { order: OrderDetail; tipo: 'pedido' | 'orcamento'; validadeData: string }) {
+function SentCard({ order, tipo, precoData }: { order: OrderDetail; tipo: 'pedido' | 'orcamento'; precoData: string }) {
   const b = statusBadge(order.status);
-  const c = confirmacaoDoEnvio({ tipo, numero: order.number, status: order.status, validade_data: validadeData, pending_reason: order.pending_reason, rejection_reason: order.rejection_reason });
+  const c = confirmacaoDoEnvio({ tipo, numero: order.number, status: order.status, preco_data: precoData, pending_reason: order.pending_reason, rejection_reason: order.rejection_reason });
   return (
     <View style={styles.sent} testID="sent-card">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

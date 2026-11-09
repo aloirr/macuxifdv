@@ -17,3 +17,4 @@
 2026-11-05 — T-0024 — PedidoFaturadoLido passa a ser tolerante(PedidoFaturadoEvento) do Vendedor; teste conferirEventosPublicados
 2026-11-07 — T-0106 — domain: lancarPedidoNoDesafio (params/fuso único), quantidade inteira no desafio (sem arredondamento por evento); PedidoFaturadoLido já era fonte única no contracts; recado ao banco-dados (xp_lancamento)
 2026-11-08 — contraste do laranja: accentInk/text-accent-ink em 3 pontos (trilhas, editar trilha, ranking); checks verdes
+2026-11-09 — T-0140 — lote 03: CSV/trilhas usam rotuloDoPerfil (Admin oficial); ranking usa exigirDataCivil e somarDiasCivis do comum; numeros.ts sem ehDataCivil/somarDias

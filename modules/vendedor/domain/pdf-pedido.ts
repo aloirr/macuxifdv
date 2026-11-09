@@ -11,6 +11,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 
+import { etiquetaPrecoDe } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
@@ -102,8 +103,6 @@ export interface OrderPdfOrder {
   // --- T-0071 (RF-VEN-03, RN-VEN-18) ---
   /** ausente = pedido */
   tipo?: 'pedido' | 'orcamento';
-  /** último dia válido do orçamento (AAAA-MM-DD, data civil do tenant) */
-  validade_data?: string | null;
 }
 
 export interface OrderPdfContext {
@@ -187,16 +186,16 @@ export function textoFrete(f: OrderPdfFreight | null | undefined): string {
   return `Frete: FOB – por conta do cliente${transp}`;
 }
 
-/** Nome sugerido do arquivo: pedido-10521-cliente.pdf · pedido-no-aparelho-bko.pdf · orcamento-10521-cliente.pdf */
-export function orderPdfFileName(number: string | null, view: OrderPdfView, tipo: 'pedido' | 'orcamento' = 'pedido'): string {
-  const n = number ? number.replace(/[^\w-]/g, '') : 'no-aparelho';
-  return `${tipo === 'orcamento' ? 'orcamento' : 'pedido'}-${n}-${view === 'customer' ? 'cliente' : 'bko'}.pdf`;
-}
-
-/** AAAA-MM-DD -> dd/mm/aaaa (data civil: sem conta de fuso). Formato inesperado = vazio. */
-export function dataCivilBr(d: string | null | undefined): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d ?? '');
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+/**
+ * RN-VEN-41 (T-0141): nome do arquivo `ORC-0001-09112026.pdf` / `PED-0001-09112026.pdf`. XXXX = número do sistema com no mínimo 4
+ * dígitos (acima de 9999 usa todos, sem cortar); DDMMAAAA = data de emissão no fuso do tenant. Sem número (ainda no aparelho):
+ * `-PROV-`; o aparelho nunca inventa número. O mesmo documento sai sempre com o mesmo nome (nas duas versões do PDF).
+ */
+export function orderPdfFileName(number: string | null, createdAt: string, tz: string, tipo: 'pedido' | 'orcamento' = 'pedido'): string {
+  const digitos = (number ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  const xxxx = number && /\d/.test(number) ? digitos.padStart(4, '0') : 'PROV';
+  const p = zonedParts(createdAt, tz);
+  return `${tipo === 'orcamento' ? 'ORC' : 'PED'}-${xxxx}-${pad(p.day)}${pad(p.month)}${p.year}.pdf`;
 }
 
 const CSS = `
@@ -256,7 +255,8 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
   const orc = order.tipo === 'orcamento';
   const doc = orc ? 'Orçamento' : 'Pedido';
   const numberText = order.number ? `${doc} ${escapeHtml(order.number)}` : `${doc} no aparelho`;
-  const validade = orc && dataCivilBr(order.validade_data) ? `<div class="muted">Válido até ${dataCivilBr(order.validade_data)}</div>` : '';
+  // RN-VEN-18 (09/11): o orçamento não vence; o PDF mostra só o dia do preço
+  const validade = orc ? `<div class="muted">${escapeHtml(etiquetaPrecoDe(order.created_at, ctx.tz))}</div>` : '';
   return `
 <div class="top">
   <div>
@@ -414,7 +414,7 @@ ${
 
 /** HTML completo do PDF do pedido. */
 export function buildOrderPdfHtml(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext): string {
-  const title = orderPdfFileName(order.number, view).replace(/\.pdf$/, '');
+  const title = orderPdfFileName(order.number, order.created_at, ctx.tz, order.tipo).replace(/\.pdf$/, '');
   // TODO(fiscal): impostos não entram aqui; o ERP calcula no faturamento.
   return `<!doctype html>
 <html lang="pt-BR">
@@ -478,7 +478,6 @@ export interface DetalheParaPdf {
   aprovacao?: { limite_vendedor_pct: number } | null;
   /** T-0071: orçamento sai com título e validade; ausente = pedido */
   tipo?: 'pedido' | 'orcamento';
-  validade_data?: string | null;
 }
 
 /**
@@ -529,6 +528,6 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
     ...(d.delivery_address ? { delivery_address: enderecoEmLinha(d.delivery_address) } : {}),
     ...(d.surcharge_pct ? { surcharge_pct: d.surcharge_pct } : {}),
     ...(d.effective_discount_pct != null ? { effective_discount_pct: d.effective_discount_pct } : {}),
-    ...(d.tipo === 'orcamento' ? { tipo: 'orcamento' as const, validade_data: d.validade_data ?? null } : {}),
+    ...(d.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
   };
 }

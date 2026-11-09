@@ -7,6 +7,7 @@
  */
 import type { MembroAgoraContrato, MetaDoDia, VisaoInicio } from '@macuxi/core/contracts';
 import { formatBRL0 } from '@macuxi/comum/money';
+import { linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { colors, localIsoDate, longDateLabel, zonedParts } from '@macuxi/ui/mobile/puro';
 
 // ---------- Boas-vindas ----------
@@ -46,22 +47,13 @@ export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null):
 
 // ---------- Recados ----------
 
-/** Caminho da tela de um link interno (`/m/rota?x=1` → `rota`); null fora do padrão `/m/<caminho>`. */
-export function caminhoDoLink(link: string | null | undefined): string | null {
-  if (!link || !/^\/m\/[a-z0-9-]+/.test(link)) return null;
-  return link.slice(3).split(/[?#]/)[0] ?? null;
-}
-
 /**
  * Só navega para link interno de módulo (`/m/<caminho>`) cuja tela existe na visão do usuário (`telaExiste`, ligado a
  * `visao.pagina`); o resto abre a central de notificações. Link com tela inexistente (ex.: `/m/core-rota` gravado no
  * recado) caía em "Esta tela não está disponível para o seu perfil…" (T-0140, relato do dono do produto, 08/11).
+ * RD-0032: a regra do link interno é do SDK (`linkInternoNavegavel`); aqui só o destino de reserva.
  */
-export function destinoDaNotificacao(link: string | null, telaExiste?: (caminho: string) => boolean): string {
-  const caminho = caminhoDoLink(link);
-  if (!link || !caminho) return '/m/notificacoes';
-  return !telaExiste || telaExiste(caminho) ? link : '/m/notificacoes';
-}
+export const destinoDaNotificacao = (link: string | null, telaExiste?: (caminho: string) => boolean): string => linkInternoNavegavel(link, telaExiste) ?? '/m/notificacoes';
 
 /** Selo do bloco: "3 novos" · "1 novo" · nada com tudo lido. */
 export function seloNovos(naoLidas: number): string | null {
@@ -113,7 +105,8 @@ export function recadosDoInicio(recados: RecadosProntos): ItemRecado[] {
     texto: textoDoRecado(r.titulo, r.subtitulo),
     hora: r.hora,
     ponto: r.destaque ? 'destaque' : r.lida ? 'lido' : TIPOS_SUCESSO.test(r.tipo) ? 'sucesso' : 'novo',
-    destino: destinoDaNotificacao(r.link),
+    // RD-0032: o Core já filtrou o formato (`inicio-local`); a tela confere se existe só no toque (`(tabs)/index.tsx`)
+    destino: r.link ?? '/m/notificacoes',
     notificacao_id: r.lida ? null : r.id,
   }));
 }

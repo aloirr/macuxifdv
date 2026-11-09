@@ -230,7 +230,11 @@ const CAIXAS: Array<[string, number]> = [
   ['BIS-140', 24], ['OLE-4T-1L', 12], ['DET-5L', 4],
 ];
 
-/** Árvore do catálogo (3 níveis: Categoria › Família › Grupo): [código, nome, código do pai]. */
+/**
+ * Árvore do catálogo: [código, nome, código do pai]. Categoria › Família › Grupo (3 níveis); as autopeças da T-0085 são
+ * grupos de Automotivo com um nível a mais (Automotivo › Freios › Pastilhas › Dianteiras). T-0142: a raiz tem só
+ * Alimentos, Bebidas, Limpeza e higiene e Automotivo. Todo produto fica numa folha (nó sem filhos).
+ */
 const ARVORE: Array<[string, string, string | null]> = [
   ['ALI', 'Alimentos', null],
   ['ALI-MER', 'Mercearia', 'ALI'],
@@ -267,16 +271,17 @@ const ARVORE: Array<[string, string, string | null]> = [
   ['AUT-PEC', 'Peças e acessórios', 'AUT'],
   ['AUT-PEC-MOT', 'Peças de moto', 'AUT-PEC'],
   ['AUT-PEC-ILU', 'Iluminação', 'AUT-PEC'],
-  // T-0085 (RF-CAT-09): sistema › grupo › linha das autopeças novas (no FIM: a ordem dos nós anteriores não muda)
-  ['FRE', 'Freios', null],
+  // T-0085 (RF-CAT-09): sistema › grupo › linha das autopeças novas (no FIM: a ordem dos nós anteriores não muda).
+  // T-0142: Freios, Filtros e Suspensão são grupos de Automotivo (eram raiz e apareciam no mesmo nível dele); códigos e ids iguais
+  ['FRE', 'Freios', 'AUT'],
   ['FRE-PAS', 'Pastilhas', 'FRE'],
   ['FRE-PAS-DIA', 'Dianteiras', 'FRE-PAS'],
   ['FRE-DIS', 'Discos', 'FRE'],
   ['FRE-DIS-DIA', 'Dianteiros', 'FRE-DIS'],
-  ['FIL', 'Filtros', null],
+  ['FIL', 'Filtros', 'AUT'],
   ['FIL-OLE', 'Filtros de óleo', 'FIL'],
   ['FIL-OLE-LEV', 'Linha leve', 'FIL-OLE'],
-  ['SUS', 'Suspensão', null],
+  ['SUS', 'Suspensão', 'AUT'],
   ['SUS-AMO', 'Amortecedores', 'SUS'],
   ['SUS-AMO-TRA', 'Traseiros', 'SUS-AMO'],
 ];
@@ -476,6 +481,7 @@ export const idCondicaoDemo = (codigo: CodigoCondicao) => id(`condicao_pagamento
 export const idTransportadoraDemo = (chave: string) => id(`transportadora:${chave}`);
 export const idEnderecoDemo = (n: number, tipo: 'principal' | 'entrega') => id(`cliente_endereco:${n}:${tipo}`);
 export const idProdutoDemo = (sku: string) => id(`produto:${sku}`);
+export const idPedidoDemo = (chave: string) => id(`pedido:${chave}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Clientes (Manaus)
@@ -591,6 +597,16 @@ const PEDIDOS: Array<[string, number, Dono, Desfecho, number, number, CodigoCond
 ];
 /** Contam como venda na base "aprovado" (parâmetro metas.base_apuracao). */
 const VENDIDO: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'invoiced', 'cancelled']);
+/**
+ * 0055 (T-0141 C, RN-VEN-17): o p11 (aprovado, Lucas) leva o endereço digitado só no pedido — retrato com origem 'editado',
+ * sem id/external_id e endereco_entrega_id nulo (o Conector usa os textos). Para o e2e do testes, o detalhe, os PDFs e a
+ * devolução ao ERP. Os demais pedidos ficam com o retrato do principal sem `origem` (= 'erp', o formato antigo).
+ */
+export const PEDIDO_ENDERECO_EDITADO_DEMO = 'p11';
+export const ENDERECO_EDITADO_DEMO = {
+  id: null, external_id: null, descricao: null, logradouro: 'Avenida Torquato Tapajós', numero: '7500', complemento: 'Galpão 3',
+  bairro: 'Flores', cidade: 'Manaus', uf: 'AM', cep: '69058830', principal: false, origem: 'editado',
+} as const;
 const MOTIVO_REJEICAO_DEMO = 'Desconto acima da política para este cliente. Refaça com até 5%.';
 const MOTIVO_CANCELAMENTO_DEMO = 'Cliente desistiu da compra';
 
@@ -928,8 +944,11 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       frete_modalidade: transp ? 'FOB' : 'CIF',
       transportadora_id: transp ? idTransportadoraDemo(transp[0]) : null, transportadora_digitada: false, transportadora_nome: transp?.[1] ?? null,
       transportadora_documento: transp ? cnpjDemo(900 + TRANSPORTADORAS.indexOf(transp)) : null, transportadora_telefone: transp?.[2] ?? null,
-      endereco_entrega_id: idEnderecoDemo(n, 'principal'),
-      endereco_entrega: { logradouro: cli.logradouro, numero: cli.numero, complemento: null, bairro, cidade: 'Manaus', uf: 'AM', cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepClienteDemo(n), descricao: 'Principal' },
+      // 0055 (T-0141 C, RN-VEN-17): um pedido aprovado com o endereço digitado só nele (o cadastro do cliente não muda)
+      endereco_entrega_id: chave === PEDIDO_ENDERECO_EDITADO_DEMO ? null : idEnderecoDemo(n, 'principal'),
+      endereco_entrega: chave === PEDIDO_ENDERECO_EDITADO_DEMO
+        ? { ...ENDERECO_EDITADO_DEMO }
+        : { logradouro: cli.logradouro, numero: cli.numero, complemento: null, bairro, cidade: 'Manaus', uf: 'AM', cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepClienteDemo(n), descricao: 'Principal' },
       cliente_nome: nome, vendedor_nome: vendedor.nome, tabela_preco_id: idTabela(tabela), condicao_pagamento_id: idCondicaoDemo(condicao),
       condicao_pagamento_descricao: DESCRICAO_CONDICAO.get(condicao)!, nivel_aprovacao: r.nivel, motivos_aprovacao: arrayDeTexto(r.motivos),
       aprovacao_automatica: r.aprovacao_automatica, decidido_por_id: decisao?.por ?? null, decidido_em: decisao?.em ?? null,

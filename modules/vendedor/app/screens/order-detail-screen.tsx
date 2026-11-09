@@ -35,7 +35,7 @@ import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
 import { estadoDoDetalheAusente, folhaDoTransformar, itemCompacto, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento } from '../lib/textos-pedido';
-import { validadeOrcamentoDias } from '../../domain/orcamento';
+import { dataDoPrecoDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -186,13 +186,14 @@ export default function OrderDetailScreen() {
   const doc = queued ? { status, tipo: queued.payload.tipo } : { ...base!, status };
   const acoesOrc = acoesNaTela(doc, agoraTela, !v1 || perfil === 'vendedor');
   const ehOrc = acoesOrc !== null;
-  // RN-VEN-18: validade por data civil no fuso do tenant ("até 10/11"), offline
+  // RN-VEN-18 (09/11): o orçamento não vence; a etiqueta mostra o dia do preço ("preço de 09/11"), no fuso do tenant, offline
+  const diasDoPreco = validadeOrcamentoDias(ambiente.parametros('vendedor'));
   const validadeData = ehOrc
-    ? validadeCivilDoDocumento({ validade_data: queued ? null : (base?.validade_data ?? null), validade_ate: queued ? null : (base?.validade_ate ?? null), criado_em: queued?.criado_em ?? null }, { fuso: tz, dias: validadeOrcamentoDias(ambiente.parametros('vendedor')) })
+    ? validadeCivilDoDocumento({ validade_data: queued ? null : (base?.validade_data ?? null), validade_ate: queued ? null : (base?.validade_ate ?? null), criado_em: queued?.criado_em ?? null }, { fuso: tz, dias: diasDoPreco })
     : null;
   const situacaoOrc = ehOrc ? situacaoNaTela(doc, agoraTela) : null;
   const numeroConvertido = base && !queued && base.convertido_pedido_id ? (orders.find((o) => o.id === base.convertido_pedido_id)?.number ?? null) : null;
-  const selo = ehOrc && situacaoOrc && validadeData ? seloDoOrcamento({ situacao: situacaoOrc, validade_data: validadeData, pedido_numero: numeroConvertido }) : null;
+  const selo = ehOrc && situacaoOrc && validadeData ? seloDoOrcamento({ situacao: situacaoOrc, preco_data: dataDoPrecoDoOrcamento(validadeData, diasDoPreco), pedido_numero: numeroConvertido }) : null;
   const title = number ? `${ehOrc ? 'Orçamento' : 'Pedido'} ${number}` : ehOrc ? 'Orçamento no aparelho' : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
   const ehVendedor = !v1 || perfil === 'vendedor';
@@ -339,7 +340,7 @@ export default function OrderDetailScreen() {
       price_table_name: queued ? null : (base!.price_table_name ?? null),
       ...(!queued && base!.freight ? { freight: base!.freight } : {}),
       ...(enderecoTexto ? { delivery_address: enderecoTexto } : {}),
-      ...(ehOrc ? { tipo: 'orcamento' as const, validade_data: validadeData } : {}),
+      ...(ehOrc ? { tipo: 'orcamento' as const } : {}),
     };
   };
 
@@ -368,7 +369,7 @@ export default function OrderDetailScreen() {
         generated_at: new Date().toISOString(),
         reference_on_customer_pdf: referenciaNoCliente,
       });
-      const r = await exportPdf(html, orderPdfFileName(number, view, pedidoPdf.tipo), () => !vigente());
+      const r = await exportPdf(html, orderPdfFileName(number, pedidoPdf.created_at, tz, pedidoPdf.tipo), () => !vigente());
       if (r.kind !== 'cancelado' && vigente()) setSheet(null);
     } catch (e) {
       if (vigente()) setSheetError(errorMessage(e));
@@ -382,7 +383,7 @@ export default function OrderDetailScreen() {
   const codigoDoCliente = (queued ? dados.clientes.find((x) => x.id === queued.payload.customer_id)?.erp_code : (detail?.cliente?.codigo_erp ?? dados.clientes.find((x) => x.id === base!.customer_id)?.erp_code)) ?? null;
   const eventosDoHistorico =
     ehOrc && situacaoOrc
-      ? eventosDoOrcamento(history, { vendedorNome, situacao: situacaoOrc, criadoEm: queued?.criado_em ?? base?.received_at ?? new Date(agoraTela).toISOString(), validadeAte: queued ? null : (base?.validade_ate ?? null), convertidoEm: queued ? null : (base?.updated_at ?? null), numeroPedido: numeroConvertido })
+      ? eventosDoOrcamento(history, { vendedorNome, situacao: situacaoOrc, criadoEm: queued?.criado_em ?? base?.received_at ?? new Date(agoraTela).toISOString(), convertidoEm: queued ? null : (base?.updated_at ?? null), numeroPedido: numeroConvertido })
       : eventosDoPedido(history, { vendedorNome, motivoDoFechamento: queued ? null : (base?.rejection_reason ?? null) });
   const tagsDoDetalhe = tagsDoHistorico(eventosDoHistorico, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
   const ultimaTag = tagsDoDetalhe.length > 0 ? tagsDoDetalhe[tagsDoDetalhe.length - 1]! : null;
@@ -396,7 +397,6 @@ export default function OrderDetailScreen() {
     return base?.freight?.carrier_name ?? null;
   })();
   const formaPrazoFrete = linhaFormaPrazoFrete({ forma: queued ? null : (base?.forma_pagamento_nome ?? null), prazo: queued ? terms : (base?.prazo_descricao ?? terms), modalidade, transportadora });
-  const vencido = ehOrc && situacaoOrc === 'expirado';
   const acoesDaTela = acoesDoDetalhe({
     tipo: ehOrc ? 'orcamento' : 'pedido',
     status,
@@ -474,7 +474,7 @@ export default function OrderDetailScreen() {
               {title}
             </Text>
             {selo ? (
-              <Selo testID="orcamento-selo" texto={vencido ? 'Orçamento · vencido' : selo.texto} tom={vencido ? 'aviso' : selo.tom} tamanho="m" pilula />
+              <Selo testID="orcamento-selo" texto={selo.texto} tom={selo.tom} tamanho="m" pilula />
             ) : ehOrc ? (
               <Selo testID="orcamento-selo" texto={rotuloDoDocumento(doc, agoraTela)} tom="neutro" tamanho="m" pilula />
             ) : ultimaTag ? (

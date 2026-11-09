@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import * as COMUM from '@macuxi/comum/perfis';
+
 import { ehPerfilPadrao, ORDEM_PERFIL_PADRAO, ROTULO_PERFIL_CURTO, ROTULO_PERFIL_LONGO, rotuloDoPerfil } from './perfis';
 import { ORDEM_PERFIL_BASE, ROTULO_PERFIL_BASE } from '../web/perfis';
 
@@ -47,6 +49,15 @@ describe('RD-0014: nome dos 7 perfis padrão, um só em todas as telas', () => {
     expect(ehPerfilPadrao('gerente')).toBe(true);
     expect(ehPerfilPadrao('gerente_regional')).toBe(false);
     expect(ehPerfilPadrao(null)).toBe(false);
+  });
+
+  it('fonte única: o kit reexporta os mapas de @macuxi/comum/perfis (mesmos objetos), sem cópia própria', () => {
+    expect(ORDEM_PERFIL_PADRAO).toBe(COMUM.ORDEM_PERFIL_PADRAO);
+    expect(ROTULO_PERFIL_CURTO).toBe(COMUM.ROTULO_PERFIL_CURTO);
+    expect(ROTULO_PERFIL_LONGO).toBe(COMUM.ROTULO_PERFIL_LONGO);
+    const fonte = ler('./perfis.ts');
+    expect(fonte).toContain("from '@macuxi/comum/perfis'");
+    expect(fonte).not.toMatch(/vendedor: 'Vendedor'|admin: 'Admin'|'Administrador da empresa'/);
   });
 
   it('exportado pelos dois kits (web pelo perfis.ts; mobile pelo índice e pela parte pura)', () => {

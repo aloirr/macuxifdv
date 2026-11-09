@@ -273,8 +273,17 @@ export function dadosAtuaisDoAparelho(e: {
   return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };
 }
 
-export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[0]) {
-  return reconferirOrcamento(orcamentoParaReconferir(e.detalhe), dadosAtuaisDoAparelho(e));
+/** `preco_vale`: o preço congelado ainda está nos 7 dias (RN-VEN-18); `false` = Transformar reprecifica pela tabela do dia. */
+export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[0] & { preco_vale?: boolean }) {
+  return reconferirOrcamento(orcamentoParaReconferir(e.detalhe), dadosAtuaisDoAparelho(e), { preco_vale: e.preco_vale ?? true });
+}
+
+/** RN-VEN-18: a frase do total quando o preço vencido mudou o valor do orçamento; `null` quando não mudou. */
+export function textoDaDiferencaTotal(r: { total_orcado_cents: number; diferenca_total_cents: number }): string | null {
+  if (r.diferenca_total_cents === 0) return null;
+  const novo = r.total_orcado_cents + r.diferenca_total_cents;
+  const quanto = formatBRL(Math.abs(r.diferenca_total_cents));
+  return `Total: ${formatBRL(novo)} (era ${formatBRL(r.total_orcado_cents)}), ${quanto} a ${r.diferenca_total_cents > 0 ? 'mais' : 'menos'}.`;
 }
 
 /** Uma frase por mudança, em português, com o nome do produto (a tela mostra antes de enviar o pedido). */

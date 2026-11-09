@@ -516,7 +516,8 @@ describe('T-0088: peças puras do shell', () => {
     expect(m).toContain(arquivo);
     expect(m).not.toMatch(/ana@|123\.456|99123/);
     expect(m).toContain('[e-mail]');
-    expect(m).toContain('[número]');
+    expect(m).toContain('[cpf]');
+    expect(m).toContain('[telefone]');
   });
 
   it('finalizar da busca agendado quando a tela fica livre (requestIdleCallback), ou num setTimeout 0', () => {

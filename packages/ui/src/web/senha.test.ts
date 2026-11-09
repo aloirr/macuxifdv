@@ -19,7 +19,10 @@ function texto(x: unknown): string {
   return n.props['aria-hidden'] === 'true' ? '' : texto(n.props.children);
 }
 
-const arvore = (props: Parameters<typeof RegrasDaSenha>[0]) => nos(RegrasDaSenha(props));
+type Props = Parameters<typeof RegrasDaSenha>[0];
+/** As telas passam `minimo={SENHA_MIN_CARACTERES}` e `resumo={mensagemDaSenha(faltas)}` do Core; aqui, dados de teste. */
+const arvore = (props: Omit<Props, 'minimo' | 'resumo'> & Partial<Pick<Props, 'minimo' | 'resumo'>>) =>
+  nos(RegrasDaSenha({ minimo: 8, resumo: null, ...props }));
 const porTestId = (a: No[], id: string) => a.find((n) => n.props['data-testid'] === id);
 
 describe('RegrasDaSenha (web)', () => {
@@ -34,10 +37,12 @@ describe('RegrasDaSenha (web)', () => {
     const a = arvore({ faltas: ['numero', 'especial'] });
     const falado = a.filter((n) => n.type === 'li').map((n) => texto(n.props.children));
     expect(falado).toEqual(['8 caracteres ou mais: ok', 'Uma letra: ok', 'Um número: falta', 'Um caractere especial: falta']);
+    // o mínimo vem da tela (RD-0021)
+    expect(texto(porTestId(arvore({ faltas: [], minimo: 12 }), 'regras-da-senha.caracteres')?.props.children)).toBe('12 caracteres ou mais: ok');
   });
 
-  it('a região viva educada traz o resumo; a tela pode passar a frase do Core', () => {
-    const r = porTestId(arvore({ faltas: ['numero', 'especial'] }), 'regras-da-senha.resumo');
+  it('a região viva educada traz o resumo que a tela passa (frase do Core); null = atende às regras', () => {
+    const r = porTestId(arvore({ faltas: ['numero', 'especial'], resumo: 'Faltam um número e um caractere especial.' }), 'regras-da-senha.resumo');
     expect(r?.props['aria-live']).toBe('polite');
     expect(r?.props.role).toBe('status');
     expect(texto(r)).toBe('Faltam um número e um caractere especial.');
@@ -59,7 +64,7 @@ describe('RegrasDaSenha (web)', () => {
   });
 
   it('T-0094: "Repita a senha" diferente aparece fora da lista, com id para o aria-describedby, e entra na região viva', () => {
-    const a = arvore({ faltas: ['numero'], repeticao: 'diferente', id: 'senha-regras' });
+    const a = arvore({ faltas: ['numero'], resumo: 'Falta um número.', repeticao: 'diferente', id: 'senha-regras' });
     const linha = porTestId(a, 'regras-da-senha.repeticao');
     expect(linha?.type).toBe('p');
     expect(linha?.props.id).toBe('senha-regras-repeticao');

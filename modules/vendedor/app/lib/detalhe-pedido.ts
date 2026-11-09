@@ -6,6 +6,8 @@
  *   domain, `orderActions`/`estadoDasAcoes`, RN-VEN-31; aqui só se decide ONDE ela fica).
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
+import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
+import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
 import type { SituacaoOrcamento } from '../../domain/orcamento';
 
 // ---------- histórico em tags ----------
@@ -93,9 +95,9 @@ export interface EntradaAcoesDoDetalhe {
   pedidoGeradoId: string | null;
 }
 
-const TRANSFORMAR: AcaoDoDetalhe = { id: 'transformar', rotulo: 'Transformar em pedido', rotuloAcessivel: 'Transformar o orçamento em pedido', icone: 'send' };
+const TRANSFORMAR: AcaoDoDetalhe = { id: 'transformar', rotulo: ROTULOS_DO_SALVAR.transformar, rotuloAcessivel: 'Transformar o orçamento em pedido', icone: 'send' };
 const CONTINUAR: AcaoDoDetalhe = { id: 'continuar', rotulo: 'Continuar pedido', rotuloAcessivel: 'Continuar o pedido salvo', icone: 'edit' };
-const CORRIGIR: AcaoDoDetalhe = { id: 'corrigir', rotulo: 'Corrigir pedido', rotuloAcessivel: 'Corrigir o pedido', icone: 'edit' };
+const CORRIGIR: AcaoDoDetalhe = { id: 'corrigir', rotulo: ROTULO_CORRIGIR_PEDIDO, rotuloAcessivel: 'Corrigir o pedido', icone: 'edit' };
 const PEDIDO_GERADO: AcaoDoDetalhe = { id: 'pedido', rotulo: 'Pedido', rotuloAcessivel: 'Abrir o pedido gerado', icone: 'chevron' };
 
 const sufixo = (orc: boolean) => (orc ? 'orçamento' : 'pedido');
@@ -119,7 +121,6 @@ export function acoesDoDetalhe(e: EntradaAcoesDoDetalhe): AcoesDoDetalhe {
   if (e.tipo === 'orcamento') {
     const menu = compactar([e.podeCancelar && cancelar(true)]);
     if (e.podeConverter) return { principal: TRANSFORMAR, icones: compactar([e.podeEditar && editar(true), e.podePdf && pdf(true), e.podeDuplicar && duplicar(true)]), menu };
-    if (e.situacao === 'expirado' && e.podeDuplicar) return { principal: { ...duplicar(true), apoio: 'Entra pelos preços de hoje' }, icones: compactar([e.podePdf && pdf(true)]), menu };
     return { principal: null, icones: compactar([e.podeEditar && editar(true), e.podePdf && pdf(true), e.podeDuplicar && duplicar(true), e.situacao === 'convertido' && e.pedidoGeradoId ? PEDIDO_GERADO : null]), menu };
   }
   const menu = compactar([e.podeCancelar && cancelar(false, e.status === 'draft')]);

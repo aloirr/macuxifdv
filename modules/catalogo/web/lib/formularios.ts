@@ -174,22 +174,23 @@ export type AbaBko = 'produtos' | 'sinonimos' | 'sem-resultado';
 export interface FiltrosBko {
   aba: AbaBko;
   q: string;
-  linha: string;
+  /** Nível da hierarquia aberto (RF-CAT-09): id do nível ou `sem-linha`; vazio = começo. */
+  no: string;
 }
 const ABAS: readonly AbaBko[] = ['produtos', 'sinonimos', 'sem-resultado'];
 
-/** Filtros na URL (`?aba=&q=&linha=`), para o link da tela abrir no mesmo lugar. */
+/** Filtros na URL (`?aba=&q=&no=`; o filtro "Categoria" saiu: a hierarquia o substitui), para o link da tela abrir no mesmo lugar. */
 export function lerFiltrosBko(busca: string): FiltrosBko {
   const p = new URLSearchParams(busca);
   const aba = p.get('aba') as AbaBko | null;
-  return { aba: aba && ABAS.includes(aba) ? aba : 'produtos', q: p.get('q') ?? '', linha: p.get('linha') ?? '' };
+  return { aba: aba && ABAS.includes(aba) ? aba : 'produtos', q: p.get('q') ?? '', no: p.get('no') ?? '' };
 }
 
 export function buscaDosFiltros(f: FiltrosBko): string {
   const p = new URLSearchParams();
   if (f.aba !== 'produtos') p.set('aba', f.aba);
   if (f.q) p.set('q', f.q);
-  if (f.linha) p.set('linha', f.linha);
+  if (f.no) p.set('no', f.no);
   const s = p.toString();
   return s ? `?${s}` : '';
 }

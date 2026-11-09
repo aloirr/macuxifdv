@@ -2,7 +2,10 @@
  * RN-VEN-38 (T-0128): sair do Novo pedido. Função pura, sem React: a tela só liga as peças (folha "Sair do pedido?" do
  * `@macuxi/ui`). Nenhum pedido some sem escolha do vendedor (RN-VEN-30/31): o rascunho só é apagado por "Descartar" confirmado.
  */
-import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
+import { avisoSoOrcamento, textoPrecoDe, type SituacaoCliente } from './orcamento';
+import { botoesDoResumo, ROTULOS_DO_SALVAR } from './botoes-resumo';
+
+export { avisoSoOrcamento };
 
 /** O que a regra precisa do rascunho (o `Rascunho` do app satisfaz esta forma). */
 export interface RascunhoAlteravel {
@@ -31,9 +34,9 @@ export function pedidoAlterado(r: RascunhoAlteravel): boolean {
 
 export const TITULO_SAIR_DO_PEDIDO = 'Sair do pedido?';
 export const TEXTOS_DA_SAIDA = {
-  salvar: { rotulo: 'Salvar e enviar pedido', subtitulo: 'Vai para a fila de envio' },
-  apenasSalvar: { rotulo: 'Apenas salvar', subtitulo: 'Guarda sem enviar' },
-  orcamento: { rotulo: 'Salvar como orçamento' },
+  salvar: { rotulo: ROTULOS_DO_SALVAR.enviar, subtitulo: 'Vai para a fila de envio' },
+  apenasSalvar: { rotulo: ROTULOS_DO_SALVAR.apenasSalvar, subtitulo: 'Guarda sem enviar' },
+  orcamento: { rotulo: ROTULOS_DO_SALVAR.orcamento },
   descartar: { rotulo: 'Descartar', subtitulo: 'Apaga este pedido' },
   continuar: 'Continuar editando',
   confirmacao: { titulo: 'Descartar este pedido?', mensagem: 'Os itens e os dados deste pedido serão apagados do aparelho.', voltar: 'Voltar', confirmar: 'Descartar' },
@@ -44,22 +47,14 @@ export const TEXTOS_DA_SAIDA = {
  * salvar as alterações (com o destino), descartar as alterações (o documento fica como estava) e continuar editando.
  */
 export const TEXTOS_DA_SAIDA_EDICAO = {
-  salvarOrcamento: { rotulo: 'Salvar orçamento', subtitulo: 'Guarda as alterações' },
+  salvarOrcamento: { rotulo: ROTULOS_DO_SALVAR.salvarOrcamento, subtitulo: 'Guarda as alterações' },
   descartar: { rotulo: 'Descartar alterações', subtitulo: 'Volta como estava' },
   confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
 export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento'; destino: string }): { salvar: { rotulo: string; subtitulo: string }; descartar: { rotulo: string; subtitulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
-  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: 'Salvar alterações', subtitulo: e.destino };
+  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes, subtitulo: e.destino };
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
-}
-
-/** RN-VEN-38 / RN-VEN-13: a linha que explica a falta do "Salvar pedido" (texto do designer, §2.3 da spec). */
-export function avisoSoOrcamento(c: SituacaoCliente): string | null {
-  if (motivoSoOrcamento(c) === null) return null;
-  if (c.bloqueado) return 'Cliente bloqueado: só dá para salvar como orçamento';
-  if (!c.ativo) return 'Cliente inativo: só dá para salvar como orçamento';
-  return 'Cadastro do cliente incompleto: só dá para salvar como orçamento';
 }
 
 export interface OpcoesDaSaida {
@@ -69,16 +64,15 @@ export interface OpcoesDaSaida {
   apenasSalvar: boolean;
   /** `false` = tenant sem pré-venda (sem orçamento) */
   orcamento: boolean;
-  /** "Válido até dd/mm" */
+  /** "Preço de dd/mm" */
   subtituloOrcamento: string;
   aviso: string | null;
 }
 
 /** RN-VEN-38 (T-0137): opções da folha. Cliente da RN-VEN-13 vê só Apenas salvar, Salvar como orçamento e Descartar; sem pré-venda, Salvar e enviar pedido, Apenas salvar e Descartar. */
-export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; validade_data: string }): OpcoesDaSaida {
-  const soOrcamento = motivoSoOrcamento(e.cliente) !== null;
-  const [, m, d] = e.validade_data.split('-');
-  return { salvar: !soOrcamento, apenasSalvar: true, orcamento: e.pre_venda_ligada || soOrcamento, subtituloOrcamento: `Válido até ${d}/${m}`, aviso: avisoSoOrcamento(e.cliente) };
+export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string }): OpcoesDaSaida {
+  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, pendencias: 0, nivel: null, preco_data: e.preco_data });
+  return { salvar: b.enviar.visivel, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel, subtituloOrcamento: textoPrecoDe(e.preco_data), aviso: b.aviso };
 }
 
 export type DestinoDoSalvarDaSaida = 'salvar_agora' | 'mostrar_pendencias';

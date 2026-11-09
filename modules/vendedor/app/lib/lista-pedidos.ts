@@ -52,15 +52,15 @@ export function subtituloDaLista(o: { gestao: boolean; mesNome: string; quantida
 }
 
 /**
- * RN-VEN-18: o filtro "Pedidos | Orçamentos" da lista. Orçamentos: os abertos primeiro, pela validade (o mais perto de vencer
- * no topo); depois vencidos, convertidos e cancelados, do mais novo ao mais antigo. Calcula a situação pelo relógio do
+ * RN-VEN-18: o filtro "Pedidos | Orçamentos" da lista. Orçamentos: os abertos primeiro, do mais novo ao mais antigo (não
+ * há validade, RN-VEN-18); depois convertidos e cancelados, do mais novo ao mais antigo. Calcula a situação pelo relógio do
  * aparelho (funciona offline).
  */
 export function porTipo(pedidos: readonly PedidoDaLista[], tipo: 'pedido' | 'orcamento', agora: Date): PedidoDaLista[] {
   if (tipo === 'pedido') return pedidos.filter((p) => p.tipo !== 'orcamento');
   const abertos = (p: PedidoDaLista) => situacaoNaTela(p, agora) === 'aberto';
   const orcamentos = pedidos.filter((p) => p.tipo === 'orcamento');
-  const a = orcamentos.filter(abertos).sort((x, y) => (x.validade_ate ?? '').localeCompare(y.validade_ate ?? ''));
+  const a = orcamentos.filter(abertos).sort((x, y) => y.received_at.localeCompare(x.received_at));
   const b = orcamentos.filter((p) => !abertos(p)).sort((x, y) => y.received_at.localeCompare(x.received_at));
   return [...a, ...b];
 }

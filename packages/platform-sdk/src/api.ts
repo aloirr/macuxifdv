@@ -27,6 +27,7 @@ import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
 import type { ServicoEmail } from './email/porta';
+import type { ServicoPacotes } from './pacotes';
 import type { SuperficieRota } from './perfis';
 import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
 import { MODOS_SUPER_ADMIN, type AcessoPortalAutenticado, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
@@ -224,6 +225,12 @@ export interface ContextoBase {
    * adaptador: `disponivel() = false`); contexto falso de teste usa `criarServicoEmailMemoria()`.
    */
   email?: ServicoEmail;
+  /**
+   * T-0098 (ADR 0037): pacotes publicados para download por link temporário (hoje o instalador do Conector). A API sempre
+   * preenche nas rotas de módulo (sem S3: `disponivel() = false` e `linkDoUltimo` responde 503); contexto falso de teste usa
+   * `criarServicoPacotesMemoria()`. A rota decide quem pode pedir e audita; o link nunca vai para log.
+   */
+  pacotes?: ServicoPacotes;
 }
 
 /**

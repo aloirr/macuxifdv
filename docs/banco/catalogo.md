@@ -107,7 +107,7 @@ campos comuns, RLS forçado, `updated_at` por gatilho e FKs compostas só dentro
 
 ### Base de demo (0013)
 33 produtos (linha automotiva + detergente 5 L para a busca em linguagem natural: "óleo para moto 150 cilindradas" acha
-`OLE-4T-1L`), árvore de 3 níveis (Alimentos, Bebidas, Limpeza e higiene, Automotivo), conteúdo, atributos, 5 sinônimos,
+`OLE-4T-1L`), árvore de 3 e 4 níveis (raiz: Alimentos, Bebidas, Limpeza e higiene, Automotivo; T-0142), conteúdo, atributos, 5 sinônimos,
 documento de busca, 2 depósitos (CD Manaus, Loja Centro) com rupturas e saldos baixos, CX em 10 produtos, sempre a UN × fator. O preço próprio da CX (ligado na T-0071) foi **desligado na T-0089**
 (`PRECO_PROPRIO_CX_LIGADO = false`; RN-VEN-15, redação de 2026-11-06): o seed não cria linha de `tabela_preco_item` com
 `unidade` não nula. Linhas antigas numa base já carregada não são apagadas pelo seed (a API e o APK novo as ignoram); o plano
@@ -208,8 +208,9 @@ com dados) e `db/testes/aparelho-sqlite.test.ts` (FTS v3 no aparelho).
   - `DSC-D01` Disco de freio dianteiro ventilado (R$ 159,90);
   - `FOL-G01` Filtro de óleo (R$ 28,90);
   - `AMR-T01` Amortecedor traseiro (R$ 219,90).
-- **Árvore:** Freios › Pastilhas › Dianteiras, Freios › Discos › Dianteiros, Filtros › Filtros de óleo › Linha leve e Suspensão ›
-  Amortecedores › Traseiros.
+- **Árvore:** Automotivo › Freios › Pastilhas › Dianteiras, Automotivo › Freios › Discos › Dianteiros, Automotivo › Filtros ›
+  Filtros de óleo › Linha leve e Automotivo › Suspensão › Amortecedores › Traseiros (T-0142: Freios, Filtros e Suspensão são
+  grupos de Automotivo, ao lado de Lubrificantes e fluidos e Peças e acessórios; a raiz tem só as 4 categorias).
 - **Aplicação** em 5 das 12 autopeças:
   - pastilha: "Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016";
   - filtro: "VW Gol G5/G6 1.0/1.6 2009–2016; VW Voyage 1.0/1.6 2009–2016";

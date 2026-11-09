@@ -8,7 +8,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { criarPermissoes, ErroHttpModulo, verificarAcao, verificarAcesso, type ContextoRota, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FichaProduto, FiltrosCatalogo, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, RespostaBusca } from '../contracts';
-import { RespostaExportacao } from '../contracts';
+import { RespostaExportacao, RespostaHierarquia } from '../contracts';
 import { AVISO_BUSCA_FALHOU, ErroTempoEsgotadoIa, type PortaInterpretacaoLlm } from '../domain/ia';
 import { MENSAGEM_IA_DESLIGADA, MENSAGEM_LIMITE_ATINGIDO } from '../domain/limite-ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../domain/preco';
@@ -595,6 +595,38 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'cb3401', mode: 'basica' } });
     expect(r.corpo.items[0]?.id).toBe(FEI);
     expect(r.corpo.items[0]?.equivale_a).toMatchObject({ marca_nome: 'Freiomax', codigo: 'CB 3401' });
+  });
+
+  it('RF-CAT-09: GET hierarquia abre pelo nível mais alto, conta só produtos ativos e leva "Sem classificação"; produtos?no= filtra pelo nível', async () => {
+    const { rota } = montar();
+    const no = (id: string, pai: string | null, nivel: number, nome: string, ordem: number) => ({ id: idDemo(`no:${id}`), pai_id: pai ? idDemo(`no:${pai}`) : null, nivel, codigo: id.toUpperCase(), nome, ordem, ativo: true });
+    const dados = memoria.estado(TENANT_A).dados;
+    dados.nos = [no('ali', null, 1, 'Alimentos', 1), no('mer', 'ali', 2, 'Mercearia', 1), no('aut', null, 1, 'Automotivo', 2)];
+    dados.vinculos = [
+      { produto_id: CAF, no_id: idDemo('no:mer') },
+      { produto_id: FEI, no_id: idDemo('no:mer') },
+      { produto_id: idDemo('produto:em-automotivo'), no_id: idDemo('no:aut') },
+    ];
+    const novo = (n: string) => ({ ...dados.produtos[0]!, id: idDemo(`produto:${n}`), sku: n.toUpperCase(), nome: n, ativo: true });
+    dados.produtos.push(novo('em-automotivo'), novo('sem-nivel'));
+    const ativos = dados.produtos.filter((p) => p.ativo).length;
+    const raiz = await chamar<RespostaHierarquia>(rota('GET', 'hierarquia'), usuario('vendedor'));
+    expect(raiz.status).toBe(200);
+    expect(RespostaHierarquia.safeParse(raiz.corpo).success).toBe(true);
+    expect(raiz.corpo).toMatchObject({ tipo: 'niveis', rotulo_plural: 'Sistemas', raiz_tocavel: false, trilha: [], total_produtos: ativos });
+    // valor × regra: Alimentos = 2, Automotivo = 1 e o resto cai em "Sem classificação"; a soma bate com o total
+    expect(raiz.corpo.niveis.map((n) => [n.nome, n.total])).toEqual([['Alimentos', 2], ['Automotivo', 1], ['Sem classificação', ativos - 3]]);
+    expect(raiz.corpo.niveis.reduce((t, n) => t + n.total, 0)).toBe(ativos);
+    // Alimentos tem um grupo só (Mercearia): pula direto para os produtos dele
+    const ali = await chamar<RespostaHierarquia>(rota('GET', 'hierarquia'), usuario('vendedor'), { query: { no: idDemo('no:ali') } });
+    expect(ali.corpo).toMatchObject({ tipo: 'produtos', no: idDemo('no:mer'), total_produtos: 2 });
+    // a lista do BKO/app por nível: só os produtos do nível
+    const lista = await chamar<PaginaVitrine>(rota('GET', 'produtos'), usuario('vendedor'), { query: { no: idDemo('no:ali') } });
+    expect(lista.corpo.items.map((i) => i.id).sort()).toEqual([CAF, FEI].sort());
+    // tenant sem hierarquia: lista de produtos
+    const b = await chamar<RespostaHierarquia>(rota('GET', 'hierarquia'), usuario('vendedor', { tenant_id: TENANT_B }));
+    expect(b.corpo).toMatchObject({ tipo: 'produtos', sem_hierarquia: true });
+    expect((await chamar(rota('GET', 'hierarquia'), usuario('vendedor', { modulos: ['core'] }))).status).toBe(403);
   });
 
   it('RF-CAT-09: GET exportacao devolve produtos com aplicação, referências e oferece junto, e as marcas ativas; só analista e admin', async () => {

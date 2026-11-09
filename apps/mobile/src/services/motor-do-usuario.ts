@@ -52,7 +52,7 @@ export interface OpcoesMotorDoUsuario {
   usuarioId: string;
   /**
    * Armazenamento já aberto (T-0088: `abrirArmazenamentoDoUsuario`, SQLite do usuário e tenant ou o AsyncStorage de
-   * reserva), a MESMA instância do lease e da tarefa em segundo plano.
+   * reserva), a MESMA instância da tarefa em segundo plano.
    */
   armazenamento: ArmazenamentoSync;
   shell: Shell;

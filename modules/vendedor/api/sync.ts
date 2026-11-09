@@ -4,8 +4,8 @@
  *    vendedor/supervisor/gerente/analista...: `vendedor_id` ∈ `ctx.usuariosVisiveis()` (próprios, equipe, tenant);
  *    promotor (só leitura, `pedido.ver`): pedidos dos clientes da carteira (`ctx.carteira()`), nunca por vendedor.
  *  - `condicao_pagamento` (tenant) e `cliente_condicao` (carteira).
- * Janela: criado ≥ hoje − 90 dias OU status não final; orçamento (T-0071 §1.4 b): criado ≥ hoje − 90 dias OU aberto (não convertido,
- * não cancelado e com `orcamento_validade` ≥ hoje no fuso do tenant). O vencido antigo sai da janela. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
+ * Janela: criado ≥ hoje − 90 dias OU status não final; orçamento (T-0071 §1.4 b, T-0141): criado ≥ hoje − 90 dias OU aberto (não convertido
+ * e não cancelado). O orçamento não expira (RN-VEN-18): o aberto antigo continua na janela. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
 import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
@@ -95,7 +95,7 @@ export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5
      and ($6::uuid[] is null or p.cliente_id = any($6::uuid[]))
      and (p.created_at >= $1::timestamptz - make_interval(days => ${JANELA_DIAS})
           or (p.status <> all($7::text[])
-              and (p.tipo = 'pedido' or (p.convertido_em is null and p.orcamento_validade >= ($1::timestamptz at time zone $8)::date))))`;
+              and (p.tipo = 'pedido' or p.convertido_em is null)))`;
 
 function valores(pedido: PedidoPull, e: EscopoPedido, fuso: string): unknown[] {
   return [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, e.vendedores, e.clientes, [...ORDER_STATUSES_FINAIS], fuso];

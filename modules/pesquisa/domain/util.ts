@@ -14,17 +14,9 @@ export function percentual(parte: number, total: number, casas = 2): number | nu
   return arredondar((parte / total) * 100, casas);
 }
 
-/** Data civil `AAAA-MM-DD` válida (rejeita 2026-02-30). */
-export function ehDataCivil(s: unknown): s is string {
-  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T12:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
-}
-
-/** Soma `n` dias a uma data civil. */
-export function somarDias(data: string, n: number): string {
-  return new Date(Date.parse(`${data}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-}
+/** Data civil válida e soma de dias: fonte única em `@macuxi/comum` (RD-0042). */
+export { ehDataCivil } from '@macuxi/comum';
+export { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 
 /** Instante em milissegundos; erro em português para data inválida. */
 export function instanteMs(instante: string): number {

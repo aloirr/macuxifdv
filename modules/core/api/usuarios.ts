@@ -44,6 +44,7 @@ import {
   type EquipeLinha,
   type ErroDeCampo,
   type UsuarioAuditavel,
+  ERRO_SEM_PERFIL,
 } from '../domain';
 import { auditar } from './auditoria';
 import { codigosDoUsuario, conferirPerfisDoUsuario, gravarPerfisDoUsuario, perfisEscolhidos, principalDe, refsDoUsuario } from './usuario-perfis';
@@ -282,7 +283,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       const nome = c.nome.trim();
       const externalId = c.external_id?.trim() ?? null;
       const codigosPedidos = c.perfis ?? (c.perfil ? [c.perfil] : []);
-      if (codigosPedidos.length === 0) throw dadosInvalidos([{ campo: 'perfil', mensagem: 'Escolha pelo menos um perfil.' }]);
+      if (codigosPedidos.length === 0) throw dadosInvalidos([{ campo: 'perfil', mensagem: ERRO_SEM_PERFIL }]);
       const erros = validarDadosDeUsuario({ nome, email, perfil: c.perfil ?? 'vendedor', external_id: externalId });
       if (erros.length > 0) throw dadosInvalidos(erros);
       const fraca = validarSenhaInicial(c.senha, email);

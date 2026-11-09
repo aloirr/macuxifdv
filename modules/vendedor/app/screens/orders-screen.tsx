@@ -166,9 +166,9 @@ export default function OrdersScreen() {
   const numeroDoPedido = useCallback((id: string) => pedidoPorId.get(id)?.number ?? null, [pedidoPorId]);
   const insets = useSafeAreaInsets();
   const orcAbertos = useMemo(() => {
-    const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido), { agora: new Date(), fuso: tz, diasValidade }).map((p) => p.id));
+    const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido)).map((p) => p.id));
     return itens.filter((i) => ids.has(i.id));
-  }, [itens, tz, diasValidade]);
+  }, [itens]);
   // R1: com texto a busca procura em tudo (situação Todos); ao apagar o texto volta o chip escolhido antes
   const atual: Situacao = situacaoEfetiva<Situacao>(situacao ?? (gestao && itens.some((i) => paraDecidir.has(i.id)) ? 'decide' : 'todos'), buscando);
   // Y1: o chip ativo fica na linha mesmo com 0

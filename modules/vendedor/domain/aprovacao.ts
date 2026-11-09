@@ -290,12 +290,9 @@ const pctDe = (parte: number, base: number) => (base > 0 ? Math.round((parte * 1
  * (RN-VEN-02). A alçada olha SÓ o desconto efetivo do pedido (RN-VEN-03/10). Crédito fora da fatia (`credit: null`, P-6).
  */
 export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
-  if (e.perfil === 'promotor') {
-    return { ok: false, codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
-  }
-  if (recusaDePerfil(e.perfil, e.em_nome === true)) {
-    return { ok: false, codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não cria pedidos pelo aplicativo.' };
-  }
+  // RN-PRO-01 e perfil sem acesso: uma checagem só (promotor 403 primeiro)
+  const recusa = recusaDePerfil(e.perfil, e.em_nome === true);
+  if (recusa) return { ok: false, ...recusa };
   const acrescimoPedido = e.acrescimo_pct ?? 0;
   const descValor = e.desconto_valor_cents ?? 0;
   const acreValor = e.acrescimo_valor_cents ?? 0;

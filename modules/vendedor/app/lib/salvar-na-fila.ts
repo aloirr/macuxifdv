@@ -3,11 +3,17 @@
  * Funções puras, sem React: o que a tela mostra para o pedido `na_fila`, a recusa da API com o motivo em português e o
  * rascunho gravado por "Apenas salvar" como linha da lista Pedidos. Spec: docs/design/formulario-pendencias.md §4.
  */
+import { rascunhoExpirou } from '../../domain/rascunhos';
 import type { PedidoDaLista, Rascunho } from './pedidos';
 
 export const AVISO_SALVO_ENVIANDO = 'Pedido salvo · enviando';
 export const AVISO_SALVO_SEM_SINAL = 'Pedido salvo · vai quando houver sinal';
 export const ROTULO_CORRIGIR_PEDIDO = 'Corrigir pedido';
+
+/** RD-0038: a única montagem de "Não foi aceito: <motivo>" (faixa do detalhe, linha da lista). */
+export function textoNaoFoiAceito(motivo: string): string {
+  return `Não foi aceito: ${motivo}`;
+}
 export const ROTULO_SALVO = 'Salvo';
 
 /** Texto do aviso do rodapé depois do toque em "Salvar e enviar pedido" (sem ponto final, guia de UX). */
@@ -30,17 +36,34 @@ export function motivoDaRecusa(bruto: string): string {
     case 'estoque_insuficiente':
       return `estoque de ${item} não atende a quantidade`;
     default:
-      return 'o Macuxi recusou o pedido. Fale com seu supervisor';
+      return motivoLegivel(t) ?? MOTIVO_GENERICO;
   }
 }
 
-/** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa. */
+const MOTIVO_GENERICO = 'o Macuxi recusou o pedido. Fale com seu supervisor';
+
+/**
+ * RN-VEN-40: a API devolve `mensagem` já em português (ex.: "Desconto acima do máximo do produto: VEL-150. Reduza o desconto do
+ * item."). Mostra essa frase, sem o código de regra "(RN-...)" e sem o ponto final; texto técnico (código sem espaço, erro de
+ * rede, HTTP) cai no genérico.
+ */
+function motivoLegivel(t: string): string | null {
+  if (!t || !/\s/.test(t)) return null;
+  if (/^(HTTP\s*\d|\w*Error\b|Network request failed|Failed to fetch)/i.test(t)) return null;
+  const limpo = t
+    .replace(/^RN-[A-Z]+-\d+:\s*/, '')
+    .replace(/\s*\(RN-[A-Z]+-\d+\)/g, '')
+    .replace(/[.\s]+$/, '')
+    .trim();
+  return limpo.length >= 4 ? limpo : null;
+}
+
+/** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa (código ou a frase da API). */
 export function abaDaCorrecao(bruto: string): 'itens' | 'resumo' {
-  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente/.test(bruto ?? '') ? 'itens' : 'resumo';
+  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente|acima do máximo do produto|Sem preço para|produto inativo|Quantidade inválida|Medida inválida|Desconto em R\$ acima|^Item [^:]+:/i.test(bruto ?? '') ? 'itens' : 'resumo';
 }
 
 export interface EstadoNaFila {
-  chip: { texto: string; tom: 'neutro' | 'erro' };
   faixa: { texto: string; tom: 'warning' | 'danger'; icone: 'sync' | 'wifiOff' | 'alert' };
   /** pedido `na_fila` é só de leitura; só o recusado reabre para correção */
   somenteLeitura: boolean;
@@ -53,15 +76,13 @@ export function estadoNaFila(e: { recusado: boolean; offline: boolean; motivoBru
     const motivo = motivoDaRecusa(e.motivoBruto ?? '');
     const conhecido = motivo !== motivoDaRecusa('');
     return {
-      chip: { texto: 'Não aceito', tom: 'erro' },
-      faixa: { texto: conhecido ? `Não foi aceito: ${motivo}. Corrija e salve de novo.` : `Não foi aceito: ${motivo}`, tom: 'danger', icone: 'alert' },
+      faixa: { texto: conhecido ? `${textoNaoFoiAceito(motivo)}. Corrija e salve de novo.` : textoNaoFoiAceito(motivo), tom: 'danger', icone: 'alert' },
       somenteLeitura: false,
       podeCorrigir: true,
       podeEnviarAgora: false,
     };
   }
   return {
-    chip: { texto: 'Na fila', tom: 'neutro' },
     faixa: { texto: avisoDoSalvar(e.offline), tom: 'warning', icone: e.offline ? 'wifiOff' : 'sync' },
     somenteLeitura: true,
     podeCorrigir: false,
@@ -83,8 +104,11 @@ export function rascunhosSalvosComoPedidos(
   nomeDoCliente: (customerId: string) => string,
   /** v1.0.1: total do rascunho em centavos pelo catálogo do aparelho; `null`/ausente = sem tabela para calcular */
   totalDoRascunho?: (r: Rascunho) => number | null,
+  /** RN-VEN-39: com o relógio, o rascunho de mais de 24 h desde a última alteração não aparece */
+  agora?: Date,
 ): PedidoDaLista[] {
   return Object.entries(rascunhos)
+    .filter(([, r]) => !agora || !rascunhoExpirou(r, agora))
     .filter(([chave, r]) => !chave.startsWith('edit:') && Boolean(r.salvo_em) && Object.values(r.lines).some((q) => q > 0) && !r.edit_order_id)
     .map(([, r]): PedidoDaLista => {
       const quando = r.salvo_em ?? r.updated_at;

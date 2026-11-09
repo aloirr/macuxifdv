@@ -287,7 +287,7 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   (`cadastro_incompleto`, falta `cep`: pedido dele só como orçamento, RN-VEN-13); pedidos com o CNPJ no retrato (o
   `000010` abre no BKO), frete (FOB com transportadora em 4 clientes, CIF no resto; sem valor de frete, R-20261102-105040) e endereço de entrega
   principal; custo com margem de 20% a 40%, desconto máximo próprio em `OLE-4T-1L` 25%, `VEL-150` 5% e `DET-5L` 10%
-  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (CX = UN × fator; o preço próprio da CX ligado na T-0071 foi desligado na T-0089, RN-VEN-15); árvore do catálogo de 3 níveis; conteúdo, atributos,
+  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (CX = UN × fator; o preço próprio da CX ligado na T-0071 foi desligado na T-0089, RN-VEN-15); árvore do catálogo de 3 e 4 níveis (raiz com 4 categorias; Freios, Filtros e Suspensão em Automotivo, T-0142); conteúdo, atributos,
   sinônimos e documento de busca ("óleo para moto 150 cilindradas" acha `OLE-4T-1L`); 2 depósitos com rupturas e
   saldos baixos; 2 transportadoras; endereço de entrega extra em 5 clientes.
 - **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título

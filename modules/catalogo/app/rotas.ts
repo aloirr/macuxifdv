@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 
 export const CAMINHO_CATALOGO = 'catalogo';
 export const CAMINHO_PRODUTO = 'produto';
-export const CAMINHO_LISTA_LINHA = 'lista-por-linha';
 
 const rota = (caminho: string, params: Record<string, string | null | undefined> = {}) => {
   const qs = Object.entries(params)
@@ -23,7 +22,3 @@ export const hrefProduto = (produtoId: string, clienteId?: string | null) => rot
 
 export const irParaCatalogo = (clienteId?: string | null, opcoes: { dentroDoPedido?: boolean; noId?: string | null } = {}) => router.push(hrefCatalogo(clienteId, opcoes) as never);
 export const irParaProduto = (produtoId: string, clienteId?: string | null) => router.push(hrefProduto(produtoId, clienteId) as never);
-
-/** T-0085 (RF-CAT-09): lista por linha (sistema › grupo › linha). `noId` abre direto num nível; `cliente` define o preço (RN-CAT-06). */
-export const hrefListaPorLinha = (clienteId?: string | null, noId?: string | null) => rota(CAMINHO_LISTA_LINHA, { cliente: clienteId, no: noId });
-export const irParaListaPorLinha = (clienteId?: string | null, noId?: string | null) => router.push(hrefListaPorLinha(clienteId, noId) as never);

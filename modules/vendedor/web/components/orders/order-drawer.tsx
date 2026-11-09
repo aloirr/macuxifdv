@@ -42,9 +42,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      const html = buildOrderPdfHtml(pdfDoPedido(dados), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
+      const pdf = pdfDoPedido(dados);
+      const html = buildOrderPdfHtml(pdf, view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
       // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
-      await imprimirHtml(html, orderPdfFileName(dados.number || null, view, dados.tipo).replace(/\.pdf$/, ''));
+      await imprimirHtml(html, orderPdfFileName(pdf.number, pdf.created_at, tz, pdf.tipo).replace(/\.pdf$/, ''));
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
@@ -53,10 +54,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   };
 
   const aprovacao = dados?.aprovacao ?? null;
-  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Vencido · Cancelado (calculados); o pedido, o status de cada evento
+  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Cancelado (o orçamento não vence); o pedido, o status de cada evento
   const eventos = dados
     ? dados.tipo === 'orcamento'
-      ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, validadeAte: dados.validade_ate ?? null, convertidoEm: dados.updated_at, numeroPedido: null })
+      ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, convertidoEm: dados.updated_at, numeroPedido: null })
       : eventosDoPedido(dados.history, { vendedorNome: dados.seller_name, motivoDoFechamento: dados.rejection_reason })
     : [];
   // T-0054: coluna "Faturado" só quando o retorno do ERP trouxe quantidades

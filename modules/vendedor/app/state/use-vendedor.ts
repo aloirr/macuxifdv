@@ -20,7 +20,9 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
+import { precoDoOrcamentoVale } from '../../domain/orcamento';
+import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
@@ -72,6 +74,7 @@ import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
 const LOTE_PRECOS = 500;
+const MSG_APP_CARREGANDO = 'Aplicativo ainda carregando. Aguarde um instante e tente de novo.';
 
 /** `id` do documento na fila (T-0071, V8): a tela abre o detalhe dele em vez de ficar no editor */
 export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string; id?: string };
@@ -107,7 +110,11 @@ export function useVendedor() {
     const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
     // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
     // (se a geração mudou durante a leitura ou há gravação em andamento, valem os da memória)
-    const novos = { ...lidos, rascunhos: rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current }) };
+    const lidosOuMemoria = rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current });
+    // RN-VEN-39: o rascunho some 24 h depois da última alteração (limpeza ao abrir e a cada leitura)
+    const limpeza = limparRascunhosExpirados(lidosOuMemoria, new Date());
+    const novos = { ...lidos, rascunhos: limpeza.mantidos };
+    for (const chave of limpeza.removidos) void repo.limparRascunho(chave);
     dadosRef.current = novos;
     linhasRef.current = ls;
     setDadosRepo(novos);
@@ -186,7 +193,7 @@ export function useVendedor() {
         return null;
       }
     };
-    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '', totalDoRascunho).map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
+    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '', totalDoRascunho, new Date()).map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
     return v1 ? [...salvos, ...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : [...salvos, ...todos];
   }, [dados.pedidos, dados.rascunhos, dados.clientes, fila, aceitos, vendedor, v1]);
 
@@ -435,7 +442,7 @@ export function useVendedor() {
   /** Salva o pedido: grava na fila (persistida) e devolve na hora; o envio segue em segundo plano (T-0130). */
   const enviarPedido = useCallback(
     async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo);
       const id = ambiente.novoId();
       const agora = new Date().toISOString();
@@ -457,7 +464,7 @@ export function useVendedor() {
   /** Duplicar (`duplicate`) ou editar (`edit`, só o que está na fila — P-2): rascunho com o mesmo cliente/itens e os preços de hoje. */
   const prepararRascunhoDoPedido = useCallback(
     async (orderId: string, modo: 'duplicate' | 'edit'): Promise<{ customerId: string; chave: string }> => {
-      if (!repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!repo) throw new Error(MSG_APP_CARREGANDO);
       const d = dadosRef.current;
       const det = detalhe(orderId);
       const src = fonteDoPedido(orderId, filaRef.current, det ? { [orderId]: det } : d.detalhes);
@@ -507,7 +514,7 @@ export function useVendedor() {
   /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
   const salvarEdicao = useCallback(
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId);
       const itens = linhasParaPush(v.calculo.linhas);
       const chave = draftKeyFor(cliente.id, orderId);
@@ -573,7 +580,7 @@ export function useVendedor() {
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
   const excluirPedido = useCallback(
     async (orderId: string, motivo: string): Promise<ResultadoAlteracao> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
       if (naFila) {
         await motor.descartar(orderId);
@@ -639,7 +646,7 @@ export function useVendedor() {
    */
   const converterOrcamento = useCallback(
     async (orcamentoId: string): Promise<ResultadoEnvio> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
       if (!d || d.items.length === 0) throw new Error('Itens do orçamento ainda não sincronizados. Sincronize e tente de novo.');
       const linha = linhasRef.current.pedidos.find((x) => x.id === orcamentoId);
@@ -688,8 +695,12 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
+        // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
+        preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });
-      return { mudancas: r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto')), bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents };
+      const frases = r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto'));
+      const total = textoDaDiferencaTotal(r);
+      return { mudancas: total ? [...frases, total] : frases, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents };
     },
     [perfil, clientes, garantirProdutos],
   );

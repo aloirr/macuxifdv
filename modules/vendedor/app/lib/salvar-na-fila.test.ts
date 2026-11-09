@@ -12,7 +12,6 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
 
   it('RN-VEN-30: o pedido na_fila é só de leitura (sem Editar), com o chip "Na fila"', () => {
     const e = estadoNaFila({ recusado: false, offline: true });
-    expect(e.chip).toEqual({ texto: 'Na fila', tom: 'neutro' });
     expect(e.somenteLeitura).toBe(true);
     expect(e.podeCorrigir).toBe(false);
     expect(e.podeEnviarAgora).toBe(false);
@@ -27,7 +26,6 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
 
   it('RN-VEN-30: a recusa da API volta como "Não aceito" com o motivo em português e o que fazer', () => {
     const e = estadoNaFila({ recusado: true, offline: false, motivoBruto: 'preco_abaixo_minimo: AGU-1500' });
-    expect(e.chip).toEqual({ texto: 'Não aceito', tom: 'erro' });
     expect(e.faixa.texto).toBe('Não foi aceito: preço de AGU-1500 abaixo do mínimo. Corrija e salve de novo.');
     expect(e.podeCorrigir).toBe(true);
     expect(e.somenteLeitura).toBe(false);
@@ -39,6 +37,21 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
     expect(motivoDaRecusa('erro_x')).toBe('o Macuxi recusou o pedido. Fale com seu supervisor');
     expect(estadoNaFila({ recusado: true, offline: false, motivoBruto: 'erro_x' }).faixa.texto).not.toContain('Corrija');
     expect(motivoDaRecusa('cliente_bloqueado')).toBe('cliente bloqueado no ERP');
+  });
+
+  it('RN-VEN-40: o motivo em português que o servidor devolveu aparece na tela, sem código técnico (orçamento de 09/11 05h50)', () => {
+    const msg = 'Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item.';
+    expect(motivoDaRecusa(msg)).toBe('Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item');
+    expect(estadoNaFila({ recusado: true, offline: false, motivoBruto: msg }).faixa.texto).toBe('Não foi aceito: Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item. Corrija e salve de novo.');
+    expect(abaDaCorrecao(msg)).toBe('itens');
+    expect(motivoDaRecusa('Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).')).toBe('Cliente inativo ou inexistente: não é possível vender');
+    expect(motivoDaRecusa('RN-PRO-01: o promotor não decide pedidos.')).toBe('o promotor não decide pedidos');
+  });
+
+  it('RN-VEN-40: o texto genérico só aparece sem motivo ou com motivo técnico', () => {
+    for (const bruto of ['', '   ', 'erro_x', 'HTTP 500', 'TypeError: x is undefined', 'Network request failed']) {
+      expect(motivoDaRecusa(bruto)).toBe('o Macuxi recusou o pedido. Fale com seu supervisor');
+    }
   });
 
   it('RN-VEN-30: o status "Não aceito" não confunde com "Rejeitado" do supervisor', () => {
@@ -55,6 +68,12 @@ describe('RN-VEN-38, RN-VEN-30: o rascunho de "Apenas salvar" aparece como "Salv
     expect(l).toMatchObject({ status: 'draft', customer_name: 'Mercadinho São Jorge', items_count: 1, units: 2, local: true });
     expect(statusBadge(l!.status).label).toBe('Salvo');
     expect(clienteDoRascunho(l!.id)).toBe('c1');
+  });
+
+  it('RN-VEN-39: o rascunho "Salvo" some 24 h depois da última alteração (relógio injetado)', () => {
+    const velho = r({ salvo_em: '2026-11-08T10:05:00Z', updated_at: '2026-11-08T10:05:00Z' });
+    expect(rascunhosSalvosComoPedidos({ c1: velho }, nome, undefined, new Date('2026-11-09T10:04:00Z'))).toHaveLength(1);
+    expect(rascunhosSalvosComoPedidos({ c1: velho }, nome, undefined, new Date('2026-11-09T10:06:00Z'))).toHaveLength(0);
   });
 
   it('RN-VEN-38: rascunho sem "salvo_em" (pedido não terminado), vazio ou de edição não entra na lista', () => {

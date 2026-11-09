@@ -18,3 +18,5 @@
 2026-11-08 — T-0056/T-0010/T-0071/T-0085/T-0113 — recados antigos encerrados: preço da Loja sem defeito (teste novo 10,90 -> R$ 10,90), sync-cadastros.db.test isolado e corrigido p/ ADR 0034, link de marcas só com marca.gerenciar (teste), 🟡 3 registrado
 2026-11-08 — T-0056/T-0010/T-0071/T-0085/T-0113 — recados antigos encerrados: preço da Loja sem defeito (teste 10,90 -> R$ 10,90), sync-cadastros.db.test isolado e corrigido p/ ADR 0034, link de marcas só com marca.gerenciar (teste), 🟡 3 registrado
 2026-11-08 — CI lote 01 — typecheck de sync-cadastros.db.test.ts corrigido (Set<string> nos ids fotografados)
+2026-11-09 — T-0113 — RD-0025: removidos validarConcorrente, ConcorrenteEdicao e case 'concorrente' (escrita/CSV) com testes órfãos; tipos de escrita em CadastroGravavel
+2026-11-09 — T-0140 — RD-0025 (ramo 'concorrente' morto fora de cadastros-page/cadastros), RD-0042 (ehDataCivil vem do @macuxi/comum), RD-0044 (csvCelula protege fórmula via @macuxi/comum/csv); RD-0045 sem fonte única no comum, mantido local

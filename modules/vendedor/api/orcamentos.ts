@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
-import { acoesDoOrcamento, conteudoDoEnvio, situacaoDoOrcamento } from '../domain';
+import { acoesDoOrcamento, conteudoDoEnvio, precoDoOrcamentoVale, situacaoDoOrcamento } from '../domain';
 import { calcularDocumento } from './receber';
 import { valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
@@ -89,7 +89,10 @@ export const rotaEditarOrcamento: RotaModulo = {
         throw new ErroHttpModulo(409, 'ORCAMENTO_ALTERADO', 'Este orçamento foi alterado em outro aparelho. Abra de novo para ver a versão atual.');
       }
 
-      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, { data: doc.validade_data, ate: doc.validade_ate }, await precosCongeladosDoDocumento(db, id));
+      // T-0141 (RN-VEN-18): dentro dos 7 dias o item salvo mantém o preço e a validade do preço segue a original; depois, a edição
+      // reprecifica pela tabela do dia e renova a data do preço (o orçamento em si nunca vence)
+      const precoVale = precoDoOrcamentoVale(doc.validade_ate, ctx.agora());
+      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, precoVale ? { data: doc.validade_data, ate: doc.validade_ate } : undefined, precoVale ? await precosCongeladosDoDocumento(db, id) : undefined);
       if ('status' in calc) {
         const codigo = calc.status === 'rejeitado' ? calc.codigo : 'PAYLOAD_INVALIDO';
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';

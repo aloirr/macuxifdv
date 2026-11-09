@@ -137,3 +137,29 @@ export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
   const a = (apoio ?? '').replace(/\s*›\s*/g, ', ').trim();
   return a ? `${r}. ${a}` : r;
 }
+
+/** Valor sem dado na `TabelaValores` (T-0141, crédito do cliente): travessão, nunca um "R$ 0,00" falso. */
+export const VALOR_SEM_DADO = '—';
+
+/** Vazio ou travessão: a `TabelaValores` desenha em `ink3` e o leitor de tela lê "sem dado". */
+export function ehSemDado(valor: string | null | undefined): boolean {
+  const v = (valor ?? '').trim();
+  return v === '' || v === VALOR_SEM_DADO;
+}
+
+/** Leitura de uma linha da `TabelaValores`: "Limite: R$ 20.000,00"; sem dado: "Limite: sem dado". */
+export function leituraDaLinhaDeValor(rotulo: string, valor: string | null | undefined): string {
+  return `${rotulo.trim()}: ${ehSemDado(valor) ? 'sem dado' : (valor ?? '').trim()}`;
+}
+
+/** Contagem da `ListaNiveis` (T-0142): inteiro com ponto no milhar ("1.240"); negativo ou inválido vira "0". */
+export function textoDaContagem(n: number): string {
+  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Leitura de uma linha da `ListaNiveis`: "Alimentos, 16 produtos" / "Freios, 1 produto". */
+export function leituraDoNivel(nome: string, contagem: number, singular = 'produto', plural = 'produtos'): string {
+  const n = Number.isFinite(contagem) && contagem > 0 ? Math.floor(contagem) : 0;
+  return `${nome.trim()}, ${textoDaContagem(n)} ${n === 1 ? singular : plural}`;
+}

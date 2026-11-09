@@ -14,11 +14,14 @@
  * conexões, padrão 2) só para a sessão do super-admin; conferido na subida (`criarBancoPortal().verificar`). Sem a senha, a API
  * sobe com aviso, o portal responde 503 `PORTAL_INDISPONIVEL` e os tenants seguem normais. Na VM a senha vem do `portal.env`
  * (só o contêiner `api` e o passo de papéis do `banco` recebem; o worker nunca).
+ * T-0098 (ADR 0037): com S3, o link temporário do instalador do Conector sai do mesmo bucket, em `MACUXI_PACOTES_PREFIXO`
+ * (padrão `pacotes/`), válido por `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s); sem S3, a rota do download responde 503.
  */
 import { lerConfigApp, urlApp, urlPortal } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
+import { lerPacotesDoAmbiente } from './pacotes';
 import { criarBancoApp, criarBancoPortal, POOL_PORTAL_PADRAO } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
 import { criarServicoEmailDaConfig, lerConfigEmail, type ConfigEmail } from './email';
@@ -31,8 +34,10 @@ if (!segredoJwt.ok && segredoJwt.fatal) {
   process.exit(1);
 }
 let arquivos: ReturnType<typeof lerArmazenamentoDoAmbiente>;
+let pacotes: ReturnType<typeof lerPacotesDoAmbiente>;
 try {
   arquivos = lerArmazenamentoDoAmbiente(process.env);
+  pacotes = lerPacotesDoAmbiente(process.env); // T-0098: variáveis conferidas na subida (falha fechada)
 } catch (e) {
   console.error(`[api] ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
@@ -66,6 +71,7 @@ const app = createApp({
   bancoPortal: poolPortal ? criarBancoPortal(poolPortal) : null,
   arquivos: arquivos.armazenamento,
   email: (log) => criarServicoEmailDaConfig(configEmail, log),
+  pacotes: (log) => pacotes.criar(log),
   trustProxy: lerTrustProxy(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),
@@ -73,7 +79,7 @@ const app = createApp({
 
 if (!segredoJwt.ok) app.log.warn(segredoJwt.mensagem);
 if (!poolPortal) app.log.warn('MACUXI_PG_PORTAL_SENHA não definida: o portal de implantação responde 503; os tenants seguem normais (T-0091).');
-app.log.info({ armazenamento: arquivos.descricao }, 'armazenamento de arquivos');
+app.log.info({ armazenamento: arquivos.descricao, pacotes: pacotes.descricao }, 'armazenamento de arquivos');
 
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';

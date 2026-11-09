@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validarDesativacao, validarAlvo, validarCategoria, validarChecklist, validarConcorrente, validarMetaShare, validarPrecoCents, validarProdutoConcorrente, validarVigencia } from './cadastros';
+import { validarDesativacao, validarAlvo, validarCategoria, validarChecklist, validarMetaShare, validarPrecoCents, validarProdutoConcorrente, validarVigencia } from './cadastros';
 
 const ID1 = '00000000-0000-4000-8000-000000000001';
 const ID2 = '00000000-0000-4000-8000-000000000002';
@@ -36,11 +36,10 @@ describe('validarChecklist', () => {
 });
 
 describe('nomes e preço', () => {
-  it('categoria, concorrente e produto do concorrente exigem nome', () => {
+  it('categoria e produto do concorrente exigem nome', () => {
     expect(validarCategoria({ nome: ' ', ordem: 0 })[0]).toMatch(/nome/i);
     expect(validarCategoria({ nome: 'Massas', ordem: 1.5 })[0]).toMatch(/ordem/i);
     expect(validarCategoria({ nome: 'Massas', ordem: 1 })).toEqual([]);
-    expect(validarConcorrente({ nome: '' })[0]).toMatch(/nome/i);
     expect(validarProdutoConcorrente({ nome: 'Macarrão 500 g' })).toEqual([]);
     expect(validarProdutoConcorrente({ nome: 'x'.repeat(201) })[0]).toMatch(/200/);
   });

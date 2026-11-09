@@ -122,3 +122,7 @@
 2026-11-09 — T-0120/T-0115 — core.cadastro_resumo@1 aceita cliente_external_ids; canal do cliente (domain canal-cliente, pull, consumidor do ERP, cadastro_resumo.clientes[].canal); comentário de meta-do-dia alinhado; recados T-0140 encerrados
 2026-11-09 — T-0122 (R-20261108-220117) — tenantParaExibicao lê nome/fuso de plataforma.tenant_da_sessao() via comTenant (0052); assinatura ganha tenantId; typecheck e testes de login verdes
 2026-11-09 — T-0121 — N2: push do Expo via ctx.aposConfirmar em consumidores.ts; naJanela (janelas-sync.ts) nas entidades com janela; testes unitários; resposta ao banco-dados (tenant_da_sessao) encerrada
+2026-11-09 — URGENTE CI lote 02 — causa do 500 no checkout achada fora do Core (publico.canais ausente em Pesquisa, publico.ts:58); pedido ao modulo-pesquisa; nenhum arquivo alterado
+2026-11-09 — RD-0035/0013/0019/0020/0017/0014 — necessidadeDiaria do contrato em meta-do-dia, VisaoInicio sem recado/notificacoes, acaoDoErroDaTroca única, ehEmail do comum, ERRO_SEM_PERFIL único, rotuloDoPerfil no Plano de RV
+2026-11-09 — T-0140 (lote 03) — RD-0020/0032/0042: ehEmail único no erp-mapeamento, linkInternoNavegavel do SDK na central de notificações, somarDiasCivis do @macuxi/comum em agenda e cliente360-local; RD-0019 já entregue (acaoDoErroDaTroca nos contracts)
+2026-11-09 — T-0140 — RN-CORE-32: textoDoErroDaSenha (contracts/ciclo-senha.ts) usada no app; RD-0042 (rotas.ts), RD-0032 (teste), RD-0044 (protegerFormula) fechados; RD-0046 (uuid) fica para combinar o novoId com engenheiro-apps

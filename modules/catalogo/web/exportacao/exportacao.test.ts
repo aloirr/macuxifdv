@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { csvDoCatalogo, protegerFormula } from './excel';
 import { DADOS_EXEMPLO } from './exemplo';
 import { DadosExportacao, ProdutoExportacao, type DadosExportacao as Dados } from './formato';
-import { COLUNAS, montarCatalogo, sistemasDisponiveis, sumario } from './layout';
+import { caminhoDoProduto, COLUNAS, escopoDoNivel, montarCatalogo, rotuloDoEscopo, sistemasDisponiveis, sumario } from './layout';
 import { htmlDoCatalogo, nomeArquivoCatalogo } from './pdf';
 import { podeExportarCatalogo } from './permissao';
 
@@ -81,7 +81,7 @@ describe('RF-CAT-09: PDF', () => {
   it('RF-CAT-09: data e hora no fuso do tenant a partir de UTC', () => {
     expect(html).toContain('06/11/2026 22:30');
     expect(nomeArquivoCatalogo({ tz: opc.tz, gerado_em: opc.gerado_em })).toBe('catalogo-completo-2026-11-06');
-    expect(nomeArquivoCatalogo({ sistema: 'Elétrico Pesado', tz: 'UTC', gerado_em: opc.gerado_em })).toBe('catalogo-eletrico-pesado-2026-11-07');
+    expect(nomeArquivoCatalogo({ escopo: 'Elétrico Pesado', tz: 'UTC', gerado_em: opc.gerado_em })).toBe('catalogo-eletrico-pesado-2026-11-07');
   });
 });
 
@@ -134,5 +134,31 @@ describe('RN-CAT-09: contrato da rota (RespostaExportacao)', () => {
   it('rejeita código de referência com 31 caracteres e aceita 30', () => {
     expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', marca_nome: null, codigo: 'a'.repeat(31) }] }).success).toBe(false);
     expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', marca_nome: null, codigo: 'a'.repeat(30) }] }).success).toBe(true);
+  });
+});
+
+describe('RF-CAT-09: exportação segue o nível aberto e a busca mostra o caminho', () => {
+  it('RF-CAT-09: na raiz exporta o catálogo inteiro; com sistema, grupo ou linha aberto, só esse recorte', () => {
+    expect(escopoDoNivel(undefined)).toEqual({});
+    expect(escopoDoNivel({ trilha: [], no: null })).toEqual({});
+    expect(montarCatalogo(DADOS_EXEMPLO, escopoDoNivel({ trilha: [], no: null }))).toHaveLength(3);
+    const sistema = escopoDoNivel({ trilha: [{ nome: 'Freios' }], no: 'x' });
+    expect(montarCatalogo(DADOS_EXEMPLO, sistema).map((s) => s.sistema)).toEqual(['Freios']);
+    const linha = escopoDoNivel({ trilha: [{ nome: 'Freios' }, { nome: 'Discos' }, { nome: 'Linha Leve' }], no: 'y' });
+    expect(linha).toEqual({ sistema: 'Freios', grupo: 'Discos', linha: 'Linha Leve' });
+    expect(montarCatalogo(DADOS_EXEMPLO, linha)[0]?.itens.map((i) => i.codigo)).toEqual(['AB 1000', 'CB 3401']);
+    expect(montarCatalogo(DADOS_EXEMPLO, { sistema: 'Freios', grupo: 'Outro' })).toEqual([]);
+    expect(rotuloDoEscopo(linha)).toBe('Freios › Discos › Linha Leve');
+    expect(rotuloDoEscopo({})).toBeNull();
+  });
+  it('RF-CAT-09: "Sem classificação" exporta os produtos sem sistema', () => {
+    const c = montarCatalogo(DADOS_EXEMPLO, escopoDoNivel({ trilha: [], no: 'sem-linha' }));
+    expect(c.map((s) => s.sistema)).toEqual(['Sem sistema']);
+  });
+  it('RF-CAT-09: a coluna Caminho da busca mostra Sistema › Grupo › Linha, só com o que existe', () => {
+    expect(caminhoDoProduto({ sistema: 'Freios', grupo: 'Discos', linha: 'Linha Leve' })).toBe('Freios › Discos › Linha Leve');
+    expect(caminhoDoProduto({ sistema: 'Freios', grupo: null, linha: ' ' })).toBe('Freios');
+    expect(caminhoDoProduto({ sistema: null, grupo: null, linha: null })).toBe('Sem classificação');
+    expect(caminhoDoProduto(undefined)).toBe('Sem classificação');
   });
 });

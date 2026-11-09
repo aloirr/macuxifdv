@@ -1,4 +1,4 @@
-/** RN-CAT-09 (marca da referência vem do cadastro de concorrentes do Promotor) e RN-CAT-11 (oferece junto por código). */
+/** RN-CAT-09 (marca da referência vem de Marcas concorrentes) e RN-CAT-11 (oferece junto por código). */
 import { describe, expect, it } from 'vitest';
 import { marcasDesconhecidasDaLinha, nomeMarcaDaReferencia, resolverCodigosOfereceJunto, resolverReferenciasDoErp, validarMarcasDaReferencia } from './marcas';
 

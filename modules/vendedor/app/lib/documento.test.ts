@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import { EditarOrcamentoRequest, PedidoPush, type OrderDetail } from '../../contracts';
-import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from './documento';
+import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from './documento';
 import { calcularPedido, linhasParaPush, reaisParaCents, centsParaCampo, trocarModoDoAjuste } from './novo-pedido';
 import { aplicarAjusteDoPedido, montarPedido, rascunhoVazio } from './pedidos';
 import { pedidoDaConversao, validadeCivilDoDocumento } from './pre-venda';
@@ -198,6 +198,21 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
     expect(r.mudancas.some((m) => m.tipo === 'preco')).toBe(false);
     expect(r.rascunho.itens.find((i) => i.product_id === CAFE)!.tabela_cents).toBe(1890);
     expect(textoDaMudanca({ tipo: 'abaixo_minimo', produto_id: CAFE, unidade: 'UN' }, nomes)).toBe('Café: o desconto passa do preço mínimo de hoje. Ajuste o desconto do item.');
+  });
+  it('RN-VEN-18 (09/11): com o preço vencido, Transformar usa a tabela do dia e mostra a diferença por item e no total', () => {
+    const r = reconferirDocumento({ ...entrada([P(AGUA, 149), P(CAFE, 1950), P(GAS, 11780)]), preco_vale: false });
+    const preco = r.mudancas.filter((m) => m.tipo === 'preco');
+    expect(preco).toEqual([{ tipo: 'preco', produto_id: CAFE, de_cents: 1890, para_cents: 1950 }]);
+    expect(r.rascunho.itens.find((i) => i.product_id === CAFE)!.tabela_cents).toBe(1950);
+    expect(textoDaMudanca(preco[0]!, nomes).replace(/\s/g, ' ')).toBe('Café: preço de R$ 18,90 para R$ 19,50.');
+    expect(r.diferenca_total_cents).toBeGreaterThan(0);
+    expect(r.calculo.totais.total_cents).toBe(r.total_orcado_cents + r.diferenca_total_cents);
+  });
+  it('RN-VEN-18: frase do total — sobe, desce ou fica igual', () => {
+    const f = (s: string | null) => (s ?? '').replace(/\s/g, ' ');
+    expect(f(textoDaDiferencaTotal({ total_orcado_cents: 10_000, diferenca_total_cents: 380 }))).toBe('Total: R$ 103,80 (era R$ 100,00), R$ 3,80 a mais.');
+    expect(f(textoDaDiferencaTotal({ total_orcado_cents: 10_000, diferenca_total_cents: -250 }))).toBe('Total: R$ 97,50 (era R$ 100,00), R$ 2,50 a menos.');
+    expect(textoDaDiferencaTotal({ total_orcado_cents: 10_000, diferenca_total_cents: 0 })).toBeNull();
   });
   it('RN-VEN-18 (T-0134): editar o orçamento — preços congelados vêm do detalhe salvo (tabela da medida ÷ fator)', () => {
     expect(precosCongeladosDoOrcamento({ items: [{ product_id: CAFE, unit_price_cents: 1890, factor: 1 }, { product_id: AGUA, unit_price_cents: 1788, factor: 12 }] } as never, undefined, [])).toEqual({ [CAFE]: 1890, [AGUA]: 149 });

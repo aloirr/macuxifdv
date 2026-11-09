@@ -77,7 +77,10 @@ describe('T-0140 E — último erro do app sem dado pessoal (regra 8; R-20261108
     const r = JSON.parse(disk) as ErroRegistrado;
     expect(r).toMatchObject({ origem: 'tela', onde: '/m/novo-pedido' });
     expect(r.mensagem).toContain('[e-mail]');
-    expect(r.mensagem).toContain('[número]');
+    // máscara única do @macuxi/comum (R-20261109-085340): CPF, CNPJ e telefone com marcador próprio
+    expect(r.mensagem).toContain('[cpf]');
+    expect(r.mensagem).toContain('[cnpj]');
+    expect(r.mensagem).toContain('[telefone]');
     expect(r.pilha).toContain('OrderEditor (index.android.bundle:1234:56)'); // a pilha útil fica
     // o console.warn leva só a origem e o tipo
     expect(avisos).toEqual([['[erro tela] TypeError']]);
@@ -175,8 +178,9 @@ describe('T-0140 E — último erro do app sem dado pessoal (regra 8; R-20261108
     expect(ler('apps/mobile/src/services/erros.ts').match(/console\.\w+\([^)]*\)/g)).toEqual(['console.warn(`[erro ${origem}] ${e instanceof Error ? e.name : typeof e}`)']);
   });
 
-  // Corrigido pelo engenheiro-apps (R-20261109-001858): `limparDadoPessoal` troca o telefone sem DDD (8 ou 9 dígitos,
-  // hífen opcional) por [número], sem pegar a pilha (bundle:linha:coluna), o UUID nem a data ISO.
+  // Corrigido pelo engenheiro-apps (R-20261109-001858); desde o R-20261109-085340 a máscara é a única do @macuxi/comum
+  // (`mascararDadoPessoal`): o telefone sem DDD (8 ou 9 dígitos, hífen opcional) vira [telefone], sem pegar a pilha
+  // (bundle:linha:coluna), o UUID nem a data ISO.
   it('E8. telefone SEM DDD (99123-4567, 3234-5678, 991234567) sai mascarado; pilha, UUID e data ficam', async () => {
     const uuid = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b';
     await gravarErro(
@@ -187,7 +191,7 @@ describe('T-0140 E — último erro do app sem dado pessoal (regra 8; R-20261108
     expect(texto).not.toContain('99123-4567');
     expect(texto).not.toContain('3234-5678');
     expect(texto).not.toContain('991234567');
-    expect(texto).toContain('[número]');
+    expect(texto).toContain('[telefone]');
     expect(texto).toContain('index.android.bundle:1234:56789');
     expect(texto).toContain(uuid);
     expect(texto).toContain('2026-11-09');

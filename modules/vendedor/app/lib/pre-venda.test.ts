@@ -19,10 +19,10 @@ describe('T-0053: pré-venda no app', () => {
     expect(preVendaAtiva({ 'orcamento.ativo': 'true' })).toBe(true);
   });
 
-  it('RN-VEN-32: offline, a situação sai da validade; pedido continua com o rótulo do status', () => {
+  it('RN-VEN-32: offline, o orçamento segue "Orçamento" a qualquer tempo (não vence, RN-VEN-18); pedido continua com o rótulo do status', () => {
     expect(situacaoNaTela(orc, depois(1))).toBe('aberto');
     expect(rotuloDoDocumento(orc, depois(1))).toBe('Orçamento');
-    expect(rotuloDoDocumento(orc, depois(8))).toBe('Vencido');
+    expect(rotuloDoDocumento(orc, depois(8))).toBe('Orçamento');
     expect(rotuloDoDocumento({ ...orc, convertido_pedido_id: 'x' }, depois(1))).toBe('Virou pedido');
     expect(situacaoNaTela({ status: 'approved' }, depois(1))).toBeNull();
     expect(rotuloDoDocumento({ status: 'integrated', tipo: 'pedido' }, depois(1))).toBe('Integrado');

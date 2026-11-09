@@ -206,6 +206,18 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   (⋮, ícone `mais`) com a ação destrutiva e confirmação (Voltar do diálogo volta à folha).
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
+### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
+- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor Archivo 700 17 tabular, linhas de 48 dp com traço);
+  sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
+  corrida para Limite, Disponível ou Prazo médio.
+- Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
+  "Orçamento · preço de 09/11" (roxo, não vence).
+
+### 4.8 Catálogo pela hierarquia (T-0142; spec `docs/design/catalogo-por-linha.md`)
+- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em Archivo negrito à direita
+  (`textoDaContagem`, "1.240"), seta; TalkBack `leituraDoNivel` ("Alimentos, 16 produtos").
+- `Trilha`: item com `desligado` = nível pulado (um item só), em `ink2` e sem toque.
+
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
   Android fecha. Use para filtros, quantidade, desconto, escolha entre 2–5 opções. Mesmas props da T-0071.
@@ -348,3 +360,6 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
 4. Chips com texto. 5. Tarefa principal em até 3 toques a partir do Início. 6. Estados vazio, erro, carregando e sem sinal desenhados.
 7. Textos da §7. 8. Sem animação própria fora dos tokens (ou com `useReduzirMovimento`).
 9. Voltar e abas pela §6.1: o voltar nunca sai do app no meio de uma pilha, e o rótulo do `BackLink` diz para onde ele leva.
+10. **Fiel à spec e com acabamento** (pedido do dono do produto, R-20261109-054659): a revisão compara o print do aparelho com a
+    imagem aprovada em `docs/design/telas/` (ordem, tamanhos, textos). Tela fora da spec ou com cara de rascunho (valores em
+    frase corrida, frase explicativa sobrando, alinhamento solto) é 🔴 e não passa.

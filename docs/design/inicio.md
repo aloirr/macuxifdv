@@ -95,7 +95,8 @@ O realizado de hoje sai do Início (está em Metas).
 | `dia_nao_util` | padrão | "Faltam R$ 179.447 · R$ 9.445 por dia útil (19 dias)" |
 | `do_mes` (cobertura como principal) | padrão | valor "62% de 90%" e nenhuma última linha |
 - **Dado antigo ou sem cópia de vendas: nada no cartão** (RD-0008). O aviso único fica no Sincronizar (§1.5).
-- Sem meta no mês: o cartão fica só com o rótulo e "Nenhuma meta cadastrada para este mês."
+- Sem meta no mês: o cartão fica só com o rótulo e "Nenhuma meta cadastrada." (RD-0040: o rótulo "META DO MÊS", logo acima, já diz
+  "meta" e "mês"; vale também para "META DO MÊS DA EQUIPE" na Gestão).
 
 ### 1.4 Orçamentos e A faturar (Vendedor, slot `inicio.cards`, id `pedidos-resumo`, `ordem: 20`) — RD-0010, RD-0011
 - **Um** `Cartao` com **2 linhas tocáveis** (mín. 48 dp cada, divisor `lineSoft`, `›` à direita), cada uma abre Pedidos já
@@ -168,7 +169,7 @@ Quarta, 4 de novembro · Bom dia / Boa tarde / Boa noite, {nome} · {n} visitas 
 Sem rota hoje · não é dia útil · Recados · {n} novos · Ver todos · Nenhum recado por enquanto. · Meta do mês ·
 Meta do mês da equipe · {pct}% · R$ {realizado} de R$ {meta} · Meta de hoje R$ {valor} · Faltam R$ {valor} ·
 R$ {valor} por dia útil ({n} dias) · Meta de hoje batida · Meta do mês batida · {x} de {y} clientes · {x} de {y} ·
-{x}% de {y}% · Nenhuma meta cadastrada para este mês. · Orçamentos · A faturar · nenhum · {n} · R$ {valor} ({n} vence(m) amanhã) ·
+{x}% de {y}% · Nenhuma meta cadastrada. · Orçamentos · A faturar · nenhum · {n} · R$ {valor} ({n} vence(m) amanhã) ·
 ({n} aguardando aprovação) · Pedidos para aprovar · Equipe agora · Sincronizar · Última sincronização {hh:mm} · {n} na fila ·
 Ainda não sincronizado · Atualizado há instantes · Dados de {dd/mm}, {h}h{mm} · Sincronize para ver as vendas · Sem sinal ·
 Desligue o modo sem sinal para sincronizar.

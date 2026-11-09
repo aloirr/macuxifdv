@@ -11,6 +11,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { ALTURA, BOTAO_DESABILITADO, colors, fonts, radius } from './theme';
@@ -96,6 +97,71 @@ export function LinhaValor({
       <Text style={[s.linhaValor, (forte || destaque) && s.linhaValorForte, destaque && s.linhaValorDestaque, { color: cor }]} numberOfLines={1} testID={testID ? `${testID}-valor` : undefined}>
         {valor}
       </Text>
+    </View>
+  );
+}
+
+// ---------- TabelaValores ----------
+export interface LinhaDaTabela {
+  id: string;
+  /** "Limite", "Disponível", "Prazo médio". */
+  rotulo: string;
+  /** Já formatado ("R$ 20.000,00", "45 dias"); sem dado: `VALOR_SEM_DADO` ("—"), desenhado em `ink3`. */
+  valor: string;
+  /** `erro`: disponível negativo (com o sinal "−" no texto); `sucesso`: queda de preço. */
+  tom?: 'erro' | 'sucesso';
+}
+
+/**
+ * Tabela rótulo ··· valor para consulta (T-0141; spec docs/design/pedido-v3.md §A): cartão branco, linhas de 48 dp com traço
+ * entre elas, rótulo 14 `ink2` à esquerda e valor em Archivo negrito 17, tabular, à direita. Uso: crédito do cliente na aba
+ * Venda (Limite, Disponível, Prazo médio) e os totais da folha "Preços de hoje". `carregando` troca os valores por barras
+ * cinza (nada de "R$ 0,00" falso); `rodape` é a linha de atualização abaixo do cartão. Sem texto fixo e sem cálculo.
+ */
+export function TabelaValores({
+  linhas,
+  carregando,
+  rodape,
+  testID = 'tabela-valores',
+}: {
+  linhas: readonly LinhaDaTabela[];
+  carregando?: boolean;
+  /** "Atualizado hoje às 05:38" com o ícone `sync` (sem sinal: `wifiOff`). */
+  rodape?: { icone?: IconName; texto: string } | null;
+  testID?: string;
+}) {
+  return (
+    <View style={s.tabelaBloco} testID={testID}>
+      <View style={s.tabela}>
+        {linhas.map((l, i) => {
+          const semDado = ehSemDado(l.valor);
+          const cor = l.tom === 'erro' ? colors.danger : l.tom === 'sucesso' ? colors.success : semDado ? colors.ink3 : colors.ink;
+          return (
+            <View
+              key={l.id}
+              style={[s.tabelaLinha, i > 0 && s.tabelaLinhaTraco]}
+              accessible
+              accessibilityLabel={carregando ? l.rotulo : leituraDaLinhaDeValor(l.rotulo, l.valor)}
+              accessibilityState={{ busy: Boolean(carregando) }}
+              testID={`${testID}-${l.id}`}>
+              <Text style={s.tabelaRotulo}>{l.rotulo}</Text>
+              {carregando ? (
+                <View style={s.tabelaEsqueleto} />
+              ) : (
+                <Text style={[s.tabelaValor, { color: cor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} testID={`${testID}-${l.id}-valor`}>
+                  {semDado ? VALOR_SEM_DADO : l.valor}
+                </Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      {rodape?.texto ? (
+        <View style={s.tabelaRodape} testID={`${testID}-rodape`}>
+          {rodape.icone ? <Icon name={rodape.icone} size={13} color={colors.ink2} /> : null}
+          <Text style={s.tabelaRodapeTexto}>{rodape.texto}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -282,6 +348,16 @@ const s = StyleSheet.create({
   linhaValor: { fontFamily: fonts.body, fontSize: 13, fontVariant: ['tabular-nums'] },
   linhaValorForte: { fontFamily: fonts.bold },
   linhaValorDestaque: { fontFamily: fonts.display, fontSize: 19 },
+  // TabelaValores (T-0141): ink2 7,6:1 e ink 16,5:1 no branco; danger 7,1:1; success 6,4:1; ink3 5,8:1
+  tabelaBloco: { gap: 8 },
+  tabela: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
+  tabelaLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },
+  tabelaLinhaTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
+  tabelaRotulo: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 14, color: colors.ink2 },
+  tabelaValor: { flexShrink: 0, maxWidth: '70%', textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 17, fontVariant: ['tabular-nums'] },
+  tabelaEsqueleto: { width: 72, height: 12, borderRadius: 6, backgroundColor: colors.lineSoft },
+  tabelaRodape: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tabelaRodapeTexto: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
   // linha do Resumo: coluna do rótulo de 64 dp (cabe "ENTREGA" em 11/bold)
   resumo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   resumoRotulo: { width: 64, paddingTop: 2, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },

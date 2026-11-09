@@ -23,3 +23,4 @@ export * from './pagamento';
 export * from './pendencias-preenchimento';
 export * from './alertas-venda';
 export * from './historico-pedido';
+export * from './rascunhos';

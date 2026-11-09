@@ -5,6 +5,7 @@
  * público, vigência, perguntas e regras), salva, publica (congela a versão; auditado) e arquiva. Versão publicada é só
  * leitura: "Editar" abre a próxima versão a partir dela. Perfis sem `questionario.editar` veem tudo em leitura.
  */
+import { ROTULO_PERFIL } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, cx, ErrorBlock, formatDateTime, LoadingBlock, Notice, PageHeader, Panel } from '@macuxi/ui/web';
@@ -21,7 +22,6 @@ const ROTULO_FREQUENCIA: Record<(typeof FREQUENCIAS)[number], string> = {
   semanal: 'Semanal (segunda a domingo)',
   mensal: 'Mensal',
 };
-const ROTULO_PERFIL: Record<string, string> = { vendedor: 'Vendedor', promotor: 'Promotor', supervisor: 'Supervisor', gerente: 'Gerente' };
 
 const campo = 'h-[38px] rounded-[10px] border border-field px-3 text-[14px] text-ink disabled:bg-ground';
 const rotulo = 'flex flex-col gap-1 text-[12px] font-semibold text-ink-2';

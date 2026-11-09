@@ -11,6 +11,7 @@ import { checkDiscount, clampPct, type DiscountPolicy } from '../../domain/order
 import { retratoAplicacao } from '../../domain/aplicacao';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
 import { precoDoItemNaEdicao } from '../../domain/orcamento';
+import type { ErroDeCalculo } from '../../domain/pendencias-preenchimento';
 import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
 import {
   ajusteDePct,
@@ -194,6 +195,8 @@ export interface CalculoPedido {
   unidades_base: number;
   /** impedem o envio (mensagens em português com a ação seguinte) */
   erros: string[];
+  /** RD-0037: os mesmos erros, com código e alvo (o bloco "Falta para salvar" decide por eles, nunca pelo texto) */
+  pendencias: ErroDeCalculo[];
 }
 
 function pct2(n: number | undefined): number {
@@ -212,7 +215,7 @@ export function faixasPorProduto(itens: ReadonlyArray<{ produto_id: string }>): 
 
 export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
-  const erros: string[] = [];
+  const pendencias: ErroDeCalculo[] = [];
   const linhas: LinhaDoPedido[] = [];
   const parcial: LinhaParaTotal[] = [];
   for (const [chave, quantity] of Object.entries(e.lines)) {
@@ -224,19 +227,19 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     // T-0134 (RN-VEN-18): item salvo no orçamento mantém o preço salvo; só o item novo entra pelo preço de hoje
     const escolhido = precoDoItemNaEdicao({ congelado_cents: e.congelados?.[product_id], hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id] });
     if (escolhido.preco_unidade_cents === null) {
-      erros.push(`${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.`);
+      pendencias.push({ codigo: 'sem_preco', alvo: { item: nome }, mensagem: `${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.` });
       continue;
     }
     const medidas = unidadesDoProduto(product_id, e.unidades, produto.unit);
     const medida = unidade === null ? medidas[0]! : medidas.find((u) => u.unidade === unidade);
     if (!medida) {
-      erros.push(`${nome}: a medida ${unidade} não está mais disponível. Escolha outra medida.`);
+      pendencias.push({ codigo: 'medida_indisponivel', alvo: { item: nome }, mensagem: `${nome}: a medida ${unidade} não está mais disponível. Escolha outra medida.` });
       continue;
     }
     const aj = e.ajustes[chave] ?? {};
     const r = ajusteDoRascunho(aj);
     if (r.erro) {
-      erros.push(`${nome}: ${MSG_DESCONTO_E_ACRESCIMO} Limpe um dos dois no item.`);
+      pendencias.push({ codigo: 'desconto_e_acrescimo', alvo: { item: nome }, mensagem: `${nome}: ${MSG_DESCONTO_E_ACRESCIMO} Limpe um dos dois no item.` });
       continue;
     }
     const desconto_pct = aj.em === 'valor' ? 0 : pct2(aj.desconto_pct);
@@ -247,7 +250,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     try {
       preco = precoDoItem({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste });
     } catch {
-      erros.push(`${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.`);
+      pendencias.push({ codigo: 'desconto_acima_tabela', alvo: { item: nome }, mensagem: `${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.` });
       continue;
     }
     // T-0084 (RN-VEN-19): retrato no momento do pedido; o retrato já gravado (edição) vale até a caixa ser refeita
@@ -284,7 +287,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const aV = Math.max(0, Math.trunc(e.acrescimo_valor_cents ?? 0));
   let ajustePedido: AjusteItem = null;
   if (emValor ? dV > 0 && aV > 0 : validarAcrescimoOuDesconto({ desconto_pct: desconto, acrescimo_pct: acrescimo })) {
-    erros.push(`Pedido: ${MSG_DESCONTO_E_ACRESCIMO} Limpe um dos dois nas Condições.`);
+    pendencias.push({ codigo: 'desconto_e_acrescimo', alvo: 'pedido', mensagem: `Pedido: ${MSG_DESCONTO_E_ACRESCIMO} Limpe um dos dois nas Condições.` });
   } else if (emValor) {
     ajustePedido = dV > 0 ? { sentido: 'desconto', em: 'valor', cents: dV } : aV > 0 ? { sentido: 'acrescimo', em: 'valor', cents: aV } : null;
   } else {
@@ -292,7 +295,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   }
   const totalItens = parcial.reduce((s0, l) => s0 + l.total_cents, 0);
   if (ajustePedido && ajustePedido.sentido === 'desconto' && ajustePedido.em === 'valor' && ajustePedido.cents > totalItens) {
-    erros.push('Pedido: o desconto em R$ passa do total dos itens. Reduza o desconto do pedido.');
+    pendencias.push({ codigo: 'desconto_acima_total', alvo: 'pedido', mensagem: 'Pedido: o desconto em R$ passa do total dos itens. Reduza o desconto do pedido.' });
     ajustePedido = null;
   }
   const t = totaisDoPedido(parcial, ajustePedido);
@@ -303,10 +306,13 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const nivel = nivelDeAprovacao(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
   const bloqueado = bloqueadoPelaAlcada(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
   if (bloqueado) {
-    erros.push(`Desconto efetivo de ${t.desconto_efetivo_pct.toLocaleString('pt-BR')}% acima da alçada máxima (${policy.manager_pct.toLocaleString('pt-BR')}%). Reduza o desconto do pedido ou dos itens.`);
+    const limite = `${policy.manager_pct.toLocaleString('pt-BR')}%`;
+    pendencias.push({ codigo: 'acima_alcada', alvo: 'pedido', limite, mensagem: `Desconto efetivo de ${t.desconto_efetivo_pct.toLocaleString('pt-BR')}% acima da alçada máxima (${limite}). Reduza o desconto do pedido ou dos itens.` });
   }
   return {
     linhas,
+    erros: pendencias.map((p) => p.mensagem),
+    pendencias,
     total_tabela_cents: t.total_tabela_cents,
     total_itens_cents: t.total_itens_cents,
     desconto_cents: t.desconto_cents,
@@ -320,7 +326,6 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     nivel,
     bloqueado,
     unidades_base: linhas.reduce((s, l) => s + l.quantidade_base, 0),
-    erros,
   };
 }
 
@@ -373,22 +378,26 @@ export function transportadorasAtivas(l: readonly TransportadoraDaTela[]): Trans
 
 /** Mensagem de bloqueio do envio (null = frete ok). Mesma regra da API (`validarFrete`, RN-VEN-16). */
 export function freteValido(f: FreteDoRascunho): string | null {
+  const r = recusaDoFrete(f);
+  if (!r) return null;
+  return r.codigo === 'cnpj' ? 'CNPJ da transportadora inválido. Confira os 14 dígitos.' : MSG_RECUSA_FRETE[r.recusa];
+}
+
+/** RN-VEN-16: a recusa do frete em código (RD-0037); `codigo` é o que o bloco "Falta para salvar" lê, nunca o texto. */
+function recusaDoFrete(f: FreteDoRascunho): { recusa: NonNullable<ReturnType<typeof validarFrete>>; codigo: 'transportadora' | 'cnpj' } | null {
   const dig = f.transportadora_digitada;
-  const codigo = validarFrete({
+  const recusa = validarFrete({
     modalidade: f.modalidade,
     transportadora_id: f.transportadora_id ?? null,
     transportadora_digitada: dig ? { nome: dig.nome, cnpj: dig.cnpj.replace(/\D/g, ''), telefone: dig.telefone ?? null } : null,
   } satisfies FretePedido);
-  if (!codigo) return null;
-  if (codigo === 'transportadora_invalida' && dig && !cnpjValido(dig.cnpj)) return 'CNPJ da transportadora inválido. Confira os 14 dígitos.';
-  return MSG_RECUSA_FRETE[codigo];
+  if (!recusa) return null;
+  return { recusa, codigo: recusa === 'transportadora_invalida' && dig && !cnpjValido(dig.cnpj) ? 'cnpj' : 'transportadora' };
 }
 
 /** RN-VEN-16 / RN-CORE-36: o código da pendência do frete para o bloco "Falta para salvar" (a aba é Detalhes). */
 export function situacaoDoFrete(f: FreteDoRascunho): 'ok' | 'transportadora' | 'cnpj' {
-  const msg = freteValido(f);
-  if (!msg) return 'ok';
-  return f.transportadora_digitada && !cnpjValido(f.transportadora_digitada.cnpj) && msg.startsWith('CNPJ') ? 'cnpj' : 'transportadora';
+  return recusaDoFrete(f)?.codigo ?? 'ok';
 }
 
 export function rotuloDoFrete(f: FreteDoRascunho, transportadoras: readonly TransportadoraDaTela[]): string {

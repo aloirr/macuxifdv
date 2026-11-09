@@ -27,6 +27,7 @@ import {
   emitidoEm,
   faixasDaConsulta,
   historicoDoOrcamento,
+  precoDoOrcamentoVale,
   ehPedidoEmNome,
   momentoDaConversao,
   aplicacaoMaxOrcamento,
@@ -245,7 +246,7 @@ export async function calcularDocumento(
   const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
   const validade = validadeCivil?.ate ?? null;
   const v = validadeCivil
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data) }
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
   return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm };
 }
@@ -295,13 +296,18 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     return rejeitado(item.id, 'PRE_VENDA_INDISPONIVEL', 'Orçamento ainda não está liberado para a sua empresa. Envie como pedido ou fale com o administrador.');
   }
   if (tipo === 'orcamento' && origem) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Orçamento não nasce de outro orçamento.');
+  let precoVale = false;
   if (origem) {
-    const r = verificarConversao({ orcamento: await repo.buscarOrcamento(db, origem, ctx.fuso()), vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento: momentoDaConversao(p.created_offline_at, agora) });
+    const orcOrigem = await repo.buscarOrcamento(db, origem, ctx.fuso());
+    const momento = momentoDaConversao(p.created_offline_at, agora);
+    const r = verificarConversao({ orcamento: orcOrigem, vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento });
     if (r) return recusa(item.id, r);
+    // T-0141 (RN-VEN-18): o preço congelado vale até D+7 23:59 (fuso do tenant); depois, o pedido nasce pela tabela do dia
+    precoVale = precoDoOrcamentoVale(orcOrigem?.validade_ate, momento);
   }
 
-  // T-0134: Transformar mantém os preços do orçamento (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
-  const congelados = origem ? await precosCongeladosDoDocumento(db, origem) : undefined;
+  // T-0134: Transformar mantém os preços do orçamento enquanto valem (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
+  const congelados = origem && precoVale ? await precosCongeladosDoDocumento(db, origem) : undefined;
   const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
   const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm } = calc;

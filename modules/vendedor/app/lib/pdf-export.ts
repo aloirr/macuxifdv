@@ -38,7 +38,8 @@ export async function exportPdf(html: string, fileName: string, cancelado: () =>
     throw new Error(MENSAGEM_PDF_FALHA);
   }
   if (cancelado()) return { kind: 'cancelado' };
-  // TODO: renomear o arquivo para `fileName` exige expo-file-system (não é dependência do app hoje); o nome vai no título.
+  // RN-VEN-41: o arquivo sai com o nome do documento (ORC-/PED-XXXX-DDMMAAAA.pdf), não com o nome aleatório do expo-print
+  uri = await comNomeDoDocumento(uri, fileName);
   if (await Sharing.isAvailableAsync()) {
     try {
       // no Android o shareAsync pode só resolver quando o usuário volta do compartilhar: após 1,5 s a folha é liberada
@@ -50,6 +51,20 @@ export async function exportPdf(html: string, fileName: string, cancelado: () =>
     return { kind: 'shared' };
   }
   return { kind: 'saved', uri };
+}
+
+/** Move o PDF gerado para `<cache>/<fileName>`; se não der, segue com o arquivo original (o compartilhar não pode falhar por isso). */
+async function comNomeDoDocumento(uri: string, fileName: string): Promise<string> {
+  try {
+    const { File, Paths } = await import('expo-file-system');
+    const destino = new File(Paths.cache, fileName);
+    if (destino.exists) destino.delete();
+    new File(uri).move(destino);
+    return destino.uri;
+  } catch (e) {
+    console.warn('[pdf] não foi possível renomear o arquivo', e);
+    return uri;
+  }
 }
 
 /** Só o que usamos do DOM (o tsconfig do app não carrega a lib DOM). */

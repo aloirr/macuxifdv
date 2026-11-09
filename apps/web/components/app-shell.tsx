@@ -8,7 +8,7 @@
  * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
  * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
- * no motor de permissões do SDK, `lib/acesso.ts`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
+ * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
  * Entrar com o aviso. Nenhuma lista de perfis no shell: onde entra e o que aparece vêm do motor (ADR 0033).
  */
 import Link from 'next/link';
@@ -16,11 +16,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
-import { type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { cx, ErrorBlock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
-import { entraEm } from '@/lib/acesso';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDoConteudo } from '@/lib/estado-shell';

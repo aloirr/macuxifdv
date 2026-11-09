@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arredondar, dividirCents, ehDataCivil, horasEntre, percentual, somarDias } from './numeros';
+import { arredondar, dividirCents, horasEntre, percentual } from './numeros';
 
 describe('números do Gestor', () => {
   it('arredonda meio para cima em 2 casas', () => {
@@ -17,12 +17,6 @@ describe('números do Gestor', () => {
     expect(dividirCents(100, 3)).toBe(33);
     expect(dividirCents(101, 2)).toBe(51);
     expect(dividirCents(5, 0)).toBeNull();
-  });
-
-  it('datas civis e soma de dias', () => {
-    expect(ehDataCivil('2026-02-30')).toBe(false);
-    expect(somarDias('2026-10-31', 1)).toBe('2026-11-01');
-    expect(() => somarDias('31/10/2026', 1)).toThrow(/AAAA-MM-DD/);
   });
 
   it('horas entre instantes UTC com 2 casas', () => {

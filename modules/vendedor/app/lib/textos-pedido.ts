@@ -4,7 +4,8 @@
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
 
-import { opcoesDoSalvar, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
+import { textoPrecoDe, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
+import { destinoDoEnvio, ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import type { CalculoPedido } from './novo-pedido';
 
@@ -73,14 +74,12 @@ export function textoDaFaixa(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'ni
   return { texto: `${formatPct(pct)} · dentro da alçada`, tom: 'ok', icone: 'check' };
 }
 
-/** Selo do orçamento (tela 5 e lista): "Orçamento · até 10/11", "Vencido", "Cancelado", "Virou pedido 000015". */
-export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; validade_data: string; pedido_numero?: string | null }): { texto: string; tom: 'roxo' | 'neutro' | 'sucesso' } {
-  const [, m, d] = e.validade_data.split('-');
+/** Selo do orçamento (tela 5 e lista): "Orçamento · preço de 10/11", "Cancelado", "Virou pedido 000015". Não há "Vencido" nem "até" (RN-VEN-18, 09/11). */
+export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; preco_data: string; pedido_numero?: string | null }): { texto: string; tom: 'roxo' | 'neutro' | 'sucesso' } {
+  const [, m, d] = e.preco_data.split('-');
   switch (e.situacao) {
     case 'aberto':
-      return { texto: `Orçamento · até ${d}/${m}`, tom: 'roxo' };
-    case 'expirado':
-      return { texto: 'Vencido', tom: 'neutro' };
+      return { texto: `Orçamento · preço de ${d}/${m}`, tom: 'roxo' };
     case 'cancelado':
       return { texto: 'Cancelado', tom: 'neutro' };
     case 'convertido':
@@ -157,11 +156,10 @@ export function seloDaSugestao(s: { origem: string; economia_pct?: number; preco
 // ---------- revisão de UX da fatia 6 (T-0071) ----------
 const ROTULO_IR_PARA_PEDIDOS = 'Ir para Pedidos';
 
-/** Confirmação depois de enviar: orçamento é "salvo" (com a validade), pedido é "recebido" (com o status e a nota da alçada). */
-export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: string; status: string; validade_data?: string | null; pending_reason?: string | null; rejection_reason?: string | null }): { titulo: string; nota: string; mostrarStatus: boolean; rodape: string } {
+/** Confirmação depois de enviar: orçamento é "salvo" (com o dia do preço), pedido é "recebido" (com o status e a nota da alçada). */
+export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: string; status: string; preco_data?: string | null; pending_reason?: string | null; rejection_reason?: string | null }): { titulo: string; nota: string; mostrarStatus: boolean; rodape: string } {
   if (e.tipo === 'orcamento') {
-    const [, m, d] = (e.validade_data ?? '').split('-');
-    return { titulo: `Orçamento ${e.numero} salvo`, nota: m && d ? `Válido até ${d}/${m}.` : '', mostrarStatus: false, rodape: ROTULO_IR_PARA_PEDIDOS };
+    return { titulo: `Orçamento ${e.numero} salvo`, nota: e.preco_data ? `${textoPrecoDe(e.preco_data)}.` : '', mostrarStatus: false, rodape: ROTULO_IR_PARA_PEDIDOS };
   }
   const nota = e.status === 'pending_approval' ? (e.pending_reason ?? '') : e.status === 'rejected' ? (e.rejection_reason ?? '') : e.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : '';
   return { titulo: `Pedido ${e.numero} recebido`, nota, mostrarStatus: true, rodape: ROTULO_IR_PARA_PEDIDOS };
@@ -180,10 +178,10 @@ export const ROTULO_IR_PARA_PEDIDOS_RODAPE = ROTULO_IR_PARA_PEDIDOS;
  * `null` = sem tabela no aparelho para conferir (a plataforma confere ao receber).
  */
 export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number | null } | null): { titulo: string; subtitulo: string; podeEnviar: boolean; mostrarTotal: boolean } {
-  if (!c) return { titulo: 'Transformar em pedido', subtitulo: 'Confere preço e alçada ao enviar.', podeEnviar: true, mostrarTotal: false };
+  if (!c) return { titulo: ROTULOS_DO_SALVAR.transformar, subtitulo: 'Confere preço e alçada ao enviar.', podeEnviar: true, mostrarTotal: false };
   const mudou = c.mudancas.length > 0 || c.bloqueio !== null;
-  const subtitulo = opcoesDoSalvar({ cliente: { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] }, calculo: { nivel: c.nivel }, frete_erro: null, validade_data: '2000-01-01' }).enviar.subtitulo;
-  return { titulo: mudou ? 'Mudou desde o orçamento' : 'Transformar em pedido', subtitulo, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
+  const subtitulo = destinoDoEnvio(c.nivel);
+  return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DO_SALVAR.transformar, subtitulo, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
 }
 
 /** Resumo depois do envio (só leitura): o ajuste do pedido vira uma linha de valor. Zero = sem linha. */
@@ -207,10 +205,6 @@ export function textoCancelarDocumento(e: { ehOrcamento: boolean; naFila: boolea
     confirmar: 'Cancelar pedido',
     ocupado: 'Cancelando…',
   };
-}
-
-export function textoNaoFoiAceito(motivo: string): string {
-  return `Não foi aceito: ${motivo}`;
 }
 
 export const TEXTO_PEDIDO_FORA_DO_APARELHO = { titulo: 'Este pedido não está no aparelho', texto: 'Conecte-se e puxe a tela para baixo para sincronizar.' } as const;
@@ -237,11 +231,6 @@ export function avisoSugestaoAdicionada(nome: string, troca: boolean): string {
   return troca ? `Trocado por ${nome}` : `${nome} adicionado`;
 }
 
-/** Níveis da trilha do catálogo (V3): linha e marca do último item; sem item, um só nível "Catálogo" que abre o catálogo do pedido. */
-export function niveisDaTrilha(p: { line?: string | null; brand?: string | null } | null): Array<{ id: string; rotulo: string }> {
-  const niveis = p ? [p.line, p.brand].map((x) => x?.trim()).filter((x): x is string => Boolean(x)) : [];
-  return niveis.length > 0 ? niveis.map((rotulo, i) => ({ id: `nivel-${i}`, rotulo })) : [{ id: 'catalogo', rotulo: 'Catálogo' }];
-}
 
 /** Aviso do rodapé no detalhe, depois de salvar um orçamento (V8): com sinal o número; sem sinal, que ficou no aparelho. */
 export function avisoDoOrcamentoSalvo(numero: string | null): string {
