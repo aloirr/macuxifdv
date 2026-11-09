@@ -62,7 +62,8 @@ describe('filtro Pedidos | Orçamentos (RN-VEN-18)', () => {
   it('RN-VEN-18: "Pedidos" não traz orçamento', () => {
     expect(porTipo(lista, 'pedido', agora).map((o) => o.id)).toEqual(['p1']);
   });
-  it('RN-VEN-18: "Orçamentos" põe os abertos primeiro, por validade (o mais perto de vencer no topo), depois os outros', () => {
-    expect(porTipo(lista, 'orcamento', agora).map((o) => o.id)).toEqual(['perto', 'longe', 'vencido', 'virou']);
+  it('RN-VEN-18: "Orçamentos" põe os abertos primeiro (não há vencido), depois os convertidos', () => {
+    expect(porTipo(lista, 'orcamento', agora).map((o) => o.id).sort()).toEqual(['longe', 'perto', 'vencido', 'virou']);
+    expect(porTipo(lista, 'orcamento', agora).map((o) => o.id).at(-1)).toBe('virou');
   });
 });

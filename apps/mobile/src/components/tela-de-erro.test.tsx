@@ -71,6 +71,6 @@ describe('tela de erro do shell (T-0140)', () => {
     expect(sim.compartilhado).toHaveLength(1);
     const [linha1, , mensagem] = sim.compartilhado[0]!.split('\n');
     expect(linha1).toBe(`Macuxi Campo 1.0.1 · ${TEXTOS_TELA_DE_ERRO.app.titulo}`);
-    expect(mensagem).toBe('TypeError: cliente [e-mail] [número] sem endereço');
+    expect(mensagem).toBe('TypeError: cliente [e-mail] [cnpj] sem endereço');
   });
 });

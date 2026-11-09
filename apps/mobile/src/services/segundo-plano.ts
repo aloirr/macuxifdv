@@ -1,6 +1,6 @@
 /**
  * ADR 0017 §3 (T-0059): tarefa `macuxi-sync-delta` (expo-background-task = WorkManager no Android, com a restrição
- * "rede conectada"). As regras (quando roda, lease, orçamento de 60 s) estão em `lib/segundo-plano.ts`; aqui fica o que
+ * "rede conectada"). As regras (quando roda, trava, orçamento de 60 s) estão em `lib/segundo-plano.ts`; aqui fica o que
  * depende do aparelho:
  * - `TaskManager.defineTask` no escopo global, na importação deste arquivo (feita pelo `index.ts` do app ANTES do
  *   expo-router): quando o Android acorda o app fechado, não há React montado e a tarefa monta o motor sozinha;
@@ -23,11 +23,9 @@ import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { enderecoSalvoValido } from '@/lib/endereco-do-build';
 import { shellDaVariante } from '@/lib/modulos';
 import {
-  CHAVE_LEASE,
   executarTarefaSegundoPlano,
   INTERVALO_MINIMO_MIN,
   TAREFA_SYNC_DELTA,
-  type LeaseSync,
   type MotorSegundoPlano,
   type ResultadoSegundoPlano,
 } from '@/lib/segundo-plano';
@@ -98,11 +96,6 @@ export function registrarAppAberto(motor: MotorSegundoPlano): () => void {
   return () => {
     if (appAberto === eu) appAberto = null;
   };
-}
-
-/** Passada da tarefa em andamento NESTE processo (o app reaberto durante a tarefa espera por ela). */
-export function passadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> | null {
-  return passada;
 }
 
 export function lerUltimoSegundoPlano(): Promise<ResultadoSegundoPlano | null> {
@@ -267,30 +260,13 @@ export function rodarPassadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> {
 async function passadaUnica(): Promise<ResultadoSegundoPlano> {
   // T-0140: corte da passada sem tela quando o orçamento acaba (a próxima requisição dela é recusada)
   const corte = criarCorteDaPassada();
-  // lease e motor na mesma abertura (o reserva no AsyncStorage não fica guardado no SDK: uma tentativa por passada)
-  const abertos = new Map<string, Promise<ArmazenamentoSync>>();
-  const armazenamentoDe = (usuarioId: string) => {
-    let a = abertos.get(usuarioId);
-    if (!a) {
-      a = armazenamentoSemInterface(usuarioId);
-      abertos.set(usuarioId, a);
-    }
-    return a;
-  };
   return executarTarefaSegundoPlano({
     agora: () => Date.now(),
     modoSemSinal: async () => Boolean(await readJson<boolean>(keys.offline)),
     motorDoApp: () => appAberto?.motor ?? null,
     usuarioDaSessao,
-    lease: (usuarioId) => {
-      const a = armazenamentoDe(usuarioId);
-      return {
-        ler: async () => (await a).ler<LeaseSync>(CHAVE_LEASE),
-        gravar: async (l) => (await a).gravar(CHAVE_LEASE, l),
-        remover: async () => (await a).remover(CHAVE_LEASE),
-      };
-    },
-    abrirMotor: (usuarioId) => abrirMotorSemInterface(usuarioId, armazenamentoDe(usuarioId), corte),
+    // uma abertura do armazenamento por passada (o reserva no AsyncStorage não fica guardado no SDK)
+    abrirMotor: (usuarioId) => abrirMotorSemInterface(usuarioId, armazenamentoSemInterface(usuarioId), corte),
     // T-0140: app em primeiro plano, abrindo ou sincronizando = a tarefa não roda; build novo = espera a 1ª abertura
     appEmPrimeiroPlano: () => AppState.currentState === 'active',
     trava: travaSync,

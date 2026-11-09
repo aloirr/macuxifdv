@@ -11,7 +11,9 @@
  */
 import type { IndicadorRanking, MembroEquipe, PeriodoRanking, RankingEquipe, LinhaRanking } from '../contracts';
 import { escopoDoUsuario, podeVer } from './equipe';
-import { compararTexto, percentual, somarDias } from './numeros';
+import { exigirDataCivil } from '@macuxi/comum';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { compararTexto, percentual } from './numeros';
 import { tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import type { EstadoProjecao } from './projecao';
@@ -39,12 +41,12 @@ export const INDICADORES: Readonly<Record<IndicadorRanking, DefinicaoIndicador>>
 
 /** Diário = o dia; semanal = segunda a domingo da semana da data; mensal = mês civil. Tudo em datas civis do fuso do tenant. */
 export function intervaloDoPeriodo(tipo: PeriodoRanking, dataRef: string): { inicio: string; fim: string } {
-  somarDias(dataRef, 0); // valida o formato
+  exigirDataCivil(dataRef);
   if (tipo === 'diario') return { inicio: dataRef, fim: dataRef };
   if (tipo === 'semanal') {
     const dow = new Date(`${dataRef}T12:00:00Z`).getUTCDay(); // 0 = domingo
-    const inicio = somarDias(dataRef, -((dow + 6) % 7));
-    return { inicio, fim: somarDias(inicio, 6) };
+    const inicio = somarDiasCivis(dataRef, -((dow + 6) % 7));
+    return { inicio, fim: somarDiasCivis(inicio, 6) };
   }
   const [ano, mes] = [Number(dataRef.slice(0, 4)), Number(dataRef.slice(5, 7))];
   const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();

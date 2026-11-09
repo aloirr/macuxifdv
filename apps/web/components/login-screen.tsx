@@ -3,7 +3,7 @@
 /**
  * Login do BKO (T-0003 F2; T-0094).
  * - API real (padrão): código da empresa + e-mail + senha (`POST /v1/auth/login` do Core com `app: 'web'`, contrato
- *   `LoginSenhaRequestSchema`/`SessaoRespostaSchema`). RN-CORE-33: a API recusa o perfil que não usa o backoffice (403
+ *   `LoginSenhaRequestSchema`/`SessaoWebRespostaSchema`; T-0117: modo cookie, o refresh fica no cookie httpOnly). RN-CORE-33: a API recusa o perfil que não usa o backoffice (403
  *   `PERFIL_FORA_DO_APP`, sem sessão) e a tela mostra a frase dela; a conferência do SDK (`mensagemPerfilForaDoApp`) fica como reserva
  *   para a API antiga. O código da empresa fica salvo no navegador. Mensagens: `lib/login.ts` e `lib/ciclo-senha.ts`.
  * - T-0094 (spec docs/design/ciclo-de-senha.md §1 a §3): 403 `SENHA_A_TROCAR` abre "Crie sua senha" sem texto (nada abre antes:
@@ -12,7 +12,7 @@
  *   (ex.: 403 `PERFIL_SEM_BKO` durante o uso) em `info`, uma vez.
  * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem os perfis que entram no BKO pelo motor de permissões do
- *   SDK (`lib/acesso.ts`; RN-CORE-33: supervisor fora).
+ *   SDK (`entraEm`; RN-CORE-33: supervisor fora).
  * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro, login.aviso, login.esqueci.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -22,7 +22,6 @@ import {
   detalhesDaTroca,
   EsqueciSenhaRequestSchema,
   LoginSenhaRequestSchema,
-  SessaoRespostaSchema,
   TEXTOS_CRIE_SENHA,
   TEXTOS_LOGIN_SENHA,
   TrocarSenhaRequestSchema,
@@ -31,16 +30,15 @@ import {
   type DetalhesSenhaATrocar,
   type FakeUser,
   type LoginResponse,
-  type SessaoResposta,
+  type SessaoWebResposta,
 } from '@macuxi/core/contracts';
-import { mensagemPerfilForaDoApp, type Perfil } from '@macuxi/platform-sdk';
+import { entraEm, mensagemPerfilForaDoApp, perfisDeFabricaQueEntram, type Perfil } from '@macuxi/platform-sdk';
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
-import { entraEm, perfisDeFabricaQueEntram } from '@/lib/acesso';
-import { CAMINHO_ESQUECI_SENHA, CAMINHO_TROCAR_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
+import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
-import { salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
+import { encerrarSessao, pedirLogin, pedirTrocaDeSenha, salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
 
 const DICA: Partial<Record<Perfil, string>> = {
   gerente: 'Aprova pedidos fora da alçada, acompanha a equipe e fecha o mês.',
@@ -112,8 +110,8 @@ function LoginReal() {
 
   const mudar = (campo: keyof CamposLogin) => (e: { target: { value: string } }) => setCampos((c) => ({ ...c, [campo]: e.target.value }));
 
-  /** Sessão aberta (login ou troca): só o código da empresa vai ao navegador; os tokens, pela sessão do SDK. */
-  const abrirSessao = (sessao: SessaoResposta) => {
+  /** Sessão aberta (login ou troca): o código da empresa vai ao navegador; o acesso, pela sessão do SDK; a renovação, no cookie httpOnly. */
+  const abrirSessao = (sessao: SessaoWebResposta) => {
     try {
       window.localStorage.setItem(CHAVE_CODIGO_EMPRESA, sessao.tenant.codigo);
     } catch {
@@ -141,11 +139,11 @@ function LoginReal() {
     const senha = campos.senha;
     try {
       const corpo = LoginSenhaRequestSchema.parse({ codigo_empresa: campos.codigo_empresa.trim(), email: campos.email.trim(), senha, app: 'web' });
-      const sessao = SessaoRespostaSchema.parse(await api<unknown>('/auth/login', { method: 'POST', body: corpo }));
+      const sessao = await pedirLogin(corpo);
       if (!entraEm('bko', sessao.usuario.perfil)) {
         const fora = mensagemPerfilForaDoApp(sessao.usuario.perfil, 'web') ?? TEXTOS_LOGIN_SENHA.semBko;
-        // reserva para a API sem a conferência do `app`: encerra a sessão que acabou de nascer
-        await api('/auth/logout', { method: 'POST', body: { refresh_token: sessao.refresh_token } }).catch(() => undefined);
+        // reserva para a API sem a conferência do `app`: encerra a sessão que acabou de nascer (revoga e apaga o cookie)
+        await encerrarSessao();
         setErro(fora);
         setCampos((c) => ({ ...c, senha: '' }));
         return;
@@ -166,7 +164,7 @@ function LoginReal() {
   const salvarSenhaNova = async (senhaNova: string) => {
     if (!troca) return;
     const corpo = TrocarSenhaRequestSchema.parse({ codigo_empresa: troca.codigo_empresa, email: troca.email, senha_atual: troca.senha, senha_nova: senhaNova, app: 'web' });
-    const sessao = SessaoRespostaSchema.parse(await api<unknown>(CAMINHO_TROCAR_SENHA, { method: 'POST', body: corpo }));
+    const sessao = await pedirTrocaDeSenha(corpo);
     setTroca(null);
     toast('success', TEXTOS_CRIE_SENHA.criada);
     abrirSessao(sessao);

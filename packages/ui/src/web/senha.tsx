@@ -14,7 +14,7 @@ import {
   itemDaRepeticao,
   itensDasRegras,
   resumoComRepeticao,
-  resumoDaSenha,
+  resumoDaTela,
   TITULO_REGRAS_DA_SENHA,
   type EstadoRegraSenha,
   type RepeticaoSenha,
@@ -34,9 +34,7 @@ export {
   MOSTRAR_SENHA,
   REGRAS_DA_SENHA,
   resumoComRepeticao,
-  resumoDaSenha,
-  MINIMO_DA_SENHA_SEM_TELA,
-  ROTULO_REGRA_SENHA,
+  resumoDaTela,
   rotuloDaRegraSenha,
   SENHA_ATENDE_AS_REGRAS,
   TEXTO_REPETICAO_SENHA,
@@ -78,10 +76,13 @@ export function RegrasDaSenha({
   faltas: readonly string[];
   /** Depois de tentar salvar com falta: as faltas ficam em vermelho, com ✕. */
   destacar?: boolean;
-  /** Frase da região viva: passe `mensagemDaSenha(faltas)` do Core (RD-0021). Sem ela, o kit monta a mesma frase com `minimo`. */
-  resumo?: string;
-  /** Mínimo de caracteres da RN-CORE-32: passe `SENHA_MIN_CARACTERES` do Core (RD-0021; o kit não escreve o número). */
-  minimo?: number;
+  /**
+   * Frase da região viva: `mensagemDaSenha(faltas)` do Core (RD-0021, obrigatório; o kit não monta frase). `null`/`undefined` (nada falta) =
+   * "A senha atende às regras.".
+   */
+  resumo: string | null | undefined;
+  /** Mínimo de caracteres da RN-CORE-32: passe `SENHA_MIN_CARACTERES` do Core (RD-0021, obrigatório; o kit não escreve o número). */
+  minimo: number;
   /** Para o `aria-describedby` do campo de senha. */
   id?: string;
   className?: string;
@@ -89,7 +90,7 @@ export function RegrasDaSenha({
   repeticao?: RepeticaoSenha;
   testId?: string;
 }) {
-  const itens = itensDasRegras(faltas, destacar, minimo);
+  const itens = itensDasRegras(faltas, minimo, destacar);
   const conferencia = itemDaRepeticao(repeticao, destacar);
   return (
     <div id={id} className={cx('flex flex-col gap-1.5', className)} data-testid={testId}>
@@ -120,7 +121,7 @@ export function RegrasDaSenha({
         </p>
       )}
       <span role="status" aria-live="polite" className="sr-only" data-testid={`${testId}.resumo`}>
-        {resumoComRepeticao(resumo ?? resumoDaSenha(faltas, minimo), repeticao, destacar)}
+        {resumoComRepeticao(resumoDaTela(resumo), repeticao, destacar)}
       </span>
     </div>
   );

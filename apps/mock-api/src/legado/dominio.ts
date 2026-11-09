@@ -12,3 +12,5 @@ export * from '../../../../modules/core/domain/index';
 export * from '../../../../modules/vendedor/domain/index';
 // Nome repetido nas duas origens (CNPJ/CPF no comum; pedido/orçamento no Vendedor, T-0053): vale o do comum.
 export type { TipoDocumento } from '@macuxi/comum';
+// T-0141: `formatarCep` está no comum (`endereco.ts`) e o Core reexporta pelos contratos de endereço: vale o do comum.
+export { formatarCep } from '@macuxi/comum';

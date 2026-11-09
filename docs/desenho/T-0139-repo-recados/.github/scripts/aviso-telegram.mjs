@@ -21,21 +21,36 @@ export function recadosNovos(antes, depois, rodar = git) {
   return rodar(...args).split('\n').map((s) => s.trim()).filter((s) => /^recados\/alexandre\/R-[^/]+\.md$/.test(s)).sort();
 }
 
+/**
+ * Mensagens do aviso (função pura). Até `maximo` recados novos: um aviso por recado. Acima disso é carga em lote
+ * (migração, recados represados): UMA mensagem com o total e o link da caixa, para não inundar o chat nem bater
+ * no limite da API do Telegram (~1 mensagem por segundo no mesmo chat).
+ * @param {string[]} novos caminhos recados/alexandre/R-....md
+ * @param {(caminho: string) => string} ler conteúdo do arquivo
+ */
+export function mensagensDoAviso(novos, ler, { repo = '', maximo = MAXIMO } = {}) {
+  if (novos.length > maximo) {
+    return [`${novos.length} recados novos na sua caixa de uma vez (carga em lote). Veja a lista: ${repo}/tree/main/recados/alexandre`];
+  }
+  return novos.map((c) => montarAviso(ler(c), { link: repo ? `${repo}/blob/main/${c}` : '' })).filter(Boolean);
+}
+
 if (import.meta.main) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   mascarar([token, chatId]);
   const novos = recadosNovos(process.env.ANTES, process.env.DEPOIS || 'HEAD');
   console.log(`${novos.length} recado(s) novo(s) na caixa do dono do produto`);
-  const repo = process.env.REPO_URL || '';
-  let falhas = 0;
-  for (const caminho of novos.slice(0, MAXIMO)) {
-    const texto = montarAviso(readFileSync(caminho, 'utf8'), { link: repo ? `${repo}/blob/main/${caminho}` : '' });
-    if (!texto) continue;
-    try { await enviarTelegram(texto, { token, chatId }); } catch (e) { falhas++; console.log(`falha no envio: ${e.message}`); }
+  const mensagens = mensagensDoAviso(novos, (c) => readFileSync(c, 'utf8'), { repo: process.env.REPO_URL || '' });
+  for (const [i, texto] of mensagens.entries()) {
+    if (i) await new Promise((ok) => setTimeout(ok, 1100)); // ~1 mensagem por segundo no mesmo chat
+    try {
+      await enviarTelegram(texto, { token, chatId });
+    } catch (e) {
+      // A causa vale para as demais (403, 401, secret errado): para no primeiro erro, sem repetir 10 vezes no log.
+      console.log(`falha no envio: ${e.message}`);
+      process.exit(1);
+    }
   }
-  if (novos.length > MAXIMO) {
-    try { await enviarTelegram(`… e mais ${novos.length - MAXIMO} recado(s) na sua caixa: ${repo}/tree/main/recados/alexandre`, { token, chatId }); } catch (e) { falhas++; console.log(`falha no envio: ${e.message}`); }
-  }
-  if (falhas) process.exit(1);
+  console.log(`${mensagens.length} mensagem(ns) enviada(s)`);
 }

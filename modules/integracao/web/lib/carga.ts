@@ -3,7 +3,7 @@
  * MESMA função da API (`dividirCsvEmPartes`, RN-INT-06); a chave de idempotência (RN-INT-12) é uma por arquivo e vale em todas as partes.
  * O conteúdo do CSV nunca é guardado nem logado aqui; o tenant vem do token (a tela não envia nem escolhe empresa).
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import type { CampoDicionario, CargaArquivoEntrada, DicionarioModelo, Entidade, ModoCarga } from '../../contracts';
 import { BYTES_MAX_PARTE_ARQUIVO, PARTES_MAX_SESSAO, dividirCsvEmPartes, type ParteDoArquivo } from '../../domain';
 
@@ -45,7 +45,6 @@ export function corpoDaParte(e: { entidade: Entidade; modo: ModoCarga; chave: st
 /** Limite de texto da parte, exposto para a ajuda da tela. */
 export const KB_POR_PARTE = BYTES_MAX_PARTE_ARQUIVO / 1024;
 
-const BOM = String.fromCharCode(0xfeff);
 const celula = (v: string | number | boolean | null | undefined): string => {
   const t = protegerFormula(v === null || v === undefined ? '' : String(v));
   return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -53,10 +52,10 @@ const celula = (v: string | number | boolean | null | undefined): string => {
 
 const LINHAS_DICIONARIO = (c: CampoDicionario): (string | number | boolean | null)[] => [c.campo, c.obrigatorio ? 'sim' : 'não', c.tipo, c.tamanho_max, c.formato, c.exemplo, c.observacao];
 
-/** Dicionário de campos em CSV (BOM, `;`, CRLF; `protegerFormula` em toda célula de texto). */
+/** Dicionário de campos em CSV (BOM_CSV, `;`, CRLF; `protegerFormula` em toda célula de texto). */
 export function dicionarioParaCsv(d: DicionarioModelo): string {
   const linhas = [['campo', 'obrigatorio', 'tipo', 'tamanho_max', 'formato', 'exemplo', 'observacao'], ...d.campos.map(LINHAS_DICIONARIO)];
-  return BOM + linhas.map((l) => l.map(celula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + linhas.map((l) => l.map(celula).join(';')).join('\r\n') + '\r\n';
 }
 
 export const nomeArquivoDicionario = (entidade: Entidade): string => `${entidade}_dicionario.csv`;

@@ -456,7 +456,8 @@ Fluxo: o vendedor aprova o pedido no Macuxi, o Hub o coloca na fila, o seu siste
         "cidade": "Boa Vista",
         "uf": "RR",
         "cep": "69313000",
-        "principal": false
+        "principal": false,
+        "origem": "editado"
       }
     }
   ]
@@ -465,6 +466,7 @@ Fluxo: o vendedor aprova o pedido no Macuxi, o Hub o coloca na fila, o seu siste
 <!-- /exemplo -->
 
 - **Idempotência pelo `pedido_uuid`**: grave no ERP de forma que o mesmo `pedido_uuid` nunca gere dois pedidos (guarde o UUID na tabela do ERP).
+- **Endereço de entrega editado no pedido** (RN-VEN-17): `endereco_entrega.origem` é `"editado"` quando o vendedor digitou o endereço só para aquele pedido; nesse caso `external_id` vem **nulo** e `principal` é `false`. **Regra do SQL de gravação no ERP: `endereco_entrega.external_id` nulo = use os campos de texto** (logradouro, número, complemento, bairro, cidade, UF e CEP); com `external_id` preenchido, use o endereço do ERP. Baseie-se no `external_id`, não em `origem`: o Conector 1.3.x já instalado não conhece `origem`, mas recebe os textos e o `external_id` nulo. Um SQL que só usa o `external_id` levaria a entrega ao endereço principal sem avisar; confira isso no roteiro de implantação. O endereço não principal exige Conector 1.3.0 ou superior.
 - **Timeout de 10 minutos**: pedido `enviado` sem retorno por 10 min volta a `pendente` e sai de novo em `pendentes` com `tentativa` maior. Se você já gravou, apenas devolva o retorno de novo.
 - `quantidade` está **sempre na unidade base**. Quando a venda foi por embalagem, `unidade`, `fator` e `quantidade_venda` mostram a medida vendida (`quantidade = quantidade_venda × fator`).
 - `condicao_pagamento_erp` já vem traduzida pelo mapeamento de-para da empresa. Pedido sem de-para fica retido no Hub (não sai) até o administrador cadastrar.

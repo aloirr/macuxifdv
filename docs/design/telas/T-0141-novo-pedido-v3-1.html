@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0141 · Novo pedido v3 · Venda, Entrega e endereço (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+</head>
+<body>
+<h1 class="prancha">Novo pedido v3 · prancha 1 de 2 · Venda, Entrega e endereço do pedido</h1>
+<p class="prancha">T-0141 · para o dono do produto aprovar antes de implementar <b>A</b> (crédito em tabela), <b>B</b> (frete sem frase) e <b>C</b> (endereço editável só no pedido). Aparelho de 360 dp, Campo-Demo, cliente Atacadinho Cachoeirinha (C5007), aberto pela aba Clientes. Barra inferior com as 5 abas do Campo (Início · Rota · Clientes · Pedidos · Mais); a folha cobre a barra. Especificação: <code>docs/design/pedido-v3.md</code>.</p>
+
+<div class="board">
+
+  <!-- A1 · aba Venda -->
+  <div class="tela">
+    <div class="legenda"><b>A</b>Aba Venda · crédito em tabela<span>Limite, Disponível e Prazo médio com valores em negrito; atualização abaixo.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:44</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha">
+          <div class="voltar"><i data-i="voltar" data-t="22"></i></div>
+          <div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div>
+        </div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding-top:14px">
+        <div class="faixa ok"><i data-i="check" data-t="16"></i><span>Cliente liberado · sem título vencido</span></div>
+        <div class="duas">
+          <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span>28/56 dias</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="bloco marca">
+          <div class="rotulo-secao"><span class="t">Crédito do cliente</span></div>
+          <div class="tabela">
+            <div class="lin"><span class="r">Limite</span><span class="v">R$ 20.000,00</span></div>
+            <div class="lin"><span class="r">Disponível</span><span class="v">R$ 17.900,00</span></div>
+            <div class="lin"><span class="r">Prazo médio</span><span class="v">45 dias</span></div>
+          </div>
+          <div class="atualiz"><i data-i="sync" data-t="13"></i>Atualizado hoje às 05:38</div>
+        </div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 69,96</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- A2 · estados do crédito -->
+  <div class="tela">
+    <div class="legenda"><b>A</b>Estados do bloco de crédito<span>Mesma tabela em todos os clientes; nada de "R$ 0,00" falso.</span></div>
+    <div class="phone" style="height:auto;display:block;padding:16px 20px 20px">
+      <div class="estados">
+        <div>
+          <div class="estado-t">Acima do limite (o alerta fica em Alertas)</div>
+          <div class="faixa aviso" style="margin-bottom:8px"><i data-i="alerta" data-t="16"></i><span>Limite excedido · disponível −R$ 1.200,00<span class="apoio">Vai para aprovação</span></span></div>
+          <div class="tabela">
+            <div class="lin"><span class="r">Limite</span><span class="v">R$ 20.000,00</span></div>
+            <div class="lin"><span class="r">Disponível</span><span class="v erro">−R$ 1.200,00</span></div>
+            <div class="lin"><span class="r">Prazo médio</span><span class="v">45 dias</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="estado-t">Sem sinal (dados do aparelho)</div>
+          <div class="tabela">
+            <div class="lin"><span class="r">Limite</span><span class="v">R$ 20.000,00</span></div>
+            <div class="lin"><span class="r">Disponível</span><span class="v">R$ 17.900,00</span></div>
+            <div class="lin"><span class="r">Prazo médio</span><span class="v">45 dias</span></div>
+          </div>
+          <div class="atualiz" style="margin-top:8px"><i data-i="wifiOff" data-t="13"></i>Atualizado ontem às 18:02</div>
+        </div>
+        <div>
+          <div class="estado-t">Cliente sem dados de crédito</div>
+          <div class="tabela">
+            <div class="lin"><span class="r">Limite</span><span class="v nulo">—</span></div>
+            <div class="lin"><span class="r">Disponível</span><span class="v nulo">—</span></div>
+            <div class="lin"><span class="r">Prazo médio</span><span class="v">30 dias</span></div>
+          </div>
+          <div class="nota" style="margin-top:8px">Sem dados de crédito deste cliente.</div>
+        </div>
+        <div>
+          <div class="estado-t">Lendo do aparelho</div>
+          <div class="tabela">
+            <div class="lin"><span class="r">Limite</span><span class="esq"></span></div>
+            <div class="lin"><span class="r">Disponível</span><span class="esq"></span></div>
+            <div class="lin"><span class="r">Prazo médio</span><span class="esq"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B + C1 · aba Entrega -->
+  <div class="tela">
+    <div class="legenda"><b>B</b><b>C</b>Aba Entrega · CIF<span>Sem frase abaixo do CIF/FOB. Endereço com selo de origem e "Alterar".</span></div>
+    <div class="phone">
+      <div class="status"><span>05:45</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha">
+          <div class="voltar"><i data-i="voltar" data-t="22"></i></div>
+          <div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div>
+        </div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding-top:14px">
+        <div class="bloco">
+          <div class="rotulo-secao"><span class="t">Endereço de entrega</span><span class="acao">Alterar</span></div>
+          <div class="cartao pad">
+            <span class="selo neutro">Principal</span>
+            <div class="end">Rua Pará, 137 · São Geraldo<br>Manaus/AM · 69053-000</div>
+          </div>
+        </div>
+        <div class="bloco marca">
+          <div class="rotulo-secao"><span class="t">Frete</span></div>
+          <div class="seg"><div class="on">CIF</div><div>FOB</div></div>
+        </div>
+        <div class="bloco">
+          <div class="rotulo-secao"><span class="t">Observações</span></div>
+          <div class="texto-area">Observação para a entrega ou o pedido</div>
+        </div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 69,96</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- C2 · folha de endereço -->
+  <div class="tela">
+    <div class="legenda"><b>C</b>Alterar → folha "Endereço de entrega"<span>Endereços do ERP + "Editar endereço deste pedido". Tocar escolhe e fecha.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:45</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo"></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Endereço de entrega <i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div>
+          <div class="opcao"><div class="radio on"></div><div><div class="n">Principal</div><div class="e">Rua Pará, 137 · São Geraldo · Manaus/AM · 69053-000</div></div></div>
+          <div class="opcao"><div class="radio"></div><div><div class="n">Depósito</div><div class="e">Av. Torquato Tapajós, 4010 · Flores · Manaus/AM · 69058-830</div></div></div>
+          <div class="opcao"><div class="radio"></div><div><div class="n">Loja 2</div><div class="e">Rua Recife, 1220 · Adrianópolis · Manaus/AM · 69057-002</div></div></div>
+        </div>
+        <div class="link-linha"><i data-i="edit" data-t="20"></i>Editar endereço deste pedido<span class="seta"><i data-i="chevron" data-t="16"></i></span></div>
+        <div class="btn-texto">Voltar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C3 · formulário -->
+  <div class="tela">
+    <div class="legenda"><b>C</b>Formulário "Endereço deste pedido"<span>Já preenchido. Vale só para o pedido; o cadastro do cliente não muda. Sem sinal: igual, tudo à mão (sem consulta de CEP); Cidade e UF obrigatórias.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:46</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo"></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="top:44px;gap:10px">
+        <div class="pega"></div>
+        <div class="tit">Endereço deste pedido <i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div class="sub">Só neste pedido. O cadastro do cliente não muda.</div>
+        <div style="width:50%"><div class="campo-r">CEP</div><div class="campo">69053-000</div></div>
+        <div><div class="campo-r">Rua</div><div class="campo">Rua Pará</div></div>
+        <div class="duas"><div style="flex:1"><div class="campo-r">Número</div><div class="campo foco">140</div></div><div style="flex:2"><div class="campo-r">Complemento</div><div class="campo">fundos</div></div></div>
+        <div><div class="campo-r">Bairro</div><div class="campo">São Geraldo</div></div>
+        <div class="duas"><div style="flex:2"><div class="campo-r">Cidade</div><div class="campo">Manaus</div></div><div style="flex:1"><div class="campo-r">UF</div><div class="suspensa">AM <i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div></div>
+        <div style="flex:1"></div>
+        <div class="btn principal">Usar neste pedido</div>
+        <div class="btn-texto" style="margin-top:-4px">Voltar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C4 · endereço editado + FOB -->
+  <div class="tela">
+    <div class="legenda"><b>B</b><b>C</b>Depois de editar · FOB<span>Selo "Editado neste pedido"; FOB mostra só a transportadora.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:46</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding-top:14px">
+        <div class="bloco marca">
+          <div class="rotulo-secao"><span class="t">Endereço de entrega</span><span class="acao">Alterar</span></div>
+          <div class="cartao pad">
+            <span class="selo destaque">Editado neste pedido</span>
+            <div class="end">Rua Pará, 140, fundos · São Geraldo<br>Manaus/AM · 69053-000</div>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="rotulo-secao"><span class="t">Frete</span></div>
+          <div class="seg"><div>CIF</div><div class="on">FOB</div></div>
+          <div class="campo-r" style="margin:6px 0 0">Transportadora</div>
+          <div class="chips"><div class="chip on">Transportes Rio Negro</div><div class="chip">Transvale</div><div class="chip">Outra</div></div>
+        </div>
+        <div class="bloco">
+          <div class="rotulo-secao"><span class="t">Observações</span></div>
+          <div class="texto-area">Observação para a entrega ou o pedido</div>
+        </div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 69,96</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

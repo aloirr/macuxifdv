@@ -9,7 +9,7 @@
 import type { FiltrosInterpretados, Referencia } from '../contracts';
 import { expandirAplicacao } from './aplicacao';
 import type { ParametrosCatalogo } from './parametros';
-import { chaveDeTermo, expandirSinonimos, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { chaveDeTermo, expandirSinonimos, semAcento, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 
 /** Documento da busca: cadastro do Core + preço/estoque já resolvidos para o usuário e sinais de venda. */
 export interface DocBusca {
@@ -458,7 +458,7 @@ const mesmaChave = (a: string, b: string) => chaveDeTermo(a) === chaveDeTermo(b)
 
 /** Forma compacta de um código (`PAS-DIA-150` → `pasdia150`): só letras e dígitos, sem acento nem caixa (T-0052-B1). */
 export function codigoCompacto(s: string | null | undefined): string {
-  return s ? s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+  return s ? semAcento(s).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 }
 
 export function casaComCodigo(d: Pick<DocBusca, 'ean' | 'sku'> & { referencias?: DocBusca['referencias'] | undefined }, code: NonNullable<FiltrosInterpretados['code']>): boolean {
@@ -489,7 +489,7 @@ function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngram
   return i >= 0 ? i : null;
 }
 
-export const nomeChave = (d: Pick<DocBusca, 'nome'>) => d.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export const nomeChave = (d: Pick<DocBusca, 'nome'>) => semAcento(d.nome).toLowerCase();
 export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**

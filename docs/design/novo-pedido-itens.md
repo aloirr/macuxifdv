@@ -78,6 +78,8 @@ dentro de um contêiner de 30 dp não vale. Nestas peças o alvo é o tamanho do
 6. Combina com o pedido
 
 ### 2.1 Crédito do cliente (RN-VEN-12, RN-VEN-13; `core.financeiro_cliente@1`)
+> **2026-11-09 (T-0141):** na aba Venda do Novo pedido v3, o crédito é a `TabelaValores` (Limite · Disponível · Prazo médio,
+> valores em Archivo negrito à direita): `pedido-v3.md` §A. O `CartaoCredito` abaixo fica só onde ainda é usado.
 - Título "CRÉDITO DO CLIENTE" (rótulo 11/700 maiúsculas).
 - Dois valores lado a lado: **Limite total** (esquerda) e **Limite disponível** (direita), Archivo 18 tabular, de centavos com
   `formatBRL`. Disponível negativo: `negativo: true` (número em vermelho, com o sinal "−").

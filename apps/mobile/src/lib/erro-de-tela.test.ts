@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { deveGravarErro, limparDadoPessoal, mensagemDoErroParaSuporte, registroDoErro, textoDoUltimoErro } from './erro-de-tela';
+import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
+import { deveGravarErro, mensagemDoErroParaSuporte, registroDoErro, textoDoUltimoErro } from './erro-de-tela';
 
 const AGORA = new Date('2026-11-08T21:15:00Z');
 
@@ -45,19 +46,19 @@ describe('erro de tela (relato de 08/11: o app fechava no Novo pedido)', () => {
 });
 
 describe('sem dado pessoal e sem perder a causa (revisão R-20261108-214923)', () => {
-  it('e-mail e número longo saem mascarados no registro (mensagem e pilha); UUID e arquivo do bundle ficam', () => {
+  it('e-mail, CNPJ e telefone saem mascarados no registro (mensagem e pilha); UUID e arquivo do bundle ficam', () => {
     const e = new Error('Cliente ana@x.com.br, CNPJ 12.345.678/0001-90, tel (92) 99123-4567');
     e.stack = 'Error: x\nat abrir (index.bundle:12:3) id 9f3c2b1a-7d4e-4c8f-a1b2-c3d4e5f6a7b8 joao@y.com';
     const r = registroDoErro(e, 'tela', AGORA);
-    expect(r.mensagem).toBe('Cliente [e-mail] CNPJ [número], tel ([número]'); // a regra da T-0088 começa no 1º dígito
+    expect(r.mensagem).toBe('Cliente [e-mail], CNPJ [cnpj], tel [telefone]'); // máscara única do @macuxi/comum (R-20261109-034101)
     expect(r.pilha).toBe('Error: x\nat abrir (index.bundle:12:3) id 9f3c2b1a-7d4e-4c8f-a1b2-c3d4e5f6a7b8 [e-mail]');
-    expect(limparDadoPessoal('pedido 000010')).toBe('pedido 000010');
+    expect(mascararDadoPessoal('pedido 000010')).toBe('pedido 000010');
   });
   it('telefone sem DDD também sai mascarado; pilha, UUID, data e pedido curto ficam (E8 do testes, R-20261109-000339)', () => {
-    expect(limparDadoPessoal('ligar 99123-4567 ou 3234-5678 ou 991234567')).toBe('ligar [número] ou [número] ou [número]');
-    expect(limparDadoPessoal('at f (index.android.bundle:1234:56789)')).toBe('at f (index.android.bundle:1234:56789)');
-    expect(limparDadoPessoal('id 550e8400-e29b-41d4-a716-446655440000')).toBe('id 550e8400-e29b-41d4-a716-446655440000');
-    expect(limparDadoPessoal('em 2026-11-08T21:11:00.000Z, pedido 1234')).toBe('em 2026-11-08T21:11:00.000Z, pedido 1234');
+    expect(mascararDadoPessoal('ligar 99123-4567 ou 3234-5678 ou 991234567')).toBe('ligar [telefone] ou [telefone] ou [telefone]');
+    expect(mascararDadoPessoal('at f (index.android.bundle:1234:56789)')).toBe('at f (index.android.bundle:1234:56789)');
+    expect(mascararDadoPessoal('id 550e8400-e29b-41d4-a716-446655440000')).toBe('id 550e8400-e29b-41d4-a716-446655440000');
+    expect(mascararDadoPessoal('em 2026-11-08T21:11:00.000Z, pedido 1234')).toBe('em 2026-11-08T21:11:00.000Z, pedido 1234');
   });
   it('o não fatal não grava por cima do fatal nem da tela de erro; tela, raiz e fatal sempre gravam', () => {
     expect(deveGravarErro(null, 'nao-fatal')).toBe(true);

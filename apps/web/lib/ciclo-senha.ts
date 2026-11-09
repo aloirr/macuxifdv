@@ -3,8 +3,8 @@
  * docs/desenho/T-0094.md §3 a §5 e §8). Puro, para teste.
  * RD-0019/RD-0020: textos, `detalhesDaTroca`, `subtituloDaTroca`, `repeticaoDaSenha`, `trocaProntaParaEnviar`, `validarEsqueci`,
  * `validarLogin` e o texto de espera vêm da fonte única do Core (`@macuxi/core/contracts`, ciclo-senha.ts). Aqui fica só o que é
- * do BKO: as rotas, o mapa erro → ação da tela (sobre o `ApiRequestError` do SDK web), a memória da aba e o ouvinte do
- * `PERFIL_SEM_BKO`.
+ * do BKO: as rotas, o texto de cada erro da troca (a ação vem de `acaoDoErroDaTroca`, do Core), a memória da aba e o ouvinte
+ * do `PERFIL_SEM_BKO`.
  * - 403 `SENHA_A_TROCAR` no login → "Crie sua senha" (sem texto). A senha usada no login fica só na memória da tela de login (estado
  *   do React), nunca em `localStorage`/`sessionStorage`/URL/log, e some ao voltar ao login ou ao entrar.
  * - "Crie sua senha" chama `POST /v1/auth/senha/trocar`; a resposta é a sessão (como no login). Os erros seguem a tabela do §2.
@@ -12,8 +12,18 @@
  * - 403 `PERFIL_SEM_BKO` durante o uso (perfil rebaixado): encerra a sessão e volta ao Entrar com o aviso (§1).
  * Quem pode entrar no BKO é decidido pela API (o login manda `app: 'web'`) e pela fonte única do SDK; nada de lista de perfis aqui.
  */
-import { CODIGOS_AUTH, mensagemDaSenha, TEXTOS_CRIE_SENHA, TEXTOS_ESQUECI, TEXTOS_LOGIN_SENHA, textoDeMuitosPedidos, type FaltaNaSenha } from '@macuxi/core/contracts';
-import { CODIGO_PERFIL_FORA_DO_APP, CODIGO_PERFIL_SEM_BKO, mensagemPerfilForaDoApp, type Perfil } from '@macuxi/platform-sdk';
+import {
+  acaoDoErroDaTroca,
+  codigoDoErro,
+  CODIGOS_AUTH,
+  TEXTOS_CRIE_SENHA,
+  TEXTOS_ESQUECI,
+  TEXTOS_LOGIN_SENHA,
+  textoDeMuitosPedidos,
+  textoDoErroDaSenha,
+  type AcaoAposErroDaTroca,
+} from '@macuxi/core/contracts';
+import { CODIGO_PERFIL_SEM_BKO, mensagemPerfilForaDoApp, type Perfil } from '@macuxi/platform-sdk';
 
 import { mensagemDoLogin } from './login';
 
@@ -37,29 +47,32 @@ interface ErroDaApi {
 const comoErro = (e: unknown): ErroDaApi => (e && typeof e === 'object' ? (e as ErroDaApi) : {});
 
 /**
- * O que a "Crie sua senha" faz com o erro da API (tabela do §2):
+ * O que a "Crie sua senha" faz com o erro da API (tabela do §2). RD-0019: a ação vem da fonte única do Core
+ * (`acaoDoErroDaTroca`, nomes do contrato); aqui fica só o texto do BKO.
  * - `destacar`: 422 RN-CORE-32 (aviso no topo, lista em vermelho, campos ficam);
  * - `limpar`: 422 RN-CORE-34 (limpa os dois campos, foco no primeiro);
- * - `login`: 401/410/423/429/403 `PERFIL_FORA_DO_APP` (volta ao login com o texto lá; a senha some da memória);
- * - `fica`: sem internet e o resto (o botão continua ativo e tenta de novo).
+ * - `voltar_ao_login`: credencial que não vale mais, temporária vencida, bloqueio, muitas tentativas, `PERFIL_FORA_DO_APP`
+ *   (volta ao login com o texto lá; a senha some da memória);
+ * - `ficar`: sem internet e o resto (o botão continua ativo e tenta de novo).
  */
-export type ResultadoDaTroca = { acao: 'destacar' | 'limpar' | 'login' | 'fica'; mensagem: string };
-
-const FALTAS: readonly FaltaNaSenha[] = ['caracteres', 'letra', 'numero', 'especial'];
+export type ResultadoDaTroca = { acao: AcaoAposErroDaTroca; mensagem: string };
 
 export function resultadoDoErroDaTroca(e: unknown, senhaNova: string): ResultadoDaTroca {
-  const x = comoErro(e);
-  if (x.status === 0) return { acao: 'fica', mensagem: TEXTOS_CRIE_SENHA.semInternet };
-  if (x.status === 422 && x.code === 'RN-CORE-34') return { acao: 'limpar', mensagem: TEXTOS_CRIE_SENHA.repetiuATemporaria };
-  if (x.status === 422 && x.code === 'RN-CORE-32') {
-    const lista = (x.details as { faltas?: unknown } | undefined)?.faltas;
-    const faltas = Array.isArray(lista) ? lista.filter((f): f is FaltaNaSenha => (FALTAS as readonly unknown[]).includes(f)) : [];
-    return { acao: 'destacar', mensagem: (faltas.length > 0 ? mensagemDaSenha(faltas, senhaNova) : null) ?? TEXTOS_CRIE_SENHA.igualAoEmail };
+  const acao = acaoDoErroDaTroca(e);
+  if (comoErro(e).status === 0) return { acao, mensagem: TEXTOS_CRIE_SENHA.semInternet };
+  switch (codigoDoErro(e)) {
+    case 'RN-CORE-32':
+      // RN-CORE-32: o texto do 422 vem da fonte única do Core (nunca a mensagem da API)
+      return { acao, mensagem: textoDoErroDaSenha(e, senhaNova) };
+    case 'RN-CORE-34':
+      return { acao, mensagem: TEXTOS_CRIE_SENHA.repetiuATemporaria };
+    case CODIGOS_AUTH.credenciais:
+      return { acao, mensagem: TEXTOS_CRIE_SENHA.naoValeMais };
+    case CODIGOS_AUTH.senhaVencida:
+      return { acao, mensagem: TEXTOS_LOGIN_SENHA.senhaVencida };
+    default:
+      return { acao, mensagem: mensagemDoLogin(e) };
   }
-  if (x.status === 401) return { acao: 'login', mensagem: TEXTOS_CRIE_SENHA.naoValeMais };
-  if (x.status === 410 || x.code === CODIGOS_AUTH.senhaVencida) return { acao: 'login', mensagem: TEXTOS_LOGIN_SENHA.senhaVencida };
-  if (x.status === 423 || x.status === 429 || x.code === CODIGO_PERFIL_FORA_DO_APP) return { acao: 'login', mensagem: mensagemDoLogin(e) };
-  return { acao: 'fica', mensagem: mensagemDoLogin(e) };
 }
 
 /**

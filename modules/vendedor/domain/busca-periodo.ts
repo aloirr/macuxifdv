@@ -4,6 +4,7 @@
  * relógio: o instante de "agora" e o fuso chegam por parâmetro. Dinheiro em centavos.
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
+import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 
 export interface ItemDaBusca {
   id: string;
@@ -88,11 +89,8 @@ export interface Periodo {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** Data civil ± n dias. */
-export function somarDias(dia: string, n: number): string {
-  const [a, m, d] = dia.split('-').map(Number) as [number, number, number];
-  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
-}
+/** Data civil ± n dias (a conta única é `somarDiasCivis` do @macuxi/comum, RD-0042). */
+export { somarDias };
 
 /** O período que contém o instante `agora`, no fuso do tenant (padrão da tela: `periodoDe('mes', agora, tz)`). */
 export function periodoDe(tipo: TipoPeriodo, agora: string | Date, tz: string): Periodo {

@@ -1,8 +1,8 @@
 /**
  * T-0140 (teste de campo de 08/11 à noite, branch claude/relaxed-johnson-w2afvp aplicado à mão) — o que dá para provar sem
  * aparelho: (A) "Novo pedido" não fecha mais o app, pela ficha, pela Rota e pelo Catálogo; (B) o link do recado do Início e da
- * central só navega para tela que o perfil tem, e o shell (`caminhoDoLink`/`destinoDaNotificacao`) decide igual ao Core
- * (`linkNavegavel`). Sem banco: roda local e no CI. Matriz e roteiro do aparelho: docs/testes/T-0140.md.
+ * central só navega para tela que o perfil tem, e o shell (`destinoDaNotificacao`) decide igual ao Core
+ * (desde a RD-0032, os dois usam a regra única do SDK: `linkInternoNavegavel`). Sem banco: roda local e no CI. Matriz e roteiro do aparelho: docs/testes/T-0140.md.
  *
  * (A) A causa era hook depois de `return` antecipado no `OrderEditor` (o 1º render saía em "Cliente não encontrado", o 2º chamava
  * mais hooks e o React lançava; sem tela de erro no build, o Android fechava o app). As telas importam react-native e não
@@ -25,8 +25,8 @@ vi.mock('expo-router', () => ({
   },
 }));
 
-import { caminhoDoLink, destinoDaNotificacao, recadosDoInicio } from '../../apps/mobile/src/lib/inicio';
-import { linkNavegavel } from '../../modules/core/app/lib/notificacoes';
+import { caminhoDoLinkInterno as caminhoDoLink, linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
+import { destinoDaNotificacao, recadosDoInicio } from '../../apps/mobile/src/lib/inicio';
 import { CAMINHO_NOVO_PEDIDO, hrefNovoPedido, irParaNovoPedido } from '../../modules/vendedor/app/rotas';
 
 const RAIZ = join(__dirname, '..', '..');
@@ -203,11 +203,15 @@ describe('T-0140 B — link do recado: shell (`caminhoDoLink`/`destinoDaNotifica
       ],
       total: 3,
     } as unknown as Parameters<typeof recadosDoInicio>[0]);
-    expect(itens.map((i) => i.destino)).toEqual(['/m/core-rota', '/m/rota', '/m/notificacoes']);
+    // RD-0032: o item guarda o link como veio do Core (que já filtrou o formato em `inicio-local`); o toque decide pela visão
+    expect(itens.map((i) => i.destino).slice(0, 2)).toEqual(['/m/core-rota', '/m/rota']);
     // o shell reaplica com a visão do usuário: /m/core-rota (sem tela) vai para a central
     expect(itens.map((i) => destinoDaNotificacao(i.destino, (c) => PAGINAS_CAMPO.has(c)))).toEqual(['/m/notificacoes', '/m/rota', '/m/notificacoes']);
     expect(ler('apps/mobile/src/app/(tabs)/index.tsx')).toContain('navegar(destinoDaNotificacao(r.destino, (c) => visaoShell.pagina(c) !== null))');
     expect(ler('modules/core/app/telas/notificacoes.tsx')).toContain('linkNavegavel(n.link, (c) => visao.pagina(c) !== null)');
+    // a regra é a ÚNICA do SDK (RD-0032): o Core e o shell importam `linkInternoNavegavel`, sem cópia própria
+    expect(ler('modules/core/app/telas/notificacoes.tsx')).toContain("import { linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk'");
+    expect(ler('apps/mobile/src/lib/inicio.ts')).toContain('linkInternoNavegavel(link, telaExiste)');
   });
 
   it('B5. seed da demo e fixture dois-tenants gravam o recado com /m/rota (tela que existe), nunca /m/core-rota', () => {

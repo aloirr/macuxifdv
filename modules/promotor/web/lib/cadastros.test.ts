@@ -47,7 +47,6 @@ describe('formulário → corpo da API', () => {
 
   it('todo corpo montado pelo formulário válido passa no contrato da API', () => {
     expect(EDICAO_CADASTRO.categoria_gondola.safeParse(corpoDoForm('categoria_gondola', { ...vazio(), nome: 'Massas' }, ID)).success).toBe(true);
-    expect(EDICAO_CADASTRO.concorrente.safeParse(corpoDoForm('concorrente', { ...vazio(), nome: 'Rival' }, ID)).success).toBe(true);
     expect(EDICAO_CADASTRO.produto_concorrente.safeParse(corpoDoForm('produto_concorrente', { ...vazio(), nome: 'Macarrão', concorrente_id: CAT }, ID)).success).toBe(true);
   });
 
@@ -67,7 +66,7 @@ describe('CSV dos cadastros', () => {
     expect(csv).toContain('Massas;42,5;Todas as lojas;desde 01/11/2026;Ativo');
   });
   it('desativado aparece como tal', () => {
-    expect(cadastroCsv('concorrente', [{ nome: 'Rival', ativo: false, deleted_at: '2026-11-03T10:00:00.000Z' }])).toContain('Rival;Desativado');
+    expect(cadastroCsv('categoria_gondola', [{ nome: 'Rival', ordem: 1, ativo: false, deleted_at: '2026-11-03T10:00:00.000Z' }])).toContain('Rival;1;Desativado');
   });
 });
 

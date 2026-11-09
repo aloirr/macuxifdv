@@ -106,7 +106,7 @@ Nova prop opcional **`repeticao: 'vazia' | 'igual' | 'diferente'`** (web e mobil
 kit continua sem receber senha nenhuma:
 ```ts
 const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' : 'diferente';
-<RegrasDaSenha faltas={faltasNaSenha(senhaNova)} repeticao={repeticao} destacar={tentouSalvar} id="senha-regras" />
+<RegrasDaSenha faltas={faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltas)} repeticao={repeticao} destacar={tentouSalvar} id="senha-regras" />
 ```
 - Uma linha **fora** da lista "A senha precisa ter", logo abaixo dela, com a mesma marca de forma:
   - `igual` → ✓ verde **"As senhas conferem."**

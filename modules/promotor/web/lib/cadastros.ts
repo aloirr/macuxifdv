@@ -3,7 +3,7 @@
  * mesmo domain da API e exportação CSV. Sem React: roda em Node nos testes. A proteção real é a API; aqui só se evita
  * ida e volta ao servidor e se mostra o erro em português.
  */
-import { EDICAO_CADASTRO, type CadastroBko } from '../../contracts';
+import { EDICAO_CADASTRO, type CadastroGravavel } from '../../contracts';
 import { paraCsv } from './csv';
 
 export const ABAS_CADASTRO = ['checklists', 'categorias', 'metas', 'mix', 'concorrentes'] as const;
@@ -25,12 +25,12 @@ export function avisoMarcas(podeGerenciar: boolean): { link: boolean } {
   return { link: podeGerenciar };
 }
 
-export const CADASTROS_DA_ABA: Readonly<Record<AbaCadastro, readonly CadastroBko[]>> = {
+export const CADASTROS_DA_ABA: Readonly<Record<AbaCadastro, readonly CadastroGravavel[]>> = {
   checklists: ['checklist_loja'],
   categorias: ['categoria_gondola'],
   metas: ['meta_share'],
   mix: ['mix_obrigatorio'],
-  concorrentes: ['concorrente', 'produto_concorrente'],
+  concorrentes: ['produto_concorrente'],
 };
 
 /** `?aba=metas`; valor desconhecido cai na primeira aba. Os filtros ficam na URL (compartilháveis). */
@@ -117,14 +117,12 @@ export function lerPercentual(s: string): number {
 }
 
 /** Corpo da API (contrato `*Edicao`) a partir do formulário. `id` é o UUID gerado no cliente (escrita idempotente). */
-export function corpoDoForm(c: CadastroBko, f: FormCadastro, id: string): Record<string, unknown> {
+export function corpoDoForm(c: CadastroGravavel, f: FormCadastro, id: string): Record<string, unknown> {
   const alvo = { cliente_id: f.alvo_tipo === 'loja' ? f.alvo_valor.trim() : null, segmento: f.alvo_tipo === 'segmento' ? f.alvo_valor.trim() : null };
   const vigencia = { vigencia_inicio: f.vigencia_inicio, vigencia_fim: idOuNulo(f.vigencia_fim) };
   switch (c) {
     case 'categoria_gondola':
       return { id, nome: f.nome.trim(), ordem: Number(f.ordem), ativo: f.ativo };
-    case 'concorrente':
-      return { id, nome: f.nome.trim(), ativo: f.ativo };
     case 'produto_concorrente':
       return { id, concorrente_id: f.concorrente_id, nome: f.nome.trim(), produto_id: idOuNulo(f.produto_id), categoria_gondola_id: idOuNulo(f.categoria_gondola_id), ativo: f.ativo };
     case 'meta_share':
@@ -137,7 +135,7 @@ export function corpoDoForm(c: CadastroBko, f: FormCadastro, id: string): Record
 }
 
 /** Problemas do corpo em português, pelo MESMO contrato (e domain) que a API usa; lista vazia = pode enviar. */
-export function problemasDoForm(c: CadastroBko, f: FormCadastro, id: string): string[] {
+export function problemasDoForm(c: CadastroGravavel, f: FormCadastro, id: string): string[] {
   const r = EDICAO_CADASTRO[c].safeParse(corpoDoForm(c, f, id));
   if (r.success) return [];
   return [...new Set(r.error.issues.map((i) => (i.code === 'custom' ? i.message : mensagemDoCampo(i.path.map(String)))))];
@@ -168,14 +166,12 @@ export const rotuloVigencia = (l: Linha): string => {
 export const pctBr = (n: unknown) => `${Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 
 /** CSV da lista de um cadastro (nomes de categoria/concorrente resolvidos pelo mapa; sem mapa mostra o id). */
-export function cadastroCsv(c: CadastroBko, linhas: readonly Linha[], nomes: ReadonlyMap<string, string> = new Map()): string {
+export function cadastroCsv(c: CadastroGravavel, linhas: readonly Linha[], nomes: ReadonlyMap<string, string> = new Map()): string {
   const n = (id: unknown) => (typeof id === 'string' ? (nomes.get(id) ?? id) : '');
   const situacao = (l: Linha) => (l.deleted_at ? 'Desativado' : l.ativo === false ? 'Inativo' : 'Ativo');
   switch (c) {
     case 'categoria_gondola':
       return paraCsv([['Categoria', 'Ordem', 'Situação'], ...linhas.map((l) => [txt(l.nome), Number(l.ordem), situacao(l)])]);
-    case 'concorrente':
-      return paraCsv([['Concorrente', 'Situação'], ...linhas.map((l) => [txt(l.nome), situacao(l)])]);
     case 'produto_concorrente':
       return paraCsv([['Concorrente', 'Produto do concorrente', 'Produto nosso (id)', 'Categoria', 'Situação'], ...linhas.map((l) => [n(l.concorrente_id), txt(l.nome), txt(l.produto_id), n(l.categoria_gondola_id), situacao(l)])]);
     case 'meta_share':

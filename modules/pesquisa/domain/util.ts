@@ -1,30 +1,12 @@
 /** Utilitários internos do domain da Pesquisa: arredondamento, datas civis, resultado de operação e congelamento. */
 import { localDate } from '@macuxi/comum';
 
-/** Arredonda meio para cima (afastando de zero) em `casas` casas; nunca devolve -0. */
-export function arredondar(valor: number, casas = 2): number {
-  const f = 10 ** casas;
-  const r = (Math.sign(valor) * Math.round(Math.abs(valor) * f + Number.EPSILON * f)) / f;
-  return r === 0 ? 0 : r;
-}
+/** Arredondamento e percentual: fonte única em `@macuxi/comum` (RD-0045). */
+export { arredondar, percentual } from '@macuxi/comum/numeros';
 
-/** `parte ÷ total × 100` arredondado; `null` quando o total é zero/inválido (sem dados). */
-export function percentual(parte: number, total: number, casas = 2): number | null {
-  if (!Number.isFinite(parte) || !Number.isFinite(total) || total <= 0) return null;
-  return arredondar((parte / total) * 100, casas);
-}
-
-/** Data civil `AAAA-MM-DD` válida (rejeita 2026-02-30). */
-export function ehDataCivil(s: unknown): s is string {
-  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T12:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
-}
-
-/** Soma `n` dias a uma data civil. */
-export function somarDias(data: string, n: number): string {
-  return new Date(Date.parse(`${data}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-}
+/** Data civil válida e soma de dias: fonte única em `@macuxi/comum` (RD-0042). */
+export { ehDataCivil } from '@macuxi/comum';
+export { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 
 /** Instante em milissegundos; erro em português para data inválida. */
 export function instanteMs(instante: string): number {

@@ -15,12 +15,12 @@
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { comandoSetRole, SQL_PRECISA_SET_ROLE } from '../src/papeis';
 import { agoraDaFixture, banco, semBanco } from './estado';
-import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
+import { carregarFixtureDosTestes } from './fixture-treinamento';
 import { emTransacao, erroDe, retratoDoCatalogo, tabelasComTenant } from './util';
 
 const A = DOIS_TENANTS.A;
@@ -300,10 +300,7 @@ describe.skipIf(semBanco())('0032 excluir_tenant sem superusuário (banco efême
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({
-      preparar: async (c) => {
-        await carregarDoisTenants(c, { agora: agoraDaFixture() });
-        await carregarTreinamentoDoisTenants(c, { agora: agoraDaFixture() });
-      },
+      preparar: (c) => carregarFixtureDosTestes(c, { agora: agoraDaFixture() }),
     });
   });
   afterAll(async () => {

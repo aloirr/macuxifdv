@@ -2,7 +2,7 @@
  * Armazenamento do motor de sync do usuário (T-0088; desenho docs/desenho/T-0088.md; ADR 0003, adendo de 2026-11-06).
  *
  * - SQLite do aparelho, um arquivo por usuário e tenant (`macuxi-u-<usuario>-t-<tenant|demo>.db`), com UMA instância por
- *   arquivo no processo: o app aberto (`state/plataforma.tsx`, motor e lease) e a tarefa em segundo plano
+ *   arquivo no processo: o app aberto (`state/plataforma.tsx`, motor) e a tarefa em segundo plano
  *   (`services/segundo-plano.ts`, ADR 0017) chamam `abrirArmazenamentoDoUsuario` e recebem a mesma promessa.
  * - Na 1ª abertura depois da atualização, a passagem do AsyncStorage antigo (`macuxi:u:<id>:*`) roda ANTES do motor, com o
  *   progresso para a tela "Atualizando os dados do aparelho…"; o espelho `fv:u:<id>:armazenamento` vai para o
@@ -79,7 +79,7 @@ export interface UsuarioDoArmazenamento {
 
 /**
  * Escolha, abertura (uma instância por arquivo), passagem, espelho e remoção do AsyncStorage antigo. Aberturas
- * simultâneas do mesmo usuário e tenant (app, lease, tarefa em segundo plano) recebem a mesma promessa.
+ * simultâneas do mesmo usuário e tenant (app e tarefa em segundo plano) recebem a mesma promessa.
  * `erro` (com o espelho já gravado, o arquivo não abriu): a tela pede "Tentar de novo", nunca cai no AsyncStorage.
  */
 export function abrirArmazenamentoDoUsuario(u: UsuarioDoArmazenamento): Promise<AberturaArmazenamento> {

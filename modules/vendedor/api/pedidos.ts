@@ -37,13 +37,13 @@ import { exigirLeituraDePedidos } from './opcao-promotor';
 import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
-function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string, agora: Date): Partial<Order> {
+function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string): Partial<Order> {
   if (!doc) return {};
   return {
     tipo: doc.tipo,
     validade_ate: doc.validade_ate,
     validade_data: doc.validade_data,
-    situacao_orcamento: doc.tipo === 'orcamento' ? situacaoDoOrcamento({ status, validade_ate: doc.validade_ate, convertido_pedido_id: doc.convertido_pedido_id }, agora) : null,
+    situacao_orcamento: doc.tipo === 'orcamento' ? situacaoDoOrcamento({ status, validade_ate: doc.validade_ate, convertido_pedido_id: doc.convertido_pedido_id }) : null,
     orcamento_origem_id: doc.orcamento_origem_id,
     convertido_pedido_id: doc.convertido_pedido_id,
   };
@@ -53,12 +53,11 @@ const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre = 'p.') => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
 
 /**
- * RN-VEN-18: situação do orçamento no SQL, igual a `situacaoDoOrcamento` (cancelado e convertido prevalecem; vencido ⇔ agora >= início
- * do dia seguinte à `orcamento_validade` no fuso do tenant). $10 = fuso, $15 = agora. Só faz sentido com `tipo = 'orcamento'`.
+ * RN-VEN-18: situação do orçamento no SQL, igual a `situacaoDoOrcamento` (cancelado e convertido prevalecem; o resto é aberto: o
+ * orçamento não vence, RN-VEN-18). $10 = fuso, sem parâmetro de relógio. Só faz sentido com `tipo = 'orcamento'`.
  */
 const SQL_SITUACAO_ORCAMENTO = `(case when p.status = 'cancelled' then 'cancelado'
     when exists (select 1 from vendedor.pedido c where c.tenant_id = p.tenant_id and c.orcamento_id = p.id and c.deleted_at is null) then 'convertido'
-    when p.orcamento_validade is not null and $15::timestamptz >= ((p.orcamento_validade + 1)::timestamp at time zone $10) then 'expirado'
     else 'aberto' end)`;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -125,7 +124,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   ).rows;
   const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
   const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
-  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento), ...camposPreVenda(doc, linha.status, ctx.agora()) } };
+  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento), ...camposPreVenda(doc, linha.status) } };
 }
 
 /** T-0054: notas de faturamento e de devolução do pedido (detalhe; o resumo vem das colunas do pedido). */
@@ -184,7 +183,7 @@ export const rotaListarPedidos: RotaModulo = {
             and ($5::uuid is null or p.cliente_id = $5)
             and ((($6::date is null or p.created_at >= ($6::date)::timestamp at time zone $10)
                   and ($7::date is null or p.created_at < (($7::date) + 1)::timestamp at time zone $10))
-                 or ($16::boolean and ($6::date is not null or $7::date is not null)
+                 or ($15::boolean and ($6::date is not null or $7::date is not null)
                      and exists (select 1 from vendedor.pedido_evento ev
                                   where ev.tenant_id = p.tenant_id and ev.pedido_id = p.id and ev.deleted_at is null and ev.de is not null
                                     and ($6::date is null or ev.ocorrido_em >= ($6::date)::timestamp at time zone $10)
@@ -195,13 +194,13 @@ export const rotaListarPedidos: RotaModulo = {
             and ($14::text is null or ${SQL_SITUACAO_ORCAMENTO} = $14)
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, ctx.agora().toISOString(), q.por_status === '1'],
+        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1'],
       );
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
       const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
       return {
-        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status, ctx.agora()) })),
+        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
       };
     });

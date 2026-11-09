@@ -126,6 +126,17 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
       ...over,
     });
 
+  it('RN-VEN-17: o endereço digitado só no pedido sai nas duas versões do PDF como "Endereço de entrega", sem a marca de editado (T-0141)', () => {
+    const editado = { logradouro: 'Rua Pará', numero: '140', complemento: 'fundos', bairro: 'São Geraldo', cidade: 'Manaus', uf: 'AM', cep: '69053000', origem: 'editado' as const };
+    for (const view of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(novo({ delivery_address: editado })), view, ctx);
+      expect(html).toContain('Endereço de entrega');
+      expect(html).toContain('Rua Pará, 140 – fundos');
+      expect(html).toContain('Manaus/AM');
+      expect(html).not.toMatch(/Editado neste pedido/i);
+    }
+  });
+
   it('RN-CORE-19: a coluna Medida mostra UN e "CX c/ 12" nas duas versões', () => {
     for (const view of ['customer', 'bko'] as const) {
       const html = buildOrderPdfHtml(pdfDoPedido(novo()), view, ctx);
@@ -165,24 +176,42 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     expect(html).not.toContain('Frete:');
     expect(html).toContain('>UN<');
   });
-  it('RF-VEN-03 / RN-VEN-18: orçamento sai com o título Orçamento e "Válido até dd/mm/aaaa", sem o texto de pedido de venda', () => {
-    const d = detalhe({ status: 'received', tipo: 'orcamento', validade_data: '2026-11-10' });
+  it('RF-VEN-03 / RN-VEN-18: orçamento sai com o título Orçamento e o dia do preço, sem "Válido até" e sem o texto de pedido de venda', () => {
+    const d = detalhe({ status: 'received', tipo: 'orcamento' });
     const cliente = buildOrderPdfHtml(pdfDoPedido(d), 'customer', ctx);
     expect(cliente).toContain('>Orçamento<');
     expect(cliente).toContain('Orçamento PED-000123');
-    expect(cliente).toContain('Válido até 10/11/2026');
+    expect(cliente).toContain('preço de 01/11');
+    expect(cliente).not.toMatch(/Válido até|Vencido|vencid/i);
     expect(cliente).not.toContain('Pedido de venda');
     const bko = buildOrderPdfHtml(pdfDoPedido(d), 'bko', ctx);
     expect(bko).toContain('Orçamento · conferência BKO');
-    expect(bko).toContain('Válido até 10/11/2026');
+    expect(bko).toContain('preço de 01/11');
+    expect(bko).not.toMatch(/Válido até|Vencido|vencid/i);
   });
-  it('orçamento sem validade conhecida não inventa data; pedido nunca mostra "Válido até"', () => {
-    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ tipo: 'orcamento', validade_data: null })), 'customer', ctx)).not.toContain('Válido até');
-    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ tipo: 'pedido', validade_data: '2026-11-10' })), 'customer', ctx)).not.toContain('Válido até');
+  it('RN-VEN-18 (T-0141): o PDF usa o dia do preço da tela (preco_data), não o dia da criação: a mesma etiqueta no app, no BKO e no PDF', () => {
+    const pdf = { ...pdfDoPedido(detalhe({ status: 'received', tipo: 'orcamento' })), preco_data: '2026-11-09' };
+    expect(buildOrderPdfHtml(pdf, 'customer', ctx)).toContain('preço de 09/11');
+    expect(buildOrderPdfHtml(pdf, 'customer', ctx)).not.toContain('preço de 01/11');
   });
-  it('nome do arquivo do orçamento começa com orcamento-', () => {
-    expect(orderPdfFileName('PED-000123', 'customer', 'orcamento')).toBe('orcamento-PED-000123-cliente.pdf');
-    expect(orderPdfFileName('10521', 'bko')).toBe('pedido-10521-bko.pdf');
+  it('pedido nunca mostra a etiqueta de preço do orçamento', () => {
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ tipo: 'pedido' })), 'customer', ctx)).not.toContain('preço de');
+  });
+  it('RN-VEN-41: ORC-/PED-XXXX-DDMMAAAA.pdf, 4 dígitos no mínimo, sem cortar acima de 9999, data no fuso do tenant', () => {
+    const emissao = '2026-11-09T02:00:00.000Z'; // 08/11 22h em Manaus
+    expect(orderPdfFileName('1', emissao, ctx.tz, 'orcamento')).toBe('ORC-0001-08112026.pdf');
+    expect(orderPdfFileName('PED-000123', emissao, ctx.tz)).toBe('PED-0123-08112026.pdf');
+    expect(orderPdfFileName('9999', emissao, ctx.tz)).toBe('PED-9999-08112026.pdf');
+    expect(orderPdfFileName('12345', emissao, ctx.tz)).toBe('PED-12345-08112026.pdf');
+    expect(orderPdfFileName('000015', emissao, ctx.tz, 'orcamento')).toBe('ORC-0015-08112026.pdf');
+  });
+  it('RN-VEN-41: sem número (salvo no aparelho) sai -PROV-, nunca com número inventado; o mesmo documento tem o mesmo nome nas duas versões', () => {
+    expect(orderPdfFileName(null, '2026-11-09T09:50:00.000Z', ctx.tz, 'orcamento')).toBe('ORC-PROV-09112026.pdf');
+    expect(orderPdfFileName('', '2026-11-09T09:50:00.000Z', ctx.tz)).toBe('PED-PROV-09112026.pdf');
+    const d = pdfDoPedido(detalhe({ tipo: 'pedido' }));
+    const titulo = (v: 'customer' | 'bko') => /<title>(.*?)<\/title>/.exec(buildOrderPdfHtml(d, v, ctx))![1];
+    expect(titulo('customer')).toBe(titulo('bko'));
+    expect(titulo('customer')).toBe('PED-0123-01112026');
   });
   it('RF-VEN-06 / T-0026: cliente sem CNPJ/CPF imprime "CNPJ/CPF não informado" nos dois PDFs (documento nulo não derruba)', () => {
     const d = detalhe({ cliente: { razao_social: 'Mercado Exemplo Ltda', nome_fantasia: 'Mercado Exemplo', documento: null, endereco: 'Rua A, 1', bairro: 'Centro', cidade: 'Manaus', codigo_erp: 'C9' } });

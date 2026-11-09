@@ -58,12 +58,12 @@ export function eventosDoPedido(historico: ReadonlyArray<OrderEvent>, ctx: { ven
 }
 
 /**
- * Eventos do ORÇAMENTO (RN-VEN-30/18): Salvo (o primeiro evento) · Transformado em pedido nº (calculado) · Vencido (calculado) ·
- * Cancelado (+ motivo). O orçamento não tem status próprio: `convertido` e `vencido` vêm da situação calculada.
+ * Eventos do ORÇAMENTO (RN-VEN-30/18): Salvo (o primeiro evento) · Transformado em pedido nº (calculado) · Cancelado (+ motivo).
+ * O orçamento não tem status próprio nem vence (RN-VEN-18, 09/11): `convertido` vem da situação calculada.
  */
 export function eventosDoOrcamento(
   historico: ReadonlyArray<OrderEvent>,
-  ctx: { vendedorNome: string; situacao: SituacaoOrcamento; criadoEm: string; validadeAte?: string | null; convertidoEm?: string | null; numeroPedido?: string | null },
+  ctx: { vendedorNome: string; situacao: SituacaoOrcamento; criadoEm: string; convertidoEm?: string | null; numeroPedido?: string | null },
 ): EventoHistoricoPedido[] {
   const primeiro = historico[0];
   const salvoEm = primeiro?.at ?? ctx.criadoEm;
@@ -71,7 +71,6 @@ export function eventosDoOrcamento(
   const cancelado = historico.find((e) => ['cancelled', 'cancelado'].includes(semAcento(e.status)));
   if (cancelado) out.push({ id: 'cancelado', status: 'cancelado', em: cancelado.at, motivo: motivoDoEvento(cancelado.note), autor: cancelado.by, autorEhVendedor: autorEhOVendedor(cancelado.by, ctx.vendedorNome) });
   if (ctx.situacao === 'convertido') out.push({ id: 'convertido', status: 'convertido', em: ctx.convertidoEm ?? salvoEm, numeroPedido: ctx.numeroPedido ?? null, autorEhVendedor: true });
-  if (ctx.situacao === 'expirado' && ctx.validadeAte) out.push({ id: 'vencido', status: 'vencido', em: ctx.validadeAte, autorEhVendedor: true });
   return out;
 }
 

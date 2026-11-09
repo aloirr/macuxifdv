@@ -1,8 +1,9 @@
 /** Rota do dia e edição de rotas (desenho T-0016 §4.1). Status das paradas vem do domínio (`statusDasParadas`). */
+import { ehDataCivil } from '@macuxi/comum/calendar';
 import { z } from 'zod';
 import { RotaParadaSyncSchema, RotaSyncSchema } from './sync';
 
-const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(ehDataCivil, 'Data inexistente no calendário. Informe uma data válida (AAAA-MM-DD).');
 const Hora = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 export const STATUS_PARADA = ['feita', 'em_atendimento', 'proxima', 'pendente'] as const;

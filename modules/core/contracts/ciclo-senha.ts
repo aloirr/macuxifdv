@@ -3,13 +3,13 @@
  * textos em português e validação de login que o app (`modules/core/app/lib`) e o BKO (`apps/web/lib/ciclo-senha.ts`) importam, em
  * vez de cada um ter a sua cópia. Sem React e sem rede. Nada aqui registra senha ou e-mail.
  */
-import { VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
+import { ehEmail } from '@macuxi/comum/email';
+import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
 import { CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, type DetalhesSenhaATrocar } from './auth';
-import { faltasNaSenha } from './senha';
+import { faltasNaSenha, mensagemDaSenha, type FaltaNaSenha } from './senha';
 
-/** Formato do e-mail (o mesmo da constraint `usuario_email_formato`). Troca por `ehEmail` de `@macuxi/comum` quando ele existir. */
-export const EMAIL_FORMATO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-export const ehEmailValido = (email: string): boolean => EMAIL_FORMATO.test(email.trim());
+/** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
+export const ehEmailValido = (email: string): boolean => ehEmail(email.trim());
 
 /** Textos do login que o ciclo de senha usa. */
 export const TEXTOS_LOGIN_SENHA = Object.freeze({
@@ -68,6 +68,40 @@ export function detalhesDaTroca(e: unknown): DetalhesSenhaATrocar | null {
   if (codigoDoErro(e) !== 'SENHA_A_TROCAR') return null;
   const d = DetalhesSenhaATrocarSchema.safeParse(detalhesDoErro(e));
   return d.success ? d.data : { motivo: 'senha_temporaria', expira_em: null };
+}
+/**
+ * RD-0019: FONTE ÚNICA do que a tela faz depois do erro da troca de senha (spec §2), pelo código da API. App e BKO só trocam o
+ * texto (cada um tem o seu `mensagemDeErroDeLogin`). Sem rede (`status` 0 ou erro do SDK) = ficar na tela.
+ */
+export function acaoDoErroDaTroca(e: unknown): AcaoAposErroDaTroca {
+  if (ehSemConexao(e) || (e as { status?: unknown } | null)?.status === 0) return 'ficar';
+  switch (codigoDoErro(e)) {
+    case 'RN-CORE-32':
+      return 'destacar';
+    case 'RN-CORE-34':
+      return 'limpar';
+    case 'CREDENCIAIS_INVALIDAS':
+    case 'SENHA_TEMPORARIA_VENCIDA':
+    case 'PERFIL_FORA_DO_APP':
+    case 'USUARIO_BLOQUEADO':
+    case 'MUITAS_TENTATIVAS':
+    case 'DISPOSITIVO_BLOQUEADO':
+      return 'voltar_ao_login';
+    default:
+      return 'ficar';
+  }
+}
+const FALTAS_VALIDAS: readonly string[] = ['caracteres', 'letra', 'numero', 'especial'];
+/**
+ * RN-CORE-32 (T-0140): FONTE ÚNICA do texto do 422 da senha, para app, BKO e portal (spec §2): a frase das faltas válidas
+ * (`mensagemDaSenha(faltas, senhaNova)`) ou, sem faltas, "A senha não pode ser igual ao e-mail.". Nunca repassa a mensagem
+ * da API nem código técnico. `senhaNova` só serve para distinguir "curta" de "longa demais".
+ */
+export function textoDoErroDaSenha(e: unknown, senhaNova?: string): string {
+  const d = detalhesDoErro(e);
+  const brutas = d && typeof d === 'object' ? (d as { faltas?: unknown }).faltas : undefined;
+  const faltas = (Array.isArray(brutas) ? brutas : []).filter((f): f is FaltaNaSenha => typeof f === 'string' && FALTAS_VALIDAS.includes(f));
+  return mensagemDaSenha(faltas, senhaNova) ?? TEXTOS_CRIE_SENHA.igualAoEmail;
 }
 export const ehSenhaATrocar = (e: unknown): boolean => detalhesDaTroca(e) !== null;
 

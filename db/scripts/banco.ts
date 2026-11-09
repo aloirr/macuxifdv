@@ -15,7 +15,8 @@
  *   seed demo [--recriar] [--hoje AAAA-MM-DD]  base de demo (tenant "demo"); --recriar apaga o tenant demo e recarrega
  *   fixture dois-tenants          carrega a fixture dos testes de RLS
  *   criar-teste [--fixture dois-tenants|fase-m|demo]  cria banco efêmero migrado no Postgres DOS TESTES e imprime o nome
- *   apagar-teste <nome> | --todos apaga banco(s) de teste do Postgres DOS TESTES
+ *   apagar-teste <nome> | --todos apaga banco(s) de teste do Postgres DOS TESTES (--todos: também os bancos modelo de
+ *                                 outra chave de migrações, T-0033; o da chave atual fica)
  *   (sobras de teste no Postgres da demo: node db/scripts/limpar-bancos-teste.mjs [--apagar])
  * Opção comum: --banco <nome> (padrão MACUXI_PG_BANCO ou "macuxi").
  */
@@ -25,6 +26,7 @@ import { parseArgs } from 'node:util';
 import { lerConfig, lerConfigTestes, type ConfigBanco } from '../src/config';
 import { compose } from '../src/docker';
 import { apagarBanco, comAdmin, criarBanco, criarBancoDeTeste, listarBancosDeTeste, postgresDisponivel } from '../src/banco-teste';
+import { apagarModelosAntigos, listarModelos } from '../src/banco-modelo';
 import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
 import { garantirPapelApp, garantirPapelPortal, garantirPapelWorker } from '../src/papeis';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
@@ -109,6 +111,8 @@ export async function executar(argv: string[]): Promise<void> {
       console.log(`[banco] Postgres ${d.versao} em ${cfg.host}:${cfg.porta}`);
       const testes = await listarBancosDeTeste(cfg);
       console.log(`[banco] bancos de teste: ${testes.length ? testes.join(', ') : 'nenhum'}`);
+      const modelos = await listarModelos(cfg);
+      console.log(`[banco] bancos modelo (T-0033): ${modelos.length ? modelos.join(', ') : 'nenhum'}`);
       const existe = await comAdmin('postgres', (c) => c.query('select 1 from pg_database where datname = $1', [banco]), cfg);
       if (existe.rowCount === 0) {
         console.log(`[banco] banco "${banco}" não existe (rode "banco subir").`);
@@ -201,6 +205,7 @@ export async function executar(argv: string[]): Promise<void> {
         await apagarBanco(nome, cfgTestes);
         console.log(`[banco] apagado: ${nome}`);
       }
+      if (values.todos) for (const m of await apagarModelosAntigos(cfgTestes)) console.log(`[banco] modelo antigo apagado: ${m}`);
       return;
     }
     default:

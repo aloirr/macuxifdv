@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente, textoNaoFoiAceito } from './textos-pedido';
+import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente } from './textos-pedido';
+import { textoNaoFoiAceito } from './salvar-na-fila';
 
 const limpa = (s: string | undefined) => (s ?? '').replace(/\s/g, ' ');
 
 describe('confirmacaoDoEnvio (T-0071, revisão de UX 🔴 2): orçamento nunca é confirmado como pedido', () => {
-  it('RN-VEN-13: orçamento salvo diz "Orçamento 000012 salvo", com a validade e sem selo de status de pedido', () => {
-    expect(confirmacaoDoEnvio({ tipo: 'orcamento', numero: '000012', status: 'received', validade_data: '2026-11-10' })).toEqual({ titulo: 'Orçamento 000012 salvo', nota: 'Válido até 10/11.', mostrarStatus: false, rodape: 'Ir para Pedidos' });
+  it('RN-VEN-13: orçamento salvo diz "Orçamento 000012 salvo", com o dia do preço e sem selo de status de pedido', () => {
+    expect(confirmacaoDoEnvio({ tipo: 'orcamento', numero: '000012', status: 'received', preco_data: '2026-11-10' })).toEqual({ titulo: 'Orçamento 000012 salvo', nota: 'Preço de 10/11.', mostrarStatus: false, rodape: 'Ir para Pedidos' });
   });
-  it('RN-VEN-13: orçamento sem validade conhecida não inventa data', () => {
-    expect(confirmacaoDoEnvio({ tipo: 'orcamento', numero: '000012', status: 'received', validade_data: null }).nota).toBe('');
+  it('RN-VEN-13: orçamento sem data do preço conhecida não inventa data', () => {
+    expect(confirmacaoDoEnvio({ tipo: 'orcamento', numero: '000012', status: 'received', preco_data: null }).nota).toBe('');
   });
   it('RN-VEN-10: pedido recebido segue com "Pedido N recebido", selo de status e a nota da alçada', () => {
     expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'pending_approval', pending_reason: 'Desconto de 8% acima da alçada.' })).toEqual({ titulo: 'Pedido 000013 recebido', nota: 'Desconto de 8% acima da alçada.', mostrarStatus: true, rodape: 'Ir para Pedidos' });
@@ -26,13 +27,13 @@ describe('folhaDoTransformar (RN-VEN-18, desenho §1.5, revisão de UX 🔴 3)',
   it('RN-VEN-18: nada mudou, a folha abre mesmo assim com a alçada e o Enviar pedido', () => {
     const f = folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: null, total_cents: null });
     expect(f.titulo).toBe('Transformar em pedido');
-    expect(f.subtitulo).toBe('Vai direto ao ERP.');
+    expect(f.subtitulo).toBe('Vai direto ao ERP');
     expect(f.podeEnviar).toBe(true);
     expect(f.mostrarTotal).toBe(false);
   });
   it('RN-VEN-10: a alçada recalculada vira o subtítulo', () => {
-    expect(folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: 'supervisor', total_cents: null }).subtitulo).toBe('Vai para o supervisor.');
-    expect(folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: 'gerente', total_cents: null }).subtitulo).toBe('Vai para o gerente.');
+    expect(folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: 'supervisor', total_cents: null }).subtitulo).toBe('Vai para o supervisor');
+    expect(folhaDoTransformar({ mudancas: [], bloqueio: null, nivel: 'gerente', total_cents: null }).subtitulo).toBe('Vai para o gerente');
   });
   it('RN-VEN-18: com mudança o título é "Mudou desde o orçamento" e mostra o total novo', () => {
     const f = folhaDoTransformar({ mudancas: ['Preço do café subiu'], bloqueio: null, nivel: null, total_cents: 37979 });

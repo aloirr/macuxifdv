@@ -3,6 +3,8 @@
  * serve a referência cruzada (RN-CAT-09) com ou sem o Promotor. Nome de 1 a 120, único no tenant sem caixa nem acento;
  * não se apaga, só inativa e reativa.
  */
+import { chaveSemAcento } from './texto';
+
 export interface ErroMarca {
   regra: 'RN-CAT-13';
   campo: 'nome';
@@ -19,7 +21,7 @@ export interface EstadoMarca {
 }
 
 /** Chave do nome da marca: sem acento, sem caixa, sem espaço nas pontas (RN-CAT-13). Única definição: o ERP e a lista usam esta. */
-export const chaveDoNomeMarca = (t: string): string => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
+export const chaveDoNomeMarca = chaveSemAcento;
 
 /** RN-CAT-13: nome com trim, de 1 a 120 caracteres. */
 export function validarNomeMarca(nome: string): { ok: true; nome: string } | { ok: false; erro: ErroMarca } {

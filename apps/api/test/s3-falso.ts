@@ -4,13 +4,15 @@
  *  - Authorization AWS4-HMAC-SHA256 recalculada do pedido RECEBIDO (método, caminho cru, host, x-amz-date,
  *    x-amz-content-sha256), com a credencial de teste: assinatura errada = 403 SignatureDoesNotMatch;
  *  - x-amz-content-sha256 bate com o corpo (senão 400 XAmzContentSHA256Mismatch);
- *  - bucket existente (senão 404 NoSuchBucket); objeto ausente = 404 NoSuchKey.
+ *  - bucket existente (senão 404 NoSuchBucket); objeto ausente = 404 NoSuchKey;
+ *  - GET pré-assinado (T-0098, ADR 0037: `X-Amz-Algorithm` na query): assinatura da query recalculada com `preAssinarGetS3`
+ *    (errada = 403 SignatureDoesNotMatch) e validade pelo relógio do falso (`agora`; vencido = 403 AccessDenied).
  * Guarda os objetos em memória por caminho (`/<bucket>/<chave>`), para o teste conferir onde cada tenant gravou.
  */
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { assinarSigV4 } from '../src/armazenamento-s3';
+import { assinarSigV4, preAssinarGetS3 } from '../src/armazenamento-s3';
 
 export const CRED_TESTE = { chaveId: 'chave-de-teste', segredo: 'segredo-de-teste-nao-e-real', regiao: 'br-se1' } as const;
 
@@ -21,6 +23,10 @@ export interface S3Falso {
   /** Respostas forçadas (ex.: 500) para o próximo pedido. */
   falharProxima(status: number): void;
   pedidos: number;
+  /** Relógio do falso para a validade da URL pré-assinada (padrão: o real). */
+  agora: () => Date;
+  /** `content-type` recebido em cada PUT, por caminho. */
+  tipos: Map<string, string>;
   fechar(): Promise<void>;
 }
 
@@ -34,8 +40,9 @@ async function corpo(req: IncomingMessage): Promise<Buffer> {
 
 export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
   const objetos = new Map<string, Buffer>();
+  const tipos = new Map<string, string>();
   let falha: number | null = null;
-  const estado = { pedidos: 0 };
+  const estado = { pedidos: 0, agora: () => new Date() };
   const servidor: Server = createServer((req, res) => {
     void (async () => {
       estado.pedidos++;
@@ -50,7 +57,21 @@ export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
         falha = null;
         return responder(s, 'InternalError');
       }
-      const caminho = req.url ?? '/';
+      const [caminho = '/', query = ''] = (req.url ?? '/').split('?');
+      const q = new URLSearchParams(query);
+      if (q.has('X-Amz-Algorithm')) {
+        const quandoQ = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(q.get('X-Amz-Date') ?? '');
+        const expira = Number(q.get('X-Amz-Expires'));
+        if (req.method !== 'GET' || !quandoQ || !Number.isInteger(expira)) return responder(403, 'AccessDenied');
+        const instanteQ = new Date(`${quandoQ[1]}-${quandoQ[2]}-${quandoQ[3]}T${quandoQ[4]}:${quandoQ[5]}:${quandoQ[6]}Z`);
+        const extras = Object.fromEntries([...q.entries()].filter(([n]) => !n.startsWith('X-Amz-')));
+        const esperada = new URL(preAssinarGetS3({ protocolo: 'http:', host: String(req.headers.host), caminho, consulta: extras }, CRED_TESTE, instanteQ, expira));
+        if (q.get('X-Amz-Signature') !== esperada.searchParams.get('X-Amz-Signature')) return responder(403, 'SignatureDoesNotMatch');
+        if (estado.agora().getTime() > instanteQ.getTime() + expira * 1000) return responder(403, 'AccessDenied');
+        const o = objetos.get(decodeURIComponent(caminho));
+        if (o && extras['response-content-disposition']) res.setHeader('content-disposition', extras['response-content-disposition']);
+        return o ? responder(200, undefined, o) : responder(404, 'NoSuchKey');
+      }
       const data = String(req.headers['x-amz-date'] ?? '');
       const hash = String(req.headers['x-amz-content-sha256'] ?? '');
       const quando = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(data);
@@ -67,6 +88,7 @@ export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
       const chave = decodeURIComponent(caminho);
       if (req.method === 'PUT') {
         objetos.set(chave, bytes);
+        tipos.set(chave, String(req.headers['content-type'] ?? ''));
         return responder(200);
       }
       if (req.method === 'GET') {
@@ -92,6 +114,13 @@ export async function subirS3Falso(bucket = 'macuxi-teste'): Promise<S3Falso> {
     get pedidos() {
       return estado.pedidos;
     },
+    get agora() {
+      return estado.agora;
+    },
+    set agora(f: () => Date) {
+      estado.agora = f;
+    },
+    tipos,
     fechar: () => new Promise<void>((ok) => servidor.close(() => ok())),
   };
 }

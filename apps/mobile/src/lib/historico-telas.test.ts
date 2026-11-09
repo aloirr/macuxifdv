@@ -337,6 +337,19 @@ describe('voltar do Android entre telas de módulo (TabRouter do expo-router 57)
     expect(app.tela()).toBe('/m/cliente?id=9');
   });
 
+  it('T-0141 E (RN-VEN-38): Novo pedido › Catálogo do pedido › voltar do Android volta ao pedido, não ao Início', () => {
+    const app = simularShell();
+    app.ir('/m/novo-pedido?customerId=c1'); // botão "Novo pedido" do Início
+    app.ir('/m/catalogo?cliente=c1&pedido=1'); // irParaCatalogoDoPedido (router.push)
+    expect(app.voltar()).toBe(true);
+    expect(app.tela()).toBe('/m/novo-pedido?customerId=c1');
+    app.tocarAba('/m/pedidos');
+    app.ir('/m/novo-pedido');
+    app.ir('/m/catalogo?cliente=c1&pedido=1');
+    expect(app.voltar()).toBe(true);
+    expect(app.tela()).toBe('/m/novo-pedido');
+  });
+
   it('pelo "Mais": o voltar na raiz da aba devolve ao Mais', () => {
     const app = simularShell();
     app.tocarAba('/mais');

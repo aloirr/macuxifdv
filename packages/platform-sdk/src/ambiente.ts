@@ -1,15 +1,17 @@
 /**
  * Ambiente do aparelho/navegador que o SHELL entrega aos módulos (T-0001 A3; desenho T-0001 §16):
- * cliente HTTP com a sessão, estado de sinal, gerador de UUID e o usuário logado.
+ * cliente HTTP com a sessão, estado de sinal, gerador de UUID, posição do GPS e o usuário logado.
  *
  * Chega aos módulos por dois caminhos, sem import de `apps/*` (fronteira):
- * - etapas de sync: `executar(ctx)` → `ctx.http`, `ctx.online()`, `ctx.novoId()`, `ctx.usuario()`;
+ * - etapas de sync: `executar(ctx)` → `ctx.http`, `ctx.online()`, `ctx.novoId()`, `ctx.posicaoAgora()`, `ctx.usuario()`;
  * - telas: `useAmbiente()` / `useHttp()` de `@macuxi/platform-sdk/react` (e `motor.ambiente`/`motor.http`).
  *
  * Regras:
  * - Modo sem sinal (`online() === false`) → nada sai do aparelho: `http` lança `ErroSemConexao` sem tocar a rede.
  * - Falha de rede/timeout → `ErroSemConexao`; resposta de erro da API → `ErroHttp` (`status`, `codigo`, `detalhes`).
  * - `novoId()` = UUID v4 gerado no aparelho (idempotência, RN-VEN-33).
+ * - `posicaoAgora()` = GPS lido UMA vez, no momento da ação (RN-CORE-13; RD-0046): `null` sem permissão, sem sinal de
+ *   GPS ou no navegador. Nunca rastro, nunca a coordenada do cliente como reserva (esconderia o fora do raio, RN-CORE-10).
  * - Escritas de negócio vão pela fila do motor (`enfileirar`); `requisitar` com POST/PUT é só para o que exige
  *   resposta na hora (ex.: editar/cancelar pedido já enviado) e o módulo trata `ErroSemConexao`.
  */
@@ -65,6 +67,19 @@ export function ehErroDeCliente(e: unknown): boolean {
   return typeof s === 'number' && s >= 400 && s < 500;
 }
 
+/** Posição lida no aparelho por `posicaoAgora()` (RD-0046). */
+export interface PosicaoDoAparelho {
+  lat: number;
+  lng: number;
+  /** Raio de incerteza em metros; `null` quando o aparelho não informa. */
+  precisao_m: number | null;
+  /** Instante UTC (ISO 8601) da leitura; anterior à ação quando o shell usa a última posição conhecida. */
+  lida_em: string;
+}
+
+/** Sem GPS (testes, navegador, shell que não forneceu): sempre `null`. */
+export const semPosicao = async (): Promise<PosicaoDoAparelho | null> => null;
+
 export interface UsuarioAmbiente {
   id: string;
   nome: string;
@@ -79,13 +94,15 @@ export interface UsuarioAmbiente {
 /** Consulta entre módulos no aparelho (ADR 0012): mesmo contrato e mesmo resultado que `tx.consultar` na API. */
 export type FuncaoConsultar = <E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>) => Promise<z.output<S>>;
 
-/** O que o SHELL monta (HTTP, sinal, UUID, usuário). `consultar` e `parametros` quem completa é o motor (`completarAmbiente`, em `consultas.ts`). */
+/** O que o SHELL monta (HTTP, sinal, UUID, GPS, usuário). `consultar` e `parametros` quem completa é o motor (`completarAmbiente`, em `consultas.ts`). */
 export interface AmbienteAparelho {
   http: ClienteHttp;
   /** `false` = modo sem sinal ligado (nada sai do aparelho) ou sem sessão. */
   online(): boolean;
   /** UUID v4 gerado no aparelho. */
   novoId(): string;
+  /** GPS do aparelho; opcional para o shell: sem ele o motor completa com `semPosicao` (sempre `null`). */
+  posicaoAgora?: () => Promise<PosicaoDoAparelho | null>;
   /** Usuário logado (ou null antes do login). */
   usuario(): UsuarioAmbiente | null;
   consultar?: FuncaoConsultar;
@@ -94,6 +111,7 @@ export interface AmbienteAparelho {
 
 /**
  * O que os MÓDULOS recebem (`useAmbiente()`, `ctx` das etapas, `motor.ambiente`): o ambiente do shell mais
+ * - `posicaoAgora()`: sempre presente; `null` quando o shell não deu GPS;
  * - `consultar(def, entrada)`: consulta a outro módulo sobre as linhas locais do dono (offline; ADR 0012). Dono sem
  *   implementação no aparelho, inativo ou fora do app → `ConsultaIndisponivel`;
  * - `parametros(modulo)`: parâmetros do tenant guardados do último `GET /v1/me/modulos` (valem offline; somem com o
@@ -102,6 +120,7 @@ export interface AmbienteAparelho {
 export interface AmbienteModulo extends AmbienteAparelho {
   consultar: FuncaoConsultar;
   parametros(modulo: ModuloId): Readonly<Record<string, unknown>>;
+  posicaoAgora(): Promise<PosicaoDoAparelho | null>;
 }
 
 export type FuncaoRequisitar = <T>(metodo: MetodoHttp, caminho: string, opcoes: OpcoesHttp) => Promise<T>;
@@ -142,6 +161,7 @@ export function ambienteIndisponivel(mensagem = 'O aplicativo ainda não está c
     }),
     online: () => false,
     novoId: uuidPadrao,
+    posicaoAgora: semPosicao,
     usuario: () => null,
   };
 }

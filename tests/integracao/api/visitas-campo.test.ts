@@ -4,27 +4,26 @@
  * `fazerCheckin`/`fazerCheckout` de `acoes-visita.ts` e o estado montado por `ArmazemCore` das linhas do aparelho ⊕ fila)
  * conversando com o `createApp` REAL (8 módulos, JWT de verdade, `tx.publicar` e `tx.registrarArquivo` reais,
  * `PUT /v1/arquivos/:id` com armazenamento em memória) sobre o Postgres como `macuxi_app` (RLS).
- * Só o que depende do hardware é trocado: `dispositivo.ts` (expo-crypto/expo-location) vira UUID do Node e um GPS
- * controlado pelo teste. Cenários S1-040..S1-049 de tests/plano/sprint-1.md (critérios §4.7 do desenho T-0016).
+ * Só o que depende do hardware é trocado: o ambiente do motor gera UUID do Node e lê um GPS controlado pelo teste
+ * (`posicaoAgora`, RD-0046). Cenários S1-040..S1-049 de tests/plano/sprint-1.md (critérios §4.7 do desenho T-0016).
  */
 import { randomUUID } from 'node:crypto';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { caminhoFoto, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { criarArmazenamentoEmMemoria as armazenamentoDeFotos } from '../../../apps/api/src/arquivos';
 import { fazerCheckin, fazerCheckout, type ContextoAcao } from '../../../modules/core/app/lib/acoes-visita';
 import { etapasCore } from '../../../modules/core/app/lib/cargas';
 import { armazemDe } from '../../../modules/core/app/lib/estado';
 import { etapasVendedor } from '../../../modules/vendedor/app/etapas';
 import { A, B, erroDe, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
-import { aparelhoCampo, esperarHorizonte, jpeg, type AparelhoCampo, type OpcoesAparelho } from '../apoio/campo';
+import { aparelhoCampo, esperarHorizonte, gpsDeTeste, jpeg, type AparelhoCampo, type OpcoesAparelho } from '../apoio/campo';
 
-/** GPS do "aparelho": lido UMA vez por ação (RN-CORE-13); `null` = sem sinal de GPS. */
-const gps = vi.hoisted(() => ({ posicao: null as null | { lat: number; lng: number; precisao_m: number | null } }));
-vi.mock('../../../modules/core/app/lib/dispositivo', () => ({
-  uuid: () => globalThis.crypto.randomUUID(),
-  gpsAgora: async () => gps.posicao,
-}));
+/**
+ * GPS do "aparelho": lido UMA vez por ação (RN-CORE-13); `null` = sem sinal de GPS. Entra pelo ambiente do motor
+ * (`posicaoAgora`, RD-0046), como o shell real faz.
+ */
+const gps = gpsDeTeste();
 
 const C = A.clientes;
 const U = A.usuarios;
@@ -46,7 +45,7 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
   const fotosNoServidor = armazenamentoDeFotos();
 
   const noCampo = async (email: string, op: OpcoesAparelho = {}): Promise<Campo> => {
-    const ap = await aparelhoCampo(api, email, op);
+    const ap = await aparelhoCampo(api, email, { posicaoAgora: gps.posicaoAgora, ...op });
     const armazem = armazemDe(ap.motor);
     return { ap, armazem, acao: { motor: ap.motor, armazem, tz: ap.sessao.tenant.fuso, vendedorId: ap.sessao.usuario.id } };
   };

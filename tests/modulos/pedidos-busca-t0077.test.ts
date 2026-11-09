@@ -722,7 +722,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
   const TUDO = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor'] as const;
 
   it('a leitura do fonte achou as páginas e todas restritas aos perfis do manifesto (sem promotor)', () => {
-    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'novo-pedido']);
+    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', 'novo-pedido']);
     for (const p of paginas) {
       expect(p.perfis, p.id).toBeDefined();
       expect(p.perfis, p.id).not.toContain('promotor');
@@ -735,6 +735,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
     expect(v.pagina('pedidos')).toBeNull();
     expect(v.pagina('pedido')).toBeNull();
     expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pagina('rascunhos')).toBeNull();
     expect(v.navegacao.filter((n) => n.modulo === 'vendedor')).toEqual([]);
   });
 
@@ -742,12 +743,14 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
     const campo = criarShell('campo', modulos()).montar({ perfil: 'vendedor', modulosAtivos: [...TUDO] });
     expect(campo.pagina('pedidos')).not.toBeNull();
     expect(campo.pagina('novo-pedido')).not.toBeNull();
+    expect(campo.pagina('rascunhos')).not.toBeNull();
     expect(campo.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
     expect(paginas.find((p) => p.id === 'novo-pedido')).toMatchObject({ apps: ['campo', 'gestao'], acao: 'pedido.criar' });
     for (const perfil of ['supervisor', 'gerente'] as const) {
       const g = criarShell('gestao', modulos()).montar({ perfil, modulosAtivos: [...TUDO] });
       expect(g.pagina('pedidos'), perfil).not.toBeNull();
       expect(g.pagina('novo-pedido'), perfil).not.toBeNull();
+      expect(g.pagina('rascunhos'), perfil).not.toBeNull();
       expect(g.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo), perfil).toEqual(['Pedidos']);
     }
   });
@@ -755,6 +758,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
   it('regra 7 (T-0085): o promotor não recebe novo-pedido nem a lista no Gestão, com o Vendedor efetivo', () => {
     const g = criarShell('gestao', modulos()).montar({ perfil: 'promotor', modulosAtivos: [...TUDO] });
     expect(g.pagina('novo-pedido')).toBeNull();
+    expect(g.pagina('rascunhos')).toBeNull();
     expect(g.pagina('pedidos')).toBeNull();
     expect(g.pagina('pedido')).toBeNull();
     expect(g.pode('pedido.criar')).toBe(false);
@@ -913,6 +917,7 @@ describe('T-0077 critério 4 — promotor lê os pedidos da carteira no Cliente 
     expect(v.pagina('pedidos')).toBeNull();
     expect(v.pagina('pedido')).toBeNull();
     expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pagina('rascunhos')).toBeNull();
     expect(v.extensoes('cliente.acoes')).toEqual([]);
     expect(ACOES_ESCRITA.length).toBeGreaterThanOrEqual(6);
     for (const a of ACOES_ESCRITA) expect(v.pode(a), a).toBe(false);

@@ -45,8 +45,9 @@ async function principal(): Promise<void> {
     if ((eu.rows[0]?.v ?? 0) < 160000) throw new Error('[db] o modo sem superusuário simula o PG 16 do DBaaS (GRANT ... WITH SET): servidor < 16.');
     if (cfg.adminUsuario === ADMIN_SEM_SUPER) throw new Error(`[db] MACUXI_PG_ADMIN_USUARIO já é ${ADMIN_SEM_SUPER}: rode este passo com o superusuário.`);
 
-    const sobra = await c.query<{ datname: string }>("select datname from pg_database where datname like 'macuxi\\_teste\\_%' order by 1");
-    if (sobra.rows.length > 0) throw new Error(`[db] há bancos de teste neste servidor (${sobra.rows.map((x) => x.datname).join(', ')}): use um servidor novo.`);
+    const sobra = await c.query<{ datname: string }>("select datname from pg_database where datname like 'macuxi\\_teste\\_%' or datname like 'macuxi\\_modelo\\_%' order by 1");
+    // T-0033: o banco modelo também guarda GRANTs aos papéis (o drop role abaixo falharia)
+    if (sobra.rows.length > 0) throw new Error(`[db] há bancos de teste ou modelo neste servidor (${sobra.rows.map((x) => x.datname).join(', ')}): use um servidor novo.`);
     for (const papel of PAPEIS_DO_ADMIN) {
       try {
         await c.query(`drop role if exists ${papel}`);

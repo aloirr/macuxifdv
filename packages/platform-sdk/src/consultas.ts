@@ -15,7 +15,7 @@
  */
 import type { z } from 'zod';
 import { ErroHttpModulo } from './api';
-import type { AmbienteAparelho, AmbienteModulo, UsuarioAmbiente } from './ambiente';
+import { semPosicao, type AmbienteAparelho, type AmbienteModulo, type UsuarioAmbiente } from './ambiente';
 import type { ConsultaTexto, DesfechoBusca } from './busca-tipos';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import { consultasDeclaradas, type Manifesto } from './manifesto';
@@ -263,5 +263,6 @@ export function completarAmbiente(base: AmbienteAparelho, extra: Partial<Pick<Am
         throw new ConsultaIndisponivel(def.nome, def.modulo);
       }),
     parametros: extra.parametros ?? base.parametros ?? (() => SEM_PARAMETROS),
+    posicaoAgora: base.posicaoAgora ?? semPosicao,
   };
 }

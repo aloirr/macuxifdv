@@ -24,6 +24,7 @@ import {
   type VisitasLista,
 } from '../contracts';
 import { carteiraParaEvento, copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
+import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { auditar } from './auditoria';
 import { BASE, TABELAS_SYNC } from './sync';
 
@@ -32,7 +33,6 @@ const IdParam = z.object({ id: Uuid });
 const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 const DIA_MS = 86_400_000;
 
-const somarDias = (data: string, n: number): string => new Date(Date.parse(`${data}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
 const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
 
 function visivel(visiveis: ReadonlySet<string> | 'tenant', id: string): boolean {

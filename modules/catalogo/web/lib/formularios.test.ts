@@ -27,10 +27,12 @@ describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
     expect(csv).toContain('CAF-500;"Café; 500 g";Aroma;Mercearia;UN;;Sim\r\n');
   });
 
-  it('filtros na URL: aba, texto e linha; aba desconhecida volta para produtos', () => {
-    expect(lerFiltrosBko('?aba=sinonimos&q=caf')).toEqual({ aba: 'sinonimos', q: 'caf', linha: '' });
-    expect(lerFiltrosBko('?aba=x')).toEqual({ aba: 'produtos', q: '', linha: '' });
-    expect(buscaDosFiltros({ aba: 'produtos', q: '', linha: 'Bebidas' })).toBe('?linha=Bebidas');
+  it('filtros na URL: aba, texto e nível da hierarquia; aba desconhecida volta para produtos', () => {
+    expect(lerFiltrosBko('?aba=sinonimos&q=caf')).toEqual({ aba: 'sinonimos', q: 'caf', no: '' });
+    expect(lerFiltrosBko('?aba=x')).toEqual({ aba: 'produtos', q: '', no: '' });
+    expect(buscaDosFiltros({ aba: 'produtos', q: 'café', no: '' })).toBe('?q=caf%C3%A9');
+    expect(lerFiltrosBko('?no=n1')).toEqual({ aba: 'produtos', q: '', no: 'n1' });
+    expect(buscaDosFiltros({ aba: 'produtos', q: '', no: 'n1' })).toBe('?no=n1');
   });
 });
 

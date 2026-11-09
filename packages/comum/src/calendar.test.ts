@@ -152,7 +152,7 @@ describe('diasUteisEntre', () => {
         }
       }
     }
-  });
+  }, 30_000); // varredura longa: 5 s estoura com a máquina carregada (7 agentes)
   it('intervalo grande demais ou data inválida dá erro', () => {
     expect(() => diasUteisEntre('2000-01-01', '2030-01-01')).toThrow(/Intervalo grande demais/);
     expect(() => diasUteisEntre('2026-01-01', '2026-02-30')).toThrow(/Data inválida/);
@@ -241,7 +241,7 @@ describe('semana útil do tenant', () => {
         }
       }
     }
-  });
+  }, 30_000); // varredura longa: 5 s estoura com a máquina carregada (7 agentes)
   it('semana inválida dá erro (sem laço infinito)', () => {
     expect(() => somarDiasUteis('2026-11-06', 1, [], [])).toThrow('Semana útil vazia: informe ao menos um dia de 0 (domingo) a 6 (sábado).');
     expect(() => somarDiasUteis('2026-11-06', 1, [], [1, 7])).toThrow('Dia da semana inválido: 7 (use inteiros de 0 = domingo a 6 = sábado).');

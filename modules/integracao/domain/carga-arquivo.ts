@@ -3,11 +3,12 @@
  * linhas inválidas) e segue o pipeline de sempre (RN-INT-01/02/03/06/12). Aqui só a parte pura: ler o CSV, casar o cabeçalho com o
  * contrato da entidade, converter célula a célula, resolver o Conector do tipo `arquivo` (RN-INT-13) e montar a chave de conteúdo.
  *
- * Formato: UTF-8 com ou sem BOM; separador `;` ou `,` (detectado no cabeçalho); aspas duplas para texto com separador/quebra;
+ * Formato: UTF-8 com ou sem BOM_CSV; separador `;` ou `,` (detectado no cabeçalho); aspas duplas para texto com separador/quebra;
  * cabeçalho = nomes dos campos do contrato (`external_id`, `razao_social`, `endereco.cidade`…), sem diferenciar maiúsculas.
  * Célula vazia = campo ausente. `alterado_em` pode ficar de fora (vale o instante do envio). Listas (`contatos`, `paradas`) não
  * cabem em CSV. Nada do valor digitado entra em mensagem (dado pessoal): só a linha, o campo e o tipo esperado.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
 import { ENTIDADES, SCHEMA_REGISTRO, VERSAO_CONTRATO, type Entidade, type LinhaInvalidaConector, type LoteEnvelopeValido, type ModoCarga } from '../contracts';
 import { jsonCanonico } from './idempotencia';
@@ -26,11 +27,10 @@ export type ResultadoCsv =
   | { ok: true; separador: ';' | ','; cabecalho: string[]; linhas: LinhaCsv[] }
   | { ok: false; codigo: 'arquivo_vazio' | 'csv_invalido'; mensagem: string };
 
-const BOM = String.fromCharCode(0xfeff);
 
-/** Texto do arquivo sem BOM e com quebras `\n` — a forma em que o conteúdo é comparado (idempotência) e lido. */
+/** Texto do arquivo sem BOM_CSV e com quebras `\n` — a forma em que o conteúdo é comparado (idempotência) e lido. */
 export function normalizarTextoCsv(texto: string): string {
-  return (texto.startsWith(BOM) ? texto.slice(1) : texto).replace(/\r\n?/g, '\n');
+  return (texto.startsWith(BOM_CSV) ? texto.slice(1) : texto).replace(/\r\n?/g, '\n');
 }
 
 function detectarSeparador(texto: string): ';' | ',' {
@@ -423,7 +423,7 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
 
 // ---------------------------------------------------------------------------------------------------------------- idempotência e sessão
 
-/** O que identifica o arquivo para a Idempotency-Key (RN-INT-12): entidade, modo e o texto normalizado (BOM, CRLF e linhas em branco no fim não contam). */
+/** O que identifica o arquivo para a Idempotency-Key (RN-INT-12): entidade, modo e o texto normalizado (BOM_CSV, CRLF e linhas em branco no fim não contam). */
 export function conteudoCanonicoArquivo(e: { entidade: string; modo: string; texto: string; parte?: ParteArquivo }): string {
   const csv = normalizarTextoCsv(e.texto).replace(/\s+$/, '');
   // a parte entra no conteúdo SÓ quando há parte: o hash do envio único não muda

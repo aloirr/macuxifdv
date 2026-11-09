@@ -17,7 +17,6 @@ export const ROTULO_INDICADOR_RV: Record<IndicadorRv, string> = {
   cobertura_pct: 'Cobertura de rota',
   visitas: 'Visitas',
 };
-export const ROTULO_PERFIL_RV: Record<PerfilRv, string> = { vendedor: 'Vendedor', promotor: 'Promotor' };
 export const ROTULO_MODO: Record<FaixaRv['modo'], string> = { zero: 'Não paga', proporcional: 'Igual ao atingimento (85% paga 85%)', fixo: 'Percentual fixo' };
 
 /** Troca o código do indicador (venda_cents...) pelo rótulo em erros do domain e da API: a tela não mostra nome de campo técnico. */

@@ -95,7 +95,7 @@ export function situacaoDoPagamento(r: Rascunho, formas: readonly FormaDePagamen
   if (!r.forma_pagamento_id) return { tipo: 'forma' };
   if (!r.prazo_pagamento_id) return { tipo: 'prazo' };
   const v = validarPagamento({ forma: formas.find((f) => f.id === r.forma_pagamento_id), prazo: prazos.find((p) => p.id === r.prazo_pagamento_id), cliente });
-  return v.ok ? { tipo: 'ok' } : { tipo: 'invalido', mensagem: v.mensagem };
+  return v.ok ? { tipo: 'ok' } : { tipo: 'invalido', codigo: v.motivo, mensagem: v.mensagem };
 }
 
 /** "Total do pedido · 2 itens" (o rótulo da aba Resumo não repete o total). */

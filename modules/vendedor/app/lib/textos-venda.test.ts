@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AlertaDaVenda } from '../../domain/alertas-venda';
-import { alertaDaVendaNoResumo, fraseDoFrete, linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, linhaDoLimite, TEXTO_SEM_ALERTA, textoDoAlerta, textoDoPrazoMedio } from './textos-venda';
+import { alertaDaVendaNoResumo, linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, tabelaDoCredito, TEXTO_SEM_ALERTA, textoDoAlerta, textoDoPrazoMedio } from './textos-venda';
 
 describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
   it('RF-VEN-11: sem alerta, uma linha só', () => {
@@ -26,25 +26,41 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(textoDoAlerta(a).texto).toMatch(/^Limite excedido · disponível R\$\s4\.000,00$/);
     expect(textoDoAlerta({ tipo: 'credito_excedido', disponivel_cents: -50 }).texto).toMatch(/R\$\s0,00$/);
   });
-  it('RN-VEN-12: limite total e disponível numa linha; sem dados, nada', () => {
-    expect(linhaDoLimite({ tipo: 'dados', limite_cents: 1000000, disponivel_cents: 400000, alerta: null })).toMatch(/^R\$\s10\.000,00 · disponível R\$\s4\.000,00$/);
-    expect(linhaDoLimite({ tipo: 'vazio' })).toBeNull();
-    expect(linhaDoLimite(null)).toBeNull();
-    expect(linhaDoLimite(undefined)).toBeNull();
+  it('RN-VEN-12: crédito em tabela, Limite, Disponível e Prazo médio, na ordem da prancha (T-0141 A)', () => {
+    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 2000000, disponivel_cents: 1790000, alerta: null }, 45);
+    expect(t.estado).toBe('tabela');
+    expect(t.linhas.map((l) => [l.id, l.rotulo])).toEqual([['limite', 'Limite'], ['disponivel', 'Disponível'], ['prazo', 'Prazo médio']]);
+    expect(t.linhas[0]!.valor).toMatch(/^R\$\s20\.000,00$/);
+    expect(t.linhas[1]!.valor).toMatch(/^R\$\s17\.900,00$/);
+    expect(t.linhas[2]!.valor).toBe('45 dias');
+    expect(t.linhas.every((l) => l.tom === undefined)).toBe(true);
+    expect(t.apoio).toBeNull();
+  });
+  it('RN-VEN-12: disponível negativo sai em erro com o sinal − (U+2212)', () => {
+    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 1000000, disponivel_cents: -120000, alerta: null }, 30);
+    expect(t.linhas[1]!.valor).toMatch(/^−R\$\s1\.200,00$/);
+    expect(t.linhas[1]!.tom).toBe('erro');
+  });
+  it('RN-VEN-25: sem prazo médio a linha fica com travessão (a forma da tabela não muda)', () => {
+    const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 100, disponivel_cents: 100, alerta: null }, null);
+    expect(t.linhas).toHaveLength(3);
+    expect(t.linhas[2]).toMatchObject({ id: 'prazo', valor: '—' });
+  });
+  it('RN-VEN-12: cliente sem dados de crédito mostra travessão em Limite e Disponível e a frase de apoio; o prazo continua', () => {
+    const t = tabelaDoCredito({ tipo: 'vazio' }, 28);
+    expect(t.estado).toBe('tabela');
+    expect(t.linhas.map((l) => l.valor)).toEqual(['—', '—', '28 dias']);
+    expect(t.apoio).toBe('Sem dados de crédito deste cliente.');
+  });
+  it('RN-VEN-12: lendo do aparelho (undefined) são barras, nunca R$ 0,00; consulta indisponível (null) some a tabela e orienta', () => {
+    expect(tabelaDoCredito(undefined, 45)).toMatchObject({ estado: 'carregando' });
+    const i = tabelaDoCredito(null, 45);
+    expect(i).toMatchObject({ estado: 'indisponivel', linhas: [], apoio: 'Crédito indisponível agora. Sincronize o aparelho.' });
   });
   it('RN-VEN-25: prazo médio do cliente em dias', () => {
     expect(textoDoPrazoMedio(45)).toBe('45 dias');
     expect(textoDoPrazoMedio(1)).toBe('1 dia');
     expect(textoDoPrazoMedio(null)).toBeNull();
-  });
-});
-
-describe('frase do frete na aba Entrega (RN-VEN-16)', () => {
-  it('RN-VEN-16: CIF e FOB, uma frase só e sem valor de frete', () => {
-    expect(fraseDoFrete({ modalidade: 'CIF' })).toBe('CIF: frete incluso no preço');
-    expect(fraseDoFrete({ modalidade: 'FOB', transportadora: 'Rodonaves' })).toBe('FOB: transportadora Rodonaves');
-    expect(fraseDoFrete({ modalidade: 'FOB', transportadora: '  ' })).toBe('FOB: escolha a transportadora');
-    expect(fraseDoFrete({ modalidade: 'FOB' })).not.toMatch(/R\$/);
   });
 });
 

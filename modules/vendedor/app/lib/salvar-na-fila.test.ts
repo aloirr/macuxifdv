@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { abaDaCorrecao, avisoDoSalvar, clienteDoRascunho, estadoNaFila, motivoDaRecusa, rascunhosSalvosComoPedidos, totalDaLinhaSalva } from './salvar-na-fila';
+import { abaDaCorrecao, avisoDoSalvar, estadoNaFila, motivoDaRecusa } from './salvar-na-fila';
 import { estadoDasAcoes } from './acoes-pedido';
 import { statusBadge } from './order-status';
-import { rascunhoVazio, type Rascunho } from './pedidos';
 
 describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
   it('RN-VEN-30: o aviso depois de salvar diz "enviando" com sinal e "vai quando houver sinal" sem sinal', () => {
@@ -12,7 +11,6 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
 
   it('RN-VEN-30: o pedido na_fila é só de leitura (sem Editar), com o chip "Na fila"', () => {
     const e = estadoNaFila({ recusado: false, offline: true });
-    expect(e.chip).toEqual({ texto: 'Na fila', tom: 'neutro' });
     expect(e.somenteLeitura).toBe(true);
     expect(e.podeCorrigir).toBe(false);
     expect(e.podeEnviarAgora).toBe(false);
@@ -27,7 +25,6 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
 
   it('RN-VEN-30: a recusa da API volta como "Não aceito" com o motivo em português e o que fazer', () => {
     const e = estadoNaFila({ recusado: true, offline: false, motivoBruto: 'preco_abaixo_minimo: AGU-1500' });
-    expect(e.chip).toEqual({ texto: 'Não aceito', tom: 'erro' });
     expect(e.faixa.texto).toBe('Não foi aceito: preço de AGU-1500 abaixo do mínimo. Corrija e salve de novo.');
     expect(e.podeCorrigir).toBe(true);
     expect(e.somenteLeitura).toBe(false);
@@ -41,35 +38,22 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
     expect(motivoDaRecusa('cliente_bloqueado')).toBe('cliente bloqueado no ERP');
   });
 
+  it('RN-VEN-40: o motivo em português que o servidor devolveu aparece na tela, sem código técnico (orçamento de 09/11 05h50)', () => {
+    const msg = 'Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item.';
+    expect(motivoDaRecusa(msg)).toBe('Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item');
+    expect(estadoNaFila({ recusado: true, offline: false, motivoBruto: msg }).faixa.texto).toBe('Não foi aceito: Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item. Corrija e salve de novo.');
+    expect(abaDaCorrecao(msg)).toBe('itens');
+    expect(motivoDaRecusa('Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).')).toBe('Cliente inativo ou inexistente: não é possível vender');
+    expect(motivoDaRecusa('RN-PRO-01: o promotor não decide pedidos.')).toBe('o promotor não decide pedidos');
+  });
+
+  it('RN-VEN-40: o texto genérico só aparece sem motivo ou com motivo técnico', () => {
+    for (const bruto of ['', '   ', 'erro_x', 'HTTP 500', 'TypeError: x is undefined', 'Network request failed']) {
+      expect(motivoDaRecusa(bruto)).toBe('o Macuxi recusou o pedido. Fale com seu supervisor');
+    }
+  });
+
   it('RN-VEN-30: o status "Não aceito" não confunde com "Rejeitado" do supervisor', () => {
     expect(statusBadge('rejected').label).not.toBe('Não aceito');
-  });
-});
-
-describe('RN-VEN-38, RN-VEN-30: o rascunho de "Apenas salvar" aparece como "Salvo" na lista', () => {
-  const r = (extra: Partial<Rascunho>): Rascunho => ({ ...rascunhoVazio('c1'), lines: { p1: 2 }, updated_at: '2026-11-08T10:00:00Z', ...extra });
-  const nome = () => 'Mercadinho São Jorge';
-
-  it('RN-VEN-30: rascunho guardado de propósito vira uma linha "Salvo" com cliente e itens', () => {
-    const [l] = rascunhosSalvosComoPedidos({ c1: r({ salvo_em: '2026-11-08T10:05:00Z' }) }, nome);
-    expect(l).toMatchObject({ status: 'draft', customer_name: 'Mercadinho São Jorge', items_count: 1, units: 2, local: true });
-    expect(statusBadge(l!.status).label).toBe('Salvo');
-    expect(clienteDoRascunho(l!.id)).toBe('c1');
-  });
-
-  it('RN-VEN-38: rascunho sem "salvo_em" (pedido não terminado), vazio ou de edição não entra na lista', () => {
-    expect(rascunhosSalvosComoPedidos({ c1: r({}) }, nome)).toHaveLength(0);
-    expect(rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x', lines: {} }) }, nome)).toHaveLength(0);
-    expect(rascunhosSalvosComoPedidos({ 'edit:9': r({ salvo_em: 'x', edit_order_id: '9' }) }, nome)).toHaveLength(0);
-  });
-
-  it('RN-VEN-30: a linha "Salvo" traz o total do rascunho; sem total, "—"; sem itens, "Sem itens"', () => {
-    const [l] = rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x' }) }, nome, () => 12345);
-    expect(l!.total_cents).toBe(12345);
-    const f = (c: number) => `R$ ${c}`;
-    expect(totalDaLinhaSalva(l!, f)).toBe('R$ 12345');
-    const [semTabela] = rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x' }) }, nome);
-    expect(totalDaLinhaSalva(semTabela!, f)).toBe('—');
-    expect(totalDaLinhaSalva({ total_cents: 0, items_count: 0 }, f)).toBe('Sem itens');
   });
 });

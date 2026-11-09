@@ -1,5 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
+import { textoDoErroDaSenha } from '../../contracts';
 import { mensagemDeErroDeLogin } from './login';
 import {
   detalhesDaTroca,
@@ -50,6 +51,15 @@ describe('RN-CORE-34: Crie sua senha no app', () => {
     const fraca = erroDaTroca(erroApi('RN-CORE-32', { faltas: ['numero'] }));
     expect(fraca).toEqual({ texto: 'Falta um número.', acao: 'destacar' });
     expect(erroDaTroca(new ErroSemConexao())).toEqual({ texto: 'Conecte-se à internet para criar a sua senha.', acao: 'ficar' });
+  });
+
+  it('RN-CORE-32: um texto só para o 422 da senha, sem código técnico (faltas, lista vazia, sem detalhes, longa demais)', () => {
+    expect(textoDoErroDaSenha(erroApi('RN-CORE-32', { faltas: ['numero'] }))).toBe('Falta um número.');
+    expect(textoDoErroDaSenha(erroApi('RN-CORE-32', { faltas: [] }, 'RN-CORE-32 senha fraca'))).toBe('A senha não pode ser igual ao e-mail.');
+    expect(textoDoErroDaSenha(erroApi('RN-CORE-32'))).toBe('A senha não pode ser igual ao e-mail.');
+    expect(textoDoErroDaSenha({ code: 'RN-CORE-32', details: { faltas: ['numero'] } })).toBe('Falta um número.');
+    expect(textoDoErroDaSenha(erroApi('RN-CORE-32', { faltas: ['caracteres'] }), 'a'.repeat(201))).toBe('A senha pode ter até 200 caracteres.');
+    expect(erroDaTroca(erroApi('RN-CORE-32', { faltas: ['caracteres'] }), 'a'.repeat(201)).texto).toBe('A senha pode ter até 200 caracteres.');
   });
 
   it('RN-CORE-34: troca pela API pública com o app da variante e valida a sessão devolvida (a senha atual vai só no corpo)', async () => {

@@ -8,7 +8,7 @@
  * O que a tela mostra sai das funções reais: rota efetiva (`effectiveRoute`, a mesma da `useCore`), condição do chip de
  * telas/rota.tsx (`StopRow`: parada `done` e `visit.etapas_pendentes > 0`), Banner da ficha (`visitaComEtapaPendente` +
  * `avisoDeEtapaPendente`, como telas/cliente.tsx) e caixa de notificações (`montarCaixa`, como telas/notificacoes.tsx).
- * Sem o hardware: `dispositivo.ts` vira UUID do Node e um GPS controlado; `naFila` = itens na fila do motor (o shell entrega
+ * Sem o hardware: o ambiente do motor gera UUID do Node e lê um GPS controlado (`posicaoAgora`); `naFila` = itens na fila do motor (o shell entrega
  * esse número à `useSincronizacao`).
  *
  * Complementa tests/integracao/api/checkout-tolerancia-t0039.test.ts (TP-01..TP-17, que lê só a contagem num aparelho
@@ -18,9 +18,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import { semBanco } from '@macuxi/db/teste/estado';
-import { USUARIO_SISTEMA_ID, type LinhaSync, type ModuloId } from '@macuxi/platform-sdk';
+import { linkInternoNavegavel as linkNavegavel, USUARIO_SISTEMA_ID, type LinhaSync, type ModuloId } from '@macuxi/platform-sdk';
 import pg from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { registroDeConsultas, transacaoTenant } from '../../../apps/api/src/outbox';
@@ -29,18 +29,14 @@ import { alertarPendenciasVencidas } from '../../../modules/core/api/etapas-pend
 import { fazerCheckin, fazerCheckout, type ContextoAcao } from '../../../modules/core/app/lib/acoes-visita';
 import { armazemDe } from '../../../modules/core/app/lib/estado';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../../../modules/core/app/lib/etapa-pendente';
-import { linkNavegavel, montarCaixa } from '../../../modules/core/app/lib/notificacoes';
+import { montarCaixa } from '../../../modules/core/app/lib/notificacoes';
 import { effectiveRoute } from '../../../modules/core/app/lib/route';
 import type { NotificacaoSync } from '../../../modules/core/contracts';
 import { A, B, licenca, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
-import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
+import { aparelhoCampo, esperarHorizonte, gpsDeTeste, type AparelhoCampo } from '../apoio/campo';
 
-/** GPS do "aparelho": lido uma vez por ação (RN-CORE-13). */
-const gps = vi.hoisted(() => ({ posicao: null as null | { lat: number; lng: number; precisao_m: number | null } }));
-vi.mock('../../../modules/core/app/lib/dispositivo', () => ({
-  uuid: () => globalThis.crypto.randomUUID(),
-  gpsAgora: async () => gps.posicao,
-}));
+/** GPS do "aparelho": lido uma vez por ação (RN-CORE-13), pelo ambiente do motor (`posicaoAgora`, RD-0046). */
+const gps = gpsDeTeste();
 
 const U = A.usuarios;
 const C = A.clientes;
@@ -67,7 +63,7 @@ describe.skipIf(semBanco())('T-0039 — etapa pendente no app (Rota, ficha, noti
   const tk = { admin: '', adminB: '', vendedor1: '', supervisor: '' };
 
   const noCampo = async (email: string, tenant: Tenant = A): Promise<Campo> => {
-    const ap = await aparelhoCampo(api, email, { tenant });
+    const ap = await aparelhoCampo(api, email, { tenant, posicaoAgora: gps.posicaoAgora });
     const armazem = armazemDe(ap.motor);
     return { ap, armazem, acao: { motor: ap.motor, armazem, tz: ap.sessao.tenant.fuso, vendedorId: ap.sessao.usuario.id } };
   };

@@ -20,11 +20,15 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
+import { precoDoOrcamentoVale } from '../../domain/orcamento';
+import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
-import { avisoDoSalvar, rascunhosSalvosComoPedidos } from '../lib/salvar-na-fila';
+import { avisoDoSalvar } from '../lib/salvar-na-fila';
+import { linhasDosRascunhos, type LinhaDeRascunho } from '../lib/rascunhos-lista';
+import type { DadosDosPrecosDeHoje } from '../lib/precos-de-hoje';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
@@ -72,6 +76,7 @@ import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
 const LOTE_PRECOS = 500;
+const MSG_APP_CARREGANDO = 'Aplicativo ainda carregando. Aguarde um instante e tente de novo.';
 
 /** `id` do documento na fila (T-0071, V8): a tela abre o detalhe dele em vez de ficar no editor */
 export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string; id?: string };
@@ -107,7 +112,11 @@ export function useVendedor() {
     const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
     // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
     // (se a geração mudou durante a leitura ou há gravação em andamento, valem os da memória)
-    const novos = { ...lidos, rascunhos: rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current }) };
+    const lidosOuMemoria = rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current });
+    // RN-VEN-39: o rascunho some 24 h depois da última alteração (limpeza ao abrir e a cada leitura)
+    const limpeza = limparRascunhosExpirados(lidosOuMemoria, new Date());
+    const novos = { ...lidos, rascunhos: limpeza.mantidos };
+    for (const chave of limpeza.removidos) void repo.limparRascunho(chave);
     dadosRef.current = novos;
     linhasRef.current = ls;
     setDadosRepo(novos);
@@ -173,22 +182,31 @@ export function useVendedor() {
     const eu = { id: vendedor.id, name: vendedor.name, branch_id: vendedor.branch_id };
     const noServidor = new Set(dados.pedidos.map((o) => o.id));
     const todos = mergeOrders(dados.pedidos, fila, eu);
-    // T-0130: o rascunho de "Apenas salvar" aparece na lista com a tag "Salvo"
-    // v1.0.1: a linha "Salvo" mostra o total do rascunho pelo catálogo do aparelho (sem tabela ou sem política, fica sem total)
-    const totalDoRascunho = (r: Rascunho): number | null => {
-      const cli = dados.clientes.find((c) => c.id === r.customer_id);
-      const chave = cli?.price_table_id ?? 'default';
-      const tabela = dados.produtos[chave];
-      if (!cli || !tabela || !dados.politica) return null;
-      try {
-        return calcularPedido({ lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu.id }).total_cents;
-      } catch {
-        return null;
-      }
-    };
-    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '', totalDoRascunho).map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
-    return v1 ? [...salvos, ...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : [...salvos, ...todos];
-  }, [dados.pedidos, dados.rascunhos, dados.clientes, fila, aceitos, vendedor, v1]);
+    // T-0141 (RN-VEN-39, spec F.1): os rascunhos ("Apenas salvar" inclusive) saíram desta lista; moram só na tela Rascunhos
+    return v1 ? [...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : todos;
+  }, [dados.pedidos, fila, aceitos, vendedor, v1]);
+
+  /**
+   * T-0141 F: linhas da tela Rascunhos (e a contagem da aba Pedidos), do aparelho. O total do rascunho vem do catálogo do aparelho
+   * (sem tabela ou sem política, fica sem total). `agora` entra por argumento: a regra das 24 h é do domain.
+   */
+  const rascunhosDaLista = useCallback(
+    (agora: Date): LinhaDeRascunho[] => {
+      const eu = vendedor?.id ?? '';
+      const total = (r: Rascunho): number | null => {
+        const cli = dados.clientes.find((c) => c.id === r.customer_id);
+        const tabela = dados.produtos[cli?.price_table_id ?? 'default'];
+        if (!cli || !tabela || !dados.politica) return null;
+        try {
+          return calcularPedido({ lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu }).total_cents;
+        } catch {
+          return null;
+        }
+      };
+      return linhasDosRascunhos({ rascunhos: dados.rascunhos, clientes: dados.clientes, pedidos: dados.pedidos, totalDoRascunho: total, agora, tz });
+    },
+    [dados.rascunhos, dados.clientes, dados.pedidos, dados.produtos, dados.politica, vendedor, tz],
+  );
 
   const offline = !ambiente.online();
 
@@ -375,10 +393,11 @@ export function useVendedor() {
   );
 
   const atualizarRascunho = useCallback(
-    async (chave: string, customerId: string, fn: (r: Rascunho) => Rascunho) => {
+    async (chave: string, customerId: string, fn: (r: Rascunho) => Rascunho, opcoes: { manterAlteracao?: boolean } = {}) => {
       if (!repo) return;
       const atual = dadosRef.current.rascunhos[chave] ?? rascunhoVazio(customerId);
-      const novo = { ...fn(atual), updated_at: new Date().toISOString() };
+      // T-0141 (RN-VEN-39): gravar só a aba em que parou não conta como alteração (não renova as 24 h)
+      const novo = { ...fn(atual), updated_at: opcoes.manterAlteracao ? atual.updated_at : new Date().toISOString() };
       // atualiza já na memória (digitação rápida) e persiste em seguida
       const proximo = { ...dadosRef.current, rascunhos: { ...dadosRef.current.rascunhos, [chave]: novo } };
       dadosRef.current = proximo;
@@ -435,7 +454,7 @@ export function useVendedor() {
   /** Salva o pedido: grava na fila (persistida) e devolve na hora; o envio segue em segundo plano (T-0130). */
   const enviarPedido = useCallback(
     async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo);
       const id = ambiente.novoId();
       const agora = new Date().toISOString();
@@ -457,7 +476,7 @@ export function useVendedor() {
   /** Duplicar (`duplicate`) ou editar (`edit`, só o que está na fila — P-2): rascunho com o mesmo cliente/itens e os preços de hoje. */
   const prepararRascunhoDoPedido = useCallback(
     async (orderId: string, modo: 'duplicate' | 'edit'): Promise<{ customerId: string; chave: string }> => {
-      if (!repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!repo) throw new Error(MSG_APP_CARREGANDO);
       const d = dadosRef.current;
       const det = detalhe(orderId);
       const src = fonteDoPedido(orderId, filaRef.current, det ? { [orderId]: det } : d.detalhes);
@@ -507,7 +526,7 @@ export function useVendedor() {
   /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
   const salvarEdicao = useCallback(
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId);
       const itens = linhasParaPush(v.calculo.linhas);
       const chave = draftKeyFor(cliente.id, orderId);
@@ -573,7 +592,7 @@ export function useVendedor() {
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
   const excluirPedido = useCallback(
     async (orderId: string, motivo: string): Promise<ResultadoAlteracao> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
       if (naFila) {
         await motor.descartar(orderId);
@@ -639,7 +658,7 @@ export function useVendedor() {
    */
   const converterOrcamento = useCallback(
     async (orcamentoId: string): Promise<ResultadoEnvio> => {
-      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      if (!motor || !repo) throw new Error(MSG_APP_CARREGANDO);
       const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
       if (!d || d.items.length === 0) throw new Error('Itens do orçamento ainda não sincronizados. Sincronize e tente de novo.');
       const linha = linhasRef.current.pedidos.find((x) => x.id === orcamentoId);
@@ -672,7 +691,7 @@ export function useVendedor() {
    * cliente), offline. `null` = sem tabela no aparelho para conferir (o servidor revalida ao receber).
    */
   const reconferirOrcamentoLocal = useCallback(
-    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean; nivel: NivelDePreco | null; total_cents: number } | null> => {
+    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean; nivel: NivelDePreco | null; total_cents: number; precos: DadosDosPrecosDeHoje } | null> => {
       const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
       if (!d || d.items.length === 0) return null;
       const cliente = clientes.find((c) => c.id === d.customer_id);
@@ -688,8 +707,18 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
+        // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
+        preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });
-      return { mudancas: r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto')), bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents };
+      const frases = r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto'));
+      const total = textoDaDiferencaTotal(r);
+      // T-0141 G: o que a folha "Preços de hoje" precisa (nome do produto sem o código, total de cada item antes e hoje)
+      const precos: DadosDosPrecosDeHoje = {
+        preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
+        r: { itens_hoje: r.itens_hoje, total_orcado_cents: r.total_orcado_cents, total_hoje_cents: r.calculo.totais.total_cents, mudancas: r.mudancas, bloqueio: r.bloqueio },
+        nomes: Object.fromEntries(d.items.map((i) => [i.product_id, i.description])),
+      };
+      return { mudancas: total ? [...frases, total] : frases, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents, precos };
     },
     [perfil, clientes, garantirProdutos],
   );
@@ -822,6 +851,7 @@ export function useVendedor() {
     sincronizadoEm: estado.sincronizado_em ?? dadosRepo.sincronizado_em ?? null,
     tabelaDe,
     rascunhoDe,
+    rascunhosDaLista,
     atualizarRascunho,
     descartarRascunho,
     prepararDoRascunho,

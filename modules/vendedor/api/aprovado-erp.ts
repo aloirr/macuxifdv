@@ -6,7 +6,7 @@
  */
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import type { ClienteBanco, TransacaoTenant } from '@macuxi/platform-sdk';
-import { montarPedidoAprovado, type EnderecoEvento, type FreteEvento, type PedidoAprovadoPayload } from '../domain';
+import { enderecoParaEvento, montarPedidoAprovado, type EnderecoEvento, type FreteEvento, type PedidoAprovadoPayload } from '../domain';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
@@ -33,7 +33,6 @@ interface LinhaAprovado {
   prazo_external_id: string | null;
 }
 
-const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null);
 
 export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, pedidoId: string, aprovadoEm: string): Promise<PedidoAprovadoPayload> {
   const p = (
@@ -70,20 +69,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
       frete = { modalidade: 'FOB', transportadora: { tipo: 'cadastrada', id: p.transportadora_id, external_id: ext, nome: p.transportadora_nome ?? '', cnpj: p.transportadora_documento, telefone: p.transportadora_telefone } };
     }
   }
-  const e = p.endereco_entrega;
-  const endereco: EnderecoEvento | null = e
-    ? {
-        external_id: texto(e.external_id),
-        logradouro: String(e.logradouro ?? ''),
-        numero: texto(e.numero),
-        complemento: texto(e.complemento),
-        bairro: texto(e.bairro),
-        cidade: String(e.cidade ?? ''),
-        uf: String(e.uf ?? '').toUpperCase().slice(0, 2),
-        cep: texto(e.cep),
-        principal: e.principal === true,
-      }
-    : null;
+  const endereco: EnderecoEvento | null = enderecoParaEvento(p.endereco_entrega);
 
   return montarPedidoAprovado({
     pedido_uuid: pedidoId,

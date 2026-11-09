@@ -4,7 +4,7 @@
  * lista manual. Só os VALORES de exemplo realistas vêm de um mapa por nome de campo; campo sem exemplo no mapa recebe um gerado do tipo.
  *
  * Formato do arquivo (o que o parser de `carga-arquivo.ts` lê sem ambiguidade):
- *  - UTF-8 com BOM (o Excel pt-BR só reconhece acentos assim) e separador `;` (o `,` é o decimal do Excel pt-BR);
+ *  - UTF-8 com BOM_CSV (o Excel pt-BR só reconhece acentos assim) e separador `;` (o `,` é o decimal do Excel pt-BR);
  *  - quebras CRLF: é o que o Excel/Bloco de Notas do Windows (o ambiente de quem prepara a planilha) grava, e o RFC 4180; o parser normaliza
  *    CRLF e LF igual, então a escolha só afeta quem abre o arquivo;
  *  - obrigatórios primeiro (ordem do contrato), depois opcionais; listas de objetos (`contatos`, `paradas`) ficam de fora; listas simples liberadas (`parcelas_dias`, `formas_pagamento`) vão numa célula, itens separados por `/` (vêm pelo Conector);
@@ -12,12 +12,12 @@
  *    datas-hora ISO UTC com `Z`; booleanos `sim`/`não`; aspas duplas quando a célula tem `;`, aspas ou quebra de linha.
  * Dica de planilha: formate as colunas de código (documento, CEP, EAN) como Texto para o Excel não cortar zeros nem usar notação científica.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { z } from 'zod';
 import { SCHEMA_REGISTRO, type CampoDicionario, type DicionarioModelo, type Entidade } from '../contracts';
 import { defDe, desembrulhar, estruturaDoSchema } from './carga-arquivo';
 import { ordemDeCargaDoPortal } from './portal-carga';
 
-const BOM = String.fromCharCode(0xfeff);
 const CRLF = '\r\n';
 const SEPARADOR = ';';
 
@@ -344,7 +344,7 @@ function celulaCsv(valor: string): string {
 export interface ModeloCsv {
   entidade: Entidade;
   arquivo: string;
-  /** Texto completo do arquivo: BOM + cabeçalho + 2 linhas, separador `;`, quebras CRLF. */
+  /** Texto completo do arquivo: BOM_CSV + cabeçalho + 2 linhas, separador `;`, quebras CRLF. */
   csv: string;
   /** Uma entrada por coluna do cabeçalho, na mesma ordem. */
   campos: CampoDicionario[];
@@ -381,7 +381,7 @@ export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA
     });
   }
   const cabecalho = colunas.map((c) => celulaCsv(c.caminho)).join(SEPARADOR);
-  const csv = BOM + [cabecalho, linhas[0].join(SEPARADOR), linhas[1].join(SEPARADOR)].join(CRLF) + CRLF;
+  const csv = BOM_CSV + [cabecalho, linhas[0].join(SEPARADOR), linhas[1].join(SEPARADOR)].join(CRLF) + CRLF;
   return { entidade, arquivo: nomeArquivoModelo(entidade), csv, campos };
 }
 

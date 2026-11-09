@@ -18,7 +18,7 @@ import { semBanco } from '@macuxi/db/teste/estado';
 import { dadosDemo } from '@macuxi/db/teste';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { mensagemPerfilForaDoApp, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fazerCheckin, fazerCheckout, type ContextoAcao } from '../../../modules/core/app/lib/acoes-visita';
 import { etapasCore } from '../../../modules/core/app/lib/cargas';
 import { listarClientesLocais, montarCliente360Local, agruparPorCliente } from '../../../modules/core/app/lib/cliente360-local';
@@ -31,15 +31,11 @@ import { etapasVendedor } from '../../../modules/vendedor/app/etapas';
 import { buildOrderPdfHtml, pdfDoPedido, type OrderPdfOrder } from '../../../modules/vendedor/app/lib/order-pdf';
 import { detalheDoPedido, lerLinhas, listaDeClientes, listaDePedidos, paraAprovar, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
+import { aparelhoCampo, esperarHorizonte, gpsDeTeste, type AparelhoCampo } from '../apoio/campo';
 import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
-/** GPS do "aparelho" (o resto do `dispositivo.ts` é o UUID do Node). */
-const gps = vi.hoisted(() => ({ posicao: null as null | { lat: number; lng: number; precisao_m: number | null } }));
-vi.mock('../../../modules/core/app/lib/dispositivo', () => ({
-  uuid: () => globalThis.crypto.randomUUID(),
-  gpsAgora: async () => gps.posicao,
-}));
+/** GPS do "aparelho", pelo ambiente do motor (`posicaoAgora`, RD-0046). */
+const gps = gpsDeTeste();
 
 const ETAPAS_CAMPO = [...etapasCore, ...etapasVendedor];
 
@@ -59,7 +55,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
   const usuarioId = {} as Record<ChaveDemo, string>;
 
   const noCampo = async (chave: ChaveDemo): Promise<Campo> => {
-    const ap = await aparelhoCampo(api, DEMO[chave], { etapas: ETAPAS_CAMPO, entidadesExtras: entidadesMeta });
+    const ap = await aparelhoCampo(api, DEMO[chave], { etapas: ETAPAS_CAMPO, entidadesExtras: entidadesMeta, posicaoAgora: gps.posicaoAgora });
     const armazem = armazemDe(ap.motor);
     return { ap, armazem, acao: { motor: ap.motor, armazem, tz: ap.sessao.tenant.fuso, vendedorId: ap.sessao.usuario.id } };
   };

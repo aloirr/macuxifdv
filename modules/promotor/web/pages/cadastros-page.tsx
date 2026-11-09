@@ -11,7 +11,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { downloadBlob, errorMessage, useSession } from '@macuxi/platform-sdk/web';
 import { Badge, Button, cx, DEFAULT_TZ, Dialog, ErrorBlock, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ACAO_CADASTRO, type CadastroBko } from '../../contracts';
+import { ACAO_CADASTRO, type CadastroGravavel } from '../../contracts';
 import {
   ABAS_CADASTRO,
   cadastroCsv,
@@ -38,12 +38,11 @@ import { useDesativarCadastro, useGravarCadastro, useListaCadastro, useParametro
 
 const novoId = () => crypto.randomUUID();
 const hojeIso = () => new Date().toISOString().slice(0, 10);
-const NOME_CADASTRO: Record<CadastroBko, string> = {
+const NOME_CADASTRO: Record<CadastroGravavel, string> = {
   categoria_gondola: 'categoria',
   checklist_loja: 'checklist',
   meta_share: 'meta de share',
   mix_obrigatorio: 'item do mix',
-  concorrente: 'concorrente',
   produto_concorrente: 'produto do concorrente',
 };
 const campo = 'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] text-ink';
@@ -90,7 +89,8 @@ export function CadastrosTradePage() {
         <input type="checkbox" data-testid="cadastros-trade.desativados" checked={desativados} onChange={(e) => mudar(aba, e.target.checked)} />
         Mostrar desativados
       </label>
-      {CADASTROS_DA_ABA[aba].map((c) => (c === 'concorrente' ? <AvisoMarcas key={c} /> : <SecaoCadastro key={c} cadastro={c} incluirDesativados={desativados} />))}
+      {aba === 'concorrentes' && <AvisoMarcas />}
+      {CADASTROS_DA_ABA[aba].map((c) => <SecaoCadastro key={c} cadastro={c} incluirDesativados={desativados} />)}
     </div>
   );
 }
@@ -138,7 +138,7 @@ function AvisoMarcas() {
   );
 }
 
-function SecaoCadastro({ cadastro, incluirDesativados }: { cadastro: CadastroBko; incluirDesativados: boolean }) {
+function SecaoCadastro({ cadastro, incluirDesativados }: { cadastro: CadastroGravavel; incluirDesativados: boolean }) {
   const fuso = useSession<{ fuso?: string }>().user?.fuso ?? DEFAULT_TZ;
   const pode = usePode(ACAO_CADASTRO[cadastro]);
   const lista = useListaCadastro(cadastro, incluirDesativados);
@@ -259,22 +259,20 @@ function SecaoCadastro({ cadastro, incluirDesativados }: { cadastro: CadastroBko
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const TITULO_SECAO: Record<CadastroBko, string> = {
+const TITULO_SECAO: Record<CadastroGravavel, string> = {
   checklist_loja: 'Checklists de visita',
   categoria_gondola: 'Categorias de gôndola',
   meta_share: 'Metas de share por categoria',
   mix_obrigatorio: 'Mix obrigatório (ruptura)',
-  concorrente: 'Concorrentes',
   produto_concorrente: 'Produtos do concorrente',
 };
 
-function Cabecalho({ cadastro }: { cadastro: CadastroBko }) {
-  const cols: Record<CadastroBko, string[]> = {
+function Cabecalho({ cadastro }: { cadastro: CadastroGravavel }) {
+  const cols: Record<CadastroGravavel, string[]> = {
     checklist_loja: ['Checklist', 'Etapas', 'Obrigatórias', 'Vale para', 'Vigência'],
     categoria_gondola: ['Categoria', 'Ordem', 'Situação'],
     meta_share: ['Categoria', 'Meta', 'Vale para', 'Vigência'],
     mix_obrigatorio: ['Produto (id)', 'Categoria', 'Vale para', 'Vigência'],
-    concorrente: ['Concorrente', 'Situação'],
     produto_concorrente: ['Concorrente', 'Produto do concorrente', 'Produto nosso (id)', 'Situação'],
   };
   return (
@@ -288,7 +286,7 @@ function Cabecalho({ cadastro }: { cadastro: CadastroBko }) {
   );
 }
 
-function Celulas({ cadastro, l, categorias, concorrentes }: { cadastro: CadastroBko; l: LinhaDoCadastro; categorias: ReadonlyMap<string, string>; concorrentes: ReadonlyMap<string, string> }) {
+function Celulas({ cadastro, l, categorias, concorrentes }: { cadastro: CadastroGravavel; l: LinhaDoCadastro; categorias: ReadonlyMap<string, string>; concorrentes: ReadonlyMap<string, string> }) {
   const cat = (id: unknown) => (typeof id === 'string' ? (categorias.get(id) ?? '—') : '—');
   const situacao = (
     <td className={td}>
@@ -333,13 +331,6 @@ function Celulas({ cadastro, l, categorias, concorrentes }: { cadastro: Cadastro
           <td className={td}>{rotuloVigencia(l)}</td>
         </>
       );
-    case 'concorrente':
-      return (
-        <>
-          <td className={`${td} font-semibold`}>{String(l.nome)}</td>
-          {situacao}
-        </>
-      );
     case 'produto_concorrente':
       return (
         <>
@@ -353,7 +344,7 @@ function Celulas({ cadastro, l, categorias, concorrentes }: { cadastro: Cadastro
 }
 
 function FormularioDialog({ cadastro, estado, categorias, concorrentes, aoFechar, aoGravar }: {
-  cadastro: CadastroBko;
+  cadastro: CadastroGravavel;
   estado: { id: string; nova: boolean; form: FormCadastro };
   categorias: readonly LinhaDoCadastro[];
   concorrentes: readonly LinhaDoCadastro[];
@@ -365,7 +356,7 @@ function FormularioDialog({ cadastro, estado, categorias, concorrentes, aoFechar
   const gravar = useGravarCadastro(cadastro);
   const muda = (patch: Partial<FormCadastro>) => setF((x) => ({ ...x, ...patch }));
   const comAlvo = cadastro === 'checklist_loja' || cadastro === 'meta_share' || cadastro === 'mix_obrigatorio';
-  const comAtivo = cadastro === 'categoria_gondola' || cadastro === 'concorrente' || cadastro === 'produto_concorrente';
+  const comAtivo = cadastro === 'categoria_gondola' || cadastro === 'produto_concorrente';
   const comNome = cadastro !== 'meta_share' && cadastro !== 'mix_obrigatorio';
   const categoriasVivas = categorias.filter((c) => !c.deleted_at);
   const concorrentesVivos = concorrentes.filter((c) => !c.deleted_at && c.ativo !== false); // seletor: só marcas ativas

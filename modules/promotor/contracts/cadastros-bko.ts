@@ -11,7 +11,6 @@ import {
   validarAlvo,
   validarCategoria,
   validarChecklist,
-  validarConcorrente,
   validarMetaShare,
   validarProdutoConcorrente,
   validarVigencia,
@@ -21,7 +20,6 @@ import { PctNumero } from './base';
 import {
   CategoriaGondolaSync,
   ChecklistLojaSync,
-  ConcorrenteSync,
   MetaShareSync,
   MixObrigatorioSync,
   ProdutoConcorrenteSync,
@@ -56,8 +54,6 @@ export type MixEdicao = z.infer<typeof MixEdicao>;
 export const MetaShareEdicao = comDomain(MetaShareSync.omit(SERVIDOR).extend({ meta_pct: PctNumero }), (m) => [...validarMetaShare(m.meta_pct), ...validarAlvo(m), ...validarVigencia(m.vigencia_inicio, m.vigencia_fim)]);
 export type MetaShareEdicao = z.infer<typeof MetaShareEdicao>;
 
-export const ConcorrenteEdicao = comDomain(ConcorrenteSync.omit(SERVIDOR), validarConcorrente);
-export type ConcorrenteEdicao = z.infer<typeof ConcorrenteEdicao>;
 
 export const ProdutoConcorrenteEdicao = comDomain(ProdutoConcorrenteSync.omit(SERVIDOR), validarProdutoConcorrente);
 export type ProdutoConcorrenteEdicao = z.infer<typeof ProdutoConcorrenteEdicao>;
@@ -104,7 +100,6 @@ export const EDICAO_CADASTRO = {
   checklist_loja: ChecklistEdicao,
   meta_share: MetaShareEdicao,
   mix_obrigatorio: MixEdicao,
-  concorrente: ConcorrenteEdicao,
   produto_concorrente: ProdutoConcorrenteEdicao,
 } as const;
 

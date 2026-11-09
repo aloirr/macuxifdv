@@ -19,6 +19,7 @@
  * GET  marcas                     produto.consultar   cadastro de marcas com a contagem de referências (RN-CAT-13, ADR 0034)
  * POST marcas, PUT marcas/:id     marca.gerenciar     cria/edita/inativa/reativa; evento catalogo.marca_concorrente.alterada@1
  * PUT  produtos/:id/cadastro-catalogo produto.enriquecer  aplicação, referências, oferece junto e etiquetas (RN-CAT-09, RN-CAT-11)
+ * GET  hierarquia               produto.consultar    nível atual da hierarquia sistema › grupo › linha com a contagem de produtos ativos (RF-CAT-09, T-0142)
  * GET  exportacao               produto.enriquecer  cadastro do catálogo para PDF/Excel do BKO, página única até 20 mil (RF-CAT-09)
  * GET  termos-sem-resultado       busca.ver_sem_resultado
  */
@@ -36,6 +37,7 @@ import {
 import {
   ConsultaBuscaQuery,
   ConsultaFichaQuery,
+  ConsultaHierarquiaQuery,
   ConsultaTermosQuery,
   ConsultaVitrineQuery,
   ParamsProduto,
@@ -74,11 +76,14 @@ import {
   type RespostaBusca,
   type RespostaEscrita,
   type RespostaExportacao,
+  type RespostaHierarquia,
 } from '../contracts';
 import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
 import { fatoDaEscritaMarca, filtrarMarcas, nomeMarcaIgual, validarNomeMarca } from '../domain/marcas-cadastro';
 import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domain/marcas';
 import { montarExportacao } from '../domain/exportacao';
+import { montarArvore, produtosDoNo } from '../domain/arvore';
+import { idsAtivos, navegarHierarquia } from '../domain/hierarquia';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
@@ -193,6 +198,16 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       dep.aposGravar?.(ctx.usuario.tenant_id);
     }
   };
+  /** Produtos ativos do nível `no` e dos abaixo dele (RF-CAT-09); nível que não existe mais = todos. */
+  const produtosDoNivel = async (repo: RepositorioCatalogo, produtos: ProdutoCatalogo[], no: string) => {
+    const { nos, vinculos } = await repo.dadosExportacao();
+    const ativos = idsAtivos(produtos);
+    const arvore = montarArvore(nos);
+    const r = navegarHierarquia(arvore, vinculos, ativos, no);
+    // chegou nos produtos (inclusive "Outros produtos" e "Sem classificação"): os do nível; no meio da hierarquia, o nível inteiro
+    const ids = r.tipo === 'produtos' ? new Set(r.produtoIds) : arvore.nos.has(no) ? produtosDoNo(arvore, vinculos, no) : ativos;
+    return produtos.filter((p) => ids.has(p.id) && ativos.has(p.id));
+  };
   const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(dep.repositorio(ctx, db, tx)));
 
   const busca: RotaModulo = {
@@ -248,9 +263,28 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       const p = parametrosDoTenant(ctx.parametros());
       const clienteId = await conferirCliente(ctx, q.customer_id);
       return comRepo(ctx, async (repo) => {
-        const produtos = await repo.produtos();
+        const todos = await repo.produtos();
+        const produtos = q.no ? await produtosDoNivel(repo, todos, q.no) : todos;
         const contexto = await contextoVitrine(ctx, repo, p, clienteId, produtos);
         return listarVitrine({ produtos, contexto, chips: { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock, campaign: q.campaign }, sinonimos: [], limit: q.limit, offset: q.offset });
+      });
+    },
+  };
+
+  // T-0142 / RF-CAT-09: a hierarquia do app, do mesmo domain; a contagem é de produtos ativos (sem filtro de estoque)
+  const hierarquia: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.hierarquia,
+    acao: 'produto.consultar',
+    carteira: 'filtrar_no_dominio',
+    query: ConsultaHierarquiaQuery,
+    async executar(ctx: Ctx<unknown, ConsultaHierarquiaQuery>): Promise<RespostaHierarquia> {
+      return comRepo(ctx, async (repo) => {
+        const [produtos, { nos, vinculos }] = await Promise.all([repo.produtos(), repo.dadosExportacao()]);
+        const r = navegarHierarquia(nos, vinculos, idsAtivos(produtos), ctx.query.no ?? null);
+        const base = { sem_hierarquia: r.tipo === 'produtos' && r.semHierarquia, trilha: r.caminho, raiz_tocavel: r.raizTocavel };
+        if (r.tipo === 'produtos') return { tipo: 'produtos', ...base, rotulo_plural: '', niveis: [], no: r.noId, total_produtos: r.produtoIds.length };
+        return { tipo: 'niveis', ...base, rotulo_plural: r.rotuloPlural, niveis: r.niveis.map((n) => ({ id: n.id, codigo: n.codigo, nome: n.nome, total: n.total })), no: null, total_produtos: r.total };
       });
     },
   };
@@ -419,8 +453,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
           const e = erros[0]!;
           throw new ErroRegraNegocio(e.regra, e.mensagem, { campo: e.campo });
         }
-        // marcas do cadastro de concorrentes do Promotor (promotor.concorrentes@1): marca desconhecida, inativa ou consulta
-        // indisponível (sem a licença do Promotor) é 422 RN-CAT-09 com mensagem clara
+        // marcas concorrentes do Catálogo (RN-CAT-13, ADR 0034): marca desconhecida ou inativa é 422 RN-CAT-09 com mensagem clara
         const errosMarca = validarMarcasDaReferencia(corpo.referencias ?? [], await repo.marcasConcorrentes());
         if (errosMarca.length > 0) throw new ErroRegraNegocio(errosMarca[0]!.regra, errosMarca[0]!.mensagem, { campo: errosMarca[0]!.campo });
         // "Oferece junto" digitado por código fora da página do BKO: resolve aqui, sem diferenciar maiúsculas
@@ -690,5 +723,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
+  return [busca, vitrine, hierarquia, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, fotoPrincipal, cadastroCatalogo, marcasConcorrentes, listarMarcas, criarMarca, alterarMarca, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

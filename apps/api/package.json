@@ -11,6 +11,7 @@
     "worker": "tsx src/worker.ts",
     "tenant": "tsx src/cli/tenant.ts",
     "super-admin": "tsx src/cli/super-admin.ts",
+    "publicar-pacote": "tsx src/cli/publicar-pacote.ts",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

@@ -4,7 +4,6 @@
  * o resto o aparelho calcula com as MESMAS funções puras do domain (RN-CORE-26). Dinheiro em centavos; datas civis no fuso do tenant.
  */
 import { z } from 'zod';
-import { PerfilSchema } from './auth';
 import { INDICADORES_META, TIPOS_META } from './sync';
 
 const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -100,37 +99,8 @@ export const VisaoInicioSchema = z
     hoje: Data,
     dia_util: z.boolean(),
     dias_uteis_restantes: Inteiro,
-    recado: z
-      .object({
-        origem: z.enum(['recado', 'padrao']),
-        texto: z.string(),
-        titulo: z.string().nullable(),
-        autor_nome: z.string().nullable(),
-        autor_perfil: PerfilSchema.nullable(),
-        notificacao_id: z.string().uuid().nullable(),
-      })
-      .strict(),
     /** Ordem: venda_cents, positivacao, visitas, cobertura_pct. */
     metas: z.array(MetaDoDiaSchema),
-    notificacoes: z
-      .object({
-        nao_lidas: Inteiro,
-        ultimas: z
-          .array(
-            z
-              .object({
-                id: z.string().uuid(),
-                titulo: z.string(),
-                tipo: z.string(),
-                criada_em: z.string(),
-                lida: z.boolean(),
-                link: z.string().nullable(),
-              })
-              .strict(),
-          )
-          .max(3),
-      })
-      .strict(),
     /** null no escopo equipe. */
     rota: z
       .object({

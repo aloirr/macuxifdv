@@ -18,3 +18,17 @@ export function estadoDoConteudo(e: {
   if (!e.modulos.data) return 'carregando_modulos';
   return 'pronto';
 }
+
+/**
+ * O que o shell faz com a sessão (T-0117, revisão G2; puro). Só `anonymous` vai ao login: a API recusou a renovação
+ * (401/423) ou não há usuário. `sem_conexao` (rede, tempo esgotado, servidor fora) mantém o usuário na aba com o aviso e o
+ * "Tentar de novo"; o SDK tenta sozinho quando a rede volta e no foco da aba, e a tela volta sem novo login.
+ */
+export type EstadoSessaoShell = 'autenticada' | 'sem_conexao' | 'ir_ao_login' | 'carregando';
+
+export function estadoDaSessao(status: 'loading' | 'anonymous' | 'sem_conexao' | 'authenticated'): EstadoSessaoShell {
+  if (status === 'authenticated') return 'autenticada';
+  if (status === 'sem_conexao') return 'sem_conexao';
+  if (status === 'anonymous') return 'ir_ao_login';
+  return 'carregando';
+}

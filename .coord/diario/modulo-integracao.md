@@ -56,3 +56,8 @@
 2026-11-09 — T-0100 — carga por arquivo self-service no BKO (modelos e carga pela ação carga.arquivo do motor, página Carga por arquivo com partes e chave de idempotência), SinalConector.atualizacao aditivo (Conector, Hub, monitor, OpenAPI), suíte do Conector verde, 137 avisos da caixa lidos
 2026-11-09 — T-0115 — ClientePayload.canal (aditivo v1), de-para tipo canal (traduzirCanalDoCliente no aplicar-lote), rótulo no BKO, OpenAPI regerado; T-0098 não iniciada (porta de URL assinada ainda não está no SDK); pendente banco-dados: view e CHECK
 2026-11-09 — T-0115 — canal mapeado nos exemplos do Conector (SQL Server e Oracle); suíte do conector verde
+2026-11-09 — T-0098 — rota POST /v1/integracao/conector/download (conector.gerenciar, superAdmin aceita), LinkDownloadConectorSchema, auditoria conector.download_link sem URL, testes
+2026-11-09 — T-0141 (item C) — EnderecoEntregaErp.origem aditivo no v1, guia com a regra external_id nulo = textos, 7 testes RN-VEN-17
+2026-11-09 — T-0141 (item C) — EnderecoEntregaErp.origem aditivo no v1, guia com a regra external_id nulo = textos, 7 testes RN-VEN-17
+2026-11-09 — T-0141 C — coleção Postman regerada do openapi-hub-v1.json (EnderecoEntregaErp.origem); colecao.test.ts verde (12/12); Insomnia sem mudança
+2026-11-09 — T-0140 — RD-0043: mascararDadoPessoal do Hub renomeada para mascararMensagemDoConector (regra própria documentada, saída ao ERP/BKO inalterada); RD-0051: BOM local trocado por BOM_CSV do comum em 5 arquivos; célula compacta mantida (variante aguarda engenheiro-software).
