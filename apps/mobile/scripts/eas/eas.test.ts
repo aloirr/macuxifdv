@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import appConfig from '../../app.config';
 import { configDoBucket, dadosDoBuild, opcoesDoDownload, urlsDoBucket } from './baixar-apk.mjs';
 import { planoDeBuild } from './build.mjs';
-import { ambienteDoEas } from './comum.mjs';
+import { ambienteDoEas, nomes, versaoAtual } from './comum.mjs';
 import { alvoNoBucket, chaveDoApk, codificar, urlAssinada, VALIDADE_MAXIMA_S } from './s3-assinado';
 
 const eas = JSON.parse(readFileSync(new URL('../../eas.json', import.meta.url), 'utf8')) as {
@@ -25,14 +25,26 @@ describe('versão: fonte única e versionCode crescente', () => {
     else process.env.APP_VARIANT = varianteAntes;
   });
 
-  it('versao.json está em 1.0.1 (próximo build: Campo-Demo-v1.0.1 / Gestao-Demo-v1.0.1)', () => {
-    expect(versaoDoArquivo).toBe('1.0.1');
+  // Sem travar o número: o teste confere o formato e o nome derivado (hoje 1.0.2 → Campo-Demo-v1.0.2 / Gestao-Demo-v1.0.2).
+  it('versao.json em X.Y.Z e nome do build derivado dele, igual nas duas variantes', () => {
+    expect(versaoDoArquivo).toMatch(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
+    expect(versaoAtual()).toBe(versaoDoArquivo);
+    const nomesDemo = planoDeBuild(['ambos', 'demo'], versaoAtual()).builds.map((b) => b.nome);
+    expect(nomesDemo).toEqual([`Campo-Demo-v${versaoDoArquivo}`, `Gestao-Demo-v${versaoDoArquivo}`]);
+  });
+
+  it('versão torta no versao.json é recusada', () => {
+    for (const torta of ['1.0', '1.0.2.1', 'v1.0.2', '01.0.2', '1.0.2 ', '', null, 102]) {
+      expect(() => nomes.lerVersao({ versao: torta }), JSON.stringify(torta)).toThrow(/versão inválida/);
+    }
+    expect(() => nomes.lerVersao({})).toThrow(/versão inválida/);
   });
 
   it('o app.config usa a versão do versao.json nas duas variantes', () => {
     for (const v of ['campo', 'gestao']) {
       process.env.APP_VARIANT = v;
       const c = appConfig({ config: {} } as Parameters<typeof appConfig>[0]);
+      // as duas variantes saem da mesma fonte: divergência entre Campo e Gestão quebra aqui
       expect(c.version).toBe(versaoDoArquivo);
       // versionCode NÃO fica no repositório: é do EAS (appVersionSource remote)
       expect(c.android?.versionCode).toBeUndefined();
