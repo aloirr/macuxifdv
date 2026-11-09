@@ -2,6 +2,8 @@
  * Arquivos enviados pelo aparelho (ADR 0010; desenho T-0016 §1 E4) — rotas de plataforma, como `/v1/sync/*`:
  *   PUT /v1/arquivos/:id  corpo `image/jpeg` cru (sem multipart), até 2 MB → completa a linha `aguardando`
  *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`; foto de produto vale para o tenant)
+ *   GET /v1/arquivos/:id/miniatura  versão reduzida (T-0097 b: maior lado 320 px, até 30 KB) com a MESMA regra de acesso;
+ *       gerada na 1ª leitura e guardada ao lado do original (`<id>.m320.jpg`; `miniatura.ts`)
  *
  * Quem CRIA a linha em `plataforma.arquivo` é o módulo, na transação do comando que referencia a foto
  * (`tx.registrarArquivo`, `outbox.ts`). O upload só completa uma linha do mesmo tenant (RLS) e do mesmo usuário:
@@ -28,6 +30,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ErroHttp } from './erros';
+import { chaveDaMiniatura, ErroMiniatura, gerarMiniatura } from './miniatura';
 import type { Plataforma, RequisicaoPreparada } from './tipos';
 
 // ---------- porta e adaptador de disco ----------
@@ -43,7 +46,7 @@ export interface ArmazenamentoArquivos {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 /** Formato fechado da chave: nada de `..`, barra invertida ou caminho absoluto chega ao disco. */
-export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}\\.jpg$`);
+export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320)?\\.jpg$`);
 const CHAVE_RE = CHAVE_ARQUIVO_RE;
 
 export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date): string {
@@ -207,7 +210,11 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
       },
     );
 
-    escopo.get(`${ROTA_ARQUIVOS}/:id`, async (req, reply) => {
+    /**
+     * Linha do arquivo que o usuário da sessão pode ler: licença e perfil do módulo dono, carteira do cliente da foto ou
+     * usuários visíveis (foto do tenant liberada pela licença). Fora disso, 404 sem revelar o motivo. Original e miniatura.
+     */
+    async function lerAutorizado(req: FastifyRequest) {
       const id = idDaRota(req);
       const { ctx } = await p.preparar(req, null);
       const u = ctx.usuario;
@@ -240,7 +247,12 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
       if (!armazenamento) throw indisponivel();
-      const bytes = await armazenamento.ler(linha.chave_armazenamento);
+      return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento };
+    }
+
+    escopo.get(`${ROTA_ARQUIVOS}/:id`, async (req, reply) => {
+      const { id, ctx, linha, chave, naoEncontrado, armazenamento } = await lerAutorizado(req);
+      const bytes = await armazenamento.ler(chave);
       if (!bytes) {
         ctx.log.warn({ arquivo_id: id }, 'bytes do arquivo ausentes no armazenamento');
         throw naoEncontrado();
@@ -250,6 +262,41 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         .header('content-type', 'image/jpeg')
         .header('cache-control', 'private, max-age=86400')
         .header('etag', `"${linha.sha256}"`)
+        .send(Buffer.from(bytes));
+    });
+
+    // T-0097 b: versão reduzida (320 px, até 30 KB), mesma regra de acesso; gerada na 1ª leitura e guardada
+    escopo.get(`${ROTA_ARQUIVOS}/:id/miniatura`, async (req, reply) => {
+      const { id, ctx, linha, chave, naoEncontrado, armazenamento } = await lerAutorizado(req);
+      const chaveMini = chaveDaMiniatura(chave);
+      let bytes = await armazenamento.ler(chaveMini);
+      if (!bytes) {
+        const original = await armazenamento.ler(chave);
+        if (!original) {
+          ctx.log.warn({ arquivo_id: id }, 'bytes do arquivo ausentes no armazenamento');
+          throw naoEncontrado();
+        }
+        const inicio = Date.now();
+        try {
+          const m = gerarMiniatura(original);
+          bytes = m.bytes;
+          ctx.log.info({ arquivo_id: id, tamanho_bytes: bytes.length, largura_px: m.largura, altura_px: m.altura, ms: Date.now() - inicio }, 'miniatura gerada');
+        } catch (e) {
+          if (!(e instanceof ErroMiniatura)) throw e;
+          ctx.log.warn({ arquivo_id: id, erro: e.message }, 'miniatura não gerada');
+          throw new ErroHttp(422, 'MINIATURA_INDISPONIVEL', 'Não foi possível reduzir esta foto.');
+        }
+        // guardar é melhor esforço: se falhar, a próxima leitura gera de novo
+        const gerada = bytes;
+        await armazenamento
+          .gravar(chaveMini, gerada)
+          .catch((e: unknown) => ctx.log.warn({ arquivo_id: id, erro: e instanceof Error ? e.message : String(e) }, 'miniatura não guardada'));
+      }
+      return reply
+        .code(200)
+        .header('content-type', 'image/jpeg')
+        .header('cache-control', 'private, max-age=86400')
+        .header('etag', `"${linha.sha256}-m320"`)
         .send(Buffer.from(bytes));
     });
   });

@@ -37,6 +37,45 @@ export interface DefinicaoEntidadeSync<S extends z.ZodTypeAny = z.ZodTypeAny> {
   schema: S;
   /** Schema Zod da linha do pull (ADR 0009 §2). Os provedores validam a linha em teste; o app tipa a leitura local. */
   schemaLinha?: z.ZodTypeAny;
+  /**
+   * ADR 0009 §5 (T-0121): espelho, no aparelho, da janela de tempo do provedor (`data >= hoje − 40` etc.). A linha que
+   * saiu da janela não é apagada pelo servidor (o cursor já passou por ela): depois do pull da entidade, no máximo uma
+   * vez por dia, o motor apaga do aparelho as linhas com `naJanela(linha, hoje) === false` (fora as que estão na fila
+   * ou sobrepostas). `hoje` é `AAAA-MM-DD` com FOLGA (`hojeParaPoda`: a data UTC de 24 h atrás, nunca depois do "hoje"
+   * de nenhum fuso do Brasil): como a janela só tem limite inferior (adendo do §5), a folga só deixa a linha um dia a
+   * mais, nunca apaga o que o servidor ainda manda. Use `diasAntes`/`mesesAntes`; na dúvida (campo ausente, formato
+   * desconhecido), devolva `true` — a linha fica. Lançar também mantém a linha.
+   */
+  naJanela?(linha: Readonly<Record<string, unknown>>, hoje: string): boolean;
+}
+
+const DATA_ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function partesData(data: string): { a: number; m: number; d: number } {
+  const r = DATA_ISO_RE.exec(data);
+  if (!r) throw new Error(`Data inválida (esperado AAAA-MM-DD): ${data}`);
+  return { a: Number(r[1]), m: Number(r[2]), d: Number(r[3]) };
+}
+
+/** `AAAA-MM-DD` de um instante, no calendário UTC. */
+const dataUtc = (t: Date): string => t.toISOString().slice(0, 10);
+
+/** T-0121: `hoje` da poda local (ADR 0009 §5): a data UTC de 24 h antes de `agora` (folga de fuso; ver `naJanela`). */
+export function hojeParaPoda(agora: Date): string {
+  return dataUtc(new Date(agora.getTime() - 24 * 60 * 60 * 1000));
+}
+
+/** `AAAA-MM-DD` `n` dias antes de `data` (`AAAA-MM-DD`), no calendário (sem fuso). */
+export function diasAntes(data: string, n: number): string {
+  const { a, m, d } = partesData(data);
+  return dataUtc(new Date(Date.UTC(a, m - 1, d - n)));
+}
+
+/** `AAAA-MM-DD` `n` meses antes de `data`, com o dia limitado ao fim do mês (31/03 − 1 mês = 28 ou 29/02). */
+export function mesesAntes(data: string, n: number): string {
+  const { a, m, d } = partesData(data);
+  const ultimoDia = new Date(Date.UTC(a, m - 1 - n + 1, 0)).getUTCDate();
+  return dataUtc(new Date(Date.UTC(a, m - 1 - n, Math.min(d, ultimoDia))));
 }
 
 /**

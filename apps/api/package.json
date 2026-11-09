@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@macuxi/catalogo": "workspace:*",
+    "@macuxi/comum": "workspace:*",
     "@macuxi/core": "workspace:*",
     "@macuxi/db": "workspace:*",
     "@macuxi/gestor": "workspace:*",
@@ -27,6 +28,7 @@
     "@macuxi/treinamento": "workspace:*",
     "@macuxi/vendedor": "workspace:*",
     "fastify": "^5.6.0",
+    "jpeg-js": "0.4.4",
     "pg": "8.23.1",
     "pino": "^10.4.0",
     "tsx": "^4.20.0",

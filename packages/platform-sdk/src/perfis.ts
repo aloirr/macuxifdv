@@ -7,6 +7,7 @@
  * - A Fase M (mock-api, `Role` de @macuxi/core/contracts) usa papéis em inglês; os shells convertem no
  *   login com `perfilDaFaseM` e daí em diante só falam `Perfil`. Some quando a API real (T-0003) emitir perfis.
  */
+import { ROTULO_PERFIL_CURTO, ROTULO_PERFIL_LONGO as ROTULO_LONGO_COMUM } from '@macuxi/comum/perfis';
 import type { AppId, Perfil } from './nomes';
 
 export const PERFIS_DO_APP: Readonly<Record<Exclude<AppId, 'conector'>, readonly Perfil[]>> = {
@@ -19,15 +20,14 @@ export function perfilUsaApp(perfil: Perfil | null | undefined, app: keyof typeo
   return !!perfil && PERFIS_DO_APP[app].includes(perfil);
 }
 
-export const ROTULO_PERFIL: Readonly<Record<Perfil, string>> = {
-  vendedor: 'Vendedor',
-  promotor: 'Promotor',
-  supervisor: 'Supervisor',
-  gerente: 'Gerente',
-  analista: 'Analista',
-  assistente: 'Assistente de BKO',
-  admin: 'Admin',
-};
+/**
+ * RD-0014: nome CURTO do perfil em toda tela e mensagem (ex.: login "O perfil assistente não usa…"). Fonte única em
+ * `@macuxi/comum/perfis` (o kit reexporta de lá); spec: docs/design/perfis-de-acesso.md §0.1.
+ */
+export const ROTULO_PERFIL: Readonly<Record<Perfil, string>> = ROTULO_PERFIL_CURTO;
+
+/** RD-0014: nome por extenso, só para apresentar o perfil uma vez (cabeçalho do Perfil, dica do chip, convite). */
+export const ROTULO_PERFIL_LONGO: Readonly<Record<Perfil, string>> = ROTULO_LONGO_COMUM;
 
 /**
  * Papel da Fase M → perfil do doc 03. `manager` ("Gestor comercial", acima do supervisor nas alçadas
@@ -45,7 +45,8 @@ export function perfilDaFaseM(papel: string | null | undefined): Perfil | null {
   return (papel && DA_FASE_M[papel]) || null;
 }
 
-const NOME_DO_APP: Readonly<Record<keyof typeof PERFIS_DO_APP, string>> = { campo: 'o app Macuxi Campo', gestao: 'o app Macuxi Gestão', web: 'o backoffice (web)' };
+/** Nome do app ou do BKO na frase ("o app Macuxi Campo"), o mesmo das mensagens do login. RD-0016: exportado para os shells. */
+export const NOME_DO_APP: Readonly<Record<keyof typeof PERFIS_DO_APP, string>> = { campo: 'o app Macuxi Campo', gestao: 'o app Macuxi Gestão', web: 'o backoffice (web)' };
 
 /**
  * Login certo num app que não é do perfil (ex.: promotor no BKO): mensagem com a ação seguinte, ou `null` se o perfil
