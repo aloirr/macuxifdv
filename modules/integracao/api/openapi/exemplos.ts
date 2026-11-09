@@ -487,7 +487,7 @@ export const PEDIDO_PARA_ERP_EXEMPLO: z.output<typeof PedidoParaErp> = {
     modalidade: 'FOB',
     transportadora: { tipo: 'cadastrada', id: '8d3c5e7a-1b2f-4c6d-a9e0-4f5a6b7c8d9e', external_id: 'T001', nome: 'Transportadora Exemplo', cnpj: '11222333000181' },
   },
-  endereco_entrega: { logradouro: 'Avenida das Flores', numero: '250', bairro: 'Industrial', cidade: 'Boa Vista', uf: 'RR', cep: '69313000', principal: false },
+  endereco_entrega: { logradouro: 'Avenida das Flores', numero: '250', bairro: 'Industrial', cidade: 'Boa Vista', uf: 'RR', cep: '69313000', principal: false, origem: 'editado' },
 };
 
 export const EXEMPLOS_PEDIDOS_PENDENTES: readonly Exemplo<z.output<typeof PedidosPendentes>>[] = [

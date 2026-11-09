@@ -19,6 +19,7 @@ import { rotaCargaArquivo, rotaConferirArquivo, rotaErrosLote, rotaErrosLoteCsv,
 import { rotaModeloCsv, rotaModeloDicionario } from './bko-modelos';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
+import { rotaDownloadConector } from './conector-download';
 import { rotaMonitor } from './bko-monitor';
 import { documentoOpenApiPublico } from './openapi/publico';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
@@ -61,7 +62,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado, consumidorPedidoCancelado, consumidorMarcaDesconhecida],
     consultas: [consultaCancelamentoErp],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario],
+    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaListarMapeamentos, rotaGravarMapeamento, rotaApagarMapeamento, rotaReprocessarRetidos, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo, rotaModeloCsv, rotaModeloDicionario, rotaDownloadConector],
     // T-0092: especificação pública (sem token); ETag, 304 e Cache-Control são da plataforma
     rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),

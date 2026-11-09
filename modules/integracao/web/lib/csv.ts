@@ -3,13 +3,13 @@
  * mostra. Padrão do Excel brasileiro (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens e mensagens do Hub: nenhum
  * valor de linha (o payload pode ter CPF/CNPJ) — §14 do hub-api.md.
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull } from '@macuxi/ui/web';
 import type { LinhaErro, LoteListagemItem, PendenciaInativacao } from '../../contracts';
 import { ROTULO_ENTIDADE, ROTULO_STATUS_LOTE } from './apresentacao';
 
 /** BOM para o Excel abrir em UTF-8 sem perguntar. */
-export const CSV_BOM = '﻿';
+export const CSV_BOM = BOM_CSV;
 
 type Celula = string | number | null | undefined;
 

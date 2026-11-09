@@ -34,8 +34,12 @@ const PADROES_PESSOAIS: readonly RegExp[] = [
   /\b\d{8,}\b/g, // qualquer sequência longa de dígitos (CPF/CNPJ sem pontuação, cartão…)
 ];
 
-/** Defesa em profundidade: o Conector já não manda o valor, mas o Hub nunca grava nem loga CPF, CNPJ, e-mail ou telefone. */
-export function mascararDadoPessoal(texto: string): string {
+/**
+ * Defesa em profundidade: o Conector já não manda o valor, mas o Hub nunca grava nem loga CPF, CNPJ, e-mail ou telefone.
+ * NÃO é a `mascararDadoPessoal` de @macuxi/comum/dado-pessoal (RD-0043): esta é a regra da mensagem de erro do ERP que o Hub grava, com
+ * marcador único `***` e apagando também qualquer sequência de 8+ dígitos (inclusive pedaço de UUID). O texto gravado não muda sem teste de contrato.
+ */
+export function mascararMensagemDoConector(texto: string): string {
   return PADROES_PESSOAIS.reduce((t, re) => t.replace(re, MASCARA), texto);
 }
 
@@ -54,7 +58,7 @@ export function tratarLinhasInvalidasConector(entrada: EntradaLinhasInvalidas, o
     external_id: limpa(l.external_id),
     codigo: l.codigo,
     campo: limpa(l.campo),
-    mensagem: mascararDadoPessoal(l.mensagem).slice(0, 300),
+    mensagem: mascararMensagemDoConector(l.mensagem).slice(0, 300),
     reprocessavel: false,
     origem: 'conector',
   }));
