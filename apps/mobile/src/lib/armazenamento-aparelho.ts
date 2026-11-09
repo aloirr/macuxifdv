@@ -21,8 +21,7 @@ import {
   type ProgressoPassagem,
   type SistemaSqlite,
 } from '@macuxi/platform-sdk';
-
-import { limparDadoPessoal } from './erro-de-tela';
+import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
 
 /** Trava de emergência (desenho §4): só vale para quem ainda não passou para o SQLite (sem espelho). */
 export function forcarAsyncStorage(valor: string | undefined | null): boolean {
@@ -181,11 +180,11 @@ export const ROTULO_ENVIAR_SUPORTE = 'Enviar o detalhe ao suporte';
 
 /**
  * Texto do "Enviar o detalhe ao suporte" (Share do sistema). Só o título e o detalhe técnico do SDK (que leva, no máximo,
- * o nome do arquivo: UUID ou hash do usuário, id pseudônimo); por garantia, e-mail e sequência longa de dígitos (CPF,
- * CNPJ, telefone) saem mascarados.
+ * o nome do arquivo: UUID ou hash do usuário, id pseudônimo); por garantia, e-mail, CPF, CNPJ e telefone saem mascarados
+ * (máscara única `mascararDadoPessoal` do `@macuxi/comum`).
  */
 export function mensagemParaSuporte(detalhe: string): string {
-  return `Macuxi FDV · ${TITULO_ERRO_ARMAZENAMENTO}\n${limparDadoPessoal(detalhe)}`;
+  return `Macuxi FDV · ${TITULO_ERRO_ARMAZENAMENTO}\n${mascararDadoPessoal(detalhe)}`;
 }
 
 /**

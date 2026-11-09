@@ -88,7 +88,7 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
       await onSalvar(nova);
     } catch (x) {
       const r = resultadoDoErroDaTroca(x, nova);
-      if (r.acao === 'login') return onVoltarAoLogin(r.mensagem);
+      if (r.acao === 'voltar_ao_login') return onVoltarAoLogin(r.mensagem);
       setErro(r.mensagem);
       if (r.acao === 'destacar') setDestacar(true);
       if (r.acao === 'limpar') {

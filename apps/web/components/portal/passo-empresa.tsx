@@ -11,7 +11,7 @@
  */
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, type FaltaNaSenha } from '@macuxi/core/contracts';
+import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, textoDoErroDaSenha } from '@macuxi/core/contracts';
 import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
 import { Badge, Button, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
@@ -202,8 +202,6 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
 
 const ROTULO_RESULTADO: Record<Resposta['resultado'], string> = { criado: 'Empresa criada', atualizado: 'Empresa atualizada', sem_mudanca: 'Nada mudou' };
 
-const FALTAS_CONHECIDAS: readonly FaltaNaSenha[] = ['caracteres', 'letra', 'numero', 'especial'];
-
 /** Linha do administrador no resultado (spec §6). `null` quando ele não veio no pedido. */
 export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin' | 'simulado'>, email: string | null): string | null {
   // no Conferir nada foi gravado: "não muda"; depois de gravar, "não mudou" (spec §6; R-20261107-174216 🟡 6)
@@ -214,17 +212,12 @@ export function textoDoAdminNoResultado(r: Pick<Resposta, 'admin' | 'simulado'>,
 
 /**
  * Erro 422 da API no administrador (desenho T-0093 §6): `RN-CORE-34` = falta o administrador (aviso no topo do bloco);
- * `RN-CORE-32` = a senha não serve (mensagem do Core pelas `detalhes.faltas`, embaixo do campo). Outro erro: `null`.
+ * `RN-CORE-32` = a senha não serve (texto da fonte única do Core, `textoDoErroDaSenha`, embaixo do campo). Outro erro: `null`.
  */
 export function erroDoAdminNaApi(x: unknown, senha: string): { bloco: string } | { senha: string } | null {
   if (!(x instanceof ErroPortal) || x.status !== 422) return null;
   if (x.codigo === 'RN-CORE-34') return { bloco: TEXTOS_ADMIN.faltaAdmin };
-  if (x.codigo === 'RN-CORE-32') {
-    // faltas vazias = outro motivo do Core (ex.: igual ao e-mail): vale a mensagem da API
-    const lista: unknown[] = Array.isArray(x.detalhes?.faltas) ? x.detalhes.faltas : [];
-    const faltas = lista.filter((f): f is FaltaNaSenha => typeof f === 'string' && (FALTAS_CONHECIDAS as readonly string[]).includes(f));
-    return { senha: (faltas.length > 0 ? mensagemDaSenha(faltas, senha) : null) ?? x.message };
-  }
+  if (x.codigo === 'RN-CORE-32') return { senha: textoDoErroDaSenha(x, senha) };
   return null;
 }
 

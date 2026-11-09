@@ -26,7 +26,7 @@ describe('BaixarConector', () => {
     const html = renderToStaticMarkup(
       <BaixarConector
         tenant={TENANT}
-        inicial={{ url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000, sha256: null }}
+        inicial={{ url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 }}
       />,
     );
     expect(html).toContain('data-testid="integracao.baixar-conector-link"');

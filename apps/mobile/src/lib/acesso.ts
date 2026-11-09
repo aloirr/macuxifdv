@@ -1,45 +1,19 @@
 /**
- * Onde o usuário entra, decidido só pelo motor de permissões do SDK (ADR 0033; T-0111; RN-CORE-33). O shell não compara o
- * perfil com listas próprias: pergunta ao motor (`podeEntrar`) pelos perfis de acesso da sessão.
- * - Com os perfis já resolvidos pela API (fábrica + o que o tenant mudou + limites travados), vale o que veio.
- * - Sem eles (API que ainda não os entrega, demonstração), vale o padrão de fábrica do perfil base, resolvido pelo próprio motor
- *   (`resolverPerfil(perfilDeFabrica(base))`). As chaves de acesso são da plataforma e não dependem dos manifestos, e os limites
- *   travados (vendedor, promotor e supervisor nunca entram no BKO; o portal é só do admin) valem nos dois casos.
+ * Onde o perfil entra, para a lista da demonstração do login (RN-CORE-33; ADR 0033). RD-0016: a decisão (`entraEm`,
+ * `perfisDaSessao`, `perfisDeFabricaQueEntram`) e os nomes dos apps (`NOME_DO_APP`, o mesmo termo das mensagens do login)
+ * vêm do SDK (`acesso-sessao.ts` e `perfis.ts`). Aqui fica só a frase, que só o login do app usa.
  */
-import {
-  matrizDeFabrica,
-  perfilDeFabrica,
-  PERFIS,
-  podeEntrar,
-  resolverPerfil,
-  type LugarDeAcesso,
-  type Perfil,
-  type PerfilDaRequisicao,
-} from '@macuxi/platform-sdk';
+import { entraEm, NOME_DO_APP, type LugarDeAcesso, type Perfil } from '@macuxi/platform-sdk';
 
-/** Padrão de fábrica das chaves da plataforma (`acesso.*`, escopo, usuários e senhas): não depende dos manifestos. */
-const FABRICA_DA_PLATAFORMA = matrizDeFabrica([]);
+/** Lugar do motor → chave do `NOME_DO_APP` (o BKO se chama `web` nas mensagens do login). */
+const NOME_DO_LUGAR: readonly (readonly [Exclude<LugarDeAcesso, 'portal'>, keyof typeof NOME_DO_APP])[] = [
+  ['campo', 'campo'],
+  ['gestao', 'gestao'],
+  ['bko', 'web'],
+];
 
-/** Perfis de acesso da sessão: os resolvidos pela API, se vieram; senão o de fábrica do perfil base. Sem perfil = nenhum. */
-export function perfisDaSessao(perfil: Perfil | null | undefined, resolvidos?: readonly PerfilDaRequisicao[] | null): readonly PerfilDaRequisicao[] {
-  if (resolvidos && resolvidos.length > 0) return resolvidos;
-  return perfil ? [resolverPerfil(perfilDeFabrica(perfil), FABRICA_DA_PLATAFORMA)] : [];
-}
-
-/** O usuário entra em `lugar` (`bko`, `campo`, `gestao`, `portal`)? Falha fechada: sem perfil, não. */
-export function entraEm(lugar: LugarDeAcesso, perfil: Perfil | null | undefined, resolvidos?: readonly PerfilDaRequisicao[] | null): boolean {
-  return podeEntrar(perfisDaSessao(perfil, resolvidos), lugar);
-}
-
-/** Perfis base que, de fábrica, entram em `lugar`, na ordem do doc 03 (ex.: a lista de usuários da demonstração do BKO). */
-export function perfisDeFabricaQueEntram(lugar: LugarDeAcesso): Perfil[] {
-  return PERFIS.filter((p) => entraEm(lugar, p));
-}
-
-const NOME_DO_LUGAR: Readonly<Record<Exclude<LugarDeAcesso, 'portal'>, string>> = { campo: 'o Macuxi Campo', gestao: 'o Macuxi Gestão', bko: 'o backoffice (web)' };
-
-/** "o Macuxi Gestão ou o backoffice (web)" (mesmo termo do `mensagemPerfilForaDoApp`): onde o perfil entra de fábrica (lista da demonstração). Nenhum lugar = `null`. */
+/** "o app Macuxi Gestão ou o backoffice (web)": onde o perfil entra de fábrica (lista da demonstração). Nenhum lugar = `null`. */
 export function ondeOPerfilEntra(perfil: Perfil | null | undefined): string | null {
-  const lugares = (Object.keys(NOME_DO_LUGAR) as (keyof typeof NOME_DO_LUGAR)[]).filter((l) => entraEm(l, perfil));
-  return lugares.length > 0 ? lugares.map((l) => NOME_DO_LUGAR[l]).join(' ou ') : null;
+  const nomes = NOME_DO_LUGAR.filter(([lugar]) => entraEm(lugar, perfil)).map(([, app]) => NOME_DO_APP[app]);
+  return nomes.length > 0 ? nomes.join(' ou ') : null;
 }
