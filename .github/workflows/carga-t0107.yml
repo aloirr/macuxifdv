@@ -1,0 +1,131 @@
+name: carga T-0107 (20 mil SKUs, com metas)
+
+# T-0122 (docs/desenho/T-0122.md). A carga da T-0107 (tests/carga/t0107) num runner SÓ dela, com as metas de tempo valendo
+# (MACUXI_CARGA_MEDIR=1): sync inicial, busca, pedido, retorno ao ERP e ciclo da fila (constante METAS do teste; leitura
+# dos números em tests/carga/t0107/README.md). No PR e no push ao main o mesmo arquivo roda dentro do testes-integracao
+# do CI, sem metas (só erro funcional reprova).
+#   Quando: manual (Actions → "carga T-0107" → Run workflow, ou gh workflow run carga-t0107.yml) e semanal (segunda
+#           08:00 UTC = 04:00 em Manaus, depois do CI diário das 07:00). Nunca em PR nem no push.
+#   Bloqueia? NÃO: workflow à parte, fora do ci-ok (o check obrigatório do ci.yml). Vermelho aqui = achado da carga
+#           (D-T0107b, busca acima da meta, é esperado até o modulo-catalogo corrigir) e vira pendência para o dono.
+#   Perfil: "padrao" (200 buscas / 4 concorrentes / 30 s, ~2 min de teste) no semanal; "ensaio" (200 / 10 / 900 s, o
+#           ensaio pedido na T-0107, ~20 min) só no manual.
+#   Saída: as linhas "[carga T-0107] …" no resumo do run (Summary) e o log completo como artefato (30 dias).
+# Nada aqui toca a demo nem produção: a API sobe numa porta local do runner e o banco é efêmero (macuxi_teste_*), no
+# Postgres do service container, apagado no fim. Sem segredo (só as senhas públicas do Postgres descartável).
+
+on:
+  workflow_dispatch:
+    inputs:
+      perfil:
+        description: 'padrao = 200 buscas, 4 concorrentes, 30 s · ensaio = 200 buscas, 10 concorrentes, 900 s'
+        required: true
+        default: padrao
+        type: choice
+        options: [padrao, ensaio]
+      aparelhos:
+        description: 'Aparelhos no sync inicial (MACUXI_CARGA_APARELHOS, 1 a 20)'
+        required: true
+        default: '5'
+        type: string
+  schedule:
+    - cron: '0 8 * * 1'
+
+permissions:
+  contents: read
+
+# Um run por vez (dois juntos no mesmo minuto não mudam nada e gastam o dobro); nada é cancelado.
+concurrency:
+  group: carga-t0107
+  cancel-in-progress: false
+
+env:
+  MACUXI_PG_EXIGIR: '1'
+  MACUXI_PG_AUTO_SUBIR: '0'
+  MACUXI_PG_HOST: localhost
+  MACUXI_PG_PORTA: '5432'
+  MACUXI_PG_ADMIN_USUARIO: postgres
+  MACUXI_PG_ADMIN_SENHA: postgres
+  NEXT_TELEMETRY_DISABLED: '1'
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  carga:
+    name: carga T-0107 com metas (MACUXI_CARGA_MEDIR=1, ${{ inputs.perfil || 'padrao' }})
+    runs-on: ubuntu-latest
+    # ensaio: busca 900 s + folga do teste (TETO.busca = orçamento + 300 s) + preparo, sync, pedidos e fila.
+    timeout-minutes: 60
+
+    # Mesma imagem do db/docker-compose.yml e do ci.yml.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+          TZ: UTC
+          PGTZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
+
+      # Entradas por variável de ambiente (nunca interpoladas no shell) e conferidas antes de usar.
+      - name: carga (tests/carga/t0107)
+        env:
+          PERFIL: ${{ inputs.perfil || 'padrao' }}
+          APARELHOS: ${{ inputs.aparelhos || '5' }}
+          MACUXI_CARGA_MEDIR: '1'
+        run: |
+          set -o pipefail
+          case "$PERFIL" in
+            padrao) buscas=200; concorrencia=4;  segundos=30 ;;
+            ensaio) buscas=200; concorrencia=10; segundos=900 ;;
+            *) echo "::error::perfil inválido: $PERFIL (padrao | ensaio)"; exit 2 ;;
+          esac
+          if ! [[ "$APARELHOS" =~ ^[0-9]+$ ]] || [ "$APARELHOS" -lt 1 ] || [ "$APARELHOS" -gt 20 ]; then
+            echo "::error::aparelhos inválido: $APARELHOS (1 a 20)"; exit 2
+          fi
+          export MACUXI_CARGA_APARELHOS="$APARELHOS" MACUXI_CARGA_BUSCAS="$buscas" \
+            MACUXI_CARGA_BUSCA_CONCORRENCIA="$concorrencia" MACUXI_CARGA_BUSCA_SEGUNDOS="$segundos"
+          echo "perfil $PERFIL: aparelhos=$APARELHOS buscas=$buscas concorrência=$concorrencia orçamento=${segundos}s"
+          pnpm test:tests carga/t0107 2>&1 | tee carga-t0107.log
+
+      # Resumo do run: resultado e só as linhas de medida que o teste já imprime ("[carga T-0107] …"; sem credencial,
+      # sem dado pessoal: base fictícia do gerador). Até 60 linhas de 1.500 caracteres.
+      - name: resumo
+        if: ${{ !cancelled() }}
+        env:
+          PERFIL: ${{ inputs.perfil || 'padrao' }}
+          RESULTADO: ${{ job.status }}
+        run: |
+          {
+            echo "## carga T-0107 — perfil ${PERFIL}"
+            if [ "$RESULTADO" = "success" ]; then echo "✅ metas cumpridas"; else echo "🔴 vermelho (meta estourada ou erro funcional: veja o log)"; fi
+            echo
+            echo '```'
+            if [ -f carga-t0107.log ]; then
+              linhas=$(grep -F '[carga T-0107]' carga-t0107.log | cut -c1-1500 | head -60 || true)
+              if [ -n "$linhas" ]; then echo "$linhas"; else echo '(nenhuma linha de medida no log)'; fi
+            else
+              echo '(sem log: a carga não chegou a rodar)'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: log da carga (artefato)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: carga-t0107-${{ github.run_id }}
+          path: carga-t0107.log
+          if-no-files-found: ignore
+          retention-days: 30

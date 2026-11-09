@@ -50,6 +50,10 @@
 //  - ADR 0035 (T-0139): com .coord/recados e .coord/lidos em junção para o clone do macuxifdv-recados, o alvo pelo
 //    caminho de verdade do clone segue as regras de .coord/recados, o git que grava no clone é bloqueado e a foto do
 //    PostToolUse inclui o git status do clone (juncoesDeRecados; casos em guarda-juncao.test.mjs).
+//  - Guardião v7 (T-0122), PreToolUse, também ANTES da liberação da sessão manual: `gh api` só de LEITURA (GET/HEAD;
+//    GraphQL só "query"). Leitura passa mesmo com $VAR ou "merge" no --jq; POST/PUT/PATCH/DELETE, método incerto,
+//    opção desconhecida e gh api escondido em bash -c/node -e são bloqueados (conferirGhApi em guarda-merge-lib.mjs;
+//    casos em guarda-gh-api.test.mjs). As ferramentas MCP têm hook próprio: .claude/hooks/guarda-mcp.mjs.
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,7 +65,7 @@ import {
   lerJson, gravarJson, apagarArquivo, limparAntigos,
 } from './guarda-bash-lib.mjs';
 import {
-  conferirMerge, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
+  conferirMerge, conferirGhApi, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
   motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados,
 } from './guarda-merge-lib.mjs';
 
@@ -96,6 +100,12 @@ if (evento === 'PreToolUse') {
   });
   if (!m.ok) {
     process.stderr.write(m.mensagem + '\n');
+    process.exit(2);
+  }
+  // Guardião v7 (T-0122): gh api só de leitura, para toda sessão (como o merge).
+  const api = conferirGhApi(comando);
+  if (!api.ok) {
+    process.stderr.write(api.mensagem + '\n');
     process.exit(2);
   }
 }

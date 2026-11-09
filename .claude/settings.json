@@ -103,6 +103,15 @@
             "timeout": 120
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guarda-mcp.mjs"
+          }
+        ]
       }
     ],
     "PostToolUse": [

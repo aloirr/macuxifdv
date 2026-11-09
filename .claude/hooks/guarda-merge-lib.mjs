@@ -19,6 +19,8 @@
 // Também bloqueia o merge "escondido": `gh pr merge` dentro de bash -c/eval/xargs/source/here-doc/
 // script inline (node -e, python -c...), `gh api` de merge, `gh alias set/import` e subcomando do gh
 // desconhecido (alias ou extensão), e nome de comando incerto ($GH pr ...).
+// v7 (T-0122): `gh api` só de leitura (analisarGhApi/conferirGhApi): GET/HEAD e GraphQL "query" passam, mesmo com $VAR
+// ou "merge" no --jq; o resto é bloqueado para toda sessão.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, win32, posix } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -167,7 +169,8 @@ export function acharMerges(comando) {
     if (grupo.incerto) { bloqueios.push(`subcomando do gh incerto ("${grupo.valor}"): escreva o comando por extenso`); return; }
     const g = grupo.valor.toLowerCase();
     if (!GRUPOS_GH.has(g)) { bloqueios.push(`"gh ${grupo.valor}" não é um comando do gh (alias ou extensão podem esconder um merge): use o comando completo`); return; }
-    if (g === 'api' && depois.some((w) => w.incerto || /merge/i.test(w.valor))) {
+    // v7 (T-0122): gh api de LEITURA (GET/HEAD; GraphQL só "query") passa mesmo com $VAR ou "merge" (--jq, /merge de consulta).
+    if (g === 'api' && !analisarGhApi(depois.slice(depois.indexOf(grupo) + 1)).leitura && depois.some((w) => w.incerto || /merge/i.test(w.valor))) {
       bloqueios.push('merge pela API do GitHub (gh api …/merge ou mergePullRequest) não é aceito: use gh pr merge, com as regras abaixo');
       return;
     }
@@ -183,6 +186,131 @@ export function acharMerges(comando) {
   if (interpretador && mencionaMerge(comando))
     bloqueios.push('gh pr merge dentro de bash -c, eval, xargs, source, here-doc ou script (node -e, python -c...) não é aceito: rode o gh pr merge direto, sozinho no comando');
   return { merges, bloqueios };
+}
+
+// ───────────────────────────── guardião v7 (T-0122): gh api só de leitura ─────────────────────────────
+//
+// O `gh api` passa SÓ quando o pedido é de leitura:
+//  - método GET ou HEAD: explícito (-X/--method, também -XGET e --method=GET) ou implícito (sem -f/-F/--input o gh usa GET);
+//    com -f/-F/--input e sem -X o gh usa POST;
+//  - GraphQL (endpoint graphql) só com uma consulta literal ("query ..." ou "{ ... }") sem "mutation"/"subscription";
+//  - a leitura passa mesmo com $VAR no endpoint e "merge" no --jq ou no caminho (GET .../pulls/N/merge só consulta).
+// O resto (POST/PUT/PATCH/DELETE, método incerto como -X $M, opção desconhecida, consulta GraphQL vinda de arquivo ou
+// de $VAR) é escrita e é BLOQUEADO para toda sessão, como o merge: gravar no GitHub é pelo comando próprio do gh
+// (gh pr create/comment/edit...), que não esconde merge nem push de conteúdo. Uso manual do Alexandre: MACUXI_GUARDA=off.
+
+/** Opções do gh api que levam valor (gh 2.x). */
+const API_COM_VALOR = new Map([
+  ['-X', 'metodo'], ['--method', 'metodo'], ['-f', 'campo'], ['--raw-field', 'campo'], ['-F', 'campo'], ['--field', 'campo'],
+  ['--input', 'entrada'], ['-H', 'outro'], ['--header', 'outro'], ['-q', 'outro'], ['--jq', 'outro'], ['-t', 'outro'],
+  ['--template', 'outro'], ['--cache', 'outro'], ['-p', 'outro'], ['--preview', 'outro'], ['--hostname', 'outro'],
+]);
+/** Opções do gh api sem valor. */
+const API_SEM_VALOR = new Set(['--paginate', '--slurp', '-i', '--include', '--silent', '--verbose', '-h', '--help']);
+export const METODOS_DE_LEITURA = new Set(['GET', 'HEAD']);
+const RE_GRAPHQL_ESCRITA = /\b(mutation|subscription)\b/i;
+
+/**
+ * Classifica os argumentos de um `gh api` (palavras do tokenizador DEPOIS de "api"). Função pura.
+ * @param {{valor: string, incerto?: boolean}[]} args
+ * @returns {{leitura: boolean, metodo: string|null, endpoint: string|null, motivo?: string}}
+ */
+export function analisarGhApi(args) {
+  const metodos = [];
+  const campos = [];
+  let entrada = false;
+  let endpoint = null;
+  let endpointIncerto = false;
+  let metodoIncerto = false;
+  const estranhas = [];
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i];
+    const v = w.valor;
+    if (w.incerto && /^-/.test(v)) { estranhas.push(v); continue; }
+    if (!v.startsWith('-') || v === '-') {
+      if (endpoint === null) { endpoint = v; endpointIncerto = Boolean(w.incerto); }
+      else estranhas.push(v); // 2º posicional: o gh recusa; aqui não dá para saber o que é
+      continue;
+    }
+    let nome = v;
+    let valor;
+    let incerto = false;
+    const eq = v.startsWith('--') ? v.indexOf('=') : -1;
+    if (eq > 0) { nome = v.slice(0, eq); valor = v.slice(eq + 1); }
+    else if (!v.startsWith('--') && v.length > 2 && API_COM_VALOR.has(v.slice(0, 2))) { nome = v.slice(0, 2); valor = v.slice(2); }
+    if (API_SEM_VALOR.has(nome) && valor === undefined) continue;
+    const tipo = API_COM_VALOR.get(nome);
+    if (!tipo) { estranhas.push(v); continue; }
+    if (valor === undefined) {
+      if (i + 1 >= args.length) { estranhas.push(`${nome} sem valor`); continue; }
+      valor = args[i + 1].valor;
+      incerto = Boolean(args[i + 1].incerto);
+      i++;
+    }
+    if (tipo === 'metodo') { metodos.push(String(valor).toUpperCase()); if (incerto) metodoIncerto = true; }
+    else if (tipo === 'campo') campos.push({ opcao: nome, valor: String(valor), incerto });
+    else if (tipo === 'entrada') entrada = true;
+  }
+  const metodo = metodos.length ? metodos[metodos.length - 1] : (campos.length || entrada ? 'POST' : 'GET');
+  const res = (leitura, motivo) => ({ leitura, metodo: metodoIncerto ? null : metodo, endpoint, ...(motivo ? { motivo } : {}) });
+  if (estranhas.length) return res(false, `opção ou argumento que o guardião não reconhece no gh api (${estranhas.slice(0, 3).join(', ')})`);
+  if (metodoIncerto) return res(false, 'método do gh api incerto ($VAR no -X/--method): escreva -X GET por extenso');
+  if (!endpoint) return res(false, 'gh api sem endpoint');
+  // GraphQL (ou endpoint incerto, que pode ser graphql): mutation em qualquer campo = escrita, com qualquer método.
+  const talvezGraphql = endpointIncerto || /^\/?graphql$/i.test(endpoint);
+  if (talvezGraphql && campos.some((c) => RE_GRAPHQL_ESCRITA.test(c.valor))) return res(false, 'GraphQL com mutation/subscription é escrita');
+  if (METODOS_DE_LEITURA.has(metodo)) return res(true);
+  if (talvezGraphql && !endpointIncerto && metodo === 'POST' && !entrada) {
+    const consultas = campos.filter((c) => /^query=/i.test(c.valor));
+    const q = consultas[0];
+    if (consultas.length !== 1) return res(false, 'GraphQL precisa de exatamente um -f query=...');
+    if (q.incerto || (q.opcao === '-F' || q.opcao === '--field') && /^query=@/i.test(q.valor)) return res(false, 'consulta GraphQL vinda de $VAR ou de arquivo: escreva a consulta por extenso');
+    const texto = q.valor.slice('query='.length).replace(/#[^\n]*/g, '').trim();
+    if (/^(query\b|\{)/i.test(texto)) return res(true);
+    return res(false, 'consulta GraphQL que não começa com "query" ou "{"');
+  }
+  return res(false, `método ${metodo} grava no GitHub`);
+}
+
+/** Texto do comando menciona um gh api (para o caso escondido em bash -c, node -e...)? Conta as menções. */
+function mencoesGhApi(comando) {
+  return (textoNormalizado(comando).match(/\bgh\b.{0,40}?\bapi\b/g) || []).length;
+}
+
+/**
+ * Confere os `gh api` do comando Bash (PreToolUse, toda sessão). Função pura.
+ * @returns {{ok: boolean, leituras: number, mensagem?: string}}
+ */
+export function conferirGhApi(comando) {
+  const erros = [];
+  let vistos = 0;
+  let leituras = 0;
+  let interpretador = false;
+  visitarComandos(comando, ({ nome, args, estranho, palavras }) => {
+    if (executaTexto(nome, args) || estranho) interpretador = true;
+    if (!nome || nome.incerto || nomeBase(nome.valor) !== 'gh') return;
+    const depois = palavras.slice(palavras.indexOf(nome) + 1);
+    let k = 0;
+    while (k < depois.length && !depois[k].incerto && depois[k].valor.startsWith('-')) k += /^(-R|--repo)$/.test(depois[k].valor) ? 2 : 1;
+    if (!depois[k] || depois[k].incerto || depois[k].valor.toLowerCase() !== 'api') return;
+    vistos++;
+    const a = analisarGhApi(depois.slice(k + 1));
+    if (a.leitura) leituras++;
+    else erros.push(`gh api ${a.metodo || '?'} ${a.endpoint || ''}`.trim() + `: ${a.motivo}`);
+  });
+  if (interpretador && mencoesGhApi(comando) > vistos)
+    erros.push('gh api dentro de bash -c, eval, xargs, source, here-doc ou script (node -e, python -c...) não é aceito: rode o gh api direto no comando');
+  if (!erros.length) return { ok: true, leituras };
+  return { ok: false, leituras, mensagem: mensagemGhApi(erros) };
+}
+
+export function mensagemGhApi(erros) {
+  return (
+    `[guardião Macuxi] BLOQUEADO (gh api): o gh api só é aceito para LEITURA:\n${erros.map((e) => ` - ${e}`).join('\n')}\n` +
+    'Aceito: gh api <endpoint> (sem -f/-F/--input), gh api -X GET <endpoint> -f q=... e gh api graphql -f query=\'query { ... }\'. ' +
+    'Para gravar no GitHub use o comando próprio do gh (gh pr create/comment/edit, gh issue ...); merge só pelo gh pr merge, com as regras do v5.\n' +
+    'Não contorne o bloqueio (script, alias, outra ferramenta): se precisar gravar pela API, peça ao gerente-projetos ou ao Alexandre por recado.'
+  );
 }
 
 // ───────────────────────────── validação do comando (regra b) ─────────────────────────────
