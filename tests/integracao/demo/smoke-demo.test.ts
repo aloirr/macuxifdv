@@ -504,7 +504,8 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(interno).toContain(formatBRL(doc.total_cents));
     for (const i of doc.items) expect(interno).toContain(i.description);
     if (doc.price_table && doc.price_table_name) expect(interno, 'o PDF interno nunca mostra o id da tabela').not.toContain(doc.price_table);
-    expect(orderPdfFileName(numero, 'bko')).toBe(`pedido-${numero}-bko.pdf`);
+    // RN-VEN-41 (T-0141): PED-XXXX-DDMMAAAA.pdf, a data de emissão no fuso do tenant; o mesmo nome nas duas versões do PDF
+    expect(orderPdfFileName(numero, doc.created_at, ctx.tz)).toMatch(/^PED-\d{4,}-\d{8}\.pdf$/);
     const cliente = buildOrderPdfHtml(doc, 'customer', ctx);
     expect(cliente).toContain(numero);
     expect(cliente).not.toContain('%');

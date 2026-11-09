@@ -1,4 +1,5 @@
 import { formatarDocumento } from '@macuxi/comum';
+import { formatarCep } from '@macuxi/comum/endereco';
 import { OrderDetail } from '../../contracts';
 
 export const MSG_ITENS_INDISPONIVEIS = 'Não foi possível carregar os itens deste pedido. Tente de novo; se continuar, avise o suporte.';
@@ -36,10 +37,16 @@ export function textoDaTransportadora(f: OrderDetail['freight']): string | null 
   return `${f.carrier_name}${cnpj}${fone}${f.carrier_typed ? ' · digitada pelo vendedor' : ''}`;
 }
 
+/** RN-VEN-17 (T-0141): selo do endereço digitado só neste pedido; o PDF não leva a marca. */
+export const SELO_ENDERECO_EDITADO = 'Editado neste pedido';
+export function enderecoFoiEditado(e: OrderDetail['delivery_address']): boolean {
+  return e?.origem === 'editado';
+}
+
 export function textoDoEnderecoEntrega(e: OrderDetail['delivery_address']): string | null {
   if (!e) return null;
   const rua = [[e.logradouro, e.numero].filter((x) => x && x.trim()).join(', '), e.complemento].filter((x) => x && x.trim()).join(' – ');
-  const cep = e.cep ? `CEP ${e.cep}` : '';
+  const cep = e.cep ? `CEP ${formatarCep(e.cep)}` : '';
   return [rua, e.bairro, e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : '', cep].filter((x) => x && x.trim()).join(' · ') || null;
 }
 

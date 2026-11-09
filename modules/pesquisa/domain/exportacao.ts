@@ -2,8 +2,9 @@
  * Exportação de resultados (RF-PES-06): CSV em UTF-8 com BOM e `;` — o Excel em pt-BR abre direto, com acentos.
  * Uma linha por resposta; uma coluna por pergunta (id estável, RN-PES-01: a mesma pergunta em várias versões vira uma
  * coluna só, com o enunciado da versão mais nova). Datas e horas no fuso do tenant; número com vírgula decimal.
- * Células que começam com `=`, `+` ou `@` (ou `-` seguido de letra) ganham `'` na frente (injeção de fórmula).
+ * Células que começam com `=`, `+`, `@`, `-`, tabulação ou retorno de carro (`protegerFormula` do comum) ganham `'` na frente (injeção de fórmula).
  */
+import { protegerFormula } from '@macuxi/comum/csv';
 import { zonedParts } from '@macuxi/comum/fuso';
 import type { ItemResposta, Pergunta, QuestionarioVersao, RespostaPesquisa } from '../contracts';
 
@@ -12,8 +13,7 @@ const FIM = '\r\n';
 
 /** Escapa uma célula: fórmula neutralizada, aspas dobradas, entre aspas se tiver separador, aspas ou quebra. */
 export function celulaCsv(valor: string): string {
-  let v = valor;
-  if (/^[=+@\t\r]/.test(v) || /^-[^\d.,\s]/.test(v)) v = `'${v}`;
+  let v = protegerFormula(valor);
   if (/[;"\r\n]/.test(v)) v = `"${v.replace(/"/g, '""')}"`;
   return v;
 }

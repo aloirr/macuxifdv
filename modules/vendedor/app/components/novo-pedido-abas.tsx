@@ -27,6 +27,7 @@ import {
   sanearDecimal,
   Segmentado,
   Selo,
+  TabelaValores,
   textoAtualizacao,
   textosLeveMais,
   type as t,
@@ -41,11 +42,13 @@ import type { AlertaDaVenda } from '../../domain/alertas-venda';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rotuloTotalDoPedido, TEXTO_ESCOLHA_A_FORMA, TEXTO_SEM_FORMAS, type LimitesDoCliente } from '../lib/pagamento-pedido';
 import { ajusteDoPedidoDoRascunho, rascunhoComTextoDoPedido, rascunhoComTipoDoPedido, textoDoAjuste, valorDoTexto } from '../lib/ajuste-pedido';
-import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
+import { enderecosDoCliente, freteValido, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import type { Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, itemCompacto, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa } from '../lib/textos-pedido';
-import { fraseDoFrete, linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, linhaDoLimite, ROTULOS_DO_RESUMO, TEXTO_OBS_VAZIA, ROTULO_ALERTAS, ROTULO_ENDERECO_ENTREGA, ROTULO_LIMITE, ROTULO_PRAZO_MEDIO, TEXTO_ENDERECO_DO_CADASTRO, TEXTO_SEM_ALERTA, TEXTO_SEM_DADOS_DE_CREDITO, textoDoAlerta, textoDoPrazoMedio } from '../lib/textos-venda';
+import { linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, ROTULOS_DO_RESUMO, TEXTO_OBS_VAZIA, ROTULO_ALERTAS, ROTULO_CREDITO, TEXTO_SEM_ALERTA, tabelaDoCredito, textoDoAlerta } from '../lib/textos-venda';
+import { rascunhoComEnderecoEditado, rascunhoComEnderecoEscolhido, enderecoDoRascunho, TEXTOS_ENDERECO } from '../lib/endereco-pedido';
+import { CartaoEndereco, FolhaEnderecos, FormularioEndereco } from './endereco-pedido';
 
 type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
 
@@ -165,10 +168,7 @@ export function AbaVenda({
   tz: string;
   semSinal: boolean;
 }) {
-  const limite = linhaDoLimite(credito);
-  const prazoMedio = textoDoPrazoMedio(prazoMedioDias);
-  const mostraCredito = credito !== undefined && credito !== null;
-  const disponivelNegativo = credito?.tipo === 'dados' && credito.disponivel_cents < 0;
+  const tabela = tabelaDoCredito(credito, prazoMedioDias);
   return (
     <View style={{ gap: 12 }} testID="aba-venda-conteudo">
       <View style={{ gap: 6 }} testID="venda-alertas">
@@ -185,31 +185,31 @@ export function AbaVenda({
         )}
       </View>
       {pagamento}
-      {mostraCredito || prazoMedio ? (
-        <Cartao gap={8} testID="venda-credito">
-          {mostraCredito ? (
-            limite ? (
-              <LinhaValor rotulo={ROTULO_LIMITE} valor={limite} tomValor={disponivelNegativo ? 'erro' : undefined} testID="venda-limite" />
-            ) : (
-              <Text style={t.small} testID="venda-sem-credito">
-                {TEXTO_SEM_DADOS_DE_CREDITO}
-              </Text>
-            )
+      {tabela.estado === 'indisponivel' ? (
+        <Text style={t.small} testID="venda-credito-indisponivel">
+          {tabela.apoio}
+        </Text>
+      ) : (
+        <View style={{ gap: 8 }} testID="venda-credito-bloco">
+          <RotuloSecao texto={ROTULO_CREDITO} />
+          <TabelaValores
+            testID="venda-credito"
+            linhas={tabela.linhas.map((l) => ({ id: l.id, rotulo: l.rotulo, valor: l.valor, ...(l.tom ? { tom: l.tom } : {}) }))}
+            carregando={tabela.estado === 'carregando'}
+            rodape={tabela.estado === 'tabela' ? { icone: semSinal ? 'wifiOff' : 'sync', texto: textoAtualizacao(sincronizadoEm, agora, tz) } : null}
+          />
+          {tabela.apoio && tabela.estado === 'tabela' ? (
+            <Text style={t.small} testID="venda-sem-credito">
+              {tabela.apoio}
+            </Text>
           ) : null}
-          {prazoMedio ? <LinhaValor rotulo={ROTULO_PRAZO_MEDIO} valor={prazoMedio} testID="venda-prazo-medio" /> : null}
-          {mostraCredito ? (
-            <View style={s.linha} testID="venda-atualizacao">
-              <Icon name={semSinal ? 'wifiOff' : 'sync'} size={13} color={colors.ink2} />
-              <Text style={t.small}>{textoAtualizacao(sincronizadoEm, agora, tz)}</Text>
-            </View>
-          ) : null}
-        </Cartao>
-      ) : null}
+        </View>
+      )}
     </View>
   );
 }
 
-/** Frete CIF/FOB e transportadora (RN-VEN-16), na aba Entrega: só a frase da modalidade, sem valor de frete. */
+/** Frete CIF/FOB e transportadora (RN-VEN-16), na aba Entrega: sem frase explicativa (T-0141 B) e sem valor de frete. */
 export function CartaoFrete({
   rascunho: r,
   fretePadrao,
@@ -239,9 +239,6 @@ export function CartaoFrete({
         ]}
         onChange={(m) => setFrete(m === 'CIF' ? { modalidade: 'CIF' } : { modalidade: 'FOB', transportadora_id: frete.transportadora_id ?? null, transportadora_digitada: frete.transportadora_digitada ?? null })}
       />
-      <Text style={t.small} testID="frete-frase">
-        {fraseDoFrete({ modalidade: frete.modalidade, transportadora: frete.transportadora_id ? (ativas.find((x) => x.id === frete.transportadora_id)?.nome ?? null) : (frete.transportadora_digitada?.nome ?? null) })}
-      </Text>
       {frete.modalidade === 'FOB' ? (
         <View style={{ gap: 8 }} testID="frete-transportadora">
           <Text style={s.rotuloLinha}>Transportadora</Text>
@@ -296,18 +293,12 @@ export function AbaEntrega({
   fretePadrao: 'CIF' | 'FOB';
   transportadoras: readonly TransportadoraDaTela[];
 }) {
-  const [trocando, setTrocando] = useState(false);
+  const [folha, setFolha] = useState<'nenhuma' | 'lista' | 'formulario'>('nenhuma');
   const lista = enderecosDoCliente(enderecos, clienteId);
   const principal = lista.find((e) => e.principal || e.tipo === 'principal') ?? null;
-  const escolhido = r.endereco_entrega_id ? (lista.find((e) => e.id === r.endereco_entrega_id) ?? null) : principal;
   return (
     <View style={{ gap: 12 }} testID="aba-entrega-conteudo">
-      <Card style={s.card}>
-        <RotuloSecao texto={ROTULO_ENDERECO_ENTREGA} acao={lista.length > 1 ? { rotulo: 'Trocar', onPress: () => setTrocando(true), testID: 'entrega-trocar' } : undefined} />
-        <Text style={t.body} testID="entrega-endereco">
-          {escolhido ? textoDoEndereco(escolhido) : TEXTO_ENDERECO_DO_CADASTRO}
-        </Text>
-      </Card>
+      <CartaoEndereco rascunho={r} lista={lista} onAcao={(abre) => setFolha(abre === 'folha' ? 'lista' : 'formulario')} />
       <CartaoFrete rascunho={r} fretePadrao={fretePadrao} transportadoras={transportadoras} onRascunho={onRascunho} />
       <Card style={s.card}>
         <RotuloSecao texto="Observações" />
@@ -327,25 +318,26 @@ export function AbaEntrega({
           style={[s.texto, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
         />
       </Card>
-      <Folha visivel={trocando} onFechar={() => setTrocando(false)} rotuloFechar="Fechar" titulo="Entrega" testID="folha-entrega" rodape={{ rotulo: 'Voltar', onPress: () => setTrocando(false) }}>
-        {lista.map((e) => {
-          const ehPrincipal = e.principal || e.tipo === 'principal';
-          return (
-            <OpcaoFolha
-              key={e.id}
-              testID={`endereco-${e.id}`}
-              icone={escolhido?.id === e.id ? 'check' : 'pin'}
-              tom={escolhido?.id === e.id ? 'destaque' : 'neutro'}
-              titulo={e.descricao || (ehPrincipal ? 'Principal' : 'Entrega')}
-              subtitulo={textoDoEndereco(e)}
-              onPress={() => {
-                onRascunho((d) => ({ ...d, endereco_entrega_id: ehPrincipal ? null : e.id }));
-                setTrocando(false);
-              }}
-            />
-          );
-        })}
-      </Folha>
+      <FolhaEnderecos
+        visivel={folha === 'lista'}
+        rascunho={r}
+        lista={lista}
+        onEscolher={(e) => {
+          onRascunho((d) => rascunhoComEnderecoEscolhido(d, e, principal?.id ?? null));
+          setFolha('nenhuma');
+        }}
+        onEditar={() => setFolha('formulario')}
+        onFechar={() => setFolha('nenhuma')}
+      />
+      <FormularioEndereco
+        visivel={folha === 'formulario'}
+        base={enderecoDoRascunho(r, lista)}
+        onUsar={(v) => {
+          onRascunho((d) => rascunhoComEnderecoEditado(d, v, lista));
+          setFolha('nenhuma');
+        }}
+        onFechar={() => setFolha('nenhuma')}
+      />
     </View>
   );
 }
@@ -506,6 +498,11 @@ export function AbaResumo({
             : { texto: TEXTO_OBS_VAZIA })}
         />
         <LinhaResumo testID="resumo-entrega" rotulo={ROTULOS_DO_RESUMO.entrega} texto={linhaDaEntregaNoResumo({ endereco, modalidade: frete.modalidade, transportadora })} />
+        {r.endereco_entrega_editado ? (
+          <Text style={s.enderecoEditadoResumo} testID="resumo-entrega-editado">
+            {TEXTOS_ENDERECO.editadoNestePedido}
+          </Text>
+        ) : null}
         <LinhaResumo testID="resumo-obs" rotulo={ROTULOS_DO_RESUMO.obs} texto={linhaDaObsNoResumo(r.observacao)} />
       </Card>
       {somenteLeitura ? (
@@ -669,6 +666,7 @@ const s = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   botoesResumo: { gap: 10 },
   destino: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textAlign: 'center', marginTop: -4 },
+  enderecoEditadoResumo: { marginLeft: 74, marginTop: -4, fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk },
   linhaDupla: { flexDirection: 'row', gap: 8 },
   colunaSecundarios: { gap: 8 },
   cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },

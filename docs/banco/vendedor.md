@@ -305,3 +305,32 @@ timestamptz not null, `total_cents` bigint not null (CHECK `pedido_devolucao_tot
 **Volta** (`.down.sql`): `drop table if exists vendedor.pedido_devolucao` (as devoluções gravadas se perdem; volte antes o
 Vendedor para `DEVOLUCAO_LIGADA = false`). Testes: `db/testes/pedido-devolucao.test.ts` (estático, Drizzle, upsert/soft delete e
 soma com os comandos do consumidor, CHECKs, FK de outro tenant, sem DELETE, RLS entre tenants, EXPLAIN dos índices, up/down).
+
+## 0055 — endereço de entrega editado só no pedido (`0055_vendedor_endereco_editado`; T-0141 C, RN-VEN-17)
+Desenho: `docs/desenho/T-0141.md` §2.1 e §6 (engenheiro-software). **Sem coluna nova**: o retrato `pedido.endereco_entrega`
+(jsonb, 0013) é "o endereço do pedido" e ganha o campo `origem`. O endereço editado vale só para o pedido (e o orçamento);
+o cadastro do cliente (`core.cliente_endereco`) não muda.
+
+| Campo do retrato | `origem: 'erp'` (escolhido da lista) | `origem: 'editado'` (digitado) |
+|---|---|---|
+| `id` | id do `core.cliente_endereco` | `null` |
+| `external_id` | o do ERP | `null` (o Conector usa os campos de texto) |
+| `tipo`, `descricao` | do Core | ausente / `null` |
+| `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`, `cep` | do Core (como veio) | o digitado, normalizado (UF maiúscula, CEP só dígitos) |
+| `principal` | do Core | `false` |
+| coluna `endereco_entrega_id` | o id escolhido | `null` |
+
+`origem` **ausente = 'erp'** (pedidos anteriores à T-0141 e APK que manda só o id): sem migração de dados.
+CHECKs (defesa; a regra é do domain do Vendedor, `enderecoDoPedido`, e a API revalida):
+- `pedido_endereco_entrega_origem`: retrato nulo, ou `origem` ausente/nula, `'erp'` ou `'editado'`;
+- `pedido_endereco_editado_sem_id`: editado ⇒ coluna `endereco_entrega_id`, `id` e `external_id` do retrato nulos (um editado
+  com o `external_id` do ERP levaria a entrega ao endereço do cadastro sem avisar);
+- `pedido_endereco_editado_completo`: editado ⇒ logradouro, número, bairro e cidade preenchidos, `uf` `^[A-Z]{2}$`, `cep`
+  `^[0-9]{8}$`. Os limites de tamanho (60/20/60/60/60) ficam no contrato (`EnderecoEditadoPedido`).
+Drizzle: `EnderecoEntregaPedido` (com `origem`, `id`, `external_id`, `tipo`, `principal` opcionais) e `ORIGENS_ENDERECO_ENTREGA`
+em `modules/vendedor/db/nuvem.ts`. Sync, políticas, grants e índices não mudam.
+**Seed demo**: o p11 (aprovado, Lucas) com o endereço editado `ENDERECO_EDITADO_DEMO` (Av. Torquato Tapajós, 7500, Flores,
+CEP 69058830), sem endereço no cadastro; os outros pedidos ficam no formato antigo (sem `origem`).
+**Volta** (`.down.sql`): só remove os 3 CHECKs (os retratos editados ficam no jsonb e continuam legíveis). Testes:
+`db/testes/pedido-endereco-editado.test.ts` (estático, gravação e leitura, 13 recusas, RLS entre tenants, up/down) e
+`seed-demo.test.ts` (pedido editado da demo).

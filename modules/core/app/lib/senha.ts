@@ -5,7 +5,7 @@
  * memória do shell durante a tela: nunca em storage, URL ou log. Nada aqui registra senha ou e-mail.
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { SessaoRespostaSchema, TrocarSenhaRequestSchema, EsqueciSenhaRequestSchema, TEXTOS_CRIE_SENHA, TEXTOS_ESQUECI, codigoDoErro, faltasNaSenha, mensagemDaSenha, repeticaoDaSenha, textoDeMuitosPedidos, type FaltaNaSenha, type CamposEsqueci, type RepeticaoDaSenha, type AcaoAposErroDaTroca, type SessaoResposta } from '../../contracts';
+import { acaoDoErroDaTroca, SessaoRespostaSchema, TrocarSenhaRequestSchema, EsqueciSenhaRequestSchema, TEXTOS_CRIE_SENHA, TEXTOS_ESQUECI, codigoDoErro, faltasNaSenha, textoDoErroDaSenha, repeticaoDaSenha, textoDeMuitosPedidos, type FaltaNaSenha, type CamposEsqueci, type RepeticaoDaSenha, type AcaoAposErroDaTroca, type SessaoResposta } from '../../contracts';
 import { ehServidorInvalido, mensagemDeErroDeLogin, type PostSemSessao } from './login';
 import { tolerante } from './leitor-tolerante';
 
@@ -40,27 +40,20 @@ export interface ErroDaTroca {
 }
 
 /** Respostas da API na "Crie sua senha" (ciclo-de-senha.md §2). */
-export function erroDaTroca(e: unknown): ErroDaTroca {
+export function erroDaTroca(e: unknown, senhaNova?: string): ErroDaTroca {
   if (ehSemConexao(e)) return { texto: TEXTO_SEM_INTERNET_TROCA, acao: 'ficar' };
-  const x = e as { message?: unknown; detalhes?: { faltas?: unknown } } | null;
+  const acao = acaoDoErroDaTroca(e);
   switch (codigoDoErro(e)) {
     case 'RN-CORE-32': {
-      const faltas = Array.isArray(x?.detalhes?.faltas) ? (x.detalhes.faltas as string[]) : [];
-      const texto = faltas.length > 0 ? (mensagemDaSenha(faltas as FaltaNaSenha[]) ?? String(x?.message ?? '')) : typeof x?.message === 'string' && x.message ? x.message : 'A senha não serve. Confira a lista e tente de novo.';
-      return { texto, acao: 'destacar' };
+      const texto = textoDoErroDaSenha(e, senhaNova);
+      return { texto, acao };
     }
     case 'RN-CORE-34':
-      return { texto: TEXTOS_CRIE_SENHA.repetiuATemporaria, acao: 'limpar' };
+      return { texto: TEXTOS_CRIE_SENHA.repetiuATemporaria, acao };
     case 'CREDENCIAIS_INVALIDAS':
-      return { texto: TEXTOS_CRIE_SENHA.naoValeMais, acao: 'voltar_ao_login' };
-    case 'SENHA_TEMPORARIA_VENCIDA':
-    case 'PERFIL_FORA_DO_APP':
-    case 'USUARIO_BLOQUEADO':
-    case 'MUITAS_TENTATIVAS':
-    case 'DISPOSITIVO_BLOQUEADO':
-      return { texto: mensagemDeErroDeLogin(e), acao: 'voltar_ao_login' };
+      return { texto: TEXTOS_CRIE_SENHA.naoValeMais, acao };
     default:
-      return { texto: mensagemDeErroDeLogin(e), acao: 'ficar' };
+      return { texto: mensagemDeErroDeLogin(e), acao };
   }
 }
 

@@ -171,6 +171,7 @@ describe('migrações (estático)', () => {
     expect(nomes[51]).toBe('0052_plataforma_tenant_por_codigo_minimo'); // T-0122 N5: tenant_por_codigo só (id, status), tenant_da_sessao() e os CHECKs de evento iguais ao EVENTO_RE (tenant-por-codigo-minimo.test.ts)
     expect(nomes[52]).toBe('0053_core_cliente_canal'); // T-0115 (RN-PES-05): core.cliente.canal (1..60, nulo) e índice parcial (tenant_id, canal) (cliente-canal.test.ts)
     expect(nomes[53]).toBe('0054_integracao_mapeamento_canal'); // T-0115 (RN-PES-05): CHECK mapeamento_tipo_valido com 'canal' = TIPOS_MAPEAMENTO (mapeamento-canal.test.ts)
+    expect(nomes[54]).toBe('0055_vendedor_endereco_editado'); // T-0141 C (RN-VEN-17): 3 CHECKs do retrato endereco_entrega com origem 'erp'|'editado', sem coluna nova (pedido-endereco-editado.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',

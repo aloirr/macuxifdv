@@ -33,6 +33,18 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
 }
 
 /**
+ * T-0117 (ADR 0038): `MACUXI_SESSAO_COOKIE_SEGURO` → cookie do token de renovação do BKO com HTTPS (`__Secure-macuxi_rt`,
+ * `Secure`) ou sem (`macuxi_rt`, para o `http://localhost` do PC). `1`/`true`/`sim` liga, `0`/`false`/`nao` desliga; ausente
+ * ou outro valor: seguro fora do ambiente local (demo e produção) e local no PC (`ehAmbienteLocal`).
+ */
+export function lerSessaoWeb(env: NodeJS.ProcessEnv, hostBanco: string): { seguro: boolean } {
+  const v = (env.MACUXI_SESSAO_COOKIE_SEGURO ?? '').trim().toLowerCase();
+  if (['1', 'true', 'sim'].includes(v)) return { seguro: true };
+  if (['0', 'false', 'nao', 'não'].includes(v)) return { seguro: false };
+  return { seguro: !ehAmbienteLocal(env, hostBanco) };
+}
+
+/**
  * `MACUXI_TRUST_PROXY` → opção `trustProxy` do Fastify (T-0026). Ausente, vazio, `false`/`0`: desligado (padrão).
  * `true`: confia em qualquer proxy (só atrás de um proxy que reescreve o `X-Forwarded-For`). Número inteiro: saltos.
  * Outro texto: lista de IPs/CIDR ou `loopback`/`linklocal`/`uniquelocal`, separados por vírgula (ex.: `loopback` para o
@@ -70,6 +82,11 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'cabecalhos["x-macuxi-conector-id"]',
   'req.headers.authorization',
   'req.headers.cookie',
+  // T-0117 (ADR 0038): o token de renovação do BKO vai em cookie; nem o `Set-Cookie` nem o campo do corpo saem no log
+  'headers["set-cookie"]',
+  'res.headers["set-cookie"]',
+  'refresh_token',
+  '*.refresh_token',
   'req.headers["x-macuxi-conector-id"]',
   'authorization',
   'chave',

@@ -1,4 +1,5 @@
-import { clearSession, getRefreshToken, getToken, updateTokens } from './session';
+import { CABECALHO_CSRF, VALOR_CSRF } from '../cookie-sessao';
+import { clearSession, getToken, registrarRenovador, updateTokens } from './session';
 
 /**
  * Servidor do BKO (T-0003 F2). Padrão: a API real (`apps/api`, porta 8100), com login do Core e TODAS as chamadas pelo
@@ -53,7 +54,15 @@ export interface RequestOptions {
   body?: unknown;
   query?: Query;
   signal?: AbortSignal;
+  /**
+   * T-0117 (ADR 0038): login e troca de senha do BKO na API real. Manda `X-Macuxi-CSRF: 1`: a API grava o token de renovação
+   * no cookie httpOnly e a resposta vem SEM o `refresh_token` (valide com o schema web do Core). Ignorado na demonstração.
+   */
+  sessaoWeb?: boolean;
 }
+
+/** Cabeçalhos do modo cookie (T-0117): pedem o cookie de sessão e provam que a chamada saiu do próprio BKO. */
+export const CABECALHOS_SESSAO_WEB: Readonly<Record<string, string>> = Object.freeze({ [CABECALHO_CSRF]: VALOR_CSRF });
 
 /**
  * O mock-api registra o @fastify/cors com os métodos padrão (GET, HEAD, POST): o navegador bloqueia
@@ -79,23 +88,47 @@ export function lerCorpoDeErro(status: number, corpo: unknown): { code: string; 
 
 let renovando: Promise<string | null> | null = null;
 
-/** API real: troca o refresh por um par novo (uma troca por vez). Recusado = sessão encerrada. */
-async function renovarAcesso(): Promise<string | null> {
-  const refresh = getRefreshToken();
-  if (MODO_API !== 'v1' || !refresh) return null;
+/** Trava entre abas (`navigator.locks`): duas abas renovando juntas mandariam o mesmo cookie e a API veria reuso. */
+const TRAVA_RENOVACAO = 'macuxi-refresh';
+
+interface TravasDoNavegador {
+  request<T>(nome: string, fn: () => Promise<T>): Promise<T>;
+}
+
+function travasDoNavegador(): TravasDoNavegador | null {
+  const nav = (globalThis as { navigator?: { locks?: TravasDoNavegador } }).navigator;
+  return nav?.locks && typeof nav.locks.request === 'function' ? nav.locks : null;
+}
+
+/** Uma chamada `POST /api-proxy/auth/<rota>` no modo cookie (o navegador manda o cookie; o corpo vai vazio). */
+function chamarSessaoWeb(rota: 'refresh' | 'logout'): Promise<Response> {
+  return fetch(`${PROXY_BASE}/auth/${rota}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...CABECALHOS_SESSAO_WEB },
+    body: '{}',
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+}
+
+/**
+ * API real (T-0117): troca o cookie de renovação por um acesso novo (a API gira o cookie). Uma troca por vez nesta aba e, com
+ * `navigator.locks`, entre as abas: a 2ª aba, depois da trava, já manda o cookie girado pela 1ª. Recusado = `null`.
+ */
+export async function renovarAcesso(): Promise<string | null> {
+  if (MODO_API !== 'v1') return null;
   renovando ??= (async () => {
-    try {
-      const res = await fetch(`${PROXY_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh }),
-        cache: 'no-store',
-      });
+    const trocar = async (): Promise<string | null> => {
+      const res = await chamarSessaoWeb('refresh');
       if (!res.ok) return null;
-      const r = (await res.json()) as { access_token?: unknown; refresh_token?: unknown };
-      if (typeof r.access_token !== 'string' || typeof r.refresh_token !== 'string') return null;
-      updateTokens(r.access_token, r.refresh_token);
+      const r = (await res.json()) as { access_token?: unknown };
+      if (typeof r.access_token !== 'string' || r.access_token === '') return null;
+      updateTokens(r.access_token);
       return r.access_token;
+    };
+    try {
+      const travas = travasDoNavegador();
+      return await (travas ? travas.request(TRAVA_RENOVACAO, trocar) : trocar());
     } catch {
       return null;
     } finally {
@@ -103,6 +136,23 @@ async function renovarAcesso(): Promise<string | null> {
     }
   })();
   return renovando;
+}
+
+// aba nova ou F5 depois de fechar a aba: a sessão se restaura pelo cookie (só na API real)
+registrarRenovador(MODO_API === 'v1' ? renovarAcesso : null);
+
+/**
+ * Sai (T-0117): limpa a sessão no navegador (todas as abas) e, na API real, revoga a família do refresh no servidor e apaga o
+ * cookie (`POST /auth/logout` no modo cookie). Melhor esforço: sem rede, a sessão local sai do mesmo jeito.
+ */
+export async function encerrarSessaoWeb(): Promise<void> {
+  clearSession();
+  if (MODO_API !== 'v1') return;
+  try {
+    await chamarSessaoWeb('logout');
+  } catch {
+    // sem rede: o cookie vence sozinho e o servidor recusa na próxima vez
+  }
 }
 
 export function buildUrl(path: string, query?: Query, base: string = API_URL): string {
@@ -120,6 +170,7 @@ export async function apiFetch(path: string, opts: RequestOptions = {}, repetida
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (opts.sessaoWeb && MODO_API === 'v1') Object.assign(headers, CABECALHOS_SESSAO_WEB);
   let res: Response;
   try {
     const method = opts.method ?? 'GET';

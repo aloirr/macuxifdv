@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('./dispositivo', () => ({ uuid: () => '11111111-1111-4111-8111-111111111111', gpsAgora: async () => null }));
+vi.mock('./dispositivo', () => ({ gpsAgora: async () => null }));
 
 import type { CustomerSummary } from '../../contracts';
 import { MSG_FALHA_CHECKIN, tentarCheckin, type ContextoAcao } from './acoes-visita';
@@ -11,7 +11,7 @@ function contexto(over: { enfileirar?: () => Promise<void>; carregar?: () => Pro
   return {
     tz: 'America/Manaus',
     vendedorId: '33333333-3333-4333-8333-333333333333',
-    motor: { enfileirar: over.enfileirar ?? (async () => {}), enviar: async () => {} },
+    motor: { ambiente: { novoId: () => '11111111-1111-4111-8111-111111111111' }, enfileirar: over.enfileirar ?? (async () => {}), enviar: async () => {} },
     armazem: { obter: () => ({ visitas: [], raioCheckinM: null }), carregar: over.carregar ?? (async () => {}) },
   } as unknown as ContextoAcao;
 }

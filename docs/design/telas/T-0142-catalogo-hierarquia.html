@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0142 · Catálogo pela hierarquia (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .cabec-lista { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); padding: 0 2px; }
+  .prod { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; gap: 12px; }
+  .foto { width: 56px; height: 56px; border-radius: 10px; background: var(--neutralBg); flex: none; display: flex; align-items: center; justify-content: center; }
+  .prod .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .prod .d { font-size: 15px; font-weight: 600; line-height: 19px; }
+  .prod .a { font-size: 12px; color: var(--ink2); }
+  .prod .a2 { font-size: 13px; line-height: 17px; color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prod .a2 b, .prod .eq b { font-weight: 600; color: var(--ink); }
+  .prod .eq { font-size: 13px; line-height: 17px; color: var(--ink2); }
+  .prod .etq { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .prod .p { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .prod .pr { font-family: Archivo; font-weight: 700; font-size: 16px; }
+  .caminho { font-size: 12px; color: var(--ink2); }
+  .h2 { font-family: Archivo; font-weight: 700; font-size: 17px; }
+  /* BKO */
+  .bko { width: 1132px; background: var(--ground); border: 1px solid #BFC4BC; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 28px rgba(22,32,42,.16); display: flex; min-height: 520px; }
+  .lateral { width: 220px; background: var(--ink); color: #C9D0D8; padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+  .lateral .marca-bko { color: #fff; font-family: Archivo; font-weight: 800; font-size: 18px; margin-bottom: 18px; }
+  .lateral div.op { padding: 9px 10px; border-radius: 8px; }
+  .lateral div.op.on { background: #34404D; color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+  .principal-bko { flex: 1; padding: 26px 32px; display: flex; flex-direction: column; gap: 14px; }
+  .tb { width: 880px; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+  .tb th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--ink2); background: #FAFBF8; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .tb td { padding: 0 16px; height: 48px; border-top: 1px solid var(--lineSoft); }
+  .tb tr:first-child td { border-top: 0; }
+  .tb .num { text-align: right; font-family: Archivo; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tb tr.hover td { background: var(--ground); }
+  .btn-bko { height: 40px; border: 1px solid var(--lineStrong); border-radius: 10px; background: #fff; padding: 0 14px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Catálogo pela hierarquia · do maior agrupamento para o menor</h1>
+<p class="prancha">T-0142 · para o dono do produto aprovar. Sem o atalho "Ver por linha": a página inicial é a hierarquia (sistema → grupo → linha → produtos), um nível por tela, com a contagem de produtos ativos e a busca no topo. As 4 decisões confirmadas: nível mais alto que existir, nível com um item só pula, contagem de ativos, mesma coisa no BKO. No Campo do vendedor o Catálogo fica no "Mais" da barra de 5 abas (Início · Rota · Clientes · Pedidos · Mais), que fica acesa. Especificação: <code>docs/design/catalogo-por-linha.md</code>.</p>
+
+<div class="board">
+
+  <!-- 1 · raiz -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Página inicial: o maior agrupamento<span>Sem "Ver por linha" e sem lista de produtos solta. Cabeçalho diz o nível.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:49</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo sem-topo">
+        <div class="topo"><div><div class="titulo-tela">Catálogo</div><div style="font-size:13px;color:var(--ink2)">Fichas, fotos e preços dos produtos.</div></div><div class="sync"><i data-i="sync" data-t="12"></i>06:49</div></div>
+        <div class="busca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Ex.: refrigerante 2 litros, café</div>
+        <div class="bloco marca" style="gap:8px">
+          <div class="cabec-lista"><span>Sistemas</span><span>Produtos</span></div>
+          <div class="lista">
+            <div class="item nivel"><div class="corpo"><span class="nome">Alimentos</span></div><span class="cont">16</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+            <div class="item nivel"><div class="corpo"><span class="nome">Bebidas</span></div><span class="cont">5</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+            <div class="item nivel"><div class="corpo"><span class="nome">Limpeza e higiene</span></div><span class="cont">7</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+            <div class="item nivel"><div class="corpo"><span class="nome">Automotivo</span></div><span class="cont">12</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          </div>
+        </div>
+        <div class="nota">40 produtos ativos · atualizado hoje às 06:49</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 2 · grupos -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Tocar em Automotivo: os grupos<span>Um nível por tela. Trilha mostra onde está; Voltar sobe um nível.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:50</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo sem-topo">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync"><i data-i="sync" data-t="12"></i>06:49</div></div>
+        <div class="busca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Ex.: refrigerante 2 litros, café</div>
+        <div class="trilha marca"><a>Catálogo</a><span class="sep">›</span><span class="atual">Automotivo</span></div>
+        <div class="bloco" style="gap:8px">
+          <div class="cabec-lista"><span>Grupos</span><span>Produtos</span></div>
+          <div class="lista">
+            <div class="item nivel"><div class="corpo"><span class="nome">Freios</span></div><span class="cont">5</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+            <div class="item nivel"><div class="corpo"><span class="nome">Filtros</span></div><span class="cont">4</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+            <div class="item nivel"><div class="corpo"><span class="nome">Suspensão</span></div><span class="cont">3</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          </div>
+        </div>
+        <div class="nota">12 produtos ativos em Automotivo</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 3 · produtos -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Último nível: os produtos<span>Freios tem uma linha só (Pastilhas): pulou direto. Um só cartão de produto: aplicação em 2 linhas, "Equivale a" e etiquetas.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:50</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo sem-topo" style="gap:10px">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync"><i data-i="sync" data-t="12"></i>06:49</div></div>
+        <div class="busca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Ex.: refrigerante 2 litros, café</div>
+        <div class="trilha"><a>Catálogo</a><span class="sep">›</span><a>Automotivo</a><span class="sep">›</span><span class="pulado">Freios</span><span class="sep">›</span><span class="atual">Pastilhas</span></div>
+        <div class="h2">Pastilhas</div>
+        <div class="chips" style="flex-wrap:nowrap"><div class="chip">Com estoque</div><div class="chip">Cobreq</div><div class="chip">Fras-le</div></div>
+        <div class="nota">5 produtos</div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="mono">PST-1022 · JG</span><span class="d">Pastilha de freio dianteira</span><span class="a2"><b>Serve em:</b> Gol, Voyage, Saveiro 1.0/1.6 2009 a 2016, Fox 2010 a 2014</span><span class="eq"><b>Equivale a:</b> Cobreq N-1022 · Fras-le PD/580</span><div class="etq"><span class="selo neutro">Cerâmica</span><span class="selo neutro">Com sensor</span></div><div class="p"><span class="pr">R$ 89,90</span><span class="selo neutro">Estoque 24</span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="mono">PST-2044 · JG</span><span class="d">Pastilha de freio traseira</span><span class="a2"><b>Serve em:</b> Onix, Prisma 2013 a 2019</span><span class="eq"><b>Equivale a:</b> Cobreq N-2044</span><div class="p"><span class="pr">R$ 74,50</span><span class="selo neutro">Estoque 9</span></div></div></div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 4 · busca -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Busca no topo, como hoje<span>Procura no catálogo inteiro; cada resultado mostra o caminho.</span></div>
+    <div class="phone curto">
+      <div class="status"><span>06:51</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo sem-topo" style="gap:10px">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync"><i data-i="sync" data-t="12"></i>06:49</div></div>
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>filtro de óleo<span style="margin-left:auto"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="nota">2 produtos</div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="caminho">Automotivo › Filtros › Óleo</span><span class="d">Filtro de óleo PSL 55</span><span class="a">Gol, Fox, Polo 1.0 e 1.6</span><div class="p"><span class="pr">R$ 32,40</span><span class="selo neutro">Estoque 40</span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="caminho">Automotivo › Filtros › Óleo</span><span class="d">Filtro de óleo PSL 140</span><span class="a">Onix, Prisma, Cobalt 1.4</span><div class="p"><span class="pr">R$ 29,90</span><span class="selo neutro">Estoque 12</span></div></div></div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 5 · casos -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Casos da regra<span>Um sistema só, produtos sem nível e tenant sem hierarquia.</span></div>
+    <div class="phone curto" style="height:auto;display:block;padding:16px 20px 20px">
+      <div class="estado-t">Tenant com um sistema só: abre já nos grupos</div>
+      <div class="trilha" style="margin-bottom:6px"><span class="pulado">Automotivo</span></div>
+      <div class="cabec-lista" style="margin-bottom:6px"><span>Grupos</span><span>Produtos</span></div>
+      <div class="lista">
+        <div class="item nivel"><div class="corpo"><span class="nome">Freios</span></div><span class="cont">5</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="item nivel"><div class="corpo"><span class="nome">Filtros</span></div><span class="cont">4</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="item nivel"><div class="corpo"><span class="nome" style="color:var(--ink2)">Outros produtos</span></div><span class="cont">2</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+      </div>
+      <div class="estado-t" style="margin-top:16px">Produtos sem nível: última linha da raiz</div>
+      <div class="lista"><div class="item nivel"><div class="corpo"><span class="nome" style="color:var(--ink2)">Sem classificação</span></div><span class="cont">3</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div></div>
+      <div class="estado-t" style="margin-top:16px">Tenant sem hierarquia: a lista de produtos</div>
+      <div class="nota" style="margin-bottom:6px">40 produtos</div>
+      <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="mono">CAF-500 · UN</span><span class="d">Café torrado e moído 500 g</span><div class="p"><span class="pr">R$ 12,90</span><span class="selo neutro">Estoque 120</span></div></div></div>
+    </div>
+  </div>
+
+  <!-- 6 · estados -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Estados<span>Offline igual (tudo do aparelho). Nível sem produto ativo não aparece.</span></div>
+    <div class="phone curto" style="height:auto;display:block;padding:16px 20px 20px">
+      <div class="estado-t">Carregando</div>
+      <div class="lista">
+        <div class="item nivel"><div class="corpo"><span class="esq" style="width:140px"></span></div><span class="esq" style="width:24px"></span></div>
+        <div class="item nivel"><div class="corpo"><span class="esq" style="width:100px"></span></div><span class="esq" style="width:24px"></span></div>
+        <div class="item nivel"><div class="corpo"><span class="esq" style="width:160px"></span></div><span class="esq" style="width:24px"></span></div>
+      </div>
+      <div class="estado-t" style="margin-top:16px">Sem sinal</div>
+      <div style="display:flex;justify-content:flex-end"><div class="sync"><i data-i="wifiOff" data-t="12"></i>sem sinal · 06:49</div></div>
+      <div class="estado-t" style="margin-top:16px">Nível vazio depois de sincronizar</div>
+      <div class="cartao vazio"><div class="ic"><i data-i="caixa" data-t="22" data-c="#34404D"></i></div><div class="t">Nenhum produto neste nível</div><div class="a">Volte um nível ou sincronize o aparelho.</div><div class="btn secundario" style="padding:0 18px;margin-top:6px">Voltar um nível</div></div>
+    </div>
+  </div>
+
+  <!-- 7 · BKO -->
+  <div class="tela" style="width:1132px">
+    <div class="legenda"><b>7</b>BKO: a mesma hierarquia<span>Sem o filtro "Categoria". Linha inteira é o link; nível na URL (Voltar do navegador sobe um nível). No último nível, a tabela de produtos de hoje. Exportar PDF/Excel leva o nível aberto (aqui, Automotivo); na busca, a coluna Caminho.</span></div>
+    <div class="bko">
+      <div class="lateral"><div class="marca-bko">Macuxi</div><div class="op">Início</div><div class="op">Clientes</div><div class="op">Pedidos</div><div class="op on">Catálogo</div><div class="op">Tabelas de preço</div><div class="op">Usuários</div></div>
+      <div class="principal-bko">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:880px"><div style="font-family:Archivo;font-weight:800;font-size:26px">Catálogo</div><div style="display:flex;gap:8px"><div class="btn-bko"><i data-i="arquivo" data-t="16"></i>Exportar PDF</div><div class="btn-bko"><i data-i="arquivo" data-t="16"></i>Exportar Excel</div></div></div>
+        <div class="busca" style="flex:none;width:880px"><i data-i="search" data-t="18" data-c="#4A5562"></i>Buscar por código, descrição ou aplicação</div>
+        <div class="trilha" style="font-size:14px"><a>Catálogo</a><span class="sep">›</span><span class="atual">Automotivo</span></div>
+        <table class="tb">
+          <thead><tr><th>Grupo</th><th style="text-align:right">Produtos ativos</th><th style="width:40px"></th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:600">Freios</td><td class="num">5</td><td><i data-i="chevron" data-t="16" data-c="#5B6673"></i></td></tr>
+            <tr class="hover"><td style="font-weight:600">Filtros</td><td class="num">4</td><td><i data-i="chevron" data-t="16" data-c="#5B6673"></i></td></tr>
+            <tr><td style="font-weight:600">Suspensão</td><td class="num">3</td><td><i data-i="chevron" data-t="16" data-c="#5B6673"></i></td></tr>
+          </tbody>
+        </table>
+        <div class="nota">12 produtos ativos em Automotivo</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

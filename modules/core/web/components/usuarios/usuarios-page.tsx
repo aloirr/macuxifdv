@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ERRO_SEM_PERFIL, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
 import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type UsuarioItem } from '../../../contracts';
 import {
   acaoDeSenha,
@@ -30,6 +30,7 @@ import {
   ondeEntraDosPerfis,
   textoDoSuperiorDaEquipe,
   type FormularioUsuario,
+  ERRO_SEM_PERFIL,
 } from '../../lib/usuarios';
 import { useMe } from '../../lib/queries';
 

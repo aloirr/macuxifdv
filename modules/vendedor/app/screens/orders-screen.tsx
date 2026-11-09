@@ -8,7 +8,7 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, ListaSuspensa, radius, relativeWhen, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -45,16 +45,16 @@ import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelh
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadgeDaLinha } from '../lib/order-status';
-import { clienteDoRascunho, totalDaLinhaSalva } from '../lib/salvar-na-fila';
+import { TEXTOS_RASCUNHOS } from '../lib/rascunhos-lista';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
-import { irParaNovoPedido, irParaPedido } from '../rotas';
+import { irParaNovoPedido, irParaPedido, irParaRascunhos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'orc_abertos';
 
 export default function OrdersScreen() {
-  const { dados, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
+  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
@@ -90,6 +90,8 @@ export default function OrdersScreen() {
   );
 
   const agora = new Date();
+  // T-0141 (RN-VEN-39, spec F.1): a linha "Rascunhos (n)" só aparece com 1 ou mais; Gestão e Campo (pedido em nome) iguais
+  const totalRascunhos = useMemo(() => rascunhosDaLista(new Date()).length, [rascunhosDaLista, dados.rascunhos]);
   const razaoDe = useMemo(() => new Map(dados.clientes.map((c) => [c.id, c.legal_name])), [dados.clientes]);
   const opcoes = useMemo(() => (gestao ? opcoesDeVendedor(orders) : []), [gestao, orders]);
   const vendedorAtivo = gestao && opcoes.some((o) => o.id === vendedorId) ? vendedorId : TODOS_OS_VENDEDORES;
@@ -166,9 +168,9 @@ export default function OrdersScreen() {
   const numeroDoPedido = useCallback((id: string) => pedidoPorId.get(id)?.number ?? null, [pedidoPorId]);
   const insets = useSafeAreaInsets();
   const orcAbertos = useMemo(() => {
-    const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido), { agora: new Date(), fuso: tz, diasValidade }).map((p) => p.id));
+    const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido)).map((p) => p.id));
     return itens.filter((i) => ids.has(i.id));
-  }, [itens, tz, diasValidade]);
+  }, [itens]);
   // R1: com texto a busca procura em tudo (situação Todos); ao apagar o texto volta o chip escolhido antes
   const atual: Situacao = situacaoEfetiva<Situacao>(situacao ?? (gestao && itens.some((i) => paraDecidir.has(i.id)) ? 'decide' : 'todos'), buscando);
   // Y1: o chip ativo fica na linha mesmo com 0
@@ -256,6 +258,10 @@ export default function OrdersScreen() {
           {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
         </SePode>
       </View>
+
+      {totalRascunhos > 0 ? (
+        <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} apoio={TEXTOS_RASCUNHOS.atalhoApoio} onPress={irParaRascunhos} />
+      ) : null}
 
       <View style={styles.linhaBusca}>
         <View style={{ flex: 1 }}>
@@ -426,15 +432,12 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
       testID={`order-${o.number || o.id}`}
       accessibilityRole="button"
       onPress={() => {
-        // T-0130: o rascunho "Salvo" reabre o editor no Resumo (com o que falta); o resto abre o detalhe
-        const clienteRascunho = clienteDoRascunho(o.id);
-        if (clienteRascunho) irParaNovoPedido({ customerId: clienteRascunho });
-        else irParaPedido(o.id);
+        irParaPedido(o.id);
       }}
       style={({ pressed }) => [styles.row, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
       <View style={styles.line}>
         <Destacado texto={o.customer_name || 'Pedido no aparelho'} busca={busca} style={[t.bodyStrong, { flex: 1 }]} />
-        <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }, o.status === 'cancelled' && styles.cancelledTotal]}>{clienteDoRascunho(o.id) ? totalDaLinhaSalva(o, formatBRL) : formatBRL(o.total_cents)}</Text>
+        <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }, o.status === 'cancelled' && styles.cancelledTotal]}>{formatBRL(o.total_cents)}</Text>
       </View>
       {buscando && razao && casaComBusca({ numero: '', nome_fantasia: '', razao_social: razao }, busca) ? <Destacado texto={razao} busca={busca} style={t.small} /> : null}
       <View style={styles.line}>

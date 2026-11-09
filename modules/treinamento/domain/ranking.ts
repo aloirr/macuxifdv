@@ -5,8 +5,9 @@
  * Ordem (total, sem empate de posição): 1) mais XP no período; 2) quem atingiu esse XP primeiro
  * (RN-TRE-03); 3) mais trilhas concluídas no período; 4) nome; 5) id.
  */
-import { localDate } from '@macuxi/comum';
-import { instanteMs, somarDias } from './numeros';
+import { exigirDataCivil, localDate } from '@macuxi/comum';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { instanteMs } from './numeros';
 import { PARAMETROS_PADRAO } from './parametros';
 import type { LancamentoXp } from './xp';
 
@@ -23,11 +24,11 @@ export interface IntervaloPeriodo {
 /** Semanal = segunda a domingo da semana da data; mensal = mês civil; acumulado = sem limites. */
 export function intervaloDoPeriodo(tipo: PeriodoRanking, dataRef: string): IntervaloPeriodo {
   if (tipo === 'acumulado') return { tipo, inicio: null, fim: null };
-  somarDias(dataRef, 0); // valida
+  exigirDataCivil(dataRef); // valida (data real)
   if (tipo === 'semanal') {
     const dow = new Date(`${dataRef}T12:00:00Z`).getUTCDay(); // 0 = domingo
-    const inicio = somarDias(dataRef, -((dow + 6) % 7));
-    return { tipo, inicio, fim: somarDias(inicio, 6) };
+    const inicio = somarDiasCivis(dataRef, -((dow + 6) % 7));
+    return { tipo, inicio, fim: somarDiasCivis(inicio, 6) };
   }
   const inicio = `${dataRef.slice(0, 7)}-01`;
   const [ano, mes] = [Number(dataRef.slice(0, 4)), Number(dataRef.slice(5, 7))];

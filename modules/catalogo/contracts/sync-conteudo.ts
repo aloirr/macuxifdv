@@ -66,8 +66,8 @@ export const ProdutoConteudoSyncSchema = z.object({
 export type ProdutoConteudoSync = z.infer<typeof ProdutoConteudoSyncSchema>;
 
 /**
- * Referência cruzada do produto (RN-CAT-09; T-0085 K4): até 3 por produto. `marca_id` é o id do cadastro de concorrentes do
- * Promotor (sem FK entre schemas). O `codigo_compacto` não vai ao aparelho: ele recalcula com `codigoCompacto`.
+ * Referência cruzada do produto (RN-CAT-09; T-0085 K4): até 3 por produto. `marca_id` é o id da marca em Marcas concorrentes
+ * (`catalogo.marca_concorrente`). O `codigo_compacto` não vai ao aparelho: ele recalcula com `codigoCompacto`.
  */
 export const ProdutoReferenciaSyncSchema = z.object({
   ...Base,

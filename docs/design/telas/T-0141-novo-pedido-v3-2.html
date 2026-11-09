@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0141 · Novo pedido v3 · Itens, Rascunhos e orçamento (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .it { padding: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+  .it + .it { border-top: 1px solid var(--line); }
+  .it .nm { font-size: 14px; font-weight: 700; }
+  .it .ap { font-size: 12.5px; color: var(--ink2); }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .segp { display: flex; height: 30px; border: 1px solid var(--lineStrong); border-radius: 8px; overflow: hidden; width: 94px; }
+  .segp div { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--ink2); }
+  .segp div.on { background: var(--ink); color: #fff; }
+  .passo { display: flex; height: 30px; border: 1px solid var(--lineStrong); border-radius: 8px; width: 100px; margin: 0 12px; background: #fff; }
+  .passo div { flex: 1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; }
+  .passo div.n { border-left: 1px solid var(--lineStrong); border-right: 1px solid var(--lineStrong); font-family: Archivo; font-size: 14px; }
+  .aj { flex: 1; min-width: 100px; height: 30px; border: 1px solid var(--lineStrong); border-radius: 8px; display: flex; align-items: center; background: #fff; font-size: 12px; }
+  .aj .tp { padding: 0 8px; border-right: 1px solid var(--lineStrong); height: 100%; display: flex; align-items: center; gap: 2px; font-weight: 600; color: var(--ink2); }
+  .aj .vl { padding: 0 8px; flex: 1; }
+  .eq { font-size: 12px; font-weight: 600; color: var(--success); }
+  .vt { text-align: right; font-size: 12.5px; color: var(--ink2); }
+  .vt b { font-family: Archivo; font-size: 14px; color: var(--ink); font-weight: 800; }
+  .rodape-acoes { flex: none; background: #fff; border-top: 1px solid var(--line); padding: 10px 16px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .rodape-acoes .linha { display: flex; }
+  .rodape-acoes .linha div { flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 600; }
+  .lv { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; }
+  .lv .v { font-family: Archivo; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--neutralBg); color: var(--neutralInk); }
+</style>
+</head>
+<body>
+<h1 class="prancha">Novo pedido v3 · prancha 2 de 2 · Itens, Rascunhos e orçamento</h1>
+<p class="prancha">T-0141 · para o dono do produto aprovar antes de implementar <b>D</b> (Itens sem "Catálogo"), <b>F</b> (entrada e lista de Rascunhos) e a etiqueta <b>"preço de dd/mm"</b> do orçamento. Aparelho de 360 dp; barra inferior com as 5 abas do Campo (Início · Rota · Clientes · Pedidos · Mais), o Novo pedido aberto pela aba Clientes e a folha cobrindo a barra. Especificação: <code>docs/design/pedido-v3.md</code>.</p>
+
+<div class="board">
+
+  <!-- D · aba Itens -->
+  <div class="tela">
+    <div class="legenda"><b>D</b>Aba Itens sem "Catálogo"<span>Item novo só pela busca da aba. Nenhum toque sai do pedido.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:47</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding-top:12px;gap:10px">
+        <div class="lv" style="padding:0"><span style="color:var(--ink2)">Total do pedido · 3 itens</span><span class="v" style="font-size:18px">R$ 69,96</span></div>
+        <div class="busca marca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Código, descrição ou veículo</div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">No pedido</span></div>
+        <div>
+          <div class="it" style="padding-top:2px">
+            <div><span class="mono">CAF-500 · UN</span> <span class="nm">Café torrado e moído 500 g</span> <span class="ap">· caixa c/ 20</span></div>
+            <div class="ctl"><div class="segp"><div class="on">UN</div><div>CX</div></div><div class="passo"><div>−</div><div class="n">2</div><div>+</div></div><div class="aj"><span class="tp">Desc % ˅</span><span class="vl">10,0</span></div></div>
+            <div class="vt"><span class="eq" style="float:left">−R$ 1,29/UN</span>Valor total: <b>R$ 23,22</b></div>
+          </div>
+          <div class="it">
+            <div><span class="mono">ACU-1K · FD</span> <span class="nm">Açúcar cristal 1 kg</span> <span class="ap">· fardo c/ 10</span></div>
+            <div class="ctl"><div class="segp"><div>UN</div><div class="on">FD</div></div><div class="passo"><div>−</div><div class="n">1</div><div>+</div></div><div class="aj"><span class="tp">Acrésc % ˅</span><span class="vl">10,0</span></div></div>
+            <div class="vt"><span style="float:left;font-size:12px;font-weight:600;color:var(--ink2)">+R$ 3,60/FD</span>Valor total: <b>R$ 39,60</b></div>
+          </div>
+          <div class="it">
+            <div><span class="mono">AGU-15 · UN</span> <span class="nm">Água mineral 1,5 L</span> <span class="ap">· fardo c/ 6</span></div>
+            <div class="ctl"><div class="segp"><div class="on">UN</div><div>FD</div></div><div class="passo"><div>−</div><div class="n">1</div><div>+</div></div><div class="aj"><span class="tp">Desc % ˅</span><span class="vl" style="color:var(--ink3)">0</span></div></div>
+            <div class="vt">Valor total: <b>R$ 7,14</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 69,96</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- F1 · Pedidos com a linha Rascunhos -->
+  <div class="tela">
+    <div class="legenda"><b>F</b>Entrada: aba Pedidos, no topo<span>Só aparece com rascunho. Ao sair sem enviar, o aviso leva até lá.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:52</span><span>4G ▮▮▮ 81%</span></div>
+      <div class="conteudo sem-topo">
+        <div class="topo"><div class="titulo-tela">Pedidos</div><div class="sync"><i data-i="sync" data-t="12"></i>05:51</div></div>
+        <div class="atalho marca"><i data-i="edit" data-t="20" data-c="#8F3D06"></i><div style="flex:1"><div class="r">Rascunhos (2)</div><div class="a">Somem 24 h após a última alteração</div></div><i data-i="chevron" data-t="16" data-c="#8F3D06"></i></div>
+        <div style="display:flex;gap:8px"><div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Cliente, código ou nº</div><div class="filtro-btn"><i data-i="filtro" data-t="20"></i></div></div>
+        <div class="chips" style="flex-wrap:nowrap;overflow:hidden"><div class="chip on">Todos 12</div><div class="chip">Na fila 1</div><div class="chip">Aprovado 5</div><div class="chip">Faturado 4</div></div>
+        <div class="nota">12 pedidos · R$ 8.420</div>
+        <div class="lista">
+          <div class="item"><div class="corpo"><div class="l1"><span class="nome">Mercadinho São Jorge</span><span class="tot">R$ 812,40</span></div><div class="l2">Pedido 000013 · hoje 05:20</div><div class="l3"><span class="selo neutro">Enviado</span></div></div></div>
+          <div class="item"><div class="corpo"><div class="l1"><span class="nome">Atacadinho Cachoeirinha</span><span class="tot">R$ 69,96</span></div><div class="l2">Orçamento 000012 · hoje 05:50</div><div class="l3"><span class="selo roxo">Orçamento · preço de 09/11</span></div></div></div>
+        </div>
+      </div>
+      <div class="aviso-rodape"><i data-i="check" data-t="18" data-c="#7FD1A8"></i>Pedido guardado em Rascunhos<span class="ac">Abrir</span></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- F2 · Rascunhos -->
+  <div class="tela">
+    <div class="legenda"><b>F</b>Tela Rascunhos<span>Cliente, total, nº de itens e hora. Tocar retoma na aba em que parou.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:52</span><span>4G ▮▮▮ 81%</span></div>
+      <div class="conteudo sem-topo">
+        <div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div>
+        <div class="titulo-tela">Rascunhos</div>
+        <div class="lista">
+          <div class="item"><div class="corpo"><div class="l1"><span class="nome">Atacadinho Cachoeirinha</span><span class="tot">R$ 69,96</span></div><div class="l2">cód. C5007 · 3 itens</div><div class="l3">Alterado hoje às 05:51</div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="item"><div class="corpo"><div class="l1"><span class="nome">Mercadinho São Jorge</span><span class="tot">R$ 19,90</span></div><div class="l2">cód. C5002 · 1 item</div><div class="l3">Alterado ontem às 08:10 <span class="selo aviso">Some em 2 h</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="item"><div class="corpo"><div class="l1"><span class="nome">Supermercado Rio Negro</span><span class="tot">R$ 412,00</span></div><div class="l2">Edição do orçamento 000009 · 4 itens</div><div class="l3">Alterado hoje às 04:30</div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- F3 · Estados de Rascunhos -->
+  <div class="tela">
+    <div class="legenda"><b>F</b>Rascunhos · vazio e erro<span>Vazio só se o último sumir com a tela aberta (a entrada some sem rascunho).</span></div>
+    <div class="phone" style="height:auto;display:block;padding:16px 20px 20px">
+      <div class="estado-t">Vazio</div>
+      <div class="cartao vazio"><div class="ic"><i data-i="edit" data-t="22" data-c="#34404D"></i></div><div class="t">Nenhum rascunho</div><div class="a">O pedido que você deixa sem enviar fica aqui por 24 h.</div><div class="btn secundario" style="padding:0 18px;margin-top:6px">Voltar a Pedidos</div></div>
+      <div class="estado-t" style="margin-top:16px">Erro de leitura</div>
+      <div class="cartao vazio"><div class="ic"><i data-i="alerta" data-t="22" data-c="#34404D"></i></div><div class="t">Não foi possível abrir os rascunhos</div><div class="a">Puxe a tela para tentar de novo.</div></div>
+      <div class="estado-t" style="margin-top:16px">Cliente fora da carteira (sem toque)</div>
+      <div class="lista"><div class="item" style="opacity:1"><div class="corpo"><div class="l1"><span class="nome" style="color:var(--ink3)">Distribuidora Tarumã</span><span class="tot" style="color:var(--ink3)">R$ 96,00</span></div><div class="l2">cód. C5120 · 2 itens</div><div class="l3">Cliente fora da sua carteira</div></div></div></div>
+      <div class="nota-prancha" style="margin-top:16px"><b>Offline:</b> tudo igual; os rascunhos moram no aparelho. <b>Itens sem nada:</b> "Nenhum item ainda · Busque pelo código, descrição ou veículo."</div>
+    </div>
+  </div>
+
+  <!-- G1 · detalhe do orçamento -->
+  <div class="tela">
+    <div class="legenda"><b>G</b>Orçamento · "preço de 09/11"<span>Não vence. Passados 7 dias, Transformar entra pelos preços de hoje.</span></div>
+    <div class="phone">
+      <div class="status"><span>16/11 09:10</span><span>4G ▮▮▮ 77%</span></div>
+      <div class="conteudo sem-topo" style="gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-family:Archivo;font-weight:800;font-size:24px">Orçamento 000012</div><span class="selo roxo m marca">Orçamento · preço de 09/11</span></div>
+        <div style="font-size:16px">Atacadinho Cachoeirinha · cód. C5007</div>
+        <div style="font-size:13px;color:var(--ink2);margin-top:-6px">Vendedor: Lucas Andrade</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Itens</span></div>
+        <div>
+          <div class="lv"><span>Café torrado 500 g · 2 UN</span><span class="v">R$ 23,22</span></div>
+          <div style="font-size:12px;color:var(--ink2);margin-top:-2px">Desc 10,0% · −R$ 1,29/UN</div>
+          <div class="lv"><span>Açúcar cristal 1 kg · 1 FD</span><span class="v">R$ 39,60</span></div>
+          <div style="font-size:12px;color:var(--ink2);margin-top:-2px">Acrésc 10,0% · +R$ 3,60/FD</div>
+          <div class="lv"><span>Água mineral 1,5 L · 1 UN</span><span class="v">R$ 7,14</span></div>
+        </div>
+        <div class="lv" style="border-top:1px solid var(--line);padding-top:10px;font-size:15px;font-weight:600"><span>Total</span><span class="v" style="font-size:19px">R$ 69,96</span></div>
+        <div style="font-size:13px;color:var(--ink2);margin-top:-6px">Boleto · 28/56 dias · CIF</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Histórico</span></div>
+        <div><span class="tag">Salvo · 09/11 05:50</span></div>
+      </div>
+      <div class="rodape-acoes">
+        <div class="btn principal"><i data-i="enviar" data-t="18" data-c="#fff"></i>Transformar em pedido</div>
+        <div class="apoio-btn" style="margin-top:0">Entra pelos preços de hoje</div>
+        <div class="linha"><div><i data-i="edit" data-t="18"></i>Editar</div><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div>
+      </div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- G2 · folha Preços de hoje -->
+  <div class="tela">
+    <div class="legenda"><b>G</b>Folha "Preços de hoje"<span>Só quando o preço congelado passou de 7 dias e o total mudou.</span></div>
+    <div class="phone">
+      <div class="status"><span>16/11 09:10</span><span>4G ▮▮▮ 77%</span></div>
+      <div class="conteudo"></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:12px">
+        <div class="pega"></div>
+        <div class="tit">Preços de hoje <i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Orçamento (preço de 09/11)</span><span class="v">R$ 69,96</span></div>
+          <div class="lin"><span class="r">Hoje</span><span class="v">R$ 72,10</span></div>
+          <div class="lin"><span class="r">Diferença</span><span class="v">+R$ 2,14</span></div>
+        </div>
+        <div class="rotulo-secao"><span class="t">Mudaram</span></div>
+        <div>
+          <div class="lv"><span>Café torrado 500 g · 2 UN</span><span class="v">R$ 23,22 → R$ 24,30</span></div>
+          <div class="lv"><span>Açúcar cristal 1 kg · 1 FD</span><span class="v">R$ 39,60 → R$ 40,66</span></div>
+        </div>
+        <div class="btn principal" style="margin-top:6px">Transformar com os preços de hoje</div>
+        <div class="btn-texto" style="margin-top:-4px">Voltar</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

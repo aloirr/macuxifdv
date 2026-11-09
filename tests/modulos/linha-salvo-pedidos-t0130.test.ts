@@ -63,7 +63,8 @@ describe('T-0130 / 🟡 R-20261108-202829 — linha "Salvo" da lista Pedidos (RN
     const tela = readFileSync(join(RAIZ, 'modules/vendedor/app/screens/orders-screen.tsx'), 'utf8');
     expect(tela).toMatch(/clienteDoRascunho\(o\.id\)\s*\?\s*totalDaLinhaSalva\(o,/);
     const estado = readFileSync(join(RAIZ, 'modules/vendedor/app/state/use-vendedor.ts'), 'utf8');
-    expect(estado).toMatch(/rascunhosSalvosComoPedidos\([^;]*totalDoRascunho\)/);
+    // RN-VEN-39 (T-0141): o relógio vem depois do total (o rascunho de mais de 24 h sai da lista)
+    expect(estado).toMatch(/rascunhosSalvosComoPedidos\([^;]*totalDoRascunho(, new Date\(\))?\)/);
     expect(estado).toMatch(/const totalDoRascunho[\s\S]{0,800}calcularPedido\(/);
   });
 });

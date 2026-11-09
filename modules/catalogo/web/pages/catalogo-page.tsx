@@ -10,8 +10,9 @@ import { api, downloadBlob, errorMessage, useSession } from '@macuxi/platform-sd
 import { Badge, Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FichaProduto, FiltrosCatalogo, ListaMarcasConcorrentes, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
-import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
+import { FichaProduto, ListaMarcasConcorrentes, RespostaHierarquia, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { ExportacaoCatalogo, useDadosExportacao } from '../exportacao/exportacao-catalogo';
+import { caminhoDoProduto, escopoDoNivel } from '../exportacao/layout';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
 import { abrirEditores, acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, abrirParaLeitura, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
@@ -60,7 +61,6 @@ export function CatalogoPage() {
             </Button>
           ))}
       </nav>
-      {aba === 'produtos' && <ExportacaoCatalogo />}
       {aba === 'produtos' && <Produtos filtros={filtros} mudar={mudar} podeConteudo={podeConteudo} />}
       {aba === 'sinonimos' && <Sinonimos />}
       {aba === 'sem-resultado' && <SemResultado />}
@@ -69,23 +69,109 @@ export function CatalogoPage() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+/** Trilha da hierarquia: "Catálogo › Sistema › Grupo"; o lugar atual e o nível pulado (item único) não são clicáveis. */
+function TrilhaHierarquia({ h, abrir }: { h: RespostaHierarquia; abrir: (no: string) => void }) {
+  if (h.trilha.length === 0) return null;
+  return (
+    <nav aria-label="Caminho no catálogo" className="flex flex-wrap items-center gap-1 text-[13px]" data-testid="catalogo.trilha">
+      {h.raiz_tocavel ? (
+        <Button size="sm" variant="link" onClick={() => abrir('')} data-testid="catalogo.trilha.inicio">
+          Catálogo
+        </Button>
+      ) : (
+        <span className="text-ink-2">Catálogo</span>
+      )}
+      {h.trilha.map((n, i) => {
+        const atual = i === h.trilha.length - 1;
+        return (
+          <span key={n.id} className="inline-flex items-center gap-1">
+            <span aria-hidden="true">›</span>
+            {n.tocavel ? (
+              <Button size="sm" variant="link" onClick={() => abrir(n.id)} data-testid={`catalogo.trilha.${n.codigo}`}>
+                {n.nome}
+              </Button>
+            ) : (
+              <span aria-current={atual ? 'page' : undefined} className={atual ? 'font-semibold text-ink' : 'text-ink-2'}>
+                {n.nome}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Página inicial do Catálogo no BKO (RF-CAT-09): o nível atual com a contagem de produtos ativos; clicar desce um nível. */
+function HierarquiaNiveis({ hierarquia, abrir }: { hierarquia: RespostaHierarquia; abrir: (no: string) => void }) {
+  if (hierarquia.tipo !== 'niveis') return null;
+  return (
+    <div className="flex flex-col gap-2" data-testid="catalogo.hierarquia">
+      <TrilhaHierarquia h={hierarquia} abrir={abrir} />
+      <TableScroll minWidth={520}>
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr>
+              <th scope="col" className={th}>
+                {hierarquia.rotulo_plural}
+              </th>
+              <th scope="col" className={`${th} text-right`}>
+                Produtos ativos
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {hierarquia.niveis.map((n) => (
+              <tr key={n.id} data-testid={`catalogo.nivel.${n.codigo}`}>
+                <td className={td}>
+                  <Button size="sm" variant="link" onClick={() => abrir(n.id)} data-testid={`catalogo.nivel.abrir.${n.codigo}`}>
+                    {n.nome}
+                  </Button>
+                </td>
+                <td className={`${td} text-right`}>{n.total.toLocaleString('pt-BR')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
+      <span className="text-[12px] text-ink-2" data-testid="catalogo.hierarquia.total">
+        {hierarquia.total_produtos.toLocaleString('pt-BR')} {hierarquia.total_produtos === 1 ? 'produto ativo' : 'produtos ativos'}
+        {hierarquia.trilha.length > 0 ? ` em ${hierarquia.trilha[hierarquia.trilha.length - 1]!.nome}` : ''}
+      </span>
+    </div>
+  );
+}
+
 function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar: (p: Partial<FiltrosBko>) => void; podeConteudo: boolean }) {
   const autenticado = useSession().status === 'authenticated';
   const podeDestaque = usePode('destaque.gerenciar');
   const qc = useQueryClient();
   const [editores, setEditores] = useState<EditoresAbertos<ItemVitrine>>(EDITORES_FECHADOS);
-  const vocab = useQuery({ queryKey: ['catalogo', 'filtros'], queryFn: async () => FiltrosCatalogo.parse(await api<unknown>(`${BASE}/filtros`)), enabled: autenticado });
+  // RF-CAT-09: a página abre pela hierarquia (mesma regra do app); a tabela de produtos aparece ao chegar neles, sem hierarquia ou na busca
+  const hier = useQuery({
+    queryKey: ['catalogo', 'hierarquia', filtros.no],
+    queryFn: async ({ signal }) => RespostaHierarquia.parse(await api<unknown>(`${BASE}/hierarquia`, { query: filtros.no ? { no: filtros.no } : {}, signal })),
+    enabled: autenticado,
+  });
+  const h = hier.data;
+  const mostrarTabela = filtros.q !== '' || hier.isError || (h !== undefined && h.tipo === 'produtos');
+  const noDaLista = h?.tipo === 'produtos' ? h.no : null;
   const lista = useInfiniteQuery({
-    queryKey: ['catalogo', 'produtos', filtros.linha],
-    queryFn: async ({ pageParam, signal }) => PaginaVitrine.parse(await api<unknown>(`${BASE}/produtos`, { query: { limit: POR_PAGINA, offset: pageParam, ...(filtros.linha ? { line: filtros.linha } : {}) }, signal })),
+    queryKey: ['catalogo', 'produtos', noDaLista],
+    queryFn: async ({ pageParam, signal }) => PaginaVitrine.parse(await api<unknown>(`${BASE}/produtos`, { query: { limit: POR_PAGINA, offset: pageParam, ...(noDaLista ? { no: noDaLista } : {}) }, signal })),
     initialPageParam: 0,
     getNextPageParam: (u) => u.next_offset ?? undefined,
-    enabled: autenticado,
+    enabled: autenticado && mostrarTabela,
   });
   const destaque = useMutation({
     mutationFn: (v: { id: string; is_campaign: boolean }) => api(`${BASE}/produtos/${v.id}/destaque`, { method: 'PUT', body: { is_campaign: v.is_campaign } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['catalogo', 'produtos'] }),
   });
+  // a exportação segue o nível aberto (nos produtos e nos níveis); a busca ganha a coluna "Caminho" (só para quem pode exportar, que já lê o cadastro)
+  const { dados: cadastro } = useDadosExportacao();
+  const escopo = useMemo(() => escopoDoNivel(h), [h]);
+  const caminhos = useMemo(() => new Map((cadastro.data?.produtos ?? []).map((p) => [p.id, caminhoDoProduto(p.hierarquia)])), [cadastro.data]);
+  const mostrarCaminho = filtros.q !== '' && caminhos.size > 0;
   const todos = useMemo(() => lista.data?.pages.flatMap((p) => p.items) ?? [], [lista.data]);
   const visiveis = useMemo(() => {
     const k = chaveDeTermo(filtros.q);
@@ -95,28 +181,28 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
 
   return (
     <Panel label="Produtos" title="Produtos do catálogo">
+      <ExportacaoCatalogo nivel={filtros.q === '' ? escopo : {}} />
       <FilterBar>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
           Buscar
           <input className="h-[38px] rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink" placeholder="Código, nome, marca ou EAN" value={filtros.q} onChange={(e) => mudar({ q: e.target.value })} data-testid="catalogo.busca" />
         </label>
-        <SelectField label="Categoria" value={filtros.linha} onChange={(e) => mudar({ linha: e.target.value })} data-testid="catalogo.filtro.linha">
-          <option value="">Todas</option>
-          {vocab.data?.lines.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </SelectField>
         <Button size="sm" onClick={() => downloadBlob(new Blob([produtosParaCsv(visiveis)], { type: 'text/csv;charset=utf-8' }), 'catalogo-produtos.csv')} disabled={visiveis.length === 0} data-testid="catalogo.csv">
           Exportar CSV
         </Button>
       </FilterBar>
+      {!mostrarTabela && (
+        <>
+          {hier.isPending && <LoadingBlock label="Carregando o catálogo…" />}
+          {h && <HierarquiaNiveis hierarquia={h} abrir={(no) => mudar({ no })} />}
+        </>
+      )}
+      {mostrarTabela && h && h.tipo === 'produtos' && filtros.q === '' && <TrilhaHierarquia h={h} abrir={(no) => mudar({ no })} />}
       {destaque.isError && <Notice tone="danger">{errorMessage(destaque.error)}</Notice>}
-      {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
-      {lista.isPending && <LoadingBlock label="Carregando os produtos…" />}
-      {lista.data && visiveis.length === 0 && <span className="text-[13px] text-ink-2">Nenhum produto com esses filtros.</span>}
-      {visiveis.length > 0 && (
+      {mostrarTabela && lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
+      {mostrarTabela && lista.isPending && <LoadingBlock label="Carregando os produtos…" />}
+      {mostrarTabela && lista.data && visiveis.length === 0 && <span className="text-[13px] text-ink-2">Nenhum produto com esses filtros.</span>}
+      {mostrarTabela && visiveis.length > 0 && (
         <TableScroll minWidth={860}>
           <table className="w-full border-collapse text-[13px]" data-testid="catalogo.tabela">
             <thead>
@@ -125,6 +211,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
                 <th scope="col" className={th}>Produto</th>
                 <th scope="col" className={th}>Marca</th>
                 <th scope="col" className={th}>Categoria</th>
+                {mostrarCaminho && <th scope="col" className={th}>Caminho</th>}
                 <th scope="col" className={th}>Destaque</th>
                 <th scope="col" className={th}>
                   <span className="sr-only">Ações</span>
@@ -138,6 +225,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
                   <td className={td}>{i.description}</td>
                   <td className={td}>{i.brand || '—'}</td>
                   <td className={td}>{i.line || '—'}</td>
+                  {mostrarCaminho && <td className={td} data-testid={`catalogo.caminho.${i.erp_code}`}>{caminhos.get(i.id) ?? '—'}</td>}
                   <td className={td}>
                     {podeDestaque ? (
                       <label className="inline-flex items-center gap-2">
@@ -167,7 +255,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
           </table>
         </TableScroll>
       )}
-      {lista.hasNextPage && (
+      {mostrarTabela && lista.hasNextPage && (
         <Button size="sm" onClick={() => void lista.fetchNextPage()} disabled={lista.isFetchingNextPage}>
           Carregar mais
         </Button>

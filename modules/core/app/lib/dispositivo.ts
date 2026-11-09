@@ -1,28 +1,9 @@
 /**
- * Coisas que dependem do aparelho: UUID (idempotência, gerado no aparelho) e localização do check-in/checkout.
+ * Coisas que dependem do aparelho: localização (o UUID vem de `motor.ambiente.novoId()`, RD-0046) do check-in/checkout.
  * Não é importado pelos testes (depende de expo/react-native).
  */
-import * as Crypto from 'expo-crypto';
 import * as Location from 'expo-location';
 import { Platform } from 'react-native';
-
-/** UUID v4 gerado no aparelho (expo-crypto; reserva para navegador em http sem contexto seguro). */
-export function uuid(): string {
-  try {
-    const id = Crypto.randomUUID();
-    if (id) return id;
-  } catch {
-    // segue para a reserva
-  }
-  const bytes = new Uint8Array(16);
-  const g = globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } };
-  if (g.crypto?.getRandomValues) g.crypto.getRandomValues(bytes);
-  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 export interface PosicaoDoAparelho {
   lat: number;

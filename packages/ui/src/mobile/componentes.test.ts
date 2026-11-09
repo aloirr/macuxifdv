@@ -93,11 +93,12 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
   });
 });
 
-describe('LinhaAtalho (T-0085, atalho "Ver por linha" do Catálogo)', () => {
+describe('LinhaAtalho (atalho para outra vista da mesma aba: Rascunhos em Pedidos, T-0141 §F.1)', () => {
   it('leitura no TalkBack: rótulo, ponto e apoio com o "›" lido como vírgula', () => {
-    expect(leituraDoAtalho('Ver por linha', 'Sistema › grupo › linha')).toBe('Ver por linha. Sistema, grupo, linha');
-    expect(leituraDoAtalho(' Ver por linha ')).toBe('Ver por linha');
-    expect(leituraDoAtalho('Ver por linha', '  ')).toBe('Ver por linha');
+    expect(leituraDoAtalho('Rascunhos (2)', 'Somem 24 h após a última alteração')).toBe('Rascunhos (2). Somem 24 h após a última alteração');
+    expect(leituraDoAtalho('Pedidos', 'Hoje › Atrasados')).toBe('Pedidos. Hoje, Atrasados');
+    expect(leituraDoAtalho(' Rascunhos (2) ')).toBe('Rascunhos (2)');
+    expect(leituraDoAtalho('Rascunhos (2)', '  ')).toBe('Rascunhos (2)');
   });
 
   it('alvo de 48 dp (56 com apoio), toque do kit, sem texto fixo e cores com contraste do guia', () => {
@@ -114,7 +115,7 @@ describe('LinhaAtalho (T-0085, atalho "Ver por linha" do Catálogo)', () => {
     expect(nav).toMatch(/atalhoApoio: \{[^}]*fontSize: 13, color: colors\.ink2 \}/);
   });
 
-  it('ícone "arvore" existe no kit (lista em níveis)', () => {
-    expect(ler('./icon.tsx')).toMatch(/case 'arvore':/);
+  it('o ícone "arvore" saiu com o atalho "Ver por linha" (T-0142: Catálogo pela hierarquia, sem tela "Por linha")', () => {
+    expect(ler('./icon.tsx')).not.toContain("'arvore'");
   });
 });

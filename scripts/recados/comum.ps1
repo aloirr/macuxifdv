@@ -117,15 +117,20 @@ function Unir-Linhas([string]$Origem, [string]$Destino) {
   [System.IO.File]::AppendAllText($Destino, $prefixo + (($novas -join "`n") + "`n"), $script:Utf8SemBom)
 }
 
-# Arquivos do repositorio de recados (docs\desenho\T-0139-repo-recados): copia o que falta no clone, sem sobrescrever.
-# Sem a pasta, grava ao menos o .gitattributes minimo. Em qualquer caso, garante a linha do merge=union.
+# Arquivos da raiz do clone que o corte publica (o passo 4 faz o "git add" de recados, lidos e desta lista).
+# O .github do modelo NAO entra: as Actions sao publicadas a parte pelo dono do produto (passo a passo), e a resposta
+# pelo Telegram aguarda a decisao do intervalo; copiar sem publicar deixava sobra e travava o passo 5.
+$script:ArquivosDoClone = @('.gitattributes', 'README.md')
+
+# Copia do modelo (docs\desenho\T-0139-repo-recados) so os $script:ArquivosDoClone que faltam no clone, sem
+# sobrescrever. Sem o modelo, grava o .gitattributes e o README minimos. Em qualquer caso, garante o merge=union.
 function Garantir-ArquivosDoClone([string]$Clone, [string]$Repo) {
   $modelo = Join-Path $Repo 'docs\desenho\T-0139-repo-recados'
-  foreach ($arq in (Arquivos-Sob $modelo)) {
-    $d = Join-Path $Clone $arq.Rel
-    if (Test-Path -LiteralPath $d) { continue }
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $d) | Out-Null
-    Copy-Item -LiteralPath $arq.Caminho -Destination $d
+  foreach ($rel in $script:ArquivosDoClone) {
+    $o = Join-Path $modelo $rel
+    $d = Join-Path $Clone $rel
+    if ((Test-Path -LiteralPath $d) -or -not (Test-Path -LiteralPath $o)) { continue }
+    Copy-Item -LiteralPath $o -Destination $d
   }
   $ga = Join-Path $Clone '.gitattributes'
   $texto = if (Test-Path -LiteralPath $ga) { [System.IO.File]::ReadAllText($ga, $script:Utf8SemBom) } else { '' }

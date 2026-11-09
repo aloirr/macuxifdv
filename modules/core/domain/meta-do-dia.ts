@@ -5,6 +5,7 @@
  * Dinheiro em centavos; datas civis AAAA-MM-DD no fuso do tenant; quem chama passa `hoje` (não lê o relógio).
  */
 import { diasUteisDoPeriodo, ehDiaUtilDoTenant } from '@macuxi/comum';
+import { necessidadeDiaria } from '../contracts/necessidade-diaria';
 import type { MetaDoDia } from '../contracts/inicio';
 import type { IndicadorMeta } from './metas';
 
@@ -61,7 +62,7 @@ export function metaDoDia(e: EntradaMetaDoDia): MetaDoDia {
   if (e.indicador === 'cobertura_pct') return { ...comum, situacao: 'do_mes', meta_dia: null, atingimento_hoje_pct: null, membros_mes_batido: e.realizado_ate_ontem >= e.meta_mes ? 1 : 0 };
   if (e.realizado_ate_ontem >= e.meta_mes) return { ...comum, situacao: 'mes_batido', meta_dia: 0, atingimento_hoje_pct: null, membros_mes_batido: 1 };
   if (dias === 0 || !ehDiaUtil(e.hoje, e.calendario)) return { ...comum, situacao: 'dia_nao_util', meta_dia: null, atingimento_hoje_pct: null, membros_mes_batido: 0 };
-  const metaDia = Math.ceil((e.meta_mes - e.realizado_ate_ontem) / dias);
+  const metaDia = necessidadeDiaria(e.meta_mes, e.realizado_ate_ontem, dias) ?? 0;
   return { ...comum, situacao: e.realizado_hoje >= metaDia ? 'dia_batido' : 'a_cumprir', meta_dia: metaDia, atingimento_hoje_pct: atingimento(e.realizado_hoje, metaDia), membros_mes_batido: 0 };
 }
 
@@ -120,6 +121,6 @@ export function resumoMetaDeHoje(m: MetaDoDia): ResumoMetaDeHoje {
   const mes = m.meta_mes > 0 ? Math.round(((m.realizado_ate_ontem + m.realizado_hoje) / m.meta_mes) * 10_000) : null;
   const realizadoMes = m.realizado_ate_ontem + m.realizado_hoje;
   const faltamMes = m.meta_mes > 0 ? Math.max(0, m.meta_mes - realizadoMes) : null;
-  const porDia = m.indicador === 'cobertura_pct' || faltamMes === null || faltamMes === 0 || m.dias_uteis_restantes <= 0 ? null : Math.ceil(faltamMes / m.dias_uteis_restantes);
+  const porDia = m.indicador === 'cobertura_pct' || faltamMes === null || faltamMes === 0 || m.dias_uteis_restantes <= 0 ? null : necessidadeDiaria(m.meta_mes, realizadoMes, m.dias_uteis_restantes);
   return { indicador: m.indicador, situacao: m.situacao, realizado_hoje: m.realizado_hoje, meta_dia: m.meta_dia, faltam_hoje: faltam, mes_pct: mes, faltam_mes: faltamMes, por_dia_util: porDia, dias_uteis_por_dia: m.dias_uteis_restantes };
 }

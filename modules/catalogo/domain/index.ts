@@ -19,6 +19,7 @@ export * from './vitrine';
 export * from './conteudo';
 export * from './erp';
 export * from './arvore';
+export * from './hierarquia';
 export * from './exportacao';
 export * from './sugestoes';
 export * from './aplicacao';

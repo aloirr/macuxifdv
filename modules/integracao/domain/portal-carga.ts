@@ -2,7 +2,7 @@
  * Regras puras do portal de implantação (T-0087, RF-INT-03): ordem dos cartões de carga, "Conferir sem gravar" e o CSV de erros.
  * Nada aqui guarda o conteúdo do arquivo; as mensagens de erro já nascem sem o valor digitado (dado pessoal).
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import { ENTIDADES, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type LinhaInvalidaConector } from '../contracts';
 import { anotarLinhaDoArquivo } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
@@ -25,7 +25,6 @@ export function ordemDeCargaDoPortal(): ItemOrdemCarga[] {
 
 // ---------------------------------------------------------------------------------------------------------------- erros em CSV
 
-const BOM = String.fromCharCode(0xfeff);
 const CABECALHO_ERROS = ['linha_do_lote', 'external_id', 'codigo', 'campo', 'reprocessavel', 'mensagem'] as const;
 
 function celula(valor: string | number | null | undefined): string {
@@ -34,11 +33,11 @@ function celula(valor: string | number | null | undefined): string {
   return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-/** Erros do lote em CSV (UTF-8 com BOM, `;`, CRLF) para o Excel: a mesma linha que o BKO mostra. `linha_do_lote` é base 1. */
+/** Erros do lote em CSV (UTF-8 com BOM_CSV, `;`, CRLF) para o Excel: a mesma linha que o BKO mostra. `linha_do_lote` é base 1. */
 export function errosParaCsv(erros: readonly LinhaErro[]): string {
   const linhas: string[] = [CABECALHO_ERROS.join(';')];
   for (const e of erros) linhas.push([e.indice + 1, e.external_id, e.codigo, e.campo, e.reprocessavel ? 'sim' : 'nao', e.mensagem].map(celula).join(';'));
-  return `${BOM}${linhas.join('\r\n')}\r\n`;
+  return `${BOM_CSV}${linhas.join('\r\n')}\r\n`;
 }
 
 /** `erros-<id>.csv`: só o id do lote (UUID), nada do conteúdo. */

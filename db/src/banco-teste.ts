@@ -2,11 +2,13 @@
  * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres DOS TESTES (lerConfigTestes:
  * container macuxi-postgres-testes, 5434, ou MACUXI_PG_TESTES_URL; no CI, o service do workflow) — nunca no da demo,
  * garante os papéis macuxi_app, macuxi_worker e macuxi_portal (0038), aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
+ * Migrado = cópia do banco modelo (db/src/banco-modelo.ts, T-0033) quando ligado; MACUXI_PG_MODELO=0 volta a migrar do zero.
  * Usado pelos testes de db/ e pelo agente `testes` (via `@macuxi/db/teste`).
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { apagarBancoForcado } from './apagar-banco';
+import { criarDoModelo, modeloDoProcesso, usarModelo } from './banco-modelo';
 import { lerConfigTestes, PAPEL_PORTAL, urlAdmin, urlApp, urlPortal, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
 import { garantirPapelApp, garantirPapelManutencao, garantirPapelPortal, garantirPapelSemLogin, garantirPapelWorker } from './papeis';
@@ -64,18 +66,23 @@ export async function comAdmin<T>(banco: string, fn: (c: pg.Client) => Promise<T
   }
 }
 
+/** Papéis do cluster prontos antes das migrações (e antes da cópia do modelo, que já traz os GRANTs). */
+async function garantirPapeis(c: pg.Client, cfg: ConfigBanco): Promise<void> {
+  await garantirPapelApp(c, cfg.appSenha);
+  // Antes da migração 0003: com o papel já criado (e com LOGIN), o "create role" da migração não corre em paralelo.
+  if (cfg.workerSenha) await garantirPapelWorker(c, cfg.workerSenha);
+  // Idem para a 0038 (T-0091): macuxi_portal com LOGIN (e o SET do admin sem superusuário) antes das migrações paralelas;
+  // sem a senha, só o papel NOLOGIN, com o mesmo lock (a 0038 o encontra pronto e não grava em pg_authid).
+  if (cfg.portalSenha) await garantirPapelPortal(c, cfg.portalSenha);
+  else await garantirPapelSemLogin(c, PAPEL_PORTAL);
+  // Idem para a 0031 (B1, T-0075): papel macuxi_manutencao e a filiação do admin prontos antes das migrações paralelas.
+  await garantirPapelManutencao(c);
+}
+
 export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfigTestes()): Promise<void> {
   validarNomeBanco(nome);
   await comAdmin('postgres', async (c) => {
-    await garantirPapelApp(c, cfg.appSenha);
-    // Antes da migração 0003: com o papel já criado (e com LOGIN), o "create role" da migração não corre em paralelo.
-    if (cfg.workerSenha) await garantirPapelWorker(c, cfg.workerSenha);
-    // Idem para a 0038 (T-0091): macuxi_portal com LOGIN (e o SET do admin sem superusuário) antes das migrações paralelas;
-    // sem a senha, só o papel NOLOGIN, com o mesmo lock (a 0038 o encontra pronto e não grava em pg_authid).
-    if (cfg.portalSenha) await garantirPapelPortal(c, cfg.portalSenha);
-    else await garantirPapelSemLogin(c, PAPEL_PORTAL);
-    // Idem para a 0031 (B1, T-0075): papel macuxi_manutencao e a filiação do admin prontos antes das migrações paralelas.
-    await garantirPapelManutencao(c);
+    await garantirPapeis(c, cfg);
     const existe = await c.query('select 1 from pg_database where datname = $1', [nome]);
     if (existe.rowCount === 0) await c.query(`create database ${nome}`);
   }, cfg);
@@ -109,10 +116,17 @@ export interface OpcoesBancoDeTeste {
 export async function criarBancoDeTeste(opcoes: OpcoesBancoDeTeste = {}): Promise<BancoDeTeste> {
   const cfg = opcoes.cfg ?? lerConfigTestes();
   const nome = validarNomeBanco(`macuxi_teste_${Date.now().toString(36)}_${process.pid}_${randomBytes(3).toString('hex')}`);
-  await criarBanco(nome, cfg);
+  // T-0033: com o modelo, a cópia já sai migrada; falha do modelo = caminho antigo (criar + migrar), com aviso
+  let copiado = false;
+  if (usarModelo(cfg, opcoes.migrar)) {
+    await comAdmin('postgres', (c) => garantirPapeis(c, cfg), cfg);
+    const modelo = await modeloDoProcesso(cfg);
+    if (modelo) copiado = await criarDoModelo(nome, modelo, cfg);
+  }
+  if (!copiado) await criarBanco(nome, cfg);
   try {
     await comAdmin(nome, async (c) => {
-      if (opcoes.migrar !== false) await migrarUp(c);
+      if (opcoes.migrar !== false && !copiado) await migrarUp(c);
       if (opcoes.preparar) await opcoes.preparar(c);
     }, cfg);
   } catch (e) {

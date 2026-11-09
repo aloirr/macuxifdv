@@ -3,11 +3,11 @@
 import { formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Bar, Button, cx, Dialog, ErrorBlock, FilterBar, formatDateTime, IconDownload, IconPlus, KpiCard, KpiGrid, LoadingBlock, monthLabel, Notice, PageHeader, Panel, SelectField, TableScroll, td, tdNum, th, thNum, type BadgeTone } from '@macuxi/ui/web';
+import { Badge, Bar, Button, cx, Dialog, ErrorBlock, FilterBar, formatDateTime, IconDownload, IconPlus, KpiCard, KpiGrid, LoadingBlock, monthLabel, Notice, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, tdNum, th, thNum, type BadgeTone } from '@macuxi/ui/web';
 import Link from 'next/link';
 import { useState } from 'react';
 import type { BkoTrilhaResumo } from '../../contracts';
-import { pessoasParaCsv, ROTULO_PERFIL, ROTULO_STATUS, trilhasParaCsv } from '../lib/csv';
+import { pessoasParaCsv, ROTULO_STATUS, trilhasParaCsv } from '../lib/csv';
 import { abaVisivel, type Aba } from '../lib/filtros-url';
 import { useAdesao, useFusoDoBko, useMudarStatus, usePessoas, useTrilhasBko } from '../lib/queries';
 import { hrefEditarTrilha } from '../lib/rotas';
@@ -181,7 +181,7 @@ function AbaPessoas() {
               {d.pessoas.map((p) => (
                 <tr key={p.usuario_id}>
                   <td className={`${td} font-semibold`}>{p.nome}</td>
-                  <td className={td}>{ROTULO_PERFIL[p.perfil] ?? p.perfil}</td>
+                  <td className={td}>{rotuloDoPerfil(p.perfil)}</td>
                   <td className={tdNum}>{p.licoes_no_mes}</td>
                   <td className={tdNum}>{p.trilhas_concluidas}</td>
                   <td className={cx(tdNum, p.obrigatorias_pendentes > 0 && 'font-semibold text-warning')}>{p.obrigatorias_pendentes}</td>
@@ -276,7 +276,7 @@ function AbaTrilhas() {
                       <Badge tone={TOM_STATUS[t.status] ?? 'neutral'}>{ROTULO_STATUS[t.status] ?? t.status}</Badge>
                     </td>
                     <td className={`${td} text-ink-2`}>
-                      {t.publico_perfis.length === 0 ? 'Todos os perfis' : t.publico_perfis.map((p) => ROTULO_PERFIL[p] ?? p).join(', ')}
+                      {t.publico_perfis.length === 0 ? 'Todos os perfis' : t.publico_perfis.map((p) => rotuloDoPerfil(p)).join(', ')}
                       {t.publico_equipes > 0 ? ` · ${t.publico_equipes} ${t.publico_equipes === 1 ? 'equipe' : 'equipes'}` : ''}
                     </td>
                     <td className={tdNum}>{t.licoes}</td>

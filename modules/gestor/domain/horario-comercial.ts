@@ -1,7 +1,7 @@
 /**
  * RN-GES-03: calendário comercial do tenant — dias úteis e horas úteis (dias da semana + janela HH:MM no fuso do
  * tenant, sem feriados). Funções puras, sem I/O.
- *  - Dia útil = dia da semana do `horario_comercial` que não é feriado. Feriados = nacionais (`feriados.ts`, provisório)
+ *  - Dia útil = dia da semana do `horario_comercial` que não é feriado. Feriados = nacionais (`@macuxi/comum`)
  *    ∪ `feriados` do tenant; a checagem usa `isBusinessDay` de `@macuxi/comum` com essa lista.
  *  - `somarDiasUteis`: prazo da aprovação em DIAS úteis — mesmo horário local do N-ésimo dia útil seguinte; pedido fora do
  *    expediente conta da próxima abertura (`inicioDaContagem`).
@@ -9,9 +9,9 @@
  * Fuso com horário de verão é tratado (a janela e o horário do prazo são do relógio local de cada dia).
  */
 import { minutosDaHora, type HorarioComercial } from '../contracts';
-import { isBusinessDay, localDate } from '@macuxi/comum';
-import { feriadosNacionais } from './feriados';
-import { arredondar, instanteMs, somarDias } from './numeros';
+import { exigirDataCivil, feriadosNacionais, isBusinessDay, localDate } from '@macuxi/comum';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { arredondar, instanteMs } from './numeros';
 
 export interface CalendarioComercial {
   fuso: string;
@@ -42,7 +42,7 @@ function instanteLocal(data: string, msDoDia: number, fuso: string): number {
 
 /** Instante UTC (ms) de `data` às `hora` (HH:MM, 24:00 = meia-noite seguinte) no relógio local do fuso. */
 export function instanteDoHorarioLocal(data: string, hora: string, fuso: string): number {
-  somarDias(data, 0); // valida a data
+  exigirDataCivil(data);
   return instanteLocal(data, minutosDaHora(hora) * 60_000, fuso);
 }
 
@@ -57,7 +57,7 @@ function diaSemana(data: string): number {
  * passam por `isBusinessDay` de `@macuxi/comum`; sábado/domingo só valem se o tenant os incluiu em `dias_semana`.
  */
 export function ehDiaUtil(data: string, cal: CalendarioComercial): boolean {
-  somarDias(data, 0); // valida a data
+  exigirDataCivil(data);
   const dow = diaSemana(data);
   if (!cal.horario_comercial.dias_semana.includes(dow)) return false;
   const feriados = new Set<string>([...feriadosNacionais(Number(data.slice(0, 4))), ...cal.feriados]);
@@ -76,8 +76,8 @@ const dataLocal = (ms: number, fuso: string) => localDate(new Date(ms), fuso);
 function msUteis(de: number, ate: number, cal: CalendarioComercial): number {
   let total = 0;
   const ultimo = dataLocal(ate, cal.fuso);
-  let dia = somarDias(dataLocal(de, cal.fuso), -1); // a janela do dia anterior pode invadir (24:00 em fuso com verão)
-  for (let i = 0; dia <= ultimo; i++, dia = somarDias(dia, 1)) {
+  let dia = somarDiasCivis(dataLocal(de, cal.fuso), -1); // a janela do dia anterior pode invadir (24:00 em fuso com verão)
+  for (let i = 0; dia <= ultimo; i++, dia = somarDiasCivis(dia, 1)) {
     if (i > MAX_DIAS) throw new RangeError('Intervalo grande demais para calcular horas úteis.');
     const j = janelaDoDia(dia, cal);
     if (!j) continue;
@@ -105,8 +105,8 @@ export function somarHorasUteis(inicio: string, horas: number, cal: CalendarioCo
   const ms0 = instanteMs(inicio);
   let restante = Math.round(horas * HORA_MS);
   if (restante === 0) return new Date(ms0).toISOString();
-  let dia = somarDias(dataLocal(ms0, cal.fuso), -1);
-  for (let i = 0; i <= MAX_DIAS; i++, dia = somarDias(dia, 1)) {
+  let dia = somarDiasCivis(dataLocal(ms0, cal.fuso), -1);
+  for (let i = 0; i <= MAX_DIAS; i++, dia = somarDiasCivis(dia, 1)) {
     const j = janelaDoDia(dia, cal);
     if (!j) continue;
     const ini = Math.max(j[0], ms0);
@@ -125,8 +125,8 @@ export function somarHorasUteis(inicio: string, horas: number, cal: CalendarioCo
  */
 export function inicioDaContagem(inicio: string, cal: CalendarioComercial): number {
   const ms0 = instanteMs(inicio);
-  let dia = somarDias(dataLocal(ms0, cal.fuso), -1); // a janela do dia anterior pode invadir (24:00 em fuso com verão)
-  for (let i = 0; i <= MAX_DIAS; i++, dia = somarDias(dia, 1)) {
+  let dia = somarDiasCivis(dataLocal(ms0, cal.fuso), -1); // a janela do dia anterior pode invadir (24:00 em fuso com verão)
+  for (let i = 0; i <= MAX_DIAS; i++, dia = somarDiasCivis(dia, 1)) {
     const j = janelaDoDia(dia, cal);
     if (j && ms0 < j[1]) return Math.max(j[0], ms0);
   }
@@ -150,7 +150,7 @@ export function somarDiasUteis(inicio: string, dias: number, cal: CalendarioCome
   let faltam = dias;
   for (let i = 0; faltam > 0; i++) {
     if (i > MAX_DIAS) throw new RangeError('Prazo grande demais para calcular em dias úteis.');
-    dia = somarDias(dia, 1);
+    dia = somarDiasCivis(dia, 1);
     if (ehDiaUtil(dia, cal)) faltam--;
   }
   return new Date(instanteLocal(dia, msDoDia, cal.fuso)).toISOString();

@@ -2,6 +2,7 @@
  * Mapeamento puro dos registros do ERP (`integracao.<entidade>.atualizado@1`) para o modelo do Core (T-0066; RN-INT-02/04/06).
  * Sem acesso a banco: os consumidores de `api/consumidores-erp*.ts` só executam o que sai daqui.
  */
+import { ehEmail } from '@macuxi/comum/email';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
 
 export type SituacaoTituloCore = 'aberto' | 'liquidado' | 'cancelado';
@@ -11,15 +12,13 @@ export function situacaoTituloDoErp(s: 'aberto' | 'baixado' | 'cancelado'): Situ
   return s === 'baixado' ? 'liquidado' : s;
 }
 
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
 /**
  * E-mail do usuário vendedor vindo do ERP. `core.usuario.email` é obrigatório e único: sem e-mail válido, usa um
  * provisório estável (derivado do `external_id`, domínio `.invalid`); o convite/ativação pelo BKO troca por um real.
  */
 export function emailDoVendedorErp(email: string | null | undefined, externalId: string): { email: string; provisorio: boolean } {
   const limpo = (email ?? '').trim().toLowerCase();
-  if (EMAIL.test(limpo)) return { email: limpo, provisorio: false };
+  if (ehEmail(limpo)) return { email: limpo, provisorio: false };
   const hex = [...new TextEncoder().encode(externalId)].map((b) => b.toString(16).padStart(2, '0')).join('');
   return { email: `erp-${hex}@sem-email.invalid`, provisorio: true };
 }

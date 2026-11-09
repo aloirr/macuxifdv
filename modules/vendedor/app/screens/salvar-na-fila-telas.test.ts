@@ -33,7 +33,7 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
   });
 
   it('RN-VEN-30: a tela fecha na hora (replace para o detalhe) com "Pedido salvo · enviando", sem o botão girando', () => {
-    const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const rotuloEdicao'));
+    const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const docEdicao'));
     expect(envio).toContain('router.replace(hrefPedido(destino) as never)');
     expect(envio).toContain('avisoDoSalvar(offline)');
     expect(envio.indexOf('router.replace')).toBeLessThan(envio.indexOf('setSent('));
@@ -47,11 +47,12 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
     expect(d).toContain('recusado: Boolean(queued?.failed)');
   });
 
-  it('RN-VEN-30: a lista Pedidos mostra "Não aceito" e abre o rascunho "Salvo" no editor', () => {
+  it('RN-VEN-30 / RN-VEN-39 (T-0141 F.1): a lista Pedidos mostra "Não aceito" e os rascunhos saíram dela (ficam na tela Rascunhos)', () => {
     const l = fonte('orders-screen.tsx');
     expect(l).toContain('statusBadgeDaLinha(o)');
-    expect(l).toContain('clienteDoRascunho(o.id)');
-    expect(hook).toContain('rascunhosSalvosComoPedidos(dados.rascunhos');
+    expect(l).not.toContain('clienteDoRascunho');
+    expect(hook).not.toContain('rascunhosSalvosComoPedidos');
+    expect(hook).toContain('rascunhosDaLista');
   });
 });
 

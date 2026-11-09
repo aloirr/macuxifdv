@@ -42,6 +42,8 @@ export const ConsultaVitrineQuery = z.object({
   only_in_stock: BooleanoQuery.optional(),
   /** Só produtos de campanha/destaque. */
   campaign: BooleanoQuery.optional(),
+  /** Só os produtos deste nível da hierarquia e dos abaixo dele (id do nível ou `sem-linha`; RF-CAT-09). */
+  no: z.string().trim().min(1).max(40).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(OFFSET_MAXIMO).default(0),
 });
@@ -53,6 +55,33 @@ export const PaginaVitrine = z.object({
   next_offset: z.number().int().min(0).nullable(),
 });
 export type PaginaVitrine = z.infer<typeof PaginaVitrine>;
+
+// ---------- hierarquia (GET /v1/catalogo/hierarquia; RF-CAT-09, T-0142) ----------
+/** Nível atual da hierarquia do catálogo: o mesmo `navegarHierarquia` do domain que o app usa offline. */
+export const ConsultaHierarquiaQuery = z.object({ no: z.string().trim().min(1).max(40).optional() });
+export type ConsultaHierarquiaQuery = z.infer<typeof ConsultaHierarquiaQuery>;
+
+export const NivelHierarquia = z.object({ id: z.string(), codigo: z.string(), nome: z.string(), total: z.number().int().min(0) });
+export type NivelHierarquia = z.infer<typeof NivelHierarquia>;
+
+export const RespostaHierarquia = z.object({
+  /** `niveis`: escolher o próximo nível; `produtos`: chegou nos produtos (ou o tenant não tem hierarquia). */
+  tipo: z.enum(['niveis', 'produtos']),
+  sem_hierarquia: z.boolean(),
+  /** Do sistema até o lugar atual; `tocavel` falso no atual e no nível pulado (item único), que cairia na mesma tela. */
+  trilha: z.array(z.object({ id: z.string(), codigo: z.string(), nome: z.string(), tocavel: z.boolean() })),
+  /** "Catálogo" (a raiz) leva a uma tela diferente da atual. */
+  raiz_tocavel: z.boolean(),
+  /** Cabeçalho da lista: "Sistemas", "Grupos", "Linhas" ou "Categorias". */
+  rotulo_plural: z.string(),
+  /** Itens do nível aberto, inclusive "Outros produtos" e "Sem classificação" (id `outros:<nível>` e `sem-linha`). */
+  niveis: z.array(NivelHierarquia),
+  /** Nível dono da lista de produtos (`GET produtos?no=`) quando `tipo = produtos`; `null` no meio da hierarquia ou sem ela. */
+  no: z.string().nullable(),
+  /** Produtos ativos do nível aberto (no `produtos`, os da lista). */
+  total_produtos: z.number().int().min(0),
+});
+export type RespostaHierarquia = z.infer<typeof RespostaHierarquia>;
 
 // ---------- filtros (GET /v1/catalogo/filtros) ----------
 /** Vocabulário do tenant para os chips da tela (marcas e categorias/linhas cadastradas). */
@@ -205,7 +234,7 @@ export const ProdutoExportacao = z.object({
   descricao: z.string(),
   aplicacao: z.string().nullable(),
   hierarquia: z.object({ sistema: z.string().nullable(), grupo: z.string().nullable(), linha: z.string().nullable() }),
-  /** `marca_nome` é aditivo (RN-CAT-09): nulo quando não há cadastro do Promotor nem retrato gravado. */
+  /** `marca_nome` é aditivo (RN-CAT-09): nulo quando não há cadastro de marcas do Catálogo nem retrato gravado. */
   referencias: z.array(z.object({ marca_id: Id, marca_nome: z.string().nullable(), codigo: z.string().min(1).max(30) })).max(3),
   oferece_junto: z.array(Id).max(5),
 });
@@ -258,6 +287,7 @@ export const ROTAS_CATALOGO = {
   marcas: 'marcas',
   marca: 'marcas/:id',
   exportacao: 'exportacao',
+  hierarquia: 'hierarquia',
   tabelasPreco: 'tabelas-preco',
   precosTabela: 'tabelas-preco/:id/precos',
   escalonada: 'escalonada',

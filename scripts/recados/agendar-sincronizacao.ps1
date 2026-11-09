@@ -20,7 +20,8 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
+  [string]$Repo = '',   # vazio = raiz do repositorio deste script (resolvida no corpo)
+  [string]$Nome = 'Sincronizar recados',   # outro nome so no teste (recados-ps.test.mjs)
   [switch]$Remover,
   [switch]$Simples,
   [switch]$Simular
@@ -28,22 +29,26 @@ param(
 
 Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'comum.ps1')
+# No PowerShell 5.1 com -File, $PSScriptRoot chega vazio nos padroes do param(): a pasta sai daqui, no corpo.
+$aqui = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Repo) { $Repo = (Resolve-Path (Join-Path $aqui '..\..')).Path }
+. (Join-Path $aqui 'comum.ps1')
 
 $caminho = '\Macuxi\'
-$nome = 'Sincronizar recados'
-$existente = Get-ScheduledTask -TaskPath $caminho -TaskName $nome -ErrorAction SilentlyContinue
+$existente = Get-ScheduledTask -TaskPath $caminho -TaskName $Nome -ErrorAction SilentlyContinue
 
 if ($Remover) {
   if (-not $existente) { Ok 'a tarefa nao existe: nada a remover'; exit 0 }
-  Fazer ('remover a tarefa {0}{1}' -f $caminho, $nome) { Unregister-ScheduledTask -TaskPath $caminho -TaskName $nome -Confirm:$false }
+  Fazer ('remover a tarefa {0}{1}' -f $caminho, $Nome) { Unregister-ScheduledTask -TaskPath $caminho -TaskName $Nome -Confirm:$false }
   exit 0
 }
 
-$script = Join-Path $Repo 'scripts\sincronizar-recados.ps1'
-if (-not (Test-Path -LiteralPath $script)) { Falhar ('{0} nao encontrado' -f $script) }
-$ps = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Origem agendador' -f $script
-$acao = if ($Simples) { New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $ps }
+$sincronizar = Join-Path $Repo 'scripts\sincronizar-recados.ps1'
+if (-not (Test-Path -LiteralPath $sincronizar)) { Falhar ('{0} nao encontrado' -f $sincronizar) }
+$ps = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Origem agendador' -f $sincronizar
+# $acaoTarefa, e nao $acao: o bloco passado a Fazer roda dentro da funcao, cujo parametro [scriptblock]$Acao encobre
+# (sem diferenca de maiusculas) a variavel do script; o Register-ScheduledTask recebia o bloco ("CimInstance[]").
+$acaoTarefa = if ($Simples) { New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $ps }
 else { New-ScheduledTaskAction -Execute 'conhost.exe' -Argument ('--headless powershell.exe ' + $ps) }
 
 $a2min = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 2)
@@ -52,9 +57,10 @@ $quem = New-ScheduledTaskPrincipal -UserId ('{0}\{1}' -f $env:USERDOMAIN, $env:U
 $regras = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
   -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden
 
-Fazer ('cadastrar {0}{1} a cada 2 min, so com {2} logado{3}' -f $caminho, $nome, $env:USERNAME, $(if ($Simples) { ' (modo simples)' } else { '' })) {
-  Register-ScheduledTask -TaskPath $caminho -TaskName $nome -Action $acao -Trigger @($a2min, $noLogon) -Principal $quem -Settings $regras `
+Info ('acao: {0} {1}' -f $acaoTarefa.Execute, $acaoTarefa.Arguments)
+Fazer ('cadastrar {0}{1} a cada 2 min, so com {2} logado{3}' -f $caminho, $Nome, $env:USERNAME, $(if ($Simples) { ' (modo simples)' } else { '' })) {
+  Register-ScheduledTask -TaskPath $caminho -TaskName $Nome -Action $acaoTarefa -Trigger @($a2min, $noLogon) -Principal $quem -Settings $regras `
     -Description 'Sincroniza C:\macuxifdv-recados com o GitHub (ADR 0035, T-0139). Remover: scripts\recados\agendar-sincronizacao.ps1 -Remover' -Force | Out-Null
-  Ok 'tarefa cadastrada; confira em 3 min: Get-ScheduledTaskInfo -TaskPath ''\Macuxi\'' -TaskName ''Sincronizar recados'''
+  Ok ('tarefa cadastrada; confira em 3 min: Get-ScheduledTaskInfo -TaskPath ''{0}'' -TaskName ''{1}''' -f $caminho, $Nome)
 }
 exit 0

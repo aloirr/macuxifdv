@@ -7,9 +7,20 @@
  *   editar pedido    um botão só ("Salvar alterações", com o destino embaixo) · Cancelar
  * Pendência (RN-CORE-36) desliga tudo o que valida; Apenas salvar grava `rascunho` e aceita pendências.
  */
-import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
+import { avisoSoOrcamento, motivoSoOrcamento, textoPrecoDe, type SituacaoCliente } from './orcamento';
 import type { NivelDePreco } from './preco-pedido';
-import { avisoSoOrcamento } from './sair-do-pedido';
+
+/** RN-VEN-38 (RD-0036): os rótulos dos botões de salvar, num mapa só (botões do Resumo, folha de saída e tela). */
+export const ROTULOS_DO_SALVAR = {
+  enviar: 'Salvar e enviar pedido',
+  apenasSalvar: 'Apenas salvar',
+  orcamento: 'Salvar como orçamento',
+  salvarOrcamento: 'Salvar orçamento',
+  transformar: 'Transformar em pedido',
+  alteracoes: 'Salvar alterações',
+  alteracoesNoAparelho: 'Salvar alterações no aparelho',
+  paraAprovacao: 'Salvar e enviar para aprovação',
+} as const;
 
 export const DESTINO_DIRETO_ERP = 'Vai direto ao ERP';
 const DESTINO_POR_NIVEL = {
@@ -43,7 +54,10 @@ export interface EntradaDosBotoes {
   pendencias: number;
   nivel: NivelDePreco | null;
   /** AAAA-MM-DD da validade do orçamento novo */
-  validade_data: string;
+  /** AAAA-MM-DD: dia do preço do orçamento (hoje, no fuso do tenant); sai como "Preço de dd/mm" (RN-VEN-18) */
+  preco_data: string;
+  /** edição de pedido: `false` = documento só no aparelho (ainda não foi ao servidor); padrão `true` */
+  editando_no_servidor?: boolean;
 }
 
 export interface BotoesDoResumo {
@@ -73,11 +87,11 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       ...comum,
       modo: 'editar_orcamento',
       principal: 'salvar_orcamento',
-      enviar: OCULTO('Salvar e enviar pedido'),
-      apenasSalvar: OCULTO('Apenas salvar'),
-      orcamento: OCULTO('Salvar como orçamento'),
-      salvarOrcamento: { visivel: true, habilitado: livre, rotulo: 'Salvar orçamento', destino: null },
-      transformar: { visivel: !soOrcamento, habilitado: livre, rotulo: 'Transformar em pedido', destino: null },
+      enviar: OCULTO(ROTULOS_DO_SALVAR.enviar),
+      apenasSalvar: OCULTO(ROTULOS_DO_SALVAR.apenasSalvar),
+      orcamento: OCULTO(ROTULOS_DO_SALVAR.orcamento),
+      salvarOrcamento: { visivel: true, habilitado: livre, rotulo: ROTULOS_DO_SALVAR.salvarOrcamento, destino: null },
+      transformar: { visivel: !soOrcamento, habilitado: livre, rotulo: ROTULOS_DO_SALVAR.transformar, destino: null },
       aviso: avisoSoOrcamento(e.cliente),
     };
   }
@@ -86,11 +100,11 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       ...comum,
       modo: 'editar_pedido',
       principal: 'enviar',
-      enviar: { visivel: true, habilitado: livre, rotulo: 'Salvar alterações', destino: livre ? destinoDoEnvio(e.nivel) : null },
-      apenasSalvar: OCULTO('Apenas salvar'),
-      orcamento: OCULTO('Salvar como orçamento'),
-      salvarOrcamento: OCULTO('Salvar orçamento'),
-      transformar: OCULTO('Transformar em pedido'),
+      enviar: { visivel: true, habilitado: livre, rotulo: rotuloDaEdicao(e), destino: livre ? destinoDoEnvio(e.nivel) : null },
+      apenasSalvar: OCULTO(ROTULOS_DO_SALVAR.apenasSalvar),
+      orcamento: OCULTO(ROTULOS_DO_SALVAR.orcamento),
+      salvarOrcamento: OCULTO(ROTULOS_DO_SALVAR.salvarOrcamento),
+      transformar: OCULTO(ROTULOS_DO_SALVAR.transformar),
       aviso: null,
     };
   }
@@ -98,21 +112,22 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
     ...comum,
     modo: soOrcamento ? 'so_orcamento' : 'novo_pedido',
     principal: soOrcamento ? 'orcamento' : 'enviar',
-    enviar: soOrcamento ? OCULTO('Salvar e enviar pedido') : { visivel: true, habilitado: livre, rotulo: 'Salvar e enviar pedido', destino: livre ? destinoDoEnvio(e.nivel) : null },
-    apenasSalvar: { visivel: true, habilitado: true, rotulo: 'Apenas salvar', destino: null },
+    enviar: soOrcamento ? OCULTO(ROTULOS_DO_SALVAR.enviar) : { visivel: true, habilitado: livre, rotulo: ROTULOS_DO_SALVAR.enviar, destino: livre ? destinoDoEnvio(e.nivel) : null },
+    apenasSalvar: { visivel: true, habilitado: true, rotulo: ROTULOS_DO_SALVAR.apenasSalvar, destino: null },
     orcamento: {
       visivel: e.pre_venda_ligada || soOrcamento,
       habilitado: livre,
-      rotulo: 'Salvar como orçamento',
-      destino: soOrcamento && livre ? `Válido até ${dataCurta(e.validade_data)}` : null,
+      rotulo: ROTULOS_DO_SALVAR.orcamento,
+      destino: soOrcamento && livre ? textoPrecoDe(e.preco_data) : null,
     },
-    salvarOrcamento: OCULTO('Salvar orçamento'),
-    transformar: OCULTO('Transformar em pedido'),
+    salvarOrcamento: OCULTO(ROTULOS_DO_SALVAR.salvarOrcamento),
+    transformar: OCULTO(ROTULOS_DO_SALVAR.transformar),
     aviso: avisoSoOrcamento(e.cliente),
   };
 }
 
-function dataCurta(aaaaMmDd: string): string {
-  const [, m, d] = aaaaMmDd.split('-');
-  return `${d}/${m}`;
+/** RN-VEN-38: o rótulo do botão único da edição de pedido (para onde as alterações vão). */
+function rotuloDaEdicao(e: EntradaDosBotoes): string {
+  if (e.editando_no_servidor === false) return ROTULOS_DO_SALVAR.alteracoesNoAparelho;
+  return e.nivel !== null ? ROTULOS_DO_SALVAR.paraAprovacao : ROTULOS_DO_SALVAR.alteracoes;
 }

@@ -4,7 +4,8 @@
  *
  * Integração entre platform-sdk (motor de sync + SQLite), Core (`produto`), Catálogo (migração v3 do aparelho, índice com
  * `aplicacao`/`referencias`/`codigos`, `buscarLocal`/`fichaLocal`, domain `expandirAplicacao`/ranking/`trechoServeEm`) e
- * Promotor (entidade `concorrente`, quando o perfil tem o módulo). Catálogo acima de `LIMIAR_PRESELECAO_FTS`: o FTS5
+ * Promotor (instalado no aparelho do perfil com o módulo). Desde a 0045 (RN-CAT-13, ADR 0034) as marcas vêm da entidade
+ * `marca_concorrente` do PRÓPRIO Catálogo, com ou sem o Promotor (T-0140 lote 03). Catálogo acima de `LIMIAR_PRESELECAO_FTS`: o FTS5
  * pré-seleciona os candidatos de verdade.
  *
  * Casos (matrizes docs/testes/T-0084.md e docs/testes/T-0085.md):
@@ -19,14 +20,14 @@
  *  AO-6 (T-0084 c3): texto longo sem separador sai no "Serve em" com ≤ 90 caracteres e "…".
  *  RO-1 (T-0085 c4, RN-CAT-09): "cb3401", "CB-3401", "cb 3401" e "C.B.3401" acham o produto pela referência, em 1º,
  *       com "Equivale a: <marca> <código>" e o trecho marcado; o vendedor SEM o Promotor vê a marca pelo retrato `marca_nome`.
- *  RO-2 (T-0085 c4/c8): com o Promotor no aparelho (entidade `concorrente`), a marca inativa tira a referência da busca e
- *       da ficha; a ativa aparece com o nome do cadastro.
+ *  RO-2 (T-0085 c4/c8; RN-CAT-13): com o cadastro de marcas do Catálogo no aparelho (`marca_concorrente`), a marca inativa
+ *       tira a referência da busca e da ficha; a ativa aparece com o nome do cadastro.
  *  FO-1 (T-0084 c8, T-0085 c8): o promotor abre a ficha offline com aplicação, referências, oferece junto e etiquetas, sem
  *       preço nem estoque.
  *  CO-1 (revisão R-20261106-042958): a C9 do aparelho (`catalogo.busca_produtos@1`, registro real de consultas) dá o mesmo 1º item,
  *       "Serve em" e "Equivale a" que a aba para "pastilha uno 2012", "filtro gol 2014" e "cb3401".
- *  CO-2: com o Promotor no aparelho a C9 não lança Error (não lê `concorrente`). CO-3 (`it.fails`): marca inativa segue no
- *       "Equivale a" da C9 pelo retrato (divergência conhecida, a resolver no SDK).
+ *  CO-2: com o Promotor no aparelho a C9 não lança Error e usa o retrato `marca_nome`. CO-3 (`it.fails`): marca inativa segue no
+ *       "Equivale a" da C9 pelo retrato até a lápide da referência chegar (o servidor simulado não a gera; ADR 0034 §6).
  * Convenção: `it` = vale hoje; `it.fails` = defeito/divergência aberta (fica vermelho quando resolver e vira `it`).
  */
 import { criarRelogio } from '@macuxi/comum/relogio';
@@ -86,8 +87,8 @@ interface OpcoesBase {
   comAplicacao?: boolean;
   /** false = nenhuma linha de produto_conteudo (o aparelho "de hoje" sem conteúdo). */
   comConteudo?: boolean;
-  /** Linhas do cadastro de concorrentes do Promotor (só no aparelho do perfil com o Promotor). */
-  concorrentes?: LinhaSync[];
+  /** Linhas do cadastro de marcas concorrentes do Catálogo (`marca_concorrente`; RN-CAT-13, com ou sem o Promotor). */
+  marcas?: LinhaSync[];
 }
 
 function baseServidor(o: OpcoesBase = {}): Record<string, LinhaSync[]> {
@@ -130,7 +131,9 @@ function baseServidor(o: OpcoesBase = {}): Record<string, LinhaSync[]> {
       linha(uid(10), { produto_id: P.gol, marca_id: MARCA.filtrobom, codigo: 'FB-0207', ordem: 1, marca_nome: 'Filtrobom' }),
     ],
     produto_relacao: [linha(uid(11), { produto_id: P.uno, relacionado_id: P.disco, tipo: 'complementar', ordem: 0, ativo: true })],
-    concorrente: o.concorrentes ?? [],
+    marca_concorrente: o.marcas ?? [],
+    // legado do Promotor (ADR 0034 §5): a API manda página vazia até a fase 2
+    concorrente: [],
     tabela_preco: [linha(TABELA, { codigo: 'VAREJO', nome: 'Varejo', ativo: true })],
     tabela_preco_item: todos.map((p) => linha(uid(12), { tabela_preco_id: TABELA, produto_id: p.id, preco_cents: 1_990, vigencia_inicio: null, vigencia_fim: null })),
     cliente_tabela_preco: [linha(uid(12), { cliente_id: CLIENTE, tabela_preco_id: TABELA })],
@@ -282,11 +285,11 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
     }
   });
 
-  describe('perfil com o Promotor no aparelho (entidade concorrente)', () => {
+  describe('perfil com o Promotor no aparelho (marcas do cadastro do Catálogo, `marca_concorrente`)', () => {
     it('RO-2 (RN-CAT-09): marca ativa aparece com o nome do cadastro; marca inativa tira a referência da busca e da ficha', async () => {
       const ap = await aparelho({
         promotor: true,
-        concorrentes: [linha(MARCA.freiomax, { nome: 'Freiomax Cadastro', ativo: true }), linha(MARCA.filtrobom, { nome: 'Filtrobom', ativo: false })],
+        marcas: [linha(MARCA.freiomax, { nome: 'Freiomax Cadastro', ativo: true }), linha(MARCA.filtrobom, { nome: 'Filtrobom', ativo: false })],
       });
       const r = await busca(ap, 'cb3401', 'vendedor');
       expect(r.items[0]!.equivale_a).toMatchObject({ marca_nome: 'Freiomax Cadastro', codigo: 'CB 3401' });
@@ -297,7 +300,7 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
     });
 
     it('FO-1 (T-0084 c8, T-0085 c8, RN-CAT-05): o promotor abre a ficha offline com aplicação, referência, oferece junto e etiquetas, sem preço nem estoque', async () => {
-      const ap = await aparelho({ promotor: true, concorrentes: [linha(MARCA.freiomax, { nome: 'Freiomax', ativo: true })] });
+      const ap = await aparelho({ promotor: true, marcas: [linha(MARCA.freiomax, { nome: 'Freiomax', ativo: true })] });
       const ficha = await fichaLocal(ap.leitor, { perfil: 'promotor', parametros: {}, agora: relogio.iso(), clienteId: CLIENTE, produtoId: P.uno });
       expect(ficha).not.toBeNull();
       expect(ficha!.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
@@ -332,20 +335,20 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
     });
 
     it('CO-2 (RN-CAT-09): com o Promotor no aparelho, a C9 NÃO lança Error (não lê `concorrente`) e acha pelo texto e pela referência', async () => {
-      const ap = await aparelho({ promotor: true, concorrentes: [linha(MARCA.freiomax, { nome: 'Freiomax Cadastro', ativo: true })] });
+      const ap = await aparelho({ promotor: true, marcas: [linha(MARCA.freiomax, { nome: 'Freiomax Cadastro', ativo: true })] });
       const uno = await c9(ap, 'pastilha uno 2012');
       expect(uno.itens.find((i) => i.produto_id === P.uno)?.serve_em).toMatchObject({ inclui_ano: 2012 });
       const ref = await c9(ap, 'cb3401');
       expect(ref.itens[0]?.produto_id).toBe(P.uno);
-      // a C9 não lê o cadastro do Promotor: o nome vem do retrato `marca_nome` da referência (a aba mostra o do cadastro)
+      // a C9 não lê o cadastro de marcas: o nome vem do retrato `marca_nome` da referência (a aba mostra o do cadastro)
       expect(ref.itens[0]!.equivale_a).toMatchObject({ marca_nome: 'Freiomax', codigo: 'CB 3401' });
     });
 
-    // Divergência conhecida (revisão R-20261106-042958): a C9 não lê `concorrente`, então a marca INATIVA no cadastro do Promotor
-    // segue no "Equivale a" pelo retrato; a aba tira (RO-2). O engenheiro-software indicou que o SDK vai resolver. Quando resolver,
-    // este caso fica vermelho e vira `it`.
-    it.fails('CO-3 (RN-CAT-09) DIVERGÊNCIA: marca inativa no cadastro do Promotor some do "Equivale a" da C9 como some da aba', async () => {
-      const ap = await aparelho({ promotor: true, concorrentes: [linha(MARCA.filtrobom, { nome: 'Filtrobom', ativo: false })] });
+    // Divergência conhecida (revisão R-20261106-042958): a C9 não lê o cadastro de marcas, então a marca INATIVA segue no
+    // "Equivale a" pelo retrato até a lápide da referência chegar (em produção o pull a manda junto, ADR 0034 §6; o servidor
+    // simulado não); a aba tira (RO-2). Pergunta ao modulo-catalogo em R-20261109-105246-testes. Quando resolver, vira `it`.
+    it.fails('CO-3 (RN-CAT-09) DIVERGÊNCIA: marca inativa no cadastro do Catálogo some do "Equivale a" da C9 como some da aba', async () => {
+      const ap = await aparelho({ promotor: true, marcas: [linha(MARCA.filtrobom, { nome: 'Filtrobom', ativo: false })] });
       const aba = await busca(ap, 'fb0207');
       expect(aba.items.find((i) => i.id === P.gol)?.equivale_a ?? null).toBeNull();
       const { itens } = await c9(ap, 'fb0207');

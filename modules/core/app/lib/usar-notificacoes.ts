@@ -7,7 +7,6 @@ import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { NotificacaoSync } from '../../contracts';
-import { uuid } from './dispositivo';
 import { comandoDeLeitura, contarNaoLidas, montarCaixa, type NotificacaoLocal } from './notificacoes';
 
 export function useNotificacoes(): { caixa: NotificacaoLocal[]; naoLidas: number; marcarLida: (id: string) => Promise<void>; carregado: boolean } {
@@ -37,7 +36,7 @@ export function useNotificacoes(): { caixa: NotificacaoLocal[]; naoLidas: number
       if (!motor) return;
       const alvo = caixa.find((n) => n.id === id);
       if (!alvo || alvo.lida_em) return;
-      const cmd = comandoDeLeitura(id, new Date(), uuid);
+      const cmd = comandoDeLeitura(id, new Date(), motor.ambiente.novoId);
       await motor.enfileirar({ id: cmd.id, entidade: 'notificacao_leitura', payload: cmd, rotulo: 'Leitura de aviso', detalhe: alvo.titulo });
     },
     [motor, caixa],

@@ -1,0 +1,1701 @@
+diff --git a/.claude/hooks/guarda-juncao.test.mjs b/.claude/hooks/guarda-juncao.test.mjs
+index ab5c79c6..2a52fbdb 100644
+--- a/.claude/hooks/guarda-juncao.test.mjs
++++ b/.claude/hooks/guarda-juncao.test.mjs
+@@ -5,6 +5,9 @@
+ // sempre. Os casos novos são o caminho de verdade no clone (volta a ser .coord/recados/...), o resto do clone
+ // (bloqueado), o git que grava no clone (bloqueado), o git clean -x (bloqueado) e a foto do PostToolUse (git status
+ // do clone com os caminhos de .coord/). Num Linux (CI), a "junção" vira link simbólico de pasta: mesmo efeito.
++// T-0143 (ADR 0039): com os recados direto no GitHub (padrão com a marca), nada se grava pela junção; as junções só
++// voltam no plano de volta, com MACUXI_RECADOS=local. Por isso este arquivo roda com MACUXI_RECADOS=local, e o
++// último teste confere o bloqueio no modo GitHub.
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, symlinkSync, readFileSync, appendFileSync } from 'node:fs';
+@@ -14,7 +17,8 @@ import { fileURLToPath } from 'node:url';
+ import { execFileSync, spawnSync } from 'node:child_process';
+ import { juncoesDeRecados, relativoPorJuncao, globParaRegex } from '../../scripts/coord-lib.mjs';
+ import { analisarComando, lerStatus, statusDoClone, doCloneParaRepo, relativoDaRaiz } from './guarda-bash-lib.mjs';
+-import { planoDeSincronizacao } from './sincronizar-recados.mjs';
++
++process.env.MACUXI_RECADOS = 'local'; // plano de volta da ADR 0039: junções e pastas no disco
+ 
+ const AQUI = dirname(fileURLToPath(import.meta.url));
+ const RAIZ_REAL = join(AQUI, '..', '..');
+@@ -84,12 +88,12 @@ function cenario() {
+   return { pai, repo, clone };
+ }
+ 
+-function rodar(repo, hook, entrada) {
++function rodar(repo, hook, entrada, env = {}) {
+   const base = { ...process.env };
+   delete base.MACUXI_AGENTE;
+   delete base.CLAUDE_CODE_REMOTE;
+   const r = spawnSync(process.execPath, [join(repo, '.claude', 'hooks', hook)], {
+-    cwd: repo, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '' },
++    cwd: repo, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '', ...env },
+   });
+   return { codigo: r.status, erro: r.stderr, saida: r.stdout };
+ }
+@@ -234,17 +238,24 @@ test('PostToolUse: recado alterado no clone por comando opaco aparece no aviso c
+   assert.equal(relativoDaRaiz(barras(join(repo, '.coord', 'recados')), barras(repo)), '.coord/recados');
+ });
+ 
+-// ───────────────────────── hook de sessão (SessionStart/Stop) ─────────────────────────
+-
+-test('sincronizar-recados (hook): só roda no Windows, com junção e com o .ps1; desliga com MACUXI_RECADOS_SYNC=off', () => {
+-  const juncoes = { mapas: [{ rel: '.coord/recados', real: 'C:/macuxifdv-recados/recados' }], clone: 'C:/macuxifdv-recados' };
+-  const base = { plataforma: 'win32', env: {}, juncoes, scriptExiste: true };
+-  assert.deepEqual(planoDeSincronizacao({ ...base, esperar: true }), { rodar: true, esperar: true, clone: 'C:/macuxifdv-recados' });
+-  assert.equal(planoDeSincronizacao({ ...base, env: { MACUXI_RECADOS_SYNC: 'OFF' } }).rodar, false);
+-  assert.equal(planoDeSincronizacao({ ...base, plataforma: 'linux' }).rodar, false);
+-  assert.equal(planoDeSincronizacao({ ...base, juncoes: { mapas: [], clone: null } }).rodar, false);
+-  assert.equal(planoDeSincronizacao({ ...base, scriptExiste: false }).rodar, false);
+-  // o hook de verdade, sem junção: sai 0 na hora, sem saída (não bloqueia nem polui o contexto)
+-  const r = spawnSync(process.execPath, [join(AQUI, 'sincronizar-recados.mjs'), '--esperar'], { input: '{}', encoding: 'utf8', timeout: 20_000 });
+-  assert.equal(r.status, 0);
++// ───────────────────────── T-0143: recados direto no GitHub ─────────────────────────
++
++test('T-0143: no modo GitHub (marca, sem MACUXI_RECADOS=local), escrita pela junção ou pelo clone é bloqueada', () => {
++  const { repo, clone } = cenario();
++  const github = { MACUXI_RECADOS: '' };
++  const conteudo = '---\nid: R-20261109-130000-modulo-core\nde: modulo-core\n---\n# x\n';
++  for (const caminho of [
++    join(repo, '.coord', 'recados', 'testes', 'R-20261109-130000-modulo-core.md'),
++    join(clone, 'recados', 'testes', 'R-20261109-130000-modulo-core.md'),
++    join(repo, '.coord', 'lidos', 'modulo-core.txt'),
++  ]) {
++    const r = rodar(repo, 'guarda-donos.mjs', {
++      session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Write', agent_type: 'modulo-core', cwd: repo,
++      tool_input: { file_path: caminho, content: conteudo },
++    }, github);
++    assert.equal(r.codigo, 2, `${caminho}: ${r.erro}`);
++    assert.match(r.erro, /direto no GitHub/);
++  }
++  // no modo local (volta), a mesma escrita pela junção passa
++  assert.equal(escrita(repo, join(repo, '.coord', 'recados', 'testes', 'R-20261109-130000-modulo-core.md'), 'modulo-core', conteudo).codigo, 0);
+ });
+diff --git a/.claude/hooks/guarda-merge-lib.mjs b/.claude/hooks/guarda-merge-lib.mjs
+index b5e5215a..fcae4b39 100644
+--- a/.claude/hooks/guarda-merge-lib.mjs
++++ b/.claude/hooks/guarda-merge-lib.mjs
+@@ -27,7 +27,10 @@ import { execFileSync } from 'node:child_process';
+ import {
+   tokenizar, comandosSimples, alvosDoComando, SO_LEITURA, COORD_SO_LEITURA, PACOTES_SO_LEITURA, DESCARTE,
+ } from './guarda-bash-lib.mjs';
+-import { AGENTES, PESSOAS, CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado } from '../../scripts/coord-lib.mjs';
++import {
++  AGENTES, PESSOAS, CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado, modoDosRecados, conexaoDeRecados,
++  recadosDaPastaNoGitHub,
++} from '../../scripts/coord-lib.mjs';
+ 
+ export const REPO_OFICIAL = 'aloirr/macuxifdv';
+ export const AGENTE_DO_MERGE = 'gerente-projetos';
+@@ -551,8 +554,17 @@ export function consultarPrGh(pr, { env = process.env, timeout = 20000, platafor
+   } catch { return { ok: false, erro: 'resposta do gh não é JSON' }; }
+ }
+ 
+-/** Recados da caixa do gerente (nome + texto); pasta ilegível = nenhum. */
+-export function lerRecadosDoGerente(raiz) {
++/**
++ * Recados da caixa do gerente (nome + texto); pasta ilegível = nenhum. Com os recados no GitHub (T-0143, ADR 0039),
++ * a lista vem direto do main do GitHub, nunca do cache local (que um agente poderia adulterar), e só os recados do
++ * Alexandre (R-...-alexandre.md) são baixados. Sem GitHub: nenhum (sem autorização, o merge não passa).
++ */
++export function lerRecadosDoGerente(raiz, { env = process.env, conexao = () => conexaoDeRecados({ env }) } = {}) {
++  if (modoDosRecados({ raiz, env }) === 'github') {
++    try {
++      return recadosDaPastaNoGitHub({ ...conexao(), pasta: AGENTE_DO_MERGE, filtro: (nome) => remetenteDoRecado(nome) === 'alexandre' });
++    } catch { return []; }
++  }
+   const pasta = join(raiz, ...PASTA_AUTORIZACOES.split('/'));
+   let nomes = [];
+   try { nomes = readdirSync(pasta).filter((n) => /\.md$/i.test(n)); } catch { return []; }
+diff --git a/.claude/hooks/sincronizar-recados.mjs b/.claude/hooks/sincronizar-recados.mjs
+deleted file mode 100644
+index 888191e7..00000000
+--- a/.claude/hooks/sincronizar-recados.mjs
++++ /dev/null
+@@ -1,56 +0,0 @@
+-#!/usr/bin/env node
+-// Sincronização dos recados no início e no fim da sessão (ADR 0035, T-0139) — hooks SessionStart e Stop.
+-// Uso: node .claude/hooks/sincronizar-recados.mjs [--esperar]
+-//  - Roda scripts/sincronizar-recados.ps1 (pull --rebase, commit e push do clone C:\macuxifdv-recados) só quando
+-//    há junção de recados (depois do corte), no Windows. Antes do corte, na nuvem e no CI: não faz nada.
+-//  - --esperar (SessionStart): espera até 40 s, para a caixa já abrir atualizada. Sem ele (Stop): dispara em
+-//    segundo plano e sai na hora (o .ps1 tem trava de execução única e timeout próprio).
+-//  - Nunca bloqueia a sessão: sai sempre com 0. Não lê nem grava segredo (a credencial é a do Git Credential
+-//    Manager do Windows). Desligar: MACUXI_RECADOS_SYNC=off.
+-import { existsSync } from 'node:fs';
+-import { join } from 'node:path';
+-import { spawn, spawnSync } from 'node:child_process';
+-import { RAIZ, juncoesDeRecados } from '../../scripts/coord-lib.mjs';
+-
+-/** Decide se e como sincronizar (função pura, exportada para os testes). */
+-export function planoDeSincronizacao({ plataforma, env, juncoes, scriptExiste, esperar }) {
+-  if (String(env.MACUXI_RECADOS_SYNC || '').toLowerCase() === 'off') return { rodar: false, motivo: 'desligado (MACUXI_RECADOS_SYNC=off)' };
+-  if (plataforma !== 'win32') return { rodar: false, motivo: 'fora do Windows' };
+-  if (!juncoes?.clone || !juncoes.mapas?.length) return { rodar: false, motivo: 'sem junção de recados (antes do corte)' };
+-  if (!scriptExiste) return { rodar: false, motivo: 'scripts/sincronizar-recados.ps1 ausente' };
+-  return { rodar: true, esperar: Boolean(esperar), clone: juncoes.clone };
+-}
+-
+-if (import.meta.main) {
+-  // O hook recebe o JSON da sessão no stdin; não precisamos dele, mas não deixamos o pipe pendurado.
+-  process.stdin.resume();
+-  process.stdin.on('error', () => {});
+-  const script = join(RAIZ, 'scripts', 'sincronizar-recados.ps1');
+-  let plano;
+-  try {
+-    plano = planoDeSincronizacao({
+-      plataforma: process.platform, env: process.env, juncoes: juncoesDeRecados(RAIZ),
+-      scriptExiste: existsSync(script), esperar: process.argv.includes('--esperar'),
+-    });
+-  } catch {
+-    process.exit(0);
+-  }
+-  if (!plano.rodar) process.exit(0);
+-  const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Clone', plano.clone.replace(/\//g, '\\'), '-Origem', 'sessao'];
+-  try {
+-    if (plano.esperar) {
+-      const r = spawnSync('powershell.exe', args, { stdio: 'ignore', windowsHide: true, timeout: 40_000 });
+-      if (r.status !== 0) {
+-        // SessionStart: a saída vai para o contexto da sessão; uma linha curta, sem dado sensível.
+-        process.stdout.write('[recados] a sincronização do início da sessão não terminou bem; a caixa pode estar desatualizada (log em %LOCALAPPDATA%\\Macuxi\\recados-sync.log).\n');
+-      }
+-    } else {
+-      const filho = spawn('powershell.exe', args, { stdio: 'ignore', windowsHide: true, detached: true });
+-      filho.on('error', () => {});
+-      filho.unref();
+-    }
+-  } catch {
+-    // powershell ausente ou falha ao iniciar: a sessão segue; o Agendador sincroniza a cada 2 min.
+-  }
+-  process.exit(0);
+-}
+diff --git a/.claude/settings.json b/.claude/settings.json
+index 0b7df736..bca3e9e7 100644
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -48,33 +48,10 @@
+       "Bash(gh pr merge*--auto*)"
+     ],
+     "additionalDirectories": [
+-      "C:/Users/domon/dev/forca-vendas",
+-      "C:/macuxifdv-recados"
++      "C:/Users/domon/dev/forca-vendas"
+     ]
+   },
+   "hooks": {
+-    "SessionStart": [
+-      {
+-        "hooks": [
+-          {
+-            "type": "command",
+-            "command": "node .claude/hooks/sincronizar-recados.mjs --esperar",
+-            "timeout": 45
+-          }
+-        ]
+-      }
+-    ],
+-    "Stop": [
+-      {
+-        "hooks": [
+-          {
+-            "type": "command",
+-            "command": "node .claude/hooks/sincronizar-recados.mjs",
+-            "timeout": 15
+-          }
+-        ]
+-      }
+-    ],
+     "PreToolUse": [
+       {
+         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 1f6522eb..02a6cbc9 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -81,9 +81,9 @@ jobs:
+           DEPOIS: ${{ github.sha }}
+         run: node scripts/ci/escopo.mjs
+ 
+-      - name: testes do coord (verificar)
++      - name: testes do coord (verificar e recados no GitHub)
+         if: ${{ !cancelled() }}
+-        run: node --test scripts/coord-verificar.test.mjs
++        run: node --test scripts/coord-verificar.test.mjs scripts/coord-recados.test.mjs
+ 
+       # Testes de TODOS os guardiões (.claude/hooks/*.test.mjs). O glob é expandido pelo bash do runner.
+       - name: testes dos guardiões (.claude/hooks)
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index 722498fd..95aa0275 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -5,7 +5,8 @@ import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSyn
+ import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import { execFileSync } from 'node:child_process';
+-import { tmpdir } from 'node:os';
++import { tmpdir, homedir } from 'node:os';
++import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
+ import { createHash } from 'node:crypto';
+ 
+ export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+@@ -181,7 +182,10 @@ export function donoDe(rel, regras) {
+  * Decide se o agente pode alterar o arquivo.
+  * @returns {{ok: boolean, motivo?: string, dono?: string}}
+  */
+-export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo }) {
++export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo, env = process.env }) {
++  // T-0143 (ADR 0039): com os recados no GitHub, nada se grava em .coord/recados nem em .coord/lidos no disco (o
++  // arquivo ficaria fora do repositório de recados e se perderia). enviar e lido vão direto ao GitHub pelo coord.mjs.
++  if (ehDePastaDeRecados(rel) && modoDosRecados({ raiz, env }) === 'github') return { ok: false, motivo: MOTIVO_RECADOS_NO_GITHUB };
+   // Anexo de recado (.coord/recados/anexos/**) não é recado: segue a regra comum, com o dono do
+   // donos.json (alexandre). Só ele cria e altera; para os outros vale "arquivo de outro dono".
+   const anexo = ehAnexoDeRecado(rel);
+@@ -195,12 +199,7 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
+     if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
+     if (ferramenta !== 'Write' || existsSync(join(raiz, rel)))
+       return { ok: false, motivo: 'recados são imutáveis: responda com um recado novo (node scripts/coord.mjs enviar --responde-a <id>)' };
+-    if (remetenteDoRecado(arquivo) !== agente)
+-      return { ok: false, motivo: `o nome do recado precisa terminar com o remetente (R-...-${agente}.md). Use node scripts/coord.mjs enviar` };
+-    const de = remetenteDoConteudo(conteudo);
+-    if (de !== null && de !== agente)
+-      return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
+-    return { ok: true };
++    return regraDoRecadoNovo({ agente, destino, arquivo, conteudo });
+   }
+   if (!anexo && rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
+ 
+@@ -228,6 +227,21 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
+   return { ok: false, dono, motivo: `"${rel}" pertence a ${dono}. ${dica}` };
+ }
+ 
++/**
++ * Regras do recado novo (guardião v5, T-0044), sem olhar o disco: destino válido, nome terminando com o remetente
++ * (R-...-<agente>.md) e, com o conteúdo, "de: <agente>" no cabeçalho. Usada pelo podeAlterar e pelo envio ao GitHub.
++ * @returns {{ok: boolean, motivo?: string}}
++ */
++export function regraDoRecadoNovo({ agente, destino, arquivo, conteudo }) {
++  if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
++  if (remetenteDoRecado(arquivo) !== agente)
++    return { ok: false, motivo: `o nome do recado precisa terminar com o remetente (R-...-${agente}.md). Use node scripts/coord.mjs enviar` };
++  const de = remetenteDoConteudo(conteudo);
++  if (de !== null && de !== agente)
++    return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
++  return { ok: true };
++}
++
+ /**
+  * Anexo de recado (imagem, HTML... citados nos recados do Alexandre): .coord/recados/anexos/**.
+  * Não é recado (não tem destino nem remetente): é arquivo comum, com o dono vindo do donos.json.
+@@ -693,3 +707,490 @@ export function agenteDaSessao({ argumento, entrada, env = process.env, raiz = R
+     branch: () => branchAtual(raiz), commitsDoBranch: () => commitsDoBranch(raiz),
+   });
+ }
++
++// ───────────────────── recados direto no GitHub (T-0143, ADR 0039) ─────────────────────
++// enviar e lido gravam direto no aloirr/macuxifdv-recados pela API do GitHub; caixa, pendencias, ler e fio leem o
++// main do GitHub na hora. Sem clone, junção, Agendador nem sincronização. Sem dependências: o HTTP roda num processo
++// filho do próprio Node (fetch), chamado de forma síncrona, para o coord.mjs e os guardiões continuarem síncronos.
++// - Escrita: um commit por envio, pela mutação GraphQL createCommitOnBranch com expectedHeadOid (concorrência
++//   otimista). Se outro agente gravou antes, o GitHub recusa; o coord relê e tenta de novo. O commit é atômico (todos
++//   os destinos ou nenhum) e nunca sobrescreve: o id é escolhido contra a árvore daquele mesmo commit.
++// - Leitura: índice local (cache fora do repositório) por commit. A cada leitura, compara o commit do cache com o main
++//   (REST compare) e baixa só os arquivos novos (GraphQL, 100 por consulta). Os textos do cache são conferidos pelo
++//   hash do git; a lista que autoriza merge (guarda-merge) vem sempre direto do GitHub.
++// - Token só do ambiente: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN ou `gh auth token`. Nunca vai para arquivo,
++//   argumento de processo ou log (vai ao processo filho pelo stdin).
++
++export const REPO_RECADOS = 'aloirr/macuxifdv-recados';
++export const BRANCH_RECADOS = 'main';
++export const API_GITHUB = 'https://api.github.com';
++export const MOTIVO_RECADOS_NO_GITHUB = 'os recados e os lidos ficam direto no GitHub (aloirr/macuxifdv-recados, ADR 0039): use node scripts/coord.mjs enviar ou lido; nada se grava em .coord/recados nem em .coord/lidos no disco';
++
++/**
++ * Onde estão os recados: 'github' (padrão quando o .gitignore tem a marca da ADR 0035) ou 'local' (pastas
++ * .coord/recados e .coord/lidos no disco: antes do corte, testes e plano de volta). MACUXI_RECADOS=local|github força.
++ */
++export function modoDosRecados({ raiz = RAIZ, env = process.env } = {}) {
++  const forcado = String(env.MACUXI_RECADOS || '').trim().toLowerCase();
++  if (forcado === 'local' || forcado === 'github') return forcado;
++  let gitignore = '';
++  try { gitignore = readFileSync(join(raiz, '.gitignore'), 'utf8'); } catch { /* sem .gitignore: local */ }
++  return recadosForaDoRepo(gitignore) ? 'github' : 'local';
++}
++
++export class ErroRecados extends Error {
++  /** @param {string} mensagem @param {{rede?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura) */
++  constructor(mensagem, { rede = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; }
++}
++
++/** Hash do git de um blob (sha1 de "blob <bytes>\0<conteúdo>"): confere o cache e reconhece o próprio envio. */
++export function shaDoBlob(conteudo) {
++  const b = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(String(conteudo), 'utf8');
++  return createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
++}
++
++/** Arquivos que o coord lê no repositório de recados: recados/<destino>/<id>.md (sem anexos) e lidos/<agente>.txt. */
++export const ehArquivoDoIndice = (p) => /^recados\/(?!anexos\/)[^/]+\/[^/]+\.md$/i.test(p) || /^lidos\/[^/]+\.txt$/i.test(p);
++
++const SEM_TOKEN = 'sem token do GitHub: no PC, entre no gh (gh auth login); na nuvem e no CI, defina MACUXI_RECADOS_TOKEN (token fine-grained só com Contents: read and write no aloirr/macuxifdv-recados)';
++
++/** Token do ambiente, nesta ordem: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN, `gh auth token`. Nunca é impresso. */
++export function tokenDoAmbiente({ env = process.env, gh = ghAuthToken } = {}) {
++  for (const k of ['MACUXI_RECADOS_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
++    const v = String(env[k] || '').trim();
++    if (v) return { token: v, origem: k };
++  }
++  const t = String(gh() || '').trim();
++  return t ? { token: t, origem: 'gh auth token' } : null;
++}
++function ghAuthToken() {
++  try {
++    return execFileSync('gh', ['auth', 'token', '--hostname', 'github.com'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, windowsHide: true });
++  } catch { return ''; }
++}
++
++// HTTP síncrono (fetch em paralelo, fora da thread principal). O núcleo recebe {token, reqs} e devolve
++// [{status, texto} | {rede}]. O erro de rede traz só o tipo e o código, nunca cabeçalho nem token.
++const NUCLEO_HTTP = `
++async function executar({ token, reqs, concorrencia, timeoutMs }) {
++  const res = new Array(reqs.length);
++  let prox = 0;
++  async function uma(k) {
++    const r = reqs[k];
++    const h = { 'user-agent': 'macuxi-coord', accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' };
++    if (token) h.authorization = 'bearer ' + token;
++    if (r.corpo !== undefined) h['content-type'] = 'application/json';
++    try {
++      const resp = await fetch(r.url, { method: r.metodo || 'GET', headers: h, body: r.corpo === undefined ? undefined : JSON.stringify(r.corpo), signal: AbortSignal.timeout(timeoutMs) });
++      res[k] = { status: resp.status, texto: await resp.text() };
++    } catch (e) {
++      const c = e && e.cause;
++      res[k] = { rede: [e && e.name, c && (c.code || c.message)].filter(Boolean).join(': ') || 'falha de rede' };
++    }
++  }
++  await Promise.all(Array.from({ length: Math.max(1, Math.min(concorrencia, reqs.length)) }, async () => { while (prox < reqs.length) await uma(prox++); }));
++  return res;
++}
++`;
++// Worker (padrão): sobe em milissegundos e reaproveita a conexão TLS entre as chamadas do mesmo comando.
++const WORKER_HTTP = `${NUCLEO_HTTP}
++const { workerData, parentPort } = require('node:worker_threads');
++const { sinal, porta } = workerData;
++parentPort.on('message', async (pedido) => {
++  let res;
++  try { res = await executar(pedido); } catch (e) { res = pedido.reqs.map(() => ({ rede: 'falha no fetch' })); }
++  porta.postMessage(res);
++  Atomics.store(sinal, 0, 1);
++  Atomics.notify(sinal, 0);
++});
++`;
++// Processo filho (com proxy no ambiente, como na nuvem): o fetch só usa HTTPS_PROXY com NODE_USE_ENV_PROXY=1 na partida.
++const FILHO_HTTP = `${NUCLEO_HTTP}
++import { readFileSync } from 'node:fs';
++process.stdout.write(JSON.stringify(await executar(JSON.parse(readFileSync(0, 'utf8')))));
++`;
++
++const temProxy = (env) => ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => String(env[k] || '').trim());
++
++/**
++ * HTTP síncrono: (reqs: {url, metodo?, corpo?}[]) => ({status, texto} | {rede})[]. O token vai pela memória (worker)
++ * ou pelo stdin (processo filho), nunca por argumento nem arquivo.
++ */
++export function httpSincrono({ token, timeoutMs = 30_000, concorrencia = 8, env = process.env } = {}) {
++  const prazo = (n) => timeoutMs * (Math.ceil(n / concorrencia) + 1);
++  const falha = (reqs, motivo) => reqs.map(() => ({ rede: motivo }));
++  if (temProxy(env)) {
++    return (reqs) => {
++      if (!reqs.length) return [];
++      try {
++        const out = execFileSync(process.execPath, ['--input-type=module', '-e', FILHO_HTTP], {
++          input: JSON.stringify({ token, reqs, concorrencia, timeoutMs }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
++          maxBuffer: 512 * 1024 * 1024, timeout: prazo(reqs.length), windowsHide: true, env: { ...env, NODE_USE_ENV_PROXY: '1' },
++        });
++        return JSON.parse(out);
++      } catch (e) {
++        return falha(reqs, e?.code === 'ETIMEDOUT' ? 'tempo esgotado' : 'falha ao chamar o GitHub');
++      }
++    };
++  }
++  let w = null;
++  let sinal;
++  let porta;
++  return (reqs) => {
++    if (!reqs.length) return [];
++    if (!w) {
++      sinal = new Int32Array(new SharedArrayBuffer(4));
++      const canal = new MessageChannel();
++      porta = canal.port1;
++      w = new Worker(WORKER_HTTP, { eval: true, workerData: { sinal, porta: canal.port2 }, transferList: [canal.port2] });
++      w.unref();
++    }
++    Atomics.store(sinal, 0, 0);
++    w.postMessage({ token, reqs, concorrencia, timeoutMs });
++    if (Atomics.wait(sinal, 0, 0, prazo(reqs.length)) === 'timed-out') {
++      w.terminate();
++      w = null;
++      return falha(reqs, 'tempo esgotado');
++    }
++    return receiveMessageOnPort(porta)?.message || falha(reqs, 'falha ao chamar o GitHub');
++  };
++}
++
++const Q_CABECA = `query Cabeca($dono: String!, $nome: String!, $ref: String!) {
++  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { oid } } } }`;
++const Q_LISTAGEM = `query Listagem($dono: String!, $nome: String!, $ref: String!) {
++  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
++    recados: file(path: "recados") { object { ... on Tree { entries { name type oid object { ... on Tree { entries { name type oid } } } } } } }
++    lidos: file(path: "lidos") { object { ... on Tree { entries { name type oid } } } }
++  } } } } }`;
++const Q_ARQUIVO = `query Arquivo($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
++  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
++    arquivo: file(path: $caminho) { oid object { ... on Blob { text } } }
++  } } } } }`;
++const Q_PASTA = `query Pasta($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
++  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
++    pasta: file(path: $caminho) { object { ... on Tree { entries { name type oid } } } }
++  } } } } }`;
++const M_COMMIT = `mutation CriarCommit($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }`;
++const LOTE_DE_BLOBS = 100;
++
++/**
++ * Cliente da API do GitHub para o repositório de recados (síncrono). `http` é injetável (testes).
++ * @param {{http: (reqs: any[]) => any[], repo?: string, api?: string, branch?: string, origem?: string}} p
++ */
++export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GITHUB, branch = BRANCH_RECADOS, origem = 'token' }) {
++  const [dono, nome] = repo.split('/');
++  const ref = `refs/heads/${branch}`;
++  const base = { dono, nome, ref };
++
++  /** data do GraphQL; NOT_FOUND de arquivo (file(path:) inexistente) não é erro: o campo vem null. */
++  function dados(r) {
++    if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
++    let j = null;
++    try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
++    if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
++    if (r.status === 403 || r.status === 429) throw new ErroRecados(`o GitHub recusou o pedido (HTTP ${r.status}${j?.message ? `: ${j.message}` : ''})`, { rede: true });
++    if (!j) throw new ErroRecados(`resposta inválida do GitHub (HTTP ${r.status})`, { rede: r.status >= 500 });
++    const erros = (j.errors || []).filter((e) => !(e?.type === 'NOT_FOUND' && Array.isArray(e.path) && e.path.length > 3));
++    if (erros.length) {
++      if (erros.some((e) => e?.type === 'NOT_FOUND')) throw new ErroRecados(`o token (${origem}) não enxerga ${repo}: ${erros.map((e) => e.message).join('; ')}`);
++      throw new ErroRecados(`GitHub: ${erros.map((e) => e?.message).join('; ')}`);
++    }
++    if (r.status >= 400 || !j.data) throw new ErroRecados(`GitHub: HTTP ${r.status}${j.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 });
++    return j.data;
++  }
++  const gql = (consultas) => http(consultas.map((corpo) => ({ url: `${api}/graphql`, metodo: 'POST', corpo }))).map(dados);
++  const alvo = (d) => {
++    const t = d?.repository?.ref?.target;
++    if (!t?.oid) throw new ErroRecados(`o branch ${branch} do ${repo} não foi encontrado`);
++    return t;
++  };
++
++  return {
++    repo,
++    /** oid do commit no topo do main. */
++    cabeca() { return alvo(gql([{ query: Q_CABECA, variables: base }])[0]).oid; },
++
++    /** {oid, arquivos: {caminho: oid do blob}} do main, numa leitura só (consistente com o commit). */
++    listar() {
++      const t = alvo(gql([{ query: Q_LISTAGEM, variables: base }])[0]);
++      const arquivos = {};
++      for (const d of t.recados?.object?.entries || []) {
++        if (d.type !== 'tree') continue;
++        for (const f of d.object?.entries || []) {
++          const caminho = `recados/${d.name}/${f.name}`;
++          if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
++        }
++      }
++      for (const f of t.lidos?.object?.entries || []) {
++        const caminho = `lidos/${f.name}`;
++        if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
++      }
++      return { oid: t.oid, arquivos };
++    },
++
++    /** Um arquivo no topo do main: {oid do commit, existe, blob, texto}. */
++    arquivo(caminho) {
++      const t = alvo(gql([{ query: Q_ARQUIVO, variables: { ...base, caminho } }])[0]);
++      const a = t.arquivo;
++      return { oid: t.oid, existe: Boolean(a), blob: a?.oid || null, texto: a?.object?.text ?? (a ? '' : null) };
++    },
++
++    /** Entradas de uma pasta no topo do main, direto do GitHub: {oid, entradas: [{name, type, oid}]}. */
++    pasta(caminho) {
++      const t = alvo(gql([{ query: Q_PASTA, variables: { ...base, caminho } }])[0]);
++      return { oid: t.oid, entradas: t.pasta?.object?.entries || [] };
++    },
++
++    /** Textos dos blobs ({oid: texto}), 100 por consulta, consultas em paralelo. Binário fica de fora. */
++    textos(oids) {
++      const lista = [...new Set(oids)];
++      const consultas = [];
++      for (let i = 0; i < lista.length; i += LOTE_DE_BLOBS) {
++        const lote = lista.slice(i, i + LOTE_DE_BLOBS);
++        const vars = lote.map((_, k) => `$o${k}: GitObjectID!`).join(', ');
++        const campos = lote.map((_, k) => `b${k}: object(oid: $o${k}) { ... on Blob { text isBinary } }`).join(' ');
++        consultas.push({
++          query: `query Blobs($dono: String!, $nome: String!, ${vars}) { repository(owner: $dono, name: $nome) { ${campos} } }`,
++          variables: { dono, nome, ...Object.fromEntries(lote.map((o, k) => [`o${k}`, o])) },
++          lote,
++        });
++      }
++      const res = {};
++      const respostas = gql(consultas.map(({ query, variables }) => ({ query, variables })));
++      respostas.forEach((d, i) => consultas[i].lote.forEach((oid, k) => {
++        const b = d?.repository?.[`b${k}`];
++        if (b && !b.isBinary && typeof b.text === 'string') res[oid] = b.text;
++      }));
++      return res;
++    },
++
++    /**
++     * Mudanças desde `de` até o main (REST compare): {oid, mudancas: [{status, filename, previous_filename, sha}]}.
++     * null quando não dá para usar o delta (commit desconhecido, histórico reescrito, mais de 250 commits ou 300 arquivos).
++     */
++    comparar(de) {
++      const [r] = http([{ url: `${api}/repos/${repo}/compare/${de}...${branch}` }]);
++      if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
++      if (r.status === 404 || r.status === 422) return null;
++      let j = null;
++      try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
++      if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
++      if (r.status >= 400 || !j) throw new ErroRecados(`GitHub: HTTP ${r.status}${j?.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 || r.status === 403 || r.status === 429 });
++      if (j.status === 'identical') return { oid: de, mudancas: [] };
++      const commits = j.commits || [];
++      const arquivos = j.files || [];
++      if (j.status !== 'ahead' || commits.length !== j.ahead_by || arquivos.length >= 300) return null;
++      return { oid: commits[commits.length - 1].sha, mudancas: arquivos };
++    },
++
++    /** Um commit no main com os arquivos (atômico), só se o topo ainda for `esperado`. → {oid, url} */
++    commitar({ esperado, adicoes, titulo, corpo = '' }) {
++      const input = {
++        branch: { repositoryNameWithOwner: repo, branchName: branch },
++        expectedHeadOid: esperado,
++        message: { headline: titulo, ...(corpo ? { body: corpo } : {}) },
++        fileChanges: { additions: adicoes.map((a) => ({ path: a.caminho, contents: (Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8')).toString('base64') })) },
++      };
++      const c = gql([{ query: M_COMMIT, variables: { input } }])[0]?.createCommitOnBranch?.commit;
++      if (!c?.oid) throw new ErroRecados('o GitHub não devolveu o commit');
++      return c;
++    },
++  };
++}
++
++/** Pasta do cache do índice (fora do repositório): MACUXI_RECADOS_CACHE, %LOCALAPPDATA% ou ~/.cache. */
++export function pastaDoCacheDeRecados(env = process.env) {
++  if (env.MACUXI_RECADOS_CACHE) return env.MACUXI_RECADOS_CACHE;
++  return join(env.LOCALAPPDATA || env.XDG_CACHE_HOME || join(homedir() || tmpdir(), '.cache'), 'Macuxi', 'recados');
++}
++
++/** Cache do índice num arquivo JSON (gravação atômica; falha ao gravar só deixa a próxima leitura mais lenta). */
++export function cacheDeRecadosEmArquivo(pasta, repo = REPO_RECADOS) {
++  const arq = join(pasta, `${repo.replace(/[^a-z0-9]+/gi, '-')}.json`);
++  return {
++    arquivo: arq,
++    ler() {
++      try { const c = JSON.parse(readFileSync(arq, 'utf8')); return c && c.repo === repo ? c : null; } catch { return null; }
++    },
++    gravar(c) {
++      try {
++        mkdirSync(pasta, { recursive: true });
++        const tmp = `${arq}.${process.pid}.tmp`;
++        writeFileSync(tmp, JSON.stringify(c));
++        renameSync(tmp, arq);
++      } catch { /* outro processo gravando ao mesmo tempo, ou pasta sem permissão: segue sem cache */ }
++    },
++  };
++}
++
++/** Cache conferido: só os textos cujo hash bate com o oid (cache adulterado ou corrompido não entra). */
++function cacheConferido(c) {
++  if (!c || typeof c.oid !== 'string' || !c.arquivos || typeof c.arquivos !== 'object') return null;
++  const textos = {};
++  for (const [oid, t] of Object.entries(c.textos || {})) if (typeof t === 'string' && shaDoBlob(t) === oid) textos[oid] = t;
++  return { ...c, textos };
++}
++
++/** Aplica o delta do compare à lista de arquivos (função pura). */
++export function aplicarMudancas(arquivos, mudancas) {
++  const r = { ...arquivos };
++  for (const m of mudancas || []) {
++    if (m.previous_filename) delete r[m.previous_filename];
++    if (m.status === 'removed') { delete r[m.filename]; continue; }
++    if (ehArquivoDoIndice(m.filename) && m.sha) r[m.filename] = m.sha;
++    else delete r[m.filename];
++  }
++  return r;
++}
++
++/**
++ * Índice do main do GitHub: {oid, arquivos, textos, em, online, aviso?}. Usa o cache e baixa só o que mudou.
++ * Sem GitHub: devolve o cache com `online: false` e um aviso, exceto com `exigirOnline` (escrita), que lança.
++ */
++export function atualizarIndiceDeRecados({ cliente, cache, exigirOnline = false, agora = () => new Date() }) {
++  const salvo = cacheConferido(cache.ler());
++  try {
++    let atual = null;
++    if (salvo) {
++      const d = cliente.comparar(salvo.oid);
++      if (d) atual = { oid: d.oid, arquivos: aplicarMudancas(salvo.arquivos, d.mudancas) };
++    }
++    atual ||= cliente.listar();
++    const textos = {};
++    const faltam = [];
++    for (const oid of new Set(Object.values(atual.arquivos))) {
++      if (salvo?.textos[oid] !== undefined) textos[oid] = salvo.textos[oid];
++      else faltam.push(oid);
++    }
++    Object.assign(textos, cliente.textos(faltam));
++    const idx = { repo: cliente.repo, oid: atual.oid, arquivos: atual.arquivos, textos, em: agora().toISOString() };
++    if (!salvo || salvo.oid !== idx.oid || faltam.length) cache.gravar(idx);
++    return { ...idx, online: true };
++  } catch (e) {
++    if (!(e instanceof ErroRecados) || exigirOnline || !salvo) throw e;
++    return { ...salvo, online: false, aviso: `sem o GitHub agora (${e.message}): mostrando a cópia local de ${salvo.em} (commit ${salvo.oid.slice(0, 7)})` };
++  }
++}
++
++/** Arquivos de recado do índice: [{destino, nome, texto}] (textos ausentes ficam de fora). */
++export function recadosDoIndice(idx) {
++  const res = [];
++  for (const [caminho, oid] of Object.entries(idx.arquivos)) {
++    const m = caminho.match(/^recados\/([^/]+)\/([^/]+\.md)$/i);
++    const texto = idx.textos[oid];
++    if (m && m[1] !== 'anexos' && typeof texto === 'string') res.push({ destino: m[1], nome: m[2], texto });
++  }
++  return res;
++}
++
++/** Ids dos recados do índice (nome do arquivo sem .md: o coord, o formulário e o Telegram gravam <id>.md). */
++export const idsDoIndice = (idx) => new Set(recadosDoIndice(idx).map((r) => r.nome.replace(/\.md$/i, '')));
++
++/** Texto de lidos/<agente>.txt no índice ('' se não houver). */
++export const lidosDoIndice = (idx, agente) => idx.textos[idx.arquivos[`lidos/${agente}.txt`]] ?? '';
++
++/** Espera síncrona (entre tentativas). */
++export function dormir(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(0, ms)); }
++const espera = (t) => 250 * t + Math.floor(Math.random() * 500);
++
++/**
++ * Envia um recado direto ao GitHub (um commit com um arquivo por destino). Só devolve depois de o GitHub confirmar.
++ * `gerarId(ids)` escolhe o id livre contra os ids do commit; `montar(id)` dá o conteúdo. Concorrência: se o main
++ * mudar entre a leitura e o commit, o GitHub recusa (expectedHeadOid) e a função relê e tenta de novo.
++ * @returns {{id: string, commit: {oid: string, url?: string}, tentativas: number, conferido?: boolean}}
++ */
++export function enviarRecadoNoGitHub({ cliente, cache, de, destinos, gerarId, montar, respondeA = null, tentativas = 6, esperar = dormir }) {
++  let ultimo = null;
++  for (let t = 1; t <= tentativas; t++) {
++    const idx = atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true });
++    const ids = idsDoIndice(idx);
++    if (respondeA && !ids.has(respondeA)) throw new ErroRecados(`--responde-a: recado ${respondeA} não encontrado`);
++    const id = gerarId(ids);
++    const conteudo = montar(id);
++    const adicoes = destinos.map((d) => ({ caminho: `recados/${d}/${id}.md`, conteudo }));
++    if (adicoes.some((a) => idx.arquivos[a.caminho])) throw new ErroRecados(`o recado ${id} já existe no GitHub (nada foi sobrescrito)`);
++    try {
++      const commit = cliente.commitar({ esperado: idx.oid, adicoes, titulo: `recados: ${id}`, corpo: `de ${de} para ${destinos.join(', ')}` });
++      const blob = shaDoBlob(conteudo);
++      cache.gravar({
++        repo: idx.repo, oid: commit.oid, em: new Date().toISOString(),
++        arquivos: { ...idx.arquivos, ...Object.fromEntries(adicoes.map((a) => [a.caminho, blob])) }, textos: { ...idx.textos, [blob]: conteudo },
++      });
++      return { id, commit, tentativas: t };
++    } catch (e) {
++      if (!(e instanceof ErroRecados)) throw e;
++      ultimo = e;
++      // Confere no GitHub antes de decidir: com a resposta perdida, o commit pode ter entrado.
++      let r;
++      try { r = cliente.arquivo(adicoes[0].caminho); } catch (e2) {
++        throw new ErroRecados(`o envio do recado ${id} NÃO foi confirmado (${e.message}; conferência: ${e2.message}). Antes de reenviar, confira: node scripts/coord.mjs ler ${id}`, { rede: true });
++      }
++      if (r.existe && r.blob === shaDoBlob(conteudo)) return { id, commit: { oid: r.oid }, tentativas: t, conferido: true };
++      if (r.oid !== idx.oid) { esperar(espera(t)); continue; } // outro commit entrou antes: relê e tenta de novo
++      throw new ErroRecados(`recado NÃO enviado (nada foi gravado): ${e.message}`, { rede: e.rede });
++    }
++  }
++  throw new ErroRecados(`recado NÃO enviado (nada foi gravado): o main do ${cliente.repo} mudou ${tentativas} vezes durante o envio${ultimo ? ` (${ultimo.message})` : ''}. Tente de novo`);
++}
++
++/**
++ * Marca ids como lidos em lidos/<agente>.txt no GitHub: acrescenta só os que faltam, sobre o texto do topo do main
++ * (nenhuma linha de outro processo se perde: se o main mudar no meio, o GitHub recusa e a função relê).
++ * @returns {{novos: string[], commit?: {oid: string}, conferido?: boolean}}
++ */
++export function marcarLidosNoGitHub({ cliente, agente, ids, tentativas = 6, esperar = dormir }) {
++  const caminho = `lidos/${agente}.txt`;
++  const linhas = (t) => new Set(String(t || '').split(/\r?\n/).filter(Boolean));
++  let ultimo = null;
++  for (let t = 1; t <= tentativas; t++) {
++    const a = cliente.arquivo(caminho);
++    const atuais = linhas(a.texto);
++    const novos = [...new Set(ids)].filter((i) => !atuais.has(i));
++    if (!novos.length) return { novos };
++    const texto = a.texto || '';
++    const conteudo = `${texto}${texto && !texto.endsWith('\n') ? '\n' : ''}${novos.join('\n')}\n`;
++    try {
++      return { novos, commit: cliente.commitar({ esperado: a.oid, adicoes: [{ caminho, conteudo }], titulo: `lidos: ${agente} (${novos.length})` }) };
++    } catch (e) {
++      if (!(e instanceof ErroRecados)) throw e;
++      ultimo = e;
++      let r;
++      try { r = cliente.arquivo(caminho); } catch (e2) {
++        throw new ErroRecados(`a marcação NÃO foi confirmada (${e.message}; conferência: ${e2.message}). Rode o mesmo comando de novo (marcar duas vezes não duplica)`, { rede: true });
++      }
++      const agora = linhas(r.texto);
++      if (novos.every((i) => agora.has(i))) return { novos, commit: { oid: r.oid }, conferido: true };
++      if (r.oid !== a.oid) { esperar(espera(t)); continue; }
++      throw new ErroRecados(`NÃO marcado (nada foi gravado): ${e.message}`, { rede: e.rede });
++    }
++  }
++  throw new ErroRecados(`NÃO marcado (nada foi gravado): o main do ${cliente.repo} mudou ${tentativas} vezes durante a marcação${ultimo ? ` (${ultimo.message})` : ''}. Tente de novo`);
++}
++
++/**
++ * Recados de uma pasta (nome + texto) com a lista lida direto do GitHub, nunca do cache: uso do guarda-merge, que
++ * procura a autorização de merge do dono do produto. Textos do cache só entram se o hash bater com o oid do GitHub.
++ * `filtro(nome)` limita o que é baixado. Sem GitHub, lança (quem chama trata como "nenhuma autorização").
++ */
++export function recadosDaPastaNoGitHub({ cliente, cache, pasta, filtro = () => true }) {
++  const { entradas } = cliente.pasta(`recados/${pasta}`);
++  const escolhidas = entradas.filter((e) => e.type === 'blob' && /\.md$/i.test(e.name) && filtro(e.name));
++  const salvo = cacheConferido(cache?.ler?.() || null);
++  const textos = {};
++  for (const e of escolhidas) if (salvo?.textos[e.oid] !== undefined) textos[e.oid] = salvo.textos[e.oid];
++  Object.assign(textos, cliente.textos(escolhidas.filter((e) => textos[e.oid] === undefined).map((e) => e.oid)));
++  return escolhidas.filter((e) => typeof textos[e.oid] === 'string').map((e) => ({ nome: e.name, texto: textos[e.oid] }));
++}
++
++/**
++ * Conexão real com o repositório de recados: {cliente, cache}. Repositório, API e cache trocáveis por variável
++ * (MACUXI_RECADOS_REPO, MACUXI_RECADOS_API, MACUXI_RECADOS_CACHE). Sem token, o cliente falha com a explicação.
++ */
++export function conexaoDeRecados({ env = process.env, gh } = {}) {
++  const repo = String(env.MACUXI_RECADOS_REPO || REPO_RECADOS).trim();
++  const api = String(env.MACUXI_RECADOS_API || API_GITHUB).trim().replace(/\/+$/, '');
++  const tk = tokenDoAmbiente({ env, ...(gh ? { gh } : {}) });
++  const http = tk ? httpSincrono({ token: tk.token, env }) : () => { throw new ErroRecados(SEM_TOKEN, { rede: true }); };
++  return { cliente: criarClienteDeRecados({ http, repo, api, origem: tk?.origem || 'sem token' }), cache: cacheDeRecadosEmArquivo(pastaDoCacheDeRecados(env), repo) };
++}
+diff --git a/scripts/coord-recados.test.mjs b/scripts/coord-recados.test.mjs
+new file mode 100644
+index 00000000..b5edc8dd
+--- /dev/null
++++ b/scripts/coord-recados.test.mjs
+@@ -0,0 +1,584 @@
++// Testes dos recados direto no GitHub (T-0143, ADR 0039): node --test scripts/coord-recados.test.mjs
++// Sem rede: um GitHub de mentira (GraphQL + REST compare, com expectedHeadOid de verdade) em memória, usado direto
++// pelas funções da coord-lib ou por um servidor HTTP local, para rodar o coord.mjs e o subir-pendentes.mjs de verdade
++// em processos separados (concorrência real entre agentes).
++import { test, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { createServer } from 'node:http';
++import { spawn, execFileSync } from 'node:child_process';
++import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join, dirname } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { createHash } from 'node:crypto';
++import {
++  modoDosRecados, podeAlterar, regraDoRecadoNovo, globParaRegex, shaDoBlob, aplicarMudancas, tokenDoAmbiente,
++  criarClienteDeRecados, atualizarIndiceDeRecados, enviarRecadoNoGitHub, marcarLidosNoGitHub, recadosDaPastaNoGitHub,
++  recadosDoIndice, idsDoIndice, lidosDoIndice, ErroRecados, MOTIVO_RECADOS_NO_GITHUB,
++} from './coord-lib.mjs';
++import { lerRecadosDoGerente } from '../.claude/hooks/guarda-merge-lib.mjs';
++
++const AQUI = dirname(fileURLToPath(import.meta.url));
++const TOKEN = 'token-de-teste-que-nao-pode-vazar';
++const MARCA = '/.coord/recados\n/.coord/lidos\n';
++const PERDIDA = Symbol('resposta perdida');
++
++const temporarios = [];
++after(() => { for (const d of temporarios) rmSync(d, { recursive: true, force: true }); });
++const pastaTemp = (prefixo) => { const d = mkdtempSync(join(tmpdir(), prefixo)); temporarios.push(d); return d; };
++
++const recado = ({ id, de, para, tipo = 'pedido', respondeA = 'null', encerra = 'false', titulo = 'Assunto' }) =>
++  `---\nid: ${id}\nde: ${de}\npara: [${para}]\ncc: []\ntipo: ${tipo}\nprioridade: normal\ntarefa: T-0143\nresponde_a: ${respondeA}\nencerra: ${encerra}\ncontrato: null\ncriado_em: 2026-11-09T10:00:00-04:00\n---\n# ${titulo}\n\ncorpo\n`;
++
++// ───────────────────────── GitHub de mentira ─────────────────────────
++
++class GitHubFalso {
++  constructor(arquivos = {}) {
++    this.commits = new Map();
++    this.blobs = new Map();
++    this.n = 0;
++    this.offline = false;
++    this.chamadas = [];
++    this.antesDoCommit = null;
++    this.perderResposta = false;
++    this.head = this.novoCommit(null, arquivos, 'inicial');
++  }
++  novoCommit(pai, arquivos, msg) {
++    for (const t of Object.values(arquivos)) this.blobs.set(shaDoBlob(t), t);
++    const oid = createHash('sha1').update(`commit ${++this.n} ${msg}`).digest('hex');
++    this.commits.set(oid, { pai, arquivos: { ...arquivos }, msg });
++    return oid;
++  }
++  get arquivos() { return this.commits.get(this.head).arquivos; }
++  /** Commit de fora (formulário de issue, Telegram, outro agente). */
++  externo(caminho, texto, msg = 'externo') { this.head = this.novoCommit(this.head, { ...this.arquivos, [caminho]: texto }, msg); return this.head; }
++  historico() { const r = []; for (let o = this.head; o; o = this.commits.get(o).pai) r.push(this.commits.get(o)); return r.reverse(); }
++  ops(nome) { return this.chamadas.filter((c) => c.op === nome).length; }
++
++  responder({ url, metodo = 'GET', corpo, token }) {
++    this.chamadas.push({ url, op: corpo?.query?.match(/^\s*(?:query|mutation) (\w+)/)?.[1] || (url.includes('/compare/') ? 'compare' : '?') });
++    if (this.offline) return { rede: 'TypeError: fetch failed: ECONNREFUSED' };
++    if (token !== TOKEN) return { status: 401, texto: '{"message":"Bad credentials"}' };
++    const m = url.match(/\/repos\/[^/]+\/[^/]+\/compare\/([0-9a-f]+)\.\.\.main$/);
++    if (m) return this.comparar(m[1]);
++    if (url.endsWith('/graphql') && metodo === 'POST') {
++      const r = this.graphql(corpo);
++      return r === PERDIDA ? { rede: 'resposta perdida' } : { status: 200, texto: JSON.stringify(r) };
++    }
++    return { status: 404, texto: '{"message":"Not Found"}' };
++  }
++
++  arvore(pasta, doisNiveis) {
++    const pref = `${pasta}/`;
++    const nomes = new Map();
++    for (const [c, t] of Object.entries(this.arquivos)) {
++      if (!c.startsWith(pref)) continue;
++      const partes = c.slice(pref.length).split('/');
++      if (partes.length === 1) { nomes.set(partes[0], { name: partes[0], type: 'blob', oid: shaDoBlob(t) }); continue; }
++      const d = nomes.get(partes[0]) || { name: partes[0], type: 'tree', oid: `arvore-${partes[0]}`, filhos: [] };
++      d.filhos.push({ name: partes[1], type: partes.length === 2 ? 'blob' : 'tree', oid: shaDoBlob(t) });
++      nomes.set(partes[0], d);
++    }
++    return [...nomes.values()].map(({ filhos, ...e }) => ({ ...e, object: e.type === 'tree' && doisNiveis ? { entries: filhos } : {} }));
++  }
++
++  graphql({ query, variables: v }) {
++    const op = query.match(/^\s*(?:query|mutation) (\w+)/)[1];
++    if (op === 'CriarCommit') return this.criarCommit(v.input);
++    if (v.dono !== 'aloirr' || v.nome !== 'macuxifdv-recados') {
++      return { data: { repository: null }, errors: [{ type: 'NOT_FOUND', path: ['repository'], message: `Could not resolve to a Repository with the name '${v.dono}/${v.nome}'.` }] };
++    }
++    if (op === 'Blobs') {
++      const repo = {};
++      for (const [k, oid] of Object.entries(v)) {
++        const mm = k.match(/^o(\d+)$/);
++        if (mm) repo[`b${mm[1]}`] = this.blobs.has(oid) ? { text: this.blobs.get(oid), isBinary: false } : null;
++      }
++      return { data: { repository: repo } };
++    }
++    const alvo = { oid: this.head };
++    const errors = [];
++    if (op === 'Listagem') {
++      alvo.recados = { object: { entries: this.arvore('recados', true) } };
++      alvo.lidos = { object: { entries: this.arvore('lidos', false) } };
++    } else if (op === 'Arquivo') {
++      const t = this.arquivos[v.caminho];
++      alvo.arquivo = t === undefined ? null : { oid: shaDoBlob(t), object: { text: t } };
++      if (t === undefined) errors.push({ type: 'NOT_FOUND', path: ['repository', 'ref', 'target', 'arquivo'], message: `Could not resolve file for path '${v.caminho}'.` });
++    } else if (op === 'Pasta') {
++      const e = this.arvore(v.caminho, false);
++      alvo.pasta = e.length ? { object: { entries: e } } : null;
++    }
++    return { data: { repository: { ref: { target: alvo } } }, ...(errors.length ? { errors } : {}) };
++  }
++
++  criarCommit(input) {
++    if (this.antesDoCommit) { const f = this.antesDoCommit; this.antesDoCommit = null; f(this); }
++    if (input.expectedHeadOid !== this.head) {
++      return { data: { createCommitOnBranch: null }, errors: [{ type: 'STALE_DATA', message: `Expected branch to point to "${input.expectedHeadOid}" but it did not. Pull and try again.` }] };
++    }
++    const novos = { ...this.arquivos };
++    for (const a of input.fileChanges.additions) novos[a.path] = Buffer.from(a.contents, 'base64').toString('utf8');
++    this.head = this.novoCommit(this.head, novos, input.message.headline);
++    if (this.perderResposta) { this.perderResposta = false; return PERDIDA; }
++    return { data: { createCommitOnBranch: { commit: { oid: this.head, url: `https://github.com/aloirr/macuxifdv-recados/commit/${this.head}` } } } };
++  }
++
++  comparar(base) {
++    const cadeia = [];
++    let o = this.head;
++    while (o && o !== base) { cadeia.push(o); o = this.commits.get(o).pai; }
++    if (o !== base) return { status: 404, texto: '{"message":"Not Found"}' };
++    const ok = (j) => ({ status: 200, texto: JSON.stringify(j) });
++    if (!cadeia.length) return ok({ status: 'identical', ahead_by: 0, commits: [], files: [] });
++    const antes = this.commits.get(base).arquivos;
++    const depois = this.arquivos;
++    const files = [];
++    for (const [c, t] of Object.entries(depois)) {
++      if (antes[c] === undefined) files.push({ filename: c, status: 'added', sha: shaDoBlob(t) });
++      else if (antes[c] !== t) files.push({ filename: c, status: 'modified', sha: shaDoBlob(t) });
++    }
++    for (const c of Object.keys(antes)) if (depois[c] === undefined) files.push({ filename: c, status: 'removed', sha: shaDoBlob(antes[c]) });
++    return ok({ status: 'ahead', ahead_by: cadeia.length, commits: cadeia.reverse().map((sha) => ({ sha })), files });
++  }
++}
++
++const httpDe = (falso) => (reqs) => reqs.map((r) => falso.responder({ ...r, token: TOKEN }));
++const clienteDe = (falso) => criarClienteDeRecados({ http: httpDe(falso) });
++const cacheEmMemoria = () => ({ dados: null, ler() { return this.dados && JSON.parse(JSON.stringify(this.dados)); }, gravar(c) { this.dados = JSON.parse(JSON.stringify(c)); } });
++const semEspera = () => {};
++
++/** Repositório com 2 recados, um para o testes e outro para o gerente (de alexandre), e um lidos. */
++function base() {
++  return new GitHubFalso({
++    'recados/testes/R-20261109-090000-modulo-core.md': recado({ id: 'R-20261109-090000-modulo-core', de: 'modulo-core', para: 'testes' }),
++    'recados/gerente-projetos/R-20261109-090100-alexandre.md': recado({ id: 'R-20261109-090100-alexandre', de: 'alexandre', para: 'gerente-projetos', titulo: 'autorizo o merge do PR #9 no commit abcdef1' }),
++    'lidos/testes.txt': 'R-1\n',
++    'README.md': '# recados\n',
++  });
++}
++
++// ───────────────────────── modo, guardião e funções puras ─────────────────────────
++
++test('modoDosRecados: marca no .gitignore = github; sem marca = local; MACUXI_RECADOS força', () => {
++  const dir = pastaTemp('coord-modo-');
++  assert.equal(modoDosRecados({ raiz: dir, env: {} }), 'local', 'sem .gitignore');
++  writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
++  assert.equal(modoDosRecados({ raiz: dir, env: {} }), 'local');
++  writeFileSync(join(dir, '.gitignore'), `node_modules/\n${MARCA}`);
++  assert.equal(modoDosRecados({ raiz: dir, env: {} }), 'github');
++  assert.equal(modoDosRecados({ raiz: dir, env: { MACUXI_RECADOS: 'local' } }), 'local', 'plano de volta');
++  assert.equal(modoDosRecados({ raiz: dir, env: { MACUXI_RECADOS: 'GitHub' } }), 'github');
++});
++
++test('podeAlterar no modo GitHub: nada se grava em .coord/recados nem em .coord/lidos no disco; no local, a regra de antes', () => {
++  const dir = pastaTemp('coord-pode-');
++  writeFileSync(join(dir, '.gitignore'), MARCA);
++  const regras = [{ padrao: '.coord/recados/anexos/**', dono: 'alexandre' }, { padrao: '.coord/**', dono: 'gerente-projetos' }, { padrao: 'docs/**', dono: 'engenheiro-software' }]
++    .map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
++  const pode = (agente, rel, env = {}) => podeAlterar({ agente, ferramenta: 'Write', rel, raiz: dir, regras, env, conteudo: `---\nde: ${agente}\n---\n` });
++  for (const agente of ['modulo-core', 'alexandre']) {
++    for (const rel of [`.coord/recados/testes/R-1-${agente}.md`, `.coord/lidos/${agente}.txt`, '.coord/recados/anexos/a.png']) {
++      assert.deepEqual(pode(agente, rel), { ok: false, motivo: MOTIVO_RECADOS_NO_GITHUB }, `${agente} ${rel}`);
++    }
++  }
++  assert.deepEqual(pode('modulo-core', '.coord/recados/testes/R-1-modulo-core.md', { MACUXI_RECADOS: 'local' }), { ok: true }, 'volta: regra de antes');
++  assert.deepEqual(pode('modulo-core', '.coord/lidos/modulo-core.txt', { MACUXI_RECADOS: 'local' }), { ok: true });
++  assert.equal(pode('engenheiro-software', 'docs/x.md').ok, true, 'fora das pastas de recados nada muda');
++  // regras do recado novo, sem disco (as mesmas do guardião v5)
++  assert.deepEqual(regraDoRecadoNovo({ agente: 'modulo-core', destino: 'testes', arquivo: 'R-1-modulo-core.md', conteudo: '---\nde: modulo-core\n---\n' }), { ok: true });
++  assert.match(regraDoRecadoNovo({ agente: 'modulo-core', destino: 'fulano', arquivo: 'R-1-modulo-core.md' }).motivo, /destino de recado inválido/);
++  assert.match(regraDoRecadoNovo({ agente: 'modulo-core', destino: 'testes', arquivo: 'R-1-alexandre.md' }).motivo, /terminar com o remetente/);
++  assert.match(regraDoRecadoNovo({ agente: 'modulo-core', destino: 'testes', arquivo: 'R-1-modulo-core.md', conteudo: '---\nde: alexandre\n---\n' }).motivo, /em nome de outro/);
++});
++
++test('shaDoBlob é o hash do git (git hash-object), inclusive com acento', () => {
++  for (const t of ['', 'R-1\n', recado({ id: 'R-2-modulo-core', de: 'modulo-core', para: 'testes', titulo: 'Ação não é ruptura' })]) {
++    assert.equal(shaDoBlob(t), execFileSync('git', ['hash-object', '--stdin'], { input: Buffer.from(t, 'utf8'), encoding: 'utf8' }).trim());
++  }
++});
++
++test('aplicarMudancas: novo, alterado, removido e renomeado; o que não é recado nem lidos fica de fora', () => {
++  const antes = { 'recados/a/R-1-x.md': 'o1', 'recados/a/R-2-x.md': 'o2', 'lidos/x.txt': 'o3' };
++  const depois = aplicarMudancas(antes, [
++    { status: 'added', filename: 'recados/b/R-3-x.md', sha: 'o4' },
++    { status: 'modified', filename: 'lidos/x.txt', sha: 'o5' },
++    { status: 'removed', filename: 'recados/a/R-1-x.md', sha: 'o1' },
++    { status: 'renamed', filename: 'recados/c/R-2-x.md', previous_filename: 'recados/a/R-2-x.md', sha: 'o2' },
++    { status: 'added', filename: 'README.md', sha: 'o6' },
++    { status: 'added', filename: 'recados/anexos/foto.png', sha: 'o7' },
++  ]);
++  assert.deepEqual(depois, { 'recados/b/R-3-x.md': 'o4', 'lidos/x.txt': 'o5', 'recados/c/R-2-x.md': 'o2' });
++  assert.deepEqual(antes['recados/a/R-1-x.md'], 'o1', 'função pura: não muda a entrada');
++});
++
++test('tokenDoAmbiente: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN e só então o gh; sem nenhum = null', () => {
++  const gh = () => 'do-gh';
++  assert.deepEqual(tokenDoAmbiente({ env: { MACUXI_RECADOS_TOKEN: ' a ', GH_TOKEN: 'b', GITHUB_TOKEN: 'c' }, gh }), { token: 'a', origem: 'MACUXI_RECADOS_TOKEN' });
++  assert.deepEqual(tokenDoAmbiente({ env: { GH_TOKEN: 'b', GITHUB_TOKEN: 'c' }, gh }), { token: 'b', origem: 'GH_TOKEN' });
++  assert.deepEqual(tokenDoAmbiente({ env: { GITHUB_TOKEN: 'c' }, gh }), { token: 'c', origem: 'GITHUB_TOKEN' });
++  assert.deepEqual(tokenDoAmbiente({ env: {}, gh }), { token: 'do-gh', origem: 'gh auth token' });
++  assert.equal(tokenDoAmbiente({ env: {}, gh: () => '' }), null);
++});
++
++// ───────────────────────── índice (leitura) ─────────────────────────
++
++test('índice: lista no primeiro uso; depois só o delta (compare) e só os blobs novos; o recado do formulário aparece', () => {
++  const gh = base();
++  const cliente = clienteDe(gh);
++  const cache = cacheEmMemoria();
++  const i1 = atualizarIndiceDeRecados({ cliente, cache });
++  assert.equal(i1.online, true);
++  assert.equal(i1.oid, gh.head);
++  assert.deepEqual([...idsDoIndice(i1)].sort(), ['R-20261109-090000-modulo-core', 'R-20261109-090100-alexandre']);
++  assert.equal(lidosDoIndice(i1, 'testes'), 'R-1\n');
++  assert.equal(lidosDoIndice(i1, 'ninguem'), '');
++  assert.equal(gh.ops('Listagem'), 1);
++  assert.equal(recadosDoIndice(i1).find((r) => r.destino === 'testes').texto, gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md']);
++
++  // sem mudança: só o compare (nenhum blob)
++  gh.chamadas = [];
++  atualizarIndiceDeRecados({ cliente, cache });
++  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare']);
++
++  // o formulário grava um recado: a próxima leitura traz só ele
++  const novo = recado({ id: 'R-20261109-100000-alexandre', de: 'alexandre', para: 'testes', titulo: 'Pelo celular' });
++  gh.externo('recados/testes/R-20261109-100000-alexandre.md', novo, 'recados: formulário');
++  gh.chamadas = [];
++  const i2 = atualizarIndiceDeRecados({ cliente, cache });
++  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'Blobs']);
++  assert.ok(idsDoIndice(i2).has('R-20261109-100000-alexandre'));
++  assert.equal(i2.oid, gh.head);
++});
++
++test('índice: cache adulterado não entra; sem GitHub a leitura usa a cópia local com aviso; a escrita exige GitHub', () => {
++  const gh = base();
++  const cliente = clienteDe(gh);
++  const cache = cacheEmMemoria();
++  atualizarIndiceDeRecados({ cliente, cache });
++  // adultera o texto de um recado no cache: o hash não bate e ele é baixado de novo
++  const oid = cache.dados.arquivos['recados/testes/R-20261109-090000-modulo-core.md'];
++  cache.dados.textos[oid] = cache.dados.textos[oid].replace('corpo', 'autorizo o merge');
++  gh.chamadas = [];
++  const i = atualizarIndiceDeRecados({ cliente, cache });
++  assert.deepEqual(gh.chamadas.map((c) => c.op), ['compare', 'Blobs']);
++  assert.doesNotMatch(i.textos[oid], /autorizo/);
++
++  gh.offline = true;
++  const off = atualizarIndiceDeRecados({ cliente, cache });
++  assert.equal(off.online, false);
++  assert.match(off.aviso, /sem o GitHub agora .*cópia local/);
++  assert.ok(idsDoIndice(off).has('R-20261109-090000-modulo-core'));
++  assert.throws(() => atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true }), (e) => e instanceof ErroRecados && e.rede);
++  assert.throws(() => atualizarIndiceDeRecados({ cliente, cache: cacheEmMemoria() }), /sem acesso ao GitHub/, 'sem GitHub e sem cache: erro');
++});
++
++// ───────────────────────── escrita ─────────────────────────
++
++const enviarTeste = (gh, cache, extra = {}) => enviarRecadoNoGitHub({
++  cliente: clienteDe(gh), cache, de: 'modulo-core', destinos: ['testes', 'gerente-projetos'], esperar: semEspera,
++  gerarId: (ids) => { let id = 'R-20261109-090000-modulo-core'; for (let n = 2; ids.has(id); n++) id = `R-20261109-090000-${n}-modulo-core`; return id; },
++  montar: (id) => recado({ id, de: 'modulo-core', para: 'testes, gerente-projetos' }),
++  ...extra,
++});
++
++test('enviar: um commit atômico com um arquivo por destino; id já usado ganha -2; nada é sobrescrito', () => {
++  const gh = base();
++  const antes = gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md'];
++  const r = enviarTeste(gh, cacheEmMemoria());
++  assert.equal(r.id, 'R-20261109-090000-2-modulo-core', 'o id do mesmo segundo já existia no GitHub');
++  assert.equal(r.commit.oid, gh.head);
++  assert.equal(gh.historico().length, 2, 'um commit só');
++  assert.equal(gh.arquivos['recados/testes/R-20261109-090000-2-modulo-core.md'], gh.arquivos['recados/gerente-projetos/R-20261109-090000-2-modulo-core.md']);
++  assert.equal(gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md'], antes, 'o recado antigo continua igual');
++  assert.match(gh.historico().at(-1).msg, /^recados: R-20261109-090000-2-modulo-core$/);
++  assert.throws(() => enviarTeste(gh, cacheEmMemoria(), { respondeA: 'R-nao-existe' }), /--responde-a: recado R-nao-existe não encontrado/);
++});
++
++test('enviar: o main mudou no meio (outro agente gravou) → relê e tenta de novo; o commit do outro fica', () => {
++  const gh = base();
++  gh.antesDoCommit = (g) => g.externo('recados/testes/R-20261109-090000-modulo-core-outro.md', 'x', 'outro agente');
++  const r = enviarTeste(gh, cacheEmMemoria());
++  assert.equal(r.tentativas, 2);
++  assert.ok(gh.arquivos['recados/testes/R-20261109-090000-modulo-core-outro.md'], 'o commit do outro continua');
++  assert.ok(gh.arquivos[`recados/testes/${r.id}.md`]);
++  assert.equal(gh.historico().length, 3);
++});
++
++test('enviar: resposta perdida depois do commit → "confirmado na conferência", sem duplicar', () => {
++  const gh = base();
++  gh.perderResposta = true;
++  const r = enviarTeste(gh, cacheEmMemoria());
++  assert.equal(r.conferido, true);
++  assert.equal(gh.historico().length, 2, 'um commit só');
++});
++
++test('enviar: sem GitHub → erro e nada gravado; conferência sem GitHub → "NÃO foi confirmado", nunca "enviado"', () => {
++  const gh = base();
++  gh.offline = true;
++  assert.throws(() => enviarTeste(gh, cacheEmMemoria()), (e) => e instanceof ErroRecados && /sem acesso ao GitHub/.test(e.message));
++  assert.equal(gh.historico().length, 1);
++  gh.offline = false;
++  // a rede cai no meio do commit: a resposta não chega e a conferência também não responde
++  const cache = cacheEmMemoria();
++  const cliente = clienteDe(gh);
++  assert.throws(() => enviarRecadoNoGitHub({
++    cliente: { ...cliente, commitar: (p) => { gh.offline = true; return cliente.commitar(p); } }, cache, de: 'modulo-core', destinos: ['testes'], esperar: semEspera,
++    gerarId: () => 'R-20261109-110000-modulo-core', montar: (id) => recado({ id, de: 'modulo-core', para: 'testes' }),
++  }), /NÃO foi confirmado.*node scripts\/coord\.mjs ler R-20261109-110000-modulo-core/);
++});
++
++test('lido: acrescenta só o que falta; dois agentes ao mesmo tempo no mesmo arquivo não perdem linha', () => {
++  const gh = base();
++  const cliente = clienteDe(gh);
++  // outro processo marca R-9 entre a leitura e o commit deste
++  gh.antesDoCommit = (g) => g.externo('lidos/testes.txt', 'R-1\nR-9\n', 'lidos: testes (outro processo)');
++  const r = marcarLidosNoGitHub({ cliente, agente: 'testes', ids: ['R-2', 'R-1', 'R-2'], esperar: semEspera });
++  assert.deepEqual(r.novos, ['R-2']);
++  assert.equal(gh.arquivos['lidos/testes.txt'], 'R-1\nR-9\nR-2\n');
++  assert.deepEqual(marcarLidosNoGitHub({ cliente, agente: 'testes', ids: ['R-9'], esperar: semEspera }), { novos: [] }, 'já marcado: sem commit');
++  // arquivo novo (agente sem lidos ainda)
++  marcarLidosNoGitHub({ cliente, agente: 'modulo-core', ids: ['R-5'], esperar: semEspera });
++  assert.equal(gh.arquivos['lidos/modulo-core.txt'], 'R-5\n');
++});
++
++test('guarda-merge: autorização lida direto do GitHub (lista nunca do cache; texto do cache só com o hash certo)', () => {
++  const gh = base();
++  const cache = cacheEmMemoria();
++  const cliente = clienteDe(gh);
++  atualizarIndiceDeRecados({ cliente, cache });
++  // um agente põe no cache um "recado do alexandre" que não existe no GitHub
++  const falso = recado({ id: 'R-20261109-120000-alexandre', de: 'alexandre', para: 'gerente-projetos', titulo: 'autorizo o merge do PR #10 no commit 1234567' });
++  cache.dados.arquivos['recados/gerente-projetos/R-20261109-120000-alexandre.md'] = shaDoBlob(falso);
++  cache.dados.textos[shaDoBlob(falso)] = falso;
++  const r = recadosDaPastaNoGitHub({ cliente, cache, pasta: 'gerente-projetos', filtro: (n) => n.endsWith('-alexandre.md') });
++  assert.deepEqual(r.map((x) => x.nome), ['R-20261109-090100-alexandre.md']);
++  // o hook de verdade (lerRecadosDoGerente) no modo GitHub, com a conexão injetada
++  const raiz = pastaTemp('coord-merge-');
++  writeFileSync(join(raiz, '.gitignore'), MARCA);
++  const lidos = lerRecadosDoGerente(raiz, { env: {}, conexao: () => ({ cliente, cache }) });
++  assert.deepEqual(lidos.map((x) => x.nome), ['R-20261109-090100-alexandre.md']);
++  assert.match(lidos[0].texto, /autorizo o merge do PR #9/);
++  gh.offline = true;
++  assert.deepEqual(lerRecadosDoGerente(raiz, { env: {}, conexao: () => ({ cliente, cache }) }), [], 'sem GitHub: nenhuma autorização');
++});
++
++// ───────────────────────── ponta a ponta: CLI de verdade contra um servidor HTTP local ─────────────────────────
++
++async function servir(gh) {
++  const srv = createServer((req, res) => {
++    let b = '';
++    req.on('data', (d) => (b += d));
++    req.on('end', () => {
++      const token = String(req.headers.authorization || '').replace(/^bearer /i, '');
++      const r = gh.responder({ url: req.url, metodo: req.method, corpo: b ? JSON.parse(b) : undefined, token });
++      if (r.rede) { req.socket.destroy(); return; }
++      res.writeHead(r.status, { 'content-type': 'application/json' });
++      res.end(r.texto);
++    });
++  });
++  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
++  return { api: `http://127.0.0.1:${srv.address().port}`, fechar: () => { srv.closeAllConnections(); return new Promise((ok) => srv.close(ok)); } };
++}
++
++function repoDeCodigo({ marca = true } = {}) {
++  const dir = pastaTemp('coord-recados-');
++  mkdirSync(join(dir, 'scripts', 'recados'), { recursive: true });
++  for (const f of ['coord.mjs', 'coord-lib.mjs']) copyFileSync(join(AQUI, f), join(dir, 'scripts', f));
++  copyFileSync(join(AQUI, 'recados', 'subir-pendentes.mjs'), join(dir, 'scripts', 'recados', 'subir-pendentes.mjs'));
++  mkdirSync(join(dir, '.coord'));
++  writeFileSync(join(dir, '.coord', 'donos.json'), JSON.stringify({ versao: 1, regras: [{ padrao: '**', dono: 'gerente-projetos' }] }));
++  if (marca) writeFileSync(join(dir, '.gitignore'), MARCA);
++  return dir;
++}
++
++const LIMPAR = ['MACUXI_AGENTE', 'GITHUB_HEAD_REF', 'GH_TOKEN', 'GITHUB_TOKEN', 'MACUXI_RECADOS_TOKEN', 'MACUXI_RECADOS', 'MACUXI_RECADOS_API',
++  'MACUXI_RECADOS_CACHE', 'MACUXI_RECADOS_REPO', 'HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy', 'NODE_USE_ENV_PROXY'];
++function rodar(dir, args, env = {}, script = 'scripts/coord.mjs') {
++  const ambiente = { ...process.env };
++  for (const k of LIMPAR) delete ambiente[k];
++  return new Promise((ok) => {
++    const p = spawn(process.execPath, [join(dir, script), ...args], { cwd: dir, env: { ...ambiente, ...env } });
++    let saida = '';
++    let erro = '';
++    p.stdout.on('data', (d) => (saida += d));
++    p.stderr.on('data', (d) => (erro += d));
++    p.on('close', (codigo) => ok({ codigo, saida, erro, tudo: saida + erro }));
++  });
++}
++const amb = (dir, api, extra = {}) => ({ MACUXI_RECADOS_API: api, MACUXI_RECADOS_TOKEN: TOKEN, MACUXI_RECADOS_CACHE: join(dir, '.cache-teste'), ...extra });
++
++test('CLI no modo GitHub: enviar, caixa, ler, fio, pendencias e lido de ponta a ponta; o token não aparece', async () => {
++  const gh = base();
++  const s = await servir(gh);
++  try {
++    const dir = repoDeCodigo();
++    const env = amb(dir, s.api);
++    let r = await rodar(dir, ['caixa', 'testes'], env);
++    assert.equal(r.codigo, 0, r.tudo);
++    assert.match(r.saida, /R-20261109-090000-modulo-core {2}\[pedido\] de modulo-core/);
++
++    r = await rodar(dir, ['enviar', '--de', 'testes', '--para', 'modulo-core', '--cc', 'gerente-projetos', '--tipo', 'resposta', '--responde-a', 'R-20261109-090000-modulo-core', '--encerra', '--tarefa', 'T-0143', '--assunto', 'Feito', '--corpo', 'Contexto | Fiz | Pronto'], env);
++    assert.equal(r.codigo, 0, r.tudo);
++    const id = r.saida.match(/Recado (R-\S+) enviado para modulo-core, gerente-projetos \(cc\) \(GitHub aloirr\/macuxifdv-recados@[0-9a-f]{7}\)/)?.[1];
++    assert.ok(id, r.saida);
++    assert.ok(gh.arquivos[`recados/modulo-core/${id}.md`] && gh.arquivos[`recados/gerente-projetos/${id}.md`]);
++    assert.equal(gh.historico().length, 2);
++
++    r = await rodar(dir, ['caixa', 'testes'], env);
++    assert.match(r.saida, /nada pendente/, 'encerrado pela resposta lida do GitHub');
++    r = await rodar(dir, ['ler', id], env);
++    assert.equal(r.saida, `${gh.arquivos[`recados/modulo-core/${id}.md`]}\n`);
++    r = await rodar(dir, ['fio', 'R-20261109-090000-modulo-core'], env);
++    assert.match(r.saida, new RegExp(`testes → modulo-core {2}\\[resposta, encerra\\]`));
++    r = await rodar(dir, ['pendencias'], env);
++    assert.match(r.saida, /gerente-projetos \(1\):\n.*R-20261109-090100-alexandre/);
++    assert.doesNotMatch(r.saida, /R-20261109-090000-modulo-core/);
++
++    r = await rodar(dir, ['lido', 'gerente-projetos', id], env);
++    assert.equal(r.codigo, 0, r.tudo);
++    assert.match(r.saida, /1 recado\(s\) marcado\(s\) como lido\(s\) por gerente-projetos \(GitHub/);
++    assert.equal(gh.arquivos['lidos/gerente-projetos.txt'], `${id}\n`);
++    r = await rodar(dir, ['lido', 'gerente-projetos', id], env);
++    assert.match(r.saida, /já estava\(m\) marcado/);
++    for (const x of gh.chamadas) assert.doesNotMatch(x.url, new RegExp(TOKEN));
++    assert.equal(readdirSync(dir).includes('.coord') && readdirSync(join(dir, '.coord')).sort().join(','), 'donos.json', 'nada gravado em .coord no disco');
++
++    // token errado: erro claro, sem o token na saída
++    r = await rodar(dir, ['enviar', '--de', 'testes', '--para', 'modulo-core', '--assunto', 'x'], { ...env, MACUXI_RECADOS_TOKEN: 'outro-token-secreto' });
++    assert.equal(r.codigo, 1);
++    assert.match(r.erro, /recado NÃO enviado \(nada foi gravado\): .*recusou o token \(MACUXI_RECADOS_TOKEN, HTTP 401\)/);
++    assert.doesNotMatch(r.tudo, /outro-token-secreto|token-de-teste/);
++  } finally { await s.fechar(); }
++});
++
++test('CLI sem rede: enviar sai 1 com "NÃO enviado" e nada no GitHub; caixa mostra a cópia local com aviso', async () => {
++  const gh = base();
++  const s = await servir(gh);
++  try {
++    const dir = repoDeCodigo();
++    const env = amb(dir, s.api);
++    assert.equal((await rodar(dir, ['caixa', 'testes'], env)).codigo, 0); // cria o cache
++    gh.offline = true;
++    let r = await rodar(dir, ['enviar', '--de', 'testes', '--para', 'modulo-core', '--assunto', 'x'], env);
++    assert.equal(r.codigo, 1, r.tudo);
++    assert.match(r.erro, /^Erro: recado NÃO enviado \(nada foi gravado\): sem acesso ao GitHub/);
++    assert.doesNotMatch(r.saida, /enviado para/);
++    r = await rodar(dir, ['lido', 'testes', 'R-x'], env);
++    assert.equal(r.codigo, 1);
++    assert.match(r.erro, /NÃO marcado \(nada foi gravado\): sem acesso ao GitHub/);
++    r = await rodar(dir, ['caixa', 'testes'], env);
++    assert.equal(r.codigo, 0, r.tudo);
++    assert.match(r.saida, /^Atenção: sem o GitHub agora .*cópia local/);
++    assert.match(r.saida, /R-20261109-090000-modulo-core/);
++    gh.offline = false;
++    assert.equal(gh.historico().length, 1, 'nada gravado');
++    // sem cache e sem rede: erro claro
++    r = await rodar(dir, ['caixa', 'testes'], { ...env, MACUXI_RECADOS_API: 'http://127.0.0.1:9', MACUXI_RECADOS_CACHE: join(dir, 'sem-cache') });
++    assert.equal(r.codigo, 1);
++    assert.match(r.erro, /sem acesso aos recados no GitHub: sem acesso ao GitHub/);
++  } finally { await s.fechar(); }
++});
++
++test('CLI: vários agentes enviando e marcando ao mesmo tempo, nada se perde', async () => {
++  const gh = base();
++  const s = await servir(gh);
++  try {
++    const dir = repoDeCodigo();
++    const env = amb(dir, s.api);
++    const agentes = ['modulo-core', 'modulo-catalogo', 'testes', 'designer-ux'];
++    const r = await Promise.all([
++      ...agentes.map((a) => rodar(dir, ['enviar', '--de', a, '--para', 'gerente-projetos', '--assunto', `de ${a}`], { ...env, MACUXI_RECADOS_CACHE: join(dir, `cache-${a}`) })),
++      ...['R-a', 'R-b', 'R-c'].map((id) => rodar(dir, ['lido', 'testes', id], env)),
++    ]);
++    for (const x of r) assert.equal(x.codigo, 0, x.tudo);
++    for (const a of agentes) assert.ok(Object.keys(gh.arquivos).some((c) => c.startsWith('recados/gerente-projetos/') && c.endsWith(`-${a}.md`)), a);
++    assert.deepEqual(new Set(gh.arquivos['lidos/testes.txt'].split('\n').filter(Boolean)), new Set(['R-1', 'R-a', 'R-b', 'R-c']));
++    assert.equal(gh.historico().length, 1 + agentes.length + 3, 'um commit por envio e por marcação');
++  } finally { await s.fechar(); }
++});
++
++test('CLI: o recado gravado no GitHub tem o mesmo formato do modo local (o formulário e o Telegram dependem dele)', async () => {
++  const gh = base();
++  const s = await servir(gh);
++  try {
++    const args = ['enviar', '--de', 'testes', '--para', 'modulo-core,designer-ux', '--tipo', 'aviso', '--prioridade', 'alta', '--contrato', 'core.x.y@1', '--assunto', 'Formato', '--corpo', 'a | b | c'];
++    const dirG = repoDeCodigo();
++    const g = await rodar(dirG, args, amb(dirG, s.api));
++    assert.equal(g.codigo, 0, g.tudo);
++    const dirL = repoDeCodigo({ marca: false });
++    const l = await rodar(dirL, args, {});
++    assert.equal(l.codigo, 0, l.tudo);
++    const idG = g.saida.match(/Recado (\S+)/)[1];
++    const idL = l.saida.match(/Recado (\S+)/)[1];
++    const local = readFileSync(join(dirL, '.coord', 'recados', 'modulo-core', `${idL}.md`), 'utf8');
++    const remoto = gh.arquivos[`recados/modulo-core/${idG}.md`];
++    const normal = (t, id) => t.replaceAll(id, 'ID').replace(/^criado_em: .*$/m, 'criado_em: X');
++    assert.equal(normal(remoto, idG), normal(local, idL));
++    assert.equal(gh.arquivos[`recados/designer-ux/${idG}.md`], remoto);
++  } finally { await s.fechar(); }
++});
++
++test('CLI com proxy no ambiente: o HTTP vai pelo processo filho (NODE_USE_ENV_PROXY) e respeita o NO_PROXY', async () => {
++  const gh = base();
++  const s = await servir(gh);
++  try {
++    const dir = repoDeCodigo();
++    const r = await rodar(dir, ['caixa', 'testes'], amb(dir, s.api, { HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9', NO_PROXY: '127.0.0.1' }));
++    assert.equal(r.codigo, 0, r.tudo);
++    assert.match(r.saida, /R-20261109-090000-modulo-core/);
++  } finally { await s.fechar(); }
++});
++
++test('subir-pendentes: sobe o que falta num commit só, une os lidos, não sobrescreve conflito e pode rodar de novo', async () => {
++  const gh = base();
++  gh.externo('recados/testes/R-20261109-080000-modulo-vendedor.md', recado({ id: 'R-20261109-080000-modulo-vendedor', de: 'modulo-vendedor', para: 'testes', titulo: 'no GitHub' }));
++  const s = await servir(gh);
++  try {
++    const dir = repoDeCodigo();
++    const clone = pastaTemp('clone-recados-');
++    const git = (...a) => execFileSync('git', ['-C', clone, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
++    git('init', '-q', '-b', 'main');
++    git('config', 'user.name', 'T');
++    git('config', 'user.email', 't@exemplo.invalid');
++    git('config', 'commit.gpgsign', 'false');
++    const escrever = (c, t) => { mkdirSync(dirname(join(clone, c)), { recursive: true }); writeFileSync(join(clone, c), t); };
++    escrever('recados/testes/R-20261109-090000-modulo-core.md', gh.arquivos['recados/testes/R-20261109-090000-modulo-core.md']);
++    escrever('lidos/testes.txt', 'R-1\n');
++    git('add', '-A');
++    git('commit', '-q', '-m', 'base');
++    git('update-ref', 'refs/remotes/origin/main', 'HEAD');
++    // pendentes do PC: um commit local que não subiu, arquivos novos, lidos alterados e um conflito
++    escrever('recados/alexandre/R-20261109-053000-gerente-projetos.md', recado({ id: 'R-20261109-053000-gerente-projetos', de: 'gerente-projetos', para: 'alexandre' }));
++    git('add', '-A');
++    git('commit', '-q', '-m', 'local sem push');
++    escrever('recados/modulo-core/R-20261109-060000-testes.md', recado({ id: 'R-20261109-060000-testes', de: 'testes', para: 'modulo-core' }).replace(/\n/g, '\r\n'));
++    escrever('recados/testes/R-20261109-080000-modulo-vendedor.md', 'outro conteúdo com o mesmo caminho\n');
++    escrever('lidos/testes.txt', 'R-1\nR-pc\n');
++    escrever('lidos/modulo-core.txt', 'R-mc\n');
++    const env = amb(dir, s.api);
++    const remotoAntes = gh.arquivos['recados/testes/R-20261109-080000-modulo-vendedor.md'];
++
++    let r = await rodar(dir, ['--clone', clone, '--simular'], env, 'scripts/recados/subir-pendentes.mjs');
++    assert.equal(r.codigo, 1, r.tudo);
++    assert.match(r.saida, /2 recado\(s\)\/anexo\(s\) a subir, 2 arquivo\(s\) de lidos a unir \(2 linha\(s\)\), 0 já no GitHub, 1 conflito/);
++    assert.match(r.saida, /Simulação: nada foi gravado/);
++    assert.equal(gh.historico().length, 2);
++
++    r = await rodar(dir, ['--clone', clone], env, 'scripts/recados/subir-pendentes.mjs');
++    assert.equal(r.codigo, 1, r.tudo);
++    assert.match(r.saida, /Subida feita e conferida/);
++    assert.match(r.saida, /CONFLITO — 1 arquivo/);
++    assert.equal(gh.historico().length, 3, 'um commit só');
++    assert.equal(gh.arquivos['recados/testes/R-20261109-080000-modulo-vendedor.md'], remotoAntes, 'conflito não sobrescrito');
++    assert.ok(gh.arquivos['recados/alexandre/R-20261109-053000-gerente-projetos.md'], 'commit local sem push');
++    assert.doesNotMatch(gh.arquivos['recados/modulo-core/R-20261109-060000-testes.md'], /\r/, 'LF no GitHub');
++    assert.equal(gh.arquivos['lidos/testes.txt'], 'R-1\nR-pc\n');
++    assert.equal(gh.arquivos['lidos/modulo-core.txt'], 'R-mc\n');
++    assert.doesNotMatch(r.tudo, /corpo|token-de-teste/, 'sem conteúdo nem token na saída');
++
++    r = await rodar(dir, ['--clone', clone], env, 'scripts/recados/subir-pendentes.mjs');
++    assert.match(r.saida, /0 recado\(s\)\/anexo\(s\) a subir, 0 arquivo\(s\) de lidos a unir \(0 linha\(s\)\), 4 já no GitHub, 1 conflito/);
++    assert.equal(gh.historico().length, 3, 'rodar de novo não grava nada');
++  } finally { await s.fechar(); }
++});
+diff --git a/scripts/coord.mjs b/scripts/coord.mjs
+index d82c93f3..345ff5be 100644
+--- a/scripts/coord.mjs
++++ b/scripts/coord.mjs
+@@ -6,6 +6,10 @@
+ //        [--responde-a <id>] [--encerra] [--contrato modulo.entidade.fato@1]
+ //        --de alexandre só na sessão do Alexandre: MACUXI_AGENTE=alexandre ou terminal fora do Claude
+ //        Code (sem CLAUDECODE); com MACUXI_AGENTE=<agente>, o --de tem de ser esse agente (v5, T-0044).
++//        Recados no GitHub (T-0143, ADR 0039): com a marca da ADR 0035 no .gitignore, enviar e lido gravam direto
++//        no aloirr/macuxifdv-recados (um commit por envio; "enviado" só depois de o GitHub confirmar) e caixa,
++//        pendencias, ler e fio leem o main do GitHub na hora (cache local por commit). Token: MACUXI_RECADOS_TOKEN,
++//        GH_TOKEN, GITHUB_TOKEN ou gh auth token. MACUXI_RECADOS=local volta às pastas .coord/recados e .coord/lidos.
+ //   node scripts/coord.mjs caixa <agente>           recados abertos/não lidos do agente
+ //   node scripts/coord.mjs lido <agente> <id> [...]  marca avisos/entregas/respostas como lidos
+ //   node scripts/coord.mjs ler <id>                 mostra um recado
+@@ -55,6 +59,8 @@ import {
+   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
+   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
+   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
++  modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
++  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub,
+ } from './coord-lib.mjs';
+ 
+ const PASTA = join(RAIZ, '.coord', 'recados');
+@@ -101,20 +107,42 @@ function parse(txt) {
+   return { meta, corpo: m[2] };
+ }
+ 
++/** Recados do disco (modo local): [{destino, texto}] de .coord/recados/<destino>/*.md. */
++function* recadosDoDisco() {
++  if (!existsSync(PASTA)) return;
++  for (const destino of readdirSync(PASTA)) {
++    let arqs = [];
++    try { arqs = readdirSync(join(PASTA, destino)).filter((f) => f.endsWith('.md')); } catch { continue; }
++    for (const f of arqs) yield { destino, texto: readFileSync(join(PASTA, destino, f), 'utf8') };
++  }
++}
++
++// Fonte dos recados (T-0143, ADR 0039): o main do GitHub (padrão com a marca no .gitignore) ou o disco (local).
++const MODO = modoDosRecados();
++let conexao = null;
++let indice = null;
++const github = () => (conexao ||= conexaoDeRecados());
++function indiceDoGitHub() {
++  if (indice) return indice;
++  try {
++    indice = atualizarIndiceDeRecados(github());
++  } catch (e) {
++    if (e instanceof ErroRecados) falhar(`sem acesso aos recados no GitHub: ${e.message}`);
++    throw e;
++  }
++  if (!indice.online) console.log(`Atenção: ${indice.aviso}\n`);
++  return indice;
++}
++
+ function todosRecados() {
+   const vistos = new Map();
+-  if (!existsSync(PASTA)) return [];
+-  for (const dest of readdirSync(PASTA)) {
+-    const dir = join(PASTA, dest);
+-    let arqs = [];
+-    try { arqs = readdirSync(dir).filter((f) => f.endsWith('.md')); } catch { continue; }
+-    for (const f of arqs) {
+-      const r = parse(readFileSync(join(dir, f), 'utf8'));
+-      if (!r || !r.meta.id) continue;
+-      const atual = vistos.get(r.meta.id) || { ...r, pastas: [] };
+-      atual.pastas.push(dest);
+-      vistos.set(r.meta.id, atual);
+-    }
++  const entradas = MODO === 'github' ? recadosDoIndice(indiceDoGitHub()) : recadosDoDisco();
++  for (const { destino, texto } of entradas) {
++    const r = parse(texto);
++    if (!r || !r.meta.id) continue;
++    const atual = vistos.get(r.meta.id) || { ...r, texto, pastas: [] };
++    atual.pastas.push(destino);
++    vistos.set(r.meta.id, atual);
+   }
+   return [...vistos.values()].sort((a, b) => String(a.meta.criado_em).localeCompare(String(b.meta.criado_em)));
+ }
+@@ -126,7 +154,8 @@ function encerrados(recs) {
+ }
+ function lidosDe(agente) {
+   const arq = join(RAIZ, '.coord', 'lidos', `${agente}.txt`);
+-  return existsSync(arq) ? new Set(readFileSync(arq, 'utf8').split(/\r?\n/).filter(Boolean)) : new Set();
++  const texto = MODO === 'github' ? lidosDoIndice(indiceDoGitHub(), agente) : existsSync(arq) ? readFileSync(arq, 'utf8') : '';
++  return new Set(texto.split(/\r?\n/).filter(Boolean));
+ }
+ const titulo = (r) => (r.corpo.match(/^#\s+(.+)$/m) || [null, '(sem assunto)'])[1];
+ const idade = (r) => {
+@@ -518,7 +547,7 @@ switch (cmd) {
+     if (!TIPOS.includes(tipo)) falhar(`--tipo inválido. Use: ${TIPOS.join(', ')}`);
+     if (!o.assunto || o.assunto === true) falhar('informe --assunto');
+     const prioridade = ['alta', 'normal', 'baixa'].includes(o.prioridade) ? o.prioridade : 'normal';
+-    if (o['responde-a']) {
++    if (o['responde-a'] && MODO === 'local') { // no GitHub, a conferência vai junto com o envio, contra o mesmo commit
+       const ids = new Set(todosRecados().map((r) => r.meta.id));
+       if (!ids.has(o['responde-a'])) falhar(`--responde-a: recado ${o['responde-a']} não encontrado`);
+     }
+@@ -532,10 +561,12 @@ switch (cmd) {
+         : `${o.corpo}\n`;
+     } else corpo = '## Contexto\n\n## O que preciso / o que mudou\n\n## Pronto quando\n';
+     const t = agoraLocal();
+-    let id = `R-${t.compacto}-${de}`;
+-    const existentes = new Set(todosRecados().map((r) => r.meta.id));
+-    for (let n = 2; existentes.has(id); n++) id = `R-${t.compacto}-${n}-${de}`;
+-    const conteudo = [
++    const gerarId = (existentes) => {
++      let novo = `R-${t.compacto}-${de}`;
++      for (let n = 2; existentes.has(novo); n++) novo = `R-${t.compacto}-${n}-${de}`;
++      return novo;
++    };
++    const montar = (id) => [
+       '---',
+       `id: ${id}`,
+       `de: ${de}`,
+@@ -553,8 +584,31 @@ switch (cmd) {
+       '',
+       corpo,
+     ].join('\n');
++    const destinos = [...new Set([...para, ...cc])];
++    const enviadoPara = [...para, ...cc.map((c) => c + ' (cc)')].join(', ');
++    if (MODO === 'github') {
++      if (AGENTES.includes(de)) {
++        const id0 = gerarId(new Set());
++        for (const d of destinos) {
++          const r = regraDoRecadoNovo({ agente: de, destino: d, arquivo: `${id0}.md`, conteudo: montar(id0) });
++          if (!r.ok) falhar(r.motivo);
++        }
++      }
++      let r;
++      try {
++        r = enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA: o['responde-a'] || null });
++      } catch (e) {
++        if (!(e instanceof ErroRecados)) throw e;
++        falhar(/^--responde-a|NÃO/.test(e.message) ? e.message : `recado NÃO enviado (nada foi gravado): ${e.message}`);
++      }
++      console.log(`Recado ${r.id} enviado para ${enviadoPara} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''})`);
++      break;
++    }
++    const existentes = new Set(todosRecados().map((r) => r.meta.id));
++    const id = gerarId(existentes);
++    const conteudo = montar(id);
+     const regras = carregarDonos();
+-    for (const d of new Set([...para, ...cc])) {
++    for (const d of destinos) {
+       const dir = join(PASTA, d);
+       mkdirSync(dir, { recursive: true });
+       const rel = `.coord/recados/${d}/${id}.md`;
+@@ -564,7 +618,7 @@ switch (cmd) {
+       }
+       writeFileSync(join(RAIZ, rel), conteudo, 'utf8');
+     }
+-    console.log(`Recado ${id} enviado para ${[...para, ...cc.map((c) => c + ' (cc)')].join(', ')}`);
++    console.log(`Recado ${id} enviado para ${enviadoPara}`);
+     break;
+   }
+ 
+@@ -586,6 +640,20 @@ switch (cmd) {
+   case 'lido': {
+     const [agente, ...ids] = resto;
+     if (!DESTINOS.includes(agente) || !ids.length) falhar('uso: lido <agente> <id> [...]');
++    if (MODO === 'github') {
++      let r;
++      try {
++        r = marcarLidosNoGitHub({ cliente: github().cliente, agente, ids });
++      } catch (e) {
++        if (!(e instanceof ErroRecados)) throw e;
++        falhar(/NÃO/.test(e.message) ? e.message : `NÃO marcado (nada foi gravado): ${e.message}`);
++      }
++      const ja = ids.length - r.novos.length;
++      console.log(r.commit
++        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''}).`
++        : `${ids.length} recado(s) já estava(m) marcado(s) como lido(s) por ${agente}.`);
++      break;
++    }
+     const dir = join(RAIZ, '.coord', 'lidos');
+     mkdirSync(dir, { recursive: true });
+     appendFileSync(join(dir, `${agente}.txt`), ids.map((i) => i + '\n').join(''), 'utf8');
+@@ -596,7 +664,7 @@ switch (cmd) {
+   case 'ler': {
+     const r = todosRecados().find((x) => x.meta.id === resto[0]);
+     if (!r) falhar('recado não encontrado');
+-    console.log(readFileSync(join(PASTA, r.pastas[0], `${r.meta.id}.md`), 'utf8'));
++    console.log(r.texto);
+     break;
+   }
+ 
+diff --git a/scripts/recados/subir-pendentes.mjs b/scripts/recados/subir-pendentes.mjs
+new file mode 100644
+index 00000000..5c2b8102
+--- /dev/null
++++ b/scripts/recados/subir-pendentes.mjs
+@@ -0,0 +1,135 @@
++#!/usr/bin/env node
++// Subida única dos recados e lidos do PC que não chegaram ao GitHub (T-0143, ADR 0039).
++// Uso: node scripts/recados/subir-pendentes.mjs [--clone <pasta>] [--simular]
++//  - Lê no clone das junções da ADR 0035 (padrão C:\macuxifdv-recados) os arquivos novos ou alterados em recados/ e
++//    lidos/ (git status + commits locais que não estão no origin/main) e compara cada um com o main do GitHub.
++//  - Recado que falta no GitHub sobe; igual ao do GitHub "já está"; mesmo caminho com outro conteúdo é CONFLITO:
++//    nada é sobrescrito, e ele fica listado (saída 1). Lidos: une as linhas do GitHub com as do PC que faltam.
++//  - Tudo num commit só (atômico), com nova tentativa se o main mudar no meio. Depois relê o GitHub e confere.
++//  - Não altera o clone. Rodar de novo é seguro: o que já subiu aparece como "já está".
++//  - Token: o mesmo do coord.mjs (MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN ou gh auth token). Não imprime conteúdo.
++//  saída: 0 = tudo no GitHub · 1 = conflito (nada sobrescrito) · 2 = erro (nada gravado pela metade)
++import { readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { conexaoDeRecados, ErroRecados, shaDoBlob, dormir } from '../coord-lib.mjs';
++
++const RE_RECADO = /^recados\/[^/]+\/[^/]+\.md$/i;
++const RE_ANEXO = /^recados\/anexos\//i;
++const RE_LIDOS = /^lidos\/[^/]+\.txt$/i;
++const linhas = (t) => String(t || '').split(/\r?\n/).filter(Boolean);
++
++/** Caminhos do clone que podem não estar no GitHub: status (novos e alterados) + commits locais fora do origin/main. */
++export function candidatosDoClone(clone) {
++  const git = (a) => execFileSync('git', ['-C', clone, '-c', 'core.quotepath=off', ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
++  const lista = new Set();
++  for (const e of git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--', 'recados', 'lidos']).split('\0').filter(Boolean)) {
++    if (!e.slice(0, 2).includes('D')) lista.add(e.slice(3));
++  }
++  let temOrigem = true;
++  try { git(['rev-parse', '--verify', '-q', 'origin/main']); } catch { temOrigem = false; }
++  if (temOrigem) {
++    for (const c of git(['diff', '--name-only', '-z', '--diff-filter=AM', 'origin/main...HEAD', '--', 'recados', 'lidos']).split('\0').filter(Boolean)) lista.add(c);
++  }
++  return [...lista].filter((c) => RE_RECADO.test(c) || RE_ANEXO.test(c) || RE_LIDOS.test(c)).sort();
++}
++
++/**
++ * Plano da subida contra uma leitura do main: {adicoes, jaEsta, conflitos, lidos: [{caminho, linhas}]}.
++ * `lerLocal(caminho)` → Buffer do clone; `listagem` = cliente.listar(); `textoRemoto(caminho)` → texto no main ou null.
++ */
++export function planejarSubida({ candidatos, lerLocal, listagem, textoRemoto, blobRemoto }) {
++  const plano = { adicoes: [], jaEsta: [], conflitos: [], lidos: [] };
++  for (const caminho of candidatos) {
++    const bruto = lerLocal(caminho);
++    if (RE_LIDOS.test(caminho)) {
++      const remoto = textoRemoto(caminho) || '';
++      const noGitHub = new Set(linhas(remoto));
++      const faltam = [...new Set(linhas(bruto.toString('utf8')))].filter((l) => !noGitHub.has(l));
++      if (!faltam.length) { plano.jaEsta.push(caminho); continue; }
++      plano.adicoes.push({ caminho, conteudo: `${remoto}${remoto && !remoto.endsWith('\n') ? '\n' : ''}${faltam.join('\n')}\n` });
++      plano.lidos.push({ caminho, linhas: faltam.length });
++      continue;
++    }
++    // recado: LF, como o .gitattributes do repositório de recados; anexo: bytes como estão
++    const conteudo = RE_ANEXO.test(caminho) ? bruto : Buffer.from(bruto.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
++    const remoto = RE_ANEXO.test(caminho) ? blobRemoto(caminho) : listagem.arquivos[caminho] || null;
++    if (!remoto) plano.adicoes.push({ caminho, conteudo });
++    else if (remoto === shaDoBlob(conteudo)) plano.jaEsta.push(caminho);
++    else plano.conflitos.push(caminho);
++  }
++  return plano;
++}
++
++function principal() {
++  const args = process.argv.slice(2);
++  const i = args.indexOf('--clone');
++  const clone = i >= 0 && args[i + 1] ? args[i + 1] : 'C:\\macuxifdv-recados';
++  const simular = args.includes('--simular');
++  const candidatos = candidatosDoClone(clone);
++  console.log(`Clone: ${clone} — ${candidatos.length} arquivo(s) novo(s) ou alterado(s) em recados/ e lidos/`);
++  if (!candidatos.length) { console.log('Resultado: OK — nada a subir.'); return 0; }
++  const { cliente } = conexaoDeRecados();
++  const lerLocal = (c) => readFileSync(join(clone, ...c.split('/')));
++  let plano;
++  let listagem;
++  let commit = null;
++  for (let t = 1; t <= 5; t++) {
++    listagem = cliente.listar();
++    const lidosRemotos = cliente.textos(candidatos.filter((c) => RE_LIDOS.test(c)).map((c) => listagem.arquivos[c]).filter(Boolean));
++    plano = planejarSubida({
++      candidatos, lerLocal, listagem,
++      textoRemoto: (c) => lidosRemotos[listagem.arquivos[c]] ?? null,
++      blobRemoto: (c) => cliente.arquivo(c).blob,
++    });
++    const recados = plano.adicoes.filter((a) => !RE_LIDOS.test(a.caminho));
++    console.log(`GitHub ${cliente.repo}@${listagem.oid.slice(0, 7)}: ${recados.length} recado(s)/anexo(s) a subir, ${plano.lidos.length} arquivo(s) de lidos a unir (${plano.lidos.reduce((s, l) => s + l.linhas, 0)} linha(s)), ${plano.jaEsta.length} já no GitHub, ${plano.conflitos.length} conflito(s)`);
++    for (const a of recados) console.log(`  + ${a.caminho}`);
++    for (const l of plano.lidos) console.log(`  ∪ ${l.caminho} (+${l.linhas})`);
++    for (const c of plano.conflitos) console.log(`  ! ${c} — CONFLITO: o GitHub tem outro conteúdo com este caminho; nada sobrescrito`);
++    if (simular || !plano.adicoes.length) break;
++    try {
++      commit = cliente.commitar({
++        esperado: listagem.oid, adicoes: plano.adicoes,
++        titulo: `recados: subida única dos pendentes do PC (${recados.length} recado(s), ${plano.lidos.length} lidos) (T-0143)`,
++        corpo: `Arquivos do clone ${clone} que não tinham chegado ao GitHub (ADR 0039).`,
++      });
++      break;
++    } catch (e) {
++      if (!(e instanceof ErroRecados)) throw e;
++      if (cliente.cabeca() === listagem.oid) throw e;
++      console.log(`O main mudou durante a subida (tentativa ${t}); relendo.`);
++      dormir(300 * t);
++    }
++  }
++  if (simular) { console.log('\nSimulação: nada foi gravado.'); return plano.conflitos.length ? 1 : 0; }
++  if (plano.adicoes.length && !commit) throw new ErroRecados('o main mudou 5 vezes seguidas; nada foi gravado. Rode de novo');
++  if (commit) {
++    // Conferência: relê o main e confere cada arquivo do plano.
++    const depois = cliente.listar();
++    const textos = cliente.textos(plano.adicoes.filter((a) => RE_LIDOS.test(a.caminho)).map((a) => depois.arquivos[a.caminho]).filter(Boolean));
++    const faltando = plano.adicoes.filter((a) => {
++      if (RE_ANEXO.test(a.caminho)) return cliente.arquivo(a.caminho).blob !== shaDoBlob(a.conteudo);
++      if (!RE_LIDOS.test(a.caminho)) return depois.arquivos[a.caminho] !== shaDoBlob(a.conteudo);
++      const noGitHub = new Set(linhas(textos[depois.arquivos[a.caminho]]));
++      return linhas(a.conteudo).some((l) => !noGitHub.has(l));
++    });
++    if (faltando.length) throw new ErroRecados(`o commit ${commit.oid.slice(0, 7)} entrou, mas a conferência não achou: ${faltando.map((a) => a.caminho).join(', ')}`);
++    console.log(`\nSubida feita e conferida: commit ${commit.oid.slice(0, 7)} (${commit.url || cliente.repo}).`);
++  }
++  if (plano.conflitos.length) {
++    console.log(`\nResultado: CONFLITO — ${plano.conflitos.length} arquivo(s) com outro conteúdo no GitHub; nada foi sobrescrito. Compare à mão.`);
++    return 1;
++  }
++  console.log('\nResultado: OK — tudo o que estava no PC está no GitHub.');
++  return 0;
++}
++
++if (import.meta.main) {
++  try {
++    process.exitCode = principal();
++  } catch (e) {
++    console.error(`Erro: ${e instanceof ErroRecados ? e.message : e?.stack || e}`);
++    process.exitCode = 2;
++  }
++}

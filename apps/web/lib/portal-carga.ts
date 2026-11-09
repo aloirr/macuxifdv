@@ -15,6 +15,7 @@ import {
   type ModoCarga,
   type ProgressoSessaoArquivo,
 } from '@macuxi/integracao/contracts';
+import { protegerFormula } from '@macuxi/comum/csv';
 import { dividirCsvEmPartes, type ParteDoArquivo } from '@macuxi/integracao/web';
 import { downloadBlob } from '@macuxi/platform-sdk/web';
 
@@ -106,10 +107,9 @@ export function percentualDaCarga(p: { totalPartes: number; enviadas: number; ap
 
 const BOM = String.fromCharCode(0xfeff);
 
-/** Célula do CSV (Excel brasileiro): aspas quando precisa; apóstrofo antes de `= + - @` (o Excel não executa como fórmula). */
+/** Célula do CSV (Excel brasileiro): aspas quando precisa; a fórmula protegida por `protegerFormula` de `@macuxi/comum/csv` (RD-0044). */
 function celulaCsv(v: string | number | null | undefined): string {
-  let t = v === null || v === undefined ? '' : String(v);
-  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  const t = protegerFormula(v === null || v === undefined ? '' : String(v));
   return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 

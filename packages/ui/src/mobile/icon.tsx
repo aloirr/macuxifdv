@@ -43,7 +43,6 @@ export type IconName =
   | 'map'
   | 'camera'
   | 'inbox'
-  | 'arvore'
   | 'filtro'
   | 'abaixo'
   | 'subir'
@@ -260,8 +259,5 @@ function render(name: IconName, c: Common) {
           <Circle cx={12} cy={19} r={1.2} {...c} />
         </>
       );
-    case 'arvore':
-      // lista em níveis (sistema › grupo › linha; atalho "Ver por linha" do Catálogo, T-0085)
-      return <Path d="M21 6H8M21 12h-8M21 18h-8M4 6v4a2 2 0 0 0 2 2h3M4 10v6a2 2 0 0 0 2 2h3" {...c} />;
   }
 }

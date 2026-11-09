@@ -72,13 +72,13 @@ describe('"Crie sua senha" (§2)', () => {
     expect(resultadoDoErroDaTroca(erro(422, 'RN-CORE-32', { faltas: ['numero'] }), 'Abcdef#g')).toEqual({ acao: 'destacar', mensagem: 'Falta um número.' });
     expect(resultadoDoErroDaTroca(erro(422, 'RN-CORE-32'), 'ana@x.com.br1#')).toEqual({ acao: 'destacar', mensagem: 'A senha não pode ser igual ao e-mail.' });
     expect(resultadoDoErroDaTroca(erro(422, 'RN-CORE-34'), 'x')).toEqual({ acao: 'limpar', mensagem: 'A senha nova precisa ser diferente da senha que você recebeu.' });
-    expect(resultadoDoErroDaTroca(erro(401, 'CREDENCIAIS_INVALIDAS'), 'x')).toEqual({ acao: 'login', mensagem: 'Esta senha não vale mais. Entre de novo.' });
-    expect(resultadoDoErroDaTroca(erro(410, 'SENHA_TEMPORARIA_VENCIDA'), 'x')).toEqual({ acao: 'login', mensagem: TEXTOS_LOGIN_SENHA.senhaVencida });
-    expect(resultadoDoErroDaTroca(erro(423, 'USUARIO_BLOQUEADO'), 'x')).toEqual({ acao: 'login', mensagem: mensagemDoLogin(erro(423, 'USUARIO_BLOQUEADO')) });
-    expect(resultadoDoErroDaTroca(erro(429, 'MUITAS_TENTATIVAS'), 'x').acao).toBe('login');
-    expect(resultadoDoErroDaTroca(erro(403, 'PERFIL_FORA_DO_APP', undefined, 'O perfil vendedor não usa o backoffice (web).'), 'x')).toEqual({ acao: 'login', mensagem: 'O perfil vendedor não usa o backoffice (web).' });
-    expect(resultadoDoErroDaTroca(erro(0, 'network'), 'x')).toEqual({ acao: 'fica', mensagem: 'Conecte-se à internet para criar a sua senha.' });
-    expect(resultadoDoErroDaTroca(erro(500, 'ERRO_INTERNO'), 'x').acao).toBe('fica');
+    expect(resultadoDoErroDaTroca(erro(401, 'CREDENCIAIS_INVALIDAS'), 'x')).toEqual({ acao: 'voltar_ao_login', mensagem: 'Esta senha não vale mais. Entre de novo.' });
+    expect(resultadoDoErroDaTroca(erro(410, 'SENHA_TEMPORARIA_VENCIDA'), 'x')).toEqual({ acao: 'voltar_ao_login', mensagem: TEXTOS_LOGIN_SENHA.senhaVencida });
+    expect(resultadoDoErroDaTroca(erro(423, 'USUARIO_BLOQUEADO'), 'x')).toEqual({ acao: 'voltar_ao_login', mensagem: mensagemDoLogin(erro(423, 'USUARIO_BLOQUEADO')) });
+    expect(resultadoDoErroDaTroca(erro(429, 'MUITAS_TENTATIVAS'), 'x').acao).toBe('voltar_ao_login');
+    expect(resultadoDoErroDaTroca(erro(403, 'PERFIL_FORA_DO_APP', undefined, 'O perfil vendedor não usa o backoffice (web).'), 'x')).toEqual({ acao: 'voltar_ao_login', mensagem: 'O perfil vendedor não usa o backoffice (web).' });
+    expect(resultadoDoErroDaTroca(erro(0, 'network'), 'x')).toEqual({ acao: 'ficar', mensagem: 'Conecte-se à internet para criar a sua senha.' });
+    expect(resultadoDoErroDaTroca(erro(500, 'ERRO_INTERNO'), 'x').acao).toBe('ficar');
   });
   it('textos sem variação; nunca "token", "convite", "hash" nem "sessão revogada"', () => {
     expect(TEXTOS_CRIE_SENHA).toMatchObject({ titulo: 'Crie sua senha', salvar: 'Salvar e entrar', salvando: 'Salvando…', voltar: 'Voltar ao login', criada: 'Senha criada.' });

@@ -7,7 +7,7 @@ import { z } from 'zod';
 import type { FonteCatalogo, FonteCitada, RespostaCatalogo, TipoFonte } from '../contracts';
 import type { ParametrosCatalogo } from './parametros';
 import { nivelDaPalavra } from './ranking';
-import { tokensDeBusca } from './texto';
+import { chaveSemAcento, tokensDeBusca } from './texto';
 
 export const NAO_ENCONTREI = 'Não encontrei essa informação na base do catálogo.';
 
@@ -133,7 +133,6 @@ export interface EntradaValidacao {
   fontesConhecidas?: readonly Pick<FonteCatalogo, 'id' | 'tenant_id'>[];
 }
 
-const semAcentoMin = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 /**
  * Valida a resposta da porta de LLM (RN-CAT-02). Aceita: "não encontrei" explícito (sem fonte) ou resposta com
@@ -144,7 +143,7 @@ export function validarRespostaPergunte(e: EntradaValidacao): ResultadoValidacao
   if (!r.success) return rejeitar('resposta_invalida');
   const { resposta, fontes: citadas, nao_encontrei } = r.data;
 
-  if (nao_encontrei === true || semAcentoMin(resposta).startsWith('nao encontrei')) return { ok: true, resposta: { ...NAO_ENCONTRADA } };
+  if (nao_encontrei === true || chaveSemAcento(resposta).startsWith('nao encontrei')) return { ok: true, resposta: { ...NAO_ENCONTRADA } };
   if (resposta.trim() === '') return rejeitar('resposta_vazia');
   if (citadas.length === 0) return rejeitar('sem_fonte');
 

@@ -13,6 +13,7 @@ import { irParaNovoPedido } from './rotas';
 import NewOrderScreen from './screens/new-order-screen';
 import OrderDetailScreen from './screens/order-detail-screen';
 import OrdersScreen from './screens/orders-screen';
+import RascunhosScreen from './screens/rascunhos-screen';
 
 export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';
 
@@ -30,6 +31,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   paginas: [
     { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', ordem: 40, perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrdersScreen },
     { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrderDetailScreen },
+    { id: 'rascunhos', caminho: 'rascunhos', titulo: 'Rascunhos', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: RascunhosScreen },
     { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: NewOrderScreen },
   ],
   entidadesSync: ENTIDADES_VENDEDOR,

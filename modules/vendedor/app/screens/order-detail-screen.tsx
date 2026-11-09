@@ -7,7 +7,7 @@
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, HistoricoEmTags, Icon, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, Selo, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, HistoricoEmTags, Icon, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, Selo, TabelaValores, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -27,6 +27,7 @@ import { acoesDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, 
 import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
+import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { textoDoEndereco } from '../lib/novo-pedido';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { statusBadge, statusBadgeDaLinha } from '../lib/order-status';
@@ -35,7 +36,8 @@ import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
 import { estadoDoDetalheAusente, folhaDoTransformar, itemCompacto, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento } from '../lib/textos-pedido';
-import { validadeOrcamentoDias } from '../../domain/orcamento';
+import { dataDaValidade, dataDoPrecoDoOrcamento, precoDoOrcamentoVale, validadeOrcamentoDias } from '../../domain/orcamento';
+import { folhaPrecosDeHoje, TEXTOS_PRECOS_DE_HOJE, type DadosDosPrecosDeHoje } from '../lib/precos-de-hoje';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -90,7 +92,9 @@ export default function OrderDetailScreen() {
   /** spec §4.1: mais de 8 itens mostram os 8 primeiros e "Ver os N itens" */
   const [mostrarTodosItens, setMostrarTodosItens] = useState(false);
   /** RN-VEN-18: o que mudou desde o orçamento; o vendedor confirma antes de transformar */
-  const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number } | null>(null);
+  const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number; precos: DadosDosPrecosDeHoje } | null>(null);
+  /** T-0141 G: "Ver os N itens" da folha Preços de hoje */
+  const [todosOsPrecos, setTodosOsPrecos] = useState(false);
   /** desenho §1.5: a folha do Transformar abre sempre (toque 1); o envio é o toque 2 */
   const [transformarAberto, setTransformarAberto] = useState(false);
   // T-0137: "Transformar em pedido" da edição do orçamento salva e chega aqui com a folha do Transformar já aberta (uma vez)
@@ -167,11 +171,14 @@ export default function OrderDetailScreen() {
   const effectivePct = queued ? null : (base!.effective_discount_pct ?? null);
   const enderecoTexto = (() => {
     if (queued) {
+      if (queued.payload.endereco_entrega_editado) return textoDoEndereco(queued.payload.endereco_entrega_editado);
       const e = queued.payload.endereco_entrega_id ? app.enderecos.find((x) => x.id === queued.payload.endereco_entrega_id) : null;
       return e ? textoDoEndereco(e) : null;
     }
     return base!.delivery_address ? textoDoEndereco({ ...base!.delivery_address, numero: base!.delivery_address.numero ?? null, complemento: base!.delivery_address.complemento ?? null, bairro: base!.delivery_address.bairro ?? null }) : null;
   })();
+  // T-0141 (RN-VEN-17): o endereço foi digitado só neste pedido → selo "Editado neste pedido"
+  const enderecoEditado = queued ? Boolean(queued.payload.endereco_entrega_editado) : base!.delivery_address?.origem === 'editado';
   const terms = queued ? queued.payload.payment_terms : base!.payment_terms;
   const history: OrderEvent[] = queued
     ? [{ at: queued.criado_em, status: 'queued', by: 'aparelho', note: queued.payload.created_offline_at ? 'Criado no aparelho sem sinal' : 'Aguardando envio' }]
@@ -186,13 +193,14 @@ export default function OrderDetailScreen() {
   const doc = queued ? { status, tipo: queued.payload.tipo } : { ...base!, status };
   const acoesOrc = acoesNaTela(doc, agoraTela, !v1 || perfil === 'vendedor');
   const ehOrc = acoesOrc !== null;
-  // RN-VEN-18: validade por data civil no fuso do tenant ("até 10/11"), offline
+  // RN-VEN-18 (09/11): o orçamento não vence; a etiqueta mostra o dia do preço ("preço de 09/11"), no fuso do tenant, offline
+  const diasDoPreco = validadeOrcamentoDias(ambiente.parametros('vendedor'));
   const validadeData = ehOrc
-    ? validadeCivilDoDocumento({ validade_data: queued ? null : (base?.validade_data ?? null), validade_ate: queued ? null : (base?.validade_ate ?? null), criado_em: queued?.criado_em ?? null }, { fuso: tz, dias: validadeOrcamentoDias(ambiente.parametros('vendedor')) })
+    ? validadeCivilDoDocumento({ validade_data: queued ? null : (base?.validade_data ?? null), validade_ate: queued ? null : (base?.validade_ate ?? null), criado_em: queued?.criado_em ?? null }, { fuso: tz, dias: diasDoPreco })
     : null;
   const situacaoOrc = ehOrc ? situacaoNaTela(doc, agoraTela) : null;
   const numeroConvertido = base && !queued && base.convertido_pedido_id ? (orders.find((o) => o.id === base.convertido_pedido_id)?.number ?? null) : null;
-  const selo = ehOrc && situacaoOrc && validadeData ? seloDoOrcamento({ situacao: situacaoOrc, validade_data: validadeData, pedido_numero: numeroConvertido }) : null;
+  const selo = ehOrc && situacaoOrc && validadeData ? seloDoOrcamento({ situacao: situacaoOrc, preco_data: dataDoPrecoDoOrcamento(validadeData, diasDoPreco), pedido_numero: numeroConvertido }) : null;
   const title = number ? `${ehOrc ? 'Orçamento' : 'Pedido'} ${number}` : ehOrc ? 'Orçamento no aparelho' : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
   const ehVendedor = !v1 || perfil === 'vendedor';
@@ -212,6 +220,10 @@ export default function OrderDetailScreen() {
   const podeDuplicarDoc = acoesOrc ? acoesOrc.pode_duplicar : acts.can_duplicate;
 
   const folhaTransformar = folhaDoTransformar(conferencia);
+  // T-0141 G (RN-VEN-18): depois dos 7 dias do preço e com o total diferente, a folha é "Preços de hoje"; senão, a de sempre
+  const precosDeHoje = conferencia && validadeData
+    ? folhaPrecosDeHoje({ preco_vale: conferencia.precos.preco_vale, preco_data: dataDaValidade(dataDoPrecoDoOrcamento(validadeData, diasDoPreco)), r: conferencia.precos.r, nome: (pid) => conferencia.precos.nomes[pid] ?? 'Produto', todos: todosOsPrecos })
+    : null;
 
   const converter = async () => {
     setBusy('convert');
@@ -233,7 +245,8 @@ export default function OrderDetailScreen() {
     setActionError(null);
     try {
       const c = v1 ? await app.reconferirOrcamentoLocal(id ?? '') : null;
-      setConferencia(c ? { mudancas: c.mudancas, bloqueio: c.bloqueio, nivel: c.nivel, total_cents: c.total_cents } : null);
+      setConferencia(c ? { mudancas: c.mudancas, bloqueio: c.bloqueio, nivel: c.nivel, total_cents: c.total_cents, precos: c.precos } : null);
+      setTodosOsPrecos(false);
       setTransformarAberto(true);
     } catch (e) {
       setActionError(errorMessage(e));
@@ -339,7 +352,7 @@ export default function OrderDetailScreen() {
       price_table_name: queued ? null : (base!.price_table_name ?? null),
       ...(!queued && base!.freight ? { freight: base!.freight } : {}),
       ...(enderecoTexto ? { delivery_address: enderecoTexto } : {}),
-      ...(ehOrc ? { tipo: 'orcamento' as const, validade_data: validadeData } : {}),
+      ...(ehOrc ? { tipo: 'orcamento' as const } : {}),
     };
   };
 
@@ -368,7 +381,7 @@ export default function OrderDetailScreen() {
         generated_at: new Date().toISOString(),
         reference_on_customer_pdf: referenciaNoCliente,
       });
-      const r = await exportPdf(html, orderPdfFileName(number, view, pedidoPdf.tipo), () => !vigente());
+      const r = await exportPdf(html, orderPdfFileName(number, pedidoPdf.created_at, tz, pedidoPdf.tipo), () => !vigente());
       if (r.kind !== 'cancelado' && vigente()) setSheet(null);
     } catch (e) {
       if (vigente()) setSheetError(errorMessage(e));
@@ -382,7 +395,7 @@ export default function OrderDetailScreen() {
   const codigoDoCliente = (queued ? dados.clientes.find((x) => x.id === queued.payload.customer_id)?.erp_code : (detail?.cliente?.codigo_erp ?? dados.clientes.find((x) => x.id === base!.customer_id)?.erp_code)) ?? null;
   const eventosDoHistorico =
     ehOrc && situacaoOrc
-      ? eventosDoOrcamento(history, { vendedorNome, situacao: situacaoOrc, criadoEm: queued?.criado_em ?? base?.received_at ?? new Date(agoraTela).toISOString(), validadeAte: queued ? null : (base?.validade_ate ?? null), convertidoEm: queued ? null : (base?.updated_at ?? null), numeroPedido: numeroConvertido })
+      ? eventosDoOrcamento(history, { vendedorNome, situacao: situacaoOrc, criadoEm: queued?.criado_em ?? base?.received_at ?? new Date(agoraTela).toISOString(), convertidoEm: queued ? null : (base?.updated_at ?? null), numeroPedido: numeroConvertido })
       : eventosDoPedido(history, { vendedorNome, motivoDoFechamento: queued ? null : (base?.rejection_reason ?? null) });
   const tagsDoDetalhe = tagsDoHistorico(eventosDoHistorico, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
   const ultimaTag = tagsDoDetalhe.length > 0 ? tagsDoDetalhe[tagsDoDetalhe.length - 1]! : null;
@@ -396,7 +409,6 @@ export default function OrderDetailScreen() {
     return base?.freight?.carrier_name ?? null;
   })();
   const formaPrazoFrete = linhaFormaPrazoFrete({ forma: queued ? null : (base?.forma_pagamento_nome ?? null), prazo: queued ? terms : (base?.prazo_descricao ?? terms), modalidade, transportadora });
-  const vencido = ehOrc && situacaoOrc === 'expirado';
   const acoesDaTela = acoesDoDetalhe({
     tipo: ehOrc ? 'orcamento' : 'pedido',
     status,
@@ -404,6 +416,7 @@ export default function OrderDetailScreen() {
     naFila: Boolean(queued),
     recusado: Boolean(queued?.failed),
     somenteLeitura,
+    precoVencido: ehOrc && !queued && !precoDoOrcamentoVale(base?.validade_ate, agoraTela),
     podeEditar: canEdit && (ehOrc ? Boolean(acoesOrc?.pode_editar) : true),
     podeCancelar: podeExcluirDoc && (ehOrc ? Boolean(acoesOrc?.pode_cancelar) : true),
     podeDuplicar: ehVendedor && podeCriar && podeDuplicarDoc && hasLines && (ehOrc ? Boolean(acoesOrc?.pode_duplicar) : true),
@@ -474,7 +487,7 @@ export default function OrderDetailScreen() {
               {title}
             </Text>
             {selo ? (
-              <Selo testID="orcamento-selo" texto={vencido ? 'Orçamento · vencido' : selo.texto} tom={vencido ? 'aviso' : selo.tom} tamanho="m" pilula />
+              <Selo testID="orcamento-selo" texto={selo.texto} tom={selo.tom} tamanho="m" pilula />
             ) : ehOrc ? (
               <Selo testID="orcamento-selo" texto={rotuloDoDocumento(doc, agoraTela)} tom="neutro" tamanho="m" pilula />
             ) : ultimaTag ? (
@@ -546,9 +559,13 @@ export default function OrderDetailScreen() {
           ) : null}
           {effectivePct !== null && !ehOrc ? <Text style={t.small}>{`Desconto efetivo (sem frete): ${formatPct(effectivePct)}`}</Text> : null}
           {enderecoTexto ? (
-            <Text style={t.small} testID="order-delivery">
-              {`Entrega em ${enderecoTexto}`}
-            </Text>
+            <View style={{ gap: 6, paddingTop: 8 }} testID="order-delivery">
+              <RotuloSecao texto="Entrega" />
+              {enderecoEditado ? <Selo texto={TEXTOS_ENDERECO.editadoNestePedido} tom="destaque" tamanho="p" testID="order-delivery-editado" /> : null}
+              <Text style={t.body} testID="order-delivery-endereco">
+                {enderecoTexto}
+              </Text>
+            </View>
           ) : null}
           {base && !queued && base.branch_name ? <Text style={t.small}>{`Filial: ${base.branch_name}`}</Text> : null}
           {!queued && detail?.price_table_name ? <Text style={t.small}>{`Tabela de preço: ${detail.price_table_name}`}</Text> : null}
@@ -632,7 +649,45 @@ export default function OrderDetailScreen() {
 
         <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} ehOrcamento={ehOrc} solicitaAoErp={enviadoAoErp(status) && erpAceitaCancelamento} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
         <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('rejeitar', motivo)} />
-        <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={folhaTransformar.titulo} testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setTransformarAberto(false), testID: 'conferencia-voltar' }}>
+        {precosDeHoje ? (
+          <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={precosDeHoje.titulo} rolavel testID="folha-precos-de-hoje" rodape={{ rotulo: TEXTOS_PRECOS_DE_HOJE.voltar, onPress: () => setTransformarAberto(false), testID: 'precos-voltar' }}>
+            <View style={{ gap: 12 }}>
+              <TabelaValores testID="precos-totais" linhas={precosDeHoje.totais.map((x) => ({ id: x.id, rotulo: x.rotulo, valor: x.valor, ...(x.tom ? { tom: x.tom } : {}) }))} />
+              {precosDeHoje.mudaram.length > 0 ? (
+                <View style={{ gap: 4 }} testID="precos-mudaram">
+                  <RotuloSecao texto={TEXTOS_PRECOS_DE_HOJE.mudaram} />
+                  {precosDeHoje.mudaram.map((m) => (
+                    <LinhaValor key={m.id} rotulo={m.rotulo} valor={m.valor} forte />
+                  ))}
+                  {precosDeHoje.verTodos ? <LinkTexto rotulo={precosDeHoje.verTodos} onPress={() => setTodosOsPrecos(true)} testID="precos-ver-todos" /> : null}
+                </View>
+              ) : null}
+              {precosDeHoje.semPreco.length > 0 ? (
+                <View style={{ gap: 4 }} testID="precos-sem-preco">
+                  {precosDeHoje.semPreco.map((n) => (
+                    <LinhaValor key={n} rotulo={n} valor={TEXTOS_PRECOS_DE_HOJE.semPrecoHoje} tomValor="erro" />
+                  ))}
+                </View>
+              ) : null}
+              <Botao
+                testID="precos-transformar"
+                nivel="principal"
+                rotulo={precosDeHoje.acao}
+                desligado={!folhaTransformar.podeEnviar || busy === 'convert'}
+                onPress={() => {
+                  setTransformarAberto(false);
+                  void converter();
+                }}
+              />
+              {folhaTransformar.subtitulo && conferencia?.nivel ? (
+                <Text style={[t.small, { textAlign: 'center' }]} testID="precos-destino">
+                  {folhaTransformar.subtitulo}
+                </Text>
+              ) : null}
+            </View>
+          </Folha>
+        ) : null}
+        <Folha visivel={transformarAberto && !precosDeHoje} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={folhaTransformar.titulo} testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setTransformarAberto(false), testID: 'conferencia-voltar' }}>
           <View style={{ gap: 8 }}>
             {conferencia?.bloqueio ? (
               <Text style={[t.smallStrong, { color: colors.danger }]} testID="conferencia-bloqueio">

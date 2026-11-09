@@ -27,6 +27,8 @@ import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
 import type { ServicoEmail } from './email/porta';
+import type { ServicoPacotes } from './pacotes';
+import { problemasCookieSessao, type CookieSessaoRota } from './cookie-sessao';
 import type { SuperficieRota } from './perfis';
 import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
 import { MODOS_SUPER_ADMIN, type AcessoPortalAutenticado, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
@@ -224,6 +226,12 @@ export interface ContextoBase {
    * adaptador: `disponivel() = false`); contexto falso de teste usa `criarServicoEmailMemoria()`.
    */
   email?: ServicoEmail;
+  /**
+   * T-0098 (ADR 0037): pacotes publicados para download por link temporário (hoje o instalador do Conector). A API sempre
+   * preenche nas rotas de módulo (sem S3: `disponivel() = false` e `linkDoUltimo` responde 503); contexto falso de teste usa
+   * `criarServicoPacotesMemoria()`. A rota decide quem pode pedir e audita; o link nunca vai para log.
+   */
+  pacotes?: ServicoPacotes;
 }
 
 /**
@@ -699,6 +707,13 @@ export interface RotaPublica<
    * (serializado com `JSON.stringify`); o tipo é sempre `application/json; charset=utf-8`.
    */
   cache?: CacheRotaPublica;
+  /**
+   * T-0117 (ADR 0038): token de renovação do BKO em cookie httpOnly. Só no core, só `POST`. Com o cabeçalho
+   * `X-Macuxi-CSRF: 1`, a API lê o cookie para `corpo.refresh_token` (`renovar`/`encerrar`), tira o `refresh_token` da
+   * resposta e grava o cookie (`emitir`/`renovar`) ou apaga (`encerrar`, e recusa 401/423 no `renovar`). Sem o cabeçalho,
+   * nada muda (o app). O `executar` não sabe do cookie. Ver `cookie-sessao.ts`.
+   */
+  cookieSessao?: CookieSessaoRota;
   executar(ctx: ContextoPublico<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
 }
 
@@ -715,10 +730,10 @@ export function caminhoDaRotaPublica(modulo: string, caminho: string): string {
  */
 export function problemasRotaPublica(
   modulo: string,
-  r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao' | 'cache' | 'corpo' | 'status'>,
+  r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao' | 'cache' | 'corpo' | 'status' | 'cookieSessao'>,
 ): string[] {
   const rotulo = `${r.metodo} ${caminhoDaRotaPublica(modulo, r.caminho)}`;
-  const p = problemasConexaoRotaPublica(modulo, r);
+  const p = [...problemasConexaoRotaPublica(modulo, r), ...problemasCookieSessao(modulo, rotulo, r)];
   if (modulo !== 'core' && r.cache === undefined) p.push(`${rotulo}: rota pública fora do core só serve documento com cache (T-0092)`);
   if (r.cache === undefined) return p;
   const s = r.cache?.maxAgeSegundos;

@@ -1,0 +1,138 @@
+/**
+ * Rascunhos (RN-VEN-38/39, T-0141 F; spec docs/design/pedido-v3.md §F.2 e §F.3). O pedido que o vendedor deixa sem enviar e sem
+ * salvar como orçamento fica aqui por 24 h depois da última alteração. Lê só do aparelho (vale offline, sem aviso de sinal);
+ * tocar numa linha retoma o pedido na aba em que parou. Sem ação de apagar na lista: Descartar fica dentro do pedido.
+ */
+import { formatBRL } from '@macuxi/comum';
+import { BackLink, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Selo, type as t } from '@macuxi/ui/mobile';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { TEXTOS_RASCUNHOS, type LinhaDeRascunho } from '../lib/rascunhos-lista';
+import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
+import { useVendedor } from '../state/use-vendedor';
+
+/** Leitura da linha para o TalkBack: "Atacadinho, cód. C5007 · 3 itens, R$ 69,96, Alterado hoje às 05:51. Some em 2 h." */
+function leituraDaLinha(l: LinhaDeRascunho): string {
+  const total = l.total_cents === null ? '' : `, ${formatBRL(l.total_cents)}`;
+  return `${l.cliente}, ${l.apoio}${total}, ${l.alterado}.${l.someEm ? ` ${l.someEm}.` : ''}`;
+}
+
+export default function RascunhosScreen() {
+  const app = useVendedor();
+  const insets = useSafeAreaInsets();
+  const [agora, setAgora] = useState(() => new Date());
+  const [puxando, setPuxando] = useState(false);
+  // ao focar, relê o aparelho e renova o relógio (o "Some em" depende dele)
+  useFocusEffect(
+    useCallback(() => {
+      setAgora(new Date());
+      void app.recarregar();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao focar
+    }, []),
+  );
+  const leitura = useMemo((): { estado: 'carregando' } | { estado: 'erro' } | { estado: 'ok'; linhas: LinhaDeRascunho[] } => {
+    if (!app.carregado) return { estado: 'carregando' };
+    try {
+      return { estado: 'ok', linhas: app.rascunhosDaLista(agora) };
+    } catch {
+      return { estado: 'erro' };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recalcula quando os rascunhos ou o relógio mudam
+  }, [app.carregado, app.rascunhosDaLista, agora]);
+
+  const puxar = async () => {
+    setPuxando(true);
+    setAgora(new Date());
+    try {
+      await app.recarregar();
+    } finally {
+      setPuxando(false);
+    }
+  };
+
+  return (
+    <ScrollView
+      testID="rascunhos"
+      style={s.root}
+      contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
+      refreshControl={<RefreshControl refreshing={puxando} onRefresh={() => void puxar()} />}>
+      <BackLink label={TEXTOS_RASCUNHOS.voltar} fallback={hrefPedidos()} testID="rascunhos-voltar" />
+      <Text style={t.h1} accessibilityRole="header">
+        {TEXTOS_RASCUNHOS.titulo}
+      </Text>
+
+      {leitura.estado === 'carregando' ? (
+        <View style={s.cartao} testID="rascunhos-carregando" accessibilityState={{ busy: true }}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={[s.linha, i > 0 && s.traco]}>
+              <View style={[s.esqueleto, { width: '60%', height: 16 }]} />
+              <View style={[s.esqueleto, { width: '40%', height: 12 }]} />
+              <View style={[s.esqueleto, { width: '30%', height: 12 }]} />
+            </View>
+          ))}
+        </View>
+      ) : leitura.estado === 'erro' ? (
+        <EstadoVazio testID="rascunhos-erro" icone="alert" titulo={TEXTOS_RASCUNHOS.erro.titulo} texto={TEXTOS_RASCUNHOS.erro.apoio} />
+      ) : leitura.linhas.length === 0 ? (
+        <EstadoVazio
+          testID="rascunhos-vazio"
+          icone="edit"
+          titulo={TEXTOS_RASCUNHOS.vazio.titulo}
+          texto={TEXTOS_RASCUNHOS.vazio.apoio}
+          acao={{ rotulo: TEXTOS_RASCUNHOS.vazio.acao, onPress: irParaPedidos, testID: 'rascunhos-voltar-pedidos' }}
+        />
+      ) : (
+        <View style={s.cartao} testID="rascunhos-lista">
+          {leitura.linhas.map((l, i) => (
+            <Pressionavel
+              key={l.chave}
+              testID={`rascunho-${l.chave}`}
+              accessibilityRole="button"
+              accessibilityLabel={leituraDaLinha(l)}
+              accessibilityHint={l.foraDaCarteira ? undefined : TEXTOS_RASCUNHOS.dica}
+              accessibilityState={{ disabled: l.foraDaCarteira }}
+              disabled={l.foraDaCarteira}
+              onPress={() => irParaNovoPedido(l.edicao_de ? { customerId: l.customer_id, editId: l.edicao_de } : { customerId: l.customer_id })}
+              style={[s.linha, i > 0 && s.traco]}>
+              <View style={s.l1}>
+                <Text style={[s.cliente, l.foraDaCarteira && s.apagado]} numberOfLines={2}>
+                  {l.cliente}
+                </Text>
+                {l.total_cents !== null ? <Text style={[s.total, l.foraDaCarteira && s.apagado]}>{formatBRL(l.total_cents)}</Text> : null}
+              </View>
+              <View style={s.l2}>
+                <Text style={[s.apoio, l.foraDaCarteira && s.apagado]} numberOfLines={1}>
+                  {l.apoio}
+                </Text>
+                {l.foraDaCarteira ? null : <Icon name="chevron" size={16} color={colors.ink3} />}
+              </View>
+              <View style={s.l3}>
+                <Text style={[s.alterado, l.foraDaCarteira && s.apagado]}>{l.alterado}</Text>
+                {l.someEm ? <Selo texto={l.someEm} tom="aviso" tamanho="p" testID={`rascunho-${l.chave}-some-em`} /> : null}
+              </View>
+            </Pressionavel>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.ground },
+  cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
+  linha: { minHeight: 72, paddingVertical: 12, paddingHorizontal: 14, gap: 3 },
+  traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
+  l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  cliente: { flex: 1, minWidth: 0, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  total: { fontFamily: fonts.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  l2: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  apoio: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  l3: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  alterado: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
+  apagado: { color: colors.ink3 },
+  esqueleto: { borderRadius: 6, backgroundColor: colors.lineSoft },
+});

@@ -149,7 +149,7 @@ describe.skipIf(semBanco())('T-0076 — cards Orçamentos e A faturar saem do ap
     const linhas = await lerLinhas(ap.motor);
     const eu = { id: ap.sessao.usuario.id, name: ap.sessao.usuario.nome, branch_id: '' };
     const pedidos = mergeOrders(listaDePedidos(linhas, {}), [], eu);
-    const resumo = resumoDoInicio(pedidos, { agora: new Date(), fuso: ap.sessao.tenant.fuso, diasValidade: 7, vendedorId: eu.id, preVendaLigada: true });
+    const resumo = resumoDoInicio(pedidos, { vendedorId: eu.id, preVendaLigada: true });
     return { ids: linhas.pedidos.map((p) => p.id).sort(), resumo };
   }
 
@@ -157,7 +157,7 @@ describe.skipIf(semBanco())('T-0076 — cards Orçamentos e A faturar saem do ap
     const { ids, resumo } = await cardsDoAparelho('vendedor2@exemplo.com.br', A);
     expect(ids).toEqual([A.pedidos.p2]);
     expect(resumo.aFaturar).toEqual({ quantidade: 1, valor_cents: 440_000, aguardando_aprovacao: 1 });
-    expect(resumo.orcamentos).toEqual({ quantidade: 0, valor_cents: 0, vencem_amanha: 0 });
+    expect(resumo.orcamentos).toEqual({ quantidade: 0, valor_cents: 0 }); // RN-VEN-18 (09/11): sem "vence amanhã"
   });
 
   it('I-09 vendedor-1 (A): o recebido (legado) e o faturado não contam; o aguardando do vendedor-2 não chega ao aparelho', async () => {

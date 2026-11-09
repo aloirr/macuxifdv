@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificacaoSync } from '../../contracts';
-import { comandoDeLeitura, contarNaoLidas, linkNavegavel, montarCaixa } from './notificacoes';
+import { comandoDeLeitura, contarNaoLidas, montarCaixa } from './notificacoes';
 
 const u = '0e400000-0000-4000-8000-000000000001';
 const n = (id: string, extra: Partial<NotificacaoSync> = {}): NotificacaoSync => ({
@@ -44,12 +44,5 @@ describe('RF-CORE-09: caixa de notificações offline', () => {
   });
   it('comando de leitura leva o UUID do aparelho e o instante; só link interno navega', () => {
     expect(comandoDeLeitura(u, AGORA, () => 'id-1')).toEqual({ id: 'id-1', notificacao_id: u, lida_em: AGORA.toISOString() });
-    expect(linkNavegavel('/m/pedido?id=1')).toBe('/m/pedido?id=1');
-    expect(linkNavegavel('https://x.com')).toBeNull();
-    expect(linkNavegavel(null)).toBeNull();
-    // tela que não existe na visão do usuário (recado com /m/core-rota): não navega
-    const existe = (c: string) => c === 'rota';
-    expect(linkNavegavel('/m/core-rota', existe)).toBeNull();
-    expect(linkNavegavel('/m/rota?data=1', existe)).toBe('/m/rota?data=1');
   });
 });

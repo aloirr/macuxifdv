@@ -1,24 +1,15 @@
 /**
  * T-0098 — download do Conector on-premise por link temporário (presign de bucket privado), na aba Integração do portal.
- * Contrato proposto ao engenheiro-software (R-20261108-234517): `POST /v1/integracao/conector/download` com o token do portal
- * e `x-macuxi-tenant`, auditado no servidor, devolve `{ url, expira_em, versao, arquivo, tamanho_bytes?, sha256? }`.
- * Até a rota existir neste servidor (404 de rota, 501/503 sem storage, 404 `CONECTOR_SEM_PACOTE`), a tela segue com "em breve".
- * Campo opcional: só `url` (https) é obrigatório; o resto aparece quando vier. O link nunca é guardado: cada clique gera outro.
- * Puro (roda em Node); a tela é `components/portal/aba-integracao.tsx`.
+ * Contrato do Integração (`LinkDownloadConectorSchema`, ADR 0037; R-20261109-083700): `POST /v1/integracao/conector/download`
+ * com o token do portal e `x-macuxi-tenant`, auditado no servidor, devolve `{ url, expira_em, versao, arquivo, tamanho_bytes?,
+ * sha256? }`. Sem a rota neste servidor (404 de rota, 501/503 sem storage, 404 `CONECTOR_SEM_PACOTE`), a tela segue com "em
+ * breve". O link nunca é guardado: cada clique gera outro. Puro (roda em Node); a tela é `components/portal/aba-integracao.tsx`.
  */
+import { CODIGO_CONECTOR_SEM_PACOTE, LinkDownloadConectorSchema, type LinkDownloadConector } from '@macuxi/integracao/contracts';
+
 import { ehRotaAusente, ErroPortal, mensagemDoErro } from './portal-api';
 
-export interface LinkDownloadConector {
-  url: string;
-  /** ISO 8601 (UTC). */
-  expira_em: string | null;
-  versao: string | null;
-  arquivo: string | null;
-  tamanho_bytes: number | null;
-  sha256: string | null;
-}
-
-const texto = (x: unknown): string | null => (typeof x === 'string' && x.trim() ? x.trim() : null);
+export type { LinkDownloadConector };
 
 /** Só https (presign do bucket); `http://localhost` vale só fora da produção (desenvolvimento). */
 export function urlDeDownloadValida(url: string, producao = process.env.NODE_ENV === 'production'): boolean {
@@ -31,28 +22,8 @@ export function urlDeDownloadValida(url: string, producao = process.env.NODE_ENV
   }
 }
 
-/** Validação da resposta (o `chamarPortal` aceita qualquer objeto com `safeParse`); a do contrato entra quando sair. */
-export const LinkDownloadConectorResposta = {
-  safeParse(x: unknown): { success: true; data: LinkDownloadConector } | { success: false } {
-    if (!x || typeof x !== 'object') return { success: false };
-    const o = x as Record<string, unknown>;
-    const url = texto(o.url);
-    if (!url || !urlDeDownloadValida(url)) return { success: false };
-    const expira = texto(o.expira_em);
-    const tamanho = typeof o.tamanho_bytes === 'number' && Number.isFinite(o.tamanho_bytes) && o.tamanho_bytes > 0 ? o.tamanho_bytes : null;
-    return {
-      success: true,
-      data: {
-        url,
-        expira_em: expira && Number.isFinite(Date.parse(expira)) ? expira : null,
-        versao: texto(o.versao),
-        arquivo: texto(o.arquivo),
-        tamanho_bytes: tamanho,
-        sha256: texto(o.sha256),
-      },
-    };
-  },
-};
+/** Validação da resposta: o schema do contrato e, por cima, só link https (o `chamarPortal` aceita qualquer `safeParse`). */
+export const LinkDownloadConectorResposta = LinkDownloadConectorSchema.refine((l) => urlDeDownloadValida(l.url));
 
 /** "12,3 MB" / "850 KB". */
 export function tamanhoLegivel(bytes: number): string {
@@ -66,9 +37,9 @@ export function textoDoPacote(l: LinkDownloadConector): string | null {
   return partes.length > 0 ? partes.join(' · ') : null;
 }
 
-/** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso de quem vê. */
+/** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso de quem vê (o contrato sempre manda `expira_em`). */
 export function textoDaValidade(l: LinkDownloadConector, hora: (iso: string) => string): string {
-  return l.expira_em ? `O link vale até ${hora(l.expira_em)}. Depois disso, gere outro.` : 'O link vale por pouco tempo. Se não baixar, gere outro.';
+  return `O link vale até ${hora(l.expira_em)}. Depois disso, gere outro.`;
 }
 
 export type FalhaDoDownload = { tipo: 'em-breve' } | { tipo: 'aviso'; texto: string } | { tipo: 'erro'; texto: string };
@@ -86,7 +57,7 @@ export const TEXTOS_DOWNLOAD_CONECTOR = Object.freeze({
 export function falhaDoDownload(e: unknown): FalhaDoDownload {
   if (ehRotaAusente(e)) return { tipo: 'em-breve' };
   if (e instanceof ErroPortal) {
-    if (e.status === 404 && e.codigo === 'CONECTOR_SEM_PACOTE') return { tipo: 'em-breve' };
+    if (e.status === 404 && e.codigo === CODIGO_CONECTOR_SEM_PACOTE) return { tipo: 'em-breve' };
     if (e.status === 501 || e.status === 503) return { tipo: 'em-breve' };
     if (e.status === 429) return { tipo: 'aviso', texto: TEXTOS_DOWNLOAD_CONECTOR.espera };
     if (e.status === 403) return { tipo: 'erro', texto: TEXTOS_DOWNLOAD_CONECTOR.semAcesso };
