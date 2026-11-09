@@ -20,3 +20,6 @@ playwright-report/
 
 # Configuração local do Claude Code (por máquina; nunca vai para o GitHub)
 .claude/settings.local.json
+# Recados e lidos moram no repositorio macuxifdv-recados (ADR 0035); aqui sao juncoes para o clone
+/.coord/recados
+/.coord/lidos
