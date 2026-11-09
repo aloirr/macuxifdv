@@ -1,21 +1,29 @@
 /**
- * Cards "Orçamentos" e "A faturar" no Início do Campo (T-0076, slot `inicio.cards` do Core). Dois cartões lado a lado;
- * cada um abre Pedidos já filtrado. Só dados do aparelho; sem cópia ainda, nada aparece.
+ * Cartão "Orçamentos" e "Pedidos a faturar" no Início do Campo (T-0076, slot `inicio.cards` do Core; RD-0010/RD-0011 da T-0124).
+ * Um cartão só com duas linhas tocáveis (>= 48 dp), cada uma abre Pedidos já filtrado. Só dados do aparelho; sem cópia ainda,
+ * nada aparece.
  */
-import { Cartao, colors, fonts, type as t } from '@macuxi/ui/mobile';
-import { Text, View } from 'react-native';
-import { linhaAFaturar, linhaOrcamentos } from '../lib/resumo-inicio';
+import { Cartao, colors, fonts, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
+import { Text } from 'react-native';
+import { ROTULO_A_FATURAR } from '../../domain/resumo-inicio';
+import { textoCartaoAFaturar, textoCartaoOrcamentos } from '../lib/resumo-inicio';
 import { irParaPedidosFiltrados } from '../rotas';
 import { RetomadaDoPedido } from './retomada-do-pedido';
 import { useResumoInicio } from '../state/use-resumo-inicio';
 
-function CardResumo({ testID, titulo, quantidade, linha, onPress }: { testID: string; titulo: string; quantidade: number; linha: string; onPress: () => void }) {
+function LinhaResumo({ testID, titulo, texto, divisor, onPress }: { testID: string; titulo: string; texto: string; divisor: boolean; onPress: () => void }) {
   return (
-    <Cartao testID={testID} onPress={onPress} rotuloAcessivel={`${titulo}: ${quantidade}. ${linha}. Toque para ver a lista.`} preenchimento={14} style={{ flex: 1, minHeight: 112, gap: 4 }}>
-      <Text style={[t.rotulo, { color: colors.ink3 }]}>{titulo.toUpperCase()}</Text>
-      <Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.ink }}>{quantidade}</Text>
-      <Text style={[t.small, { color: colors.ink2 }]}>{linha}</Text>
-    </Cartao>
+    <Pressionavel
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={`${titulo}: ${texto}. Toque para ver a lista.`}
+      escala={false}
+      onPress={onPress}
+      style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: divisor ? 1 : 0, borderTopColor: colors.line }}>
+      <Text style={[t.bodyStrong, { color: colors.ink }]}>{titulo}</Text>
+      <Text style={[t.small, { flex: 1, textAlign: 'right', color: colors.ink2, fontFamily: fonts.medium }]}>{texto}</Text>
+      <Icon name="chevron" size={18} color={colors.ink3} strokeWidth={2.4} />
+    </Pressionavel>
   );
 }
 
@@ -26,10 +34,10 @@ export function CardsPedidosInicio() {
     <>
       <RetomadaDoPedido />
       {r ? (
-      <View testID="inicio.cards-vendedor" style={{ flexDirection: 'row', gap: 12 }}>
-        {r.orcamentos ? <CardResumo testID="inicio.card-orcamentos" titulo="Orçamentos" quantidade={r.orcamentos.quantidade} linha={linhaOrcamentos(r.orcamentos)} onPress={() => irParaPedidosFiltrados('orcamentos')} /> : null}
-        <CardResumo testID="inicio.card-a-faturar" titulo="A faturar" quantidade={r.aFaturar.quantidade} linha={linhaAFaturar(r.aFaturar)} onPress={() => irParaPedidosFiltrados('a_faturar')} />
-      </View>
+      <Cartao testID="inicio.cards-vendedor" preenchimento={14} gap={0}>
+        {r.orcamentos ? <LinhaResumo testID="inicio.card-orcamentos" titulo="Orçamentos" texto={textoCartaoOrcamentos(r.orcamentos)} divisor={false} onPress={() => irParaPedidosFiltrados('orcamentos')} /> : null}
+        <LinhaResumo testID="inicio.card-a-faturar" titulo={ROTULO_A_FATURAR} texto={textoCartaoAFaturar(r.aFaturar)} divisor={Boolean(r.orcamentos)} onPress={() => irParaPedidosFiltrados('a_faturar')} />
+      </Cartao>
       ) : null}
     </>
   );

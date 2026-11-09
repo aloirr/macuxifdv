@@ -12,6 +12,8 @@
 export interface ContextoPedidoEmNomeSlot {
   vendedor_id: string;
   autor_id: string;
+  /** v1.0.1 (aditivo): nome do vendedor, para o PDF do pedido em nome; sem o campo nada muda. */
+  vendedor_nome?: string;
 }
 
 /** Slot `pedido.criar_em_nome`: ação "Fazer pedido em nome de ..." na ficha do vendedor. */

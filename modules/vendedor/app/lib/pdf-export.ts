@@ -14,13 +14,17 @@ import { aguardarAteAbrir, comLimiteDeTempo, MENSAGEM_PDF_FALHA } from './limite
 /** A4 em pontos (72 por polegada). */
 const A4 = { width: 595, height: 842 };
 
-export type PdfExportResult = { kind: 'shared' } | { kind: 'saved'; uri: string } | { kind: 'printed' };
+export type PdfExportResult = { kind: 'shared' } | { kind: 'saved'; uri: string } | { kind: 'printed' } | { kind: 'cancelado' };
 
 /** Limite para gerar o arquivo; compartilhar não tem limite (o usuário escolhe o app), só a espera para liberar a folha. */
 export const LIMITE_GERAR_PDF_MS = 20_000;
 const ESPERA_ABRIR_COMPARTILHAR_MS = 1_500;
 
-export async function exportPdf(html: string, fileName: string): Promise<PdfExportResult> {
+/**
+ * `cancelado`: a pessoa fechou a folha durante a geração (relato de 08/11: "gera enquanto a tela estiver aberta; fechou,
+ * cancela"). O arquivo que o sistema ainda terminar de gerar é ignorado e o compartilhar não abre.
+ */
+export async function exportPdf(html: string, fileName: string, cancelado: () => boolean = () => false): Promise<PdfExportResult> {
   if (Platform.OS === 'web') {
     printHtmlOnWeb(html);
     return { kind: 'printed' };
@@ -33,6 +37,7 @@ export async function exportPdf(html: string, fileName: string): Promise<PdfExpo
     console.warn('[pdf] falha ao gerar o arquivo', e);
     throw new Error(MENSAGEM_PDF_FALHA);
   }
+  if (cancelado()) return { kind: 'cancelado' };
   // TODO: renomear o arquivo para `fileName` exige expo-file-system (não é dependência do app hoje); o nome vai no título.
   if (await Sharing.isAvailableAsync()) {
     try {

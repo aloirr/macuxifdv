@@ -148,6 +148,8 @@ export const Order = z.object({
   /** T-0053: pedido nascido de orçamento / pedido em que o orçamento virou. */
   orcamento_origem_id: Id.nullable().optional(),
   convertido_pedido_id: Id.nullable().optional(),
+  /** T-0138 (RN-VEN-31, T-0114): o conector aceita cancelar este pedido já enviado (vem no pull); ausente = não aceita. */
+  erp_aceita_cancelamento: z.boolean().optional(),
   // --- T-0061: acréscimo do pedido, desconto efetivo (RN-VEN-03, sem frete), frete CIF/FOB e endereço de entrega ---
   /** acréscimo do pedido (RN-VEN-02); `discount_pct` é o desconto do pedido; os dois são excludentes */
   surcharge_pct: Pct.optional(),

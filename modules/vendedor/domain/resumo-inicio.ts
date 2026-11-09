@@ -54,6 +54,12 @@ export function resumoOrcamentos(docs: readonly DocumentoDoInicio[], hoje: strin
  * aparelho (`queued` ou `local`) também, pois já aparece em "Na fila". O aparelho não tem "entregue/devolvido": o faturamento
  * registrado é o status `invoiced_partial`/`invoiced`.
  */
+/**
+ * Rótulo do cartão e do chip da lista (premissa do gerente na T-0124; o dono do produto ainda não confirmou). Para reverter ao
+ * texto de antes, troque só esta linha por 'A faturar'.
+ */
+export const ROTULO_A_FATURAR = 'Pedidos a faturar';
+
 export const STATUS_A_FATURAR = ['pending_approval', 'approved', 'sent_to_erp', 'integrated'] as const;
 
 export function pedidoAFaturar(o: Pick<DocumentoDoInicio, 'tipo' | 'status'> & { local?: boolean }): boolean {

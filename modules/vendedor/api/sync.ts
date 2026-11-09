@@ -8,7 +8,8 @@
  * não cancelado e com `orcamento_validade` ≥ hoje no fuso do tenant). O vencido antigo sai da janela. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
-import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
+import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
+import { ehConsultaIndisponivel, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   entidadeClienteCondicao,
   entidadeCondicaoPagamento,
@@ -19,7 +20,7 @@ import {
   entidadePrazoPagamento,
   entidadeTransportadora,
 } from '../contracts/entidades';
-import { ORDER_STATUSES_FINAIS } from '../domain/order';
+import { dependeDoAceiteDoErp, ORDER_STATUSES_FINAIS } from '../domain/order';
 import { leituraDePedidosLiberada } from './opcao-promotor';
 import { receberPedidos } from './receber';
 import { FATURAMENTO_LIGADO } from './retorno-erp';
@@ -143,6 +144,31 @@ async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string) =>
   return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
 }
 
+/**
+ * T-0138 (RN-VEN-31, exceção T-0114): marca `erp_aceita_cancelamento` nos pedidos enviados/integrados da página, com UMA consulta
+ * `integracao.cancelamento_erp@1` por página (licença do tenant, ADR 0025). Sem Integração/licença = não aceita (linha sem a marca).
+ */
+const statusDaLinha = (l: LinhaSync): string => String((l as { status?: unknown }).status ?? '');
+
+export async function marcarAceiteDeCancelamento(linhas: LinhaSync[], tx: TransacaoTenant): Promise<LinhaSync[]> {
+  if (!linhas.some((l) => dependeDoAceiteDoErp(statusDaLinha(l)))) return linhas;
+  let aceita = false;
+  try {
+    aceita = (await tx.consultar(CONSULTA_CANCELAMENTO_ERP, {}, { licenca: 'tenant' })).aceita;
+  } catch (e) {
+    if (!ehConsultaIndisponivel(e)) throw e;
+  }
+  if (!aceita) return linhas;
+  return linhas.map((l) => (dependeDoAceiteDoErp(statusDaLinha(l)) ? { ...l, erp_aceita_cancelamento: true } : l));
+}
+
+async function puxarPedidos(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
+  if (!(await leituraDePedidosLiberada(ctx))) return [];
+  const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
+  const { sql, valores: v } = sqlPedido(pedido, e, FATURAMENTO_LIGADO, ctx.fuso());
+  return ctx.comTenant(async (db, tx) => marcarAceiteDeCancelamento((await db.query(sql, v)).rows as unknown as LinhaSync[], tx));
+}
+
 const BASE = `id, ${ts('updated_at', '')}, ${ts('deleted_at', '')}, external_id`;
 
 export function sqlCondicaoPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
@@ -200,7 +226,7 @@ export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: u
 }
 
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedido(x, e, FATURAMENTO_LIGADO, f), ctx, p), receber: receberPedidos },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarPedidos(ctx, p), receber: receberPedidos },
   { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, f), ctx, p) },
   { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedidoEvento, ctx, p) },
   {

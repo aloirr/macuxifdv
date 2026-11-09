@@ -36,6 +36,7 @@ import {
 } from '../../domain/busca-periodo';
 import { ajudaDaJanela, ATALHO_PADRAO, ATALHOS_DE_PERIODO, atalhoEmVigor, contarFiltros, ehAtalhoDePeriodo, escolhaEmVigor, periodoDaEscolha, periodoDoAtalho, textoDaEtiquetaDoPeriodo } from '../../domain/filtro-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../domain/filtro-vendedor';
+import { ROTULO_A_FATURAR } from '../../domain/resumo-inicio';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { pedidoAFaturar } from '../../domain/resumo-inicio';
 import { orcamentosEmAberto } from '../lib/resumo-inicio';
@@ -44,7 +45,7 @@ import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelh
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadgeDaLinha } from '../lib/order-status';
-import { clienteDoRascunho } from '../lib/salvar-na-fila';
+import { clienteDoRascunho, totalDaLinhaSalva } from '../lib/salvar-na-fila';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
@@ -326,7 +327,7 @@ export default function OrdersScreen() {
           {semResposta ? null : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
             {gestao ? <Chip testID="chip-decide" label={`Para aprovar ${base.filter((i) => paraDecidir.has(i.id)).length}`} active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
-            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={`A faturar ${aFaturar.length}`} active onPress={() => setSituacao('a_faturar')} /> : null}
+            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={`${ROTULO_A_FATURAR} ${aFaturar.length}`} active onPress={() => setSituacao('a_faturar')} /> : null}
             {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label={`Em aberto ${orcAbertos.length}`} active onPress={() => setSituacao('orc_abertos')} /> : null}
             {chips.map((c) => (
               <Chip key={c.id} testID={`chip-${c.id}`} label={`${c.rotulo} ${c.quantidade}`} active={atual === c.id} onPress={() => setSituacao(c.id)} />
@@ -433,7 +434,7 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
       style={({ pressed }) => [styles.row, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
       <View style={styles.line}>
         <Destacado texto={o.customer_name || 'Pedido no aparelho'} busca={busca} style={[t.bodyStrong, { flex: 1 }]} />
-        <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }, o.status === 'cancelled' && styles.cancelledTotal]}>{formatBRL(o.total_cents)}</Text>
+        <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }, o.status === 'cancelled' && styles.cancelledTotal]}>{clienteDoRascunho(o.id) ? totalDaLinhaSalva(o, formatBRL) : formatBRL(o.total_cents)}</Text>
       </View>
       {buscando && razao && casaComBusca({ numero: '', nome_fantasia: '', razao_social: razao }, busca) ? <Destacado texto={razao} busca={busca} style={t.small} /> : null}
       <View style={styles.line}>

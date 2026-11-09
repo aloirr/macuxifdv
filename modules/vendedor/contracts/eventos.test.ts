@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { conferirEventosPublicados } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import * as contracts from './index';
-import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CANCELADO } from './index';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CANCELADO, EVENTO_PEDIDO_CRIADO } from './index';
 
 describe('T-0024: eventos do Vendedor no contracts', () => {
   it('todo evento publicado tem definição exportada e nenhuma é de evento alheio', () => {
@@ -21,6 +21,13 @@ describe('T-0024: eventos do Vendedor no contracts', () => {
     credito: null,
     historico: null,
   };
+
+  it('T-0138: criado@1 aceita emitido_em (aditivo) e o evento antigo, sem o campo, segue válido', () => {
+    const s = EVENTO_PEDIDO_CRIADO.schema;
+    const ok = { pedido_id: base.pedido_id, vendedor_id: base.vendedor_id, autor_id: base.vendedor_id, cliente_id: base.cliente_id, visita_id: null, tipo: 'pedido', total_cents: 100, total_tabela_cents: 100, criado_em: '2026-11-05T12:00:00.000Z', itens: [], status: 'recebido' };
+    expect(s.safeParse(ok).success).toBe(true);
+    expect(s.safeParse({ ...ok, emitido_em: '2026-11-04T23:50:00.000Z' }).success).toBe(true);
+  });
 
   it('aprovacao_solicitada@1: credito e historico null (fatia) ou no formato do Gestor', () => {
     const s = EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema;

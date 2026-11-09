@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, TEXTO_SEM_ITEM_NO_RESUMO, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente, textoNaoFoiAceito } from './textos-pedido';
+import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente, textoNaoFoiAceito } from './textos-pedido';
 
 const limpa = (s: string | undefined) => (s ?? '').replace(/\s/g, ' ');
 
@@ -77,12 +77,15 @@ describe('Cancelar documento (revisão de UX 🟡 8)', () => {
     expect(x.confirmar).toBe('Cancelar orçamento');
     expect(x.ocupado).toBe('Cancelando…');
     expect(x.rotuloAcessivel).toBe('Cancelar orçamento');
-    expect(x.descricao).not.toMatch(/pedido/i);
+    expect(x.descricao).toBe('Ele continua na lista como cancelado e não pode mais virar pedido.');
   });
-  it('RF-VEN-04: pedido mantém "Excluir pedido 000013?"', () => {
+  it('RF-VEN-05 (T-0138, pedido-v2 §4.4): pedido diz "Cancelar este pedido?" e "O pedido não será enviado ao ERP."', () => {
     const x = textoCancelarDocumento({ ehOrcamento: false, naFila: false, titulo: 'Pedido 000013' });
-    expect(x.titulo).toBe('Excluir pedido 000013?');
-    expect(x.confirmar).toBe('Excluir pedido');
+    expect(x).toMatchObject({ titulo: 'Cancelar este pedido?', descricao: 'O pedido não será enviado ao ERP.', confirmar: 'Cancelar pedido', rotuloAcessivel: 'Cancelar pedido' });
+    expect(x.titulo).not.toMatch(/excluir/i);
+  });
+  it('RN-VEN-31 (T-0114): enviado com o aceite do conector diz que o cancelamento será pedido ao ERP', () => {
+    expect(textoCancelarDocumento({ ehOrcamento: false, naFila: false, titulo: 'Pedido 000013', solicitaAoErp: true }).descricao).toBe('O cancelamento será pedido ao ERP.');
   });
   it('RF-VEN-04: pedido na fila do aparelho explica que sai da fila', () => {
     expect(textoCancelarDocumento({ ehOrcamento: false, naFila: true, titulo: 'Pedido no aparelho' }).descricao).toBe('O pedido sai da fila do aparelho e não será enviado.');
@@ -97,9 +100,6 @@ describe('Textos sem jargão e estados vazios (revisão de UX 🟡 10, 15, 16)',
   });
   it('RF-VEN-01: busca sem resultado cita o termo e diz o que fazer', () => {
     expect(textoBuscaSemResultado('  cafe ')).toEqual({ titulo: 'Nenhum produto com “cafe”', texto: 'Confira o código ou a descrição.' });
-  });
-  it('RF-VEN-01: Resumo sem item diz onde adicionar', () => {
-    expect(TEXTO_SEM_ITEM_NO_RESUMO).toBe('Adicione um item na aba Itens.');
   });
 });
 

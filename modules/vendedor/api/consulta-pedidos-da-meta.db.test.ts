@@ -35,10 +35,11 @@ describe.skipIf(semBanco())('Vendedor × Postgres: vendedor.pedidos_da_meta@1 (R
     await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [IDS]);
     await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);
   }
+  // recebido_em = emissão: a emissão é LIMITADA a 7 dias antes do recebimento (T-0138); sem isso o pedido antigo entraria no mês do "agora".
   const pedido = (tenant: string, n: number, vendedor: string, autor: string, status: string, emitido: string, total: number, tipo = 'pedido') =>
     admin.query(
-      `insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, total_tabela_cents, total_cents, criado_no_aparelho_em, tipo)
-       values ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9)`,
+      `insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, total_tabela_cents, total_cents, criado_no_aparelho_em, recebido_em, tipo)
+       values ($1, $2, $3, $4, $5, $6, $7, $7, $8, $8, $9)`,
       [id(n), tenant, tenant === A.tenantId ? A.clientes.c1 : B.clientes.c1, vendedor, autor, status, total, emitido, tipo],
     );
   const fatura = (tenant: string, n: number, pedidoN: number, em: string, total: number) =>

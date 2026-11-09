@@ -4,8 +4,9 @@ import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage, imprimirHtml } from '@macuxi/platform-sdk/web';
-import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, type NoticeTone, Notice, td, tdNum, th, thNum } from '@macuxi/ui/web';
-import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
+import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
+import type { Order } from '../../../contracts';
+import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega } from '../../lib/detalhe-pedido';
@@ -52,6 +53,12 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   };
 
   const aprovacao = dados?.aprovacao ?? null;
+  // T-0138 (RN-VEN-30/18): o orçamento mostra Salvo · Transformado em pedido nº · Vencido · Cancelado (calculados); o pedido, o status de cada evento
+  const eventos = dados
+    ? dados.tipo === 'orcamento'
+      ? eventosDoOrcamento(dados.history, { vendedorNome: dados.seller_name, situacao: dados.situacao_orcamento ?? 'aberto', criadoEm: dados.received_at, validadeAte: dados.validade_ate ?? null, convertidoEm: dados.updated_at, numeroPedido: null })
+      : eventosDoPedido(dados.history, { vendedorNome: dados.seller_name, motivoDoFechamento: dados.rejection_reason })
+    : [];
   // T-0054: coluna "Faturado" só quando o retorno do ERP trouxe quantidades
   const temFaturado = dados?.items.some((it) => it.quantity_invoiced !== undefined) ?? false;
 
@@ -234,21 +241,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                 </div>
               </section>
 
-              <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
+              <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.historico">
                 <h3 className="m-0 font-display text-[16px] font-bold">Histórico</h3>
-                <ol className="m-0 flex list-none flex-col gap-3 p-0">
-                  {dados.history.map((h, i) => (
-                    <li key={`${h.at}-${i}`} className="flex gap-3">
-                      <span className="w-[92px] shrink-0 text-[12px] text-ink-2 tabular-nums">{formatDateTime(h.at, tz)}</span>
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-[13px] font-semibold">
-                          {ORDER_STATUS_LABEL[h.status as OrderStatus] ?? h.status} <span className="font-normal text-ink-2">· {h.by}</span>
-                        </span>
-                        {h.note && <span className="text-[12px] text-ink-2">{h.note}</span>}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                {/* T-0138 (RN-VEN-30): só tags de status, com data e hora curtas; motivo em 1 linha no Rejeitado e no Cancelado; autor só quando não é o vendedor */}
+                <HistoricoEmTags tags={tagsDoHistorico(eventos, { tipo: dados.tipo === 'orcamento' ? 'orcamento' : 'pedido', tz, agora: new Date() })} titulo="Histórico" testId="pedido.historico.tags" />
               </section>
             </>
           )}

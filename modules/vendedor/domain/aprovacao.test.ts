@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARTEIRA_FORA,
   dataDoPreco,
+  emitidoEm,
   decidirAprovacao,
   MOTIVO_REJEICAO_MIN,
   montarPedidoAprovado,
@@ -87,6 +88,16 @@ describe('dataDoPreco (RN-VEN-01, P-4)', () => {
     expect(dataDoPreco('2027-01-01T00:00:00.000Z', AGORA)).toBe(AGORA.toISOString());
     expect(dataDoPreco(null, AGORA)).toBe(AGORA.toISOString());
     expect(dataDoPreco('lixo', AGORA)).toBe(AGORA.toISOString());
+  });
+});
+
+describe('emitidoEm (T-0138, RN-CORE-21)', () => {
+  const RECEBIDO = '2026-11-01T15:00:00.000Z';
+  it('RN-CORE-21: usa a hora do aparelho; nunca no futuro; no máximo 7 dias antes do recebimento; sem hora usa o recebimento', () => {
+    expect(emitidoEm('2026-10-31T23:59:00.000Z', RECEBIDO)).toBe('2026-10-31T23:59:00.000Z');
+    expect(emitidoEm('2026-12-01T00:00:00.000Z', RECEBIDO)).toBe(RECEBIDO);
+    expect(emitidoEm('2026-09-01T00:00:00.000Z', RECEBIDO)).toBe('2026-10-25T15:00:00.000Z');
+    expect(emitidoEm(null, RECEBIDO)).toBe(RECEBIDO);
   });
 });
 

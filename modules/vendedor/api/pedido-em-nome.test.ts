@@ -128,6 +128,20 @@ describe('RF-GES-05 / RN-VEN-35: supervisor faz pedido em nome do vendedor da eq
     expect(auditoria[0]).toMatchObject({ acao: 'pedido.criar', entidade: 'pedido', entidade_id: PEDIDO, depois: expect.objectContaining({ em_nome: true, vendedor_id: VEND, autor_id: SUP }) });
   });
 
+  it('T-0138 (RN-CORE-21): vendedor.pedido.criado@1 leva emitido_em LIMITADO (aparelho no futuro = recebimento; muito antigo = 7 dias antes)', async () => {
+    const emitidoDe = async (offline: string | null) => {
+      const { ctx, eventos } = montar('supervisor', SUP, new Set([SUP, VEND]));
+      await receberPedidos(ctx, [item({ vendedor_id: VEND, created_offline_at: offline })]);
+      return eventos.find((e) => e.nome === 'vendedor.pedido.criado@1')!.payload as { emitido_em: string; criado_em: string };
+    };
+    expect((await emitidoDe('2026-11-05T09:00:00.000Z')).emitido_em).toBe('2026-11-05T09:00:00.000Z');
+    const futuro = await emitidoDe('2027-01-01T00:00:00.000Z');
+    expect(futuro.emitido_em).toBe(futuro.criado_em);
+    expect((await emitidoDe('2026-09-01T00:00:00.000Z')).emitido_em).toBe('2026-10-29T12:00:00.000Z');
+    const sem = await emitidoDe(null);
+    expect(sem.emitido_em).toBe(sem.criado_em);
+  });
+
   it('RN-VEN-10: usa a alçada do gestor, 8% segue direto para o supervisor (limite 10%), onde o vendedor (5%) iria à aprovação', async () => {
     const { ctx, sqls } = montar('supervisor', SUP, new Set([SUP, VEND]));
     await receberPedidos(ctx, [item({ vendedor_id: VEND, discount_pct: 8 })]);
