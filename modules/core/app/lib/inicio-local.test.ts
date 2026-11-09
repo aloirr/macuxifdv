@@ -136,22 +136,22 @@ describe('RN-CORE-26: montarInicio (Início offline com as mesmas funções pura
     expect(v.metas[0]).toMatchObject({ indicador: 'cobertura_pct', situacao: 'do_mes', realizado_ate_ontem: 5833 });
   });
 
-  it('RN-CORE-26: recado do dia marcado para hoje aparece; marcado ontem cai na frase padrão do tenant', () => {
-    const marcado = notif(1, { recado_do_dia: '2026-11-10', autor_nome: 'Sup', autor_perfil: 'supervisor' });
-    expect(montarInicio({ ...vazio, notificacoes: [marcado] }, null, [], eu).recado).toMatchObject({ origem: 'recado', texto: 'corpo 1', autor_nome: 'Sup' });
+  it('RN-CORE-26: recado do dia marcado para hoje vem destacado em recados_hoje; marcado ontem não destaca (a frase padrão é do domain)', () => {
+    const outra = notif(2, { updated_at: '2026-11-10T15:00:00.000000Z' });
+    const marcado = notif(1, { recado_do_dia: '2026-11-10', autor_nome: 'Sup', autor_perfil: 'supervisor', updated_at: '2026-11-10T10:00:00.000000Z' });
+    const v = montarInicio({ ...vazio, notificacoes: [outra, marcado] }, null, [], eu);
+    expect(v.recados_hoje.itens[0]).toMatchObject({ id: marcado.id, destaque: true });
     const ontem = notif(1, { recado_do_dia: '2026-11-09' });
-    const p = { ...base, id: id(901), modulo: 'core', chave: 'inicio.recado_do_dia_padrao', valor: 'Vamos vender!' } as ParametroSync;
-    expect(montarInicio({ ...vazio, notificacoes: [ontem], parametros: [p] }, null, [], eu).recado).toMatchObject({ origem: 'padrao', texto: 'Vamos vender!' });
-    expect(montarInicio(vazio, null, [], eu).recado).toMatchObject({ origem: 'padrao', texto: 'Bom trabalho hoje!' });
+    expect(montarInicio({ ...vazio, notificacoes: [ontem] }, null, [], eu).recados_hoje.itens.some((i) => i.destaque)).toBe(false);
   });
 
-  it('RF-CORE-09: notificações — até 3 últimas e contador de não lidas, com a leitura da fila aplicada', () => {
+  it('RF-CORE-09: recados de hoje — até 3 itens e contador de não lidas, com a leitura da fila aplicada', () => {
     const ns = [1, 2, 3, 4].map((n) => notif(n, { tipo: 'sistema', updated_at: `2026-11-10T1${n}:00:00.000000Z` }));
     const fila = [{ entidade: 'notificacao_leitura', payload: { notificacao_id: ns[3]!.id, lida_em: '2026-11-10T12:50:00Z' } }];
     const v = montarInicio({ ...vazio, notificacoes: ns }, null, fila as never, eu);
-    expect(v.notificacoes.nao_lidas).toBe(3);
-    expect(v.notificacoes.ultimas).toHaveLength(3);
-    expect(v.notificacoes.ultimas.every((n) => !n.lida)).toBe(true);
+    expect(v.recados_hoje.novos).toBe(3);
+    expect(v.recados_hoje.itens).toHaveLength(3);
+    expect(v.recados_hoje.itens.every((n) => !n.lida)).toBe(true);
   });
 
   it('RN-CORE-13: rota do vendedor — próxima parada, visita aberta e restantes (sem GPS)', () => {

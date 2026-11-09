@@ -9,7 +9,6 @@ import type { MotorSync } from '@macuxi/platform-sdk';
 
 import type { CustomerSummary } from '../../contracts';
 import { checkCheckin, RAIO_CHECKIN_PADRAO_M } from '../../domain';
-import { gpsAgora, uuid } from './dispositivo';
 import type { ArmazemCore } from './estado';
 import type { LocalVisit } from './route';
 import { montarCheckin, montarCheckout, type EntradaCheckoutVisita, type PosicaoGps } from './visita-payload';
@@ -49,12 +48,12 @@ export async function fazerCheckin(c: ContextoAcao, customer: CustomerSummary, r
   if (!check.ok) return { kind: 'blocked', open: check.open };
   if (check.existing) return { kind: 'existing', visit: check.existing };
   // RN-CORE-13: o GPS é lido uma vez, neste momento (nunca rastro); sem GPS o atendimento segue, marcado
-  const posicao = op.posicao !== undefined ? op.posicao : await gpsAgora();
+  const posicao = op.posicao !== undefined ? op.posicao : await c.motor.ambiente.posicaoAgora();
   // a localização pode demorar: confere de novo antes de gravar
   const again = checkCheckin(c.armazem.obter().visitas, c.vendedorId, customer.id, new Date(), c.tz);
   if (!again.ok) return { kind: 'blocked', open: again.open };
   if (again.existing) return { kind: 'existing', visit: again.existing };
-  const id = uuid();
+  const id = c.motor.ambiente.novoId();
   const feito = montarCheckin({
     id,
     cliente: { id: customer.id, lat: customer.lat, lng: customer.lng },
@@ -97,9 +96,9 @@ export async function tentarCheckin(c: ContextoAcao, customer: CustomerSummary, 
 export async function fazerCheckout(c: ContextoAcao, visitId: string, input: CheckoutInput): Promise<LocalVisit | null> {
   const v = c.armazem.obter().visitas.find((x) => x.id === visitId);
   if (!v || v.checkout_at) return null;
-  const comando = uuid();
+  const comando = c.motor.ambiente.novoId();
   const { cliente, ...resto } = input;
-  const posicao = await gpsAgora();
+  const posicao = await c.motor.ambiente.posicaoAgora();
   const payload = montarCheckout({ ...resto, id: comando, visita_id: visitId, agora: new Date(), posicao });
   await c.motor.enfileirar({
     id: comando,

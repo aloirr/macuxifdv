@@ -6,7 +6,7 @@
  * - usuário nunca é apagado: desativar (`ativo = false`) corta o acesso na próxima requisição;
  * - toda alteração é auditada (RN-AUD-01) sem dado pessoal em claro e sem senha/hash.
  */
-import { EMAIL_FORMATO } from '../contracts/ciclo-senha';
+import { ehEmail } from '@macuxi/comum/email';
 import {
   PERFIS,
   perfilDeFabrica,
@@ -23,6 +23,8 @@ import { montarHierarquia, type EquipeLinha } from './hierarquia';
 import { podeVer } from './matriz';
 import { faltasNaSenha, mensagemDaSenha } from './senha';
 
+/** RD-0017: a frase ÚNICA de "usuário sem perfil" (RN-CORE-01); a API, o formulário do BKO e o seletor usam esta. */
+export const ERRO_SEM_PERFIL = 'Escolha pelo menos um perfil.';
 export const podeVerUsuarios = (perfil: Perfil): boolean => podeVer(perfil, 'usuario.ver');
 
 export const normalizarEmail = (email: string): string => email.trim().toLowerCase();
@@ -49,7 +51,7 @@ export function validarDadosDeUsuario(d: DadosBasicosDeUsuario): ErroDeCampo[] {
   if (nome.length === 0) erros.push({ campo: 'nome', mensagem: 'Informe o nome do usuário.' });
   else if (nome.length > NOME_USUARIO_MAX) erros.push({ campo: 'nome', mensagem: `O nome pode ter até ${NOME_USUARIO_MAX} caracteres.` });
   const email = normalizarEmail(d.email);
-  if (!EMAIL_FORMATO.test(email) || email.length > 254) erros.push({ campo: 'email', mensagem: 'Informe um e-mail válido, como nome@empresa.com.br.' });
+  if (!ehEmail(email)) erros.push({ campo: 'email', mensagem: 'Informe um e-mail válido, como nome@empresa.com.br.' });
   if (!(PERFIS as readonly string[]).includes(d.perfil)) erros.push({ campo: 'perfil', mensagem: 'Escolha um perfil da lista.' });
   if (d.external_id !== null && (d.external_id.trim().length === 0 || d.external_id.trim().length > EXTERNAL_ID_MAX)) {
     erros.push({ campo: 'external_id', mensagem: `O código do ERP deve ter de 1 a ${EXTERNAL_ID_MAX} caracteres; deixe vazio se não houver.` });

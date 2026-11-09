@@ -4,6 +4,7 @@
  * linhas ao escopo do usuário (RN-CORE-04), então aqui não há filtro de carteira. Janelas do desenho §2: o que saiu
  * da janela (título liquidado antigo, histórico além de 12 meses) não aparece, mesmo que ainda esteja no aparelho.
  */
+import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
 import { enderecoPadrao, linksDeContato, listarClientes, listarEnderecosDoCliente, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
@@ -46,13 +47,6 @@ export interface Cliente360Local {
   /** Ligar e WhatsApp em 1 toque: do contato principal; cai no telefone do cadastro do cliente. */
   ligar: string | null;
   whatsapp: string | null;
-}
-
-/** Soma dias a uma data civil AAAA-MM-DD (UTC, sem fuso: é só calendário). */
-export function somarDias(data: string, dias: number): string {
-  const d = new Date(`${data}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
 }
 
 /** Janela do título no aparelho: abertos + vencimento ≥ hoje − 90 (desenho §2). */

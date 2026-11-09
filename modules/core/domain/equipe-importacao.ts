@@ -8,7 +8,8 @@
  * - regra 7 (RN-CORE-29): promotor nunca recebe o módulo `vendedor` (pedido);
  * - mensagens de erro não repetem o dado da célula (LGPD).
  */
-import { EMAIL_FORMATO } from '../contracts/ciclo-senha';
+import { protegerFormula } from '@macuxi/comum/csv';
+import { ehEmail } from '@macuxi/comum/email';
 import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { EXTERNAL_ID_MAX, NOME_USUARIO_MAX, normalizarEmail } from './usuarios';
 
@@ -216,7 +217,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
     if (l.nome.length === 0) erro(l.numero, 'nome', 'Informe o nome da pessoa.');
     else if (l.nome.length > NOME_USUARIO_MAX) erro(l.numero, 'nome', `O nome pode ter até ${NOME_USUARIO_MAX} caracteres.`);
     // e-mail
-    if (!EMAIL_FORMATO.test(email) || email.length > 254) erro(l.numero, 'email', 'Informe um e-mail válido, como nome@empresa.com.br.');
+    if (!ehEmail(email)) erro(l.numero, 'email', 'Informe um e-mail válido, como nome@empresa.com.br.');
     else if (emailsNoArquivo.get(email) !== l.numero) erro(l.numero, 'email', 'Este e-mail já aparece em outra linha do arquivo. Deixe uma linha só por pessoa.');
     // telefone
     if (l.telefone && !/^\+?[0-9()\s.-]{8,20}$/.test(l.telefone)) erro(l.numero, 'telefone', 'Telefone inválido. Use só números com DDD, como 95991112222, ou deixe vazio.');
@@ -330,7 +331,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
 
 /** Célula de CSV: aspas quando preciso e neutralização de fórmula de planilha (`= + - @`). */
 function celula(v: string): string {
-  const seguro = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  const seguro = protegerFormula(v);
   return /[",\r\n]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
 }
 

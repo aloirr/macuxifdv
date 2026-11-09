@@ -11,6 +11,7 @@
  */
 import { definirModuloApi, definirTarefa, type ModuloApi } from '@macuxi/platform-sdk';
 import { EscolherEmpresaPortalSchema, EsqueciSenhaRequestSchema, LoginPortalSchema, LoginSenhaRequestSchema, LogoutRequestSchema, RefreshRequestSchema, TrocarSenhaRequestSchema } from '../contracts';
+import { REFRESH_DIAS } from '../domain/auth';
 import { manifest } from '../manifest';
 import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
 import { criarSuperAdmin, type DepsSuperAdmin } from './super-admin';
@@ -62,6 +63,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       {
         metodo: 'POST',
         caminho: 'auth/login',
+        // T-0117 (ADR 0038): no modo cookie do BKO a plataforma troca o refresh_token do corpo por cookie httpOnly; o app segue com o corpo.
+        cookieSessao: { papel: 'emitir', validadeSegundos: REFRESH_DIAS * 86_400 },
         // Teto geral contra abuso (conta tudo, inclusive acertos), folgado: atrás de túnel vários aparelhos dividem o IP.
         // O limite de FALHAS (10/5 min por IP + empresa + e-mail) está em `limite-login.ts` (T-0026).
         limite: { max: 300, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { codigo_empresa?: string } | null)?.codigo_empresa ?? '' },
@@ -71,6 +74,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       {
         metodo: 'POST',
         caminho: 'auth/refresh',
+        // T-0117 (ADR 0038): no modo cookie do BKO a plataforma troca o refresh_token do corpo por cookie httpOnly; o app segue com o corpo.
+        cookieSessao: { papel: 'renovar', validadeSegundos: REFRESH_DIAS * 86_400 },
         limite: { max: 30, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { refresh_token?: string } | null)?.refresh_token?.slice(0, 36) ?? '' },
         corpo: RefreshRequestSchema,
         executar: (ctx) => auth.refresh(ctx),
@@ -78,6 +83,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       {
         metodo: 'POST',
         caminho: 'auth/logout',
+        // T-0117 (ADR 0038): no modo cookie do BKO a plataforma troca o refresh_token do corpo por cookie httpOnly; o app segue com o corpo.
+        cookieSessao: { papel: 'encerrar' },
         status: 200,
         limite: { max: 30, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { refresh_token?: string } | null)?.refresh_token?.slice(0, 36) ?? '' },
         corpo: LogoutRequestSchema,
@@ -88,6 +95,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       {
         metodo: 'POST',
         caminho: 'auth/senha/trocar',
+        // T-0117 (ADR 0038): no modo cookie do BKO a plataforma troca o refresh_token do corpo por cookie httpOnly; o app segue com o corpo.
+        cookieSessao: { papel: 'emitir', validadeSegundos: REFRESH_DIAS * 86_400 },
         limite: { max: 60, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { codigo_empresa?: string } | null)?.codigo_empresa ?? '' },
         corpo: TrocarSenhaRequestSchema,
         executar: (ctx) => auth.trocarSenha(ctx),

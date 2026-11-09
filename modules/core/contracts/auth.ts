@@ -64,6 +64,10 @@ export const SessaoRespostaSchema = z
   .strict();
 export type SessaoResposta = z.infer<typeof SessaoRespostaSchema>;
 
+/** BKO (T-0117, ADR 0038): em modo cookie o token de renovação viaja em cookie httpOnly, nunca no corpo. */
+export const SessaoWebRespostaSchema = SessaoRespostaSchema.omit({ refresh_token: true });
+export type SessaoWebResposta = z.infer<typeof SessaoWebRespostaSchema>;
+
 export const RefreshRequestSchema = z.object({ refresh_token: z.string().min(10).max(200), dispositivo_id: z.string().uuid().optional() }).strict();
 export type RefreshRequest = z.infer<typeof RefreshRequestSchema>;
 
@@ -72,6 +76,8 @@ export const RefreshRespostaSchema = z
   .object({ access_token: z.string().min(1), token_type: z.literal('Bearer'), expires_in: z.number().int().positive(), refresh_token: z.string().min(1) })
   .strict();
 export type RefreshResposta = z.infer<typeof RefreshRespostaSchema>;
+export const RefreshWebRespostaSchema = RefreshRespostaSchema.omit({ refresh_token: true });
+export type RefreshWebResposta = z.infer<typeof RefreshWebRespostaSchema>;
 
 export const LogoutRequestSchema = z.object({ refresh_token: z.string().min(10).max(200) }).strict();
 

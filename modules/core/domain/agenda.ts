@@ -3,6 +3,7 @@
  * Funções puras sobre as linhas locais (`rota_parada` ⊕ `visita` já com a sobreposição da fila).
  */
 import { diffDays } from '@macuxi/comum';
+import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import { autoCheckoutAt } from './visit';
 
 export type StatusDaParada = 'feita' | 'em_atendimento' | 'proxima' | 'pendente';
@@ -69,12 +70,6 @@ export interface CarteiraAgendaLike {
   frequencia_semanas?: number | null;
   /** 1 = segunda … 7 = domingo (ISO). */
   dia_semana?: number | null;
-}
-
-function somarDias(isoDate: string, dias: number): string {
-  const d = new Date(`${isoDate}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
 }
 
 /** Segunda-feira da semana de uma data. */

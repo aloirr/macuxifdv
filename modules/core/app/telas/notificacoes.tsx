@@ -7,7 +7,8 @@ import { useVisaoShell } from '@macuxi/platform-sdk/react';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { linkNavegavel, rotuloDoTipo, type NotificacaoLocal } from '../lib/notificacoes';
+import { linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
+import { rotuloDoTipo, type NotificacaoLocal } from '../lib/notificacoes';
 import { useCore } from '../lib/usar-core';
 import { useNotificacoes } from '../lib/usar-notificacoes';
 

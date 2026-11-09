@@ -4,7 +4,7 @@
  */
 import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import type { CriarUsuarioRequest, EditarUsuarioRequest, EmailAcesso, EquipeOpcao, UsuarioItem } from '../../contracts';
-import { faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
+import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -23,6 +23,8 @@ export interface FormularioUsuario {
 
 export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '' };
 
+export { ERRO_SEM_PERFIL };
+
 export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
   return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '' };
 }
@@ -32,7 +34,7 @@ const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim())
 /** Erros por campo, em português; vazio = pode enviar. Na criação a senha inicial é obrigatória. */
 export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'): ErroDeCampo[] {
   const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
-  if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: 'Escolha pelo menos um perfil.' });
+  if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: ERRO_SEM_PERFIL });
   if (modo === 'criar') {
     const fraca = validarSenhaInicial(f.senha, f.email);
     if (fraca) erros.push({ campo: 'senha', mensagem: fraca });
