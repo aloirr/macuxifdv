@@ -99,6 +99,13 @@ describe('telas sobre o pull (T-0029 §8)', () => {
     }
   });
 
+  it('RN-VEN-31 (T-0138): a marca erp_aceita_cancelamento do pull chega ao pedido do aparelho; sem ela o pedido não a tem', () => {
+    const l = linhas({ pedidos: [pedido({ id: U(17), status: 'integrated', erp_aceita_cancelamento: true }), pedido({ id: U(18), status: 'integrated' })], itens: [item(1, U(17), 1, 1, 100), item(2, U(18), 1, 1, 100)] });
+    const lista = listaDePedidos(l, {});
+    expect(lista.find((o) => o.id === U(17))).toMatchObject({ erp_aceita_cancelamento: true });
+    expect(lista.find((o) => o.id === U(18))).not.toHaveProperty('erp_aceita_cancelamento');
+  });
+
   it('RN-VEN-18/02 (T-0071, 0020): o pull leva validade civil e o ajuste em R$ do pedido e dos itens para o app (Editar, Transformar, Duplicar)', () => {
     const p = pedido({ id: U(16), tipo: 'orcamento', validade_data: '2026-11-10', validade_ate: '2026-11-11T04:00:00.000Z', ajuste_em: 'valor', desconto_valor_cents: 384 });
     const l = linhas({ pedidos: [p], itens: [{ ...item(1, U(16), 1, 12, 1890), desconto_unitario_cents: 100, ajuste_em: 'valor' }, item(2, U(16), 2, 1, 11780)] });

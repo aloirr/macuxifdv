@@ -39,6 +39,21 @@ export const TEXTOS_DA_SAIDA = {
   confirmacao: { titulo: 'Descartar este pedido?', mensagem: 'Os itens e os dados deste pedido serão apagados do aparelho.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
+/**
+ * RN-VEN-38 (v1.0.1): a saída da EDIÇÃO de pedido ou orçamento salvo usa a mesma folha "Sair do pedido?", só com o que cabe:
+ * salvar as alterações (com o destino), descartar as alterações (o documento fica como estava) e continuar editando.
+ */
+export const TEXTOS_DA_SAIDA_EDICAO = {
+  salvarOrcamento: { rotulo: 'Salvar orçamento', subtitulo: 'Guarda as alterações' },
+  descartar: { rotulo: 'Descartar alterações', subtitulo: 'Volta como estava' },
+  confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
+} as const;
+
+export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento'; destino: string }): { salvar: { rotulo: string; subtitulo: string }; descartar: { rotulo: string; subtitulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
+  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: 'Salvar alterações', subtitulo: e.destino };
+  return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
+}
+
 /** RN-VEN-38 / RN-VEN-13: a linha que explica a falta do "Salvar pedido" (texto do designer, §2.3 da spec). */
 export function avisoSoOrcamento(c: SituacaoCliente): string | null {
   if (motivoSoOrcamento(c) === null) return null;

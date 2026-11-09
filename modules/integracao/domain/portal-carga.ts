@@ -2,6 +2,7 @@
  * Regras puras do portal de implantação (T-0087, RF-INT-03): ordem dos cartões de carga, "Conferir sem gravar" e o CSV de erros.
  * Nada aqui guarda o conteúdo do arquivo; as mensagens de erro já nascem sem o valor digitado (dado pessoal).
  */
+import { protegerFormula } from '@macuxi/comum/csv';
 import { ENTIDADES, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type LinhaInvalidaConector } from '../contracts';
 import { anotarLinhaDoArquivo } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
@@ -28,9 +29,8 @@ const BOM = String.fromCharCode(0xfeff);
 const CABECALHO_ERROS = ['linha_do_lote', 'external_id', 'codigo', 'campo', 'reprocessavel', 'mensagem'] as const;
 
 function celula(valor: string | number | null | undefined): string {
-  let t = valor === null || valor === undefined ? '' : String(valor);
-  // planilha não pode tratar a célula como fórmula (CSV injection): apóstrofo antes de = + - @ e controles
-  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  // planilha não pode tratar a célula como fórmula (CSV injection, CWE-1236): a regra única é a de @macuxi/comum/csv
+  const t = valor === null || valor === undefined ? '' : protegerFormula(String(valor));
   return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 

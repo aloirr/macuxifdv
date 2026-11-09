@@ -102,6 +102,22 @@ describe('ConectoresPanel (sinal de vida e versão)', () => {
     expect(h).toContain('Clientes, Produtos');
   });
 
+  it('T-0100: sem o campo opcional do sinal, a coluna da atualização automática diz "Sem informação" (Conector antigo)', () => {
+    const h = html(createElement(ConectoresPanel, { conectores: [conector({})], agora: relogio.agora(), tz: relogio.fuso }));
+    expect(h).toContain('integracao.conector.atualizacao.erp-matriz');
+    expect(h).toContain('Sem informação');
+  });
+
+  it('T-0100: com o resultado no sinal, o monitor mostra o selo, a mensagem e as versões; revertida fica em destaque', () => {
+    const em = relogio.relativo({ horas: -2 }).toISOString();
+    const ok = html(createElement(ConectoresPanel, { conectores: [conector({ atualizacao: { resultado: 'atualizado', versao_de: '1.2.1', versao_para: '1.3.0', em, mensagem: 'Conector atualizado e respondendo na versão nova.' } })], agora: relogio.agora(), tz: relogio.fuso }));
+    expect(ok).toContain('Atualizado');
+    expect(ok).toContain('1.2.1 → 1.3.0');
+    const revertida = html(createElement(ConectoresPanel, { conectores: [conector({ atualizacao: { resultado: 'revertido', codigo: 'sem_saude', versao_de: '1.2.1', versao_para: '1.3.0', em, mensagem: 'A versão nova não respondeu à verificação de saúde no prazo; a versão anterior foi restaurada.' } })], agora: relogio.agora(), tz: relogio.fuso }));
+    expect(revertida).toContain('Revertido');
+    expect(revertida).toContain('versão anterior foi restaurada');
+  });
+
   it('sem Conector: orienta o próximo passo', () => {
     const h = html(createElement(ConectoresPanel, { conectores: [], agora: relogio.agora(), tz: relogio.fuso }));
     expect(h).toContain('Nenhum Conector cadastrado');
@@ -114,15 +130,16 @@ describe('Monitor: cancelamento recusado pelo ERP (T-0114, exceção da RN-INT-0
     severidade: 'atencao',
     conector_id: null,
     entidade: null,
-    mensagem: 'O ERP recusou o cancelamento de 1 pedido (PV-9 (3f2b8c1e): Pedido já faturado no ERP). O pedido segue ativo no ERP.',
+    mensagem: '1 pedido segue ativo: PV-9 (Pedido já faturado no ERP). Cancele no ERP ou avise o vendedor. O alerta some quando o cancelamento chegar.',
   };
   const pedidos: MonitorResumo['pedidos'] = { por_estado: {}, presos: 0, retidos: 0 } as MonitorResumo['pedidos'];
 
-  it('o painel de alertas mostra o alerta com o pedido e o motivo', () => {
+  it('RD-0026: o painel de alertas mostra só a linha curta, sem repetir a frase completa do painel de pedidos', () => {
     const h = html(createElement(AlertasPanel, { alertas: [alerta] }));
     expect(h).toContain('integracao.alerta.cancelamento_recusado');
-    expect(h).toContain('PV-9');
-    expect(h).toContain('Pedido já faturado no ERP');
+    expect(h).toContain('Pedidos no ERP');
+    expect(h).not.toContain('PV-9');
+    expect(h).not.toContain('Pedido já faturado no ERP');
   });
 
   it('o painel de pedidos lista o alerta em "Erros de retorno" com o rótulo próprio; sem alerta, a mensagem de vazio', () => {

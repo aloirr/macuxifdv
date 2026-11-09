@@ -74,17 +74,28 @@ export function versaoDoConjunto(visiveis: ReadonlySet<string> | 'tenant'): stri
 const escoposDe = (prov: ProvedorSync) =>
   prov.escopo === undefined ? [] : typeof prov.escopo === 'string' ? [prov.escopo] : [...prov.escopo];
 
-/** `versao_escopo` da página (ADR 0009 §4): só nos escopos que mudam no aparelho (`carteira`, `usuarios`). */
+/**
+ * `versao_escopo` da página (ADR 0009 §4): só nos escopos que mudam no aparelho (`carteira`, `usuarios`) e na
+ * `variacaoEscopo` do provedor (T-0121 N3: regra que muda o que o usuário vê, ex.: RN-CAT-05).
+ */
 async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
-  return versaoDosEscopos(new Set(escoposDe(prov)), ctx);
+  const variacao = prov.variacaoEscopo ? await prov.variacaoEscopo(ctx) : undefined;
+  return versaoDosEscopos(new Set(escoposDe(prov)), ctx, variacao);
 }
 
-/** Hash dos conjuntos `carteira`/`usuarios` presentes em `escopos` (ordem fixa); nenhum = `undefined`. */
-async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase): Promise<string | undefined> {
-  // ordem fixa (carteira, usuarios); `proprio` e `tenant` não mudam no aparelho e não entram
+/** Hash curto (16 hex) de um texto de variação de escopo. */
+const versaoDaVariacao = (texto: string): string => createHash('sha256').update(`variacao:${texto}`).digest('hex').slice(0, 16);
+
+/**
+ * Hash dos conjuntos `carteira`/`usuarios` presentes em `escopos` (ordem fixa) e da `variacao` (T-0121 N3);
+ * nenhum = `undefined`. Sem variação, o valor é o mesmo de antes da T-0121 (nenhum aparelho ressincroniza à toa).
+ */
+async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase, variacao?: string): Promise<string | undefined> {
+  // ordem fixa (carteira, usuarios, variação); `proprio` e `tenant` não mudam no aparelho e não entram
   const partes: string[] = [];
   if (escopos.has('carteira')) partes.push(versaoDoConjunto(await ctx.carteira()));
   if (escopos.has('usuarios')) partes.push(versaoDoConjunto(await ctx.usuariosVisiveis()));
+  if (variacao !== undefined) partes.push(versaoDaVariacao(variacao));
   if (partes.length === 0) return undefined;
   if (partes.length === 1) return partes[0];
   return createHash('sha256').update(partes.join('|')).digest('hex').slice(0, 16);
@@ -177,7 +188,12 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       .sort((a, b) => a.entidade.nome.localeCompare(b.entidade.nome));
     const ate = (await p.banco.horizonteSync()).toISOString();
     const modulos = respostaMeusModulos(p.manifestos, u.modulos, licencas.parametros, p.relogio());
-    const escopo = (await versaoDosEscopos(new Set(elegiveis.flatMap(escoposDe)), ctx)) ?? null;
+    // T-0121 N3: as variações de escopo das elegíveis (no contexto do módulo dono) entram no cursor: mudou = todas
+    const variacoes: string[] = [];
+    for (const prov of elegiveis)
+      if (prov.variacaoEscopo) variacoes.push(`${prov.entidade.nome}=${await prov.variacaoEscopo(doModulo(prov.entidade.modulo))}`);
+    const escopo =
+      (await versaoDosEscopos(new Set(elegiveis.flatMap(escoposDe)), ctx, variacoes.length > 0 ? variacoes.join('|') : undefined)) ?? null;
     const desde = decodificarCursorNovidades(q.data.desde);
     const modulosMudaram = !desde || desde.licencas !== modulos.versao_licencas;
     let entidades: string[];

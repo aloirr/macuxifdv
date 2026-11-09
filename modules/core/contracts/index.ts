@@ -33,14 +33,6 @@ export const page = <T extends z.ZodTypeAny>(item: T) => z.object({ items: z.arr
 // ---------- auth e perfis ----------
 export const Role = z.enum(['seller', 'bko_assistant', 'analyst', 'manager', 'admin']);
 export type Role = z.infer<typeof Role>;
-export const ROLE_LABEL: Record<Role, string> = {
-  seller: 'Vendedor',
-  bko_assistant: 'Assistente de BKO',
-  analyst: 'Analista comercial',
-  manager: 'Gestor comercial',
-  admin: 'Admin',
-};
-
 export const FakeUser = z.object({
   id: Id,
   name: z.string(),
@@ -505,5 +497,7 @@ export * from './etapas-pendencia';
 export * from './plano-rv';
 export * from './plataforma';
 export * from './senha';
+export * from './necessidade-diaria';
 export * from './equipe-importacao';
 export * from './perfis';
+export * from './ciclo-senha';

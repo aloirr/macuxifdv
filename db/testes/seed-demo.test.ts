@@ -18,6 +18,7 @@ import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { dadosDemoCatalogoCadastro, ETIQUETAS_DEMO, REFERENCIAS_DEMO } from '../seeds/demo/catalogo-cadastro';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
+import { INTEGRACAO_DEMO, MODULO_INTEGRACAO, PERFIS_INTEGRACAO_DEMO } from '../seeds/demo/integracao';
 import {
   CLIENTE_PRAZO_30_DEMO, CLIENTE_SEM_BOLETO_DEMO, dadosDemoPagamento, FAIXAS_DEMO, FORMAS_DEMO, FORMAS_SEM_BOLETO_DEMO, idsPagamentoPadrao, PRAZO_MEDIO_MAX_DEMO,
 } from '../seeds/demo/pagamento';
@@ -29,8 +30,8 @@ import { semBanco } from './estado';
 import { semMarcaDeAmbiente, tabelasComTenant } from './util';
 
 const SENHA = 'senha-do-teste-demo';
-/** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa, 0017 Treinamento). */
-const MODULOS_ATIVOS_DEMO = [...new Set<string>([...MODULOS_DEMO, MODULO_GESTOR, MODULO_PESQUISA, MODULO_TREINAMENTO])].sort();
+/** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa, 0017 Treinamento, T-0051 Integração). */
+const MODULOS_ATIVOS_DEMO = [...new Set<string>([...MODULOS_DEMO, MODULO_GESTOR, MODULO_PESQUISA, MODULO_TREINAMENTO, MODULO_INTEGRACAO])].sort();
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
 
 describe('base de demo (estático)', () => {
@@ -741,6 +742,32 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.respostas).toBe(16);
   });
 
+  it('T-0051 ligado no carregarDemo: monitor da Integração ERP (licença de admin e analista, 2 Conectores, política, 5 lotes, inativação aguardando)', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      perfis: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'integracao' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
+      conectores: (await c.query<{ identificador: string; recebe_pedidos: boolean; sem_sinal: boolean }>(
+        "select identificador, recebe_pedidos, ultimo_sinal_em < now() - interval '15 minutes' as sem_sinal from integracao.conector where deleted_at is null order by identificador",
+      )).rows,
+      politica: (await c.query<{ versao_minima: string }>('select versao_minima from integracao.politica_versao where deleted_at is null')).rows,
+      lotes: (await c.query<{ status: string }>('select status from integracao.lote where deleted_at is null order by status')).rows.map((x) => x.status),
+      erros: (await c.query<{ payload: unknown; external_id: string }>('select payload, external_id from integracao.lote_linha_erro where deleted_at is null')).rows,
+      pendencia: (await c.query<{ estado: string; dias: number }>(
+        "select estado, round(extract(epoch from (expira_em - now())) / 86400)::int as dias from integracao.pendencia_inativacao where deleted_at is null",
+      )).rows,
+    }));
+    expect(r.perfis).toEqual([...PERFIS_INTEGRACAO_DEMO].sort());
+    // o seed acabou de rodar: a matriz tem sinal recente; a filial está sem sinal há mais de 15 min
+    expect(r.conectores).toEqual([
+      { identificador: INTEGRACAO_DEMO.identificadores.filial, recebe_pedidos: false, sem_sinal: true },
+      { identificador: INTEGRACAO_DEMO.identificadores.matriz, recebe_pedidos: true, sem_sinal: false },
+    ]);
+    expect(r.politica).toEqual([{ versao_minima: '1.2.1' }]);
+    expect(r.lotes).toEqual(['concluido', 'concluido', 'concluido', 'concluido_com_erros', 'falhou']);
+    expect(r.erros).toHaveLength(2);
+    expect(r.erros.every((e) => e.payload === null && e.external_id.length > 0)).toBe(true);
+    expect(r.pendencia).toEqual([{ estado: 'aguardando', dias: INTEGRACAO_DEMO.validadeDias }]);
+  });
+
   it('0017 ligado no carregarDemo: licença do Treinamento para os 7 perfis, 3 trilhas (2 publicadas, 1 obrigatória) e o ranking de XP', async () => {
     const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
       perfis: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'treinamento' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
@@ -861,8 +888,10 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {
-    const t = await pool.query<{ id: string; nome: string }>('select id, nome from plataforma.tenant_por_codigo($1)', ['DEMO']);
-    expect(t.rows).toEqual([{ id: TENANT_DEMO, nome: 'Distribuidora Exemplo' }]);
+    const t = await pool.query<{ id: string; status: string }>('select id, status from plataforma.tenant_por_codigo($1)', ['DEMO']);
+    expect(t.rows).toEqual([{ id: TENANT_DEMO, status: 'ativo' }]);
+    const nome = await comTenant(pool, TENANT_DEMO, (c) => c.query<{ nome: string }>('select nome from plataforma.tenant_da_sessao()'));
+    expect(nome.rows).toEqual([{ nome: 'Distribuidora Exemplo' }]);
     const us = await comAdmin(b.nome, (c) => c.query<{ senha_hash: string }>('select senha_hash from core.usuario where tenant_id = $1', [TENANT_DEMO]));
     expect(us.rows).toHaveLength(Object.keys(USUARIOS_DEMO).length);
     for (const u of us.rows) {

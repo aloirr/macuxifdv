@@ -23,7 +23,7 @@ import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
+import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
 import { avisoDoSalvar, rascunhosSalvosComoPedidos } from '../lib/salvar-na-fila';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { idsSemTexto } from '../../domain/busca-seletor';
@@ -174,7 +174,19 @@ export function useVendedor() {
     const noServidor = new Set(dados.pedidos.map((o) => o.id));
     const todos = mergeOrders(dados.pedidos, fila, eu);
     // T-0130: o rascunho de "Apenas salvar" aparece na lista com a tag "Salvo"
-    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '').map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
+    // v1.0.1: a linha "Salvo" mostra o total do rascunho pelo catálogo do aparelho (sem tabela ou sem política, fica sem total)
+    const totalDoRascunho = (r: Rascunho): number | null => {
+      const cli = dados.clientes.find((c) => c.id === r.customer_id);
+      const chave = cli?.price_table_id ?? 'default';
+      const tabela = dados.produtos[chave];
+      if (!cli || !tabela || !dados.politica) return null;
+      try {
+        return calcularPedido({ lines: r.lines, ajustes: r.ajustes ?? {}, desconto_pct: r.discount_pct, acrescimo_pct: r.acrescimo_pct ?? 0, desconto_valor_cents: r.desconto_valor_cents, acrescimo_valor_cents: r.acrescimo_valor_cents, ajuste_em: r.ajuste_em, catalogo: tabela.items, unidades: unidadesDaTela(linhasRef.current), faixas: tabela.faixas, ...(r.precos_congelados ? { congelados: r.precos_congelados } : {}), politica: politicaApi(parametrosRef.current), vendedor_id: eu.id }).total_cents;
+      } catch {
+        return null;
+      }
+    };
+    const salvos = rascunhosSalvosComoPedidos(dados.rascunhos, (cid) => dados.clientes.find((c) => c.id === cid)?.trade_name ?? '', totalDoRascunho).map((p) => ({ ...p, seller_id: eu.id, seller_name: eu.name, branch_id: eu.branch_id }));
     return v1 ? [...salvos, ...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : [...salvos, ...todos];
   }, [dados.pedidos, dados.rascunhos, dados.clientes, fila, aceitos, vendedor, v1]);
 
@@ -750,9 +762,29 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
+  /**
+   * T-0138 (RN-CAT-09/10): referências cruzadas ("Equivale a") só na hora de gerar o PDF, de `catalogo.textos_produto@1`; não são
+   * retrato do pedido. Falha ou aparelho sem a leitura = sem referência (o PDF sai sem a linha, nunca trava).
+   */
+  const referenciasDeProdutos = useCallback(
+    async (ids: string[]): Promise<Map<string, Array<{ brand: string; code: string }>>> => {
+      const out = new Map<string, Array<{ brand: string; code: string }>>();
+      const unicos = [...new Set(ids)].slice(0, 500);
+      if (!v1 || unicos.length === 0) return out;
+      try {
+        const r = await ambiente.consultar(CONSULTA_TEXTOS_PRODUTO, { produto_ids: unicos });
+        for (const it of r.itens) if (it.referencias.length > 0) out.set(it.produto_id, it.referencias.map((x) => ({ brand: x.marca_nome, code: x.codigo })));
+      } catch {
+        // sem referência agora: o PDF sai sem a linha
+      }
+      return out;
+    },
+    [v1, ambiente],
+  );
   const preVendaLigada = v1 && preVendaAtiva(parametros);
 
-  const acoesDe = (status: string) => orderActions(status as OrderStatus);
+  // RN-VEN-31 (T-0114/T-0138): `erpAceitaCancelamento` vem do pull (`erp_aceita_cancelamento` do pedido); sem ele, vale a regra de sempre
+  const acoesDe = (status: string, erpAceitaCancelamento = false) => orderActions(status as OrderStatus, { erpAceitaCancelamento });
   const aguardandoMinhaDecisao = useMemo(() => (v1 ? paraAprovar(linhas, perfil) : []), [v1, linhas, perfil]);
 
   return {
@@ -799,6 +831,7 @@ export function useVendedor() {
     sugestoesDoPedido,
     buscarProdutos,
     textosDeProdutos,
+    referenciasDeProdutos,
     preVendaLigada,
     prepararRascunhoDoPedido,
     salvarEdicao,

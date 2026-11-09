@@ -14,6 +14,9 @@
  *   3. o handler roda com `macuxi_app` em `comTenant(tenant do envelope)` e, na MESMA transação, grava
  *      `plataforma.evento_consumo (consumidor, evento_id)` com `on conflict do nothing`: reentrega não repete o efeito,
  *      e um handler que falha desfaz o efeito e o registro juntos;
+ *   3b. T-0121 (N2): efeito fora do banco (push, HTTP) é agendado com `ctx.aposConfirmar` e roda DEPOIS do commit, sem
+ *      transação do `macuxi_app` aberta (não segura o horizonte do pull de nenhum tenant); se ele lançar, o registro do
+ *      consumo é desfeito numa transação curta e o evento volta com espera (o handler roda de novo e confere no banco);
  *   4. todos os consumidores ok → `publicado_em`; alguma falha → `tentativas + 1`, `ultimo_erro` e espera crescente
  *      (`esperaPadrao`) antes da próxima tentativa; os que já tinham consumido não repetem (passo 3). O evento em espera
  *      sai do lote e os outros (de qualquer tenant) seguem. Com `tentativas >= maxTentativas` o evento para (fica
@@ -31,6 +34,7 @@ import {
   USUARIO_SISTEMA_ID,
   type AcessoBanco,
   type ConsumidorEvento,
+  type ContextoAposConfirmar,
   type EnvelopeEvento,
   type LogRota,
   type ModuloApi,
@@ -196,6 +200,8 @@ export function criarDespachante(op: OpcoesDespachante) {
         warn: (o, msg) => log.warn({ ...campos, ...o }, msg),
         error: (o, msg) => log.error({ ...campos, ...o }, msg),
       };
+      // T-0121 (N2): efeitos fora do banco agendados pelo handler; só rodam depois do commit do consumo
+      const efeitos: ((c: ContextoAposConfirmar) => Promise<void>)[] = [];
       try {
         const rodou = await op.app.comTenant(env.tenant_id, async (db) => {
           // idempotência (consumidor, evento_id) na mesma transação do efeito; a 2ª entrega espera a 1ª e não faz nada
@@ -227,6 +233,9 @@ export function criarDespachante(op: OpcoesDespachante) {
             fuso: () => t.fuso,
             agora: relogio,
             log: logConsumidor,
+            aposConfirmar: (efeito) => {
+              efeitos.push(efeito);
+            },
           });
           return true;
         });
@@ -234,9 +243,48 @@ export function criarDespachante(op: OpcoesDespachante) {
       } catch (e) {
         falhas.push(`${a.modulo}: ${mensagemDe(e)}`);
         logConsumidor.warn({ erro: mensagemDe(e) }, 'consumidor falhou');
+        continue;
       }
+      const erroEfeito = await rodarEfeitos(efeitos, env, a.modulo, logConsumidor);
+      if (erroEfeito) falhas.push(`${a.modulo}: ${erroEfeito}`);
     }
     return { falhas, entregas };
+  }
+
+  /**
+   * T-0121 (N2): efeitos depois do commit, em ordem, sem transação aberta. No 1º que lança, os seguintes não rodam e o
+   * registro do consumo é desfeito (transação curta) para o evento voltar com espera e o handler rodar de novo
+   * ("no mínimo uma vez"; o handler confere no banco o que já foi feito). Devolve a mensagem do erro, ou `undefined`.
+   */
+  async function rodarEfeitos(
+    efeitos: readonly ((c: ContextoAposConfirmar) => Promise<void>)[],
+    env: EnvelopeEvento,
+    modulo: ModuloId,
+    logConsumidor: LogRota,
+  ): Promise<string | undefined> {
+    const c: ContextoAposConfirmar = {
+      comTenant: (fn) => op.app.comTenant(env.tenant_id, fn),
+      agora: relogio,
+      log: logConsumidor,
+    };
+    for (const efeito of efeitos) {
+      try {
+        await efeito(c);
+      } catch (e) {
+        const msg = `efeito depois do commit: ${mensagemDe(e)}`;
+        logConsumidor.warn({ erro: msg }, 'efeito depois do commit falhou; consumo desfeito');
+        try {
+          await op.app.comTenant(env.tenant_id, (db) =>
+            db.query('delete from plataforma.evento_consumo where tenant_id = $1 and consumidor = $2 and evento_id = $3', [env.tenant_id, modulo, env.evento_id]),
+          );
+        } catch (e2) {
+          // sem desfazer, a reentrega não roda o handler: o efeito se perde (fica no log para análise)
+          logConsumidor.error({ erro: mensagemDe(e2) }, 'não foi possível desfazer o consumo depois do efeito com falha');
+        }
+        return msg;
+      }
+    }
+    return undefined;
   }
 
   /** Um ciclo: lê um lote, entrega e marca. Erro de banco do worker sobe (o lote desfaz e volta no próximo ciclo). */

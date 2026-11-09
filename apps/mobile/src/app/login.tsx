@@ -26,8 +26,8 @@ import {
   type CamposLogin,
 } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
-import { ErroHttp, PERFIS, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
-import { Banner, Button, Card, colors, fonts, Icon, initials, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
+import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -354,7 +354,7 @@ function LoginDemo() {
   const todos = (users ?? []).map(usuarioDaFaseM).sort((a, b) => ordem(a.perfil) - ordem(b.perfil));
   const sellers = todos.filter((u) => entraEm(variante, u.perfil));
   const others = todos.filter((u) => !entraEm(variante, u.perfil));
-  const rotulo = (p: Perfil | null) => (p ? ROTULO_PERFIL[p] : 'Perfil desconhecido');
+  const rotulo = (p: Perfil | null) => (p ? rotuloDoPerfil(p) : 'Perfil desconhecido');
 
   return (
     <AcimaDoTeclado>

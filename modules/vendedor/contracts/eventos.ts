@@ -41,6 +41,12 @@ export const PedidoCriadoEvento = z.object({
   total_cents: CentsNaoNeg,
   total_tabela_cents: CentsNaoNeg,
   criado_em: IsoDateTime,
+  /**
+   * T-0138 (revisão R-20261108-183947, aditivo): instante de emissão no aparelho, LIMITADO (nunca no futuro, no máximo 7 dias antes
+   * do recebimento: `dataDoPreco`). É o mesmo valor que `vendedor.pedidos_da_meta@1` devolve em `emitido_em`; Core e Gestor apuram
+   * o mês por ele. Opcional por causa dos eventos já publicados (sem o campo, vale `criado_em`).
+   */
+  emitido_em: IsoDateTime.optional(),
   itens: z.array(z.object({ produto_id: Id, quantidade: z.number().int().positive(), total_cents: CentsNaoNeg })),
   status: StatusEvento,
 });

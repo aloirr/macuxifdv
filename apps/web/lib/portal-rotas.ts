@@ -28,6 +28,8 @@ export const ROTAS_PORTAL = {
   errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
   errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
   conectores: '/integracao/conectores',
+  /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
+  conectorDownload: '/integracao/conector/download',
   // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
   equipeModeloCsv: '/core/equipe/modelo.csv',
   equipeImportacoes: '/core/equipe/importacoes',
@@ -44,12 +46,6 @@ export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.js
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
-
-/**
- * Download do pacote do Conector on-premise (ADR 0013). Ainda sem endereço publicado: `null` mostra "em breve" na aba
- * Integração (pendência registrada na entrega da T-0087).
- */
-export const LINK_DOWNLOAD_CONECTOR: string | null = null;
 
 /** Identificador do Conector tipo arquivo que o portal cria na primeira importação (R-20261106-011153). */
 export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({

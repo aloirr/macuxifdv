@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abaDaCorrecao, avisoDoSalvar, clienteDoRascunho, estadoNaFila, motivoDaRecusa, rascunhosSalvosComoPedidos } from './salvar-na-fila';
+import { abaDaCorrecao, avisoDoSalvar, clienteDoRascunho, estadoNaFila, motivoDaRecusa, rascunhosSalvosComoPedidos, totalDaLinhaSalva } from './salvar-na-fila';
 import { estadoDasAcoes } from './acoes-pedido';
 import { statusBadge } from './order-status';
 import { rascunhoVazio, type Rascunho } from './pedidos';
@@ -61,5 +61,15 @@ describe('RN-VEN-38, RN-VEN-30: o rascunho de "Apenas salvar" aparece como "Salv
     expect(rascunhosSalvosComoPedidos({ c1: r({}) }, nome)).toHaveLength(0);
     expect(rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x', lines: {} }) }, nome)).toHaveLength(0);
     expect(rascunhosSalvosComoPedidos({ 'edit:9': r({ salvo_em: 'x', edit_order_id: '9' }) }, nome)).toHaveLength(0);
+  });
+
+  it('RN-VEN-30: a linha "Salvo" traz o total do rascunho; sem total, "—"; sem itens, "Sem itens"', () => {
+    const [l] = rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x' }) }, nome, () => 12345);
+    expect(l!.total_cents).toBe(12345);
+    const f = (c: number) => `R$ ${c}`;
+    expect(totalDaLinhaSalva(l!, f)).toBe('R$ 12345');
+    const [semTabela] = rascunhosSalvosComoPedidos({ c1: r({ salvo_em: 'x' }) }, nome);
+    expect(totalDaLinhaSalva(semTabela!, f)).toBe('—');
+    expect(totalDaLinhaSalva({ total_cents: 0, items_count: 0 }, f)).toBe('Sem itens');
   });
 });

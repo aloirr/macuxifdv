@@ -40,10 +40,10 @@ interface Capturado {
 
 describe('A7/A8: ligação no manifesto e no moduloApi', () => {
   it('manifesto declara o consumo e o moduloApi expõe os 3 consumidores (o despachante só entrega o que está em consome)', () => {
-    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1']) {
+    for (const nome of ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.cancelado@1', 'integracao.lote.recebido@1', 'catalogo.referencia.marca_desconhecida@1']) {
       expect(manifest.consome).toContain(nome);
     }
-    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
+    expect(moduloApi.consumidores?.map((c) => c.evento.nome).sort()).toEqual(['catalogo.referencia.marca_desconhecida@1', 'integracao.lote.recebido@1', 'vendedor.pedido.aprovado@1', 'vendedor.pedido.cancelado@1', 'vendedor.pedido.status_alterado@1']);
   });
 });
 

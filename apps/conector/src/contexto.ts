@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Armazenamento } from './armazenamento/armazenamento';
+import type { DependenciasAtualizacao } from './atualizacao/atualizador';
 import type { ConfigConector } from './config/esquema';
 import type { ConexaoErp } from './erp/driver';
 import type { ClienteHub } from './hub/cliente';
@@ -18,6 +19,8 @@ export interface Contexto {
   aleatorio: () => number;
   /** Versão em uso (padrão `VERSAO_CONECTOR`); os testes trocam para simular versão antiga. */
   versao?: string;
+  /** T-0116: baixador do pacote (T-0098), extrator, serviço e saúde; sem isto a atualização automática não roda, mesmo ligada. */
+  atualizacao?: DependenciasAtualizacao;
 }
 
 export const uuidReal = () => randomUUID();

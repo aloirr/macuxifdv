@@ -8,13 +8,13 @@
  * - regra 7 (RN-CORE-29): promotor nunca recebe o módulo `vendedor` (pedido);
  * - mensagens de erro não repetem o dado da célula (LGPD).
  */
+import { EMAIL_FORMATO } from '../contracts/ciclo-senha';
 import { PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { EXTERNAL_ID_MAX, NOME_USUARIO_MAX, normalizarEmail } from './usuarios';
 
 export const MAX_LINHAS_EQUIPE_CSV = 5000;
 export const COLUNAS_EQUIPE_CSV = ['nome', 'email', 'telefone', 'perfil', 'email_superior', 'codigo_erp', 'modulos'] as const;
 const OBRIGATORIAS = ['nome', 'email', 'perfil'] as const;
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export interface LinhaCsvEquipe {
   /** Número da linha no arquivo (cabeçalho = 1). */
@@ -216,7 +216,7 @@ export function conferirImportacaoDeEquipe(linhas: readonly LinhaCsvEquipe[], ct
     if (l.nome.length === 0) erro(l.numero, 'nome', 'Informe o nome da pessoa.');
     else if (l.nome.length > NOME_USUARIO_MAX) erro(l.numero, 'nome', `O nome pode ter até ${NOME_USUARIO_MAX} caracteres.`);
     // e-mail
-    if (!EMAIL_RE.test(email) || email.length > 254) erro(l.numero, 'email', 'Informe um e-mail válido, como nome@empresa.com.br.');
+    if (!EMAIL_FORMATO.test(email) || email.length > 254) erro(l.numero, 'email', 'Informe um e-mail válido, como nome@empresa.com.br.');
     else if (emailsNoArquivo.get(email) !== l.numero) erro(l.numero, 'email', 'Este e-mail já aparece em outra linha do arquivo. Deixe uma linha só por pessoa.');
     // telefone
     if (l.telefone && !/^\+?[0-9()\s.-]{8,20}$/.test(l.telefone)) erro(l.numero, 'telefone', 'Telefone inválido. Use só números com DDD, como 95991112222, ou deixe vazio.');

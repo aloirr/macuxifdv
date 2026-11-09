@@ -73,7 +73,7 @@ describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
     expect(acaoDeSenha(u({ sem_senha: true }))).toEqual({ rotulo: 'Enviar acesso' });
     expect(acaoDeSenha(u({ perfil: 'admin' }))).toBeNull();
     expect(acaoDeSenha(u({ ativo: false }))).toBeNull();
-    expect(acaoDeSenha(u({ perfil: 'analista', perfis: [{ codigo: 'analista', base: 'analista', nome: 'Analista' }, { codigo: 'admin', base: 'admin', nome: 'Administrador' }] }))).toBeNull();
+    expect(acaoDeSenha(u({ perfil: 'analista', perfis: [{ codigo: 'analista', base: 'analista', nome: 'Analista' }, { codigo: 'admin', base: 'admin', nome: 'Admin' }] }))).toBeNull();
   });
   it('RN-CORE-34: "Gerar senha" produz 12 caracteres que passam na RN-CORE-32', () => {
     let k = 7;

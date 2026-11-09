@@ -3,7 +3,7 @@
  * Vem do APARELHO: é a notificação que o Core cria ao supervisor quando a etapa passa do prazo (RN-CORE-12, tarefa
  * `alerta_pendencia_checkout`), lida do pull `notificacao`. O Gestor não consulta `core.visita_etapa` (fronteira).
  * Não é regra de servidor: não entra em `TIPOS_ALERTA` (tabela `alerta`/`alerta_regra`), nem pode ser dispensado.
- * Funções puras. Identificação provisória pelo título/link do Core (pedido de marcador estável ao modulo-core).
+ * Funções puras. Identificação pelo `subtipo` estável da notificação (contrato do Core).
  */
 import type { NotificacaoSync } from '@macuxi/core/contracts';
 import { ALERTA_PENDENCIA_CHECKOUT, type AlertaPendenciaCheckout } from '../contracts';
@@ -11,7 +11,7 @@ import { ALERTA_PENDENCIA_CHECKOUT, type AlertaPendenciaCheckout } from '../cont
 /** Subconjunto de `NotificacaoSync` (contracts do Core); `subtipo` vem do contrato (migração 0030). */
 export type NotificacaoPendencia = Pick<NotificacaoSync, 'id' | 'tipo' | 'origem_modulo' | 'titulo' | 'corpo' | 'link' | 'updated_at' | 'deleted_at' | 'expira_em' | 'subtipo'>;
 
-/** Mesma janela do pull `notificacao` do Core (modules/core/api/notificacoes.ts). Enquanto o Core não marca `deleted_at` na baixa. */
+/** Mesma janela do pull `notificacao` do Core (modules/core/api/notificacoes.ts). O Core marca `deleted_at` na baixa e na dispensa. */
 export const JANELA_NOTIFICACAO_DIAS = 30;
 export const SUBTIPO_ETAPA_PENDENTE = 'etapa_pendente_checkout';
 

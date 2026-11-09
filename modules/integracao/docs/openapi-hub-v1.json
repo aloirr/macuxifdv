@@ -2415,7 +2415,9 @@
               "referencias_cortadas",
               "referencia_descartada",
               "oferece_junto_cortado",
-              "prazo_medio_divergente"
+              "prazo_medio_divergente",
+              "marca_concorrente_desconhecida",
+              "avisos_omitidos"
             ]
           },
           "mensagem": {
@@ -2851,6 +2853,18 @@
                   "maxLength": 20
                 },
                 "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tabela_preco_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"

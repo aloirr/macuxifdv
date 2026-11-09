@@ -21,10 +21,11 @@ import { View } from 'react-native';
 
 import { ProvedorBloqueioDeSaida, ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
-import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
+import { colors, ProvedorSaidaDaTela, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
 import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
+import { TelaDeErroDaRaiz } from '@/components/tela-de-erro';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
@@ -45,6 +46,9 @@ const theme = {
     border: colors.line,
   },
 };
+
+/** Erro fora das telas de módulo (abertura, carga inicial, abas): tela de erro em vez de fechar o app (T-0140, relato de 08/11). */
+export const ErrorBoundary = TelaDeErroDaRaiz;
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -118,6 +122,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
       {/* RN-VEN-38 (T-0128): formulário alterado segura a barra inferior e o Voltar do Android (useBloquearSaida do SDK) */}
       <ProvedorBloqueioDeSaida value={bloqueioDoShell}>
+        {/* T-0128: o `BackLink` do kit (cabeçalho das telas de módulo e do shell) também passa por `tentarSair` */}
+        <ProvedorSaidaDaTela value={bloqueioDoShell}>
         {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
         {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
         <SincronizacaoDoShell>
@@ -146,6 +152,7 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
           </View>
           {sobre}
         </SincronizacaoDoShell>
+        </ProvedorSaidaDaTela>
       </ProvedorBloqueioDeSaida>
     </ShellProvider>
   );

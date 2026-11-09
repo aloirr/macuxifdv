@@ -13,7 +13,8 @@
     "./fuso": "./src/fuso.ts",
     "./relogio": "./src/relogio.ts",
     "./documento": "./src/documento.ts",
-    "./csv": "./src/csv.ts"
+    "./csv": "./src/csv.ts",
+    "./perfis": "./src/perfis.ts"
   },
   "scripts": {
     "lint": "eslint src",

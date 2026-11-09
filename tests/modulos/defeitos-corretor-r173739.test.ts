@@ -3,10 +3,12 @@
  * docs/qualidade/redundancias/2026-11-08-lote.md §7). Sem banco: roda local e no CI. Matriz em docs/testes/T-0124.md
  * (seção "Defeitos encaminhados pelo corretor").
  *
- * D1 (T-0114, RN-VEN-31 com a exceção de 07/11): `orderActions` libera o cancelamento e o texto manda "cancele no ERP" — CONFIRMADO.
+ * D1 (T-0114, RN-VEN-31 com a exceção de 07/11): `orderActions` libera o cancelamento e o texto manda "cancele no ERP" — CONFIRMADO;
+ *    CORRIGIDO em 08/11 (modulo-vendedor, R-20261108-200504): o caso voltou para `it`.
  * D2 (T-0094, RN-CORE-32): 422 sem `faltas` no app × BKO — CONFORME (a API manda a frase da spec; os dois mostram o mesmo texto).
  * D3 (T-0119, RN-CAT-09/12): `catalogo.busca_produtos@1` na API — fora de rota quente hoje (guarda abaixo); código do
- *    concorrente não casa na versão da API, ao contrário do aparelho — defeito latente do contrato.
+ *    concorrente não casa na versão da API, ao contrário do aparelho — defeito latente do contrato; CORRIGIDO em 08/11
+ *    (modulo-catalogo, R-20261108-204141: a API lê `catalogo.produto_referencia`): o caso voltou para `it`.
  *
  * Defeito confirmado fica em `it.fails` (falha hoje pelo motivo descrito; o agente testes volta para `it` no commit da correção).
  */
@@ -45,7 +47,7 @@ describe('D1. RN-VEN-31 (exceção T-0114): ação liberada × texto do bloqueio
     expect(telaDoDetalhe('invoiced', true)).toMatchObject({ podeExcluir: false, motivoBloqueio: MSG_CANCELAR_APOS_ENVIO });
   });
 
-  it.fails('com o aceite do conector, integrado/enviado cancela no Macuxi e o texto NÃO pode mandar cancelar no ERP — hoje mostra "Pedido já enviado ao ERP — cancele no ERP" ao lado do Excluir', () => {
+  it('com o aceite do conector, integrado/enviado cancela no Macuxi e o texto NÃO pode mandar cancelar no ERP (corrigido em 08/11 pelo modulo-vendedor, R-20261108-200504: era "Pedido já enviado ao ERP — cancele no ERP" ao lado do Excluir)', () => {
     for (const st of ['sent_to_erp', 'integrated'] as const) {
       const acoes = orderActions(st, { erpAceitaCancelamento: true });
       expect(acoes.can_cancel).toBe(true);
@@ -151,7 +153,7 @@ describe('D3. catalogo.busca_produtos@1 na API (T-0119; RN-CAT-09/12)', () => {
     expect(r.itens.map((i) => i.produto_id)).toEqual([PROD]);
   });
 
-  it.fails('a versão da API acha pelo código do concorrente como o aparelho e a vitrine (RN-CAT-09) — hoje monta `referencias: []` e não acha', async () => {
+  it('a versão da API acha pelo código do concorrente como o aparelho e a vitrine (RN-CAT-09; corrigido em 08/11 pelo modulo-catalogo, R-20261108-204141: antes montava `referencias: []` e não achava)', async () => {
     const r = await impl.executar({ q: 'w71275', limite: 100 }, ctx);
     expect(r.itens.map((i) => i.produto_id)).toEqual([PROD]);
   });

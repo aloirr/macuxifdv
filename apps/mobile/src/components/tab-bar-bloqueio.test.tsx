@@ -220,3 +220,37 @@ describe('Voltar do Android (gesto e botão) com o formulário alterado (RN-VEN-
     expect(aoTentarSair).not.toHaveBeenCalled();
   });
 });
+
+// ---------- BackLink do kit (T-0128, ProvedorSaidaDaTela) ----------
+describe('Voltar do cabeçalho (BackLink do kit) com o formulário alterado (RN-VEN-38)', () => {
+  // `tocarNoVoltar` é a parte pura REAL do BackLink (packages/ui, voltar.test.ts); o valor do provedor é o do shell
+  const seguirDoBackLink = () => (sim.router.canGoBack() ? sim.router.back() : sim.router.navigate('/'));
+
+  it('o _layout envolve todas as telas no ProvedorSaidaDaTela com o mesmo bloqueio do shell', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('<ProvedorSaidaDaTela value={bloqueioDoShell}>');
+    expect(src.indexOf('<ProvedorSaidaDaTela')).toBeLessThan(src.indexOf('<Stack'));
+  });
+
+  it('com alteração, o toque no ‹ pergunta à tela; o prosseguir volta uma vez', async () => {
+    const { tocarNoVoltar } = await import('@macuxi/ui/mobile/puro');
+    const { aoTentarSair, estado } = registrar(true);
+    tocarNoVoltar({ saida: bloqueioDoShell, seguir: seguirDoBackLink });
+    expect(aoTentarSair).toHaveBeenCalledTimes(1);
+    expect(voltar).not.toHaveBeenCalled();
+    estado.prosseguir?.();
+    expect(voltar).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem alteração, volta direto; com `aoVoltar` da tela, a tela decide e o shell não é chamado', async () => {
+    const { tocarNoVoltar } = await import('@macuxi/ui/mobile/puro');
+    const { aoTentarSair } = registrar(false);
+    tocarNoVoltar({ saida: bloqueioDoShell, seguir: seguirDoBackLink });
+    expect(voltar).toHaveBeenCalledTimes(1);
+    const aoVoltar = vi.fn();
+    tocarNoVoltar({ aoVoltar, saida: bloqueioDoShell, seguir: seguirDoBackLink });
+    expect(aoVoltar).toHaveBeenCalledTimes(1);
+    expect(aoTentarSair).not.toHaveBeenCalled();
+  });
+});

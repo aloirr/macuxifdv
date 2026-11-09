@@ -64,6 +64,20 @@ describe.skipIf(semBanco())('Core × Postgres: consulta core.cadastro_resumo@1',
     expect(outro.produtos).toEqual([]);
   });
 
+  it('T-0120: cliente_external_ids acha o cliente do tenant, sem duplicar com cliente_ids e sem vazar para outro tenant', async () => {
+    await comTenant(pool, A.tenantId, (c) => c.query("update core.cliente set external_id = 'ERP-CLI-T0120' where id = $1", [A.clientes.c1]));
+    try {
+      const r = await consultar(A.tenantId, { cliente_ids: [A.clientes.c1], cliente_external_ids: ['ERP-CLI-T0120', 'ERP-inexistente'] });
+      expect(r.clientes.map((x) => x.id)).toEqual([A.clientes.c1]);
+      expect(r.clientes[0]!.external_id).toBe('ERP-CLI-T0120');
+      expect((await consultar(A.tenantId, { cliente_external_ids: ['ERP-CLI-T0120'] })).clientes.map((x) => x.id)).toEqual([A.clientes.c1]);
+      expect((await consultar(A.tenantId, { cliente_external_ids: ['ERP-inexistente'] })).clientes).toEqual([]);
+      expect((await consultar(B.tenantId, { cliente_external_ids: ['ERP-CLI-T0120'] })).clientes).toEqual([]);
+    } finally {
+      await comTenant(pool, A.tenantId, (c) => c.query('update core.cliente set external_id = null where id = $1', [A.clientes.c1]));
+    }
+  });
+
   it('ADR 0012: mais de 500 ids é recusado pelo contrato', () => {
     const ids = Array.from({ length: 501 }, (_, i) => id(i + 1));
     expect(() => CadastroResumoEntradaSchema.parse({ cliente_ids: ids })).toThrow();

@@ -43,7 +43,8 @@
  *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
  *   publicados e 16 respostas) e Treinamento (treinamento.ts, 0017: licença para os 7 perfis, 3 trilhas, jornada de
  *   Lucas, Camila e Joana e o desafio do mês) e o plano de RV (plano-rv.ts, 0028: vendedor, R$ 2.000,00, se a 0028 estiver
- *   aplicada). Por isso a carga exige as migrações até a 0020 (medidas da 0018,
+ *   aplicada) e o monitor da Integração ERP (integracao.ts, 0010: licença para admin e analista, Conectores ERP Matriz e
+ *   ERP Filial, política 1.2.1, 5 lotes e uma inativação aguardando). Por isso a carga exige as migrações até a 0020 (medidas da 0018,
  *   core.meta.tipo da 0019 e catalogo.produto_relacao da 0020).
  * - T-0071 (0020, referência do novo pedido R-20261103-130003): Mini Box Japiim vira o cliente da referência (cód. C5110,
  *   Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem título vencido nem bloqueio — o vencido/bloqueado passou para a
@@ -85,6 +86,7 @@ import { gravarDemoCatalogoCadastro } from './catalogo-cadastro';
 import { gravarDemoMedidas } from './medidas';
 import { gravarDemoPagamento } from './pagamento';
 import { gravarPesquisaDemo } from './pesquisa';
+import { gravarDemoIntegracao } from './integracao';
 import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
 import { gravarTreinamentoDemo } from './treinamento';
@@ -981,7 +983,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   const notificacoes: Linha[] = [
     notificacao('recado-vendedor', 'vendedor', {
       tipo: 'recado', titulo: 'Prioridade', corpo: 'Passe cedo no Mercadinho São Jorge: tem título vencido e o pedido de ontem aguarda aprovação.',
-      link: '/m/core-rota', envio_id: id('notificacao-envio:recado-vendedor'), autor_id: u('supervisor'), prioridade: 'alta',
+      link: '/m/rota', envio_id: id('notificacao-envio:recado-vendedor'), autor_id: u('supervisor'), prioridade: 'alta',
     }),
     notificacao('aprovacoes-supervisor', 'supervisor', {
       tipo: 'pedido', titulo: '2 pedidos aguardando aprovação', corpo: 'Lucas Andrade e Camila Freitas enviaram pedidos com desconto acima da alçada.',
@@ -1391,6 +1393,9 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarDemoPagamento(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
+    // T-0051 (R-20261102-125759-2): monitor da Integração ERP — licença (admin e analista), 2 Conectores, política, 5 lotes e a
+    // inativação aguardando, relativos ao now() do banco (integracao.ts)
+    await gravarDemoIntegracao(admin);
     // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local
     // (a linha nova já nasce com outro valor; a chamada deixa a regra explícita). Recarga sem --recriar não gira.
     if (opcoes.recriar) await girarGeracaoBase(admin, T);

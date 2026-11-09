@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { mensagemPerfilForaDoApp, perfilDaFaseM, perfilUsaApp } from './perfis';
+import { ORDEM_PERFIL_PADRAO } from '@macuxi/comum/perfis';
+import { PERFIS } from './nomes';
+import { mensagemPerfilForaDoApp, perfilDaFaseM, perfilUsaApp, ROTULO_PERFIL, ROTULO_PERFIL_LONGO } from './perfis';
 
 describe('perfis por app e conversão da Fase M', () => {
   it('converte os papéis em inglês da Fase M para os perfis do doc 03', () => {
@@ -41,5 +43,20 @@ describe('T-0094: apps com login e superfície das rotas (RN-CORE-33)', () => {
     for (const p of ['vendedor', 'promotor', 'supervisor'] as const) expect(perfilUsaSuperficie(p, 'bko')).toBe(false);
     for (const p of ['admin', 'analista', 'assistente', 'gerente'] as const) expect(perfilUsaSuperficie(p, 'bko')).toBe(true);
     expect(perfilUsaSuperficie(null, 'bko')).toBe(false);
+  });
+
+  it('RD-0014: os 7 nomes fixados (curto e longo) vêm da fonte única @macuxi/comum/perfis, na ordem de PERFIS', () => {
+    expect([...ORDEM_PERFIL_PADRAO]).toEqual([...PERFIS]);
+    expect(PERFIS.map((p) => ROTULO_PERFIL[p])).toEqual(['Vendedor', 'Promotor', 'Supervisor', 'Gerente', 'Analista', 'Assistente', 'Admin']);
+    expect(PERFIS.map((p) => ROTULO_PERFIL_LONGO[p])).toEqual([
+      'Vendedor de campo',
+      'Promotor de trade marketing',
+      'Supervisor de vendas',
+      'Gerente comercial',
+      'Analista comercial',
+      'Assistente de backoffice',
+      'Administrador da empresa',
+    ]);
+    expect(mensagemPerfilForaDoApp('assistente', 'campo')).toMatch(/^O perfil assistente não usa o app Macuxi Campo\./);
   });
 });

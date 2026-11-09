@@ -11,7 +11,7 @@
  */
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { faltasNaSenha, mensagemDaSenha, type FaltaNaSenha } from '@macuxi/core/contracts';
+import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, type FaltaNaSenha } from '@macuxi/core/contracts';
 import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
 import { Badge, Button, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
@@ -401,6 +401,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
                 testId="empresa.admin-regras"
                 faltas={faltasDaSenha}
                 destacar={destacarSenha && faltasDaSenha.length > 0}
+                minimo={SENHA_MIN_CARACTERES}
                 resumo={mensagemDaSenha(faltasDaSenha, f.admin.senha) ?? SENHA_ATENDE_AS_REGRAS}
               />
               <span className="text-[12px] text-ink-2">{TEXTOS_ADMIN.passeASenha}</span>

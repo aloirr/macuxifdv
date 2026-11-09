@@ -149,6 +149,8 @@ describe('BackLink com voltar trocado (T-0133, R-20261108-133640)', () => {
   it('aceita aoVoltar (abre a folha de saída) sem mudar o padrão', () => {
     const ui = ler('./ui.tsx');
     expect(ui).toContain('aoVoltar?: () => void;');
-    expect(ui).toContain('aoVoltar ? aoVoltar() : router.canGoBack() ? router.back() : router.replace(fallback as never)');
+    // T-0128: o padrão continua o mesmo `seguir`; a ordem (aoVoltar > bloqueio do shell > seguir) está em tocarNoVoltar (voltar.test.ts)
+    expect(ui).toContain('const seguir = () => (router.canGoBack() ? router.back() : router.replace(fallback as never));');
+    expect(ui).toContain('tocarNoVoltar({ aoVoltar, saida, seguir })');
   });
 });

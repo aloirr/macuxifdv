@@ -29,7 +29,9 @@ import {
 import { z } from 'zod';
 import {
   ChaveDoPerfilSchema,
+  CODIGO_REPETIDO,
   CODIGOS_PERFIL,
+  MENSAGEM_PERFIL_REPETIDO,
   CriarPerfilRequestSchema,
   EditarPerfilRequestSchema,
   PerfilDetalheSchema,
@@ -239,7 +241,7 @@ export const rotasDePerfis: readonly RotaModulo[] = [
       if (erros[0]) throw dadosInvalidos(erros[0].mensagem, erros[0].campo);
       return ctx.comTenant(async (db) => {
         const c = await carregar(db, true);
-        if (c.linhas.some((l) => l.ativo && l.nome.toLowerCase() === nome.toLowerCase())) throw new ErroRegraNegocio('CODIGO_REPETIDO', 'Já existe um perfil com este nome.', { regra: 'RN-CORE-35' });
+        if (c.linhas.some((l) => l.ativo && l.nome.toLowerCase() === nome.toLowerCase())) throw new ErroRegraNegocio(CODIGO_REPETIDO, MENSAGEM_PERFIL_REPETIDO, { regra: 'RN-CORE-35' });
         const origem = copiar_de ? c.perfis.find((p) => p.codigo === copiar_de) : undefined;
         if (copiar_de && (!origem || origem.base !== base)) throw dadosInvalidos('Escolha o perfil base.', 'base');
         // o código é único entre TODOS os perfis, apagados inclusive: confere também os que saíram
@@ -290,7 +292,7 @@ export const rotasDePerfis: readonly RotaModulo[] = [
         const erros = validarNomeDoPerfil(nome, descricao);
         if (erros[0]) throw dadosInvalidos(erros[0].mensagem, erros[0].campo);
         if (!linha.fabrica && c.linhas.some((l) => l.id !== linha.id && l.ativo && l.nome.toLowerCase() === nome.toLowerCase())) {
-          throw new ErroRegraNegocio('CODIGO_REPETIDO', 'Já existe um perfil com este nome.', { regra: 'RN-CORE-35' });
+          throw new ErroRegraNegocio(CODIGO_REPETIDO, MENSAGEM_PERFIL_REPETIDO, { regra: 'RN-CORE-35' });
         }
         const fabrica = matriz[atual.base];
         const desejado: Record<string, ValorPermissao> = {};

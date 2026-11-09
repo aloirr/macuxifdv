@@ -14,7 +14,6 @@ import {
   Chip,
   colors,
   DescontoCompacto,
-  Dialogo,
   Faixa,
   Folha,
   fonts,
@@ -45,7 +44,7 @@ import { ajusteDoPedidoDoRascunho, rascunhoComTextoDoPedido, rascunhoComTipoDoPe
 import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import type { Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TEXTO_SEM_ITEM_NO_RESUMO, TITULO_COMBINA, itemCompacto, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa } from '../lib/textos-pedido';
+import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, itemCompacto, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa } from '../lib/textos-pedido';
 import { fraseDoFrete, linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, linhaDoLimite, ROTULOS_DO_RESUMO, TEXTO_OBS_VAZIA, ROTULO_ALERTAS, ROTULO_ENDERECO_ENTREGA, ROTULO_LIMITE, ROTULO_PRAZO_MEDIO, TEXTO_ENDERECO_DO_CADASTRO, TEXTO_SEM_ALERTA, TEXTO_SEM_DADOS_DE_CREDITO, textoDoAlerta, textoDoPrazoMedio } from '../lib/textos-venda';
 
 type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
@@ -523,11 +522,7 @@ export function AbaResumo({
       <BlocoTotais linhas={totais.linhas} total={totais.total} testID="totais-pedido">
         {faixa ? <Faixa tom={faixa.tom} texto={faixa.texto} icone={faixa.icone} testID="faixa-alcada" /> : null}
       </BlocoTotais>
-      {somenteLeitura ? null : calculo.linhas.length === 0 ? (
-        <Text style={t.small} testID="resumo-sem-itens">
-          {TEXTO_SEM_ITEM_NO_RESUMO}
-        </Text>
-      ) : null}
+      {/* v1.0.1: sem itens, a única frase é a pendência "Pelo menos 1 item" do bloco abaixo (antes eram 3) */}
       {somenteLeitura ? null : pendencias}
       {somenteLeitura ? null : (
         <BotoesDoResumoView botoes={botoes} salvando={salvando} onEnviar={onEnviar} onApenasSalvar={onApenasSalvar} onOrcamento={onOrcamento} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />
@@ -661,12 +656,6 @@ function BotoesDoResumoView({
 
 function formatReais(cents: number): string {
   return linhasDeTotais({ total_tabela_cents: cents, desconto_cents: 0, acrescimo_cents: 0, total_cents: cents }).total.valor;
-}
-
-// ---------- Cancelar ----------
-/** Cancelar: o rascunho só é descartado depois de confirmar. */
-export function DialogoDescartar({ visivel, onVoltar, onDescartar }: { visivel: boolean; onVoltar: () => void; onDescartar: () => void }) {
-  return <Dialogo visivel={visivel} titulo="Descartar este pedido?" cancelar={{ rotulo: 'Voltar', onPress: onVoltar, testID: 'descartar-voltar' }} confirmar={{ rotulo: 'Descartar', onPress: onDescartar, testID: 'descartar-confirmar' }} perigo testID="dialogo-descartar" />;
 }
 
 const s = StyleSheet.create({

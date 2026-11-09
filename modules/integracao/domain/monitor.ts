@@ -133,10 +133,11 @@ export function montarAlertasMonitor(e: EntradaAlertas): AlertaMonitor[] {
   const recusados = e.cancelamentosRecusados ?? [];
   if (recusados.length > 0) {
     const MOSTRAR = 3;
-    const nomes = recusados.slice(0, MOSTRAR).map((r) => `${r.numero_erp ? `${r.numero_erp} (${r.pedido_uuid})` : r.pedido_uuid}: ${r.motivo}`).join('; ');
+    const nomes = recusados.slice(0, MOSTRAR).map((r) => `${r.numero_erp ?? r.pedido_uuid} (${r.motivo})`).join('; ');
     const mais = recusados.length > MOSTRAR ? ` e mais ${recusados.length - MOSTRAR}` : '';
     const pl = recusados.length > 1;
-    novo({ codigo: 'cancelamento_recusado', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `O ERP recusou o cancelamento de ${recusados.length} pedido${pl ? 's' : ''} (${nomes}${mais}). ${pl ? 'Os pedidos seguem' : 'O pedido segue'} ativo${pl ? 's' : ''} no ERP. Cancele no ERP ou, se o pedido deve valer, avise o vendedor; o alerta some quando o ERP informar o cancelamento.` });
+    // RD-0026: uma frase só; o UUID aparece apenas quando falta o número do ERP
+    novo({ codigo: 'cancelamento_recusado', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${recusados.length} pedido${pl ? 's seguem ativos' : ' segue ativo'}: ${nomes}${mais}. Cancele no ERP ou avise o vendedor. O alerta some quando o cancelamento chegar.` });
   }
 
   return a.map((x, i) => ({ x, i })).sort((p, q) => PESO[p.x.severidade] - PESO[q.x.severidade] || p.i - q.i).map(({ x }) => x);

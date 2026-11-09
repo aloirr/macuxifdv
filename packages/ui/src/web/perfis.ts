@@ -7,6 +7,9 @@
  * travas do SDK (RN-CORE-33, RN-PRO-01) é a `mensagem` do próprio `travaDaChave`; as daqui cobrem as travas que a tela mostra e
  * que não são de uma chave (Core sempre ligado, escopo acima da base, autogestão, alvo admin, base imutável, perfil padrão).
  */
+import { ORDEM_PERFIL_PADRAO, ROTULO_PERFIL_CURTO, type PerfilPadrao } from '../comum/perfis';
+
+export * from '../comum/perfis';
 
 /** Título da página e do item de menu (Administração). */
 export const TITULO_PERFIS = 'Perfis de acesso';
@@ -14,20 +17,15 @@ export const TITULO_PERFIS = 'Perfis de acesso';
 /** Selo dos perfis de fábrica na lista e no cabeçalho da edição. */
 export const SELO_PADRAO = 'Padrão';
 
-/** Rótulo de cada perfil base (o código de fábrica é o próprio perfil base). */
-export const ROTULO_PERFIL_BASE = {
-  vendedor: 'Vendedor',
-  promotor: 'Promotor',
-  supervisor: 'Supervisor',
-  gerente: 'Gerente',
-  analista: 'Analista',
-  assistente: 'Assistente',
-  admin: 'Admin',
-} as const;
-export type PerfilBase = keyof typeof ROTULO_PERFIL_BASE;
+/**
+ * Rótulo de cada perfil base (o código de fábrica é o próprio perfil base). RD-0014: é o nome CURTO fixado em
+ * `../comum/perfis` (o mesmo do login, do portal e do app); aqui só o apelido que a página Perfis e a tela Usuários já usam.
+ */
+export const ROTULO_PERFIL_BASE = ROTULO_PERFIL_CURTO;
+export type PerfilBase = PerfilPadrao;
 
 /** Ordem dos perfis base no seletor "Perfil base" e na lista (os padrão primeiro, nesta ordem). */
-export const ORDEM_PERFIL_BASE: readonly PerfilBase[] = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'];
+export const ORDEM_PERFIL_BASE: readonly PerfilBase[] = ORDEM_PERFIL_PADRAO;
 
 /** Onde a pessoa entra: chips da lista, caixas da seção "Onde entra" e prévia do formulário de usuário. */
 export const ROTULO_LUGAR = { campo: 'Campo', gestao: 'Gestão', bko: 'BKO', portal: 'Portal' } as const;

@@ -9,7 +9,7 @@
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  */
-import { ROTULO_PERFIL, rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
+import { rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
   BackLink,
@@ -26,6 +26,7 @@ import {
   PARAMETRO_SYNC_AUTO,
   ProgressBar,
   radius,
+  rotuloDoPerfil,
   Screen,
   SectionHeader,
   type as t,
@@ -33,18 +34,21 @@ import {
 } from '@macuxi/ui/mobile';
 import Constants from 'expo-constants';
 import { Redirect, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
+import { textoDoUltimoErro, type ErroRegistrado } from '@/lib/erro-de-tela';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
+import { lerUltimoErro } from '@/services/erros';
+import { idDoBuildAtual } from '@/services/segundo-plano';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function ProfileScreen() {
@@ -58,6 +62,16 @@ export default function ProfileScreen() {
   const auto = useAtualizacaoAutomatica();
   const falha = app.falhaSync;
   const segundoPlano = app.segundoPlano;
+  // T-0140 (relato de 08/11): o último erro que teria fechado o app (tela de erro ou fatal), lido ao abrir o Diagnóstico
+  const [ultimoErro, setUltimoErro] = useState<ErroRegistrado | null>(null);
+  useEffect(() => {
+    if (!diagnosticoAberto) return;
+    let vivo = true;
+    void lerUltimoErro().then((r) => vivo && setUltimoErro(r));
+    return () => {
+      vivo = false;
+    };
+  }, [diagnosticoAberto]);
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
@@ -92,7 +106,8 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={t.h1Small}>{name}</Text>
           <Text style={t.sub} testID="perfil-rotulo">
-            {perfil ? ROTULO_PERFIL[perfil] : 'Perfil desconhecido'}
+            {/* RD-0014: aqui o perfil é apresentado (cabeçalho do Perfil), então vai o nome longo do kit */}
+            {perfil ? rotuloDoPerfil(perfil, { forma: 'longo' }) : 'Perfil desconhecido'}
             {me?.seller ? ` · ${me.seller.team_name} · alçada ${me.seller.max_discount_pct.toLocaleString('pt-BR')}%` : ''}
           </Text>
           <Text style={t.small}>
@@ -288,6 +303,11 @@ export default function ProfileScreen() {
               {segundoPlano
                 ? `Última sincronização em segundo plano: ${dateTimeLabel(segundoPlano.quando, new Date(), tz)} · ${textoDoResultado(segundoPlano)}`
                 : 'Nenhuma sincronização em segundo plano registrada neste aparelho.'}
+              {/* T-0140: versão + versionCode; a tarefa sem tela só roda depois de este build abrir com tela */}
+              {`\nBuild instalado: ${idDoBuildAtual()}`}
+            </Text>
+            <Text selectable style={styles.mono} testID="diagnostico-ultimo-erro">
+              {textoDoUltimoErro(ultimoErro, (iso) => dateTimeLabel(iso, new Date(), tz))}
             </Text>
             {estado.avisos.length > 0 ? (
               <Text selectable style={styles.mono}>

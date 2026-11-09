@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscaDosFiltros, cadastroCatalogoDoForm, contadorAplicacao, limiteAplicacao, mensagemDoCadastro, mensagemDoConteudo, nomesDoOfereceJunto, textoRemoverFaixa, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
+import { acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, buscaDosFiltros, cadastroCatalogoDoForm, contadorAplicacao, limiteAplicacao, mensagemDoCadastro, mensagemDoConteudo, nomesDoOfereceJunto, textoRemoverFaixa, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, abrirParaLeitura, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
 
 describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
   it('conteúdo: ida e volta entre a ficha e o formulário', () => {
@@ -93,6 +93,11 @@ describe('editores do produto e oferece junto (T-0085, BKO)', () => {
     expect(fecharEditor(fecharEditor(abertos, 'catalogo'), 'conteudo')).toEqual(EDITORES_FECHADOS);
   });
 
+  it('B6 (UX): quem não tem produto.enriquecer abre só a seção Catálogo (leitura), sem o editor de conteúdo', () => {
+    const item = { id: 'a' };
+    expect(abrirParaLeitura(item)).toEqual({ conteudo: null, catalogo: item });
+  });
+
   it('RN-CAT-09: oferece junto da ficha fora da página carregada entra no mapa e a validação aceita', () => {
     const mapa = mapaIdsPorCodigo([{ erp_code: 'A1', id: 'id-a1' }], [{ erp_code: 'Z9', produto_id: 'id-z9' }]);
     expect(mapa.get('Z9')).toBe('id-z9');
@@ -144,5 +149,40 @@ describe('UX B2/B4 e T-0089 K3: contador, nomes e diálogo', () => {
   });
   it('RN-VEN-23: remover a faixa pergunta com título e consequência', () => {
     expect(textoRemoverFaixa(10, 'Café 500 g')).toEqual({ titulo: 'Remover a faixa de 10 para Café 500 g?', corpo: 'O vendedor deixa de ver esta faixa no pedido na próxima sincronização.' });
+  });
+});
+
+describe('seletor reordenável do Oferece junto (B6 de UX; RN-CAT-10)', () => {
+  const texto = 'A-1\nB-2\nC-3';
+  it('RN-CAT-10: sobe, desce e não passa dos extremos', () => {
+    expect(moverOfereceJunto(texto, 1, -1)).toBe('B-2\nA-1\nC-3');
+    expect(moverOfereceJunto(texto, 1, 1)).toBe('A-1\nC-3\nB-2');
+    expect(moverOfereceJunto(texto, 0, -1)).toBe(texto);
+    expect(moverOfereceJunto(texto, 2, 1)).toBe(texto);
+  });
+  it('RN-CAT-10: adicionar recusa repetido e o 6º produto, com a ação seguinte', () => {
+    expect(adicionarOfereceJunto(texto, 'D-4', 5)).toEqual({ texto: 'A-1\nB-2\nC-3\nD-4', erro: null });
+    expect(adicionarOfereceJunto(texto, 'a-1', 5).erro).toBe('a-1 já está na lista.');
+    expect(adicionarOfereceJunto('A\nB\nC\nD\nE', 'F', 5).erro).toBe('Use até 5 produtos. Tire um para colocar outro.');
+    expect(adicionarOfereceJunto(texto, '  ', 5).erro).toMatch(/Escolha um produto/);
+  });
+  it('remover tira só o item pedido', () => {
+    expect(removerOfereceJunto(texto, 1)).toBe('A-1\nC-3');
+    expect(listaOfereceJunto('A\r\n\n B \n')).toEqual(['A', 'B']);
+  });
+  it('teclado: Alt+setas movem, Home/End vão ao extremo, Delete remove, o resto passa', () => {
+    expect(acaoTecladoOfereceJunto({ key: 'ArrowUp', altKey: true }, 1, 3)).toEqual({ tipo: 'mover', para: 0 });
+    expect(acaoTecladoOfereceJunto({ key: 'ArrowDown', altKey: true }, 1, 3)).toEqual({ tipo: 'mover', para: 2 });
+    expect(acaoTecladoOfereceJunto({ key: 'End', altKey: true }, 0, 3)).toEqual({ tipo: 'mover', para: 2 });
+    expect(acaoTecladoOfereceJunto({ key: 'ArrowUp', altKey: true }, 0, 3)).toBeNull();
+    expect(acaoTecladoOfereceJunto({ key: 'ArrowUp' }, 1, 3)).toBeNull();
+    expect(acaoTecladoOfereceJunto({ key: 'Delete' }, 1, 3)).toEqual({ tipo: 'remover' });
+  });
+  it('anúncio para leitor de tela e sugestões sem repetidos nem o próprio produto', () => {
+    expect(anuncioOfereceJunto('moveu', 'B-2 · Pastilha', 1, 3)).toBe('B-2 · Pastilha na posição 1 de 3.');
+    expect(anuncioOfereceJunto('removeu', 'B-2', 0, 1)).toBe('B-2 removido. 1 produto na lista.');
+    const ps = [{ erp_code: 'A-1', description: 'Disco' }, { erp_code: 'B-2', description: 'Pastilha de freio' }, { erp_code: 'EU', description: 'Freio' }];
+    expect(sugestoesOfereceJunto(ps, 'freio', ['A-1'], 'EU').map((p) => p.erp_code)).toEqual(['B-2']);
+    expect(sugestoesOfereceJunto(ps, ' ', [], 'EU')).toEqual([]);
   });
 });

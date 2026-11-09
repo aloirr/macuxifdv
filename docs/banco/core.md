@@ -221,6 +221,9 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 (tenant_id, usuario_id, origem_evento_id)` e `notificacao_envio_uk (tenant_id, usuario_id, envio_id)` quando preenchidos.
 Recado do dia (0021, T-0073): `recado_do_dia` date · `recado_do_dia_por` (FK usuário) — ver a seção 0021 abaixo.
 Subtipo (0030, T-0039): `subtipo` text null, formato `^[a-z_]{1,40}$` — ver a seção 0030 abaixo.
+Link do seed e das fixtures (T-0140): o `link` é `/m/<caminho>` de uma tela que existe nas `paginas` dos módulos
+(`modules/<m>/app`, ex.: `/m/rota`, nunca `/m/core-rota`); `db/testes/links-seed.test.ts` (estático) confere todo link
+gravado pelos seeds contra o formato e a lista de telas, lida do texto dos módulos sem importar o app.
 
 ## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
 `usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0

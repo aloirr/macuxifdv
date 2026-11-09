@@ -209,6 +209,12 @@ export function textoUltimaSincronizacao(sincronizadoEm: number | string | Date 
  * Textos do `BotaoSincronizar` (T-0076, referência R-20261104-164000-alexandre): botão curto ("Sincronizar"; sem sinal,
  * "Sem sinal", desabilitado) e, abaixo, centralizada, a linha "Última sincronização hh:mm · N na fila". O motivo do
  * desabilitado vai numa linha própria: o rótulo do botão é de uma linha só e o texto longo cortava em 360 dp.
+ *
+ * RD-0008 (T-0124, R-20261108-164227-engenheiro-apps): `avisoDados` é o ÚNICO aviso de dado antigo da tela ("Dados de 06/11,
+ * 6h28", "Sincronize para ver as vendas"; o shell passa o texto pronto, no fuso do tenant). Com ele, a linha de situação vira
+ * "{aviso} · N na fila" em tom de atenção, no lugar de "Última sincronização…" e também de "Atualizado há instantes" (se a
+ * cópia continua velha depois do toque, o aviso continua). O "· N na fila" fica: é a redundância útil da RN-CORE-23. Não
+ * repete "Sincronizar": o botão logo acima já diz.
  */
 export function desenhoBotaoSincronizar(s: {
   semSinal: boolean;
@@ -216,10 +222,17 @@ export function desenhoBotaoSincronizar(s: {
   sincronizadoEm: number | string | Date | null | undefined;
   naFila: number;
   tz?: string;
-}): { rotulo: string; situacao: string; aviso: string | null } {
+  avisoDados?: string | null;
+}): { rotulo: string; situacao: string; tom: 'neutro' | 'atencao'; aviso: string | null } {
+  const avisoDados = s.avisoDados?.trim();
   return {
     rotulo: s.semSinal ? 'Sem sinal' : 'Sincronizar',
-    situacao: s.recente ? 'Atualizado há instantes' : textoUltimaSincronizacao(s.sincronizadoEm, s.naFila, s.tz),
+    situacao: avisoDados
+      ? `${avisoDados} · ${s.naFila} na fila`
+      : s.recente
+        ? 'Atualizado há instantes'
+        : textoUltimaSincronizacao(s.sincronizadoEm, s.naFila, s.tz),
+    tom: avisoDados ? 'atencao' : 'neutro',
     aviso: s.semSinal ? 'Desligue o modo sem sinal para sincronizar' : null,
   };
 }

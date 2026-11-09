@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 import { DataHoraUtc, Uuid } from './base';
-import { PoliticaVersaoConector } from './conector';
+import { AtualizacaoConector, PoliticaVersaoConector } from './conector';
 import { ConectorIdentificador } from './hub';
 import { ENTIDADES, Entidade } from './entidades';
 import { EstadoLote, LinhaErro } from './lote';
@@ -117,6 +117,8 @@ export const ConectorResumo = z.object({
   situacao_versao: SituacaoVersaoConectorSchema,
   ultimo_sinal_em: DataHoraUtc.nullable(),
   saude: SaudeConector,
+  /** Último resultado da atualização automática (campo opcional: Conector que ainda não informa vem ausente). */
+  atualizacao: AtualizacaoConector.nullish(),
   /** `null` = nunca teve chave ou todas revogadas. */
   chave: ChaveResumo.nullable(),
   criado_em: DataHoraUtc,
@@ -289,6 +291,19 @@ export const Mapeamento = z.object({
   ativo: z.boolean().default(true),
 });
 export type Mapeamento = z.infer<typeof Mapeamento>;
+
+/** T-0120: linha do de-para devolvida pelo BKO (`GET /mapeamentos`). */
+export const MapeamentoItem = Mapeamento.extend({ id: Uuid, descricao: z.string().nullable(), atualizado_em: z.string() });
+export type MapeamentoItem = z.infer<typeof MapeamentoItem>;
+/** `GET /mapeamentos`: o de-para e, do monitor, as condições do Macuxi que travam pedidos por falta de correspondente. */
+export const MapeamentosResposta = z.object({
+  itens: z.array(MapeamentoItem),
+  condicoes_sem_correspondente: z.array(z.object({ codigo_macuxi: z.string(), pedidos: z.number().int().nonnegative() })),
+});
+export type MapeamentosResposta = z.infer<typeof MapeamentosResposta>;
+/** `PUT /mapeamentos`: grava (cria ou atualiza pelo código do ERP) e devolve o item e quantos pedidos retidos foram liberados. */
+export const GravarMapeamentoResposta = z.object({ item: MapeamentoItem, pedidos_liberados: z.number().int().nonnegative() });
+export type GravarMapeamentoResposta = z.infer<typeof GravarMapeamentoResposta>;
 
 /** Pedido na fila do ERP, para o monitor (sem itens nem dado do cliente). */
 export const PedidoFilaItem = z.object({

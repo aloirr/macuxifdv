@@ -15,6 +15,11 @@
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
 
+/** RD-0017: código e textos únicos da recusa de nome repetido e de nome vazio (a tela decide pelo código, nunca pelo texto). */
+export const CODIGO_REPETIDO = 'CODIGO_REPETIDO';
+export const MENSAGEM_PERFIL_REPETIDO = 'Já existe um perfil com este nome.';
+export const MENSAGEM_NOME_OBRIGATORIO = 'Dê um nome ao perfil.';
+
 const Texto = (max: number) => z.string().trim().max(max);
 const Nivel = z.enum(['proprio', 'carteira', 'equipe', 'equipes_abaixo', 'tenant', 'ate_alcada', 'acima_alcada']);
 export const LugarDeAcessoSchema = z.enum(['campo', 'gestao', 'bko', 'portal']);

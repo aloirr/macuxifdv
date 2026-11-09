@@ -17,3 +17,7 @@ export * from '../comum/senha';
 export * from './desconto';
 export * from './acoes';
 export * from '../comum/historico';
+// RD-0014: nome curto e longo dos 7 perfis padrão (o mesmo do BKO, do portal e do login)
+export * from '../comum/perfis';
+// T-0140: textos da tela de erro e da linha do Diagnóstico
+export * from './tela-de-erro';

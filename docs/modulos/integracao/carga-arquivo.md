@@ -83,10 +83,10 @@ outbox ──► aplicarLote (A7, o mesmo) ──► validação por linha, upse
   - `GET /v1/integracao/modelos/:entidade.csv`: `text/csv; charset=utf-8`, baixa como `<entidade>.csv`.
   - `GET /v1/integracao/modelos/:entidade/dicionario`: JSON `DicionarioModelo` (campo, obrigatório, tipo, tamanho máximo, formato, exemplo).
   - Entidade desconhecida: 404 `ENTIDADE_DESCONHECIDA`.
-- **Acesso na v1: só o super-admin** (decisão do dono do produto, ADR 0029). Liberar ao admin da empresa está no backlog, para quando o BKO tiver carga self-service (basta tirar a recusa do handler e declarar uma ação no manifesto).
-  - Declaram `superAdmin: 'aceita'` + `perfis: ['admin']`; o handler recusa quem não é super-admin com 403 `PERFIL_SEM_ACESSO`.
-  - Ordem das checagens: licença do módulo (403 `MODULO_INATIVO`), perfil, handler. Com `'exige'` a API recusaria antes da licença.
-  - O super-admin precisa informar a empresa (`x-macuxi-tenant`) e ela precisa ter o módulo Integração; o conteúdo, porém, não depende da empresa.
+- **Acesso (T-0100)**: quem tem a ação `carga.arquivo` no motor de permissões (ADR 0033) baixa o modelo e o dicionário e envia a carga. De fábrica são o admin e o analista da empresa (mesma ação do `POST cargas-arquivo`); o admin ajusta por perfil na página Perfis de acesso. O super-admin da plataforma continua aceito (`superAdmin: 'aceita'`).
+  - As rotas declaram `acao: 'carga.arquivo'` (sem perfil fixo no código nem recusa no handler). Ordem das checagens: licença do módulo (403 `MODULO_INATIVO`), motor de permissões (403 `PERFIL_SEM_ACESSO` para vendedor, promotor, supervisor, gerente, assistente e perfis sem a chave), handler.
+  - Multi-tenant: o modelo é igual para todas as empresas (nada do tenant entra no arquivo) e a carga grava sempre no tenant do token; a tela nunca envia nem escolhe empresa.
+  - Tela: BKO > Integração ERP > **Carga por arquivo** (`web/components/carga-arquivo-page.tsx`): tabela das 15 bases na ordem de carga com "Modelo" e "Dicionário" (CSV, com `protegerFormula`), escolha de base e modo (delta ou completo), arquivo `.csv` até 25 MB dividido no navegador em partes da mesma sessão (RN-INT-06) com uma chave de idempotência por arquivo (RN-INT-12). O resultado e os erros por linha ficam em Integração ERP > Lotes.
 - Conteúdo (`domain/modelos-csv.ts`, gerado de `SCHEMA_REGISTRO`; tipos em `contracts/modelos.ts`):
   - 15 entidades; `;`, UTF-8 com BOM, CRLF; duas linhas de exemplo válidas.
   - Colunas: obrigatórios primeiro, na ordem do contrato; depois os opcionais (`alterado_em`, `ativo`).
@@ -97,4 +97,4 @@ outbox ──► aplicarLote (A7, o mesmo) ──► validação por linha, upse
 ## 5. Premissas e backlog
 
 - Premissas: CSV UTF-8; cabeçalho = campos do contrato; Excel = "salvar como CSV"; 1 arquivo = 1 entidade = 1 lote (≤ 5.000 linhas) = 1 sessão; Conector tipo arquivo cadastrado pelo admin.
-- Backlog: `.xlsx` nativo; SFTP; arquivo > 5.000 linhas dividido automaticamente em partes da mesma sessão; colunas de lista (`contatos`, `paradas`) por arquivo auxiliar; tela de envio e modelo de planilha para baixar no BKO (T-0051); `Idempotency-Key` como cabeçalho quando o SDK expuser cabeçalhos às rotas de módulo; 413 verdadeiro (inclusão de 413 em `STATUS_ERRO_MODULO`); corpo de rota maior que 1 MiB (`bodyLimit` por rota no `apps/api`) para arquivos grandes.
+- Backlog: `.xlsx` nativo; SFTP; arquivo > 5.000 linhas dividido automaticamente em partes da mesma sessão; colunas de lista (`contatos`, `paradas`) por arquivo auxiliar; `Idempotency-Key` como cabeçalho quando o SDK expuser cabeçalhos às rotas de módulo; 413 verdadeiro (inclusão de 413 em `STATUS_ERRO_MODULO`); corpo de rota maior que 1 MiB (`bodyLimit` por rota no `apps/api`) para arquivos grandes.

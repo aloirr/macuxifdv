@@ -21,3 +21,5 @@
 2026-11-05 — T-0071 — item 5: lista de orçamentos da equipe é do Vendedor (recado enviado); 4 testes de não-contagem de orçamento no Gestor (orcamento-equipe.test.ts)
 2026-11-08 — T-0102 — AvisoEtapaEquipe registrado no slot cliente.avisos (teste); accentInk em Decidir/Em rota; histórico em tags não se aplica ao Gestor (detalhe do pedido é do Vendedor)
 2026-11-08 — T-0124 — Gestor: typecheck do slot cliente.avisos, apuracao pela data de emissao (RN-CORE-21) e dias uteis pelo calendario do tenant (RN-CORE-26, param dias_uteis_semana); testes G2/G5 prontos para virar it
+2026-11-08 — T-0124 — Gestor v1.0.1: dias úteis pelo calendário do Core (core.calendario_metas@1 + diasUteisDoPeriodo), apuração por emitido_em (G2), vendedor_nome na ficha; recados antigos encerrados
+2026-11-08 — T-0124 — Ficha do Gestor: feriados [] = so a semana (RN-CORE-26) e necessidade diaria arredondada para cima, alinhado ao Core; testes do domain revistos

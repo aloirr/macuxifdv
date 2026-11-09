@@ -14,6 +14,7 @@ import { ConectoresPanel } from './conectores-panel';
 import { InativacoesPanel } from './inativacoes-panel';
 import { LoteDrawer } from './lote-drawer';
 import { LotesPanel } from './lotes-panel';
+import { MapeamentoPanel } from './mapeamento-panel';
 import { PedidosPanel } from './pedidos-panel';
 
 /**
@@ -118,6 +119,7 @@ export function MonitorPage() {
 
           <LotesPanel lotes={lotes} total={m.lotes_recentes.length} conectores={m.conectores} filtros={filtros} mudar={mudar} tz={tz} />
           <PedidosPanel pedidos={m.pedidos} alertas={m.alertas} />
+          <MapeamentoPanel perfil={sessao.perfil} />
         </div>
       )}
 

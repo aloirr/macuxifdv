@@ -124,6 +124,7 @@ export function recadosDeHoje(caixa: readonly RecadoDaCaixa[], recadoDoDiaId: st
   const ordem = destaque ? [destaque, ...caixa.filter((n) => n.id !== destaque.id)] : [...caixa];
   return {
     novos: caixa.filter((n) => !n.lida).length,
+    total: caixa.length,
     itens: ordem.slice(0, 3).map((n) => ({ id: n.id, titulo: n.titulo, subtitulo: n.corpo, tipo: n.tipo, criada_em: n.updated_at, hora: formatHHMM(n.updated_at, fuso), lida: n.lida, link: n.link, destaque: n.id === destaque?.id })),
   };
 }

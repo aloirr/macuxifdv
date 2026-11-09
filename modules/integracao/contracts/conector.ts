@@ -47,6 +47,23 @@ export const PoliticaVersaoConector = z.object({
 });
 export type PoliticaVersaoConector = z.infer<typeof PoliticaVersaoConector>;
 
+/**
+ * Resultado da última atualização automática do Conector (T-0116, T-0100 item 3; aprovado pelo engenheiro-software em R-20261109-003706). Resumo SEM dado pessoal
+ * (só códigos, versões e texto curto); chega no sinal de vida (`SinalConector.atualizacao`, campo aditivo opcional, v1) e fica em
+ * `sinal_resumo.atualizacao`. Conector antigo ou sem atualização automática ligada = ausente.
+ */
+export const AtualizacaoConector = z.object({
+  resultado: z.enum(['atualizado', 'mantido', 'revertido']),
+  /** Motivo em código (`sha256_diferente`, `sem_saude`…); ausente em `atualizado`. */
+  codigo: z.string().max(40).nullish(),
+  /** `atualizado`: de → para. `mantido`: a versão em uso (`versao_de`) e a oferecida (`versao_para`). `revertido`: a que voltou e a que falhou. */
+  versao_de: z.string().max(40).nullish(),
+  versao_para: z.string().max(40).nullish(),
+  em: DataHoraUtc,
+  mensagem: z.string().min(1).max(300),
+});
+export type AtualizacaoConector = z.infer<typeof AtualizacaoConector>;
+
 /** Corpo do `POST /integracao/v1/sinal` (sem dado pessoal). */
 export const SinalConector = z.object({
   conector_id: z.string().min(1).max(100),
@@ -72,6 +89,8 @@ export const SinalConector = z.object({
   ),
   /** O Conector parou de enviar por estar abaixo da versão mínima (o Hub destaca no monitor). */
   parado_por_versao: z.boolean().nullish(),
+  /** Aditivo (v1): último resultado da atualização automática; o Hub guarda em `sinal_resumo.atualizacao`. Sem o campo = sem informação. */
+  atualizacao: AtualizacaoConector.nullish(),
 });
 export type SinalConector = z.infer<typeof SinalConector>;
 

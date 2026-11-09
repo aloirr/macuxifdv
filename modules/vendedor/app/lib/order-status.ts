@@ -82,7 +82,8 @@ export function filterCounts(orders: Array<{ status: string }>): Record<OrderFil
 export function orderNote(o: { status: string; pending_reason: string; rejection_reason: string; local_error?: string; local_failed?: boolean; situacao_faturamento?: string[] }): string {
   if (o.situacao_faturamento?.length && (o.status === 'invoiced_partial' || o.status === 'invoiced')) return o.situacao_faturamento.join(' · ');
   if (o.status === 'queued') return o.local_failed ? textoDaRecusaCurto(o.local_error ?? '') : '';
-  if (o.status === 'received') return 'Recebido pelo servidor.';
+  // T-0138 (RN-VEN-30): "Recebido pelo servidor" é texto técnico e não aparece mais no app
+  if (o.status === 'received') return '';
   if (o.status === 'pending_approval') return o.pending_reason;
   if (o.status === 'rejected' || o.status === 'cancelled') return o.rejection_reason;
   return '';

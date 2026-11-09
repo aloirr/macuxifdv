@@ -18,7 +18,8 @@ export interface EstadoMarca {
   external_id?: string | null;
 }
 
-const normalizar = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
+/** Chave do nome da marca: sem acento, sem caixa, sem espaço nas pontas (RN-CAT-13). Única definição: o ERP e a lista usam esta. */
+export const chaveDoNomeMarca = (t: string): string => t.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
 
 /** RN-CAT-13: nome com trim, de 1 a 120 caracteres. */
 export function validarNomeMarca(nome: string): { ok: true; nome: string } | { ok: false; erro: ErroMarca } {
@@ -29,7 +30,7 @@ export function validarNomeMarca(nome: string): { ok: true; nome: string } | { o
 }
 
 /** RN-CAT-13: dois nomes são o mesmo sem diferenciar maiúsculas, acentos e espaços nas pontas. */
-export const nomeMarcaIgual = (a: string, b: string): boolean => normalizar(a) === normalizar(b);
+export const nomeMarcaIgual = (a: string, b: string): boolean => chaveDoNomeMarca(a) === chaveDoNomeMarca(b);
 
 /** Fato do evento `catalogo.marca_concorrente.alterada@1`; `null` = nada mudou (não publica). */
 export function fatoDaEscritaMarca(antes: EstadoMarca | null, depois: EstadoMarca): FatoMarca | null {
@@ -44,4 +45,16 @@ export function fatoDaEscritaMarca(antes: EstadoMarca | null, depois: EstadoMarc
 export function mensagemInativarMarca(referencias: number): string | null {
   if (referencias <= 0) return null;
   return referencias === 1 ? '1 referência sai da busca.' : `${referencias} referências saem da busca.`;
+}
+
+/** Marca como a lista do BKO a recebe. */
+export interface MarcaDaLista {
+  nome: string;
+  ativo: boolean;
+}
+
+/** RN-CAT-13: filtro da lista de Marcas concorrentes (situação e busca pelo nome, sem caixa nem acento). */
+export function filtrarMarcas<T extends MarcaDaLista>(todas: readonly T[], filtro: { situacao: 'ativas' | 'inativas' | 'todas'; busca?: string | undefined }): T[] {
+  const busca = filtro.busca ? chaveDoNomeMarca(filtro.busca) : '';
+  return todas.filter((m) => (filtro.situacao === 'todas' || (filtro.situacao === 'ativas' ? m.ativo : !m.ativo)) && (busca === '' || chaveDoNomeMarca(m.nome).includes(busca)));
 }

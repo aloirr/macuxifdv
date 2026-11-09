@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import appConfig from '../../app.config';
 import { configDoBucket, dadosDoBuild, opcoesDoDownload, urlsDoBucket } from './baixar-apk.mjs';
 import { planoDeBuild } from './build.mjs';
+import { ambienteDoEas } from './comum.mjs';
 import { alvoNoBucket, chaveDoApk, codificar, urlAssinada, VALIDADE_MAXIMA_S } from './s3-assinado';
 
 const eas = JSON.parse(readFileSync(new URL('../../eas.json', import.meta.url), 'utf8')) as {
@@ -24,8 +25,8 @@ describe('versão: fonte única e versionCode crescente', () => {
     else process.env.APP_VARIANT = varianteAntes;
   });
 
-  it('versao.json está em 1.0.0', () => {
-    expect(versaoDoArquivo).toBe('1.0.0');
+  it('versao.json está em 1.0.1 (próximo build: Campo-Demo-v1.0.1 / Gestao-Demo-v1.0.1)', () => {
+    expect(versaoDoArquivo).toBe('1.0.1');
   });
 
   it('o app.config usa a versão do versao.json nas duas variantes', () => {
@@ -182,5 +183,14 @@ describe('s3-assinado: SigV4 na query', () => {
     expect(() => chaveDoApk('../x.apk', 1)).toThrow(/inválido/);
     expect(alvoNoBucket('https://s3.exemplo.com/', 'meu-bucket', 'a/b.apk')).toEqual({ protocolo: 'https:', host: 's3.exemplo.com', caminho: '/meu-bucket/a/b.apk' });
     expect(() => alvoNoBucket('http://s3.exemplo.com', 'meu-bucket', 'a')).toThrow(/https/);
+  });
+});
+
+describe('comum.mjs: ambiente do eas (v1.0.1)', () => {
+  it('liga EAS_SKIP_AUTO_FINGERPRINT=1 por padrão (o fingerprint levou ~20 min por build no v1.0.0) e mantém o resto', () => {
+    expect(ambienteDoEas({ PATH: 'x' })).toEqual({ PATH: 'x', EAS_SKIP_AUTO_FINGERPRINT: '1' });
+  });
+  it('respeita quem já definiu a variável', () => {
+    expect(ambienteDoEas({ EAS_SKIP_AUTO_FINGERPRINT: '0' }).EAS_SKIP_AUTO_FINGERPRINT).toBe('0');
   });
 });

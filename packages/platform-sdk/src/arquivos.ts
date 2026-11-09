@@ -15,6 +15,20 @@ export const ROTA_ARQUIVOS = '/v1/arquivos';
 /** Tamanho máximo aceito pela API (o app já reduz para 1600 px / JPEG 80, que dá 100–600 KB). */
 export const LIMITE_ARQUIVO_BYTES = 2 * 1024 * 1024;
 
+/**
+ * T-0097 b: versão reduzida da foto (miniatura de lista e busca), gerada pela API na primeira leitura e guardada ao lado do
+ * original. `GET /v1/arquivos/:id/miniatura` (`caminhoMiniaturaArquivo`): mesma regra de acesso do original, maior lado
+ * até `LADO_MINIATURA_ARQUIVO_PX` e no máximo `BYTES_MAX_MINIATURA_ARQUIVO` (os tetos do contrato do Catálogo, T-0097).
+ */
+export const LADO_MINIATURA_ARQUIVO_PX = 320;
+export const BYTES_MAX_MINIATURA_ARQUIVO = 30 * 1024;
+
+/** `/v1/arquivos/<id>/miniatura` (relativo, autenticado). */
+export function caminhoMiniaturaArquivo(id: string): string {
+  if (!UUID_RE.test(id)) throw new Error('id de arquivo inválido (UUID)');
+  return `${ROTA_ARQUIVOS}/${id.toLowerCase()}/miniatura`;
+}
+
 /** Tipos aceitos (a migração 0005 restringe `plataforma.arquivo.tipo` aos mesmos). */
 export const TIPOS_ARQUIVO = ['image/jpeg'] as const;
 export type TipoArquivo = (typeof TIPOS_ARQUIVO)[number];

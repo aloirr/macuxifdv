@@ -6,6 +6,8 @@ import {
   CONSULTA_FINANCEIRO_CLIENTE,
   type FinanceiroClienteSaida,
   CONSULTA_PROMOTOR_VE_PEDIDOS,
+  CONSULTA_CALENDARIO_METAS,
+  PARAMETRO_DIAS_UTEIS,
   CONSULTA_USUARIOS_RESUMO,
   type UsuariosResumoSaida,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
@@ -13,6 +15,7 @@ import {
   type CadastroResumoSaida,
 } from '../contracts';
 import { cadastroCompleto, camposExigidos } from '../domain/cadastro';
+import { calendarioDoTenant } from '../domain/meta-do-dia';
 import { dataLocal } from '../domain/checkin';
 import { financeiroDoCliente } from '../domain/pagamento-cliente';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
@@ -22,14 +25,20 @@ import { lerPromotorVePedidos } from './promotor-pedidos';
 export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESUMO, async (entrada, ctx): Promise<CadastroResumoSaida> => {
   // Sequencial: um único cliente de banco na transação.
   const lista = async (ids: string[], sql: string, extra: unknown[] = []) => (ids.length === 0 ? [] : (await ctx.db.query(sql, [ids, ...extra])).rows);
-  const clientes = await lista(
-    entrada.cliente_ids,
+  const clientes = (
+    entrada.cliente_ids.length === 0 && entrada.cliente_external_ids.length === 0
+      ? []
+      : (
+          await ctx.db.query(
     // bloqueado (T-0073 / RN-VEN-13): `cliente_financeiro.bloqueado` do próprio Core; sem linha financeira = não bloqueado
     `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes, c.prazo_medio_max_dias, c.formas_pagamento,
             coalesce(f.bloqueado, false) as bloqueado
        from core.cliente c left join core.cliente_financeiro f on f.cliente_id = c.id and f.deleted_at is null
-      where c.deleted_at is null and c.id = any($1::uuid[]) order by c.id`,
-  );
+      where c.deleted_at is null and (c.id = any($1::uuid[]) or c.external_id = any($2::text[])) order by c.id`,
+            [entrada.cliente_ids, entrada.cliente_external_ids],
+          )
+        ).rows
+  ) as Array<{ id: string }>;
   const produtos = (
     entrada.produto_ids.length === 0 && entrada.produto_external_ids.length === 0
       ? []
@@ -59,7 +68,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
   const usuarios = await lista(entrada.usuario_ids, 'select id, nome, perfil, external_id from core.usuario where deleted_at is null and id = any($1::uuid[]) order by id');
   // Endereços: os pedidos em endereco_ids e, sempre, o principal de cada cliente pedido (T-0061 §4.1).
   const enderecos =
-    entrada.cliente_ids.length === 0 && entrada.endereco_ids.length === 0
+    clientes.length === 0 && entrada.endereco_ids.length === 0
       ? []
       : (
           await ctx.db.query(
@@ -67,7 +76,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
                from core.cliente_endereco
               where deleted_at is null and (id = any($1::uuid[]) or (principal and cliente_id = any($2::uuid[])))
               order by cliente_id, id`,
-            [entrada.endereco_ids, entrada.cliente_ids],
+            [entrada.endereco_ids, clientes.map((c) => c.id)],
           )
         ).rows;
   return { clientes, produtos, usuarios, enderecos } as CadastroResumoSaida;
@@ -131,4 +140,15 @@ export const consultaFinanceiroCliente = implementarConsulta(CONSULTA_FINANCEIRO
     )
   ).rows as Array<{ vencimento: string; saldo_cents: number; situacao: 'aberto' }>;
   return { financeiro: financeiroDoCliente(fin, titulos, dataLocal(ctx.agora(), ctx.fuso())) };
+});
+
+/**
+ * RN-CORE-26 (T-0124): semana de dias úteis do tenant para o Gestor. Vem de `ctx.parametros()` (parâmetros do módulo dono,
+ * lidos na requisição), validada por `calendarioDoTenant`; ausente ou inválida = segunda a sábado. Feriados do tenant: vazia
+ * até existir o cadastro.
+ */
+export const consultaCalendarioMetas = implementarConsulta(CONSULTA_CALENDARIO_METAS, async (_entrada, ctx) => {
+  const valor = ctx.parametros()[PARAMETRO_DIAS_UTEIS];
+  const cal = calendarioDoTenant([{ modulo: 'core', chave: PARAMETRO_DIAS_UTEIS, valor }]);
+  return { dias_uteis_semana: [...cal.dias_uteis_semana], feriados: [...(cal.feriados ?? [])] };
 });

@@ -117,7 +117,8 @@ e `plataforma.auditoria`.
 
 ## Acesso sem contexto (casos previstos)
 - **Login** (código da empresa + e-mail + senha): `plataforma.tenant_por_codigo(codigo)` é
-  `SECURITY DEFINER` (roda como o dono, que ignora RLS) e devolve só `id, nome, fuso, status`. Depois a
+  `SECURITY DEFINER` (roda como o dono, que ignora RLS) e devolve só `id, status` (desde a 0052; o nome e o fuso saem depois
+  da senha por `plataforma.tenant_da_sessao()`, no contexto do tenant). Depois a
   API abre transação com o tenant resolvido e busca o usuário por `lower(email)`.
   Premissa: o dono das funções é superusuário ou herda o `macuxi_manutencao` (0031; é o caso do DBaaS, onde BYPASSRLS
   não é concedível).

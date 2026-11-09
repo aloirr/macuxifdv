@@ -6,22 +6,25 @@
  *   a senha usada no login NÃO entra aqui: quem chama a API é o login (`onSalvar(senhaNova)`), que a guarda só na memória.
  *   Nada abre antes: a sessão só existe depois da resposta do `POST /auth/senha/trocar`.
  * - `EsqueciSenha`: pede a senha temporária; a confirmação é sempre a mesma (`info`), exista ou não o cadastro.
- * Regras e textos puros em `lib/ciclo-senha.ts`. testIDs: crie-senha.*, esqueci.*.
+ * Textos e regras puras da fonte única do Core (`@macuxi/core/contracts`, RD-0019); o mapa de erro do BKO em `lib/ciclo-senha.ts`.
+ * testIDs: crie-senha.*, esqueci.*.
  */
 import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type Ref } from 'react';
-import { faltasNaSenha, type DetalhesSenhaATrocar } from '@macuxi/core/contracts';
-import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, ESCONDER_SENHA, IconEye, IconEyeOff, MOSTRAR_SENHA, Notice, RegrasDaSenha } from '@macuxi/ui/web';
-
 import {
-  mensagemDoEsqueci,
+  faltasNaSenha,
+  mensagemDaSenha,
   repeticaoDaSenha,
-  resultadoDoErroDaTroca,
+  SENHA_MIN_CARACTERES,
   subtituloDaTroca,
   TEXTOS_CRIE_SENHA,
   TEXTOS_ESQUECI,
   trocaProntaParaEnviar,
   validarEsqueci,
-} from '@/lib/ciclo-senha';
+  type DetalhesSenhaATrocar,
+} from '@macuxi/core/contracts';
+import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, ESCONDER_SENHA, IconEye, IconEyeOff, MOSTRAR_SENHA, Notice, RegrasDaSenha } from '@macuxi/ui/web';
+
+import { mensagemDoEsqueci, resultadoDoErroDaTroca } from '@/lib/ciclo-senha';
 
 const campoCss = 'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
 const linkCss = 'min-h-[44px] self-start text-[14px]';
@@ -151,7 +154,15 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
         onChange={(e) => setRepetida(e.target.value)}
         aria-describedby="senha-regras-repeticao"
       />
-      <RegrasDaSenha id="senha-regras" faltas={faltasNaSenha(nova)} repeticao={repeticaoDaSenha(nova, repetida)} destacar={destacar} testId="crie-senha.regras" />
+      <RegrasDaSenha
+        id="senha-regras"
+        faltas={faltasNaSenha(nova)}
+        minimo={SENHA_MIN_CARACTERES}
+        resumo={mensagemDaSenha(faltasNaSenha(nova)) ?? undefined}
+        repeticao={repeticaoDaSenha(nova, repetida)}
+        destacar={destacar}
+        testId="crie-senha.regras"
+      />
       <Button data-testid="crie-senha.salvar" type="submit" variant="primary" disabled={salvando}>
         {salvando ? TEXTOS_CRIE_SENHA.salvando : TEXTOS_CRIE_SENHA.salvar}
       </Button>
@@ -191,7 +202,9 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
   const enviar = async (ev: FormEvent) => {
     ev.preventDefault();
     if (enviando) return;
-    const invalido = validarEsqueci({ codigo_empresa: codigo, email });
+    // uma frase só, embaixo do botão: a do primeiro campo com problema (validarEsqueci do Core, por campo)
+    const erros = validarEsqueci({ codigo_empresa: codigo, email });
+    const invalido = erros.codigo_empresa ?? erros.email ?? null;
     setErro(invalido);
     if (invalido) return;
     setEnviando(true);

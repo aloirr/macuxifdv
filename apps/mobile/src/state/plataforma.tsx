@@ -113,9 +113,12 @@ import {
   desligarSyncEmSegundoPlano,
   ligarSyncEmSegundoPlano,
   lerUltimoSegundoPlano,
+  marcarBuildAberto,
   passadaEmSegundoPlano,
   registrarAppAberto,
+  travaSync,
 } from '@/services/segundo-plano';
+import { gravarErro } from '@/services/erros';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
@@ -408,6 +411,8 @@ function usePlataformaValor() {
 
   useEffect(() => {
     let vivo = true;
+    // T-0140: enquanto o app abre (sessão, armazenamento, motor), a tarefa sem tela não começa neste processo
+    travaSync.entrar('abertura');
     (async () => {
       const [settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
         readJson<{ apiUrl?: string | null }>(keys.settings),
@@ -442,7 +447,11 @@ function usePlataformaValor() {
         await abrirMotor(sess, { abertura: true });
       }
       if (vivo) setReady(true);
-    })();
+      // T-0140: este build abriu com tela; a partir daqui a tarefa sem tela pode rodar com o app fechado
+      void marcarBuildAberto();
+    })()
+      .catch((e: unknown) => void gravarErro(e, 'nao-fatal', 'abertura do app'))
+      .finally(() => travaSync.sair('abertura'));
     return () => {
       vivo = false;
     };
@@ -469,7 +478,16 @@ function usePlataformaValor() {
       if (!m) return Promise.resolve(false);
       if (syncEmCursoRef.current) return syncEmCursoRef.current;
       ultimoInicioRef.current = Date.now();
+      // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
+      travaSync.entrar('sincronizacao');
       const p: Promise<boolean> = (async () => {
+        // T-0140: a tarefa sem tela já estava rodando neste processo (app aberto durante a passada): espera ela terminar
+        // e relê o que ela gravou, sem duas passadas no mesmo arquivo
+        if (travaSync.segundoPlanoAtivo()) {
+          await travaSync.esperarSegundoPlano();
+          if (motorRef.current !== m) return false;
+          await m.carregar();
+        }
         // ADR 0017: a tarefa em segundo plano está sincronizando com outro motor (app reaberto durante a tarefa): espera
         // ela terminar e relê o que ela gravou; sem a passada neste processo, o lease vence em 2 min e a próxima segue
         const s = sessaoRef.current;
@@ -497,6 +515,7 @@ function usePlataformaValor() {
         }
         return m.sincronizar();
       })().finally(() => {
+        travaSync.sair('sincronizacao');
         if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
       });
       syncEmCursoRef.current = p;
@@ -952,8 +971,14 @@ function usePlataformaValor() {
         sincronizar: () => executarSync({}),
         erro: () => motor.estado().erro,
       },
-      setSegundoPlano,
     );
+    // T-0140: a tarefa não mexe em estado de React; o Diagnóstico relê o resultado dela quando o app volta ao primeiro plano
+    const semVolta = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') return;
+      void lerUltimoSegundoPlano()
+        .then((r) => setSegundoPlano(r))
+        .catch(() => undefined);
+    });
     // a tarefa só é agendada depois da carga inicial (antes dela, a carga roda só com o app aberto)
     let ligada = false;
     const ligar = (sincronizadoEm: string | null) => {
@@ -966,6 +991,7 @@ function usePlataformaValor() {
     return () => {
       semApp();
       semEstado();
+      semVolta.remove();
     };
   }, [motor, executarSync]);
 

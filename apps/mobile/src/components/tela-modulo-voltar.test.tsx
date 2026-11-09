@@ -76,6 +76,9 @@ const PAGINAS: Record<string, { modulo: string; id: string; componente: Componen
   'novo-pedido': { modulo: 'vendedor', id: 'novo-pedido', componente: () => createElement(BackLink, { label: 'Pedidos', fallback: '/m/pedidos' }) },
   pedidos: { modulo: 'vendedor', id: 'pedidos', componente: () => createElement('h1', null, 'Pedidos') },
 };
+// T-0140: a tela de erro do módulo (ErrorBoundary) não entra neste teste; ela tem o próprio (tela-de-erro.test.tsx)
+vi.mock('@/components/tela-de-erro', () => ({ TelaDeErroDoModulo: () => null }));
+
 vi.mock('@macuxi/platform-sdk/react', () => ({
   useVisaoShell: () => ({ pagina: (id: string) => PAGINAS[id] ?? null }),
 }));

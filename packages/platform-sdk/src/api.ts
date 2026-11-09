@@ -444,6 +444,15 @@ export interface ProvedorSync {
    * próprios, o promotor lê os da carteira, O-3); a versão combina os conjuntos.
    */
   escopo?: EscopoSync | readonly EscopoSync[];
+  /**
+   * T-0121 (N3; ADR 0009 §4): o que o usuário vê depende de uma REGRA além dos conjuntos do `escopo` (parâmetro do
+   * tenant, perfil). Devolva um texto curto e estável que descreva essa regra para o usuário da sessão (ex.: catálogo,
+   * RN-CAT-05: `ctx.usuario.perfil === 'promotor' ? \`ve_preco=${p}\` : 'todos'`); ele entra na `versao_escopo` da página
+   * (e no cursor das novidades). Quando o texto muda, o aparelho ressincroniza a entidade e apaga o que deixou de vir
+   * (`promotor_ve_preco_estoque` de sim para não = o preço sai do aparelho do promotor). Nunca dado pessoal; pode ler
+   * `ctx.parametros()` e `ctx.usuario`. Ao declarar pela 1ª vez, cada aparelho ressincroniza a entidade uma vez.
+   */
+  variacaoEscopo?(ctx: ContextoBase): string | Promise<string>;
   /** Pull: linhas em ordem `(updated_at, id)`, incluindo removidas, filtradas pelo `escopo` (RN-CORE-04). */
   puxar?(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]>;
   /** Push: itens já validados pelo schema; idempotente pelo `id` (UUID do aparelho). */
@@ -478,6 +487,25 @@ export interface ContextoConsumo {
   fuso(): string;
   agora(): Date;
   /** Logger com tenant_id, modulo, evento e evento_id (nunca registre dado pessoal nem o payload). */
+  log: LogRota;
+  /**
+   * T-0121 (N2): agenda um efeito FORA do banco (HTTP, push do Expo) para DEPOIS do commit da transação do consumo.
+   * Rede dentro da transação segura o horizonte do pull de todos os tenants (`BancoApp.horizonteSync`: a transação
+   * aberta mais antiga do `macuxi_app`) e prende a conexão; leia no `db` o que o efeito precisa e chame a rede aqui.
+   * Os efeitos rodam em ordem, sem transação aberta; para gravar o resultado (ex.: `push_enviado_em`) use
+   * `c.comTenant`, uma transação CURTA nova do mesmo tenant (macuxi_app, RLS). Se um efeito lançar, o despachante
+   * desfaz o registro do consumo (`evento_consumo`) e o evento volta com espera crescente: o handler roda DE NOVO por
+   * inteiro, então ele tem de ser reexecutável (o que gravou e publicou na 1ª vez já está confirmado; confira no banco,
+   * como `push_enviado_em`, antes de agendar o efeito outra vez). Handler que lança não agenda nada (nada roda).
+   */
+  aposConfirmar(efeito: (c: ContextoAposConfirmar) => Promise<void>): void;
+}
+
+/** Contexto do efeito agendado por `ContextoConsumo.aposConfirmar` (roda depois do commit, sem transação aberta). */
+export interface ContextoAposConfirmar {
+  /** Transação curta nova no tenant do evento (macuxi_app, RLS). Não chame rede dentro dela. */
+  comTenant<T>(fn: (db: ClienteBanco) => Promise<T>): Promise<T>;
+  agora(): Date;
   log: LogRota;
 }
 

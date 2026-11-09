@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEXTOS_DA_SAIDA, avisoSoOrcamento, destinoDoSalvarDaSaida, opcoesDaSaida, pedidoAlterado, rascunhoParaRetomar, textoAlteradoEm, textoDeItens, type RascunhoGuardado } from './sair-do-pedido';
+import { TEXTOS_DA_SAIDA, avisoSoOrcamento, destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado, rascunhoParaRetomar, textoAlteradoEm, textoDeItens, type RascunhoGuardado } from './sair-do-pedido';
 
 const vazio = { lines: {}, discount_pct: 0 };
 const ok = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
@@ -92,5 +92,17 @@ describe('RN-VEN-38: retomada depois que o sistema fecha o app', () => {
     expect(textoAlteradoEm('2026-11-08T14:34:00Z', agora, 'America/Manaus')).toBe('alterado às 10h34');
     expect(textoAlteradoEm('2026-11-07T22:10:00Z', agora, 'America/Manaus')).toBe('alterado ontem às 18h10');
     expect(textoAlteradoEm('2026-11-05T13:02:00Z', agora, 'America/Manaus')).toBe('alterado em 05/11 às 09h02');
+  });
+});
+
+describe('RN-VEN-38 (v1.0.1): saída da edição de pedido salvo', () => {
+  it('RN-VEN-38: edição de pedido oferece Salvar alterações com o destino e Descartar alterações com confirmação própria', () => {
+    const o = opcoesDaSaidaEdicao({ tipo: 'pedido', destino: 'Vai para o supervisor' });
+    expect(o.salvar).toEqual({ rotulo: 'Salvar alterações', subtitulo: 'Vai para o supervisor' });
+    expect(o.descartar.rotulo).toBe('Descartar alterações');
+    expect(o.confirmacao.titulo).toBe('Descartar as alterações?');
+  });
+  it('RN-VEN-38: edição de orçamento oferece Salvar orçamento', () => {
+    expect(opcoesDaSaidaEdicao({ tipo: 'orcamento', destino: 'x' }).salvar.rotulo).toBe('Salvar orçamento');
   });
 });

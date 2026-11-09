@@ -1,6 +1,8 @@
 /**
  * Faixa escura "EM ATENDIMENTO" no topo do Início, da Rota e da ficha do cliente:
  * cliente do check-in aberto, horário, tempo decorrido, "Fazer checkout" e "Ver cliente".
+ * Na ficha do PRÓPRIO cliente do check-in (`clienteAtual`) a faixa some: a ficha já mostra "Em atendimento" e o Checkout no
+ * rodapé, e "Ver cliente" abriria a mesma tela (relato do dono do produto, 08/11).
  */
 import { Botao, colors, fonts, formatHHMM, radius } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
@@ -10,11 +12,11 @@ import { useCore } from '../lib/usar-core';
 import { checkoutDuration, elapsedLabel, ordersInVisit } from '../lib/visit';
 import { useVisitSheets } from './visit-sheets';
 
-export function OpenVisitBar({ from }: { from: string }) {
+export function OpenVisitBar({ from, clienteAtual }: { from: string; clienteAtual?: string }) {
   const core = useCore();
   const sheets = useVisitSheets();
   const open = core.atendimentoAberto;
-  if (!open) return null;
+  if (!open || open.customer_id === clienteAtual) return null;
   const now = new Date();
   const since = formatHHMM(open.checkin_at, core.tz);
   const orders = ordersInVisit(open, core.pedidos);

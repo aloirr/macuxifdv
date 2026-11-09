@@ -8,7 +8,7 @@
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
 import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeMarcaConcorrente, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { SQL_MINIATURA_DO_CONTEUDO } from './miniatura';
-import { verPrecoDoPerfil } from '../domain/visibilidade';
+import { variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string) => `to_char(${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -94,16 +94,19 @@ async function puxar(nome: keyof typeof TABELAS, ctx: ContextoBase, pedido: Pedi
   return ctx.comTenant(async (db) => (await db.query(sql, valores)).rows as unknown as LinhaSync[]);
 }
 
+/** RN-CAT-05 (T-0121 N3): promotor que perde o direito a preço e estoque muda a versao_escopo e o aparelho apaga o que já baixou. */
+const variacaoPrecoEstoque = (ctx: ContextoBase): string => variacaoEscopoPrecoEstoque(ctx.usuario.perfil, ctx.parametros());
+
 export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
-  { entidade: entidadeTabelaPreco, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco', ctx, p) },
-  { entidade: entidadeTabelaPrecoItem, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco_item', ctx, p) },
-  { entidade: entidadeTabelaEscalonada, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_escalonada', ctx, p) },
-  { entidade: entidadeClienteTabelaPreco, escopo: 'carteira', puxar: (ctx, p) => puxar('cliente_tabela_preco', ctx, p) },
+  { entidade: entidadeTabelaPreco, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
+  { entidade: entidadeTabelaPrecoItem, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco_item', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
+  { entidade: entidadeTabelaEscalonada, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_escalonada', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
+  { entidade: entidadeClienteTabelaPreco, escopo: 'carteira', puxar: (ctx, p) => puxar('cliente_tabela_preco', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
   { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
   { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },
   { entidade: entidadeProdutoRelacao, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_relacao', ctx, p) },
-  { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p) },
-  { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p) },
+  { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
+  { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p), variacaoEscopo: variacaoPrecoEstoque },
   { entidade: entidadeSinonimo, escopo: 'tenant', puxar: (ctx, p) => puxar('sinonimo', ctx, p) },
   { entidade: entidadeProdutoAtributo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_atributo', ctx, p) },
   { entidade: entidadeProdutoConteudo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_conteudo', ctx, p) },

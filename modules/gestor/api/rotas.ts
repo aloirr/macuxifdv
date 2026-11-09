@@ -5,7 +5,7 @@
  * domain em toda resposta; fora do escopo = 404 sem revelar existência. Leitura do tenant (analista/admin) é só
  * leitura (RN-GES-07). Nenhuma rota de pedido aqui (RN-PRO-01): aprovar/rejeitar e o pedido em nome são do Vendedor.
  */
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import type { z } from 'zod';
 import manifest from '../manifest';
@@ -98,7 +98,10 @@ export async function carregarContexto(ctx: ContextoBase, repo: RepositorioGesto
   const membros = escopo.tipo === 'nenhum' ? [] : await carregarMembros(ctx, tx, escopo, estado, visiveis);
   const { params, erro } = parametrosDoTenant(ctx.parametros(), ctx.fuso());
   if (erro) ctx.log.warn({ erro }, 'parâmetro do Gestor inválido no tenant: usando o padrão');
-  return { acesso, tx, viewer, escopo, membros, estado, modulos: new Set(['core', ...ctx.usuario.modulos]), params, agora: ctx.agora().toISOString() };
+  // RN-CORE-22/26: semana útil e feriados das metas vêm do Core (consulta de configuração do tenant), a mesma fonte do Início e das Metas
+  const calendario = await tx.consultar(CONSULTA_CALENDARIO_METAS, {}, { licenca: 'tenant' });
+  const paramsComCalendario = { ...params, calendario_metas: { dias_uteis_semana: calendario.dias_uteis_semana, feriados: calendario.feriados } };
+  return { acesso, tx, viewer, escopo, membros, estado, modulos: new Set(['core', ...ctx.usuario.modulos]), params: paramsComCalendario, agora: ctx.agora().toISOString() };
 }
 
 type Executar<T> = (g: ContextoGestor, ctx: ContextoBase) => Promise<T>;

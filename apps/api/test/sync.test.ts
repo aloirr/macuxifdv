@@ -377,3 +377,70 @@ describe('GET /v1/sync/novidades (RN-CORE-23, ADR 0018)', () => {
     expect((await app.inject({ method: 'GET', url: '/v1/sync/novidades' })).statusCode).toBe(401);
   });
 });
+
+describe('T-0121 N3: variacaoEscopo do provedor entra na versao_escopo e no cursor das novidades (ADR 0009 §4; RN-CAT-05)', () => {
+  const precoDoCliente = definirEntidadeSync({ nome: 'condicao_pagamento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: z.unknown() });
+  const itemDoPedido = definirEntidadeSync({ nome: 'pedido_item', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: z.unknown() });
+
+  /** `vePreco` faz o papel de `promotor_ve_preco_estoque` (parâmetro do tenant lido pelo provedor). */
+  function montarVariacao() {
+    const estado = { vePreco: true };
+    const api = definirModuloApi({
+      ...vendedorApi,
+      sync: [
+        {
+          entidade: precoDoCliente,
+          escopo: 'tenant',
+          variacaoEscopo: (ctx) => (ctx.usuario.perfil === 'promotor' ? `ve_preco=${estado.vePreco ? 'sim' : 'nao'}` : 'todos'),
+          puxar: async () => [],
+        },
+        { entidade: itemDoPedido, escopo: 'carteira', puxar: async () => [] },
+      ],
+    });
+    const { banco } = bancoFalso(() => new Date(AGORA.getTime() - 2000));
+    const base = opcoesDeTeste(LICENCAS_PADRAO, { banco, relogio: () => AGORA, carteira: async () => new Set([CLIENTE_DA_CARTEIRA]) });
+    const app = createApp({ ...base, modulos: base.modulos!.map((m) => (m.manifesto.id === 'vendedor' ? api : m)) });
+    const pull = async (entidade: string, quem: keyof typeof usuarios) => {
+      const r = await app.inject({ method: 'GET', url: `/v1/sync/pull?entidade=${entidade}`, headers: cab(quem) });
+      expect(r.statusCode, r.body).toBe(200);
+      return r.json() as { versao_escopo?: string };
+    };
+    const novidades = async (quem: keyof typeof usuarios, desde?: string) => {
+      const r = await app.inject({ method: 'GET', url: `/v1/sync/novidades${desde ? `?desde=${encodeURIComponent(desde)}` : ''}`, headers: cab(quem) });
+      expect(r.statusCode, r.body).toBe(200);
+      return NovidadesRespostaSchema.parse(r.json());
+    };
+    return { estado, pull, novidades };
+  }
+
+  it('RN-CAT-05: escopo tenant com variação passa a ter versao_escopo, estável, que muda quando a regra do promotor muda', async () => {
+    const t = montarVariacao();
+    const v1 = (await t.pull('condicao_pagamento', 'promotor')).versao_escopo;
+    expect(v1).toMatch(/^[0-9a-f]{16}$/);
+    expect((await t.pull('condicao_pagamento', 'promotor')).versao_escopo).toBe(v1);
+    const doVendedor = (await t.pull('condicao_pagamento', 'vendedor')).versao_escopo;
+    t.estado.vePreco = false; // promotor_ve_preco_estoque: sim → não
+    const v2 = (await t.pull('condicao_pagamento', 'promotor')).versao_escopo;
+    expect(v2).toMatch(/^[0-9a-f]{16}$/);
+    expect(v2).not.toBe(v1); // o aparelho do promotor ressincroniza e apaga o preço que deixou de vir
+    expect((await t.pull('condicao_pagamento', 'vendedor')).versao_escopo).toBe(doVendedor); // o vendedor não ressincroniza
+  });
+
+  it('provedor sem variação mantém a versao_escopo de antes (nenhum aparelho ressincroniza à toa)', async () => {
+    const t = montarVariacao();
+    expect((await t.pull('pedido_item', 'vendedor')).versao_escopo).toBe(versaoDoConjunto(new Set([CLIENTE_DA_CARTEIRA])));
+  });
+
+  it('novidades: a variação entra no cursor; mudou = todas as entidades elegíveis (sem mudar módulos)', async () => {
+    const t = montarVariacao();
+    const base = await t.novidades('promotor');
+    const igual = await t.novidades('promotor', base.cursor);
+    expect(igual.modulos_mudaram).toBe(false);
+    expect(igual.entidades).toEqual([]);
+    t.estado.vePreco = false;
+    const mudou = await t.novidades('promotor', igual.cursor);
+    expect(mudou.modulos_mudaram).toBe(false);
+    expect(mudou.entidades).toContain('condicao_pagamento');
+    expect(decodificarCursorNovidades(mudou.cursor)!.escopo).not.toBe(decodificarCursorNovidades(igual.cursor)!.escopo);
+  });
+});
