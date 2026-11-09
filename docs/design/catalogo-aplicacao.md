@@ -8,8 +8,8 @@
 > Dados que a tela recebe: `serve_em = { texto ≤ 90, marcas: [inicio, fim][], inclui_ano }` e
 > `equivale_a = { marca_nome, codigo, marcas }` (`modules/catalogo/contracts/busca.ts`).
 > Telas: modulo-catalogo (`app/telas/comum.tsx`, `app/telas/produto.tsx`, `web/pages/catalogo-page.tsx`), modulo-vendedor
-> (seletor, item do pedido, detalhe e PDFs), modulo-catalogo também na página Marcas concorrentes (T-0113, ADR 0034; antes Parâmetros → Produtos → Concorrentes no Core). Lista por linha:
-> `catalogo-por-linha.md`. Busca sem resultado: `catalogo-busca-vazio.md`.
+> (seletor, item do pedido, detalhe e PDFs), modulo-catalogo também na página Marcas concorrentes (T-0113, ADR 0034; antes Parâmetros → Produtos → Concorrentes no Core). Navegação pela
+> hierarquia (sem tela "Por linha", T-0142): `catalogo-por-linha.md`. Busca sem resultado: `catalogo-busca-vazio.md`.
 
 ## 1. Busca e lista (app Campo e Gestão; BKO no que couber)
 
@@ -62,8 +62,9 @@ O cartão é lido inteiro: "<nome>. Serve em: <texto>, inclui 2012. <preço>". O
 
 Seção sem dado: não aparece (sem título vazio).
 
-### 3.2 Aba Catálogo por linha
-Ver `catalogo-por-linha.md` (trilha sistema › grupo › linha, contagem de itens).
+### 3.2 Aba Catálogo pela hierarquia
+Ver `catalogo-por-linha.md` (T-0142: um nível por tela com a contagem, trilha sistema › grupo › linha; no último nível, o
+`CartaoProduto` com "Serve em:" em 2 linhas, "Equivale a:" e etiquetas; "Oferece junto" só aqui na ficha).
 
 ### 3.3 Estados
 | Estado | O que aparece |

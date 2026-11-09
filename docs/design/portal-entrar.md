@@ -74,8 +74,8 @@ Confira e tente de novo." (desenho §3): a tela mostra a do quadro.
 **Ajuda curta** (`REGRA_DA_SENHA` do `@macuxi/core/contracts`; substitui a de `apps/web/lib/convite.ts`):
 **"Pelo menos 8 caracteres, com letra, número e caractere especial."**
 
-**Mensagens do domain** (`mensagemDaSenha(faltas)` do Core; o kit monta a mesma frase em `resumoDaSenha`, testada em
-`packages/ui/src/comum/senha.test.ts` — os dois têm de bater):
+**Mensagens do domain** (`mensagemDaSenha(faltas)` do Core, a única fonte da frase; a tela a passa no `resumo` do
+`RegrasDaSenha` e o kit não monta frase própria, RD-0021):
 | Faltas | Texto |
 |---|---|
 | nenhuma | "A senha atende às regras." (só a região viva do kit; o domain não devolve mensagem) |
@@ -95,7 +95,8 @@ O caso "mais de 200" só o Core distingue (`mensagemDaSenha(faltas, senha)`); a 
 
 **Componente `RegrasDaSenha`** (web e mobile, mesma API):
 ```tsx
-<RegrasDaSenha faltas={faltasNaSenha(senha)} destacar={tentouSalvar} id="senha-regras" />   // web; mobile usa testID
+<RegrasDaSenha faltas={faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltas)} destacar={tentouSalvar} id="senha-regras" />   // web; mobile usa testID
+// RD-0021: `minimo` e `resumo` são obrigatórios e vêm do Core; `resumo` null (nada falta) = "A senha atende às regras."
 ```
 - Título **"A senha precisa ter"** e quatro linhas, sempre nesta ordem: **"8 caracteres ou mais"**, **"Uma letra"**,
   **"Um número"**, **"Um caractere especial (! @ # $)"**.

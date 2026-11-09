@@ -153,7 +153,6 @@ export const textoDoPadrao = (valorDeFabrica: string): string => `Padrão: ${val
 
 export const ROTULO_CAMPO_PERFIS = 'Perfis';
 export const AJUDA_CAMPO_PERFIS = 'Marque um ou mais. Quem acumula funções, como vendedor e promotor, fica com os dois.';
-export const ERRO_SEM_PERFIL = 'Escolha pelo menos um perfil.';
 
 /** Título e explicação da prévia dos módulos efetivos (RN-CORE-01: união dos perfis ∩ contratados − exceções). */
 export const TITULO_PREVIA_MODULOS = 'Módulos que esta pessoa vai usar';
