@@ -171,12 +171,12 @@ describe('RN-GES-02: cliente nunca visitado só alerta depois de PASSAR de 15 di
 });
 
 describe('RF-GES-07: ritmo abaixo da meta', () => {
-  // contas do 14º dia útil em seg–sex (o padrão do tenant é seg–sáb, RN-CORE-26)
-  const SEG_SEX = { dias_uteis_semana: [1, 2, 3, 4, 5] };
+  // contas do 13º dia útil em seg–sex, sem cadastro de feriados, 12/10 conta (o padrão do tenant é seg–sáb, RN-CORE-26)
+  const SEG_SEX = { calendario_metas: { dias_uteis_semana: [1, 2, 3, 4, 5], feriados: [] } };
   const metaEv = meta(VENDEDOR, '2026-10', 2_200_000, '2026-10-01T08:00:00Z');
   const vende = (total: number, em: string) => [pedidoCriado({ pedido: u(1000 + total), total, em }), statusAlterado({ pedido: u(1000 + total), para: 'aprovado', em })];
 
-  it('ritmo 69,23% (< 80%) no 14º dia útil alerta; valor e limiar vão no alerta', () => {
+  it('ritmo 69,23% (< 80%) no 14º dia útil alerta (feriados [] = só a semana, RN-CORE-26); valor e limiar vão no alerta', () => {
     const s = montar([metaEv, ...vende(900_000, '2026-10-15T15:00:00Z')]);
     const cs = doTipo(avaliar(s, '2026-10-20T20:00:00Z', { params: SEG_SEX }), 'ritmo_abaixo_meta');
     expect(cs).toHaveLength(1);

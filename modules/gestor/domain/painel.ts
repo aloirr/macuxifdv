@@ -4,7 +4,8 @@
  * O "dia" é a data civil no fuso do tenant (`parametros.fuso`); o armazenado é sempre UTC.
  * Módulo opcional desativado (ou seção que não se aplica ao perfil) ⇒ a seção é `null`, o painel continua válido.
  */
-import { daysInMonth, ehDiaUtilDoTenant, localDate, type BusinessDays } from '@macuxi/comum';
+import { necessidadeDiaria } from '@macuxi/core/contracts';
+import { diasUteisDoPeriodo, localDate, type BusinessDays } from '@macuxi/comum';
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
 import { situacaoDaRota } from './agora';
 import { statusAtual, vendasApuradas } from './apuracao';
@@ -250,27 +251,27 @@ export interface ResultadoMeta {
 
 /**
  * RN-CORE-21/22. Atingimento = realizado ÷ meta × 100. Falta = max(0, meta − realizado). Necessidade diária =
- * falta ÷ dias úteis restantes (hoje conta se for útil), centavos meio para cima; 0 se a meta já foi batida;
+ * falta ÷ dias úteis restantes (hoje conta se for útil), centavos para cima (⌈⌉, igual ao Core: `necessidadeDiaria`); 0 se a meta já foi batida;
  * `null` sem meta ou sem dia útil restante. Ritmo = realizado até ontem ÷ (meta × decorridos ÷ total) × 100.
  */
 export function calcularMeta(e: EntradaMeta): ResultadoMeta {
   const meta = e.meta_cents;
   if (meta === null || meta <= 0) return { atingimento_pct: null, falta_cents: null, necessidade_diaria_cents: null, ritmo_pct: null };
   const falta = Math.max(0, meta - e.realizado_cents);
-  const necessidade = e.dias_uteis_restantes <= 0 ? null : falta === 0 ? 0 : dividirCents(falta, e.dias_uteis_restantes);
+  const necessidade = necessidadeDiaria(meta, e.realizado_cents, e.dias_uteis_restantes);
   const ritmo = e.dias_uteis_decorridos > 0 && e.dias_uteis_total > 0 ? arredondar((e.realizado_ate_ontem_cents * e.dias_uteis_total * 100) / (meta * e.dias_uteis_decorridos)) : null;
   return { atingimento_pct: percentual(e.realizado_cents, meta), falta_cents: falta, necessidade_diaria_cents: necessidade, ritmo_pct: ritmo };
 }
 
 /**
- * RN-CORE-22/26: dias úteis do mês pelo calendário do tenant (`dias_uteis_semana`, padrão seg–sáb; a MESMA função de `packages/comum`
- * que o Core usa), com os feriados do tenant quando cadastrados. Hoje conta como restante.
+ * RN-CORE-22/26: dias úteis do mês pelo calendário das metas do tenant (`core.calendario_metas@1`, via `params.calendario_metas`), com a
+ * MESMA função de `packages/comum` que o Core usa (`diasUteisDoPeriodo`). Lista de feriados vazia = "sem cadastro" (só a semana do
+ * tenant, RN-CORE-26), igual ao `feriadosDoCalendario` do Core; lista preenchida tira esses dias (e os nacionais, pela função comum). Os
+ * `feriados` do Gestor valem só para o prazo da RN-GES-03. Hoje conta como restante.
  */
-export function diasUteisDoMes(mes: string, hoje: string, params: Pick<ParametrosGestor, 'feriados' | 'dias_uteis_semana'>): BusinessDays {
-  const feriados = params.feriados.length > 0 ? params.feriados : undefined; // sem cadastro, só a semana conta (RN-CORE-26)
-  const dias = daysInMonth(mes).filter((d) => ehDiaUtilDoTenant(d, feriados, params.dias_uteis_semana));
-  const decorridos = dias.filter((d) => d < hoje).length;
-  return { total: dias.length, elapsed: decorridos, remaining: dias.length - decorridos };
+export function diasUteisDoMes(mes: string, hoje: string, params: Pick<ParametrosGestor, 'calendario_metas'>): BusinessDays {
+  const feriados = params.calendario_metas.feriados;
+  return diasUteisDoPeriodo(mes, hoje, feriados.length > 0 ? feriados : undefined, params.calendario_metas.dias_uteis_semana);
 }
 
 /** Acumulado do mês de `data` até `data` e meta (RN-CORE-21/22). */
