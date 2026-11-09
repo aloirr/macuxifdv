@@ -22,7 +22,7 @@ import { CLIENTE_A, CLIENTE_B, meta as metaGestor, pedidoCriado, statusAlterado,
 import { faturamentoDoPeriodo, painelDoMes, vendasDoPeriodo } from '../../modules/gestor/domain/painel';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from '../../modules/gestor/domain/projecao';
 import { INDICADORES, rankingDaEquipe } from '../../modules/gestor/domain/ranking';
-import { linhaAFaturar, linhaOrcamentos, resumoDoInicio } from '../../modules/vendedor/app/lib/resumo-inicio';
+import { linhaOrcamentos, resumoDoInicio, textoCartaoAFaturar } from '../../modules/vendedor/app/lib/resumo-inicio';
 import type { PedidoDaLista } from '../../modules/vendedor/app/lib/pedidos';
 
 // ---------- oráculos (texto da RN, independentes do código) ----------
@@ -37,7 +37,7 @@ function diasUteisRestantes(hoje: string, semana = SEG_A_SAB): number {
 /** RN-CORE-22: necessidade diária = (meta − realizado) ÷ dias úteis restantes (hoje conta), centavos para cima. */
 const necessidadePelaRegra = (meta: number, realizado: number, hoje: string) => Math.max(0, Math.ceil((meta - realizado) / diasUteisRestantes(hoje)));
 const brl0 = (cents: number) => `R$ ${Math.round(cents / 100).toLocaleString('pt-BR')}`;
-const limpo = (s: string) => s.replace(/00a0/g, ' ');
+const limpo = (s: string) => s.replace(/\u00a0/g, ' ');
 
 // ---------- dados do Core ----------
 const FUSO = 'America/Manaus';
@@ -176,7 +176,9 @@ describe('T-0124 — cards Orçamentos e A faturar do Início (RN-VEN-18, RN-VEN
   it('F1. A faturar (RN-VEN-30, decisão de 04/11): aguardando aprovação + aprovado/enviado/integrado do próprio vendedor; faturado, cancelado, na fila e de outro vendedor ficam fora', () => {
     const r = resumo('2026-11-10T13:00:00Z');
     expect(r.aFaturar).toEqual({ quantidade: 2, valor_cents: 298_000, aguardando_aprovacao: 1 });
-    expect(limpo(linhaAFaturar(r.aFaturar))).toBe('R$ 2.980 · 1 aguardando aprovação');
+    // RD-0011 (08/11): o cartão traz a quantidade antes do valor; rótulo × valor: 2 pedidos somam R$ 2.980, 1 deles aguardando
+    expect(limpo(textoCartaoAFaturar(r.aFaturar))).toBe('2 · R$ 2.980 (1 aguardando aprovação)');
+    expect(textoCartaoAFaturar({ quantidade: 0, valor_cents: 0, aguardando_aprovacao: 0 })).toBe('nenhum');
   });
 });
 
@@ -217,7 +219,10 @@ describe('T-0124 — Gestor: Ficha do vendedor, painel e Ranking (RN-CORE-21/22,
     expect(m.atingimento_pct).toBeCloseTo((55_300 / META) * 100, 2);
   });
 
-  it('G5. Ficha "Precisa por dia" (RN-CORE-22): mesmo calendário da meta do tenant (seg–sáb, 18 dias em 10/11) do Início e de Metas (regressão: antes seg–sex, 15)', () => {
+  // G5 falhou em 08/11 ~21h (a Ficha tirava o feriado 20/11 e dava 17 dias) e foi corrigido pelo modulo-gestor em 08/11 ~23h
+  // (R-20261108-230904: feriados [] = sem cadastro, arredondamento para cima), igual ao Início e a Metas (RN-CORE-26).
+  // Comparação completa entre as telas em tests/modulos/dias-uteis-entre-telas-t0124.test.ts.
+  it('G5. Ficha "Precisa por dia" (RN-CORE-22): mesmo calendário da meta do tenant (seg–sáb, 18 dias em 10/11) do Início e de Metas', () => {
     const s = montar([metaGestor(VENDEDOR, '2026-11', META, '2026-11-01T10:00:00Z'), ...venda(6, { total: 55_300, criado: '2026-11-09T14:00:00Z', aprovado: '2026-11-09T14:00:00Z' })]);
     const m = painelDoMes(s, VENDEDOR, '2026-11-10', P);
     expect(m.dias_uteis_restantes).toBe(diasUteisRestantes('2026-11-10'));
