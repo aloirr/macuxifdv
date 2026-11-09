@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { interpretarConsulta } from './consulta';
-import { candidatosDaBusca, construirIndiceBusca, indiceDe, MINIMO_PARA_INDICE, posicoesDaPalavra } from './indice-busca';
+import { candidatosDaBusca, construirIndiceBusca, cortarCandidatos, indiceDe, MINIMO_PARA_INDICE, posicoesDaPalavra } from './indice-busca';
 import { PARAMETROS_PADRAO } from './parametros';
-import { buscarProdutos, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
+import { buscarProdutos, docDeBusca, itemDaVitrine, temEstoqueParaBusca, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 
 const AGORA = '2026-11-08T12:00:00.000Z';
 const TABELA = '00000000-0000-4000-8000-0000000000a1';
@@ -157,5 +157,69 @@ describe('T-0119: índice de busca (pré-seleção dos candidatos)', () => {
     expect(acha('am')).toBe(false);
     expect(acha('cobap')).toBe(true);
     expect(acha('zzzz')).toBe(false);
+  });
+});
+
+describe('T-0119 (D-T0107b): teto de candidatos antes do ranking completo', () => {
+  const sinonimos = [{ id: 's1', term: 'pastilha', synonyms: ['sapata'], active: true, external_id: null }];
+
+  it.each(CONSULTAS)('T-0119: "%s" — com teto de 60 candidatos a primeira página (20) é a mesma do ranking completo', (q) => {
+    const filtros = interpretarConsulta(q, vocabularioDe(PRODUTOS));
+    const base = { contexto: contexto(), filtros, sinonimos, limit: 20, offset: 0 };
+    const cheia = buscarProdutos({ ...base, produtos: PRODUTOS });
+    const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto: base.contexto, filtros, sinonimos, minimo: 0 });
+    if (pre === null) return;
+    const corte = cortarCandidatos(pre, base.contexto, 60);
+    expect(corte.produtos.length).toBeLessThanOrEqual(60);
+    const reduzida = buscarProdutos({ ...base, produtos: corte.produtos, maxVendas: corte.maxVendas });
+    expect(reduzida.items.map((x) => x.id)).toEqual(cheia.items.map((x) => x.id));
+    // o total é o que cabe no corte (alguns da nota barata podem ficar com nota 0 no ranking, por exemplo pelo trecho da aplicação): nunca passa do completo
+    expect(reduzida.total).toBeLessThanOrEqual(Math.min(cheia.total, corte.produtos.length));
+    if (cheia.total <= 60) expect(reduzida.total).toBe(cheia.total);
+  });
+
+  it('T-0119: até o teto nada é cortado; acima dele fica o teto, na ordem do catálogo', () => {
+    const filtros = interpretarConsulta('freio', vocabularioDe(PRODUTOS));
+    const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto: contexto(), filtros, sinonimos: [], minimo: 0 })!;
+    expect(cortarCandidatos(pre, contexto(), pre.produtos.length)).toBe(pre);
+    const corte = cortarCandidatos(pre, contexto(), 25);
+    expect(corte.produtos).toHaveLength(25);
+    const posicoes = corte.produtos.map((p) => PRODUTOS.indexOf(p));
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    expect(corte.pre).toHaveLength(25);
+    expect(corte.maxVendas).toBe(pre.maxVendas);
+  });
+
+  it('T-0119: o empate de texto é decidido pelo estoque (o boost do ranking), não pela posição no cadastro', () => {
+    const iguais = Array.from({ length: 40 }, (_, i): ProdutoCatalogo => ({ ...PRODUTOS[0]!, id: uuid(5000 + i), sku: `ZZ${i}`, ean: null, nome: 'Pastilha igual', marca: 'Cobreq', categoria: 'Freios', ativo: true, atributos: [], aplicacao: '', referencias: [], campanha: false, vendas: 0 }));
+    const emEstoque = iguais[37]!;
+    const ctx = contexto({ saldos: new Map([[emEstoque.id, [{ branch_id: FILIAL, branch_name: 'CD', quantity: 9, updated_at: AGORA }]]]) });
+    const filtros = interpretarConsulta('pastilha igual', vocabularioDe(iguais));
+    const pre = candidatosDaBusca({ produtos: iguais, contexto: ctx, filtros, sinonimos: [], minimo: 0 })!;
+    expect(cortarCandidatos(pre, ctx, 5).produtos).toContain(emEstoque);
+    const cheia = buscarProdutos({ produtos: iguais, contexto: ctx, filtros, sinonimos: [], limit: 1, offset: 0 });
+    expect(cheia.items[0]!.id).toBe(emEstoque.id);
+  });
+
+  it('RN-CAT-05/07: temEstoqueParaBusca diz o mesmo que o estoque do documento do ranking (filiais do usuário, perfil sem estoque, número escondido)', () => {
+    const p = PRODUTOS[0]!;
+    const saldos = (...q: number[]) => new Map([[p.id, q.map((quantity, i) => ({ branch_id: i === 0 ? FILIAL : `f${i}`, branch_name: `F${i}`, quantity, updated_at: AGORA }))]]);
+    const casos = [
+      contexto({ saldos: saldos(0, 0) }),
+      contexto({ saldos: saldos(0, 3) }),
+      contexto({ saldos: saldos(5) }),
+      contexto({ saldos: saldos(0, 3), filiais: [FILIAL] }),
+      contexto({ saldos: saldos(2, 3), filiais: [] }),
+      contexto({ saldos: new Map() }),
+      contexto({ saldos: saldos(4), parametros: { ...PARAMETROS_PADRAO, estoque_mostrar_quantidade: false } }),
+      contexto({ saldos: saldos(4), perfil: 'promotor', parametros: { ...PARAMETROS_PADRAO, promotor_ve_preco_estoque: false } }),
+    ];
+    for (const ctx of casos) expect(temEstoqueParaBusca(p, ctx)).toBe(docDeBusca(p, itemDaVitrine(p, ctx)).estoque > 0);
+  });
+
+  it('T-0119: o código exato nunca é cortado', () => {
+    const filtros = interpretarConsulta('pastilha SK000042', vocabularioDe(PRODUTOS));
+    const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto: contexto(), filtros, sinonimos: [], minimo: 0 })!;
+    expect(cortarCandidatos(pre, contexto(), 3).produtos.map((p) => p.sku)).toContain('SK000042');
   });
 });

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ItemVitrine, type FiltrosInterpretados } from '../contracts';
 import manifest from '../manifest';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
-import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerPrecoEstoque, verPrecoDoPerfil } from './visibilidade';
+import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerPrecoEstoque, variacaoEscopoPrecoEstoque, verPrecoDoPerfil } from './visibilidade';
 
 const preco = {
   product_id: 'p1',
@@ -85,5 +85,18 @@ describe('verPrecoDoPerfil', () => {
     expect(verPrecoDoPerfil('promotor', { promotor_ve_preco_estoque: true })).toBe(true);
     expect(verPrecoDoPerfil('promotor', { promotor_ve_preco_estoque: 'x' })).toBe(false);
     expect(verPrecoDoPerfil('vendedor', undefined)).toBe(true);
+  });
+});
+
+describe('RN-CAT-05: variação do escopo de preço e estoque (T-0121 N3)', () => {
+  it('RN-CAT-05: promotor muda de visível para oculto quando promotor_ve_preco_estoque passa de sim para não', () => {
+    const antes = variacaoEscopoPrecoEstoque('promotor', { promotor_ve_preco_estoque: true });
+    const depois = variacaoEscopoPrecoEstoque('promotor', { promotor_ve_preco_estoque: false });
+    expect(antes).not.toBe(depois);
+    expect(depois).toBe('preco-estoque:oculto');
+  });
+  it('RN-CAT-05: vendedor não varia com o parâmetro do promotor; sem parâmetro o promotor fica oculto', () => {
+    expect(variacaoEscopoPrecoEstoque('vendedor', { promotor_ve_preco_estoque: false })).toBe(variacaoEscopoPrecoEstoque('vendedor', {}));
+    expect(variacaoEscopoPrecoEstoque('promotor', undefined)).toBe('preco-estoque:oculto');
   });
 });

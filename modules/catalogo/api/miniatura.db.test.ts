@@ -75,7 +75,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: miniatura no pull de produto
     const linhas = await puxar(A.tenantId);
     for (const l of linhas) ProdutoConteudoSyncSchema.parse(l);
     const m = (await miniaturaDe(A.tenantId, C_FOTO)) as { arquivo_id: string; url: string; largura: number; bytes_max: number; versao: string };
-    expect(m).toMatchObject({ arquivo_id: ARQ, url: `/v1/arquivos/${ARQ}`, largura: 320, altura: 320, bytes_max: 30720 });
+    expect(m).toMatchObject({ arquivo_id: ARQ, url: `/v1/arquivos/${ARQ}/miniatura`, largura: 320, altura: 320, bytes_max: 30720 });
     expect(m.versao.length).toBeGreaterThan(0);
     expect(ProdutoConteudoSyncSchema.parse(linhas.find((l) => l.id === C_FOTO)).miniatura).toEqual(m);
   });

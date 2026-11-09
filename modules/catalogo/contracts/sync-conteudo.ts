@@ -36,7 +36,7 @@ export const BYTES_MAX_MINIATURA = 30 * 1024;
 
 /**
  * Miniatura do produto (T-0097): referência à foto principal, baixada sob demanda pelo aparelho (nunca junto do pull).
- * `url` é relativa (`/v1/arquivos/<id>`, autenticada) ou https externa. `versao` muda quando a foto muda (chave de cache).
+ * `url` é relativa (`/v1/arquivos/<id>/miniatura`, autenticada) ou https externa. `versao` muda quando a foto muda (chave de cache).
  */
 export const MiniaturaProdutoSchema = z.object({
   arquivo_id: z.string().uuid().nullable(),

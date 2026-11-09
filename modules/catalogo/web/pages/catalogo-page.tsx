@@ -14,7 +14,7 @@ import { FichaProduto, FiltrosCatalogo, ListaMarcasConcorrentes, ListaSinonimos,
 import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
-import { abrirEditores, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
+import { abrirEditores, acaoTecladoOfereceJunto, adicionarOfereceJunto, anuncioOfereceJunto, listaOfereceJunto, moverOfereceJunto, removerOfereceJunto, sugestoesOfereceJunto, abrirParaLeitura, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, contadorAplicacao, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, limiteAplicacao, mapaIdsPorCodigo, nomesDoOfereceJunto, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
 const POR_PAGINA = 100;
 const BASE = '/catalogo';
@@ -151,9 +151,13 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
                     )}
                   </td>
                   <td className={`${td} text-right`}>
-                    {podeConteudo && (
+                    {podeConteudo ? (
                       <Button size="sm" variant="link" onClick={() => setEditores(abrirEditores(i))} data-testid={`catalogo.editar.${i.erp_code}`}>
                         Editar conteúdo
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="link" onClick={() => setEditores(abrirParaLeitura(i))} data-testid={`catalogo.ver.${i.erp_code}`}>
+                        Ver catálogo
                       </Button>
                     )}
                   </td>
@@ -169,7 +173,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
         </Button>
       )}
       {editores.conteudo && <EditorConteudo key={editores.conteudo.id} item={editores.conteudo} fechar={() => setEditores((e) => fecharEditor(e, 'conteudo'))} />}
-      {editores.catalogo && <EditorCadastroCatalogo key={editores.catalogo.id} item={editores.catalogo} produtos={todos} fechar={() => setEditores((e) => fecharEditor(e, 'catalogo'))} />}
+      {editores.catalogo && <EditorCadastroCatalogo key={editores.catalogo.id} item={editores.catalogo} produtos={todos} somenteLeitura={!podeConteudo} fechar={() => setEditores((e) => fecharEditor(e, 'catalogo'))} />}
     </Panel>
   );
 }
@@ -231,14 +235,19 @@ function EditorConteudo({ item, fechar }: { item: ItemVitrine; fechar: () => voi
 
 /**
  * Seção Catálogo do cadastro do produto (T-0085 K9): aplicação (RN-CAT-11), oferece junto e referência cruzada (RN-CAT-09).
- * Só quem tem `produto.enriquecer` (analista e admin) edita; a proteção real é na API, que audita cada alteração.
+ * Só quem tem `produto.enriquecer` (analista e admin) edita; os demais veem a seção só leitura (B6 de UX); a proteção real é na API,
+ * que audita cada alteração.
  */
-function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine; produtos: readonly ItemVitrine[]; fechar: () => void }) {
+function EditorCadastroCatalogo({ item, produtos, fechar, somenteLeitura = false }: { item: ItemVitrine; produtos: readonly ItemVitrine[]; fechar: () => void; somenteLeitura?: boolean }) {
   const qc = useQueryClient();
   const ficha = useQuery({ queryKey: ['catalogo', 'ficha', item.id], queryFn: async () => FichaProduto.parse(await api<unknown>(`${BASE}/produtos/${item.id}`)) });
   const marcas = useQuery({ queryKey: ['catalogo', 'marcas-concorrentes'], queryFn: async () => ListaMarcasConcorrentes.parse(await api<unknown>(`${BASE}/marcas-concorrentes`)).items });
   const [form, setForm] = useState<FormCadastroCatalogo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [buscaOferece, setBuscaOferece] = useState('');
+  const [erroOferece, setErroOferece] = useState<string | null>(null);
+  const [anuncio, setAnuncio] = useState('');
+  const sugestoes = useMemo(() => sugestoesOfereceJunto(produtos, buscaOferece, listaOfereceJunto(form?.ofereceJunto ?? ''), item.erp_code), [produtos, buscaOferece, form?.ofereceJunto, item.erp_code]);
   useEffect(() => {
     if (ficha.data && form === null) setForm(formCadastroDaFicha(ficha.data));
   }, [ficha.data, form]);
@@ -265,31 +274,119 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
         <>
           <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
             Aplicação
-            <textarea rows={4} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.aplicacao} onChange={(e) => setForm({ ...form, aplicacao: e.target.value })} data-testid="catalogo.cadastro.aplicacao" />
+            <textarea rows={4} readOnly={somenteLeitura} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.aplicacao} onChange={(e) => setForm({ ...form, aplicacao: e.target.value })} data-testid="catalogo.cadastro.aplicacao" />
             <span className={`self-end font-normal ${contador.excede ? 'text-danger' : 'text-ink-2'}`} data-testid="catalogo.cadastro.contador">
               {contador.texto}
             </span>
             <span className="font-normal text-ink-2">Ex.: "Fiat Uno 1.0/1.4 2010–2014". A busca acha o ano dentro da faixa.</span>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-            Oferece junto (até {LIMITES_CADASTRO_CATALOGO.ofereceJunto})
-            <textarea rows={3} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.ofereceJunto} onChange={(e) => setForm({ ...form, ofereceJunto: e.target.value })} data-testid="catalogo.cadastro.oferece-junto" />
-            <span className="font-normal text-ink-2">Um código do produto por linha, na ordem em que o vendedor vê.</span>
-            <ul className="m-0 list-none p-0 font-normal text-ink-2" data-testid="catalogo.cadastro.oferece-junto-nomes">
-              {nomesDoOfereceJunto(form.ofereceJunto, produtos, ficha.data?.catalogo?.oferece_junto).map((n, i) => (
-                <li key={`${i}:${n.codigo}`} className={n.rotulo ? undefined : 'text-danger'}>
-                  {n.rotulo ?? `${n.codigo} · produto não achado`}
-                </li>
-              ))}
-            </ul>
-          </label>
+          <fieldset className="flex flex-col gap-2" data-testid="catalogo.cadastro.oferece-junto">
+            <legend className="text-[12px] font-semibold text-ink-2">Oferece junto (até {LIMITES_CADASTRO_CATALOGO.ofereceJunto}), na ordem em que o vendedor vê</legend>
+            <ol className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Produtos que o vendedor oferece junto" data-testid="catalogo.cadastro.oferece-junto-nomes">
+              {nomesDoOfereceJunto(form.ofereceJunto, produtos, ficha.data?.catalogo?.oferece_junto).map((n, i, todos) => {
+                const rotulo = n.rotulo ?? `${n.codigo} · produto não achado`;
+                const mover = (delta: number) => {
+                  setForm({ ...form, ofereceJunto: moverOfereceJunto(form.ofereceJunto, i, delta) });
+                  setAnuncio(anuncioOfereceJunto('moveu', rotulo, i + delta + 1, todos.length));
+                };
+                const remover = () => {
+                  setForm({ ...form, ofereceJunto: removerOfereceJunto(form.ofereceJunto, i) });
+                  setAnuncio(anuncioOfereceJunto('removeu', rotulo, 0, todos.length - 1));
+                };
+                const botao = 'h-[38px] min-w-[38px] rounded-[10px] border border-field bg-surface px-2 text-[13px] text-ink disabled:opacity-40';
+                return (
+                  <li
+                    key={`${i}:${n.codigo}`}
+                    className={`flex items-center gap-2 rounded-[10px] border border-line px-2 py-1 ${n.rotulo ? 'text-ink' : 'text-danger'}`}
+                    tabIndex={somenteLeitura ? undefined : 0}
+                    aria-label={`${i + 1} de ${todos.length}: ${rotulo}.${somenteLeitura ? '' : ' Alt com seta para cima ou para baixo muda a ordem; Delete remove.'}`}
+                    data-testid={`catalogo.cadastro.oferece-junto.item.${i}`}
+                    onKeyDown={(e) => {
+                      if (somenteLeitura) return;
+                      const acao = acaoTecladoOfereceJunto(e, i, todos.length);
+                      if (!acao) return;
+                      e.preventDefault();
+                      if (acao.tipo === 'remover') remover();
+                      else mover(acao.para - i);
+                    }}
+                  >
+                    <span className="w-5 text-ink-2">{i + 1}.</span>
+                    <span className="flex-1">{rotulo}</span>
+                    {!somenteLeitura && (
+                      <>
+                        <button type="button" className={botao} disabled={i === 0} onClick={() => mover(-1)} aria-label={`Subir ${n.codigo}`} data-testid={`catalogo.cadastro.oferece-junto.subir.${i}`}>
+                          ↑
+                        </button>
+                        <button type="button" className={botao} disabled={i === todos.length - 1} onClick={() => mover(1)} aria-label={`Descer ${n.codigo}`} data-testid={`catalogo.cadastro.oferece-junto.descer.${i}`}>
+                          ↓
+                        </button>
+                        <button type="button" className={botao} onClick={remover} aria-label={`Tirar ${n.codigo}`} data-testid={`catalogo.cadastro.oferece-junto.tirar.${i}`}>
+                          Tirar
+                        </button>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            {listaOfereceJunto(form.ofereceJunto).length === 0 && <span className="font-normal text-ink-2">Nenhum produto na lista.</span>}
+            <p className="sr-only" role="status" aria-live="polite" data-testid="catalogo.cadastro.oferece-junto.anuncio">
+              {anuncio}
+            </p>
+            {!somenteLeitura && (
+              <div className="flex flex-col gap-1">
+                <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+                  Adicionar produto (código ou nome)
+                  <input
+                    className={campoTexto}
+                    value={buscaOferece}
+                    onChange={(e) => {
+                      setBuscaOferece(e.target.value);
+                      setErroOferece(null);
+                    }}
+                    data-testid="catalogo.cadastro.oferece-junto.busca"
+                  />
+                </label>
+                {sugestoes.length > 0 && (
+                  <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Produtos encontrados">
+                    {sugestoes.map((p) => (
+                      <li key={p.erp_code}>
+                        <button
+                          type="button"
+                          className="h-[38px] w-full rounded-[10px] border border-line bg-surface px-3 text-left text-[13px] text-ink"
+                          onClick={() => {
+                            const r = adicionarOfereceJunto(form.ofereceJunto, p.erp_code, LIMITES_CADASTRO_CATALOGO.ofereceJunto);
+                            setErroOferece(r.erro);
+                            if (!r.erro) {
+                              setForm({ ...form, ofereceJunto: r.texto });
+                              setBuscaOferece('');
+                              setAnuncio(`${p.erp_code} adicionado. ${listaOfereceJunto(r.texto).length} produtos na lista.`);
+                            }
+                          }}
+                          data-testid={`catalogo.cadastro.oferece-junto.adicionar.${p.erp_code}`}
+                        >
+                          {p.erp_code} · {p.description}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {buscaOferece.trim() !== '' && sugestoes.length === 0 && <span className="font-normal text-ink-2">Nenhum produto carregado combina. Filtre a lista de produtos acima e tente de novo.</span>}
+                {erroOferece && (
+                  <span className="font-normal text-danger" role="alert">
+                    {erroOferece}
+                  </span>
+                )}
+              </div>
+            )}
+          </fieldset>
           <fieldset className="flex flex-col gap-2" data-testid="catalogo.cadastro.referencias">
             <legend className="text-[12px] font-semibold text-ink-2">Referência cruzada (até {LIMITES_CADASTRO_CATALOGO.referencias}): marca concorrente e código</legend>
             {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Atualize a página e tente de novo.</Notice>}
-            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Cadastre as marcas em Cadastros → <a className="font-semibold underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">Marcas concorrentes</a> para usar a referência cruzada.</Notice>}
+            {!somenteLeitura && marcas.data && marcas.data.length === 0 && <Notice tone="info">Cadastre as marcas em Cadastros → <a className="font-semibold underline" href="/catalogo/marcas" data-testid="catalogo.cadastrar-marca">Marcas concorrentes</a> para usar a referência cruzada.</Notice>}
             {form.referencias.map((r, i) => (
               <div key={i} className="flex flex-wrap items-end gap-3">
-                <SelectField label={`Marca ${i + 1}`} value={r.marca_id} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, marca_id: e.target.value } : x)) })} data-testid={`catalogo.cadastro.marca.${i}`}>
+                <SelectField label={`Marca ${i + 1}`} disabled={somenteLeitura} value={r.marca_id} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, marca_id: e.target.value } : x)) })} data-testid={`catalogo.cadastro.marca.${i}`}>
                   <option value="">Sem marca</option>
                   {marcas.data?.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -299,18 +396,19 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
                 </SelectField>
                 <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
                   Código {i + 1}
-                  <input className={campoTexto} maxLength={LIMITES_CADASTRO_CATALOGO.codigo} value={r.codigo} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, codigo: e.target.value } : x)) })} data-testid={`catalogo.cadastro.codigo.${i}`} />
+                  <input className={campoTexto} readOnly={somenteLeitura} maxLength={LIMITES_CADASTRO_CATALOGO.codigo} value={r.codigo} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, codigo: e.target.value } : x)) })} data-testid={`catalogo.cadastro.codigo.${i}`} />
                 </label>
               </div>
             ))}
           </fieldset>
           <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
             Etiquetas (até {LIMITES_CADASTRO_CATALOGO.etiquetas})
-            <input className={campoTexto} value={form.etiquetas} onChange={(e) => setForm({ ...form, etiquetas: e.target.value })} data-testid="catalogo.cadastro.etiquetas" />
+            <input className={campoTexto} readOnly={somenteLeitura} value={form.etiquetas} onChange={(e) => setForm({ ...form, etiquetas: e.target.value })} data-testid="catalogo.cadastro.etiquetas" />
             <span className="font-normal text-ink-2">Separadas por vírgula, até {LIMITES_CADASTRO_CATALOGO.etiqueta} caracteres cada (ex.: Dianteira, Novo).</span>
           </label>
-          {(erro || salvar.isError) && <Notice tone="danger">{erro ?? errorMessage(salvar.error)}</Notice>}
+          {!somenteLeitura && (erro || salvar.isError) && <Notice tone="danger">{erro ?? errorMessage(salvar.error)}</Notice>}
           <div className="flex gap-2">
+            {!somenteLeitura && (
             <Button
               variant="primary"
               disabled={salvar.isPending}
@@ -322,7 +420,8 @@ function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine;
               }}>
               Salvar catálogo
             </Button>
-            <Button onClick={fechar}>Cancelar</Button>
+            )}
+            <Button onClick={fechar}>{somenteLeitura ? 'Fechar' : 'Cancelar'}</Button>
           </div>
         </>
       )}

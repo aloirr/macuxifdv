@@ -365,6 +365,18 @@ describe('BKO de conteúdo (RF-CAT-07, RN-CAT-04: analista e admin)', () => {
     expect((await chamar(rota('PUT', 'produtos/:id/destaque'), usuario('analista'), { params: { id: idDemo('x') }, corpo: { is_campaign: true } })).status).toBe(404);
   });
 
+  it('T-0119: as gravações que mudam o retrato avisam o fim da transação (aposGravar com o tenant, inclusive quando falha); a leitura não avisa', async () => {
+    const avisos: string[] = [];
+    const { rota } = montar({ aposGravar: (t) => avisos.push(t) });
+    const id = idProdutoDemo('FEI-1K');
+    await chamar(rota('GET', 'produtos/:id'), usuario('promotor'), { params: { id } });
+    expect(avisos).toEqual([]);
+    await chamar(rota('PUT', 'produtos/:id/destaque'), usuario('analista'), { params: { id }, corpo: { is_campaign: true } });
+    expect(avisos).toEqual([TENANT_A]);
+    await chamar(rota('PUT', 'produtos/:id/destaque'), usuario('analista'), { params: { id: idDemo('x') }, corpo: { is_campaign: true } }); // 404: a transação acabou do mesmo jeito
+    expect(avisos).toEqual([TENANT_A, TENANT_A]);
+  });
+
   it('RF-CAT-03: PUT produtos/:id/foto-principal registra o arquivo do produto (sem cliente), define a principal, audita e é idempotente; vendedor 403, produto inexistente 404', async () => {
     const { rota } = montar();
     const id = idProdutoDemo('CAF-500');
