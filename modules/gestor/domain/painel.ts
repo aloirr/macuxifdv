@@ -9,7 +9,8 @@ import { diasUteisDoPeriodo, localDate, type BusinessDays } from '@macuxi/comum'
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
 import { situacaoDaRota } from './agora';
 import { statusAtual, vendasApuradas } from './apuracao';
-import { arredondar, dividirCents, instanteMs, percentual, somarDias } from './numeros';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
+import { arredondar, dividirCents, instanteMs, percentual } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import type { EstadoProjecao, PedidoFato } from './projecao';
 
@@ -280,7 +281,7 @@ export function painelDoMes(estado: EstadoProjecao, vendedorId: string, data: st
   const mes = data.slice(0, 7);
   const primeiro = `${mes}-01`;
   const vendas = vendasDoPeriodo(estado, vendedorId, primeiro, data, params);
-  const ontem = data === primeiro ? null : vendasDoPeriodo(estado, vendedorId, primeiro, somarDias(data, -1), params);
+  const ontem = data === primeiro ? null : vendasDoPeriodo(estado, vendedorId, primeiro, somarDiasCivis(data, -1), params);
   const dias = diasUteisDoMes(mes, data, params);
   const meta = estado.metas[`${vendedorId}|${mes}`]?.meta_cents ?? null;
   const r = calcularMeta({

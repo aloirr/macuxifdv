@@ -24,3 +24,9 @@
 2026-11-08 — T-0124 — Gestor v1.0.1: dias úteis pelo calendário do Core (core.calendario_metas@1 + diasUteisDoPeriodo), apuração por emitido_em (G2), vendedor_nome na ficha; recados antigos encerrados
 2026-11-08 — T-0124 — Ficha do Gestor: feriados [] = so a semana (RN-CORE-26) e necessidade diaria arredondada para cima, alinhado ao Core; testes do domain revistos
 2026-11-09 — R-20261108-220117 — necessidadeDiaria do Core no painel.ts, comentário do calendário alinhado à RN-CORE-26, 5 pedidos antigos encerrados
+2026-11-09 — T-0131 (RD-0034) — feriados do Gestor: removida a cópia provisória (feriados.ts e teste); RN-GES-03 usa feriadosNacionais do @macuxi/comum (Carnaval, Corpus Christi, 20/11 desde 2024); gestor 422 testes verdes e tests/modulos/feriados-gestor-comum-rnges03 verde
+2026-11-08 — T-0102 — AvisoEtapaEquipe registrado no slot cliente.avisos (teste), accentInk em Decidir/Em rota; histórico em tags não se aplica ao Gestor (detalhe do pedido é do Vendedor)
+2026-11-09 — T-0140 — RD-0034: ehDataCivil/somarDias do Gestor trocados por @macuxi/comum; testes verdes
+2026-11-09 — T-0140 — RD-0045 aguardando fonte única arredondar/percentual no @macuxi/comum (não existe ainda); nada alterado
+2026-11-09 — T-0140 — Data impossível (2026-02-30) nas rotas equipe, Ficha e ranking agora responde 422 DATA_INVALIDA em português (dataDoUsuario com exigirDataCivil na entrada, antes do banco); teste unitário em api/rotas.test.ts
+2026-11-09 — T-0140 — RD-0045: arredondar e percentual reexportados do @macuxi/comum; teste duplicado removido

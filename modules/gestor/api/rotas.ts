@@ -7,6 +7,7 @@
  */
 import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { exigirDataCivil } from '@macuxi/comum';
 import type { z } from 'zod';
 import manifest from '../manifest';
 import {
@@ -108,6 +109,16 @@ type Executar<T> = (g: ContextoGestor, ctx: ContextoBase) => Promise<T>;
 const comGestor = <T>(ctx: ContextoBase, repo: RepositorioGestor, fn: Executar<T>): Promise<T> =>
   ctx.comTenant(async (db, tx) => fn(await carregarContexto(ctx, repo, db, tx), ctx));
 
+/** Data do usuário (`?data=`): o contrato só confere o formato; "2026-02-30" não existe e vira 422 em português, não 500. */
+export function dataDoUsuario(data: string | undefined): string | undefined {
+  if (data === undefined) return undefined;
+  try {
+    return exigirDataCivil(data);
+  } catch {
+    throw new ErroRegraNegocio('DATA_INVALIDA', `A data ${data} não existe no calendário. Informe uma data válida no formato AAAA-MM-DD.`);
+  }
+}
+
 const base = (g: ContextoGestor, data?: string) => ({
   estado: g.estado,
   membros: g.membros,
@@ -138,7 +149,10 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     perfis: PERFIS_LEITURA,
     carteira: 'filtrar_no_dominio',
     query: DataQuery,
-    executar: (ctx) => comGestor(ctx, repo, async (g): Promise<VisaoEquipe> => visaoDaEquipe(base(g, (ctx.query as DataQuery).data))),
+    executar: (ctx) => {
+      const data = dataDoUsuario((ctx.query as DataQuery).data);
+      return comGestor(ctx, repo, async (g): Promise<VisaoEquipe> => visaoDaEquipe(base(g, data)));
+    },
   };
 
   /** GET /v1/gestor/equipe/:usuario_id?data= — RF-GES-02/10: ficha; fora do escopo = 404 (não revela). */
@@ -149,12 +163,14 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     carteira: 'filtrar_no_dominio',
     params: ParamsUsuario,
     query: DataQuery,
-    executar: (ctx) =>
-      comGestor(ctx, repo, async (g): Promise<FichaMembro> => {
-        const f = fichaDoMembro({ ...base(g, (ctx.query as DataQuery).data), usuario_id: (ctx.params as z.infer<typeof ParamsUsuario>).usuario_id });
+    executar: (ctx) => {
+      const data = dataDoUsuario((ctx.query as DataQuery).data);
+      return comGestor(ctx, repo, async (g): Promise<FichaMembro> => {
+        const f = fichaDoMembro({ ...base(g, data), usuario_id: (ctx.params as z.infer<typeof ParamsUsuario>).usuario_id });
         if (!f) throw new ErroNaoEncontrado('MEMBRO_NAO_ENCONTRADO', 'Pessoa não encontrada na sua equipe.');
         return f;
-      }),
+      });
+    },
   };
 
   /** GET /v1/gestor/ranking?indicador=&periodo=&data= — RF-GES-03 (desempate total no domain). */
@@ -164,12 +180,14 @@ export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
     perfis: PERFIS_LEITURA,
     carteira: 'filtrar_no_dominio',
     query: RankingQuery,
-    executar: (ctx) =>
-      comGestor(ctx, repo, async (g): Promise<RankingEquipe> => {
-        const q = ctx.query as RankingQuery;
-        const b = base(g, q.data);
+    executar: (ctx) => {
+      const q = ctx.query as RankingQuery;
+      const data = dataDoUsuario(q.data);
+      return comGestor(ctx, repo, async (g): Promise<RankingEquipe> => {
+        const b = base(g, data);
         return rankingDaEquipe({ estado: g.estado, membros: equipeDoEscopo(g), viewer: g.viewer, indicador: q.indicador, periodo: q.periodo, data_ref: b.data, modulos: g.modulos, params: g.params, agora: g.agora });
-      }),
+      });
+    },
   };
 
   /** GET /v1/gestor/aprovacoes — RF-GES-04, RN-GES-03/04/07: fila com prazo em dias úteis; quem decide é o Vendedor. */

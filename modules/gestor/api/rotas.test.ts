@@ -22,6 +22,7 @@ import manifest from '../manifest';
 import { FichaMembro, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, VisaoEquipe } from '../contracts';
 import { CLIENTE_A, checkin, GERENTE, pedidoCriado, PROMOTOR, statusAlterado, SUPERVISOR, u, VENDEDOR, VENDEDOR_2 } from '../domain/fixtures';
 import type { EventoRecebido } from '../domain';
+import { dataDoUsuario } from './rotas';
 import apiGestor, { criarApiGestor, criarRepositorioEmMemoria, PERFIS_LEITURA } from './index';
 
 const TENANT = u(9001);
@@ -290,5 +291,18 @@ describe('API do Gestor: fluxo de ponta a ponta com eventos (RF-GES-01..07)', ()
     await c.publicar(dia);
     await c.publicar(dia);
     expect(VisaoEquipe.parse(await c.chamar('GET', 'equipe', SUPERVISOR)).resumo.vendas_cents).toBe(50_000);
+  });
+});
+
+describe('T-0140: data impossível na entrada das rotas (D-T0140-L03a)', () => {
+  it('RN-GES-01: data inexistente (2026-02-30, 2026-13-01) vira 422 DATA_INVALIDA em português, não 500', () => {
+    for (const d of ['2026-02-30', '2026-13-01']) {
+      expect(() => dataDoUsuario(d)).toThrowError(expect.objectContaining({ status: 422, codigo: 'DATA_INVALIDA', message: expect.stringContaining('não existe') }));
+    }
+  });
+  it('RN-GES-01: data válida e ausente passam sem mudança', () => {
+    expect(dataDoUsuario('2026-02-28')).toBe('2026-02-28');
+    expect(dataDoUsuario('2028-02-29')).toBe('2028-02-29');
+    expect(dataDoUsuario(undefined)).toBeUndefined();
   });
 });
