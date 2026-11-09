@@ -35,9 +35,9 @@ A sessão principal roda como **`gerente-projetos`** (definido em `.claude/setti
 **Cada agente altera só os próprios caminhos (`.coord/donos.json`) e fala com os outros por recados** (`.coord/recados/`, skill `protocolo-recados`). O guardião (`.claude/hooks/guarda-donos.mjs`) bloqueia o resto. Para trabalhar sem o guardião (uso manual): variável `MACUXI_GUARDA=off`.
 Skills: `/status`, `/feature <RF ou descrição>`, `/entrega`.
 **Esteira permanente** (R-20261107-164646, até o Alexandre mandar parar): tudo o que ele pede, e tudo o que é preciso para entregar, entra na esteira e segue em execução. **Backlog só com a autorização escrita dele**, num recado ou no chat com a palavra "backlog". **Nenhum agente ocioso**: as **7 vagas locais** (dono do produto, 07/11 22h35; antes 8, 6 e 4) ficam sempre ocupadas e, sem trabalho local que não colida, o gerente abre frentes na nuvem em caminhos exclusivos. Prioridade: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. Os detalhes estão no doc 07, seções 4 e 5; a 5 traz o nome e a versão dos builds.
-**Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h; ADR 0035, T-0139): o repositório `aloirr/macuxifdv-recados` é a fonte única dos recados. Todo recado vai para lá:
-- **No PC:** `.coord/recados` e `.coord/lidos` são junções para o clone `C:\macuxifdv-recados`, sincronizado a cada 2 min pelo Agendador e no início e no fim de cada sessão.
-- **Dono do produto:** escreve pelo formulário de issue e recebe aviso no Telegram.
+**Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h e 09/11/2026; ADR 0035 e ADR 0039, T-0139 e T-0143): o repositório `aloirr/macuxifdv-recados` é a fonte única dos recados. Todo recado vai para lá:
+- **Direto no GitHub:** `node scripts/coord.mjs` grava (`enviar`, `lido`) e lê (`caixa`, `pendencias`, `ler`, `fio`) direto no repositório de recados, pela API do GitHub (token do `gh` ou `MACUXI_RECADOS_TOKEN`). Não há recado local, junção, clone nem Agendador. "Enviado" só aparece com o commit confirmado; sem rede, o recado não é gravado e o comando avisa.
+- **Dono do produto:** escreve pelo formulário de issue ou pela ponte. O Telegram está no backlog (R-20261109-125750).
 - **Leitura:** cada agente confere a própria caixa no início de cada tarefa; o gerente confere as caixas a cada 5 min e cobra os recados não lidos.
 - **Commits:** recados e lidos não entram mais nos commits do repositório de código.
 

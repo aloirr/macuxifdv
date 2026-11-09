@@ -180,15 +180,14 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Prioridade**: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. O que não colide roda em paralelo.
 - **Chat vira recado**: tudo o que o dono do produto disser no chat com o gerente é gravado como recado `aviso` para `todos`, com o texto literal.
 
-**Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h; ADR 0035, T-0139)
-- **Fonte única:** o repositório privado `aloirr/macuxifdv-recados`, com `recados/<destino>/R-*.md` e `lidos/<agente>.txt` (`merge=union`). O `coord.mjs` continua igual: no PC, `.coord/recados` e `.coord/lidos` são junções para o clone `C:\macuxifdv-recados`.
-- **Sincronização:** o `scripts/sincronizar-recados.ps1` faz commit, `pull --rebase` e push. Roda a cada 2 min pelo Agendador e no início e no fim de cada sessão, pelo hook. Nunca apaga recado nem grava segredo.
+**Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h e 09/11/2026; ADR 0035 e ADR 0039, T-0139 e T-0143)
+- **Fonte única:** o repositório privado `aloirr/macuxifdv-recados`, com `recados/<destino>/R-*.md` e `lidos/<agente>.txt`.
+- **Direto no GitHub (T-0143, desde 09/11 ~19h30):** o `coord.mjs` grava `enviar` e `lido` com um commit pela API do GitHub (`createCommitOnBranch` com `expectedHeadOid`; em conflito relê e tenta de novo) e lê `caixa`, `pendencias`, `ler` e `fio` do `main` na hora, com cópia local por commit. "Enviado" só aparece com o commit confirmado; sem rede, nada é gravado e o comando avisa. Token: `MACUXI_RECADOS_TOKEN` (fine-grained, só Contents do repositório de recados; no PC e nas variáveis da nuvem) ou o do `gh` logado; nunca em arquivo ou log. A guarda de merge lê a autorização sempre do GitHub.
+- **Acabou:** junção `.coord/recados`/`.coord/lidos`, clone `C:\macuxifdv-recados` (arquivado em `C:\macuxifdv-recados-arquivo-20261109`), Agendador e hook de sincronização. Volta: `MACUXI_RECADOS=local` + clone + junções (ADR 0039) ou `git revert` do f25bbe88.
 - **Conferência:** cada agente roda `node scripts/coord.mjs caixa <agente>` no início de cada tarefa. O gerente confere as caixas a cada 5 min e cobra recado não lido.
-- **Dono do produto:**
-  - escreve pelo formulário de issue "Recado", no celular;
-  - recebe aviso no Telegram de todo recado para ele e um resumo de hora em hora;
-  - responde pelo Telegram no intervalo que escolher, porque esse intervalo pesa nos minutos de Actions (ADR 0035 §8).
-- **Código:** recados e lidos ficam fora dos commits do repositório de código. Depois do corte, as duas pastas entram no `.gitignore`.
+- **Dono do produto:** escreve pelo formulário de issue "Recado" ou pela ponte; toda rodada de recados dele termina com um aviso ao gerente para ler. Telegram (aviso, resumo e resposta) no **backlog sem data** (R-20261109-125750).
+- **Código:** recados e lidos ficam fora dos commits do repositório de código (`/.coord/recados` e `/.coord/lidos` no `.gitignore`).
+- **Status diário:** recado do gerente ao dono do produto às 18h, com o percentual de cada dia do cronograma (doc 05) e o risco para a entrega.
 
 **5. Nome e versão dos builds** (dono do produto, R-20261107-151653)
 - **Nome no Expo** (`eas build --message`), nos recados e no WhatsApp:

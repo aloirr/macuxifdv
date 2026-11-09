@@ -2,7 +2,19 @@
 
 O **gerente-projetos** abre as tarefas no quadro, distribui aos agentes e fecha cada sprint com `/entrega`. As "2 semanas por sprint" foram substituídas pelas datas-alvo abaixo.
 
-## Prazo final: app completo em sex 06/11/2026 (decisão do Alexandre, R-20261101-214812)
+## Cronograma até a v1.0.5 oficial e a produção (decisão do Alexandre, R-20261109-125750; ajustado pelo gerente em 09/11 à noite)
+Regras: um build por dia, todos com o CI verde; correção do reteste do Alexandre tem vaga fixa; o que não couber no dia vira recado ao Alexandre com proposta de corte no mesmo dia; **recado diário às 18h** com o percentual de cada dia e o risco para sexta e sábado. Telegram (aviso, resumo e resposta) está no **backlog sem data** (autorizado no mesmo recado). A busca de 20 mil (T-0119) não bloqueia, desde que o app não trave.
+
+| Dia | Entrega | O que o gerente precisa do Alexandre |
+|---|---|---|
+| **Seg 09/11** | Lote 03 (T-0140) + T-0141 + T-0142 + **T-0117 e T-0098 adiantadas** no main (7c9dafe8, c127335f); T-0143 recados direto no GitHub → **build v1.0.2** (espera a demo publicar: GHCR recusou com 403) | Liberar o espaço/acesso de pacotes do GitHub (GHCR) para a demo publicar |
+| **Ter 10/11** | Reteste da v1.0.2 e correções; 7 🟡 de UX da T-0141 e aviso F.4; PDF do BKO com a data do preço; RD médios/baixos do lote 03; T-0112 (multiperfil); T-0091 (super-admin em papel próprio) → **v1.0.3** | Reteste da v1.0.2 de manhã |
+| **Qua 11/11** | Robustez para a produção: T-0078 (segurança e LGPD), T-0107 (carga de 20 mil e onboarding de tenant), conferência de T-0095 e T-0118 (já no main desde o lote 01), app sem travar com 20 mil SKUs (T-0119, critério "lento, nunca travado", demonstrado no aparelho) → **v1.0.4** | Criar até **qua 18h** os recursos da produção para o ensaio: VM/banco na Magalu, Brevo (e-mail), domínio/DNS e os secrets do ambiente de produção no GitHub |
+| **Qui 12/11** | **Congelamento: só correção.** Ensaio da produção (publicar, criar tenant, carga inicial, restauração do backup) nos recursos criados | Reteste da v1.0.4 |
+| **Sex 13/11** | **v1.0.5 oficial** (Campo-Oficial / Gestao-Oficial, perfil de produção) e início da migração para a produção | Ok da v1.0.5 |
+| **Sáb 14/11** | **Produção finalizada:** deploy, tenant, carga inicial, conferência de ponta a ponta e APKs oficiais distribuídos | Dados do tenant real (empresa, usuários iniciais) e acesso ao ERP/Conector do cliente |
+
+## Prazo final (histórico): app completo em sex 06/11/2026 (decisão do Alexandre, R-20261101-214812)
 | Data | Fecha |
 |---|---|
 | seg 02/11 | **Sprint 2 — Integração**: T-0032 (rotas e banco do Hub), monitor básico no BKO, carga por arquivo mínima; ciclo com ERP simulado (carga inicial + delta + reconciliação) |
