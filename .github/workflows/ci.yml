@@ -81,9 +81,9 @@ jobs:
           DEPOIS: ${{ github.sha }}
         run: node scripts/ci/escopo.mjs
 
-      - name: testes do coord (verificar)
+      - name: testes do coord (verificar e recados no GitHub)
         if: ${{ !cancelled() }}
-        run: node --test scripts/coord-verificar.test.mjs
+        run: node --test scripts/coord-verificar.test.mjs scripts/coord-recados.test.mjs
 
       # Testes de TODOS os guardiões (.claude/hooks/*.test.mjs). O glob é expandido pelo bash do runner.
       - name: testes dos guardiões (.claude/hooks)

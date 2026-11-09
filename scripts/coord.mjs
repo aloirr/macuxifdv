@@ -6,6 +6,10 @@
 //        [--responde-a <id>] [--encerra] [--contrato modulo.entidade.fato@1]
 //        --de alexandre só na sessão do Alexandre: MACUXI_AGENTE=alexandre ou terminal fora do Claude
 //        Code (sem CLAUDECODE); com MACUXI_AGENTE=<agente>, o --de tem de ser esse agente (v5, T-0044).
+//        Recados no GitHub (T-0143, ADR 0039): com a marca da ADR 0035 no .gitignore, enviar e lido gravam direto
+//        no aloirr/macuxifdv-recados (um commit por envio; "enviado" só depois de o GitHub confirmar) e caixa,
+//        pendencias, ler e fio leem o main do GitHub na hora (cache local por commit). Token: MACUXI_RECADOS_TOKEN,
+//        GH_TOKEN, GITHUB_TOKEN ou gh auth token. MACUXI_RECADOS=local volta às pastas .coord/recados e .coord/lidos.
 //   node scripts/coord.mjs caixa <agente>           recados abertos/não lidos do agente
 //   node scripts/coord.mjs lido <agente> <id> [...]  marca avisos/entregas/respostas como lidos
 //   node scripts/coord.mjs ler <id>                 mostra um recado
@@ -55,6 +59,8 @@ import {
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
+  modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
+  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -101,20 +107,42 @@ function parse(txt) {
   return { meta, corpo: m[2] };
 }
 
+/** Recados do disco (modo local): [{destino, texto}] de .coord/recados/<destino>/*.md. */
+function* recadosDoDisco() {
+  if (!existsSync(PASTA)) return;
+  for (const destino of readdirSync(PASTA)) {
+    let arqs = [];
+    try { arqs = readdirSync(join(PASTA, destino)).filter((f) => f.endsWith('.md')); } catch { continue; }
+    for (const f of arqs) yield { destino, texto: readFileSync(join(PASTA, destino, f), 'utf8') };
+  }
+}
+
+// Fonte dos recados (T-0143, ADR 0039): o main do GitHub (padrão com a marca no .gitignore) ou o disco (local).
+const MODO = modoDosRecados();
+let conexao = null;
+let indice = null;
+const github = () => (conexao ||= conexaoDeRecados());
+function indiceDoGitHub() {
+  if (indice) return indice;
+  try {
+    indice = atualizarIndiceDeRecados(github());
+  } catch (e) {
+    if (e instanceof ErroRecados) falhar(`sem acesso aos recados no GitHub: ${e.message}`);
+    throw e;
+  }
+  if (!indice.online) console.log(`Atenção: ${indice.aviso}\n`);
+  return indice;
+}
+
 function todosRecados() {
   const vistos = new Map();
-  if (!existsSync(PASTA)) return [];
-  for (const dest of readdirSync(PASTA)) {
-    const dir = join(PASTA, dest);
-    let arqs = [];
-    try { arqs = readdirSync(dir).filter((f) => f.endsWith('.md')); } catch { continue; }
-    for (const f of arqs) {
-      const r = parse(readFileSync(join(dir, f), 'utf8'));
-      if (!r || !r.meta.id) continue;
-      const atual = vistos.get(r.meta.id) || { ...r, pastas: [] };
-      atual.pastas.push(dest);
-      vistos.set(r.meta.id, atual);
-    }
+  const entradas = MODO === 'github' ? recadosDoIndice(indiceDoGitHub()) : recadosDoDisco();
+  for (const { destino, texto } of entradas) {
+    const r = parse(texto);
+    if (!r || !r.meta.id) continue;
+    const atual = vistos.get(r.meta.id) || { ...r, texto, pastas: [] };
+    atual.pastas.push(destino);
+    vistos.set(r.meta.id, atual);
   }
   return [...vistos.values()].sort((a, b) => String(a.meta.criado_em).localeCompare(String(b.meta.criado_em)));
 }
@@ -126,7 +154,8 @@ function encerrados(recs) {
 }
 function lidosDe(agente) {
   const arq = join(RAIZ, '.coord', 'lidos', `${agente}.txt`);
-  return existsSync(arq) ? new Set(readFileSync(arq, 'utf8').split(/\r?\n/).filter(Boolean)) : new Set();
+  const texto = MODO === 'github' ? lidosDoIndice(indiceDoGitHub(), agente) : existsSync(arq) ? readFileSync(arq, 'utf8') : '';
+  return new Set(texto.split(/\r?\n/).filter(Boolean));
 }
 const titulo = (r) => (r.corpo.match(/^#\s+(.+)$/m) || [null, '(sem assunto)'])[1];
 const idade = (r) => {
@@ -518,7 +547,7 @@ switch (cmd) {
     if (!TIPOS.includes(tipo)) falhar(`--tipo inválido. Use: ${TIPOS.join(', ')}`);
     if (!o.assunto || o.assunto === true) falhar('informe --assunto');
     const prioridade = ['alta', 'normal', 'baixa'].includes(o.prioridade) ? o.prioridade : 'normal';
-    if (o['responde-a']) {
+    if (o['responde-a'] && MODO === 'local') { // no GitHub, a conferência vai junto com o envio, contra o mesmo commit
       const ids = new Set(todosRecados().map((r) => r.meta.id));
       if (!ids.has(o['responde-a'])) falhar(`--responde-a: recado ${o['responde-a']} não encontrado`);
     }
@@ -532,10 +561,12 @@ switch (cmd) {
         : `${o.corpo}\n`;
     } else corpo = '## Contexto\n\n## O que preciso / o que mudou\n\n## Pronto quando\n';
     const t = agoraLocal();
-    let id = `R-${t.compacto}-${de}`;
-    const existentes = new Set(todosRecados().map((r) => r.meta.id));
-    for (let n = 2; existentes.has(id); n++) id = `R-${t.compacto}-${n}-${de}`;
-    const conteudo = [
+    const gerarId = (existentes) => {
+      let novo = `R-${t.compacto}-${de}`;
+      for (let n = 2; existentes.has(novo); n++) novo = `R-${t.compacto}-${n}-${de}`;
+      return novo;
+    };
+    const montar = (id) => [
       '---',
       `id: ${id}`,
       `de: ${de}`,
@@ -553,8 +584,31 @@ switch (cmd) {
       '',
       corpo,
     ].join('\n');
+    const destinos = [...new Set([...para, ...cc])];
+    const enviadoPara = [...para, ...cc.map((c) => c + ' (cc)')].join(', ');
+    if (MODO === 'github') {
+      if (AGENTES.includes(de)) {
+        const id0 = gerarId(new Set());
+        for (const d of destinos) {
+          const r = regraDoRecadoNovo({ agente: de, destino: d, arquivo: `${id0}.md`, conteudo: montar(id0) });
+          if (!r.ok) falhar(r.motivo);
+        }
+      }
+      let r;
+      try {
+        r = enviarRecadoNoGitHub({ ...github(), de, destinos, gerarId, montar, respondeA: o['responde-a'] || null });
+      } catch (e) {
+        if (!(e instanceof ErroRecados)) throw e;
+        falhar(/^--responde-a|NÃO/.test(e.message) ? e.message : `recado NÃO enviado (nada foi gravado): ${e.message}`);
+      }
+      console.log(`Recado ${r.id} enviado para ${enviadoPara} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''})`);
+      break;
+    }
+    const existentes = new Set(todosRecados().map((r) => r.meta.id));
+    const id = gerarId(existentes);
+    const conteudo = montar(id);
     const regras = carregarDonos();
-    for (const d of new Set([...para, ...cc])) {
+    for (const d of destinos) {
       const dir = join(PASTA, d);
       mkdirSync(dir, { recursive: true });
       const rel = `.coord/recados/${d}/${id}.md`;
@@ -564,7 +618,7 @@ switch (cmd) {
       }
       writeFileSync(join(RAIZ, rel), conteudo, 'utf8');
     }
-    console.log(`Recado ${id} enviado para ${[...para, ...cc.map((c) => c + ' (cc)')].join(', ')}`);
+    console.log(`Recado ${id} enviado para ${enviadoPara}`);
     break;
   }
 
@@ -586,6 +640,20 @@ switch (cmd) {
   case 'lido': {
     const [agente, ...ids] = resto;
     if (!DESTINOS.includes(agente) || !ids.length) falhar('uso: lido <agente> <id> [...]');
+    if (MODO === 'github') {
+      let r;
+      try {
+        r = marcarLidosNoGitHub({ cliente: github().cliente, agente, ids });
+      } catch (e) {
+        if (!(e instanceof ErroRecados)) throw e;
+        falhar(/NÃO/.test(e.message) ? e.message : `NÃO marcado (nada foi gravado): ${e.message}`);
+      }
+      const ja = ids.length - r.novos.length;
+      console.log(r.commit
+        ? `${r.novos.length} recado(s) marcado(s) como lido(s) por ${agente}${ja ? ` (${ja} já estava(m))` : ''} (GitHub ${github().cliente.repo}@${String(r.commit.oid).slice(0, 7)}${r.conferido ? ', confirmado na conferência' : ''}).`
+        : `${ids.length} recado(s) já estava(m) marcado(s) como lido(s) por ${agente}.`);
+      break;
+    }
     const dir = join(RAIZ, '.coord', 'lidos');
     mkdirSync(dir, { recursive: true });
     appendFileSync(join(dir, `${agente}.txt`), ids.map((i) => i + '\n').join(''), 'utf8');
@@ -596,7 +664,7 @@ switch (cmd) {
   case 'ler': {
     const r = todosRecados().find((x) => x.meta.id === resto[0]);
     if (!r) falhar('recado não encontrado');
-    console.log(readFileSync(join(PASTA, r.pastas[0], `${r.meta.id}.md`), 'utf8'));
+    console.log(r.texto);
     break;
   }
 

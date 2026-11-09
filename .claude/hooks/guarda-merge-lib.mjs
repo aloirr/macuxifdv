@@ -27,7 +27,10 @@ import { execFileSync } from 'node:child_process';
 import {
   tokenizar, comandosSimples, alvosDoComando, SO_LEITURA, COORD_SO_LEITURA, PACOTES_SO_LEITURA, DESCARTE,
 } from './guarda-bash-lib.mjs';
-import { AGENTES, PESSOAS, CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado } from '../../scripts/coord-lib.mjs';
+import {
+  AGENTES, PESSOAS, CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado, modoDosRecados, conexaoDeRecados,
+  recadosDaPastaNoGitHub,
+} from '../../scripts/coord-lib.mjs';
 
 export const REPO_OFICIAL = 'aloirr/macuxifdv';
 export const AGENTE_DO_MERGE = 'gerente-projetos';
@@ -551,8 +554,17 @@ export function consultarPrGh(pr, { env = process.env, timeout = 20000, platafor
   } catch { return { ok: false, erro: 'resposta do gh não é JSON' }; }
 }
 
-/** Recados da caixa do gerente (nome + texto); pasta ilegível = nenhum. */
-export function lerRecadosDoGerente(raiz) {
+/**
+ * Recados da caixa do gerente (nome + texto); pasta ilegível = nenhum. Com os recados no GitHub (T-0143, ADR 0039),
+ * a lista vem direto do main do GitHub, nunca do cache local (que um agente poderia adulterar), e só os recados do
+ * Alexandre (R-...-alexandre.md) são baixados. Sem GitHub: nenhum (sem autorização, o merge não passa).
+ */
+export function lerRecadosDoGerente(raiz, { env = process.env, conexao = () => conexaoDeRecados({ env }) } = {}) {
+  if (modoDosRecados({ raiz, env }) === 'github') {
+    try {
+      return recadosDaPastaNoGitHub({ ...conexao(), pasta: AGENTE_DO_MERGE, filtro: (nome) => remetenteDoRecado(nome) === 'alexandre' });
+    } catch { return []; }
+  }
   const pasta = join(raiz, ...PASTA_AUTORIZACOES.split('/'));
   let nomes = [];
   try { nomes = readdirSync(pasta).filter((n) => /\.md$/i.test(n)); } catch { return []; }

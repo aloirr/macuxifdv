@@ -5,7 +5,8 @@ import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSyn
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
+import { Worker, MessageChannel, receiveMessageOnPort } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 
 export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -181,7 +182,10 @@ export function donoDe(rel, regras) {
  * Decide se o agente pode alterar o arquivo.
  * @returns {{ok: boolean, motivo?: string, dono?: string}}
  */
-export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo }) {
+export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo, env = process.env }) {
+  // T-0143 (ADR 0039): com os recados no GitHub, nada se grava em .coord/recados nem em .coord/lidos no disco (o
+  // arquivo ficaria fora do repositório de recados e se perderia). enviar e lido vão direto ao GitHub pelo coord.mjs.
+  if (ehDePastaDeRecados(rel) && modoDosRecados({ raiz, env }) === 'github') return { ok: false, motivo: MOTIVO_RECADOS_NO_GITHUB };
   // Anexo de recado (.coord/recados/anexos/**) não é recado: segue a regra comum, com o dono do
   // donos.json (alexandre). Só ele cria e altera; para os outros vale "arquivo de outro dono".
   const anexo = ehAnexoDeRecado(rel);
@@ -195,12 +199,7 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
     if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
     if (ferramenta !== 'Write' || existsSync(join(raiz, rel)))
       return { ok: false, motivo: 'recados são imutáveis: responda com um recado novo (node scripts/coord.mjs enviar --responde-a <id>)' };
-    if (remetenteDoRecado(arquivo) !== agente)
-      return { ok: false, motivo: `o nome do recado precisa terminar com o remetente (R-...-${agente}.md). Use node scripts/coord.mjs enviar` };
-    const de = remetenteDoConteudo(conteudo);
-    if (de !== null && de !== agente)
-      return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
-    return { ok: true };
+    return regraDoRecadoNovo({ agente, destino, arquivo, conteudo });
   }
   if (!anexo && rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
 
@@ -226,6 +225,21 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
           ? 'caminho sem dono em .coord/donos.json: mande recado ao gerente-projetos'
           : `deixe um recado: node scripts/coord.mjs enviar --de ${agente} --para ${dono} --tipo pedido --assunto "..." --corpo "..."`;
   return { ok: false, dono, motivo: `"${rel}" pertence a ${dono}. ${dica}` };
+}
+
+/**
+ * Regras do recado novo (guardião v5, T-0044), sem olhar o disco: destino válido, nome terminando com o remetente
+ * (R-...-<agente>.md) e, com o conteúdo, "de: <agente>" no cabeçalho. Usada pelo podeAlterar e pelo envio ao GitHub.
+ * @returns {{ok: boolean, motivo?: string}}
+ */
+export function regraDoRecadoNovo({ agente, destino, arquivo, conteudo }) {
+  if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
+  if (remetenteDoRecado(arquivo) !== agente)
+    return { ok: false, motivo: `o nome do recado precisa terminar com o remetente (R-...-${agente}.md). Use node scripts/coord.mjs enviar` };
+  const de = remetenteDoConteudo(conteudo);
+  if (de !== null && de !== agente)
+    return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
+  return { ok: true };
 }
 
 /**
@@ -692,4 +706,491 @@ export function agenteDaSessao({ argumento, entrada, env = process.env, raiz = R
     argumento, entrada, env, agentePadrao: agentePadraoDaConfig(raiz),
     branch: () => branchAtual(raiz), commitsDoBranch: () => commitsDoBranch(raiz),
   });
+}
+
+// ───────────────────── recados direto no GitHub (T-0143, ADR 0039) ─────────────────────
+// enviar e lido gravam direto no aloirr/macuxifdv-recados pela API do GitHub; caixa, pendencias, ler e fio leem o
+// main do GitHub na hora. Sem clone, junção, Agendador nem sincronização. Sem dependências: o HTTP roda num processo
+// filho do próprio Node (fetch), chamado de forma síncrona, para o coord.mjs e os guardiões continuarem síncronos.
+// - Escrita: um commit por envio, pela mutação GraphQL createCommitOnBranch com expectedHeadOid (concorrência
+//   otimista). Se outro agente gravou antes, o GitHub recusa; o coord relê e tenta de novo. O commit é atômico (todos
+//   os destinos ou nenhum) e nunca sobrescreve: o id é escolhido contra a árvore daquele mesmo commit.
+// - Leitura: índice local (cache fora do repositório) por commit. A cada leitura, compara o commit do cache com o main
+//   (REST compare) e baixa só os arquivos novos (GraphQL, 100 por consulta). Os textos do cache são conferidos pelo
+//   hash do git; a lista que autoriza merge (guarda-merge) vem sempre direto do GitHub.
+// - Token só do ambiente: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN ou `gh auth token`. Nunca vai para arquivo,
+//   argumento de processo ou log (vai ao processo filho pelo stdin).
+
+export const REPO_RECADOS = 'aloirr/macuxifdv-recados';
+export const BRANCH_RECADOS = 'main';
+export const API_GITHUB = 'https://api.github.com';
+export const MOTIVO_RECADOS_NO_GITHUB = 'os recados e os lidos ficam direto no GitHub (aloirr/macuxifdv-recados, ADR 0039): use node scripts/coord.mjs enviar ou lido; nada se grava em .coord/recados nem em .coord/lidos no disco';
+
+/**
+ * Onde estão os recados: 'github' (padrão quando o .gitignore tem a marca da ADR 0035) ou 'local' (pastas
+ * .coord/recados e .coord/lidos no disco: antes do corte, testes e plano de volta). MACUXI_RECADOS=local|github força.
+ */
+export function modoDosRecados({ raiz = RAIZ, env = process.env } = {}) {
+  const forcado = String(env.MACUXI_RECADOS || '').trim().toLowerCase();
+  if (forcado === 'local' || forcado === 'github') return forcado;
+  let gitignore = '';
+  try { gitignore = readFileSync(join(raiz, '.gitignore'), 'utf8'); } catch { /* sem .gitignore: local */ }
+  return recadosForaDoRepo(gitignore) ? 'github' : 'local';
+}
+
+export class ErroRecados extends Error {
+  /** @param {string} mensagem @param {{rede?: boolean}} [o] rede = o GitHub não respondeu (vale a cópia local na leitura) */
+  constructor(mensagem, { rede = false } = {}) { super(mensagem); this.name = 'ErroRecados'; this.rede = rede; }
+}
+
+/** Hash do git de um blob (sha1 de "blob <bytes>\0<conteúdo>"): confere o cache e reconhece o próprio envio. */
+export function shaDoBlob(conteudo) {
+  const b = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(String(conteudo), 'utf8');
+  return createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
+}
+
+/** Arquivos que o coord lê no repositório de recados: recados/<destino>/<id>.md (sem anexos) e lidos/<agente>.txt. */
+export const ehArquivoDoIndice = (p) => /^recados\/(?!anexos\/)[^/]+\/[^/]+\.md$/i.test(p) || /^lidos\/[^/]+\.txt$/i.test(p);
+
+const SEM_TOKEN = 'sem token do GitHub: no PC, entre no gh (gh auth login); na nuvem e no CI, defina MACUXI_RECADOS_TOKEN (token fine-grained só com Contents: read and write no aloirr/macuxifdv-recados)';
+
+/** Token do ambiente, nesta ordem: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN, `gh auth token`. Nunca é impresso. */
+export function tokenDoAmbiente({ env = process.env, gh = ghAuthToken } = {}) {
+  for (const k of ['MACUXI_RECADOS_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']) {
+    const v = String(env[k] || '').trim();
+    if (v) return { token: v, origem: k };
+  }
+  const t = String(gh() || '').trim();
+  return t ? { token: t, origem: 'gh auth token' } : null;
+}
+function ghAuthToken() {
+  try {
+    return execFileSync('gh', ['auth', 'token', '--hostname', 'github.com'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, windowsHide: true });
+  } catch { return ''; }
+}
+
+// HTTP síncrono (fetch em paralelo, fora da thread principal). O núcleo recebe {token, reqs} e devolve
+// [{status, texto} | {rede}]. O erro de rede traz só o tipo e o código, nunca cabeçalho nem token.
+const NUCLEO_HTTP = `
+async function executar({ token, reqs, concorrencia, timeoutMs }) {
+  const res = new Array(reqs.length);
+  let prox = 0;
+  async function uma(k) {
+    const r = reqs[k];
+    const h = { 'user-agent': 'macuxi-coord', accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' };
+    if (token) h.authorization = 'bearer ' + token;
+    if (r.corpo !== undefined) h['content-type'] = 'application/json';
+    try {
+      const resp = await fetch(r.url, { method: r.metodo || 'GET', headers: h, body: r.corpo === undefined ? undefined : JSON.stringify(r.corpo), signal: AbortSignal.timeout(timeoutMs) });
+      res[k] = { status: resp.status, texto: await resp.text() };
+    } catch (e) {
+      const c = e && e.cause;
+      res[k] = { rede: [e && e.name, c && (c.code || c.message)].filter(Boolean).join(': ') || 'falha de rede' };
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concorrencia, reqs.length)) }, async () => { while (prox < reqs.length) await uma(prox++); }));
+  return res;
+}
+`;
+// Worker (padrão): sobe em milissegundos e reaproveita a conexão TLS entre as chamadas do mesmo comando.
+const WORKER_HTTP = `${NUCLEO_HTTP}
+const { workerData, parentPort } = require('node:worker_threads');
+const { sinal, porta } = workerData;
+parentPort.on('message', async (pedido) => {
+  let res;
+  try { res = await executar(pedido); } catch (e) { res = pedido.reqs.map(() => ({ rede: 'falha no fetch' })); }
+  porta.postMessage(res);
+  Atomics.store(sinal, 0, 1);
+  Atomics.notify(sinal, 0);
+});
+`;
+// Processo filho (com proxy no ambiente, como na nuvem): o fetch só usa HTTPS_PROXY com NODE_USE_ENV_PROXY=1 na partida.
+const FILHO_HTTP = `${NUCLEO_HTTP}
+import { readFileSync } from 'node:fs';
+process.stdout.write(JSON.stringify(await executar(JSON.parse(readFileSync(0, 'utf8')))));
+`;
+
+const temProxy = (env) => ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => String(env[k] || '').trim());
+
+/**
+ * HTTP síncrono: (reqs: {url, metodo?, corpo?}[]) => ({status, texto} | {rede})[]. O token vai pela memória (worker)
+ * ou pelo stdin (processo filho), nunca por argumento nem arquivo.
+ */
+export function httpSincrono({ token, timeoutMs = 30_000, concorrencia = 8, env = process.env } = {}) {
+  const prazo = (n) => timeoutMs * (Math.ceil(n / concorrencia) + 1);
+  const falha = (reqs, motivo) => reqs.map(() => ({ rede: motivo }));
+  if (temProxy(env)) {
+    return (reqs) => {
+      if (!reqs.length) return [];
+      try {
+        const out = execFileSync(process.execPath, ['--input-type=module', '-e', FILHO_HTTP], {
+          input: JSON.stringify({ token, reqs, concorrencia, timeoutMs }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
+          maxBuffer: 512 * 1024 * 1024, timeout: prazo(reqs.length), windowsHide: true, env: { ...env, NODE_USE_ENV_PROXY: '1' },
+        });
+        return JSON.parse(out);
+      } catch (e) {
+        return falha(reqs, e?.code === 'ETIMEDOUT' ? 'tempo esgotado' : 'falha ao chamar o GitHub');
+      }
+    };
+  }
+  let w = null;
+  let sinal;
+  let porta;
+  return (reqs) => {
+    if (!reqs.length) return [];
+    if (!w) {
+      sinal = new Int32Array(new SharedArrayBuffer(4));
+      const canal = new MessageChannel();
+      porta = canal.port1;
+      w = new Worker(WORKER_HTTP, { eval: true, workerData: { sinal, porta: canal.port2 }, transferList: [canal.port2] });
+      w.unref();
+    }
+    Atomics.store(sinal, 0, 0);
+    w.postMessage({ token, reqs, concorrencia, timeoutMs });
+    if (Atomics.wait(sinal, 0, 0, prazo(reqs.length)) === 'timed-out') {
+      w.terminate();
+      w = null;
+      return falha(reqs, 'tempo esgotado');
+    }
+    return receiveMessageOnPort(porta)?.message || falha(reqs, 'falha ao chamar o GitHub');
+  };
+}
+
+const Q_CABECA = `query Cabeca($dono: String!, $nome: String!, $ref: String!) {
+  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { oid } } } }`;
+const Q_LISTAGEM = `query Listagem($dono: String!, $nome: String!, $ref: String!) {
+  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
+    recados: file(path: "recados") { object { ... on Tree { entries { name type oid object { ... on Tree { entries { name type oid } } } } } } }
+    lidos: file(path: "lidos") { object { ... on Tree { entries { name type oid } } } }
+  } } } } }`;
+const Q_ARQUIVO = `query Arquivo($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
+  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
+    arquivo: file(path: $caminho) { oid object { ... on Blob { text } } }
+  } } } } }`;
+const Q_PASTA = `query Pasta($dono: String!, $nome: String!, $ref: String!, $caminho: String!) {
+  repository(owner: $dono, name: $nome) { ref(qualifiedName: $ref) { target { ... on Commit { oid
+    pasta: file(path: $caminho) { object { ... on Tree { entries { name type oid } } } }
+  } } } } }`;
+const M_COMMIT = `mutation CriarCommit($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }`;
+const LOTE_DE_BLOBS = 100;
+
+/**
+ * Cliente da API do GitHub para o repositório de recados (síncrono). `http` é injetável (testes).
+ * @param {{http: (reqs: any[]) => any[], repo?: string, api?: string, branch?: string, origem?: string}} p
+ */
+export function criarClienteDeRecados({ http, repo = REPO_RECADOS, api = API_GITHUB, branch = BRANCH_RECADOS, origem = 'token' }) {
+  const [dono, nome] = repo.split('/');
+  const ref = `refs/heads/${branch}`;
+  const base = { dono, nome, ref };
+
+  /** data do GraphQL; NOT_FOUND de arquivo (file(path:) inexistente) não é erro: o campo vem null. */
+  function dados(r) {
+    if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
+    let j = null;
+    try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
+    if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
+    if (r.status === 403 || r.status === 429) throw new ErroRecados(`o GitHub recusou o pedido (HTTP ${r.status}${j?.message ? `: ${j.message}` : ''})`, { rede: true });
+    if (!j) throw new ErroRecados(`resposta inválida do GitHub (HTTP ${r.status})`, { rede: r.status >= 500 });
+    const erros = (j.errors || []).filter((e) => !(e?.type === 'NOT_FOUND' && Array.isArray(e.path) && e.path.length > 3));
+    if (erros.length) {
+      if (erros.some((e) => e?.type === 'NOT_FOUND')) throw new ErroRecados(`o token (${origem}) não enxerga ${repo}: ${erros.map((e) => e.message).join('; ')}`);
+      throw new ErroRecados(`GitHub: ${erros.map((e) => e?.message).join('; ')}`);
+    }
+    if (r.status >= 400 || !j.data) throw new ErroRecados(`GitHub: HTTP ${r.status}${j.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 });
+    return j.data;
+  }
+  const gql = (consultas) => http(consultas.map((corpo) => ({ url: `${api}/graphql`, metodo: 'POST', corpo }))).map(dados);
+  const alvo = (d) => {
+    const t = d?.repository?.ref?.target;
+    if (!t?.oid) throw new ErroRecados(`o branch ${branch} do ${repo} não foi encontrado`);
+    return t;
+  };
+
+  return {
+    repo,
+    /** oid do commit no topo do main. */
+    cabeca() { return alvo(gql([{ query: Q_CABECA, variables: base }])[0]).oid; },
+
+    /** {oid, arquivos: {caminho: oid do blob}} do main, numa leitura só (consistente com o commit). */
+    listar() {
+      const t = alvo(gql([{ query: Q_LISTAGEM, variables: base }])[0]);
+      const arquivos = {};
+      for (const d of t.recados?.object?.entries || []) {
+        if (d.type !== 'tree') continue;
+        for (const f of d.object?.entries || []) {
+          const caminho = `recados/${d.name}/${f.name}`;
+          if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
+        }
+      }
+      for (const f of t.lidos?.object?.entries || []) {
+        const caminho = `lidos/${f.name}`;
+        if (f.type === 'blob' && ehArquivoDoIndice(caminho)) arquivos[caminho] = f.oid;
+      }
+      return { oid: t.oid, arquivos };
+    },
+
+    /** Um arquivo no topo do main: {oid do commit, existe, blob, texto}. */
+    arquivo(caminho) {
+      const t = alvo(gql([{ query: Q_ARQUIVO, variables: { ...base, caminho } }])[0]);
+      const a = t.arquivo;
+      return { oid: t.oid, existe: Boolean(a), blob: a?.oid || null, texto: a?.object?.text ?? (a ? '' : null) };
+    },
+
+    /** Entradas de uma pasta no topo do main, direto do GitHub: {oid, entradas: [{name, type, oid}]}. */
+    pasta(caminho) {
+      const t = alvo(gql([{ query: Q_PASTA, variables: { ...base, caminho } }])[0]);
+      return { oid: t.oid, entradas: t.pasta?.object?.entries || [] };
+    },
+
+    /** Textos dos blobs ({oid: texto}), 100 por consulta, consultas em paralelo. Binário fica de fora. */
+    textos(oids) {
+      const lista = [...new Set(oids)];
+      const consultas = [];
+      for (let i = 0; i < lista.length; i += LOTE_DE_BLOBS) {
+        const lote = lista.slice(i, i + LOTE_DE_BLOBS);
+        const vars = lote.map((_, k) => `$o${k}: GitObjectID!`).join(', ');
+        const campos = lote.map((_, k) => `b${k}: object(oid: $o${k}) { ... on Blob { text isBinary } }`).join(' ');
+        consultas.push({
+          query: `query Blobs($dono: String!, $nome: String!, ${vars}) { repository(owner: $dono, name: $nome) { ${campos} } }`,
+          variables: { dono, nome, ...Object.fromEntries(lote.map((o, k) => [`o${k}`, o])) },
+          lote,
+        });
+      }
+      const res = {};
+      const respostas = gql(consultas.map(({ query, variables }) => ({ query, variables })));
+      respostas.forEach((d, i) => consultas[i].lote.forEach((oid, k) => {
+        const b = d?.repository?.[`b${k}`];
+        if (b && !b.isBinary && typeof b.text === 'string') res[oid] = b.text;
+      }));
+      return res;
+    },
+
+    /**
+     * Mudanças desde `de` até o main (REST compare): {oid, mudancas: [{status, filename, previous_filename, sha}]}.
+     * null quando não dá para usar o delta (commit desconhecido, histórico reescrito, mais de 250 commits ou 300 arquivos).
+     */
+    comparar(de) {
+      const [r] = http([{ url: `${api}/repos/${repo}/compare/${de}...${branch}` }]);
+      if (r.rede) throw new ErroRecados(`sem acesso ao GitHub (${r.rede})`, { rede: true });
+      if (r.status === 404 || r.status === 422) return null;
+      let j = null;
+      try { j = JSON.parse(r.texto); } catch { /* abaixo */ }
+      if (r.status === 401) throw new ErroRecados(`o GitHub recusou o token (${origem}, HTTP 401)`);
+      if (r.status >= 400 || !j) throw new ErroRecados(`GitHub: HTTP ${r.status}${j?.message ? ` (${j.message})` : ''}`, { rede: r.status >= 500 || r.status === 403 || r.status === 429 });
+      if (j.status === 'identical') return { oid: de, mudancas: [] };
+      const commits = j.commits || [];
+      const arquivos = j.files || [];
+      if (j.status !== 'ahead' || commits.length !== j.ahead_by || arquivos.length >= 300) return null;
+      return { oid: commits[commits.length - 1].sha, mudancas: arquivos };
+    },
+
+    /** Um commit no main com os arquivos (atômico), só se o topo ainda for `esperado`. → {oid, url} */
+    commitar({ esperado, adicoes, titulo, corpo = '' }) {
+      const input = {
+        branch: { repositoryNameWithOwner: repo, branchName: branch },
+        expectedHeadOid: esperado,
+        message: { headline: titulo, ...(corpo ? { body: corpo } : {}) },
+        fileChanges: { additions: adicoes.map((a) => ({ path: a.caminho, contents: (Buffer.isBuffer(a.conteudo) ? a.conteudo : Buffer.from(String(a.conteudo), 'utf8')).toString('base64') })) },
+      };
+      const c = gql([{ query: M_COMMIT, variables: { input } }])[0]?.createCommitOnBranch?.commit;
+      if (!c?.oid) throw new ErroRecados('o GitHub não devolveu o commit');
+      return c;
+    },
+  };
+}
+
+/** Pasta do cache do índice (fora do repositório): MACUXI_RECADOS_CACHE, %LOCALAPPDATA% ou ~/.cache. */
+export function pastaDoCacheDeRecados(env = process.env) {
+  if (env.MACUXI_RECADOS_CACHE) return env.MACUXI_RECADOS_CACHE;
+  return join(env.LOCALAPPDATA || env.XDG_CACHE_HOME || join(homedir() || tmpdir(), '.cache'), 'Macuxi', 'recados');
+}
+
+/** Cache do índice num arquivo JSON (gravação atômica; falha ao gravar só deixa a próxima leitura mais lenta). */
+export function cacheDeRecadosEmArquivo(pasta, repo = REPO_RECADOS) {
+  const arq = join(pasta, `${repo.replace(/[^a-z0-9]+/gi, '-')}.json`);
+  return {
+    arquivo: arq,
+    ler() {
+      try { const c = JSON.parse(readFileSync(arq, 'utf8')); return c && c.repo === repo ? c : null; } catch { return null; }
+    },
+    gravar(c) {
+      try {
+        mkdirSync(pasta, { recursive: true });
+        const tmp = `${arq}.${process.pid}.tmp`;
+        writeFileSync(tmp, JSON.stringify(c));
+        renameSync(tmp, arq);
+      } catch { /* outro processo gravando ao mesmo tempo, ou pasta sem permissão: segue sem cache */ }
+    },
+  };
+}
+
+/** Cache conferido: só os textos cujo hash bate com o oid (cache adulterado ou corrompido não entra). */
+function cacheConferido(c) {
+  if (!c || typeof c.oid !== 'string' || !c.arquivos || typeof c.arquivos !== 'object') return null;
+  const textos = {};
+  for (const [oid, t] of Object.entries(c.textos || {})) if (typeof t === 'string' && shaDoBlob(t) === oid) textos[oid] = t;
+  return { ...c, textos };
+}
+
+/** Aplica o delta do compare à lista de arquivos (função pura). */
+export function aplicarMudancas(arquivos, mudancas) {
+  const r = { ...arquivos };
+  for (const m of mudancas || []) {
+    if (m.previous_filename) delete r[m.previous_filename];
+    if (m.status === 'removed') { delete r[m.filename]; continue; }
+    if (ehArquivoDoIndice(m.filename) && m.sha) r[m.filename] = m.sha;
+    else delete r[m.filename];
+  }
+  return r;
+}
+
+/**
+ * Índice do main do GitHub: {oid, arquivos, textos, em, online, aviso?}. Usa o cache e baixa só o que mudou.
+ * Sem GitHub: devolve o cache com `online: false` e um aviso, exceto com `exigirOnline` (escrita), que lança.
+ */
+export function atualizarIndiceDeRecados({ cliente, cache, exigirOnline = false, agora = () => new Date() }) {
+  const salvo = cacheConferido(cache.ler());
+  try {
+    let atual = null;
+    if (salvo) {
+      const d = cliente.comparar(salvo.oid);
+      if (d) atual = { oid: d.oid, arquivos: aplicarMudancas(salvo.arquivos, d.mudancas) };
+    }
+    atual ||= cliente.listar();
+    const textos = {};
+    const faltam = [];
+    for (const oid of new Set(Object.values(atual.arquivos))) {
+      if (salvo?.textos[oid] !== undefined) textos[oid] = salvo.textos[oid];
+      else faltam.push(oid);
+    }
+    Object.assign(textos, cliente.textos(faltam));
+    const idx = { repo: cliente.repo, oid: atual.oid, arquivos: atual.arquivos, textos, em: agora().toISOString() };
+    if (!salvo || salvo.oid !== idx.oid || faltam.length) cache.gravar(idx);
+    return { ...idx, online: true };
+  } catch (e) {
+    if (!(e instanceof ErroRecados) || exigirOnline || !salvo) throw e;
+    return { ...salvo, online: false, aviso: `sem o GitHub agora (${e.message}): mostrando a cópia local de ${salvo.em} (commit ${salvo.oid.slice(0, 7)})` };
+  }
+}
+
+/** Arquivos de recado do índice: [{destino, nome, texto}] (textos ausentes ficam de fora). */
+export function recadosDoIndice(idx) {
+  const res = [];
+  for (const [caminho, oid] of Object.entries(idx.arquivos)) {
+    const m = caminho.match(/^recados\/([^/]+)\/([^/]+\.md)$/i);
+    const texto = idx.textos[oid];
+    if (m && m[1] !== 'anexos' && typeof texto === 'string') res.push({ destino: m[1], nome: m[2], texto });
+  }
+  return res;
+}
+
+/** Ids dos recados do índice (nome do arquivo sem .md: o coord, o formulário e o Telegram gravam <id>.md). */
+export const idsDoIndice = (idx) => new Set(recadosDoIndice(idx).map((r) => r.nome.replace(/\.md$/i, '')));
+
+/** Texto de lidos/<agente>.txt no índice ('' se não houver). */
+export const lidosDoIndice = (idx, agente) => idx.textos[idx.arquivos[`lidos/${agente}.txt`]] ?? '';
+
+/** Espera síncrona (entre tentativas). */
+export function dormir(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(0, ms)); }
+const espera = (t) => 250 * t + Math.floor(Math.random() * 500);
+
+/**
+ * Envia um recado direto ao GitHub (um commit com um arquivo por destino). Só devolve depois de o GitHub confirmar.
+ * `gerarId(ids)` escolhe o id livre contra os ids do commit; `montar(id)` dá o conteúdo. Concorrência: se o main
+ * mudar entre a leitura e o commit, o GitHub recusa (expectedHeadOid) e a função relê e tenta de novo.
+ * @returns {{id: string, commit: {oid: string, url?: string}, tentativas: number, conferido?: boolean}}
+ */
+export function enviarRecadoNoGitHub({ cliente, cache, de, destinos, gerarId, montar, respondeA = null, tentativas = 6, esperar = dormir }) {
+  let ultimo = null;
+  for (let t = 1; t <= tentativas; t++) {
+    const idx = atualizarIndiceDeRecados({ cliente, cache, exigirOnline: true });
+    const ids = idsDoIndice(idx);
+    if (respondeA && !ids.has(respondeA)) throw new ErroRecados(`--responde-a: recado ${respondeA} não encontrado`);
+    const id = gerarId(ids);
+    const conteudo = montar(id);
+    const adicoes = destinos.map((d) => ({ caminho: `recados/${d}/${id}.md`, conteudo }));
+    if (adicoes.some((a) => idx.arquivos[a.caminho])) throw new ErroRecados(`o recado ${id} já existe no GitHub (nada foi sobrescrito)`);
+    try {
+      const commit = cliente.commitar({ esperado: idx.oid, adicoes, titulo: `recados: ${id}`, corpo: `de ${de} para ${destinos.join(', ')}` });
+      const blob = shaDoBlob(conteudo);
+      cache.gravar({
+        repo: idx.repo, oid: commit.oid, em: new Date().toISOString(),
+        arquivos: { ...idx.arquivos, ...Object.fromEntries(adicoes.map((a) => [a.caminho, blob])) }, textos: { ...idx.textos, [blob]: conteudo },
+      });
+      return { id, commit, tentativas: t };
+    } catch (e) {
+      if (!(e instanceof ErroRecados)) throw e;
+      ultimo = e;
+      // Confere no GitHub antes de decidir: com a resposta perdida, o commit pode ter entrado.
+      let r;
+      try { r = cliente.arquivo(adicoes[0].caminho); } catch (e2) {
+        throw new ErroRecados(`o envio do recado ${id} NÃO foi confirmado (${e.message}; conferência: ${e2.message}). Antes de reenviar, confira: node scripts/coord.mjs ler ${id}`, { rede: true });
+      }
+      if (r.existe && r.blob === shaDoBlob(conteudo)) return { id, commit: { oid: r.oid }, tentativas: t, conferido: true };
+      if (r.oid !== idx.oid) { esperar(espera(t)); continue; } // outro commit entrou antes: relê e tenta de novo
+      throw new ErroRecados(`recado NÃO enviado (nada foi gravado): ${e.message}`, { rede: e.rede });
+    }
+  }
+  throw new ErroRecados(`recado NÃO enviado (nada foi gravado): o main do ${cliente.repo} mudou ${tentativas} vezes durante o envio${ultimo ? ` (${ultimo.message})` : ''}. Tente de novo`);
+}
+
+/**
+ * Marca ids como lidos em lidos/<agente>.txt no GitHub: acrescenta só os que faltam, sobre o texto do topo do main
+ * (nenhuma linha de outro processo se perde: se o main mudar no meio, o GitHub recusa e a função relê).
+ * @returns {{novos: string[], commit?: {oid: string}, conferido?: boolean}}
+ */
+export function marcarLidosNoGitHub({ cliente, agente, ids, tentativas = 6, esperar = dormir }) {
+  const caminho = `lidos/${agente}.txt`;
+  const linhas = (t) => new Set(String(t || '').split(/\r?\n/).filter(Boolean));
+  let ultimo = null;
+  for (let t = 1; t <= tentativas; t++) {
+    const a = cliente.arquivo(caminho);
+    const atuais = linhas(a.texto);
+    const novos = [...new Set(ids)].filter((i) => !atuais.has(i));
+    if (!novos.length) return { novos };
+    const texto = a.texto || '';
+    const conteudo = `${texto}${texto && !texto.endsWith('\n') ? '\n' : ''}${novos.join('\n')}\n`;
+    try {
+      return { novos, commit: cliente.commitar({ esperado: a.oid, adicoes: [{ caminho, conteudo }], titulo: `lidos: ${agente} (${novos.length})` }) };
+    } catch (e) {
+      if (!(e instanceof ErroRecados)) throw e;
+      ultimo = e;
+      let r;
+      try { r = cliente.arquivo(caminho); } catch (e2) {
+        throw new ErroRecados(`a marcação NÃO foi confirmada (${e.message}; conferência: ${e2.message}). Rode o mesmo comando de novo (marcar duas vezes não duplica)`, { rede: true });
+      }
+      const agora = linhas(r.texto);
+      if (novos.every((i) => agora.has(i))) return { novos, commit: { oid: r.oid }, conferido: true };
+      if (r.oid !== a.oid) { esperar(espera(t)); continue; }
+      throw new ErroRecados(`NÃO marcado (nada foi gravado): ${e.message}`, { rede: e.rede });
+    }
+  }
+  throw new ErroRecados(`NÃO marcado (nada foi gravado): o main do ${cliente.repo} mudou ${tentativas} vezes durante a marcação${ultimo ? ` (${ultimo.message})` : ''}. Tente de novo`);
+}
+
+/**
+ * Recados de uma pasta (nome + texto) com a lista lida direto do GitHub, nunca do cache: uso do guarda-merge, que
+ * procura a autorização de merge do dono do produto. Textos do cache só entram se o hash bater com o oid do GitHub.
+ * `filtro(nome)` limita o que é baixado. Sem GitHub, lança (quem chama trata como "nenhuma autorização").
+ */
+export function recadosDaPastaNoGitHub({ cliente, cache, pasta, filtro = () => true }) {
+  const { entradas } = cliente.pasta(`recados/${pasta}`);
+  const escolhidas = entradas.filter((e) => e.type === 'blob' && /\.md$/i.test(e.name) && filtro(e.name));
+  const salvo = cacheConferido(cache?.ler?.() || null);
+  const textos = {};
+  for (const e of escolhidas) if (salvo?.textos[e.oid] !== undefined) textos[e.oid] = salvo.textos[e.oid];
+  Object.assign(textos, cliente.textos(escolhidas.filter((e) => textos[e.oid] === undefined).map((e) => e.oid)));
+  return escolhidas.filter((e) => typeof textos[e.oid] === 'string').map((e) => ({ nome: e.name, texto: textos[e.oid] }));
+}
+
+/**
+ * Conexão real com o repositório de recados: {cliente, cache}. Repositório, API e cache trocáveis por variável
+ * (MACUXI_RECADOS_REPO, MACUXI_RECADOS_API, MACUXI_RECADOS_CACHE). Sem token, o cliente falha com a explicação.
+ */
+export function conexaoDeRecados({ env = process.env, gh } = {}) {
+  const repo = String(env.MACUXI_RECADOS_REPO || REPO_RECADOS).trim();
+  const api = String(env.MACUXI_RECADOS_API || API_GITHUB).trim().replace(/\/+$/, '');
+  const tk = tokenDoAmbiente({ env, ...(gh ? { gh } : {}) });
+  const http = tk ? httpSincrono({ token: tk.token, env }) : () => { throw new ErroRecados(SEM_TOKEN, { rede: true }); };
+  return { cliente: criarClienteDeRecados({ http, repo, api, origem: tk?.origem || 'sem token' }), cache: cacheDeRecadosEmArquivo(pastaDoCacheDeRecados(env), repo) };
 }

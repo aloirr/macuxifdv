@@ -5,6 +5,9 @@
 // sempre. Os casos novos são o caminho de verdade no clone (volta a ser .coord/recados/...), o resto do clone
 // (bloqueado), o git que grava no clone (bloqueado), o git clean -x (bloqueado) e a foto do PostToolUse (git status
 // do clone com os caminhos de .coord/). Num Linux (CI), a "junção" vira link simbólico de pasta: mesmo efeito.
+// T-0143 (ADR 0039): com os recados direto no GitHub (padrão com a marca), nada se grava pela junção; as junções só
+// voltam no plano de volta, com MACUXI_RECADOS=local. Por isso este arquivo roda com MACUXI_RECADOS=local, e o
+// último teste confere o bloqueio no modo GitHub.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, symlinkSync, readFileSync, appendFileSync } from 'node:fs';
@@ -14,7 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { juncoesDeRecados, relativoPorJuncao, globParaRegex } from '../../scripts/coord-lib.mjs';
 import { analisarComando, lerStatus, statusDoClone, doCloneParaRepo, relativoDaRaiz } from './guarda-bash-lib.mjs';
-import { planoDeSincronizacao } from './sincronizar-recados.mjs';
+
+process.env.MACUXI_RECADOS = 'local'; // plano de volta da ADR 0039: junções e pastas no disco
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const RAIZ_REAL = join(AQUI, '..', '..');
@@ -84,12 +88,12 @@ function cenario() {
   return { pai, repo, clone };
 }
 
-function rodar(repo, hook, entrada) {
+function rodar(repo, hook, entrada, env = {}) {
   const base = { ...process.env };
   delete base.MACUXI_AGENTE;
   delete base.CLAUDE_CODE_REMOTE;
   const r = spawnSync(process.execPath, [join(repo, '.claude', 'hooks', hook)], {
-    cwd: repo, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '' },
+    cwd: repo, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '', ...env },
   });
   return { codigo: r.status, erro: r.stderr, saida: r.stdout };
 }
@@ -234,17 +238,24 @@ test('PostToolUse: recado alterado no clone por comando opaco aparece no aviso c
   assert.equal(relativoDaRaiz(barras(join(repo, '.coord', 'recados')), barras(repo)), '.coord/recados');
 });
 
-// ───────────────────────── hook de sessão (SessionStart/Stop) ─────────────────────────
+// ───────────────────────── T-0143: recados direto no GitHub ─────────────────────────
 
-test('sincronizar-recados (hook): só roda no Windows, com junção e com o .ps1; desliga com MACUXI_RECADOS_SYNC=off', () => {
-  const juncoes = { mapas: [{ rel: '.coord/recados', real: 'C:/macuxifdv-recados/recados' }], clone: 'C:/macuxifdv-recados' };
-  const base = { plataforma: 'win32', env: {}, juncoes, scriptExiste: true };
-  assert.deepEqual(planoDeSincronizacao({ ...base, esperar: true }), { rodar: true, esperar: true, clone: 'C:/macuxifdv-recados' });
-  assert.equal(planoDeSincronizacao({ ...base, env: { MACUXI_RECADOS_SYNC: 'OFF' } }).rodar, false);
-  assert.equal(planoDeSincronizacao({ ...base, plataforma: 'linux' }).rodar, false);
-  assert.equal(planoDeSincronizacao({ ...base, juncoes: { mapas: [], clone: null } }).rodar, false);
-  assert.equal(planoDeSincronizacao({ ...base, scriptExiste: false }).rodar, false);
-  // o hook de verdade, sem junção: sai 0 na hora, sem saída (não bloqueia nem polui o contexto)
-  const r = spawnSync(process.execPath, [join(AQUI, 'sincronizar-recados.mjs'), '--esperar'], { input: '{}', encoding: 'utf8', timeout: 20_000 });
-  assert.equal(r.status, 0);
+test('T-0143: no modo GitHub (marca, sem MACUXI_RECADOS=local), escrita pela junção ou pelo clone é bloqueada', () => {
+  const { repo, clone } = cenario();
+  const github = { MACUXI_RECADOS: '' };
+  const conteudo = '---\nid: R-20261109-130000-modulo-core\nde: modulo-core\n---\n# x\n';
+  for (const caminho of [
+    join(repo, '.coord', 'recados', 'testes', 'R-20261109-130000-modulo-core.md'),
+    join(clone, 'recados', 'testes', 'R-20261109-130000-modulo-core.md'),
+    join(repo, '.coord', 'lidos', 'modulo-core.txt'),
+  ]) {
+    const r = rodar(repo, 'guarda-donos.mjs', {
+      session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Write', agent_type: 'modulo-core', cwd: repo,
+      tool_input: { file_path: caminho, content: conteudo },
+    }, github);
+    assert.equal(r.codigo, 2, `${caminho}: ${r.erro}`);
+    assert.match(r.erro, /direto no GitHub/);
+  }
+  // no modo local (volta), a mesma escrita pela junção passa
+  assert.equal(escrita(repo, join(repo, '.coord', 'recados', 'testes', 'R-20261109-130000-modulo-core.md'), 'modulo-core', conteudo).codigo, 0);
 });

@@ -48,33 +48,10 @@
       "Bash(gh pr merge*--auto*)"
     ],
     "additionalDirectories": [
-      "C:/Users/domon/dev/forca-vendas",
-      "C:/macuxifdv-recados"
+      "C:/Users/domon/dev/forca-vendas"
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/sincronizar-recados.mjs --esperar",
-            "timeout": 45
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/sincronizar-recados.mjs",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
