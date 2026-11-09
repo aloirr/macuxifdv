@@ -7,8 +7,8 @@
  * que a `useCore` entrega à Rota, `visitaComEtapaPendente`/`avisoDeEtapaPendente` da ficha). A decisão do chip replica a
  * condição de modules/core/app/telas/rota.tsx (`StopRow`: parada `done` e `visit.etapas_pendentes > 0`).
  * Bloco F: `tentarCheckin` (lib/acoes-visita.ts) com o MOTOR DE SYNC real do platform-sdk e o `ArmazemCore` real sobre um
- * armazenamento em memória que o teste faz falhar ("disco cheio"). Só o hardware é trocado (`dispositivo.ts`: UUID do Node e
- * GPS controlado).
+ * armazenamento em memória que o teste faz falhar ("disco cheio"). Só o hardware é trocado (ambiente do motor: UUID do Node e
+ * GPS controlado em `posicaoAgora`).
  *
  * Relógio: as funções puras recebem `agora`/`hoje` por parâmetro; nenhum instante fixo é comparado com o relógio real.
  * Convenção: `it.fails` = defeito aberto com recado ao dono (vira `it` quando corrigir).
@@ -24,15 +24,17 @@ import {
   type MotorSync,
   type PaginaSync,
   type LinhaSync,
+  type PosicaoDoAparelho,
 } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** GPS do "aparelho" (RN-CORE-13: lido uma vez por ação); `null` = sem GPS. */
-const gps = vi.hoisted(() => ({ posicao: null as null | { lat: number; lng: number; precisao_m: number | null } }));
-vi.mock('../../modules/core/app/lib/dispositivo', () => ({
-  uuid: () => globalThis.crypto.randomUUID(),
-  gpsAgora: async () => gps.posicao,
-}));
+/**
+ * GPS do "aparelho" (RN-CORE-13: lido uma vez por ação); `null` = sem GPS. Entra pelo ambiente do motor
+ * (`posicaoAgora`, RD-0046), como o shell real faz; o `dispositivo.ts` do Core não existe mais.
+ */
+const gps: { posicao: null | { lat: number; lng: number; precisao_m: number | null } } = { posicao: null };
+// hora-fixa-ok: lida_em do GPS falso só acompanha a posição; nenhum teste deste arquivo o compara
+const posicaoAgora = async (): Promise<PosicaoDoAparelho | null> => (gps.posicao ? { ...gps.posicao, lida_em: new Date().toISOString() } : null);
 
 import type { ClienteSync, CustomerSummary, MotivoSync, RotaParadaSync, RotaSync, RouteStop, VisitaSync } from '../../modules/core/contracts';
 import { MSG_FALHA_CHECKIN, tentarCheckin, type ContextoAcao } from '../../modules/core/app/lib/acoes-visita';
@@ -240,6 +242,7 @@ async function aparelhoOffline(): Promise<Aparelho> {
       http: criarClienteHttp(semRede, { online: () => false }),
       online: () => false,
       novoId: () => globalThis.crypto.randomUUID(),
+      posicaoAgora,
       usuario: () => ({ id: EU, nome: 'Vendedor', perfil: 'vendedor', fuso: FUSO }),
     },
   });

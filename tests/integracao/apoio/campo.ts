@@ -29,6 +29,7 @@ import {
   criarMotorSync,
   criarRegistroSync,
   type AmbienteAparelho,
+  type PosicaoDoAparelho,
   type DefinicaoEntidadeSync,
   type EtapaSync,
   type FuncaoRequisitar,
@@ -96,6 +97,8 @@ export interface OpcoesAparelho {
    * traz o fuso e as etapas REST da Fase M do Vendedor não rodam (`soNaDemonstracao`, T-0029 §8).
    */
   semFuso?: boolean;
+  /** GPS do aparelho (RD-0046: o Core lê `motor.ambiente.posicaoAgora()`). Padrão: sem GPS (`null`). */
+  posicaoAgora?: () => Promise<PosicaoDoAparelho | null>;
 }
 
 /**
@@ -106,6 +109,18 @@ export interface OpcoesAparelho {
 const CONSULTAS_CAMPO = criarRegistroConsultasAparelho(
   MANIFESTOS_CAMPO.map((m) => (m.id === 'catalogo' ? { manifesto: m, consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho] } : { manifesto: m })),
 ).registro;
+
+/**
+ * GPS controlado pelo teste (RN-CORE-13: lido uma vez por ação; `posicao = null` = sem GPS). Entra no aparelho por
+ * `aparelhoCampo(api, email, { posicaoAgora: gps.posicaoAgora })`, que é o `motor.ambiente.posicaoAgora()` lido pelo Core (RD-0046).
+ */
+export function gpsDeTeste() {
+  const gps = {
+    posicao: null as null | { lat: number; lng: number; precisao_m: number | null },
+    posicaoAgora: async (): Promise<PosicaoDoAparelho | null> => (gps.posicao ? { ...gps.posicao, lida_em: new Date().toISOString() } : null),
+  };
+  return gps;
+}
 
 export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAparelho = {}): Promise<AparelhoCampo> {
   const tenant = op.tenant ?? A;
@@ -189,6 +204,7 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
     http: criarClienteHttp(requisitar, { online: () => online.valor }),
     online: () => online.valor,
     novoId: () => randomUUID(),
+    ...(op.posicaoAgora ? { posicaoAgora: op.posicaoAgora } : {}),
     usuario: () => ({ id: sessao.usuario.id, nome: sessao.usuario.nome, perfil: sessao.usuario.perfil, ...(op.semFuso ? {} : { fuso: sessao.tenant.fuso }) }),
   };
 

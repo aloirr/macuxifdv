@@ -14,7 +14,8 @@
  *     de emissão do pedido novo; o orçamento fica `convertido` e não vira outro pedido.
  *  O4–O7 `PUT /v1/vendedor/orcamentos/:id` e `POST .../cancelar`: edição com a referência (37979), concorrência otimista
  *     (RN-VEN-33: corpo diferente com atualizado_em antigo = 409 ORCAMENTO_ALTERADO; corpo idêntico ao último = repetição, 200 sem
- *     mudar nada), troca de cliente (422), cancelar idempotente, vencido/convertido/cancelado = 422 RN-VEN-18.
+ *     mudar nada), troca de cliente (422), cancelar idempotente, convertido/cancelado = 422 RN-VEN-18; O7 (RN-VEN-18/32 de
+ *     09/11, T-0141 G): o orçamento não vence; passados os 7 dias do preço, Transformar e PUT reprecificam pela tabela do dia.
  *  O8 regra 7 / RN-PRO-01: o promotor não cria nem edita pedido ou orçamento (push, PUT e cancelar), com e sem o Vendedor
  *     licenciado ao perfil; nada é gravado.
  *  O9 multi-tenant (base demo + fixture dois-tenants no mesmo banco): o tenant A não lê, não edita, não cancela nem
@@ -408,23 +409,87 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
       expect(await noBanco(novo)).toBeUndefined();
     });
 
-    it('O7. vencido (validade de ontem): PUT 422 RN-VEN-18, cancelar 422 RN-VEN-18, Transformar rejeitado RN-VEN-18 e o filtro mostra "expirado"', async () => {
-      const [r] = await push(token.vendedor, [orcamento(VENC)]);
-      expect(r).toMatchObject({ id: VENC, status: 'aceito' });
-      await api.admin.query("update vendedor.pedido set orcamento_validade = (now() at time zone 'America/Manaus')::date - 2 where id = $1", [VENC]);
-      await sincronizarComHorizonte(lucas);
-      const l = await linhaNoAparelho(lucas, VENC);
-      expect(l, 'o vencido recente ainda desce (criado há ≤ 90 dias)').toBeDefined();
-      const e = await put(token.vendedor, VENC, corpoPut(String(l!.updated_at)));
-      expect([e.statusCode, codigo(e)], e.body).toEqual([422, 'RN-VEN-18']);
-      const c = await cancelar(token.vendedor, VENC);
-      expect([c.statusCode, codigo(c)], c.body).toEqual([422, 'RN-VEN-18']);
-      const novo = randomUUID();
-      const [t] = await push(token.vendedor, [{ entidade: 'pedido', id: novo, operacao: 'upsert', payload: pedidoDoOrcamento(await doAparelho(lucas, VENC), novo, new Date().toISOString()) }]);
-      expect(t).toMatchObject({ id: novo, status: 'rejeitado', codigo: 'RN-VEN-18' });
-      expect(await noBanco(novo)).toBeUndefined();
-      const venc = await api.get(token.vendedor, '/v1/vendedor/pedidos?tipo=orcamento&situacao=expirado&limite=200');
-      expect(listaDe(venc.corpo).map((x) => (x as { id: string }).id)).toContain(VENC);
+    // RN-VEN-18/32 (09/11, T-0141 G): o orçamento NÃO vence; o [orcamento.validade_dias] = 7 limita só o PREÇO congelado. Passado
+    // esse prazo, Transformar e a edição reprecificam pela tabela do dia; cancelar segue valendo. "Expirado"/"Vencido" saíram.
+    it('O7. preço de mais de 7 dias (validade do preço de anteontem) + Café de R$ 18,90 para R$ 19,50: continua "aberto" (não há "expirado"); Transformar → pedido pela tabela do DIA (valor × regra, meta pelo pedido novo); PUT reprecifica e renova a data do preço; cancelar 200', async () => {
+      const VENC2 = randomUUID();
+      const r = await push(token.vendedor, [orcamento(VENC), orcamento(VENC2)]);
+      expect(r.map((x) => x.status), JSON.stringify(r)).toEqual(['aceito', 'aceito']);
+      await api.admin.query("update vendedor.pedido set orcamento_validade = (now() at time zone 'America/Manaus')::date - 2 where id = any($1::uuid[])", [[VENC, VENC2]]);
+      const precoCafe = await q<{ id: string; preco_cents: number }>(
+        `select i.id, i.preco_cents::int as preco_cents
+           from catalogo.cliente_tabela_preco c
+           join catalogo.tabela_preco_item i on i.tabela_preco_id = c.tabela_preco_id and i.tenant_id = c.tenant_id
+          where c.cliente_id = $1 and c.deleted_at is null and i.produto_id = $2 and i.unidade is null and i.deleted_at is null
+            and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())`,
+        [miniBox, prod.CAF],
+      );
+      expect(precoCafe, 'uma linha vigente do CAF-500 a R$ 18,90 na tabela do Mini Box').toEqual([{ id: expect.any(String), preco_cents: 1890 }]);
+      await api.admin.query('update catalogo.tabela_preco_item set preco_cents = 1950 where id = $1', [precoCafe[0]!.id]);
+      try {
+        await sincronizarComHorizonte(lucas);
+        expect(await linhaNoAparelho(lucas, VENC), 'o de preço antigo desce ao aparelho').toBeDefined();
+
+        // situação: aberto, a qualquer tempo (RN-VEN-18); o filtro "expirado" não existe mais (400 do contrato)
+        const abertos = await api.get(token.vendedor, '/v1/vendedor/pedidos?tipo=orcamento&situacao=aberto&limite=200');
+        expect(abertos.status, JSON.stringify(abertos.corpo)).toBe(200);
+        const naLista = listaDe(abertos.corpo).find((x) => (x as { id: string }).id === VENC) as Record<string, unknown> | undefined;
+        expect(naLista, 'o de preço antigo está em Orçamentos › aberto').toBeDefined();
+        expect(naLista!.situacao_orcamento).toBe('aberto');
+        const expirado = await api.get(token.vendedor, '/v1/vendedor/pedidos?tipo=orcamento&situacao=expirado&limite=200');
+        expect(expirado.status, 'não existe mais a situação "expirado" (RN-VEN-18 de 09/11)').toBe(400);
+
+        // valor × regra: o pedido nasce pela tabela de HOJE. Esperado calculado pela regra (RN-VEN-02/03, R$ por unidade no item,
+        // % do pedido sobre o total dos itens, meia para cima), não copiado do servidor:
+        //   tabela = 3 × 17,90 + 12 × 19,50 + 1 × 117,80 = 405,50
+        //   itens  = 3 × round(17,90 × 0,95) + 12 × (19,50 − 1,00) + 117,80 = 3 × 17,01 + 12 × 18,50 + 117,80 = 390,83
+        //   pedido = 1% de 390,83 = round(3,9083) = 3,91 → total = 386,92 (o preço congelado daria 379,79)
+        const tabelaHoje = { AGU: 1790, CAF: 1950, BIS: 11780 };
+        const unitAgu = Math.round(tabelaHoje.AGU * 0.95);
+        const tabelaEsperada = 3 * tabelaHoje.AGU + 12 * tabelaHoje.CAF + tabelaHoje.BIS;
+        const itensEsperado = 3 * unitAgu + 12 * (tabelaHoje.CAF - 100) + tabelaHoje.BIS;
+        const totalEsperado = itensEsperado - Math.round(itensEsperado * 0.01);
+        expect([tabelaEsperada, itensEsperado, totalEsperado]).toEqual([40550, 39083, 38692]);
+        const efetivoEsperado = Math.round(((tabelaEsperada - totalEsperado) / tabelaEsperada) * 10000) / 100;
+
+        const realizadoAntes = await realizadoDoLucas();
+        const novo = randomUUID();
+        const [t] = await push(token.vendedor, [{ entidade: 'pedido', id: novo, operacao: 'upsert', payload: pedidoDoOrcamento(await doAparelho(lucas, VENC), novo, new Date().toISOString()) }]);
+        expect(t, 'Transformar depois dos 7 dias é aceito (o orçamento não vence)').toMatchObject({ id: novo, status: 'aceito' });
+        const p = (await noBanco(novo))!;
+        expect(p).toMatchObject({ tipo: 'pedido', orcamento_id: VENC, status: 'approved', nivel_aprovacao: null, total_tabela_cents: tabelaEsperada, total_cents: totalEsperado, desconto_pct: 1 });
+        expect(p.desconto_efetivo_pct).toBeCloseTo(efetivoEsperado, 2);
+        const it = await itensNoBanco(novo);
+        expect(it.map((i) => [i.produto_sku, i.unidade, i.quantidade, i.preco_tabela_cents, i.preco_unitario_cents])).toEqual([
+          ['AGU-500', 'FD', 3, 1790, unitAgu],
+          ['CAF-500', 'UN', 12, 1950, 1850], // preço de HOJE (19,50), R$ 1,00 por unidade mantido
+          ['BIS-400', 'CX', 1, 11780, 11780],
+        ]);
+        expect(it.reduce((s, i) => s + i.total_cents, 0), 'o rateio dos itens fecha no total do pedido').toBe(totalEsperado);
+        expect((await eventos(novo)).map((e) => e.nome)).toEqual(expect.arrayContaining(['vendedor.pedido.criado@1', 'vendedor.pedido.aprovado@1']));
+        expect(await realizadoDoLucas(), 'RN-CORE-21: conta na meta o total do pedido novo (tabela do dia)').toBe(realizadoAntes + totalEsperado);
+        expect((await noBanco(VENC))!.total_cents, 'o orçamento guarda o próprio total (379,79)').toBe(37979);
+
+        // PUT depois dos 7 dias: reprecifica pela tabela do dia e renova a data do preço (D+7 a partir de hoje)
+        const l2 = await linhaNoAparelho(lucas, VENC2);
+        expect(l2, 'o segundo de preço antigo no aparelho').toBeDefined();
+        const validadeVelha = (await noBanco(VENC2))!.orcamento_validade!;
+        const e = await put(token.vendedor, VENC2, corpoPut(String(l2!.updated_at)));
+        expect(e.statusCode, e.body).toBe(200);
+        const d2 = (await noBanco(VENC2))!;
+        expect(d2).toMatchObject({ tipo: 'orcamento', total_tabela_cents: tabelaEsperada, total_cents: totalEsperado });
+        expect((await itensNoBanco(VENC2)).find((i) => i.produto_sku === 'CAF-500')!.preco_tabela_cents, 'CAF pelo preço de hoje').toBe(1950);
+        expect(d2.orcamento_validade! > validadeVelha, 'data do preço renovada').toBe(true);
+        expect(d2.orcamento_validade! >= api.hoje, 'o preço novo vale a partir de hoje').toBe(true);
+        expect(await eventos(VENC2), 'editar orçamento não publica evento').toEqual([]);
+
+        // cancelar o de preço antigo: 200 (está aberto) e sem evento de pedido
+        const c = await cancelar(token.vendedor, VENC2);
+        expect([c.statusCode, (c.json() as { status?: string }).status], c.body).toEqual([200, 'cancelled']);
+        expect(await eventos(VENC2)).toEqual([]);
+      } finally {
+        await api.admin.query('update catalogo.tabela_preco_item set preco_cents = 1890 where id = $1', [precoCafe[0]!.id]);
+      }
     });
   });
 
