@@ -19,6 +19,8 @@ import {
   type OrcamentoParaReconferir,
   type SituacaoCliente,
 } from '../../domain/orcamento';
+import { ehUf } from '@macuxi/comum/endereco';
+import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import type { AjusteItem } from '../../domain/preco-pedido';
 import { chaveDaLinha, unidadesDoProduto, type Ajuste, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
@@ -44,6 +46,14 @@ export function freteDaCopia(f: NonNullable<OrderDetail['freight']> | null | und
   return { modalidade: 'FOB' };
 }
 
+/** RN-VEN-17 (T-0141): o retrato do pedido virou digitado (origem 'editado') → o mesmo endereço volta como digitado na cópia. */
+export function enderecoEditadoDoRetrato(e: NonNullable<OrderDetail['delivery_address']> | null | undefined): EnderecoEditadoValido | null {
+  if (!e || e.origem !== 'editado') return null;
+  const uf = e.uf.toUpperCase();
+  if (!ehUf(uf)) return null;
+  return { logradouro: e.logradouro, numero: e.numero ?? '', complemento: e.complemento ?? null, bairro: e.bairro ?? '', cidade: e.cidade, uf, cep: (e.cep ?? '').replace(/\D/g, '') };
+}
+
 /** Detalhe do pedido/orçamento (servidor ou pull) → cópia completa. */
 export type DetalheParaCopia = Pick<OrderDetail, 'id' | 'customer_id' | 'discount_pct' | 'items'> & Partial<OrderDetail>;
 
@@ -62,7 +72,7 @@ export function copiaDoDetalhe(d: DetalheParaCopia, extra: ExtraCopia): Orcament
     observacao: extra.observacao,
     visita_id: extra.visitaId ?? null,
     ...(frete ? { frete } : {}),
-    ...(d.delivery_address?.id ? { endereco_entrega_id: d.delivery_address.id } : {}),
+    ...(enderecoEditadoDoRetrato(d.delivery_address) ? { endereco_entrega_editado: enderecoEditadoDoRetrato(d.delivery_address) } : d.delivery_address?.id ? { endereco_entrega_id: d.delivery_address.id } : {}),
     itens: d.items.map(
       (it): ItemParaCopia => ({
         product_id: it.product_id,
@@ -99,7 +109,7 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
     observacao: p.observacao ?? extra.observacao,
     visita_id: p.visita_id ?? null,
     ...(frete ? { frete } : {}),
-    ...(p.endereco_entrega_id ? { endereco_entrega_id: p.endereco_entrega_id } : {}),
+    ...(p.endereco_entrega_editado ? { endereco_entrega_editado: p.endereco_entrega_editado } : p.endereco_entrega_id ? { endereco_entrega_id: p.endereco_entrega_id } : {}),
     itens: p.items.map(
       (it): ItemParaCopia => ({
         product_id: it.product_id,
@@ -140,7 +150,7 @@ export function precosCongeladosDoOrcamento(
 export interface RascunhoDaCopia {
   rascunho: Pick<
     Rascunho,
-    'lines' | 'ajustes' | 'discount_pct' | 'acrescimo_pct' | 'desconto_valor_cents' | 'acrescimo_valor_cents' | 'ajuste_em' | 'frete' | 'endereco_entrega_id' | 'observacao' | 'condicao_pagamento_id' | 'forma_pagamento_id' | 'prazo_pagamento_id'
+    'lines' | 'ajustes' | 'discount_pct' | 'acrescimo_pct' | 'desconto_valor_cents' | 'acrescimo_valor_cents' | 'ajuste_em' | 'frete' | 'endereco_entrega_id' | 'endereco_entrega_editado' | 'observacao' | 'condicao_pagamento_id' | 'forma_pagamento_id' | 'prazo_pagamento_id'
   >;
   /** itens que saíram (sem preço/inativos) e quantidade acima do estoque, em português */
   aviso: string;
@@ -199,7 +209,7 @@ export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opc
       ...(emValor && (c.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: c.acrescimo_valor_cents } : {}),
       ...(c.ajuste_em ? { ajuste_em: c.ajuste_em } : {}),
       ...(frete ? { frete } : {}),
-      ...(c.endereco_entrega_id ? { endereco_entrega_id: c.endereco_entrega_id } : {}),
+      ...(c.endereco_entrega_editado ? { endereco_entrega_editado: c.endereco_entrega_editado } : c.endereco_entrega_id ? { endereco_entrega_id: c.endereco_entrega_id } : {}),
       ...(c.observacao ? { observacao: c.observacao } : {}),
       condicao_pagamento_id: c.condicao_pagamento_id,
       ...(c.forma_pagamento_id && c.prazo_pagamento_id ? { forma_pagamento_id: c.forma_pagamento_id, prazo_pagamento_id: c.prazo_pagamento_id } : {}),
@@ -273,8 +283,17 @@ export function dadosAtuaisDoAparelho(e: {
   return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };
 }
 
-export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[0]) {
-  return reconferirOrcamento(orcamentoParaReconferir(e.detalhe), dadosAtuaisDoAparelho(e));
+/** `preco_vale`: o preço congelado ainda está nos 7 dias (RN-VEN-18); `false` = Transformar reprecifica pela tabela do dia. */
+export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[0] & { preco_vale?: boolean }) {
+  return reconferirOrcamento(orcamentoParaReconferir(e.detalhe), dadosAtuaisDoAparelho(e), { preco_vale: e.preco_vale ?? true });
+}
+
+/** RN-VEN-18: a frase do total quando o preço vencido mudou o valor do orçamento; `null` quando não mudou. */
+export function textoDaDiferencaTotal(r: { total_orcado_cents: number; diferenca_total_cents: number }): string | null {
+  if (r.diferenca_total_cents === 0) return null;
+  const novo = r.total_orcado_cents + r.diferenca_total_cents;
+  const quanto = formatBRL(Math.abs(r.diferenca_total_cents));
+  return `Total: ${formatBRL(novo)} (era ${formatBRL(r.total_orcado_cents)}), ${quanto} a ${r.diferenca_total_cents > 0 ? 'mais' : 'menos'}.`;
 }
 
 /** Uma frase por mudança, em português, com o nome do produto (a tela mostra antes de enviar o pedido). */

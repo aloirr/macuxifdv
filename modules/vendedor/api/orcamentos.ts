@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
-import { acoesDoOrcamento, conteudoDoEnvio, situacaoDoOrcamento } from '../domain';
+import { acoesDoOrcamento, conteudoDoEnvio, precoDoOrcamentoVale, situacaoDoOrcamento, validadeDoPreco, validadeOrcamentoDias } from '../domain';
 import { calcularDocumento } from './receber';
 import { valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
@@ -89,7 +89,10 @@ export const rotaEditarOrcamento: RotaModulo = {
         throw new ErroHttpModulo(409, 'ORCAMENTO_ALTERADO', 'Este orçamento foi alterado em outro aparelho. Abra de novo para ver a versão atual.');
       }
 
-      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, { data: doc.validade_data, ate: doc.validade_ate }, await precosCongeladosDoDocumento(db, id));
+      // T-0141 (RN-VEN-18): dentro dos 7 dias o item salvo mantém o preço e a validade do preço segue a original; depois, a edição
+      // reprecifica pela tabela do dia e renova a data do preço (o orçamento em si nunca vence)
+      const precoVale = precoDoOrcamentoVale(doc.validade_ate, ctx.agora());
+      const calc = await calcularDocumento(ctx, db, tx, p, 'orcamento', id, precoVale ? { data: doc.validade_data, ate: doc.validade_ate } : undefined, precoVale ? await precosCongeladosDoDocumento(db, id) : undefined);
       if ('status' in calc) {
         const codigo = calc.status === 'rejeitado' ? calc.codigo : 'PAYLOAD_INVALIDO';
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';
@@ -120,13 +123,16 @@ export const rotaEditarOrcamento: RotaModulo = {
           JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null,
           v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada,
           transportadora.nome, transportadora.documento, transportadora.telefone, alvo.endereco_id,
-          enderecoRetrato
-            ? JSON.stringify({ id: enderecoRetrato.id, external_id: enderecoRetrato.external_id, tipo: enderecoRetrato.tipo, logradouro: enderecoRetrato.logradouro, numero: enderecoRetrato.numero, complemento: enderecoRetrato.complemento, bairro: enderecoRetrato.bairro, cidade: enderecoRetrato.cidade, uf: enderecoRetrato.uf, cep: enderecoRetrato.cep, principal: enderecoRetrato.principal, descricao: null })
-            : null,
+          enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
           v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, hash,
           ...valoresPagamento(pagamento),
         ],
       );
+      // reprecificou (preço vencido): a nova validade = dia da edição + validade_orcamento_dias, pela função única; preco_data vira o dia da edição
+      if (!precoVale) {
+        const nova = validadeDoPreco(ctx.agora().toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso());
+        await preVenda().marcarDocumento(db, id, { tipo: 'orcamento', validade_data: nova.data, orcamento_origem_id: doc.orcamento_origem_id });
+      }
       // itens: os antigos saem por exclusão lógica (o pull leva a remoção) e os novos entram com sequência depois da última
       const ultima = Number((await db.query<{ n: number }>('select coalesce(max(sequencia), 0)::int as n from vendedor.pedido_item where pedido_id = $1', [id])).rows[0]!.n);
       await db.query('update vendedor.pedido_item set deleted_at = now() where pedido_id = $1 and deleted_at is null', [id]);
@@ -148,7 +154,7 @@ export const rotaEditarOrcamento: RotaModulo = {
       });
       // RN-VEN-32: nenhum evento de pedido
       const novo = (await db.query<{ atualizado_em: string }>(`select to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em from vendedor.pedido where id = $1`, [id])).rows[0]!;
-      return { id, tipo: 'orcamento', status: atual.status, total_cents: v.total_cents, validade_data: doc.validade_data, atualizado_em: novo.atualizado_em };
+      return { id, tipo: 'orcamento', status: atual.status, total_cents: v.total_cents, validade_data: precoVale ? doc.validade_data : validadeDoPreco(ctx.agora().toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso()).data, atualizado_em: novo.atualizado_em };
     });
   },
 };

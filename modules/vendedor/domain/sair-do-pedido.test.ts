@@ -25,9 +25,9 @@ describe('RN-VEN-38: pedido alterado', () => {
 });
 
 describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
-  const base = { pre_venda_ligada: true, validade_data: '2026-11-15' };
-  it('RN-VEN-38: cliente normal vê Salvar e enviar pedido, Apenas salvar, Salvar como orçamento (Válido até 15/11) e Descartar', () => {
-    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ salvar: true, apenasSalvar: true, orcamento: true, subtituloOrcamento: 'Válido até 15/11', aviso: null });
+  const base = { pre_venda_ligada: true, preco_data: '2026-11-09' };
+  it('RN-VEN-38: cliente normal vê Salvar e enviar pedido, Apenas salvar, Salvar como orçamento (sem subtítulo de preço) e Descartar', () => {
+    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ salvar: true, apenasSalvar: true, orcamento: true, subtituloOrcamento: null, aviso: null });
   });
   it.each([
     ['bloqueado', { ...ok, bloqueado: true }, 'Cliente bloqueado: só dá para salvar como orçamento'],
@@ -45,7 +45,7 @@ describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
     expect(opcoesDaSaida({ ...base, pre_venda_ligada: false, cliente: ok }).orcamento).toBe(false);
   });
   it('RN-VEN-13: cliente só-orçamento mantém o orçamento mesmo sem pré-venda ligada (a folha nunca fica sem salvar)', () => {
-    expect(opcoesDaSaida({ pre_venda_ligada: false, validade_data: '2026-11-15', cliente: { ...ok, bloqueado: true } }).orcamento).toBe(true);
+    expect(opcoesDaSaida({ pre_venda_ligada: false, preco_data: '2026-11-09', cliente: { ...ok, bloqueado: true } }).orcamento).toBe(true);
   });
 });
 

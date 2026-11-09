@@ -3,7 +3,7 @@
  */
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
 import { normalizarStatus } from '../../domain/order';
-import { motivoDaRecusa } from './salvar-na-fila';
+import { motivoDaRecusa, textoNaoFoiAceito } from './salvar-na-fila';
 
 export interface BadgeStyle {
   label: string;
@@ -91,7 +91,7 @@ export function orderNote(o: { status: string; pending_reason: string; rejection
 
 /** Linha da lista de um pedido que a API recusou: "Não foi aceito: <motivo>", sem código cru (T-0130). */
 function textoDaRecusaCurto(bruto: string): string {
-  return `Não foi aceito: ${motivoDaRecusa(bruto)}`;
+  return textoNaoFoiAceito(motivoDaRecusa(bruto));
 }
 
 /** Selo da linha: o recusado pela API aparece como "Não aceito" (não "Na fila"); o resto segue o status (T-0130). */

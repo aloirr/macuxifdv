@@ -79,8 +79,8 @@ describe('RN-VEN-30/18 (T-0138): histórico do orçamento', () => {
   it('RN-VEN-30: aberto mostra só "Salvo"', () => {
     expect(t([ev('received', '2026-11-08T14:35:00.000Z', 'Lucas Andrade', 'Recebido pelo servidor.')], { situacao: 'aberto' })).toEqual(['Salvo · 08/11 10:35']);
   });
-  it('RN-VEN-30: sem eventos usa a criação; vencido e transformado vêm da situação calculada', () => {
-    expect(t([], { situacao: 'expirado', validadeAte: '2026-11-16T04:00:00.000Z' })).toEqual(['Salvo · 08/11 10:35', 'Vencido · 16/11 00:00']);
+  it('RN-VEN-30: sem eventos usa a criação; transformado vem da situação calculada; orçamento nunca vence (RN-VEN-18)', () => {
+    expect(t([], { situacao: 'aberto' })).toEqual(['Salvo · 08/11 10:35']);
     expect(t([], { situacao: 'convertido', convertidoEm: '2026-11-09T13:00:00.000Z', numeroPedido: '000013' })).toEqual(['Salvo · 08/11 10:35', 'Transformado em pedido nº 000013 · 09/11 09:00']);
   });
   it('RN-VEN-30: cancelado leva o motivo', () => {
@@ -124,10 +124,11 @@ describe('RF-VEN-05 / RN-VEN-31 (T-0138): onde fica cada ação (pedido-v2 §4.3
   it('RF-VEN-05: orçamento aberto: Transformar em pedido grande; Editar, PDF, Duplicar em ícone; Cancelar no ⋮', () => {
     expect(ids(acoesDoDetalhe({ ...base, tipo: 'orcamento', situacao: 'aberto', podeConverter: true, podeEditar: true, podeCancelar: true }))).toEqual({ principal: 'transformar', icones: ['editar', 'pdf', 'duplicar'], menu: ['cancelar'] });
   });
-  it('RN-VEN-18: orçamento vencido: Duplicar vira o principal ("Entra pelos preços de hoje") e sobra o PDF', () => {
-    const a = acoesDoDetalhe({ ...base, tipo: 'orcamento', situacao: 'expirado' });
-    expect(ids(a)).toEqual({ principal: 'duplicar', icones: ['pdf'], menu: [] });
-    expect(a.principal?.apoio).toBe('Entra pelos preços de hoje');
+  it('RN-VEN-18 (T-0141 G): com o preço congelado vencido, o principal Transformar traz o apoio "Entra pelos preços de hoje"; vigente, sem apoio', () => {
+    const e = { ...base, tipo: 'orcamento' as const, situacao: 'aberto' as const, podeConverter: true };
+    expect(acoesDoDetalhe({ ...e, precoVencido: true }).principal?.apoio).toBe('Entra pelos preços de hoje');
+    expect(acoesDoDetalhe({ ...e, precoVencido: false }).principal?.apoio).toBeUndefined();
+    expect(acoesDoDetalhe(e).principal?.apoio).toBeUndefined();
   });
   it('RN-VEN-18: orçamento transformado: PDF, Duplicar e "Pedido" (abre o gerado)', () => {
     expect(ids(acoesDoDetalhe({ ...base, tipo: 'orcamento', situacao: 'convertido', pedidoGeradoId: 'p1' }))).toEqual({ principal: null, icones: ['pdf', 'duplicar', 'pedido'], menu: [] });

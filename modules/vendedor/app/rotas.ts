@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 export const CAMINHO_PEDIDOS = 'pedidos';
 export const CAMINHO_PEDIDO = 'pedido';
 export const CAMINHO_NOVO_PEDIDO = 'novo-pedido';
+export const CAMINHO_RASCUNHOS = 'rascunhos';
 
 const rota = (caminho: string, params: Record<string, string | undefined> = {}) => {
   const qs = Object.entries(params)
@@ -17,6 +18,8 @@ const rota = (caminho: string, params: Record<string, string | undefined> = {}) 
 };
 
 export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
+/** T-0141 (RN-VEN-39): a lista Rascunhos, aberta pela linha no topo de Pedidos. */
+export const hrefRascunhos = () => rota(CAMINHO_RASCUNHOS);
 /** T-0076: a lista de Pedidos já filtrada pelos cards do Início. */
 export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
@@ -26,11 +29,8 @@ export const hrefPedido = (id: string, transformar = false) => rota(CAMINHO_PEDI
 export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string; vendedorNome?: string };
 export const hrefNovoPedido = (params: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
 
-/** RF-CAT-04: abre a árvore do Catálogo de dentro do pedido; só entram produtos da tabela do cliente (RN-CAT-06). */
-export const hrefCatalogoDoPedido = (clienteId: string) => `/m/catalogo?cliente=${encodeURIComponent(clienteId)}&pedido=1`;
-export const irParaCatalogoDoPedido = (clienteId: string) => router.push(hrefCatalogoDoPedido(clienteId) as never);
-
 export const irParaPedidos = () => router.navigate(hrefPedidos() as never);
+export const irParaRascunhos = () => router.push(hrefRascunhos() as never);
 export const irParaPedido = (id: string) => router.navigate(hrefPedido(id) as never);
 export const irParaNovoPedido = (params: ParamsNovoPedido = {}) => router.push(hrefNovoPedido(params) as never);
 export const irParaPedidosFiltrados = (filtro: FiltroDoInicio) => router.navigate(hrefPedidosFiltrados(filtro) as never);

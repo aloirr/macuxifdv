@@ -78,7 +78,7 @@ describe('PDF do pedido · versão cliente', () => {
     expect(text).toContain('Rafael Souza');
     expect(text).toContain('28/56 dias');
     expect(text).toContain('Valores sem impostos; impostos calculados no faturamento.');
-    expect(html).toContain('<title>pedido-10521-cliente</title>');
+    expect(html).toContain('<title>PED-10521-12102026</title>');
   });
 
   it('escapa HTML dos textos', () => {
@@ -89,7 +89,7 @@ describe('PDF do pedido · versão cliente', () => {
   it('pedido ainda na fila aparece como "no aparelho"', () => {
     const h = buildOrderPdfHtml(order({ number: null, status: 'queued' }), 'customer', ctx);
     expect(visibleText(h)).toContain('Pedido no aparelho');
-    expect(h).toContain('<title>pedido-no-aparelho-cliente</title>');
+    expect(h).toContain('<title>PED-PROV-12102026</title>');
   });
 });
 
@@ -137,9 +137,8 @@ describe('PDF do pedido · versão BKO', () => {
 
 describe('utilitários do PDF', () => {
   it('nome do arquivo, data e escape', () => {
-    expect(orderPdfFileName('10521', 'customer')).toBe('pedido-10521-cliente.pdf');
-    expect(orderPdfFileName('10521', 'bko')).toBe('pedido-10521-bko.pdf');
-    expect(orderPdfFileName(null, 'bko')).toBe('pedido-no-aparelho-bko.pdf');
+    expect(orderPdfFileName('10521', '2026-10-12T14:00:00.000Z', 'America/Manaus')).toBe('PED-10521-12102026.pdf');
+    expect(orderPdfFileName(null, '2026-10-12T14:00:00.000Z', 'America/Manaus', 'orcamento')).toBe('ORC-PROV-12102026.pdf');
     expect(pdfDateTime('2026-10-12T03:30:00.000Z', 'America/Manaus')).toBe('11/10/2026 23:30');
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
     expect(netUnitCents({ quantity: 0, total_cents: 100 })).toBe(0);

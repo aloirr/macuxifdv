@@ -57,20 +57,20 @@ describe('RF-VEN-05: consulta ao servidor por período (fora da janela de 90 dia
     expect(v[5]).toBe('2025-01-01');
     expect(v[6]).toBe('2025-12-31');
     expect(v[9]).toBe('America/Manaus');
-    expect(v[15]).toBe(true);
+    expect(v[14]).toBe(true);
     const sql = consultas[0]!.sql;
     expect(sql).toMatch(/exists \(select 1 from vendedor\.pedido_evento ev/);
     expect(sql).toMatch(/ev\.de is not null/);
     expect(sql).toMatch(/ev\.ocorrido_em >= \(\$6::date\)::timestamp at time zone \$10/);
     expect(sql).toMatch(/ev\.ocorrido_em < \(\(\$7::date\) \+ 1\)::timestamp at time zone \$10/);
-    expect(sql).toMatch(/\$16::boolean/);
+    expect(sql).toMatch(/\$15::boolean/);
     expect(sql).not.toMatch(/p\.updated_at >= /);
   });
 
   it('sem por_status só vale a data de emissão', async () => {
     const { ctx, consultas } = contexto('vendedor', { from: '2025-01-01', to: '2025-12-31' });
     await rotaListarPedidos.executar(ctx as never);
-    expect(consultas[0]!.valores[15]).toBe(false);
+    expect(consultas[0]!.valores[14]).toBe(false);
   });
 
   it('RN-CORE-04: vendedor/supervisor consultam por usuários visíveis; promotor pela carteira (nunca por vendedor)', async () => {

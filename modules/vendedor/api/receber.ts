@@ -27,6 +27,7 @@ import {
   emitidoEm,
   faixasDaConsulta,
   historicoDoOrcamento,
+  precoDoOrcamentoVale,
   ehPedidoEmNome,
   momentoDaConversao,
   aplicacaoMaxOrcamento,
@@ -36,7 +37,8 @@ import {
   politicaDosParametros,
   precoMinimoBaseCents,
   recusaDePerfil,
-  resolverEnderecoEntrega,
+  enderecoDoPedido,
+  enderecoHerdadoDoOrcamento,
   resolverUnidadeDoItem,
   revalidarPedido,
   statusDoContrato,
@@ -91,10 +93,8 @@ export async function condicoesPermitidas(db: ClienteBanco, clienteId: string): 
   return { permitidas, padrao };
 }
 
-/** Retrato do endereço de entrega no aceite (RN-VEN-17; vem de core.cliente_endereco pela consulta do Core). */
-function retratoDoEndereco(e: { id: string; external_id: string | null; tipo: string; logradouro: string; numero: string | null; complemento: string | null; bairro: string | null; cidade: string; uf: string; cep: string | null; principal: boolean }) {
-  return { id: e.id, external_id: e.external_id, tipo: e.tipo, logradouro: e.logradouro, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade, uf: e.uf, cep: e.cep, principal: e.principal, descricao: null };
-}
+/** RN-VEN-17: texto da recusa do endereço (nada do conteúdo digitado). */
+export const MSG_ENDERECO_INVALIDO = 'Endereço de entrega incompleto. Confira CEP, rua, número, bairro, cidade e UF.';
 
 const nomeDoEndereco = (logradouro: string | null, numero: string | null) => [logradouro, numero].filter((x) => x && x.trim() !== '').join(', ');
 
@@ -164,9 +164,10 @@ export async function calcularDocumento(
     }
   }
   const enderecos = (cad.enderecos ?? []).filter((x) => x.cliente_id === p.customer_id);
-  const alvo = resolverEnderecoEntrega(p.endereco_entrega_id, enderecos);
-  if (!alvo.ok) return rejeitado(itemId, alvo.codigo, 'Endereço de entrega inválido para este cliente. Atualize os dados e escolha de novo.');
-  const enderecoRetrato = alvo.endereco_id ? enderecos.find((x) => x.id === alvo.endereco_id)! : null;
+  // RN-VEN-17 (T-0141): endereço do ERP ou o digitado só para este pedido; a API revalida (limites da NF-e) e nunca loga o conteúdo
+  const alvo = enderecoDoPedido({ editado: p.endereco_entrega_editado, escolhido_id: p.endereco_entrega_id, enderecos });
+  if (!alvo.ok) return rejeitado(itemId, alvo.codigo, MSG_ENDERECO_INVALIDO);
+  const enderecoRetrato = alvo.retrato;
 
   // 5) preço na tabela do cliente, na data do pedido (RN-VEN-01, P-4; RN-CAT-06)
   const em = dataDoPreco(p.created_offline_at, agora);
@@ -245,7 +246,7 @@ export async function calcularDocumento(
   const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
   const validade = validadeCivil?.ate ?? null;
   const v = validadeCivil
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data) }
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
   return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm };
 }
@@ -295,14 +296,25 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     return rejeitado(item.id, 'PRE_VENDA_INDISPONIVEL', 'Orçamento ainda não está liberado para a sua empresa. Envie como pedido ou fale com o administrador.');
   }
   if (tipo === 'orcamento' && origem) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Orçamento não nasce de outro orçamento.');
+  let precoVale = false;
   if (origem) {
-    const r = verificarConversao({ orcamento: await repo.buscarOrcamento(db, origem, ctx.fuso()), vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento: momentoDaConversao(p.created_offline_at, agora) });
+    const orcOrigem = await repo.buscarOrcamento(db, origem, ctx.fuso());
+    const momento = momentoDaConversao(p.created_offline_at, agora);
+    const r = verificarConversao({ orcamento: orcOrigem, vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento });
     if (r) return recusa(item.id, r);
+    // T-0141 (RN-VEN-18): o preço congelado vale até D+7 23:59 (fuso do tenant); depois, o pedido nasce pela tabela do dia
+    precoVale = precoDoOrcamentoVale(orcOrigem?.validade_ate, momento);
   }
 
-  // T-0134: Transformar mantém os preços do orçamento (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
-  const congelados = origem ? await precosCongeladosDoDocumento(db, origem) : undefined;
-  const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id, undefined, congelados);
+  // T-0134: Transformar mantém os preços do orçamento enquanto valem (RN-VEN-18); estoque, mínimo (RN-VEN-11) e alçada são revalidados abaixo
+  const congelados = origem && precoVale ? await precosCongeladosDoDocumento(db, origem) : undefined;
+  // T-0141 (RN-VEN-17): Transformar sem endereço no corpo herda o retrato do orçamento (editado continua editado)
+  let pDoc = p;
+  if (origem && !p.endereco_entrega_id && !p.endereco_entrega_editado) {
+    const o = (await db.query<{ endereco_entrega: Record<string, unknown> | null }>("select endereco_entrega from vendedor.pedido where id = $1 and tipo = 'orcamento'", [origem])).rows[0];
+    pDoc = { ...p, ...enderecoHerdadoDoOrcamento(o?.endereco_entrega as never) } as typeof p;
+  }
+  const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
   const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm } = calc;
 
@@ -336,7 +348,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
       precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
       v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
-      transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(retratoDoEndereco(enderecoRetrato)) : null,
+      transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
       ...valoresPagamento(pagamento),
     ],

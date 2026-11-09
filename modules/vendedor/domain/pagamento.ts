@@ -91,7 +91,9 @@ export function pagamentoPadrao(
 }
 
 export type CodigoRecusaPagamento = 'RN-VEN-24' | 'RN-VEN-25';
-export type ResultadoPagamento = { ok: true } | { ok: false; codigo: CodigoRecusaPagamento; mensagem: string };
+/** `motivo` (RD-0037): código estável da recusa; a tela decide a pendência por ele, nunca pela mensagem. */
+export type MotivoRecusaPagamento = 'forma_indisponivel' | 'prazo_indisponivel' | 'forma_nao_aceita' | 'prazo_acima_medio';
+export type ResultadoPagamento = { ok: true } | { ok: false; codigo: CodigoRecusaPagamento; motivo: MotivoRecusaPagamento; mensagem: string };
 
 /** RN-VEN-24 (forma/prazo existem, ativos, prazo da forma) e RN-VEN-25 (forma aceita pelo cliente e prazo médio dentro do máximo). */
 export function validarPagamento(i: {
@@ -100,17 +102,17 @@ export function validarPagamento(i: {
   cliente: LimitePagamentoDoCliente;
 }): ResultadoPagamento {
   const { forma, prazo, cliente } = i;
-  if (!forma || !forma.ativo) return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Forma de pagamento indisponível. Escolha outra forma na lista.' };
+  if (!forma || !forma.ativo) return { ok: false, codigo: 'RN-VEN-24', motivo: 'forma_indisponivel', mensagem: 'Forma de pagamento indisponível. Escolha outra forma na lista.' };
   if (!prazo || !prazo.ativo || prazo.forma_pagamento_id !== forma.id) {
-    return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Prazo indisponível para esta forma. Escolha outro prazo na lista.' };
+    return { ok: false, codigo: 'RN-VEN-24', motivo: 'prazo_indisponivel', mensagem: 'Prazo indisponível para esta forma. Escolha outro prazo na lista.' };
   }
   const lista = cliente.formas_pagamento;
   if (lista && lista.length > 0 && !lista.includes(forma.codigo)) {
-    return { ok: false, codigo: 'RN-VEN-25', mensagem: 'Este cliente não aceita esta forma de pagamento. Escolha outra forma.' };
+    return { ok: false, codigo: 'RN-VEN-25', motivo: 'forma_nao_aceita', mensagem: 'Este cliente não aceita esta forma de pagamento. Escolha outra forma.' };
   }
   const max = cliente.prazo_medio_max_dias;
   if (max != null && prazo.prazo_medio_dias > max) {
-    return { ok: false, codigo: 'RN-VEN-25', mensagem: 'Prazo acima do prazo médio permitido ao cliente. Escolha um prazo menor.' };
+    return { ok: false, codigo: 'RN-VEN-25', motivo: 'prazo_acima_medio', mensagem: 'Prazo acima do prazo médio permitido ao cliente. Escolha um prazo menor.' };
   }
   return { ok: true };
 }

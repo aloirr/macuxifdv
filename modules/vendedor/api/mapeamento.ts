@@ -142,6 +142,7 @@ export function enderecoDoPedido(l: LinhaPedido): Order['delivery_address'] {
     uf: String(e.uf ?? ''),
     cep: t(e.cep),
     principal: e.principal === true,
+    origem: e.origem === 'editado' ? 'editado' : 'erp',
   };
 }
 

@@ -1,14 +1,18 @@
 /**
  * Salvar pela fila (T-0130, Frente G; RN-VEN-30 acréscimo de 08/11, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33).
- * Funções puras, sem React: o que a tela mostra para o pedido `na_fila`, a recusa da API com o motivo em português e o
- * rascunho gravado por "Apenas salvar" como linha da lista Pedidos. Spec: docs/design/formulario-pendencias.md §4.
+ * Funções puras, sem React: o que a tela mostra para o pedido `na_fila` e a recusa da API com o motivo em português.
+ * (T-0141: o rascunho de "Apenas salvar" saiu da lista Pedidos; mora na tela Rascunhos, `rascunhos-lista.ts`.)
+ * Spec: docs/design/formulario-pendencias.md §4.
  */
-import type { PedidoDaLista, Rascunho } from './pedidos';
 
 export const AVISO_SALVO_ENVIANDO = 'Pedido salvo · enviando';
 export const AVISO_SALVO_SEM_SINAL = 'Pedido salvo · vai quando houver sinal';
 export const ROTULO_CORRIGIR_PEDIDO = 'Corrigir pedido';
-export const ROTULO_SALVO = 'Salvo';
+
+/** RD-0038: a única montagem de "Não foi aceito: <motivo>" (faixa do detalhe, linha da lista). */
+export function textoNaoFoiAceito(motivo: string): string {
+  return `Não foi aceito: ${motivo}`;
+}
 
 /** Texto do aviso do rodapé depois do toque em "Salvar e enviar pedido" (sem ponto final, guia de UX). */
 export function avisoDoSalvar(offline: boolean): string {
@@ -30,17 +34,34 @@ export function motivoDaRecusa(bruto: string): string {
     case 'estoque_insuficiente':
       return `estoque de ${item} não atende a quantidade`;
     default:
-      return 'o Macuxi recusou o pedido. Fale com seu supervisor';
+      return motivoLegivel(t) ?? MOTIVO_GENERICO;
   }
 }
 
-/** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa. */
+const MOTIVO_GENERICO = 'o Macuxi recusou o pedido. Fale com seu supervisor';
+
+/**
+ * RN-VEN-40: a API devolve `mensagem` já em português (ex.: "Desconto acima do máximo do produto: VEL-150. Reduza o desconto do
+ * item."). Mostra essa frase, sem o código de regra "(RN-...)" e sem o ponto final; texto técnico (código sem espaço, erro de
+ * rede, HTTP) cai no genérico.
+ */
+function motivoLegivel(t: string): string | null {
+  if (!t || !/\s/.test(t)) return null;
+  if (/^(HTTP\s*\d|\w*Error\b|Network request failed|Failed to fetch)/i.test(t)) return null;
+  const limpo = t
+    .replace(/^RN-[A-Z]+-\d+:\s*/, '')
+    .replace(/\s*\(RN-[A-Z]+-\d+\)/g, '')
+    .replace(/[.\s]+$/, '')
+    .trim();
+  return limpo.length >= 4 ? limpo : null;
+}
+
+/** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa (código ou a frase da API). */
 export function abaDaCorrecao(bruto: string): 'itens' | 'resumo' {
-  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente/.test(bruto ?? '') ? 'itens' : 'resumo';
+  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente|acima do máximo do produto|Sem preço para|produto inativo|Quantidade inválida|Medida inválida|Desconto em R\$ acima|^Item [^:]+:/i.test(bruto ?? '') ? 'itens' : 'resumo';
 }
 
 export interface EstadoNaFila {
-  chip: { texto: string; tom: 'neutro' | 'erro' };
   faixa: { texto: string; tom: 'warning' | 'danger'; icone: 'sync' | 'wifiOff' | 'alert' };
   /** pedido `na_fila` é só de leitura; só o recusado reabre para correção */
   somenteLeitura: boolean;
@@ -53,76 +74,16 @@ export function estadoNaFila(e: { recusado: boolean; offline: boolean; motivoBru
     const motivo = motivoDaRecusa(e.motivoBruto ?? '');
     const conhecido = motivo !== motivoDaRecusa('');
     return {
-      chip: { texto: 'Não aceito', tom: 'erro' },
-      faixa: { texto: conhecido ? `Não foi aceito: ${motivo}. Corrija e salve de novo.` : `Não foi aceito: ${motivo}`, tom: 'danger', icone: 'alert' },
+      faixa: { texto: conhecido ? `${textoNaoFoiAceito(motivo)}. Corrija e salve de novo.` : textoNaoFoiAceito(motivo), tom: 'danger', icone: 'alert' },
       somenteLeitura: false,
       podeCorrigir: true,
       podeEnviarAgora: false,
     };
   }
   return {
-    chip: { texto: 'Na fila', tom: 'neutro' },
     faixa: { texto: avisoDoSalvar(e.offline), tom: 'warning', icone: e.offline ? 'wifiOff' : 'sync' },
     somenteLeitura: true,
     podeCorrigir: false,
     podeEnviarAgora: !e.offline,
   };
-}
-
-/** Prefixo do id da linha da lista que representa um rascunho (não é pedido na fila nem no servidor). */
-export const PREFIXO_RASCUNHO = 'rascunho:';
-export const idDoRascunho = (customerId: string) => `${PREFIXO_RASCUNHO}${customerId}`;
-export const clienteDoRascunho = (id: string): string | null => (id.startsWith(PREFIXO_RASCUNHO) ? id.slice(PREFIXO_RASCUNHO.length) : null);
-
-/**
- * "Apenas salvar" (RN-VEN-38): o rascunho com `salvo_em` aparece na lista Pedidos com a tag "Salvo". Rascunho de edição
- * (`edit:<id>`), sem itens ou nunca guardado de propósito não entra (esse é o "Pedido não terminado" do Início).
- */
-export function rascunhosSalvosComoPedidos(
-  rascunhos: Record<string, Rascunho>,
-  nomeDoCliente: (customerId: string) => string,
-  /** v1.0.1: total do rascunho em centavos pelo catálogo do aparelho; `null`/ausente = sem tabela para calcular */
-  totalDoRascunho?: (r: Rascunho) => number | null,
-): PedidoDaLista[] {
-  return Object.entries(rascunhos)
-    .filter(([chave, r]) => !chave.startsWith('edit:') && Boolean(r.salvo_em) && Object.values(r.lines).some((q) => q > 0) && !r.edit_order_id)
-    .map(([, r]): PedidoDaLista => {
-      const quando = r.salvo_em ?? r.updated_at;
-      return {
-        id: idDoRascunho(r.customer_id),
-        number: '',
-        idempotency_key: idDoRascunho(r.customer_id),
-        seller_id: '',
-        seller_name: '',
-        customer_id: r.customer_id,
-        customer_name: nomeDoCliente(r.customer_id),
-        branch_id: '',
-        branch_name: '',
-        price_table_id: null,
-        discount_pct: r.discount_pct,
-        subtotal_cents: totalDoRascunho?.(r) ?? 0,
-        discount_cents: 0,
-        total_cents: totalDoRascunho?.(r) ?? 0,
-        payment_terms: r.payment_terms,
-        status: 'draft',
-        pending_reason: '',
-        rejection_reason: '',
-        erp_order_code: '',
-        created_offline_at: quando,
-        received_at: quando,
-        updated_at: quando,
-        items_count: Object.values(r.lines).filter((q) => q > 0).length,
-        units: Object.values(r.lines).reduce((s, n) => s + n, 0),
-        local: true,
-        local_error: '',
-        ...(r.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
-      };
-    })
-    .sort((a, b) => b.received_at.localeCompare(a.received_at));
-}
-
-/** v1.0.1: o valor da linha "Salvo" da lista Pedidos: o total do rascunho, "Sem itens" sem item, "—" quando falta a tabela de preços no aparelho. */
-export function totalDaLinhaSalva(o: { total_cents: number; items_count?: number }, formatar: (cents: number) => string): string {
-  if ((o.items_count ?? 0) === 0) return 'Sem itens';
-  return o.total_cents > 0 ? formatar(o.total_cents) : '—';
 }
