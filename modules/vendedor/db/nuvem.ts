@@ -38,8 +38,21 @@ export const MODALIDADES_FRETE = ['CIF', 'FOB'] as const;
 /** Modo digitado do ajuste (0020, RN-VEN-02, T-0071): % ou R$ (item: por unidade vendida; pedido: sobre o total dos itens). */
 export const MODOS_AJUSTE = ['pct', 'valor'] as const;
 
-/** Retrato do endereço de entrega no aceite (0013, RN-VEN-17; vem de core.cliente_endereco). */
+/** Origem do retrato (0055, T-0141 C): 'erp' = escolhido de core.cliente_endereco; 'editado' = digitado só no pedido. */
+export const ORIGENS_ENDERECO_ENTREGA = ['erp', 'editado'] as const;
+
+/**
+ * Retrato do endereço de entrega no aceite (0013, RN-VEN-17; vem de core.cliente_endereco ou, desde a 0055, digitado só no
+ * pedido). `origem` ausente = 'erp' (linhas anteriores à T-0141). Editado: id, external_id e a coluna endereco_entrega_id
+ * nulos, principal false, UF com 2 letras maiúsculas e CEP com 8 dígitos (CHECKs da 0055; contrato em
+ * modules/vendedor/contracts/frete.ts).
+ */
 export interface EnderecoEntregaPedido {
+  id?: string | null;
+  external_id?: string | null;
+  tipo?: string;
+  principal?: boolean;
+  origem?: (typeof ORIGENS_ENDERECO_ENTREGA)[number];
   logradouro: string;
   numero: string | null;
   complemento: string | null;

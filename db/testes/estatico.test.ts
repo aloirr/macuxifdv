@@ -3,6 +3,8 @@
  * Drizzle, a fixture dois-tenants e o seed da Fase M contra as regras (CLAUDE.md regra 5, RN-CORE-05).
  */
 import * as crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PERFIS } from '@macuxi/platform-sdk';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
@@ -35,11 +37,12 @@ import * as esquemaPlataforma from '../esquema/plataforma';
 import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
-import { dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
+import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
+import { PASTA_DB } from '../src/config';
 import { hashSenha, verificarSenha } from '../src/senha';
 
 const COMUNS = ['id', 'created_at', 'updated_at', 'deleted_at', 'external_id'];
@@ -171,6 +174,7 @@ describe('migrações (estático)', () => {
     expect(nomes[51]).toBe('0052_plataforma_tenant_por_codigo_minimo'); // T-0122 N5: tenant_por_codigo só (id, status), tenant_da_sessao() e os CHECKs de evento iguais ao EVENTO_RE (tenant-por-codigo-minimo.test.ts)
     expect(nomes[52]).toBe('0053_core_cliente_canal'); // T-0115 (RN-PES-05): core.cliente.canal (1..60, nulo) e índice parcial (tenant_id, canal) (cliente-canal.test.ts)
     expect(nomes[53]).toBe('0054_integracao_mapeamento_canal'); // T-0115 (RN-PES-05): CHECK mapeamento_tipo_valido com 'canal' = TIPOS_MAPEAMENTO (mapeamento-canal.test.ts)
+    expect(nomes[54]).toBe('0055_vendedor_endereco_editado'); // T-0141 C (RN-VEN-17): 3 CHECKs do retrato endereco_entrega com origem 'erp'|'editado', sem coluna nova (pedido-endereco-editado.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -919,6 +923,18 @@ describe('fixture dois-tenants (estático)', () => {
       expect(linhas.filter((l) => l.tenant_id === A).length, `${t} em A`).toBeGreaterThan(0);
       expect(linhas.filter((l) => l.tenant_id === B).length, `${t} em B`).toBeGreaterThan(0);
     }
+  });
+
+  it('T-0033: carregarFixtureDosTestes (a de @macuxi/db/teste e do globalSetup) grava dois-tenants E Treinamento numa carga só', async () => {
+    // banco-modelo-t0033 (tests/) criava o próprio banco só com carregarDoisTenants: o schema treinamento ficava vazio (retrato 2)
+    const sqls: string[] = [];
+    const falso = { query: async (sql: string, params?: unknown[]) => (sqls.push(sql), { rows: [], rowCount: Array.isArray(params) ? params.length : 0 }) };
+    await carregarFixtureDosTestes(falso as unknown as Parameters<typeof carregarFixtureDosTestes>[0], { agora: new Date(0), senha: 'x' }); // hora-fixa-ok: só conta tabelas
+    const gravadas = new Set(sqls.map((q) => /^insert into (\S+) /.exec(q)?.[1]).filter(Boolean));
+    for (const t of [...ORDEM_TABELAS, ...ORDEM_TREINAMENTO]) expect(gravadas.has(t), t).toBe(true);
+    const teste = readFileSync(join(PASTA_DB, 'src', 'teste', 'index.ts'), 'utf8');
+    expect(teste).toMatch(/export \{ carregarFixtureDosTestes[^}]*\} from '\.\.\/\.\.\/testes\/fixture-treinamento'/);
+    expect(readFileSync(join(PASTA_DB, 'testes', 'global-setup.ts'), 'utf8')).toContain('preparar: (c) => carregarFixtureDosTestes(c, { agora })');
   });
 
   it('retrato do cliente do pedido (cliente_resumo) no formato do contrato ClienteDoPedido: nulo ou tudo texto (R-20261108-130439-testes)', () => {
