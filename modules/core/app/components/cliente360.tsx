@@ -4,13 +4,13 @@
  * As abas de módulos (`cliente.abas`) são desenhadas pela tela da ficha, não aqui.
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Badge, Card, EtiquetaCadastroIncompleto, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Badge, Card, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { mapsUrl } from '../lib/route';
-import { observacaoComCadastro } from '../../domain';
+import { observacaoComCadastro, resumoSemCompras } from '../../domain';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
 const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
@@ -26,17 +26,55 @@ export function enderecoDoCliente(c: Cliente360Local['cliente']): string {
     .join(' · ');
 }
 
-/** Ligar, WhatsApp e mapa: uma linha de 3 botões de 48 dp. */
-export function AcoesContato({ ficha }: { ficha: Cliente360Local }) {
+/** Ligar, WhatsApp, mapa e (com fotos do PDV) Foto do PDV: botões iguais em pé, 64 dp de altura (T-0147, spec permissoes-e-fotos-pdv §2). */
+export function AcoesContato({ ficha, onVerFotoPdv }: { ficha: Cliente360Local; onVerFotoPdv?: () => void }) {
   const c = ficha.cliente;
   const abrir = (url: string | null) => {
     if (url) void Linking.openURL(url);
   };
   return (
     <View style={{ flexDirection: 'row', gap: 8 }} testID="cliente-acoes-contato">
-      <Acao icon="phone" label="Ligar" desligado={!ficha.ligar} onPress={() => abrir(ficha.ligar)} testID="cliente-ligar" />
-      <Acao icon="chat" label="WhatsApp" desligado={!ficha.whatsapp} onPress={() => abrir(ficha.whatsapp)} testID="cliente-whatsapp" />
+      <Acao icon="phone" label="Ligar" desligado={!ficha.ligar} rotuloDesligado="Ligar indisponível: sem número cadastrado" onPress={() => abrir(ficha.ligar)} testID="cliente-ligar" />
+      <Acao icon="chat" label="WhatsApp" desligado={!ficha.whatsapp} rotuloDesligado="WhatsApp indisponível: sem número cadastrado" onPress={() => abrir(ficha.whatsapp)} testID="cliente-whatsapp" />
       <Acao icon="navigate" label="Mapa" onPress={() => abrir(mapsUrl(num(c.latitude), num(c.longitude), enderecoDoCliente(c)))} testID="cliente-mapa" />
+      {/* RN-CORE-38: ligado só com a fachada enviada e com o visualizador do shell registrado */}
+      {ficha.fotos_pdv ? (
+        <Acao
+          icon="galeria"
+          label="Foto do PDV"
+          desligado={!ficha.fotos_pdv.fachada_foto || !onVerFotoPdv}
+          rotuloLigado="Ver foto do PDV"
+          rotuloDesligado="Foto do PDV indisponível: sem foto da fachada"
+          onPress={() => onVerFotoPdv?.()}
+          testID="cliente-foto-pdv"
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** RN-CORE-38: resumo tem/falta por tipo, logo abaixo das ações; documento sensível mostra o cadeado e o vendedor não o reabre. */
+export function BlocoFotosPdv({ ficha }: { ficha: Cliente360Local }) {
+  if (!ficha.fotos_pdv) return null;
+  return (
+    <View style={{ gap: 8 }} testID="cliente-fotos-pdv">
+      <SectionHeader title="Fotos do PDV" />
+      <Card>
+        {ficha.fotos_pdv.itens.map((i, n, todos) => (
+          <View key={i.tipo_id} style={[styles.row, { minHeight: 52 }, n < todos.length - 1 && styles.divider]}>
+            <Text style={[t.body, { flex: 1 }]}>{i.nome}</Text>
+            {i.situacao === 'tem' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} />
+                <Text style={[t.small, { color: colors.success, fontFamily: fonts.semibold }]}>Tem</Text>
+              </View>
+            ) : (
+              <Text style={[t.small, { color: i.obrigatorio ? colors.danger : colors.ink2, fontFamily: fonts.semibold }]}>{i.obrigatorio ? 'Falta' : 'Opcional'}</Text>
+            )}
+            {i.sensivel ? <Icon name="lock" size={16} color={colors.ink2} /> : null}
+          </View>
+        ))}
+      </Card>
     </View>
   );
 }
@@ -52,9 +90,8 @@ export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
       <Text style={t.sub}>{enderecoDoCliente(c) || 'Endereço não informado'}</Text>
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
         {c.segmento ? <Badge label={c.segmento} tone="neutral" /> : null}
-        {fin?.bloqueado ? <Badge label={`Bloqueado${fin.motivo_bloqueio ? ` · ${fin.motivo_bloqueio}` : ''}`} tone="danger" /> : null}
-        {fin && fin.vencidos_qtd > 0 ? <Badge label={`${fin.vencidos_qtd} vencido${fin.vencidos_qtd > 1 ? 's' : ''}`} tone="danger" /> : null}
-        {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
+        {/* RD-0065: o motivo do bloqueio e os vencidos aparecem só no bloco Financeiro */}
+        {fin?.bloqueado ? <Badge label="Bloqueado" tone="danger" /> : null}
         {!c.ativo ? <Badge label="Inativo" tone="warning" /> : null}
       </View>
     </View>
@@ -62,7 +99,7 @@ export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
 }
 
 /**
- * `indicadoresIniciais`: cartões que a tela já montou (ex.: Compra média, Última compra, Limite, Títulos vencidos) e que
+ * `indicadoresIniciais`: cartões que a tela já montou (Compra média, Última compra; limite e vencidos ficam só no Financeiro, T-0146) e que
  * entram no começo da MESMA grade, na ordem da referência (T-0076). Com eles, "Última compra" não se repete aqui.
  */
 export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Cliente360Local; indicadoresIniciais?: ReactNode }) {
@@ -70,10 +107,16 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
   const compras = ficha.resumo_compras;
   const vencidos = ficha.titulos.filter((x) => x.situacao_calculada === 'vencido');
   const aVencer = ficha.titulos.filter((x) => x.situacao_calculada === 'a_vencer');
+  // RN-CORE-40: sem compra na janela de 12 meses, uma linha no lugar dos indicadores de compra, sem zeros
+  const semCompras = ficha.pedidos_visiveis && resumoSemCompras(compras);
   return (
     <View style={{ gap: 14 }} testID="cliente-360">
       {/* RN-PRO-01: com a opção promotor_ve_pedidos desligada o promotor não vê compras, valores nem contagem de pedidos */}
-      {ficha.pedidos_visiveis || indicadoresIniciais ? (
+      {semCompras ? (
+        <Text style={t.sub} testID="cliente-sem-compras">
+          Sem compras em 12 meses
+        </Text>
+      ) : ficha.pedidos_visiveis || indicadoresIniciais ? (
         <View style={styles.grid}>
           {indicadoresIniciais}
           {ficha.pedidos_visiveis ? (
@@ -87,10 +130,16 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
         </View>
       ) : null}
 
+      {ficha.filial_rotulo ? (
+        <Text style={t.sub} testID="cliente-filial">
+          Filial: {ficha.filial_rotulo}
+        </Text>
+      ) : null}
+
       <View style={{ gap: 8 }}>
         <SectionHeader title="Contatos" />
         {ficha.contatos.length === 0 ? (
-          <Text style={t.sub}>Nenhum contato cadastrado. O telefone do cadastro do cliente é usado no botão Ligar.</Text>
+          <Text style={t.sub}>Nenhum contato cadastrado.</Text>
         ) : (
           <Card>
             {ficha.contatos.map((c, i) => (
@@ -114,7 +163,7 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
       <View style={{ gap: 8 }} testID="cliente-enderecos">
         <SectionHeader title="Endereços de entrega" />
         {ficha.enderecos.length === 0 ? (
-          <Text style={t.sub}>Nenhum endereço de entrega neste aparelho. Sincronize quando houver sinal; endereço novo entra pelo cadastro no ERP.</Text>
+          <Text style={t.sub}>Nenhum endereço de entrega. Sincronize para atualizar.</Text>
         ) : (
           <Card>
             {ficha.enderecos.map((e, i) => (
@@ -140,7 +189,7 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
       <View style={{ gap: 8 }} testID="cliente-financeiro">
         <SectionHeader title="Financeiro" />
         {!fin ? (
-          <Text style={t.sub}>Sem dados financeiros neste aparelho. Sincronize quando houver sinal.</Text>
+          <Text style={t.sub}>Sem dados financeiros. Sincronize para atualizar.</Text>
         ) : (
           <>
             <View style={styles.grid}>
@@ -149,7 +198,7 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
               <Stat label="Crédito disponível" value={formatBRL0(fin.credito_disponivel_cents)} aviso={fin.credito_disponivel_cents <= 0} />
               <Stat label="Vencidos" value={fin.vencidos_qtd === 0 ? 'Nenhum' : `${fin.vencidos_qtd} · ${formatBRL0(fin.vencidos_cents)}`} aviso={fin.vencidos_qtd > 0} />
             </View>
-            {fin.bloqueado ? <Text style={[t.small, { color: colors.danger }]}>Cliente bloqueado{fin.motivo_bloqueio ? `: ${fin.motivo_bloqueio}` : ''}.</Text> : null}
+            {fin.bloqueado && fin.motivo_bloqueio ? <Text style={[t.small, { color: colors.danger }]}>Motivo do bloqueio: {fin.motivo_bloqueio}</Text> : null}
             {vencidos.length + aVencer.length > 0 ? (
               <Card>
                 {[...vencidos, ...aVencer].map((x, i, todos) => (
@@ -172,12 +221,10 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
         )}
       </View>
 
-      {ficha.pedidos_visiveis ? (
+      {ficha.pedidos_visiveis && !semCompras ? (
       <View style={{ gap: 8 }} testID="cliente-historico">
         <SectionHeader title="Compras dos últimos 12 meses" />
-        {ficha.historico.length === 0 ? (
-          <Text style={t.sub}>Sem compras nos últimos 12 meses.</Text>
-        ) : (
+        {ficha.historico.length === 0 ? null : (
           <Card>
             {ficha.historico.map((h, i) => (
               <View key={h.id} style={[styles.row, { minHeight: 48 }, i < ficha.historico.length - 1 && styles.divider]}>
@@ -198,18 +245,37 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
   );
 }
 
-function Acao({ icon, label, onPress, desligado, testID }: { icon: IconName; label: string; onPress: () => void; desligado?: boolean; testID: string }) {
+function Acao({
+  icon,
+  label,
+  onPress,
+  desligado,
+  rotuloDesligado,
+  rotuloLigado,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  desligado?: boolean;
+  rotuloDesligado?: string;
+  rotuloLigado?: string;
+  testID: string;
+}) {
+  const cor = desligado ? colors.ink3 : colors.ink;
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={desligado ? `${label} indisponível: sem número cadastrado` : label}
+      accessibilityLabel={desligado ? (rotuloDesligado ?? `${label} indisponível`) : (rotuloLigado ?? label)}
       accessibilityState={{ disabled: Boolean(desligado) }}
       disabled={desligado}
       onPress={onPress}
-      style={({ pressed }) => [styles.action, desligado && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}>
-      <Icon name={icon} size={16} color={colors.ink} strokeWidth={1.9} />
-      <Text style={styles.actionText}>{label}</Text>
+      style={({ pressed }) => [styles.action, desligado && styles.actionOff, pressed && { opacity: 0.7 }]}>
+      <Icon name={icon} size={20} color={cor} strokeWidth={1.9} />
+      <Text style={[styles.actionText, { color: cor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -239,8 +305,9 @@ function Stat({ label, value, aviso }: { label: string; value: string; aviso?: b
 }
 
 const styles = StyleSheet.create({
-  action: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  actionText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  action: { flex: 1, height: 64, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 0 },
+  actionOff: { backgroundColor: colors.neutralBg, borderWidth: 0 },
+  actionText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink },
   mini: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexBasis: '48%', flexGrow: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 12, gap: 2 },

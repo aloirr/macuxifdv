@@ -2,8 +2,9 @@
  * `catalogo.precos_cliente@1` no aparelho: criarShell + motor com armazenamento em memória (adaptador de teste do SDK),
  * lendo as linhas locais de pull. Mesmos casos da API (api/precos.db.test.ts): o resultado tem de ser igual.
  */
-import { ambienteIndisponivel, criarArmazenamentoEmMemoria, criarMotorSync, criarShell, defineModule, definirModuloShell, type AmbienteAparelho } from '@macuxi/platform-sdk';
+import { ambienteIndisponivel, criarArmazenamentoEmMemoria, criarMotorSync, criarShell, defineModule, definirEntidadeSync, definirModuloShell, type AmbienteAparelho } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
+import { ClienteSyncSchema, FilialSyncSchema } from '@macuxi/core/contracts';
 import { CONSULTA_PRECOS_CLIENTE, ENTIDADES_PRECO } from '../contracts';
 import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
@@ -20,6 +21,15 @@ const C3 = id(103);
 const P_COM = id(11);
 const P_FORA = id(12);
 const P_VIGENCIA = id(13);
+// RN-CORE-39 (T-0149): 3 filiais (Manaus padrão, Boa Vista, Santarém sem item na tabela) e um cliente em cada uma
+const F_MAO = id(301);
+const F_BVB = id(302);
+const F_STM = id(303);
+const C4 = id(104);
+const C5 = id(105);
+const C6 = id(106);
+const P_FIL = id(14);
+const P_SO_MAO = id(15);
 const AGORA = new Date('2026-11-01T12:00:00.000Z');
 const iso = (dias: number) => new Date(AGORA.getTime() + dias * 86_400_000).toISOString();
 const base = { deleted_at: null, external_id: null, updated_at: '2026-10-01T00:00:00.000000Z' };
@@ -34,6 +44,9 @@ const linhas = {
     b: { id: 'b', ...base, tabela_preco_id: id(1), produto_id: P_FORA, preco_cents: 500, vigencia_inicio: null, vigencia_fim: null },
     c: { id: 'c', ...base, tabela_preco_id: TAB_ATACADO, produto_id: P_VIGENCIA, preco_cents: 800, vigencia_inicio: null, vigencia_fim: iso(-10) },
     d: { id: 'd', ...base, tabela_preco_id: TAB_ATACADO, produto_id: P_VIGENCIA, preco_cents: 900, vigencia_inicio: iso(-10), vigencia_fim: null },
+    f1: { id: 'f1', ...base, tabela_preco_id: TAB_ATACADO, produto_id: P_FIL, preco_cents: 1000, vigencia_inicio: null, vigencia_fim: null, filial_id: F_MAO },
+    f2: { id: 'f2', ...base, tabela_preco_id: TAB_ATACADO, produto_id: P_FIL, preco_cents: 1050, vigencia_inicio: null, vigencia_fim: null, filial_id: F_BVB },
+    f3: { id: 'f3', ...base, tabela_preco_id: TAB_ATACADO, produto_id: P_SO_MAO, preco_cents: 700, vigencia_inicio: null, vigencia_fim: null, filial_id: F_MAO },
   },
   // RN-VEN-23: faixas do P_COM — geral de 10 un (R$ 8,50), da tabela Atacado de 10 un (R$ 8,80, vence a geral), de 50 un geral,
   // uma da tabela inativa, uma futura, uma vencida, uma em FD e uma inativa
@@ -51,11 +64,29 @@ const linhas = {
   'ent:cliente_tabela_preco': {
     v1: { id: 'v1', ...base, cliente_id: C1, tabela_preco_id: TAB_ATACADO },
     v2: { id: 'v2', ...base, cliente_id: C2, tabela_preco_id: TAB_INATIVA },
+    v4: { id: 'v4', ...base, cliente_id: C4, tabela_preco_id: TAB_ATACADO },
+    v5: { id: 'v5', ...base, cliente_id: C5, tabela_preco_id: TAB_ATACADO },
+    v6: { id: 'v6', ...base, cliente_id: C6, tabela_preco_id: TAB_ATACADO },
+  },
+  'ent:filial': {
+    [F_MAO]: { id: F_MAO, ...base, codigo: '0001', nome: 'Manaus', cidade: 'Manaus', uf: 'AM', padrao: true, ativo: true },
+    [F_BVB]: { id: F_BVB, ...base, codigo: '0002', nome: 'Boa Vista', cidade: 'Boa Vista', uf: 'RR', padrao: false, ativo: true },
+    [F_STM]: { id: F_STM, ...base, codigo: '0003', nome: 'Santarém', cidade: 'Santarém', uf: 'PA', padrao: false, ativo: true },
+  },
+  'ent:cliente': {
+    [C4]: { id: C4, ...base, filial_id: F_BVB },
+    [C5]: { id: C5, ...base, filial_id: F_MAO },
+    [C6]: { id: C6, ...base, filial_id: F_STM },
   },
 };
 
 // o Core oferece core.cadastro_resumo@1 (o Catálogo usa na API desde a T-0052; o shell confere o conjunto)
-const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1'] });
+// entidades do Core que o Catálogo lê no aparelho (RN-CORE-39: filial do cliente e filiais)
+const entidadesCore = [
+  definirEntidadeSync({ nome: 'cliente', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteSyncSchema }),
+  definirEntidadeSync({ nome: 'filial', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: FilialSyncSchema }),
+];
+const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'], sync: ['cliente', 'filial'] });
 // consumidor mínimo (o Vendedor real declara o mesmo em usaConsultas)
 const mConsumidor = defineModule({
   id: 'vendedor',
@@ -67,7 +98,7 @@ const mConsumidor = defineModule({
 });
 
 async function motorDo(perfil: 'vendedor' | 'promotor' | null, parametros: Record<string, unknown> = {}) {
-  const shell = criarShell('campo', [definirModuloShell({ manifesto: mCore }), moduloApp, definirModuloShell({ manifesto: mConsumidor })]);
+  const shell = criarShell('campo', [definirModuloShell({ manifesto: mCore, entidadesSync: entidadesCore }), moduloApp, definirModuloShell({ manifesto: mConsumidor })]);
   const ambiente: AmbienteAparelho = { ...ambienteIndisponivel(), usuario: () => (perfil ? { id: id(900), nome: 'Teste', perfil } : null) };
   const motor = criarMotorSync({
     registro: shell.registroSync,
@@ -94,6 +125,22 @@ describe('Catálogo no aparelho: catalogo.precos_cliente@1', () => {
   it('RN-CAT-06: preço vem da tabela do cliente, offline', async () => {
     const r = await consultar(await motorDo('vendedor'), [P_COM]);
     expect(r).toMatchObject({ tabela_preco_id: TAB_ATACADO, tabela_preco_nome: 'Atacado', itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
+  });
+
+  it('RN-CORE-39: cada cliente vê o preço da sua filial, offline (a mesma tabela de preço, preço por filial)', async () => {
+    const motor = await motorDo('vendedor');
+    expect(await consultar(motor, [P_FIL], C5)).toMatchObject({ filial_id: F_MAO, filial_origem: 'cliente', itens: [{ preco_cents: 1000 }] });
+    expect(await consultar(motor, [P_FIL], C4)).toMatchObject({ filial_id: F_BVB, filial_origem: 'cliente', itens: [{ preco_cents: 1050 }] });
+  });
+
+  it('RN-CORE-39: tabela sem nenhum item na filial do cliente usa os itens da MESMA tabela na filial padrão (fallback por tabela)', async () => {
+    const r = await consultar(await motorDo('vendedor'), [P_FIL], C6);
+    expect(r).toMatchObject({ tabela_preco_id: TAB_ATACADO, filial_id: F_MAO, filial_origem: 'padrao', itens: [{ preco_cents: 1000 }] });
+  });
+
+  it('RN-CAT-06: na filial escolhida, produto sem item continua "Sem preço para este cliente" (o fallback é por tabela, não por item)', async () => {
+    const r = await consultar(await motorDo('vendedor'), [P_SO_MAO], C4);
+    expect(r.itens[0]).toEqual({ produto_id: P_SO_MAO, preco_cents: null, motivo_sem_preco: 'Sem preço para este cliente.' });
   });
 
   it('RN-CAT-06: produto fora da tabela do cliente = sem preço (não cai na outra tabela)', async () => {

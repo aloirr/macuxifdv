@@ -6,9 +6,10 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL } from '@macuxi/comum';
-import { Badge, ErrorBlock, EtiquetaCadastroIncompleto, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
+import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema, FormasPagamentoDisponiveisSchema } from '../../../contracts';
-import { dataLocal, listarEnderecosDoCliente, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
+import { dataLocal, listarEnderecosDoCliente, linksDeContato, mesNaJanela12, observacaoComCadastro, resumoSemCompras, situacaoTitulo } from '../../../domain';
+import { FilialCliente } from './filial-cliente';
 import { PagamentoCliente } from './pagamento-cliente';
 import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
@@ -37,8 +38,10 @@ function Cliente360Conteudo() {
   if (!id) return <Notice tone="info">Abra um cliente pela Carteira ou pela lista de clientes.</Notice>;
   if (q.isPending) return <LoadingBlock label="Carregando o cliente…" />;
   if (q.isError) return <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
-  const { cliente, contatos, enderecos = [], financeiro, titulos, historico, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
+  const { cliente, contatos, enderecos = [], financeiro, titulos, historico: historicoBruto, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
   const hoje = dataLocal(new Date(), fuso);
+  // RN-CORE-40: a lista usa a mesma janela de 12 meses dos cartões (o sync traz um mês a mais)
+  const historico = historicoBruto.filter((h) => mesNaJanela12(h.ano_mes, hoje));
   const nome = cliente.nome_fantasia || cliente.razao_social;
   // RF-CORE-12 / RN-VEN-17: a API já manda o padrão primeiro; a mesma função pura do app marca o padrão e monta a linha
   const listaEnderecos = listarEnderecosDoCliente(enderecos, cliente.id);
@@ -48,11 +51,8 @@ function Cliente360Conteudo() {
         title={nome}
         subtitle={[cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}
         badge={
-          fin?.bloqueado || cliente.cadastro_incompleto ? (
-            <>
-              {fin?.bloqueado ? <Badge tone="danger">Bloqueado</Badge> : null}
-              {cliente.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
-            </>
+          fin?.bloqueado ? (
+            <Badge tone="danger">Bloqueado</Badge>
           ) : undefined
         }
         actions={
@@ -61,17 +61,33 @@ function Cliente360Conteudo() {
           </Link>
         }
       />
+      {/* RN-CORE-40: sem compra na janela de 12 meses, uma linha no lugar dos indicadores, sem zeros */}
+      {resumoSemCompras(compras) ? (
+        <p className="text-[13px] text-ink-2" data-testid="cliente360.sem-compras">
+          Sem compras em 12 meses
+        </p>
+      ) : (
       <KpiGrid>
         <KpiCard label="Última compra" value={compras.ultima_compra_em ?? 'Nunca'} sub={compras.dias_sem_compra === null ? undefined : `há ${compras.dias_sem_compra} dias`} />
         <KpiCard label="Ticket médio" value={formatBRL(compras.ticket_medio_cents)} sub={compras.frequencia_media_dias ? `compra a cada ~${Math.round(compras.frequencia_media_dias)} dias` : undefined} />
         <KpiCard label="Compras em 12 meses" value={formatBRL(compras.total_12m_cents)} />
-        <KpiCard label="Crédito disponível" value={fin ? formatBRL(fin.credito_disponivel_cents) : '—'} sub={fin ? `limite ${formatBRL(fin.limite_cents)}` : 'sem dados do ERP'} />
-        <KpiCard label="Vencidos" value={fin ? String(fin.vencidos_qtd) : '—'} sub={fin && fin.vencidos_qtd > 0 ? `${formatBRL(fin.vencidos_cents)} · maior atraso ${fin.maior_atraso_dias} dias` : undefined} valueClass={fin && fin.vencidos_qtd > 0 ? 'text-danger' : undefined} />
       </KpiGrid>
-      {fin?.bloqueado && <Notice tone="warning">Cliente bloqueado no financeiro{fin.motivo_bloqueio ? `: ${fin.motivo_bloqueio}` : ''}.</Notice>}
+      )}
+      <Panel title="Financeiro">
+        {fin ? (
+          <KpiGrid>
+            <KpiCard label="Limite" value={formatBRL(fin.limite_cents)} />
+            <KpiCard label="Crédito disponível" value={formatBRL(fin.credito_disponivel_cents)} />
+            <KpiCard label="Vencidos" value={String(fin.vencidos_qtd)} sub={fin.vencidos_qtd > 0 ? `${formatBRL(fin.vencidos_cents)} · maior atraso ${fin.maior_atraso_dias} dias` : undefined} valueClass={fin.vencidos_qtd > 0 ? 'text-danger' : undefined} />
+          </KpiGrid>
+        ) : (
+          <p className="text-[13px] text-ink-2">Sem dados do ERP.</p>
+        )}
+        {fin?.bloqueado && fin.motivo_bloqueio ? <p className="mt-2 text-[13px] font-semibold text-danger">Motivo do bloqueio: {fin.motivo_bloqueio}</p> : null}
+      </Panel>
 
       <Panel title="Contatos">
-        {contatos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum contato cadastrado no ERP.</p>}
+        {contatos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum contato cadastrado.</p>}
         <ul className="flex flex-col gap-2">
           {contatos.map((c) => {
             const links = linksDeContato(c);
@@ -99,7 +115,7 @@ function Cliente360Conteudo() {
       </Panel>
 
       <Panel title={`Endereços de entrega (${listaEnderecos.length})`}>
-        {listaEnderecos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum endereço vindo do ERP. Endereço novo entra pelo cadastro do cliente no ERP.</p>}
+        {listaEnderecos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum endereço no ERP.</p>}
         <ul className="flex flex-col gap-2">
           {listaEnderecos.map((e) => (
             <li key={e.id} className="flex flex-wrap items-center gap-2 text-[13px]" data-testid={`cliente360.endereco.${e.id}`}>
@@ -111,6 +127,8 @@ function Cliente360Conteudo() {
           ))}
         </ul>
       </Panel>
+
+      <FilialCliente key={`filial-${cliente.id}`} clienteId={cliente.id} filialId={cliente.filial_id} externalId={cliente.external_id} />
 
       <PagamentoCliente key={cliente.id} clienteId={cliente.id} prazoMedioMaxDias={cliente.prazo_medio_max_dias ?? null} formas={cliente.formas_pagamento ?? []} formasDisponiveis={formasQ.data?.formas ?? null} />
 

@@ -302,6 +302,7 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
       'index catalogo__produto_no_no',
       'index catalogo__produto_referencia_produto',
       'index catalogo__produto_relacao_produto',
+      'index catalogo__tabela_preco_item_filial',
       'index catalogo__tabela_preco_item_produto',
     ]);
     expect([...COLUNAS_BUSCA_CATALOGO]).toEqual(['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos', 'aplicacao', 'referencias']);
@@ -403,6 +404,26 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     );
     // as duas colunas do índice na busca (e não só o prefixo produto_id)
     expect(plano.map((p) => p.detail).join(' ')).toContain('USING INDEX catalogo__tabela_preco_item_produto (<expr>=? AND <expr>=?)');
+  });
+
+  // v5 (T-0149, RN-CORE-39): preço por filial
+  it('preço por filial (v5): linhasPorCampo(tabela_preco_item, tabela_preco_id) usa o prefixo de catalogo__tabela_preco_item_filial', async () => {
+    const d = await bancoComCatalogo();
+    const plano = await d.todas<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT id, dados FROM ent_tabela_preco_item WHERE json_extract(dados, '$.tabela_preco_id') IN (SELECT value FROM json_each(?)) ORDER BY id`,
+      [JSON.stringify(['t'])],
+    );
+    expect(plano.map((p) => p.detail).join(' ')).toContain('USING INDEX catalogo__tabela_preco_item_filial');
+  });
+
+  it('preço por filial (v5): "a tabela tem item nesta filial?" busca pelas duas colunas do índice', async () => {
+    const d = await bancoComCatalogo();
+    const plano = await d.todas<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT 1 FROM ent_tabela_preco_item
+        WHERE json_extract(dados, '$.tabela_preco_id') = ? AND json_extract(dados, '$.filial_id') = ? LIMIT 1`,
+      ['t', 'f'],
+    );
+    expect(plano.map((p) => p.detail).join(' ')).toMatch(/USING (COVERING )?INDEX catalogo__tabela_preco_item_filial \(<expr>=\? AND <expr>=\?\)/);
   });
 });
 
@@ -620,8 +641,8 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     const docsAntes = await d.todas('SELECT rid, produto_id FROM catalogo__busca_doc ORDER BY rid');
     await d.fechar();
 
-    // app novo (v4): só a v4 roda
-    a = abrirArmazenamento(criarDriverNode(arquivo));
+    // app novo (v4): só a v4 roda (a v5 da T-0149 fica de fora: este caso prova só a subida v3 → v4)
+    a = abrirArmazenamento(criarDriverNode(arquivo), migracoesAparelho.filter((m) => m.versao <= 4));
     await a.pronto;
     expect(a.modulosIndisponiveis()).toEqual([]);
     d = criarDriverNode(arquivo);

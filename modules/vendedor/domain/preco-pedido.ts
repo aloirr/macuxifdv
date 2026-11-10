@@ -72,6 +72,19 @@ export function precoUnitarioFinal(tabela_cents: number, a: AjusteItem): number 
   return tabela_cents + sinal * a.cents;
 }
 
+/** RN-VEN-11 (T-0151): a recusa curta, só do problema; a mesma frase no aparelho e na API (`preco_abaixo_minimo`). */
+export function mensagemAcimaDoMaximo(codigos: readonly string[]): string {
+  return `${codigos.join(', ')} acima do desconto máximo`;
+}
+
+/**
+ * RN-VEN-03 (T-0151): o % que o detalhe e o PDF escrevem em "Desconto X%" sai dos centavos (tabela − total sobre a tabela),
+ * nunca do % digitado no pedido: desconto de item e de pedido juntos dão o efetivo, que pode ser menor que o digitado.
+ */
+export function descontoDoPedidoPct(subtotal_cents: number, total_cents: number): number {
+  return pctExibicao(Math.max(0, subtotal_cents - total_cents), subtotal_cents);
+}
+
 /** RN-VEN-03: percentual com 1 casa, meia para cima, calculado dos INTEIROS (nunca do valor já arredondado). Sinal preservado. */
 export function pctExibicao(num: number, den: number): number {
   if (!(den > 0) || num === 0) return 0;

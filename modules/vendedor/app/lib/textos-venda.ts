@@ -37,7 +37,7 @@ export function textoDoAlerta(a: AlertaDaVenda): TextoDoAlerta {
     case 'vencido':
       return { id: a.tipo, tom, ...alertaInadimplencia({ titulos: a.titulos, valorCents: a.valor_cents, dias: a.dias, consequencia: CONSEQUENCIA_VENCIDO }) };
     case 'credito_excedido':
-      return { id: a.tipo, tom, texto: `Limite excedido · disponível ${formatBRL(Math.max(0, a.disponivel_cents))}`, apoio: 'Vai para aprovação' };
+      return { id: a.tipo, tom, texto: 'Limite excedido', apoio: 'Vai para aprovação' };
   }
 }
 
@@ -91,15 +91,13 @@ export const TEXTO_OBS_VAZIA = '—';
 
 /**
  * Linha VENDA do Resumo: o alerta que muda o destino. Erro (RN-VEN-13: só orçamento) antes de aviso; aviso = "Vai para aprovação
- * (motivo)" quando o pedido vai ao supervisor por título vencido, limite excedido (RN-VEN-12) ou desconto acima da alçada (RN-VEN-10).
+ * (motivo)" quando o pedido vai ao supervisor por título vencido, limite excedido (RN-VEN-12); a alçada de desconto não entra aqui: só a pergunta ao salvar, RN-VEN-10, T-0151).
  */
-export function alertaDaVendaNoResumo(e: { alertas: readonly AlertaDaVenda[]; vencido_aprova: boolean; alcada: boolean }): { tom: 'aviso' | 'erro'; texto: string } | null {
-  const erro = e.alertas.find((a) => tomDoAlerta(a) === 'erro');
-  if (erro) return { tom: 'erro', texto: textoDoAlerta(erro).texto };
+export function alertaDaVendaNoResumo(e: { alertas: readonly AlertaDaVenda[]; vencido_aprova: boolean }): { tom: 'aviso' | 'erro'; texto: string } | null {
+  // RD-0061: "só orçamento" fica na linha de cima dos botões (aviso do Resumo); a linha Venda não repete
   const motivos: string[] = [];
   if (e.vencido_aprova) motivos.push('título vencido');
   if (e.alertas.some((a) => a.tipo === 'credito_excedido')) motivos.push('limite excedido');
-  if (e.alcada) motivos.push('desconto acima da alçada');
   return motivos.length > 0 ? { tom: 'aviso', texto: `Vai para aprovação (${motivos.join(', ')})` } : null;
 }
 

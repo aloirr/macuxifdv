@@ -21,6 +21,7 @@ testes do CI com a fixture dois-tenants, sempre com ROLLBACK. **Nada disto foi r
 | `catalogo.uso_ia` (cota por dia) | **sem prazo** | 0013 |
 | `plataforma.auditoria` | **sem prazo** (só inserção) | 0001 |
 | `plataforma.arquivo` e fotos no bucket | **sem prazo** | 0005 |
+| Fotos do PDV (`core.cliente_foto`, `plataforma.arquivo` finalidade `pdv` e os bytes) | **enquanto o cliente estiver ativo + 5 anos** depois de `core.cliente.inativado_em` (ou do `deleted_at`); a substituída entra no mesmo prazo (5 anos é do cliente, não da foto). Expurgo: tarefa diária do Core, **depois da v1.0.5** (nenhum prazo vence antes de 2031) | 0057 (T-0147, desenho §7) |
 | Coordenadas de check-in e checkout (`core.visita`) | **sem prazo** | 0006 |
 | Pedidos, títulos, notas e histórico de compra | sem prazo enquanto o tenant estiver ativo | módulos |
 
@@ -127,3 +128,16 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
   não enxerga o tenant (P0002) e nada sai.
 - Teste estático, que roda sem banco: só uma função `SECURITY DEFINER` na 0024 (`resumo_outbox`); as funções da LGPD com
   `revoke` de `public` e sem `grant`.
+
+## 6. Fotos do PDV e documentos sensíveis (0057, T-0147, ADR 0041)
+- **Relógio**: `core.cliente.inativado_em` (gatilho `cliente_inativado_em`: preenche quando `ativo` vira falso, limpa quando
+  volta). Clientes já inativos na migração receberam o `updated_at`.
+- **Prazo**: cliente ativo + 5 anos depois de `inativado_em` (ou do `deleted_at`). O expurgo (tarefa diária do Core, pg-boss)
+  apaga `core.cliente_foto`, a linha de `plataforma.arquivo` e os bytes (`ArmazenamentoArquivos.remover`); entra depois da
+  v1.0.5. Consulta do expurgo (referência): `select f.id, f.arquivo_id from core.cliente_foto f join core.cliente c on
+  c.tenant_id = f.tenant_id and c.id = f.cliente_id where coalesce(c.inativado_em, c.deleted_at) < now() - interval '5 years'`.
+- **Leitura restrita**: os documentos sensíveis (CNH, contrato social) têm `plataforma.arquivo.perfis_leitura` =
+  admin, analista, gerente e supervisor (+ a carteira; o gerente desde R-20261110-084206); o vendedor recebe `arquivo_id` nulo no pull. Nenhuma linha de log de leitura.
+- **Titular / tenant**: a anonimização de cliente não apaga as fotos sozinha (pendência do Core: incluir `cliente_foto` no
+  roteiro §3 quando o expurgo entrar); a exclusão de tenant (§4) apaga as linhas pelo `plataforma.excluir_tenant` e os bytes
+  pela chave `<tenant_id>/...`.

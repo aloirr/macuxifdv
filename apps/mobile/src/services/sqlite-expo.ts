@@ -9,6 +9,14 @@
  *
  * No expo-sqlite, `withExclusiveTransactionAsync` abre OUTRA conexão: dentro de `transacaoExclusiva` só o `tx` recebido
  * escreve (o adaptador do SDK já serializa as escritas). Por isso o banco é sempre um ARQUIVO (nada de `:memory:`).
+ *
+ * T-0144 (causa das quedas da 1ª abertura, relatório de bug do aparelho de 10/11): toda transação exclusiva FECHA a sua
+ * conexão no fim (`closeAsync`). Com o padrão do expo-sqlite (`finalizeUnusedStatementsBeforeClosing: true`), o fechamento
+ * finaliza TODOS os comandos da conexão, inclusive os que o próprio FTS5 da busca guarda abertos; em seguida o
+ * `sqlite3_close` desliga a tabela FTS5, que finaliza os mesmos comandos de novo: memória liberada duas vezes e o Android
+ * mata o processo (SIGABRT "Scudo ERROR: invalid chunk state", em `SQLiteModule.closeDatabase`), sem tela de erro. Por isso
+ * o banco abre com a opção desligada (`OPCOES_ABERTURA`), herdada pelas conexões das transações; quem prepara comando
+ * (o SDK) sempre o finaliza.
  */
 import { requireOptionalNativeModule } from 'expo';
 
@@ -30,8 +38,16 @@ interface BancoExpo {
   closeAsync(): Promise<void>;
 }
 
-interface ModExpoSqlite {
-  openDatabaseAsync(nome: string): Promise<BancoExpo>;
+/** Opções de abertura (`SQLiteOpenOptions` do expo-sqlite), só as usadas. */
+export interface OpcoesAberturaExpo {
+  finalizeUnusedStatementsBeforeClosing: boolean;
+}
+
+/** T-0144: sem a finalização em massa no fechamento (ela finaliza duas vezes os comandos do FTS5 e derruba o app). */
+export const OPCOES_ABERTURA: OpcoesAberturaExpo = { finalizeUnusedStatementsBeforeClosing: false };
+
+export interface ModExpoSqlite {
+  openDatabaseAsync(nome: string, opcoes?: OpcoesAberturaExpo): Promise<BancoExpo>;
   deleteDatabaseAsync(nome: string): Promise<void>;
   /** Pasta dos bancos (no Android, `<files>/SQLite`, caminho sem `file://`). */
   defaultDatabaseDirectory?: unknown;
@@ -87,11 +103,17 @@ function driverSobre(db: BancoExpo, dentroDeTransacao: boolean): DriverSqlite {
   return driver;
 }
 
+/** Abre o arquivo no módulo dado (separado para o teste, sem o módulo nativo). */
+export async function abrirDriverCom(m: Pick<ModExpoSqlite, 'openDatabaseAsync'>, nome: string): Promise<DriverSqlite> {
+  // as conexões das transações exclusivas herdam as opções do banco (`{ ...db.options, useNewConnection: true }`)
+  return driverSobre(await m.openDatabaseAsync(nome, OPCOES_ABERTURA), false);
+}
+
 /** Abre (ou cria) o arquivo `nome` na pasta de bancos do app. Lança se o expo-sqlite não estiver no APK. */
 export async function abrirDriverExpo(nome: string): Promise<DriverSqlite> {
   const m = expoSqlite();
   if (!m) throw new Error('expo-sqlite não está neste APK');
-  return driverSobre(await m.openDatabaseAsync(nome), false);
+  return abrirDriverCom(m, nome);
 }
 
 /** Apaga o arquivo do banco (fechado antes). Sem arquivo ou sem expo-sqlite: nada acontece. */

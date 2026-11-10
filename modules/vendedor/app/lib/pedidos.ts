@@ -8,6 +8,7 @@ import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import type { FaixaEscalonada } from '../../domain/preco-item';
+import { mensagemAcimaDoMaximo } from '../../domain/preco-pedido';
 import { toDomainPolicy } from './catalog';
 import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
@@ -116,7 +117,6 @@ export interface OrderDisplay {
   lines: OrderLineDisplay[];
   /** o que o aparelho já sabe que vai acontecer: segue direto ou vai para aprovação */
   expected: 'ok' | 'pending_approval';
-  notes: string[];
 }
 
 export interface VendedorLogado {
@@ -189,8 +189,10 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
   });
   const issues: OrderIssue[] = [
     ...(calculo.linhas.length === 0 && calculo.erros.length === 0 ? [validado.issues.find((i) => i.code === 'empty_order')].filter((i): i is OrderIssue => Boolean(i)) : []),
-    ...calculo.erros.map((message): OrderIssue => ({ code: /sem preço/i.test(message) ? 'price_not_found' : calculo.bloqueado && /alçada máxima/.test(message) ? 'discount_blocked' : 'invalid_item', message, blocking: true, needs_approval: false })),
+    ...calculo.erros.map((message): OrderIssue => ({ code: /sem preço/i.test(message) ? 'price_not_found' : calculo.bloqueado && /acima do máximo/.test(message) ? 'discount_blocked' : 'invalid_item', message, blocking: true, needs_approval: false })),
     ...validado.issues.filter((i) => i.code === 'discount_above_limit'),
+    // RN-VEN-11 (T-0151): desconto acima do máximo do produto não passa nem com aprovação; só orçamento (RN-VEN-18)
+    ...(calculo.acima_do_maximo.length > 0 && e.rascunho.tipo !== 'orcamento' ? [{ code: 'invalid_item' as const, message: mensagemAcimaDoMaximo(calculo.acima_do_maximo), blocking: true, needs_approval: false }] : []),
   ];
   const aviso = e.rascunho.frete ? freteValido(e.rascunho.frete) : null;
   if (aviso) issues.push({ code: 'invalid_item', message: aviso, blocking: true, needs_approval: false });
@@ -226,13 +228,13 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
       quantity: l.quantity,
       unit_price_cents: l.preco_tabela_cents,
       total_cents: l.total_cents,
-      ...(l.unidade ? { unit_label: rotuloDaLinha(l.unidade_sigla, l.fator) } : {}),
+      // RN-VEN-15 (T-0151): a medida vai sempre, também na unidade base (FD, CX…); sem ela o detalhe caía em UN
+      unit_label: rotuloDaLinha(l.unidade_sigla, l.fator),
       discount_pct: l.desconto_pct,
       ...(l.acrescimo_pct > 0 ? { surcharge_pct: l.acrescimo_pct } : {}),
       ...(l.aplicacao ? { application: l.aplicacao } : {}),
     })),
     expected: v.outcome === 'pending_approval' ? 'pending_approval' : 'ok',
-    notes: v.issues.map((i) => i.message),
   };
   return { v, display };
 }

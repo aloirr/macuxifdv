@@ -105,6 +105,7 @@ import { MODULOS_API } from './modulos';
 import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
+import { registrarDiagnosticos } from './diagnosticos';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -541,6 +542,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
+  // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)
+  registrarDiagnosticos(app, plataforma);
   // ADR 0029/0031: rotas do portal sem tenant (empresas); a autenticação do portal é do Core (`plataforma/auth/*`)
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   registrarRotasPlataforma(app, {

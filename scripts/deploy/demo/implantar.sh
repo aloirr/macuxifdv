@@ -50,8 +50,14 @@ PERFIL=()
 dc() { docker compose --env-file .env --env-file imagens.env "${PERFIL[@]}" "$@"; }
 
 log "baixando imagens (tag $TAG${perfis:+, perfis: $perfis})"
-# banco e seed-demo usam a mesma imagem da api
-dc pull --quiet
+# banco e seed-demo usam a mesma imagem da api; T-0154: novas tentativas no 403/429/5xx do GHCR
+if [ -f "$ORIGEM/ghcr-tentar.sh" ]; then
+  # shellcheck source=ghcr-tentar.sh
+  source "$ORIGEM/ghcr-tentar.sh"
+else
+  ghcr_tentar() { shift; "$@"; }
+fi
+ghcr_tentar "pull das imagens na VM" dc pull --quiet
 
 log "Postgres"
 dc up -d --wait postgres

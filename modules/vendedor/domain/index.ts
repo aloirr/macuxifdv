@@ -21,6 +21,7 @@ export * from './busca-seletor';
 export * from './preco-item';
 export * from './pagamento';
 export * from './pendencias-preenchimento';
+export * from './alertas-pedido';
 export * from './alertas-venda';
 export * from './historico-pedido';
 export * from './rascunhos';

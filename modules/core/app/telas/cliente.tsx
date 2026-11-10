@@ -16,12 +16,13 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
-import { AcoesContato, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
+import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen, resumoSemCompras } from '../../domain';
+import { AcoesContato, BlocoFotosPdv, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
+import { abrirFotoPdvRegistrado, pedidoDaFachada } from '../lib/foto-fachada';
 import { tentarCheckin } from '../lib/acoes-visita';
 import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
@@ -45,6 +46,10 @@ export function TelaCliente() {
   const acoes = filtrarExtensoesDePedido(acoesTodas, locais.verPedidos);
   // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
   const ficha = montarFichaLocal(locais, id, hoje);
+  // T-0147: "Foto do PDV" abre pelo visualizador do shell; sem ele ou sem fachada enviada, o botão fica desligado
+  const abrirFoto = abrirFotoPdvRegistrado();
+  const pedidoFoto = ficha ? pedidoDaFachada(ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, ficha.fotos_pdv?.fachada_foto, tz) : null;
+  const verFotoPdv = abrirFoto && pedidoFoto ? () => abrirFoto(pedidoFoto) : undefined;
   const customer = estado.clientes.find((c) => c.id === id) ?? null;
   const stop = rota?.stops.find((s) => s.customer.id === id) ?? null;
   const localVisit = latestVisitFor(estado.visitas, id);
@@ -109,7 +114,8 @@ export function TelaCliente() {
           <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
           <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} clienteAtual={id} />
           <CabecalhoCliente ficha={ficha} />
-          <AcoesContato ficha={ficha} />
+          <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
+          <BlocoFotosPdv ficha={ficha} />
           {avisosExt.map((a) => {
             const Aviso = a.payload.componente;
             return <Aviso key={`${a.modulo}-${a.id}`} contexto={{ clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, visitaId: null, paradaId: null }} />;
@@ -133,7 +139,7 @@ export function TelaCliente() {
     return (
       <View style={[styles.root, { paddingTop: 16, paddingHorizontal: 20 }]}>
         <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
-        <Text style={t.sub}>Cliente não encontrado na carteira sincronizada. Sincronize e tente de novo.</Text>
+        <Text style={t.sub}>Cliente não está no aparelho. Sincronize para atualizar.</Text>
       </View>
     );
   }
@@ -146,7 +152,8 @@ export function TelaCliente() {
   const rotuloDe = (a: AcaoCliente, ctx: ContextoCliente) => (typeof a.rotulo === 'function' ? a.rotulo(ctx) : a.rotulo);
 
   const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;
-  const indicadoresDoCliente = (
+  // RN-CORE-40: sem compra na janela de 12 meses a ficha mostra uma linha só ("Sem compras em 12 meses"), sem Compra média nem Última compra
+  const indicadoresDoCliente = ficha && resumoSemCompras(ficha.resumo_compras) ? null : (
     <>
       {locais.verPedidos ? <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} /> : null}
       {locais.verPedidos ? (
@@ -156,12 +163,6 @@ export function TelaCliente() {
           color={diasUltimaCompra !== null && diasUltimaCompra >= 45 ? colors.warning : undefined}
         />
       ) : null}
-      <Stat label="Limite disponível" value={formatBRL0(customer.available_credit_cents)} color={customer.available_credit_cents <= 0 ? colors.danger : undefined} />
-      <Stat
-        label="Títulos vencidos"
-        value={customer.overdue_count === 0 ? 'Nenhum' : `${customer.overdue_count} · ${formatBRL0(customer.overdue_cents)}`}
-        color={customer.overdue_count === 0 ? colors.success : colors.danger}
-      />
     </>
   );
 
@@ -204,13 +205,16 @@ export function TelaCliente() {
               <Icon name="lock" size={18} color={colors.warningInk} />
             </View>
             <Text style={styles.lockedText}>
-              <Text style={{ fontFamily: fonts.bold }}>Check-in bloqueado.</Text> Você está em atendimento em {openVisit.customer_name}. Pedido para este cliente continua liberado.
+              <Text style={{ fontFamily: fonts.bold }}>Check-in bloqueado:</Text> em atendimento em {openVisit.customer_name}.
             </Text>
           </View>
         ) : null}
 
         {ficha ? (
-          <AcoesContato ficha={ficha} />
+          <>
+            <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
+            <BlocoFotosPdv ficha={ficha} />
+          </>
         ) : (
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Action icon="phone" label="Ligar" onPress={() => void Linking.openURL(telUrl(customer.phone))} />
@@ -219,7 +223,7 @@ export function TelaCliente() {
         </View>
         )}
 
-        {/* T-0076: uma grade só, na ordem da referência (Compra média · Última compra · Limite · Títulos · Ticket · Frequência · 12 meses) */}
+        {/* T-0076: uma grade só, na ordem da referência (Compra média · Última compra · Ticket · Frequência · 12 meses); limite e vencidos ficam só no Financeiro (T-0146) */}
         {ficha ? (
           <SecoesCliente360 ficha={ficha} indicadoresIniciais={indicadoresDoCliente} />
         ) : (

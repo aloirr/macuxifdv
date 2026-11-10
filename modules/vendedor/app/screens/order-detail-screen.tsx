@@ -7,35 +7,38 @@
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, HistoricoEmTags, Icon, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, Selo, TabelaValores, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Botao, Button, Card, colors, dateTimeLabel, Dialogo, EstadoVazio, fonts, Folha, HistoricoEmTags, Icon, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, TabelaValores, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
+import type { MudancaNaConversao } from '../../domain/orcamento';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { referenciaNoOrcamento } from '../../domain/aplicacao';
 import { enviadoAoErp, sellerDiscountLimit } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
 import { vendedorDoPdf } from '../../domain/pedido-em-nome';
+import { AreaAlertas } from '../components/area-alertas';
 import { AvisoRapido, useAviso } from '../components/aviso';
+import { CartaoDeTotais, TabelaDeItens, TabelaRotuloValor } from '../components/tabelas-pedido';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
-import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
-import { acoesDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDoAjusteDoItem, linhaDoVendedor, linhaFormaPrazoFrete } from '../lib/detalhe-pedido';
+import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
+import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhaLiquidaDosTotais } from '../lib/detalhe-pedido';
 import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { textoDoEndereco } from '../lib/novo-pedido';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
-import { statusBadge, statusBadgeDaLinha } from '../lib/order-status';
 import { estadoNaFila } from '../lib/salvar-na-fila';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
-import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
-import { estadoDoDetalheAusente, folhaDoTransformar, itemCompacto, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento } from '../lib/textos-pedido';
+import { acoesNaTela, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
+import { estadoDoDetalheAusente, folhaDoTransformar, ROTULO_TENTAR_DE_NOVO } from '../lib/textos-pedido';
 import { dataDaValidade, dataDoPrecoDoOrcamento, precoDoOrcamentoVale, validadeOrcamentoDias } from '../../domain/orcamento';
 import { folhaPrecosDeHoje, TEXTOS_PRECOS_DE_HOJE, type DadosDosPrecosDeHoje } from '../lib/precos-de-hoje';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
@@ -75,7 +78,12 @@ export default function OrderDetailScreen() {
   const somenteLeitura = pedidoSomenteLeitura({ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar });
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'duplicate' | 'edit' | 'convert' | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // RN-VEN-10 (T-0151): a alçada só aparece na pergunta ao enviar; dentro da alçada, o Transformar segue direto
+  const [perguntaAlcada, setPerguntaAlcada] = useState(false);
+  // T-0150 🟡 7: o erro de uma ação vira aviso no rodapé, não texto vermelho solto
+  const setActionError = (m: string | null) => {
+    if (m) sheets.mostrar(m);
+  };
   const [sheet, setSheet] = useState<'delete' | 'pdf' | 'approve' | 'reject' | null>(null);
   const [deciding, setDeciding] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -106,9 +114,27 @@ export default function OrderDetailScreen() {
       transformarAoAbrir.current();
     }
   });
+  /** RN-VEN-42: o que a reconferência local do orçamento achou (acima do máximo, sem estoque, cliente) vira Alertas no topo */
+  const [mudancasDoOrcamento, setMudancasDoOrcamento] = useState<MudancaNaConversao[]>([]);
   const detail = app.detalhe(id ?? '');
   const summary = orders.find((o) => o.id === id) ?? null;
   const queued = fila.find((o) => o.payload.id === id) ?? null;
+  const orcamentoAberto = !queued && (detail ?? summary)?.tipo === 'orcamento' && (detail ?? summary)?.status !== 'cancelled';
+  const { reconferirOrcamentoLocal } = app;
+  const itensDoDetalhe = detail?.items.length ?? 0;
+  useEffect(() => {
+    if (!orcamentoAberto || !v1 || !id || itensDoDetalhe === 0) {
+      setMudancasDoOrcamento([]);
+      return;
+    }
+    let vivo = true;
+    void reconferirOrcamentoLocal(id)
+      .then((c) => vivo && setMudancasDoOrcamento(c?.mudancas_brutas ?? []))
+      .catch(() => vivo && setMudancasDoOrcamento([]));
+    return () => {
+      vivo = false;
+    };
+  }, [orcamentoAberto, v1, id, itensDoDetalhe, reconferirOrcamentoLocal]);
   const qd = queued?.display ?? null;
 
   const isQueued = Boolean(queued);
@@ -151,7 +177,6 @@ export default function OrderDetailScreen() {
 
   const status = queued ? 'queued' : (detail?.status ?? summary?.status ?? 'received');
   const naFila = queued ? estadoNaFila({ recusado: queued.failed, offline, motivoBruto: queued.ultimo_erro ?? '' }) : null;
-  const b = queued && queued.failed ? statusBadgeDaLinha({ status: 'queued', local_failed: true }) : statusBadge(status);
   const sellerNameHeader = queued ? (ambiente.usuario()?.nome ?? '') : (base?.seller_name ?? '');
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
@@ -159,15 +184,13 @@ export default function OrderDetailScreen() {
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
     : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
-  const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
   const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
   const subtotal = queued ? (qd?.subtotal_cents ?? 0) : base!.subtotal_cents;
   const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
   const discountPct = queued ? queued.payload.discount_pct : base!.discount_pct;
-  // T-0061 (RN-VEN-02/03/16/17): acréscimo, desconto efetivo, frete e endereço de entrega do pedido
-  const surchargePct = queued ? (queued.payload.acrescimo_pct ?? 0) : (base!.surcharge_pct ?? 0);
+  // T-0061 (RN-VEN-02/03/16/17): desconto efetivo, frete e endereço de entrega do pedido
   const effectivePct = queued ? null : (base!.effective_discount_pct ?? null);
   const enderecoTexto = (() => {
     if (queued) {
@@ -200,11 +223,10 @@ export default function OrderDetailScreen() {
     : null;
   const situacaoOrc = ehOrc ? situacaoNaTela(doc, agoraTela) : null;
   const numeroConvertido = base && !queued && base.convertido_pedido_id ? (orders.find((o) => o.id === base.convertido_pedido_id)?.number ?? null) : null;
-  const selo = ehOrc && situacaoOrc && validadeData ? seloDoOrcamento({ situacao: situacaoOrc, preco_data: dataDoPrecoDoOrcamento(validadeData, diasDoPreco), pedido_numero: numeroConvertido }) : null;
   const title = number ? `${ehOrc ? 'Orçamento' : 'Pedido'} ${number}` : ehOrc ? 'Orçamento no aparelho' : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
   const ehVendedor = !v1 || perfil === 'vendedor';
-  const { podeEditar: canEdit, podeExcluir: canDelete, motivoBloqueio: lockedReason } = estadoDasAcoes({
+  const { podeEditar: canEdit, podeExcluir: canDelete } = estadoDasAcoes({
     status,
     naFila: Boolean(queued),
     recusado: Boolean(queued?.failed),
@@ -220,6 +242,7 @@ export default function OrderDetailScreen() {
   const podeDuplicarDoc = acoesOrc ? acoesOrc.pode_duplicar : acts.can_duplicate;
 
   const folhaTransformar = folhaDoTransformar(conferencia);
+
   // T-0141 G (RN-VEN-18): depois dos 7 dias do preço e com o total diferente, a folha é "Preços de hoje"; senão, a de sempre
   const precosDeHoje = conferencia && validadeData
     ? folhaPrecosDeHoje({ preco_vale: conferencia.precos.preco_vale, preco_data: dataDaValidade(dataDoPrecoDoOrcamento(validadeData, diasDoPreco)), r: conferencia.precos.r, nome: (pid) => conferencia.precos.nomes[pid] ?? 'Produto', todos: todosOsPrecos })
@@ -239,7 +262,7 @@ export default function OrderDetailScreen() {
     }
   };
 
-  /** RN-VEN-18: Transformar reconfere preço, estoque, mínimo e alçada com os dados do aparelho e abre sempre a folha "Enviar pedido" com a alçada. */
+  /** RN-VEN-18: Transformar reconfere preço, estoque, mínimo e alçada com os dados do aparelho e abre sempre a folha "Enviar pedido". */
   const transformar = async () => {
     setBusy('convert');
     setActionError(null);
@@ -253,6 +276,13 @@ export default function OrderDetailScreen() {
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Enviar pedido da folha: acima da alçada do vendedor pergunta "Enviar para aprovação?" (RN-VEN-10); senão converte direto. */
+  const converterOuPerguntar = () => {
+    setTransformarAberto(false);
+    if (perguntaDaAlcada({ tipo: 'pedido', nivel: conferencia?.nivel ?? null })) setPerguntaAlcada(true);
+    else void converter();
   };
 
   transformarAoAbrir.current = acoesOrc?.pode_converter && !queued && podeCriar && hasLines ? () => void transformar() : null;
@@ -344,7 +374,7 @@ export default function OrderDetailScreen() {
       subtotal_cents: subtotal,
       discount_cents: discount,
       total_cents: total,
-      pending_reason: queued ? (qd?.notes ?? []).join(' ') : base!.pending_reason,
+      pending_reason: queued ? '' : base!.pending_reason,
       rejection_reason: queued ? '' : base!.rejection_reason,
       price_table: (queued ? cu?.price_table_id : (base!.price_table_id ?? cu?.price_table_id)) ?? '',
       branch_name: queued ? '' : base!.branch_name ?? '',
@@ -400,8 +430,10 @@ export default function OrderDetailScreen() {
     ehOrc && situacaoOrc
       ? eventosDoOrcamento(history, { vendedorNome, situacao: situacaoOrc, criadoEm: queued?.criado_em ?? base?.received_at ?? new Date(agoraTela).toISOString(), convertidoEm: queued ? null : (base?.updated_at ?? null), numeroPedido: numeroConvertido })
       : eventosDoPedido(history, { vendedorNome, motivoDoFechamento: queued ? null : (base?.rejection_reason ?? null) });
-  const tagsDoDetalhe = tagsDoHistorico(eventosDoHistorico, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
-  const ultimaTag = tagsDoDetalhe.length > 0 ? tagsDoDetalhe[tagsDoDetalhe.length - 1]! : null;
+  // RN-VEN-42 (T-0150): o motivo do supervisor/cancelamento vai para os Alertas; a etapa do Histórico leva só o nome de quem fechou
+  const motivoDoFechamento = [...eventosDoHistorico].reverse().find((e) => ['rejected', 'cancelled'].includes(e.status) && e.motivo)?.motivo ?? null;
+  const eventosSemMotivo = eventosDoHistorico.map((e) => (['rejected', 'cancelled'].includes(e.status) ? { ...e, motivo: null } : e));
+  const tagsDoDetalhe = tagsDoHistorico(eventosSemMotivo, { tipo: ehOrc ? 'orcamento' : 'pedido', tz, agora: agoraTela });
   const modalidade = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
   const transportadora = (() => {
     if (queued) {
@@ -411,8 +443,15 @@ export default function OrderDetailScreen() {
     }
     return base?.freight?.carrier_name ?? null;
   })();
-  const formaPrazoFrete = linhaFormaPrazoFrete({ forma: queued ? null : (base?.forma_pagamento_nome ?? null), prazo: queued ? terms : (base?.prazo_descricao ?? terms), modalidade, transportadora });
+  // RN-VEN-42: a área Alertas (recusa do servidor do pedido na fila; no orçamento, o que impede o pedido). A situação fica só no Histórico.
+  const alertasDaTela = alertasDoDetalhe({
+    recusaDoServidor: queued?.failed && naFila ? naFila.faixa.texto : null,
+    recusaDoSupervisor: ehOrc || queued ? null : motivoDoFechamento,
+    mudancas: ehOrc ? mudancasDoOrcamento : [],
+    codigoDoProduto: (pid) => lines.find((l) => l.product_id === pid)?.erp_code ?? 'Item',
+  });
   const acoesDaTela = acoesDoDetalhe({
+    alertaImpedeTransformar: ehOrc && alertasDaTela.some((a) => a.so_orcamento),
     tipo: ehOrc ? 'orcamento' : 'pedido',
     status,
     situacao: situacaoOrc,
@@ -464,10 +503,22 @@ export default function OrderDetailScreen() {
   const iconesDaTela: AcaoCompacta[] = acoesDaTela.icones.map((a) => ({ id: a.id, rotulo: a.rotulo, rotuloAcessivel: a.rotuloAcessivel, icone: a.icone, desligado: desligadaPorOcupado && a.id !== 'pdf' && a.id !== 'pedido', testID: testIdDaAcao[a.id], onPress: () => executar(a.id) }));
   const opcoesDoMenu = acoesDaTela.menu.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: true, testID: 'pedido-excluir', onPress: () => executar(a.id) }));
   const rotuloDoMenu = ehOrc ? 'Mais ações do orçamento' : 'Mais ações do pedido';
-  const tabelaDoTotal = surchargePct > 0 ? { rotulo: `Acréscimo do pedido ${formatPct(surchargePct)}`, valor: `+ ${formatBRL(Math.max(0, total - subtotal))}` } : discount > 0 ? { rotulo: `Desconto ${formatPct(discountPct)}`, valor: `− ${formatBRL(discount)}` } : null;
+  const linhaLiquida = linhaLiquidaDosTotais({ subtotal_cents: subtotal, total_cents: total });
+  const tabelaPagamento = [{ rotulo: 'Pagamento', valor: [queued ? null : (base?.forma_pagamento_nome ?? null), queued ? terms : (base?.prazo_descricao ?? terms)].filter(Boolean).join(' · ') }, { rotulo: 'Entrega', valor: [modalidade === 'FOB' ? ['FOB', transportadora].filter(Boolean).join(' · ') : modalidade, enderecoTexto].filter(Boolean).join(' · ') }];
+  // T-0150 🟡 5/6: Nº no ERP, Filial e Tabela são linhas da tabela (só com valor); "Editado neste pedido" é a 2ª linha da Entrega
+  const linhasExtras = [
+    { rotulo: 'Nº no ERP', valor: base && !queued ? (base.erp_order_code ?? '') : '' },
+    { rotulo: 'Filial', valor: base && !queued ? (base.branch_name ?? '') : '' },
+    { rotulo: 'Tabela', valor: !queued ? (detail?.price_table_name ?? '') : '' },
+  ].filter((l) => l.valor);
+  const tabelaBase = [...tabelaPagamento.map((l) => (l.rotulo === 'Entrega' && enderecoEditado ? { ...l, complemento: TEXTOS_ENDERECO.editadoNestePedido, testIDComplemento: 'order-delivery-editado' } : l)), ...linhasExtras];
+  const tabelaGestao = !ehVendedor && vendedorNome ? [{ rotulo: 'Vendedor', valor: vendedorNome }, ...tabelaBase] : tabelaBase;
   const { visiveis, rotuloVerTodos } = itensVisiveis(lines, mostrarTodosItens);
-  const rodapeFixo = !somenteLeitura && (principal !== null || iconesDaTela.length > 0);
-  const mostraNota = !somenteLeitura && !ehOrc && Boolean(lockedReason) && !queued;
+  // T-0150 🟡 4: "Enviar agora" é a ação principal do rodapé do pedido na fila (com sinal)
+  const principalDoRodape = principal ?? (queued && naFila?.podeEnviarAgora ? { rotulo: 'Enviar agora', icone: 'send' as const, ocupado: flushing, onPress: () => void reenviarFila().then(() => irParaPedidos()), testID: 'pedido-enviar-agora' } : null);
+  // T-0150 🔴 3: quem decide (Gestão) vê Aprovar e Rejeitar no rodapé; sem sinal ficam desligados ("Aprovar exige internet")
+  const decide = Boolean(detail?.aprovacao && detail.aprovacao.pode_decidir && podeAprovar);
+  const rodapeFixo = !somenteLeitura && (principalDoRodape !== null || iconesDaTela.length > 0);
 
   return (
     <View style={styles.root}>
@@ -485,147 +536,56 @@ export default function OrderDetailScreen() {
           )}
         </View>
         <View style={{ gap: 6 }} testID="detalhe-cabecalho">
-          <View style={styles.tituloLinha}>
-            <Text style={[t.h1Small, { flexShrink: 1 }]} testID="order-title">
-              {title}
-            </Text>
-            {selo ? (
-              <Selo testID="orcamento-selo" texto={selo.texto} tom={selo.tom} tamanho="m" pilula />
-            ) : ehOrc ? (
-              <Selo testID="orcamento-selo" texto={rotuloDoDocumento(doc, agoraTela)} tom="neutro" tamanho="m" pilula />
-            ) : ultimaTag ? (
-              <Selo testID="pedido-selo" texto={ultimaTag.rotulo} tom={ultimaTag.tom} tamanho="m" pilula rotuloAcessivel={`Situação: ${ultimaTag.rotulo}`} />
-            ) : (
-              <Selo testID="pedido-selo" texto={b.label} tom="neutro" tamanho="m" pilula />
-            )}
-          </View>
-          <Text style={[t.bodyStrong, { color: colors.ink }]} testID="detalhe-cliente">
+          <Text style={t.h1Small} testID="order-title">
+            {title}
+          </Text>
+          <Text style={[t.body, { color: colors.ink }]} testID="detalhe-cliente">
             {clienteComCodigo(customerName, codigoDoCliente)}
           </Text>
-          {vendedorNome ? (
-            <Text style={t.small} testID="detalhe-vendedor">
-              {linhaDoVendedor(vendedorNome)}
-            </Text>
-          ) : null}
-          {base && !queued && base.erp_order_code ? <Text style={t.small}>{`Pedido no ERP: ${base.erp_order_code}`}</Text> : null}
         </View>
 
-        {queued ? (
-          <View style={{ gap: 8 }}>
-            {naFila ? (
-              <Banner testID="pedido-faixa-fila" tone={naFila.faixa.tom} icon={naFila.faixa.icone} anunciar>
-                {naFila.faixa.texto}
-              </Banner>
-            ) : null}
-            {naFila?.podeEnviarAgora ? <Button label="Enviar agora" icon="send" variant="dark" loading={flushing} onPress={() => void reenviarFila().then(() => irParaPedidos())} /> : null}
-            {qd && qd.notes.length > 0 ? <Text style={[t.small, { color: colors.accentInk }]}>{qd.notes.join(' ')}</Text> : null}
-          </View>
-        ) : null}
-        {!queued && base && !ehOrc && status === 'pending_approval' && base.pending_reason ? (
-          <Text style={[t.small, { color: b.fg }]} testID="detalhe-pendencia">
-            {base.pending_reason}
-          </Text>
-        ) : null}
+        {/* RN-VEN-42: área Alertas logo abaixo do cliente; sem selo de situação (a situação é a última etapa do Histórico) */}
+        <AreaAlertas alertas={alertasDaTela} aoTocar={ehOrc && acoesOrc?.pode_editar ? () => void startDraft('edit') : undefined} />
+        <TabelaRotuloValor linhas={tabelaGestao} testID="detalhe-pagamento-entrega" />
 
-        {/* 2. itens */}
+
+        {/* 2. itens em tabela (RN-VEN-42: "ITENS (n)" com a contagem, não há aba) */}
         <View style={{ gap: 8 }} testID={ehOrc ? 'orcamento-resumo' : 'order-items'}>
-          <RotuloSecao texto="Itens" />
-          {lines.length === 0 ? <Text style={t.sub}>{TEXTO_SEM_ITENS}</Text> : null}
+          <RotuloSecao texto={`Itens (${lines.length})`} />
+          {lines.length === 0 ? <Text style={t.sub}>{TEXTO_SEM_ITENS}</Text> : <TabelaDeItens itens={visiveis.map((l) => ({ key: l.key, ...linhaDeItemEmTabela(l) }))} />}
           {visiveis.map((l) => {
-            const ajuste = queued || effectivePct !== null || ehOrc ? linhaDoAjusteDoItem(l) : null;
             const faturado = textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced);
-            return (
-              <View key={l.key} style={{ gap: 1 }}>
-                <LinhaValor forte rotulo={itemCompacto(l.description, l.quantity, l.unit_label || 'UN')} valor={formatBRL(l.total_cents)} />
-                {ajuste ? <Text style={t.small}>{ajuste}</Text> : null}
+            return l.application || faturado ? (
+              <View key={`${l.key}-extra`} style={{ gap: 1 }}>
                 {l.application ? (
                   <Text style={t.small} testID={`aplicacao-${l.erp_code}`}>
-                    Aplicação: {l.application}
+                    {`${l.erp_code} · Aplicação: ${l.application}`}
                   </Text>
                 ) : null}
-                {faturado ? <Text style={[t.small, { color: colors.accentInk }]}>{faturado}</Text> : null}
+                {faturado ? <Text style={[t.small, { color: colors.accentInk }]}>{`${l.erp_code} · ${faturado}`}</Text> : null}
               </View>
-            );
+            ) : null;
           })}
           {rotuloVerTodos ? <LinkTexto rotulo={rotuloVerTodos} onPress={() => setMostrarTodosItens(true)} testID="ver-todos-itens" /> : null}
         </View>
 
-        {/* 3. total separado, com forma, prazo e frete */}
-        <View style={{ gap: 4 }} testID="detalhe-total">
-          {tabelaDoTotal ? <LinhaValor rotulo="Tabela" valor={formatBRL(subtotal)} /> : null}
-          {tabelaDoTotal ? <LinhaValor rotulo={tabelaDoTotal.rotulo} valor={tabelaDoTotal.valor} /> : null}
-          <LinhaValor destaque divisor rotulo="Total" valor={formatBRL(total)} testID={ehOrc ? 'orcamento-total' : 'order-total'} />
-          {formaPrazoFrete ? (
-            <Text style={t.small} testID="orcamento-entrega">
-              {formaPrazoFrete}
-            </Text>
-          ) : null}
-          {effectivePct !== null && !ehOrc ? <Text style={t.small}>{`Desconto efetivo (sem frete): ${formatPct(effectivePct)}`}</Text> : null}
-          {enderecoTexto ? (
-            <View style={{ gap: 6, paddingTop: 8 }} testID="order-delivery">
-              <RotuloSecao texto="Entrega" />
-              {enderecoEditado ? <Selo texto={TEXTOS_ENDERECO.editadoNestePedido} tom="destaque" tamanho="p" testID="order-delivery-editado" /> : null}
-              <Text style={t.body} testID="order-delivery-endereco">
-                {enderecoTexto}
-              </Text>
-            </View>
-          ) : null}
-          {base && !queued && base.branch_name ? <Text style={t.small}>{`Filial: ${base.branch_name}`}</Text> : null}
-          {!queued && detail?.price_table_name ? <Text style={t.small}>{`Tabela de preço: ${detail.price_table_name}`}</Text> : null}
+        {/* 3. totais: Tabela, linha líquida (% sobre a tabela) e Total */}
+        <View style={{ gap: 4 }}>
+          <CartaoDeTotais tabela={formatBRL(subtotal)} liquida={linhaLiquida} total={formatBRL(total)} testIDTotal={ehOrc ? 'orcamento-total' : 'order-total'} />
         </View>
 
-        {situacaoFaturamento.length > 0 ? (
-          <Card style={{ padding: 14, gap: 6 }} testID="order-invoicing">
-            <Text style={t.bodyStrong}>Faturamento</Text>
-            {situacaoFaturamento.map((linha) => (
-              <Text key={linha} style={t.body}>
-                {linha}
-              </Text>
-            ))}
-            {notasFaturamento.map((n, i) => (
-              <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
-            ))}
-            {devolucoes.map((d, i) => (
-              <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agoraTela, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
-            ))}
-          </Card>
-        ) : null}
-
-        {detail?.aprovacao ? (
-          <Card style={{ padding: 14, gap: 8 }} testID="order-approval">
-            <Row label="Desconto do pedido" value={formatPct(detail.aprovacao.desconto_efetivo_pct)} />
-            <Row label="Alçada do vendedor" value={formatPct(detail.aprovacao.limite_vendedor_pct)} />
-            <Row label="Quem aprova" value={rotuloDoNivel(detail.aprovacao.nivel)} />
-            {detail.aprovacao.pode_decidir && podeAprovar ? (
-              <View style={{ gap: 8, marginTop: 4 }}>
-                <View style={styles.actionsRow}>
-                  <Button testID="pedido-aprovar" label="Aprovar" icon="check" variant="accent" style={{ flex: 1 }} disabled={offline || deciding} onPress={() => void decidir('aprovar', '')} loading={deciding && sheet === null} />
-                  <Button
-                    testID="pedido-rejeitar"
-                    label="Rejeitar"
-                    icon="close"
-                    variant="danger"
-                    style={{ flex: 1 }}
-                    disabled={offline || deciding}
-                    onPress={() => {
-                      setSheetError(null);
-                      setSheet('reject');
-                    }}
-                  />
-                </View>
-                {offline ? (
-                  <Text style={t.small} testID="approve-offline">
-                    Aprovar exige internet: conecte-se para decidir este pedido.
-                  </Text>
-                ) : null}
-                {detail.aprovacao.acima_do_nivel ? <Text style={t.small}>Este pedido é do nível supervisor; a decisão fica registrada como do gerente.</Text> : null}
-              </View>
-            ) : status === 'pending_approval' ? (
-              <Text style={t.small} testID="approve-wait">
-                Aguardando {detail.aprovacao.nivel === 'supervisor' ? 'o supervisor' : detail.aprovacao.nivel === 'gerente' ? 'o gerente' : 'o analista'}.
-              </Text>
-            ) : null}
-          </Card>
+        {notasFaturamento.length > 0 || devolucoes.length > 0 ? (
+          <View style={{ gap: 8 }} testID="order-invoicing">
+            <RotuloSecao texto="Faturamento" />
+            <Card style={{ padding: 14, gap: 6 }}>
+              {notasFaturamento.map((n, i) => (
+                <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+              ))}
+              {devolucoes.map((d, i) => (
+                <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agoraTela, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
+              ))}
+            </Card>
+          </View>
         ) : null}
 
         {/* 4. histórico só com tags (RN-VEN-30): sem "Recebido pelo servidor", motivo em 1 linha, autor só quando não é o vendedor */}
@@ -634,20 +594,6 @@ export default function OrderDetailScreen() {
             <RotuloSecao texto="Histórico" />
             <HistoricoEmTags tags={tagsDoDetalhe} titulo="Histórico" testID="detalhe-historico" />
           </View>
-        ) : null}
-
-        {mostraNota ? (
-          <View style={styles.locked}>
-            <Icon name="lock" size={14} color={colors.ink3} />
-            <Text style={[t.small, { flex: 1 }]} testID="order-locked-reason">
-              {lockedReason}
-            </Text>
-          </View>
-        ) : null}
-        {actionError ? (
-          <Text style={[t.small, { color: colors.danger }]} testID="order-action-error">
-            {actionError}
-          </Text>
         ) : null}
 
         <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} ehOrcamento={ehOrc} solicitaAoErp={enviadoAoErp(status) && erpAceitaCancelamento} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
@@ -677,19 +623,25 @@ export default function OrderDetailScreen() {
                 nivel="principal"
                 rotulo={precosDeHoje.acao}
                 desligado={!folhaTransformar.podeEnviar || busy === 'convert'}
-                onPress={() => {
-                  setTransformarAberto(false);
-                  void converter();
-                }}
+                onPress={converterOuPerguntar}
               />
-              {folhaTransformar.subtitulo && conferencia?.nivel ? (
-                <Text style={[t.small, { textAlign: 'center' }]} testID="precos-destino">
-                  {folhaTransformar.subtitulo}
-                </Text>
-              ) : null}
             </View>
           </Folha>
         ) : null}
+        <Dialogo
+          visivel={perguntaAlcada}
+          titulo={PERGUNTA_DA_ALCADA.titulo}
+          cancelar={{ rotulo: PERGUNTA_DA_ALCADA.voltar, onPress: () => setPerguntaAlcada(false), testID: 'alcada-voltar' }}
+          confirmar={{
+            rotulo: PERGUNTA_DA_ALCADA.enviar,
+            testID: 'alcada-enviar',
+            onPress: () => {
+              setPerguntaAlcada(false);
+              void converter();
+            },
+          }}
+          testID="pergunta-alcada"
+        />
         <Folha visivel={transformarAberto && !precosDeHoje} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={folhaTransformar.titulo} testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setTransformarAberto(false), testID: 'conferencia-voltar' }}>
           <View style={{ gap: 8 }}>
             {conferencia?.bloqueio ? (
@@ -718,11 +670,9 @@ export default function OrderDetailScreen() {
               testID="conferencia-enviar"
               icone="send"
               titulo="Enviar pedido"
-              subtitulo={folhaTransformar.subtitulo}
               desligado={!folhaTransformar.podeEnviar || busy === 'convert'}
               onPress={() => {
-                setTransformarAberto(false);
-                void converter();
+                converterOuPerguntar();
               }}
             />
           </View>
@@ -733,8 +683,26 @@ export default function OrderDetailScreen() {
         <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={fecharPdf} onPick={(v) => void exportPdfFor(v)} />
       </ScrollView>
       {/* 5. rodapé compacto fora do ScrollView; a barra do shell já reserva a área segura de baixo (sem somar insets.bottom) */}
-      {rodapeFixo ? <RodapeAcoes principal={principal} acoes={iconesDaTela} testID="rodape-acoes" /> : null}
-      <AvisoRapido aviso={sheets.aviso} acima={rodapeFixo ? 120 : 0} />
+      {decide ? (
+        <View style={[styles.rodapeDecisao, { paddingBottom: 8 + insets.bottom }]} testID="rodape-decisao">
+          <Botao testID="pedido-aprovar" nivel="principal" icone="check" rotulo="Aprovar" rotuloAcessivel={offline ? 'Aprovar exige internet' : 'Aprovar o pedido'} desligado={offline || deciding} ocupado={deciding && sheet === null} onPress={() => void decidir('aprovar', '')} />
+          <Botao
+            testID="pedido-rejeitar"
+            nivel="perigo"
+            icone="close"
+            rotulo="Rejeitar"
+            rotuloAcessivel={offline ? 'Rejeitar exige internet' : 'Rejeitar o pedido'}
+            desligado={offline || deciding}
+            onPress={() => {
+              setSheetError(null);
+              setSheet('reject');
+            }}
+          />
+        </View>
+      ) : rodapeFixo ? (
+        <RodapeAcoes principal={principalDoRodape} acoes={iconesDaTela} testID="rodape-acoes" />
+      ) : null}
+      <AvisoRapido aviso={sheets.aviso} acima={rodapeFixo || decide ? 120 : 0} />
     </View>
   );
 }
@@ -752,6 +720,5 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
   topo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tituloLinha: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  actionsRow: { flexDirection: 'row', gap: 8 },
-  locked: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  rodapeDecisao: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
 });

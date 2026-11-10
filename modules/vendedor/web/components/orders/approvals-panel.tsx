@@ -6,6 +6,14 @@ import { formatAge, type NoticeTone, Panel } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 
+/** RD-0064: o cartão diz o % e o nível ("8,8% · Supervisor"); sem desconto (crédito, título vencido), o motivo da API. */
+export function motivoDoCartao(a: Pick<Order, 'effective_discount_pct' | 'nivel_aprovacao' | 'pending_reason'>): string {
+  const nivel = a.nivel_aprovacao ? a.nivel_aprovacao.charAt(0).toUpperCase() + a.nivel_aprovacao.slice(1) : null;
+  const pct = a.effective_discount_pct && a.effective_discount_pct > 0 ? `${a.effective_discount_pct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : null;
+  if (!pct) return a.pending_reason || nivel || 'Aguardando';
+  return nivel ? `${pct} · ${nivel}` : pct;
+}
+
 /**
  * "Aguardando aprovação" (RF-VEN-09): os pedidos pendentes do escopo do usuário. Os botões só aparecem em quem decide o
  * nível do pedido agora (`pode_decidir`, calculado pela API: supervisor, gerente e analista, P-3).
@@ -17,7 +25,6 @@ export function ApprovalsPanel({ approvals, nowMs, onOpen }: { approvals: Order[
     <Panel
       label="Aguardando aprovação"
       title={`Aguardando aprovação · ${approvals.length}`}
-      aside={<span className="text-[12px] text-ink-2">acima da alçada do vendedor</span>}
       className="flex-[1_1_340px] self-start xl:flex-[0_0_340px]"
     >
       <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
@@ -36,12 +43,10 @@ export function ApprovalsPanel({ approvals, nowMs, onOpen }: { approvals: Order[
                 </button>
                 <span className="text-[14px] font-semibold whitespace-nowrap tabular-nums">{formatBRL(a.total_cents)}</span>
               </div>
-              <span className="text-[12px] font-semibold text-accent-ink">{a.pending_reason || 'Fora da alçada'}</span>
+              <span className="text-[12px] font-semibold text-accent-ink">{motivoDoCartao(a)}</span>
               {a.pode_decidir ? (
                 <BotoesDeDecisao pedido={a} onFeito={(tom, texto) => setAviso({ tom, texto })} />
-              ) : (
-                <span className="text-[12px] text-ink-2">Quem decide: {a.nivel_aprovacao ?? 'gestor'}.</span>
-              )}
+              ) : null}
             </div>
           );
         })}

@@ -16,7 +16,7 @@ import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
 import { TelaRota } from './telas/rota';
 
-export { definirCapturaFoto, type CapturaFoto } from './lib/foto-fachada';
+export { definirAbrirFotoPdv, definirCapturaFoto, type AbrirFotoPdv, type CapturaFoto, type PedidoAbrirFotoPdv } from './lib/foto-fachada';
 export { useInicio } from './lib/usar-inicio';
 export { useNotificacoes } from './lib/usar-notificacoes';
 export { OpenVisitBar } from './components/open-visit-bar';

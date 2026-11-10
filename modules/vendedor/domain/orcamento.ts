@@ -178,7 +178,7 @@ export function verificarTipoParaCliente(tipo: TipoDocumento, cliente: boolean |
   if (tipo !== 'pedido') return null;
   const motivo = typeof cliente === 'boolean' ? (cliente ? null : 'Cliente bloqueado ou inativo.') : motivoSoOrcamento(cliente);
   if (!motivo) return null;
-  return { codigo: 'RN-VEN-13', http: 422, mensagem: `${motivo.replace(/\.$/, '')}: não é possível fazer pedido. Salve como orçamento (RN-VEN-13).` };
+  return { codigo: 'RN-VEN-13', http: 422, mensagem: `${motivo.replace(/\.$/, '')}: não é possível fazer pedido. Salve como orçamento.` };
 }
 
 export interface OrcamentoParaConversao extends OrcamentoEstado {
@@ -392,7 +392,6 @@ export type MudancaNaConversao =
   /** T-0134 (RN-VEN-11): com o preço congelado, o desconto do item passa do mínimo de hoje; avisa o item, não troca o preço */
   | { tipo: 'abaixo_minimo'; produto_id: string; unidade: string }
   | { tipo: 'medida_inativa'; produto_id: string; unidade: string }
-  | { tipo: 'alcada'; de: NivelDePreco | null; para: NivelDePreco | null }
   | { tipo: 'cliente'; motivo: 'bloqueado' | 'inativo' | 'cadastro_incompleto'; campos: string[] };
 export interface RascunhoReconferido {
   itens: ItemOrcado[];
@@ -487,7 +486,6 @@ export function reconferirOrcamento(
   );
   const totalOrcado = totalDosItens(o.itens, o.ajuste_pedido);
   const nivel = nivelDeAprovacao(totais.desconto_efetivo_alcada_pct, hoje.policy);
-  if (nivel !== o.alcada_nivel) mudancas.push({ tipo: 'alcada', de: o.alcada_nivel, para: nivel });
   if (itens.length === 0 && !bloqueio) bloqueio = 'Nenhum item do orçamento pode ser enviado hoje.';
   // item que saiu do pedido muda o total por outro motivo (já avisado): a diferença compara só os que ficaram
   const ficaram = o.itens.filter((i) => itens.some((x) => x.product_id === i.product_id && x.unidade === i.unidade));

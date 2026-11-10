@@ -267,3 +267,11 @@ describe('"Equivale a" no PDF (T-0138, RN-CAT-09/10, desenho T-0085 §5)', () =>
     expect(equivaleAHtml({ references: [] }, 'bko', {})).toBe('');
   });
 });
+
+describe('T-0151: números do PDF iguais aos da tela', () => {
+  it('RN-VEN-03: o rótulo "Desconto" do PDF sai dos centavos (10,1%), não do % digitado no pedido (15,0%)', () => {
+    const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 15, subtotal_cents: 100_000, discount_cents: 10_050, total_cents: 89_950 })), 'bko', ctx);
+    expect(html).toContain('Desconto 10,1%');
+    expect(html).not.toContain('Desconto 15,0%');
+  });
+});

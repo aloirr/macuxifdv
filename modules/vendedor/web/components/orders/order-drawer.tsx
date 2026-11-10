@@ -8,6 +8,7 @@ import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlo
 import type { Order } from '../../../contracts';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
+import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
@@ -23,7 +24,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-const NIVEL: Record<string, string> = { supervisor: 'Supervisor', gerente: 'Gerente', analista: 'Analista' };
 
 /** Gaveta do pedido (RF-VEN-04/05/06): itens, histórico, aprovação e Exportar PDF (cliente | interno) pelo diálogo de impressão. */
 export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: string; onClose: () => void }) {
@@ -88,19 +88,12 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
           {semDocumento && <Notice tone="warning">{MSG_SEM_DOCUMENTO}</Notice>}
           <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
           {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}
-          {o.status === 'pending_approval' && o.pending_reason && <Notice tone="warning">{o.pending_reason}</Notice>}
-          {o.status === 'rejected' && o.rejection_reason && <Notice tone="danger">Motivo: {o.rejection_reason}</Notice>}
 
           {aprovacao && podeAprovar && aprovacao.pode_decidir && dados && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
               <h3 className="m-0 font-display text-[16px] font-bold">Decisão</h3>
-              <span className="text-[13px]" data-testid="pedido.decisao.vendedor">
-                Vendedor: <strong>{o.seller_name}</strong>
-                {dados.cliente ? ` · cliente ${o.customer_name}` : ''}
-              </span>
-              <span className="text-[13px] text-ink-2">
-                Desconto {formatPct(aprovacao.desconto_efetivo_pct)} · alçada do vendedor {formatPct(aprovacao.limite_vendedor_pct)} · cabe ao nível {NIVEL[aprovacao.nivel] ?? aprovacao.nivel}
-                {aprovacao.acima_do_nivel ? ' (decisão registrada como acima do nível)' : ''}
+              <span className="text-[13px] text-ink-2" data-testid="pedido.decisao.alcada">
+                Desconto {formatPct(aprovacao.desconto_efetivo_pct)}
               </span>
               <BotoesDeDecisao pedido={dados} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
             </section>
@@ -111,10 +104,8 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             <Field label="Recebido">{formatDateTime(o.received_at, tz)}</Field>
             <Field label="Feito sem sinal">{o.created_offline_at ? formatDateTime(o.created_offline_at, tz) : 'Não'}</Field>
             <Field label="Itens">
-              {o.items_count} itens · {o.units} un.
+              {o.items_count} · {o.units} un.
             </Field>
-            {(o.surcharge_pct ?? 0) > 0 ? <Field label="Acréscimo do pedido">{formatPct(o.surcharge_pct!)}</Field> : <Field label="Desconto do pedido">{formatPct(o.discount_pct)}</Field>}
-            {o.effective_discount_pct !== undefined ? <Field label="Desconto efetivo (sem frete)">{formatPct(o.effective_discount_pct)}</Field> : null}
             {o.price_table_name ? <Field label="Tabela de preço">{o.price_table_name}</Field> : null}
             {dados?.cliente?.documento ? <Field label="Documento do cliente">{dados.cliente.documento}</Field> : null}
           </div>
@@ -131,7 +122,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               </div>
             ) : (
               <div className="flex justify-between">
-                <span className="text-ink-2">Desconto ({formatPct(o.discount_pct)})</span>
+                <span className="text-ink-2">Desconto ({formatPct(descontoDoPedidoPct(o.subtotal_cents, o.total_cents))})</span>
                 <span>− {formatBRL(o.discount_cents)}</span>
               </div>
             )}
@@ -160,7 +151,6 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                   ) : null}
                 </Field>
               ) : null}
-              <span className="text-[12px] text-ink-2">O frete não tem valor no pedido: no FOB o cliente paga direto à transportadora.</span>
             </section>
           )}
 

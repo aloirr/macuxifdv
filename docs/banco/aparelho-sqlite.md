@@ -218,8 +218,16 @@ ficam.
 ### 4.3 Catálogo, versão 4 — índices da lista por linha (T-0085, 2026-11-07)
 
 Origem: 🟡 de desempenho da revisão R-20261107-111809 (engenheiro-apps) sobre a lista por linha (sistema › grupo › linha,
-#95), que lê o SQLite do aparelho em `modules/catalogo/app/lib/lista-por-linha-local.ts`. Duas leituras por
-`linhasPorCampo` ainda varriam a tabela inteira:
+#95), que lia o SQLite do aparelho por duas leituras `linhasPorCampo` que ainda varriam a tabela inteira. A tela da lista
+por linha foi apagada na T-0142 (R-20261109-103358) e, com ela, o leitor desses dois índices.
+
+> **Leitores hoje (RD-0050, 2026-11-10): nenhum dos dois índices tem leitor por campo.** `produto_no` é lida inteira pela
+> hierarquia (`arvoreLocal` em `modules/catalogo/app/lib/local.ts`; o vínculo vai para a árvore em memória) e
+> `produto_relacao` é lida inteira pela ficha (`fichaLocal`, mesmo arquivo — o "oferece junto" ficou só na ficha) e pelas
+> sugestões (`modules/catalogo/app/sugestoes.ts`). A migração v4 não muda (índice de expressão custa pouco e já está nos
+> aparelhos); os dois servem a um leitor por campo futuro: ficha e sugestões podem passar a
+> `linhasPorCampo('produto_relacao', 'produto_id', ids)` e a hierarquia a `linhasPorCampo('produto_no', 'no_id', nós)`.
+> A tabela abaixo descreve a consulta para a qual cada índice foi criado.
 
 ```sql
 CREATE INDEX catalogo__produto_no_no ON ent_produto_no (json_extract(dados, '$.no_id'));
@@ -241,14 +249,44 @@ CREATE INDEX catalogo__produto_relacao_produto ON ent_produto_relacao (json_extr
   | vínculos de 1 sistema com 40 linhas (~2 mil) | 194 ms | 45 ms |
   | relações de 100 produtos | 202 ms | 2,4 ms |
 
-- **Fora do alcance de índice:** a raiz da lista (`raiz()` no mesmo arquivo) lê `linhas('produto_no')` e
-  `linhas('produto')` inteiras (20 mil JSON cada) e ordena em memória; isso fica com o modulo-catalogo (ordenação e
-  forma da consulta). Também leem a tabela inteira de `produto_relacao`: `app/lib/local.ts` (ficha) e `app/sugestoes.ts`;
-  com o índice, podem passar a `linhasPorCampo('produto_relacao', 'produto_id', ids)`.
+- **Fora do alcance de índice:** leitura de `linhas('produto_no')` e `linhas('produto')` inteiras (20 mil JSON cada)
+  com ordenação em memória (hoje a hierarquia, `arvoreLocal`); isso fica com o modulo-catalogo (ordenação e forma da
+  consulta).
 - **Subida v3 → v4:** só os dois `CREATE INDEX`, na transação da versão, sobre as linhas já em `ent_*`. Nada é apagado,
   repuxado nem reindexado: FTS (mesmos `rid`), linhas e cursores intactos (teste "v3 → v4 real").
 - **Caminho de volta:** o da §3. App com v3 num aparelho em v4 apaga os objetos `catalogo__*` e reaplica v1 a v3; as
   linhas ficam.
+
+### 4.4 Catálogo, versão 5 — preço por filial (T-0149, 2026-11-10)
+Origem: RN-CORE-39 / ADR 0040 (migração 0056 no servidor). O item da tabela de preço ganha `filial_id`, o depósito também, e a
+faixa escalonada ganha `filial_id` nulo = todas. São campos do JSON `dados` (sem DDL nas `ent_*`); o aparelho recebe só as
+filiais da carteira + a padrão (filtro do pull do Catálogo).
+
+```sql
+CREATE INDEX catalogo__tabela_preco_item_filial ON ent_tabela_preco_item (json_extract(dados, '$.tabela_preco_id'), json_extract(dados, '$.filial_id'), json_extract(dados, '$.produto_id'));
+```
+
+| Consulta servida | Como |
+|---|---|
+| "a tabela do cliente tem item nesta filial?" (`filialDoPreco`) | `SELECT 1 ... WHERE tabela = ? AND filial = ? LIMIT 1` — as duas colunas do índice |
+| itens da tabela do cliente | `linhasPorCampo('tabela_preco_item', 'tabela_preco_id', [tabela])` — prefixo do índice (mesma expressão do SDK) |
+| preço por produto | continua no `catalogo__tabela_preco_item_produto` (v2) |
+
+- Teste: `EXPLAIN QUERY PLAN` das duas consultas em `db/testes/aparelho-sqlite.test.ts`.
+- **Volume**: igual ao de hoje para o vendedor de uma filial só (a carteira dele puxa a filial dele + a padrão; na padrão os
+  itens são os de hoje). Com 2 filiais na carteira, o preço dobra (≈ 2 × 20 mil por tabela) — medir com a fixture da T-0107.
+- **Subida v4 → v5**: só o `CREATE INDEX`, sobre as linhas já em `ent_*`; a nova variação de escopo do pull (`;filiais=...`)
+  repuxa preço e estoque. **Caminho de volta**: o da §3.
+
+### 4.5 Core — filial e fotos do PDV (T-0149 e T-0147, 2026-11-10)
+Sem migração local do Core (não existe `modules/core/db/aparelho.ts`): as entidades novas viram `ent_<e>` pelo adaptador.
+| Entidade | Escopo do pull | Campos em `dados` | Leitura no aparelho |
+|---|---|---|---|
+| `ent_filial` | tenant (unidades) | `codigo, nome, cidade, uf, padrao, ativo` | inteira (`linhas('filial')`) |
+| `ent_cliente.filial_id` | carteira | campo novo do cliente | com o cliente |
+| `ent_foto_tipo` | tenant (unidades) | `nome, obrigatorio, sensivel, fachada, ordem, ativo` | inteira |
+| `ent_cliente_foto` | carteira (~1.500) | `cliente_id, foto_tipo_id, arquivo_id` (**nulo nos sensíveis**), `origem`, `tirada_em` | por cliente na ficha; sem índice (abaixo do gatilho da §5) |
+| `ent_pedido.filial` (Vendedor) | carteira | retrato `{ id, codigo, nome, cidade, uf, external_id, padrao }` | com o pedido |
 
 ## 5. Clientes (500 por vendedor) — sem FTS
 O Core não usa FTS (desenho T-0016 §8): a carteira (500) é lida de `ent_cliente` e filtrada em memória (normalização

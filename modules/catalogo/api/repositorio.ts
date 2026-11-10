@@ -39,8 +39,11 @@ export interface RepositorioCatalogo {
   promocoes(produtoIds: readonly string[]): Promise<Promocao[]>;
   /** Saldos por produto em todas as filiais (o domínio filtra pelas do usuário). */
   saldos(produtoIds: readonly string[]): Promise<Map<string, StockByBranch[]>>;
-  /** Filiais/depósitos do usuário da requisição; `null` = todas. */
-  filiaisDoUsuario(): Promise<string[] | null>;
+  /**
+   * Filiais cujo saldo o usuário vê (RN-CORE-39, RN-CAT-07). Com cliente no contexto: só a filial efetiva dele (sem saldo = 0);
+   * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
+   */
+  filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;
@@ -79,9 +82,11 @@ export interface RepositorioCatalogo {
    */
   salvarCadastroCatalogo(produtoId: string, c: SalvarCadastroCatalogo, em: string): Promise<{ criado: boolean }>;
   /** T-0089 (BKO Tabelas de preço): tabelas vivas com a contagem de itens da unidade base. */
-  tabelasPreco(): Promise<TabelaPrecoBko[]>;
-  /** Preço da UNIDADE BASE (item sem unidade) de cada produto da tabela (RN-VEN-15 nova). */
-  precosUnidade(tabelaId: string): Promise<PrecoUnidadeGuardado[]>;
+  tabelasPreco(filialId: string): Promise<TabelaPrecoBko[]>;
+  /** Preço da UNIDADE BASE (item sem unidade) de cada produto da tabela, na filial pedida (RN-VEN-15 nova, RN-CORE-39). */
+  precosUnidade(tabelaId: string, filialId: string): Promise<PrecoUnidadeGuardado[]>;
+  /** RN-CORE-39: filial padrão e filiais do tenant (`core.filiais@1`), para a tela escolher a filial dos preços. */
+  filiaisDaTela(): Promise<{ padraoId: string; filiais: { id: string; nome: string; padrao: boolean }[] }>;
   /** RN-VEN-23: todas as faixas vivas (qualquer vigência, ativas ou não). */
   faixas(): Promise<FaixaGuardada[]>;
   salvarFaixa(id: string, f: SalvarFaixa): Promise<{ criado: boolean }>;
@@ -114,6 +119,9 @@ export interface PrecoUnidadeGuardado {
   vigencia_fim: string | null;
 }
 
+/** Filial padrão do repositório em memória (testes e demo sem banco). */
+export const FILIAL_PADRAO_MEMORIA = '0f000000-0000-4000-8000-0000000000a0';
+
 /** Fábrica por requisição (dentro de `ctx.comTenant`). */
 export type FabricaRepositorio = (ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant) => RepositorioCatalogo;
 
@@ -141,6 +149,8 @@ export interface DadosTenantMemoria {
   nos?: NoCatalogo[];
   vinculos?: VinculoProdutoNo[];
   itensPreco?: ItemTabelaPreco[];
+  /** Filiais do tenant (memória); ausente = só a padrão `FILIAL_PADRAO_MEMORIA`. Item sem `filial_id` é da padrão. */
+  filiaisDaTela?: { padraoId: string; filiais: { id: string; nome: string; padrao: boolean }[] };
   promocoes?: Promocao[];
   /** cliente_id → tabela_preco_id. */
   tabelaDoCliente?: Record<string, string>;
@@ -278,12 +288,18 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       async dadosExportacao() {
         return { nos: copia(d.nos ?? []), vinculos: copia(d.vinculos ?? []), ofereceJunto: new Map([...(d.ofereceJunto ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v]])) };
       },
-      async tabelasPreco() {
-        return (d.tabelas ?? []).map((t) => ({ ...t, itens: (d.itensPreco ?? []).filter((i) => i.price_table_id === t.id && i.unit == null).length }));
+      async filiaisDaTela() {
+        return d.filiaisDaTela ?? { padraoId: FILIAL_PADRAO_MEMORIA, filiais: [{ id: FILIAL_PADRAO_MEMORIA, nome: 'Filial padrão', padrao: true }] };
       },
-      async precosUnidade(tabelaId) {
+      async tabelasPreco(filialId) {
+        const padrao = (d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA) === filialId;
+        const daFilial = (i: ItemTabelaPreco) => (i.filial_id ?? (d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA)) === filialId || (padrao && i.filial_id === undefined);
+        return (d.tabelas ?? []).map((t) => ({ ...t, itens: (d.itensPreco ?? []).filter((i) => i.price_table_id === t.id && i.unit == null && daFilial(i)).length }));
+      },
+      async precosUnidade(tabelaId, filialId) {
+        const padraoId = d.filiaisDaTela?.padraoId ?? FILIAL_PADRAO_MEMORIA;
         return (d.itensPreco ?? [])
-          .filter((i) => i.price_table_id === tabelaId && i.unit == null)
+          .filter((i) => i.price_table_id === tabelaId && i.unit == null && (i.filial_id ?? padraoId) === filialId)
           .map((i) => ({ produto_id: i.product_id, preco_cents: i.price_cents, vigencia_inicio: i.valid_from ?? null, vigencia_fim: i.valid_to ?? null }));
       },
       async faixas() {

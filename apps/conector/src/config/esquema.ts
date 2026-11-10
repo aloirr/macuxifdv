@@ -111,7 +111,7 @@ export const PedidosConfig = z
     maxTentativasGravacao: z.number().int().min(1).max(10).default(3),
     gravacao: z
       .object({
-        /** INSERT/EXEC do cabeçalho. Parâmetros: pedido_uuid, cliente_external_id, vendedor_external_id, condicao_pagamento_erp, criado_em, aprovado_em, observacao, desconto_total_cents, total_cents, tentativa. */
+        /** INSERT/EXEC do cabeçalho. Parâmetros: pedido_uuid, cliente_external_id, vendedor_external_id, condicao_pagamento_erp, criado_em, aprovado_em, observacao, desconto_total_cents, total_cents, tentativa e, desde o 1.4.0 (T-0149), filial_codigo e filial_external_id (nulos = filial padrão do ERP); ainda no 1.4.0, frete_*, entrega_* e pagamento_* (lista completa em `parametrosCabecalho`, src/pedidos.ts; ausentes = nulos). */
         cabecalho: Consulta,
         /** Executado uma vez por item. Parâmetros: pedido_uuid, sequencia, produto_external_id, quantidade, preco_unitario_cents, desconto_cents, total_cents. */
         itens: Consulta.optional(),

@@ -13,6 +13,7 @@ import { formatBRL } from '@macuxi/comum';
 
 import { etiquetaDoDiaDoPreco, etiquetaPrecoDe } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
+import { descontoDoPedidoPct } from './preco-pedido';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
 function zonedParts(at: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {
@@ -380,7 +381,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   ${
     acrescimoPedido > 0
       ? `<div class="line"><span>Acréscimo do pedido ${pctText(acrescimoPedido)}</span><span class="num">+ ${formatBRL(Math.max(0, order.total_cents - order.subtotal_cents))}</span></div>`
-      : `<div class="line disc"><span>Desconto ${pctText(pct)}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>`
+      : `<div class="line disc"><span>Desconto ${pctText(descontoDoPedidoPct(order.subtotal_cents, order.total_cents))}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>`
   }
   ${order.effective_discount_pct != null ? `<div class="line muted"><span>Desconto efetivo (sem frete)</span><span class="num">${pctText(order.effective_discount_pct)}</span></div>` : ''}
   <div class="line grand"><span>Total</span><span class="num">${formatBRL(order.total_cents)}</span></div>

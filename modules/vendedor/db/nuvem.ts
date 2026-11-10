@@ -4,7 +4,8 @@
  * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item),
  * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), 0033_catalogo_aplicacao_referencia
  * (retrato da aplicação no item, T-0084) e 0037_forma_prazo_escalonada (forma_pagamento, prazo_pagamento e o pagamento do
- * pedido, T-0089) e 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37), para uso INTERNO do
+ * pedido, T-0089), 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37) e 0056_core_filial (retrato da filial
+ * no pedido, T-0149), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -175,7 +176,23 @@ export const pedido = vendedor.table('pedido', {
   prazo_parcelas_dias: integer('prazo_parcelas_dias').array(),
   /** Prazo médio do prazo no aceite (entre a menor e a maior parcela). */
   prazo_medio_dias: integer('prazo_medio_dias'),
+  // --- 0056 (T-0149, RN-CORE-39, ADR 0040): filial do cliente no recebimento (o pedido não escolhe filial) ---
+  /** id de core.filial (sem FK: fronteira). Nulo nos pedidos anteriores à 0056. Os dois juntos ou nenhum (pedido_filial_coerente). */
+  filial_id: uuid('filial_id'),
+  /** Retrato da filial: filial->>'id' = filial_id (CHECK). */
+  filial: jsonb('filial').$type<FilialPedido>(),
 });
+
+/** Retrato da filial no pedido (0056, T-0149; desenho §3.3). Forma do contrato: `OrderDetail.branch` / `PedidoSyncSchema.filial`. */
+export interface FilialPedido {
+  id: string;
+  codigo: string;
+  nome: string;
+  cidade: string | null;
+  uf: string | null;
+  external_id: string | null;
+  padrao: boolean;
+}
 
 /** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */
 export const pedidoItem = vendedor.table('pedido_item', {

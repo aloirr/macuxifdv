@@ -104,6 +104,10 @@ const TABELAS_0037 = ['vendedor.forma_pagamento', 'vendedor.prazo_pagamento', 'c
 const TABELAS_0045 = ['catalogo.marca_concorrente'] as const;
 /** Tabela nova da 0050 (T-0054, RN-VEN-37: devolução do pedido; fora do sync; pedido-devolucao.test.ts). */
 const TABELAS_0050 = ['vendedor.pedido_devolucao'] as const;
+/** Tabela nova da 0056 (T-0149, RN-CORE-39, ADR 0040: filial; vai ao aparelho, escopo tenant; filial.test.ts). */
+const TABELAS_0056 = ['core.filial'] as const;
+/** Tabelas novas da 0057 (T-0147, RN-CORE-38, ADR 0041: tipos e fotos do PDV; vão ao aparelho; foto-pdv.test.ts). */
+const TABELAS_0057 = ['core.foto_tipo', 'core.cliente_foto'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -174,6 +178,8 @@ describe('migrações (estático)', () => {
     expect(nomes[51]).toBe('0052_plataforma_tenant_por_codigo_minimo'); // T-0122 N5: tenant_por_codigo só (id, status), tenant_da_sessao() e os CHECKs de evento iguais ao EVENTO_RE (tenant-por-codigo-minimo.test.ts)
     expect(nomes[52]).toBe('0053_core_cliente_canal'); // T-0115 (RN-PES-05): core.cliente.canal (1..60, nulo) e índice parcial (tenant_id, canal) (cliente-canal.test.ts)
     expect(nomes[53]).toBe('0054_integracao_mapeamento_canal'); // T-0115 (RN-PES-05): CHECK mapeamento_tipo_valido com 'canal' = TIPOS_MAPEAMENTO (mapeamento-canal.test.ts)
+    expect(nomes[55]).toBe('0056_core_filial'); // T-0149 (RN-CORE-39, ADR 0040): core.filial com a padrão semeada, cliente/depósito/item de preço com filial_id, faixa e pedido com filial, entidade filial no Hub (filial.test.ts)
+    expect(nomes[56]).toBe('0057_core_foto_pdv'); // T-0147 (RN-CORE-38, ADR 0041): core.foto_tipo com a Fachada semeada, core.cliente_foto, cliente.inativado_em e arquivo.perfis_leitura (foto-pdv.test.ts)
     expect(nomes[54]).toBe('0055_vendedor_endereco_editado'); // T-0141 C (RN-VEN-17): 3 CHECKs do retrato endereco_entrega com origem 'erp'|'editado', sem coluna nova (pedido-endereco-editado.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
@@ -220,6 +226,8 @@ describe('migrações (estático)', () => {
         ...TABELAS_0041,
         ...TABELAS_0045,
         ...TABELAS_0050,
+        ...TABELAS_0056,
+        ...TABELAS_0057,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

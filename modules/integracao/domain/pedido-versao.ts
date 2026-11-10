@@ -7,8 +7,10 @@ import type { PedidoParaErp } from '../contracts';
 import { compararSemver, lerSemver } from './conector-versao';
 
 export const VERSAO_CONECTOR_PEDIDO_AMPLIADO = '1.3.0';
+/** T-0149 (RN-CORE-39): pedido de filial que não é a padrão só vai ao Conector que grava a filial no ERP. */
+export const VERSAO_CONECTOR_FILIAL = '1.4.0';
 
-type PedidoConferivel = Pick<PedidoParaErp, 'itens'> & Partial<Pick<PedidoParaErp, 'acrescimo_pct' | 'acrescimo_total_cents' | 'frete' | 'endereco_entrega'>>;
+type PedidoConferivel = Pick<PedidoParaErp, 'itens'> & Partial<Pick<PedidoParaErp, 'acrescimo_pct' | 'acrescimo_total_cents' | 'frete' | 'endereco_entrega' | 'filial'>>;
 
 /** Versão mínima do Conector para levar o pedido, ou `null` quando o 1.2.1 dá conta. */
 export function exigeConector(p: PedidoConferivel): string | null {
@@ -18,6 +20,8 @@ export function exigeConector(p: PedidoConferivel): string | null {
     (p.acrescimo_total_cents ?? 0) > 0 ||
     p.frete?.modalidade === 'FOB' ||
     (p.endereco_entrega != null && p.endereco_entrega.principal !== true);
+  // T-0149: pedido de filial NÃO padrão exige o 1.4.0 (a exigência maior vence); o da padrão e o sem filial seguem como antes
+  if (p.filial != null && p.filial.padrao === false) return VERSAO_CONECTOR_FILIAL;
   return usaNovo ? VERSAO_CONECTOR_PEDIDO_AMPLIADO : null;
 }
 

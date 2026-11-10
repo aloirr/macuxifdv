@@ -87,7 +87,7 @@ describe('calcularPedido: desconto e acréscimo por item e por pedido (RN-VEN-02
   it('RN-VEN-10: acima da alçada do gerente com bloqueio impede o envio', () => {
     const c = calcularPedido(entrada({ desconto_pct: 20, politica: politicaApi({ 'alcada.acima_gerente': 'bloquear' }) }));
     expect(c.bloqueado).toBe(true);
-    expect(c.erros.join(' ')).toMatch(/alçada máxima/);
+    expect(c.erros.join(' ')).toMatch(/acima do máximo/);
   });
   it('pedido sem itens não tem erro de tela (só o botão fica desligado)', () => {
     const c = calcularPedido(entrada({ lines: {} }));

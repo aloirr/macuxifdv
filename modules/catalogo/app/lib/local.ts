@@ -5,7 +5,7 @@
  * Sem sinal a busca é textual (regras locais, sem IA) e vem com o aviso discreto `AVISO_BUSCA_OFFLINE`.
  */
 import type { ConsultaTexto, DesfechoBusca, LinhaSync, Perfil, ResultadoBusca as ResultadoFts } from '@macuxi/platform-sdk';
-import type { ProdutoSync } from '@macuxi/core/contracts';
+import type { ClienteSync, FilialSync, ProdutoSync } from '@macuxi/core/contracts';
 import type {
   CatalogoNoSync,
   ClienteTabelaPrecoSync,
@@ -30,6 +30,7 @@ import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
+import { filialDoClienteLocal, filialDoPreco, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
@@ -115,6 +116,28 @@ export interface EntradaLocal {
 }
 
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
+
+/** RN-CORE-39: filial efetiva do cliente sobre as linhas locais de `cliente` e `filial` (Core, pull). Nulo = filiais ainda não sincronizadas. */
+async function filialLocalDoCliente(leitor: LeitorLocal, clienteId: string): Promise<FilialLocalDoCliente | null> {
+  const filiais = await leitor.linhas<FilialSync & LinhaSync>('filial');
+  if (filiais.length === 0) return null;
+  const [cliente] = leitor.linhasPorIds ? await leitor.linhasPorIds<ClienteSync & LinhaSync>('cliente', [clienteId]) : (await leitor.linhas<ClienteSync & LinhaSync>('cliente')).filter((c) => c.id === clienteId);
+  return filialDoClienteLocal(cliente?.filial_id, filiais);
+}
+
+/** Filiais em que cada tabela de preço tem item vivo, memorizado por versão do sync (RN-CORE-39: base do fallback por tabela). */
+function filiaisPorTabela(leitor: LeitorLocal): Promise<Map<string, Set<string>>> {
+  return lembrar('filiaisPorTabela', leitor, ['tabela_preco_item'], async () => {
+    const mapa = new Map<string, Set<string>>();
+    for (const i of vivas(await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item'))) {
+      if (!i.filial_id) continue;
+      const set = mapa.get(i.tabela_preco_id) ?? new Set<string>();
+      set.add(i.filial_id);
+      mapa.set(i.tabela_preco_id, set);
+    }
+    return mapa;
+  });
+}
 
 /**
  * Marcas concorrentes (cadastro do próprio Catálogo, entidade `marca_concorrente`; RN-CAT-09, RN-CAT-13, ADR 0034): a lista é
@@ -249,6 +272,8 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   const porCampo = !!leitor.linhasPorCampo && produtos.length <= MAXIMO_POR_CAMPO;
   let tabelaClienteId: string | null = null;
   let itensPreco: ItemTabelaPreco[] = [];
+  let filialDoCliente: FilialLocalDoCliente | null = null;
+  let filialPreco: string | null = null;
   if (e.clienteId) {
     const vinculos = porCampo
       ? await leitor.linhasPorCampo!<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco', 'cliente_id', [e.clienteId])
@@ -258,27 +283,40 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
     const tabela = vinculo ? vivas(tabelas).find((t) => t.id === vinculo.tabela_preco_id && t.ativo) : undefined;
     if (tabela) {
       tabelaClienteId = tabela.id;
+      // RN-CORE-39: filial do preço (cliente, ou padrão por fallback de tabela); "a tabela tem item na filial?" vem de uma varredura
+      // memorizada por versão do sync (derivado pequeno: filiais por tabela), sem reler os itens a cada busca
+      filialDoCliente = await filialLocalDoCliente(leitor, e.clienteId);
+      if (filialDoCliente) {
+        const comItens = await filiaisPorTabela(leitor);
+        filialPreco = filialDoPreco({ tabelaId: tabela.id, filialCliente: filialDoCliente.filialCliente, filialPadrao: filialDoCliente.filialPadrao, filiaisComItens: [...(comItens.get(tabela.id) ?? [])] }).filialId;
+      }
       const ids = new Set(produtos.map((p) => p.id));
       const linhasPreco = porCampo
         ? await leitor.linhasPorCampo!<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item', 'produto_id', [...ids])
         : await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item');
       itensPreco = vivas(linhasPreco)
-        .filter((i) => i.tabela_preco_id === tabela.id && ids.has(i.produto_id))
+        .filter((i) => i.tabela_preco_id === tabela.id && ids.has(i.produto_id) && (filialPreco === null || i.filial_id === undefined || i.filial_id === filialPreco))
         .map((i) => ({ price_table_id: tabela.id, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
     }
   }
-  const depositos = await lembrar('depositos', leitor, ['deposito'], async () => new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, d.nome])));
+  const depositos = await lembrar('depositos', leitor, ['deposito'], async () => new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, { nome: d.nome, filial: d.filial_id ?? null }])));
+  // nome da filial no rótulo do estoque (RN-CORE-39); sem as filiais no aparelho, o do depósito
+  const nomesFilial: Readonly<Record<string, string>> = filialDoCliente?.nomes ?? (await lembrar('nomesFilial', leitor, ['filial'], async () => Object.fromEntries(vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).map((f) => [f.id, f.nome]))));
   const saldos = new Map<string, StockByBranch[]>();
   const linhasSaldo = porCampo
     ? await leitor.linhasPorCampo!<EstoqueSaldoSync & LinhaSync>('estoque_saldo', 'produto_id', produtos.map((p) => p.id))
     : await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo');
   for (const s of vivas(linhasSaldo)) {
     const l = saldos.get(s.produto_id) ?? [];
-    l.push({ branch_id: s.deposito_id, branch_name: depositos.get(s.deposito_id) ?? 'Depósito', quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
+    const dep = depositos.get(s.deposito_id);
+    // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial); depósito sem filial (pull antigo) fica como estava
+    l.push({ branch_id: dep?.filial ?? s.deposito_id, branch_name: (dep?.filial && nomesFilial[dep.filial]) || dep?.nome || 'Depósito', quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
     saldos.set(s.produto_id, l);
   }
-  // o pull de estoque já vem filtrado pelas filiais do usuário (escopo do servidor): no aparelho, todas as recebidas
-  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais: null };
+  // o pull de estoque já vem filtrado pelas filiais da carteira (escopo do servidor, RN-CORE-39). Com cliente no contexto vale só a filial
+  // dele (sem saldo nela = 0); sem cliente, todas as recebidas. A filial do cliente também vale sem tabela de preço.
+  if (e.clienteId && !filialDoCliente) filialDoCliente = await filialLocalDoCliente(leitor, e.clienteId);
+  return { ...base, tabelaClienteId, itensPreco, promocoes: [], saldos, filiais: filialDoCliente ? [filialDoCliente.filialCliente] : null };
 }
 
 export interface ResultadoLocal extends PaginaProdutos {

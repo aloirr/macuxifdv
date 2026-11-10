@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync, textoDaFaixa } from './textos-pedido';
+import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync } from './textos-pedido';
 
 describe('rotuloCurtoDaCondicao (referência enxuta, §6.1)', () => {
   it('RN-VEN-14: "À vista", "28 d" e "28/56" cabem no chip', () => {
@@ -11,24 +11,6 @@ describe('rotuloCurtoDaCondicao (referência enxuta, §6.1)', () => {
   });
   it('RN-VEN-14: descrição fora do padrão fica como está', () => {
     expect(rotuloCurtoDaCondicao('Boleto 30 dias após a entrega')).toBe('Boleto 30 dias após a entrega');
-  });
-});
-
-describe('textoDaFaixa (aba Resumo)', () => {
-  const limite = 5;
-  it('RN-VEN-10: dentro da alçada = "4,6% · dentro da alçada" com o ✓ do tom', () => {
-    expect(textoDaFaixa({ desconto_efetivo_pct: 4.6, nivel: null, bloqueado: false }, limite)).toEqual({ texto: '4,6% · dentro da alçada', tom: 'ok', icone: 'check' });
-  });
-  it('RN-VEN-10: acima da alçada do vendedor mostra quem aprova', () => {
-    expect(textoDaFaixa({ desconto_efetivo_pct: 8, nivel: 'supervisor', bloqueado: false }, limite)).toEqual({ texto: '8,0% · vai para o supervisor', tom: 'aviso', icone: 'alert' });
-    expect(textoDaFaixa({ desconto_efetivo_pct: 12, nivel: 'gerente', bloqueado: false }, limite)?.texto).toBe('12,0% · vai para o gerente');
-  });
-  it('RN-VEN-10: acima da alçada máxima bloqueia', () => {
-    expect(textoDaFaixa({ desconto_efetivo_pct: 16, nivel: null, bloqueado: true }, limite)).toEqual({ texto: '16,0% · acima da alçada', tom: 'erro', icone: 'alert' });
-  });
-  it('RN-VEN-03: acréscimo (efetivo negativo) sem ícone, e zero sem faixa', () => {
-    expect(textoDaFaixa({ desconto_efetivo_pct: -2, nivel: null, bloqueado: false }, limite)).toEqual({ texto: 'Acréscimo 2,0%', tom: 'ok', icone: null });
-    expect(textoDaFaixa({ desconto_efetivo_pct: 0, nivel: null, bloqueado: false }, limite)).toBeNull();
   });
 });
 
@@ -97,11 +79,6 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
     expect(linhasDeTotais({ total_tabela_cents: 1000, desconto_cents: 0, acrescimo_cents: 20, total_cents: 1020 }).linhas[1]!.rotulo).toBe('Acréscimos');
   });
 
-  it('RN-VEN-03: a faixa mostra o % de 1 casa calculado dos inteiros (4,647 → 4,6%), nunca o de 2 casas arredondado de novo (4,7%)', () => {
-    const f = textoDaFaixa({ desconto_efetivo_pct: 4.65, desconto_efetivo_exibicao_pct: 4.6, nivel: null, bloqueado: false }, 5);
-    expect(f?.texto.replace(/\s/g, ' ')).toBe('4,6% · dentro da alçada');
-    expect(f?.tom).toBe('ok');
-  });
 });
 
 describe('aviso do orçamento salvo (T-0071 V8)', () => {

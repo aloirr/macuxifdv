@@ -10,7 +10,7 @@ import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, Cl
 import { manifest } from '../../manifest';
 import { entidadesCliente } from './entidades-cliente';
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
-import { agruparPorCliente, historicoNaJanela, listarClientesLocais, montarCliente360Local, tituloNaJanela } from './cliente360-local';
+import { agruparPorCliente, historicoNaJanela, listarClientesLocais, montarCliente360Local, rotuloDaFilialDoCliente, tituloNaJanela } from './cliente360-local';
 
 const HOJE = '2026-10-31';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -292,5 +292,18 @@ describe('RN-CORE-16/17: etiqueta de cadastro incompleto na lista local', () => 
       HOJE,
     );
     expect(Object.fromEntries(lista.map((i) => [i.nome_fantasia, i.cadastro_incompleto]))).toEqual({ 'Sem Cep': true, Completo: false, Antigo: false });
+  });
+});
+
+describe('RN-CORE-39: filial do cliente na ficha (offline)', () => {
+  const linha = (id: string, codigo: string, extra: Record<string, unknown> = {}) =>
+    ({ id, updated_at: '2026-11-01T00:00:00.000000Z', deleted_at: null, external_id: null, codigo, nome: `Filial ${codigo}`, cidade: 'Manaus', uf: 'AM', padrao: false, ativo: true, ...extra }) as never;
+  const manaus = linha('11111111-1111-4111-8111-111111111111', '0001', { padrao: true });
+  const bv = linha('22222222-2222-4222-8222-222222222222', '0002', { cidade: 'Boa Vista', uf: 'RR' });
+  it('RN-CORE-39: mostra a filial do cliente; sem filial (ou filial apagada) mostra a padrão; sem filiais no aparelho, nada', () => {
+    expect(rotuloDaFilialDoCliente('22222222-2222-4222-8222-222222222222', [manaus, bv])).toBe('0002 · Boa Vista/RR');
+    expect(rotuloDaFilialDoCliente(null, [manaus, bv])).toBe('0001 · Manaus/AM');
+    expect(rotuloDaFilialDoCliente('22222222-2222-4222-8222-222222222222', [manaus, linha('22222222-2222-4222-8222-222222222222', '0002', { deleted_at: '2026-11-02T00:00:00.000000Z' })])).toBe('0001 · Manaus/AM');
+    expect(rotuloDaFilialDoCliente(null, [])).toBeNull();
   });
 });

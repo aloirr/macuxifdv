@@ -5,8 +5,8 @@
  * da janela (título liquidado antigo, histórico além de 12 meses) não aparece, mesmo que ainda esteja no aparelho.
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
-import { enderecoPadrao, linksDeContato, listarClientes, listarEnderecosDoCliente, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
+import { fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
   cliente: ClienteSync;
@@ -16,6 +16,10 @@ export interface LinhasCliente {
   historico: HistoricoCompraSync[];
   /** Endereços do pull (`cliente_endereco`); ausente = cliente sem endereço de entrega no aparelho. */
   enderecos?: ClienteEnderecoSync[];
+  /** Filiais do pull (`filial`, RN-CORE-39); ausente = ficha sem a linha de filial. */
+  filiais?: FilialSync[];
+  /** Fotos do PDV (RN-CORE-38): tipos do tenant e as fotos vigentes do cliente; ausente = sem a seção. */
+  fotos_pdv?: { tipos: FotoTipoSync[]; fotos: ClienteFotoSync[] };
 }
 
 export interface TituloLocal extends TituloSync {
@@ -47,6 +51,24 @@ export interface Cliente360Local {
   /** Ligar e WhatsApp em 1 toque: do contato principal; cai no telefone do cadastro do cliente. */
   ligar: string | null;
   whatsapp: string | null;
+  /** RN-CORE-39: filial efetiva do cliente ("0002 · Boa Vista/RR"); nula quando as filiais ainda não vieram no sync. */
+  filial_rotulo?: string | null;
+  /** RN-CORE-38: resumo tem/falta por tipo; `null` quando não há tipo cadastrado (a seção não aparece). */
+  fotos_pdv?: (ReturnType<typeof resumoFotos> & { fachada_foto: { arquivo_id: string; tirada_em: string | null } | null }) | null;
+}
+
+/** RN-CORE-38: resumo tem/falta e o estado do "Ver foto do PDV" (fachada enviada); sem tipo cadastrado, `null`. */
+export function resumoDeFotosDoPdv(l: { tipos: readonly FotoTipoSync[]; fotos: readonly ClienteFotoSync[] } | undefined): Cliente360Local['fotos_pdv'] {
+  const tipos = (l?.tipos ?? []).filter((t) => t.deleted_at === null);
+  if (!l || tipos.length === 0) return null;
+  const f = fachadaDoPdv(tipos, l.fotos);
+  return { ...resumoFotos(tipos, l.fotos), fachada_foto: f?.arquivo_id ? { arquivo_id: f.arquivo_id, tirada_em: f.tirada_em } : null };
+}
+
+/** RN-CORE-39: rótulo da filial efetiva do cliente (nula, apagada ou inativa = padrão); sem filiais no aparelho, `null`. */
+export function rotuloDaFilialDoCliente(filialId: string | null | undefined, filiais: readonly FilialSync[]): string | null {
+  if (!filiais.some((f) => f.deleted_at === null && f.padrao)) return null;
+  return rotuloDaFilial(filialEfetiva(filialId, filiais.filter((f) => f.deleted_at === null)));
 }
 
 /** Janela do título no aparelho: abertos + vencimento ≥ hoje − 90 (desenho §2). */
@@ -71,7 +93,7 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string, opcoes: { 
       return { ...t, situacao_calculada: s.situacao, dias_atraso: s.dias_atraso };
     })
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.id.localeCompare(b.id));
-  const historico = (verPedidos ? l.historico : []).filter((h) => historicoNaJanela(h, hoje)).sort((a, b) => b.ano_mes.localeCompare(a.ano_mes));
+  const historico = (verPedidos ? l.historico : []).filter((h) => mesNaJanela12(h.ano_mes, hoje)).sort((a, b) => b.ano_mes.localeCompare(a.ano_mes));
   const contatos: ContatoLocal[] = [...l.contatos]
     .sort((a, b) => Number(b.principal) - Number(a.principal) || a.nome.localeCompare(b.nome, 'pt-BR'))
     .map((c) => {
@@ -94,6 +116,8 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string, opcoes: { 
     endereco_padrao_id: enderecoPadrao(enderecos)?.id ?? null,
     ligar: principal?.tel ?? doCadastro.tel,
     whatsapp: principal?.whatsapp_url ?? doCadastro.whatsapp,
+    filial_rotulo: rotuloDaFilialDoCliente(l.cliente.filial_id, l.filiais ?? []),
+    fotos_pdv: resumoDeFotosDoPdv(l.fotos_pdv),
   };
 }
 
