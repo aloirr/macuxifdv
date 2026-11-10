@@ -24,7 +24,7 @@ export function AprovacoesPage() {
     <div className="flex flex-col gap-4" data-testid="gestor.aprovacoes">
       <PageHeader
         title="Aprovações da equipe"
-        subtitle="Pedidos acima da alçada do vendedor, do prazo mais curto ao mais longo"
+        subtitle="Pedidos esperando decisão, do prazo mais curto ao mais longo"
         actions={
           <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
             Atualizar

@@ -20,7 +20,7 @@ import type {
   Visit,
   VisitaSync,
 } from '../../contracts';
-import { aplicarPendentesVisita, haversineKm, statusDasParadas, type PendenteVisita, type StatusDaParada } from '../../domain';
+import { aplicarPendentesVisita, compraMediaMesCents, haversineKm, mesNaJanela12, statusDasParadas, type PendenteVisita, type StatusDaParada } from '../../domain';
 import type { LocalVisit } from './route';
 
 export interface LinhasRota {
@@ -53,9 +53,8 @@ export function resumoDoCliente(
 ): CustomerSummary {
   const abertos = titulos.filter((t) => t.situacao === 'aberto');
   const vencidos = abertos.filter((t) => t.vencimento < hoje);
-  const ultima = historico.map((h) => h.ultima_compra_em).filter((d): d is string => Boolean(d)).sort().at(-1) ?? null;
+  const ultima = historico.filter((h) => mesNaJanela12(h.ano_mes, hoje)).map((h) => h.ultima_compra_em).filter((d): d is string => Boolean(d)).sort().at(-1) ?? null;
   const mesAtual = hoje.slice(0, 7);
-  const compras = historico.reduce((s, h) => s + h.valor_cents, 0);
   const endereco = [c.logradouro, c.numero].filter(Boolean).join(', ');
   return {
     id: c.id,
@@ -82,7 +81,7 @@ export function resumoDoCliente(
     overdue_cents: vencidos.reduce((s, t) => s + t.saldo_cents, 0),
     last_purchase_at: ultima,
     days_since_purchase: ultima ? Math.max(0, diasEntre(ultima, hoje)) : null,
-    avg_monthly_cents: historico.length > 0 ? Math.round(compras / historico.length) : 0,
+    avg_monthly_cents: compraMediaMesCents([...historico], hoje), // RN-CORE-40: total da janela de 12 meses ÷ 12
     positivated_this_month: historico.some((h) => h.ano_mes === mesAtual && h.pedidos > 0),
     price_table_id: null,
   };

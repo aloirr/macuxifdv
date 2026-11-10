@@ -2,6 +2,33 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Manhã de 10/11 — teste da v1.0.2 (dono do produto, 05h32–06h02; 11 recados às 06h22 + regra do corretor às 06h25; "tudo na esteira já"):**
+> - **Build v1.0.2 pronto** (f25bbe88, R-20261109-204045).
+> - **Tarefas novas:**
+>   - T-0144: queda na 1ª abertura; prioridade 1, bloqueia a v1.0.5.
+>   - T-0145: permissões obrigatórias.
+>   - T-0146: ficha sem repetição.
+>   - T-0147: fotos do PDV.
+>   - T-0148: aba Itens com popup.
+>   - T-0149: filial.
+>   - T-0150: Resumo e detalhe em tabela.
+>   - T-0151: regras e defeitos do pedido.
+>   - T-0152: auditoria do corretor.
+>   - T-0153: revisão de todas as telas.
+>   - T-0154: GHCR com novas tentativas.
+>   - T-0155: demo com faturados.
+> - **Vagas (7):**
+>   1. engenheiro-apps — T-0144, depois a lógica da T-0145.
+>   2. modulo-vendedor — T-0151, depois T-0150/T-0148 com imagem aprovada.
+>   3. designer-ux — imagens T-0150 → T-0148 → T-0145 → T-0147 → T-0153.
+>   4. engenheiro-software — desenho T-0149 → desenho T-0147 → T-0154 → LGPD T-0145.
+>   5. banco-dados — T-0155, depois schemas T-0149/T-0147.
+>   6. modulo-core — T-0146, depois T-0147.
+>   7. corretor-redundancias — T-0152.
+> - **Regra permanente:** o corretor avalia toda entrega antes do lote e do build; qualquer achado em aberto segura (CLAUDE.md e doc 07).
+> - **Plano por dia** em R-20261110-061653 e no doc 05.
+> - **Timer do gerente:** caixa e pendências no GitHub a cada 5 min (chat do dono do produto, R-20261110-061853).
+
 > **Tarde de 09/11 — lote 03 no main (7c9dafe8, 15 commits por dono; árvore = retrato 6071c775 com CI e stack verdes; verificar --por-commit e trailer sem violação):** T-0140 (lote 03, sem achado alto), T-0141 (Novo pedido v3 aprovado pela imagem; UX sem 🔴; engenheiro sem 🔴), T-0142 (Catálogo pela hierarquia; 🔴 do parâmetro `no` corrigido), T-0117 (refresh do BKO em cookie httpOnly, ADR 0038), T-0098 (download do Conector, ADR 0037), T-0033 (banco modelo), datas impossíveis (Core/Gestor), RD-0045/0046. Lote seguinte (esteira): 7 🟡 de UX da T-0141 e aviso F.4, PDF do BKO com created_at, RD médios/baixos do relatório 2026-11-09-lote03.md, expo-location no package do Core. **T-0143 (recados direto no GitHub)** aguarda o "aprovo" do dono do produto (patch de governança em docs/desenho/T-0143.patch, ADR 0039). Telegram: 403 (bot sem permissão no chat) — passos com o dono do produto. Próximo: demo publicada + base recriada + fotos + smoke do cookie → build Campo-Demo-v1.0.2 / Gestao-Demo-v1.0.2.
 
 > **Manhã de 09/11:** corte dos recados feito pelo dono do produto às 05h24 (junções para C:\macuxifdv-recados); commit 9d097404 (Agente: alexandre) no main com CI verde, inclusive governança. Falta o dono do produto cadastrar o agendador (agendar-sincronizacao.ps1); até lá o clone local fica atrás do GitHub e os agentes leem recados novos por `git show origin/main`. Scripts do corte corrigidos pelo engenheiro-software (na árvore, entram no lote 03). **Lote 03** (T-0140): reteste do corretor em `docs/qualidade/redundancias/2026-11-09-lote03.md` (6 fechados, 9 parciais, RD-0042 novo, nenhum alto); RD-0025 feito (promotor); shell (engenheiro-apps) e T-0098 rota (engenheiro-software) em andamento. **Teste do v1.0.1 (dono do produto, 09/11 05h44–06h56):** T-0141 Novo pedido v3 (designer-ux specs com imagem para aprovação; modulo-vendedor D, E, G, H, I e domain de F) e T-0142 Catálogo pela hierarquia (designer-ux + modulo-catalogo). Docs 02/03 atualizados (RN-VEN-17, 18, 30, 32, 38, 39, 40, 41; RF-VEN-11; RF-CAT-09). Próximo build: Campo-Demo-v1.0.2 / Gestao-Demo-v1.0.2 com lote 03 + T-0141 + T-0142.
@@ -50,6 +77,8 @@
 | `apps/conector/src/atualizacao/**` e `apps/conector/test/atualizacao/**` (novos; nada nos arquivos existentes do Conector) | T-0116 (N15) atualização automática do Conector, módulo isolado | `nuvem/T-0116-atualizacao` | 2026-11-08 16h30 |
 | `packages/ui/src/web/abas*.tsx`, `progresso*.tsx`, `botao-link*.tsx` e testes (novos; sem mexer no `index.ts` do kit) | T-0104 (N16) Tabs, Progress e ButtonLink no kit web | `nuvem/T-0104-kit-web` | 2026-11-08 16h30 |
 | `docs/desenho/T-0122-*.diff` e `docs/desenho/T-0122.md` (novos) | T-0122 (N17) hooks do guardião para MCP e gh api de leitura, job de CI da carga, em diff para o ok do dono do produto | `nuvem/T-0122-diffs` | 2026-11-08 16h30 |
+| `docs/desenho/tracking.md`, a ADR nova do tracking (`docs/decisoes/0044-*`, número reservado; a 0042 foi usada pelo módulo nativo do shell e a 0043 pelo diagnóstico, T-0158) e `docs/legal/**` (novos) | T-0156 (N20) tracking contínuo e base LGPD (engenheiro-software), aberta pelo dono do produto | `nuvem/N20-tracking-lgpd` | 2026-11-10 09h |
+| `docs/manual/**` e `docs/producao/sabado.md` (novos) | T-0157 (N21) manuais e roteiro da produção de sábado (gerente-projetos), aberta pelo dono do produto | `nuvem/N21-manual-sabado` | 2026-11-10 09h |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
 Destravados em 2026-11-08 13h40 (PRs da nuvem já no main; o N14 entrou pelo #111): T-0108 (N4), T-0094 (N5), T-0109 (N6), T-0096 (N7), T-0099 (N8), T-0097 (N9), T-0105 (N10), T-0101 (N11), T-0102 (N12), T-0105 (N13), T-0107 (N14).

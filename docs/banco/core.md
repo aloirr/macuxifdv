@@ -572,3 +572,101 @@ deleted_at is null and canal is not null (filtro por canal). RLS, políticas, gr
 Espelho Drizzle `cliente.canal`. **Volta**: apaga índice, CHECK e coluna (os canais se perdem; volte antes o Core).
 A view-modelo do Conector (`vw_macuxi_cliente`) ganha `canal` quando o `ClientePayload` da Integração tiver o campo (o teste das
 views recusa coluna fora do contrato). Testes: `db/testes/cliente-canal.test.ts`.
+
+## 0056 — filial (`0056_core_filial`; T-0149, RN-CORE-39, RF-CORE-16, ADR 0040, desenho docs/desenho/T-0149.md §3.1)
+Pedido R-20261110-064112-engenheiro-software (origem R-20261110-062236-alexandre).
+
+### filial — unidade de onde saem as entregas. Pull escopo **tenant**
+| Coluna | Tipo | Regra |
+|---|---|---|
+| colunas comuns | | `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id` (chave do ERP, única viva: `filial_external_uk`) |
+| `codigo` | text not null | 1..20, único vivo no tenant (`filial_codigo_uk`) |
+| `nome` | text not null | 1..80 |
+| `cidade` | text | 1..80; **nula só na padrão recém-nascida** (o obrigatório é do domain, `validarFilial`, no BKO) |
+| `uf` | text | `^[A-Z]{2}$`; nula como a cidade |
+| `padrao` | boolean not null default false | **uma** viva por tenant (`filial_padrao_uk`, único parcial) |
+| `ativo` | boolean not null default true | `filial_padrao_ativa`: a padrão é sempre ativa e viva (não inativa nem apaga) |
+
+- **Nascimento**: gatilho `tenant_semear_filial` (AFTER INSERT em `plataforma.tenant`, função `core.semear_filial(uuid)`)
+  cria a padrão `0001` "Filial padrão" (cidade/UF nulas, sem `external_id`), id `uuid_de_chave('<tenant>:core.filial:padrao')`
+  (`idFilialPadrao` em `db/src/ids.ts`). Vale para `plataforma.provisionar_tenant` e `sa_provisionar_tenant` sem mudar as
+  funções (mesmo padrão das medidas e da forma "À vista"). Idempotente: só cria se não há padrão viva. A migração semeou os
+  tenants existentes.
+- **Trocar a padrão** (BKO, `padrao: true` na edição): na MESMA transação, `update ... set padrao = false` na atual **antes** de
+  marcar a nova (o único parcial não é adiável: a ordem inversa dá 23505).
+- **ERP**: a primeira carga com o mesmo `codigo` "adota" a padrão (grava o `external_id`; desenho §4.4).
+- `core.filial_padrao_id(tenant uuid) returns uuid`: id da padrão viva (RLS de quem chama; nulo se não houver). EXECUTE ao
+  `macuxi_app`.
+- RLS enable + force, `isolamento_tenant` e `manutencao`; `macuxi_app`: select, insert, update, delete.
+- Volume: unidades a dezenas por tenant. Consultas: lista do BKO por tenant, `core.filiais@1` por ids (PK) e por
+  `external_id` (`filial_external_uk`).
+
+### cliente.filial_id
+- `uuid not null`, FK composta `cliente_filial_fk (tenant_id, filial_id) -> core.filial (tenant_id, id)`.
+- Gatilho `cliente_filial_padrao` (BEFORE INSERT OR UPDATE OF filial_id, função `core.preencher_filial_padrao()`): **nulo vira a
+  padrão** do tenant em todo caminho de escrita (ERP com `filial_external_id: null`, BKO, seed, fixture); sem padrão viva = 23502.
+- Índice `cliente_filial_ix (tenant_id, filial_id)`: clientes da filial (BKO, trava "filial com cliente ativo não inativa").
+- Backfill: todos os clientes na padrão. **Anda o `updated_at` de todo cliente uma vez** (o pull repuxa a carteira com o
+  `filial_id`). Pull: o Core acrescenta `filial_id` às colunas de `TABELAS_SYNC.cliente`; entidade nova `filial` (escopo tenant):
+  `codigo, nome, cidade, uf, padrao, ativo`.
+- Filial **efetiva** (RN-CORE-39, `filialEfetiva` no domain do Core): a do cliente se viva e ativa; senão a padrão.
+
+Caminho de volta (`0056_core_filial.down.sql`, junto com Catálogo, Vendedor e Integração — ver catalogo.md, vendedor.md e
+integracao.md): apaga gatilhos, funções, a coluna e `core.filial` (as filiais cadastradas se perdem). Testes:
+`db/testes/filial.test.ts`.
+
+## 0057 — fotos do PDV (`0057_core_foto_pdv`; T-0147, RN-CORE-38, RF-CORE-15, ADR 0041, desenho docs/desenho/T-0147.md §3 e §7)
+Pedido R-20261110-065020-engenheiro-software (origem R-20261110-062234/062242-alexandre).
+
+### foto_tipo — tipos de foto do PDV do tenant. Pull escopo **tenant**
+| Coluna | Tipo | Regra |
+|---|---|---|
+| colunas comuns | | `external_id` único vivo (`foto_tipo_external_uk`) |
+| `nome` | text not null | 1..60, único vivo **sem diferenciar maiúsculas** (`foto_tipo_nome_uk` sobre `lower(nome)`) |
+| `obrigatorio` | boolean not null default false | entra no "faltam N obrigatórias" |
+| `sensivel` | boolean not null default false | documento: só admin, analista, gerente e supervisor da carteira abrem (ADR 0041; o gerente desde R-20261110-084206) |
+| `fachada` | boolean not null default false | o tipo do "Ver foto do PDV": **um** vivo por tenant (`foto_tipo_fachada_uk`), nunca sensível (`foto_tipo_fachada_nao_sensivel`), nunca apagado (`foto_tipo_fachada_viva`) |
+| `ordem` | integer not null default 0 | ordem do resumo |
+| `ativo` | boolean not null default true | |
+
+- **Nascimento**: gatilho `tenant_semear_foto_tipo` (função `core.semear_foto_tipo(uuid)`) cria "Fachada" (fachada,
+  obrigatória, ordem 0), id `uuid_de_chave('<tenant>:core.foto_tipo:fachada')` (`idFotoTipoFachada`). Idempotente (não cria se
+  já há tipo fachada vivo ou tipo vivo chamado "fachada"). A migração semeou os tenants existentes.
+- Mudar `sensivel` de um tipo: o Core toca o `updated_at` das fotos dele na mesma transação (o aparelho repuxa com o
+  `arquivo_id` certo) e chama `tx.restringirArquivos` (SDK) para os `perfis_leitura` dos arquivos.
+
+### cliente_foto — a foto vigente de cada tipo de cada cliente. Pull escopo **carteira**; push pelo aparelho
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `id` | uuid | gerado no aparelho (escrita idempotente) |
+| `cliente_id` | uuid not null | FK composta `cliente_foto_cliente_fk` |
+| `foto_tipo_id` | uuid not null | FK composta `cliente_foto_tipo_fk` |
+| `arquivo_id` | uuid not null | id de `plataforma.arquivo` (SEM FK: outro schema, ADR 0010); único no tenant entre todas as linhas (`cliente_foto_arquivo_uk`) |
+| `origem` | text not null default 'camera' | `camera` ou `galeria` (`cliente_foto_origem_valida`) |
+| `enviado_por` | uuid not null | FK composta `cliente_foto_enviado_por_fk` -> `core.usuario` |
+| `tirada_em` | timestamptz | instante do aparelho (UTC) |
+
+- **Uma viva** por (cliente, tipo) (`cliente_foto_vigente_uk`). Substituir (admin, analista, supervisor) = apagar a antiga
+  logicamente e gravar a nova **na mesma transação**; o vendedor e o promotor só enviam o que falta (`podeEnviarFoto`).
+- Índices: `cliente_foto_cliente_ix (tenant_id, cliente_id)` (pull por carteira e ficha), `cliente_foto_tipo_ix
+  (tenant_id, foto_tipo_id)` (tocar as fotos de um tipo), `cliente_foto_sync_ix`.
+- **Pull** (consulta de referência, conferida em `db/testes/foto-pdv.test.ts`): `arquivo_id` **nulo** quando o tipo é sensível —
+  ```sql
+  cliente_id, foto_tipo_id,
+  case when (select t.sensivel from core.foto_tipo t
+              where t.tenant_id = core.cliente_foto.tenant_id and t.id = core.cliente_foto.foto_tipo_id)
+       then null else arquivo_id end as arquivo_id,
+  origem, to_char(tirada_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as tirada_em
+  ```
+  (a subconsulta usa a PK de `foto_tipo`; o filtro da carteira é o `colunaCliente: 'cliente_id'` de hoje).
+- Volume: até 1 por tipo por cliente (~500 clientes × 3 tipos por vendedor).
+
+### cliente.inativado_em
+- `timestamptz` nulo. Gatilho `cliente_inativado_em` (BEFORE INSERT OR UPDATE OF ativo, `core.marcar_cliente_inativado()`):
+  `ativo` vira falso → `now()` (mantém o valor se já estava inativo); volta a verdadeiro → nulo. Backfill: inativos =
+  `updated_at`. Fora do pull. É o relógio da retenção das fotos do PDV (cliente inativo + 5 anos, [lgpd.md](lgpd.md)).
+
+RLS das 2 tabelas: enable + force, `isolamento_tenant` e `manutencao`; `macuxi_app`: select, insert, update, delete.
+Caminho de volta (`0057_core_foto_pdv.down.sql`): apaga as 2 tabelas, os gatilhos, as funções, `inativado_em` e
+`plataforma.arquivo.perfis_leitura` (os metadados e os bytes das fotos ficam; sem `perfis_leitura` a leitura volta à regra da
+carteira — volte antes a rota de arquivos). Testes: `db/testes/foto-pdv.test.ts`.

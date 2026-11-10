@@ -9,7 +9,7 @@ import type { ConsumidorEvento, ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { manifest } from '../manifest';
-import { criarConsumidorTabelaEscalonadaDoErp, criarConsumidorCatalogoNoDoErp, criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, criarConsumidorProdutoNoDoErp, ReferenciaAusenteErp, type ResolverProdutos } from './consumidores-erp';
+import { criarConsumidorTabelaEscalonadaDoErp, criarConsumidorCatalogoNoDoErp, criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, criarConsumidorProdutoNoDoErp, ReferenciaAusenteErp, type ResolverFilial, type ResolverProdutos } from './consumidores-erp';
 import { moduloApi } from './index';
 
 const A = DOIS_TENANTS.A;
@@ -71,8 +71,15 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     q<R = Record<string, unknown>>(sql: string, v?: unknown[]): Promise<R[]>;
   }
 
-  const preco = criarConsumidorPrecoDoErp(resolver);
-  const estoque = criarConsumidorEstoqueDoErp(resolver);
+  // core.filiais@1 simulada (T-0149, RN-CORE-39): nulo = a filial padrão do tenant da transação; FIL-2 = Boa Vista; outra chave = ainda não chegou
+  const FIL_BVB = '0f000000-0000-4000-8000-0000000000b2';
+  const resolverFilial: ResolverFilial = async (ctx, externalId) => {
+    if (externalId === null) return (await ctx.db.query<{ id: string }>('select core.filial_padrao_id(plataforma.tenant_atual()) as id')).rows[0]!.id;
+    if (externalId === 'FIL-2') return FIL_BVB;
+    throw new ReferenciaAusenteErp('filial');
+  };
+  const preco = criarConsumidorPrecoDoErp(resolver, undefined, resolverFilial);
+  const estoque = criarConsumidorEstoqueDoErp(resolver, resolverFilial);
   const noCons = criarConsumidorCatalogoNoDoErp();
   const produtoNo = criarConsumidorProdutoNoDoErp(resolver);
   // Envelope e registro no formato do contracts do Integracao (T-0024): lote, entidade, hash e alterado_em/external_id do registro.
@@ -104,6 +111,42 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       await t.entregar(preco, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'preco', external_id: 'PR-T66', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await itens(t)).length).toBe(0);
       expect((await t.q("select 1 from catalogo.tabela_preco_item where external_id = 'PR-T66'")).length).toBe(1);
+    });
+  });
+
+  it('RN-CORE-39: preço do ERP com filial_external_id vai para a filial; ausente = padrão; filial desconhecida repete (referencia_ausente)', async () => {
+    const filiais = (t: Teste) => t.q<{ filial_id: string; padrao: boolean }>("select i.filial_id, i.filial_id = core.filial_padrao_id(plataforma.tenant_atual()) as padrao from catalogo.tabela_preco_item i where i.external_id = 'PR-T66' and i.deleted_at is null");
+    await emTransacao(A.tenantId, async (t) => {
+      await t.entregar(preco, evPreco());
+      expect(await filiais(t)).toEqual([expect.objectContaining({ padrao: true })]);
+      await t.entregar(preco, evPreco({ filial_external_id: 'FIL-2' }, 'atualizado'));
+      expect(await filiais(t)).toEqual([{ filial_id: FIL_BVB, padrao: false }]);
+      await expect(t.entregar(preco, evPreco({ filial_external_id: 'FIL-NAO-CHEGOU' }, 'atualizado'))).rejects.toBeInstanceOf(ReferenciaAusenteErp);
+    });
+  });
+
+  it('RN-CORE-39: estoque do ERP: depósito novo nasce na padrão; filial informada move o depósito; ausente em depósito conhecido não muda', async () => {
+    const dep = (t: Teste) => t.q<{ filial_id: string }>("select filial_id from catalogo.deposito where external_id = 'DEP-T66' and deleted_at is null");
+    await emTransacao(A.tenantId, async (t) => {
+      await t.entregar(estoque, evEstoque());
+      const padrao = (await dep(t))[0]!.filial_id;
+      await t.entregar(estoque, evEstoque({ filial_external_id: 'FIL-2' }, 'atualizado'));
+      expect((await dep(t))[0]!.filial_id).toBe(FIL_BVB);
+      await t.entregar(estoque, evEstoque({ saldo: 3 }, 'atualizado'));
+      expect((await dep(t))[0]!.filial_id).toBe(FIL_BVB);
+      await t.entregar(estoque, evEstoque({ filial_external_id: null }, 'atualizado'));
+      expect((await dep(t))[0]!.filial_id).toBe(padrao);
+    });
+  });
+
+  it('RN-CORE-39: escalonada do ERP sem filial vale para todas (filial nula); com filial, a faixa da filial convive com a geral', async () => {
+    const esc = criarConsumidorTabelaEscalonadaDoErp(resolver, resolverFilial);
+    const base = { produto_external_id: 'P-1', medida: null, quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null };
+    await emTransacao(A.tenantId, async (t) => {
+      await t.entregar(esc, env('tabela_escalonada', 'ESC-GERAL', 'criado', base));
+      await t.entregar(esc, env('tabela_escalonada', 'ESC-BVB', 'criado', { ...base, preco_unidade_cents: 950, filial_external_id: 'FIL-2' }));
+      const r = await t.q<{ external_id: string; filial_id: string | null }>("select external_id, filial_id from catalogo.tabela_escalonada where external_id in ('ESC-GERAL', 'ESC-BVB') and deleted_at is null order by external_id");
+      expect(r).toEqual([{ external_id: 'ESC-BVB', filial_id: FIL_BVB }, { external_id: 'ESC-GERAL', filial_id: null }]);
     });
   });
 

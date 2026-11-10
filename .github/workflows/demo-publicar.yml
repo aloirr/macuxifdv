@@ -66,12 +66,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: imagem da API e do worker
+      # T-0154: o build carrega a imagem no Docker do runner (load) e o envio ao GHCR é um passo à parte, com novas
+      # tentativas no 403/429/5xx (scripts/deploy/demo/ghcr-tentar.sh: 5 tentativas, 15/30/60/120 s). Erro de build não repete.
+      - name: imagem da API e do worker (build)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/api/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
@@ -80,13 +83,21 @@ jobs:
           cache-from: type=gha,scope=macuxi-api
           cache-to: type=gha,scope=macuxi-api,mode=max
 
-      - name: imagem do BKO
+      - name: imagem da API e do worker (envio ao GHCR, com novas tentativas)
+        env:
+          IMG: ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api
+        run: |
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio da API ($SHA)" -- docker push "$IMG:$SHA"
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio da API (main)" -- docker push "$IMG:main"
+
+      - name: imagem do BKO (build)
         if: ${{ steps.bko.outputs.existe == '1' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           tags: |
@@ -94,6 +105,14 @@ jobs:
             ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-bko:main
           cache-from: type=gha,scope=macuxi-bko
           cache-to: type=gha,scope=macuxi-bko,mode=max
+
+      - name: imagem do BKO (envio ao GHCR, com novas tentativas)
+        if: ${{ steps.bko.outputs.existe == '1' }}
+        env:
+          IMG: ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-bko
+        run: |
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO ($SHA)" -- docker push "$IMG:$SHA"
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO (main)" -- docker push "$IMG:main"
 
   deploy:
     name: deploy na VM

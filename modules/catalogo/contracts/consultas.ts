@@ -52,6 +52,12 @@ export const PrecosClienteSaidaSchema = z.object({
   tabela_preco_id: Id.nullable(),
   /** Nome da tabela usada (aditivo, T-0061: o PDF interno e o detalhe do BKO mostram o nome, não o id). */
   tabela_preco_nome: z.string().nullable().optional(),
+  /**
+   * Filial dos preços (aditivo, T-0149, RN-CORE-39): a do cliente, ou a padrão quando a tabela do cliente não tem item nenhum
+   * na filial dele (`filial_origem: 'padrao'`, fallback por tabela, nunca por item). Ausente quando não há tabela ou preço visível.
+   */
+  filial_id: Id.nullable().optional(),
+  filial_origem: z.enum(['cliente', 'padrao']).optional(),
   /** Mesma ordem de `produto_ids` (sem repetidos). */
   itens: z.array(PrecoClienteItemSchema),
 });

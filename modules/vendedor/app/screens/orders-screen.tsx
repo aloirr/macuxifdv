@@ -8,7 +8,7 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -182,7 +182,6 @@ export default function OrdersScreen() {
     [atual, base, paraDecidir, aFaturar, orcAbertos],
   );
   const resumo = useMemo(() => resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual), [visiveis, atual]);
-  const queued = contagem.na_fila;
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
   const hojeDia = periodoDe('dia', new Date(), tz).valor;
   const filtro = useMemo(() => {
@@ -261,7 +260,7 @@ export default function OrdersScreen() {
 
       {totalRascunhos > 0 ? (
         <SePode acao="pedido.criar">
-          <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} apoio={TEXTOS_RASCUNHOS.atalhoApoio} onPress={irParaRascunhos} />
+          <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} onPress={irParaRascunhos} />
         </SePode>
       ) : null}
 
@@ -334,25 +333,25 @@ export default function OrdersScreen() {
 
           {semResposta ? null : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
-            {gestao ? <Chip testID="chip-decide" label={`Para aprovar ${base.filter((i) => paraDecidir.has(i.id)).length}`} active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
-            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={`${ROTULO_A_FATURAR} ${aFaturar.length}`} active onPress={() => setSituacao('a_faturar')} /> : null}
-            {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label={`Em aberto ${orcAbertos.length}`} active onPress={() => setSituacao('orc_abertos')} /> : null}
+            {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
+            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
+            {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label="Em aberto" active onPress={() => setSituacao('orc_abertos')} /> : null}
             {chips.map((c) => (
-              <Chip key={c.id} testID={`chip-${c.id}`} label={`${c.rotulo} ${c.quantidade}`} active={atual === c.id} onPress={() => setSituacao(c.id)} />
+              <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
             ))}
           </ScrollView>
           )}
 
           {semResposta ? null : (
           <Text style={t.small} testID="orders-resumo">
-            {resumo.quantidade} {resumo.orcamentos ? (resumo.quantidade === 1 ? 'orçamento' : 'orçamentos') : resumo.quantidade === 1 ? 'pedido' : 'pedidos'} · {formatBRL0(resumo.total_cents)}
+            Total {formatBRL0(resumo.total_cents)}
           </Text>
           )}
           {parcial && semSinal ? (
             <Banner testID="orders-parcial" anunciar>Sem sinal: mostrando só o que o aparelho tem deste período.</Banner>
           ) : null}
           {parcial && !semSinal && doServidor?.estado === 'erro' ? (
-            <Banner testID="orders-parcial-erro" icon="alert" anunciar>Não foi possível consultar o servidor: mostrando só o que o aparelho tem deste período. Puxe para baixo para tentar de novo.</Banner>
+            <Banner testID="orders-parcial-erro" icon="alert" anunciar>Sem resposta do servidor. Mostrando o que está no aparelho.</Banner>
           ) : null}
           {parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro' ? (
             <Text style={t.small} testID="orders-parcial-buscando">
@@ -363,11 +362,6 @@ export default function OrdersScreen() {
             <Text style={t.small} testID="orders-cortada">
               Mostrando os 1.000 mais recentes. Use um período menor para ver os demais.
             </Text>
-          ) : null}
-          {queued > 0 ? (
-            <Banner testID="orders-queue-banner">
-              <Strong>{queued === 1 ? '1 pedido na fila do aparelho.' : `${queued} pedidos na fila do aparelho.`}</Strong> {offline ? 'Envio automático quando o sinal voltar.' : 'Enviando automaticamente…'}
-            </Banner>
           ) : null}
         </>
       )}

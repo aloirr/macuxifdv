@@ -402,3 +402,31 @@ Regras que toda view-modelo segue (e que o técnico do cliente mantém ao adapta
 | `tabela_escalonada` | `produto_external_id`, `medida` (sigla 1 a 4 letras; nula/vazia = unidade base), `quantidade_minima` (inteiro > 0, na medida), `preco_unidade_cents` (> 0, preço da UNIDADE BASE; `centavos_de_decimal` se o ERP guarda reais), `vigencia_inicio` e `vigencia_fim` (data civil `AAAA-MM-DD` no fuso do tenant, `transformar: "data_civil"`; fim nulo = aberta, fim >= início), `tabela_external_id` (nulo = todas as tabelas) | depois do produto (RN-VEN-23) |
 | `cliente` (campos novos) | `prazo_medio_max_dias` (0..365; `COALESCE(teto, 365)`, 365 = sem teto na v1), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir; `SELECT DISTINCT`; sem linha = `'[]'`) | depois das formas; código sem FK no banco (core.cliente) |
 | `cliente` (T-0120, R-20261108-230146) | `tabela_preco_external_id` (`CAST(c.id_tabela_preco AS VARCHAR(200))`, igual nos dois dialetos; a MESMA chave da `tabela_external_id` da view 10). **NULL = não altera** (cliente na tabela padrão do ERP fica com o vínculo que já tinha); para **desvincular**, o ERP devolve o id da tabela padrão (`COALESCE(c.id_tabela_preco, <padrão>)` se o ERP permite tirar a tabela) | aditivo e opcional no `ClientePayload` v1; o banco do Hub não muda (fica em `integracao.registro_atual.payload`) |
+
+## 0056 — entidade `filial` no Hub e filial nas views e na entrada de pedidos (T-0149, RN-CORE-39, ADR 0040)
+Pedido R-20261110-074414-modulo-integracao (desenho docs/desenho/T-0149.md §3.5 e §4.4).
+- **Banco do Hub**: os 7 CHECKs `*_entidade_valida` (sessao_carga, lote, registro_atual, pendencia_inativacao,
+  inativacao_auditoria, cursor_entidade, reconciliacao) e `conector_entidades_validas` aceitam `filial` (16 =
+  `ENTIDADES_BANCO` = `ENTIDADES` do contrato; `ENTIDADES_0037` guarda as 15). O padrão de `conector.entidades` continua as 8
+  originais (o admin liga `filial` no Conector 1.4.0). Volta: o down apaga o que o Hub recebeu de `filial` e volta às 15.
+- **Views-modelo** (`db/conector/views-modelo.sql`): `vw_macuxi_filial` nova (1b, logo depois do vendedor, ORDEM_CARGA):
+  `external_id`, `alterado_em`, `ativo`, `codigo` (1..20), `nome` (1..80), `cidade`, `uf`. `filial_external_id` em
+  `vw_macuxi_cliente` (NULL = não altera), `vw_macuxi_preco` (NULL = padrão; chave `filial:tabela:produto:início` — quem já
+  integra com uma filial pode manter a chave antiga e devolver NULL), `vw_macuxi_tabela_escalonada` (NULL = todas as filiais)
+  e `vw_macuxi_estoque` (filial do depósito; NULL em depósito novo = padrão).
+- **Entrada de pedidos** (`db/conector/entrada-pedido-modelo.sql`, novo): tabela `dbo.macuxi_pedido_entrada` (+ itens) e as
+  procedures `dbo.sp_macuxi_pedido_inserir` / `sp_macuxi_pedido_item_inserir` que o `conector.exemplo.json` chama, idempotentes
+  pelo `pedido_uuid`; colunas/parâmetros `filial_codigo` (código no Macuxi) e `filial_external_id` (chave no ERP), os dois
+  NULOS = filial padrão do ERP (Conector anterior ao 1.4.0 ou pedido da padrão). Testes: `db/testes/filial.test.ts` e
+  `db/testes/views-modelo-conector.test.ts`.
+- **Entrada de pedidos — frete, entrega e pagamento** (Conector 1.4.0; pedido R-20261110-104924-modulo-integracao): 23 colunas
+  NULAS em `dbo.macuxi_pedido_entrada` e os mesmos 23 parâmetros com padrão NULL em `dbo.sp_macuxi_pedido_inserir` (o EXEC
+  de Conector antigo continua válido; idempotência pelo `pedido_uuid` mantida), nomes iguais aos de `parametrosCabecalho`
+  (apps/conector/src/pedidos.ts):
+  | Grupo | Colunas (tipo SQL Server) | Regra |
+  |---|---|---|
+  | Frete (RN-VEN-16) | `frete_modalidade` VARCHAR(3) CIF\|FOB; `frete_transportadora_tipo` VARCHAR(10) cadastrada\|digitada; `frete_transportadora_id` VARCHAR(36) (UUID do Macuxi); `frete_transportadora_external_id` (200); `frete_transportadora_nome` (120); `frete_transportadora_cnpj` (14, dígitos); `frete_transportadora_telefone` (30) | transportadora só no FOB; `digitada` = só nome/CNPJ/telefone |
+  | Entrega (RN-VEN-17) | `entrega_origem` VARCHAR(7) erp\|editado; `entrega_external_id` (200); `entrega_logradouro` (160), `entrega_numero` (20), `entrega_complemento` (80), `entrega_bairro` (80), `entrega_cidade` (80), `entrega_uf` (2), `entrega_cep` (9); `entrega_principal` BIT ([Oracle] NUMBER(1)) | `entrega_external_id` NULO = a importação usa os campos de texto |
+  | Pagamento (RN-VEN-24) | `pagamento_forma_codigo` (20), `pagamento_forma_external_id` (200), `pagamento_prazo_codigo` (20), `pagamento_prazo_external_id` (200), `pagamento_parcelas_dias` VARCHAR(120) ('30,60,90'), `pagamento_prazo_medio_dias` INT | use o external_id quando houver |
+  Teste estático: `db/testes/entrada-pedido-modelo.test.ts` (o EXEC do `conector.exemplo.json` só usa parâmetros da procedure e
+  valores do Conector; os 23 com padrão NULL, coluna NULA e no INSERT; IF NOT EXISTS no cabeçalho e no item).

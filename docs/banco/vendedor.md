@@ -334,3 +334,18 @@ CEP 69058830), sem endereço no cadastro; os outros pedidos ficam no formato ant
 **Volta** (`.down.sql`): só remove os 3 CHECKs (os retratos editados ficam no jsonb e continuam legíveis). Testes:
 `db/testes/pedido-endereco-editado.test.ts` (estático, gravação e leitura, 13 recusas, RLS entre tenants, up/down) e
 `seed-demo.test.ts` (pedido editado da demo).
+
+## 0056 — filial no pedido (`0056_core_filial`; T-0149, RN-CORE-39, RN-VEN-02, ADR 0040, desenho docs/desenho/T-0149.md §3.3)
+Pedido R-20261110-064112-engenheiro-software.
+| Coluna | Regra |
+|---|---|
+| `pedido.filial_id uuid` | id de `core.filial` (SEM FK, fronteira). Nulo nos pedidos anteriores à 0056 |
+| `pedido.filial jsonb` | retrato no recebimento: `{ id, codigo, nome, cidade, uf, external_id, padrao }` (`FilialPedido` em `modules/vendedor/db/nuvem.ts`) |
+
+- CHECKs: `pedido_filial_objeto` (objeto) e `pedido_filial_coerente` (os dois nulos, ou os dois preenchidos com
+  `filial->>'id' = filial_id`). Vale também para o orçamento (mesma tabela).
+- Quem grava: a API do Vendedor no recebimento, na edição do orçamento e na conversão, com a filial **efetiva** do cliente
+  (`core.cadastro_resumo@1`); o `branch_id` do aparelho é ignorado. A reserva (RN-VEN-20) desconta do saldo da filial do pedido.
+- Índice parcial `pedido_filial_ix (tenant_id, filial_id) where filial_id is not null` (filtro "Filial" da lista do BKO).
+- Pull: o retrato vai no `PedidoSyncSchema.filial` (detalhe offline). Volta: as 2 colunas, os CHECKs e o índice saem.
+  Testes: `db/testes/filial.test.ts`.

@@ -595,3 +595,15 @@ ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenan
 - Super-admin (0035, T-0087): as 20 funções `sa_*` (EXECUTE só ao `macuxi_portal` desde a 0038, T-0091) e a `provisionar_tenant`
   com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima. Desde a 0039 (T-0093): as 12 `sa_*` do
   login só com e-mail e senha e a `criar_super_admin` (deploy): seção "Portal só com e-mail e senha" acima.
+
+## 0057 — leitura restrita de arquivo por perfil (`0057_core_foto_pdv`; T-0147, ADR 0041)
+Pedido R-20261110-065020-engenheiro-software. `plataforma.arquivo.perfis_leitura text[]`:
+- **NULO = regra de hoje** (ADR 0010: licença + perfil do módulo + carteira do `cliente_id`).
+- **Lista** = o usuário precisa ter um destes perfis **e** a carteira (o `GET /v1/arquivos/:id` e a miniatura respondem 404
+  sem motivo fora disso, `cache-control: private, no-store`). CHECK `arquivo_perfis_leitura_validos`: 1..7 perfis da
+  plataforma (`PERFIS` do platform-sdk), sem nulo; lista vazia é recusada (use nulo).
+- Quem grava: o módulo dono no `tx.registrarArquivo` (o Core: `PERFIS_DOC_SENSIVEL` = admin, analista, gerente, supervisor nos tipos
+  sensíveis) e o `tx.restringirArquivos` quando o tipo muda de sensível. Sem índice (a leitura é pela PK). Fora do sync.
+- Os gatilhos `tenant_semear_filial` (0056) e `tenant_semear_foto_tipo` (0057) entram em `plataforma.tenant` como os da 0006,
+  0018, 0037 e 0041: o tenant novo nasce com a filial padrão e o tipo "Fachada", sem mudar `provisionar_tenant`.
+- Volta: a coluna e o CHECK saem (a leitura dos sensíveis volta à regra da carteira: desfaça antes a regra do GET).

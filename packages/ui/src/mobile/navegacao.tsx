@@ -1,7 +1,7 @@
 /**
  * Navegação comum das telas (pedido R-20261102-174719 do modulo-catalogo, RF-CAT-04):
  * - `Trilha`: trilha clicável (breadcrumb). Itens anteriores são botões; o último é o lugar atual (não clicável, lido
- *   pelo leitor de tela como "atual"; com `atualTocavel` também vira botão). Quebra de linha quando não cabe; alvo de toque de 48 dp.
+ *   pelo leitor de tela como "atual"). Quebra de linha quando não cabe; alvo de toque de 48 dp.
  * - `LinhaChips`: uma linha de chips com rolagem horizontal (não empurra a lista para baixo quando há muitos filtros).
  * - `ListaNiveis` (T-0142): os níveis do catálogo com a contagem de produtos ativos, um nível por tela.
  * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba (ex.: "Rascunhos (2)" em Pedidos). Fundo laranja
@@ -35,7 +35,6 @@ export function Trilha({
   itens,
   onEscolher,
   compacta,
-  atualTocavel,
   rotuloAcessivel,
   testID = 'trilha',
 }: {
@@ -47,11 +46,6 @@ export function Trilha({
    * laranja. O alvo de toque continua 48 dp.
    */
   compacta?: boolean;
-  /**
-   * O último item também é tocável (chama `onEscolher` com o id dele). Para atalhos que levam a outra tela, como a trilha do
-   * catálogo no Novo pedido (T-0071, V3): ali a trilha não é "onde você está", e sim o caminho para abrir o catálogo.
-   */
-  atualTocavel?: boolean;
   /** Leitura de cada item no leitor de tela; sem ela, "Ir para X" / "X, você está aqui". */
   rotuloAcessivel?: (item: ItemTrilha, atual: boolean) => string;
   testID?: string;
@@ -62,7 +56,7 @@ export function Trilha({
       {itens.map((item, i) => {
         const atual = i === itens.length - 1;
         const pulado = !atual && Boolean(item.desligado);
-        const desligado = (atual && !atualTocavel) || pulado;
+        const desligado = atual || pulado;
         return (
           <View key={item.id} style={s.item}>
             {i > 0 ? <Icon name="chevron" size={compacta ? 12 : 14} color={colors.ink3} /> : null}

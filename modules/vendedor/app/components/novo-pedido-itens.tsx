@@ -250,7 +250,7 @@ export { textoDoAjuste, valorDoTexto };
  * Desconto/acréscimo do item: o `DescontoCompacto` do kit, o mesmo do pedido (T-0130: um componente só para item e pedido).
  * Sempre aberto, com o tipo ao lado; cada número válido vale na hora (RN-VEN-02); o equivalente (% ↔ R$ por unidade) fica na linha.
  */
-function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; medida: string | null; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
+export function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; medida: string | null; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
   const valorAtual = valorDoAjuste(ajuste);
   const [escolhido, setEscolhido] = useState<TipoDoAjuste>(tipoDoAjuste(ajuste));
   // com valor, o tipo é o do ajuste; sem valor, o que a pessoa escolheu
@@ -290,7 +290,7 @@ function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste }: { k
 }
 
 /** RN-CAT-12: "Serve em" com os termos da busca marcados e "inclui 2012" quando o ano casou por faixa. */
-function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) {
+export function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) {
   const partes = partirTrecho(trecho.texto, trecho.marcas);
   return (
     <Text style={s.aplicacao} numberOfLines={2} testID={`serve-em-${codigo}`}>

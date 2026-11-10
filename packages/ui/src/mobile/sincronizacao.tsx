@@ -8,8 +8,9 @@ import { createContext, useContext, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { AgendadorSync, EstadoAgendadorSync } from './atualizacao';
-import { desenhoBotaoSincronizar } from './atualizacao';
+import { desenhoBotaoSincronizar, desenhoSeloAtualizacao } from './atualizacao';
 import { Icon } from './icon';
+import { Pressionavel } from './movimento-rn';
 import { ALTURA, colors, fonts, type as t } from './theme';
 import { Button } from './ui';
 
@@ -99,6 +100,77 @@ export function BotaoSincronizar({
   );
 }
 
+/**
+ * RD-0076 (T-0153): selo de sincronização do cabeçalho das listas, à direita do título (o "↻ 06:30" da imagem
+ * `docs/design/telas/T-0153-inicio-pedidos.png`). É o ÚNICO lugar da tela que fala de sinal, servidor e hora da última
+ * sincronização: substitui as faixas de sinal, o "Buscando o restante no servidor…" e o rodapé da lista. Textos e prioridade
+ * em `desenhoSeloAtualizacao` (atualizacao.ts).
+ *
+ * Desenho: pílula de 32 dp (alvo de 44 dp com `hitSlop`), borda `line` e fundo `surface`; em atenção ("Sem sinal", "Sem
+ * resposta"), fundo `warningBg` e texto `warningInk` semibold (contraste 9,6:1). Ícone de 14 + texto 13 em números tabulares.
+ * O toque é o mesmo do puxar para baixo; com o modo sem sinal ligado, abre o Perfil (`onAbrirPerfil`, rota do shell).
+ * Lê a hora e o modo sem sinal do `SincronizacaoProvider`; fora do shell usa `atualizadoEm`/`tz` das props.
+ */
+export function SeloAtualizacao({
+  testID = 'selo-atualizacao',
+  semRede = false,
+  atualizando = false,
+  semResposta = false,
+  onSincronizar,
+  onAbrirPerfil,
+  atualizadoEm,
+  tz,
+}: {
+  testID?: string;
+  /** Aparelho sem rede (o modo sem sinal vem do provider). */
+  semRede?: boolean;
+  /** Consulta da tela em andamento (o puxar do provider já conta). */
+  atualizando?: boolean;
+  /** A consulta da tela falhou (o erro do motor vem pela tela, que conhece o estado do motor). */
+  semResposta?: boolean;
+  /** Mesmo efeito do puxar para baixo (a tela passa `auto.puxar` + nova tentativa da consulta). */
+  onSincronizar: () => void;
+  /** Modo sem sinal ligado: abre o Perfil. Sem ele, o toque tenta sincronizar. */
+  onAbrirPerfil?: () => void;
+  /** Hora da última sincronização, quando não há provider (testes de tela). */
+  atualizadoEm?: number | string | null;
+  tz?: string;
+}) {
+  const s = useSincronizacao();
+  const d = desenhoSeloAtualizacao({
+    atualizadoEm: s ? s.sincronizadoEm : atualizadoEm,
+    tz: tz ?? s?.tz,
+    modoSemSinal: s?.semSinal ?? false,
+    semRede,
+    atualizando: atualizando || (s ? s.estado.puxando : false),
+    semResposta,
+  });
+  const atencao = d.tom === 'atencao';
+  const cor = atencao ? colors.warningInk : colors.ink2;
+  const acao = d.acao === 'perfil' && !onAbrirPerfil ? 'sincronizar' : d.acao;
+  return (
+    <Pressionavel
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={d.rotuloAcessivel}
+      accessibilityHint={d.dica ?? undefined}
+      accessibilityState={{ disabled: acao === 'nenhuma' }}
+      accessibilityLiveRegion="polite"
+      disabled={acao === 'nenhuma'}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      onPress={() => (acao === 'perfil' ? onAbrirPerfil?.() : onSincronizar())}
+      style={[styles.selo, atencao && styles.seloAtencao]}>
+      <Icon name={d.icone} size={14} color={cor} />
+      <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { fontFamily: fonts.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
+        {d.texto}
+      </Text>
+    </Pressionavel>
+  );
+}
+
 const styles = StyleSheet.create({
+  selo: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  seloAtencao: { borderColor: colors.warningBg, backgroundColor: colors.warningBg },
+  seloTexto: { fontVariant: ['tabular-nums'] },
   linhaAviso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 20 },
 });

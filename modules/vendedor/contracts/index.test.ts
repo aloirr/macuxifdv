@@ -68,6 +68,13 @@ describe('contracts do pedido no servidor (T-0029)', () => {
     expect(PedidoAprovadoEvento.safeParse(e).success).toBe(true);
     expect(PedidoAprovadoEvento.safeParse({ ...e, itens: [] }).success).toBe(false);
   });
+  it('T-0149 (RN-CORE-39): aprovado@1 declara filial opcional e a mantém na publicação', () => {
+    const e = { pedido_uuid: 'a', cliente_external_id: null, vendedor_external_id: null, condicao_pagamento_codigo: null, criado_em: 'x', aprovado_em: 'y', observacao: null, desconto_total_cents: 0, total_cents: 100, itens: [{ sequencia: 1, produto_external_id: null, quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, total_cents: 100 }] };
+    const filial = { codigo: '01', external_id: 'F01', nome: 'Matriz', padrao: true };
+    expect(PedidoAprovadoEvento.parse({ ...e, filial }).filial).toEqual(filial);
+    expect(PedidoAprovadoEvento.safeParse(e).success).toBe(true);
+    expect(PedidoAprovadoEvento.safeParse({ ...e, filial: null }).success).toBe(true);
+  });
   it('pedido_evento do pull exige os campos da linha do tempo', () => {
     expect(PedidoEventoSyncSchema.safeParse({ id: 'x' }).success).toBe(false);
   });

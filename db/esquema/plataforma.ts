@@ -187,6 +187,11 @@ export const arquivo = plataforma.table('arquivo', {
   situacao: text('situacao', { enum: ['aguardando', 'recebido'] }).notNull().default('aguardando'),
   recebido_em: timestamp('recebido_em', { withTimezone: true }),
   chave_armazenamento: text('chave_armazenamento'),
+  /**
+   * 0057 (T-0147, ADR 0041): leitura restrita por perfil. NULO = regra da ADR 0010 (licença + perfil do módulo + carteira);
+   * lista (1..7 PERFIS, sem nulo; CHECK arquivo_perfis_leitura_validos) = o usuário precisa de um destes perfis E da carteira.
+   */
+  perfis_leitura: text('perfis_leitura', { enum: PERFIS }).array(),
 });
 
 /**

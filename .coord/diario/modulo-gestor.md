@@ -30,3 +30,5 @@
 2026-11-09 — T-0140 — RD-0045 aguardando fonte única arredondar/percentual no @macuxi/comum (não existe ainda); nada alterado
 2026-11-09 — T-0140 — Data impossível (2026-02-30) nas rotas equipe, Ficha e ranking agora responde 422 DATA_INVALIDA em português (dataDoUsuario com exigirDataCivil na entrada, antes do banco); teste unitário em api/rotas.test.ts
 2026-11-09 — T-0140 — RD-0045: arredondar e percentual reexportados do @macuxi/comum; teste duplicado removido
+2026-11-10 — T-0151 — Gestor: motivos da fila sem alçada, desconto uma vez só, subtítulo do BKO; pedido em nome conferido (regra vem do Vendedor)
+2026-11-10 — T-0140 — Gestor: data inválida 422 (já feito, teste), CSV com BOM_CSV/protegerFormula do comum, numeros reexportados do comum

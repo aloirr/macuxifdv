@@ -146,6 +146,11 @@ const EXEMPLOS: Record<string, Exemplo> = {
   'tabela_escalonada.vigencia_inicio': ['2026-11-01', '2026-11-01'],
   'tabela_escalonada.vigencia_fim': ['', '2026-12-31'],
   'tabela_escalonada.tabela_external_id': ['TAB-01', 'TAB-01'],
+  'filial.external_id': ['FIL-001', 'FIL-002'],
+  'filial.codigo': ['0001', '0002'],
+  'filial.nome': ['Manaus', 'Boa Vista'],
+  'filial.cidade': ['Manaus', 'Boa Vista'],
+  'filial.uf': ['AM', 'RR'],
   'transportadora.external_id': ['TRA-001', 'TRA-002'],
   'transportadora.nome': ['Transportes Norte Ltda', 'Rápido Roraima'],
   'transportadora.documento': ['12345678000195', '98765432000110'],
@@ -155,6 +160,7 @@ for (const [campo, ids] of [
   ['vendedor_external_id', ['VEN-001', 'VEN-002']],
   ['cliente_external_id', ['CLI-001', 'CLI-002']],
   ['produto_external_id', ['PRO-001', 'PRO-002']],
+  ['filial_external_id', ['FIL-001', 'FIL-002']],
 ] as const) {
   EXEMPLOS[campo] = ids;
 }
@@ -172,6 +178,11 @@ const OBSERVACOES: Record<string, string> = {
   'prazo_pagamento.prazo_medio_dias': 'Informativo: o Macuxi calcula o prazo médio; valor diferente gera aviso.',
   'tabela_escalonada.preco_unidade_cents': 'Preço da unidade base na faixa. Faixas do mesmo produto: quantidade_minima maior, preço igual ou menor.',
   'tabela_escalonada.tabela_external_id': 'Vazio = vale para todas as tabelas de preço.',
+  'tabela_escalonada.filial_external_id': 'external_id de uma filial do modelo filial. Vazio = vale para todas as filiais.',
+  'cliente.filial_external_id': 'external_id de uma filial do modelo filial. Vazio = não altera (cliente novo fica na filial padrão).',
+  'preco.filial_external_id': 'external_id de uma filial do modelo filial. Vazio = filial padrão.',
+  'estoque.filial_external_id': 'external_id da filial do depósito. Vazio = filial padrão (depósito novo) ou não altera (depósito já conhecido).',
+  'filial.codigo': 'Código da filial (até 20 caracteres). A filial padrão nasce com o código 0001 e é adotada pela carga que trouxer o mesmo código.',
   external_id: 'Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).',
 };
 

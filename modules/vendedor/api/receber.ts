@@ -122,7 +122,7 @@ export async function calcularDocumento(
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
   const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: emNome ? [eu, donoId] : [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
-  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender.');
   // RN-VEN-13 (T-0071 §1.4 e): inativo, bloqueado ou cadastro incompleto só faz orçamento (422 com os campos que faltam)
   const soOrcamento = verificarTipoParaCliente(tipo, { ativo: cliente.ativo, bloqueado: cliente.bloqueado === true, cadastro_incompleto: cliente.cadastro_incompleto ?? false, campos_faltantes: cliente.cadastro_campos_faltantes ?? [] });
   if (soOrcamento) return recusa(itemId, soOrcamento);

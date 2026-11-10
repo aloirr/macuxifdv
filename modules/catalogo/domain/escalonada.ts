@@ -20,6 +20,8 @@ export interface LinhaEscalonada {
   /** Nulo = vale para todas as tabelas de preço. */
   tabela_preco_id: string | null;
   ativo: boolean;
+  /** RN-CORE-39: filial da faixa; nulo ou ausente = vale para todas as filiais. */
+  filial_id?: string | null;
 }
 
 const formatadores = new Map<string, Intl.DateTimeFormat | null>();
@@ -56,18 +58,24 @@ export function faixaVigente(l: Pick<LinhaEscalonada, 'ativo' | 'vigencia_inicio
  * (medida, quantidade mínima) a da tabela do cliente vence a geral e, na mesma origem, a de início mais recente. Ordem:
  * unidade base primeiro, depois as medidas em ordem alfabética, cada uma por quantidade mínima.
  */
-export function faixasDoProduto(linhas: readonly LinhaEscalonada[], e: { produtoId: string; tabelaId: string | null; hoje: string }): FaixaEscalonada[] {
+export function faixasDoProduto(linhas: readonly LinhaEscalonada[], e: { produtoId: string; tabelaId: string | null; hoje: string; filialId?: string | null }): FaixaEscalonada[] {
   const escolhidas = new Map<string, LinhaEscalonada>();
   const melhor = (a: LinhaEscalonada, b: LinhaEscalonada): LinhaEscalonada => {
     const aEspecifica = a.tabela_preco_id !== null;
     const bEspecifica = b.tabela_preco_id !== null;
     if (aEspecifica !== bEspecifica) return aEspecifica ? a : b;
+    // RN-CORE-39: na mesma origem de tabela, a faixa da filial do preço vence a geral (filial nula = todas)
+    const aFilial = (a.filial_id ?? null) !== null;
+    const bFilial = (b.filial_id ?? null) !== null;
+    if (aFilial !== bFilial) return aFilial ? a : b;
     if (a.vigencia_inicio !== b.vigencia_inicio) return a.vigencia_inicio > b.vigencia_inicio ? a : b;
     return a.preco_unidade_cents <= b.preco_unidade_cents ? a : b;
   };
   for (const l of linhas) {
     if (l.produto_id !== e.produtoId || !faixaVigente(l, e.hoje)) continue;
     if (l.tabela_preco_id !== null && l.tabela_preco_id !== e.tabelaId) continue;
+    // RN-CORE-39: faixa de outra filial não vale; sem filial informada (chamador antigo), só as gerais
+    if ((l.filial_id ?? null) !== null && l.filial_id !== (e.filialId ?? null)) continue;
     const chave = `${l.medida ?? ''}|${String(l.quantidade_minima)}`;
     const atual = escolhidas.get(chave);
     escolhidas.set(chave, atual ? melhor(atual, l) : l);

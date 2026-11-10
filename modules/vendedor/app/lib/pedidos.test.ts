@@ -16,7 +16,6 @@ const display: OrderDisplay = {
   units: 10,
   lines: [{ product_id: 'p1', erp_code: 'PST-4410', description: 'Pastilha', quantity: 10, unit_price_cents: 8990, total_cents: 86304 }],
   expected: 'ok',
-  notes: [],
 };
 
 /** Item da fila genérica do motor (platform-sdk) com um pedido dentro. */

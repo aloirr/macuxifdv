@@ -3,7 +3,7 @@
  * Funções puras da tela: filtros na URL, formulário da faixa, preço em reais e CSV. A regra de validade da faixa é do domain
  * (`validarFaixa`); a API revalida.
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import type { FaixaCadastrada, PrecoUnidadeLinha, SalvarFaixa } from '../../contracts';
 import { validarFaixa } from '../../domain/escalonada';
 
@@ -99,13 +99,11 @@ export function faixaDoForm(f: FormFaixa): ResultadoForm<SalvarFaixa> {
   return { ok: true, valor };
 }
 
-/** BOM para o Excel abrir em UTF-8 sem perguntar. */
-const BOM = '\uFEFF';
 const celula = (v: string | number | null | undefined) => {
   const s = typeof v === 'string' ? protegerFormula(v) : v === null || v === undefined ? '' : String(v);
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
-const csv = (linhas: (string | number | null)[][]) => BOM + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+const csv = (linhas: (string | number | null)[][]) => BOM_CSV + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
 
 /** CSV da aba Escalonada (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function faixasParaCsv(faixas: readonly FaixaCadastrada[]): string {

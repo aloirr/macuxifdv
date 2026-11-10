@@ -29,7 +29,10 @@ Fora desta entrega (backlog): Excel nativo (`.xlsx`), SFTP, arquivo com mais de 
 | `transportadora` | external_id, nome | documento, inscricao_estadual, telefone |
 | `forma_pagamento` | external_id, codigo, nome | ordem |
 | `prazo_pagamento` | external_id, forma_external_id, codigo, parcelas_dias (dias separados por barra: `28/56`; `0` = à vista, sem decrescer) | descricao, prazo_medio_dias (informativo; o Macuxi calcula), ordem |
-| `tabela_escalonada` | external_id, produto_external_id, quantidade_minima, preco_unidade_cents, vigencia_inicio | medida (ausente = unidade base), vigencia_fim, tabela_external_id (ausente = todas as tabelas) |
+| `tabela_escalonada` | external_id, produto_external_id, quantidade_minima, preco_unidade_cents, vigencia_inicio | medida (ausente = unidade base), vigencia_fim, tabela_external_id (ausente = todas as tabelas), filial_external_id (ausente = todas as filiais) |
+| `filial` (T-0149) | external_id, codigo, nome | cidade, uf |
+
+A entidade `filial` carrega logo depois de `vendedor` e antes de `cliente`, `preco`, `estoque` e `tabela_escalonada`. `cliente`, `preco` e `estoque` também aceitam a coluna opcional `filial_external_id` (vazia: `cliente` não altera; `preco` e `estoque` usam a filial padrão).
 
 Exemplo (`transportadora`):
 ```

@@ -65,3 +65,4 @@
 2026-11-09 — T-0142 — último nível com a lista rica única (CartaoProduto + extras offline), tela lista-por-linha removida; BKO exporta pelo nível aberto e busca com coluna Caminho
 2026-11-09 — T-0140/T-0142 — textos do testes, RD-0024, RD-0044 e BOM do RD-0051; RD-0047/48/49/50 ficam para o lote seguinte
 2026-11-09 — T-0142 — id de nível validado por formato (outros:<uuid> 43 car., sem-linha), erro claro no BKO e teste de rota
+2026-11-10 — T-0149 — preço por filial (fallback por tabela), estoque da filial do cliente, pull só das filiais da carteira, consumidores do ERP com filial_external_id, BKO estoque por filial; pendente: SDK ContextoConsulta.consultar (pedido ao engenheiro-software) e CI dos testes de banco

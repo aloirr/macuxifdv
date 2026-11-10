@@ -39,8 +39,11 @@ export interface RepositorioCatalogo {
   promocoes(produtoIds: readonly string[]): Promise<Promocao[]>;
   /** Saldos por produto em todas as filiais (o domínio filtra pelas do usuário). */
   saldos(produtoIds: readonly string[]): Promise<Map<string, StockByBranch[]>>;
-  /** Filiais/depósitos do usuário da requisição; `null` = todas. */
-  filiaisDoUsuario(): Promise<string[] | null>;
+  /**
+   * Filiais cujo saldo o usuário vê (RN-CORE-39, RN-CAT-07). Com cliente no contexto: só a filial efetiva dele (sem saldo = 0);
+   * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
+   */
+  filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;

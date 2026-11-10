@@ -20,11 +20,10 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.apoio).toBe('Só à vista ou com aprovação');
     expect(textoDoAlerta({ tipo: 'vencido', titulos: 3, valor_cents: 100, dias: 1 }).texto).toContain('3 títulos vencidos');
   });
-  it('RN-VEN-12: crédito excedido mostra o disponível (nunca negativo) e manda para aprovação', () => {
+  it('RN-VEN-12: crédito excedido diz só "Limite excedido" (o disponível fica na tabela, RD-0062) e manda para aprovação', () => {
     const a: AlertaDaVenda = { tipo: 'credito_excedido', disponivel_cents: 400000 };
     expect(textoDoAlerta(a)).toMatchObject({ tom: 'aviso', apoio: 'Vai para aprovação' });
-    expect(textoDoAlerta(a).texto).toMatch(/^Limite excedido · disponível R\$\s4\.000,00$/);
-    expect(textoDoAlerta({ tipo: 'credito_excedido', disponivel_cents: -50 }).texto).toMatch(/R\$\s0,00$/);
+    expect(textoDoAlerta(a).texto).toBe('Limite excedido');
   });
   it('RN-VEN-12: crédito em tabela, Limite, Disponível e Prazo médio, na ordem da prancha (T-0141 A)', () => {
     const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 2000000, disponivel_cents: 1790000, alerta: null }, 45);
@@ -65,15 +64,17 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
 });
 
 describe('linhas do Resumo (RF-VEN-11, T-0137)', () => {
-  it('RN-VEN-13: cliente só de orçamento mostra o erro na linha VENDA', () => {
-    expect(alertaDaVendaNoResumo({ alertas: [{ tipo: 'bloqueado' }], vencido_aprova: false, alcada: false })).toEqual({ tom: 'erro', texto: 'Cliente bloqueado · só orçamento' });
+  it('RN-VEN-13 (RD-0061): cliente só de orçamento não repete "só orçamento" na linha VENDA (a linha dos botões diz)', () => {
+    expect(alertaDaVendaNoResumo({ alertas: [{ tipo: 'bloqueado' }], vencido_aprova: false })).toBeNull();
   });
   it('RN-VEN-10/12/13: "Vai para aprovação" diz o motivo; sem motivo, sem alerta', () => {
     const venc: AlertaDaVenda = { tipo: 'vencido', titulos: 1, valor_cents: 340000, dias: 12 };
-    expect(alertaDaVendaNoResumo({ alertas: [venc], vencido_aprova: true, alcada: false })).toEqual({ tom: 'aviso', texto: 'Vai para aprovação (título vencido)' });
-    expect(alertaDaVendaNoResumo({ alertas: [{ tipo: 'credito_excedido', disponivel_cents: 0 }], vencido_aprova: false, alcada: true })?.texto).toBe('Vai para aprovação (limite excedido, desconto acima da alçada)');
-    expect(alertaDaVendaNoResumo({ alertas: [venc], vencido_aprova: false, alcada: false })).toBeNull();
-    expect(alertaDaVendaNoResumo({ alertas: [], vencido_aprova: false, alcada: false })).toBeNull();
+    expect(alertaDaVendaNoResumo({ alertas: [venc], vencido_aprova: true })).toEqual({ tom: 'aviso', texto: 'Vai para aprovação (título vencido)' });
+    expect(alertaDaVendaNoResumo({ alertas: [{ tipo: 'credito_excedido', disponivel_cents: 0 }], vencido_aprova: false })?.texto).toBe('Vai para aprovação (limite excedido)');
+    // RN-VEN-10 (T-0151): a alçada de desconto não aparece na linha VENDA; só a pergunta ao salvar
+    expect(alertaDaVendaNoResumo({ alertas: [], vencido_aprova: false })?.texto ?? '').not.toMatch(/alçada/);
+    expect(alertaDaVendaNoResumo({ alertas: [venc], vencido_aprova: false })).toBeNull();
+    expect(alertaDaVendaNoResumo({ alertas: [], vencido_aprova: false })).toBeNull();
   });
   it('RN-VEN-16: entrega com endereço e frete, com a transportadora só no FOB', () => {
     expect(linhaDaEntregaNoResumo({ endereco: 'Rua Pará, 137', modalidade: 'CIF', transportadora: 'Rodonaves' })).toBe('Rua Pará, 137 · CIF');

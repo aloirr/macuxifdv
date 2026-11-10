@@ -14,6 +14,7 @@ import {
   linhaDoVendedor,
   linhaFormaPrazoFrete,
   motivoDoEvento,
+  rotuloDoDescontoNoDetalhe,
   siglaDaMedida,
   type EntradaAcoesDoDetalhe,
 } from './detalhe-pedido';
@@ -163,5 +164,14 @@ describe('RF-VEN-05 / RN-VEN-31 (T-0138): onde fica cada ação (pedido-v2 §4.3
       expect(a.icones.concat(a.principal ? [a.principal] : []).some((i) => i.id === 'cancelar')).toBe(false);
       expect(a.icones.length).toBeLessThanOrEqual(4);
     }
+  });
+});
+
+describe('T-0151 (RN-VEN-03): o rótulo do desconto do detalhe sai dos centavos', () => {
+  it('RN-VEN-03: tabela 1.000,00 e total 899,00 (item com desconto e pedido com 15% digitado) mostra "Desconto 10,1%", não 15,0%', () => {
+    expect(rotuloDoDescontoNoDetalhe({ subtotal_cents: 100_000, total_cents: 89_900 })).toBe('Desconto 10,1%');
+  });
+  it('RN-VEN-03: 8,8% também sai do total gravado, igual ao Resumo e ao PDF', () => {
+    expect(rotuloDoDescontoNoDetalhe({ subtotal_cents: 100_000, total_cents: 91_200 })).toBe('Desconto 8,8%');
   });
 });

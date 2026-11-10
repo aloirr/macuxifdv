@@ -19,6 +19,7 @@
  * - não roda num build que ainda não abriu com tela (depois do `MY_PACKAGE_REPLACED` a 1ª abertura é do app);
  * - orçamento esgotado = a passada é cortada na próxima página e a tarefa espera ela parar (até 10 s) antes de devolver;
  * - nunca lança: qualquer erro vira `falhou` com a mensagem no Diagnóstico.
+ * T-0144: espera 3 s antes de conferir o app (a tarefa atrasada dispara junto com a abertura do app pelo vendedor).
  */
 import type { TravaSync } from './trava-sync';
 
@@ -43,7 +44,8 @@ export type MotivoPulo =
   | 'em-andamento'
   | 'app-aberto'
   | 'app-ocupado'
-  | 'app-atualizado';
+  | 'app-atualizado'
+  | 'sem-permissao';
 
 export interface ResultadoSegundoPlano {
   /** ISO 8601 (UTC) do início. */
@@ -90,7 +92,18 @@ export interface DepsTarefaSegundoPlano {
   aoEsgotarOrcamento?(): void;
   /** Espera pela passada cortada parar (padrão `ESPERA_DO_CORTE_MS`). */
   esperaDoCorteMs?: number;
+  /**
+   * T-0144: espera antes de decidir (padrão `ESPERA_INICIAL_MS`). O WorkManager pode disparar a tarefa no mesmo instante em
+   * que o vendedor abre o app (a tarefa atrasada roda assim que o processo sobe, típico logo depois de atualizar o APK): nesse
+   * começo o Android ainda diz "segundo plano" e a tela ainda não montou. Depois da espera, a conferência vê o app abrindo.
+   */
+  esperar?(ms: number): Promise<void>;
+  esperaInicialMs?: number;
+  /** T-0145 (RN-CORE-37): as permissões obrigatórias da variante estão concedidas (sem elas nada sincroniza). */
+  permissoesLiberadas?(): Promise<boolean>;
 }
+
+export const ESPERA_INICIAL_MS = 3_000;
 
 export const ESPERA_DO_CORTE_MS = 10_000;
 
@@ -122,6 +135,8 @@ export async function executarTarefaSegundoPlano(d: DepsTarefaSegundoPlano): Pro
   let soltarDepois: Promise<unknown> | null = null;
   try {
     if (await d.modoSemSinal()) return fim({ resultado: 'pulado', motivo: 'modo-sem-sinal' });
+    if (d.permissoesLiberadas && !(await d.permissoesLiberadas())) return fim({ resultado: 'pulado', motivo: 'sem-permissao' });
+    if (d.esperar) await d.esperar(d.esperaInicialMs ?? ESPERA_INICIAL_MS);
     if (d.appEmPrimeiroPlano?.()) return fim({ resultado: 'pulado', motivo: 'app-aberto' });
     if (!d.trava.tomarSegundoPlano()) return fim({ resultado: 'pulado', motivo: d.trava.segundoPlanoAtivo() ? 'em-andamento' : 'app-ocupado' });
     comTrava = true;
@@ -189,6 +204,7 @@ export function textoDoResultado(r: ResultadoSegundoPlano): string {
     'app-aberto': 'o app estava aberto (ele mesmo sincroniza)',
     'app-ocupado': 'o app estava abrindo ou sincronizando',
     'app-atualizado': 'app atualizado, espera a 1ª abertura',
+    'sem-permissao': 'falta permissão do aparelho',
   };
   const base =
     r.resultado === 'sincronizado'

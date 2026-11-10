@@ -6,7 +6,7 @@ import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
-import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
+import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, mensagemAcimaDoMaximo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
 /** Níveis de alçada (RN-VEN-10); iguais aos `NivelAprovacao` do Gestor. */
@@ -111,7 +111,7 @@ export interface EventoHistorico {
 }
 
 /** Texto da pendência por título vencido (RN-VEN-13). */
-export const MOTIVO_TITULO_VENCIDO = 'Cliente com título vencido: só à vista ou com aprovação (RN-VEN-13).';
+export const MOTIVO_TITULO_VENCIDO = 'Título vencido';
 
 type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
 
@@ -120,7 +120,7 @@ export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<Rec
   if (r.status === 'pending_approval') {
     return r.motivos.includes('credito')
       ? r
-      : { ...r, motivos: [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} ${MOTIVO_TITULO_VENCIDO}`.trim() };
+      : { ...r, motivos: [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} · ${MOTIVO_TITULO_VENCIDO}`.trim() };
   }
   const entrada = r.historico.filter((h) => h.para !== 'approved');
   return {
@@ -360,7 +360,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   }
   const abaixo = itens.filter((_, idx) => !itemRespeitaPrecoMinimo(paraPreco[idx]!));
   if (abaixo.length > 0) {
-    return { ok: false, codigo: 'preco_abaixo_minimo', http: 422, mensagem: `Desconto acima do máximo do produto: ${abaixo.map((i) => i.sku).join(', ')}. Reduza o desconto do item.` };
+    return { ok: false, codigo: 'preco_abaixo_minimo', http: 422, mensagem: mensagemAcimaDoMaximo(abaixo.map((i) => i.sku)) };
   }
   const precosItens = paraPreco.map((p) => precoDoItem(p));
   const totalItens = precosItens.reduce((s, p) => s + p.total_cents, 0);
@@ -547,6 +547,8 @@ export interface PedidoAprovadoEntrada {
   acrescimo_pct?: number;
   frete?: FreteEvento | null;
   endereco_entrega?: EnderecoEvento | null;
+  /** T-0149 (RN-CORE-39, aditivo): retrato da filial do pedido */
+  filial?: { codigo: string; external_id: string | null; nome?: string; padrao?: boolean } | null;
 }
 
 export interface PedidoAprovadoPayload extends Omit<PedidoAprovadoEntrada, 'itens'> {

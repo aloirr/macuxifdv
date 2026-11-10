@@ -3,7 +3,7 @@
  */
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
 import { normalizarStatus } from '../../domain/order';
-import { motivoDaRecusa, textoNaoFoiAceito } from './salvar-na-fila';
+import { motivoDaRecusa, textoDaRecusa } from './salvar-na-fila';
 
 export interface BadgeStyle {
   label: string;
@@ -84,14 +84,13 @@ export function orderNote(o: { status: string; pending_reason: string; rejection
   if (o.status === 'queued') return o.local_failed ? textoDaRecusaCurto(o.local_error ?? '') : '';
   // T-0138 (RN-VEN-30): "Recebido pelo servidor" é texto técnico e não aparece mais no app
   if (o.status === 'received') return '';
-  if (o.status === 'pending_approval') return o.pending_reason;
   if (o.status === 'rejected' || o.status === 'cancelled') return o.rejection_reason;
   return '';
 }
 
-/** Linha da lista de um pedido que a API recusou: "Não foi aceito: <motivo>", sem código cru (T-0130). */
+/** Linha da lista de um pedido que a API recusou: só o motivo ("AGU-1500 acima do desconto máximo"), sem código cru (T-0130, T-0151). */
 function textoDaRecusaCurto(bruto: string): string {
-  return textoNaoFoiAceito(motivoDaRecusa(bruto));
+  return textoDaRecusa(motivoDaRecusa(bruto));
 }
 
 /** Selo da linha: o recusado pela API aparece como "Não aceito" (não "Na fila"); o resto segue o status (T-0130). */

@@ -8,6 +8,7 @@
  * (`motor.enfileirarArquivo`). No servidor, o comando cria a linha `aguardando` (`tx.registrarArquivo`) e o upload só a
  * completa. Upload que chega antes do comando → 409 `ARQUIVO_SEM_REFERENCIA` (retentável: fica na fila).
  */
+import { PERFIS, type Perfil } from './nomes';
 
 /** Rota de plataforma (fora de `/v1/<modulo>`): `PUT` grava os bytes, `GET` devolve. */
 export const ROTA_ARQUIVOS = '/v1/arquivos';
@@ -81,6 +82,21 @@ export interface NovoArquivo {
   /** Cliente da foto: o `GET` checa a carteira dele (RN-CORE-04). `null` = vale o escopo de usuários. */
   cliente_id?: string | null;
   tipo?: TipoArquivo;
+  /**
+   * ADR 0041 (T-0147): perfis que podem LER o arquivo, além da carteira. `null`/ausente = regra de sempre (licença + perfil
+   * do módulo + carteira). A lista vem do domain do módulo dono (o Core: `perfisDeLeitura(tipo)`, RN-CORE-38).
+   */
+  perfis_leitura?: readonly Perfil[] | null;
+}
+
+/** Problemas da lista de perfis de leitura (ADR 0041; mesmo CHECK da 0057): 1 a 7 perfis da plataforma, sem repetição. */
+export function problemasPerfisLeitura(perfis: readonly string[] | null | undefined): string[] {
+  if (perfis == null) return [];
+  const p: string[] = [];
+  if (perfis.length === 0) p.push('perfis_leitura vazio (use null para a regra de sempre)');
+  for (const x of perfis) if (!(PERFIS as readonly string[]).includes(x)) p.push(`perfil de leitura ${String(x)} não existe`);
+  if (new Set(perfis).size !== perfis.length) p.push('perfis_leitura com perfil repetido');
+  return p;
 }
 
 /** Problemas do `NovoArquivo` (lista vazia = válido). A API chama antes de gravar; o módulo pode chamar no domínio. */
@@ -92,7 +108,24 @@ export function validarNovoArquivo(a: NovoArquivo): string[] {
   if (!NOME_RE.test(a.finalidade)) p.push('finalidade em snake_case');
   if (!NOME_RE.test(a.entidade)) p.push('entidade em snake_case');
   if (a.tipo !== undefined && !(TIPOS_ARQUIVO as readonly string[]).includes(a.tipo)) p.push(`tipo ${a.tipo} não aceito`);
+  p.push(...problemasPerfisLeitura(a.perfis_leitura));
   return p;
+}
+
+/**
+ * ADR 0041: o usuário passa na lista de perfis de leitura do arquivo? `null` = sem restrição (vale a regra de sempre).
+ * Conta a BASE de cada perfil resolvido na requisição (perfil personalizado herda a base, ADR 0033); sem perfis resolvidos,
+ * o perfil do token (como `perfisDaSessao`). Falha fechada: lista presente e usuário sem nenhum desses perfis = não lê.
+ * A carteira continua valendo à parte.
+ */
+export function perfilLeArquivo(
+  perfisLeitura: readonly string[] | null | undefined,
+  usuario: { perfil?: Perfil | null; perfis?: readonly { base: Perfil }[] },
+): boolean {
+  if (perfisLeitura == null) return true;
+  const meus: readonly string[] =
+    usuario.perfis && usuario.perfis.length > 0 ? usuario.perfis.map((p) => p.base) : usuario.perfil ? [usuario.perfil] : [];
+  return perfisLeitura.some((p) => meus.includes(p));
 }
 
 /** JPEG: começa com SOI + marcador (`FF D8 FF`). */

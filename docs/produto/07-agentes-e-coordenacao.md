@@ -45,7 +45,15 @@
 
 **Fronteira entre os dois engenheiros** (decisão do Alexandre, R-20261101-073742):
 - Dependência nova, ponto de extensão de UI no SDK, mudança no CI ou na raiz: o engenheiro-apps pede por recado ao engenheiro-software; ADR de UI ele redige como proposta e o engenheiro-software registra em `docs/decisoes/`.
-- **Toda tarefa passa pelo testes e pelo corretor-redundancias** antes do fechamento (dono do produto, 08/11/2026): o testes valida os critérios e caça defeitos (inclusive valor × regra em indicadores); o corretor-redundancias avalia só excessos, duplicidades e redundâncias.
+- **Toda tarefa passa pelo testes e pelo corretor-redundancias** antes do fechamento (dono do produto, 08/11/2026). O testes valida os critérios e caça defeitos, inclusive valor × regra em indicadores. O corretor-redundancias avalia só excessos, duplicidades e redundâncias.
+- **Regra permanente do corretor** (dono do produto, R-20261110-062506 e R-20261110-062239, 10/11/2026):
+  - **Toda** entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa pelo corretor **antes do lote e antes do build**, sem exceção e sem esperar pedido.
+  - O parecer olha o **print do aparelho**, não só o código: informação repetida na tela ou entre telas, aviso ou caixa repetindo uma linha, texto além do problema e da ação, rótulo e número que não batem.
+  - **Qualquer achado em aberto, de qualquer gravidade, segura a entrega**, como um teste vermelho. Isso substitui o "sem achado alto" de 08/11.
+  - Cada build leva o relatório do corretor junto com o roteiro do testes.
+  - No fluxo de cada tarefa, o corretor fica ao lado do testes: implementação → testes + corretor → revisão do engenheiro → fechamento.
+  - **Uma informação, um lugar** (dono do produto, R-20261110-093124, 10/11/2026): se uma seção da tela já mostra uma informação (o Histórico mostra a situação, os Totais mostram o %, os Alertas mostram o problema), essa informação não aparece em outro lugar da mesma tela. Nenhum aviso fica solto fora da área "Alertas" (RN-VEN-42). Vale para todas as telas e todas as entregas, inclusive as já liberadas.
+  - **Imagem para aprovação** vai ao dono do produto pelos anexos do repositório de recados (`recados/anexos/`), junto com o recado e já com o parecer do corretor (R-20261110-085951).
 - **Quem revisa o quê** (R-20261103-161508): visual, hierarquia, textos e "3 toques" → **designer-ux**; offline, navegação, desempenho e bundle → **engenheiro-apps**; arquitetura, contratos, API, segurança e fronteiras → **engenheiro-software**, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas três revisões.
 - **Transição**: até o Alexandre mudar o `.coord/donos.json` (`apps/mobile/**`, `apps/web/**` e `packages/ui/**` → engenheiro-apps), esses caminhos seguem com o engenheiro-software e o engenheiro-apps não é disparado. O gerente avisa o Alexandre com "pronto para a divisão" quando não houver nada em andamento nesses caminhos.
 

@@ -113,7 +113,7 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
       portal.map((i) => ({ entidade: i.entidade, ordem: i.posicao, depende_de: i.depende_de, opcional: i.opcional })),
     );
     const cli = RESUMO_MODELOS.find((r) => r.entidade === 'cliente');
-    expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor', 'forma_pagamento'], opcional: false });
+    expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor', 'forma_pagamento', 'filial'], opcional: false });
   });
 
   it('RF-INT-03: as referências dos exemplos são coerentes com a ordem de carga (VEN-001 existe em vendedor e é usada em cliente)', () => {

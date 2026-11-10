@@ -109,14 +109,28 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
   },
   {
     // v4 (T-0085, 🟡 de desempenho da lista por linha, R-20261107-111809): índices de expressão para os dois
-    // `linhasPorCampo` da lista por linha (modules/catalogo/app/lib/lista-por-linha-local.ts) que ainda varriam a tabela:
-    // vínculos do nível aberto (`produto_no` por `no_id`, até ~20 mil vínculos) e "oferece junto" dos itens da tela
-    // (`produto_relacao` por `produto_id`, até 100 por tela). Mesma expressão do SDK. Subida v3 → v4: só os dois
-    // `CREATE INDEX` sobre as linhas já em `ent_*` (nada apagado, repuxado nem reindexado).
+    // `linhasPorCampo` da antiga lista por linha (tela apagada na T-0142): vínculos do nível aberto (`produto_no` por
+    // `no_id`) e "oferece junto" dos itens da tela (`produto_relacao` por `produto_id`). Hoje (RD-0050) NENHUM dos dois tem
+    // leitor por campo: a hierarquia lê `produto_no` inteira (`arvoreLocal`, app/lib/local.ts) e o "oferece junto" ficou só
+    // na ficha, que lê `produto_relacao` inteira (`fichaLocal`, idem; e app/sugestoes.ts). Ficam por custo baixo e para um
+    // leitor por campo futuro (ver docs/banco/aparelho-sqlite.md §4.3). Mesma expressão do SDK. Subida v3 → v4:
+    // só os dois `CREATE INDEX` sobre as linhas já em `ent_*` (nada apagado, repuxado nem reindexado).
     versao: 4,
     sql: `
       CREATE INDEX catalogo__produto_no_no ON ent_produto_no (json_extract(dados, '$.no_id'));
       CREATE INDEX catalogo__produto_relacao_produto ON ent_produto_relacao (json_extract(dados, '$.produto_id'));
+    `,
+  },
+  {
+    // v5 (T-0149, RN-CORE-39, ADR 0040; migração 0056 no servidor): preço por filial. O item da tabela ganha `filial_id` e o
+    // aparelho recebe só as filiais da carteira + a padrão (desenho §3.4). Índice de expressão (tabela, filial, produto):
+    // responde "a tabela do cliente tem item nesta filial?" (filialDoPreco) e lê os itens da tabela do cliente pelo prefixo
+    // (`linhasPorCampo('tabela_preco_item', 'tabela_preco_id', [tabela])`, mesma expressão do SDK) sem varrer as outras
+    // tabelas. A leitura por produto continua no `catalogo__tabela_preco_item_produto` (v2). Subida v4 → v5: só o
+    // `CREATE INDEX` sobre as linhas já em `ent_*` (o pull filtrado repuxa preço e estoque pela nova variação de escopo).
+    versao: 5,
+    sql: `
+      CREATE INDEX catalogo__tabela_preco_item_filial ON ent_tabela_preco_item (json_extract(dados, '$.tabela_preco_id'), json_extract(dados, '$.filial_id'), json_extract(dados, '$.produto_id'));
     `,
   },
 ];

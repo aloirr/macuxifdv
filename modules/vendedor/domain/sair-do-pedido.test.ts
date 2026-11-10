@@ -96,13 +96,13 @@ describe('RN-VEN-38: retomada depois que o sistema fecha o app', () => {
 });
 
 describe('RN-VEN-38 (v1.0.1): saída da edição de pedido salvo', () => {
-  it('RN-VEN-38: edição de pedido oferece Salvar alterações com o destino e Descartar alterações com confirmação própria', () => {
-    const o = opcoesDaSaidaEdicao({ tipo: 'pedido', destino: 'Vai para o supervisor' });
-    expect(o.salvar).toEqual({ rotulo: 'Salvar alterações', subtitulo: 'Vai para o supervisor' });
+  it('RN-VEN-38: edição de pedido oferece Salvar alterações (sem destino ou alçada) e Descartar alterações com confirmação própria', () => {
+    const o = opcoesDaSaidaEdicao({ tipo: 'pedido' });
+    expect(o.salvar).toEqual({ rotulo: 'Salvar alterações', subtitulo: 'Guarda as alterações' });
     expect(o.descartar.rotulo).toBe('Descartar alterações');
     expect(o.confirmacao.titulo).toBe('Descartar as alterações?');
   });
   it('RN-VEN-38: edição de orçamento oferece Salvar orçamento', () => {
-    expect(opcoesDaSaidaEdicao({ tipo: 'orcamento', destino: 'x' }).salvar.rotulo).toBe('Salvar orçamento');
+    expect(opcoesDaSaidaEdicao({ tipo: 'orcamento' }).salvar.rotulo).toBe('Salvar orçamento');
   });
 });

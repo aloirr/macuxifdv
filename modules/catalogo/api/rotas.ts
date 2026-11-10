@@ -137,11 +137,11 @@ async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: 
   }
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
   // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
-  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario() };
+  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario(clienteId) };
   const precos = await repo.precos(clienteId, ids);
   const promocoes = await repo.promocoes(ids);
   const saldos = await repo.saldos(ids);
-  const filiais = await repo.filiaisDoUsuario();
+  const filiais = await repo.filiaisDoUsuario(clienteId);
   return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais };
 }
 

@@ -12,6 +12,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FichaProduto, ListaMarcasConcorrentes, RespostaHierarquia, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
 import { ExportacaoCatalogo, useDadosExportacao } from '../exportacao/exportacao-catalogo';
+import { linhasEstoquePorFilial } from '../lib/estoque-filial';
 import { caminhoDoProduto, escopoDoNivel } from '../exportacao/layout';
 import { chaveDeTermo } from '../../domain/texto';
 import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
@@ -267,6 +268,18 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
   );
 }
 
+/** RN-CORE-39: o estoque do produto por filial (uma linha por filial que o usuário vê); sem direito a estoque, nada aparece. */
+function EstoquePorFilial({ estoque }: { estoque: ItemVitrine['availability'] }) {
+  const linhas = linhasEstoquePorFilial(estoque);
+  if (!estoque) return null;
+  return (
+    <div className="flex flex-col gap-1 text-[13px]" data-testid="catalogo.estoque-filiais">
+      <span className="text-[12px] font-semibold text-ink-2">Estoque por filial</span>
+      {linhas.length === 0 ? <span className="text-ink-2">Sem saldo nas filiais que você vê.</span> : linhas.map((l) => <span key={l.id}>{l.texto}</span>)}
+    </div>
+  );
+}
+
 function EditorConteudo({ item, fechar }: { item: ItemVitrine; fechar: () => void }) {
   const qc = useQueryClient();
   const ficha = useQuery({ queryKey: ['catalogo', 'ficha', item.id], queryFn: async () => FichaProduto.parse(await api<unknown>(`${BASE}/produtos/${item.id}`)) });
@@ -298,6 +311,7 @@ function EditorConteudo({ item, fechar }: { item: ItemVitrine; fechar: () => voi
       {!form && !ficha.isError && <LoadingBlock label="Carregando a ficha…" />}
       {form && (
         <>
+          <EstoquePorFilial estoque={ficha.data?.product.availability} />
           {campo('descricao', 'Descrição', 'Texto que o vendedor lê na ficha.', 3)}
           {campo('argumentos', 'Argumentos de venda', 'Um por linha (até 10).', 3)}
           {campo('atributos', 'Ficha técnica', 'Um por linha, no formato "Nome: valor" (ex.: "Volume: 2 L"). Os atributos também entram na busca.', 4)}

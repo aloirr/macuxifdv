@@ -37,6 +37,8 @@ export const ClienteSyncSchema = z
     latitude: z.union([z.string(), z.number()]).nullable(),
     longitude: z.union([z.string(), z.number()]).nullable(),
     ativo: z.boolean(),
+    /** T-0149 / RN-CORE-39 (aditivo): filial do cliente (nunca nula no servidor; ausente = linha/emissor antigo = padrão). */
+    filial_id: z.string().uuid().nullable().optional(),
     /** Cadastro mínimo (RN-CORE-16/17; T-0060). Opcionais: APK antigo e linhas antigas continuam válidos. `cadastro_campos_faltantes` é string (e não o enum): campo novo do tenant não reprova a linha no aparelho antigo. */
     inscricao_estadual: z.string().nullable().optional(),
     observacao: z.string().nullable().optional(),
@@ -78,10 +80,28 @@ export const ProdutoSyncSchema = z
     /** Embalagem opcional (RN-CORE-19): medida + quantidade de unidades. Opcionais: compatível com o pull anterior. */
     embalagem_medida: z.string().nullable().optional(),
     embalagem_quantidade: z.number().int().min(EMBALAGEM_QUANTIDADE_MIN).max(EMBALAGEM_QUANTIDADE_MAX).nullable().optional(),
+    /** T-0151 / RN-VEN-11 (aditivo): preço de venda em centavos; nulo = sem preço de venda. Ausente em pull antigo. */
+    preco_venda_cents: z.number().int().min(0).nullable().optional(),
+    /** T-0151 / RN-VEN-11 (aditivo): desconto máximo EFETIVO em % (próprio do produto, senão parâmetro do tenant, senão 15). */
+    desconto_maximo_pct: z.number().min(0).max(100).optional(),
     ativo: z.boolean(),
   })
   .strict();
 export type ProdutoSync = z.infer<typeof ProdutoSyncSchema>;
+
+/** Filiais do tenant (RN-CORE-39; T-0149): escopo tenant (dezenas de linhas); inativa continua no pull (o cliente e o pedido a mantêm). */
+export const FilialSyncSchema = z
+  .object({
+    ...Base,
+    codigo: z.string(),
+    nome: z.string(),
+    cidade: z.string().nullable(),
+    uf: z.string().nullable(),
+    padrao: z.boolean(),
+    ativo: z.boolean(),
+  })
+  .strict();
+export type FilialSync = z.infer<typeof FilialSyncSchema>;
 
 /** Medidas do tenant (RN-CORE-19; RF-CORE-14): sigla única e descrição. Escopo tenant; inativa continua no pull (o produto mantém a sigla). */
 export const MedidaSyncSchema = z

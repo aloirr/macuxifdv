@@ -56,7 +56,6 @@ describe('RN-VEN-39: tela Rascunhos (T-0141 F.2)', () => {
   });
   it('RN-VEN-39: textos da spec e total sem tabela fica nulo', () => {
     expect(TEXTOS_RASCUNHOS.titulo).toBe('Rascunhos');
-    expect(TEXTOS_RASCUNHOS.atalhoApoio).toBe('Somem 24 h após a última alteração');
     expect(TEXTOS_RASCUNHOS.vazio).toEqual({ titulo: 'Nenhum rascunho', apoio: 'O pedido que você deixa sem enviar fica aqui por 24 h.', acao: 'Voltar a Pedidos' });
     expect(TEXTOS_RASCUNHOS.erro).toEqual({ titulo: 'Não foi possível abrir os rascunhos', apoio: 'Puxe a tela para tentar de novo.' });
     expect(textoDeItens(0)).toBe('sem itens');

@@ -79,6 +79,7 @@ import {
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
+import { permissoesLiberadas, telaDePermissoes, type EstadosPermissoes, type TelaDePermissoes } from '@/lib/permissoes';
 import { observarFalhasDeSync, type FalhaSync } from '@/lib/diagnostico-sync';
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import { shellDaVariante, type ComponenteTela } from '@/lib/modulos';
@@ -112,8 +113,11 @@ import {
   travaSync,
 } from '@/services/segundo-plano';
 import { gravarErro } from '@/services/erros';
+import { registrarSaidaAnterior } from '@/services/saida-android';
+import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
+import { ligarFonteFotoPdv } from '@/services/foto-pdv';
 import { ligarResolvedorMiniatura } from '@/services/miniaturas';
 import { esquecerRegistroPush } from '@/services/push';
 import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
@@ -250,6 +254,19 @@ function usePlataformaValor() {
   /** "Tentar de novo" em andamento: a tela de erro fica, com o botão carregando (sem toque duplo). */
   const [tentandoAbrir, setTentandoAbrir] = useState(false);
   const tentandoAbrirRef = useRef(false);
+  /**
+   * T-0145 (RN-CORE-37): permissões obrigatórias do aparelho, lidas a cada abertura e na volta das configurações. `null` =
+   * ainda não lidas (a tela de abertura fica). Sem todas, nada sincroniza (`executarSync`, agendador) e o Gate mostra a tela.
+   */
+  const [estadosPermissoes, setEstadosPermissoes] = useState<EstadosPermissoes | null>(null);
+  const permissoesOkRef = useRef(false);
+  const [pedindoPermissao, setPedindoPermissao] = useState(false);
+  const conferirPermissoes = useCallback(async () => {
+    const e = await lerPermissoes();
+    permissoesOkRef.current = permissoesLiberadas(variante, e);
+    setEstadosPermissoes(e);
+    return permissoesOkRef.current;
+  }, [variante]);
 
   const api = useCallback(
     () =>
@@ -288,6 +305,8 @@ function usePlataformaValor() {
   // T-0097 (a): a miniatura do catálogo que está no armazenamento da plataforma (`/v1/arquivos/<id>`) é baixada pelo shell com
   // o token da sessão (lê a sessão e o sinal por ref) e aberta do cache do app; sem sessão ou sem sinal fica vazia
   useEffect(() => ligarResolvedorMiniatura(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
+  // T-0147: o visualizador da foto do PDV baixa com o mesmo token e o mesmo sinal (só em memória)
+  useEffect(() => ligarFonteFotoPdv(api, () => !offlineRef.current && sessaoRef.current !== null), [api]);
 
   /** Etapa de plataforma: perfil/tenant do usuário (`GET /v1/me`), guardado no armazenamento do core. */
   const etapaMe = useMemo<EtapaSync>(
@@ -390,7 +409,9 @@ function usePlataformaValor() {
       setMotor(m);
       // desenho T-0088 §5: o `rebuild` e a reindexação pendentes (L-1, versão) andam quando a tela fica livre, antes da 1ª
       // busca, sem segurar a 1ª tela (até lá a busca responde `indexando` e o Catálogo varre)
-      if (abertura.tipo === 'sqlite') {
+      // T-0144: na carga inicial (sem `sincronizado_em`) não: o motor faz o `finalizar` no fim da carga, e as duas reindexações
+      // juntas com a carga só somavam trabalho pesado no banco logo na abertura do app
+      if (abertura.tipo === 'sqlite' && m.estado().sincronizado_em) {
         const busca = abertura.armazenamento.busca;
         agendarSemPressa(() => {
           void Promise.resolve(busca.finalizar?.()).catch((e: unknown) =>
@@ -406,8 +427,12 @@ function usePlataformaValor() {
     let vivo = true;
     // T-0140: enquanto o app abre (sessão, armazenamento, motor), a tarefa sem tela não começa neste processo
     travaSync.entrar('abertura');
+    // T-0144: o processo anterior caiu fora do React (erro nativo, memória, travamento)? O motivo do Android vai ao Diagnóstico
+    void registrarSaidaAnterior();
     (async () => {
-      const [settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
+      const [, settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
+        // T-0145: as permissões são conferidas a cada abertura, antes do login e da sincronização
+        conferirPermissoes().catch(() => false),
         readJson<{ apiUrl?: string | null }>(keys.settings),
         readJson<SessaoGuardada>(keys.session),
         readJson<boolean>(keys.offline),
@@ -448,7 +473,7 @@ function usePlataformaValor() {
     return () => {
       vivo = false;
     };
-  }, [abrirMotor, modo, perfilBuild]);
+  }, [abrirMotor, conferirPermissoes, modo, perfilBuild]);
 
   /** Módulos efetivos a cada sync (licença checada no servidor por requisição — RN-CORE-01/02). */
   const atualizarModulos = useCallback(async () => {
@@ -468,7 +493,8 @@ function usePlataformaValor() {
   const executarSync = useCallback(
     (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
       const m = motorRef.current;
-      if (!m) return Promise.resolve(false);
+      // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
+      if (!m || !permissoesOkRef.current) return Promise.resolve(false);
       if (syncEmCursoRef.current) return syncEmCursoRef.current;
       ultimoInicioRef.current = Date.now();
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
@@ -857,6 +883,7 @@ function usePlataformaValor() {
       },
       // automática só depois da carga inicial (antes dela, quem sincroniza é a tela de carga), com sessão e sinal
       podeSincronizar: () =>
+        permissoesOkRef.current &&
         !offlineRef.current &&
         sessaoRef.current !== null &&
         motorRef.current === m &&
@@ -974,6 +1001,39 @@ function usePlataformaValor() {
     };
   }, [motor, executarSync]);
 
+  // ---------- T-0145: permissões obrigatórias (a cada abertura e na volta das configurações ou do diálogo) ----------
+  // Com o app liberado, a conferência é só na próxima abertura: retirar uma permissão no meio do uso não desmonta a tela em
+  // que o vendedor está (o pedido aberto continua); na tela de permissões, a volta das configurações relê na hora
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && !permissoesOkRef.current) void conferirPermissoes().catch(() => undefined);
+    });
+    return () => sub.remove();
+  }, [conferirPermissoes]);
+
+  /** Tela de permissões (nula enquanto não leu ou com todas concedidas). */
+  const telaPermissoes = useMemo<TelaDePermissoes | null>(
+    () =>
+      estadosPermissoes && !permissoesLiberadas(variante, estadosPermissoes)
+        ? telaDePermissoes(variante, estadosPermissoes, apiDoAndroid())
+        : null,
+    [estadosPermissoes, variante],
+  );
+  const permissoesLidas = estadosPermissoes !== null;
+
+  /** O botão único da tela: pede a próxima que falta ou abre as configurações; relê no fim (o diálogo já respondeu). */
+  const tocarBotaoPermissoes = useCallback(async () => {
+    const botao = telaPermissoes?.botao;
+    if (!botao || pedindoPermissao) return;
+    setPedindoPermissao(true);
+    try {
+      await executarAcaoDePermissao(botao);
+      await conferirPermissoes().catch(() => undefined);
+    } finally {
+      setPedindoPermissao(false);
+    }
+  }, [telaPermissoes, pedindoPermissao, conferirPermissoes]);
+
   const perfil = sessao?.user.perfil ?? null;
   const visao: VisaoShell<ComponenteTela> = useMemo(
     () => shell.montar({ perfil, modulosAtivos }),
@@ -1022,6 +1082,10 @@ function usePlataformaValor() {
     erroArmazenamento,
     tentandoAbrir,
     tentarAbrirDeNovo,
+    telaPermissoes,
+    permissoesLidas,
+    pedindoPermissao,
+    tocarBotaoPermissoes,
   };
 }
 

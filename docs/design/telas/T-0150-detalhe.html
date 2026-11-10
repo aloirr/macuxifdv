@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0150 · Detalhe do pedido e do orçamento, com Alertas e situação no Histórico (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .phone.det { height: auto; }
+  .phone.det .conteudo { overflow: visible; }
+  .phone.det .conteudo > * { flex: none; }
+  .tit-det { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; }
+  .cli { font-size: 15px; margin-top: -6px; }
+  .rodape-acoes { flex: none; background: #fff; border-top: 1px solid var(--line); padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 4px; }
+  .rodape-acoes .linha { display: flex; }
+  .rodape-acoes .linha div { flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Detalhe do pedido e do orçamento</h1>
+<p class="prancha">T-0150 · versão 2 (R-20261110-093124). Ordem: cabeçalho, Alertas (só se houver), pagamento e entrega, itens, totais, Histórico. Sem selo no topo: a situação é a última etapa do Histórico.</p>
+
+<div class="board">
+
+  <!-- A · Pedido aprovado -->
+  <div class="tela">
+    <div class="legenda"><b>A</b>Pedido aprovado<span>Sem alerta, a área não aparece. Ações: PDF e Duplicar.</span></div>
+    <div class="phone det">
+      <div class="status"><span>06:15</span><span>4G ▮▮▮ 79%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div class="tit-det">Pedido 000013</div>
+        <div class="cli">Atacadinho Cachoeirinha · cód. C5007</div>
+        <div class="kv" style="margin-top:4px">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto · 28/56 dias</span></div>
+          <div class="l"><span class="r">Entrega</span><span class="t">CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Itens (3)</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>4 <span class="un">UN</span></td><td>13,40</td><td>−5,0%</td><td class="tot">50,92</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>2 <span class="un">FD</span></td><td>15,05</td><td>+20,0%</td><td class="tot">36,12</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 119,70</span></div>
+          <div class="l"><span class="r">Acréscimo 5,8%</span><span class="v">+ R$ 6,94</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 126,64</span></div>
+        </div>
+        <div class="secao-t">Histórico</div>
+        <div class="hist marca" style="outline-offset:4px"><span>Salvo · 10/11 05:55</span><span>Enviado · 10/11 05:56</span><span class="atual ok">Aprovado · 10/11 06:10 · Carla Souza</span></div>
+      </div>
+      <div class="rodape-acoes"><div class="linha"><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- B · Pedido rejeitado -->
+  <div class="tela">
+    <div class="legenda"><b>B</b>Pedido rejeitado<span>O motivo fica nos Alertas; "Rejeitado" fica no Histórico.</span></div>
+    <div class="phone det">
+      <div class="status"><span>06:00</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div class="tit-det">Pedido 000014</div>
+        <div class="cli">Atacadinho Cachoeirinha · cód. C5007</div>
+        <div class="alertas-t" style="margin-top:4px">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span></div>
+        </div>
+        <div class="kv" style="margin-top:4px">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto · 28/56 dias</span></div>
+          <div class="l"><span class="r">Entrega</span><span class="t">CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Itens (3)</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>4 <span class="un">UN</span></td><td>13,40</td><td>—</td><td class="tot">53,60</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>2 <span class="un">FD</span></td><td>15,05</td><td>−15,0%</td><td class="tot">25,58</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 119,70</span></div>
+          <div class="l"><span class="r">Desconto 0,8%</span><span class="v">− R$ 0,92</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 118,78</span></div>
+        </div>
+        <div class="secao-t">Histórico</div>
+        <div class="hist"><span>Salvo · 10/11 05:55</span><span>Enviado · 10/11 05:56</span><span class="atual erro">Rejeitado · 10/11 05:58</span></div>
+      </div>
+      <div class="rodape-acoes"><div class="btn principal"><i data-i="edit" data-t="18" data-c="#fff"></i>Corrigir pedido</div><div class="linha"><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- C · Orçamento -->
+  <div class="tela">
+    <div class="legenda"><b>C</b>Orçamento<span>Sem selo: "Salvo · 09/11" no Histórico já é a data do preço.</span></div>
+    <div class="phone det">
+      <div class="status"><span>10/11 09:10</span><span>4G ▮▮▮ 77%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div class="tit-det">Orçamento 000012</div>
+        <div class="cli">Atacadinho Cachoeirinha · cód. C5007</div>
+        <div class="kv" style="margin-top:4px">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto · 28/56 dias</span></div>
+          <div class="l"><span class="r">Entrega</span><span class="t">CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Itens (3)</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>2 <span class="un">UN</span></td><td>12,90</td><td>−10,0%</td><td class="tot">23,22</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>1 <span class="un">UN</span></td><td>7,14</td><td>—</td><td class="tot">7,14</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 68,94</span></div>
+          <div class="l"><span class="r">Acréscimo 1,5%</span><span class="v">+ R$ 1,02</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 69,96</span></div>
+        </div>
+        <div class="secao-t">Histórico</div>
+        <div class="hist marca" style="outline-offset:4px"><span class="atual neutro">Salvo · 09/11 16:20</span></div>
+      </div>
+      <div class="rodape-acoes"><div class="btn principal"><i data-i="enviar" data-t="18" data-c="#fff"></i>Transformar em pedido</div><div class="linha"><div><i data-i="edit" data-t="18"></i>Editar</div><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- D · Orçamento com alertas -->
+  <div class="tela">
+    <div class="legenda"><b>D</b>Orçamento com alertas<span>Não vira pedido até corrigir: a ação principal é Editar.</span></div>
+    <div class="phone det">
+      <div class="status"><span>10/11 09:30</span><span>4G ▮▮▮ 76%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div class="tit-det">Orçamento 000015</div>
+        <div class="cli">Atacadinho Cachoeirinha · cód. C5007</div>
+        <div class="alertas-t" style="margin-top:4px">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">BIS-400 sem estoque</span></div>
+        </div>
+        <div class="kv" style="margin-top:4px">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto · 28/56 dias</span></div>
+          <div class="l"><span class="r">Entrega</span><span class="t">CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Itens (4)</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>4 <span class="un">UN</span></td><td>13,40</td><td>—</td><td class="tot">53,60</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>2 <span class="un">FD</span></td><td>15,05</td><td>−15,0%</td><td class="tot">25,58</td></tr>
+              <tr><td><span class="pn">Biscoito maisena 400 g</span><span class="pc">BIS-400</span></td><td>2 <span class="un">PCT</span></td><td>8,90</td><td>—</td><td class="tot">17,80</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 137,50</span></div>
+          <div class="l"><span class="r">Desconto 0,7%</span><span class="v">− R$ 0,92</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 136,58</span></div>
+        </div>
+        <div class="secao-t">Histórico</div>
+        <div class="hist"><span class="atual neutro">Salvo · 10/11 05:58</span></div>
+      </div>
+      <div class="rodape-acoes"><div class="btn principal"><i data-i="edit" data-t="18" data-c="#fff"></i>Editar</div><div class="linha"><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+    <div class="nota-prancha"><b>Gestão e BKO:</b> o mesmo detalhe, com a linha Vendedor na tabela de Pagamento e Entrega. <b>Recusa do supervisor:</b> o motivo dele numa linha nos Alertas; o nome dele na etapa "Rejeitado" do Histórico.</div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>
