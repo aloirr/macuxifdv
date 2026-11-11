@@ -92,7 +92,15 @@ services:
   worker:
     <<: *imagem-api
     command: ['node', '--import', 'tsx', 'apps/api/src/worker.ts']
-    env_file: *env-app
+    # o *env-app + o recados.env (T-0158, ADR 0043: MACUXI_RECADOS_TOKEN_SERVIDOR do remetente `diagnostico`) só no
+    # worker, nunca na api nem no bko. Sem o arquivo (ou vazio), o alerta fica `desligado` e o expurgo roda do mesmo jeito.
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: segredos.env
+        required: false
+      - path: recados.env
+        required: false
     environment:
       <<: *ambiente-api
       MACUXI_DESPACHANTE_POOL: '4'

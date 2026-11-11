@@ -101,7 +101,14 @@ antes_do_up() { # $1 = mensagem
 }
 
 log "baixando imagens"
-dc --profile ferramentas pull --quiet || antes_do_up "pull falhou"
+# T-0154: novas tentativas no 403/429/5xx do GHCR (o workflow copia o ghcr-tentar.sh ao lado; sem ele, uma tentativa só)
+if [ -f "$ORIGEM/ghcr-tentar.sh" ]; then
+  # shellcheck source=../demo/ghcr-tentar.sh
+  source "$ORIGEM/ghcr-tentar.sh"
+else
+  ghcr_tentar() { shift; "$@"; }
+fi
+ghcr_tentar "pull das imagens na VM" dc --profile ferramentas pull --quiet || antes_do_up "pull falhou"
 
 log "banco (DBaaS): papéis, extensão, migrações e conferências"
 bash "$ORIGEM/banco-dbaas.sh" || antes_do_up "banco-dbaas.sh falhou"

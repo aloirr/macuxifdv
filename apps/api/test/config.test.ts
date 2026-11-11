@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conferirSegredoJwt, ehAmbienteLocal, lerTrustProxy } from '../src/config';
+import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, ehAmbienteLocal, lerTrustProxy } from '../src/config';
 
 const forte = 'x'.repeat(32);
 
@@ -42,5 +42,19 @@ describe('MACUXI_TRUST_PROXY (T-0026)', () => {
     if (typeof saltos === 'function') expect([saltos('10.0.0.1', 0), saltos('10.0.0.2', 1), saltos('10.0.0.3', 2)]).toEqual([true, true, false]);
     expect(lerTrustProxy({ MACUXI_TRUST_PROXY: 'loopback' })).toEqual(['loopback']);
     expect(lerTrustProxy({ MACUXI_TRUST_PROXY: '127.0.0.1, 10.0.0.0/8,' })).toEqual(['127.0.0.1', '10.0.0.0/8']);
+  });
+});
+
+describe('MACUXI_DIAGNOSTICOS e MACUXI_DIAGNOSTICOS_APP (T-0158, R-20261111-011107)', () => {
+  it('só 1/true/sim ligam; ausente, vazio ou outro valor = desligado', () => {
+    for (const v of ['1', 'true', 'sim', ' SIM ', 'True']) expect(diagnosticosLigados({ MACUXI_DIAGNOSTICOS: v })).toBe(true);
+    for (const v of [undefined, '', '0', 'false', 'nao', 'ligado']) expect(diagnosticosLigados({ MACUXI_DIAGNOSTICOS: v })).toBe(false);
+  });
+  it('botão do app (recursos.diagnosticos): só com os dois flags ligados; o MACUXI_DIAGNOSTICOS=1 da demo sozinho não liga', () => {
+    expect(diagnosticosAppLigados({})).toBe(false);
+    expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS: '1' })).toBe(false);
+    expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS_APP: '1' })).toBe(false);
+    expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS: '1', MACUXI_DIAGNOSTICOS_APP: '0' })).toBe(false);
+    expect(diagnosticosAppLigados({ MACUXI_DIAGNOSTICOS: 'sim', MACUXI_DIAGNOSTICOS_APP: 'true' })).toBe(true);
   });
 });
