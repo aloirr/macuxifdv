@@ -148,6 +148,33 @@ export { PAPEL_PORTAL };
 /** Conexões do pool do portal (`MACUXI_API_POOL_PORTAL`; desenho T-0091 §3 item 3: API 10 + portal 2 + worker 2 + 4 = 18). */
 export const POOL_PORTAL_PADRAO = 2;
 
+// ---------- T-0118: espera por conexão do pool (rede de segurança do D-T0107a) ----------
+
+/**
+ * Espera máxima por uma conexão livre do pool (`connectionTimeoutMillis` do pg-pool), padrão 10 s. Sem ela, o pool cheio
+ * (carga acima do `MACUXI_API_POOL` ou uma transação que peça 2ª conexão em produção, onde a guarda só avisa) deixa a
+ * requisição na fila do pg-pool sem prazo: a API "trava". Com ela, a espera vencida vira 503 `BANCO_OCUPADO` com
+ * `Retry-After` (`esperaDoPoolEsgotada`), a transação de fora é desfeita e o motor do aparelho reenvia o lote.
+ */
+export const ESPERA_POOL_PADRAO_MS = 10_000;
+/** `Retry-After` (s) do 503 `BANCO_OCUPADO`. */
+export const RETRY_AFTER_BANCO_OCUPADO_S = 2;
+/** Mensagem do pg-pool (3.x) quando a espera na fila vence; o teste amarra ao pg-pool instalado. */
+const MENSAGEM_ESPERA_POOL = 'timeout exceeded when trying to connect';
+
+/** `MACUXI_API_POOL_ESPERA_MS`: inteiro >= 1 (ms); ausente ou inválido = `ESPERA_POOL_PADRAO_MS` (o pool nunca fica sem prazo). */
+export function esperaDoPoolMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  const v = env.MACUXI_API_POOL_ESPERA_MS?.trim();
+  const n = v && /^\d+$/.test(v) ? Number(v) : NaN;
+  return Number.isSafeInteger(n) && n >= 1 ? n : ESPERA_POOL_PADRAO_MS;
+}
+
+/** O erro (ou a causa dele) é a espera por conexão do pool vencida: pool cheio, não banco fora do ar. */
+export function esperaDoPoolEsgotada(e: unknown): boolean {
+  for (let x = e, i = 0; x instanceof Error && i < 3; x = x.cause, i++) if (x.message === MENSAGEM_ESPERA_POOL) return true;
+  return false;
+}
+
 /**
  * Prazo da `sa_provisionar_tenant` no pool do portal (desenho T-0091 §3 item 5). Ela grava `plataforma.parametro` (entidade de
  * sync do Core) noutro papel, invisível ao `SQL_HORIZONTE` do `macuxi_app`; abaixo da margem do horizonte, a linha nunca fica
