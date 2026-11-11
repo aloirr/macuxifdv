@@ -4,7 +4,7 @@ import { OrderDetail } from '../../contracts';
 
 export const MSG_ITENS_INDISPONIVEIS = 'Não foi possível carregar os itens deste pedido. Tente de novo; se continuar, avise o suporte.';
 export const MSG_SEM_DOCUMENTO = 'CNPJ/CPF não informado no cadastro do cliente.';
-export const DICA_PDF_SEM_DETALHE = 'Os itens do pedido ainda não carregaram. Use "Tentar de novo" no detalhe e depois gere o PDF.';
+export const DICA_PDF_SEM_DETALHE = 'Os itens ainda não carregaram. Tente de novo.';
 
 /**
  * T-0059: leitura tolerante SÓ na exibição. Pedido antigo cujo retrato do cliente veio sem documento (nulo/ausente)

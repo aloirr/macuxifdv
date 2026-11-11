@@ -12,8 +12,8 @@
  *
  * `FATURAMENTO_LIGADO` (ligado: migração 0013 no `main`): `vendedor.pedido_faturamento` (uma linha por retorno faturado,
  * idempotente por `evento_id`), `pedido.total_faturado_cents`/`faturado_em` e `pedido_item.quantidade_faturada` (UNIDADE
- * BASE, desenho T-0061 §2.1). `DEVOLUCAO_LIGADA` (desligada): a tabela `pedido_devolucao` ainda não existe (pedida ao
- * banco-dados); até lá o consumidor da nota não é registrado e o devolvido fica 0 (docs/modulos/vendedor/retorno-erp.md).
+ * BASE, desenho T-0061 §2.1). `DEVOLUCAO_LIGADA` (ligada, migração 0050): `pedido_devolucao` guarda as notas de devolução; o devolvido
+ * é a soma das linhas vivas e a nota toca `pedido.updated_at` para o pull levar a mudança (docs/modulos/vendedor/retorno-erp.md).
  */
 import { criarConsumidorFormaPagamentoDoErp, criarConsumidorPrazoPagamentoDoErp } from './formas-erp';
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
@@ -35,8 +35,8 @@ import { EVENTO_NOTA_ATUALIZADA, EVENTO_RETORNO_ERP_CONSUMIDO, type RetornoErpCo
 
 /** Persistência do faturamento, resumo no pull e notas no detalhe (migração 0013 no `main`). */
 export const FATURAMENTO_LIGADO = true;
-/** Devolução (RN-VEN-37): depende da tabela `vendedor.pedido_devolucao`, ainda não migrada (pedido ao banco-dados). */
-export const DEVOLUCAO_LIGADA = false;
+/** Devolução (RN-VEN-37, T-0155): tabela `vendedor.pedido_devolucao` (migração 0050) migrada; consumidor da nota registrado. */
+export const DEVOLUCAO_LIGADA = true;
 
 /** Autor da linha do tempo quando a transição vem do ERP (T-0053). */
 export const AUTOR_ERP = { nome: 'ERP', perfil: 'erp' } as const;
@@ -341,6 +341,8 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
             where id = $1 and (pedido_id, nota_numero, nota_serie, emitida_em, total_cents) is distinct from ($2::uuid, $3::text, $4::text, $5::timestamptz, $6::bigint)`,
           [atual.id, d.pedido_id, d.numero, d.serie, d.emitida_em, d.total_cents],
         );
+        // T-0155: o pull só leva o pedido que mudou; a nota (re)apontada muda o devolvido dos dois pedidos
+        await db.query('update vendedor.pedido set updated_at = now() where id = any($1::uuid[])', [[d.pedido_id, atual.pedido_id]]);
         return { pedido_anterior: atual.pedido_id };
       }
       await db.query(
@@ -348,6 +350,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
          values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6)`,
         [d.pedido_id, d.external_id, d.numero, d.serie, d.emitida_em, d.total_cents],
       );
+      await db.query('update vendedor.pedido set updated_at = now() where id = $1', [d.pedido_id]);
       return { pedido_anterior: null };
     },
     async removerDevolucao(externalId, quando) {
@@ -356,7 +359,9 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
         'update vendedor.pedido_devolucao set deleted_at = $2 where external_id = $1 and deleted_at is null returning pedido_id',
         [externalId, quando],
       );
-      return r.rows[0]?.pedido_id ?? null;
+      const pid = r.rows[0]?.pedido_id ?? null;
+      if (pid) await db.query('update vendedor.pedido set updated_at = now() where id = $1', [pid]);
+      return pid;
     },
     async gravarResumo(pedidoId, r) {
       if (!comFaturamento) return;

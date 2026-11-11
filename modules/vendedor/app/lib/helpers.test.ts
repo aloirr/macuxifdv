@@ -112,13 +112,11 @@ describe('status de pedido', () => {
     expect(orderNote({ status: 'rejected', pending_reason: '', rejection_reason: 'Títulos vencidos' })).toBe('Títulos vencidos');
   });
 
-  it('T-0054 (RF-VEN-05): chip Faturados separa o faturado do integrado; a observação do faturado é o resumo do ERP', () => {
+  it('T-0054 (RF-VEN-05): chip Faturados separa o faturado do integrado; T-0153/RN-VEN-42: o faturado não leva nota na lista (o selo e o Histórico dizem)', () => {
     const c = filterCounts([{ status: 'integrated' }, { status: 'invoiced_partial' }, { status: 'invoiced' }]);
     expect(c).toMatchObject({ integrated: 1, invoiced: 2 });
     expect(statusBadge('invoiced_partial').label).toBe('Faturado parcialmente');
-    expect(orderNote({ status: 'invoiced', pending_reason: '', rejection_reason: '', situacao_faturamento: ['Faturado R$ 70,00 (NF 1)', 'Devolvido R$ 10,00 (parcial)'] })).toBe(
-      'Faturado R$ 70,00 (NF 1) · Devolvido R$ 10,00 (parcial)',
-    );
+    expect(orderNote({ status: 'invoiced', pending_reason: '', rejection_reason: '', situacao_faturamento: ['Faturado R$ 70,00 (NF 1)', 'Devolvido R$ 10,00 (parcial)'] })).toBe('');
     expect(orderNote({ status: 'integrated', pending_reason: '', rejection_reason: '', situacao_faturamento: ['x'] })).toBe('');
   });
 });

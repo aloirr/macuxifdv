@@ -86,8 +86,7 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
 });
 
 describe('T-0089: total do pedido sob pagamento e prazo', () => {
-  it('T-0089: o rótulo diz "Total do pedido · n itens"', () => {
-    expect(rotuloTotalDoPedido(2)).toBe('Total do pedido · 2 itens');
-    expect(rotuloTotalDoPedido(1)).toBe('Total do pedido · 1 item');
+  it('RN-VEN-42: o rótulo diz só "Total do pedido" (a aba Itens já tem a contagem)', () => {
+    expect(rotuloTotalDoPedido()).toBe('Total do pedido');
   });
 });

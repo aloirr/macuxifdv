@@ -6,16 +6,18 @@
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { CarteiraSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
-import type { ClienteTabelaPrecoSync, EstoqueSaldoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
+import type { ClienteTabelaPrecoSync, DepositoSync, EstoqueSaldoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
-import { rotuloMedida } from '../../domain/preco-pedido';
-import type { EnderecoDaTela, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
+import { precoMinimoBaseCents, rotuloMedida } from '../../domain/preco-pedido';
+import type { EnderecoDaTela, ProdutoComMinimo, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
 import { ultimaMudancaDeStatus } from '../../domain/busca-periodo';
 import { camposFaturamento } from '../../domain/retorno-erp';
+import { dadosFiscaisDaFilial, nomeDaFilialDoPedido } from '../../domain/filial-pedido';
+import { reservadoLocalNaFilial, saldoDaFilialPorProduto } from '../../domain/reserva-filial';
 
 export interface LinhasVendedor {
   pedidos: PedidoSync[];
@@ -35,6 +37,8 @@ export interface LinhasVendedor {
   financeiros?: ClienteFinanceiroSync[];
   /** RN-VEN-20: saldo por depósito (catálogo); produto sem linha = estoque não controlado */
   saldos?: EstoqueSaldoSync[];
+  /** T-0149 (RN-VEN-20): depósitos com a filial; ausentes = saldo de todos os depósitos (comportamento anterior) */
+  depositos?: DepositoSync[];
   /** T-0089 (RN-VEN-24): formas de pagamento e prazos do tenant; ausentes antes do primeiro sync com a 0037 */
   formas?: FormaPagamentoSync[];
   prazos?: PrazoPagamentoSync[];
@@ -42,7 +46,7 @@ export interface LinhasVendedor {
   carteiras?: CarteiraSync[];
 }
 
-export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [], formas: [], prazos: [], carteiras: [] };
+export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [], depositos: [], formas: [], prazos: [], carteiras: [] };
 
 /** O que o motor oferece para ler as linhas locais (subconjunto estrutural de `MotorSync`). */
 export interface LeitorDeLinhas {
@@ -53,7 +57,7 @@ const vivas = <T extends { deleted_at: string | null }>(l: T[]): T[] => l.filter
 
 export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> {
   const ler = async <T extends LinhaSync>(e: string): Promise<T[]> => vivas(await motor.linhas<T>(e));
-  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, formas, prazos, carteiras] = await Promise.all([
+  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras] = await Promise.all([
     ler<PedidoSync>('pedido'),
     ler<PedidoItemSync>('pedido_item'),
     ler<PedidoEventoSync>('pedido_evento'),
@@ -68,11 +72,12 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> 
     ler<TabelaPrecoSync>('tabela_preco'),
     ler<ClienteFinanceiroSync>('cliente_financeiro'),
     ler<EstoqueSaldoSync>('estoque_saldo'),
+    ler<DepositoSync>('deposito'),
     ler<FormaPagamentoSync>('forma_pagamento'),
     ler<PrazoPagamentoSync>('prazo_pagamento'),
     ler<CarteiraSync>('carteira'),
   ]);
-  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, formas, prazos, carteiras };
+  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras };
 }
 
 // ---------- alçada e usuário ----------
@@ -153,8 +158,12 @@ export function listaDeClientes(l: LinhasVendedor, vendedor: { id: string; name:
 export const ESTOQUE_NAO_CONTROLADO = 1_000_000;
 
 /** Produto do seletor com o preço da tabela do cliente (`null` = "Sem preço para este cliente", RN-CAT-06). */
-export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null, aplicacao: string | null = null): Product {
+export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null, aplicacao: string | null = null): ProdutoComMinimo {
+  // RN-VEN-11 (T-0151): o mínimo só existe quando o sync traz o preço de venda E o desconto máximo do produto (sem eles, a API revalida)
+  const x = p as ProdutoSync & { preco_venda_cents?: number | null; desconto_maximo_pct?: number | null };
+  const minimo = x.preco_venda_cents != null && x.desconto_maximo_pct != null ? precoMinimoBaseCents({ preco_venda_cents: x.preco_venda_cents, desconto_maximo_pct: x.desconto_maximo_pct }) : null;
   return {
+    ...(minimo !== null ? { preco_minimo_base_cents: minimo } : {}),
     id: p.id,
     erp_code: p.sku,
     description: p.nome,
@@ -173,15 +182,47 @@ export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldo
   };
 }
 
-/** RN-VEN-20: soma dos depósitos por produto (unidade base); produto sem linha de saldo fica de fora = não controlado. */
-export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const s of saldos ?? []) if (!(s as { deleted_at?: string | null }).deleted_at) m.set(s.produto_id, (m.get(s.produto_id) ?? 0) + Number(s.quantidade));
-  return m;
+/**
+ * RN-VEN-20: saldo por produto (unidade base); produto sem linha de saldo fica de fora = não controlado. Com `filialId` (T-0149,
+ * a filial do cliente) conta só os depósitos da filial; sem filial ou sem depósito com filial no aparelho, soma todos (fallback).
+ */
+export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined, depositos?: readonly DepositoSync[], filialId?: string | null): Map<string, number> {
+  const vivos = (saldos ?? []).filter((s) => !(s as { deleted_at?: string | null }).deleted_at);
+  const deps = (depositos ?? []).filter((d) => !(d as { deleted_at?: string | null }).deleted_at);
+  return saldoDaFilialPorProduto(vivos, deps, filialId);
 }
 
-export function produtosComPrecos(l: LinhasVendedor, precos: ReadonlyMap<string, number | null>, aplicacoes: ReadonlyMap<string, string> = new Map()): Product[] {
-  const saldos = saldoPorProduto(l.saldos);
+/**
+ * Disponível por produto na filial (saldo − reservas dos pedidos já aceitos no aparelho, RN-VEN-20). Produto não controlado
+ * não entra no mapa. Sem filial, só o saldo (comportamento anterior).
+ */
+export function disponivelPorProduto(l: LinhasVendedor, filialId: string | null | undefined): Map<string, number> {
+  const saldo = saldoPorProduto(l.saldos, l.depositos, filialId);
+  if (!filialId) return saldo;
+  const itensDe = new Map<string, PedidoItemSync[]>();
+  for (const i of l.itens) itensDe.set(i.pedido_id, [...(itensDe.get(i.pedido_id) ?? []), i]);
+  const reservado = reservadoLocalNaFilial(
+    l.pedidos.map((p) => ({
+      filial_id: p.filial_id ?? null,
+      tipo: p.tipo ?? 'pedido',
+      status: p.status,
+      itens: (itensDe.get(p.id) ?? []).map((i) => ({ produto_id: i.produto_id, quantidade_base: i.quantidade_base ?? i.quantidade, quantidade_faturada: i.quantidade_faturada ?? 0 })),
+    })),
+    filialId,
+  );
+  for (const [pid, q] of saldo) saldo.set(pid, Math.max(0, q - (reservado.get(pid) ?? 0)));
+  return saldo;
+}
+
+/** Estoque mostrado e validado offline: troca o `stock_total` pelo disponível da filial do cliente (sem filial, mantém). */
+export function comEstoqueDaFilial<T extends Product>(items: readonly T[], l: LinhasVendedor, filialId: string | null | undefined): T[] {
+  if (!filialId) return [...items];
+  const disp = disponivelPorProduto(l, filialId);
+  return items.map((p) => (disp.has(p.id) ? { ...p, stock_total: disp.get(p.id)! } : p));
+}
+
+export function produtosComPrecos(l: LinhasVendedor, precos: ReadonlyMap<string, number | null>, aplicacoes: ReadonlyMap<string, string> = new Map(), filialId?: string | null): Product[] {
+  const saldos = disponivelPorProduto(l, filialId);
   return l.produtos
     .filter((p) => p.ativo)
     .map((p) => produtoComPreco(p, precos.get(p.id) ?? null, saldos.get(p.id) ?? null, aplicacoes.get(p.id) ?? null))
@@ -257,8 +298,9 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     seller_name: p.vendedor_nome ?? '',
     customer_id: p.cliente_id,
     customer_name: p.cliente_nome ?? '',
-    branch_id: null,
-    branch_name: null,
+    branch_id: p.filial_id ?? null,
+    branch_name: nomeDaFilialDoPedido(p.filial) || null,
+    ...(dadosFiscaisDaFilial(p.filial) ? { filial: dadosFiscaisDaFilial(p.filial) } : {}),
     price_table_id: p.tabela_preco_id ?? null,
     discount_pct: p.desconto_pct,
     subtotal_cents: p.total_tabela_cents,
@@ -328,6 +370,7 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     ...(i.ajuste_em ? { adjust_mode: i.ajuste_em } : {}),
     // T-0084 (RN-VEN-19): retrato da aplicação no momento do pedido
     ...(i.aplicacao ? { application: i.aplicacao } : {}),
+    ...(i.marca ? { brand: i.marca } : {}),
   };
 }
 

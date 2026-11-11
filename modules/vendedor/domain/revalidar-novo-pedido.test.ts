@@ -57,6 +57,11 @@ describe('revalidarPedido: novo pedido de distribuidora (T-0061)', () => {
     expect(revalidarPedido(entrada({ itens, precos: { p1: 1_000 } }))).toMatchObject({ ok: false, codigo: 'preco_abaixo_minimo' });
     expect(revalidarPedido(entrada({ itens: [{ ...itens[0]!, desconto_pct: 15 }], precos: { p1: 1_000 } })).ok).toBe(true);
   });
+  it('RN-VEN-11 (T-0151): a recusa é curta e só do problema: "AGU-1500 acima do desconto máximo", sem a linha da alçada', () => {
+    const itens = [{ product_id: 'p1', sku: 'AGU-1500', quantity: 1, desconto_pct: 20, preco_minimo_base_cents: 850 }];
+    const r = revalidarPedido(entrada({ itens, precos: { p1: 1_000 } }));
+    expect(r).toMatchObject({ ok: false, codigo: 'preco_abaixo_minimo', http: 422, mensagem: 'AGU-1500 acima do desconto máximo' });
+  });
   it('RN-PRO-01: o promotor nunca cria pedido (403), com ou sem campos novos', () => {
     expect(revalidarPedido(entrada({ perfil: 'promotor' }))).toMatchObject({ ok: false, codigo: 'RN-PRO-01', http: 403 });
   });

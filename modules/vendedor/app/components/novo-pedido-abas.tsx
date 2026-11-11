@@ -6,7 +6,6 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import {
-  BlocoTotais,
   Botao,
   Card,
   Cartao,
@@ -14,11 +13,9 @@ import {
   Chip,
   colors,
   DescontoCompacto,
-  Faixa,
   fonts,
   leituraDoSalvar,
   Icon,
-  LinhaResumo,
   LinhaValor,
   ListaSuspensa,
   RotuloSecao,
@@ -36,15 +33,17 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { type BotaoDoResumo, type BotoesDoResumo } from '../../domain/botoes-resumo';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
-import type { AlertaDaVenda } from '../../domain/alertas-venda';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rotuloTotalDoPedido, TEXTO_ESCOLHA_A_FORMA, TEXTO_SEM_FORMAS, type LimitesDoCliente } from '../lib/pagamento-pedido';
 import { ajusteDoPedidoDoRascunho, rascunhoComTextoDoPedido, rascunhoComTipoDoPedido, textoDoAjuste, valorDoTexto } from '../lib/ajuste-pedido';
-import { enderecosDoCliente, freteValido, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
+import { enderecosDoCliente, transportadorasAtivas, type CalculoPedido, type TipoDoAjuste, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import type { Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, itemCompacto, linhasDeTotais, rotuloDoAjusteDoPedido, textoDaFaixa } from '../lib/textos-pedido';
-import { linhaDaEntregaNoResumo, linhaDaObsNoResumo, linhaDaVendaNoResumo, ROTULOS_DO_RESUMO, TEXTO_OBS_VAZIA, ROTULO_ALERTAS, ROTULO_CREDITO, TEXTO_SEM_ALERTA, tabelaDoCredito, textoDoAlerta } from '../lib/textos-venda';
+import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, linhasDeTotais, rotuloDoAjusteDoPedido } from '../lib/textos-pedido';
+import { linhaDaObsNoResumo, ROTULO_CREDITO, tabelaDoCredito, TEXTO_ENDERECO_DO_CADASTRO } from '../lib/textos-venda';
+import { dividirPagamentoPrazo, itensDoResumoEmTabela, textoDoFrete } from '../lib/resumo-tabela';
+import { linhaLiquidaDosTotais } from '../lib/detalhe-pedido';
+import { CartaoDeTotais, TabelaDeItens, TabelaRotuloValor } from './tabelas-pedido';
 import { rascunhoComEnderecoEditado, rascunhoComEnderecoEscolhido, enderecoDoRascunho, TEXTOS_ENDERECO } from '../lib/endereco-pedido';
 import { CartaoEndereco, FolhaEnderecos, FormularioEndereco } from './endereco-pedido';
 
@@ -127,12 +126,12 @@ export function CardPagamento({
   );
 }
 
-/** Total do pedido no topo da aba Itens ("Total do pedido · 2 itens" · R$ x). Sem rodapé fixo. */
-export function TotalDoPedido({ itens, totalCents }: { itens: number; totalCents: number }) {
+/** Total do pedido no topo da aba Itens ("Total do pedido" · R$ x). Sem rodapé fixo. */
+export function TotalDoPedido({ totalCents }: { totalCents: number }) {
   return (
     <Cartao gap={0} testID="card-total-do-pedido">
       <View style={s.totalDoPedido} testID="total-do-pedido">
-        <Text style={s.totalRotulo}>{rotuloTotalDoPedido(itens)}</Text>
+        <Text style={s.totalRotulo}>{rotuloTotalDoPedido()}</Text>
         <Text style={s.totalValor} testID="total-do-pedido-valor">
           {formatBRL(totalCents)}
         </Text>
@@ -142,12 +141,11 @@ export function TotalDoPedido({ itens, totalCents }: { itens: number; totalCents
 }
 
 /**
- * Aba Venda (RF-VEN-11): caixa Alertas (RN-VEN-12/13) ou a linha "Cliente liberado", forma e prazo (RN-VEN-24/25), limite
+ * Aba Venda (RF-VEN-11): forma e prazo (RN-VEN-24/25), limite (os alertas de cliente, crédito e título vão para a área Alertas do topo, RN-VEN-42)
  * total e disponível e prazo médio do cliente, com a data da última sincronização. `credito`: `undefined` = lendo; `null` =
  * consulta indisponível (as linhas de crédito não aparecem). Tudo do aparelho (vale offline).
  */
 export function AbaVenda({
-  alertas,
   pagamento,
   credito,
   prazoMedioDias,
@@ -156,7 +154,6 @@ export function AbaVenda({
   tz,
   semSinal,
 }: {
-  alertas: readonly AlertaDaVenda[];
   /** cartão de forma e prazo já montado pela tela (`CardPagamento`) */
   pagamento: ReactNode;
   credito: ModeloDoCredito | null | undefined;
@@ -169,19 +166,6 @@ export function AbaVenda({
   const tabela = tabelaDoCredito(credito, prazoMedioDias);
   return (
     <View style={{ gap: 12 }} testID="aba-venda-conteudo">
-      <View style={{ gap: 6 }} testID="venda-alertas">
-        {alertas.length > 0 ? (
-          <>
-            <RotuloSecao texto={ROTULO_ALERTAS} />
-            {alertas.map((a) => {
-              const x = textoDoAlerta(a);
-              return <Faixa key={a.tipo} tom={x.tom} texto={x.texto} apoio={x.apoio} testID={`alerta-${a.tipo}`} />;
-            })}
-          </>
-        ) : (
-          <Faixa tom="ok" texto={TEXTO_SEM_ALERTA} testID="alerta-liberado" />
-        )}
-      </View>
       {pagamento}
       {tabela.estado === 'indisponivel' ? (
         <Text style={t.small} testID="venda-credito-indisponivel">
@@ -192,7 +176,7 @@ export function AbaVenda({
           <RotuloSecao texto={ROTULO_CREDITO} />
           <TabelaValores
             testID="venda-credito"
-            linhas={tabela.linhas.map((l) => ({ id: l.id, rotulo: l.rotulo, valor: l.valor, ...(l.tom ? { tom: l.tom } : {}) }))}
+            linhas={tabela.linhas.map((l) => ({ id: l.id, rotulo: l.rotulo, valor: l.valor }))}
             carregando={tabela.estado === 'carregando'}
             rodape={tabela.estado === 'tabela' ? { icone: semSinal ? 'wifiOff' : 'sync', texto: textoAtualizacao(sincronizadoEm, agora, tz) } : null}
           />
@@ -223,7 +207,6 @@ export function CartaoFrete({
   const ativas = transportadorasAtivas(transportadoras);
   const digitando = frete.modalidade === 'FOB' && !frete.transportadora_id && frete.transportadora_digitada != null;
   const setFrete = (f: FreteDoRascunho) => onRascunho((d) => ({ ...d, frete: f }));
-  const msgFrete = freteValido(frete);
   return (
     <View style={{ gap: 8 }} testID="card-frete">
       <RotuloSecao texto="Frete" />
@@ -256,11 +239,6 @@ export function CartaoFrete({
               <CampoTexto rotulo="Nome" valor={frete.transportadora_digitada.nome} testID="transp-nome" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
               <CampoTexto rotulo="CNPJ" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" teclado="number-pad" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
             </View>
-          ) : null}
-          {msgFrete ? (
-            <Text style={[t.smallStrong, { color: colors.danger }]} testID="frete-aviso">
-              {msgFrete}
-            </Text>
           ) : null}
         </View>
       ) : null}
@@ -426,20 +404,19 @@ function BlocoSugestoes({
 // ---------- aba 4 · Resumo ----------
 /**
  * Resumo completo (RF-VEN-11, T-0137; docs/design/pedido-v2.md §2): só leitura (cliente, venda, itens, entrega, observações), o
- * desconto do pedido numa linha (o mesmo `DescontoCompacto` do item), totais, alçada, "Falta para salvar" e os botões. Os botões e
+ * desconto do pedido numa linha (o mesmo `DescontoCompacto` do item), totais, "Falta para salvar" e os botões. Os botões e
  * os estados vêm do domain (`botoesDoResumo`); aqui só desenha. Sem folha intermediária: cada botão faz o que diz em 1 toque.
  */
 export function AbaResumo({
   rascunho: r,
-  clienteNome,
-  clienteCodigo,
+  clienteRazao,
+  clienteCnpj,
   calculo,
   nomes,
+  codigos,
   prazo,
   endereco,
   transportadora,
-  alertaVenda,
-  limiteVendedor,
   fretePadrao,
   onRascunho,
   botoes,
@@ -451,19 +428,18 @@ export function AbaResumo({
   onCancelar,
   salvando,
   somenteLeitura,
-  pendencias,
 }: {
   rascunho: Rascunho;
-  clienteNome: string;
-  clienteCodigo: string;
+  /** razão social e CNPJ: o nome fantasia e o código já estão no cabeçalho da tela */
+  clienteRazao: string;
+  clienteCnpj: string;
   calculo: CalculoPedido;
   nomes: ReadonlyMap<string, string>;
+  codigos: ReadonlyMap<string, string>;
   prazo: string;
   endereco: string | null;
   /** nome da transportadora escolhida ou digitada (só vale no FOB) */
   transportadora: string | null;
-  alertaVenda: { tom: 'aviso' | 'erro'; texto: string } | null;
-  limiteVendedor: number;
   fretePadrao: 'CIF' | 'FOB';
   onRascunho: OnRascunho;
   botoes: BotoesDoResumo;
@@ -475,29 +451,34 @@ export function AbaResumo({
   onCancelar: () => void;
   salvando: boolean;
   somenteLeitura: boolean;
-  pendencias?: ReactNode;
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
-  const totais = linhasDeTotais({ total_tabela_cents: calculo.total_tabela_cents, desconto_cents: Math.max(0, calculo.descontos_cents), acrescimo_cents: Math.max(0, -calculo.descontos_cents), total_cents: calculo.total_cents });
-  const faixa = textoDaFaixa(calculo, limiteVendedor);
   const linhaSomenteLeitura = linhaDoAjusteSomenteLeitura(calculo.ajuste_pedido);
+  const pagamentoEPrazo = dividirPagamentoPrazo(prazo);
+  const semDado = '—';
+  // RN-VEN-42: os alertas ficam na área do topo da tela (todas as abas); o Resumo só lê e mostra, em tabela
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
-      <Card style={s.card} testID="resumo-pedido">
-        <Text style={t.bodyStrong} testID="resumo-cliente">
-          {clienteNome} · cód. {clienteCodigo}
-        </Text>
-        <LinhaResumo testID="resumo-venda" rotulo={ROTULOS_DO_RESUMO.venda} texto={linhaDaVendaNoResumo(prazo)} alerta={alertaVenda} />
-        <LinhaResumo
-          testID="resumo-itens"
-          rotulo={ROTULOS_DO_RESUMO.itens}
-          {...(calculo.linhas.length > 0
-            ? { linhas: calculo.linhas.map((l) => ({ id: l.chave, rotulo: itemCompacto(nomes.get(l.product_id) ?? '', l.quantity, l.unidade_sigla), valor: formatReais(l.total_cents) })) }
-            : { texto: TEXTO_OBS_VAZIA })}
-        />
-        <LinhaResumo testID="resumo-entrega" rotulo={ROTULOS_DO_RESUMO.entrega} texto={linhaDaEntregaNoResumo({ endereco, modalidade: frete.modalidade, transportadora })} marca={r.endereco_entrega_editado ? TEXTOS_ENDERECO.editadoNestePedido : null} />
-        <LinhaResumo testID="resumo-obs" rotulo={ROTULOS_DO_RESUMO.obs} texto={linhaDaObsNoResumo(r.observacao)} />
-      </Card>
+      <View style={{ gap: 6 }} testID="resumo-pedido">
+        <RotuloSecao texto="Cliente" />
+        <TabelaRotuloValor testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || semDado }]} />
+      </View>
+      <View style={{ gap: 6 }}>
+        <RotuloSecao texto="Venda" />
+        <TabelaRotuloValor testID="resumo-venda" linhas={[{ rotulo: 'Pagamento', valor: pagamentoEPrazo.pagamento }, { rotulo: 'Prazo', valor: pagamentoEPrazo.prazo }]} />
+      </View>
+      <View style={{ gap: 6 }} testID="resumo-itens">
+        <RotuloSecao texto="Itens" />
+        {calculo.linhas.length > 0 ? <TabelaDeItens itens={itensDoResumoEmTabela(calculo.linhas, (id) => nomes.get(id) ?? '', (id) => codigos.get(id) ?? '')} /> : <Text style={t.sub}>{semDado}</Text>}
+      </View>
+      <View style={{ gap: 6 }}>
+        <RotuloSecao texto="Entrega" />
+        <TabelaRotuloValor testID="resumo-entrega" linhas={[{ rotulo: 'Frete', valor: textoDoFrete(frete.modalidade, transportadora) }, { rotulo: 'Endereço', valor: [endereco ?? TEXTO_ENDERECO_DO_CADASTRO, r.endereco_entrega_editado ? `(${TEXTOS_ENDERECO.editadoNestePedido})` : ''].filter(Boolean).join(' ') }]} />
+      </View>
+      <View style={{ gap: 6 }}>
+        <RotuloSecao texto="Observações" />
+        <TabelaRotuloValor testID="resumo-obs" linhas={[{ rotulo: 'Observação', valor: linhaDaObsNoResumo(r.observacao) }]} />
+      </View>
       {somenteLeitura ? (
         linhaSomenteLeitura ? (
           <Card style={s.card} testID="resumo-ajuste-leitura">
@@ -509,11 +490,10 @@ export function AbaResumo({
           <DescontoDoPedido rascunho={r} calculo={calculo} onRascunho={onRascunho} />
         </Card>
       )}
-      <BlocoTotais linhas={totais.linhas} total={totais.total} testID="totais-pedido">
-        {faixa ? <Faixa tom={faixa.tom} texto={faixa.texto} icone={faixa.icone} testID="faixa-alcada" /> : null}
-      </BlocoTotais>
-      {/* v1.0.1: sem itens, a única frase é a pendência "Pelo menos 1 item" do bloco abaixo (antes eram 3) */}
-      {somenteLeitura ? null : pendencias}
+      <View style={{ gap: 6 }}>
+        <RotuloSecao texto="Totais" />
+        <CartaoDeTotais tabela={formatReais(calculo.total_tabela_cents)} liquida={linhaLiquidaDosTotais({ subtotal_cents: calculo.total_tabela_cents, total_cents: calculo.total_cents })} total={formatReais(calculo.total_cents)} testIDTotal="totais-pedido-total" />
+      </View>
       {somenteLeitura ? null : (
         <BotoesDoResumoView botoes={botoes} salvando={salvando} onEnviar={onEnviar} onApenasSalvar={onApenasSalvar} onOrcamento={onOrcamento} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />
       )}
@@ -523,8 +503,7 @@ export function AbaResumo({
 
 /**
  * Desconto do pedido numa linha (RN-VEN-02): o `DescontoCompacto` do kit, o mesmo do item. Tipo (Desc %, Desc R$, Acrésc %, Acrésc R$)
- * e valor digitável; cada número válido vale na hora; o equivalente (% ↔ R$) fica ao lado. O motivo de um desconto alto vem na
- * faixa da alçada logo abaixo.
+ * e valor digitável; cada número válido vale na hora; o equivalente (% ↔ R$) fica ao lado. A alçada não aparece aqui: só a pergunta ao salvar (RN-VEN-10, T-0151).
  */
 export function DescontoDoPedido({ rascunho: r, calculo, onRascunho }: { rascunho: Rascunho; calculo: CalculoPedido; onRascunho: OnRascunho }) {
   const atual = ajusteDoPedidoDoRascunho(r);
@@ -571,7 +550,7 @@ interface BotaoNaTela {
   testID: string;
 }
 
-/** Os botões do Resumo, na hierarquia da spec (§2.2): um principal de largura total com o destino embaixo, os secundários e o Cancelar em texto. */
+/** Os botões do Resumo, na hierarquia da spec (§2.2): um principal de largura total, os secundários e o Cancelar em texto. */
 function BotoesDoResumoView({
   botoes: b,
   salvando,
@@ -606,7 +585,6 @@ function BotoesDoResumoView({
   const linhaDupla = secundarios.length === 2;
   return (
     <View style={s.botoesResumo} testID="botoes-resumo">
-      {b.aviso ? <Faixa tom="erro" texto={b.aviso} testID="resumo-aviso-so-orcamento" /> : null}
       <Botao
         testID={principal.testID}
         nivel="principal"
@@ -616,11 +594,6 @@ function BotoesDoResumoView({
         ocupado={salvando}
         onPress={principal.onPress}
       />
-      {principal.botao.destino ? (
-        <Text style={s.destino} testID="resumo-destino">
-          {principal.botao.destino}
-        </Text>
-      ) : null}
       <View style={linhaDupla ? s.linhaDupla : s.colunaSecundarios}>
         {secundarios.map((x) => (
           <Botao
@@ -658,7 +631,6 @@ const s = StyleSheet.create({
   rotuloLinha: { width: 64, fontFamily: fonts.bold, fontSize: 12, color: colors.ink2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   botoesResumo: { gap: 10 },
-  destino: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2, textAlign: 'center', marginTop: -4 },
   linhaDupla: { flexDirection: 'row', gap: 8 },
   colunaSecundarios: { gap: 8 },
   cancelar: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
