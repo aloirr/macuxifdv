@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linksDeContato, resumoCompras, resumoFinanceiro, situacaoTitulo, type TituloLike } from './cliente360';
+import { compraMediaMesCents, linksDeContato, resumoCompras, resumoSemCompras, semComprasNaJanela, resumoFinanceiro, situacaoTitulo, type TituloLike } from './cliente360';
 
 const titulo = (vencimento: string, saldo_cents: number, situacao: TituloLike['situacao'] = 'aberto'): TituloLike => ({ vencimento, saldo_cents, situacao });
 
@@ -62,6 +62,20 @@ describe('resumo de compras (Cliente 360, RF-CORE-04)', () => {
   it('só entram os 12 meses até o mês de hoje (mês 13 fica de fora)', () => {
     const r = resumoCompras([mes('2025-10', 999, 9, '2025-10-10'), mes('2025-11', 100, 1, '2025-11-10')], '2026-10-12');
     expect(r.total_12m_cents).toBe(100);
+  });
+  it('RN-CORE-40: Compra média/mês = total da janela ÷ 12, sempre (2 meses com compra em 12 não dividem por 2)', () => {
+    const h = [mes('2026-09', 300_000, 2, '2026-09-20'), mes('2026-10', 200_000, 1, '2026-10-02'), mes('2025-09', 999_999, 9, '2025-09-01')];
+    expect(compraMediaMesCents(h, '2026-10-12')).toBe(41_667);
+    expect(compraMediaMesCents([mes('2025-10', 120_000, 1)], '2026-10-12')).toBe(0);
+    expect(compraMediaMesCents([mes('2025-11', 5, 1)], '2026-10-12')).toBe(0);
+    expect(compraMediaMesCents([mes('2025-11', 6, 1)], '2026-10-12')).toBe(1);
+  });
+  it('RN-CORE-40: sem compra na janela (inclui só o 13º mês) a ficha mostra "Sem compras em 12 meses"', () => {
+    expect(semComprasNaJanela([], '2026-10-12')).toBe(true);
+    expect(semComprasNaJanela([mes('2025-10', 100, 1, '2025-10-10')], '2026-10-12')).toBe(true);
+    expect(semComprasNaJanela([mes('2025-11', 100, 1, '2025-11-10')], '2026-10-12')).toBe(false);
+    expect(resumoSemCompras(resumoCompras([], '2026-10-12'))).toBe(true);
+    expect(resumoSemCompras(resumoCompras([mes('2026-10', 100, 1, '2026-10-02')], '2026-10-12'))).toBe(false);
   });
   it('frequência média em dias = dias desde o 1º mês com compra ÷ pedidos', () => {
     const r = resumoCompras([mes('2026-08', 1, 3, '2026-08-20'), mes('2026-09', 1, 3, '2026-09-20')], '2026-10-01');

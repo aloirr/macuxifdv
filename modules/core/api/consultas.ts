@@ -19,6 +19,8 @@ import { calendarioDoTenant } from '../domain/meta-do-dia';
 import { dataLocal } from '../domain/checkin';
 import { financeiroDoCliente } from '../domain/pagamento-cliente';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
+import { filialEfetiva } from '../domain/filial';
+import { filiaisDoTenant } from './filiais';
 import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 
@@ -31,7 +33,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
       : (
           await ctx.db.query(
     // bloqueado (T-0073 / RN-VEN-13): `cliente_financeiro.bloqueado` do próprio Core; sem linha financeira = não bloqueado
-    `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes, c.canal, c.prazo_medio_max_dias, c.formas_pagamento,
+    `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes, c.canal, c.filial_id, c.prazo_medio_max_dias, c.formas_pagamento,
             coalesce(f.bloqueado, false) as bloqueado
        from core.cliente c left join core.cliente_financeiro f on f.cliente_id = c.id and f.deleted_at is null
       where c.deleted_at is null and (c.id = any($1::uuid[]) or c.external_id = any($2::text[])) order by c.id`,
@@ -79,6 +81,11 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
             [entrada.endereco_ids, clientes.map((c) => c.id)],
           )
         ).rows;
+  if (clientes.length > 0) {
+    // T-0149 / RN-CORE-39: a filial EFETIVA do cliente (nula, apagada ou inativa = padrão), nunca a bruta
+    const filiais = await filiaisDoTenant(ctx.db);
+    if (filiais.some((f) => f.padrao)) for (const c of clientes) c.filial_id = filialEfetiva((c as { filial_id?: string | null }).filial_id ?? null, filiais).id;
+  }
   return { clientes, produtos, usuarios, enderecos } as CadastroResumoSaida;
 });
 
