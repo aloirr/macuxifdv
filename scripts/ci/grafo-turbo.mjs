@@ -13,10 +13,10 @@
  *  R2. Toda dependência fora do grafo declarado (import de @macuxi/* não declarado, import relativo ou — só para
  *      `test` — caminho literal `../` que sai da pasta) precisa estar coberta por um glob `$TURBO_ROOT$/<pasta>/**` nos `inputs`
  *      da tarefa (`<pacote>#<tarefa>` no turbo.json da raiz).
- *  R4. Nenhum código de pacote nem do tests/ lê os caminhos de COORDENAÇÃO (scripts/ci/escopo.mjs: .coord/,
- *      docs/status/, docs/backlog.md, docs/produto/) nem uma pasta acima deles (ex.: 'docs'): literal de caminho fora de
- *      comentário, com ou sem '../' na frente, ou join('docs', 'produto'|'status'|'backlog.md'). Commit só desses caminhos
- *      roda só a governança no CI, então nenhum teste pode depender deles.
+ *  R4. Nenhum código de pacote nem do tests/ lê DOCUMENTAÇÃO (scripts/ci/escopo.mjs: .coord/**, docs/** e os *.md da
+ *      raiz) fora das pastas declaradas nos inputs do turbo.json (`$TURBO_ROOT$/docs/modulos/**`), nem uma pasta acima
+ *      delas (ex.: 'docs'): literal de caminho fora de comentário, com ou sem '../' na frente, ou join('docs', '<pasta>').
+ *      Commit só de documentação roda só a governança no CI (T-0160), então nenhum teste pode depender dela.
  *  R3. Tarefa com glob `$TURBO_ROOT$/...` nos inputs também exclui node_modules, .turbo, .next, .expo, dist e
  *      *.tsbuildinfo (EXCLUSOES_RAIZ), senão o hash muda sozinho e o cache nunca acerta (ou acerta por acaso).
  *
@@ -25,7 +25,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COORDENACAO } from './escopo.mjs';
+import { DOCUMENTACAO, ehDocumentacao, lidosPeloCodigo } from './escopo.mjs';
 
 const RAIZ_PADRAO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TAREFAS = ['lint', 'typecheck', 'test'];
@@ -70,7 +70,7 @@ export function lerPacotes(raiz) {
 }
 
 /** Dependências fora do grafo declarado de uma unidade: [{ alvo: 'modules/core/...', motivo, arquivo }]. */
-export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
+export function dependenciasForaDoGrafo(raiz, unidade, pacotes, docs = { lidos: [], mdsDaRaiz: [] }) {
   const porNome = new Map(pacotes.map((p) => [p.nome, p]));
   const base = join(raiz, unidade.dir);
   const achados = [];
@@ -95,14 +95,20 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
       const alvoPkg = porNome.get(nome);
       if (alvoPkg && nome !== unidade.nome && !unidade.declaradas.has(nome)) anotar(alvoPkg.dir, `import de ${nome} não declarado no package.json`, arq);
     }
-    // R4: literal de caminho para um caminho de coordenação (comentários removidos antes; o pathspec "':!docs'" do git
-    // não casa porque começa com ':!').
+    // R4: literal de caminho para documentação (comentários removidos antes; o pathspec "':!docs'" do git não casa
+    // porque começa com ':!').
     const semComentarios = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+    // Literal relativo ('./', '../') vale a partir do arquivo (a pasta docs/ de um módulo é do módulo); literal "solto"
+    // vale a partir da raiz (join(raiz, ...)) e só conta se o caminho existe lá (texto de teste não é leitura).
+    const existeNaRaiz = (p) => existsSync(join(raiz, p));
     for (const m of semComentarios.matchAll(/['"`]([^'"`\n$]+)['"`]/g)) {
-      if (tocaCoordenacao(m[1])) anotar(m[1], `${LE_COORD} (${m[1]})`, arq);
+      const relativo = /^\.\.?\//.test(m[1]);
+      const alvo = relativo ? posix(relative(raiz, resolve(dirname(arq), m[1]))) : m[1];
+      if (relativo && alvo.startsWith('..')) continue;
+      if (tocaCoordenacao(alvo, { ...docs, existe: relativo ? () => true : existeNaRaiz })) anotar(m[1], `${LE_COORD} (${m[1]})`, arq);
     }
-    for (const m of semComentarios.matchAll(/['"`]docs['"`]\s*,\s*['"`](status|produto|backlog\.md)['"`]/g)) {
-      anotar(`docs/${m[1]}`, `${LE_COORD} (join docs, ${m[1]})`, arq);
+    for (const m of semComentarios.matchAll(/['"`]docs['"`]\s*,\s*['"`]([^'"`\n$/]+)['"`]/g)) {
+      if (tocaCoordenacao(`docs/${m[1]}`, { ...docs, existe: existeNaRaiz })) anotar(`docs/${m[1]}`, `${LE_COORD} (join docs, ${m[1]})`, arq);
     }
     // caminho literal relativo lido em tempo de execução (ex.: resolve(__dirname, '../../../docs/x.md'))
     for (const m of src.matchAll(/['"`]((?:\.\.\/)+[^'"`\n$]*)['"`]/g)) {
@@ -115,15 +121,27 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
 
 /** Leitura de arquivo em tempo de execução: só afeta o resultado da tarefa `test` (lint e typecheck não leem). */
 const LEITURA = 'caminho relativo fora do pacote (leitura em tempo de execução)';
-const LE_COORD = 'lê caminho de coordenação — commit só de coordenação não roda testes';
+const LE_COORD = 'lê documentação fora dos inputs do turbo.json — commit só de documentação não roda testes';
 
-/** O literal aponta para um caminho de coordenação, para dentro dele ou para uma pasta acima dele (exceto a raiz)? */
-export function tocaCoordenacao(literal) {
+/**
+ * O literal aponta para documentação (escopo.mjs), para dentro dela ou para uma pasta acima dela (exceto a raiz)? As pastas
+ * lidas pelo código (`lidos`, dos inputs do turbo.json) não contam; *.md da raiz só pelo nome exato de um que existe.
+ * `existe(caminho)`: dentro da documentação, só conta o caminho que existe (ele ou a pasta dos 2 primeiros níveis).
+ */
+export function tocaCoordenacao(literal, { lidos = [], mdsDaRaiz = [], existe = () => true } = {}) {
   const p = literal.replace(/\\/g, '/').replace(/^(?:\.\.?\/)+/, '').replace(/\/+$/, '');
   if (!p || p === '.' || p === '..') return false;
-  return COORDENACAO.some((c) => {
+  if (lidos.some((l) => p === l.replace(/\/$/, '') || p.startsWith(l))) return false;
+  if (!p.includes('/')) {
+    if (p.endsWith('.md')) return mdsDaRaiz.includes(p);
+  } else if (ehDocumentacao(p, lidos)) {
+    const s = p.split('/');
+    return existe(p) || (s.length >= 3 && existe(`${s[0]}/${s[1]}`));
+  }
+  // a própria pasta de documentação ou uma pasta acima dela ('docs', '.coord')
+  return DOCUMENTACAO.some((c) => {
     const alvo = c.replace(/\/$/, '');
-    return p === alvo || p.startsWith(`${alvo}/`) || alvo.startsWith(`${p}/`);
+    return p === alvo || alvo.startsWith(`${p}/`);
   });
 }
 
@@ -146,11 +164,12 @@ export function verificar(raiz = RAIZ_PADRAO) {
   const turbo = JSON.parse(readFileSync(join(raiz, 'turbo.json'), 'utf8'));
   const pacotes = lerPacotes(raiz);
   const problemas = [];
+  const docs = { lidos: lidosPeloCodigo(turbo), mdsDaRaiz: readdirSync(raiz).filter((n) => n.endsWith('.md')) };
   if (!turbo.tasks.transit || !(turbo.tasks.transit.dependsOn ?? []).includes('^transit')) {
     problemas.push('turbo.json: falta a tarefa "transit" com dependsOn ["^transit"] (R1)');
   }
   for (const unidade of [...pacotes, UNIDADE_TESTS]) {
-    const deps = dependenciasForaDoGrafo(raiz, unidade, pacotes);
+    const deps = dependenciasForaDoGrafo(raiz, unidade, pacotes, docs);
     // R4 vale com ou sem cache (é sobre o escopo do CI, não sobre o turbo): uma vez por unidade.
     for (const d of deps) if (d.motivo.startsWith(LE_COORD)) problemas.push(`${unidade.nome === '//' ? 'tests' : unidade.nome}: ${d.motivo} → ${d.arquivo} (R4)`);
     for (const tarefa of Object.keys(unidade.tarefas)) {
