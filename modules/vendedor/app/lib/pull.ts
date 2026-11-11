@@ -17,7 +17,8 @@ import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/
 import { ultimaMudancaDeStatus } from '../../domain/busca-periodo';
 import { camposFaturamento } from '../../domain/retorno-erp';
 import { dadosFiscaisDaFilial, nomeDaFilialDoPedido } from '../../domain/filial-pedido';
-import { reservadoLocalNaFilial, saldoDaFilialPorProduto } from '../../domain/reserva-filial';
+import { depositosDaFilial, saldoPorProdutoDaFilial } from '@macuxi/catalogo/contracts';
+import { disponivel, reservadoLocalNaFilial } from '../../domain/reserva-filial';
 
 export interface LinhasVendedor {
   pedidos: PedidoSync[];
@@ -189,7 +190,11 @@ export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldo
 export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined, depositos?: readonly DepositoSync[], filialId?: string | null): Map<string, number> {
   const vivos = (saldos ?? []).filter((s) => !(s as { deleted_at?: string | null }).deleted_at);
   const deps = (depositos ?? []).filter((d) => !(d as { deleted_at?: string | null }).deleted_at);
-  return saldoDaFilialPorProduto(vivos, deps, filialId);
+  // Legado (nenhum depósito ligado a filial, ou depósitos fora do aparelho): vale todo depósito que tem saldo, como a API faz com a tabela inteira.
+  const legado = !deps.some((d) => d.filial_id);
+  const validos = legado ? new Set(vivos.map((x) => x.deposito_id)) : depositosDaFilial(deps.map((d) => ({ id: d.id, filial_id: d.filial_id })), filialId);
+  const linhas = vivos.map((x) => ({ produto_id: x.produto_id, deposito_id: x.deposito_id, quantidade: Number(x.quantidade) }));
+  return new Map(saldoPorProdutoDaFilial([...new Set(linhas.map((x) => x.produto_id))], validos, linhas).map((x) => [x.produto_id, x.quantidade_base]));
 }
 
 /**
@@ -210,7 +215,7 @@ export function disponivelPorProduto(l: LinhasVendedor, filialId: string | null 
     })),
     filialId,
   );
-  for (const [pid, q] of saldo) saldo.set(pid, Math.max(0, q - (reservado.get(pid) ?? 0)));
+  for (const [pid, q] of saldo) saldo.set(pid, disponivel(q, reservado.get(pid) ?? 0));
   return saldo;
 }
 

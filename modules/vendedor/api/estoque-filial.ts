@@ -1,10 +1,10 @@
 /**
  * RN-VEN-20 (T-0149; RN-CORE-39): a API reserva e confere o estoque da FILIAL do pedido. A reserva não tem tabela: são os itens dos
  * pedidos aceitos e ainda não encerrados (migração 0061, `vendedor.pedido_item.filial_id` derivada por gatilho). O saldo da filial
- * vem do Catálogo (`saldoDaFilial`); enquanto o Catálogo não publicar a consulta de saldo por filial, o provedor fica ausente e
- * vale o comportamento anterior (a API não recusa por estoque; o app já manda o pedido sem estoque como orçamento).
+ * vem de `catalogo.estoque_filial@1` (`provedorDaTransacao`); consulta indisponível = sem saldo, comportamento anterior.
  */
-import type { ClienteBanco } from '@macuxi/platform-sdk';
+import { CONSULTA_ESTOQUE_FILIAL } from '@macuxi/catalogo/contracts';
+import { ehConsultaIndisponivel, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { produtosSemEstoqueNaFilial, STATUS_QUE_RESERVAM, type FaltaDeEstoque, type ItemParaEstoque } from '../domain';
 
 /** Saldo (unidade base) por produto na filial; produto ausente do mapa = estoque não controlado. `null` = sem informação de saldo. */
@@ -38,12 +38,23 @@ export async function faltaDeEstoqueNaFilial(
   const produtoIds = [...new Set(itens.map((i) => i.produto_id))];
   const saldo = await provedor(produtoIds, filialId);
   if (!saldo) return [];
-  return produtosSemEstoqueNaFilial(itens, saldo, await reservadoNaFilial(db, produtoIds, filialId, pedidoId), filialId);
+  return produtosSemEstoqueNaFilial(itens, saldo, await reservadoNaFilial(db, produtoIds, filialId, pedidoId));
 }
 
+/** Provedor real: `catalogo.estoque_filial@1` na transação da requisição. Catálogo indisponível ou sem a consulta = sem saldo (comportamento anterior). */
+export const provedorDaTransacao = (tx: Pick<TransacaoTenant, 'consultar'>): ProvedorSaldoDaFilial => async (produtoIds, filialId) => {
+  try {
+    const r = await tx.consultar(CONSULTA_ESTOQUE_FILIAL, { produto_ids: [...produtoIds], filial_id: filialId });
+    return new Map(r.itens.map((x) => [x.produto_id, x.quantidade_base]));
+  } catch (e) {
+    if (ehConsultaIndisponivel(e)) return null;
+    throw e;
+  }
+};
+
 let provedorAtual: ProvedorSaldoDaFilial | null = null;
-/** O plugin liga o provedor quando a consulta de saldo por filial do Catálogo existir; `null` desliga (testes). */
+/** Substitui o provedor da transação (testes de API com provedor falso); `null` volta ao provedor real. */
 export const definirProvedorSaldoDaFilial = (p: ProvedorSaldoDaFilial | null): void => {
   provedorAtual = p;
 };
-export const provedorSaldoDaFilial = (): ProvedorSaldoDaFilial | null => provedorAtual;
+export const provedorSaldoDaFilial = (tx: Pick<TransacaoTenant, 'consultar'>): ProvedorSaldoDaFilial => provedorAtual ?? provedorDaTransacao(tx);

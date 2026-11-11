@@ -28,7 +28,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pedidoDoOrcamento, type OrcamentoParaPedido } from '../../../modules/vendedor/domain';
 import { A, licenca } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, garantirSaldoNaFilial, listaDe, SALDO_REFERENCIA, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 type Linha = LinhaSync & Record<string, unknown>;
 interface Banco {
@@ -195,6 +195,9 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
     expect([prod.AGU, prod.CAF, prod.BIS].every(Boolean), 'AGU-500, CAF-500 e BIS-400 na base demo').toBe(true);
     miniBox = (await q<{ id: string }>("select id from core.cliente where tenant_id = $1 and external_id = 'C5110'", [TENANT_DEMO]))[0]?.id ?? '';
     expect(miniBox, 'Mini Box Japiim (C5110) na base demo').not.toBe('');
+    // RN-VEN-20 (v1.0.4): os totais da referência dependem de AGU-500, CAF-500 e BIS-400 nessas quantidades; o CAF-500 tem pouco
+    // disponível na filial do Mini Box (saldo − reservas do seed): o preparo completa o saldo antes do 1º sync (a recusa fica ligada)
+    for (const p of [prod.AGU, prod.CAF, prod.BIS]) await garantirSaldoNaFilial(api.admin, miniBox, p, SALDO_REFERENCIA);
     const carteira = await q<{ cliente_id: string }>('select cliente_id from core.carteira where tenant_id = $1 and usuario_id = $2 and deleted_at is null', [TENANT_DEMO, usuarioId.vendedor]);
     expect(carteira.map((c) => c.cliente_id), 'Mini Box na carteira do Lucas').toContain(miniBox);
     outroCliente = carteira.map((c) => c.cliente_id).find((c) => c !== miniBox)!;
