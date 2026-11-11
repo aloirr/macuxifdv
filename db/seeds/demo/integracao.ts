@@ -14,6 +14,10 @@
  *     (lote_linha_erro só com external_id, código e mensagem — sem payload nem dado pessoal), estoque delta que falhou e
  *     título delta da filial concluído.
  *  5. Inativação aguardando: 3 clientes de 30 ativos (10%, limite 5%) na carga completa de cliente, validade de 7 dias.
+ *  6. T-0155: a fila do ERP dos 3 pedidos faturados da demo (FATURAMENTOS_DEMO de demo.ts): pedido_fila_erp já entregue ao ERP
+ *     Matriz e fechado em faturado_total/faturado_parcial, com a trilha pedido_retorno (integrado + faturado). Montada a partir
+ *     das linhas do Vendedor pelas funções do Hub (decidirEntradaNaFila, aplicarRetornoPedido) — os instantes são os da linha do
+ *     tempo do pedido, não o now(). Os demais pedidos aprovados da demo seguem sem linha na fila (o seed não publica aprovado@1).
  * Instantes relativos ao now() DO BANCO no momento do seed (nada de data fixa). Atenção para o roteiro: o "último sinal" do
  * ERP Matriz envelhece; rode o seed de novo (sem --recriar) antes da demonstração para ele voltar a "agora".
  *
@@ -23,9 +27,14 @@
  */
 import { createHash } from 'node:crypto';
 import type { ClientBase } from 'pg';
+import { VERSAO_CONTRATO } from '../../../modules/integracao/contracts';
+import { aplicarRetornoPedido, decidirEntradaNaFila, exigeConector, montarSnapshotParaFila, type Mapeamento, type PedidoNaFila } from '../../../modules/integracao/domain';
+import { enderecoParaEvento, montarPedidoAprovado } from '../../../modules/vendedor/domain/aprovacao';
 import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
+// só TIPO de demo.ts: demo.ts importa este arquivo (import de valor aqui seria circular)
+import type { DadosDemo } from './demo';
 
 /** Tenant demo (= TENANT_DEMO de demo.ts; conferido em db/testes/seed-demo.test.ts). */
 export const TENANT_DEMO_INTEGRACAO = 'dd000000-0000-4000-8000-000000000001';
@@ -147,8 +156,130 @@ export function dadosIntegracaoDemo(agora: Date): DadosIntegracaoDemo {
   };
 }
 
+/**
+ * T-0155: de-para da condição de pagamento com que os pedidos faturados da demo foram ao ERP (o payload da fila é o retrato da
+ * entrega). Não vira linha de integracao.mapeamento: a tela de Mapeamento da demo continua como estava.
+ */
+export const DE_PARA_CONDICAO_DEMO: readonly Mapeamento[] = [
+  { tipo: 'condicao_pagamento', codigo_macuxi: 'AVISTA', codigo_erp: '001', ativo: true },
+  { tipo: 'condicao_pagamento', codigo_macuxi: '28D', codigo_erp: '028', ativo: true },
+  { tipo: 'condicao_pagamento', codigo_macuxi: '28-56', codigo_erp: '056', ativo: true },
+  { tipo: 'condicao_pagamento', codigo_macuxi: '30-60-90', codigo_erp: '090', ativo: true },
+];
+
+/** Status do Vendedor que já passaram pelo ERP na demo (têm linha na fila). */
+const FATURADOS = new Set(['invoiced', 'invoiced_partial']);
+type FilaDemo = Pick<
+  DadosDemo,
+  'core.cliente' | 'core.usuario' | 'core.produto' | 'vendedor.condicao_pagamento' | 'vendedor.transportadora' | 'vendedor.pedido' | 'vendedor.pedido_item' | 'vendedor.pedido_faturamento'
+>;
+const isoDe = (v: unknown) => new Date(String(v)).toISOString();
+const textoOuNulo = (v: unknown) => (v === null || v === undefined ? null : String(v));
+
+/**
+ * T-0155 (função pura): fila do ERP e trilha dos retornos dos pedidos faturados da demo. O aprovado@1 sai do montarPedidoAprovado
+ * do Vendedor; a entrada na fila, do decidirEntradaNaFila; os retornos (integrado e a nota de faturamento), do aplicarRetornoPedido.
+ * Retorno recusado, repetido ou com item descartado = erro do seed (a fila nunca fica diferente do pedido).
+ */
+export function dadosFilaErpDemo(dados: FilaDemo): { 'integracao.pedido_fila_erp': Linha[]; 'integracao.pedido_retorno': Linha[] } {
+  const fila: Linha[] = [];
+  const retornos: Linha[] = [];
+  const conectorId = INTEGRACAO_DEMO.conectores.matriz;
+  const porId = (linhas: readonly Linha[]) => new Map(linhas.map((l) => [String(l.id), l]));
+  const clientes = porId(dados['core.cliente']);
+  const usuarios = porId(dados['core.usuario']);
+  const produtos = porId(dados['core.produto']);
+  const condicoes = porId(dados['vendedor.condicao_pagamento']);
+  const transportadoras = porId(dados['vendedor.transportadora']);
+  for (const p of dados['vendedor.pedido'].filter((x) => FATURADOS.has(String(x.status)))) {
+    const pedidoId = String(p.id);
+    const itens = dados['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id).sort((a, b) => Number(a.sequencia) - Number(b.sequencia));
+    const skuDaSequencia = new Map(itens.map((i) => [Number(i.sequencia), String(produtos.get(String(i.produto_id))?.external_id)]));
+    const transp = p.transportadora_id ? transportadoras.get(String(p.transportadora_id)) : undefined;
+    const aprovado = montarPedidoAprovado({
+      pedido_uuid: pedidoId,
+      cliente_external_id: textoOuNulo(clientes.get(String(p.cliente_id))?.external_id),
+      vendedor_external_id: textoOuNulo(usuarios.get(String(p.vendedor_id))?.external_id),
+      condicao_pagamento_codigo: textoOuNulo(condicoes.get(String(p.condicao_pagamento_id))?.codigo),
+      pagamento: null,
+      criado_em: isoDe(p.criado_no_aparelho_em),
+      // dentro da alçada: aprovado na chegada (sem decisão)
+      aprovado_em: isoDe(p.decidido_em ?? p.created_at),
+      observacao: textoOuNulo(p.observacao),
+      desconto_pct: Number(p.desconto_pct),
+      acrescimo_pct: 0,
+      frete: transp
+        ? {
+            modalidade: 'FOB',
+            transportadora: { tipo: 'cadastrada', id: String(transp.id), external_id: textoOuNulo(transp.external_id), nome: String(transp.nome), cnpj: textoOuNulo(transp.documento), telefone: textoOuNulo(transp.telefone) },
+          }
+        : { modalidade: 'CIF' },
+      endereco_entrega: enderecoParaEvento(p.endereco_entrega as Record<string, unknown> | null),
+      itens: itens.map((i) => ({
+        produto_external_id: textoOuNulo(produtos.get(String(i.produto_id))?.external_id),
+        quantidade: Number(i.quantidade),
+        preco_tabela_cents: Number(i.preco_tabela_cents),
+        total_cents: Number(i.total_cents),
+        unidade: textoOuNulo(i.unidade),
+        fator: 1,
+        quantidade_venda: Number(i.quantidade),
+        desconto_pct: Number(i.desconto_pct),
+        acrescimo_pct: 0,
+        aplicacao: null,
+      })),
+    });
+    const snap = montarSnapshotParaFila(aprovado);
+    if (!snap.ok) throw new Error(`[db] seed demo integração: pedido faturado retido na fila (${snap.mensagem})`);
+    const entrada = decidirEntradaNaFila({ existente: null, statusPedido: 'aprovado', snapshot: snap.snapshot, invalido: null, mapeamentos: DE_PARA_CONDICAO_DEMO });
+    if (entrada.acao !== 'criar') throw new Error(`[db] seed demo integração: o pedido faturado não entraria na fila (${entrada.acao})`);
+    // o Conector já o retirou (GET /pedidos/pendentes) na hora do "Enviado ao ERP"
+    let item: PedidoNaFila = {
+      pedido_uuid: pedidoId, estado: 'enviado', payload: entrada.pedido, retencao_codigo: null, enviado_em: isoDe(p.enviado_erp_em), tentativas: 1,
+      numero_erp: null, motivo: null, notas_aplicadas: [], itens_faturados_acumulados: {}, removido_em: null,
+    };
+    const notas = dados['vendedor.pedido_faturamento'].filter((f) => f.pedido_id === p.id).sort((a, b) => String(a.faturado_em).localeCompare(String(b.faturado_em)));
+    if (notas.length === 0) throw new Error('[db] seed demo integração: pedido faturado sem nota de faturamento');
+    const recebidos = [
+      { versao_contrato: VERSAO_CONTRATO, pedido_uuid: pedidoId, status: 'integrado' as const, numero_erp: String(p.numero_erp), motivo: null, nota: null, itens_faturados: null, ocorrido_em: isoDe(p.integrado_em) },
+      ...notas.map((f) => ({
+        versao_contrato: VERSAO_CONTRATO,
+        pedido_uuid: pedidoId,
+        status: f.parcial === true ? ('faturado_parcial' as const) : ('faturado_total' as const),
+        numero_erp: String(f.numero_erp),
+        motivo: null,
+        nota: { numero: String(f.nota_numero), serie: textoOuNulo(f.nota_serie), emitida_em: isoDe(f.nota_emitida_em), total_cents: Number(f.nota_total_cents) },
+        itens_faturados: (f.itens as Array<{ sequencia: number; quantidade: number; total_cents: number }>).map((i) => ({
+          sequencia: i.sequencia, produto_external_id: skuDaSequencia.get(i.sequencia)!, quantidade: i.quantidade, valor_cents: i.total_cents,
+        })),
+        ocorrido_em: isoDe(f.faturado_em),
+      })),
+    ];
+    for (const [k, ret] of recebidos.entries()) {
+      const r = aplicarRetornoPedido(item, ret);
+      if (!r.ok || r.repetido || r.itens_descartados.length > 0) throw new Error(`[db] seed demo integração: retorno ${ret.status} recusado pela fila do ERP`);
+      const a = r.atualizacao;
+      item = { ...item, estado: a.estado, numero_erp: a.numero_erp, motivo: a.motivo, notas_aplicadas: a.notas_aplicadas, itens_faturados_acumulados: a.itens_faturados_acumulados };
+      retornos.push({
+        id: id(`pedido_retorno:${pedidoId}:${k + 1}`), tenant_id: T, pedido_uuid: pedidoId, status: ret.status, numero_erp: a.numero_erp, motivo: null,
+        nota_numero: ret.nota?.numero ?? null, nota_serie: ret.nota?.serie ?? null, nota_emitida_em: ret.nota?.emitida_em ?? null, nota_total_cents: ret.nota?.total_cents ?? null,
+        itens_faturados: r.evento.itens_faturados ?? null, ocorrido_em: ret.ocorrido_em, conector_id: conectorId, ...comuns,
+      });
+    }
+    const ultimo = recebidos[recebidos.length - 1]!;
+    fila.push({
+      id: id(`pedido_fila_erp:${pedidoId}`), tenant_id: T, pedido_uuid: pedidoId, estado: item.estado, payload: item.payload, payload_origem: aprovado,
+      retencao_codigo: null, retencao_mensagem: null, conector_id: conectorId, enviado_em: item.enviado_em, tentativas: item.tentativas, numero_erp: item.numero_erp,
+      motivo: item.motivo, nota_numero: ultimo.nota?.numero ?? null, nota_serie: ultimo.nota?.serie ?? null, nota_emitida_em: ultimo.nota?.emitida_em ?? null,
+      nota_total_cents: ultimo.nota?.total_cents ?? null, notas_aplicadas: item.notas_aplicadas, itens_faturados_acumulados: item.itens_faturados_acumulados,
+      ultimo_retorno_em: ultimo.ocorrido_em, aprovado_em: aprovado.aprovado_em, exige_conector: exigeConector(entrada.pedido), ...comuns,
+    });
+  }
+  return { 'integracao.pedido_fila_erp': fila, 'integracao.pedido_retorno': retornos };
+}
+
+
 /** Grava a base do monitor da Integração (dentro da transação do carregarDemo). Devolve a hora (now() do banco) usada. */
-export async function gravarDemoIntegracao(admin: ClientBase): Promise<{ agora: Date; pendenciaGravada: boolean }> {
+export async function gravarDemoIntegracao(admin: ClientBase, dados: FilaDemo): Promise<{ agora: Date; pendenciaGravada: boolean }> {
   exigirBancoDemo(hostDoCliente(admin), 'Seed do monitor da Integração ERP da demo');
   const existe = await admin.query<{ ok: boolean }>("select to_regclass('integracao.pendencia_inativacao') is not null as ok");
   if (!existe.rows[0]?.ok) throw new Error('[db] base de demo da Integração precisa da migração 0010_integracao: rode "banco migrar up" antes.');
@@ -163,6 +294,11 @@ export async function gravarDemoIntegracao(admin: ClientBase): Promise<{ agora: 
   await gravarLinhas(admin, 'integracao.sessao_carga', d['integracao.sessao_carga']);
   await gravarLinhas(admin, 'integracao.lote', d['integracao.lote']);
   await gravarLinhas(admin, 'integracao.lote_linha_erro', d['integracao.lote_linha_erro']);
+  // T-0155: fila do ERP dos pedidos faturados (depois do Conector: FK conector_id), a trilha depois da fila (FK pedido_uuid)
+  const f = dadosFilaErpDemo(dados);
+  for (const linhas of Object.values(f)) for (const l of linhas) if (l.tenant_id !== T) throw new Error('[db] seed demo integração: linha fora do tenant demo');
+  await gravarLinhas(admin, 'integracao.pedido_fila_erp', f['integracao.pedido_fila_erp']);
+  await gravarLinhas(admin, 'integracao.pedido_retorno', f['integracao.pedido_retorno']);
   // inativação decidida no ensaio (confirmada/recusada/expirada) fica como está
   const decidida = await admin.query("select 1 from integracao.pendencia_inativacao where tenant_id = $1 and id = $2 and estado <> 'aguardando'", [T, INTEGRACAO_DEMO.pendencia]);
   if ((decidida.rowCount ?? 0) > 0) return { agora, pendenciaGravada: false };

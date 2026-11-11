@@ -22,7 +22,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idPerfilFabrica } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA, FUNCOES_SA_ATE_0057 } from './funcoes-sa';
 import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -102,7 +102,7 @@ describe('0046 portal pelos perfis do usuário (estático)', () => {
     expect(FUNCOES_SA).toEqual(expect.arrayContaining([...AS_4]));
     expect(up).not.toMatch(/grant execute [^;]* to macuxi_(app|worker);/);
     expect(up).toContain('if v_n <> 14 then');
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(14);
+    expect(FUNCOES_SA_ATE_0057).toHaveLength(14); // 14 até a 0057; a 0058 (T-0158) acrescenta 2
   });
 
   it('down: as 4 com o texto exato da 0040 e o drop da função nova depois delas', () => {

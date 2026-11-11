@@ -18,7 +18,8 @@
  *   e 28 dias, RN-VEN-14); alçadas do Vendedor em plataforma.parametro (5/10/15%, acima do gerente = analista); pedidos
  *   recalculados pela tabela do cliente com a MESMA regra do servidor (revalidarPedido do domínio do Vendedor), com
  *   número, retratos e linha do tempo: aprovados na alçada, 2 aguardando o supervisor (um de cada vendedor), 1 aguardando
- *   o gerente, 1 rejeitado e 1 cancelado. Nada em sent_to_erp ou depois (ERP fora da fatia).
+ *   o gerente, 1 rejeitado e 1 cancelado. T-0155: 3 dos aprovados já faturados pelo ERP (FATURAMENTOS_DEMO: p01 Faturado, p08
+ *   Faturado parcial, p02 Faturado com devolução parcial), com nota, resumo, linha do tempo e a fila do ERP (integracao.ts).
  * - 0013 (T-0047, T-0059, R-20261102-092329/093007/094644): todos os clientes com CNPJ FICTÍCIO gerado (dígito
  *   verificador correto) e IE (um "ISENTO"); o Atacado Boto Rosa SEM CEP (cadastro incompleto, RN-CORE-17: só orçamento);
  *   endereço principal de todos e um de entrega em 5; 2 transportadoras; pedidos FOB (com transportadora) em 4 clientes e CIF no resto;
@@ -27,8 +28,8 @@
  *   fator (preço próprio da CX preparado, desligado até a consulta de preço filtrar a unidade), árvore de 3 níveis, conteúdo, atributos, sinônimos, documento de busca
  *   do servidor e estoque em 2 depósitos (com rupturas e saldos baixos). Pedidos com CNPJ no retrato, frete e entrega.
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
- * - Metas do mês corrente (Lucas, Camila e Joana), todas do tipo 'pedido' (0019, RN-CORE-21: a demo não tem faturamento do
- *   ERP, uma meta de faturamento ficaria zerada), indicador diário coerente com os pedidos, motivos extras (os padrões vêm
+ * - Metas do mês corrente (Lucas, Camila e Joana), todas do tipo 'pedido' (0019, RN-CORE-21: a demo só tem 3 pedidos faturados
+ *   pelo ERP, uma meta de faturamento ficaria quase zerada), indicador diário coerente com os pedidos, motivos extras (os padrões vêm
  *   do gatilho core.semear_tenant) e 2 notificações. Metas do mês anterior de Lucas e Camila (mesmos indicadores, valores
  *   um pouco menores) para o "copiar do mês anterior" do BKO (T-0068); o Gestor projeta por usuário|mês, o mês corrente
  *   não muda. Meta viva gravada pelo ensaio no mesmo (usuário, período, indicador) é mantida (o seed pula a dele).
@@ -67,6 +68,11 @@
  *   28, 28/56 e 30/60/90), prazo médio máximo 45 nos clientes (30 na Panificadora Pão Dourado), formas restritas na
  *   Conveniência Rota 10 (sem boleto), 3 faixas escalonadas no BIS-400 e a forma padrão "À vista" da 0037 apagada:
  *   pagamento.ts. As condições antigas (acima) continuam, para o APK antigo; o título vencido já está nos 8 clientes.
+ * - T-0149 (0056; desenho T-0149 §3.5): filiais Manaus '0001' (padrão) e Boa Vista '0002', 4 clientes na Boa Vista, preço da
+ *   Boa Vista 5% acima nas duas tabelas, depósito CD Boa Vista com estoque próprio (café 500 g zerado lá) e o retrato da
+ *   filial nos pedidos; 0059 (T-0159): CNPJ, endereço e telefone fictícios das 2 filiais: filial.ts.
+ * - T-0147 (0057; desenho T-0147 §3): tipos de foto do PDV (Fachada, CNH do sócio e Contrato social) e a fachada de 5
+ *   clientes (metadados 'aguardando': os bytes não estão no armazenamento): fotos-pdv.ts.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -76,6 +82,8 @@
 import type { ClientBase } from 'pg';
 import { politicaDosParametros, revalidarPedido } from '../../../modules/vendedor/domain/aprovacao';
 import type { OrderStatus } from '../../../modules/vendedor/domain/order';
+import { STATUS_QUE_CONTAM_NA_META } from '../../../modules/vendedor/domain/pedidos-da-meta';
+import { decidirNotaDevolucao, itensDoFaturamento, planejarRetornoErp, resumoFaturamento } from '../../../modules/vendedor/domain/retorno-erp';
 import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
@@ -84,6 +92,8 @@ import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
 import { gravarDemoCatalogoCadastro } from './catalogo-cadastro';
 import { gravarDemoMedidas } from './medidas';
+import { gravarDemoFilial } from './filial';
+import { gravarDemoFotosPdv } from './fotos-pdv';
 import { gravarDemoPagamento } from './pagamento';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoIntegracao } from './integracao';
@@ -96,9 +106,12 @@ export const CODIGO_DEMO = 'demo';
 export const FUSO_DEMO = 'America/Manaus';
 export const SENHA_DEMO_PADRAO = 'demo-macuxi';
 export const MODULOS_DEMO = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
-/** Última migração de que a base depende (0013: catálogo, unidades, frete; 0018: medidas; 0019: core.meta.tipo; 0020: produto_relacao). */
-const MIGRACAO_MINIMA = '0020_pedido_ajuste_valor_produto_relacao';
-/** Tipo das metas da demo (0019, RN-CORE-21): pedido — sem faturamento do ERP na demo, a de faturamento ficaria zerada. */
+/**
+ * Última migração de que a base depende (0013: catálogo, unidades, frete, faturamento; 0018: medidas; 0019: core.meta.tipo;
+ * 0020: produto_relacao; 0050: pedido_devolucao, T-0155).
+ */
+const MIGRACAO_MINIMA = '0050_vendedor_pedido_devolucao';
+/** Tipo das metas da demo (0019, RN-CORE-21): pedido — só 3 pedidos faturados pelo ERP na demo (T-0155), a de faturamento ficaria quase zerada. */
 export const TIPO_METAS_DEMO = 'pedido' as const;
 
 const T = TENANT_DEMO;
@@ -107,7 +120,7 @@ const comuns = { deleted_at: null, external_id: null } as const;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Usuários
-type ChaveUsuario = 'vendedor' | 'vendedor2' | 'supervisor' | 'gerente' | 'promotor' | 'analista' | 'admin';
+export type ChaveUsuario = 'vendedor' | 'vendedor2' | 'supervisor' | 'gerente' | 'promotor' | 'analista' | 'admin';
 type Perfil = 'vendedor' | 'supervisor' | 'gerente' | 'promotor' | 'analista' | 'assistente' | 'admin';
 interface UsuarioDemo {
   nome: string;
@@ -207,7 +220,7 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['AMR-T01', 'Amortecedor traseiro', 'Suspentec', 'Automotivo', 'UN', 21_990],
 ];
 const PRECO = new Map(PRODUTOS.map(([sku, , , , , preco]) => [sku, preco]));
-const PRODUTO = new Map(PRODUTOS.map(([sku, nome, , , unidade]) => [sku, { nome, unidade }]));
+const PRODUTO = new Map(PRODUTOS.map(([sku, nome, marca, , unidade]) => [sku, { nome, marca, unidade }]));
 
 // ---------------------------------------------------------------------------------------------------------------
 // Cadastro do produto (0013): custo/preço de venda (RN-CORE-18), desconto máximo próprio (RN-VEN-11), unidades de venda
@@ -595,8 +608,43 @@ const PEDIDOS: Array<[string, number, Dono, Desfecho, number, number, CodigoCond
   // T-0071: 2º mercadinho do Lucas com pedido recente (clientes parecidos do Mini Box Japiim, desenho §4.3), dentro da alçada
   ['p11', 11, 'vendedor', 'recebido', 4, 2, '28-56', [['CAF-500', 12], ['ACU-1K', 24], ['FIL-103', 12], ['AGU-500', 4]]],
 ];
-/** Contam como venda na base "aprovado" (parâmetro metas.base_apuracao). */
-const VENDIDO: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'invoiced', 'cancelled']);
+/**
+ * Contam como venda na base "aprovado" (parâmetro metas.base_apuracao): os de STATUS_QUE_CONTAM_NA_META do Vendedor + o
+ * cancelado depois de aprovado (o diário guarda o cancelado à parte). T-0155: o faturado parcial conta o TOTAL do pedido
+ * (confirmação do Vendedor, R-20261110-060422): a meta não muda com o faturamento.
+ */
+export const VENDIDO_DEMO: ReadonlySet<string> = new Set<string>([...STATUS_QUE_CONTAM_NA_META, 'cancelled']);
+
+/** Autor da linha do tempo nos marcos do ERP (= AUTOR_ERP de modules/vendedor/api/retorno-erp.ts; conferido no teste). */
+export const AUTOR_ERP_DEMO = { nome: 'ERP', perfil: 'erp' } as const;
+
+/**
+ * T-0155 (R-20261109-202200, SIM do Alexandre ao R-20261109-124031): 3 pedidos aprovados que o ERP já faturou, para o roteiro
+ * "pedido → ERP → faturado visível no app". Marcos (Manaus): enviado ao ERP às 07:30 e integrado às 07:45 do dia útil seguinte
+ * ao pedido, faturado às 16:40 do outro; a devolução do p02 às 10:15 de 4 dias úteis atrás. Tudo passa pelas MESMAS funções do
+ * consumidor do retorno do Vendedor (planejarRetornoErp, itensDoFaturamento, resumoFaturamento, decidirNotaDevolucao) e, na fila
+ * do ERP (integracao.ts), pelas do Hub; o valor do item faturado é a proporção do total do item. Números do ERP e notas fictícios.
+ *  - p01 (Lucas): Faturado, 1 nota com todos os itens;
+ *  - p08 (Camila): Faturado parcial, 1 nota com a Farinha pela metade (10 de 20);
+ *  - p02 (Lucas): Faturado e devolução parcial (6 dos 24 leites, nota de devolução própria).
+ * A meta não muda (base = pedido aprovado; o p08 conta o total).
+ */
+export interface FaturamentoDemo {
+  numero_erp: string;
+  nota: { numero: string; serie: string };
+  /** faturamento parcial: sku -> quantidade faturada (os demais itens saem inteiros); ausente = faturado total */
+  parcial?: Readonly<Record<string, number>>;
+  /** devolução parcial de um item, com a nota de devolução do ERP (external_id = chave da nota) */
+  devolucao?: { sku: string; quantidade: number; nota: { numero: string; serie: string; external_id: string } };
+}
+export const FATURAMENTOS_DEMO: Readonly<Record<string, FaturamentoDemo>> = {
+  p01: { numero_erp: '458210', nota: { numero: '000081234', serie: '1' } },
+  p08: { numero_erp: '458231', nota: { numero: '000081267', serie: '1' }, parcial: { 'FAR-1K': 10 } },
+  p02: {
+    numero_erp: '458247', nota: { numero: '000081290', serie: '1' },
+    devolucao: { sku: 'LEI-1L', quantidade: 6, nota: { numero: '000002315', serie: '2', external_id: 'NFD-2-000002315' } },
+  },
+};
 /**
  * 0055 (T-0141 C, RN-VEN-17): o p11 (aprovado, Lucas) leva o endereço digitado só no pedido — retrato com origem 'editado',
  * sem id/external_id e endereco_entrega_id nulo (o Conector usa os textos). Para o e2e do testes, o detalhe, os PDFs e a
@@ -688,6 +736,9 @@ export const ORDEM_DEMO = [
   'vendedor.pedido',
   'vendedor.pedido_item',
   'vendedor.pedido_evento',
+  // T-0155 (0013/0050): nota de faturamento e de devolução dos pedidos faturados
+  'vendedor.pedido_faturamento',
+  'vendedor.pedido_devolucao',
 ] as const;
 export type TabelaDemo = (typeof ORDEM_DEMO)[number];
 export type DadosDemo = Record<TabelaDemo, Linha[]>;
@@ -882,6 +933,8 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   const pedidos: Linha[] = [];
   const itens: Linha[] = [];
   const eventos: Linha[] = [];
+  const faturamentos: Linha[] = [];
+  const devolucoes: Linha[] = [];
   // id do diário pelo deslocamento (dias úteis atrás), não pela data: rodar em outro dia MOVE a linha em vez de
   // deixar a do dia antigo somando de novo no realizado (ver o delete por id em carregarDemo)
   const diario = new Map<string, { chave: string; usuario: ChaveUsuario; data: string; pedidos: number; vendido: number; cancelado: number }>();
@@ -901,7 +954,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     if (!r.ok) throw new Error(`[db] seed demo: pedido ${chave} recusado pela regra do servidor (${r.codigo}): ${r.mensagem}`);
     const criado = emManaus(data, `${hora.slice(0, 2)}:${hora.slice(3) === '10' ? '40' : '55'}`);
     const vendedor = USUARIOS_DEMO[quem];
-    const historico: Array<{ de: OrderStatus | null; para: OrderStatus; autor: ChaveUsuario; motivo: string; nivel: string | null; em: string }> = r.historico.map((h) => ({
+    const historico: Array<{ de: OrderStatus | null; para: OrderStatus; autor: ChaveUsuario | 'erp'; motivo: string; nivel: string | null; em: string }> = r.historico.map((h) => ({
       de: h.de, para: h.para, autor: quem, motivo: h.motivo, nivel: h.para === 'pending_approval' ? r.nivel : null, em: criado,
     }));
     let status: OrderStatus = r.status;
@@ -916,12 +969,33 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       status = 'cancelled';
       historico.push({ de: 'approved', para: 'cancelled', autor: quem, motivo: MOTIVO_CANCELAMENTO_DEMO, nivel: null, em: depois(criado, 180) });
     }
+    // T-0155: faturado pelo ERP (só aprovado entra na fila do ERP, RN-INT-08)
+    const fat = FATURAMENTOS_DEMO[chave];
+    if (fat && status !== 'approved') throw new Error(`[db] seed demo: ${chave} deveria estar aprovado para ir ao ERP (RN-INT-08)`);
+    const erp = fat
+      ? faturarPedidoDemo(chave, pedido_id, fat, {
+          enviado: emManaus(diasUteisAtras(hoje, atras - 1), '07:30'),
+          integrado: emManaus(diasUteisAtras(hoje, atras - 1), '07:45'),
+          faturado: emManaus(diasUteisAtras(hoje, atras - 2), '16:40'),
+          devolvido: emManaus(diasUteisAtras(hoje, atras - 4), '10:15'),
+        }, r.itens.map((it, s) => ({ sequencia: s + 1, sku: it.sku, product_id: it.product_id, quantity: it.quantity, total_cents: it.total_cents })))
+      : null;
+    if (erp) {
+      historico.push(...erp.linhaDoTempo.map((x) => ({ ...x, autor: 'erp' as const, nivel: null })));
+      status = erp.status;
+      faturamentos.push(erp.faturamento);
+      if (erp.devolucao) devolucoes.push(erp.devolucao);
+    }
     r.itens.forEach((it, s) => {
       const sku = it.sku;
       itens.push({
         id: id(`pedido_item:${chave}:${s + 1}`), tenant_id: T, pedido_id, sequencia: s + 1, produto_id: it.product_id, quantidade: it.quantity,
         preco_tabela_cents: it.preco_tabela_cents, preco_unitario_cents: it.preco_unitario_cents, desconto_pct: it.desconto_pct, total_cents: it.total_cents,
         produto_sku: sku, produto_nome: PRODUTO.get(sku)!.nome, unidade: PRODUTO.get(sku)!.unidade, ...comuns,
+        // 0013 (T-0155): quanto o ERP já faturou do item, na unidade base (resumo do retorno); 0 nos demais (a recarga zera)
+        quantidade_faturada: erp?.resumo.itens.find((x) => x.sequencia === s + 1)?.faturada ?? 0,
+        // 0060 (T-0159): retrato da marca do produto (coluna "Marca" do PDF)
+        marca: PRODUTO.get(sku)!.marca,
       });
     });
     const [nome, , bairro, rua] = CLIENTES[n]!;
@@ -933,7 +1007,10 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     pedidos.push({
       id: pedido_id, tenant_id: T, cliente_id: c(n), vendedor_id: u(quem), autor_id: u(quem), status, condicao_pagamento: DESCRICAO_CONDICAO.get(condicao)!,
       desconto_pct: r.desconto_pct, total_tabela_cents: r.total_tabela_cents, total_cents: r.total_cents, observacao: null,
-      visita_id, rota_parada_id: null, criado_no_aparelho_em: criado, recebido_em: criado, numero_erp: null,
+      visita_id, rota_parada_id: null, criado_no_aparelho_em: criado, recebido_em: criado, numero_erp: erp?.numero_erp ?? null,
+      // 0013 (T-0155): marcos e resumo do ERP; nulos/0 nos que não foram ao ERP (a recarga desfaz um retorno do ensaio)
+      enviado_erp_em: erp?.enviado_em ?? null, integrado_em: erp?.integrado_em ?? null, faturado_em: erp?.resumo.ultimo_faturamento_em ?? null,
+      total_faturado_cents: erp?.resumo.faturado_cents ?? 0,
       motivo_cancelamento: status === 'cancelled' ? MOTIVO_CANCELAMENTO_DEMO : null,
       numero: null, hash_envio: null,
       cliente_resumo: {
@@ -955,14 +1032,15 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       motivo_rejeicao: decisao?.motivo ?? null, created_at: criado, ...comuns,
     });
     historico.forEach((h, i) => {
-      const autor = USUARIOS_DEMO[h.autor];
+      // marco do ERP: sem usuário (autor "ERP"), como o consumidor do retorno grava
+      const autor = h.autor === 'erp' ? { id: null, ...AUTOR_ERP_DEMO } : { id: u(h.autor), nome: USUARIOS_DEMO[h.autor].nome, perfil: USUARIOS_DEMO[h.autor].perfil };
       eventos.push({
-        id: id(`pedido_evento:${chave}:${i + 1}`), tenant_id: T, pedido_id, de: h.de, para: h.para, autor_id: u(h.autor), autor_nome: autor.nome,
+        id: id(`pedido_evento:${chave}:${i + 1}`), tenant_id: T, pedido_id, de: h.de, para: h.para, autor_id: autor.id, autor_nome: autor.nome,
         autor_perfil: autor.perfil, motivo: h.motivo, nivel: h.nivel, acima_do_nivel: false, ocorrido_em: h.em, created_at: h.em, ...comuns,
       });
     });
     visitas.push(visita(chave, quem, n, data, hora, 'pedido', { pedido_id }));
-    if (VENDIDO.has(status)) {
+    if (VENDIDO_DEMO.has(status)) {
       const d = diario.get(`${quem}:${atras}`) ?? { chave: `${quem}:${atras}`, usuario: quem, data, pedidos: 0, vendido: 0, cancelado: 0 };
       d.pedidos += 1;
       d.vendido += r.total_cents;
@@ -1142,7 +1220,87 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     'vendedor.pedido': pedidos,
     'vendedor.pedido_item': itens,
     'vendedor.pedido_evento': eventos,
+    'vendedor.pedido_faturamento': faturamentos,
+    'vendedor.pedido_devolucao': devolucoes,
   };
+}
+
+/** Item do pedido para o faturamento da demo (sequência 1..n, quantidade na unidade base: a demo só vende fator 1). */
+export interface ItemParaFaturarDemo {
+  sequencia: number;
+  sku: string;
+  product_id: string;
+  quantity: number;
+  total_cents: number;
+}
+
+/**
+ * T-0155: o que o consumidor do retorno do ERP do Vendedor gravaria para um pedido aprovado da demo (função pura). Retornos, na
+ * ordem do Hub (pendente → enviado → integrado → faturado; o Hub não aceita enviado → faturado): `enviado` e `integrado`
+ * (status e linha do tempo) e o faturado (status, nota em pedido_faturamento, saldo por item e resumo), pelas funções do
+ * domain do Vendedor; a devolução pela `decidirNotaDevolucao` (RN-VEN-37: não muda o status). Erro = o seed não sobe.
+ */
+export function faturarPedidoDemo(
+  chave: string,
+  pedidoId: string,
+  f: FaturamentoDemo,
+  em: { enviado: string; integrado: string; faturado: string; devolvido: string },
+  itensPedido: readonly ItemParaFaturarDemo[],
+) {
+  const linhaDoTempo: Array<{ de: OrderStatus; para: OrderStatus; motivo: string; em: string }> = [];
+  let status = 'approved' as OrderStatus;
+  const aplicar = (retorno: Parameters<typeof planejarRetornoErp>[1]) => {
+    const p = planejarRetornoErp(status, retorno);
+    if (p.acao !== 'aplicar') throw new Error(`[db] seed demo: retorno ${retorno.status} do ${chave} ignorado pelo Vendedor (${p.motivo})`);
+    linhaDoTempo.push({ de: p.de, para: p.para, motivo: p.texto_historico, em: retorno.ocorrido_em });
+    status = p.para;
+    return p;
+  };
+  aplicar({ status: 'enviado', numero_erp: null, motivo: null, ocorrido_em: em.enviado });
+  aplicar({ status: 'integrado', numero_erp: f.numero_erp, motivo: null, ocorrido_em: em.integrado });
+  const statusErp = f.parcial ? 'faturado_parcial' : 'faturado_total';
+  // o ERP informa por sequência a quantidade e o valor faturados (valor = proporção do total do item)
+  const doRetorno = itensPedido
+    .map((i) => {
+      const q = f.parcial?.[i.sku] ?? i.quantity;
+      return { sequencia: i.sequencia, quantidade: q, valor_cents: Math.round((i.total_cents * q) / i.quantity) };
+    })
+    .filter((i) => i.quantidade > 0);
+  for (const sku of Object.keys(f.parcial ?? {})) if (!itensPedido.some((i) => i.sku === sku)) throw new Error(`[db] seed demo: ${chave} não tem o item ${sku} do faturamento parcial`);
+  const faturou = aplicar({ status: statusErp, numero_erp: f.numero_erp, motivo: null, ocorrido_em: em.faturado, itens_faturados: doRetorno });
+  if (!faturou.faturar) throw new Error(`[db] seed demo: o retorno faturado do ${chave} não fatura`);
+  const { itens, divergencias } = itensDoFaturamento(statusErp, doRetorno, itensPedido.map((i) => ({ sequencia: i.sequencia, product_id: i.product_id, quantity: i.quantity })), []);
+  if (divergencias.length > 0) throw new Error(`[db] seed demo: faturamento do ${chave} divergente do pedido (${divergencias.map((x) => x.codigo).join(', ')})`);
+  const notaTotal = itens.reduce((s, i) => s + (i.valor_cents ?? 0), 0);
+  const faturamento: Linha = {
+    id: id(`pedido_faturamento:${chave}:1`), tenant_id: T, pedido_id: pedidoId,
+    // no servidor, o id do evento integracao.pedido.retorno_erp@1 consumido (idempotência); aqui, determinístico
+    evento_id: id(`pedido_faturamento:evento:${chave}:1`), parcial: statusErp === 'faturado_parcial', numero_erp: faturou.numero_erp,
+    nota_numero: f.nota.numero, nota_serie: f.nota.serie, nota_emitida_em: em.faturado, nota_total_cents: notaTotal,
+    itens: itens.map((i) => ({ sequencia: i.sequencia, produto_id: i.product_id, quantidade: i.quantity, total_cents: i.valor_cents })),
+    faturado_em: em.faturado, ...comuns,
+  };
+  let devolucao: Linha | null = null;
+  if (f.devolucao) {
+    const dv = f.devolucao;
+    const item = itensPedido.find((i) => i.sku === dv.sku);
+    if (!item || dv.quantidade <= 0 || dv.quantidade >= item.quantity) throw new Error(`[db] seed demo: devolução do ${chave} precisa ser parcial de um item do pedido`);
+    const d = decidirNotaDevolucao({
+      acao: 'atualizado', external_id: dv.nota.external_id,
+      registro: { tipo: 'devolucao', pedido_uuid: pedidoId, numero: dv.nota.numero, serie: dv.nota.serie, emitida_em: em.devolvido, total_cents: Math.round((item.total_cents * dv.quantidade) / item.quantity) },
+    });
+    if (d.tipo !== 'gravar') throw new Error(`[db] seed demo: a nota de devolução do ${chave} não seria gravada`);
+    devolucao = {
+      id: id(`pedido_devolucao:${chave}:1`), tenant_id: T, pedido_id: d.pedido_id, nota_numero: d.numero, nota_serie: d.serie, emitida_em: d.emitida_em,
+      total_cents: d.total_cents, deleted_at: null, external_id: d.external_id,
+    };
+  }
+  const resumo = resumoFaturamento(
+    itensPedido.map((i) => ({ sequencia: i.sequencia, quantity: i.quantity, total_cents: i.total_cents })),
+    [{ nota_numero: f.nota.numero, nota_total_cents: notaTotal, faturado_em: em.faturado, itens: itens.map((i) => ({ sequencia: i.sequencia, quantidade: i.quantity, valor_cents: i.valor_cents })) }],
+    devolucao ? [{ total_cents: Number(devolucao.total_cents) }] : [],
+  );
+  return { status, numero_erp: faturou.numero_erp, enviado_em: em.enviado, integrado_em: em.integrado, linhaDoTempo, faturamento, devolucao, resumo };
 }
 
 /** Trava de isolamento: toda linha montada é do tenant demo (o seed nunca grava em outro tenant). */
@@ -1410,11 +1568,16 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarDemoPlanoRv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, atualizadoPor: idUsuarioDemo('analista') });
     // 0037 (T-0089): formas e prazos, prazo médio e formas do cliente, tabela escalonada; apaga a forma padrão da 0037 (pagamento.ts)
     await gravarDemoPagamento(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
+    // 0056 (T-0149): filial padrão completada (Manaus), a Boa Vista (4 clientes, preço +5%, CD-BVB; chave SEED_BOA_VISTA_DEMO)
+    // e o retrato da filial do cliente nos pedidos (filial.ts)
+    await gravarDemoFilial(admin, { tenantId: T, dados });
+    // 0057 (T-0147): tipos de foto do PDV (Fachada, CNH do sócio, Contrato social) e a fachada de 5 clientes (fotos-pdv.ts)
+    await gravarDemoFotosPdv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados, usuario: idUsuarioDemo });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
     // T-0051 (R-20261102-125759-2): monitor da Integração ERP — licença (admin e analista), 2 Conectores, política, 5 lotes e a
-    // inativação aguardando, relativos ao now() do banco (integracao.ts)
-    await gravarDemoIntegracao(admin);
+    // inativação aguardando, relativos ao now() do banco, e (T-0155) a fila do ERP dos 3 pedidos faturados (integracao.ts)
+    await gravarDemoIntegracao(admin, dados);
     // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local
     // (a linha nova já nasce com outro valor; a chamada deixa a regra explícita). Recarga sem --recriar não gira.
     if (opcoes.recriar) await girarGeracaoBase(admin, T);

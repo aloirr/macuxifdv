@@ -40,12 +40,15 @@ export const CODIGOS_ITEM_DESCARTADO_BANCO = ['sequencia_inexistente', 'produto_
 /**
  * Entidades aceitas pelos CHECKs do banco (aditivo no v1): as 8 originais da 0010; a 0013 (desenho T-0061 §6) somou
  * catalogo_no, produto_unidade, cliente_endereco e transportadora (ENTIDADES_0013, 12); a 0037 (T-0089,
- * R-20261106-203005) somou forma_pagamento, prazo_pagamento e tabela_escalonada (ENTIDADES_BANCO, 15). O padrão de
+ * R-20261106-203005) somou forma_pagamento, prazo_pagamento e tabela_escalonada (ENTIDADES_0037, 15) e a 0056 (T-0149) somou
+ * filial (ENTIDADES_BANCO, 16). O padrão de
  * conector.entidades continua as 8 ORIGINAIS. ENTIDADES (contrato) ⊆ ENTIDADES_BANCO; db/testes/estatico.test.ts confere.
  */
 export const ENTIDADES_ORIGINAIS = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota'] as const;
 export const ENTIDADES_0013 = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
-export const ENTIDADES_BANCO = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
+export const ENTIDADES_0037 = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
+/** 0056 (T-0149, R-20261110-074414): + `filial` (16). */
+export const ENTIDADES_BANCO = [...ENTIDADES_0037, 'filial'] as const;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;

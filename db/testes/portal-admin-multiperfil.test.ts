@@ -24,7 +24,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idPerfilFabrica } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0042, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_0042, FUNCOES_SA_ATE_0057, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -142,7 +142,7 @@ describe('0047 suporte pelos perfis de base admin (estático)', () => {
     }
     expect(lista47).toContain('plataforma.usuario_entra_no_portal(u.tenant_id, u.id)');
     expect(FUNCOES_SA_0042).toEqual([LISTA, REDEFINIR]);
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(14);
+    expect(FUNCOES_SA_ATE_0057).toHaveLength(14); // 14 até a 0057; a 0058 (T-0158) acrescenta 2
     expect(up).toContain('if v_n <> 14 then');
     expect(up).not.toMatch(/grant execute [^;]* to macuxi_(app|worker);/);
     expect(up).not.toMatch(/grant [^;]* on (table )?(plataforma|core)\.[a-z_]+ to macuxi_portal/);
@@ -238,7 +238,7 @@ describe.skipIf(semBanco())('0047 suporte pelos perfis de base admin (banco, fix
         `select count(*)::int as n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
           where s.nspname = 'plataforma' and p.proname like 'sa\\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute')`,
       );
-      expect(n).toEqual([{ n: 14 }]);
+      expect(n).toEqual([{ n: FUNCOES_SA_ATUAIS.length }]); // banco na última: 14 da 0047 + 2 da 0058 (T-0158)
       // o retorno da lista: as 9 colunas da 0042 + entra_no_portal no fim
       const res = await q<{ r: string }>('select pg_get_function_result($1::regprocedure) as r', [LISTA]);
       expect(res[0]!.r).toBe(
