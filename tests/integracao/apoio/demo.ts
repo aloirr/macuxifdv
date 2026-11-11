@@ -140,3 +140,78 @@ export function listaDe(corpo: Record<string, unknown>): unknown[] {
   for (const k of ['itens', 'items', 'linhas', 'modulos', 'membros']) if (Array.isArray(corpo[k])) return corpo[k] as unknown[];
   return [];
 }
+
+/** Status que reservam estoque na filial (RN-VEN-20; espelho de `STATUS_QUE_RESERVAM` do domain do Vendedor). */
+const STATUS_QUE_RESERVAM = ['received', 'pending_approval', 'approved', 'sent_to_erp', 'integrated', 'invoiced_partial'];
+
+/**
+ * Disponível (unidade base) de cada produto na filial EFETIVA do cliente, como o servidor confere no envio (RN-VEN-20,
+ * RN-CORE-39): saldo dos depósitos da filial (todos, se nenhum depósito do tenant tem filial) − reservas dos pedidos da
+ * mesma filial. Produto sem nenhuma linha de saldo no tenant = sem controle (`Infinity`). Lê o banco (pool admin), sem id fixo.
+ */
+export async function disponivelNaFilial(admin: pg.Pool, clienteId: string, produtoIds: readonly string[]): Promise<Map<string, number>> {
+  const r = await admin.query<{ produto_id: string; controlado: boolean; disponivel: number }>(
+    `with cli as (
+       select c.tenant_id,
+              coalesce((select f.id from core.filial f where f.tenant_id = c.tenant_id and f.id = c.filial_id and f.ativo and f.deleted_at is null),
+                       (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null)) as filial_id
+         from core.cliente c where c.id = $1
+     ), deps as (
+       select d.id from catalogo.deposito d, cli
+        where d.tenant_id = cli.tenant_id and d.deleted_at is null
+          and (d.filial_id = cli.filial_id
+               or not exists (select 1 from catalogo.deposito x where x.tenant_id = cli.tenant_id and x.deleted_at is null and x.filial_id is not null))
+     )
+     select p.id as produto_id,
+            exists (select 1 from catalogo.estoque_saldo s where s.tenant_id = cli.tenant_id and s.produto_id = p.id and s.deleted_at is null) as controlado,
+            (greatest(0, coalesce((select sum(s.quantidade) from catalogo.estoque_saldo s
+                                   where s.tenant_id = cli.tenant_id and s.produto_id = p.id and s.deleted_at is null and s.deposito_id in (select id from deps)), 0))
+             - coalesce((select sum(i.quantidade_base - i.quantidade_faturada) from vendedor.pedido_item i
+                           join vendedor.pedido pe on pe.tenant_id = i.tenant_id and pe.id = i.pedido_id
+                          where i.tenant_id = cli.tenant_id and i.produto_id = p.id and i.filial_id = cli.filial_id and i.deleted_at is null
+                            and pe.deleted_at is null and pe.tipo = 'pedido' and pe.status = any($3::text[])), 0))::float8 as disponivel
+       from core.produto p, cli where p.tenant_id = cli.tenant_id and p.id = any($2::uuid[])`,
+    [clienteId, [...produtoIds], STATUS_QUE_RESERVAM],
+  );
+  return new Map(r.rows.map((x) => [x.produto_id, x.controlado ? Number(x.disponivel) : Number.POSITIVE_INFINITY]));
+}
+
+/** Disponível mínimo (unidade base) para escolher produto de pedido com folga para embalagem (CX/FD) e reservas dos casos seguintes. */
+export const FOLGA_ESTOQUE = 120;
+
+/** Disponível que o preparo garante aos SKUs fixos da referência do orçamento (T-0071): cobre os pedidos de um arquivo inteiro. */
+export const SALDO_REFERENCIA = 300;
+
+/** Primeiro produto (na ordem dada) com pelo menos `quantidadeBase` disponível na filial do cliente (RN-VEN-20). */
+export async function produtoComSaldo(admin: pg.Pool, clienteId: string, produtoIds: readonly string[], quantidadeBase: number): Promise<string> {
+  const disp = await disponivelNaFilial(admin, clienteId, produtoIds);
+  const achado = produtoIds.find((p) => (disp.get(p) ?? 0) >= quantidadeBase);
+  if (!achado) throw new Error(`nenhum dos ${produtoIds.length} produtos tem ${quantidadeBase} disponível na filial do cliente ${clienteId} (RN-VEN-20)`);
+  return achado;
+}
+
+/**
+ * Preparo do teste cujo valor esperado depende de um SKU e de uma quantidade fixos (preços e totais da referência): se o
+ * disponível do produto na filial do cliente não cobre `quantidadeBase`, soma a diferença ao saldo de UM depósito da filial
+ * (só a base efêmera do teste; a ruptura do seed, SUC-1L, e a recusa RN-VEN-20 não mudam). Devolve o acréscimo (0 = já cabia).
+ */
+export async function garantirSaldoNaFilial(admin: pg.Pool, clienteId: string, produtoId: string, quantidadeBase: number): Promise<number> {
+  const falta = quantidadeBase - ((await disponivelNaFilial(admin, clienteId, [produtoId])).get(produtoId) ?? 0);
+  if (falta <= 0) return 0;
+  const r = await admin.query(
+    `update catalogo.estoque_saldo s set quantidade = greatest(s.quantidade, 0) + $3
+      where s.id = (
+        select s2.id from catalogo.estoque_saldo s2
+          join catalogo.deposito d on d.tenant_id = s2.tenant_id and d.id = s2.deposito_id and d.deleted_at is null
+          join core.cliente c on c.tenant_id = s2.tenant_id and c.id = $1
+         where s2.produto_id = $2 and s2.deleted_at is null
+           and (d.filial_id is not distinct from coalesce(
+                  (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.id = c.filial_id and f.ativo and f.deleted_at is null),
+                  (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null))
+                or not exists (select 1 from catalogo.deposito x where x.tenant_id = c.tenant_id and x.deleted_at is null and x.filial_id is not null))
+         order by d.codigo limit 1)`,
+    [clienteId, produtoId, falta],
+  );
+  if (r.rowCount !== 1) throw new Error(`sem linha de saldo na filial do cliente ${clienteId} para o produto ${produtoId}`);
+  return falta;
+}

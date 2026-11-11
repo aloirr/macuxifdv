@@ -6,7 +6,9 @@
 import {
   DiagnosticoFiltroSchema,
   formatarProtocolo,
+  MOTIVOS_SAIDA_ANDROID,
   ORIGENS_DIAGNOSTICO,
+  rotuloDoMotivoDiagnostico,
   type DiagnosticoDetalhe,
   type DiagnosticoFiltro,
   type OrigemDiagnostico,
@@ -46,60 +48,17 @@ export const ROTULO_ORIGEM: Readonly<Record<OrigemDiagnostico, { rotulo: string;
   erro_tela: { rotulo: 'Erro de tela', tom: 'warning' },
 };
 
-/**
- * Motivo em português (código do app: `codigoDoMotivo` da queda, `REASON_*` do Android; a `OrigemDoErro` no erro de tela). O
- * código só aparece no detalhe, na Saída do Android. Código novo sem rótulo aparece como veio.
- */
-export const ROTULO_MOTIVO: Readonly<Record<string, string>> = {
-  crash_nativo: 'Falha nativa',
-  crash_java: 'Erro Java',
-  anr: 'App travou (ANR)',
-  memoria: 'Sem memória',
-  sinal: 'Encerrado pelo sistema',
-  encerrado: 'Encerrado pelo sistema',
-  outro: 'Encerrado pelo sistema',
-  desconhecido: 'Motivo desconhecido',
-  falha_inicio: 'Falha ao iniciar',
-  recursos: 'Uso excessivo de recursos',
-  dependencia: 'Serviço do sistema parou',
-  // erro de tela: a OrigemDoErro do app
-  tela: 'Erro de renderização',
-  raiz: 'Erro de renderização',
-  fatal: 'Erro fatal do app',
-};
-
 /** Motivos oferecidos no filtro (os da imagem primeiro). */
 export const MOTIVOS_DO_FILTRO: readonly string[] = ['crash_nativo', 'crash_java', 'anr', 'memoria', 'sinal', 'falha_inicio', 'tela', 'fatal'];
 
+/** Motivo em português, da tabela única do SDK (RD-0124: o mesmo texto que o vendedor vê no app); código novo aparece como veio. */
 export function rotuloDoMotivo(motivo: string | null | undefined): string {
-  if (!motivo) return '—';
-  return ROTULO_MOTIVO[motivo] ?? motivo;
+  return rotuloDoMotivoDiagnostico(motivo) ?? '—';
 }
-
-/** `ApplicationExitInfo.REASON_*` (o número que vem na saída) → código curto (o mesmo do app). */
-const CODIGO_DO_REASON: Readonly<Record<number, { codigo: string; nome: string }>> = {
-  0: { codigo: 'desconhecido', nome: 'REASON_UNKNOWN' },
-  1: { codigo: 'saida_propria', nome: 'REASON_EXIT_SELF' },
-  2: { codigo: 'sinal', nome: 'REASON_SIGNALED' },
-  3: { codigo: 'memoria', nome: 'REASON_LOW_MEMORY' },
-  4: { codigo: 'crash_java', nome: 'REASON_CRASH' },
-  5: { codigo: 'crash_nativo', nome: 'REASON_CRASH_NATIVE' },
-  6: { codigo: 'anr', nome: 'REASON_ANR' },
-  7: { codigo: 'falha_inicio', nome: 'REASON_INITIALIZATION_FAILURE' },
-  8: { codigo: 'permissao', nome: 'REASON_PERMISSION_CHANGE' },
-  9: { codigo: 'recursos', nome: 'REASON_EXCESSIVE_RESOURCE_USAGE' },
-  10: { codigo: 'fechado_usuario', nome: 'REASON_USER_REQUESTED' },
-  11: { codigo: 'parado_usuario', nome: 'REASON_USER_STOPPED' },
-  12: { codigo: 'dependencia', nome: 'REASON_DEPENDENCY_DIED' },
-  13: { codigo: 'outro', nome: 'REASON_OTHER' },
-  14: { codigo: 'congelado', nome: 'REASON_FREEZER' },
-  15: { codigo: 'pacote', nome: 'REASON_PACKAGE_STATE_CHANGE' },
-  16: { codigo: 'atualizado', nome: 'REASON_PACKAGE_UPDATED' },
-};
 
 /** "crash_nativo  (REASON_CRASH_NATIVE = 5)". */
 export function motivoDaSaida(motivo: number): string {
-  const r = CODIGO_DO_REASON[motivo];
+  const r = MOTIVOS_SAIDA_ANDROID[motivo];
   return r ? `${r.codigo}  (${r.nome} = ${motivo})` : `motivo ${motivo}`;
 }
 

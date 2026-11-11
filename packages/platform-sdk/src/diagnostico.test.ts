@@ -1,6 +1,7 @@
 /** T-0158 (ADR 0043): contrato do diagnóstico do aparelho (só dado técnico; tenant e usuário só pelo token). */
 import { describe, expect, it } from 'vitest';
 import {
+  codigoDoMotivoAndroid,
   DiagnosticoDetalheSchema,
   DiagnosticoEnvioSchema,
   DiagnosticoRespostaSchema,
@@ -8,6 +9,8 @@ import {
   formatarProtocolo,
   LIMITE_CORPO_DIAGNOSTICO_BYTES,
   MAX_SAIDAS_DIAGNOSTICO,
+  MOTIVOS_SAIDA_ANDROID,
+  rotuloDoMotivoDiagnostico,
 } from './diagnostico';
 
 const envio = {
@@ -121,5 +124,45 @@ describe('formatarProtocolo (T-0158)', () => {
   });
   it('resposta da rota', () => {
     expect(DiagnosticoRespostaSchema.parse({ id: envio.id, protocolo: 42, criado: true }).protocolo).toBe(42);
+  });
+});
+
+describe('MOTIVOS_SAIDA_ANDROID (RD-0124): tabela única do app, da API e do portal', () => {
+  it('os 17 motivos do Android (0..16), cada um com código, nome REASON_* e rótulo; códigos sem repetição', () => {
+    const numeros = Object.keys(MOTIVOS_SAIDA_ANDROID).map(Number);
+    expect(numeros).toEqual([...Array(17).keys()]);
+    const codigos = Object.values(MOTIVOS_SAIDA_ANDROID).map((m) => m.codigo);
+    expect(new Set(codigos).size).toBe(17);
+    for (const m of Object.values(MOTIVOS_SAIDA_ANDROID)) {
+      expect(m.nome).toMatch(/^REASON_[A-Z_]+$/);
+      expect(m.rotulo.length).toBeGreaterThan(0);
+    }
+    expect(MOTIVOS_SAIDA_ANDROID[5]).toEqual({ codigo: 'crash_nativo', nome: 'REASON_CRASH_NATIVE', rotulo: 'Falha nativa' });
+    expect(MOTIVOS_SAIDA_ANDROID[6]).toEqual({ codigo: 'anr', nome: 'REASON_ANR', rotulo: 'App travou (ANR)' });
+  });
+  it('rótulos finais do designer-ux (R-20261111-062427): 1, 4, 10, 11 e 15 são nomes do mesmo tipo; códigos não mudam', () => {
+    expect([1, 4, 10, 11, 15].map((n) => [MOTIVOS_SAIDA_ANDROID[n]!.codigo, MOTIVOS_SAIDA_ANDROID[n]!.rotulo])).toEqual([
+      ['saida_propria', 'Saída do próprio app'],
+      ['crash_java', 'Falha Java'],
+      ['fechado_usuario', 'Encerrado a pedido do usuário'],
+      ['parado_usuario', 'Forçado a parar pelo usuário'],
+      ['pacote', 'App ativado ou desativado'],
+    ]);
+    expect(rotuloDoMotivoDiagnostico('crash_java')).toBe('Falha Java');
+    const rotulos = Object.values(MOTIVOS_SAIDA_ANDROID).map((m) => m.rotulo);
+    expect(new Set(rotulos).size).toBe(17);
+  });
+  it('codigoDoMotivoAndroid: número → código; fora da tabela = motivo_<n> (o mesmo do app)', () => {
+    expect([3, 5, 6, 99].map(codigoDoMotivoAndroid)).toEqual(['memoria', 'crash_nativo', 'anr', 'motivo_99']);
+    expect(codigoDoMotivoAndroid(Number.NaN)).toBe('motivo_0');
+  });
+  it('rotuloDoMotivoDiagnostico: código da queda ou do erro de tela → texto; sem rótulo volta como veio', () => {
+    expect(rotuloDoMotivoDiagnostico('crash_nativo')).toBe('Falha nativa');
+    expect(rotuloDoMotivoDiagnostico('sinal')).toBe('Encerrado pelo sistema');
+    expect(rotuloDoMotivoDiagnostico('fatal')).toBe('Erro fatal do app');
+    expect(rotuloDoMotivoDiagnostico('motivo_99')).toBe('motivo_99');
+    expect(rotuloDoMotivoDiagnostico('toString')).toBe('toString');
+    expect(rotuloDoMotivoDiagnostico(null)).toBeNull();
+    expect(rotuloDoMotivoDiagnostico('')).toBeNull();
   });
 });
