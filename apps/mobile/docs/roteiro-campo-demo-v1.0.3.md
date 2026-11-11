@@ -5,8 +5,10 @@
 > - as permissões obrigatórias (T-0145);
 > - a ficha sem repetição e as fotos do PDV (T-0146, T-0147);
 > - o Novo pedido v4, o detalhe e a lista de Pedidos (T-0148, T-0150, T-0151, T-0153);
-> - a filial (T-0149);
-> - a demo com pedidos faturados (T-0155).
+> - a filial e a reserva por filial (T-0149, RN-VEN-20);
+> - a demo com pedidos faturados (T-0155);
+> - o PDF do pedido, proposta 2 (T-0159);
+> - o diagnóstico, que chega desligado (T-0158).
 >
 > Dono: engenheiro-apps. O commit do lote e os links dos APKs vêm no recado "BUILD PRONTO Campo-Demo-v1.0.3 /
 > Gestao-Demo-v1.0.3". Os roteiros do v1.0.0 ao v1.0.2 continuam valendo para o que não mudou.
@@ -141,7 +143,7 @@ Cliente: Mercadinho São Jorge › **Novo pedido**.
     - o estado da lista é um **selo único** no cabeçalho: **↻ hh:mm**, **Atualizando…**, **Sem sinal** (modo avião) ou
       **Sem resposta**. Não há faixas nem rodapé.
 
-## E. Filial (T-0149, Campo e Backoffice)
+## E. Filial e reserva por filial (T-0149, RN-VEN-20, Campo e Backoffice)
 1. **Manaus.** Mercadinho São Jorge › Novo pedido › Itens: anote o **preço** e o **estoque** de 2 produtos, um deles o
    **CAF-500** (café 500 g), que tem estoque.
 2. **Boa Vista.** Padaria Trigo Fino › Novo pedido › Itens, com os mesmos 2 produtos:
@@ -150,7 +152,18 @@ Cliente: Mercadinho São Jorge › **Novo pedido**.
    - o **CAF-500** mostra **"Estoque 0"** e, se adicionado, entra nos Alertas como "CAF-500 sem estoque".
 3. **O pedido mostra a filial.** Envie um pedido de cada cliente. No detalhe, a linha **Filial** diz **Filial Manaus**
    num e **Filial Boa Vista** no outro. O PDF traz a filial também.
-4. **Backoffice.** No pedido de cada um, o detalhe traz a mesma filial.
+4. **Backoffice, pedido.** No pedido de cada um, o detalhe traz a mesma filial. Em Pedidos, o filtro **Filial** mostra
+   só os pedidos da filial escolhida.
+5. **Backoffice, cadastro da filial.** Cadastros › Filiais:
+   - **CNPJ** e **endereço** são obrigatórios: sem eles, a filial não salva;
+   - na lista, uma filial sem esses dados tem o selo **Incompleta**. O aviso antigo acima da lista não aparece mais.
+6. **Reserva no aparelho.** Padaria Trigo Fino (Boa Vista) › Novo pedido › Itens: anote o **"Estoque n"** de um produto
+   com estoque. Faça e envie um pedido com 2 unidades dele. Abra um Novo pedido para a mesma padaria:
+   - o estoque mostrado é **n − 2**: o saldo da filial do cliente menos os pedidos aceitos no aparelho;
+   - no modo avião, vale a mesma conta;
+   - acima do saldo, o item entra nos Alertas como **"<código> sem estoque"**, e o pedido sai **só como orçamento**.
+   - **Premissa:** nesta versão, a API **não recusa** pedido por falta de estoque da filial. Essa recusa fica desligada
+     até o contrato `catalogo.estoque_filial@1`.
 
 ## F. Demo com pedidos faturados (T-0155)
 1. **Campo (Lucas).** Em Pedidos, toque no chip **Aprovados** (se preciso, amplie o período no Filtrar): aparecem os
@@ -160,21 +173,45 @@ Cliente: Mercadinho São Jorge › **Novo pedido**.
 3. **Gestão (`supervisor`).** O pedido da Camila aparece como **Faturado parcial**. A meta dela continua contando o
    valor total do pedido.
 
-## G. Versão no Perfil
+## G. PDF do pedido, proposta 2 (T-0159, Campo)
+Compare cada PDF com a imagem aprovada no anexo de mesmo nome:
+`recados/anexos/2026-11-11-T-0159-pdf-proposta-2-{cliente,escritorio,orcamento-cliente,orcamento-escritorio}.png`.
+1. **Gere os 4 PDFs.** De um pedido enviado **com alerta**, gere o PDF **do cliente** e o **do escritório**. De um
+   orçamento, gere os mesmos dois.
+2. **Itens.** **Emb.** e **Qtd** em colunas separadas, e a coluna **Marca**.
+3. **Cabeçalho.** O nome da filial de faturamento, com o **CNPJ**, o **endereço** e o **telefone** dela. Confira com
+   Filial Manaus e com Filial Boa Vista.
+4. **Entrega.** A ficha **Entrega** aparece.
+5. **Total.** A linha final diz **"Total"**.
+6. **Histórico.** Só aparece com **2 etapas ou mais**. Num pedido só enviado, ele não aparece.
+7. **Alertas.** Só no PDF **do escritório**. O PDF do cliente não os traz, e o **orçamento** não traz Alertas em
+   nenhum dos dois.
+
+## H. Versão no Perfil
 1. Campo: no fim do Perfil, **Campo-Demo-v1.0.3**. Gestão: **Gestao-Demo-v1.0.3**.
 2. Configurações do Android › Apps: versão **1.0.3**. Ela instala por cima do v1.0.2.
 
 ## O que NÃO está nesta versão
-- **Envio de diagnóstico desligado (T-0158).** O Perfil › Diagnóstico continua só para leitura e print:
-  - o botão **"Enviar diagnóstico"** e a fila só chegam na **v1.0.4**;
-  - o **envio automático da queda** e as **5 últimas saídas** no envio, na **v1.0.5**;
-  - o **Backoffice › Diagnósticos** e o recado automático, depois.
+- **Envio de diagnóstico desligado (T-0158).** Nesta versão, o Perfil › Diagnóstico serve para leitura e print:
+  - o botão **"Enviar diagnóstico"** e a fila **já estão no APK**, mas desligados;
+  - eles ligam **sem APK novo**, com `MACUXI_DIAGNOSTICOS_APP=1` no servidor, quando você decidir;
+  - o **Portal › Diagnósticos** (só super-admin) já está **ligado** na demo;
+  - o **envio automático da queda** e as **5 últimas saídas** no envio: **v1.0.5**.
 - O **registro de quem abriu** documento sensível (CNH, contrato social), só para o admin no Backoffice: depois da
   v1.0.5.
 - A **barra de status escura** no visor de foto: v1.0.4.
 - A **resposta pelo Telegram**: no backlog.
 
+## Itens abertos (v1.0.4)
+- **RD-0124:** os motivos de saída do Android em 3 tabelas com textos diferentes; uma tabela só.
+- **D-T0159-4:** a vírgula no complemento do endereço do PDF.
+- **D-T0159-5:** o formato do nome da filial no PDF.
+
 ## O que mandar de volta
-- Para cada item (A a G): ok, ou o passo que falhou, o aparelho (Campo ou Gestão, versão do Android) e o que apareceu.
+- Para cada item (A a H): ok, ou o passo que falhou, o aparelho (Campo ou Gestão, versão do Android) e o que apareceu.
 - O **print do Diagnóstico** do item A.3, com "Build instalado", "Saídas do app" e "Último erro do app". Eu encaminho
   cada falha ao dono da tela.
+
+---
+Vai junto: o relatório do corretor-redundancias, R-20261111-022251 e R-20261111-024437
+(`docs/qualidade/redundancias/2026-11-10-T-0159-pdf.md` e `docs/qualidade/redundancias/2026-11-10-T-0158-diagnostico.md`).

@@ -15,3 +15,8 @@ export class ErroHttp extends Error {
     return { codigo: this.codigo, mensagem: this.message, ...(this.detalhes ? { detalhes: this.detalhes } : {}) };
   }
 }
+
+/** 503 `BANCO_INDISPONIVEL`: a API subiu sem banco (ou a rota precisa dele e ele não veio). */
+export function semBanco(): never {
+  throw new ErroHttp(503, 'BANCO_INDISPONIVEL', 'Banco de dados indisponível. Tente de novo em instantes.');
+}

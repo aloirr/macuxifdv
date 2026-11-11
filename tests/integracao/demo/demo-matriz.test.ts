@@ -32,7 +32,7 @@ import { buildOrderPdfHtml, pdfDoPedido, type OrderPdfOrder } from '../../../mod
 import { detalheDoPedido, lerLinhas, listaDeClientes, listaDePedidos, paraAprovar, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { aparelhoCampo, esperarHorizonte, gpsDeTeste, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, listaDe, produtoComSaldo, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 /** GPS do "aparelho", pelo ambiente do motor (`posicaoAgora`, RD-0046). */
 const gps = gpsDeTeste();
@@ -74,15 +74,18 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
     ).rows;
   /** Pedido válido do vendedor (cliente da carteira, produto com preço na tabela do cliente) como o `NewOrderScreen` enfileira. */
   const pedidoDoAparelho = async (chave: ChaveDemo): Promise<ItemPush> => {
-    const { cliente_id, produto_id } = (
+    // RN-VEN-20 (v1.0.4): o produto tem de ter saldo na filial do cliente; o 1º pelo id é o SUC-1L, em ruptura de propósito no seed
+    const candidatos = (
       await api.admin.query<{ cliente_id: string; produto_id: string }>(
         `select c.cliente_id, i.produto_id from core.carteira c
            join catalogo.cliente_tabela_preco t on t.tenant_id = c.tenant_id and t.cliente_id = c.cliente_id and t.deleted_at is null
            join catalogo.tabela_preco_item i on i.tenant_id = t.tenant_id and i.tabela_preco_id = t.tabela_preco_id and i.deleted_at is null
-          where c.tenant_id = $1 and c.usuario_id = $2 and c.deleted_at is null order by c.cliente_id, i.produto_id limit 1`,
+          where c.tenant_id = $1 and c.usuario_id = $2 and c.deleted_at is null order by c.cliente_id, i.produto_id`,
         [TENANT_DEMO, usuarioId[chave]],
       )
-    ).rows[0]!;
+    ).rows;
+    const cliente_id = candidatos[0]!.cliente_id;
+    const produto_id = await produtoComSaldo(api.admin, cliente_id, [...new Set(candidatos.filter((c) => c.cliente_id === cliente_id).map((c) => c.produto_id))], 2);
     const id = randomUUID();
     return { id, entidade: 'pedido', operacao: 'upsert', payload: { id, customer_id: cliente_id, discount_pct: 0, payment_terms: '28 dias', created_offline_at: new Date().toISOString(), items: [{ product_id: produto_id, quantity: 2 }] } };
   };
@@ -376,7 +379,6 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
         pending_reason: '',
         rejection_reason: '',
         price_table: 'default',
-        branch_name: '',
         erp_order_code: '',
         seller_limit_pct: null,
         history: [],
