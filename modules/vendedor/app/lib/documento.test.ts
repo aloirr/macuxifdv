@@ -12,7 +12,7 @@ import { calcularPedido, linhasParaPush, reaisParaCents, centsParaCampo, trocarM
 import { aplicarAjusteDoPedido, montarPedido, rascunhoVazio } from './pedidos';
 import { pedidoDaConversao, validadeCivilDoDocumento } from './pre-venda';
 import { aplicarTrocaDeEmbalagem, adicionarSugestao, montarSugestoes } from './sugestoes-pedido';
-import { nomeDaSugestao, seloDaSugestao, textoEquivalente, textoPrecoDaLinha, trilhaDoProduto } from './textos-pedido';
+import { nomeDaSugestao, seloDaSugestao, textoEquivalente, trilhaDoProduto } from './textos-pedido';
 import { politicaApi } from './pull';
 import { toDomainPolicy } from './catalog';
 
@@ -150,10 +150,8 @@ describe('campo em R$ e troca de modo (RN-VEN-02)', () => {
     expect(trocarModoDoAjuste({ desconto_pct: 5 }, 'pct', null)).toEqual({ desconto_pct: 5 });
     expect(trocarModoDoAjuste({}, 'valor', null)).toEqual({ em: 'valor' });
   });
-  it('RN-VEN-02/03: textos do item — "R$ 17,90 → 17,01", "−R$ 0,89" e "= 5,3%"', () => {
+  it('RN-VEN-02/03: textos do item — "−R$ 0,89" e "= 5,3%"', () => {
     const limpa = (s: string) => s.replace(/\s/g, ' ');
-    expect(limpa(textoPrecoDaLinha({ preco_tabela_cents: 1790, preco_unitario_cents: 1701 }))).toBe('R$ 17,90 → 17,01');
-    expect(limpa(textoPrecoDaLinha({ preco_tabela_cents: 1790, preco_unitario_cents: 1790 }))).toBe('R$ 17,90');
     expect(limpa(textoEquivalente({ ajuste_em: 'pct', equivalente: { sentido: 'desconto', cents: 89, pct_exibicao: 5 } }))).toBe('−R$ 0,89');
     expect(textoEquivalente({ ajuste_em: 'valor', equivalente: { sentido: 'desconto', cents: 100, pct_exibicao: 5.3 } })).toBe('= 5,3%');
     expect(textoEquivalente({ ajuste_em: 'valor', equivalente: null })).toBe('');
@@ -190,7 +188,7 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
   });
   it('RN-VEN-18: nada mudou → sem mudanças e pode enviar', () => {
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]));
-    expect(r.mudancas.filter((m) => m.tipo !== 'alcada')).toEqual([]);
+    expect(r.mudancas).toEqual([]);
     expect(r.pode_enviar).toBe(true);
   });
   it('RN-VEN-18: preço alterado (café 18,90 → 19,50) aparece em português e mantém o desconto em R$', () => {

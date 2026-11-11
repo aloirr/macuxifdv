@@ -252,6 +252,12 @@ export async function baixarDoPortal(caminho: string, o: { tenant?: string; nome
   downloadBlob(blob, filenameFromDisposition(res.headers.get('content-disposition'), o.nomePadrao));
 }
 
+/** Bytes de uma rota autenticada como `Blob` (o print do diagnóstico, T-0158), sem baixar: a tela mostra e abre em outra aba. */
+export async function blobDoPortal(caminho: string): Promise<Blob> {
+  const res = await enviar(caminho, { metodo: 'GET' });
+  return res.blob();
+}
+
 /**
  * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`. Hoje só o OpenAPI do Hub
  * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente ("em breve").

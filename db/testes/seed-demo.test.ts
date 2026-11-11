@@ -10,16 +10,20 @@ import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/d
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
   METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO, CLIENTE_REFERENCIA_DEMO, codigoErpDemo, RELACOES_DEMO, numerarPedidosDemo,
-  ENDERECO_EDITADO_DEMO, idPedidoDemo, PEDIDO_ENDERECO_EDITADO_DEMO,
+  ENDERECO_EDITADO_DEMO, idPedidoDemo, PEDIDO_ENDERECO_EDITADO_DEMO, AUTOR_ERP_DEMO, FATURAMENTOS_DEMO, VENDIDO_DEMO,
 } from '../seeds/demo/demo';
+import { AUTOR_ERP } from '../../modules/vendedor/api/retorno-erp';
+import { STATUS_QUE_CONTAM_NA_META } from '../../modules/vendedor/domain/pedidos-da-meta';
+import { resumoFaturamento, situacaoDevolucao } from '../../modules/vendedor/domain/retorno-erp';
+import { STATUS_A_FATURAR } from '../../modules/vendedor/domain/resumo-inicio';
 import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
-import { painelDoMes } from '../../modules/gestor/domain/painel';
+import { faturadoDoPedido, painelDoMes } from '../../modules/gestor/domain/painel';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { dadosDemoCatalogoCadastro, ETIQUETAS_DEMO, REFERENCIAS_DEMO } from '../seeds/demo/catalogo-cadastro';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
-import { INTEGRACAO_DEMO, MODULO_INTEGRACAO, PERFIS_INTEGRACAO_DEMO } from '../seeds/demo/integracao';
+import { dadosFilaErpDemo, INTEGRACAO_DEMO, MODULO_INTEGRACAO, PERFIS_INTEGRACAO_DEMO } from '../seeds/demo/integracao';
 import {
   CLIENTE_PRAZO_30_DEMO, CLIENTE_SEM_BOLETO_DEMO, dadosDemoPagamento, FAIXAS_DEMO, FORMAS_DEMO, FORMAS_SEM_BOLETO_DEMO, idsPagamentoPadrao, PRAZO_MEDIO_MAX_DEMO,
 } from '../seeds/demo/pagamento';
@@ -139,7 +143,10 @@ describe('base de demo (estático)', () => {
     expect(d['core.visita'].every((v) => String(v.data_local) < hoje)).toBe(true);
     const status = new Set(d['vendedor.pedido'].map((p) => p.status));
     for (const s of ['pending_approval', 'approved', 'rejected', 'cancelled']) expect(status.has(s)).toBe(true);
-    const vendido = d['vendedor.pedido'].filter((p) => ['approved', 'sent_to_erp', 'invoiced', 'cancelled'].includes(String(p.status))).reduce((s, p) => s + Number(p.total_cents), 0);
+    // T-0155: o diário conta os mesmos status da meta (faturado parcial inclusive) + o cancelado depois de aprovado
+    // RD-0074: fonte única — VENDIDO_DEMO = STATUS_QUE_CONTAM_NA_META + cancelado, sem lista própria no seed
+    expect([...VENDIDO_DEMO].sort()).toEqual([...STATUS_QUE_CONTAM_NA_META, 'cancelled'].sort());
+    const vendido = d['vendedor.pedido'].filter((p) => VENDIDO_DEMO.has(String(p.status))).reduce((s, p) => s + Number(p.total_cents), 0);
     expect(d['core.indicador_diario'].reduce((s, x) => s + Number(x.vendido_cents), 0)).toBe(vendido);
     for (const p of d['vendedor.pedido']) {
       const itens = d['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id);
@@ -502,7 +509,7 @@ describe('base de demo (estático)', () => {
       expect(tentar(12)).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'gerente' });
     });
 
-    it('pedidos: 2 aguardando o supervisor (um de cada vendedor), 1 o gerente, 1 rejeitado com motivo, 1 cancelado; nada enviado ao ERP', () => {
+    it('pedidos: 2 aguardando o supervisor (um de cada vendedor), 1 o gerente, 1 rejeitado com motivo, 1 cancelado; 3 faturados pelo ERP (T-0155)', () => {
       const pend = pedidos.filter((p) => p.status === 'pending_approval');
       expect(pend.filter((p) => p.nivel_aprovacao === 'supervisor').map((p) => p.vendedor_id).sort()).toEqual([idUsuarioDemo('vendedor'), idUsuarioDemo('vendedor2')].sort());
       expect(pend.filter((p) => p.nivel_aprovacao === 'gerente')).toHaveLength(1);
@@ -512,7 +519,8 @@ describe('base de demo (estático)', () => {
       expect(String(rej[0]!.motivo_rejeicao).trim().length).toBeGreaterThanOrEqual(3);
       expect(rej[0]!.decidido_por_id).toBe(idUsuarioDemo('supervisor'));
       expect(pedidos.filter((p) => p.status === 'cancelled')).toHaveLength(1);
-      expect(pedidos.every((p) => ['approved', 'pending_approval', 'rejected', 'cancelled'].includes(String(p.status)))).toBe(true);
+      expect(pedidos.every((p) => ['approved', 'pending_approval', 'rejected', 'cancelled', 'invoiced', 'invoiced_partial'].includes(String(p.status)))).toBe(true);
+      expect(pedidos.filter((p) => String(p.status).startsWith('invoiced')).map((p) => p.id).sort()).toEqual(Object.keys(FATURAMENTOS_DEMO).map(idPedidoDemo).sort());
       expect(pedidos.filter((p) => p.status === 'approved').every((p) => p.aprovacao_automatica === true)).toBe(true);
       // o Lucas com 8 pedidos (7 + o p11 da T-0071, clientes parecidos) e 1 aguardando aprovação (o "de ontem", do recado)
       const lucas = pedidos.filter((p) => p.vendedor_id === idUsuarioDemo('vendedor'));
@@ -552,6 +560,135 @@ describe('base de demo (estático)', () => {
       }
     });
   });
+
+  describe('T-0155: pedidos faturados pelo ERP (p01 Faturado, p08 Faturado parcial, p02 Faturado com devolução parcial)', () => {
+    const FATURADOS = ['p01', 'p08', 'p02'] as const;
+    const pedido = (k: string) => d['vendedor.pedido'].find((p) => p.id === idPedidoDemo(k))!;
+    const itensDe = (k: string) => d['vendedor.pedido_item'].filter((i) => i.pedido_id === idPedidoDemo(k)).sort((a, b) => Number(a.sequencia) - Number(b.sequencia));
+    const notasDe = (k: string) => d['vendedor.pedido_faturamento'].filter((f) => f.pedido_id === idPedidoDemo(k));
+    const fila = dadosFilaErpDemo(d);
+
+    it('só os 3 escolhidos (todos aprovados na alçada): status, quem vende, número do ERP e marcos enviado < integrado < faturado, no passado', () => {
+      expect(Object.keys(FATURAMENTOS_DEMO).sort()).toEqual([...FATURADOS].sort());
+      expect(FATURADOS.map((k) => [pedido(k).status, pedido(k).vendedor_id, pedido(k).numero_erp])).toEqual([
+        ['invoiced', idUsuarioDemo('vendedor'), FATURAMENTOS_DEMO.p01!.numero_erp],
+        ['invoiced_partial', idUsuarioDemo('vendedor2'), FATURAMENTOS_DEMO.p08!.numero_erp],
+        ['invoiced', idUsuarioDemo('vendedor'), FATURAMENTOS_DEMO.p02!.numero_erp],
+      ]);
+      for (const k of FATURADOS) {
+        const p = pedido(k);
+        expect(p.aprovacao_automatica, k).toBe(true);
+        const marcos = [p.created_at, p.enviado_erp_em, p.integrado_em, p.faturado_em].map((x) => Date.parse(String(x)));
+        expect([...marcos].sort((a, b) => a - b), k).toEqual(marcos);
+        expect(String(p.faturado_em).slice(0, 10) < hoje, k).toBe(true);
+      }
+      // os demais não foram ao ERP (a recarga desfaz um retorno do ensaio)
+      const outros = d['vendedor.pedido'].filter((p) => !FATURADOS.map(idPedidoDemo).includes(String(p.id)));
+      expect(outros.every((p) => p.numero_erp === null && p.enviado_erp_em === null && p.integrado_em === null && p.faturado_em === null && p.total_faturado_cents === 0)).toBe(true);
+      expect(d['vendedor.pedido_item'].filter((i) => outros.some((p) => p.id === i.pedido_id)).every((i) => i.quantidade_faturada === 0)).toBe(true);
+    });
+
+    it('linha do tempo: aprovado -> Enviado ao ERP -> Integrado -> Faturado, com o autor "ERP" do consumidor do retorno', () => {
+      expect(AUTOR_ERP_DEMO).toEqual(AUTOR_ERP);
+      for (const k of FATURADOS) {
+        const p = pedido(k);
+        const ev = d['vendedor.pedido_evento'].filter((e) => e.pedido_id === p.id);
+        expect(ev.slice(-3).map((e) => [e.de, e.para, e.autor_id, e.autor_nome, e.autor_perfil]), k).toEqual([
+          ['approved', 'sent_to_erp', null, AUTOR_ERP.nome, AUTOR_ERP.perfil],
+          ['sent_to_erp', 'integrated', null, AUTOR_ERP.nome, AUTOR_ERP.perfil],
+          ['integrated', p.status, null, AUTOR_ERP.nome, AUTOR_ERP.perfil],
+        ]);
+        expect(ev.slice(-3).map((e) => e.ocorrido_em), k).toEqual([p.enviado_erp_em, p.integrado_em, p.faturado_em]);
+        expect(String(ev.at(-1)!.motivo), k).toContain(String(p.numero_erp));
+      }
+    });
+
+    it('nota e resumo: p01 e p02 faturam tudo, o p08 a Farinha pela metade; faturado do pedido = nota = soma dos itens (resumoFaturamento)', () => {
+      for (const k of FATURADOS) {
+        const p = pedido(k);
+        const itens = itensDe(k);
+        const notas = notasDe(k);
+        expect(notas, k).toHaveLength(1);
+        const [n] = notas;
+        const doItem = n!.itens as Array<{ sequencia: number; produto_id: string; quantidade: number; total_cents: number }>;
+        expect(n).toMatchObject({ parcial: k === 'p08', numero_erp: p.numero_erp, nota_numero: FATURAMENTOS_DEMO[k]!.nota.numero, nota_serie: FATURAMENTOS_DEMO[k]!.nota.serie, faturado_em: p.faturado_em });
+        expect(n!.nota_total_cents).toBe(doItem.reduce((s, i) => s + i.total_cents, 0));
+        expect(p.total_faturado_cents, k).toBe(n!.nota_total_cents);
+        expect(doItem.map((i) => [i.sequencia, i.produto_id, i.quantidade])).toEqual(itens.map((i) => [i.sequencia, i.produto_id, i.quantidade_faturada]));
+        const r = resumoFaturamento(
+          itens.map((i) => ({ sequencia: Number(i.sequencia), quantity: Number(i.quantidade), total_cents: Number(i.total_cents) })),
+          [{ nota_numero: String(n!.nota_numero), nota_total_cents: Number(n!.nota_total_cents), faturado_em: String(n!.faturado_em), itens: doItem.map((i) => ({ sequencia: i.sequencia, quantidade: i.quantidade, valor_cents: i.total_cents })) }],
+          [],
+        );
+        expect(r.faturado_cents, k).toBe(p.total_faturado_cents);
+      }
+      for (const k of ['p01', 'p02']) {
+        expect(pedido(k).total_faturado_cents, k).toBe(pedido(k).total_cents);
+        expect(itensDe(k).every((i) => i.quantidade_faturada === i.quantidade), k).toBe(true);
+      }
+      const p08 = itensDe('p08');
+      expect(p08.map((i) => [i.produto_sku, i.quantidade, i.quantidade_faturada])).toEqual([['ARR-5K', 15, 15], ['FEI-1K', 20, 20], ['FAR-1K', 20, 10]]);
+      expect(Number(pedido('p08').total_faturado_cents)).toBeLessThan(Number(pedido('p08').total_cents));
+    });
+
+    it('devolução só no p02: 6 dos 24 leites, nota de devolução própria, situação parcial (RN-VEN-37: o status não muda)', () => {
+      expect(d['vendedor.pedido_devolucao']).toHaveLength(1);
+      const [dv] = d['vendedor.pedido_devolucao'];
+      const leite = itensDe('p02').find((i) => i.produto_sku === 'LEI-1L')!;
+      const nota = FATURAMENTOS_DEMO.p02!.devolucao!.nota;
+      expect(dv).toMatchObject({ pedido_id: idPedidoDemo('p02'), nota_numero: nota.numero, nota_serie: nota.serie, external_id: nota.external_id, deleted_at: null });
+      expect(dv!.total_cents).toBe(Math.round((Number(leite.total_cents) * 6) / 24));
+      expect(Date.parse(String(dv!.emitida_em))).toBeGreaterThan(Date.parse(String(pedido('p02').faturado_em)));
+      expect(situacaoDevolucao(Number(pedido('p02').total_faturado_cents), Number(dv!.total_cents))).toBe('parcial');
+      expect(pedido('p02').status).toBe('invoiced');
+    });
+
+    it('RN-CORE-21: a meta não muda — os 3 continuam contando o total do pedido (base aprovado), o diário também; "a faturar" perde os 3', () => {
+      const contam = d['vendedor.pedido'].filter((p) => (STATUS_QUE_CONTAM_NA_META as readonly string[]).includes(String(p.status)));
+      const aprovadosOuDepois = d['vendedor.pedido'].filter((p) => !['pending_approval', 'rejected', 'cancelled'].includes(String(p.status)));
+      expect(contam.map((p) => p.id).sort()).toEqual(aprovadosOuDepois.map((p) => p.id).sort());
+      for (const k of FATURADOS) expect(contam.map((p) => p.id)).toContain(idPedidoDemo(k));
+      const noDiario = d['core.indicador_diario'].reduce((s, x) => s + Number(x.pedidos), 0);
+      expect(noDiario).toBe(d['vendedor.pedido'].filter((p) => VENDIDO_DEMO.has(String(p.status))).length);
+      const aFaturar = d['vendedor.pedido'].filter((p) => (STATUS_A_FATURAR as readonly string[]).includes(String(p.status)));
+      expect(aFaturar.some((p) => FATURADOS.map(idPedidoDemo).includes(String(p.id)))).toBe(false);
+    });
+
+    it('fila do ERP (integracao.ts): os 3 entregues ao ERP Matriz e fechados no estado do pedido, com a trilha integrado + faturado', () => {
+      const linhas = fila['integracao.pedido_fila_erp'];
+      expect(linhas.map((l) => [l.pedido_uuid, l.estado]).sort()).toEqual(
+        [[idPedidoDemo('p01'), 'faturado_total'], [idPedidoDemo('p08'), 'faturado_parcial'], [idPedidoDemo('p02'), 'faturado_total']].sort(),
+      );
+      for (const l of linhas) {
+        const p = d['vendedor.pedido'].find((x) => x.id === l.pedido_uuid)!;
+        const itens = d['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id);
+        const payload = l.payload as { condicao_pagamento_erp: string; total_cents: number; cliente_external_id: string; itens: unknown[] };
+        expect(l).toMatchObject({ tenant_id: TENANT_DEMO, conector_id: INTEGRACAO_DEMO.conectores.matriz, tentativas: 1, retencao_codigo: null, numero_erp: p.numero_erp, enviado_em: new Date(String(p.enviado_erp_em)).toISOString() });
+        expect(payload).toMatchObject({ condicao_pagamento_erp: '028', total_cents: p.total_cents, cliente_external_id: (p.cliente_resumo as { codigo_erp: string }).codigo_erp });
+        expect(payload.itens).toHaveLength(itens.length);
+        const acumulado = l.itens_faturados_acumulados as Record<string, { quantidade: number }>;
+        expect(itens.map((i) => acumulado[String(i.sequencia)]?.quantidade ?? 0)).toEqual(itens.map((i) => i.quantidade_faturada));
+      }
+      const trilha = fila['integracao.pedido_retorno'];
+      for (const k of FATURADOS) {
+        expect(trilha.filter((t) => t.pedido_uuid === idPedidoDemo(k)).map((t) => [t.status, t.nota_numero]), k).toEqual([
+          ['integrado', null],
+          [k === 'p08' ? 'faturado_parcial' : 'faturado_total', FATURAMENTOS_DEMO[k]!.nota.numero],
+        ]);
+      }
+    });
+
+    it('Gestor: um vendedor.pedido.faturado@1 por nota; vendido × faturado com o p08 pela metade da Farinha (RN-GES-06)', () => {
+      const g = dadosGestorDemo(d);
+      expect(g.eventos.filter((e) => e.nome === 'vendedor.pedido.faturado@1')).toHaveLength(3);
+      const { estado } = projecaoDemo(g.eventos);
+      for (const k of FATURADOS) {
+        const fato = estado.pedidos[idPedidoDemo(k)]!;
+        expect(faturadoDoPedido(fato), k).toBe(k === 'p08' ? pedido(k).total_faturado_cents : pedido(k).total_cents);
+      }
+    });
+  });
+
 
   it('dias úteis pulam o domingo', () => {
     expect(diasUteisAtras('2026-11-02', 1)).toBe('2026-10-31'); // segunda -> sábado
@@ -811,6 +948,37 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.erros).toHaveLength(2);
     expect(r.erros.every((e) => e.payload === null && e.external_id.length > 0)).toBe(true);
     expect(r.pendencia).toEqual([{ estado: 'aguardando', dias: INTEGRACAO_DEMO.validadeDias }]);
+  });
+
+  it('T-0155 ligado no carregarDemo: 3 pedidos faturados com nota, resumo, devolução e a fila do ERP integrada, pelo papel macuxi_app', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      status: (await c.query<{ status: string; n: number }>("select status, count(*)::int as n from vendedor.pedido where status like 'invoiced%' group by 1 order by 1")).rows,
+      // o mesmo resumo que a lista, o detalhe e o pull leem (total_faturado_cents + pedido_faturamento + pedido_devolucao)
+      resumo: (await c.query<{ id: string; faturado: string; notas: number; devolvido: string }>(
+        `select p.id, p.total_faturado_cents::text as faturado,
+                (select count(*)::int from vendedor.pedido_faturamento f where f.pedido_id = p.id and f.deleted_at is null) as notas,
+                (select coalesce(sum(v.total_cents), 0)::text from vendedor.pedido_devolucao v where v.pedido_id = p.id and v.deleted_at is null) as devolvido
+           from vendedor.pedido p where p.total_faturado_cents > 0 order by p.id`,
+      )).rows,
+      fila: (await c.query<{ pedido_uuid: string; estado: string }>('select pedido_uuid, estado from integracao.pedido_fila_erp where deleted_at is null order by pedido_uuid')).rows,
+      trilha: (await c.query<{ n: number }>('select count(*)::int as n from integracao.pedido_retorno where deleted_at is null')).rows[0]!.n,
+    }));
+    const d = dadosDemo(HASH_FALSO, { hoje: hojeCarga });
+    const esperado = d['vendedor.pedido'].filter((p) => Number(p.total_faturado_cents) > 0).map((p) => ({
+      id: String(p.id),
+      faturado: String(p.total_faturado_cents),
+      notas: 1,
+      devolvido: String(d['vendedor.pedido_devolucao'].filter((v) => v.pedido_id === p.id).reduce((s, v) => s + Number(v.total_cents), 0)),
+    }));
+    expect(r.status).toEqual([{ status: 'invoiced', n: 2 }, { status: 'invoiced_partial', n: 1 }]);
+    expect(r.resumo).toEqual(esperado.sort((a, b) => a.id.localeCompare(b.id)));
+    expect(r.resumo.filter((x) => x.devolvido !== '0').map((x) => x.id)).toEqual([idPedidoDemo('p02')]);
+    expect(r.fila).toEqual(
+      [[idPedidoDemo('p01'), 'faturado_total'], [idPedidoDemo('p02'), 'faturado_total'], [idPedidoDemo('p08'), 'faturado_parcial']]
+        .map(([pedido_uuid, estado]) => ({ pedido_uuid, estado }))
+        .sort((a, b) => a.pedido_uuid!.localeCompare(b.pedido_uuid!)),
+    );
+    expect(r.trilha).toBe(6);
   });
 
   it('0017 ligado no carregarDemo: licença do Treinamento para os 7 perfis, 3 trilhas (2 publicadas, 1 obrigatória) e o ranking de XP', async () => {

@@ -1,4 +1,3 @@
-import { formatBRL } from '@macuxi/comum';
 import { rotuloCurtoOk, rotulosDoHistorico, tagsDoHistorico } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
@@ -10,10 +9,8 @@ import {
   eventosDoOrcamento,
   eventosDoPedido,
   itensVisiveis,
-  linhaDoAjusteDoItem,
-  linhaDoVendedor,
-  linhaFormaPrazoFrete,
   motivoDoEvento,
+  linhaLiquidaDosTotais,
   siglaDaMedida,
   type EntradaAcoesDoDetalhe,
 } from './detalhe-pedido';
@@ -91,11 +88,9 @@ describe('RN-VEN-30/18 (T-0138): histórico do orçamento', () => {
 });
 
 describe('RF-VEN-05 (T-0138): cabeçalho, itens e total', () => {
-  it('cliente com código e vendedor', () => {
+  it('cliente com código', () => {
     expect(clienteComCodigo('Mercadinho São Jorge', 'C5002')).toBe('Mercadinho São Jorge · cód. C5002');
     expect(clienteComCodigo('Mercadinho São Jorge', ' ')).toBe('Mercadinho São Jorge');
-    expect(linhaDoVendedor('Lucas Andrade')).toBe('Vendedor: Lucas Andrade');
-    expect(linhaDoVendedor('')).toBe('');
   });
   it('mais de 8 itens: os 8 primeiros e "Ver os 23 itens"', () => {
     const itens = Array.from({ length: 23 }, (_, i) => i);
@@ -103,17 +98,9 @@ describe('RF-VEN-05 (T-0138): cabeçalho, itens e total', () => {
     expect(itensVisiveis(itens, true).visiveis).toHaveLength(23);
     expect(itensVisiveis(itens.slice(0, 8), false).rotuloVerTodos).toBeNull();
   });
-  it('desconto do item na 2ª linha, com R$ por unidade e a sigla da medida', () => {
+  it('sigla da medida', () => {
     expect(siglaDaMedida('CX c/ 12')).toBe('CX');
     expect(siglaDaMedida('')).toBe('UN');
-    expect(linhaDoAjusteDoItem({ discount_pct: 5, unit_price_cents: 2000, unit_label: 'FD' })).toBe(`Desc 5,0% · −${formatBRL(100)}/FD`);
-    expect(linhaDoAjusteDoItem({ surcharge_pct: 3, unit_price_cents: 2000, unit_label: 'CX c/ 12' })).toBe(`Acrésc 3,0% · +${formatBRL(60)}/CX`);
-    expect(linhaDoAjusteDoItem({ discount_pct: 0, unit_price_cents: 2000 })).toBeNull();
-  });
-  it('forma · prazo · frete (FOB leva a transportadora; parte vazia sai)', () => {
-    expect(linhaFormaPrazoFrete({ forma: 'Pix', prazo: 'À vista', modalidade: 'CIF' })).toBe('Pix · À vista · CIF');
-    expect(linhaFormaPrazoFrete({ forma: 'Boleto', prazo: '28/56 dias', modalidade: 'FOB', transportadora: 'Transportes Rio Negro' })).toBe('Boleto · 28/56 dias · FOB · Transportes Rio Negro');
-    expect(linhaFormaPrazoFrete({ prazo: '28 dias', modalidade: null })).toBe('28 dias');
   });
 });
 
@@ -163,5 +150,14 @@ describe('RF-VEN-05 / RN-VEN-31 (T-0138): onde fica cada ação (pedido-v2 §4.3
       expect(a.icones.concat(a.principal ? [a.principal] : []).some((i) => i.id === 'cancelar')).toBe(false);
       expect(a.icones.length).toBeLessThanOrEqual(4);
     }
+  });
+});
+
+describe('T-0151 (RN-VEN-03): o rótulo do desconto do detalhe sai dos centavos', () => {
+  it('RN-VEN-03: tabela 1.000,00 e total 899,00 (item com desconto e pedido com 15% digitado) mostra "Desconto 10,1%", não 15,0%', () => {
+    expect(linhaLiquidaDosTotais({ subtotal_cents: 100_000, total_cents: 89_900 })?.rotulo).toBe('Desconto 10,1%');
+  });
+  it('RN-VEN-03: 8,8% também sai do total gravado, igual ao Resumo e ao PDF', () => {
+    expect(linhaLiquidaDosTotais({ subtotal_cents: 100_000, total_cents: 91_200 })?.rotulo).toBe('Desconto 8,8%');
   });
 });

@@ -98,7 +98,7 @@ export function situacaoDoPagamento(r: Rascunho, formas: readonly FormaDePagamen
   return v.ok ? { tipo: 'ok' } : { tipo: 'invalido', codigo: v.motivo, mensagem: v.mensagem };
 }
 
-/** "Total do pedido · 2 itens" (o rótulo da aba Resumo não repete o total). */
-export function rotuloTotalDoPedido(itens: number): string {
-  return `Total do pedido · ${itens} ${itens === 1 ? 'item' : 'itens'}`;
+/** "Total do pedido": a aba Itens já traz a contagem (RN-VEN-42, RD-0068). */
+export function rotuloTotalDoPedido(): string {
+  return 'Total do pedido';
 }

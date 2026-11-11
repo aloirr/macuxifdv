@@ -78,7 +78,7 @@ describe('RN-VEN-17: endereço editado só no pedido, de ponta a ponta', () => {
     expect(enderecoEditadoDoRetrato({ ...detalhe!, origem: 'erp' })).toBeNull();
   });
 
-  it('RN-VEN-17: os dois PDFs (cliente e BKO) trazem "Endereço de entrega" com o mesmo endereço e nenhuma marca de editado', () => {
+  it('RN-VEN-17: os dois PDFs (cliente e BKO) trazem o endereço na ficha "Entrega" (spec pdf-pedido, proposta 2) com o mesmo endereço e nenhuma marca de editado', () => {
     if (!api.ok || !api.retrato) throw new Error('esperava retrato');
     const detalhe = enderecoDaApi({ endereco_entrega: api.retrato as unknown as Record<string, unknown> } as never)!;
     const d: DetalheParaPdf = {
@@ -90,7 +90,7 @@ describe('RN-VEN-17: endereço editado só no pedido, de ponta a ponta', () => {
     };
     for (const view of ['customer', 'bko'] as const) {
       const html = buildOrderPdfHtml(pdfDoPedido(d), view, { tenant_name: 'Distribuidora', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-09T14:00:00.000Z' });
-      expect(html).toContain('Endereço de entrega');
+      expect(html).toContain(">Entrega<");
       expect(html).toContain('Rua Pará, 140 – fundos');
       expect(html).toContain('69053-000');
       expect(html).not.toMatch(/Editado neste pedido/i);

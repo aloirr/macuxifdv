@@ -77,6 +77,9 @@ export const PedidoSyncSchema = z
     transportadora_telefone: z.string().nullable().optional(),
     endereco_entrega_id: z.string().uuid().nullable().optional(),
     endereco_entrega: z.record(z.unknown()).nullable().optional(),
+    /** T-0149 (RN-CORE-39, aditivo): retrato da filial do pedido { id, codigo, nome, cidade, uf, external_id, padrao }; nulo/ausente nos pedidos anteriores */
+    filial_id: z.string().uuid().nullable().optional(),
+    filial: z.record(z.unknown()).nullable().optional(),
     // --- T-0071 (migração 0020, pedida ao banco-dados): validade por data civil e ajuste do pedido em R$; opcionais ---
     validade_data: z.string().nullable().optional(),
     desconto_valor_cents: z.number().int().nonnegative().nullable().optional(),
@@ -127,6 +130,8 @@ export const PedidoItemSyncSchema = z
     ajuste_em: z.enum(['pct', 'valor']).nullable().optional(),
     /** T-0084 (0033, RN-VEN-19): retrato da aplicação no momento do pedido; nulo = desmarcada, sem aplicação ou anterior à 0033 */
     aplicacao: z.string().max(1000).nullable().optional(),
+    /** T-0159 (0060): retrato da marca do produto no recebimento; nulo = sem marca ou item anterior */
+    marca: z.string().max(100).nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

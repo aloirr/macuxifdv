@@ -38,8 +38,11 @@ const dia = (v: string | null) => (v ? v.slice(0, 10) : '—');
 
 export function TabelasPrecoPage() {
   const [filtros, mudar] = useFiltros();
-  const tabelas = useQuery({ queryKey: ['catalogo', 'tabelas-preco'], queryFn: async () => ListaTabelasPreco.parse(await api<unknown>(`${BASE}/tabelas-preco`)).items });
-  const tabelaId = filtros.tabela || tabelas.data?.[0]?.id || '';
+  const tabelas = useQuery({
+    queryKey: ['catalogo', 'tabelas-preco', filtros.filial],
+    queryFn: async () => ListaTabelasPreco.parse(await api<unknown>(`${BASE}/tabelas-preco${filtros.filial ? `?filial=${encodeURIComponent(filtros.filial)}` : ''}`)),
+  });
+  const tabelaId = filtros.tabela || tabelas.data?.items[0]?.id || '';
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="tabelas-preco.tela">
       <PageHeader title="Tabelas de preço" subtitle="O preço da unidade em cada tabela e as faixas de preço por quantidade. A caixa não tem preço próprio: vale a unidade vezes a quantidade da embalagem." />
@@ -57,19 +60,19 @@ export function TabelasPrecoPage() {
       </nav>
       {tabelas.isError && <ErrorBlock message={errorMessage(tabelas.error)} onRetry={() => void tabelas.refetch()} />}
       {tabelas.isPending && <LoadingBlock label="Carregando as tabelas de preço…" />}
-      {tabelas.data && filtros.aba === 'precos' && <PrecosUnidade filtros={filtros} mudar={mudar} tabelas={tabelas.data} tabelaId={tabelaId} />}
-      {tabelas.data && filtros.aba === 'escalonada' && <Escalonada filtros={filtros} mudar={mudar} tabelas={tabelas.data} />}
+      {tabelas.data && filtros.aba === 'precos' && <PrecosUnidade filtros={filtros} mudar={mudar} tabelas={tabelas.data.items} filiais={tabelas.data.filiais} filialId={tabelas.data.filial_id} tabelaId={tabelaId} />}
+      {tabelas.data && filtros.aba === 'escalonada' && <Escalonada filtros={filtros} mudar={mudar} tabelas={tabelas.data.items} />}
     </div>
   );
 }
 
 type Tabelas = ListaTabelasPreco['items'];
 
-function PrecosUnidade({ filtros, mudar, tabelas, tabelaId }: { filtros: FiltrosTabelas; mudar: (p: Partial<FiltrosTabelas>) => void; tabelas: Tabelas; tabelaId: string }) {
+function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }: { filtros: FiltrosTabelas; mudar: (p: Partial<FiltrosTabelas>) => void; tabelas: Tabelas; filiais: ListaTabelasPreco['filiais']; filialId: string; tabelaId: string }) {
   const lista = useQuery({
-    queryKey: ['catalogo', 'precos-tabela', tabelaId, filtros.q],
+    queryKey: ['catalogo', 'precos-tabela', tabelaId, filialId, filtros.q],
     enabled: tabelaId !== '',
-    queryFn: async () => PaginaPrecosTabela.parse(await api<unknown>(`${BASE}/tabelas-preco/${tabelaId}/precos?limit=${POR_PAGINA}${filtros.q ? `&q=${encodeURIComponent(filtros.q)}` : ''}`)),
+    queryFn: async () => PaginaPrecosTabela.parse(await api<unknown>(`${BASE}/tabelas-preco/${tabelaId}/precos?limit=${POR_PAGINA}&filial=${encodeURIComponent(filialId)}${filtros.q ? `&q=${encodeURIComponent(filtros.q)}` : ''}`)),
   });
   return (
     <Panel label="Preço da UN" title="Preço da unidade por tabela">
@@ -80,6 +83,17 @@ function PrecosUnidade({ filtros, mudar, tabelas, tabelaId }: { filtros: Filtros
             {tabelas.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.nome} ({t.itens})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+          Filial
+          <select className={CAMPO} value={filialId} onChange={(e) => mudar({ filial: e.target.value })} data-testid="tabelas-preco.filial">
+            {filiais.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+                {f.padrao ? ' (padrão)' : ''}
               </option>
             ))}
           </select>

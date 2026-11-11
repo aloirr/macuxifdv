@@ -487,6 +487,8 @@ export * from './consultas';
 export * from './cadastro';
 export * from './produto-preco';
 export * from './medida';
+export * from './filial';
+export * from './fotos-pdv';
 export * from './promotor-pedidos';
 export * from './enderecos';
 export * from './usuarios';

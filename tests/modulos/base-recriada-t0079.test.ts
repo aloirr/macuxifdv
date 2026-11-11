@@ -91,7 +91,7 @@ const clienteSync = (id: string, fantasia: string, em: number): ClienteSync =>
 const payload = (id: string, cliente: string, tipo: 'pedido' | 'orcamento' = 'pedido'): PedidoPush =>
   ({ id, customer_id: cliente, discount_pct: 0, payment_terms: 'À vista', items: [{ product_id: PRODUTO, quantity: 2 }], tipo }) as PedidoPush;
 
-const exibicao = (cliente: string): OrderDisplay => ({ customer_name: cliente, subtotal_cents: 2_000, discount_cents: 0, total_cents: 2_000, items_count: 1, units: 2, lines: [], expected: 'ok', notes: [] });
+const exibicao = (cliente: string): OrderDisplay => ({ customer_name: cliente, subtotal_cents: 2_000, discount_cents: 0, total_cents: 2_000, items_count: 1, units: 2, lines: [], expected: 'ok' });
 
 /**
  * "Banco" de um tenant: servidor simulado do SDK com o número legível gerado no servidor. `recriar()` = `seed demo --recriar`

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0153 · Início e Pedidos (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  .data { font-size: 13px; color: var(--ink2); }
+  .saud { font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; line-height: 30px; margin-top: -8px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .card .topo-c { display: flex; justify-content: space-between; align-items: center; }
+  .card .rot { font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); }
+  .rec { display: flex; gap: 10px; font-size: 14px; line-height: 19px; padding: 8px 0; }
+  .rec + .rec { border-top: 1px solid var(--lineSoft); }
+  .rec .tx { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rec .h { font-size: 12px; color: var(--ink2); white-space: nowrap; }
+  .meta-v { font-family: Archivo, sans-serif; font-weight: 700; font-size: 21px; font-variant-numeric: tabular-nums; }
+  .barra { height: 6px; border-radius: 3px; background: var(--lineSoft); overflow: hidden; }
+  .barra div { height: 100%; background: var(--accent); }
+  .ind { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; }
+  .ind + .ind { border-top: 1px solid var(--lineSoft); }
+  .ind .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .lt { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: 14px; }
+  .lt + .lt { border-top: 1px solid var(--lineSoft); }
+  .lt .n { font-weight: 600; flex: 1; }
+  .lt .v { font-variant-numeric: tabular-nums; }
+  .btn.escuro { background: var(--ink); color: #fff; }
+  .sit-sync { text-align: center; font-size: 12px; color: var(--ink2); margin-top: -6px; }
+  /* lista de pedidos */
+  .ped { padding: 11px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .ped + .ped { border-top: 1px solid var(--lineSoft); }
+  .ped .l1, .ped .l2 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .ped .nome { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ped .tot { font-family: Archivo, sans-serif; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ped .num { font-size: 13px; color: var(--ink2); }
+  .ped .mot { font-size: 13px; color: var(--ink); }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+</style>
+</head>
+<body>
+<h1 class="prancha">Início e Pedidos · mesmo padrão do Resumo</h1>
+<p class="prancha">T-0153 · fluxo de venda. Cada fato uma vez; número em coluna à direita; sem caixa repetindo uma linha. A ficha do cliente está na T-0146/T-0147; o Novo pedido na T-0148; o Resumo e o detalhe na T-0150.</p>
+
+<div class="board">
+
+  <!-- 1 · Início -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Início do vendedor<span>Sem os parênteses de Orçamentos e A faturar.</span></div>
+    <div class="phone" style="height:820px">
+      <div class="status"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+      <div class="conteudo sem-topo" style="padding:12px 20px 16px;gap:14px">
+        <div class="data">Terça, 10 de novembro</div>
+        <div class="saud">Bom dia, Lucas</div>
+        <div class="data" style="margin-top:-10px">6 visitas hoje · 3 feitas</div>
+        <div class="card">
+          <div class="topo-c"><span class="rot">Recados</span><span class="selo destaque">2 novos</span></div>
+          <div>
+            <div class="rec" style="padding-top:2px"><span class="tx"><b>Prioridade:</b> passe cedo no Mercadinho São Jorge, título vencido.</span><span class="h">06:05</span></div>
+            <div class="rec"><span class="tx"><b>Pedido 000013 aprovado</b></span><span class="h">06:10</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="topo-c"><span class="rot">Meta do mês</span><span style="font-size:13px;color:var(--ink2)">31%</span></div>
+          <div class="meta-v">R$ 55.800 de R$ 180.000</div>
+          <div class="barra"><div style="width:31%"></div></div>
+          <div style="font-size:13px;color:var(--ink2)">Meta de hoje R$ 8.240</div>
+          <div style="margin-top:2px">
+            <div class="ind"><span>Positivação</span><span class="v">9 de 15 clientes</span></div>
+            <div class="ind"><span>Visitas</span><span class="v">41 de 90</span></div>
+            <div class="ind"><span>Cobertura</span><span class="v">62% de 90%</span></div>
+          </div>
+        </div>
+        <div class="card marca" style="padding:0 6px 0 14px;gap:0">
+          <div class="lt"><span class="n">Orçamentos</span><span class="v">3 · R$ 1.150</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="lt"><span class="n">A faturar</span><span class="v">6 · R$ 3.989</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="btn escuro"><i data-i="sync" data-t="18" data-c="#fff"></i>Sincronizar</div>
+        <div class="sit-sync">Última sincronização 05:40 · 0 na fila</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Pedidos -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Pedidos<span>Linha: cliente e total; nº, data e situação. Motivo só na recusa.</span></div>
+    <div class="phone" style="height:820px">
+      <div class="status"><span>06:31</span><span>4G ▮▮▮ 90%</span></div>
+      <div class="conteudo sem-topo" style="padding:12px 16px 16px;gap:12px">
+        <div class="topo"><div class="titulo-tela">Pedidos</div><div class="sync"><i data-i="sync" data-t="12"></i>06:30</div></div>
+        <div class="atalho marca"><i data-i="edit" data-t="20" data-c="#8F3D06"></i><div style="flex:1"><div class="r">Rascunhos (2)</div></div><i data-i="chevron" data-t="16" data-c="#8F3D06"></i></div>
+        <div style="display:flex;gap:8px"><div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Cliente ou nº</div><div class="filtro-btn"><i data-i="filtro" data-t="20"></i></div></div>
+        <div class="chips" style="flex-wrap:nowrap;overflow:hidden"><div class="chip on">Todos</div><div class="chip">Em aprovação</div><div class="chip">Rejeitado</div><div class="chip">Aprovado</div><div class="chip">Faturado</div></div>
+        <div class="nota marca" style="outline-offset:3px">Total R$ 8.420</div>
+        <div class="lista">
+          <div class="ped"><div class="l1"><span class="nome">Atacadinho Cachoeirinha</span><span class="tot">R$ 118,78</span></div><div class="l2"><span class="num">Nº 000014 · hoje 05:56</span><span class="selo erro">Rejeitado</span></div><div class="mot">AGU-1500 acima do desconto máximo</div></div>
+          <div class="ped"><div class="l1"><span class="nome">Atacadinho Cachoeirinha</span><span class="tot">R$ 126,64</span></div><div class="l2"><span class="num">Nº 000013 · hoje 05:55</span><span class="selo ok">Aprovado</span></div></div>
+          <div class="ped"><div class="l1"><span class="nome">Mercadinho São Jorge</span><span class="tot">R$ 812,40</span></div><div class="l2"><span class="num">Nº 000011 · ontem 16:20</span><span class="selo destaque">Em aprovação</span></div></div>
+          <div class="ped"><div class="l1"><span class="nome">Atacadinho Cachoeirinha</span><span class="tot">R$ 69,96</span></div><div class="l2"><span class="num">Nº 000012 · 09/11 05:50</span><span class="selo roxo">Orçamento</span></div></div>
+          <div class="ped"><div class="l1"><span class="nome">Supermercado Rio Negro</span><span class="tot">R$ 2.140,00</span></div><div class="l2"><span class="num">Nº 000009 · 07/11 10:12</span><span class="selo ok">Faturado</span></div></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- 3 · O que muda -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>O que muda<span>Em relação à v1.0.2.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Início:</b> sai "(1 vence amanhã)" de Orçamentos (orçamento não vence mais) e "(1 aguardando aprovação)" de A faturar (está em Pedidos).</div>
+      <div class="nota-prancha"><b>Rascunhos:</b> sai a frase "Somem 24 h após a última alteração"; o aviso "Some em 2 h" continua na tela Rascunhos, só quando falta pouco.</div>
+      <div class="nota-prancha"><b>Contagem:</b> "12 pedidos · R$ 8.420" vira "Total R$ 8.420"; os chips ficam sem número (cada linha já tem o selo; RD-0077).</div>
+      <div class="nota-prancha"><b>Linha do pedido:</b> "Nº 000013" no lugar de "Pedido 000013"; o selo diz se é pedido ou orçamento. O selo fica à direita, na linha do nº.</div>
+      <div class="nota-prancha"><b>Recusa:</b> só o motivo, numa linha ("AGU-1500 acima do desconto máximo", a mesma frase dos Alertas; RD-0071). Em aprovação, nenhuma nota: o selo diz.</div>
+      <div class="nota-prancha"><b>Sinal e servidor:</b> só no selo do cabeçalho (RD-0076). "↻ 06:30" normal; "↻ Atualizando…"; <b>"Sem sinal"</b> e <b>"Sem resposta"</b> em amarelo, com o toque para o Perfil ou para tentar de novo. Saem as faixas de sinal e de fila e o rodapé "Atualizado às…".</div>
+      <div class="nota-prancha"><b>Gestão:</b> a mesma lista, com o vendedor no lugar da hora ("Nº 000011 · Lucas Andrade").</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

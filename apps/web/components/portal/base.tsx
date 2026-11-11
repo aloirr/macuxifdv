@@ -7,7 +7,7 @@
  * Caminhos sem o prefixo `/config`: no host `config.` o navegador vê `/empresas` e o `proxy.ts` reescreve.
  */
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { Button, cx, Dialog, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
 
@@ -27,6 +27,7 @@ import {
   assinarSessaoPortal,
   CAMINHO_ESCOLHER_EMPRESA,
   destinoDaSessao,
+  ehTimeMacuxi,
   estadoDaSessao,
   guardarRetornoPortal,
   lerDesvioPortal,
@@ -352,6 +353,18 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
+/** Itens do cabeçalho do time da Macuxi (T-0158: "Diagnósticos" ao lado de "Empresas"); o admin do cliente não vê nenhum. */
+export const MENU_TIME_MACUXI = [
+  { href: '/empresas', rotulo: 'Empresas', testId: 'portal.menu.empresas' },
+  { href: '/diagnosticos', rotulo: 'Diagnósticos', testId: 'portal.menu.diagnosticos' },
+] as const;
+
+/** Item ativo pelo caminho (no host `config.` o navegador vê `/diagnosticos`; no PC sem o host, `/config/diagnosticos`). */
+export function itemAtivoDoMenu(caminho: string | null): string | null {
+  const c = (caminho ?? '').replace(/^\/config(?=\/|$)/, '') || '/';
+  return MENU_TIME_MACUXI.find((i) => c === i.href || c.startsWith(`${i.href}/`))?.href ?? null;
+}
+
 /** Hora local (fuso do navegador do operador; o portal não é de um tenant). */
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -368,6 +381,7 @@ const naMesmaAba = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey
 export function MolduraPortal({ children, titulo, voltar }: { children: ReactNode; titulo?: ReactNode; voltar?: { href: string; rotulo: string } }) {
   const sessao = useSessaoPortal();
   const router = useRouter();
+  const ativo = itemAtivoDoMenu(usePathname());
   const pendencias = useSaidaSegurada();
   const [saida, setSaida] = useState<(() => void) | null>(null);
 
@@ -403,9 +417,30 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
         <AvisoModoFalso />
         <header className="border-b border-line bg-surface">
           <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <Link href={inicio} className="no-underline" data-testid="portal.marca" onClick={navegar(inicio)}>
-              <Marca />
-            </Link>
+            <div className="flex flex-wrap items-center gap-6">
+              <Link href={inicio} className="no-underline" data-testid="portal.marca" onClick={navegar(inicio)}>
+                <Marca />
+              </Link>
+              {ehTimeMacuxi(sessao) && (
+                <nav aria-label="Portal" className="flex items-stretch gap-1 self-stretch">
+                  {MENU_TIME_MACUXI.map((i) => (
+                    <Link
+                      key={i.href}
+                      href={i.href}
+                      data-testid={i.testId}
+                      aria-current={ativo === i.href ? 'page' : undefined}
+                      onClick={navegar(i.href)}
+                      className={cx(
+                        '-mb-3 flex min-h-11 items-center border-b-2 px-3 pb-3 text-[14px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        ativo === i.href ? 'border-accent text-ink' : 'border-transparent text-ink-2 hover:text-ink',
+                      )}
+                    >
+                      {i.rotulo}
+                    </Link>
+                  ))}
+                </nav>
+              )}
+            </div>
             <div className="flex min-w-0 flex-wrap items-center gap-3 text-[13px] text-ink-2">
               {/* o nome da empresa (contexto) vem antes do prazo da sessão (R-20261107-174216 🟢 3) */}
               {cliente && sessao?.empresa && (

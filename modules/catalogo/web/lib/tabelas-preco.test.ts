@@ -22,11 +22,11 @@ const faixa = {
 
 describe('BKO Tabelas de preço: preço da UN e aba Escalonada (RN-VEN-23, RN-VEN-15)', () => {
   it('filtros na URL: aba, tabela, busca e só vigentes ida e volta; padrão = aba Preço da UN', () => {
-    expect(lerFiltrosTabelas('')).toEqual({ aba: 'precos', tabela: '', q: '', vigente: false });
-    const f = { aba: 'escalonada' as const, tabela: 'abc', q: 'pastilha', vigente: true };
-    expect(buscaDosFiltrosTabelas(f)).toBe('?aba=escalonada&tabela=abc&q=pastilha&vigente=1');
+    expect(lerFiltrosTabelas('')).toEqual({ aba: 'precos', tabela: '', filial: '', q: '', vigente: false });
+    const f = { aba: 'escalonada' as const, tabela: 'abc', filial: 'f1', q: 'pastilha', vigente: true };
+    expect(buscaDosFiltrosTabelas(f)).toBe('?aba=escalonada&tabela=abc&filial=f1&q=pastilha&vigente=1');
     expect(lerFiltrosTabelas(buscaDosFiltrosTabelas(f))).toEqual(f);
-    expect(buscaDosFiltrosTabelas({ aba: 'precos', tabela: '', q: '', vigente: false })).toBe('');
+    expect(buscaDosFiltrosTabelas({ aba: 'precos', tabela: '', filial: '', q: '', vigente: false })).toBe('');
     expect(lerFiltrosTabelas('?aba=outra').aba).toBe('precos');
   });
 

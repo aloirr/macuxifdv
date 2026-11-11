@@ -128,3 +128,21 @@
 2026-11-09 — T-0140 — RN-CORE-32: textoDoErroDaSenha (contracts/ciclo-senha.ts) usada no app; RD-0042 (rotas.ts), RD-0032 (teste), RD-0044 (protegerFormula) fechados; RD-0046 (uuid) fica para combinar o novoId com engenheiro-apps
 2026-11-09 — T-0117/T-0140 — cookieSessao nas 4 rotas de auth + schemas web sem refresh_token; datas impossíveis em rotas/visitas recusadas no contrato (ehDataCivil); RD-0046: UUID do aparelho vem de motor.ambiente.novoId() (dispositivo.ts sem uuid)
 2026-11-09 — T-0140 — RD-0046 fim: gpsAgora e dispositivo.ts removidos; check-in/checkout leem c.motor.ambiente.posicaoAgora() (null = sem GPS, mesma regra); mock do teste ajustado
+2026-11-10 — T-0146 — ficha do cliente sem repetição: limite/vencidos só no Financeiro (app e BKO), teste novo
+2026-11-10 — T-0151 — ProdutoSync com preco_venda_cents e desconto_maximo_pct efetivo (contrato, pull e toque ao mudar o padrão); vendedor avisado
+2026-11-10 — T-0146 — RN-CORE-40: compra média/mês ÷ 12, sem compras em 12 meses, ficha só na janela de 12 meses; RD-0065/0066 aplicados (app e BKO)
+2026-11-10 — T-0149 — core.filiais@1, filial no cadastro/cliente/sync/ERP, domain RN-CORE-39, BKO Filiais e linha na ficha; T-0147 — domain RN-CORE-38, tipos no BKO, resumo e pull de fotos, ficha (push de foto e captura pendentes do SDK/shell)
+2026-11-10 — T-0152 — RD-0065 (linha de bloqueio só com motivo, 'Motivo do bloqueio: X') e RD-0075 (selo Cadastro incompleto sai da ficha) no app e no BKO; teste novo; reteste pedido
+2026-11-10 — T-0147 — 🔴 de UX da ficha (botões em pé, contraste, rótulos), Foto do PDV ligada ao visualizador, UF da filial ^[A-Z]{2}$; push de foto para v1.0.4
+2026-11-10 — T-0149 — D-1 RN-CORE-38: só a fachada com arquivo_id para vendedor/promotor (domain, pull, resumo); testes e recados enviados
+2026-11-10 — urgente — cliente.tsx: fragmento <> em AcoesContato/BlocoFotosPdv (bundle quebrado)
+2026-11-10 — T-0147 — RD-0080 (fachadaDoPdv fonte única) e RD-0081 (subtítulo do BKO) corrigidos; reteste pedido
+2026-11-10 — ajuste do rótulo Foto do PDV na ficha (cliente360.tsx), reteste pedido ao designer-ux e corretor
+2026-11-10 — T-lote-v1.0.3 — removido import morto mesNaJanela12 de domain/cliente360.test.ts (lint do core sem erros)
+2026-11-10 — RN-CORE-38: texto único 'vendedor vê só a fachada' no BKO e cadeado em todo tipo não-fachada na ficha (fotoPdvTrancada)
+2026-11-10 — RN-CORE-38: texto único 'vendedor vê só a fachada' no BKO e cadeado em todo tipo não-fachada na ficha (fotoPdvTrancada)
+2026-11-10 — T-0147 — envio da foto do PDV: push cliente_foto (receber no sync, cliente_foto 'ambos'), domain (montarFotoPdvPush, apagarArquivoLocalAoEnviar, fotosComPendentes), enviarFotoPdv pela fila de itens e de arquivos, definirCapturaFotoPdv (escolher/camera/galeria) e botão Adicionar na ficha; tem/falta na hora
+2026-11-10 — T-0147 — RD-0105: cadeado só em tipo não-fachada com foto; 'Na fila' na ficha para foto enviada ainda não aceita; testes e reteste pedido
+2026-11-10 — T-0159 — filial com CNPJ e endereço: contrato core.filiais@1/sync (aditivo), validarFilial (DV do CNPJ, obrigatórios), rotas, consumidor do ERP, BKO e testes; recados ao vendedor e à integração
+2026-11-10 — T-0147/RD-0109 — comentários das fotos do PDV alinhados a 'Na fila'/cadeado por fotoPdvTrancada; filtro de pendentes em const única; tsc (3 configs) e eslint do core conferidos
+2026-11-11 — T-0159 — RD-0114/0115/0116/0117/0122: LIMITES_FILIAL, CAMPOS_OBRIGATORIOS_FILIAL e CAMPOS_FISCAIS_FILIAL no contrato; faltasNoCadastroDaFilial no domain (validarFilial, API incompleta, web); selo Incompleta no BKO Filiais

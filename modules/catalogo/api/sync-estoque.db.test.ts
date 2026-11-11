@@ -9,6 +9,7 @@ import type { ContextoBase, LinhaSync, PedidoPull } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DepositoSyncSchema, EstoqueSaldoSyncSchema } from '../contracts';
+import { consultarFiliaisDeTeste } from './filiais-teste';
 import { provedoresSyncCatalogo } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -29,7 +30,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de deposito e estoque_s
   const ctx = (tenant: string, perfil: string, parametros: Record<string, unknown> = {}): ContextoBase =>
     ({
       usuario: { perfil, tenant_id: tenant },
-      comTenant: (fn: (db: pg.ClientBase) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c)),
+      // T-0149: o pull de preço e estoque pergunta as filiais da carteira ao Core (core.filiais@1); aqui, todas
+      comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c, { consultar: consultarFiliaisDeTeste(c, { daCarteira: null }) })),
       carteira: async () => 'tenant',
       parametros: () => parametros,
     }) as unknown as ContextoBase;

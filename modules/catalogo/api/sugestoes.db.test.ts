@@ -9,6 +9,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProdutoRelacaoSyncSchema, SugestoesPedidoEntradaSchema } from '../contracts';
 import { consultaSugestoesPedido } from './sugestoes';
+import { consultarFiliaisDeTeste } from './filiais-teste';
 import { provedoresSyncCatalogo } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -30,6 +31,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: produto_relacao e catalogo.s
       consultaSugestoesPedido.executar(SugestoesPedidoEntradaSchema.parse(entrada), {
         db: c as unknown as ClienteBanco,
         usuario: { perfil },
+        // core.filiais@1 simulada (T-0149): todo cliente na filial padrão do tenant
+        consultar: consultarFiliaisDeTeste(c),
         agora: () => AGORA,
         parametros: () => parametros,
       } as unknown as ContextoConsulta),
@@ -38,7 +41,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: produto_relacao e catalogo.s
   const ctxPull = (tenant: string, perfil: string, parametros: Record<string, unknown> = {}): ContextoBase =>
     ({
       usuario: { perfil, tenant_id: tenant },
-      comTenant: (fn: (db: pg.ClientBase) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c)),
+      // T-0149: o pull de preço e estoque pergunta as filiais da carteira ao Core (core.filiais@1); aqui, todas
+      comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c, { consultar: consultarFiliaisDeTeste(c, { daCarteira: null }) })),
       carteira: async () => 'tenant',
       parametros: () => parametros,
     }) as unknown as ContextoBase;

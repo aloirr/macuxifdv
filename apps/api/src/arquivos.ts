@@ -1,7 +1,8 @@
 /**
  * Arquivos enviados pelo aparelho (ADR 0010; desenho T-0016 §1 E4) — rotas de plataforma, como `/v1/sync/*`:
  *   PUT /v1/arquivos/:id  corpo `image/jpeg` cru (sem multipart), até 2 MB → completa a linha `aguardando`
- *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`; foto de produto vale para o tenant)
+ *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`; foto de produto vale para o tenant;
+ *       com `perfis_leitura`, ADR 0041, também um perfil da lista, e a resposta sai com `no-store`)
  *   GET /v1/arquivos/:id/miniatura  versão reduzida (T-0097 b: maior lado 320 px, até 30 KB) com a MESMA regra de acesso;
  *       gerada na 1ª leitura e guardada ao lado do original (`<id>.m320.jpg`; `miniatura.ts`)
  *
@@ -24,11 +25,13 @@ import {
   dimensoesJpeg,
   ehJpeg,
   LIMITE_ARQUIVO_BYTES,
+  perfilLeArquivo,
   ROTA_ARQUIVOS,
   verificarAcesso,
   verificarCarteira,
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { ehPrintDeDiagnostico } from './diagnosticos';
 import { ErroHttp } from './erros';
 import { chaveDaMiniatura, ErroMiniatura, gerarMiniatura } from './miniatura';
 import type { Plataforma, RequisicaoPreparada } from './tipos';
@@ -116,6 +119,8 @@ interface LinhaArquivo {
   tamanho_bytes: number | null;
   cliente_id: string | null;
   chave_armazenamento: string | null;
+  /** ADR 0041: `null` = regra de sempre; lista = também um destes perfis (só no GET). */
+  perfis_leitura?: string[] | null;
 }
 
 /**
@@ -186,7 +191,8 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
           // de outro usuário = como se não existisse (não revela o id de outra pessoa)
           if (!linha || linha.enviado_por !== u.id)
             throw new ErroHttp(409, CODIGOS_ARQUIVO.semReferencia, 'O registro desta foto ainda não chegou ao servidor. Ela fica na fila e vai depois.');
-          if (!u.modulos.includes(linha.modulo as never)) throw moduloInativo(linha.modulo);
+          // T-0158: o print do diagnóstico é da plataforma (não é módulo): sem checagem de licença; o resto da ADR 0010 vale
+          if (!ehPrintDeDiagnostico(linha) && !u.modulos.includes(linha.modulo as never)) throw moduloInativo(linha.modulo);
           if (linha.situacao === 'recebido') {
             if (linha.sha256 !== sha256) throw new ErroHttp(409, CODIGOS_ARQUIVO.divergente, 'Esta foto já foi recebida com outro conteúdo.');
             return { repetido: true, tamanho: linha.tamanho_bytes ?? bytes.length };
@@ -222,7 +228,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
       const linha = await ctx.comTenant(async (db) =>
         (
           await db.query<LinhaArquivo>(
-            `select modulo, finalidade, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento
+            `select modulo, finalidade, enviado_por, situacao, sha256, tamanho_bytes, cliente_id, chave_armazenamento, perfis_leitura
                from plataforma.arquivo where id = $1 and deleted_at is null`,
             [id],
           )
@@ -237,6 +243,10 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         if (acesso.codigo === 'MODULO_INATIVO') throw moduloInativo(linha.modulo);
         throw new ErroHttp(acesso.status, acesso.codigo, acesso.mensagem);
       }
+      // ADR 0041 / RN-CORE-38: arquivo restrito (CNH, contrato social) só para os perfis da lista; fora dela, 404 sem motivo
+      // (nem o próprio vendedor que enviou reabre). A carteira abaixo continua valendo.
+      const restrito = linha.perfis_leitura != null;
+      if (!perfilLeArquivo(linha.perfis_leitura, u)) throw naoEncontrado();
       // escopo (RN-CORE-04): carteira do cliente da foto; sem cliente, os usuários visíveis — menos as fotos do tenant
       // (foto de produto: o catálogo é do tenant, RN-CAT-04), que a licença e o perfil acima já liberam
       if (linha.cliente_id) {
@@ -247,11 +257,13 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
       if (!armazenamento) throw indisponivel();
-      return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento };
+      // restrito: o navegador e proxies não guardam cópia (a imagem fica só na memória de quem abriu)
+      const cache = restrito ? 'private, no-store' : 'private, max-age=86400';
+      return { id, ctx, linha, chave: linha.chave_armazenamento, naoEncontrado, armazenamento, cache };
     }
 
     escopo.get(`${ROTA_ARQUIVOS}/:id`, async (req, reply) => {
-      const { id, ctx, linha, chave, naoEncontrado, armazenamento } = await lerAutorizado(req);
+      const { id, ctx, linha, chave, naoEncontrado, armazenamento, cache } = await lerAutorizado(req);
       const bytes = await armazenamento.ler(chave);
       if (!bytes) {
         ctx.log.warn({ arquivo_id: id }, 'bytes do arquivo ausentes no armazenamento');
@@ -260,14 +272,14 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
       return reply
         .code(200)
         .header('content-type', 'image/jpeg')
-        .header('cache-control', 'private, max-age=86400')
+        .header('cache-control', cache)
         .header('etag', `"${linha.sha256}"`)
         .send(Buffer.from(bytes));
     });
 
     // T-0097 b: versão reduzida (320 px, até 30 KB), mesma regra de acesso; gerada na 1ª leitura e guardada
     escopo.get(`${ROTA_ARQUIVOS}/:id/miniatura`, async (req, reply) => {
-      const { id, ctx, linha, chave, naoEncontrado, armazenamento } = await lerAutorizado(req);
+      const { id, ctx, linha, chave, naoEncontrado, armazenamento, cache } = await lerAutorizado(req);
       const chaveMini = chaveDaMiniatura(chave);
       let bytes = await armazenamento.ler(chaveMini);
       if (!bytes) {
@@ -295,7 +307,7 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
       return reply
         .code(200)
         .header('content-type', 'image/jpeg')
-        .header('cache-control', 'private, max-age=86400')
+        .header('cache-control', cache)
         .header('etag', `"${linha.sha256}-m320"`)
         .send(Buffer.from(bytes));
     });

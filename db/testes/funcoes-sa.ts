@@ -77,10 +77,23 @@ export const FUNCOES_SA_0042 = [
 ] as const;
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0042): as 12 da 0039/0040 (FUNCOES_SA) + as 2 da 0042. Use esta lista nas
- * conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040 ou 0041.
+ * As 2 sa_* da 0058 (T-0158, ADR 0043; R-20261110-114603-engenheiro-software): o super-admin lista os diagnósticos dos
+ * aparelhos (filtros e keyset) e abre o detalhe (com a chave do print). EXECUTE só ao macuxi_portal; admin do cliente = 42501.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA, ...FUNCOES_SA_0042] as const;
+export const FUNCOES_SA_0058 = ['plataforma.sa_listar_diagnosticos(uuid, jsonb)', 'plataforma.sa_diagnostico(uuid, uuid)'] as const;
+
+/**
+ * As 14 sa_* públicas do banco parado entre a 0042 e a 0057: as 12 da 0039/0040 (FUNCOES_SA) + as 2 da 0042. Use nas
+ * conferências de bancos efêmeros migrados até uma versão dessa faixa (ex.: o up/down da 0042).
+ */
+export const FUNCOES_SA_ATE_0057 = [...FUNCOES_SA, ...FUNCOES_SA_0042] as const;
+
+/**
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0058): as 14 até a 0057 (FUNCOES_SA_ATE_0057) + as 2 da 0058 = 16. Use esta
+ * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
+ * ou 0041.
+ */
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

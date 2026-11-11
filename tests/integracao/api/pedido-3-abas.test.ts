@@ -212,7 +212,7 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     }
   });
 
-  it('passo 5 — BKO abre o pedido (gerente) e gera o PDF: medida "CX", frete, transportadora e endereço; versão do cliente sem %', async () => {
+  it('passo 5 — BKO abre o pedido (gerente) e gera o PDF: Emb. "CX" e Qtd (spec T-0159), frete, transportadora e endereço; versão do cliente sem %', async () => {
     const d = await detalhe(tk.gerente, PED.endereco);
     expect(d.items[0]).toMatchObject({ unit: 'CX', factor: 10, quantity: 2, discount_pct: 2 });
     expect(String(d.items[0]!.unit_label)).toContain('CX');
@@ -222,7 +222,10 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     const doc = pdfDoPedido(OrderDetail.parse(d));
     const cliente = buildOrderPdfHtml(doc, 'customer', ctx);
     const interno = buildOrderPdfHtml(doc, 'bko', ctx);
-    expect(cliente).toContain('Medida');
+    // spec docs/design/pdf-pedido.md §3 (T-0159): "Emb." e "Qtd" separadas; some a coluna "Medida"; Qtd só o número
+    expect(cliente).toContain('<th>Emb.</th>');
+    expect(cliente).toMatch(/<th[^>]*>Qtd<\/th>/);
+    expect(cliente).not.toMatch(/>Medida</);
     expect(cliente).toContain('CX');
     expect(cliente).toContain('Frete: CIF');
     expect(cliente).toContain('Av. do Depósito');

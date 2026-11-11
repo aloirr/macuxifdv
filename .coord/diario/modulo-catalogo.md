@@ -65,3 +65,11 @@
 2026-11-09 — T-0142 — último nível com a lista rica única (CartaoProduto + extras offline), tela lista-por-linha removida; BKO exporta pelo nível aberto e busca com coluna Caminho
 2026-11-09 — T-0140/T-0142 — textos do testes, RD-0024, RD-0044 e BOM do RD-0051; RD-0047/48/49/50 ficam para o lote seguinte
 2026-11-09 — T-0142 — id de nível validado por formato (outros:<uuid> 43 car., sem-linha), erro claro no BKO e teste de rota
+2026-11-10 — T-0149 — preço por filial (fallback por tabela), estoque da filial do cliente, pull só das filiais da carteira, consumidores do ERP com filial_external_id, BKO estoque por filial; pendente: SDK ContextoConsulta.consultar (pedido ao engenheiro-software) e CI dos testes de banco
+2026-11-10 — T-0148 — consulta catalogo.foto_produto@1 (tem_foto offline; abrir baixa e cacheia pelo resolvedor), API só tem_foto, teste; Vendedor avisado
+2026-11-10 — T-0149 (v1.0.4) — Tabelas de preço do BKO por filial (?filial, filtro na tela, sem duplicar), troca de filial do ERP com tombstone (preço) e recriação de depósito/saldos, fix tsc do catalogo-page; testes db só no CI
+2026-11-10 — T-0149 — corrige 4 falhas do CI do ensaio (EXPLAIN 3 params, precos filial_origem, IDS do filiais.db, deposito ausente no aparelho)
+2026-11-10 — T-0149 — ensaio 2: FK no limpar() do filiais.db.test corrigida; R3 do t0071 pedido ao testes (contexto sem consultar)
+2026-11-10 — T-0159 — marca do produto em catalogo.textos_produto@1 (itens[].marca, API e aparelho) + testes; Vendedor avisado
+2026-11-11 — T-0159 — RD-0125: removida a marca do catalogo.textos_produto@1 (contrato, domain, API, app e testes; sem leitor, campo aditivo não publicado, sem versão nova); vitest sem banco 971 verdes
+2026-11-11 — CI lint v1.0.3 — removido import sem uso consultaTextosProdutoAparelho em modules/catalogo/app/texto-consultas.test.ts; sem falha de catalogo/core.filiais no ci4.txt além do lint

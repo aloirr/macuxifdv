@@ -47,6 +47,7 @@ export const EVENTOS_ATUALIZADO = {
   forma_pagamento: eventoEntidadeAtualizado('forma_pagamento'),
   prazo_pagamento: eventoEntidadeAtualizado('prazo_pagamento'),
   tabela_escalonada: eventoEntidadeAtualizado('tabela_escalonada'),
+  filial: eventoEntidadeAtualizado('filial'),
 } as const;
 
 /** `integracao.pedido.retorno_erp@1` — cada retorno aceito do ERP (RN-INT-08). */
@@ -137,6 +138,7 @@ export const EVENTO_ERP_TRANSPORTADORA_ATUALIZADO = definirEvento('integracao.tr
 export const EVENTO_ERP_FORMA_PAGAMENTO_ATUALIZADO = definirEvento('integracao.forma_pagamento.atualizado@1', EVENTOS_ATUALIZADO.forma_pagamento);
 export const EVENTO_ERP_PRAZO_PAGAMENTO_ATUALIZADO = definirEvento('integracao.prazo_pagamento.atualizado@1', EVENTOS_ATUALIZADO.prazo_pagamento);
 export const EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO = definirEvento('integracao.tabela_escalonada.atualizado@1', EVENTOS_ATUALIZADO.tabela_escalonada);
+export const EVENTO_ERP_FILIAL_ATUALIZADO = definirEvento('integracao.filial.atualizado@1', EVENTOS_ATUALIZADO.filial);
 
 /** `integracao.<entidade>.atualizado@1`, uma definição por entidade (o payload é validado pelo schema da entidade). */
 export const EVENTOS_ENTIDADE_ATUALIZADO = {
@@ -155,6 +157,7 @@ export const EVENTOS_ENTIDADE_ATUALIZADO = {
   forma_pagamento: EVENTO_ERP_FORMA_PAGAMENTO_ATUALIZADO,
   prazo_pagamento: EVENTO_ERP_PRAZO_PAGAMENTO_ATUALIZADO,
   tabela_escalonada: EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO,
+  filial: EVENTO_ERP_FILIAL_ATUALIZADO,
 } as const;
 
 export const eventoAtualizado = (entidade: Entidade): DefinicaoEvento => EVENTOS_ENTIDADE_ATUALIZADO[entidade] as DefinicaoEvento;

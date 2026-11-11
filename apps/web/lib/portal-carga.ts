@@ -25,6 +25,7 @@ export const CARTAO_DA_ENTIDADE: Record<Entidade, { titulo: string; descricao: s
   catalogo_no: { titulo: 'Árvore do catálogo', descricao: 'Departamentos, grupos e subgrupos em que os produtos aparecem no app.' },
   forma_pagamento: { titulo: 'Formas de pagamento', descricao: 'Formas que o vendedor oferece no pedido (boleto, PIX, cartão). O cliente aponta para elas.' },
   prazo_pagamento: { titulo: 'Prazos de pagamento', descricao: 'Parcelas em dias de cada forma (à vista, 28/56). O prazo médio é calculado pelo Macuxi.' },
+  filial: { titulo: 'Filiais', descricao: 'Unidades de onde saem as entregas. Clientes, preços e estoque apontam para elas.' },
   produto: { titulo: 'Produtos', descricao: 'Cadastro dos produtos, com aplicação e referências.' },
   produto_unidade: { titulo: 'Unidades', descricao: 'Embalagens de venda de cada produto (caixa, fardo) e o fator.' },
   preco: { titulo: 'Tabelas de preço', descricao: 'Preço de cada produto em cada tabela, em reais.' },

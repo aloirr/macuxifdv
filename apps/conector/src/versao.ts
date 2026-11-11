@@ -4,7 +4,7 @@
  */
 import { REGEX_SEMVER, type PoliticaVersaoConector } from '@macuxi/integracao/contracts';
 
-export const VERSAO_CONECTOR = '1.3.0';
+export const VERSAO_CONECTOR = '1.4.0';
 
 /** T-0099: primeira versão que lê `"nulo": "limpa"` no conector.json (o esquema das versões anteriores é estrito e recusa a chave). */
 export const VERSAO_MINIMA_NULO = '1.3.0';

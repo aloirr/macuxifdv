@@ -69,7 +69,7 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso);
+  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
   return (
     <Screen testID="pagina-catalogo-produto">
       <BackLink label="Catálogo" fallback={hrefCatalogo(clienteId)} />
@@ -104,7 +104,7 @@ export default function TelaProduto() {
           ) : null}
           {estoque ? (
             <View style={{ gap: 6 }}>
-              <Text style={t.label}>Estoque</Text>
+              <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? `Estoque na filial ${item.availability.by_branch[0]!.branch_name}` : clienteId ? 'Estoque na filial do cliente' : 'Estoque'}</Text>
               <Badge label={estoque.texto} tone={estoque.tom} style={{ alignSelf: 'flex-start' }} />
               <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text>
               {item.availability && item.availability.by_branch.length > 1

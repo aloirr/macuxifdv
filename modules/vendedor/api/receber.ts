@@ -12,7 +12,7 @@
  */
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA,
@@ -23,6 +23,7 @@ import {
 } from '../contracts';
 import {
   conteudoDoEnvio,
+  retratoFilialDoPedido,
   dataDoPreco,
   emitidoEm,
   faixasDaConsulta,
@@ -31,6 +32,7 @@ import {
   ehPedidoEmNome,
   momentoDaConversao,
   aplicacaoMaxOrcamento,
+  marcaDoRetrato,
   modalidadePadraoDosParametros,
   MSG_RECUSA_FRETE,
   politicaDoAutor,
@@ -57,6 +59,7 @@ import { payloadAprovado } from './aprovado-erp';
 import { resolverPagamento, valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
 import { precosCongeladosDoDocumento } from './preco-congelado';
+import { faltaDeEstoqueNaFilial, provedorSaldoDaFilial } from './estoque-filial';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const aceito = (id: string, em?: string): ResultadoItemPush => (em ? { id, status: 'aceito', em } : { id, status: 'aceito' });
@@ -122,10 +125,16 @@ export async function calcularDocumento(
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
   const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: emNome ? [eu, donoId] : [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
-  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender.');
   // RN-VEN-13 (T-0071 §1.4 e): inativo, bloqueado ou cadastro incompleto só faz orçamento (422 com os campos que faltam)
   const soOrcamento = verificarTipoParaCliente(tipo, { ativo: cliente.ativo, bloqueado: cliente.bloqueado === true, cadastro_incompleto: cliente.cadastro_incompleto ?? false, campos_faltantes: cliente.cadastro_campos_faltantes ?? [] });
   if (soOrcamento) return recusa(itemId, soOrcamento);
+  // RN-CORE-39 (T-0149): o pedido não escolhe filial; o servidor grava a filial EFETIVA do cliente (core.filiais@1), ignorando `branch_id` do aparelho
+  const fil = await tx.consultar(CONSULTA_FILIAIS, { cliente_ids: [p.customer_id], external_ids: [], escopo: 'tenant' });
+  // sem o dado de filiais (consulta antiga/ausente) o comportamento é o anterior: sem filial no retrato
+  const filialId = fil?.clientes?.find((c) => c.cliente_id === p.customer_id)?.filial_id ?? fil?.padrao_id;
+  const filialDoCliente = fil?.filiais?.find((f) => f.id === filialId);
+  const retratoFilial = filialDoCliente ? retratoFilialDoPedido(filialDoCliente) : null;
   const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
   const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
   if (invalido.length > 0) return rejeitado(itemId, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
@@ -239,6 +248,11 @@ export async function calcularDocumento(
     total_aparelho_cents: p.total_cents,
   });
   if (!rv.ok) return recusa(itemId, rv);
+  // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
+  if (tipo === 'pedido') {
+    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
+    if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
+  }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
   const recebidoEm = agora.toISOString();
   // RN-VEN-18: data civil no fuso do tenant, contada do momento do aparelho (mesma janela do preço, P-4)
@@ -248,7 +262,7 @@ export async function calcularDocumento(
   const v = validadeCivil
     ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validadeCivil.data, validadeOrcamentoDias(ctx.parametros())) }
     : rv;
-  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -316,7 +330,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   const calc = await calcularDocumento(ctx, db, tx, pDoc, tipo, item.id, undefined, congelados);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm, retratoFilial } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -337,10 +351,11 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
         desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
-        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias)
+        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
+        filial_id, filial)
      values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
-        $39, $40, $41, $42, $43, $44, $45::int[], $46)
+        $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb)
      on conflict (id) do nothing returning id`,
     [
       p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
@@ -351,6 +366,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
       ...valoresPagamento(pagamento),
+      retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa
@@ -360,9 +376,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     const prod = produtos.get(it.product_id)!;
     await db.query(
       `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, desconto_pct, total_cents,
-          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em, aplicacao)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao],
+          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em, aplicacao, marca)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao, marcaDoRetrato(prod.marca)],
     );
   }
   for (const h of v.historico) {

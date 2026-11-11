@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0153 · Check-in e checkout (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  .fundo-ficha { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .fundo-ficha .b { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; height: 92px; }
+  .folha { gap: 12px; padding-bottom: 14px; }
+  .folha .tit { font-size: 20px; }
+  .x { width: 48px; height: 48px; margin: -12px -14px -12px 0; display: flex; align-items: center; justify-content: center; }
+  .sub2 { font-size: 14px; color: var(--ink2); margin-top: -8px; line-height: 19px; }
+  .okc { display: flex; gap: 12px; align-items: center; }
+  .okc .ic { width: 44px; height: 44px; border-radius: 22px; background: var(--successBg); display: flex; align-items: center; justify-content: center; flex: none; }
+  .okc .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .okc .a { font-size: 14px; color: var(--ink2); }
+  .rot { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .area { min-height: 84px; border: 2px solid var(--accent); border-radius: 12px; background: var(--surface); padding: 9px 11px; font-size: 15px; line-height: 21px; }
+  .area .ph { color: var(--ink3); }
+  .ajuda { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink2); margin-top: 6px; }
+  .ajuda .cnt { font-variant-numeric: tabular-nums; }
+  .cad { width: 44px; height: 44px; border-radius: 12px; background: var(--warningBg); display: flex; align-items: center; justify-content: center; }
+  .opcao { min-height: 52px; align-items: center; }
+  .opcao .n small { display: block; font-size: 13px; font-weight: 400; color: var(--ink2); margin-top: 1px; font-variant-numeric: tabular-nums; }
+  .etapas .item { min-height: 52px; padding: 8px 6px 8px 14px; }
+  .etapas .nome { font-size: 14px; font-weight: 600; flex: 1; }
+  .etapas .lk { height: 44px; display: flex; align-items: center; padding: 0 10px; font-size: 14px; font-weight: 600; color: var(--accentInk); }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+  .chips .chip.esc { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .foto-l { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 4px 4px 12px; min-height: 52px; font-size: 14px; font-weight: 600; }
+  .foto-l .lk { margin-left: auto; height: 44px; display: flex; align-items: center; padding: 0 10px; color: var(--accentInk); }
+  .nota-l { font-size: 13px; color: var(--ink2); margin-top: -4px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Check-in e checkout · folhas curtas, um principal por folha</h1>
+<p class="prancha">T-0153 · Core (vale para o Rota, a ficha do cliente e o Início). Cada folha diz uma coisa: o resultado ou o que falta. Saem os parágrafos que explicavam a regra do check-in único em toda folha, a frase que repetia o selo "Fora do raio" e a linha "Falta concluir" que repetia as etapas. O problema que impede o checkout fica numa área Alertas no topo da folha, como no pedido.</p>
+
+<div class="board">
+
+  <!-- 1 · Check-in feito -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Check-in feito<span>Hora e cliente; o principal é o Novo pedido (vem do Vendedor).</span></div>
+    <div class="phone curto" style="height:600px">
+      <div class="status"><span>09:02</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Supermercado Rio Negro</div><div class="cab-cod">Cód. 004127</div></div></div></div>
+      <div class="fundo-ficha"><div class="b"></div><div class="b"></div></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="okc marca" style="outline-offset:4px"><span class="ic"><i data-i="check" data-t="22" data-c="#1D6B4F" data-w="2.6"></i></span><div style="flex:1"><div class="t">Check-in às 09:02</div><div class="a">Supermercado Rio Negro</div></div><span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="btn principal"><i data-i="mais" data-t="18" data-c="#fff"></i>Novo pedido</div>
+        <div class="btn-texto">Agora não</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 · Fora do raio -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Fora do raio<span>Distância e limite numa linha; quem lê a justificativa vai na ajuda.</span></div>
+    <div class="phone curto" style="height:600px">
+      <div class="status"><span>09:02</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Supermercado Rio Negro</div><div class="cab-cod">Cód. 004127</div></div></div></div>
+      <div class="fundo-ficha"><div class="b"></div></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Fora do raio do cliente<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="sub2 marca" style="outline-offset:3px">Você está a 850 m. O limite é 300 m.</div>
+        <div>
+          <div class="rot">Por que o atendimento é aqui?</div>
+          <div class="area"><span class="ph">Ex.: atendeu no depósito ao lado</span></div>
+          <div class="ajuda"><span>O supervisor vê este texto.</span><span class="cnt">0/500</span></div>
+        </div>
+        <div class="btn desligado">Registrar check-in</div>
+        <div class="apoio-btn" style="margin-top:-4px">Escreva pelo menos 3 letras.</div>
+        <div class="btn-texto">Cancelar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · Check-in em aberto -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Check-in em aberto<span>Uma frase com o cliente aberto e a hora; o botão sem repetir o nome.</span></div>
+    <div class="phone curto" style="height:600px">
+      <div class="status"><span>09:40</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Mercearia Dois Irmãos</div><div class="cab-cod">Cód. 003310</div></div></div></div>
+      <div class="fundo-ficha"><div class="b"></div><div class="b"></div></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Check-in em aberto<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="sub2 marca" style="outline-offset:3px">Supermercado Rio Negro, desde 09:02. Um check-in por vez; o pedido continua liberado.</div>
+        <div class="btn principal">Fazer checkout</div>
+        <div class="btn-texto">Voltar</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="board" style="margin-top:28px">
+
+  <!-- 4 · Checkout com pedido -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Checkout, com pedido<span>Cliente e tempo no subtítulo; o pedido da visita na opção; etapas numa lista.</span></div>
+    <div class="phone" style="height:850px">
+      <div class="status"><span>09:27</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Supermercado Rio Negro</div><div class="cab-cod">Cód. 004127</div></div></div></div>
+      <div class="fundo-ficha"></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Checkout<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="sub2">Supermercado Rio Negro · 25 min</div>
+        <div class="secao-t" style="margin-bottom:-6px">Como terminou?</div>
+        <div>
+          <div class="opcao"><span class="radio on"></span><div class="n">Com pedido<small>Nº 000016 · R$ 812,40</small></div></div>
+          <div class="opcao"><span class="radio"></span><div class="n">Sem pedido</div></div>
+        </div>
+        <div class="secao-t" style="margin-bottom:-6px">Etapas</div>
+        <div class="lista etapas marca" style="outline-offset:3px">
+          <div class="item"><span class="nome">Pesquisa: Gôndola do mês</span><span class="selo ok">Feita</span><span style="width:10px"></span></div>
+          <div class="item"><span class="nome">Foto da gôndola</span><span class="selo erro">Falta</span><span class="lk">Fazer</span></div>
+          <div class="item"><span class="nome">Preço da concorrência</span><span class="selo neutro">Opcional</span><span class="lk">Fazer</span></div>
+        </div>
+        <div class="btn desligado">Concluir checkout</div>
+        <div class="btn-texto" style="margin-top:-6px">Continuar no atendimento</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · Checkout sem pedido, cliente fechado -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Sem pedido · Cliente fechado<span>O motivo em chips; cliente fechado pede a foto da fachada e dispensa as etapas.</span></div>
+    <div class="phone" style="height:850px">
+      <div class="status"><span>09:27</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Supermercado Rio Negro</div><div class="cab-cod">Cód. 004127</div></div></div></div>
+      <div class="fundo-ficha"></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Checkout<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="sub2">Supermercado Rio Negro · 25 min</div>
+        <div class="secao-t" style="margin-bottom:-6px">Como terminou?</div>
+        <div>
+          <div class="opcao"><span class="radio"></span><div class="n" style="color:var(--ink2)">Com pedido<small>Nenhum pedido nesta visita</small></div></div>
+          <div class="opcao"><span class="radio on"></span><div class="n">Sem pedido</div></div>
+        </div>
+        <div class="chips" style="margin-top:-6px"><div class="chip" style="height:44px;border-radius:22px">Preço alto</div><div class="chip" style="height:44px;border-radius:22px">Estoque cheio</div><div class="chip" style="height:44px;border-radius:22px">Comprador ausente</div><div class="chip esc" style="height:44px;border-radius:22px">Cliente fechado</div></div>
+        <div class="foto-l marca" style="outline-offset:3px"><i data-i="camera" data-t="20" data-c="#4A5562"></i>Foto da fachada<span class="selo erro" style="margin-left:6px">Falta</span><span class="lk">Tirar foto</span></div>
+        <div class="nota-l">As etapas ficam dispensadas.</div>
+        <div class="btn desligado">Concluir checkout</div>
+        <div class="btn-texto" style="margin-top:-6px">Continuar no atendimento</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · Checkout recusado -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Checkout recusado pelo servidor<span>A recusa abre a folha de novo. Motivo sem lugar na folha vai em Alertas; motivo que é uma etapa fica só no selo Falta da etapa.</span></div>
+    <div class="phone" style="height:850px">
+      <div class="status"><span>09:31</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="cab"><div class="cab-linha"><span class="voltar"><i data-i="voltar" data-t="22"></i></span><div><div class="cab-nome">Supermercado Rio Negro</div><div class="cab-cod">Cód. 004127</div></div></div></div>
+      <div class="fundo-ficha"></div>
+      <div class="barra-abas" data-ativa="rota"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Checkout<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div class="sub2">Supermercado Rio Negro · 29 min</div>
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:3px"><div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">O servidor não aceitou o checkout: a hora do aparelho está 12 min diferente. Acerte a hora e tente de novo.</span></div></div>
+        <div class="secao-t" style="margin-bottom:-6px">Como terminou?</div>
+        <div>
+          <div class="opcao"><span class="radio on"></span><div class="n">Com pedido<small>Nº 000016 · R$ 812,40</small></div></div>
+          <div class="opcao"><span class="radio"></span><div class="n">Sem pedido</div></div>
+        </div>
+        <div class="secao-t" style="margin-bottom:-6px">Etapas</div>
+        <div class="lista etapas">
+          <div class="item"><span class="nome">Pesquisa: Gôndola do mês</span><span class="selo ok">Feita</span><span style="width:10px"></span></div>
+          <div class="item"><span class="nome">Foto da gôndola</span><span class="selo ok">Feita</span><span style="width:10px"></span></div>
+        </div>
+        <div class="btn principal">Concluir checkout</div>
+        <div class="btn-texto" style="margin-top:-6px">Continuar no atendimento</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · O que muda -->
+  <div class="tela">
+    <div class="legenda"><b>7</b>O que muda<span>Em relação à v1.0.3.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Check-in feito:</b> sai "GPS do aparelho" (é o normal) e o parágrafo "Você está em atendimento. Outros check-ins ficam bloqueados…". Só o diferente vai no subtítulo: "Supermercado Rio Negro · sem GPS", "· fora do raio, justificado" ou "· posição sugerida ao supervisor". "Continuar" vira "Agora não".</div>
+      <div class="nota-prancha"><b>Fora do raio:</b> "Você está longe do cliente" e o parágrafo de três linhas viram o título e uma linha com a distância e o limite. O campo pergunta; a ajuda diz quem lê. "Escreva pelo menos 3 letras" fica embaixo do botão desligado, só enquanto ele está desligado.</div>
+      <div class="nota-prancha"><b>Check-in em aberto:</b> "Você já está em atendimento" vira "Check-in em aberto". A frase verde solta "Pedidos para outros clientes continuam liberados" entra na mesma frase. O botão "Fazer checkout de Supermercado Rio Negro" vira "Fazer checkout" (o nome já está na frase).</div>
+      <div class="nota-prancha"><b>Checkout:</b> sai o sobretítulo "CHECKOUT" e "Check-in desde 09:02 · duração 25 min" vira "Supermercado Rio Negro · 25 min". "Com pedido" mostra o pedido como na lista de Pedidos ("Nº 000016 · R$ 812,40"). As opções viram rádios da folha, sem a caixa verde.</div>
+      <div class="nota-prancha"><b>Etapas:</b> cada uma numa linha com o selo Feita, Falta ou Opcional (Falta no lugar de "Obrigatória" em vermelho) e "Fazer". Sai a linha vermelha "Falta concluir: …", que repetia as etapas.</div>
+      <div class="nota-prancha"><b>Recusa do servidor:</b> o aviso amarelo de 10 s no topo sai. A folha volta aberta. Quando o motivo é uma etapa (ex.: pesquisa obrigatória sem resposta), só a etapa fica com "Falta", sem alerta. Alertas só para o motivo que não tem lugar na folha (hora do aparelho, visita encerrada em outro aparelho, erro ao salvar).</div>
+      <div class="nota-prancha"><b>Etapa da visita:</b> o conteúdo continua sendo do módulo dono (Pesquisa, Promotor). O Core dá a linha com o nome e o selo; o "Fazer" é o botão que o módulo já tem na etapa.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

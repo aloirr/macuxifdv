@@ -7,6 +7,7 @@ import {
   EVENTOS_ATUALIZADO,
   ENTIDADES,
   EstoquePayload,
+  FilialPayload,
   ChaveConectorCriada,
   LIMITE_LINHAS_INVALIDAS_PADRAO,
   LoteEnvelope,
@@ -100,6 +101,15 @@ describe('RN-INT-09: contrato canônico v1 por entidade', () => {
     expect(PrecoPayload.safeParse(preco).success).toBe(true);
     expect(PrecoPayload.safeParse({ ...preco, vigencia_fim: '2026-11-01' }).success).toBe(false);
     expect(PrecoPayload.safeParse({ ...preco, vigencia_inicio: '2026-02-30' }).success).toBe(false);
+  });
+});
+
+describe('RN-INT-03: UF da filial', () => {
+  const fim = { cnpj: '11222333000181', logradouro: 'Av. A', numero: '1', bairro: 'Centro', cep: '69301000', cidade: 'Boa Vista' };
+  it('RN-INT-03: UF com 2 letras A-Z é aceita em maiúsculas; "R1" ou acento cai como erro de linha', () => {
+    expect(FilialPayload.parse({ ...base, ...fim, codigo: '02', nome: 'Boa Vista', uf: 'rr' }).uf).toBe('RR');
+    expect(FilialPayload.safeParse({ ...base, ...fim, codigo: '02', nome: 'X', uf: 'R1' }).success).toBe(false);
+    expect(FilialPayload.safeParse({ ...base, ...fim, codigo: '02', nome: 'X', uf: 'Á' + 'A' }).success).toBe(false);
   });
 });
 

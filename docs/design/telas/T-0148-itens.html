@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0148 · Aba Itens com Adicionar, popup e Alertas (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  /* No pedido: painel cinza, fonte menor, sem cartão branco (diferente da busca) */
+  .np { background: #E7EAE3; border-radius: 12px; padding: 2px 12px; }
+  .np .h { display: flex; justify-content: space-between; align-items: center; height: 34px; }
+  .np .h .t { font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); }
+  .np .h .a { font-size: 13px; font-weight: 600; color: var(--accentInk); display: flex; align-items: center; gap: 2px; padding: 12px 0 12px 12px; }
+  .np .r { display: flex; align-items: center; gap: 10px; height: 44px; font-size: 13px; border-top: 1px solid #D6DAD2; }
+  .np .r .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+  .np .r .q { color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; width: 44px; text-align: right; }
+  .np .r .v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; width: 58px; text-align: right; }
+  /* resultado da busca */
+  .res { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .res .i { display: flex; align-items: center; gap: 6px; padding: 10px 10px 10px 14px; min-height: 68px; }
+  .res .i + .i { border-top: 1px solid var(--lineSoft); }
+  .res .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .res .d { font-size: 15px; font-weight: 600; line-height: 19px; }
+  .res .s { font-size: 12.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .res .s b { font-weight: 600; color: var(--ink); }
+  .res .s .zero { color: var(--danger); font-weight: 600; }
+  .cam { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; flex: none; border-radius: 10px; }
+  .cam.vazio { visibility: hidden; }
+  .add { height: 44px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 12px; display: flex; align-items: center; font-size: 14px; font-weight: 600; flex: none; background: #fff; }
+  .busca.ativa { border: 2px solid var(--accent); padding: 0 11px; color: var(--ink); }
+  /* popup */
+  .pop-cab { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .pop-cab .n { font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px; line-height: 23px; }
+  .pop-cab .s { font-size: 13px; color: var(--ink2); margin-top: 3px; }
+  .campo-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+  .eq { font-size: 12.5px; color: var(--ink2); margin-top: 5px; }
+  /* visualizador de foto */
+  .foto-tela { position: absolute; inset: 0; background: #0F1419; display: flex; flex-direction: column; color: #fff; }
+  .foto-tela .top { display: flex; align-items: center; gap: 10px; padding: 34px 12px 8px; }
+  .foto-tela .top .n { font-size: 15px; font-weight: 600; flex: 1; }
+  .foto-img { margin: auto 16px; height: 330px; border-radius: 8px; background: linear-gradient(135deg, #6D4C33 0%, #8D6748 45%, #C9A37A 100%); position: relative; overflow: hidden; }
+  .foto-img .pac { position: absolute; left: 60px; right: 60px; top: 50px; bottom: 50px; border-radius: 10px; background: linear-gradient(160deg, #5B2C14, #7A3B19); box-shadow: 0 10px 24px rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; font-family: Archivo, sans-serif; font-weight: 800; color: #F6D7A7; font-size: 22px; text-align: center; line-height: 26px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Aba Itens · busca com Adicionar, popup, "No pedido" compacto e Alertas</h1>
+<p class="prancha">T-0148 · versão 2 (R-20261110-093124). O item só entra no pedido ao confirmar o popup. Produto sem estoque ou acima do desconto máximo entra, aparece nos Alertas e o pedido só sai como orçamento.</p>
+
+<div class="board">
+
+  <!-- 1 · Itens com busca -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Itens: "No pedido" em cima, busca embaixo<span>"No pedido" cinza e menor; resultado branco com Adicionar.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:20</span><span>4G ▮▮▮ 79%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="np marca">
+          <div class="h"><span class="t">No pedido</span></div>
+          <div class="r"><span class="n">Café torrado e moído 500 g</span><span class="q">4 UN</span><span class="v">50,92</span></div>
+          <div class="r"><span class="n">Açúcar cristal 1 kg</span><span class="q">1 FD</span><span class="v">39,60</span></div>
+          <div class="r"><span class="n">Água mineral 1,5 L</span><span class="q">2 FD</span><span class="v">36,12</span></div>
+        </div>
+        <div class="busca ativa"><i data-i="search" data-t="18" data-c="#4A5562"></i>biscoito</div>
+        <div class="res">
+          <div class="i"><div class="c"><div class="d">Biscoito recheado chocolate 140 g</div><div class="s"><b>Estoque 32 PCT</b> · Recheio de chocolate, pacote c/ 6</div></div><div class="cam marca" style="outline-offset:0"><i data-i="camera" data-t="22" data-c="#34404D"></i></div><div class="add">Adicionar</div></div>
+          <div class="i"><div class="c"><div class="d">Biscoito cream cracker 200 g</div><div class="s"><b>Estoque 120 PCT</b> · Integral, sem lactose</div></div><div class="cam vazio"></div><div class="add">Adicionar</div></div>
+          <div class="i"><div class="c"><div class="d">Biscoito maisena 400 g</div><div class="s"><b>Estoque 0 PCT</b> · Tradicional</div></div><div class="cam"><i data-i="camera" data-t="22" data-c="#34404D"></i></div><div class="add">Adicionar</div></div>
+        </div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 126,64</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Popup do Adicionar -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Popup do Adicionar<span>Embalagens do produto. O item entra só no "Adicionar ao pedido".</span></div>
+    <div class="phone">
+      <div class="status"><span>06:21</span><span>4G ▮▮▮ 79%</span></div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:14px;padding-bottom:12px">
+        <div class="pega"></div>
+        <div class="pop-cab"><div><div class="n">Biscoito recheado chocolate 140 g</div><div class="s"><span class="mono" style="font-size:12px;color:var(--ink2)">BIS-140</span> · Estoque 32 PCT</div></div><i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div><div class="campo-t">Embalagem</div><div class="seg seg2 marca" style="outline-offset:3px"><div>UN</div><div class="on">PCT<small>c/ 6</small></div><div>CX<small>c/ 48</small></div></div></div>
+        <div class="duas">
+          <div><div class="campo-t">Quantidade</div><div class="passo-g"><div>−</div><div class="n">3</div><div>+</div></div></div>
+          <div><div class="campo-t">Desc./Acrésc.</div><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl">5,0</span></div></div>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela · 3 × R$ 14,94</span><span class="v">R$ 44,82</span></div>
+          <div class="l"><span class="r">Desconto 5,0%</span><span class="v">− R$ 2,24</span></div>
+          <div class="l total"><span class="r">Total do item</span><span class="v">R$ 42,58</span></div>
+        </div>
+        <div class="btn principal">Adicionar ao pedido</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · Popup reaberto -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Tocar num item do "No pedido"<span>Reabre o mesmo popup, com Remover.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:22</span><span>4G ▮▮▮ 79%</span></div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:14px;padding-bottom:8px">
+        <div class="pega"></div>
+        <div class="pop-cab"><div><div class="n">Café torrado e moído 500 g</div><div class="s"><span class="mono" style="font-size:12px;color:var(--ink2)">CAF-500</span> · Estoque 85 UN</div></div><i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div><div class="campo-t">Embalagem</div><div class="seg seg2"><div class="on">UN</div><div>FD<small>c/ 10</small></div><div>CX<small>c/ 20</small></div></div></div>
+        <div class="duas">
+          <div><div class="campo-t">Quantidade</div><div class="passo-g"><div>−</div><div class="n">4</div><div>+</div></div></div>
+          <div><div class="campo-t">Desc./Acrésc.</div><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl">5,0</span></div></div>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela · 4 × R$ 13,40</span><span class="v">R$ 53,60</span></div>
+          <div class="l"><span class="r">Desconto 5,0%</span><span class="v">− R$ 2,68</span></div>
+          <div class="l total"><span class="r">Total do item</span><span class="v">R$ 50,92</span></div>
+        </div>
+        <div class="btn principal">Salvar item</div>
+        <div class="btn-perigo marca" style="outline-offset:0">Remover do pedido</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · Popup com alerta -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Popup de produto sem estoque<span>O alerta fica no topo do popup. O item entra; o pedido só sai como orçamento.</span></div>
+    <div class="phone">
+      <div class="status"><span>06:23</span><span>4G ▮▮▮ 79%</span></div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:14px;padding-bottom:12px">
+        <div class="pega"></div>
+        <div class="pop-cab"><div><div class="n">Biscoito maisena 400 g</div><div class="s"><span class="mono" style="font-size:12px;color:var(--ink2)">BIS-400</span></div></div><i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="alertas-t">Alertas</div>
+          <div class="alertas marca" style="outline-offset:3px"><div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Sem estoque</span></div></div>
+        </div>
+        <div><div class="campo-t">Embalagem</div><div class="seg seg2"><div>UN</div><div class="on">PCT<small>c/ 4</small></div><div>CX<small>c/ 24</small></div></div></div>
+        <div class="duas">
+          <div><div class="campo-t">Quantidade</div><div class="passo-g"><div>−</div><div class="n">2</div><div>+</div></div></div>
+          <div><div class="campo-t">Desc./Acrésc.</div><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="color:var(--ink3)">0,0</span></div></div>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela · 2 × R$ 8,90</span><span class="v">R$ 17,80</span></div>
+          <div class="l total"><span class="r">Total do item</span><span class="v">R$ 17,80</span></div>
+        </div>
+        <div class="btn principal">Adicionar ao pedido</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · Itens com alertas, recolhido -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Itens com alertas e mais de 3 itens<span>Alertas no topo, como em todas as abas. Tocar na linha abre o popup do item.</span></div>
+    <div class="phone curto" style="height:620px">
+      <div class="status"><span>06:25</span><span>4G ▮▮▮ 78%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (5)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">BIS-400 sem estoque</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="np"><div class="h"><span class="t">No pedido</span><span class="a" aria-label="Ver os 5 itens do pedido">Ver itens <i data-i="seta" data-t="16"></i></span></div></div>
+        <div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Código, descrição ou veículo</div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 226,46</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 6 · Foto ao tocar -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Tocar na câmera<span>Baixa a foto só agora e guarda no aparelho.</span></div>
+    <div class="phone curto" style="height:620px">
+      <div class="foto-tela">
+        <div class="top"><i data-i="fechar" data-t="24" data-c="#fff"></i><span class="n">Biscoito recheado chocolate 140 g</span></div>
+        <div class="foto-img"><div class="pac">Biscoito<br>recheado<br>chocolate</div></div>
+        <div style="height:40px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · Estados e regras -->
+  <div class="tela">
+    <div class="legenda"><b>7</b>Estados<span>Textos curtos. Problema só nos Alertas.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Desconto acima do máximo no popup:</b> nos Alertas do popup, "Acima do desconto máximo de 10,0%"; o campo de Desc./Acrésc. ganha borda vermelha. O botão continua.</div>
+      <div class="nota-prancha"><b>Estoque:</b> no resultado, "Estoque 0 PCT" no mesmo formato dos outros. No popup, com estoque, "BIS-140 · Estoque 32 PCT"; sem estoque, só o código, e "Sem estoque" nos Alertas.</div>
+      <div class="nota-prancha"><b>Baixando a foto:</b> indicador no lugar da imagem. <b>Sem sinal e sem cópia:</b> "Foto indisponível sem sinal."</div>
+      <div class="nota-prancha"><b>Busca sem resultado:</b> "Nada encontrado para "biscoito"."</div>
+      <div class="nota-prancha"><b>Produto que já está no pedido:</b> Adicionar abre o popup reaberto (quadro 3).</div>
+      <div class="nota-prancha"><b>Saem:</b> o "Máximo 10,0%" embaixo do campo, o "Sem estoque" vermelho no resultado e qualquer marca de problema na lista "No pedido".</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

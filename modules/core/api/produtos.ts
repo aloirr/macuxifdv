@@ -187,6 +187,8 @@ export const rotasDeProdutos: RotaModulo[] = [
            on conflict (tenant_id, modulo, chave) where deleted_at is null do update set valor = excluded.valor`,
           [CHAVE, JSON.stringify(c.desconto_maximo_produto_pct)],
         );
+        // T-0151: o pull do produto leva o desconto efetivo; mudou o padrão, os produtos sem desconto próprio voltam ao aparelho
+        if (antes !== c.desconto_maximo_produto_pct) await db.query('update core.produto set updated_at = now() where deleted_at is null and desconto_maximo_pct is null');
         await auditar(db, ctx, { acao: 'produto.parametros', entidade: 'parametro', entidadeId: null, antes: { [CHAVE]: antes }, depois: c });
         return c;
       }),
