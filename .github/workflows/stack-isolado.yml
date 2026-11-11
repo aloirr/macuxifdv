@@ -323,7 +323,7 @@ jobs:
       - name: copiar scripts/deploy/producao + alerta-saude.sh (igual ao "producao — publicar")
         run: |
           rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy
-          cp scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh ~/macuxi-deploy/
+          cp scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh scripts/deploy/demo/ghcr-tentar.sh ~/macuxi-deploy/
           ls -l ~/macuxi-deploy
 
       - name: preparar-vm.sh (2 vezes) — .env, timers e faixas do Docker
