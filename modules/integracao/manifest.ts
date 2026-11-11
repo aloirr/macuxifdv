@@ -24,6 +24,8 @@ export const manifest = defineModule({
     'integracao.forma_pagamento.atualizado@1',
     'integracao.prazo_pagamento.atualizado@1',
     'integracao.tabela_escalonada.atualizado@1',
+    // T-0149 (RN-CORE-39, ADR 0040): filial do ERP (consumidor: core); cliente, preço, estoque e faixa ganham filial_external_id
+    'integracao.filial.atualizado@1',
     'integracao.pedido.retorno_erp@1',
     // T-0114: o ERP recusou o cancelamento devolvido pelo Hub (consumidor previsto: vendedor)
     'integracao.pedido.cancelamento_recusado@1',

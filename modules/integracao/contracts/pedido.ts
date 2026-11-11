@@ -97,6 +97,19 @@ export const PagamentoErp = z.object({
 });
 export type PagamentoErp = z.infer<typeof PagamentoErp>;
 
+/**
+ * T-0149 (RN-CORE-39, ADR 0040; aditivo no v1): filial de onde sai a entrega (a do cliente no recebimento do pedido). `codigo` é o
+ * da filial no Macuxi; `external_id` é a chave dela no ERP (nulo quando a filial não veio do ERP). `padrao: false` faz o Hub exigir
+ * o Conector 1.4.0 (o 1.3.x gravaria o pedido na filial padrão do ERP sem avisar); o Conector que não a mapeia ignora o campo.
+ */
+export const FilialPedidoErp = z.object({
+  codigo: Texto(20),
+  external_id: z.string().nullish(),
+  nome: TextoOpcional(80),
+  padrao: z.boolean().nullish(),
+});
+export type FilialPedidoErp = z.infer<typeof FilialPedidoErp>;
+
 /** Campos opcionais do pedido (ADR 0016), comuns ao que o Vendedor publica e ao que o Conector recebe. */
 const CamposPedidoAmpliado = {
   desconto_pct: PercentualOpcional,
@@ -105,6 +118,7 @@ const CamposPedidoAmpliado = {
   frete: FreteErp.nullish(),
   endereco_entrega: EnderecoEntregaErp.nullish(),
   pagamento: PagamentoErp.nullish(),
+  filial: FilialPedidoErp.nullish(),
 };
 
 /** Pedido aprovado entregue ao Conector; idempotente pelo `pedido_uuid` (RN-INT-08). */

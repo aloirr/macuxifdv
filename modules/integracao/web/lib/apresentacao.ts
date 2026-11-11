@@ -87,6 +87,7 @@ export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   forma_pagamento: 'Formas de pagamento',
   prazo_pagamento: 'Prazos de pagamento',
   tabela_escalonada: 'Tabela escalonada',
+  filial: 'Filiais',
 };
 
 export const ROTULO_AVISO_LINHA: Record<string, string> = {
