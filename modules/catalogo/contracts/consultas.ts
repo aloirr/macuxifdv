@@ -185,3 +185,24 @@ export const CONSULTA_FOTO_PRODUTO = definirConsulta({
   entrada: FotoProdutoEntradaSchema,
   saida: FotoProdutoSaidaSchema,
 });
+
+/**
+ * `catalogo.estoque_filial@1` (T-0149; RN-VEN-20, RN-CORE-39): saldo do produto na FILIAL, na unidade base, para a API do
+ * Vendedor reservar e recusar o pedido sem estoque. Uso interno da API: sem filtro de perfil (RN-CAT-05 vale para as telas).
+ * Regra única em `estoque-filial.ts` (RD-0126): tenant sem depósito ligado a filial, ou `filial_id` ausente, soma todos os
+ * depósitos; com filiais, só os da filial (filial sem depósito = 0; saldo só em outra filial = 0). Produto sem nenhuma linha
+ * de saldo no tenant não aparece na saída = estoque não controlado.
+ */
+export const EstoqueFilialEntradaSchema = z.object({ produto_ids: z.array(Id).min(1).max(200), filial_id: Id.nullable().optional() }).strict();
+export type EstoqueFilialEntrada = z.infer<typeof EstoqueFilialEntradaSchema>;
+
+export const EstoqueFilialSaidaSchema = z.object({
+  itens: z.array(z.object({ produto_id: Id, quantidade_base: z.number().nonnegative() })),
+});
+export type EstoqueFilialSaida = z.infer<typeof EstoqueFilialSaidaSchema>;
+
+export const CONSULTA_ESTOQUE_FILIAL = definirConsulta({
+  nome: 'catalogo.estoque_filial@1',
+  entrada: EstoqueFilialEntradaSchema,
+  saida: EstoqueFilialSaidaSchema,
+});

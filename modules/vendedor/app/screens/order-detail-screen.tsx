@@ -338,7 +338,7 @@ export default function OrderDetailScreen() {
   /** `refs`: referências cruzadas por produto (RN-CAT-09/10), lidas na hora de gerar o PDF; não são retrato do pedido */
   const pdfOrder = (refs: ReadonlyMap<string, Array<{ brand: string; code: string }>> = new Map()): OrderPdfOrder => {
     const idPorCodigo = new Map(lines.map((l) => [l.erp_code, l.product_id]));
-    const comReferencias = (o: OrderPdfOrder): OrderPdfOrder => ({ ...o, items: o.items.map((it) => { const r = refs.get(idPorCodigo.get(it.erp_code) ?? ''); return r && r.length > 0 ? { ...it, references: r } : it; }), ...(alertasDaTela.length > 0 ? { alertas: alertasDaTela.map((a) => a.texto) } : {}) });
+    const comReferencias = (o: OrderPdfOrder): OrderPdfOrder => ({ ...o, items: o.items.map((it) => { const r = refs.get(idPorCodigo.get(it.erp_code) ?? ''); return r && r.length > 0 ? { ...it, references: r } : it; }) });
     return comReferencias(pdfBase());
   };
   // T-0141 (RN-VEN-18): o PDF usa o mesmo dia do preço do selo e da folha (uma fonte só)
@@ -379,7 +379,6 @@ export default function OrderDetailScreen() {
       pending_reason: queued ? '' : base!.pending_reason,
       rejection_reason: queued ? '' : base!.rejection_reason,
       price_table: (queued ? cu?.price_table_id : (base!.price_table_id ?? cu?.price_table_id)) ?? '',
-      branch_name: queued ? '' : base!.branch_name ?? '',
       erp_order_code: queued ? '' : base!.erp_order_code,
       seller_limit_pct: c?.policy && sellerId ? sellerDiscountLimit(toDomainPolicy(c.policy), sellerId) : null,
       history,

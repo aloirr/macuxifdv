@@ -13,15 +13,32 @@
  * DG-4 fila sem sinal: fica "Na fila · sem sinal", vai sozinho na volta do sinal, uma vez só (idempotente), na sessão do dono;
  * DG-5 a chave de ligar: desligada por padrão; ligada pela constante da versão ou `EXPO_PUBLIC_DIAGNOSTICO_NUVEM=1`; desligada,
  *      o Perfil não mostra o botão e o shell não liga a fila (nenhuma chamada nova à API).
+ * DG-6 RD-0124 (v1.0.4): uma tabela só dos 17 motivos do Android (`MOTIVOS_SAIDA_ANDROID`, SDK); o app manda o código dela e
+ *      escreve o rótulo dela; o portal mostra ao suporte o MESMO rótulo (rótulo × valor), sem tabela própria.
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto com recado ao dono (o agente testes volta para `it` na correção).
  * Matriz: docs/testes/T-0158.md.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DiagnosticoDetalheSchema, DiagnosticoEnvioSchema, MAX_SAIDAS_DIAGNOSTICO, type DiagnosticoEnvio } from '@macuxi/platform-sdk';
+import {
+  codigoDoMotivoAndroid,
+  DiagnosticoDetalheSchema,
+  DiagnosticoEnvioSchema,
+  MAX_SAIDAS_DIAGNOSTICO,
+  MOTIVOS_ERRO_DE_TELA,
+  MOTIVOS_SAIDA_ANDROID,
+  rotuloDoMotivoDiagnostico,
+  SaudeRespostaSchema,
+  SERVICO_API_MACUXI,
+  type DiagnosticoEnvio,
+} from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
+import { diagnosticosAppLigados } from '../../apps/api/src/config';
 import { detalheDoDiagnostico, mascararDiagnostico } from '../../apps/api/src/diagnosticos';
+import { planoAutomatico } from '../../apps/mobile/src/lib/diagnostico-envio';
+import { descricaoDaSaida } from '../../apps/mobile/src/lib/saida-android';
+import { MOTIVOS_DO_FILTRO, motivoDaSaida, rotuloDoMotivo } from '../../apps/web/lib/portal-diagnosticos';
 import {
   adicionarNaFila,
   DIAGNOSTICO_NUVEM_LIGADO,
@@ -389,5 +406,86 @@ describe('T-0158 DG-5 — a chave de ligar', () => {
     const shell = fonte('apps/mobile/src/state/plataforma.tsx');
     expect(shell).toMatch(/const (\w+) = useDiagnosticoNuvem\(\);[\s\S]*?if \(!motor \|\| !\1\) return;\s*return ligarEnvioDeDiagnosticos\(/);
     expect(shell.match(/ligarEnvioDeDiagnosticos\(/g)).toHaveLength(1);
+  });
+
+  // Decisão do gerente (R-20261111-011107): a chave remota tem flag próprio na API, `MACUXI_DIAGNOSTICOS_APP`, desligado e fora da
+  // demo; só liga junto com o portal (`MACUXI_DIAGNOSTICOS`); a constante do build fica false.
+  it('DG-5 chave remota na API: MACUXI_DIAGNOSTICOS_APP só liga com MACUXI_DIAGNOSTICOS; só 1/true/sim; o resto = desligado', () => {
+    const env = (portal?: string, app?: string) => ({ MACUXI_DIAGNOSTICOS: portal, MACUXI_DIAGNOSTICOS_APP: app }) as unknown as NodeJS.ProcessEnv;
+    expect(diagnosticosAppLigados(env())).toBe(false);
+    expect(diagnosticosAppLigados(env('1'))).toBe(false); // a demo liga o portal; o botão continua desligado
+    expect(diagnosticosAppLigados(env(undefined, '1'))).toBe(false); // sem portal ninguém lê: o app não envia
+    for (const v of ['1', 'true', ' SIM ', 'True']) expect(diagnosticosAppLigados(env('1', v))).toBe(true);
+    for (const v of ['0', 'false', 'yes', 'on', '']) expect(diagnosticosAppLigados(env('1', v))).toBe(false);
+  });
+
+  it('DG-5 chave remota de ponta: o /v1/saude manda portal E app; o app lê só true; nenhum compose liga o botão; constantes do build false', () => {
+    // a API monta `recursos.diagnosticos` com as duas chaves (app.ts) e o servidor lê o flag próprio (servidor.ts)
+    expect(fonte('apps/api/src/app.ts')).toMatch(/recursos: \{ diagnosticos: op\.diagnosticosPortal === true && op\.diagnosticosApp === true \}/);
+    expect(fonte('apps/api/src/servidor.ts')).toMatch(/diagnosticosApp: diagnosticosAppLigados\(process\.env\)/);
+    for (const [portal, app] of [[false, false], [true, false], [false, true], [true, true]] as const) {
+      const corpo = SaudeRespostaSchema.parse({ ok: true, servico: SERVICO_API_MACUXI, versao: '1.0.4', modulos: ['core'], recursos: { diagnosticos: portal && app } });
+      expect(diagnosticoNoServidor(corpo)).toBe(portal && app);
+    }
+    for (const c of ['scripts/deploy/demo/compose.yml', 'scripts/deploy/producao/compose.yml', 'scripts/deploy/stack-isolado/compose.ci.yml', 'scripts/deploy/stack-isolado/compose.producao.ci.yml']) {
+      expect(fonte(c)).not.toContain('MACUXI_DIAGNOSTICOS_APP');
+    }
+    expect(DIAGNOSTICO_NUVEM_LIGADO).toBe(false);
+    expect(QUEDA_AUTOMATICA_LIGADA).toBe(false);
+  });
+});
+
+describe('T-0158 DG-6 — RD-0124: motivos de saída do Android numa tabela só (SDK)', () => {
+  const NUMEROS = Array.from({ length: 17 }, (_, i) => i);
+  /** Códigos que o app da v1.0.3 já manda (CODIGO_DO_MOTIVO do commit da v1.0.3): o portal continua lendo os diagnósticos antigos. */
+  const CODIGOS_V103 = ['desconhecido', 'saida_propria', 'sinal', 'memoria', 'crash_java', 'crash_nativo', 'anr', 'falha_inicio', 'permissao', 'recursos', 'fechado_usuario', 'parado_usuario', 'dependencia', 'outro', 'congelado', 'pacote', 'atualizado'];
+
+  it('DG-6: a tabela do SDK tem os 17 REASON_* (0..16), um código e um rótulo por número, códigos iguais aos da v1.0.3', () => {
+    expect(Object.keys(MOTIVOS_SAIDA_ANDROID).map(Number).sort((a, b) => a - b)).toEqual(NUMEROS);
+    expect(NUMEROS.map((n) => MOTIVOS_SAIDA_ANDROID[n]!.codigo)).toEqual(CODIGOS_V103);
+    const rotulos = NUMEROS.map((n) => MOTIVOS_SAIDA_ANDROID[n]!.rotulo);
+    expect(new Set(rotulos).size).toBe(17); // dois números nunca viram o mesmo texto
+    for (const r of rotulos) expect(r).toMatch(/^[A-ZÀ-Ú]/);
+    for (const n of NUMEROS) expect(MOTIVOS_SAIDA_ANDROID[n]!.nome).toMatch(/^REASON_[A-Z_]+$/);
+  });
+
+  it('DG-6: a queda que o app manda leva no `motivo` o código da tabela do SDK (sem tabela própria no app)', () => {
+    for (const n of [3, 4, 5, 6, 7, 9, 12]) {
+      const s = saida(0, { motivo: n, quando: BASE });
+      const { envios } = planoAutomatico([s], null, null, BASE + 60_000);
+      expect(envios.map((e) => e.motivo)).toEqual([MOTIVOS_SAIDA_ANDROID[n]!.codigo]);
+    }
+    expect(codigoDoMotivoAndroid(99)).toBe('motivo_99');
+    expect(fonte('apps/mobile/src/lib/diagnostico-envio.ts')).not.toMatch(/CODIGO_DO_MOTIVO\s*[:=]/);
+  });
+
+  it('DG-6: o texto da saída no app começa pelo rótulo do SDK (o que o vendedor vê é o que o suporte lê)', () => {
+    for (const n of NUMEROS) {
+      const d = descricaoDaSaida(saida(0, { motivo: n, status: 0, pss_kb: 0, rss_kb: 0, descricao: '' }));
+      expect(d).toBe(MOTIVOS_SAIDA_ANDROID[n]!.rotulo);
+    }
+    const app = fonte('apps/mobile/src/lib/saida-android.ts');
+    expect(app).not.toMatch(/texto:\s*'/); // sem segunda tabela de textos
+  });
+
+  // RD-0124 no portal: antes `ROTULO_MOTIVO` e `CODIGO_DO_REASON` eram tabelas próprias (7 códigos saíam crus ao suporte e `outro`
+  // saía "Encerrado pelo sistema"); o engenheiro-apps passou o portal a ler o SDK (v1.0.4).
+  it('DG-6 RD-0124: o portal mostra o MESMO rótulo do SDK para os 17 códigos e os 3 do erro de tela (rótulo × valor)', () => {
+    for (const n of NUMEROS) expect(rotuloDoMotivo(MOTIVOS_SAIDA_ANDROID[n]!.codigo)).toBe(MOTIVOS_SAIDA_ANDROID[n]!.rotulo);
+    for (const [codigo, rotulo] of Object.entries(MOTIVOS_ERRO_DE_TELA)) expect(rotuloDoMotivo(codigo)).toBe(rotulo);
+  });
+
+  it('DG-6 RD-0124: o portal não tem tabela própria de motivos (lê a do SDK)', () => {
+    const portal = fonte('apps/web/lib/portal-diagnosticos.ts');
+    expect(portal).not.toMatch(/crash_nativo:\s*'/);
+    expect(portal).not.toMatch(/\{\s*codigo:\s*'desconhecido'/);
+  });
+
+  it('DG-6: o portal mantém o que não muda — vazio = "—", código desconhecido aparece como veio, filtro só com código que tem rótulo no SDK', () => {
+    expect(rotuloDoMotivo(null)).toBe('—');
+    expect(rotuloDoMotivo('motivo_99')).toBe('motivo_99');
+    expect(rotuloDoMotivoDiagnostico('motivo_99')).toBe('motivo_99');
+    for (const c of MOTIVOS_DO_FILTRO) expect(rotuloDoMotivoDiagnostico(c)).not.toBe(c);
+    for (const n of NUMEROS) expect(motivoDaSaida(n)).toBe(`${MOTIVOS_SAIDA_ANDROID[n]!.codigo}  (${MOTIVOS_SAIDA_ANDROID[n]!.nome} = ${n})`);
   });
 });

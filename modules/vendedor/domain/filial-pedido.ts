@@ -23,7 +23,7 @@ export function retratoFilialDoPedido(f: FilialOrigem): { filial_id: string; fil
 export function dadosFiscaisDaFilial(f: Record<string, unknown> | null | undefined): Record<string, string> | null {
   if (!f) return null;
   const r: Record<string, string> = {};
-  for (const k of [...CAMPOS_FISCAIS, 'cidade', 'uf']) {
+  for (const k of [...CAMPOS_FISCAIS, 'nome', 'cidade', 'uf']) {
     const v = f[k];
     if (typeof v === 'string' && v.trim()) r[k] = v.trim();
   }

@@ -92,12 +92,19 @@ const cabecalhoDaTabela = (h: string) => [...h.matchAll(/<th[^>]*>([\s\S]*?)<\/t
 function celulas(h: string, codigo: string): string[] {
   const tr = [...h.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => m[1]!).find((t) => new RegExp(`<td[^>]*>${codigo}</td>`).test(t));
   if (!tr) throw new Error(`linha do item ${codigo} não encontrada`);
-  return [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => semTags(m[1]!));
+  const c = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => semTags(m[1]!));
+  // PDF v3 (R-20261111-085828): a 1ª coluna é o nº do Item (conferido no PDF-8 final); as leituras por índice começam no Código
+  return /^\d+$/.test(c[0] ?? '') && c[1] === codigo ? c.slice(1) : c;
 }
 /** Cabeçalho do documento: do início do <body> até a ficha do cliente. */
-const cabecalhoDoDoc = (h: string) => h.slice(h.indexOf('<body>'), h.indexOf('class="ficha"'));
+const cabecalhoDoDoc = (h: string) => h.slice(h.indexOf('<body>'), h.indexOf('class="ficha'));
 /** Totais (rodapé da tabela). */
-const totais = (h: string) => semTags(h.slice(h.indexOf('<tfoot>'), h.indexOf('</tfoot>')));
+const totais = (h: string) => {
+  // PDF horizontal (R-20261111-084832): os totais saíram do <tfoot> para a caixa do Total (`.totalbox`); a leitura aceita os dois
+  const i = h.indexOf('class="totalbox"');
+  if (i < 0) return semTags(h.slice(h.indexOf('<tfoot>'), h.indexOf('</tfoot>')));
+  return semTags(h.slice(h.lastIndexOf('<', i), h.indexOf('</div></div>', h.indexOf('class="lin total"', i))));
+};
 
 // ---------- oráculo (texto das RNs) ----------
 const reais = (c: number) => `${Math.floor(c / 100).toLocaleString('pt-BR')},${String(c % 100).padStart(2, '0')}`;
@@ -106,8 +113,8 @@ const pct1 = (num: number, den: number) => `${(Math.floor((num * 2_000 + den) / 
 
 describe('T-0159 PDF-1/PDF-2 — colunas Emb., Qtd e Marca', () => {
   it('PDF-1/2: colunas do cliente e do escritório na ordem da spec; "Medida" sumiu', () => {
-    expect(cabecalhoDaTabela(html(detalhe(), 'customer'))).toEqual(['Código', 'Descrição', 'Marca', 'Emb.', 'Qtd', 'Preço unit. R$', 'Total R$']);
-    expect(cabecalhoDaTabela(html(detalhe(), 'bko'))).toEqual(['Código', 'Descrição', 'Marca', 'Emb.', 'Qtd', 'Tabela', 'Desc./Acr.', 'Líquido', 'Total']);
+    expect(cabecalhoDaTabela(html(detalhe(), 'customer'))).toEqual(['Item', 'Código', 'Descrição', 'Marca', 'Emb.', 'Qtd', 'Preço unit. R$', 'Total R$']);
+    expect(cabecalhoDaTabela(html(detalhe(), 'bko'))).toEqual(['Item', 'Código', 'Descrição', 'Marca', 'Emb.', 'Qtd', 'Tabela', 'Desc./Acr.', 'Líquido', 'Total']);
     for (const v of ['customer', 'bko'] as const) expect(html(detalhe(), v)).not.toMatch(/>Medida</);
   });
 
@@ -138,7 +145,7 @@ describe('T-0159 PDF-1/PDF-2 — colunas Emb., Qtd e Marca', () => {
     for (const v of ['customer', 'bko'] as const) {
       const h = html(detalhe(), v);
       const c = celulas(h, 'AGU-1500');
-      expect(c.length).toBe(cabecalhoDaTabela(h).length);
+      expect(c.length).toBe(cabecalhoDaTabela(h).length - 1); // `celulas` começa no Código (sem a coluna Item)
       expect(c[2]).toBe('');
       expect(h).not.toMatch(/Sem marca/i);
     }
@@ -154,11 +161,16 @@ describe('T-0159 PDF-3 — Alertas', () => {
     }
   });
 
-  it('PDF-3: PEDIDO com alerta → só o escritório tem a faixa, com o texto da tela (RN-VEN-42), antes da tabela', () => {
-    const bko = html(detalhe(), 'bko');
-    expect(bko).toMatch(/>\s*Alertas\s*</);
-    expect(bko).toContain(ALERTA);
-    expect(bko.indexOf(ALERTA)).toBeLessThan(bko.indexOf('<table'));
+  // Decisão nova do dono do produto (R-20261111-085235; spec §2 linha 6 e §5 4): Alertas fora de TODOS os PDFs, inclusive o pedido
+  // do escritório (antes a faixa saía só no escritório). Implementado pelo modulo-vendedor no PDF horizontal (v1.0.4).
+  it('PDF-3 (spec §5 4): PEDIDO com alerta → nenhuma das 4 versões tem "Alertas" nem o texto do alerta no HTML', () => {
+    for (const h of QUATRO()) {
+      expect(h).not.toMatch(/>\s*Alertas\s*</);
+      expect(h).not.toContain(ALERTA);
+    }
+  });
+
+  it('PDF-3: a versão do cliente do pedido com alerta nunca teve Alertas (continua)', () => {
     const cli = html(detalhe(), 'customer');
     expect(cli).not.toMatch(/>\s*Alertas\s*</);
     expect(cli).not.toContain(ALERTA);
@@ -178,14 +190,26 @@ describe('T-0159 PDF-4 — cabeçalho com a filial de faturamento (as 4 versões
       expect(l1!.endsWith(' · CNPJ 12.345.678/0002-76 · (95) 3224-1000')).toBe(true);
       expect(l2).toBe(LINHA2_BOA_VISTA);
       expect(resto).toEqual([]);
-      expect(h.indexOf('class="emit"')).toBeLessThan(h.indexOf('class="ficha"'));
+      expect(h.indexOf('class="emit"')).toBeLessThan(h.indexOf('class="ficha'));
     }
   });
 
-  // D-T0159-5 (recado ao modulo-vendedor, cópia ao designer-ux): a linha 1 sai "0002 · Filial Boa Vista/RR · CNPJ …" (o branch_name com o
-  // código e a UF); a spec §3 pede o nome como está no cadastro ("Filial Boa Vista · CNPJ …"), e o "Boa Vista/RR" repete a linha 2.
-  it.fails('PDF-4 D-T0159-5: linha 1 = "Filial Boa Vista · CNPJ 12.345.678/0002-76 · (95) 3224-1000" (nome do cadastro, sem código nem UF)', () => {
-    for (const h of QUATRO()) expect(linhasEmit(h)[0]).toBe(LINHA1_BOA_VISTA);
+  // D-T0159-5 corrigido (v1.0.4; era it.fails; decisão do designer-ux R-20261111-062125): a linha 1 saía "0002 · Filial Boa Vista/RR · CNPJ …"
+  // (o branch_name com o código e a UF); vale a spec §3 e §5 1a, com o nome puro do retrato (`filial.nome`), e "Boa Vista/RR" só na linha 2.
+  it('PDF-4 D-T0159-5 corrigido: linha 1 = "Filial Boa Vista · CNPJ 12.345.678/0002-76 · (95) 3224-1000" (nome do cadastro, sem código nem UF)', () => {
+    for (const h of QUATRO()) {
+      const [l1, l2] = linhasEmit(h);
+      expect(l1).toBe(LINHA1_BOA_VISTA);
+      expect(l1).not.toMatch(/^0002|\/RR/); // sem o código à frente nem a UF (o "0002" do CNPJ fica)
+      expect(l2).toContain('Boa Vista/RR');
+    }
+  });
+
+  // D-T0159-5, regra da spec revista pelo designer-ux (docs/design/pdf-pedido.md §3 e §4): o nome vem do retrato (`filial.nome`), nunca
+  // do `branch_name` (rótulo "0002 · Filial Boa Vista/RR" da lista do BKO); sem nome no retrato, a linha 1 começa no CNPJ.
+  it('PDF-4 D-T0159-5 corrigido: sem nome no retrato a linha 1 começa no CNPJ, mesmo com branch_name preenchido (o rótulo do BKO não entra)', () => {
+    const l = linhasEmit(html(detalhe({ filial: { ...FILIAL_BOA_VISTA, nome: null } }), 'customer'));
+    expect(l[0]).toBe('CNPJ 12.345.678/0002-76 · (95) 3224-1000');
   });
 
   it('PDF-4: nenhum dado da matriz (Manaus) no HTML do pedido de Boa Vista, nas 4 versões', () => {
@@ -220,10 +244,16 @@ describe('T-0159 PDF-4 — cabeçalho com a filial de faturamento (as 4 versões
     expect(linhasEmit(html(detalhe({ branch_name: '', filial: { telefone: '95991234567', cidade: 'Boa Vista', uf: 'RR' } }), 'customer'))).toEqual(['(95) 99123-4567']);
   });
 
-  // D-T0159-4 (recado ao modulo-vendedor): `linhasDaFilial` usa `enderecoEmLinha`, que junta o complemento com " – "
-  // ("Rua Cecília Brasil, 450 – Sala 2"); a spec §3 pede vírgula ("Rua Cecília Brasil, 450, Sala 2").
-  it.fails('PDF-4 D-T0159-4: complemento no endereço — "logradouro, número, complemento" separados por vírgula (spec §3)', () => {
-    expect(linhasEmit(html(detalhe({ filial: { ...FILIAL_BOA_VISTA, complemento: 'Sala 2' } }), 'customer'))[1]).toBe('Rua Cecília Brasil, 450, Sala 2 · Centro · Boa Vista/RR · CEP 69301-380');
+  // D-T0159-4 corrigido (v1.0.4; era it.fails): `linhasDaFilial` juntava o complemento com " – " ("Rua Cecília Brasil, 450 – Sala 2");
+  // a spec §3 pede vírgula. Vale nas 4 versões e sem complemento continua sem vírgula sobrando.
+  it('PDF-4 D-T0159-4 corrigido: complemento no endereço — "logradouro, número, complemento" separados por vírgula (spec §3), nas 4 versões', () => {
+    const comSala = { filial: { ...FILIAL_BOA_VISTA, complemento: 'Sala 2' } };
+    const quatro = [html(detalhe(comSala), 'customer'), html(detalhe(comSala), 'bko'), html(orcamento(comSala), 'customer'), html(orcamento(comSala), 'bko')];
+    for (const h of quatro) {
+      expect(linhasEmit(h)[1]).toBe('Rua Cecília Brasil, 450, Sala 2 · Centro · Boa Vista/RR · CEP 69301-380');
+      expect(h).not.toContain('450 – Sala 2');
+    }
+    expect(linhasEmit(html(detalhe(), 'customer'))[1]).toBe(LINHA2_BOA_VISTA);
   });
 
   it('PDF-4 (spec §5 9): orçamento só salvo → escritório sem a faixa Histórico; pedido salvo, enviado e rejeitado → as 3 etapas', () => {
@@ -368,11 +398,112 @@ describe('T-0159 PDF-7 — o que não sai', () => {
   });
 });
 
-describe('T-0159 — o detalhe leva a filial, a marca e os alertas até o PDF (pdfDoPedido)', () => {
-  it('pdfDoPedido repassa o retrato da filial, a marca do item e os alertas', () => {
+describe('T-0159 PDF-8 — visual horizontal e observações (R-20261111-084832 e R-20261111-085235; spec §3 e §6)', () => {
+  const css = (h: string) => h.slice(h.indexOf('<style>'), h.indexOf('</style>'));
+  const OBS_PEDIDO = 'Entregar pela manhã; portão lateral';
+  const comObs = (d: DetalheParaPdf, obs: string | null) => ({ ...d, observacao: obs }) as DetalheParaPdf;
+
+  it('PDF-8: A4 horizontal nas 4 versões; itens 15 px, rótulos 10,5 px, total 26 px', () => {
+    for (const h of QUATRO()) {
+      expect(css(h)).toMatch(/@page\s*\{[^}]*size:\s*A4 landscape/);
+      expect(css(h)).toMatch(/td\s*\{[^}]*font-size:\s*15px/);
+      expect(css(h)).toMatch(/th\s*\{[^}]*font-size:\s*10\.5px/);
+      expect(css(h)).toMatch(/\.vt\s*\{[^}]*font-size:\s*26px/);
+    }
+  });
+
+  it('PDF-8 (v3, R-20261111-090759; spec §6): espaço dobrado — tabela 28 px abaixo da ficha e rodapé 24 px abaixo da tabela, nas 4 versões', () => {
+    for (const h of QUATRO()) {
+      expect(css(h)).toMatch(/(^|\n)table\s*\{[^}]*margin-top:\s*28px/);
+      expect(css(h)).toMatch(/\.rodape\s*\{[^}]*margin-top:\s*24px/);
+    }
+  });
+
+  it('PDF-8: cabeçalho da tabela verde #00843D com texto branco; ficha com fundo #F1F2F0', () => {
+    for (const h of QUATRO()) {
+      expect(css(h)).toMatch(/th\s*\{[^}]*color:\s*#fff[^}]*background:\s*#00843D/i);
+      expect(css(h)).toMatch(/\.ficha\s*\{[^}]*background:\s*#F1F2F0/i);
+    }
+  });
+
+  it('PDF-8: Total em caixa (borda escura de 2 px) nas 4 versões; no escritório Tabela e Desconto dentro da caixa, acima do Total', () => {
+    expect(css(html(detalhe(), 'customer'))).toMatch(/\.totalbox\s*\{[^}]*border:\s*2px solid #16202A/i);
+    for (const h of QUATRO()) expect(h.match(/class="totalbox"/g)).toHaveLength(1);
+    const t = totais(html(detalhe(), 'bko'));
+    expect(t.indexOf('Tabela')).toBeLessThan(t.indexOf('Desconto'));
+    expect(t.indexOf('Desconto')).toBeLessThan(t.lastIndexOf('Total'));
+  });
+
+  it('PDF-8: Histórico do escritório ao lado da caixa do Total (no mesmo rodapé)', () => {
+    const bko = html(detalhe(), 'bko');
+    const rodape = bko.slice(bko.indexOf('class="rodape"'));
+    expect(rodape.indexOf('Rejeitado')).toBeGreaterThan(-1);
+    expect(rodape.indexOf('Rejeitado')).toBeLessThan(rodape.indexOf('class="totalbox"'));
+  });
+
+  it('PDF-8: sempre há logo no cabeçalho — a do tenant quando houver; sem logo, a imagem do app (nunca sem imagem)', () => {
+    for (const h of QUATRO()) expect(h).toMatch(/<img class="logo" src="data:image\/png;base64,[A-Za-z0-9+/=]{100,}"/);
+    const comLogo = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', { ...ctx, logo_src: 'https://cdn.exemplo/logo.png' } as OrderPdfContext);
+    expect(comLogo).toContain('<img class="logo" src="https://cdn.exemplo/logo.png"');
+    const vazio = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', { ...ctx, logo_src: '   ' } as OrderPdfContext);
+    expect(vazio).toMatch(/<img class="logo" src="data:image\/png;base64,/);
+  });
+
+  // Referência v2/v3 do dono do produto (R-20261111-090118 e R-20261111-090759, substituem R-20261111-085235 e -085828): as 2 observações
+  // ficam logo abaixo dos itens, à esquerda da caixa do Total (antes dela na leitura), uma embaixo da outra (pedido, depois entrega),
+  // SEMPRE visíveis (mesmo em branco), texto do vendedor em negrito; abaixo delas, o Histórico (escritório) ou a nota (cliente).
+  // Implementado pelo modulo-vendedor (v1.0.4).
+  const quatroCom = (obs: string | null) => [html(comObs(detalhe(), obs), 'customer'), html(comObs(detalhe(), obs), 'bko'), html(comObs(orcamento(), obs), 'customer'), html(comObs(orcamento(), obs), 'bko')];
+
+  it('PDF-8 (v2): Observação do pedido e Observação da entrega nas 4 versões, nessa ordem, depois da tabela e antes da caixa do Total; o texto em negrito', () => {
+    for (const h of quatroCom(OBS_PEDIDO)) {
+      const fim = h.indexOf('</table>');
+      const iPed = h.indexOf('Observação do pedido', fim);
+      const iEnt = h.indexOf('Observação da entrega', fim);
+      expect(iPed).toBeGreaterThan(fim);
+      expect(iEnt).toBeGreaterThan(iPed);
+      expect(iEnt).toBeLessThan(h.indexOf('class="totalbox"'));
+      expect(h.slice(iPed, iEnt)).toMatch(new RegExp(`<(b|strong)[^>]*>\\s*${OBS_PEDIDO}\\s*</(b|strong)>|font-weight:\\s*[67]00[^>]*>\\s*${OBS_PEDIDO}`));
+    }
+  });
+
+  it('PDF-8 (v2): observações em branco (nulo, vazio ou só espaços) → os 2 rótulos aparecem mesmo assim, nas 4 versões', () => {
+    for (const obs of [null, '', '   ']) {
+      for (const h of quatroCom(obs)) {
+        expect(h).toContain('Observação do pedido');
+        expect(h).toContain('Observação da entrega');
+      }
+    }
+  });
+
+  it('PDF-8 (v2): abaixo das observações, o Histórico no escritório e a nota "Valores sem impostos…" no cliente', () => {
+    const bko = html(comObs(detalhe(), OBS_PEDIDO), 'bko');
+    expect(bko.indexOf('Observação da entrega')).toBeLessThan(bko.indexOf('Rejeitado'));
+    const cli = html(comObs(detalhe(), OBS_PEDIDO), 'customer');
+    expect(cli.indexOf('Observação da entrega')).toBeLessThan(cli.indexOf('Valores sem impostos'));
+  });
+
+  // R-20261111-085828 itens 1 e 2: coluna ITEM (1, 2, 3…) primeiro; itens só no PDF em ordem alfabética do código (no app e no BKO nada muda).
+  it('PDF-8 (final): 1ª coluna "Item" numerada 1..n e itens por código (ACU-1K, AGU-1500, CAF-500), nas 4 versões', () => {
+    for (const h of QUATRO()) {
+      expect(cabecalhoDaTabela(h)[0]).toMatch(/^item$/i);
+      const linhas = [...h.slice(h.indexOf('<tbody'), h.indexOf('</tbody>')).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((m) => [...m[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((c) => semTags(c[1]!)));
+      expect(linhas.map((l) => l[0])).toEqual(['1', '2', '3']);
+      expect(linhas.map((l) => l[1])).toEqual(['ACU-1K', 'AGU-1500', 'CAF-500']);
+    }
+  });
+
+  it('PDF-8: a ordem por código é só do PDF — o pedido (pdfDoPedido) mantém a ordem dos itens do app e do BKO', () => {
+    expect(pdfDoPedido(detalhe()).items.map((i) => i.erp_code)).toEqual(['ACU-1K', 'CAF-500', 'AGU-1500']);
+  });
+});
+
+describe('T-0159 — o detalhe leva a filial e a marca até o PDF (pdfDoPedido)', () => {
+  // Os alertas deixaram de ir ao PDF (R-20261111-085235; spec §4 "a lista de alertas deixa de ser lida pelo PDF"): o repasse não é mais critério.
+  it('pdfDoPedido repassa o retrato da filial e a marca do item', () => {
     const o = pdfDoPedido(detalhe());
     expect(o.filial?.cnpj).toBe(FILIAL_BOA_VISTA.cnpj);
+    expect(o.filial?.nome).toBe('Filial Boa Vista');
     expect(o.items.map((i) => i.brand ?? '')).toEqual(['Doce Vale', 'Serra Alta', '']);
-    expect(o.alertas).toEqual([ALERTA]);
   });
 });

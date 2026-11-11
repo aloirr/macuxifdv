@@ -107,6 +107,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: novo pedido de distribuidora 
                 const ent = CONSULTA_PRECOS_CLIENTE.entrada.parse(entrada);
                 return { tabela_preco_id: id(39), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: PRECOS()[p] ?? null, motivo_sem_preco: null })) };
               }
+              if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {

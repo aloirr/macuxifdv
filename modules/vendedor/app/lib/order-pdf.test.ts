@@ -25,7 +25,6 @@ function order(over: Partial<OrderPdfOrder> = {}): OrderPdfOrder {
     pending_reason: 'Desconto de 7,0% acima da sua alçada de 5,0%. Vai para aprovação.',
     rejection_reason: '',
     price_table: 'Tabela Varejo',
-    branch_name: 'CD Manaus',
     erp_order_code: '',
     seller_limit_pct: 5,
     history: [

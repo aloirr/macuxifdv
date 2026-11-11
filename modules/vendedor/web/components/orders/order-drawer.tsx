@@ -6,8 +6,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage, imprimirHtml } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
-import { alertasDoPedido } from '../../../domain/alertas-pedido';
-import { eventosDoOrcamento, eventosDoPedido, motivoDoEvento } from '../../../domain/historico-pedido';
+import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
@@ -43,10 +42,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      // RN-VEN-42: o PDF do escritório leva a área Alertas; no BKO o alerta do pedido é a recusa do supervisor (o orçamento nunca imprime)
-      const motivo = [...dados.history].reverse().filter((e) => ['rejected', 'cancelled'].includes(e.status)).map((e) => motivoDoEvento(e.note)).find(Boolean) ?? null;
-      const alertas = dados.tipo === 'orcamento' ? [] : alertasDoPedido({ cliente: { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] }, recusas: motivo ? [motivo] : [] }).map((a) => a.texto);
-      const pdf = { ...pdfDoPedido(dados), ...(alertas.length > 0 ? { alertas } : {}) };
+      const pdf = pdfDoPedido(dados);
       const html = buildOrderPdfHtml(pdf, view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
       // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
       await imprimirHtml(html, orderPdfFileName(pdf.number, pdf.created_at, tz, pdf.tipo).replace(/\.pdf$/, ''));

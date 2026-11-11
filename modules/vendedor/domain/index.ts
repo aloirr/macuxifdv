@@ -27,5 +27,4 @@ export * from './historico-pedido';
 export * from './rascunhos';
 export * from './endereco-pedido';
 export * from './filial-pedido';
-export * from './estoque-filial';
 export * from './reserva-filial';

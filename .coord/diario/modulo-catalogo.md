@@ -73,3 +73,6 @@
 2026-11-10 — T-0159 — marca do produto em catalogo.textos_produto@1 (itens[].marca, API e aparelho) + testes; Vendedor avisado
 2026-11-11 — T-0159 — RD-0125: removida a marca do catalogo.textos_produto@1 (contrato, domain, API, app e testes; sem leitor, campo aditivo não publicado, sem versão nova); vitest sem banco 971 verdes
 2026-11-11 — CI lint v1.0.3 — removido import sem uso consultaTextosProdutoAparelho em modules/catalogo/app/texto-consultas.test.ts; sem falha de catalogo/core.filiais no ci4.txt além do lint
+2026-11-11 — T-0149 — catalogo.estoque_filial@1 (RN-VEN-20/RN-CORE-39): contrato Zod, domain/estoque-filial.ts com teste, consulta na API (RLS), teste de banco para o CI, manifest; Vendedor e engenheiro-software avisados
+2026-11-11 — T-0149 — regra única do estoque da filial em contracts/estoque-filial.ts (RD-0126); API e testes ajustados; Vendedor avisado
+2026-11-11 — T-0119 — busca com 20 mil sem travar a API: retrato renovado em segundo plano (versão max(updated_at) + assinatura, uma por tenant), índice montado em pedaços com setImmediate na carga do retrato, ranking reaproveita termos do índice, tolerância por tamanho/prefixo por faixa; it.fails mantido até o p95 do CI
