@@ -94,7 +94,7 @@ import {
 } from '@macuxi/platform-sdk';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { ZodError, type ZodTypeAny } from 'zod';
-import type { BancoApp, BancoPortal } from './banco';
+import { esperaDoPoolEsgotada, RETRY_AFTER_BANCO_OCUPADO_S, type BancoApp, type BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
 import { criarLimitador } from './limitador';
@@ -113,7 +113,7 @@ import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type Metr
 import { respostaMeusModulos } from './me-modulos';
 import { atorDaAuditoria, fontePlataformaNoBanco, marcaPortal, marcarPortal, prefixoDoIp, registrarRotasPlataforma, type EmailDoPortal, type FontePlataforma, type SenhaDoPortal } from './plataforma';
 import type { Plataforma } from './tipos';
-import { ErroHttp } from './erros';
+import { ErroHttp, semBanco } from './erros';
 import { SERVICO_EMAIL_DESLIGADO } from './email/servico';
 import { dentroDaTransacao, transacaoAberta } from './transacao-corrente';
 
@@ -207,10 +207,6 @@ export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.j
 export { excedeElementos, MAX_ELEMENTOS_CORPO, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function semBanco(): never {
-  throw new ErroHttp(503, 'BANCO_INDISPONIVEL', 'Banco de dados indisponível. Tente de novo em instantes.');
-}
 
 const acessoIndisponivel: AcessoBanco = { comTenant: async () => semBanco(), semTenant: async () => semBanco() };
 
@@ -370,6 +366,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const status = (erro as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
       return reply.code(status).send({ codigo: 'REQUISICAO_INVALIDA', mensagem: 'Requisição inválida.' } satisfies ErroApi);
+    }
+    // T-0118: a espera por conexão do pool venceu (pool cheio): 503 com Retry-After, o aparelho reenvia; nunca fila sem prazo
+    if (esperaDoPoolEsgotada(erro)) {
+      req.log.warn({ codigo: 'BANCO_OCUPADO' }, 'pool do banco cheio: espera por conexão vencida');
+      reply.header('retry-after', String(RETRY_AFTER_BANCO_OCUPADO_S));
+      return reply.code(503).send({ codigo: 'BANCO_OCUPADO', mensagem: 'Servidor ocupado. Tente de novo em instantes.' } satisfies ErroApi);
     }
     req.log.error({ err: erro }, 'erro não tratado');
     return reply.code(500).send({ codigo: 'ERRO_INTERNO', mensagem: 'Erro interno. Tente de novo; se continuar, avise o suporte.' } satisfies ErroApi);

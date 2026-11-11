@@ -9,6 +9,7 @@ import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { consultaPrecosCliente } from './consultas';
 import { consultaMarcas } from './consulta-marcas';
+import { consultaEstoqueFilial } from './estoque-filial';
 import { consultaBuscaProdutos, consultaFotoProduto, consultaTextosProduto } from './consultas-texto';
 import { consumidoresDoErp } from './consumidores-erp';
 import { criarPortaInterpretacaoHttp } from './ia';
@@ -29,7 +30,7 @@ export function portaIaDoAmbiente(env: Readonly<Record<string, string | undefine
 }
 
 export function criarModuloApiCatalogo(dep: DependenciasRotas): ModuloApi {
-  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente, consultaSugestoesPedido, consultaTextosProduto, consultaBuscaProdutos, consultaFotoProduto, consultaMarcas] });
+  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente, consultaSugestoesPedido, consultaTextosProduto, consultaBuscaProdutos, consultaFotoProduto, consultaMarcas, consultaEstoqueFilial] });
 }
 
 export const moduloApi: ModuloApi = criarModuloApiCatalogo({ repositorio: criarRepositorioPostgres(), portaIa: portaIaDoAmbiente(), aposGravar: esquecerRetratoCatalogo });

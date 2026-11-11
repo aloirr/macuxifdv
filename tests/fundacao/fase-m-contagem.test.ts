@@ -88,6 +88,12 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     novo: 'padrão do build: EXPO_PUBLIC_API_URL completado com /v1 (não foi digitado)',
     decisao: 'R-20261101-065547-alexandre — endereço digitado fica exatamente como digitado; só o padrão do build (EXPO_PUBLIC_API_URL) é completado com /v1',
   },
+  {
+    origem: 'apps/mobile/src/lib/order-pdf.test.ts',
+    titulo: 'pedido excluído mostra "Excluído" e o motivo',
+    novo: 'recusa aparece só no Histórico, com o texto vindo do histórico',
+    decisao: 'PDF v3 do dono do produto (R-20261111-090118 / R-20261111-094836) e RD-0134 — o PDF não tem mais o campo do motivo; a recusa aparece só no Histórico do escritório',
+  },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
 

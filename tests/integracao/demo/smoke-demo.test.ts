@@ -48,7 +48,7 @@ import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido }
 import { montarPedido, prepararPedido, rascunhoVazio, type Rascunho } from '../../../modules/vendedor/app/lib/pedidos';
 import { condicoesDoCliente, detalheDoPedido, lerLinhas, listaDeClientes, meDoAparelho, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { blindarPool, DEMO, encerrarPool, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { blindarPool, DEMO, disponivelNaFilial, encerrarPool, FOLGA_ESTOQUE, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 import { casosCadastrosTrade, casosUsuarios, type CtxTelasNovas } from './telas-novas.casos';
 
 const BUSCA = 'óleo para moto 150 cilindradas';
@@ -135,9 +135,11 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     const pr = await lucas.motor.ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente!.id, produto_ids: l.produtos.map((p) => p.id), em: new Date().toISOString() });
     const catalogo = produtosComPrecos(l, new Map(pr.itens.map((i) => [i.produto_id, i.preco_cents])));
     const conds = condicoesDoCliente(l, cliente!.id);
+    // RN-VEN-20 (v1.0.4): só produtos com saldo na filial do cliente (o seed tem ruptura de propósito); folga para a embalagem e as reservas
+    const disp = await disponivelNaFilial(api.admin, cliente!.id, catalogo.map((p) => p.id));
     const rascunho: Rascunho = {
       ...rascunhoVazio(cliente!.id),
-      lines: Object.fromEntries(catalogo.filter((p) => p.price_cents != null).slice(0, 2).map((p, i) => [p.id, i + 2])),
+      lines: Object.fromEntries(catalogo.filter((p) => p.price_cents != null && (disp.get(p.id) ?? 0) >= FOLGA_ESTOQUE).slice(0, 2).map((p, i) => [p.id, i + 2])),
       discount_pct: desconto,
       condicao_pagamento_id: conds[0]?.id ?? null,
       payment_terms: conds[0]?.descricao ?? 'À vista',

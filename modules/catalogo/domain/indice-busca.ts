@@ -8,8 +8,8 @@
 import type { FiltrosInterpretados } from '../contracts';
 import { anoCivilNoFuso } from './ano-civil';
 import { expandirAplicacao } from './aplicacao';
-import { casaComCodigo, casaComFiltros, cmp, codigoCompacto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, soCasaExato, toleranciaDaPalavra } from './ranking';
-import { chaveDeTermo, expandirSinonimos, tokensDeBusca, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
+import { casaComCodigo, cmp, codigoCompacto, codigosDaConsulta, nivelDaPalavra, nomeChave, notaFinal, soCasaExato, TOKENS_DO_PRODUTO, tokensDoDoc, toleranciaDaPalavra } from './ranking';
+import { chaveDeTermo, expandirSinonimos, tokensDeBuscaSemMemo, type SinonimoDoTenant } from './texto';
 import { aplicarChips, entraNaVitrine, temEstoqueParaBusca, type ChipsVitrine, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 import { filtrosParaPerfil } from './visibilidade';
 
@@ -26,6 +26,8 @@ export const TETO_CANDIDATOS = 200;
 export interface SubIndice {
   porTermo: ReadonlyMap<string, readonly number[]>;
   termos: readonly string[];
+  /** Os mesmos termos em ordem alfabética: o prefixo da palavra é uma faixa contínua (busca binária), sem varrer o vocabulário. */
+  alfa: readonly string[];
   /** Máscara de 32 bits dos caracteres de cada termo (mesma ordem de `termos`): descarta cedo o termo que não pode estar a `tolerancia` edições da palavra. */
   mascaras: Int32Array;
 }
@@ -41,6 +43,11 @@ export interface IndiceBusca {
   anos: readonly (readonly number[] | null)[];
   /** Códigos exatos (EAN cru, SKU e referências compactados) → posições. */
   porCodigo: ReadonlyMap<string, readonly number[]>;
+  /** `chaveDeTermo` da marca e da categoria por posição: o filtro de marca/linha compara cadeias prontas, sem normalizar 20 mil produtos por consulta. */
+  marcaChave: readonly string[];
+  categoriaChave: readonly string[];
+  /** Maior `vendas` entre os produtos ativos (o universo do ranking completo quando não há filtro de marca, linha nem chip). */
+  maxVendasAtivos: number;
 }
 
 /** Bit `código do caractere mod 32` de cada caractere do texto. */
@@ -62,46 +69,113 @@ function acrescentar(m: Map<string, number[]>, termo: string, i: number): void {
   else if (l[l.length - 1] !== i) l.push(i);
 }
 
-export function construirIndiceBusca(produtos: readonly ProdutoCatalogo[], anoAtual: number): IndiceBusca {
-  const porTermo = new Map<string, number[]>();
-  const porTermoApl = new Map<string, number[]>();
-  const porCodigo = new Map<string, number[]>();
-  const anos: (readonly number[] | null)[] = new Array<readonly number[] | null>(produtos.length).fill(null);
-  produtos.forEach((p, i) => {
-    const texto = (t: string | null | undefined) => {
-      for (const x of tokensDeBuscaSemMemo(t ?? '')) acrescentar(porTermoApl, x, i);
-    };
-    const termos = (t: string | null | undefined) => {
-      for (const x of tokensDeBusca(t ?? '')) acrescentar(porTermo, x, i);
-    };
-    termos(p.nome);
-    termos(`${p.sku} ${p.ean ?? ''}`.trim());
-    acrescentar(porTermo, chaveDeTermo(p.sku), i);
-    acrescentar(porTermo, chaveDeTermo(p.ean ?? ''), i);
-    acrescentar(porTermo, codigoCompacto(p.sku), i);
-    termos(p.marca);
-    termos(p.categoria);
-    termos(p.atributos.map((x) => `${x.name} ${x.value}`).join(' '));
-    for (const r of p.referencias ?? []) {
-      termos(r.codigo);
-      acrescentar(porTermo, codigoCompacto(r.codigo), i);
-      acrescentar(porCodigo, codigoCompacto(r.codigo), i);
-    }
+/**
+ * Construtor do índice em passos: a carga de 20 mil produtos custa segundos de CPU e, numa só volta, travaria o servidor inteiro
+ * (T-0119). `passo` processa um pedaço e devolve se terminou; quem chama cede o laço de eventos entre os pedaços.
+ * Cada produto guarda também os termos de seus campos (`TOKENS_DO_PRODUTO`), que o ranking reaproveita.
+ */
+export class ConstrutorIndice {
+  private readonly porTermo = new Map<string, number[]>();
+  private readonly porTermoApl = new Map<string, number[]>();
+  private readonly porCodigo = new Map<string, number[]>();
+  private readonly anos: (readonly number[] | null)[];
+  private readonly marcaChave: string[] = [];
+  private readonly categoriaChave: string[] = [];
+  private maxVendasAtivos = 0;
+  private proximo = 0;
+
+  constructor(
+    private readonly produtos: readonly ProdutoCatalogo[],
+    private readonly anoAtual: number,
+  ) {
+    this.anos = new Array<readonly number[] | null>(produtos.length).fill(null);
+  }
+
+  get terminou(): boolean {
+    return this.proximo >= this.produtos.length;
+  }
+
+  /** Processa até `quantos` produtos; `true` quando acabou. */
+  passo(quantos: number): boolean {
+    const fim = Math.min(this.produtos.length, this.proximo + quantos);
+    for (; this.proximo < fim; this.proximo++) this.produto(this.proximo);
+    return this.terminou;
+  }
+
+  private produto(i: number): void {
+    const p = this.produtos[i]!;
+    const atributos = p.atributos.map((x) => `${x.name} ${x.value}`).join(' ');
+    const tk = tokensDoDoc({ sku: p.sku, ean: p.ean, nome: p.nome, marca: p.marca, categoria: p.categoria, atributos, referencias: p.referencias ?? [] }, true);
+    TOKENS_DO_PRODUTO.set(p, tk);
+    for (const campo of [tk.nome, tk.codigo, tk.marca, tk.categoria, tk.atributos]) for (const x of campo) acrescentar(this.porTermo, x, i);
+    for (const r of p.referencias ?? []) acrescentar(this.porCodigo, codigoCompacto(r.codigo), i);
     const apl = p.aplicacao ?? '';
     if (apl !== '') {
-      texto(apl);
-      const e = expandirAplicacao(apl, { anoAtual });
-      texto(e.textoIndice);
-      if (e.anos.length > 0) anos[i] = e.anos;
+      for (const x of tokensDeBuscaSemMemo(apl)) acrescentar(this.porTermoApl, x, i);
+      const e = expandirAplicacao(apl, { anoAtual: this.anoAtual });
+      for (const x of tokensDeBuscaSemMemo(e.textoIndice)) acrescentar(this.porTermoApl, x, i);
+      if (e.anos.length > 0) this.anos[i] = e.anos;
     }
-    acrescentar(porCodigo, codigoCompacto(p.sku), i);
-    if (p.ean) acrescentar(porCodigo, p.ean, i);
-  });
-  const sub = (m: Map<string, number[]>): SubIndice => {
-    const termos = [...m.keys()].sort((a, b) => a.length - b.length);
-    return { porTermo: m, termos, mascaras: Int32Array.from(termos, mascaraDe) };
-  };
-  return { produtos, anoAtual, texto: sub(porTermo), aplicacao: sub(porTermoApl), anos, porCodigo };
+    acrescentar(this.porCodigo, codigoCompacto(p.sku), i);
+    if (p.ean) acrescentar(this.porCodigo, p.ean, i);
+    this.marcaChave[i] = chaveDeTermo(p.marca);
+    this.categoriaChave[i] = chaveDeTermo(p.categoria);
+    if (p.ativo && p.vendas > this.maxVendasAtivos) this.maxVendasAtivos = p.vendas;
+  }
+
+  concluir(): IndiceBusca {
+    if (!this.terminou) throw new Error('Índice de busca incompleto.');
+    const sub = (m: Map<string, number[]>): SubIndice => {
+      const termos = [...m.keys()].sort((a, b) => a.length - b.length);
+      return { porTermo: m, termos, alfa: [...m.keys()].sort(cmp), mascaras: Int32Array.from(termos, mascaraDe) };
+    };
+    return {
+      produtos: this.produtos,
+      anoAtual: this.anoAtual,
+      texto: sub(this.porTermo),
+      aplicacao: sub(this.porTermoApl),
+      anos: this.anos,
+      porCodigo: this.porCodigo,
+      marcaChave: this.marcaChave,
+      categoriaChave: this.categoriaChave,
+      maxVendasAtivos: this.maxVendasAtivos,
+    };
+  }
+}
+
+/** Índice de uma vez (testes e quem não tem retrato); a API usa `prepararIndice`, que cede o laço de eventos. */
+export function construirIndiceBusca(produtos: readonly ProdutoCatalogo[], anoAtual: number): IndiceBusca {
+  const c = new ConstrutorIndice(produtos, anoAtual);
+  c.passo(produtos.length);
+  return c.concluir();
+}
+
+/** Devolve o laço de eventos para as requisições entrarem. */
+export const cederLaco = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** Fatia de CPU contínua de cada pedaço da carga: curta o bastante para as requisições entrarem entre um pedaço e outro. */
+export const FATIA_MS_INDICE = 8;
+
+/**
+ * Aquecimento do índice fora da requisição (T-0119): constrói em pedaços de ~`FATIA_MS_INDICE` ms, cedendo o laço de eventos
+ * entre eles com `setImmediate`, e guarda o resultado para `indiceDe`. `null` = catálogo pequeno demais para valer o índice.
+ */
+export async function prepararIndice(produtos: readonly ProdutoCatalogo[], anoAtual: number, opcoes: { minimo?: number; ceder?: () => Promise<void> } = {}): Promise<IndiceBusca | null> {
+  if (produtos.length < (opcoes.minimo ?? MINIMO_PARA_INDICE)) return null;
+  const existente = indices.get(produtos);
+  if (existente && existente.anoAtual === anoAtual) return existente;
+  const ceder = opcoes.ceder ?? cederLaco;
+  const c = new ConstrutorIndice(produtos, anoAtual);
+  let tamanho = 50;
+  while (!c.terminou) {
+    const t0 = performance.now();
+    c.passo(tamanho);
+    const gasto = performance.now() - t0;
+    tamanho = Math.max(10, Math.min(2000, Math.round(tamanho * (FATIA_MS_INDICE / Math.max(0.5, gasto)))));
+    await ceder();
+  }
+  const indice = c.concluir();
+  indices.set(produtos, indice);
+  return indice;
 }
 
 /** Percorre os termos do índice que a palavra casa (exato, prefixo ou erro de digitação), com o nível do casamento. */
@@ -112,26 +186,40 @@ function casamentos(indice: SubIndice, palavra: string, aoCasar: (posicoes: read
   if (soCasaExato(palavra) || palavra.length < 3) return;
   const tolerancia = toleranciaDaPalavra(palavra);
   const menor = palavra.length - tolerancia;
-  // termos de tamanho >= menor; o prefixo exige termo maior que a palavra, a digitação até `+ tolerancia`
-  let ini = 0;
-  let fim = indice.termos.length;
-  while (ini < fim) {
-    const m = (ini + fim) >> 1;
-    if (indice.termos[m]!.length < menor) ini = m + 1;
-    else fim = m;
-  }
+  const maior = palavra.length + tolerancia;
+  const primeiroComTamanho = (n: number): number => {
+    let ini = 0;
+    let fim = indice.termos.length;
+    while (ini < fim) {
+      const m = (ini + fim) >> 1;
+      if (indice.termos[m]!.length < n) ini = m + 1;
+      else fim = m;
+    }
+    return ini;
+  };
+  // 1) termos de tamanho dentro do alcance da digitação (o comprimento limita antes de qualquer distância): prefixo ou erro de digitação
   const mascaraP = mascaraDe(palavra);
-  for (let k = ini; k < indice.termos.length; k++) {
+  const fimJanela = primeiroComTamanho(maior + 1);
+  for (let k = primeiroComTamanho(menor); k < fimJanela; k++) {
     const t = indice.termos[k]!;
     if (t === palavra) continue;
-    if (t.length > palavra.length + tolerancia && !t.startsWith(palavra)) {
-      // acima do alcance da digitação só o prefixo conta; sem prefixo não há como casar
-      continue;
-    }
     // cada caractere da palavra que não existe no termo custa pelo menos uma edição
-    if (t.length <= palavra.length + tolerancia && !t.startsWith(palavra) && bits(mascaraP & ~indice.mascaras[k]!) > tolerancia) continue;
+    if (!t.startsWith(palavra) && bits(mascaraP & ~indice.mascaras[k]!) > tolerancia) continue;
     const nivel = nivelDaPalavra(palavra, t);
     if (nivel > 0) aoCasar(indice.porTermo.get(t)!, nivel);
+  }
+  // 2) termos além do alcance da digitação: só o prefixo conta, e quem tem o prefixo é uma faixa contínua da ordem alfabética
+  let ini = 0;
+  let fim = indice.alfa.length;
+  while (ini < fim) {
+    const m = (ini + fim) >> 1;
+    if (indice.alfa[m]! < palavra) ini = m + 1;
+    else fim = m;
+  }
+  for (let k = ini; k < indice.alfa.length; k++) {
+    const t = indice.alfa[k]!;
+    if (!t.startsWith(palavra)) break;
+    if (t.length > maior) aoCasar(indice.porTermo.get(t)!, nivelDaPalavra(palavra, t));
   }
 }
 
@@ -185,8 +273,10 @@ export interface Candidatos {
   maxVendas: number;
 }
 
-/** Marca e linha do filtro (os de preço e estoque já foram descartados: nesses casos não há pré-seleção). */
-const passaCadastro = (p: ProdutoCatalogo, f: FiltrosInterpretados) => casaComFiltros({ marca: p.marca, categoria: p.categoria, preco_cents: null, estoque: 0 }, f);
+/** Marca e linha do filtro (os de preço e estoque já foram descartados: nesses casos não há pré-seleção): compara as chaves prontas do índice. */
+function passaCadastro(indice: IndiceBusca, i: number, marca: string | null, linha: string | null): boolean {
+  return (marca === null || indice.marcaChave[i] === marca) && (linha === null || indice.categoriaChave[i] === linha);
+}
 
 /**
  * Pré-seleção da busca (T-0119): os produtos ativos que podem aparecer no resultado e o `maxVendas` do ranking completo.
@@ -203,10 +293,9 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
   if (grupos.length === 0 && !filtros.code) return null;
   const anoAtual = e.anoAtual ?? anoCivilNoFuso(e.contexto.agora, e.fuso);
   const indice = indiceDe(e.produtos, anoAtual);
-  const entra = (i: number) => {
-    const p = e.produtos[i]!;
-    return entraNaVitrine(p, e.chips) && passaCadastro(p, filtros);
-  };
+  const marcaDoFiltro = filtros.brand === null ? null : chaveDeTermo(filtros.brand);
+  const linhaDoFiltro = filtros.line === null ? null : chaveDeTermo(filtros.line);
+  const entra = (i: number) => entraNaVitrine(e.produtos[i]!, e.chips) && passaCadastro(indice, i, marcaDoFiltro, linhaDoFiltro);
   const saida = (posicoes: Iterable<number>): Candidatos => {
     const ordenadas = [...posicoes].sort((a, b) => a - b);
     return { produtos: ordenadas.map((i) => e.produtos[i]!), maxVendas: 0 };
@@ -229,7 +318,8 @@ export function candidatosDaBusca(e: EntradaCandidatos): Candidatos | null {
 
   // maior venda do universo que o ranking completo enxergaria (todo ativo que passa nos filtros de cadastro)
   let maxVendas = 0;
-  for (let i = 0; i < e.produtos.length; i++) if (e.produtos[i]!.vendas > maxVendas && entra(i)) maxVendas = e.produtos[i]!.vendas;
+  if (marcaDoFiltro === null && linhaDoFiltro === null && !e.chips?.campaign && !e.chips?.only_product_ids) maxVendas = indice.maxVendasAtivos;
+  else for (let i = 0; i < e.produtos.length; i++) if (e.produtos[i]!.vendas > maxVendas && entra(i)) maxVendas = e.produtos[i]!.vendas;
 
   // por campo (texto × aplicação), por grupo: a melhor alternativa (todas as palavras dela casam; vale o menor nível)
   const palavras = new Set<string>();

@@ -32,7 +32,7 @@ import { buildOrderPdfHtml, pdfDoPedido, type OrderPdfOrder } from '../../../mod
 import { detalheDoPedido, lerLinhas, listaDeClientes, listaDePedidos, paraAprovar, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { aparelhoCampo, esperarHorizonte, gpsDeTeste, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, listaDe, produtoComSaldo, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 /** GPS do "aparelho", pelo ambiente do motor (`posicaoAgora`, RD-0046). */
 const gps = gpsDeTeste();
@@ -74,15 +74,18 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
     ).rows;
   /** Pedido válido do vendedor (cliente da carteira, produto com preço na tabela do cliente) como o `NewOrderScreen` enfileira. */
   const pedidoDoAparelho = async (chave: ChaveDemo): Promise<ItemPush> => {
-    const { cliente_id, produto_id } = (
+    // RN-VEN-20 (v1.0.4): o produto tem de ter saldo na filial do cliente; o 1º pelo id é o SUC-1L, em ruptura de propósito no seed
+    const candidatos = (
       await api.admin.query<{ cliente_id: string; produto_id: string }>(
         `select c.cliente_id, i.produto_id from core.carteira c
            join catalogo.cliente_tabela_preco t on t.tenant_id = c.tenant_id and t.cliente_id = c.cliente_id and t.deleted_at is null
            join catalogo.tabela_preco_item i on i.tenant_id = t.tenant_id and i.tabela_preco_id = t.tabela_preco_id and i.deleted_at is null
-          where c.tenant_id = $1 and c.usuario_id = $2 and c.deleted_at is null order by c.cliente_id, i.produto_id limit 1`,
+          where c.tenant_id = $1 and c.usuario_id = $2 and c.deleted_at is null order by c.cliente_id, i.produto_id`,
         [TENANT_DEMO, usuarioId[chave]],
       )
-    ).rows[0]!;
+    ).rows;
+    const cliente_id = candidatos[0]!.cliente_id;
+    const produto_id = await produtoComSaldo(api.admin, cliente_id, [...new Set(candidatos.filter((c) => c.cliente_id === cliente_id).map((c) => c.produto_id))], 2);
     const id = randomUUID();
     return { id, entidade: 'pedido', operacao: 'upsert', payload: { id, customer_id: cliente_id, discount_pct: 0, payment_terms: '28 dias', created_offline_at: new Date().toISOString(), items: [{ product_id: produto_id, quantity: 2 }] } };
   };
@@ -363,22 +366,15 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       const itens = (await c.ap.motor.linhas<LinhaSync & { pedido_id: string; quantidade: number; preco_tabela_cents: number; total_cents: number; produto_id: string }>('pedido_item')).filter((i) => i.pedido_id === p.id);
       const ordem: OrderPdfOrder = {
         number: null,
-        status: p.status,
         created_at: p.created_at,
-        customer: { legal_name: 'Cliente', trade_name: 'Cliente', cnpj: '', address: '', district: '', city: 'Manaus', erp_code: '' },
+        customer: { legal_name: 'Cliente', trade_name: 'Cliente', cnpj: '', erp_code: '' },
         seller_name: 'Lucas Andrade',
         payment_terms: p.condicao_pagamento ?? '',
         discount_pct: p.desconto_pct,
         items: itens.map((i) => ({ erp_code: i.produto_id.slice(0, 6), description: 'Produto', quantity: i.quantidade, unit_price_cents: i.preco_tabela_cents, total_cents: i.total_cents })),
         subtotal_cents: p.total_tabela_cents,
-        discount_cents: p.total_tabela_cents - p.total_cents,
         total_cents: p.total_cents,
-        pending_reason: '',
-        rejection_reason: '',
         price_table: 'default',
-        branch_name: '',
-        erp_order_code: '',
-        seller_limit_pct: null,
         history: [],
       };
       const html = buildOrderPdfHtml(ordem, 'customer', { tenant_name: 'Distribuidora Exemplo', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: new Date().toISOString() });

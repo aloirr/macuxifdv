@@ -8,7 +8,7 @@
  *     de Manaus o da Manaus (CONSULTA_PRECOS_CLIENTE e vitrine do Catálogo); estoque só da filial do cliente, com o nome dela no
  *     rótulo; café 500 g = 0 na Boa Vista e com saldo em Manaus (sem registro/zerado nunca mostra o de Manaus).
  *  F2 o pedido do cliente da Boa Vista: o recebimento grava o retrato da filial EFETIVA (RN-CORE-39, id em minúsculas, os dois
- *     campos juntos); detalhe do BKO, pull do aparelho e PDFs mostram "0002 · Filial Boa Vista/RR" (uma vez no PDF).
+ *     campos juntos); detalhe do BKO e pull do aparelho mostram "0002 · Filial Boa Vista/RR"; o PDF, "Filial Boa Vista" (D-T0159-5).
  *  F3 fila do ERP: aprovado@1 → despachante → integracao.pedido_fila_erp com payload.filial {0002, FIL-BVB} e exige_conector 1.4.0
  *     (o ERP Matriz da demo, 1.2.1, não leva); o de Manaus leva {0001, FIL-MAO} sem exigir o 1.4.0 pela filial.
  * Premissa: a demo não tem linha de de-para da condição (integracao.mapeamento; DE_PARA_CONDICAO_DEMO só monta o retrato dos faturados);
@@ -199,7 +199,7 @@ describe.skipIf(semBanco())('T-0149 — demo: um cliente de cada filial vê o pr
     }
   });
 
-  it('F2. o pedido do cliente da Boa Vista grava o retrato da filial EFETIVA; detalhe do BKO, pull do aparelho e os 2 PDFs mostram "0002 · Filial Boa Vista/RR"', async () => {
+  it('F2. o pedido do cliente da Boa Vista grava o retrato da filial EFETIVA; detalhe do BKO e pull do aparelho com "0002 · Filial Boa Vista/RR"; os 2 PDFs com "Filial Boa Vista" (D-T0159-5)', async () => {
     const sb = await saldoDaFilial(BV);
     const precos = await precosNoAparelho(cli.bv);
     const itens = [...precos.keys()].filter((p) => (sb.get(p) ?? 0) >= 10).slice(0, 2);
@@ -222,6 +222,10 @@ describe.skipIf(semBanco())('T-0149 — demo: um cliente de cada filial vê o pr
     const daManaus = (await linhas<{ cnpj: string | null }>(`select to_jsonb(f)->>'cnpj' as cnpj from core.filial f where f.id = $1`, [MAO]))[0]?.cnpj?.replace(/\D/g, '');
     for (const html of pdfs) {
       expect(html, 'sem a célula Filial na ficha').not.toMatch(/>\s*Filial\s*</);
+      // D-T0159-5 (spec §3 e §5 1a): a linha 1 começa pelo nome puro do retrato, sem "0002 ·" nem "/RR" (o rótulo fica na lista do BKO)
+      const linha1 = /class="emit">([\s\S]*?)<\/div>/.exec(html)?.[1]?.replace(/<[^>]*>/g, '').trim() ?? '';
+      expect(linha1, 'linha 1 do cabeçalho').toMatch(/^Filial Boa Vista( · |$)/);
+      expect(linha1, 'linha 1 sem código nem UF').not.toMatch(/^0002|\/RR/);
       if (cnpjBv) expect(html, 'CNPJ da filial Boa Vista no cabeçalho').toContain(`CNPJ ${fmt(cnpjBv)}`);
       if (daManaus && daManaus !== cnpjBv) expect(html, 'nada do CNPJ da Manaus no pedido da Boa Vista').not.toContain(fmt(daManaus));
     }
