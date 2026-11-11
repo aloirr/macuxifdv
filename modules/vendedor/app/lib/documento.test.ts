@@ -190,7 +190,7 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
   });
   it('RN-VEN-18: nada mudou → sem mudanças e pode enviar', () => {
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]));
-    expect(r.mudancas.filter((m) => m.tipo !== 'alcada')).toEqual([]);
+    expect(r.mudancas).toEqual([]);
     expect(r.pode_enviar).toBe(true);
   });
   it('RN-VEN-18: preço alterado (café 18,90 → 19,50) aparece em português e mantém o desconto em R$', () => {

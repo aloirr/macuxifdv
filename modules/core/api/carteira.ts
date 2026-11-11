@@ -23,41 +23,49 @@ async function ids(db: ClienteBanco, sql: string, usuarioId: string, hoje: strin
   return new Set(r.rows.map((l) => l.cliente_id));
 }
 
+/** Carteira dentro de uma transação já aberta no tenant (uso das consultas, que recebem o `db` pronto). */
+export async function carteiraNoBanco(
+  db: ClienteBanco,
+  usuario: Pick<UsuarioAutenticado, 'id' | 'perfil'>,
+  opcoes: { agora?: () => Date; fuso?: string } = {},
+): Promise<ReadonlySet<string> | 'tenant'> {
+  const escopo = escopoDoPerfil(usuario.perfil);
+  if (escopo === 'tenant') return 'tenant';
+  // Relógio e fuso vêm da requisição (T-0042); sem eles (uso direto em teste) vale o fuso padrão, sem ler plataforma.tenant.
+  const hoje = dataLocal((opcoes.agora ?? (() => new Date()))(), fusoDoTenantOuPadrao(opcoes.fuso));
+  const propria = await ids(db, `select c.cliente_id from core.carteira c where c.usuario_id = $1 and ${VIGENTE}`, usuario.id, hoje);
+  const vazio = new Set<string>();
+  const equipe =
+    escopo === 'carteira'
+      ? vazio
+      : await ids(
+          db,
+          `${EQUIPES_DO_RESPONSAVEL}
+           select c.cliente_id from core.carteira c join core.usuario u on u.id = c.usuario_id join eq on eq.id = u.equipe_id
+            where eq.nivel = 0 and ${VIGENTE}`,
+          usuario.id,
+          hoje,
+        );
+  const abaixo =
+    escopo !== 'equipes_abaixo'
+      ? vazio
+      : await ids(
+          db,
+          `${EQUIPES_DO_RESPONSAVEL}
+           select c.cliente_id from core.carteira c join core.usuario u on u.id = c.usuario_id join eq on eq.id = u.equipe_id
+            where eq.nivel > 0 and ${VIGENTE}`,
+          usuario.id,
+          hoje,
+        );
+  return clientesVisiveis(usuario.perfil, { propria, equipe, equipesAbaixo: abaixo });
+}
+
 export async function carteiraDoUsuario(
   usuario: UsuarioAutenticado,
   banco: AcessoBanco,
   /** Relógio e fuso da requisição (`ctx.agora`/`ctx.fuso`); ausentes = relógio do sistema e fuso padrão. */
   opcoes: { agora?: () => Date; fuso?: string } = {},
 ): Promise<ReadonlySet<string> | 'tenant'> {
-  const escopo = escopoDoPerfil(usuario.perfil);
-  if (escopo === 'tenant') return 'tenant';
-  return banco.comTenant(usuario.tenant_id, async (db) => {
-    // Relógio e fuso vêm da requisição (T-0042); sem eles (uso direto em teste) vale o fuso padrão, sem ler plataforma.tenant.
-    const hoje = dataLocal((opcoes.agora ?? (() => new Date()))(), fusoDoTenantOuPadrao(opcoes.fuso));
-    const propria = await ids(db, `select c.cliente_id from core.carteira c where c.usuario_id = $1 and ${VIGENTE}`, usuario.id, hoje);
-    const vazio = new Set<string>();
-    const equipe =
-      escopo === 'carteira'
-        ? vazio
-        : await ids(
-            db,
-            `${EQUIPES_DO_RESPONSAVEL}
-             select c.cliente_id from core.carteira c join core.usuario u on u.id = c.usuario_id join eq on eq.id = u.equipe_id
-              where eq.nivel = 0 and ${VIGENTE}`,
-            usuario.id,
-            hoje,
-          );
-    const abaixo =
-      escopo !== 'equipes_abaixo'
-        ? vazio
-        : await ids(
-            db,
-            `${EQUIPES_DO_RESPONSAVEL}
-             select c.cliente_id from core.carteira c join core.usuario u on u.id = c.usuario_id join eq on eq.id = u.equipe_id
-              where eq.nivel > 0 and ${VIGENTE}`,
-            usuario.id,
-            hoje,
-          );
-    return clientesVisiveis(usuario.perfil, { propria, equipe, equipesAbaixo: abaixo });
-  });
+  if (escopoDoPerfil(usuario.perfil) === 'tenant') return 'tenant';
+  return banco.comTenant(usuario.tenant_id, (db) => carteiraNoBanco(db, usuario, opcoes));
 }

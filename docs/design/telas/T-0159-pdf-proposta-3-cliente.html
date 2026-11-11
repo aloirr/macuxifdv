@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!-- T-0159 · proposta 3 (moderna: resumo no topo com o total, tabela arejada) · versão do cliente. <title> = nome do arquivo (RN-VEN-41). -->
+<title>PED-0014-10112026</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=block');
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; }
+body { font-family: 'IBM Plex Sans', Arial, sans-serif; color: #16202A; font-size: 9.5pt; line-height: 1.4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; padding: 0 18mm 18mm; overflow: hidden; border-top: 3mm solid #C2540A; }
+.num, td.v, th.v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+.cab { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12mm; }
+.marca { display: flex; gap: 4mm; align-items: center; }
+.empresa { font-family: Archivo, sans-serif; font-weight: 800; font-size: 14pt; line-height: 1.15; }
+.emit { font-size: 8pt; color: #4A5562; margin-top: .5mm; }
+.doc { text-align: right; }
+.doc .tipo { font-family: Archivo, sans-serif; font-weight: 700; font-size: 9pt; color: #4A5562; }
+.doc .numero { font-family: Archivo, sans-serif; font-weight: 800; font-size: 28pt; line-height: 1; letter-spacing: -.01em; margin: 1mm 0; }
+.doc .data { font-size: 9pt; color: #4A5562; }
+
+/* resumo: cliente, condições e total, lado a lado */
+.resumo { display: grid; grid-template-columns: 1.15fr 1.15fr .95fr; margin-top: 9mm; background: #F3F4F1; border-radius: 3mm; overflow: hidden; }
+.resumo > div { padding: 5mm 5mm; }
+.rot { font-family: Archivo, sans-serif; font-weight: 700; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: 1.6mm; }
+.razao { font-weight: 600; }
+.sec { color: #4A5562; }
+.par + .par { margin-top: 2.2mm; }
+.par .k { display: block; font-size: 8pt; color: #5B6673; }
+.caixa-total { background: #16202A; color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+.caixa-total .rot { color: #C9CEC6; }
+.caixa-total .valor { font-family: Archivo, sans-serif; font-weight: 800; font-size: 21pt; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.caixa-total .nota { font-size: 7.5pt; color: #C9CEC6; margin-top: 3mm; }
+
+/* itens */
+table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 9mm; }
+thead { display: table-header-group; }
+th { font-family: Archivo, sans-serif; font-weight: 700; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; text-align: left; padding: 0 0 2.4mm; border-bottom: 1.5px solid #16202A; }
+td { padding: 3.4mm 0; border-bottom: 1px solid #E1E4DE; vertical-align: top; }
+td + td, th + th { padding-left: 3mm; }
+tr { break-inside: avoid; }
+.prod { font-weight: 500; }
+.cod { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 8pt; color: #5B6673; margin-top: .4mm; }
+td.tot { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="cab">
+    <div class="marca">
+      <svg width="48" height="48" viewBox="0 0 46 46" aria-hidden="true"><rect width="46" height="46" rx="9" fill="#16202A"/><text x="23" y="28.5" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="17" fill="#fff">DE</text><rect x="13" y="34" width="20" height="3" rx="1.5" fill="#C2540A"/></svg>
+      <div>
+        <div class="empresa">Distribuidora Exemplo</div>
+        <div class="emit">CNPJ 12.345.678/0001-90 · (92) 3234-5678<br>Av. Djalma Batista, 1200 · Chapada · Manaus/AM</div>
+      </div>
+    </div>
+    <div class="doc">
+      <div class="tipo">Pedido de venda</div>
+      <div class="numero">000014</div>
+      <div class="data">10/11/2026</div>
+    </div>
+  </div>
+
+  <div class="resumo">
+    <div>
+      <div class="rot">Cliente</div>
+      <div class="razao">Atacadinho Cachoeirinha Comércio de Alimentos Ltda</div>
+      <div>Atacadinho Cachoeirinha</div>
+      <div class="sec">CNPJ 23.456.789/0001-01</div>
+    </div>
+    <div>
+      <div class="par"><span class="k">Pagamento</span>Boleto · 28/56 dias</div>
+      <div class="par"><span class="k">Entrega</span>CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</div>
+      <div class="par"><span class="k">Vendedor</span>Lucas Andrade</div>
+    </div>
+    <div class="caixa-total">
+      <div>
+        <div class="rot">Total do pedido</div>
+        <div class="valor">R$ 118,78</div>
+      </div>
+      <div class="nota">Valores sem impostos. Preço e estoque confirmados no faturamento.</div>
+    </div>
+  </div>
+
+  <table>
+    <colgroup><col><col style="width:20mm"><col style="width:30mm"><col style="width:28mm"></colgroup>
+    <thead><tr><th>Produto</th><th class="v">Qtd</th><th class="v">Preço unit. R$</th><th class="v">Total R$</th></tr></thead>
+    <tbody>
+      <tr><td><span class="prod">Café torrado e moído 500 g</span><span class="cod">CAF-500</span></td><td class="v">4 UN</td><td class="v">13,40</td><td class="v tot">53,60</td></tr>
+      <tr><td><span class="prod">Açúcar cristal 1 kg</span><span class="cod">ACU-1K</span></td><td class="v">1 FD</td><td class="v">39,60</td><td class="v tot">39,60</td></tr>
+      <tr><td><span class="prod">Água mineral 1,5 L</span><span class="cod">AGU-1500</span></td><td class="v">2 FD</td><td class="v">12,79</td><td class="v tot">25,58</td></tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

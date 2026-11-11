@@ -60,13 +60,26 @@
  *   clientes sem nada (nulo). Tabela escalonada (grupo 0x3b): A no p1 com 10 PC a R$ 950,00 (todas as tabelas), 2 CX a
  *   R$ 900,00 por PC (só a Padrão Alfa) e uma vencida ontem (5 PC); B no p1 com 12 UN a R$ 42,00 (aberta). Nenhum pedido da
  *   fixture leva forma e prazo (como os do APK antigo; o teste da 0037 grava um em transação desfeita).
+ * - T-0149 (0056, RN-CORE-39; FILIAIS_FIXTURE): o gatilho tenant_semear_filial cria a padrão '0001' em A e em B (fora das
+ *   listas, id idFilialPadrao); nas listas (grupo 0x0a) A tem a '0002' Boa Vista/RR e B a '0002' Campinas/SP, as duas SEM
+ *   cliente (todo cliente da fixture fica na padrão: estoque e preço de hoje não mudam). Depósitos, itens de preço e faixas da
+ *   fixture não informam a filial: o gatilho grava a padrão (a regra "ausente = padrão" do Hub). Os testes que precisam de
+ *   cliente, depósito ou preço na 0002 gravam em transação desfeita.
+ * - T-0147 (0057, RN-CORE-38; FOTOS_PDV_FIXTURE): o gatilho tenant_semear_foto_tipo cria a "Fachada" (obrigatória) em A e em B
+ *   (fora das listas, id idFotoTipoFachada); nas listas (grupo 0x0b) A tem "CNH do sócio" (sensível, obrigatória) e B
+ *   "Contrato social" (sensível). Fotos (grupo 0x0c): A com a fachada e a CNH de c1 (arquivo da CNH com perfis_leitura
+ *   admin/analista/gerente/supervisor = PERFIS_DOC_SENSIVEL do Core, ADR 0041), B com a fachada de c1. Os arquivos (grupo 0x2c, seq 11+) ficam 'recebido'.
+ * - T-0158 (0058, ADR 0043; DIAGNOSTICOS_FIXTURE, grupo 0x0d): diagnósticos do aparelho com o alerta já resolvido — A com 1 do
+ *   botão (vendedor-1, enviado) e 1 queda (promotor, desligado), B com 1 erro de tela (vendedor-B, enviado). Sem print; o
+ *   protocolo vem da sequência global (a fixture não grava a coluna).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeInteiros, arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeChave, idFixo, idMedida, idMotivoPadrao, idPerfilFabrica } from '../../src/ids';
+import { idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
+import { PERFIS_DOC_SENSIVEL } from '../../../modules/core/domain/fotos-pdv';
 import { dadosGestor, ORDEM_GESTOR } from './gestor';
 import { dadosPromotorFixture, ORDEM_PROMOTOR, PROMOTOR_FIXTURE } from './promotor';
 import { dadosPesquisaFixture, ORDEM_PESQUISA } from './pesquisa';
@@ -166,6 +179,13 @@ const G = {
   marca_concorrente: 0x3c,
   // 0050 (T-0054, RN-VEN-37): devolução do pedido
   pedido_devolucao: 0x3d,
+  // 0056 (T-0149, RN-CORE-39): filial (a padrão vem do gatilho tenant_semear_filial, id idFilialPadrao)
+  filial: 0x0a,
+  // 0057 (T-0147, RN-CORE-38): tipos e fotos do PDV (a "Fachada" vem do gatilho tenant_semear_foto_tipo, id idFotoTipoFachada)
+  foto_tipo: 0x0b,
+  cliente_foto: 0x0c,
+  // 0058 (T-0158, ADR 0043): diagnóstico do aparelho (protocolo da sequência global; nunca fixo na fixture)
+  diagnostico: 0x0d,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -278,6 +298,47 @@ const chaveHubFixture = (prefixo: string, segredo: string) => {
 };
 
 /** IDs para asserts determinísticos nos testes. */
+/**
+ * 0056 (T-0149, RN-CORE-39): filiais. A padrão ('0001', 'Filial padrão', cidade/UF nulas) vem do gatilho tenant_semear_filial
+ * (id idFilialPadrao, fora das listas); a '0002' de cada tenant está nas listas, sem cliente.
+ */
+export const FILIAIS_FIXTURE = {
+  A: { padrao: idFilialPadrao(a('tenant', 1)), boaVista: a('filial', 1) },
+  B: { padrao: idFilialPadrao(b('tenant', 1)), campinas: b('filial', 1) },
+} as const;
+
+/**
+ * 0057 (T-0147, RN-CORE-38): tipos e fotos do PDV. A "Fachada" vem do gatilho tenant_semear_foto_tipo (id idFotoTipoFachada);
+ * A: CNH do sócio (sensível, obrigatória), fachada e CNH de c1 (arquivo da CNH restrito a admin/analista/supervisor);
+ * B: Contrato social (sensível), fachada de c1.
+ */
+export const FOTOS_PDV_FIXTURE = {
+  A: {
+    tipos: { fachada: idFotoTipoFachada(a('tenant', 1)), cnh: a('foto_tipo', 1) },
+    fotos: { c1Fachada: a('cliente_foto', 1), c1Cnh: a('cliente_foto', 2) },
+    arquivos: { c1Fachada: a('arquivo', 11), c1Cnh: a('arquivo', 12) },
+  },
+  B: {
+    tipos: { fachada: idFotoTipoFachada(b('tenant', 1)), contrato: b('foto_tipo', 1) },
+    fotos: { c1Fachada: b('cliente_foto', 1) },
+    arquivos: { c1Fachada: b('arquivo', 11) },
+  },
+} as const;
+
+/**
+ * 0058 (T-0158, ADR 0043): diagnósticos do aparelho, todos com o alerta já resolvido (um worker de teste não acha pendente):
+ * A com 1 do botão do vendedor-1 (enviado, recado R-20261031-120000-diagnostico) e 1 queda do promotor (desligado, sem token);
+ * B com 1 erro de tela do vendedor-B (enviado). Sem print. O protocolo vem da sequência (a fixture não grava a coluna).
+ * Os testes que precisam de pendente ou de print gravam o seu em transação desfeita.
+ */
+export const DIAGNOSTICOS_FIXTURE = {
+  A: { botao: a('diagnostico', 1), queda: a('diagnostico', 2) },
+  B: { erroTela: b('diagnostico', 1) },
+} as const;
+
+/** 0057 (ADR 0041): quem abre documento sensível do PDV = PERFIS_DOC_SENSIVEL do Core (fonte única; o gerente entrou em R-20261110-084206). */
+export const PERFIS_LEITURA_DOC_SENSIVEL = PERFIS_DOC_SENSIVEL;
+
 export const DOIS_TENANTS = {
   A: {
     tenantId: a('tenant', 1),
@@ -507,6 +568,8 @@ export const ORDEM_TABELAS = [
   // 0018 (T-0063): a lista inicial vem do gatilho tenant_semear_medidas; aqui só as siglas próprias de cada tenant
   'core.medida',
   'core.produto',
+  // 0056 (T-0149): filiais além da padrão (a padrão vem do gatilho tenant_semear_filial), antes da FK cliente_filial_fk
+  'core.filial',
   'core.cliente',
   'core.carteira',
   'core.dispositivo',
@@ -515,6 +578,8 @@ export const ORDEM_TABELAS = [
   'core.usuario_convite',
   // 0040 (T-0094): outbox de e-mail (FK composta -> core.usuario); só linhas já despachadas (sem carga)
   'plataforma.email_saida',
+  // 0058 (T-0158): diagnóstico do aparelho (FK composta -> core.usuario); alerta já resolvido, sem print
+  'plataforma.diagnostico',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -541,6 +606,9 @@ export const ORDEM_TABELAS = [
   'vendedor.pedido_devolucao',
   // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
   'core.plano_rv',
+  // 0057 (T-0147): tipos de foto além da "Fachada" (gatilho) e as fotos do PDV (FKs -> core.cliente, core.foto_tipo, core.usuario)
+  'core.foto_tipo',
+  'core.cliente_foto',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -571,6 +639,51 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   senha_temporaria_criada_em: null,
   external_id: null,
 });
+
+/** 0057 (T-0147): arquivos das fotos do PDV (recebidos; a CNH com perfis_leitura). */
+function arquivosFotosPdv(hojeA: string, hojeB: string): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const FA = FOTOS_PDV_FIXTURE.A;
+  const FB = FOTOS_PDV_FIXTURE.B;
+  const arquivo = (id: string, tenant_id: string, entidade_id: string, cliente_id: string, enviado_por: string, hoje: string, perfis: readonly string[] | null): Linha => ({
+    id, tenant_id, modulo: 'core', finalidade: 'pdv', entidade: 'cliente_foto', entidade_id, cliente_id, enviado_por, tipo: 'image/jpeg',
+    tamanho_bytes: 180_224, sha256: createHash('sha256').update(`fixture-pdv-${id}`).digest('hex'), largura_px: 1600, altura_px: 1200,
+    situacao: 'recebido', recebido_em: instante(hoje, '12:30'), chave_armazenamento: `${tenant_id}/core/${anoMes(hoje)}/${id}.jpg`,
+    perfis_leitura: perfis ? arrayDeTexto(perfis) : null, deleted_at: null, external_id: null,
+  });
+  return [
+    arquivo(FA.arquivos.c1Fachada, A.tenantId, FA.fotos.c1Fachada, A.clientes.c1, A.usuarios.vendedor1, hojeA, null),
+    arquivo(FA.arquivos.c1Cnh, A.tenantId, FA.fotos.c1Cnh, A.clientes.c1, A.usuarios.vendedor1, hojeA, PERFIS_LEITURA_DOC_SENSIVEL),
+    arquivo(FB.arquivos.c1Fachada, B.tenantId, FB.fotos.c1Fachada, B.clientes.c1, B.usuarios.vendedor, hojeB, null),
+  ];
+}
+
+/** 0056 (T-0149) e 0057 (T-0147): filiais além da padrão, tipos de foto além da "Fachada" e as fotos do PDV. */
+function dadosFilialEFotosPdv(hojeA: string, hojeB: string): Pick<DadosFixture, 'core.filial' | 'core.foto_tipo' | 'core.cliente_foto'> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const FA = FOTOS_PDV_FIXTURE.A;
+  const FB = FOTOS_PDV_FIXTURE.B;
+  const foto = (id: string, tenant_id: string, cliente_id: string, foto_tipo_id: string, arquivo_id: string, origem: 'camera' | 'galeria', enviado_por: string, hoje: string): Linha => ({
+    id, tenant_id, cliente_id, foto_tipo_id, arquivo_id, origem, enviado_por, tirada_em: instante(hoje, '12:00'), external_id: null,
+  });
+  return {
+    'core.filial': [
+      { id: FILIAIS_FIXTURE.A.boaVista, tenant_id: A.tenantId, codigo: '0002', nome: 'Filial Boa Vista', cidade: 'Boa Vista', uf: 'RR', padrao: false, ativo: true, external_id: 'FIL-BV' },
+      { id: FILIAIS_FIXTURE.B.campinas, tenant_id: B.tenantId, codigo: '0002', nome: 'Filial Campinas', cidade: 'Campinas', uf: 'SP', padrao: false, ativo: true, external_id: null },
+    ],
+    'core.foto_tipo': [
+      { id: FA.tipos.cnh, tenant_id: A.tenantId, nome: 'CNH do sócio', obrigatorio: true, sensivel: true, fachada: false, ordem: 1, ativo: true, external_id: null },
+      { id: FB.tipos.contrato, tenant_id: B.tenantId, nome: 'Contrato social', obrigatorio: false, sensivel: true, fachada: false, ordem: 1, ativo: true, external_id: null },
+    ],
+    'core.cliente_foto': [
+      foto(FA.fotos.c1Fachada, A.tenantId, A.clientes.c1, FA.tipos.fachada, FA.arquivos.c1Fachada, 'camera', A.usuarios.vendedor1, hojeA),
+      foto(FA.fotos.c1Cnh, A.tenantId, A.clientes.c1, FA.tipos.cnh, FA.arquivos.c1Cnh, 'galeria', A.usuarios.vendedor1, hojeA),
+      foto(FB.fotos.c1Fachada, B.tenantId, B.clientes.c1, FB.tipos.fachada, FB.arquivos.c1Fachada, 'camera', B.usuarios.vendedor, hojeB),
+    ],
+  };
+}
 
 /**
  * 0019 (T-0066): notas do ERP. A: c1 com faturamento (pedido p1 como retrato, sem FK) e faturamento cancelado no dia 1º do
@@ -851,6 +964,20 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       emailSaida(EMAILS_FIXTURE.A.falhou, tA, A.usuarios.vendedor2, 'nova_senha', { tentativas: 8, falhou_em: DATA_FIXA_ACESSO, ultimo_erro: 'smtp_recusado' }),
       emailSaida(EMAILS_FIXTURE.B.enviado, tB, B.usuarios.vendedor, 'acesso_inicial', { enviado_em: DATA_FIXA_ACESSO }),
     ],
+    'plataforma.diagnostico': [
+      diagnostico(DIAGNOSTICOS_FIXTURE.A.botao, tA, A.usuarios.vendedor1, 'vendedor', 'botao', {
+        descricao: 'O pedido não subiu depois da sincronização.', alerta_situacao: 'enviado',
+        alerta_recado_id: 'R-20261031-120000-diagnostico', alerta_em: DATA_FIXA_ACESSO,
+      }),
+      diagnostico(DIAGNOSTICOS_FIXTURE.A.queda, tA, A.usuarios.promotor, 'promotor', 'queda', {
+        app: 'campo', motivo: 'crash_nativo', alerta_situacao: 'desligado',
+        detalhe: { saida_android: { motivo: 4, status: 0, importancia: 100, pss_kb: 0, rss_kb: 0, descricao: 'crash', pilha: null } },
+      }),
+      diagnostico(DIAGNOSTICOS_FIXTURE.B.erroTela, tB, B.usuarios.vendedor, 'vendedor', 'erro_tela', {
+        motivo: 'tela', alerta_situacao: 'enviado', alerta_recado_id: 'R-20261031-120001-diagnostico', alerta_em: DATA_FIXA_ACESSO,
+        detalhe: { erro: { mensagem: 'TypeError: x is undefined', pilha: null, origem: 'tela' } },
+      }),
+    ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
       evento(b('evento', 1), tB, B.usuarios.admin),
@@ -870,7 +997,9 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ],
     ...sprint1,
     // fotos da Pesquisa (0016) junto das da Sprint 1: plataforma.arquivo é gravada antes das respostas (FK de resposta_foto)
-    'plataforma.arquivo': [...sprint1['plataforma.arquivo'], ...arquivosPesquisa],
+    // 0057 (T-0147): + os arquivos das fotos do PDV; perfis_leitura nula nos demais (todas as linhas com as mesmas colunas)
+    'plataforma.arquivo': [...sprint1['plataforma.arquivo'], ...arquivosPesquisa, ...arquivosFotosPdv(hojeA, hojeB)].map((l) => ({ ...l, perfis_leitura: l.perfis_leitura ?? null })),
+    ...dadosFilialEFotosPdv(hojeA, hojeB),
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
     ...dadosT0013(hojeA, hojeB),
@@ -1462,7 +1591,9 @@ function cliente(id: string, tenant_id: string, documento: string, nome: string,
     logradouro: null, numero: null, bairro: null, cidade, uf, cep: null, latitude: coord?.[0] ?? null, longitude: coord?.[1] ?? null,
     ativo: true, external_id: null,
     // 0037 (T-0089, RN-VEN-25): nulo = sem teto e todas as formas (§8 P1)
-    prazo_medio_max_dias: null, formas_pagamento: null, ...extra,
+    prazo_medio_max_dias: null, formas_pagamento: null,
+    // 0056 (T-0149, RN-CORE-39): todo cliente da fixture na filial padrão do tenant (semeada pelo gatilho)
+    filial_id: idFilialPadrao(tenant_id), ...extra,
   };
 }
 
@@ -1479,6 +1610,16 @@ function emailSaida(id: string, tenant_id: string, usuario_id: string, modelo: '
     id, tenant_id, usuario_id, modelo, chave_idempotencia: `${usuario_id}:fixture`, carga: null, tentativas: 1,
     proxima_tentativa_em: DATA_FIXA_ACESSO, expira_em: VALIDADE_FIXA_REFRESH, enviado_em: null, falhou_em: null, ultimo_erro: null,
     external_id: null, ...extra,
+  };
+}
+
+/** 0058 (T-0158): diagnóstico só com dado técnico; o protocolo fica com a sequência (coluna fora da linha). */
+function diagnostico(id: string, tenant_id: string, usuario_id: string, perfil: string, origem: 'botao' | 'queda' | 'erro_tela', extra: Partial<Linha>): Linha {
+  return {
+    id, tenant_id, usuario_id, perfil, origem, app: 'campo', versao_app: '1.0.4', build: null, aparelho_fabricante: 'samsung',
+    aparelho_modelo: 'SM-A155M', android: '14', android_api: 34, tela: '/m/novo-pedido', motivo: null, descricao: null,
+    detalhe: {}, print_id: null, ocorrido_em: DATA_FIXA_ACESSO, recebido_em: DATA_FIXA_ACESSO, alerta_situacao: 'enviado',
+    alerta_tentativas: 0, alerta_proxima_em: null, alerta_recado_id: null, alerta_em: null, external_id: null, ...extra,
   };
 }
 

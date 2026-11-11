@@ -63,19 +63,19 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 
 | Entidade | Depende de |
 |---|---|
-| `vendedor`, `catalogo_no`, `transportadora`, `forma_pagamento` | nada |
+| `vendedor`, `catalogo_no`, `transportadora`, `forma_pagamento`, `filial` | nada |
 | `produto` | `catalogo_no` (referência **fraca**: nó ausente só gera aviso `referencia_fraca_ausente` e o produto entra sem o vínculo) |
 | `prazo_pagamento` | `forma_pagamento` (pelo `forma_external_id`) |
-| `cliente` | `vendedor` e `forma_pagamento` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes) |
+| `cliente` | `vendedor`, `forma_pagamento` e `filial` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes; `filial_external_id` ausente ou `null` = filial padrão da empresa) |
 | `rota` | `vendedor` e `cliente` (inclusive o cliente de cada parada) |
 | `titulo` | `cliente` |
 | `nota` | `cliente` e `vendedor` |
 | `cliente_endereco` | `cliente` |
 | `produto_unidade` | `produto` |
-| `preco`, `estoque` | `produto` |
-| `tabela_escalonada` | `produto` e `preco` |
+| `preco`, `estoque` | `produto` e `filial` (`filial_external_id` ausente ou `null` = filial padrão; no estoque, é a filial do depósito) |
+| `tabela_escalonada` | `produto`, `preco` e `filial` (`filial_external_id` ausente = vale para todas as filiais) |
 
-Sequência segura para a primeira carga: **vendedor, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
+Sequência segura para a primeira carga: **vendedor, filial, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
 
 O Hub também ajuda: um lote espera por lotes ainda em aberto das entidades de que depende (até 30 minutos); passado esse tempo ele é aplicado e as linhas sem alvo viram `referencia_ausente`. Quando o lote da dependência termina, o Hub reprocessa essas linhas sozinho.
 

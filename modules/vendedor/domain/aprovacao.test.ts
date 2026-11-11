@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { PedidoAprovadoEvento } from '../contracts';
 import {
   CARTEIRA_FORA,
   dataDoPreco,
@@ -251,6 +252,19 @@ describe('montarPedidoAprovado (aprovado@1, RN-INT-08)', () => {
     expect(e.desconto_total_cents).toBe(3_000 + 300);
     expect(e.total_cents).toBe(106_700);
     expect(e.cliente_external_id).toBeNull();
+  });
+});
+
+describe('T-0149 (RN-CORE-39): filial no aprovado@1', () => {
+  it('RN-CORE-39: a filial do pedido segue até o payload da fila do ERP', () => {
+    const e = montarPedidoAprovado({
+      pedido_uuid: '11111111-1111-4111-8111-111111111111', cliente_external_id: null, vendedor_external_id: null, condicao_pagamento_codigo: null,
+      criado_em: '2026-11-01T14:00:00.000Z', aprovado_em: '2026-11-01T14:00:01.000Z', observacao: null,
+      filial: { codigo: '02', external_id: 'F02', nome: 'Filial 2', padrao: false },
+      itens: [{ produto_external_id: 'P1', quantidade: 1, preco_tabela_cents: 100, total_cents: 100 }],
+    });
+    expect(e.filial).toEqual({ codigo: '02', external_id: 'F02', nome: 'Filial 2', padrao: false });
+    expect(PedidoAprovadoEvento.parse(e).filial).toMatchObject({ codigo: '02' });
   });
 });
 

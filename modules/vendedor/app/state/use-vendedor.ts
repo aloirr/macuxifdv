@@ -9,7 +9,8 @@
  *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
+import { abrirFotoDoProduto, idsComFoto } from '../lib/foto-produto';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import { CONSULTA_FINANCEIRO_CLIENTE, type CustomerSummary } from '@macuxi/core/contracts';
 import { ehConsultaIndisponivel, ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
@@ -20,8 +21,8 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
-import { precoDoOrcamentoVale } from '../../domain/orcamento';
+import { copiaDoDetalhe, copiaDoPayload, avisoDaEdicao, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
+import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
@@ -501,9 +502,9 @@ export function useVendedor() {
       const origem = src.number ? `pedido ${src.number}` : 'pedido no aparelho';
       const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
-      // T-0134 (RN-VEN-18): editar orçamento mantém os preços salvos (sem aviso de "preços atualizados"); duplicar entra pelos preços de hoje
-      const congelados = modo === 'edit' && ehOrcamento ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
-      const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : congelados ? '' : 'Preços atualizados pela tabela de hoje do cliente.';
+      // T-0134/T-0151 (RN-VEN-18): editar ou corrigir (orçamento ou pedido) mantém os preços salvos, sem faixa de "preços atualizados"; duplicar entra pelos preços de hoje
+      const congelados = modo === 'edit' ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
+      const cabeca = avisoDaEdicao({ modo, origem });
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -691,7 +692,7 @@ export function useVendedor() {
    * cliente), offline. `null` = sem tabela no aparelho para conferir (o servidor revalida ao receber).
    */
   const reconferirOrcamentoLocal = useCallback(
-    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean; nivel: NivelDePreco | null; total_cents: number; precos: DadosDosPrecosDeHoje } | null> => {
+    async (orcamentoId: string): Promise<{ mudancas: string[]; mudancas_brutas: MudancaNaConversao[]; bloqueio: string | null; pode_enviar: boolean; nivel: NivelDePreco | null; total_cents: number; precos: DadosDosPrecosDeHoje } | null> => {
       const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
       if (!d || d.items.length === 0) return null;
       const cliente = clientes.find((c) => c.id === d.customer_id);
@@ -718,7 +719,7 @@ export function useVendedor() {
         r: { itens_hoje: r.itens_hoje, total_orcado_cents: r.total_orcado_cents, total_hoje_cents: r.calculo.totais.total_cents, mudancas: r.mudancas, bloqueio: r.bloqueio },
         nomes: Object.fromEntries(d.items.map((i) => [i.product_id, i.description])),
       };
-      return { mudancas: total ? [...frases, total] : frases, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents, precos };
+      return { mudancas: total ? [...frases, total] : frases, mudancas_brutas: r.mudancas, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents, precos };
     },
     [perfil, clientes, garantirProdutos],
   );
@@ -791,6 +792,12 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
+  /** T-0148: quem tem foto (sem rede) e abrir a foto (baixa e guarda no cache; sem sinal e sem cache, aviso curto). */
+  const fotosDeProdutos = useCallback(
+    async (ids: string[]): Promise<Set<string>> => (v1 ? idsComFoto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), ids) : new Set()),
+    [v1, ambiente],
+  );
+  const abrirFotoProduto = useCallback((id: string) => abrirFotoDoProduto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), id), [ambiente]);
   /**
    * T-0138 (RN-CAT-09/10): referências cruzadas ("Equivale a") só na hora de gerar o PDF, de `catalogo.textos_produto@1`; não são
    * retrato do pedido. Falha ou aparelho sem a leitura = sem referência (o PDF sai sem a linha, nunca trava).
@@ -861,6 +868,8 @@ export function useVendedor() {
     sugestoesDoPedido,
     buscarProdutos,
     textosDeProdutos,
+    fotosDeProdutos,
+    abrirFotoProduto,
     referenciasDeProdutos,
     preVendaLigada,
     prepararRascunhoDoPedido,

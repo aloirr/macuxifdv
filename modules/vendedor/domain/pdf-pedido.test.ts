@@ -61,7 +61,7 @@ describe('pdfDoPedido (RF-VEN-06)', () => {
       const cab = html.slice(html.indexOf('class="top"'), html.indexOf('class="meta"'));
       expect(cab).toContain('Distribuidora Exemplo Norte');
       expect(cab).not.toContain('Macuxi');
-      expect(html.slice(html.indexOf('class="footer"'))).toContain('Gerado pelo Macuxi FDV');
+      expect(html.slice(html.indexOf('class="footer"'))).toMatch(/Gerado (pelo|em .* pelo) Macuxi FDV/);
     }
   });
   it('T-0064: nome da distribuidora vem do login, depois de parametros.core.tenant_nome, depois Macuxi', () => {
@@ -147,13 +147,20 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
   });
   it('RN-VEN-16: CIF sai como "Frete: CIF – por conta da empresa" e a versão cliente continua sem %', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(novo()), 'customer', ctx);
-    expect(html).toContain('Frete: CIF – por conta da empresa');
+    expect(html).toContain('<span class="k">Frete</span><span>CIF – por conta da empresa</span>');
+    expect(html.match(/Frete/g)).toHaveLength(1); // RD-0104: o frete sai uma vez só
     expect(html).not.toContain('%');
+  });
+  it('RD-0104: PDF do cliente traz Vendedor, Prazo e data uma vez só; interno sem repetir "Gerado"', () => {
+    const html = buildOrderPdfHtml(pdfDoPedido(novo()), 'customer', ctx);
+    expect(html.match(/Vendedor/g)).toHaveLength(1);
+    expect(html.match(/Prazo/g)).toHaveLength(1);
+    expect(buildOrderPdfHtml(pdfDoPedido(novo()), 'bko', ctx).match(/Gerado/g)).toHaveLength(1);
   });
   it('RN-VEN-16: FOB mostra a transportadora com o CNPJ formatado', () => {
     const d = novo({ freight: { modality: 'FOB', carrier_name: 'Rápido Norte', carrier_document: '11222333000181', carrier_phone: null, carrier_typed: false } });
     const html = buildOrderPdfHtml(pdfDoPedido(d), 'customer', ctx);
-    expect(html).toContain('Frete: FOB – por conta do cliente · Rápido Norte (CNPJ 11.222.333/0001-81)');
+    expect(html).toContain('<span>FOB – por conta do cliente · Rápido Norte (CNPJ 11.222.333/0001-81)</span>');
   });
   it('RN-VEN-17: o endereço de entrega aparece nas duas versões', () => {
     for (const view of ['customer', 'bko'] as const) expect(buildOrderPdfHtml(pdfDoPedido(novo()), view, ctx)).toContain('Av. do Depósito, 500 – Galpão 2 · Distrito · Manaus/AM · CEP 69100-000');
@@ -169,7 +176,7 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     const d = novo({ surcharge_pct: 5, discount_pct: 0, effective_discount_pct: -5, total_cents: 26_250, items: [{ erp_code: 'P1', description: 'Um', quantity: 1, unit_price_cents: 25_000, total_cents: 26_250, surcharge_pct: 5 }] });
     const html = buildOrderPdfHtml(pdfDoPedido(d), 'bko', ctx);
     expect(html).toContain('+5,0%');
-    expect(html).toContain('Acréscimo do pedido 5,0%');
+    expect(html).toContain('Acréscimo 5,0%') // RD-0102: a linha líquida é a mesma do app;
   });
   it('pedido antigo (sem campos novos) sai igual: medida UN e frete ausente', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
@@ -265,5 +272,43 @@ describe('"Equivale a" no PDF (T-0138, RN-CAT-09/10, desenho T-0085 §5)', () =>
     expect(equivaleAHtml({ references: [{ brand: '<b>', code: 'x' }] }, 'bko', {})).toContain('&lt;b&gt;');
     expect(equivaleAHtml({}, 'bko', {})).toBe('');
     expect(equivaleAHtml({ references: [] }, 'bko', {})).toBe('');
+  });
+});
+
+describe('T-0151: números do PDF iguais aos da tela', () => {
+  it('RN-VEN-03: o rótulo "Desconto" do PDF sai dos centavos (10,1%), não do % digitado no pedido (15,0%)', () => {
+    const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 15, subtotal_cents: 100_000, discount_cents: 10_050, total_cents: 89_950 })), 'bko', ctx);
+    expect(html).toContain('Desconto 10,1%');
+    expect(html).not.toContain('Desconto 15,0%');
+  });
+});
+
+describe('T-0150 D-T0150-1/2: acréscimo líquido e quantidade por embalagem no PDF', () => {
+  it('RN-VEN-03: acréscimo só nos itens sai como "Acréscimo 5,0%" (nunca "Desconto 0,0% − R$ 0,00")', () => {
+    const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 0, subtotal_cents: 100_000, discount_cents: 0, total_cents: 105_000 })), 'bko', ctx);
+    expect(html).toContain('Acréscimo 5,0%');
+    expect(html).toContain('+ R$');
+    expect(html).not.toContain('Desconto 0,0%');
+  });
+  it('RN-VEN-03: sem acréscimo, o desconto do pedido continua igual', () => {
+    const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'bko', ctx);
+    expect(html).toContain('Desconto 8,0%');
+    expect(html).not.toContain("Acréscimo ");
+  });
+  it('RN-CORE-19: o PDF do cliente soma a quantidade por embalagem (FD, CX e UN), não "15 un."', () => {
+    const it = (unit_label: string, quantity: number) => ({ erp_code: unit_label, description: 'P', quantity, unit_price_cents: 1_000, total_cents: 1_000 * quantity, unit_label });
+    const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ items: [it('FD c/ 6', 2), it('CX c/ 12', 3), it('UN', 10), it('CX c/ 24', 1)] })), 'customer', ctx);
+    expect(html).toContain('4 itens · 2 FD + 4 CX + 10 UN');
+    expect(html).not.toContain('16 un.');
+  });
+});
+
+describe('T-0149 (RN-CORE-39): filial no PDF', () => {
+  it('RN-CORE-39: a filial sai uma vez só nos dois PDFs (cliente e interno) e nada sai sem filial', () => {
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ branch_name: '0002 · Boa Vista/RR' })), v, ctx);
+      expect(html.match(/0002 · Boa Vista\/RR/g)).toHaveLength(1);
+      expect(buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx)).not.toContain('>Filial<');
+    }
   });
 });

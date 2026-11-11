@@ -18,17 +18,22 @@ import {
   ErroHttpModulo,
   executarConsulta,
   fusoDoTenantOuPadrao,
+  problemasPerfisLeitura,
   validarNovoArquivo,
   type ClienteBanco,
+  type ContextoConsulta,
+  type DefinicaoConsulta,
   type EnvelopeEvento,
   type ImplementacaoConsulta,
   type LogRota,
   type Manifesto,
   type ModuloId,
+  type OpcoesConsulta,
   type RegistroConsumo,
   type TransacaoTenant,
   type UsuarioDaRequisicao,
 } from '@macuxi/platform-sdk';
+import type { z } from 'zod';
 
 export async function gravarEvento(db: ClienteBanco, envelope: EnvelopeEvento, agregadoId: string | null): Promise<void> {
   await db.query(
@@ -152,43 +157,80 @@ export function publicadorTenant(db: ClienteBanco, o: OrigemPublicacao): Transac
   };
 }
 
+/** Profundidade máxima da cadeia de consultas (consulta que chama consulta, T-0149): guarda contra laço por engano. */
+export const PROFUNDIDADE_MAXIMA_CONSULTAS = 4;
+
+/**
+ * `consultar` com `consumidor` = módulo que chama. Na rota, no consumidor e na tarefa é o módulo deles; dentro de uma consulta
+ * (`ContextoConsulta.consultar`, T-0149) é o DONO da consulta que está rodando: ele precisa declarar a outra em `usaConsultas` (ou
+ * `usaConsultasOpcionais`) do próprio manifesto, como qualquer consumidor. Mesmo `db` (transação, tenant, RLS), mesmo usuário e
+ * mesmo modo (escrita) da origem; sem elevação. `cadeia` = consultas em execução acima desta: repetir uma (ciclo) ou passar de
+ * `PROFUNDIDADE_MAXIMA_CONSULTAS` = erro de programação. Dentro do savepoint somente leitura (ADR 0025 §4.1) a consulta aninhada
+ * já está protegida e não abre outro.
+ */
+async function consultarComo<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(
+  db: ClienteBanco,
+  o: OrigemTransacao,
+  consumidor: ModuloId,
+  cadeia: readonly string[],
+  jaSomenteLeitura: boolean,
+  def: DefinicaoConsulta<E, S>,
+  entrada: z.input<E>,
+  opcoes?: OpcoesConsulta,
+): Promise<z.output<S>> {
+  const quem = o.manifestos.find((m) => m.id === consumidor);
+  if (!quem || !consultasDeclaradas(quem).includes(def.nome))
+    throw new Error(`Consulta ${def.nome}: ${consumidor} não a declara em usaConsultas do manifesto (ADR 0012)`);
+  if (cadeia.includes(def.nome)) throw new Error(`Consulta ${def.nome}: ciclo entre consultas (${[...cadeia, def.nome].join(' -> ')}; T-0149)`);
+  if (cadeia.length >= PROFUNDIDADE_MAXIMA_CONSULTAS)
+    throw new Error(`Consulta ${def.nome}: cadeia de consultas passou de ${PROFUNDIDADE_MAXIMA_CONSULTAS} níveis (${cadeia.join(' -> ')}; T-0149)`);
+  const licenca = opcoes?.licenca ?? 'usuario';
+  if (licenca !== 'usuario' && licenca !== 'tenant') throw new Error(`Consulta ${def.nome}: licenca inválida (use 'usuario' ou 'tenant', ADR 0025)`);
+  const impl = o.consultas?.get(def.nome);
+  // sem usuário (rota de Conector, ADR 0013): indisponível com qualquer licença
+  if (!impl || !o.usuario) throw new ConsultaIndisponivel(def.nome, def.modulo);
+  // ADR 0025: só a checagem de módulo muda (o usuário, o escopo, o tenant e a RLS são os mesmos). Em escrita, só consulta
+  // que o DONO declarou configuracaoDoTenant (o registro da implementação manda, não a definição que o consumidor passou)
+  let ativos: readonly ModuloId[] = o.usuario.modulos;
+  let somenteLeitura = false;
+  if (licenca === 'tenant') {
+    if (!o.modulosDoTenant) throw new Error(`Consulta ${def.nome}: licenca 'tenant' indisponível neste contexto (ADR 0025)`);
+    if (o.escrita) {
+      if (impl.consulta.configuracaoDoTenant !== true)
+        throw new Error(`Consulta ${def.nome}: licenca 'tenant' em escrita só para consulta configuracaoDoTenant do dono (ADR 0025 §4.1)`);
+      somenteLeitura = !jaSomenteLeitura;
+    }
+    ativos = o.modulosDoTenant;
+  }
+  // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo agora (licença do usuário ou do tenant, RN-CORE-02/03)
+  if (!ativos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
+  const usuario = o.usuario;
+  const base = o.log ?? logMudo;
+  // log da consulta: dono, consulta, licença e request_id; nunca a entrada nem a saída
+  const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor, licenca }) ?? base;
+  const abaixo = [...cadeia, def.nome];
+  const protegida = jaSomenteLeitura || somenteLeitura;
+  const ctx: ContextoConsulta = {
+    db,
+    usuario,
+    requestId: o.requestId,
+    agora: o.agora,
+    parametros: () => o.parametros?.(def.modulo) ?? {},
+    fuso: () => fusoDoTenantOuPadrao(o.fuso?.()),
+    log,
+    // T-0149: a consulta chama outra como o módulo DONO (usaConsultas dele), na mesma transação e com o mesmo usuário
+    consultar: (d, e, op) => consultarComo(db, o, def.modulo, abaixo, protegida, d, e, op),
+  };
+  const executar = () => executarConsulta(def, entrada, (e) => impl.executar(e, ctx));
+  return somenteLeitura ? emSomenteLeitura(db, executar) : executar();
+}
+
 export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): TransacaoTenant {
   return {
     publicar: publicadorTenant(db, o),
     async consultar(def, entrada, opcoes) {
       if (!o.modulo) throw new Error('Rota da plataforma não usa consulta de módulo');
-      const quem = o.manifestos.find((m) => m.id === o.modulo);
-      if (!quem || !consultasDeclaradas(quem).includes(def.nome))
-        throw new Error(`Consulta ${def.nome}: ${o.modulo} não a declara em usaConsultas do manifesto (ADR 0012)`);
-      const licenca = opcoes?.licenca ?? 'usuario';
-      if (licenca !== 'usuario' && licenca !== 'tenant') throw new Error(`Consulta ${def.nome}: licenca inválida (use 'usuario' ou 'tenant', ADR 0025)`);
-      const impl = o.consultas?.get(def.nome);
-      // sem usuário (rota de Conector, ADR 0013): indisponível com qualquer licença
-      if (!impl || !o.usuario) throw new ConsultaIndisponivel(def.nome, def.modulo);
-      // ADR 0025: só a checagem de módulo muda (o usuário, o escopo, o tenant e a RLS são os mesmos). Em escrita, só consulta
-      // que o DONO declarou configuracaoDoTenant (o registro da implementação manda, não a definição que o consumidor passou)
-      let ativos: readonly ModuloId[] = o.usuario.modulos;
-      let somenteLeitura = false;
-      if (licenca === 'tenant') {
-        if (!o.modulosDoTenant) throw new Error(`Consulta ${def.nome}: licenca 'tenant' indisponível neste contexto (ADR 0025)`);
-        if (o.escrita) {
-          if (impl.consulta.configuracaoDoTenant !== true)
-            throw new Error(`Consulta ${def.nome}: licenca 'tenant' em escrita só para consulta configuracaoDoTenant do dono (ADR 0025 §4.1)`);
-          somenteLeitura = true;
-        }
-        ativos = o.modulosDoTenant;
-      }
-      // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo agora (licença do usuário ou do tenant, RN-CORE-02/03)
-      if (!ativos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
-      const usuario = o.usuario;
-      const base = o.log ?? logMudo;
-      // log da consulta: dono, consulta, licença e request_id; nunca a entrada nem a saída
-      const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo, licenca }) ?? base;
-      const executar = () =>
-        executarConsulta(def, entrada, (e) =>
-          impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, fuso: () => fusoDoTenantOuPadrao(o.fuso?.()), log }),
-        );
-      return somenteLeitura ? emSomenteLeitura(db, executar) : executar();
+      return consultarComo(db, o, o.modulo, [], false, def, entrada, opcoes);
     },
     async auditar(r) {
       if (!o.modulo) throw new Error('Rota da plataforma não audita fato de módulo');
@@ -219,11 +261,23 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       const id = a.id.toLowerCase();
       const entidadeId = a.entidade_id.toLowerCase();
       // id = UUID do aparelho: repetir o comando (lote reenviado) não cria outra linha
+      // perfis_leitura (ADR 0041): só na criação; mudança depois é pelo restringirArquivos
       const r = await db.query(
-        `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por, tipo)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por, tipo, perfis_leitura)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          on conflict (id) do nothing`,
-        [id, o.tenantId, o.modulo, a.finalidade, a.entidade, entidadeId, a.cliente_id?.toLowerCase() ?? null, o.usuarioId, a.tipo ?? 'image/jpeg'],
+        [
+          id,
+          o.tenantId,
+          o.modulo,
+          a.finalidade,
+          a.entidade,
+          entidadeId,
+          a.cliente_id?.toLowerCase() ?? null,
+          o.usuarioId,
+          a.tipo ?? 'image/jpeg',
+          a.perfis_leitura ? [...a.perfis_leitura] : null,
+        ],
       );
       if (r.rowCount) return { criado: true };
       // já existe: mesma referência = idempotente; outra (ou de outro tenant, invisível pelo RLS) = conflito
@@ -236,6 +290,22 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       if (atual && atual.modulo === o.modulo && atual.entidade === a.entidade && atual.entidade_id === entidadeId && atual.enviado_por === o.usuarioId)
         return { criado: false };
       throw new ErroHttpModulo(409, CODIGOS_ARQUIVO.jaReferenciado, 'Esta foto já está ligada a outro registro. Tire a foto de novo.');
+    },
+    async restringirArquivos(alvo) {
+      if (!o.modulo) throw new Error('Rota da plataforma não restringe arquivo de módulo');
+      if (!/^[a-z][a-z0-9_]*$/.test(alvo.entidade)) throw new Error('restringirArquivos: entidade em snake_case');
+      if (alvo.entidade_ids.some((x) => !UUID_RE.test(x))) throw new Error('restringirArquivos: entidade_ids precisam ser UUID');
+      const problemas = problemasPerfisLeitura(alvo.perfis_leitura);
+      if (problemas.length > 0) throw new Error(`restringirArquivos: ${problemas.join('; ')}`);
+      if (alvo.entidade_ids.length === 0) return { alterados: 0 };
+      // só os arquivos do próprio módulo (o RLS já limita ao tenant); o gatilho arquivo_updated_at atualiza o updated_at
+      const r = await db.query(
+        `update plataforma.arquivo set perfis_leitura = $4::text[]
+          where modulo = $1 and entidade = $2 and entidade_id = any($3::uuid[]) and deleted_at is null
+            and perfis_leitura is distinct from $4::text[]`,
+        [o.modulo, alvo.entidade, alvo.entidade_ids.map((x) => x.toLowerCase()), alvo.perfis_leitura ? [...alvo.perfis_leitura] : null],
+      );
+      return { alterados: r.rowCount ?? 0 };
     },
   };
 }

@@ -2,12 +2,12 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { dataLocal, pedidosVisiveisNoAparelho } from '../../domain';
+import { dataLocal, fotosComPendentes, pedidosVisiveisNoAparelho, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
 import { useCore } from './usar-core';
@@ -16,6 +16,13 @@ export interface ClientesLocais extends BaseLocal {
   contatos: readonly ClienteContatoSync[];
   /** Endereços do cliente (T-0061): lidos do aparelho como o resto, sem rede. */
   enderecos: readonly ClienteEnderecoSync[];
+  /** Filiais do tenant (RN-CORE-39): a ficha mostra a filial do cliente. */
+  filiais: readonly FilialSync[];
+  /** Fotos do PDV (RN-CORE-38): tipos do tenant e a foto vigente por cliente (arquivo_id nulo nos sensíveis). */
+  fotoTipos: readonly FotoTipoSync[];
+  clienteFotos: readonly ClienteFotoSync[];
+  /** Fotos do PDV enviadas neste aparelho e ainda na fila (ou aceitas e não cobertas pelo pull): a ficha mostra "Tem" na hora. */
+  fotosPendentes: readonly FotoPdvPush[];
   /** Há linhas de `cliente` no aparelho (o pull genérico já rodou); sem elas a tela cai na carga antiga da Fase M. */
   pronto: boolean;
   carregado: boolean;
@@ -26,7 +33,7 @@ export interface ClientesLocais extends BaseLocal {
   verPedidos: boolean;
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], pronto: false, carregado: false, verPedidos: true };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -38,7 +45,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -46,16 +53,25 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<HistoricoCompraSync>('historico_compra'),
         motor.linhas<ClienteEnderecoSync>('cliente_endereco'),
         motor.linhas<ParametroSync & LinhaSync>('parametro'),
+        motor.linhas<FilialSync>('filial'),
+        motor.linhas<FotoTipoSync>('foto_tipo'),
+        motor.linhas<ClienteFotoSync>('cliente_foto'),
       ]);
       const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, pronto: clientes.length > 0, carregado: true, verPedidos });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos });
     })();
     return () => {
       ativo = false;
     };
   }, [motor, estado.sincronizado_em]);
 
-  return { dados, hoje };
+  // offline primeiro (ADR 0009 §3): o que está na fila sobrepõe as linhas do pull
+  const fotosPendentes = useMemo(
+    () => (motor ? motor.sobreposicao(['cliente_foto']).map((i) => i.payload as FotoPdvPush) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [motor, estado.fila, estado.aceitos],
+  );
+  return { dados: useMemo(() => ({ ...dados, fotosPendentes }), [dados, fotosPendentes]), hoje };
 }
 
 /** Ficha 360 do cliente com as linhas do aparelho; `null` se o cliente não está no aparelho. */
@@ -70,6 +86,8 @@ export function montarFichaLocal(dados: ClientesLocais, clienteId: string, hoje:
       titulos: agruparPorCliente(dados.titulos).get(clienteId) ?? [],
       historico: agruparPorCliente(dados.historico).get(clienteId) ?? [],
       enderecos: agruparPorCliente(dados.enderecos).get(clienteId) ?? [],
+      filiais: [...dados.filiais],
+      fotos_pdv: { tipos: [...dados.fotoTipos], fotos: fotosComPendentes(agruparPorCliente(dados.clienteFotos).get(clienteId) ?? [], dados.fotosPendentes.filter((p) => p.cliente_id === clienteId), dados.fotoTipos) as ClienteFotoSync[], na_fila: dados.fotosPendentes.filter((p) => p.cliente_id === clienteId).map((p) => p.foto_tipo_id) },
     },
     hoje,
     { verPedidos: dados.verPedidos },

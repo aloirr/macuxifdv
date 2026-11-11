@@ -340,9 +340,11 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       await sincronizarComHorizonte(lucas);
       const r = await reconferirNoAparelho(lucas, ORC);
       expect(r.mudancas.filter((m) => m.tipo === 'preco'), 'preço congelado: a tabela nova (19,50) não reprecifica o orçamento').toEqual([]);
-      expect(r.mudancas.filter((m) => m.tipo === 'alcada'), 'a alçada não muda').toEqual([]);
+      // RN-VEN-10 (lote v1.0.3): a alçada saiu das mudanças da reconferência (é só a pergunta ao salvar); aqui ela se
+      // confere pelo nível do cálculo, que continua nulo (dentro da alçada do vendedor).
+      expect(r.mudancas.map((m) => m.tipo as string), 'nenhuma mudança de alçada na reconferência').not.toContain('alcada');
       expect(r).toMatchObject({ pode_enviar: true, bloqueio: null });
-      expect(r.calculo.nivel).toBeNull();
+      expect(r.calculo.nivel, 'a alçada não muda: dentro da do vendedor').toBeNull();
     });
 
     it('C3b. Transformar → o servidor grava o preço CONGELADO do orçamento (18,90; R$ 1,00 por unidade mantido), não o de hoje (19,50); o total do aparelho = o do servidor; o orçamento guarda 18,90 e 37979', async () => {

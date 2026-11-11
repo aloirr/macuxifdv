@@ -159,6 +159,23 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 >
 > **2026-11-09 (T-0115, RN-PES-05):** `0054_integracao_mapeamento_canal` (em cima da 0053; só `integracao.mapeamento`): CHECK
 > `mapeamento_tipo_valido` com `canal`; `vw_macuxi_cliente` com a coluna `canal`. Detalhes no [integracao.md](integracao.md).
+>
+> **2026-11-10 (T-0149, RN-CORE-39, ADR 0040):** `0056_core_filial` (em cima da 0055; aditiva): `core.filial` (padrão `0001`
+> semeada pelo gatilho `tenant_semear_filial` e nos tenants existentes), `filial_id` NOT NULL em `core.cliente` (FK),
+> `catalogo.deposito` e `catalogo.tabela_preco_item` (sem FK; nulo vira a padrão por gatilho), `filial_id` nulo (= todas) em
+> `catalogo.tabela_escalonada`, `filial_id` + retrato `filial` em `vendedor.pedido` e a entidade `filial` no Hub. Views do
+> Conector com `vw_macuxi_filial` e `filial_external_id`; modelo da entrada de pedidos com a filial. Detalhes no
+> [core.md](core.md), [catalogo.md](catalogo.md), [vendedor.md](vendedor.md) e [integracao.md](integracao.md).
+>
+> **2026-11-10 (T-0147, RN-CORE-38, ADR 0041):** `0057_core_foto_pdv` (em cima da 0056; aditiva): `core.foto_tipo` ("Fachada"
+> semeada pelo gatilho `tenant_semear_foto_tipo`), `core.cliente_foto`, `core.cliente.inativado_em` (relógio da retenção) e
+> `plataforma.arquivo.perfis_leitura`. Detalhes no [core.md](core.md), [plataforma.md](plataforma.md) e [lgpd.md](lgpd.md).
+>
+> **2026-11-10 (T-0158, ADR 0043):** `0058_plataforma_diagnostico` (em cima da 0057; aditiva): `plataforma.diagnostico`
+> (diagnóstico do aparelho, só dado técnico; protocolo global da sequência `plataforma.diagnostico_protocolo_seq`; app só
+> insere e lê o próprio tenant, worker só marca `alerta_*`), `sa_listar_diagnosticos` e `sa_diagnostico` (portal, só
+> super-admin; 16 `sa_*` no portal) e `expurgar_diagnosticos` (worker, 90 dias com o print). Detalhes no
+> [plataforma.md](plataforma.md), [rls.md](rls.md) e [lgpd.md](lgpd.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -226,7 +243,7 @@ Base para a demonstração com o gestor externo (app novo + API real; R-20261031
 | Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
 | Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
 
-Pré-requisito: banco migrado até a `0020` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+Pré-requisito: banco migrado até a `0050` (`banco subir` ou `banco migrar up`); sem isso o seed para com
 `rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
 
 **Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
@@ -234,8 +251,8 @@ Pré-requisito: banco migrado até a `0020` (`banco subir` ou `banco migrar up`)
 
 | Perfil | E-mail | Nome (fictício) | O que vê |
 |---|---|---|---|
-| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas** (a 1ª é cliente do Atacado); 8 pedidos (1 aguardando a supervisora, 1 rejeitado, 1 cancelado); recado do supervisor |
-| vendedor | `vendedor2@exemplo.com.br` | Camila Freitas | 12 clientes; rota de hoje com 4 paradas; 3 pedidos |
+| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas** (a 1ª é cliente do Atacado); 8 pedidos (1 aguardando a supervisora, 1 rejeitado, 1 cancelado, 2 faturados: o p01 e o p02, este com devolução parcial); recado do supervisor |
+| vendedor | `vendedor2@exemplo.com.br` | Camila Freitas | 12 clientes; rota de hoje com 4 paradas; 3 pedidos (1 faturado parcial: o p08) |
 | supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar no nível dela (11 pedidos da equipe, 3 aguardando aprovação) |
 | gerente | `gerente@exemplo.com.br` | Marcelo Tavares | responsável pela "Regional Norte", pai da "Equipe Manaus" (vê a equipe da supervisora, RN-CORE-04); 1 pedido para aprovar no nível dele (12%); app Gestão |
 | promotor | `promotor@exemplo.com.br` | Joana Prado | 7 supermercados/lojas na carteira de promotor; rota de hoje com 4 paradas; sem módulo Vendedor (RN-PRO-01) |
@@ -256,7 +273,10 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   sinal), **sem credencial** (nenhum autentica no Hub); política 1.2.1; 5 lotes (produto e título concluídos, cliente completo
   concluído, preço com 2 erros de linha sem payload, estoque que falhou) e 1 inativação de cliente **aguardando** (3 de 30,
   limite 5%, validade de 7 dias). Tudo relativo ao `now()` do banco no seed: **rode o seed de novo (sem `--recriar`) antes da
-  demonstração** para o sinal da matriz voltar a "agora". Inativação já decidida no ensaio não volta a aguardar.
+  demonstração** para o sinal da matriz voltar a "agora". Inativação já decidida no ensaio não volta a aguardar. **Fila do ERP
+  (T-0155):** os 3 pedidos faturados em `integracao.pedido_fila_erp` (entregues ao ERP Matriz, `faturado_total`/`faturado_parcial`)
+  com a trilha `integracao.pedido_retorno` (integrado + faturado), montados pelas funções do Hub (`dadosFilaErpDemo`); o de-para
+  da condição vai só no payload (`DE_PARA_CONDICAO_DEMO`), sem linha em `integracao.mapeamento`.
 - **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
   principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
   3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mercearia do Porto; até a T-0071 era o Mini Box Japiim, hoje o cliente da referência do novo pedido) e 12 meses de histórico.
@@ -266,10 +286,14 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
 - **Pedidos** (T-0029) dos últimos dias úteis, **recalculados pela tabela do cliente com a regra do servidor** (`revalidarPedido`
   do Vendedor), com número `000001`..`000011` (o próximo, 000012, é o do orçamento da referência), retratos e linha do tempo (`vendedor.pedido_evento`): 7 aprovados dentro da
   alçada (automático), 2 aguardando o **supervisor** (Lucas 8%, Camila 7%), 1 aguardando o **gerente** (Camila 12%),
-  1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
+  1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. **T-0155** (R-20261109-202200): 3 dos aprovados
+  já passaram pelo ERP (`FATURAMENTOS_DEMO`): **p01** (Lucas) Faturado, **p08** (Camila) Faturado parcial (a Farinha pela metade) e
+  **p02** (Lucas) Faturado com **devolução parcial** (6 dos 24 leites, `vendedor.pedido_devolucao`); linha do tempo com Enviado ao
+  ERP, Integrado e Faturado (autor "ERP"), número do ERP, nota em `vendedor.pedido_faturamento`, `total_faturado_cents` e
+  `quantidade_faturada` pelas funções do consumidor do retorno do Vendedor. Os outros 4 aprovados seguem sem ir ao ERP. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
 - **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor, todas com `tipo = 'pedido'`
-  (0019, RN-CORE-21; sem faturamento do ERP na demo) — BKO de metas da T-0068. **Metas do mês anterior** de Lucas e Camila
+  (0019, RN-CORE-21; a base é o pedido aprovado: o faturado parcial conta o total e a meta não muda com a T-0155) — BKO de metas da T-0068. **Metas do mês anterior** de Lucas e Camila
   (mesmos 4 indicadores e tipo, valores um pouco menores) para o "copiar do mês anterior" da T-0068; o Gestor as projeta por
   `usuário|mês` (o painel do mês corrente não muda). Na recarga `-Manter`, meta viva do ensaio no mesmo (usuário, período,
   indicador) com outro id é mantida e o seed pula a dele (sem violar `meta_uk`). **Hierarquia** (BKO de usuários da T-0067): a

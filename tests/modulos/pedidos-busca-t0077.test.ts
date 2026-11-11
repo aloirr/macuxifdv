@@ -851,8 +851,14 @@ describe('T-0077 critério 4 — promotor lê os pedidos da carteira no Cliente 
     expect(tela).toMatch(/const abas = filtrarExtensoesDePedido\(abasTodas, locais\.verPedidos\);/);
     expect(tela).toMatch(/const acoes = filtrarExtensoesDePedido\(acoesTodas, locais\.verPedidos\);/);
     expect(tela).toMatch(/const ficha = montarFichaLocal\(locais, id, hoje\);/);
+    // T-0146/T-0147 (RN-CORE-40): o histórico também some com "Sem compras em 12 meses"; a linha de "sem compras" e a
+    // grade de compras continuam presas a pedidos_visiveis, e os cartões que a tela monta (Compra média, Última compra) a verPedidos.
     const secoes = ler('modules/core/app/components/cliente360.tsx');
-    expect(secoes).toMatch(/\{ficha\.pedidos_visiveis \? \(\s*<View[^>]*testID="cliente-historico"/);
+    expect(secoes).toMatch(/\{ficha\.pedidos_visiveis(?: && !semCompras)? \? \(\s*<View[^>]*testID="cliente-historico"/);
+    expect(secoes).toMatch(/const semCompras = ficha\.pedidos_visiveis && resumoSemCompras\(compras\);/);
+    expect(secoes).toMatch(/\{ficha\.pedidos_visiveis \? \(\s*<>[\s\S]*?label="Ticket médio"/);
+    expect(tela).toMatch(/\{locais\.verPedidos \? <Stat label="Compra média\/mês"/);
+    expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<Stat[\s\S]{0,40}label="Última compra"/);
   });
 
   it('LIGADA (padrão de fábrica, sem registro): o promotor lê no Cliente 360 os pedidos/mês, os valores e a última compra — offline', async () => {

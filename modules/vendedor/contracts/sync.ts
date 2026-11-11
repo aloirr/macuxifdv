@@ -77,6 +77,9 @@ export const PedidoSyncSchema = z
     transportadora_telefone: z.string().nullable().optional(),
     endereco_entrega_id: z.string().uuid().nullable().optional(),
     endereco_entrega: z.record(z.unknown()).nullable().optional(),
+    /** T-0149 (RN-CORE-39, aditivo): retrato da filial do pedido { id, codigo, nome, cidade, uf, external_id, padrao }; nulo/ausente nos pedidos anteriores */
+    filial_id: z.string().uuid().nullable().optional(),
+    filial: z.record(z.unknown()).nullable().optional(),
     // --- T-0071 (migração 0020, pedida ao banco-dados): validade por data civil e ajuste do pedido em R$; opcionais ---
     validade_data: z.string().nullable().optional(),
     desconto_valor_cents: z.number().int().nonnegative().nullable().optional(),

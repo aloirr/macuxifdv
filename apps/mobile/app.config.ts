@@ -92,7 +92,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
       softwareKeyboardLayoutMode: 'resize',
-      permissions: ['android.permission.ACCESS_COARSE_LOCATION', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.CAMERA'],
+      // T-0145 (RN-CORE-37): o Campo exige notificações, localização o tempo todo, câmera e fotos/galeria (a tela de permissões
+      // confere a cada abertura); o Gestão exige só notificações. ACCESS_BACKGROUND_LOCATION vem do plugin do expo-location
+      // (só no Campo) e o READ_EXTERNAL_STORAGE até o Android 12, do expo-image-picker (no 13+ a galeria não pede permissão)
+      permissions: [
+        'android.permission.ACCESS_COARSE_LOCATION',
+        'android.permission.ACCESS_FINE_LOCATION',
+        'android.permission.CAMERA',
+        'android.permission.POST_NOTIFICATIONS',
+      ],
       // sem gravação de áudio (a câmera só tira foto: fachada do cliente fechado, RN-CORE-14)
       blockedPermissions: ['android.permission.RECORD_AUDIO'],
     },
@@ -100,9 +108,23 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       ['expo-splash-screen', { backgroundColor: '#F3F4F1', image: './assets/images/splash-icon.png', imageWidth: 76 }],
-      ['expo-location', { locationWhenInUsePermission: `O ${v.nome} usa a localização para registrar o check-in na visita ao cliente.` }],
-      // câmera: foto da fachada do cliente fechado (RN-CORE-14); sem galeria e sem microfone
-      ['expo-image-picker', { cameraPermission: `O ${v.nome} usa a câmera para fotografar a fachada do cliente quando a loja está fechada.`, photosPermission: false, microphonePermission: false }],
+      [
+        'expo-location',
+        {
+          locationWhenInUsePermission: `O ${v.nome} usa a localização para registrar o check-in na visita ao cliente.`,
+          // T-0145: "Permitir o tempo todo" no Campo (tracking no horário de trabalho, RN-CORE-37)
+          isAndroidBackgroundLocationEnabled: id === 'campo',
+        },
+      ],
+      // câmera e galeria (T-0145): fotos do PDV, da gôndola e da fachada (RN-CORE-14); sem microfone
+      [
+        'expo-image-picker',
+        {
+          cameraPermission: `O ${v.nome} usa a câmera para fotografar o PDV, a gôndola e a fachada do cliente.`,
+          photosPermission: `O ${v.nome} usa as fotos do aparelho para anexar fotos já tiradas.`,
+          microphonePermission: false,
+        },
+      ],
       // tokens da sessão no armazenamento seguro do Android (Keystore)
       'expo-secure-store',
       // ADR 0017: sincronização incremental em segundo plano (WorkManager no Android; o plugin só mexe no iOS)

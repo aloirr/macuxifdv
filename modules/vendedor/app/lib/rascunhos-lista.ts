@@ -10,7 +10,6 @@ import type { Rascunho } from './pedidos';
 export const TEXTOS_RASCUNHOS = {
   titulo: 'Rascunhos',
   voltar: 'Pedidos',
-  atalhoApoio: 'Somem 24 h após a última alteração',
   foraDaCarteira: 'Cliente fora da sua carteira',
   vazio: { titulo: 'Nenhum rascunho', apoio: 'O pedido que você deixa sem enviar fica aqui por 24 h.', acao: 'Voltar a Pedidos' },
   erro: { titulo: 'Não foi possível abrir os rascunhos', apoio: 'Puxe a tela para tentar de novo.' },

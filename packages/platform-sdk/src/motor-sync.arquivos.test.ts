@@ -177,6 +177,27 @@ describe('motor: fila de arquivos (ADR 0010 §4)', () => {
     expect(t.motor.estado().arquivos).toEqual([]);
   });
 
+  it('ADR 0041 (T-0147): apagarAoEnviar apaga o arquivo local e sai da fila assim que o servidor aceita (sem os 7 dias)', async () => {
+    const t = montar();
+    t.locais.set(`fotos/${FOTO2}.jpg`, JPEG);
+    t.responder(() => ({ status: 'aceito' }));
+    const a = await t.motor.enfileirarArquivo({ id: FOTO, modulo: 'core', apagarAoEnviar: true });
+    expect(a).toMatchObject({ situacao: 'pendente', apagar_ao_enviar: true });
+    await t.motor.enfileirarArquivo({ id: FOTO2, modulo: 'core' });
+    await t.motor.enviar();
+    expect(t.removidos).toEqual([`fotos/${FOTO}.jpg`]);
+    expect(t.motor.estado().arquivos.map((x) => [x.id, x.situacao])).toEqual([[FOTO2, 'enviado']]);
+    expect(t.motor.arquivosPendentes()).toHaveLength(0);
+  });
+
+  it('ADR 0041: apagarAoEnviar recusado (409 sem referência) continua pendente e o arquivo local fica para a próxima tentativa', async () => {
+    const t = montar();
+    await t.motor.enfileirarArquivo({ id: FOTO, modulo: 'core', apagarAoEnviar: true });
+    await t.motor.enviar();
+    expect(t.removidos).toEqual([]);
+    expect(t.motor.arquivosPendentes()).toMatchObject([{ id: FOTO, situacao: 'pendente', apagar_ao_enviar: true }]);
+  });
+
   it('RN-CORE-02: MODULO_INATIVO marca o arquivo; módulo desativado com arquivo pendente espera a confirmação', async () => {
     const t = montar();
     await t.motor.aplicarModulosAtivos(['core', 'promotor']);

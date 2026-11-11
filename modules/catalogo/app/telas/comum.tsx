@@ -107,7 +107,7 @@ function LinhasDaBusca({ item, extras }: { item: ItemVitrine; extras?: ExtrasPro
 export function CartaoProduto({ item, agora, fuso, clienteId, miniatura = null, extras, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; miniatura?: Miniatura | null; extras?: ExtrasProduto; onPress: () => void }) {
   const etiquetas = etiquetasDoItem(extras?.etiquetas ?? []);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, agora, fuso);
+  const estoque = rotuloEstoque(item, agora, fuso, { filialDoCliente: clienteId !== null });
   return (
     <Card testID={`catalogo-item-${item.erp_code}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${item.description}`} onPress={onPress} style={({ pressed }) => [s.toque, pressed && { opacity: 0.7 }]}>

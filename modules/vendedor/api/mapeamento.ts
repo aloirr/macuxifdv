@@ -3,7 +3,7 @@
  * `pode_decidir` e o histórico saem daqui, iguais para a lista, o detalhe e o PDF.
  */
 import type { AprovacaoDoPedido, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
-import { camposFaturamento, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
+import { camposFaturamento, nomeDaFilialDoPedido, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
 import { rotuloMedida } from '../domain/preco-pedido';
 
@@ -57,6 +57,9 @@ export interface LinhaPedido {
   prazo_descricao?: string | null;
   prazo_parcelas_dias?: number[] | null;
   prazo_medio_dias?: number | null;
+  // T-0149 (0056): retrato da filial do pedido (nulo nos pedidos anteriores)
+  filial_id?: string | null;
+  filial?: Record<string, unknown> | null;
 }
 
 /** T-0054: nota de faturamento e de devolução do pedido (detalhe). */
@@ -158,8 +161,8 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     seller_name: l.vendedor_nome ?? '',
     customer_id: l.cliente_id,
     customer_name: l.cliente_nome ?? '',
-    branch_id: null,
-    branch_name: null,
+    branch_id: l.filial_id ?? null,
+    branch_name: nomeDaFilialDoPedido(l.filial) || null,
     price_table_id: l.tabela_preco_id,
     discount_pct: num(l.desconto_pct),
     subtotal_cents: tabela,

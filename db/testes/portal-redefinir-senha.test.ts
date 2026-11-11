@@ -18,7 +18,7 @@ import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA, FUNCOES_SA_0042, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA, FUNCOES_SA_0042, FUNCOES_SA_ATE_0057 } from './funcoes-sa';
 import { emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -64,8 +64,8 @@ describe('0042 redefinir a senha do admin pelo portal (estático)', () => {
       expect(sql).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
     expect(FUNCOES_SA_0042).toEqual([LISTA, REDEFINIR]);
-    expect(FUNCOES_SA_ATUAIS).toEqual([...FUNCOES_SA, ...FUNCOES_SA_0042]);
-    expect(FUNCOES_SA_ATUAIS).toHaveLength(14);
+    expect(FUNCOES_SA_ATE_0057).toEqual([...FUNCOES_SA, ...FUNCOES_SA_0042]);
+    expect(FUNCOES_SA_ATE_0057).toHaveLength(14); // 14 até a 0057; a 0058 (T-0158) acrescenta 2
     expect(sql).toContain('if v_n <> 14 then');
     expect(sql).not.toMatch(/grant execute [^;]* to macuxi_(app|worker);/);
     expect(sql).not.toMatch(/grant [^;]* on (table )?(plataforma|core)\.[a-z_]+ to macuxi_portal/);
@@ -323,7 +323,7 @@ describe.skipIf(semBanco())('0042 up/down (banco efêmero)', () => {
         'fn plataforma.sa_redefinir_senha_admin(p_sid uuid, p_tenant uuid, p_usuario uuid, p_senha_hash text, p_email text, p_email_id uuid, p_carga bytea)',
       ]);
       expect(catalogo.filter((l) => !depois.includes(l))).toEqual([]);
-      expect(aclDepois.filter((l) => / macuxi_portal /.test(l))).toHaveLength(FUNCOES_SA_ATUAIS.length);
+      expect(aclDepois.filter((l) => / macuxi_portal /.test(l))).toHaveLength(FUNCOES_SA_ATE_0057.length);
       expect(aclDepois.filter((l) => / (macuxi_app|macuxi_worker|PUBLIC) /.test(l) && /^fn plataforma\.sa_/.test(l))).toEqual([]);
 
       expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0042_plataforma_portal_redefinir_senha_admin']);

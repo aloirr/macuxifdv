@@ -11,11 +11,12 @@ import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from 
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
-import { rotuloMedida } from '../../domain/preco-pedido';
-import type { EnderecoDaTela, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
+import { precoMinimoBaseCents, rotuloMedida } from '../../domain/preco-pedido';
+import type { EnderecoDaTela, ProdutoComMinimo, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
 import { ultimaMudancaDeStatus } from '../../domain/busca-periodo';
 import { camposFaturamento } from '../../domain/retorno-erp';
+import { nomeDaFilialDoPedido } from '../../domain/filial-pedido';
 
 export interface LinhasVendedor {
   pedidos: PedidoSync[];
@@ -153,8 +154,12 @@ export function listaDeClientes(l: LinhasVendedor, vendedor: { id: string; name:
 export const ESTOQUE_NAO_CONTROLADO = 1_000_000;
 
 /** Produto do seletor com o preço da tabela do cliente (`null` = "Sem preço para este cliente", RN-CAT-06). */
-export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null, aplicacao: string | null = null): Product {
+export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null, aplicacao: string | null = null): ProdutoComMinimo {
+  // RN-VEN-11 (T-0151): o mínimo só existe quando o sync traz o preço de venda E o desconto máximo do produto (sem eles, a API revalida)
+  const x = p as ProdutoSync & { preco_venda_cents?: number | null; desconto_maximo_pct?: number | null };
+  const minimo = x.preco_venda_cents != null && x.desconto_maximo_pct != null ? precoMinimoBaseCents({ preco_venda_cents: x.preco_venda_cents, desconto_maximo_pct: x.desconto_maximo_pct }) : null;
   return {
+    ...(minimo !== null ? { preco_minimo_base_cents: minimo } : {}),
     id: p.id,
     erp_code: p.sku,
     description: p.nome,
@@ -257,8 +262,8 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     seller_name: p.vendedor_nome ?? '',
     customer_id: p.cliente_id,
     customer_name: p.cliente_nome ?? '',
-    branch_id: null,
-    branch_name: null,
+    branch_id: p.filial_id ?? null,
+    branch_name: nomeDaFilialDoPedido(p.filial) || null,
     price_table_id: p.tabela_preco_id ?? null,
     discount_pct: p.desconto_pct,
     subtotal_cents: p.total_tabela_cents,

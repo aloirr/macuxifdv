@@ -61,3 +61,7 @@
 2026-11-09 — T-0141 (item C) — EnderecoEntregaErp.origem aditivo no v1, guia com a regra external_id nulo = textos, 7 testes RN-VEN-17
 2026-11-09 — T-0141 C — coleção Postman regerada do openapi-hub-v1.json (EnderecoEntregaErp.origem); colecao.test.ts verde (12/12); Insomnia sem mudança
 2026-11-09 — T-0140 — RD-0043: mascararDadoPessoal do Hub renomeada para mascararMensagemDoConector (regra própria documentada, saída ao ERP/BKO inalterada); RD-0051: BOM local trocado por BOM_CSV do comum em 5 arquivos; célula compacta mantida (variante aguarda engenheiro-software).
+2026-11-10 — T-0149 — filial no Hub v1 (entidade, filial_external_id, PedidoParaErp.filial, exigeConector 1.4.0), Conector 1.4.0 empacotado, docs; aguardando banco-dados (views/CHECK) e testes/corretor
+2026-11-10 — T-0149 — Conector 1.4.0: parametrosCabecalho repassa frete/entrega/pagamento (23 parâmetros), exemplos SQL Server/Oracle, doc, dist reempacotado; pedido ao banco-dados do modelo; faltam ZIP/assinatura/S3 para publicar
+2026-11-10 — T-0098 — script apps/conector/scripts/pacote.mjs (zip win-x64 + sha256 + sig) com testes; workflow de publicação pedido ao engenheiro-software
+2026-11-10 — T-0149/T-0098 — conector.md (montagem por pacote.mjs e conector-publicar.yml), UF da filial com regex + teste, roteiro-ensaio-conector-1.4.0.md, 8 recados encerrados

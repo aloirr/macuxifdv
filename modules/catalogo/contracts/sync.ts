@@ -24,6 +24,8 @@ export const TabelaPrecoItemSyncSchema = z.object({
   vigencia_fim: z.string().nullable(),
   /** Preço próprio da embalagem (CX) — fila de corte da T-0061; ausente/null = unidade base. */
   unidade: z.string().nullable().optional(),
+  /** Filial do preço (T-0149, RN-CORE-39; aditivo, opcional no aparelho antigo). O pull manda só as filiais da carteira + a padrão. */
+  filial_id: z.string().uuid().optional(),
 });
 export type TabelaPrecoItemSync = z.infer<typeof TabelaPrecoItemSyncSchema>;
 
@@ -42,6 +44,8 @@ export const TabelaEscalonadaSyncSchema = z.object({
   vigencia_fim: z.string().nullable(),
   tabela_preco_id: z.string().uuid().nullable(),
   ativo: z.boolean(),
+  /** Filial da faixa (T-0149, RN-CORE-39; aditivo); nulo ou ausente = todas as filiais. */
+  filial_id: z.string().uuid().nullable().optional(),
 });
 export type TabelaEscalonadaSync = z.infer<typeof TabelaEscalonadaSyncSchema>;
 

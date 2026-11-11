@@ -13,17 +13,26 @@
  * T-0094 (ADR 0032; desenho §10 item 3): o despachante da outbox de e-mail (`plataforma.email_saida`) roda aqui também, no mesmo
  * pool do `macuxi_worker`, com o adaptador da configuração (`MACUXI_SMTP_*` ou `MACUXI_EMAIL_ARQUIVO_DIR`; chave HKDF do
  * `MACUXI_JWT_SEGREDO`, o mesmo da API). Sem adaptador: desligado. Variável: `MACUXI_EMAIL_INTERVALO_MS` (padrão 5000).
+ * T-0158 (ADR 0043; `diagnosticos-worker.ts`): com `MACUXI_DIAGNOSTICOS=1` (padrão DESLIGADO) e a migração 0058 no banco, o
+ * alerta (recado automático do remetente `diagnostico`, só com `MACUXI_RECADOS_TOKEN_SERVIDOR`; sem ele as linhas viram
+ * `desligado`) e o expurgo de 90 dias rodam aqui também. `MACUXI_DIAGNOSTICOS_INTERVALO_MS` (padrão 60000) e
+ * `MACUXI_DIAGNOSTICOS_PORTAL_URL` (link do recado; padrão https://config.macuxifdv.com.br).
  */
 import { lerConfigApp, urlApp, urlWorker } from '@macuxi/db';
 import pg from 'pg';
 import pino from 'pino';
 import { criarAgendador } from './agendador';
+import type { ArmazenamentoArquivos } from './arquivos';
+import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
+import { diagnosticosLigados } from './config';
+import { criarWorkerDiagnosticos, SQL_EXISTE_0058, URL_PORTAL_PADRAO } from './diagnosticos-worker';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
 import { criarCifraEmail, criarDespachanteEmail, criarTransporteDaConfig, descreverConfigEmail, lerConfigEmail } from './email';
 import { MODULOS_API } from './modulos';
 import { mensagemSegura, serializarErro } from './log-seguro';
 import { registrarMetricasWorker, SQL_RESUMO_OUTBOX } from './observabilidade';
+import { criarClienteRecadosGithub } from './recados-github';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
 const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' }, serializers: { err: serializarErro } });
@@ -60,10 +69,12 @@ async function principal(): Promise<void> {
   timerMetricas?.unref();
   const agendamento = await iniciarAgendador();
   const envioEmail = iniciarEmail();
+  const diagnosticos = await iniciarDiagnosticos();
   const encerrar = async () => {
     if (timerMetricas) clearInterval(timerMetricas);
     await agendamento?.parar();
     await envioEmail?.parar();
+    await diagnosticos?.parar();
     await execucao.parar();
     await Promise.all([poolWorker.end(), poolApp.end()]);
     process.exit(0);
@@ -85,6 +96,41 @@ function iniciarEmail(): { parar(): Promise<void> } | undefined {
   if (!transporte) return undefined;
   const despachante = criarDespachanteEmail({ worker: poolWorker, transporte, cifra: criarCifraEmail(config.chave), remetente: config.remetente, log: logEmail });
   return despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_EMAIL_INTERVALO_MS ?? 5_000) });
+}
+
+/**
+ * T-0158: alerta e expurgo dos diagnósticos. Desligado sem `MACUXI_DIAGNOSTICOS=1` ou sem a 0058 no banco (o despachante segue).
+ * O token do repositório de recados fica só na memória deste processo (nunca em log).
+ */
+async function iniciarDiagnosticos(): Promise<{ parar(): Promise<void> } | undefined> {
+  if (!diagnosticosLigados(process.env)) return undefined;
+  const existe = await poolWorker.query<{ ok: boolean }>(SQL_EXISTE_0058);
+  if (!existe.rows[0]?.ok) {
+    log.warn({ tipo: 'diagnostico' }, 'diagnósticos desligados: falta a migração 0058 no banco');
+    return undefined;
+  }
+  const token = (process.env.MACUXI_RECADOS_TOKEN_SERVIDOR ?? '').trim();
+  const logDiag = {
+    info: (o: Record<string, unknown>, msg?: string) => log.info(o, msg),
+    warn: (o: Record<string, unknown>, msg?: string) => log.warn(o, msg),
+    error: (o: Record<string, unknown>, msg?: string) => log.error(o, msg),
+  };
+  let armazenamento: ArmazenamentoArquivos | null = null;
+  try {
+    armazenamento = lerArmazenamentoDoAmbiente(process.env).armazenamento;
+  } catch (e) {
+    // sem armazenamento o expurgo apaga as linhas e não os bytes: avisa e segue (o despachante não cai por isso)
+    log.warn({ tipo: 'diagnostico', erro: mensagemSegura(e) }, 'diagnósticos sem armazenamento de arquivos: o expurgo não remove os bytes dos prints');
+  }
+  const w = criarWorkerDiagnosticos({
+    worker: poolWorker,
+    recados: token ? criarClienteRecadosGithub({ token }) : null,
+    armazenamento,
+    urlPortal: process.env.MACUXI_DIAGNOSTICOS_PORTAL_URL?.trim() || URL_PORTAL_PADRAO,
+    log: logDiag,
+  });
+  log.info({ tipo: 'diagnostico', alerta: token ? 'ligado' : 'desligado' }, 'diagnósticos no ar (alerta e expurgo)');
+  return w.iniciar({ intervaloMs: Number(process.env.MACUXI_DIAGNOSTICOS_INTERVALO_MS ?? 60_000) });
 }
 
 /** ADR 0022: liga o agendador se houver tarefa instalada e a função de tenants ativos existir no banco. */

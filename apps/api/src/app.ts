@@ -105,6 +105,8 @@ import { MODULOS_API } from './modulos';
 import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
+import { registrarDiagnosticos } from './diagnosticos';
+import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -180,6 +182,13 @@ export interface OpcoesApp {
    * (`__Secure-macuxi_rt`, `Secure`); o `servidor.ts` lê `MACUXI_SESSAO_COOKIE_SEGURO` (`lerSessaoWeb`).
    */
   sessaoWeb?: OpcoesSessaoWeb;
+  /**
+   * T-0158 (ADR 0043): Portal › Diagnósticos (`GET /v1/plataforma/diagnosticos[/:id[/print]]`, só super-admin). Padrão:
+   * DESLIGADO (as rotas não existem); o `servidor.ts` liga com `MACUXI_DIAGNOSTICOS=1` (a migração 0058 aplicada).
+   */
+  diagnosticosPortal?: boolean;
+  /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
+  fonteDiagnosticos?: FonteDiagnosticosPortal;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -541,6 +550,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
+  // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)
+  registrarDiagnosticos(app, plataforma);
   // ADR 0029/0031: rotas do portal sem tenant (empresas); a autenticação do portal é do Core (`plataforma/auth/*`)
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   registrarRotasPlataforma(app, {
@@ -556,6 +567,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       cifrar: (carga, aad) => (email as unknown as EmailDoPortal).cifrar(carga, aad),
     },
   });
+
+  // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão
+  if (op.diagnosticosPortal) {
+    registrarRotasDiagnosticosPortal(app, {
+      acesso: acessoPortal,
+      ...(op.fonteDiagnosticos ? { fonte: op.fonteDiagnosticos } : {}),
+      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      validar,
+      armazenamento: op.arquivos ?? null,
+    });
+  }
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {

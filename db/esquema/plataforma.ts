@@ -187,6 +187,11 @@ export const arquivo = plataforma.table('arquivo', {
   situacao: text('situacao', { enum: ['aguardando', 'recebido'] }).notNull().default('aguardando'),
   recebido_em: timestamp('recebido_em', { withTimezone: true }),
   chave_armazenamento: text('chave_armazenamento'),
+  /**
+   * 0057 (T-0147, ADR 0041): leitura restrita por perfil. NULO = regra da ADR 0010 (licença + perfil do módulo + carteira);
+   * lista (1..7 PERFIS, sem nulo; CHECK arquivo_perfis_leitura_validos) = o usuário precisa de um destes perfis E da carteira.
+   */
+  perfis_leitura: text('perfis_leitura', { enum: PERFIS }).array(),
 });
 
 /**
@@ -329,4 +334,43 @@ export const emailSaida = plataforma.table('email_saida', {
   enviado_em: timestamp('enviado_em', { withTimezone: true }),
   falhou_em: timestamp('falhou_em', { withTimezone: true }),
   ultimo_erro: text('ultimo_erro'),
+});
+
+/**
+ * Diagnóstico do aparelho (0058, T-0158, ADR 0043): só dado técnico; empresa e usuário por id (do token). O app (macuxi_app) só
+ * insere as colunas do envio e lê o próprio tenant (repetição idempotente pelo id = UUID do aparelho); protocolo (sequência
+ * global plataforma.diagnostico_protocolo_seq), recebido_em e alerta_* são do banco e do worker. O worker lê sem descricao e
+ * sem detalhe e marca só alerta_*; o portal lê pelas sa_listar_diagnosticos / sa_diagnostico. Expurgo de 90 dias pela
+ * plataforma.expurgar_diagnosticos. Fora do sync.
+ */
+export const diagnostico = plataforma.table('diagnostico', {
+  ...comuns(),
+  /** Número legível global ("nº 0042", formatarProtocolo do SDK). Padrão do banco: nextval da sequência; nunca grave. */
+  protocolo: bigint('protocolo', { mode: 'number' }).notNull().default(sql`nextval('plataforma.diagnostico_protocolo_seq')`),
+  usuario_id: uuid('usuario_id').notNull(),
+  perfil: text('perfil', { enum: PERFIS }).notNull(),
+  origem: text('origem', { enum: ['botao', 'queda', 'erro_tela'] }).notNull(),
+  app: text('app', { enum: ['campo', 'gestao'] }).notNull(),
+  versao_app: text('versao_app').notNull(),
+  build: text('build'),
+  aparelho_fabricante: text('aparelho_fabricante'),
+  aparelho_modelo: text('aparelho_modelo'),
+  android: text('android'),
+  android_api: integer('android_api'),
+  /** Rota do expo-router, sem query string nem fragmento (CHECK). */
+  tela: text('tela'),
+  motivo: text('motivo'),
+  /** "O que aconteceu?" já mascarado pela API (mascararDadoPessoal). */
+  descricao: text('descricao'),
+  /** { erro?, saida_android?, sync? } (só estas chaves; até 32 KB). */
+  detalhe: jsonb('detalhe').notNull().default({}),
+  /** id do print em plataforma.arquivo (modulo 'plataforma', finalidade 'print_diagnostico'); sem FK. */
+  print_id: uuid('print_id'),
+  ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull(),
+  recebido_em: timestamp('recebido_em', { withTimezone: true }).notNull().defaultNow(),
+  alerta_situacao: text('alerta_situacao', { enum: ['pendente', 'enviado', 'agrupado', 'falhou', 'desligado'] }).notNull().default('pendente'),
+  alerta_tentativas: integer('alerta_tentativas').notNull().default(0),
+  alerta_proxima_em: timestamp('alerta_proxima_em', { withTimezone: true }),
+  alerta_recado_id: text('alerta_recado_id'),
+  alerta_em: timestamp('alerta_em', { withTimezone: true }),
 });

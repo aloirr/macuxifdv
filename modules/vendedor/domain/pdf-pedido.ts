@@ -11,8 +11,10 @@
  */
 import { formatBRL } from '@macuxi/comum';
 
+import { linhaLiquidaDosTotais, siglaDaMedida } from './apresentacao-totais';
 import { etiquetaDoDiaDoPreco, etiquetaPrecoDe } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
+import { descontoDoPedidoPct, pctExibicao } from './preco-pedido';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
 function zonedParts(at: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {
@@ -282,7 +284,6 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
   <div class="box kv">
     <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? `<span class="k"></span><span class="muted">feito por ${escapeHtml(order.made_by)}</span>` : ''}
     <span class="k">Prazo</span><span>${escapeHtml(order.payment_terms)}</span>
-    <span class="k">Data</span><span>${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}</span>
     ${freteHtml}
     ${order.branch_name ? `<span class="k">Filial</span><span>${escapeHtml(order.branch_name)}</span>` : ''}
   </div>
@@ -309,6 +310,16 @@ export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderP
   return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${escapeHtml(r.brand.trim())} <strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
 }
 
+/** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
+export function quantidadePorEmbalagem(items: ReadonlyArray<Pick<OrderPdfItem, 'quantity' | 'unit_label'>>): string {
+  const porMedida = new Map<string, number>();
+  for (const i of items) {
+    const medida = siglaDaMedida(i.unit_label);
+    porMedida.set(medida, (porMedida.get(medida) ?? 0) + i.quantity);
+  }
+  return [...porMedida].map(([m, q]) => `${q} ${m}`).join(' + ');
+}
+
 function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const rows = order.items
     .map(
@@ -329,11 +340,9 @@ function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
 </div>
 <div class="totals">
   <div class="line grand"><span>Total do pedido</span><span class="num">${formatBRL(order.total_cents)}</span></div>
-  <div class="line muted"><span>${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'} · ${order.items.reduce((s, i) => s + i.quantity, 0)} un.</span><span>Prazo ${escapeHtml(order.payment_terms)}</span></div>
+  <div class="line muted"><span>${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'} · ${escapeHtml(quantidadePorEmbalagem(order.items))}</span></div>
 </div>
 <div class="footer">
-  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? ` (feito por ${escapeHtml(order.made_by)})` : ''} · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
-  ${order.freight ? `<div class="strong">${escapeHtml(textoFrete(order.freight))}</div>` : ''}
   ${order.delivery_address ? `<div>Endereço de entrega: ${escapeHtml(order.delivery_address)}</div>` : ''}
   <div>Valores sem impostos; impostos calculados no faturamento.</div>
   <div>Preços e disponibilidade sujeitos à confirmação no faturamento.</div>
@@ -369,7 +378,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const limit = order.seller_limit_pct;
   const efetivo = order.effective_discount_pct ?? pct;
   const aboveLimit = limit !== null && efetivo > limit;
-  const acrescimoPedido = order.surcharge_pct ?? 0;
+  const linhaLiquida = linhaLiquidaDosTotais(order);
   const hist = order.history.slice(-8);
   return `
 <div class="items">
@@ -377,12 +386,8 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
 </div>
 <div class="totals">
   <div class="line"><span>Subtotal de tabela</span><span class="num">${formatBRL(order.subtotal_cents)}</span></div>
-  ${
-    acrescimoPedido > 0
-      ? `<div class="line"><span>Acréscimo do pedido ${pctText(acrescimoPedido)}</span><span class="num">+ ${formatBRL(Math.max(0, order.total_cents - order.subtotal_cents))}</span></div>`
-      : `<div class="line disc"><span>Desconto ${pctText(pct)}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>`
-  }
-  ${order.effective_discount_pct != null ? `<div class="line muted"><span>Desconto efetivo (sem frete)</span><span class="num">${pctText(order.effective_discount_pct)}</span></div>` : ''}
+  ${linhaLiquida ? `<div class="line${linhaLiquida.rotulo.startsWith('Desconto') ? ' disc' : ''}"><span>${linhaLiquida.rotulo}</span><span class="num">${linhaLiquida.valor}</span></div>` : ''}
+  ${order.freight && order.effective_discount_pct != null && order.effective_discount_pct >= 0 ? `<div class="line muted"><span>Desconto efetivo (sem frete)</span><span class="num">${pctText(order.effective_discount_pct)}</span></div>` : ''}
   <div class="line grand"><span>Total</span><span class="num">${formatBRL(order.total_cents)}</span></div>
 </div>
 <div class="meta section">
@@ -410,7 +415,7 @@ ${
 }
 <div class="footer">
   <div>Valores sem impostos; impostos calculados no faturamento.</div>
-  <div>Gerado em ${escapeHtml(pdfDateTime(ctx.generated_at, ctx.tz))} · uso interno · Gerado pelo ${escapeHtml(ctx.product_name || 'Macuxi FDV')}</div>
+  <div>Gerado em ${escapeHtml(pdfDateTime(ctx.generated_at, ctx.tz))} pelo ${escapeHtml(ctx.product_name || 'Macuxi FDV')} · uso interno</div>
 </div>`;
 }
 

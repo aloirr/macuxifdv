@@ -3,7 +3,7 @@
  * Funções puras da tela: filtros na URL, formulário da faixa, preço em reais e CSV. A regra de validade da faixa é do domain
  * (`validarFaixa`); a API revalida.
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import type { FaixaCadastrada, PrecoUnidadeLinha, SalvarFaixa } from '../../contracts';
 import { validarFaixa } from '../../domain/escalonada';
 
@@ -12,6 +12,8 @@ export interface FiltrosTabelas {
   aba: AbaTabelas;
   /** Id da tabela de preço (na aba Preço da UN é obrigatória na prática; na Escalonada filtra). */
   tabela: string;
+  /** Filial dos preços (RN-CORE-39); vazio = a padrão do tenant. */
+  filial: string;
   q: string;
   /** Só as faixas vigentes hoje. */
   vigente: boolean;
@@ -21,13 +23,14 @@ const ABAS: readonly AbaTabelas[] = ['precos', 'escalonada'];
 export function lerFiltrosTabelas(busca: string): FiltrosTabelas {
   const p = new URLSearchParams(busca);
   const aba = p.get('aba') as AbaTabelas | null;
-  return { aba: aba && ABAS.includes(aba) ? aba : 'precos', tabela: p.get('tabela') ?? '', q: p.get('q') ?? '', vigente: p.get('vigente') === '1' };
+  return { aba: aba && ABAS.includes(aba) ? aba : 'precos', tabela: p.get('tabela') ?? '', filial: p.get('filial') ?? '', q: p.get('q') ?? '', vigente: p.get('vigente') === '1' };
 }
 
 export function buscaDosFiltrosTabelas(f: FiltrosTabelas): string {
   const p = new URLSearchParams();
   if (f.aba !== 'precos') p.set('aba', f.aba);
   if (f.tabela) p.set('tabela', f.tabela);
+  if (f.filial) p.set('filial', f.filial);
   if (f.q) p.set('q', f.q);
   if (f.vigente) p.set('vigente', '1');
   const s = p.toString();
@@ -99,13 +102,11 @@ export function faixaDoForm(f: FormFaixa): ResultadoForm<SalvarFaixa> {
   return { ok: true, valor };
 }
 
-/** BOM para o Excel abrir em UTF-8 sem perguntar. */
-const BOM = '\uFEFF';
 const celula = (v: string | number | null | undefined) => {
   const s = typeof v === 'string' ? protegerFormula(v) : v === null || v === undefined ? '' : String(v);
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
-const csv = (linhas: (string | number | null)[][]) => BOM + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+const csv = (linhas: (string | number | null)[][]) => BOM_CSV + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
 
 /** CSV da aba Escalonada (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function faixasParaCsv(faixas: readonly FaixaCadastrada[]): string {

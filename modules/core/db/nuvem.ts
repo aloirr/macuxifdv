@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -147,6 +147,65 @@ export const cliente = core.table('cliente', {
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
   /** 0053 (T-0115, RN-PES-05): canal do cliente vindo do ERP (1..60 caracteres); nulo = sem canal. Vai no pull e no público da Pesquisa. */
   canal: text('canal'),
+  /**
+   * 0056 (T-0149, RN-CORE-39, ADR 0040): filial do cliente, NUNCA nula (FK composta cliente_filial_fk). Nulo na escrita vira a
+   * filial padrão do tenant (gatilho cliente_filial_padrao). Vai no pull.
+   */
+  filial_id: uuid('filial_id').notNull(),
+  /**
+   * 0057 (T-0147, desenho §7): quando o cliente ficou inativo (gatilho cliente_inativado_em: ativo falso -> now(), verdadeiro ->
+   * nulo). Relógio da retenção das fotos do PDV (cliente inativo + 5 anos, docs/banco/lgpd.md). Fora do pull.
+   */
+  inativado_em: timestamp('inativado_em', { withTimezone: true }),
+});
+
+/**
+ * Filial (0056, T-0149, RN-CORE-39, ADR 0040): unidade de onde saem as entregas. codigo 1..20 único vivo; nome 1..80; cidade
+ * 1..80 e uf ^[A-Z]{2}$, nulas só na padrão recém-nascida. UMA padrão viva por tenant (filial_padrao_uk), sempre ativa e viva
+ * (filial_padrao_ativa); trocar a padrão = tirar a marca da atual antes de marcar a nova (mesma transação). A padrão nasce com
+ * o tenant (gatilho tenant_semear_filial: código '0001', 'Filial padrão', id idFilialPadrao). Pull escopo tenant.
+ */
+export const filial = core.table('filial', {
+  ...comuns(),
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  cidade: text('cidade'),
+  uf: text('uf'),
+  padrao: boolean('padrao').notNull().default(false),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+/** Origem da foto do PDV (0057, T-0147): câmera do app ou galeria (a galeria vale só para as fotos do PDV). */
+export const ORIGENS_FOTO_PDV = ['camera', 'galeria'] as const;
+
+/**
+ * Tipo de foto do PDV (0057, T-0147, RN-CORE-38): nome 1..60 único vivo sem diferenciar maiúsculas; obrigatorio; sensivel
+ * (documento: só admin, analista e supervisor da carteira abrem, ADR 0041); fachada: UM vivo por tenant, nunca sensível, nunca
+ * apagado. "Fachada" nasce com o tenant (gatilho tenant_semear_foto_tipo; id idFotoTipoFachada). Pull escopo tenant.
+ */
+export const fotoTipo = core.table('foto_tipo', {
+  ...comuns(),
+  nome: text('nome').notNull(),
+  obrigatorio: boolean('obrigatorio').notNull().default(false),
+  sensivel: boolean('sensivel').notNull().default(false),
+  fachada: boolean('fachada').notNull().default(false),
+  ordem: integer('ordem').notNull().default(0),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+/**
+ * Foto vigente de um tipo de um cliente (0057, T-0147, RN-CORE-38). id = UUID do aparelho. Única viva por (cliente, tipo).
+ * arquivo_id = plataforma.arquivo.id (SEM FK, ADR 0010), único no tenant. Pull escopo carteira com arquivo_id NULO quando o
+ * tipo é sensível (consulta em docs/banco/core.md, "0057").
+ */
+export const clienteFoto = core.table('cliente_foto', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  foto_tipo_id: uuid('foto_tipo_id').notNull(),
+  arquivo_id: uuid('arquivo_id').notNull(),
+  origem: text('origem', { enum: ORIGENS_FOTO_PDV }).notNull().default('camera'),
+  enviado_por: uuid('enviado_por').notNull(),
+  tirada_em: timestamp('tirada_em', { withTimezone: true }),
 });
 
 /**

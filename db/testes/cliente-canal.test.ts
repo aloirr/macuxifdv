@@ -77,7 +77,14 @@ describe.skipIf(semBanco())('0053 canal do cliente (banco, papel de aplicação)
   });
 
   it('filtro por canal da Pesquisa usa o índice parcial cliente_canal_ix', async () => {
+    // Com a 0056 (T-0149), core.cliente ganhou cliente_filial_ix (tenant_id, filial_id). Na fixture (poucas linhas) os dois
+    // índices empatam no custo (0.14..8.16) e o planejador escolhia o da filial, filtrando o canal. Volume na transação
+    // (ROLLBACK) faz o custo refletir o uso real: só cliente_canal_ix tem o canal na condição do índice.
     await emTransacao(app, A.tenantId, async () => {
+      await app.query(
+        "insert into core.cliente (id, tenant_id, razao_social) select gen_random_uuid(), $1, 'Volume ' || g from generate_series(1, 3000) g",
+        [A.tenantId],
+      );
       await app.query('set local enable_seqscan = off');
       const plano = await app.query<{ 'QUERY PLAN': string }>(
         `explain select id from core.cliente where tenant_id = '${A.tenantId}' and canal = 'Supermercado' and deleted_at is null`,

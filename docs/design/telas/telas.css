@@ -163,3 +163,69 @@ p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 15
 .nota-prancha b { color: var(--ink); }
 .estados { display: flex; flex-direction: column; gap: 14px; }
 .estado-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+
+/* ---- 10/11 (T-0145, T-0147, T-0148, T-0150, T-0153): tabelas do pedido, pergunta, popup, permissões ---- */
+/* tabela rótulo | valor de texto (Cliente, Venda, Entrega): rótulo em coluna fixa, valor à esquerda */
+.kv { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.kv .l { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 10px 12px; font-size: 14px; line-height: 19px; }
+.kv .l + .l { border-top: 1px solid var(--lineSoft); }
+.kv .l .r { color: var(--ink2); font-size: 13px; }
+.kv .l .t { color: var(--ink); }
+/* tabela de itens: Produto | Qtd | Preço unit. | Desc./Acrésc. | Total (números à direita, tabulares) */
+.ti-box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0 10px; }
+.ti { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12.5px; }
+.ti th { font-size: 11px; line-height: 13px; font-weight: 600; color: var(--ink2); text-align: right; padding: 9px 0 7px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+.ti td { padding: 9px 0 9px 8px; font-size: 12px; text-align: right; vertical-align: top; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.ti tr + tr td { border-top: 1px solid var(--lineSoft); }
+.ti th:first-child, .ti td:first-child { text-align: left; padding-left: 0; white-space: normal; }
+.ti td .pn { font-weight: 600; font-size: 12.5px; line-height: 16px; display: block; }
+.ti td .pc { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink2); display: block; margin-top: 2px; }
+.ti td.tot { font-weight: 700; font-size: 13px; } /* Plex: no Archivo pequeno o 6 parece 8 */
+.ti td .un { color: var(--ink2); font-size: 11.5px; }
+.ti td.erro, .ti td .erro { color: var(--danger); font-weight: 700; }
+/* totais: Tabela, líquido (Desconto/Acréscimo x% · ± R$), Total */
+.tt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 2px 12px; }
+.tt .l { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; }
+.tt .l + .l { border-top: 1px solid var(--lineSoft); }
+.tt .l .r { color: var(--ink2); }
+.tt .l .v { font-family: Archivo, sans-serif; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tt .l.total { min-height: 48px; border-top: 1px solid var(--line); }
+.tt .l.total .r { color: var(--ink); font-weight: 600; font-size: 15px; }
+.tt .l.total .v { font-size: 20px; font-weight: 800; }
+.secao-t { font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); margin: 2px 0 -4px; }
+/* pergunta (Dialogo do kit) */
+.dialogo { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); background: var(--surface); border-radius: 18px; padding: 22px 20px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 12px 32px rgba(15, 20, 25, .25); }
+.dialogo .dt { font-family: Archivo, sans-serif; font-weight: 800; font-size: 19px; line-height: 24px; }
+.dialogo .dx { font-size: 15px; color: var(--ink2); line-height: 21px; }
+.dialogo .db { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+/* linha de motivo (problema numa linha, sem caixa) */
+.motivo { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--danger); }
+.btn.desligado { background: var(--neutralBg); color: #5B6673; }
+.btn-perigo { height: 48px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: var(--danger); }
+/* passo grande (popup) */
+.passo-g { display: flex; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.passo-g div { width: 48px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; color: var(--ink); }
+.passo-g div.n { flex: 1; width: auto; border-left: 1px solid var(--lineStrong); border-right: 1px solid var(--lineStrong); font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; }
+.ajuste-g { display: flex; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); overflow: hidden; font-size: 15px; }
+.ajuste-g .tp { padding: 0 10px; border-right: 1px solid var(--lineStrong); display: flex; align-items: center; gap: 4px; font-weight: 600; color: var(--ink2); font-size: 14px; white-space: nowrap; }
+.ajuste-g .vl { padding: 0 12px; flex: 1; display: flex; align-items: center; font-variant-numeric: tabular-nums; }
+.seg2 div { flex-direction: column; gap: 0; line-height: 17px; }
+.seg2 div small { font-size: 11px; font-weight: 500; opacity: .8; }
+
+/* ---- 10/11 tarde (RN-VEN-42, R-20261110-093124): área única Alertas no topo e situação só no Histórico ---- */
+/* Alertas: título em danger, cartão branco igual às outras tabelas, uma linha por problema (ícone + "problema e item"). */
+.alertas-t { font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--danger); margin: 0 0 -4px; }
+.alertas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; flex: none; }
+.alertas .a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 8px 8px 12px; font-size: 14px; line-height: 19px; color: var(--ink); }
+.alertas .a + .a { border-top: 1px solid var(--lineSoft); }
+.alertas .a .tx { flex: 1; min-width: 0; }
+.alertas .a .tx .aba-dest { color: var(--ink2); }
+/* Histórico em tags (RN-VEN-30): a última tag é a situação atual, na cor da situação e com texto */
+.hist { display: flex; gap: 6px; flex-wrap: wrap; }
+.hist span { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: var(--neutralBg); color: var(--neutralInk); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hist span.atual { font-weight: 700; }
+.hist span.atual.ok { background: var(--successBg); color: var(--success); }
+.hist span.atual.erro { background: var(--dangerBg); color: var(--danger); }
+.hist span.atual.neutro { background: var(--ink); color: #fff; }
+.campo-erro { border: 2px solid var(--danger) !important; }
+.hist span.atual.aviso { background: var(--warningBg); color: var(--warningInk); }

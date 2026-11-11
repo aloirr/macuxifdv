@@ -84,3 +84,13 @@ export function idDeterministico(chave: string): string {
   const x = h.subarray(0, 16).toString('hex');
   return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
 }
+
+/** Id da filial padrão do tenant (0056, T-0149, RN-CORE-39; semeada pelo gatilho tenant_semear_filial): código '0001'. */
+export function idFilialPadrao(tenantId: string): string {
+  return idDeChave(`${tenantId}:core.filial:padrao`);
+}
+
+/** Id do tipo de foto "Fachada" do tenant (0057, T-0147, RN-CORE-38; semeado pelo gatilho tenant_semear_foto_tipo). */
+export function idFotoTipoFachada(tenantId: string): string {
+  return idDeChave(`${tenantId}:core.foto_tipo:fachada`);
+}

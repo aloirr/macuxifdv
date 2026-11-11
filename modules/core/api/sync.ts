@@ -15,6 +15,10 @@ import {
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
   ClienteSyncSchema,
+  ClienteFotoPushSchema,
+  ClienteFotoSyncSchema,
+  FilialSyncSchema,
+  FotoTipoSyncSchema,
   MedidaSyncSchema,
   ProdutoUnidadeSyncSchema,
   ClienteEnderecoSyncSchema,
@@ -33,7 +37,10 @@ import {
 } from '../contracts';
 import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
 import { JANELAS_CORE } from './janelas-sync';
+import { descontoMaximoAplicavel } from '../domain/produto-preco';
+import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
+import { receberFotosPdv } from './foto-pdv-push';
 import { receberCheckins, receberCheckouts } from './visita-push';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -65,7 +72,7 @@ export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes, prazo_medio_max_dias, formas_pagamento, canal, filial_id',
     colunaCliente: 'id',
   },
   carteira: {
@@ -76,7 +83,15 @@ export const TABELAS_SYNC = {
     // vigentes e encerradas há ≤ 40 dias
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
-  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, ativo', colunaCliente: null },
+  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
+  foto_tipo: { tabela: 'core.foto_tipo', colunas: 'nome, obrigatorio, sensivel, fachada, ordem, ativo', colunaCliente: null },
+  // ADR 0041: o vendedor nunca recebe o id do arquivo de documento sensível (CNH, contrato): vem nulo e ele só sabe que existe
+  cliente_foto: {
+    tabela: `(select f.id, f.updated_at, f.deleted_at, f.external_id, f.cliente_id, f.foto_tipo_id, case when t.fachada then f.arquivo_id else null end as arquivo_id, f.origem, to_char(f.tirada_em at time zone 'UTC', ${UTC}) as tirada_em from core.cliente_foto f join core.foto_tipo t on t.id = f.foto_tipo_id) as cliente_foto`,
+    colunas: 'cliente_id, foto_tipo_id, arquivo_id, origem, tirada_em',
+    colunaCliente: 'cliente_id',
+  },
+  filial: { tabela: 'core.filial', colunas: 'codigo, nome, cidade, uf, padrao, ativo', colunaCliente: null },
   medida: { tabela: 'core.medida', colunas: 'sigla, descricao, ativo', colunaCliente: null },
   produto_unidade: { tabela: 'core.produto_unidade', colunas: 'produto_id, unidade, fator, ean, padrao, ativo', colunaCliente: null },
   cliente_endereco: {
@@ -201,12 +216,21 @@ export function ocultarHistorico(linhas: LinhaSync[]): LinhaSync[] {
   });
 }
 
+/** T-0151 / RN-VEN-11: o aparelho recebe o desconto máximo EFETIVO (próprio ?? parâmetro do tenant ?? 15), nunca o nulo. */
+export function comDescontoEfetivo(linhas: LinhaSync[], padrao: number): LinhaSync[] {
+  return linhas.map((l) => {
+    const r = l as unknown as { preco_venda_cents?: number | null; desconto_maximo_pct?: number | null };
+    return { ...l, preco_venda_cents: r.preco_venda_cents ?? null, desconto_maximo_pct: descontoMaximoAplicavel(r.desconto_maximo_pct ?? null, padrao) } as unknown as LinhaSync;
+  });
+}
+
 function puxarDe(t: Tabela) {
   return async (ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> => {
     const visiveis = t.colunaCliente ? await ctx.carteira() : t.colunaUsuario ? await ctx.usuariosVisiveis() : 'tenant';
     const { sql, valores } = sqlDoPull(t, pedido, visiveis, dataLocal(ctx.agora(), ctx.fuso()));
     return ctx.comTenant(async (db) => {
       const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
+      if (t.tabela === 'core.produto') return comDescontoEfetivo(linhas, await padraoDeDesconto(db));
       if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
       return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
     });
@@ -220,6 +244,10 @@ const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['s
 export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
+export const entidadeFotoTipo = pull('foto_tipo', FotoTipoSyncSchema);
+/** Foto do PDV (RN-CORE-38): o aparelho envia o comando (`ClienteFotoPushSchema`) e recebe a linha (`ClienteFotoSyncSchema`); os bytes vão pela fila de arquivos. */
+export const entidadeClienteFoto = definirEntidadeSync({ nome: 'cliente_foto', modulo: 'core', direcao: 'ambos', conflito: 'servidor_vence', schema: ClienteFotoPushSchema, schemaLinha: ClienteFotoSyncSchema });
+export const entidadeFilial = pull('filial', FilialSyncSchema);
 export const entidadeMedida = pull('medida', MedidaSyncSchema);
 export const entidadeProdutoUnidade = pull('produto_unidade', ProdutoUnidadeSyncSchema);
 export const entidadeClienteEndereco = pull('cliente_endereco', ClienteEnderecoSyncSchema);
@@ -257,6 +285,9 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeCarteira, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.carteira) },
   { entidade: entidadeProduto, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto) },
   { entidade: entidadeMedida, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.medida) },
+  { entidade: entidadeFilial, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.filial) },
+  { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
+  { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },
   { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },
   { entidade: entidadeClienteEndereco, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_endereco) },
   { entidade: entidadeClienteContato, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_contato) },

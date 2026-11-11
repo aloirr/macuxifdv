@@ -20,9 +20,9 @@ import {
 
 /**
  * As 8 primeiras são as originais; as 4 seguintes entraram aditivas no v1 (ADR 0016, desenho T-0061 §4.4) e as 3 últimas na T-0089
- * (forma de pagamento, prazo e tabela escalonada; desenho T-0089 §4.2). No Hub o nome fica no singular, como nas demais.
+ * (forma de pagamento, prazo e tabela escalonada; desenho T-0089 §4.2) e `filial` na T-0149 (RN-CORE-39, ADR 0040). No Hub o nome fica no singular, como nas demais.
  */
-export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
+export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const;
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 
@@ -90,6 +90,11 @@ export const ClientePayload = RegistroBase.extend({
    * antes do cliente, mas o vínculo é guardado pela chave). Quem guarda o vínculo é o Catálogo (`cliente_tabela_preco`).
    */
   tabela_preco_external_id: ExternalId.nullish(),
+  /**
+   * T-0149 (RN-CORE-39, aditivo e opcional no v1): filial do cliente, pela chave `external_id` da entidade `filial`.
+   * Ausente = não altera; `null` = filial padrão da empresa. A filial pode ainda não existir (a ordem de carga põe `filial` antes).
+   */
+  filial_external_id: ExternalId.nullish(),
 });
 export type ClientePayload = z.infer<typeof ClientePayload>;
 
@@ -176,6 +181,8 @@ export const PrecoPayload = RegistroBase.extend({
   preco_cents: CentavosNaoNegativos,
   /** Sigla da medida a que o preço se refere (fila de corte); ausente = unidade base do produto. */
   unidade: TextoOpcional(6),
+  /** T-0149 (RN-CORE-39, aditivo): filial do item de tabela. Ausente ou `null` = filial padrão. */
+  filial_external_id: ExternalId.nullish(),
 }).superRefine((r, ctx) => {
   if (r.vigencia_fim && r.vigencia_fim < r.vigencia_inicio) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vigencia_fim'], message: 'fim da vigência anterior ao início' });
@@ -189,6 +196,8 @@ export const EstoquePayload = RegistroBase.extend({
   deposito_nome: TextoOpcional(120),
   produto_external_id: ExternalId,
   saldo: Quantidade,
+  /** T-0149 (RN-CORE-39, aditivo): filial do depósito. Ausente em depósito novo = filial padrão; em depósito já conhecido = não altera. */
+  filial_external_id: ExternalId.nullish(),
 });
 export type EstoquePayload = z.infer<typeof EstoquePayload>;
 
@@ -355,12 +364,27 @@ export const TabelaEscalonadaPayload = RegistroBase.extend({
   vigencia_fim: DataCivil.nullish(),
   /** Ausente = vale para todas as tabelas de preço. */
   tabela_external_id: ExternalId.nullish(),
+  /** T-0149 (RN-CORE-39, aditivo): ausente ou `null` = vale para todas as filiais. */
+  filial_external_id: ExternalId.nullish(),
 }).superRefine((r, ctx) => {
   if (r.vigencia_fim && r.vigencia_fim < r.vigencia_inicio) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vigencia_fim'], message: 'fim da vigência anterior ao início' });
   }
 });
 export type TabelaEscalonadaPayload = z.infer<typeof TabelaEscalonadaPayload>;
+
+// ---------- filial (T-0149, RN-CORE-39; dono do dado: Core; ADR 0040) ----------
+/**
+ * Unidade de onde saem as entregas. O Core casa pelo `external_id`; sem ele, pelo `codigo` (a filial padrão nasce `0001` sem
+ * `external_id` e é adotada pela primeira carga com o mesmo código). O ERP não define a padrão: quem muda é o admin no BKO.
+ */
+export const FilialPayload = RegistroBase.extend({
+  codigo: Texto(20),
+  nome: Texto(80),
+  cidade: TextoOpcional(80),
+  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'UF deve ter 2 letras (A-Z)').nullish(),
+});
+export type FilialPayload = z.infer<typeof FilialPayload>;
 
 /** Schema do registro de cada entidade (validação linha a linha, RN-INT-03). */
 export const SCHEMA_REGISTRO = {
@@ -379,6 +403,7 @@ export const SCHEMA_REGISTRO = {
   forma_pagamento: FormaPagamentoPayload,
   prazo_pagamento: PrazoPagamentoPayload,
   tabela_escalonada: TabelaEscalonadaPayload,
+  filial: FilialPayload,
 } as const satisfies Record<Entidade, z.ZodTypeAny>;
 
 export type RegistroDe<E extends Entidade> = z.infer<(typeof SCHEMA_REGISTRO)[E]>;
@@ -400,4 +425,5 @@ export const CAMPO_SOMA_CONTROLE: Record<Entidade, string | null> = {
   forma_pagamento: null,
   prazo_pagamento: null,
   tabela_escalonada: 'preco_unidade_cents',
+  filial: null,
 };

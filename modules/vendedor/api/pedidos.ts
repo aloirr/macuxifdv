@@ -34,7 +34,7 @@ import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNot
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
 import { exigirLeituraDePedidos } from './opcao-promotor';
-import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
+import { COLUNA_DEVOLVIDO, escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
 function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string): Partial<Order> {
@@ -66,7 +66,7 @@ const CorpoCancelar = z.object({ motivo: z.string().max(500).optional() }).defau
 const NAO_ENCONTRADO = ['PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.'] as const;
 
 /** T-0054: resumo do faturamento (0013; só com `FATURAMENTO_LIGADO`): total faturado, notas e última NF. */
-const COLUNAS_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
+const COLUNAS_FATURAMENTO = `${COLUNA_DEVOLVIDO}, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
 const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
@@ -75,7 +75,8 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_
   p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_nome,
   p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega,
   p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em,
-  p.forma_pagamento_id, p.forma_pagamento_nome, p.prazo_pagamento_id, p.prazo_descricao, p.prazo_parcelas_dias, p.prazo_medio_dias`;
+  p.forma_pagamento_id, p.forma_pagamento_nome, p.prazo_pagamento_id, p.prazo_descricao, p.prazo_parcelas_dias, p.prazo_medio_dias,
+  p.filial_id, p.filial`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;

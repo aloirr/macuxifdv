@@ -39,7 +39,7 @@ import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
-import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042 } from './funcoes-sa';
+import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058 } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
@@ -104,6 +104,12 @@ const TABELAS_0037 = ['vendedor.forma_pagamento', 'vendedor.prazo_pagamento', 'c
 const TABELAS_0045 = ['catalogo.marca_concorrente'] as const;
 /** Tabela nova da 0050 (T-0054, RN-VEN-37: devolução do pedido; fora do sync; pedido-devolucao.test.ts). */
 const TABELAS_0050 = ['vendedor.pedido_devolucao'] as const;
+/** Tabela nova da 0056 (T-0149, RN-CORE-39, ADR 0040: filial; vai ao aparelho, escopo tenant; filial.test.ts). */
+const TABELAS_0056 = ['core.filial'] as const;
+/** Tabelas novas da 0057 (T-0147, RN-CORE-38, ADR 0041: tipos e fotos do PDV; vão ao aparelho; foto-pdv.test.ts). */
+const TABELAS_0057 = ['core.foto_tipo', 'core.cliente_foto'] as const;
+/** Tabela nova da 0058 (T-0158, ADR 0043: diagnóstico do aparelho; fora do sync; diagnostico.test.ts). */
+const TABELAS_0058 = ['plataforma.diagnostico'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -174,6 +180,9 @@ describe('migrações (estático)', () => {
     expect(nomes[51]).toBe('0052_plataforma_tenant_por_codigo_minimo'); // T-0122 N5: tenant_por_codigo só (id, status), tenant_da_sessao() e os CHECKs de evento iguais ao EVENTO_RE (tenant-por-codigo-minimo.test.ts)
     expect(nomes[52]).toBe('0053_core_cliente_canal'); // T-0115 (RN-PES-05): core.cliente.canal (1..60, nulo) e índice parcial (tenant_id, canal) (cliente-canal.test.ts)
     expect(nomes[53]).toBe('0054_integracao_mapeamento_canal'); // T-0115 (RN-PES-05): CHECK mapeamento_tipo_valido com 'canal' = TIPOS_MAPEAMENTO (mapeamento-canal.test.ts)
+    expect(nomes[55]).toBe('0056_core_filial'); // T-0149 (RN-CORE-39, ADR 0040): core.filial com a padrão semeada, cliente/depósito/item de preço com filial_id, faixa e pedido com filial, entidade filial no Hub (filial.test.ts)
+    expect(nomes[56]).toBe('0057_core_foto_pdv'); // T-0147 (RN-CORE-38, ADR 0041): core.foto_tipo com a Fachada semeada, core.cliente_foto, cliente.inativado_em e arquivo.perfis_leitura (foto-pdv.test.ts)
+    expect(nomes[57]).toBe('0058_plataforma_diagnostico'); // T-0158 (ADR 0043): plataforma.diagnostico com protocolo global, RLS, app só insere/lê, worker só alerta_*, sa_listar_diagnosticos/sa_diagnostico e expurgar_diagnosticos (diagnostico.test.ts)
     expect(nomes[54]).toBe('0055_vendedor_endereco_editado'); // T-0141 C (RN-VEN-17): 3 CHECKs do retrato endereco_entrega com origem 'erp'|'editado', sem coluna nova (pedido-endereco-editado.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
@@ -220,6 +229,9 @@ describe('migrações (estático)', () => {
         ...TABELAS_0041,
         ...TABELAS_0045,
         ...TABELAS_0050,
+        ...TABELAS_0056,
+        ...TABELAS_0057,
+        ...TABELAS_0058,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -291,6 +303,10 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'execute on function plataforma.tenants_ativos()', // 0027 (T-0039, ADR 0022): agendador das tarefas periódicas
       'select on plataforma.email_saida', // 0040 (T-0094, ADR 0032): despachante da outbox de e-mail
       'update (carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em, ultimo_erro) on plataforma.email_saida',
+      // 0058 (T-0158, ADR 0043): alerta do diagnóstico (sem descricao e detalhe) e expurgo de 90 dias
+      'select (id, tenant_id, protocolo, usuario_id, perfil, origem, app, versao_app, build, aparelho_fabricante, aparelho_modelo, android, android_api, tela, motivo, print_id, ocorrido_em, recebido_em, alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
+      'update (alerta_situacao, alerta_tentativas, alerta_proxima_em, alerta_recado_id, alerta_em) on plataforma.diagnostico',
+      'execute on function plataforma.expurgar_diagnosticos(timestamptz, integer)',
     ]);
   });
 
@@ -743,8 +759,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0042 (T-0094, padrão de fábrica da T-0111): as 2 sa_* do super-admin para o admin do cliente (portal-redefinir-senha.test.ts)
     // 0047 (resto do D-MP2): a sa_admins_da_empresa recriada (drop + create, o retorno ganha entra_no_portal; portal-admin-multiperfil.test.ts)
     // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
+    // 0058 (T-0158, ADR 0043): as 2 sa_* do diagnóstico (portal) e o expurgo de 90 dias (worker) (diagnostico.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -885,8 +902,9 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
   it('todo CHECK de perfil das migrações tem exatamente os PERFIS do platform-sdk (decisão de inativação: subconjunto)', () => {
     const criadas = tabelasCriadas();
     const checksDe = (corpo: string) => [...corpo.matchAll(/check \(perfil in \(([^)]*)\)\)/g)].map((m) => [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort());
-    const completos = [...checksDe(criadas.get('plataforma.perfil_modulo') ?? ''), ...checksDe(criadas.get('core.usuario') ?? '')];
-    expect(completos.length, 'CHECKs de perfil (plataforma.perfil_modulo e core.usuario)').toBe(2);
+    // 0058 (T-0158): plataforma.diagnostico.perfil (o perfil base de quem enviou) também tem os PERFIS inteiros
+    const completos = [...checksDe(criadas.get('plataforma.perfil_modulo') ?? ''), ...checksDe(criadas.get('core.usuario') ?? ''), ...checksDe(criadas.get('plataforma.diagnostico') ?? '')];
+    expect(completos.length, 'CHECKs de perfil (plataforma.perfil_modulo, core.usuario e plataforma.diagnostico)').toBe(3);
     for (const lista of completos) expect(lista).toEqual(doSdk);
     // 0041 (ADR 0033): o CHECK de perfil_modulo sai (o perfil vira o código do perfil do tenant, com FK) e entra a base do perfil
     expect(sqlUp).toContain('alter table plataforma.perfil_modulo drop constraint perfil_modulo_perfil_valido;');
@@ -895,7 +913,7 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
     // integracao.inativacao_auditoria.perfil (P-3): só quem decide a inativação, e dentro dos PERFIS
     const auditoria = checksDe(criadas.get('integracao.inativacao_auditoria') ?? '');
     expect(auditoria).toEqual([['admin', 'analista']]);
-    expect(checksDe(sqlUp).length).toBe(3);
+    expect(checksDe(sqlUp).length).toBe(4);
     for (const p of auditoria[0]!) expect(doSdk).toContain(p);
   });
 
@@ -903,6 +921,7 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
     // 0041: perfil_modulo.perfil é o código do perfil do tenant (texto livre); a base fica em plataforma.perfil
     expect([...(esquemaPlataforma.perfil.base.enumValues ?? [])].sort()).toEqual(doSdk);
     expect([...(nuvemCore.usuario.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
+    expect([...(esquemaPlataforma.diagnostico.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
   });
 });
 

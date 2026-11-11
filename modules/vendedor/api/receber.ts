@@ -12,7 +12,7 @@
  */
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA,
@@ -23,6 +23,7 @@ import {
 } from '../contracts';
 import {
   conteudoDoEnvio,
+  retratoFilialDoPedido,
   dataDoPreco,
   emitidoEm,
   faixasDaConsulta,
@@ -122,10 +123,15 @@ export async function calcularDocumento(
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
   const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: emNome ? [eu, donoId] : [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
-  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender.');
   // RN-VEN-13 (T-0071 §1.4 e): inativo, bloqueado ou cadastro incompleto só faz orçamento (422 com os campos que faltam)
   const soOrcamento = verificarTipoParaCliente(tipo, { ativo: cliente.ativo, bloqueado: cliente.bloqueado === true, cadastro_incompleto: cliente.cadastro_incompleto ?? false, campos_faltantes: cliente.cadastro_campos_faltantes ?? [] });
   if (soOrcamento) return recusa(itemId, soOrcamento);
+  // RN-CORE-39 (T-0149): o pedido não escolhe filial; o servidor grava a filial EFETIVA do cliente (core.filiais@1), ignorando `branch_id` do aparelho
+  const fil = await tx.consultar(CONSULTA_FILIAIS, { cliente_ids: [p.customer_id], external_ids: [], escopo: 'tenant' });
+  const filialId = fil.clientes.find((c) => c.cliente_id === p.customer_id)?.filial_id ?? fil.padrao_id;
+  const filialDoCliente = fil.filiais.find((f) => f.id === filialId);
+  const retratoFilial = filialDoCliente ? retratoFilialDoPedido(filialDoCliente) : null;
   const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
   const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
   if (invalido.length > 0) return rejeitado(itemId, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
@@ -337,10 +343,11 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
         desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
-        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias)
+        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias,
+        filial_id, filial)
      values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
-        $39, $40, $41, $42, $43, $44, $45::int[], $46)
+        $39, $40, $41, $42, $43, $44, $45::int[], $46, $47, $48::jsonb)
      on conflict (id) do nothing returning id`,
     [
       p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
@@ -351,6 +358,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(enderecoRetrato) : null,
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
       ...valoresPagamento(pagamento),
+      retratoFilial?.filial_id ?? null, retratoFilial ? JSON.stringify(retratoFilial.filial) : null,
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa

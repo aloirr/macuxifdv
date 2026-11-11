@@ -250,6 +250,10 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   - erro: `Banner tone="danger"` com o que aconteceu e o que fazer ("Não deu para enviar. O pedido está salvo e vai sozinho quando
     houver sinal.");
   - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal;
+  - **listas** (RD-0076, 10/11; regra "nenhum aviso solto", RN-VEN-42): sinal, servidor e hora da última sincronização ficam
+    num só **`SeloAtualizacao`** no cabeçalho, à direita do título ("↻ 06:30", "Atualizando…", "Sem sinal", "Sem resposta"; textos
+    em `desenhoSeloAtualizacao`). Sem faixa de sinal ou de fila no meio da lista e sem rodapé "Atualizado às…". A fila é o selo
+    "Na fila" da linha. Primeira tela: Pedidos (`docs/design/pedido-v4.md` §4.1);
   - a tela quebrou ao desenhar (erro de render, `ErrorBoundary` do shell): `TelaDeErro` com os textos de `TEXTOS_TELA_DE_ERRO`
     ("Não foi possível mostrar esta tela" · Tentar de novo · Ir para o Início · Enviar o detalhe ao suporte). Nunca
     `EstadoVazio` para erro. Spec: `docs/design/tela-de-erro.md` (T-0140).
@@ -336,11 +340,9 @@ destas regras; elas valem para o voltar do Android e para o `BackLink` do kit (o
 
 ## 7.2 Decisões da segunda revisão do Novo pedido e do orçamento (T-0071, 2026-11-05, sobre R-20261105-104349)
 Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.html` (telas 1 a 5, versão enxuta).
-- **Busca antes da trilha** (aba Itens): `CampoBusca` e, logo abaixo, `Trilha compacta atualTocavel` ("Mercearia › **Bebidas**").
-  Sem ícone de lupa na trilha (a lupa é da busca). Tocar em qualquer nível abre o catálogo do pedido. Sem item no pedido, a
-  trilha é um item só: "Catálogo". A trilha usa `accentInk` (o `accent` sobre o fundo dá 4,17:1). Com `atualTocavel`, o último
-  item é um botão como os outros ("Ir para Bebidas") e não é anunciado como selecionado (`selected` segue `desligado`), de
-  propósito: na trilha-atalho ele leva ao catálogo, não marca onde a pessoa está.
+- ~~**Busca antes da trilha** (aba Itens)~~: substituída. A T-0141 (D) tirou o Catálogo da aba Itens, e a trilha-atalho saiu
+  com ele; a prop `Trilha.atualTocavel` foi apagada do kit (RD-0050, 10/11). A `Trilha` volta a ser só "onde você está": o
+  último item é o lugar atual, sem toque. A trilha usa `accentInk` (o `accent` sobre o fundo dá 4,17:1).
 - **Uma linha por produto**, com o `ChipMedida` no alto à direita ("UN", "CX c/ 20"). Com duas medidas, o chip é tocável e alterna
   a medida da linha (mantém a quantidade; `AvisoRodape` "Medida trocada para CX c/ 20" · Desfazer). Uma segunda linha do mesmo
   produto só aparece quando as duas medidas têm quantidade (ex.: depois do "Leve mais"); aí os chips ficam só leitura.

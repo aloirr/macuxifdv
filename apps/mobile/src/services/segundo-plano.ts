@@ -30,6 +30,7 @@ import {
   type ResultadoSegundoPlano,
 } from '@/lib/segundo-plano';
 import { buildAindaNaoAberto, criarCorteDaPassada, criarTravaSync, idDoBuild, semDerrubar, semDerrubarAgora, type CorteDaPassada } from '@/lib/trava-sync';
+import { permissoesLiberadas } from '@/lib/permissoes';
 import { varianteAtual } from '@/lib/variante';
 
 import { criarAmbienteDoAparelho } from './ambiente';
@@ -38,6 +39,7 @@ import { abrirArmazenamentoDoUsuario, apagarBancosDoAparelho } from './armazenam
 import { apagarFotosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from './device';
+import { lerPermissoes } from './permissoes';
 import { gravarErro } from './erros';
 import { consultarModulosEfetivos, criarMotorDoUsuario, trocarRefresh } from './motor-do-usuario';
 import { keys, readJson, writeJson } from './storage';
@@ -272,6 +274,10 @@ async function passadaUnica(): Promise<ResultadoSegundoPlano> {
     trava: travaSync,
     buildAindaNaoAberto: buildAindaNaoAbertoNoAparelho,
     aoEsgotarOrcamento: () => corte.cortar(),
+    // T-0144: a tarefa que dispara junto com a abertura do app (logo depois da atualização) espera a tela montar e desiste
+    esperar: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    // T-0145: sem as permissões obrigatórias da variante, nada sincroniza (nem sem tela)
+    permissoesLiberadas: async () => permissoesLiberadas(varianteAtual(), await lerPermissoes()),
   });
 }
 

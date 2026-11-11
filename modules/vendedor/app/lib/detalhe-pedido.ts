@@ -9,7 +9,12 @@ import { formatBRL, formatPct } from '@macuxi/comum';
 import { TEXTOS_PRECOS_DE_HOJE } from './precos-de-hoje';
 import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
 import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
-import type { SituacaoOrcamento } from '../../domain/orcamento';
+import { alertasDoPedido, type AlertaDoPedido } from '../../domain/alertas-pedido';
+import { linhaLiquidaDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
+import { pctExibicao } from '../../domain/preco-pedido';
+
+export { linhaLiquidaDosTotais, semRs, siglaDaMedida };
+import type { MudancaNaConversao, SituacaoCliente, SituacaoOrcamento } from '../../domain/orcamento';
 
 // ---------- histórico em tags ----------
 // As funções puras do histórico (`eventosDoPedido`, `eventosDoOrcamento`, `autorEhOVendedor`, `motivoDoEvento`) vivem no domain
@@ -23,36 +28,11 @@ export function clienteComCodigo(nome: string, codigo: string | null | undefined
   return c ? `${nome} · cód. ${c}` : nome;
 }
 
-/** "Vendedor: Lucas Andrade"; sem nome, vazio. */
-export function linhaDoVendedor(nome: string | null | undefined): string {
-  const n = (nome ?? '').trim();
-  return n ? `Vendedor: ${n}` : '';
-}
-
 /** Itens visíveis no detalhe: os 8 primeiros e "Ver os 23 itens" (spec §4.1). */
 export const MAX_ITENS_NO_DETALHE = 8;
 export function itensVisiveis<T>(itens: ReadonlyArray<T>, mostrarTodos: boolean): { visiveis: T[]; rotuloVerTodos: string | null } {
   if (mostrarTodos || itens.length <= MAX_ITENS_NO_DETALHE) return { visiveis: [...itens], rotuloVerTodos: null };
   return { visiveis: itens.slice(0, MAX_ITENS_NO_DETALHE), rotuloVerTodos: `Ver os ${itens.length} itens` };
-}
-
-/** Sigla da medida: "CX c/ 12" vira "CX"; vazio vira "UN". */
-export function siglaDaMedida(medida: string | null | undefined): string {
-  return (medida ?? '').trim().split(/\s+/)[0] || 'UN';
-}
-
-/** 2ª linha do item com ajuste: "Desc 5,0% · −R$ 1,00/FD" (desconto) ou "Acrésc 3,0% · +R$ 0,60/FD"; sem ajuste, null. */
-export function linhaDoAjusteDoItem(i: { discount_pct?: number; surcharge_pct?: number; unit_price_cents: number; unit_label?: string }): string | null {
-  const medida = siglaDaMedida(i.unit_label);
-  if ((i.surcharge_pct ?? 0) > 0) return `Acrésc ${formatPct(i.surcharge_pct!)} · +${formatBRL(Math.round((i.unit_price_cents * i.surcharge_pct!) / 100))}/${medida}`;
-  if ((i.discount_pct ?? 0) > 0) return `Desc ${formatPct(i.discount_pct!)} · −${formatBRL(Math.round((i.unit_price_cents * i.discount_pct!) / 100))}/${medida}`;
-  return null;
-}
-
-/** Linha abaixo do Total: "Pix · À vista · CIF"; FOB: "Boleto · 28/56 dias · FOB · Transportes Rio Negro". Parte vazia sai. */
-export function linhaFormaPrazoFrete(e: { forma?: string | null; prazo?: string | null; modalidade?: 'CIF' | 'FOB' | null; transportadora?: string | null }): string {
-  const frete = e.modalidade === 'FOB' ? ['FOB', e.transportadora?.trim()] : [e.modalidade];
-  return [e.forma?.trim(), e.prazo?.trim(), ...frete].filter((x): x is string => Boolean(x)).join(' · ');
 }
 
 // ---------- ações ----------
@@ -96,6 +76,8 @@ export interface EntradaAcoesDoDetalhe {
   pedidoGeradoId: string | null;
   /** T-0141 (RN-VEN-18): o preço congelado do orçamento passou dos 7 dias; Transformar entra pelos preços de hoje */
   precoVencido?: boolean;
+  /** T-0150 (RN-VEN-42): o orçamento tem alerta que impede o pedido (acima do máximo, sem estoque, cliente): a principal é Editar, sem Transformar */
+  alertaImpedeTransformar?: boolean;
 }
 
 const TRANSFORMAR: AcaoDoDetalhe = { id: 'transformar', rotulo: ROTULOS_DO_SALVAR.transformar, rotuloAcessivel: 'Transformar o orçamento em pedido', icone: 'send' };
@@ -123,6 +105,9 @@ export function acoesDoDetalhe(e: EntradaAcoesDoDetalhe): AcoesDoDetalhe {
   if (e.somenteLeitura) return SEM_ACOES;
   if (e.tipo === 'orcamento') {
     const menu = compactar([e.podeCancelar && cancelar(true)]);
+    if (e.podeConverter && e.alertaImpedeTransformar && e.podeEditar) {
+      return { principal: editar(true), icones: compactar([e.podePdf && pdf(true), e.podeDuplicar && duplicar(true)]), menu };
+    }
     if (e.podeConverter) return { principal: e.precoVencido ? { ...TRANSFORMAR, apoio: TEXTOS_PRECOS_DE_HOJE.apoioDoBotao } : TRANSFORMAR, icones: compactar([e.podeEditar && editar(true), e.podePdf && pdf(true), e.podeDuplicar && duplicar(true)]), menu };
     return { principal: null, icones: compactar([e.podeEditar && editar(true), e.podePdf && pdf(true), e.podeDuplicar && duplicar(true), e.situacao === 'convertido' && e.pedidoGeradoId ? PEDIDO_GERADO : null]), menu };
   }
@@ -132,4 +117,57 @@ export function acoesDoDetalhe(e: EntradaAcoesDoDetalhe): AcoesDoDetalhe {
   if ((e.naFila && e.recusado) || e.status === 'rejected') return { principal: e.podeEditar ? CORRIGIR : null, icones: compactar([e.podePdf && pdf(false), e.podeDuplicar && duplicar(false)]), menu };
   if (e.status === 'draft') return { principal: e.podeEditar ? CONTINUAR : null, icones: [], menu };
   return { principal: null, icones: compactar([e.podeEditar && editar(false), e.podePdf && pdf(false), e.podeDuplicar && duplicar(false)]), menu };
+}
+
+// ---------- T-0150 (RN-VEN-42): Alertas, tabela de itens e totais do detalhe ----------
+export interface LinhaDeItemEmTabela {
+  descricao: string;
+  codigo: string;
+  /** "4 UN": a embalagem vendida */
+  qtd: string;
+  /** preço de tabela da embalagem, sem "R$" */
+  preco: string;
+  /** "−5,0%", "+10,0%" ou "—" */
+  ajuste: string;
+  total: string;
+}
+
+/** §1/§2: uma linha da tabela Produto · Qtd · Preço unit. · Desc./Acrésc. · Total (números sem "R$"). */
+export function linhaDeItemEmTabela(l: { description: string; erp_code: string; quantity: number; unit_label?: string; unit_price_cents: number; total_cents: number; discount_pct?: number; surcharge_pct?: number }): LinhaDeItemEmTabela {
+  const ajuste = (l.surcharge_pct ?? 0) > 0 ? `+${formatPct(l.surcharge_pct!)}` : (l.discount_pct ?? 0) > 0 ? `−${formatPct(l.discount_pct!)}` : '—';
+  return { descricao: l.description, codigo: l.erp_code, qtd: `${l.quantity} ${siglaDaMedida(l.unit_label)}`, preco: semRs(l.unit_price_cents), ajuste, total: semRs(l.total_cents) };
+}
+
+/** RN-VEN-30/42: o detalhe da recusa do servidor na fila vira alerta; a do supervisor e o motivo do cancelamento também (T-0150, pedido-v4 §0.1); a etapa do Histórico leva só o nome. */
+export interface EntradaAlertasDoDetalhe {
+  /** motivo curto devolvido pelo servidor para o pedido que está na fila (RN-VEN-40); vazio = sem recusa */
+  recusaDoServidor?: string | null;
+  /** motivo escrito pelo supervisor ao rejeitar (ou ao cancelar): uma linha nos Alertas */
+  recusaDoSupervisor?: string | null;
+  /** orçamento: o que a reconferência local achou (preço mínimo, estoque, cliente) */
+  mudancas?: readonly MudancaNaConversao[];
+  /** produto_id → código do ERP */
+  codigoDoProduto?: (produtoId: string) => string;
+}
+
+export function alertasDoDetalhe(e: EntradaAlertasDoDetalhe): AlertaDoPedido[] {
+  const ms = e.mudancas ?? [];
+  const cod = e.codigoDoProduto ?? ((id: string) => id);
+  const cliente: SituacaoCliente = { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] };
+  for (const m of ms) {
+    if (m.tipo !== 'cliente') continue;
+    if (m.motivo === 'bloqueado') cliente.bloqueado = true;
+    else if (m.motivo === 'inativo') cliente.ativo = false;
+    else {
+      cliente.cadastro_incompleto = true;
+      cliente.campos_faltantes = m.campos;
+    }
+  }
+  const unicos = (tipo: 'abaixo_minimo' | 'estoque') => [...new Set(ms.filter((m): m is Extract<MudancaNaConversao, { tipo: typeof tipo }> => m.tipo === tipo).map((m) => m.produto_id))].map((id) => ({ item: id, codigo: cod(id) }));
+  return alertasDoPedido({
+    cliente,
+    recusas: [e.recusaDoServidor, e.recusaDoSupervisor].filter((x): x is string => Boolean(x)),
+    itens_acima_do_maximo: unicos('abaixo_minimo'),
+    itens_sem_estoque: unicos('estoque'),
+  });
 }

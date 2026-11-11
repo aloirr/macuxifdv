@@ -190,6 +190,15 @@ export const EXEMPLO_REGISTRO: RegistroEntrada = {
     vigencia_fim: null,
     tabela_external_id: 'TAB01',
   },
+  filial: {
+    external_id: 'FIL02',
+    alterado_em: ALTERADO_EM,
+    ativo: true,
+    codigo: '0002',
+    nome: 'Boa Vista',
+    cidade: 'Boa Vista',
+    uf: 'RR',
+  },
 };
 
 const RESUMO_ENTIDADE: Record<Entidade, string> = {
@@ -208,6 +217,7 @@ const RESUMO_ENTIDADE: Record<Entidade, string> = {
   forma_pagamento: 'Formas de pagamento (delta)',
   prazo_pagamento: 'Prazos de pagamento com as parcelas em dias (delta)',
   tabela_escalonada: 'Tabela escalonada: preço da unidade por quantidade mínima (delta)',
+  filial: 'Filiais: unidades de onde saem as entregas (delta)',
 };
 
 const loteDelta = (entidade: Entidade): z.input<typeof LoteEnvelope> => ({
@@ -221,7 +231,7 @@ const loteDelta = (entidade: Entidade): z.input<typeof LoteEnvelope> => ({
   registros: [EXEMPLO_REGISTRO[entidade]],
 });
 
-const ORDEM_ENTIDADES: readonly Entidade[] = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'];
+const ORDEM_ENTIDADES: readonly Entidade[] = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'];
 
 /** `POST /lotes`: um exemplo por entidade, carga completa em partes (sessão) e lote só com linhas inválidas. */
 export const EXEMPLOS_LOTE: readonly Exemplo<z.input<typeof LoteEnvelope>>[] = [
@@ -573,7 +583,7 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   consultar_cursor: {
-    404: [ex('entidade_desconhecida', 'Entidade fora da lista', erro('entidade_desconhecida', 'Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.'))],
+    404: [ex('entidade_desconhecida', 'Entidade fora da lista', erro('entidade_desconhecida', 'Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada, filial.'))],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   enviar_reconciliacao: {

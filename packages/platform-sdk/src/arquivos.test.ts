@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caminhoFoto, dimensoesJpeg, ehJpeg, validarNovoArquivo } from './arquivos';
+import { caminhoFoto, dimensoesJpeg, ehJpeg, perfilLeArquivo, problemasPerfisLeitura, validarNovoArquivo } from './arquivos';
 
 const ID = '0f000000-0000-4000-8000-0000000000aa';
 
@@ -32,5 +32,38 @@ describe('ADR 0010: regras puras dos arquivos', () => {
     expect(validarNovoArquivo({ id: ID, finalidade: 'fachada', entidade: 'visita', entidade_id: ID, cliente_id: null })).toEqual([]);
     const p = validarNovoArquivo({ id: 'x', finalidade: 'Fachada', entidade: 'visita-x', entidade_id: ID, cliente_id: 'y', tipo: 'image/png' as never });
     expect(p).toHaveLength(5);
+  });
+});
+
+describe('ADR 0041 (T-0147, RN-CORE-38): perfis de leitura do arquivo', () => {
+  const SENSIVEL = ['admin', 'analista', 'gerente', 'supervisor'] as const;
+
+  it('lista válida: 1 a 7 perfis da plataforma, sem repetição; null = regra de sempre; vazia é recusada', () => {
+    expect(problemasPerfisLeitura(null)).toEqual([]);
+    expect(problemasPerfisLeitura(undefined)).toEqual([]);
+    expect(problemasPerfisLeitura(SENSIVEL)).toEqual([]);
+    expect(problemasPerfisLeitura([])).toEqual(['perfis_leitura vazio (use null para a regra de sempre)']);
+    expect(problemasPerfisLeitura(['admin', 'diretor'])).toEqual(['perfil de leitura diretor não existe']);
+    expect(problemasPerfisLeitura(['admin', 'admin'])).toEqual(['perfis_leitura com perfil repetido']);
+    expect(validarNovoArquivo({ id: ID, finalidade: 'pdv', entidade: 'cliente_foto', entidade_id: ID, perfis_leitura: [] })).toHaveLength(1);
+    expect(validarNovoArquivo({ id: ID, finalidade: 'pdv', entidade: 'cliente_foto', entidade_id: ID, perfis_leitura: SENSIVEL })).toEqual([]);
+  });
+
+  it('RN-CORE-38: admin, analista, gerente e supervisor leem o sensível; vendedor, promotor e assistente não', () => {
+    for (const p of SENSIVEL) expect(perfilLeArquivo(SENSIVEL, { perfil: p }), p).toBe(true);
+    for (const p of ['vendedor', 'promotor', 'assistente'] as const) expect(perfilLeArquivo(SENSIVEL, { perfil: p }), p).toBe(false);
+  });
+
+  it('sem lista vale a regra de sempre; com lista, falha fechada sem perfil', () => {
+    expect(perfilLeArquivo(null, { perfil: 'vendedor' })).toBe(true);
+    expect(perfilLeArquivo(undefined, {})).toBe(true);
+    expect(perfilLeArquivo(SENSIVEL, {})).toBe(false);
+  });
+
+  it('perfis resolvidos na requisição (ADR 0033) decidem pela BASE; o perfil do token só vale sem eles', () => {
+    // personalizado sobre supervisor lê; o token diz supervisor mas o tenant deixou só um perfil de base vendedor: não lê
+    expect(perfilLeArquivo(SENSIVEL, { perfil: 'vendedor', perfis: [{ base: 'vendedor' }, { base: 'supervisor' }] })).toBe(true);
+    expect(perfilLeArquivo(SENSIVEL, { perfil: 'supervisor', perfis: [{ base: 'vendedor' }] })).toBe(false);
+    expect(perfilLeArquivo(SENSIVEL, { perfil: 'gerente', perfis: [] })).toBe(true);
   });
 });
