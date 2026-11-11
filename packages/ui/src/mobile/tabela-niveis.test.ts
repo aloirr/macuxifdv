@@ -46,6 +46,6 @@ describe('ListaNiveis e Trilha (T-0142, catálogo pela hierarquia): parte pura',
     const src = ler('./navegacao.tsx');
     expect(src).toMatch(/nivel: \{[^}]*minHeight: 56/);
     expect(src).toMatch(/nivelContagem: \{[^}]*fontFamily: fonts\.displayBold/);
-    expect(src).toMatch(/const desligado = \(atual && !atualTocavel\) \|\| pulado;/);
+    expect(src).toMatch(/const desligado = atual \|\| pulado;/);
   });
 });

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!-- T-0159 · VERSÃO FINAL aprovada (R-20261110-215816): proposta 2 (compacta) + Emb. separada da Qtd, coluna Marca, cabeçalho com CNPJ/endereço/telefone da filial de faturamento do pedido. Versão do cliente. Spec: docs/design/pdf-pedido.md. <title> = nome do arquivo (RN-VEN-41). Marcas fictícias. -->
+<title>ORC-0015-10112026</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=block');
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; }
+body { font-family: 'IBM Plex Sans', Arial, sans-serif; color: #16202A; font-size: 8.5pt; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; padding: 12mm 12mm 14mm; overflow: hidden; }
+.num, td.v, th.v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+/* cabeçalho em uma faixa */
+.cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
+.marca { display: flex; gap: 3mm; align-items: center; }
+.empresa { font-family: Archivo, sans-serif; font-weight: 800; font-size: 12pt; line-height: 1.15; }
+.emit { font-size: 7.5pt; color: #4A5562; }
+.doc { text-align: right; }
+.doc .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 14pt; line-height: 1.1; }
+.doc .t small { font-weight: 700; font-size: 8pt; letter-spacing: .08em; text-transform: uppercase; color: #C2540A; margin-right: 2mm; vertical-align: 2px; }
+.doc .d { font-size: 8pt; color: #4A5562; }
+
+/* ficha em grade (cada dado numa célula com rótulo) */
+.ficha { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; }
+.c { padding: 1.6mm 2.4mm 1.8mm; border-right: 1px solid #C9CEC6; border-bottom: 1px solid #C9CEC6; }
+.c.fim { border-right: 0; }
+.c.base { border-bottom: 0; }
+.s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s4 { grid-column: span 4; }
+.r { font-family: Archivo, sans-serif; font-weight: 700; font-size: 6.5pt; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
+.forte { font-weight: 600; }
+.sec { color: #4A5562; }
+
+/* itens */
+table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 4mm; }
+thead { display: table-header-group; }
+th { font-family: Archivo, sans-serif; font-weight: 700; font-size: 6.5pt; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: #16202A; text-align: left; padding: 1.6mm 2mm; }
+td { padding: 1.5mm 2mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #F3F4F1; }
+tr { break-inside: avoid; }
+td.cod { font-family: 'IBM Plex Mono', monospace; font-size: 8pt; color: #4A5562; }
+td.emb { white-space: nowrap; }
+td.tot { font-weight: 600; }
+tfoot td { border-top: 1.5px solid #16202A; padding-top: 2.2mm; background: #fff; }
+tfoot .rt { text-align: right; font-weight: 600; }
+tfoot .vt { font-family: Archivo, sans-serif; font-weight: 800; font-size: 12pt; }
+.nota { margin-top: 1.5mm; font-size: 7.5pt; color: #4A5562; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="cab">
+    <div class="marca">
+      <svg width="34" height="34" viewBox="0 0 46 46" aria-hidden="true"><rect width="46" height="46" rx="9" fill="#16202A"/><text x="23" y="28.5" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="17" fill="#fff">DE</text><rect x="13" y="34" width="20" height="3" rx="1.5" fill="#C2540A"/></svg>
+      <div>
+        <div class="empresa">Distribuidora Exemplo</div>
+        <!-- filial de faturamento do pedido (retrato da filial, T-0149; RN-CORE-39), nunca a matriz/tenant; igual nas 4 versões -->
+        <div class="emit">Matriz Manaus · CNPJ 12.345.678/0001-90 · (92) 3234-5678</div>
+        <div class="emit">Av. Djalma Batista, 1200, Sala 3 · Chapada · Manaus/AM · CEP 69050-010</div>
+      </div>
+    </div>
+    <div class="doc">
+      <div class="t"><small>Orçamento</small>000015</div>
+      <div class="d">10/11/2026</div>
+    </div>
+  </div>
+
+  <div class="ficha">
+    <div class="c s4"><div class="r">Cliente</div><span class="forte">Atacadinho Cachoeirinha Comércio de Alimentos Ltda</span> <span class="sec">· Atacadinho Cachoeirinha</span></div>
+    <div class="c s2 fim"><div class="r">CNPJ</div>23.456.789/0001-01</div>
+    <div class="c s3 base"><div class="r">Entrega</div>CIF · Rua Pará, 137 · São Geraldo · Manaus/AM</div>
+    <div class="c s2 base"><div class="r">Pagamento</div>Boleto · 28/56 dias</div>
+    <div class="c base fim"><div class="r">Vendedor</div>Lucas Andrade</div>
+  </div>
+
+  <table>
+    <colgroup><col style="width:20mm"><col><col style="width:24mm"><col style="width:18mm"><col style="width:11mm"><col style="width:21mm"><col style="width:25mm"></colgroup>
+    <thead><tr><th>Código</th><th>Descrição</th><th>Marca</th><th>Emb.</th><th class="v">Qtd</th><th class="v">Preço unit. R$</th><th class="v">Total R$</th></tr></thead>
+    <tbody>
+      <tr><td class="cod">CAF-500</td><td>Café torrado e moído 500 g</td><td>Serra Alta</td><td class="emb">UN</td><td class="v">4</td><td class="v">13,40</td><td class="v tot">53,60</td></tr>
+      <tr><td class="cod">ACU-1K</td><td>Açúcar cristal 1 kg</td><td>Doce Vale</td><td class="emb">FD c/ 10</td><td class="v">1</td><td class="v">39,60</td><td class="v tot">39,60</td></tr>
+      <tr><td class="cod">AGU-1500</td><td>Água mineral 1,5 L</td><td>Fonte Clara</td><td class="emb">FD c/ 6</td><td class="v">2</td><td class="v">12,79</td><td class="v tot">25,58</td></tr>
+    </tbody>
+    <tfoot><tr><td colspan="6" class="rt">Total</td><td class="v vt">R$ 118,78</td></tr></tfoot>
+  </table>
+  <div class="nota">Valores sem impostos. Preço e estoque confirmados no faturamento.</div>
+
+</div>
+</body>
+</html>

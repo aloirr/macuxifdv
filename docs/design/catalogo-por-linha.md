@@ -150,7 +150,9 @@ Catálogo › Automotivo
 - Trilha (breadcrumb `nav` com `aria-label="Caminho no catálogo"`, atual com `aria-current="page"`) acima da tabela.
 - O nível vai na URL (`?no=<id>`): o Voltar do navegador sobe um nível e o endereço pode ser compartilhado.
 - Último nível: a **tabela de produtos de hoje** (mesmas colunas e ações), com "12 produtos" acima.
-- Busca: resultados na tabela de produtos com a coluna **Caminho** ("Automotivo › Freios › Pastilhas").
+- Busca: resultados na tabela de produtos com a coluna **Caminho** ("Automotivo › Freios › Pastilhas") **no lugar** da coluna
+  Categoria (RD-0047, 10/11): as duas dizem onde o produto fica, e a hierarquia substitui a categoria do ERP. Quando o Caminho não
+  vem (perfil sem leitura do cadastro, `mostrarCaminho` falso), a Categoria fica, para a busca não perder a única pista de lugar.
 - Estados: carregando (linhas-esqueleto), vazio ("Nenhum produto neste nível"), erro (a `TelaDeErro`/aviso padrão do BKO).
 - A exportação em PDF/Excel continua no topo e exporta o nível aberto (na raiz, o catálogo inteiro).
 
