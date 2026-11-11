@@ -11,13 +11,15 @@
  */
 import { comTenant } from '@macuxi/db/teste';
 import { semBanco } from '@macuxi/db/teste/estado';
-import type { ClienteBanco, ContextoConsulta, ResultadoItemPush } from '@macuxi/platform-sdk';
+import type { ClienteBanco, ContextoConsulta, DefinicaoConsulta, ResultadoItemPush } from '@macuxi/platform-sdk';
+import { CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { SugestoesPedidoEntradaSchema } from '@macuxi/catalogo/contracts';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { consultaSugestoesPedido } from '../../../modules/catalogo/api/sugestoes';
+import { consultaFiliais } from '../../../modules/core/api/filiais';
 import { A, B, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 import { esperarHorizonte } from '../apoio/campo';
 
@@ -156,15 +158,22 @@ describe.skipIf(semBanco())('T-0071 — orçamento fora do ERP, promotor barrado
   });
 
   describe('R3. Multi-tenant — catalogo.produto_relacao e catalogo.sugestoes_pedido@1', () => {
+    // T-0149: sugestoes_pedido@1 lê core.filiais@1 por ctx.consultar (a API real preenche; mesmo db, mesmo tenant, RLS).
+    // Aqui o contexto é montado à mão: só core.filiais@1 é servida, na mesma transação; outra consulta = erro do teste.
     const consultar = (tenant: string, entrada: object) =>
-      comTenant(api.pool, tenant, (c) =>
-        consultaSugestoesPedido.executar(SugestoesPedidoEntradaSchema.parse(entrada), {
+      comTenant(api.pool, tenant, (c) => {
+        const ctx = {
           db: c as unknown as ClienteBanco,
           usuario: { perfil: 'vendedor' },
           agora: () => new Date(),
           parametros: () => ({}),
-        } as unknown as ContextoConsulta),
-      ) as Promise<Sugestoes>;
+        } as unknown as ContextoConsulta;
+        const consultarAninhada = (async (def: DefinicaoConsulta, e: unknown) => {
+          if (def.nome !== CONSULTA_FILIAIS.nome) throw new Error(`R3: consulta inesperada ${def.nome}`);
+          return CONSULTA_FILIAIS.saida.parse(await consultaFiliais.executar(CONSULTA_FILIAIS.entrada.parse(e), ctx));
+        }) as NonNullable<ContextoConsulta['consultar']>;
+        return consultaSugestoesPedido.executar(SugestoesPedidoEntradaSchema.parse(entrada), { ...ctx, consultar: consultarAninhada });
+      }) as Promise<Sugestoes>;
 
     it('RLS: no contexto de A só as linhas de A (4, com a inativa e a apagada); no de B só a de B; sem contexto, nada', async () => {
       const deA = await comTenant(api.pool, A.tenantId, (c) => c.query<{ tenant_id: string; external_id: string | null }>('select tenant_id, external_id from catalogo.produto_relacao'));
