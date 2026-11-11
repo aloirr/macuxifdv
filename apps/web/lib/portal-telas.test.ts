@@ -163,10 +163,10 @@ describe('aba Integração', () => {
     expect(livres).not.toContain('cliente');
     expect(livres).toContain('produto');
     // T-0089: as bases de pagamento e a escalonada também ficam livres para o Conector do ERP
-    for (const e of ['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const) expect(livres).toContain(e);
+    for (const e of ['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada', 'filial'] as const) expect(livres).toContain(e);
     expect(livres).toEqual(ENTIDADES.filter((e) => e !== 'vendedor' && e !== 'cliente'));
-    expect(livres).toHaveLength(13);
+    expect(livres).toHaveLength(14);
     expect(entidadesLivres(conectores, 'implantacao-csv')).toEqual([...ENTIDADES]);
-    expect(entidadesLivres(conectores, 'implantacao-csv')).toHaveLength(15);
+    expect(entidadesLivres(conectores, 'implantacao-csv')).toHaveLength(16);
   });
 });

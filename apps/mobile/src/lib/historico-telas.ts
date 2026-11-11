@@ -131,12 +131,12 @@ export function abaDaEntrada(entrada: EntradaHistorico): string {
 
 /** Chave da raiz de uma aba (`/m/pedidos` → `pedidos`). */
 export function chaveDaAba(aba: string): string {
-  return aba.replace(/^\/m\/+/, '').split('?')[0].replace(/\/+$/, '');
+  return aba.replace(/^\/m\/+/, '').split('?')[0]!.replace(/\/+$/, '');
 }
 
 function limitar(pilha: readonly EntradaHistorico[]): EntradaHistorico[] {
   if (pilha.length <= LIMITE_HISTORICO) return [...pilha];
-  return [pilha[0], ...pilha.slice(-(LIMITE_HISTORICO - 1))];
+  return [pilha[0]!, ...pilha.slice(-(LIMITE_HISTORICO - 1))];
 }
 
 /** Grava a pilha da aba (e a origem dela, quando a pilha recomeça). */
@@ -174,7 +174,7 @@ export function abrirTela(
     return { historico: comPilha(h, aba, limitar([...base, entrada])), direcao: 'avancar' };
   }
   if (pilha.length === 0) return { historico: comPilha(h, aba, [entrada]), direcao: 'nenhuma' };
-  const topo = pilha[pilha.length - 1];
+  const topo = pilha[pilha.length - 1]!;
   if (topo.chave === entrada.chave) return { historico: comPilha(h, aba, [...pilha.slice(0, -1), entrada]), direcao: 'nenhuma' };
   const i = pilha.findLastIndex((e) => e.chave === entrada.chave);
   if (i >= 0) return { historico: comPilha(h, aba, [...pilha.slice(0, i), entrada]), direcao: 'voltar' };
@@ -200,8 +200,8 @@ export function selecionarAba(h: HistoricoShell, aba: string, jaNaAba: boolean):
 export function telaAnterior(h: HistoricoShell, chaveAtual: string): EntradaHistorico | null {
   if (h.aba === null || h.fora) return null;
   const pilha = h.pilhas[h.aba] ?? [];
-  if (pilha.length < 2 || pilha[pilha.length - 1].chave !== chaveAtual) return null;
-  return pilha[pilha.length - 2];
+  if (pilha.length < 2 || pilha[pilha.length - 1]!.chave !== chaveAtual) return null;
+  return pilha[pilha.length - 2]!;
 }
 
 /** Rótulo do voltar dado pelo shell (o `BackLink` do kit usa por cima do rótulo do módulo). */
@@ -224,7 +224,7 @@ const VOLTAR_PARA: Partial<Record<OrigemPilha, VoltarDoShell>> = {
 export function voltarDaRaiz(h: HistoricoShell, chaveAtual: string): VoltarDoShell | null {
   if (h.aba === null || h.fora) return null;
   const pilha = h.pilhas[h.aba] ?? [];
-  if (pilha.length !== 1 || pilha[0].chave !== chaveAtual) return null;
+  if (pilha.length !== 1 || pilha[0]!.chave !== chaveAtual) return null;
   return VOLTAR_PARA[origemDaPilha(h, h.aba)] ?? null;
 }
 
@@ -357,7 +357,7 @@ export function preverTelaAberta(h: HistoricoShell, params: ParamsDaRota | undef
 export function voltarDaTelaAberta(h: HistoricoShell, params: ParamsDaRota | undefined): VoltarDoShell | null {
   const chave = chaveDosParams(params);
   const pilha = h.aba === null ? [] : (h.pilhas[h.aba] ?? []);
-  if (pilha.length > 0 && pilha[pilha.length - 1].chave === chave) return voltarDaRaiz({ ...h, fora: false }, chave);
+  if (pilha.length > 0 && pilha[pilha.length - 1]!.chave === chave) return voltarDaRaiz({ ...h, fora: false }, chave);
   return voltarDaRaiz(preverTelaAberta(h, params).historico, chave);
 }
 

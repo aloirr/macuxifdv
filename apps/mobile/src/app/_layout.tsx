@@ -12,6 +12,7 @@ import { IBMPlexSans_400Regular } from '@expo-google-fonts/ibm-plex-sans/400Regu
 import { IBMPlexSans_500Medium } from '@expo-google-fonts/ibm-plex-sans/500Medium';
 import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600SemiBold';
 import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -23,9 +24,11 @@ import { ProvedorBloqueioDeSaida, ShellProvider } from '@macuxi/platform-sdk/rea
 import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors, ProvedorSaidaDaTela, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
+import { FolhaFotoPdv } from '@/components/folha-foto-pdv';
 import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { TelaDeErroDaRaiz } from '@/components/tela-de-erro';
+import { TelaPermissoes } from '@/components/tela-permissoes';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
@@ -88,13 +91,19 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
     tentandoAbrir,
     tentarAbrirDeNovo,
     logout,
+    telaPermissoes,
+    permissoesLidas,
+    pedindoPermissao,
+    tocarBotaoPermissoes,
   } = usePlataforma();
   // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
   const reduzir = useReduzirMovimento();
   // T-0072: vibração leve do kit (principal, confirmar e Desfazer); desligada com "reduzir movimento" (R-20261104-231036)
   useVibracaoDoShell(reduzir);
-  const show = fontsReady && ready;
-  const sobre = !fontsReady ? null : preparo ? (
+  // T-0145: sem as permissões obrigatórias, só a tela de permissões (nada de login, carga ou abas por baixo)
+  const semPermissao = fontsReady && permissoesLidas ? telaPermissoes : null;
+  const show = fontsReady && ready && permissoesLidas;
+  const sobre = !fontsReady || !permissoesLidas ? null : preparo ? (
     <TelaPreparoAparelho progresso={preparo.progresso} />
   ) : erroArmazenamento ? (
     <TelaErroArmazenamento
@@ -113,10 +122,20 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
       }}
     />
   ) : null;
-  const visivel = show || sobre !== null;
+  const visivel = show || sobre !== null || semPermissao !== null;
   useEffect(() => {
     if (visivel) void SplashScreen.hideAsync().catch(() => {});
   }, [visivel]);
+  if (semPermissao) {
+    return (
+      <TelaPermissoes
+        marca={Constants.expoConfig?.name ?? ''}
+        tela={semPermissao}
+        pedindo={pedindoPermissao}
+        onBotao={() => void tocarBotaoPermissoes()}
+      />
+    );
+  }
   if (!show) return sobre;
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
@@ -147,9 +166,13 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
                 <Stack.Screen name="login" options={{ animation: 'none' }} />
                 <Stack.Screen name="sync" options={{ animation: 'none' }} />
                 <Stack.Screen name="profile" />
+                {/* T-0147 / RD-0088: o visor de foto comum (foto do PDV, do produto) abre por cima, sem deslizar */}
+                <Stack.Screen name="foto" options={{ animation: 'fade' }} />
               </Stack>
             </AreaSeguraSuperior>
           </View>
+          {/* T-0147: folha "Tirar foto / Escolher da galeria" que o Core pede pela porta da captura da foto do PDV */}
+          <FolhaFotoPdv />
           {sobre}
         </SincronizacaoDoShell>
         </ProvedorSaidaDaTela>
