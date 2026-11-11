@@ -309,8 +309,15 @@ export function caminhoCatalogo(rota: keyof typeof ROTAS_CATALOGO, params: Recor
 // ---------- BKO: tabelas de preço (preço da UN) e tabela escalonada (RN-VEN-23; T-0089) ----------
 export const TabelaPrecoResumo = z.object({ id: Id, codigo: z.string(), nome: z.string(), ativo: z.boolean(), itens: z.number().int().min(0) });
 export type TabelaPrecoResumo = z.infer<typeof TabelaPrecoResumo>;
-export const ListaTabelasPreco = z.object({ items: z.array(TabelaPrecoResumo) });
+/** Filial para escolher na tela (RN-CORE-39); `padrao` marca a filial padrão do tenant. */
+export const FilialDaTela = z.object({ id: Id, nome: z.string(), padrao: z.boolean() });
+export type FilialDaTela = z.infer<typeof FilialDaTela>;
+/** `filial_id`: a filial cujos itens foram contados (a pedida ou, por omissão, a padrão). */
+export const ListaTabelasPreco = z.object({ items: z.array(TabelaPrecoResumo), filial_id: Id, filiais: z.array(FilialDaTela) });
 export type ListaTabelasPreco = z.infer<typeof ListaTabelasPreco>;
+
+export const ConsultaTabelasPrecoQuery = z.object({ filial: Id.optional() });
+export type ConsultaTabelasPrecoQuery = z.infer<typeof ConsultaTabelasPrecoQuery>;
 
 export const ParamsTabelaPreco = z.object({ id: Id });
 export type ParamsTabelaPreco = z.infer<typeof ParamsTabelaPreco>;
@@ -328,12 +335,14 @@ export type PrecoUnidadeLinha = z.infer<typeof PrecoUnidadeLinha>;
 
 export const ConsultaPrecosTabelaQuery = z.object({
   q: z.string().trim().max(80).optional(),
+  /** Filial dos itens (RN-CORE-39); ausente = a padrão do tenant. */
+  filial: Id.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type ConsultaPrecosTabelaQuery = z.infer<typeof ConsultaPrecosTabelaQuery>;
 
-export const PaginaPrecosTabela = z.object({ items: z.array(PrecoUnidadeLinha), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
+export const PaginaPrecosTabela = z.object({ filial_id: Id, items: z.array(PrecoUnidadeLinha), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
 export type PaginaPrecosTabela = z.infer<typeof PaginaPrecosTabela>;
 
 /** Faixa cadastrada. `origem`: 'erp' (veio do Hub; só leitura no BKO) ou 'manual' (cadastrada aqui). */

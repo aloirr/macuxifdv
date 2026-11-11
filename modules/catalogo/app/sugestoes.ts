@@ -7,12 +7,15 @@ import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
 import {
   CONSULTA_SUGESTOES_PEDIDO,
   type ClienteTabelaPrecoSync,
+  type DepositoSync,
   type EstoqueSaldoSync,
   type ItemTabelaPreco,
   type ProdutoRelacaoSync,
   type TabelaPrecoItemSync,
   type TabelaPrecoSync,
 } from '../contracts';
+import type { ClienteSync, FilialSync } from '@macuxi/core/contracts';
+import { filialDoClienteLocal, filialDoPreco } from '../domain/preco-filial';
 import { precosDoCliente } from '../domain/precos-cliente';
 import { sugestoesDoPedido, vendaveisDe } from '../domain/sugestoes';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
@@ -37,14 +40,23 @@ export const consultaSugestoesPedidoAparelho = implementarConsultaAparelho(CONSU
   if (candidatos.length === 0) return VAZIA();
   const alvo = new Set(candidatos);
 
-  const itens: ItemTabelaPreco[] = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item'))
-    .filter((l) => l.tabela_preco_id === tabelaId && alvo.has(l.produto_id) && !l.deleted_at)
+  // RN-CORE-39: preço da filial do preço (cliente, ou padrão por fallback de tabela) e estoque da filial do cliente; sem filiais no aparelho, como antes
+  const [cliente] = await ctx.linhasPorIds<ClienteSync>('cliente', [entrada.cliente_id]);
+  const local = filialDoClienteLocal(cliente?.filial_id, await ctx.linhas<FilialSync>('filial'));
+  const daTabela = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item')).filter((l) => l.tabela_preco_id === tabelaId && !l.deleted_at);
+  const filial = local ? filialDoPreco({ tabelaId, filialCliente: local.filialCliente, filialPadrao: local.filialPadrao, filiaisComItens: [...new Set(daTabela.flatMap((l) => (l.filial_id ? [l.filial_id] : [])))] }) : null;
+  const itens: ItemTabelaPreco[] = daTabela
+    .filter((l) => alvo.has(l.produto_id) && (filial === null || l.filial_id === undefined || l.filial_id === filial.filialId))
     .map((l) => ({ price_table_id: tabelaId, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
   const precos = precosDoCliente({ produtoIds: candidatos, tabelaId, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
 
   const saldos = new Map<string, number>();
+  // sem a entidade `deposito` no aparelho (carga antiga), não filtra por filial em vez de falhar (RN-CORE-39)
+  const filialDoDeposito = local ? new Map((await ctx.linhas<DepositoSync>('deposito').catch(() => [] as DepositoSync[])).map((d) => [d.id, d.filial_id])) : null;
   for (const s of await ctx.linhas<EstoqueSaldoSync>('estoque_saldo')) {
     if (s.deleted_at || !alvo.has(s.produto_id)) continue;
+    const f = filialDoDeposito?.get(s.deposito_id);
+    if (local && f !== undefined && f !== local.filialCliente) continue;
     saldos.set(s.produto_id, (saldos.get(s.produto_id) ?? 0) + Number(s.quantidade));
   }
 

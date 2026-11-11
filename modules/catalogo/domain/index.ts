@@ -15,6 +15,7 @@ export * from './pergunte';
 export * from './visibilidade';
 export * from './precos-cliente';
 export * from './escalonada';
+export * from './preco-filial';
 export * from './vitrine';
 export * from './conteudo';
 export * from './erp';

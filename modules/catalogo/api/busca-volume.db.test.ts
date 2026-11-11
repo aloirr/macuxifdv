@@ -18,6 +18,7 @@ import { candidatosDaBusca, cortarCandidatos, TETO_CANDIDATOS } from '../domain/
 import { interpretarConsulta } from '../domain/consulta';
 import { PARAMETROS_PADRAO } from '../domain/parametros';
 import { buscarProdutos, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
+import { consultarFiliaisDeTeste } from './filiais-teste';
 import type { RepositorioCatalogo } from './repositorio';
 import { criarRepositorioPostgres, esquecerRetratoCatalogo, SEM_MARCAS } from './repositorio-postgres';
 
@@ -59,10 +60,13 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
   /** Repositório do tenant A sobre a conexão da transação; o Core é simulado pelo contrato `core.cadastro_resumo@1`. */
   async function noTenant<T>(fn: (repo: RepositorioCatalogo, db: pg.ClientBase, consultasAoBanco: string[]) => Promise<T>): Promise<T> {
     const ctx = { usuario: { id: USUARIO, tenant_id: A.tenantId, perfil: 'vendedor' }, agora: () => new Date(AGORA) } as unknown as ContextoBase;
-    const tx = {
-      consultar: async (_c: unknown, e: { produto_ids: string[] }) => ({ clientes: [], usuarios: [], produtos: e.produto_ids.map((id) => cadastro.get(id)!).filter(Boolean) }),
-    } as unknown as TransacaoTenant;
     return comTenant(pool, A.tenantId, async (c) => {
+      const filiais = consultarFiliaisDeTeste(c);
+      const tx = {
+        // core.cadastro_resumo@1 e core.filiais@1 (T-0149) simuladas; o Catálogo nunca lê tabela do Core
+        consultar: async (def: { nome: string }, e: { produto_ids: string[] }) =>
+          def.nome === 'core.filiais@1' ? filiais(def, e as never) : { clientes: [], usuarios: [], produtos: e.produto_ids.map((id) => cadastro.get(id)!).filter(Boolean) },
+      } as unknown as TransacaoTenant;
       const sqls: string[] = [];
       const espiao = new Proxy(c, {
         get(alvo, prop) {
@@ -141,10 +145,12 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
       sqls.length = 0;
       await repo.precos(CLIENTE, ids);
       await repo.saldos(ids);
-      const consultas = sqls.filter((s) => /catalogo\.(tabela_preco_item|estoque_saldo)/.test(s) && !/cliente_tabela_preco/.test(s));
+      const consultas = sqls.filter((s) => /catalogo\.(tabela_preco_item|estoque_saldo)/.test(s) && !/cliente_tabela_preco/.test(s) && !/select exists/.test(s));
       expect(consultas.length).toBeGreaterThanOrEqual(2);
       // parâmetros de cada consulta, na ordem em que o repositório as executa
-      const params = [[TABELA, ids], [ids]];
+      // RN-CORE-39: o preço é filtrado pela filial do preço ($3); a do item da tabela de teste
+      const filial = (await db.query<{ filial_id: string }>('select filial_id from catalogo.tabela_preco_item where tabela_preco_id = $1 limit 1', [TABELA])).rows[0]!.filial_id;
+      const params = [[TABELA, ids, filial], [ids]];
       for (const [i, sql] of consultas.entries()) {
         const plano = await db.query<{ 'QUERY PLAN': unknown }>(`explain (format json) ${sql}`, params[i]);
         const texto = JSON.stringify(plano.rows[0]!['QUERY PLAN']);

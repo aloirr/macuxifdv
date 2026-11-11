@@ -2,8 +2,9 @@
  * `catalogo.sugestoes_pedido@1` no aparelho (T-0071 §4.2): motor com armazenamento em memória, lendo só as linhas
  * locais do Catálogo. Cenário da base demo: café com açúcar/filtro/leite e água com a versão superior.
  */
-import { ambienteIndisponivel, criarArmazenamentoEmMemoria, criarMotorSync, criarShell, defineModule, definirModuloShell, type AmbienteAparelho } from '@macuxi/platform-sdk';
+import { ambienteIndisponivel, criarArmazenamentoEmMemoria, criarMotorSync, criarShell, defineModule, definirEntidadeSync, definirModuloShell, type AmbienteAparelho } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
+import { ClienteSyncSchema, FilialSyncSchema } from '@macuxi/core/contracts';
 import { CONSULTA_SUGESTOES_PEDIDO, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoRelacao } from '../contracts';
 import { manifest } from '../manifest';
 import { consultaSugestoesPedidoAparelho } from './sugestoes';
@@ -43,11 +44,16 @@ const linhas = {
   },
 };
 
-const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1'] });
+// entidades do Core que o Catálogo lê no aparelho (RN-CORE-39: filial do cliente e filiais)
+const entidadesCore = [
+  definirEntidadeSync({ nome: 'cliente', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteSyncSchema }),
+  definirEntidadeSync({ nome: 'filial', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: FilialSyncSchema }),
+];
+const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'], sync: ['cliente', 'filial'] });
 const mConsumidor = defineModule({ id: 'vendedor', versao: '1.0.0', depende: ['core', 'catalogo'], perfis: ['vendedor'], apps: { campo: { abas: ['Pedidos'] } }, usaConsultas: ['catalogo.sugestoes_pedido@1'] });
 
 async function motorDo(perfil: 'vendedor' | 'promotor' | null, parametros: Record<string, unknown> = {}) {
-  const shell = criarShell('campo', [definirModuloShell({ manifesto: mCore }), moduloApp, definirModuloShell({ manifesto: mConsumidor })]);
+  const shell = criarShell('campo', [definirModuloShell({ manifesto: mCore, entidadesSync: entidadesCore }), moduloApp, definirModuloShell({ manifesto: mConsumidor })]);
   const ambiente: AmbienteAparelho = { ...ambienteIndisponivel(), usuario: () => (perfil ? { id: id(990), nome: 'Teste', perfil } : null) };
   const motor = criarMotorSync({
     registro: shell.registroSync,

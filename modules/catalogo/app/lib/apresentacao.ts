@@ -4,7 +4,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { ItemVitrine } from '../../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, rotuloAtualizacaoEstoque } from '../../domain/estoque';
+import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE, rotuloAtualizacaoEstoque } from '../../domain/estoque';
 
 export type TomCatalogo = 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -32,9 +32,9 @@ export interface RotuloEstoque {
 }
 
 const FAIXA: Record<NonNullable<ItemVitrine['availability']>['band'], { texto: string; tom: TomCatalogo }> = {
-  disponivel: { texto: 'Disponível', tom: 'success' },
-  baixo: { texto: 'Estoque baixo', tom: 'warning' },
-  sem_estoque: { texto: 'Sem estoque', tom: 'danger' },
+  disponivel: { texto: ROTULO_FAIXA_ESTOQUE.disponivel, tom: 'success' },
+  baixo: { texto: ROTULO_FAIXA_ESTOQUE.baixo, tom: 'warning' },
+  sem_estoque: { texto: ROTULO_FAIXA_ESTOQUE.sem_estoque, tom: 'danger' },
 };
 
 /** Texto legível da faixa de estoque (nunca o código cru): "Disponível", "Estoque baixo", "Sem estoque". */
@@ -54,9 +54,11 @@ export function contagem(n: number, singular: string, plural: string): string {
 }
 
 /** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
-export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string): RotuloEstoque | null {
+export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: { filialDoCliente?: boolean } = {}): RotuloEstoque | null {
   const a = item.availability;
   if (!item.price_stock_visible || !a) return null;
+  // RN-CORE-39: com cliente no contexto o estoque é o da filial dele; sem registro nela é 0, não "sem informação"
+  if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: 'Sem saldo na filial deste cliente.', desatualizado: false };
   if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: 'O estoque ainda não chegou a este aparelho.', desatualizado: true };
   const f = FAIXA[a.band];
   const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;

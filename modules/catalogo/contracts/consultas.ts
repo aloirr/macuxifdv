@@ -52,6 +52,12 @@ export const PrecosClienteSaidaSchema = z.object({
   tabela_preco_id: Id.nullable(),
   /** Nome da tabela usada (aditivo, T-0061: o PDF interno e o detalhe do BKO mostram o nome, não o id). */
   tabela_preco_nome: z.string().nullable().optional(),
+  /**
+   * Filial dos preços (aditivo, T-0149, RN-CORE-39): a do cliente, ou a padrão quando a tabela do cliente não tem item nenhum
+   * na filial dele (`filial_origem: 'padrao'`, fallback por tabela, nunca por item). Ausente quando não há tabela ou preço visível.
+   */
+  filial_id: Id.nullable().optional(),
+  filial_origem: z.enum(['cliente', 'padrao']).optional(),
   /** Mesma ordem de `produto_ids` (sem repetidos). */
   itens: z.array(PrecoClienteItemSchema),
 });
@@ -154,4 +160,28 @@ export const CONSULTA_BUSCA_PRODUTOS = definirConsulta({
   nome: 'catalogo.busca_produtos@1',
   entrada: BuscaProdutosEntradaSchema,
   saida: BuscaProdutosSaidaSchema,
+});
+
+/**
+ * `catalogo.foto_produto@1` (T-0148): o Vendedor mostra o ícone de câmera na busca do Novo pedido só nos produtos que têm foto
+ * e abre a foto SÓ ao tocar. Dois usos, a mesma consulta:
+ * - `abrir: false` (padrão): só diz quem tem foto (`tem_foto`); lê o `produto_conteudo` local, nunca toca a rede; `uri` vem nulo.
+ * - `abrir: true` (ao tocar): baixa sob demanda pelo resolvedor do shell, guarda no cache do aparelho e devolve `uri`
+ *   (`file://`, abre offline nas próximas vezes). Sem sinal e sem cache, ou falha no download, `uri` é nulo e `tem_foto` segue
+ *   verdadeiro (a tela mostra "Sem sinal para baixar a foto. Tente de novo com internet.").
+ * A foto é a principal do produto (miniatura de até 320 px e 30 KB); descrição e demais dados o Vendedor já tem.
+ * Na API só responde `tem_foto` (quem baixa é o aparelho). Perfil promotor recebe normalmente (RN-CAT-05 só esconde preço e estoque).
+ */
+export const FotoProdutoEntradaSchema = z.object({ produto_ids: z.array(Id).min(1).max(200), abrir: z.boolean().default(false) }).strict();
+export type FotoProdutoEntrada = z.infer<typeof FotoProdutoEntradaSchema>;
+
+export const FotoProdutoSaidaSchema = z.object({
+  itens: z.array(z.object({ produto_id: Id, tem_foto: z.boolean(), uri: z.string().nullable() })),
+});
+export type FotoProdutoSaida = z.infer<typeof FotoProdutoSaidaSchema>;
+
+export const CONSULTA_FOTO_PRODUTO = definirConsulta({
+  nome: 'catalogo.foto_produto@1',
+  entrada: FotoProdutoEntradaSchema,
+  saida: FotoProdutoSaidaSchema,
 });

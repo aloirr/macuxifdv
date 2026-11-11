@@ -20,6 +20,9 @@ export interface OpcoesEstoque {
   parametros: Pick<ParametrosCatalogo, 'estoque_baixo_ate' | 'estoque_mostrar_quantidade' | 'estoque_defasado_horas'>;
 }
 
+/** Texto da faixa para as telas (app e BKO usam o mesmo). */
+export const ROTULO_FAIXA_ESTOQUE: Record<FaixaEstoque, string> = { disponivel: 'Disponível', baixo: 'Estoque baixo', sem_estoque: 'Sem estoque' };
+
 /** 0 ou menos = sem estoque; de 1 até `baixoAte` = baixo; acima = disponível. */
 export function faixaDeEstoque(quantidade: number, baixoAte: number): FaixaEstoque {
   if (quantidade <= 0) return 'sem_estoque';
@@ -80,4 +83,22 @@ export function rotuloAtualizacaoEstoque(estoque: Pick<EstoqueVisivel, 'updated_
   if (localDate(t, fuso) === localDate(a, fuso)) return `Atualizado às ${hora}`;
   const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit' }).format(t);
   return `Atualizado em ${dia} às ${hora}`;
+}
+
+export interface EntradaFiliaisDoEstoque {
+  /** Filial efetiva do cliente do contexto (Novo pedido, ficha do cliente); nula = sem cliente no contexto. */
+  filialDoCliente: string | null;
+  /** Vendedor/supervisor veem a carteira; analista, assistente e admin veem o tenant (RN-CORE-04). */
+  escopo: 'carteira' | 'tenant';
+  /** Filiais dos clientes da carteira + a padrão (`core.filiais@1 { escopo: 'carteira' }.da_carteira`); nulo = todas. */
+  filiaisDaCarteira: readonly string[] | null;
+}
+
+/**
+ * RN-CORE-39 + RN-CAT-07: filiais cujo saldo o usuário vê (o argumento `filiais` de `estoqueVisivel`). Com cliente no
+ * contexto vale só a filial dele (sem saldo nela = 0, nunca o da padrão); sem cliente, a carteira ou o tenant todo (`null`).
+ */
+export function filiaisDoEstoque(e: EntradaFiliaisDoEstoque): readonly string[] | null {
+  if (e.filialDoCliente !== null) return [e.filialDoCliente];
+  return e.escopo === 'tenant' ? null : e.filiaisDaCarteira;
 }
