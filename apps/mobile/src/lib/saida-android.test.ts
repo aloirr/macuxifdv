@@ -3,6 +3,7 @@
  * do app" do Diagnóstico, sem dado pessoal. Reproduz a sequência do teste de 10/11 (05h32–05h34): três quedas seguidas e a
  * abertura que deu certo.
  */
+import { MOTIVOS_SAIDA_ANDROID } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -17,6 +18,9 @@ import {
   type SaidaAndroid,
 } from './saida-android';
 import { textoDoUltimoErro } from './erro-de-tela';
+
+/** RD-0124: o texto do motivo vem da tabela única do SDK (os rótulos são do designer-ux). */
+const rotulo = (n: number) => MOTIVOS_SAIDA_ANDROID[n]!.rotulo;
 
 const AGORA = Date.parse('2026-11-10T09:34:30.000Z');
 const s = (o: Partial<SaidaAndroid>): SaidaAndroid => ({
@@ -70,11 +74,11 @@ describe('ehQueda', () => {
 
 describe('descricaoDaSaida e registroDaSaida', () => {
   it('erro nativo com o sinal; falta de memória com a memória do app; ANR com a pilha da linha principal', () => {
-    expect(descricaoDaSaida(s({ motivo: 5, status: 11 }))).toBe('erro nativo · sinal 11 (SIGSEGV)');
-    expect(descricaoDaSaida(s({ motivo: 3, status: 0, pss_kb: 420 * 1024 }))).toBe('falta de memória no aparelho · memória do app 420 MB');
+    expect(descricaoDaSaida(s({ motivo: 5, status: 11 }))).toBe(`${rotulo(5)} · sinal 11 (SIGSEGV)`);
+    expect(descricaoDaSaida(s({ motivo: 3, status: 0, pss_kb: 420 * 1024 }))).toBe(`${rotulo(3)} · memória do app 420 MB`);
     const anr = registroDaSaida(s({ motivo: 6, status: 0, descricao: 'Input dispatching timed out', pilha: 'at a.b.C.d(C.java:1)' }), null);
     expect(anr).toMatchObject({ origem: 'fatal', onde: 'Android', pilha: 'at a.b.C.d(C.java:1)' });
-    expect(anr.mensagem).toBe('o app travou (ANR) · Input dispatching timed out');
+    expect(anr.mensagem).toBe(`${rotulo(6)} · Input dispatching timed out`);
   });
 
   it('RD-0072: o cabeçalho do Último erro diz "o app fechou · Android", sem "encerrado" repetindo "fechou"', () => {
@@ -85,7 +89,7 @@ describe('descricaoDaSaida e registroDaSaida', () => {
   it('erro Java do mesmo fechamento entra na mensagem e na pilha (sem a linha do nome da thread)', () => {
     const erro = { quando: AGORA - 59_000, texto: 'linha main\njava.lang.IllegalStateException: banco fechado\n  at x.Y.z(Y.kt:3)' };
     const r = registroDaSaida(s({ motivo: 4, status: 0 }), erro);
-    expect(r.mensagem).toBe('erro Java não tratado\njava.lang.IllegalStateException: banco fechado');
+    expect(r.mensagem).toBe(`${rotulo(4)}\njava.lang.IllegalStateException: banco fechado`);
     expect(r.pilha).toBe('  at x.Y.z(Y.kt:3)');
     // erro Java de outro fechamento (antigo) não se mistura
     expect(registroDaSaida(s({ motivo: 4, status: 0 }), { ...erro, quando: AGORA - 3_600_000 }).pilha).toBeNull();
@@ -111,7 +115,7 @@ describe('saidaParaRegistrar — sequência do teste de 10/11', () => {
   it('1ª leitura (APK novo): a queda mais recente dos últimos 7 dias vira o Último erro do app', () => {
     const d = saidaParaRegistrar(historico, null, null, null, AGORA);
     expect(d.registro).toMatchObject({ origem: 'fatal', onde: 'Android' });
-    expect(d.registro!.mensagem).toBe('falta de memória no aparelho · memória do app 512 MB');
+    expect(d.registro!.mensagem).toBe(`${rotulo(3)} · memória do app 512 MB`);
     expect(d.vistaAte).toBe(AGORA - 20_000);
   });
 
@@ -148,8 +152,8 @@ describe('linhasDasSaidas (Diagnóstico)', () => {
     );
     expect(linhas).toEqual([
       'Saídas do app (Android):',
-      '  [09:33] · erro nativo · sinal 11 (SIGSEGV)',
-      '  [09:33] · fechado pelo usuário (normal)',
+      `  [09:33] · ${rotulo(5)} · sinal 11 (SIGSEGV)`,
+      `  [09:33] · ${rotulo(10)} (normal)`,
     ]);
   });
   it('sem o módulo no APK ou sem saídas', () => {

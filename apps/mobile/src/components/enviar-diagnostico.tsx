@@ -15,6 +15,7 @@ import { AccessibilityInfo, Image, StyleSheet, Text, TextInput, View } from 'rea
 
 import {
   ajudaDaSituacao,
+  iconeDaSituacao,
   linhaDoHistorico,
   MAX_DESCRICAO_DIAGNOSTICO,
   tituloDaSituacao,
@@ -133,7 +134,7 @@ export function EnviarDiagnostico({ usuarioId, tenantId, tz }: { usuarioId: stri
           <View style={styles.confirmacao}>
             <View style={[styles.selo, { backgroundColor: resultado.situacao === 'enviado' ? colors.successBg : resultado.situacao === 'falhou' ? colors.dangerBg : colors.warningBg }]}>
               <Icon
-                name={resultado.situacao === 'enviado' ? 'check' : resultado.situacao === 'falhou' ? 'alert' : 'wifiOff'}
+                name={iconeDaSituacao(resultado)}
                 size={24}
                 color={resultado.situacao === 'enviado' ? colors.success : resultado.situacao === 'falhou' ? colors.danger : colors.warning}
               />

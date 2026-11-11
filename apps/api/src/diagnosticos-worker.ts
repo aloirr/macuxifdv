@@ -21,7 +21,7 @@
  *
  * Log: `tipo: diagnostico`, ids, protocolo, situação, tentativas e contagens; nunca texto do aparelho nem o token.
  */
-import { formatarProtocolo, RETENCAO_DIAGNOSTICO_DIAS, type LogRota } from '@macuxi/platform-sdk';
+import { formatarProtocolo, RETENCAO_DIAGNOSTICO_DIAS, rotuloDoMotivoDiagnostico, type LogRota } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import type { ArmazenamentoArquivos } from './arquivos';
 import { mensagemSegura } from './log-seguro';
@@ -118,7 +118,9 @@ const urlBase = (u: string) => u.replace(/\/+$/, '');
 export function montarRecadoDiagnostico(l: LinhaAlerta, o: { id: string; agora: Date; urlPortal: string }): string {
   const protocolo = formatarProtocolo(Number(l.protocolo));
   const motivo = textoDeUmaLinha(l.motivo, 60);
-  const origem = l.origem === 'botao' ? 'enviado pelo botão' : l.origem === 'queda' ? `queda (${motivo})` : `erro de tela (${motivo})`;
+  // RD-0124: no título, o mesmo texto que o app e o portal mostram (tabela única do SDK); o código fica no Contexto.
+  const rotulo = textoDeUmaLinha(rotuloDoMotivoDiagnostico(l.motivo), 60);
+  const origem = l.origem === 'botao' ? 'enviado pelo botão' : l.origem === 'queda' ? `queda (${rotulo})` : `erro de tela (${rotulo})`;
   const aparelho = textoDeUmaLinha([l.aparelho_fabricante, l.aparelho_modelo].filter(Boolean).join(' '), 120);
   const android = textoDeUmaLinha(l.android, 20);
   const versao = textoDeUmaLinha(l.versao_app, 20);

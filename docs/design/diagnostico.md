@@ -12,7 +12,7 @@ Mesmo componente nos dois apps (`apps/mobile/src/components/enviar-diagnostico.t
 2. Botão **secundário** `Enviar diagnóstico` (`Button variant="outlineDark"`, 44 dp, ícone `send`). Não é o principal do Perfil.
 3. `ÚLTIMOS ENVIOS` (some sem envio): lista de até 10 linhas, do mais novo ao mais antigo, que não abre nada.
    - Linha: selo de situação com texto · `nº 0042` (Archivo 700, tabular) ou o motivo curto · data à direita (`Hoje, 14:32`).
-   - Selos: `Enviado` (sucesso), `Na fila` + "sem sinal" (aviso, `warningInk`), `Não enviado` + "limite da hora" ou "recusado" (perigo).
+   - Selos: `Enviado` (sucesso), `Na fila` + "sem sinal" ou "servidor indisponível" (aviso, `warningInk`; o 2º quando o servidor respondeu 404/405/501, 5xx, 401 ou 408), `Não enviado` + "limite da hora" ou "recusado" (perigo). Nunca "aguardando o servidor": "Na fila" já diz que aguarda (T-0158, parecer de 11/11).
    - 2ª linha só no envio automático (v1.0.5): `Queda do app · automático` ou `Erro de tela · automático`. O envio pelo botão não tem 2ª linha.
    - TalkBack: "Enviado, número 0042, hoje às 14:32".
 
@@ -27,9 +27,12 @@ Mesmo componente nos dois apps (`apps/mobile/src/components/enviar-diagnostico.t
 | Situação | Ícone | Título (Archivo 800, 22) | Apoio |
 |---|---|---|---|
 | Aceito | `check` em `successBg` | `Enviado · nº 0042` | `Se falar com o suporte, diga este número.` (vibração leve) |
-| Sem sinal | `wifiOff` em `warningBg` | `Na fila` | `Vai sozinho quando tiver sinal. O número aparece em Últimos envios.` |
+| Sem sinal | `wifiOff` em `warningBg` | `Na fila` | `Sem sinal. Não precisa enviar de novo.` |
+| Servidor não aceitou ainda (404/405/501, 5xx, 401, 408) | `clock` em `warningBg` | `Na fila` | `Servidor indisponível. Não precisa enviar de novo.` |
 | 429 | `alerta` em `dangerBg` | `Não enviado` | `Muitos envios nesta hora. Tente mais tarde.` |
 | Outra recusa | `alerta` em `dangerBg` | `Não enviado` | `Não deu para enviar. Tente de novo.` |
+
+Na fila: a ajuda diz só a causa e a ação (não reenviar); "Vai sozinho quando…" e "O número aparece em Últimos envios" saíram por serem o que o sistema faz por trás (R-20261110-192153); a linha nova aparece no topo de Últimos envios ao fechar.
 
 Botão único `Fechar` (secundário, 52 dp). Fechar volta ao Perfil com a linha nova no topo de Últimos envios.
 Fechar sem enviar (✕, arrastar, Voltar) descarta o texto e o print, sem pergunta.
