@@ -53,11 +53,14 @@ De 04 a 11/11, o CI rodou 244 vezes:
 - **Marcar a árvore verde no cache do Actions:** o `main` não lê cache de outro branch. O artefato é lido pela API.
 
 ## Consequências
-- Estimativa: ~11.000 min/semana passam a ~4.400–6.000 (−46% a −60%).
-  - A ponta de baixo supõe no máximo 2 ensaios por lote; com o ritmo de hoje (104 ensaios na semana), fica na ponta de cima.
-  - O item 8 (Telegram no repositório de recados) soma à parte.
+- Estimativa por semana, com os números de 04 a 11/11:
+  - antes: ~10.300 min (CI ~9.400, `demo-publicar` ~600, stack isolado ~300);
+  - depois, com o ritmo de hoje (104 ensaios): ~6.100 min (−40%);
+  - depois, com 1 ensaio por lote (~50): ~4.500 min (−56%);
+  - o item 8 (Telegram no repositório de recados) soma à parte.
+- Por run: ~28 min cobrados com código afetado e ~37 com todos os pacotes, contra ~43–47. O push ao `main` de um ensaio verde e o commit só de documentação ficam em ~2.
   - O que sobra é a suíte de integração, ~12 min em todo run com código.
-- O ensaio fica mais curto (~25–30 min cobrados contra ~47). O push ao `main` de um ensaio verde cai de ~43 para ~2.
+  - O que ainda pesa é o número de ensaios.
 - Pacote novo entra sozinho (o grafo vem dos `package.json`). Pasta de documentação lida por código precisa estar nos inputs do `turbo.json`, ou a R4 fica vermelha.
 - Wall time: o `testes-integracao` num job só leva ~12 min, contra ~7 antes, e passa a ser o caminho crítico.
 - Reverter = voltar o `ci.yml`, o `escopo.mjs` e a R4 desta ADR. Não há estado guardado além dos artefatos de 14 dias.
