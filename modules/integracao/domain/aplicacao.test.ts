@@ -94,13 +94,13 @@ describe('RN-INT-04: reprocessar quem dependia de uma entidade', () => {
 describe('RN-INT-04/06: resultado da carga por entidade (monitor)', () => {
   const c = (extra = {}) => ({ recebidas: 10, com_erro: 0, novas: 10, atualizadas: 0, inalteradas: 0, ...extra });
 
-  it('RN-INT-04: devolve as 15 entidades (8 originais + 4 da T-0061 + 3 da T-0089) na ordem de dependência, com estado e quem ainda está pendente', () => {
+  it('RN-INT-04: devolve as 16 entidades (8 originais + 4 da T-0061 + 3 da T-0089 + filial da T-0149) na ordem de dependência, com estado e quem ainda está pendente', () => {
     const r = resumirCargaPorEntidade([
       { entidade: 'vendedor', status: 'concluido', contagens: c() },
       { entidade: 'cliente', status: 'processando', contagens: c({ recebidas: 0 }) },
       { entidade: 'rota', status: 'recebido', contagens: c({ recebidas: 0 }) },
     ]);
-    expect(r).toHaveLength(15);
+    expect(r).toHaveLength(16);
     const por = Object.fromEntries(r.map((x) => [x.entidade, x]));
     expect(por.vendedor).toMatchObject({ estado: 'concluida', lotes: 1, recebidas: 10 });
     expect(por.cliente?.estado).toBe('em_andamento');

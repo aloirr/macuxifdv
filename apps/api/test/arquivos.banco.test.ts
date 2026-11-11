@@ -70,6 +70,34 @@ const vendedorApi = definirModuloApi({
           tx.registrarArquivo({ id: ctx.corpo.foto_id, finalidade: 'comprovante', entidade: 'pedido', entidade_id: ctx.corpo.id, cliente_id: ctx.corpo.cliente_id }),
         ),
     },
+    // ADR 0041 (T-0147): documento restrito por perfil e a troca da lista na mesma transação
+    {
+      metodo: 'POST',
+      caminho: 'documentos',
+      acao: 'pedido.criar',
+      status: 201,
+      corpo: z.object({ id: z.string().uuid(), cliente_id: z.string().uuid(), foto_id: z.string().uuid() }),
+      carteira: (e) => (e.corpo as { cliente_id: string }).cliente_id,
+      executar: (ctx) =>
+        ctx.comTenant(async (_db, tx) =>
+          tx.registrarArquivo({
+            id: ctx.corpo.foto_id,
+            finalidade: 'documento',
+            entidade: 'pedido',
+            entidade_id: ctx.corpo.id,
+            cliente_id: ctx.corpo.cliente_id,
+            perfis_leitura: ['admin', 'analista', 'gerente', 'supervisor'],
+          }),
+        ),
+    },
+    {
+      metodo: 'POST',
+      caminho: 'documentos/liberar',
+      acao: 'pedido.criar',
+      carteira: 'nao_se_aplica',
+      corpo: z.object({ ids: z.array(z.string().uuid()) }),
+      executar: (ctx) => ctx.comTenant(async (_db, tx) => tx.restringirArquivos!({ entidade: 'pedido', entidade_ids: ctx.corpo.ids, perfis_leitura: null })),
+    },
   ],
 });
 
@@ -210,5 +238,29 @@ describe.skipIf(semBanco())('arquivos × Postgres (ADR 0010)', () => {
     expect(outro.json()).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
     expect((await get('analista', anexo)).statusCode).toBe(200);
     expect((await get('adminB', foto)).statusCode).toBe(404);
+  });
+
+  it('ADR 0041 (T-0147, RN-CORE-38): perfis_leitura gravado no comando; o vendedor que enviou não reabre; restringirArquivos libera na mesma transação', async () => {
+    const pedido = randomUUID();
+    const foto = randomUUID();
+    const r = await app.inject({ method: 'POST', url: '/v1/vendedor/documentos', headers: { 'x-teste-usuario': 'vendedor1' }, payload: { id: pedido, cliente_id: A.clientes.c1, foto_id: foto } });
+    expect(r.statusCode).toBe(201);
+    expect(await linha(foto)).toMatchObject({ perfis_leitura: ['admin', 'analista', 'gerente', 'supervisor'] });
+    expect((await put('vendedor1', foto, jpeg(8))).statusCode).toBe(201); // o upload não depende do perfil de leitura
+
+    const vendedor = await get('vendedor1', foto);
+    expect(vendedor.statusCode).toBe(404);
+    expect(vendedor.json()).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+    const analista = await get('analista', foto);
+    expect(analista.statusCode).toBe(200);
+    expect(analista.headers['cache-control']).toBe('private, no-store');
+
+    const liberar = () => app.inject({ method: 'POST', url: '/v1/vendedor/documentos/liberar', headers: { 'x-teste-usuario': 'vendedor1' }, payload: { ids: [pedido] } });
+    expect((await liberar()).json()).toEqual({ alterados: 1 });
+    expect((await liberar()).json()).toEqual({ alterados: 0 }); // idempotente
+    expect(await linha(foto)).toMatchObject({ perfis_leitura: null });
+    const depois = await get('vendedor1', foto);
+    expect(depois.statusCode).toBe(200);
+    expect(depois.headers['cache-control']).toBe('private, max-age=86400');
   });
 });

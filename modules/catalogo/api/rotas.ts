@@ -56,6 +56,7 @@ import {
   SalvarConteudo,
   ConsultaEscalonadaQuery,
   ConsultaPrecosTabelaQuery,
+  ConsultaTabelasPrecoQuery,
   ParamsFaixa,
   ParamsTabelaPreco,
   SalvarDestaque,
@@ -84,6 +85,7 @@ import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domai
 import { montarExportacao } from '../domain/exportacao';
 import { montarArvore, produtosDoNo } from '../domain/arvore';
 import { idsAtivos, navegarHierarquia } from '../domain/hierarquia';
+import { filialDaTelaDePreco } from '../domain/preco-filial';
 import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
@@ -121,6 +123,14 @@ function vocabularioEmCache(produtos: readonly ProdutoCatalogo[]): ReturnType<ty
 
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
+/** RN-CORE-39: filial dos preços na tela do BKO (a pedida ou a padrão); filial que não é do tenant dá 422. */
+async function filialDaTela(repo: RepositorioCatalogo, pedida: string | undefined) {
+  const { padraoId, filiais } = await repo.filiaisDaTela();
+  const r = filialDaTelaDePreco(pedida, padraoId, filiais.map((f) => f.id));
+  if (!r.ok) throw new ErroHttpModulo(422, 'FILIAL_INEXISTENTE', 'Essa filial não existe neste tenant. Escolha outra na lista de filiais.');
+  return { filialId: r.filialId, filiais };
+}
+
 /** RN-CORE-04: cliente em contexto precisa estar na carteira (403 FORA_DA_CARTEIRA, como o `createApp`). */
 async function conferirCliente(ctx: ContextoBase, clienteId: string | undefined): Promise<string | null> {
   if (!clienteId) return null;
@@ -137,11 +147,11 @@ async function contextoVitrine(ctx: ContextoBase, repo: RepositorioCatalogo, p: 
   }
   const ids = produtos.filter((x) => x.ativo).map((x) => x.id);
   // T-0119: o corte dos candidatos só precisa do estoque (a nota da busca não usa o preço)
-  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario() };
+  if (soEstoque) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: await repo.saldos(ids), filiais: await repo.filiaisDoUsuario(clienteId) };
   const precos = await repo.precos(clienteId, ids);
   const promocoes = await repo.promocoes(ids);
   const saldos = await repo.saldos(ids);
-  const filiais = await repo.filiaisDoUsuario();
+  const filiais = await repo.filiaisDoUsuario(clienteId);
   return { ...base, tabelaClienteId: precos.tabelaClienteId, itensPreco: precos.itens, promocoes, saldos, filiais };
 }
 
@@ -585,8 +595,12 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     caminho: ROTAS_CATALOGO.tabelasPreco,
     acao: 'tabela_preco.gerenciar',
     carteira: 'nao_se_aplica',
-    async executar(ctx: Ctx): Promise<ListaTabelasPreco> {
-      return { items: await comRepo(ctx, (repo) => repo.tabelasPreco()) };
+    query: ConsultaTabelasPrecoQuery,
+    async executar(ctx: Ctx<unknown, ConsultaTabelasPrecoQuery>): Promise<ListaTabelasPreco> {
+      return comRepo(ctx, async (repo) => {
+        const { filialId, filiais } = await filialDaTela(repo, ctx.query.filial);
+        return { items: await repo.tabelasPreco(filialId), filial_id: filialId, filiais };
+      });
     },
   };
 
@@ -600,7 +614,8 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     async executar(ctx: Ctx<unknown, ConsultaPrecosTabelaQuery, ParamsTabelaPreco>): Promise<PaginaPrecosTabela> {
       const { q, limit, offset } = ctx.query;
       return comRepo(ctx, async (repo) => {
-        const [precos, produtos] = await Promise.all([repo.precosUnidade(ctx.params.id), repo.produtos()]);
+        const { filialId } = await filialDaTela(repo, ctx.query.filial);
+        const [precos, produtos] = await Promise.all([repo.precosUnidade(ctx.params.id, filialId), repo.produtos()]);
         const porId = new Map(produtos.map((p) => [p.id, p]));
         const termo = q ? chaveDeTermo(q) : '';
         const linhas = precos
@@ -608,7 +623,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
           .filter((l) => termo === '' || chaveDeTermo(`${l.sku} ${l.nome}`).includes(termo))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.produto_id.localeCompare(b.produto_id));
         const items = linhas.slice(offset, offset + limit);
-        return { items, total: linhas.length, next_offset: offset + limit < linhas.length ? offset + limit : null };
+        return { filial_id: filialId, items, total: linhas.length, next_offset: offset + limit < linhas.length ? offset + limit : null };
       });
     },
   };
@@ -623,12 +638,13 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
       const { q, tabela_preco_id, vigente, limit, offset } = ctx.query;
       const hoje = dataCivilNoFuso(ctx.agora(), ctx.fuso());
       return comRepo(ctx, async (repo) => {
-        const [faixas, tabelas, produtos] = await Promise.all([repo.faixas(), repo.tabelasPreco(), repo.produtos()]);
+        const { filialId: filialPadrao } = await filialDaTela(repo, undefined);
+        const [faixas, tabelas, produtos] = await Promise.all([repo.faixas(), repo.tabelasPreco(filialPadrao), repo.produtos()]);
         const porId = new Map(produtos.map((p) => [p.id, p]));
         const nomeTabela = new Map(tabelas.map((t) => [t.id, t.nome]));
         // P4: compara com o preço da UN na tabela (só das tabelas citadas pelas faixas; a geral compara com a menor tabela)
         const precoDaTabela = new Map<string, number>();
-        for (const t of new Set(faixas.map((f) => f.tabela_preco_id).filter((x): x is string => x !== null))) for (const p of await repo.precosUnidade(t)) precoDaTabela.set(`${t}|${p.produto_id}`, p.preco_cents);
+        for (const t of new Set(faixas.map((f) => f.tabela_preco_id).filter((x): x is string => x !== null))) for (const p of await repo.precosUnidade(t, filialPadrao)) precoDaTabela.set(`${t}|${p.produto_id}`, p.preco_cents);
         const termo = q ? chaveDeTermo(q) : '';
         const linhas: FaixaCadastrada[] = faixas
           .filter((f) => !tabela_preco_id || f.tabela_preco_id === tabela_preco_id)

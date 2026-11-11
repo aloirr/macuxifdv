@@ -7,8 +7,9 @@
 --   Um MODELO. As tabelas de origem (erp_*) e as colunas delas são fictícias: o técnico do cliente troca pelas tabelas do
 --   ERP dele e cria as views no banco do ERP, com o usuário somente leitura do Conector tendo SELECT nelas.
 --   Uma view por entidade do Hub, NA ORDEM DE CARGA do Conector (apps/conector/src/config/entidades.ts, ORDEM_CARGA):
---   vendedor, catalogo_no, transportadora, forma_pagamento, prazo_pagamento, produto, produto_unidade, cliente,
+--   vendedor, filial, catalogo_no, transportadora, forma_pagamento, prazo_pagamento, produto, produto_unidade, cliente,
 --   cliente_endereco, preco, tabela_escalonada, estoque, rota, titulo, nota.
+--   A entrada de PEDIDOS (Macuxi -> ERP) tem modelo próprio: db/conector/entrada-pedido-modelo.sql.
 --   Crie só as views das entidades que o tenant liga no Conector (lista "entidades" no BKO).
 --
 -- REGRAS DE TODA VIEW
@@ -83,6 +84,47 @@ SELECT
     v.email                                                  AS email,           -- e-mail corporativo (até 160)
     v.telefone                                               AS telefone         -- até 30
 FROM erp_vendedor v;
+
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- 1b. filial (T-0149, RN-CORE-39, ADR 0040) — unidade de onde saem as entregas (empresa/filial/estabelecimento do ERP).
+--     Carga ANTES do cliente, do preço, da faixa e do estoque (eles citam a filial pelo external_id desta view).
+--     Dono do dado no Macuxi: Core (core.filial). O Macuxi casa pelo external_id; a filial padrão nasce no Macuxi com o
+--     código '0001' e SEM external_id e é "adotada" pela primeira carga com o MESMO código — devolva em "codigo" o código
+--     que a filial principal tem no ERP e, se ele não for '0001', ajuste a padrão no BKO antes da 1ª carga. O ERP não
+--     define a padrão (quem marca é o admin no BKO).
+--     ERP sem filiais (uma empresa só): não crie esta view nem ligue a entidade; tudo fica na filial padrão.
+--     T-0159 (migração 0059, cabeçalho do PDF pela filial de faturamento): CNPJ, endereço e telefone da filial. CNPJ e
+--     endereço (logradouro, número, bairro, cidade, UF, CEP) são OBRIGATÓRIOS na regra (R-20261110-220007): a carga recusa
+--     a filial sem eles e mostra o erro no monitor; complemento e telefone são opcionais.
+--     conector.json, "campos": external_id, alterado_em, ativo {booleano}, codigo, nome, cidade, uf, cnpj, logradouro,
+--     numero, complemento, bairro, cep, telefone.
+-- ---------------------------------------------------------------------------------------------------------------------
+CREATE VIEW vw_macuxi_filial AS
+SELECT
+    CAST(f.id_filial AS VARCHAR(200))                        AS external_id,     -- id interno da filial/estabelecimento (NUNCA o CNPJ)
+    -- [Oracle]     CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(COALESCE(f.dt_alteracao, f.dt_inclusao) AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3)) AS alterado_em,
+    -- [SQL Server]
+    CAST(COALESCE(f.dt_alteracao, f.dt_inclusao) AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS alterado_em,
+    CASE WHEN f.ativo = 'S' THEN 1 ELSE 0 END                AS ativo,           -- filial desativada no ERP = 0 (não apague)
+    -- [Oracle]     TRIM(f.codigo)                           AS codigo,
+    -- [SQL Server] (1 a 20, único no tenant: o código que aparece no app, ex.: '0002')
+    LTRIM(RTRIM(f.codigo))                                   AS codigo,
+    f.nome                                                   AS nome,            -- 1 a 80 ("Filial Boa Vista")
+    f.cidade                                                 AS cidade,          -- até 80
+    UPPER(f.uf)                                              AS uf,              -- 2 letras
+    -- [Oracle]     REGEXP_REPLACE(f.cnpj, '[^0-9]', '')     AS cnpj,
+    -- [SQL Server] (14 dígitos, sem máscara; o CNPJ DESTA filial/estabelecimento, não o da matriz)
+    REPLACE(REPLACE(REPLACE(f.cnpj, '.', ''), '/', ''), '-', '') AS cnpj,
+    f.logradouro                                             AS logradouro,      -- até 160
+    f.numero                                                 AS numero,          -- até 20 ('S/N' vale)
+    f.complemento                                            AS complemento,     -- até 80; NULL = sem complemento
+    f.bairro                                                 AS bairro,          -- até 80
+    -- [Oracle]     REGEXP_REPLACE(f.cep, '[^0-9]', '')      AS cep,
+    -- [SQL Server] (8 dígitos, sem máscara)
+    REPLACE(REPLACE(f.cep, '-', ''), '.', '')                AS cep,
+    f.telefone                                               AS telefone         -- até 30; NULL = sem telefone
+FROM erp_filial f;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -254,6 +296,7 @@ FROM erp_produto_unidade u;
 --        como texto JSON ('["PIX","BOLETO"]'). '[]' = limpa (todas as formas ativas). Se o ERP não controla formas por
 --        cliente, devolva CAST(NULL AS VARCHAR(1)): o Macuxi mantém o que foi definido no BKO. Mais de 20 formas
 --        recusa a linha inteira do cliente: restrinja no ERP (ou filtre na view) antes.
+--    Campo da T-0149 (filial do cliente, RN-CORE-39): filial_external_id — a chave da view 1b; NULL = não altera.
 --    Campo da T-0120 (vínculo cliente -> tabela de preço; R-20261108-230146):
 --      tabela_preco_external_id — a MESMA chave da coluna tabela_external_id da view 10 (preco). NULL = NÃO ALTERA (o
 --        Conector omite nulos): o cliente que usa a tabela padrão do ERP sai NULL e fica com o vínculo que já tinha no
@@ -275,6 +318,10 @@ SELECT
     CAST(c.id_vendedor AS VARCHAR(200))                      AS vendedor_external_id, -- carteira (view 1)
     -- T-0120: igual nos dois dialetos. NULL = não altera (tabela padrão do ERP); a chave é a tabela_external_id da view 10.
     CAST(c.id_tabela_preco AS VARCHAR(200))                  AS tabela_preco_external_id,
+    -- T-0149 (RN-CORE-39): filial que atende o cliente (a MESMA chave da coluna external_id da view 1b). NULL = NÃO ALTERA
+    -- (o Conector omite nulos: o cliente fica na filial que já tem no Macuxi; cliente novo cai na filial padrão). ERP sem
+    -- filial no cliente: CAST(NULL AS VARCHAR(200)). Igual nos dois dialetos.
+    CAST(c.id_filial AS VARCHAR(200))                        AS filial_external_id,
     c.logradouro                                             AS endereco_logradouro,
     c.numero                                                 AS endereco_numero,
     c.complemento                                            AS endereco_complemento,
@@ -343,13 +390,17 @@ FROM erp_cliente_endereco e;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- 10. preco — item de tabela de preço (um registro = um produto numa tabela/vigência). Mapeamento: preco_cents inteiro.
+-- 10. preco — item de tabela de preço (um registro = um produto numa tabela/filial/vigência). Mapeamento: preco_cents inteiro.
+--     T-0149 (RN-CORE-39, ADR 0040): a tabela de preço vale POR FILIAL. filial_external_id = a chave da view 1b; NULL = a
+--     filial PADRÃO. A chave passa a filial:tabela:produto:início. Quem já integra com UMA filial só pode MANTER a chave
+--     antiga (tabela:produto:início) e devolver CAST(NULL AS VARCHAR(200)) em filial_external_id: nada muda no Macuxi.
+--     Trocar a chave de quem já integra = a próxima carga completa recria os itens e inativa os da chave antiga.
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_preco AS
 SELECT
-    -- [Oracle]     i.id_tabela || ':' || i.id_produto || ':' || TO_CHAR(i.dt_inicio, 'YYYYMMDD') AS external_id,
+    -- [Oracle]     i.id_filial || ':' || i.id_tabela || ':' || i.id_produto || ':' || TO_CHAR(i.dt_inicio, 'YYYYMMDD') AS external_id,
     -- [SQL Server]
-    CONCAT(i.id_tabela, ':', i.id_produto, ':', CONVERT(CHAR(8), i.dt_inicio, 112)) AS external_id, -- tabela:produto:início
+    CONCAT(i.id_filial, ':', i.id_tabela, ':', i.id_produto, ':', CONVERT(CHAR(8), i.dt_inicio, 112)) AS external_id, -- filial:tabela:produto:início
     -- [Oracle]     CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(i.dt_alteracao AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3)) AS alterado_em,
     -- [SQL Server]
     CAST(i.dt_alteracao AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS alterado_em,
@@ -364,7 +415,8 @@ SELECT
     CONVERT(CHAR(10), i.dt_fim, 23)                          AS vigencia_fim,
     CAST(i.id_produto AS VARCHAR(200))                       AS produto_external_id,
     CAST(ROUND(i.preco * 100, 0) AS DECIMAL(19,0))           AS preco_cents,
-    UPPER(i.unidade)                                         AS unidade          -- NULL = unidade base do produto
+    UPPER(i.unidade)                                         AS unidade,         -- NULL = unidade base do produto
+    CAST(i.id_filial AS VARCHAR(200))                        AS filial_external_id -- T-0149: NULL = filial padrão
 FROM erp_tabela_preco_item i
 JOIN erp_tabela_preco t ON t.id_tabela = i.id_tabela;
 
@@ -376,7 +428,7 @@ JOIN erp_tabela_preco t ON t.id_tabela = i.id_tabela;
 --     medida da faixa. Vigência fechada nas duas pontas, em data civil do fuso do tenant.
 --     conector.json, "campos": external_id, alterado_em, ativo {booleano}, produto_external_id, medida,
 --     quantidade_minima {inteiro}, preco_unidade_cents {inteiro}, vigencia_inicio {data_civil}, vigencia_fim {data_civil},
---     tabela_external_id.
+--     tabela_external_id, filial_external_id.
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_tabela_escalonada AS
 SELECT
@@ -400,12 +452,17 @@ SELECT
     -- [Oracle]     TO_CHAR(f.dt_fim, 'YYYY-MM-DD')          AS vigencia_fim,
     -- [SQL Server] (NULL = sem fim; fim >= início)
     CONVERT(CHAR(10), f.dt_fim, 23)                          AS vigencia_fim,
-    CAST(f.id_tabela AS VARCHAR(200))                        AS tabela_external_id -- NULL = vale para todas as tabelas
+    CAST(f.id_tabela AS VARCHAR(200))                        AS tabela_external_id, -- NULL = vale para todas as tabelas
+    -- T-0149 (RN-CORE-39): faixa só de uma filial (chave da view 1b). NULL = vale para TODAS as filiais; na mesma faixa, a
+    -- da filial vence a geral. Igual nos dois dialetos.
+    CAST(f.id_filial AS VARCHAR(200))                        AS filial_external_id
 FROM erp_preco_faixa f;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 12. estoque — saldo por depósito e produto (reservas são do Macuxi). Mapeamento: saldo número.
+--     T-0149 (RN-CORE-39): o depósito pertence a uma filial (o estoque da filial = soma dos depósitos dela).
+--     filial_external_id = a chave da view 1b; NULL em depósito NOVO = filial padrão; em depósito já conhecido = não altera.
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_estoque AS
 SELECT
@@ -419,7 +476,8 @@ SELECT
     CAST(s.id_deposito AS VARCHAR(200))                      AS deposito_external_id,
     d.descricao                                              AS deposito_nome,
     CAST(s.id_produto AS VARCHAR(200))                       AS produto_external_id,
-    s.saldo_disponivel                                       AS saldo           -- pode ser fracionário
+    s.saldo_disponivel                                       AS saldo,          -- pode ser fracionário
+    CAST(d.id_filial AS VARCHAR(200))                        AS filial_external_id -- T-0149: filial do depósito
 FROM erp_estoque_saldo s
 JOIN erp_deposito d ON d.id_deposito = s.id_deposito;
 

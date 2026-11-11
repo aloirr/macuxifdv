@@ -60,10 +60,12 @@ export const manifest = defineModule({
   // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
   usaExtensoes: [],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
+  // T-0148: foto_produto (ícone de câmera e foto ao tocar, cache no aparelho)
   // T-0084: textos (aplicação e referências) e busca do seletor do Novo pedido, com o mesmo ranking da vitrine
-  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1'],
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.marcas@1', 'catalogo.foto_produto@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
-  usaConsultas: ['core.cadastro_resumo@1'],
+  // T-0149 (RN-CORE-39): filial do cliente, filial padrão e filiais da carteira (preço e estoque por filial, pull do aparelho, consumidores do ERP)
+  usaConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },

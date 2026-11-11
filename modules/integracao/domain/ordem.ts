@@ -16,14 +16,16 @@ export const DEPENDENCIAS: Readonly<Record<Entidade, readonly Entidade[]>> = {
   // T-0089: forma antes de prazo; produto antes da faixa; cliente depois das formas (referência por código, sem recusar a linha)
   forma_pagamento: [],
   prazo_pagamento: ['forma_pagamento'],
-  tabela_escalonada: ['produto', 'preco'],
-  cliente: ['vendedor', 'forma_pagamento'],
+  // T-0149: filial antes de cliente, preço, estoque e faixa (referência por chave)
+  filial: [],
+  tabela_escalonada: ['produto', 'preco', 'filial'],
+  cliente: ['vendedor', 'forma_pagamento', 'filial'],
   cliente_endereco: ['cliente'],
   rota: ['vendedor', 'cliente'],
   titulo: ['cliente'],
   nota: ['cliente', 'vendedor'],
-  preco: ['produto'],
-  estoque: ['produto'],
+  preco: ['produto', 'filial'],
+  estoque: ['produto', 'filial'],
 };
 
 export type ResultadoOrdem<E extends string> = { ok: true; ordem: E[] } | { ok: false; ciclo: E[] };
@@ -78,7 +80,7 @@ export function referenciasDoRegistro(entidade: Entidade, registro: unknown): Re
   const r = (registro && typeof registro === 'object' ? registro : {}) as Record<string, unknown>;
   switch (entidade) {
     case 'cliente':
-      return ref('vendedor', 'vendedor_external_id', r);
+      return [...ref('vendedor', 'vendedor_external_id', r), ...ref('filial', 'filial_external_id', r)];
     case 'titulo':
       return ref('cliente', 'cliente_external_id', r);
     case 'nota':
@@ -88,6 +90,8 @@ export function referenciasDoRegistro(entidade: Entidade, registro: unknown): Re
     case 'preco':
     case 'estoque':
     case 'tabela_escalonada':
+      // T-0149 (RN-CORE-39): a filial é referência por chave (ausente/null = padrão, sem referência)
+      return [...ref('produto', 'produto_external_id', r), ...ref('filial', 'filial_external_id', r)];
     case 'produto_unidade':
       return ref('produto', 'produto_external_id', r);
     case 'cliente_endereco':

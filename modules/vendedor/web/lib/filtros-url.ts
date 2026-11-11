@@ -8,6 +8,8 @@ export interface FiltrosPedidos {
   /** vazio = todos */
   status: string;
   seller_id: string;
+  /** filial do pedido (T-0149; vazio = todas) */
+  branch_id: string;
   /** AAAA-MM-DD no fuso do tenant */
   from: string;
   to: string;
@@ -15,7 +17,7 @@ export interface FiltrosPedidos {
   q: string;
 }
 
-export const FILTROS_VAZIOS: FiltrosPedidos = { status: '', seller_id: '', from: '', to: '', q: '' };
+export const FILTROS_VAZIOS: FiltrosPedidos = { status: '', seller_id: '', branch_id: '', from: '', to: '', q: '' };
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,11 +27,13 @@ export function lerFiltros(busca: string): FiltrosPedidos {
   const p = new URLSearchParams(busca);
   const status = p.get('status') ?? '';
   const seller = p.get('seller_id') ?? '';
+  const branch = p.get('branch_id') ?? '';
   const from = p.get('from') ?? '';
   const to = p.get('to') ?? '';
   return {
     status: (ORDER_STATUSES as readonly string[]).includes(status) ? status : '',
     seller_id: UUID.test(seller) ? seller : '',
+    branch_id: UUID.test(branch) ? branch : '',
     from: DATA.test(from) ? from : '',
     to: DATA.test(to) ? to : '',
     q: (p.get('q') ?? '').slice(0, 100),

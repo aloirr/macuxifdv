@@ -99,6 +99,64 @@ export async function gravarPedidos(ctx: Contexto, cfg: PedidosConfig, r: Result
   return r;
 }
 
+/**
+ * Parametros nomeados do SQL do cabecalho do pedido (1.4.0, T-0149). Campo ausente vira `null` (nunca `undefined`), para o SQL do
+ * cliente poder testar `:param IS NULL`. Grupos:
+ *  - filial (RN-CORE-39): `filial_codigo`, `filial_external_id` (nulos = filial padrao do ERP);
+ *  - frete (RN-VEN-16): `frete_modalidade` (CIF|FOB|nulo) e, no FOB, `frete_transportadora_tipo` (cadastrada|digitada), `_id`,
+ *    `_external_id` (so da cadastrada), `_nome`, `_cnpj`, `_telefone`;
+ *  - entrega (RN-VEN-17): `entrega_origem` (erp|editado|nulo), `entrega_external_id` (NULO = usar os textos), `entrega_logradouro`,
+ *    `_numero`, `_complemento`, `_bairro`, `_cidade`, `_uf`, `_cep`, `entrega_principal`;
+ *  - pagamento (RN-VEN-24): `pagamento_forma_codigo`, `_forma_external_id`, `_prazo_codigo`, `_prazo_external_id`,
+ *    `pagamento_parcelas_dias` (texto "30,60,90") e `pagamento_prazo_medio_dias`.
+ * Pedido antigo, sem esses blocos, grava tudo nulo e o SQL antigo (que nao os cita) segue igual.
+ */
+export function parametrosCabecalho(pedido: PedidoParaErp): Record<string, unknown> {
+  const fr = pedido.frete ?? null;
+  const tr = fr && fr.modalidade === 'FOB' ? fr.transportadora : null;
+  const cad = tr && tr.tipo === 'cadastrada' ? tr : null;
+  const en = pedido.endereco_entrega ?? null;
+  const pg = pedido.pagamento ?? null;
+  return {
+    pedido_uuid: pedido.pedido_uuid,
+    cliente_external_id: pedido.cliente_external_id,
+    vendedor_external_id: pedido.vendedor_external_id,
+    condicao_pagamento_erp: pedido.condicao_pagamento_erp ?? null,
+    criado_em: new Date(pedido.criado_em),
+    aprovado_em: new Date(pedido.aprovado_em),
+    observacao: pedido.observacao ?? null,
+    desconto_total_cents: pedido.desconto_total_cents,
+    total_cents: pedido.total_cents,
+    tentativa: pedido.tentativa,
+    // T-0149 (RN-CORE-39, Conector 1.4.0): filial do pedido; nulos = filial padrao do ERP (pedido da filial padrao ou antigo)
+    filial_codigo: pedido.filial?.codigo ?? null,
+    filial_external_id: pedido.filial?.external_id ?? null,
+    frete_modalidade: fr?.modalidade ?? null,
+    frete_transportadora_tipo: tr?.tipo ?? null,
+    frete_transportadora_id: cad?.id ?? null,
+    frete_transportadora_external_id: cad?.external_id ?? null,
+    frete_transportadora_nome: tr?.nome ?? null,
+    frete_transportadora_cnpj: tr?.cnpj ?? null,
+    frete_transportadora_telefone: tr?.telefone ?? null,
+    entrega_origem: en ? (en.origem ?? 'erp') : null,
+    entrega_external_id: en?.external_id ?? null,
+    entrega_logradouro: en?.logradouro ?? null,
+    entrega_numero: en?.numero ?? null,
+    entrega_complemento: en?.complemento ?? null,
+    entrega_bairro: en?.bairro ?? null,
+    entrega_cidade: en?.cidade ?? null,
+    entrega_uf: en?.uf ?? null,
+    entrega_cep: en?.cep ?? null,
+    entrega_principal: en ? (en.principal ?? null) : null,
+    pagamento_forma_codigo: pg?.forma_codigo ?? null,
+    pagamento_forma_external_id: pg?.forma_external_id ?? null,
+    pagamento_prazo_codigo: pg?.prazo_codigo ?? null,
+    pagamento_prazo_external_id: pg?.prazo_external_id ?? null,
+    pagamento_parcelas_dias: pg ? pg.parcelas_dias.join(',') : null,
+    pagamento_prazo_medio_dias: pg?.prazo_medio_dias ?? null,
+  };
+}
+
 async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: ResultadoPedidos): Promise<void> {
   const { store, log } = ctx;
   const agora = () => ctx.relogio.agora();
@@ -127,18 +185,7 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
       }
     }
     const numero = await ctx.erp.transacao(async (tx) => {
-      await tx.executar(cfg.gravacao.cabecalho, {
-        pedido_uuid: pedido.pedido_uuid,
-        cliente_external_id: pedido.cliente_external_id,
-        vendedor_external_id: pedido.vendedor_external_id,
-        condicao_pagamento_erp: pedido.condicao_pagamento_erp ?? null,
-        criado_em: new Date(pedido.criado_em),
-        aprovado_em: new Date(pedido.aprovado_em),
-        observacao: pedido.observacao ?? null,
-        desconto_total_cents: pedido.desconto_total_cents,
-        total_cents: pedido.total_cents,
-        tentativa: pedido.tentativa,
-      });
+      await tx.executar(cfg.gravacao.cabecalho, parametrosCabecalho(pedido));
       if (cfg.gravacao.itens) {
         for (const it of pedido.itens) {
           await tx.executar(cfg.gravacao.itens, { pedido_uuid: pedido.pedido_uuid, sequencia: it.sequencia, produto_external_id: it.produto_external_id, quantidade: it.quantidade, preco_unitario_cents: it.preco_unitario_cents, desconto_cents: it.desconto_cents, total_cents: it.total_cents });

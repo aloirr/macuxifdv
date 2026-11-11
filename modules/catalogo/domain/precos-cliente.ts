@@ -1,12 +1,13 @@
 /**
  * Preços de uma lista de produtos na tabela do cliente (`catalogo.precos_cliente@1`, ADR 0012). Função pura: a API
  * (SQL) e o aparelho (linhas locais) só carregam os dados e chamam esta função, então decidem igual.
- * RN-CAT-06 (fora da tabela do cliente = sem preço, nunca a tabela padrão), RN-CAT-05 (promotor sem preço), RN-VEN-23 (faixas vigentes),
+ * RN-CAT-06 (fora da tabela do cliente = sem preço, nunca a tabela padrão), RN-CAT-05 (promotor sem preço), RN-VEN-23 (faixas vigentes), RN-CORE-39 (preço da filial do cliente, com fallback por tabela na padrão),
  * P-4 (preço pela data do pedido, até 7 dias para trás e nunca no futuro).
  */
 import { DIAS_RETROATIVO_PRECO, type ItemTabelaPreco, type PrecosClienteSaida } from '../contracts';
 import { dataCivilNoFuso, faixasDoProduto, type LinhaEscalonada } from './escalonada';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
+import type { FilialDoPreco } from './preco-filial';
 
 /** RN-CAT-05: o perfil não tem direito ao preço. */
 export const MOTIVO_PERFIL_SEM_PRECO = 'Preço não disponível para o seu perfil.';
@@ -37,6 +38,8 @@ export interface EntradaPrecosCliente {
   faixas?: readonly LinhaEscalonada[];
   /** Fuso do tenant: a vigência das faixas é em data civil nele (padrão America/Manaus). */
   fuso?: string | null;
+  /** RN-CORE-39: filial usada no preço (`filialDoPreco`); os `itens` já vêm só dela. Ausente = chamador sem filial (saída sem os campos de filial). */
+  filial?: FilialDoPreco | null;
 }
 
 export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
@@ -54,12 +57,13 @@ export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
   const hoje = dataCivilNoFuso(quando, e.fuso);
   return {
     tabela_preco_id: e.tabelaId,
+    ...(e.filial ? { filial_id: e.filial.filialId, filial_origem: e.filial.origem } : {}),
     ...(e.tabelaNome ? { tabela_preco_nome: e.tabelaNome } : {}),
     itens: ids.map((produto_id) => {
       const p = precoVisivel(produto_id, itens, [], { agora: quando, tabela_cliente_id: e.tabelaId });
       if (p.sellable && p.price_cents !== null) {
         // RN-VEN-23: só item vendável leva faixas, e só as vigentes (tabela do cliente vence a geral)
-        const faixas = faixasDoProduto(e.faixas ?? [], { produtoId: produto_id, tabelaId, hoje });
+        const faixas = faixasDoProduto(e.faixas ?? [], { produtoId: produto_id, tabelaId, hoje, filialId: e.filial?.filialId ?? null });
         return faixas.length > 0 ? { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null, faixas } : { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null };
       }
       return { produto_id, preco_cents: null, motivo_sem_preco: p.notice ?? MENSAGEM_SEM_PRECO_CLIENTE };

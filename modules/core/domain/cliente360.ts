@@ -96,14 +96,32 @@ function inicioJanela12(hoje: string): string {
   return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`;
 }
 
+/** RN-CORE-40: o mês `ano_mes` (AAAA-MM) está na janela dos 12 meses que terminam no mês de `hoje`, inclusive. */
+export function mesNaJanela12(ano_mes: string, hoje: string): boolean {
+  return ano_mes >= inicioJanela12(hoje) && ano_mes <= yearMonthOf(hoje);
+}
+
+/** RN-CORE-40: Compra média/mês = total da janela de 12 meses ÷ 12, sempre (centavos, meia para cima). */
+export function compraMediaMesCents(historico: HistoricoLike[], hoje: string): number {
+  return Math.round(historico.filter((h) => mesNaJanela12(h.ano_mes, hoje)).reduce((s, h) => s + h.valor_cents, 0) / 12);
+}
+
+/** RN-CORE-40: sem compra na janela (nenhum pedido nos 12 meses) a ficha mostra "Sem compras em 12 meses", sem zeros. */
+export function semComprasNaJanela(historico: HistoricoLike[], hoje: string): boolean {
+  return !historico.some((h) => mesNaJanela12(h.ano_mes, hoje) && h.pedidos > 0);
+}
+
+/** RN-CORE-40: o mesmo critério de `semComprasNaJanela`, sobre o resumo já calculado (frequência nula = nenhum pedido na janela). */
+export function resumoSemCompras(r: Pick<ResumoComprasCalculado, 'frequencia_media_dias' | 'ultima_compra_em' | 'total_12m_cents'>): boolean {
+  return r.frequencia_media_dias === null && r.ultima_compra_em === null && r.total_12m_cents === 0;
+}
+
 /**
  * Compras dos 12 meses até o mês de `hoje`. Ticket médio = total ÷ pedidos (centavos, arredondado).
  * Frequência média = dias desde o 1º dia do 1º mês com compra até `hoje`, ÷ pedidos (1 casa decimal).
  */
 export function resumoCompras(historico: HistoricoLike[], hoje: string): ResumoComprasCalculado {
-  const ini = inicioJanela12(hoje);
-  const mes = yearMonthOf(hoje);
-  const janela = historico.filter((h) => h.ano_mes >= ini && h.ano_mes <= mes);
+  const janela = historico.filter((h) => mesNaJanela12(h.ano_mes, hoje));
   const total = janela.reduce((s, h) => s + h.valor_cents, 0);
   const pedidos = janela.reduce((s, h) => s + h.pedidos, 0);
   const ultima = janela.reduce<string | null>((m, h) => (h.ultima_compra_em && (!m || h.ultima_compra_em > m) ? h.ultima_compra_em : m), null);

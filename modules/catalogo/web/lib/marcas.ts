@@ -2,7 +2,7 @@
  * BKO Marcas concorrentes (T-0113, RN-CAT-13, ADR 0034): funções puras da tela — filtros na URL, CSV e texto da confirmação.
  * A regra do nome e da confirmação é do domain; a API revalida.
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import type { MarcaListaSaida } from '../../contracts';
 
 export type SituacaoMarcas = 'ativas' | 'inativas' | 'todas';
@@ -26,7 +26,6 @@ export function buscaDosFiltrosMarcas(f: FiltrosMarcas): string {
   return t ? `?${t}` : '';
 }
 
-const BOM = '﻿';
 const celula = (v: string | number) => {
   const s = typeof v === 'string' ? protegerFormula(v) : String(v);
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -35,5 +34,5 @@ const celula = (v: string | number) => {
 /** CSV da lista (padrão do Excel brasileiro: `;`, CRLF e BOM). */
 export function marcasParaCsv(marcas: MarcaListaSaida['marcas']): string {
   const linhas: (string | number)[][] = [['Marca', 'Situação', 'Referências', 'Código no ERP'], ...marcas.map((m) => [m.nome, m.ativo ? 'Ativa' : 'Inativa', m.referencias, m.external_id ?? ''])];
-  return BOM + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
+  return BOM_CSV + linhas.map((r) => r.map(celula).join(';')).join('\r\n') + '\r\n';
 }

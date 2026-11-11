@@ -119,21 +119,35 @@ Campos comuns: `id uuid`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`,
 | Schema | Tabelas principais |
 |---|---|
 | `plataforma` | tenant, tenant_modulo (ativo, plano, licenças), perfil_modulo, usuario_modulo (exceção), evento (outbox), parametro, auditoria, dispositivo |
-| `core` | usuario, equipe (árvore), produto (cadastro base: sku, ean, nome, marca, categoria, medida da unidade, embalagem (medida + quantidade), custo, preço de venda, desconto máximo, ativo; RN-CORE-18/19), medida (sigla e descrição por tenant, RN-CORE-19), produto_unidade (UN/CX, fator, EAN; RN-VEN-15), cliente (com `cadastro_incompleto` e campos faltantes, RN-CORE-16/17), cliente_endereco (entrega, RN-VEN-17), cliente_contato, carteira (cliente, usuario, papel), cliente_financeiro, titulo, historico_compra (resumo), rota, rota_parada, visita, visita_etapa, motivo, meta, indicador_diario, notificacao |
-| `catalogo` | catalogo_no e produto_no (árvore do catálogo vinda do ERP, RF-CAT-04), produto_atributo, produto_midia, produto_conteudo (argumentos, FAQ, docs), sinonimo, produto_embedding (pgvector), tabela_preco, tabela_preco_item, deposito, estoque_saldo, busca_log |
-| `vendedor` | pedido (com modalidade de frete, transportadora e endereço de entrega), pedido_item (medida, quantidade da embalagem, quantidade em unidades, desconto ou acréscimo), transportadora, pedido_evento, aprovacao, condicao_pagamento, cliente_condicao, reserva_estoque, alerta_ruptura |
+| `core` | filial (código, nome, cidade/UF, padrão; criada no `provisionar_tenant`, RN-CORE-39, ADR 0040), usuario, equipe (árvore), produto (cadastro base: sku, ean, nome, marca, categoria, medida da unidade, embalagem (medida + quantidade), custo, preço de venda, desconto máximo, ativo; RN-CORE-18/19), medida (sigla e descrição por tenant, RN-CORE-19), produto_unidade (UN/CX, fator, EAN; RN-VEN-15), cliente (com `cadastro_incompleto` e campos faltantes, RN-CORE-16/17; `filial_id` nunca nula, RN-CORE-39), fotos do PDV (tipos e fotos por cliente, RN-CORE-38; nomes das tabelas em `docs/desenho/T-0147.md`), cliente_endereco (entrega, RN-VEN-17), cliente_contato, carteira (cliente, usuario, papel), cliente_financeiro, titulo, historico_compra (resumo), rota, rota_parada, visita, visita_etapa, motivo, meta, indicador_diario, notificacao |
+| `catalogo` | catalogo_no e produto_no (árvore do catálogo vinda do ERP, RF-CAT-04), produto_atributo, produto_midia, produto_conteudo (argumentos, FAQ, docs), sinonimo, produto_embedding (pgvector), tabela_preco, tabela_preco_item (com `filial_id`: o preço vale por filial), deposito (com `filial_id`: o estoque da filial é a soma dos depósitos dela), estoque_saldo, busca_log |
+| `vendedor` | pedido (com modalidade de frete, transportadora, endereço de entrega e o retrato da filial, gravado pelo servidor no recebimento), pedido_item (medida, quantidade da embalagem, quantidade em unidades, desconto ou acréscimo), transportadora, pedido_evento, aprovacao, condicao_pagamento, cliente_condicao, reserva_estoque, alerta_ruptura |
 | `promotor` | cadastros de trade: categoria_gondola, mix_obrigatorio, concorrente, produto_concorrente, meta_share, foto_referencia (planograma), checklist_modelo, checklist_item, tarefa_trade · coletas: visita_loja (permanência), checklist_resposta, gondola_registro (antes/depois, conformidade), medicao_share, coleta_preco, ruptura_item, validade_item, ponto_extra, ponto_extra_negociado, acao_concorrencia, tarefa_execucao, foto · read-model: indicador_promotor_dia |
 | `gestor` | read-models: painel_vendedor_dia, alerta, alerta_regra |
 | `pesquisa` | questionario, questionario_versao, pergunta, opcao, regra_condicional, publico_alvo, resposta, resposta_item, resposta_foto |
 | `treinamento` | trilha, modulo_trilha, licao, quiz, questao, alternativa, publico_alvo, progresso, tentativa, xp_lancamento, medalha, medalha_usuario, ranking_periodo |
 | `integracao` | conector, credencial, lote, lote_linha_erro, mapeamento, cursor_entidade, lote_staging, registro_atual, sessao_carga, sessao_carga_recebido, pendencia_inativacao, politica_versao, pedido_fila_erp, pedido_retorno, reconciliacao |
 
+> **Filial (ADR 0040, T-0149, 10/11/2026):**
+> - a filial fica no Core, e o Catálogo e o Vendedor a leem pela consulta `core.filiais@1`;
+> - o aparelho recebe preço e estoque só das filiais da carteira do vendedor, mais a padrão;
+> - tudo é aditivo, sem nova versão de contrato.
+>
 > Decisão (ADR-0005): o cadastro base de produto fica no schema `core` (tabela `produto`); preço, estoque, conteúdo e busca ficam no schema `catalogo`. O Vendedor depende do Catálogo e consome produto, preço e estoque por contrato; Promotor, Pesquisa e Gestor usam só o produto do Core.
 
 ## Segurança e não funcionais
 - JWT de acesso 15 min + refresh rotativo 30 dias; argon2; RBAC + escopo de carteira + licença de módulo em toda rota.
 - RLS por `tenant_id` em todos os schemas; teste automático de vazamento entre tenants por módulo.
 - App abre em < 2 s; busca offline < 300 ms; API p95 < 300 ms; Android 10+.
-- LGPD: localização só em check-in/checkout com consentimento; fotos sem rostos como orientação; exportação e exclusão por tenant.
+- **LGPD:**
+  - **Localização:** GPS no check-in e no checkout. O tracking contínuo (semana de 16/11) só liga com a base LGPD (finalidade, aviso e termo; RN-CORE-13 e RN-CORE-37, T-0145).
+  - **Fotos de orientação:** sem rostos.
+  - **Fotos do PDV:**
+    - CNH e contrato social são dado pessoal;
+    - ficam no bucket privado, sem URL pública nem pré-assinada;
+    - a leitura passa pela rota autenticada, que confere perfil e carteira (`plataforma.arquivo.perfis_leitura`, ADR 0041);
+    - a retenção vai enquanto o cliente estiver ativo e mais 5 anos depois de `core.cliente.inativado_em` (RN-CORE-38, T-0147);
+    - o expurgo diário entra depois da v1.0.5.
+  - **Por tenant:** exportação e exclusão.
 - Observabilidade: logs pino com `tenant_id`, `modulo`, `request_id`; Sentry; métricas de sync e integração.
 - Backups diários, retenção 30 dias; RPO 24 h, RTO 4 h.

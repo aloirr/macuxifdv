@@ -25,7 +25,8 @@ ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /int
 ## Contrato canônico (entidades e frequência sugerida)
 | Entidade | Direção | Frequência | Observação |
 |---|---|---|---|
-| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14); o cliente traz as **formas de pagamento permitidas** e o **prazo médio máximo** (RN-VEN-25, 06/11) |
+| Filiais | ERP → Macuxi | diário | `filial`: código, nome e cidade/UF (RN-CORE-39, ADR 0040, T-0149). Vem **antes** de cliente, preço, estoque e escalonada. O BKO também cadastra; a empresa nasce com a filial padrão |
+| Clientes, contatos, carteira | ERP → Macuxi | 1 h | o cliente traz `filial_external_id` (vazio = filial padrão, RN-CORE-39). | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14); o cliente traz as **formas de pagamento permitidas** e o **prazo médio máximo** (RN-VEN-25, 06/11) |
 | Produtos, categorias, marcas | ERP → Macuxi | 1 h | conteúdo rico (fotos, argumentos) é do Macuxi |
 | Árvore do catálogo (nós e produto → nó) | ERP → Macuxi | diário | níveis e nomes do ERP (RF-CAT-04) |
 | Unidades de venda do produto | ERP → Macuxi | 1 h | medida da unidade e embalagem (sigla + quantidade) pelas **siglas cadastradas** no tenant (sigla desconhecida = `referencia_ausente`, RN-CORE-19); EAN; preço próprio da embalagem opcional na tabela (RN-VEN-15) |
@@ -35,13 +36,13 @@ ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /int
 | Oferece junto do produto | ERP → Macuxi | 1 h | `oferece_junto: [produto_external_id]`, até 5 (RF-CAT-09, T-0085) |
 | Endereços de entrega do cliente | ERP → Macuxi | 1 h | principal + outros (RN-VEN-17) |
 | Transportadoras | ERP → Macuxi | diário | opcional; o BKO também cadastra (RF-VEN-13) |
-| Tabelas de preço | ERP → Macuxi | 15 min | vigência; **só o preço da unidade** (RN-VEN-15, 06/11): o preço da embalagem é calculado, sem preço de caixa digitado |
+| Tabelas de preço | ERP → Macuxi | 15 min | o item traz `filial_external_id`, porque o preço vale por filial (RN-CORE-39). A tabela do cliente sem nenhum item na filial dele usa os itens da filial padrão; vigência; **só o preço da unidade** (RN-VEN-15, 06/11): o preço da embalagem é calculado, sem preço de caixa digitado |
 | Tabela escalonada | ERP → Macuxi | 15 min | `tabela_escalonada`: produto, embalagem (UN ou a do produto), quantidade mínima, preço por unidade de medida em centavos, vigência e, opcional, a tabela de preço ou o grupo de clientes (RN-VEN-23, 06/11). O BKO também cadastra |
-| Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi |
+| Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi. O depósito tem `filial_external_id`, e o estoque da filial é a soma dos depósitos dela (RN-CORE-39) |
 | Financeiro (limite, saldo) e títulos | ERP → Macuxi | 1 h | títulos abertos + baixados recentes |
 | Formas de pagamento e prazos | ERP → Macuxi | diário | `forma_pagamento` (código, nome, ativo) e `prazo_pagamento` (forma, código, descrição, parcelas em dias, prazo médio em dias). Substituem as "condições de pagamento" (RN-VEN-24, 06/11). O BKO também cadastra |
 | Faturamento / devoluções | ERP → Macuxi | 15 min | alimenta metas e status |
-| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; cada item leva `aplicacao` (retrato gravado no pedido, até 1.000, nulo quando o vendedor desmarcou; RN-VEN-19, T-0084); leva endereço de entrega (retrato do pedido, com `origem` `erp` ou `editado`; o editado vale só para o pedido e não muda o cadastro, RN-VEN-17; no ERP, `external_id` nulo = usar os campos de texto, o que funciona também no Conector 1.3.x; T-0141), frete (modalidade e, no FOB, transportadora cadastrada ou digitada; sem valor), medida, quantidade da embalagem e quantidade em unidades por item, descontos e acréscimos do item e do pedido (RN-INT-08); o pedido leva a forma de pagamento, o prazo e o prazo médio (RN-VEN-24, 06/11) |
+| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; cada item leva `aplicacao` (retrato gravado no pedido, até 1.000, nulo quando o vendedor desmarcou; RN-VEN-19, T-0084); leva endereço de entrega (retrato do pedido, com `origem` `erp` ou `editado`; o editado vale só para o pedido e não muda o cadastro, RN-VEN-17; no ERP, `external_id` nulo = usar os campos de texto, o que funciona também no Conector 1.3.x; T-0141), frete (modalidade e, no FOB, transportadora cadastrada ou digitada; sem valor), medida, quantidade da embalagem e quantidade em unidades por item, descontos e acréscimos do item e do pedido (RN-INT-08); o pedido leva a forma de pagamento, o prazo e o prazo médio (RN-VEN-24, 06/11). O pedido leva também a **filial** (retrato da filial do cliente no recebimento, RN-CORE-39). Pedido de filial que não é a padrão exige o **Conector 1.4.0**: espera na fila, sem ser recusado (ADR 0040, T-0149) |
 | Retorno do pedido (nº ERP, status, nota) | ERP → Macuxi | contínuo | |
 
 ### Bloco `frete` do pedido devolvido ao ERP (RN-VEN-16, R-20261102-105040)

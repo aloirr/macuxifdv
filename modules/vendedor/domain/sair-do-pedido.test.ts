@@ -44,6 +44,10 @@ describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
   it('RN-VEN-38: tenant sem pré-venda não oferece orçamento', () => {
     expect(opcoesDaSaida({ ...base, pre_venda_ligada: false, cliente: ok }).orcamento).toBe(false);
   });
+  it('RN-VEN-42 (e)/RN-VEN-11/RN-VEN-20: com alerta de bloqueio a folha não oferece Salvar e enviar pedido, só orçamento e Apenas salvar', () => {
+    const o = opcoesDaSaida({ ...base, cliente: ok, alertas_impedem_enviar: true });
+    expect(o).toMatchObject({ salvar: false, orcamento: true, apenasSalvar: true });
+  });
   it('RN-VEN-13: cliente só-orçamento mantém o orçamento mesmo sem pré-venda ligada (a folha nunca fica sem salvar)', () => {
     expect(opcoesDaSaida({ pre_venda_ligada: false, preco_data: '2026-11-09', cliente: { ...ok, bloqueado: true } }).orcamento).toBe(true);
   });
@@ -96,13 +100,13 @@ describe('RN-VEN-38: retomada depois que o sistema fecha o app', () => {
 });
 
 describe('RN-VEN-38 (v1.0.1): saída da edição de pedido salvo', () => {
-  it('RN-VEN-38: edição de pedido oferece Salvar alterações com o destino e Descartar alterações com confirmação própria', () => {
-    const o = opcoesDaSaidaEdicao({ tipo: 'pedido', destino: 'Vai para o supervisor' });
-    expect(o.salvar).toEqual({ rotulo: 'Salvar alterações', subtitulo: 'Vai para o supervisor' });
+  it('RN-VEN-38: edição de pedido oferece Salvar alterações (sem destino ou alçada) e Descartar alterações com confirmação própria', () => {
+    const o = opcoesDaSaidaEdicao({ tipo: 'pedido' });
+    expect(o.salvar).toEqual({ rotulo: 'Salvar alterações' });
     expect(o.descartar.rotulo).toBe('Descartar alterações');
     expect(o.confirmacao.titulo).toBe('Descartar as alterações?');
   });
   it('RN-VEN-38: edição de orçamento oferece Salvar orçamento', () => {
-    expect(opcoesDaSaidaEdicao({ tipo: 'orcamento', destino: 'x' }).salvar.rotulo).toBe('Salvar orçamento');
+    expect(opcoesDaSaidaEdicao({ tipo: 'orcamento' }).salvar.rotulo).toBe('Salvar orçamento');
   });
 });

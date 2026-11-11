@@ -421,7 +421,14 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
            from catalogo.cliente_tabela_preco c
            join catalogo.tabela_preco_item i on i.tabela_preco_id = c.tabela_preco_id and i.tenant_id = c.tenant_id
           where c.cliente_id = $1 and c.deleted_at is null and i.produto_id = $2 and i.unidade is null and i.deleted_at is null
-            and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())`,
+            and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())
+            -- RN-CAT-06 / RN-CORE-39 (T-0149): só a linha da filial do cliente; a tabela sem item nessa filial cai na filial padrão
+            and i.filial_id = coalesce(
+              (select cl.filial_id from core.cliente cl
+                where cl.id = c.cliente_id and cl.tenant_id = c.tenant_id
+                  and exists (select 1 from catalogo.tabela_preco_item x
+                               where x.tenant_id = c.tenant_id and x.tabela_preco_id = c.tabela_preco_id and x.filial_id = cl.filial_id and x.deleted_at is null)),
+              (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null))`,
         [miniBox, prod.CAF],
       );
       expect(precoCafe, 'uma linha vigente do CAF-500 a R$ 18,90 na tabela do Mini Box').toEqual([{ id: expect.any(String), preco_cents: 1890 }]);

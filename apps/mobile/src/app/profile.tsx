@@ -37,17 +37,21 @@ import { Redirect, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
 import { textoDoUltimoErro, type ErroRegistrado } from '@/lib/erro-de-tela';
+import { linhasDasSaidas, type SaidaAndroid } from '@/lib/saida-android';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
+import { useDiagnosticoNuvem } from '@/services/diagnostico';
 import { lerUltimoErro } from '@/services/erros';
+import { lerSaidasDoAndroid } from '@/services/saida-android';
 import { idDoBuildAtual } from '@/services/segundo-plano';
 import { usePlataforma } from '@/state/plataforma';
 
@@ -59,15 +63,22 @@ export default function ProfileScreen() {
   const [urlMsg, setUrlMsg] = useState<{ ok: boolean; message: string } | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
+  const diagnosticoNuvem = useDiagnosticoNuvem();
   const auto = useAtualizacaoAutomatica();
   const falha = app.falhaSync;
   const segundoPlano = app.segundoPlano;
   // T-0140 (relato de 08/11): o último erro que teria fechado o app (tela de erro ou fatal), lido ao abrir o Diagnóstico
   const [ultimoErro, setUltimoErro] = useState<ErroRegistrado | null>(null);
+  // T-0144: as últimas saídas do processo segundo o Android (erro nativo, memória, travamento, fechado pelo usuário)
+  const [saidas, setSaidas] = useState<SaidaAndroid[] | null>(null);
   useEffect(() => {
     if (!diagnosticoAberto) return;
     let vivo = true;
-    void lerUltimoErro().then((r) => vivo && setUltimoErro(r));
+    void lerUltimoErro().then((r) => {
+      if (!vivo) return;
+      setUltimoErro(r);
+      setSaidas(lerSaidasDoAndroid());
+    });
     return () => {
       vivo = false;
     };
@@ -291,6 +302,8 @@ export default function ProfileScreen() {
           onRightPress={() => setDiagnosticoAberto((v) => !v)}
           rightTestID="diagnostico-alternar"
         />
+        {/* T-0158 (v1.0.4, chave do build ou remota do /v1/saude): enviar o diagnóstico à nossa nuvem, com o protocolo e o histórico */}
+        {diagnosticoNuvem ? <EnviarDiagnostico usuarioId={sessao.user.id} tenantId={sessao.tenant?.id ?? null} tz={tz} /> : null}
         {diagnosticoAberto ? (
           <Card testID="diagnostico-sync" style={{ padding: 14, gap: 6 }}>
             <Text style={t.small}>Informações técnicas para o suporte.</Text>
@@ -308,6 +321,9 @@ export default function ProfileScreen() {
             </Text>
             <Text selectable style={styles.mono} testID="diagnostico-ultimo-erro">
               {textoDoUltimoErro(ultimoErro, (iso) => dateTimeLabel(iso, new Date(), tz))}
+            </Text>
+            <Text selectable style={styles.mono} testID="diagnostico-saidas">
+              {linhasDasSaidas(saidas, (iso) => dateTimeLabel(iso, new Date(), tz)).join('\n')}
             </Text>
             {estado.avisos.length > 0 ? (
               <Text selectable style={styles.mono}>

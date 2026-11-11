@@ -5,7 +5,7 @@
  * `pedido.db.test.ts`). Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  */
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { type ClienteBanco, type ContextoBase, type DefinicaoEvento, type ItemPush, type ResultadoItemPush, type UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -13,6 +13,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { entidadePedido } from '../contracts/entidades';
 import { OrderDetail, TransportadoraSyncSchema } from '../contracts';
+import { responderFiliais } from './filial-simulada';
 import { rotaVerPedido } from './pedidos';
 import { provedoresSyncVendedor } from './sync';
 import {
@@ -72,6 +73,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: novo pedido de distribuidora 
         comTenant(pool, u.tenant_id, (c) => {
           const tx = {
             async consultar(def: { nome: string }, entrada: Record<string, unknown>) {
+              if (def.nome === CONSULTA_FILIAIS.nome) return responderFiliais(entrada);
               if (def.nome === CONSULTA_CADASTRO_RESUMO.nome) {
                 const ent = CONSULTA_CADASTRO_RESUMO.entrada.parse(entrada);
                 const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>

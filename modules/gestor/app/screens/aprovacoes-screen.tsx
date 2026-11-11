@@ -8,7 +8,7 @@ import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { Banner, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
-import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
+import { linhaDeMotivos, nomesDaVisao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { contagem, pct } from '../lib/formato';
 import { irParaPedidoDoVendedor } from '../rotas';
 import { useGestor } from '../state/use-gestor';
@@ -64,13 +64,13 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
         <Text style={t.bodyStrong}>{formatBRL(i.total_cents)}</Text>
       </View>
       <Text style={t.small} numberOfLines={2}>
-        {i.motivos.map((m) => MOTIVO_ROTULO[m]).join(' · ')} · desconto {pct(i.desconto_efetivo_pct)}
-        {i.credito ? ` · crédito disponível ${formatBRL0(i.credito.disponivel_cents)}` : ''}
+        {linhaDeMotivos(i.motivos, i.desconto_efetivo_pct, pct, i.credito ? formatBRL0(i.credito.disponivel_cents) : undefined)}
+        {i.credito && !i.motivos.includes('credito') ? ` · crédito disponível ${formatBRL0(i.credito.disponivel_cents)}` : ''}
         {i.historico ? ` · ${contagem(i.historico.pedidos_90d, 'pedido', 'pedidos')} em 90 dias` : ''}
       </Text>
       <View style={styles.linha}>
         <ChipEstado texto={prazo.label} tom={TOM_PARA_CHIP[prazo.tom]} pequeno />
-        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>{i.acima_do_nivel ? 'Decidir (nível do supervisor)' : 'Decidir'}</Text> : <Text style={t.small}>Acompanhar</Text>}
+        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>Decidir</Text> : <Text style={t.small}>Acompanhar</Text>}
       </View>
     </Pressable>
   );

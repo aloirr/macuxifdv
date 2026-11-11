@@ -11,6 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { montarUrlMiniatura } from './miniatura';
 import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { filiaisDoEstoque } from '../domain/estoque';
+import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, nomeDaFilial } from './filiais-core';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
@@ -225,21 +227,27 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       const et = await db.query<{ etiquetas: string[] }>(`select etiquetas from catalogo.produto_conteudo where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       return { ofereceJunto, etiquetas: et.rows[0]?.etiquetas ?? [] };
     },
-    async tabelasPreco() {
+    async filiaisDaTela() {
+      const r = await filiaisDaCarteiraNoCore(tx.consultar);
+      return { padraoId: r.filialPadrao, filiais: [...r.filiais.values()].filter((f) => f.ativo).map((f) => ({ id: f.id, nome: f.nome, padrao: f.id === r.filialPadrao })) };
+    },
+    async tabelasPreco(filialId) {
+      // RN-CORE-39: a contagem é dos itens da filial escolhida (a mesma tabela tem itens por filial; sem filtro duplicava)
       const r = await db.query<{ id: string; codigo: string; nome: string; ativo: boolean; itens: string }>(
         `select t.id, t.codigo, t.nome, t.ativo,
-                (select count(*) from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.unidade is null and i.deleted_at is null) as itens
+                (select count(*) from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.filial_id = $1::uuid and i.unidade is null and i.deleted_at is null) as itens
            from catalogo.tabela_preco t where t.deleted_at is null order by lower(t.nome), t.id`,
+        [filialId],
       );
       return r.rows.map((x) => ({ id: x.id, codigo: x.codigo, nome: x.nome, ativo: x.ativo, itens: Number(x.itens) }));
     },
-    async precosUnidade(tabelaId) {
+    async precosUnidade(tabelaId, filialId) {
       // RN-VEN-15 (nova): só o preço da unidade base; a linha de embalagem antiga (unidade não nula) não aparece
       const r = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
         `select produto_id, preco_cents::float8 as preco_cents,
                 to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio, to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
-           from catalogo.tabela_preco_item where tabela_preco_id = $1::uuid and unidade is null and deleted_at is null order by produto_id`,
-        [tabelaId],
+           from catalogo.tabela_preco_item where tabela_preco_id = $1::uuid and filial_id = $2::uuid and unidade is null and deleted_at is null order by produto_id`,
+        [tabelaId, filialId],
       );
       return r.rows;
     },
@@ -335,13 +343,15 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
       const tabela = t.rows[0]?.tabela_preco_id ?? null;
       if (!tabela) return { tabelaClienteId: null, itens: [] };
+      // RN-CORE-39: itens da filial do preço (a do cliente; a padrão se a tabela não tem item nenhum na filial dele)
+      const filial = await filialDaTabela(db, tabela, await filialDoClienteNoCore(tx.consultar, clienteId));
       const r = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
         `select produto_id, preco_cents::float8 as preco_cents,
                 to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio,
                 to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
            from catalogo.tabela_preco_item
-          where tabela_preco_id = $1::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
-        [tabela, [...produtoIds]],
+          where tabela_preco_id = $1::uuid and filial_id = $3::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
+        [tabela, [...produtoIds], filial.filialId],
       );
       const itens: ItemTabelaPreco[] = r.rows.map((x) => ({ price_table_id: tabela, product_id: x.produto_id, price_cents: x.preco_cents, valid_from: x.vigencia_inicio, valid_to: x.vigencia_fim }));
       return { tabelaClienteId: tabela, itens };
@@ -352,24 +362,30 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
     async saldos(produtoIds) {
       const saida = new Map<string, StockByBranch[]>();
       if (produtoIds.length === 0) return saida;
-      const r = await db.query<{ produto_id: string; deposito_id: string; nome: string; quantidade: number; atualizado_em: string | null }>(
-        `select s.produto_id, s.deposito_id, d.nome, s.quantidade::float8 as quantidade,
+      const filiais = (await filiaisDaCarteiraNoCore(tx.consultar)).filiais;
+      const r = await db.query<{ produto_id: string; filial_id: string; quantidade: number; atualizado_em: string | null }>(
+        `select s.produto_id, d.filial_id, s.quantidade::float8 as quantidade,
                 to_char(s.atualizado_erp_em at time zone 'UTC', ${UTC}) as atualizado_em
            from catalogo.estoque_saldo s
            join catalogo.deposito d on d.tenant_id = s.tenant_id and d.id = s.deposito_id and d.ativo and d.deleted_at is null
           where s.produto_id = any($1::uuid[]) and s.deleted_at is null
-          order by d.nome, d.id`,
+          order by d.filial_id, d.id`,
         [[...produtoIds]],
       );
       for (const x of r.rows) {
         const lista = saida.get(x.produto_id) ?? [];
-        lista.push({ branch_id: x.deposito_id, branch_name: x.nome, quantity: Math.round(x.quantidade), updated_at: x.atualizado_em });
+        // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial)
+        lista.push({ branch_id: x.filial_id, branch_name: nomeDaFilial(filiais, x.filial_id), quantity: Math.round(x.quantidade), updated_at: x.atualizado_em });
         saida.set(x.produto_id, lista);
       }
       return saida;
     },
-    async filiaisDoUsuario() {
-      return null;
+    async filiaisDoUsuario(clienteId) {
+      const carteira = await ctx.carteira();
+      const cliente = clienteId ? (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente : null;
+      const da = cliente === null && carteira !== 'tenant' ? (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira : null;
+      const lista = filiaisDoEstoque({ filialDoCliente: cliente, escopo: carteira === 'tenant' ? 'tenant' : 'carteira', filiaisDaCarteira: da });
+      return lista === null ? null : [...lista];
     },
     async conteudo(produtoId) {
       const c = await db.query<{ descricao: string | null; argumentos_venda: string | null; faq: { pergunta: string; resposta: string }[]; updated_at: string }>(

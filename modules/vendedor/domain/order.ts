@@ -150,14 +150,14 @@ export function validateOrder(input: ValidateOrderInput): OrderValidation {
   if (discount.level === 'needs_approval') {
     issues.push({
       code: 'discount_above_limit',
-      message: `Desconto de ${fmtPct(input.discount_pct)} acima da sua alçada de ${fmtPct(discount.limit_pct)}. Vai para aprovação.`,
+      message: `Desconto ${fmtPct(input.discount_pct)} acima da alçada de ${fmtPct(discount.limit_pct)}`,
       blocking: false,
       needs_approval: true,
     });
   } else if (discount.level === 'blocked') {
     issues.push({
       code: 'discount_blocked',
-      message: `Desconto de ${fmtPct(input.discount_pct)} acima da alçada máxima. Reduza o desconto.`,
+      message: `Desconto ${fmtPct(input.discount_pct)} acima do máximo`,
       blocking: true,
       needs_approval: false,
     });

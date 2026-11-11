@@ -10,6 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClienteTabelaPrecoSyncSchema, PrecosClienteEntradaSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from '../contracts';
 import { consultaPrecosCliente } from './consultas';
+import { consultarFiliaisDeTeste } from './filiais-teste';
 import { provedoresSyncCatalogo } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -40,6 +41,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
       consultaPrecosCliente.executar(PrecosClienteEntradaSchema.parse(entrada), {
         db: c as unknown as ClienteBanco,
         usuario: { perfil },
+        // core.filiais@1 simulada (T-0149): todo cliente na filial padrão do tenant
+        consultar: consultarFiliaisDeTeste(c),
         agora: () => AGORA,
         fuso: () => 'America/Manaus',
         parametros: () => parametros,
@@ -49,7 +52,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
   function ctxPull(tenant: string, perfil: string, carteira: ReadonlySet<string> | 'tenant', parametros: Record<string, unknown> = {}): ContextoBase {
     return {
       usuario: { perfil, tenant_id: tenant },
-      comTenant: (fn: (db: pg.ClientBase) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c)),
+      // T-0149: o pull de preço e estoque pergunta as filiais da carteira ao Core (core.filiais@1); aqui, todas
+      comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, tenant, (c) => fn(c, { consultar: consultarFiliaisDeTeste(c, { daCarteira: null }) })),
       carteira: async () => carteira,
       parametros: () => parametros,
     } as unknown as ContextoBase;
@@ -104,7 +108,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
 
   it('RN-CAT-06: preço vem da tabela do cliente, não da outra tabela do tenant', async () => {
     const r = await consultar(A.tenantId, 'vendedor', entrada([P_COM]));
-    expect(r).toEqual({ tabela_preco_id: TAB_ATACADO, tabela_preco_nome: 'T29-ATACADO', itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
+    expect(r).toMatchObject({ filial_origem: 'cliente', tabela_preco_id: TAB_ATACADO, tabela_preco_nome: 'T29-ATACADO', itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
   });
 
   it('RN-CAT-06: produto fora da tabela do cliente = sem preço (não cai no Varejo)', async () => {

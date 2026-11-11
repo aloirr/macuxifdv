@@ -31,15 +31,27 @@ interface LinhaAprovado {
   prazo_medio_dias: number | null;
   forma_external_id: string | null;
   prazo_external_id: string | null;
+  filial: Record<string, unknown> | null;
 }
 
+
+/** T-0149: retrato `pedido.filial` (jsonb) → bloco do evento; sem código = pedido anterior (campo ausente). */
+export function filialParaEvento(f: Record<string, unknown> | null): PedidoAprovadoPayload['filial'] {
+  if (!f || typeof f.codigo !== 'string' || !f.codigo) return undefined;
+  return {
+    codigo: f.codigo,
+    external_id: typeof f.external_id === 'string' ? f.external_id : null,
+    ...(typeof f.nome === 'string' ? { nome: f.nome } : {}),
+    ...(typeof f.padrao === 'boolean' ? { padrao: f.padrao } : {}),
+  };
+}
 
 export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, pedidoId: string, aprovadoEm: string): Promise<PedidoAprovadoPayload> {
   const p = (
     await db.query<LinhaAprovado>(
       `select p.cliente_id, p.vendedor_id, p.observacao, p.desconto_pct::float8 as desconto_pct, p.acrescimo_pct::float8 as acrescimo_pct,
               p.frete_modalidade, p.transportadora_id, p.transportadora_digitada, p.transportadora_nome, p.transportadora_documento,
-              p.transportadora_telefone, p.endereco_entrega,
+              p.transportadora_telefone, p.endereco_entrega, p.filial,
               (select codigo from vendedor.condicao_pagamento c where c.id = p.condicao_pagamento_id) as codigo,
               p.forma_pagamento_codigo, p.prazo_codigo, p.prazo_parcelas_dias, p.prazo_medio_dias,
               (select external_id from vendedor.forma_pagamento f where f.id = p.forma_pagamento_id) as forma_external_id,
@@ -59,6 +71,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
   ).rows;
   const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.cliente_id], produto_ids: itens.map((i) => i.produto_id), usuario_ids: [p.vendedor_id] });
 
+  const filial = filialParaEvento(p.filial);
   let frete: FreteEvento | null = null;
   if (p.frete_modalidade === 'CIF') frete = { modalidade: 'CIF' };
   else if (p.frete_modalidade === 'FOB') {
@@ -95,6 +108,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
     acrescimo_pct: Number(p.acrescimo_pct ?? 0),
     frete,
     endereco_entrega: endereco,
+    ...(filial ? { filial } : {}),
     itens: itens.map((i) => ({
       produto_external_id: cad.produtos.find((x) => x.id === i.produto_id)?.external_id ?? null,
       quantidade: Number(i.quantidade_base),

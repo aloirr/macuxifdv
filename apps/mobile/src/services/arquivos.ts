@@ -31,6 +31,16 @@ export function arquivosLocais(): ArquivosLocais {
   };
 }
 
+/** `file://` de um arquivo local (miniatura do print do diagnóstico, T-0158); `null` no navegador ou caminho inválido. */
+export function uriLocal(caminho: string): string | null {
+  if (Platform.OS === 'web' || !caminhoLocalValido(caminho)) return null;
+  try {
+    return arquivo(caminho).uri;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila, e as
  * miniaturas do catálogo guardadas no cache (T-0097).

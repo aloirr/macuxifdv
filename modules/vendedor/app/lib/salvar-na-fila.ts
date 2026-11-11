@@ -4,14 +4,18 @@
  * (T-0141: o rascunho de "Apenas salvar" saiu da lista Pedidos; mora na tela Rascunhos, `rascunhos-lista.ts`.)
  * Spec: docs/design/formulario-pendencias.md §4.
  */
+import { mensagemAcimaDoMaximo } from '../../domain/preco-pedido';
 
 export const AVISO_SALVO_ENVIANDO = 'Pedido salvo · enviando';
 export const AVISO_SALVO_SEM_SINAL = 'Pedido salvo · vai quando houver sinal';
 export const ROTULO_CORRIGIR_PEDIDO = 'Corrigir pedido';
 
-/** RD-0038: a única montagem de "Não foi aceito: <motivo>" (faixa do detalhe, linha da lista). */
-export function textoNaoFoiAceito(motivo: string): string {
-  return `Não foi aceito: ${motivo}`;
+/**
+ * RD-0038/RD-0057 (T-0151): a única montagem do texto da recusa (faixa do detalhe, linha da lista): só o problema, sem "Não foi aceito:"
+ * (o selo "Não aceito" já diz) e sem a ordem "Corrija e salve de novo" (o botão "Corrigir pedido" é a ação). Ex.: "AGU-1500 acima do desconto máximo".
+ */
+export function textoDaRecusa(motivo: string): string {
+  return motivo.charAt(0).toLocaleUpperCase('pt-BR') + motivo.slice(1);
 }
 
 /** Texto do aviso do rodapé depois do toque em "Salvar e enviar pedido" (sem ponto final, guia de UX). */
@@ -26,7 +30,7 @@ export function motivoDaRecusa(bruto: string): string {
   const item = /\b([A-Z]{2,}-\d+)\b/.exec(t)?.[1] ?? 'o item';
   switch (codigo) {
     case 'preco_abaixo_minimo':
-      return `preço de ${item} abaixo do mínimo`;
+      return mensagemAcimaDoMaximo([item]);
     case 'cliente_bloqueado':
       return 'cliente bloqueado no ERP';
     case 'item_inativo':
@@ -41,8 +45,7 @@ export function motivoDaRecusa(bruto: string): string {
 const MOTIVO_GENERICO = 'o Macuxi recusou o pedido. Fale com seu supervisor';
 
 /**
- * RN-VEN-40: a API devolve `mensagem` já em português (ex.: "Desconto acima do máximo do produto: VEL-150. Reduza o desconto do
- * item."). Mostra essa frase, sem o código de regra "(RN-...)" e sem o ponto final; texto técnico (código sem espaço, erro de
+ * RN-VEN-40: a API devolve `mensagem` já em português (ex.: "VEL-150 acima do desconto máximo"). Mostra essa frase, sem o código de regra "(RN-...)" e sem o ponto final; texto técnico (código sem espaço, erro de
  * rede, HTTP) cai no genérico.
  */
 function motivoLegivel(t: string): string | null {
@@ -58,7 +61,7 @@ function motivoLegivel(t: string): string | null {
 
 /** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa (código ou a frase da API). */
 export function abaDaCorrecao(bruto: string): 'itens' | 'resumo' {
-  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente|acima do máximo do produto|Sem preço para|produto inativo|Quantidade inválida|Medida inválida|Desconto em R\$ acima|^Item [^:]+:/i.test(bruto ?? '') ? 'itens' : 'resumo';
+  return /preco_abaixo_minimo|item_inativo|estoque_insuficiente|acima do máximo|acima do desconto máximo|Sem preço para|produto inativo|Quantidade inválida|Medida inválida|Desconto em R\$ acima|^Item [^:]+:/i.test(bruto ?? '') ? 'itens' : 'resumo';
 }
 
 export interface EstadoNaFila {
@@ -69,12 +72,17 @@ export interface EstadoNaFila {
   podeEnviarAgora: boolean;
 }
 
+/** Nota da etapa "Na fila" do histórico: "Aguardando envio" só enquanto o pedido está de fato na fila; o recusado não leva nota (a faixa de recusa diz o motivo). */
+export function notaDaEtapaNaFila(e: { recusado: boolean; criadoSemSinal: boolean }): string {
+  if (e.recusado) return '';
+  return e.criadoSemSinal ? 'Criado no aparelho sem sinal' : 'Aguardando envio';
+}
+
 export function estadoNaFila(e: { recusado: boolean; offline: boolean; motivoBruto?: string }): EstadoNaFila {
   if (e.recusado) {
     const motivo = motivoDaRecusa(e.motivoBruto ?? '');
-    const conhecido = motivo !== motivoDaRecusa('');
     return {
-      faixa: { texto: conhecido ? `${textoNaoFoiAceito(motivo)}. Corrija e salve de novo.` : textoNaoFoiAceito(motivo), tom: 'danger', icone: 'alert' },
+      faixa: { texto: textoDaRecusa(motivo), tom: 'danger', icone: 'alert' },
       somenteLeitura: false,
       podeCorrigir: true,
       podeEnviarAgora: false,

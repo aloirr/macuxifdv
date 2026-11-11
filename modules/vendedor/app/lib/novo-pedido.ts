@@ -18,6 +18,7 @@ import {
   ajusteDoPedidoCents,
   bloqueadoPelaAlcada,
   equivalenteDoAjuste,
+  itemRespeitaPrecoMinimo,
   MSG_DESCONTO_E_ACRESCIMO,
   MSG_RECUSA_FRETE,
   nivelDeAprovacao,
@@ -118,6 +119,9 @@ export function ajusteDoRascunho(aj: Ajuste): { ajuste: AjusteItem; erro: 'desco
   return { ajuste: ajusteDePct({ desconto_pct, acrescimo_pct }), erro: null };
 }
 
+/** RN-VEN-11: o produto do aparelho pode trazer o preço mínimo por unidade base (preço de venda × (1 − desconto máximo)); ausente = sem trava. */
+export type ProdutoComMinimo = Product & { preco_minimo_base_cents?: number | null };
+
 export interface EntradaCalculo {
   /** chave da linha → quantidade na medida vendida */
   lines: Record<string, number>;
@@ -192,6 +196,8 @@ export interface CalculoPedido {
   desconto_alcada_pct: number;
   nivel: NivelAprovacao | null;
   bloqueado: boolean;
+  /** RN-VEN-11 (T-0151): códigos dos itens com desconto acima do máximo do produto; bloqueiam o envio do pedido (só orçamento) */
+  acima_do_maximo: string[];
   unidades_base: number;
   /** impedem o envio (mensagens em português com a ação seguinte) */
   erros: string[];
@@ -217,6 +223,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
   const pendencias: ErroDeCalculo[] = [];
   const linhas: LinhaDoPedido[] = [];
+  const acimaDoMaximo: string[] = [];
   const parcial: LinhaParaTotal[] = [];
   for (const [chave, quantity] of Object.entries(e.lines)) {
     if (!(quantity > 0)) continue;
@@ -253,6 +260,9 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       pendencias.push({ codigo: 'desconto_acima_tabela', alvo: { item: nome }, mensagem: `${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.` });
       continue;
     }
+    // RN-VEN-11 (T-0151): desconto que leva o preço final abaixo do mínimo do produto bloqueia o envio do pedido
+    const minimo = (produto as ProdutoComMinimo).preco_minimo_base_cents ?? null;
+    if (!itemRespeitaPrecoMinimo({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, preco_minimo_base_cents: minimo }) && !acimaDoMaximo.includes(produto.erp_code)) acimaDoMaximo.push(produto.erp_code);
     // T-0084 (RN-VEN-19): retrato no momento do pedido; o retrato já gravado (edição) vale até a caixa ser refeita
     const aplicacaoDaLinha = e.aplicacao ? retratoAplicacao(aj.aplicacao_retrato ?? produto.applications, aplicacaoMarcada(aj, e.aplicacao.padrao), e.aplicacao.max) : null;
     const eq = r.ajuste ? equivalenteDoAjuste(preco.preco_tabela_cents, r.ajuste) : null;
@@ -307,7 +317,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const bloqueado = bloqueadoPelaAlcada(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
   if (bloqueado) {
     const limite = `${policy.manager_pct.toLocaleString('pt-BR')}%`;
-    pendencias.push({ codigo: 'acima_alcada', alvo: 'pedido', limite, mensagem: `Desconto efetivo de ${t.desconto_efetivo_pct.toLocaleString('pt-BR')}% acima da alçada máxima (${limite}). Reduza o desconto do pedido ou dos itens.` });
+    pendencias.push({ codigo: 'acima_alcada', alvo: 'pedido', limite, mensagem: `Desconto ${t.desconto_efetivo_pct.toLocaleString('pt-BR')}% acima do máximo` });
   }
   return {
     linhas,
@@ -325,6 +335,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     desconto_alcada_pct: t.desconto_efetivo_alcada_pct,
     nivel,
     bloqueado,
+    acima_do_maximo: acimaDoMaximo,
     unidades_base: linhas.reduce((s, l) => s + l.quantidade_base, 0),
   };
 }
@@ -344,17 +355,6 @@ export function linhasParaPush(linhas: readonly LinhaDoPedido[]): PedidoPush['it
     // T-0084 (RN-VEN-19): só quando há texto; nulo/ausente = sem aplicação (o payload fica igual ao dos APKs anteriores)
     ...(l.aplicacao ? { aplicacao: l.aplicacao } : {}),
   }));
-}
-
-/** Efeito do desconto efetivo na alçada do vendedor, para o texto do rodapé. */
-export function textoDaAlcada(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'nivel' | 'bloqueado'>, limiteVendedor: number): { texto: string; tom: 'neutro' | 'ok' | 'aviso' | 'erro' } {
-  const pct = c.desconto_efetivo_pct;
-  const fmt = (n: number) => `${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
-  if (pct < 0) return { texto: `Acréscimo efetivo de ${fmt(-pct)} · sem aprovação`, tom: 'neutro' };
-  if (pct === 0) return { texto: 'Sem desconto', tom: 'neutro' };
-  if (c.bloqueado) return { texto: `Desconto efetivo de ${fmt(pct)} · acima da alçada máxima · reduza para enviar`, tom: 'erro' };
-  if (c.nivel) return { texto: `Desconto efetivo de ${fmt(pct)} · acima da sua alçada (${fmt(limiteVendedor)}) · vai para aprovação`, tom: 'aviso' };
-  return { texto: `Desconto efetivo de ${fmt(pct)} · dentro da sua alçada`, tom: 'ok' };
 }
 
 // ---------- frete ----------

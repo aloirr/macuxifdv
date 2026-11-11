@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0147 · Fotos do PDV na ficha do cliente (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  .nome-cli { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; }
+  .end-cli { font-size: 13px; color: var(--ink2); margin-top: -6px; }
+  .acoes { display: flex; gap: 8px; }
+  .acoes .a { flex: 1; height: 64px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink); }
+  .acoes .a.off { background: var(--neutralBg); color: #5B6673; border-color: var(--neutralBg); }
+  .fl { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .fl .f { display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; min-height: 52px; font-size: 15px; }
+  .fl .f + .f { border-top: 1px solid var(--lineSoft); }
+  .fl .f .n { flex: 1; min-width: 0; }
+  .fl .f .st { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; white-space: nowrap; padding-right: 6px; }
+  .st.tem { color: var(--success); }
+  .st.falta { color: var(--danger); }
+  .st.op { color: var(--ink2); font-weight: 500; }
+  .st.fila { color: var(--warning); }
+  .add { height: 44px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: 12px; display: flex; align-items: center; font-size: 14px; font-weight: 600; background: #fff; }
+  .foto-tela { position: absolute; inset: 0; background: #0F1419; display: flex; flex-direction: column; color: #fff; }
+  .foto-tela .top { display: flex; align-items: center; gap: 10px; padding: 34px 12px 8px; }
+  .foto-tela .top .n { font-size: 15px; font-weight: 600; }
+  .foto-tela .top .s { font-size: 12px; color: #B8C0C8; }
+  .fachada { margin: auto 12px; height: 300px; border-radius: 6px; position: relative; overflow: hidden; background: linear-gradient(#9FC3DA, #DCE9F0 55%, #8E8E86 55%); }
+  .fachada .pr { position: absolute; left: 30px; right: 30px; top: 70px; bottom: 30px; background: #E9E1CF; }
+  .fachada .pl { position: absolute; left: 30px; right: 30px; top: 70px; height: 40px; background: #B4471A; color: #FFE9C9; font-family: Archivo, sans-serif; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; letter-spacing: .4px; }
+  .fachada .po { position: absolute; bottom: 30px; width: 70px; height: 110px; background: #5B6673; }
+  .fachada .po.a { left: 60px; } .fachada .po.b { right: 60px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Fotos do PDV na ficha do cliente</h1>
+<p class="prancha">T-0147 · "Foto do PDV" ao lado de Mapa abre a fachada. O bloco mostra cada tipo cadastrado no BKO com "Tem" ou "Falta". O vendedor abre só a fachada; dos outros tipos vê só se tem. Foto nova pela câmera ou pela galeria, também sem sinal.</p>
+
+<div class="board">
+
+  <!-- 1 · Ficha com fotos -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Ficha do cliente<span>Tipos obrigatórios primeiro. "Falta" em vermelho só nos obrigatórios.</span></div>
+    <div class="phone">
+      <div class="status"><span>08:10</span><span>4G ▮▮▮ 86%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:12px">
+        <div class="backlink"><i data-i="voltar" data-t="18"></i>Clientes</div>
+        <div class="nome-cli">Atacadinho Cachoeirinha</div>
+        <div class="end-cli">Rua Pará, 137 · São Geraldo · Manaus/AM</div>
+        <div class="chips"><span class="selo neutro m">Mercearia</span></div>
+        <div class="acoes">
+          <div class="a"><i data-i="fone" data-t="20"></i>Ligar</div>
+          <div class="a"><i data-i="chat" data-t="20"></i>WhatsApp</div>
+          <div class="a"><i data-i="navegar" data-t="20"></i>Mapa</div>
+          <div class="a marca" style="outline-offset:3px"><i data-i="galeria" data-t="20"></i>Foto do PDV</div>
+        </div>
+        <div class="secao-t" style="margin-top:4px">Fotos do PDV</div>
+        <div class="fl marca">
+          <div class="f"><span class="n">Fachada</span><span class="st tem"><i data-i="check" data-t="15"></i>Tem</span><span style="width:16px"></span></div>
+          <div class="f"><span class="n">CNH do sócio</span><span class="st tem"><i data-i="check" data-t="15"></i>Tem</span><i data-i="cadeado" data-t="16" data-c="#5B6673"></i></div>
+          <div class="f"><span class="n">Contrato social</span><span class="st falta">Falta</span><span class="add">Adicionar</span></div>
+          <div class="f"><span class="n">Alvará</span><span class="st op">Opcional</span><span class="add">Adicionar</span></div>
+        </div>
+        <div class="secao-t" style="margin-top:4px">Compras</div>
+        <div class="tabela"><div class="lin"><span class="r">Última compra</span><span class="v" style="font-size:15px">há 12 dias</span></div><div class="lin"><span class="r">Ticket médio</span><span class="v" style="font-size:15px">R$ 1.240</span></div></div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Adicionar: câmera ou galeria -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Adicionar "Contrato social"<span>Câmera ou galeria. Vai em JPEG para a nuvem pela fila.</span></div>
+    <div class="phone">
+      <div class="status"><span>08:11</span><span>4G ▮▮▮ 86%</span></div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Contrato social <i data-i="fechar" data-t="22" data-c="#4A5562"></i></div>
+        <div>
+          <div class="opcao" style="align-items:center"><i data-i="camera" data-t="22"></i><div class="n">Tirar foto</div></div>
+          <div class="opcao" style="align-items:center"><i data-i="galeria" data-t="22"></i><div class="n">Escolher da galeria</div></div>
+        </div>
+        <div class="btn-texto">Voltar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · Fachada aberta -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Foto do PDV (fachada)<span>Abre sem sinal: a fachada fica no aparelho.</span></div>
+    <div class="phone">
+      <div class="foto-tela">
+        <div class="top"><i data-i="fechar" data-t="24" data-c="#fff"></i><div><div class="n">Atacadinho Cachoeirinha</div><div class="s">Fachada · 08/11/2026</div></div><span style="margin-left:auto"><i data-i="menu" data-t="22" data-c="#fff"></i></span></div>
+        <div class="fachada"><div class="pr"></div><div class="pl">ATACADINHO</div><div class="po a"></div><div class="po b"></div></div>
+        <div style="height:60px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · Sem fachada -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Cliente sem fachada<span>"Foto do PDV" desligado.</span></div>
+    <div class="phone" style="height:480px">
+      <div class="status"><span>08:20</span><span>4G ▮▮▮ 85%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:12px">
+        <div class="backlink"><i data-i="voltar" data-t="18"></i>Clientes</div>
+        <div class="nome-cli">Mercadinho São Jorge</div>
+        <div class="end-cli">Av. Brasil, 1020 · Compensa · Manaus/AM</div>
+        <div class="acoes">
+          <div class="a"><i data-i="fone" data-t="20"></i>Ligar</div>
+          <div class="a"><i data-i="chat" data-t="20"></i>WhatsApp</div>
+          <div class="a"><i data-i="navegar" data-t="20"></i>Mapa</div>
+          <div class="a off marca" style="outline-offset:3px"><i data-i="galeria" data-t="20"></i>Foto do PDV</div>
+        </div>
+        <div class="secao-t" style="margin-top:4px">Fotos do PDV</div>
+        <div class="fl">
+          <div class="f"><span class="n">Fachada</span><span class="st falta">Falta</span><span class="add">Adicionar</span></div>
+          <div class="f"><span class="n">CNH do sócio</span><span class="st falta">Falta</span><span class="add">Adicionar</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · Na fila -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Foto tirada sem sinal<span>Conta como "Tem" já no aparelho; sobe quando houver sinal.</span></div>
+    <div class="phone" style="height:300px">
+      <div class="status"><span>08:12</span><span>Sem sinal</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:12px">
+        <div class="secao-t">Fotos do PDV</div>
+        <div class="fl">
+          <div class="f"><span class="n">Fachada</span><span class="st tem"><i data-i="check" data-t="15"></i>Tem</span><span style="width:16px"></span></div>
+          <div class="f"><span class="n">CNH do sócio</span><span class="st tem"><i data-i="check" data-t="15"></i>Tem</span><i data-i="cadeado" data-t="16" data-c="#5B6673"></i></div>
+          <div class="f marca" style="outline-offset:-2px"><span class="n">Contrato social</span><span class="st fila"><i data-i="nuvem" data-t="15"></i>Na fila</span><i data-i="cadeado" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="nota-prancha"><b>Cadeado:</b> o vendedor não reabre (CNH, contrato). O supervisor da carteira, o analista e o admin abrem no Gestão e no BKO.</div>
+  </div>
+
+  <!-- 6 · notas -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Regras da tela<span>Sem texto extra na ficha.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Tipos:</b> os do BKO › Cadastros › Fotos do PDV, na ordem de lá, obrigatórios primeiro.</div>
+      <div class="nota-prancha"><b>Tirar de novo a fachada:</b> no visualizador, menu ⋮ › Trocar foto (câmera ou galeria).</div>
+      <div class="nota-prancha"><b>Sem tipo cadastrado no BKO:</b> o bloco não aparece, e o botão "Foto do PDV" segue a regra da fachada.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

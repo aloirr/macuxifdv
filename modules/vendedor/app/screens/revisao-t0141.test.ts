@@ -28,7 +28,7 @@ describe('T-0141: correções da revisão de UX e do engenheiro', () => {
     expect(e).toMatch(/campoFoco: \{ borderColor: colors\.accent, borderWidth: 2 \}/);
     expect(e).toMatch(/foco === c \? s\.campoFoco : null, erros\[c\] \? s\.campoErro : null/);
   });
-  it('C.4: o selo "Editado neste pedido" vai pela prop marca da LinhaResumo', () => {
-    expect(fonte('../components/novo-pedido-abas.tsx')).toContain('marca={r.endereco_entrega_editado ? TEXTOS_ENDERECO.editadoNestePedido : null}');
+  it('C.4 (RN-VEN-42): o selo "Editado neste pedido" vai no Endereço da tabela Entrega do Resumo', () => {
+    expect(fonte('../components/novo-pedido-abas.tsx')).toContain('r.endereco_entrega_editado ? `(${TEXTOS_ENDERECO.editadoNestePedido})` : \'\'');
   });
 });

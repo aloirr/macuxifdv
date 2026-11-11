@@ -17,12 +17,16 @@ export interface RegistroPrecoErp {
   preco_cents: number;
   /** Sigla da medida do preço; ausente = unidade base (RN-VEN-15 nova: só a base vira preço). */
   unidade?: string | null | undefined;
+  /** RN-CORE-39 (T-0149): filial do item; ausente ou nulo = filial padrão. */
+  filial_external_id?: string | null | undefined;
 }
 export interface RegistroEstoqueErp {
   deposito_external_id: string;
   deposito_nome?: string | null | undefined;
   produto_external_id: string;
   saldo: number;
+  /** RN-CORE-39: filial do depósito; ausente em depósito novo = padrão, em depósito conhecido = não altera. */
+  filial_external_id?: string | null | undefined;
 }
 
 export type PlanoPrecoErp =
@@ -30,7 +34,7 @@ export type PlanoPrecoErp =
   | { tipo: 'inativar'; external_id: string }
   | {
       tipo: 'upsert';
-      linha: { external_id: string; tabela_external_id: string; tabela_nome: string; produto_external_id: string; preco_cents: number; vigencia_inicio: string; vigencia_fim: string | null; unidade?: string };
+      linha: { external_id: string; tabela_external_id: string; tabela_nome: string; produto_external_id: string; preco_cents: number; vigencia_inicio: string; vigencia_fim: string | null; unidade?: string; filial_external_id: string | null };
     };
 
 export function planejarPrecoDoErp(e: EventoErpBase<RegistroPrecoErp>): PlanoPrecoErp {
@@ -50,6 +54,8 @@ export function planejarPrecoDoErp(e: EventoErpBase<RegistroPrecoErp>): PlanoPre
       vigencia_inicio: r.vigencia_inicio,
       vigencia_fim: r.vigencia_fim ?? null,
       ...(r.unidade?.trim() ? { unidade: r.unidade.trim() } : {}),
+      // RN-CORE-39: ausente ou nulo = filial padrão (o consumidor resolve)
+      filial_external_id: r.filial_external_id?.trim() || null,
     },
   };
 }
@@ -72,6 +78,8 @@ export interface RegistroEscalonadaErp {
   vigencia_inicio: string;
   vigencia_fim?: string | null | undefined;
   tabela_external_id?: string | null | undefined;
+  /** RN-CORE-39: ausente ou nulo = a faixa vale para todas as filiais. */
+  filial_external_id?: string | null | undefined;
 }
 export type PlanoEscalonadaErp =
   | { tipo: 'ignorar' }
@@ -87,6 +95,7 @@ export type PlanoEscalonadaErp =
         vigencia_inicio: string;
         vigencia_fim: string | null;
         tabela_external_id: string | null;
+        filial_external_id: string | null;
       };
     };
 
@@ -111,6 +120,7 @@ export function planejarEscalonadaDoErp(e: EventoErpBase<RegistroEscalonadaErp>)
       vigencia_inicio: r.vigencia_inicio,
       vigencia_fim: fim,
       tabela_external_id: r.tabela_external_id?.trim() ? r.tabela_external_id : null,
+      filial_external_id: r.filial_external_id?.trim() || null,
     },
   };
 }
@@ -118,7 +128,7 @@ export function planejarEscalonadaDoErp(e: EventoErpBase<RegistroEscalonadaErp>)
 export type PlanoEstoqueErp =
   | { tipo: 'ignorar' }
   | { tipo: 'inativar'; external_id: string }
-  | { tipo: 'upsert'; linha: { external_id: string; deposito_external_id: string; deposito_nome: string; produto_external_id: string; saldo: number } };
+  | { tipo: 'upsert'; linha: { external_id: string; deposito_external_id: string; deposito_nome: string; produto_external_id: string; saldo: number; filial_external_id: string | null | undefined } };
 
 export function planejarEstoqueDoErp(e: EventoErpBase<RegistroEstoqueErp>): PlanoEstoqueErp {
   if (e.acao === 'inativado') return { tipo: 'inativar', external_id: e.external_id };
@@ -133,6 +143,8 @@ export function planejarEstoqueDoErp(e: EventoErpBase<RegistroEstoqueErp>): Plan
       deposito_nome: r.deposito_nome?.trim() || r.deposito_external_id,
       produto_external_id: r.produto_external_id,
       saldo: r.saldo,
+      // undefined = o evento não falou de filial (depósito conhecido não muda); null = padrão (RN-CORE-39)
+      filial_external_id: r.filial_external_id === undefined ? undefined : r.filial_external_id?.trim() || null,
     },
   };
 }

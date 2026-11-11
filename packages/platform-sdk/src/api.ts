@@ -105,6 +105,13 @@ export interface TransacaoTenant {
    */
   registrarArquivo(arquivo: NovoArquivo): Promise<{ criado: boolean }>;
   /**
+   * ADR 0041 (T-0147): troca os `perfis_leitura` dos arquivos DO MÓDULO DA ROTA ligados a `entidade`/`entidade_ids`, NA MESMA
+   * transação (ex.: o admin marca um tipo de foto como sensível e o Core restringe as fotos já enviadas). `null` = volta à
+   * regra de sempre. Lista inválida (`problemasPerfisLeitura`) = erro de programação. Devolve quantas linhas mudaram.
+   * A API sempre implementa; é opcional só para os `TransacaoTenant` falsos dos testes dos módulos.
+   */
+  restringirArquivos?(alvo: { entidade: string; entidade_ids: readonly string[]; perfis_leitura: readonly Perfil[] | null }): Promise<{ alterados: number }>;
+  /**
    * ADR 0012: consulta a outro módulo NA MESMA transação (mesmo tenant, RLS, papel macuxi_app). Só consultas em
    * `usaConsultas` ou `usaConsultasOpcionais` (ADR 0019) do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
    * contrato. Dono inativo para o usuário ou não instalado → `ConsultaIndisponivel` (503 se não tratada).
@@ -252,6 +259,15 @@ export interface ContextoConsulta {
    */
   fuso(): string;
   log: LogRota;
+  /**
+   * T-0149 (complemento da ADR 0012): a consulta chama OUTRA consulta pública (ex.: `catalogo.precos_cliente@1` lê
+   * `core.filiais@1`). O consumidor é o módulo DONO desta consulta: a outra precisa estar em `usaConsultas` (ou
+   * `usaConsultasOpcionais`) do manifesto dele. Mesma semântica de `tx.consultar`: mesmo `db` (transação, tenant, RLS), mesmo
+   * usuário, mesma licença e mesmo modo da origem, sem elevação; dono inativo/ausente = `ConsultaIndisponivel`. Ciclo
+   * (a consulta reaparece na cadeia) ou cadeia acima de 4 níveis = erro de programação. A API sempre preenche; é opcional só
+   * para os contextos falsos dos testes dos módulos (como `TransacaoTenant.restringirArquivos`).
+   */
+  consultar?: TransacaoTenant['consultar'];
 }
 
 export interface ImplementacaoConsulta<E extends z.ZodTypeAny = z.ZodTypeAny, S extends z.ZodTypeAny = z.ZodTypeAny> {

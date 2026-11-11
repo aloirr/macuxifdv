@@ -327,6 +327,8 @@ export interface ItemArquivo {
   situacao: SituacaoArquivo;
   codigo: string | null;
   enviado_em: string | null;
+  /** ADR 0041 (T-0147): apagar o arquivo local assim que o servidor aceitar (documento sensível; sem os 7 dias). */
+  apagar_ao_enviar?: true;
 }
 
 export interface NovoArquivoFila {
@@ -337,6 +339,11 @@ export interface NovoArquivoFila {
   tipo?: TipoArquivo;
   /** Texto curto para a tela de sync (ex.: "Foto da fachada · Auto Peças Um"). */
   rotulo?: string;
+  /**
+   * ADR 0041 (T-0147): apaga o arquivo local e tira da fila assim que o envio for aceito (documento sensível, como CNH e
+   * contrato social, não fica no aparelho). Padrão: fica 7 dias (`DIAS_RETENCAO_ARQUIVO_LOCAL`) para a tela mostrar offline.
+   */
+  apagarAoEnviar?: boolean;
 }
 
 export interface NovoItemOutbox {
@@ -1016,6 +1023,12 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         await atualizar(id, { tentativas, ultimo_erro: msg(e), ultima_tentativa_em: quando });
         break;
       }
+      if (r.status === 'aceito' && item.apagar_ao_enviar) {
+        // documento sensível (ADR 0041): sai da fila e do aparelho na hora
+        await gravarArquivos((atual) => (atual.some((a) => a.id === id) ? atual.filter((a) => a.id !== id) : null));
+        await removerLocal(item.caminho);
+        continue;
+      }
       if (r.status === 'aceito') {
         await atualizar(id, {
           situacao: 'enviado',
@@ -1459,6 +1472,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         situacao: 'pendente',
         codigo: null,
         enviado_em: null,
+        ...(novo.apagarAoEnviar ? { apagar_ao_enviar: true as const } : {}),
       };
       let gravado = item;
       await gravarArquivos((atual) => {

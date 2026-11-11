@@ -24,6 +24,13 @@ describe('RN-CORE-19: contratos das medidas', () => {
     expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_medida: 'CX', embalagem_quantidade: 12 }).success).toBe(true);
     expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_medida: null, embalagem_quantidade: null }).success).toBe(true);
   });
+  it('RN-VEN-11: produto no pull leva preco_venda_cents e desconto_maximo_pct opcionais (aditivo, faixa 0 a 100)', () => {
+    const produto = { ...base, sku: 'A1', ean: null, nome: 'Café', marca: null, categoria: null, unidade: 'UN', ativo: true };
+    expect(ProdutoSyncSchema.safeParse({ ...produto, preco_venda_cents: 1250, desconto_maximo_pct: 15 }).success).toBe(true);
+    expect(ProdutoSyncSchema.safeParse({ ...produto, preco_venda_cents: null }).success).toBe(true);
+    expect(ProdutoSyncSchema.safeParse({ ...produto, desconto_maximo_pct: 101 }).success).toBe(false);
+    expect(ProdutoSyncSchema.safeParse({ ...produto, preco_venda_cents: -1 }).success).toBe(false);
+  });
   it('RN-CORE-19: embalagem_quantidade no pull é inteira de 2 a 9999 (mesmo CHECK do banco)', () => {
     const produto = { ...base, sku: 'A1', ean: null, nome: 'Café', marca: null, categoria: null, unidade: 'UN', ativo: true, embalagem_medida: 'CX' };
     for (const q of [2, 9999]) expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_quantidade: q }).success, String(q)).toBe(true);

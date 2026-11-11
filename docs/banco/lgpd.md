@@ -21,6 +21,8 @@ testes do CI com a fixture dois-tenants, sempre com ROLLBACK. **Nada disto foi r
 | `catalogo.uso_ia` (cota por dia) | **sem prazo** | 0013 |
 | `plataforma.auditoria` | **sem prazo** (só inserção) | 0001 |
 | `plataforma.arquivo` e fotos no bucket | **sem prazo** | 0005 |
+| Fotos do PDV (`core.cliente_foto`, `plataforma.arquivo` finalidade `pdv` e os bytes) | **enquanto o cliente estiver ativo + 5 anos** depois de `core.cliente.inativado_em` (ou do `deleted_at`); a substituída entra no mesmo prazo (5 anos é do cliente, não da foto). Expurgo: tarefa diária do Core, **depois da v1.0.5** (nenhum prazo vence antes de 2031) | 0057 (T-0147, desenho §7) |
+| Diagnóstico do aparelho (`plataforma.diagnostico`, o print em `plataforma.arquivo` finalidade `print_diagnostico` e os bytes) | **90 dias** depois de `recebido_em`, apagamento **de fato** (linha, arquivo e bytes); print que não chegou (`aguardando`): 7 dias | 0058, `expurgar_diagnosticos` (worker, diário; seção 7) |
 | Coordenadas de check-in e checkout (`core.visita`) | **sem prazo** | 0006 |
 | Pedidos, títulos, notas e histórico de compra | sem prazo enquanto o tenant estiver ativo | módulos |
 
@@ -127,3 +129,32 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
   não enxerga o tenant (P0002) e nada sai.
 - Teste estático, que roda sem banco: só uma função `SECURITY DEFINER` na 0024 (`resumo_outbox`); as funções da LGPD com
   `revoke` de `public` e sem `grant`.
+
+## 6. Fotos do PDV e documentos sensíveis (0057, T-0147, ADR 0041)
+- **Relógio**: `core.cliente.inativado_em` (gatilho `cliente_inativado_em`: preenche quando `ativo` vira falso, limpa quando
+  volta). Clientes já inativos na migração receberam o `updated_at`.
+- **Prazo**: cliente ativo + 5 anos depois de `inativado_em` (ou do `deleted_at`). O expurgo (tarefa diária do Core, pg-boss)
+  apaga `core.cliente_foto`, a linha de `plataforma.arquivo` e os bytes (`ArmazenamentoArquivos.remover`); entra depois da
+  v1.0.5. Consulta do expurgo (referência): `select f.id, f.arquivo_id from core.cliente_foto f join core.cliente c on
+  c.tenant_id = f.tenant_id and c.id = f.cliente_id where coalesce(c.inativado_em, c.deleted_at) < now() - interval '5 years'`.
+- **Leitura restrita**: os documentos sensíveis (CNH, contrato social) têm `plataforma.arquivo.perfis_leitura` =
+  admin, analista, gerente e supervisor (+ a carteira; o gerente desde R-20261110-084206); o vendedor recebe `arquivo_id` nulo no pull. Nenhuma linha de log de leitura.
+- **Titular / tenant**: a anonimização de cliente não apaga as fotos sozinha (pendência do Core: incluir `cliente_foto` no
+  roteiro §3 quando o expurgo entrar); a exclusão de tenant (§4) apaga as linhas pelo `plataforma.excluir_tenant` e os bytes
+  pela chave `<tenant_id>/...`.
+
+## 7. Diagnóstico do aparelho (0058, T-0158, ADR 0043)
+- **O que guarda**: só dado técnico — versão, aparelho (fabricante, modelo, Android), tela (rota sem query string, CHECK),
+  motivo, horário, empresa e usuário **por id** (do token, nunca do corpo) e o perfil base. A descrição livre ("O que
+  aconteceu?") passa pela máscara de dado pessoal no aparelho e de novo na API; o print só existe se o vendedor anexar.
+- **Quem lê**: só o super-admin, pelo portal (`sa_listar_diagnosticos` / `sa_diagnostico`, auditadas em
+  `auditoria_plataforma` sem o texto). O tenant não lê o print (o `GET /v1/arquivos/:id` dá 404 para `modulo = 'plataforma'`).
+  O worker lê sem `descricao` e sem `detalhe`; o recado automático (repositório de recados, imutável e sem expurgo) leva só o
+  protocolo, dados técnicos curtos e os ids.
+- **Prazo: 90 dias** depois de `recebido_em`. O worker chama todo dia `plataforma.expurgar_diagnosticos(now(), 500)` até zerar
+  e apaga **de fato** a linha e o arquivo do print na mesma transação; depois do commit remove os bytes pelas `chaves`
+  devolvidas. Print `aguardando` há mais de 7 dias também sai.
+- **Titular**: a anonimização do usuário (§3) não precisa mexer aqui (só o id; o texto é mascarado e some em 90 dias). Pedido
+  explícito do titular antes disso: `delete from plataforma.diagnostico where tenant_id = '<tenant>' and usuario_id = '<id>'`
+  pela conexão de administração (e o arquivo do print pela `print_id`).
+- **Tenant**: a `excluir_tenant` (§4) apaga as linhas pela ordem das FKs; os bytes saem pela chave `<tenant_id>/plataforma/...`.

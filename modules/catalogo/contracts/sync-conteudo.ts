@@ -21,8 +21,8 @@ export type ProdutoAtributoSync = z.infer<typeof ProdutoAtributoSyncSchema>;
 export const SinonimoSyncSchema = z.object({ ...Base, termo: z.string(), sinonimos: z.array(z.string()), ativo: z.boolean() });
 export type SinonimoSync = z.infer<typeof SinonimoSyncSchema>;
 
-/** Filial/depósito (na Fase M cada filial é um depósito). */
-export const DepositoSyncSchema = z.object({ ...Base, codigo: z.string(), nome: z.string(), ativo: z.boolean() });
+/** Depósito do ERP. Desde a T-0149 pertence a uma filial (`filial_id`, RN-CORE-39); o estoque da filial é a soma dos depósitos dela. */
+export const DepositoSyncSchema = z.object({ ...Base, codigo: z.string(), nome: z.string(), ativo: z.boolean(), filial_id: z.string().uuid().optional() });
 export type DepositoSync = z.infer<typeof DepositoSyncSchema>;
 
 /** Saldo do ERP por produto e depósito (RN-CAT-07: `atualizado_em` = hora do saldo no ERP; reservas são do Vendedor). */

@@ -124,7 +124,8 @@ describe('pedido', () => {
     const id = randomUUID();
     const r = await call('POST', '/orders', 'Rafael', body(id, 20));
     expect(r.body.status).toBe('rejected');
-    expect(r.body.rejection_reason).toContain('alçada máxima');
+    // RN-VEN-11/RN-VEN-42 (T-0151): a recusa vem do domínio do Vendedor (order.ts), "Desconto 20,0% acima do máximo"
+    expect(r.body.rejection_reason).toMatch(/^Desconto .+ acima do máximo$/);
   });
 
   it('pedido inválido: 400 em português', async () => {

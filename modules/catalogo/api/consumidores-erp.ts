@@ -8,7 +8,7 @@
  * lança `ReferenciaAusenteErp`: a transação do consumo desfaz e a outbox repete com espera crescente, sem gravar órfão.
  * Os payloads vêm do `contracts` do Integracao (`EVENTO_ERP_*_ATUALIZADO`, leitura tolerante; T-0024), sem cópia local.
  */
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { EVENTO_REFERENCIA_MARCA_DESCONHECIDA } from '../contracts';
@@ -33,6 +33,20 @@ export const resolverProdutosPelaConsulta: ResolverProdutos = async (ctx, extern
   const mapa = new Map<string, string>();
   for (const p of saida.produtos) if (p.external_id) mapa.set(p.external_id, p.id);
   return mapa;
+};
+
+/**
+ * Filial do ERP (`filial_external_id`) para o id interno, por `core.filiais@1` (T-0149, RN-CORE-39). Ausente ou nulo = a filial padrão;
+ * chave desconhecida = `referencia_ausente` (a outbox repete até a entidade `filial` chegar, RN-INT-04). Injetável nos testes.
+ */
+export type ResolverFilial = (ctx: ContextoConsumo, externalId: string | null) => Promise<string>;
+
+export const resolverFilialPelaConsulta: ResolverFilial = async (ctx, externalId) => {
+  const saida = await ctx.consultar(CONSULTA_FILIAIS, { cliente_ids: [], external_ids: externalId ? [externalId] : [], escopo: 'tenant' });
+  if (!externalId) return saida.padrao_id;
+  const id = saida.por_external_id.find((f) => f.external_id === externalId)?.filial_id;
+  if (!id) throw new ReferenciaAusenteErp('filial');
+  return id;
 };
 
 /** Unidade base (sigla) do produto do ERP, pela consulta do Core; nula se o produto não chegou. Injetável nos testes. */
@@ -98,7 +112,7 @@ async function tabelaId(db: ClienteBanco, externalId: string, nome: string): Pro
   return nova.rows[0]!.id;
 }
 
-export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta, unidadeBase: ResolverUnidadeBase = resolverUnidadeBasePelaConsulta): ConsumidorEvento {
+export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta, unidadeBase: ResolverUnidadeBase = resolverUnidadeBasePelaConsulta, resolverFilial: ResolverFilial = resolverFilialPelaConsulta): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoPrecoAtualizado,
     async executar(p, ctx: ContextoConsumo) {
@@ -118,20 +132,50 @@ export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverP
         return;
       }
       const tabela = await tabelaId(ctx.db, l.tabela_external_id, l.tabela_nome);
+      const filial = await resolverFilial(ctx, l.filial_external_id);
+      // RN-CORE-39 (T-0149): o item que muda de filial pelo mesmo external_id vira tombstone NA FILIAL ANTIGA (o pull filtra por filial, então
+      // só a linha apagada que ainda tem a filial velha chega ao aparelho dela) e nasce uma linha nova na filial nova.
+      await ctx.db.query('update catalogo.tabela_preco_item set deleted_at = now() where external_id = $1 and deleted_at is null and filial_id is distinct from $2::uuid', [l.external_id, filial]);
       // Fim da vigência do ERP é inclusivo (data civil); no Catálogo o fim é exclusivo: dia seguinte à meia-noite UTC.
       await ctx.db.query(
-        `insert into catalogo.tabela_preco_item (tenant_id, tabela_preco_id, produto_id, preco_cents, vigencia_inicio, vigencia_fim, external_id)
-         values (plataforma.tenant_atual(), $1, $2, $3, $4::date::timestamptz, case when $5::date is null then null else ($5::date + 1)::timestamptz end, $6)
+        `insert into catalogo.tabela_preco_item (tenant_id, tabela_preco_id, produto_id, preco_cents, vigencia_inicio, vigencia_fim, external_id, filial_id)
+         values (plataforma.tenant_atual(), $1, $2, $3, $4::date::timestamptz, case when $5::date is null then null else ($5::date + 1)::timestamptz end, $6, $7::uuid)
          on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
          do update set tabela_preco_id = excluded.tabela_preco_id, produto_id = excluded.produto_id, preco_cents = excluded.preco_cents,
-                       vigencia_inicio = excluded.vigencia_inicio, vigencia_fim = excluded.vigencia_fim`,
-        [tabela, produto, l.preco_cents, l.vigencia_inicio, l.vigencia_fim, l.external_id],
+                       vigencia_inicio = excluded.vigencia_inicio, vigencia_fim = excluded.vigencia_fim, filial_id = excluded.filial_id`,
+        [tabela, produto, l.preco_cents, l.vigencia_inicio, l.vigencia_fim, l.external_id, filial],
       );
     },
   });
 }
 
-export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta): ConsumidorEvento {
+interface SaldoCopiado {
+  produto_id: string;
+  quantidade: number;
+  atualizado_erp_em: string | null;
+  external_id: string | null;
+}
+
+/**
+ * RN-CORE-39 (T-0149): depósito que troca de filial. O pull de estoque filtra pela filial do depósito, então a mesma linha não chega
+ * como tombstone ao aparelho da filial antiga. Aqui o depósito e os saldos vivos dele são apagados (a linha apagada ainda tem a filial
+ * velha e vai para o aparelho dela) e devolvidos para o consumidor recriá-los no depósito novo, na filial nova. Sem troca: não faz nada.
+ */
+async function moverDepositoDeFilial(db: ClienteBanco, depositoExternalId: string, filialNova: string): Promise<SaldoCopiado[]> {
+  const atual = (await db.query<{ id: string; filial_id: string }>('select id, filial_id from catalogo.deposito where external_id = $1 and deleted_at is null', [depositoExternalId])).rows[0];
+  if (!atual || atual.filial_id === filialNova) return [];
+  const saldos = (
+    await db.query<{ produto_id: string; quantidade: string; atualizado_erp_em: string | null; external_id: string | null }>(
+      'select produto_id, quantidade::text as quantidade, atualizado_erp_em::text as atualizado_erp_em, external_id from catalogo.estoque_saldo where deposito_id = $1 and deleted_at is null',
+      [atual.id],
+    )
+  ).rows;
+  await db.query('update catalogo.estoque_saldo set deleted_at = now() where deposito_id = $1 and deleted_at is null', [atual.id]);
+  await db.query('update catalogo.deposito set deleted_at = now() where id = $1', [atual.id]);
+  return saldos.map((x) => ({ produto_id: x.produto_id, quantidade: Number(x.quantidade), atualizado_erp_em: x.atualizado_erp_em, external_id: x.external_id }));
+}
+
+export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta, resolverFilial: ResolverFilial = resolverFilialPelaConsulta): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoEstoqueAtualizado,
     async executar(p, ctx: ContextoConsumo) {
@@ -143,12 +187,22 @@ export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolve
       }
       const l = plano.linha;
       const produto = await produtoId(ctx, resolver, l.produto_external_id);
+      // RN-CORE-39: filial do depósito. Ausente no evento: depósito novo nasce na padrão e o conhecido não muda; informada (ou nula = padrão): vale
+      const filial = await resolverFilial(ctx, l.filial_external_id ?? null);
+      const copiados = l.filial_external_id !== undefined ? await moverDepositoDeFilial(ctx.db, l.deposito_external_id, filial) : [];
       const dep = await ctx.db.query<{ id: string }>(
-        `insert into catalogo.deposito (tenant_id, codigo, nome, external_id) values (plataforma.tenant_atual(), $1, $2, $1)
+        `insert into catalogo.deposito (tenant_id, codigo, nome, external_id, filial_id) values (plataforma.tenant_atual(), $1, $2, $1, $3::uuid)
          on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
-         do update set nome = excluded.nome, ativo = true returning id`,
-        [l.deposito_external_id, l.deposito_nome],
+         do update set nome = excluded.nome, ativo = true,
+                       filial_id = case when $4::boolean then excluded.filial_id else catalogo.deposito.filial_id end returning id`,
+        [l.deposito_external_id, l.deposito_nome, filial, l.filial_external_id !== undefined],
       );
+      for (const c of copiados) {
+        await ctx.db.query(
+          `insert into catalogo.estoque_saldo (tenant_id, deposito_id, produto_id, quantidade, atualizado_erp_em, external_id) values (plataforma.tenant_atual(), $1, $2, $3, $4::timestamptz, $5)`,
+          [dep.rows[0]!.id, c.produto_id, c.quantidade, c.atualizado_erp_em, c.external_id],
+        );
+      }
       await ctx.db.query(
         `insert into catalogo.estoque_saldo (tenant_id, deposito_id, produto_id, quantidade, atualizado_erp_em, external_id)
          values (plataforma.tenant_atual(), $1, $2, $3, $4::timestamptz, $5)
@@ -290,7 +344,7 @@ export function criarConsumidorProdutoNoDoErp(resolver: ResolverProdutos = resol
  * índice único e deixar o evento em loop. Produto ou tabela que ainda não chegaram = `referencia_ausente` (repete, RN-INT-04).
  * Inativação do ERP = soft delete (a faixa sai das consultas, nunca se apaga de verdade).
  */
-export function criarConsumidorTabelaEscalonadaDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta): ConsumidorEvento {
+export function criarConsumidorTabelaEscalonadaDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta, resolverFilial: ResolverFilial = resolverFilialPelaConsulta): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoTabelaEscalonadaAtualizado,
     async executar(p, ctx: ContextoConsumo) {
@@ -307,20 +361,24 @@ export function criarConsumidorTabelaEscalonadaDoErp(resolver: ResolverProdutos 
         tabela = (await ctx.db.query<{ id: string }>('select id from catalogo.tabela_preco where external_id = $1 and deleted_at is null', [l.tabela_external_id])).rows[0]?.id ?? null;
         if (!tabela) throw new ReferenciaAusenteErp('tabela_preco');
       }
-      const chave = [produto, l.medida, l.quantidade_minima, tabela, l.vigencia_inicio];
+      // RN-CORE-39: sem filial = a faixa vale para todas (filial_id nulo); com filial, precisa existir (senão repete na outbox)
+      const filial = l.filial_external_id ? await resolverFilial(ctx, l.filial_external_id) : null;
+      const chave = [produto, l.medida, l.quantidade_minima, tabela, l.vigencia_inicio, filial];
       await ctx.db.query(
-        `update catalogo.tabela_escalonada set external_id = $6
+        `update catalogo.tabela_escalonada set external_id = $7
           where external_id is null and deleted_at is null and produto_id = $1::uuid and medida is not distinct from $2::text
             and quantidade_minima = $3::int and tabela_preco_id is not distinct from $4::uuid and vigencia_inicio = $5::date
-            and not exists (select 1 from catalogo.tabela_escalonada o where o.external_id = $6 and o.deleted_at is null)`,
+            and filial_id is not distinct from $6::uuid
+            and not exists (select 1 from catalogo.tabela_escalonada o where o.external_id = $7 and o.deleted_at is null)`,
         [...chave, l.external_id],
       );
       // colisão com OUTRA linha viva na mesma chave (outro external_id do ERP, ou manual que a adoção não pôde assumir): a do ERP vale,
       // a outra sai por soft delete e o aviso vai ao log. Sem isso o 23505 repetiria na outbox sem fim.
       const outras = await ctx.db.query<{ id: string; external_id: string | null }>(
         `select id, external_id from catalogo.tabela_escalonada
-          where deleted_at is null and external_id is distinct from $6 and produto_id = $1::uuid and medida is not distinct from $2::text
-            and quantidade_minima = $3::int and tabela_preco_id is not distinct from $4::uuid and vigencia_inicio = $5::date`,
+          where deleted_at is null and external_id is distinct from $7 and produto_id = $1::uuid and medida is not distinct from $2::text
+            and quantidade_minima = $3::int and tabela_preco_id is not distinct from $4::uuid and vigencia_inicio = $5::date
+            and filial_id is not distinct from $6::uuid`,
         [...chave, l.external_id],
       );
       for (const o of outras.rows) {
@@ -329,13 +387,13 @@ export function criarConsumidorTabelaEscalonadaDoErp(resolver: ResolverProdutos 
         ctx.log.warn({ external_id: l.external_id, substituida: o.external_id ? 'erp' : 'manual' }, 'faixa escalonada do ERP colidiu com outra faixa viva na mesma chave: a do ERP vale e a anterior foi inativada');
       }
       await ctx.db.query(
-        `insert into catalogo.tabela_escalonada (tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_preco_id, ativo, external_id)
-         values (plataforma.tenant_atual(), $1::uuid, $2, $3::int, $4::bigint, $5::date, $6::date, $7::uuid, true, $8)
+        `insert into catalogo.tabela_escalonada (tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_preco_id, ativo, external_id, filial_id)
+         values (plataforma.tenant_atual(), $1::uuid, $2, $3::int, $4::bigint, $5::date, $6::date, $7::uuid, true, $8, $9::uuid)
          on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
          do update set produto_id = excluded.produto_id, medida = excluded.medida, quantidade_minima = excluded.quantidade_minima,
                        preco_unidade_cents = excluded.preco_unidade_cents, vigencia_inicio = excluded.vigencia_inicio,
-                       vigencia_fim = excluded.vigencia_fim, tabela_preco_id = excluded.tabela_preco_id, ativo = true`,
-        [produto, l.medida, l.quantidade_minima, l.preco_unidade_cents, l.vigencia_inicio, l.vigencia_fim, tabela, l.external_id],
+                       vigencia_fim = excluded.vigencia_fim, tabela_preco_id = excluded.tabela_preco_id, filial_id = excluded.filial_id, ativo = true`,
+        [produto, l.medida, l.quantidade_minima, l.preco_unidade_cents, l.vigencia_inicio, l.vigencia_fim, tabela, l.external_id, filial],
       );
     },
   });

@@ -3,7 +3,8 @@
  * do shell (`limparDadoPessoal`, T-0088) e o log do Conector (`mascararTexto`), que tinham regras e marcadores diferentes
  * (observação `manter?` do corretor no RD-0032, R-20261109-023557).
  *
- * Só dado pessoal: e-mail, CNPJ, CPF, telefone (com e sem DDD) e sequência longa de dígitos com separadores. Segredo
+ * Só dado pessoal: e-mail, CNPJ, CPF, telefone (com e sem DDD), sequência longa de dígitos com separadores e valor em reais
+ * com `R$` (T-0158: o diagnóstico nunca leva valor). Segredo
  * (senha, token, string de conexão) é assunto de quem loga e fica no chamador (o Conector aplica as regras dele ANTES
  * desta). O que NÃO pode sumir, para o suporte achar a causa: UUID, pilha (`index.bundle:1234:56789`), data e hora ISO
  * (`2026-11-08T21:11:00.000Z`) ou com espaço (`2026-11-09 02:50:00`) e número curto (pedido `000010`).
@@ -16,6 +17,7 @@ export const MARCADOR_DADO_PESSOAL = {
   cpf: '[cpf]',
   telefone: '[telefone]',
   numero: '[número]',
+  valor: '[valor]',
 } as const;
 
 const M = MARCADOR_DADO_PESSOAL;
@@ -24,6 +26,9 @@ const M = MARCADOR_DADO_PESSOAL;
 const REGRAS: readonly (readonly [RegExp, string])[] = [
   // letras acentuadas no usuário e no domínio; o `***@` da string de conexão já mascarada não casa (`*` antes do `@`)
   [/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*/gu, M.email],
+  // valor em reais (T-0158, D-T0158-1: o diagnóstico nunca leva valor): `R$ 1.234,56`, `R$530,83`, `-R$ 10`, `R$ 1234.5`;
+  // só com o `R$` na frente (número solto, data e hora ficam), antes das regras de número para sair inteiro
+  [/-?R\$\s*-?\d(?:[\d.]*\d)?(?:,\d+)?/g, M.valor],
   [/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, M.cnpj],
   [/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, M.cpf],
   // com DDD: (92) 99123-4567, 92 3234-5678, 92991234567

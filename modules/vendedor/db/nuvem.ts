@@ -4,7 +4,8 @@
  * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item),
  * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), 0033_catalogo_aplicacao_referencia
  * (retrato da aplicação no item, T-0084) e 0037_forma_prazo_escalonada (forma_pagamento, prazo_pagamento e o pagamento do
- * pedido, T-0089) e 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37), para uso INTERNO do
+ * pedido, T-0089), 0050_vendedor_pedido_devolucao (devolução do pedido, RN-VEN-37), 0056_core_filial (retrato da filial
+ * no pedido, T-0149) e 0061_vendedor_reserva_filial (filial derivada no item, RN-VEN-20), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -17,6 +18,7 @@
  */
 import { bigint, boolean, date, integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import type { RetratoFilial } from '../domain/filial-pedido';
 import { ORDER_STATUSES } from '../domain/order';
 
 export const vendedor = pgSchema('vendedor');
@@ -175,6 +177,11 @@ export const pedido = vendedor.table('pedido', {
   prazo_parcelas_dias: integer('prazo_parcelas_dias').array(),
   /** Prazo médio do prazo no aceite (entre a menor e a maior parcela). */
   prazo_medio_dias: integer('prazo_medio_dias'),
+  // --- 0056 (T-0149, RN-CORE-39, ADR 0040): filial do cliente no recebimento (o pedido não escolhe filial) ---
+  /** id de core.filial (sem FK: fronteira). Nulo nos pedidos anteriores à 0056. Os dois juntos ou nenhum (pedido_filial_coerente). */
+  filial_id: uuid('filial_id'),
+  /** Retrato da filial: filial->>'id' = filial_id (CHECK). */
+  filial: jsonb('filial').$type<RetratoFilial>(),
 });
 
 /** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */
@@ -230,6 +237,16 @@ export const pedidoItem = vendedor.table('pedido_item', {
    * anterior à 0033. A API nunca troca pelo cadastro atual.
    */
   aplicacao: text('aplicacao'),
+  // --- 0060 (T-0159, coluna "Marca" do PDF) ---
+  /** Retrato da marca do produto (core.produto.marca) no recebimento, 1..100 (a API corta); nunca editado; nulo = sem marca ou item anterior à 0060. */
+  marca: text('marca'),
+  // --- 0061 (T-0149, RN-VEN-20 por filial) ---
+  /**
+   * = pedido.filial_id do pedido do item, DERIVADA pelos gatilhos pedido_item_filial e pedido_filial_nos_itens: SOMENTE LEITURA,
+   * nunca grave (o valor enviado é sobrescrito). Nulo = pedido sem filial. Índice pedido_item_reserva_filial_ix para a soma
+   * das reservas por (tenant, produto, filial).
+   */
+  filial_id: uuid('filial_id'),
 });
 
 /**

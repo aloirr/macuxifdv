@@ -317,13 +317,14 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
     });
   });
 
-  it('macuxi_worker só tem política nas duas outboxes (lê todos os tenants só nelas); macuxi_portal sem privilégio na outbox de e-mail', async () => {
+  it('macuxi_worker só tem política nas duas outboxes e no diagnóstico (alerta e expurgo, 0058/T-0158); macuxi_portal sem privilégio na outbox de e-mail', async () => {
     const r = await q<{ t: string }>(
       `select distinct n.nspname || '.' || c.relname as t
          from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
          join pg_roles r on r.oid = any (p.polroles)
         where r.rolname = 'macuxi_worker' order by 1`);
-    expect(r.map((x) => x.t)).toEqual(['plataforma.email_saida', 'plataforma.evento']);
+    // 0058 (T-0158): diagnostico_alerta/diagnostico_alerta_marcar dão ao worker a leitura por coluna (sem descricao/detalhe) e a marcação do alerta
+    expect(r.map((x) => x.t)).toEqual(['plataforma.diagnostico', 'plataforma.email_saida', 'plataforma.evento']);
     await emTransacao(admin, null, async () => {
       for (const sql of ['select 1 from plataforma.email_saida', 'delete from plataforma.email_saida', `insert into plataforma.email_saida (tenant_id, usuario_id, modelo, chave_idempotencia, enviado_em) values ('${A}', '${DOIS_TENANTS.A.usuarios.vendedor1}', 'nova_senha', 'p-x', now())`]) {
         expect((await erroDe(como('macuxi_portal', sql)))?.code, sql).toBe('42501');

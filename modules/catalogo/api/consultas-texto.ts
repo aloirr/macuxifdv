@@ -13,7 +13,7 @@
  * catálogo inteiro a cada chamada. A guarda disso está em tests/modulos/defeitos-corretor-r173739.test.ts (D3).
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
-import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO } from '../contracts';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_FOTO_PRODUTO, CONSULTA_TEXTOS_PRODUTO } from '../contracts';
 import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
@@ -95,4 +95,11 @@ export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS
       anoAtual: anoCivilNoFuso(ctx.agora(), ctx.fuso?.()),
     }),
   };
+});
+
+/** `catalogo.foto_produto@1` na API (T-0148): só `tem_foto` (foto principal viva); quem baixa a foto é o aparelho, `uri` sempre nulo. */
+export const consultaFotoProduto = implementarConsulta(CONSULTA_FOTO_PRODUTO, async (entrada, ctx) => {
+  const r = await ctx.db.query(`select distinct produto_id from catalogo.produto_midia where produto_id = any($1::uuid[]) and principal and tipo = 'foto' and deleted_at is null`, [entrada.produto_ids]);
+  const com = new Set((r.rows as Array<{ produto_id: string }>).map((x) => x.produto_id));
+  return { itens: entrada.produto_ids.map((id) => ({ produto_id: id, tem_foto: com.has(id), uri: null })) };
 });
