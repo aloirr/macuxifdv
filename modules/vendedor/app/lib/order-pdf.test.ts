@@ -8,9 +8,8 @@ const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', produ
 function order(over: Partial<OrderPdfOrder> = {}): OrderPdfOrder {
   return {
     number: '10521',
-    status: 'pending_approval',
     created_at: '2026-10-12T13:41:00.000Z',
-    customer: { legal_name: 'Auto Peças Exemplo Ltda', trade_name: 'Auto Peças Exemplo', cnpj: '12345678000190', address: 'Rua Fictícia, 100', district: 'Centro', city: 'Manaus', erp_code: 'C0001' },
+    customer: { legal_name: 'Auto Peças Exemplo Ltda', trade_name: 'Auto Peças Exemplo', cnpj: '12345678000190', erp_code: 'C0001' },
     seller_name: 'Rafael Souza',
     payment_terms: '28/56 dias',
     discount_pct: 7,
@@ -20,12 +19,10 @@ function order(over: Partial<OrderPdfOrder> = {}): OrderPdfOrder {
       { erp_code: 'FLT-0201', description: 'Filtro de óleo <premium>', quantity: 3, unit_price_cents: 4500, total_cents: 12555 },
     ],
     subtotal_cents: 103400,
-    discount_cents: 7238,
     total_cents: 96162,
     pending_reason: 'Desconto de 7,0% acima da sua alçada de 5,0%. Vai para aprovação.',
     rejection_reason: '',
     price_table: 'Tabela Varejo',
-    branch_name: 'CD Manaus',
     erp_order_code: '',
     seller_limit_pct: 5,
     history: [
@@ -87,7 +84,7 @@ describe('PDF do pedido · versão cliente', () => {
   });
 
   it('pedido ainda na fila aparece como "no aparelho"', () => {
-    const h = buildOrderPdfHtml(order({ number: null, status: 'queued' }), 'customer', ctx);
+    const h = buildOrderPdfHtml(order({ number: null }), 'customer', ctx);
     expect(visibleText(h)).toContain('Pedido');
     expect(h).toContain('<title>PED-PROV-12102026</title>');
   });
@@ -118,12 +115,12 @@ describe('PDF do pedido · versão BKO', () => {
 
   it('subtotal − desconto = total', () => {
     const o = order();
-    expect(o.subtotal_cents - o.discount_cents).toBe(o.total_cents);
+    expect(o.subtotal_cents - Math.round(o.subtotal_cents * o.discount_pct / 100)).toBe(o.total_cents);
     expect(o.items.reduce((s, i) => s + i.total_cents, 0)).toBe(o.total_cents);
   });
 
   it('pedido excluído mostra "Excluído" e o motivo', () => {
-    const h = visibleText(buildOrderPdfHtml(order({ status: 'cancelled', rejection_reason: 'Excluído por Rafael S.: cliente desistiu' }), 'bko', ctx));
+    const h = visibleText(buildOrderPdfHtml(order({ rejection_reason: 'Excluído por Rafael S.: cliente desistiu' }), 'bko', ctx));
     expect(h).toContain('Histórico');
   });
 });

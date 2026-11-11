@@ -24,7 +24,7 @@ describe('T-0149 (RN-CORE-39): retrato da filial no pedido', () => {
   it('T-0159: o retrato leva CNPJ, endereço e telefone da filial (a data do pedido) e dadosFiscaisDaFilial os devolve; sem nada, nulo', () => {
     const r = retratoFilialDoPedido({ ...F, cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', bairro: 'Centro', telefone: '9532241000' });
     expect(r.filial).toMatchObject({ cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', telefone: '9532241000' });
-    expect(dadosFiscaisDaFilial(r.filial)).toEqual({ cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', bairro: 'Centro', cidade: 'Boa Vista', uf: 'RR', telefone: '9532241000' });
+    expect(dadosFiscaisDaFilial(r.filial)).toEqual({ nome: F.nome, cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', bairro: 'Centro', cidade: 'Boa Vista', uf: 'RR', telefone: '9532241000' });
     expect(dadosFiscaisDaFilial(retratoFilialDoPedido(F).filial)).toBeNull();
     expect(dadosFiscaisDaFilial(null)).toBeNull();
   });
