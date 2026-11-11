@@ -295,13 +295,13 @@ describe('estoque do catálogo do aparelho (RN-VEN-20)', () => {
 });
 
 describe('T-0159 (R-20261111-003121): cadeia real retrato da filial → detalhe → PDF', () => {
-  it('RD-0119: o cabeçalho do PDF sai com o nome da filial vindo de branch_name, sem montar nome à mão', () => {
-    const filial = { id: U(900), codigo: '0002', nome: 'Boa Vista', cidade: 'Boa Vista', uf: 'RR', cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', cep: '69301000', telefone: '9532241000', padrao: false, external_id: null };
+  it('D-T0159-5: o cabeçalho do PDF sai com o nome puro do retrato (sem código nem UF); branch_name segue 0002 · Filial Boa Vista/RR no detalhe', () => {
+    const filial = { id: U(900), codigo: '0002', nome: 'Filial Boa Vista', cidade: 'Boa Vista', uf: 'RR', cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', cep: '69301000', telefone: '9532241000', padrao: false, external_id: null };
     const l = linhas({ pedidos: [pedido({ id: U(30), filial_id: U(900), filial } as Partial<PedidoSync> & { id: string })], itens: [item(1, U(30), 1, 1, 100)] });
     const d = detalheDoPedido(l, U(30), 'vendedor', {})!;
-    expect(d.branch_name).toBe('0002 · Boa Vista/RR');
+    expect(d.branch_name).toBe('0002 · Filial Boa Vista/RR');
     for (const v of ['customer', 'bko'] as const) {
-      expect(buildOrderPdfHtml(pdfDoPedido(d), v, { tenant_name: 'Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-11T18:00:00.000Z' })).toContain('0002 · Boa Vista/RR · CNPJ 12.345.678/0002-71 · (95) 3224-1000');
+      expect(buildOrderPdfHtml(pdfDoPedido(d), v, { tenant_name: 'Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-11T18:00:00.000Z' })).toContain('Filial Boa Vista · CNPJ 12.345.678/0002-71 · (95) 3224-1000');
     }
   });
 });

@@ -7,6 +7,7 @@
  * Sem dado pessoal: só o motivo, o sinal, a memória e o começo da pilha, com a máscara única (`mascararDadoPessoal`).
  */
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
+import { MOTIVOS_SAIDA_ANDROID } from '@macuxi/platform-sdk';
 
 import type { ErroRegistrado } from './erro-de-tela';
 
@@ -48,24 +49,28 @@ const IMPORTANCIA_VISIVEL = 200;
 
 type Gravidade = 'queda' | 'queda-se-visivel' | 'normal';
 
-const MOTIVOS: Readonly<Record<number, { texto: string; gravidade: Gravidade }>> = {
-  0: { texto: 'motivo desconhecido', gravidade: 'queda-se-visivel' },
-  1: { texto: 'o app se encerrou', gravidade: 'normal' },
-  2: { texto: 'encerrado por sinal do sistema', gravidade: 'queda-se-visivel' },
-  3: { texto: 'falta de memória no aparelho', gravidade: 'queda' },
-  4: { texto: 'erro Java não tratado', gravidade: 'queda' },
-  5: { texto: 'erro nativo', gravidade: 'queda' },
-  6: { texto: 'o app travou (ANR)', gravidade: 'queda' },
-  7: { texto: 'falha ao iniciar', gravidade: 'queda' },
-  8: { texto: 'permissão alterada', gravidade: 'normal' },
-  9: { texto: 'uso excessivo de recursos', gravidade: 'queda' },
-  10: { texto: 'fechado pelo usuário', gravidade: 'normal' },
-  11: { texto: 'parado pelo usuário', gravidade: 'normal' },
-  12: { texto: 'um serviço do qual o app depende parou', gravidade: 'queda' },
-  13: { texto: 'outro motivo do sistema', gravidade: 'queda-se-visivel' },
-  14: { texto: 'congelado pelo sistema', gravidade: 'normal' },
-  15: { texto: 'pacote alterado', gravidade: 'normal' },
-  16: { texto: 'app atualizado', gravidade: 'normal' },
+/**
+ * Gravidade de cada motivo do Android (`ApplicationExitInfo.REASON_*`), regra do app. O texto vem da tabela única do SDK
+ * (`MOTIVOS_SAIDA_ANDROID`, RD-0124), a mesma que o portal mostra ao suporte.
+ */
+const GRAVIDADE: Readonly<Record<number, Gravidade>> = {
+  0: 'queda-se-visivel',
+  1: 'normal',
+  2: 'queda-se-visivel',
+  3: 'queda',
+  4: 'queda',
+  5: 'queda',
+  6: 'queda',
+  7: 'queda',
+  8: 'normal',
+  9: 'queda',
+  10: 'normal',
+  11: 'normal',
+  12: 'queda',
+  13: 'queda-se-visivel',
+  14: 'normal',
+  15: 'normal',
+  16: 'normal',
 };
 
 const SINAIS: Readonly<Record<number, string>> = {
@@ -128,7 +133,7 @@ export function lerErroJava(json: string | null | undefined): ErroJava | null {
 
 /** A saída derrubou o app (erro, memória, travamento) ou foi um fim normal (usuário, atualização, o próprio app)? */
 export function ehQueda(s: SaidaAndroid): boolean {
-  const g = MOTIVOS[s.motivo]?.gravidade ?? 'queda-se-visivel';
+  const g = GRAVIDADE[s.motivo] ?? 'queda-se-visivel';
   if (g === 'queda') return true;
   if (g === 'normal') return false;
   // sinal 9 sem estar visível é o Android liberando um app em segundo plano: normal
@@ -137,9 +142,9 @@ export function ehQueda(s: SaidaAndroid): boolean {
 
 const mb = (kb: number) => `${Math.round(kb / 1024)} MB`;
 
-/** "erro nativo · sinal 11 (SIGSEGV)", "falta de memória no aparelho · memória do app 412 MB"... */
+/** "Falha nativa · sinal 11 (SIGSEGV)", "Sem memória · memória do app 412 MB"... */
 export function descricaoDaSaida(s: SaidaAndroid): string {
-  const partes = [MOTIVOS[s.motivo]?.texto ?? `motivo ${s.motivo}`];
+  const partes = [MOTIVOS_SAIDA_ANDROID[s.motivo]?.rotulo ?? `Motivo ${s.motivo}`];
   if ((s.motivo === 2 || s.motivo === 5) && s.status > 0) partes.push(`sinal ${s.status}${SINAIS[s.status] ? ` (${SINAIS[s.status]})` : ''}`);
   const memoria = s.pss_kb > 0 ? s.pss_kb : s.rss_kb;
   if (memoria > 0) partes.push(`memória do app ${mb(memoria)}`);
@@ -194,7 +199,7 @@ export function saidaParaRegistrar(
 }
 
 /**
- * Linhas do Diagnóstico: "Saídas do app (Android): hoje 05:33 · erro nativo · sinal 11 (SIGSEGV)". `quando` formata no
+ * Linhas do Diagnóstico: "Saídas do app (Android): hoje 05:33 · Falha nativa · sinal 11 (SIGSEGV)". `quando` formata no
  * fuso do tenant. Sem o módulo nativo (APK antigo) ou Android abaixo do 11: uma linha dizendo isso.
  */
 export function linhasDasSaidas(saidas: readonly SaidaAndroid[] | null, quando: (iso: string) => string): string[] {

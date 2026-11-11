@@ -25,7 +25,7 @@ import { prepararPedido, montarPedido, rascunhoVazio, type OrderDisplay, type Ra
 import { condicoesDoCliente, detalheDoPedido, lerLinhas, listaDeClientes, listaDePedidos, meDoAparelho, paraAprovar, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { A, B, licenca } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, disponivelNaFilial, FOLGA_ESTOQUE, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 const EVENTOS = {
   criado: 'vendedor.pedido.criado@1',
@@ -100,7 +100,9 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
     expect(cliente, 'cliente na carteira do aparelho').toBeDefined();
     const r = await ap.motor.ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente!.id, produto_ids: l.produtos.map((p) => p.id), em: new Date().toISOString() });
     const catalogo = produtosComPrecos(l, new Map(r.itens.map((i) => [i.produto_id, i.preco_cents])));
-    const vendaveis = catalogo.filter((p) => p.price_cents != null);
+    // RN-VEN-20 (v1.0.4): só produtos com saldo na filial do cliente (o seed tem ruptura de propósito); folga para a embalagem e as reservas
+    const disp = await disponivelNaFilial(api.admin, cliente!.id, catalogo.map((p) => p.id));
+    const vendaveis = catalogo.filter((p) => p.price_cents != null && (disp.get(p.id) ?? 0) >= FOLGA_ESTOQUE);
     const conds = condicoesDoCliente(l, cliente!.id);
     const rascunho: Rascunho = {
       ...rascunhoVazio(cliente!.id),

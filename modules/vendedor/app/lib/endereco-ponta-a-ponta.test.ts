@@ -83,9 +83,9 @@ describe('RN-VEN-17: endereço editado só no pedido, de ponta a ponta', () => {
     const detalhe = enderecoDaApi({ endereco_entrega: api.retrato as unknown as Record<string, unknown> } as never)!;
     const d: DetalheParaPdf = {
       number: 'PED-000123', status: 'approved', received_at: '2026-11-09T13:00:00.000Z', seller_name: 'Lucas', customer_name: 'Atacadinho', payment_terms: '28 dias', discount_pct: 0,
-      subtotal_cents: 100, discount_cents: 0, total_cents: 100, pending_reason: '', rejection_reason: '', erp_order_code: '', price_table_id: null,
+      subtotal_cents: 100, total_cents: 100, price_table_id: null,
       items: [{ erp_code: 'P1', description: 'Produto', quantity: 1, unit_price_cents: 100, total_cents: 100 }], history: [],
-      cliente: { razao_social: 'Atacadinho Ltda', nome_fantasia: 'Atacadinho', documento: '12345678000190', endereco: 'Rua A, 1', bairro: 'Centro', cidade: 'Manaus', codigo_erp: 'C5007' },
+      cliente: { razao_social: 'Atacadinho Ltda', nome_fantasia: 'Atacadinho', documento: '12345678000190', codigo_erp: 'C5007' },
       delivery_address: detalhe,
     };
     for (const view of ['customer', 'bko'] as const) {

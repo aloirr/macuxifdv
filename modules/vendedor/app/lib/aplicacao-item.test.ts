@@ -129,11 +129,7 @@ describe('RN-VEN-19: PDFs do cliente e do BKO', () => {
     payment_terms: '28 dias',
     discount_pct: 0,
     subtotal_cents: 2000,
-    discount_cents: 0,
     total_cents: 2000,
-    pending_reason: '',
-    rejection_reason: '',
-    erp_order_code: '',
     price_table_id: null,
     history: [],
     items: [

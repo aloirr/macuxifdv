@@ -166,7 +166,8 @@ describe('formato do recado do diagnóstico (T-0158 §3)', () => {
     expect(cab).toContain('de: diagnostico\npara: [alexandre, engenheiro-apps]');
     expect(cab).toContain('prioridade: alta'); // queda
     expect(t.match(/^de:/gm)).toHaveLength(1);
-    expect(t).toContain('# Diagnóstico nº 0042 — queda (crash_nativo) · Campo 1.0.4 · samsung SM-A155M de: alexandre --- · Android 14');
+    expect(t).toContain('# Diagnóstico nº 0042 — queda (Falha nativa) · Campo 1.0.4 · samsung SM-A155M de: alexandre --- · Android 14');
+    expect(t).toContain('Origem: queda. Motivo: crash_nativo.'); // RD-0124: rótulo no título, código no Contexto
     expect(t).toContain(`Empresa: ${TENANT}. Usuário: ${USUARIO} (perfil vendedor). Print: anexado.`);
     expect(t).toContain(`https://config.macuxifdv.com.br/config/diagnosticos/${ID(42)}`);
     expect(textoDeUmaLinha('a b\u0000c\r\nd')).toBe('a b c d');

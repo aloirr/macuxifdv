@@ -25,6 +25,7 @@ import { OrderDetail } from '@macuxi/vendedor/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildOrderPdfHtml, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
+import { garantirSaldoNaFilial, SALDO_REFERENCIA } from '../apoio/demo';
 
 
 const id = (n: number) => `0f610000-0000-4000-8000-a${String(n).padStart(11, '0')}`;
@@ -90,6 +91,9 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     prod1 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-001'", [A.tenantId]))[0]!.id;
     prod2 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-002'", [A.tenantId]))[0]!.id;
+    // RN-VEN-20 (v1.0.4): a fixture tem 15 UN de ALFA-001 no CD1 e o roteiro pede 1 CX, 2 CX e 2 CX (fator 10) com preço e faixa
+    // conferidos; o preparo completa o saldo da filial do c1 (a recusa fica ligada; ALFA-002 não tem saldo = sem controle)
+    await garantirSaldoNaFilial(api.admin, A.clientes.c1, prod1, SALDO_REFERENCIA);
     endEntrega = (await q<{ id: string }>("select id from core.cliente_endereco where tenant_id = $1 and cliente_id = $2 and not principal and deleted_at is null", [A.tenantId, A.clientes.c1]))[0]!.id;
     endDeOutro = (await q<{ id: string }>('select id from core.cliente_endereco where tenant_id = $1 and cliente_id <> $2 limit 1', [B.tenantId, A.clientes.c1]))[0]?.id ?? '0f610000-0000-4000-8000-0000000000ee';
     // preço vigente de ALFA-002 só para o caso exato de 5% efetivo (o da fixture vence às 04h do dia)

@@ -14,6 +14,7 @@
  */
 import { mascararDadoPessoal } from '@macuxi/comum/dado-pessoal';
 import {
+  codigoDoMotivoAndroid,
   CODIGOS_DIAGNOSTICO,
   DiagnosticoEnvioSchema,
   DiagnosticoRespostaSchema,
@@ -93,14 +94,14 @@ export const TEXTOS_DIAGNOSTICO = {
   enviado: 'Enviado',
   enviadoAjuda: 'Se falar com o suporte, diga este número.',
   naFila: 'Na fila',
-  naFilaAjuda: 'Vai sozinho quando tiver sinal. O número aparece em Últimos envios.',
-  naFilaServidorAjuda: 'Vai sozinho quando o servidor responder. O número aparece em Últimos envios.',
+  naFilaAjuda: 'Sem sinal. Não precisa enviar de novo.',
+  naFilaServidorAjuda: 'Servidor indisponível. Não precisa enviar de novo.',
   naoEnviado: 'Não enviado',
   limiteAjuda: 'Muitos envios nesta hora. Tente mais tarde.',
   recusadoAjuda: 'Não deu para enviar. Tente de novo.',
   historico: 'Últimos envios',
   semSinal: 'sem sinal',
-  aguardandoServidor: 'aguardando o servidor',
+  servidorIndisponivel: 'servidor indisponível',
   limiteDaHora: 'limite da hora',
   recusado: 'recusado',
 } as const;
@@ -149,31 +150,6 @@ function iso(d: Date | string | null | undefined): string | null {
   if (d === null || d === undefined) return null;
   const t = d instanceof Date ? d.getTime() : Date.parse(d);
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
-}
-
-/** Código curto do motivo do Android (`ApplicationExitInfo.REASON_*`) para o campo `motivo` da queda. */
-const CODIGO_DO_MOTIVO: Readonly<Record<number, string>> = {
-  0: 'desconhecido',
-  1: 'saida_propria',
-  2: 'sinal',
-  3: 'memoria',
-  4: 'crash_java',
-  5: 'crash_nativo',
-  6: 'anr',
-  7: 'falha_inicio',
-  8: 'permissao',
-  9: 'recursos',
-  10: 'fechado_usuario',
-  11: 'parado_usuario',
-  12: 'dependencia',
-  13: 'outro',
-  14: 'congelado',
-  15: 'pacote',
-  16: 'atualizado',
-};
-
-export function codigoDoMotivo(motivo: number): string {
-  return CODIGO_DO_MOTIVO[motivo] ?? `motivo_${inteiro(motivo)}`;
 }
 
 /** "Último erro do app" no formato do contrato (já mascarado no aparelho; mascara de novo por garantia). */
@@ -447,6 +423,13 @@ export function ajudaDaSituacao(r: Pick<RegistroDiagnostico, 'situacao' | 'codig
   return naFilaSemSinal(r) ? TEXTOS_DIAGNOSTICO.naFilaAjuda : TEXTOS_DIAGNOSTICO.naFilaServidorAjuda;
 }
 
+/** Ícone do selo da confirmação: o `wifiOff` só na fila por falta de sinal; servidor indisponível é `clock`. */
+export function iconeDaSituacao(r: Pick<RegistroDiagnostico, 'situacao' | 'ultimo_erro'>): 'check' | 'alert' | 'wifiOff' | 'clock' {
+  if (r.situacao === 'enviado') return 'check';
+  if (r.situacao === 'falhou') return 'alert';
+  return naFilaSemSinal(r) ? 'wifiOff' : 'clock';
+}
+
 export interface LinhaDoHistorico {
   /** Selo com texto: "Enviado", "Na fila", "Não enviado". */
   selo: string;
@@ -484,8 +467,8 @@ export function linhaDoHistorico(r: RegistroDaLinha, data: (iso: string) => stri
     const porque = r.codigo === CODIGOS_DIAGNOSTICO.limite ? TEXTOS_DIAGNOSTICO.limiteDaHora : TEXTOS_DIAGNOSTICO.recusado;
     return linha(TEXTOS_DIAGNOSTICO.naoEnviado, 'danger', porque, false, porque);
   }
-  // "sem sinal" só quando falta sinal; a rota ausente (404) ou o servidor fora (5xx) é "aguardando o servidor"
-  const porque = naFilaSemSinal(r) ? TEXTOS_DIAGNOSTICO.semSinal : TEXTOS_DIAGNOSTICO.aguardandoServidor;
+  // "sem sinal" só quando falta sinal; a rota ausente (404) ou o servidor fora (5xx) é "servidor indisponível"
+  const porque = naFilaSemSinal(r) ? TEXTOS_DIAGNOSTICO.semSinal : TEXTOS_DIAGNOSTICO.servidorIndisponivel;
   return linha(TEXTOS_DIAGNOSTICO.naFila, 'warning', porque, false, porque);
 }
 
@@ -670,7 +653,7 @@ export function planoAutomatico(
   if (erroNovo?.origem === 'fatal') saidaDoErro = quedas.find((s) => Math.abs(s.quando - erroMs) <= MESMO_FECHAMENTO_MS) ?? null;
   for (const s of quedas) {
     if (s === saidaDoErro) continue;
-    envios.push({ id: idDaQueda(s), origem: 'queda', ocorridoEm: new Date(s.quando).toISOString(), motivo: codigoDoMotivo(s.motivo), tela: null, erro: null, saida: s });
+    envios.push({ id: idDaQueda(s), origem: 'queda', ocorridoEm: new Date(s.quando).toISOString(), motivo: codigoDoMotivoAndroid(s.motivo), tela: null, erro: null, saida: s });
   }
   if (erroNovo)
     envios.push({ id: idDoErro(erroNovo), origem: 'erro_tela', ocorridoEm: new Date(erroMs).toISOString(), motivo: erroNovo.origem, tela: erroNovo.onde, erro: erroNovo, saida: saidaDoErro });

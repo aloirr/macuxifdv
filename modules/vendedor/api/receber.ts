@@ -250,7 +250,7 @@ export async function calcularDocumento(
   if (!rv.ok) return recusa(itemId, rv);
   // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
   if (tipo === 'pedido') {
-    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
+    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
     if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
