@@ -48,13 +48,15 @@ Cada tarefa roda **local** (este VS Code) ou na **nuvem** (claude.ai/code, branc
 
 ## Definição de pronto
 - Lint, typecheck e testes verdes.
+- **Nenhum ensaio sem lint e typecheck limpos no PC** em todos os pacotes tocados, com o mesmo script do CI, inclusive `typecheck:tests` quando `tests/` mudou (regra fixa do dono do produto, R-20261111-155339). O dono roda e diz na entrega; o gerente confere antes de disparar o ensaio. Os detalhes estão no doc 07.
 - Critérios da tarefa demonstrados pelo testes, que também confere valor × regra em todo indicador.
 - **Parecer do corretor-redundancias sem nenhum achado em aberto, de qualquer gravidade** (regra permanente do dono do produto, R-20261110-062506):
   - toda entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa por ele **antes do lote e antes do build**, como passa pelo testes;
   - o parecer olha o print do aparelho: repetição, caixa repetindo uma linha, texto além do problema e da ação, rótulo e número que não batem;
   - **uma informação, um lugar:** o que uma seção da tela já mostra não aparece em outro lugar da mesma tela, e nenhum aviso fica fora da área "Alertas" (R-20261110-093124, RN-VEN-42);
   - **só o que o usuário usa para agir:** texto que ele não usa para decidir ou agir agora também é excesso e sai, mesmo certo e sem repetição. Exemplos: o que o sistema faz por trás ("vai junto", "o app guarda…", "a equipe vê…"), explicação de funcionamento e texto de garantia (R-20261110-192153);
-  - cada build leva o relatório do corretor junto com o roteiro do testes.
+  - cada build leva o relatório do corretor junto com o roteiro do testes;
+  - **exceção:** achado de gravidade baixa que esteja **só em comentário ou título de teste** não segura o lote e entra no lote seguinte (dono do produto, R-20261111-190159). Achado em código de produção, tela, texto, PDF, relatório, regra ou doc continua segurando.
 - Revisão do engenheiro sem 🔴.
 - `node scripts/coord.mjs verificar` sem violações.
 - Quadro, backlog e docs atualizados.

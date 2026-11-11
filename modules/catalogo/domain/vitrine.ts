@@ -10,7 +10,7 @@ import type { VocabularioTenant } from './consulta';
 import { estoqueVisivel } from './estoque';
 import type { ParametrosCatalogo } from './parametros';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
-import { rankear, type DocBusca } from './ranking';
+import { rankear, TOKENS_DO_PRODUTO, type DocBusca } from './ranking';
 import { trechoServeEm } from './serve-em';
 import { chaveDeTermo, expandirSinonimos, type SinonimoDoTenant } from './texto';
 import { filtrosParaPerfil, itemVitrineParaPerfil, podeVerPrecoEstoque } from './visibilidade';
@@ -112,6 +112,8 @@ export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine | null): DocBus
     vendas: p.vendas,
     campanha: p.campanha,
     preco_cents: item?.price?.price_cents ?? null,
+    // T-0119: termos preparados na carga do índice (a busca do servidor não normaliza o produto de novo a cada consulta)
+    tokens: TOKENS_DO_PRODUTO.get(p),
   };
 }
 

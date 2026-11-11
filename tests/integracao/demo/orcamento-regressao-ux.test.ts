@@ -26,7 +26,7 @@ import type { ItemPush, LinhaSync, ResultadoItemPush } from '@macuxi/platform-sd
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pedidoDoOrcamento, type OrcamentoParaPedido } from '../../../modules/vendedor/domain';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, garantirSaldoNaFilial, listaDe, SALDO_REFERENCIA, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 type Linha = LinhaSync & Record<string, unknown>;
 interface Banco {
@@ -180,6 +180,9 @@ describe.skipIf(semBanco())('T-0071 — regressão da revisão de UX do Vendedor
     expect([prod.AGU, prod.CAF, prod.BIS].every(Boolean), 'AGU-500, CAF-500 e BIS-400 na base demo').toBe(true);
     miniBox = (await q<{ id: string }>("select id from core.cliente where tenant_id = $1 and external_id = 'C5110'", [TENANT_DEMO]))[0]?.id ?? '';
     expect(miniBox, 'Mini Box Japiim (C5110) na base demo').not.toBe('');
+    // RN-VEN-20 (v1.0.4): os totais da referência dependem de AGU-500, CAF-500 e BIS-400 nessas quantidades; o CAF-500 tem pouco
+    // disponível na filial do Mini Box (saldo − reservas do seed): o preparo completa o saldo antes do 1º sync (a recusa fica ligada)
+    for (const p of [prod.AGU, prod.CAF, prod.BIS]) await garantirSaldoNaFilial(api.admin, miniBox, p, SALDO_REFERENCIA);
     cond28 = (await q<{ id: string }>("select id from vendedor.condicao_pagamento where tenant_id = $1 and codigo = '28D'", [TENANT_DEMO]))[0]!.id;
     const alcada = await q<{ valor: unknown }>("select valor from plataforma.parametro where tenant_id = $1 and modulo = 'vendedor' and chave = 'alcada.vendedor_pct'", [TENANT_DEMO]);
     expect(alcada.map((a) => Number(a.valor)), 'alçada do vendedor na demo = 5% (linha em plataforma.parametro)').toEqual([5]);

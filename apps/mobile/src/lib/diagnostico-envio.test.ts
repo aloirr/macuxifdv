@@ -4,13 +4,12 @@
  */
 import { createHash } from 'node:crypto';
 
-import { DiagnosticoEnvioSchema, DiagnosticoRespostaSchema, type DiagnosticoEnvio } from '@macuxi/platform-sdk';
+import { codigoDoMotivoAndroid, DiagnosticoEnvioSchema, DiagnosticoRespostaSchema, type DiagnosticoEnvio } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import {
   adicionarNaFila,
   CAMINHO_DIAGNOSTICOS,
-  codigoDoMotivo,
   diagnosticoNoServidor,
   diagnosticoNuvemLigado,
   drenarFila,
@@ -28,6 +27,7 @@ import {
   resultadoDoErro,
   sha1,
   ajudaDaSituacao,
+  iconeDaSituacao,
   linhaDoHistorico,
   telaDoHistorico,
   tituloDaSituacao,
@@ -206,8 +206,12 @@ describe('Últimos envios (imagem T-0158, quadro 6)', () => {
     // rota ausente (404) ou servidor fora: não é falta de sinal (premissa 1 contestada pelo corretor)
     const r404 = resultadoDoErro({ status: 404, code: 'http_404' });
     const servidor = reg({ tentativas: 1, ultimo_erro: r404.tipo === 'aceito' ? '' : r404.mensagem });
-    expect(linhaDoHistorico(servidor, data)).toMatchObject({ selo: 'Na fila', principal: 'aguardando o servidor', leitura: 'Na fila, aguardando o servidor, Hoje, 14:32' });
-    expect(ajudaDaSituacao(servidor)).toBe('Vai sozinho quando o servidor responder. O número aparece em Últimos envios.');
+    expect(linhaDoHistorico(servidor, data)).toMatchObject({ selo: 'Na fila', principal: 'servidor indisponível', leitura: 'Na fila, servidor indisponível, Hoje, 14:32' });
+    expect(ajudaDaSituacao(servidor)).toBe('Servidor indisponível. Não precisa enviar de novo.');
+    expect(iconeDaSituacao(servidor)).toBe('clock');
+    expect(iconeDaSituacao(reg({}))).toBe('wifiOff');
+    expect(iconeDaSituacao(reg({ situacao: 'falhou' }))).toBe('alert');
+    expect(iconeDaSituacao(reg({ situacao: 'enviado', protocolo: 1 }))).toBe('check');
     expect(linhaDoHistorico(reg({ situacao: 'falhou', codigo: 'DIAGNOSTICO_LIMITE' }), data)).toMatchObject({ selo: 'Não enviado', tom: 'danger', principal: 'limite da hora' });
     expect(ajudaDaSituacao({ situacao: 'falhou', codigo: 'DIAGNOSTICO_LIMITE', ultimo_erro: '' })).toBe('Muitos envios nesta hora. Tente mais tarde.');
     expect(linhaDoHistorico(reg({ situacao: 'enviado', protocolo: 40 }, 'queda'), data)).toMatchObject({ principal: 'nº 0040', automatico: 'Queda do app · automático' });
@@ -307,7 +311,7 @@ describe('fila do aparelho (offline, idempotente, protocolo)', () => {
     expect(await a.drenar()).toBe(0);
     expect(a.api.chamadas).toHaveLength(0);
     expect(tituloDaSituacao(a.lista()[0]!)).toBe('Na fila');
-    expect(ajudaDaSituacao(a.lista()[0]!)).toBe('Vai sozinho quando tiver sinal. O número aparece em Últimos envios.');
+    expect(ajudaDaSituacao(a.lista()[0]!)).toBe('Sem sinal. Não precisa enviar de novo.');
     a.estado.online = true;
     await a.drenar();
     expect(a.api.chamadas.map((c) => c.id)).toEqual([e.id]);
@@ -457,7 +461,7 @@ describe('v1.0.5: queda automática na abertura seguinte', () => {
   });
 
   it('códigos dos motivos do Android', () => {
-    expect([3, 5, 6, 99].map(codigoDoMotivo)).toEqual(['memoria', 'crash_nativo', 'anr', 'motivo_99']);
+    expect([3, 5, 6, 99].map(codigoDoMotivoAndroid)).toEqual(['memoria', 'crash_nativo', 'anr', 'motivo_99']);
   });
 });
 
