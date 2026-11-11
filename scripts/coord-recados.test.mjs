@@ -12,7 +12,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import {
-  modoDosRecados, podeAlterar, regraDoRecadoNovo, globParaRegex, shaDoBlob, aplicarMudancas, tokenDoAmbiente,
+  modoDosRecados, podeAlterar, regraDoRecadoNovo, globParaRegex, shaDoBlob, aplicarMudancas, tokenDoAmbiente, ghAuthToken,
   criarClienteDeRecados, atualizarIndiceDeRecados, enviarRecadoNoGitHub, marcarLidosNoGitHub, recadosDaPastaNoGitHub,
   recadosDoIndice, idsDoIndice, lidosDoIndice, ErroRecados, MOTIVO_RECADOS_NO_GITHUB,
 } from './coord-lib.mjs';
@@ -219,6 +219,47 @@ test('tokenDoAmbiente: MACUXI_RECADOS_TOKEN, GH_TOKEN, GITHUB_TOKEN e só então
   assert.deepEqual(tokenDoAmbiente({ env: { GITHUB_TOKEN: 'c' }, gh }), { token: 'c', origem: 'GITHUB_TOKEN' });
   assert.deepEqual(tokenDoAmbiente({ env: {}, gh }), { token: 'do-gh', origem: 'gh auth token' });
   assert.equal(tokenDoAmbiente({ env: {}, gh: () => '' }), null);
+});
+
+test('ghAuthToken: até 3 tentativas com espera de 1 s e 2 s; sem o gh (ENOENT) não insiste', () => {
+  const rodar = (respostas) => {
+    const esperas = [];
+    let chamadas = 0;
+    const executar = () => {
+      const r = respostas[chamadas++];
+      if (r instanceof Error) throw r;
+      return r;
+    };
+    return { token: ghAuthToken({ executar, esperar: (ms) => esperas.push(ms) }), chamadas: () => chamadas, esperas };
+  };
+  const falha = () => Object.assign(new Error('chaveiro ocupado'), { status: 1 });
+
+  const dePrimeira = rodar([`${TOKEN}\n`]);
+  assert.deepEqual([dePrimeira.token, dePrimeira.chamadas(), dePrimeira.esperas], [TOKEN, 1, []], 'de primeira: sem espera');
+
+  const naTerceira = rodar([falha(), '', TOKEN]);
+  assert.deepEqual([naTerceira.token, naTerceira.chamadas(), naTerceira.esperas], [TOKEN, 3, [1000, 2000]], 'falha e saída vazia contam como tentativa');
+
+  const nunca = rodar([falha(), falha(), falha(), TOKEN]);
+  assert.deepEqual([nunca.token, nunca.chamadas(), nunca.esperas], ['', 3, [1000, 2000]], 'para na 3ª tentativa');
+
+  const semGh = rodar([Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' }), TOKEN]);
+  assert.deepEqual([semGh.token, semGh.chamadas(), semGh.esperas], ['', 1, []], 'sem o gh instalado: não espera');
+
+  // Ligado ao tokenDoAmbiente (o gh padrão é o ghAuthToken): a origem aparece, o token só no valor devolvido.
+  const respostas = [falha(), TOKEN];
+  const viaAmbiente = tokenDoAmbiente({ env: {}, gh: () => ghAuthToken({ executar: () => { const r = respostas.shift(); if (r instanceof Error) throw r; return r; }, esperar: () => {} }) });
+  assert.deepEqual(viaAmbiente, { token: TOKEN, origem: 'gh auth token' });
+});
+
+test('ghAuthToken: a espera padrão é síncrona e de verdade (Atomics.wait), sem dependência nova', () => {
+  let chamadas = 0;
+  const inicio = Date.now();
+  const token = ghAuthToken({ executar: () => (++chamadas < 3 ? '' : 'ok'), esperas: [30, 60] });
+  const passou = Date.now() - inicio;
+  assert.equal(token, 'ok');
+  assert.equal(chamadas, 3);
+  assert.ok(passou >= 85, `esperou ao menos 30 + 60 ms (passou ${passou} ms)`);
 });
 
 // ───────────────────────── índice (leitura) ─────────────────────────
