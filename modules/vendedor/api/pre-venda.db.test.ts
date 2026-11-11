@@ -97,6 +97,7 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
                 const tabela: Record<string, number> = { [prod1]: 100_000, [prod2]: 50_000 };
                 return { tabela_preco_id: id(40), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: tabela[p] ?? null, motivo_sem_preco: tabela[p] ? null : 'Sem preço.' })) };
               }
+              if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {

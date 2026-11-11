@@ -113,7 +113,7 @@ export const Order = z.object({
   branch_id: Id.nullable(),
   branch_name: z.string().nullable(),
   /** T-0159 (T-0149): dados fiscais da filial de faturamento no retrato do pedido (CNPJ, endereço, telefone); ausente = pedido anterior */
-  filial: FilialDadosFiscaisSchema.extend({ cidade: z.string().nullish(), uf: z.string().nullish() }).nullable().optional(),
+  filial: FilialDadosFiscaisSchema.extend({ nome: z.string().nullish(), cidade: z.string().nullish(), uf: z.string().nullish() }).nullable().optional(),
   price_table_id: Id.nullable(),
   discount_pct: Pct,
   subtotal_cents: Cents,
