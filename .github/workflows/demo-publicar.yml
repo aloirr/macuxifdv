@@ -156,6 +156,8 @@ jobs:
           TUNEL: ${{ secrets.DEMO_CLOUDFLARE_TUNNEL_TOKEN }}
           # T-0091/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
           SA_CONVITE: ${{ secrets.DEMO_SUPERADMIN_CONVITE }}
+          # T-0158: recado automático do diagnóstico (opcional)
+          RECADOS_SERVIDOR: ${{ secrets.MACUXI_RECADOS_TOKEN_SERVIDOR }}
         run: |
           {
             printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO"
@@ -164,6 +166,11 @@ jobs:
           [ -n "$SA_CONVITE" ] || echo "::notice::sem DEMO_SUPERADMIN_CONVITE: o 1º acesso do portal na demo (config-demo.macuxifdv.com.br) responde 503 até o secret existir"
           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" \
             | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/tunel.env'
+          # T-0158 (ADR 0043): token do remetente de sistema `diagnostico` (fine-grained, só no aloirr/macuxifdv-recados,
+          # Contents read/write), só no worker (recados.env). Sem o secret, o arquivo fica vazio e o alerta, `desligado`.
+          if [ -n "$RECADOS_SERVIDOR" ]; then printf 'MACUXI_RECADOS_TOKEN_SERVIDOR=%s\n' "$RECADOS_SERVIDOR"; fi \
+            | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/recados.env'
+          [ -n "$RECADOS_SERVIDOR" ] || echo "::notice::sem MACUXI_RECADOS_TOKEN_SERVIDOR: os diagnósticos chegam ao portal, mas o recado automático fica desligado"
 
       - name: publicar (login no GHCR na VM, migrações, compose up, prune)
         env:

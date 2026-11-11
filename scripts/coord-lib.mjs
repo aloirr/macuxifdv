@@ -33,6 +33,14 @@ export const AGENTES = [
 /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
 export const PESSOAS = [...AGENTES, 'alexandre'];
 export const DESTINOS = [...AGENTES, 'alexandre', 'todos'];
+/**
+ * Remetentes de sistema (T-0158, ADR 0043; aprovado pelo dono do produto no R-20261110-112315): quem grava é o SERVIDOR
+ * (worker da API, token fine-grained só dele), direto no repositório de recados. Não são agentes nem pessoas: ficam
+ * fora de AGENTES, PESSOAS e DESTINOS (ninguém manda recado PARA eles, ninguém envia como eles pelo coord e o recado
+ * deles nunca autoriza merge nem governança). Só o nome do arquivo os reconhece (caixa e fio mostram "de diagnostico").
+ */
+export const REMETENTES_DE_SISTEMA = ['diagnostico'];
+export const ehRemetenteDeSistema = (nome) => REMETENTES_DE_SISTEMA.includes(String(nome || '').trim().toLowerCase());
 export const TIPOS = ['pedido', 'pergunta', 'resposta', 'aviso', 'bloqueio', 'entrega', 'revisao'];
 export const TIPOS_QUE_EXIGEM_ENCERRAMENTO = ['pedido', 'pergunta', 'bloqueio', 'revisao'];
 
@@ -263,10 +271,14 @@ export function remetenteDoConteudo(conteudo) {
   return de ? de[1].trim().toLowerCase() : null;
 }
 
-/** Remetente pelo nome do arquivo do recado (R-AAAAMMDD-HHMMSS[-n]-<remetente>.md); null se não houver. */
+/**
+ * Remetente pelo nome do arquivo do recado (R-AAAAMMDD-HHMMSS[-n]-<remetente>.md); null se não houver.
+ * Reconhece também os remetentes de sistema (`-diagnostico`), que não são de nenhum agente: no `verificar`, um recado
+ * desses no disco é de "diagnostico" (nunca do agente que o gravou) e vira violação.
+ */
 export function remetenteDoRecado(arquivo) {
   const nome = String(arquivo).replace(/\.md$/i, '').toLowerCase();
-  return [...PESSOAS].sort((a, b) => b.length - a.length).find((p) => nome.endsWith(`-${p}`)) || null;
+  return [...PESSOAS, ...REMETENTES_DE_SISTEMA].sort((a, b) => b.length - a.length).find((p) => nome.endsWith(`-${p}`)) || null;
 }
 
 /**
@@ -296,6 +308,7 @@ function violacaoUniversal(status, info) {
     if (status !== 'A') return `recados são imutáveis (${status === 'D' ? 'apagado' : 'alterado'}): responda com um recado novo`;
     if (!DESTINOS.includes(info.destino)) return `destino de recado inválido: ${info.destino}`;
     if (info.dono === 'sem-remetente') return 'o nome do recado precisa conter o remetente (R-...-<remetente>.md). Use node scripts/coord.mjs enviar';
+    if (ehRemetenteDeSistema(info.dono)) return `recado de remetente de sistema (${info.dono}): só o servidor grava, direto no repositório de recados (T-0158)`;
     return null;
   }
   if (info.tipo === 'recado-fora') return MOTIVO_RECADO_FORA;

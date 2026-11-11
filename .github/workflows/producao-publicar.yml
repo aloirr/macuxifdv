@@ -255,6 +255,8 @@ jobs:
           WEBHOOK: ${{ secrets.PROD_ALERTA_WEBHOOK }}
           # T-0087/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
           SA_CONVITE: ${{ secrets.PROD_SUPERADMIN_CONVITE }}
+          # T-0158 (ADR 0043): recado automático do diagnóstico (opcional)
+          RECADOS_SERVIDOR: ${{ secrets.MACUXI_RECADOS_TOKEN_SERVIDOR }}
         run: |
           grava() { ssh -l "$USUARIO" prod "umask 077; cat > '/opt/macuxi/$1.tmp' && mv -f '/opt/macuxi/$1.tmp' '/opt/macuxi/$1'"; }
           printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=%s\n' "$PG_HOST" "${PG_PORTA:-5432}" | grava banco.env
@@ -264,6 +266,9 @@ jobs:
             if [ -n "$SA_CONVITE" ]; then printf 'MACUXI_SUPERADMIN_CONVITE=%s\n' "$SA_CONVITE"; fi
           } | grava segredos.env
           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
+          # token do remetente de sistema `diagnostico`, só no worker (recados.env); sem o secret, arquivo vazio e alerta desligado
+          if [ -n "$RECADOS_SERVIDOR" ]; then printf 'MACUXI_RECADOS_TOKEN_SERVIDOR=%s\n' "$RECADOS_SERVIDOR"; fi | grava recados.env
+          [ -n "$RECADOS_SERVIDOR" ] || echo "::notice::sem MACUXI_RECADOS_TOKEN_SERVIDOR: os diagnósticos chegam ao portal, mas o recado automático fica desligado"
           if [ -n "$WEBHOOK" ]; then
             printf 'MACUXI_ALERTA_WEBHOOK=%s\n' "$WEBHOOK" | grava alerta.env
           else
