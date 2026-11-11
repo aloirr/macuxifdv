@@ -146,6 +146,13 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuvem continuam pela regra A, e a governança, pelo rito de autorização acima. O gerente manda um status com os hashes a cada lote que sobe.
 
+**Nenhum ensaio sem lint e typecheck limpos no PC** (regra fixa do dono do produto, R-20261111-155339; a v1.0.4 precisou de 5 ensaios, e 3 caíram por erros que dava para pegar no PC):
+- o dono de cada pacote tocado no lote roda no PC o lint e o typecheck do pacote, com o mesmo script do CI (`pnpm --filter <pacote> typecheck` e `lint`), e diz o resultado na entrega;
+- quando `tests/` mudou, também o `typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`);
+- quem muda um tipo público (contrato, `domain`) procura com grep, antes de entregar, os usos em `tests/` e nos outros pacotes;
+- o gerente confere as entregas e só então dispara o ensaio no GitHub;
+- o retrato do ensaio pega os caminhos de governança (`.github/**`, `.claude/**`, `scripts/coord*`, `.coord/donos.json`) do `main`; mudança neles só entra pelo rito.
+
 **Merge pelo gerente de PR pronto que não é de governança** (decisão do Alexandre, R-20261101-165024): vale para PR da nuvem marcado "[PRONTO PARA MERGE]" que não toca `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` nem `.github/**`. Com o CI do `main` verde, o gerente confere três coisas:
 - o CI do PR está verde (com o main já mesclado no branch, se o GitHub exigir);
 - o head SHA é o do momento da marcação;

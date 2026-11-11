@@ -9,15 +9,16 @@
  * Convenção: `it` = vale hoje; `it.fails` = defeito/lacuna aberta com recado ao dono (o agente testes volta para `it` na correção).
  * Matriz: docs/testes/T-0149-T-0147.md (seção "Filtro Filial e reserva").
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { depositosDaFilial, saldoPorProdutoDaFilial } from '@macuxi/catalogo/contracts';
 import { FilialSchema } from '@macuxi/core/contracts';
 import { OrderDetail, OrderListQuery } from '@macuxi/vendedor/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { paraDetalhe, paraOrder, type LinhaItem, type LinhaPedido } from '../../modules/vendedor/api/mapeamento';
-import { disponivelNaFilial } from '../../modules/vendedor/domain/estoque-filial';
 import { retratoFilialDoPedido } from '../../modules/vendedor/domain/filial-pedido';
+import { disponivel } from '../../modules/vendedor/domain/reserva-filial';
 import { buildOrderPdfHtml, pdfDoPedido } from '../../modules/vendedor/domain/pdf-pedido';
 import { FILTROS_VAZIOS, lerFiltros, paraBusca, paraQuery } from '../../modules/vendedor/web/lib/filtros-url';
 
@@ -152,6 +153,14 @@ describe('T-0149/T-0159 FB-3 — filial de faturamento e marca do Core até o PD
     }
   });
 
+  // D-T0159-5 de ponta (v1.0.4; decisão do designer-ux R-20261111-062125): pelo caminho real (retrato gravado → paraDetalhe → OrderDetail →
+  // pdfDoPedido) a linha 1 é exatamente o nome do retrato, sem o código "0002" nem "/RR"; o rótulo da lista do BKO continua no branch_name.
+  it('FB-3 D-T0159-5: pelo caminho real a linha 1 é "Filial Boa Vista · CNPJ … · (95) 3224-1000" e o branch_name da lista não muda', () => {
+    for (const h of pdfsDaApi()) expect(emit(h)[0]).toBe('Filial Boa Vista · CNPJ 12.345.678/0002-76 · (95) 3224-1000');
+    const det = OrderDetail.parse(paraDetalhe(linhaPedido(), [ITEM], [], 'analista', {}));
+    expect(det.branch_name).toBe('0002 · Filial Boa Vista/RR');
+  });
+
   it('FB-3: pedido anterior à filial (sem retrato) → o PDF do cliente sai sem a linha, nada da matriz inventado', () => {
     const det = OrderDetail.parse(paraDetalhe(linhaPedido({ filial_id: null, filial: null }), [{ ...ITEM, marca: null }], [], 'analista', {}));
     const cliente = buildOrderPdfHtml(pdfDoPedido(det), 'customer', { tenant_name: 'X', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: agora });
@@ -162,44 +171,43 @@ describe('T-0149/T-0159 FB-3 — filial de faturamento e marca do Core até o PD
 
 describe('T-0149 FB-4 — RN-VEN-20: disponível por filial', () => {
   // seed da demo (R-20261110-202456-banco-dados): CD-BVB = floor(CD-MAO × 0,6); CAF-500 zerado na Boa Vista
+  // RD-0127 (R-20261111-081128-modulo-vendedor): a regra única de saldo é a do Catálogo (`depositosDaFilial` + `saldoPorProdutoDaFilial`,
+  // @macuxi/catalogo/contracts); o Vendedor só desconta a reserva (`disponivel`).
   const CD_MAO = 37;
-  const saldos = [
-    { filial_id: F_MAO, quantidade: CD_MAO },
-    { filial_id: F_MAO, quantidade: 5 }, // Loja Centro (2º depósito da Manaus)
-    { filial_id: F_BVB, quantidade: Math.floor(CD_MAO * 0.6) },
+  const P = 'b1000000-0000-4000-8000-000000000001';
+  const D_MAO = 'd-mao';
+  const D_LOJA = 'd-loja'; // Loja Centro (2º depósito da Manaus)
+  const D_BVB = 'd-bvb';
+  const depositos = [
+    { id: D_MAO, filial_id: F_MAO },
+    { id: D_LOJA, filial_id: F_MAO },
+    { id: D_BVB, filial_id: F_BVB },
   ];
+  const saldos = [
+    { deposito_id: D_MAO, produto_id: P, quantidade: CD_MAO },
+    { deposito_id: D_LOJA, produto_id: P, quantidade: 5 },
+    { deposito_id: D_BVB, produto_id: P, quantidade: Math.floor(CD_MAO * 0.6) },
+  ];
+  const saldoNaFilial = (s: typeof saldos, filial: string) => saldoPorProdutoDaFilial([P], depositosDaFilial(depositos, filial), s)[0]?.quantidade_base;
 
   it('FB-4: Manaus soma os depósitos da filial (37 + 5); Boa Vista = floor(37 × 0,6) = 22; reserva de uma filial não mexe na outra', () => {
-    const reservas = [
-      { filial_id: F_MAO, quantidade: 10 },
-      { filial_id: F_BVB.toUpperCase(), quantidade: 4 },
-    ];
-    expect(disponivelNaFilial(saldos, reservas, F_MAO)).toBe(42 - 10);
-    expect(disponivelNaFilial(saldos, reservas, F_BVB)).toBe(22 - 4);
-    expect(disponivelNaFilial(saldos, [{ filial_id: F_MAO, quantidade: 40 }], F_BVB)).toBe(22);
+    expect(saldoNaFilial(saldos, F_MAO)).toBe(42);
+    expect(saldoNaFilial(saldos, F_BVB)).toBe(22);
+    expect(disponivel(saldoNaFilial(saldos, F_MAO)!, 10)).toBe(42 - 10);
+    expect(disponivel(saldoNaFilial(saldos, F_BVB)!, 4)).toBe(22 - 4);
   });
 
-  it('FB-4: sem saldo na filial (CAF-500 na Boa Vista) = 0, nunca o saldo da Manaus; reserva acima do saldo = 0, nunca negativo', () => {
-    expect(disponivelNaFilial([{ filial_id: F_MAO, quantidade: 30 }], [], F_BVB)).toBe(0);
-    expect(disponivelNaFilial(saldos, [{ filial_id: F_BVB, quantidade: 99 }], F_BVB)).toBe(0);
+  it('FB-4: sem saldo na filial (só na Manaus) = 0, nunca o saldo da Manaus; reserva acima do saldo = 0, nunca negativo', () => {
+    expect(saldoNaFilial([{ deposito_id: D_MAO, produto_id: P, quantidade: 30 }], F_BVB)).toBe(0);
+    expect(disponivel(saldoNaFilial(saldos, F_BVB)!, 99)).toBe(0);
   });
 
-  // Lacuna (recado ao modulo-vendedor, cc alexandre): `disponivelNaFilial` só existe no domínio e no teste do dono; nenhuma rota, sync
-  // ou tela desconta reserva (o recebimento não reserva; o Catálogo mostra o saldo do ERP). RN-VEN-20: "reserva quando a API aceita o
-  // pedido; libera em cancelamento, rejeição ou faturamento".
-  it.fails('FB-4 D-T0149-R1: a reserva por filial está ligada em alguma rota/sync/tela (o disponível do app e da API desconta os pedidos aceitos)', () => {
-    const usos: string[] = [];
-    const varrer = (dir: string) => {
-      for (const n of readdirSync(dir)) {
-        const p = join(dir, n);
-        if (n === 'node_modules' || n === 'domain') continue;
-        if (statSync(p).isDirectory()) varrer(p);
-        else if (/\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) && readFileSync(p, 'utf8').includes('disponivelNaFilial')) usos.push(relative(RAIZ, p));
-      }
-    };
-    varrer(join(RAIZ, 'modules'));
-    varrer(join(RAIZ, 'apps', 'api', 'src'));
-    expect(usos).not.toEqual([]);
+  // D-T0149-R1 corrigido (v1.0.4; era it.fails): a reserva por filial ficou ligada — a API confere no recebimento
+  // (`faltaDeEstoqueNaFilial` com `catalogo.estoque_filial@1`) e o app desconta os pedidos aceitos da mesma filial
+  // (`disponivelPorProduto` → `reservadoLocalNaFilial`). Os números ponta a ponta estão em reserva-filial-api-t0149.test.ts (RS-1..RS-6).
+  it('FB-4 D-T0149-R1 corrigido: a reserva por filial está ligada na API (recebimento) e no app (pull do Vendedor)', () => {
+    expect(ler('modules/vendedor/api/receber.ts')).toMatch(/faltaDeEstoqueNaFilial\(db, provedorSaldoDaFilial\(tx\)/);
+    expect(ler('modules/vendedor/app/lib/pull.ts')).toMatch(/export function disponivelPorProduto\([\s\S]*?reservadoLocalNaFilial\(/);
   });
 });
 

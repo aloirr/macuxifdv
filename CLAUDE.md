@@ -48,6 +48,7 @@ Cada tarefa roda **local** (este VS Code) ou na **nuvem** (claude.ai/code, branc
 
 ## Definição de pronto
 - Lint, typecheck e testes verdes.
+- **Nenhum ensaio sem lint e typecheck limpos no PC** em todos os pacotes tocados, com o mesmo script do CI, inclusive `typecheck:tests` quando `tests/` mudou (regra fixa do dono do produto, R-20261111-155339). O dono roda e diz na entrega; o gerente confere antes de disparar o ensaio. Os detalhes estão no doc 07.
 - Critérios da tarefa demonstrados pelo testes, que também confere valor × regra em todo indicador.
 - **Parecer do corretor-redundancias sem nenhum achado em aberto, de qualquer gravidade** (regra permanente do dono do produto, R-20261110-062506):
   - toda entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa por ele **antes do lote e antes do build**, como passa pelo testes;

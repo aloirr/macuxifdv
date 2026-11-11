@@ -9,6 +9,7 @@ export * from './ranking';
 export * from './indice-busca';
 export * from './preco';
 export * from './estoque';
+export * from './estoque-filial';
 export * from './limite-ia';
 export * from './ia';
 export * from './pergunte';

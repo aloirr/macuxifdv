@@ -188,7 +188,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: busca com 20 mil produtos (T
   // caracteres + distância com faixa e saída antecipada); (2) teto de `TETO_CANDIDATOS` antes do ranking completo (`cortarCandidatos`), que só
   // lê o estoque dos candidatos, nunca o preço, e fica com os melhores pela nota barata + os boosts do ranking.
   // D-T0107b: p95 677 ms no CI do lote 02, teto 300→200 a medir (medida definitiva: carga semanal, workflow carga-t0107)
-  it.fails('RF-CAT-01 (T-0119): D-T0107b: p95 677 ms no CI do lote 02, teto 300→200 a medir — busca com 20 mil — mesma primeira página do ranking sobre a lista inteira e p95 < 300 ms no caminho da busca', async () => {
+  it('RF-CAT-01 (T-0119): D-T0107b: p95 244 ms no CI da v1.0.4 — busca com 20 mil — mesma primeira página do ranking sobre a lista inteira e p95 < 300 ms no caminho da busca', async () => {
     esquecerRetratoCatalogo();
     const tempos: number[] = [];
     await noTenant(async (repo) => {

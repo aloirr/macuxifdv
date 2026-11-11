@@ -88,9 +88,9 @@ describe('T-0151 (RN-VEN-02/03): os números do Resumo, do detalhe e do PDF são
     // Resumo × PDF: o mesmo total e o mesmo % de desconto
     const html = buildOrderPdfHtml(
       pdfDoPedido({
-        number: '1', status: 'approved', received_at: '2026-11-10T10:00:00.000Z', seller_name: 'V', customer_name: 'C', payment_terms: '', discount_pct: 4, subtotal_cents: display.subtotal_cents, discount_cents: display.discount_cents, total_cents: display.total_cents,
-        pending_reason: '', rejection_reason: '', erp_order_code: '', price_table_id: null, items: display.lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })), history: [],
-        cliente: null, aprovacao: { limite_vendedor_pct: 5 },
+        number: '1', status: 'approved', received_at: '2026-11-10T10:00:00.000Z', seller_name: 'V', customer_name: 'C', payment_terms: '', discount_pct: 4, subtotal_cents: display.subtotal_cents, total_cents: display.total_cents,
+        price_table_id: null, items: display.lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })), history: [],
+        cliente: null,
       }),
       'bko',
       { tenant_name: 'T', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-10T10:00:00.000Z' },

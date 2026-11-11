@@ -53,6 +53,55 @@ export const DiagnosticoSaidaAndroidSchema = z
  */
 export const DiagnosticoSaidaDaListaSchema = DiagnosticoSaidaAndroidSchema.extend({ quando: Data, pilha: texto(1000).nullable() }).strict();
 export type DiagnosticoSaidaDaLista = z.infer<typeof DiagnosticoSaidaDaListaSchema>;
+/**
+ * RD-0124: tabela ÚNICA dos motivos de saída do Android (`ApplicationExitInfo.REASON_*`, 0..16). `codigo` é o valor do campo
+ * `motivo` da queda (app → API → portal, filtro e alerta); `nome` é a constante do Android (só no detalhe técnico); `rotulo`
+ * é o texto em português que o vendedor vê no app e o suporte lê no portal (textos do designer-ux). App, API e portal leem
+ * daqui; a gravidade (queda ou saída normal) é regra do app e fica no app.
+ */
+export const MOTIVOS_SAIDA_ANDROID: Readonly<Record<number, { readonly codigo: string; readonly nome: string; readonly rotulo: string }>> = {
+  0: { codigo: 'desconhecido', nome: 'REASON_UNKNOWN', rotulo: 'Motivo desconhecido' },
+  1: { codigo: 'saida_propria', nome: 'REASON_EXIT_SELF', rotulo: 'Saída do próprio app' },
+  2: { codigo: 'sinal', nome: 'REASON_SIGNALED', rotulo: 'Encerrado pelo sistema' },
+  3: { codigo: 'memoria', nome: 'REASON_LOW_MEMORY', rotulo: 'Sem memória' },
+  4: { codigo: 'crash_java', nome: 'REASON_CRASH', rotulo: 'Falha Java' },
+  5: { codigo: 'crash_nativo', nome: 'REASON_CRASH_NATIVE', rotulo: 'Falha nativa' },
+  6: { codigo: 'anr', nome: 'REASON_ANR', rotulo: 'App travou (ANR)' },
+  7: { codigo: 'falha_inicio', nome: 'REASON_INITIALIZATION_FAILURE', rotulo: 'Falha ao iniciar' },
+  8: { codigo: 'permissao', nome: 'REASON_PERMISSION_CHANGE', rotulo: 'Permissão alterada' },
+  9: { codigo: 'recursos', nome: 'REASON_EXCESSIVE_RESOURCE_USAGE', rotulo: 'Uso excessivo de recursos' },
+  10: { codigo: 'fechado_usuario', nome: 'REASON_USER_REQUESTED', rotulo: 'Encerrado a pedido do usuário' },
+  11: { codigo: 'parado_usuario', nome: 'REASON_USER_STOPPED', rotulo: 'Forçado a parar pelo usuário' },
+  12: { codigo: 'dependencia', nome: 'REASON_DEPENDENCY_DIED', rotulo: 'Serviço do sistema parou' },
+  13: { codigo: 'outro', nome: 'REASON_OTHER', rotulo: 'Outro motivo do sistema' },
+  14: { codigo: 'congelado', nome: 'REASON_FREEZER', rotulo: 'Congelado pelo sistema' },
+  15: { codigo: 'pacote', nome: 'REASON_PACKAGE_STATE_CHANGE', rotulo: 'App ativado ou desativado' },
+  16: { codigo: 'atualizado', nome: 'REASON_PACKAGE_UPDATED', rotulo: 'App atualizado' },
+};
+
+/** Motivo do erro de tela (a `OrigemDoErro` do app, que vai no campo `motivo` quando a origem é `erro_tela`). */
+export const MOTIVOS_ERRO_DE_TELA: Readonly<Record<string, string>> = {
+  tela: 'Erro de renderização',
+  raiz: 'Erro de renderização',
+  fatal: 'Erro fatal do app',
+};
+
+/** Número do Android → código do campo `motivo` (`5` → `'crash_nativo'`; número fora da tabela → `'motivo_<n>'`). */
+export function codigoDoMotivoAndroid(motivo: number): string {
+  return MOTIVOS_SAIDA_ANDROID[motivo]?.codigo ?? `motivo_${Number.isFinite(motivo) ? Math.max(0, Math.round(motivo)) : 0}`;
+}
+
+const ROTULO_POR_CODIGO: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(Object.values(MOTIVOS_SAIDA_ANDROID).map((m) => [m.codigo, m.rotulo])),
+  ...MOTIVOS_ERRO_DE_TELA,
+};
+
+/** Código do campo `motivo` (queda ou erro de tela) → texto em português; código sem rótulo volta como veio; vazio = `null`. */
+export function rotuloDoMotivoDiagnostico(codigo: string | null | undefined): string | null {
+  if (!codigo) return null;
+  return Object.hasOwn(ROTULO_POR_CODIGO, codigo) ? ROTULO_POR_CODIGO[codigo]! : codigo;
+}
+
 /** Quantas saídas do Android vão no envio (as mais novas primeiro). */
 export const MAX_SAIDAS_DIAGNOSTICO = 5;
 

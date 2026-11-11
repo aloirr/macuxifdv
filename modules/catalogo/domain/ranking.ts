@@ -33,7 +33,36 @@ export interface DocBusca {
   campanha: boolean;
   /** Preço na tabela do cliente; nulo = sem preço. */
   preco_cents: number | null;
+  /** T-0119: termos já calculados na carga do índice (mesmo resultado de `tokensDoDoc`); ausente = calcula na hora. */
+  tokens?: TokensDoDoc | undefined;
 }
+
+/** Termos de cada campo do documento (a busca tolerante compara a palavra da consulta com eles). */
+export interface TokensDoDoc {
+  nome: string[];
+  /** SKU, EAN, chaves do SKU/EAN, código compacto e códigos das referências cruzadas. */
+  codigo: string[];
+  marca: string[];
+  categoria: string[];
+  atributos: string[];
+}
+
+/** Termos dos campos do documento. `semMemo` evita encher a memória de textos normalizados na carga de 20 mil produtos. */
+export function tokensDoDoc(d: Pick<DocBusca, 'sku' | 'ean' | 'nome' | 'marca' | 'categoria' | 'atributos' | 'referencias'>, semMemo = false): TokensDoDoc {
+  const tk = semMemo ? tokensDeBuscaSemMemo : tokensDeBusca;
+  const referencias = d.referencias ?? [];
+  const codigosRef = referencias.flatMap((r) => [...tk(r.codigo), codigoCompacto(r.codigo)]).filter(Boolean);
+  return {
+    nome: tk(d.nome),
+    codigo: tk(`${d.sku} ${d.ean ?? ''}`.trim()).concat([d.sku, d.ean ?? ''].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(d.sku) || [], codigosRef),
+    marca: tk(d.marca),
+    categoria: tk(d.categoria),
+    atributos: tk(d.atributos),
+  };
+}
+
+/** Termos já preparados por produto (carga do índice); a vida da entrada é a do objeto do produto. */
+export const TOKENS_DO_PRODUTO = new WeakMap<object, TokensDoDoc>();
 
 /** `aplicacao` é o padrão de `peso_aplicacao` (RN-CAT-12); o ranking usa o do tenant. */
 const PESO_CAMPO = { nome: 1, codigo: 1, marca: 0.6, categoria: 0.4, atributos: 0.3, aplicacao: 0.5 } as const;
@@ -329,13 +358,13 @@ function referenciaCasada(grupos: readonly (readonly string[])[], referencias: r
 export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: DocBusca, opcoes: OpcoesPontuacao = {}): PontuacaoTextual {
   if (grupos.length === 0) return SEM_PONTOS(0);
   const referencias = doc.referencias ?? [];
-  const codigosRef = referencias.flatMap((r) => [...tokensDeBusca(r.codigo), codigoCompacto(r.codigo)]).filter(Boolean);
+  const tk = doc.tokens ?? tokensDoDoc(doc);
   const campos: { termos: string[]; peso: number }[] = [
-    { termos: tokensDeBusca(doc.nome), peso: PESO_CAMPO.nome },
-    { termos: tokensDeBusca(`${doc.sku} ${doc.ean ?? ''}`.trim()).concat([doc.sku, doc.ean ?? ''].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(doc.sku) || [], codigosRef), peso: PESO_CAMPO.codigo },
-    { termos: tokensDeBusca(doc.marca), peso: PESO_CAMPO.marca },
-    { termos: tokensDeBusca(doc.categoria), peso: PESO_CAMPO.categoria },
-    { termos: tokensDeBusca(doc.atributos), peso: PESO_CAMPO.atributos },
+    { termos: tk.nome, peso: PESO_CAMPO.nome },
+    { termos: tk.codigo, peso: PESO_CAMPO.codigo },
+    { termos: tk.marca, peso: PESO_CAMPO.marca },
+    { termos: tk.categoria, peso: PESO_CAMPO.categoria },
+    { termos: tk.atributos, peso: PESO_CAMPO.atributos },
   ];
   // RN-CAT-12: sem aplicação o campo nem entra (resultado e custo iguais aos de antes)
   const aplicacao = doc.aplicacao ?? '';
@@ -489,7 +518,16 @@ function referenciaPorCodigo(doc: DocBusca, filtros: FiltrosInterpretados, ngram
   return i >= 0 ? i : null;
 }
 
-export const nomeChave = (d: Pick<DocBusca, 'nome'>) => semAcento(d.nome).toLowerCase();
+/** Chave do nome para o desempate; calculada uma vez por objeto (o sort comparava o mesmo nome dezenas de vezes). */
+const CHAVE_DO_NOME = new WeakMap<object, string>();
+export const nomeChave = (d: Pick<DocBusca, 'nome'>): string => {
+  let k = CHAVE_DO_NOME.get(d);
+  if (k === undefined) {
+    k = semAcento(d.nome).toLowerCase();
+    CHAVE_DO_NOME.set(d, k);
+  }
+  return k;
+};
 export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
