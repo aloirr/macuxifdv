@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
 import { STATUS_DIA, TIPOS_ALERTA, MOTIVOS_APROVACAO, INDICADORES_RANKING } from '../../contracts';
-import { fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP, valorDoIndicador } from './apresentacao';
+import { linhaDeMotivos, fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP, valorDoIndicador } from './apresentacao';
 
 describe('apresentação das telas do Gestor', () => {
   it('todo status, motivo, tipo de alerta e indicador do contrato tem rótulo em português', () => {
@@ -33,5 +33,16 @@ describe('apresentação das telas do Gestor', () => {
 
   it('T-0072: todo tom do Gestor tem um tom de ChipEstado (cor sempre com texto)', () => {
     expect(TOM_PARA_CHIP).toEqual({ success: 'sucesso', warning: 'aviso', danger: 'erro', accent: 'destaque', neutral: 'neutro' });
+  });
+
+  it('RN-VEN-10/42: a alçada não aparece em rótulo de motivo e o desconto entra uma vez só', () => {
+    for (const m of MOTIVOS_APROVACAO) expect(MOTIVO_ROTULO[m].toLowerCase()).not.toContain('alçada');
+    const pct = (n: number) => `${n}%`;
+    expect(linhaDeMotivos(['desconto', 'credito'], 8, pct)).toBe('Desconto 8% · Crédito do cliente');
+    expect(linhaDeMotivos(['preco_minimo'], 0, pct)).toBe('Acima do desconto máximo');
+    // desconto só informação vai depois dos motivos; crédito com saldo aparece uma vez
+    expect(linhaDeMotivos(['credito'], 3, pct)).toBe('Crédito do cliente · desconto 3%');
+    expect(linhaDeMotivos(['credito'], 0, pct, 'R$ 1.200')).toBe('Crédito disponível R$ 1.200');
+    expect(linhaDeMotivos(['desconto', 'credito'], 8, pct, 'R$ 1.200')).toBe('Desconto 8% · Crédito disponível R$ 1.200');
   });
 });

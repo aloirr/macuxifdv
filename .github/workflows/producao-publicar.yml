@@ -90,7 +90,8 @@ jobs:
         env:
           IMG: ghcr.io/${{ steps.alvo.outputs.dono }}/macuxi-api:${{ steps.alvo.outputs.sha }}
         run: |
-          digest="$(docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          # T-0154: a consulta ao GHCR também repete no 403/429/5xx (imagem inexistente não repete)
+          digest="$(bash scripts/deploy/demo/ghcr-tentar.sh "digest da API no GHCR" -- docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' || true)"
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::$IMG não está no GHCR (o \"demo — publicar\" desse commit rodou verde?)"; exit 1; }
           echo "api=${IMG%:*}@$digest" >> "$GITHUB_OUTPUT"
           echo "API: ${IMG%:*}@$digest"
@@ -119,13 +120,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: imagem macuxi-bko-prod
-        id: build
+      # T-0154: build carregado no Docker do runner; o envio ao GHCR é o passo seguinte, com novas tentativas no 403/429/5xx
+      - name: imagem macuxi-bko-prod (build)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           build-args: |
             NEXT_PUBLIC_API_URL=http://api:8100/v1
@@ -140,12 +142,23 @@ jobs:
             type=gha,scope=macuxi-bko-prod
           cache-to: type=gha,scope=macuxi-bko-prod,mode=max
 
+      - name: imagem macuxi-bko-prod (envio ao GHCR, com novas tentativas)
+        env:
+          IMG: ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod
+          SHA: ${{ needs.conferir.outputs.sha }}
+          VERSAO: ${{ needs.conferir.outputs.versao }}
+        run: |
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO de produção ($SHA)" -- docker push "$IMG:$SHA"
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO de produção ($VERSAO)" -- docker push "$IMG:$VERSAO"
+
       - name: referência por digest
         id: ref
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+          IMG: ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.sha }}
           DONO: ${{ needs.conferir.outputs.dono }}
         run: |
+          # digest do manifesto enviado (o docker push grava o RepoDigest local; sem nova consulta ao GHCR)
+          DIGEST="$(docker image inspect "$IMG" --format '{{range .RepoDigests}}{{println .}}{{end}}' | sed -n "s|^ghcr.io/$DONO/macuxi-bko-prod@||p" | head -n1)"
           [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::digest do BKO inválido"; exit 1; }
           echo "bko=ghcr.io/$DONO/macuxi-bko-prod@$DIGEST" >> "$GITHUB_OUTPUT"
           echo "BKO: ghcr.io/$DONO/macuxi-bko-prod@$DIGEST"
@@ -225,7 +238,7 @@ jobs:
           USUARIO: ${{ secrets.PROD_USER }}
         run: |
           ssh -l "$USUARIO" prod 'rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy'
-          scp -q -o User="$USUARIO" scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh prod:macuxi-deploy/
+          scp -q -o User="$USUARIO" scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh scripts/deploy/demo/ghcr-tentar.sh prod:macuxi-deploy/
           ssh -l "$USUARIO" prod 'sudo bash ~/macuxi-deploy/preparar-vm.sh "$USER"'
 
       - name: segredos do GitHub na VM (modo 600, pelo stdin)

@@ -46,7 +46,10 @@ export type IconName =
   | 'filtro'
   | 'abaixo'
   | 'subir'
-  | 'mais';
+  | 'mais'
+  | 'galeria'
+  | 'config'
+  | 'nuvem';
 
 interface Props {
   name: IconName;
@@ -250,6 +253,26 @@ function render(name: IconName, c: Common) {
           <Path d="M3 13h5l1.5 3h5l1.5-3h5" {...c} />
         </>
       );
+    case 'galeria':
+      // galeria de fotos do aparelho (permissão "Fotos e galeria", T-0145; escolher foto do PDV, T-0147)
+      return (
+        <>
+          <Rect x={3.5} y={4.5} width={17} height={15} rx={2} {...c} />
+          <Circle cx={9} cy={9.5} r={1.6} {...c} />
+          <Path d="M20.5 16l-5-5-8.5 8.5" {...c} />
+        </>
+      );
+    case 'config':
+      // configurações do sistema ("Abrir configurações", T-0145)
+      return (
+        <>
+          <Circle cx={12} cy={12} r={3} {...c} />
+          <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" {...c} />
+        </>
+      );
+    case 'nuvem':
+      // foto ainda não baixada / guardada no servidor (fotos do PDV, T-0147)
+      return <Path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5a4.8 4.8 0 0 1-.5 9.5z" {...c} />;
     case 'mais':
       // ⋮ (menu de mais ações no cabeçalho do detalhe: Cancelar orçamento, T-0133)
       return (

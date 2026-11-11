@@ -29,7 +29,7 @@ describe('manifesto do vendedor', () => {
     expect(manifest.publica).toEqual(
       expect.arrayContaining(['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.aprovado@1']),
     );
-    expect(manifest.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1']);
+    expect(manifest.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1', 'catalogo.sugestoes_pedido@1', 'catalogo.foto_produto@1', 'core.cadastro_resumo@1', 'core.filiais@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1']);
     expect(manifest.ofereceConsultas).toEqual(['vendedor.pedidos_da_meta@1', 'vendedor.formas_pagamento@1']);
     expect(manifest.sync).toEqual(expect.arrayContaining(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao']));
   });

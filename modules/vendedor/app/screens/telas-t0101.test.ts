@@ -44,14 +44,16 @@ describe('T-0101 (RN-VEN-35): seletor de clientes do novo pedido', () => {
 
 describe('T-0127 (RN-CORE-36, RN-VEN-16): pendências só no Resumo', () => {
   const s = fonte('new-order-screen.tsx');
-  it('RN-CORE-36: bloco "Falta para salvar" no Resumo, sem o botão "Corrigir frete" nem alerta nas outras abas', () => {
-    expect(s).toContain('<BlocoPendencias pendencias={pendencias}');
+  it('RN-CORE-36 (RN-VEN-42): o que falta vira linha da área Alertas, no topo de todas as abas; sem o botão "Corrigir frete"', () => {
+    expect(s).toContain('<AreaAlertas alertas={alertasDoTopo}');
+    expect(s).not.toContain('BlocoPendencias');
     expect(s).not.toContain('PendenciasDoPedido');
     expect(s).not.toContain('Corrigir frete');
     expect(fonte('../components/novo-pedido.tsx')).not.toContain('Corrigir frete');
   });
-  it('RN-CORE-36: bolinha só nas abas com pendência e salvar desabilitado enquanto houver', () => {
-    expect(s).toContain('abasComPendencia(pendencias, ABAS_DO_PEDIDO)');
+  it('RN-CORE-36 (RN-VEN-42): sem bolinha nas abas e salvar desabilitado enquanto houver pendência', () => {
+    expect(s).not.toContain('abasComPendencia');
+    expect(s).toContain('abasDoPedido(calculo.linhas.length)');
     expect(s).toContain('pendencias: pendencias.length');
     expect(s).toContain('botoesDoResumo(');
   });
@@ -66,16 +68,16 @@ describe('T-0136 (RF-VEN-11): Novo pedido em 4 abas', () => {
   const s = fonte('new-order-screen.tsx');
   it('RF-VEN-11: abre na Venda e as abas seguem Venda · Itens · Entrega · Resumo', () => {
     expect(s).toContain('useState<AbaNovoPedido>(() => abaInicialDoRascunho(draft))');
-    expect(s).toMatch(/ABAS_DO_PEDIDO = \[\s*\{ id: 'venda'[\s\S]*\{ id: 'itens'[\s\S]*\{ id: 'entrega'[\s\S]*\{ id: 'resumo'/);
+    expect(fonte('../lib/textos-pedido.ts')).toMatch(/id: 'venda'[\s\S]*id: 'itens'[\s\S]*id: 'entrega'[\s\S]*id: 'resumo'/);
     expect(s).not.toContain('AbaDetalhes');
   });
   it('RF-VEN-11: forma e prazo saem de Itens e vão para a aba Venda; Itens traz Leve mais e Combina no fim', () => {
     const venda = s.slice(s.indexOf("aba === 'venda' ? ("), s.indexOf("aba === 'itens' ? ("));
     expect(venda).toContain('<CardPagamento');
-    expect(venda).toContain('alertas={alertasVenda}');
+    expect(venda).not.toContain('alertas={alertasVenda}');
     const itens = s.slice(s.indexOf("aba === 'itens' ? ("), s.indexOf("aba === 'entrega' ? ("));
     expect(itens).not.toContain('<CardPagamento');
-    expect(itens.indexOf('<FimDaAbaItens')).toBeGreaterThan(itens.indexOf('order-lines'));
+    expect(itens.indexOf('<FimDaAbaItens')).toBeGreaterThan(itens.indexOf('<PainelNoPedido'));
   });
   it('RF-VEN-11: a aba Entrega leva endereço, frete e observações; o prazo médio sai do cabeçalho', () => {
     expect(s).toContain('<AbaEntrega');

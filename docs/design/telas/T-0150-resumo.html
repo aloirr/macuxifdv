@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0150 · Resumo do Novo pedido em tabela, com Alertas (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .phone.inteira { height: auto; }
+  .phone.inteira .conteudo { overflow: visible; }
+  .conteudo > * { flex: none; }
+  .linha-desc { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .linha-desc .r { font-size: 14px; color: var(--ink2); }
+  .duas-btn { display: flex; gap: 8px; }
+  .duas-btn .btn { flex: 1; height: 52px; font-size: 14px; padding: 0 10px; text-align: center; line-height: 17px; }
+  .btn.secundario.cheio { height: 52px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Resumo do Novo pedido · em tabela, com Alertas</h1>
+<p class="prancha">T-0150 · versão 2 (R-20261110-093124). Os problemas do pedido ficam só na área Alertas, no topo, em todas as abas. Sem alerta, a área não aparece. A alçada só aparece na pergunta ao salvar.</p>
+
+<div class="board">
+
+  <!-- 1 · Resumo sem alerta -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Resumo sem alerta<span>Tela inteira, como rola no aparelho.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>05:52</span><span>4G ▮▮▮ 81%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Atacadinho Cachoeirinha Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">12.345.678/0001-90</span></div>
+        </div>
+        <div class="secao-t">Venda</div>
+        <div class="kv">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>4 <span class="un">UN</span></td><td>13,40</td><td>−5,0%</td><td class="tot">50,92</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>2 <span class="un">FD</span></td><td>15,05</td><td>+20,0%</td><td class="tot">36,12</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observações</div>
+        <div class="kv"><div class="l" style="grid-template-columns:1fr"><span class="t">Entregar pela manhã.</span></div></div>
+        <div class="linha-desc" style="margin-top:4px"><span class="r">Desconto do pedido</span><div class="ajuste-g" style="width:156px;height:44px"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="color:var(--ink3)">0,0</span></div></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 119,70</span></div>
+          <div class="l"><span class="r">Acréscimo 5,8%</span><span class="v">+ R$ 6,94</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 126,64</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Resumo com alertas -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Resumo com alertas<span>Item acima do desconto máximo e item sem estoque: o pedido só sai como orçamento.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>05:58</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (4)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">BIS-400 sem estoque</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Atacadinho Cachoeirinha Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">12.345.678/0001-90</span></div>
+        </div>
+        <div class="secao-t">Venda</div>
+        <div class="kv">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Preço<br>unit.</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Café torrado e moído 500 g</span><span class="pc">CAF-500</span></td><td>4 <span class="un">UN</span></td><td>13,40</td><td>—</td><td class="tot">53,60</td></tr>
+              <tr><td><span class="pn">Açúcar cristal 1 kg</span><span class="pc">ACU-1K</span></td><td>1 <span class="un">FD</span></td><td>36,00</td><td>+10,0%</td><td class="tot">39,60</td></tr>
+              <tr><td><span class="pn">Água mineral 1,5 L</span><span class="pc">AGU-1500</span></td><td>2 <span class="un">FD</span></td><td>15,05</td><td>−15,0%</td><td class="tot">25,58</td></tr>
+              <tr><td><span class="pn">Biscoito maisena 400 g</span><span class="pc">BIS-400</span></td><td>2 <span class="un">PCT</span></td><td>8,90</td><td>—</td><td class="tot">17,80</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Pará, 137 · São Geraldo · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observações</div>
+        <div class="kv"><div class="l" style="grid-template-columns:1fr"><span class="t" style="color:var(--ink3)">—</span></div></div>
+        <div class="linha-desc" style="margin-top:4px"><span class="r">Desconto do pedido</span><div class="ajuste-g" style="width:156px;height:44px"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="color:var(--ink3)">0,0</span></div></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 137,50</span></div>
+          <div class="l"><span class="r">Desconto 0,7%</span><span class="v">− R$ 0,92</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 136,58</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal marca" style="outline-offset:4px">Salvar como orçamento</div>
+        <div class="btn secundario cheio">Apenas salvar</div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 3 · Alertas nas outras abas -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>A mesma área em todas as abas<span>Aqui na aba Venda. A linha com "aba" leva à aba que corrige.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:46</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Limite de crédito excedido</span></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Falta a transportadora <span class="aba-dest">· aba Entrega</span></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="duas" style="margin-top:4px">
+          <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span>28/56 dias</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="secao-t" style="margin-top:4px">Crédito do cliente</div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Limite</span><span class="v">R$ 20.000,00</span></div>
+          <div class="lin"><span class="r">Disponível</span><span class="v">−R$ 1.200,00</span></div>
+          <div class="lin"><span class="r">Prazo médio</span><span class="v">45 dias</span></div>
+        </div>
+        <div class="atualiz"><i data-i="sync" data-t="13"></i>Atualizado hoje às 05:38</div>
+      </div>
+      <div class="rodape"><div><div class="rot">Total do pedido</div><div class="val">R$ 126,64</div></div><div class="btn-avancar">Avançar <i data-i="chevron" data-t="16" data-w="2.4"></i></div></div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Pergunta da alçada -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Ao tocar em Salvar e enviar pedido<span>Só se o desconto passar da alçada. A alçada não entra nos Alertas.</span></div>
+    <div class="phone">
+      <div class="status"><span>05:53</span><span>4G ▮▮▮ 81%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Atacadinho Cachoeirinha</div><div class="cab-cod">cód. C5007 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px;justify-content:flex-end">
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 119,70</span></div>
+          <div class="l"><span class="r">Desconto 8,8%</span><span class="v">− R$ 10,53</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 109,17</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+      <div class="scrim"></div>
+      <div class="dialogo marca">
+        <div class="dt">Desconto acima da sua alçada</div>
+        <div class="dx">Enviar para aprovação?</div>
+        <div class="db"><div class="btn principal">Enviar para aprovação</div><div class="btn-texto">Voltar</div></div>
+      </div>
+    </div>
+    <div class="nota-prancha"><b>Textos dos Alertas</b> (problema e item, sem ponto): "AGU-1500 acima do desconto máximo" · "BIS-400 sem estoque" · "Falta a transportadora · aba Entrega" · "Limite de crédito excedido" · "Título vencido" · "Cliente bloqueado" · a recusa do servidor com o motivo dele.</div>
+    <div class="nota-prancha"><b>Saem:</b> a linha acima dos botões, o bloco "Falta para salvar", a faixa verde da aba Venda, a bolinha nas abas e o % em vermelho na tabela de itens.</div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

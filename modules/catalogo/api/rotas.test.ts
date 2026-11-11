@@ -14,7 +14,7 @@ import { MENSAGEM_IA_DESLIGADA, MENSAGEM_LIMITE_ATINGIDO } from '../domain/limit
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../domain/preco';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_DEMO, saldosDemo, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../fixtures/base-demo';
 import { manifest } from '../manifest';
-import { criarRepositorioMemoria, type DadosTenantMemoria } from './repositorio';
+import { criarRepositorioMemoria, FILIAL_PADRAO_MEMORIA, type DadosTenantMemoria } from './repositorio';
 import { criarRepositorioPostgres } from './repositorio-postgres';
 import { criarRotasCatalogo, type DependenciasRotas } from './rotas';
 
@@ -714,6 +714,30 @@ describe('BKO Tabelas de preço e Escalonada (RN-VEN-23, RN-VEN-15; T-0089: anal
     const r = await chamar<{ items: { preco_cents: number; sku: string }[]; total: number }>(rota('GET', 'tabelas-preco/:id/precos'), usuario('admin'), { params: { id: TABELA_ATACADO_DEMO } });
     expect(r.corpo.items).toEqual([expect.objectContaining({ preco_cents: 1890, sku: produto.sku })]);
     expect(r.corpo.total).toBe(1);
+  });
+
+  it('RN-CORE-39: Tabelas de preço mostra uma filial por vez (a padrão por omissão), sem duplicar o produto', async () => {
+    semear();
+    const BVB = '0f000000-0000-4000-8000-0000000000b1';
+    const d = memoria.estado(TENANT_A).dados;
+    d.filiaisDaTela = { padraoId: FILIAL_PADRAO_MEMORIA, filiais: [{ id: FILIAL_PADRAO_MEMORIA, nome: 'Manaus', padrao: true }, { id: BVB, nome: 'Boa Vista', padrao: false }] };
+    d.itensPreco = [
+      { price_table_id: TABELA_ATACADO_DEMO, product_id: produto.id, price_cents: 1890 },
+      { price_table_id: TABELA_ATACADO_DEMO, product_id: produto.id, price_cents: 2000, filial_id: BVB },
+    ];
+    const { rota } = montar();
+    const padrao = await chamar<{ filial_id: string; filiais: unknown[]; items: { itens: number }[] }>(rota('GET', 'tabelas-preco'), usuario('analista'));
+    expect(padrao.corpo.filial_id).toBe(FILIAL_PADRAO_MEMORIA);
+    expect(padrao.corpo.filiais).toHaveLength(2);
+    expect(padrao.corpo.items[0]!.itens).toBe(1);
+    const bv = await chamar<{ items: { itens: number }[] }>(rota('GET', 'tabelas-preco'), usuario('analista'), { query: { filial: BVB } });
+    expect(bv.corpo.items[0]!.itens).toBe(1);
+    const precosPadrao = await chamar<{ items: { preco_cents: number }[]; total: number }>(rota('GET', 'tabelas-preco/:id/precos'), usuario('admin'), { params: { id: TABELA_ATACADO_DEMO } });
+    const precosBv = await chamar<{ filial_id: string; items: { preco_cents: number }[]; total: number }>(rota('GET', 'tabelas-preco/:id/precos'), usuario('admin'), { params: { id: TABELA_ATACADO_DEMO }, query: { filial: BVB } });
+    expect(precosPadrao.corpo.items.map((i) => i.preco_cents)).toEqual([1890]);
+    expect([precosBv.corpo.filial_id, precosBv.corpo.total, precosBv.corpo.items[0]!.preco_cents]).toEqual([BVB, 1, 2000]);
+    const fora = await chamar(rota('GET', 'tabelas-preco'), usuario('analista'), { query: { filial: '0f000000-0000-4000-8000-0000000000ff' } });
+    expect(fora.status).toBe(422);
   });
 
   it('RN-VEN-23: PUT cria a faixa, repete sem duplicar (idempotente), audita e a lista a mostra como vigente e cadastrada aqui', async () => {

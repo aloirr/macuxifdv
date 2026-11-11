@@ -3,7 +3,7 @@
  * (`repositorioRetornoErpPg`), o pull e o detalhe com as colunas do faturamento.
  *
  * Esquema real da migração 0013 (`pedido_faturamento` com `evento_id`, `pedido.total_faturado_cents`, `pedido_item.quantidade_faturada`
- * na UNIDADE BASE). A devolução (`pedido_devolucao`) ainda não foi migrada: `DEVOLUCAO_LIGADA = false`.
+ * na UNIDADE BASE). A devolução (`pedido_devolucao`, 0050) está ligada: `DEVOLUCAO_LIGADA = true`.
  * Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha. Relógio: o do banco (`select now()`), lido uma vez.
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
@@ -127,10 +127,10 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     expect(f).toMatchObject({ faturado_cents: 12_000, devolucao: 'nenhuma', notas: [{ numero: '9001', total_cents: 6_500 }, { numero: '9002', serie: null }] });
   });
 
-  it('RN-VEN-37: sem a tabela da devolução (DEVOLUCAO_LIGADA = false), a nota de devolução não altera o pedido nem falha', async () => {
+  it('RN-VEN-37: com `devolucao: false` no repositório, a nota de devolução não altera o pedido nem falha', async () => {
     const reg: Registro = { publicados: [] };
     const nota = { acao: 'criado', external_id: 'NF-D-54', registro: { tipo: 'devolucao', pedido_uuid: PED, numero: 'D54', serie: '1', emitida_em: EM(-1), total_cents: 3_000, cancelada: false } };
-    expect(await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db), nota, ctx('x', reg)))).toEqual({ pedidos: [] });
+    expect(await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db, { devolucao: false }), nota, ctx('x', reg)))).toEqual({ pedidos: [] });
     expect((await admin.query('select total_faturado_cents::int as t from vendedor.pedido where id = $1', [PED])).rows[0]!.t).toBe(12_000);
   });
 

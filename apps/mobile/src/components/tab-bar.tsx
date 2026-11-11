@@ -4,7 +4,8 @@
  * `visao.navegacao`), filtradas por perfil e permissão por ação. Montagem e limite de 5 posições (com "Mais") em
  * `lib/abas.ts`, puro e testado (T-0034). O desenho é a `BarraAbas` do kit (T-0072, docs/design/componentes.md §5).
  * testID estável: `tab-bar`, `tab-inicio`, `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro) e `tab-mais`.
- * Contador = itens do módulo ainda na fila do aparelho, em âmbar ("Mais" soma os módulos que estão dentro dele).
+ * Sem contador nas abas (RD-0078, R-20261110-112315): a fila do aparelho já aparece no selo "Na fila" de cada linha e
+ * no "n na fila" do Início ("uma informação, um lugar", RN-VEN-42).
  * Aba de módulo (T-0071): volta ao topo da pilha guardada da aba; tocada de novo numa tela de módulo, volta à raiz da aba
  * (lib/historico-telas.ts). Troca de aba não desliza (T-0072).
  * Aba acesa (T-0072, R-20261105-125027): a dona da pilha da tela de módulo em uso, não o caminho (`abaAcesa`).
@@ -13,7 +14,6 @@
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ModuloId } from '@macuxi/platform-sdk';
 import { BarraAbas } from '@macuxi/ui/mobile';
 
 import { abaAcesa, type AbasDoShell } from '@/lib/abas';
@@ -23,21 +23,16 @@ import { useDonoDaPilha } from '@/state/historico-do-shell';
 
 export { abasDoShell, type AbaShell, type AbasDoShell } from '@/lib/abas';
 
-export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<Record<ModuloId, number>> }) {
+export function TabBar({ abas }: { abas: AbasDoShell }) {
   const insets = useSafeAreaInsets();
   const atual = usePathname();
   // aba acesa = dona da pilha (o detalhe e o editor acendem a aba de onde vieram), relida a cada mudança do histórico
   const acesa = abaAcesa(abas, atual, useDonoDaPilha());
-  const itens = abas.barra.map((tab) => {
-    // "Mais" soma a fila dos módulos que estão dentro dele
-    const contador = tab.modulo ? badges?.[tab.modulo] : tab.href === '/' ? undefined : somaBadges(abas.mais, badges);
-    return {
+  const itens = abas.barra.map((tab) => ({
       id: tab.testID,
       rotulo: tab.label,
       icone: tab.icon,
       ativo: tab === acesa,
-      contador,
-      rotuloContador: contador ? `${contador} na fila` : undefined,
       testID: tab.testID,
       // RN-VEN-38 (T-0128): com formulário alterado em foco, a tela pergunta antes ("Sair do pedido?"); a aba só abre no
       // `prosseguir`, e a pilha guardada é lida nessa hora
@@ -47,18 +42,6 @@ export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<R
           router.navigate(destino as never);
         });
       },
-    };
-  });
-  return <BarraAbas itens={itens} respiroInferior={insets.bottom} tomContador="aviso" testID="tab-bar" />;
-}
-
-function somaBadges(abas: AbasDoShell['mais'], badges?: Partial<Record<ModuloId, number>>): number | undefined {
-  const vistos = new Set<ModuloId>();
-  let total = 0;
-  for (const a of abas) {
-    if (!a.modulo || vistos.has(a.modulo)) continue;
-    vistos.add(a.modulo);
-    total += badges?.[a.modulo] ?? 0;
-  }
-  return total || undefined;
+  }));
+  return <BarraAbas itens={itens} respiroInferior={insets.bottom} testID="tab-bar" />;
 }

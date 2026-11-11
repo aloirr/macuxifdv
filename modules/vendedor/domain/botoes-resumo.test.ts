@@ -1,24 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { botoesDoResumo, DESTINO_DIRETO_ERP, destinoDoEnvio, ROTULOS_DO_SALVAR, type EntradaDosBotoes } from './botoes-resumo';
+import { botoesDoResumo, motivoDoMaximo, perguntaDaAlcada, PERGUNTA_DA_ALCADA, ROTULOS_DO_SALVAR, type EntradaDosBotoes } from './botoes-resumo';
 
 const liberado = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
-const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, pendencias: 0, nivel: null, preco_data: '2026-11-09' };
+const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, pendencias: 0, preco_data: '2026-11-09' };
 
 describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
-  it('RN-VEN-38: Salvar e enviar pedido é o principal, habilitado, com o destino escrito embaixo', () => {
+  it('RN-VEN-38: Salvar e enviar pedido é o principal, habilitado, sem texto de destino ou de alçada embaixo', () => {
     const b = botoesDoResumo(base);
     expect(b.modo).toBe('novo_pedido');
     expect(b.principal).toBe('enviar');
-    expect(b.enviar).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Salvar e enviar pedido', destino: 'Vai direto ao ERP' });
+    expect(b.enviar).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Salvar e enviar pedido' });
+    expect('destino' in b.enviar).toBe(false);
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Apenas salvar' });
-    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Salvar como orçamento', destino: null });
+    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Salvar como orçamento' });
     expect(b.cancelar).toBe(true);
     expect(b.aviso).toBeNull();
   });
-  it('RN-VEN-10: o destino é o nível da alçada (supervisor, gerente, analista)', () => {
-    expect(botoesDoResumo({ ...base, nivel: 'supervisor' }).enviar.destino).toBe('Vai para o supervisor');
-    expect(botoesDoResumo({ ...base, nivel: 'gerente' }).enviar.destino).toBe('Vai para o gerente');
-    expect(destinoDoEnvio(null)).toBe(DESTINO_DIRETO_ERP);
+  it('RN-VEN-10 (T-0151): a alçada só vira a pergunta ao salvar, e só para pedido (orçamento não tem alçada)', () => {
+    expect(perguntaDaAlcada({ tipo: 'pedido', nivel: 'supervisor' })).toEqual(PERGUNTA_DA_ALCADA);
+    expect(PERGUNTA_DA_ALCADA).toEqual({ titulo: 'Desconto acima da sua alçada. Enviar para aprovação?', enviar: 'Enviar para aprovação', voltar: 'Voltar' });
+    expect(perguntaDaAlcada({ tipo: 'pedido', nivel: null })).toBeNull();
+    expect(perguntaDaAlcada({ tipo: 'orcamento', nivel: 'gerente' })).toBeNull();
+  });
+  it('RN-VEN-11 (T-0151): item acima do desconto máximo bloqueia o envio: só Salvar como orçamento, com o motivo numa linha', () => {
+    const b = botoesDoResumo({ ...base, itens_acima_do_maximo: ['AGU-1500'] });
+    expect(b.enviar.habilitado).toBe(false);
+    expect(b.principal).toBe('orcamento');
+    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true });
+    expect(b.aviso).toBe('AGU-1500 acima do desconto máximo');
+    expect(motivoDoMaximo(['AGU-1500', 'VEL-150'])).toBe('AGU-1500, VEL-150 acima do desconto máximo');
+    expect(motivoDoMaximo([])).toBeNull();
+  });
+  it('RN-VEN-11 (T-0151): orçamento em edição salva, mas só vira pedido com o desconto ajustado', () => {
+    const b = botoesDoResumo({ ...base, editando: 'orcamento', itens_acima_do_maximo: ['AGU-1500'] });
+    expect(b.salvarOrcamento.habilitado).toBe(true);
+    expect(b.transformar.habilitado).toBe(false);
+    expect(b.aviso).toBe('AGU-1500 acima do desconto máximo');
   });
   it('RN-VEN-38: tenant sem pré-venda não oferece o orçamento', () => {
     expect(botoesDoResumo({ ...base, pre_venda_ligada: false }).orcamento.visivel).toBe(false);
@@ -26,9 +43,9 @@ describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
 });
 
 describe('RN-CORE-36 / RN-VEN-38: botões do Resumo, com pendência', () => {
-  const b = botoesDoResumo({ ...base, pendencias: 2, nivel: 'supervisor' });
-  it('RN-CORE-36: Salvar e enviar pedido fica desligado e sem o destino', () => {
-    expect(b.enviar).toMatchObject({ visivel: true, habilitado: false, destino: null });
+  const b = botoesDoResumo({ ...base, pendencias: 2 });
+  it('RN-CORE-36: Salvar e enviar pedido fica desligado', () => {
+    expect(b.enviar).toMatchObject({ visivel: true, habilitado: false });
   });
   it('RN-VEN-38: Apenas salvar continua habilitado (grava rascunho com pendência)', () => {
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true });
@@ -48,7 +65,7 @@ describe('RN-VEN-13: cliente só de orçamento', () => {
     expect(b.modo).toBe('so_orcamento');
     expect(b.enviar.visivel).toBe(false);
     expect(b.principal).toBe('orcamento');
-    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, destino: null });
+    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true });
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true });
     expect(b.aviso).toBe('Cliente bloqueado: só dá para salvar como orçamento');
   });
@@ -93,20 +110,33 @@ describe('RN-VEN-38: editar pedido já salvo', () => {
     const ok = botoesDoResumo({ ...base, editando: 'pedido' });
     expect(ok.modo).toBe('editar_pedido');
     expect(ok.principal).toBe('enviar');
-    expect(ok.enviar).toMatchObject({ visivel: true, habilitado: true, destino: 'Vai direto ao ERP' });
-    expect(botoesDoResumo({ ...base, editando: 'pedido', nivel: 'supervisor' }).enviar.destino).toBe('Vai para o supervisor');
-    expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.destino).toBeNull();
+    expect(ok.enviar).toMatchObject({ visivel: true, habilitado: true });
+    expect(botoesDoResumo({ ...base, editando: 'pedido', itens_acima_do_maximo: ['AGU-1500'] }).enviar.habilitado).toBe(false);
     expect(ok.apenasSalvar.visivel).toBe(false);
     expect(ok.orcamento.visivel).toBe(false);
     expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.habilitado).toBe(false);
   });
-  it('RN-VEN-38 / RD-0036: o rótulo da edição sai do domain (aparelho, aprovação ou alterações)', () => {
+  it('RN-VEN-38 / RD-0036: o rótulo da edição sai do domain (aparelho ou alterações; a alçada não entra no botão)', () => {
     expect(botoesDoResumo({ ...base, editando: 'pedido' }).enviar.rotulo).toBe(ROTULOS_DO_SALVAR.alteracoes);
-    expect(botoesDoResumo({ ...base, editando: 'pedido', nivel: 'gerente' }).enviar.rotulo).toBe('Salvar e enviar para aprovação');
-    expect(botoesDoResumo({ ...base, editando: 'pedido', editando_no_servidor: false, nivel: 'gerente' }).enviar.rotulo).toBe('Salvar alterações no aparelho');
+    expect(botoesDoResumo({ ...base, editando: 'pedido', editando_no_servidor: false }).enviar.rotulo).toBe('Salvar alterações no aparelho');
   });
   it('RN-VEN-38 / RD-0036: os rótulos dos botões e da folha de saída vêm do mesmo mapa', () => {
     const novo = botoesDoResumo(base);
     expect([novo.enviar.rotulo, novo.apenasSalvar.rotulo, novo.orcamento.rotulo]).toEqual([ROTULOS_DO_SALVAR.enviar, ROTULOS_DO_SALVAR.apenasSalvar, ROTULOS_DO_SALVAR.orcamento]);
+  });
+});
+
+describe('RN-VEN-20 (T-0150): produto sem estoque entra, mas o pedido só sai como orçamento', () => {
+  it('RN-VEN-20: item sem estoque desliga o enviar; Salvar como orçamento vira o principal e Apenas salvar continua', () => {
+    const b = botoesDoResumo({ ...base, itens_sem_estoque: ['BIS-400'] });
+    expect(b.principal).toBe('orcamento');
+    expect(b.enviar.habilitado).toBe(false);
+    expect(b.orcamento.habilitado).toBe(true);
+    expect(b.apenasSalvar.habilitado).toBe(true);
+  });
+  it('RN-VEN-20: na edição do orçamento, o Transformar fica desligado com item sem estoque', () => {
+    const b = botoesDoResumo({ ...base, editando: 'orcamento', itens_sem_estoque: ['BIS-400'] });
+    expect(b.transformar.habilitado).toBe(false);
+    expect(b.salvarOrcamento.habilitado).toBe(true);
   });
 });

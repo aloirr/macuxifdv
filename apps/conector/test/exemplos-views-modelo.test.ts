@@ -61,3 +61,13 @@ describe('T-0089 I2: exemplos do Conector lendo as views-modelo vw_macuxi_<entid
     expect(Object.keys(ora.entidades.cliente?.campos ?? {})).toEqual(expect.arrayContaining(['prazo_medio_max_dias', 'formas_pagamento']));
   });
 });
+
+describe('T-0159 / RN-CORE-39: filial com CNPJ e endereço no exemplo do Conector', () => {
+  it('RN-CORE-39: a consulta e o mapeamento da filial levam cnpj, logradouro, numero, complemento, bairro, cep e telefone', () => {
+    const f = ler('conector.exemplo.json').entidades.filial;
+    for (const campo of ['cnpj', 'logradouro', 'numero', 'complemento', 'bairro', 'cep', 'telefone']) {
+      expect(f?.consulta, campo).toContain(`, ${campo}`);
+      expect(f?.campos?.[campo], campo).toBe(campo);
+    }
+  });
+});

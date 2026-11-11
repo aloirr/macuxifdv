@@ -595,3 +595,105 @@ ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenan
 - Super-admin (0035, T-0087): as 20 funções `sa_*` (EXECUTE só ao `macuxi_portal` desde a 0038, T-0091) e a `provisionar_tenant`
   com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima. Desde a 0039 (T-0093): as 12 `sa_*` do
   login só com e-mail e senha e a `criar_super_admin` (deploy): seção "Portal só com e-mail e senha" acima.
+
+## 0057 — leitura restrita de arquivo por perfil (`0057_core_foto_pdv`; T-0147, ADR 0041)
+Pedido R-20261110-065020-engenheiro-software. `plataforma.arquivo.perfis_leitura text[]`:
+- **NULO = regra de hoje** (ADR 0010: licença + perfil do módulo + carteira do `cliente_id`).
+- **Lista** = o usuário precisa ter um destes perfis **e** a carteira (o `GET /v1/arquivos/:id` e a miniatura respondem 404
+  sem motivo fora disso, `cache-control: private, no-store`). CHECK `arquivo_perfis_leitura_validos`: 1..7 perfis da
+  plataforma (`PERFIS` do platform-sdk), sem nulo; lista vazia é recusada (use nulo).
+- Quem grava: o módulo dono no `tx.registrarArquivo` (o Core: `PERFIS_DOC_SENSIVEL` = admin, analista, gerente, supervisor nos tipos
+  sensíveis) e o `tx.restringirArquivos` quando o tipo muda de sensível. Sem índice (a leitura é pela PK). Fora do sync.
+- Os gatilhos `tenant_semear_filial` (0056) e `tenant_semear_foto_tipo` (0057) entram em `plataforma.tenant` como os da 0006,
+  0018, 0037 e 0041: o tenant novo nasce com a filial padrão e o tipo "Fachada", sem mudar `provisionar_tenant`.
+- Volta: a coluna e o CHECK saem (a leitura dos sensíveis volta à regra da carteira: desfaça antes a regra do GET).
+
+## Diagnóstico do aparelho (0058, T-0158, ADR 0043) — `diagnostico`. Fora do sync
+Migração `0058_plataforma_diagnostico` (volta: `.down.sql`, APAGA os diagnósticos e a sequência; os prints em
+`plataforma.arquivo` e os bytes ficam). Desenho `docs/desenho/T-0158.md` §4; contrato `packages/platform-sdk/src/diagnostico.ts`.
+Drizzle: `diagnostico` em `db/esquema/plataforma.ts`. O botão "Enviar diagnóstico" (v1.0.4) e a queda automática (v1.0.5)
+chegam por `POST /v1/diagnosticos`; a API grava no contexto do tenant (`macuxi_app`), o worker manda o recado automático e o
+super-admin lê no portal. **Só dado técnico**: empresa e usuário por id, vindos do token.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | gerado no aparelho; repetir o envio = `insert ... on conflict (id) do nothing` e reler o protocolo |
+| protocolo | bigint not null | número legível **global** ("nº 0042", `formatarProtocolo` do SDK), default `nextval('plataforma.diagnostico_protocolo_seq')` (sequência `owned by` a coluna, começa em 1). Único (`diagnostico_protocolo_uk`, sem `tenant_id` de propósito: nenhum tenant escolhe o valor). O app não tem INSERT na coluna |
+| usuario_id | uuid not null | quem enviou; FK composta `(tenant_id, usuario_id)` → `core.usuario` |
+| perfil | text not null | perfil base de quem enviou: os 7 `PERFIS` do SDK (CHECK) |
+| origem | text not null | `botao` \| `queda` \| `erro_tela` (`ORIGENS_DIAGNOSTICO`) |
+| app | text not null | `campo` \| `gestao` |
+| versao_app | text not null | 1..20 (ex.: `1.0.4`) |
+| build | text | ≤ 60 (`runtimeVersion`/`nativeBuildVersion`) |
+| aparelho_fabricante, aparelho_modelo, android | text | ≤ 60, ≤ 80, ≤ 20. Nunca IMEI, série ou nome do aparelho |
+| android_api | integer | 0..1000 |
+| tela | text | rota do expo-router, ≤ 200, **sem `?` nem `#`** (CHECK: a query string pode levar dado pessoal; a API corta antes) |
+| motivo | text | ≤ 60 (`crash_nativo`, `anr`... ou a origem do erro de tela; nulo no botão) |
+| descricao | text | "O que aconteceu?", ≤ 1000, já mascarado pela API (`mascararDadoPessoal`) |
+| detalhe | jsonb not null default `{}` | só as chaves `erro`, `saida_android`, `sync`, `ultimas_saidas` (CHECK; a lista tem até 5 saídas do Android, `MAX_SAIDAS_DIAGNOSTICO`), objeto, até 32 KB |
+| print_id | uuid | id do print em `plataforma.arquivo` (`modulo = 'plataforma'`, `finalidade = 'print_diagnostico'`, `entidade = 'diagnostico'`). **Sem FK**: o print que não chega sai em 7 dias e a linha fica |
+| ocorrido_em | timestamptz not null | instante do aparelho (toque ou `quando` da saída) |
+| recebido_em | timestamptz not null default now() | relógio do servidor: ordem da lista, filtros de data e prazo de 90 dias |
+| alerta_situacao | text not null default `pendente` | `pendente` \| `enviado` \| `agrupado` \| `falhou` \| `desligado` (recado automático, worker) |
+| alerta_tentativas | integer not null default 0 | 0..100 |
+| alerta_proxima_em | timestamptz | espera exponencial do worker |
+| alerta_recado_id | text | `R-<aaaammdd>-<hhmmss>-<remetente>[-n]` |
+| alerta_em | timestamptz | quando o recado foi gravado |
+| comuns | | `tenant_id`, `created_at`, `updated_at` (gatilho), `deleted_at` (não usado: o expurgo apaga de fato), `external_id` (sempre nulo) |
+
+Índices: `diagnostico_protocolo_uk (protocolo)`; os da lista do portal, todos com `(recebido_em desc, id desc)` no fim para o
+keyset: `diagnostico_recebido_ix` (sem filtro e expurgo), `diagnostico_tenant_ix (tenant_id, ...)`,
+`diagnostico_versao_ix (versao_app, ...)`, `diagnostico_modelo_ix (aparelho_modelo, ...)`, `diagnostico_motivo_ix (motivo, ...)`;
+`diagnostico_alerta_pendente_ix (alerta_proxima_em) where alerta_situacao = 'pendente'` (lote do worker) e
+`diagnostico_usuario_ix (tenant_id, usuario_id)` (FK). Volume: dezenas por dia na plataforma toda; até ~100 mil linhas em 90 dias.
+
+**Acesso** (RLS ligado e forçado):
+- `macuxi_app`: `isolamento_tenant`; `select` e `insert` **por coluna** (`id, tenant_id, usuario_id, perfil, origem, app,
+  versao_app, build, aparelho_fabricante, aparelho_modelo, android, android_api, tela, motivo, descricao, detalhe, print_id,
+  ocorrido_em`) + `usage` na sequência. Sem `update` nem `delete`. O mesmo `id` de outro tenant: o insert não faz nada e a
+  releitura não acha (a API responde 409 `DIAGNOSTICO_JA_EXISTE`).
+- `macuxi_worker`: `diagnostico_alerta` (`for select using (true)`, todos os tenants) e `diagnostico_alerta_marcar` (`for
+  update using (alerta_situacao in ('pendente', 'agrupado')) with check (true)`); `select` por coluna **sem `descricao` e
+  `detalhe`** (o recado nunca leva texto livre nem pilha) e `update` só de `alerta_situacao, alerta_tentativas,
+  alerta_proxima_em, alerta_recado_id, alerta_em`. Sem `insert` nem `delete` direto.
+- `macuxi_portal`: nada na tabela; só as funções abaixo. `manutencao`: a de toda tabela (0031).
+
+**Funções** (SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`):
+- `plataforma.sa_listar_diagnosticos(p_sid uuid, p_filtro jsonb) returns jsonb` — EXECUTE só ao `macuxi_portal`. Sessão
+  inválida ou vencida = 28000; admin do cliente = 42501. `p_filtro` (o `DiagnosticoFiltroSchema`, revalidado): `versao`,
+  `modelo`, `tenant_id`, `motivo`, `origem` (igualdade), `de` (`recebido_em >=`) e `ate` (`recebido_em <`), `cursor`; chave fora
+  do contrato, valor que não é texto ou valor inválido = 22023; texto vazio = sem filtro. Devolve `{ itens: [...], cursor }`
+  (`DiagnosticoListaSchema`), 50 por página, do mais novo ao mais antigo; `tenant_nome` = `plataforma.tenant.nome`;
+  `tem_print` = há arquivo `recebido`. Cursor opaco `"<recebido_em em UTC com microssegundos>Z|<id>"` (keyset
+  `(recebido_em, id) <`); nulo na última página. Audita `sa.diagnostico.listar` com a contagem.
+- `plataforma.sa_diagnostico(p_sid uuid, p_id uuid) returns jsonb` — EXECUTE só ao `macuxi_portal`; mesmos códigos de sessão;
+  não achou = P0002. Devolve o `DiagnosticoDetalheSchema` (item + `build`, `aparelho_fabricante`, `android_api`, `tela`,
+  `descricao`, `erro`, `saida_android`, `ultimas_saidas` (`[]` se ausente), `sync`, `usuario_id`, `perfil`, `alerta {situacao, recado_id, em}`) e mais `print_id`
+  e `chave_armazenamento` (do print `recebido`; nulo sem print), que a API usa para ler os bytes e não repassa ao portal.
+  Audita `sa.diagnostico.ver` com o id e o protocolo (nunca o texto).
+- `plataforma.expurgar_diagnosticos(p_agora timestamptz default now(), p_limite integer default 500) returns table
+  (diagnosticos integer, arquivos integer, chaves text[])` — EXECUTE só ao `macuxi_worker` (tarefa diária, desenho §3). Numa
+  transação: apaga **de fato** até `p_limite` diagnósticos com `recebido_em < p_agora - 90 dias` (o mais antigo primeiro, `for
+  update skip locked`) e o arquivo do print deles; e até `p_limite` prints `aguardando` com mais de 7 dias. Devolve as
+  contagens e as chaves do armazenamento para o worker chamar `ArmazenamentoArquivos.remover` **depois do commit** (falhou =
+  `warn`; a chave órfã fica sob `<tenant_id>/plataforma/`). `p_limite` 1..5000 (fora = 22023). Repita até `diagnosticos = 0`
+  e `arquivos = 0`.
+
+As 2 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_0058`; `apps/api/test/funcoes-sa.ts` e
+`scripts/deploy/producao/banco-dbaas.sh`, do engenheiro-software): o portal passa a executar **16** `sa_*`. Prova:
+`db/testes/diagnostico.test.ts` (estático sempre; banco no CI: RLS entre os 2 tenants, app sem update/delete, worker sem texto
+livre, `sa_listar_diagnosticos` recusa o admin do cliente, keyset, expurgo com o print, up/down).
+
+Consultas da API (referência):
+```sql
+-- POST /v1/diagnosticos (comTenant): grava e relê o protocolo (repetição = 200 com o mesmo protocolo)
+insert into plataforma.diagnostico (id, tenant_id, usuario_id, perfil, origem, app, versao_app, build, aparelho_fabricante,
+  aparelho_modelo, android, android_api, tela, motivo, descricao, detalhe, print_id, ocorrido_em)
+values ($1, plataforma.tenant_atual(), $2, ...) on conflict (id) do nothing returning protocolo;
+select usuario_id, protocolo from plataforma.diagnostico where id = $1;   -- 0 linhas = id de outro tenant (409)
+-- worker, alerta (60 s)
+select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, android, tela, motivo, usuario_id, perfil, print_id, recebido_em
+  from plataforma.diagnostico
+ where alerta_situacao = 'pendente' and (alerta_proxima_em is null or alerta_proxima_em <= now())
+ order by recebido_em limit 10 for update skip locked;
+```

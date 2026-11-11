@@ -13,3 +13,10 @@ describe('RN-CORE-19: medidas no aparelho', () => {
     expect(entidadesProduto.find((x) => x.nome === 'medida')).toMatchObject({ modulo: 'core', direcao: 'pull', conflito: 'servidor_vence' });
   });
 });
+
+describe('RN-CORE-38: fotos do PDV no aparelho', () => {
+  it('RN-CORE-38: cliente_foto é de envio e recebimento (comando do aparelho + linha do pull); foto_tipo só pull', () => {
+    expect(entidadesProduto.find((x) => x.nome === 'cliente_foto')).toMatchObject({ modulo: 'core', direcao: 'ambos' });
+    expect(entidadesProduto.find((x) => x.nome === 'foto_tipo')).toMatchObject({ modulo: 'core', direcao: 'pull' });
+  });
+});

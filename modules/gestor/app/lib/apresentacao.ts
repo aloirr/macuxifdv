@@ -17,11 +17,25 @@ export const STATUS_DIA_ROTULO: Readonly<Record<StatusDia, { label: string; tom:
 };
 
 export const MOTIVO_ROTULO: Readonly<Record<MotivoAprovacao, string>> = {
-  desconto: 'Desconto acima da alçada',
+  desconto: 'Desconto',
   credito: 'Crédito do cliente',
   estoque: 'Estoque',
-  preco_minimo: 'Preço abaixo do mínimo',
+  preco_minimo: 'Acima do desconto máximo',
 };
+
+/**
+ * Motivos da fila numa linha (RN-VEN-10/42: a alçada nunca aparece em tela; "uma informação, um lugar"). O desconto entra
+ * uma vez só: na frente quando é motivo ("Desconto 8%"), depois dos motivos quando é só informação ("Crédito do cliente ·
+ * desconto 3%"). Com motivo crédito e saldo conhecido, o saldo substitui o rótulo ("Crédito disponível R$ 1.200").
+ */
+export function linhaDeMotivos(motivos: readonly MotivoAprovacao[], descontoPct: number, pct: (n: number) => string, creditoDisponivel?: string): string {
+  const partes = motivos
+    .filter((m) => m !== 'desconto')
+    .map((m) => (m === 'credito' && creditoDisponivel ? `Crédito disponível ${creditoDisponivel}` : MOTIVO_ROTULO[m]));
+  if (motivos.includes('desconto')) partes.unshift(`${MOTIVO_ROTULO.desconto} ${pct(descontoPct)}`);
+  else if (descontoPct > 0) partes.push(`desconto ${pct(descontoPct)}`);
+  return partes.join(' · ');
+}
 
 export const TIPO_ALERTA_ROTULO: Readonly<Record<TipoAlerta, string>> = {
   cliente_sem_visita: 'Cliente sem visita',

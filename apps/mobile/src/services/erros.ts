@@ -5,7 +5,6 @@
  *   encerrar (no máximo 600 ms de espera), para o Diagnóstico do Perfil mostrar a causa na próxima abertura.
  */
 import { CHAVE_ULTIMO_ERRO, deveGravarErro, registroDoErro, type ErroRegistrado, type OrigemDoErro } from '@/lib/erro-de-tela';
-
 import { readJson, writeJson } from './storage';
 
 export async function gravarErro(e: unknown, origem: OrigemDoErro, onde: string | null = null): Promise<void> {
@@ -20,6 +19,11 @@ export async function gravarErro(e: unknown, origem: OrigemDoErro, onde: string 
   } catch {
     // registrar o erro nunca derruba o app
   }
+}
+
+/** T-0144: grava um registro já montado (a queda do processo anterior vista pelo Android, `services/saida-android.ts`). */
+export async function gravarErroRegistrado(r: ErroRegistrado): Promise<void> {
+  await writeJson(CHAVE_ULTIMO_ERRO, r).catch(() => undefined);
 }
 
 export function lerUltimoErro(): Promise<ErroRegistrado | null> {

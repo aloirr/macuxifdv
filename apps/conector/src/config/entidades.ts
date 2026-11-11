@@ -6,7 +6,7 @@ export { ENTIDADES };
 export type { Entidade };
 
 /** vendedor → cliente → (rota, título, nota); produto → (preço, estoque). Ordem estável usada pelo laço de execução. */
-export const ORDEM_CARGA: readonly Entidade[] = ['vendedor', 'catalogo_no', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'cliente', 'cliente_endereco', 'preco', 'tabela_escalonada', 'estoque', 'rota', 'titulo', 'nota'];
+export const ORDEM_CARGA: readonly Entidade[] = ['vendedor', 'filial', 'catalogo_no', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'cliente', 'cliente_endereco', 'preco', 'tabela_escalonada', 'estoque', 'rota', 'titulo', 'nota'];
 
 /** Frequência sugerida pelo doc 06 (segundos). */
 export const PERIODICIDADE_PADRAO: Record<Entidade, number> = {
@@ -25,6 +25,7 @@ export const PERIODICIDADE_PADRAO: Record<Entidade, number> = {
   forma_pagamento: 3600,
   prazo_pagamento: 3600,
   tabela_escalonada: 3600,
+  filial: 3600,
 };
 
 function desembrulhar(s: z.ZodTypeAny): z.ZodTypeAny {

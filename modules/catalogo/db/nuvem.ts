@@ -4,7 +4,8 @@
  * conteúdo, busca do servidor, estoque e log de busca), 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071) e
  * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
  * T-0084/T-0085), 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085) e
- * 0037_forma_prazo_escalonada (tabela_escalonada, RN-VEN-23; T-0089), para uso
+ * 0037_forma_prazo_escalonada (tabela_escalonada, RN-VEN-23; T-0089) e 0056_core_filial (filial do depósito, do item de preço
+ * e da faixa; T-0149), para uso
  * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
@@ -48,8 +49,13 @@ export const tabelaPrecoItem = catalogo.table('tabela_preco_item', {
   preco_cents: bigint('preco_cents', { mode: 'number' }).notNull(),
   vigencia_inicio: timestamp('vigencia_inicio', { withTimezone: true }),
   vigencia_fim: timestamp('vigencia_fim', { withTimezone: true }),
-  /** 0013 (RN-VEN-15): nulo = unidade base; 'CX' = preço próprio da caixa. Único vivo: (tabela, produto, unidade, início). */
+  /** 0013 (RN-VEN-15): nulo = unidade base; 'CX' = preço próprio da caixa. */
   unidade: text('unidade'),
+  /**
+   * 0056 (T-0149, RN-CORE-39, ADR 0040): filial do preço (id de core.filial, SEM FK; validado por core.filiais@1). Nulo na
+   * escrita vira a padrão (gatilho). Único vivo: (tabela, filial, produto, unidade, início).
+   */
+  filial_id: uuid('filial_id').notNull(),
 });
 
 /** A tabela de preço do cliente: no máximo uma viva por cliente. Sem linha = todo produto sem preço (RN-CAT-06). */
@@ -179,12 +185,14 @@ export const produtoBusca = catalogo.table('produto_busca', {
   referencias: text('referencias'),
 });
 
-/** Depósito/filial do estoque (`branch_id`/`branch_name` do contrato). Código único vivo. */
+/** Depósito do estoque. Código único vivo. Desde a 0056 o `branch_id`/`branch_name` do contrato é a FILIAL do depósito. */
 export const deposito = catalogo.table('deposito', {
   ...comuns(),
   codigo: text('codigo').notNull(),
   nome: text('nome').notNull(),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0056 (T-0149, RN-CORE-39): filial do depósito (id de core.filial, SEM FK). Nulo na escrita vira a padrão (gatilho). */
+  filial_id: uuid('filial_id').notNull(),
 });
 
 /** Saldo do ERP por depósito e produto, na unidade base (numeric(14,3): string no `pg`). (depósito, produto) único vivo. */
@@ -284,4 +292,6 @@ export const tabelaEscalonada = catalogo.table('tabela_escalonada', {
   vigencia_fim: date('vigencia_fim'),
   tabela_preco_id: uuid('tabela_preco_id'),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0056 (T-0149, RN-CORE-39): filial da faixa (id de core.filial, SEM FK); nulo = todas. Entra no único da faixa. */
+  filial_id: uuid('filial_id'),
 });

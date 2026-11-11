@@ -1,7 +1,7 @@
 /** RN-CAT-11: aplicação no aparelho, lida só dos itens pedidos ou memorizada pela versão das linhas. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextoConsultaAparelho } from '@macuxi/platform-sdk';
-import { aplicacoesDosProdutos, esquecerMemoriaTextos, referenciasDoRetrato } from './texto-consultas';
+import { aplicacoesDosProdutos, consultaTextosProdutoAparelho, esquecerMemoriaTextos, referenciasDoRetrato } from './texto-consultas';
 
 const linha = (produto_id: string, aplicacao: string | null, deleted_at: string | null = null) => ({ id: `c-${produto_id}`, produto_id, aplicacao, deleted_at });
 const LINHAS = [linha('p1', 'Uno 2010'), linha('p2', null), linha('p3', 'Gol', '2026-01-01T00:00:00Z')];

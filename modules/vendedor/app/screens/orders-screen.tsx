@@ -8,7 +8,7 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -54,13 +54,12 @@ import { useVendedor } from '../state/use-vendedor';
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'orc_abertos';
 
 export default function OrdersScreen() {
-  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
+  const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
   const ambiente = useAmbiente();
   const sync = { running: sincronizando, error: erroSync };
-  const syncAll = () => motor?.sincronizar();
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [busca, setBusca] = useState('');
   // T-0077: seletor de vendedor só no Gestão; o filtro vale antes da busca, do período, dos chips e do resumo
@@ -182,7 +181,6 @@ export default function OrdersScreen() {
     [atual, base, paraDecidir, aFaturar, orcAbertos],
   );
   const resumo = useMemo(() => resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual), [visiveis, atual]);
-  const queued = contagem.na_fila;
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
   const hojeDia = periodoDe('dia', new Date(), tz).valor;
   const filtro = useMemo(() => {
@@ -254,6 +252,18 @@ export default function OrdersScreen() {
     <View style={styles.cabecalho}>
       <View style={styles.header}>
         <Text style={[t.h1, { flex: 1 }]}>{gestao ? 'Pedidos da equipe' : 'Pedidos'}</Text>
+        {/* RD-0076 (pedido-v4 §4.1): o estado do sinal e da consulta é um selo só, sem faixa nem rodapé */}
+        <SeloAtualizacao
+          testID="orders-selo-sync"
+          semRede={!ambiente.online()}
+          atualizando={parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro'}
+          semResposta={(!sync.running && !!sync.error) || doServidor?.estado === 'erro'}
+          onSincronizar={() => {
+            setTentativa((n) => n + 1);
+            auto.puxar();
+          }}
+          onAbrirPerfil={() => router.push('/profile' as never)}
+        />
         <SePode acao="pedido.criar">
           {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
         </SePode>
@@ -261,7 +271,7 @@ export default function OrdersScreen() {
 
       {totalRascunhos > 0 ? (
         <SePode acao="pedido.criar">
-          <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} apoio={TEXTOS_RASCUNHOS.atalhoApoio} onPress={irParaRascunhos} />
+          <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} onPress={irParaRascunhos} />
         </SePode>
       ) : null}
 
@@ -271,7 +281,7 @@ export default function OrdersScreen() {
             testID="orders-busca"
             valor={busca}
             onChange={setBusca}
-            placeholder={gestao ? 'Cliente ou nº' : 'Nome fantasia, razão social ou nº'}
+            placeholder={gestao ? 'Cliente ou nº' : 'Cliente ou nº'}
             rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
             onLimpar={() => setBusca('')}
             rotuloLimpar="Limpar a busca"
@@ -334,59 +344,23 @@ export default function OrdersScreen() {
 
           {semResposta ? null : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
-            {gestao ? <Chip testID="chip-decide" label={`Para aprovar ${base.filter((i) => paraDecidir.has(i.id)).length}`} active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
-            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={`${ROTULO_A_FATURAR} ${aFaturar.length}`} active onPress={() => setSituacao('a_faturar')} /> : null}
-            {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label={`Em aberto ${orcAbertos.length}`} active onPress={() => setSituacao('orc_abertos')} /> : null}
+            {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
+            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
+            {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label="Em aberto" active onPress={() => setSituacao('orc_abertos')} /> : null}
             {chips.map((c) => (
-              <Chip key={c.id} testID={`chip-${c.id}`} label={`${c.rotulo} ${c.quantidade}`} active={atual === c.id} onPress={() => setSituacao(c.id)} />
+              <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
             ))}
           </ScrollView>
           )}
 
           {semResposta ? null : (
           <Text style={t.small} testID="orders-resumo">
-            {resumo.quantidade} {resumo.orcamentos ? (resumo.quantidade === 1 ? 'orçamento' : 'orçamentos') : resumo.quantidade === 1 ? 'pedido' : 'pedidos'} · {formatBRL0(resumo.total_cents)}
+            {`Total ${formatBRL0(resumo.total_cents)}${doServidor?.estado === 'ok' && doServidor.cortada ? ' · 1.000 mais recentes' : ''}`}
           </Text>
           )}
-          {parcial && semSinal ? (
-            <Banner testID="orders-parcial" anunciar>Sem sinal: mostrando só o que o aparelho tem deste período.</Banner>
-          ) : null}
-          {parcial && !semSinal && doServidor?.estado === 'erro' ? (
-            <Banner testID="orders-parcial-erro" icon="alert" anunciar>Não foi possível consultar o servidor: mostrando só o que o aparelho tem deste período. Puxe para baixo para tentar de novo.</Banner>
-          ) : null}
-          {parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro' ? (
-            <Text style={t.small} testID="orders-parcial-buscando">
-              Buscando o restante no servidor…
-            </Text>
-          ) : null}
-          {doServidor?.estado === 'ok' && doServidor.cortada ? (
-            <Text style={t.small} testID="orders-cortada">
-              Mostrando os 1.000 mais recentes. Use um período menor para ver os demais.
-            </Text>
-          ) : null}
-          {queued > 0 ? (
-            <Banner testID="orders-queue-banner">
-              <Strong>{queued === 1 ? '1 pedido na fila do aparelho.' : `${queued} pedidos na fila do aparelho.`}</Strong> {offline ? 'Envio automático quando o sinal voltar.' : 'Enviando automaticamente…'}
-            </Banner>
-          ) : null}
         </>
       )}
 
-    </View>
-      }
-      ListFooterComponent={
-    <View style={styles.rodape}>
-      <Text style={[t.small, { textAlign: 'center' }]} testID="orders-sync-rodape">{auto.rodape}</Text>
-      {offline ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/profile' as never)}>
-          <Text style={[t.small, { textAlign: 'center', color: colors.warning }]}>Modo sem sinal ligado · desligue no Perfil</Text>
-        </Pressable>
-      ) : null}
-      {!sync.running && sync.error ? (
-        <Pressable accessibilityRole="button" onPress={() => void syncAll()}>
-          <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{sync.error}</Text>
-        </Pressable>
-      ) : null}
     </View>
       }
     />
@@ -444,16 +418,15 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
       {buscando && razao && casaComBusca({ numero: '', nome_fantasia: '', razao_social: razao }, busca) ? <Destacado texto={razao} busca={busca} style={t.small} /> : null}
       <View style={styles.line}>
         <Text style={[t.small, { flex: 1 }]} numberOfLines={1}>
+          {o.number ? 'Nº ' : 'No aparelho'}
           {o.number ? (
             <Destacado texto={o.number} busca={busca} trechos={trechosDoNumero(o.number, busca)} mono linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
-          ) : (
-            <Text style={{ fontFamily: fonts.mono }}>no aparelho</Text>
-          )}{' '}
-          · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)} · {o.items_count} {o.items_count === 1 ? 'item' : 'itens'}
+          ) : null}{' '}
+          · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)}
         </Text>
         {seloOrc ? <Selo texto={seloOrc.texto} tom={seloOrc.tom} tamanho="p" pilula /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
       </View>
-      {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
+      {note ? <Text style={t.small}>{note}</Text> : null}
     </Pressable>
     </View>
   );

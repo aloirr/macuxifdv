@@ -10,6 +10,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrecosClienteEntradaSchema } from '../contracts';
 import { consultaPrecosCliente } from './consultas';
+import { consultarFiliaisDeTeste } from './filiais-teste';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -31,6 +32,8 @@ describe.skipIf(semBanco())('Catálogo × Postgres: precos_cliente@1 com faixas 
       consultaPrecosCliente.executar(PrecosClienteEntradaSchema.parse({ cliente_id: cliente, produto_ids: produtos, em: AGORA.toISOString() }), {
         db: c as unknown as ClienteBanco,
         usuario: { perfil },
+        // core.filiais@1 simulada (T-0149): todo cliente na filial padrão do tenant
+        consultar: consultarFiliaisDeTeste(c),
         agora: () => AGORA,
         fuso: () => 'America/Manaus',
         parametros: () => ({}),

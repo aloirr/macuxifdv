@@ -528,6 +528,39 @@
                     ]
                   }
                 },
+                "filial": {
+                  "summary": "Filiais: unidades de onde saem as entregas (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "filial",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "FIL02"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "FIL02",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "codigo": "0002",
+                        "nome": "Boa Vista",
+                        "cidade": "Boa Vista",
+                        "uf": "RR",
+                        "cnpj": "11222333000181",
+                        "logradouro": "Av. Ville Roy",
+                        "numero": "1500",
+                        "complemento": null,
+                        "bairro": "Centro",
+                        "cep": "69301000",
+                        "telefone": "9532240000"
+                      }
+                    ]
+                  }
+                },
                 "carga_completa_parte_1": {
                   "summary": "Carga completa, parte 1 de 2 (sessão aberta)",
                   "value": {
@@ -1267,7 +1300,7 @@
                     "summary": "Entidade fora da lista",
                     "value": {
                       "codigo": "entidade_desconhecida",
-                      "mensagem": "Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.",
+                      "mensagem": "Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada, filial.",
                       "requisicao_id": "req-7f3a9c2e41d8"
                     }
                   }
@@ -2943,6 +2976,18 @@
                 "type": "null"
               }
             ]
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3323,7 +3368,8 @@
           "transportadora",
           "forma_pagamento",
           "prazo_pagamento",
-          "tabela_escalonada"
+          "tabela_escalonada",
+          "filial"
         ]
       },
       "ErroHub": {
@@ -3427,6 +3473,18 @@
           },
           "saldo": {
             "type": "number"
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3435,6 +3493,184 @@
           "deposito_external_id",
           "produto_external_id",
           "saldo"
+        ]
+      },
+      "FilialPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "cidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cnpj": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 18
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logradouro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complemento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cep": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 9
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "codigo",
+          "nome"
+        ]
+      },
+      "FilialPedidoErp": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "padrao": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "codigo"
         ]
       },
       "FormaPagamentoPayload": {
@@ -3950,7 +4186,7 @@
           "entidade": {
             "type": "string",
             "minLength": 1,
-            "description": "Entidade do lote: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada."
+            "description": "Entidade do lote: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada, filial."
           },
           "modo": {
             "$ref": "#/components/schemas/ModoCarga",
@@ -4089,6 +4325,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/TabelaEscalonadaPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/FilialPayload"
                 }
               ]
             },
@@ -4146,6 +4385,9 @@
           },
           "tabela_escalonada": {
             "$ref": "#/components/schemas/TabelaEscalonadaPayload"
+          },
+          "filial": {
+            "$ref": "#/components/schemas/FilialPayload"
           }
         }
       },
@@ -4678,6 +4920,16 @@
                 "type": "null"
               }
             ]
+          },
+          "filial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilialPedidoErp"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4881,6 +5133,18 @@
               {
                 "type": "string",
                 "maxLength": 6
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filial_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5890,6 +6154,18 @@
             ]
           },
           "tabela_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filial_external_id": {
             "anyOf": [
               {
                 "type": "string",

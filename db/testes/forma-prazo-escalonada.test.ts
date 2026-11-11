@@ -135,8 +135,9 @@ describe('0037 formas, prazos e tabela escalonada (estático)', () => {
   });
 
   it('Hub v1 (R-20261106-203005): os 7 CHECKs de entidade e o do Conector com as 15 do banco = contrato; padrão do Conector segue as 8; down volta às 12', () => {
-    const banco = [...nuvemIntegracao.ENTIDADES_BANCO];
-    expect([...banco].sort()).toEqual([...ENTIDADES].sort());
+    // 0056 (T-0149): o banco ganhou `filial` (ENTIDADES_BANCO, 16 = contrato); a 0037 continua com as 15 (ENTIDADES_0037)
+    expect([...nuvemIntegracao.ENTIDADES_BANCO].sort()).toEqual([...ENTIDADES].sort());
+    const banco = [...nuvemIntegracao.ENTIDADES_0037];
     expect(banco.slice(-3)).toEqual(['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada']);
     const lista = (trecho: string | undefined) => [...(trecho ?? '').matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!);
     for (const [texto, esperado] of [[sql, banco], [down, [...nuvemIntegracao.ENTIDADES_0013]]] as const) {

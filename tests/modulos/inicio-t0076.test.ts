@@ -232,10 +232,13 @@ describe('Critério 3 — o Início não cria timer automático < 15 min (RN-COR
     }
   });
 
+  // Lê todos os .ts/.tsx do app e do BKO (as constantes exportadas resolvem os atrasos): 10 a 27 s com a máquina carregada
+  // de agentes (medido em 10/11 na árvore e no origin/main). Prazo próprio para não depender do testTimeout do
+  // tests/vitest.config.ts (60 s): rodado sem o config (`npx vitest run tests/...` da raiz), o padrão de 5 s estourava.
   it('a varredura do repositório não acha timer < 15 min em nenhum arquivo do Início', async () => {
     const v = (await carregar()).varrer(RAIZ);
     expect(v.filter((x) => ARQUIVOS_DO_INICIO.includes(x.arquivo))).toEqual([]);
-  });
+  }, 120_000);
 
   it('nenhum setInterval/refetchInterval nos arquivos do Início (atualização só pelo agendador do shell e pelo botão Sincronizar)', () => {
     for (const a of ARQUIVOS_DO_INICIO) expect(ler(a), a).not.toMatch(/setInterval\(|refetchInterval/);

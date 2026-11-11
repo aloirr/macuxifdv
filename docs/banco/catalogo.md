@@ -330,3 +330,23 @@ produto com faixa (milhares por tenant). Aparelho: sem versão nova do SQLite (a
 índice de expressão por produto entra numa v4 quando o modulo-catalogo declarar a entidade, se a leitura pedir).
 Base de demo: BIS-400 com 50 UN a R$ 5,69, 10 CX a R$ 5,49 e 20 CX a R$ 5,29 por UN (todas as tabelas, desde o 1º do mês anterior).
 Fixture: A no p1 com 10 PC (geral), 2 CX (Padrão Alfa) e uma vencida ontem; B no p1 com 12 UN. Volta: o down da 0037 apaga a tabela.
+
+## 0056 — estoque e preço por filial (`0056_core_filial`; T-0149, RN-CORE-39, ADR 0040, desenho docs/desenho/T-0149.md §3.2)
+Pedido R-20261110-064112-engenheiro-software. **Sem FK para o Core** (ADR 0005): o id da filial é validado pelo
+`core.filiais@1`.
+| Coluna | Regra |
+|---|---|
+| `deposito.filial_id uuid not null` | a filial do depósito; o estoque da filial = soma dos depósitos dela. Backfill = padrão. Índice `deposito_filial_ix (tenant_id, filial_id)` (pull do estoque por filial: `deposito_id in (select id from catalogo.deposito where filial_id = any($n))`) |
+| `tabela_preco_item.filial_id uuid not null` | a filial do preço. Backfill = padrão. Único vivo **`tabela_preco_item_filial_vigencia_uk`** `(tenant_id, tabela_preco_id, filial_id, produto_id, unidade, vigencia_inicio) NULLS NOT DISTINCT` (substitui o `tabela_preco_item_unidade_vigencia_uk` da 0013). Índice `tabela_preco_item_filial_ix (tenant_id, tabela_preco_id, filial_id)`: "a tabela tem item nesta filial?" (`filialDoPreco`) |
+| `tabela_escalonada.filial_id uuid` | **nulo = todas as filiais** (as faixas antigas ficam nulas). A filial entra no único `tabela_escalonada_faixa_uk` `(tenant_id, produto_id, medida, quantidade_minima, tabela_preco_id, filial_id, vigencia_inicio)`: a faixa da filial e a geral convivem; a da filial vence (`faixasDaFilial`) |
+
+- **Nulo na escrita vira a padrão** (gatilhos `deposito_filial_padrao` e `tabela_preco_item_filial_padrao`, função
+  `core.preencher_filial_padrao()`, BEFORE INSERT OR UPDATE OF filial_id): é a regra do contrato do Hub ("ausente ou nulo =
+  padrão") e mantém os caminhos que ainda não mandam a filial. Quem conhece a filial (consumidor do ERP, BKO) grava a dela.
+- Backfill anda o `updated_at` dos depósitos e dos itens uma vez (o aparelho repuxa com `filial_id`).
+- **`precos_cliente@1`**: o `where` da consulta ganha `i.filial_id = $filial`, com a filial dada por `filialDoPreco` (a do
+  cliente se a tabela dele tem item vivo nela; senão a padrão). O prefixo do único (`tenant, tabela, filial, produto`) atende.
+- **Aparelho**: só as filiais da carteira + a padrão (`core.filiais@1 { escopo: 'carteira' }.da_carteira`); SQLite v5 com
+  `catalogo__tabela_preco_item_filial` ([aparelho-sqlite.md](aparelho-sqlite.md) §4.4).
+- Volta (`0056_core_filial.down.sql`): faixas e itens de filial **não padrão** são apagados logicamente (voltam na próxima
+  carga) antes de recriar os únicos antigos; as colunas saem; depósitos de outras filiais ficam. Testes: `db/testes/filial.test.ts`.

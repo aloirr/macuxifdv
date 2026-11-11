@@ -25,7 +25,7 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
 
   it('RN-VEN-30: a recusa da API volta como "Não aceito" com o motivo em português e o que fazer', () => {
     const e = estadoNaFila({ recusado: true, offline: false, motivoBruto: 'preco_abaixo_minimo: AGU-1500' });
-    expect(e.faixa.texto).toBe('Não foi aceito: preço de AGU-1500 abaixo do mínimo. Corrija e salve de novo.');
+    expect(e.faixa.texto).toBe('AGU-1500 acima do desconto máximo');
     expect(e.podeCorrigir).toBe(true);
     expect(e.somenteLeitura).toBe(false);
     expect(e.faixa.texto).not.toContain('preco_abaixo_minimo');
@@ -39,9 +39,9 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
   });
 
   it('RN-VEN-40: o motivo em português que o servidor devolveu aparece na tela, sem código técnico (orçamento de 09/11 05h50)', () => {
-    const msg = 'Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item.';
-    expect(motivoDaRecusa(msg)).toBe('Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item');
-    expect(estadoNaFila({ recusado: true, offline: false, motivoBruto: msg }).faixa.texto).toBe('Não foi aceito: Desconto acima do máximo do produto: VEL-150. Reduza o desconto do item. Corrija e salve de novo.');
+    const msg = 'VEL-150 acima do desconto máximo';
+    expect(motivoDaRecusa(msg)).toBe('VEL-150 acima do desconto máximo');
+    expect(estadoNaFila({ recusado: true, offline: false, motivoBruto: msg }).faixa.texto).toBe('VEL-150 acima do desconto máximo');
     expect(abaDaCorrecao(msg)).toBe('itens');
     expect(motivoDaRecusa('Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).')).toBe('Cliente inativo ou inexistente: não é possível vender');
     expect(motivoDaRecusa('RN-PRO-01: o promotor não decide pedidos.')).toBe('o promotor não decide pedidos');

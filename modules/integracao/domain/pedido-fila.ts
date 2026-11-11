@@ -112,6 +112,8 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
       ...(origem.endereco_entrega != null ? { endereco_entrega: origem.endereco_entrega } : {}),
       // T-0089: forma, prazo e prazo médio só no pedido novo (o antigo segue com o mesmo payload e hash)
       ...(origem.pagamento != null ? { pagamento: origem.pagamento } : {}),
+      // T-0149 (RN-CORE-39): filial do pedido só no pedido novo (o antigo segue com o mesmo payload e hash)
+      ...(origem.filial != null ? { filial: origem.filial } : {}),
     },
   };
 }

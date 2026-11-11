@@ -1328,6 +1328,75 @@
               "response": []
             },
             {
+              "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — filial",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Idempotency-Key = SHA-256 do corpo (mesmo corpo, mesma chave; corpo novo, chave nova).",
+                      "const corpo = pm.variables.replaceIn(pm.request.body ? pm.request.body.raw : '');",
+                      "pm.request.headers.upsert({ key: 'Idempotency-Key', value: CryptoJS.SHA256(corpo).toString(CryptoJS.enc.Hex) });"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 202) { pm.collectionVariables.set('lote_id', pm.response.json().lote_id); }",
+                      "pm.test('lote aceito (202) ou repetido', () => pm.expect(pm.response.code).to.eql(202));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Macuxi-Conector-Id",
+                    "value": "{{conector_id}}"
+                  },
+                  {
+                    "key": "X-Macuxi-Conector-Versao",
+                    "value": "{{conector_versao}}",
+                    "disabled": true,
+                    "description": "Opcional (ligue só com versão ≥ a mínima da empresa)."
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "5185021c8c79164713a5c61d816967e143015912eeb9d8eba883f6e66b9e38e5"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"filial\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"FIL02\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"FIL02\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"codigo\": \"0002\",\n      \"nome\": \"Boa Vista\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cnpj\": \"11222333000181\",\n      \"logradouro\": \"Av. Ville Roy\",\n      \"numero\": \"1500\",\n      \"complemento\": null,\n      \"bairro\": \"Centro\",\n      \"cep\": \"69301000\",\n      \"telefone\": \"9532240000\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/lotes",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "lotes"
+                  ]
+                },
+                "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `filial` (Filiais: unidades de onde saem as entregas (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`)."
+              },
+              "response": []
+            },
+            {
               "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — carga_completa_parte_1",
               "event": [
                 {
@@ -1871,7 +1940,7 @@
                       "value": "application/json"
                     }
                   ],
-                  "body": "{\n  \"codigo\": \"entidade_desconhecida\",\n  \"mensagem\": \"Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
+                  "body": "{\n  \"codigo\": \"entidade_desconhecida\",\n  \"mensagem\": \"Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada, filial.\",\n  \"requisicao_id\": \"req-7f3a9c2e41d8\"\n}"
                 },
                 {
                   "name": "426 — versao_conector_nao_suportada: Conector abaixo da versão mínima",

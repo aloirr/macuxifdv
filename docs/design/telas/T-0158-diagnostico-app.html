@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0158 · Enviar diagnóstico no app (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  /* fim do cartão de cima (a tela está rolada até o Diagnóstico) */
+  .corte { height: 46px; margin-top: -10px; border-radius: 0 0 14px 14px; border-top: none; display: flex; align-items: flex-end; padding: 0 14px 12px; font-size: 13px; color: var(--ink2); }
+  .btn.sec { background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink); height: 44px; border-radius: 12px; font-size: 15px; }
+  .btn.perigo { background: var(--dangerBg); color: var(--danger); height: 52px; }
+  .versao { text-align: center; font-size: 12px; color: var(--ink2); padding: 4px 0 0; }
+  /* últimos envios: situação (selo com texto) · nº ou motivo · data */
+  .env .item { min-height: 52px; padding: 10px 14px; }
+  .env .nr { font-family: Archivo, sans-serif; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .env .dt { margin-left: auto; font-size: 13px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .env .mot { font-size: 13px; color: var(--ink2); }
+  .env .org { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+  .selo.aviso { color: var(--warningInk); }
+  /* folha */
+  .folha { gap: 14px; padding-bottom: 16px; }
+  .folha .tit { font-size: 20px; }
+  .x { width: 48px; height: 48px; margin: -12px -14px -12px 0; display: flex; align-items: center; justify-content: center; }
+  .rot { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .area { min-height: 104px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); padding: 10px 12px; font-size: 15px; line-height: 21px; color: var(--ink); }
+  .area .ph { color: var(--ink3); }
+  .area.foco { border: 2px solid var(--accent); padding: 9px 11px; }
+  .ajuda { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--ink2); margin-top: 6px; line-height: 18px; }
+  .ajuda .cnt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .print { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px 8px 8px; }
+  .mini { width: 40px; height: 68px; border-radius: 6px; background: var(--ground); border: 1px solid var(--lineStrong); padding: 5px 4px; display: flex; flex-direction: column; gap: 3px; flex: none; }
+  .mini i { display: block; height: 4px; border-radius: 2px; background: var(--lineStrong); }
+  .mini i.c { height: 10px; background: var(--surface); border: 1px solid var(--line); }
+  .mini i.a { background: var(--accent); margin-top: auto; height: 6px; }
+  .print .n { font-size: 14px; font-weight: 600; flex: 1; }
+  .print .n small { display: block; font-weight: 400; font-size: 12px; color: var(--ink2); }
+  .print .lk { font-size: 14px; font-weight: 600; color: var(--accentInk); height: 44px; padding: 0 10px; display: flex; align-items: center; }
+  .print .lk.rm { color: var(--danger); }
+  .junto { font-size: 13px; color: var(--ink2); line-height: 18px; border-top: 1px solid var(--lineSoft); padding-top: 12px; }
+  .junto b { color: var(--ink); font-weight: 600; }
+  /* resultado */
+  .res { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 10px 0 6px; }
+  .res .ic { width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; }
+  .res .ic.ok { background: var(--successBg); }
+  .res .ic.fila { background: var(--warningBg); }
+  .res .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .res .a { font-size: 15px; color: var(--ink2); line-height: 21px; max-width: 280px; }
+  .barra-g { flex: none; height: 64px; background: var(--surface); border-top: 1px solid var(--line); display: flex; }
+  .barra-g div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink2); }
+  .barra-g div.ativa { color: var(--accentInk); font-weight: 700; }
+  .tabtxt { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tabtxt td { padding: 5px 0; vertical-align: top; border-top: 1px solid var(--lineSoft); }
+  .tabtxt td:first-child { color: var(--ink2); width: 104px; padding-right: 8px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Enviar diagnóstico · Perfil › Diagnóstico (Campo e Gestão)</h1>
+<p class="prancha">T-0158 · v1.0.4. Um botão secundário no Diagnóstico abre a folha; o detalhe técnico continua no "mostrar" do Diagnóstico e não se repete na folha (uma informação, um lugar). O número do protocolo aparece na confirmação e depois só em Últimos envios. O mesmo componente no Campo e no Gestão.</p>
+
+<div class="board">
+
+  <!-- 1 · Campo: Perfil › Diagnóstico -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Campo · Perfil › Diagnóstico<span>Fim do Perfil: botão secundário e últimos envios.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:33</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec marca"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Últimos envios</span></div>
+        <div class="lista env">
+          <div class="item"><span class="selo m ok">Enviado</span><span class="nr">nº 0042</span><span class="dt">Hoje, 14:32</span></div>
+          <div class="item"><span class="selo m ok">Enviado</span><span class="nr">nº 0031</span><span class="dt">Ontem, 09:15</span></div>
+        </div>
+        <div class="btn perigo" style="margin-top:8px"><i data-i="sair" data-t="18" data-c="#A8261B"></i>Sair / trocar usuário</div>
+        <div class="versao">Campo-Demo-v1.0.4</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Folha vazia -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Folha aberta<span>Tudo opcional: só o pacote técnico já ajuda. Um só principal.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:33</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Enviar diagnóstico<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div>
+          <div class="rot">O que aconteceu?</div>
+          <div class="area foco"><span class="ph">Ex.: o app fechou ao salvar o pedido.</span></div>
+          <div class="ajuda"><span>Não escreva nome de cliente, telefone ou valores.</span><span class="cnt">0/1000</span></div>
+        </div>
+        <div class="btn sec"><i data-i="galeria" data-t="18"></i>Anexar print (opcional)</div>
+        <div class="junto"><b>Vai junto:</b> versão, aparelho, Android, tela, último erro e fila de envios.</div>
+        <div class="btn principal"><i data-i="enviar" data-t="18" data-c="#fff"></i>Enviar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · Folha preenchida com print -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Com texto e print<span>O print vira uma linha com Remover.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:34</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="tit">Enviar diagnóstico<span class="x"><i data-i="fechar" data-t="22" data-c="#16202A"></i></span></div>
+        <div>
+          <div class="rot">O que aconteceu?</div>
+          <div class="area">O app fechou quando toquei em Salvar e enviar. Abri de novo e o pedido estava no rascunho.</div>
+          <div class="ajuda"><span>Não escreva nome de cliente, telefone ou valores.</span><span class="cnt">92/1000</span></div>
+        </div>
+        <div class="print marca" style="outline-offset:4px">
+          <div class="mini"><i class="c"></i><i></i><i style="width:70%"></i><i class="c"></i><i style="width:55%"></i><i class="a"></i></div>
+          <span class="n">Print anexado<small>Só a equipe Macuxi vê.</small></span>
+          <span class="lk rm">Remover</span>
+        </div>
+        <div class="junto"><b>Vai junto:</b> versão, aparelho, Android, tela, último erro e fila de envios.</div>
+        <div class="btn principal"><i data-i="enviar" data-t="18" data-c="#fff"></i>Enviar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · Enviado -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Enviado<span>A folha vira a confirmação, com o número. Vibração leve.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:34</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="res">
+          <div class="ic ok"><i data-i="check" data-t="28" data-c="#1D6B4F" data-w="2.4"></i></div>
+          <div class="t marca" style="outline-offset:4px;padding:0 6px">Enviado · nº 0042</div>
+          <div class="a">Se falar com o suporte, diga este número.</div>
+        </div>
+        <div class="btn sec" style="height:52px;border-radius:14px">Fechar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · Na fila -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Sem sinal: na fila<span>Vai sozinho; o número aparece em Últimos envios.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:50</span><span>sem sinal · 70%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+      </div>
+      <div class="barra-abas" data-ativa="inicio"></div>
+      <div class="scrim"></div>
+      <div class="folha">
+        <div class="pega"></div>
+        <div class="res">
+          <div class="ic fila"><i data-i="wifiOff" data-t="28" data-c="#5C3B00"></i></div>
+          <div class="t marca" style="outline-offset:4px;padding:0 6px">Na fila</div>
+          <div class="a">Vai sozinho quando tiver sinal. O número aparece em Últimos envios.</div>
+        </div>
+        <div class="btn sec" style="height:52px;border-radius:14px">Fechar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · Gestão: últimos envios com fila e recusa -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Gestão · Últimos envios<span>Mesmo componente. Situação sempre com texto; até 10 linhas.</span></div>
+    <div class="phone">
+      <div class="status"><span>15:10</span><span>4G ▮▮▯ 64%</span></div>
+      <div class="conteudo" style="gap:12px">
+        <div class="cartao corte">Usando o endereço padrão.</div>
+        <div class="rotulo-secao" style="margin-top:6px"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Últimos envios</span></div>
+        <div class="lista env marca">
+          <div class="item"><span class="selo m aviso">Na fila</span><span class="mot">sem sinal</span><span class="dt">Hoje, 15:08</span></div>
+          <div class="item"><span class="selo m erro">Não enviado</span><span class="mot">limite da hora</span><span class="dt">Hoje, 13:02</span></div>
+          <div class="item" style="align-items:flex-start"><span class="selo m ok">Enviado</span><div><span class="nr">nº 0040</span><div class="org">Queda do app · automático</div></div><span class="dt">Hoje, 08:47</span></div>
+        </div>
+        <div class="btn perigo" style="margin-top:8px"><i data-i="sair" data-t="18" data-c="#A8261B"></i>Sair / trocar usuário</div>
+        <div class="versao">Gestao-Demo-v1.0.4</div>
+      </div>
+      <div class="barra-g">
+        <div class="ativa"><i data-i="home" data-t="22" data-w="2.2" data-c="#C2540A"></i>Início</div>
+        <div><i data-i="users" data-t="22" data-w="1.8" data-c="#4A5562"></i>Equipe</div>
+        <div><i data-i="check" data-t="22" data-w="1.8" data-c="#4A5562"></i>Aprovações</div>
+        <div><i data-i="alerta" data-t="22" data-w="1.8" data-c="#4A5562"></i>Alertas</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · Textos -->
+  <div class="tela">
+    <div class="legenda"><b>7</b>Textos finais<span>Substituem os provisórios de TEXTOS_DIAGNOSTICO.</span></div>
+    <div class="nota-prancha">
+      <table class="tabtxt">
+        <tr><td>Botão</td><td>Enviar diagnóstico (secundário, 44 dp)</td></tr>
+        <tr><td>Folha</td><td>Enviar diagnóstico</td></tr>
+        <tr><td>Campo</td><td>O que aconteceu? · exemplo "Ex.: o app fechou ao salvar o pedido."</td></tr>
+        <tr><td>Ajuda</td><td>Não escreva nome de cliente, telefone ou valores. · 0/1000</td></tr>
+        <tr><td>Print</td><td>Anexar print (opcional) → Print anexado · Só a equipe Macuxi vê. · Remover</td></tr>
+        <tr><td>Vai junto</td><td>versão, aparelho, Android, tela, último erro e fila de envios.</td></tr>
+        <tr><td>Principal</td><td>Enviar</td></tr>
+        <tr><td>Enviado</td><td>Enviado · nº 0042 / Se falar com o suporte, diga este número.</td></tr>
+        <tr><td>Sem sinal</td><td>Na fila / Vai sozinho quando tiver sinal. O número aparece em Últimos envios.</td></tr>
+        <tr><td>Recusado</td><td>Não enviado / Muitos envios nesta hora. Tente mais tarde. (429) · Não deu para enviar. Tente de novo. (outros)</td></tr>
+        <tr><td>Lista</td><td>Últimos envios · Enviado + nº 0042 · Na fila + sem sinal · Não enviado + limite da hora · 2ª linha só no automático: Queda do app · automático / Erro de tela · automático</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 8 · Comportamento -->
+  <div class="tela">
+    <div class="legenda"><b>8</b>Comportamento<span>Sem texto extra na tela.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Uma informação, um lugar:</b> os valores técnicos (versão, último erro, saídas, fila) ficam no "mostrar" do Diagnóstico; a folha só diz o que vai junto, sem repetir. A versão continua só no rodapé do Perfil.</div>
+      <div class="nota-prancha"><b>Enviar</b> sempre ligado: o texto e o print são opcionais. Ao tocar, o botão mostra "Enviando…" (carregando) e não aceita 2º toque; o UUID nasce ao abrir a folha.</div>
+      <div class="nota-prancha"><b>Confirmação</b> (4 e 5): a folha troca de conteúdo, sem abrir outra; Fechar volta ao Perfil com a linha nova no topo de Últimos envios. Vibração leve só no Enviado.</div>
+      <div class="nota-prancha"><b>Fechar sem enviar</b> (✕, arrastar, Voltar): descarta o texto e o print, sem perguntar (até 1000 caracteres de relato não justificam um diálogo).</div>
+      <div class="nota-prancha"><b>Últimos envios</b> some quando não há envio. Até 10 linhas, do mais novo ao mais antigo. A linha não abre nada.</div>
+      <div class="nota-prancha"><b>Acessibilidade:</b> a linha é lida "Enviado, número 0042, hoje às 14:32"; a confirmação é anunciada ao aparecer.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

@@ -24,6 +24,12 @@ export const SaudeRespostaSchema = z
     versao: z.string().min(1),
     /** Módulos instalados na API (só informativo). */
     modulos: z.array(z.string()).optional(),
+    /**
+     * T-0158 (R-20261111-004628): recursos ligados no servidor, lidos pelo app na abertura e depois do login (chave remota,
+     * sem APK novo). `diagnosticos` = `MACUXI_DIAGNOSTICOS_APP` e `MACUXI_DIAGNOSTICOS` da API ligados (R-20261111-011107).
+     * Aditivo: ausente = desligado; o app antigo ignora.
+     */
+    recursos: z.object({ diagnosticos: z.boolean() }).partial().optional(),
   })
   .passthrough();
 export type SaudeResposta = z.infer<typeof SaudeRespostaSchema>;

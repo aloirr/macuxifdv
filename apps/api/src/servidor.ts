@@ -16,6 +16,7 @@
  * (só o contêiner `api` e o passo de papéis do `banco` recebem; o worker nunca).
  * T-0098 (ADR 0037): com S3, o link temporário do instalador do Conector sai do mesmo bucket, em `MACUXI_PACOTES_PREFIXO`
  * (padrão `pacotes/`), válido por `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s); sem S3, a rota do download responde 503.
+ * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS=1` liga o Portal › Diagnósticos (padrão desligado; exige a migração 0058).
  */
 import { lerConfigApp, urlApp, urlPortal } from '@macuxi/db';
 import pg from 'pg';
@@ -23,7 +24,7 @@ import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { lerPacotesDoAmbiente } from './pacotes';
 import { criarBancoApp, criarBancoPortal, POOL_PORTAL_PADRAO } from './banco';
-import { conferirSegredoJwt, lerSessaoWeb, lerTrustProxy, opcoesLogger } from './config';
+import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, lerSessaoWeb, lerTrustProxy, opcoesLogger } from './config';
 import { criarServicoEmailDaConfig, lerConfigEmail, type ConfigEmail } from './email';
 import { registrarMetricasApi } from './observabilidade';
 
@@ -75,6 +76,10 @@ const app = createApp({
   trustProxy: lerTrustProxy(process.env),
   // T-0117 (ADR 0038): cookie do token de renovação do BKO (Secure fora do PC)
   sessaoWeb: lerSessaoWeb(process.env, cfg.host),
+  // T-0158 (ADR 0043): Portal › Diagnósticos só com MACUXI_DIAGNOSTICOS=1 (desligado por padrão até a v1.0.4)
+  diagnosticosPortal: diagnosticosLigados(process.env),
+  // T-0158 (R-20261111-011107): botão do app pelo /v1/saude só com MACUXI_DIAGNOSTICOS_APP=1 (decisão do dono do produto)
+  diagnosticosApp: diagnosticosAppLigados(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),
 });

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0153 · Catálogo: busca e ficha do produto (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  .ctx { font-size: 13px; color: var(--ink2); margin-top: -8px; }
+  .ctx b { color: var(--ink); font-weight: 600; }
+  .cont-l { font-size: 12px; color: var(--ink2); font-weight: 500; }
+  .prod { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; gap: 12px; }
+  .foto { width: 56px; height: 56px; border-radius: 10px; background: var(--neutralBg); flex: none; display: flex; align-items: center; justify-content: center; }
+  .prod .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .prod .d { font-size: 15px; font-weight: 600; line-height: 19px; }
+  .prod .a2 { font-size: 13px; line-height: 17px; color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .prod .a2 b, .prod .eq b { font-weight: 600; color: var(--ink); }
+  .prod .eq { font-size: 13px; line-height: 17px; color: var(--ink2); }
+  .prod .etq { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .prod .p { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .prod .pr { font-family: Archivo, sans-serif; font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .prod .ris { font-size: 12px; color: var(--ink3); text-decoration: line-through; }
+  .add { margin-left: auto; width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--ink); display: flex; align-items: center; justify-content: center; margin-right: -2px; margin-bottom: -6px; }
+  .caminho { font-size: 12px; color: var(--ink2); }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+  .selo.aviso { color: var(--warningInk); }
+  /* ficha */
+  .cod { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink2); }
+  .h1p { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; line-height: 27px; margin-top: -6px; }
+  .etq { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preco-g { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .preco-g small { font-family: 'IBM Plex Sans'; font-weight: 500; font-size: 13px; color: var(--ink2); margin-left: 4px; }
+  .kv .l .t.num { font-variant-numeric: tabular-nums; }
+  .linhas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .linhas .l { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 6px 6px 12px; font-size: 14px; }
+  .linhas .l + .l { border-top: 1px solid var(--lineSoft); }
+  .linhas .l .n { flex: 1; min-width: 0; }
+  .linhas .l .n small { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink2); margin-top: 1px; }
+  .linhas .l .v { font-weight: 600; font-variant-numeric: tabular-nums; padding-right: 8px; }
+  .txt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 20px; }
+  .txt .vm { display: block; color: var(--accentInk); font-weight: 600; margin-top: 4px; padding: 10px 0 2px; }
+  .faq { font-size: 14px; line-height: 20px; }
+  .faq b { display: block; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Catálogo · busca e ficha do produto</h1>
+<p class="prancha">T-0153 · a hierarquia aprovada na T-0142 continua (um nível por tela, contagem de produtos). Aqui: a lista de produtos, a busca e a ficha. Cada fato uma vez: a hora do estoque não se repete em cada cartão; o aviso da busca vira parte da contagem; o nome do nível não se repete abaixo da trilha; a ficha vira seções com título por fora e tabelas brancas, como o Resumo do pedido.</p>
+
+<div class="board">
+
+  <!-- 1 · Produtos do nível, com cliente -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Produtos do nível, aberto pela ficha do cliente<span>Trilha termina no nível atual; sem título repetido. "+" adiciona ao pedido.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:10</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="conteudo sem-topo" style="padding:12px 16px 16px;gap:10px">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync"><i data-i="sync" data-t="12"></i>09:05</div></div>
+        <div class="ctx marca" style="outline-offset:3px">Preços de <b>Supermercado Rio Negro</b></div>
+        <div class="busca"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
+        <div class="trilha"><a>Catálogo</a><span class="sep">›</span><a>Automotivo</a><span class="sep">›</span><span class="pulado">Freios</span><span class="sep">›</span><span class="atual">Pastilhas</span></div>
+        <div class="chips" style="flex-wrap:nowrap;overflow:hidden"><div class="chip">Com estoque</div><div class="chip">Cobreq</div><div class="chip">Fras-le</div><div class="chip">JG</div></div>
+        <div class="cont-l">5 produtos</div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="cod" style="font-size:11px">PST-1022 · JG</span><span class="d">Pastilha de freio dianteira</span><span class="a2"><b>Serve em:</b> Gol, Voyage, Saveiro 1.0/1.6 2009 a 2016, Fox 2010 a 2014</span><span class="eq"><b>Equivale a:</b> Cobreq N-1022</span><div class="p"><span class="pr">R$ 89,90</span><span class="selo neutro">24 JG</span><span class="add marca" style="outline-offset:2px"><i data-i="mais" data-t="20"></i></span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="cod" style="font-size:11px">PST-2044 · JG</span><span class="d">Pastilha de freio traseira</span><span class="a2"><b>Serve em:</b> Onix, Prisma 2013 a 2019</span><div class="p"><span class="pr">R$ 74,50</span><span class="selo aviso">Baixo · 3 JG</span><span class="add"><i data-i="mais" data-t="20"></i></span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="cod" style="font-size:11px">PST-3310 · Cobreq</span><span class="d">Pastilha de freio cerâmica</span><span class="a2"><b>Serve em:</b> HB20 1.0 2012 a 2019</span><div class="etq"><span class="selo neutro">Cerâmica</span></div><div class="p"><span class="pr">R$ 112,00</span><span class="selo erro">Sem estoque</span><span class="add"><i data-i="mais" data-t="20"></i></span></div></div></div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Busca sem sinal -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Busca, sem sinal<span>"Sem sinal" no selo; "busca simples" na contagem. Sem faixa de aviso.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:12</span><span>— ▯▯▯ 82%</span></div>
+      <div class="conteudo sem-topo" style="padding:12px 16px 16px;gap:10px">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync" style="background:var(--warningBg);border-color:var(--warningBg);color:var(--warningInk);font-weight:600"><i data-i="wifiOff" data-t="12" data-c="#5C3B00"></i>Sem sinal</div></div>
+        <div class="ctx">Preços de <b>Supermercado Rio Negro</b></div>
+        <div class="busca" style="color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>pastilha gol<span style="margin-left:auto;display:flex"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="chips" style="flex-wrap:nowrap;overflow:hidden"><div class="chip">Com estoque</div><div class="chip">Cobreq</div><div class="chip">Fras-le</div><div class="chip">JG</div></div>
+        <div class="cont-l marca" style="outline-offset:3px">3 produtos · busca simples</div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="caminho">Automotivo › Freios › Pastilhas</span><span class="d">Pastilha de freio dianteira</span><span class="a2"><b>Serve em:</b> <b>Gol</b>, Voyage, Saveiro 1.0/1.6 2009 a 2016</span><div class="p"><span class="pr">R$ 89,90</span><span class="selo neutro">24 JG</span><span class="add"><i data-i="mais" data-t="20"></i></span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="caminho">Automotivo › Freios › Pastilhas</span><span class="d">Pastilha de freio traseira G5</span><span class="a2"><b>Serve em:</b> <b>Gol</b> G5 1.0 2009 a 2013</span><div class="p"><span class="pr">R$ 68,00</span><span class="selo neutro">11 JG</span><span class="add"><i data-i="mais" data-t="20"></i></span></div></div></div>
+        <div class="prod"><div class="foto"><i data-i="caixa" data-t="24" data-c="#5B6673"></i></div><div class="c"><span class="caminho">Automotivo › Freios › Kits</span><span class="d">Kit pastilha e disco dianteiro</span><span class="a2"><b>Serve em:</b> <b>Gol</b>, Fox 1.6 2010 a 2014</span><div class="p"><span class="pr">R$ 289,00</span><span class="selo aviso">Baixo · 2 KIT</span><span class="add"><i data-i="mais" data-t="20"></i></span></div></div></div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 3 · Ficha, topo -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Ficha do produto, topo<span>Código, nome e etiquetas; preço e estoque numa tabela; um principal.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:13</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="conteudo" style="padding:6px 16px 16px;gap:12px">
+        <div class="backlink"><i data-i="voltar" data-t="18" data-c="#8F3D06"></i>Pastilhas</div>
+        <div class="cod">PST-1022 · JG</div>
+        <div class="h1p">Pastilha de freio dianteira</div>
+        <div class="etq"><span class="selo neutro">Cerâmica</span><span class="selo neutro">Com sensor</span></div>
+        <div class="kv marca" style="outline-offset:4px">
+          <div class="l" style="align-items:baseline"><span class="r">Preço</span><span class="t"><span class="preco-g">R$ 89,90</span><small style="font-size:13px;color:var(--ink2);margin-left:4px">/ JG</small></span></div>
+          <div class="l"><span class="r">Estoque</span><span class="t num"><span class="selo neutro">24 JG</span>&nbsp; filial Centro</span></div>
+        </div>
+        <div class="btn principal"><i data-i="mais" data-t="18" data-c="#fff"></i>Adicionar ao pedido</div>
+        <div class="secao-t">Aplicação</div>
+        <div class="txt">Gol G4 e G5 1.0/1.6 2009 a 2016, Voyage 1.0/1.6 2009 a 2016, Saveiro 1.6 2010 a 2016, Fox 1.0/1.6 2010 a 2014<span class="vm">Ver mais</span></div>
+        <div class="secao-t">Equivale a</div>
+        <div class="linhas">
+          <div class="l"><span class="n">Cobreq</span><span class="v">N-1022</span></div>
+          <div class="l"><span class="n">Fras-le</span><span class="v">PD/580</span></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Ficha, rolada -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Ficha, rolada<span>EAN e unidade ficam só na Ficha técnica. Seções vazias não aparecem.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:13</span><span>4G ▮▮▮ 82%</span></div>
+      <div class="conteudo" style="padding:10px 16px 16px;gap:12px">
+        <div class="secao-t">Oferece junto</div>
+        <div class="linhas">
+          <div class="l"><span class="n">Disco de freio ventilado<small>DSC-0480</small></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="l"><span class="n">Fluido de freio DOT 4 500 ml<small>FLD-0004</small></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Ficha técnica</div>
+        <div class="kv marca" style="outline-offset:4px">
+          <div class="l"><span class="r">Unidade</span><span class="t">JG (jogo com 4)</span></div>
+          <div class="l"><span class="r">EAN</span><span class="t num">7891234560227</span></div>
+          <div class="l"><span class="r">Material</span><span class="t">Cerâmica</span></div>
+          <div class="l"><span class="r">Sensor</span><span class="t">Sim</span></div>
+          <div class="l"><span class="r">Posição</span><span class="t">Dianteira</span></div>
+        </div>
+        <div class="secao-t">Sobre o produto</div>
+        <div class="txt">Pastilha cerâmica de baixo ruído e pouca poeira, para uso urbano.</div>
+        <div class="secao-t">Perguntas frequentes</div>
+        <div class="txt faq"><b>Vem com o sensor?</b>Sim, o sensor de desgaste vem montado na pastilha.</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 5 · O que muda -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>O que muda<span>Em relação à v1.0.3.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Subtítulo:</b> "Abra pela ficha do cliente para ver o preço da tabela dele." e "Preços da tabela do cliente selecionado." saem. Com cliente, uma linha só: "Preços de Supermercado Rio Negro". Sem cliente, nada.</div>
+      <div class="nota-prancha"><b>Atualização:</b> só o selo do cabeçalho (RD-0076). Sai o rodapé "Atualizado às…" no fim da lista.</div>
+      <div class="nota-prancha"><b>Aviso da busca:</b> a faixa "A busca inteligente volta quando houver internet." sai. Sem sinal, o selo diz "Sem sinal" e a contagem diz "3 produtos · busca simples". Com falha da busca inteligente, o mesmo "· busca simples". Índice em reconstrução: "· organizando o catálogo".</div>
+      <div class="nota-prancha"><b>Título do nível:</b> sai o "Pastilhas" grande abaixo da trilha (a trilha já termina em Pastilhas). A contagem "5 produtos · mostrando 20" vira "5 produtos"; o restante fica só no botão "Mostrar mais (28)".</div>
+      <div class="nota-prancha"><b>Cartão:</b> estoque num selo curto com a cor da faixa ("24 JG", "Baixo · 3 JG", "Sem estoque", na unidade do produto); sai a hora do estoque em cada cartão. Estoque antigo vira "Estoque de 09/11" na linha da contagem, uma vez. O botão "Adicionar ao pedido" de cada cartão vira o "+" de 44 dp; o nome por extenso fica na ficha.</div>
+      <div class="nota-prancha"><b>Ficha:</b> código e marca acima do nome; EAN e unidade saem do subtítulo e vão para a Ficha técnica. Preço e estoque numa tabela; sai "Atualizado às 06:30". Com mais de uma filial, uma linha por filial na mesma tabela.</div>
+      <div class="nota-prancha"><b>Seções:</b> título por fora e tabela branca (sem cartão com título dentro). Ordem: Aplicação, Equivale a, Oferece junto, Ficha técnica, Sobre o produto, Perguntas. "Ainda não está no aparelho" aparece uma vez abaixo de Oferece junto, não em cada linha.</div>
+      <div class="nota-prancha"><b>Promotor:</b> igual, sem preço, sem estoque, sem "+" e sem o botão (RN-PRO-01).</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

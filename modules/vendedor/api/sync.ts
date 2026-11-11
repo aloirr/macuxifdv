@@ -23,7 +23,7 @@ import {
 import { dependeDoAceiteDoErp, ORDER_STATUSES_FINAIS } from '../domain/order';
 import { leituraDePedidosLiberada } from './opcao-promotor';
 import { receberPedidos } from './receber';
-import { FATURAMENTO_LIGADO } from './retorno-erp';
+import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
 
 export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadeFormaPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadePrazoPagamento, entidadeTransportadora };
 
@@ -52,10 +52,14 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
  * T-0054: resumo do retorno do ERP no pedido e no item (0013, `FATURAMENTO_LIGADO`). `faturado_cents` = total faturado;
  * item com `quantidade_base`/`fator`/`quantidade_faturada` na UNIDADE BASE (desenho T-0061 §2.1).
  */
-const COLUNAS_PEDIDO_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero,
+/** RN-VEN-37 (T-0155): soma das linhas vivas de `pedido_devolucao` do pedido (lista, detalhe e pull). */
+export const COLUNA_DEVOLVIDO = DEVOLUCAO_LIGADA
+  ? `, (select coalesce(sum(d.total_cents), 0) from vendedor.pedido_devolucao d where d.tenant_id = p.tenant_id and d.pedido_id = p.id and d.deleted_at is null)::float8 as devolvido_cents`
+  : '';
+const COLUNAS_PEDIDO_FATURAMENTO = `${COLUNA_DEVOLVIDO}, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero,
   ${ts('faturado_em', 'p.')},
   p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_id,
-  p.transportadora_digitada, p.transportadora_nome, p.transportadora_documento, p.transportadora_telefone, p.endereco_entrega_id, p.endereco_entrega`;
+  p.transportadora_digitada, p.transportadora_nome, p.transportadora_documento, p.transportadora_telefone, p.endereco_entrega_id, p.endereco_entrega, p.filial_id, p.filial`;
 const COLUNAS_ITEM_FATURAMENTO = ', i.quantidade_faturada, i.quantidade_base, i.fator, i.acrescimo_pct::float8 as acrescimo_pct, i.preco_minimo_cents::float8 as preco_minimo_cents';
 /** T-0054: quantas notas de faturamento e a última NF (pedido_faturamento da 0013), por pedido. */
 export const JUNCAO_FATURAMENTO = `left join lateral (select count(*)::int as notas,
@@ -67,7 +71,7 @@ const COLUNAS_ITEM = `i.id, ${ts('updated_at', 'i.')}, ${ts('deleted_at', 'i.')}
   i.pedido_id, i.sequencia, i.produto_id, i.quantidade, i.preco_tabela_cents::float8 as preco_tabela_cents,
   i.preco_unitario_cents::float8 as preco_unitario_cents, i.desconto_pct::float8 as desconto_pct, i.total_cents::float8 as total_cents,
   i.produto_sku, i.produto_nome, i.unidade,
-  i.desconto_unitario_cents::float8 as desconto_unitario_cents, i.acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, i.ajuste_em, i.aplicacao`;
+  i.desconto_unitario_cents::float8 as desconto_unitario_cents, i.acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, i.ajuste_em, i.aplicacao, i.marca`;
 
 const COLUNAS_EVENTO = `e.id, ${ts('updated_at', 'e.')}, ${ts('deleted_at', 'e.')}, e.external_id,
   e.pedido_id, e.de, e.para, e.autor_id, e.autor_nome, e.autor_perfil, e.motivo, e.nivel, e.acima_do_nivel,

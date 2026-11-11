@@ -13,7 +13,7 @@
  *  2. Projeção do Gestor (gestor.projecao_fato + gestor.evento_aplicado) montada pelo PRÓPRIO domain do Gestor
  *     (`aplicarEventos`) a partir dos eventos que os módulos teriam publicado para os dados da demo: carteira dos 30
  *     clientes de Manaus, visitas (check-in/checkout), rotas de hoje, metas de venda do mês, pedidos com a linha do tempo
- *     e as aprovações pendentes. Assim o painel, o ranking, a fila de aprovação e os alertas da Renata e do Marcelo
+ *     e as aprovações pendentes, e o faturado dos pedidos faturados pelo ERP (vendedor.pedido.faturado@1, T-0155). Assim o painel, o ranking, a fila de aprovação e os alertas da Renata e do Marcelo
  *     batem com o que o app Campo e o BKO mostram. Evento que o domain recusar = ERRO no seed (nunca projeção errada).
  *  Alertas e ajustes de regra NÃO são semeados: a API reconcilia os alertas na leitura (RN-GES, `reconciliarParaViewer`)
  *  e regra sem ajuste = padrão do domain.
@@ -27,6 +27,7 @@ import { achatarEstado } from '../../../modules/gestor/db/projecao';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from '../../../modules/gestor/domain/projecao';
 import { statusDoContrato } from '../../../modules/vendedor/domain/aprovacao';
 import type { OrderStatus } from '../../../modules/vendedor/domain/order';
+import { eventoFaturadoDosItens } from '../../../modules/vendedor/domain/retorno-erp';
 import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { idDeterministico } from '../../src/ids';
 import { gravarLinhas, type Linha } from '../../src/gravar';
@@ -145,6 +146,19 @@ export function dadosGestorDemo(dados: DadosDemo): DadosGestorDemo {
         credito: f ? { limite_cents: limite, saldo_aberto_cents: saldo, disponivel_cents: limite - saldo } : null, historico: null,
       });
     }
+  }
+
+  // 6. T-0155: um vendedor.pedido.faturado@1 por nota de faturamento (o consumidor do retorno publica com os itens DESTA nota,
+  // somados por produto, e faturado_em = emissão da nota); o vendido × faturado do painel sai daqui (RN-GES-06)
+  const pedidoDe = new Map(dados['vendedor.pedido'].map((p) => [String(p.id), p]));
+  for (const fat of dados['vendedor.pedido_faturamento']) {
+    const p = pedidoDe.get(String(fat.pedido_id));
+    if (!p) throw new Error('[db] seed demo gestor: faturamento sem o pedido na base');
+    const itens = (fat.itens as Array<{ sequencia: number; produto_id: string; quantidade: number; total_cents: number | null }>).map((i) => ({
+      sequencia: i.sequencia, product_id: i.produto_id, quantity: i.quantidade, valor_cents: i.total_cents,
+    }));
+    const ev = eventoFaturadoDosItens({ id: String(p.id), vendedor_id: String(p.vendedor_id) }, iso(fat.nota_emitida_em ?? fat.faturado_em), fat.parcial === true, itens);
+    if (ev) evento(`faturado:${String(fat.id)}`, 'vendedor.pedido.faturado@1', iso(fat.faturado_em), ev);
   }
 
   return {

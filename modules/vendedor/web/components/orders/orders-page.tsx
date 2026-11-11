@@ -42,6 +42,13 @@ export function OrdersPage() {
     if (filtros.seller_id && !m.has(filtros.seller_id)) m.set(filtros.seller_id, 'Vendedor selecionado');
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
   }, [pedidos, pendentes.data, filtros.seller_id]);
+  // filiais para o filtro: as dos pedidos carregados (T-0149; o nome vem do retrato do pedido)
+  const filiais = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of pedidos) if (o.branch_id) m.set(o.branch_id, o.branch_name ?? 'Filial');
+    if (filtros.branch_id && !m.has(filtros.branch_id)) m.set(filtros.branch_id, 'Filial selecionada');
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+  }, [pedidos, filtros.branch_id]);
   const set = <K extends keyof FiltrosPedidos>(k: K, v: FiltrosPedidos[K]) => mudar({ [k]: v } as Partial<FiltrosPedidos>);
 
   const exportarCsv = () => {
@@ -86,6 +93,14 @@ export function OrdersPage() {
             </option>
           ))}
         </SelectField>
+        <SelectField label="Filial" value={filtros.branch_id} onChange={(e) => set('branch_id', e.target.value)} data-testid="pedidos.filtro-filial">
+          <option value="">Todas</option>
+          {filiais.map(([id, nome]) => (
+            <option key={id} value={id}>
+              {nome}
+            </option>
+          ))}
+        </SelectField>
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
           De
           <input type="date" className={campo} value={filtros.from} max={filtros.to || undefined} onChange={(e) => set('from', e.target.value)} data-testid="pedidos.filtro-de" />
@@ -99,7 +114,7 @@ export function OrdersPage() {
           <input type="search" className={campo} value={filtros.q} maxLength={100} placeholder="Ex.: Auto Peças ou 000012" onChange={(e) => set('q', e.target.value)} data-testid="pedidos.filtro-busca" />
         </label>
         {temFiltro(filtros) && (
-          <Button size="sm" onClick={() => mudar({ status: '', seller_id: '', from: '', to: '', q: '' })} data-testid="pedidos.limpar-filtros">
+          <Button size="sm" onClick={() => mudar({ status: '', seller_id: '', branch_id: '', from: '', to: '', q: '' })} data-testid="pedidos.limpar-filtros">
             Limpar filtros
           </Button>
         )}

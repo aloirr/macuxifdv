@@ -39,7 +39,16 @@ describe('mascararDadoPessoal (regra 8: sem dado pessoal em log; fonte única do
     expect(m('postgres://user:***@host/db')).toBe('postgres://user:***@host/db');
   });
 
+  it('valor em reais com R$ (T-0158, D-T0158-1), com e sem milhar, espaço, centavos ou sinal', () => {
+    expect(m('Pedido de R$ 1.234,56 travou')).toBe('Pedido de [valor] travou');
+    expect(m('Total R$ 530,83 acima do crédito')).toBe('Total [valor] acima do crédito');
+    expect(m('R$530,83, R$ 1.234.567,89, R$ 10, -R$ 10,00 e R$ -5,5.')).toBe('[valor], [valor], [valor], [valor] e [valor].');
+    expect(m('Limite R$ 10.')).toBe('Limite [valor].');
+    // sem R$ fica (número curto, data, hora, versão e pilha continuam para o suporte)
+    expect(m('item 3 de 10, versão 1.0.3, em 10/11/2026 14:30')).toBe('item 3 de 10, versão 1.0.3, em 10/11/2026 14:30');
+  });
+
   it('marcadores estáveis', () => {
-    expect(Object.values(MARCADOR_DADO_PESSOAL)).toEqual(['[e-mail]', '[cnpj]', '[cpf]', '[telefone]', '[número]']);
+    expect(Object.values(MARCADOR_DADO_PESSOAL)).toEqual(['[e-mail]', '[cnpj]', '[cpf]', '[telefone]', '[número]', '[valor]']);
   });
 });
