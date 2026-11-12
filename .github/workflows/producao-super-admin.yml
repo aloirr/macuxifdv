@@ -1,0 +1,97 @@
+name: producao — super-admin
+
+# T-0093 (ADR 0031; premissa P3; RN-CORE-32). Cria, redefine a senha ou desativa um super-admin do portal config. (time da
+# Macuxi) na PRODUÇÃO, pela VM, com a imagem da API que está no ar e a conexão de administração (admin.env), no mesmo
+# padrão do "producao — criar tenant". Não existe autocadastro nem convite: este workflow é o único caminho.
+# A senha vem do secret PROD_SUPERADMIN_SENHA (environment PRODUCAO, com aprovação do dono do produto), pelo stdin do ssh,
+# e chega ao contêiner por `-e MACUXI_SUPERADMIN_SENHA` SEM valor no argv. A CLI confere a RN-CORE-32 (8+ com letra,
+# número e caractere especial) e grava só o hash argon2id. Saída: uma linha JSON sem senha, hash ou e-mail em claro.
+# Idempotente pelo e-mail: "criar" de quem já existe não muda nada (use "redefinir"); "redefinir" e "desativar" encerram
+# as sessões abertas dele. Depois de usar, troque ou apague o secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: criar, redefinir (senha) ou desativar
+        type: choice
+        options: [criar, redefinir, desativar]
+        default: criar
+      email:
+        description: e-mail do super-admin
+        required: true
+      nome:
+        description: nome (só no criar)
+        default: ''
+      simular:
+        description: simular (transação desfeita no fim)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  super-admin:
+    name: super-admin na produção
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: PRODUCAO
+    steps:
+      - name: entradas
+        env:
+          ACAO: ${{ inputs.acao }}
+          EMAIL: ${{ inputs.email }}
+          NOME: ${{ inputs.nome }}
+          SENHA: ${{ secrets.PROD_SUPERADMIN_SENHA }}
+        run: |
+          [[ "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]] || { echo "::error::e-mail inválido"; exit 1; }
+          if [ "$ACAO" = criar ] && [ -z "$NOME" ]; then echo "::error::nome vazio"; exit 1; fi
+          if [ "$ACAO" != desativar ]; then
+            [ -n "$SENHA" ] || { echo "::error::secret PROD_SUPERADMIN_SENHA vazio (environment PRODUCAO)"; exit 1; }
+            case "$SENHA" in *$'\n'*|*$'\r'*) echo "::error::PROD_SUPERADMIN_SENHA tem quebra de linha"; exit 1;; esac
+          fi
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: super-admin
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          SENHA: ${{ secrets.PROD_SUPERADMIN_SENHA }}
+          ACAO: ${{ inputs.acao }}
+          EMAIL: ${{ inputs.email }}
+          NOME: ${{ inputs.nome }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          args=("$ACAO" --email "$EMAIL" --confirmar "$EMAIL")
+          [ "$ACAO" = criar ] && args+=(--nome "$NOME")
+          [ "$SIMULAR" = true ] && args+=(--simular)
+          # argumentos escapados com %q para o shell remoto; a senha vai só pela 1ª linha do stdin (vazia no desativar)
+          remoto='set -euo pipefail; IFS= read -r MACUXI_SUPERADMIN_SENHA || true; export MACUXI_SUPERADMIN_SENHA; cd /opt/macuxi;'
+          remoto+=' docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e MACUXI_SUPERADMIN_SENHA super-admin'
+          remoto+=" $(printf '%q ' "${args[@]}")"
+          printf '%s\n' "$SENHA" | ssh -l "$USUARIO" prod "$remoto"
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts
