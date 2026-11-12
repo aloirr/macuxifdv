@@ -1,3 +1,4 @@
 # Diário — design-de-marca
 
 2026-11-12 — T-0169 — proposta de marca v1 (modo propor): 3 opções (A Rota, recomendada; B Sol a sol; C Confluência) com pranchas PNG, fonte HTML, contraste conferido e proposta.md em docs/marca/propostas/2026-11-12-marca-v1/; aguarda o "aprovo" do Alexandre.
+2026-11-12 — T-0169 — proposta de marca v2 (modo propor), depois da recusa da v1 no chat: D Cocar (só com autorização de organização macuxi), E Monte Roraima (recomendada), F Serra do Tepequém; pranchas, fonte HTML, contraste e proposta.md em docs/marca/propostas/2026-11-12-marca-v2/; aguarda o "aprovo" do Alexandre.
