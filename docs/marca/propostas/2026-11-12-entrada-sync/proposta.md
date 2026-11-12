@@ -2,7 +2,7 @@
 
 > 2026-11-12 · design-de-marca · T-0169 · aplicação da marca v1 aprovada (`docs/marca/manual.md`).
 > Pedido do Alexandre no chat, 12/11/2026: "Quero essas telas de entrada no app. Coloque a sincronização inicial antes do logon para ocorrer nessa tela inicial com a logomarca. Vamos acrescentar uma barra de sincronização nela caso tenha alguma sincronização para fazer antes do login, e apos o login fazer as etapas de sincronização nela tambem. Simule como ficara".
-> **Situação: simulação para aprovação.** Ela só vira tela depois do "aprovo" e do desenho dos donos (§3).
+> **Situação: aprovada em 12/11/2026 ("Aprovado. Quero na 1.0.5"). Meta: v1.0.5**, junto com a aplicação da marca v1 (manual §10). A implementação é dos donos da §3.
 
 Imagem: `entrada-sync.png`, gerada por `gerar.mjs` a partir dos ativos aprovados em `docs/marca/ativos/2026-11-12-v1/`. Para refazer, rode na raiz do repositório:
 ```bash

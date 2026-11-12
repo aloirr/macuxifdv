@@ -86,6 +86,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 - **Login, splash e portal `config.`:** o logo negativo fica na faixa Azul noite, e o formulário fica no Pérola.
 - **BKO:** a barra superior é Azul noite, o menu lateral é grafite (logo negativo grafite) e o conteúdo fica no Pérola.
 - **Início:** não leva logo. A marca aparece na faixa, na aba ativa e nos gráficos.
+- **Entrada no app (aprovada em 12/11/2026, meta v1.0.5):** a splash e a sincronização são a mesma tela, com o fundo Azul noite e o logo empilhado negativo parado no centro. A área de sincronização fica embaixo: a barra com o preenchimento no sol claro `#F59A52` e o trilho `#3A4D68`; "Etapa n de N · nome" e o percentual em branco; a lista de etapas com ✓ `#7FD1A8` e o ponto da etapa atual em sol claro; o erro em `#F7A59C`. Referência: `propostas/2026-11-12-entrada-sync/entrada-sync.png`.
 
 ## 5. Tipografia
 - **Archivo ExtraBold/Bold:** títulos e números.
