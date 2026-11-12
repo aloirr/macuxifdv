@@ -14,6 +14,8 @@
 | `simulado-branco.png` | todas as telas no fundo Branco `#FFFFFF` |
 | `simulado-topo.png` | todas as telas com a faixa azul serra no topo e o resto branco |
 | `azuis.png` | seis azuis (serra, névoa, ardósia, noite, índigo névoa e petróleo), cada um com o seu fundo névoa |
+| `noite-fundos.png` | Azul noite no cabeçalho, com seis fundos no corpo (branco, cinza, névoa noite, gelo, pérola e areia) |
+| `noite-simulado-branco.png`, `noite-simulado-cinza.png`, `noite-simulado-perola.png` | todas as telas com o cabeçalho Azul noite nesses fundos |
 | `contraste.json` | a razão de contraste de cada texto em cada fundo |
 
 Para refazer as imagens, rode na raiz do repositório:
@@ -119,6 +121,31 @@ Há duas alternativas:
 O Azul petróleo não é recomendado, porque se confunde com o verde de "sucesso".
 
 O azul e o fundo podem ser escolhidos juntos ("ardósia com névoa") ou separados, por exemplo o ardósia com o fundo Areia `#F6F1E7`.
+
+## 6. Azul noite com o cabeçalho azul
+Pedido no chat, 12/11/2026: "Coloque o azul noite, naquele modelo que eu tinha escolhido, né? Lá o cabeçalho com fundo azul, né? E coloque uma simulação com fundo cinza, fundo branco e veja mais alguns fundos lá para mim."
+
+O modelo agora tem o título de cada tela numa faixa **Azul noite `#1E3350`** e o corpo num fundo claro. Os cartões continuam brancos e o sol laranja continua igual. Junto com o azul noite vêm o azul claro `#9AA3B0` (no grafite), o azul suave `#DFE2E6` (chips) e o texto claro na faixa `#C9CED5`. O texto claro na faixa dá 8,07:1.
+
+Pranchas:
+- `noite-fundos.png`: Início, Novo pedido e login em seis fundos, com o contraste de cada um;
+- `noite-simulado-branco.png`, `noite-simulado-cinza.png` e `noite-simulado-perola.png`: todas as telas (app Campo, app Gestão, BKO, portal, PDF e e-mail) em cada um desses fundos.
+
+| Fundo do corpo | Hex | Leitura | Texto de apoio `#5B6673` | Laranja sol (gráfico) |
+|---|---|---|---|---|
+| Branco | `#FFFFFF` | o mais limpo e o mais legível ao sol; os cartões precisam de borda | 5,84 ✓ | 4,60 ✓ |
+| Cinza de hoje | `#F3F4F1` | melhora com o topo azul, mas continua frio | 5,29 ✓ | 4,17 ✓ |
+| Névoa noite | `#EFF1F3` | o azul noite bem clarinho: calmo e coerente | 5,16 ✓ | 4,06 ✓ |
+| Gelo | `#E8ECF1` | azul-acinzentado mais presente; os cartões saltam, mas é mais frio | 4,93 ✓ | 3,88 ✓ |
+| **Pérola (recomendado)** | `#F8F6F1` | branco quebrado com um toque quente: a dupla clássica com o marinho | 5,41 ✓ | 4,26 ✓ |
+| Areia | `#F6F1E7` | quente e elegante, mas é o fundo que mais aparece | 5,19 ✓ | 4,09 ✓ |
+
+Todos os pares passam nos 6 fundos. A lista completa está em `contraste.json`, na chave `noite`.
+
+**Recomendação: Pérola `#F8F6F1` com o cabeçalho Azul noite.**
+- Marinho com branco quebrado é a dupla clássica de marca elegante.
+- O corpo fica claro como o branco, mas sem o brilho frio e sem a cara de sistema do cinza.
+- Se a prioridade for a leitura ao sol, a opção é o Branco puro.
 
 ## Premissas
 - Empresas, pessoas, produtos e números das simulações são fictícios.

@@ -25,7 +25,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#F3F4F1",
       "razao": 8.89,
@@ -67,7 +67,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#FFFFFF",
       "razao": 9.82,
@@ -109,7 +109,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#F6F1E7",
       "razao": 8.72,
@@ -151,7 +151,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#EFE8DA",
       "razao": 8.05,
@@ -193,7 +193,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#EEF2F7",
       "razao": 8.73,
@@ -235,7 +235,7 @@
       "passa": true
     },
     {
-      "uso": "azul serra (link, título)",
+      "uso": "azul (link, título)",
       "fg": "#24456B",
       "bg": "#FFFFFF",
       "razao": 9.82,
@@ -557,6 +557,308 @@
         "bg": "#EFF3F4",
         "razao": 4.12,
         "minimo": 3,
+        "passa": true
+      }
+    ]
+  },
+  "noite": {
+    "branco": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#FFFFFF",
+        "razao": 16.48,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#FFFFFF",
+        "razao": 7.59,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#FFFFFF",
+        "razao": 5.84,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#FFFFFF",
+        "razao": 12.77,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#FFFFFF",
+        "razao": 4.6,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
+        "passa": true
+      }
+    ],
+    "cinza": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#F3F4F1",
+        "razao": 14.93,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#F3F4F1",
+        "razao": 6.87,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#F3F4F1",
+        "razao": 5.29,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#F3F4F1",
+        "razao": 11.57,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#F3F4F1",
+        "razao": 4.17,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
+        "passa": true
+      }
+    ],
+    "nevoa": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#EFF1F3",
+        "razao": 14.56,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#EFF1F3",
+        "razao": 6.7,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#EFF1F3",
+        "razao": 5.16,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#EFF1F3",
+        "razao": 11.28,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#EFF1F3",
+        "razao": 4.06,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
+        "passa": true
+      }
+    ],
+    "gelo": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#E8ECF1",
+        "razao": 13.89,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#E8ECF1",
+        "razao": 6.4,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#E8ECF1",
+        "razao": 4.93,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#E8ECF1",
+        "razao": 10.76,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#E8ECF1",
+        "razao": 3.88,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
+        "passa": true
+      }
+    ],
+    "perola": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#F8F6F1",
+        "razao": 15.26,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#F8F6F1",
+        "razao": 7.03,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#F8F6F1",
+        "razao": 5.41,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#F8F6F1",
+        "razao": 11.82,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#F8F6F1",
+        "razao": 4.26,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
+        "passa": true
+      }
+    ],
+    "areia": [
+      {
+        "uso": "título e texto",
+        "fg": "#16202A",
+        "bg": "#F6F1E7",
+        "razao": 14.64,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto secundário",
+        "fg": "#4A5562",
+        "bg": "#F6F1E7",
+        "razao": 6.74,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio",
+        "fg": "#5B6673",
+        "bg": "#F6F1E7",
+        "razao": 5.19,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul (link, título)",
+        "fg": "#1E3350",
+        "bg": "#F6F1E7",
+        "razao": 11.34,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "laranja sol (barra, ícone)",
+        "fg": "#C2540A",
+        "bg": "#F6F1E7",
+        "razao": 4.09,
+        "minimo": 3,
+        "passa": true
+      },
+      {
+        "uso": "texto claro na faixa azul noite",
+        "fg": "#C9CED5",
+        "bg": "#1E3350",
+        "razao": 8.07,
+        "minimo": 4.5,
         "passa": true
       }
     ]

@@ -1,6 +1,6 @@
 // Simulado da marca aprovada (opção E · Monte Roraima, T-0169): logo alinhado, todas as telas e as cores de fundo.
 // Uso (na raiz do repositório): node docs/marca/propostas/2026-11-12-marca-e-simulado/gerar.mjs
-// Saída nesta pasta: alinhamento, fundos-comparativo, simulado-<fundo> e azuis (.html e .png) e contraste.json.
+// Saída nesta pasta: alinhamento, fundos-comparativo, simulado-<fundo>, azuis, noite-fundos e noite-simulado-<fundo> (.html e .png) e contraste.json.
 // Fontes do BKO (apps/web/app/fonts, OFL). Empresas, pessoas, produtos e números são fictícios.
 import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -89,7 +89,8 @@ function marcaAntiga(tam) {
 }
 
 // ---------- estilo ----------
-const css = `
+// O estilo lê a paleta na hora (C pode trocar de azul, ver comAzul).
+const cssDe = () => `
 @font-face{font-family:Archivo;font-weight:600;src:url(${FONTES}/Archivo_600SemiBold.ttf)}
 @font-face{font-family:Archivo;font-weight:700;src:url(${FONTES}/Archivo_700Bold.ttf)}
 @font-face{font-family:Archivo;font-weight:800;src:url(${FONTES}/Archivo_800ExtraBold.ttf)}
@@ -278,10 +279,10 @@ function pdfEEmail() {
 }
 
 // ---------- pranchas ----------
-const pagina = (titulo, corpo) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title><style>${css}</style></head><body>${corpo}</body></html>`;
+const pagina = (titulo, corpo) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title><style>${cssDe()}</style></head><body>${corpo}</body></html>`;
 
 function paresDoFundo(F) {
-  const lista = [['título e texto', C.grafite, 4.5], ['texto secundário', C.ink2, 4.5], ['texto de apoio', C.ink3, 4.5], ['azul serra (link, título)', C.azul, 4.5], ['laranja sol (barra, ícone)', C.sol, 3]];
+  const lista = [['título e texto', C.grafite, 4.5], ['texto secundário', C.ink2, 4.5], ['texto de apoio', C.ink3, 4.5], ['azul (link, título)', C.azul, 4.5], ['laranja sol (barra, ícone)', C.sol, 3]];
   return lista.map(([uso, fg, min]) => ({ uso, fg, bg: F.hex, razao: Number(contraste(fg, F.hex).toFixed(2)), minimo: min, passa: contraste(fg, F.hex) >= min }));
 }
 const tabela = (F) => `<table>${paresDoFundo(F).map((p) => `<tr><td>${p.uso}</td><td class="${p.passa ? 'ok' : 'nao'}">${fmt(p.razao)}:1 ${p.passa ? '✓' : '✗'}</td></tr>`).join('')}${F.topo ? `<tr><td>texto claro na faixa azul</td><td class="ok">${fmt(contraste(C.claroNoAzul, C.azul))}:1 ✓</td></tr>` : ''}</table>`;
@@ -318,7 +319,7 @@ function comparativoFundos() {
     <h1 style="margin-top:6px">Seis fundos lado a lado</h1>
     <div class="sub">A mesma tela Início e o mesmo Novo pedido, com a marca aprovada, em seis fundos. Os cartões continuam brancos. O contraste de cada texto foi conferido em cada fundo (mínimo 4,5:1 no texto e 3:1 no gráfico). As telas completas dos quatro principais estão nas pranchas "simulado-…".</div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:24px">
-      ${FUNDOS.map((F) => `<div><div class="lin" style="gap:8px;margin-bottom:10px"><div style="width:34px;height:34px;border-radius:8px;border:1px solid #CFCAC0;background:${F.topo ? `linear-gradient(${C.azul} 0 50%,#fff 50%)` : F.hex}"></div><div><b style="font:800 16px Archivo">${F.nome}</b><div style="font:500 11px 'IBM Plex Mono';color:${C.ink2}">${F.topo ? '#24456B + #FFFFFF' : F.hex}</div></div></div></div>`).join('')}
+      ${FUNDOS.map((F) => `<div><div class="lin" style="gap:8px;margin-bottom:10px"><div style="width:34px;height:34px;border-radius:8px;border:1px solid #CFCAC0;background:${F.topo ? `linear-gradient(${C.azul} 0 50%,#fff 50%)` : F.hex}"></div><div><b style="font:800 16px Archivo">${F.nome}</b><div style="font:500 11px 'IBM Plex Mono';color:${C.ink2}">${F.topo ? `${C.azul} + ${F.hex}` : F.hex}</div></div></div></div>`).join('')}
       ${FUNDOS.map((F) => miniatura(T.inicio(F))).join('')}
       ${FUNDOS.map((F) => miniatura(T.itens(F))).join('')}
       ${FUNDOS.map((F) => `<div style="font-size:12.5px;line-height:1.45">${F.nota}<div style="margin-top:8px;font-size:12px">${tabela(F)}</div></div>`).join('')}
@@ -328,7 +329,7 @@ function comparativoFundos() {
 
 function simulado(F) {
   return pagina(`Simulado · ${F.nome}`, `<div class="sup">MARCA MACUXI FDV · OPÇÃO E · MONTE RORAIMA (APROVADA) · 12/11/2026 · SIMULADO DE TODAS AS TELAS</div>
-    <div class="lin" style="gap:16px;margin-top:6px"><div style="width:52px;height:52px;border-radius:12px;border:1px solid #CFCAC0;background:${F.topo ? `linear-gradient(${C.azul} 0 50%,#fff 50%)` : F.hex}"></div><div><h1>Fundo ${F.nome}</h1><div style="font:500 14px 'IBM Plex Mono';color:${C.ink2}">${F.topo ? '#24456B + #FFFFFF' : F.hex}</div></div></div>
+    <div class="lin" style="gap:16px;margin-top:6px"><div style="width:52px;height:52px;border-radius:12px;border:1px solid #CFCAC0;background:${F.topo ? `linear-gradient(${C.azul} 0 50%,#fff 50%)` : F.hex}"></div><div><h1>Fundo ${F.nome}</h1><div style="font:500 14px 'IBM Plex Mono';color:${C.ink2}">${F.topo ? `${C.azul} + ${F.hex}` : F.hex}</div></div></div>
     <div class="sub">${F.nota} Abaixo, o app Campo (vendedor e promotor), o app Gestão, o BKO, o portal, o PDF e o e-mail com a marca aprovada e este fundo.</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:26px 16px;margin-top:26px">
       ${ORDEM_TELAS.map(([id, nome]) => `<div style="display:flex;flex-direction:column;align-items:center">${T[id](F)}<div class="rot" style="font-weight:600;color:${C.grafite}">${nome}</div></div>`).join('')}
@@ -389,6 +390,40 @@ function azuis() {
     <div class="caixa" style="margin-top:24px;font-size:15px;line-height:1.55"><b>Recomendação: Azul ardósia #3D5A73 com o fundo névoa dele.</b> É o que mais tira a cara de sistema: um azul com cinza de pedra, sóbrio e elegante, que conversa com o sol laranja sem brigar. O Azul noite é a alternativa mais premium (marinho profundo), e o Índigo névoa é o mais ousado. O Azul petróleo fica perto demais do verde de "sucesso" e não é recomendado.</div>`);
 }
 
+// ---------- Azul noite com o cabeçalho azul (pedido de 12/11: "coloque o azul noite naquele modelo do cabeçalho com fundo azul") ----------
+function comAzul(id, fn) {
+  const original = { ...C };
+  const k = corDoAzul(AZUIS.find((a) => a.id === id));
+  Object.assign(C, { azul: k.azul, azulClaro: k.azulClaro, azulSuave: k.azulSuave, claroNoAzul: k.claroNoAzul });
+  try { return fn(); } finally { Object.assign(C, original); }
+}
+const NEVOA_NOITE = corDoAzul(AZUIS.find((a) => a.id === 'noite')).fundo;
+const FUNDOS_NOITE = [
+  { id: 'branco', nome: 'Branco', hex: '#FFFFFF', topo: true, nota: 'Corpo branco puro. O mais limpo e o mais legível ao sol; o azul noite do topo fica bem marcado. Os cartões precisam de borda.' },
+  { id: 'cinza', nome: 'Cinza de hoje', hex: '#F3F4F1', topo: true, nota: 'O cinza-esverdeado de hoje. Com o topo azul noite melhora, mas continua frio e neutro.' },
+  { id: 'nevoa', nome: 'Névoa noite', hex: NEVOA_NOITE, topo: true, nota: 'O azul noite bem clarinho. Tudo no mesmo tom, da faixa ao fundo: calmo e coerente.' },
+  { id: 'gelo', nome: 'Gelo', hex: '#E8ECF1', topo: true, nota: 'Azul-acinzentado mais presente. Os cartões brancos saltam, mas a tela fica mais fria.' },
+  { id: 'perola', nome: 'Pérola', hex: '#F8F6F1', topo: true, nota: 'Branco quebrado, um toque quente. Com o marinho, é a dupla clássica de marca premium.' },
+  { id: 'areia', nome: 'Areia', hex: '#F6F1E7', topo: true, nota: 'Bege claro do lavrado. Com o marinho, fica quente e elegante, mas é o fundo que mais aparece.' },
+];
+const SIMULADOS_NOITE = ['branco', 'cinza', 'perola'];
+const REC_NOITE = 'perola';
+const nomeNoite = (F) => ({ ...F, nome: `${F.nome} · cabeçalho azul noite` });
+function noiteFundos() {
+  const miniatura = (html) => `<div style="width:228px;height:471px;margin:0 auto"><div style="transform:scale(.76);transform-origin:top left">${html}</div></div>`;
+  return pagina('Azul noite · fundos', `<div class="sup">MARCA MACUXI FDV · OPÇÃO E · MONTE RORAIMA · 12/11/2026 · AZUL NOITE #1E3350 COM CABEÇALHO AZUL</div>
+    <h1 style="margin-top:6px">Azul noite no cabeçalho, seis fundos no corpo</h1>
+    <div class="sub">O modelo do cabeçalho azul, agora em Azul noite #1E3350: o título de cada tela numa faixa marinho e o corpo no fundo escolhido. Abaixo, Início, Novo pedido e login em seis fundos. Os cartões continuam brancos e o sol laranja continua igual. O contraste de cada texto foi conferido em cada fundo.</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px 12px;margin-top:24px">
+      ${FUNDOS_NOITE.map((F) => `<div class="lin" style="gap:8px"><div style="width:34px;height:34px;border-radius:8px;border:1px solid #CFCAC0;background:linear-gradient(${C.azul} 0 45%,${F.hex} 45%)"></div><div><b style="font:800 16px Archivo">${F.nome}${F.id === REC_NOITE ? ' ★' : ''}</b><div style="font:500 11px 'IBM Plex Mono';color:${C.ink2}">${F.hex}</div></div></div>`).join('')}
+      ${FUNDOS_NOITE.map((F) => miniatura(T.inicio(F))).join('')}
+      ${FUNDOS_NOITE.map((F) => miniatura(T.itens(F))).join('')}
+      ${FUNDOS_NOITE.map((F) => miniatura(T.login(F))).join('')}
+      ${FUNDOS_NOITE.map((F) => `<div style="font-size:12.5px;line-height:1.45">${F.nota}<div style="margin-top:8px;font-size:12px">${tabela(F)}</div></div>`).join('')}
+    </div>
+    <div class="caixa" style="margin-top:24px;font-size:15px;line-height:1.55"><b>Recomendação: Pérola #F8F6F1 com o cabeçalho Azul noite.</b> Marinho com branco quebrado é a dupla clássica de marca elegante: o corpo fica claro como o branco, mas sem o brilho frio, e não tem a cara de sistema do cinza. Se você preferir o máximo de leitura ao sol, o Branco puro. As telas completas do Branco, do Cinza e da Pérola estão nas pranchas "noite-simulado-…".</div>`);
+}
+
 // ---------- medir, gravar e fotografar ----------
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -406,9 +441,12 @@ console.log(`largura de "Macuxi" a 100 px: ${L.larguraM.toFixed(1)}`);
 const relatorio = Object.fromEntries(FUNDOS.map((F) => [F.id, paresDoFundo(F)]));
 relatorio.topo.push({ uso: 'texto claro na faixa azul', fg: C.claroNoAzul, bg: C.azul, razao: Number(contraste(C.claroNoAzul, C.azul).toFixed(2)), minimo: 4.5, passa: contraste(C.claroNoAzul, C.azul) >= 4.5 });
 relatorio.azuis = Object.fromEntries(AZUIS.map((a) => [a.id, paresDoAzul(a)]));
+relatorio.noite = comAzul('noite', () => Object.fromEntries(FUNDOS_NOITE.map((F) => [F.id, [...paresDoFundo(F), { uso: 'texto claro na faixa azul noite', fg: C.claroNoAzul, bg: C.azul, razao: Number(contraste(C.claroNoAzul, C.azul).toFixed(2)), minimo: 4.5, passa: contraste(C.claroNoAzul, C.azul) >= 4.5 }]])));
 writeFileSync(join(AQUI, 'contraste.json'), `${JSON.stringify(relatorio, null, 2)}\n`);
 const saidas = { alinhamento: alinhamento(), 'fundos-comparativo': comparativoFundos(), azuis: azuis() };
 for (const id of SIMULADOS) saidas[`simulado-${id}`] = simulado(FUNDOS.find((f) => f.id === id));
+saidas['noite-fundos'] = comAzul('noite', noiteFundos);
+for (const id of SIMULADOS_NOITE) saidas[`noite-simulado-${id}`] = comAzul('noite', () => simulado(nomeNoite(FUNDOS_NOITE.find((f) => f.id === id))));
 for (const [nome, html] of Object.entries(saidas)) writeFileSync(join(AQUI, `${nome}.html`), html);
 
 for (const nome of Object.keys(saidas)) {
