@@ -181,7 +181,7 @@ const T = {
     titulo: 'Clientes', sub: 'Carteira · 86 clientes', ativa: 2,
     corpo: `<div class="campo">Buscar cliente, CNPJ ou cidade</div>
       <div class="lin" style="gap:6px;margin:10px 0">${chip('Todos', 'destaque')}${chip('Sem pedido no mês', 'neutro')}${chip('Vencidos', 'neutro')}</div>
-      <div class="card" style="padding:0 12px">${[['Atacadinho Cachoeirinha', 'Boa Vista · último pedido hoje', chip('Em dia', 'sucesso')], ['Mercadinho São Jorge', 'Boa Vista · título vencido', chip('Vencido', 'erro')], ['Supermercado Rio Negro', 'Boa Vista · há 12 dias', chip('Em dia', 'sucesso')], ['Mercearia Bom Preço', 'Mucajaí · há 35 dias', chip('Sem pedido', 'aviso')], ['Empório Tacutu', 'Bonfim · há 4 dias', chip('Em dia', 'sucesso')], ['Comercial Pacaraima', 'Pacaraima · há 20 dias', chip('Em dia', 'sucesso')]]
+      <div class="card" style="padding:0 12px">${/* cada linha: nome, uma tag só (Vencido ou Em dia) e embaixo só a última visita (pedido de 12/11, R-20261112-180115) */ ''}${[['Atacadinho Cachoeirinha', 'Visitado hoje', chip('Em dia', 'sucesso')], ['Mercadinho São Jorge', 'Visitado ontem', chip('Vencido', 'erro')], ['Supermercado Rio Negro', 'Visitado há 12 dias', chip('Em dia', 'sucesso')], ['Mercearia Bom Preço', 'Visitado há 42 dias', chip('Em dia', 'sucesso')], ['Empório Tacutu', 'Visitado há 200 dias', chip('Vencido', 'erro')], ['Comercial Pacaraima', 'Nunca visitado', chip('Em dia', 'sucesso')]]
         .map(([c, d, s]) => `<div class="li"><div><b style="font-size:12px">${c}</b><div style="font-size:10.5px;color:${C.ink2}">${d}</div></div>${s}</div>`).join('')}</div>`,
   }),
   cliente360: (F) => tel(F, {

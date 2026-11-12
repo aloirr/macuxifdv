@@ -147,6 +147,14 @@ Todos os pares passam nos 6 fundos. A lista completa está em `contraste.json`, 
 - O corpo fica claro como o branco, mas sem o brilho frio e sem a cara de sistema do cinza.
 - Se a prioridade for a leitura ao sol, a opção é o Branco puro.
 
+## 7. Ajuste na lista de Clientes
+Pedido de 12/11/2026, 18h (R-20261112-180115, repassado por outra sessão). A tela Clientes não pode misturar informações. Cada linha agora tem:
+- o nome do cliente;
+- **uma tag só:** "Vencido" (vermelha) ou "Em dia" (verde). A tag amarela "Sem pedido" saiu;
+- **embaixo, só a última visita:** "Visitado hoje", "Visitado ontem", "Visitado há 42 dias" ou "Nunca visitado". Sem cidade, título, pedido ou prazo.
+
+Os filtros do topo continuam. Todas as pranchas que mostram a tela Clientes foram geradas de novo: `simulado-*` e `noite-simulado-*`. O mesmo pedido foi aos agentes do app.
+
 ## Premissas
 - Empresas, pessoas, produtos e números das simulações são fictícios.
 - As telas são simulações da marca sobre o layout de hoje. O conteúdo e os textos de cada tela continuam sendo do `designer-ux` e dos módulos.
