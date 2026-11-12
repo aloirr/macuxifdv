@@ -258,5 +258,307 @@
       "minimo": 4.5,
       "passa": true
     }
-  ]
+  ],
+  "azuis": {
+    "serra": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#24456B",
+        "razao": 9.82,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#24456B",
+        "bg": "#F0F2F5",
+        "razao": 8.76,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#24456B",
+        "bg": "#E0E5EA",
+        "razao": 7.75,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#9CABBC",
+        "bg": "#16202A",
+        "razao": 7.04,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#F0F2F5",
+        "razao": 5.21,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#F0F2F5",
+        "razao": 4.1,
+        "minimo": 3,
+        "passa": true
+      }
+    ],
+    "nevoa": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#4A6C8C",
+        "razao": 5.5,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#4A6C8C",
+        "bg": "#F2F5F7",
+        "razao": 5.03,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#4A6C8C",
+        "bg": "#E6EAEF",
+        "razao": 4.56,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#AEBDCB",
+        "bg": "#16202A",
+        "razao": 8.59,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#F2F5F7",
+        "razao": 5.34,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#F2F5F7",
+        "razao": 4.2,
+        "minimo": 3,
+        "passa": true
+      }
+    ],
+    "ardosia": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#3D5A73",
+        "razao": 7.22,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#3D5A73",
+        "bg": "#F1F3F5",
+        "razao": 6.49,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#3D5A73",
+        "bg": "#E4E8EB",
+        "razao": 5.86,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#A8B5C0",
+        "bg": "#16202A",
+        "razao": 7.88,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#F1F3F5",
+        "razao": 5.25,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#F1F3F5",
+        "razao": 4.13,
+        "minimo": 3,
+        "passa": true
+      }
+    ],
+    "noite": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#1E3350",
+        "razao": 12.77,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#1E3350",
+        "bg": "#EFF1F3",
+        "razao": 11.28,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#1E3350",
+        "bg": "#DFE2E6",
+        "razao": 9.83,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#9AA3B0",
+        "bg": "#16202A",
+        "razao": 6.47,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#EFF1F3",
+        "razao": 5.16,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#EFF1F3",
+        "razao": 4.06,
+        "minimo": 3,
+        "passa": true
+      }
+    ],
+    "indigo": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#4C5F86",
+        "razao": 6.39,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#4C5F86",
+        "bg": "#F2F4F7",
+        "razao": 5.8,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#4C5F86",
+        "bg": "#E6E9EE",
+        "razao": 5.25,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#AEB7C9",
+        "bg": "#16202A",
+        "razao": 8.18,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#F2F4F7",
+        "razao": 5.3,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#F2F4F7",
+        "razao": 4.17,
+        "minimo": 3,
+        "passa": true
+      }
+    ],
+    "petroleo": [
+      {
+        "uso": "texto branco no botão",
+        "fg": "#FFFFFF",
+        "bg": "#1F4F5C",
+        "razao": 9.01,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no fundo névoa (link, título)",
+        "fg": "#1F4F5C",
+        "bg": "#EFF3F4",
+        "razao": 8.06,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul no chip suave",
+        "fg": "#1F4F5C",
+        "bg": "#E0E6E8",
+        "razao": 7.14,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "azul claro no grafite",
+        "fg": "#9AB0B6",
+        "bg": "#16202A",
+        "razao": 7.27,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "texto de apoio no fundo névoa",
+        "fg": "#5B6673",
+        "bg": "#EFF3F4",
+        "razao": 5.23,
+        "minimo": 4.5,
+        "passa": true
+      },
+      {
+        "uso": "sol laranja no fundo névoa (gráfico)",
+        "fg": "#C2540A",
+        "bg": "#EFF3F4",
+        "razao": 4.12,
+        "minimo": 3,
+        "passa": true
+      }
+    ]
+  }
 }

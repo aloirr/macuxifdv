@@ -1,6 +1,6 @@
 // Simulado da marca aprovada (opção E · Monte Roraima, T-0169): logo alinhado, todas as telas e as cores de fundo.
 // Uso (na raiz do repositório): node docs/marca/propostas/2026-11-12-marca-e-simulado/gerar.mjs
-// Saída nesta pasta: alinhamento, fundos-comparativo e simulado-<fundo> (.html e .png) e contraste.json.
+// Saída nesta pasta: alinhamento, fundos-comparativo, simulado-<fundo> e azuis (.html e .png) e contraste.json.
 // Fontes do BKO (apps/web/app/fonts, OFL). Empresas, pessoas, produtos e números são fictícios.
 import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -338,6 +338,57 @@ function simulado(F) {
     </div>`);
 }
 
+// ---------- outros azuis (pedido de 12/11: "um azul mais névoa, mais estiloso, refinado, elegante") ----------
+const misturar = (a, b, t) => {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return `#${x.map((v, i) => Math.round(v * (1 - t) + y[i] * t).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+};
+const AZUIS = [
+  { id: 'serra', nome: 'Azul serra', hex: '#24456B', nota: 'O aprovado na opção E. Firme e confiável, mas é o azul de muito sistema.' },
+  { id: 'nevoa', nome: 'Azul névoa', hex: '#4A6C8C', nota: 'Azul acinzentado e leve, a névoa do topo do Monte Roraima. Suave e moderno; o mais "ar livre".' },
+  { id: 'ardosia', nome: 'Azul ardósia', hex: '#3D5A73', nota: 'Azul de pedra, com cinza. Sóbrio e elegante, sem cara de banco nem de sistema.' },
+  { id: 'noite', nome: 'Azul noite', hex: '#1E3350', nota: 'Marinho profundo, quase grafite. O mais sofisticado e premium; com o sol laranja, ganha muito contraste.' },
+  { id: 'indigo', nome: 'Índigo névoa', hex: '#4C5F86', nota: 'Azul com um toque de violeta, empoeirado. O mais estiloso e diferente; foge do azul comum.' },
+  { id: 'petroleo', nome: 'Azul petróleo', hex: '#1F4F5C', nota: 'Azul esverdeado escuro, das águas do Rio Branco. Elegante, mas fica perto do verde de "sucesso".' },
+];
+function corDoAzul(a) {
+  return { azul: a.hex, azulClaro: misturar(a.hex, '#FFFFFF', 0.55), azulSuave: misturar(a.hex, '#FFFFFF', 0.86), claroNoAzul: misturar(a.hex, '#FFFFFF', 0.76), fundo: misturar(a.hex, '#FFFFFF', 0.93) };
+}
+function paresDoAzul(a) {
+  const k = corDoAzul(a);
+  return [
+    ['texto branco no botão', '#FFFFFF', k.azul, 4.5], ['azul no fundo névoa (link, título)', k.azul, k.fundo, 4.5], ['azul no chip suave', k.azul, k.azulSuave, 4.5],
+    ['azul claro no grafite', k.azulClaro, C.grafite, 4.5], ['texto de apoio no fundo névoa', C.ink3, k.fundo, 4.5], ['sol laranja no fundo névoa (gráfico)', C.sol, k.fundo, 3],
+  ].map(([uso, fg, bg, min]) => ({ uso, fg, bg, razao: Number(contraste(fg, bg).toFixed(2)), minimo: min, passa: contraste(fg, bg) >= min }));
+}
+function azuis() {
+  const original = { ...C };
+  const miniatura = (html, w = 225, h = 465) => `<div style="width:${w}px;height:${h}px;margin:0 auto"><div style="transform:scale(.75);transform-origin:top left">${html}</div></div>`;
+  const colunas = AZUIS.map((a) => {
+    const k = corDoAzul(a);
+    Object.assign(C, { azul: k.azul, azulClaro: k.azulClaro, azulSuave: k.azulSuave, claroNoAzul: k.claroNoAzul });
+    const F = { hex: k.fundo };
+    const html = {
+      topo: `<div class="lin" style="gap:8px;margin-bottom:12px"><div style="width:40px;height:40px;border-radius:10px;background:${a.hex}"></div><div><b style="font:800 17px Archivo">${a.nome}</b><div style="font:500 11px 'IBM Plex Mono';color:${C.ink2}">${a.hex} · fundo ${k.fundo}</div></div></div>`,
+      logo: `<div style="height:84px;border-radius:12px;background:${k.fundo};display:flex;align-items:center;justify-content:center">${marca({ altura: 30 })}</div><div style="height:84px;border-radius:12px;background:${a.hex};display:flex;align-items:center;justify-content:center;margin-top:8px">${marca({ cor: '#fff', sol: C.solClaro, texto: '#fff', desc: k.claroNoAzul, altura: 30 })}</div>
+        <div class="lin" style="gap:10px;margin-top:10px;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;background:${a.hex};display:flex;align-items:center;justify-content:center">${icone('#fff', C.solClaro, 34)}</div><div style="width:56px;height:56px;border-radius:50%;background:${C.grafite};display:flex;align-items:center;justify-content:center">${icone(k.azulClaro, C.solClaro, 34)}</div><div style="width:24px;height:24px;border-radius:50%;background:${a.hex};display:flex;align-items:center;justify-content:center">${icone('#fff', C.solClaro, 15)}</div></div>`,
+      inicio: miniatura(T.inicio(F)),
+      login: miniatura(T.login(F)),
+      nota: `<div style="font-size:12.5px;line-height:1.45">${a.nota}</div><table style="font-size:11.5px;margin-top:8px">${paresDoAzul(a).map((q) => `<tr><td>${q.uso}</td><td class="${q.passa ? 'ok' : 'nao'}" style="white-space:nowrap">${fmt(q.razao)}:1 ${q.passa ? '✓' : '✗'}</td></tr>`).join('')}</table>`,
+    };
+    Object.assign(C, original);
+    return { a, k, html };
+  });
+  const escopo = colunas.map(({ a, k }) => `.az-${a.id} .b1{background:${a.hex}}.az-${a.id} .aba.on{color:${a.hex}}.az-${a.id} .aba.on i{border-color:${a.hex};background:${k.azulSuave}}`).join('');
+  const linha = (parte) => colunas.map(({ a, html }) => `<div class="az-${a.id}">${html[parte]}</div>`).join('');
+  return pagina('Outros azuis', `<style>${escopo}</style><div class="sup">MARCA MACUXI FDV · OPÇÃO E · MONTE RORAIMA (APROVADA) · 12/11/2026 · OUTROS AZUIS</div>
+    <h1 style="margin-top:6px">Seis azuis para a Macuxi</h1>
+    <div class="sub">O mesmo logo, os mesmos ícones e as mesmas telas, trocando só o azul. Cada azul vem com o seu fundo névoa: o próprio azul bem clarinho, que tira o cinza sem esquentar a tela. O sol laranja continua igual. O contraste de cada par foi conferido.</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:18px 14px;margin-top:24px">${linha('topo')}${linha('logo')}${linha('inicio')}${linha('login')}${linha('nota')}</div>
+    <div class="caixa" style="margin-top:24px;font-size:15px;line-height:1.55"><b>Recomendação: Azul ardósia #3D5A73 com o fundo névoa dele.</b> É o que mais tira a cara de sistema: um azul com cinza de pedra, sóbrio e elegante, que conversa com o sol laranja sem brigar. O Azul noite é a alternativa mais premium (marinho profundo), e o Índigo névoa é o mais ousado. O Azul petróleo fica perto demais do verde de "sucesso" e não é recomendado.</div>`);
+}
+
 // ---------- medir, gravar e fotografar ----------
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -354,8 +405,9 @@ calcularLockup(await aba.evaluate(() => document.getElementById('m').getComputed
 console.log(`largura de "Macuxi" a 100 px: ${L.larguraM.toFixed(1)}`);
 const relatorio = Object.fromEntries(FUNDOS.map((F) => [F.id, paresDoFundo(F)]));
 relatorio.topo.push({ uso: 'texto claro na faixa azul', fg: C.claroNoAzul, bg: C.azul, razao: Number(contraste(C.claroNoAzul, C.azul).toFixed(2)), minimo: 4.5, passa: contraste(C.claroNoAzul, C.azul) >= 4.5 });
+relatorio.azuis = Object.fromEntries(AZUIS.map((a) => [a.id, paresDoAzul(a)]));
 writeFileSync(join(AQUI, 'contraste.json'), `${JSON.stringify(relatorio, null, 2)}\n`);
-const saidas = { alinhamento: alinhamento(), 'fundos-comparativo': comparativoFundos() };
+const saidas = { alinhamento: alinhamento(), 'fundos-comparativo': comparativoFundos(), azuis: azuis() };
 for (const id of SIMULADOS) saidas[`simulado-${id}`] = simulado(FUNDOS.find((f) => f.id === id));
 for (const [nome, html] of Object.entries(saidas)) writeFileSync(join(AQUI, `${nome}.html`), html);
 

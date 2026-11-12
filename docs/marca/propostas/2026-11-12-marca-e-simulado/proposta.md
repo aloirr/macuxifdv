@@ -13,6 +13,7 @@
 | `simulado-nevoa.png` | todas as telas no fundo Névoa `#EEF2F7` |
 | `simulado-branco.png` | todas as telas no fundo Branco `#FFFFFF` |
 | `simulado-topo.png` | todas as telas com a faixa azul serra no topo e o resto branco |
+| `azuis.png` | seis azuis (serra, névoa, ardósia, noite, índigo névoa e petróleo), cada um com o seu fundo névoa |
 | `contraste.json` | a razão de contraste de cada texto em cada fundo |
 
 Para refazer as imagens, rode na raiz do repositório:
@@ -81,6 +82,43 @@ A Palha é a mesma ideia, mais forte. O Topo azul pode vir depois, se você quis
 3. engenheiro-apps: troca o ícone, o splash e a `Marca` do portal.
 4. modulo-vendedor: troca o logo padrão do PDF.
 5. design-de-marca: valida no print do aparelho, do PDF e do navegador antes do lote e do build.
+
+
+## 5. Outros azuis
+Pedido no chat, 12/11/2026: "Veja para mim como é que fica um azul mais névoa. Eu queria ver um azul diferente, um azul mais estiloso, mais refinado, mais elegante."
+
+Prancha `azuis.png`. Ela mostra o mesmo logo, os mesmos ícones, o Início e o login, trocando só o azul. Cada azul vem com o seu **fundo névoa**, que é o próprio azul bem clarinho (7% de azul no branco). O sol laranja não muda.
+
+| Azul | Hex | Fundo névoa | Leitura | Branco no botão | Azul no chip suave |
+|---|---|---|---|---|---|
+| Azul serra (aprovado) | `#24456B` | `#F0F2F5` | firme, mas é o azul de muito sistema | 9,82 ✓ | 7,75 ✓ |
+| Azul névoa | `#4A6C8C` | `#F2F5F7` | acinzentado e leve, a névoa do topo do monte | 5,50 ✓ | 4,56 ✓ (no limite) |
+| **Azul ardósia (recomendado)** | `#3D5A73` | `#F1F3F5` | azul de pedra, com cinza: sóbrio e elegante | 7,22 ✓ | 5,86 ✓ |
+| Azul noite | `#1E3350` | `#EFF1F3` | marinho profundo, o mais premium | 12,77 ✓ | 9,83 ✓ |
+| Índigo névoa | `#4C5F86` | `#F2F4F7` | toque de violeta, empoeirado: o mais ousado | 6,39 ✓ | 5,25 ✓ |
+| Azul petróleo | `#1F4F5C` | `#EFF3F4` | das águas do Rio Branco, mas perto do verde de "sucesso" | 9,01 ✓ | 7,14 ✓ |
+
+Todos os pares passam nos 6 azuis:
+- branco no botão;
+- azul no fundo névoa;
+- azul no chip;
+- azul claro no grafite;
+- texto de apoio no fundo névoa;
+- sol laranja no fundo névoa, que é gráfico e precisa de no mínimo 3:1.
+
+A lista completa está em `contraste.json`, chave `azuis`. Cada azul gera o próprio azul claro (55% de branco), o azul suave (86%) e o texto claro sobre o azul (76%).
+
+**Recomendação: Azul ardósia `#3D5A73` com o fundo névoa dele (`#F1F3F5`).**
+- É o que mais tira a cara de sistema: um azul com cinza de pedra, sóbrio e elegante.
+- Conversa com o sol laranja sem brigar.
+
+Há duas alternativas:
+- o **Azul noite**, se você quiser o mais premium;
+- o **Índigo névoa**, se você quiser o mais diferente.
+
+O Azul petróleo não é recomendado, porque se confunde com o verde de "sucesso".
+
+O azul e o fundo podem ser escolhidos juntos ("ardósia com névoa") ou separados, por exemplo o ardósia com o fundo Areia `#F6F1E7`.
 
 ## Premissas
 - Empresas, pessoas, produtos e números das simulações são fictícios.
