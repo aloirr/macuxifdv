@@ -313,6 +313,30 @@ test('hook (T-0123): corretor-redundancias só escreve em docs/qualidade/redunda
   }
 });
 
+test('hook (T-0169): design-de-marca só escreve em docs/marca/**, no próprio diário e em recado novo', () => {
+  const dir = criarRepo();
+  writeFileSync(join(dir, '.coord', 'donos.json'), readFileSync(join(RAIZ_REAL, '.coord', 'donos.json'), 'utf8'));
+  const sub = { entrada: { agent_type: 'design-de-marca', agent_id: 'sub-dm' } };
+  for (const f of ['docs/marca/manual.md', 'docs/marca/propostas/2026-11-12-opcoes.md', '.coord/diario/design-de-marca.md', '.coord/lidos/design-de-marca.txt', '.coord/recados/designer-ux/R-20261112-120000-design-de-marca.md']) {
+    const r = editar(dir, f, sub);
+    assert.equal(r.codigo, 0, `${f}: ${r.erro}`);
+  }
+  for (const f of ['packages/ui/src/tema/cores.ts', 'docs/design/componentes.md', 'apps/mobile/app.config.ts', 'docs/produto/07-agentes-e-coordenacao.md', '.coord/quadro.md', '.coord/donos.json', '.claude/agents/design-de-marca.md', '.claude/skills/design-de-marca/SKILL.md', '.coord/diario/designer-ux.md', '.coord/recados/designer-ux/R-20261112-120000-designer-ux.md']) {
+    const r = editar(dir, f, sub);
+    assert.equal(r.codigo, 2, `${f} deveria ser bloqueado`);
+    assert.match(r.erro, /BLOQUEADO/);
+  }
+  assert.match(editar(dir, 'packages/ui/src/tema/cores.ts', sub).erro, /pertence a designer-ux\. deixe um recado: node scripts\/coord\.mjs enviar --de design-de-marca --para designer-ux/);
+  assert.equal(bash(dir, 'echo "# Marca" > docs/marca/manual.md', sub).codigo, 0, 'Bash no próprio caminho');
+  assert.equal(bash(dir, 'echo x > packages/ui/a.ts', sub).codigo, 2, 'Bash fora');
+  assert.equal(bash(dir, 'cp docs/marca/manual.md docs/design/copia.md', sub).codigo, 2, 'cp para fora');
+  for (const o of [{ entrada: sub.entrada, env: NUVEM }, { entrada: { agent_type: 'design-de-marca' } }]) {
+    const quem = o.env ? 'nuvem' : 'sessão sem agent_id';
+    assert.equal(editar(dir, 'docs/marca/manual.md', o).codigo, 0, quem);
+    assert.equal(editar(dir, 'docs/design/componentes.md', o).codigo, 2, quem);
+  }
+});
+
 // ───────────────────────── Parte 3: cache da identificação por HEAD ─────────────────────────
 
 test('commitsDoBranch: cache por HEAD num arquivo temporário (só refaz o git log quando HEAD ou a base mudam)', () => {
