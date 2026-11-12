@@ -1,0 +1,189 @@
+T-0086/T-0157 — governança da produção (rito com o "aprovo" do dono do produto). Base: HEAD 4d121d89 (main).
+1. producao-publicar.yml: grava /opt/macuxi/email.env (só api e worker) com os secrets PROD_SMTP_HOST, PROD_SMTP_PORTA,
+   PROD_SMTP_TLS, PROD_SMTP_USUARIO, PROD_SMTP_SENHA e PROD_SMTP_REMETENTE (MACUXI_SMTP_* que a API lê), conferidos antes do
+   SSH; sem PROD_SMTP_HOST, email.env vazio e e-mail desligado. Deixa de ler o PROD_SUPERADMIN_CONVITE (ADR 0031).
+2. producao-super-admin.yml (novo; parte da produção do docs/desenho/T-0093-workflows.diff, que não foi aplicado): cria o
+   super-admin do portal config. com o secret PROD_SUPERADMIN_SENHA. A parte da demo do T-0093 segue naquele diff.
+Aplicar: git apply --check docs/desenho/T-0086-smtp-producao.patch && git apply docs/desenho/T-0086-smtp-producao.patch
+Depende de scripts/deploy/producao (compose.yml, env.modelo, preparar-vm.sh) com o email.env, que vão no mesmo commit.
+Teste: node --test scripts/ci/producao-email.test.mjs
+
+diff --git a/.github/workflows/producao-publicar.yml b/.github/workflows/producao-publicar.yml
+--- a/.github/workflows/producao-publicar.yml
++++ b/.github/workflows/producao-publicar.yml
+@@ -199,6 +199,13 @@ jobs:
+           PROD_S3_SECRET: ${{ secrets.PROD_S3_SECRET }}
+           PROD_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
+           PROD_PG_PORTA: ${{ secrets.PROD_PG_PORTA }}
++          # T-0094 (ADR 0032): e-mail transacional (opcional em bloco: sem PROD_SMTP_HOST, o e-mail fica desligado)
++          PROD_SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
++          PROD_SMTP_PORTA: ${{ secrets.PROD_SMTP_PORTA }}
++          PROD_SMTP_TLS: ${{ secrets.PROD_SMTP_TLS }}
++          PROD_SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
++          PROD_SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
++          PROD_SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
+         run: |
+           falta=()
+           for n in PROD_SSH_KEY PROD_HOST PROD_USER PROD_PG_HOST PROD_PG_ADMIN_USUARIO PROD_PG_ADMIN_SENHA PROD_S3_KEY_ID PROD_S3_SECRET PROD_CLOUDFLARE_TUNNEL_TOKEN; do
+@@ -213,6 +220,21 @@ jobs:
+           [[ "$PROD_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "::error::PROD_USER inválido"; exit 1; }
+           [[ "$PROD_PG_ADMIN_USUARIO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::PROD_PG_ADMIN_USUARIO inválido"; exit 1; }
+           [ -z "$PROD_PG_PORTA" ] || [[ "$PROD_PG_PORTA" =~ ^[0-9]{1,5}$ ]] || { echo "::error::PROD_PG_PORTA inválida"; exit 1; }
++          # SMTP: uma linha, sem aspas simples (o email.env grava usuário, senha e remetente entre aspas simples, sem interpolação)
++          for n in PROD_SMTP_HOST PROD_SMTP_PORTA PROD_SMTP_TLS PROD_SMTP_USUARIO PROD_SMTP_SENHA PROD_SMTP_REMETENTE; do
++            v="$(printf '%s' "${!n}" | tr -d '\r')"
++            case "$v" in *$'\n'*) echo "::error::$n tem quebra de linha"; exit 1;; *"'"*) echo "::error::$n tem aspas simples"; exit 1;; esac
++          done
++          if [ -n "$PROD_SMTP_HOST" ]; then
++            [[ "$PROD_SMTP_HOST" =~ ^[A-Za-z0-9.-]{1,253}$ ]] || { echo "::error::PROD_SMTP_HOST inválido (só o nome do servidor)"; exit 1; }
++            [ -z "$PROD_SMTP_PORTA" ] || [[ "$PROD_SMTP_PORTA" =~ ^[0-9]{1,5}$ ]] || { echo "::error::PROD_SMTP_PORTA inválida"; exit 1; }
++            [ -z "$PROD_SMTP_TLS" ] || [[ "$PROD_SMTP_TLS" =~ ^(starttls|tls)$ ]] || { echo "::error::PROD_SMTP_TLS deve ser starttls ou tls"; exit 1; }
++            [ -n "$PROD_SMTP_USUARIO" ] && [ -n "$PROD_SMTP_SENHA" ] || { echo "::error::com PROD_SMTP_HOST, PROD_SMTP_USUARIO e PROD_SMTP_SENHA são obrigatórios"; exit 1; }
++            echo "e-mail: SMTP ligado"
++          else
++            [ -z "$PROD_SMTP_PORTA$PROD_SMTP_TLS$PROD_SMTP_USUARIO$PROD_SMTP_SENHA$PROD_SMTP_REMETENTE" ] || { echo "::error::há PROD_SMTP_* sem PROD_SMTP_HOST"; exit 1; }
++            echo "::warning::sem PROD_SMTP_HOST: e-mail desligado (o BKO mostra a senha ao admin; a Equipe por CSV recusa)"
++          fi
+           echo "secrets obrigatórios presentes"
+ 
+       - name: chave SSH
+@@ -253,19 +275,31 @@ jobs:
+           S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
+           TUNEL: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
+           WEBHOOK: ${{ secrets.PROD_ALERTA_WEBHOOK }}
+-          # T-0087/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
+-          SA_CONVITE: ${{ secrets.PROD_SUPERADMIN_CONVITE }}
++          # T-0094 (ADR 0032): e-mail transacional, só na api e no worker (email.env)
++          SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
++          SMTP_PORTA: ${{ secrets.PROD_SMTP_PORTA }}
++          SMTP_TLS: ${{ secrets.PROD_SMTP_TLS }}
++          SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
++          SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
++          SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
+           # T-0158 (ADR 0043): recado automático do diagnóstico (opcional)
+           RECADOS_SERVIDOR: ${{ secrets.MACUXI_RECADOS_TOKEN_SERVIDOR }}
+         run: |
+           grava() { ssh -l "$USUARIO" prod "umask 077; cat > '/opt/macuxi/$1.tmp' && mv -f '/opt/macuxi/$1.tmp' '/opt/macuxi/$1'"; }
+           printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=%s\n' "$PG_HOST" "${PG_PORTA:-5432}" | grava banco.env
+           printf 'MACUXI_PG_ADMIN_USUARIO=%s\nMACUXI_PG_ADMIN_SENHA=%s\n' "$PG_ADMIN" "$PG_ADMIN_SENHA" | grava admin.env
+-          {
+-            printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO"
+-            if [ -n "$SA_CONVITE" ]; then printf 'MACUXI_SUPERADMIN_CONVITE=%s\n' "$SA_CONVITE"; fi
+-          } | grava segredos.env
++          # T-0093/ADR 0031: sem convite do super-admin (ele nasce pelo workflow "producao — super-admin")
++          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" | grava segredos.env
+           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
++          # e-mail (T-0094): sem PROD_SMTP_HOST, email.env vazio e e-mail desligado. Valores conferidos no passo dos secrets;
++          # usuário, senha e remetente entre aspas simples (o compose não interpola $ dentro delas)
++          if [ -n "$SMTP_HOST" ]; then
++            printf 'MACUXI_SMTP_HOST=%s\n' "$SMTP_HOST"
++            [ -z "$SMTP_PORTA" ] || printf 'MACUXI_SMTP_PORTA=%s\n' "$SMTP_PORTA"
++            [ -z "$SMTP_TLS" ] || printf 'MACUXI_SMTP_TLS=%s\n' "$SMTP_TLS"
++            printf "MACUXI_SMTP_USUARIO='%s'\nMACUXI_SMTP_SENHA='%s'\n" "$SMTP_USUARIO" "$SMTP_SENHA"
++            [ -z "$SMTP_REMETENTE" ] || printf "MACUXI_SMTP_REMETENTE='%s'\n" "$SMTP_REMETENTE"
++          fi | tr -d '\r' | grava email.env
+           # token do remetente de sistema `diagnostico`, só no worker (recados.env); sem o secret, arquivo vazio e alerta desligado
+           if [ -n "$RECADOS_SERVIDOR" ]; then printf 'MACUXI_RECADOS_TOKEN_SERVIDOR=%s\n' "$RECADOS_SERVIDOR"; fi | grava recados.env
+           [ -n "$RECADOS_SERVIDOR" ] || echo "::notice::sem MACUXI_RECADOS_TOKEN_SERVIDOR: os diagnósticos chegam ao portal, mas o recado automático fica desligado"
+diff --git a/.github/workflows/producao-super-admin.yml b/.github/workflows/producao-super-admin.yml
+new file mode 100644
+--- /dev/null
++++ b/.github/workflows/producao-super-admin.yml
+@@ -0,0 +1,97 @@
++name: producao — super-admin
++
++# T-0093 (ADR 0031; premissa P3; RN-CORE-32). Cria, redefine a senha ou desativa um super-admin do portal config. (time da
++# Macuxi) na PRODUÇÃO, pela VM, com a imagem da API que está no ar e a conexão de administração (admin.env), no mesmo
++# padrão do "producao — criar tenant". Não existe autocadastro nem convite: este workflow é o único caminho.
++# A senha vem do secret PROD_SUPERADMIN_SENHA (environment PRODUCAO, com aprovação do dono do produto), pelo stdin do ssh,
++# e chega ao contêiner por `-e MACUXI_SUPERADMIN_SENHA` SEM valor no argv. A CLI confere a RN-CORE-32 (8+ com letra,
++# número e caractere especial) e grava só o hash argon2id. Saída: uma linha JSON sem senha, hash ou e-mail em claro.
++# Idempotente pelo e-mail: "criar" de quem já existe não muda nada (use "redefinir"); "redefinir" e "desativar" encerram
++# as sessões abertas dele. Depois de usar, troque ou apague o secret.
++
++on:
++  workflow_dispatch:
++    inputs:
++      acao:
++        description: criar, redefinir (senha) ou desativar
++        type: choice
++        options: [criar, redefinir, desativar]
++        default: criar
++      email:
++        description: e-mail do super-admin
++        required: true
++      nome:
++        description: nome (só no criar)
++        default: ''
++      simular:
++        description: simular (transação desfeita no fim)
++        type: boolean
++        default: true
++
++permissions:
++  contents: read
++
++concurrency:
++  group: producao-vm
++  cancel-in-progress: false
++
++defaults:
++  run:
++    shell: bash
++
++jobs:
++  super-admin:
++    name: super-admin na produção
++    runs-on: ubuntu-24.04
++    timeout-minutes: 15
++    environment: PRODUCAO
++    steps:
++      - name: entradas
++        env:
++          ACAO: ${{ inputs.acao }}
++          EMAIL: ${{ inputs.email }}
++          NOME: ${{ inputs.nome }}
++          SENHA: ${{ secrets.PROD_SUPERADMIN_SENHA }}
++        run: |
++          [[ "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]] || { echo "::error::e-mail inválido"; exit 1; }
++          if [ "$ACAO" = criar ] && [ -z "$NOME" ]; then echo "::error::nome vazio"; exit 1; fi
++          if [ "$ACAO" != desativar ]; then
++            [ -n "$SENHA" ] || { echo "::error::secret PROD_SUPERADMIN_SENHA vazio (environment PRODUCAO)"; exit 1; }
++            case "$SENHA" in *$'\n'*|*$'\r'*) echo "::error::PROD_SUPERADMIN_SENHA tem quebra de linha"; exit 1;; esac
++          fi
++
++      - name: chave SSH
++        env:
++          CHAVE: ${{ secrets.PROD_SSH_KEY }}
++          HOST: ${{ secrets.PROD_HOST }}
++          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
++        run: |
++          install -d -m 700 ~/.ssh
++          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
++          chmod 600 ~/.ssh/prod
++          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
++          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
++          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
++          chmod 600 ~/.ssh/config
++
++      - name: super-admin
++        env:
++          USUARIO: ${{ secrets.PROD_USER }}
++          SENHA: ${{ secrets.PROD_SUPERADMIN_SENHA }}
++          ACAO: ${{ inputs.acao }}
++          EMAIL: ${{ inputs.email }}
++          NOME: ${{ inputs.nome }}
++          SIMULAR: ${{ inputs.simular }}
++        run: |
++          args=("$ACAO" --email "$EMAIL" --confirmar "$EMAIL")
++          [ "$ACAO" = criar ] && args+=(--nome "$NOME")
++          [ "$SIMULAR" = true ] && args+=(--simular)
++          # argumentos escapados com %q para o shell remoto; a senha vai só pela 1ª linha do stdin (vazia no desativar)
++          remoto='set -euo pipefail; IFS= read -r MACUXI_SUPERADMIN_SENHA || true; export MACUXI_SUPERADMIN_SENHA; cd /opt/macuxi;'
++          remoto+=' docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e MACUXI_SUPERADMIN_SENHA super-admin'
++          remoto+=" $(printf '%q ' "${args[@]}")"
++          printf '%s\n' "$SENHA" | ssh -l "$USUARIO" prod "$remoto"
++
++      - name: limpar a chave do runner
++        if: ${{ always() }}
++        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts
