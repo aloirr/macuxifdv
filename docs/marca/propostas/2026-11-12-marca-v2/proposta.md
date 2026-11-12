@@ -14,6 +14,7 @@ As letras continuam a série da v1 (D, E e F) para não confundir com as opçõe
 | `opcao-e.png` | **E · Monte Roraima** (recomendada) |
 | `opcao-f.png` | F · Serra do Tepequém |
 | `contraste.json` | a razão de contraste de cada par, conferida pelo script |
+| `fundos.png` | o fundo do app: a opção E com 4 fundos (cinza de hoje, branco, areia e topo azul) |
 
 Para refazer as imagens, rode na raiz do repositório:
 ```bash
@@ -108,3 +109,19 @@ Se você preferir o Cocar, o próximo passo é a consulta à organização macux
 - O nome dos apps continua "Macuxi Campo" e "Macuxi Gestão", e o domínio continua `macuxifdv.com.br`.
 - O Início do Campo não ganha logo: a marca aparece na cor do destaque, na aba ativa e na barra da meta.
 - O cabeçalho verde da tabela do PDF (`#00843D`, T-0159) fica como você aprovou.
+
+## 6. Decisão e próximo passo: o fundo do app
+- **Aprovada a opção E · Monte Roraima.** Palavras do Alexandre no chat, 12/11/2026: "Aprovado o 2 . vamos trabalhar so no fundo agora". A prancha da E é a "OPÇÃO 2 DE 3".
+- **O fundo está em aberto.** Sobre a cor de fundo, o Alexandre disse: "E o fundo? esse cinza ta muito com cara de IA." Por isso o manual só vai ser escrito quando o fundo for escolhido, para registrar a marca inteira de uma vez.
+- Prancha `fundos.png`: a tela Início e o login da opção E com quatro fundos, e o contraste de todos os textos conferido em cada um:
+
+| Fundo | Hex | Leitura |
+|---|---|---|
+| Hoje · cinza | `#F3F4F1` | neutro e frio, o padrão de muito sistema |
+| Branco | `#FFFFFF` | o mais legível ao sol, mas sem calor; a marca só aparece no botão |
+| **Areia (recomendado)** | `#F6F1E7` | bege claro e quente, do lavrado e da areia dos rios; combina com o azul serra e com o sol |
+| Topo azul serra | `#24456B` + `#FFFFFF` | saudação e logo numa faixa azul, o resto branco; é o mais marcante, mas muda o layout do Início e do login |
+
+- No fundo Areia, todos os pares passam: grafite 14,64:1, texto secundário `#4A5562` 6,74:1, texto de apoio `#5B6673` 5,19:1, azul serra 8,72:1 e laranja sol (gráfico) 4,09:1.
+- **Recomendação: Areia `#F6F1E7`.** Tira a cara de sistema genérico com a troca de um token só, sem mexer em nenhuma tela. A faixa azul no topo pode vir depois, se você quiser mais marca na tela.
+- As pranchas desta proposta também deixaram o fundo cinza e passaram a usar o fundo branco.

@@ -1,6 +1,6 @@
 // Gera as pranchas da proposta de marca v2 (T-0169, design-de-marca): HTML → PNG pelo Playwright.
 // Uso (na raiz do repositório): node docs/marca/propostas/2026-11-12-marca-v2/gerar.mjs
-// Saída nesta pasta: opcao-d.html/png, opcao-e.html/png, opcao-f.html/png, comparativa.html/png e contraste.json.
+// Saída nesta pasta: opcao-d.html/png, opcao-e.html/png, opcao-f.html/png, fundos.html/png, comparativa.html/png e contraste.json.
 // As fontes são as do BKO (apps/web/app/fonts, licença OFL). Empresas e pessoas nas simulações são fictícias.
 import { writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -153,12 +153,12 @@ const css = `
 @font-face{font-family:'IBM Plex Sans';font-weight:700;src:url(${FONTES}/IBMPlexSans_700Bold.ttf)}
 @font-face{font-family:'IBM Plex Mono';font-weight:500;src:url(${FONTES}/IBMPlexMono_500Medium.ttf)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'IBM Plex Sans';color:#16202A;background:#E4E6E0;width:1600px;padding:48px}
+body{font-family:'IBM Plex Sans';color:#16202A;background:#FFFFFF;width:1600px;padding:48px}
 h1{font:800 40px/1.1 Archivo;letter-spacing:-.01em}
 h2{font:700 13px/1 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:#4A5562;margin:0 0 14px}
 .sub{font-size:17px;color:#4A5562;margin-top:8px;max-width:1200px;line-height:1.45}
 .grade{display:grid;gap:20px}
-.caixa{background:#fff;border-radius:18px;padding:24px}
+.caixa{background:#fff;border:1px solid #E3E0D8;border-radius:18px;padding:24px}
 .rot{font-size:12px;color:#4A5562;margin-top:8px;text-align:center;line-height:1.35}
 .lin{display:flex;align-items:center;gap:14px}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -211,11 +211,18 @@ function telaInicial(o) {
 
 function telaInicio(o) {
   const ink = o.textoDestaque;
-  return `<div class="tel"><div class="barra"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+  const f = o.fundoApp ?? '#F3F4F1';
+  const topo = o.topo
+    ? `<div style="background:${o.principal};color:#FFFFFF;padding-bottom:18px"><div class="barra"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+      <div style="padding:14px 16px 0"><div style="font-size:12px;color:#C9D6E8">Quinta, 12 de novembro</div>
+      <div style="font:800 25px/1.15 Archivo;margin-top:4px">Bom dia, Lucas</div>
+      <div style="font-size:12px;color:#C9D6E8;margin-top:3px">6 visitas hoje · 3 feitas</div></div></div><div style="padding:0 16px">`
+    : `<div class="barra"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
     <div style="padding:14px 16px 0">
       <div style="font-size:12px;color:#4A5562">Quinta, 12 de novembro</div>
       <div style="font:800 25px/1.15 Archivo;margin-top:4px">Bom dia, Lucas</div>
-      <div style="font-size:12px;color:#4A5562;margin-top:3px">6 visitas hoje · 3 feitas</div>
+      <div style="font-size:12px;color:#4A5562;margin-top:3px">6 visitas hoje · 3 feitas</div>`;
+  return `<div class="tel" style="background:${f}">${topo}
       <div style="background:#fff;border:1px solid #E1E4DE;border-radius:14px;padding:12px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;letter-spacing:.1em;font-weight:700;color:#4A5562">RECADOS</span><span style="font-size:10.5px;font-weight:600;color:${ink};background:${o.suave};padding:2px 8px;border-radius:99px">2 novos</span></div>
         <div style="font-size:12px;margin-top:8px;line-height:1.35"><b>Prioridade:</b> passe cedo no Mercadinho São Jorge, título vencido.</div></div>
@@ -236,10 +243,13 @@ function telaInicio(o) {
 
 function telaLogin(o) {
   const campo = (r, v) => `<div style="font-size:11.5px;font-weight:600;margin:12px 0 5px">${r}</div><div style="height:44px;border:1px solid #C9CEC6;border-radius:12px;background:#fff;padding:0 12px;display:flex;align-items:center;font-size:13px">${v}</div>`;
-  return `<div class="tel" style="background:#F3F4F1"><div class="barra"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+  const f = o.fundoApp ?? '#F3F4F1';
+  const fundoTela = o.topo ? `linear-gradient(${o.principal} 0 176px, ${f} 176px)` : f;
+  const marca = o.topo ? logo(o, { simbolo: '#FFFFFF', ponto: o.pontoEscuro, texto: '#FFFFFF', desc: '#C9D6E8', tam: 58 }) : logoClaro(o, 58);
+  return `<div class="tel" style="background:${fundoTela}"><div class="barra" style="${o.topo ? 'color:#FFFFFF' : ''}"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
     <div style="padding:40px 22px 0">
-      <div style="display:flex;justify-content:center">${logoClaro(o, 58)}</div>
-      <div style="font:800 24px Archivo;margin-top:38px">Entrar</div>
+      <div style="display:flex;justify-content:center">${marca}</div>
+      <div style="font:800 24px Archivo;margin-top:${o.topo ? 76 : 38}px">Entrar</div>
       ${campo('Código da empresa', 'DISTEX')}${campo('E-mail', 'lucas@exemplo.com.br')}${campo('Senha', '••••••••')}
       <div style="height:50px;border-radius:14px;background:${o.principal};color:${o.sobrePrincipal};font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;margin-top:20px">Entrar</div>
       <div style="text-align:center;font-size:12.5px;font-weight:600;color:${o.textoDestaque};margin-top:14px">Esqueci a senha</div>
@@ -352,6 +362,36 @@ function comparativa() {
     <div class="caixa" style="margin-top:20px;font-size:15px;line-height:1.55"><b>Recomendação: opção E · Monte Roraima.</b> É o símbolo de Roraima que todo mundo reconhece, não tem carga sagrada no desenho e continua legível no ícone de 24 px. O sol laranja mantém a ligação com o laranja que o vendedor já vê hoje. <b>O Cocar só pode ser usado com a autorização por escrito de uma organização macuxi</b>, porque é peça de identidade e de cerimônia. Sem essa autorização, a marca corre o risco de virar crítica pública.</div></body></html>`;
 }
 
+function fundos() {
+  const base = OPCOES.find((o) => o.id === REC);
+  const VARIANTES = [
+    { nome: 'Hoje · cinza', hex: '#F3F4F1', fundoApp: '#F3F4F1', nota: 'O cinza-esverdeado de hoje, com cartões brancos. É neutro e frio: o padrão de muito sistema, sem nada de Roraima.' },
+    { nome: 'Branco', hex: '#FFFFFF', fundoApp: '#FFFFFF', nota: 'Fundo branco e cartões com borda. É o mais legível ao sol, mas fica sem calor nenhum: a marca só aparece no botão.' },
+    { nome: 'Areia', hex: '#F6F1E7', fundoApp: '#F6F1E7', nota: 'Bege claro e quente, da cor do lavrado e da areia dos rios. Combina com o azul serra e com o sol laranja, e os cartões brancos se destacam.' },
+    { nome: 'Topo azul serra', hex: '#24456B + #FFFFFF', fundoApp: '#FFFFFF', topo: true, nota: 'A saudação e o logo numa faixa azul serra; o resto fica branco. A marca aparece em toda abertura de tela, como nos apps de banco e de varejo.' },
+  ];
+  const pares = (v) => {
+    const bg = v.fundoApp;
+    const lista = [['texto grafite', '#16202A', 'texto'], ['texto secundário', '#4A5562', 'texto'], ['texto de apoio', '#5B6673', 'texto'], ['azul serra', '#24456B', 'texto'], ['laranja sol (gráfico)', '#C2540A', 'grafico']];
+    const linhas = lista.map(([n, fg, t]) => { const r = contraste(fg, bg); return `<tr><td>${n}</td><td class="${r >= MIN[t] ? 'ok' : 'nao'}">${fmt(r)}:1 ${r >= MIN[t] ? '✓' : '✗'}</td></tr>`; });
+    if (v.topo) { const r = contraste('#C9D6E8', '#24456B'); linhas.push(`<tr><td>texto claro na faixa azul</td><td class="ok">${fmt(r)}:1 ✓</td></tr>`); }
+    return `<table>${linhas.join('')}</table>`;
+  };
+  const col = (v) => `<div><div class="lin" style="gap:10px;margin-bottom:12px"><div style="width:44px;height:44px;border-radius:10px;border:1px solid #D6D2C8;background:${v.topo ? 'linear-gradient(#24456B 0 50%,#FFFFFF 50%)' : v.hex}"></div><div><b style="font:800 20px Archivo">${v.nome}</b><div style="font:500 12px 'IBM Plex Mono';color:#4A5562">${v.hex}</div></div></div></div>`;
+  const tel = (v, fn) => `<div style="display:flex;justify-content:center">${fn({ ...base, fundoApp: v.fundoApp, topo: v.topo })}</div>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Fundo do app</title><style>${css}</style></head><body>
+    <div style="font:600 14px 'IBM Plex Sans';color:#4A5562;letter-spacing:.08em">MARCA MACUXI FDV · PROPOSTA V2 · 12/11/2026 · FUNDO DO APP (OPÇÃO E · MONTE RORAIMA, APROVADA)</div>
+    <h1 style="margin-top:6px">E o fundo? Quatro caminhos</h1>
+    <div class="sub">O cinza de hoje (#F3F4F1) é neutro e frio, o padrão de muito sistema. Abaixo, a mesma tela Início e o mesmo login com quatro fundos. Os cartões continuam brancos, e o contraste de todos os textos foi conferido em cada fundo.</div>
+    <div class="grade" style="grid-template-columns:repeat(4,1fr);margin-top:26px;gap:24px">
+      ${VARIANTES.map(col).join('')}
+      ${VARIANTES.map((v) => tel(v, telaInicio)).join('')}
+      ${VARIANTES.map((v) => tel(v, telaLogin)).join('')}
+      ${VARIANTES.map((v) => `<div style="font-size:13.5px;line-height:1.5">${v.nota}<div style="margin-top:10px">${pares(v)}</div></div>`).join('')}
+    </div>
+    <div class="caixa" style="margin-top:24px;font-size:15px;line-height:1.55"><b>Recomendação: Areia #F6F1E7.</b> Tira a cara de sistema genérico sem mexer em nenhuma tela: é a troca de um token só. Dá calor de Roraima, combina com o azul serra e com o sol, e todos os textos continuam bem acima do mínimo. A faixa azul no topo é a mais marcante, mas muda o layout do Início e do login, e por isso fica como passo seguinte, se você quiser mais marca na tela.</div></body></html>`;
+}
+
 // ---------- gravar e fotografar ----------
 const relatorio = {};
 for (const o of OPCOES) {
@@ -360,12 +400,13 @@ for (const o of OPCOES) {
 writeFileSync(join(AQUI, 'contraste.json'), `${JSON.stringify(relatorio, null, 2)}\n`);
 OPCOES.forEach((o, i) => writeFileSync(join(AQUI, `opcao-${o.letra.toLowerCase()}.html`), prancha(o, i + 1)));
 writeFileSync(join(AQUI, 'comparativa.html'), comparativa());
+writeFileSync(join(AQUI, 'fundos.html'), fundos());
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const navegador = await chromium.launch();
 const pagina = await navegador.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
-for (const nome of ['opcao-d', 'opcao-e', 'opcao-f', 'comparativa']) {
+for (const nome of ['opcao-d', 'opcao-e', 'opcao-f', 'comparativa', 'fundos']) {
   await pagina.goto(`file://${join(AQUI, `${nome}.html`)}`);
   await pagina.evaluate(() => document.fonts.ready);
   await pagina.screenshot({ path: join(AQUI, `${nome}.png`), fullPage: true });
