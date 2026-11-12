@@ -147,6 +147,8 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuvem continuam pela regra A, e a governança, pelo rito de autorização acima. O gerente manda um status com os hashes a cada lote que sobe.
 
+**Deploy de produção só com "aprovo deploy vX.Y.Z"** (dono do produto, R-20261111-213829, opção 2): nenhuma tag `v*` de produção e nenhum run do "producao — publicar" sem um recado do Alexandre com "aprovo deploy vX.Y.Z" para aquela versão exata. O gerente cita o ID desse recado na mensagem da tag. O GitHub Pro não tem "Required reviewers" em repositório privado, e os agentes usam a mesma conta (aloirr), por isso a trava é por recado. A opção 1 (conta própria dos agentes, com regra de tag em que só a aloirr cria `v*`) está anotada para antes do 1º cliente pagante e ainda não foi autorizada.
+
 **Nenhum ensaio sem lint e typecheck limpos no PC** (regra fixa do dono do produto, R-20261111-155339; a v1.0.4 precisou de 5 ensaios, e 3 caíram por erros que dava para pegar no PC):
 - o dono de cada pacote tocado no lote roda no PC o lint e o typecheck do pacote, com o mesmo script do CI (`pnpm --filter <pacote> typecheck` e `lint`), e diz o resultado na entrega;
 - quando `tests/` mudou, também o `typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`);
