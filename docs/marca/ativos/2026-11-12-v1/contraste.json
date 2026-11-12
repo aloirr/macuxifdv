@@ -1,0 +1,137 @@
+{
+  "paleta": {
+    "azulNoite": "#1E3350",
+    "azulClaro": "#9AA3B0",
+    "azulSuave": "#DFE2E6",
+    "claroNoAzul": "#C9CED5",
+    "perola": "#F8F6F1",
+    "branco": "#FFFFFF",
+    "grafite": "#16202A",
+    "ink2": "#4A5562",
+    "ink3": "#5B6673",
+    "sol": "#C2540A",
+    "solClaro": "#F59A52",
+    "preto": "#000000"
+  },
+  "geometria": {
+    "capTopo": 0,
+    "baseM": 68.7,
+    "capD": 81.7,
+    "baseD": 101.24,
+    "altura": 101.24,
+    "escala": 2.18,
+    "larguraS": 130.64,
+    "espaco": 30.37,
+    "xTinta": 161.01,
+    "larguraTinta": 353.4,
+    "largura": 514.41,
+    "topoVisivel": -3.7,
+    "baixo": 107.15
+  },
+  "pares": [
+    {
+      "uso": "texto branco no Azul noite (botão, faixa do cabeçalho)",
+      "fg": "#FFFFFF",
+      "bg": "#1E3350",
+      "razao": 12.77,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "texto claro na faixa Azul noite (subtítulo)",
+      "fg": "#C9CED5",
+      "bg": "#1E3350",
+      "razao": 8.07,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "Azul noite no Pérola (link, título)",
+      "fg": "#1E3350",
+      "bg": "#F8F6F1",
+      "razao": 11.82,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "Azul noite no branco (link no cartão)",
+      "fg": "#1E3350",
+      "bg": "#FFFFFF",
+      "razao": 12.77,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "Azul noite no Azul suave (chip)",
+      "fg": "#1E3350",
+      "bg": "#DFE2E6",
+      "razao": 9.83,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "grafite no Pérola (texto)",
+      "fg": "#16202A",
+      "bg": "#F8F6F1",
+      "razao": 15.26,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "texto secundário no Pérola",
+      "fg": "#4A5562",
+      "bg": "#F8F6F1",
+      "razao": 7.03,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "texto de apoio no Pérola",
+      "fg": "#5B6673",
+      "bg": "#F8F6F1",
+      "razao": 5.41,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "Azul claro no grafite (menu do BKO, ícone do logo negativo)",
+      "fg": "#9AA3B0",
+      "bg": "#16202A",
+      "razao": 6.47,
+      "minimo": 4.5,
+      "passa": true
+    },
+    {
+      "uso": "sol laranja no Pérola (gráfico: barra, sol do logo)",
+      "fg": "#C2540A",
+      "bg": "#F8F6F1",
+      "razao": 4.26,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "sol laranja no branco (gráfico)",
+      "fg": "#C2540A",
+      "bg": "#FFFFFF",
+      "razao": 4.6,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "sol claro no Azul noite (gráfico: sol do logo negativo)",
+      "fg": "#F59A52",
+      "bg": "#1E3350",
+      "razao": 5.85,
+      "minimo": 3,
+      "passa": true
+    },
+    {
+      "uso": "serra Azul noite no Pérola (ícone do Gestão)",
+      "fg": "#1E3350",
+      "bg": "#F8F6F1",
+      "razao": 11.82,
+      "minimo": 3,
+      "passa": true
+    }
+  ]
+}
