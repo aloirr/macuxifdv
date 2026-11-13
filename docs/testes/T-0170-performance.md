@@ -144,7 +144,9 @@ contadas, 6 paradas planejadas, todas visitadas.
 Os outros dias trabalhados não têm resumo.
 
 **Realizado do servidor (`RealizadoServidorSchema`, base 13/11 11:00):** `venda_cents` 8.460.000 · `venda_ate_ontem_cents`
-8.100.000 · `positivacao` 38 · `positivacao_ate_ontem` 36 · `pedidos` 25 · `itens_distintos` 160.
+8.100.000 · `positivacao` 38 · `positivacao_ate_ontem` 36 · `pedidos` 25 · `itens_distintos` 160. Até ontem (12/11): 23 pedidos e
+145 itens distintos; hoje: 2 pedidos e 15 itens. Na semana 09–13/11: 12 pedidos e 84 itens. Os campos "até ontem" de
+pedidos e itens **não existem** hoje no `RealizadoServidorSchema` (ver A-4, §8).
 
 ### 1.3 Resumo por dia (base de todas as médias)
 | Dia | Visitas contadas | Extras | 1º check-in | Último check-in | Linhas no TMA (Σ min) | Intervalos no TMD (Σ min) | Almoço | Fim do dia | Jornada líquida | Raio: linhas (Σ m) | Planejadas consideradas / visitadas | Clientes atendidos |
@@ -196,11 +198,11 @@ alternativa (só planejadas), R-3 vira 59 − 10 = 49.
 |---|---|---|---|---|
 | R-5 | **Meta batida** | positivação 72 | atingimento round(10000 × 72 ÷ 70) = **10286** (passa de 10000); Gap 0; Meta/dia **nula**; Real/dia round(72 ÷ 9) = 8; situação **`batida`**. Nada negativo | RN-CORE-42, RN-CORE-26 |
 | R-6 | **Itens batida** | itens 170 em 20 pedidos (850) | atingimento 10625; Gap 0; Meta/pedido **nula**; `batida` | RN-CORE-42 |
-| R-7 | **Sem pedido no período** | pedidos 0, itens 0 | realizado **nulo** (divisão por zero, §1.5); Meta/pedido = a própria meta = **800**. Situação: ver A-3 (§8) | RN-CORE-42 |
+| R-7 | **Sem pedido no período** | pedidos 0, itens 0 | realizado **0** (não "—"; exceção à divisão por zero da §1.5, A-3); atingimento 0; Gap 800; Meta/pedido = a própria meta = **800**; `a_cumprir` | RN-CORE-42, A-3 |
 | R-8 | **Período encerrado** (Mês passado = outubro) | meta 17.000.000; realizado 15.120.000 | `du` 21/21/0; Gap 1.880.000; atingimento round(10000 × 15,12 ÷ 17) = **8894**; Meta/dia **nula** (0 restantes); Real/dia 15.120.000 ÷ 21 = **720.000** | RN-CORE-42, §1.1 do desenho |
 | R-9 | **Dia 1 num domingo** (hoje 01/11) | realizado 0 | `du_decorridos` 0 → Real/dia **nulo**; Meta/dia ⌈18.000.000 ÷ 19⌉ = **947.369**; atingimento 0; `du_hoje` nulo ("DU — de 19") | RN-CORE-41, RN-CORE-42 |
-| R-10 | **Período Hoje** (13/11) | — | Vendas: meta do dia ⌈(18.000.000 − 8.100.000) ÷ 11⌉ = **900.000**; realizado de hoje 8.460.000 − 8.100.000 = 360.000; atingimento **4000**; Gap 540.000; Meta/dia **nula**. Positivação: meta do dia ⌈(70 − 36) ÷ 11⌉ = **4**; realizado 2; atingimento 5000. Visitas: meta do dia ⌈(200 − 55) ÷ 11⌉ = ⌈13,18⌉ = **14**; realizado 4; atingimento round(10000 × 4 ÷ 14) = **2857**. Itens: ver A-4 | RN-CORE-26, D7 |
-| R-11 | **Esta semana** (09–15/11, proporcional) | vendas da semana 2.000.000; positivação da semana 15 | Vendas: meta round(18.000.000 × 5 ÷ 19) = **4.736.842**, atingimento **4222**, Gap 2.736.842. Positivação: meta round(70 × 5 ÷ 19) = **18**, atingimento **8333**, Gap 3. Visitas: meta round(200 × 5 ÷ 19) = **53**; realizado 8 + 0 + 7 + 8 + 4 = **27**; atingimento **5094**. Meta/dia **nula** nos três. Itens: ver A-4 | D7, RN-CORE-42 |
+| R-10 | **Período Hoje** (13/11) | — | Vendas: meta do dia ⌈(18.000.000 − 8.100.000) ÷ 11⌉ = **900.000**; realizado de hoje 8.460.000 − 8.100.000 = 360.000; atingimento **4000**; Gap 540.000; Meta/dia **nula**. Positivação: meta do dia ⌈(70 − 36) ÷ 11⌉ = **4**; realizado 2; atingimento 5000. Visitas: meta do dia ⌈(200 − 55) ÷ 11⌉ = ⌈13,18⌉ = **14**; realizado 4; atingimento round(10000 × 4 ÷ 14) = **2857**. Itens por pedido: meta do dia = 800 + (800 − 630) × 8 ÷ 11 = 923,6 → em décimos para cima **930** (realizado até ontem round(100 × 145 ÷ 23) = 630; 8 = DU decorridos antes de hoje; 11 restantes contando hoje); realizado de hoje round(100 × 15 ÷ 2) = **750**; atingimento round(10000 × 750 ÷ 930) = **8065**; Gap 180; Meta/pedido nula | RN-CORE-26, D7, A-4 |
+| R-11 | **Esta semana** (09–15/11, proporcional) | vendas da semana 2.000.000; positivação da semana 15 | Vendas: meta round(18.000.000 × 5 ÷ 19) = **4.736.842**, atingimento **4222**, Gap 2.736.842. Positivação: meta round(70 × 5 ÷ 19) = **18**, atingimento **8333**, Gap 3. Visitas: meta round(200 × 5 ÷ 19) = **53**; realizado 8 + 0 + 7 + 8 + 4 = **27**; atingimento **5094**. Meta/dia **nula** nos três. Itens por pedido: meta = a **meta do dia** de hoje = **930** (R-10); realizado round(100 × 84 ÷ 12) = **700**; atingimento round(10000 × 700 ÷ 930) = **7527**; Gap 230 | D7, RN-CORE-42, A-4 |
 | R-12 | **Um dia escolhido: 10/11** (falta) | realizado 0 | metas proporcionais a 1 de 19 DU: vendas round(18.000.000 ÷ 19) = 947.368; visitas round(200 ÷ 19) = 11; positivação round(70 ÷ 19) = 4; atingimento 0; Meta/dia nula | D7 |
 | R-13 | **Promotor** | perfil promotor, mesmas visitas | só **Visitas** com valor (R-3). Vendas, Positivação e Itens: **`sem_dado`** e fora da tela | RN-PRO-01, §2.4 do desenho |
 | R-14 | **Vendedor desligado, sem notas do ERP** | `venda_cents`, `positivacao`, `pedidos` nulos | Vendas, Positivação e Itens: **`sem_dado`** (nunca 0). Visitas segue R-3 | RN-CORE-27, §2.4 |
@@ -252,6 +254,7 @@ Período Este mês, hoje 13/11 às 11:00. Meta = padrão do FDV (origem `padrao_
 | identificar almoço no dia 05 (que não tem intervalo na janela) | almoço com 7 dias, abaixo de 87; jornada do dia 05 abaixo de 575 | P-5, P-6 |
 | no dia 09, escolher o intervalo de 65 (começa antes da janela) | almoço (520 − 70 + 65) ÷ 6 = 85,8 → 86 | P-5 |
 | incluir hoje no último check-in / jornada / visitas por dia | 906 / 406 / 66 (são os valores do V-2) | P-2, P-6, P-8 |
+| fazer o km por cliente como média das razões de cada dia, e não Σ km ÷ Σ clientes | (11.875 + 13.750 + 11.000 + 10.000) ÷ 4 = 11.656 | P-12 |
 | tratar o sábado como não trabalhado | 1º check-in 473; visitas por dia 52 ÷ 7 = 7,4 | P-1, P-8 |
 
 ### 4.2 Variações da Produtividade
@@ -386,14 +389,18 @@ pnpm --filter ./tests exec vitest run modulos/core-performance-
 pnpm --filter ./tests typecheck:tests
 ```
 
-## 8. Pontos a confirmar (vão por recado ao engenheiro-software e ao modulo-core)
-| # | Ponto | O roteiro assume | Se for o contrário |
+## 8. Pontos confirmados e em aberto
+Respostas do Alexandre no chat da sessão da nuvem, 13/11/2026 ~05:45 (Manaus), texto literal: "A2: Sim · A3: 0 · A4: Meta do
+dia · A5: km por cliente é o km rodado dividido pela quantidade de clientes atendidos. O periodo so aumenta ou diminui o km
+e o cliente."
+
+| # | Ponto | Resposta | No roteiro |
 |---|---|---|---|
-| A-1 | O intervalo que **termina** no check-in de uma visita fechada pela virada (06/11, 15:00 → 16:50) entra no TMD? A §3.4 diz que a visita "fica fora do TMD", mas o intervalo é aberto pelo check-out real da visita anterior | **entra** (110 min): TMD = 28 | TMD = 1140 ÷ 44 = 25,9 → **26** (fora, ainda) |
-| A-2 | No período **Hoje**, "Visitas por dia", "Km por dia" e o "Último check-in" usam o dia em andamento? A §3.3 diz "todos os indicadores usam só hoje, até agora" | usam (H-1) | ficam `sem_dado` em Hoje |
-| A-3 | Itens por pedido sem pedido no período: o realizado é nulo; a situação é `a_cumprir` ou `sem_dado`? | `a_cumprir`, com a Meta/pedido = meta | `sem_dado` |
-| A-4 | Itens por pedido em Hoje e em Esta semana: a meta é a mensal (é uma média, não soma) ou proporcional? A §2.3 só fala do ano (média ponderada) | a mensal (800), sem Meta/pedido | — |
-| A-5 | Km por cliente: a `amostra` é o nº de clientes (27) ou de dias com resumo (4)? | clientes (27) | dias (4) |
+| A-1 | O intervalo que **termina** no check-in de uma visita fechada pela virada (06/11, 15:00 → 16:50) entra no TMD? A §3.4 diz que a visita "fica fora do TMD", mas o intervalo é aberto pelo check-out real da visita anterior | **em aberto** (engenheiro-software) | assume que **entra** (110 min): TMD = 28. Se não entrar: 1140 ÷ 44 = 25,9 → **26** |
+| A-2 | No período **Hoje**, "Visitas por dia", "Km por dia" e "Último check-in" usam o dia em andamento? | **Sim** | H-1 como está |
+| A-3 | Itens por pedido sem pedido no período | **0** | R-7: realizado 0, `a_cumprir`, Meta/pedido = meta. Vendedor desligado continua `sem_dado` (R-14: a fonte não existe) |
+| A-4 | Meta de Itens por pedido em Hoje e em Esta semana | **Meta do dia** | R-10 e R-11: 930. A conta da meta do dia de uma **média** é leitura do testes, a confirmar pelo engenheiro-software: Meta/pedido da §2.1 com o realizado até ontem e os DU decorridos **antes** de hoje (8), restantes contando hoje (11), como a RN-CORE-26. Pede `pedidos_ate_ontem` e `itens_distintos_ate_ontem` no `RealizadoServidorSchema` (modulo-core) |
+| A-5 | Km por cliente | **km rodado ÷ clientes atendidos**; o período só muda os dois totais | P-12 como está: Σ km ÷ Σ clientes (11.963), `amostra` = clientes (27). A média das razões diárias (11.656) é erro (§4.1) |
 
 ## 9. Testes automáticos (entram com a N-A)
 Arquivos novos, um por função, todos com os dados do §1.2 montados num construtor só:
