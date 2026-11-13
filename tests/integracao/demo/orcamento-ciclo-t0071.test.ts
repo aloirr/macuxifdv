@@ -466,30 +466,41 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect(await noBanco(id)).toBeUndefined();
     });
 
-    it('C6a2. limite: 15% no Café dá R$ 16,07 por unidade (= mínimo) → aceito; 15,01% cai abaixo → rejeitado preco_abaixo_minimo', async () => {
+    // RN-VEN-11 (T-0151) e RN-VEN-11a (T-0168, decisaoDoDesconto: "Orçamento nunca trava"): acima do máximo só sai como orçamento;
+    // a recusa preco_abaixo_minimo vale para o PEDIDO (envio e Transformar).
+    it('C6a2. limite: 15% no Café dá R$ 16,07 por unidade (= mínimo); 15,01% cai abaixo → o pedido é rejeitado preco_abaixo_minimo e o orçamento é aceito (só sai como orçamento)', async () => {
       const ok = randomUUID();
       const [a] = await push(token.vendedor, [item(payloadOrcamento(ok, { discount_pct: 0, items: itemCafe(15) }))]);
       expect(a).toMatchObject({ id: ok, status: 'aceito' });
       expect((await itensNoBanco(ok)).find((i) => i.produto_id === prod.CAF)!.preco_unitario_cents, '1890 × 0,85 = 1606,5 → 1607').toBe(1607);
       const fura = randomUUID();
-      const [b] = await push(token.vendedor, [item(payloadOrcamento(fura, { discount_pct: 0, items: itemCafe(15.01) }))]);
+      const [b] = await push(token.vendedor, [item({ ...payloadOrcamento(fura, { discount_pct: 0, items: itemCafe(15.01) }), tipo: 'pedido' })]);
       expect(b).toMatchObject({ id: fura, status: 'rejeitado', codigo: 'preco_abaixo_minimo' });
       expect(await noBanco(fura)).toBeUndefined();
+      const orcFura = randomUUID();
+      const [c] = await push(token.vendedor, [item(payloadOrcamento(orcFura, { discount_pct: 0, items: itemCafe(15.01) }))]);
+      expect(c).toMatchObject({ id: orcFura, status: 'aceito' });
+      expect((await itensNoBanco(orcFura)).find((i) => i.produto_id === prod.CAF)!.preco_unitario_cents, '1890 × 0,8499 = 1606,31 → 1606 (abaixo do mínimo, guardado no orçamento)').toBe(1606);
     });
 
-    it('C6c. PUT do orçamento de 10% para 30% no Café → 422 preco_abaixo_minimo; o orçamento não muda', async () => {
-      const antes = await noBanco(ORC);
-      const itensAntes = await itensNoBanco(ORC);
-      const [linha] = await q<{ atualizado_em: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado_em from vendedor.pedido where id = $1`, [ORC]);
+    it('C6c. PUT do orçamento de 10% para 30% no Café → 200 (orçamento nunca trava, RN-VEN-11/11a); o Transformar com 30% é rejeitado preco_abaixo_minimo e o orçamento não vira pedido', async () => {
+      const ORC_PUT = randomUUID();
+      const [o] = await push(token.vendedor, [item(payloadOrcamento(ORC_PUT, { discount_pct: 0, items: itemCafe(10) }))]);
+      expect(o).toMatchObject({ id: ORC_PUT, status: 'aceito' });
+      const [linha] = await q<{ atualizado_em: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado_em from vendedor.pedido where id = $1`, [ORC_PUT]);
       const r = await api.chamar(token.vendedor, {
         method: 'PUT',
-        url: `/v1/vendedor/orcamentos/${ORC}`,
-        payload: { ...payloadOrcamento(ORC, { discount_pct: 0, items: itemCafe(30) }), id: undefined, tipo: undefined, created_offline_at: undefined, atualizado_em: linha!.atualizado_em },
+        url: `/v1/vendedor/orcamentos/${ORC_PUT}`,
+        payload: { ...payloadOrcamento(ORC_PUT, { discount_pct: 0, items: itemCafe(30) }), id: undefined, tipo: undefined, created_offline_at: undefined, atualizado_em: linha!.atualizado_em },
       });
-      expect(r.statusCode, r.body).toBe(422);
-      expect((r.json() as { codigo?: string }).codigo).toBe('preco_abaixo_minimo');
-      expect(await noBanco(ORC)).toEqual(antes);
-      expect(await itensNoBanco(ORC)).toEqual(itensAntes);
+      expect(r.statusCode, r.body).toBe(200);
+      expect(await noBanco(ORC_PUT)).toMatchObject({ tipo: 'orcamento', total_cents: 12 * 1323 });
+      expect((await itensNoBanco(ORC_PUT)).find((i) => i.produto_id === prod.CAF)!.preco_unitario_cents, '1890 × 0,70 = 1323 (abaixo do mínimo 1607)').toBe(1323);
+      const ped = randomUUID();
+      const [t] = await push(token.vendedor, [item({ ...payloadOrcamento(ped, { discount_pct: 0, items: itemCafe(30) }), tipo: 'pedido', orcamento_origem_id: ORC_PUT })]);
+      expect(t, 'RN-VEN-11: o orçamento só vira pedido depois de o desconto do item ser ajustado').toMatchObject({ id: ped, status: 'rejeitado', codigo: 'preco_abaixo_minimo' });
+      expect(await noBanco(ped)).toBeUndefined();
+      expect(await conversoesDe(ORC_PUT)).toEqual([]);
     });
 
     it('C6b. o desconto máximo do Café cai para 5% depois do orçamento de 10%: Transformar → rejeitado preco_abaixo_minimo (a reconferência pede para reduzir)', async () => {

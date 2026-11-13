@@ -7,7 +7,7 @@
  *   lido do fonte de modules/vendedor/app/index.ts) e um card de exemplo no `inicio.cards`, no `criarShell` do SDK.
  * C4.3: os 8 módulos nos shells (web real importado; mobile pela lista pura `instalados.ts`) e o createApp com os 8.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { criarShell, modulosEfetivos, SaudeRespostaSchema, SERVICO_API_MACUXI, type Manifesto, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -54,8 +54,17 @@ describe('C4.1 — duas variantes do mesmo código (configuração do EAS)', () 
     expect(pkg.dependencies['expo-dev-client']).toBeDefined();
   });
 
-  it('PENDENTE ALEXANDRE (registrado, não reprova): o ícone da Gestão ainda é o mesmo do Campo', () => {
-    expect(avaliar('gestao').icon).toBe(avaliar('campo').icon);
+  it('cada variante tem o próprio ícone (o da Gestão deixou de ser o do Campo) e os arquivos existem', () => {
+    const campo = avaliar('campo');
+    const gestao = avaliar('gestao');
+    expect(gestao.icon).not.toBe(campo.icon);
+    expect(gestao.android?.adaptiveIcon?.foregroundImage).not.toBe(campo.android?.adaptiveIcon?.foregroundImage);
+    for (const c of [campo, gestao]) {
+      for (const p of [c.icon, c.android?.adaptiveIcon?.foregroundImage, c.android?.adaptiveIcon?.backgroundImage]) {
+        expect(p, 'caminho do ícone').toBeTruthy();
+        expect(existsSync(join(RAIZ, 'apps/mobile', p!)), p).toBe(true);
+      }
+    }
   });
 });
 

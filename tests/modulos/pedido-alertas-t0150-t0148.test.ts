@@ -141,7 +141,10 @@ describe('T-0150 — com alerta que bloqueia o envio, ficam só "Salvar como or�
 
   it('a tela passa ao domain os itens acima do máximo e os sem estoque calculados no aparelho', () => {
     const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
-    expect(tela).toMatch(/botoesDoResumo\(\{[^)]*itens_acima_do_maximo: calculo\.acima_do_maximo, itens_sem_estoque: semEstoque\.map\(\(x\) => x\.codigo\)/);
+    // os campos valem em qualquer ordem e com outros entre eles (a T-0168 pôs acima_do_limite, RN-VEN-11a)
+    const chamada = /botoesDoResumo\(\{[^}]*\}\)/.exec(tela)?.[0] ?? '';
+    expect(chamada).toContain('itens_acima_do_maximo: calculo.acima_do_maximo');
+    expect(chamada).toContain('itens_sem_estoque: semEstoque.map((x) => x.codigo)');
   });
 
   // D-T0150-3 (folha de saída, RN-VEN-38 × RN-VEN-42 (e)): o domain ganhou `alertas_impedem_enviar` (sair-do-pedido.ts) — a parte do domain vale.
@@ -378,11 +381,12 @@ describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título v
     }
   });
 
-  it('RD-0176: opcoesDaSaida devolve só salvar, apenasSalvar, orcamento e subtituloOrcamento (sem "aviso" nem linha de motivo)', () => {
+  // T-0166: o subtituloOrcamento (sempre null desde a T-0141) também saiu do retorno
+  it('RD-0176: opcoesDaSaida devolve só salvar, apenasSalvar e orcamento (sem "aviso" nem linha de motivo)', () => {
     for (const [nome, e] of ENTRADAS) {
       for (const impede of [false, true]) {
         const o = opcoesDaSaida({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, preco_data: e.preco_data, alertas_impedem_enviar: impede });
-        expect(Object.keys(o).sort(), `${nome}, impede=${impede}`).toEqual(['apenasSalvar', 'orcamento', 'salvar', 'subtituloOrcamento']);
+        expect(Object.keys(o).sort(), `${nome}, impede=${impede}`).toEqual(['apenasSalvar', 'orcamento', 'salvar']);
       }
     }
   });

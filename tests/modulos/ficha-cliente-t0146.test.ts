@@ -242,8 +242,10 @@ describe('T-0146 — RD-0075: o selo "Cadastro incompleto" saiu da ficha, a info
     expect(observacaoComCadastro(null, [])).toBeNull();
   });
 
-  it('carteira (app e BKO) mantém a etiqueta "Cadastro incompleto" (RN-CORE-17, fora da ficha)', () => {
-    expect(ler('modules/core/app/telas/clientes.tsx')).toContain('EtiquetaCadastroIncompleto');
+  // v1.0.5 (RN-CORE-47, T-0171): a lista de Clientes do app (Campo e Gestão) tem uma tag só, de situação; "Cadastro incompleto"
+  // sai da lista do app e fica na ficha e nas pendências do pedido. A carteira do BKO não entrou na RN-CORE-47 e mantém a etiqueta.
+  it('carteira: o app (RN-CORE-47) não tem mais a etiqueta "Cadastro incompleto"; o BKO mantém (RN-CORE-17)', () => {
+    expect(ler('modules/core/app/telas/clientes.tsx')).not.toContain('EtiquetaCadastroIncompleto');
     expect(ler('modules/core/web/components/carteira/carteira-page.tsx')).toContain('EtiquetaCadastroIncompleto');
   });
 });
