@@ -1,6 +1,7 @@
 /**
  * Lista Rascunhos do Vendedor (RN-VEN-38/39, T-0141 F; spec docs/design/pedido-v3.md §F). Funções puras, sem React: as regras de
  * quem aparece e quando some são do domain (`domain/rascunhos.ts`); aqui só os textos de cada linha. Tudo do aparelho (vale offline).
+ * T-0171 (RD-0214): a linha diz um fato só, além do cliente e do total: "Alterado hoje às 05:51" ou, na edição, "Edição do pedido 000013".
  */
 import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
 
@@ -24,15 +25,14 @@ export interface LinhaDeRascunho {
   cliente: string;
   /** `null` = sem tabela de preço no aparelho para calcular */
   total_cents: number | null;
-  apoio: string;
+  /** "Edição do pedido 000013"; `null` quando não é edição */
+  edicao: string | null;
   /** "Alterado hoje às 05:51"; fora da carteira, a frase da carteira */
   alterado: string;
   /** "Some em 2 h" / "Some em 40 min" nas últimas 3 h */
   someEm: string | null;
   foraDaCarteira: boolean;
 }
-
-export const textoDeItens = (n: number): string => (n === 0 ? 'sem itens' : n === 1 ? '1 item' : `${n} itens`);
 
 /** "Alterado hoje às 05:51" / "ontem às ..." / "07/11 às ..." no fuso do tenant. */
 export function textoDaAlteracao(iso: string, agora: Date, tz: string): string {
@@ -45,7 +45,7 @@ export function textoDaAlteracao(iso: string, agora: Date, tz: string): string {
 
 export function linhasDosRascunhos(a: {
   rascunhos: Readonly<Record<string, Rascunho>>;
-  clientes: ReadonlyArray<{ id: string; trade_name: string; erp_code: string }>;
+  clientes: ReadonlyArray<{ id: string; trade_name: string }>;
   pedidos: ReadonlyArray<{ id: string; number: string; tipo?: 'pedido' | 'orcamento' }>;
   totalDoRascunho: (r: Rascunho) => number | null;
   agora: Date;
@@ -54,14 +54,11 @@ export function linhasDosRascunhos(a: {
   return rascunhosParaLista(a.rascunhos, a.agora).map((l): LinhaDeRascunho => {
     const r = a.rascunhos[l.chave]!;
     const cliente = a.clientes.find((c) => c.id === l.customer_id);
-    const itens = textoDeItens(l.itens);
-    let apoio: string;
+    let edicao: string | null = null;
     if (l.edicao_de) {
       const registro = a.pedidos.find((p) => p.id === l.edicao_de);
       const tipo = (registro?.tipo ?? r.tipo) === 'orcamento' ? 'orçamento' : 'pedido';
-      apoio = `Edição do ${tipo}${registro?.number ? ` ${registro.number}` : ''} · ${itens}`;
-    } else {
-      apoio = `${cliente ? `cód. ${cliente.erp_code} · ` : ''}${itens}`;
+      edicao = `Edição do ${tipo}${registro?.number ? ` ${registro.number}` : ''}`;
     }
     return {
       chave: l.chave,
@@ -69,10 +66,14 @@ export function linhasDosRascunhos(a: {
       edicao_de: l.edicao_de,
       cliente: cliente?.trade_name ?? 'Cliente',
       total_cents: a.totalDoRascunho(r),
-      apoio,
+      edicao,
       alterado: cliente ? textoDaAlteracao(l.atualizado_em, a.agora, a.tz) : TEXTOS_RASCUNHOS.foraDaCarteira,
       someEm: textoSomeEm(minutosParaSumir(r, a.agora)),
       foraDaCarteira: !cliente,
     };
   });
 }
+
+/** O fato único da linha: fora da carteira, a frase da carteira; na edição, o registro editado; senão, a hora da alteração. */
+export const fatoDaLinha = (l: Pick<LinhaDeRascunho, 'foraDaCarteira' | 'edicao' | 'alterado'>): string =>
+  l.foraDaCarteira || !l.edicao ? l.alterado : l.edicao;
