@@ -11,6 +11,8 @@
 --   cliente_endereco, preco, tabela_escalonada, estoque, rota, titulo, nota.
 --   A entrada de PEDIDOS (Macuxi -> ERP) tem modelo próprio: db/conector/entrada-pedido-modelo.sql.
 --   Crie só as views das entidades que o tenant liga no Conector (lista "entidades" no BKO).
+--   T-0162: no fim, as 2 views do RETORNO do pedido (16 e 17), que NÃO são entidades de carga: o Conector as lê em
+--   "pedidos.status" do conector.json (situação, nota e itens faturados de cada pedido gravado pela entrada).
 --
 -- REGRAS DE TODA VIEW
 --   1. O nome de cada coluna é o NOME DO CAMPO no contrato canônico (modules/integracao/contracts/entidades.ts). Assim a
@@ -561,3 +563,75 @@ SELECT
     n.pedido_macuxi_uuid                                     AS pedido_uuid,     -- NULL se a nota não veio do Macuxi
     CASE WHEN n.cancelada = 'S' THEN 1 ELSE 0 END            AS cancelada
 FROM erp_nota_fiscal n;
+
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- 16. pedido_status (T-0162; RN-INT-08) — RETORNO do pedido, não é entidade de carga. O Conector consulta por pedido em
+--     "pedidos.status.consulta" do conector.json (WHERE pedido_uuid = :pedido_uuid ORDER BY ocorrido_em) e traduz
+--     situacao pelo "mapaStatus" (exemplo: I integrado, R rejeitado_erp, P faturado_parcial, F faturado_total, C cancelado).
+--     Uma linha por FATO: a situação do pedido (1º SELECT) e uma linha por nota de faturamento (2º SELECT).
+--     REGRAS (o Hub recusa o retorno fora delas, contrato RetornoErp):
+--       - faturado (P/F) só sai COM nota: o pedido faturado aparece no 1º SELECT como I (já informado; o Conector não
+--         repete o mesmo fato) e cada nota sai no 2º. Só a nota mais nova pode ser F; as anteriores o Conector manda como P.
+--       - rejeitado (R) sai sempre com motivo (até 300; sem dado pessoal): sem motivo no ERP, um texto fixo.
+--       - numero_pedido = número do pedido no ERP (vai como numero_erp); ocorrido_em e nota_emitida_em em UTC (regra 3).
+--     ERP que usa a entrada-modelo sem pedido próprio: a view lê a própria macuxi_pedido_entrada (situacao, motivo) com as
+--     colunas de nota que a rotina de faturamento grava (exemplo pronto: modules/integracao/kit-piloto/sql/03).
+--     Índices no ERP: erp_pedido(pedido_macuxi_uuid) e erp_nota_fiscal(pedido_macuxi_uuid) (consulta por pedido, a cada ciclo).
+-- ---------------------------------------------------------------------------------------------------------------------
+CREATE VIEW vw_macuxi_pedido_status AS
+SELECT
+    p.pedido_macuxi_uuid                                     AS pedido_uuid,     -- UUID do Macuxi gravado pela entrada
+    CASE p.situacao WHEN 'R' THEN 'R' WHEN 'C' THEN 'C' ELSE 'I' END AS situacao, -- código do ERP traduzido pelo mapaStatus
+    CAST(p.numero AS VARCHAR(40))                            AS numero_pedido,   -- número do pedido no ERP (até 40)
+    CASE WHEN p.situacao = 'R' THEN COALESCE(NULLIF(LTRIM(RTRIM(p.motivo)), ''), 'Recusado no ERP')
+         ELSE NULLIF(LTRIM(RTRIM(p.motivo)), '') END         AS motivo,
+    CAST(NULL AS VARCHAR(40))                                AS nota_numero,
+    CAST(NULL AS VARCHAR(10))                                AS nota_serie,
+    CAST(NULL AS DATETIME2(3))                               AS nota_emitida_em,
+    CAST(NULL AS DECIMAL(19,0))                              AS nota_total_cents,
+    -- [Oracle]     CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(COALESCE(p.dt_situacao, p.dt_inclusao) AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3)) AS ocorrido_em
+    -- [SQL Server]
+    CAST(COALESCE(p.dt_situacao, p.dt_inclusao) AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)) AS ocorrido_em
+FROM erp_pedido p
+WHERE p.pedido_macuxi_uuid IS NOT NULL
+UNION ALL
+SELECT
+    n.pedido_macuxi_uuid,
+    CASE WHEN p.situacao = 'F' THEN 'F' ELSE 'P' END,                            -- pedido fechado = F; ainda com saldo = P
+    CAST(p.numero AS VARCHAR(40)),
+    CAST(NULL AS VARCHAR(300)),
+    CAST(n.numero AS VARCHAR(40)),
+    CAST(n.serie AS VARCHAR(10)),
+    -- [Oracle]     CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(n.dt_emissao AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3)) (2 vezes)
+    CAST(n.dt_emissao AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3)),
+    CAST(ROUND(n.valor_total * 100, 0) AS DECIMAL(19,0)),
+    CAST(n.dt_emissao AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3))
+FROM erp_nota_fiscal n
+JOIN erp_pedido p ON p.pedido_macuxi_uuid = n.pedido_macuxi_uuid
+WHERE n.tipo_operacao <> 'D'                                                     -- devolução não é faturamento do pedido
+  AND n.cancelada = 'N';
+
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- 17. pedido_nota_item (T-0162; RN-INT-08) — itens faturados em CADA nota do pedido, não é entidade de carga. O Conector
+--     consulta em "pedidos.status.consultaItensNota" (WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero e a
+--     série) e manda como itens_faturados. Colunas OBRIGATÓRIAS: sequencia (a do item no pedido do Macuxi, gravada pela
+--     entrada; inteiro > 0), quantidade (inteiro > 0, na unidade base), valor_cents (centavos >= 0) e produto_codigo (a
+--     MESMA chave da vw_macuxi_produto.external_id). Linha fora disso = o retorno vai SEM itens_faturados e o monitor avisa.
+--     Linhas da mesma sequência na mesma nota SOMAM (o ERP pode partir o item em lotes): não repita a mesma linha.
+-- ---------------------------------------------------------------------------------------------------------------------
+CREATE VIEW vw_macuxi_pedido_nota_item AS
+SELECT
+    n.pedido_macuxi_uuid                                     AS pedido_uuid,
+    CAST(n.numero AS VARCHAR(40))                            AS nota_numero,
+    CAST(n.serie AS VARCHAR(10))                             AS nota_serie,
+    i.seq_pedido_macuxi                                      AS sequencia,       -- sequência do item no pedido do Macuxi
+    i.qtd_unidade_base                                       AS quantidade,      -- inteiro > 0, na unidade base
+    CAST(ROUND(i.valor_total * 100, 0) AS DECIMAL(19,0))     AS valor_cents,
+    CAST(i.id_produto AS VARCHAR(200))                       AS produto_codigo   -- external_id do produto (view 6)
+FROM erp_nota_item i
+JOIN erp_nota_fiscal n ON n.id_nota = i.id_nota
+WHERE n.pedido_macuxi_uuid IS NOT NULL
+  AND n.tipo_operacao <> 'D'
+  AND n.cancelada = 'N';

@@ -134,10 +134,15 @@ Testes: `db/testes/ajuste-valor-produto-relacao.test.ts` (RLS, checks, únicos, 
 
 ### Base de demo (T-0071)
 Produtos novos (Varejo e Atacado, com estoque): `FIL-103` Filtro de papel 103 c/ 30 (R$ 5,49), `LPO-400` Leite em pó integral
-400 g (R$ 16,90) e `AGU-1500` Água mineral 1,5 L (fardo 6) (R$ 19,90). `ACU-1K` Açúcar cristal 1 kg passa a R$ 4,99.
+400 g (R$ 16,90) e `AGU-1500` Água mineral 1,5 L (R$ 3,32 a UN). `ACU-1K` Açúcar cristal 1 kg passa a R$ 4,99.
 Relações: `CAF-500` → `ACU-1K`, `FIL-103`, `LPO-400` (complementar, ordem 1..3); `AGU-500` → `AGU-1500` (superior). Embalagens
 da referência: `CAF-500` CX c/ 12 e `BIS-400` CX c/ 20, ambas UN × fator (R$ 226,80 e R$ 117,80). O preço próprio do café
 (R$ 215,46) saiu na T-0089 (RN-VEN-15: não existe preço próprio da embalagem; `PRECO_PROPRIO_CX_LIGADO = false`).
+T-0165 (v1.0.5): a `AGU-1500` passa a ter duas embalagens para a escolha na folha do item, `UN` (base, padrão, R$ 3,32) e
+`FD` c/ 6 (UN × 6 = R$ 19,92); era só `FD` a R$ 19,90. A linha do `FD` mantém o id de antes (`produto_unidade:AGU-1500:FD`) com
+fator 6 e `padrao = false`; na recarga sem `--recriar` o seed tira o padrão dela antes do upsert (`produto_unidade_padrao_uk`)
+e grava a `UN` nova, então a base fica igual à do `--recriar`. A embalagem do produto (`embalagem_medida`/`embalagem_quantidade`)
+vira `FD`/6.
 
 ## 0033 — aplicação, etiquetas, referência cruzada e busca (`0033_catalogo_aplicacao_referencia`; T-0084 e T-0085)
 Desenhos `docs/desenho/T-0084.md` §6 e `T-0085.md` §7; regras RN-CAT-09 (referência cruzada), RN-CAT-11 (aplicação), RN-CAT-12

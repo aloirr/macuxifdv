@@ -176,6 +176,19 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > insere e lê o próprio tenant, worker só marca `alerta_*`), `sa_listar_diagnosticos` e `sa_diagnostico` (portal, só
 > super-admin; 16 `sa_*` no portal) e `expurgar_diagnosticos` (worker, 90 dias com o print). Detalhes no
 > [plataforma.md](plataforma.md), [rls.md](rls.md) e [lgpd.md](lgpd.md).
+>
+> **2026-11-11 (T-0095):** `0062_core_catalogo_erp_ordem` (em cima da 0061; aditiva): `erp_alterado_em timestamptz(3)` nula em
+> `core.cliente_endereco`, `produto_unidade`, `titulo`, `nota_erp`, `rota`, `filial` e `catalogo.tabela_preco_item`,
+> `estoque_saldo`, `cliente_tabela_preco`; `desligado_no_bko_em` em `core.filial` e `catalogo.tabela_preco`. Gatilhos
+> `<tabela>_versao_erp` (versão do ERP mais antiga não grava, nas 12 tabelas com a coluna) e `<tabela>_desligado_no_bko` (a carga
+> não reativa o que o BKO desligou: usuario, filial, tabela_preco), funções `plataforma.manter_versao_erp` e
+> `plataforma.manter_desligado_no_bko`, 5 índices `<tabela>_erp_versao_ix`. Detalhes no [core.md](core.md) e no
+> [catalogo.md](catalogo.md); teste `db/testes/erp-ordem.test.ts`.
+>
+> **2026-11-12 (T-0168, RN-VEN-11a):** `0063_core_usuario_limite_desconto` (em cima da 0062; aditiva): `core.usuario` ganha
+> `desconto_limita_item` (padrão true), `desconto_limita_pedido` (padrão false) e `desconto_maximo_pedido_permil` (‰, 0..1000,
+> nulo) com os CHECKs `usuario_desconto_pedido_permil_faixa` e `usuario_desconto_pedido_com_limite`. Usuários antigos ficam com o
+> padrão. Detalhes no [core.md](core.md); teste `db/testes/usuario-limite-desconto.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

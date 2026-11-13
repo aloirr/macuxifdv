@@ -110,7 +110,9 @@ describe('0018 medidas (estático)', () => {
     for (const p of d['core.produto']) expect(ativa.has(String(p.unidade)), String(p.sku)).toBe(true);
     for (const u of d['core.produto_unidade']) expect(ativa.has(String(u.unidade))).toBe(true);
     expect(m.embalagens.length).toBeGreaterThanOrEqual(3);
-    expect(m.embalagens.every(([, medida, qtd]) => medida === 'CX' && qtd > 1)).toBe(true);
+    expect(m.embalagens.every(([, medida, qtd]) => ['CX', 'FD'].includes(medida) && qtd > 1)).toBe(true);
+    // T-0165: a água 1,5 L (UN) tem a embalagem FD c/ 6; as demais são CX
+    expect(m.embalagens.filter(([, medida]) => medida === 'FD')).toEqual([[String(d['core.produto'].find((p) => p.sku === 'AGU-1500')!.id), 'FD', 6]]);
     expect(m.embalagens.some(([, , qtd]) => qtd === 12)).toBe(true);
   });
 });

@@ -36,6 +36,8 @@ export const tabelaPreco = catalogo.table('tabela_preco', {
   codigo: text('codigo').notNull(),
   nome: text('nome').notNull(),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0062 (T-0095): gravada pela API do BKO ao desativar, limpa ao reativar; preenchida, a carga do ERP não reativa (gatilho <tabela>_desligado_no_bko). Fora do pull. */
+  desligado_no_bko_em: timestamp('desligado_no_bko_em', { withTimezone: true, precision: 3 }),
 });
 
 /**
@@ -56,6 +58,8 @@ export const tabelaPrecoItem = catalogo.table('tabela_preco_item', {
    * escrita vira a padrão (gatilho). Único vivo: (tabela, filial, produto, unidade, início).
    */
   filial_id: uuid('filial_id').notNull(),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 /** A tabela de preço do cliente: no máximo uma viva por cliente. Sem linha = todo produto sem preço (RN-CAT-06). */
@@ -63,6 +67,8 @@ export const clienteTabelaPreco = catalogo.table('cliente_tabela_preco', {
   ...comuns(),
   cliente_id: uuid('cliente_id').notNull(),
   tabela_preco_id: uuid('tabela_preco_id').notNull(),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -202,6 +208,8 @@ export const estoqueSaldo = catalogo.table('estoque_saldo', {
   produto_id: uuid('produto_id').notNull(),
   quantidade: numeric('quantidade', { precision: 14, scale: 3 }).notNull().default('0'),
   atualizado_erp_em: timestamp('atualizado_erp_em', { withTimezone: true }),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 export const ORIGENS_BUSCA_LOG = ['llm', 'regras', 'cache', 'offline'] as const;
