@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -535,7 +535,8 @@ export const visitaEtapa = core.table('visita_etapa', {
 export const TIPOS_NOTIFICACAO_BANCO = ['recado', 'sistema', 'pedido', 'treinamento', 'trade'] as const;
 
 /** Subtipos de notificação conhecidos (0030, T-0039): 'etapa_pendente_checkout' = alerta da etapa pendente no checkout. */
-export const SUBTIPOS_NOTIFICACAO_CONHECIDOS = ['etapa_pendente_checkout'] as const;
+/** 'tarefa' (0064, T-0170, RN-CORE-TAR-07) = aviso da tarefa ao consultor (tipo 'sistema'; único com tarefa_id). */
+export const SUBTIPOS_NOTIFICACAO_CONHECIDOS = ['etapa_pendente_checkout', 'tarefa'] as const;
 
 /**
  * Notificação do usuário. Únicos parciais por (usuário, origem_evento_id) e (usuário, envio_id).
@@ -543,6 +544,8 @@ export const SUBTIPOS_NOTIFICACAO_CONHECIDOS = ['etapa_pendente_checkout'] as co
  * tipo = 'recado' (CHECK _so_recado), um por pessoa por dia (único vivo notificacao_recado_do_dia_uk).
  * 0030 (T-0039): subtipo (text, nulo, formato ^[a-z_]{1,40}$, sem índice); valores conhecidos em SUBTIPOS_NOTIFICACAO_CONHECIDOS
  * (a lista é do Core, não do banco: subtipo novo não pede migração).
+ * 0064 (T-0170): tarefa_id (FK composta core.tarefa) só com subtipo 'tarefa' (CHECK notificacao_tarefa_subtipo); um aviso por
+ * (usuário, tarefa) (único notificacao_tarefa_uk).
  */
 export const notificacao = core.table('notificacao', {
   ...comuns(),
@@ -563,8 +566,14 @@ export const notificacao = core.table('notificacao', {
   recado_do_dia_por: uuid('recado_do_dia_por'),
   /** 0030 (T-0039): marcador estável dentro do tipo; null = sem subtipo. CHECK notificacao_subtipo_formato (^[a-z_]{1,40}$). */
   subtipo: text('subtipo'),
+  /** 0064 (T-0170): aviso da tarefa; nulo nas outras notificações. */
+  tarefa_id: uuid('tarefa_id'),
 });
 
+/**
+ * Indicadores da meta mensal. A 0066 (T-0170) já aceita 'itens_por_pedido' no CHECK meta_indicador_valido; o valor entra aqui
+ * junto com o INDICADORES_META do contrato (modules/core/contracts/sync.ts; estatico.test.ts compara as duas listas).
+ */
 export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
 
 /** Tipo da meta (0019, RN-CORE-21): realizado por pedido aprovado (data de emissão) ou por faturamento (data do ERP). */
@@ -635,4 +644,122 @@ export const planoRv = core.table('plano_rv', {
   valor_maximo_cents: bigint('valor_maximo_cents', { mode: 'number' }).notNull(),
   regras: jsonb('regras').$type<RegraPlanoRvBanco[]>().notNull(),
   atualizado_por: uuid('atualizado_por'),
+});
+
+/** 0064 (T-0170): tipos da tarefa (CHECK tarefa_tipo_valido; espelha TIPOS_TAREFA de modules/core/contracts/tarefa.ts). */
+export const TIPOS_TAREFA_BANCO = ['simples', 'foto', 'pesquisa'] as const;
+/** 0064 (T-0170): para quem a tarefa foi criada (CHECK tarefa_alvo_valido); só para o BKO mostrar. */
+export const ALVOS_TAREFA_BANCO = ['usuarios', 'equipe', 'todos'] as const;
+
+/**
+ * Tarefa do consultor como foi cadastrada no BKO (0064, T-0170, RN-CORE-TAR-01..12). id gerado no BKO (idempotência).
+ * titulo 1..120; descricao <= 1000; prazo = data civil no fuso do tenant; questionario_id (schema pesquisa, SEM FK) só e sempre
+ * no tipo pesquisa; equipe_id só e sempre no alvo equipe; cancelada_em e cancelada_por juntos; motivo <= 300, só na cancelada.
+ * Gatilho tarefa_tocar_destinatarios: mudar o que o aparelho mostra anda o updated_at dos destinatários. Fora do pull direto
+ * (vai ao aparelho pela linha do destinatário).
+ */
+export const tarefa = core.table('tarefa', {
+  ...comuns(),
+  autor_id: uuid('autor_id').notNull(),
+  titulo: text('titulo').notNull(),
+  descricao: text('descricao'),
+  prazo: date('prazo').notNull(),
+  cliente_id: uuid('cliente_id'),
+  tipo: text('tipo', { enum: TIPOS_TAREFA_BANCO }).notNull(),
+  questionario_id: uuid('questionario_id'),
+  alvo: text('alvo', { enum: ALVOS_TAREFA_BANCO }).notNull(),
+  equipe_id: uuid('equipe_id'),
+  cancelada_em: timestamp('cancelada_em', { withTimezone: true }),
+  cancelada_por: uuid('cancelada_por'),
+  motivo_cancelamento: text('motivo_cancelamento'),
+});
+
+/**
+ * Uma linha por consultor da tarefa (0064, T-0170): a que vai ao aparelho (pull `tarefa`, escopo proprio). Único vivo por
+ * (tarefa, usuário); conclusao_id (UUID do comando `tarefa_conclusao`) único no tenant; concluida_em (hora do aparelho) e
+ * recebida_em (hora do servidor) juntos; observacao <= 500; resposta_id = resposta da Pesquisa (SEM FK); suspeita = relógio
+ * adiantado (RN-CORE-TAR-06).
+ */
+export const tarefaDestinatario = core.table('tarefa_destinatario', {
+  ...comuns(),
+  tarefa_id: uuid('tarefa_id').notNull(),
+  usuario_id: uuid('usuario_id').notNull(),
+  concluida_em: timestamp('concluida_em', { withTimezone: true }),
+  recebida_em: timestamp('recebida_em', { withTimezone: true }),
+  conclusao_id: uuid('conclusao_id'),
+  observacao: text('observacao'),
+  resposta_id: uuid('resposta_id'),
+  suspeita: boolean('suspeita').notNull().default(false),
+});
+
+/**
+ * Frase do dia do Início (0065, T-0170, RN-CORE-41). texto 1..120 depois do trim, único vivo sem diferenciar maiúsculas;
+ * padrao_codigo P01..P30 nas 30 do FDV (único por tenant SEM filtro de deleted_at: a padrão removida não volta), nulo nas do
+ * tenant. As 30 nascem com o tenant (gatilho tenant_semear_frase_dia; id uuid_de_chave('<tenant>:core.frase_dia:<código>')).
+ * Pull escopo tenant (inclui removidas).
+ */
+export const fraseDia = core.table('frase_dia', {
+  ...comuns(),
+  texto: text('texto').notNull(),
+  ativa: boolean('ativa').notNull().default(true),
+  ordem: integer('ordem').notNull(),
+  padrao_codigo: text('padrao_codigo'),
+});
+
+/** 0065 (T-0170): espelham TIPOS_AVATAR e AVATARES de modules/core/contracts/avatar.ts (CHECKs usuario_avatar_*). */
+export const TIPOS_AVATAR_BANCO = ['iniciais', 'avatar', 'foto'] as const;
+export const AVATARES_BANCO = ['m1', 'm2', 'm3', 'f1', 'f2', 'f3'] as const;
+
+/**
+ * Foto ou avatar do usuário (0065, T-0170, RN-CORE-42): uma linha por troca; a viva é a escolha atual (uma por usuário,
+ * usuario_avatar_vivo_uk); sem viva = iniciais. avatar_codigo só e sempre no tipo avatar; arquivo_id (plataforma.arquivo, SEM
+ * FK) só e sempre na foto, único no tenant. alterado_em decide quem vence. Pull escopo usuários visíveis.
+ */
+export const usuarioAvatar = core.table('usuario_avatar', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_AVATAR_BANCO }).notNull(),
+  avatar_codigo: text('avatar_codigo', { enum: AVATARES_BANCO }),
+  arquivo_id: uuid('arquivo_id'),
+  alterado_em: timestamp('alterado_em', { withTimezone: true }).notNull(),
+  alterado_por: uuid('alterado_por').notNull(),
+});
+
+/** 0066 (T-0170): espelham ESCOPOS_META_PRODUTIVIDADE e INDICADORES_PRODUTIVIDADE de modules/core/contracts/performance.ts. */
+export const ESCOPOS_META_PRODUTIVIDADE_BANCO = ['tenant', 'equipe', 'usuario'] as const;
+export const INDICADORES_PRODUTIVIDADE_BANCO = [
+  'primeiro_checkin', 'ultimo_checkin', 'tma', 'tmd', 'almoco', 'jornada_liquida',
+  'fora_rota', 'visitas_dia', 'cobertura_rota', 'raio_checkin', 'km_dia', 'km_cliente',
+] as const;
+
+/**
+ * Meta de produtividade (0066, T-0170) por escopo tenant|equipe|usuario; equipe_id/usuario_id só e sempre no escopo deles.
+ * valor >= 0 na unidade do indicador (faixa no domain); vigencia_inicio 'AAAA-MM'. Único vivo por (tenant, escopo, alvo,
+ * indicador, vigência) — meta_produtividade_vigencia_uk. Pull: todas as vivas do tenant.
+ */
+export const metaProdutividade = core.table('meta_produtividade', {
+  ...comuns(),
+  escopo: text('escopo', { enum: ESCOPOS_META_PRODUTIVIDADE_BANCO }).notNull(),
+  equipe_id: uuid('equipe_id'),
+  usuario_id: uuid('usuario_id'),
+  indicador: text('indicador', { enum: INDICADORES_PRODUTIVIDADE_BANCO }).notNull(),
+  valor: integer('valor').notNull(),
+  vigencia_inicio: text('vigencia_inicio').notNull(),
+  atualizado_por: uuid('atualizado_por'),
+});
+
+/**
+ * Resumo diário do km do usuário (0066, T-0170; mantido pelo servidor com os pontos do rastreamento da T-0156 — vazio até
+ * lá). Único vivo por (tenant, usuário, data); metros e pontos >= 0; primeiro/último ponto juntos; origem 'rastreamento'.
+ * Sem coordenada. Pull com a janela das visitas, escopo de usuário.
+ */
+export const deslocamentoDia = core.table('deslocamento_dia', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  data: date('data').notNull(),
+  metros: integer('metros').notNull().default(0),
+  pontos: integer('pontos').notNull().default(0),
+  primeiro_ponto_em: timestamp('primeiro_ponto_em', { withTimezone: true }),
+  ultimo_ponto_em: timestamp('ultimo_ponto_em', { withTimezone: true }),
+  origem: text('origem', { enum: ['rastreamento'] }).notNull().default('rastreamento'),
 });
