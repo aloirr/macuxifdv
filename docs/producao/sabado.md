@@ -82,6 +82,7 @@ Resumo para o dia; os detalhes estão no `docs/status/producao.md` §6.
 ## 5. Contatos do dia
 | Quem | Para quê |
 |---|---|
+| Alexandre | recado de aprovação, portal `config.` (passos 5 e 8), dados do cliente, decisão de adiar |
 | gerente-projetos | ordem dos passos, tag, workflows, recados |
 | engenheiro-software | deploy, VM, saúde, portal |
 | banco-dados | empresa errada, backup, restauração |

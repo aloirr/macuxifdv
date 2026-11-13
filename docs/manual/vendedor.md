@@ -63,7 +63,7 @@ Na ficha:
 - **Contatos**, **Endereços de entrega**, **Sugestão de mix** e **Últimos pedidos**;
 - no rodapé, **Check-in** e **Novo pedido**.
 
-Etiqueta **Cadastro incompleto**: o cliente pode ser visitado normalmente. As Observações dizem o que falta no cadastro do ERP.
+Etiqueta **Cadastro incompleto**: o cliente pode ser visitado normalmente, mas o pedido sai só como orçamento (seção 7, Alertas). As Observações dizem o que falta no cadastro do ERP.
 
 ### Fotos do PDV
 O bloco **Fotos do PDV** lista os tipos que a empresa pede (Fachada, CNH do sócio, Contrato social…), cada um com **Tem**, **Falta**, **Opcional** ou **Na fila**.
