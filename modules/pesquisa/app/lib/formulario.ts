@@ -85,6 +85,11 @@ export function errosPorPergunta(erros: readonly ErroResposta[]): Record<string,
   return m;
 }
 
+/** Mensagem do 1º erro que não é de pergunta (a faixa só existe para esse caso; erro de pergunta fica na própria pergunta). */
+export function erroGeral(erros: readonly ErroResposta[]): string | null {
+  return erros.find((e) => !e.pergunta_id)?.mensagem ?? null;
+}
+
 /** Ids das fotos do envio (vão para a fila de arquivos do motor, ADR 0010). */
 export function fotosDoEnvio(envio: RespostaEnvio): string[] {
   return envio.itens.flatMap((i) => (i.tipo === 'foto' ? i.fotos.map((f) => f.id) : []));

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { ItemResposta, QuestionarioVersao } from '../../contracts';
 import { CampoPergunta } from '../components/campo-pergunta';
-import { camposVisiveis, chaveDoRascunho, errosPorPergunta, novoRascunho, prepararEnvio, progresso, responder, type RascunhoResposta } from '../lib/formulario';
+import { camposVisiveis, chaveDoRascunho, erroGeral, errosPorPergunta, novoRascunho, prepararEnvio, progresso, responder, type RascunhoResposta } from '../lib/formulario';
 import { hrefPesquisas } from '../rotas';
 import { usePesquisa } from '../state/use-pesquisa';
 
@@ -74,7 +74,7 @@ export default function ResponderScreen() {
     const p = prepararEnvio(versao, rascunho, { agora: agora().toISOString(), parametros });
     if (!p.ok) {
       setErros(errosPorPergunta(p.erros));
-      setMensagem(p.erros[0]?.mensagem ?? 'Confira as respostas destacadas.');
+      setMensagem(erroGeral(p.erros));
       return;
     }
     setErros({});
@@ -90,7 +90,7 @@ export default function ResponderScreen() {
       const p = await enviar(versao, chave, rascunho);
       if (!p.ok) {
         setErros(errosPorPergunta(p.erros));
-        setMensagem(p.erros[0]?.mensagem ?? 'Confira as respostas destacadas.');
+        setMensagem(erroGeral(p.erros));
         return;
       }
       setErros({});
@@ -149,12 +149,6 @@ export default function ResponderScreen() {
             <Text style={t.bodyStrong} testID="pesquisa.progresso">
               {pr.respondidas} de {pr.visiveis}
             </Text>
-            {pr.obrigatorias_faltando > 0 ? (
-              <ChipEstado tom="aviso" texto={pr.obrigatorias_faltando === 1 ? 'Falta 1 obrigatória' : `Faltam ${pr.obrigatorias_faltando} obrigatórias`} />
-            ) : (
-              <ChipEstado tom="sucesso" icone="check" texto="Pronta para enviar" />
-            )}
-            <ChipEstado tom="neutro" texto="Salvo no aparelho" />
           </View>
         </View>
 

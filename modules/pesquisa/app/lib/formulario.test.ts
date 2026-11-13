@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { foto, item, publicada, regra, sim_nao, texto, u } from '../../domain/util-teste';
-import { camposVisiveis, chaveDoRascunho, errosPorPergunta, fotosDoEnvio, novoRascunho, prepararEnvio, progresso, responder } from './formulario';
+import { camposVisiveis, chaveDoRascunho, erroGeral, errosPorPergunta, fotosDoEnvio, novoRascunho, prepararEnvio, progresso, responder } from './formulario';
 
 const AGORA = '2026-10-31T13:00:00Z';
 // P1 "Tem ponto extra?"; P2 obrigatória, só aparece se P1 = sim; P3 foto opcional
@@ -64,5 +64,12 @@ describe('RF-PES-04 / RN-PES-04: envio para a fila', () => {
   it('ADR 0010: as fotos do envio vão para a fila de arquivos', () => {
     const p = prepararEnvio(v, responder(responder(base(), item.simNao(1, false)), item.foto(3, [10, 11])), { agora: AGORA });
     expect(p.ok && fotosDoEnvio(p.envio)).toEqual([u(10), u(11)]);
+  });
+});
+
+describe('RD-0184: erro na própria pergunta, faixa só para erro geral', () => {
+  it('RN-CORE-36: erro de pergunta não vira faixa; erro sem pergunta vira', () => {
+    expect(erroGeral([{ pergunta_id: 'a', mensagem: 'x' } as never])).toBeNull();
+    expect(erroGeral([{ pergunta_id: 'a', mensagem: 'x' } as never, { mensagem: 'geral' } as never])).toBe('geral');
   });
 });
