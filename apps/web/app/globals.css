@@ -6,7 +6,7 @@
 
 /* Tokens do backoffice (docs/07-web-bko.md e mockups Bko*.dc.html). */
 @theme inline {
-  --color-ground: #f3f4f1;
+  --color-ground: #f8f6f1;
   --color-surface: #ffffff;
   --color-ink: #16202a;
   --color-ink-2: #4a5562;
@@ -14,12 +14,17 @@
   --color-line: #e1e4de;
   --color-line-2: #eceee9;
   --color-field: #c9cec6;
-  --color-accent: #c2540a;
+  --color-accent: #1e3350;
   --color-accent-light: #f59a52;
-  --color-accent-ink: #8f3d06;
-  --color-accent-soft: #fbe9dc;
-  /* texto e ícone sobre o laranja cheio (onAccent do kit; 4,60:1, docs/design/componentes.md §1.1) */
+  --color-accent-ink: #1e3350;
+  --color-accent-soft: #dfe2e6;
+  /* texto e ícone sobre o Azul noite cheio (onAccent do kit; marca v1, docs/design/componentes.md §1.1) */
   --color-on-accent: #ffffff;
+  /* marca v1 (T-0172): laranja só em gráfico; faixa Azul noite do cabeçalho com o texto claro */
+  --color-grafico: #c2540a;
+  --color-grafico-escuro: #f59a52;
+  --color-faixa: #1e3350;
+  --color-faixa-texto: #c9ced5;
   --color-success: #1d6b4f;
   --color-success-soft: #e2f1ea;
   --color-warning: #7a4f00;

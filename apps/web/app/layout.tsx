@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: 'Backoffice Macuxi FDV: shell que monta as páginas dos módulos efetivos do usuário.',
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#16202A' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#1E3350' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

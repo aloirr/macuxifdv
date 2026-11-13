@@ -23,6 +23,7 @@ import { cx, ErrorBlock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macux
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
+import { PROPORCAO_SIMBOLO, SRC_SIMBOLO_NEGATIVO } from '@/lib/logo-marca';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
@@ -49,7 +50,8 @@ function NavLink({ item, active, compact }: { item: NavItem; active: boolean; co
       data-testid={item.testId}
       aria-current={active ? 'page' : undefined}
       className={cx(
-        'flex h-10 shrink-0 items-center justify-between gap-2 rounded-[10px] px-3 text-[14px] whitespace-nowrap no-underline transition-colors',
+        // foco branco no grafite (o Azul noite do outline-accent some no grafite, 1,29:1; T-0172)
+        'flex h-10 shrink-0 items-center justify-between gap-2 rounded-[10px] px-3 text-[14px] whitespace-nowrap no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active/60 hover:text-white',
         compact && 'h-9 text-[13px]',
       )}
@@ -62,7 +64,8 @@ function NavLink({ item, active, compact }: { item: NavItem; active: boolean; co
 function Brand({ product, company }: { product: string; company: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-accent font-display text-[15px] font-extrabold text-on-accent">M</span>
+      {/* símbolo negativo da marca v1 (T-0172) direto no grafite: o Azul noite não encosta no grafite (manual §3) */}
+      <img src={SRC_SIMBOLO_NEGATIVO} alt="" aria-hidden="true" width={32} height={Math.round(32 / PROPORCAO_SIMBOLO)} className="block h-auto w-8 shrink-0" />
       <div className="flex min-w-0 flex-col">
         <span className="truncate font-display text-[15px] font-bold text-white">{product}</span>
         <span className="truncate text-[12px] text-nav-text">{company}</span>
@@ -165,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="truncate text-[14px] font-semibold">{user?.name ?? '—'}</span>
             <span className="text-[12px] text-nav-text">{roleLabel}</span>
           </div>
-          <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className="flex h-9 items-center gap-2 rounded-[10px] px-0 text-[13px] font-semibold text-nav-text hover:text-white">
+          <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className="flex h-9 items-center gap-2 rounded-[10px] px-0 text-[13px] font-semibold text-nav-text hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <IconLogout size={15} />
             Trocar perfil
           </button>
@@ -176,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav aria-label="Menu do backoffice" className="flex flex-col gap-3 bg-ink px-4 pt-4 pb-3 text-white md:hidden">
         <div className="flex items-center justify-between gap-3">
           <Brand product={product} company={company} />
-          <button type="button" onClick={switchProfile} className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text">
+          <button type="button" onClick={switchProfile} className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <IconLogout size={14} />
             Trocar perfil
           </button>

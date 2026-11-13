@@ -1,9 +1,11 @@
 /**
- * T-0059 — teste de componente da tela de carga (rota `/sync`), renderizada com `react-dom/server` e com
- * `react-native`, o roteador e o estado da plataforma simulados.
- * - R-20261102-091336: o motor termina com sucesso → a tela navega para `/` pelo ESTADO (também com a tela remontada
- *   e depois de sair e voltar ao app); com "Pronto" há sempre o botão "Entrar no app".
- * - R-20261102-090915: nenhum nome técnico de entidade/etapa/módulo aparece; frase amigável; erro com "Tentar de novo".
+ * T-0059 e T-0172 — teste de componente da carga depois do login (rota `/sync`) na tela única de entrada, renderizada com
+ * `react-dom/server` e com `react-native`, o roteador e o estado da plataforma simulados.
+ * - R-20261102-091336: o motor termina com sucesso → a tela navega para `/` pelo ESTADO (também com a tela remontada e
+ *   depois de sair e voltar ao app). T-0172: abre o Início sozinho, sem botão.
+ * - R-20261102-090915 e T-0172: nenhum nome técnico; só o percentual e as etapas (com a lista na tela, "Etapa n de N · nome"
+ *   vai só ao leitor de tela, RD-0239); nenhuma frase sobre o que o app faz por trás; erro com "Tentar de novo" e
+ *   "Trocar usuário". As etapas vêm do domain do Core (`progressoDaEntrada`, RN-CORE-48; RD-0240).
  * - R-20261102-090919 item 2: voltar do segundo plano no meio da carga não a reinicia.
  */
 import { CARGA_VAZIA, type EstadoMotorSync, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
@@ -23,27 +25,43 @@ const host = (tag: string) =>
   function Host({ children, testID }: Props) {
     return createElement(tag, testID ? { 'data-testid': testID } : {}, children);
   };
+/** Text com `accessibilityLabel` (o rótulo da barra para o leitor de tela): fica em `aria-label` no HTML. */
+function TextoHost({ children, testID, accessibilityLabel }: Props & { accessibilityLabel?: string }) {
+  return createElement('span', { ...(testID ? { 'data-testid': testID } : {}), ...(accessibilityLabel ? { 'aria-label': accessibilityLabel } : {}) }, children);
+}
 
 vi.mock('react-native', () => ({
   View: host('div'),
-  Text: host('span'),
-  ScrollView: host('main'),
-  StyleSheet: { create: <T,>(s: T) => s },
-  Animated: { Text: host('span'), View: host('div'), Value: class {}, timing: () => ({ start: () => undefined }) },
+  Text: TextoHost,
+  Animated: {
+    View: host('div'),
+    Value: class {
+      setValue() {}
+      interpolate() {
+        return '0%';
+      }
+    },
+    timing: () => ({ start: () => undefined }),
+  },
+  Pressable: ({ children, testID }: Props) => createElement('button', testID ? { 'data-testid': testID } : {}, children),
+  StyleSheet: { create: <T,>(s: T) => s, absoluteFill: {} },
   AppState: { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) },
 }));
-vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 48, left: 0, right: 0 }) }));
+vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 48, left: 0, right: 0 }) }));
+vi.mock('react-native-svg', () => ({ SvgXml: () => createElement('svg') }));
+vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 24, useCorDaFaixa: () => undefined }));
 vi.mock('expo-router', () => ({
   Redirect: ({ href }: { href: string }) => createElement('a', { 'data-redirect': href }),
   router: { replace: () => undefined },
 }));
 vi.mock('@macuxi/ui/mobile', () => ({
-  colors: new Proxy({}, { get: () => '#000' }),
-  type: new Proxy({}, { get: () => ({}) }),
+  fonts: new Proxy({}, { get: () => 'fonte' }),
+  temaDaEntrada: () => new Proxy({}, { get: () => '#000' }),
   firstName: (n: string) => n.split(' ')[0],
-  Banner: host('p'),
-  ProgressBar: ({ pct }: { pct: number }) => createElement('progress', { value: pct, max: 100 }),
-  Button: ({ label, testID }: { label: string; testID?: string }) => createElement('button', { 'data-testid': testID }, label),
+  Icon: () => createElement('i'),
+  useReduzirMovimento: () => true,
+  Botao: ({ rotulo, testID }: { rotulo: string; testID?: string }) => createElement('button', { 'data-testid': testID }, rotulo),
 }));
 
 const ESTADO_INICIAL: EstadoMotorSync = {
@@ -98,6 +116,8 @@ const { TelaCarga } = await import('./tela-carga');
 // ---------- utilitários ----------
 const montar = () => renderToStaticMarkup(createElement(TelaCarga));
 const texto = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+/** Rótulo da barra para o leitor de tela (região viva). */
+const rotuloLeitor = (html: string) => /data-testid="entrada-etapa" aria-label="([^"]*)"/.exec(html)?.[1] ?? null;
 const redireciona = (html: string) => /data-redirect="\/"/.test(html);
 
 /** Entidades de sync de todos os manifestos instalados (ex.: cliente_condicao, pedido_evento) e ids técnicos de módulo. */
@@ -125,20 +145,19 @@ beforeEach(() => {
   sim.ultimoInicio = null;
 });
 
-describe('Tela de carga — navegação pelo estado (R-20261102-091336)', () => {
-  it('motor termina com sucesso → redireciona para / e mostra "Pronto", 100% e "Entrar no app"', () => {
+describe('Carga na tela de entrada — navegação pelo estado (R-20261102-091336, T-0172)', () => {
+  it('motor termina com sucesso → "Pronto", 100%, tudo feito e abre o Início sozinho, sem botão', () => {
     sim.estado = { ...sim.estado, sincronizando: true, etapa: 'cliente_condicao', progresso: 0.1 };
     const durante = montar();
     expect(redireciona(durante)).toBe(false);
-    expect(durante).not.toContain('entrar-no-app');
 
     sim.estado = { ...sim.estado, sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
     const depois = montar();
     expect(redireciona(depois)).toBe(true);
-    expect(texto(depois)).toContain('Pronto');
-    expect(texto(depois)).toContain('100%');
-    expect(depois).toContain('data-testid="entrar-no-app"');
-    expect(texto(depois)).toContain('Entrar no app');
+    expect(texto(depois)).toContain('Pronto 100%');
+    expect(depois).not.toMatch(/data-testid="entrada-etapa-\d-(atual|pendente)"/);
+    expect(depois).not.toContain('entrar-no-app');
+    expect(depois).not.toContain('<button');
   });
 
   it('término com a tela remontada (a promessa se perdeu): a montagem nova já navega pelo estado', () => {
@@ -166,85 +185,53 @@ describe('Tela de carga — navegação pelo estado (R-20261102-091336)', () => 
     sim.estado = { ...sim.estado, sincronizando: true, etapa: 'pedido_evento', progresso: 0.3, sincronizado_em: '2026-11-01T20:00:00.000Z' };
     const html = montar();
     expect(redireciona(html)).toBe(true);
-    expect(html).toContain('data-testid="entrar-no-app"');
     semNomeTecnico(html);
-  });
-
-  it('nunca fica "Pronto" sem caminho: todo estado com "Pronto" tem redirecionamento e botão', () => {
-    const estados: Partial<EstadoMotorSync>[] = [
-      { sincronizando: false, progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' },
-      { sincronizando: false, progresso: 0, sincronizado_em: '2026-11-02T13:09:00.000Z', erro: 'HTTP 502' },
-    ];
-    for (const e of estados) {
-      sim.estado = { ...ESTADO_INICIAL, ...e };
-      const html = montar();
-      if (texto(html).includes('Pronto')) {
-        expect(redireciona(html)).toBe(true);
-        expect(html).toContain('entrar-no-app');
-      }
-    }
   });
 });
 
-describe('Tela de carga — sem nome técnico (R-20261102-090915)', () => {
-  it('em nenhuma etapa do motor aparece entidade, etapa ou módulo; aparece uma frase amigável', () => {
+describe('Carga na tela de entrada — etapas sem nome técnico (R-20261102-090915, T-0172)', () => {
+  it('em nenhuma entidade do motor aparece entidade ou módulo; aparece "Olá" e o percentual; "Etapa n de N · nome" só ao leitor', () => {
     expect(ENTIDADES).toEqual(expect.arrayContaining(['cliente_condicao', 'cliente_tabela_preco', 'historico_compra', 'indicador_diario', 'pedido_evento']));
-    for (const etapa of ['Enviando a fila', ...ENTIDADES, 'Seu perfil']) {
-      sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa, progresso: 0.5 };
+    for (const entidade of ENTIDADES) {
+      sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa: entidade, progresso: 0.5, carga: { ...CARGA_VAZIA, entidade, modulo: 'core', total: 10, concluidas: 5 } };
       const html = montar();
       semNomeTecnico(html);
-      expect(texto(html)).not.toContain(etapa === 'Seu perfil' || etapa === 'Enviando a fila' ? etapa : `${etapa} `);
-      expect(html).toContain('data-testid="carga-frase"');
+      expect(rotuloLeitor(html)).toMatch(/^Etapa \d de \d · [A-ZÀ-Ú]/);
+      expect(texto(html)).not.toMatch(/Etapa \d de \d/);
       expect(texto(html)).toContain('Olá, Lucas');
       expect(texto(html)).toContain('50%');
     }
-  }, 30_000); // renderiza todas as etapas do motor: com a máquina carregada (bundle, outros agentes) passa de 5 s
+  }, 120_000); // renderiza todas as entidades do motor: com a máquina carregada (bundle, outros agentes) passa de 30 s
 
-  it('promotor: frase sem pedido; Gestão: frase da equipe', () => {
-    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa: 'pedido', progresso: 0.2 };
+  it('Campo: etapa atual pelo módulo em curso; as anteriores feitas e as seguintes a fazer', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4, carga: { ...CARGA_VAZIA, entidade: 'produto', modulo: 'catalogo', total: 10, concluidas: 4 } };
+    const html = montar();
+    // RD-0239: com a lista na tela, a etapa não se repete na linha da barra (fica só para o leitor de tela)
+    expect(rotuloLeitor(html)).toBe('Etapa 3 de 5 · Catálogo e preços');
+    expect(texto(html)).not.toContain('Etapa 3 de 5');
+    expect(html).toContain('entrada-etapa-2-feita');
+    expect(html).toContain('entrada-etapa-3-atual');
+    expect(html).toContain('entrada-etapa-4-pendente');
+  });
+
+  it('sem frase sobre o que o app faz por trás (só o nome da etapa e o percentual)', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2, carga: { ...CARGA_VAZIA, retomada: true } };
+    expect(texto(montar())).not.toMatch(/Mantenha o app aberto|Continuando de onde parou|Preparando|Estamos deixando/);
+  });
+
+  it('RN-PRO-01: o promotor não vê etapa de pedido; Gestão: etapas da equipe', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2 };
     sim.perfil = 'promotor';
     expect(texto(montar())).not.toMatch(/pedido/i);
     sim.perfil = 'supervisor';
     sim.variante = 'gestao';
-    expect(texto(montar())).not.toMatch(/rota de hoje|bater sua meta/i);
+    const gestao = texto(montar());
+    expect(gestao).toContain('Equipe');
+    expect(gestao).toContain('Aprovações');
+    expect(gestao).not.toMatch(/Clientes e rota/);
   });
 
-  it('erro: mensagem amigável e "Tentar de novo"; o detalhe técnico não aparece', () => {
-    sim.estado = { ...ESTADO_INICIAL, erro: 'HTTP 500: falha ao puxar cliente_condicao (código SYNC_PULL)' };
-    const html = montar();
-    semNomeTecnico(html);
-    expect(texto(html)).toContain('Não conseguimos baixar seus dados. Confira o sinal e tente de novo.');
-    expect(html).toContain('data-testid="tentar-de-novo"');
-    expect(texto(html)).not.toContain('HTTP 500');
-    expect(texto(html)).not.toContain('SYNC_PULL');
-    expect(redireciona(html)).toBe(false);
-  });
-
-  it('erro no modo sem sinal: oferece desligar o modo sem sinal', () => {
-    sim.offline = true;
-    sim.estado = { ...ESTADO_INICIAL, erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' };
-    const html = montar();
-    expect(html).toContain('data-testid="desligar-sem-sinal"');
-    expect(html).toContain('data-testid="tentar-de-novo"');
-  });
-
-  it('a raiz rola (ScrollView) e a frase some ao terminar', () => {
-    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.5 };
-    expect(montar()).toMatch(/^<main data-testid="tela-carga">/);
-    sim.estado = { ...ESTADO_INICIAL, progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
-    expect(montar()).not.toContain('carga-frase');
-  });
-});
-
-describe('Tela de carga — retomada e progresso (ADR 0017, EstadoMotorSync.carga)', () => {
-  it('carga em andamento: aviso "Mantenha o app aberto"; some com a carga pronta', () => {
-    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.2 };
-    expect(texto(montar())).toContain('Mantenha o app aberto');
-    sim.estado = { ...ESTADO_INICIAL, progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
-    expect(montar()).not.toContain('carga-app-aberto');
-  });
-
-  it('retomada: "Continuando de onde parou" e a barra parte do que já estava gravado, sem nome técnico', () => {
+  it('retomada: a barra parte do que já estava gravado', () => {
     sim.estado = {
       ...ESTADO_INICIAL,
       sincronizando: true,
@@ -253,25 +240,38 @@ describe('Tela de carga — retomada e progresso (ADR 0017, EstadoMotorSync.carg
       carga: { entidade: 'cliente_condicao', modulo: 'core', concluidas: 6, total: 10, paginas: 3, retomada: true },
     };
     const html = montar();
-    expect(texto(html)).toContain('Continuando de onde parou');
     // 60% gravado + metade da fatia da entidade em andamento (3 páginas de ~6)
     expect(texto(html)).toContain('65%');
     semNomeTecnico(html);
-    // passada normal: rótulo "Sincronizando"
-    sim.estado = { ...sim.estado, carga: { ...sim.estado.carga, retomada: false } };
-    expect(texto(montar())).not.toContain('Continuando de onde parou');
+  });
+});
+
+describe('Carga na tela de entrada — parou (T-0172)', () => {
+  it('erro com a lista: "A sincronização parou", "Tentar de novo" e "Trocar usuário"; o detalhe técnico não aparece', () => {
+    sim.estado = { ...ESTADO_INICIAL, erro: 'HTTP 500: falha ao puxar cliente_condicao (código SYNC_PULL)', carga: { ...CARGA_VAZIA, entidade: 'cliente_condicao', modulo: 'core' } };
+    const html = montar();
+    semNomeTecnico(html);
+    // RD-0239: a lista já marca a etapa que parou; o erro não repete o número
+    expect(texto(html)).toContain('A sincronização parou');
+    expect(texto(html)).not.toMatch(/etapa \d de \d/);
+    expect(html).toContain('data-testid="tentar-de-novo"');
+    expect(texto(html)).toContain('Trocar usuário');
+    // a lista continua, com a etapa que parou marcada
+    expect(html).toContain('entrada-etapa-2-parou');
+    expect(texto(html)).not.toContain('HTTP 500');
+    expect(texto(html)).not.toContain('SYNC_PULL');
+    expect(redireciona(html)).toBe(false);
   });
 
-  it('frase do módulo em andamento (carga.modulo) sem citar o módulo', () => {
-    sim.estado = {
-      ...ESTADO_INICIAL,
-      sincronizando: true,
-      etapa: 'pedido',
-      progresso: 0.5,
-      carga: { entidade: 'pedido', modulo: 'vendedor', concluidas: 5, total: 10, paginas: 0, retomada: false },
-    };
-    const html = montar();
-    expect(texto(html)).toContain('Trazendo seus pedidos recentes para consultar sem sinal');
-    semNomeTecnico(html);
+  it('sem sinal: "Sem internet"; no modo sem sinal, oferece desligá-lo', () => {
+    sim.estado = { ...ESTADO_INICIAL, erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' };
+    const semSinal = montar();
+    expect(texto(semSinal)).toContain('Sem internet');
+    expect(semSinal).toContain('entrada-etapa-1-parou');
+    expect(semSinal).not.toContain('desligar-sem-sinal');
+    sim.offline = true;
+    const modo = montar();
+    expect(modo).toContain('data-testid="desligar-sem-sinal"');
+    expect(modo).toContain('data-testid="tentar-de-novo"');
   });
 });

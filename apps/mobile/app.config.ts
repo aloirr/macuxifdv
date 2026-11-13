@@ -14,7 +14,10 @@
  * preview; api.macuxifdv.com.br no producao) e `EXPO_PUBLIC_PERFIL_BUILD` (desenvolvimento|preview|producao), que
  * decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No dev o JS vem do Metro do PC: valem as
  * variáveis de quem roda o `expo start`.
- * Ícone por variante: hoje a mesma arte nas duas (a da Gestão é pendência de design); troca só aqui.
+ * Ícone e splash por variante (marca v1, T-0172; arquivos de docs/marca/ativos/2026-11-12-v1/): Campo no Azul noite
+ * `#1E3350` (logo negativo) e Gestão no Pérola `#F8F6F1` (logo positivo); monocromático e notificação iguais nas duas,
+ * cor da notificação `#1E3350`. A tela de entrada do JS (`components/tela-entrada.tsx`) repete o fundo e o logo da splash
+ * no mesmo lugar e no mesmo tamanho (`LARGURA_LOGO_ENTRADA`), para a passagem não ter corte.
  * Versão (T-0109): `version` vem de `scripts/eas/versao.json` (fonte única, igual nas duas variantes e em todos os
  * perfis) e o `android.versionCode` é do EAS (`appVersionSource: remote` + `autoIncrement` no eas.json): sobe a cada
  * build e nunca repete por pacote. Nome do build (`Campo-Demo-v1.0.0`) em `src/lib/nome-build.ts`.
@@ -34,17 +37,42 @@ interface DadosVariante {
   icone: string;
   iconeFrente: string;
   iconeFundo: string;
+  /** Fundo do ícone adaptativo e da splash. */
+  fundo: string;
+  splash: string;
 }
 
-const ICONE_PADRAO = {
-  icone: './assets/images/icon.png',
-  iconeFrente: './assets/images/android-icon-foreground.png',
-  iconeFundo: './assets/images/android-icon-background.png',
-};
+/** Azul noite e Pérola da marca v1 (docs/marca/manual.md §3). */
+const AZUL_NOITE = '#1E3350';
+const PEROLA = '#F8F6F1';
+
+/**
+ * Largura do logo na splash, em dp. A mesma de `LARGURA_LOGO_ENTRADA` (src/lib/entrada.ts): o Expo carrega este arquivo
+ * sem resolver import de .ts relativo, por isso o número se repete (o teste de src/lib/entrada.test.ts confere os dois).
+ */
+const LARGURA_LOGO_SPLASH = 168;
 
 const VARIANTES: Record<Variante, DadosVariante> = {
-  campo: { nome: 'Macuxi Campo', pacote: 'br.com.macuxi.campo', scheme: 'macuxicampo', ...ICONE_PADRAO },
-  gestao: { nome: 'Macuxi Gestão', pacote: 'br.com.macuxi.gestao', scheme: 'macuxigestao', ...ICONE_PADRAO },
+  campo: {
+    nome: 'Macuxi Campo',
+    pacote: 'br.com.macuxi.campo',
+    scheme: 'macuxicampo',
+    icone: './assets/images/icone-campo.png',
+    iconeFrente: './assets/images/icone-campo-frente.png',
+    iconeFundo: './assets/images/icone-campo-fundo.png',
+    fundo: AZUL_NOITE,
+    splash: './assets/images/splash-campo.png',
+  },
+  gestao: {
+    nome: 'Macuxi Gestão',
+    pacote: 'br.com.macuxi.gestao',
+    scheme: 'macuxigestao',
+    icone: './assets/images/icone-gestao.png',
+    iconeFrente: './assets/images/icone-gestao-frente.png',
+    iconeFundo: './assets/images/icone-gestao-fundo.png',
+    fundo: PEROLA,
+    splash: './assets/images/splash-gestao.png',
+  },
 };
 
 /** `version` do app (X.Y.Z), de `scripts/eas/versao.json`; mesma regra de `versaoValida` em src/lib/nome-build.ts. */
@@ -79,7 +107,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       package: v.pacote,
       adaptiveIcon: {
-        backgroundColor: '#F3F4F1',
+        backgroundColor: v.fundo,
         foregroundImage: v.iconeFrente,
         backgroundImage: v.iconeFundo,
         monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -107,7 +135,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     web: { output: 'single', favicon: './assets/images/favicon.png', name: v.nome },
     plugins: [
       'expo-router',
-      ['expo-splash-screen', { backgroundColor: '#F3F4F1', image: './assets/images/splash-icon.png', imageWidth: 76 }],
+      ['expo-splash-screen', { backgroundColor: v.fundo, image: v.splash, imageWidth: LARGURA_LOGO_SPLASH }],
       [
         'expo-location',
         {
@@ -130,7 +158,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // ADR 0017: sincronização incremental em segundo plano (WorkManager no Android; o plugin só mexe no iOS)
       'expo-background-task',
       // RN-CORE-23 item 3 / RF-CORE-09: push visível (abre a tela certa) e silencioso (dispara o motor de sync)
-      ['expo-notifications', { icon: './assets/images/android-icon-monochrome.png', color: '#C2540A', defaultChannel: 'avisos' }],
+      ['expo-notifications', { icon: './assets/images/icone-notificacao.png', color: AZUL_NOITE, defaultChannel: 'avisos' }],
       // ADR 0003 / T-0008 §3.1: SQLite do aparelho com FTS5 explícito (busca offline do Catálogo; tela de diagnóstico).
       // T-0088: obrigatório (o motor do usuário roda sobre ele): build sem o pacote FALHA, em vez de sair sem SQLite
       ['expo-sqlite', { enableFTS: true }],

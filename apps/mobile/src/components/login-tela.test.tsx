@@ -61,6 +61,9 @@ vi.mock('@macuxi/core/app', () => ({
   },
 }));
 vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 0 }));
+vi.mock('@/components/tela-entrada', () => ({
+  TelaEntrada: ({ barra }: { barra?: { rotulo: string } | null }) => createElement('div', { 'data-testid': 'tela-entrada' }, barra?.rotulo ?? ''),
+}));
 vi.mock('@/lib/endereco-do-build', () => ({
   avisoDeServidorNoLogin: () => null,
   cartaoServidorNoLogin: (perfil: string) => (perfil === 'development' ? 'avancado' : 'oculto'),
@@ -86,15 +89,29 @@ vi.mock('@/state/plataforma', () => ({
 }));
 
 const { default: LoginScreen } = await import('../app/login');
+const { servidorNaAbertura } = await import('@/lib/entrada');
 
 const html = () => renderToStaticMarkup(createElement(LoginScreen));
 /** Cor (token) de cada texto com o conteúdo dado. */
 const corDoTexto = (markup: string, texto: string) => new RegExp(`<span data-cor="([^"]+)">${texto}</span>`).exec(markup)?.[1];
 
 beforeEach(() => {
+  // o servidor já foi conferido nesta abertura (o teste do servidor tem o próprio caso abaixo)
+  servidorNaAbertura.conferido = true;
   sim.modo = 'real';
   sim.perfilBuild = 'development';
   sim.telaLogin = [];
+});
+
+describe('T-0172: antes do login, a tela de entrada confere o servidor uma vez por abertura', () => {
+  it('na abertura o logo fica no lugar do login enquanto confere; depois de conferido, abre o login', () => {
+    servidorNaAbertura.conferido = false;
+    const abertura = html();
+    expect(abertura).toContain('data-testid="tela-entrada"');
+    expect(abertura).not.toContain('login.tela');
+    servidorNaAbertura.conferido = true;
+    expect(html()).toContain('data-testid="login.tela"');
+  });
 });
 
 describe('login real: a tela do Core com o que o shell sabe', () => {

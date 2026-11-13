@@ -32,12 +32,17 @@ describe('shell web sem laranja cru em texto', () => {
     expect(achados).toEqual([]);
   });
 
-  it('a marca "M" sobre o laranja usa text-on-accent, e o token existe no globals.css', () => {
+  it('marca v1 (T-0172): logo negativo na faixa Azul noite, sem o quadrado "M"; tokens da faixa no globals.css', () => {
     const css = readFileSync(join(RAIZ, 'app/globals.css'), 'utf8').toLowerCase();
     expect(css).toMatch(/--color-on-accent:\s*#ffffff/);
-    const marcas = fontes.filter(({ texto }) => /bg-accent font-display/.test(texto));
-    expect(marcas.length).toBeGreaterThanOrEqual(3);
-    for (const { f, texto } of marcas) expect(texto, f).not.toMatch(/bg-accent font-display[^"]*text-white/);
+    expect(css).toMatch(/--color-faixa:\s*#1e3350/);
+    expect(css).toMatch(/--color-faixa-texto:\s*#c9ced5/);
+    expect(fontes.filter(({ texto }) => /font-extrabold text-on-accent">M</.test(texto)).map(({ f }) => f)).toEqual([]);
+    const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
+    expect(de('components/marca-faixa.tsx')).toContain('bg-faixa ');
+    expect(de('components/marca-faixa.tsx')).toContain('text-faixa-texto');
+    expect(de('components/login-screen.tsx')).toContain('<MarcaNaFaixa area="Backoffice" />');
+    expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
   });
 
   it('as linhas do recado usam accent-ink', () => {

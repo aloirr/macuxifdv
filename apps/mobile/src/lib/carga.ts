@@ -48,11 +48,6 @@ export function percentualDaCarga(estado: EstadoCarga, situacao: SituacaoCarga):
   return situacao === 'carregando' ? Math.min(99, pct) : pct;
 }
 
-/** A passada em andamento continua uma carga interrompida (o app foi fechado no meio): a tela diz "Continuando de onde parou". */
-export function cargaRetomada(estado: EstadoCarga, situacao: SituacaoCarga): boolean {
-  return situacao === 'carregando' && estado.sincronizando && Boolean(estado.carga?.retomada);
-}
-
 /**
  * Por que o shell quer sincronizar:
  * - `abertura`: o app abriu com sessão e carga gravada (vai direto ao Início; sincroniza em segundo plano);

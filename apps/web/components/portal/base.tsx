@@ -11,6 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { Button, cx, Dialog, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
 
+import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
 import {
   assinarSaida,
@@ -44,16 +45,9 @@ import {
 export const campoCss =
   'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
 
+/** Marca do portal: o logo negativo na faixa Azul noite (T-0172). */
 export function Marca() {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-accent font-display text-[17px] font-extrabold text-on-accent">M</span>
-      <div className="flex flex-col">
-        <span className="font-display text-[15px] font-bold">Portal de implantação</span>
-        <span className="text-[12px] text-ink-2">Macuxi FDV</span>
-      </div>
-    </div>
-  );
+  return <MarcaNaFaixa area="Portal de implantação" />;
 }
 
 /** Link com cara de botão (sem `<button>` dentro de `<a>`). */
