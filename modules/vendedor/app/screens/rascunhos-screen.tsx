@@ -2,6 +2,7 @@
  * Rascunhos (RN-VEN-38/39, T-0141 F; spec docs/design/pedido-v3.md §F.2 e §F.3). O pedido que o vendedor deixa sem enviar e sem
  * salvar como orçamento fica aqui por 24 h depois da última alteração. Lê só do aparelho (vale offline, sem aviso de sinal);
  * tocar numa linha retoma o pedido na aba em que parou. Sem ação de apagar na lista: Descartar fica dentro do pedido.
+ * T-0171 (RD-0214): duas linhas, cliente + total e um único fato + o selo "Some em".
  */
 import { formatBRL } from '@macuxi/comum';
 import { BackLink, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Selo, type as t } from '@macuxi/ui/mobile';
@@ -14,10 +15,10 @@ import { TEXTOS_RASCUNHOS, type LinhaDeRascunho } from '../lib/rascunhos-lista';
 import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
-/** Leitura da linha para o TalkBack: "Atacadinho, cód. C5007 · 3 itens, R$ 69,96, Alterado hoje às 05:51. Some em 2 h." */
+/** Leitura da linha para o TalkBack: "Atacadinho, R$ 69,96, Alterado hoje às 05:51. Some em 2 h." */
 function leituraDaLinha(l: LinhaDeRascunho): string {
   const total = l.total_cents === null ? '' : `, ${formatBRL(l.total_cents)}`;
-  return `${l.cliente}, ${l.apoio}${total}, ${l.alterado}.${l.someEm ? ` ${l.someEm}.` : ''}`;
+  return `${l.cliente}${total}, ${l.fato}.${l.someEm ? ` ${l.someEm}.` : ''}`;
 }
 
 export default function RascunhosScreen() {
@@ -68,7 +69,6 @@ export default function RascunhosScreen() {
             <View key={i} style={[s.linha, i > 0 && s.traco]}>
               <View style={[s.esqueleto, { width: '60%', height: 16 }]} />
               <View style={[s.esqueleto, { width: '40%', height: 12 }]} />
-              <View style={[s.esqueleto, { width: '30%', height: 12 }]} />
             </View>
           ))}
         </View>
@@ -102,14 +102,15 @@ export default function RascunhosScreen() {
                 {l.total_cents !== null ? <Text style={[s.total, l.foraDaCarteira && s.apagado]}>{formatBRL(l.total_cents)}</Text> : null}
               </View>
               <View style={s.l2}>
-                <Text style={[s.apoio, l.foraDaCarteira && s.apagado]} numberOfLines={1}>
-                  {l.apoio}
+                <Text style={[s.fato, l.foraDaCarteira && s.apagado]} numberOfLines={1}>
+                  {l.fato}
                 </Text>
-                {l.foraDaCarteira ? null : <Icon name="chevron" size={16} color={colors.ink3} />}
-              </View>
-              <View style={s.l3}>
-                <Text style={[s.alterado, l.foraDaCarteira && s.apagado]}>{l.alterado}</Text>
                 {l.someEm ? <Selo texto={l.someEm} tom="aviso" tamanho="p" testID={`rascunho-${l.chave}-some-em`} /> : null}
+                {l.foraDaCarteira ? null : (
+                  <View style={s.seta}>
+                    <Icon name="chevron" size={16} color={colors.ink3} />
+                  </View>
+                )}
               </View>
             </Pressionavel>
           ))}
@@ -127,10 +128,9 @@ const s = StyleSheet.create({
   l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   cliente: { flex: 1, minWidth: 0, fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   total: { fontFamily: fonts.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
-  l2: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  apoio: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  l3: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  alterado: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
+  l2: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fato: { flexShrink: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  seta: { marginLeft: 'auto' },
   apagado: { color: colors.ink3 },
   esqueleto: { borderRadius: 6, backgroundColor: colors.lineSoft },
 });
