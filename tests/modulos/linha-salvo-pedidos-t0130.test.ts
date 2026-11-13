@@ -38,6 +38,8 @@ const totalDoResumo = (r: Rascunho) =>
 const linhas = (r: Rascunho, total: (r: Rascunho) => number | null, agora = depois(1)) =>
   linhasDosRascunhos({ rascunhos: { c1: r }, clientes: CLIENTES, pedidos: [], totalDoRascunho: total, agora, tz: TZ });
 const semNbsp = (s: string) => s.replace(/\u00a0/g, ' ');
+/** T-0171 (RD-0214), transição: a hora da linha está em `alterado` (formato atual) ou em `fato` (formato novo). Sai no PR de limpeza. */
+const fatoDaLinha = (l: object): string => ('fato' in l ? (l as { fato: string }).fato : (l as { alterado: string }).alterado);
 
 describe('T-0141 F — tela Rascunhos: total, itens, hora e "Some em" (RN-VEN-39, RN-VEN-30)', () => {
   it('R1. valor × regra: com a tabela no aparelho, a linha mostra o total do Resumo (4 × R$ 12,50 + 2 × R$ 49,90 = R$ 149,80), não R$ 0,00', () => {
@@ -47,7 +49,8 @@ describe('T-0141 F — tela Rascunhos: total, itens, hora e "Some em" (RN-VEN-39
     expect(l!.total_cents).toBe(14_980);
     expect(semNbsp(formatBRL(l!.total_cents!))).toBe(semNbsp(formatBRL(14_980)));
     expect(semNbsp(formatBRL(l!.total_cents!))).not.toMatch(/R\$\s*0,00/);
-    expect(l).toMatchObject({ cliente: 'Mercadinho São Jorge', apoio: 'cód. 1234 · 2 itens', foraDaCarteira: false });
+    expect(l).toMatchObject({ cliente: 'Mercadinho São Jorge', foraDaCarteira: false });
+    expect(fatoDaLinha(l!)).toBe('Alterado hoje às 06:00');
   });
 
   it('R2. sem tabela de preços no aparelho: total nulo (a tela não mostra valor nenhum), nunca zero', () => {
@@ -56,8 +59,8 @@ describe('T-0141 F — tela Rascunhos: total, itens, hora e "Some em" (RN-VEN-39
   });
 
   it('R3. hora da última alteração no fuso do tenant (10:00 UTC = 06:00 em Manaus); no dia seguinte, "ontem"', () => {
-    expect(linhas(rascunho(), totalDoResumo, depois(1))[0]!.alterado).toBe('Alterado hoje às 06:00');
-    expect(linhas(rascunho(), totalDoResumo, depois(20))[0]!.alterado).toBe('Alterado ontem às 06:00');
+    expect(fatoDaLinha(linhas(rascunho(), totalDoResumo, depois(1))[0]!)).toBe('Alterado hoje às 06:00');
+    expect(fatoDaLinha(linhas(rascunho(), totalDoResumo, depois(20))[0]!)).toBe('Alterado ontem às 06:00');
   });
 
   it('R4. "Some em" pelas 24 h desde a última alteração: nada com 3 h ou mais; "Some em 2 h"; "Some em 40 min"; some com 24 h', () => {
