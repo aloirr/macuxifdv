@@ -304,7 +304,8 @@ describe('RN-CORE-43: período Hoje (§3.3)', () => {
     expect(r.visitas_dia).toEqual([20, 1]);
     expect(r.km_dia).toEqual([5_000, 1]);
     expect(r.km_cliente).toEqual([5_000, 1]);
-    expect(r.cobertura_rota).toEqual([10_000, 1]);
+    // A-2 (§3.1 linha 9): em Hoje entram todas as paradas do dia; c2 ainda não feita = andamento 1 de 2.
+    expect(r.cobertura_rota).toEqual([5_000, 2]);
   });
   it('RN-CORE-43: hoje entra nos indicadores por visita de um período maior (1º check-in, TMA, TMD, raio, fora de rota)', () => {
     const r = valores(SEMANA);

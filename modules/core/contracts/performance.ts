@@ -234,6 +234,12 @@ export const RealizadoServidorSchema = z
     venda_ate_ontem_cents: NaoNeg.nullable(),
     pedidos: NaoNeg.nullable(),
     itens_distintos: NaoNeg.nullable(),
+    /**
+     * A-4 (RN-CORE-42): pedidos e itens distintos do mês até ontem, para a meta do dia de Itens por pedido em Hoje e Esta
+     * semana. Nulos sem fonte; ausentes numa cópia antiga do aparelho valem como nulos (a meta do dia fica a do mês).
+     */
+    pedidos_ate_ontem: NaoNeg.nullable().optional(),
+    itens_distintos_ate_ontem: NaoNeg.nullable().optional(),
     /** Em período de vários meses: positivação somada por mês (§2.3). */
     por_mes: z
       .array(

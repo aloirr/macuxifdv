@@ -8,6 +8,8 @@
  *   RN-CORE-41 (D1). Meta/dia e Meta/pedido só no mês de hoje.
  * - Hoje: a meta é a meta do dia da RN-CORE-26. Período menor que o mês: meta proporcional aos dias úteis. Vários meses: soma
  *   das metas e das positivações mensais (D7, §2.3).
+ * - Itens por pedido: sem pedido no período e com a fonte, realizado 0 (A-3). Em Hoje e em Esta semana com hoje útil, a meta
+ *   é a meta do dia de itens, a Meta/pedido sobre o realizado até ontem (A-4, §2.3).
  * Unidades da §1.5: centavos, inteiros e centésimos (itens). Divisão por zero = nulo, nunca 0.
  */
 import { somarDiasCivis } from '@macuxi/comum/relogio';
@@ -94,14 +96,39 @@ interface Contexto {
   metaDe: (mes: string, indicador: IndicadorResultado) => number | null;
 }
 
+/**
+ * A-4 (§2.3): meta do dia de Itens por pedido = Meta/pedido calculada no começo do dia, com o realizado até ontem do mês,
+ * os DU antes de hoje e os restantes contando hoje. Sem pedido até ontem ou real até ontem ≥ meta: a meta do mês. Hoje não
+ * útil: nula (RN-CORE-26).
+ */
+function metaDoDiaDeItens(c: Contexto): number | null {
+  const { e } = c;
+  const mes = e.hoje.slice(0, 7);
+  const metaMes = c.metaDe(mes, 'itens_por_pedido');
+  if (metaMes === null) return null;
+  const cal = calendarioDoPeriodo(`${mes}-01`, ultimoDiaDoMes(mes), e.hoje, e.calendario);
+  if (cal.du_hoje === null) return null;
+  const pedidos = e.realizado?.pedidos_ate_ontem ?? 0;
+  const itens = e.realizado?.itens_distintos_ate_ontem ?? null;
+  if (pedidos <= 0 || itens === null) return metaMes;
+  return metaPorPedido(metaMes, Math.round((100 * itens) / pedidos), cal.du_decorridos - 1, cal.du_restantes) ?? metaMes;
+}
+
+/** "Esta semana" (ou outro período parcial) com hoje dentro e útil: Itens usa a meta do dia de hoje (A-4). */
+function parcialComHojeUtil(c: Contexto): boolean {
+  const { e } = c;
+  if (c.tipo !== 'parcial' || e.hoje < e.de || e.hoje > e.ate) return false;
+  return diasUteisDoIntervalo(e.hoje, e.hoje, e.calendario).length === 1;
+}
+
 /** Meta do período por indicador (§2.3). */
 function metaDoPeriodo(c: Contexto, indicador: IndicadorResultado, ateOntem: number | null): number | null {
   const { e } = c;
+  if (indicador === 'itens_por_pedido' && (c.tipo === 'hoje' || parcialComHojeUtil(c))) return metaDoDiaDeItens(c);
   if (c.tipo === 'hoje') {
     const mes = e.hoje.slice(0, 7);
     const metaMes = c.metaDe(mes, indicador);
     if (metaMes === null) return null;
-    if (indicador === 'itens_por_pedido') return metaMes; // razão: não se divide por dia
     if (ateOntem === null) return null;
     if (ateOntem >= metaMes) return 0;
     const cal = calendarioDoPeriodo(`${mes}-01`, ultimoDiaDoMes(mes), e.hoje, e.calendario);
@@ -148,11 +175,14 @@ function metaDoPeriodo(c: Contexto, indicador: IndicadorResultado, ateOntem: num
   return indicador === 'itens_por_pedido' ? Math.round(ponderada / diasComMeta) : soma;
 }
 
-/** Realizado do período (§2.1/§2.3); nulo = fonte indisponível. `pedidos` nulo em itens = sem dado; 0 = sem pedido. */
+/**
+ * Realizado do período (§2.1/§2.3); nulo = fonte indisponível. `pedidos` nulo em itens = sem dado; 0 = sem pedido, que dá
+ * realizado 0 (A-3) e `semPedido` para a Meta/pedido ficar a própria meta.
+ */
 function realizadoDoPeriodo(
   c: Contexto,
   indicador: IndicadorResultado,
-): { fonte: boolean; real: number | null; ateOntem: number | null } {
+): { fonte: boolean; real: number | null; ateOntem: number | null; semPedido?: boolean } {
   const { e } = c;
   if (indicador === 'visitas') {
     const real = visitasContadas(e.visitas, e.de, c.fimEfetivo);
@@ -173,11 +203,8 @@ function realizadoDoPeriodo(
     return { fonte: true, real, ateOntem: r.positivacao_ate_ontem };
   }
   if (r.pedidos === null || r.itens_distintos === null) return { fonte: false, real: null, ateOntem: null };
-  return {
-    fonte: true,
-    real: r.pedidos > 0 ? Math.round((100 * r.itens_distintos) / r.pedidos) : null,
-    ateOntem: null,
-  };
+  if (r.pedidos === 0) return { fonte: true, real: 0, ateOntem: null, semPedido: true };
+  return { fonte: true, real: Math.round((100 * r.itens_distintos) / r.pedidos), ateOntem: null };
 }
 
 function resultadoDe(c: Contexto, indicador: IndicadorResultado): ResultadoIndicador {
@@ -190,7 +217,7 @@ function resultadoDe(c: Contexto, indicador: IndicadorResultado): ResultadoIndic
     meta_dia: null,
     real_dia: null,
   };
-  const { fonte, real, ateOntem } = realizadoDoPeriodo(c, indicador);
+  const { fonte, real, ateOntem, semPedido } = realizadoDoPeriodo(c, indicador);
   if (!fonte) return { ...vazio, situacao: 'sem_dado' };
   const { e } = c;
   const cal = calendarioDoPeriodo(e.de, e.ate, e.hoje, e.calendario);
@@ -203,7 +230,7 @@ function resultadoDe(c: Contexto, indicador: IndicadorResultado): ResultadoIndic
     c.tipo === 'meses' && e.de.slice(0, 7) === e.ate.slice(0, 7) && e.de <= e.hoje && e.hoje <= e.ate;
   let metaDia: number | null = null;
   if (mesDeHoje && indicador === 'itens_por_pedido')
-    metaDia = metaPorPedido(meta, real, cal.du_decorridos, cal.du_restantes);
+    metaDia = metaPorPedido(meta, semPedido ? null : real, cal.du_decorridos, cal.du_restantes);
   else if (mesDeHoje && real !== null && real < meta)
     metaDia = necessidadeDiaria(meta, real, cal.du_restantes);
   const batida = real !== null && real >= meta;
