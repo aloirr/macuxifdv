@@ -48,9 +48,7 @@ export default function EquipeScreen() {
           {v.equipes.map((e, i) => (
             <View key={e.gestor_id} style={[styles.linha, { minHeight: 48, paddingHorizontal: 14 }]}>
               <Text style={[t.bodyStrong, { flex: 1 }]}>{v.gestores[i]?.nome ?? 'Equipe'}</Text>
-              <Text style={t.small}>
-                {contagem(e.membros, 'pessoa', 'pessoas')} · {e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}
-              </Text>
+              <Text style={t.small}>{e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}</Text>
             </View>
           ))}
         </Cartao>
@@ -102,15 +100,18 @@ function Indicador({ rotulo, valor, cor }: { rotulo: string; valor: string; cor?
 function LinhaMembro({ l, ultimo }: { l: LinhaAgora; ultimo: boolean }) {
   const { m } = l;
   const p = m.painel;
+  // RD-0208: um fato por pessoa (a tag diz a situação); vendas estão no Resumo e na ficha
   const detalhe =
     m.membro.perfil === 'promotor'
-      ? `Promotor · ${p.trade ? contagem(p.trade.lojas_visitadas, 'loja', 'lojas') : contagem(p.visitas.realizadas, 'visita', 'visitas')}`
-      : `${fracao(p.visitas.realizadas, p.visitas.planejadas)} ${(p.visitas.planejadas > 0 ? p.visitas.planejadas : p.visitas.realizadas) === 1 ? 'visita' : 'visitas'} · ${p.vendas ? formatBRL0(p.vendas.vendas_cents) : '—'}`;
+      ? p.trade
+        ? contagem(p.trade.lojas_visitadas, 'loja', 'lojas')
+        : contagem(p.visitas.realizadas, 'visita', 'visitas')
+      : `${fracao(p.visitas.realizadas, p.visitas.planejadas)} ${(p.visitas.planejadas > 0 ? p.visitas.planejadas : p.visitas.realizadas) === 1 ? 'visita' : 'visitas'}`;
   return (
     <Pressable
       testID={`gestor-membro-${m.membro.id}`}
       accessibilityRole="button"
-      accessibilityLabel={`${m.membro.nome}, ${l.label}${l.detalhe ? `. ${l.detalhe}` : ''}`}
+      accessibilityLabel={`${m.membro.nome}, ${l.label}, ${detalhe}`}
       onPress={() => irParaMembro(m.membro.id)}
       style={({ pressed }) => [styles.membro, !ultimo && styles.divisor, pressed && { backgroundColor: colors.ground }]}>
       <View style={{ flex: 1, gap: 2 }}>
@@ -120,11 +121,6 @@ function LinhaMembro({ l, ultimo }: { l: LinhaAgora; ultimo: boolean }) {
         <Text style={t.small} numberOfLines={1}>
           {detalhe}
         </Text>
-        {l.detalhe ? (
-          <Text style={[t.small, { color: l.status === 'parado' ? colors.warningInk : colors.ink2 }]} numberOfLines={1}>
-            {l.detalhe}
-          </Text>
-        ) : null}
       </View>
       <ChipEstado texto={l.label} tom={l.tom} pequeno />
     </Pressable>

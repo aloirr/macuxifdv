@@ -4,6 +4,7 @@
  * APARECE e para QUEM (escopo, RN-CORE-04), e monta o contexto: `vendedor_id` = vendedor, `autor_id` = gestor.
  * A API do Vendedor revalida tudo (perfil, escopo e alçada do gestor, RN-VEN-10).
  */
+import { LIMITE_DESCONTO_PADRAO, type LimiteDesconto } from '@macuxi/core/contracts';
 import { ContextoPedidoEmNome, type DisponibilidadeEmNome, type MembroEquipe } from '../contracts';
 import { escopoDoUsuario, podeVer } from './equipe';
 
@@ -40,4 +41,13 @@ export function contextoPedidoEmNome(entrada: unknown): { ok: true; contexto: Co
   if (!r.success) return { ok: false, erros: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) };
   if (r.data.autor_id === r.data.vendedor_id) return { ok: false, erros: ['O pedido do próprio vendedor segue o fluxo normal do Vendedor; "em nome" é só para o gestor.'] };
   return { ok: true, contexto: r.data };
+}
+
+/**
+ * RN-VEN-11a (T-0168, casos 19 e 20): as funções e o limite de desconto que valem no pedido em nome são os do AUTOR
+ * (o gestor), nunca os do vendedor. A linha vem do `usuario` do sync (app) ou da consulta do Core (API); sem linha,
+ * vale o padrão. A trava em si é do Vendedor (`decisaoDoDesconto`), que recebe este limite.
+ */
+export function limiteDoPedidoEmNome(contexto: Pick<ContextoPedidoEmNome, 'autor_id' | 'vendedor_id'>, limites: ReadonlyMap<string, Partial<LimiteDesconto>>): LimiteDesconto {
+  return { ...LIMITE_DESCONTO_PADRAO, ...(limites.get(contexto.autor_id) ?? {}) };
 }

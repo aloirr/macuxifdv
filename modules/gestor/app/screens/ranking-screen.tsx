@@ -3,7 +3,7 @@
  * Online busca a API; offline mostra o último ranking guardado da mesma combinação.
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { BackLink, Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { INDICADORES_RANKING, PERIODOS_RANKING, type IndicadorRanking, type PeriodoRanking, type RankingEquipe } from '../../contracts';
@@ -25,7 +25,10 @@ export default function RankingScreen() {
   return (
     <Screen testID="gestor-ranking">
       <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
-      <Text style={t.h1}>Ranking</Text>
+      <View style={{ gap: 2 }}>
+        <Text style={t.h1}>Ranking</Text>
+        <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipsConteudo}>
         {PERIODOS_RANKING.map((p) => (
           <Chip key={p} testID={`ranking-periodo-${p}`} label={PERIODO_ROTULO[p]} active={p === periodo} onPress={() => setPeriodo(p)} />
@@ -36,7 +39,6 @@ export default function RankingScreen() {
           <Chip key={i} testID={`ranking-indicador-${i}`} label={INDICADOR_ROTULO[i]} active={i === indicador} onPress={() => setIndicador(i)} />
         ))}
       </ScrollView>
-      {g.offline ? <Banner>Sem conexão: mostrando o último ranking guardado no aparelho.</Banner> : null}
       {r?.erro ? <Banner tone="danger">{r.erro}</Banner> : null}
       {!r ? <Loading /> : null}
       {r && !r.ranking ? <EstadoVazio icone="target" titulo="Sem ranking guardado" texto="Conecte-se à internet e escolha esta combinação de novo." /> : null}

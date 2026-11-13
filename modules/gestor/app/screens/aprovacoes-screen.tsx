@@ -1,10 +1,10 @@
 /**
  * Aba Aprovações do Macuxi Gestão (RF-GES-04): a fila da equipe com prazo em dias úteis (RN-GES-03), motivo, desconto
- * efetivo, crédito e histórico na mesma lista. Decidir mora no Vendedor (ADR 0011): o toque abre o detalhe do pedido
+ * efetivo; o crédito e o histórico do cliente ficam no detalhe do pedido (RD-0209). Decidir mora no Vendedor (ADR 0011): o toque abre o detalhe do pedido
  * dele, onde ficam Aprovar (1 toque) e Rejeitar (com motivo, RN-GES-08) — a alçada é revalidada lá (RN-VEN-10).
  * Offline: a fila vem do cache; a decisão precisa de internet (aviso do Vendedor).
  */
-import { formatBRL, formatBRL0 } from '@macuxi/comum';
+import { formatBRL } from '@macuxi/comum';
 import { Banner, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
@@ -33,7 +33,6 @@ export default function AprovacoesScreen() {
           {fila.resumo.para_mim} para você · {contagem(fila.resumo.vencidos, 'vencido', 'vencidos')} · {fila.resumo.vencendo} vencendo
         </Text>
       ) : null}
-      {g.offline && fila && fila.itens.length > 0 ? <Banner>Sem conexão: aprovar ou rejeitar precisa de internet.</Banner> : null}
       <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
         {!fila || fila.itens.length === 0 ? (
           fila ? (
@@ -64,13 +63,11 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
         <Text style={t.bodyStrong}>{formatBRL(i.total_cents)}</Text>
       </View>
       <Text style={t.small} numberOfLines={2}>
-        {linhaDeMotivos(i.motivos, i.desconto_efetivo_pct, pct, i.credito ? formatBRL0(i.credito.disponivel_cents) : undefined)}
-        {i.credito && !i.motivos.includes('credito') ? ` · crédito disponível ${formatBRL0(i.credito.disponivel_cents)}` : ''}
-        {i.historico ? ` · ${contagem(i.historico.pedidos_90d, 'pedido', 'pedidos')} em 90 dias` : ''}
+        {linhaDeMotivos(i.motivos, i.desconto_efetivo_pct, pct)}
       </Text>
       <View style={styles.linha}>
         <ChipEstado texto={prazo.label} tom={TOM_PARA_CHIP[prazo.tom]} pequeno />
-        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>Decidir</Text> : <Text style={t.small}>Acompanhar</Text>}
+        {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accentInk }]}>Decidir</Text> : null}
       </View>
     </Pressable>
   );
