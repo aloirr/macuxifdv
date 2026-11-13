@@ -28,7 +28,7 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhaLiquidaDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
@@ -64,6 +64,8 @@ interface Line {
   surcharge_pct?: number;
   /** T-0084 (RN-VEN-19): retrato da aplicação gravado no pedido */
   application?: string | null;
+  /** T-0165: marca (balão do código: "nome - marca") */
+  brand?: string | null;
 }
 
 export default function OrderDetailScreen() {
@@ -183,7 +185,7 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application, brand: it.brand }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
   const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
@@ -366,7 +368,7 @@ export default function OrderDetailScreen() {
       ...(queued ? vendedorDoPdf({ dono_nome: qd?.seller_name ?? '', autor_nome: ambiente.usuario()?.nome ?? '', em_nome: Boolean(queued.payload.vendedor_id) && queued.payload.vendedor_id !== c?.me.seller?.id }) : { seller_name: mine?.name ?? base!.seller_name }),
       payment_terms: terms,
       discount_pct: discountPct,
-      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}) })),
+      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}), ...(l.brand ? { brand: l.brand } : {}) })),
       subtotal_cents: subtotal,
       total_cents: total,
       price_table: (queued ? cu?.price_table_id : (base!.price_table_id ?? cu?.price_table_id)) ?? '',
@@ -494,7 +496,7 @@ export default function OrderDetailScreen() {
   const iconesDaTela: AcaoCompacta[] = acoesDaTela.icones.map((a) => ({ id: a.id, rotulo: a.rotulo, rotuloAcessivel: a.rotuloAcessivel, icone: a.icone, desligado: desligadaPorOcupado && a.id !== 'pdf' && a.id !== 'pedido', testID: testIdDaAcao[a.id], onPress: () => executar(a.id) }));
   const opcoesDoMenu = acoesDaTela.menu.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: true, testID: 'pedido-excluir', onPress: () => executar(a.id) }));
   const rotuloDoMenu = ehOrc ? 'Mais ações do orçamento' : 'Mais ações do pedido';
-  const linhaLiquida = linhaLiquidaDosTotais({ subtotal_cents: subtotal, total_cents: total });
+  const linhasTotais = linhasDosTotais({ subtotal_cents: subtotal, total_cents: total });
   const tabelaPagamento = [{ rotulo: 'Pagamento', valor: [queued ? null : (base?.forma_pagamento_nome ?? null), queued ? terms : (base?.prazo_descricao ?? terms)].filter(Boolean).join(' · ') }, { rotulo: 'Entrega', valor: [modalidade ? textoDoFrete(modalidade, transportadora) : null, enderecoTexto].filter(Boolean).join(' · ') }];
   // T-0150 🟡 5/6: Nº no ERP, Filial e Tabela são linhas da tabela (só com valor); "Editado neste pedido" é a 2ª linha da Entrega
   const linhasExtras = [
@@ -560,9 +562,9 @@ export default function OrderDetailScreen() {
           {rotuloVerTodos ? <LinkTexto rotulo={rotuloVerTodos} onPress={() => setMostrarTodosItens(true)} testID="ver-todos-itens" /> : null}
         </View>
 
-        {/* 3. totais: Tabela, linha líquida (% sobre a tabela) e Total */}
+        {/* 3. totais: Valor de tabela, Desconto (%) e (R$) só com ajuste, e Valor final */}
         <View style={{ gap: 4 }}>
-          <CartaoDeTotais tabela={formatBRL(subtotal)} liquida={linhaLiquida} total={formatBRL(total)} testIDTotal={ehOrc ? 'orcamento-total' : 'order-total'} />
+          <CartaoDeTotais linhas={linhasTotais} total={formatBRL(total)} testIDTotal={ehOrc ? 'orcamento-total' : 'order-total'} />
         </View>
 
         {notasFaturamento.length > 0 || devolucoes.length > 0 ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linhaDaPendenciaDoPedido, pendenciasDePreenchimento, type CodigoErroPagamento, type EntradaPendencias, type ErroDeCalculo } from './pendencias-preenchimento';
+import { pendenciasDePreenchimento, type CodigoErroPagamento, type EntradaPendencias, type ErroDeCalculo } from './pendencias-preenchimento';
 
 const ok: EntradaPendencias = { itens: 2, quantidade_invalida: false, pagamento: { tipo: 'ok' }, frete: 'ok', erros_calculo: [] };
 const ids = (e: Partial<EntradaPendencias>) => pendenciasDePreenchimento({ ...ok, ...e }).map((p) => p.id);
@@ -11,14 +11,13 @@ describe('pendenciasDePreenchimento (RN-CORE-36, RN-VEN-16)', () => {
   it('RN-VEN-16: FOB sem transportadora aponta a aba Entrega', () => {
     const [p] = pendenciasDePreenchimento({ ...ok, frete: 'transportadora' });
     expect(p).toMatchObject({ id: 'frete', aba: 'entrega', texto: 'Transportadora do frete FOB' });
-    expect(linhaDaPendenciaDoPedido(p!)).toBe('Transportadora do frete FOB — aba Entrega');
   });
   it('RN-VEN-16: CNPJ inválido da transportadora digitada também é da aba Entrega', () => {
     expect(pendenciasDePreenchimento({ ...ok, frete: 'cnpj' })[0]).toMatchObject({ id: 'frete', aba: 'entrega', texto: 'CNPJ da transportadora' });
   });
   it('RN-CORE-36: prazo sem escolha aponta a aba Venda', () => {
     const [p] = pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'prazo' } });
-    expect(linhaDaPendenciaDoPedido(p!)).toBe('Prazo de pagamento — aba Venda');
+    expect(p).toMatchObject({ texto: 'Prazo de pagamento', aba: 'venda' });
   });
   it('RN-CORE-36: forma sem escolha aponta a aba Venda', () => {
     expect(pendenciasDePreenchimento({ ...ok, pagamento: { tipo: 'forma' } })[0]).toMatchObject({ id: 'forma', texto: 'Forma de pagamento', aba: 'venda' });

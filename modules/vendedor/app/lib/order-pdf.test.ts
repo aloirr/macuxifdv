@@ -55,7 +55,7 @@ describe('PDF do pedido · versão cliente', () => {
     expect(text).toContain('836,07');
     expect(text).toContain('41,85'); // 125,55 ÷ 3
     expect(text).toContain('125,55');
-    expect(text).toContain('Total R$ 961,62');
+    expect(text).toContain('Valor final R$ 961,62');
     expect(text).toContain('R$ 961,62');
     expect(83607 + 12555).toBe(96162);
   });
@@ -101,7 +101,7 @@ describe('PDF do pedido · versão BKO', () => {
   it('mostra subtotal de tabela, desconto em R$ e %, total e histórico', () => {
     expect(text).toContain('Tabela');
     expect(text).toContain('R$ 1.034,00');
-    expect(text).toContain('Desconto 7,0%');
+    expect(text).toContain('Desconto (%) 7,0%');
     expect(text).toContain('− R$ 72,38');
     expect(text).toContain('R$ 961,62');
     expect(text).not.toContain('Alçada do vendedor'); // T-0159: avisos só em Alertas e eventos só no Histórico

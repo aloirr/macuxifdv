@@ -21,6 +21,10 @@ describe('T-0084-A3 (RN-CAT-12): reserva local só em ConsultaIndisponivel', () 
   });
   it('sucesso devolve os itens', async () => {
     const r = await buscarNoCatalogoComReserva(() => Promise.resolve({ itens: [{ produto_id: 'p1', serve_em: null }] }), indisp, vi.fn());
-    expect(r).toEqual({ tipo: 'ok', itens: [{ produto_id: 'p1', serve_em: null }] });
+    expect(r).toEqual({ tipo: 'ok', itens: [{ produto_id: 'p1', serve_em: null }], total: 1, sugestao: null });
+  });
+  it('T-0167: leva o total e o "Você quis dizer" da consulta', async () => {
+    const r = await buscarNoCatalogoComReserva(() => Promise.resolve({ itens: [], total: 0, sugestao: 'água' }), indisp, vi.fn());
+    expect(r).toEqual({ tipo: 'ok', itens: [], total: 0, sugestao: 'água' });
   });
 });

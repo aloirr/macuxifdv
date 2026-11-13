@@ -165,14 +165,14 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(novo()), 'bko', ctx);
     expect(html).toContain('−10,0%');
     expect(html).not.toContain('Desconto efetivo');
-    expect(html).toContain('Desconto 9,6%');
+    expect(html).toContain('<span>Desconto (%)</span>');
     expect(html).toContain('Tabela Atacado');
   });
   it('versão interna: acréscimo do pedido e do item', () => {
     const d = novo({ surcharge_pct: 5, discount_pct: 0, effective_discount_pct: -5, total_cents: 26_250, items: [{ erp_code: 'P1', description: 'Um', quantity: 1, unit_price_cents: 25_000, total_cents: 26_250, surcharge_pct: 5 }] });
     const html = buildOrderPdfHtml(pdfDoPedido(d), 'bko', ctx);
     expect(html).toContain('+5,0%');
-    expect(html).toContain('Acréscimo 5,0%') // RD-0102: a linha líquida é a mesma do app;
+    expect(html).toContain('<span>Acréscimo (%)</span><span class="v">5,0%</span>'); // RD-0102: a linha líquida é a mesma do app
   });
   it('pedido antigo (sem campos novos) sai igual: Emb. UN, sem marca e sem linha de filial', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
@@ -184,7 +184,7 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     const d = detalhe({ status: 'received', tipo: 'orcamento' });
     const cliente = buildOrderPdfHtml(pdfDoPedido(d), 'customer', ctx);
     expect(cliente).toContain('<small>Orçamento</small>PED-000123');
-    expect(cliente).toContain('<span>Total</span>');
+    expect(cliente).toContain('<span>Valor final</span>');
     expect(cliente).not.toMatch(/Válido até|Vencido|vencid/i);
     expect(cliente).not.toContain('Pedido de venda');
     const bko = buildOrderPdfHtml(pdfDoPedido(d), 'bko', ctx);
@@ -275,22 +275,24 @@ describe('"Equivale a" no PDF (T-0138, RN-CAT-09/10, desenho T-0085 §5)', () =>
 describe('T-0151: números do PDF iguais aos da tela', () => {
   it('RN-VEN-03: o rótulo "Desconto" do PDF sai dos centavos (10,1%), não do % digitado no pedido (15,0%)', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 15, subtotal_cents: 100_000, total_cents: 89_950 })), 'bko', ctx);
-    expect(html).toContain('Desconto 10,1%');
-    expect(html).not.toContain('Desconto 15,0%');
+    expect(html).toContain('<span>Desconto (%)</span><span class="v">10,1%</span>');
+    expect(html).not.toContain('<span>Desconto (%)</span><span class="v">15,0%</span>');
   });
 });
 
 describe('T-0150 D-T0150-1/2: acréscimo líquido e quantidade por embalagem no PDF', () => {
   it('RN-VEN-03: acréscimo só nos itens sai como "Acréscimo 5,0%" (nunca "Desconto 0,0% − R$ 0,00")', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 0, subtotal_cents: 100_000, total_cents: 105_000 })), 'bko', ctx);
-    expect(html).toContain('Acréscimo 5,0%');
+    expect(html).toContain('<span>Acréscimo (%)</span><span class="v">5,0%</span>');
+    expect(html).toContain('<span>Acréscimo (R$)</span>');
     expect(html).toContain('+ R$');
-    expect(html).not.toContain('Desconto 0,0%');
+    expect(html).not.toContain('Desconto (%)');
   });
   it('RN-VEN-03: sem acréscimo, o desconto do pedido continua igual', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'bko', ctx);
-    expect(html).toContain('Desconto 8,0%');
-    expect(html).not.toContain("Acréscimo ");
+    expect(html).toContain('<span>Desconto (%)</span><span class="v">8,0%</span>');
+    expect(html).toContain('<span>Desconto (R$)</span>');
+    expect(html).not.toContain("Acréscimo (");
   });
   it('RN-CORE-19: a soma por embalagem continua disponível (FD, CX e UN), não "15 un."', () => {
     const it = (unit_label: string, quantity: number) => ({ quantity, unit_label });
@@ -389,7 +391,7 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
   it('RD-0111/RD-0112: o rótulo do total é só "Total" e o Histórico só sai com 2 etapas ou mais', () => {
     for (const v of ['customer', 'bko'] as const) {
       const um = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx);
-      expect(um).toContain('<span>Total</span>');
+      expect(um).toContain('<span>Valor final</span>');
       expect(um).not.toContain('Total do pedido');
       expect(um).not.toContain('<div class="r">Histórico</div>');
     }
@@ -419,15 +421,22 @@ describe('T-0159: PDF final (proposta 2) com filial de faturamento, Marca, Emb. 
           expect(buildOrderPdfHtml(pdfDoPedido(d), v, { ...ctx, logo_src: 'https://x.test/logo.png' })).toContain('<img class="logo" src="https://x.test/logo.png"');
         }
     });
-    it('Total em caixa; no escritório Tabela e Desconto ficam dentro da caixa, acima do Total, e o Histórico ao lado', () => {
+    it('T-0165: Valor final em caixa; com desconto, Valor de tabela, Desconto (%) e Desconto (R$) ficam dentro da caixa, acima do Valor final (cliente e escritório), e o Histórico ao lado', () => {
       const cli = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
-      expect(cli).toContain('<div class="totalbox"><div class="lin total">');
       expect(cli).not.toContain('<tfoot>');
+      const caixaCli = cli.slice(cli.indexOf('<div class="totalbox">'));
+      // R-20261112-082211: o PDF do cliente traz só o Valor final, sem % e sem a palavra desconto
+      expect(caixaCli).not.toContain('Valor de tabela');
+      expect(caixaCli).not.toContain('Desconto');
+      expect(caixaCli).toContain('<span>Valor final</span>');
+      const semAjuste = buildOrderPdfHtml(pdfDoPedido(detalhe({ discount_pct: 0, subtotal_cents: 100_000, total_cents: 100_000 })), 'customer', ctx);
+      expect(semAjuste).toContain('<div class="totalbox"><div class="lin total"><span>Valor final</span>');
       const bko = buildOrderPdfHtml(pdfDoPedido(dois), 'bko', ctx);
       const caixa = bko.slice(bko.indexOf('<div class="totalbox">'));
-      expect(caixa.indexOf('<span>Tabela</span>')).toBeGreaterThan(-1);
-      expect(caixa.indexOf('<span>Tabela</span>')).toBeLessThan(caixa.indexOf('<span>Total</span>'));
-      expect(caixa).toContain('<span>Desconto');
+      expect(caixa.indexOf('<span>Valor de tabela</span>')).toBeGreaterThan(-1);
+      expect(caixa.indexOf('<span>Valor de tabela</span>')).toBeLessThan(caixa.indexOf('<span>Valor final</span>'));
+      expect(caixa).toContain('<span>Desconto (%)</span>');
+      expect(caixa).not.toContain('<span>Total</span>');
       expect(bko.indexOf('<div class="r">Histórico</div>')).toBeLessThan(bko.indexOf('<div class="totalbox">'));
       expect(bko).toContain('class="rodape"');
     });

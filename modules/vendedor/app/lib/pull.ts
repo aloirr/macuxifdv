@@ -5,12 +5,13 @@
  * Offline-first: tudo daqui nasce das linhas guardadas no aparelho.
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
-import type { CarteiraSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
+import type { LimiteDesconto, UsuarioSync, CarteiraSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
 import type { ClienteTabelaPrecoSync, DepositoSync, EstoqueSaldoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
 import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
+import { limiteDoUsuario } from '../../domain/limite-desconto';
 import { precoMinimoBaseCents, rotuloMedida } from '../../domain/preco-pedido';
 import type { EnderecoDaTela, ProdutoComMinimo, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
@@ -45,9 +46,11 @@ export interface LinhasVendedor {
   prazos?: PrazoPagamentoSync[];
   /** RN-VEN-35 (T-0101): vínculos de carteira (core) para o seletor do pedido em nome; ausentes = carteira desconhecida */
   carteiras?: CarteiraSync[];
+  /** RN-VEN-11a (T-0168): funções e limite de desconto do usuário (entidade `usuario` do Core); ausente = padrão */
+  usuarios?: UsuarioSync[];
 }
 
-export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [], depositos: [], formas: [], prazos: [], carteiras: [] };
+export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [], depositos: [], formas: [], prazos: [], carteiras: [], usuarios: [] };
 
 /** O que o motor oferece para ler as linhas locais (subconjunto estrutural de `MotorSync`). */
 export interface LeitorDeLinhas {
@@ -58,7 +61,7 @@ const vivas = <T extends { deleted_at: string | null }>(l: T[]): T[] => l.filter
 
 export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> {
   const ler = async <T extends LinhaSync>(e: string): Promise<T[]> => vivas(await motor.linhas<T>(e));
-  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras] = await Promise.all([
+  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras, usuarios] = await Promise.all([
     ler<PedidoSync>('pedido'),
     ler<PedidoItemSync>('pedido_item'),
     ler<PedidoEventoSync>('pedido_evento'),
@@ -77,8 +80,14 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> 
     ler<FormaPagamentoSync>('forma_pagamento'),
     ler<PrazoPagamentoSync>('prazo_pagamento'),
     ler<CarteiraSync>('carteira'),
+    ler<UsuarioSync>('usuario'),
   ]);
-  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras };
+  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, depositos, formas, prazos, carteiras, usuarios };
+}
+
+/** RN-VEN-11a (T-0168): o limite da linha do usuário da sessão; sem linha (antes do 1º sync, servidor antigo) = padrão. */
+export function limiteDoUsuarioNasLinhas(linhas: Pick<LinhasVendedor, 'usuarios'>, usuarioId: string | null | undefined): LimiteDesconto {
+  return limiteDoUsuario((linhas.usuarios ?? []).find((u) => u.id === usuarioId));
 }
 
 // ---------- alçada e usuário ----------

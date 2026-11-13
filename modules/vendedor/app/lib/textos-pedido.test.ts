@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync } from './textos-pedido';
+import { abaInicialDoRascunho, AVISO_PEDIDO_SALVO, ABA_INICIAL_DO_PEDIDO, abaAnteriorDoPedido, abasDoPedido, proximaAbaDoPedido, type AbaNovoPedido, itemCompacto, linhaDeEntrega, rotuloCurtoDaCondicao, seloDoOrcamento, situacaoDoClienteSync } from './textos-pedido';
 
 describe('rotuloCurtoDaCondicao (referência enxuta, §6.1)', () => {
   it('RN-VEN-14: "À vista", "28 d" e "28/56" cabem no chip', () => {
@@ -66,19 +66,6 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
     expect(linhaDeEntrega({ modalidade: 'CIF', prazo: '28 dias', endereco: 'Av. Ajuricaba, 1200' })).toBe('CIF · 28 dias · Av. Ajuricaba, 1200');
     expect(linhaDeEntrega({ modalidade: 'FOB', prazo: '28 dias', endereco: null })).toBe('FOB · 28 dias');
   });
-  it('RN-VEN-02: totais com os números da referência (Tabela 398,30 · Descontos 18,51 · Total 379,79)', () => {
-    const t = linhasDeTotais({ total_tabela_cents: 39830, desconto_cents: 1851, acrescimo_cents: 0, total_cents: 37979 });
-    expect(t.linhas.map((l) => [l.rotulo, l.valor.replace(/s/g, ' ')])).toEqual([
-      ['Tabela', 'R$ 398,30'],
-      ['Descontos', '− R$ 18,51'],
-    ]);
-    expect(t.total.valor.replace(/s/g, ' ')).toBe('R$ 379,79');
-  });
-  it('RN-VEN-03: sem desconto, só a Tabela; acréscimo aparece como Acréscimos', () => {
-    expect(linhasDeTotais({ total_tabela_cents: 1000, desconto_cents: 0, acrescimo_cents: 0, total_cents: 1000 }).linhas).toHaveLength(1);
-    expect(linhasDeTotais({ total_tabela_cents: 1000, desconto_cents: 0, acrescimo_cents: 20, total_cents: 1020 }).linhas[1]!.rotulo).toBe('Acréscimos');
-  });
-
 });
 
 describe('aviso do orçamento salvo (T-0071 V8)', () => {

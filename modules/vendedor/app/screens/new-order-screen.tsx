@@ -8,9 +8,10 @@
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
  * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
  */
+import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, AvisoRodape, Dialogo, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, Dialogo, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -19,28 +20,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { OrderDetail } from '../../contracts';
 import { botoesDoResumo, PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
-import { motivoSoOrcamento } from '../../domain/orcamento';
+import { aplicarGeralNasLinhas, completarComGeral, linhasComOutroAjuste, linhasDiferentesDoGeral, type AjusteGeral } from '../../domain/desconto-geral';
 import { podeEnviarPedido } from '../../domain/quantidade';
-import { resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
+import { buscaPodeComecar, codigoExatoPrimeiro, paginaDaBusca, resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
 import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
-import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais, TotalDoPedido } from '../components/novo-pedido-abas';
+import { AbaEntrega, AbaResumo, AbaVenda, CardPagamento, FimDaAbaItens, linhasDoLeveMais } from '../components/novo-pedido-abas';
 import type { ModeloDoCredito } from '../lib/credito-cliente';
 import { exigeAprovacaoPorVencido, tituloVencidoDias } from '../../domain/pagamento';
 import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
 import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
-import { alertasDoNovoPedido, idDaAba, itensSemEstoque } from '../lib/alertas-novo-pedido';
-import { impedeEnviarPorAlertas, soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
+import { alertasDoNovoPedido, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
+import { impedeEnviarPorAlertas, soOrcamentoPorAlertas, vencidosComEfeito } from '../../domain/alertas-pedido';
 import { AreaAlertas } from '../components/area-alertas';
-import { PainelNoPedido, ResultadosDaBusca, VisorDeFoto } from '../components/busca-itens';
+import { MostrarMais, ResultadosDaBusca, SemResultadoDaBusca, VisorDeFoto } from '../components/busca-itens';
+import { DescontoGeral } from '../components/desconto-geral';
 import { FolhaDoItem } from '../components/folha-do-item';
-import { aplicarItemNoRascunho } from '../lib/item-popup';
+import { AVISO_ITEM_REMOVIDO, aplicarItemNoRascunho } from '../lib/item-popup';
 import { nomesDosVendedores, rotuloAcessivelDaOpcao, seletorEmNome, subtituloDoSeletor, vazioDoSeletor, type OpcaoDoSeletor } from '../lib/seletor-em-nome';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
@@ -50,7 +52,7 @@ import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
 import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
-import { pendenciasDePreenchimento } from '../../domain/pendencias-preenchimento';
+import { pendenciasDePreenchimento, type AbaDoPedido } from '../../domain/pendencias-preenchimento';
 import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
 import { FolhaSaidaDoPedido, VoltarDoFormulario } from '../components/saida-do-pedido';
 import { useBloquearSaida } from '../lib/bloquear-saida';
@@ -58,6 +60,11 @@ import { deixarAvisoPendente } from '../lib/aviso-pendente';
 import { avisoDoSalvar } from '../lib/salvar-na-fila';
 import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
+
+/** Chaves das linhas com quantidade (as que recebem o Desc./Acrésc. geral). */
+function chavesDasLinhas(lines: Record<string, number>): string[] {
+  return Object.keys(lines).filter((k) => (lines[k] ?? 0) > 0);
+}
 
 export default function NewOrderScreen() {
   const { customerId, editId, visitId, stopId, vendedorId, vendedorNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string }>();
@@ -178,6 +185,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const app = useVendedor();
   const insets = useSafeAreaInsets();
   const avisoRodape = useAvisoRodape();
+  const [chaveDaRemocao, setChaveDaRemocao] = useState(0);
   const podeEditar = usePode('pedido.editar');
   const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit, condicoesDe, v1, formas, prazos, limitesDe, creditoDoCliente } = app;
   const draftKey = draftKeyFor(customerId, editId);
@@ -192,14 +200,16 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   // T-0084 §12 (RN-VEN-19): a aplicação vem só dos itens visíveis e do rascunho (cache em memória), não da tabela inteira
   const [textos, setTextos] = useState<ReadonlyMap<string, string>>(new Map());
   const catalog = useMemo(() => (textos.size === 0 ? catalogBase : catalogBase.map((p) => (textos.has(p.id) ? { ...p, applications: textos.get(p.id)! } : p))), [catalogBase, textos]);
-  const productsAt = dados.produtos[tableKey]?.synced_at ?? dados.sincronizado_em ?? '';
   const [query, setQuery] = useState('');
-  /** T-0148: popup do item (produto aberto) e painel "No pedido" expandido */
+  /** T-0148: popup do item (produto aberto) */
   const [popupId, setPopupId] = useState<string | null>(null);
-  const [painelAberto, setPainelAberto] = useState(false);
+  /** T-0165: o último Desc./Acrésc. geral aplicado; o item que entra depois leva o mesmo. Não é gravado no pedido (o ajuste vale em cada item). */
+  const [geralAplicado, setGeralAplicado] = useState<AjusteGeral | null>(null);
   /** T-0084 C9: resposta da busca do Catálogo para esta consulta; `null` = indisponível, vale a busca local (reserva) */
   const [erroBusca, setErroBusca] = useState(false);
-  const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; itens: Array<{ produto_id: string; serve_em: TrechoServeEm | null }> } | null>(null);
+  const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; itens: Array<{ produto_id: string; serve_em: TrechoServeEm | null }>; sugestao: string | null } | null>(null);
+  /** T-0167: páginas de 20 já à vista; volta a 1 a cada nova busca */
+  const [paginasBusca, setPaginasBusca] = useState(1);
   const [sent, setSent] = useState<Sent | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,7 +337,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId })
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
         : null,
     [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
@@ -383,18 +393,33 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       })
     : [];
 
+  // RD-0170 (T-0166): a falta de preenchimento só entra em Alertas nas abas já tentadas; pedido recém-aberto: 0 alertas
+  const [tentou, setTentou] = useState<ReadonlySet<AbaDoPedido>>(new Set());
   // RN-VEN-42 (T-0150): a área única Alertas, no topo de todas as abas (cliente, faltante, máximo, estoque, crédito, título)
   const codigos = useMemo(() => new Map(catalog.map((p) => [p.id, p.erp_code] as [string, string])), [catalog]);
+  const marcas = useMemo(() => new Map(catalog.flatMap((p) => (p.brand?.trim() ? [[p.id, p.brand.trim()] as [string, string]] : []))), [catalog]);
   const semEstoque = !sent && calculoBase ? itensSemEstoque(calculoBase.linhas, (id) => byId.get(id)) : [];
+  const semFormaParaOCliente = !sent && situacaoDoPagamento(draft, formas, prazos, limites).tipo === 'sem_forma_permitida';
+  const faltaDoCampo = (id: string) => (tentou.has('venda') && pendencias.some((p) => p.id === id) ? 'Obrigatório' : null);
   const alertasDoTopo = alertasDoNovoPedido({
     cliente: app.situacaoDoCliente(customerId),
-    pendencias,
+    // RD-0173: "sem forma para o cliente" é cadastro e já está sempre em Alertas; a pendência de preenchimento não repete
+    pendencias: pendenciasDasAbasTentadas(pendencias.filter((p) => !(p.id === 'forma' && semFormaParaOCliente)), tentou),
+    sem_forma_para_o_cliente: semFormaParaOCliente,
     acima_do_maximo: calculoBase?.acima_do_maximo ?? [],
+    acima_do_limite: calculoBase?.acima_do_limite ?? null,
     produtoDoCodigo: (codigo) => catalog.find((p) => p.erp_code === codigo)?.id,
     sem_estoque: semEstoque,
-    vencidos: credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null,
+    // RD-0172: título vencido só entra em Alertas quando muda o resultado (acima do limite, com prazo a prazo; RN-VEN-13)
+    vencidos: vencidosComEfeito(credito?.tipo === 'dados' && credito.alerta ? { titulos: credito.alerta.titulos, valor_cents: credito.alerta.valorCents, dias: credito.alerta.dias } : null, prazoEscolhido?.prazo_medio_dias, tituloVencidoDias(parametrosVendedor)),
     disponivel_cents: credito?.tipo === 'dados' ? credito.disponivel_cents : null,
     total_cents: calculoBase?.total_cents ?? 0,
+    // RN-VEN-10 (T-0165): acima da alçada do autor (e dentro do limite do gestor, que já é recusa) vira UMA linha nos Alertas
+    acima_da_alcada: !sent && Boolean(calculoBase && calculoBase.nivel !== null && !calculoBase.bloqueado),
+    // RD-0174 e RD-0175: o que a cópia deixou de fora e o sinal que falta para salvar a edição entram em Alertas, não em faixa
+    itens_fora_da_copia: sent || !draft.notice ? [] : draft.notice.split('\n'),
+    sem_sinal_para_salvar: editingServer && offline,
+    aba_atual: aba,
   });
 
   // T-0084 C9 (RN-CAT-12): busca do Catálogo com "Serve em"; indisponível (sem leitura no aparelho, sem sinal, falha) = busca local, sem erro
@@ -403,17 +428,18 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const idsDoCatalogo = useMemo(() => (catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null), [catalogBase]);
   useEffect(() => {
     const q = query.trim();
-    if (!q || sent) {
+    setPaginasBusca(1);
+    if (!buscaPodeComecar(q) || sent) {
       setBuscaCatalogo(null);
       setErroBusca(false);
       return;
     }
     let vivo = true;
     const espera = setTimeout(() => {
-      void buscarNoCatalogo(q, idsDoCatalogo).then((r) => {
+      void buscarNoCatalogo(q, idsDoCatalogo, customerId ?? undefined).then((r) => {
         if (!vivo) return;
         setErroBusca(r.tipo === 'erro');
-        setBuscaCatalogo(r.tipo === 'ok' ? { q, itens: r.itens } : null);
+        setBuscaCatalogo(r.tipo === 'ok' ? { q, itens: r.itens, sugestao: r.sugestao } : null);
       });
     }, 250);
     return () => {
@@ -421,8 +447,12 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
       clearTimeout(espera);
     };
   }, [query, sent, idsDoCatalogo, buscarNoCatalogo]);
-  const resultadosDaBusca = query.trim() ? (buscaCatalogo && buscaCatalogo.q === query.trim() ? resolverBusca(buscaCatalogo.itens, byId, 40) : null) : [];
-  const results = resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : query.trim() ? searchProducts(catalog, query, 40) : [];
+  // T-0167: a lista ranqueada inteira (teto 400) vem uma vez; o app mostra 20 por vez e o código exato fica em 1º
+  const buscando = buscaPodeComecar(query);
+  const resultadosDaBusca = buscando ? (buscaCatalogo && buscaCatalogo.q === query.trim() ? resolverBusca(buscaCatalogo.itens, byId, 400) : null) : [];
+  const todosOsResultados = codigoExatoPrimeiro(resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : buscando ? searchProducts(catalog, query, 400) : [], query);
+  const paginaBusca = paginaDaBusca(todosOsResultados.length, paginasBusca);
+  const results = todosOsResultados.slice(0, paginaBusca.mostrando);
   const serveEmPorId = useMemo(() => new Map((resultadosDaBusca ?? []).flatMap((r) => (r.serveEm ? [[r.produto.id, r.serveEm] as const] : []))), [buscaCatalogo, query, byId]);
   // T-0084 §12 (RN-VEN-19): lê a aplicação só dos itens visíveis (≤ 40) e dos do rascunho
   const idsComTexto = [...new Set([...results.map((p) => p.id), ...Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id)])];
@@ -510,8 +540,13 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     setError(null);
     updateDraft(customerId, (d) => ({ ...d, lines, ajustes }));
   };
+  /** T-0165 (regra 3): item que entra sem ajuste (sugestões, "Leve mais") leva o último geral aplicado. */
+  const comGeral = (lines: Record<string, number>, ajustes: Record<string, Ajuste>) => completarComGeral(chavesDasLinhas(lines), ajustes, geralAplicado);
+  const aplicarGeral = (g: AjusteGeral) => {
+    setGeralAplicado(g);
+    setLinhas(draft.lines, aplicarGeralNasLinhas(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g));
+  };
 
-  const noSignal = offline;
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
   const editBlockedOffline = editingServer && offline;
   const situacaoCliente = app.situacaoDoCliente(customerId);
@@ -520,11 +555,15 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const rascunhoVisivel: Draft = sent ? sent.snapshot.rascunho : draft;
   const enderecosCliente = enderecosDoCliente(app.enderecos, customerId);
   const enderecoEscolhido = enderecoDoRascunho(rascunhoVisivel, enderecosCliente);
+  const enderecoPrincipal = enderecosCliente.find((e) => e.principal || e.tipo === 'principal') ?? enderecosCliente[0] ?? null;
   const nomeDaTransportadora = rascunhoVisivel.frete?.modalidade === 'FOB' ? (rascunhoVisivel.frete.transportadora_id ? (app.transportadoras.find((x) => x.id === rascunhoVisivel.frete?.transportadora_id)?.nome ?? null) : (rascunhoVisivel.frete.transportadora_digitada?.nome ?? null)) : null;
   const produtosDoRascunho = [...new Set(Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id))].flatMap((id) => {
     const p = byId.get(id);
     return p ? [p] : [];
   });
+
+  const idsNoPedido: ReadonlySet<string> = new Set(produtosDoRascunho.map((p) => p.id));
+  const medidasDe = (id: string) => unidadesDoProduto(id, app.unidades, byId.get(id)?.unit ?? 'UN');
 
   const saveEdit = async (opcoes: { transformar?: boolean } = {}) => {
     if (!editId || !podeEditar) return;
@@ -536,7 +575,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         const b = statusBadge(res.order.status);
         deixarAvisoPendente(res.order.tipo === 'orcamento' ? `Orçamento ${res.order.number} atualizado` : `Pedido ${res.order.number} atualizado · ${b.label}`);
       } else {
-        deixarAvisoPendente(offline ? 'Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar' : 'Pedido da fila atualizado');
+        deixarAvisoPendente(offline ? 'Pedido da fila atualizado no aparelho' : 'Pedido da fila atualizado');
       }
       // T-0137: Transformar em pedido abre o detalhe já com a folha do Transformar (RN-VEN-18)
       if (opcoes.transformar) router.replace(hrefPedido(editId, true) as never);
@@ -580,7 +619,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
-  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, pendencias: pendencias.length, itens_acima_do_maximo: calculo.acima_do_maximo, itens_sem_estoque: semEstoque.map((x) => x.codigo), preco_data: precoData, editando_no_servidor: editingServer });
+  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, pendencias: 0, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), preco_data: precoData, editando_no_servidor: editingServer });
   // permissão e sinal (edição de pedido já no servidor) valem além das pendências; na edição de pedido o rótulo diz para onde vai
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
   const liberaSalvar = (b: typeof botoesBase.enviar) => ({ ...b, habilitado: b.habilitado && podeAgir });
@@ -590,6 +629,13 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     orcamento: liberaSalvar(botoesBase.orcamento),
     salvarOrcamento: liberaSalvar(botoesBase.salvarOrcamento),
     transformar: liberaSalvar(botoesBase.transformar),
+  };
+  /** RD-0170: salvar, enviar e transformar ficam tocáveis; com falta, o toque marca todas as abas e leva à 1ª com falta */
+  const comTentativa = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => {
+    const primeira = primeiraAbaComFalta(pendencias);
+    if (primeira === null) return fn(...a);
+    setTentou(new Set<AbaDoPedido>(['venda', 'itens', 'entrega', 'resumo']));
+    irParaAba(primeira);
   };
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
 
@@ -733,32 +779,22 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
           irParaAba(v && 'aba' in v ? idDaAba(v.aba) : 'itens');
           if (v && 'item' in v) setPopupId(v.item);
         }} /> : null}
-        {draft.notice && !sent ? (
-          <Banner icon="alert" testID="order-prefill-notice">
-            {draft.notice}
-          </Banner>
-        ) : null}
-        {editBlockedOffline ? (
-          <Banner tone="danger" testID="banner-edit-offline">
-            <Strong>Sem sinal.</Strong> Editar pedido enviado exige internet.
-          </Banner>
-        ) : null}
 
         {sent?.kind === 'queued' ? (
           <Banner testID="banner-saved">
-            <Strong>{avisoSalvoNoAparelho(sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido').titulo}</Strong> {avisoSalvoNoAparelho('pedido').nota}
+            <Strong>{avisoSalvoNoAparelho(sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido').titulo}</Strong>
           </Banner>
         ) : sent?.kind === 'sent' ? (
           <SentCard order={sent.order} tipo={sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido'} precoData={precoData} />
-        ) : noSignal && !editBlockedOffline ? (
-          <Banner testID="banner-offline">
-            <Strong>Sem sinal.</Strong> Preço e estoque de {formatHHMM(productsAt, tz)}.
-          </Banner>
         ) : null}
 
         {!sent && aba === 'venda' ? (
           <AbaVenda
-            pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} />}
+            clienteLinhas={[
+              ...(enderecoPrincipal ? [{ rotulo: 'Endereço', valor: textoDoEndereco(enderecoPrincipal) }] : []),
+              ...(customer.cnpj ? [{ rotulo: customer.cnpj.replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ', valor: formatarDocumento(customer.cnpj) }] : []),
+            ]}
+            pagamento={<CardPagamento rascunho={draft} formas={formas} prazos={prazos} cliente={limites} legado={opcoesLegado} onRascunho={emRascunho} faltaForma={faltaDoCampo('forma')} faltaPrazo={faltaDoCampo('prazo')} />}
             credito={credito}
             prazoMedioDias={limites.prazo_medio_max_dias}
             sincronizadoEm={app.sincronizadoEm}
@@ -770,32 +806,35 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
         {!sent && aba === 'itens' ? (
           <>
-            {/* T-0148: "No pedido" compacto acima da busca; item novo só pela busca + Adicionar, que abre o popup do item */}
-            <PainelNoPedido
-              linhas={calculo.linhas.map((l) => ({ chave: l.chave, produtoId: l.product_id, descricao: nomes.get(l.product_id) ?? '', qtd: `${l.quantity} ${l.unidade_sigla}`, total_cents: l.total_cents }))}
-              aberto={painelAberto}
-              aoAlternar={() => setPainelAberto((v) => !v)}
-              aoAbrirItem={setPopupId}
-            />
+            {/* T-0165: Desc./Acrésc. geral no topo; os itens do pedido aparecem só no Resumo e como ✓ na lista (busca vazia) */}
+            <DescontoGeral contarComOutroAjuste={(g) => linhasComOutroAjuste(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} contarDiferentes={(g) => linhasDiferentesDoGeral(chavesDasLinhas(draft.lines), draft.ajustes ?? {}, g).length} semItens={chavesDasLinhas(draft.lines).length === 0} aoAplicar={aplicarGeral} />
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
-            {query.trim() ? (
+            {buscando ? (
               erroBusca ? (
                 <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
               ) : results.length === 0 ? (
-                <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />
+                <SemResultadoDaBusca busca={query} sugestao={buscaCatalogo?.sugestao ?? null} aoBuscar={setQuery} />
               ) : (
-                <ResultadosDaBusca produtos={results} serveEm={serveEmPorId} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
+                <>
+                  <ResultadosDaBusca produtos={results} medidasDe={medidasDe} noPedido={idsNoPedido} serveEm={serveEmPorId} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
+                  <MostrarMais pagina={paginaBusca} aoMostrarMais={() => setPaginasBusca((n) => n + 1)} />
+                </>
               )
             ) : produtosDoRascunho.length === 0 ? (
               <EstadoVazio icone="search" titulo="Nenhum item ainda" texto={catalog.length > 0 ? 'Busque pelo código, descrição ou veículo.' : 'Sincronize com sinal para baixar os preços.'} testID="itens-vazio" />
-            ) : null}
+            ) : (
+              <ResultadosDaBusca produtos={produtosDoRascunho} medidasDe={medidasDe} noPedido={idsNoPedido} aoAdicionar={setPopupId} comFoto={comFoto} aoAbrirFoto={(id) => void abrirFoto(id)} />
+            )}
             <VisorDeFoto uri={fotoAberta} aoFechar={() => setFotoAberta(null)} />
             <FimDaAbaItens
               sugestoes={sugestoes}
             nomeDoProduto={(id) => byId.get(id)?.description ?? 'Produto'}
             onAdicionar={(id) => {
               const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
-              setLinhas(adicionarSugestao(draft.lines, id), draft.ajustes ?? {});
+              {
+                const linhas = adicionarSugestao(draft.lines, id);
+                setLinhas(linhas, comGeral(linhas, draft.ajustes ?? {}));
+              }
               avisoRodape.mostrar({ texto: avisoSugestaoAdicionada(byId.get(id)?.description ?? 'Produto', false), acao: { rotulo: 'Desfazer', onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'sugestao-desfazer' } });
             }}
             onTrocar={(sg) => {
@@ -804,21 +843,23 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
               const de = medidas.find((m) => m.unidade === sg.de_unidade) ?? medidas[0];
               const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
               const r = aplicarTrocaDeEmbalagem(draft.lines, draft.ajustes ?? {}, sg, { unidade_base: p?.unit ?? sg.de_unidade, fator: de?.fator ?? 1 });
-              setLinhas(r.lines, r.ajustes);
+              setLinhas(r.lines, comGeral(r.lines, r.ajustes));
               avisoRodape.mostrar({ texto: avisoSugestaoAdicionada(nomeDaSugestao(p?.description ?? 'Produto', sg), true), acao: { rotulo: 'Desfazer', onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'sugestao-desfazer' } });
             }}
             leveMais={linhasDoLeveMais(leveMais, (chave, quantidade, texto) => {
               const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
-              setLinhas(linhasNaFaixa(draft.lines, chave, quantidade), draft.ajustes ?? {});
+              {
+                const linhas = linhasNaFaixa(draft.lines, chave, quantidade);
+                setLinhas(linhas, comGeral(linhas, draft.ajustes ?? {}));
+              }
               avisoRodape.mostrar({ texto, acao: { rotulo: 'Desfazer', onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'leve-mais-desfazer' } });
             })}
             />
-            <TotalDoPedido totalCents={calculo.total_cents} />
           </>
         ) : null}
 
         {!sent && aba === 'entrega' ? (
-          <AbaEntrega rascunho={draft} clienteId={customerId} enderecos={app.enderecos} motivoCadastro={situacaoCliente.ativo && !situacaoCliente.bloqueado ? motivoSoOrcamento(situacaoCliente) : null} onRascunho={emRascunho} fretePadrao={fretePadrao} transportadoras={app.transportadoras} />
+          <AbaEntrega rascunho={draft} clienteId={customerId} enderecos={app.enderecos} onRascunho={emRascunho} fretePadrao={fretePadrao} transportadoras={app.transportadoras} faltaTransportadora={tentou.has('entrega') && pendencias.some((p) => p.id === 'frete' && p.texto === 'Transportadora do frete FOB') ? 'Obrigatório' : null} />
         ) : null}
 
         {noResumo ? (
@@ -829,17 +870,19 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             calculo={calculo}
             nomes={nomes}
             codigos={codigos}
+            marcas={marcas}
             prazo={terms}
             endereco={enderecoEscolhido ? textoDoEndereco(enderecoEscolhido) : null}
             transportadora={nomeDaTransportadora}
             fretePadrao={fretePadrao}
             onRascunho={emRascunho}
+            aoAbrirItem={setPopupId}
             botoes={botoes}
-            onEnviar={aoEnviar}
-            onApenasSalvar={aoApenasSalvar}
-            onOrcamento={aoSalvarComoOrcamento}
-            onSalvarOrcamento={aoSalvarOrcamentoEditado}
-            onTransformar={aoTransformarEmPedido}
+            onEnviar={comTentativa(aoEnviar)}
+            onApenasSalvar={comTentativa(aoApenasSalvar)}
+            onOrcamento={comTentativa(aoSalvarComoOrcamento)}
+            onSalvarOrcamento={comTentativa(aoSalvarOrcamentoEditado)}
+            onTransformar={comTentativa(aoTransformarEmPedido)}
             onCancelar={() => (editId ? pedirSaidaDaEdicao() : alterado ? pedirSaida(sairDoPedido) : void descartar())}
             salvando={sending}
             somenteLeitura={Boolean(sent)}
@@ -847,7 +890,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         ) : null}
 
         {!sent && !noResumo ? (
-          <Botao testID="avancar" nivel="principal" rotulo="Avançar" onPress={() => irParaAba(proximaAbaDoPedido(aba))} />
+          <Botao testID="avancar" nivel="principal" rotulo="Avançar" onPress={() => {
+            setTentou((t) => new Set([...t, aba as AbaDoPedido]));
+            irParaAba(proximaAbaDoPedido(aba));
+          }} />
         ) : null}
         {popupId && byId.get(popupId) && !sent ? (
           <FolhaDoItem
@@ -856,9 +902,10 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             medidas={unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit)}
             lines={draft.lines}
             ajustes={draft.ajustes ?? {}}
+            geral={geralAplicado}
             previa={(lines, ajustes) =>
               politica
-                ? calcularPedido({ lines, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId })
+                ? calcularPedido({ lines, ajustes, desconto_pct: 0, acrescimo_pct: 0, catalogo: catalog, unidades: app.unidades, faixas: dados.produtos[tableKey]?.faixas, ...(draft.precos_congelados ? { congelados: draft.precos_congelados } : {}), aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId, limite: app.limiteDesconto })
                 : null
             }
             onConfirmar={(estado) => {
@@ -867,9 +914,13 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
               setPopupId(null);
             }}
             onRemover={() => {
+              const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
               const r = aplicarItemNoRascunho(draft.lines, draft.ajustes ?? {}, popupId, unidadesDoProduto(popupId, app.unidades, byId.get(popupId)!.unit), null);
               setLinhas(r.lines, r.ajustes);
               setPopupId(null);
+              // §5.8: sem pergunta; Desfazer por 5 s devolve o item com a embalagem, a quantidade e o ajuste
+              setChaveDaRemocao((avisoRodape.props.chave ?? 0) + 1);
+              avisoRodape.mostrar({ texto: AVISO_ITEM_REMOVIDO.texto, acao: { rotulo: AVISO_ITEM_REMOVIDO.desfazer, onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'item-removido-desfazer' } });
             }}
             onFechar={() => setPopupId(null)}
           />
@@ -903,7 +954,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         }}
         testID="pergunta-alcada"
       />
-      <AvisoRodape {...avisoRodape.props} respiroInferior={16} />
+      <AvisoRodape {...avisoRodape.props} respiroInferior={16} {...(avisoRodape.props.chave === chaveDaRemocao ? { duracaoMs: AVISO_ITEM_REMOVIDO.duracao_ms } : {})} />
       <FolhaSaidaDoPedido visivel={saidaAberta} edicao={editId ? opcoesDaSaidaEdicao({ tipo: editandoTipo ?? 'pedido' }) : null} opcoes={opcoesDaSaida({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, preco_data: precoData, alertas_impedem_enviar: soOrcamentoPorAlertas(alertasDoTopo) || impedeEnviarPorAlertas(alertasDoTopo) })} onAcao={aoEscolherNaSaida} />
     </View>
   );

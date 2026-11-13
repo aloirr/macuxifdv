@@ -26,11 +26,13 @@ export function avisoDoSalvar(offline: boolean): string {
 /** Códigos que a API devolve na recusa, traduzidos; o código cru nunca aparece na tela (spec §4.3). */
 export function motivoDaRecusa(bruto: string): string {
   const t = (bruto ?? '').trim();
-  const codigo = (/\b(preco_abaixo_minimo|cliente_bloqueado|item_inativo|estoque_insuficiente)\b/.exec(t) ?? [])[1];
+  const codigo = (/\b(preco_abaixo_minimo|desconto_pedido_acima_limite|cliente_bloqueado|item_inativo|estoque_insuficiente)\b/.exec(t) ?? [])[1];
   const item = /\b([A-Z]{2,}-\d+)\b/.exec(t)?.[1] ?? 'o item';
   switch (codigo) {
     case 'preco_abaixo_minimo':
       return mensagemAcimaDoMaximo([item]);
+    case 'desconto_pedido_acima_limite':
+      return 'Pedido acima do desconto máximo';
     case 'cliente_bloqueado':
       return 'cliente bloqueado no ERP';
     case 'item_inativo':
@@ -61,6 +63,8 @@ function motivoLegivel(t: string): string | null {
 
 /** Aba do editor para onde "Corrigir pedido" leva, pelo motivo da recusa (código ou a frase da API). */
 export function abaDaCorrecao(bruto: string): 'itens' | 'resumo' {
+  // RN-VEN-11a (T-0168): o limite é do pedido; a correção é no Resumo
+  if (/desconto_pedido_acima_limite|Pedido acima do desconto máximo/i.test(bruto ?? '')) return 'resumo';
   return /preco_abaixo_minimo|item_inativo|estoque_insuficiente|acima do máximo|acima do desconto máximo|Sem preço para|produto inativo|Quantidade inválida|Medida inválida|Desconto em R\$ acima|^Item [^:]+:/i.test(bruto ?? '') ? 'itens' : 'resumo';
 }
 

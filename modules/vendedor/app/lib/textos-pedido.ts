@@ -7,7 +7,6 @@ import { formatBRL, formatPct } from '@macuxi/comum';
 import { textoPrecoDe, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
 import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
 import type { NivelDePreco } from '../../domain/preco-pedido';
-import type { CalculoPedido } from './novo-pedido';
 
 export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
 
@@ -88,14 +87,6 @@ export function linhaDeEntrega(e: { modalidade: 'CIF' | 'FOB'; prazo: string; en
   return [e.modalidade, e.prazo.trim(), e.endereco?.trim()].filter((x) => x && x.length > 0).join(' · ');
 }
 
-/** Totais do Resumo em até 3 linhas (Tabela, Descontos ou Acréscimos) mais o Total à parte. */
-export function linhasDeTotais(c: Pick<CalculoPedido, 'total_tabela_cents' | 'desconto_cents' | 'acrescimo_cents' | 'total_cents'>): { linhas: Array<{ id: string; rotulo: string; valor: string }>; total: { rotulo: string; valor: string } } {
-  const linhas = [{ id: 'tabela', rotulo: 'Tabela', valor: formatBRL(c.total_tabela_cents) }];
-  if (c.desconto_cents > 0) linhas.push({ id: 'descontos', rotulo: 'Descontos', valor: `− ${formatBRL(c.desconto_cents)}` });
-  if (c.acrescimo_cents > 0) linhas.push({ id: 'acrescimos', rotulo: 'Acréscimos', valor: `+ ${formatBRL(c.acrescimo_cents)}` });
-  return { linhas, total: { rotulo: 'Total', valor: formatBRL(c.total_cents) } };
-}
-
 // ---------- item da aba Itens (T-0071, referência enxuta) ----------
 /** O que o ajuste vale na outra moeda: "−R$ 0,89" (digitou %) ou "= 5,3%" (digitou R$); acréscimo com "+". Sem ajuste, vazio. */
 export function textoEquivalente(l: { ajuste_em: 'pct' | 'valor'; equivalente: { sentido: 'desconto' | 'acrescimo'; cents: number; pct_exibicao: number } | null }): string {
@@ -109,11 +100,6 @@ export function textoEquivalente(l: { ajuste_em: 'pct' | 'valor'; equivalente: {
 /** Trilha do catálogo do item: "Mercearia › Bebidas" (linha e marca do cadastro). Vazio quando o produto não traz nenhuma. */
 export function trilhaDoProduto(p: { line?: string | null; brand?: string | null }): string {
   return [p.line, p.brand].map((x) => x?.trim()).filter((x): x is string => Boolean(x)).join(' › ');
-}
-
-/** Rótulo do ajuste do pedido, ex.: "Desconto do pedido" / "Acréscimo do pedido". */
-export function rotuloDoAjusteDoPedido(sentido: 'desconto' | 'acrescimo'): string {
-  return sentido === 'acrescimo' ? 'Acréscimo do pedido' : 'Desconto do pedido';
 }
 
 // ---------- sugestões do fim da aba Itens ----------
@@ -144,9 +130,9 @@ export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: st
   return { titulo: `Pedido ${e.numero} recebido`, nota, mostrarStatus: true, rodape: ROTULO_IR_PARA_PEDIDOS };
 }
 
-/** Sem sinal: o documento ficou na fila do aparelho. */
-export function avisoSalvoNoAparelho(tipo: 'pedido' | 'orcamento'): { titulo: string; nota: string } {
-  return { titulo: tipo === 'orcamento' ? 'Orçamento salvo no aparelho.' : 'Pedido salvo no aparelho.', nota: 'Envia quando o sinal voltar.' };
+/** Sem sinal: o documento ficou na fila do aparelho (RD-0178: sem a nota "Envia quando o sinal voltar"). */
+export function avisoSalvoNoAparelho(tipo: 'pedido' | 'orcamento'): { titulo: string } {
+  return { titulo: tipo === 'orcamento' ? 'Orçamento salvo no aparelho.' : 'Pedido salvo no aparelho.' };
 }
 
 export const ROTULO_IR_PARA_PEDIDOS_RODAPE = ROTULO_IR_PARA_PEDIDOS;
@@ -160,12 +146,6 @@ export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: s
   if (!c) return { titulo: ROTULOS_DO_SALVAR.transformar, podeEnviar: true, mostrarTotal: false };
   const mudou = c.mudancas.length > 0 || c.bloqueio !== null;
   return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DO_SALVAR.transformar, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
-}
-
-/** Resumo depois do envio (só leitura): o ajuste do pedido vira uma linha de valor. Zero = sem linha. */
-export function linhaDoAjusteSomenteLeitura(a: { sentido: 'desconto' | 'acrescimo'; cents: number; pct_exibicao: number } | null): { rotulo: string; valor: string } | null {
-  if (!a || a.cents <= 0) return null;
-  return { rotulo: `${rotuloDoAjusteDoPedido(a.sentido)} (${formatPct(a.pct_exibicao)})`, valor: `${a.sentido === 'acrescimo' ? '+' : '−'} ${formatBRL(a.cents)}` };
 }
 
 /**
@@ -202,6 +182,12 @@ export function textoDoAviso(texto: string): string {
 
 export function textoBuscaSemResultado(busca: string): { titulo: string; texto: string } {
   return { titulo: `Nenhum produto com “${busca.trim()}”`, texto: 'Confira o código ou a descrição.' };
+}
+
+/** T-0167 (pedido-v4 §5.3): nada encontrado; "Você quis dizer…?" só quando o índice tem um termo parecido. */
+export function semResultadoDaBusca(busca: string, sugestao: string | null): { frase: string; sugestao: string | null; rotuloSugestao: string | null } {
+  const sug = sugestao?.trim() || null;
+  return { frase: `Nenhum produto com “${busca.trim()}”.`, sugestao: sug, rotuloSugestao: sug ? `Você quis dizer “${sug}”?` : null };
 }
 
 /** Aviso do rodapé depois de tocar numa sugestão (com Desfazer). */

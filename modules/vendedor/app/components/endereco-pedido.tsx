@@ -208,9 +208,6 @@ export function FormularioEndereco({
     <>
       <Folha visivel={visivel} onFechar={voltar} rotuloFechar="Fechar" titulo={TEXTOS_ENDERECO.tituloFormulario} fechar={{ rotulo: 'Fechar', testID: 'endereco-fechar' }} evitarTeclado testID="folha-endereco-pedido">
         <View style={{ gap: 12 }}>
-          <Text style={s.aviso} testID="endereco-aviso">
-            {TEXTOS_ENDERECO.aviso}
-          </Text>
           {campo('cep', 'CEP', { teclado: 'number-pad', max: 9, meia: true, onChange: (x) => set('cep', mascaraDoCep(x)) })}
           {campo('logradouro', 'Rua', { max: LIMITES_ENDERECO.logradouro })}
           {par(campo('numero', 'Número', { max: LIMITES_ENDERECO.numero, capitaliza: 'characters' }), campo('complemento', 'Complemento', { max: LIMITES_ENDERECO.complemento }), 1, 2)}
@@ -268,7 +265,6 @@ const s = StyleSheet.create({
   cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, gap: 4 },
   linhaEndereco: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink },
   divisor: { height: 1, backgroundColor: colors.lineSoft },
-  aviso: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   rotulo: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2 },
   campo: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
   campoFoco: { borderColor: colors.accent, borderWidth: 2 },

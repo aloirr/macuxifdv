@@ -5,14 +5,13 @@
  * - quem é a ação principal, quais vão em ícone + rótulo curto e quais vão para o menu ⋮ (quem decide se a ação EXISTE é o
  *   domain, `orderActions`/`estadoDasAcoes`, RN-VEN-31; aqui só se decide ONDE ela fica).
  */
-import { formatPct } from '@macuxi/comum';
 import { TEXTOS_PRECOS_DE_HOJE } from './precos-de-hoje';
 import { ROTULO_CORRIGIR_PEDIDO } from './salvar-na-fila';
 import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
 import { alertasDoPedido, type AlertaDoPedido } from '../../domain/alertas-pedido';
-import { linhaLiquidaDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
+import { ajusteDoItemEmPct, linhasDosTotais, semRs, siglaDaMedida } from '../../domain/apresentacao-totais';
 
-export { linhaLiquidaDosTotais, semRs, siglaDaMedida };
+export { linhasDosTotais, semRs, siglaDaMedida };
 import type { MudancaNaConversao, SituacaoCliente, SituacaoOrcamento } from '../../domain/orcamento';
 
 // ---------- histórico em tags ----------
@@ -120,21 +119,41 @@ export function acoesDoDetalhe(e: EntradaAcoesDoDetalhe): AcoesDoDetalhe {
 
 // ---------- T-0150 (RN-VEN-42): Alertas, tabela de itens e totais do detalhe ----------
 export interface LinhaDeItemEmTabela {
-  descricao: string;
+  /** nome - marca (balão do código) */
+  nomeComMarca: string;
   codigo: string;
-  /** "4 UN": a embalagem vendida */
+  /** a sigla da embalagem: "FD", "UN" */
+  emb: string;
+  /** "c/ 6" embaixo da sigla; vazio na UN */
+  fator: string;
+  /** só o número */
   qtd: string;
-  /** preço de tabela da embalagem, sem "R$" */
-  preco: string;
-  /** "−5,0%", "+10,0%" ou "—" */
+  /** valor de tabela da linha = quantidade × preço de tabela da embalagem, sem "R$" */
+  valorTabela: string;
+  /** sempre em %: "−5,0%", "+10,0%", "0,0%" */
   ajuste: string;
   total: string;
 }
 
-/** §1/§2: uma linha da tabela Produto · Qtd · Preço unit. · Desc./Acrésc. · Total (números sem "R$"). */
-export function linhaDeItemEmTabela(l: { description: string; erp_code: string; quantity: number; unit_label?: string; unit_price_cents: number; total_cents: number; discount_pct?: number; surcharge_pct?: number }): LinhaDeItemEmTabela {
-  const ajuste = (l.surcharge_pct ?? 0) > 0 ? `+${formatPct(l.surcharge_pct!)}` : (l.discount_pct ?? 0) > 0 ? `−${formatPct(l.discount_pct!)}` : '—';
-  return { descricao: l.description, codigo: l.erp_code, qtd: `${l.quantity} ${siglaDaMedida(l.unit_label)}`, preco: semRs(l.unit_price_cents), ajuste, total: semRs(l.total_cents) };
+/** "Água mineral 1,5 L - Fonte Clara": o nome sempre seguido da marca, depois de um hífen (R-20261112-031456, regra 1); sem marca, só o nome. */
+export function nomeComMarca(descricao: string, marca: string | null | undefined): string {
+  const m = (marca ?? '').trim();
+  return m ? `${descricao} - ${m}` : descricao;
+}
+
+/** §5.4: uma linha da tabela Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total (números sem "R$"). `unit_label` = "FD c/ 6" ou "UN". */
+export function linhaDeItemEmTabela(l: { description: string; brand?: string | null; erp_code: string; quantity: number; unit_label?: string; unit_price_cents: number; total_cents: number; discount_pct?: number; surcharge_pct?: number }): LinhaDeItemEmTabela {
+  const rotulo = (l.unit_label ?? '').trim();
+  return {
+    nomeComMarca: nomeComMarca(l.description, l.brand),
+    codigo: l.erp_code,
+    emb: siglaDaMedida(rotulo),
+    fator: rotulo.split(/\s+/).slice(1).join(' '),
+    qtd: String(l.quantity),
+    valorTabela: semRs(l.unit_price_cents * l.quantity),
+    ajuste: ajusteDoItemEmPct(l),
+    total: semRs(l.total_cents),
+  };
 }
 
 /** RN-VEN-30/42: o detalhe da recusa do servidor na fila vira alerta; a do supervisor e o motivo do cancelamento também (T-0150, pedido-v4 §0.1); a etapa do Histórico leva só o nome. */

@@ -11,7 +11,6 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.linhas[1]!.valor).toMatch(/^R\$\s17\.900,00$/);
     expect(t.linhas[2]!.valor).toBe('45 dias');
     expect(t.linhas.every((l) => !('tom' in l))).toBe(true);
-    expect(t.apoio).toBeNull();
   });
   it('RN-VEN-42 (RD-0083): disponível negativo sai só com o sinal − (U+2212), sem vermelho: o alerta é o de crédito excedido', () => {
     const t = tabelaDoCredito({ tipo: 'dados', limite_cents: 1000000, disponivel_cents: -120000, alerta: null }, 30);
@@ -23,16 +22,17 @@ describe('textos da aba Venda (RF-VEN-11, RN-VEN-12, RN-VEN-13)', () => {
     expect(t.linhas).toHaveLength(3);
     expect(t.linhas[2]).toMatchObject({ id: 'prazo', valor: '—' });
   });
-  it('RN-VEN-12: cliente sem dados de crédito mostra travessão em Limite e Disponível e a frase de apoio; o prazo continua', () => {
+  it('RN-VEN-12: cliente sem dados de crédito mostra travessão em Limite e Disponível e sem frase (RD-0178); o prazo continua', () => {
     const t = tabelaDoCredito({ tipo: 'vazio' }, 28);
     expect(t.estado).toBe('tabela');
     expect(t.linhas.map((l) => l.valor)).toEqual(['—', '—', '28 dias']);
-    expect(t.apoio).toBe('Sem dados de crédito deste cliente.');
+    expect(t).not.toHaveProperty('apoio');
   });
-  it('RN-VEN-12: lendo do aparelho (undefined) são barras, nunca R$ 0,00; consulta indisponível (null) some a tabela e orienta', () => {
+  it('RN-VEN-12: lendo do aparelho (undefined) são barras, nunca R$ 0,00; consulta indisponível (null) fica com "—", sem frase (RD-0178)', () => {
     expect(tabelaDoCredito(undefined, 45)).toMatchObject({ estado: 'carregando' });
     const i = tabelaDoCredito(null, 45);
-    expect(i).toMatchObject({ estado: 'indisponivel', linhas: [], apoio: 'Crédito indisponível agora. Sincronize o aparelho.' });
+    expect(i.estado).toBe('tabela');
+    expect(i.linhas.map((l) => l.valor)).toEqual(['—', '—', '45 dias']);
   });
   it('RN-VEN-25: prazo médio do cliente em dias', () => {
     expect(textoDoPrazoMedio(45)).toBe('45 dias');

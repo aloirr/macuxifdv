@@ -14,11 +14,10 @@ describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Apenas salvar' });
     expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true, rotulo: 'Salvar como orçamento' });
     expect(b.cancelar).toBe(true);
-    expect(b.aviso).toBeNull();
   });
   it('RN-VEN-10 (T-0151): a alçada só vira a pergunta ao salvar, e só para pedido (orçamento não tem alçada)', () => {
     expect(perguntaDaAlcada({ tipo: 'pedido', nivel: 'supervisor' })).toEqual(PERGUNTA_DA_ALCADA);
-    expect(PERGUNTA_DA_ALCADA).toEqual({ titulo: 'Desconto acima da sua alçada. Enviar para aprovação?', enviar: 'Enviar para aprovação', voltar: 'Voltar' });
+    expect(PERGUNTA_DA_ALCADA).toEqual({ titulo: 'Enviar para aprovação?', enviar: 'Enviar', voltar: 'Voltar' });
     expect(perguntaDaAlcada({ tipo: 'pedido', nivel: null })).toBeNull();
     expect(perguntaDaAlcada({ tipo: 'orcamento', nivel: 'gerente' })).toBeNull();
   });
@@ -27,7 +26,8 @@ describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
     expect(b.enviar.habilitado).toBe(false);
     expect(b.principal).toBe('orcamento');
     expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true });
-    expect(b.aviso).toBe('AGU-1500 acima do desconto máximo');
+    // RD-0176: a linha do motivo saiu da folha e da tela (já está em Alertas)
+    expect(b).not.toHaveProperty('aviso');
     expect(motivoDoMaximo(['AGU-1500', 'VEL-150'])).toBe('AGU-1500, VEL-150 acima do desconto máximo');
     expect(motivoDoMaximo([])).toBeNull();
   });
@@ -35,7 +35,6 @@ describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
     const b = botoesDoResumo({ ...base, editando: 'orcamento', itens_acima_do_maximo: ['AGU-1500'] });
     expect(b.salvarOrcamento.habilitado).toBe(true);
     expect(b.transformar.habilitado).toBe(false);
-    expect(b.aviso).toBe('AGU-1500 acima do desconto máximo');
   });
   it('RN-VEN-38: tenant sem pré-venda não oferece o orçamento', () => {
     expect(botoesDoResumo({ ...base, pre_venda_ligada: false }).orcamento.visivel).toBe(false);
@@ -67,7 +66,6 @@ describe('RN-VEN-13: cliente só de orçamento', () => {
     expect(b.principal).toBe('orcamento');
     expect(b.orcamento).toMatchObject({ visivel: true, habilitado: true });
     expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true });
-    expect(b.aviso).toBe('Cliente bloqueado: só dá para salvar como orçamento');
   });
   it('RN-VEN-13: o orçamento aparece mesmo com a pré-venda desligada (a tela nunca fica sem salvar)', () => {
     expect(botoesDoResumo({ ...base, cliente: bloqueado, pre_venda_ligada: false }).orcamento.visivel).toBe(true);
@@ -76,7 +74,6 @@ describe('RN-VEN-13: cliente só de orçamento', () => {
     const b = botoesDoResumo({ ...base, cliente: { ...liberado, ativo: false }, pendencias: 1 });
     expect(b.orcamento.habilitado).toBe(false);
     expect(b.apenasSalvar.habilitado).toBe(true);
-    expect(b.aviso).toBe('Cliente inativo: só dá para salvar como orçamento');
   });
 });
 

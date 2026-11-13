@@ -28,10 +28,8 @@ describe('duplicar/editar: prefill das linhas', () => {
     ]);
     expect(r.short_stock).toEqual([{ product_id: 'p3', label: 'P3 Produto p3', stock: 2 }]);
     const n = prefillNotice(r);
-    expect(n).toContain('2 itens removidos');
-    expect(n).toContain('OLD-1 Item fora de linha (inativo)');
-    expect(n).toContain('P2 Produto p2 (sem preço na tabela)');
-    expect(n).toContain('estoque 2');
+    expect(n.split('\n')).toEqual(['P2 fora da cópia: sem preço', 'OLD-1 fora da cópia: inativo']);
+    expect(n).not.toContain('estoque');
   });
 
   it('sem mudanças não gera aviso; ignora quantidade zero', () => {

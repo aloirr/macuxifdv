@@ -2,6 +2,8 @@ export * from './order';
 export * from './faturamento';
 export * from './retorno-erp';
 export * from './aprovacao';
+export * from './limite-desconto';
+export * from './limite-desconto';
 export * from './pdf-pedido';
 export * from './totais';
 export * from './quantidade';

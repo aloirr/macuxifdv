@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente } from './textos-pedido';
+import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente } from './textos-pedido';
 import { textoDaRecusa } from './salvar-na-fila';
 
-const limpa = (s: string | undefined) => (s ?? '').replace(/\s/g, ' ');
 
 describe('confirmacaoDoEnvio (T-0071, revisão de UX 🔴 2): orçamento nunca é confirmado como pedido', () => {
   it('RN-VEN-13: orçamento salvo diz "Orçamento 000012 salvo", com o dia do preço e sem selo de status de pedido', () => {
@@ -18,8 +17,8 @@ describe('confirmacaoDoEnvio (T-0071, revisão de UX 🔴 2): orçamento nunca �
     expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'received' }).nota).toBe('');
   });
   it('RN-VEN-13: sem sinal, o aviso do aparelho fala do documento certo', () => {
-    expect(avisoSalvoNoAparelho('orcamento')).toEqual({ titulo: 'Orçamento salvo no aparelho.', nota: 'Envia quando o sinal voltar.' });
-    expect(avisoSalvoNoAparelho('pedido')).toEqual({ titulo: 'Pedido salvo no aparelho.', nota: 'Envia quando o sinal voltar.' });
+    expect(avisoSalvoNoAparelho('orcamento')).toEqual({ titulo: 'Orçamento salvo no aparelho.' });
+    expect(avisoSalvoNoAparelho('pedido')).toEqual({ titulo: 'Pedido salvo no aparelho.' });
   });
 });
 
@@ -46,23 +45,6 @@ describe('folhaDoTransformar (RN-VEN-18, desenho §1.5, revisão de UX 🔴 3)',
     const f = folhaDoTransformar(null);
     expect(f.titulo).toBe('Transformar em pedido');
     expect(f.podeEnviar).toBe(true);
-  });
-});
-
-describe('Resumo somente leitura (revisão de UX 🔴 1)', () => {
-  it('RN-VEN-02: desconto do pedido vira a linha "Desconto do pedido (1,0%)" · "− R$ 3,84"', () => {
-    const l = linhaDoAjusteSomenteLeitura({ sentido: 'desconto', cents: 384, pct_exibicao: 1 });
-    expect(limpa(l?.rotulo)).toBe('Desconto do pedido (1,0%)');
-    expect(limpa(l?.valor)).toBe('− R$ 3,84');
-  });
-  it('RN-VEN-02: acréscimo do pedido leva o sinal de mais', () => {
-    const l = linhaDoAjusteSomenteLeitura({ sentido: 'acrescimo', cents: 100, pct_exibicao: 2.5 });
-    expect(limpa(l?.rotulo)).toBe('Acréscimo do pedido (2,5%)');
-    expect(limpa(l?.valor)).toBe('+ R$ 1,00');
-  });
-  it('RN-VEN-02: sem ajuste, nenhuma linha', () => {
-    expect(linhaDoAjusteSomenteLeitura(null)).toBeNull();
-    expect(linhaDoAjusteSomenteLeitura({ sentido: 'desconto', cents: 0, pct_exibicao: 0 })).toBeNull();
   });
 });
 

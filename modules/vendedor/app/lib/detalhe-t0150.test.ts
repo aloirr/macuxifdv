@@ -1,30 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import { acoesDoDetalhe, alertasDoDetalhe, linhaDeItemEmTabela, linhaLiquidaDosTotais } from './detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, linhaDeItemEmTabela, linhasDosTotais } from './detalhe-pedido';
 
 const orcBase = { tipo: 'orcamento' as const, status: 'quote', situacao: 'aberto' as never, naFila: false, recusado: false, somenteLeitura: false, podeEditar: true, podeCancelar: true, podeDuplicar: true, podePdf: true, podeConverter: true, pedidoGeradoId: null };
 
 describe('RN-VEN-42 (T-0150): detalhe com Alertas, tabela de itens e totais', () => {
-  it('RN-VEN-42: linha líquida dos Totais traz o % sobre a tabela e o valor com sinal', () => {
-    const a = linhaLiquidaDosTotais({ subtotal_cents: 11_970, total_cents: 12_664 });
-    expect(a?.rotulo).toBe('Acréscimo 5,8%');
-    expect(a?.valor).toMatch(/^\+ R\$\s6,94$/);
-    const d = linhaLiquidaDosTotais({ subtotal_cents: 11_970, total_cents: 11_970 - 1_053 });
-    expect(d?.rotulo).toBe('Desconto 8,8%');
-    expect(d?.valor.startsWith('− ')).toBe(true);
+  it('RN-VEN-42 (T-0165): os Totais com ajuste trazem Valor de tabela, o % e o valor com sinal, em linhas separadas', () => {
+    const a = linhasDosTotais({ subtotal_cents: 11_970, total_cents: 12_664 });
+    expect(a.map((l) => l.rotulo)).toEqual(['Valor de tabela', 'Acréscimo (%)', 'Acréscimo (R$)']);
+    expect(a[1]?.valor).toBe('5,8%');
+    expect(a[2]?.valor).toMatch(/^\+ R\$\s6,94$/);
+    const d = linhasDosTotais({ subtotal_cents: 11_970, total_cents: 11_970 - 1_053 });
+    expect(d.map((l) => l.rotulo)).toEqual(['Valor de tabela', 'Desconto (%)', 'Desconto (R$)']);
+    expect(d[1]?.valor).toBe('8,8%');
+    expect(d[2]?.valor.startsWith('− ')).toBe(true);
   });
 
-  it('RN-VEN-42: sem ajuste, a linha líquida não aparece', () => {
-    expect(linhaLiquidaDosTotais({ subtotal_cents: 5_000, total_cents: 5_000 })).toBeNull();
-    expect(linhaLiquidaDosTotais({ subtotal_cents: 0, total_cents: 0 })).toBeNull();
+  it('RN-VEN-42 (T-0165): sem ajuste, só o Valor final (nenhuma linha antes)', () => {
+    expect(linhasDosTotais({ subtotal_cents: 5_000, total_cents: 5_000 })).toEqual([]);
+    expect(linhasDosTotais({ subtotal_cents: 0, total_cents: 0 })).toEqual([]);
   });
 
-  it('RN-VEN-42: item em tabela mostra a embalagem vendida, preço sem R$ e o ajuste com sinal U+2212', () => {
-    const l = linhaDeItemEmTabela({ description: 'Café torrado e moído 500 g', erp_code: 'CAF-500', quantity: 4, unit_label: 'UN', unit_price_cents: 1_340, total_cents: 5_092, discount_pct: 5 });
-    expect(l).toMatchObject({ qtd: '4 UN', ajuste: '−5,0%', codigo: 'CAF-500' });
-    expect(l.preco).not.toContain('R$');
-    expect(linhaDeItemEmTabela({ description: 'x', erp_code: 'x', quantity: 1, unit_label: 'FD c/ 12', unit_price_cents: 100, total_cents: 110, surcharge_pct: 10 })).toMatchObject({ qtd: '1 FD', ajuste: '+10,0%' });
-    expect(linhaDeItemEmTabela({ description: 'x', erp_code: 'x', quantity: 1, unit_price_cents: 100, total_cents: 100 })).toMatchObject({ qtd: '1 UN', ajuste: '—' });
+  it('RN-VEN-42 (T-0165): item em tabela separa Emb. e Qtd, mostra Valor tabela = qtd × preço e o ajuste sempre em %', () => {
+    const l = linhaDeItemEmTabela({ description: 'Café torrado e moído 500 g', brand: 'Do Vale', erp_code: 'CAF-500', quantity: 4, unit_label: 'UN', unit_price_cents: 1_340, total_cents: 5_092, discount_pct: 5 });
+    expect(l).toMatchObject({ emb: 'UN', fator: '', qtd: '4', valorTabela: '53,60', ajuste: '−5,0%', codigo: 'CAF-500', nomeComMarca: 'Café torrado e moído 500 g - Do Vale' });
+    expect(l.valorTabela).not.toContain('R$');
+    expect(linhaDeItemEmTabela({ description: 'x', erp_code: 'x', quantity: 1, unit_label: 'FD c/ 12', unit_price_cents: 100, total_cents: 110, surcharge_pct: 10 })).toMatchObject({ emb: 'FD', fator: 'c/ 12', qtd: '1', ajuste: '+10,0%', nomeComMarca: 'x' });
+    expect(linhaDeItemEmTabela({ description: 'x', erp_code: 'x', quantity: 1, unit_price_cents: 100, total_cents: 100 })).toMatchObject({ emb: 'UN', qtd: '1', ajuste: '0,0%' });
   });
 
   it('RN-VEN-42: o orçamento com problema mostra os alertas e a recusa do servidor do pedido vira uma linha', () => {

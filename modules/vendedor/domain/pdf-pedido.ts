@@ -12,7 +12,7 @@
 import { formatarCep, formatarDocumento, formatBRL } from '@macuxi/comum';
 import type { FilialDadosFiscais } from '@macuxi/core/contracts';
 
-import { linhaLiquidaDosTotais, semRs, siglaDaMedida } from './apresentacao-totais';
+import { ajusteDoItemEmPct, linhasDosTotais, ROTULO_VALOR_FINAL, semRs, siglaDaMedida } from './apresentacao-totais';
 import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
 import { dataDaValidade } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
@@ -154,10 +154,6 @@ export function netUnitCents(item: Pick<OrderPdfItem, 'quantity' | 'total_cents'
   return item.quantity > 0 ? Math.round(item.total_cents / item.quantity) : 0;
 }
 
-function pctText(n: number): string {
-  return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`;
-}
-
 /** Nome da distribuidora no cabeçalho: o do login; senão `parametros.core.tenant_nome` (T-0061 §7); senão "Macuxi". */
 export function nomeDaDistribuidora(nomeLogin: string | null | undefined, parametrosCore: Readonly<Record<string, unknown>> | null | undefined): string {
   const doParametro = parametrosCore?.tenant_nome;
@@ -206,7 +202,7 @@ body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe U
 .emit { font-size: 12px; color: #4A5562; }
 .doc { text-align: right; }
 .doc .t { font-weight: 800; font-size: 24px; line-height: 1.1; }
-.doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #C2540A; margin-right: 2mm; vertical-align: 3px; }
+.doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
 .doc .d { font-size: 13px; color: #4A5562; }
 .ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
 .c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CEC6; border-bottom: 1px solid #C9CEC6; }
@@ -252,9 +248,15 @@ td.tot { font-weight: 600; }
 .obs b { display: block; min-height: 1.35em; font-weight: 600; white-space: pre-wrap; }
 `;
 
-/** Caixa do Total (borda escura, fundo cinza claro); `linhas` = Tabela e Desconto/Líquido do escritório, acima do Total. */
-function totalBoxHtml(totalCents: number, linhas = ''): string {
-  return `<div class="totalbox">${linhas}<div class="lin total"><span>Total</span><span class="v vt">${formatBRL(totalCents)}</span></div></div>`;
+/**
+ * Caixa dos totais (borda escura, fundo cinza claro), a mesma regra da tela (T-0165, R-20261112-032141): sem ajuste só o "Valor final";
+ * com ajuste "Valor de tabela", "Desconto (%)" e "Desconto (R$)" (ou "Acréscimo") e o "Valor final".
+ */
+function totalBoxHtml(order: Pick<OrderPdfOrder, 'subtotal_cents' | 'total_cents'>, soValorFinal = false): string {
+  const linhas = soValorFinal ? '' : linhasDosTotais({ subtotal_cents: order.subtotal_cents, total_cents: order.total_cents })
+    .map((l) => `<div class="lin"><span>${escapeHtml(l.rotulo)}</span><span class="v">${escapeHtml(l.valor)}</span></div>`)
+    .join('');
+  return `<div class="totalbox">${linhas}<div class="lin total"><span>${ROTULO_VALOR_FINAL}</span><span class="v vt">${formatBRL(order.total_cents)}</span></div></div>`;
 }
 
 /** Observações abaixo da tabela, à esquerda da caixa do Total, sem fundo: rótulo em cinza pequeno acima, texto do vendedor em negrito logo abaixo; sempre visíveis, mesmo vazias. */
@@ -404,14 +406,13 @@ function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   <tbody>${rows}
   </tbody>
 </table>
-<div class="rodape"><div class="lado">${observacoesHtml(order)}<div class="nota">Valores sem impostos. Preço e estoque confirmados no faturamento.</div></div>${totalBoxHtml(order.total_cents)}</div>`;
+<div class="rodape"><div class="lado">${observacoesHtml(order)}<div class="nota">Valores sem impostos. Preço e estoque confirmados no faturamento.</div></div>${totalBoxHtml(order, true)}</div>`;
 }
 
 /** Coluna Desc./Acr. do item: pedido antigo (sem o campo do item) mostra o desconto do pedido. */
 function itemAdjustText(it: OrderPdfItem, orderPct: number): string {
-  if ((it.surcharge_pct ?? 0) > 0) return `+${pctText(it.surcharge_pct!)}`;
-  if (it.discount_pct === undefined) return pctText(orderPct);
-  return it.discount_pct > 0 ? `−${pctText(it.discount_pct)}` : '—';
+  if (it.discount_pct === undefined && (it.surcharge_pct ?? 0) <= 0) return ajusteDoItemEmPct({ discount_pct: orderPct });
+  return ajusteDoItemEmPct({ discount_pct: it.discount_pct ?? 0, surcharge_pct: it.surcharge_pct ?? 0 });
 }
 
 /** Faixa Histórico: uma linha com setas; o nome só na etapa feita por quem não é o vendedor (RN-VEN-30). */
@@ -436,7 +437,6 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
     <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'bko', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${it.quantity}</td><td class="v">${semRs(it.unit_price_cents)}</td><td class="v">${itemAdjustText(it, pct)}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
     )
     .join('');
-  const linhaLiquida = linhaLiquidaDosTotais(order);
   return `
 <table>
   <colgroup><col style="width:15mm"><col style="width:24mm"><col><col style="width:30mm"><col style="width:24mm"><col style="width:15mm"><col style="width:22mm"><col style="width:27mm"><col style="width:22mm"><col style="width:22mm"></colgroup>
@@ -444,10 +444,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   <tbody>${rows}
   </tbody>
 </table>
-<div class="rodape"><div class="lado">${observacoesHtml(order)}${historicoHtml(order, ctx)}</div>${totalBoxHtml(
-    order.total_cents,
-    `<div class="lin"><span>Tabela</span><span class="v">${formatBRL(order.subtotal_cents)}</span></div>${linhaLiquida ? `<div class="lin"><span>${escapeHtml(linhaLiquida.rotulo)}</span><span class="v">${escapeHtml(linhaLiquida.valor)}</span></div>` : ''}`,
-  )}</div>`;
+<div class="rodape"><div class="lado">${observacoesHtml(order)}${historicoHtml(order, ctx)}</div>${totalBoxHtml(order)}</div>`;
 }
 
 /** HTML completo do PDF do pedido. */

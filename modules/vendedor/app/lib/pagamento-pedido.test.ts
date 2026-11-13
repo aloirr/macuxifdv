@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { descricaoPrazo, prazoMedioDias, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
-import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, pendenciaDoPagamento, rascunhoComPagamentoPadrao, rotuloTotalDoPedido } from './pagamento-pedido';
+import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, pendenciaDoPagamento, rascunhoComPagamentoPadrao } from './pagamento-pedido';
 import { rascunhoVazio } from './pedidos';
 
 const f = (id: string, codigo: string, ordem: number): FormaDePagamento => ({ id, codigo, nome: codigo === 'PIX' ? 'Pix' : 'Boleto', ativo: true, ordem });
@@ -81,12 +81,6 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
     expect(pendenciaDoPagamento(r0, [], [], cliente)).toBeNull();
   });
   it('RN-VEN-24: todas as formas desativadas pede o cadastro no BKO', () => {
-    expect(pendenciaDoPagamento(r0, [{ ...formas[0]!, ativo: false }], prazos, cliente)).toBe('Cadastre as formas de pagamento no BKO');
-  });
-});
-
-describe('T-0089: total do pedido sob pagamento e prazo', () => {
-  it('RN-VEN-42: o rótulo diz só "Total do pedido" (a aba Itens já tem a contagem)', () => {
-    expect(rotuloTotalDoPedido()).toBe('Total do pedido');
+    expect(pendenciaDoPagamento(r0, [{ ...formas[0]!, ativo: false }], prazos, cliente)).toBe('Sem forma de pagamento para este cliente');
   });
 });

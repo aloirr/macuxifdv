@@ -2,7 +2,7 @@
  * Regras de montagem de pedido no aparelho (função pura, sem React): rascunho, resumo da fila e junção da
  * fila com os pedidos do servidor. A validação é a MESMA do servidor (`validateOrder`, RN-VEN-*): a API revalida.
  */
-import type { CustomerSummary, Me } from '@macuxi/core/contracts';
+import type { CustomerSummary, LimiteDesconto, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
@@ -24,7 +24,10 @@ export interface Rascunho {
   /** T-0089 (RN-VEN-24/25): forma e prazo escolhidos; os dois juntos ou nenhum (rascunho anterior segue pela condição) */
   forma_pagamento_id?: string | null;
   prazo_pagamento_id?: string | null;
+  /** Observação do pedido (editada no Resumo) */
   observacao?: string;
+  /** T-0165: Observação da entrega (aba Entrega); vai junto no texto único do pedido até o contrato ganhar o campo próprio */
+  observacao_entrega?: string;
   visit_id: string | null;
   route_stop_id: string | null;
   updated_at: string;
@@ -143,6 +146,8 @@ export interface EntradaPrepararPedido {
   faixas?: Record<string, readonly FaixaEscalonada[]>;
   /** T-0084 (RN-VEN-19): `aplicacao_no_orcamento_padrao` e `aplicacao_max_orcamento` do tenant */
   aplicacao?: { padrao: boolean; max: number };
+  /** RN-VEN-11a (T-0168): limite do usuário da sessão (o gestor, em nome do vendedor) */
+  limite?: Partial<LimiteDesconto> | null;
 }
 
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
@@ -158,6 +163,17 @@ function rotuloDaLinha(sigla: string, fator: number): string {
  * T-0061: o cálculo é o do domain de preço (UN/CX, desconto e acréscimo por item e por pedido); a alçada olha só o
  * desconto efetivo (RN-VEN-03/10). Frete FOB sem transportadora bloqueia (RN-VEN-16).
  */
+/**
+ * T-0165: o pedido tem uma observação só no contrato (`observacao`, até 500): a do pedido e, em seguida, "Entrega: …" com a da entrega.
+ * Quando o contrato ganhar `observacao_entrega` (pedido ao banco-dados), cada uma vai no seu campo.
+ */
+export function observacaoDoPush(r: Pick<Rascunho, 'observacao' | 'observacao_entrega'>): string | null {
+  const pedido = r.observacao?.trim() ?? '';
+  const entrega = r.observacao_entrega?.trim() ?? '';
+  const texto = [pedido, entrega ? `Entrega: ${entrega}` : ''].filter(Boolean).join('\n').slice(0, 500);
+  return texto || null;
+}
+
 export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido; display: OrderDisplay } {
   if (!e.eu && !e.emNome) throw new Error('Seu usuário não é vendedor com carteira. Peça ao gestor para vinculá-lo a um vendedor.');
   const vendedorId = e.emNome ? e.emNome.vendedor_id : e.eu!.id;
@@ -178,6 +194,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     aplicacao: e.aplicacao,
     politica,
     vendedor_id: vendedorId,
+    ...(e.limite ? { limite: e.limite } : {}),
   });
   const validado = validateOrder({
     seller_id: vendedorId,
@@ -255,7 +272,7 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     // T-0089: com forma e prazo, a condição legada fica nula; sem eles (APK anterior, tenant sem formas) vale a condição
     condicao_pagamento_id: args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? null : (args.rascunho.condicao_pagamento_id ?? null),
     ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id } : {}),
-    observacao: args.rascunho.observacao?.trim() ? args.rascunho.observacao.trim() : null,
+    observacao: observacaoDoPush(args.rascunho),
     visita_id: args.rascunho.visit_id ?? null,
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
     ...(args.rascunho.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),

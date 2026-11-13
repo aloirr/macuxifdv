@@ -7,7 +7,7 @@
  *   editar pedido    um botão só ("Salvar alterações") · Cancelar
  * Pendência (RN-CORE-36) desliga tudo o que valida; Apenas salvar grava `rascunho` e aceita pendências.
  */
-import { avisoSoOrcamento, motivoSoOrcamento, type SituacaoCliente } from './orcamento';
+import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
 import { mensagemAcimaDoMaximo, type NivelDePreco } from './preco-pedido';
 
 /** RN-VEN-38 (RD-0036): os rótulos dos botões de salvar, num mapa só (botões do Resumo, folha de saída e tela). */
@@ -21,8 +21,8 @@ export const ROTULOS_DO_SALVAR = {
   alteracoesNoAparelho: 'Salvar alterações no aparelho',
 } as const;
 
-/** RN-VEN-10 (T-0151): a alçada só aparece ao salvar, numa pergunta; nunca escrita sob o botão nem nas telas. */
-export const PERGUNTA_DA_ALCADA = { titulo: 'Desconto acima da sua alçada. Enviar para aprovação?', enviar: 'Enviar para aprovação', voltar: 'Voltar' } as const;
+/** RN-VEN-10 (T-0165, RD-0142): a alçada está na área Alertas (uma linha); a pergunta ao salvar só confirma o envio, sem repetir o fato. */
+export const PERGUNTA_DA_ALCADA = { titulo: 'Enviar para aprovação?', enviar: 'Enviar', voltar: 'Voltar' } as const;
 
 /** RN-VEN-10: só o pedido com desconto efetivo acima da alçada do autor pergunta; orçamento não tem alçada (RN-VEN-18). */
 export function perguntaDaAlcada(e: { tipo: 'pedido' | 'orcamento'; nivel: NivelDePreco | null }): typeof PERGUNTA_DA_ALCADA | null {
@@ -52,6 +52,8 @@ export interface EntradaDosBotoes {
   pendencias: number;
   /** RN-VEN-11 (T-0151): códigos dos itens com desconto acima do máximo do produto; bloqueiam enviar e transformar (só orçamento) */
   itens_acima_do_maximo?: readonly string[];
+  /** RN-VEN-11a (T-0168): o desconto efetivo passa do limite do pedido; só orçamento */
+  acima_do_limite?: boolean;
   /** RN-VEN-20 (T-0150, 10/11): códigos dos itens sem estoque; entram no pedido, mas o pedido só sai como orçamento (igual ao máximo) */
   itens_sem_estoque?: readonly string[];
   /** AAAA-MM-DD: dia do preço do orçamento (hoje, no fuso do tenant); sai como "Preço de dd/mm" (RN-VEN-18) */
@@ -70,8 +72,6 @@ export interface BotoesDoResumo {
   salvarOrcamento: BotaoDoResumo;
   transformar: BotaoDoResumo;
   cancelar: true;
-  /** RN-VEN-13: a linha de erro acima dos botões */
-  aviso: string | null;
   pendencias: number;
 }
 
@@ -82,7 +82,7 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
   const livre = e.pendencias === 0;
   // RN-VEN-11 (T-0151): desconto acima do máximo do produto não passa nem com aprovação; só o orçamento salva
   const motivoMax = motivoDoMaximo(e.itens_acima_do_maximo);
-  const soOrcamentoPorItem = motivoMax !== null || (e.itens_sem_estoque?.length ?? 0) > 0;
+  const soOrcamentoPorItem = motivoMax !== null || e.acima_do_limite === true || (e.itens_sem_estoque?.length ?? 0) > 0;
   const podeEnviar = livre && !soOrcamentoPorItem;
   const comum = { cancelar: true as const, pendencias: e.pendencias };
 
@@ -96,7 +96,6 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       orcamento: OCULTO(ROTULOS_DO_SALVAR.orcamento),
       salvarOrcamento: { visivel: true, habilitado: livre, rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
       transformar: { visivel: !soOrcamento, habilitado: podeEnviar, rotulo: ROTULOS_DO_SALVAR.transformar },
-      aviso: motivoMax ?? avisoSoOrcamento(e.cliente),
     };
   }
   if (e.editando === 'pedido') {
@@ -109,7 +108,6 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       orcamento: OCULTO(ROTULOS_DO_SALVAR.orcamento),
       salvarOrcamento: OCULTO(ROTULOS_DO_SALVAR.salvarOrcamento),
       transformar: OCULTO(ROTULOS_DO_SALVAR.transformar),
-      aviso: motivoMax,
     };
   }
   return {
@@ -125,7 +123,6 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
     },
     salvarOrcamento: OCULTO(ROTULOS_DO_SALVAR.salvarOrcamento),
     transformar: OCULTO(ROTULOS_DO_SALVAR.transformar),
-    aviso: motivoMax ?? avisoSoOrcamento(e.cliente),
   };
 }
 

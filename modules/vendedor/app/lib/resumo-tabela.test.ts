@@ -22,7 +22,7 @@ describe('RN-VEN-42 (T-0150): Resumo em tabela', () => {
       equivalente: { sentido: 'desconto', cents: 720, pct_exibicao: 10 },
     } as unknown as LinhaDoPedido;
     const [i] = itensDoResumoEmTabela([l], () => 'Açúcar cristal 1 kg', () => 'ACU-1K');
-    expect(i).toMatchObject({ key: 'a', codigo: 'ACU-1K', qtd: '2 FD', ajuste: '−10,0%', descricao: 'Açúcar cristal 1 kg' });
-    expect(i!.preco).not.toContain('R$');
+    expect(i).toMatchObject({ key: 'a', codigo: 'ACU-1K', ajuste: '−10,0%' });
+    expect(i!.valorTabela).not.toContain('R$');
   });
 });

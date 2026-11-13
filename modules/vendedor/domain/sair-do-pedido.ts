@@ -2,10 +2,9 @@
  * RN-VEN-38 (T-0128): sair do Novo pedido. Função pura, sem React: a tela só liga as peças (folha "Sair do pedido?" do
  * `@macuxi/ui`). Nenhum pedido some sem escolha do vendedor (RN-VEN-30/31): o rascunho só é apagado por "Descartar" confirmado.
  */
-import { avisoSoOrcamento, type SituacaoCliente } from './orcamento';
+import type { SituacaoCliente } from './orcamento';
 import { botoesDoResumo, ROTULOS_DO_SALVAR } from './botoes-resumo';
 
-export { avisoSoOrcamento };
 
 /** O que a regra precisa do rascunho (o `Rascunho` do app satisfaz esta forma). */
 export interface RascunhoAlteravel {
@@ -36,10 +35,10 @@ export function pedidoAlterado(r: RascunhoAlteravel): boolean {
 
 export const TITULO_SAIR_DO_PEDIDO = 'Sair do pedido?';
 export const TEXTOS_DA_SAIDA = {
-  salvar: { rotulo: ROTULOS_DO_SALVAR.enviar, subtitulo: 'Vai para a fila de envio' },
-  apenasSalvar: { rotulo: ROTULOS_DO_SALVAR.apenasSalvar, subtitulo: 'Guarda sem enviar' },
+  salvar: { rotulo: ROTULOS_DO_SALVAR.enviar },
+  apenasSalvar: { rotulo: ROTULOS_DO_SALVAR.apenasSalvar },
   orcamento: { rotulo: ROTULOS_DO_SALVAR.orcamento },
-  descartar: { rotulo: 'Descartar', subtitulo: 'Apaga este pedido' },
+  descartar: { rotulo: 'Descartar' },
   continuar: 'Continuar editando',
   confirmacao: { titulo: 'Descartar este pedido?', mensagem: 'Os itens e os dados deste pedido serão apagados do aparelho.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
@@ -50,11 +49,11 @@ export const TEXTOS_DA_SAIDA = {
  */
 export const TEXTOS_DA_SAIDA_EDICAO = {
   salvarOrcamento: { rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
-  descartar: { rotulo: 'Descartar alterações', subtitulo: 'Volta como estava' },
+  descartar: { rotulo: 'Descartar alterações' },
   confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
-export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string; subtitulo?: string }; descartar: { rotulo: string; subtitulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
+export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string; subtitulo?: string }; descartar: { rotulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
   const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes };
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
 }
@@ -66,16 +65,13 @@ export interface OpcoesDaSaida {
   apenasSalvar: boolean;
   /** `false` = tenant sem pré-venda (sem orçamento) */
   orcamento: boolean;
-  /** T-0141: sem subtítulo (o "preço de dd/mm" fica só no selo do orçamento salvo) */
-  subtituloOrcamento: null;
-  aviso: string | null;
 }
 
 /** RN-VEN-38 (T-0137): opções da folha. Cliente da RN-VEN-13 vê só Apenas salvar, Salvar como orçamento e Descartar; sem pré-venda, Salvar e enviar pedido, Apenas salvar e Descartar. */
 export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string; alertas_impedem_enviar?: boolean }): OpcoesDaSaida {
   const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, pendencias: 0, preco_data: e.preco_data });
   // RN-VEN-42 (e), RN-VEN-11, RN-VEN-20: alerta de bloqueio (acima do máximo, sem estoque) tira o "Salvar e enviar pedido"
-  return { salvar: b.enviar.visivel && !e.alertas_impedem_enviar, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel, subtituloOrcamento: null, aviso: b.aviso };
+  return { salvar: b.enviar.visivel && !e.alertas_impedem_enviar, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel };
 }
 
 export type DestinoDoSalvarDaSaida = 'salvar_agora' | 'mostrar_pendencias';

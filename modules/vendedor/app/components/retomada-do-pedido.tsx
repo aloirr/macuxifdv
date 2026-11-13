@@ -59,7 +59,7 @@ export function RetomadaDoPedido() {
       visivel
       titulo="Pedido não terminado"
       continuar={{ rotulo: tituloDaRetomada('pedido', oferta.cliente), subtitulo: oferta.apoio, testID: 'retomar-continuar' }}
-      descartar={{ rotulo: TEXTOS_DA_SAIDA.descartar.rotulo, subtitulo: TEXTOS_DA_SAIDA.descartar.subtitulo, testID: 'retomar-descartar', confirmacao: TEXTOS_DA_SAIDA.confirmacao }}
+      descartar={{ rotulo: TEXTOS_DA_SAIDA.descartar.rotulo, testID: 'retomar-descartar', confirmacao: TEXTOS_DA_SAIDA.confirmacao }}
       depois="Agora não"
       onAcao={(acao) => {
         const o = oferta;

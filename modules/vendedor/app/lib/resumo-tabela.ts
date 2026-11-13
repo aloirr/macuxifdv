@@ -1,7 +1,8 @@
 /**
  * T-0150 (docs/design/pedido-v4.md §1): o Resumo do Novo pedido em tabelas. Partes puras, sem React: a tela só desenha.
- * Cliente (razão social, CNPJ) · Venda (pagamento, prazo) · Entrega (frete, endereço) · Itens (Produto, Qtd, Preço unit., Desc./Acrésc., Total).
+ * Cliente (razão social, CNPJ) · Venda (pagamento, prazo) · Entrega (frete, endereço) · Itens (Código, Emb., Qtd, Valor tabela, Desc./Acrésc., Total).
  */
+import { rotuloMedida } from '../../domain/preco-pedido';
 import { linhaDeItemEmTabela, type LinhaDeItemEmTabela } from './detalhe-pedido';
 import type { LinhaDoPedido } from './novo-pedido';
 
@@ -24,17 +25,18 @@ export function textoDoFrete(modalidade: 'CIF' | 'FOB', transportadora: string |
   return t ? `${modalidade} · ${t}` : modalidade;
 }
 
-/** Itens do Resumo em tabela: o preço é o de tabela da embalagem vendida; o % do item vem do equivalente (vale também no ajuste em R$). */
-export function itensDoResumoEmTabela(linhas: readonly LinhaDoPedido[], nome: (produtoId: string) => string, codigo: (produtoId: string) => string): Array<LinhaDeItemEmTabela & { key: string }> {
+/** Itens do Resumo em tabela (T-0165): o preço é o de tabela da embalagem vendida (a tabela multiplica pela quantidade); o % do item vem do equivalente (vale também no ajuste em R$). */
+export function itensDoResumoEmTabela(linhas: readonly LinhaDoPedido[], nome: (produtoId: string) => string, codigo: (produtoId: string) => string, marca: (produtoId: string) => string | null | undefined = () => null): Array<LinhaDeItemEmTabela & { key: string }> {
   return linhas.map((l) => {
     const eq = l.equivalente;
     return {
       key: l.chave,
       ...linhaDeItemEmTabela({
         description: nome(l.product_id),
+        brand: marca(l.product_id),
         erp_code: codigo(l.product_id),
         quantity: l.quantity,
-        unit_label: l.unidade_sigla,
+        unit_label: rotuloMedida(l.unidade_sigla, l.fator),
         unit_price_cents: l.preco_tabela_cents,
         total_cents: l.total_cents,
         ...(eq?.sentido === 'desconto' ? { discount_pct: eq.pct_exibicao } : {}),

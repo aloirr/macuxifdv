@@ -26,10 +26,9 @@ export function FolhaSaidaDoPedido({ visivel, opcoes, edicao, onAcao }: { visive
     <FolhaSairDoFormulario
       visivel={visivel}
       titulo={TITULO_SAIR_DO_PEDIDO}
-      aviso={opcoes.aviso ?? undefined}
       salvar={opcoes.salvar ? { ...TEXTOS_DA_SAIDA.salvar, testID: 'sair-salvar' } : undefined}
       apenasSalvar={opcoes.apenasSalvar ? { ...TEXTOS_DA_SAIDA.apenasSalvar, testID: 'sair-apenas-salvar' } : undefined}
-      salvarAlternativo={opcoes.orcamento ? { rotulo: TEXTOS_DA_SAIDA.orcamento.rotulo, subtitulo: opcoes.subtituloOrcamento ?? undefined, testID: 'sair-orcamento' } : undefined}
+      salvarAlternativo={opcoes.orcamento ? { rotulo: TEXTOS_DA_SAIDA.orcamento.rotulo, testID: 'sair-orcamento' } : undefined}
       descartar={{ ...TEXTOS_DA_SAIDA.descartar, testID: 'sair-descartar', confirmacao: TEXTOS_DA_SAIDA.confirmacao }}
       continuar={TEXTOS_DA_SAIDA.continuar}
       onAcao={onAcao}

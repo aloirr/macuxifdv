@@ -41,3 +41,21 @@ describe('RN-VEN-42 (T-0150): alertas do Novo pedido', () => {
     expect(a[0]!.vai_para).toEqual({ aba: 'Venda' });
   });
 });
+
+describe('RD-0170 (T-0166): falta de preenchimento só vira alerta depois da tentativa', () => {
+  const pend = [
+    { id: 'pagamento', texto: 'Forma de pagamento', aba: 'venda' },
+    { id: 'frete', texto: 'Transportadora do frete FOB', aba: 'entrega' },
+  ] as never[];
+  it('RN-VEN-42: pedido recém-aberto, 0 alertas de falta', async () => {
+    const { pendenciasDasAbasTentadas } = await import('./alertas-novo-pedido');
+    expect(pendenciasDasAbasTentadas(pend, new Set())).toEqual([]);
+  });
+  it('RN-VEN-42: só a aba tentada entra; salvar marca todas', async () => {
+    const { pendenciasDasAbasTentadas, primeiraAbaComFalta } = await import('./alertas-novo-pedido');
+    expect(pendenciasDasAbasTentadas(pend, new Set(['venda'] as const))).toHaveLength(1);
+    expect(pendenciasDasAbasTentadas(pend, new Set(['venda', 'itens', 'entrega', 'resumo'] as const))).toHaveLength(2);
+    expect(primeiraAbaComFalta(pend)).toBe('venda');
+    expect(primeiraAbaComFalta([])).toBeNull();
+  });
+});
