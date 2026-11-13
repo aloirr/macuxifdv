@@ -1,6 +1,7 @@
 /**
  * Lista Rascunhos do Vendedor (RN-VEN-38/39, T-0141 F; spec docs/design/pedido-v3.md §F). Funções puras, sem React: as regras de
  * quem aparece e quando some são do domain (`domain/rascunhos.ts`); aqui só os textos de cada linha. Tudo do aparelho (vale offline).
+ * T-0171 (RD-0214): a linha mostra cliente + total e, embaixo, um único fato + o selo "Some em" (sem código do cliente nem nº de itens).
  */
 import { formatHHMM, localIsoDate } from '@macuxi/comum/fuso';
 
@@ -24,15 +25,12 @@ export interface LinhaDeRascunho {
   cliente: string;
   /** `null` = sem tabela de preço no aparelho para calcular */
   total_cents: number | null;
-  apoio: string;
-  /** "Alterado hoje às 05:51"; fora da carteira, a frase da carteira */
-  alterado: string;
+  /** o único fato da linha de baixo: "Alterado hoje às 05:51"; edição: "Edição do pedido 000013"; fora da carteira, a frase da carteira */
+  fato: string;
   /** "Some em 2 h" / "Some em 40 min" nas últimas 3 h */
   someEm: string | null;
   foraDaCarteira: boolean;
 }
-
-export const textoDeItens = (n: number): string => (n === 0 ? 'sem itens' : n === 1 ? '1 item' : `${n} itens`);
 
 /** "Alterado hoje às 05:51" / "ontem às ..." / "07/11 às ..." no fuso do tenant. */
 export function textoDaAlteracao(iso: string, agora: Date, tz: string): string {
@@ -54,23 +52,20 @@ export function linhasDosRascunhos(a: {
   return rascunhosParaLista(a.rascunhos, a.agora).map((l): LinhaDeRascunho => {
     const r = a.rascunhos[l.chave]!;
     const cliente = a.clientes.find((c) => c.id === l.customer_id);
-    const itens = textoDeItens(l.itens);
-    let apoio: string;
-    if (l.edicao_de) {
+    let fato: string;
+    if (!cliente) fato = TEXTOS_RASCUNHOS.foraDaCarteira;
+    else if (l.edicao_de) {
       const registro = a.pedidos.find((p) => p.id === l.edicao_de);
       const tipo = (registro?.tipo ?? r.tipo) === 'orcamento' ? 'orçamento' : 'pedido';
-      apoio = `Edição do ${tipo}${registro?.number ? ` ${registro.number}` : ''} · ${itens}`;
-    } else {
-      apoio = `${cliente ? `cód. ${cliente.erp_code} · ` : ''}${itens}`;
-    }
+      fato = `Edição do ${tipo}${registro?.number ? ` ${registro.number}` : ''}`;
+    } else fato = textoDaAlteracao(l.atualizado_em, a.agora, a.tz);
     return {
       chave: l.chave,
       customer_id: l.customer_id,
       edicao_de: l.edicao_de,
       cliente: cliente?.trade_name ?? 'Cliente',
       total_cents: a.totalDoRascunho(r),
-      apoio,
-      alterado: cliente ? textoDaAlteracao(l.atualizado_em, a.agora, a.tz) : TEXTOS_RASCUNHOS.foraDaCarteira,
+      fato,
       someEm: textoSomeEm(minutosParaSumir(r, a.agora)),
       foraDaCarteira: !cliente,
     };
