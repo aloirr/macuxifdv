@@ -325,7 +325,7 @@ export function AcaoEntrada({
 const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 20, textAlign: 'center' },
+  saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },

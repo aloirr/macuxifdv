@@ -50,7 +50,7 @@ const PEROLA = '#F8F6F1';
  * Largura do logo na splash, em dp. A mesma de `LARGURA_LOGO_ENTRADA` (src/lib/entrada.ts): o Expo carrega este arquivo
  * sem resolver import de .ts relativo, por isso o número se repete (o teste de src/lib/entrada.test.ts confere os dois).
  */
-const LARGURA_LOGO_SPLASH = 168;
+const LARGURA_LOGO_SPLASH = 136;
 
 const VARIANTES: Record<Variante, DadosVariante> = {
   campo: {

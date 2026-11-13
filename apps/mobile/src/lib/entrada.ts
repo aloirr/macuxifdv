@@ -15,7 +15,7 @@ import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
 import { PROPORCAO_LOGO_EMPILHADO } from './logo-marca';
 
 /** Largura do logo empilhado, em dp: a mesma `LARGURA_LOGO_SPLASH` do app.config.ts (o teste confere). */
-export const LARGURA_LOGO_ENTRADA = 168;
+export const LARGURA_LOGO_ENTRADA = 136;
 
 /** Margem lateral e de baixo da área de sincronização (spec §2 e §5), em dp. */
 export const MARGEM_ENTRADA = 32;
@@ -35,7 +35,7 @@ const ALTURA_BARRA = 34;
 const ALTURA_ERRO = 24 + 18 + 52 + 18 + 48;
 const ALTURA_ETAPA = 32;
 const ESPACO_AREA = 18;
-const ALTURA_SAUDACAO = 40;
+const ALTURA_SAUDACAO = 48;
 
 /**
  * A lista de etapas cabe entre o logo (parado no centro) e a borda de baixo? Na tela baixa ela sai e ficam a barra com
