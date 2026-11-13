@@ -1,0 +1,160 @@
+{
+  "D": [
+    {
+      "uso": "texto branco no botão laranja",
+      "fg": "#FFFFFF",
+      "bg": "#C2540A",
+      "tipo": "texto",
+      "razao": 4.6,
+      "passa": true
+    },
+    {
+      "uso": "laranja texto no fundo",
+      "fg": "#8F3D06",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 6.7,
+      "passa": true
+    },
+    {
+      "uso": "laranja texto no branco",
+      "fg": "#8F3D06",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 7.4,
+      "passa": true
+    },
+    {
+      "uso": "laranja claro no grafite",
+      "fg": "#F59A52",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 7.56,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    },
+    {
+      "uso": "faixa grafite no ícone laranja",
+      "fg": "#16202A",
+      "bg": "#C2540A",
+      "tipo": "grafico",
+      "razao": 3.58,
+      "passa": true
+    },
+    {
+      "uso": "penas laranja no branco",
+      "fg": "#C2540A",
+      "bg": "#FFFFFF",
+      "tipo": "grafico",
+      "razao": 4.6,
+      "passa": true
+    }
+  ],
+  "E": [
+    {
+      "uso": "texto branco no botão azul",
+      "fg": "#FFFFFF",
+      "bg": "#24456B",
+      "tipo": "texto",
+      "razao": 9.82,
+      "passa": true
+    },
+    {
+      "uso": "azul no fundo",
+      "fg": "#24456B",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 8.89,
+      "passa": true
+    },
+    {
+      "uso": "azul no branco",
+      "fg": "#24456B",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 9.82,
+      "passa": true
+    },
+    {
+      "uso": "azul claro no grafite",
+      "fg": "#9DB8E0",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 8.14,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    },
+    {
+      "uso": "sol laranja no branco",
+      "fg": "#C2540A",
+      "bg": "#FFFFFF",
+      "tipo": "grafico",
+      "razao": 4.6,
+      "passa": true
+    },
+    {
+      "uso": "sol laranja-claro no grafite",
+      "fg": "#F59A52",
+      "bg": "#16202A",
+      "tipo": "grafico",
+      "razao": 7.56,
+      "passa": true
+    }
+  ],
+  "F": [
+    {
+      "uso": "texto branco no botão verde-água",
+      "fg": "#FFFFFF",
+      "bg": "#0A6670",
+      "tipo": "texto",
+      "razao": 6.67,
+      "passa": true
+    },
+    {
+      "uso": "verde-água no fundo",
+      "fg": "#0A6670",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 6.04,
+      "passa": true
+    },
+    {
+      "uso": "verde-água no branco",
+      "fg": "#0A6670",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 6.67,
+      "passa": true
+    },
+    {
+      "uso": "água clara no grafite",
+      "fg": "#7FD3DB",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 9.61,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "a": [
+    {
+      "uso": "texto branco no botão laranja",
+      "fg": "#FFFFFF",
+      "bg": "#C2540A",
+      "tipo": "texto",
+      "razao": 4.6,
+      "passa": true
+    },
+    {
+      "uso": "laranja texto no fundo",
+      "fg": "#8F3D06",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 6.7,
+      "passa": true
+    },
+    {
+      "uso": "laranja texto no branco",
+      "fg": "#8F3D06",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 7.4,
+      "passa": true
+    },
+    {
+      "uso": "laranja claro no grafite",
+      "fg": "#F59A52",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 7.56,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    },
+    {
+      "uso": "ponto grafite no ícone laranja",
+      "fg": "#16202A",
+      "bg": "#C2540A",
+      "tipo": "grafico",
+      "razao": 3.58,
+      "passa": true
+    },
+    {
+      "uso": "símbolo laranja no branco",
+      "fg": "#C2540A",
+      "bg": "#FFFFFF",
+      "tipo": "grafico",
+      "razao": 4.6,
+      "passa": true
+    }
+  ],
+  "b": [
+    {
+      "uso": "texto grafite no botão amarelo",
+      "fg": "#16202A",
+      "bg": "#F2A900",
+      "tipo": "texto",
+      "razao": 8.2,
+      "passa": true
+    },
+    {
+      "uso": "terra no fundo",
+      "fg": "#7A4100",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 7.36,
+      "passa": true
+    },
+    {
+      "uso": "terra no branco",
+      "fg": "#7A4100",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 8.13,
+      "passa": true
+    },
+    {
+      "uso": "amarelo no grafite",
+      "fg": "#F2A900",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 8.2,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    },
+    {
+      "uso": "amarelo no branco (barra, ícone)",
+      "fg": "#F2A900",
+      "bg": "#FFFFFF",
+      "tipo": "grafico",
+      "razao": 2.01,
+      "passa": false
+    }
+  ],
+  "c": [
+    {
+      "uso": "texto branco no botão azul",
+      "fg": "#FFFFFF",
+      "bg": "#0A5A8C",
+      "tipo": "texto",
+      "razao": 7.36,
+      "passa": true
+    },
+    {
+      "uso": "azul no fundo",
+      "fg": "#0A5A8C",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 6.66,
+      "passa": true
+    },
+    {
+      "uso": "azul no branco",
+      "fg": "#0A5A8C",
+      "bg": "#FFFFFF",
+      "tipo": "texto",
+      "razao": 7.36,
+      "passa": true
+    },
+    {
+      "uso": "azul claro no grafite",
+      "fg": "#7CC4DE",
+      "bg": "#16202A",
+      "tipo": "texto",
+      "razao": 8.48,
+      "passa": true
+    },
+    {
+      "uso": "grafite no fundo",
+      "fg": "#16202A",
+      "bg": "#F3F4F1",
+      "tipo": "texto",
+      "razao": 14.93,
+      "passa": true
+    }
+  ]
+}
