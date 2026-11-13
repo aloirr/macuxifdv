@@ -76,7 +76,7 @@ test('import relativo para fora do pacote: falha (R2)', () => {
 });
 
 test('leitura de arquivo fora do pacote só pesa no test, e cache false dispensa cobertura', () => {
-  escrever('modules/core/domain/c.test.ts', "const doc = resolve(__dirname, '../../../docs/x.md');\n");
+  escrever('modules/core/domain/c.test.ts', "const doc = resolve(__dirname, '../../../fixtures/x.json');\n");
   turbo();
   let p = verificar(raiz);
   assert.deepEqual(p.map((x) => x.split(':')[0]), ['@macuxi/core#test']);
@@ -102,9 +102,30 @@ test('glob $TURBO_ROOT$ sem excluir .turbo, node_modules e tsbuildinfo: falha (R
   assert.match(p[0], /^\/\/#lint:tests: .*\.turbo.*\(R3\)$/);
 });
 
-test('código que lê caminho de coordenação falha (R4), mesmo com cache false; comentário e pathspec ":!" não contam', () => {
+test('código que lê documentação falha (R4), mesmo com cache false; comentário, pathspec ":!" e texto solto não contam', () => {
   turbo({ '@macuxi/core#test': { cache: false } });
-  escrever('modules/core/domain/d.test.ts', "// lê .coord/contratos e docs/produto no comentário\n/** `.coord/donos.json` */\nconst x = [':!.coord', ':!docs'];\nconst y = 'docs/modulos/core.md';\n");
+  for (const d of [
+    'docs/status/demo.md',
+    'docs/backlog.md',
+    'docs/produto/03.md',
+    'docs/design/x.md',
+    '.coord/donos.json',
+    'README.md',
+  ])
+    escrever(d, 'x');
+  escrever(
+    'modules/core/domain/d.test.ts',
+    [
+      '// lê .coord/contratos e docs/produto no comentário',
+      '/** `.coord/donos.json` */',
+      "const x = [':!.coord', ':!docs'];",
+      "const y = 'docs/openapi.yaml';",
+      "const z = 'docs/x.json é igual ao gerado';",
+      "const w = '.md';",
+      "const v = 'guia.md';",
+      '',
+    ].join('\n'),
+  );
   assert.deepEqual(verificar(raiz), []);
   const casos = [
     "const donos = join(raiz, '.coord', 'donos.json');",
@@ -113,17 +134,67 @@ test('código que lê caminho de coordenação falha (R4), mesmo com cache false
     "const b = readFileSync(join(raiz, 'docs/backlog.md'));",
     "const p = join(raiz, 'docs', 'produto', '03.md');",
     "const t = readdirSync(join(raiz, 'docs'));",
+    // T-0160: docs/** e *.md da raiz também são documentação
+    "const d = readFileSync('../../../docs/design/x.md');",
+    "const e = join(raiz, 'docs', 'design');",
+    "const r = readFileSync(join(raiz, 'README.md'));",
   ];
   for (const c of casos) {
     escrever('modules/core/domain/d.test.ts', `${c}\n`);
     const p = verificar(raiz);
-    assert.ok(p.length >= 1 && p.every((x) => x.startsWith('@macuxi/core: lê caminho de coordenação') && x.endsWith('(R4)')), c);
+    assert.ok(
+      p.length >= 1 && p.every((x) => x.startsWith('@macuxi/core: lê documentação') && x.endsWith('(R4)')),
+      c,
+    );
   }
 });
 
-test('tocaCoordenacao: alvo, dentro, pasta acima; nunca a raiz nem vizinhos', () => {
-  for (const s of ['.coord', '.coord/x', 'docs/status', 'docs/status/a.md', 'docs/backlog.md', 'docs/produto/', 'docs', '../../docs']) assert.equal(tocaCoordenacao(s), true, s);
-  for (const s of ['.', '..', '', 'docs/modulos/a.md', 'docs/backlog.md.bak', 'docs/statusx', 'status', 'produto', ':!docs']) assert.equal(tocaCoordenacao(s), false, s);
+test('R4: pasta de documentação nos inputs do turbo.json pode ser lida; a pasta docs/ do próprio módulo não é documentação', () => {
+  escrever('docs/modulos/core/regras.md', 'x');
+  escrever('modules/core/docs/guia.md', 'x');
+  escrever(
+    'modules/core/domain/d.test.ts',
+    "const g = readFileSync('../docs/guia.md');\nconst m = readFileSync('../../../docs/modulos/core/regras.md');\n",
+  );
+  turbo({ '@macuxi/core#test': { cache: false } });
+  assert.ok(verificar(raiz).some((x) => x.includes('docs/modulos/core/regras.md') && x.endsWith('(R4)')));
+  const sobre = ['$TURBO_ROOT$/docs/modulos/**', ...EXCLUSOES_RAIZ];
+  turbo({ '@macuxi/core#test': { dependsOn: ['transit'], inputs: ['$TURBO_DEFAULT$', ...sobre] } });
+  assert.deepEqual(verificar(raiz), []);
+});
+
+test('tocaCoordenacao: documentação, dentro, pasta acima; nunca a raiz, vizinhos nem pasta lida pelo código', () => {
+  for (const s of [
+    '.coord',
+    '.coord/x',
+    'docs/status',
+    'docs/status/a.md',
+    'docs/backlog.md',
+    'docs/produto/',
+    'docs',
+    '../../docs',
+    'docs/modulos/a.md',
+    'docs/desenho/T-1.md',
+  ]) {
+    assert.equal(tocaCoordenacao(s), true, s);
+  }
+  for (const s of [
+    '.',
+    '..',
+    '',
+    'status',
+    'produto',
+    ':!docs',
+    'documentos/a.md',
+    'modules/x/docs/a.md',
+    '.md',
+    'guia.md',
+  ])
+    assert.equal(tocaCoordenacao(s), false, s);
+  assert.equal(tocaCoordenacao('README.md', { mdsDaRaiz: ['README.md'] }), true);
+  assert.equal(tocaCoordenacao('docs/modulos/a.md', { lidos: ['docs/modulos/'] }), false);
+  assert.equal(tocaCoordenacao('docs/modulos', { lidos: ['docs/modulos/'] }), false);
+  assert.equal(tocaCoordenacao('docs/openapi.yaml', { existe: () => false }), false);
 });
 
 test('o turbo.json real do repositório passa', () => {
