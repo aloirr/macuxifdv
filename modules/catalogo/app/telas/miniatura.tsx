@@ -122,7 +122,20 @@ export function useMiniaturasDosItens(motor: LeitorLocal | null | undefined, ids
 
 // ---------- componente ----------
 /** Caixa fixa da miniatura. `miniatura` nula (produto sem foto) mantém o espaço, para o texto alinhar. */
-export function MiniaturaProduto({ produtoId, miniatura, lado = LADO_CAIXA_MINIATURA }: { produtoId: string; miniatura: Miniatura | null | undefined; lado?: number }) {
+export function MiniaturaProduto({
+  produtoId,
+  miniatura,
+  lado = LADO_CAIXA_MINIATURA,
+  altura,
+  reserva,
+}: {
+  produtoId: string;
+  miniatura: Miniatura | null | undefined;
+  lado?: number;
+  /** Grade (T-0173): caixa de largura total e esta altura, com `reserva` (ícone ou inicial) enquanto a foto não chega ou não existe. */
+  altura?: number;
+  reserva?: React.ReactNode;
+}) {
   const ambiente = useAmbiente();
   const caixa = useRef<View | null>(null);
   const [uri, setUri] = useState<string | null>(null);
@@ -148,8 +161,8 @@ export function MiniaturaProduto({ produtoId, miniatura, lado = LADO_CAIXA_MINIA
     };
   }, [chave, estado]);
   return (
-    <View ref={caixa} collapsable={false} style={[s.caixa, { width: lado, height: lado }]} testID={`miniatura-${produtoId}`} accessible={false} importantForAccessibility="no-hide-descendants">
-      {uri ? <Image source={{ uri }} style={{ width: lado, height: lado }} resizeMode="cover" accessible={false} fadeDuration={0} /> : null}
+    <View ref={caixa} collapsable={false} style={[s.caixa, altura ? { width: '100%', height: altura, borderRadius: 12, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' } : { width: lado, height: lado }]} testID={`miniatura-${produtoId}`} accessible={false} importantForAccessibility="no-hide-descendants">
+      {uri ? <Image source={{ uri }} style={altura ? { width: '100%', height: altura } : { width: lado, height: lado }} resizeMode="cover" accessible={false} fadeDuration={0} /> : (reserva ?? null)}
     </View>
   );
 }

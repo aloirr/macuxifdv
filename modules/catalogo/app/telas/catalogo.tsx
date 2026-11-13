@@ -1,47 +1,40 @@
 /**
- * Aba Catálogo (RF-CAT-01/02, T-0052): vitrine e busca. OFFLINE-FIRST: a vitrine sempre vem do aparelho; a busca com
- * texto usa a API (busca inteligente) quando há sinal e cai para a busca local (FTS5 + sinônimos + ranking do domain)
- * sem sinal ou em falha, com aviso discreto. Preço = tabela do cliente em contexto (`?cliente=`, RN-CAT-06); preço e
- * estoque somem para quem não vê (RN-CAT-05). "Adicionar ao pedido" só pela extensão `produto.acoes` (RN-PRO-01).
- * Até 3 toques: aba → digita → "Adicionar" no cartão.
- * T-0142 / RF-CAT-09: sem texto na busca, a página é a própria hierarquia do ERP, do maior agrupamento para o menor (função
- * `navegarHierarquia` do domain, a mesma do BKO): um nível por tela, com a contagem de produtos ativos, trilha e, no último
- * nível, a lista rica de produtos (o mesmo cartão da busca: foto, aplicação em 2 linhas, "Equivale a", etiquetas, preço e
- * estoque; chips de marca e com estoque; "Mostrar mais" de 100 em 100). Nenhum atalho nem tela à parte para a lista por linha. Com `?pedido=1` (aberto de dentro do pedido) só entram os produtos
- * da tabela de preço do cliente. Tudo lido do aparelho (offline). O promotor navega só para leitura (sem preço, sem ações
- * de pedido: o shell já esconde `produto.acoes` dele). Favoritos ainda não existem no módulo.
+ * Aba Catálogo em grade (T-0173, docs/design/catalogo-grade.md; RF-CAT-01/02/09): duas colunas de cartões (foto, nome, marca,
+ * preço e tag de estoque), busca no topo, sistema e categoria em chips e a contagem na faixa. OFFLINE-FIRST: tudo vem do aparelho;
+ * a busca com texto usa a API (busca inteligente) quando há sinal e sem filtro de árvore, e cai para a busca local (FTS5 + sinônimos
+ * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
+ * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
+ * produto sem preço mostra "Sem preço". Preço e estoque somem para quem não vê (RN-CAT-05). "Adicionar ao pedido" só pela extensão
+ * `produto.acoes` (RN-PRO-01). Com `?pedido=1` só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaChips, ListaNiveis, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, CampoBusca, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
-import { idsAtivos, navegarHierarquia, type NavegacaoHierarquia } from '../../domain/hierarquia';
+import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
+import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
-import { parametrosDoTenant } from '../../domain/parametros';
-import { podeVerPrecoEstoque } from '../../domain/visibilidade';
-import { contagem } from '../lib/apresentacao';
-import { extrasLocais, type ExtrasProduto } from '../lib/extras-item';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
 import { vazioDaBusca } from '../lib/vazio-busca';
-import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
+import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { irParaProduto } from '../rotas';
-import { CartaoProduto } from './comum';
+import { CartaoGrade } from './comum';
 import { useMiniaturasDosItens } from './miniatura';
 
 const POR_PAGINA = PAGINA_DA_BUSCA;
-const RAIZ = 'raiz';
 const ESPERA_DIGITACAO_MS = 350;
+const ARVORE_VAZIA: Arvore = montarArvore([]);
 
 interface EstadoLista {
   carregando: boolean;
   itens: ItemVitrine[];
   total: number;
   aviso: string | null;
-  origem: 'aparelho' | 'servidor';
 }
 
 export default function TelaCatalogo() {
@@ -54,28 +47,21 @@ export default function TelaCatalogo() {
   const usuario = ambiente.usuario();
   const perfil = usuario?.perfil ?? null;
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
-  const vePrecoEstoque = perfil !== null && podeVerPrecoEstoque(perfil, parametrosDoTenant(parametrosCrus));
 
   const [texto, setTexto] = useState(params.q ? String(params.q) : '');
   const [consulta, setConsulta] = useState(texto);
-  const [soComEstoque, setSoComEstoque] = useState(false);
-  const [marca, setMarca] = useState<string | null>(null);
-  // chip "Campanha" cortado para o backlog (R-20261102-204330): filtro fica desligado até voltar
-  const soCampanha = false;
-  const [noId, setNoId] = useState<string | null>(params.no ? String(params.no) : null);
-  const [marcas, setMarcas] = useState<string[]>([]);
-  const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de nível, busca ou filtro volta ao inicial
-  const [extras, setExtras] = useState<Map<string, ExtrasProduto>>(new Map());
-  // T-0142 / RF-CAT-09: a página inicial é a hierarquia (mesma função do domain que o BKO usa); `null` = ainda lendo o aparelho
-  const [nav, setNav] = useState<NavegacaoHierarquia | null>(null);
-  const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
+  const [arvore, setArvore] = useState<{ arvore: Arvore; vinculos: VinculoProdutoNo[] } | null>(null);
+  const [filtro, setFiltro] = useState<FiltroDaGrade>(SEM_FILTRO);
+  const [nomeCliente, setNomeCliente] = useState<string | null>(null);
+  const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
+  const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null });
   const [sugestao, setSugestao] = useState<string | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
-  const agora = relogioReal().agora().toISOString();
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
+  const noInicial = params.no ? String(params.no) : null;
 
-  useEffect(() => setLimite(POR_PAGINA), [noId, consulta, marca, soComEstoque]);
+  useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
 
   // "Você quis dizer…": só quando a busca não achou nada, do vocabulário do índice no aparelho
   const semResultado = Boolean(consulta) && !lista.carregando && lista.itens.length === 0;
@@ -88,167 +74,130 @@ export default function TelaCatalogo() {
     };
   }, [motor, consulta, semResultado]);
 
-  // aplicação, "Equivale a" e etiquetas dos itens da tela, lidos do aparelho (offline)
-  useEffect(() => {
-    if (!motor) return;
-    let vivo = true;
-    void extrasLocais(motor, idsExibidos).then((m) => vivo && setExtras(m)).catch(() => vivo && setExtras(new Map()));
-    return () => {
-      vivo = false;
-    };
-  }, [motor, idsExibidos, sync.sincronizado_em]);
-
   // espera o vendedor parar de digitar antes de buscar (economiza IA e bateria)
   useEffect(() => {
     const h = setTimeout(() => setConsulta(texto.trim()), ESPERA_DIGITACAO_MS);
     return () => clearTimeout(h);
   }, [texto]);
 
+  // nome do cliente no voltar da faixa (aberto pela ficha do cliente)
   useEffect(() => {
-    if (!motor) return;
-    void filtrosLocais(motor).then((f) => {
-      setMarcas(f.marcas);
-    });
-  }, [motor, sync.sincronizado_em]);
-
-  // RF-CAT-09: nível atual da hierarquia com a contagem de produtos ativos (dentro do pedido, só os da tabela do cliente)
-  useEffect(() => {
-    if (!motor) return;
+    if (!motor || !clienteId) return setNomeCliente(null);
     let vivo = true;
-    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
-    void (async () => {
-      const { arvore, vinculos } = await arvoreLocal(motor);
-      const permitidos = await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: dentroDoPedido });
-      const ativos = idsAtivos(await produtosLocais(motor));
-      const base = permitidos ? new Set([...ativos].filter((id) => permitidos.has(id))) : ativos;
-      if (vivo) setNav(navegarHierarquia(arvore, vinculos, base, noId));
-    })();
+    void nomeDoClienteLocal(motor, clienteId).then((n) => vivo && setNomeCliente(n)).catch(() => vivo && setNomeCliente(null));
     return () => {
       vivo = false;
     };
-  }, [motor, noId, dentroDoPedido, clienteId, perfil, parametrosCrus, sync.sincronizado_em]);
+  }, [motor, clienteId]);
+
+  // árvore do ERP no aparelho: sistemas e categorias dos chips; `?no=` abre com o filtro marcado
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    void arvoreLocal(motor)
+      .then((a) => {
+        if (!vivo) return;
+        setArvore(a);
+        if (noInicial) setFiltro((f) => (f === SEM_FILTRO ? filtroDoNo(a.arvore, noInicial) : f));
+      })
+      .catch(() => vivo && setArvore(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, noInicial, sync.sincronizado_em]);
 
   useEffect(() => {
-    if (!motor || !nav) return;
+    if (!motor) return;
     let vivo = true;
     const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
     const local = async (aviso: string | null) => {
-      // sem busca, a lista são os produtos do nível em que a hierarquia chegou
-      const ids = consulta || nav.tipo !== 'produtos' ? undefined : new Set(nav.produtoIds);
-      const chips = {
-        brand: marca ?? undefined,
-        only_in_stock: soComEstoque || undefined,
-        campaign: soCampanha || undefined,
-        ...(ids ? { only_product_ids: ids } : {}),
-        ...(dentroDoPedido ? { only_sellable: true } : {}),
-      };
+      const doFiltro = arvore ? produtosDoFiltro(arvore.arvore, arvore.vinculos, filtro) : undefined;
+      const permitidos = dentroDoPedido ? await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: true }) : undefined;
+      const ativos = idsAtivos(await produtosLocais(motor));
+      const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
+      const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}) };
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: limite, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: limite, offset: 0 });
       // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal/falha numa frase só (some quando o índice fica pronto)
       const organizando = 'indexando' in r && r.indexando === true;
-      return { itens: r.items, total: r.total, aviso: consulta ? avisoDaBusca(aviso, organizando) : null, origem: 'aparelho' as const };
+      return { itens: r.items, total: r.total, aviso: consulta ? avisoDaBusca(aviso, organizando) : null };
     };
     const carregar = async () => {
       setLista((l) => ({ ...l, carregando: true }));
       let r: Omit<EstadoLista, 'carregando'>;
-      if (!consulta && nav.tipo === 'niveis') r = { itens: [], total: 0, aviso: null, origem: 'aparelho' }; // no meio da hierarquia não há lista
-      else if (!consulta) r = await local(null);
-      else if (!ambiente.online()) r = await local(AVISO_BUSCA_OFFLINE);
+      if (!consulta) r = await local(null);
+      else if (!ambiente.online() || filtroLigado(filtro)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         try {
-          const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, only_in_stock: soComEstoque || undefined, limit: limite });
-          r = { itens: api.items, total: api.total, aviso: api.notice, origem: 'servidor' };
+          const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });
+          r = { itens: api.items, total: api.total, aviso: api.notice };
         } catch (e) {
           r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
         }
       }
       if (vivo) setLista({ ...r, carregando: false });
     };
-    void carregar().catch(() => vivo && setLista({ carregando: false, itens: [], total: 0, aviso: 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.', origem: 'aparelho' }));
+    void carregar().catch(() => vivo && setLista({ carregando: false, itens: [], total: 0, aviso: 'Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.' }));
     return () => {
       vivo = false;
     };
-  }, [motor, nav, consulta, marca, limite, soCampanha, dentroDoPedido, soComEstoque, clienteId, perfil, parametrosCrus, ambiente, sync.sincronizado_em]);
+  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em]);
 
-  // trilha comum (@macuxi/ui): "Catálogo" é a raiz; o último é o lugar atual; nível pulado (item único) fica em cinza, sem toque
-  const itensTrilha = useMemo(
-    () => (!nav || nav.caminho.length === 0 ? [] : [{ id: RAIZ, rotulo: 'Catálogo', desligado: !nav.raizTocavel, testID: 'catalogo-trilha-inicio' }, ...nav.caminho.map((c) => ({ id: c.id, rotulo: c.nome, desligado: !c.tocavel, testID: `catalogo-trilha-${c.codigo}` }))]),
-    [nav],
-  );
-  const itensNiveis = useMemo(
-    () => (nav?.tipo === 'niveis' ? nav.niveis.map((n) => ({ id: n.id, nome: n.nome, contagem: n.total, secundario: n.no === null, testID: `catalogo-no-${n.codigo}` })) : []),
-    [nav],
-  );
-
-  const subtitulo = useMemo(() => {
-    if (!vePrecoEstoque) return 'Fichas e fotos dos produtos.';
-    return clienteId ? 'Preços da tabela do cliente selecionado.' : 'Abra pela ficha do cliente para ver o preço da tabela dele.';
-  }, [vePrecoEstoque, clienteId]);
-
-  // lista de produtos: na busca, ao chegar nos produtos (ou sem hierarquia) e para os produtos ligados direto a um nível
-  const mostrarLista = !nav || consulta !== '' || nav.tipo === 'produtos';
+  const chips = useMemo(() => chipsDaGrade(arvore?.arvore ?? ARVORE_VAZIA, filtro), [arvore, filtro]);
+  const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
+  const comFiltro = filtroLigado(filtro);
+  const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
+  const cabecalho = {
+    titulo: 'Catálogo',
+    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloDaGrade(lista.total) }),
+    posicaoSubtitulo: 'abaixo' as const,
+    ...(clienteId ? { voltar: { label: nomeCliente ?? 'Cliente', fallback: '/' } } : {}),
+    direita: <SeloAtualizacao testID="catalogo-selo-sync" semRede={!ambiente.online()} onSincronizar={auto.puxar} sobreFaixa />,
+  };
 
   if (!motor) {
     return (
-      <Screen testID="pagina-catalogo-catalogo">
-        <Text style={t.h1}>Catálogo</Text>
+      <Screen testID="pagina-catalogo-catalogo" cabecalho={{ titulo: 'Catálogo' }}>
         <Empty text="O catálogo aparece depois da primeira sincronização. Entre com o seu usuário e sincronize o aparelho." />
       </Screen>
     );
   }
 
+  const aparelhoVazio = !lista.carregando && lista.itens.length === 0 && !consulta && !comFiltro;
+
   return (
-    <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar}>
-      <View style={s.topo}>
-        <View style={{ flex: 1 }}>
-          <Text style={t.h1}>Catálogo</Text>
-          <Text style={t.sub}>{subtitulo}</Text>
-        </View>
-        <SyncStamp at={sync.sincronizado_em} offline={!ambiente.online()} tz={fuso} />
-      </View>
+    <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={cabecalho}>
+      <CampoBusca
+        testID="catalogo-busca"
+        valor={texto}
+        onChange={setTexto}
+        placeholder="Produto, código ou aplicação"
+        rotuloAcessivel="Buscar produto"
+        onEnviar={() => setConsulta(texto.trim())}
+        onLimpar={() => {
+          setTexto('');
+          setConsulta('');
+        }}
+        rotuloLimpar="Limpar a busca"
+      />
 
-      <View style={s.busca}>
-        <Icon name="search" size={18} color={colors.ink2} />
-        <TextInput
-          testID="catalogo-busca"
-          accessibilityLabel="Buscar produto"
-          placeholder="Ex.: refrigerante 2 litros, café, CAF-500"
-          placeholderTextColor={colors.ink3}
-          value={texto}
-          onChangeText={setTexto}
-          returnKeyType="search"
-          onSubmitEditing={() => setConsulta(texto.trim())}
-          autoCorrect={false}
-          style={s.campo}
-        />
-        {texto ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Limpar a busca" onPress={() => { setTexto(''); setConsulta(''); }} style={s.limpar} hitSlop={8}>
-            <Icon name="close" size={18} color={colors.ink2} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      {!consulta ? <Trilha itens={itensTrilha} onEscolher={(id) => setNoId(id === RAIZ ? null : id)} testID="catalogo-trilha" /> : null}
-      {!consulta && nav?.tipo === 'produtos' && nav.caminho.length > 0 ? <Text style={t.h2} testID="catalogo-nivel-titulo">{nav.caminho[nav.caminho.length - 1]!.nome}</Text> : null}
-      {!consulta && nav?.tipo === 'niveis' ? (
-        <>
-          <ListaNiveis rotulo={nav.rotuloPlural} rotuloContagem="Produtos" itens={itensNiveis} onEscolher={setNoId} testID="catalogo-niveis" />
-          <Text style={t.small} testID="catalogo-total-nivel">
-            {contagem(nav.total, 'produto ativo', 'produtos ativos')}
-            {nav.caminho.length > 0 ? ` em ${nav.caminho[nav.caminho.length - 1]!.nome}` : ''}
-          </Text>
-        </>
+      {chips.sistemas.length > 0 ? (
+        <LinhaChips testID="catalogo-chips-sistema">
+          <Chip label="Todos" active={filtro.sistemaId === null} onPress={() => setFiltro((f) => escolherSistema(f, null))} testID="catalogo-chip-sistema-todos" />
+          {chips.sistemas.map((n) => (
+            <Chip key={n.id} label={n.nome} active={filtro.sistemaId === n.id} onPress={() => setFiltro((f) => escolherSistema(f, n.id))} testID={`catalogo-chip-sistema-${n.codigo}`} />
+          ))}
+        </LinhaChips>
+      ) : null}
+      {chips.categorias.length > 0 ? (
+        <LinhaChips testID="catalogo-chips-categoria">
+          <Chip label="Todas" active={filtro.categoriaId === null} onPress={() => setFiltro((f) => escolherCategoria(f, null))} testID="catalogo-chip-categoria-todas" />
+          {chips.categorias.map((n) => (
+            <Chip key={n.id} label={n.nome} active={filtro.categoriaId === n.id} onPress={() => setFiltro((f) => escolherCategoria(f, n.id))} testID={`catalogo-chip-categoria-${n.codigo}`} />
+          ))}
+        </LinhaChips>
       ) : null}
 
-      {mostrarLista ? (
-        <>
-      <LinhaChips testID="catalogo-chips">
-        {vePrecoEstoque ? <Chip label="Com estoque" active={soComEstoque} onPress={() => setSoComEstoque((v) => !v)} testID="catalogo-chip-estoque" /> : null}
-        {marcas.map((m) => (
-          <Chip key={`marca-${m}`} label={m} active={marca === m} onPress={() => setMarca((atual) => (atual === m ? null : m))} testID={`catalogo-chip-marca-${m}`} />
-        ))}
-      </LinhaChips>
-
-      {lista.aviso ? (
+      {lista.aviso && lista.aviso !== AVISO_BUSCA_OFFLINE ? (
         <Banner testID="catalogo-aviso" anunciar icon={iconeDoAviso(lista.aviso)}>
           {lista.aviso}
         </Banner>
@@ -259,13 +208,10 @@ export default function TelaCatalogo() {
         consulta ? (
           <VazioDaBusca
             consulta={consulta}
-            filtroLigado={soComEstoque || marca !== null}
+            filtroLigado={comFiltro}
             semInternet={lista.aviso === AVISO_BUSCA_OFFLINE}
             dentroDoPedido={dentroDoPedido}
-            onLimparFiltros={() => {
-              setSoComEstoque(false);
-              setMarca(null);
-            }}
+            onLimparFiltros={() => setFiltro(SEM_FILTRO)}
             onLimparBusca={() => {
               setTexto('');
               setConsulta('');
@@ -276,42 +222,38 @@ export default function TelaCatalogo() {
               setConsulta(termo);
             }}
           />
+        ) : aparelhoVazio ? (
+          <EstadoVazio testID="catalogo-vazio" icone="search" titulo="O catálogo ainda não está no aparelho" acao={{ rotulo: 'Sincronizar', onPress: auto.puxar, testID: 'catalogo-vazio-acao' }} />
         ) : (
-          <Empty text="Nenhum produto neste aparelho ainda. Puxe a tela para sincronizar." />
+          <EstadoVazio testID="catalogo-vazio" icone="search" titulo={`Nenhum produto em ${nomeDoFiltro}`} />
         )
       ) : null}
 
-      {lista.itens.length > 0 && lista.itens.length >= lista.total ? (
-        <Text style={s.contagem} testID="catalogo-contagem">
-          {contagem(lista.total, 'produto', 'produtos')}
-        </Text>
-      ) : null}
-      {lista.itens.map((item) => (
-        <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} extras={extras.get(item.id)} onPress={() => irParaProduto(item.id, clienteId)} />
+      {linhas.map((par) => (
+        <View key={par[0]!.id} style={s.linha}>
+          {par.map((item) => (
+            <CartaoGrade key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} />
+          ))}
+          {par.length === 1 ? <View style={{ flex: 1 }} /> : null}
+        </View>
       ))}
       {lista.itens.length > 0 ? (
         <MostrarMais
           testID="catalogo-mostrar-mais"
           mostrando={lista.itens.length}
           total={lista.total}
+          contagem={false}
           onPress={() => !lista.carregando && setLimite(proximaPaginaDaBusca(lista.itens.length, lista.total))}
         />
       ) : null}
-      </>
-      ) : null}
-      <Text style={t.small} testID="catalogo-rodape-atualizacao">
-        {auto.rodape}
-      </Text>
     </Screen>
   );
 }
 
+const filtroLigado = (f: FiltroDaGrade) => f.sistemaId !== null || f.categoriaId !== null;
+
 const s = StyleSheet.create({
-  topo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  busca: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 12, paddingHorizontal: 12, minHeight: 48 },
-  campo: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink, paddingVertical: 10 },
-  limpar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
-  contagem: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
+  linha: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
 });
 
 function VazioDaBusca({

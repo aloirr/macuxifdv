@@ -18,8 +18,8 @@ export const ParametrosCatalogo = z
     limite_consultas_ia_dia: z.number().int().min(0).default(200),
     /** RN-CAT-05: false (padrão) = promotor vê ficha e fotos sem preço de tabela e sem estoque; true = vê como o vendedor. */
     promotor_ve_preco_estoque: z.boolean().default(false),
-    /** RN-CAT-07: faixa "baixo" = saldo de 1 até este valor ([10]). */
-    estoque_baixo_ate: z.number().int().min(0).default(10),
+    /** RN-CAT-07: faixa "baixo" = saldo de 1 até este valor ([9]; T-0173: a tag laranja vai de 1 a 9). */
+    estoque_baixo_ate: z.number().int().min(0).default(9),
     /** RN-CAT-07: true (padrão) mostra o número exato; false mostra só a faixa. */
     estoque_mostrar_quantidade: z.boolean().default(true),
     /** RN-CAT-07: horas sem atualização para marcar "estoque desatualizado" ([24]). */

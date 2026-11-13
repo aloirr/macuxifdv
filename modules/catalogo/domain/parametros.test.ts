@@ -8,7 +8,7 @@ describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', (
 
   it('RN-CAT-07: estoque mostra o número exato por padrão e a faixa baixo vai até 10', () => {
     expect(PARAMETROS_PADRAO.estoque_mostrar_quantidade).toBe(true);
-    expect(PARAMETROS_PADRAO.estoque_baixo_ate).toBe(10);
+    expect(PARAMETROS_PADRAO.estoque_baixo_ate).toBe(9);
   });
 
   it('RN-CAT-05: por padrão o promotor não vê preço de tabela nem estoque; o tenant pode liberar', () => {

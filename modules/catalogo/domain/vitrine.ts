@@ -57,8 +57,8 @@ export interface ContextoVitrine {
   filiais: readonly string[] | null;
 }
 
-/** RF-CAT-03: sem cliente em contexto não há tabela para mostrar (o tenant não tem tabela padrão). */
-export const MENSAGEM_ESCOLHA_CLIENTE = 'Escolha o cliente para ver o preço da tabela dele.';
+/** RN-VEN-01 (T-0173): sem cliente vale a tabela da filial padrão; produto sem preço nela mostra só "Sem preço". */
+export const MENSAGEM_SEM_PRECO_CATALOGO = 'Sem preço';
 
 /** Teto de candidatos da busca (o app e a API cortam aqui; a tela pagina de 20 em 20). */
 export const LIMITE_RESULTADOS_BUSCA = 500;
@@ -71,7 +71,7 @@ function precoDoCartao(p: ProdutoCatalogo, ctx: ContextoVitrine): PrecoVisivel {
   // RN-CAT-06: cliente em contexto SEM tabela = nada vendável para ele; nunca a tabela padrão
   if (ctx.clienteId !== null && ctx.tabelaClienteId === null) return semPreco(p.id, MENSAGEM_SEM_PRECO_CLIENTE);
   const v = precoVisivel(p.id, ctx.itensPreco, ctx.promocoes, { agora: ctx.agora, tabela_cliente_id: ctx.clienteId === null ? null : ctx.tabelaClienteId });
-  if (ctx.clienteId === null && !v.sellable) return { ...v, notice: MENSAGEM_ESCOLHA_CLIENTE };
+  if (ctx.clienteId === null && !v.sellable) return { ...v, notice: MENSAGEM_SEM_PRECO_CATALOGO };
   return v;
 }
 

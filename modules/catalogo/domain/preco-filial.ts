@@ -73,3 +73,22 @@ export function filialDaTelaDePreco(escolhida: string | null | undefined, padrao
   if (!escolhida) return { ok: true, filialId: padrao };
   return existentes.includes(escolhida) ? { ok: true, filialId: escolhida } : { ok: false };
 }
+
+export interface TabelaSemCliente {
+  id: string;
+  codigo: string;
+  ativo: boolean;
+}
+
+/**
+ * RN-VEN-01, "Catálogo sem cliente" (T-0173): o Catálogo aberto pelo menu mostra o preço da tabela da FILIAL PADRÃO do vendedor.
+ * Entre as tabelas ativas com item vivo nessa filial vale a de mais itens nela (empate: menor código); sem nenhuma, não há tabela
+ * e todo produto fica "Sem preço", nunca o valor de outra tabela. Quem chama filtra os itens à filial padrão.
+ */
+export function tabelaDaFilialSemCliente(tabelas: readonly TabelaSemCliente[], itensDaFilial: readonly { tabela_preco_id: string }[]): string | null {
+  const contagem = new Map<string, number>();
+  for (const i of itensDaFilial) contagem.set(i.tabela_preco_id, (contagem.get(i.tabela_preco_id) ?? 0) + 1);
+  const candidatas = tabelas.filter((t) => t.ativo && contagem.has(t.id));
+  candidatas.sort((a, b) => contagem.get(b.id)! - contagem.get(a.id)! || (a.codigo < b.codigo ? -1 : a.codigo > b.codigo ? 1 : 0));
+  return candidatas[0]?.id ?? null;
+}

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { interpretarConsulta } from './consulta';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from './preco';
-import { buscarProdutos, docDeBusca, itemDaVitrine, listarVitrine, MENSAGEM_ESCOLHA_CLIENTE, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
+import { buscarProdutos, docDeBusca, itemDaVitrine, listarVitrine, MENSAGEM_SEM_PRECO_CATALOGO, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 
 const relogio = criarRelogio();
 const AGORA = relogio.iso();
@@ -77,7 +77,7 @@ describe('itemDaVitrine — preço e estoque do cartão (RF-CAT-03)', () => {
 
   it('RF-CAT-03: sem cliente em contexto e sem tabela padrão, o cartão pede para escolher o cliente', () => {
     const cafe = itemDaVitrine(PRODUTOS[0]!, ctx({ clienteId: null, tabelaClienteId: null, itensPreco: [] }));
-    expect(cafe.price).toMatchObject({ price_cents: null, sellable: false, notice: MENSAGEM_ESCOLHA_CLIENTE });
+    expect(cafe.price).toMatchObject({ price_cents: null, sellable: false, notice: MENSAGEM_SEM_PRECO_CATALOGO });
   });
 
   it('RN-CAT-07: estoque em faixas com a hora da atualização; filial fora do escopo do usuário não conta', () => {

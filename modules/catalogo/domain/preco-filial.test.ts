@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filialDaTelaDePreco, filialDoClienteLocal, filialDoPreco } from './preco-filial';
+import { filialDaTelaDePreco, filialDoClienteLocal, filialDoPreco, tabelaDaFilialSemCliente } from './preco-filial';
 import { faixasDoProduto, type LinhaEscalonada } from './escalonada';
 import { precosDoCliente } from './precos-cliente';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from './preco';
@@ -99,5 +99,19 @@ describe('RN-CORE-39: filial da tela Tabelas de preço (BKO)', () => {
   });
   it('RN-CORE-39: filial que não é do tenant é recusada (nunca mistura filiais)', () => {
     expect(filialDaTelaDePreco('0f000000-0000-4000-8000-0000000000ff', MAO, [MAO, BVB])).toEqual({ ok: false });
+  });
+});
+
+describe('RN-VEN-01: Catálogo sem cliente usa a tabela da filial padrão (T-0173)', () => {
+  const t = (id: string, codigo: string, ativo = true) => ({ id, codigo, ativo });
+  it('RN-VEN-01: entre as tabelas com item na filial padrão vale a de mais itens', () => {
+    expect(tabelaDaFilialSemCliente([t('A', '01'), t('B', '02')], [{ tabela_preco_id: 'A' }, { tabela_preco_id: 'B' }, { tabela_preco_id: 'B' }])).toBe('B');
+  });
+  it('RN-VEN-01: empate decide pelo menor código', () => {
+    expect(tabelaDaFilialSemCliente([t('B', '02'), t('A', '01')], [{ tabela_preco_id: 'A' }, { tabela_preco_id: 'B' }])).toBe('A');
+  });
+  it('RN-VEN-01: tabela inativa ou sem item na filial padrão não vale; sem nenhuma, "Sem preço"', () => {
+    expect(tabelaDaFilialSemCliente([t('A', '01', false)], [{ tabela_preco_id: 'A' }])).toBeNull();
+    expect(tabelaDaFilialSemCliente([t('A', '01')], [])).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import type { DesfechoBusca, LinhaSync, MotivoSemBusca } from '@macuxi/platform-
 import { describe, expect, it } from 'vitest';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
-import { MENSAGEM_ESCOLHA_CLIENTE } from '../../domain/vitrine';
+import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
 import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, preselecionar, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
 
@@ -67,7 +67,7 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
     expect(varejo.items[0]!.price).toMatchObject({ sellable: true, price_cents: 2290 });
     expect(varejo.items[0]!.availability).toMatchObject({ band: 'sem_estoque', updated_at: QUANDO });
     const semCliente = await buscarLocal(leitor(), { ...entrada, clienteId: null, q: 'açaí', limit: 20, offset: 0, offline: true });
-    expect(semCliente.items[0]!.price).toMatchObject({ sellable: false, notice: MENSAGEM_ESCOLHA_CLIENTE });
+    expect(semCliente.items[0]!.price).toMatchObject({ sellable: false, notice: MENSAGEM_SEM_PRECO_CATALOGO });
   });
 
   it('RN-CAT-05: o promotor (e o aparelho sem usuário) não lê preço nem estoque', async () => {

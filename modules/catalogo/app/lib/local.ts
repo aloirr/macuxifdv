@@ -30,7 +30,7 @@ import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
-import { filialDoClienteLocal, filialDoPreco, type FilialLocalDoCliente } from '../../domain/preco-filial';
+import { filialDoClienteLocal, filialDoPreco, tabelaDaFilialSemCliente, type FilialLocalDoCliente } from '../../domain/preco-filial';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ChipsVitrine, type ContextoVitrine, type PaginaProdutos, type ProdutoCatalogo } from '../../domain/vitrine';
@@ -136,6 +136,23 @@ function filiaisPorTabela(leitor: LeitorLocal): Promise<Map<string, Set<string>>
       mapa.set(i.tabela_preco_id, set);
     }
     return mapa;
+  });
+}
+
+/** Nome do cliente para o voltar da faixa (fantasia, senão razão social); nulo = não está no aparelho. */
+export async function nomeDoClienteLocal(leitor: LeitorLocal, clienteId: string): Promise<string | null> {
+  const [c] = leitor.linhasPorIds ? await leitor.linhasPorIds<ClienteSync & LinhaSync>('cliente', [clienteId]) : (await leitor.linhas<ClienteSync & LinhaSync>('cliente')).filter((x) => x.id === clienteId);
+  return c ? c.nome_fantasia || c.razao_social : null;
+}
+
+/** RN-VEN-01 (T-0173): itens da tabela da filial padrão (a de mais itens nela), memorizados por versão do sync; vazio = "Sem preço". */
+function itensDaFilialPadrao(leitor: LeitorLocal): Promise<ItemTabelaPreco[]> {
+  return lembrar('itensFilialPadrao', leitor, ['tabela_preco_item', 'tabela_preco', 'filial'], async () => {
+    const padrao = vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).find((f) => f.padrao)?.id;
+    if (!padrao) return [];
+    const daFilial = vivas(await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item')).filter((i) => i.filial_id === padrao);
+    const tabelaId = tabelaDaFilialSemCliente(vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')), daFilial);
+    return daFilial.filter((i) => i.tabela_preco_id === tabelaId).map((i) => ({ price_table_id: null, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
   });
 }
 
@@ -298,6 +315,11 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
         .filter((i) => i.tabela_preco_id === tabela.id && ids.has(i.produto_id) && (filialPreco === null || i.filial_id === undefined || i.filial_id === filialPreco))
         .map((i) => ({ price_table_id: tabela.id, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
     }
+  }
+  // RN-VEN-01 (T-0173), sem cliente: preço da tabela da filial padrão (itens sem tabela no contexto = "padrão" do domain)
+  if (!e.clienteId) {
+    const ids = new Set(produtos.map((p) => p.id));
+    itensPreco = (await itensDaFilialPadrao(leitor)).filter((i) => ids.has(i.product_id));
   }
   const depositos = await lembrar('depositos', leitor, ['deposito'], async () => new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, { nome: d.nome, filial: d.filial_id ?? null }])));
   // nome da filial no rótulo do estoque (RN-CORE-39); sem as filiais no aparelho, o do depósito

@@ -81,3 +81,4 @@
 2026-11-12 — T-0167 — busca paginada: lista_completa (até 400) + total, aplicacao e sugestao na consulta, cliente_id no lugar dos 5.000 produto_ids, código exato em 1º, mínimo de 3 caracteres e 'você quis dizer' (domain + app + testes); auditoria e medição em docs/modulos/catalogo/busca-desempenho.md (PC saturado: meta de 300 ms não comprovada)
 2026-11-12 — T-0167 — Catálogo do app: MostrarMais (página de 20, contagem do topo só o total) e NadaEncontrado com 'Você quis dizer' (sugestaoDaBuscaLocal) do kit; sai textosMostrarMais/PASSO_MOSTRAR_MAIS; aplicação já vem em busca_produtos@1 (recado ao vendedor)
 2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo
+2026-11-13 — T-0173 — Catálogo em grade no app (cartões 2 colunas, chips sistema/categoria, preço da filial padrão sem cliente, tag de estoque 1-9 laranja)

@@ -48,11 +48,6 @@ export function rotuloEstoqueFilial(b: { branch_name: string; band: keyof typeof
   return `${b.branch_name}: ${b.quantity !== null && b.band !== 'sem_estoque' ? `${faixa} · ${b.quantity.toLocaleString('pt-BR')}` : faixa}`;
 }
 
-/** Singular/plural pela contagem: `contagem(1, 'produto', 'produtos')` -> "1 produto". */
-export function contagem(n: number, singular: string, plural: string): string {
-  return `${n.toLocaleString('pt-BR')} ${n === 1 ? singular : plural}`;
-}
-
 /** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
 export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: { filialDoCliente?: boolean } = {}): RotuloEstoque | null {
   const a = item.availability;
@@ -72,31 +67,7 @@ export function subtituloProduto(item: Pick<ItemVitrine, 'brand' | 'erp_code'>):
 }
 
 // ---------- aplicação e referência cruzada (RN-CAT-12, RN-CAT-09; T-0084/T-0085) ----------
-export interface PedacoMarcado {
-  texto: string;
-  marcado: boolean;
-}
-
-/** Parte o texto nas marcas [início, fim) (já unidas e em ordem); marca fora do texto é ignorada. */
-export function partirPorMarcas(texto: string, marcas: readonly (readonly [number, number])[]): PedacoMarcado[] {
-  const saida: PedacoMarcado[] = [];
-  let cursor = 0;
-  for (const [a, b] of [...marcas].sort((x, y) => x[0] - y[0])) {
-    if (a < cursor || b > texto.length || a >= b) continue;
-    if (a > cursor) saida.push({ texto: texto.slice(cursor, a), marcado: false });
-    saida.push({ texto: texto.slice(a, b), marcado: true });
-    cursor = b;
-  }
-  if (cursor < texto.length) saida.push({ texto: texto.slice(cursor), marcado: false });
-  return saida;
-}
-
-/** "inclui 2012": o ano da consulta casou por faixa (fica fora dos 90 caracteres do trecho). */
-export function rotuloIncluiAno(item: Pick<ItemVitrine, 'serve_em'>): string | null {
-  return item.serve_em?.inclui_ano ? `inclui ${item.serve_em.inclui_ano}` : null;
-}
-
-/** "Freiomax CB 3401": marca + código, com a posição do código marcada em `partirPorMarcas`. */
+/** "Freiomax CB 3401": marca + código. */
 export function textoEquivaleA(item: Pick<ItemVitrine, 'equivale_a'>): string | null {
   return item.equivale_a ? `${item.equivale_a.marca_nome} ${item.equivale_a.codigo}` : null;
 }

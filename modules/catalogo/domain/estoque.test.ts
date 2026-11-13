@@ -97,12 +97,12 @@ describe('RF-CAT-03 / RN-VEN-20: estoque visível por filial/depósito do usuár
 });
 
 describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametrizáveis)', () => {
-  it('RN-CAT-07: padrão — "baixo" até 10 unidades e o número exato visível', () => {
-    expect(PARAMETROS_PADRAO).toMatchObject({ estoque_baixo_ate: 10, estoque_mostrar_quantidade: true, estoque_defasado_horas: 24 });
-    expect(ver([saldo('f1', 10)], null)).toMatchObject({ band: 'baixo', quantity: 10 });
+  it('RN-CAT-07: padrão — "baixo" de 1 a 9 unidades (T-0173) e o número exato visível', () => {
+    expect(PARAMETROS_PADRAO).toMatchObject({ estoque_baixo_ate: 9, estoque_mostrar_quantidade: true, estoque_defasado_horas: 24 });
+    expect(ver([saldo('f1', 9)], null)).toMatchObject({ band: 'baixo', quantity: 9 });
     expect(ver([saldo('f1', 1)], null)).toMatchObject({ band: 'baixo', quantity: 1 });
-    expect(ver([saldo('f1', 11)], null)).toMatchObject({ band: 'disponivel', quantity: 11 });
-    expect(ver([saldo('f1', 10)], null).by_branch[0]).toMatchObject({ band: 'baixo', quantity: 10 });
+    expect(ver([saldo('f1', 10)], null)).toMatchObject({ band: 'disponivel', quantity: 10 });
+    expect(ver([saldo('f1', 9)], null).by_branch[0]).toMatchObject({ band: 'baixo', quantity: 9 });
   });
 
   it('RN-CAT-07: estoque zerado = "sem estoque", com o zero visível e a hora da atualização', () => {
