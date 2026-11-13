@@ -6,7 +6,7 @@
  * RN-CORE-23 (T-0054): sem consulta periódica própria. Ao abrir a tela só relê o aparelho; o pull vem do motor de sync da
  * plataforma (a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min); puxar = Sincronizar.
  */
-import { formatBRL, formatBRL0 } from '@macuxi/comum';
+import { formatBRL } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
 import { Badge, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -28,7 +28,6 @@ import {
   periodoDe,
   periodoForaDaJanela,
   periodoParcialNaJanela,
-  resumoDaSituacao,
   situacaoEfetiva,
   type ItemDaBusca,
   type Periodo,
@@ -39,7 +38,9 @@ import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../..
 import { ROTULO_A_FATURAR } from '../../domain/resumo-inicio';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { pedidoAFaturar } from '../../domain/resumo-inicio';
-import { orcamentosEmAberto } from '../lib/resumo-inicio';
+import { orcamentoEmAberto } from '../../domain/resumo-inicio';
+import { pedidoEnviado, resumoDePedidos } from '../../domain/resumo-pedidos';
+import { CardsDePedidos, type CardDePedidos } from '../components/cards-pedidos';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { trechosDoNumero } from '../lib/destaque-numero';
@@ -51,7 +52,7 @@ import { PedidosPage, type Order } from '../../contracts';
 import { irParaNovoPedido, irParaPedido, irParaRascunhos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
-type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'orc_abertos';
+type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'card_orc' | 'card_env';
 
 export default function OrdersScreen() {
   const { dados, rascunhosDaLista, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, aguardandoMinhaDecisao } = useVendedor();
@@ -70,8 +71,7 @@ export default function OrdersScreen() {
   const { filtro: filtroDoInicio } = useLocalSearchParams<{ filtro?: string }>();
   const [semPeriodo, setSemPeriodo] = useState(false);
   useEffect(() => {
-    if (filtroDoInicio === 'orcamentos') setSituacao('orc_abertos');
-    else if (filtroDoInicio === 'a_faturar') setSituacao('a_faturar');
+    if (filtroDoInicio === 'a_faturar') setSituacao('a_faturar');
     else return;
     setSemPeriodo(true);
   }, [filtroDoInicio]);
@@ -129,6 +129,7 @@ export default function OrdersScreen() {
   }, [modoConsulta, chaveConsulta, tentativa]);
   const doServidor = modoConsulta === 'consultar' && consulta?.chave === chaveConsulta ? consulta : null;
   // T-0090: fora inteiro = só o servidor; em parte = servidor + aparelho (a fila e as edições locais têm prioridade, sem duplicar por id)
+  const semResposta = fora && doServidor?.estado !== 'ok';
   const fonte = useMemo(
     () => (doServidor?.estado === 'ok' ? (fora ? doServidor.itens : juntarServidorComAparelho(doServidor.itens, orders)) : orders),
     [doServidor, fora, orders],
@@ -166,10 +167,6 @@ export default function OrdersScreen() {
   const diasValidade = validadeOrcamentoDias(ambiente.parametros('vendedor'));
   const numeroDoPedido = useCallback((id: string) => pedidoPorId.get(id)?.number ?? null, [pedidoPorId]);
   const insets = useSafeAreaInsets();
-  const orcAbertos = useMemo(() => {
-    const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido)).map((p) => p.id));
-    return itens.filter((i) => ids.has(i.id));
-  }, [itens]);
   // R1: com texto a busca procura em tudo (situação Todos); ao apagar o texto volta o chip escolhido antes
   const atual: Situacao = situacaoEfetiva<Situacao>(situacao ?? (gestao && itens.some((i) => paraDecidir.has(i.id)) ? 'decide' : 'todos'), buscando);
   // Y1: o chip ativo fica na linha mesmo com 0
@@ -177,10 +174,15 @@ export default function OrdersScreen() {
 
   // trocar período ou situação só refaz este filtro sobre o que já está na memória (sem reler o SQLite nem sincronizar)
   const visiveis = useMemo(
-    () => (atual === 'decide' ? base.filter((i) => paraDecidir.has(i.id)) : atual === 'a_faturar' ? aFaturar : atual === 'orc_abertos' ? orcAbertos : base.filter((i) => itemNaSituacao(i, atual))),
-    [atual, base, paraDecidir, aFaturar, orcAbertos],
+    () => (atual === 'card_orc' ? base.filter((i) => { const p = pedidoPorId.get(i.id); return p ? orcamentoEmAberto(p) : false; }) : atual === 'card_env' ? base.filter((i) => { const p = pedidoPorId.get(i.id); return p ? pedidoEnviado(p) : false; }) : atual === 'decide' ? base.filter((i) => paraDecidir.has(i.id)) : atual === 'a_faturar' ? aFaturar : base.filter((i) => itemNaSituacao(i, atual))),
+    [atual, base, paraDecidir, aFaturar, pedidoPorId],
   );
-  const resumo = useMemo(() => resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual), [visiveis, atual]);
+  // RN-VEN-43 (D5): os cards resumem o período pela data de emissão; busca e chip de situação não os mudam
+  const cards = useMemo(
+    () => (semResposta ? null : resumoDePedidos(itens.map((i) => ({ ...i.pedido, emitido_em: i.emitido_em })), { periodo, tz })),
+    [itens, periodo, tz, semResposta],
+  );
+  const abrirCard = (c: CardDePedidos) => setSituacao(c === 'orcamentos' ? 'card_orc' : 'card_env');
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
   const hojeDia = periodoDe('dia', new Date(), tz).valor;
   const filtro = useMemo(() => {
@@ -219,7 +221,6 @@ export default function OrdersScreen() {
     setVendedorId(TODOS_OS_VENDEDORES);
   };
   // Y12: fora dos 90 dias sem resposta do servidor, "0 pedidos" seria falso; o cartão mostra o estado
-  const semResposta = fora && doServidor?.estado !== 'ok';
   const vazio = textoDoVazio({ fora, modoConsulta, estadoDoServidor: doServidor?.estado, buscando, situacao: atual, gestao });
 
   return (
@@ -268,6 +269,8 @@ export default function OrdersScreen() {
           {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
         </SePode>
       </View>
+
+      <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
 
       {totalRascunhos > 0 ? (
         <SePode acao="pedido.criar">
@@ -346,18 +349,14 @@ export default function OrdersScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
             {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
             {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
-            {atual === 'orc_abertos' ? <Chip testID="chip-orc-abertos" label="Em aberto" active onPress={() => setSituacao('orc_abertos')} /> : null}
+            {atual === 'card_orc' ? <Chip testID="chip-card-orc" label="Orçamentos em aberto" active onPress={() => setSituacao('card_orc')} /> : null}
+            {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos enviados" active onPress={() => setSituacao('card_env')} /> : null}
             {chips.map((c) => (
               <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
             ))}
           </ScrollView>
           )}
 
-          {semResposta ? null : (
-          <Text style={t.small} testID="orders-resumo">
-            {`Total ${formatBRL0(resumo.total_cents)}${doServidor?.estado === 'ok' && doServidor.cortada ? ' · 1.000 mais recentes' : ''}`}
-          </Text>
-          )}
         </>
       )}
 
