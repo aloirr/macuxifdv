@@ -135,18 +135,23 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
     });
 
     it('upsert do login com o id do aparelho de B, no contexto de A, não toca a linha de B e a sessão não o referencia', async () => {
-      const r = await emTransacao(app, A.tenantId, async () => {
-        const up = await app.query(
-          `insert into core.dispositivo (id, tenant_id, usuario_id, nome, ultimo_acesso_em)
-           values ($1, plataforma.tenant_atual(), $2, 'invasor', now())
-           on conflict (id) do update set ultimo_acesso_em = excluded.ultimo_acesso_em, nome = coalesce(excluded.nome, core.dispositivo.nome)
-             where core.dispositivo.usuario_id = excluded.usuario_id`,
-          [B.dispositivos.vendedor, A.usuarios.vendedor1],
-        );
-        return up.rowCount;
-      });
-      // conflito com a linha de B: o "where" do do update a descarta (0 linhas), sem inserir nem atualizar
-      expect(r).toBe(0);
+      let linhas: number | null = null;
+      const erro = await erroDe(
+        emTransacao(app, A.tenantId, async () => {
+          const up = await app.query(
+            `insert into core.dispositivo (id, tenant_id, usuario_id, nome, ultimo_acesso_em)
+             values ($1, plataforma.tenant_atual(), $2, 'invasor', now())
+             on conflict (id) do update set ultimo_acesso_em = excluded.ultimo_acesso_em, nome = coalesce(excluded.nome, core.dispositivo.nome)
+               where core.dispositivo.usuario_id = excluded.usuario_id`,
+            [B.dispositivos.vendedor, A.usuarios.vendedor1],
+          );
+          linhas = up.rowCount;
+        }),
+      );
+      // conflito com a linha de B, sem inserir nem atualizar: até o Postgres 16.15 o "where" do do update a descarta
+      // (0 linhas); a partir do 16.16 a política barra a linha alheia antes do "where" (42501). Os dois são seguros.
+      const resultado = erro === null ? { linhas } : { codigo: erro.code };
+      expect([{ linhas: 0 }, { codigo: '42501' }]).toContainEqual(resultado);
       const nomeB = await comAdmin(b.nome, (c) => c.query('select nome, tenant_id from core.dispositivo where id = $1', [B.dispositivos.vendedor]));
       expect(nomeB.rows).toEqual([{ nome: 'Aparelho Vendedor Beta', tenant_id: B.tenantId }]);
       // sem o "where", a política barra a atualização da linha alheia
@@ -251,11 +256,13 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         // vazamento: o aparelho bloqueado de A não existe para B (RLS), e o aparelho de B segue livre
         expect(await r.dispositivoBloqueado(A.dispositivos.promotorBloqueado)).toBe(false);
         expect(await r.dispositivoBloqueado(B.dispositivos.vendedor)).toBe(false);
-        // e B não toma o id do aparelho de A: o upsert é descartado (0 linhas) e a sessão nele cai em 403 DISPOSITIVO_INVALIDO
-        await r.upsertDispositivo(B.usuarios.vendedor, A.dispositivos.promotorBloqueado, 'invasor', new Date());
-        await expect(
-          r.criarSessao({ id: 'bbbbbbbb-0007-4000-8000-000000000098', usuario_id: B.usuarios.vendedor, familia_id: 'bbbbbbbb-0007-4000-8000-000000000199', token_hash: 'd'.repeat(64), dispositivo_id: A.dispositivos.promotorBloqueado, expira_em: new Date(Date.now() + 30 * 86_400_000) }),
-        ).rejects.toMatchObject({ codigo: 'DISPOSITIVO_INVALIDO' });
+        // e B não toma o id do aparelho de A: o login cai em 403 DISPOSITIVO_INVALIDO. Até o Postgres 16.15 o upsert é
+        // descartado (0 linhas) e a recusa vem da sessão; a partir do 16.16 a política barra o próprio upsert (42501).
+        const login = async () => {
+          await r.upsertDispositivo(B.usuarios.vendedor, A.dispositivos.promotorBloqueado, 'invasor', new Date());
+          await r.criarSessao({ id: 'bbbbbbbb-0007-4000-8000-000000000098', usuario_id: B.usuarios.vendedor, familia_id: 'bbbbbbbb-0007-4000-8000-000000000199', token_hash: 'd'.repeat(64), dispositivo_id: A.dispositivos.promotorBloqueado, expira_em: new Date(Date.now() + 30 * 86_400_000) });
+        };
+        await expect(login()).rejects.toMatchObject({ codigo: 'DISPOSITIVO_INVALIDO' });
       });
       const linhaA = await comAdmin(b.nome, (c) => c.query('select tenant_id, usuario_id, nome, bloqueado_em is not null as bloqueado from core.dispositivo where id = $1', [A.dispositivos.promotorBloqueado]));
       expect(linhaA.rows).toEqual([{ tenant_id: A.tenantId, usuario_id: A.usuarios.promotor, nome: 'Aparelho Promotor', bloqueado: true }]);
