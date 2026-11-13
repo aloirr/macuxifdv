@@ -240,9 +240,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
                     <span className="truncate text-[14px] font-semibold" title={c.trade_name}>
                       {c.trade_name}
                     </span>
-                    <span className="truncate text-[12px] text-ink-2">
-                      {c.district} · cód. {c.erp_code} · curva {c.abc_curve}
-                    </span>
+                    <span className="truncate text-[12px] text-ink-2">{c.district}</span>
                   </div>
                   {s.locked ? (
                     <Badge tone={s.status === 'done' ? 'success' : 'pending'} className="flex items-center gap-1">
@@ -356,9 +354,7 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
             <li key={c.id} className="flex items-center gap-2 border-b border-line-2 py-2 last:border-0">
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] font-semibold">{c.trade_name}</span>
-                <span className="truncate text-[12px] text-ink-2">
-                  {c.district} · cód. {c.erp_code}
-                </span>
+                <span className="truncate text-[12px] text-ink-2">{c.district}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-1">
                   <Badge tone={c.abc_curve === 'A' ? 'pending' : 'neutral'}>Curva {c.abc_curve}</Badge>
                   <Badge tone={idle === null || idle >= 45 ? 'danger' : 'neutral'}>{idleLabel(c)}</Badge>

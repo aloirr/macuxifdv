@@ -140,7 +140,7 @@ function CarteiraConteudo() {
           </Panel>
 
           <Panel title={`${itens.length} cliente${itens.length === 1 ? '' : 's'} vigente${itens.length === 1 ? '' : 's'}`}>
-            <TableScroll minWidth={760}>
+            <TableScroll minWidth={880}>
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr>
@@ -148,13 +148,14 @@ function CarteiraConteudo() {
                     <th className={th}>Cidade</th>
                     <th className={th}>Frequência</th>
                     <th className={th}>Dia da visita</th>
+                    <th className={th}>Situação</th>
                     <th className={th}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {itens.length === 0 && (
                     <tr>
-                      <td className={td} colSpan={5}>
+                      <td className={td} colSpan={6}>
                         Esta carteira está vazia. Busque um cliente acima para vincular.
                       </td>
                     </tr>
@@ -201,14 +202,13 @@ function CarteiraConteudo() {
                           ))}
                         </select>
                       </td>
+                      <td className={td} data-testid={`carteira.situacao.${c.id}`}>
+                        {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
+                      </td>
                       <td className={td}>
-                        <div className="flex items-center gap-2">
-                          {c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
-                          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
-                          <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
-                            Desvincular
-                          </Button>
-                        </div>
+                        <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
+                          Desvincular
+                        </Button>
                       </td>
                     </tr>
                   ))}
