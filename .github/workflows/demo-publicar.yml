@@ -8,6 +8,8 @@ name: demo — publicar
 #      roda o implantar.sh (pull, migrações, seed só no 1º deploy, compose up -d, conferência, docker image prune -f)
 #      e sai do GHCR.
 # Gatilho: o CI terminar VERDE num push ao main (workflow_run), ou manual (Actions → "demo — publicar" → Run workflow).
+# T-0160 item 6 (ADR 0044): no gatilho do CI, só publica se mudou apps/**, modules/**, packages/**, db/** (ou o que monta a
+# imagem e o deploy) desde o último deploy verde na VM (scripts/ci/demo-mudou.mjs); o manual sempre publica.
 # Nenhum segredo vai para log: os secrets chegam por variável de ambiente e por stdin do ssh, nunca na linha de comando.
 # Portal de implantação na demo (T-0091; R-20261107-103434): as chaves da plataforma nascem na VM (preparar-vm.sh); o
 # convite do 1º acesso do super-admin vem do secret DEMO_SUPERADMIN_CONVITE (environment DEMO_SSH_KEY, opcional, ≥ 32
@@ -23,6 +25,8 @@ on:
 permissions:
   contents: read
   packages: write
+  # runs e jobs do próprio demo-publicar (o commit do último deploy verde)
+  actions: read
 
 # Uma publicação por vez; a mais nova espera a anterior terminar (nunca dois compose up ao mesmo tempo na VM).
 concurrency:
@@ -34,9 +38,33 @@ env:
   SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
+  mudou:
+    name: mudou o que vai para a VM?
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publicar: ${{ steps.mudou.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: arquivos desde o último deploy verde
+        id: mudou
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/demo-mudou.mjs
+
   imagens:
     name: imagens no GHCR
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    needs: mudou
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || (needs.mudou.result == 'success' && needs.mudou.outputs.publicar == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -117,6 +145,8 @@ jobs:
   deploy:
     name: deploy na VM
     needs: imagens
+    # o "mudou" pulado (disparo manual) não pula o deploy: vale o resultado das imagens
+    if: ${{ !cancelled() && needs.imagens.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: DEMO_SSH_KEY
