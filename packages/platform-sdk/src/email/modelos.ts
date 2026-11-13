@@ -126,7 +126,7 @@ function montar(assunto: string, linhas: readonly Linha[]): EmailRenderizado {
       if (l.senha) {
         return (
           `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}:</p>` +
-          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F3F4F1;padding:8px 12px;font-family:Consolas,'Courier New',monospace;font-size:18px">${escaparHtml(l.valor)}</span></p>`
+          `<p style="margin:0 0 12px"><span style="display:inline-block;background:#F8F6F1;color:#16202A;padding:8px 12px;font-family:Consolas,'Courier New',monospace;font-size:18px">${escaparHtml(l.valor)}</span></p>`
         );
       }
       return `<p style="margin:0 0 4px">${escaparHtml(l.rotulo)}: <strong>${escaparHtml(l.valor)}</strong></p>`;
