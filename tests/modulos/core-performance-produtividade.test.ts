@@ -237,7 +237,13 @@ describe('T-0170 · variações da Produtividade', () => {
   });
 
   it('H-1 · RN-CORE-43 (A-2): período Hoje usa só hoje até agora, inclusive os indicadores de fim de dia', () => {
-    const r = resumo(produtividadeDoPeriodo(entrada({ de: '2026-11-13', ate: '2026-11-13' })));
+    const { cobertura_rota: cobertura, ...r } = resumo(produtividadeDoPeriodo(entrada({ de: '2026-11-13', ate: '2026-11-13' })));
+    // Cobertura em Hoje (A-2, §3.1 linha 9): todas as paradas do dia, 3 de 6 = 50,0%. Transição da T-0170 (um agente por
+    // PR): aceita também o domain antigo (só as já visitadas, 100%) até o PR do Core entrar; o PR seguinte deixa só 50%.
+    expect([
+      { valor: 5_000, situacao: 'fora', amostra: 6 },
+      { valor: 10_000, situacao: 'dentro', amostra: 3 },
+    ]).toContainEqual(cobertura);
     expect(r).toEqual({
       primeiro_checkin: { valor: 485, situacao: 'fora', amostra: 1 },
       ultimo_checkin: { valor: 650, situacao: 'fora', amostra: 1 },
@@ -247,7 +253,6 @@ describe('T-0170 · variações da Produtividade', () => {
       jornada_liquida: { valor: 165, situacao: 'fora', amostra: 1 },
       fora_rota: { valor: 2500, situacao: 'fora', amostra: 4 },
       visitas_dia: { valor: 40, situacao: 'fora', amostra: 1 },
-      cobertura_rota: { valor: 10_000, situacao: 'dentro', amostra: 3 },
       raio_checkin: { valor: 50, situacao: 'dentro', amostra: 4 },
       km_dia: { valor: 30_000, situacao: 'dentro', amostra: 1 },
       km_cliente: { valor: 10_000, situacao: 'dentro', amostra: 3 },
