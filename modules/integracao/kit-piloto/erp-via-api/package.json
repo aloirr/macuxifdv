@@ -1,0 +1,8 @@
+{
+  "name": "macuxi-erp-via-api-piloto",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ERP via API do kit do piloto (Macuxi FDV): empresa teste Piloto API.",
+  "dependencies": { "mssql": "12.7.13" }
+}
