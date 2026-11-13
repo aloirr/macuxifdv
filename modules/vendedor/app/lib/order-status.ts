@@ -1,6 +1,7 @@
 /**
  * Apresentação de status de pedido (rótulos vêm de @fv/domain; aqui só cor e filtro da lista).
  */
+import { TONS_ESTADO } from '@macuxi/ui/mobile/puro';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
 import { normalizarStatus } from '../../domain/order';
 import { motivoDaRecusa, textoDaRecusa } from './salvar-na-fila';
@@ -15,7 +16,7 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
   draft: { fg: '#34404D', bg: '#E6E9E2' },
   queued: { fg: '#5C3B00', bg: '#FFF1D6' },
   received: { fg: '#34404D', bg: '#E6E9E2' },
-  pending_approval: { fg: '#8F3D06', bg: '#FBE9DC' },
+  pending_approval: TONS_ESTADO.destaque,
   approved: { fg: '#1D6B4F', bg: '#E2F1EA' },
   sent_to_erp: { fg: '#34404D', bg: '#E6E9E2' },
   integrated: { fg: '#1D6B4F', bg: '#E2F1EA' },
@@ -30,7 +31,7 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
  * `edited` é evento de histórico (não é status do pedido).
  */
 const LABEL_OVERRIDE: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado', draft: 'Salvo' };
-const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: { fg: '#8F3D06', bg: '#FBE9DC' } };
+const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: TONS_ESTADO.destaque };
 
 export function statusBadge(statusErp: string): BadgeStyle {
   const status = normalizarStatus(statusErp);
