@@ -124,10 +124,15 @@ describe('T-0170 · variações dos Resultados (RN-CORE-42)', () => {
     expect(semPedido()).toMatchObject({ situacao: 'a_cumprir', meta: 800, meta_dia: 800 });
   });
 
-  // Divergência D-T0170-R7 (A-3, Alexandre 13/11: "0"): sem pedido, Itens por pedido mostra 0, não "—". A função devolve
-  // realizado, atingimento e Gap nulos. Recado ao modulo-core.
-  it.fails('R-7 · RN-CORE-42 (A-3): sem pedido, realizado 0, atingimento 0 e Gap 800', () => {
-    expect(semPedido()).toMatchObject({ realizado: 0, atingimento_pb: 0, gap: 800 });
+  // D-T0170-R7 (A-3, resposta de 13/11: "0"): sem pedido, Itens por pedido mostra 0, não "—". Transição da T-0170 (um
+  // agente por PR): aceita o domain antigo (nulos) e o corrigido (0, 0, 800) até o PR do Core entrar; o PR seguinte do
+  // testes deixa só o valor corrigido.
+  it('R-7 · RN-CORE-42 (A-3): sem pedido, realizado 0, atingimento 0 e Gap 800 (transição: antigo nulo)', () => {
+    const { realizado: real, atingimento_pb, gap } = semPedido();
+    expect([
+      { realizado: 0, atingimento_pb: 0, gap: 800 },
+      { realizado: null, atingimento_pb: null, gap: null },
+    ]).toContainEqual({ realizado: real, atingimento_pb, gap });
   });
 
   it('R-8 · RN-CORE-42: Mês passado (outubro, 21 DU) encerrado: sem Meta/dia, Real/dia 15.120.000 ÷ 21', () => {
