@@ -1,6 +1,8 @@
 /**
  * Aba "Pesquisas" (RF-PES-03): pesquisas avulsas disponíveis agora para o usuário, offline. As já respondidas no período
  * aparecem em "Respondidas" (com o dia em que voltam, RN-PES-02) e as que pedem cliente em "Na ficha do cliente".
+ * T-0171 (RD-0212): uma informação por linha. Disponível: título + nº de perguntas (a descrição fica na tela de responder);
+ * respondida: título + "Volta em"; na ficha: só o título (a seção já diz a situação, sem tag repetindo o título dela).
  * A obrigatória do checkout não aparece aqui: ela é etapa da visita (`visita.etapas_checkout`).
  * Visual T-0072 (docs/design/componentes.md): cartões tocáveis, chips de estado com texto, estados vazios; sem principal.
  */
@@ -62,11 +64,6 @@ export default function PesquisasScreen() {
               </Text>
               <Icon name="chevron" size={18} color={colors.ink3} />
             </View>
-            {d.versao.descricao ? (
-              <Text style={t.sub} numberOfLines={2}>
-                {d.versao.descricao}
-              </Text>
-            ) : null}
             <Text style={t.small} testID={`pesquisas.responder-${i + 1}`}>
               {perguntas(n)}
             </Text>
@@ -79,12 +76,9 @@ export default function PesquisasScreen() {
         <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
           {respondidas.map((d, i) => (
             <View key={d.questionario_id} testID={`pesquisas.respondida-${i + 1}`} style={[estilos.item, i < respondidas.length - 1 && estilos.divisor]}>
-              <View style={estilos.linha}>
-                <Text style={[estilos.titulo, { flex: 1 }]} numberOfLines={2}>
-                  {d.titulo}
-                </Text>
-                <ChipEstado pequeno tom="sucesso" icone="check" texto="Respondida" />
-              </View>
+              <Text style={estilos.titulo} numberOfLines={2}>
+                {d.titulo}
+              </Text>
               {d.liberada_em ? <Text style={t.small}>Volta em {dataBr(d.liberada_em)}</Text> : null}
             </View>
           ))}
@@ -96,12 +90,9 @@ export default function PesquisasScreen() {
         <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
           {doCliente.map((d, i) => (
             <View key={d.questionario_id} testID={`pesquisas.indisponivel-${i + 1}`} style={[estilos.item, i < doCliente.length - 1 && estilos.divisor]}>
-              <View style={estilos.linha}>
-                <Text style={[estilos.titulo, { flex: 1 }]} numberOfLines={2}>
-                  {d.titulo}
-                </Text>
-                <ChipEstado pequeno tom="neutro" icone="users" texto="Por cliente" rotuloAcessivel="Responda na ficha do cliente" />
-              </View>
+              <Text style={estilos.titulo} numberOfLines={2}>
+                {d.titulo}
+              </Text>
             </View>
           ))}
         </Cartao>
