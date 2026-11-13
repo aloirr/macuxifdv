@@ -140,3 +140,15 @@ describe('BackLink pelo bloqueio de saída do shell (T-0128, RN-VEN-38)', () => 
     expect(ui).toContain('const seguir = () => (router.canGoBack() ? router.back() : router.replace(fallback as never));');
   });
 });
+
+describe('sino do shell no cabeçalho (T-0170, R-20261113-173653): ProvedorSinoCabecalho', () => {
+  it('o kit exporta o contexto opcional (padrão null) e o CabecalhoTela desenha o sino depois da ação da tela', () => {
+    const voltar = ler('./voltar.tsx');
+    expect(voltar).toMatch(/createContext<ReactNode>\(null\)/);
+    expect(voltar).toMatch(/export const ProvedorSinoCabecalho = SinoCabecalhoCtx\.Provider;/);
+    expect(voltar).toMatch(/export function useSinoCabecalho\(\)/);
+    const ui = ler('./ui.tsx');
+    expect(ui).toContain('const sino = useSinoCabecalho();');
+    expect(ui).toMatch(/\{direita\}\s*\{sino\}/);
+  });
+});

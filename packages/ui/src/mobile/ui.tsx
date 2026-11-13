@@ -15,7 +15,7 @@ import { layoutCarregando, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
-import { useSaidaDaTela, useVoltarDaTela } from './voltar';
+import { useSaidaDaTela, useSinoCabecalho, useVoltarDaTela } from './voltar';
 import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 export interface PropsCabecalhoTela {
@@ -38,6 +38,8 @@ export interface PropsCabecalhoTela {
  */
 export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', voltar, direita, testID = 'cabecalho-tela' }: PropsCabecalhoTela) {
   const insets = useSafeAreaInsets();
+  // T-0170: sino do shell (ProvedorSinoCabecalho) depois da ação da tela; sem provedor, null e nada muda
+  const sino = useSinoCabecalho();
   const sub = subtitulo ? (
     <Text style={styles.cabecalhoSub} numberOfLines={1}>
       {subtitulo}
@@ -55,6 +57,7 @@ export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', 
           {posicaoSubtitulo === 'abaixo' ? sub : null}
         </View>
         {direita}
+        {sino}
       </View>
     </View>
   );

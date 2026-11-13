@@ -5,7 +5,7 @@
  * e o `BackLink` mostra "‹ Início" no lugar do pai fixo do módulo ("Pedidos", "Treinar").
  * Sem provedor, ou com `value={null}`, nada muda: vale o `label` do módulo. Só apresentação: quem decide o rótulo é o shell.
  */
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 
 import type { SaidaDaTela, VoltarDaTela } from './componentes';
 
@@ -35,4 +35,21 @@ export const ProvedorSaidaDaTela = SaidaCtx.Provider;
 /** Valor do `ProvedorSaidaDaTela` mais próximo; `null` sem provedor. */
 export function useSaidaDaTela(): SaidaDaTela | null {
   return useContext(SaidaCtx);
+}
+
+/**
+ * T-0170 (R-20261113-173653-engenheiro-apps): sino do shell no cabeçalho de todas as telas. O shell envolve as telas com
+ * `<ProvedorSinoCabecalho value={<Sino />}>` e o `CabecalhoTela` desenha o valor na linha do título, depois da ação da tela
+ * (`direita`), com o mesmo vão de 8 da linha. O sino é botão de 48 dp, sem nada grafite (some no Azul noite).
+ * Sem provedor (ou `value={null}`), nada muda. Só apresentação: quem monta o sino e o balão é o shell.
+ */
+const SinoCabecalhoCtx = createContext<ReactNode>(null);
+SinoCabecalhoCtx.displayName = 'ProvedorSinoCabecalho';
+
+/** Provedor do sino do shell no `CabecalhoTela`; `null` = sem sino. */
+export const ProvedorSinoCabecalho = SinoCabecalhoCtx.Provider;
+
+/** Valor do `ProvedorSinoCabecalho` mais próximo; `null` sem provedor. */
+export function useSinoCabecalho(): ReactNode {
+  return useContext(SinoCabecalhoCtx);
 }
