@@ -138,7 +138,8 @@ describe('RN-CORE-17: observacaoComCadastro', () => {
   it('RN-CORE-17: é refeita a cada atualização, sem acumular linhas antigas', () => {
     const v1 = observacaoComCadastro('Texto do ERP', ['cep']);
     const v2 = observacaoComCadastro(v1, ['documento']);
-    expect(v2).toBe('Cadastro incompleto: falta CNPJ/CPF. Pedido só como orçamento até o cadastro ser completado no ERP.\nTexto do ERP');
+    expect(v2).toBe('Cadastro incompleto: falta CNPJ/CPF.\nTexto do ERP');
+    expect(observacaoComCadastro('Cadastro incompleto: falta CEP. Pedido só como orçamento até o cadastro ser completado no ERP.\nTexto do ERP', ['documento'])).toBe('Cadastro incompleto: falta CNPJ/CPF.\nTexto do ERP');
     expect(observacaoComCadastro(v2, [])).toBe('Texto do ERP');
   });
 

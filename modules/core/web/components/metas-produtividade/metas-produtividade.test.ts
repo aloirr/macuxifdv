@@ -5,6 +5,7 @@
  */
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
+import { LIMITE_DESCONTO_PADRAO } from '../../../contracts';
 import { INDICADORES_PRODUTIVIDADE, MetasProdutividadePutSchema, type MetaProdutividade } from '../../../contracts/performance';
 import { criarApiSimulada, erro422, novoQueryClient, renderizar, trecho } from '../tarefas/api-simulada';
 import { CHAVE_CONSULTORES_METAS, CHAVE_EQUIPES, CHAVE_METAS_PRODUTIVIDADE, criarApiMetasProdutividade } from './api';
@@ -39,7 +40,7 @@ const EQUIPES = [
   { id: NORTE, nome: 'Equipe Norte', equipe_pai_id: null, responsavel_id: null, responsavel_nome: null, superior_id: null, superior_nome: null },
   { id: NORTE_1, nome: 'Norte 1', equipe_pai_id: NORTE, responsavel_id: null, responsavel_nome: null, superior_id: null, superior_nome: null },
 ];
-const usuario = { id: ANA, nome: 'Ana Vendedora', nome_curto: null, email: 'ana@exemplo.com.br', perfil: 'vendedor', perfis: [], equipe_id: NORTE_1, equipe_nome: 'Norte 1', superior_id: null, superior_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false };
+const usuario = { ...LIMITE_DESCONTO_PADRAO, id: ANA, nome: 'Ana Vendedora', nome_curto: null, email: 'ana@exemplo.com.br', perfil: 'vendedor', perfis: [], equipe_id: NORTE_1, equipe_nome: 'Norte 1', superior_id: null, superior_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false };
 
 function simulada(extra: Record<string, unknown> = {}) {
   const sim = criarApiSimulada({
