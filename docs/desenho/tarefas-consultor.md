@@ -1,6 +1,6 @@
 # Desenho — Tarefas do consultor (Recados e tarefas, T-0170)
 
-- **Autor:** engenheiro-software · **Data:** 13/11/2026 · **Situação:** proposta, aguarda as decisões do §10
+- **Autor:** engenheiro-software · **Data:** 12/11/2026 · **Situação:** proposta, aguarda as decisões do §10
 - **Pedido:** Alexandre, R-20261112-204134-alexandre, itens 2 e 3 (sino em todas as telas; "Recados e tarefas" com tarefas do BKO)
 - **Imagens:** `recados/anexos/2026-11-12-T0170-final-recados-e-tarefas.png` e `-final-inicio-sino-aberto.png` (repositório de recados)
 - **Base:** RF-CORE-09, RN-CORE-03/04/33/35, RN-PRO-01, RN-PES-01/04/06; ADR 0009 (comando de push), 0010 (fotos), 0012 e 0019
