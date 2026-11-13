@@ -156,7 +156,7 @@ function CartaoResultado({ c }: { c: CardResultado }) {
       {c.atingimento ? (
         <View style={s.linhaBarra}>
           <View style={{ flex: 1 }}>
-            <ProgressBar pct={c.barra * 100} color={c.tom === 'batida' ? colors.ink : colors.accent} rotulo={`${c.titulo}: ${c.atingimento} da meta`} />
+            <ProgressBar pct={c.barra * 100} color={colors.grafico} rotulo={`${c.titulo}: ${c.atingimento} da meta`} />
           </View>
           <Text style={[s.percentual, { color: corDoTom }]} importantForAccessibility="no">
             {c.atingimento}
@@ -186,7 +186,7 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
           {c.titulo}
         </Text>
         <View style={s.linhaValor}>
-          {c.ponto ? <View style={[s.ponto, { backgroundColor: fora ? colors.accent : colors.success }]} testID={`performance-produtividade-${c.indicador}-ponto`} /> : null}
+          {c.ponto ? <View style={[s.ponto, { backgroundColor: fora ? colors.grafico : colors.success }]} testID={`performance-produtividade-${c.indicador}-ponto`} /> : null}
           <Text style={[s.valorProdutividade, fora && { color: colors.accentInk }]}>{c.valor}</Text>
         </View>
         {c.meta ? <Text style={t.small}>{c.meta}</Text> : null}

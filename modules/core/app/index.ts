@@ -14,10 +14,16 @@ import { TelaClientes } from './telas/clientes';
 import { TelaMetas } from './telas/metas';
 import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
+import { PaginaRecadosETarefas, PaginaTarefa } from './telas/paginas-recados-e-tarefas';
+import { TelaPerformance } from './telas/performance';
 import { TelaRota } from './telas/rota';
 
 export { definirAbrirFotoPdv, definirCapturaFoto, definirCapturaFotoPdv, type AbrirFotoPdv, type CapturaFoto, type CapturaFotoPdv, type FotoPdvCapturada, type PedidoAbrirFotoPdv } from './lib/foto-fachada';
+export { BalaoRecadosETarefas, ENTIDADE_TAREFA } from './telas/recados-e-tarefas';
+export { abrirTarefaDoCore, ROTA_RECADOS_E_TAREFAS, rotaDaTarefa } from './telas/paginas-recados-e-tarefas';
+export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performance';
 export { useInicio } from './lib/usar-inicio';
+export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { useNotificacoes } from './lib/usar-notificacoes';
 export { progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
@@ -34,10 +40,13 @@ export const moduloApp = definirModuloShell<ComponentType>({
   paginas: [
     { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
-    { id: 'metas', caminho: 'metas', titulo: 'Metas', navegacao: 'Metas', icone: 'target', apps: ['campo'], ordem: 50, componente: TelaMetas },
+    { id: 'metas', caminho: 'metas', titulo: 'Metas', apps: ['campo'], componente: TelaMetas },
     { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
     { id: 'notificacoes', caminho: 'notificacoes', titulo: 'Notificações', apps: ['campo', 'gestao'], componente: TelaNotificacoes },
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
+    { id: 'performance', caminho: 'performance', titulo: 'Performance', navegacao: 'Performance', icone: 'target', ordem: 50, apps: ['campo'], componente: TelaPerformance },
+    { id: 'recados-e-tarefas', caminho: 'recados-e-tarefas', titulo: 'Recados e tarefas', apps: ['campo', 'gestao'], componente: PaginaRecadosETarefas },
+    { id: 'tarefa', caminho: 'tarefa', titulo: 'Tarefa', apps: ['campo', 'gestao'], componente: PaginaTarefa },
   ],
   entidadesSync: [
     // Cliente 360 offline (T-0017): pull filtrado pela carteira no servidor; a ficha e a lista leem do aparelho

@@ -9,7 +9,7 @@ export const manifest = defineModule({
   versao: '0.1.0',
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: {
-    campo: { abas: ['Início', 'Rota', 'Clientes', 'Metas'] },
+    campo: { abas: ['Início', 'Rota', 'Clientes', 'Performance'] },
     gestao: { abas: ['Início', 'Clientes'] },
     web: { menus: ['Clientes', 'Rotas', 'Visitas', 'Coordenadas sugeridas', 'Motivos', 'Produtos', 'Recados', 'Carteira', 'Metas', 'Plano de RV', 'Usuários e módulos', 'Usuários', 'Perfis de acesso', 'Aparelhos', 'Filiais', 'Fotos do PDV', 'Indicadores'] },
   },

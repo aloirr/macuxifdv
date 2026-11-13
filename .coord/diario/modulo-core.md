@@ -151,3 +151,4 @@
 2026-11-13 — T-0168 — RN-VEN-11a: LimiteDescontoSchema/LIMITE_DESCONTO_PADRAO, usuario (sync) e cadastro_resumo@1 aditivo, POST/PUT usuarios com 422 e auditoria, aba Parâmetros no BKO
 2026-11-13 — T-0171 — RN-CORE-41: tag única (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita (domain/lista-clientes.ts, entidade cliente_ultima_visita), filtro "Devendo"
 2026-11-13 — T-0171 — regex ultima_visita_data, lista de Clientes (RN-CORE-47), etapas da entrada (RN-CORE-48), export progressoDaEntrada
+2026-11-13 — T-0170 — Início do Campo no Core: painel, Metas do mês, Produtividade, sino, Sincronizar (telas/inicio)
