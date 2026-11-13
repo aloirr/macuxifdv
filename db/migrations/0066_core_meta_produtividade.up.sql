@@ -6,7 +6,8 @@
 -- Migração ADITIVA: 2 tabelas novas no Core e 1 valor a mais no CHECK meta_indicador_valido de core.meta.
 --
 -- core.meta_produtividade (dono: Core): meta de produtividade por escopo tenant|equipe|usuario. equipe_id (FK composta
---   core.equipe) só e sempre no escopo equipe; usuario_id (FK composta core.usuario) só e sempre no escopo usuario; indicador =
+--   core.equipe) só e sempre no escopo equipe; usuario_id (FK composta core.usuario) só e sempre no escopo usuario (as duas
+--   coerências no gatilho meta_produtividade_conferir_alvo, não em CHECK: a FK cruzada decide antes); indicador =
 --   um dos 12 de INDICADORES_PRODUTIVIDADE (modules/core/contracts/performance.ts); valor inteiro >= 0 na unidade do indicador
 --   (a faixa por indicador é do domain/API, FAIXA_META_PRODUTIVIDADE); vigencia_inicio 'AAAA-MM' (vale a partir do mês);
 --   atualizado_por (FK composta core.usuario, nulo = carga). Único vivo por (tenant, escopo, alvo, indicador, vigência), com o
@@ -49,8 +50,6 @@ create table core.meta_produtividade (
   constraint meta_produtividade_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id),
   constraint meta_produtividade_atualizado_por_fk foreign key (tenant_id, atualizado_por) references core.usuario (tenant_id, id),
   constraint meta_produtividade_escopo_valido check (escopo in ('tenant', 'equipe', 'usuario')),
-  constraint meta_produtividade_equipe_coerente check ((escopo = 'equipe') = (equipe_id is not null)),
-  constraint meta_produtividade_usuario_coerente check ((escopo = 'usuario') = (usuario_id is not null)),
   constraint meta_produtividade_indicador_valido check (indicador in ('primeiro_checkin', 'ultimo_checkin', 'tma', 'tmd', 'almoco', 'jornada_liquida', 'fora_rota', 'visitas_dia', 'cobertura_rota', 'raio_checkin', 'km_dia', 'km_cliente')),
   constraint meta_produtividade_valor_nao_negativo check (valor >= 0),
   constraint meta_produtividade_vigencia_formato check (vigencia_inicio ~ '^[0-9]{4}-(0[1-9]|1[0-2])$')
@@ -61,6 +60,35 @@ create unique index meta_produtividade_vigencia_uk on core.meta_produtividade
 create index meta_produtividade_indicador_ix on core.meta_produtividade (tenant_id, indicador, escopo);
 create index meta_produtividade_sync_ix on core.meta_produtividade (tenant_id, updated_at, id);
 create unique index meta_produtividade_external_uk on core.meta_produtividade (tenant_id, external_id) where external_id is not null and deleted_at is null;
+-- Alvo coerente (meta_produtividade_equipe_coerente: equipe_id só e sempre no escopo equipe; meta_produtividade_usuario_coerente:
+-- usuario_id só e sempre no escopo usuario): gatilho de restrição AFTER, não CHECK. O CHECK roda na escrita da linha, ANTES da
+-- FK (gatilho no fim do comando): apontar equipe_id/usuario_id para linha de outro tenant seria recusado pela coerência (23514)
+-- e não pela FK (23503), que é quem prova o isolamento (S0-025, tests/integracao/multitenant/vazamento-escrita.test.ts). Mesma
+-- regra, mesmo SQLSTATE (23514) e o nome da regra na mensagem e em CONSTRAINT; o nome em minúsculas ordena o gatilho depois
+-- dos da FK ("RI_ConstraintTrigger_*": ordem alfabética).
+create function core.meta_produtividade_conferir_alvo() returns trigger
+  language plpgsql
+  set search_path = pg_catalog, core, pg_temp
+  as $$
+declare
+  v_regra text;
+begin
+  if (new.escopo = 'equipe') is distinct from (new.equipe_id is not null) then
+    v_regra := 'meta_produtividade_equipe_coerente';
+  elsif (new.escopo = 'usuario') is distinct from (new.usuario_id is not null) then
+    v_regra := 'meta_produtividade_usuario_coerente';
+  end if;
+  if v_regra is not null then
+    raise exception 'new row for relation "%" violates check constraint "%"', tg_table_name, v_regra
+      using errcode = 'check_violation', constraint = v_regra, schema = tg_table_schema, table = tg_table_name;
+  end if;
+  return null;
+end
+$$;
+revoke all on function core.meta_produtividade_conferir_alvo() from public;
+create constraint trigger meta_produtividade_conferir_alvo
+  after insert or update of escopo, equipe_id, usuario_id on core.meta_produtividade
+  for each row execute function core.meta_produtividade_conferir_alvo();
 create trigger meta_produtividade_updated_at before update on core.meta_produtividade
   for each row execute function plataforma.definir_updated_at();
 alter table core.meta_produtividade enable row level security;

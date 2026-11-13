@@ -766,8 +766,8 @@ Aditiva: 2 tabelas, 1 coluna em `core.notificacao` e 1 gatilho. RLS enable + for
 | `tipo` | text not null | `simples`, `foto` ou `pesquisa` (`tarefa_tipo_valido`) |
 | `questionario_id` | uuid | **sem FK** (schema `pesquisa`, regra 1); só e sempre no tipo `pesquisa` (`tarefa_questionario_coerente`) |
 | `alvo` | text not null | `usuarios`, `equipe` ou `todos` (`tarefa_alvo_valido`); só para o BKO mostrar |
-| `equipe_id` | uuid | FK composta `tarefa_equipe_fk`; só e sempre no alvo `equipe` (`tarefa_equipe_coerente`) |
-| `cancelada_em`, `cancelada_por` | timestamptz, uuid | juntos (`tarefa_cancelamento_par`); `cancelada_por` FK composta -> `core.usuario` |
+| `equipe_id` | uuid | FK composta `tarefa_equipe_fk`; só e sempre no alvo `equipe` (`tarefa_equipe_coerente`, no gatilho `tarefa_conferir_coerencia`) |
+| `cancelada_em`, `cancelada_por` | timestamptz, uuid | juntos (`tarefa_cancelamento_par`, no gatilho `tarefa_conferir_coerencia`); `cancelada_por` FK composta -> `core.usuario` |
 | `motivo_cancelamento` | text | ≤ 300 (`tarefa_motivo_tamanho`), só na cancelada (`tarefa_motivo_so_cancelada`) |
 
 Índices: `tarefa_sync_ix`, `tarefa_autor_ix (tenant_id, autor_id, created_at desc)` (lista do BKO),
@@ -775,6 +775,12 @@ Aditiva: 2 tabelas, 1 coluna em `core.notificacao` e 1 gatilho. RLS enable + for
 **Gatilho `tarefa_tocar_destinatarios`** (AFTER UPDATE, função `core.tocar_destinatarios_tarefa()`): quando muda `titulo`,
 `descricao`, `prazo`, `tipo`, `cliente_id`, `questionario_id`, `cancelada_em` ou `deleted_at`, o `updated_at` das linhas de
 `tarefa_destinatario` da tarefa anda (o pull lê pelo destinatário). `external_id` e o próprio `updated_at` não disparam.
+**Gatilho de restrição `tarefa_conferir_coerencia`** (AFTER INSERT/UPDATE de `alvo`, `equipe_id`, `cancelada_em`, `cancelada_por`;
+função `core.tarefa_conferir_coerencia()`): as duas coerências que amarram coluna de FK (`tarefa_equipe_coerente` e
+`tarefa_cancelamento_par`) ficam aqui e não em CHECK. O CHECK roda na escrita da linha, antes da FK (gatilho no fim do
+comando): apontar para equipe ou usuário de outro tenant seria recusado pela coerência (23514) e não pela FK (23503), que é
+quem prova o isolamento (S0-025). Recusa com 23514, `CONSTRAINT` = nome da regra e a mesma mensagem do CHECK; o nome em
+minúsculas ordena o gatilho depois dos da FK (`RI_ConstraintTrigger_*`).
 
 ### tarefa_destinatario — uma linha por consultor (a que vai ao aparelho). Pull `tarefa`, escopo **proprio**
 | Coluna | Tipo | Regra |
@@ -797,11 +803,11 @@ Aditiva: 2 tabelas, 1 coluna em `core.notificacao` e 1 gatilho. RLS enable + for
 - Volume: ~20 linhas por consultor na janela de 30 dias; até 500 por tarefa.
 
 ### notificacao.tarefa_id
-`uuid` nulo; FK composta `notificacao_tarefa_fk` -> `core.tarefa`; só com `subtipo = 'tarefa'` (`notificacao_tarefa_subtipo`, com `is not distinct from`: subtipo nulo também recusa);
+`uuid` nulo; FK composta `notificacao_tarefa_fk` -> `core.tarefa`; só com `subtipo = 'tarefa'` (gatilho de restrição `notificacao_tarefa_subtipo`, AFTER INSERT/UPDATE de `tarefa_id`/`subtipo` com `tarefa_id` preenchido, função `core.notificacao_conferir_tarefa()`: subtipo nulo também recusa; 23514 depois da FK, como em `tarefa_conferir_coerencia`);
 um aviso por (usuário, tarefa) (`notificacao_tarefa_uk ... where tarefa_id is not null`): criar a mesma tarefa de novo não
 duplica. O aviso usa `tipo = 'sistema'` (RN-CORE-TAR-07).
 
-Volta: `0064_core_tarefa.down.sql` apaga as tabelas, a função e a coluna `notificacao.tarefa_id` (os avisos ficam, sem vínculo;
+Volta: `0064_core_tarefa.down.sql` apaga as tabelas, as 3 funções, o gatilho de coerência da notificação e a coluna `notificacao.tarefa_id` (os avisos ficam, sem vínculo;
 fotos e bytes ficam). Teste: `db/testes/t0170-tarefa.db.test.ts`.
 
 ## 0065 — frase do dia e foto ou avatar (`0065_core_frase_avatar`; T-0170, RN-CORE-41 e RN-CORE-42, desenho docs/desenho/inicio-frase-avatar-pedidos.md §1)
@@ -852,8 +858,8 @@ select, insert e update, **sem delete**.
 | Coluna | Tipo | Regra |
 |---|---|---|
 | `escopo` | text not null | `tenant`, `equipe` ou `usuario` (`meta_produtividade_escopo_valido`) |
-| `equipe_id` | uuid | FK composta `meta_produtividade_equipe_fk`; só e sempre no escopo `equipe` (`meta_produtividade_equipe_coerente`) |
-| `usuario_id` | uuid | FK composta `meta_produtividade_usuario_fk`; só e sempre no escopo `usuario` (`meta_produtividade_usuario_coerente`) |
+| `equipe_id` | uuid | FK composta `meta_produtividade_equipe_fk`; só e sempre no escopo `equipe` (`meta_produtividade_equipe_coerente`, no gatilho `meta_produtividade_conferir_alvo`) |
+| `usuario_id` | uuid | FK composta `meta_produtividade_usuario_fk`; só e sempre no escopo `usuario` (`meta_produtividade_usuario_coerente`, no gatilho `meta_produtividade_conferir_alvo`) |
 | `indicador` | text not null | um dos 12 de `INDICADORES_PRODUTIVIDADE` (`meta_produtividade_indicador_valido`) |
 | `valor` | integer not null | ≥ 0 (`meta_produtividade_valor_nao_negativo`), na unidade do indicador; a faixa é do domain/API |
 | `vigencia_inicio` | text not null | `AAAA-MM` (`meta_produtividade_vigencia_formato`) |
@@ -862,6 +868,9 @@ select, insert e update, **sem delete**.
 - **Único vivo** `meta_produtividade_vigencia_uk (tenant_id, escopo, coalesce(equipe_id, usuario_id, '0000…'::uuid),
   indicador, vigencia_inicio) where deleted_at is null` (o `on conflict` da API repete a expressão e o predicado).
 - Índices: `meta_produtividade_indicador_ix (tenant_id, indicador, escopo)`, `meta_produtividade_sync_ix`.
+- **Gatilho de restrição `meta_produtividade_conferir_alvo`** (AFTER INSERT/UPDATE de `escopo`, `equipe_id`, `usuario_id`;
+  função `core.meta_produtividade_conferir_alvo()`): as duas coerências do alvo, fora do CHECK para a FK cruzada decidir antes
+  (23503; S0-025), como em `tarefa_conferir_coerencia`. Recusa com 23514 e o nome da regra.
 - Sentido e padrão do FDV ficam no contrato (`SENTIDO_PRODUTIVIDADE`, `META_PRODUTIVIDADE_PADRAO`): tenant novo sem seed.
 - Volume: ~12 por alvo.
 
@@ -881,5 +890,5 @@ Sem coordenada (dado pessoal derivado; retenção do resumo: 5 anos, T-0145 §5)
 `meta_indicador_valido` passa a aceitar `itens_por_pedido` (valor em **centésimos**: 3,50 itens = 350). As metas que existem não
 mudam. O `INDICADORES_META_BANCO` do espelho Drizzle ganha o valor junto com o `INDICADORES_META` do contrato.
 
-Volta: `0066_core_meta_produtividade.down.sql` apaga as 2 tabelas e, em `core.meta`, as metas `itens_por_pedido` (DELETE
+Volta: `0066_core_meta_produtividade.down.sql` apaga as 2 tabelas, a função do gatilho de alvo e, em `core.meta`, as metas `itens_por_pedido` (DELETE
 físico; reaplicar não as devolve) e volta o CHECK aos 4 indicadores da 0006. Teste: `db/testes/t0170-meta-produtividade.db.test.ts`.

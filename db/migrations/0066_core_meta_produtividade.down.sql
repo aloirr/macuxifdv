@@ -12,4 +12,5 @@ alter table core.meta add constraint meta_indicador_valido
   check (indicador in ('venda_cents', 'positivacao', 'cobertura_pct', 'visitas'));
 
 drop table if exists core.deslocamento_dia;
-drop table if exists core.meta_produtividade;
+drop table if exists core.meta_produtividade; -- leva junto os gatilhos meta_produtividade_updated_at e meta_produtividade_conferir_alvo
+drop function if exists core.meta_produtividade_conferir_alvo();

@@ -53,10 +53,16 @@ describe('0064 tarefas do consultor (estático)', () => {
       "constraint tarefa_titulo_tamanho check (btrim(titulo) <> '' and char_length(titulo) <= 120)",
       'constraint tarefa_descricao_tamanho check (descricao is null or char_length(descricao) <= 1000)',
       "constraint tarefa_questionario_coerente check ((tipo = 'pesquisa') = (questionario_id is not null))",
-      "constraint tarefa_equipe_coerente check ((alvo = 'equipe') = (equipe_id is not null))",
-      'constraint tarefa_cancelamento_par check ((cancelada_em is null) = (cancelada_por is null))',
       'constraint tarefa_motivo_tamanho check (motivo_cancelamento is null or char_length(motivo_cancelamento) <= 300)',
       'constraint tarefa_motivo_so_cancelada check (motivo_cancelamento is null or cancelada_em is not null)',
+    ]) expect(umaLinha).toContain(trecho);
+    // coerências que amarram coluna de FK: gatilho de restrição AFTER (a FK cruzada decide antes; S0-025), não CHECK
+    expect(umaLinha).not.toMatch(/constraint tarefa_(equipe_coerente|cancelamento_par) check/);
+    for (const trecho of [
+      "if (new.alvo = 'equipe') is distinct from (new.equipe_id is not null) then v_regra := 'tarefa_equipe_coerente';",
+      "elsif (new.cancelada_em is null) <> (new.cancelada_por is null) then v_regra := 'tarefa_cancelamento_par';",
+      "using errcode = 'check_violation', constraint = v_regra",
+      'create constraint trigger tarefa_conferir_coerencia after insert or update of alvo, equipe_id, cancelada_em, cancelada_por on core.tarefa for each row execute function core.tarefa_conferir_coerencia();',
     ]) expect(umaLinha).toContain(trecho);
     expect(up).not.toMatch(/references pesquisa\./);
     expect(up).not.toMatch(/provisionar_tenant/);
@@ -69,7 +75,10 @@ describe('0064 tarefas do consultor (estático)', () => {
     expect(valores('alvo')).toEqual(['usuarios', 'equipe', 'todos']);
     expect([...nuvemCore.ALVOS_TAREFA_BANCO]).toEqual(['usuarios', 'equipe', 'todos']);
     expect(nuvemCore.SUBTIPOS_NOTIFICACAO_CONHECIDOS).toContain(SUBTIPO_NOTIFICACAO_TAREFA);
-    expect(umaLinha).toContain(`check (tarefa_id is null or subtipo is not distinct from '${SUBTIPO_NOTIFICACAO_TAREFA}')`);
+    expect(umaLinha).toContain(`if new.tarefa_id is not null and new.subtipo is distinct from '${SUBTIPO_NOTIFICACAO_TAREFA}' then`);
+    expect(umaLinha).toContain(
+      'create constraint trigger notificacao_tarefa_subtipo after insert or update of tarefa_id, subtipo on core.notificacao for each row when (new.tarefa_id is not null) execute function core.notificacao_conferir_tarefa();',
+    );
   });
 
   it('índices do desenho (sync, autor, abertas, destinatário) e únicos vivos', () => {
@@ -106,10 +115,12 @@ describe('0064 tarefas do consultor (estático)', () => {
     );
   });
 
-  it('down idempotente desfaz tudo (único, CHECK, FK e coluna da notificacao; tabelas; função)', () => {
+  it('down idempotente desfaz tudo (único, gatilho de coerência, FK e coluna da notificacao; tabelas; funções)', () => {
     for (const trecho of [
       'drop index if exists core.notificacao_tarefa_uk;',
-      'alter table core.notificacao drop constraint if exists notificacao_tarefa_subtipo;',
+      'drop trigger if exists notificacao_tarefa_subtipo on core.notificacao;',
+      'drop function if exists core.notificacao_conferir_tarefa();',
+      'drop function if exists core.tarefa_conferir_coerencia();',
       'alter table core.notificacao drop constraint if exists notificacao_tarefa_fk;',
       'alter table core.notificacao drop column if exists tarefa_id;',
       'drop table if exists core.tarefa_destinatario;',
@@ -177,7 +188,7 @@ describe.skipIf(semBanco())('0064 tarefas do consultor (banco, papel de aplicaç
     });
   });
 
-  it('recusas da tarefa = 23514 com o nome do CHECK; FK de outro tenant = 23503', async () => {
+  it('recusas da tarefa = 23514 com o nome da regra; FK de outro tenant = 23503 (mesmo com a linha incoerente)', async () => {
     await emTransacao(app, A.tenantId, async () => {
       const ins = `insert into core.tarefa (tenant_id, autor_id, titulo, prazo, tipo, alvo, questionario_id, equipe_id, cancelada_em, cancelada_por, motivo_cancelamento, descricao)
                    values ($1, $2, $3, current_date, $4, $5, $6, $7, $8, $9, $10, $11)`;
@@ -201,6 +212,9 @@ describe.skipIf(semBanco())('0064 tarefas do consultor (banco, papel de aplicaç
       await recusa(ins, com(9, 'motivo'), '23514', 'tarefa_motivo_so_cancelada');
       await recusa(ins, com(9, 'x'.repeat(301), [7, CANCELADA], [8, A.usuarios.gerente]), '23514', 'tarefa_motivo_tamanho');
       await recusa(ins, com(1, B.usuarios.admin), '23503', 'tarefa_autor_fk');
+      // a FK cruzada decide antes da coerência (gatilho AFTER, S0-025): equipe/cancelador de B numa linha incoerente = 23503
+      await recusa(ins, com(6, B.equipes.equipe), '23503', 'tarefa_equipe_fk');
+      await recusa(ins, com(8, B.usuarios.admin), '23503', 'tarefa_cancelada_por_fk');
       // aceitas: pesquisa com questionário (sem FK), equipe com equipe, cancelada com quem e motivo
       await q(ins, com(3, 'pesquisa', [5, QUEST]));
       await q(ins, com(4, 'equipe', [6, A.equipes.equipe1]));
@@ -251,6 +265,7 @@ describe.skipIf(semBanco())('0064 tarefas do consultor (banco, papel de aplicaç
       await q(ins, [A.tenantId, A.usuarios.vendedor1, 'tarefa', T1]);
       await recusa(ins, [A.tenantId, A.usuarios.vendedor1, 'tarefa', T1], '23505', 'notificacao_tarefa_uk');
       await recusa(ins, [A.tenantId, A.usuarios.vendedor2, 'tarefa', 'aaaaaaaa-0170-4000-8000-0000000000ff'], '23503', 'notificacao_tarefa_fk');
+      await recusa(ins, [A.tenantId, A.usuarios.vendedor2, null, 'aaaaaaaa-0170-4000-8000-0000000000ff'], '23503', 'notificacao_tarefa_fk');
       await q(ins, [A.tenantId, A.usuarios.vendedor2, 'tarefa', T1]);
     });
   });

@@ -2,13 +2,16 @@
 -- (pedido ao banco-dados) e §5 (sync). Migração em cima da 0063. Dicionário: docs/banco/core.md ("0064").
 -- Teste: db/testes/t0170-tarefa.db.test.ts (estático no PC; banco e up/down no CI).
 --
--- Migração ADITIVA: 2 tabelas novas no Core, 1 coluna + CHECK + FK + único em core.notificacao e 1 gatilho em core.tarefa.
+-- Migração ADITIVA: 2 tabelas novas no Core, 1 coluna + FK + único + gatilho de coerência em core.notificacao e 2 gatilhos em
+-- core.tarefa (destinatários e coerência).
 --
 -- core.tarefa (dono: Core): a tarefa como foi cadastrada no BKO. id gerado no BKO (idempotência do POST). autor_id (FK composta
 --   core.usuario); titulo 1..120 (não vazio); descricao <= 1000; prazo = data civil no fuso do tenant; cliente_id (FK composta
 --   core.cliente, nulo = sem cliente); tipo simples|foto|pesquisa; questionario_id SEM FK (schema pesquisa, regra 1), presente
 --   só e sempre no tipo pesquisa; alvo usuarios|equipe|todos (só para o BKO mostrar), equipe_id (FK composta core.equipe) só e
---   sempre no alvo equipe; cancelada_em + cancelada_por (FK composta core.usuario) juntos; motivo_cancelamento <= 300, só na
+--   sempre no alvo equipe; cancelada_em + cancelada_por (FK composta core.usuario) juntos (essas duas coerências, que amarram
+--   coluna de FK, ficam no gatilho tarefa_conferir_coerencia e não em CHECK: a FK cruzada decide antes); motivo_cancelamento
+--   <= 300, só na
 --   cancelada. Volume: ~5 por semana por equipe; o BKO lista por autor e as atrasadas pelo prazo.
 -- core.tarefa_destinatario (dono: Core): uma linha por consultor — é a linha que vai ao aparelho (pull `tarefa`, escopo
 --   proprio, índice (tenant_id, usuario_id, updated_at, id)). tarefa_id (FK composta core.tarefa), usuario_id (FK composta
@@ -17,8 +20,8 @@
 --   suspeita (relógio adiantado, RN-CORE-TAR-06). A mesma tarefa vai uma vez a cada pessoa (único vivo
 --   tarefa_dest_usuario_uk). Volume: ~20 linhas por consultor na janela de 30 dias; até 500 por tarefa.
 -- core.notificacao.tarefa_id (§3.3): aviso da tarefa (tipo 'sistema', subtipo 'tarefa'), FK composta core.tarefa; só com
---   subtipo 'tarefa' (notificacao_tarefa_subtipo); um aviso por (usuário, tarefa) (notificacao_tarefa_uk): criar a mesma
---   tarefa de novo não duplica.
+--   subtipo 'tarefa' (gatilho de restrição notificacao_tarefa_subtipo); um aviso por (usuário, tarefa) (notificacao_tarefa_uk):
+--   criar a mesma tarefa de novo não duplica.
 -- Gatilho tarefa_tocar_destinatarios (AFTER UPDATE em core.tarefa): mudou o que o aparelho mostra (titulo, descricao, prazo,
 --   tipo, cliente_id, questionario_id, cancelada_em ou deleted_at) -> o updated_at das linhas de core.tarefa_destinatario da
 --   tarefa anda (gatilho tarefa_destinatario_updated_at), e o pull, que lê pelo destinatário, traz a mudança.
@@ -63,8 +66,6 @@ create table core.tarefa (
   constraint tarefa_tipo_valido check (tipo in ('simples', 'foto', 'pesquisa')),
   constraint tarefa_questionario_coerente check ((tipo = 'pesquisa') = (questionario_id is not null)),
   constraint tarefa_alvo_valido check (alvo in ('usuarios', 'equipe', 'todos')),
-  constraint tarefa_equipe_coerente check ((alvo = 'equipe') = (equipe_id is not null)),
-  constraint tarefa_cancelamento_par check ((cancelada_em is null) = (cancelada_por is null)),
   constraint tarefa_motivo_tamanho check (motivo_cancelamento is null or char_length(motivo_cancelamento) <= 300),
   constraint tarefa_motivo_so_cancelada check (motivo_cancelamento is null or cancelada_em is not null)
 );
@@ -72,6 +73,35 @@ create index tarefa_sync_ix on core.tarefa (tenant_id, updated_at, id);
 create index tarefa_autor_ix on core.tarefa (tenant_id, autor_id, created_at desc);
 create index tarefa_prazo_abertas_ix on core.tarefa (tenant_id, prazo) where cancelada_em is null and deleted_at is null;
 create unique index tarefa_external_uk on core.tarefa (tenant_id, external_id) where external_id is not null and deleted_at is null;
+-- Coerência que amarra coluna de FK composta (tarefa_equipe_coerente: equipe_id só e sempre no alvo equipe;
+-- tarefa_cancelamento_par: cancelada_em e cancelada_por juntos): gatilho de restrição AFTER, não CHECK. O CHECK roda na escrita
+-- da linha, ANTES da FK (gatilho no fim do comando): apontar equipe_id/cancelada_por para linha de outro tenant seria recusado
+-- pela coerência (23514) e não pela FK (23503), que é quem prova o isolamento (S0-025,
+-- tests/integracao/multitenant/vazamento-escrita.test.ts). Mesma regra, mesmo SQLSTATE (23514) e o nome da regra na mensagem
+-- e em CONSTRAINT; o nome em minúsculas ordena o gatilho depois dos da FK ("RI_ConstraintTrigger_*": ordem alfabética).
+create function core.tarefa_conferir_coerencia() returns trigger
+  language plpgsql
+  set search_path = pg_catalog, core, pg_temp
+  as $$
+declare
+  v_regra text;
+begin
+  if (new.alvo = 'equipe') is distinct from (new.equipe_id is not null) then
+    v_regra := 'tarefa_equipe_coerente';
+  elsif (new.cancelada_em is null) <> (new.cancelada_por is null) then
+    v_regra := 'tarefa_cancelamento_par';
+  end if;
+  if v_regra is not null then
+    raise exception 'new row for relation "%" violates check constraint "%"', tg_table_name, v_regra
+      using errcode = 'check_violation', constraint = v_regra, schema = tg_table_schema, table = tg_table_name;
+  end if;
+  return null;
+end
+$$;
+revoke all on function core.tarefa_conferir_coerencia() from public;
+create constraint trigger tarefa_conferir_coerencia
+  after insert or update of alvo, equipe_id, cancelada_em, cancelada_por on core.tarefa
+  for each row execute function core.tarefa_conferir_coerencia();
 create trigger tarefa_updated_at before update on core.tarefa
   for each row execute function plataforma.definir_updated_at();
 alter table core.tarefa enable row level security;
@@ -153,6 +183,22 @@ create trigger tarefa_tocar_destinatarios after update on core.tarefa
 alter table core.notificacao add column tarefa_id uuid;
 alter table core.notificacao add constraint notificacao_tarefa_fk
   foreign key (tenant_id, tarefa_id) references core.tarefa (tenant_id, id);
-alter table core.notificacao add constraint notificacao_tarefa_subtipo
-  check (tarefa_id is null or subtipo is not distinct from 'tarefa'); -- subtipo nulo também recusa (= daria NULL e o CHECK passaria)
+-- notificacao_tarefa_subtipo: tarefa_id só com subtipo 'tarefa' (subtipo nulo também recusa). Gatilho de restrição AFTER e não
+-- CHECK, pelo mesmo motivo de tarefa_conferir_coerencia: a FK notificacao_tarefa_fk decide primeiro (23503) quando a tarefa é de
+-- outro tenant; a coerência recusa com 23514 e o nome da regra.
+create function core.notificacao_conferir_tarefa() returns trigger
+  language plpgsql
+  set search_path = pg_catalog, core, pg_temp
+  as $$
+begin
+  if new.tarefa_id is not null and new.subtipo is distinct from 'tarefa' then
+    raise exception 'new row for relation "%" violates check constraint "%"', tg_table_name, 'notificacao_tarefa_subtipo'
+      using errcode = 'check_violation', constraint = 'notificacao_tarefa_subtipo', schema = tg_table_schema, table = tg_table_name;
+  end if;
+  return null;
+end
+$$;
+revoke all on function core.notificacao_conferir_tarefa() from public;
+create constraint trigger notificacao_tarefa_subtipo after insert or update of tarefa_id, subtipo on core.notificacao
+  for each row when (new.tarefa_id is not null) execute function core.notificacao_conferir_tarefa();
 create unique index notificacao_tarefa_uk on core.notificacao (tenant_id, usuario_id, tarefa_id) where tarefa_id is not null;

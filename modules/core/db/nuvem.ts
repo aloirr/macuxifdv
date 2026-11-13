@@ -544,8 +544,8 @@ export const SUBTIPOS_NOTIFICACAO_CONHECIDOS = ['etapa_pendente_checkout', 'tare
  * tipo = 'recado' (CHECK _so_recado), um por pessoa por dia (único vivo notificacao_recado_do_dia_uk).
  * 0030 (T-0039): subtipo (text, nulo, formato ^[a-z_]{1,40}$, sem índice); valores conhecidos em SUBTIPOS_NOTIFICACAO_CONHECIDOS
  * (a lista é do Core, não do banco: subtipo novo não pede migração).
- * 0064 (T-0170): tarefa_id (FK composta core.tarefa) só com subtipo 'tarefa' (CHECK notificacao_tarefa_subtipo); um aviso por
- * (usuário, tarefa) (único notificacao_tarefa_uk).
+ * 0064 (T-0170): tarefa_id (FK composta core.tarefa) só com subtipo 'tarefa' (gatilho de restrição notificacao_tarefa_subtipo,
+ * depois da FK); um aviso por (usuário, tarefa) (único notificacao_tarefa_uk).
  */
 export const notificacao = core.table('notificacao', {
   ...comuns(),

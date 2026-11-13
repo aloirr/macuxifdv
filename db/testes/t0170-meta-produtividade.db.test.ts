@@ -53,8 +53,10 @@ describe('0066 metas de produtividade e km do dia (estático)', () => {
 
   it('meta_produtividade: alvo coerente, FKs compostas, valor >= 0, vigência AAAA-MM; único vivo com coalesce do alvo', () => {
     for (const trecho of [
-      "constraint meta_produtividade_equipe_coerente check ((escopo = 'equipe') = (equipe_id is not null))",
-      "constraint meta_produtividade_usuario_coerente check ((escopo = 'usuario') = (usuario_id is not null))",
+      // alvo coerente: gatilho de restrição AFTER (a FK cruzada decide antes; S0-025), não CHECK
+      "if (new.escopo = 'equipe') is distinct from (new.equipe_id is not null) then v_regra := 'meta_produtividade_equipe_coerente';",
+      "elsif (new.escopo = 'usuario') is distinct from (new.usuario_id is not null) then v_regra := 'meta_produtividade_usuario_coerente';",
+      'create constraint trigger meta_produtividade_conferir_alvo after insert or update of escopo, equipe_id, usuario_id on core.meta_produtividade for each row execute function core.meta_produtividade_conferir_alvo();',
       'constraint meta_produtividade_equipe_fk foreign key (tenant_id, equipe_id) references core.equipe (tenant_id, id)',
       'constraint meta_produtividade_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id)',
       'constraint meta_produtividade_atualizado_por_fk foreign key (tenant_id, atualizado_por) references core.usuario (tenant_id, id)',
@@ -105,6 +107,7 @@ describe('0066 metas de produtividade e km do dia (estático)', () => {
     expect(down).toContain('alter table core.meta drop constraint if exists meta_indicador_valido;');
     expect(down.indexOf('delete from core.meta')).toBeLessThan(down.indexOf('add constraint meta_indicador_valido'));
     for (const t of ['core.deslocamento_dia', 'core.meta_produtividade']) expect(down).toContain(`drop table if exists ${t};`);
+    expect(down).toContain('drop function if exists core.meta_produtividade_conferir_alvo();');
   });
 
   it('espelho Drizzle: mesmas colunas do SQL', () => {
@@ -145,7 +148,7 @@ describe.skipIf(semBanco())('0066 metas de produtividade e km do dia (banco, pap
     });
   });
 
-  it('meta: recusas = 23514 com o nome do CHECK; alvo de outro tenant = 23503', async () => {
+  it('meta: recusas = 23514 com o nome da regra; alvo de outro tenant = 23503 (mesmo com o alvo incoerente)', async () => {
     await emTransacao(app, A.tenantId, async () => {
       const casos: [unknown[], string, string][] = [
         [[A.tenantId, 'empresa', null, null, 'tma', 30, '2031-12'], '23514', 'meta_produtividade_escopo_valido'],
@@ -159,6 +162,9 @@ describe.skipIf(semBanco())('0066 metas de produtividade e km do dia (banco, pap
         [[A.tenantId, 'tenant', null, null, 'tma', 30, '2031-12-01'], '23514', 'meta_produtividade_vigencia_formato'],
         [[A.tenantId, 'usuario', null, B.usuarios.vendedor, 'tma', 30, '2031-12'], '23503', 'meta_produtividade_usuario_fk'],
         [[A.tenantId, 'equipe', B.equipes.equipe, null, 'tma', 30, '2031-12'], '23503', 'meta_produtividade_equipe_fk'],
+        // a FK cruzada decide antes da coerência do alvo (gatilho AFTER, S0-025)
+        [[A.tenantId, 'tenant', null, B.usuarios.vendedor, 'tma', 30, '2031-12'], '23503', 'meta_produtividade_usuario_fk'],
+        [[A.tenantId, 'usuario', B.equipes.equipe, A.usuarios.vendedor1, 'tma', 30, '2031-12'], '23503', 'meta_produtividade_equipe_fk'],
       ];
       for (const [p, code, trecho] of casos) await recusa(META, p, code, trecho);
       for (const indicador of INDICADORES_PRODUTIVIDADE) await q(META, [A.tenantId, 'tenant', null, null, indicador, 0, '2030-01']);
