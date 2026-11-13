@@ -2,10 +2,10 @@
  * T-0076 — teste de componente do Início (referência aprovada), renderizado com `react-dom/server`, com `react-native`,
  * o roteador, o estado da plataforma e o `useInicio()` do Core simulados. Os cards saem do `criarShell` REAL com os
  * manifestos instalados reais (`MANIFESTOS_INSTALADOS`): o filtro por módulo efetivo, perfil e ação é o da plataforma.
- * - ordem da referência: boas-vindas → Recados → Meta do mês → cards → (Gestão: Equipe agora) → Sincronizar;
+ * - v1.0.6 (T-0170): o Campo mostra a `TelaInicioCampo` do Core com o sino do shell; sem Orçamentos, A faturar e Recados;
+ * - Gestão: boas-vindas com o sino → Meta do mês → cards → Equipe agora → Sincronizar; sem o cartão de Recados (RD-0249);
  * - T-0124 (RD-0002 a RD-0012): textos sem repetição de "hoje"/"mês"/unidade, aviso de dado antigo único no Sincronizar;
  * - sem "Seus módulos", sem selo de hora duplicado e sem "Começar a rota";
- * - com o Vendedor: Orçamentos e A faturar lado a lado; sem o Vendedor (licença desligada): os cards somem, sem erro;
  * - promotor: nenhum card de pedido (RN-PRO-01); Gestão: Pedidos para aprovar só com o Gestor ativo.
  */
 import type { VisaoInicio } from '@macuxi/core/contracts';
@@ -60,14 +60,26 @@ vi.mock('@macuxi/ui/mobile', () => ({
 }));
 
 const sim = vi.hoisted(() => ({
+  variante: 'gestao' as 'campo' | 'gestao',
+  limpeza: [] as unknown[],
+  novos: 0,
   inicio: null as unknown,
   visao: null as unknown as { perfil: string; pagina: (id: string) => unknown; extensoes: (slot: string) => unknown[] },
 }));
-vi.mock('@macuxi/core/app', () => ({ useInicio: () => sim.inicio, useNotificacoes: () => ({ marcarLida: async () => undefined }) }));
+vi.mock('@macuxi/core/app', () => ({
+  useInicio: () => sim.inicio,
+  useNotificacoes: () => ({ naoLidas: 0, marcarLida: async () => undefined }),
+  // a tela do Core simulada: só o que o shell passa (o sino, os avisos e as rotas)
+  TelaInicioCampo: ({ sino, avisos }: { sino: (n: number) => ReactNode; avisos?: ReactNode }) =>
+    createElement('main', { 'data-testid': 'inicio' }, createElement('section', { 'data-testid': 'inicio-campo.metas' }, sino(sim.novos)), avisos),
+}));
+vi.mock('@/lib/variante', () => ({ varianteAtual: () => sim.variante }));
+vi.mock('@/components/sino', () => ({ Sino: ({ testID = 'sino' }: { testID?: string }) => createElement('button', { 'data-testid': testID }) }));
+vi.mock('@/components/aviso-pos-login', () => ({ AvisoPosLogin: () => null }));
 vi.mock('@macuxi/platform-sdk/react', () => ({
   useVisaoShell: () => sim.visao,
   useExtensoes: (slot: string) => sim.visao.extensoes(slot),
-  useMotorSync: () => ({ estado: { fila: [], limpezaPendente: [], sincronizado_em: '2026-11-04T20:25:00Z' } }),
+  useMotorSync: () => ({ estado: { fila: [], limpezaPendente: sim.limpeza, sincronizado_em: '2026-11-04T20:25:00Z' } }),
 }));
 vi.mock('@/state/plataforma', () => ({
   usePlataforma: () => ({ sessao: { user: { name: 'Lucas Prado', team_name: 'Equipe Manaus' }, tenant: { fuso: 'America/Manaus' } }, me: null, offline: false }),
@@ -143,47 +155,35 @@ const conta = (html: string, re: RegExp) => html.match(re)?.length ?? 0;
 const rotulo = (html: string) => /data-testid="inicio\.meta"[^>]*><div><span>([^<]*)<\/span>/.exec(html)?.[1];
 
 beforeEach(() => {
+  sim.variante = 'gestao';
+  sim.novos = 0;
+  sim.limpeza = [];
   sim.inicio = visaoInicio('proprio');
 });
 
-describe('Início do Campo (vendedor)', () => {
-  it('blocos na ordem da referência, Sincronizar por último', () => {
-    montar('campo', 'vendedor', ['core', 'vendedor']);
-    const html = render();
-    const ordem = ['inicio.saudacao', 'inicio.visitas', 'inicio.recados', 'inicio.meta', 'inicio-cards', 'inicio-sincronizar'].map((id) => pos(html, id));
-    expect(ordem.every((p) => p > 0)).toBe(true);
-    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
-    expect(html).toContain('Boa tarde, Lucas');
-    expect(html).toContain('6 visitas hoje · 3 feitas');
-    expect(html).toContain('3 novos');
-    expect(html.lastIndexOf('<button')).toBe(pos(html, 'inicio-sincronizar') - '<button '.length);
+/** v1.0.6 (T-0170): o Campo usa a tela do Core; o shell só passa o sino, os avisos e as rotas. */
+describe('Início do Campo (T-0170)', () => {
+  beforeEach(() => {
+    sim.variante = 'campo';
   });
 
-  it('sem "Seus módulos", sem selo de hora duplicado e sem "Começar a rota"', () => {
+  it('TelaInicioCampo com o sino do shell uma vez; sem Orçamentos, A faturar e Recados (RD-0249)', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
+    sim.novos = 3;
     const html = render();
-    expect(html).not.toContain('Seus módulos');
-    expect(html).not.toContain('Começar a rota');
-    expect(html).not.toContain('Sincronizado às');
-    expect(html.match(/Última sincronização/g)).toHaveLength(1);
-  });
-
-  it('COM o Vendedor: Orçamentos e A faturar logo abaixo da Meta do mês, na linha inteira', () => {
-    montar('campo', 'vendedor', ['core', 'vendedor']);
-    const html = render();
-    expect(pos(html, 'inicio.cards-vendedor')).toBeGreaterThan(pos(html, 'inicio.meta'));
-    expect(pos(html, 'inicio.card-orcamentos')).toBeGreaterThan(0);
-    expect(pos(html, 'inicio.card-a-faturar')).toBeGreaterThan(pos(html, 'inicio.card-orcamentos'));
-  });
-
-  it('SEM o Vendedor (licença desligada): Orçamentos e A faturar somem, sem erro; o resto da tela continua', () => {
-    montar('campo', 'vendedor', ['core']);
-    const html = render();
+    expect(conta(html, /data-testid="inicio-sino"/g)).toBe(1);
+    expect(pos(html, 'inicio-sino')).toBeGreaterThan(pos(html, 'inicio-campo.metas'));
+    expect(html).not.toContain('inicio.recados');
     expect(html).not.toContain('inicio.card-orcamentos');
     expect(html).not.toContain('inicio.card-a-faturar');
     expect(html).not.toContain('inicio-cards');
-    expect(pos(html, 'inicio.recados')).toBeGreaterThan(0);
-    expect(pos(html, 'inicio-sincronizar')).toBeGreaterThan(0);
+    expect(html).not.toContain('Orçamentos');
+  });
+
+  it('módulo desativado com itens na fila: o aviso vai pela prop `avisos` da tela', () => {
+    montar('campo', 'vendedor', ['core']);
+    sim.limpeza = [{ modulo: 'vendedor' }];
+    expect(render()).toContain('aviso-modulo-desativado');
   });
 });
 
@@ -224,10 +224,12 @@ describe('Início da Gestão (supervisor)', () => {
     sim.inicio = visaoInicio('equipe');
   });
 
-  it('mesma estrutura com os números da equipe: recados → meta da equipe → Pedidos para aprovar → Equipe agora → Sincronizar', () => {
+  it('números da equipe: sino → meta da equipe → Pedidos para aprovar → Equipe agora → Sincronizar; sem o cartão de Recados (RD-0249)', () => {
     montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
     const html = render();
-    const ordem = ['inicio.saudacao', 'inicio.recados', 'inicio.meta', 'inicio.card-aprovacoes', 'inicio.equipe-agora', 'inicio-sincronizar'].map((id) => pos(html, id));
+    expect(html).not.toContain('inicio.recados');
+    expect(conta(html, /data-testid="inicio-sino"/g)).toBe(1);
+    const ordem = ['inicio.saudacao', 'inicio-sino', 'inicio.meta', 'inicio.card-aprovacoes', 'inicio.equipe-agora', 'inicio-sincronizar'].map((id) => pos(html, id));
     expect(ordem.every((p) => p > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
     expect(html).toContain('Equipe Manaus');
@@ -283,15 +285,13 @@ describe('domingo 08/11 do teste de campo (RD-0001 a RD-0010)', () => {
     expect(html).not.toContain('por dia útil');
   });
 
-  it('RD-0003/RD-0006: "Sem rota hoje · não é dia útil" uma vez; "Recados" sem "de hoje"; no máximo 1 "hoje" fora dos recados', () => {
+  it('RD-0003/RD-0006: "Sem rota hoje · não é dia útil" uma vez; no máximo 1 "hoje" na tela', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
     sim.inicio = domingo('proprio', COM_ADITIVO);
     const html = render();
     expect(html).toContain('data-testid="inicio.visitas">Sem rota hoje · não é dia útil<');
     expect(conta(html, /não é dia útil/gi)).toBe(1);
-    expect(html).toContain('<span>Recados</span>');
-    expect(html).not.toMatch(/Recados de hoje/i);
-    expect(conta(html.replace(/data-testid="inicio\.recados".*?<\/section>/s, ''), /hoje/gi)).toBe(1);
+    expect(conta(html, /hoje/gi)).toBe(1);
   });
 
   it('RD-0004/RD-0005/RD-0007/RD-0010: "mês" só no título; "1 de 15 clientes", "0 de 90", "0% de 90%"; só a barra principal', () => {
@@ -327,25 +327,6 @@ describe('domingo 08/11 do teste de campo (RD-0001 a RD-0010)', () => {
     expect(html).toContain('Última sincronização');
   });
 
-  it('RD-0009: 1 recado — sem bolinha, sem "Ver todos", título e corpo num texto de 2 linhas com a hora à parte; selo "1 novo"', () => {
-    montar('campo', 'vendedor', ['core', 'vendedor']);
-    sim.inicio = domingo('proprio', COM_ADITIVO);
-    const html = render();
-    expect(html).toContain('1 novo');
-    expect(html).not.toContain('inicio.recado.ponto');
-    expect(html).not.toContain('inicio.recados.ver-todos');
-    expect(html).toContain('data-testid="inicio.recado.texto">Prioridade: Passe cedo no Mercadinho São Jorge: tem título vencido e o cliente quer negociar.<');
-    expect(html).toContain('<span>09:15</span>');
-    expect(pos(html, 'inicio.recados.topo')).toBeGreaterThan(0); // o topo do cartão abre a central
-  });
-
-  it('RD-0009: com 3 recados, bolinhas e "Ver todos"', () => {
-    montar('campo', 'vendedor', ['core', 'vendedor']);
-    const html = render();
-    expect(conta(html, /data-testid="inicio\.recado\.ponto"/g)).toBe(3);
-    expect(pos(html, 'inicio.recados.ver-todos')).toBeGreaterThan(0);
-  });
-
   it('Gestão: "Meta do mês da equipe", sem "Meta de hoje da equipe"', () => {
     montar('gestao', 'supervisor', ['core', 'vendedor', 'gestor']);
     sim.inicio = domingo('equipe', COM_ADITIVO);
@@ -376,13 +357,11 @@ describe('estado zero e campos prontos do Core (RD-0010, RD-0012)', () => {
     expect(html).not.toContain('<progress');
   });
 
-  it('só os campos prontos do Core (RD-0012): saudação do Core, caixa vazia = "Nenhum recado"', () => {
+  it('só os campos prontos do Core (RD-0012): saudação do Core', () => {
     montar('campo', 'vendedor', ['core', 'vendedor']);
     sim.inicio = { ...visaoInicio('proprio'), saudacao: 'Bom dia', recados_hoje: { novos: 0, total: 0, itens: [] }, base: { dia: null, calculado_em: null, defasado: false } } satisfies VisaoInicio;
     const html = render();
     expect(html).toContain('data-testid="inicio.saudacao">Bom dia, Lucas<');
-    expect(html).toContain('Nenhum recado por enquanto.');
-    expect(html).not.toContain('inicio.recados.ver-todos');
     expect(html).not.toContain('Sincronize para ver as vendas'); // sem `base.dia === null` local
   });
 });

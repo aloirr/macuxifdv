@@ -3,8 +3,8 @@
  * "Início" é do shell; as demais vêm das páginas com `navegacao` dos módulos EFETIVOS do usuário
  * (manifesto + licença + perfil + ação; `criarShell().montar`). O shell não inventa aba: sem página no módulo,
  * sem aba (T-0034).
- * Limite de 5 posições (Material: 3 a 5 destinos; toque mínimo de 48 dp no aparelho de entrada): quando os módulos
- * efetivos passam disso, as 3 primeiras abas de módulo ficam na barra e as demais vão para "Mais" (`/mais`).
+ * Limite de posições por variante (`MAX_ABAS_POR_VARIANTE`: Campo 6 desde a T-0170, Gestão 5): quando os módulos efetivos
+ * passam disso, as primeiras abas de módulo ficam na barra e as demais vão para "Mais" (`/mais`).
  * testID estável: `tab-inicio`, `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro) e `tab-mais`;
  * na tela "Mais" cada item usa `mais-<modulo>-<id>`.
  */
@@ -12,6 +12,7 @@ import type { ItemNavegacao, ModuloId } from '@macuxi/platform-sdk';
 import type { IconName } from '@macuxi/ui/mobile';
 
 import type { OrigemPilha } from './historico-telas';
+import type { Variante } from './variante-tipo';
 
 export interface AbaShell {
   href: string;
@@ -30,6 +31,12 @@ export interface AbasDoShell {
 
 /** Posições da barra inferior, contando o Início e o "Mais". */
 export const MAX_ABAS_BARRA = 5;
+
+/**
+ * Posições da barra por variante (T-0170, imagem aprovada `2026-11-12-T0170-final-inicio.png`): o Campo tem 6 (Início, Rota,
+ * Clientes, Pedidos, Performance e Mais); o Gestão segue com 5.
+ */
+export const MAX_ABAS_POR_VARIANTE: Readonly<Record<Variante, number>> = { campo: 6, gestao: MAX_ABAS_BARRA };
 
 export const HREF_MAIS = '/mais';
 

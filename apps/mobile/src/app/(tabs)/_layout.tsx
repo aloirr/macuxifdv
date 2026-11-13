@@ -9,13 +9,23 @@
  * foco do Início e do "Mais" diz de onde ela veio (o voltar na raiz devolve para lá, e a barra acende essa aba).
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { colors } from '@macuxi/ui/mobile';
+import * as kit from '@macuxi/ui/mobile';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import type { Provider, ReactNode } from 'react';
 
+import { ProvedorContagemSino, Sino } from '@/components/sino';
 import { abasDoShell, TabBar } from '@/components/tab-bar';
+import { MAX_ABAS_POR_VARIANTE } from '@/lib/abas';
 import { comHistoricoDoShell, marcarOrigemFora, marcarSaidaDoModulo, marcarVoltaAoModulo, ROTA_MODULO } from '@/lib/historico-telas';
+import { varianteAtual } from '@/lib/variante';
 import { usePlataforma } from '@/state/plataforma';
+
+/**
+ * Sino no cabeçalho de todas as telas (T-0170): o `CabecalhoTela` do kit mostra o que vier pelo `ProvedorSinoCabecalho`
+ * (pedido ao designer-ux, R-20261113-173653). Lido de forma opcional até o kit exportar: sem ele, o sino fica só no Início.
+ */
+const ProvedorSinoCabecalho = (kit as unknown as { ProvedorSinoCabecalho?: Provider<ReactNode> }).ProvedorSinoCabecalho;
 
 export default function TabsLayout() {
   const { sessao, visao } = usePlataforma();
@@ -24,15 +34,20 @@ export default function TabsLayout() {
   // roteador do shell marca a tela que abre (`PARAM_SUBSTITUIR`, ADR 0026), sem evento interno nem janela de tempo
   if (!sessao) return <Redirect href="/login" />;
   if (!estado.sincronizado_em) return <Redirect href="/sync" />;
-  return (
+  const abas = (
     <Tabs
       backBehavior="history"
       UNSTABLE_router={(original) => comHistoricoDoShell(original)}
-      tabBar={() => <TabBar abas={abasDoShell(visao.navegacao)} />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.ground } }}>
+      tabBar={() => <TabBar abas={abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()])} />}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: kit.colors.ground } }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} listeners={{ focus: () => marcarOrigemFora('inicio') }} />
       <Tabs.Screen name={ROTA_MODULO} options={{ title: 'Módulo' }} listeners={{ focus: marcarVoltaAoModulo, blur: marcarSaidaDoModulo }} />
       <Tabs.Screen name="mais" options={{ title: 'Mais' }} listeners={{ focus: () => marcarOrigemFora('mais') }} />
     </Tabs>
+  );
+  return (
+    <ProvedorContagemSino>
+      {ProvedorSinoCabecalho ? <ProvedorSinoCabecalho value={<Sino sobreFaixa />}>{abas}</ProvedorSinoCabecalho> : abas}
+    </ProvedorContagemSino>
   );
 }

@@ -1,20 +1,14 @@
 /**
- * Início (T-0076, referência aprovada R-20261104-164000-alexandre; substitui o layout da T-0073 onde conflitar): primeira
- * tela depois do login e da carga, nas variantes Campo e Gestão. De cima para baixo:
- * - boas-vindas (data, saudação no fuso do tenant, "6 visitas hoje · 3 feitas" ou "Sem rota hoje · não é dia útil");
- * - Recados (as 3 primeiras da caixa, o recado do dia destacado; selo "N novos"; o topo e o "Ver todos" abrem a central
- *   de notificações, RF-CORE-09);
- * - Meta do mês (Campo) ou Meta do mês da equipe (Gestão), T-0124/RD-0002: realizado do mês de meta do mês, barra, o %
- *   uma vez e a última linha do dia ("Meta de hoje R$ X" no dia útil, RN-CORE-26);
- * - cards do slot `inicio.cards` (Orçamentos e A faturar do Vendedor; Pedidos para aprovar do Gestor), só de módulos
- *   efetivos, do perfil e com a ação (o promotor não recebe card de pedido, RN-PRO-01);
- * - Gestão: Equipe agora;
- * - no fim, SÓ o botão Sincronizar com "Última sincronização hh:mm · N na fila" (RN-CORE-23) e, quando os dados estão
- *   antigos, o aviso único "Dados de 06/11, 6h28" (RD-0008).
- * Tudo sai do aparelho (`useInicio()` do Core sobre a última sincronização; offline-first). Puxar para baixo = Sincronizar
- * (RN-CORE-23 item 5). Nenhum timer. O shell só desenha: textos e tons em `lib/inicio.ts`.
+ * Início do shell, nas duas variantes.
+ * - Campo (T-0170, v1.0.6): a `TelaInicioCampo` do Core (painel, Metas do mês com o sino na linha, Produtividade e
+ *   Sincronizar). O shell passa o sino (`Sino`), as rotas (Performance e Perfil) e o aviso de módulo desativado. Saíram daqui
+ *   Orçamentos, A faturar e o cartão de Recados: o recado fica só no sino (D2, R-20261113-054158; RD-0249).
+ * - Gestão (T-0076/T-0124): boas-vindas com o sino → Meta do mês da equipe → cards do slot `inicio.cards` (Pedidos para
+ *   aprovar do Gestor) → Equipe agora → Sincronizar com "Última sincronização hh:mm · N na fila" (RN-CORE-23) e o aviso único
+ *   de dado antigo (RD-0008). Sem o cartão de Recados (RD-0249): o sino é o único acesso.
+ * Tudo sai do aparelho (offline-first). Puxar para baixo = Sincronizar (RN-CORE-23 item 5). Nenhum timer.
  */
-import { useInicio, useNotificacoes } from '@macuxi/core/app';
+import { TelaInicioCampo, useInicio } from '@macuxi/core/app';
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
 import { Banner, BotaoSincronizar, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
@@ -22,56 +16,78 @@ import { View } from 'react-native';
 
 import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
-import { BoasVindas, EquipeAgora, MetaDoMes, Recados } from '@/components/inicio';
-import { avisoDosDados, dataDoCabecalho, destinoDaNotificacao, mostrarVerTodos, recadosDoInicio, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
+import { BoasVindas, EquipeAgora, MetaDoMes } from '@/components/inicio';
+import { Sino } from '@/components/sino';
+import { avisoDosDados, dataDoCabecalho, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
+import { varianteAtual } from '@/lib/variante';
 import { usePlataforma } from '@/state/plataforma';
 
+const navegar = (href: string) => router.navigate(href as never);
+const abrirPerfil = () => router.push('/profile');
+
 export default function Inicio() {
+  return (
+    <View style={{ flex: 1 }}>
+      {varianteAtual() === 'campo' ? <InicioCampo /> : <InicioGestao />}
+      {/* T-0094: "Senha criada." depois da troca obrigatória, uma vez */}
+      <AvisoPosLogin />
+    </View>
+  );
+}
+
+/** Um módulo foi desativado com itens na fila do aparelho (as duas variantes). */
+function AvisoModuloDesativado() {
+  const { estado } = useMotorSync();
+  if (estado.limpezaPendente.length === 0) return null;
+  return (
+    <Banner icon="alert" tone="danger" testID="aviso-modulo-desativado">
+      Um módulo foi desativado e há itens não enviados. Veja em Perfil › Fila do aparelho.
+    </Banner>
+  );
+}
+
+function InicioCampo() {
+  return (
+    <TelaInicioCampo
+      // o número do sino é o mesmo das outras telas (contagem única do layout, `ProvedorContagemSino`)
+      sino={() => <Sino testID="inicio-sino" />}
+      onAbrirPerformance={() => navegar('/m/performance')}
+      onPerfil={abrirPerfil}
+      avisos={<AvisoModuloDesativado />}
+    />
+  );
+}
+
+function InicioGestao() {
   const { sessao, me } = usePlataforma();
   const visaoShell = useVisaoShell();
-  const { estado } = useMotorSync();
   const inicio = useInicio();
-  const { marcarLida } = useNotificacoes();
   const tz = me?.tenant.timezone ?? sessao?.tenant?.fuso ?? 'America/Manaus';
   const auto = useAtualizacaoAutomatica({ tz });
 
   if (!inicio) return <Loading />;
 
-  const agora = new Date();
   const equipe = inicio.escopo === 'equipe';
   const nomeEquipe = inicio.equipe_nome ?? sessao?.user.team_name ?? me?.seller?.team_name ?? null;
-  // T-0124/RD-0012: só os campos prontos (e obrigatórios) do Core: `saudacao`, `recados_hoje`, `meta_hoje`, `sem_realizado`.
+  // T-0124/RD-0012: só os campos prontos (e obrigatórios) do Core: `saudacao`, `meta_hoje`, `sem_realizado`.
   const semVendas = inicio.sem_realizado.length > 0;
-  const aviso = avisoDosDados(inicio, tz);
-  const navegar = (href: string) => router.navigate(href as never);
 
   return (
-    <View style={{ flex: 1 }}>
-      <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
-      <BoasVindas
-        data={dataDoCabecalho(agora, tz, equipe ? nomeEquipe : null)}
-        saudacao={nomeado(inicio.saudacao, firstName(sessao?.user.name ?? ''))}
-        visitas={textoVisitasHoje(equipe ? visitasDaEquipe(inicio.equipe_agora) : inicio.rota, inicio.dia_util)}
-        onPerfil={() => router.push('/profile')}
-      />
-      {estado.limpezaPendente.length > 0 ? (
-        <Banner icon="alert" tone="danger" testID="aviso-modulo-desativado">
-          Um módulo foi desativado e há itens não enviados. Veja em Perfil › Fila do aparelho.
-        </Banner>
-      ) : null}
+    <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <BoasVindas
+            data={dataDoCabecalho(new Date(), tz, equipe ? nomeEquipe : null)}
+            saudacao={nomeado(inicio.saudacao, firstName(sessao?.user.name ?? ''))}
+            visitas={textoVisitasHoje(equipe ? visitasDaEquipe(inicio.equipe_agora) : inicio.rota, inicio.dia_util)}
+            onPerfil={abrirPerfil}
+          />
+        </View>
+        {/* T-0170: o sino do shell (o Início não usa o CabecalhoTela do kit) */}
+        <Sino testID="inicio-sino" />
+      </View>
+      <AvisoModuloDesativado />
 
-      <Recados
-        itens={recadosDoInicio(inicio.recados_hoje)}
-        naoLidas={inicio.recados_hoje.novos}
-        verTodos={mostrarVerTodos(inicio.recados_hoje)}
-        onAbrir={(r) => {
-          // tocar marca como lida (como a central); a navegação não espera o banco do aparelho
-          if (r.notificacao_id) void marcarLida(r.notificacao_id).catch(() => undefined);
-          // T-0140 (relato de 08/11): link de tela que o usuário não tem (ou que não existe) abre a central, não a tela vazia
-          navegar(destinoDaNotificacao(r.destino, (c) => visaoShell.pagina(c) !== null));
-        }}
-        onVerTodos={() => navegar('/m/notificacoes')}
-      />
       <MetaDoMes metas={inicio.metas} pronto={inicio.meta_hoje} equipe={equipe} semVendas={semVendas} />
       <CardsDoInicio />
       {equipe ? (
@@ -85,11 +101,8 @@ export default function Inicio() {
       {/* o Sincronizar fica no pé da tela quando sobra espaço (referência), e logo depois dos blocos quando rola */}
       <View style={{ flex: 1, minHeight: 4 }} />
       {/* RD-0008: aviso único de dado antigo, na linha de situação do Sincronizar (kit, docs/design/inicio.md §1.5) */}
-      <BotaoSincronizar testID="inicio-sincronizar" avisoDados={aviso} />
-      </Screen>
-      {/* T-0094: "Senha criada." depois da troca obrigatória, uma vez */}
-      <AvisoPosLogin />
-    </View>
+      <BotaoSincronizar testID="inicio-sincronizar" avisoDados={avisoDosDados(inicio, tz)} />
+    </Screen>
   );
 }
 

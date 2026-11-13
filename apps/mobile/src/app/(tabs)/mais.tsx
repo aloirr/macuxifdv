@@ -1,5 +1,5 @@
 /**
- * "Mais": as abas de módulo que não couberam na barra inferior (limite de 5 posições, `lib/abas.ts`, T-0034).
+ * "Mais": as abas de módulo que não couberam na barra inferior (limite por variante, `lib/abas.ts`, T-0034/T-0170).
  * Só lista o que o shell já montou para o usuário (módulos efetivos: manifesto + licença + perfil + ação), então
  * nunca mostra tela sem licença ou perfil. Funciona offline (a visão vem dos módulos guardados no aparelho).
  * Cada item é uma aba: volta ao topo da pilha guardada dela (lib/historico-telas.ts, T-0071).
@@ -9,12 +9,13 @@ import { Card, colors, Empty, Icon, Screen, SectionHeader, type as t } from '@ma
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { abasDoShell } from '@/lib/abas';
+import { abasDoShell, MAX_ABAS_POR_VARIANTE } from '@/lib/abas';
 import { abrirAba } from '@/lib/historico-telas';
+import { varianteAtual } from '@/lib/variante';
 
 export default function Mais() {
   const visao = useVisaoShell();
-  const { mais } = abasDoShell(visao.navegacao);
+  const { mais } = abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()]);
   return (
     <Screen testID="tela-mais">
       <Text style={t.h1}>Mais</Text>

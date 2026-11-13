@@ -7,7 +7,6 @@
  */
 import type { MembroAgoraContrato, MetaDoDia, VisaoInicio } from '@macuxi/core/contracts';
 import { formatBRL0 } from '@macuxi/comum/money';
-import { linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { colors, localIsoDate, longDateLabel, zonedParts } from '@macuxi/ui/mobile/puro';
 
 // ---------- Boas-vindas ----------
@@ -43,83 +42,6 @@ export function textoVisitasHoje(rota: { paradas_hoje: number; visitadas_hoje: n
 export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null): { paradas_hoje: number; visitadas_hoje: number } | null {
   if (!membros) return null;
   return membros.reduce((s, m) => ({ paradas_hoje: s.paradas_hoje + m.paradas_hoje, visitadas_hoje: s.visitadas_hoje + m.visitadas_hoje }), { paradas_hoje: 0, visitadas_hoje: 0 });
-}
-
-// ---------- Recados ----------
-
-/**
- * Só navega para link interno de módulo (`/m/<caminho>`) cuja tela existe na visão do usuário (`telaExiste`, ligado a
- * `visao.pagina`); o resto abre a central de notificações. Link com tela inexistente (ex.: `/m/core-rota` gravado no
- * recado) caía em "Esta tela não está disponível para o seu perfil…" (T-0140, relato do dono do produto, 08/11).
- * RD-0032: a regra do link interno é do SDK (`linkInternoNavegavel`); aqui só o destino de reserva.
- */
-export const destinoDaNotificacao = (link: string | null, telaExiste?: (caminho: string) => boolean): string => linkInternoNavegavel(link, telaExiste) ?? '/m/notificacoes';
-
-/** Selo do bloco: "3 novos" · "1 novo" · nada com tudo lido. */
-export function seloNovos(naoLidas: number): string | null {
-  if (naoLidas <= 0) return null;
-  return `${naoLidas > 99 ? '99+' : naoLidas} ${naoLidas === 1 ? 'novo' : 'novos'}`;
-}
-
-/** Ponto à esquerda: `destaque` = recado do dia (laranja), `sucesso` = pedido aprovado/faturado (verde), `novo`, `lido` (cinza). */
-export type PontoRecado = 'destaque' | 'sucesso' | 'novo' | 'lido';
-
-export interface ItemRecado {
-  id: string;
-  /** Título e corpo num texto só, em até 2 linhas: "Prioridade: Passe cedo no Mercadinho São Jorge…" (T-0124/RD-0009). */
-  texto: string;
-  /** "09:15" (hora pronta do Core, fuso do tenant). */
-  hora: string;
-  ponto: PontoRecado;
-  /** Destino ao tocar (link interno de módulo ou a central). */
-  destino: string;
-  /** id da notificação a marcar como lida ao tocar; null se já lida. */
-  notificacao_id: string | null;
-}
-
-/** Marca v1 (T-0172): o ponto é marcador, então usa o laranja de gráfico (`colors.grafico`), não o Azul noite do `accent`. */
-export const COR_DO_PONTO: Record<PontoRecado, string> = {
-  destaque: colors.grafico,
-  sucesso: colors.success,
-  novo: colors.grafico,
-  lido: colors.ink3,
-};
-
-/** Tipos de notificação que são boa notícia (ponto verde). Só aparência; o tipo vem pronto do Core. */
-const TIPOS_SUCESSO = /aprovad|faturad|meta_batida|batid/;
-
-/** "Prioridade" + "Passe cedo…" → "Prioridade: Passe cedo…"; título que já termina em pontuação só ganha o espaço. */
-export function textoDoRecado(titulo: string, corpo: string): string {
-  const t = titulo.trim();
-  const c = corpo.trim();
-  if (!c) return t;
-  if (!t) return c;
-  return /[.:!?…—-]$/.test(t) ? `${t} ${c}` : `${t}: ${c}`;
-}
-
-/** `recados_hoje` (lista do Core): até 3 da caixa, o recado do dia primeiro e destacado; `total` = a caixa inteira (RD-0009). */
-export type RecadosProntos = VisaoInicio['recados_hoje'];
-
-export function recadosDoInicio(recados: RecadosProntos): ItemRecado[] {
-  return recados.itens.map((r) => ({
-    id: r.id,
-    texto: textoDoRecado(r.titulo, r.subtitulo),
-    hora: r.hora,
-    ponto: r.destaque ? 'destaque' : r.lida ? 'lido' : TIPOS_SUCESSO.test(r.tipo) ? 'sucesso' : 'novo',
-    // RD-0032: o Core já filtrou o formato (`inicio-local`); a tela confere se existe só no toque (`(tabs)/index.tsx`)
-    destino: r.link ?? '/m/notificacoes',
-    notificacao_id: r.lida ? null : r.id,
-  }));
-}
-
-/** "Ver todos" só quando há mais na caixa do que o cartão mostra (RD-0009): `total` do Core maior que os itens. */
-export function mostrarVerTodos(recados: RecadosProntos): boolean {
-  return recados.total > recados.itens.length;
-}
-
-/** Bolinha só quando ajuda a distinguir itens: com 1 recado o selo "1 novo" já diz tudo (RD-0009). */
-export function mostrarPontos(itens: readonly ItemRecado[]): boolean {
-  return itens.length > 1;
 }
 
 // ---------- Meta do mês ----------

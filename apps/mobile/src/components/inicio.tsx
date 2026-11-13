@@ -9,17 +9,13 @@ import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import {
-  COR_DO_PONTO,
   desenhoDaLinha,
   desenhoMetaDoMes,
   metaPrincipal,
-  mostrarPontos,
   notaDaEquipe,
   resumoDoMembro,
   rotuloDaMeta,
-  seloNovos,
   situacaoDoMembro,
-  type ItemRecado,
   type MetaHojePronta,
 } from '@/lib/inicio';
 
@@ -54,59 +50,6 @@ function TopoDoCartao({ rotulo, direita }: { rotulo: string; direita?: ReactNode
       <Text style={t.rotulo}>{rotulo}</Text>
       {direita ?? null}
     </View>
-  );
-}
-
-// ---------- Recados ----------
-/**
- * Bloco "Recados" (T-0124/RD-0003: a lista são as 3 primeiras da caixa, não só as de hoje). RD-0009: título e corpo num
- * texto só de 2 linhas com a hora à direita; bolinha só com mais de 1 item; "Ver todos" só quando há mais na caixa
- * (`verTodos`); o toque no topo do cartão também abre a central.
- */
-export function Recados({ itens, naoLidas, verTodos, onAbrir, onVerTodos }: { itens: readonly ItemRecado[]; naoLidas: number; verTodos: boolean; onAbrir: (item: ItemRecado) => void; onVerTodos: () => void }) {
-  const selo = seloNovos(naoLidas);
-  const pontos = mostrarPontos(itens);
-  return (
-    <Cartao gap={4} testID="inicio.recados">
-      <Pressable testID="inicio.recados.topo" accessibilityRole="link" accessibilityLabel={`Recados${selo ? `, ${selo}` : ''}. Abrir todos`} onPress={onVerTodos} style={{ minHeight: 44, justifyContent: 'center' }}>
-        <TopoDoCartao
-          rotulo="Recados"
-          direita={
-            selo ? (
-              <View testID="inicio.recados.selo" style={{ backgroundColor: colors.accentSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: colors.accentInk }}>{selo}</Text>
-              </View>
-            ) : null
-          }
-        />
-      </Pressable>
-      {itens.length === 0 ? (
-        <Text style={[t.small, { paddingVertical: 10 }]} testID="inicio.recados.vazio">
-          Nenhum recado por enquanto.
-        </Text>
-      ) : (
-        itens.map((r, i) => (
-          <Pressable
-            key={r.id}
-            testID={`inicio.recado.${r.id}`}
-            accessibilityRole="button"
-            accessibilityLabel={`${r.texto}. ${r.hora}${r.ponto === 'novo' || r.ponto === 'destaque' ? ', novo' : ''}`}
-            onPress={() => onAbrir(r)}
-            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10, minHeight: 48, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.lineSoft }}>
-            {pontos ? <View testID="inicio.recado.ponto" style={{ width: 9, height: 9, borderRadius: 5, marginTop: 6, backgroundColor: COR_DO_PONTO[r.ponto] }} /> : null}
-            <Text style={[t.body, { flex: 1 }]} numberOfLines={2} testID="inicio.recado.texto">
-              {r.texto}
-            </Text>
-            <Text style={[t.small, { marginTop: 2, fontVariant: ['tabular-nums'] }]}>{r.hora}</Text>
-          </Pressable>
-        ))
-      )}
-      {verTodos ? (
-        <Pressable testID="inicio.recados.ver-todos" accessibilityRole="link" onPress={onVerTodos} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 14, color: colors.accentInk }}>Ver todos</Text>
-        </Pressable>
-      ) : null}
-    </Cartao>
   );
 }
 

@@ -4,10 +4,10 @@
  * `criarShell` real: nenhuma aba sem licença ou perfil, o promotor nunca vê aba de pedido (RN-PRO-01) e,
  * passando de 5 posições, o excedente vai para "Mais".
  */
-import { criarShell, definirModuloShell, modulosEfetivos, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
+import { criarShell, definirModuloShell, modulosEfetivos, type ItemNavegacao, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA } from './abas';
+import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA, MAX_ABAS_POR_VARIANTE } from './abas';
 import { efetivosSemServidor } from './efetivos-locais';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 
@@ -47,6 +47,17 @@ describe('T-0034 — abas do shell mobile', () => {
     // sem o Catálogo licenciado o Vendedor sai em cascata (RN-CORE-03): nem Catálogo nem Pedidos
     expect(sem.barra).toEqual(['Início', 'Rota', 'Clientes', 'Metas']);
     expect(sem.mais).toEqual([]);
+  });
+
+  it('T-0170: o Campo tem 6 posições (4 abas de módulo e o "Mais"); o Gestão segue com 5', () => {
+    expect(MAX_ABAS_POR_VARIANTE).toEqual({ campo: 6, gestao: 5 });
+    const item = (id: string, rotulo: string) => ({ modulo: 'core', id, caminho: id, rotulo, icone: 'file' }) as unknown as ItemNavegacao<unknown>;
+    const nav = [item('rota', 'Rota'), item('clientes', 'Clientes'), item('pedidos', 'Pedidos'), item('performance', 'Performance'), item('catalogo', 'Catálogo'), item('pesquisas', 'Pesquisas')];
+    const { barra, mais } = abasDoShell(nav, MAX_ABAS_POR_VARIANTE.campo);
+    expect(barra.map((a) => a.label)).toEqual(['Início', 'Rota', 'Clientes', 'Pedidos', 'Performance', 'Mais']);
+    expect(mais.map((a) => a.label)).toEqual(['Catálogo', 'Pesquisas']);
+    // até 5 destinos de módulo cabem sem o "Mais"
+    expect(abasDoShell(nav.slice(0, 5), MAX_ABAS_POR_VARIANTE.campo).mais).toEqual([]);
   });
 
   it('nenhuma aba sem licença: o Gestor não licenciado não monta Equipe nem Aprovações', () => {

@@ -12,25 +12,18 @@ import {
   dataDoCabecalho,
   desenhoDaLinha,
   desenhoMetaDoMes,
-  destinoDaNotificacao,
   duracaoCurta,
   metaPrincipal,
-  mostrarPontos,
-  mostrarVerTodos,
   notaDaEquipe,
   ordenarCards,
   percentualDoMes,
-  recadosDoInicio,
   resumoDoMembro,
   rotuloDaMeta,
-  seloNovos,
   situacaoDoMembro,
-  textoDoRecado,
   textoVisitasHoje,
   visitasDaEquipe,
   xDeY,
   type MetaHojePronta,
-  type RecadosProntos,
 } from './inicio';
 
 const TZ = 'America/Manaus'; // UTC−4
@@ -81,64 +74,6 @@ describe('boas-vindas', () => {
     expect(textoVisitasHoje({ paradas_hoje: 0, visitadas_hoje: 0 }, false)).toBe('Sem rota hoje · não é dia útil');
     // com paradas, sem mudança, mesmo num sábado com rota
     expect(textoVisitasHoje({ paradas_hoje: 2, visitadas_hoje: 0 }, false)).toBe('2 visitas hoje · 0 feitas');
-  });
-});
-
-describe('Recados (RD-0003, RD-0009, RD-0012)', () => {
-  const A = '11111111-1111-4111-8111-11111111111a';
-  const B = '11111111-1111-4111-8111-11111111111b';
-  const C = '11111111-1111-4111-8111-11111111111c';
-  type Item = RecadosProntos['itens'][number];
-  const r = (x: Partial<Item>): Item => ({ id: A, titulo: 'Pedido 000010 aprovado', subtitulo: 'Mercadinho São Jorge', tipo: 'pedido_aprovado', criada_em: '2026-11-04T18:02:00Z', hora: '14:02', lida: false, link: '/m/pedido?id=1', destaque: false, ...x });
-
-  it('a lista é a do Core (`recados_hoje`): título e corpo num texto só, hora à parte, destaque e lida', () => {
-    const itens = recadosDoInicio({ novos: 1, total: 3, itens: [r({ id: B, titulo: 'Prioridade', subtitulo: 'Passe cedo no Mercadinho São Jorge: tem título vencido.', hora: '09:15', destaque: true, link: null }), r({}), r({ id: C, lida: true, subtitulo: '' })] });
-    expect(itens.map((i) => [i.texto, i.hora, i.ponto, i.notificacao_id])).toEqual([
-      ['Prioridade: Passe cedo no Mercadinho São Jorge: tem título vencido.', '09:15', 'destaque', B],
-      ['Pedido 000010 aprovado: Mercadinho São Jorge', '14:02', 'sucesso', A],
-      ['Pedido 000010 aprovado', '14:02', 'lido', null],
-    ]);
-    expect(itens[0]!.destino).toBe('/m/notificacoes');
-    expect(itens[1]!.destino).toBe('/m/pedido?id=1');
-  });
-  it('caixa vazia do Core: a lista fica vazia, sem contorno que repete o domain (RD-0012)', () => {
-    expect(recadosDoInicio({ novos: 0, total: 0, itens: [] })).toEqual([]);
-  });
-  it('texto do recado: "Título: corpo"; título com pontuação final só ganha o espaço; sem corpo, só o título', () => {
-    expect(textoDoRecado('Prioridade', 'Passe cedo')).toBe('Prioridade: Passe cedo');
-    expect(textoDoRecado('Atenção!', 'Passe cedo')).toBe('Atenção! Passe cedo');
-    expect(textoDoRecado('Pedido aprovado', '  ')).toBe('Pedido aprovado');
-    expect(textoDoRecado('', 'Só o corpo')).toBe('Só o corpo');
-  });
-  it('RD-0009: bolinha só com mais de 1 item; "Ver todos" só quando há mais na caixa do que o cartão mostra', () => {
-    const um = recadosDoInicio({ novos: 1, total: 3, itens: [r({})] });
-    expect(mostrarPontos(um)).toBe(false);
-    expect(mostrarPontos(recadosDoInicio({ novos: 2, total: 3, itens: [r({}), r({ id: B })] }))).toBe(true);
-    expect(mostrarVerTodos({ novos: 1, total: 1, itens: [r({})] })).toBe(false);
-    expect(mostrarVerTodos({ novos: 0, total: 0, itens: [] })).toBe(false);
-    // `total` do Core: exatamente 3 na caixa, sem "Ver todos"; 4, com
-    expect(mostrarVerTodos({ novos: 0, total: 3, itens: [r({}), r({ id: B }), r({ id: C })] })).toBe(false);
-    expect(mostrarVerTodos({ novos: 0, total: 4, itens: [r({}), r({ id: B }), r({ id: C })] })).toBe(true);
-  });
-  it('selo "N novos"; nada com tudo lido', () => {
-    expect(seloNovos(3)).toBe('3 novos');
-    expect(seloNovos(1)).toBe('1 novo');
-    expect(seloNovos(0)).toBeNull();
-  });
-  it('só abre link interno de módulo; o resto vai à central', () => {
-    expect(destinoDaNotificacao('/m/pedido?id=1')).toBe('/m/pedido?id=1');
-    expect(destinoDaNotificacao('https://fora.com')).toBe('/m/notificacoes');
-    expect(destinoDaNotificacao(null)).toBe('/m/notificacoes');
-  });
-  it('T-0140: link para tela que não existe na visão do usuário vai à central (recado com /m/core-rota)', () => {
-    const telas = new Set(['rota', 'clientes', 'notificacoes']);
-    const existe = (c: string) => telas.has(c);
-    expect(destinoDaNotificacao('/m/core-rota', existe)).toBe('/m/notificacoes');
-    expect(destinoDaNotificacao('/m/rota', existe)).toBe('/m/rota');
-    expect(destinoDaNotificacao('/m/rota?data=2026-11-08', existe)).toBe('/m/rota?data=2026-11-08');
-    // mais de um segmento: `a/b` não é tela do `visao.pagina`, então vai à central (revisão R-20261108-215731); o corte
-    // do caminho (`caminhoDoLinkInterno`) é testado no SDK (`shell.test.ts`, RD-0032)
-    expect(destinoDaNotificacao('/m/rota/hoje', existe)).toBe('/m/notificacoes');
   });
 });
 
