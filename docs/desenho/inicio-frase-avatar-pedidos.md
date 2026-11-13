@@ -191,7 +191,7 @@ export function fraseDoDia(frases: readonly FraseDia[], hoje: string /* AAAA-MM-
 - **Sem frase ativa**: `null`. A linha da frase **não aparece** e o painel encolhe; não há texto substituto.
 - **Exemplo** (12/11/2026, as 30 padrão ativas na ordem do arquivo): dia 20769, 20769 mod 30 = 9, frase nº 10 ("Cada cliente
   atendido é uma relação que cresce.").
-- **Recado do dia (RN-CORE-26)** (decisão D2, **em aberto**; esta é a proposta): o recado marcado pelo supervisor **não ocupa a linha da frase**. Ele continua
+- **Recado do dia (RN-CORE-26)** (decisão D2, aprovada em 13/11): o recado marcado pelo supervisor **não ocupa a linha da frase**. Ele continua
   como recado, no topo do balão do sino e da tela Recados e tarefas, destacado, porque o card de Recados sai do Início. O
   parâmetro `inicio.recado_do_dia_padrao` ("Bom trabalho hoje!") deixa de ter onde aparecer e sai do BKO, do contrato
   `ParametrosInicio` e do domain: a frase do dia ocupa esse papel.
@@ -267,7 +267,7 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
   FDV; analista e admin adicionam, editam, desativam, reordenam e removem no BKO (até 366, 1 a 120 caracteres, sem repetir).
   A frase de hoje é a mesma para todos os usuários do tenant: entre as frases ativas, na ordem do BKO, a de posição
   (dias desde 01/01/1970 da data de hoje no fuso do tenant) mod (número de frases ativas). Funciona offline. Sem frase ativa, a
-  linha não aparece. Frase padrão removida não volta. O recado do dia (RN-CORE-26) não ocupa a linha da frase (depende da D2).
+  linha não aparece. Frase padrão removida não volta. O recado do dia (RN-CORE-26) não ocupa a linha da frase: fica no sino.
 - **RN-CORE-42 Foto ou avatar.** O Início mostra, à direita do nome, a foto ou o avatar do usuário; o padrão são as
   iniciais. No Perfil do app, o usuário envia uma foto (câmera ou galeria, recortada em 3:4, JPEG 480×640, até 300 KB) ou
   escolhe 1 dos 6 avatares (3 masculinos e 3 femininos), ou volta às iniciais. Quem edita usuários no BKO também pode trocar.
@@ -280,7 +280,7 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
   "Enviado" em diante: recebido, em aprovação, aprovado, enviado ao ERP, integrado, faturado parcial e faturado; ficam fora
   rascunho, na fila, recusado e cancelado) e **Total** (a soma dos dois). Cada um com quantidade e valor (total do documento,
   sem frete). A busca e o chip de situação filtram só a lista.
-- **RN-CORE-26 (ajuste)**: se a D2 for aprovada, sai a frase padrão do recado do dia (`inicio.recado_do_dia_padrao`); e "sem
+- **RN-CORE-26 (ajuste)**: sai a frase padrão do recado do dia (`inicio.recado_do_dia_padrao`); e "sem
   feriados até existir o cadastro" vira "com os feriados nacionais; os do tenant entram quando houver o cadastro".
 
 ## 7. Plano por agente
@@ -319,12 +319,13 @@ engenheiro-apps (painel) → testes → corretor → revisão final. Os cards de
 ## 9. Decisões do Alexandre
 
 Resposta no chat em 13/11/2026, 05h19 (Manaus), texto literal: "frase do dia é para todos. feriados nacional ja contam na
-1.0.6 todos veem a foto do vendedor. cards contam por data de emissão, logico. 3 cards no gestao tambem".
+1.0.6 todos veem a foto do vendedor. cards contam por data de emissão, logico. 3 cards no gestao tambem". A D2 veio às
+05h37: "D2 fica no sino".
 
 | # | Pergunta | Decisão |
 |---|---|---|
 | D1 | Frase igual para todos? | **Aprovado**: a mesma frase para o tenant inteiro no dia. |
-| D2 | Recado do dia na linha da frase? | **Em aberto.** Recomendo **não**: o recado do dia fica no sino, destacado no topo, e a linha é sempre a frase. A frase padrão do recado ("Bom trabalho hoje!") sai do BKO. Até a resposta, nada muda no recado do dia. |
+| D2 | Recado do dia na linha da frase? | **Aprovado: fica no sino.** O recado do dia aparece destacado no topo do balão do sino e da tela Recados e tarefas; a linha do Início é sempre a frase. A frase padrão do recado ("Bom trabalho hoje!") sai do BKO. |
 | D3 | Feriados nacionais no DU e na Meta/dia na v1.0.6? | **Aprovado.** O DU de novembro/2026 (segunda a sábado) passa de 25 para 23, e a Meta/dia de todos muda junto. |
 | D4 | Quem vê a foto? | **Aprovado**: todos os usuários do tenant. |
 | D5 | Período dos cards pela data de emissão? | **Aprovado.** A lista continua com a regra dela (emitido ou mudou de situação no período). |
