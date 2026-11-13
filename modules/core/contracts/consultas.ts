@@ -5,6 +5,7 @@
  */
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { LimiteDescontoSchema } from './usuarios';
 
 const Ids = z.array(z.string().uuid()).max(500).default([]);
 
@@ -65,7 +66,8 @@ export const CadastroResumoSaidaSchema = z.object({
       unidades: z.array(z.object({ unidade: z.string(), fator: z.number().int().positive(), padrao: z.boolean(), ativo: z.boolean(), external_id: Texto })).optional(),
     }),
   ),
-  usuarios: z.array(z.object({ id: z.string().uuid(), nome: z.string(), perfil: z.string(), external_id: Texto })),
+  /** T-0168 / RN-VEN-11a (aditivo, mesma versão): funções e limite de desconto; ausentes = emissor antigo, o consumidor completa com `LIMITE_DESCONTO_PADRAO`. */
+  usuarios: z.array(z.object({ id: z.string().uuid(), nome: z.string(), perfil: z.string(), external_id: Texto, ...LimiteDescontoSchema.partial().shape })),
   /** Só os pedidos em `endereco_ids` e, sempre, o principal de cada cliente pedido (T-0061 §4.1). */
   enderecos: z
     .array(

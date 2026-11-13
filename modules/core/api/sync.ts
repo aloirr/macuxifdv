@@ -18,6 +18,8 @@ import {
   ClienteFotoPushSchema,
   ClienteFotoSyncSchema,
   FilialSyncSchema,
+  UsuarioSyncSchema,
+  ClienteUltimaVisitaSyncSchema,
   FotoTipoSyncSchema,
   MedidaSyncSchema,
   ProdutoUnidadeSyncSchema,
@@ -84,6 +86,19 @@ export const TABELAS_SYNC = {
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
+  // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com só as 3 colunas de limite de desconto; sem e-mail, nome nem código do ERP
+  usuario: {
+    tabela: '(select id as usuario_id, id, updated_at, deleted_at, null::text as external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario) as usuario',
+    colunas: 'desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil',
+    colunaCliente: null,
+    colunaUsuario: 'usuario_id',
+  },
+  // RN-CORE-47 (T-0171): último check-in do cliente de qualquer vendedor (id = cliente_id; updated_at = o da visita mais recente alterada)
+  cliente_ultima_visita: {
+    tabela: "(select v.cliente_id as id, v.cliente_id, max(v.updated_at) as updated_at, null::timestamptz as deleted_at, null::text as external_id, to_char(max(v.data_local), 'YYYY-MM-DD') as ultima_visita_data from core.visita v where v.deleted_at is null group by v.cliente_id) as cliente_ultima_visita",
+    colunas: 'cliente_id, ultima_visita_data',
+    colunaCliente: 'cliente_id',
+  },
   foto_tipo: { tabela: 'core.foto_tipo', colunas: 'nome, obrigatorio, sensivel, fachada, ordem, ativo', colunaCliente: null },
   // ADR 0041: o vendedor nunca recebe o id do arquivo de documento sensível (CNH, contrato): vem nulo e ele só sabe que existe
   cliente_foto: {
@@ -244,6 +259,8 @@ const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['s
 export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
+export const entidadeUsuario = pull('usuario', UsuarioSyncSchema);
+export const entidadeClienteUltimaVisita = pull('cliente_ultima_visita', ClienteUltimaVisitaSyncSchema);
 export const entidadeFotoTipo = pull('foto_tipo', FotoTipoSyncSchema);
 /** Foto do PDV (RN-CORE-38): o aparelho envia o comando (`ClienteFotoPushSchema`) e recebe a linha (`ClienteFotoSyncSchema`); os bytes vão pela fila de arquivos. */
 export const entidadeClienteFoto = definirEntidadeSync({ nome: 'cliente_foto', modulo: 'core', direcao: 'ambos', conflito: 'servidor_vence', schema: ClienteFotoPushSchema, schemaLinha: ClienteFotoSyncSchema });
@@ -286,6 +303,8 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeProduto, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto) },
   { entidade: entidadeMedida, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.medida) },
   { entidade: entidadeFilial, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.filial) },
+  { entidade: entidadeUsuario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.usuario) },
+  { entidade: entidadeClienteUltimaVisita, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_ultima_visita) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },
   { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },

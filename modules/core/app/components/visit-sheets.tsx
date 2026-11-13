@@ -184,6 +184,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   const [erroFoto, setErroFoto] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [tentou, setTentou] = useState(false);
   const orders = useMemo(() => (open ? ordersInVisit(open, core.pedidos) : []), [open, core.pedidos]);
   const hasOrder = orders.length > 0;
   const motivos = core.estado.motivos;
@@ -204,6 +205,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
       setFotoFachada(null);
       setErroFoto(null);
       setErro(null);
+      setTentou(false);
     }
   }, [visible, open, hasOrder, vendedorEfetivo]);
 
@@ -237,7 +239,6 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
     etapas: etapas.map((e) => ({ modulo: e.modulo, id: e.id, rotulo: e.payload.rotulo, obrigatoria: e.payload.obrigatoria, concluida: e.payload.concluida(contexto) })),
   });
   const resultado = preparo.resultado;
-  const canConfirm = !salvando && preparo.pode;
 
   const tirarFoto = async () => {
     const ref = await capturarFotoFachada();
@@ -250,7 +251,13 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   };
 
   const confirm = async () => {
-    if (!canConfirm || !core.motor || !core.armazem || !resultado) return;
+    if (salvando) return;
+    // RD-0182: a falta só aparece quando o vendedor tenta concluir
+    if (!preparo.pode) {
+      setTentou(true);
+      return;
+    }
+    if (!core.motor || !core.armazem || !resultado) return;
     setSalvando(true);
     setErro(null);
     try {
@@ -345,13 +352,13 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           <View key={`${e.modulo}-${e.id}`} testID={e.payload.testID} style={styles.etapa}>
             <View style={styles.etapaTop}>
               <Text style={[t.bodyStrong, { flex: 1 }]}>{e.payload.rotulo}</Text>
-              <ChipEstado pequeno texto={ok ? 'Feita' : e.payload.obrigatoria ? 'Obrigatória' : 'Opcional'} tom={ok ? 'sucesso' : e.payload.obrigatoria ? 'erro' : 'neutro'} />
+              <ChipEstado pequeno texto={ok ? 'Feita' : e.payload.obrigatoria ? 'Obrigatória' : 'Opcional'} tom={ok ? 'sucesso' : e.payload.obrigatoria && tentou ? 'erro' : 'neutro'} />
             </View>
             <Etapa contexto={contexto} />
           </View>
         );
       })}
-      {preparo.etapasPendentes.length > 0 ? (
+      {tentou && preparo.etapasPendentes.length > 0 ? (
         <Text testID="checkout-pendencias" style={styles.pendencia}>
           Falta concluir: {preparo.etapasPendentes.map((e) => e.rotulo).join(', ')}.
         </Text>
@@ -361,7 +368,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           {erro}
         </Text>
       ) : null}
-      <Botao testID="checkout-confirm" nivel="principal" rotulo="Concluir checkout" desligado={!canConfirm} ocupado={salvando} onPress={() => void confirm()} />
+      <Botao testID="checkout-confirm" nivel="principal" rotulo="Concluir checkout" desligado={salvando} ocupado={salvando} onPress={() => void confirm()} />
     </BottomSheet>
   );
 }

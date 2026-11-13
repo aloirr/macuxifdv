@@ -21,7 +21,7 @@ export type CustomerFilter = 'curve_a' | 'no_purchase_45' | 'overdue' | 'not_pos
 export const CUSTOMER_FILTERS: Array<{ id: CustomerFilter; label: string }> = [
   { id: 'curve_a', label: 'Curva A' },
   { id: 'no_purchase_45', label: 'Sem compra 45+' },
-  { id: 'overdue', label: 'Com título vencido' },
+  { id: 'overdue', label: 'Devendo' },
   { id: 'not_positivated', label: 'Não positivados' },
 ];
 

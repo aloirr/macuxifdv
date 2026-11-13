@@ -12,6 +12,8 @@ import {
   ClienteSyncSchema,
   HistoricoCompraSyncSchema,
   TituloSyncSchema,
+  ClienteUltimaVisitaSyncSchema,
+  UsuarioSyncSchema,
 } from '../../contracts';
 
 const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) =>
@@ -26,4 +28,8 @@ export const entidadesCliente = [
   pull('historico_compra', HistoricoCompraSyncSchema),
   // Endereços de entrega (RN-VEN-17): pull filtrado pela carteira
   pull('cliente_endereco', ClienteEnderecoSyncSchema),
+  // RN-CORE-47: último check-in do cliente (de qualquer vendedor) para a linha da lista
+  pull('cliente_ultima_visita', ClienteUltimaVisitaSyncSchema),
+  // RN-VEN-11a: funções e limite de desconto do usuário (o app usa a linha da sessão)
+  pull('usuario', UsuarioSyncSchema),
 ] as const;

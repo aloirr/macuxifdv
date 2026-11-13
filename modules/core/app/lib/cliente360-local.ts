@@ -6,7 +6,7 @@
  */
 import { somarDiasCivis as somarDias } from '@macuxi/comum/relogio';
 import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
-import { fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+import { fachadaDoPdv, resumoFotos, filialEfetiva, rotuloDaFilial, enderecoPadrao, linksDeContato, listarClientes, mesNaJanela12, listarEnderecosDoCliente, ultimaVisitaEntre, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
   cliente: ClienteSync;
@@ -142,6 +142,10 @@ export interface ItemClienteLocal extends ClienteLista {
   dias_sem_compra: number | null;
   /** RN-CORE-16/17: vem do pull do cliente; linha antiga sem o campo = completo. */
   cadastro_incompleto: boolean;
+  /** RN-CORE-47: código do ERP; vazio = Pré-Cadastro. */
+  external_id: string | null;
+  /** RN-CORE-47: data (AAAA-MM-DD, fuso do tenant) do último check-in; nulo = nunca visitado. */
+  ultima_visita: string | null;
 }
 
 export interface BaseLocal {
@@ -149,6 +153,8 @@ export interface BaseLocal {
   financeiros: readonly ClienteFinanceiroSync[];
   titulos: readonly TituloSync[];
   historico: readonly HistoricoCompraSync[];
+  /** RN-CORE-47: último check-in por cliente (do sync de qualquer vendedor e do aparelho); várias linhas por cliente valem pela mais recente. */
+  ultimasVisitas?: readonly { cliente_id: string; ultima_visita_data: string }[];
 }
 
 /** Lista de Clientes do aparelho com busca e filtros "vencidos", "sem compra há N dias" e "bloqueados" (desenho §3.4). */
@@ -156,6 +162,8 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
   const financeiroPorCliente = new Map(base.financeiros.map((f) => [f.cliente_id, f]));
   const titulosPorCliente = agruparPorCliente(base.titulos.filter((t) => tituloNaJanela(t, hoje)));
   const historicoPorCliente = agruparPorCliente(base.historico.filter((h) => historicoNaJanela(h, hoje)));
+  const ultimaPorCliente = new Map<string, string>();
+  for (const v of base.ultimasVisitas ?? []) ultimaPorCliente.set(v.cliente_id, ultimaVisitaEntre(ultimaPorCliente.get(v.cliente_id), v.ultima_visita_data)!);
   const itens: ItemClienteLocal[] = base.clientes
     .filter((c) => c.deleted_at === null)
     .map((c) => ({
@@ -167,6 +175,8 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
       segmento: c.segmento,
       uf: c.uf,
       cadastro_incompleto: c.cadastro_incompleto ?? false,
+      external_id: c.external_id,
+      ultima_visita: ultimaPorCliente.get(c.id) ?? null,
       bloqueado: financeiroPorCliente.get(c.id)?.bloqueado ?? false,
       vencidos_qtd: (titulosPorCliente.get(c.id) ?? []).filter((t) => situacaoTitulo(t, hoje).situacao === 'vencido').length,
       dias_sem_compra: resumoCompras(historicoPorCliente.get(c.id) ?? [], hoje).dias_sem_compra,

@@ -67,3 +67,12 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 - O PUT recebe o conjunto de permissões concedidas e grava só a diferença da fábrica em `plataforma.perfil_permissao`; as chaves fora da tela (`notificacao.ler`, `dispositivo.registrar_push`, `parametro.promotor_ve_pedidos`) nunca viram revogação.
 - Usuário: `perfis` (códigos; o primeiro é o principal, a base dele vai em `core.usuario.perfil`) em criar/editar; vínculos em `plataforma.usuario_perfil`; a lista devolve `perfis` e filtra por código. Login e `/me/modulos` leem `plataforma.perfis_do_usuario` (regra mais restritiva no BKO e no portal, RN-CORE-35).
 - Pendências conhecidas: ligar/desligar módulo por perfil personalizado (hoje só o padrão copiado da base; use Usuários e módulos), prévia de módulos efetivos no formulário, níveis em `pedido.*`/`meta.editar` (aguardam as chaves, spec §13) e `promotor_ve_pedidos` → `pedido.ver`.
+
+## Parâmetros de desconto (T-0168, RN-VEN-11a)
+- Aba **Parâmetros** do usuário (BKO): "Limitar desconto por item" (padrão Sim), "Limitar desconto por pedido" (padrão Não) e "Desconto máximo do pedido (%)", que só aparece com "por pedido" ligada (uma casa, de 0 a 100; vazio = "Obrigatório"). Desligar mantém o valor guardado.
+- API: os mesmos `POST /v1/core/usuarios` e `PUT /v1/core/usuarios/:id` (ação `usuario.editar`) com `desconto_limita_item`, `desconto_limita_pedido` e `desconto_maximo_pedido_permil` (décimos de %: 8,0% = 80). "Por pedido" sem o número: 422 `USUARIO_DADOS_INVALIDOS` ("Informe o desconto máximo do pedido."). Os três campos entram no antes/depois da auditoria.
+- Sync: entidade `usuario` (pull, escopo `usuarios`) só com os três campos; consulta `core.cadastro_resumo@1` traz os mesmos campos, opcionais, em `usuarios[]`. Padrão: `LIMITE_DESCONTO_PADRAO`.
+
+## Lista de Clientes (T-0171, RN-CORE-41)
+- Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
+- Última visita: entidade de sync `cliente_ultima_visita` (id = cliente; último check-in de qualquer vendedor, `data_local`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.

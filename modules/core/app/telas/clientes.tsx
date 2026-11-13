@@ -1,14 +1,15 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
  */
-import { formatBRL0 } from '@macuxi/comum';
-import { Chip, ChipEstado, EstadoVazio, EtiquetaCadastroIncompleto, colors, daysAgoLabel, fonts, Icon, radius, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Chip, ChipEstado, EstadoVazio, colors, fonts, Icon, radius, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CustomerSummary } from '../../contracts';
+import { dataLocal, ROTULO_SITUACAO_CLIENTE, situacaoDoCliente, textoUltimaVisita, type SituacaoDoCliente } from '../../domain';
+import { fusoDe } from '../lib/estado';
 import { listarClientesLocais, type ItemClienteLocal } from '../lib/cliente360-local';
 import { useClientesLocais, type ClientesLocais } from '../lib/usar-clientes-locais';
 import { CUSTOMER_FILTERS, filterCustomers, type CustomerFilter } from '../lib/carteira';
@@ -89,7 +90,7 @@ export function TelaClientes() {
 
 type FiltroLocal = 'vencidos' | 'sem_compra' | 'bloqueados';
 const FILTROS_LOCAIS: Array<{ id: FiltroLocal; label: string }> = [
-  { id: 'vencidos', label: 'Com título vencido' },
+  { id: 'vencidos', label: 'Devendo' },
   { id: 'sem_compra', label: 'Sem compra 45+ dias' },
   { id: 'bloqueados', label: 'Bloqueados' },
 ];
@@ -101,15 +102,18 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const [query, setQuery] = useState('');
   const [filtros, setFiltros] = useState<FiltroLocal[]>([]);
   const alternar = (id: FiltroLocal) => setFiltros((fs) => (fs.includes(id) ? fs.filter((x) => x !== id) : [...fs, id]));
+  // RN-CORE-47: o check-in feito agora no aparelho já vale (antes do sync); o do sync traz o de qualquer vendedor
+  const fuso = fusoDe(core.estado.me);
+  const doAparelho = useMemo(() => core.estado.visitas.map((v) => ({ cliente_id: v.customer_id, ultima_visita_data: dataLocal(new Date(v.checkin_at), fuso) })), [core.estado.visitas, fuso]);
   const lista = useMemo(
     () =>
-      listarClientesLocais(dados, hoje, {
+      listarClientesLocais({ ...dados, ultimasVisitas: [...dados.ultimasVisitas, ...doAparelho] }, hoje, {
         q: query,
         comVencidos: filtros.includes('vencidos') || undefined,
         bloqueado: filtros.includes('bloqueados') || undefined,
         semCompraHa: filtros.includes('sem_compra') ? 45 : undefined,
       }),
-    [dados, hoje, query, filtros],
+    [dados, doAparelho, hoje, query, filtros],
   );
   const total = dados.clientes.filter((c) => c.deleted_at === null).length;
   return (
@@ -155,67 +159,64 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
         ListEmptyComponent={<EstadoVazio testID="clientes-vazio" icone="search" titulo="Nenhum cliente com esses filtros" texto="Limpe a busca ou os filtros para ver a carteira toda." />}
-        renderItem={({ item, index }) => <LinhaLocal c={item} first={index === 0} last={index === lista.length - 1} />}
+        renderItem={({ item, index }) => <LinhaLocal c={item} hoje={hoje} first={index === 0} last={index === lista.length - 1} />}
       />
     </View>
   );
 }
 
-function LinhaLocal({ c, first, last }: { c: ItemClienteLocal; first: boolean; last: boolean }) {
-  const nome = c.nome_fantasia?.trim() || c.razao_social;
-  const semCompra = c.dias_sem_compra === null || c.dias_sem_compra >= 45;
+const TOM_SITUACAO: Record<SituacaoDoCliente, 'erro' | 'sucesso' | 'neutro'> = { bloqueado: 'erro', devendo: 'erro', pre_cadastro: 'neutro', em_dia: 'sucesso' };
+
+/** RN-CORE-47: nome, uma tag de situação, a última visita e a seta. Nada mais na linha. */
+function LinhaCliente({ id, nome, situacao, visita, first, last }: { id: string; nome: string; situacao: SituacaoDoCliente; visita: string | null; first: boolean; last: boolean }) {
+  const rotulo = ROTULO_SITUACAO_CLIENTE[situacao];
   return (
     <Pressable
       testID={`customer-${nome}`}
       accessibilityRole="button"
-      onPress={() => abrirCliente(c.id, 'Clientes')}
+      accessibilityLabel={visita ? `${nome}, ${rotulo}, ${visita}` : `${nome}, ${rotulo}`}
+      onPress={() => abrirCliente(id, 'Clientes')}
       style={({ pressed }) => [styles.row, first && styles.rowFirst, last && styles.rowLast, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={t.bodyStrong} numberOfLines={1}>
+        <Text style={t.title16} numberOfLines={1}>
           {nome}
         </Text>
-        <Text style={t.small} numberOfLines={1}>
-          {[c.cidade, c.segmento].filter(Boolean).join(' · ') || 'Sem cidade informada'}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-          {c.bloqueado ? <ChipEstado pequeno texto="Bloqueado" tom="erro" /> : null}
-          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
-          {c.vencidos_qtd > 0 ? <ChipEstado pequeno texto={`${c.vencidos_qtd} vencido${c.vencidos_qtd > 1 ? 's' : ''}`} tom="erro" /> : null}
-          {semCompra ? <ChipEstado pequeno texto={c.dias_sem_compra === null ? 'Nunca comprou' : `${c.dias_sem_compra} dias sem compra`} tom="aviso" /> : null}
-        </View>
+        {visita ? (
+          <Text style={t.sub} numberOfLines={1}>
+            {visita}
+          </Text>
+        ) : null}
       </View>
+      <ChipEstado pequeno texto={rotulo} tom={TOM_SITUACAO[situacao]} icone={situacao === 'bloqueado' ? 'lock' : undefined} />
       <Icon name="chevron" size={16} color={colors.ink3} />
     </Pressable>
   );
 }
 
-function CustomerRow({ c, first, last }: { c: CustomerSummary; first: boolean; last: boolean }) {
-  const idle = c.days_since_purchase === null || c.days_since_purchase >= 45;
+function LinhaLocal({ c, hoje, first, last }: { c: ItemClienteLocal; hoje: string; first: boolean; last: boolean }) {
   return (
-    <Pressable
-      testID={`customer-${c.trade_name}`}
-      accessibilityRole="button"
-      onPress={() => abrirCliente(c.id, 'Clientes')}
-      style={({ pressed }) => [styles.row, first && styles.rowFirst, last && styles.rowLast, !last && styles.divider, pressed && { backgroundColor: colors.ground }]}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={t.bodyStrong} numberOfLines={1}>
-          {c.trade_name}
-        </Text>
-        <Text style={t.small} numberOfLines={1}>
-          {c.district} · compra média {formatBRL0(c.avg_monthly_cents)}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-          <ChipEstado pequeno texto={`Curva ${c.abc_curve}`} tom={c.abc_curve === 'A' ? 'destaque' : 'neutro'} />
-          {c.overdue_count > 0 ? <ChipEstado pequeno texto={`${c.overdue_count} vencido${c.overdue_count > 1 ? 's' : ''}`} tom="erro" /> : null}
-          {idle ? <ChipEstado pequeno texto={c.days_since_purchase === null ? 'Nunca comprou' : `${c.days_since_purchase} dias sem compra`} tom="aviso" /> : null}
-          {!idle && !c.positivated_this_month ? <ChipEstado pequeno texto="Não positivado" tom="aviso" /> : null}
-        </View>
-      </View>
-      <View style={{ alignItems: 'flex-end', gap: 2 }}>
-        <Text style={t.small}>{daysAgoLabel(c.days_since_purchase)}</Text>
-        <Icon name="chevron" size={16} color={colors.ink3} />
-      </View>
-    </Pressable>
+    <LinhaCliente
+      id={c.id}
+      nome={c.nome_fantasia?.trim() || c.razao_social}
+      situacao={situacaoDoCliente(c)}
+      visita={textoUltimaVisita(c.ultima_visita, hoje)}
+      first={first}
+      last={last}
+    />
+  );
+}
+
+/** Carga antiga (Fase M): o resumo não traz check-in nem bloqueio, então a linha não mostra a última visita. */
+function CustomerRow({ c, first, last }: { c: CustomerSummary; first: boolean; last: boolean }) {
+  return (
+    <LinhaCliente
+      id={c.id}
+      nome={c.trade_name}
+      situacao={situacaoDoCliente({ bloqueado: false, vencidos_qtd: c.overdue_count, external_id: c.erp_code })}
+      visita={null}
+      first={first}
+      last={last}
+    />
   );
 }
 

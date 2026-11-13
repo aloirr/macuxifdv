@@ -213,17 +213,6 @@ export function TelaCliente() {
           return <Aviso key={`${a.modulo}-${a.id}`} contexto={contexto} />;
         })}
 
-        {locked && openVisit ? (
-          <View style={styles.lockedBox} testID="checkin-locked">
-            <View style={{ marginTop: 1 }}>
-              <Icon name="lock" size={18} color={colors.warningInk} />
-            </View>
-            <Text style={styles.lockedText}>
-              <Text style={{ fontFamily: fonts.bold }}>Check-in bloqueado:</Text> em atendimento em {openVisit.customer_name}.
-            </Text>
-          </View>
-        ) : null}
-
         {ficha ? (
           <>
             <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
@@ -269,7 +258,7 @@ export function TelaCliente() {
           textStyle={{ fontSize: 15 }}
           onPress={() => {
             if (openHere) sheets.askCheckout();
-            else if (locked) sheets.showBlocked(customer.trade_name);
+            else if (locked) sheets.toast(`Em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}`, 'warning');
             else if (!visited) void startCheckin();
           }}
         />
@@ -339,6 +328,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingRight: 10, paddingLeft: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   footer: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, backgroundColor: colors.ground },
-  lockedBox: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: colors.warningBg, borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 12 },
-  lockedText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5, color: colors.warningInk },
 });

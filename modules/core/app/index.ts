@@ -19,6 +19,7 @@ import { TelaRota } from './telas/rota';
 export { definirAbrirFotoPdv, definirCapturaFoto, definirCapturaFotoPdv, type AbrirFotoPdv, type CapturaFoto, type CapturaFotoPdv, type FotoPdvCapturada, type PedidoAbrirFotoPdv } from './lib/foto-fachada';
 export { useInicio } from './lib/usar-inicio';
 export { useNotificacoes } from './lib/usar-notificacoes';
+export { progressoDaEntrada } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 

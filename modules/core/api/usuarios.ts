@@ -21,6 +21,8 @@ import {
   RedefinirSenhaRequestSchema,
   UsuarioItemSchema,
   UsuarioListaQuerySchema,
+  MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO,
+  limiteDescontoCompleto,
   type CriarUsuarioResposta,
   type EquipeOpcao,
   type RedefinirSenhaResposta,
@@ -59,6 +61,7 @@ const ISO = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
 const LIMITE = 1000;
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+const descontoPedidoObrigatorio = () => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO, { campo: 'desconto_maximo_pedido_permil' });
 const dadosInvalidos = (erros: ErroDeCampo[]) => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, erros[0]!.mensagem, { campos: erros });
 const emailDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.emailDuplicado, 'Já existe um usuário com este e-mail nesta empresa. Use outro e-mail ou edite o usuário existente.');
 const externalDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.externalIdDuplicado, 'Já existe um usuário com este código do ERP nesta empresa. Confira o código ou deixe o campo vazio.');
@@ -87,11 +90,15 @@ interface LinhaUsuario {
   trocar_senha: boolean;
   senha_expira_em: string | null;
   sem_senha: boolean;
+  desconto_limita_item: boolean;
+  desconto_limita_pedido: boolean;
+  desconto_maximo_pedido_permil: number | null;
 }
 
 const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
-         u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha
+         u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
+         u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil
     from core.usuario u left join core.equipe e on e.id = u.equipe_id and e.deleted_at is null`;
 
 async function equipesAtivas(db: ClienteBanco): Promise<EquipeLinha[]> {
@@ -146,7 +153,7 @@ async function itemPorId(db: ClienteBanco, id: string): Promise<UsuarioItem> {
 interface UsuarioBruto extends UsuarioAuditavel {
   id: string;
 }
-const COLUNAS_BRUTAS = 'id, nome, nome_curto, email, perfil, equipe_id, ativo, external_id';
+const COLUNAS_BRUTAS = 'id, nome, nome_curto, email, perfil, equipe_id, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil';
 
 async function buscarParaAlterar(db: ClienteBanco, id: string): Promise<UsuarioBruto> {
   const r = await db.query<UsuarioBruto>(`select ${COLUNAS_BRUTAS} from core.usuario where id = $1 and deleted_at is null for update`, [id]);
@@ -286,6 +293,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       if (codigosPedidos.length === 0) throw dadosInvalidos([{ campo: 'perfil', mensagem: ERRO_SEM_PERFIL }]);
       const erros = validarDadosDeUsuario({ nome, email, perfil: c.perfil ?? 'vendedor', external_id: externalId });
       if (erros.length > 0) throw dadosInvalidos(erros);
+      if (!limiteDescontoCompleto(c)) throw descontoPedidoObrigatorio();
       const fraca = validarSenhaInicial(c.senha, email);
       if (fraca) throw new ErroRegraNegocio(CODIGOS_USUARIO.senhaFraca, fraca, { faltas: faltasNaSenha(c.senha) });
       const senhaHash = await hashSenha(c.senha);
@@ -297,9 +305,9 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           const principal = principalDe(escolhidos);
           await conferirPerfisDoUsuario(ctx, db, randomUUID(), escolhidos.map((x) => x.codigo), c.ativo);
           const r = await db.query<{ id: string }>(
-            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id)
-             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9) returning id`,
-            [nome, c.nome_curto?.trim() || null, email, principal, c.equipe_id, senhaHash, validadeDaSenhaTemporaria(ctx.agora()), c.ativo, externalId],
+            `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil)
+             values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12) returning id`,
+            [nome, c.nome_curto?.trim() || null, email, principal, c.equipe_id, senhaHash, validadeDaSenhaTemporaria(ctx.agora()), c.ativo, externalId, c.desconto_limita_item, c.desconto_limita_pedido, c.desconto_maximo_pedido_permil],
           );
           const id = r.rows[0]!.id;
           await gravarPerfisDoUsuario(db, id, escolhidos.map((x) => x.codigo));
@@ -312,7 +320,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             dados: { nome, empresa_nome: empresa.nome, codigo_empresa: empresa.codigo, login: email, senha: c.senha, validade_horas: SENHA_TEMPORARIA_HORAS, apps: appsDosPerfis(await perfisDoUsuarioNoLogin(db, id, principal)) },
             chave_idempotencia: `${id}:acesso`,
           });
-          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), equipe_id: c.equipe_id, ativo: c.ativo, external_id: externalId, senha_definida: true, trocar_senha: true, email: envio } });
+          await auditar(db, ctx, { acao: 'usuario.criar', entidade: 'usuario', entidadeId: id, antes: null, depois: { perfil: principal, perfis: escolhidos.map((x) => x.codigo), equipe_id: c.equipe_id, ativo: c.ativo, external_id: externalId, desconto_limita_item: c.desconto_limita_item, desconto_limita_pedido: c.desconto_limita_pedido, desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil, senha_definida: true, trocar_senha: true, email: envio } });
           return CriarUsuarioRespostaSchema.parse({ ...(await itemPorId(db, id)), email_acesso: envio });
         });
       } catch (e) {
@@ -346,16 +354,20 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             equipe_id: c.equipe_id === undefined ? antes.equipe_id : c.equipe_id,
             ativo: antes.ativo,
             external_id: c.external_id === undefined ? antes.external_id : (c.external_id?.trim() ?? null),
+            desconto_limita_item: c.desconto_limita_item ?? antes.desconto_limita_item,
+            desconto_limita_pedido: c.desconto_limita_pedido ?? antes.desconto_limita_pedido,
+            desconto_maximo_pedido_permil: c.desconto_maximo_pedido_permil === undefined ? antes.desconto_maximo_pedido_permil : c.desconto_maximo_pedido_permil,
           };
           const erros = validarDadosDeUsuario(depois);
           if (erros.length > 0) throw dadosInvalidos(erros);
+          if (!limiteDescontoCompleto({ desconto_limita_item: depois.desconto_limita_item ?? true, desconto_limita_pedido: depois.desconto_limita_pedido ?? false, desconto_maximo_pedido_permil: depois.desconto_maximo_pedido_permil ?? null })) throw descontoPedidoObrigatorio();
           await conferirAlteracao(ctx, db, antes, { perfil: depois.perfil as Perfil, ativo: depois.ativo, ...(escolhidos ? { perfis: escolhidos.map((x) => x.codigo) } : {}) });
           if (escolhidos && perfisMudaram) await conferirPerfisDoUsuario(ctx, db, antes.id, escolhidos.map((x) => x.codigo), depois.ativo);
           const diff = diffAuditavelDeUsuario(antes, depois);
           if (diff.campos_alterados.length === 0 && !perfisMudaram) return itemPorId(db, antes.id);
           if (depois.equipe_id !== antes.equipe_id) await exigirEquipe(db, depois.equipe_id);
           await exigirUnicos(db, depois.email.toLowerCase(), depois.external_id, antes.id);
-          await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7 where id = $1', [
+          await db.query('update core.usuario set nome = $2, nome_curto = $3, email = $4, perfil = $5, equipe_id = $6, external_id = $7, desconto_limita_item = $8, desconto_limita_pedido = $9, desconto_maximo_pedido_permil = $10 where id = $1', [
             antes.id,
             depois.nome,
             depois.nome_curto,
@@ -363,6 +375,9 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
             depois.perfil,
             depois.equipe_id,
             depois.external_id,
+            depois.desconto_limita_item,
+            depois.desconto_limita_pedido,
+            depois.desconto_maximo_pedido_permil,
           ]);
           if (escolhidos && perfisMudaram) {
             await gravarPerfisDoUsuario(db, antes.id, escolhidos.map((x) => x.codigo));

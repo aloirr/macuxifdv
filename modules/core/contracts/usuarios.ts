@@ -25,9 +25,27 @@ const CodigoPerfil = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/);
 export const PerfilDoUsuarioSchema = z.object({ codigo: CodigoPerfil, nome: z.string(), base: PerfilSchema }).strict();
 export type PerfilDoUsuario = z.infer<typeof PerfilDoUsuarioSchema>;
 
+/** RN-VEN-11a (T-0168): funções e limite de desconto do usuário. Décimos de % (‰): 8,0% = 80. */
+export const DESCONTO_PEDIDO_PERMIL_MAX = 1000;
+export const LimiteDescontoSchema = z
+  .object({
+    desconto_limita_item: z.boolean(),
+    desconto_limita_pedido: z.boolean(),
+    desconto_maximo_pedido_permil: z.number().int().min(0).max(DESCONTO_PEDIDO_PERMIL_MAX).nullable(),
+  })
+  .strict();
+export type LimiteDesconto = z.infer<typeof LimiteDescontoSchema>;
+/** Padrão de usuário novo, de usuário antigo e de quem não recebeu os campos (servidor/APK antigo). */
+export const LIMITE_DESCONTO_PADRAO: LimiteDesconto = { desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null };
+/** "Por pedido" ligada exige o número. */
+export function limiteDescontoCompleto(l: LimiteDesconto): boolean {
+  return !l.desconto_limita_pedido || l.desconto_maximo_pedido_permil !== null;
+}
+export const MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO = 'Informe o desconto máximo do pedido.';
 
 export const UsuarioItemSchema = z
   .object({
+    ...LimiteDescontoSchema.shape,
     id: Uuid,
     nome: z.string(),
     nome_curto: z.string().nullable(),
@@ -109,10 +127,15 @@ export const CriarUsuarioRequestSchema = z
     equipe_id: CamposEditaveis.equipe_id.default(null),
     external_id: CamposEditaveis.external_id.default(null),
     ativo: z.boolean().default(true),
+    /** RN-VEN-11a (T-0168): ausente = padrão. */
+    desconto_limita_item: z.boolean().default(true),
+    desconto_limita_pedido: z.boolean().default(false),
+    desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.default(null),
     /** Senha inicial definida pelo admin (nunca registrada em log nem na auditoria). */
     senha: z.string().min(1).max(200),
   })
   .strict();
+/** "Por pedido" ligada sem o número é recusada pela API (422 `USUARIO_DADOS_INVALIDOS`, `limiteDescontoCompleto`), não pelo schema. */
 export type CriarUsuarioRequest = z.infer<typeof CriarUsuarioRequestSchema>;
 
 /** POST /usuarios (T-0094): o usuário criado + o resultado do e-mail com o acesso. */
@@ -128,6 +151,10 @@ export const EditarUsuarioRequestSchema = z
     perfis: z.array(CodigoPerfil).min(1).max(10).optional(),
     equipe_id: CamposEditaveis.equipe_id.optional(),
     external_id: CamposEditaveis.external_id.optional(),
+    /** RN-VEN-11a (T-0168): ausente = mantém. O servidor junta com o gravado e confere `limiteDescontoCompleto`. */
+    desconto_limita_item: z.boolean().optional(),
+    desconto_limita_pedido: z.boolean().optional(),
+    desconto_maximo_pedido_permil: LimiteDescontoSchema.shape.desconto_maximo_pedido_permil.optional(),
   })
   .strict();
 export type EditarUsuarioRequest = z.infer<typeof EditarUsuarioRequestSchema>;
