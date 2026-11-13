@@ -67,7 +67,7 @@ export function montarEntradas({ conectorZip, versao = VERSAO_KIT } = {}) {
     ...readdirSync(join(aqui, 'sql')).sort().map((f) => ({ nome: `sql/${f}`, dados: doKit('sql', f) })),
     texto('sql/02-entrada-pedido.sql', entradaPedido),
     texto('conector/conector.json', `${JSON.stringify(gerarConectorJson(exemplo), null, 2)}\n`),
-    { nome: 'erp-via-api/cliente-hub.mjs', dados: readFileSync(join(raizRepo, 'modules', 'integracao', 'docs', 'exemplos', 'node', 'cliente-hub.mjs')) },
+    { nome: 'erp-via-api/cliente-hub.mjs', dados: readFileSync(join(raizRepo, 'modules/integracao/docs/exemplos/node/cliente-hub.mjs')) },
     ...['erp-via-api.mjs', 'executar.mjs', 'executar.ps1', 'Macuxi-Credencial.ps1', 'package.json'].map((f) => ({ nome: `erp-via-api/${f}`, dados: doKit('erp-via-api', f) })),
     texto('VERSAO.txt', `Kit do piloto Macuxi FDV ${versao}\n`),
   ];
