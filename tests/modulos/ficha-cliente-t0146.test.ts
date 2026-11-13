@@ -225,7 +225,8 @@ describe('T-0146 — rótulo × valor e topo sem limite/vencidos (fonte das tela
 
 describe('T-0146 — RD-0075: o selo "Cadastro incompleto" saiu da ficha, a informação ficou uma vez (RN-CORE-17)', () => {
   // Oráculo do texto da RN-CORE-17: linha automática no topo das Observações, texto do ERP intacto abaixo; etiqueta só na carteira.
-  const LINHA = 'Cadastro incompleto: falta CNPJ/CPF, CEP. Pedido só como orçamento até o cadastro ser completado no ERP.';
+  // T-0166 (RD-0183, R-20261112-042519-modulo-core): sai a 2ª frase; o "só orçamento" fica na área Alertas do pedido.
+  const LINHA = 'Cadastro incompleto: falta CNPJ/CPF, CEP.';
 
   it('ficha (Campo/Gestão e BKO): sem o selo, com a linha automática das Observações montada de cadastro_campos_faltantes', () => {
     for (const p of ['modules/core/app/components/cliente360.tsx', 'modules/core/web/components/cliente360/cliente360-page.tsx']) {

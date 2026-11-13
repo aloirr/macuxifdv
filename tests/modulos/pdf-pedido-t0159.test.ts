@@ -10,14 +10,14 @@
  *         nunca os da matriz; sem dados, a linha não sai; no escritório a linha não existe (a filial sai na célula "Filial");
  *   PDF-5 nome do arquivo e <title> ORC/PED-XXXX-DDMMAAAA (RN-VEN-41) no fuso do tenant (virada de dia UTC × Manaus);
  *   PDF-6 números iguais ao Resumo/detalhe (valor × regra): unitário líquido = total ÷ qtd (RN-VEN-02), linha líquida dos totais
- *         = a MESMA `linhaLiquidaDosTotais` do Resumo e do detalhe, conferida contra o oráculo escrito aqui (RN-VEN-03);
+ *         = as MESMAS `linhasDosTotais` do Resumo e do detalhe (T-0165: Valor de tabela · Desconto (%) · Desconto (R$) · Valor final), conferida contra o oráculo escrito aqui (RN-VEN-03);
  *   PDF-7 versão do cliente sem "%" e sem a palavra "desconto"; "continua fora" da spec §3.
  * O ORÁCULO é escrito aqui pelo texto das RNs (nunca chama a função testada para obter o esperado).
  * Convenção: `it` = vale hoje; `it.fails` = defeito aberto com recado ao dono (o agente testes volta para `it` na correção).
  */
 import { describe, expect, it } from 'vitest';
 
-import { linhaLiquidaDosTotais } from '../../modules/vendedor/domain/apresentacao-totais';
+import { linhasDosTotais } from '../../modules/vendedor/domain/apresentacao-totais';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type DetalheParaPdf, type OrderPdfContext } from '../../modules/vendedor/domain/pdf-pedido';
 
 const TZ = 'America/Manaus';
@@ -314,7 +314,7 @@ describe('T-0159 PDF-6 — números iguais ao Resumo/detalhe (valor × regra)', 
     for (const it of ITENS) expect(n(celulas(cli, it.erp_code)).slice(5)).toEqual([reais(Math.floor((it.total_cents * 2 + it.quantity) / (2 * it.quantity))), reais(it.total_cents)]);
     const bko = html(detalhe(), 'bko');
     expect(n(celulas(bko, 'ACU-1K')).slice(5)).toEqual(['17,90', '−5,0%', '17,01', '51,03']);
-    expect(n(celulas(bko, 'CAF-500')).slice(5)).toEqual(['259,00', '—', '259,00', '259,00']);
+    expect(n(celulas(bko, 'CAF-500')).slice(5)).toEqual(['259,00', '0,0%', '259,00', '259,00']); // T-0165: % sempre, nunca "—"
     expect(n(celulas(bko, 'AGU-1500')).slice(5)).toEqual(['120,00', '−8,0%', '110,40', '220,80']);
   });
 
@@ -333,40 +333,53 @@ describe('T-0159 PDF-6 — números iguais ao Resumo/detalhe (valor × regra)', 
   it('PDF-6 D-T0159-1 corrigido: escritório — Tabela, Desc./Acr., Líquido e Total do item batem com o pedido', () => {
     const h = html(detalhe(), 'bko');
     expect(celulas(h, 'ACU-1K').slice(5)).toEqual(['17,90', '−5,0%', '17,01', '51,03']);
-    expect(celulas(h, 'CAF-500').slice(5)).toEqual(['259,00', '—', '259,00', '259,00']);
+    expect(celulas(h, 'CAF-500').slice(5)).toEqual(['259,00', '0,0%', '259,00', '259,00']); // T-0165: % sempre, nunca "—"
     expect(celulas(h, 'AGU-1500').slice(5)).toEqual(['120,00', '−8,0%', '110,40', '220,80']);
   });
 
-  it('PDF-6: totais — cliente "Total R$ 530,83"; escritório Tabela 552,70 · Desconto 4,0% − R$ 21,87 · Total 530,83 (spec §5 10)', () => {
+  // T-0165 (R-20261112-031456 regra 10, R-20261112-032141 e a correção R-20261112-082211): a caixa usa os rótulos da tela; no ESCRITÓRIO
+  // o % sai do rótulo, numa linha de % e outra de R$; no CLIENTE, só o Valor final (o cliente não vê o desconto).
+  it('PDF-6 (T-0165): escritório — Valor de tabela 552,70 · Desconto (%) 4,0% · Desconto (R$) − R$ 21,87 · Valor final 530,83', () => {
     const d = detalhe();
     const sub = d.subtotal_cents;
     const tot = d.total_cents;
     expect([sub, tot]).toEqual([55_270, 53_083]);
-    expect(totais(html(d, 'customer'))).toBe(`Total R$ ${reais(tot)}`);
-    const t = totais(html(d, 'bko'));
-    expect(t).toContain(`Tabela R$ ${reais(sub)}`);
-    expect(t).toContain(`Desconto ${pct1(sub - tot, sub)} − R$ ${reais(sub - tot)}`);
-    expect(t.endsWith(`Total R$ ${reais(tot)}`)).toBe(true);
     expect(pct1(sub - tot, sub)).toBe('4,0%');
+    expect(totais(html(d, 'bko'))).toBe(`Valor de tabela R$ ${reais(sub)} Desconto (%) ${pct1(sub - tot, sub)} Desconto (R$) − R$ ${reais(sub - tot)} Valor final R$ ${reais(tot)}`);
   });
 
-  it('PDF-6: a linha de desconto do PDF é a mesma do Resumo/detalhe (linhaLiquidaDosTotais) e bate com o oráculo', () => {
+  // D-T0165-1 corrigido (12/11; era it.fails): o PDF do cliente saía com Valor de tabela/Desconto (%)/(R$); o R-20261112-082211 manda só o Valor final.
+  it('PDF-6 (T-0165, R-20261112-082211): cliente — só "Valor final R$ 530,83" na caixa (pedido e orçamento)', () => {
+    for (const d of [detalhe(), orcamento()]) expect(totais(html(d, 'customer'))).toBe(`Valor final R$ ${reais(d.total_cents)}`);
+  });
+
+  it('PDF-6 (T-0165): as linhas do PDF são as mesmas do Resumo/detalhe (linhasDosTotais) e batem com o oráculo', () => {
     const d = detalhe();
-    const l = linhaLiquidaDosTotais(d);
-    expect(l).toEqual({ rotulo: `Desconto ${pct1(d.subtotal_cents - d.total_cents, d.subtotal_cents)}`, valor: `− R$ ${reais(d.subtotal_cents - d.total_cents)}` });
-    expect(totais(html(d, 'bko'))).toContain(`${l!.rotulo} ${l!.valor}`);
+    const l = linhasDosTotais(d).map((x) => `${x.rotulo} ${x.valor}`.replace(/\s+/g, ' '));
+    expect(l).toEqual([`Valor de tabela R$ ${reais(d.subtotal_cents)}`, `Desconto (%) ${pct1(d.subtotal_cents - d.total_cents, d.subtotal_cents)}`, `Desconto (R$) − R$ ${reais(d.subtotal_cents - d.total_cents)}`]);
+    for (const x of l) expect(totais(html(d, 'bko'))).toContain(x.replace(/\s+/g, ' '));
   });
 
-  it('PDF-6 (spec §5 10): rodapé "Total" nas 4 versões; nenhuma tem "Total do pedido" nem "Total do orçamento"', () => {
+  it('PDF-6 (T-0165): rodapé "Valor final" nas 4 versões; nenhuma tem "Total do pedido" nem "Total do orçamento"', () => {
     for (const h of QUATRO()) {
-      expect(totais(h).endsWith('Total R$ 530,83')).toBe(true);
+      expect(totais(h).endsWith('Valor final R$ 530,83')).toBe(true);
       expect(h).not.toMatch(/Total do (pedido|orçamento)/);
     }
   });
 });
 
 describe('T-0159 PDF-7 — o que não sai', () => {
-  it('PDF-7: versão do cliente sem "%" e sem a palavra "desconto" (pedido e orçamento, com alerta de desconto)', () => {
+  it('PDF-7: tabela de itens do cliente sem "%" e sem a palavra "desconto" (pedido e orçamento, com alerta de desconto)', () => {
+    for (const d of [detalhe(), orcamento()]) {
+      const todo = html(d, 'customer');
+      const h = todo.slice(0, todo.indexOf('class="totalbox"'));
+      expect(h.replace(/<style>[\s\S]*?<\/style>/, '')).not.toContain('%');
+      expect(semTags(h)).not.toMatch(/desconto/i);
+    }
+  });
+
+  // D-T0165-1 corrigido (12/11; era it.fails; R-20261112-082211): o PDF do cliente inteiro, Totais incluídos, sem "%" e sem "desconto".
+  it('PDF-7 (T-0165, R-20261112-082211): PDF do cliente inteiro (com a caixa do Total) sem "%" e sem a palavra "desconto"', () => {
     for (const d of [detalhe(), orcamento()]) {
       const h = html(d, 'customer');
       expect(h.replace(/<style>[\s\S]*?<\/style>/, '')).not.toContain('%');
@@ -424,12 +437,12 @@ describe('T-0159 PDF-8 — visual horizontal e observações (R-20261111-084832 
     }
   });
 
-  it('PDF-8: Total em caixa (borda escura de 2 px) nas 4 versões; no escritório Tabela e Desconto dentro da caixa, acima do Total', () => {
+  it('PDF-8: Total em caixa (borda escura de 2 px) nas 4 versões; no escritório Valor de tabela e Desconto dentro da caixa, acima do Valor final', () => {
     expect(css(html(detalhe(), 'customer'))).toMatch(/\.totalbox\s*\{[^}]*border:\s*2px solid #16202A/i);
     for (const h of QUATRO()) expect(h.match(/class="totalbox"/g)).toHaveLength(1);
     const t = totais(html(detalhe(), 'bko'));
-    expect(t.indexOf('Tabela')).toBeLessThan(t.indexOf('Desconto'));
-    expect(t.indexOf('Desconto')).toBeLessThan(t.lastIndexOf('Total'));
+    expect(t.indexOf('Valor de tabela')).toBeLessThan(t.indexOf('Desconto (%)'));
+    expect(t.indexOf('Desconto (R$)')).toBeLessThan(t.lastIndexOf('Valor final'));
   });
 
   it('PDF-8: Histórico do escritório ao lado da caixa do Total (no mesmo rodapé)', () => {
