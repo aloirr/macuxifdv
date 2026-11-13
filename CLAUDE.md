@@ -31,7 +31,7 @@ Coordenação: `node scripts/coord.mjs` (caixa, enviar, pendencias, dono, verifi
 8. Segredos só em `.env`; sem dado pessoal em log; commit/push só pelo gerente-projetos, pela regra de rodada abaixo.
 
 ## Time de agentes
-A sessão principal roda como **`gerente-projetos`** (definido em `.claude/settings.json`), que comanda: `engenheiro-software` (plataforma: API, SDK, contratos, CI, ADRs, revisão final), `engenheiro-apps` (shells mobile/web, transições do shell, EAS, revisão técnica das telas), `designer-ux` (`packages/ui`, `docs/design/`, visual, textos e revisão de UX das telas), `banco-dados`, `testes`, `corretor-redundancias` (excessos, duplicidades e redundâncias; toda tarefa passa por ele; defeito funcional é do `testes`) e os agentes `modulo-core`, `modulo-catalogo`, `modulo-vendedor`, `modulo-promotor`, `modulo-gestor`, `modulo-pesquisa`, `modulo-treinamento`, `modulo-integracao`.
+A sessão principal roda como **`gerente-projetos`** (definido em `.claude/settings.json`), que comanda: `engenheiro-software` (plataforma: API, SDK, contratos, CI, ADRs, revisão final), `engenheiro-apps` (shells mobile/web, transições do shell, EAS, revisão técnica das telas), `designer-ux` (`packages/ui`, `docs/design/`, visual, textos e revisão de UX das telas), `banco-dados`, `testes`, `corretor-redundancias` (excessos, duplicidades e redundâncias; toda tarefa passa por ele; defeito funcional é do `testes`), `design-de-marca` (guardião da marca, `docs/marca/`; T-0169) e os agentes `modulo-core`, `modulo-catalogo`, `modulo-vendedor`, `modulo-promotor`, `modulo-gestor`, `modulo-pesquisa`, `modulo-treinamento`, `modulo-integracao`.
 **Cada agente altera só os próprios caminhos (`.coord/donos.json`) e fala com os outros por recados** (`.coord/recados/`, skill `protocolo-recados`). O guardião (`.claude/hooks/guarda-donos.mjs`) bloqueia o resto. Para trabalhar sem o guardião (uso manual): variável `MACUXI_GUARDA=off`.
 Skills: `/status`, `/feature <RF ou descrição>`, `/entrega`.
 **Esteira permanente** (R-20261107-164646, até o Alexandre mandar parar): tudo o que ele pede, e tudo o que é preciso para entregar, entra na esteira e segue em execução. **Backlog só com a autorização escrita dele**, num recado ou no chat com a palavra "backlog". **Nenhum agente ocioso**: as **7 vagas locais** (dono do produto, 07/11 22h35; antes 8, 6 e 4) ficam sempre ocupadas e, sem trabalho local que não colida, o gerente abre frentes na nuvem em caminhos exclusivos. Prioridade: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. Os detalhes estão no doc 07, seções 4 e 5; a 5 traz o nome e a versão dos builds.
@@ -48,13 +48,16 @@ Cada tarefa roda **local** (este VS Code) ou na **nuvem** (claude.ai/code, branc
 
 ## Definição de pronto
 - Lint, typecheck e testes verdes.
+- **Nenhum ensaio sem lint e typecheck limpos no PC** em todos os pacotes tocados, com o mesmo script do CI, inclusive `typecheck:tests` quando `tests/` mudou (regra fixa do dono do produto, R-20261111-155339). O dono roda e diz na entrega; o gerente confere antes de disparar o ensaio. Os detalhes estão no doc 07.
 - Critérios da tarefa demonstrados pelo testes, que também confere valor × regra em todo indicador.
 - **Parecer do corretor-redundancias sem nenhum achado em aberto, de qualquer gravidade** (regra permanente do dono do produto, R-20261110-062506):
   - toda entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa por ele **antes do lote e antes do build**, como passa pelo testes;
   - o parecer olha o print do aparelho: repetição, caixa repetindo uma linha, texto além do problema e da ação, rótulo e número que não batem;
   - **uma informação, um lugar:** o que uma seção da tela já mostra não aparece em outro lugar da mesma tela, e nenhum aviso fica fora da área "Alertas" (R-20261110-093124, RN-VEN-42);
   - **só o que o usuário usa para agir:** texto que ele não usa para decidir ou agir agora também é excesso e sai, mesmo certo e sem repetição. Exemplos: o que o sistema faz por trás ("vai junto", "o app guarda…", "a equipe vê…"), explicação de funcionamento e texto de garantia (R-20261110-192153);
-  - cada build leva o relatório do corretor junto com o roteiro do testes.
+  - cada build leva o relatório do corretor junto com o roteiro do testes;
+  - **exceção:** achado de gravidade baixa que esteja **só em comentário ou título de teste** não segura o lote e entra no lote seguinte (dono do produto, R-20261111-190159). Achado em código de produção, tela, texto, PDF, relatório, regra ou doc continua segurando.
+- **Validação do design-de-marca** em toda mudança de cor ou layout, em qualquer superfície (Campo, Gestão, BKO, portal, PDFs, e-mails e site), antes do lote e do build. Só o dono do produto aprova a marca (R-20261112-065914).
 - Revisão do engenheiro sem 🔴.
 - `node scripts/coord.mjs verificar` sem violações.
 - Quadro, backlog e docs atualizados.

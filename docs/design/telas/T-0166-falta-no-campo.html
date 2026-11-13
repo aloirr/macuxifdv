@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0166 · Menos alertas: falta no campo, só na tentativa</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .conteudo > * { flex: none; }
+  .campo-r { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; letter-spacing: .6px; text-transform: uppercase; }
+  .suspensa .ph, .escolha .ph { color: var(--ink3); }
+  .falta-b { border: 2px solid var(--danger) !important; }
+  .falta-t { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--danger); }
+  .pop-cab { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .pop-cab .n { font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px; line-height: 23px; }
+  .pop-cab .n .mc { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; }
+  .pop-cab .x { width: 44px; height: 44px; margin: -10px -10px 0 0; display: flex; align-items: center; justify-content: center; flex: none; }
+  .pop-s.mono-c { font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin-top: 4px; color: var(--ink2); }
+  .campo-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; letter-spacing: .6px; }
+  .vazio-itens { font-size: 13px; color: var(--ink2); }
+</style>
+</head>
+<body>
+<h1 class="prancha">Menos alertas · falta no campo, só na tentativa</h1>
+<p class="prancha">T-0166 (R-20261112-031457; corretor R-20261112-033620, pré-aprovado). Pedido recém-aberto: 0 alertas. O campo vazio fica normal até o vendedor tentar salvar (ou sair da aba pelo Avançar). Na tentativa, o botão não salva: leva à 1ª aba com falta, marca o campo (borda e texto curto) e as faltas das outras abas entram em Alertas (a da aba aberta fica só no campo). O máximo do desconto fica no campo da folha do item. Kit: <code>faltaVisivel</code>, <code>TextoDaFalta</code>, <code>bordaDaFalta</code> e <code>CampoEscolha</code> com <code>falta</code>.</p>
+
+<div class="board">
+
+  <!-- 1 · Antes -->
+  <div class="tela antes">
+    <div class="legenda"><b>1</b>Pedido recém-aberto<span class="tag antes">Antes · v1.0.4</span><span>3 linhas vermelhas antes de qualquer toque.</span></div>
+    <div class="phone">
+      <div class="status"><span>09:02</span><span>4G ▮▮▮ 88%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (0)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Falta pelo menos 1 item <span class="aba-dest">· aba Itens</span></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Falta forma de pagamento <span class="aba-dest">· aba Venda</span></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Falta prazo de pagamento <span class="aba-dest">· aba Venda</span></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="duas">
+          <div><div class="campo-r">Forma</div><div class="suspensa"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Depois, recém-aberto -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Pedido recém-aberto<span class="tag depois">Depois</span><span>0 alertas. Os campos vazios ficam no estado normal.</span></div>
+    <div class="phone">
+      <div class="status"><span>09:02</span><span>4G ▮▮▮ 88%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (0)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="duas">
+          <div><div class="campo-r">Forma</div><div class="suspensa"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="secao-t" style="margin-top:2px">Crédito do cliente</div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Limite</span><span class="v">R$ 8.000,00</span></div>
+          <div class="lin"><span class="r">Disponível</span><span class="v">R$ 6.420,00</span></div>
+          <div class="lin"><span class="r">Prazo médio</span><span class="v">35 dias</span></div>
+        </div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 3 · Depois, na tentativa -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Toque em Salvar e enviar com falta<span class="tag depois">Depois</span><span>Não salva: abre a 1ª aba com falta e marca os campos. Nos Alertas, só a falta de outra aba.</span></div>
+    <div class="phone">
+      <div class="status"><span>09:06</span><span>4G ▮▮▮ 87%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (2)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Falta a transportadora <span class="aba-dest">· aba Entrega</span></span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="duas marca" style="outline-offset:4px">
+          <div><div class="campo-r">Forma</div><div class="suspensa falta-b"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div><div class="falta-t"><i data-i="alerta" data-t="14" data-c="#A8261B"></i>Obrigatório</div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa falta-b"><span class="ph">Escolha</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div><div class="falta-t"><i data-i="alerta" data-t="14" data-c="#A8261B"></i>Obrigatório</div></div>
+        </div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Entrega FOB -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Entrega FOB, depois da tentativa<span class="tag depois">Depois</span><span>Forma e prazo já escolhidos: sobra uma falta, nesta aba. Fica só no campo; sem área Alertas.</span></div>
+    <div class="phone">
+      <div class="status"><span>09:07</span><span>4G ▮▮▮ 87%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (2)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="rotulo-secao"><span class="t">Frete</span></div>
+        <div class="seg"><div>CIF</div><div class="on">FOB</div></div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Transportadora</span></div>
+        <div class="marca" style="outline-offset:4px">
+          <div class="escolha falta-b"><span class="ph">Escolher</span><i data-i="seta" data-t="18" data-c="#16202A"></i></div>
+          <div class="falta-t"><i data-i="alerta" data-t="14" data-c="#A8261B"></i>Obrigatório</div>
+        </div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Endereço</span><span class="acao">Editar</span></div>
+        <div class="tabela" style="padding:10px 14px;font-size:14px;line-height:20px">Rua Ipixuna, 245<br>Praça 14 de Janeiro · Manaus/AM</div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 5 · Folha do item, acima do máximo -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Folha do item acima do máximo<span class="tag depois">Depois</span><span>"Máx. 10,0%" no campo, na hora. Sai a linha dos Alertas do item.</span></div>
+    <div class="phone">
+      <div class="status"><span>09:08</span><span>4G ▮▮▮ 87%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (2)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:14px;padding-bottom:22px">
+        <div class="pega"></div>
+        <div>
+          <div class="pop-cab"><div class="n">Água mineral 1,5 L <span class="mc">- Fonte Clara</span></div><div class="x"><i data-i="fechar" data-t="20" data-c="#16202A"></i></div></div>
+          <div class="pop-s mono-c">AGU-1500</div>
+        </div>
+        <div class="fi-linha">
+          <div class="meia"><div class="campo-t">EMBALAGEM</div><div class="seg uma"><div>UN</div><div class="on">FD c/ 6</div></div></div>
+          <div class="est"><div class="campo-t">ESTOQUE</div><div class="est-box">63</div></div>
+        </div>
+        <div class="duas" style="gap:12px">
+          <div><div class="campo-t">QUANTIDADE</div><div class="passo-g"><div>−</div><div class="n">3</div><div>+</div></div></div>
+          <div class="marca" style="outline-offset:4px"><div class="campo-t">DESC./ACRÉSC.</div><div class="ajuste-g falta-b"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">12,0</span></div><div class="falta-t"><i data-i="alerta" data-t="14" data-c="#A8261B"></i>Máx. 10,0%</div></div>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 59,76</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">12,0%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 7,17</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v" style="font-size:18px">R$ 52,59</span></div>
+        </div>
+        <div class="btn principal">Adicionar ao pedido</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · Regras -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Regras<span>Quando aparece e o que diz.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Antes de tentar:</b> campo vazio é estado normal ("Escolha", "Escolher", "Itens (0)"). Pedido recém-aberto: 0 alertas.</div>
+      <div class="nota-prancha"><b>Tentativa:</b> Salvar e enviar, Salvar como orçamento e Transformar ficam tocáveis. Com falta, o toque não salva, abre a 1ª aba com falta e rola até o 1º campo marcado. <b>Avançar</b> marca só a aba que o vendedor deixou. Nos Alertas, só as faltas das outras abas; no Resumo, todas. Apenas salvar continua salvando com falta.</div>
+      <div class="nota-prancha"><b>Marca:</b> borda <code>danger</code> 2 dp e, 4 dp abaixo, ícone 14 + texto 12,5/600 <code>danger</code>: "Obrigatório", "Saiu da lista", "Não aceita pelo cliente", "Acima do prazo médio", "CNPJ inválido", "Acima do preço", "Quantidade inválida". Valor digitado inválido aparece ao sair do campo.</div>
+      <div class="nota-prancha"><b>Some sozinho:</b> escolhido o campo, a borda, o texto e a linha do Alerta somem.</div>
+      <div class="nota-prancha"><b>Máximo do desconto:</b> na hora, no campo ("Máx. 10,0%"). O item entra e o pedido só sai como orçamento; nos Alertas do pedido fica "AGU-1500 acima do desconto máximo".</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

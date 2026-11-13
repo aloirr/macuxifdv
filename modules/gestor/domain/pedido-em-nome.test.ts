@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DisponibilidadeEmNome, type MembroEquipe } from '../contracts';
 import manifest from '../manifest';
-import { contextoPedidoEmNome, disponibilidadePedidoEmNome } from './pedido-em-nome';
+import { contextoPedidoEmNome, disponibilidadePedidoEmNome, limiteDoPedidoEmNome } from './pedido-em-nome';
 import { CLIENTE_A, u } from './fixtures';
 
 const GER = u(1), SUP = u(2), V1 = u(11), P1 = u(21), OUTRO = u(13), SUP2 = u(3);
@@ -57,5 +57,24 @@ describe('RN-VEN-35: contexto passado à extensão', () => {
     expect(contextoPedidoEmNome({ autor_id: V1, vendedor_id: V1, cliente_id: CLIENTE_A })).toMatchObject({ ok: false });
     const ruim = contextoPedidoEmNome({ autor_id: SUP, vendedor_id: 'abc', cliente_id: CLIENTE_A });
     expect(ruim.ok).toBe(false);
+  });
+});
+
+describe('RN-VEN-11a (T-0168): o limite de desconto do pedido em nome é o do gestor', () => {
+  const L = (limita_pedido: boolean, permil: number | null) => ({ desconto_limita_item: true, desconto_limita_pedido: limita_pedido, desconto_maximo_pedido_permil: permil });
+  const ctx = { autor_id: SUP, vendedor_id: V1 };
+
+  it('RN-VEN-11a caso 19: gestor com limite 8,0% e vendedor sem limite → vale o 8,0% do gestor', () => {
+    const limites = new Map([[SUP, L(true, 80)], [V1, L(false, null)]]);
+    expect(limiteDoPedidoEmNome(ctx, limites)).toEqual(L(true, 80));
+  });
+
+  it('RN-VEN-11a caso 20: gestor sem limite e vendedor com 3,0% → o limite do vendedor não vale', () => {
+    const limites = new Map([[SUP, L(false, null)], [V1, L(true, 30)]]);
+    expect(limiteDoPedidoEmNome(ctx, limites)).toEqual(L(false, null));
+  });
+
+  it('RN-VEN-11a: gestor sem linha no sync vale o padrão (por item ligada, por pedido desligada)', () => {
+    expect(limiteDoPedidoEmNome(ctx, new Map([[V1, L(true, 30)]]))).toEqual({ desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null });
   });
 });

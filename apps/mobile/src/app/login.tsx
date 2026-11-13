@@ -29,13 +29,15 @@ import type { FakeUser } from '@macuxi/core/contracts';
 import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFaixaSuperior } from '@/components/area-segura';
+import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
+import { ESPERA_BARRA_SERVIDOR_MS, ROTULO_SERVIDOR, servidorNaAbertura, TEMPO_SERVIDOR_ABERTURA_MS } from '@/lib/entrada';
 import { ETAPA_INICIAL, etapaDeVolta, propsDoLogin, type EtapaLogin } from '@/lib/etapa-login';
 import { guardarAvisoPosLogin } from '@/lib/aviso-pos-login';
 import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
@@ -69,6 +71,43 @@ function AcimaDoTeclado({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Antes do login, na tela de entrada (T-0172): confere o servidor (`/saude`). O logo fica enquanto confere; a barra
+ * "Conferindo o servidor" só aparece se passar de `ESPERA_BARRA_SERVIDOR_MS`, e o login abre no máximo em
+ * `TEMPO_SERVIDOR_ABERTURA_MS`. Servidor fora: o login já abre com o aviso de servidor indisponível.
+ */
+function useServidorNaAbertura(aoFalhar: (mensagem: string) => void): { conferindo: boolean; barra: boolean } {
+  const { apiUrl, testApiUrl, offline, perfilBuild } = usePlataforma();
+  // o que vale é o endereço e o build da abertura: o teste roda uma vez por montagem
+  const inicial = useRef({ conferir: !servidorNaAbertura.conferido && !offline, apiUrl, testApiUrl, perfilBuild, aoFalhar }).current;
+  const [conferindo, setConferindo] = useState(inicial.conferir);
+  const [barra, setBarra] = useState(false);
+  useEffect(() => {
+    if (!inicial.conferir) return;
+    servidorNaAbertura.conferido = true;
+    let vivo = true;
+    // timer-permitido: barra da entrada e limite do teste do servidor, uma vez por abertura (sem consulta repetida)
+    const mostrar = setTimeout(() => vivo && setBarra(true), ESPERA_BARRA_SERVIDOR_MS);
+    // timer-permitido: idem
+    const limite = setTimeout(() => vivo && setConferindo(false), TEMPO_SERVIDOR_ABERTURA_MS);
+    void inicial
+      .testApiUrl(inicial.apiUrl)
+      .then((r) => {
+        if (vivo && !r.ok) inicial.aoFalhar(mensagemServidorFalhou(inicial.perfilBuild) ?? r.message);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (vivo) setConferindo(false);
+      });
+    return () => {
+      vivo = false;
+      clearTimeout(mostrar);
+      clearTimeout(limite);
+    };
+  }, [inicial]);
+  return { conferindo, barra };
+}
+
 export default function LoginScreen() {
   const { modo } = usePlataforma();
   return modo === 'demo' ? <LoginDemo /> : <LoginReal />;
@@ -84,6 +123,7 @@ function LoginReal() {
   const teclado = useTecladoAberto();
   // volta com o código e o e-mail preenchidos (spec ciclo-de-senha §2 item 8 e §3 Confirmação item 4); a senha nunca volta
   const voltarAoLogin = useCallback((avisoDoLogin: string | null | undefined, codigo: string, email: string) => setEtapa(etapaDeVolta(avisoDoLogin, codigo, email)), []);
+  const servidor = useServidorNaAbertura(setServidorFora);
 
   // voltar do Android na troca ou no pedido: volta ao login (nunca para dentro do app, que não abriu)
   useEffect(() => {
@@ -123,6 +163,8 @@ function LoginReal() {
       throw e;
     }
   };
+
+  if (servidor.conferindo) return <TelaEntrada variante={variante} barra={servidor.barra ? { rotulo: ROTULO_SERVIDOR, pct: null } : null} />;
 
   if (etapa.tipo === 'trocar') {
     const atual = etapa;

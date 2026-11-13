@@ -1,6 +1,6 @@
 /**
  * RN-CORE-36 / RN-VEN-16 / RN-VEN-24: pendências de preenchimento do Novo pedido, cada uma com a aba onde se corrige.
- * Função pura; a tela só mostra o bloco "Falta para salvar" no Resumo e a bolinha na aba (padrão em `@macuxi/ui`).
+ * Função pura. RD-0170/RD-0179: a falta só vira linha em Alertas depois da tentativa de avançar ou enviar (`pendenciasDasAbasTentadas`); antes, o próprio campo mostra.
  * O formato de cada pendência é o `PendenciaPreenchimento` do `@macuxi/ui` (id estável, texto sem verbo e sem ponto final, aba).
  * RD-0037: o texto e a aba vêm do CÓDIGO do erro (`PENDENCIA_POR_CODIGO`), nunca da comparação com a mensagem.
  */
@@ -36,7 +36,6 @@ export interface EntradaPendencias {
   erros_calculo: readonly ErroDeCalculo[];
 }
 
-const NOMES_DA_ABA: Record<AbaDoPedido, string> = { venda: 'Venda', itens: 'Itens', entrega: 'Entrega', resumo: 'Resumo' };
 
 type Alvo = ErroDeCalculo['alvo'];
 const nomeDoAlvo = (a: Alvo): string => (a === 'pedido' ? 'pedido' : a.item);
@@ -85,9 +84,4 @@ export function pendenciasDePreenchimento(e: EntradaPendencias): PendenciaDoPedi
   if (e.frete !== 'ok') r.push({ id: 'frete', texto: e.frete === 'cnpj' ? 'CNPJ da transportadora' : 'Transportadora do frete FOB', aba: 'entrega' });
   const ordem: AbaDoPedido[] = ['venda', 'itens', 'entrega', 'resumo'];
   return r.map((p, i) => ({ p, i })).sort((a, b) => ordem.indexOf(a.p.aba) - ordem.indexOf(b.p.aba) || a.i - b.i).map((x) => x.p);
-}
-
-/** Linha do bloco: "Transportadora do frete FOB — aba Entrega". */
-export function linhaDaPendenciaDoPedido(p: PendenciaDoPedido): string {
-  return `${p.texto} — aba ${NOMES_DA_ABA[p.aba]}`;
 }

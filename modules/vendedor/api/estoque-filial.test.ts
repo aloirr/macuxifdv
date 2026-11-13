@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ClienteBanco } from '@macuxi/platform-sdk';
-import { faltaDeEstoqueNaFilial, reservadoNaFilial } from './estoque-filial';
+import { ConsultaIndisponivel, type ClienteBanco } from '@macuxi/platform-sdk';
+import { definirProvedorSaldoDaFilial, faltaDeEstoqueNaFilial, provedorDaTransacao, provedorSaldoDaFilial, reservadoNaFilial } from './estoque-filial';
 
 const F = 'aaaaaaaa-0000-4000-8000-000000000002';
 const P1 = 'bbbbbbbb-0000-4000-8000-000000000001';
@@ -39,5 +39,37 @@ describe('RN-VEN-20: a API confere o estoque da filial do pedido', () => {
     expect(await faltaDeEstoqueNaFilial(db, null, itens, F, 'x')).toEqual([]);
     expect(await faltaDeEstoqueNaFilial(db, async () => null, itens, F, 'x')).toEqual([]);
     expect(chamadas).toHaveLength(0);
+  });
+});
+
+describe('RN-VEN-20: provedor real lê catalogo.estoque_filial@1 na transação', () => {
+  const tx = (itens: Array<{ produto_id: string; quantidade_base: number }> | 'indisponivel') => {
+    const entradas: unknown[] = [];
+    return {
+      entradas,
+      consultar: (async (def: { nome: string }, entrada: unknown) => {
+        entradas.push([def.nome, entrada]);
+        if (itens === 'indisponivel') throw new ConsultaIndisponivel('catalogo.estoque_filial@1', 'catalogo');
+        return { itens };
+      }) as never,
+    };
+  };
+  it('RN-VEN-20: manda produtos e filial ao Catálogo e devolve o saldo por produto; pedido acima do saldo da filial é recusado', async () => {
+    const t = tx([{ produto_id: P1, quantidade_base: 5 }]);
+    const saldoFilial = await provedorDaTransacao(t)([P1], F);
+    expect(t.entradas).toEqual([['catalogo.estoque_filial@1', { produto_ids: [P1], filial_id: F }]]);
+    const { db } = bancoComReserva(null);
+    expect(await faltaDeEstoqueNaFilial(db, async () => saldoFilial, [{ produto_id: P1, quantidade_base: 6 }], F, 'x')).toEqual([{ produto_id: P1, pedido_base: 6, disponivel_base: 5 }]);
+  });
+  it('RN-VEN-20: Catálogo indisponível = sem saldo (comportamento anterior); outro erro sobe', async () => {
+    expect(await provedorDaTransacao(tx('indisponivel'))([P1], F)).toBeNull();
+    await expect(provedorDaTransacao({ consultar: (async () => { throw new Error('falha'); }) as never })([P1], F)).rejects.toThrow('falha');
+  });
+  it('RN-VEN-20: definirProvedorSaldoDaFilial troca o provedor (provedor falso nos testes); null volta ao real', async () => {
+    const falso = async () => new Map([[P1, 1]]);
+    definirProvedorSaldoDaFilial(falso);
+    expect(provedorSaldoDaFilial(tx([]))).toBe(falso);
+    definirProvedorSaldoDaFilial(null);
+    expect(provedorSaldoDaFilial(tx([]))).not.toBe(falso);
   });
 });

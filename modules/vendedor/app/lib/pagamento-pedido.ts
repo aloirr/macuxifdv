@@ -3,6 +3,7 @@
  * as opções das duas listas suspensas (o Prazo mostra só o prazo, nunca "médio 42"), o padrão do cliente, a troca de forma
  * e as pendências do envio. Tudo sai das linhas do aparelho (vale offline); a API revalida.
  */
+import { TEXTO_SEM_FORMA } from '../../domain/alertas-pedido';
 import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
 import type { Rascunho } from './pedidos';
@@ -21,7 +22,8 @@ export interface LimitesDoCliente {
 
 export const MOTIVO_ACIMA_DO_PRAZO_MEDIO = 'Acima do prazo médio do cliente';
 export const TEXTO_ESCOLHA_A_FORMA = 'Escolha a forma';
-export const TEXTO_SEM_FORMAS = 'Cadastre as formas de pagamento no BKO';
+/** RD-0173: a falta é do cadastro (o vendedor não resolve): um alerta só, com este texto, e o campo Forma desligado com "—". */
+export const TEXTO_SEM_FORMAS = TEXTO_SEM_FORMA;
 
 /** Todas as formas ativas, por ordem; a que o cadastro do cliente não aceita fica desabilitada, com o motivo (RN-VEN-25; T-0129). */
 export function opcoesDeForma(formas: readonly FormaDePagamento[], cliente: LimitesDoCliente): OpcaoDaLista[] {
@@ -96,9 +98,4 @@ export function situacaoDoPagamento(r: Rascunho, formas: readonly FormaDePagamen
   if (!r.prazo_pagamento_id) return { tipo: 'prazo' };
   const v = validarPagamento({ forma: formas.find((f) => f.id === r.forma_pagamento_id), prazo: prazos.find((p) => p.id === r.prazo_pagamento_id), cliente });
   return v.ok ? { tipo: 'ok' } : { tipo: 'invalido', codigo: v.motivo, mensagem: v.mensagem };
-}
-
-/** "Total do pedido": a aba Itens já traz a contagem (RN-VEN-42, RD-0068). */
-export function rotuloTotalDoPedido(): string {
-  return 'Total do pedido';
 }

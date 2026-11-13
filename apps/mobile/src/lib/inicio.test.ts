@@ -162,7 +162,7 @@ describe('Meta do mês (RD-0002, RD-0004)', () => {
   });
   it('dia útil (terça 10/11): a mesma linha do mês e, no fim, "Meta de hoje R$ 9.969" (meta do dia da RN-CORE-26, vinda do Core)', () => {
     const d = desenhoMetaDoMes(campo({ meta_dia: 996_928, atingimento_hoje_pct: 0 }), pr({ mes_pct: 31 }));
-    expect(d).toMatchObject({ valor: 'R$ 553', de: 'de R$ 180.000', mes: '0,3%', corBarra: colors.accent, apoio: 'Meta de hoje R$ 9.969', verde: false, apoioVerde: false });
+    expect(d).toMatchObject({ valor: 'R$ 553', de: 'de R$ 180.000', mes: '0,3%', corBarra: colors.grafico, apoio: 'Meta de hoje R$ 9.969', verde: false, apoioVerde: false });
     // o realizado de HOJE entra no mês e sai do Início (decisão do gerente): R$ 553 + R$ 1.240
     expect(desenhoMetaDoMes(campo({ realizado_hoje: 124_000, meta_dia: 996_928 }), pr({ mes_pct: 100 })).valor).toBe('R$ 1.793');
   });

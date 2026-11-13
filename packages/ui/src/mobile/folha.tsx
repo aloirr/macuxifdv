@@ -242,7 +242,7 @@ export function OpcaoFolha({
   subtitulo?: string;
   /** Mostra o subtítulo na cor de erro (motivo do desligado, ex.: "Informe a transportadora do frete FOB."). */
   subtituloErro?: boolean;
-  /** Cor do quadradinho do ícone: laranja (`destaque`), cinza (`neutro`) ou vermelho (`perigo`). */
+  /** Cor do quadradinho do ícone: Azul noite no Azul suave (`destaque`), cinza (`neutro`) ou vermelho (`perigo`). */
   tom?: TomOpcaoFolha;
   onPress: () => void;
   desligado?: boolean;

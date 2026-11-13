@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -71,6 +71,13 @@ export const usuario = core.table('usuario', {
   erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
   /** Gravada pela API do BKO ao desativar, limpa ao reativar; preenchida, a carga do ERP não reativa (o monitor avisa). */
   desligado_no_bko_em: timestamp('desligado_no_bko_em', { withTimezone: true, precision: 3 }),
+  // --- 0063 (T-0168, RN-VEN-11a): limite de desconto do usuário. Gravado só pelo BKO (ERP e CSV não tocam). ---
+  /** "Limitar desconto por item" (RN-VEN-11 ligada). Padrão true (usuário antigo e novo). */
+  desconto_limita_item: boolean('desconto_limita_item').notNull().default(true),
+  /** "Limitar desconto por pedido". Ligada exige desconto_maximo_pedido_permil (CHECK usuario_desconto_pedido_com_limite). */
+  desconto_limita_pedido: boolean('desconto_limita_pedido').notNull().default(false),
+  /** Desconto máximo do pedido em décimos de % (‰): 8,0% = 80; 0..1000. Desligar "por pedido" mantém o número. */
+  desconto_maximo_pedido_permil: integer('desconto_maximo_pedido_permil'),
 });
 
 /**
@@ -183,6 +190,10 @@ export const filial = core.table('filial', {
   telefone: text('telefone'),
   padrao: boolean('padrao').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
+  /** 0062 (T-0095): gravada pela API do BKO ao desativar, limpa ao reativar; preenchida, a carga do ERP não reativa (gatilho <tabela>_desligado_no_bko). Fora do pull. */
+  desligado_no_bko_em: timestamp('desligado_no_bko_em', { withTimezone: true, precision: 3 }),
 });
 
 /** Origem da foto do PDV (0057, T-0147): câmera do app ou galeria (a galeria vale só para as fotos do PDV). */
@@ -230,6 +241,8 @@ export const produtoUnidade = core.table('produto_unidade', {
   ean: text('ean'),
   padrao: boolean('padrao').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 export const TIPOS_ENDERECO_CLIENTE = ['principal', 'entrega', 'cobranca'] as const;
@@ -254,6 +267,8 @@ export const clienteEndereco = core.table('cliente_endereco', {
   longitude: numeric('longitude', { precision: 9, scale: 6 }),
   principal: boolean('principal').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 /** Vínculo cliente x usuário (papel vendedor | promotor) — base do escopo de carteira. */
@@ -363,6 +378,8 @@ export const titulo = core.table('titulo', {
   saldo_cents: bigint('saldo_cents', { mode: 'number' }).notNull(),
   situacao: text('situacao', { enum: SITUACOES_TITULO }).notNull().default('aberto'),
   liquidado_em: timestamp('liquidado_em', { withTimezone: true }),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 /** Consolidado mensal de compras (AAAA-MM), um vivo por cliente e mês. */
@@ -401,6 +418,8 @@ export const notaErp = core.table('nota_erp', {
   cancelada: boolean('cancelada').notNull().default(false),
   vendedor_external_id: text('vendedor_external_id'),
   usuario_id: uuid('usuario_id'),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 export const TIPOS_MOTIVO = ['nao_venda', 'cliente_fechado', 'fora_do_raio'] as const;
@@ -429,6 +448,8 @@ export const rota = core.table('rota', {
   origem: text('origem', { enum: ['bko', 'frequencia', 'erp'] }).notNull().default('bko'),
   regiao: text('regiao'),
   observacao: text('observacao'),
+  /** 0062 (T-0095): último `alterado_em` do ERP aplicado (timestamptz(3)); nulo = nunca veio do ERP. Mais antigo não grava (gatilho <tabela>_versao_erp). Fora do pull. */
+  erp_alterado_em: timestamp('erp_alterado_em', { withTimezone: true, precision: 3 }),
 });
 
 /**

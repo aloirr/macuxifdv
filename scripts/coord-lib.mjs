@@ -33,14 +33,6 @@ export const AGENTES = [
 /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
 export const PESSOAS = [...AGENTES, 'alexandre'];
 export const DESTINOS = [...AGENTES, 'alexandre', 'todos'];
-/**
- * Remetentes de sistema (T-0158, ADR 0043; aprovado pelo dono do produto no R-20261110-112315): quem grava é o SERVIDOR
- * (worker da API, token fine-grained só dele), direto no repositório de recados. Não são agentes nem pessoas: ficam
- * fora de AGENTES, PESSOAS e DESTINOS (ninguém manda recado PARA eles, ninguém envia como eles pelo coord e o recado
- * deles nunca autoriza merge nem governança). Só o nome do arquivo os reconhece (caixa e fio mostram "de diagnostico").
- */
-export const REMETENTES_DE_SISTEMA = ['diagnostico'];
-export const ehRemetenteDeSistema = (nome) => REMETENTES_DE_SISTEMA.includes(String(nome || '').trim().toLowerCase());
 export const TIPOS = ['pedido', 'pergunta', 'resposta', 'aviso', 'bloqueio', 'entrega', 'revisao'];
 export const TIPOS_QUE_EXIGEM_ENCERRAMENTO = ['pedido', 'pergunta', 'bloqueio', 'revisao'];
 
@@ -271,14 +263,10 @@ export function remetenteDoConteudo(conteudo) {
   return de ? de[1].trim().toLowerCase() : null;
 }
 
-/**
- * Remetente pelo nome do arquivo do recado (R-AAAAMMDD-HHMMSS[-n]-<remetente>.md); null se não houver.
- * Reconhece também os remetentes de sistema (`-diagnostico`), que não são de nenhum agente: no `verificar`, um recado
- * desses no disco é de "diagnostico" (nunca do agente que o gravou) e vira violação.
- */
+/** Remetente pelo nome do arquivo do recado (R-AAAAMMDD-HHMMSS[-n]-<remetente>.md); null se não houver. */
 export function remetenteDoRecado(arquivo) {
   const nome = String(arquivo).replace(/\.md$/i, '').toLowerCase();
-  return [...PESSOAS, ...REMETENTES_DE_SISTEMA].sort((a, b) => b.length - a.length).find((p) => nome.endsWith(`-${p}`)) || null;
+  return [...PESSOAS].sort((a, b) => b.length - a.length).find((p) => nome.endsWith(`-${p}`)) || null;
 }
 
 /**
@@ -308,7 +296,6 @@ function violacaoUniversal(status, info) {
     if (status !== 'A') return `recados são imutáveis (${status === 'D' ? 'apagado' : 'alterado'}): responda com um recado novo`;
     if (!DESTINOS.includes(info.destino)) return `destino de recado inválido: ${info.destino}`;
     if (info.dono === 'sem-remetente') return 'o nome do recado precisa conter o remetente (R-...-<remetente>.md). Use node scripts/coord.mjs enviar';
-    if (ehRemetenteDeSistema(info.dono)) return `recado de remetente de sistema (${info.dono}): só o servidor grava, direto no repositório de recados (T-0158)`;
     return null;
   }
   if (info.tipo === 'recado-fora') return MOTIVO_RECADO_FORA;
@@ -776,26 +763,10 @@ export function tokenDoAmbiente({ env = process.env, gh = ghAuthToken } = {}) {
   const t = String(gh() || '').trim();
   return t ? { token: t, origem: 'gh auth token' } : null;
 }
-const executarGhAuthToken = () =>
-  execFileSync('gh', ['auth', 'token', '--hostname', 'github.com'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, windowsHide: true });
-/** Espera síncrona sem gastar CPU (o coord é síncrono do começo ao fim). */
-const esperarSincrono = (ms) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
-/**
- * `gh auth token` com até 3 tentativas (espera de 1 s e depois 2 s): com vários agentes em paralelo, o chaveiro do
- * Windows às vezes nega a 1ª leitura (R-20261110-070316, aprovado no R-20261110-085951). Sem o gh instalado (ENOENT)
- * não insiste. Devolve '' se nenhuma tentativa der certo. O token nunca é impresso nem gravado.
- */
-export function ghAuthToken({ executar = executarGhAuthToken, esperar = esperarSincrono, esperas = [1000, 2000] } = {}) {
-  for (let i = 0; ; i++) {
-    try {
-      const t = String(executar() || '').trim();
-      if (t) return t;
-    } catch (e) {
-      if (e && e.code === 'ENOENT') return '';
-    }
-    if (i >= esperas.length) return '';
-    esperar(esperas[i]);
-  }
+function ghAuthToken() {
+  try {
+    return execFileSync('gh', ['auth', 'token', '--hostname', 'github.com'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, windowsHide: true });
+  } catch { return ''; }
 }
 
 // HTTP síncrono (fetch em paralelo, fora da thread principal). O núcleo recebe {token, reqs} e devolve

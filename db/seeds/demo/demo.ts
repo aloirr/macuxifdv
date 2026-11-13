@@ -25,7 +25,7 @@
  *   endereço principal de todos e um de entrega em 5; 2 transportadoras; pedidos FOB (com transportadora) em 4 clientes e CIF no resto;
  *   33 produtos (+ linha automotiva e detergente 5 L para a busca em linguagem natural: "óleo para moto 150
  *   cilindradas") com custo/preço de venda (margem 20–40%), 3 com desconto máximo próprio (padrão 15%), UN e CX com
- *   fator (preço próprio da CX preparado, desligado até a consulta de preço filtrar a unidade), árvore de 3 níveis, conteúdo, atributos, sinônimos, documento de busca
+ *   fator (água 1,5 L: UN e FD c/ 6, T-0165; preço próprio da CX preparado, desligado até a consulta de preço filtrar a unidade), árvore de 3 níveis, conteúdo, atributos, sinônimos, documento de busca
  *   do servidor e estoque em 2 depósitos (com rupturas e saldos baixos). Pedidos com CNPJ no retrato, frete e entrega.
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
  * - Metas do mês corrente (Lucas, Camila e Joana), todas do tipo 'pedido' (0019, RN-CORE-21: a demo só tem 3 pedidos faturados
@@ -212,7 +212,9 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   // lista: margem e saldo usam o índice do produto, os anteriores não mudam
   ['FIL-103', 'Filtro de papel 103 c/ 30', 'Aroma da Serra', 'Mercearia', 'UN', 549],
   ['LPO-400', 'Leite em pó integral 400 g', 'Leite Bom', 'Laticínios', 'UN', 1_690],
-  ['AGU-1500', 'Água mineral 1,5 L (fardo 6)', 'Fonte Clara', 'Bebidas', 'FD', 1_990],
+  // T-0165 (v1.0.5): vendida na UN (R$ 3,32) e no FD c/ 6 (UN × 6 = R$ 19,92, RN-VEN-15), para a escolha da embalagem na folha
+  // do item; era só FD (R$ 19,90). A linha do FD guarda o id de antes (produto_unidade:AGU-1500:FD), com fator 6 e não padrão
+  ['AGU-1500', 'Água mineral 1,5 L', 'Fonte Clara', 'Bebidas', 'UN', 332],
   // T-0084/T-0085 (0033): autopeças do Catálogo do cadastro (aplicação, oferece junto, referência cruzada). No FIM da lista
   ['PST-D01', 'Pastilha de freio dianteira', 'Norfreio', 'Automotivo', 'UN', 8_990],
   ['DSC-D01', 'Disco de freio dianteiro ventilado', 'Norfreio', 'Automotivo', 'UN', 15_990],
@@ -236,11 +238,13 @@ const margemDemo = (i: number) => 20 + ((i * 7) % 21);
  * novo as ignoram). Linhas antigas numa base já carregada não são apagadas pelo seed; o plano B demo-recriar-base recria sem elas.
  */
 export const PRECO_PROPRIO_CX_LIGADO = false;
-/** Caixas de embarque (RN-VEN-15): [sku, fator]. O preço da CX é o da UN × fator. */
-const CAIXAS: Array<[string, number]> = [
+/** Caixas de embarque (RN-VEN-15): [sku, fator, medida (padrão CX)]. O preço da embalagem é o da UN × fator. */
+const CAIXAS: Array<[string, number, string?]> = [
   // T-0071: café CX c/ 12 (18,90 × 12 = R$ 226,80) e biscoito cream cracker CX c/ 20 (R$ 117,80)
   ['CAF-500', 12], ['BIS-400', 20], ['ARR-5K', 6], ['FEI-1K', 10], ['OLE-900', 20], ['LEI-1L', 12], ['DET-500', 24],
   ['BIS-140', 24], ['OLE-4T-1L', 12], ['DET-5L', 4],
+  // T-0165: água 1,5 L em FD c/ 6 (UN R$ 3,32 × 6 = R$ 19,92)
+  ['AGU-1500', 6, 'FD'],
 ];
 
 /**
@@ -1093,7 +1097,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   ];
 
   // ---- 0013: unidades, endereços, árvore, conteúdo, busca do servidor, estoque e frete
-  const caixa = new Map(CAIXAS.map(([sku, fator]) => [sku, fator]));
+  const caixa = new Map(CAIXAS.map(([sku, fator, medida = 'CX']) => [sku, { fator, medida }]));
   const idNo = (codigo: string) => id(`catalogo_no:${codigo}`);
   const nivelDe = (codigo: string): number => {
     const pai = ARVORE.find(([cod]) => cod === codigo)?.[2] ?? null;
@@ -1108,7 +1112,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     'core.produto_unidade': PRODUTOS.flatMap(([sku, , , , unidade]) => [
       { id: id(`produto_unidade:${sku}:${unidade}`), tenant_id: T, produto_id: id(`produto:${sku}`), unidade, fator: 1, ean: null, padrao: true, ativo: true, ...comuns },
       ...(caixa.has(sku)
-        ? [{ id: id(`produto_unidade:${sku}:CX`), tenant_id: T, produto_id: id(`produto:${sku}`), unidade: 'CX', fator: caixa.get(sku)!, ean: null, padrao: false, ativo: true, ...comuns }]
+        ? [{ id: id(`produto_unidade:${sku}:${caixa.get(sku)!.medida}`), tenant_id: T, produto_id: id(`produto:${sku}`), unidade: caixa.get(sku)!.medida, fator: caixa.get(sku)!.fator, ean: null, padrao: false, ativo: true, ...comuns }]
         : []),
     ]),
     'core.cliente_endereco': CLIENTES.flatMap(([, , bairro, rua], n) => {

@@ -17,7 +17,7 @@ import {
 import type { EnderecoDaTela } from './novo-pedido';
 
 export const TEXTOS_ENDERECO = {
-  rotuloSecao: 'Endereço de entrega',
+  rotuloSecao: 'Endereço',
   doCadastro: 'Endereço do cadastro do cliente',
   alterar: 'Alterar',
   editar: 'Editar',
@@ -28,7 +28,6 @@ export const TEXTOS_ENDERECO = {
   editarNestePedido: 'Editar endereço deste pedido',
   voltar: 'Voltar',
   tituloFormulario: 'Endereço deste pedido',
-  aviso: 'Só neste pedido. O cadastro do cliente não muda.',
   usar: 'Usar neste pedido',
   obrigatorio: 'Obrigatório',
   cepIncompleto: 'CEP com 8 números',

@@ -139,10 +139,11 @@ export function Button({ variant = 'secondary', className, size = 'md', ...rest 
   const base = 'inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
   const sizes = size === 'sm' ? 'h-[38px] rounded-[10px] px-3 text-[13px]' : 'h-[42px] rounded-xl px-4 text-[14px]';
   const variants: Record<Variant, string> = {
-    primary: 'bg-ink text-white hover:bg-[#0b1218] disabled:bg-disabled',
+    // T-0172 (marca v1): o principal é Azul noite (accent), texto branco 12,77:1
+    primary: 'bg-accent text-white hover:bg-accent/90 disabled:bg-disabled',
     secondary: 'border border-field bg-surface text-ink hover:bg-ground disabled:text-disabled',
     danger: 'bg-danger text-white hover:bg-[#8d1f16] disabled:bg-disabled',
-    // T-0094: texto laranja sobre claro é accent-ink (6,70:1 no fundo); o accent dá 4,17:1. Hover: sublinhado.
+    // Link em accent-ink (Azul noite, 11,82:1 no Pérola). Hover: sublinhado.
     link: 'h-auto px-0 text-accent-ink underline-offset-2 hover:underline disabled:text-disabled disabled:no-underline',
   };
   return <button type="button" className={cx(base, variant === 'link' ? 'text-[13px]' : sizes, variants[variant], className)} {...rest} />;

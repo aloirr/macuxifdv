@@ -7,7 +7,8 @@ import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import type { PagamentoEvento } from './pagamento';
 import type { PedidoAprovadoEvento } from '../contracts/eventos';
 import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
-import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, mensagemAcimaDoMaximo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
+import { CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, limiteDoUsuario, mensagemPedidoAcimaDoLimite, minimoDoItem, pedidoAcimaDoLimite, type LimiteDesconto } from './limite-desconto';
+import { permilDoDescontoExibido, precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, mensagemAcimaDoMaximo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
 /** Níveis de alçada (RN-VEN-10); iguais aos `NivelAprovacao` do Gestor. */
@@ -206,6 +207,10 @@ export interface ItemRevalidar {
 export interface RevalidarEntrada {
   perfil: string;
   vendedor_id: string;
+  /** T-0168: pedido ou orçamento (ausente = pedido). Orçamento não tem trava de mínimo nem de limite (RN-VEN-11/11a). */
+  tipo?: 'pedido' | 'orcamento';
+  /** T-0168 (RN-VEN-11a): funções e limite de desconto do AUTOR; ausente = padrão */
+  limite?: Partial<LimiteDesconto> | null;
   /** RN-VEN-35: supervisor/gerente digitando pelo vendedor (a API já conferiu equipe/área); libera o perfil do autor */
   em_nome?: boolean;
   cliente_id: string;
@@ -331,6 +336,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (semPreco.length > 0) {
     return { ok: false, codigo: 'RN-CAT-06', http: 422, mensagem: `Sem preço para este cliente: ${semPreco.map((i) => i.sku).join(', ')}.` };
   }
+  const limite = limiteDoUsuario(e.limite);
   const paraPreco = itens.map((i) => {
     const emValor = (i.desconto_unitario_cents ?? 0) > 0 || (i.acrescimo_unitario_cents ?? 0) > 0;
     const ajuste: AjusteItem | undefined = emValor
@@ -351,7 +357,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
       desconto_pct: pct2(i.desconto_pct ?? 0),
       acrescimo_pct: pct2(i.acrescimo_pct ?? 0),
       ...(ajuste ? { ajuste } : {}),
-      preco_minimo_base_cents: i.preco_minimo_base_cents ?? null,
+      preco_minimo_base_cents: e.tipo === 'orcamento' ? null : minimoDoItem(i.preco_minimo_base_cents ?? null, limite),
     };
   });
   // R$ do desconto acima do preço de tabela da medida: ajuste_invalido (antes de calcular)
@@ -374,6 +380,10 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     precosItens.map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantity, total_cents: p.total_cents, desconto_pct: paraPreco[idx]!.desconto_pct, acrescimo_pct: paraPreco[idx]!.acrescimo_pct, ...(paraPreco[idx]!.ajuste ? { ajuste: paraPreco[idx]!.ajuste } : {}) })),
     emValorPedido ? ajustePedido : { desconto_pct: pct2(e.desconto_pct), acrescimo_pct: pct2(acrescimoPedido) },
   );
+  // RN-VEN-11a (T-0168): acima do limite do pedido não há alçada; só orçamento. Antes do validateOrder
+  if (e.tipo !== 'orcamento' && pedidoAcimaDoLimite(permilDoDescontoExibido(totais), limite)) {
+    return { ok: false, codigo: CODIGO_DESCONTO_PEDIDO_ACIMA_LIMITE, http: 422, mensagem: mensagemPedidoAcimaDoLimite(limite.desconto_maximo_pedido_permil!) };
+  }
   // RN-VEN-10: só o desconto efetivo (valor nominal exato, sem folga: `descontoEfetivoAlcadaPct`)
   const validacao = validateOrder({
     seller_id: e.vendedor_id,

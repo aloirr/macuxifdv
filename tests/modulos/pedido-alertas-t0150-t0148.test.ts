@@ -15,13 +15,15 @@ import { join } from 'node:path';
 import { tagsDoHistorico } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, type AlertaDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
+import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, textoDoMaximo, vencidosComEfeito, type AlertaDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
+import { TITULO_VENCIDO_DIAS_PADRAO, tituloVencidoDias } from '../../modules/vendedor/domain/pagamento';
 import { botoesDoResumo, ROTULOS_DO_SALVAR, type BotoesDoResumo, type EntradaDosBotoes } from '../../modules/vendedor/domain/botoes-resumo';
 import { eventosDoPedido } from '../../modules/vendedor/domain/historico-pedido';
 import { opcoesDaSaida } from '../../modules/vendedor/domain/sair-do-pedido';
 import { entradaDasPendencias, itensSemEstoque, textoDaFalta } from '../../modules/vendedor/app/lib/alertas-novo-pedido';
 import { acoesDoDetalhe, alertasDoDetalhe, type EntradaAcoesDoDetalhe } from '../../modules/vendedor/app/lib/detalhe-pedido';
-import { aplicarItemNoRascunho, alertasDoItemNoPopup, estadoInicialDoItem, painelNoPedido } from '../../modules/vendedor/app/lib/item-popup';
+import * as itemPopup from '../../modules/vendedor/app/lib/item-popup';
+import { aplicarItemNoRascunho, alertasDoItemNoPopup, estadoInicialDoItem } from '../../modules/vendedor/app/lib/item-popup';
 import { chaveDaLinha, type UnidadeDaTela } from '../../modules/vendedor/app/lib/novo-pedido';
 import { prepararPedido, rascunhoVazio } from '../../modules/vendedor/app/lib/pedidos';
 import { politicaApi } from '../../modules/vendedor/app/lib/pull';
@@ -257,7 +259,8 @@ describe('T-0148 — aba Itens com popup: 30 itens, recálculo só ao confirmar'
     expect(sem.ajustes).toEqual(ajustes);
   });
 
-  it('reabrir o item no pedido traz a embalagem, a quantidade e o ajuste que já estão lá ("Salvar item"/"Remover")', () => {
+  it('reabrir o item no pedido traz a embalagem, a quantidade e o ajuste que já estão lá ("Salvar alteração"/"Remover item", R-20261112-155448)', () => {
+    expect(itemPopup.ROTULOS_DO_POPUP).toEqual({ adicionar: 'Adicionar ao pedido', salvar: 'Salvar alteração', remover: 'Remover item' });
     const r = aplicarItemNoRascunho(lines, ajustes, 'p05', medidasP05, { idx: 1, qtd: 2, ajuste: { desconto_pct: 4 } });
     expect(estadoInicialDoItem('p05', medidasP05, r.lines, r.ajustes)).toEqual({ idx: 1, qtd: 2, ajuste: { desconto_pct: 4 }, reabrindo: true });
     expect(estadoInicialDoItem('p99', [{ produto_id: 'p99', unidade: 'UN', fator: 1, padrao: true }], r.lines, r.ajustes)).toEqual({ idx: 0, qtd: 1, ajuste: {}, reabrindo: false });
@@ -272,7 +275,10 @@ describe('T-0148 — aba Itens com popup: 30 itens, recálculo só ao confirmar'
     // o cálculo do pedido inteiro depende só do rascunho (useMemo), que o popup não toca até confirmar
     expect(tela).toMatch(/const calculoAtual = useMemo\(\s*\(\) =>\s*politica\s*\? calcularPedido\(\{ lines: draft\.lines/);
     const popup = tela.slice(tela.indexOf('<FolhaDoItem'), tela.indexOf('/>', tela.indexOf('onFechar={() => setPopupId(null)}')));
-    expect(popup.match(/setLinhas\(/g)).toHaveLength(2); // onConfirmar e onRemover
+    // onConfirmar, onRemover e o Desfazer do "Item removido" (R-20261112-155448), que devolve a cópia de antes da remoção
+    expect(popup.match(/setLinhas\(/g)).toHaveLength(3);
+    expect(popup).toMatch(/onRemover=\{\(\) => \{\s*const antes = \{ lines: draft\.lines, ajustes: draft\.ajustes \?\? \{\} \};/);
+    expect(popup).toContain('onPress: () => setLinhas(antes.lines, antes.ajustes)');
   });
 
   it('30 itens: o recálculo do pedido inteiro (feito uma vez por confirmação) cabe com folga num toque', () => {
@@ -296,12 +302,10 @@ describe('T-0148 — aba Itens com popup: 30 itens, recálculo só ao confirmar'
     expect(itensSemEstoque([linha('p1', 12), linha('p2', 24)], prod)).toEqual([{ item: 'p2', codigo: 'CAF-500' }]);
   });
 
-  it('"No pedido": até 3 itens mostra as linhas; com 4 ou mais recolhe em "Ver itens" sem número (premissa aprovada)', () => {
-    expect(painelNoPedido(3, false)).toEqual({ mostraLinhas: true, link: null });
-    const fechado = painelNoPedido(N, false);
-    expect(fechado.mostraLinhas).toBe(false);
-    expect(fechado.link?.rotulo).toBe('Ver itens');
-    expect(painelNoPedido(N, true).link?.rotulo).toBe('Recolher');
+  // T-0165 (pedido-v4 §5.3 e §5.8): sai o painel "No pedido" (com "Ver itens" e "Recolher"); os itens do pedido ficam na lista com o lápis.
+  it('T-0165: o painel "No pedido" saiu da aba Itens (painelNoPedido não existe mais)', () => {
+    expect((itemPopup as Record<string, unknown>)['painelNoPedido']).toBeUndefined();
+    expect(N).toBeGreaterThan(3);
   });
 
   it('D-T0148-4 corrigido (R-20261110-142835 item 1): quantidade acima de um estoque positivo diz "acima do estoque", não "Sem estoque" (rótulo × valor)', () => {
@@ -317,8 +321,11 @@ describe('T-0148 — aba Itens com popup: 30 itens, recálculo só ao confirmar'
     const area = (quantidade: number) => alertasDoPedido({ cliente: LIBERADO, itens_sem_estoque: [{ item: 'p-bis', codigo: 'BIS-400', estoque: { quantidade, unidade: 'UN' } }] }).map((x) => x.texto);
     expect(area(5)).toEqual(['BIS-400 acima do estoque (5 UN)']);
     expect(area(0)).toEqual(['BIS-400 sem estoque']);
-    // a tela do popup desenha com o texto sem código (folha-do-item.tsx)
-    expect(ler('modules/vendedor/app/components/folha-do-item.tsx')).toMatch(/AreaAlertas alertas=\{alertas\} texto=\{textoDoAlertaNoItem\}/);
+    // a tela do popup desenha com o texto sem código (folha-do-item.tsx); o máximo não repete na área do item (RD-0177): fica "Máx. 10,0%" embaixo do campo
+    const folha = ler('modules/vendedor/app/components/folha-do-item.tsx');
+    expect(folha).toContain("<AreaAlertas alertas={alertas.filter((a) => a.tipo !== 'maximo')} texto={textoDoAlertaNoItem}");
+    expect(folha).toContain('{textoDoMaximo(maximoPct)}');
+    expect(textoDoMaximo(10)).toBe('Máx. 10,0%');
   });
 });
 
@@ -347,5 +354,76 @@ describe('T-0150 — pedido recusado na fila: a nota "Aguardando envio" (R-20261
     const [tag] = tagsDoHistorico(ev, { tipo: 'pedido', tz: 'America/Manaus', agora: '2026-11-10T16:00:00.000Z' });
     expect(tag!.motivo).toBeNull();
     expect(`${tag!.texto} ${tag!.leitura}`).not.toContain('Aguardando envio');
+  });
+});
+
+// ---------- T-0166 (RD-0176 e RD-0172) ----------
+describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título vencido" só acima do limite da RN-VEN-13 e a prazo (RD-0172)', () => {
+  const ENTRADAS: Array<[string, EntradaDosBotoes]> = [
+    ['liberado', BASE],
+    ['com pendência', { ...BASE, pendencias: 2 }],
+    ['cliente bloqueado', { ...BASE, cliente: { ...LIBERADO, bloqueado: true } }],
+    ['cliente inativo', { ...BASE, cliente: { ...LIBERADO, ativo: false } }],
+    ['cadastro incompleto', { ...BASE, cliente: { ...LIBERADO, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }],
+    ['sem pré-venda', { ...BASE, pre_venda_ligada: false }],
+    ['item acima do máximo', { ...BASE, itens_acima_do_maximo: ['AGU-1500'] }],
+    ['item sem estoque', { ...BASE, itens_sem_estoque: ['BIS-400'] }],
+  ];
+
+  it('RD-0176: botoesDoResumo não devolve o campo "aviso" em nenhuma situação (o motivo fica só na área Alertas)', () => {
+    for (const [nome, e] of ENTRADAS) {
+      const b = botoesDoResumo(e) as unknown as Record<string, unknown>;
+      expect(Object.keys(b), nome).not.toContain('aviso');
+      for (const v of Object.values(b)) if (v && typeof v === 'object') expect(Object.keys(v), nome).not.toContain('aviso');
+    }
+  });
+
+  it('RD-0176: opcoesDaSaida devolve só salvar, apenasSalvar, orcamento e subtituloOrcamento (sem "aviso" nem linha de motivo)', () => {
+    for (const [nome, e] of ENTRADAS) {
+      for (const impede of [false, true]) {
+        const o = opcoesDaSaida({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, preco_data: e.preco_data, alertas_impedem_enviar: impede });
+        expect(Object.keys(o).sort(), `${nome}, impede=${impede}`).toEqual(['apenasSalvar', 'orcamento', 'salvar', 'subtituloOrcamento']);
+      }
+    }
+  });
+
+  // RN-VEN-13: "Título vencido há mais de [5] dias → só à vista ou com aprovação". O alerta só aparece quando muda o resultado (RD-0172).
+  const V = (dias: number) => ({ titulos: 2, valor_cents: 50_000, dias });
+  const tituloNosAlertas = (dias: number, prazo: number | undefined, limite = TITULO_VENCIDO_DIAS_PADRAO) =>
+    alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(dias), prazo, limite) }).filter((a) => a.tipo === 'titulo').map((a) => a.texto);
+
+  it('RN-VEN-13 (limite): padrão 5 dias; atraso de 5 dias a prazo não alerta (igual ao limite não passa); 6 dias alerta "Título vencido"', () => {
+    expect(TITULO_VENCIDO_DIAS_PADRAO).toBe(5);
+    expect(tituloVencidoDias({})).toBe(5);
+    expect(tituloNosAlertas(5, 30)).toEqual([]);
+    expect(tituloNosAlertas(6, 30)).toEqual(['Título vencido']);
+    expect(tituloNosAlertas(120, 45)).toEqual(['Título vencido']);
+  });
+
+  it('RN-VEN-13: pagamento à vista (prazo médio 0) ou sem prazo escolhido não alerta, mesmo com atraso grande', () => {
+    expect(tituloNosAlertas(30, 0)).toEqual([]);
+    expect(tituloNosAlertas(30, undefined)).toEqual([]);
+    expect(vencidosComEfeito(null, 30, 5)).toBeNull();
+  });
+
+  it('RN-VEN-13: o limite vem do parâmetro titulo_vencido_dias do tenant (10 dias: 10 não alerta, 11 alerta); parâmetro inválido volta ao padrão', () => {
+    const limite = tituloVencidoDias({ titulo_vencido_dias: 10 });
+    expect(limite).toBe(10);
+    expect(tituloNosAlertas(10, 30, limite)).toEqual([]);
+    expect(tituloNosAlertas(11, 30, limite)).toEqual(['Título vencido']);
+    expect(tituloVencidoDias({ titulo_vencido_dias: '7' })).toBe(7);
+    expect([tituloVencidoDias({ titulo_vencido_dias: -1 }), tituloVencidoDias({ titulo_vencido_dias: 2.5 }), tituloVencidoDias({ titulo_vencido_dias: '' })]).toEqual([5, 5, 5]);
+  });
+
+  it('RN-VEN-13: o título vencido não muda os botões (não é "só orçamento" nem impede enviar); o efeito é a aprovação', () => {
+    const a = alertasDoPedido({ cliente: LIBERADO, vencidos: vencidosComEfeito(V(12), 30, 5) });
+    expect(a.map((x) => [x.tipo, x.texto, x.so_orcamento, x.impede_enviar])).toEqual([['titulo', 'Título vencido', false, false]]);
+  });
+
+  it('tela: o Novo pedido passa à área Alertas os vencidos filtrados por vencidosComEfeito, com o prazo escolhido e o limite do tenant', () => {
+    const tela = ler('modules/vendedor/app/screens/new-order-screen.tsx');
+    expect(tela).toMatch(/vencidos: vencidosComEfeito\([^\n]*dias: credito\.alerta\.dias \} : null, prazoEscolhido\?\.prazo_medio_dias, tituloVencidoDias\(parametrosVendedor\)\)/);
+    // a área Alertas não recebe os vencidos crus por outro caminho
+    expect(tela.match(/vencidos:/g)).toHaveLength(1);
   });
 });

@@ -2,19 +2,21 @@
  * Tokens visuais PUROS do app (T-0072): cor, espaçamento, raio, altura dos controles, sombra e movimento.
  * Sem react-native: roda em Node (Vitest) e é reexportado por `@macuxi/ui/mobile/puro` e por `theme.ts`.
  * Referência: docs/design/referencia-2026-11-03/Componentes.dc.html · especificação: docs/design/componentes.md.
- * Identidade mantida (destaque #C2540A, grafite #16202A, fundo #F3F4F1; Archivo nos títulos e números, IBM Plex Sans no texto).
- * Contraste do destaque (T-0094): `accent` é preenchimento e gráfico; texto laranja sobre claro é `accentInk`; sobre o laranja,
- * `onAccent`. Pares e razões em `../comum/contraste.ts` e docs/design/componentes.md §1.1.
+ * Marca v1 (T-0172, manual docs/marca/manual.md §3 e §4): ação em Azul noite #1E3350 (`accent`, `accentInk`), fundo Pérola
+ * #F8F6F1, chip em destaque no Azul suave #DFE2E6, laranja #C2540A só em gráfico (`grafico`), cabeçalho na faixa Azul noite
+ * (`faixa*`); grafite #16202A no texto. Archivo nos títulos e números, IBM Plex Sans no texto. Pares e razões em
+ * `../comum/contraste.ts` e docs/design/componentes.md §1.1.
  */
 
-import { DESTAQUE } from '../comum/contraste';
+import { DESTAQUE, FAIXA, FUNDOS, GRAFICO, MARCA } from '../comum/contraste';
 
 export * from '../comum/contraste';
 
 export const colors = {
-  ground: '#F3F4F1',
-  surface: '#FFFFFF',
-  ink: '#16202A',
+  /** fundo das telas: Pérola */
+  ground: FUNDOS.ground,
+  surface: FUNDOS.surface,
+  ink: FUNDOS.ink,
   ink2: '#4A5562',
   ink3: '#5B6673',
   /** texto de opção desabilitada (lista suspensa, dia futuro): 3:1 no branco, sempre com outro sinal (cadeado, sem toque) */
@@ -22,18 +24,31 @@ export const colors = {
   line: '#E1E4DE',
   lineSoft: '#ECEEE9',
   lineStrong: '#C9CEC6',
-  /** laranja da marca: PREENCHIMENTO e GRÁFICO (botão principal, contador, barra, borda da aba, ícone). Nunca texto sobre claro (4,17:1 no fundo). */
+  /** AÇÃO (Azul noite): botão principal, aba ativa (ícone e borda), seleção, foco, ícone de ação. Nunca sobre o grafite. */
   accent: DESTAQUE.accent,
-  /** laranja de texto e ação sobre o grafite (7,56:1) */
+  /** ação e gráfico sobre o grafite: sol claro (7,56:1) */
   accentLight: DESTAQUE.accentLight,
+  /** fundo do chip e do cartão em destaque: Azul suave */
   accentSoft: DESTAQUE.accentSoft,
-  /** TEXTO laranja sobre claro: link, rótulo de ação, chip, aba ativa (6,70:1 no fundo, 7,40:1 no branco, 6,27:1 no accentSoft) */
+  /** TEXTO de ação sobre claro: link, rótulo de ação, chip, aba ativa (11,82:1 no fundo, 12,77:1 no branco, 9,83:1 no accentSoft) */
   accentInk: DESTAQUE.accentInk,
-  /** texto e ícone SOBRE o laranja cheio (4,60:1) */
+  /** texto e ícone SOBRE o Azul noite (12,77:1) */
   onAccent: DESTAQUE.onAccent,
   accentTint: DESTAQUE.accentTint,
-  /** borda do cartão em destaque (ex.: "Pedidos para aprovar" da Gestão) */
-  accentLine: '#F3C9A8',
+  /** borda do cartão em destaque (ex.: "Pedidos para aprovar" da Gestão): Azul claro, só enfeite da forma */
+  accentLine: MARCA.azulClaro,
+  /** GRÁFICO sobre claro: barra de meta e de share, contador, selo, marcador (laranja; nunca texto sobre claro) */
+  grafico: GRAFICO.cor,
+  /** GRÁFICO sobre o escuro (grafite e Azul noite): sol claro */
+  graficoEscuro: GRAFICO.sobreEscuro,
+  /** faixa do cabeçalho (Azul noite), título (branco) e subtítulo/voltar (#C9CED5) */
+  faixa: FAIXA.fundo,
+  faixaTitulo: FAIXA.titulo,
+  faixaSub: FAIXA.subtitulo,
+  /** tela de entrada: trilho da barra, ✓ da etapa feita e erro (docs/design/entrada-sync.md) */
+  faixaTrilho: FAIXA.trilho,
+  faixaFeito: FAIXA.feito,
+  faixaErro: FAIXA.erro,
   success: '#1D6B4F',
   successBg: '#E2F1EA',
   /** borda e trilho da barra no cartão de meta batida */
@@ -53,7 +68,8 @@ export const colors = {
   /** roxo da referência do Novo pedido (selo de orçamento, T-0071): contraste 7,9:1 sobre o fundo */
   violet: '#4B2FA3',
   violetBg: '#ECE7FB',
-  darkMuted: '#C9D0D8',
+  /** texto claro sobre o escuro (grafite e faixa): o mesmo #C9CED5 da faixa, sem cor "quase igual" */
+  darkMuted: MARCA.claroNaFaixa,
   darkTrack: '#34404D',
   mapBg: '#E6E9E2',
   mapBorder: '#D6DAD1',
@@ -143,18 +159,18 @@ export const BOTAO_DESABILITADO = { fundo: colors.neutralBg, texto: colors.ink3,
 export const FUNDO_ESCURO = colors.ink;
 
 /**
- * Níveis sobre fundo grafite (`<Botao sobreEscuro>`; T-0072, revisão do #94). No claro, o secundário (branco com borda
- * grafite) e o neutro (cinza claro) ficam quase iguais sobre o grafite; aqui cada nível tem um peso próprio:
- * - principal: o mesmo laranja cheio com texto branco (a regra de um só principal por tela não muda);
- * - secundário: laranja-claro cheio com texto grafite (a ação da faixa: "Fazer checkout");
- * - neutro: só o contorno claro, fundo transparente e texto branco (a alternativa: "Ver cliente");
+ * Níveis sobre fundo escuro (grafite ou faixa Azul noite; `<Botao sobreEscuro>`). Marca v1 (T-0172): o Azul noite some no grafite
+ * (1,29:1, proibido no manual §3), então sobre o escuro o principal é branco com texto Azul noite ("Tentar de novo" da entrada):
+ * - principal: branco cheio com texto Azul noite (um só principal por tela);
+ * - secundário: contorno claro (#C9CED5), fundo transparente e texto branco ("Continuar sem sincronizar", "Ver cliente");
+ * - neutro: só o texto branco, sem fundo nem contorno ("Trocar usuário");
  * - perigo: rosa com texto vermelho (o mesmo do claro, que se destaca do grafite).
  * `fundo: 'transparent'` = o texto fica sobre o `FUNDO_ESCURO` (o teste de contraste mede assim).
  */
 export const NIVEIS_BOTAO_ESCURO: Record<NivelBotao, EstiloNivel> = {
-  principal: { ...NIVEIS_BOTAO.principal },
-  secundario: { ...NIVEIS_BOTAO.secundario, fundo: colors.accentLight, texto: colors.ink, borda: null, larguraBorda: 0 },
-  neutro: { ...NIVEIS_BOTAO.neutro, fundo: 'transparent', texto: colors.surface, borda: colors.darkMuted, larguraBorda: 1.5 },
+  principal: { ...NIVEIS_BOTAO.principal, fundo: colors.surface, texto: colors.accent },
+  secundario: { ...NIVEIS_BOTAO.secundario, fundo: 'transparent', texto: colors.surface, borda: colors.darkMuted, larguraBorda: 1.5 },
+  neutro: { ...NIVEIS_BOTAO.neutro, fundo: 'transparent', texto: colors.surface, borda: null, larguraBorda: 0 },
   perigo: { ...NIVEIS_BOTAO.perigo },
 };
 

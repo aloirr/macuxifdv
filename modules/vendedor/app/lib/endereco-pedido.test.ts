@@ -89,7 +89,7 @@ describe('RN-VEN-17: formulário Endereço deste pedido (C.3)', () => {
   });
   it('RN-VEN-17: textos da spec', () => {
     expect(TEXTOS_ENDERECO.tituloFormulario).toBe('Endereço deste pedido');
-    expect(TEXTOS_ENDERECO.aviso).toBe('Só neste pedido. O cadastro do cliente não muda.');
+    expect(TEXTOS_ENDERECO).not.toHaveProperty('aviso');
     expect(TEXTOS_ENDERECO.usar).toBe('Usar neste pedido');
     expect(TEXTOS_ENDERECO.editarNestePedido).toBe('Editar endereço deste pedido');
     expect(TEXTOS_ENDERECO.descartar).toMatchObject({ titulo: 'Descartar a edição?', continuar: 'Continuar editando', confirmar: 'Descartar' });

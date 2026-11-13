@@ -18,3 +18,4 @@
 2026-11-09 — T-0140 — RD-0044: celulaCsv usa protegerFormula do comum (cobre '-' + dígito, CWE-1236); RD-0045 aguarda o comum
 2026-11-09 — T-0140 — RD-0045: arredondar e percentual reexportados do @macuxi/comum (domain/util.ts)
 2026-11-09 — T-0117/T-0140 — PAYLOAD_INVALIDO da Pesquisa em português via auxiliares do SDK + teste
+2026-11-12 — T-0166 — RD-0184: saem chips de progresso/salvo, faixa repetida e subtítulo da folha Enviar na resposta da pesquisa

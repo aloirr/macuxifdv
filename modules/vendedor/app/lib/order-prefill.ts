@@ -18,7 +18,7 @@ export interface PrefillLine {
 export interface PrefillResult {
   /** product_id → quantidade (ordem do pedido original) */
   lines: Record<string, number>;
-  removed: Array<{ product_id: string; label: string; reason: 'inactive' | 'no_price' }>;
+  removed: Array<{ product_id: string; label: string; codigo: string; reason: 'inactive' | 'no_price' }>;
   /** itens mantidos com quantidade maior que o estoque atual */
   short_stock: Array<{ product_id: string; label: string; stock: number }>;
 }
@@ -34,11 +34,11 @@ export function prefillLines(source: PrefillLine[], catalog: Product[]): Prefill
     const p = byId.get(l.product_id);
     const label = p ? `${p.erp_code} ${p.description}` : [l.erp_code, l.description].filter(Boolean).join(' ') || l.product_id;
     if (!p) {
-      removed.push({ product_id: l.product_id, label, reason: 'inactive' });
+      removed.push({ product_id: l.product_id, label, codigo: l.erp_code || label, reason: 'inactive' });
       continue;
     }
     if (p.price_cents === null) {
-      removed.push({ product_id: l.product_id, label, reason: 'no_price' });
+      removed.push({ product_id: l.product_id, label, codigo: p.erp_code, reason: 'no_price' });
       continue;
     }
     const chave = l.unidade ? `${p.id}@${l.unidade}` : p.id;
@@ -48,16 +48,10 @@ export function prefillLines(source: PrefillLine[], catalog: Product[]): Prefill
   return { lines, removed, short_stock };
 }
 
-/** Aviso único para a tela do pedido (vazio se nada mudou). */
+/**
+ * RD-0174 (T-0166): o que a cópia deixou de fora, uma linha por item, para a área Alertas ("AGU-1500 fora da cópia: sem preço");
+ * vazio se nada mudou. A frase do estoque não existe: o alerta de estoque do pedido já cobre.
+ */
 export function prefillNotice(r: PrefillResult): string {
-  const parts: string[] = [];
-  if (r.removed.length > 0) {
-    const names = r.removed.map((x) => `${x.label} (${x.reason === 'no_price' ? 'sem preço na tabela' : 'inativo'})`).join('; ');
-    parts.push(`${r.removed.length === 1 ? '1 item removido' : `${r.removed.length} itens removidos`}: ${names}.`);
-  }
-  if (r.short_stock.length > 0) {
-    const names = r.short_stock.map((x) => `${x.label} (estoque ${x.stock})`).join('; ');
-    parts.push(`Quantidade acima do estoque atual: ${names}.`);
-  }
-  return parts.join(' ');
+  return r.removed.map((x) => `${x.codigo} fora da cópia: ${x.reason === 'no_price' ? 'sem preço' : 'inativo'}`).join('\n');
 }

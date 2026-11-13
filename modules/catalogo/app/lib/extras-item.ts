@@ -7,13 +7,10 @@
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { ProdutoConteudoSync, ProdutoReferenciaSync, Referencia } from '../../contracts';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
-import { contagem } from './apresentacao';
 import type { LeitorLocal } from './local';
 
 /** RN-CAT-09: corte defensivo; o contrato já limita a 3 referências por produto. */
 export const MAXIMO_REFERENCIAS = 3;
-/** Itens a mais por toque em "Mostrar mais". */
-export const PASSO_MOSTRAR_MAIS = 100;
 
 export interface ExtrasProduto {
   aplicacao: string | null;
@@ -54,12 +51,6 @@ export function textoEquivale(refs: readonly Pick<Referencia, 'marca_nome' | 'co
 export function etiquetasDoItem(etiquetas: readonly string[]): string[] {
   const vistas = new Set<string>();
   return etiquetas.map((e) => e.trim()).filter((t) => t !== '' && !vistas.has(t.toLowerCase()) && !!vistas.add(t.toLowerCase()));
-}
-
-/** Textos do botão "Mostrar mais" (RF-CAT-09): número com separador de milhar e plural certo. */
-export function textosMostrarMais(restantes: number): { rotulo: string; rotuloAcessivel: string } {
-  const r = contagem(restantes, 'restante', 'restantes');
-  return { rotulo: `Mostrar mais (${r})`, rotuloAcessivel: `Mostrar mais produtos, ${r}` };
 }
 
 /** Lê do aparelho (sem rede) os extras dos produtos que vão para a tela; sem `linhasPorCampo` (leitor dos testes), lê tudo e filtra. */

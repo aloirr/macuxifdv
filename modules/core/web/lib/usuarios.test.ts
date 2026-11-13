@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, csvDeUsuarios, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, csvDeUsuarios, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -20,6 +20,9 @@ const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
   trocar_senha: false,
   senha_expira_em: null,
   sem_senha: false,
+  desconto_limita_item: true,
+  desconto_limita_pedido: false,
+  desconto_maximo_pedido_permil: null,
   ...extra,
 });
 
@@ -39,6 +42,22 @@ describe('RF-CORE-02: tela Usuários do BKO', () => {
     const c = corpoDeCriacao({ ...ok, external_id: '  ', equipe_id: '' });
     expect(c).toMatchObject({ external_id: null, equipe_id: null, nome_curto: null, ativo: true, senha: 'Abcdef1!' });
     expect(corpoDeEdicao({ ...ok, external_id: 'V-9' })).not.toHaveProperty('senha');
+  });
+  it('RN-VEN-11a: "por pedido" ligada exige o número (Obrigatório) e de 0 a 100; desligada, o campo não é cobrado', () => {
+    expect(errosDoFormulario({ ...ok, limita_pedido: true, desconto_maximo_pedido: '' }, 'editar')).toEqual([{ campo: 'desconto_maximo_pedido', mensagem: 'Obrigatório' }]);
+    expect(errosDoFormulario({ ...ok, limita_pedido: true, desconto_maximo_pedido: '100,1' }, 'editar')[0]?.mensagem).toBe('De 0 a 100');
+    expect(errosDoFormulario({ ...ok, limita_pedido: true, desconto_maximo_pedido: '0' }, 'editar')).toEqual([]);
+    expect(errosDoFormulario({ ...ok, limita_pedido: false, desconto_maximo_pedido: '' }, 'editar')).toEqual([]);
+  });
+  it('RN-VEN-11a: o corpo converte % em décimos de % (8,0% = 80) e mantém o valor guardado com "por pedido" desligada', () => {
+    expect(permilDoTexto('8,0')).toBe(80);
+    expect(permilDoTexto('7,5')).toBe(75);
+    expect(textoDoPermil(75)).toBe('7,5');
+    expect(textoDoPermil(null)).toBe('');
+    expect(corpoDeEdicao({ ...ok, limita_pedido: true, desconto_maximo_pedido: '8,0' })).toMatchObject({ desconto_limita_item: true, desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 });
+    expect(corpoDeEdicao({ ...ok, limita_pedido: false, desconto_maximo_pedido: '8,0' })).toMatchObject({ desconto_limita_pedido: false, desconto_maximo_pedido_permil: 80 });
+    expect(corpoDeCriacao(ok)).toMatchObject({ desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null });
+    expect(formularioDoUsuario(u({ desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 }))).toMatchObject({ limita_pedido: true, desconto_maximo_pedido: '8,0' });
   });
   it('RF-CORE-02: o formulário de edição nasce do usuário, com senha em branco', () => {
     expect(formularioDoUsuario(u())).toMatchObject({ nome: 'Vera "Vendedora"', external_id: 'V-1', senha: '' });

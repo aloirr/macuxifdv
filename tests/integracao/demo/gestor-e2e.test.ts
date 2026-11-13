@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { A, licenca } from '../apoio/api';
-import { blindarPool, DEMO, encerrarPool, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { blindarPool, DEMO, disponivelNaFilial, encerrarPool, FOLGA_ESTOQUE, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (createApp real × Postgres × despachante)', () => {
   let api: ApiDemo;
@@ -90,10 +90,14 @@ describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (creat
       [TENANT_DEMO, usuarioId.vendedor],
     );
     expect(cli, 'cliente do Lucas com tabela e condição').toBeDefined();
-    const prods = await linhas<{ produto_id: string }>(
-      'select produto_id from catalogo.tabela_preco_item where tabela_preco_id = $1 and deleted_at is null order by produto_id limit 2',
+    const daTabela = await linhas<{ produto_id: string }>(
+      'select distinct produto_id from catalogo.tabela_preco_item where tabela_preco_id = $1 and deleted_at is null order by produto_id',
       [cli!.tabela_preco_id],
     );
+    // RN-VEN-20 (v1.0.4): só produtos com saldo na filial do cliente (o SUC-1L está em ruptura de propósito no seed)
+    const disp = await disponivelNaFilial(api.admin, cli!.cliente_id, daTabela.map((p) => p.produto_id));
+    const prods = daTabela.filter((p) => (disp.get(p.produto_id) ?? 0) >= FOLGA_ESTOQUE).slice(0, 2);
+    expect(prods, 'dois produtos com saldo na filial do cliente').toHaveLength(2);
     pedidoId = randomUUID();
     const payload = { id: pedidoId, customer_id: cli!.cliente_id, discount_pct: 8, payment_terms: cli!.descricao, condicao_pagamento_id: cli!.condicao, items: prods.map((p) => ({ product_id: p.produto_id, quantity: 3 })) };
     const r = await api.chamar(token.vendedor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [{ id: pedidoId, entidade: 'pedido', operacao: 'upsert', payload }] } });

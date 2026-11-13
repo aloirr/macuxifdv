@@ -14,7 +14,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Botao, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaChips, ListaNiveis, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaChips, ListaNiveis, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -24,14 +24,15 @@ import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } f
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { contagem } from '../lib/apresentacao';
-import { extrasLocais, PASSO_MOSTRAR_MAIS, textosMostrarMais, type ExtrasProduto } from '../lib/extras-item';
+import { extrasLocais, type ExtrasProduto } from '../lib/extras-item';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
+import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { irParaProduto } from '../rotas';
 import { CartaoProduto } from './comum';
 import { useMiniaturasDosItens } from './miniatura';
 
-const POR_PAGINA = 20;
+const POR_PAGINA = PAGINA_DA_BUSCA;
 const RAIZ = 'raiz';
 const ESPERA_DIGITACAO_MS = 350;
 
@@ -63,17 +64,29 @@ export default function TelaCatalogo() {
   const soCampanha = false;
   const [noId, setNoId] = useState<string | null>(params.no ? String(params.no) : null);
   const [marcas, setMarcas] = useState<string[]>([]);
-  const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 100; ao trocar de nível, busca ou filtro volta ao inicial
+  const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de nível, busca ou filtro volta ao inicial
   const [extras, setExtras] = useState<Map<string, ExtrasProduto>>(new Map());
   // T-0142 / RF-CAT-09: a página inicial é a hierarquia (mesma função do domain que o BKO usa); `null` = ainda lendo o aparelho
   const [nav, setNav] = useState<NavegacaoHierarquia | null>(null);
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
+  const [sugestao, setSugestao] = useState<string | null>(null);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const agora = relogioReal().agora().toISOString();
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
 
   useEffect(() => setLimite(POR_PAGINA), [noId, consulta, marca, soComEstoque]);
+
+  // "Você quis dizer…": só quando a busca não achou nada, do vocabulário do índice no aparelho
+  const semResultado = Boolean(consulta) && !lista.carregando && lista.itens.length === 0;
+  useEffect(() => {
+    if (!motor || !semResultado) return setSugestao(null);
+    let vivo = true;
+    void sugestaoDaBuscaLocal(motor, consulta).then((x) => vivo && setSugestao(x)).catch(() => vivo && setSugestao(null));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, consulta, semResultado]);
 
   // aplicação, "Equivale a" e etiquetas dos itens da tela, lidos do aparelho (offline)
   useEffect(() => {
@@ -257,28 +270,31 @@ export default function TelaCatalogo() {
               setTexto('');
               setConsulta('');
             }}
+            sugestao={sugestao}
+            onSugestao={(termo) => {
+              setTexto(termo);
+              setConsulta(termo);
+            }}
           />
         ) : (
           <Empty text="Nenhum produto neste aparelho ainda. Puxe a tela para sincronizar." />
         )
       ) : null}
 
-      {lista.itens.length > 0 ? (
+      {lista.itens.length > 0 && lista.itens.length >= lista.total ? (
         <Text style={s.contagem} testID="catalogo-contagem">
           {contagem(lista.total, 'produto', 'produtos')}
-          {lista.total > lista.itens.length ? ` · mostrando ${lista.itens.length}` : ''}
         </Text>
       ) : null}
       {lista.itens.map((item) => (
         <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} extras={extras.get(item.id)} onPress={() => irParaProduto(item.id, clienteId)} />
       ))}
-      {lista.total > lista.itens.length ? (
-        <Botao
+      {lista.itens.length > 0 ? (
+        <MostrarMais
           testID="catalogo-mostrar-mais"
-          rotulo={textosMostrarMais(lista.total - lista.itens.length).rotulo}
-          rotuloAcessivel={textosMostrarMais(lista.total - lista.itens.length).rotuloAcessivel}
-          ocupado={lista.carregando}
-          onPress={() => setLimite((l) => (lista.carregando ? l : lista.itens.length + PASSO_MOSTRAR_MAIS))}
+          mostrando={lista.itens.length}
+          total={lista.total}
+          onPress={() => !lista.carregando && setLimite(proximaPaginaDaBusca(lista.itens.length, lista.total))}
         />
       ) : null}
       </>
@@ -305,6 +321,8 @@ function VazioDaBusca({
   dentroDoPedido,
   onLimparFiltros,
   onLimparBusca,
+  sugestao,
+  onSugestao,
 }: {
   consulta: string;
   filtroLigado: boolean;
@@ -312,8 +330,12 @@ function VazioDaBusca({
   dentroDoPedido: boolean;
   onLimparFiltros: () => void;
   onLimparBusca: () => void;
+  sugestao: string | null;
+  onSugestao: (termo: string) => void;
 }) {
   const v = vazioDaBusca({ consulta, filtroLigado, semInternet, dentroDoPedido });
+  // T-0167: sem filtro ligado vale o cartão do kit ("Nenhum produto com “agau”." + "Você quis dizer…"); com filtro, a ação é limpar o filtro
+  if (v.caso !== 'filtro') return <NadaEncontrado testID="catalogo-vazio" termo={consulta} sugestao={sugestao} onSugestao={onSugestao} />;
   return (
     <EstadoVazio
       testID="catalogo-vazio"

@@ -87,10 +87,22 @@ export function descontoDoPedidoPct(subtotal_cents: number, total_cents: number)
 
 /** RN-VEN-03: percentual com 1 casa, meia para cima, calculado dos INTEIROS (nunca do valor já arredondado). Sinal preservado. */
 export function pctExibicao(num: number, den: number): number {
+  return permilDe(num, den) / 10;
+}
+
+function permilDe(num: number, den: number): number {
   if (!(den > 0) || num === 0) return 0;
   const abs = Math.abs(num);
   const decimos = Math.floor((abs * 2_000 + den) / (2 * den));
-  return (num < 0 ? -decimos : decimos) / 10;
+  return num < 0 ? -decimos : decimos;
+}
+
+/**
+ * RN-VEN-11a (T-0168 v2): o desconto do pedido em décimos de % (‰), inteiro, EXATAMENTE como a linha "Desconto (%)" dos Totais mostra
+ * (`pctExibicao(total_tabela − total, total_tabela)`). Acréscimo (total > tabela) dá ≤ 0. É a fórmula única da tela e da trava.
+ */
+export function permilDoDescontoExibido(t: { total_tabela_cents: number; total_cents: number }): number {
+  return permilDe(t.total_tabela_cents - t.total_cents, t.total_tabela_cents);
 }
 
 /** O que o ajuste vale em R$ e em % (1 casa) sobre a base: "−R$ 0,89" / "= 5,3%". `cents` é sempre positivo. */

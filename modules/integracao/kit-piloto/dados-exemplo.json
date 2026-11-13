@@ -1,0 +1,52 @@
+{
+  "filiais": [
+    { "codigo": "0001", "nome": "Matriz Boa Vista", "cidade": "Boa Vista", "uf": "RR", "cnpj": "11222333000181", "logradouro": "Avenida Capitão Ene Garcez", "numero": "100", "bairro": "Centro", "cep": "69301160", "telefone": "9532230001" },
+    { "codigo": "0002", "nome": "Filial Manaus", "cidade": "Manaus", "uf": "AM", "cnpj": "11444777000161", "logradouro": "Avenida Djalma Batista", "numero": "2000", "bairro": "Chapada", "cep": "69050010", "telefone": "9232230002" }
+  ],
+  "vendedores": [
+    { "codigo": "V01", "nome": "Ana Souza", "email": "ana.souza@exemplo.com.br", "telefone": "95991110001" },
+    { "codigo": "V02", "nome": "Bruno Lima", "email": "bruno.lima@exemplo.com.br", "telefone": "95991110002" }
+  ],
+  "formas_pagamento": [
+    { "codigo": "PIX", "nome": "PIX", "ordem": 1 },
+    { "codigo": "BOLETO", "nome": "Boleto bancário", "ordem": 2 }
+  ],
+  "prazos_pagamento": [
+    { "codigo": "PIX-AVISTA", "forma_codigo": "PIX", "descricao": "À vista", "parcelas_dias": "0", "prazo_medio_dias": 0, "ordem": 1 },
+    { "codigo": "BOL-3060", "forma_codigo": "BOLETO", "descricao": "30/60 dias", "parcelas_dias": "30,60", "prazo_medio_dias": 45, "ordem": 2 }
+  ],
+  "produtos": [
+    { "codigo": "P001", "sku": "REF-001", "ean": "7891000100103", "nome": "Refrigerante Cola 2 L", "marca": "Cola Norte", "categoria": "Bebidas", "unidade": "UN", "embalagem_medida": "CX", "embalagem_quantidade": 6, "custo": 5.2, "preco_venda": 7.9, "desconto_maximo_pct": 5 },
+    { "codigo": "P002", "sku": "REF-002", "nome": "Suco de Laranja 1 L", "marca": "Sol", "categoria": "Bebidas", "unidade": "UN", "embalagem_medida": "CX", "embalagem_quantidade": 12, "custo": 4.1, "preco_venda": 6.5, "desconto_maximo_pct": 5 },
+    { "codigo": "P003", "sku": "REF-003", "nome": "Água Mineral 500 mL", "marca": "Cristal", "categoria": "Bebidas", "unidade": "UN", "embalagem_medida": "FD", "embalagem_quantidade": 12, "custo": 1.2, "preco_venda": 3, "desconto_maximo_pct": 3 },
+    { "codigo": "P004", "sku": "REF-004", "nome": "Biscoito Recheado 140 g", "marca": "Doce Vale", "categoria": "Mercearia", "unidade": "UN", "embalagem_medida": "CX", "embalagem_quantidade": 24, "custo": 2.1, "preco_venda": 3.9, "desconto_maximo_pct": 8 },
+    { "codigo": "P005", "sku": "REF-005", "nome": "Arroz Tipo 1 5 kg", "marca": "Grão Bom", "categoria": "Mercearia", "unidade": "UN", "embalagem_medida": "FD", "embalagem_quantidade": 6, "custo": 21, "preco_venda": 29.9, "desconto_maximo_pct": 2 }
+  ],
+  "clientes": [
+    { "codigo": "C001", "razao_social": "Mercadinho Boa Vista Ltda", "nome_fantasia": "Mercadinho Boa Vista", "documento": "34028316000103", "vendedor_codigo": "V01", "filial_codigo": "0001", "tabela_preco_codigo": "T01", "logradouro": "Rua Araújo Filho", "numero": "350", "bairro": "Centro", "cidade": "Boa Vista", "uf": "RR", "cep": "69301150", "telefone": "95991110010", "limite_credito": 5000, "inscricao_estadual": "ISENTO", "prazo_medio_max_dias": 60, "formas_pagamento": "PIX,BOLETO" },
+    { "codigo": "C002", "razao_social": "Padaria Pão Quente Ltda", "nome_fantasia": "Pão Quente", "documento": "11222333000181", "vendedor_codigo": "V01", "filial_codigo": "0001", "tabela_preco_codigo": "T01", "logradouro": "Avenida Ville Roy", "numero": "88", "bairro": "São Francisco", "cidade": "Boa Vista", "uf": "RR", "cep": "69305000", "telefone": "95991110011", "limite_credito": 3000, "inscricao_estadual": "ISENTO", "prazo_medio_max_dias": 30, "formas_pagamento": "PIX" },
+    { "codigo": "C003", "razao_social": "Supermercado Amazonas Ltda", "nome_fantasia": "Super Amazonas", "documento": "11444777000161", "vendedor_codigo": "V02", "filial_codigo": "0002", "tabela_preco_codigo": "T01", "logradouro": "Rua Recife", "numero": "700", "bairro": "Parque 10", "cidade": "Manaus", "uf": "AM", "cep": "69055030", "telefone": "92991110012", "limite_credito": 20000, "inscricao_estadual": "ISENTO", "prazo_medio_max_dias": 60, "formas_pagamento": "PIX,BOLETO" }
+  ],
+  "precos": [
+    { "filial_codigo": "0001", "tabela_codigo": "T01", "produto_codigo": "P001", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 7.9 },
+    { "filial_codigo": "0001", "tabela_codigo": "T01", "produto_codigo": "P002", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 6.5 },
+    { "filial_codigo": "0001", "tabela_codigo": "T01", "produto_codigo": "P003", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 3 },
+    { "filial_codigo": "0001", "tabela_codigo": "T01", "produto_codigo": "P004", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 3.9 },
+    { "filial_codigo": "0001", "tabela_codigo": "T01", "produto_codigo": "P005", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 29.9 },
+    { "filial_codigo": "0002", "tabela_codigo": "T01", "produto_codigo": "P001", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 8.2 },
+    { "filial_codigo": "0002", "tabela_codigo": "T01", "produto_codigo": "P005", "vigencia_inicio": "2026-11-01", "tabela_nome": "Tabela Atacado", "preco": 30.5 }
+  ],
+  "estoque": [
+    { "deposito_codigo": "D01", "produto_codigo": "P001", "deposito_nome": "Depósito Matriz", "filial_codigo": "0001", "saldo": 480 },
+    { "deposito_codigo": "D01", "produto_codigo": "P002", "deposito_nome": "Depósito Matriz", "filial_codigo": "0001", "saldo": 360 },
+    { "deposito_codigo": "D01", "produto_codigo": "P003", "deposito_nome": "Depósito Matriz", "filial_codigo": "0001", "saldo": 1200 },
+    { "deposito_codigo": "D01", "produto_codigo": "P004", "deposito_nome": "Depósito Matriz", "filial_codigo": "0001", "saldo": 0 },
+    { "deposito_codigo": "D01", "produto_codigo": "P005", "deposito_nome": "Depósito Matriz", "filial_codigo": "0001", "saldo": 150 },
+    { "deposito_codigo": "D02", "produto_codigo": "P001", "deposito_nome": "Depósito Manaus", "filial_codigo": "0002", "saldo": 240 },
+    { "deposito_codigo": "D02", "produto_codigo": "P005", "deposito_nome": "Depósito Manaus", "filial_codigo": "0002", "saldo": 80 }
+  ],
+  "titulos": [
+    { "codigo": "T-1001-1", "cliente_codigo": "C001", "numero": "1001", "parcela": 1, "emissao": "2026-10-10", "vencimento": "2026-11-10", "valor": 850, "saldo": 850 },
+    { "codigo": "T-1002-1", "cliente_codigo": "C002", "numero": "1002", "parcela": 1, "emissao": "2026-10-20", "vencimento": "2026-11-20", "valor": 420.5, "saldo": 420.5 }
+  ]
+}

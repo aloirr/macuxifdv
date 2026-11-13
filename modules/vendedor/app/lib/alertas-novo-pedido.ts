@@ -24,6 +24,19 @@ export function textoDaFalta(texto: string): string {
   return `Falta ${sigla ? t.charAt(0) : t.charAt(0).toLocaleLowerCase('pt-BR')}${t.slice(1)}`;
 }
 
+/**
+ * RD-0170 (T-0166): falta de preenchimento não é alerta até o vendedor tentar. Só as pendências das abas já tentadas
+ * (Avançar marcou a aba que ele deixou; salvar, enviar ou transformar marcam todas) entram em Alertas; as demais ficam no próprio campo.
+ */
+export function pendenciasDasAbasTentadas(pendencias: readonly PendenciaDoPedido[], tentadas: ReadonlySet<AbaDoPedido>): PendenciaDoPedido[] {
+  return pendencias.filter((p) => tentadas.has(p.aba));
+}
+
+/** A 1ª aba (na ordem Venda, Itens, Entrega, Resumo) com falta de preenchimento, para onde o toque em Salvar leva. */
+export function primeiraAbaComFalta(pendencias: readonly PendenciaDoPedido[]): AbaDoPedido | null {
+  return (['venda', 'itens', 'entrega', 'resumo'] as const).find((a) => pendencias.some((p) => p.aba === a)) ?? null;
+}
+
 export function entradaDasPendencias(pendencias: readonly PendenciaDoPedido[]): { faltantes: Array<{ texto: string; aba: string }>; recusas: string[] } {
   const faltantes: Array<{ texto: string; aba: string }> = [];
   const recusas: string[] = [];
@@ -59,6 +72,18 @@ export function alertasDoNovoPedido(e: {
   vencidos: { titulos: number; valor_cents: number; dias: number } | null;
   disponivel_cents: number | null;
   total_cents: number;
+  /** RN-VEN-10 (T-0165): desconto efetivo do pedido acima da alçada do autor */
+  acima_da_alcada?: boolean;
+  /** RN-VEN-11a (T-0168): limite do pedido em ‰ quando o efetivo passa dele */
+  acima_do_limite?: number | null;
+  /** RD-0174: as linhas "AGU-1500 fora da cópia: sem preço" (`linhasDaCopia`) */
+  itens_fora_da_copia?: readonly string[];
+  /** RD-0173: o cliente não aceita nenhuma forma ativa */
+  sem_forma_para_o_cliente?: boolean;
+  /** RD-0175 */
+  sem_sinal_para_salvar?: boolean;
+  /** RD-0189: a falta da aba aberta fica só no campo */
+  aba_atual?: AbaDoPedido;
 }): AlertaDoPedido[] {
   const { faltantes, recusas } = entradaDasPendencias(e.pendencias);
   return alertasDoPedido({
@@ -70,5 +95,11 @@ export function alertasDoNovoPedido(e: {
     vencidos: e.vencidos,
     disponivel_cents: e.disponivel_cents,
     total_cents: e.total_cents,
+    ...(e.acima_da_alcada ? { acima_da_alcada: true } : {}),
+    ...(e.acima_do_limite != null ? { acima_do_limite: e.acima_do_limite } : {}),
+    ...(e.itens_fora_da_copia && e.itens_fora_da_copia.length > 0 ? { itens_fora_da_copia: e.itens_fora_da_copia } : {}),
+    ...(e.sem_forma_para_o_cliente ? { sem_forma_para_o_cliente: true } : {}),
+    ...(e.sem_sinal_para_salvar ? { sem_sinal_para_salvar: true } : {}),
+    ...(e.aba_atual ? { aba_atual: NOMES_DA_ABA[e.aba_atual] } : {}),
   });
 }

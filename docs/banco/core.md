@@ -702,3 +702,49 @@ endereço e telefone da **filial de faturamento**. Migração aditiva: 7 colunas
 Caminho de volta (`0059_core_filial_dados_fiscais.down.sql`): apaga o índice, os 7 CHECKs e as 7 colunas (os dados fiscais se
 perdem; o retrato já gravado nos pedidos fica). Volte antes o Core, o Hub e o pull que leem as colunas. Testes:
 `db/testes/filial-dados-fiscais.test.ts` e `db/testes/seed-demo-filial.test.ts`.
+
+## 0062 — guarda de ordem do ERP no resto do Core e "desligado no BKO" na filial (`0062_core_catalogo_erp_ordem`; T-0095, RN-INT-02/04/06)
+Continua a seção T-0095 da 0039. Colunas **nulas, sem padrão, sem backfill** (nada muda em `updated_at`), RLS e grants herdados,
+**fora do pull** e fora do aparelho. A parte do Catálogo está no [catalogo.md](catalogo.md) ("0062").
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| cliente_endereco, produto_unidade, titulo, nota_erp, rota, filial `.erp_alterado_em` | timestamptz(3) | `alterado_em` do registro do ERP (relógio do ERP, nunca o `ocorrido_em` do Hub) aplicado à linha; nulo = nunca veio do ERP. O consumidor grava em **toda** escrita do ERP, inclusive inativação e apagamento, quando o evento traz o registro; sem registro, não avança (`coalesce`). Na rota, cada dia (`<rota>@<data>`) guarda a versão da rota inteira |
+| filial.desligado_no_bko_em | timestamptz(3) | a API do BKO (`PUT /filiais/:id`) grava `now()` ao desativar e limpa ao reativar, no mesmo update do `ativo`; preenchida, a carga do ERP não reativa a filial |
+
+**Gatilhos** (rede de segurança; o consumidor decide antes e avisa o monitor):
+- `<tabela>_versao_erp` (BEFORE UPDATE, `when (new.erp_alterado_em < old.erp_alterado_em)`, função `plataforma.manter_versao_erp()`):
+  versão recebida **mais antiga** que a aplicada não grava; a linha fica como estava e o `returning` ainda devolve a linha (o
+  consumidor não cai no "não achei, insere"). Igual reaplica (idempotente). Ordena depois de `<tabela>_updated_at`: o no-op não
+  sobe o `updated_at`. Em `cliente`, `usuario`, `produto` (colunas da 0039) e nas 6 tabelas acima.
+- `<tabela>_desligado_no_bko` (BEFORE UPDATE OF ativo, quando a marca continua preenchida e o update tenta reativar, função
+  `plataforma.manter_desligado_no_bko()`): mantém `ativo = false`; o resto do update vale (nome, endereço...). Em `usuario` e
+  `filial`. **Reativar no BKO = `ativo = true` e `desligado_no_bko_em = null` no mesmo update.**
+- O gatilho só protege a linha **viva**. Onde o ERP apaga (`deleted_at`) e o mesmo `external_id` volta como linha nova
+  (`titulo`, `nota_erp`), o consumidor confere antes a maior versão, **apagadas inclusive**, pelo índice `<tabela>_erp_versao_ix`
+  `(tenant_id, external_id, erp_alterado_em) where external_id is not null and erp_alterado_em is not null`:
+  `select erp_alterado_em from core.titulo where external_id = $1 and erp_alterado_em is not null order by erp_alterado_em desc limit 1`
+  (index-only; o RLS acrescenta o `tenant_id`). As tabelas que só inativam (`ativo = false`) acham a linha viva pelo único vivo
+  `(tenant_id, external_id)`; a rota é pequena e o consumidor já varre `starts_with(external_id, '<rota>@')`.
+
+Volta: `0062_core_catalogo_erp_ordem.down.sql` apaga índices, gatilhos, as 2 funções e as 11 colunas (as da 0039 ficam). Perde só as
+marcas; a próxima carga aplica tudo de novo e a filial desligada no BKO pode voltar ativa. Volte antes o código que lê ou grava as
+colunas (senão 42703). Teste: `db/testes/erp-ordem.test.ts` (estático; banco e up/down no CI).
+
+## 0063 — limite de desconto do usuário (`0063_core_usuario_limite_desconto`; T-0168, RN-VEN-11a, desenho docs/desenho/T-0168.md §1)
+Pedido R-20261112-151014-engenheiro-software. Aditiva: 3 colunas em `core.usuario` e 2 CHECKs; RLS, políticas e grants herdados;
+nenhum índice novo (as leituras são por PK: BKO do usuário, `core.cadastro_resumo@1`, sync `usuario`).
+| Coluna | Tipo | Padrão | Regra |
+|---|---|---|---|
+| desconto_limita_item | boolean not null | `true` | "Limitar desconto por item": RN-VEN-11 ligada (o item respeita o desconto máximo do produto) |
+| desconto_limita_pedido | boolean not null | `false` | "Limitar desconto por pedido" |
+| desconto_maximo_pedido_permil | integer, nulo | — | desconto máximo do pedido em **décimos de %** (‰): 8,0% = 80; 7,5% = 75. Nome `_permil` de propósito: `_pct` no repositório é % decimal |
+
+CHECKs: `usuario_desconto_pedido_permil_faixa` (nulo ou 0..1000) e `usuario_desconto_pedido_com_limite` ("por pedido" ligada
+exige o número). Desligar "por pedido" **mantém** o número (religar devolve o valor). Usuário que já existe fica com o padrão pelo
+`default` (comportamento de hoje), sem reescrever a tabela e sem andar o `updated_at`; usuário novo nasce com o padrão. Quem
+grava é só o BKO do Core; a carga do ERP e o CSV da Equipe não tocam nas colunas. Toda edição sobe o `updated_at` pelo gatilho
+`usuario_updated_at` (o sync puxa a linha de novo). Seed da demo e views do Conector sem mudança.
+
+Volta: `0063_core_usuario_limite_desconto.down.sql` apaga os 2 CHECKs e as 3 colunas (os limites gravados se perdem; reaplicar a
+0063 volta todos ao padrão). Volte antes o código do Core e do Vendedor que lê ou grava as colunas (senão 42703). Teste:
+`db/testes/usuario-limite-desconto.db.test.ts` (estático; banco e up/down no CI).

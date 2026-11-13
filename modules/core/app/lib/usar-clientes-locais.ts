@@ -2,7 +2,7 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteUltimaVisitaSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -23,6 +23,8 @@ export interface ClientesLocais extends BaseLocal {
   clienteFotos: readonly ClienteFotoSync[];
   /** Fotos do PDV enviadas neste aparelho e ainda na fila (ou aceitas e não cobertas pelo pull): a ficha mostra "Tem" na hora. */
   fotosPendentes: readonly FotoPdvPush[];
+  /** RN-CORE-41: último check-in por cliente (de qualquer vendedor), vindo do sync. */
+  ultimasVisitas: readonly ClienteUltimaVisitaSync[];
   /** Há linhas de `cliente` no aparelho (o pull genérico já rodou); sem elas a tela cai na carga antiga da Fase M. */
   pronto: boolean;
   carregado: boolean;
@@ -33,7 +35,7 @@ export interface ClientesLocais extends BaseLocal {
   verPedidos: boolean;
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], pronto: false, carregado: false, verPedidos: true };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -45,7 +47,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, ultimasVisitas] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -56,9 +58,10 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<FilialSync>('filial'),
         motor.linhas<FotoTipoSync>('foto_tipo'),
         motor.linhas<ClienteFotoSync>('cliente_foto'),
+        motor.linhas<ClienteUltimaVisitaSync>('cliente_ultima_visita'),
       ]);
       const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos });
     })();
     return () => {
       ativo = false;

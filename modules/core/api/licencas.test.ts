@@ -164,8 +164,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
 
   it('registra os provedores do Core (T-0017/T-0018): pull com escopo declarado; visita também recebe check-in, cliente_foto recebe o envio da foto do PDV (T-0147) e visita_checkout só recebe', () => {
     const nomes = provedoresSyncCore.map((p) => p.entidade.nome).sort();
-    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'cliente_foto', 'filial', 'foto_tipo', 'historico_compra', 'indicador_diario', 'medida', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'visita', 'visita_checkout']);
-    const escopo: Record<string, string> = { produto: 'tenant', produto_unidade: 'tenant', medida: 'tenant', filial: 'tenant', foto_tipo: 'tenant', motivo: 'tenant', parametro: 'tenant', rota: 'usuarios', rota_parada: 'usuarios', visita: 'usuarios', meta: 'usuarios', indicador_diario: 'usuarios' };
+    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'cliente_foto', 'cliente_ultima_visita', 'filial', 'foto_tipo', 'historico_compra', 'indicador_diario', 'medida', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'usuario', 'visita', 'visita_checkout']);
+    const escopo: Record<string, string> = { produto: 'tenant', produto_unidade: 'tenant', medida: 'tenant', filial: 'tenant', foto_tipo: 'tenant', motivo: 'tenant', parametro: 'tenant', usuario: 'usuarios', rota: 'usuarios', rota_parada: 'usuarios', visita: 'usuarios', meta: 'usuarios', indicador_diario: 'usuarios' };
     for (const p of provedoresSyncCore.filter((x) => x.puxar)) expect(p.escopo, p.entidade.nome).toBe(escopo[p.entidade.nome] ?? 'carteira');
     for (const p of provedoresSyncCore) {
       expect(manifest.sync, p.entidade.nome).toContain(p.entidade.nome);
@@ -173,8 +173,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
       expect(Boolean(p.receber), p.entidade.nome).toBe(comEscrita);
       expect(p.entidade.direcao, p.entidade.nome).toBe(p.entidade.nome === 'visita' || p.entidade.nome === 'cliente_foto' ? 'ambos' : p.entidade.nome === 'visita_checkout' ? 'push' : 'pull');
     }
-    // 18 do Core (com meta e indicador_diario, T-0020, e medida, T-0063) + notificacao e notificacao_leitura (T-0019, provedores próprios)
-    expect(moduloApi.sync).toHaveLength(23);
+    // 20 do Core (com meta e indicador_diario, T-0020, medida, T-0063, usuario, T-0168, e cliente_ultima_visita, T-0171) + notificacao e notificacao_leitura (T-0019, provedores próprios)
+    expect(moduloApi.sync).toHaveLength(25);
   });
 
   it('pull usa horizonte, cursor (updated_at, id), ordem, limite e microssegundos', () => {
@@ -195,6 +195,21 @@ describe('T-0004 §5: provedores de pull do Core', () => {
     expect(sqlDoPull(TABELAS_SYNC.carteira, pedido, vis, '2026-10-31').sql).toMatch(/and cliente_id = any\(\$5::uuid\[\]\)/);
     expect(sqlDoPull(TABELAS_SYNC.cliente, pedido, 'tenant').sql).not.toMatch(/any\(/);
     expect(sqlDoPull(TABELAS_SYNC.produto, pedido, vis).sql).not.toMatch(/any\(/);
+  });
+
+  it('RN-VEN-11a: a entidade usuario só expõe as 3 colunas de limite (sem nome, e-mail nem código do ERP) e filtra pelos usuários visíveis', () => {
+    const t = TABELAS_SYNC.usuario;
+    expect(t.colunas).toBe('desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil');
+    expect(t.tabela).not.toMatch(/nome|email|senha/);
+    const { sql } = sqlDoPull(t, pedido, new Set(['u1']));
+    expect(sql).toContain('and usuario_id = any($5::uuid[])');
+  });
+
+  it('RN-CORE-41: cliente_ultima_visita agrupa por cliente (qualquer vendedor, só check-in vivo) e filtra pela carteira', () => {
+    const t = TABELAS_SYNC.cliente_ultima_visita;
+    expect(t.tabela).toMatch(/group by v\.cliente_id/);
+    expect(t.tabela).toMatch(/v.deleted_at is null/);
+    expect(sqlDoPull(t, pedido, new Set(['c1'])).sql).toContain('and cliente_id = any($5::uuid[])');
   });
 
   it('RN-CORE-04: carteira vazia devolve zero linhas (filtro com conjunto vazio, nunca "tudo")', () => {

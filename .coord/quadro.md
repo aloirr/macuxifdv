@@ -78,6 +78,11 @@
 | `packages/ui/src/web/abas*.tsx`, `progresso*.tsx`, `botao-link*.tsx` e testes (novos; sem mexer no `index.ts` do kit) | T-0104 (N16) Tabs, Progress e ButtonLink no kit web | `nuvem/T-0104-kit-web` | 2026-11-08 16h30 |
 | `docs/desenho/T-0122-*.diff` e `docs/desenho/T-0122.md` (novos) | T-0122 (N17) hooks do guardião para MCP e gh api de leitura, job de CI da carga, em diff para o ok do dono do produto | `nuvem/T-0122-diffs` | 2026-11-08 16h30 |
 | `docs/desenho/tracking.md`, a ADR nova do tracking (`docs/decisoes/0044-*`, número reservado; a 0042 foi usada pelo módulo nativo do shell e a 0043 pelo diagnóstico, T-0158) e `docs/legal/**` (novos) | T-0156 (N20) tracking contínuo e base LGPD (engenheiro-software), aberta pelo dono do produto | `nuvem/N20-tracking-lgpd` | 2026-11-10 09h |
+| `docs/marca/**` | T-0169 proposta de marca do design-de-marca, em sessão da nuvem (R-20261112-155448). A validação das telas da v1.0.5 é feita no PC, depois de reabrir o VS Code (R-20261112-160216) | `nuvem/design-de-marca-proposta` | 2026-11-12 16h |
+| N-A: `modules/core/contracts/performance.ts` e `modules/core/domain/performance/**` (novos) | T-0170 Performance: domain e contratos (`docs/desenho/v1.0.5-nuvem-prompts.md`) | `nuvem/T-0170-performance-dominio` | 2026-11-13 04h |
+| N-B: `modules/core/contracts/{tarefa,frases,avatar}.ts`, `modules/core/domain/tarefas/**` e `modules/core/domain/frase-avatar/**` (novos) | T-0170 Tarefas, frase do dia e avatar: domain e contratos | ver prompt N-B | 2026-11-13 04h |
+| N-C: `modules/vendedor/domain/resumo-pedidos.ts` e `.test.ts` (novos) | T-0170 Cards de Pedidos: domain | ver prompt N-C | 2026-11-13 04h |
+| N-G: `docs/testes/T-0170-performance.md` e os testes novos do prompt N-G | T-0170 roteiro e testes de valor × regra da Performance | ver prompt N-G | 2026-11-13 04h |
 | `docs/manual/**` e `docs/producao/sabado.md` (novos) | T-0157 (N21) manuais e roteiro da produção de sábado (gerente-projetos), aberta pelo dono do produto | `nuvem/N21-manual-sabado` | 2026-11-10 09h |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.

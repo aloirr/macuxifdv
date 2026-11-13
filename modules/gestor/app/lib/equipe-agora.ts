@@ -31,8 +31,6 @@ export interface LinhaAgora {
   status: StatusAgora;
   label: string;
   tom: TomEstado;
-  /** "Sem check-in há 1h40" (parado) ou "Sem check-in hoje"; `null` nos demais. */
-  detalhe: string | null;
 }
 
 export function linhasAgora(visao: Pick<VisaoEquipe, 'membros' | 'parado_min'>, agora: string): LinhaAgora[] {
@@ -48,8 +46,9 @@ export function linhasAgora(visao: Pick<VisaoEquipe, 'membros' | 'parado_min'>, 
       agora,
     });
     const rot = STATUS_AGORA_ROTULO[r.status];
-    const detalhe = r.status === 'parado' && r.minutos_sem_atividade !== null ? `Sem check-in há ${duracaoCurta(r.minutos_sem_atividade)}` : r.status === 'sem_checkin' ? 'Sem check-in hoje' : null;
-    return { m, status: r.status, label: rot.label, tom: rot.tom, detalhe };
+    // RD-0208: o tempo vai na tag ("Parado 1h40"); sem 3ª linha repetindo "Sem check-in"
+    const label = r.status === 'parado' && r.minutos_sem_atividade !== null ? `${rot.label} ${duracaoCurta(r.minutos_sem_atividade)}` : rot.label;
+    return { m, status: r.status, label, tom: rot.tom };
   });
   return linhas.sort((a, b) => ORDEM_STATUS_AGORA[a.status] - ORDEM_STATUS_AGORA[b.status] || a.m.membro.nome.localeCompare(b.m.membro.nome, 'pt-BR'));
 }

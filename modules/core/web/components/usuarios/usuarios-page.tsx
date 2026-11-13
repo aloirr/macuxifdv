@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, Interruptor, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
 import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type UsuarioItem } from '../../../contracts';
 import {
   acaoDeSenha,
@@ -70,6 +70,7 @@ function UsuariosConteudo() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
   const [tentou, setTentou] = useState(false);
+  const [aba, setAba] = useState<'dados' | 'parametros'>('dados');
   const [erroApi, setErroApi] = useState<string | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
   const [senhaVisivel, setSenhaVisivel] = useState(false);
@@ -179,6 +180,7 @@ function UsuariosConteudo() {
     setSemEmail(null);
     setErroApi(null);
     setTentou(false);
+    setAba('dados');
     setForm(u ? formularioDoUsuario(u) : FORMULARIO_VAZIO);
     setModal({ tipo: 'form', usuario: u });
   };
@@ -373,6 +375,8 @@ function UsuariosConteudo() {
                 setTentou(true);
                 setErroApi(null);
                 if (erros.length === 0) salvar.mutate(editando);
+                else if (erros.every((e) => e.campo === 'desconto_maximo_pedido')) setAba('parametros');
+                else setAba('dados');
               }}
               data-testid="usuarios.salvar"
             >
@@ -382,6 +386,58 @@ function UsuariosConteudo() {
         }
       >
         <div className="flex flex-col gap-3">
+          <div role="tablist" aria-label="Seções do usuário" className="flex gap-1 border-b border-line" data-testid="usuarios.abas">
+            {(['dados', 'parametros'] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={aba === id}
+                onClick={() => setAba(id)}
+                data-testid={`usuarios.aba-${id}`}
+                className={`-mb-px inline-flex min-h-[44px] items-center border-b-2 bg-transparent px-4 text-[14px] font-semibold ${aba === id ? 'border-accent text-accent-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}
+              >
+                {id === 'dados' ? 'Dados' : 'Parâmetros'}
+              </button>
+            ))}
+          </div>
+          {aba === 'parametros' && (
+            <div role="tabpanel" className="flex flex-col" data-testid="usuarios.painel-parametros">
+              <div className="flex items-center justify-between gap-3 border-b border-line-2 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <span id="usuarios-limita-item" className="text-[14px] font-semibold text-ink">
+                    Limitar desconto por item
+                  </span>
+                  <span id="usuarios-limita-item-ajuda" className="text-[12px] text-ink-2">
+                    Nenhum item passa do desconto máximo do produto.
+                  </span>
+                </div>
+                <Interruptor ligado={form.limita_item} onChange={(v) => upd({ limita_item: v })} rotuloId="usuarios-limita-item" descricaoId="usuarios-limita-item-ajuda" testId="usuarios.limita-item" />
+              </div>
+              <div className="flex items-center justify-between gap-3 border-b border-line-2 py-3">
+                <span id="usuarios-limita-pedido" className="text-[14px] font-semibold text-ink">
+                  Limitar desconto por pedido
+                </span>
+                <Interruptor ligado={form.limita_pedido} onChange={(v) => upd({ limita_pedido: v })} rotuloId="usuarios-limita-pedido" testId="usuarios.limita-pedido" />
+              </div>
+              {form.limita_pedido && (
+                <div className="py-3">
+                  <Campo rotulo="Desconto máximo do pedido (%)" erro={erroDe('desconto_maximo_pedido')}>
+                    <input
+                      inputMode="decimal"
+                      value={form.desconto_maximo_pedido}
+                      onChange={(e) => upd({ desconto_maximo_pedido: e.target.value })}
+                      aria-invalid={!!erroDe('desconto_maximo_pedido')}
+                      placeholder="0,0"
+                      className={`${CAMPO} w-[160px] ${erroDe('desconto_maximo_pedido') ? 'border-2 border-danger' : ''}`}
+                      data-testid="usuarios.campo-desconto-pedido"
+                    />
+                  </Campo>
+                </div>
+              )}
+            </div>
+          )}
+          <div className={aba === 'dados' ? 'flex flex-col gap-3' : 'hidden'}>
           <Campo rotulo="Nome" erro={erroDe('nome')}>
             <input value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
           </Campo>
@@ -463,6 +519,7 @@ function UsuariosConteudo() {
               </p>
             </div>
           )}
+          </div>
           {erroApi && (
             <Notice tone="danger">
               <span data-testid="usuarios.erro">{erroApi}</span>

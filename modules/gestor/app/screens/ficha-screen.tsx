@@ -6,7 +6,7 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -66,8 +66,8 @@ export default function FichaScreen() {
           <Text style={t.small}>{f.membro.perfil === 'promotor' ? 'Promotor' : 'Vendedor'}</Text>
           <ChipEstado texto={s.label} tom={s.tom} pequeno />
         </View>
+        <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
       </View>
-      {estado.doCache ? <Banner>Sem conexão: mostrando os números guardados no aparelho.</Banner> : null}
       {estado.erro && !estado.doCache ? <Banner tone="danger">{estado.erro}</Banner> : null}
       <Secoes p={f.painel} />
       {acao && g.usuarioId ? (

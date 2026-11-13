@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0165 · Aba Venda: antes e depois (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .conteudo > * { flex: none; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Aba Venda · antes e depois</h1>
+<p class="prancha">T-0165 · ajuste 7 do teste da v1.0.4 (R-20261111-225010). A aba Venda abre com os dados do cliente: endereço, filial e CNPJ. O nome e o código continuam só no cabeçalho.</p>
+
+<div class="board">
+
+  <!-- Antes -->
+  <div class="tela antes">
+    <div class="legenda"><b>1</b>Venda<span class="tag antes">Antes · v1.0.4</span><span>Sem os dados do cliente.</span></div>
+    <div class="phone">
+      <div class="status"><span>22:34</span><span>4G ▮▮▮ 63%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (1)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="duas aj" data-n="7">
+          <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span>28/56 dias</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="secao-t" style="margin-top:2px">Crédito do cliente</div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Limite</span><span class="v">R$ 8.000,00</span></div>
+          <div class="lin"><span class="r">Disponível</span><span class="v">R$ 6.420,00</span></div>
+          <div class="lin"><span class="r">Prazo médio</span><span class="v">35 dias</span></div>
+        </div>
+        <div class="atualiz"><i data-i="sync" data-t="13"></i>Atualizado hoje às 22:20</div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Depois -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Venda<span class="tag depois">Depois</span><span>Tabela Cliente no topo, igual às tabelas do Resumo.</span></div>
+    <div class="phone">
+      <div class="status"><span>22:34</span><span>4G ▮▮▮ 63%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba ativa">Venda</div><div class="aba">Itens (1)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="secao-t aj aj-d" data-n="7" style="align-self:flex-start">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">Filial</span><span class="t">Filial Boa Vista</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="duas" style="margin-top:2px">
+          <div><div class="campo-r">Forma de pagamento</div><div class="suspensa"><span>Boleto</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+          <div><div class="campo-r">Prazo</div><div class="suspensa"><span>28/56 dias</span><i data-i="seta" data-t="16" data-c="#4A5562"></i></div></div>
+        </div>
+        <div class="secao-t" style="margin-top:2px">Crédito do cliente</div>
+        <div class="tabela">
+          <div class="lin"><span class="r">Limite</span><span class="v">R$ 8.000,00</span></div>
+          <div class="lin"><span class="r">Disponível</span><span class="v">R$ 6.420,00</span></div>
+          <div class="lin"><span class="r">Prazo médio</span><span class="v">35 dias</span></div>
+        </div>
+        <div class="atualiz"><i data-i="sync" data-t="13"></i>Atualizado hoje às 22:20</div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Regras -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Regras da tabela Cliente<span>Só leitura, sem toque.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Endereço:</b> o do cadastro do cliente (principal), em uma linha que quebra: rua e número · bairro · cidade/UF. O endereço de entrega continua na aba Entrega.</div>
+      <div class="nota-prancha"><b>Filial:</b> a filial de faturamento do cliente, com o nome do cadastro. Tenant com uma filial só: a linha não aparece.</div>
+      <div class="nota-prancha"><b>CNPJ</b> com máscara; CPF no cliente pessoa física. Campo vazio no cadastro: "—".</div>
+      <div class="nota-prancha"><b>Desenho:</b> mesma tabela rótulo | valor do Resumo (rótulo 13 em coluna de 92 dp, valor 14).</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

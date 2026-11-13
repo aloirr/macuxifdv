@@ -22,11 +22,9 @@ import {
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
-  AVISO_PREPARO,
   agendarSemPressa,
   criarSistemaSqlite,
   forcarAsyncStorage,
-  fraseDaPassagem,
   linhasDoArmazenamento,
   mensagemParaSuporte,
   opcoesDoAdaptador,
@@ -35,7 +33,6 @@ import {
   TEXTO_ERRO_ARMAZENAMENTO,
   TEXTO_ERRO_DE_NOVO,
   TEXTO_MOTIVO_RESERVA,
-  TEXTO_PREPARO,
   type PastaSqlite,
 } from './armazenamento-aparelho';
 
@@ -479,31 +476,17 @@ describe('T-0088: peças puras do shell', () => {
     });
   });
 
-  it('barra da tela de preparo: fila e estado até 20 %, dados de consulta o resto; frase sem nome técnico', () => {
+  it('barra do "Atualizando o app": fila e estado até 20 %, dados de consulta o resto', () => {
     expect(percentualDaPassagem(null)).toBe(0);
     expect(percentualDaPassagem({ grupo: 'A', feitos: 0, total: 3 })).toBe(0);
     expect(percentualDaPassagem({ grupo: 'A', feitos: 3, total: 3 })).toBe(10);
     expect(percentualDaPassagem({ grupo: 'B', feitos: 0, total: 0 })).toBe(20);
     expect(percentualDaPassagem({ grupo: 'C', feitos: 5, total: 10 })).toBe(60);
     expect(percentualDaPassagem({ grupo: 'C', feitos: 12, total: 10 })).toBe(100);
-    expect(fraseDaPassagem(null)).toBe('Copiando o que você registrou no aparelho');
-    expect(fraseDaPassagem({ grupo: 'C', feitos: 1, total: 4 })).toBe('Copiando produtos e clientes');
-    for (const g of ['A', 'B', 'C'] as const)
-      expect(fraseDaPassagem({ grupo: g, feitos: 0, total: 1 })).not.toMatch(
-        /sync|ent_|mod:|AsyncStorage|SQLite/,
-      );
   });
 
-  it('textos servem a todos os perfis (o promotor não faz pedido, RN-PRO-01) e dizem que nada se perde se o app fechar', () => {
-    const textos = [
-      TEXTO_PREPARO,
-      AVISO_PREPARO,
-      TEXTO_ERRO_ARMAZENAMENTO,
-      TEXTO_ERRO_DE_NOVO,
-      ...(['A', 'B', 'C'] as const).map((g) => fraseDaPassagem({ grupo: g, feitos: 0, total: 1 })),
-    ];
-    for (const x of textos) expect(x).not.toMatch(/pedido|tabela|visita|rascunho/i);
-    expect(AVISO_PREPARO).toContain('nada se perde');
+  it('textos do erro servem a todos os perfis (o promotor não faz pedido, RN-PRO-01)', () => {
+    for (const x of [TEXTO_ERRO_ARMAZENAMENTO, TEXTO_ERRO_DE_NOVO]) expect(x).not.toMatch(/pedido|tabela|visita|rascunho/i);
     expect(TEXTO_MOTIVO_RESERVA.ids_invalidos).toBe('sessão sem id de usuário');
   });
 

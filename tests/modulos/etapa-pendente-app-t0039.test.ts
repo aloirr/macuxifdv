@@ -126,7 +126,7 @@ describe('T-0039 — etapa pendente no aparelho: Rota (chip) e ficha (aviso) a p
     expect(t.status(P1)).toBe('done');
     expect(t.chip(P1)).toBe(true);
     expect(t.chip(P2)).toBe(false);
-    expect(t.aviso(C1)).toEqual({ linha1: '2 etapas da visita de hoje ainda não chegaram ao Macuxi', linha2: 'Fale com seu supervisor' });
+    expect(t.aviso(C1)).toEqual({ linha1: '2 etapas da visita de hoje não chegaram', linha2: 'Fale com seu supervisor' });
     expect(t.aviso(C2)).toBeNull();
   });
 
@@ -170,16 +170,19 @@ describe('T-0039 — etapa pendente no aparelho: Rota (chip) e ficha (aviso) a p
 
   it('E-06 §1.2 (datas no fuso do tenant): check-in 23h30 de 04/11 em Manaus (03h30Z de 05/11) é "de 04/11"; 00h30 de 05/11 local é "de hoje"', () => {
     const ontem = telaDoAparelho([visita({ id: 'a1000000-0000-4000-8000-000000000006', cliente: C1, checkin: '2026-11-05T03:30:00.000Z', checkout: '2026-11-05T03:50:00.000Z', pendentes: 1 })]);
-    expect(ontem.aviso(C1)?.linha1).toBe('Uma etapa da visita de 04/11 ainda não chegou ao Macuxi');
+    expect(ontem.aviso(C1)?.linha1).toBe('Uma etapa da visita de 04/11 não chegou');
     const hoje = telaDoAparelho([visita({ id: 'a1000000-0000-4000-8000-000000000007', cliente: C1, checkin: '2026-11-05T04:30:00.000Z', checkout: '2026-11-05T04:50:00.000Z', pendentes: 1 })]);
-    expect(hoje.aviso(C1)?.linha1).toBe('Uma etapa da visita de hoje ainda não chegou ao Macuxi');
+    expect(hoje.aviso(C1)?.linha1).toBe('Uma etapa da visita de hoje não chegou');
   });
 
-  it('E-07 §1.2 linha 2: depende da fila e do sinal (fila com sinal, fila sem sinal, fila vazia)', () => {
+  // T-0166 (RD-0181, R-20261112-042519-modulo-core): com item na fila o aviso some (a fila já mostra o que falta subir); o sinal não muda o texto.
+  it('E-07 §1.2 (T-0166): com a fila cheia não há aviso, com ou sem sinal; com a fila vazia, "Fale com seu supervisor" com ou sem sinal', () => {
     const v = [visita({ id: 'a1000000-0000-4000-8000-000000000008', cliente: C1, parada: P1, checkin: '2026-11-05T12:00:00.000Z', checkout: '2026-11-05T12:30:00.000Z', pendentes: 1 })];
-    expect(telaDoAparelho(v, [], { naFila: 2 }).aviso(C1)?.linha2).toBe('Ela vai sozinha da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor');
-    expect(telaDoAparelho(v, [], { naFila: 2, semSinal: true }).aviso(C1)?.linha2).toBe('Ela vai sozinha da fila quando houver sinal');
-    expect(telaDoAparelho(v, [], { naFila: 0, semSinal: true }).aviso(C1)?.linha2).toBe('Fale com seu supervisor');
+    expect(telaDoAparelho(v, [], { naFila: 2 }).aviso(C1)).toBeNull();
+    expect(telaDoAparelho(v, [], { naFila: 2, semSinal: true }).aviso(C1)).toBeNull();
+    expect(telaDoAparelho(v, [], { naFila: 0, semSinal: true }).aviso(C1)).toEqual({ linha1: 'Uma etapa da visita de hoje não chegou', linha2: 'Fale com seu supervisor' });
+    expect(telaDoAparelho(v, [], { naFila: 0, semSinal: false }).aviso(C1)).toEqual(telaDoAparelho(v, [], { naFila: 0, semSinal: true }).aviso(C1));
+    expect(telaDoAparelho(v, [], { naFila: 0 }).aviso(C1)?.linha2).toBe('Fale com seu supervisor');
   });
 
   // D-T0039b (🟡 1 do designer-ux, R-20261105-150128-designer-ux) — corrigido pelo modulo-core em 05/11 (R-20261105-154625-modulo-core)
@@ -189,14 +192,15 @@ describe('T-0039 — etapa pendente no aparelho: Rota (chip) e ficha (aviso) a p
       visita({ id: 'a1000000-0000-4000-8000-000000000010', cliente: C1, parada: P1, checkin: '2026-11-05T12:00:00.000Z', checkout: '2026-11-05T12:30:00.000Z', pendentes: 0 }),
     ]);
     expect(t.chip(P1), 'a parada de hoje não tem pendência').toBe(false);
-    expect(t.aviso(C1)).toEqual({ linha1: 'Uma etapa da visita de 04/11 ainda não chegou ao Macuxi', linha2: 'Fale com seu supervisor' });
+    expect(t.aviso(C1)).toEqual({ linha1: 'Uma etapa da visita de 04/11 não chegou', linha2: 'Fale com seu supervisor' });
   });
 
   // D-T0039c (🟡 2 do designer-ux, R-20261105-150128-designer-ux) — corrigido pelo modulo-core em 05/11 (R-20261105-154625-modulo-core)
-  it('E-09 D-T0039c §1.2 (concordância, 05/11): com N etapas e fila, a linha 2 diz "Elas vão sozinhas da fila…"', () => {
+  it('E-09 D-T0039c §1.2 (concordância; T-0166): N etapas sem fila → "2 etapas … não chegaram" (plural); com fila, sem aviso', () => {
     const v = [visita({ id: 'a1000000-0000-4000-8000-000000000011', cliente: C1, parada: P1, checkin: '2026-11-05T12:00:00.000Z', checkout: '2026-11-05T12:30:00.000Z', pendentes: 2 })];
-    expect(telaDoAparelho(v, [], { naFila: 1, semSinal: true }).aviso(C1)?.linha2).toBe('Elas vão sozinhas da fila quando houver sinal');
-    expect(telaDoAparelho(v, [], { naFila: 1 }).aviso(C1)?.linha2).toBe('Elas vão sozinhas da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor');
+    expect(telaDoAparelho(v).aviso(C1)).toEqual({ linha1: '2 etapas da visita de hoje não chegaram', linha2: 'Fale com seu supervisor' });
+    expect(telaDoAparelho(v, [], { naFila: 1, semSinal: true }).aviso(C1)).toBeNull();
+    expect(telaDoAparelho(v, [], { naFila: 1 }).aviso(C1)).toBeNull();
   });
 });
 

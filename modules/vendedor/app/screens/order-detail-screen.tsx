@@ -18,7 +18,7 @@ import type { MudancaNaConversao } from '../../domain/orcamento';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { referenciaNoOrcamento } from '../../domain/aplicacao';
 import { soOrcamentoPorAlertas } from '../../domain/alertas-pedido';
-import { enviadoAoErp, sellerDiscountLimit } from '../../domain/order';
+import { enviadoAoErp } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
 import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AreaAlertas } from '../components/area-alertas';
@@ -28,9 +28,8 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhaLiquidaDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
-import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { TEXTOS_ENDERECO } from '../lib/endereco-pedido';
@@ -65,6 +64,8 @@ interface Line {
   surcharge_pct?: number;
   /** T-0084 (RN-VEN-19): retrato da aplicação gravado no pedido */
   application?: string | null;
+  /** T-0165: marca (balão do código: "nome - marca") */
+  brand?: string | null;
 }
 
 export default function OrderDetailScreen() {
@@ -184,12 +185,11 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application, brand: it.brand }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
   const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
   const subtotal = queued ? (qd?.subtotal_cents ?? 0) : base!.subtotal_cents;
-  const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
   const discountPct = queued ? queued.payload.discount_pct : base!.discount_pct;
   // T-0061 (RN-VEN-02/03/16/17): desconto efetivo, frete e endereço de entrega do pedido
@@ -338,7 +338,7 @@ export default function OrderDetailScreen() {
   /** `refs`: referências cruzadas por produto (RN-CAT-09/10), lidas na hora de gerar o PDF; não são retrato do pedido */
   const pdfOrder = (refs: ReadonlyMap<string, Array<{ brand: string; code: string }>> = new Map()): OrderPdfOrder => {
     const idPorCodigo = new Map(lines.map((l) => [l.erp_code, l.product_id]));
-    const comReferencias = (o: OrderPdfOrder): OrderPdfOrder => ({ ...o, items: o.items.map((it) => { const r = refs.get(idPorCodigo.get(it.erp_code) ?? ''); return r && r.length > 0 ? { ...it, references: r } : it; }), ...(alertasDaTela.length > 0 ? { alertas: alertasDaTela.map((a) => a.texto) } : {}) });
+    const comReferencias = (o: OrderPdfOrder): OrderPdfOrder => ({ ...o, items: o.items.map((it) => { const r = refs.get(idPorCodigo.get(it.erp_code) ?? ''); return r && r.length > 0 ? { ...it, references: r } : it; }) });
     return comReferencias(pdfBase());
   };
   // T-0141 (RN-VEN-18): o PDF usa o mesmo dia do preço do selo e da folha (uma fonte só)
@@ -350,39 +350,30 @@ export default function OrderDetailScreen() {
       const pdf = { ...pdfDoPedido(detail), ...precoDataDoPdf };
       return doc ? { ...pdf, customer: { ...pdf.customer, cnpj: doc } } : pdf;
     }
-    const c = dados.me ? { me: dados.me, customers: dados.clientes, policy: dados.politica } : null;
+    const c = dados.me ? { me: dados.me, customers: dados.clientes } : null;
     const customerId = queued ? queued.payload.customer_id : base!.customer_id;
     const cu = c?.customers.find((x) => x.id === customerId);
     const sellerId = queued ? (c?.me.seller?.id ?? '') : base!.seller_id;
     const mine = c?.me.seller && c.me.seller.id === sellerId ? c.me.seller : null;
     return {
       number,
-      status,
       created_at: queued ? queued.criado_em : (base!.created_offline_at ?? base!.received_at),
       customer: {
         legal_name: cu?.legal_name ?? customerName,
         trade_name: cu?.trade_name ?? customerName,
         cnpj: cu?.cnpj ?? '',
-        address: cu?.address ?? '',
-        district: cu?.district ?? '',
-        city: cu?.city ?? '',
         erp_code: cu?.erp_code ?? '',
       },
       // RN-VEN-35: pedido em nome na fila sai com o vendedor dono (nunca o gestor) e "feito por" o gestor
       ...(queued ? vendedorDoPdf({ dono_nome: qd?.seller_name ?? '', autor_nome: ambiente.usuario()?.nome ?? '', em_nome: Boolean(queued.payload.vendedor_id) && queued.payload.vendedor_id !== c?.me.seller?.id }) : { seller_name: mine?.name ?? base!.seller_name }),
       payment_terms: terms,
       discount_pct: discountPct,
-      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}) })),
+      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}), ...(l.brand ? { brand: l.brand } : {}) })),
       subtotal_cents: subtotal,
-      discount_cents: discount,
       total_cents: total,
-      pending_reason: queued ? '' : base!.pending_reason,
-      rejection_reason: queued ? '' : base!.rejection_reason,
       price_table: (queued ? cu?.price_table_id : (base!.price_table_id ?? cu?.price_table_id)) ?? '',
-      branch_name: queued ? '' : base!.branch_name ?? '',
-      erp_order_code: queued ? '' : base!.erp_order_code,
-      seller_limit_pct: c?.policy && sellerId ? sellerDiscountLimit(toDomainPolicy(c.policy), sellerId) : null,
       history,
+      ...(queued ? { observacao: queued.payload.observacao?.trim() ?? '' } : {}),
       price_table_name: queued ? null : (base!.price_table_name ?? null),
       ...(!queued && base!.freight ? { freight: base!.freight } : {}),
       ...(enderecoTexto ? { delivery_address: enderecoTexto } : {}),
@@ -505,7 +496,7 @@ export default function OrderDetailScreen() {
   const iconesDaTela: AcaoCompacta[] = acoesDaTela.icones.map((a) => ({ id: a.id, rotulo: a.rotulo, rotuloAcessivel: a.rotuloAcessivel, icone: a.icone, desligado: desligadaPorOcupado && a.id !== 'pdf' && a.id !== 'pedido', testID: testIdDaAcao[a.id], onPress: () => executar(a.id) }));
   const opcoesDoMenu = acoesDaTela.menu.map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: true, testID: 'pedido-excluir', onPress: () => executar(a.id) }));
   const rotuloDoMenu = ehOrc ? 'Mais ações do orçamento' : 'Mais ações do pedido';
-  const linhaLiquida = linhaLiquidaDosTotais({ subtotal_cents: subtotal, total_cents: total });
+  const linhasTotais = linhasDosTotais({ subtotal_cents: subtotal, total_cents: total });
   const tabelaPagamento = [{ rotulo: 'Pagamento', valor: [queued ? null : (base?.forma_pagamento_nome ?? null), queued ? terms : (base?.prazo_descricao ?? terms)].filter(Boolean).join(' · ') }, { rotulo: 'Entrega', valor: [modalidade ? textoDoFrete(modalidade, transportadora) : null, enderecoTexto].filter(Boolean).join(' · ') }];
   // T-0150 🟡 5/6: Nº no ERP, Filial e Tabela são linhas da tabela (só com valor); "Editado neste pedido" é a 2ª linha da Entrega
   const linhasExtras = [
@@ -571,9 +562,9 @@ export default function OrderDetailScreen() {
           {rotuloVerTodos ? <LinkTexto rotulo={rotuloVerTodos} onPress={() => setMostrarTodosItens(true)} testID="ver-todos-itens" /> : null}
         </View>
 
-        {/* 3. totais: Tabela, linha líquida (% sobre a tabela) e Total */}
+        {/* 3. totais: Valor de tabela, Desconto (%) e (R$) só com ajuste, e Valor final */}
         <View style={{ gap: 4 }}>
-          <CartaoDeTotais tabela={formatBRL(subtotal)} liquida={linhaLiquida} total={formatBRL(total)} testIDTotal={ehOrc ? 'orcamento-total' : 'order-total'} />
+          <CartaoDeTotais linhas={linhasTotais} total={formatBRL(total)} testIDTotal={ehOrc ? 'orcamento-total' : 'order-total'} />
         </View>
 
         {notasFaturamento.length > 0 || devolucoes.length > 0 ? (

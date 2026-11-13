@@ -146,3 +146,7 @@
 2026-11-10 — T-0159 — filial com CNPJ e endereço: contrato core.filiais@1/sync (aditivo), validarFilial (DV do CNPJ, obrigatórios), rotas, consumidor do ERP, BKO e testes; recados ao vendedor e à integração
 2026-11-10 — T-0147/RD-0109 — comentários das fotos do PDV alinhados a 'Na fila'/cadeado por fotoPdvTrancada; filtro de pendentes em const única; tsc (3 configs) e eslint do core conferidos
 2026-11-11 — T-0159 — RD-0114/0115/0116/0117/0122: LIMITES_FILIAL, CAMPOS_OBRIGATORIOS_FILIAL e CAMPOS_FISCAIS_FILIAL no contrato; faltasNoCadastroDaFilial no domain (validarFilial, API incompleta, web); selo Incompleta no BKO Filiais
+2026-11-12 — T-0166 — RD-0180 a RD-0183: caixa de check-in bloqueado sai (toast no toque), faixa de etapa pendente só sem fila, Obrigatória/Falta concluir só após tentar concluir, frases do fora do raio, Sincronize e RN-CORE-17 saem; testes ajustados
+2026-11-12 — T-0172 — RN-CORE-40: etapas nomeadas da entrada (domain/entrada-sync.ts, contracts/entrada-sync.ts): nome, número, total, percentual por perfil e módulos efetivos, parada para o Diagnóstico; 10 testes; recados ao engenheiro-apps e ao engenheiro-software
+2026-11-13 — T-0168 — RN-VEN-11a: LimiteDescontoSchema/LIMITE_DESCONTO_PADRAO, usuario (sync) e cadastro_resumo@1 aditivo, POST/PUT usuarios com 422 e auditoria, aba Parâmetros no BKO
+2026-11-13 — T-0171 — RN-CORE-41: tag única (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita (domain/lista-clientes.ts, entidade cliente_ultima_visita), filtro "Devendo"

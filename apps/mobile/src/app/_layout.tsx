@@ -17,7 +17,7 @@ import { useFonts } from 'expo-font';
 import { DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { View } from 'react-native';
 
 import { ProvedorBloqueioDeSaida, ShellProvider } from '@macuxi/platform-sdk/react';
@@ -25,10 +25,13 @@ import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors, ProvedorSaidaDaTela, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
 import { FolhaFotoPdv } from '@/components/folha-foto-pdv';
-import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo-aparelho';
+import { TelaErroArmazenamento } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { TelaDeErroDaRaiz } from '@/components/tela-de-erro';
+import { TelaEntrada } from '@/components/tela-entrada';
 import { TelaPermissoes } from '@/components/tela-permissoes';
+import { percentualDaPassagem } from '@/lib/armazenamento-aparelho';
+import { ROTULO_ATUALIZANDO } from '@/lib/entrada';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
@@ -76,9 +79,10 @@ export default function RootLayout() {
 }
 
 /**
- * Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. T-0088: a tela de preparo (passagem do
- * AsyncStorage para o SQLite) e a de erro do armazenamento ficam POR CIMA, sem desmontar o roteador (o login que está
- * esperando a abertura continua montado); na abertura do app com sessão, aparecem no lugar da tela de abertura.
+ * Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. Até lá, a tela de entrada (T-0172): o mesmo
+ * fundo e o mesmo logo da splash nativa, que some assim que o logo do JS está desenhado (sem corte). T-0088: a passagem
+ * do AsyncStorage para o SQLite ("Atualizando o app", na tela de entrada) e a tela de erro do armazenamento ficam POR
+ * CIMA, sem desmontar o roteador (o login que está esperando a abertura continua montado).
  */
 function Gate({ fontsReady }: { fontsReady: boolean }) {
   const {
@@ -95,6 +99,7 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
     permissoesLidas,
     pedindoPermissao,
     tocarBotaoPermissoes,
+    variante,
   } = usePlataforma();
   // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
   const reduzir = useReduzirMovimento();
@@ -104,7 +109,12 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   const semPermissao = fontsReady && permissoesLidas ? telaPermissoes : null;
   const show = fontsReady && ready && permissoesLidas;
   const sobre = !fontsReady || !permissoesLidas ? null : preparo ? (
-    <TelaPreparoAparelho progresso={preparo.progresso} />
+    <TelaEntrada
+      variante={variante}
+      sobreposta
+      testID="preparo-aparelho"
+      barra={{ rotulo: ROTULO_ATUALIZANDO, pct: percentualDaPassagem(preparo.progresso) }}
+    />
   ) : erroArmazenamento ? (
     <TelaErroArmazenamento
       detalhe={erroArmazenamento.detalhe}
@@ -122,10 +132,11 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
       }}
     />
   ) : null;
+  const esconderSplash = useCallback(() => void SplashScreen.hideAsync().catch(() => {}), []);
   const visivel = show || sobre !== null || semPermissao !== null;
   useEffect(() => {
-    if (visivel) void SplashScreen.hideAsync().catch(() => {});
-  }, [visivel]);
+    if (visivel) esconderSplash();
+  }, [visivel, esconderSplash]);
   if (semPermissao) {
     return (
       <TelaPermissoes
@@ -136,7 +147,7 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
       />
     );
   }
-  if (!show) return sobre;
+  if (!show) return sobre ?? <TelaEntrada variante={variante} sobreposta aoDesenhar={esconderSplash} nomeDoApp={Constants.expoConfig?.name} />;
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
       {/* RN-VEN-38 (T-0128): formulário alterado segura a barra inferior e o Voltar do Android (useBloquearSaida do SDK) */}

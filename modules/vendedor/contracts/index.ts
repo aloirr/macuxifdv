@@ -113,7 +113,7 @@ export const Order = z.object({
   branch_id: Id.nullable(),
   branch_name: z.string().nullable(),
   /** T-0159 (T-0149): dados fiscais da filial de faturamento no retrato do pedido (CNPJ, endereço, telefone); ausente = pedido anterior */
-  filial: FilialDadosFiscaisSchema.extend({ cidade: z.string().nullish(), uf: z.string().nullish() }).nullable().optional(),
+  filial: FilialDadosFiscaisSchema.extend({ nome: z.string().nullish(), cidade: z.string().nullish(), uf: z.string().nullish() }).nullable().optional(),
   price_table_id: Id.nullable(),
   discount_pct: Pct,
   subtotal_cents: Cents,
@@ -323,6 +323,8 @@ export const CODIGOS_RECUSA_PEDIDO = [
   'RN-VEN-18', 'ajuste_invalido', 'ORCAMENTO_ALTERADO',
   // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não permitida ou prazo acima do prazo médio do cliente (RN-VEN-25)
   'RN-VEN-24', 'RN-VEN-25',
+  // T-0168 (RN-VEN-11a): desconto efetivo do pedido acima do limite do usuário
+  'desconto_pedido_acima_limite',
 ] as const;
 
 /**

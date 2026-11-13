@@ -354,7 +354,7 @@ Pedido R-20261109-014928-modulo-integracao. Só `integracao.mapeamento`: o CHECK
 coluna `canal` (até 60; NULL/branco = limpa). Testes: `db/testes/mapeamento-canal.test.ts`, `views-modelo-conector.test.ts`.
 
 ## Views-modelo do Conector (`db/conector/views-modelo.sql`)
-Criado na T-0089 (fatia B2), com as 15 entidades do Hub (citado em docs/produto/06-integracao-erp.md e em
+Criado na T-0089 (fatia B2), com as entidades do Hub e, desde a T-0162, as 2 views do retorno do pedido (citado em docs/produto/06-integracao-erp.md e em
 docs/modulos/integracao/conector.md §3). É um **modelo**: as tabelas de origem (`erp_*`) são fictícias e o técnico do cliente
 troca pelas do ERP dele. Formato:
 - **Uma view `vw_macuxi_<entidade>` por entidade**, na ordem de carga do Conector (`ORDEM_CARGA` em
@@ -378,6 +378,15 @@ troca pelas do ERP dele. Formato:
   v2) e com coluna repetida; `external_id` sem CPF/CNPJ; os aliases das alternativas comentadas existem na view. Campo
   **opcional** do contrato sem coluna **não falha** (o contrato v1 cresce de forma aditiva e é do `modulo-integracao`): vira
   `console.warn` com a lista. Campo novo no contrato da integração = recado ao `banco-dados` para a view acompanhar.
+- **Retorno do pedido (T-0162)**: no fim do arquivo, fora das entidades de carga, `vw_macuxi_pedido_status` (16) e
+  `vw_macuxi_pedido_nota_item` (17), as views que o `conector.exemplo.json` lê em `pedidos.status`. Status: `pedido_uuid`,
+  `situacao` (código do `mapaStatus`: I, R, P, F, C), `numero_pedido`, `motivo`, `nota_numero`, `nota_serie`, `nota_emitida_em`,
+  `nota_total_cents`, `ocorrido_em`; uma linha por fato (a situação e cada nota). Regras do `RetornoErp`: faturado (P/F) só
+  sai **com nota** (o pedido faturado aparece como I, já informado, e cada nota sai no 2º `SELECT`) e rejeitado (R) sai
+  **sempre com motivo**. Itens: `pedido_uuid`, `nota_numero`, `nota_serie`, `sequencia` (a do pedido do Macuxi), `quantidade`
+  (inteiro, unidade base), `valor_cents`, `produto_codigo` (= `vw_macuxi_produto.external_id`). O teste confere as colunas
+  contra as consultas do `conector.exemplo.json`. A variante sobre a própria `macuxi_pedido_entrada` está no kit do piloto
+  (`modules/integracao/kit-piloto/sql/03-pedido-extensao.sql`).
 
 Regras que toda view-modelo segue (e que o técnico do cliente mantém ao adaptar):
 - Colunas comuns (RegistroBase): `external_id` (chave interna do ERP, nunca CPF/CNPJ, até 200), `alterado_em` (UTC, ms,

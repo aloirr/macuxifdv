@@ -12,7 +12,7 @@
  */
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, type LimiteDesconto } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ClienteBanco, type ContextoBase, type ItemPush, type ResultadoItemPush, type TransacaoTenant } from '@macuxi/platform-sdk';
 import {
   EVENTO_PEDIDO_APROVACAO_SOLICITADA,
@@ -217,6 +217,9 @@ export async function calcularDocumento(
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
     em_nome: emNome,
+    tipo,
+    // RN-VEN-11a (T-0168): o limite é o do AUTOR (o gestor, em nome); emissor antigo sem os campos = padrão
+    limite: autor as Partial<LimiteDesconto> | undefined,
     vendedor_id: donoId,
     cliente_id: p.customer_id,
     carteira: [p.customer_id],
@@ -250,7 +253,7 @@ export async function calcularDocumento(
   if (!rv.ok) return recusa(itemId, rv);
   // RN-VEN-20 (T-0149): sem estoque na FILIAL do cliente (saldo da filial − reservas da mesma filial) o pedido só sai como orçamento
   if (tipo === 'pedido') {
-    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
+    const falta = await faltaDeEstoqueNaFilial(db, provedorSaldoDaFilial(tx), p.items.map((i, idx) => ({ produto_id: i.product_id, quantidade_base: i.quantity * medidas.get(idx)!.fator })), retratoFilial?.filial_id ?? null, p.id);
     if (falta.length > 0) return rejeitado(itemId, 'RN-VEN-20', 'Sem estoque na filial para um dos itens. Envie como orçamento ou reduza a quantidade.');
   }
   // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade

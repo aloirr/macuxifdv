@@ -220,14 +220,14 @@ describe.skipIf(semBanco())('T-0039 — etapa pendente no app (Rota, ficha, noti
     expect(t.statusDaParada(A.paradas.v1c3)).toBe('done');
     expect(t.chip(A.paradas.v1c3), 'chip na parada feita com pendência').toBe(true);
     expect(t.chip(A.paradas.v1c1), 'c1 (visita da fixture, sem pendência) sem chip').toBe(false);
-    expect(t.aviso(C.c3)).toEqual({ linha1: `Uma etapa da visita ${quando(checkin_at, v.acao.tz)} ainda não chegou ao Macuxi`, linha2: 'Fale com seu supervisor' });
+    expect(t.aviso(C.c3)).toEqual({ linha1: `Uma etapa da visita ${quando(checkin_at, v.acao.tz)} não chegou`, linha2: 'Fale com seu supervisor' });
     expect(t.aviso(C.c1)).toBeNull();
 
     // modo avião: offline-first, a tela continua a mesma (o SyncStamp diz de quando é a informação)
     v.ap.online.valor = false;
     const sem = await tela(v);
     expect(sem.chip(A.paradas.v1c3)).toBe(true);
-    expect(sem.aviso(C.c3)?.linha2).toBe('Fale com seu supervisor');
+    expect(sem.aviso(C.c3)).toEqual(t.aviso(C.c3)); // T-0166: o sinal não muda o aviso
     v.ap.online.valor = true;
 
     // limpeza para os cenários seguintes (a ficha usa a visita mais recente do cliente)

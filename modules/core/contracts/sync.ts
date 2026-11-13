@@ -54,6 +54,33 @@ export const ClienteSyncSchema = z
   .strict();
 export type ClienteSync = z.infer<typeof ClienteSyncSchema>;
 
+/**
+ * RN-VEN-11a (T-0168): funções e limite de desconto do usuário. O app usa a linha do usuário da sessão; sem linha = `LIMITE_DESCONTO_PADRAO`.
+ * Só o que o aparelho precisa (sem nome, e-mail nem senha). Entidade nova: o APK antigo não a pede.
+ */
+export const UsuarioSyncSchema = z
+  .object({
+    ...Base,
+    desconto_limita_item: z.boolean().default(true),
+    desconto_limita_pedido: z.boolean().default(false),
+    desconto_maximo_pedido_permil: z.number().int().min(0).max(1000).nullable().default(null),
+  })
+  .strict();
+export type UsuarioSync = z.infer<typeof UsuarioSyncSchema>;
+
+/**
+ * RN-CORE-41 (T-0171): data do último check-in do cliente, de QUALQUER vendedor (a linha de `visita` só traz as do usuário e da equipe, em 40 dias).
+ * `id` = `cliente_id`. Sem linha = "Nunca visitado".
+ */
+export const ClienteUltimaVisitaSyncSchema = z
+  .object({
+    ...Base,
+    cliente_id: z.string().uuid(),
+    ultima_visita_data: z.string().regex(/^d{4}-d{2}-d{2}$/),
+  })
+  .strict();
+export type ClienteUltimaVisitaSync = z.infer<typeof ClienteUltimaVisitaSyncSchema>;
+
 export const CarteiraSyncSchema = z
   .object({
     ...Base,

@@ -66,3 +66,26 @@ export function idsSemTexto(ids: readonly string[], cache: ReadonlyMap<string, u
   }
   return out;
 }
+
+/** T-0167: a lista da aba Itens mostra 20 por vez (+ Mostrar mais) e só busca a partir de 3 letras. */
+export const TAMANHO_PAGINA_BUSCA = 20;
+export const MIN_LETRAS_BUSCA = 3;
+
+/** T-0167: a busca só começa com 3 letras (espaços nas pontas não contam). */
+export function buscaPodeComecar(texto: string): boolean {
+  return texto.trim().length >= MIN_LETRAS_BUSCA;
+}
+
+/** T-0167: quantos itens aparecem agora ("Mostrando 20 de 87") e se ainda há mais; cada toque traz mais 20 da lista já ranqueada. */
+export function paginaDaBusca(total: number, paginas: number): { mostrando: number; total: number; temMais: boolean; texto: string } {
+  const mostrando = Math.min(total, Math.max(1, paginas) * TAMANHO_PAGINA_BUSCA);
+  return { mostrando, total, temMais: mostrando < total, texto: `Mostrando ${mostrando} de ${total}` };
+}
+
+/** T-0167: o texto digitado é um código (ou EAN) exato? Esse produto vem em 1º, mantida a ordem dos demais. */
+export function codigoExatoPrimeiro<P extends { id: string; erp_code: string; ean?: string | null }>(itens: readonly P[], texto: string): P[] {
+  const q = texto.trim().toLowerCase();
+  if (!q) return [...itens];
+  const exato = itens.find((p) => p.erp_code.trim().toLowerCase() === q || (p.ean ?? '').trim().toLowerCase() === q);
+  return exato ? [exato, ...itens.filter((p) => p !== exato)] : [...itens];
+}

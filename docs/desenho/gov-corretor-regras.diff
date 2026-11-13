@@ -1,0 +1,51 @@
+diff --git a/.claude/agents/corretor-redundancias.md b/.claude/agents/corretor-redundancias.md
+index c3585a7a..c3c7d2f0 100644
+--- a/.claude/agents/corretor-redundancias.md
++++ b/.claude/agents/corretor-redundancias.md
+@@ -28,6 +28,7 @@ Você **não corrige** código, tela, schema, doc de produto ou quadro de outro
+ 4. Um recado por dono (agrupe os achados do mesmo dono), cc `gerente-projetos`, tarefa = a T-nnnn recebida.
+ 5. Recado `entrega` ao gerente + linha no diário.
+ 6. Quando o dono entregar, **reteste** e feche o achado no catálogo (status `corrigido` ou `reaberto`).
++7. **Toda imagem que vai ao dono do produto passa antes por você** (R-20261112-212507), inclusive as da nuvem, as do design-de-marca e as simulações que a ponte faz no chat. O parecer vai junto com a imagem; imagem sem parecer não vai.
+ 
+ ## Checklist
+ 
+@@ -40,6 +41,11 @@ Você **não corrige** código, tela, schema, doc de produto ou quadro de outro
+ - **Estado vazio duplicado**: "0" e "R$ 0" juntos; três barras vazias seguidas. Estado zero deve ter uma frase só.
+ - **Selo + marcador** indicando o mesmo "novo"; "Ver todos" quando já se vê tudo.
+ - **Texto truncado** que obriga a abrir a tela para entender o que já poderia caber em 2 linhas.
++- **Uma informação por linha de lista: a tag diz a situação, a linha de baixo diz um único fato** (dono do produto, R-20261112-212507). Vale para toda lista (Campo, Gestão e BKO):
++  - **uma tag por linha**, de **uma só escala** (ex.: Bloqueado > Devendo > Pré-Cadastro > Em dia); duas tags na mesma linha, ou tags de escalas diferentes, é achado;
++  - **linha de baixo** sem `·` juntando assuntos (ex.: `Boa Vista · título vencido`) e **sem repetir a tag**;
++  - **lado direito com um elemento só** (o valor, a seta ou o botão; não dois);
++  - **tag e linha dizendo o mesmo** (ex.: tag `Sem check-in` e linha `Sem check-in hoje`) é gravidade **alta**.
+ 
+ ### B. Indicadores
+ - O mesmo número em mais de uma representação no mesmo cartão (%, barra, "de X", "faltam Y") → no máximo **2 representações** (número principal + barra **ou** %), e "faltam" só quando muda decisão.
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 8e594b94..f39ea346 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -53,7 +53,9 @@ Cada tarefa roda **local** (este VS Code) ou na **nuvem** (claude.ai/code, branc
+ - **Parecer do corretor-redundancias sem nenhum achado em aberto, de qualquer gravidade** (regra permanente do dono do produto, R-20261110-062506):
+   - toda entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa por ele **antes do lote e antes do build**, como passa pelo testes;
+   - o parecer olha o print do aparelho: repetição, caixa repetindo uma linha, texto além do problema e da ação, rótulo e número que não batem;
++  - **toda imagem que vai ao dono do produto passa antes pelo corretor**, inclusive as da nuvem, as do design-de-marca e as simulações da ponte, e o parecer vai junto (R-20261112-212507);
+   - **uma informação, um lugar:** o que uma seção da tela já mostra não aparece em outro lugar da mesma tela, e nenhum aviso fica fora da área "Alertas" (R-20261110-093124, RN-VEN-42);
++  - **uma informação por linha de lista:** a tag diz a situação (uma tag, de uma só escala) e a linha de baixo diz um único fato, sem `·` juntando assuntos e sem repetir a tag; lado direito com um elemento só; tag e linha dizendo o mesmo é gravidade alta (R-20261112-212507);
+   - **só o que o usuário usa para agir:** texto que ele não usa para decidir ou agir agora também é excesso e sai, mesmo certo e sem repetição. Exemplos: o que o sistema faz por trás ("vai junto", "o app guarda…", "a equipe vê…"), explicação de funcionamento e texto de garantia (R-20261110-192153);
+   - cada build leva o relatório do corretor junto com o roteiro do testes;
+   - **exceção:** achado de gravidade baixa que esteja **só em comentário ou título de teste** não segura o lote e entra no lote seguinte (dono do produto, R-20261111-190159). Achado em código de produção, tela, texto, PDF, relatório, regra ou doc continua segurando.
+diff --git a/docs/produto/07-agentes-e-coordenacao.md b/docs/produto/07-agentes-e-coordenacao.md
+index 0cc86ee3..a776d6ae 100644
+--- a/docs/produto/07-agentes-e-coordenacao.md
++++ b/docs/produto/07-agentes-e-coordenacao.md
+@@ -56,6 +56,8 @@
+   - **Uma informação, um lugar** (dono do produto, R-20261110-093124, 10/11/2026): se uma seção da tela já mostra uma informação (o Histórico mostra a situação, os Totais mostram o %, os Alertas mostram o problema), essa informação não aparece em outro lugar da mesma tela. Nenhum aviso fica solto fora da área "Alertas" (RN-VEN-42). Vale para todas as telas e todas as entregas, inclusive as já liberadas.
+   - **Só o que o usuário usa para agir** (dono do produto, R-20261110-192153, 10/11/2026): a pergunta para todo texto é "o usuário precisa disso para decidir ou agir agora?". Se não precisa, o texto sai, mesmo certo e sem repetição. Exemplos: o que o sistema faz por trás ("vai junto", "o app guarda…", "a equipe vê…"), explicação de funcionamento e texto de garantia.
+   - **Imagem para aprovação** vai ao dono do produto pelos anexos do repositório de recados (`recados/anexos/`), junto com o recado e já com o parecer do corretor (R-20261110-085951).
++  - **Toda imagem que vai ao dono do produto passa antes pelo corretor** (dono do produto, R-20261112-212507, 12/11/2026), inclusive as da nuvem, as do design-de-marca e as simulações que a ponte faz no chat. O parecer vai junto com a imagem.
++  - **Uma informação por linha de lista** (dono do produto, R-20261112-212507): a tag diz a situação e a linha de baixo diz um único fato. Uma tag por linha, de uma só escala; linha de baixo sem `·` juntando assuntos e sem repetir a tag; lado direito com um elemento só; tag e linha dizendo o mesmo é gravidade alta. O checklist fica em `.claude/agents/corretor-redundancias.md`, seção A.
+ - **Quem revisa o quê** (R-20261103-161508): visual, hierarquia, textos e "3 toques" → **designer-ux**; offline, navegação, desempenho e bundle → **engenheiro-apps**; arquitetura, contratos, API, segurança e fronteiras → **engenheiro-software**, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas três revisões.
+ - **Transição**: até o Alexandre mudar o `.coord/donos.json` (`apps/mobile/**`, `apps/web/**` e `packages/ui/**` → engenheiro-apps), esses caminhos seguem com o engenheiro-software e o engenheiro-apps não é disparado. O gerente avisa o Alexandre com "pronto para a divisão" quando não houver nada em andamento nesses caminhos.
+ 

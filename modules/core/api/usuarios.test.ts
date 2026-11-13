@@ -61,7 +61,7 @@ const executar = (r: RotaModulo, ctx: ContextoBase, extra: Record<string, unknow
   r.executar({ ...ctx, corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never);
 
 const linhaItem = (o: Record<string, unknown> = {}) => ({
-  id: ALVO, nome: 'Vera', nome_curto: null, email: 'vera@x.com', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false, ...o,
+  id: ALVO, nome: 'Vera', nome_curto: null, email: 'vera@x.com', perfil: 'vendedor', equipe_id: null, equipe_nome: null, ativo: true, external_id: null, ultimo_login_em: null, trocar_senha: false, senha_expira_em: null, sem_senha: false, desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null, ...o,
 });
 const estado: Resposta = [/id = any\(/,[{ id: '0b000000-0000-4000-8000-0000000000ad', perfil: 'admin', ativo: true }, { id: 'a2', perfil: 'admin', ativo: true }, { id: '0b000000-0000-4000-8000-000000000001', perfil: 'vendedor', ativo: true }]];
 /** Estado real do tenant (T-0111): os 7 perfis de fábrica, sem sobreposição, e cada usuário com os códigos dos seus perfis. */
@@ -240,6 +240,30 @@ describe('RF-CORE-02: editar usuário', () => {
   it('RF-CORE-02: o último admin ativo não pode ser rebaixado', async () => {
     const { db } = fakeDb([[/id = any\(/,[{ id: ALVO, perfil: 'admin', ativo: true }]], ...carga([{ id: ALVO, perfis: ['admin'] }]), [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'gerente', nome: 'Gerente', base: 'gerente' }]], [/for update/, [bruto({ perfil: 'admin' })]]]);
     await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { perfil: 'gerente' } })).rejects.toMatchObject({ status: 422, codigo: 'ULTIMO_ADMIN' });
+  });
+});
+
+describe('RN-VEN-11a: limite de desconto do usuário (T-0168)', () => {
+  it('RN-VEN-11a: "por pedido" ligada sem o número é 422 USUARIO_DADOS_INVALIDOS (campo desconto_maximo_pedido_permil)', async () => {
+    const { db } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto()]]]);
+    await expect(executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { desconto_limita_pedido: true } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS', message: 'Informe o desconto máximo do pedido.' });
+  });
+  it('RN-VEN-11a: grava as funções e o limite (8,0% = 80) e audita antes e depois', async () => {
+    const { db, chamadas } = fakeDb([estado, ...cargaPadrao, [/for update/, [bruto({ desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null })]], [/from core.usuario u left join/, [linhaItem({ desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 })]]]);
+    const r = await executar(rota('PUT', 'usuarios/:id'), contexto(db), { params: { id: ALVO }, corpo: { desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 } });
+    expect(r).toMatchObject({ desconto_limita_pedido: true, desconto_maximo_pedido_permil: 80 });
+    const up = chamadas.find((c) => /update core.usuario set nome/.test(c.sql))!;
+    expect(up.valores.slice(-3)).toEqual([true, true, 80]);
+    const a = jsonDaAuditoria(chamadas);
+    expect(a).toContain('desconto_limita_pedido');
+    expect(a).toContain('desconto_maximo_pedido_permil');
+  });
+  it('RN-VEN-11a: criar com "por pedido" sem o número é recusado; sem os campos nasce no padrão', async () => {
+    const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
+    const { db } = fakeDb([...respostasDoTenant(), [/select 1 from core.equipe where id/, [{ '?column?': 1 }]]]);
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, desconto_limita_pedido: true } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS' });
+    const ok = rota('POST', 'usuarios').corpo!.parse(corpo) as unknown as Record<string, unknown>;
+    expect(ok).toMatchObject({ desconto_limita_item: true, desconto_limita_pedido: false, desconto_maximo_pedido_permil: null });
   });
 });
 

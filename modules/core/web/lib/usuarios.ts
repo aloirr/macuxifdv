@@ -3,7 +3,7 @@
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
 import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
-import type { CriarUsuarioRequest, EditarUsuarioRequest, EmailAcesso, EquipeOpcao, UsuarioItem } from '../../contracts';
+import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
@@ -19,14 +19,33 @@ export interface FormularioUsuario {
   equipe_id: string;
   external_id: string;
   senha: string;
+  /** T-0168 / RN-VEN-11a: funções de desconto (aba Parâmetros). O limite é digitado em % com uma casa ("8,0"). */
+  limita_item: boolean;
+  limita_pedido: boolean;
+  desconto_maximo_pedido: string;
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '' };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '' };
+
+export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
+export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
+
+/** "8,0" ou "8.5" em % → décimos de % (‰) inteiros; vazio ou inválido = null. */
+export function permilDoTexto(texto: string): number | null {
+  const t = texto.trim().replace(',', '.');
+  if (t === '' || !/^\d+(\.\d+)?$/.test(t)) return null;
+  return Math.round(Number(t) * 10);
+}
+
+/** ‰ → texto com uma casa e vírgula (80 → "8,0"). */
+export function textoDoPermil(permil: number | null): string {
+  return permil === null ? '' : (permil / 10).toFixed(1).replace('.', ',');
+}
 
 export { ERRO_SEM_PERFIL };
 
 export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
-  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '' };
+  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil) };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
@@ -35,6 +54,12 @@ const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim())
 export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'): ErroDeCampo[] {
   const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
   if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: ERRO_SEM_PERFIL });
+  // RN-VEN-11a: o número só é exigido com "por pedido" ligada (desligada, o valor fica guardado)
+  if (f.limita_pedido) {
+    const permil = permilDoTexto(f.desconto_maximo_pedido);
+    if (f.desconto_maximo_pedido.trim() === '') erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_OBRIGATORIO });
+    else if (permil === null || permil > DESCONTO_PEDIDO_PERMIL_MAX) erros.push({ campo: 'desconto_maximo_pedido', mensagem: ERRO_DESCONTO_FAIXA });
+  }
   if (modo === 'criar') {
     const fraca = validarSenhaInicial(f.senha, f.email);
     if (fraca) erros.push({ campo: 'senha', mensagem: fraca });
@@ -52,11 +77,18 @@ export function corpoDeCriacao(f: FormularioUsuario): CriarUsuarioRequest {
     external_id: ouNulo(f.external_id),
     ativo: true,
     senha: f.senha,
+    ...corpoDoLimite(f),
   };
 }
 
 export function corpoDeEdicao(f: FormularioUsuario): EditarUsuarioRequest {
-  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id) };
+  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f) };
+}
+
+/** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */
+function corpoDoLimite(f: FormularioUsuario) {
+  const permil = permilDoTexto(f.desconto_maximo_pedido);
+  return { desconto_limita_item: f.limita_item, desconto_limita_pedido: f.limita_pedido, desconto_maximo_pedido_permil: permil !== null && permil <= DESCONTO_PEDIDO_PERMIL_MAX ? permil : null };
 }
 
 /** Superior resultante da equipe escolhida, para mostrar no formulário (o superior não é campo: deriva da equipe). */

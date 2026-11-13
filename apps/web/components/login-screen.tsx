@@ -36,6 +36,7 @@ import { entraEm, mensagemPerfilForaDoApp, perfisDeFabricaQueEntram, type Perfil
 import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
+import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
 import { encerrarSessao, pedirLogin, pedirTrocaDeSenha, salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
@@ -59,16 +60,9 @@ export function LoginScreen() {
   return MODO_API === 'demo' ? <LoginDemo /> : <LoginReal />;
 }
 
+/** Marca do login do BKO: o logo negativo na faixa Azul noite (T-0172, manual §4). */
 function Marca() {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-accent font-display text-[17px] font-extrabold text-on-accent">M</span>
-      <div className="flex flex-col">
-        <span className="font-display text-[15px] font-bold">Backoffice Macuxi</span>
-        <span className="text-[12px] text-ink-2">Força de vendas · web do BKO</span>
-      </div>
-    </div>
-  );
+  return <MarcaNaFaixa area="Backoffice" />;
 }
 
 const campoCss = 'h-11 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';

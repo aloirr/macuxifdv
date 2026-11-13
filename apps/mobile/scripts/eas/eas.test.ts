@@ -25,7 +25,7 @@ describe('versão: fonte única e versionCode crescente', () => {
     else process.env.APP_VARIANT = varianteAntes;
   });
 
-  // Sem travar o número: o teste confere o formato e o nome derivado (hoje 1.0.3 → Campo-Demo-v1.0.3 / Gestao-Demo-v1.0.3).
+  // Sem travar o número: o teste confere o formato e o nome derivado (ex.: 1.0.4 → Campo-Demo-v1.0.4 / Gestao-Demo-v1.0.4).
   it('versao.json em X.Y.Z e nome do build derivado dele, igual nas duas variantes', () => {
     expect(versaoDoArquivo).toMatch(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
     expect(versaoAtual()).toBe(versaoDoArquivo);

@@ -15,10 +15,33 @@ export function semRs(cents: number): string {
   return formatBRL(cents).replace(/^R\$\s*/, '');
 }
 
-/** "Desconto 8,8%" / "Acréscimo 5,8%": a linha líquida dos Totais, sobre a tabela, com o sinal e o R$ (U+2212 no negativo). `null` = sem ajuste. */
-export function linhaLiquidaDosTotais(e: { subtotal_cents: number; total_cents: number }): { rotulo: string; valor: string } | null {
+export interface LinhaDosTotais {
+  id: 'tabela' | 'pct' | 'valor';
+  rotulo: string;
+  valor: string;
+}
+
+/**
+ * T-0165 (R-20261112-032141): os Totais do Resumo, do detalhe, da folha do item e dos PDFs. Sem ajuste: lista vazia (só o "Valor final").
+ * Com ajuste: "Valor de tabela", "Desconto (%)" e "Desconto (R$)" (ou "Acréscimo (%)" e "Acréscimo (R$)"), o % sobre a tabela (RN-VEN-03).
+ */
+export function linhasDosTotais(e: { subtotal_cents: number; total_cents: number }): LinhaDosTotais[] {
   const dif = e.total_cents - e.subtotal_cents;
-  if (dif === 0 || !(e.subtotal_cents > 0)) return null;
+  if (dif === 0 || !(e.subtotal_cents > 0)) return [];
   const pct = formatPct(pctExibicao(Math.abs(dif), e.subtotal_cents));
-  return dif > 0 ? { rotulo: `Acréscimo ${pct}`, valor: `+ ${formatBRL(dif)}` } : { rotulo: `Desconto ${pct}`, valor: `− ${formatBRL(-dif)}` };
+  const nome = dif > 0 ? 'Acréscimo' : 'Desconto';
+  return [
+    { id: 'tabela', rotulo: 'Valor de tabela', valor: formatBRL(e.subtotal_cents) },
+    { id: 'pct', rotulo: `${nome} (%)`, valor: pct },
+    { id: 'valor', rotulo: `${nome} (R$)`, valor: dif > 0 ? `+ ${formatBRL(dif)}` : `− ${formatBRL(-dif)}` },
+  ];
+}
+
+export const ROTULO_VALOR_FINAL = 'Valor final';
+
+/** Coluna Desc./Acrésc. da tabela de itens: sempre em % (R$ digitado já vem convertido), "−5,0%", "+10,0%", "0,0%" sem ajuste. */
+export function ajusteDoItemEmPct(a: { discount_pct?: number; surcharge_pct?: number }): string {
+  if ((a.surcharge_pct ?? 0) > 0) return `+${formatPct(a.surcharge_pct!)}`;
+  if ((a.discount_pct ?? 0) > 0) return `−${formatPct(a.discount_pct!)}`;
+  return formatPct(0);
 }

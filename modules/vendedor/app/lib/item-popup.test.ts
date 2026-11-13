@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoItemNoPopup, aplicarItemNoRascunho, estadoInicialDoItem, painelNoPedido, ROTULOS_DO_POPUP, subtituloDoPopup, textoDoEstoque } from './item-popup';
+import { AVISO_ITEM_REMOVIDO, alertasDoItemNoPopup, aplicarItemNoRascunho, estadoInicialDoItem, estoqueNaEmbalagem, linhaDoProdutoNaLista, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP } from './item-popup';
 import type { UnidadeDaTela } from './novo-pedido';
 
 const medidas: UnidadeDaTela[] = [
@@ -15,7 +15,7 @@ describe('RN-VEN-42 / T-0148: popup do item na aba Itens', () => {
     expect(ROTULOS_DO_POPUP.adicionar).toBe('Adicionar ao pedido');
   });
 
-  it('RN-VEN-42: item já no pedido reabre com a embalagem, a quantidade e o ajuste dele (Salvar item e Remover)', () => {
+  it('RN-VEN-42: item já no pedido reabre com a embalagem, a quantidade e o ajuste dele (Salvar alteração e Remover item)', () => {
     const e = estadoInicialDoItem('p', medidas, { 'p@CX': 3 }, { 'p@CX': { desconto_pct: 5 } });
     expect(e).toEqual({ idx: 1, qtd: 3, ajuste: { desconto_pct: 5 }, reabrindo: true });
   });
@@ -26,27 +26,40 @@ describe('RN-VEN-42 / T-0148: popup do item na aba Itens', () => {
     expect(r.ajustes).toEqual({ outro: { acrescimo_pct: 2 }, 'p@CX': { desconto_pct: 5 } });
   });
 
+  it('RN-VEN-42: Remover item não pergunta; o aviso "Item removido" traz Desfazer por 5 s', () => {
+    expect(AVISO_ITEM_REMOVIDO).toEqual({ texto: 'Item removido', desfazer: 'Desfazer', duracao_ms: 5000 });
+  });
+
   it('RN-VEN-42: remover do pedido tira as linhas e os ajustes do produto', () => {
     const r = aplicarItemNoRascunho({ 'p@CX': 3, outro: 1 }, { 'p@CX': { desconto_pct: 5 } }, 'p', medidas, null);
     expect(r).toEqual({ lines: { outro: 1 }, ajustes: {} });
   });
 
-  it('RN-VEN-20: o estoque aparece em dado, no mesmo formato com zero; o popup sem estoque mostra só o código', () => {
-    expect(textoDoEstoque(32, 'PCT')).toBe('Estoque 32 PCT');
-    expect(textoDoEstoque(0, 'PCT')).toBe('Estoque 0 PCT');
-    expect(subtituloDoPopup('BIS-400', 32, 'PCT')).toBe('BIS-400 · Estoque 32 PCT');
-    expect(subtituloDoPopup('BIS-400', 0, 'PCT')).toBe('BIS-400');
+  it('RN-VEN-20 (T-0165): o estoque da embalagem é o da unidade base ÷ o fator, inteiro para baixo, e vai sem a sigla', () => {
+    expect(estoqueNaEmbalagem(383, 6)).toBe(63);
+    expect(estoqueNaEmbalagem(383, 1)).toBe(383);
+    expect(estoqueNaEmbalagem(-4, 1)).toBe(0);
+    expect(numeroDoEstoque(99_999)).toBe('99.999');
+  });
+
+  it('RN-VEN-20 (T-0165, RD-0144): "Risco de ruptura" só de 1 a 9; com 0 a caixa fica normal e o fato fica no alerta "sem estoque"', () => {
+    expect([0, 1, 9, 10].map(riscoDeRuptura)).toEqual([false, true, true, false]);
+  });
+
+  it('T-0165 (regra 4): a linha 2 da lista mostra o código, a embalagem principal do cadastro e o estoque nela', () => {
+    expect(linhaDoProdutoNaLista({ erp_code: 'AGU-1500', stock_total: 383 }, [{ produto_id: 'a', unidade: 'UN', fator: 1, padrao: false }, { produto_id: 'a', unidade: 'FD', fator: 6, padrao: true }])).toEqual({ codigo: 'AGU-1500', emb: 'FD c/ 6', estoque: '63' });
+    expect(linhaDoProdutoNaLista({ erp_code: 'LPO-400', stock_total: 118 }, [{ produto_id: 'l', unidade: 'UN', fator: 1, padrao: true }]).emb).toBe('UN');
+  });
+
+  it('T-0165 (regra 3): o item novo entra com o último geral aplicado; o que já está no pedido mantém o próprio ajuste', () => {
+    expect(estadoInicialDoItem('p', medidas, {}, {}, { sentido: 'desconto', pct: 5 }).ajuste).toEqual({ em: 'pct', desconto_pct: 5 });
+    expect(estadoInicialDoItem('p', medidas, {}, {}, { sentido: 'acrescimo', pct: 3 }).ajuste).toEqual({ em: 'pct', acrescimo_pct: 3 });
+    expect(estadoInicialDoItem('p', medidas, {}, {}, null).ajuste).toEqual({});
+    expect(estadoInicialDoItem('p', medidas, { 'p@CX': 3 }, { 'p@CX': { desconto_pct: 1 } }, { sentido: 'desconto', pct: 5 }).ajuste).toEqual({ desconto_pct: 1 });
   });
 
   it('RN-VEN-11 e RN-VEN-20: alertas do item sem o código; sem problema, nenhum', () => {
     expect(alertasDoItemNoPopup({ erp_code: 'AGU-1500', estoque_base: 0, quantidade_base: 3, acima_do_maximo: true, maximo_pct: 10 })).toEqual(['Acima do desconto máximo de 10,0%', 'Sem estoque']);
     expect(alertasDoItemNoPopup({ erp_code: 'AGU-1500', estoque_base: 10, quantidade_base: 3, acima_do_maximo: false })).toEqual([]);
-  });
-
-  it('RD-0070: até 3 itens mostram as linhas; com mais, "Ver itens" sem número e o TalkBack lê a contagem', () => {
-    expect(painelNoPedido(3, false)).toEqual({ mostraLinhas: true, link: null });
-    expect(painelNoPedido(4, false)).toEqual({ mostraLinhas: false, link: { rotulo: 'Ver itens', rotuloAcessivel: 'Ver os 4 itens do pedido' } });
-    expect(painelNoPedido(4, true).link?.rotulo).toBe('Recolher');
-    expect(painelNoPedido(4, true).mostraLinhas).toBe(true);
   });
 });

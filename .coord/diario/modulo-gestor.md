@@ -34,3 +34,5 @@
 2026-11-10 — T-0140 — Gestor: data inválida 422 (já feito, teste), CSV com BOM_CSV/protegerFormula do comum, numeros reexportados do comum
 2026-11-10 — T-0151 — 4 🟡 da fila de aprovações (crédito 1x, ordem do desconto, % pt-BR no BKO, 'Decidir' sem nível)
 2026-11-10 — RD-0086 — linha de motivos 'Crédito disponível R$ X' sem repetir a palavra; apresentacao.test.ts verde; reteste pedido ao corretor
+2026-11-12 — T-0166 — Gestão: saem 4 faixas Sem conexão, Dispensar desligado sem sinal com motivo no toque, SyncStamp em Ficha e Ranking; teste alertas-menos-faixas
+2026-11-13 — T-0168/T-0171 — pedido em nome usa o limite do gestor (casos 19/20, limiteDoPedidoEmNome); Equipe com uma tag e um fato (RD-0208); Aprovações sem crédito/90d; Alertas sem 'responsável · desde'; recado ao Core sobre a lista de Clientes (RN-CORE-41)

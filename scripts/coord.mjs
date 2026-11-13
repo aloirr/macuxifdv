@@ -60,7 +60,7 @@ import {
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
   WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA, estadoDosRecados,
   modoDosRecados, regraDoRecadoNovo, ErroRecados, conexaoDeRecados, atualizarIndiceDeRecados, recadosDoIndice,
-  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub, ehRemetenteDeSistema,
+  lidosDoIndice, enviarRecadoNoGitHub, marcarLidosNoGitHub,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -533,8 +533,6 @@ switch (cmd) {
     const para = lista(o.para);
     const cc = lista(o.cc);
     const tipo = o.tipo || 'pedido';
-    // T-0158 (ADR 0043): remetente de sistema só o servidor grava, com o token dele (nunca pelo coord, no PC ou na nuvem)
-    if (ehRemetenteDeSistema(de)) falhar(`--de ${String(de).trim().toLowerCase()}: remetente de sistema, só o servidor grava. Envie com o seu nome: --de <agente>`);
     if (!AGENTES.includes(de) && de !== 'alexandre') falhar(`--de inválido. Use um de: ${AGENTES.join(', ')}, alexandre`);
     // Guardião v5 (T-0044): recado como alexandre só da sessão dele — MACUXI_AGENTE=alexandre ou o
     // terminal dele, fora do Claude Code (sem CLAUDECODE). O guarda-bash também barra o --de alheio,

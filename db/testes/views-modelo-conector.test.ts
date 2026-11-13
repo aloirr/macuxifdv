@@ -167,8 +167,14 @@ function obrigatoriasFaltando(view: View, schema: unknown): string[] {
   return colunasDoContrato(schema).filter((c) => c.obrigatorio && !tem.has(c.coluna)).map((c) => c.coluna);
 }
 
-const VIEWS = lerViews(SQL);
-const porEntidade = new Map(VIEWS.map((v) => [v.entidade, v]));
+/** T-0162: views do RETORNO do pedido (não são entidades de carga); o Conector as lê em `pedidos.status` do conector.json. */
+const VIEWS_RETORNO = ['pedido_status', 'pedido_nota_item'];
+const TODAS = lerViews(SQL);
+const VIEWS = TODAS.filter((v) => !VIEWS_RETORNO.includes(v.entidade));
+const porEntidade = new Map(TODAS.map((v) => [v.entidade, v]));
+const EXEMPLO_CONECTOR = JSON.parse(readFileSync(new URL('../../apps/conector/exemplos/conector.exemplo.json', import.meta.url), 'utf8')) as {
+  pedidos: { status: { consulta: string; consultaItensNota: string; mapaStatus: Record<string, string> } };
+};
 
 describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
   it('uma view por entidade do contrato, sem sobra, na ordem de carga do Conector', () => {
@@ -270,6 +276,33 @@ describe('views-modelo do Conector (db/conector/views-modelo.sql)', () => {
     expect(obrigatoriasFaltando(view, comOpcional)).toEqual([]);
     expect(opcionaisFaltando(view, comOpcional)).toEqual(['campo_novo_opcional']);
     expect(opcionaisFaltando(view, forma)).toEqual([]);
+  });
+
+  it('T-0162: as 2 views do retorno do pedido trazem as colunas que o conector.exemplo.json consulta, nos códigos do mapaStatus', () => {
+    const cols = (v: string) => porEntidade.get(v)?.colunas.map((c) => c.alias);
+    expect(TODAS.slice(-2).map((v) => v.entidade), 'as views do retorno ficam no fim, depois das entidades').toEqual(VIEWS_RETORNO);
+    const status = ['pedido_uuid', 'situacao', 'numero_pedido', 'motivo', 'nota_numero', 'nota_serie', 'nota_emitida_em', 'nota_total_cents', 'ocorrido_em'];
+    const itens = ['pedido_uuid', 'nota_numero', 'nota_serie', 'sequencia', 'quantidade', 'valor_cents', 'produto_codigo'];
+    expect(cols('pedido_status')).toEqual(status);
+    expect(cols('pedido_nota_item')).toEqual(itens);
+    const { consulta, consultaItensNota, mapaStatus } = EXEMPLO_CONECTOR.pedidos.status;
+    expect(consulta).toContain('FROM dbo.vw_macuxi_pedido_status');
+    expect(consultaItensNota).toContain('FROM dbo.vw_macuxi_pedido_nota_item');
+    const temColuna = (sql: string, c: string) => new RegExp(`\\b${c}\\b`).test(sql);
+    for (const c of status) expect(temColuna(consulta, c), `consulta de status sem a coluna ${c}`).toBe(true);
+    for (const c of itens) expect(temColuna(consultaItensNota, c), `consulta dos itens da nota sem a coluna ${c}`).toBe(true);
+    // os códigos que a view devolve (I, R, C no 1º SELECT; P, F no 2º) são todos traduzidos pelo mapaStatus
+    expect(Object.keys(mapaStatus).sort()).toEqual(['C', 'F', 'I', 'P', 'R']);
+  });
+
+  it('T-0162: faturado só sai com nota e rejeitado sempre com motivo (o Hub recusa o retorno sem eles)', () => {
+    const bloco = semComentarios(SQL.slice(SQL.search(/CREATE\s+VIEW\s+vw_macuxi_pedido_status/i), SQL.search(/CREATE\s+VIEW\s+vw_macuxi_pedido_nota_item/i)));
+    const [situacao, notas] = bloco.split(/\bUNION\s+ALL\b/i);
+    expect(notas, 'as notas saem num 2º SELECT').toBeDefined();
+    expect(situacao).toMatch(/ELSE\s+'I'\s+END\s+AS\s+situacao/i);
+    expect(situacao).not.toMatch(/THEN\s+'[PF]'/);
+    expect(situacao).toMatch(/situacao\s*=\s*'R'\s+THEN\s+COALESCE\(/i);
+    expect(notas).toMatch(/THEN\s+'F'\s+ELSE\s+'P'\s+END/i);
   });
 
   it('o leitor do SELECT recusa coluna sem alias e para no FROM de nível zero', () => {

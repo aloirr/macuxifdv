@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0165 · Aba Itens: antes e depois (final aprovado)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .phone.inteira { height: auto; }
+  .phone.inteira .conteudo { overflow: visible; }
+  .conteudo > * { flex: none; }
+  .np { background: #E7EAE3; border-radius: 12px; padding: 2px 12px; }
+  .np .h { display: flex; justify-content: space-between; align-items: center; height: 34px; }
+  .np .h .t { font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); }
+  .np .r { display: flex; align-items: center; gap: 10px; height: 44px; font-size: 13px; border-top: 1px solid #D6DAD2; }
+  .np .r .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np .r .q { color: var(--ink2); width: 44px; text-align: right; white-space: nowrap; }
+  .np .r .v { font-weight: 700; width: 58px; text-align: right; font-variant-numeric: tabular-nums; }
+  .res { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .res .i { display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 12px; min-height: 68px; }
+  .res .i + .i { border-top: 1px solid var(--lineSoft); }
+  .res .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .res .d { font-size: 15px; font-weight: 600; line-height: 20px; }
+  .res .s { font-size: 12.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .res .s b { font-weight: 600; color: var(--ink); }
+  .add { height: 44px; padding: 0 14px; border: 1.5px solid var(--ink); border-radius: 12px; display: flex; align-items: center; font-size: 14px; font-weight: 600; flex: none; background: #fff; }
+  .busca.ativa { border: 2px solid var(--accent); padding: 0 11px; color: var(--ink); }
+  .tot-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }
+  .tot-card .r { font-size: 14px; color: var(--ink2); }
+  .tot-card .v { font-family: Archivo, sans-serif; font-weight: 700; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .lst .balao { left: 10px; top: 128px; width: 300px; max-width: 300px; }
+  .lst .balao .bd { font-weight: 400; font-size: 13.5px; line-height: 19px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Aba Itens · antes e depois</h1>
+<p class="prancha">T-0165 · versão final aprovada pelo dono do produto (R-20261112-031456). No topo, o Desc./Acrésc. geral; cada produto em 2 linhas: "nome - marca" (o nome tocável abre a descrição) e código · Emb. · Est.; "+" que vira o lápis Editar quando o produto já está no pedido (R-20261112-082212). Com a busca vazia, a lista mostra os itens do pedido.</p>
+
+<div class="board">
+
+  <!-- Antes -->
+  <div class="tela antes">
+    <div class="legenda"><b>1</b>Itens com busca<span class="tag antes">Antes · v1.0.4</span><span>Quadro "No pedido", botão "Adicionar" e "Estoque 63 FD" junto.</span></div>
+    <div class="phone">
+      <div class="status"><span>22:33</span><span>4G ▮▮▮ 63%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (1)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="np aj" data-n="6">
+          <div class="h"><span class="t">No pedido</span></div>
+          <div class="r"><span class="n">Água mineral 1,5 L (fardo 6)</span><span class="q">3 FD</span><span class="v">59,76</span></div>
+        </div>
+        <div class="busca ativa"><i data-i="search" data-t="18" data-c="#4A5562"></i>água</div>
+        <div class="res">
+          <div class="i"><div class="c"><div class="d">Água mineral 1,5 L (fardo 6)</div><div class="s aj aj-d" data-n="5" style="overflow:visible;align-self:flex-start"><b>Estoque 63 FD</b></div></div><div class="add aj" data-n="4">Adicionar</div></div>
+          <div class="i"><div class="c"><div class="d">Água mineral 500 ml (fardo 12)</div><div class="s"><b>Estoque 64 FD</b></div></div><div class="add">Adicionar</div></div>
+        </div>
+        <div class="tot-card"><span class="r">Total do pedido</span><span class="v">R$ 59,76</span></div>
+        <div class="btn principal">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  
+  
+  
+  
+  <!-- Depois, com busca -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Itens com busca<span class="tag depois">Depois</span><span>"nome - marca", código · Emb. · Est. e "+" (lápis no que já está no pedido).</span></div>
+    <div class="phone">
+      <div class="status"><span>22:40</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="secao-t" style="margin-bottom:-2px">Desc./Acrésc. geral</div>
+        <div class="geral"><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">5,0</span></div><div class="btn secundario">Aplicar</div></div>
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>Agua<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água mineral 1,5 L</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGU-1500</span><span>Emb. FD c/ 6</span><span>Est. 63</span></div></div><div class="mais2 no-pedido"><i data-i="edit" data-t="20" data-c="#8F3D06" data-w="2.2"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água mineral 500 ml</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGU-500</span><span>Emb. FD c/ 12</span><span>Est. 412</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água com gás 500 ml</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGG-500</span><span>Emb. FD c/ 12</span><span>Est. 96</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de coco 1 L</span> <span class="mc">- Coco Norte</span></div><div class="meta"><span class="cd">ACO-1000</span><span>Emb. CX c/ 12</span><span>Est. 7</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Depois, busca vazia -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Itens com a busca vazia<span class="tag depois">Depois</span><span>A lista mostra os itens do pedido, cada um com o lápis, que abre a folha para editar. Avançar no fim.</span></div>
+    <div class="phone">
+      <div class="status"><span>22:40</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="secao-t" style="margin-bottom:-2px">Desc./Acrésc. geral</div>
+        <div class="geral"><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">5,0</span></div><div class="btn secundario">Aplicar</div></div>
+        <div class="busca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Buscar produto</div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água mineral 1,5 L</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGU-1500</span><span>Emb. FD c/ 6</span><span>Est. 63</span></div></div><div class="mais2 no-pedido"><i data-i="edit" data-t="20" data-c="#8F3D06" data-w="2.2"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Leite em pó integral 400 g</span> <span class="mc">- Vale Verde</span></div><div class="meta"><span class="cd">LPO-400</span><span>Emb. UN</span><span>Est. 118</span></div></div><div class="mais2 no-pedido"><i data-i="edit" data-t="20" data-c="#8F3D06" data-w="2.2"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Filtro de papel 103 c/ 30</span> <span class="mc">- Casa Norte</span></div><div class="meta"><span class="cd">FIL-103</span><span>Emb. UN</span><span>Est. 54</span></div></div><div class="mais2 no-pedido"><i data-i="edit" data-t="20" data-c="#8F3D06" data-w="2.2"></i></div></div>
+        </div>
+        <div class="btn principal">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Depois, balão do nome -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Toque no nome<span class="tag depois">Depois</span><span>Balão só com a descrição (descrição 2), sem repetir nome e marca.</span></div>
+    <div class="phone">
+      <div class="status"><span>22:40</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="secao-t" style="margin-bottom:-2px">Desc./Acrésc. geral</div>
+        <div class="geral"><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">5,0</span></div><div class="btn secundario">Aplicar</div></div>
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>Agua<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água mineral 1,5 L</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGU-1500</span><span>Emb. FD c/ 6</span><span>Est. 63</span></div></div><div class="mais2 no-pedido"><i data-i="edit" data-t="20" data-c="#8F3D06" data-w="2.2"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água mineral 500 ml</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGU-500</span><span>Emb. FD c/ 12</span><span>Est. 412</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água com gás 500 ml</span> <span class="mc">- Fonte Clara</span></div><div class="meta"><span class="cd">AGG-500</span><span>Emb. FD c/ 12</span><span>Est. 96</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de coco 1 L</span> <span class="mc">- Coco Norte</span></div><div class="meta"><span class="cd">ACO-1000</span><span>Emb. CX c/ 12</span><span>Est. 7</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="balao"><span class="bd" style="display:block">Água mineral natural sem gás, garrafa PET 500 ml. Para venda gelada em balcão, lanchonete e conveniência. Validade de 12 meses.</span></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Estados -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Fim da lista e busca sem resultado<span>R-20261112-033004: 20 por vez e "Você quis dizer".</span></div>
+    <div class="estados">
+      <div class="nota-prancha" style="padding:10px;background:var(--ground)">
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água tônica 350 ml</span> <span class="mc">- Serra Azul</span></div><div class="meta"><span class="cd">AGT-350</span><span>Emb. FD c/ 12</span><span>Est. 210</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+        </div>
+        <div class="mostrar"><span class="ct">Mostrando 20 de 87</span><div class="btn secundario" style="width:100%;height:44px">+ Mostrar mais</div></div>
+      </div>
+      <div class="nota-prancha" style="padding:10px;background:var(--ground)">
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>agau<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="lst" style="margin-top:10px;padding:14px 12px;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:14px">Nenhum produto com "agau".</span>
+          <span style="font-size:14px;font-weight:600;color:var(--accentInk);min-height:32px;display:flex;align-items:center">Você quis dizer "água"?</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regras -->
+  <div class="tela">
+    <div class="legenda"><b>6</b>Regras<span>Textos, toques e estados.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Linha 1:</b> nome 15/600 com sublinhado pontilhado (tocável, só quando o produto tem descrição 2) + " - Marca" 15/400. Sem marca no cadastro: só o nome. <b>Linha 2</b> 13 <code>ink2</code>: código (mono) · "Emb." a embalagem principal do cadastro · "Est." o estoque nessa embalagem, inteiro para baixo, no fim.</div>
+      <div class="nota-prancha"><b>"+"</b> 44 × 44, borda e ícone <code>accent</code>: abre a folha do item. <b>Lápis</b> 44 × 44, borda <code>accent</code> e fundo laranja-claro: o produto já está no pedido; abre a folha para editar (Salvar alteração, Remover item).</div>
+      <div class="nota-prancha"><b>Busca vazia:</b> a lista mostra os itens do pedido, na ordem em que entraram. Com texto, saem os que não batem e voltam ao limpar. A busca começa com 3 letras.</div>
+      <div class="nota-prancha"><b>Mais de 20 resultados:</b> "Mostrando 20 de 87" e <b>+ Mostrar mais</b> (secundário 44, largura toda) no fim; cada toque traz mais 20. <b>Nada encontrado:</b> a frase e, quando houver termo parecido, "Você quis dizer "água"?" (toque busca o termo).</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

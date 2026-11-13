@@ -503,3 +503,4 @@ export * from './necessidade-diaria';
 export * from './equipe-importacao';
 export * from './perfis';
 export * from './ciclo-senha';
+export * from './entrada-sync';

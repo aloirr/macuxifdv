@@ -316,11 +316,3 @@ export function textoDaMudanca(m: MudancaNaConversao, nome: (produtoId: string) 
       return m.motivo === 'bloqueado' ? 'Cliente bloqueado: só orçamento.' : m.motivo === 'inativo' ? 'Cliente inativo: só orçamento.' : 'Cadastro do cliente incompleto: só orçamento.';
   }
 }
-
-/**
- * RN-VEN-18 (T-0151): a faixa de cima do rascunho. Editar ou corrigir (orçamento ou pedido) mantém os preços salvos: não há
- * faixa de "preços atualizados" (item novo entra pelo preço do dia sem avisar). Duplicar entra pelos preços de hoje e diz.
- */
-export function avisoDaEdicao(e: { modo: 'duplicate' | 'edit'; origem: string }): string {
-  return e.modo === 'duplicate' ? `Cópia do ${e.origem} com os preços de hoje da tabela do cliente.` : '';
-}

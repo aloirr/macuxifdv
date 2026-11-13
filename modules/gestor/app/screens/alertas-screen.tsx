@@ -9,11 +9,12 @@ import { AvisoRodape, Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Lo
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alerta } from '../../contracts';
-import { nomesDaVisao, SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
+import { SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { irParaCliente } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
 const relogio = relogioReal();
+const SEM_SINAL = 'Sem sinal. Precisa de internet.';
 
 export default function AlertasScreen() {
   const g = useGestor({ pendencias: true });
@@ -21,7 +22,6 @@ export default function AlertasScreen() {
   const [enviando, setEnviando] = useState<string | null>(null);
   const avisoRodape = useAvisoRodape();
   if (!g.carregado) return <Loading />;
-  const nomes = nomesDaVisao(g.visao);
   const itens = g.alertas?.itens ?? [];
   const pendencias = g.pendencias;
   const dispensar = async (a: Alerta) => {
@@ -46,7 +46,6 @@ export default function AlertasScreen() {
         </View>
         {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
         {aviso ? <Banner tone="danger">{aviso}</Banner> : null}
-        {g.offline ? <Banner>Sem conexão: dispensar precisa de internet.</Banner> : null}
         <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
           {pendencias.map((p, i) => (
             <Pressable
@@ -82,12 +81,17 @@ export default function AlertasScreen() {
                 />
               </View>
               <Text style={t.body}>{a.mensagem}</Text>
-              <Text style={t.small}>
-                {a.responsavel_id ? `${nomes.get(a.responsavel_id) ?? 'Equipe'} · ` : ''}desde {relativeWhen(a.aberto_em, relogio.agora(), g.tz)}
-              </Text>
               {a.status === 'aberto' ? (
                 <SePode acao="alerta_equipe.dispensar">
-                  <Botao testID={`gestor-dispensar-${a.id}`} rotulo="Dispensar" nivel="neutro" ocupado={enviando === a.id} desligado={g.offline} onPress={() => void dispensar(a)} />
+                  {g.offline ? (
+                    <Pressable testID={`gestor-dispensar-sem-sinal-${a.id}`} accessibilityRole="button" accessibilityLabel="Dispensar. Sem sinal." onPress={() => setAviso(SEM_SINAL)}>
+                      <View pointerEvents="none">
+                        <Botao testID={`gestor-dispensar-${a.id}`} rotulo="Dispensar" nivel="neutro" desligado />
+                      </View>
+                    </Pressable>
+                  ) : (
+                    <Botao testID={`gestor-dispensar-${a.id}`} rotulo="Dispensar" nivel="neutro" ocupado={enviando === a.id} onPress={() => void dispensar(a)} />
+                  )}
                 </SePode>
               ) : null}
             </View>

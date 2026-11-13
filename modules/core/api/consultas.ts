@@ -67,7 +67,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
       p.unidades = unidades.filter((u) => u.produto_id === p.id).map(({ produto_id: _p, ...u }) => u) as NonNullable<typeof p.unidades>;
     }
   }
-  const usuarios = await lista(entrada.usuario_ids, 'select id, nome, perfil, external_id from core.usuario where deleted_at is null and id = any($1::uuid[]) order by id');
+  const usuarios = await lista(entrada.usuario_ids, 'select id, nome, perfil, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario where deleted_at is null and id = any($1::uuid[]) order by id');
   // Endereços: os pedidos em endereco_ids e, sempre, o principal de cada cliente pedido (T-0061 §4.1).
   const enderecos =
     clientes.length === 0 && entrada.endereco_ids.length === 0

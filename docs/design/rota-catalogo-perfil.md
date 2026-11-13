@@ -59,8 +59,9 @@ o motivo da recusa é uma etapa, ex.: pesquisa obrigatória sem resposta, **só 
 `COMO TERMINOU?` com `OpcaoFolha` em rádio: `Com pedido` + `Nº 000016 · R$ 812,40` (sem pedido: desligada, `Nenhum pedido
 nesta visita`) e `Sem pedido`; os motivos em chips de 44 dp logo abaixo · cliente fechado: linha `Foto da fachada` + selo
 `Falta`/`Feita` + `Tirar foto`/`Refazer`, e `As etapas ficam dispensadas.` (o chip já diz "Cliente fechado", RD-0096) · `ETAPAS`: uma linha por etapa com o rótulo,
-selo `Feita` (sucesso), `Falta` (erro, obrigatória) ou `Opcional` (neutro) e o conteúdo/ação do módulo dono. Sai `Falta
-concluir: …`. Promotor: em vez dos rádios, `Atendimento concluído` como hoje.
+selo `Feita` (sucesso), `Obrigatória` (neutro, antes da tentativa) ou `Opcional` (neutro) e o conteúdo/ação do módulo
+dono; **depois do toque em Concluir checkout** com etapa pendente, a obrigatória não feita vira `Falta` (erro) com borda
+`danger` na linha e a folha rola até ela (T-0166, RD-0182; `formulario-pendencias.md` §0.0). Sai `Falta concluir: …`. Promotor: em vez dos rádios, `Atendimento concluído` como hoje.
 
 ## 3. Catálogo (`modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx`, `produto.tsx`) · imagem T-0153-catalogo
 Lista e busca, em ordem: título + `SeloAtualizacao` · com cliente: `Preços de <cliente>` · busca (`Produto, código ou
@@ -71,7 +72,7 @@ produtos ativos em X") ou chips + contagem + cartões.
 | Elemento | Texto |
 |---|---|
 | Contagem | `5 produtos`; sem internet ou com falha da busca inteligente: `3 produtos · busca simples`; índice refazendo: `· organizando o catálogo`; estoque antigo: `· estoque de 09/11` |
-| Mostrar mais | `Mostrar mais (28)` (sem "mostrando 20" na contagem) |
+| Mostrar mais | T-0167: no fim da lista, `Mostrando 20 de 87` e o botão `+ Mostrar mais` (`MostrarMais`; imagem `telas/T-0167-mostrar-mais.png`); a contagem fica num lugar só: no topo (`5 produtos`) quando tudo está à vista; com mais de 20, só no fim da lista (`Mostrando 20 de 87`; RD-0194). Nada encontrado: `NadaEncontrado` com `Você quis dizer “água”?` |
 | Estoque no cartão | selo na cor da faixa: `24 JG` (neutro), `Baixo · 3 JG` (aviso), `Sem estoque` (erro); sem hora |
 | Adicionar | botão `+` 44 dp com borda, TalkBack `Adicionar <produto> ao pedido`; só com o slot `produto.acoes` |
 

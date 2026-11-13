@@ -4,16 +4,20 @@
 > Código: `packages/ui/src/mobile` (`tokens.ts`, `movimento.ts` puros; `base.tsx`, `movimento-rn.tsx`, `folha.tsx`, `valores.tsx`, `ui.tsx`).
 > Importe sempre de `@macuxi/ui/mobile` (tela) ou `@macuxi/ui/mobile/puro` (lib pura, testes).
 
-## 1. Identidade (não muda sem pedido do Alexandre)
+## 1. Identidade: marca v1 (T-0172; aprovada pelo dono do produto em 12/11/2026; manual `docs/marca/manual.md` §3 e §4)
 | Token | Valor | Uso |
 |---|---|---|
-| `colors.accent` | `#C2540A` | **preenchimento e gráfico**: botão principal, aba ativa (ícone e borda), barra, contador, foco. **Nunca texto sobre claro** (§1.1) |
+| `colors.accent` | `#1E3350` Azul noite | **ação**: botão principal, aba ativa (ícone e borda), seleção, foco, ícone de ação. Nunca encostado no grafite |
+| `colors.accentInk` | `#1E3350` | texto de ação sobre claro: link, rótulo de ação, chip, aba ativa |
+| `colors.onAccent` | `#FFFFFF` | texto e ícone sobre o Azul noite |
+| `colors.accentSoft` / `accentTint` | `#DFE2E6` Azul suave | fundo do chip, do cartão em destaque e da opção marcada |
+| `colors.grafico` | `#C2540A` | **só gráfico**: barra de meta e de share, contador, selo, marcador. Nunca texto sobre claro |
+| `colors.graficoEscuro` / `accentLight` | `#F59A52` | gráfico e ação sobre o escuro (grafite e Azul noite) |
+| `colors.faixa` / `faixaTitulo` / `faixaSub` | `#1E3350` / `#FFFFFF` / `#C9CED5` | cabeçalho da tela (§5.2) |
 | `colors.ink` | `#16202A` | texto, botão secundário (borda), cartão escuro (recado), aviso no rodapé |
-| `colors.ground` | `#F3F4F1` | fundo das telas |
+| `colors.ground` | `#F8F6F1` Pérola | fundo das telas |
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
-| `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco) |
-| `colors.accentInk` | `#8F3D06` | texto laranja sobre claro (aba ativa, link, cartão em destaque) |
-| `colors.onAccent` | `#FFFFFF` | texto e ícone sobre o laranja cheio (botão principal, contador, selo) |
+| `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco e no Pérola) |
 
 Fontes (já carregadas no shell por `@expo-google-fonts/*`; nenhuma dependência nova): **Archivo** nos títulos e números
 (`fonts.display` 800, `displayBold` 700), **IBM Plex Sans** no texto (`body` 400, `medium` 500, `semibold` 600, `bold` 700).
@@ -22,49 +26,46 @@ Uma família por peso: não use `fontWeight`.
 Tipografia (`type`): `saudacao` 26/800 · `titulo` 19/800 (folha, diálogo) · `secao` 17/700 · `numeroGrande` 19/700 tabular ·
 `body` 14 · `sub` 13 · `small` 12 · `rotulo` 12/600 maiúsculas. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
 
-### 1.1 Contraste do destaque (T-0094, 08/11; vale para o app e para o BKO/portal)
-Código: `packages/ui/src/comum/contraste.ts` (`DESTAQUE`, `PARES_DO_DESTAQUE`, `contraste`, `MINIMO_CONTRASTE`), testado em
-`contraste.test.ts` com as razões abaixo. Web: as classes em `packages/ui/src/web/cores.ts` (`CLASSES_DESTAQUE`); os valores
-moram em `apps/web/app/globals.css` (`--color-accent*`) e o teste confere que são os mesmos. Não há tema escuro no app nem no BKO
-(`color-scheme: light`); o "escuro" aqui é o grafite `ink` dos cartões, do aviso no rodapé e do menu do BKO.
+### 1.1 Contraste da marca (vale para o app e para o BKO/portal)
+Código: `packages/ui/src/comum/contraste.ts` (`MARCA`, `DESTAQUE`, `GRAFICO`, `FAIXA`, `FUNDOS`, `PARES_DA_MARCA`,
+`PARES_DO_DESTAQUE`), testado em `contraste.test.ts`. Web: as classes em `packages/ui/src/web/cores.ts` (`CLASSES_DESTAQUE`); os
+valores moram em `apps/web/app/globals.css` (`--color-accent*`, `--color-grafico*`, `--color-faixa*`) e o teste confere que são
+os mesmos. Não há tema escuro; o "escuro" é o grafite dos cartões, do aviso no rodapé e do menu do BKO, e a faixa Azul noite.
 
-**Regra (a mesma da referência de 03/11: `a{color:#8F3D06}`, aba ativa com rótulo `#8F3D06` e ícone `#C2540A`):**
-1. Texto laranja sobre claro (fundo, cartão, `accentSoft`, `accentTint`) é **sempre `accentInk` / `text-accent-ink`**: link,
-   rótulo de ação ("Trocar"), link da seção, "Esqueci a senha", número em destaque, chip, aba ativa.
-2. O `accent` é **preenchimento e gráfico**: fundo do botão principal, contador, selo, barra, borda da aba, ícone, foco.
-3. Texto e ícone **sobre** o laranja cheio: `onAccent` (branco) / `text-white`.
-4. Sobre o grafite, o laranja de texto é `accentLight` (`#F59A52`).
-5. Nenhuma tela escreve `colors.accent` em estilo de texto, `text-accent` sem `-ink` nem `#C2540A` à mão: é 🟡 na revisão.
+**Regra:**
+1. Ação é Azul noite: `accent` no preenchimento, `accentInk` no texto (`bg-accent text-white`, `text-accent-ink` no web).
+2. O laranja é só gráfico (`colors.grafico`, `bg-grafico`). Texto laranja sobre claro é proibido; se for inevitável, `#8F3D06`.
+3. Sobre o escuro, o laranja é o `#F59A52`.
+4. Azul noite nunca encosta no grafite (1,29:1): sobre o grafite, o botão principal é branco com texto Azul noite (§3.1), e o
+   foco do menu grafite do BKO não é `outline-accent`.
+5. Nenhuma tela escreve `#1E3350`, `#C2540A` ou `text-accent` / `text-grafico` à mão: é 🟡 na revisão.
 
 Mínimos WCAG 2.1 AA: texto normal **4,5:1**; texto grande (≥ 24 px, ou ≥ 18,66 px em negrito) **3:1**; ícone, borda e foco **3:1**.
 
-| Uso | Frente × fundo | Razão | Mínimo | Resultado |
-|---|---|---|---|---|
-| texto do botão principal, contador, selo | `#FFFFFF` × `#C2540A` | 4,60:1 | 4,5 | passa |
-| link e rótulo de ação no fundo | `#8F3D06` × `#F3F4F1` | 6,70:1 | 4,5 | passa |
-| link, aba ativa (rótulo) no cartão e na barra | `#8F3D06` × `#FFFFFF` | 7,40:1 | 4,5 | passa |
-| chip e cartão em destaque | `#8F3D06` × `#FBE9DC` | 6,27:1 | 4,5 | passa |
-| texto no bloco `accentTint` | `#8F3D06` × `#FDF4EC` | 6,81:1 | 4,5 | passa |
-| ícone, borda e foco no fundo | `#C2540A` × `#F3F4F1` | 4,17:1 | 3 | passa |
-| ícone, borda e foco no cartão | `#C2540A` × `#FFFFFF` | 4,60:1 | 3 | passa |
-| ícone no quadrado `accentSoft` (opção da folha) | `#C2540A` × `#FBE9DC` | 3,90:1 | 3 | passa |
-| ícone no bloco `accentTint` | `#C2540A` × `#FDF4EC` | 4,23:1 | 3 | passa |
-| botão principal e foco sobre o grafite (forma) | `#C2540A` × `#16202A` | 3,58:1 | 3 | passa |
-| "Desfazer", ícone de erro no grafite | `#F59A52` × `#16202A` | 7,56:1 | 4,5 | passa |
-| texto `accent` no fundo | `#C2540A` × `#F3F4F1` | 4,17:1 | 4,5 | **não passa** → `accentInk` |
-| texto `accent` no `accentSoft` | `#C2540A` × `#FBE9DC` | 3,90:1 | 4,5 | **não passa** → `accentInk` |
-| texto `accent` no `accentTint` | `#C2540A` × `#FDF4EC` | 4,23:1 | 4,5 | **não passa** → `accentInk` |
-| texto `accent` no grafite | `#C2540A` × `#16202A` | 3,58:1 | 4,5 | **não passa** → `accentLight` |
+Pares do manual §3 (`PARES_DA_MARCA`, razão conferida no teste):
 
-Por que não escurecer o próprio `accent`: para o texto no fundo passar de 4,5:1 o laranja teria de ir a `#B84F09` ou mais escuro (4,57:1), o
-que muda a cor da marca no botão principal e no contador (identidade só muda a pedido do dono do produto). O texto branco no
-`#C2540A` já passa (4,60:1), e a referência de 03/11 já separa o laranja de preenchimento (`#C2540A`) do de texto (`#8F3D06`).
+| Par | Razão |
+|---|---|
+| branco no Azul noite | 12,77:1 |
+| `#C9CED5` no Azul noite | 8,07:1 |
+| Azul noite no Pérola | 11,82:1 |
+| Azul noite no Azul suave | 9,83:1 |
+| grafite no Pérola | 15,26:1 |
+| `#4A5562` no Pérola | 7,03:1 |
+| `#5B6673` no Pérola | 5,41:1 |
+| `#9AA3B0` no grafite | 6,47:1 |
+| laranja no Pérola (gráfico) | 4,26:1 |
+| `#F59A52` no Azul noite (gráfico) | 5,85:1 |
 
-Ajustes do kit (T-0094): `rotuloAcaoTexto` (formulario.tsx) e `sectionLink` (ui.tsx) passaram a `accentInk`; `NIVEIS_BOTAO.principal`,
-`Button variant="accent"`, contador da `BarraAbas`, selo do `BotaoFiltro`, `RodapeTotal` e o confirmar do `Dialogo` usam `onAccent`;
-novo `LinkTexto` (mobile: `accentInk`, `sobreEscuro` → `accentLight`, alvo 48 dp). Web: `Button variant="link"` em `text-accent-ink`
-com sublinhado no hover (antes `text-accent`); `TONE_TEXT.accent` (número da positivação) em `text-accent-ink`, a barra continua
-`bg-accent`; o foco de todos os botões continua `outline-accent` (gráfico, ≥ 3:1).
+Usos do kit além desses (`PARES_DO_DESTAQUE`): branco no laranja do contador 4,60:1; Azul noite no branco 12,77:1; `#4A5562` no
+Azul suave 5,84:1; laranja no branco 4,60:1 (gráfico); `#F59A52` no grafite 7,56:1; `#F59A52` no trilho `#3A4D68` 3,94:1 (gráfico);
+✓ `#7FD1A8` e erro `#F7A59C` na faixa 7,05:1 e 6,58:1.
+
+**Proibidos** (o teste garante que continuam abaixo): texto laranja no Pérola (4,26:1), no grafite (3,58:1) e no Azul suave;
+Azul noite no grafite (1,29:1).
+
+BKO: o farol do meio (positivação 55 a 70%, integração até 10 p.p. abaixo da meta) tem o número em `text-warning` (6,60:1 no
+Pérola) e a barra em `bg-grafico`; o botão principal passou de grafite a `bg-accent` (Azul noite).
 
 ## 2. Espaço, raio, sombra
 - `space`: 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 (`xxs`…`xxxl`).
@@ -79,7 +80,7 @@ com sublinhado no hover (antes `text-accent`); `TONE_TEXT.accent` (número da po
 ## 3. Botões em níveis — **um só principal por tela**
 | Nível | Componente | Altura | Visual | Quando |
 |---|---|---|---|---|
-| principal | `<Botao nivel="principal">` · `Button variant="accent"` · `RodapeTotal` | 52 | laranja cheio, texto branco 16 | a ação que fecha a tarefa da tela: Enviar pedido, Começar a rota, Registrar check-in |
+| principal | `<Botao nivel="principal">` · `Button variant="accent"` · `RodapeTotal` | 52 | Azul noite cheio, texto branco 16 | a ação que fecha a tarefa da tela: Enviar pedido, Começar a rota, Registrar check-in |
 | secundário | `<Botao>` (padrão) · `Button variant="outlineDark"` | 44 (`alto` → 52 ao lado do principal) | branco, borda grafite 1,5 | alternativa real: Salvar orçamento, Ver rota |
 | neutro | `<Botao nivel="neutro">` · `Button variant="ghost"` | 44 | cinza claro `#ECEEE9` | Cancelar, Voltar, Fechar |
 | perigo | `<Botao nivel="perigo">` · `Button variant="danger"` | 44 | rosa `#FDE8E6`, texto vermelho | Rejeitar, Excluir, Descartar |
@@ -95,34 +96,33 @@ Regras:
 - `Button` mantém todas as props antigas; as variantes viraram níveis (accent = principal, outlineDark = secundário, ghost =
   neutro, danger = perigo). `outline` (borda cinza), `dark`, `success`, `locked` e `muted` continuam para os casos que já existem.
 
-### 3.1 Botão sobre fundo escuro (`<Botao sobreEscuro>`; T-0072, revisão do #94)
-Sobre o grafite (faixa "Em atendimento", `Cartao tom="escuro"`), o secundário claro (branco, borda grafite que some no fundo) e o
-neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda só de cor (altura, raio, fonte e regras iguais):
-| Nível | Visual sobre o grafite | Contraste do texto | Exemplo |
+### 3.1 Botão sobre fundo escuro (`<Botao sobreEscuro>`; T-0072, marca v1 na T-0172)
+Sobre o grafite (faixa "Em atendimento", `Cartao tom="escuro"`) e sobre a faixa Azul noite (tela de entrada), o mesmo nível muda só
+de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29:1), por isso o principal fica branco:
+| Nível | Visual sobre o escuro | Contraste do texto | Exemplo |
 |---|---|---|---|
-| principal | laranja `#C2540A` cheio, texto branco (igual ao claro) | 4,6:1 | raro: só se a faixa for a tarefa da tela |
-| secundário | laranja-claro `#F59A52` cheio, texto grafite | 7,5:1 | "Fazer checkout" |
-| neutro | só contorno claro `#C9D0D8` 1,5, fundo transparente, texto branco | 16:1 (sobre o grafite) | "Ver cliente" |
+| principal | branco cheio, texto Azul noite | 12,77:1 | "Tentar de novo" (entrada) |
+| secundário | só contorno `#C9CED5` 1,5, fundo transparente, texto branco | 16,48:1 no grafite | "Fazer checkout", "Continuar sem sincronizar" |
+| neutro | só o texto branco, sem fundo nem contorno | 16,48:1 no grafite | "Ver cliente" |
 | perigo | rosa com texto vermelho (igual ao claro) | ≥ 4,5:1 | "Rejeitar", "Excluir" |
-| desabilitado | cinza-grafite `#34404D`, texto `#C9D0D8` | 6,8:1 | falta dado |
-- O laranja cheio (`#C2540A`) continua só no principal: a contagem de "um só principal por tela" não muda.
+| desabilitado | cinza-grafite `#34404D`, texto `#C9CED5` | 6,68:1 | falta dado |
+- Um só principal por tela, como no claro.
 - Tokens `NIVEIS_BOTAO_ESCURO`, `BOTAO_DESABILITADO_ESCURO`, `FUNDO_ESCURO` e `estiloDoNivel(nivel, { sobreEscuro })`;
   contraste testado em `tokens.test.ts`. Sem a prop, nada muda.
-- Faixa "Em atendimento": `<Botao rotulo="Fazer checkout" sobreEscuro />` e `<Botao rotulo="Ver cliente" nivel="neutro" sobreEscuro />`.
 
 ### 3.2 Texto sobre o grafite (cartão escuro, aviso no rodapé)
 | Token | Valor | Contraste | Uso |
 |---|---|---|---|
-| `colors.surface` | `#FFFFFF` | 16:1 | texto principal e valor |
-| `colors.darkMuted` | `#C9D0D8` | 10,6:1 | rótulo, data, assinatura do recado |
-| `colors.accentLight` | `#F59A52` | 7,6:1 | ação ("Desfazer") |
+| `colors.surface` | `#FFFFFF` | 16,48:1 | texto principal e valor |
+| `colors.darkMuted` | `#C9CED5` | 10,42:1 | rótulo, data, assinatura do recado |
+| `colors.accentLight` | `#F59A52` | 7,56:1 | ação ("Desfazer") |
 | `colors.successOnDark` | `#7FD1A8` | 9,1:1 | ícone e texto de ok |
 | `colors.dangerOnDark` | `#F7A59C` | 8,5:1 (5,4:1 sobre `darkTrack`) | alerta: aviso do gatilho no cartão Minha RV (T-0082) |
 - Nunca use `colors.danger` (`#A8261B`) nem `colors.success` sobre o grafite: ficam abaixo de 4,5:1. Nenhuma cor escrita à mão.
 - O alerta vermelho sempre vem com a palavra ("Gatilho de Positivação ainda não atingido…"), nunca só a cor.
 
 ## 4. Cartões, chips e listas
-- `Cartao` (`tom`): `padrao` (branco, borda), `destaque` (laranja claro: "Pedidos para aprovar"), `sucesso` (meta batida),
+- `Cartao` (`tom`): `padrao` (branco, borda), `destaque` (Azul suave com borda `#9AA3B0`: "Pedidos para aprovar"), `sucesso` (meta batida),
   `escuro` (recado do dia, raio 18), `suave` (dentro de outro cartão). `onPress` deixa o cartão inteiro tocável (afunda ao toque).
   `Card` antigo continua (raio 14).
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
@@ -141,8 +141,8 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   rótulo (T-0129): 12/16 em `ink2` (6,87:1 sobre `ground`, AA; o motivo não fica apagado, porque é o que a pessoa lê para
   resolver), até 2 linhas, 8 dp de respiro em cima e embaixo (opção de até 70 dp; `alturaDoMenu` reserva a altura e o menu rola
   se precisar). O rótulo continua só o valor ("30/60/90 dias", RN-VEN-25); o TalkBack lê "30/60/90 dias. Acima do prazo médio
-  do cliente" com o estado desabilitado. A tela **não** repete o motivo em texto solto abaixo da lista. `erro` = borda
-  vermelha; `desligado` = fundo `lineSoft`. Para Forma de pagamento, Prazo e filtros de 3 a 12 opções; 2 opções = `Segmentado`.
+  do cliente" com o estado desabilitado. A tela **não** repete o motivo em texto solto abaixo da lista. `falta` (§4.9) =
+  borda `danger` e o texto curto embaixo; `desligado` = fundo `lineSoft`. Para Forma de pagamento, Prazo e filtros de 3 a 12 opções; 2 opções = `Segmentado`.
 - `CampoAjuste`: desconto ou acréscimo **sempre aberto**, com o tipo ao lado (`TIPOS_AJUSTE`: Desc %, Desc R$, Acrésc %,
   Acrésc R$) num menu do mesmo tipo e o valor digitável à direita. Moldura de 30 dp, alvo de 44 dp.
 - `Passo compacto`: caixa "− n +" de 100 × 30 dp num contêiner de 124 × 44 dp (− e + com 44 × 44 dp). Cada toque lê o número
@@ -180,17 +180,13 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   toque, e como descrição para o leitor de tela. `ResumoDasMudancas`: "Rótulo: antes → depois" por seção, falado sem a seta.
 
 ### 4.5 Formulário com abas: pendências, saída e salvar (T-0126; spec `docs/design/formulario-pendencias.md`)
+> **T-0166 (12/11):** vale a **falta no campo, só na tentativa** (`formulario-pendencias.md` §0.0; peças no §4.9).
 Vale para o app inteiro (Novo pedido; depois visita, pesquisa, cadastro). RN-CORE-36, RN-VEN-38, RN-VEN-30.
-- `BlocoPendencias`: bloco único âmbar **"Falta para salvar"**, só na última aba, acima dos botões de salvar; uma linha de
-  48 dp por pendência ("Transportadora do frete FOB — aba Entrega") com `›`; o toque abre a aba (atalho, não botão de
-  correção). Nas outras abas, só a bolinha do `Abas` (`pendente`, `rotuloPendencia="com pendência"`); nenhum alerta.
-  Salvar desabilitado com `leituraDoSalvar(...)` no TalkBack.
 - `FolhaSairDoFormulario`: "Sair do pedido?" · Salvar e enviar pedido · Apenas salvar (`apenasSalvar`, T-0133) · Salvar como
-  orçamento · Descartar (com `Dialogo perigo`) · Continuar editando. Sem `salvar` = variante da RN-VEN-13. Toque fora =
-  continuar editando.
+  orçamento · Descartar (com `Dialogo perigo`) · Continuar editando, só com os rótulos (RD-0193). Sem `salvar` = variante da
+  RN-VEN-13. Toque fora = continuar editando.
 - `FolhaRetomarRascunho`: depois que o sistema fecha o app, "Continuar pedido de <cliente>" ou "Descartar"; "Agora não" guarda.
-- Parte pura (`pendencias.ts`): `ordenarPendencias`, `abasComPendencia`, `linhaDaPendencia`, `leituraDaPendencia`,
-  `leituraDoSalvar`, `eventoDaSaida`, `tituloDaRetomada`, `apoioDaRetomada`.
+- Parte pura (`pendencias.ts`): `eventoDaSaida`, `tituloDaRetomada`, `apoioDaRetomada`.
 - Salvar fecha a tela em < 1 s; o detalhe mostra "Pedido salvo · enviando" e fica só leitura enquanto `na_fila` (spec §4).
 
 ### 4.6 Novo pedido v2: abas, Resumo, desconto, detalhe e histórico (T-0133; spec `docs/design/pedido-v2.md`)
@@ -220,6 +216,25 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - Último nível: o `CartaoProduto` do módulo (o mesmo da busca), com "Serve em:" em até 2 linhas, "Equivale a:" e etiquetas em
   `Selo` neutro; não há outra lista de produtos (a tela "Por linha" saiu). "Oferece junto" só na ficha.
 
+### 4.9 Falta no campo, Balao, CampoEscolha e fim da busca (T-0165, T-0166, T-0167; 12/11)
+- **Falta no campo** (`falta.ts`, `falta-rn.tsx`; `formulario-pendencias.md` §0.0): `faltaVisivel(falta, { tentou, saiu })`
+  decide se aparece (`vazio` só na tentativa; `invalido` ao sair do campo; `imediata` na hora, ex.: "Máx. 10,0%");
+  `TextoDaFalta` (ícone `alert` 14 + 12,5/600 `danger`, 4 dp abaixo do campo) e `bordaDaFalta` (borda `danger` 2 dp).
+  Sem fundo vermelho, faixa ou bolinha. `FALTA_OBRIGATORIO` = "Obrigatório".
+- **`CampoEscolha`** (`campo-escolha-rn.tsx`; `pedido-v4.md` §5.6): campo 48 dp (borda `lineStrong`, raio 12, seta) que abre
+  uma `Folha` com `CampoBusca` (sem acento e sem caixa, `filtrarOpcoes`), linhas de 52 dp (escolhida com ✓ `accentInk` sobre
+  `accentSoft`) e a `opcaoFinal` sempre por último ("Outra (digitar)"). Props `falta` e `desligado` (mostra "—").
+- **`ListaSuspensa`** (`suspensa.tsx`; Forma e Prazo da aba Venda): prop `falta` como no `CampoEscolha` (borda `danger` 2 e
+  `TextoDaFalta` embaixo, "Obrigatório" depois da tentativa; RD-0170).
+- **`Balao`** (`balao-rn.tsx`; `pedido-v4.md` §5.3 e §5.4): envolve o texto tocável; o toque abre o balão `ink` (texto branco,
+  até 4 linhas, até 300 dp) logo abaixo, com a seta para o alvo (`posicaoDoBalao`; sem espaço embaixo, acima). Fecha com outro
+  toque, ao começar a rolar e no Voltar. Sem `texto`, só o filho, sem toque.
+- **`MostrarMais`** e **`NadaEncontrado`** (`busca-rn.tsx`; imagem `telas/T-0167-mostrar-mais.png`): "Mostrando 20 de 87" +
+  botão secundário "+ Mostrar mais" (some com tudo à vista); "Nenhum produto com “agau”." + "Você quis dizer “água”?".
+- **`BotaoEditar`** (`botao-editar-rn.tsx`; `pedido-v4.md` §5.8; R-20261112-082212): o lápis do item já no pedido. Borda
+  `accent` 1,5, fundo `accentSoft`, ícone `edit` `accentInk`; `tamanho="linha"` 44 dp (aba Itens, no lugar do "+") ou
+  `"tabela"` 32 dp (fim da linha do Resumo), alvo de 48 dp nos dois. Prop `item` monta a leitura do TalkBack.
+
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
   Android fecha. Use para filtros, quantidade, desconto, escolha entre 2–5 opções. Mesmas props da T-0071.
@@ -233,7 +248,7 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
     altura máxima desconta o teclado e o campo com foco rola até ficar inteiro à vista (8 dp de folga). Liga `rolavel`. Um toque
     num botão da folha com o teclado aberto já vale (não precisa fechar o teclado antes).
   - Partes puras testadas: `alturaMaximaDaFolha`, `coberturaDoTeclado`, `rolagemAteCampo` (`voltar.test.ts`).
-- **Diálogo** (`Dialogo`): só para confirmar o que não tem volta. Cancelar = neutro; confirmar = laranja ou vermelho (`perigo`).
+- **Diálogo** (`Dialogo`): só para confirmar o que não tem volta. Cancelar = neutro; confirmar = Azul noite ou vermelho (`perigo`).
 - **Aviso no rodapé** (`AvisoRodape` + `useAvisoRodape`): grafite, ícone verde de ok, texto branco, ação laranja-clara à direita.
   Some em **2,5 s** (8 s com TalkBack). Texto no passado e com o objeto: "Pedido 000013 enviado para aprovação", "Item removido".
   Ação: "Desfazer". Fica acima da barra de abas (`respiroInferior`). Uso:
@@ -242,10 +257,10 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   aviso.mostrar({ texto: 'Item removido', acao: { rotulo: 'Desfazer', onPress: desfazer } });
   return (<View style={{ flex: 1 }}><Screen>…</Screen><AvisoRodape {...aviso.props} respiroInferior={0} /></View>);
   ```
-- **Barra de abas** (`BarraAbas`): 64 dp + área segura, até 5 abas, ícone 22, rótulo 11. Ativa: ícone laranja e rótulo `accentInk`
-  em negrito; inativa: `ink2`. Contador no canto do ícone (`destaque` para não lidas, `aviso` para fila). O shell decide as abas.
+- **Barra de abas** (`BarraAbas`): 64 dp + área segura, até 5 abas, ícone 22, rótulo 11. Ativa: ícone Azul noite e rótulo `accentInk`
+  em negrito; inativa: `ink2`. Contador no canto do ícone: laranja de gráfico (`destaque`, não lidas) ou âmbar (`aviso`, fila). O shell decide as abas.
 - **Estados de tela**:
-  - carregando: `Loading` (indicador laranja) na primeira carga; depois, mostre o que já tem e atualize no lugar;
+  - carregando: `Loading` (indicador Azul noite) na primeira carga; depois, mostre o que já tem e atualize no lugar;
   - vazio: `EstadoVazio` (título que diz o que falta + o que fazer; ação secundária opcional);
   - erro: `Banner tone="danger"` com o que aconteceu e o que fazer ("Não deu para enviar. O pedido está salvo e vai sozinho quando
     houver sinal.");
@@ -268,6 +283,25 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - **Ícones** (`Icon`, traço 2, caixa 24): `camera` para foto (check-in, gôndola, fachada, pergunta com foto; "Tirar foto",
   "Foto antes"), `inbox` para caixa de entrada (Notificações, estado vazio de recebidos). `icon.test.ts` confere que todo nome
   do tipo tem desenho.
+
+### 5.2 Cabeçalho na faixa Azul noite (`CabecalhoTela`, `<Screen cabecalho>`; T-0172, manual da marca §4)
+- **Faixa:** Azul noite, começa na barra de status (soma a área segura) e fica parada em cima; o corpo rola embaixo, no Pérola,
+  com os cartões brancos. Sem logo.
+- **Textos:** título branco, Archivo 24/28; subtítulo de uma linha em `#C9CED5`, Plex Sans 13. O subtítulo fica abaixo do título ou
+  acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas" no Início).
+- **Voltar:** dentro da faixa ("‹ Pedidos"), em `#C9CED5`, com as regras do `BackLink` (§6.1).
+- **Direita:** uma ação curta de 48 dp (ícone, `SeloAtualizacao`). O botão principal fica no corpo, nunca na faixa. Nada
+  grafite na faixa, nem o botão Sincronizar.
+- **Uso:**
+  ```tsx
+  <Screen cabecalho={{ titulo: 'Clientes', subtitulo: '12 na rota de hoje' }}>…</Screen>
+  <Screen cabecalho={{ titulo: 'Bom dia, Lucas', subtitulo: 'Quinta, 12 de novembro', posicaoSubtitulo: 'acima' }}>…</Screen>
+  ```
+  O título da faixa substitui o título que a tela desenhava dentro do `Screen`: não repita.
+- **Barra de status:** ícones claros com a faixa e escuros sem ela (`estiloBarraDeStatus`). O shell aplica.
+- **Medidas:** `CABECALHO`, `layoutCabecalho` e `respiroTopoDoConteudo` (`cabecalho.ts`), testados em `cabecalho.test.ts`.
+- **Tela de entrada:** é outra peça, com o logo, a barra e as etapas. Spec em `docs/design/entrada-sync.md`; tokens em
+  `TEMAS_ENTRADA` (`entrada.ts`).
 
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, textoDoAlertaNoItem } from './alertas-pedido';
+import { alertasDoPedido, impedeEnviarPorAlertas, soOrcamentoPorAlertas, textoDoAlertaNoItem, textoDoMaximo, vencidosComEfeito } from './alertas-pedido';
 
 const cliente = { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] as string[] };
 
@@ -21,6 +21,12 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     expect(soOrcamentoPorAlertas(a)).toBe(true);
   });
 
+  it('RD-0189: a falta da aba aberta não entra em Alertas (fica no campo); as das outras abas entram', () => {
+    const faltantes = [{ texto: 'Falta a forma de pagamento', aba: 'Venda' }, { texto: 'Falta a transportadora', aba: 'Entrega' }];
+    expect(alertasDoPedido({ cliente, faltantes, aba_atual: 'Venda' }).map((x) => x.texto)).toEqual(['Falta a transportadora']);
+    expect(alertasDoPedido({ cliente, faltantes }).map((x) => x.texto)).toEqual(['Falta a forma de pagamento', 'Falta a transportadora']);
+  });
+
   it('RN-CORE-36: informação faltante leva à aba, desliga o enviar e NÃO obriga orçamento', () => {
     const a = alertasDoPedido({ cliente, faltantes: [{ texto: 'Falta a transportadora', aba: 'Entrega' }] });
     expect(a[0]).toMatchObject({ tipo: 'faltante', texto: 'Falta a transportadora', aba: 'Entrega', vai_para: { aba: 'Entrega' }, impede_enviar: true, so_orcamento: false });
@@ -28,10 +34,22 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     expect(impedeEnviarPorAlertas(a)).toBe(true);
   });
 
-  it('RN-VEN-13: cliente bloqueado, inativo e cadastro incompleto só permitem orçamento', () => {
-    const a = alertasDoPedido({ cliente: { bloqueado: true, ativo: false, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] } });
-    expect(a.map((x) => x.texto)).toEqual(['Cliente bloqueado', 'Cliente inativo', 'Cadastro do cliente incompleto']);
-    expect(soOrcamentoPorAlertas(a)).toBe(true);
+  it('RN-VEN-13 (RD-0171): bloqueado, inativo e cadastro incompleto têm o mesmo efeito (só orçamento): uma linha, a primeira que vale', () => {
+    const tudo = alertasDoPedido({ cliente: { bloqueado: true, ativo: false, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] } });
+    expect(tudo.map((x) => x.texto)).toEqual(['Cliente bloqueado']);
+    expect(soOrcamentoPorAlertas(tudo)).toBe(true);
+    expect(alertasDoPedido({ cliente: { bloqueado: false, ativo: false, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] } }).map((x) => x.texto)).toEqual(['Cliente inativo']);
+    expect(alertasDoPedido({ cliente: { ...cliente, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }).map((x) => x.texto)).toEqual(['Cadastro do cliente incompleto']);
+  });
+
+  it('RN-VEN-13 (RD-0172): título vencido só vira alerta acima do limite (5 dias) e com pagamento a prazo', () => {
+    const v = { titulos: 1, valor_cents: 5_000, dias: 6 };
+    expect(vencidosComEfeito(v, 28, 5)).toBe(v);
+    expect(vencidosComEfeito({ ...v, dias: 5 }, 28, 5)).toBeNull();
+    expect(vencidosComEfeito({ ...v, dias: 1 }, 28, 5)).toBeNull();
+    expect(vencidosComEfeito(v, 0, 5)).toBeNull();
+    expect(vencidosComEfeito(v, undefined, 5)).toBeNull();
+    expect(vencidosComEfeito(null, 28, 5)).toBeNull();
   });
 
   it('RN-VEN-12 e RN-VEN-13: crédito e título vencido vêm depois dos que impedem o envio e não forçam orçamento', () => {
@@ -73,5 +91,42 @@ describe('RN-VEN-42: área única Alertas do pedido', () => {
     expect(f!.leitura).toBe('Falta a transportadora, aba Entrega. Toque duas vezes para corrigir.');
     const [c] = alertasDoPedido({ cliente: { ...cliente, bloqueado: true } });
     expect(c!.leitura).toBe('Cliente bloqueado.');
+  });
+});
+
+describe('RN-VEN-10 (T-0165, RD-0142): a alçada vira uma linha nos Alertas', () => {
+  it('RN-VEN-10: acima da alçada, uma linha "Desconto acima da sua alçada", que leva à aba Itens, depois dos outros alertas, sem bloquear o envio', () => {
+    const a = alertasDoPedido({ cliente, acima_da_alcada: true, itens_sem_estoque: [{ item: 'p', codigo: 'BIS-400' }] });
+    expect(a.map((x) => x.texto)).toEqual(['BIS-400 sem estoque', 'Desconto acima da sua alçada']);
+    const l = a[1]!;
+    expect(l).toMatchObject({ tipo: 'alcada', vai_para: { aba: 'Itens' }, so_orcamento: false, impede_enviar: false });
+    expect(soOrcamentoPorAlertas([l])).toBe(false);
+    expect(impedeEnviarPorAlertas([l])).toBe(false);
+  });
+  it('RN-VEN-10: dentro da alçada não há alerta', () => {
+    expect(alertasDoPedido({ cliente, acima_da_alcada: false })).toEqual([]);
+  });
+
+  it('RN-VEN-25 (RD-0173): cliente sem nenhuma forma aceita vira UM alerta sempre visível, que impede o envio e leva à aba Venda', () => {
+    const a = alertasDoPedido({ cliente, sem_forma_para_o_cliente: true });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ texto: 'Sem forma de pagamento para este cliente', tipo: 'faltante', aba: 'Venda', vai_para: { aba: 'Venda' }, impede_enviar: true, so_orcamento: false });
+  });
+
+  it('RN-VEN-42 (RD-0174): o item que a cópia deixou de fora entra em Alertas, uma linha por item, sem efeito no envio', () => {
+    const a = alertasDoPedido({ cliente, itens_fora_da_copia: ['AGU-1500 fora da cópia: sem preço', 'CAF-500 fora da cópia: inativo'] });
+    expect(a.map((x) => x.texto)).toEqual(['AGU-1500 fora da cópia: sem preço', 'CAF-500 fora da cópia: inativo']);
+    expect(soOrcamentoPorAlertas(a)).toBe(false);
+    expect(impedeEnviarPorAlertas(a)).toBe(false);
+  });
+
+  it('RN-VEN-42 (RD-0175): editar pedido enviado sem sinal vira a linha "Sem sinal para salvar a alteração" e impede salvar', () => {
+    const a = alertasDoPedido({ cliente, sem_sinal_para_salvar: true });
+    expect(a.map((x) => x.texto)).toEqual(['Sem sinal para salvar a alteração']);
+    expect(impedeEnviarPorAlertas(a)).toBe(true);
+  });
+
+  it('RN-VEN-11 (RD-0177): o limite do desconto vai embaixo do campo do item como "Máx. 10,0%"', () => {
+    expect(textoDoMaximo(10)).toBe('Máx. 10,0%');
   });
 });

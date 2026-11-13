@@ -1,13 +1,14 @@
 /**
- * Contraste WCAG 2.x e a paleta do destaque (laranja), comuns ao kit web (BKO, portal) e ao kit mobile (Campo, Gestão).
- * Puro (roda em Node nos testes). Guia: docs/design/componentes.md §1.1 (T-0094, contraste do laranja).
+ * Contraste WCAG 2.x e a paleta da marca, comuns ao kit web (BKO, portal) e ao kit mobile (Campo, Gestão).
+ * Puro (roda em Node nos testes). Guia: docs/design/componentes.md §1 e §1.1; marca: docs/marca/manual.md §3 e §4 (T-0172).
  *
- * Regra do destaque (a mesma da referência de 03/11, `a{color:#8F3D06}` e aba ativa com rótulo #8F3D06 e ícone #C2540A):
- * - `accent` (#C2540A) é PREENCHIMENTO e GRÁFICO: fundo do botão principal, contador, barra, borda da aba, foco, ícone;
- * - TEXTO laranja sobre fundo claro é sempre `accentInk` (#8F3D06): link, rótulo de ação, chip, aba ativa;
- * - texto e ícone SOBRE o laranja cheio são `onAccent` (branco);
- * - sobre o grafite, o laranja de texto é `accentLight` (#F59A52).
- * Identidade mantida: nenhum valor da paleta mudou; só o uso de cada um ficou fixo e testado.
+ * Regra da marca v1 (aprovada pelo dono do produto em 12/11/2026):
+ * - `accent` é o Azul noite: botão principal, link, aba ativa, seleção, foco; texto de ação sobre claro é `accentInk` (o mesmo azul);
+ * - texto e ícone sobre o Azul noite são `onAccent` (branco);
+ * - o laranja (`GRAFICO.cor`) é só gráfico: barra de meta e de share, contador, marcador. Nunca texto sobre claro;
+ * - sobre o escuro (grafite e Azul noite), o laranja é o sol claro (`accentLight` / `GRAFICO.sobreEscuro`);
+ * - o cabeçalho das telas é a faixa Azul noite (`FAIXA`), com título branco e subtítulo `#C9CED5`;
+ * - Azul noite nunca encosta no grafite.
  */
 
 function canal(c: number): number {
@@ -36,27 +37,81 @@ export const MINIMO_CONTRASTE = { texto: 4.5, textoGrande: 3, grafico: 3 } as co
 
 export type TipoContraste = keyof typeof MINIMO_CONTRASTE;
 
-/** Paleta do destaque (iguais no app e no BKO; `apps/web/app/globals.css` tem os mesmos valores em `--color-accent*`). */
-export const DESTAQUE = {
-  /** laranja da marca: preenchimento e gráfico, nunca texto sobre claro */
-  accent: '#C2540A',
-  /** texto laranja sobre claro (link, rótulo de ação, chip, aba ativa) */
-  accentInk: '#8F3D06',
-  /** texto e ícone sobre o laranja cheio */
-  onAccent: '#FFFFFF',
-  /** laranja de texto e ação sobre o grafite ("Desfazer") */
-  accentLight: '#F59A52',
+/**
+ * Paleta da marca v1 (docs/marca/manual.md §3), com os nomes do manual. Os papéis (destaque, gráfico, faixa, fundos) ficam nos
+ * objetos abaixo, que são o que o kit usa.
+ */
+export const MARCA = {
+  /** a cor da marca: faixa do cabeçalho, botão principal, link, aba ativa */
+  azulNoite: '#1E3350',
+  /** fundo das telas (app, BKO e portal) */
+  perola: '#F8F6F1',
+  branco: '#FFFFFF',
+  /** sol do logo e gráficos sobre claro (barra de meta e de share, contador, marcador). Nunca texto sobre claro */
+  sol: '#C2540A',
+  /** o sol e os gráficos sobre o escuro (Azul noite e grafite) */
+  solClaro: '#F59A52',
+  /** texto principal, botão Sincronizar, menu lateral do BKO */
+  grafite: '#16202A',
+  textoSecundario: '#4A5562',
+  textoApoio: '#5B6673',
   /** fundo do chip e do cartão em destaque */
-  accentSoft: '#FBE9DC',
-  /** fundo do bloco em destaque mais leve */
-  accentTint: '#FDF4EC',
+  azulSuave: '#DFE2E6',
+  /** subtítulo dentro do cabeçalho Azul noite */
+  claroNaFaixa: '#C9CED5',
+  /** azul sobre o grafite (menu do BKO) */
+  azulClaro: '#9AA3B0',
+} as const;
+
+/**
+ * Destaque = a cor de AÇÃO (marca v1: Azul noite; até a v1.0.4 era o laranja). Iguais no app e no BKO; `apps/web/app/globals.css`
+ * tem os mesmos valores em `--color-accent*`. Os nomes `accent*` ficaram para não mexer nas telas.
+ */
+export const DESTAQUE = {
+  /** preenchimento da ação: botão principal, aba ativa (ícone e borda), seleção, foco */
+  accent: MARCA.azulNoite,
+  /** texto de ação sobre claro: link, rótulo de ação, chip, aba ativa (o Azul noite já passa em texto: 11,82:1 no Pérola) */
+  accentInk: MARCA.azulNoite,
+  /** texto e ícone sobre o Azul noite */
+  onAccent: MARCA.branco,
+  /** ação e gráfico sobre o escuro (grafite e Azul noite): "Desfazer", sol do logo negativo */
+  accentLight: MARCA.solClaro,
+  /** fundo do chip e do cartão em destaque */
+  accentSoft: MARCA.azulSuave,
+  /** fundo do bloco em destaque leve (opção marcada, atalho): o mesmo Azul suave, sem cor "quase igual" (manual §3) */
+  accentTint: MARCA.azulSuave,
+} as const;
+
+/** Gráfico (barra de meta e de share, contador, marcador): o laranja da marca. Nunca texto sobre claro. */
+export const GRAFICO = {
+  /** sobre claro (Pérola, branco) */
+  cor: MARCA.sol,
+  /** sobre o escuro (Azul noite, grafite) */
+  sobreEscuro: MARCA.solClaro,
+} as const;
+
+/**
+ * Faixa Azul noite do cabeçalho (manual §4) e da tela de entrada (docs/design/entrada-sync.md). `trilho`, `feito` e `erro` só
+ * valem na tela de entrada (barra de sincronização e etapas).
+ */
+export const FAIXA = {
+  fundo: MARCA.azulNoite,
+  titulo: MARCA.branco,
+  subtitulo: MARCA.claroNaFaixa,
+  /** trilho da barra de sincronização (só fundo; a informação está no preenchimento `GRAFICO.sobreEscuro`) */
+  trilho: '#3A4D68',
+  /** ✓ das etapas feitas */
+  feito: '#7FD1A8',
+  /** erro ("Sem internet na etapa 3 de 5") */
+  erro: '#F7A59C',
 } as const;
 
 /** Fundos onde o destaque aparece (iguais no app e no BKO). */
 export const FUNDOS = {
-  ground: '#F3F4F1',
-  surface: '#FFFFFF',
-  ink: '#16202A',
+  ground: MARCA.perola,
+  surface: MARCA.branco,
+  ink: MARCA.grafite,
+  faixa: MARCA.azulNoite,
 } as const;
 
 export interface ParContraste {
@@ -68,40 +123,63 @@ export interface ParContraste {
 }
 
 /**
- * Todo uso do destaque no kit, com o mínimo que ele precisa atingir. O teste mede cada par; a tabela de
+ * Pares do manual da marca §3 (e `docs/marca/ativos/2026-11-12-v1/contraste.json`), com a razão publicada lá. O teste mede
+ * cada um e confere a razão com 2 casas.
+ */
+export const PARES_DA_MARCA: readonly (ParContraste & { razao: string })[] = [
+  { uso: 'branco no Azul noite', fg: MARCA.branco, bg: MARCA.azulNoite, tipo: 'texto', razao: '12,77:1' },
+  { uso: 'texto claro na faixa no Azul noite', fg: MARCA.claroNaFaixa, bg: MARCA.azulNoite, tipo: 'texto', razao: '8,07:1' },
+  { uso: 'Azul noite no Pérola', fg: MARCA.azulNoite, bg: MARCA.perola, tipo: 'texto', razao: '11,82:1' },
+  { uso: 'Azul noite no Azul suave', fg: MARCA.azulNoite, bg: MARCA.azulSuave, tipo: 'texto', razao: '9,83:1' },
+  { uso: 'grafite no Pérola', fg: MARCA.grafite, bg: MARCA.perola, tipo: 'texto', razao: '15,26:1' },
+  { uso: '#4A5562 no Pérola', fg: MARCA.textoSecundario, bg: MARCA.perola, tipo: 'texto', razao: '7,03:1' },
+  { uso: '#5B6673 no Pérola', fg: MARCA.textoApoio, bg: MARCA.perola, tipo: 'texto', razao: '5,41:1' },
+  { uso: 'Azul claro no grafite', fg: MARCA.azulClaro, bg: MARCA.grafite, tipo: 'texto', razao: '6,47:1' },
+  { uso: 'sol laranja no Pérola (gráfico)', fg: MARCA.sol, bg: MARCA.perola, tipo: 'grafico', razao: '4,26:1' },
+  { uso: 'sol claro no Azul noite (gráfico)', fg: MARCA.solClaro, bg: MARCA.azulNoite, tipo: 'grafico', razao: '5,85:1' },
+];
+
+/**
+ * Todo uso do destaque, do gráfico e da faixa no kit, com o mínimo que ele precisa atingir. O teste mede cada par; a tabela de
  * docs/design/componentes.md §1.1 traz os mesmos pares com a razão calculada.
  */
 export const PARES_DO_DESTAQUE: readonly ParContraste[] = [
-  // texto e ícone sobre o laranja cheio
-  { uso: 'texto do botão principal sobre o laranja', fg: DESTAQUE.onAccent, bg: DESTAQUE.accent, tipo: 'texto' },
-  { uso: 'número do contador e do selo sobre o laranja', fg: DESTAQUE.onAccent, bg: DESTAQUE.accent, tipo: 'texto' },
-  // texto laranja sobre claro: sempre accentInk
+  // ação em Azul noite
+  { uso: 'texto do botão principal sobre o Azul noite', fg: DESTAQUE.onAccent, bg: DESTAQUE.accent, tipo: 'texto' },
   { uso: 'link e rótulo de ação no fundo', fg: DESTAQUE.accentInk, bg: FUNDOS.ground, tipo: 'texto' },
-  { uso: 'link e rótulo de ação no cartão', fg: DESTAQUE.accentInk, bg: FUNDOS.surface, tipo: 'texto' },
-  { uso: 'aba ativa (rótulo) no branco', fg: DESTAQUE.accentInk, bg: FUNDOS.surface, tipo: 'texto' },
+  { uso: 'link, rótulo de ação e aba ativa no cartão e na barra', fg: DESTAQUE.accentInk, bg: FUNDOS.surface, tipo: 'texto' },
   { uso: 'chip e cartão em destaque', fg: DESTAQUE.accentInk, bg: DESTAQUE.accentSoft, tipo: 'texto' },
-  { uso: 'texto no bloco em destaque leve', fg: DESTAQUE.accentInk, bg: DESTAQUE.accentTint, tipo: 'texto' },
-  // gráfico em laranja sobre claro: ícone, borda da aba, barra, foco
-  { uso: 'ícone, borda e foco laranja no fundo', fg: DESTAQUE.accent, bg: FUNDOS.ground, tipo: 'grafico' },
-  { uso: 'ícone, borda e foco laranja no cartão', fg: DESTAQUE.accent, bg: FUNDOS.surface, tipo: 'grafico' },
-  { uso: 'ícone laranja no quadrado accentSoft (opção da folha)', fg: DESTAQUE.accent, bg: DESTAQUE.accentSoft, tipo: 'grafico' },
-  { uso: 'ícone laranja no bloco accentTint', fg: DESTAQUE.accent, bg: DESTAQUE.accentTint, tipo: 'grafico' },
+  { uso: 'texto secundário no chip e no cartão em destaque', fg: MARCA.textoSecundario, bg: DESTAQUE.accentSoft, tipo: 'texto' },
+  { uso: 'ícone, borda e foco Azul noite no fundo', fg: DESTAQUE.accent, bg: FUNDOS.ground, tipo: 'grafico' },
+  // gráfico em laranja
+  { uso: 'número do contador e do selo sobre o laranja', fg: MARCA.branco, bg: GRAFICO.cor, tipo: 'texto' },
+  { uso: 'barra e marcador laranja no fundo', fg: GRAFICO.cor, bg: FUNDOS.ground, tipo: 'grafico' },
+  { uso: 'barra e marcador laranja no cartão', fg: GRAFICO.cor, bg: FUNDOS.surface, tipo: 'grafico' },
+  { uso: 'gráfico sol claro no grafite', fg: GRAFICO.sobreEscuro, bg: FUNDOS.ink, tipo: 'grafico' },
+  // faixa Azul noite (cabeçalho e tela de entrada)
+  { uso: 'título da faixa', fg: FAIXA.titulo, bg: FAIXA.fundo, tipo: 'texto' },
+  { uso: 'subtítulo e voltar da faixa', fg: FAIXA.subtitulo, bg: FAIXA.fundo, tipo: 'texto' },
+  { uso: 'barra de sincronização (preenchimento) na faixa', fg: GRAFICO.sobreEscuro, bg: FAIXA.fundo, tipo: 'grafico' },
+  { uso: 'barra de sincronização (preenchimento) sobre o trilho', fg: GRAFICO.sobreEscuro, bg: FAIXA.trilho, tipo: 'grafico' },
+  { uso: 'etapa feita (✓) na faixa', fg: FAIXA.feito, bg: FAIXA.fundo, tipo: 'texto' },
+  { uso: 'erro na faixa', fg: FAIXA.erro, bg: FAIXA.fundo, tipo: 'texto' },
+  { uso: '"Tentar de novo": Azul noite no botão branco', fg: FAIXA.fundo, bg: MARCA.branco, tipo: 'texto' },
   // sobre o grafite
-  { uso: 'botão principal laranja sobre o grafite (forma)', fg: DESTAQUE.accent, bg: FUNDOS.ink, tipo: 'grafico' },
-  { uso: 'foco laranja no menu grafite do BKO', fg: DESTAQUE.accent, bg: FUNDOS.ink, tipo: 'grafico' },
   { uso: 'ação "Desfazer" e ícone de erro sobre o grafite', fg: DESTAQUE.accentLight, bg: FUNDOS.ink, tipo: 'texto' },
 ];
 
 /**
- * Pares PROIBIDOS (abaixo de 4,5:1 para texto): o motivo de existir o `accentInk`. O teste garante que continuam abaixo,
- * para a regra não virar letra morta se alguém mexer na paleta.
+ * Pares PROIBIDOS para texto (manual §3): o teste garante que continuam abaixo de 4,5:1, para a regra não virar letra morta se
+ * alguém mexer na paleta.
  */
 export const PARES_PROIBIDOS_PARA_TEXTO: readonly ParContraste[] = [
-  { uso: 'texto accent no fundo (4,17:1)', fg: DESTAQUE.accent, bg: FUNDOS.ground, tipo: 'texto' },
-  { uso: 'texto accent no accentSoft (3,90:1)', fg: DESTAQUE.accent, bg: DESTAQUE.accentSoft, tipo: 'texto' },
-  { uso: 'texto accent no accentTint (4,23:1)', fg: DESTAQUE.accent, bg: DESTAQUE.accentTint, tipo: 'texto' },
-  { uso: 'texto accent no grafite (3,58:1)', fg: DESTAQUE.accent, bg: FUNDOS.ink, tipo: 'texto' },
+  { uso: 'texto laranja no Pérola (4,26:1): laranja é só gráfico', fg: GRAFICO.cor, bg: FUNDOS.ground, tipo: 'texto' },
+  { uso: 'texto laranja no grafite (3,58:1)', fg: GRAFICO.cor, bg: FUNDOS.ink, tipo: 'texto' },
+  { uso: 'texto laranja no Azul suave', fg: GRAFICO.cor, bg: DESTAQUE.accentSoft, tipo: 'texto' },
 ];
+
+/** Azul noite encostado no grafite: um some no outro (1,29:1; proibido até como forma, manual §3). */
+export const PAR_PROIBIDO_AZUL_NO_GRAFITE: ParContraste = { uso: 'Azul noite sobre o grafite', fg: MARCA.azulNoite, bg: MARCA.grafite, tipo: 'grafico' };
 
 /** O par atinge o mínimo do seu tipo? */
 export function atingeContraste(par: Pick<ParContraste, 'fg' | 'bg' | 'tipo'>): boolean {

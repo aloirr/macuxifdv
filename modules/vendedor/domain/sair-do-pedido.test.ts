@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEXTOS_DA_SAIDA, avisoSoOrcamento, destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado, rascunhoParaRetomar, textoAlteradoEm, textoDeItens, type RascunhoGuardado } from './sair-do-pedido';
+import { TEXTOS_DA_SAIDA, destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado, rascunhoParaRetomar, textoAlteradoEm, textoDeItens, type RascunhoGuardado } from './sair-do-pedido';
 
 const vazio = { lines: {}, discount_pct: 0 };
 const ok = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
@@ -27,19 +27,18 @@ describe('RN-VEN-38: pedido alterado', () => {
 describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
   const base = { pre_venda_ligada: true, preco_data: '2026-11-09' };
   it('RN-VEN-38: cliente normal vê Salvar e enviar pedido, Apenas salvar, Salvar como orçamento (sem subtítulo de preço) e Descartar', () => {
-    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ salvar: true, apenasSalvar: true, orcamento: true, subtituloOrcamento: null, aviso: null });
+    expect(opcoesDaSaida({ ...base, cliente: ok })).toEqual({ salvar: true, apenasSalvar: true, orcamento: true });
   });
   it.each([
-    ['bloqueado', { ...ok, bloqueado: true }, 'Cliente bloqueado: só dá para salvar como orçamento'],
-    ['inativo', { ...ok, ativo: false }, 'Cliente inativo: só dá para salvar como orçamento'],
-    ['incompleto', { ...ok, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] }, 'Cadastro do cliente incompleto: só dá para salvar como orçamento'],
-  ])('RN-VEN-13: cliente %s vê só Apenas salvar, Salvar como orçamento e Descartar, com o motivo', (_n, cliente, aviso) => {
+    ['bloqueado', { ...ok, bloqueado: true }],
+    ['inativo', { ...ok, ativo: false }],
+    ['incompleto', { ...ok, cadastro_incompleto: true, campos_faltantes: ['CNPJ'] }],
+  ])('RN-VEN-13: cliente %s vê só Apenas salvar, Salvar como orçamento e Descartar (RD-0176: sem a linha do motivo, que está em Alertas)', (_n, cliente) => {
     const o = opcoesDaSaida({ ...base, cliente });
     expect(o.salvar).toBe(false);
     expect(o.apenasSalvar).toBe(true);
     expect(o.orcamento).toBe(true);
-    expect(o.aviso).toBe(aviso);
-    expect(avisoSoOrcamento(cliente)).toBe(aviso);
+    expect(o).not.toHaveProperty('aviso');
   });
   it('RN-VEN-38: tenant sem pré-venda não oferece orçamento', () => {
     expect(opcoesDaSaida({ ...base, pre_venda_ligada: false, cliente: ok }).orcamento).toBe(false);
@@ -56,7 +55,9 @@ describe('RN-VEN-38: opções da folha e RN-VEN-13', () => {
 describe('RN-VEN-38: textos da folha (T-0137)', () => {
   it('RN-VEN-38: rótulos novos da folha Sair do pedido', () => {
     expect(TEXTOS_DA_SAIDA.salvar.rotulo).toBe('Salvar e enviar pedido');
-    expect(TEXTOS_DA_SAIDA.apenasSalvar).toEqual({ rotulo: 'Apenas salvar', subtitulo: 'Guarda sem enviar' });
+    expect(TEXTOS_DA_SAIDA.apenasSalvar).toEqual({ rotulo: 'Apenas salvar' });
+    expect(TEXTOS_DA_SAIDA.salvar).toEqual({ rotulo: 'Salvar e enviar pedido' });
+    expect(TEXTOS_DA_SAIDA.descartar).toEqual({ rotulo: 'Descartar' });
     expect(TEXTOS_DA_SAIDA.orcamento.rotulo).toBe('Salvar como orçamento');
   });
 });

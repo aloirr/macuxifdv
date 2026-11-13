@@ -29,6 +29,7 @@ import {
 } from '../seeds/demo/pagamento';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
+import { idDeterministico } from '../src/ids';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { semBanco } from './estado';
@@ -414,14 +415,20 @@ describe('base de demo (estático)', () => {
       expect(ALCADAS_DEMO['alcada.vendedor_pct']).toBe(5);
     });
 
-    it('relacionados: complementares do café (açúcar R$ 4,99, filtro R$ 5,49, leite em pó R$ 16,90) e superior da água (1,5 L FD R$ 19,90), com estoque', () => {
+    it('relacionados: complementares do café (açúcar R$ 4,99, filtro R$ 5,49, leite em pó R$ 16,90) e superior da água (1,5 L UN R$ 3,32 e FD c/ 6), com estoque', () => {
       const rel = d['catalogo.produto_relacao'];
       expect(rel).toHaveLength(RELACOES_DEMO.length);
       const do_ = (sku: string, tipo: string) => rel.filter((r) => r.produto_id === porSku.get(sku) && r.tipo === tipo).sort((x, y) => Number(x.ordem) - Number(y.ordem)).map((r) => r.relacionado_id);
       expect(do_('CAF-500', 'complementar')).toEqual(['ACU-1K', 'FIL-103', 'LPO-400'].map((s) => porSku.get(s)));
       expect(do_('AGU-500', 'superior')).toEqual([porSku.get('AGU-1500')]);
-      expect(['ACU-1K', 'FIL-103', 'LPO-400', 'AGU-1500'].map((s) => precoVarejo(s))).toEqual([499, 549, 1690, 1990]);
-      expect(d['core.produto'].find((p) => p.sku === 'AGU-1500')!.unidade).toBe('FD');
+      expect(['ACU-1K', 'FIL-103', 'LPO-400', 'AGU-1500'].map((s) => precoVarejo(s))).toEqual([499, 549, 1690, 332]);
+      // T-0165: a água 1,5 L tem 2 embalagens para a folha do item — UN (base) e FD c/ 6, sem preço próprio (UN × 6 = R$ 19,92)
+      expect(d['core.produto'].find((p) => p.sku === 'AGU-1500')).toMatchObject({ unidade: 'UN', nome: 'Água mineral 1,5 L' });
+      expect(unidadesDe('AGU-1500')).toEqual([['UN', 1, true], ['FD', 6, false]]);
+      expect(precoVarejo('AGU-1500', 'FD')).toBeUndefined();
+      expect(precoVarejo('AGU-1500')! * 6).toBe(1_992);
+      // a linha do FD guarda o id de quando era a base: a recarga por cima da base vira a mesma linha (fator 6, não padrão)
+      expect(d['core.produto_unidade'].find((u) => u.produto_id === porSku.get('AGU-1500') && u.unidade === 'FD')!.id).toBe(idDeterministico('demo:produto_unidade:AGU-1500:FD'));
       const saldo = (sku: string) => d['catalogo.estoque_saldo'].filter((e) => e.produto_id === porSku.get(sku)).reduce((t, e) => t + Number(e.quantidade), 0);
       for (const sku of ['ACU-1K', 'FIL-103', 'LPO-400', 'AGU-1500']) expect(saldo(sku), sku).toBeGreaterThan(0);
       // "Leve mais": a CX do café exige estoque >= fator na unidade base

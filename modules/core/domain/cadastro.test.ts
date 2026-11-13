@@ -119,7 +119,7 @@ describe('RN-CORE-16: camposExigidos', () => {
 });
 
 describe('RN-CORE-17: observacaoComCadastro', () => {
-  const linha = 'Cadastro incompleto: falta CNPJ/CPF, CEP. Pedido só como orçamento até o cadastro ser completado no ERP.';
+  const linha = 'Cadastro incompleto: falta CNPJ/CPF, CEP.';
 
   it('RN-CORE-17: a linha automática fica no topo e não apaga o texto do ERP', () => {
     expect(observacaoComCadastro('Cliente prefere entrega de manhã.', ['documento', 'cep'])).toBe(`${linha}\nCliente prefere entrega de manhã.`);

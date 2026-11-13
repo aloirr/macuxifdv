@@ -1,58 +1,44 @@
 /**
- * Tela de carga (rota `/sync`), Campo e Gestão. T-0059, a partir do teste de campo de 02/11:
+ * Carga depois do login (rota `/sync`), Campo e Gestão, na tela única de entrada (T-0172: `TelaEntrada`, o logo da
+ * splash parado e embaixo "Olá", a barra do total e as etapas nomeadas; proposta docs/marca/propostas/2026-11-12-entrada-sync).
+ * Regras que continuam da T-0059:
  * - R-20261102-091336: a navegação depende do ESTADO do motor (`sincronizado_em` gravado e nada em andamento →
- *   `<Redirect href="/">`), não da promessa de `sincronizar()`; vale com a tela remontada e ao voltar do segundo plano.
- *   Com a carga pronta aparece também "Entrar no app" (rede de segurança). Se a carga já existia quando a tela abriu
- *   (ex.: entrar de novo com o mesmo usuário), o usuário entra na hora e a sincronização segue em segundo plano.
- * - R-20261102-090915: nenhum nome de módulo, entidade ou etapa; uma frase amigável por vez (perfil + módulos
- *   efetivos, `frasesDaCarga`); erro amigável com "Tentar de novo" (o detalhe técnico vai para o log e para o
- *   Diagnóstico do Perfil); raiz rolável respeitando as áreas seguras de cima e de baixo.
+ *   `<Redirect href="/">`), não da promessa de `sincronizar()`; vale com a tela remontada e ao voltar do segundo plano. Se a
+ *   carga já existia quando a tela abriu (entrar de novo com o mesmo usuário), o usuário entra na hora e a sincronização
+ *   segue em segundo plano. Com tudo feito nesta tela, o Início abre sozinho depois de `ESPERA_PRONTO_MS`, sem botão (T-0172).
+ * - R-20261102-090915: nenhum nome técnico; o detalhe da falha vai para o log e para o Diagnóstico do Perfil.
  * - R-20261102-090919 item 2: montar a tela (ou remontar) não reinicia a carga em andamento (`sincronizarSeNecessario`).
- * - ADR 0017 / `EstadoMotorSync.carga`: barra proporcional ao que já está gravado (páginas da entidade em andamento),
- *   frases do módulo que está sendo baixado (`carga.modulo`, nunca exibido), "Continuando de onde parou" na retomada e
- *   "Mantenha o app aberto" (a carga inicial só roda com o app aberto; fechou, continua de onde parou na volta).
+ * - ADR 0017: a barra é o percentual do total já gravado (`percentualDaCarga`), também na retomada.
+ * As frases que se alternavam saíram (T-0172): fica só o nome da etapa e o percentual.
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { Banner, Button, colors, firstName, ProgressBar, type as t } from '@macuxi/ui/mobile';
+import { firstName } from '@macuxi/ui/mobile';
 import { Redirect, router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
-import { cargaRetomada, percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
-import { AVISO_APP_ABERTO, FRASE_RETOMADA, frasesDaCarga, INTERVALO_FRASE_MS, mensagemDeErroDaCarga } from '@/lib/frases-carga';
+import { AcaoEntrada, ErroEntrada, TelaEntrada } from '@/components/tela-entrada';
+import { percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
+import { erroDeSinal, ESPERA_PRONTO_MS, progressoProvisorio, rotuloDaBarra, textoDoErro } from '@/lib/entrada';
 import { usePlataforma } from '@/state/plataforma';
-
-/** Uma frase por vez, trocando a cada ~3,5 s com transição suave (só enquanto a carga roda). */
-function useFraseDaVez(frases: readonly string[], ativa: boolean): { frase: string; opacidade: Animated.Value } {
-  const [i, setI] = useState(0);
-  const opacidade = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (!ativa || frases.length < 2) return;
-    // timer-permitido: frases da tela de carga, sem rede (só troca o texto enquanto a carga roda)
-    const timer = setInterval(() => {
-      Animated.timing(opacidade, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
-        setI((n) => (n + 1) % frases.length);
-        Animated.timing(opacidade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-      });
-    }, INTERVALO_FRASE_MS);
-    return () => clearInterval(timer);
-  }, [ativa, frases.length, opacidade]);
-  return { frase: frases[i % Math.max(1, frases.length)] ?? '', opacidade };
-}
 
 export function TelaCarga() {
   const { sessao, sincronizar, sincronizarSeNecessario, offline, setOffline, logout, modulosAtivos, variante, perfil } = usePlataforma();
   const { estado } = useMotorSync();
-  const insets = useSafeAreaInsets();
   /** A carga já estava gravada quando a tela abriu: não prende o usuário enquanto a sincronização roda. */
   const tinhaCarga = useRef(Boolean(estado.sincronizado_em)).current;
   const situacao = situacaoDaCarga(estado, { tinhaCarga });
-  const moduloAtual = estado.carga?.modulo ?? null;
-  const frases = useMemo(() => frasesDaCarga(variante, perfil, modulosAtivos, moduloAtual), [variante, perfil, modulosAtivos, moduloAtual]);
-  const { frase, opacidade } = useFraseDaVez(frases, situacao === 'carregando');
   // re-render ao voltar do segundo plano: o <Redirect> roda de novo se a carga terminou com o app fora da tela
   const [, setVolta] = useState(0);
+  // a carga terminou nesta tela: o 100% fica à vista por ESPERA_PRONTO_MS e o Início abre sozinho (spec §1, estado 5)
+  const [mostrouPronto, setMostrouPronto] = useState(false);
+  const pronta = situacao === 'entrar';
+  useEffect(() => {
+    if (!pronta || tinhaCarga) return;
+    // timer-permitido: uma vez, no fim da carga (passagem para o Início)
+    const t = setTimeout(() => setMostrouPronto(true), ESPERA_PRONTO_MS);
+    return () => clearTimeout(t);
+  }, [pronta, tinhaCarga]);
 
   useEffect(() => {
     if (!sessao) return;
@@ -65,84 +51,45 @@ export function TelaCarga() {
 
   if (!sessao) return <Redirect href="/login" />;
 
-  const pct = percentualDaCarga(estado, situacao);
-  const retomada = cargaRetomada(estado, situacao);
-  const rotulo = situacao === 'entrar' ? 'Pronto' : situacao === 'erro' ? 'Parou' : retomada ? FRASE_RETOMADA : 'Sincronizando';
+  const progresso = progressoProvisorio({
+    perfil,
+    modulos: modulosAtivos,
+    carga: estado.carga,
+    percentual: percentualDaCarga(estado, situacao),
+    pronta,
+    parou: situacao === 'erro',
+  });
+  const parou = progresso.parou_em;
 
   return (
     <>
-      <ScrollView
+      <TelaEntrada
+        variante={variante}
         testID="tela-carga"
-        style={styles.root}
-        contentContainerStyle={[styles.conteudo, { paddingTop: Math.max(36, insets.top + 24), paddingBottom: Math.max(24, insets.bottom + 16) }]}>
-        <View style={{ gap: 4 }}>
-          <Text style={t.sub}>Olá, {firstName(sessao.user.name)}</Text>
-          <Text style={t.h1} accessibilityRole="header">
-            Preparando o app
-          </Text>
-          <Text style={t.sub}>Estamos deixando tudo pronto para funcionar mesmo sem sinal.</Text>
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={t.label} testID="carga-situacao">
-              {rotulo}
-            </Text>
-            <Text style={[t.label, { color: colors.ink }]} testID="sync-pct" accessibilityLabel={`${pct} por cento`}>
-              {pct}%
-            </Text>
-          </View>
-          <ProgressBar pct={pct} />
-        </View>
-
-        {situacao === 'carregando' ? (
-          <View style={{ gap: 12 }}>
-            <View style={styles.cartao} accessibilityLiveRegion="polite">
-              <Animated.Text testID="carga-frase" style={[t.body, styles.frase, { opacity: opacidade }]}>
-                {frase}
-              </Animated.Text>
-            </View>
-            <Banner icon="clock" tone="warning" testID="carga-app-aberto">
-              {AVISO_APP_ABERTO}
-            </Banner>
-          </View>
-        ) : null}
-
-        {situacao === 'entrar' ? (
-          <View style={{ gap: 10 }}>
-            <Banner icon="check" tone="success" testID="carga-pronta">
-              Tudo pronto! Seus dados estão no aparelho.
-            </Banner>
-            <Button testID="entrar-no-app" label="Entrar no app" variant="accent" height={52} onPress={() => router.replace('/')} />
-          </View>
-        ) : null}
-
-        {situacao === 'erro' ? (
-          <View style={{ gap: 10 }}>
-            <Banner icon="alert" tone="danger" testID="carga-erro">
-              {mensagemDeErroDaCarga(offline)}
-            </Banner>
-            {offline ? <Button testID="desligar-sem-sinal" label="Desligar modo sem sinal" variant="outline" onPress={() => void setOffline(false)} /> : null}
-            <Button testID="tentar-de-novo" label="Tentar de novo" variant="accent" height={52} onPress={() => void sincronizar()} />
-            <Button
+        saudacao={`Olá, ${firstName(sessao.user.name)}`}
+        barra={parou ? null : { rotulo: rotuloDaBarra(progresso), pct: progresso.percentual }}
+        etapas={progresso.etapas}
+      >
+        {parou ? (
+          <>
+            <ErroEntrada variante={variante} texto={textoDoErro(parou, progresso.total, erroDeSinal(estado.erro, offline))} />
+            <AcaoEntrada variante={variante} tipo="principal" testID="tentar-de-novo" rotulo="Tentar de novo" onPress={() => void sincronizar()} />
+            {offline ? (
+              <AcaoEntrada variante={variante} tipo="secundario" testID="desligar-sem-sinal" rotulo="Desligar modo sem sinal" onPress={() => void setOffline(false)} />
+            ) : null}
+            <AcaoEntrada
+              variante={variante}
+              tipo="link"
               testID="trocar-usuario"
-              label="Trocar usuário ou servidor"
-              variant="outline"
+              rotulo="Trocar usuário"
               onPress={() => {
                 void logout().then(() => router.replace('/login'));
               }}
             />
-          </View>
+          </>
         ) : null}
-      </ScrollView>
-      {situacao === 'entrar' ? <Redirect href="/" /> : null}
+      </TelaEntrada>
+      {pronta && (tinhaCarga || mostrouPronto) ? <Redirect href="/" /> : null}
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.ground },
-  conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 22 },
-  cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 16, paddingVertical: 18, paddingHorizontal: 16, minHeight: 76, justifyContent: 'center' },
-  frase: { color: colors.ink, textAlign: 'center' },
-});

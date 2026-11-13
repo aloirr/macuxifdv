@@ -65,3 +65,4 @@ export * from './extensoes';
 export * from './sync-conteudo';
 export * from './eventos';
 export * from './marcas';
+export * from './estoque-filial';

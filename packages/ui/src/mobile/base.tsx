@@ -51,8 +51,8 @@ export function Botao({
   /** Vibra leve ao tocar. Padrão: só no principal. */
   vibrar?: boolean;
   /**
-   * Botão sobre fundo grafite (faixa "Em atendimento", `Cartao tom="escuro"`): secundário em laranja-claro com texto grafite,
-   * neutro só com contorno claro e texto branco. Sem a prop, nada muda.
+   * Botão sobre fundo escuro (faixa "Em atendimento", `Cartao tom="escuro"`, faixa Azul noite): principal branco com texto Azul noite,
+   * secundário só com contorno claro e texto branco (T-0172). Sem a prop, nada muda.
    */
   sobreEscuro?: boolean;
   /**
@@ -335,7 +335,7 @@ export function BarraAbas({
   tomContador?: 'destaque' | 'aviso';
   testID?: string;
 }) {
-  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.accent, fg: colors.onAccent };
+  const cont = tomContador === 'aviso' ? { bg: colors.warningBg, fg: colors.warningInk } : { bg: colors.grafico, fg: colors.onAccent };
   return (
     <View accessibilityRole="tablist" testID={testID} style={[s.barra, { height: ALTURA.barraAbas + respiroInferior, paddingBottom: respiroInferior }]}>
       {itens.map((item) => {

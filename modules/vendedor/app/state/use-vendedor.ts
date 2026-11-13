@@ -21,7 +21,7 @@ import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, Pedido
 import { orderActions, type OrderStatus } from '../../domain/order';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { copiaDoDetalhe, copiaDoPayload, avisoDaEdicao, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
+import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { toDomainPolicy } from '../lib/catalog';
@@ -63,6 +63,7 @@ import {
   prazosDaTela,
   paraAprovar,
   politicaApi,
+  limiteDoUsuarioNasLinhas,
   transportadorasDaTela,
   unidadesDaTela,
   comEstoqueDaFilial,
@@ -359,6 +360,8 @@ export function useVendedor() {
   /** RN-VEN-35 (T-0101): vínculos de carteira do aparelho, para o seletor do pedido em nome */
   const carteiras = useMemo(() => (v1 ? (linhas.carteiras ?? []) : []), [v1, linhas.carteiras]);
   /** Limites do cadastro do cliente (RN-VEN-25), do pull do Core: nulo = sem teto / todas as formas. */
+  /** RN-VEN-11a (T-0168): funções e limite de desconto do usuário da sessão, da entidade `usuario` do sync (vale offline; sem linha = padrão) */
+  const limiteDesconto = useMemo(() => limiteDoUsuarioNasLinhas(linhas, usuario?.id), [linhas, usuario?.id]);
   const limitesDe = useCallback(
     (clienteId: string) => {
       const c = linhas.clientes.find((x) => x.id === clienteId);
@@ -433,7 +436,7 @@ export function useVendedor() {
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
       // RN-VEN-35/10: pedido em nome valida pela alçada do gestor (supervisor/gerente) e dispensa o vendedor logado
       const emNome = !editId && rascunho.vendedor_em_nome_id && usuario ? { vendedor_id: rascunho.vendedor_em_nome_id, perfil_autor: usuario.perfil ?? '', ...(rascunho.vendedor_em_nome_nome ? { nome: rascunho.vendedor_em_nome_nome } : {}) } : null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, limite: limiteDoUsuarioNasLinhas(linhasRef.current, usuario?.id), eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
     },
     [v1, usuario],
   );
@@ -506,12 +509,10 @@ export function useVendedor() {
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);
       if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
-      const origem = src.number ? `pedido ${src.number}` : 'pedido no aparelho';
       const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
       const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
       // T-0134/T-0151 (RN-VEN-18): editar ou corrigir (orçamento ou pedido) mantém os preços salvos, sem faixa de "preços atualizados"; duplicar entra pelos preços de hoje
       const congelados = modo === 'edit' ? precosCongeladosDoOrcamento(det, naFila?.display?.lines, unidadesDaTela(linhasRef.current)) : null;
-      const cabeca = avisoDaEdicao({ modo, origem });
       await repo.guardarRascunho(chave, {
         ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
@@ -523,7 +524,7 @@ export function useVendedor() {
         edit_order_id: modo === 'edit' ? orderId : null,
         ...(congelados && Object.keys(congelados).length > 0 ? { precos_congelados: congelados } : {}),
         ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
-        notice: [cabeca, aviso].filter(Boolean).join(' '),
+        notice: aviso,
       });
       await recarregar();
       return { customerId: cliente.id, chave };
@@ -766,10 +767,10 @@ export function useVendedor() {
    * (aparelho sem a leitura liberada pelo SDK): a tela usa a busca local. Qualquer outro erro = `erro` (aparece na tela e vai ao log).
    */
   const buscarProdutos = useCallback(
-    async (q: string, produtoIds: string[] | null): Promise<ResultadoBuscaCatalogo> => {
+    async (q: string, produtoIds: string[] | null, clienteId?: string): Promise<ResultadoBuscaCatalogo> => {
       if (!v1 || !q.trim()) return { tipo: 'reserva' };
       return buscarNoCatalogoComReserva(
-        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(produtoIds ? { produto_ids: produtoIds } : {}), limite: 100 }),
+        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(clienteId ? { cliente_id: clienteId } : produtoIds ? { produto_ids: produtoIds } : {}), limite: 100, lista_completa: true }),
         ehConsultaIndisponivel,
         (m, extra) => console.warn(m, extra),
       );
@@ -861,6 +862,7 @@ export function useVendedor() {
     prazos,
     carteiras,
     limitesDe,
+    limiteDesconto,
     creditoDoCliente,
     sincronizadoEm: estado.sincronizado_em ?? dadosRepo.sincronizado_em ?? null,
     tabelaDe,

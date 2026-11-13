@@ -3,6 +3,9 @@
  * datas/horas no fuso do tenant e textos curtos. Usado pelo shell (apps/mobile) e por `modules/<m>/app`.
  */
 export * from './theme';
+// T-0172: cabeçalho na faixa Azul noite (marca v1); o componente é o CabecalhoTela de ui.tsx
+export * from './cabecalho';
+export * from './entrada';
 export * from './icon';
 export * from './ui';
 export * from './time';
@@ -39,3 +42,15 @@ export * from './acoes-rn';
 // T-0140: tela de erro do shell (ErrorBoundary da tela de módulo e da raiz) e a linha do Diagnóstico
 export * from './tela-de-erro';
 export * from './tela-de-erro-rn';
+// T-0166: falta no campo, só na tentativa (borda e texto curto); T-0165: Balao e CampoEscolha; T-0167: fim da lista da busca
+export * from './falta';
+export * from './falta-rn';
+export * from './balao';
+export * from './balao-rn';
+export * from './campo-escolha';
+export * from './campo-escolha-rn';
+export * from './busca';
+export * from './busca-rn';
+// T-0165: BotaoEditar, o lápis do item já no pedido (aba Itens e Resumo; pedido-v4.md §5.8)
+export * from './botao-editar';
+export * from './botao-editar-rn';

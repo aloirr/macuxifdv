@@ -47,14 +47,6 @@ export default function TreinarScreen() {
         <SyncStamp at={tr.sincronizadoEm} offline={tr.offline} tz={tr.tz} />
       </View>
 
-      {tr.naFila > 0 ? (
-        <Banner testID="treinar-fila">
-          <Strong>
-            {tr.naFila === 1 ? '1 atividade no aparelho.' : `${tr.naFila} atividades no aparelho.`}
-          </Strong>{' '}
-          {tr.offline ? 'Sobem sozinhas quando o sinal voltar.' : 'Enviando…'}
-        </Banner>
-      ) : null}
       {tr.recusadas.length > 0 ? (
         <Banner testID="treinar-recusadas" tone="danger" icon="alert">
           <Strong>

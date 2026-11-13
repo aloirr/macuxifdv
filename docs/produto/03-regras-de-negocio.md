@@ -146,11 +146,24 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   *Premissa do gerente, 10/11:* a média divide sempre por 12, e não pelos meses com compra. Assim, o cliente que comprou em 2 dos 12 meses aparece com média baixa, que é o sinal que o vendedor precisa ver. *(Alexandre, R-20261110-062233; pergunta do testes, R-20261110-072459.)*
 - **RN-CORE-34 Criação de usuários e ciclo de senha.** O primeiro acesso de cada empresa é o do **admin do cliente**, com login e senha master inicial definidos pelo time da Macuxi no portal `config.` ao cadastrar a empresa. A partir dele, o admin cria no BKO os demais usuários (BKO, gerente, supervisor, vendedor…) com uma senha inicial (RN-CORE-32); a senha vai ao **e-mail** do usuário, que a **troca no primeiro uso**. No app há **Esqueci a senha**: uma senha nova vai ao e-mail e também precisa ser trocada no uso. O BKO pode **redefinir** a senha de vendedor, supervisor e gerente. Toda troca ou redefinição encerra as sessões abertas do usuário; senha nunca em log. *(Decisão do dono do produto, 07/11/2026, T-0093/T-0094.)*
 - **RN-CORE-35 Limites dos perfis de acesso.** Nenhuma edição de perfil pode quebrar estes limites, conferidos no domain e na API (não só na tela): RN-CORE-33 (perfis com base vendedor, promotor ou supervisor, e os derivados deles, não entram no BKO nem no portal); RN-PRO-01 (o **perfil** promotor não cria, edita nem cancela pedido); sempre um admin ativo, que não tira de si a gestão de perfis e de usuários; RN-CORE-32 em todas as senhas. **Multiperfil:** nas **ações**, vale a união dos perfis (quem é vendedor + promotor vende pelo perfil de vendedor e faz trade pelo de promotor); nos **acessos** (BKO, portal), vale a regra mais restritiva (basta um perfil de base vendedor, promotor ou supervisor para fechar o BKO e o portal). *(Gerente, 07/11/2026, a partir do R-20261107-185546 e do R-20261107-173950 c; ADR 0033; combinação confirmada pelo dono do produto em 07/11 às 21h50.)*
-- **RN-CORE-36 Pendências de preenchimento.** Em formulário com abas (Novo pedido e, depois, visita, pesquisa, cadastro), as pendências de preenchimento aparecem só na última aba (no pedido, o Resumo), num bloco único "Falta para salvar", acima do botão de salvar. Cada linha diz o que falta e em qual aba corrigir ("Transportadora do frete FOB — aba Entrega"; forma e prazo: "— aba Venda"). Não há botão de correção nem alerta nas outras abas; a aba com pendência ganha só uma bolinha. Enquanto houver pendência, o botão de salvar fica desabilitado. *(Alexandre, 08/11/2026; T-0125. Padrão visual em `docs/design/`, T-0126.)* **No pedido, a partir de 10/11/2026:** o "Falta para salvar" passa para a área única **"Alertas"** no topo (RN-VEN-42, R-20261110-093124). Cada linha continua dizendo o que falta e em qual aba corrigir.
+- **RN-CORE-36 Pendências de preenchimento.** Em formulário com abas (Novo pedido e, depois, visita, pesquisa, cadastro), as pendências de preenchimento aparecem só na última aba (no pedido, o Resumo), num bloco único "Falta para salvar", acima do botão de salvar. Cada linha diz o que falta e em qual aba corrigir ("Transportadora do frete FOB — aba Entrega"; forma e prazo: "— aba Venda"). Não há botão de correção nem alerta nas outras abas; a aba com pendência ganha só uma bolinha. Enquanto houver pendência, o botão de salvar fica desabilitado. *(Alexandre, 08/11/2026; T-0125. Padrão visual em `docs/design/`, T-0126.)* **No pedido, a partir de 10/11/2026:** o "Falta para salvar" passa para a área única **"Alertas"** no topo (RN-VEN-42, R-20261110-093124). Cada linha continua dizendo o que falta e em qual aba corrigir. **A partir da v1.0.5 (T-0166, R-20261112-031457, RD-0170):**
+- O campo obrigatório vazio aparece **no próprio campo**, com borda e texto curto.
+- A falta só entra em Alertas **quando o vendedor tenta avançar, salvar ou enviar**. O pedido recém-aberto não mostra alerta de preenchimento.
+- Falta de dado opcional nunca vira alerta.
 
 **Cliente — cadastro mínimo** (decisão do Alexandre, 2026-11-02, R-20261102-092329)
 - **RN-CORE-16** Cadastro completo: o cliente só fica **ativo para faturamento** quando todos os campos da lista `cliente_campos_obrigatorios` do tenant estão preenchidos e válidos. Padrão: razão social; CNPJ ou CPF com dígito verificador válido; inscrição estadual ou "isento" (só para CNPJ); logradouro, número, bairro, município, UF e CEP. O tenant pode acrescentar campos à lista, mas não pode tirar o CNPJ/CPF. A verificação roda na integração (Hub), na edição pelo BKO e na sincronização, e mora no `domain` do Core.
-- **RN-CORE-17** Cliente com cadastro incompleto **é integrado normalmente** e aparece na carteira, na rota e no Cliente 360 (visita, pesquisa, promotoria e treinamento funcionam). O sistema escreve no topo do campo **Observações** do cliente, no app e no BKO, uma linha automática: "Cadastro incompleto: falta <campos>. Pedido só como orçamento até o cadastro ser completado no ERP." Essa linha não apaga o texto vindo do ERP, é refeita a cada atualização do cliente e some sozinha quando o cadastro fica completo. Na carteira, o cliente mostra a etiqueta "Cadastro incompleto".
+- **RN-CORE-17** Cliente com cadastro incompleto **é integrado normalmente** e aparece na carteira, na rota e no Cliente 360 (visita, pesquisa, promotoria e treinamento funcionam). O sistema escreve no topo do campo **Observações** do cliente, no app e no BKO, uma linha automática: "Cadastro incompleto: falta <campos>." A frase "Pedido só como orçamento…" saiu na v1.0.5 (RD-0183), porque explicava o sistema e o alerta do pedido já diz isso. Essa linha não apaga o texto vindo do ERP, é refeita a cada atualização do cliente e some sozinha quando o cadastro fica completo. Na carteira, o cliente mostra a etiqueta "Cadastro incompleto". *(A partir da v1.0.5 essa etiqueta sai da lista e fica na ficha e nas pendências do pedido; ver RN-CORE-47.)*
+- **RN-CORE-47 Linha da lista de Clientes** (Alexandre, R-20261112-180115, 204602 e 204639; T-0171; v1.0.5; Campo e Gestão):
+  - **Uma tag só, de situação**, nesta ordem: **Bloqueado** > **Devendo** (há título vencido; vermelho) > **Pré-Cadastro** > **Em dia** (verde).
+  - **Pré-Cadastro**:
+    - é o cliente cadastrado no app ou no BKO que ainda não voltou do ERP com o código ERP;
+    - sai quando o ERP devolve o cadastro com o código ERP, o limite, o prazo e os demais dados, pelo Conector ou pela API;
+    - tom neutro, proposto pelo designer-ux e validado pelo design-de-marca.
+  - **A linha de baixo traz só a última visita**, pelo último check-in de qualquer vendedor e no calendário do fuso do tenant: "Visitado hoje", "Visitado ontem", "Visitado há N dias" ou "Nunca visitado".
+  - **Nada mais na linha**: só o nome, a tag, a última visita e a seta. "Cadastro incompleto" fica na ficha do cliente e nas pendências do pedido.
+  - **Filtros**: o filtro "Com título vencido" passa a se chamar **"Devendo"**, igual à tag. Os outros filtros ficam.
+  - **Regra geral das listas**: uma informação por linha. A tag diz a situação e a linha de baixo diz um único fato.
 
 **Produto — custo, preço e medidas** (decisões do Alexandre, 2026-11-02, R-20261102-094644 e R-20261102-111619)
 - **RN-CORE-18** Cadastro do produto: custo e preço de venda são obrigatórios. Margem (%) = (preço − custo) ÷ preço; markup (%) = (preço − custo) ÷ custo; lucro (R$) = preço − custo; calculados, nunca digitados. Produto sem preço de venda não é vendável. Produto sem custo é vendável, mas aparece como "custo não informado" no BKO e no monitor de integração. **Custo, margem, markup e lucro são dados internos:** só o BKO (admin, analista, gerente) os vê; não vão para o app de campo nem para o PDF do cliente.
@@ -158,16 +171,57 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 
 ## 4. Vendedor — preço, desconto, crédito, estoque, status
 - **RN-VEN-01** Preço base = tabela vigente do cliente na data do pedido; sem preço → item não vendável.
+  - **Catálogo sem cliente** (Alexandre, R-20261112-181237 e R-20261112-181527; v1.0.5):
+    - o Catálogo aberto pelo menu mostra o **preço da filial do vendedor**, pela tabela de preço da filial;
+    - se o vendedor tem mais de uma filial, vale a **filial padrão** dele;
+    - produto sem preço nessa filial mostra **"Sem preço"**, nunca o valor de outra tabela;
+    - aberto pela ficha do cliente, continua o preço da tabela do cliente.
 - **RN-VEN-02** Preço final do item = base × (1 − desconto do item) ou base × (1 + acréscimo do item). Total dos itens = Σ linhas × (1 − desconto do pedido) ou × (1 + acréscimo do pedido) ± ajuste financeiro da condição. O frete não tem valor no pedido (RN-VEN-16). Arredondamento em centavos, meia para cima, **no preço unitário** da medida vendida; total da linha = preço unitário × quantidade; o desconto ou acréscimo do pedido é calculado sobre o total dos itens e rateado nas linhas pelo maior resto. Desconto ou acréscimo em R$: no item, por unidade da medida vendida; no pedido, sobre o total dos itens, com rateio pelo maior resto *(T-0071, 03/11: fecha os números da referência aprovada, R-20261103-130003; confirmado em R-20261103-140707)*. Desconto e acréscimo do pedido são excludentes (um ou outro). *(Redação de 2026-11-02, R-20261102-093007.)*
+  **A partir da v1.0.5 (T-0165, aprovada pelo dono do produto em R-20261112-031456, -031841 e -032141):**
+  - **O desconto ou acréscimo é sempre no item, em %.** Não existe mais desconto ou acréscimo do pedido sobre o total.
+  - O "Desc./Acrésc. geral" da aba Itens só aplica o mesmo % a todos os itens:
+    - sobrescreve o desconto que cada item já tinha, com confirmação quando há diferença;
+    - o item adicionado depois entra com o último geral aplicado.
+  - **Arredondamento continua como acima:** meia para cima no preço unitário; total da linha = unitário × quantidade. Decisão do gerente em 12/11, achado do testes R-20261112-033854: imagens e exemplos que arredondam o total da linha valem só para o desenho, o número segue esta regra.
+  - **Totais:** Valor de tabela, "Desconto (%)" (sobre o valor de tabela), "Desconto (R$)" (soma das linhas) e Valor final.
+  - Pedidos já gravados com desconto do pedido continuam sendo lidos e exibidos como foram gravados.
 - **RN-VEN-03** Desconto efetivo do pedido = 1 − (total dos itens após descontos e acréscimos ÷ total pela tabela), **sem o frete**. Pode ser negativo (acréscimo). Exibido com 1 casa, calculado dos valores em centavos (nunca de um % já arredondado).
 - **RN-VEN-10** Alçada: ≤ [vendedor 5%] aprova; ≤ [supervisor 10%] vai ao supervisor; ≤ [gerente 15%] vai ao gerente; acima → analista. Pedido feito pelo gestor usa a alçada do gestor. A alçada olha **só o desconto efetivo do pedido** (RN-VEN-03), nunca o desconto de um item: item com 30% de desconto e pedido com desconto efetivo de 5% fica dentro da alçada de 5% e não vai para aprovação. Desconto efetivo ≤ 0 (acréscimo) nunca vai para aprovação.
-  - **Alçada só ao salvar** (Alexandre, 10/11/2026, R-20261110-062238; T-0151): a alçada aparece **só numa pergunta ao salvar o pedido**: "Desconto acima da sua alçada. Enviar para aprovação?" (Enviar para aprovação / Voltar). Não aparece nas abas Venda e Resumo, em caixa de %, em texto embaixo do botão nem no detalhe. Orçamento não tem alçada.
+  - **Alçada nos Alertas** (T-0165, R-20261112-031456 regra 3; RD-0142; substitui o "Alçada só ao salvar" de R-20261110-062238):
+    - acima da alçada, aparece uma linha `Desconto acima da sua alçada` nos Alertas, uma por pedido, venha o desconto do geral ou dos itens;
+    - ao tocar em Salvar e enviar pedido, vem a pergunta `Enviar para aprovação?` (Enviar / Voltar);
+    - nada em caixa de % nem embaixo do botão;
+    - orçamento não tem alçada.
 - **RN-VEN-11** Preço mínimo do item = preço de venda do cadastro do produto × (1 − desconto máximo aplicável do produto; vazio = [`desconto_maximo_produto_pct` 15%]). O desconto do item (sobre o preço da tabela do cliente) não pode levar o preço final abaixo do preço mínimo: o app trava o desconto no limite e mostra "Desconto máximo deste produto: X%". Esse teto vale por item e é independente da alçada do pedido (RN-VEN-10). O mínimo é arredondado **para cima** ao centavo, igual no BKO, no app e na API. Exemplo: 1891 × 0,85 = 1607,35, então o mínimo é 1608. A API revalida no envio, no orçamento e no Transformar e recusa com `preco_abaixo_minimo` (422). *(Redação de 2026-11-02, R-20261102-094644; arredondamento decidido pelo gerente em 05/11, D-T0071-C6r.)*
   - **Acima do máximo bloqueia o envio** (Alexandre, 10/11/2026, R-20261110-062238; T-0151; substitui o "trava o desconto no limite"):
     - item com desconto acima do máximo do produto **não deixa enviar o pedido**: só "Salvar como orçamento" é permitido, porque é configuração do produto e não passa nem com aprovação;
     - o motivo aparece numa linha: "AGU-1500 acima do desconto máximo";
     - o orçamento só vira pedido depois de o desconto do item ser ajustado;
     - a recusa da API é curta e só do problema, com a **mesma frase** em todo lugar (app, API, detalhe e lista): "AGU-1500 acima do desconto máximo", sem a linha da alçada (frase única do RD-0071, 10/11).
+- **RN-VEN-11a Limite de desconto por usuário** *(Alexandre, R-20261112-080845; entra na v1.0.5 por R-20261112-121131; simulação aprovada em R-20261112-183709; T-0168.)*
+  - **Duas funções na aba Parâmetros do usuário (BKO)**, junto com o limite:
+    - **"Limitar desconto por item"**: ligada, vale a trava da RN-VEN-11. Desligada, o item pode passar do desconto máximo do produto.
+    - **"Limitar desconto por pedido"**: ligada, o desconto efetivo do pedido (RN-VEN-03) não pode passar do **"Desconto máximo do pedido (%)"** do usuário. O campo só aparece com a função ligada e é obrigatório, de 0 a 100, com 1 casa.
+  - **Padrão**: para usuário novo e para todos os que já existem, "por item" ligada e "por pedido" desligada, o mesmo comportamento de antes.
+  - **Combinações**:
+    - as duas ligadas valem juntas: nenhum item passa do máximo do produto e o pedido não passa do limite do usuário;
+    - as duas desligadas deixam só a alçada (RN-VEN-10).
+  - **Acima do limite do pedido**:
+    - trava o envio como na RN-VEN-11: só "Salvar como orçamento";
+    - a frase única nos Alertas, na API, no detalhe e na lista, igual no Campo e no Gestão, é "Pedido acima do desconto máximo (X%)", em que X é o limite de quem faz o pedido (RD-0196, aprovado em R-20261112-183709);
+    - a trava compara pelo **valor exibido**, com 1 casa: 8,04% aparece como 8,0% e não trava num limite de 8,0%, mas 8,05% trava (R-20261112-183709);
+    - a ajuda da linha "por pedido" no BKO sai (RD-0197);
+    - a recusa da API é `desconto_pedido_acima_limite` (422).
+  - **A alçada continua valendo abaixo do limite.** Exemplo, com alçada de 5% e limite de 8%:
+    - até 5%, aprova;
+    - acima de 5% e até 8%, vai para aprovação (RN-VEN-10);
+    - acima de 8%, trava.
+  - **Quem vale**: pedido feito pelo gestor em nome do vendedor usa as funções e o limite **do gestor**, como na alçada. Orçamento não trava; a regra vale no envio e no Transformar.
+  - **Offline e API**:
+    - as funções e o limite vão no sync do usuário;
+    - o app aplica offline;
+    - a API revalida no envio, no orçamento salvo como pedido e no Transformar;
+    - acréscimo (desconto efetivo ≤ 0) nunca trava.
 - **RN-VEN-12** Crédito disponível = limite − saldo em aberto − pedidos aprovados não faturados. Excedeu → [enviar para aprovação | bloquear].
 - **RN-VEN-13** Título vencido há mais de [5] dias → só à vista ou com aprovação. Cliente bloqueado, inativo ou com **cadastro incompleto (RN-CORE-17)** → só orçamento: o vendedor monta e salva, mas não envia para aprovação nem para o ERP. A tela do pedido mostra quais campos faltam.
 - **RN-VEN-14** Condição de pagamento: substituída pela RN-VEN-24 (forma de pagamento e prazos) e pela RN-VEN-25 (prazo médio do cliente). *(Decisão de 2026-11-06, R-20261106-064758.)*
@@ -184,6 +238,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Preço do orçamento (antes "Validade")** O preço congelado vale `validade_orcamento_dias` [7] dias corridos a partir do salvamento, inclusive, até 23:59 no fuso do tenant (salvo em 09/11 com 7 dias → preço vale até 16/11, 23:59 de Manaus). Depois disso o orçamento **continua aberto** (não vence, não fica só para duplicar): "Transformar em pedido" **reprecifica pela tabela do dia** e mostra ao vendedor a diferença por item e no total antes de enviar. **Editar** o orçamento depois desse prazo também reprecifica pela tabela do dia e **renova a data do preço** para o dia da edição; editar dentro do prazo não muda a data do preço (gerente, 09/11, T-0141). A data do preço aparece na etapa "Salvo" do Histórico, nunca como "até 16/11"; o selo "preço de 09/11" saiu da tela do orçamento (premissa (a) da RN-VEN-42, Alexandre, 10/11/2026). Na lista e no PDF, ela continua como "preço de 09/11". Uma função única no domain, a mesma no app, no BKO, no PDF e na API. *(Alexandre, R-20261109-064818, 09/11/2026; T-0141. Substitui a validade da T-0135.)*
 - **RN-VEN-19 Aplicação no orçamento e no pedido** Em cada item do Novo pedido, quando o produto tem aplicação, a opção **"Incluir aplicação no orçamento"** vem marcada conforme o parâmetro [`aplicacao_no_orcamento_padrao` = sim] e o vendedor pode desmarcar item a item. O item grava o texto **no momento do pedido** (retrato, como o cliente do pedido), limitado a [`aplicacao_max_orcamento` = 300] caracteres e cortado na última palavra inteira com "…". O texto sai no PDF do cliente e no do BKO, no detalhe do pedido (Campo, Gestão e BKO) e no pedido enviado ao ERP. O parâmetro aceita até 1.000. Na lista de produtos, a aplicação aparece em 2 linhas, com o trecho da busca destacado. *(Decisão do Alexandre, R-20261105-110150; caixa por item, R-20261105-191229; T-0084.)*
 - **RN-VEN-20** Disponível = saldo do ERP − reservas, **na filial do pedido** (RN-CORE-39); reserva quando a API aceita o pedido; libera em cancelamento, rejeição ou faturamento. Insuficiente → [permitir com aviso | bloquear | cortar]. **No app (Alexandre, 10/11/2026, R-20261110-093124):** o produto sem estoque pode ser adicionado, aparece nos Alertas (RN-VEN-42), e o pedido **só sai como orçamento**, como no desconto acima do máximo (RN-VEN-11).
+  **Quais depósitos valem (gerente, 11/11/2026, divergência do corretor R-20261111-064959):** a regra é uma só, no `domain` do Catálogo, exposta pelo contrato e usada pela API e pelo app:
+  - **Tenant sem nenhum depósito ligado a filial** (legado): soma todos os depósitos, como antes.
+  - **Tenant com depósito ligado a filial:** só os depósitos da filial do pedido.
+    - Se a filial não tem depósito, o disponível é 0.
+    - Produto que tem saldo só em depósito de outra filial também fica com disponível 0 nesta filial.
+  - **Produto sem nenhuma linha de saldo no tenant:** não tem controle de estoque e não bloqueia.
+  - **Pedido sem filial:** comportamento anterior.
+  - **Depósito sem filial (0056):** o banco não aceita depósito sem filial. Quando ele chega vazio, um gatilho grava a filial padrão. Não existe tenant com depósitos mistos.
 - **RN-VEN-21** Quantidade múltipla do múltiplo de venda; item repetido soma quantidade.
 - **RN-VEN-22** Pedido mínimo [desativado].
 - **RN-VEN-23 Tabela de preço escalonada** O preço diferenciado por quantidade fica numa **tabela escalonada**. Cada linha tem: produto; embalagem (UN ou a embalagem do produto); **quantidade mínima**; **preço por unidade de medida** a partir dessa quantidade; vigência; e, opcionalmente, a tabela de preço ou o grupo de clientes a que se aplica.
@@ -221,7 +283,12 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
     - crédito e título vencido (RN-VEN-12 e RN-VEN-13).
   - **Forma:** cada alerta numa linha curta, só o problema e o item (ex.: "AGU-1500 acima do desconto máximo"). Sem alerta, a área não aparece.
   - **Nada fora dela:** nenhum aviso solto no topo nem embaixo da tela.
-  - **Alçada não é alerta:** aparece só na pergunta ao salvar (RN-VEN-10).
+  - **Menos alertas (v1.0.5, T-0166, R-20261112-031457):**
+    - Alerta só para o que **bloqueia ou muda o resultado**: envio, preço, alçada, crédito, estoque e cadastro obrigatório.
+    - Falta de preenchimento só entra em Alertas quando o vendedor tenta avançar, salvar ou enviar (RN-CORE-36). Antes disso, aparece no próprio campo.
+    - Exceção aprovada: o "Risco de ruptura" na folha do item (T-0165).
+    - O inventário completo está em `docs/qualidade/redundancias/2026-11-12-T-0166-alertas.md`.
+  - **Só nas telas, nunca no PDF** (Alexandre, 11/11/2026, R-20261111-085235): os Alertas não vão a nenhuma das 4 versões do PDF (pedido e orçamento, cliente e escritório). Isso substitui os "Alertas da gaveta do BKO no PDF do escritório" da v1.0.3.
   - **Situação só no Histórico:** na tela do pedido ou orçamento aberto, a situação aparece só no Histórico, e a última etapa é a situação atual; sai o selo de cima. Na **lista de Pedidos**, o selo de cada linha continua, porque ali é a única forma de ver a situação de vários pedidos.
   - **Uma informação, um lugar:** se uma seção da tela já mostra uma informação, ela não aparece em outro lugar da mesma tela. Exemplos: o Histórico mostra a situação, os Totais mostram o %, os Alertas mostram o problema. Regra permanente do corretor, para todas as telas (doc 07).
   - **Premissas aprovadas com as imagens v2** (Alexandre, R-20261110-114411; spec em `docs/design/pedido-v4.md` §0.1):

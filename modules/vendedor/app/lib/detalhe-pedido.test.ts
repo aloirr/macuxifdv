@@ -10,7 +10,7 @@ import {
   eventosDoPedido,
   itensVisiveis,
   motivoDoEvento,
-  linhaLiquidaDosTotais,
+  linhasDosTotais,
   siglaDaMedida,
   type EntradaAcoesDoDetalhe,
 } from './detalhe-pedido';
@@ -154,10 +154,10 @@ describe('RF-VEN-05 / RN-VEN-31 (T-0138): onde fica cada ação (pedido-v2 §4.3
 });
 
 describe('T-0151 (RN-VEN-03): o rótulo do desconto do detalhe sai dos centavos', () => {
-  it('RN-VEN-03: tabela 1.000,00 e total 899,00 (item com desconto e pedido com 15% digitado) mostra "Desconto 10,1%", não 15,0%', () => {
-    expect(linhaLiquidaDosTotais({ subtotal_cents: 100_000, total_cents: 89_900 })?.rotulo).toBe('Desconto 10,1%');
+  it('RN-VEN-03: tabela 1.000,00 e total 899,00 (item com desconto e pedido com 15% digitado) mostra "Desconto (%)" 10,1%, não 15,0%', () => {
+    expect(linhasDosTotais({ subtotal_cents: 100_000, total_cents: 89_900 }).map((l) => l.valor)[1]).toBe('10,1%');
   });
   it('RN-VEN-03: 8,8% também sai do total gravado, igual ao Resumo e ao PDF', () => {
-    expect(linhaLiquidaDosTotais({ subtotal_cents: 100_000, total_cents: 91_200 })?.rotulo).toBe('Desconto 8,8%');
+    expect(linhasDosTotais({ subtotal_cents: 100_000, total_cents: 91_200 }).map((l) => l.valor)[1]).toBe('8,8%');
   });
 });

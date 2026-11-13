@@ -51,10 +51,11 @@ describe('T-0127 (RN-CORE-36, RN-VEN-16): pendências só no Resumo', () => {
     expect(s).not.toContain('Corrigir frete');
     expect(fonte('../components/novo-pedido.tsx')).not.toContain('Corrigir frete');
   });
-  it('RN-CORE-36 (RN-VEN-42): sem bolinha nas abas e salvar desabilitado enquanto houver pendência', () => {
+  it('RN-CORE-36 (RN-VEN-42): sem bolinha nas abas; a falta só vira alerta depois da tentativa (RD-0170)', () => {
     expect(s).not.toContain('abasComPendencia');
     expect(s).toContain('abasDoPedido(calculo.linhas.length)');
-    expect(s).toContain('pendencias: pendencias.length');
+    expect(s).toContain('pendenciasDasAbasTentadas(pendencias.filter(');
+    expect(s).toContain(', tentou)');
     expect(s).toContain('botoesDoResumo(');
   });
   it('RN-VEN-13 (T-0129): o crédito do cliente é carregado ao abrir o pedido, não só na aba Venda', () => {
@@ -77,7 +78,7 @@ describe('T-0136 (RF-VEN-11): Novo pedido em 4 abas', () => {
     expect(venda).not.toContain('alertas={alertasVenda}');
     const itens = s.slice(s.indexOf("aba === 'itens' ? ("), s.indexOf("aba === 'entrega' ? ("));
     expect(itens).not.toContain('<CardPagamento');
-    expect(itens.indexOf('<FimDaAbaItens')).toBeGreaterThan(itens.indexOf('<PainelNoPedido'));
+    expect(itens.indexOf('<FimDaAbaItens')).toBeGreaterThan(itens.indexOf('<DescontoGeral'));
   });
   it('RF-VEN-11: a aba Entrega leva endereço, frete e observações; o prazo médio sai do cabeçalho', () => {
     expect(s).toContain('<AbaEntrega');
@@ -98,8 +99,8 @@ describe('T-0137 (RF-VEN-11, RN-VEN-38): Resumo completo e os 4 botões', () => 
     expect(s).toContain("sendRef.current('pedido')");
     expect(s).toContain("sendRef.current('orcamento')");
   });
-  it('RF-VEN-11: o desconto do pedido é o DescontoCompacto do kit, sem os 4 botões grandes nem o campo com − e +', () => {
-    expect(abas).toContain('<DescontoCompacto');
+  it('RF-VEN-11: o desconto é só o DescontoCompacto do kit (no item e no geral), sem os 4 botões grandes nem o campo com − e +', () => {
+    expect(fonte('../components/desconto-geral.tsx')).toContain('<DescontoCompacto');
     expect(abas).not.toContain('CampoPct');
     expect(abas).not.toContain('CampoReais');
     expect(abas).not.toContain('pedido-ajuste-tipo');

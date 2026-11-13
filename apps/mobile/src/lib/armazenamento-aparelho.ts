@@ -137,7 +137,7 @@ export function linhasDoArmazenamento(
 }
 
 /**
- * Barra da tela de preparo (0 a 100): a fila, os rascunhos (A) e o estado (B) são poucos e vêm primeiro (até 20 %); os
+ * Barra do "Atualizando o app" na tela de entrada (0 a 100; T-0172): a fila, os rascunhos (A) e o estado (B) são poucos e vêm primeiro (até 20 %); os
  * dados de consulta (C, as linhas do pull) pesam o resto. Sem progresso ainda = 0.
  */
 export function percentualDaPassagem(p: ProgressoPassagem | null): number {
@@ -147,28 +147,10 @@ export function percentualDaPassagem(p: ProgressoPassagem | null): number {
   return Math.round(inicio + peso * fracao);
 }
 
-/** Espera antes de mostrar a tela de preparo: a abertura de quem já passou (ou da instalação nova) não pisca a tela. */
+/** Espera antes de mostrar o "Atualizando o app": a abertura de quem já passou (ou da instalação nova) não pisca a barra. */
 export const ESPERA_TELA_PREPARO_MS = 400;
 
-// ---------- textos da tela de preparo e da tela de erro (sem nome de módulo, entidade ou chave) ----------
-
-// Textos neutros para todos os perfis (vendedor, promotor e supervisor; o promotor não faz pedido, RN-PRO-01): "o que
-// você registrou". "Nada se perde" é verdade nos três grupos: a passagem retoma na próxima abertura e a origem no
-// AsyncStorage fica intacta até o 1º sync completo (confirmado pelo engenheiro-software na revisão da T-0088).
-export const TITULO_PREPARO = 'Atualizando os dados do aparelho…';
-export const TEXTO_PREPARO =
-  'O que você registrou no aparelho continua guardado. Isso acontece uma vez só, depois da atualização do app.';
-export const AVISO_PREPARO =
-  'Deixe o app aberto até terminar. Se ele fechar, nada se perde: continua na próxima vez que abrir.';
-/** Rótulo da barra para o leitor de tela (o número ao lado fica fora do leitor, para não ler duas vezes). */
-export const ROTULO_BARRA_PREPARO = 'Progresso da atualização';
-
-/** Frase do passo em andamento. */
-export function fraseDaPassagem(p: ProgressoPassagem | null): string {
-  if (!p || p.grupo === 'A') return 'Copiando o que você registrou no aparelho';
-  if (p.grupo === 'B') return 'Copiando suas configurações';
-  return 'Copiando produtos e clientes';
-}
+// ---------- textos da tela de erro do armazenamento (sem nome de módulo, entidade ou chave) ----------
 
 export const TITULO_ERRO_ARMAZENAMENTO = 'Não foi possível abrir os dados do aparelho';
 export const TEXTO_ERRO_ARMAZENAMENTO =

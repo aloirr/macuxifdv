@@ -9,6 +9,8 @@
 #   admin.env     MACUXI_PG_ADMIN_USUARIO/MACUXI_PG_ADMIN_SENHA (secrets PROD_PG_ADMIN_*), gravado pelo workflow; SÓ os
 #                 serviços de ferramenta (banco, pgcliente, tenant, super-admin) leem. api e worker nunca recebem a senha do admin.
 #   segredos.env  S3 (PROD_S3_KEY_ID/PROD_S3_SECRET → MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO), gravado pelo workflow.
+#   email.env     MACUXI_SMTP_* (secrets PROD_SMTP_*, T-0094/ADR 0032), gravado pelo workflow; SÓ a api e o worker leem.
+#                 Vazio (sem PROD_SMTP_HOST) = e-mail desligado.
 #   tunel.env     TUNNEL_TOKEN (PROD_CLOUDFLARE_TUNNEL_TOKEN), gravado pelo workflow; só o cloudflared lê.
 #   alerta.env    MACUXI_ALERTA_WEBHOOK (PROD_ALERTA_WEBHOOK, opcional), lido só pelo alerta-saude.sh no host.
 #   certs/dbaas-ca.pem  CA do DBaaS (PROD_PG_CA_CERT, opcional): com ela o TLS confere o certificado (verify-full).
@@ -69,6 +71,9 @@ services:
         required: false
       # T-0091: senha do macuxi_portal (2º pool da API, só a sessão do super-admin)
       - path: portal.env
+      # T-0094: SMTP do e-mail transacional (MACUXI_SMTP_*), só api e worker
+      - path: email.env
+        required: false
     environment:
       <<: *ambiente-api
       MACUXI_API_HOST: 0.0.0.0
@@ -100,6 +105,8 @@ services:
       - path: segredos.env
         required: false
       - path: recados.env
+        required: false
+      - path: email.env
         required: false
     environment:
       <<: *ambiente-api

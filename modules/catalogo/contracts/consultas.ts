@@ -137,7 +137,11 @@ export const BuscaProdutosEntradaSchema = z
   .object({
     q: z.string().trim().min(1).max(200),
     produto_ids: z.array(Id).max(5000).optional(),
+    /** T-0167: no lugar dos até 5.000 `produto_ids`, só os vendáveis na tabela de preço deste cliente (RN-CAT-06), filtrados dentro da consulta. */
+    cliente_id: Id.optional(),
     limite: z.number().int().min(1).max(200).default(100),
+    /** T-0167: devolve a lista ranqueada inteira (até o teto de 400, ignorando `limite`) para o app paginar de 20 em 20 sem nova consulta. */
+    lista_completa: z.boolean().optional(),
   })
   .strict();
 export type BuscaProdutosEntrada = z.infer<typeof BuscaProdutosEntradaSchema>;
@@ -151,8 +155,14 @@ export const BuscaProdutosSaidaSchema = z.object({
       so_aplicacao: z.boolean(),
       serve_em: TrechoBusca.nullable(),
       equivale_a: EquivaleA.nullable(),
+      /** T-0167: Aplicação (descrição 2) do item, na mesma consulta; ausente = consulta antiga (use `textos_produto@1`). */
+      aplicacao: z.string().nullable().optional(),
     }),
   ),
+  /** T-0167: quantos produtos casaram (até o teto de 400), ainda que `itens` traga só `limite`. */
+  total: z.number().int().min(0).max(400).optional(),
+  /** T-0167: "Você quis dizer…": termo mais próximo do vocabulário do índice, só quando nada casou. */
+  sugestao: z.string().nullable().optional(),
 });
 export type BuscaProdutosSaida = z.infer<typeof BuscaProdutosSaidaSchema>;
 
@@ -184,4 +194,25 @@ export const CONSULTA_FOTO_PRODUTO = definirConsulta({
   nome: 'catalogo.foto_produto@1',
   entrada: FotoProdutoEntradaSchema,
   saida: FotoProdutoSaidaSchema,
+});
+
+/**
+ * `catalogo.estoque_filial@1` (T-0149; RN-VEN-20, RN-CORE-39): saldo do produto na FILIAL, na unidade base, para a API do
+ * Vendedor reservar e recusar o pedido sem estoque. Uso interno da API: sem filtro de perfil (RN-CAT-05 vale para as telas).
+ * Regra única em `estoque-filial.ts` (RD-0126): tenant sem depósito ligado a filial, ou `filial_id` ausente, soma todos os
+ * depósitos; com filiais, só os da filial (filial sem depósito = 0; saldo só em outra filial = 0). Produto sem nenhuma linha
+ * de saldo no tenant não aparece na saída = estoque não controlado.
+ */
+export const EstoqueFilialEntradaSchema = z.object({ produto_ids: z.array(Id).min(1).max(200), filial_id: Id.nullable().optional() }).strict();
+export type EstoqueFilialEntrada = z.infer<typeof EstoqueFilialEntradaSchema>;
+
+export const EstoqueFilialSaidaSchema = z.object({
+  itens: z.array(z.object({ produto_id: Id, quantidade_base: z.number().nonnegative() })),
+});
+export type EstoqueFilialSaida = z.infer<typeof EstoqueFilialSaidaSchema>;
+
+export const CONSULTA_ESTOQUE_FILIAL = definirConsulta({
+  nome: 'catalogo.estoque_filial@1',
+  entrada: EstoqueFilialEntradaSchema,
+  saida: EstoqueFilialSaidaSchema,
 });

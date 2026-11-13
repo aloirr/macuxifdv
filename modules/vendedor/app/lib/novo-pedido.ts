@@ -9,6 +9,8 @@ import type { DiscountPolicy as AlcadaApi, PedidoPush } from '../../contracts';
 import type { NivelAprovacao } from '../../domain/aprovacao';
 import { checkDiscount, clampPct, type DiscountPolicy } from '../../domain/order';
 import { retratoAplicacao } from '../../domain/aplicacao';
+import { limiteDoUsuario, minimoDoItem, pedidoAcimaDoLimite, permilDoDescontoExibido } from '../../domain/limite-desconto';
+import type { LimiteDesconto } from '@macuxi/core/contracts';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
 import { precoDoItemNaEdicao } from '../../domain/orcamento';
 import type { ErroDeCalculo } from '../../domain/pendencias-preenchimento';
@@ -30,7 +32,7 @@ import {
   type FretePedido,
   type LinhaParaTotal,
 } from '../../domain/preco-pedido';
-import { toDomainPolicy } from './catalog';
+import { normalize, toDomainPolicy } from './catalog';
 
 // ---------- linha = produto + medida ----------
 export function chaveDaLinha(productId: string, unidade: string | null): string {
@@ -137,6 +139,8 @@ export interface EntradaCalculo {
   unidades: readonly UnidadeDaTela[];
   politica: AlcadaApi;
   vendedor_id: string;
+  /** RN-VEN-11a (T-0168): funções e limite de desconto do usuário da sessão; ausente = padrão */
+  limite?: Partial<LimiteDesconto> | null;
   /** RN-VEN-23: faixas vigentes da tabela escalonada por produto (de `catalogo.precos_cliente@1` faixas[]); ausente = sem faixa */
   faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
   /** T-0134 (RN-VEN-18): produto → preço de tabela por unidade já gravado no orçamento em edição; esses itens não são reprecificados */
@@ -198,6 +202,8 @@ export interface CalculoPedido {
   bloqueado: boolean;
   /** RN-VEN-11 (T-0151): códigos dos itens com desconto acima do máximo do produto; bloqueiam o envio do pedido (só orçamento) */
   acima_do_maximo: string[];
+  /** RN-VEN-11a (T-0168): limite do pedido em ‰ quando o desconto efetivo passa dele (só orçamento; sem linha de alçada); senão null */
+  acima_do_limite: number | null;
   unidades_base: number;
   /** impedem o envio (mensagens em português com a ação seguinte) */
   erros: string[];
@@ -221,6 +227,7 @@ export function faixasPorProduto(itens: ReadonlyArray<{ produto_id: string }>): 
 
 export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
+  const limite = limiteDoUsuario(e.limite);
   const pendencias: ErroDeCalculo[] = [];
   const linhas: LinhaDoPedido[] = [];
   const acimaDoMaximo: string[] = [];
@@ -261,7 +268,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       continue;
     }
     // RN-VEN-11 (T-0151): desconto que leva o preço final abaixo do mínimo do produto bloqueia o envio do pedido
-    const minimo = (produto as ProdutoComMinimo).preco_minimo_base_cents ?? null;
+    const minimo = minimoDoItem((produto as ProdutoComMinimo).preco_minimo_base_cents ?? null, limite);
     if (!itemRespeitaPrecoMinimo({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, preco_minimo_base_cents: minimo }) && !acimaDoMaximo.includes(produto.erp_code)) acimaDoMaximo.push(produto.erp_code);
     // T-0084 (RN-VEN-19): retrato no momento do pedido; o retrato já gravado (edição) vale até a caixa ser refeita
     const aplicacaoDaLinha = e.aplicacao ? retratoAplicacao(aj.aplicacao_retrato ?? produto.applications, aplicacaoMarcada(aj, e.aplicacao.padrao), e.aplicacao.max) : null;
@@ -313,7 +320,9 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     l.total_cents = t.linhas_cents[i] ?? l.total_cents;
   });
   const policy: DiscountPolicy = toDomainPolicy(e.politica);
-  const nivel = nivelDeAprovacao(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
+  // RN-VEN-11a: acima do limite do pedido não há linha de alçada (só orçamento)
+  const acimaDoLimite = pedidoAcimaDoLimite(permilDoDescontoExibido(t), limite) ? limite.desconto_maximo_pedido_permil : null;
+  const nivel = acimaDoLimite !== null ? null : nivelDeAprovacao(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
   const bloqueado = bloqueadoPelaAlcada(t.desconto_efetivo_alcada_pct, policy, e.vendedor_id);
   if (bloqueado) {
     const limite = `${policy.manager_pct.toLocaleString('pt-BR')}%`;
@@ -336,6 +345,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     nivel,
     bloqueado,
     acima_do_maximo: acimaDoMaximo,
+    acima_do_limite: acimaDoLimite,
     unidades_base: linhas.reduce((s, l) => s + l.quantidade_base, 0),
   };
 }
@@ -374,6 +384,21 @@ export interface TransportadoraDaTela {
 
 export function transportadorasAtivas(l: readonly TransportadoraDaTela[]): TransportadoraDaTela[] {
   return l.filter((t) => t.ativo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** T-0165 (RN-VEN-16): a folha "Transportadora" procura no nome, sem acento e sem caixa; busca vazia traz todas (já em ordem alfabética). */
+export function filtrarTransportadoras(l: readonly TransportadoraDaTela[], busca: string): TransportadoraDaTela[] {
+  const q = normalize(busca).trim();
+  const ativas = transportadorasAtivas(l);
+  return q ? ativas.filter((t) => normalize(t.nome).includes(q)) : ativas;
+}
+
+export const OUTRA_TRANSPORTADORA = 'Outra (digitar)';
+
+/** O que o campo mostra: o nome da cadastrada, "Outra" quando digita, vazio ("Escolher") sem escolha. */
+export function textoDoCampoTransportadora(f: FreteDoRascunho, l: readonly TransportadoraDaTela[]): string | null {
+  if (f.transportadora_id) return l.find((t) => t.id === f.transportadora_id)?.nome ?? null;
+  return f.transportadora_digitada != null ? 'Outra' : null;
 }
 
 /** Mensagem de bloqueio do envio (null = frete ok). Mesma regra da API (`validarFrete`, RN-VEN-16). */

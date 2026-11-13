@@ -86,7 +86,7 @@ describe('RN-VEN-18 (T-0071): Duplicar e Editar reabrem no mesmo modo', () => {
     const r = rascunhoDaCopia(copiaDoDetalhe(detalhe(), { condicaoId: null, observacao: null }), [P(AGUA, 1790), P(CAFE, null), P(GAS, 11780)]);
     expect(Object.keys(r.rascunho.lines)).not.toContain(CAFE);
     expect(r.removidos).toBe(1);
-    expect(r.aviso).toMatch(/sem preço na tabela/);
+    expect(r.aviso).toMatch(/fora da cópia: sem preço/);
   });
   it('RN-VEN-02: o rascunho reaberto calcula sem erro com o preço da tabela de hoje (mesmas linhas e ajustes)', () => {
     const r = rascunhoDaCopia(copiaDoDetalhe(detalhe({ order_adjust_mode: 'pct', order_discount_value_cents: 0, discount_pct: 1 } as Partial<OrderDetail>), { condicaoId: null, observacao: null }), [P(AGUA, 1790), P(CAFE, 1890), P(GAS, 11780)]);

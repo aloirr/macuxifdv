@@ -4,8 +4,8 @@
  *   pelo leitor de tela como "atual"). Quebra de linha quando não cabe; alvo de toque de 48 dp.
  * - `LinhaChips`: uma linha de chips com rolagem horizontal (não empurra a lista para baixo quando há muitos filtros).
  * - `ListaNiveis` (T-0142): os níveis do catálogo com a contagem de produtos ativos, um nível por tela.
- * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba (ex.: "Rascunhos (2)" em Pedidos). Fundo laranja
- *   claro para não ser confundida com as linhas brancas da lista; ícone, rótulo, apoio e seta. Ver docs/design/pedido-v3.md §F.1.
+ * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba (ex.: "Rascunhos (2)" em Pedidos). Fundo Azul
+ *   suave para não ser confundida com as linhas brancas da lista; ícone, rótulo, apoio e seta. Ver docs/design/pedido-v3.md §F.1.
  * Só apresentação: quem decide o que entra na trilha ou nos chips é a tela/domain do módulo.
  */
 import type { ReactNode } from 'react';
@@ -43,7 +43,7 @@ export function Trilha({
   onEscolher: (id: string) => void;
   /**
    * Visual curto da referência do Novo pedido (T-0071): "Mercearia › Bebidas" em 13, anteriores em cinza e o atual em
-   * laranja. O alvo de toque continua 48 dp.
+   * Azul noite. O alvo de toque continua 48 dp.
    */
   compacta?: boolean;
   /** Leitura de cada item no leitor de tela; sem ela, "Ir para X" / "X, você está aqui". */
@@ -205,7 +205,7 @@ const s = StyleSheet.create({
   trilha: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   item: { flexDirection: 'row', alignItems: 'center' },
   passo: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 6 },
-  // accentInk: o laranja `accent` sobre o fundo da tela dá 4,17:1 (abaixo de 4,5:1); accentInk dá 6,7:1 (T-0071, V3)
+  // accentInk (Azul noite): 11,82:1 no fundo Pérola (T-0172)
   link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accentInk },
   atual: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   // nível pulado (T-0142): ink2 7,6:1 no branco, 6,9:1 no fundo; sem toque
@@ -214,7 +214,7 @@ const s = StyleSheet.create({
   passoCompacto: { paddingHorizontal: 4 },
   linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
-  // LinhaAtalho: accentSoft com ink 13,9:1, ink2 6,4:1 e accentInk 6,3:1 (todos ≥ 4,5:1)
+  // LinhaAtalho: Azul suave com ink 12,68:1, ink2 5,84:1 e accentInk 9,83:1 (todos ≥ 4,5:1)
   atalho: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: ALVO, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.accentSoft, borderRadius: radius.md },
   atalhoComApoio: { minHeight: 56 },
   atalhoTexto: { flex: 1, gap: 2 },

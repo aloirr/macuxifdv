@@ -62,7 +62,7 @@ const MAPA: Record<string, [string, number][]> = {
   // T-0029 E5 (engenheiro-software): os casos de datas no fuso foram para `@macuxi/comum/fuso`
   'apps/mobile/src/lib/time.test.ts': [['packages/comum/src/fuso.test.ts', 4]],
   'apps/mobile/src/lib/visit.test.ts': [['modules/core/app/lib/visit.test.ts', 13]],
-  'apps/mobile/src/lib/order-pdf.test.ts': [['modules/vendedor/app/lib/order-pdf.test.ts', 10]],
+  'apps/mobile/src/lib/order-pdf.test.ts': [['modules/vendedor/app/lib/order-pdf.test.ts', 9]],
   'apps/mobile/src/lib/order-prefill.test.ts': [['modules/vendedor/app/lib/order-prefill.test.ts', 2]],
   'apps/mobile/src/lib/outbox.test.ts': [
     ['packages/platform-sdk/src/motor-sync.fase-m.test.ts', 4],
@@ -74,8 +74,9 @@ const MAPA: Record<string, [string, number][]> = {
 /**
  * Casos da Fase M cujo comportamento mudou por decisão registrada depois da T-0001.
  * [origem, título da Fase M] → título do teste que o substitui no destino e a decisão.
+ * `removido`: o caso saiu sem teste próprio no lugar (o `novo` cobre a regra); a contagem do MAPA desconta esses casos.
  */
-const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; decisao: string }[] = [
+const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; decisao: string; removido?: true }[] = [
   {
     origem: 'packages/domain/src/order.test.ts',
     titulo: 'integrado explica que é preciso duplicar',
@@ -87,6 +88,25 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     titulo: 'prioriza EXPO_PUBLIC_API_URL e normaliza /v1',
     novo: 'padrão do build: EXPO_PUBLIC_API_URL completado com /v1 (não foi digitado)',
     decisao: 'R-20261101-065547-alexandre — endereço digitado fica exatamente como digitado; só o padrão do build (EXPO_PUBLIC_API_URL) é completado com /v1',
+  },
+  {
+    origem: 'apps/mobile/src/lib/order-pdf.test.ts',
+    titulo: 'pedido excluído mostra "Excluído" e o motivo',
+    novo: 'recusa aparece só no Histórico, com o texto vindo do histórico',
+    decisao: 'PDF v3 do dono do produto (R-20261111-090118 / R-20261111-094836) e RD-0134 — o PDF não tem mais o campo do motivo; a recusa aparece só no Histórico do escritório',
+  },
+  {
+    origem: 'apps/mobile/src/lib/order-pdf.test.ts',
+    titulo: 'mostra subtotal de tabela, desconto em R$ e %, total, alçada, status, motivo e histórico',
+    novo: 'mostra subtotal de tabela, desconto em R$ e %, total e histórico',
+    decisao: 'T-0159 e RD-0135 (corretor R-20261111-150701) — o PDF do escritório não traz mais alçada, status nem motivo (avisos só em Alertas, eventos só no Histórico; PDF v3, R-20261111-090118)',
+  },
+  {
+    origem: 'apps/mobile/src/lib/order-pdf.test.ts',
+    titulo: 'subtotal − desconto = total',
+    novo: 'mostra subtotal de tabela, desconto em R$ e %, total e histórico',
+    decisao: 'RD-0135 (corretor R-20261111-150701) — o teste só conferia a própria fixture, sem chamar código, e foi apagado; subtotal R$ 1.034,00, desconto − R$ 72,38 e total R$ 961,62 no HTML gerado seguem cobertos pelo caso novo',
+    removido: true,
   },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
@@ -114,7 +134,8 @@ describe('S0-001 — referência da Fase M', () => {
     for (const c of referencia.casos) porOrigem.set(c.arquivo, (porOrigem.get(c.arquivo) ?? 0) + 1);
     expect(Object.keys(MAPA).sort()).toEqual([...porOrigem.keys()].sort());
     for (const [origem, dests] of Object.entries(MAPA)) {
-      expect(dests.reduce((s, [, n]) => s + n, 0), origem).toBe(porOrigem.get(origem));
+      const removidos = SUBSTITUIDOS_POR_DECISAO.filter((x) => x.origem === origem && x.removido).length;
+      expect(dests.reduce((s, [, n]) => s + n, 0), origem).toBe((porOrigem.get(origem) ?? 0) - removidos);
     }
   });
 });

@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { cargaRetomada, deveSincronizar, INTERVALO_SYNC_MS, JANELA_TENTATIVA_RECENTE_MS, percentualDaCarga, situacaoDaCarga, type ContextoDecisaoSync } from './carga';
+import { deveSincronizar, INTERVALO_SYNC_MS, JANELA_TENTATIVA_RECENTE_MS, percentualDaCarga, situacaoDaCarga, type ContextoDecisaoSync } from './carga';
 
 const AGORA = Date.parse('2026-11-02T13:00:00.000Z');
 const ha = (ms: number) => new Date(AGORA - ms).toISOString();
@@ -45,14 +45,6 @@ describe('situacaoDaCarga — a navegação depende do estado, não da promessa'
     expect(percentualDaCarga({ ...base, sincronizando: true, progresso: 0.4, carga: { ...carga, concluidas: 3 } }, 'carregando')).toBeGreaterThanOrEqual(em(1000));
     // sem posição do motor (estado antigo), vale só o progresso
     expect(percentualDaCarga({ ...base, sincronizando: true, progresso: 0.3 }, 'carregando')).toBe(30);
-  });
-
-  it('retomada: só enquanto a passada que continuou a carga interrompida está em andamento', () => {
-    const carga = { entidade: null, concluidas: 4, total: 10, paginas: 0, retomada: true };
-    expect(cargaRetomada({ ...base, sincronizando: true, progresso: 0.4, carga }, 'carregando')).toBe(true);
-    expect(cargaRetomada({ ...base, sincronizando: true, progresso: 0.4, carga: { ...carga, retomada: false } }, 'carregando')).toBe(false);
-    expect(cargaRetomada({ ...base, sincronizando: false, erro: 'x', carga }, 'erro')).toBe(false);
-    expect(cargaRetomada({ ...base, sincronizado_em: ha(0), progresso: 1, carga }, 'entrar')).toBe(false);
   });
 });
 

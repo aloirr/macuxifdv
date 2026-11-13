@@ -17,7 +17,7 @@ function membro(n: number, nome: string, painel: Record<string, unknown>): Membr
 describe('T-0073 / RN-CORE-26: Equipe agora na aba Equipe do Gestão', () => {
   it('RN-CORE-26: 60 min sem check-in depois do último checkout, com paradas pendentes → "Parado" com o tempo', () => {
     const [l] = linhasAgora({ membros: [membro(1, 'Lucas', { paradas_planejadas: 6, paradas_pendentes: 4, ultimo_checkout_em: ha(100) })] }, AGORA);
-    expect(l).toMatchObject({ status: 'parado', label: 'Parado', tom: 'aviso', detalhe: 'Sem check-in há 1h40' });
+    expect(l).toMatchObject({ status: 'parado', label: 'Parado 1h40', tom: 'aviso' });
   });
 
   it('RN-CORE-26: 59 min ainda é "Em rota"; o limite vem de inicio.parado_min da visão', () => {
@@ -40,9 +40,10 @@ describe('T-0073 / RN-CORE-26: Equipe agora na aba Equipe do Gestão', () => {
     expect(contarParados(r)).toBe(2);
   });
 
-  it('RN-CORE-26: sem check-in hoje não é "parado" (sem expediente nem GPS) e diz isso', () => {
+  it('RN-CORE-26: sem check-in hoje não é "parado" (sem expediente nem GPS) e a tag é só "Sem check-in" (RD-0208)', () => {
     const [l] = linhasAgora({ membros: [membro(1, 'Bia', { status_dia: 'sem_checkin' })] }, '2026-11-04T23:00:00.000Z');
-    expect(l).toMatchObject({ status: 'sem_checkin', detalhe: 'Sem check-in hoje' });
+    expect(l).toMatchObject({ status: 'sem_checkin', label: 'Sem check-in' });
+    expect(l).not.toHaveProperty('detalhe');
   });
 
   it('duração curta: minutos, horas cheias e horas com minutos', () => {

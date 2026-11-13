@@ -77,10 +77,11 @@ export interface ItemRecado {
   notificacao_id: string | null;
 }
 
+/** Marca v1 (T-0172): o ponto é marcador, então usa o laranja de gráfico (`colors.grafico`), não o Azul noite do `accent`. */
 export const COR_DO_PONTO: Record<PontoRecado, string> = {
-  destaque: colors.accent,
+  destaque: colors.grafico,
   sucesso: colors.success,
-  novo: colors.accent,
+  novo: colors.grafico,
   lido: colors.ink3,
 };
 
@@ -214,7 +215,7 @@ export function desenhoMetaDoMes(m: MetaDoDia, pronto?: MetaHojePronta | null): 
     de,
     mes: mesPct != null ? percentualDoMes(mesPct) : null,
     pct: mesPct != null ? Math.min(100, mesPct / 100) : 0,
-    corBarra: colors.accent,
+    corBarra: colors.grafico,
     trilho: colors.lineSoft,
     verde: false,
     apoioVerde: false,

@@ -24,11 +24,11 @@ export function visitaComEtapaPendente(visitas: readonly VisitaMinima[], cliente
 }
 
 /** Texto do Banner da ficha do cliente (§1.2): a segunda linha depende da fila e do sinal. */
-export function avisoDeEtapaPendente(o: { checkin_at: string; etapas: number; agora: Date; fuso: string; naFila: number; semSinal: boolean }): AvisoEtapaPendente {
+/** RD-0181: só pede ação sem item na fila; com a etapa na fila ela sobe sozinha e o Sincronizar já mostra "N na fila" (null). */
+export function avisoDeEtapaPendente(o: { checkin_at: string; etapas: number; agora: Date; fuso: string; naFila: number; semSinal?: boolean }): AvisoEtapaPendente | null {
+  if (o.naFila > 0) return null;
   const dia = dataLocal(o.checkin_at, o.fuso);
   const quando = dia === dataLocal(o.agora, o.fuso) ? 'de hoje' : `de ${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
-  const linha1 = o.etapas === 1 ? `Uma etapa da visita ${quando} ainda não chegou ao Macuxi` : `${o.etapas} etapas da visita ${quando} ainda não chegaram ao Macuxi`;
-  const vai = o.etapas === 1 ? 'Ela vai sozinha' : 'Elas vão sozinhas';
-  const linha2 = o.naFila <= 0 ? 'Fale com seu supervisor' : o.semSinal ? `${vai} da fila quando houver sinal` : `${vai} da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor`;
-  return { linha1, linha2 };
+  const linha1 = o.etapas === 1 ? `Uma etapa da visita ${quando} não chegou` : `${o.etapas} etapas da visita ${quando} não chegaram`;
+  return { linha1, linha2: 'Fale com seu supervisor' };
 }

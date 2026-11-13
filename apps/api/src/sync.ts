@@ -59,7 +59,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { ErroHttp } from './erros';
+import { ErroHttp, semBanco } from './erros';
 import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 
@@ -145,12 +145,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const desde = q.data.cursor ? decodificarCursor(q.data.cursor) : null;
     if (q.data.cursor && !desde)
       throw new ErroHttp(400, 'CURSOR_INVALIDO', 'Cursor de sincronização inválido.');
-    if (!p.banco)
-      throw new ErroHttp(
-        503,
-        'BANCO_INDISPONIVEL',
-        'Banco de dados indisponível. Tente de novo em instantes.',
-      );
+    if (!p.banco) semBanco();
     const horizonte = await p.banco.horizonteSync();
     const ate = horizonte.toISOString();
     // o conjunto é lido antes das linhas (e o provedor reaproveita o mesmo, memorizado na requisição)
@@ -177,8 +172,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const q = NovidadesQuerySchema.safeParse(req.query);
     if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Cursor de novidades inválido.');
     const { ctx, licencas, doModulo } = await p.preparar(req, null);
-    if (!p.banco)
-      throw new ErroHttp(503, 'BANCO_INDISPONIVEL', 'Banco de dados indisponível. Tente de novo em instantes.');
+    if (!p.banco) semBanco();
     const u = ctx.usuario;
     const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, { perfil: u.perfil, modulosAtivos: u.modulos });
     // as mesmas que o pull serviria: módulo efetivo, provedor com puxar e RN-PRO-01/O-3 para o promotor

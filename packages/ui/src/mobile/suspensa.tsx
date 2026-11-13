@@ -4,7 +4,8 @@
  * - `ListaSuspensa`: campo com rótulo em cima ("FORMA DE PAGAMENTO", "PRAZO") e menu ancorado logo abaixo (ou acima, sem
  *   espaço). A opção desabilitada aparece apagada, com cadeado e sem toque, e mostra o motivo numa linha secundária abaixo do
  *   rótulo (T-0129; 12/16 em `ink2`, AA sobre o fundo da opção); o leitor de tela lê o rótulo e o motivo. O rótulo continua só o
- *   valor (RN-VEN-25: "30/60/90 dias", com "Acima do prazo médio do cliente" embaixo);
+ *   valor (RN-VEN-25: "30/60/90 dias", com "Acima do prazo médio do cliente" embaixo). Com `falta` (T-0166, RD-0170;
+ *   pedido-v4.md §6.1), borda `danger` 2 e o `TextoDaFalta` 4 dp embaixo, como no `CampoEscolha`;
  * - `CampoAjuste`: desconto/acréscimo sempre aberto, com o tipo ao lado (Desc %, Desc R$, Acrésc %, Acrésc R$) num menu do
  *   mesmo tipo, e o valor digitável à direita.
  * Regras do kit: alvo de toque ≥ 48 dp (44 dp na linha densa do item, sempre dentro do contêiner, sem `hitSlop`), nenhum texto fixo (tudo chega por props ou dos ids e
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ALVO_TOQUE } from './componentes';
+import { bordaDaFalta, TextoDaFalta } from './falta-rn';
 import { Icon } from './icon';
 import { duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
@@ -160,6 +162,7 @@ export function ListaSuspensa<T extends string>({
   rotuloFechar,
   desligado,
   erro,
+  falta,
   style,
   testID = 'lista',
 }: {
@@ -179,6 +182,8 @@ export function ListaSuspensa<T extends string>({
   desligado?: boolean;
   /** Borda vermelha (falta escolher). O motivo vai em texto perto, pela tela. */
   erro?: boolean;
+  /** Texto curto da falta já visível (`faltaVisivel`, ex.: "Obrigatório"): borda `danger` 2 e o texto embaixo do campo. */
+  falta?: string | null;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
@@ -194,23 +199,26 @@ export function ListaSuspensa<T extends string>({
           {rotulo}
         </Text>
       ) : null}
-      <View ref={ancora} collapsable={false}>
-        <Pressionavel
-          testID={testID}
-          accessibilityRole="combobox"
-          accessibilityLabel={`${nome}: ${texto}`}
-          accessibilityState={{ expanded: aberto, disabled: off }}
-          disabled={off}
-          escala={false}
-          onPress={abrir}
-          style={[s.campo, aberto && s.campoAberto, erro && !aberto && s.campoErro, off && s.campoDesligado]}>
-          <Text style={[s.campoTexto, vazio && s.campoTextoVazio, off && s.campoTextoDesligado]} numberOfLines={1}>
-            {texto}
-          </Text>
-          <View style={aberto ? s.setaAberta : null}>
-            <Icon name="abaixo" size={18} color={off ? colors.inkDisabled : colors.ink} strokeWidth={2.4} />
-          </View>
-        </Pressionavel>
+      <View>
+        <View ref={ancora} collapsable={false}>
+          <Pressionavel
+            testID={testID}
+            accessibilityRole="combobox"
+            accessibilityLabel={falta ? `${nome}: ${texto}, ${falta}` : `${nome}: ${texto}`}
+            accessibilityState={{ expanded: aberto, disabled: off }}
+            disabled={off}
+            escala={false}
+            onPress={abrir}
+            style={[s.campo, aberto && s.campoAberto, erro && !aberto && s.campoErro, !aberto && bordaDaFalta(falta), off && s.campoDesligado]}>
+            <Text style={[s.campoTexto, vazio && s.campoTextoVazio, off && s.campoTextoDesligado]} numberOfLines={1}>
+              {texto}
+            </Text>
+            <View style={aberto ? s.setaAberta : null}>
+              <Icon name="abaixo" size={18} color={off ? colors.inkDisabled : colors.ink} strokeWidth={2.4} />
+            </View>
+          </Pressionavel>
+        </View>
+        <TextoDaFalta texto={falta} testID={`${testID}-falta`} />
       </View>
       <MenuAncorado
         posicao={posicao}

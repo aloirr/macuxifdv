@@ -30,10 +30,15 @@ import {
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
 describe('tokens (T-0072): identidade e contraste', () => {
-  it('mantém a identidade: destaque, grafite e fundo', () => {
-    expect(colors.accent).toBe('#C2540A');
+  it('marca v1 (T-0172): ação Azul noite, grafite no texto, fundo Pérola, laranja só em gráfico, faixa Azul noite', () => {
+    expect(colors.accent).toBe('#1E3350');
+    expect(colors.accentInk).toBe('#1E3350');
+    expect(colors.accentSoft).toBe('#DFE2E6');
     expect(colors.ink).toBe('#16202A');
-    expect(colors.ground).toBe('#F3F4F1');
+    expect(colors.ground).toBe('#F8F6F1');
+    expect(colors.grafico).toBe('#C2540A');
+    expect(colors.graficoEscuro).toBe('#F59A52');
+    expect([colors.faixa, colors.faixaTitulo, colors.faixaSub]).toEqual(['#1E3350', '#FFFFFF', '#C9CED5']);
   });
 
   it('contraste: calcula pela WCAG (preto × branco = 21)', () => {
@@ -59,7 +64,11 @@ describe('tokens (T-0072): identidade e contraste', () => {
       ['recado: assinatura no grafite', colors.darkMuted, colors.ink],
       ['alerta vermelho no grafite (dangerOnDark)', colors.dangerOnDark, colors.ink],
       ['alerta vermelho no trilho escuro (dangerOnDark)', colors.dangerOnDark, colors.darkTrack],
-      ['contador branco no laranja', colors.surface, colors.accent],
+      ['contador branco no laranja (gráfico)', colors.surface, colors.grafico],
+      ['botão principal: branco no Azul noite', colors.onAccent, colors.accent],
+      ['título na faixa', colors.faixaTitulo, colors.faixa],
+      ['subtítulo e voltar na faixa', colors.faixaSub, colors.faixa],
+      ['recado: assinatura no trilho escuro', colors.darkMuted, colors.darkTrack],
       ['meta batida', colors.success, colors.successBg],
       ['cartão em destaque', colors.accentInk, colors.accentSoft],
     ];
@@ -88,7 +97,7 @@ describe('botões em níveis (T-0072)', () => {
     expect(ALTURA.toque).toBe(48);
   });
 
-  it('principal é o único com o laranja cheio', () => {
+  it('principal é o único com o Azul noite cheio', () => {
     const cheios = Object.entries(NIVEIS_BOTAO).filter(([, v]) => v.fundo === colors.accent);
     expect(cheios.map(([n]) => n)).toEqual(['principal']);
   });
@@ -103,17 +112,18 @@ describe('botões em níveis (T-0072)', () => {
   it('sobre escuro: os níveis se separam do grafite e entre si (faixa "Em atendimento" do #94)', () => {
     const { principal, secundario, neutro, perigo } = NIVEIS_BOTAO_ESCURO;
     // o que tem fundo cheio se separa do grafite (≥ 3:1, componente de interface); o neutro, pelo contorno claro
-    for (const v of [principal, secundario, perigo]) expect(contraste(v.fundo, FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
-    expect(neutro.fundo).toBe('transparent');
-    expect(neutro.borda).not.toBeNull();
-    expect(contraste(neutro.borda ?? '#000000', FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
-    // secundário (cheio, laranja-claro) × neutro (só contorno): não ficam parecidos
-    expect(secundario.fundo).toBe(colors.accentLight);
-    expect(secundario.texto).toBe(colors.ink);
+    for (const v of [principal, perigo]) expect(contraste(v.fundo, FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
+    expect(secundario.borda).not.toBeNull();
+    expect(contraste(secundario.borda ?? '#000000', FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
+    expect(contraste(secundario.borda ?? '#000000', colors.faixa)).toBeGreaterThanOrEqual(3);
+    // T-0172: principal branco com texto Azul noite ("Tentar de novo"); secundário só contorno; neutro cinza-grafite cheio
+    expect([principal.fundo, principal.texto]).toEqual([colors.surface, colors.accent]);
+    expect(secundario.fundo).toBe('transparent');
+    expect(secundario.texto).toBe(colors.surface);
+    expect([neutro.fundo, neutro.borda]).toEqual(['transparent', null]);
     expect(neutro.texto).toBe(colors.surface);
-    // o laranja cheio continua só no principal
-    expect(principal.fundo).toBe(colors.accent);
-    expect(Object.values(NIVEIS_BOTAO_ESCURO).filter((v) => v.fundo === colors.accent)).toHaveLength(1);
+    // o Azul noite nunca é fundo sobre o grafite (1,29:1, manual §3)
+    expect(Object.values(NIVEIS_BOTAO_ESCURO).filter((v) => v.fundo === colors.accent)).toHaveLength(0);
   });
 
   it('sobre escuro: mesmas alturas, raios e fontes; sem a opção, nada muda', () => {

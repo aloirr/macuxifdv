@@ -103,7 +103,7 @@ export function cadastroCompleto(cliente: DadosCadastro, exigidos: readonly Camp
   return { completo: campos_faltantes.length === 0, campos_faltantes };
 }
 
-const LINHA_AUTOMATICA = /^Cadastro incompleto: falta .*Pedido só como orçamento até o cadastro ser completado no ERP\.(\r?\n|$)/;
+const LINHA_AUTOMATICA = /^Cadastro incompleto: falta [^\r\n]*?\.( Pedido só como orçamento até o cadastro ser completado no ERP\.)?(\r?\n|$)/;
 
 /**
  * RN-CORE-17: Observações exibida = linha automática no topo + texto do ERP intacto. Refeita a cada chamada (uma linha
@@ -115,6 +115,6 @@ export function observacaoComCadastro(observacao: string | null | undefined, fal
   const texto = original.trim() === '' ? null : original;
   if (faltantes.length === 0) return texto;
   const nomes = faltantes.map((c) => (c in ROTULO_CAMPO_CADASTRO ? ROTULO_CAMPO_CADASTRO[c as CampoCadastroCliente] : c));
-  const linha = `Cadastro incompleto: falta ${nomes.join(', ')}. Pedido só como orçamento até o cadastro ser completado no ERP.`;
+  const linha = `Cadastro incompleto: falta ${nomes.join(', ')}.`;
   return texto === null ? linha : `${linha}\n${texto}`;
 }

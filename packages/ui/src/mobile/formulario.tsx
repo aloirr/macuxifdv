@@ -1,7 +1,7 @@
 /**
  * Componentes genéricos de formulário (T-0071, fatia 4; medidas da referência do Novo pedido,
  * docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.html):
- * - `Abas`: abas com sublinhado laranja e contador opcional ("Itens (3)");
+ * - `Abas`: abas com sublinhado Azul noite e contador opcional ("Itens (3)");
  * - `Segmentado`: escolha única em botões lado a lado (CIF/FOB, prazo, Desc./Acrésc., %/R$);
  * - `Passo`: − n + (quantidade), com digitação opcional;
  * - `CampoBusca`: busca com lupa e botão de limpar;

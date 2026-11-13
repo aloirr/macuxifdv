@@ -14,17 +14,12 @@ describe('RN-CORE-12: etapa pendente no aparelho (T-0039)', () => {
   });
 
   const base = { agora: new Date('2026-11-05T15:00:00Z'), fuso: 'America/Manaus' };
-  it('RN-CORE-12: uma etapa da visita de hoje, com fila e sinal', () => {
-    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-05T12:00:00Z', etapas: 1, naFila: 2, semSinal: false })).toEqual({
-      linha1: 'Uma etapa da visita de hoje ainda não chegou ao Macuxi',
-      linha2: 'Ela vai sozinha da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor',
-    });
+  it('RD-0181 RN-CORE-12: com a etapa na fila a faixa não aparece (a fila sobe sozinha)', () => {
+    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-05T12:00:00Z', etapas: 1, naFila: 2 })).toBeNull();
+    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-04T12:00:00Z', etapas: 3, naFila: 1, semSinal: true })).toBeNull();
   });
-  it('RN-CORE-12: N etapas de outro dia usam dd/mm no fuso do tenant; sem sinal e fila vazia mudam a linha 2', () => {
-    const r = avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-04T12:00:00Z', etapas: 2, naFila: 1, semSinal: true });
-    expect(r.linha1).toBe('2 etapas da visita de 04/11 ainda não chegaram ao Macuxi');
-    expect(r.linha2).toBe('Elas vão sozinhas da fila quando houver sinal');
-    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-04T12:00:00Z', etapas: 3, naFila: 1, semSinal: false }).linha2).toBe('Elas vão sozinhas da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor');
-    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-04T12:00:00Z', etapas: 1, naFila: 0, semSinal: false }).linha2).toBe('Fale com seu supervisor');
+  it('RD-0181 RN-CORE-12: sem item na fila a faixa pede ação ao supervisor, no fuso do tenant', () => {
+    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-05T12:00:00Z', etapas: 1, naFila: 0 })).toEqual({ linha1: 'Uma etapa da visita de hoje não chegou', linha2: 'Fale com seu supervisor' });
+    expect(avisoDeEtapaPendente({ ...base, checkin_at: '2026-11-04T12:00:00Z', etapas: 2, naFila: 0 })).toEqual({ linha1: '2 etapas da visita de 04/11 não chegaram', linha2: 'Fale com seu supervisor' });
   });
 });

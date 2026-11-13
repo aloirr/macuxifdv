@@ -5,9 +5,8 @@ import { buildOrderPdfHtml, pdfDoPedido } from '../../domain/pdf-pedido';
 import { calcularPedido } from './novo-pedido';
 import { prepararPedido, rascunhoVazio } from './pedidos';
 import { politicaApi, produtoComPreco } from './pull';
-import { linhasDeTotais } from './textos-pedido';
-import { linhaLiquidaDosTotais } from './detalhe-pedido';
-import { avisoDaEdicao } from './documento';
+import { formatBRL } from '@macuxi/comum';
+import { linhasDosTotais } from './detalhe-pedido';
 
 const produto = (id: string, preco: number, extra: Record<string, unknown> = {}) =>
   ({ id, erp_code: id.toUpperCase(), description: `Produto ${id}`, unit: 'UN', price_cents: preco, stock_total: 1_000_000, stock: [], brand: '', line: '', ean: null, active: true, external_id: null, applications: '', is_campaign: false, ...extra }) as never;
@@ -64,13 +63,7 @@ describe('T-0151 (RN-VEN-18): pedido corrigido mantém os preços salvos', () =>
     const c = calcularPedido({ lines: { a: 1, b: 1 }, ajustes: {}, desconto_pct: 0, acrescimo_pct: 0, catalogo, unidades: [], politica: politicaApi({}), vendedor_id: 'v', congelados: { a: 10_000 } });
     expect(c.linhas.map((l) => l.preco_tabela_cents)).toEqual([10_000, 5_000]);
   });
-  it('RN-VEN-18: editar pedido com preços salvos não escreve a faixa "Preços atualizados pela tabela de hoje"', () => {
-    expect(avisoDaEdicao({ modo: 'edit', origem: 'pedido 12'})).toBe('');
-  });
-  it('RN-VEN-18: sem preço salvo para recuperar, a edição não promete preço salvo (sem faixa de reprecificação também)', () => {
-    expect(avisoDaEdicao({ modo: 'edit', origem: 'pedido 12'})).toBe('');
-    expect(avisoDaEdicao({ modo: 'duplicate', origem: 'pedido 12'})).toBe('Cópia do pedido 12 com os preços de hoje da tabela do cliente.');
-  });
+
 });
 
 describe('T-0151 (RN-VEN-02/03): os números do Resumo, do detalhe e do PDF são os mesmos', () => {
@@ -79,7 +72,6 @@ describe('T-0151 (RN-VEN-02/03): os números do Resumo, do detalhe e do PDF são
     const rasc = { ...rascunhoVazio('c1'), lines: { a: 3, b: 2, c: 1, d: 7, e: 4 }, ajustes: { a: { desconto_pct: 5 }, c: { desconto_pct: 8 } }, discount_pct: 4 };
     const { v, display } = prepararPedido({ ...base, catalogo, rascunho: rasc });
     const calculo = v.calculo;
-    const resumo = linhasDeTotais({ total_tabela_cents: calculo.total_tabela_cents, desconto_cents: Math.max(0, calculo.descontos_cents), acrescimo_cents: 0, total_cents: calculo.total_cents });
     // o detalhe do pedido na fila lê a exibição guardada; a soma das linhas é o total
     expect(display.lines.reduce((s, l) => s + l.total_cents, 0)).toBe(calculo.total_cents);
     expect(display.total_cents).toBe(calculo.total_cents);
@@ -88,14 +80,14 @@ describe('T-0151 (RN-VEN-02/03): os números do Resumo, do detalhe e do PDF são
     // Resumo × PDF: o mesmo total e o mesmo % de desconto
     const html = buildOrderPdfHtml(
       pdfDoPedido({
-        number: '1', status: 'approved', received_at: '2026-11-10T10:00:00.000Z', seller_name: 'V', customer_name: 'C', payment_terms: '', discount_pct: 4, subtotal_cents: display.subtotal_cents, discount_cents: display.discount_cents, total_cents: display.total_cents,
-        pending_reason: '', rejection_reason: '', erp_order_code: '', price_table_id: null, items: display.lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })), history: [],
-        cliente: null, aprovacao: { limite_vendedor_pct: 5 },
+        number: '1', status: 'approved', received_at: '2026-11-10T10:00:00.000Z', seller_name: 'V', customer_name: 'C', payment_terms: '', discount_pct: 4, subtotal_cents: display.subtotal_cents, total_cents: display.total_cents,
+        price_table_id: null, items: display.lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })), history: [],
+        cliente: null,
       }),
       'bko',
       { tenant_name: 'T', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-10T10:00:00.000Z' },
     );
-    expect(html).toContain(resumo.total.valor);
-    expect(html).toContain((linhaLiquidaDosTotais({ subtotal_cents: display.subtotal_cents, total_cents: display.total_cents })?.rotulo ?? ''));
+    expect(html).toContain(formatBRL(calculo.total_cents));
+    for (const l of linhasDosTotais({ subtotal_cents: display.subtotal_cents, total_cents: display.total_cents })) expect(html).toContain(l.rotulo);
   });
 });

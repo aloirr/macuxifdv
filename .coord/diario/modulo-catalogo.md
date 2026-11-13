@@ -73,3 +73,11 @@
 2026-11-10 — T-0159 — marca do produto em catalogo.textos_produto@1 (itens[].marca, API e aparelho) + testes; Vendedor avisado
 2026-11-11 — T-0159 — RD-0125: removida a marca do catalogo.textos_produto@1 (contrato, domain, API, app e testes; sem leitor, campo aditivo não publicado, sem versão nova); vitest sem banco 971 verdes
 2026-11-11 — CI lint v1.0.3 — removido import sem uso consultaTextosProdutoAparelho em modules/catalogo/app/texto-consultas.test.ts; sem falha de catalogo/core.filiais no ci4.txt além do lint
+2026-11-11 — T-0149 — catalogo.estoque_filial@1 (RN-VEN-20/RN-CORE-39): contrato Zod, domain/estoque-filial.ts com teste, consulta na API (RLS), teste de banco para o CI, manifest; Vendedor e engenheiro-software avisados
+2026-11-11 — T-0149 — regra única do estoque da filial em contracts/estoque-filial.ts (RD-0126); API e testes ajustados; Vendedor avisado
+2026-11-11 — T-0119 — busca com 20 mil sem travar a API: retrato renovado em segundo plano (versão max(updated_at) + assinatura, uma por tenant), índice montado em pedaços com setImmediate na carga do retrato, ranking reaproveita termos do índice, tolerância por tamanho/prefixo por faixa; it.fails mantido até o p95 do CI
+2026-11-11 — T-0119 — RD-0133: cederLaco exportado do domain e adiarConferencia/NOVA_TENTATIVA_RETRATO_MS no repositório
+2026-11-11 — T-0119 — it.fails da busca com 20 mil virou it (p95 244 ms no CI v1.0.4); doc atualizado
+2026-11-12 — T-0167 — busca paginada: lista_completa (até 400) + total, aplicacao e sugestao na consulta, cliente_id no lugar dos 5.000 produto_ids, código exato em 1º, mínimo de 3 caracteres e 'você quis dizer' (domain + app + testes); auditoria e medição em docs/modulos/catalogo/busca-desempenho.md (PC saturado: meta de 300 ms não comprovada)
+2026-11-12 — T-0167 — Catálogo do app: MostrarMais (página de 20, contagem do topo só o total) e NadaEncontrado com 'Você quis dizer' (sugestaoDaBuscaLocal) do kit; sai textosMostrarMais/PASSO_MOSTRAR_MAIS; aplicação já vem em busca_produtos@1 (recado ao vendedor)
+2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo

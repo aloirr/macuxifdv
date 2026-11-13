@@ -27,9 +27,29 @@ import { descontoDoPedidoPct } from '../../modules/vendedor/domain/preco-pedido'
 import { chaveDaLinha, type UnidadeDaTela } from '../../modules/vendedor/app/lib/novo-pedido';
 import { prepararPedido, rascunhoVazio } from '../../modules/vendedor/app/lib/pedidos';
 import { detalheDoPedido, politicaApi } from '../../modules/vendedor/app/lib/pull';
-import { linhasDeTotais } from '../../modules/vendedor/app/lib/textos-pedido';
-import { linhaDeItemEmTabela, linhaLiquidaDosTotais } from '../../modules/vendedor/app/lib/detalhe-pedido';
+import { formatBRL } from '@macuxi/comum';
+import { linhaDeItemEmTabela, linhasDosTotais } from '../../modules/vendedor/app/lib/detalhe-pedido';
 import { itensDoResumoEmTabela } from '../../modules/vendedor/app/lib/resumo-tabela';
+
+/**
+ * T-0165 (R-20261112-032141): a linha líquida "Desconto 6,4% · − R$ 25,84" virou duas, "Desconto (%) 6,4%" e "Desconto (R$) − R$ 25,84"
+ * (`linhasDosTotais`). Este adaptador junta as duas no formato antigo só para manter os casos de valor × regra da T-0150/T-0151; o
+ * rótulo novo é conferido em tests/modulos/novo-pedido-t0165.test.ts (T1 a T6).
+ */
+function linhaLiquidaDosTotais(e: { subtotal_cents: number; total_cents: number }): { rotulo: string; valor: string } | null {
+  const l = linhasDosTotais(e);
+  const pct = l.find((x) => x.id === 'pct');
+  const valor = l.find((x) => x.id === 'valor');
+  return pct && valor ? { rotulo: `${pct.rotulo.replace(' (%)', '')} ${pct.valor}`, valor: valor.valor } : null;
+}
+/** O PDF tem a linha líquida da regra: "Desconto (%)" com o % e "Desconto (R$)" com o valor (T-0165). */
+function pdfTemLiquida(html: string, regra: { rotulo: string; valor: string }) {
+  const [nome, pct] = regra.rotulo.split(' ');
+  expect(html).toContain(`${nome} (%)`);
+  expect(html).toContain(`${nome} (R$)`);
+  expect(html).toContain(pct);
+  expect(html).toContain(regra.valor);
+}
 
 // ---------- o pedido do roteiro (5 itens: desconto de item, embalagem, unidade base FD, acréscimo de item e desconto do pedido) ----------
 interface ItemRoteiro { id: string; sku: string; base: string; preco: number; qtd: number; medida: string | null; fator: number; desc?: number; acre?: number; minimo?: number }
@@ -87,7 +107,8 @@ function cadeia(itens: ItemRoteiro[], descPedido: number) {
     discount_pct: descPedido,
   };
   const { v, display } = prepararPedido({ cliente: { id: 'c1', trade_name: 'Mercado Boto' } as never, politica: politicaApi({}), eu, filaDoClienteCents: 0, unidades: UNIDADES, catalogo, rascunho });
-  const resumo = linhasDeTotais({ total_tabela_cents: v.calculo.total_tabela_cents, desconto_cents: Math.max(0, v.calculo.descontos_cents), acrescimo_cents: 0, total_cents: v.calculo.total_cents });
+  // T-0165: o Resumo usa as linhas de linhasDosTotais e o "Valor final" (saiu o linhasDeTotais com "Tabela"/"Descontos"/"Total")
+  const resumo = { linhas: linhasDosTotais({ subtotal_cents: v.calculo.total_tabela_cents, total_cents: v.calculo.total_cents }), total: { rotulo: 'Valor final', valor: formatBRL(v.calculo.total_cents) } };
 
   const api = revalidarPedido({
     perfil: 'vendedor', vendedor_id: 'v', cliente_id: 'c1', carteira: ['c1'], desconto_pct: descPedido,
@@ -162,8 +183,9 @@ describe('T-0151 — números iguais no Novo pedido, Resumo, detalhe e PDF (valo
 
   it('rótulo × valor no detalhe do app (T-0150): a linha líquida dos Totais sai de tabela × total gravados (linhaLiquidaDosTotais), nunca do % digitado', () => {
     const tela = ler('modules/vendedor/app/screens/order-detail-screen.tsx');
-    expect(tela).toContain('linhaLiquidaDosTotais({ subtotal_cents: subtotal, total_cents: total })');
-    expect(tela).toContain('<CartaoDeTotais tabela={formatBRL(subtotal)} liquida={linhaLiquida} total={formatBRL(total)}');
+    // T-0165: as linhas dos Totais vêm de linhasDosTotais (Valor de tabela · Desconto (%) · Desconto (R$)) e o cartão as desenha
+    expect(tela).toContain('linhasDosTotais({ subtotal_cents: subtotal, total_cents: total })');
+    expect(tela).toContain('<CartaoDeTotais linhas={linhasTotais} total={formatBRL(total)}');
     expect(tela).not.toMatch(/Desconto \$\{formatPct\((discountPct|base\??\.discount_pct)/);
   });
 
@@ -230,12 +252,13 @@ describe('T-0150 — Resumo em tabela, detalhe em tabela e PDF: os mesmos númer
   const detalhe = c.detalhe.items.map((l) => linhaDeItemEmTabela(l));
   const porCodigo = <T extends { codigo: string }>(xs: T[]) => Object.fromEntries(xs.map((x) => [x.codigo, x]));
 
-  it('itens: Qtd, Preço unit. (tabela da embalagem, RN-VEN-15), Desc./Acrésc. e Total iguais no Resumo e no detalhe, e iguais à regra', () => {
+  // T-0165 (R-20261112-031841/032141): Emb. e Qtd em colunas; "Valor tabela" = qtd × preço de tabela da embalagem; % sempre ("0,0%")
+  it('itens: Emb., Qtd, Valor tabela (qtd × tabela da embalagem, RN-VEN-15), Desc./Acrésc. e Total iguais no Resumo e no detalhe, e iguais à regra', () => {
     const r = porCodigo(resumo);
     const d = porCodigo(detalhe);
     for (const i of ITENS) {
       const final = o.finais.find((f) => f.id === i.id)!.total;
-      const esperado = { qtd: `${i.qtd} ${i.medida ?? i.base}`, preco: semRs(i.preco * i.fator), ajuste: i.desc ? `−${pct1(i.desc)}` : i.acre ? `+${pct1(i.acre)}` : '—', total: semRs(final) };
+      const esperado = { emb: i.medida ?? i.base, qtd: String(i.qtd), valorTabela: semRs(i.preco * i.fator * i.qtd), ajuste: i.desc ? `−${pct1(i.desc)}` : i.acre ? `+${pct1(i.acre)}` : '0,0%', total: semRs(final) };
       expect(limpoObj(r[i.sku]!), `Resumo ${i.sku}`).toMatchObject(esperado);
       expect(limpoObj(d[i.sku]!), `detalhe ${i.sku}`).toMatchObject(esperado);
     }
@@ -243,8 +266,8 @@ describe('T-0150 — Resumo em tabela, detalhe em tabela e PDF: os mesmos númer
 
   it('critério 3 (unidade): FD e CX nas tabelas do Resumo e do detalhe e no PDF interno; nunca UN nesses itens', () => {
     for (const xs of [resumo, detalhe]) {
-      expect(xs.find((x) => x.codigo === 'FAR-1K')!.qtd).toBe('7 FD');
-      expect(xs.find((x) => x.codigo === 'LEI-1L')!.qtd).toBe('2 CX');
+      expect([xs.find((x) => x.codigo === 'FAR-1K')!.emb, xs.find((x) => x.codigo === 'FAR-1K')!.qtd]).toEqual(['FD', '7']);
+      expect([xs.find((x) => x.codigo === 'LEI-1L')!.emb, xs.find((x) => x.codigo === 'LEI-1L')!.qtd]).toEqual(['CX', '2']);
     }
     expect(linhaDoPdf(c.html, 'FAR-1K')).toMatch(/>FD</); // coluna Emb. (T-0159)
     expect(linhaDoPdf(c.html, 'LEI-1L')).toMatch(/>CX c\/ 12</);
@@ -253,7 +276,8 @@ describe('T-0150 — Resumo em tabela, detalhe em tabela e PDF: os mesmos númer
   it('PDF interno: Tabela e Total de cada item iguais às tabelas do Resumo e do detalhe', () => {
     for (const x of resumo) {
       const linha = linhaDoPdf(c.html, x.codigo);
-      expect(linha, x.codigo).toContain(limpo(x.preco));
+      const i = ITENS.find((it) => it.sku === x.codigo)!;
+      expect(linha, x.codigo).toContain(semRs(i.preco * i.fator)); // coluna Tabela do PDF interno = preço da embalagem
       expect(linha, x.codigo).toContain(limpo(x.total));
     }
   });
@@ -265,8 +289,7 @@ describe('T-0150 — Resumo em tabela, detalhe em tabela e PDF: os mesmos númer
     const doDetalhe = linhaLiquidaDosTotais({ subtotal_cents: c.detalhe.subtotal_cents, total_cents: c.detalhe.total_cents })!;
     expect(limpoObj(doResumo)).toEqual(regra);
     expect(limpoObj(doDetalhe)).toEqual(regra);
-    expect(c.html).toContain(regra.rotulo);
-    expect(c.html).toContain(regra.valor);
+    pdfTemLiquida(c.html, regra);
   });
 
   // pedido só com acréscimo nos itens (o exemplo da T-0150: "Acréscimo 5,8% · + R$ 6,94")
@@ -290,8 +313,7 @@ describe('T-0150 — Resumo em tabela, detalhe em tabela e PDF: os mesmos númer
   it('D-T0150-1 corrigido — acréscimo líquido: o PDF interno mostra o mesmo "Acréscimo x% · + R$ y" do Resumo e do detalhe (não "Desconto 0,0% − R$ 0,00")', () => {
     const regra = liquidaPelaRegra(oa.tabela, oa.total);
     expect(ca.html).not.toContain('Desconto 0,0%');
-    expect(ca.html).toContain(regra.rotulo);
-    expect(ca.html).toContain(regra.valor);
+    pdfTemLiquida(ca.html, regra);
   });
 
   // D-T0150-2 corrigido pelo modulo-vendedor (quantidadePorEmbalagem; era it.fails): antes o customerBody somava as quantidades de todas as embalagens e escrevia "un."

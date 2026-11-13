@@ -205,7 +205,7 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
       <View style={{ gap: 8 }} testID="cliente-financeiro">
         <SectionHeader title="Financeiro" />
         {!fin ? (
-          <Text style={t.sub}>Sem dados financeiros. Sincronize para atualizar.</Text>
+          <Text style={t.sub}>Sem dados financeiros.</Text>
         ) : (
           <>
             <View style={styles.grid}>
