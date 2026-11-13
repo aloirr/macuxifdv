@@ -24,7 +24,8 @@ export function valorDoProgresso(valor: number, maximo = 100): number {
 export type TomProgresso = 'destaque' | 'sucesso';
 
 const PREENCHIMENTO: Record<TomProgresso, string> = {
-  destaque: 'bg-accent',
+  // T-0172: barra é gráfico, laranja da marca (bg-grafico)
+  destaque: 'bg-grafico',
   sucesso: 'bg-success',
 };
 

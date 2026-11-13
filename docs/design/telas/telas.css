@@ -1,10 +1,11 @@
-/* Telas de aprovação do designer-ux (T-0141, T-0142). Tokens iguais a packages/ui/src/mobile/tokens.ts e theme.ts. */
+/* Telas de aprovação do designer-ux (T-0141, T-0142; marca v1 na T-0172). Tokens iguais a packages/ui/src/mobile/tokens.ts e theme.ts. */
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=block');
 
 :root {
-  --ground: #F3F4F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
+  --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
   --line: #E1E4DE; --lineSoft: #ECEEE9; --lineStrong: #C9CEC6;
-  --accent: #C2540A; --accentInk: #8F3D06; --accentSoft: #FBE9DC; --accentTint: #FDF4EC;
+  --accent: #1E3350; --accentInk: #1E3350; --accentSoft: #DFE2E6; --accentTint: #DFE2E6; --grafico: #C2540A; --graficoEscuro: #F59A52;
+  --faixa: #1E3350; --faixaSub: #C9CED5;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningInk: #5C3B00; --warningBg: #FFF1D6;
   --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #E6E9E2; --neutralInk: #34404D; --violet: #4B2FA3; --violetBg: #ECE7FB;
   --scrim: rgba(15, 20, 25, 0.45);
@@ -42,7 +43,7 @@ p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 15
 .rodape .rot { font-size: 12px; color: var(--ink2); }
 .rodape .val { font-family: Archivo, sans-serif; font-weight: 700; font-size: 19px; font-variant-numeric: tabular-nums; }
 .btn-avancar { margin-left: auto; height: 48px; padding: 0 18px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px; }
-/* BarraAbas do kit (base.tsx): 64 dp, 5 abas do Campo (icones.js monta), ícone 22 (traço 1,8; ativa 2,2 laranja), rótulo 11 */
+/* BarraAbas do kit (base.tsx): 64 dp, 5 abas do Campo (icones.js monta), ícone 22 (traço 1,8; ativa 2,2 Azul noite), rótulo 11 */
 .barra-abas { flex: none; height: 64px; background: var(--surface); border-top: 1px solid var(--line); display: flex; }
 .barra-abas div { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
 .barra-abas div svg { color: var(--ink2); }
@@ -229,3 +230,79 @@ p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 15
 .hist span.atual.neutro { background: var(--ink); color: #fff; }
 .campo-erro { border: 2px solid var(--danger) !important; }
 .hist span.atual.aviso { background: var(--warningBg); color: var(--warningInk); }
+
+/* ---- 11/11 (T-0165): pranchas de antes e depois, número do ajuste, tabela de itens com Emb. ---- */
+.tela.antes .phone { opacity: .96; filter: saturate(.85); }
+.legenda .tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; vertical-align: 1px; }
+.legenda .tag.antes { background: var(--neutralBg); color: var(--neutralInk); }
+.legenda .tag.depois { background: var(--successBg); color: var(--success); }
+/* número do ajuste no recado (1 a 13), sobre o ponto que muda */
+.aj { position: relative; }
+.aj::after { content: attr(data-n); position: absolute; top: -9px; right: -9px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--grafico); color: #fff; font: 700 11px/20px Archivo, sans-serif; text-align: center; box-shadow: 0 0 0 2px #fff; z-index: 5; }
+.aj.aj-e::after { right: auto; left: -16px; top: -12px; }
+.vazio-marca { outline: 2px dashed var(--danger); outline-offset: -2px; border-radius: 8px; background: repeating-linear-gradient(45deg, rgba(168,38,27,.06) 0 6px, transparent 6px 12px); }
+/* tabela de itens com Emb. separada da Qtd (Produto · Emb. · Qtd · Preço unit. · Desc./Acrésc. · Total) */
+.ti td .emb { display: block; text-align: left; color: var(--ink); }
+.ti td .emb small { display: block; font-size: 10.5px; color: var(--ink2); line-height: 13px; }
+.ti td.a-esq, .ti th.a-esq { text-align: left; }
+.ti.ti6 th, .ti.ti6 td { padding-left: 6px; }
+.ti.ti6 th:first-child, .ti.ti6 td:first-child { padding-left: 0; }
+.aj.aj-t::after { top: -22px; right: 50%; margin-right: -10px; }
+.ti td .zero { color: var(--ink2); }
+.aj.aj-d { padding-right: 36px; }
+.aj.aj-d::after { right: 0; top: 50%; margin-top: -10px; }
+
+/* ---- 12/11 (T-0165 v2): Desc./Acrésc. geral, código com balão, transportadora em lista, estoque ao lado da embalagem ---- */
+/* Desc./Acrésc. geral na aba Itens: [Desc % ˅][ valor ] [Aplicar] */
+.geral { display: flex; gap: 8px; align-items: stretch; }
+.geral .ajuste-g { flex: 1; min-width: 0; }
+.geral .btn.secundario { height: 48px; padding: 0 16px; flex: none; font-size: 15px; }
+.geral .btn.secundario.off { border-color: var(--lineStrong); color: #5B6673; background: var(--neutralBg); }
+/* código do produto como link (Resumo) e balão com a descrição e a marca */
+.ti td .cod { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: var(--accentInk); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.balao { position: absolute; z-index: 8; background: var(--ink); color: #fff; border-radius: 10px; padding: 9px 12px 10px; box-shadow: 0 8px 20px rgba(15, 20, 25, .28); max-width: 250px; }
+.balao::before { content: ""; position: absolute; top: -6px; left: 22px; width: 12px; height: 12px; background: var(--ink); transform: rotate(45deg); border-radius: 2px; }
+.balao .bd { font-size: 14px; font-weight: 600; line-height: 19px; }
+.balao .bm { font-size: 12.5px; color: #C9CEC6; margin-top: 2px; }
+/* campo de escolha que abre folha (Transportadora) */
+.escolha { height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 15px; color: var(--ink); }
+.escolha .ph { color: var(--ink3); }
+.op-lista { margin: 0 -20px; }
+.op-lista .o { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px; font-size: 15px; border-top: 1px solid var(--lineSoft); }
+.op-lista .o.on { background: var(--accentSoft); font-weight: 600; }
+.op-lista .o.outra { color: var(--accentInk); font-weight: 600; }
+/* embalagem com o estoque ao lado (folha do item) */
+.emb-linha { display: flex; align-items: center; gap: 14px; }
+.emb-linha .est { font-size: 13px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.emb-linha .est b { font-weight: 600; color: var(--ink); }
+
+/* ---- 12/11 (T-0165 final, R-20261112-031456/031841/032141): lista da aba Itens, estoque em caixa na folha, totais em 4 linhas ---- */
+.lst { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; position: relative; }
+.lst .p { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; min-height: 64px; }
+.lst .p + .p { border-top: 1px solid var(--lineSoft); }
+.lst .p .c { flex: 1; min-width: 0; }
+.lst .nm1 { font-size: 15px; font-weight: 600; line-height: 20px; }
+.lst .nm1 .t { text-decoration: underline dotted; text-decoration-color: var(--ink2); text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+.lst .nm1 .mc { font-weight: 400; }
+.lst .meta { display: flex; gap: 12px; font-size: 13px; color: var(--ink2); white-space: nowrap; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.lst .meta .cd { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 500; }
+.mais2 { width: 44px; height: 44px; border: 1.5px solid var(--accent); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex: none; background: #fff; }
+.mais2.no-pedido { border-color: var(--accent); background: var(--accentSoft); } /* lápis Editar (T-0165, pedido-v4.md §5.8) */
+.edt { width: 32px; height: 32px; border-radius: 9px; border: 1.5px solid var(--accent); background: var(--accentSoft); display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+.busca .lp { margin-left: auto; display: flex; }
+.mostrar { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0 2px; }
+.mostrar .ct { font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+/* folha do item: Embalagem (metade) · ESTOQUE em caixa à direita; Quantidade e Desc./Acrésc. metade cada; tudo com 48 dp */
+.fi-linha { display: flex; gap: 12px; align-items: flex-start; }
+.fi-linha > .meia { width: calc(50% - 6px); flex: none; }
+.fi-linha > .est { margin-left: auto; width: 84px; flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.fi-linha .campo-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; letter-spacing: .6px; text-transform: uppercase; }
+.est-box { width: 84px; height: 48px; border: 1.5px solid var(--lineStrong); border-radius: 12px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.est-box.risco { border-color: var(--accent); background: var(--accentSoft); color: var(--accentInk); }
+.risco-t { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--accentInk); margin-top: 5px; white-space: nowrap; }
+.seg.uma div { flex-direction: row; font-size: 14px; }
+/* tabela de itens final do Resumo: Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total, Emb. numa linha */
+.ti.ti7 th, .ti.ti7 td { padding-left: 5px; }
+.ti.ti7 th:first-child, .ti.ti7 td:first-child { padding-left: 0; }
+.ti.ti7 td { padding-top: 13px; padding-bottom: 13px; }
+.ti.ti7 td .e1 { color: var(--ink); }

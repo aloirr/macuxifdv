@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0168 · Limite de desconto por item e por pedido: as travas no Campo e no Gestão (simulação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1640px; }
+  .phone.inteira { height: auto; }
+  .phone.inteira .conteudo { overflow: visible; }
+  .conteudo > * { flex: none; }
+  .ti.ti8 th, .ti.ti8 td { padding-left: 3px; }
+  .ti.ti8 th:first-child, .ti.ti8 td:first-child { padding-left: 0; }
+  .ti-box.b8 { padding: 0 2px 0 6px; }
+  .ti.ti8 td.ed { padding-top: 6px; padding-bottom: 0; text-align: center; vertical-align: middle; }
+  .tt .l.total.so { border-top: 0; }
+  .btn.cheio { height: 52px; border-radius: 14px; font-size: 15px; }
+  .duas-btn { display: flex; gap: 8px; }
+  .duas-btn .btn { flex: 1; height: 52px; font-size: 14px; padding: 0 10px; text-align: center; line-height: 17px; }
+  /* folha do item (T-0165/T-0166) */
+  .pop-cab { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .pop-cab .n { font-family: Archivo, sans-serif; font-weight: 800; font-size: 18px; line-height: 23px; }
+  .pop-cab .n .mc { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; }
+  .pop-cab .x { width: 44px; height: 44px; margin: -10px -10px 0 0; display: flex; align-items: center; justify-content: center; flex: none; }
+  .pop-s.mono-c { font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin-top: 4px; color: var(--ink2); }
+  .campo-t { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; letter-spacing: .6px; }
+  .falta-b { border: 2px solid var(--danger) !important; }
+  .falta-t { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--danger); }
+  /* detalhe (T-0150) */
+  .phone.det { height: auto; }
+  .phone.det .conteudo { overflow: visible; }
+  .tit-det { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; }
+  .cli { font-size: 15px; margin-top: -6px; }
+  .rodape-acoes { flex: none; background: #fff; border-top: 1px solid var(--line); padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 4px; }
+  .rodape-acoes .linha { display: flex; }
+  .rodape-acoes .linha div { flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 600; }
+  .tela .legenda { min-height: 52px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Limite de desconto por item e por pedido · as travas no app</h1>
+<p class="prancha">T-0168 · simulação para o dono do produto aprovar (RN-VEN-11a). Mesmo pedido em todos os casos: Padaria Trigo Fino, 3 itens, R$ 223,86 de tabela. Vendedor com alçada de 5,0% e desconto máximo do pedido de 8,0%; o máximo da AGU-1500 é 10,0%. Segue a T-0165 (Resumo) e a T-0166 (falta no campo, alertas mínimos): uma linha por problema, só nos Alertas.</p>
+
+<div class="board">
+
+  <!-- 1 · Só por pedido, acima do limite -->
+  <div class="tela" data-png="campo-1-pedido">
+    <div class="legenda"><b>1</b>Pedido acima do limite do vendedor<span>Só "por pedido" ligada. Desconto do pedido 8,7%, limite 8,0%: uma linha nos Alertas e só Salvar como orçamento.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>14:05</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Pedido acima do desconto máximo (8,0%)</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−10,0%</td><td class="tot">53,79</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−10,0%</td><td class="tot">95,88</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td>−5,0%</td><td class="tot">54,70</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">8,7%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 19,49</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 204,37</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="marca" style="outline-offset:4px;display:flex;flex-direction:column;gap:8px">
+          <div class="btn principal">Salvar como orçamento</div>
+          <div class="btn secundario cheio">Apenas salvar</div>
+        </div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Só por item (padrão), para comparar -->
+  <div class="tela" data-png="campo-2-item">
+    <div class="legenda"><b>2</b>Item acima do máximo do produto (como hoje)<span>Padrão: só "por item" ligada. AGU-1500 com 12,0% (máximo 10,0%): a linha do item e só Salvar como orçamento.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>14:07</span><span>4G ▮▮▮ 71%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−12,0%</td><td class="tot">52,59</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td><span class="zero">0,0%</span></td><td class="tot">106,50</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td><span class="zero">0,0%</span></td><td class="tot">57,60</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">3,2%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 7,17</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 216,69</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar como orçamento</div>
+        <div class="btn secundario cheio">Apenas salvar</div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 3 · As duas ligadas -->
+  <div class="tela" data-png="campo-3-duas">
+    <div class="legenda"><b>3</b>As duas ligadas, as duas acima<span>AGU-1500 com 12,0% e o pedido com 9,2%: uma linha para cada problema, o item antes do pedido.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>14:09</span><span>4G ▮▮▮ 70%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">AGU-1500 acima do desconto máximo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Pedido acima do desconto máximo (8,0%)</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−12,0%</td><td class="tot">52,59</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−10,0%</td><td class="tot">95,88</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td>−5,0%</td><td class="tot">54,70</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">9,2%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 20,69</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 203,17</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar como orçamento</div>
+        <div class="btn secundario cheio">Apenas salvar</div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Entre a alçada e o limite -->
+  <div class="tela" data-png="campo-4-alcada">
+    <div class="legenda"><b>4</b>Acima da alçada, abaixo do limite<span>Pedido com 6,0% (alçada 5,0%, limite 8,0%): não trava. Fica a linha da alçada e o pedido vai para aprovação.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>14:11</span><span>4G ▮▮▮ 70%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Desconto acima da sua alçada</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−10,0%</td><td class="tot">53,79</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−7,0%</td><td class="tot">99,06</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td><span class="zero">0,0%</span></td><td class="tot">57,60</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">6,0%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 13,41</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 210,45</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 5 · Por item desligada: a folha sem a marca -->
+  <div class="tela" data-png="campo-5-item-desligado">
+    <div class="legenda"><b>5</b>"Por item" desligada<span>A folha aceita 12,0% sem o "Máx. 10,0%" no campo e sem linha nos Alertas. Ligada, fica como na T-0166.</span></div>
+    <div class="phone">
+      <div class="status"><span>14:12</span><span>4G ▮▮▮ 70%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo"></div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:14px;padding-bottom:22px">
+        <div class="pega"></div>
+        <div>
+          <div class="pop-cab"><div class="n">Água mineral 1,5 L <span class="mc">- Fonte Clara</span></div><div class="x"><i data-i="fechar" data-t="20" data-c="#16202A"></i></div></div>
+          <div class="pop-s mono-c">AGU-1500</div>
+        </div>
+        <div class="fi-linha">
+          <div class="meia"><div class="campo-t">EMBALAGEM</div><div class="seg uma"><div>UN</div><div class="on">FD c/ 6</div></div></div>
+          <div class="est"><div class="campo-t">ESTOQUE</div><div class="est-box">63</div></div>
+        </div>
+        <div class="duas" style="gap:12px">
+          <div><div class="campo-t">QUANTIDADE</div><div class="passo-g"><div>−</div><div class="n">3</div><div>+</div></div></div>
+          <div class="marca" style="outline-offset:4px"><div class="campo-t">DESC./ACRÉSC.</div><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">12,0</span></div></div>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 59,76</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">12,0%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 7,17</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v" style="font-size:18px">R$ 52,59</span></div>
+        </div>
+        <div class="btn principal">Adicionar ao pedido</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · Orçamento salvo acima do limite -->
+  <div class="tela" data-png="campo-6-orcamento">
+    <div class="legenda"><b>6</b>Orçamento salvo acima do limite<span>A mesma frase nos Alertas do detalhe. Não vira pedido até corrigir: a ação principal é Editar.</span></div>
+    <div class="phone det">
+      <div class="status"><span>14:14</span><span>4G ▮▮▮ 69%</span></div>
+      <div class="conteudo sem-topo" style="padding:8px 16px 16px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="backlink"><i data-i="voltar" data-t="18"></i>Pedidos</div><i data-i="menu" data-t="22"></i></div>
+        <div class="tit-det">Orçamento 000021</div>
+        <div class="cli">Padaria Trigo Fino · cód. C5008</div>
+        <div class="alertas-t" style="margin-top:4px">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Pedido acima do desconto máximo (8,0%)</span></div>
+        </div>
+        <div class="kv" style="margin-top:4px">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto · 28/56 dias</span></div>
+          <div class="l"><span class="r">Entrega</span><span class="t">CIF · Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Itens (3)</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:52px"><col style="width:30px"><col style="width:54px"><col style="width:54px"><col style="width:58px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−10,0%</td><td class="tot">53,79</td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−10,0%</td><td class="tot">95,88</td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td>−5,0%</td><td class="tot">54,70</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">8,7%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 19,49</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 204,37</span></div>
+        </div>
+        <div class="secao-t">Histórico</div>
+        <div class="hist"><span class="atual neutro">Salvo · 12/11 14:05</span></div>
+      </div>
+      <div class="rodape-acoes"><div class="btn principal"><i data-i="edit" data-t="18" data-c="#fff"></i>Editar</div><div class="linha"><div><i data-i="arquivo" data-t="18"></i>PDF</div><div><i data-i="copiar" data-t="18"></i>Duplicar</div></div></div>
+      <div class="barra-abas" data-ativa="pedidos"></div>
+    </div>
+  </div>
+
+  <!-- 7 · Gestão, pedido em nome do vendedor -->
+  <div class="tela" data-png="gestao-1-em-nome">
+    <div class="legenda"><b>7</b>Gestão: pedido em nome da Carla<span>Vale o limite do gestor (10,0%), não o da vendedora. Pedido com 12,4%: a mesma frase do Campo, com o número do gestor.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>14:20</span><span>4G ▮▮▮ 64%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Pedido acima do desconto máximo (10,0%)</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−10,0%</td><td class="tot">53,79</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">LPO-400</span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−15,0%</td><td class="tot">90,54</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td>−10,0%</td><td class="tot">51,80</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">12,4%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 27,73</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 196,13</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar como orçamento</div>
+        <div class="btn secundario cheio">Apenas salvar</div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

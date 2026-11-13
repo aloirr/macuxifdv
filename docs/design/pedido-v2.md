@@ -149,7 +149,7 @@ Cancelar não é laranja nem botão: é a saída, não uma ação do pedido. Vã
 | Estado | Salvar e enviar pedido | Apenas salvar | Salvar como orçamento | Outros |
 |---|---|---|---|---|
 | sem pendência | habilitado, com o destino | habilitado | habilitado | — |
-| com pendência | `desligado`, sem o destino; TalkBack `leituraDoSalvar('Salvar e enviar pedido', n)` | **habilitado** (grava `rascunho` com pendência) | `desligado`; TalkBack `leituraDoSalvar('Salvar como orçamento', n)` | bloco acima |
+| com pendência | tocável; o toque é a tentativa (T-0166, `formulario-pendencias.md` §0.0) | **habilitado** (grava `rascunho` com pendência) | tocável; o toque é a tentativa | marca no campo |
 | cliente da RN-VEN-13 | **não aparece** | secundário, largura total | **principal**, largura total, texto embaixo "Válido até 15/11" | `Faixa erro` acima dos botões: "Cliente bloqueado: só dá para salvar como orçamento" (e variantes de `formulario-pendencias.md` §2.3) |
 | Editar orçamento | **Salvar orçamento** (principal, largura total) | — | — | **Transformar em pedido** (secundário, largura total) · Cancelar |
 | Editar pedido (`rascunho`, rejeitado) | igual a "sem/com pendência" | igual | igual | — |

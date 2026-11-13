@@ -120,6 +120,7 @@ export function SeloAtualizacao({
   onAbrirPerfil,
   atualizadoEm,
   tz,
+  sobreFaixa = false,
 }: {
   testID?: string;
   /** Aparelho sem rede (o modo sem sinal vem do provider). */
@@ -135,6 +136,11 @@ export function SeloAtualizacao({
   /** Hora da última sincronização, quando não há provider (testes de tela). */
   atualizadoEm?: number | string | null;
   tz?: string;
+  /**
+   * Dentro da faixa Azul noite (`CabecalhoTela`, T-0173): sem fundo, borda `faixaTrilho` e texto `faixaSub` (8,07:1). Em
+   * atenção, a pílula âmbar de sempre.
+   */
+  sobreFaixa?: boolean;
 }) {
   const s = useSincronizacao();
   const d = desenhoSeloAtualizacao({
@@ -146,7 +152,7 @@ export function SeloAtualizacao({
     semResposta,
   });
   const atencao = d.tom === 'atencao';
-  const cor = atencao ? colors.warningInk : colors.ink2;
+  const cor = atencao ? colors.warningInk : sobreFaixa ? colors.faixaSub : colors.ink2;
   const acao = d.acao === 'perfil' && !onAbrirPerfil ? 'sincronizar' : d.acao;
   return (
     <Pressionavel
@@ -159,7 +165,7 @@ export function SeloAtualizacao({
       disabled={acao === 'nenhuma'}
       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       onPress={() => (acao === 'perfil' ? onAbrirPerfil?.() : onSincronizar())}
-      style={[styles.selo, atencao && styles.seloAtencao]}>
+      style={[styles.selo, sobreFaixa && styles.seloFaixa, atencao && styles.seloAtencao]}>
       <Icon name={d.icone} size={14} color={cor} />
       <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { fontFamily: fonts.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
         {d.texto}
@@ -170,6 +176,7 @@ export function SeloAtualizacao({
 
 const styles = StyleSheet.create({
   selo: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  seloFaixa: { borderColor: colors.faixaTrilho, backgroundColor: 'transparent' },
   seloAtencao: { borderColor: colors.warningBg, backgroundColor: colors.warningBg },
   seloTexto: { fontVariant: ['tabular-nums'] },
   linhaAviso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 20 },

@@ -94,11 +94,11 @@ describe('Progresso: árvore', () => {
     expect(preenchimento.props.className).toContain('motion-reduce:transition-none');
   });
 
-  it('tom: destaque (padrão) bg-accent; sucesso bg-success', () => {
-    expect(montar({ valor: 50, rotulo: 'A' }).preenchimento.props.className).toContain('bg-accent');
+  it('tom: destaque (padrão) bg-grafico, o laranja de gráfico da marca v1; sucesso bg-success', () => {
+    expect(montar({ valor: 50, rotulo: 'A' }).preenchimento.props.className).toContain('bg-grafico');
     const s = montar({ valor: 50, rotulo: 'A', tom: 'sucesso' }).preenchimento.props.className ?? '';
     expect(s).toContain('bg-success');
-    expect(s).not.toContain('bg-accent');
+    expect(s).not.toContain('bg-grafico');
   });
 
   it('mostrarRotulo=false esconde a linha, mas o nome e o valor continuam no ARIA', () => {

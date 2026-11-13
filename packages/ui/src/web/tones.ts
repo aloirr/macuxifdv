@@ -4,7 +4,7 @@
  */
 export type Tone = 'success' | 'accent' | 'danger' | 'ink' | 'warning';
 
-/** Positivação: ≥ 70 verde, ≥ 55 laranja, abaixo vermelho. */
+/** Positivação: ≥ 70 verde, ≥ 55 âmbar (barra laranja), abaixo vermelho. */
 export function coverageTone(pct: number): Tone {
   if (pct >= 70) return 'success';
   if (pct >= 55) return 'accent';
@@ -18,26 +18,29 @@ export function projectionTone(pct: number): Tone {
   return 'danger';
 }
 
-/** % integrado sem intervenção vs meta: na meta verde, até 10 p.p. abaixo laranja, senão vermelho. */
+/** % integrado sem intervenção vs meta: na meta verde, até 10 p.p. abaixo âmbar, senão vermelho. */
 export function integratedTone(pct: number, target: number): Tone {
   if (pct >= target) return 'success';
   if (pct >= target - 10) return 'warning';
   return 'danger';
 }
 
+/**
+ * Marca v1 (T-0172): o laranja é só gráfico e o Azul noite é ação; o número do farol do meio fica no âmbar de aviso
+ * (`text-warning`, 6,60:1 no Pérola) e a barra no laranja (`bg-grafico`).
+ */
 export const TONE_TEXT: Record<Tone, string> = {
   success: 'text-success',
-  /** T-0094: número laranja é texto → accent-ink (o accent dá 4,17:1 no fundo); a barra continua `bg-accent`. */
-  accent: 'text-accent-ink',
+  accent: 'text-warning',
   danger: 'text-danger',
   ink: 'text-ink',
-  warning: 'text-accent-ink',
+  warning: 'text-warning',
 };
 
 export const TONE_BG: Record<Tone, string> = {
   success: 'bg-success',
-  accent: 'bg-accent',
+  accent: 'bg-grafico',
   danger: 'bg-danger',
   ink: 'bg-ink',
-  warning: 'bg-accent-ink',
+  warning: 'bg-warning',
 };

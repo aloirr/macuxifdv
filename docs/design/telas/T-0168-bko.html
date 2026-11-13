@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0168 · BKO › Usuários: aba Parâmetros com o limite de desconto (simulação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1360px; }
+  .tela.web { width: 1280px; }
+  .tela.web .legenda { min-height: 40px; }
+  /* moldura do BKO (apps/web/components/app-shell.tsx) */
+  .bko { width: 1280px; height: 800px; background: var(--ground); border: 1px solid #BFC4BC; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 28px rgba(22,32,42,.16); display: flex; position: relative; }
+  .lateral { width: 220px; flex: none; background: var(--ink); color: #C9D0D8; padding: 24px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+  .lateral .marca-bko { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+  .lateral .marca-bko .m { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); color: #fff; font-family: Archivo; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+  .lateral .marca-bko b { display: block; color: #fff; font-family: Archivo; font-size: 15px; }
+  .lateral .marca-bko span { font-size: 12px; }
+  .lateral .grupo { padding: 18px 12px 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; color: #8B96A3; text-transform: uppercase; }
+  .lateral .op { padding: 9px 12px; border-radius: 10px; }
+  .lateral .op.on { background: #2B3743; color: #fff; font-weight: 600; }
+  .lateral .pe { margin-top: auto; border-top: 1px solid #2B3743; padding: 14px 8px 0; display: flex; flex-direction: column; }
+  .lateral .pe b { color: #fff; font-size: 14px; }
+  .lateral .pe span { font-size: 12px; }
+  .principal-bko { flex: 1; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .ph h1 { margin: 0; font-family: Archivo; font-weight: 800; font-size: 28px; }
+  .ph p { margin: 2px 0 0; font-size: 13px; color: var(--ink2); }
+  .painel { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .painel h2 { margin: 0; font-family: Archivo; font-weight: 700; font-size: 18px; }
+  table.d { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.d th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink2); padding: 10px 12px; border-bottom: 1px solid var(--line); background: #FAFBF9; white-space: nowrap; }
+  table.d td { padding: 0 12px; height: 46px; border-bottom: 1px solid var(--lineSoft); white-space: nowrap; }
+  .sel-ok { background: var(--successBg); color: var(--success); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+  .lk { color: var(--accentInk); font-weight: 600; }
+  /* diálogo (packages/ui/src/web/overlay.tsx · Dialog) */
+  .vela { position: absolute; inset: 0; background: rgba(22,32,42,.45); display: flex; align-items: center; justify-content: center; }
+  .dlg { width: 460px; background: #fff; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 40px rgba(15,20,25,.3); }
+  .dlg h2 { margin: 0; font-family: Archivo; font-weight: 700; font-size: 18px; }
+  .abas-w { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .abas-w div { height: 44px; padding: 0 16px; display: flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--ink2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .abas-w div.on { color: var(--accentInk); border-bottom-color: var(--accent); }
+  .linha-p { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+  .linha-p + .linha-p, .linha-p + .campo-p { border-top: 1px solid var(--lineSoft); }
+  .linha-p .tx { flex: 1; min-width: 0; }
+  .linha-p .tx b { display: block; font-size: 14px; font-weight: 600; }
+  .linha-p .tx span { display: block; font-size: 12px; color: var(--ink2); margin-top: 2px; line-height: 16px; }
+  .sw { display: flex; align-items: center; gap: 8px; height: 44px; }
+  .sw .tr { width: 40px; height: 24px; border-radius: 12px; background: #8B96A3; position: relative; }
+  .sw .tr::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .sw.on .tr { background: var(--ink); }
+  .sw.on .tr::after { left: 19px; }
+  .sw .t { min-width: 32px; font-size: 13px; font-weight: 600; }
+  .campo-p { padding: 12px 0 4px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+  .campo-p .inp { width: 160px; height: 44px; border: 1px solid #C9CEC6; border-radius: 12px; display: flex; align-items: center; padding: 0 12px; font-size: 14px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .campo-p .inp.erro { border: 2px solid var(--danger); }
+  .campo-p .err { font-size: 12px; font-weight: 500; color: var(--danger); }
+  .rodape-d { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .bw { height: 42px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; font-size: 14px; font-weight: 600; border: 1px solid #C9CEC6; background: #fff; }
+  .bw.pri { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .notas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 1280px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">BKO › Usuários · aba Parâmetros (limite de desconto)</h1>
+<p class="prancha">T-0168 · simulação para o dono do produto aprovar (RN-VEN-11a). O formulário "Editar usuário" ganha duas abas, Dados (o de hoje, sem mudança) e Parâmetros. As duas funções e o limite ficam juntos na aba Parâmetros, um embaixo do outro, porque o limite só vale com "por pedido" ligada. Componentes do kit web: <code>Dialog</code>, <code>Abas</code> e <code>Interruptor</code> (Sim/Não escrito ao lado).</p>
+
+<div class="board" style="flex-direction:column;gap:30px">
+
+<!-- A · Padrão -->
+<div class="tela web" data-png="bko-1-padrao">
+  <div class="legenda"><b>A</b>Padrão de todo usuário<span>"Por item" Sim e "por pedido" Não, como hoje. Com "por pedido" em Não, o campo do limite não aparece.</span></div>
+  <div class="bko">
+    <div class="lateral">
+      <div class="marca-bko"><div class="m">M</div><div><b>Macuxi FDV</b><span>Distribuidora Norte</span></div></div>
+      <div class="op">Início</div><div class="op">Clientes</div><div class="op">Pedidos</div><div class="op">Catálogo</div><div class="op">Tabelas de preço</div>
+      <div class="grupo">Equipe</div>
+      <div class="op on">Usuários</div><div class="op">Perfis de acesso</div><div class="op">Equipes</div><div class="op">Metas</div>
+      <div class="pe"><b>Alexandre Ramos</b><span>Administrador</span></div>
+    </div>
+    <div class="principal-bko">
+      <div class="ph"><h1>Usuários</h1><p>Quem entra no Macuxi, com qual perfil e em qual equipe. O superior imediato vem da equipe. Usuário não se apaga: desative para cortar o acesso.</p></div>
+      <div class="painel">
+        <h2>4 usuários</h2>
+        <table class="d">
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfis</th><th>Equipe</th><th>Situação</th><th>Ações</th></tr></thead>
+          <tbody>
+            <tr><td>Carla Souza</td><td>carla@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>João Lima</td><td>joao@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Marta Reis</td><td>marta@distnorte.com.br</td><td>Supervisor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Paulo Brito</td><td>paulo@distnorte.com.br</td><td>Promotor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="vela">
+      <div class="dlg">
+        <h2>Editar usuário</h2>
+        <div class="abas-w"><div>Dados</div><div class="on">Parâmetros</div></div>
+        <div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por item</b><span>Nenhum item passa do desconto máximo do produto.</span></div><div class="sw on"><span class="tr"></span><span class="t">Sim</span></div></div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por pedido</b></div><div class="sw"><span class="tr"></span><span class="t">Não</span></div></div>
+        </div>
+        <div class="rodape-d"><div class="bw">Cancelar</div><div class="bw pri">Salvar</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- B · Por pedido ligada, sem o limite -->
+<div class="tela web" data-png="bko-2-obrigatorio">
+  <div class="legenda"><b>B</b>"Por pedido" ligada e Salvar sem o limite<span>Não salva: abre a aba Parâmetros (se estava em Dados) e marca o campo com "Obrigatório", como a falta no campo do app.</span></div>
+  <div class="bko">
+    <div class="lateral">
+      <div class="marca-bko"><div class="m">M</div><div><b>Macuxi FDV</b><span>Distribuidora Norte</span></div></div>
+      <div class="op">Início</div><div class="op">Clientes</div><div class="op">Pedidos</div><div class="op">Catálogo</div><div class="op">Tabelas de preço</div>
+      <div class="grupo">Equipe</div>
+      <div class="op on">Usuários</div><div class="op">Perfis de acesso</div><div class="op">Equipes</div><div class="op">Metas</div>
+      <div class="pe"><b>Alexandre Ramos</b><span>Administrador</span></div>
+    </div>
+    <div class="principal-bko">
+      <div class="ph"><h1>Usuários</h1><p>Quem entra no Macuxi, com qual perfil e em qual equipe. O superior imediato vem da equipe. Usuário não se apaga: desative para cortar o acesso.</p></div>
+      <div class="painel">
+        <h2>4 usuários</h2>
+        <table class="d">
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfis</th><th>Equipe</th><th>Situação</th><th>Ações</th></tr></thead>
+          <tbody>
+            <tr><td>Carla Souza</td><td>carla@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>João Lima</td><td>joao@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Marta Reis</td><td>marta@distnorte.com.br</td><td>Supervisor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Paulo Brito</td><td>paulo@distnorte.com.br</td><td>Promotor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="vela">
+      <div class="dlg">
+        <h2>Editar usuário</h2>
+        <div class="abas-w"><div>Dados</div><div class="on">Parâmetros</div></div>
+        <div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por item</b><span>Nenhum item passa do desconto máximo do produto.</span></div><div class="sw"><span class="tr"></span><span class="t">Não</span></div></div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por pedido</b></div><div class="sw on"><span class="tr"></span><span class="t">Sim</span></div></div>
+          <div class="campo-p marca" style="outline-offset:4px">Desconto máximo do pedido (%)<div class="inp erro"></div><span class="err">Obrigatório</span></div>
+        </div>
+        <div class="rodape-d"><div class="bw">Cancelar</div><div class="bw pri">Salvar</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- C · As duas ligadas -->
+<div class="tela web" data-png="bko-3-duas">
+  <div class="legenda"><b>C</b>As duas ligadas, limite de 8,0%<span>Valem juntas: nenhum item passa do máximo do produto e o pedido não passa de 8,0%.</span></div>
+  <div class="bko">
+    <div class="lateral">
+      <div class="marca-bko"><div class="m">M</div><div><b>Macuxi FDV</b><span>Distribuidora Norte</span></div></div>
+      <div class="op">Início</div><div class="op">Clientes</div><div class="op">Pedidos</div><div class="op">Catálogo</div><div class="op">Tabelas de preço</div>
+      <div class="grupo">Equipe</div>
+      <div class="op on">Usuários</div><div class="op">Perfis de acesso</div><div class="op">Equipes</div><div class="op">Metas</div>
+      <div class="pe"><b>Alexandre Ramos</b><span>Administrador</span></div>
+    </div>
+    <div class="principal-bko">
+      <div class="ph"><h1>Usuários</h1><p>Quem entra no Macuxi, com qual perfil e em qual equipe. O superior imediato vem da equipe. Usuário não se apaga: desative para cortar o acesso.</p></div>
+      <div class="painel">
+        <h2>4 usuários</h2>
+        <table class="d">
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Perfis</th><th>Equipe</th><th>Situação</th><th>Ações</th></tr></thead>
+          <tbody>
+            <tr><td>Carla Souza</td><td>carla@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>João Lima</td><td>joao@distnorte.com.br</td><td>Vendedor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Marta Reis</td><td>marta@distnorte.com.br</td><td>Supervisor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+            <tr><td>Paulo Brito</td><td>paulo@distnorte.com.br</td><td>Promotor</td><td>Manaus Centro</td><td><span class="sel-ok">Ativo</span></td><td class="lk">Editar</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="vela">
+      <div class="dlg">
+        <h2>Editar usuário</h2>
+        <div class="abas-w"><div>Dados</div><div class="on">Parâmetros</div></div>
+        <div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por item</b><span>Nenhum item passa do desconto máximo do produto.</span></div><div class="sw on"><span class="tr"></span><span class="t">Sim</span></div></div>
+          <div class="linha-p"><div class="tx"><b>Limitar desconto por pedido</b></div><div class="sw on"><span class="tr"></span><span class="t">Sim</span></div></div>
+          <div class="campo-p">Desconto máximo do pedido (%)<div class="inp">8,0</div></div>
+        </div>
+        <div class="rodape-d"><div class="bw">Cancelar</div><div class="bw pri">Salvar</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

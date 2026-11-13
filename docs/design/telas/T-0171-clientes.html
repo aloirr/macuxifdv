@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0171 · Lista de Clientes: uma tag de situação e só a última visita</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  /* aparelho de 412 dp (resolução do aparelho de entrada, R-20261112-180115) */
+  body { width: 1480px; }
+  .tela { width: 412px; }
+  .phone { width: 412px; height: 915px; }
+  .topo-c { padding: 14px 20px 12px; display: flex; flex-direction: column; gap: 12px; flex: none; }
+  .hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  .h1 { font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -.3px; line-height: 30px; }
+  .sub { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+  .sync { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink2); font-weight: 500; padding-bottom: 3px; }
+  .busca-c { height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 15px; color: var(--ink3); }
+  .filtros { display: flex; gap: 6px; overflow: hidden; margin-right: -20px; }
+  .lst-c { flex: 1; overflow: hidden; padding: 0 20px; }
+  .cli { background: var(--surface); border-left: 1px solid var(--line); border-right: 1px solid var(--line); display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+  .cli + .cli { border-top: 1px solid var(--lineSoft); }
+  .cli:first-child { border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+  .cli:last-child { border-bottom: 1px solid var(--line); border-radius: 0 0 14px 14px; }
+  .cli .c { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .cli .n { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cli .s { font-size: 12px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cli .chs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  /* ChipEstado pequeno (24 dp, 12 px) e Badge do cadastro incompleto */
+  .ce { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; }
+  .ce.erro { background: var(--dangerBg); color: var(--danger); }
+  .ce.aviso { background: var(--warningBg); color: var(--warning); }
+  .ce.suc { background: var(--successBg); color: var(--success); }
+  .ce.neu { background: var(--neutralBg); color: var(--neutralInk); }
+  /* marca v1 (T-0172): faixa Azul noite com título, contagem e SeloAtualizacao sobreFaixa */
+  .status.claro { background: var(--faixa); color: #fff; }
+  .fx { background: var(--faixa); padding: 4px 20px 16px; flex: none; }
+  .fx .lin { display: flex; align-items: center; gap: 8px; }
+  .fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .fx .t { font-family: Archivo, sans-serif; font-weight: 800; font-size: 24px; line-height: 28px; color: #fff; letter-spacing: -.2px; }
+  .fx .s { font-size: 13px; color: var(--faixaSub); }
+  .selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size: 13px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; flex: none; }
+  .depois .topo-c { padding-top: 16px; }
+  /* depois: 2 linhas, tag à direita, seta */
+  .depois .cli { min-height: 64px; padding: 10px 12px 10px 14px; }
+  .depois .cli .n { font-size: 16px; line-height: 21px; }
+  .depois .cli .s { font-size: 13px; line-height: 18px; }
+  .nota-t { font-size: 12px; color: var(--ink2); line-height: 17px; }
+  .nota-t b { color: var(--ink); }
+  .quadro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; width: 360px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 19px; }
+  .quadro h3 { margin: 0; font-family: Archivo, sans-serif; font-size: 16px; }
+  .quadro .ex { display: flex; align-items: center; gap: 8px; }
+  /* um quadro por vez: T-0171-clientes.html?v=antes | depois | gestao */
+  body.so { width: auto; padding: 16px; }
+  body.so h1.prancha, body.so p.prancha, body.so .quadro { display: none; }
+  body.so .tela { display: none; }
+  body.so .tela.mostrar { display: flex; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Clientes · uma tag de situação e só a última visita</h1>
+<p class="prancha">T-0171 (R-20261112-180115-alexandre). Campo e Gestão usam a mesma tela (<code>modules/core/app/telas/clientes.tsx</code>). Cada linha: nome, uma tag (Bloqueado, Devendo, Pré-Cadastro ou Em dia), a última visita e a seta. Aprovado em R-20261112-204602 e -204639 (RN-CORE-41). Cidade, segmento, títulos, dias sem compra e cadastro incompleto saem da linha; os filtros do topo ficam como estão.</p>
+
+<div class="board">
+
+  <!-- 1 · antes -->
+  <div class="tela" data-v="antes">
+    <div class="legenda"><b>1</b>Hoje (v1.0.5)<span class="tag antes">Antes</span><span>Linha com cidade · segmento e até 3 chips de assuntos diferentes.</span></div>
+    <div class="phone">
+      <div class="status"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
+      <div class="topo-c">
+        <div class="hd"><div><div class="h1">Clientes</div><div class="sub">86 na carteira</div></div><div class="sync"><i data-i="sync" data-t="12"></i>08:30</div></div>
+        <div class="busca-c"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, documento ou cidade</div>
+        <div class="filtros"><div class="chip">Com título vencido</div><div class="chip">Sem compra 45+ dias</div><div class="chip">Bloqueados</div></div>
+      </div>
+      <div class="lst-c">
+        <div class="cli"><div class="c"><span class="n">Atacadinho Cachoeirinha</span><span class="s">Boa Vista · Atacarejo</span></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercadinho São Jorge</span><span class="s">Boa Vista · Mercearia</span><div class="chs"><span class="ce erro">2 vencidos</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Supermercado Rio Negro</span><span class="s">Boa Vista · Supermercado</span></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Bom Preço</span><span class="s">Mucajaí · Mercearia</span><div class="chs"><span class="ce erro">Bloqueado</span><span class="ce erro">1 vencido</span><span class="ce aviso">52 dias sem compra</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Empório Tacutu</span><span class="s">Bonfim · Empório</span><div class="chs"><span class="ce aviso">Nunca comprou</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Comercial Pacaraima</span><span class="s">Pacaraima · Atacarejo</span><div class="chs"><span class="ce erro">3 vencidos</span><span class="ce aviso">61 dias sem compra</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Padaria Pão Quente</span><span class="s">Boa Vista · Padaria</span><div class="chs"><span class="ce aviso">Cadastro incompleto</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Distribuidora Tarumã</span><span class="s">Boa Vista · Distribuidor</span></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Dois Irmãos</span><span class="s">Cantá · Mercearia</span><div class="chs"><span class="ce erro">1 vencido</span><span class="ce aviso">Nunca comprou</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Supermercado e Atacado Caçari Distribuição</span><span class="s">Boa Vista · Supermercado</span><div class="chs"><span class="ce aviso">48 dias sem compra</span></div></div><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · depois, Campo -->
+  <div class="tela depois" data-v="depois">
+    <div class="legenda"><b>2</b>Campo<span class="tag depois">Depois</span><span>Uma tag de situação à direita; embaixo, só a última visita.</span></div>
+    <div class="phone">
+      <div class="status claro"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
+      <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">86 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>08:30</span></div></div>
+      <div class="topo-c">
+        <div class="busca-c"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, documento ou cidade</div>
+        <div class="filtros"><div class="chip">Devendo</div><div class="chip">Sem compra 45+ dias</div><div class="chip">Bloqueados</div></div>
+      </div>
+      <div class="lst-c">
+        <div class="cli"><div class="c"><span class="n">Atacadinho Cachoeirinha</span><span class="s">Visitado hoje</span></div><span class="ce suc">Em dia</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercadinho São Jorge</span><span class="s">Visitado ontem</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Supermercado Rio Negro</span><span class="s">Visitado há 12 dias</span></div><span class="ce suc">Em dia</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Bom Preço</span><span class="s">Visitado há 42 dias</span></div><span class="ce erro"><i data-i="cadeado" data-t="12" data-c="#A8261B" data-w="2.4"></i>Bloqueado</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Empório Tacutu</span><span class="s">Nunca visitado</span></div><span class="ce neu">Pré-Cadastro</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Comercial Pacaraima</span><span class="s">Visitado há 200 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Padaria Pão Quente</span><span class="s">Visitado há 4 dias</span></div><span class="ce suc">Em dia</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Distribuidora Tarumã</span><span class="s">Visitado há 3 dias</span></div><span class="ce suc">Em dia</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Dois Irmãos</span><span class="s">Nunca visitado</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Supermercado e Atacado Caçari Distribuição</span><span class="s">Visitado há 27 dias</span></div><span class="ce suc">Em dia</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 3 · depois, Gestão -->
+  <div class="tela depois" data-v="gestao">
+    <div class="legenda"><b>3</b>Gestão<span class="tag depois">Depois</span><span>A mesma linha, com o filtro Devendo ligado.</span></div>
+    <div class="phone">
+      <div class="status claro"><span>08:41</span><span>4G ▮▮▮ 84%</span></div>
+      <div class="fx"><div class="lin"><div><span class="t">Clientes</span><span class="s">412 na carteira</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>08:30</span></div></div>
+      <div class="topo-c">
+        <div class="busca-c"><i data-i="search" data-t="18" data-c="#4A5562"></i>Nome, documento ou cidade</div>
+        <div class="filtros"><div class="chip on">Devendo</div><div class="chip">Sem compra 45+ dias</div><div class="chip">Bloqueados</div></div>
+      </div>
+      <div class="lst-c">
+        <div class="cli"><div class="c"><span class="n">Mercadinho São Jorge</span><span class="s">Visitado ontem</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Bom Preço</span><span class="s">Visitado há 42 dias</span></div><span class="ce erro"><i data-i="cadeado" data-t="12" data-c="#A8261B" data-w="2.4"></i>Bloqueado</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Comercial Pacaraima</span><span class="s">Visitado há 200 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Mercearia Dois Irmãos</span><span class="s">Nunca visitado</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Armazém Paraviana</span><span class="s">Visitado hoje</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Frigorífico Serra Grande</span><span class="s">Visitado há 9 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Minimercado Pricumã</span><span class="s">Visitado há 31 dias</span></div><span class="ce erro"><i data-i="cadeado" data-t="12" data-c="#A8261B" data-w="2.4"></i>Bloqueado</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        <div class="cli"><div class="c"><span class="n">Panificadora Aparecida</span><span class="s">Visitado há 5 dias</span></div><span class="ce erro">Devendo</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+      </div>
+      <div class="barra-abas gestao"><div><i data-i="home" data-t="22" data-w="1.8"></i>Início</div><div><i data-i="users" data-t="22" data-w="1.8"></i>Equipe</div><div><i data-i="check" data-t="22" data-w="1.8"></i>Aprovações</div><div class="ativa"><i data-i="users" data-t="22" data-w="2.2"></i>Clientes</div><div><i data-i="linhas" data-t="22" data-w="1.8"></i>Mais</div></div>
+    </div>
+  </div>
+
+  <div class="quadro">
+    <h3>O que muda</h3>
+    <div><b>Uma tag, de situação:</b> um valor só, pela ordem Bloqueado &gt; Devendo &gt; Pré-Cadastro &gt; Em dia. Pré-Cadastro: cadastrado no app ou no BKO e ainda sem o código do ERP.</div>
+    <div class="ex"><span class="ce erro"><i data-i="cadeado" data-t="12" data-c="#A8261B" data-w="2.4"></i>Bloqueado</span><span class="ce erro">Devendo</span><span class="ce suc">Em dia</span></div>
+    <div><b>Embaixo, só a última visita</b> (check-in, offline): Visitado hoje · Visitado ontem · Visitado há N dias · Nunca visitado. Em cinza, sem cor.</div>
+    <div><b>Saem da linha:</b> cidade, segmento, "N vencidos", "N dias sem compra", "Nunca comprou", "Não positivado", Curva e "Cadastro incompleto" (fica na ficha do cliente e nas pendências do pedido).</div>
+    <div><b>Filtros:</b> "Com título vencido" passa a "Devendo", igual à tag; "Sem compra 45+ dias" e "Bloqueados" ficam.</div>
+    <div class="nota-t"><b>Linha:</b> 64 dp, nome 16 px em 1 linha (reticências), visita 13 px, tag ChipEstado pequeno (24 dp), toque na linha toda abre a ficha.</div>
+  </div>
+
+</div>
+<script>
+  // ?v=antes | depois | gestao: mostra só aquele quadro (PNG na resolução do aparelho)
+  const v = new URLSearchParams(location.search).get('v');
+  if (v) {
+    document.body.classList.add('so');
+    document.querySelectorAll('.tela').forEach((el) => { if (el.dataset.v === v) el.classList.add('mostrar'); });
+  }
+</script>
+<script src="icones.js"></script>
+</body>
+</html>

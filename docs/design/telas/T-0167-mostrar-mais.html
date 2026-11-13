@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0167 · Busca: "+ Mostrar mais" com a contagem e "Você quis dizer…"</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .conteudo > * { flex: none; }
+  .geral { display: flex; gap: 8px; }
+  .lst .p.ult { opacity: 1; }
+  .mostrar { gap: 8px; padding: 6px 0 2px; align-items: stretch; }
+  .mostrar .ct { text-align: center; }
+  .mostrar .btn { width: 100%; height: 44px; }
+  .nada { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 6px; display: flex; flex-direction: column; }
+  .nada .fr { font-size: 14px; line-height: 20px; color: var(--ink); padding-bottom: 8px; }
+  .nada .vq { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--accentInk); min-height: 48px; display: flex; align-items: center; }
+  .rolou { font-size: 11px; color: var(--ink3); text-align: center; letter-spacing: .4px; }
+  .ctx { font-size: 13px; color: var(--ink2); margin-top: -4px; }
+  .ctx b { color: var(--ink); font-weight: 600; }
+  .cont-l { font-size: 12px; color: var(--ink2); font-weight: 500; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Busca de produtos · "+ Mostrar mais" e "Você quis dizer…"</h1>
+<p class="prancha">T-0167 (R-20261112-033004), no padrão da T-0165. A lista mostra 20 por vez. No fim dela ficam a contagem "Mostrando 20 de 87" e o botão <b>+ Mostrar mais</b>, que traz os próximos 20 sem nova consulta. Quando a busca não acha nada, aparece "Você quis dizer…" com o termo parecido do índice. Vale para a aba Itens do Novo pedido e para o Catálogo (o mesmo componente: <code>MostrarMais</code> e <code>NadaEncontrado</code>, <code>@macuxi/ui/mobile</code>).</p>
+
+<div class="board">
+
+  <!-- 1 · fim da lista, 20 de 87 -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Fim da lista, 1ª página<span class="tag depois">Depois</span><span>A contagem e o botão ficam depois do 20º produto, antes do Avançar.</span></div>
+    <div class="phone">
+      <div class="status"><span>10:20</span><span>4G ▮▮▮ 74%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>agua<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="rolou">··· 16 produtos acima ···</div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de coco 1 L</span> <span class="mc">- Coco Norte</span></div><div class="meta"><span class="cd">ACO-1000</span><span>Emb. CX c/ 12</span><span>Est. 7</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de coco 200 ml</span> <span class="mc">- Coco Norte</span></div><div class="meta"><span class="cd">ACO-200</span><span>Emb. CX c/ 27</span><span>Est. 40</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água tônica 350 ml</span> <span class="mc">- Serra Azul</span></div><div class="meta"><span class="cd">AGT-350</span><span>Emb. FD c/ 12</span><span>Est. 210</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água sanitária 1 L</span> <span class="mc">- Brilho</span></div><div class="meta"><span class="cd">ASN-1000</span><span>Emb. CX c/ 12</span><span>Est. 0</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+        </div>
+        <div class="mostrar marca"><span class="ct">Mostrando 20 de 87</span><div class="btn secundario"><i data-i="mais" data-t="16" data-c="#16202A" data-w="2.4"></i>Mostrar mais</div></div>
+        <div class="btn principal">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 2 · depois do toque -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Depois de 1 toque<span class="tag depois">Depois</span><span>Entram os próximos 20 na mesma lista; a contagem sobe. A tela não rola sozinha.</span></div>
+    <div class="phone">
+      <div class="status"><span>10:20</span><span>4G ▮▮▮ 74%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>agua<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="rolou">··· 36 produtos acima ···</div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água oxigenada 10 vol. 100 ml</span> <span class="mc">- Farma</span></div><div class="meta"><span class="cd">AOX-100</span><span>Emb. UN</span><span>Est. 58</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de colônia 250 ml</span> <span class="mc">- Flor do Norte</span></div><div class="meta"><span class="cd">ACL-250</span><span>Emb. UN</span><span>Est. 12</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água de passar 1 L</span> <span class="mc">- Brilho</span></div><div class="meta"><span class="cd">APS-1000</span><span>Emb. CX c/ 12</span><span>Est. 33</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água destilada 5 L</span> <span class="mc">- Pura</span></div><div class="meta"><span class="cd">ADS-5000</span><span>Emb. UN</span><span>Est. 9</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+        </div>
+        <div class="mostrar"><span class="ct">Mostrando 40 de 87</span><div class="btn secundario"><i data-i="mais" data-t="16" data-c="#16202A" data-w="2.4"></i>Mostrar mais</div></div>
+        <div class="btn principal">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 3 · nada encontrado -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Busca sem resultado<span class="tag depois">Depois</span><span>A frase e o termo parecido do índice. O toque busca "água".</span></div>
+    <div class="phone">
+      <div class="status"><span>10:21</span><span>4G ▮▮▮ 74%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba ativa">Itens (3)</div><div class="aba">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:12px 16px 12px;gap:10px">
+        <div class="secao-t" style="margin-bottom:-2px">Desc./Acrésc. geral</div>
+        <div class="geral"><div class="ajuste-g"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="justify-content:flex-end">5,0</span></div><div class="btn secundario">Aplicar</div></div>
+        <div class="busca" style="flex:none;color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>agau<span class="lp"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="nada marca">
+          <span class="fr">Nenhum produto com “agau”.</span>
+          <span class="vq">Você quis dizer “água”?</span>
+        </div>
+        <div class="btn principal">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Catálogo -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Catálogo, o mesmo fim de lista<span class="tag depois">Depois</span><span>Sai o "Mostrar mais (28)"; com mais de 20, a contagem fica só no fim da lista.</span></div>
+    <div class="phone">
+      <div class="status"><span>10:22</span><span>4G ▮▮▮ 73%</span></div>
+      <div class="conteudo sem-topo" style="padding:12px 16px 16px;gap:10px">
+        <div class="topo"><div class="titulo-tela">Catálogo</div><div class="sync"><i data-i="sync" data-t="12" data-c="#4A5562"></i>10:15</div></div>
+        <div class="ctx">Preços de <b>Padaria Trigo Fino</b></div>
+        <div class="busca" style="color:var(--ink)"><i data-i="search" data-t="18" data-c="#4A5562"></i>agua<span style="margin-left:auto;display:flex"><i data-i="fechar" data-t="18" data-c="#4A5562"></i></span></div>
+        <div class="rolou">··· 18 produtos acima ···</div>
+        <div class="lst">
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água tônica 350 ml</span> <span class="mc">- Serra Azul</span></div><div class="meta"><span class="cd">AGT-350</span><span>Emb. FD c/ 12</span><span>Est. 210</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+          <div class="p"><div class="c"><div class="nm1"><span class="t">Água sanitária 1 L</span> <span class="mc">- Brilho</span></div><div class="meta"><span class="cd">ASN-1000</span><span>Emb. CX c/ 12</span><span>Est. 0</span></div></div><div class="mais2"><i data-i="mais" data-t="22" data-c="#C2540A" data-w="2.4"></i></div></div>
+        </div>
+        <div class="mostrar"><span class="ct">Mostrando 20 de 87</span><div class="btn secundario"><i data-i="mais" data-t="16" data-c="#16202A" data-w="2.4"></i>Mostrar mais</div></div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 5 · Regras -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>Regras<span>Textos, toques e estados.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Página de 20.</b> O módulo ranqueia uma vez (até 400) e mostra os 20 primeiros. Cada toque em <b>+ Mostrar mais</b> põe os próximos 20 no fim da mesma lista, sem nova consulta e sem rolar a tela.</div>
+      <div class="nota-prancha"><b>Contagem</b> 13 <code>ink2</code>, centrada, logo acima do botão: "Mostrando 20 de 87" (milhar com ponto: "Mostrando 20 de 1.240"). <b>Botão</b> secundário 44, largura toda, ícone "+" e "Mostrar mais". Com tudo à vista (87 de 87, ou 20 resultados ou menos), a contagem e o botão somem.</div>
+      <div class="nota-prancha"><b>Nada encontrado:</b> no lugar da lista, um cartão com "Nenhum produto com “agau”." (14 <code>ink</code>) e, quando o índice tem termo parecido, <b>Você quis dizer “água”?</b> (14/600 <code>accentInk</code>, alvo 48). O toque troca a busca pelo termo. Sem termo parecido, só a frase.</div>
+      <div class="nota-prancha"><b>TalkBack:</b> o botão lê "Mostrar mais 20 produtos, mostrando 20 de 87"; a contagem nova é lida ao mudar. A busca começa com 3 letras, 250 ms depois da última tecla.</div>
+      <div class="nota-prancha"><b>Catálogo:</b> a contagem fica num lugar só: no topo ("5 produtos") quando tudo está à vista; com mais de 20, só no fim da lista ("Mostrando 20 de 87"). O "Mostrar mais (28)" da T-0153 sai: vale este fim de lista.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

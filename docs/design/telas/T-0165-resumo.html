@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0165 · Resumo do Novo pedido: antes e depois (final aprovado)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .phone.inteira { height: auto; }
+  .phone.inteira .conteudo { overflow: visible; }
+  .conteudo > * { flex: none; }
+  .duas-btn { display: flex; gap: 8px; }
+  .duas-btn .btn { flex: 1; height: 52px; font-size: 14px; padding: 0 10px; text-align: center; line-height: 17px; }
+  .tt .l.total.so { border-top: 0; }
+  .linha-desc { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .linha-desc .r { font-size: 14px; color: var(--ink2); }
+  .ti td .ancora { position: relative; display: inline-block; }
+  .ti td .balao { top: 26px; left: -6px; width: auto; max-width: none; white-space: nowrap; text-align: left; }
+  .ti.ti8 th, .ti.ti8 td { padding-left: 3px; }
+  .ti.ti8 th:first-child, .ti.ti8 td:first-child { padding-left: 0; }
+  .ti.ti8 td.ed { padding-top: 6px; padding-bottom: 0; text-align: center; vertical-align: middle; }
+  .ti-box.b8 { padding: 0 2px 0 6px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Resumo do Novo pedido · antes e depois</h1>
+<p class="prancha">T-0165 · versão final aprovada (R-20261112-031456 regra 9, 031841 e 032141, com o ajuste RD-0147 do corretor). Itens só com o código, que abre "nome - marca" num balão; Emb. e Qtd separadas; "Valor tabela" = quantidade × preço de tabela; Desc./Acrésc. sempre em %; Condição de pagamento; a Observação do pedido editável aqui; sem o Desconto do pedido; Totais com Desconto (%) e Desconto (R$) em linhas separadas.</p>
+
+<div class="board">
+
+  <!-- Antes -->
+  <div class="tela antes">
+    <div class="legenda"><b>1</b>Resumo, sem desconto<span class="tag antes">Antes · v1.0.4</span><span>"3 FD" na Qtd, "—" no Desc./Acrésc., "Venda" e "Tabela" repetindo o total.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>22:37</span><span>4G ▮▮▮ 62%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (1)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t aj aj-d" data-n="12" style="align-self:flex-start">Venda</div>
+        <div class="kv">
+          <div class="l"><span class="r">Pagamento</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box">
+          <table class="ti">
+            <colgroup><col><col style="width:40px"><col style="width:48px"><col style="width:58px"><col style="width:56px"></colgroup>
+            <thead><tr><th>Produto</th><th><span class="aj aj-t" data-n="10">Qtd</span></th><th>Preço<br>unit.</th><th><span class="aj aj-t" data-n="11">Desc./<br>Acrésc.</span></th><th>Total</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pn">Água mineral 1,5 L (fardo 6)</span><span class="pc">AGU-1500</span></td><td>3 <span class="un">FD</span></td><td>19,92</td><td>—</td><td class="tot">59,76</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+        </div>
+        <div class="secao-t">Observações</div>
+        <div class="kv"><div class="l"><span class="r">Observação</span><span class="t" style="color:var(--ink3)">—</span></div></div>
+        <div class="linha-desc" style="margin-top:4px"><span class="r">Desconto do pedido</span><div class="ajuste-g" style="width:156px;height:44px"><span class="tp">Desc % <i data-i="seta" data-t="14"></i></span><span class="vl" style="color:var(--ink3)">0,0</span></div></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt aj" data-n="13">
+          <div class="l"><span class="r">Tabela</span><span class="v">R$ 59,76</span></div>
+          <div class="l total"><span class="r">Total</span><span class="v">R$ 59,76</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  
+  
+  
+  <!-- Depois, sem desconto -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Resumo, sem desconto<span class="tag depois">Depois</span><span>"0,0%" na coluna e só o Valor final nos Totais.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>22:37</span><span>4G ▮▮▮ 62%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (1)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td><span class="zero">0,0%</span></td><td class="tot">59,76</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">CIF</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">Observação</span><span class="t">Descarregar pela Rua Ipixuna, portão lateral.</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l total so"><span class="r">Valor final</span><span class="v">R$ 59,76</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Depois, com desconto -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Resumo, com desconto nos itens<span class="tag depois">Depois</span><span>Toque no código LPO-400: balão com "nome - marca". Totais em 4 linhas. Lápis no fim de cada linha (R-20261112-082212).</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>22:42</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba">Entrega</div><div class="aba ativa">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:10px">
+        <div class="secao-t">Cliente</div>
+        <div class="kv">
+          <div class="l"><span class="r">Razão social</span><span class="t">Padaria Trigo Fino Ltda</span></div>
+          <div class="l"><span class="r">CNPJ</span><span class="t">23.456.789/0001-07</span></div>
+        </div>
+        <div class="secao-t">Condição de pagamento</div>
+        <div class="kv">
+          <div class="l"><span class="r">Forma</span><span class="t">Boleto</span></div>
+          <div class="l"><span class="r">Prazo</span><span class="t">28/56 dias</span></div>
+        </div>
+        <div class="secao-t">Itens</div>
+        <div class="ti-box b8">
+          <table class="ti ti7 ti8">
+            <colgroup><col><col style="width:47px"><col style="width:27px"><col style="width:49px"><col style="width:47px"><col style="width:53px"><col style="width:35px"></colgroup>
+            <thead><tr><th>Código</th><th class="a-esq">Emb.</th><th>Qtd</th><th>Valor<br>tabela</th><th>Desc./<br>Acrésc.</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="cod">AGU-1500</span></td><td class="a-esq"><span class="e1">FD c/ 6</span></td><td>3</td><td>59,76</td><td>−5,0%</td><td class="tot">56,76</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="ancora"><span class="cod">LPO-400</span><span class="balao"><span class="bd" style="display:block;font-weight:400">Leite em pó integral 400 g - Vale Verde</span></span></span></td><td class="a-esq"><span class="e1">UN</span></td><td>6</td><td>106,50</td><td>−10,0%</td><td class="tot">95,88</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+              <tr><td><span class="cod">FIL-103</span></td><td class="a-esq"><span class="e1">UN</span></td><td>10</td><td>57,60</td><td><span class="zero">0,0%</span></td><td class="tot">57,60</td><td class="ed"><span class="edt"><i data-i="edit" data-t="16" data-c="#8F3D06" data-w="2.2"></i></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="secao-t">Entrega</div>
+        <div class="kv">
+          <div class="l"><span class="r">Frete</span><span class="t">FOB · Rio Negro Cargas</span></div>
+          <div class="l"><span class="r">Endereço</span><span class="t">Rua Ipixuna, 245 · Praça 14 de Janeiro · Manaus/AM</span></div>
+          <div class="l"><span class="r">Observação</span><span class="t">Descarregar pela Rua Ipixuna, portão lateral.</span></div>
+        </div>
+        <div class="secao-t">Observação do pedido</div>
+        <div class="texto-area vazia" style="min-height:64px"></div>
+        <div class="secao-t">Totais</div>
+        <div class="tt">
+          <div class="l"><span class="r">Valor de tabela</span><span class="v">R$ 223,86</span></div>
+          <div class="l"><span class="r">Desconto (%)</span><span class="v">6,1%</span></div>
+          <div class="l"><span class="r">Desconto (R$)</span><span class="v">− R$ 13,62</span></div>
+          <div class="l total"><span class="r">Valor final</span><span class="v">R$ 210,24</span></div>
+        </div>
+        <div style="height:6px"></div>
+        <div class="btn principal">Salvar e enviar pedido</div>
+        <div class="duas-btn"><div class="btn secundario">Apenas salvar</div><div class="btn secundario">Salvar como orçamento</div></div>
+        <div class="btn-texto" style="margin-top:-2px">Cancelar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+    <div class="nota-prancha"><b>Código</b> (mono 12,5 <code>accentInk</code>, sublinhado; alvo 44 dp): o toque abre o balão com "nome - marca"; fecha com outro toque. O resto da linha abre a folha do item. Leitor de tela: "LPO-400, Leite em pó integral 400 g - Vale Verde".</div>
+    <div class="nota-prancha"><b>Valor tabela</b> = quantidade × preço de tabela da embalagem, antes do ajuste; a soma da coluna é o Valor de tabela dos Totais. <b>Desc./Acrésc.</b> sempre em %, também quando o vendedor deu o ajuste em R$ (valor ÷ valor de tabela do item).</div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

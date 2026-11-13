@@ -10,6 +10,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
+import { CABECALHO, layoutCabecalho, respiroTopoDoConteudo } from './cabecalho';
 import { layoutCarregando, rotuloDoVoltar, tocarNoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
@@ -17,7 +18,52 @@ import { formatHHMM } from './time';
 import { useSaidaDaTela, useVoltarDaTela } from './voltar';
 import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
-/** Área rolável da tela com o respiro do mockup (28 no topo, 20 nas laterais). */
+export interface PropsCabecalhoTela {
+  titulo: string;
+  /** Uma linha em `#C9CED5` (ex.: "Quinta, 12 de novembro", "12 clientes"). Sem frase sobre o que o app faz por trás. */
+  subtitulo?: string;
+  /** `acima`: o subtítulo vem antes do título (a data acima de "Bom dia, Lucas" no Início). Padrão: abaixo. */
+  posicaoSubtitulo?: 'acima' | 'abaixo';
+  /** Voltar dentro da faixa ("‹ Pedidos"), com as mesmas regras do `BackLink`. */
+  voltar?: { label: string; fallback: string; aoVoltar?: () => void; testID?: string };
+  /** Ação curta à direita do título (ícone de 48 dp). Nunca o botão principal da tela e nada grafite (some no Azul noite). */
+  direita?: ReactNode;
+  testID?: string;
+}
+
+/**
+ * Cabeçalho da tela na faixa Azul noite (marca v1, T-0172; docs/design/componentes.md §5.2): começa na barra de status, título
+ * branco (Archivo 24) e subtítulo `#C9CED5`. Fica parado em cima; o corpo rola embaixo, no Pérola. Use pelo `Screen`
+ * (`cabecalho={{ titulo, subtitulo }}`) ou sozinho, acima de uma lista própria.
+ */
+export function CabecalhoTela({ titulo, subtitulo, posicaoSubtitulo = 'abaixo', voltar, direita, testID = 'cabecalho-tela' }: PropsCabecalhoTela) {
+  const insets = useSafeAreaInsets();
+  const sub = subtitulo ? (
+    <Text style={styles.cabecalhoSub} numberOfLines={1}>
+      {subtitulo}
+    </Text>
+  ) : null;
+  return (
+    <View testID={testID} style={layoutCabecalho(insets.top)}>
+      {voltar ? <BackLink {...voltar} sobreFaixa /> : null}
+      <View style={styles.cabecalhoLinha}>
+        <View style={{ flex: 1, gap: 2 }}>
+          {posicaoSubtitulo === 'acima' ? sub : null}
+          <Text style={styles.cabecalhoTitulo} accessibilityRole="header" numberOfLines={2}>
+            {titulo}
+          </Text>
+          {posicaoSubtitulo === 'abaixo' ? sub : null}
+        </View>
+        {direita}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Área rolável da tela com o respiro do mockup (28 no topo, 20 nas laterais). Com `cabecalho`, a faixa Azul noite fica parada em
+ * cima (T-0172) e o corpo começa 16 abaixo dela.
+ */
 export function Screen({
   children,
   gap = 14,
@@ -25,6 +71,7 @@ export function Screen({
   refreshing,
   onRefresh,
   contentStyle,
+  cabecalho,
   testID,
 }: {
   children: ReactNode;
@@ -33,18 +80,27 @@ export function Screen({
   refreshing?: boolean;
   onRefresh?: () => void;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Faixa Azul noite com o título da tela (marca v1). Sem ela, a tela fica como antes. */
+  cabecalho?: PropsCabecalhoTela;
   testID?: string;
 }) {
   const insets = useSafeAreaInsets();
-  return (
+  const rolavel = (
     <ScrollView
       testID={testID}
       style={{ flex: 1, backgroundColor: colors.ground }}
-      contentContainerStyle={[{ paddingTop: Math.max(top, insets.top + top - 12), paddingHorizontal: 20, paddingBottom: 20, gap }, contentStyle]}
+      contentContainerStyle={[{ paddingTop: respiroTopoDoConteudo(Boolean(cabecalho), top, insets.top), paddingHorizontal: 20, paddingBottom: 20, gap }, contentStyle]}
       keyboardShouldPersistTaps="handled"
       refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined}>
       {children}
     </ScrollView>
+  );
+  if (!cabecalho) return rolavel;
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.ground }}>
+      <CabecalhoTela {...cabecalho} />
+      {rolavel}
+    </View>
   );
 }
 
@@ -56,6 +112,7 @@ export function BackLink({
   label,
   fallback,
   aoVoltar,
+  sobreFaixa,
   testID,
 }: {
   label: string;
@@ -65,9 +122,12 @@ export function BackLink({
    * "Sair do pedido?" antes de sair (RN-VEN-38). Sem a prop, volta na pilha (ou vai ao `fallback`).
    */
   aoVoltar?: () => void;
+  /** Dentro da faixa Azul noite (`CabecalhoTela`): seta e rótulo em `#C9CED5`. */
+  sobreFaixa?: boolean;
   testID?: string;
 }) {
   const rotulo = rotuloDoVoltar(label, useVoltarDaTela());
+  const cor = sobreFaixa ? CABECALHO.cores.voltar : colors.ink2;
   // T-0128: sem `aoVoltar`, o toque passa pelo bloqueio de saída do shell (`ProvedorSaidaDaTela`), se houver
   const saida = useSaidaDaTela();
   const seguir = () => (router.canGoBack() ? router.back() : router.replace(fallback as never));
@@ -79,8 +139,8 @@ export function BackLink({
       onPress={() => tocarNoVoltar({ aoVoltar, saida, seguir })}
       escala={false}
       style={styles.back}>
-      <Icon name="back" size={18} color={colors.ink2} />
-      <Text style={styles.backText} numberOfLines={1}>
+      <Icon name="back" size={18} color={cor} />
+      <Text style={[styles.backText, { color: cor }]} numberOfLines={1}>
         {rotulo.visivel}
       </Text>
     </Pressionavel>
@@ -213,7 +273,7 @@ export function Strong({ children }: { children: ReactNode }) {
  * Barra de progresso 0 a 100. Sem `rotulo` é decorativa (o número já aparece em texto ao lado). Com `rotulo` (T-0088)
  * vira um elemento do leitor de tela: papel "barra de progresso", o rótulo e o valor em por cento.
  */
-export function ProgressBar({ pct, color = colors.accent, track = colors.lineSoft, height = 8, rotulo }: { pct: number; color?: string; track?: string; height?: number; rotulo?: string }) {
+export function ProgressBar({ pct, color = colors.grafico, track = colors.lineSoft, height = 8, rotulo }: { pct: number; color?: string; track?: string; height?: number; rotulo?: string }) {
   const w = Math.max(0, Math.min(100, pct));
   const a11y = rotulo ? { accessible: true, accessibilityRole: 'progressbar' as const, accessibilityLabel: rotulo, accessibilityValue: { min: 0, max: 100, now: Math.round(w) } } : {};
   return (
@@ -241,8 +301,8 @@ export function SectionHeader({ title, right, onRightPress, rightTestID }: { tit
 }
 
 /**
- * Link de texto (T-0094, contraste do laranja): "Esqueci a senha", "Ver todos", "Trocar". Texto laranja sobre claro é sempre
- * `accentInk` (6,70:1 no fundo, 7,40:1 no branco); o `accent` puro dá 4,17:1 no fundo e não passa. `sobreEscuro` usa o
+ * Link de texto (T-0094; marca v1 na T-0172): "Esqueci a senha", "Ver todos", "Trocar". Texto de ação sobre claro é sempre
+ * `accentInk`, o Azul noite (11,82:1 no fundo, 12,77:1 no branco). `sobreEscuro` usa o
  * `accentLight` (7,56:1 no grafite). Alvo de toque de 48 dp. Desligado: cinza `ink3`, sem toque.
  */
 export function LinkTexto({
@@ -334,6 +394,9 @@ export const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   back: { alignSelf: 'flex-start', height: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   backText: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
+  cabecalhoLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cabecalhoTitulo: { fontFamily: fonts.display, fontSize: CABECALHO.tamanhoTitulo, lineHeight: CABECALHO.alturaLinhaTitulo, letterSpacing: -0.2, color: CABECALHO.cores.titulo },
+  cabecalhoSub: { fontFamily: fonts.body, fontSize: CABECALHO.tamanhoSubtitulo, color: CABECALHO.cores.subtitulo },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   buttonText: { fontFamily: fonts.semibold, fontSize: 14 },
   /** chip de estado pequeno do guia (24 dp, pílula); a cor sempre vem com o texto */

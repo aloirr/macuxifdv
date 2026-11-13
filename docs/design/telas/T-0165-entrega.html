@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0165 · Aba Entrega: antes e depois (final aprovado)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  body { width: 1200px; }
+  .phone.inteira { height: auto; }
+  .phone.inteira .conteudo { overflow: visible; }
+  .conteudo > * { flex: none; }
+  .rot-antes { width: 64px; font-size: 12px; font-weight: 700; color: var(--ink2); line-height: 15px; white-space: nowrap; }
+  .rot-campo { font-size: 13px; font-weight: 600; color: var(--ink2); }
+  .end-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .end-card .ln { font-size: 14px; line-height: 20px; }
+  .texto-area.vazia { min-height: 64px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Aba Entrega · antes e depois</h1>
+<p class="prancha">T-0165 · versão final aprovada (R-20261112-031456, regra 8, com os ajustes RD-0145 e RD-0146 do corretor). Frete CIF/FOB primeiro; Transportadora numa lista (folha com busca) das cadastradas no BKO, mais "Outra (digitar)"; endereço; só a Observação da entrega (a do pedido vai para o Resumo).</p>
+
+<div class="board">
+
+  <!-- Antes -->
+  <div class="tela antes">
+    <div class="legenda"><b>1</b>Entrega com FOB<span class="tag antes">Antes · v1.0.4</span><span>Endereço antes do frete; rótulo cortado em "Transportado / ra".</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>22:35</span><span>4G ▮▮▮ 62%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (1)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="rotulo-secao"><span class="t">Endereço de entrega</span><span class="acao">Editar</span></div>
+        <div class="end-card">
+          <span class="selo neutro">Principal</span>
+          <span class="ln">Rua Ipixuna, 245<br>Praça 14 de Janeiro · Manaus/AM<br>CEP 69020-160</span>
+        </div>
+        <div class="rotulo-secao aj aj-d" data-n="8" style="align-self:flex-start"><span class="t">Frete</span></div>
+        <div class="seg"><div>CIF</div><div class="on">FOB</div></div>
+        <div class="aj aj-d" data-n="9" style="align-self:flex-start"><div class="rot-antes">Transportado<br>ra</div></div>
+        <div class="chips"><span class="chip">Rio Negro Cargas</span><span class="chip">Expresso Roraima</span><span class="chip">Outra</span></div>
+        <div class="rotulo-secao"><span class="t">Observações</span></div>
+        <div class="texto-area">Observação para a entrega ou o pedido</div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  
+  
+  
+  <!-- Depois -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Entrega com FOB<span class="tag depois">Depois</span><span>Transportadora em lista e só a Observação da entrega.</span></div>
+    <div class="phone inteira">
+      <div class="status"><span>22:41</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="rotulo-secao"><span class="t">Frete</span></div>
+        <div class="seg"><div>CIF</div><div class="on">FOB</div></div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Transportadora</span></div>
+        <div class="escolha"><span>Rio Negro Cargas</span><i data-i="seta" data-t="18" data-c="#16202A"></i></div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Endereço</span><span class="acao">Editar</span></div>
+        <div class="end-card">
+          <span class="selo neutro">Principal</span>
+          <span class="ln">Rua Ipixuna, 245<br>Praça 14 de Janeiro · Manaus/AM<br>CEP 69020-160</span>
+        </div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Observação</span></div>
+        <div class="texto-area vazia" style="color:var(--ink)">Descarregar pela Rua Ipixuna, portão lateral.</div>
+        <div class="btn principal" style="margin-top:4px">Avançar</div>
+      </div>
+      <div class="barra-abas" data-ativa="clientes"></div>
+    </div>
+  </div>
+
+  <!-- Folha da transportadora -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Ao tocar em Transportadora<span class="tag depois">Depois</span><span>Folha com busca, as transportadoras do BKO e "Outra (digitar)" no fim.</span></div>
+    <div class="phone" style="height:660px">
+      <div class="status"><span>22:41</span><span>4G ▮▮▮ 61%</span></div>
+      <div class="cab">
+        <div class="cab-linha"><div class="voltar"><i data-i="voltar" data-t="22"></i></div><div><div class="cab-nome">Padaria Trigo Fino</div><div class="cab-cod">cód. C5008 · Novo pedido</div></div></div>
+        <div class="abas"><div class="aba">Venda</div><div class="aba">Itens (3)</div><div class="aba ativa">Entrega</div><div class="aba">Resumo</div></div>
+      </div>
+      <div class="conteudo" style="padding:14px 16px 16px;gap:12px">
+        <div class="rotulo-secao"><span class="t">Frete</span></div>
+        <div class="seg"><div>CIF</div><div class="on">FOB</div></div>
+        <div class="rotulo-secao" style="margin-top:4px"><span class="t">Transportadora</span></div>
+        <div class="escolha"><span class="ph">Escolher</span><i data-i="seta" data-t="18" data-c="#16202A"></i></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="folha" style="gap:12px;padding-bottom:8px">
+        <div class="pega"></div>
+        <div class="tit"><span>Transportadora</span></div>
+        <div class="busca" style="flex:none"><i data-i="search" data-t="18" data-c="#4A5562"></i>Buscar</div>
+        <div class="op-lista">
+          <div class="o">Expresso Roraima</div>
+          <div class="o">Rio Negro Cargas</div>
+          <div class="o">Transamazônica Log</div>
+          <div class="o">Via Norte Transportes</div>
+          <div class="o outra">Outra (digitar)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regras -->
+  <div class="tela" style="width:1136px">
+    <div class="legenda"><b>4</b>Regras<span>Ordem, rótulos e estados.</span></div>
+    <div class="estados" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="nota-prancha"><b>Ordem:</b> FRETE (CIF | FOB) · TRANSPORTADORA (só no FOB) · ENDEREÇO · OBSERVAÇÃO · Avançar. Os títulos não repetem "entrega": a aba já diz (RD-0145). CIF: só o seletor; o endereço sobe logo abaixo dele.</div>
+      <div class="nota-prancha"><b>TRANSPORTADORA:</b> título 12/600 maiúsculas, como FRETE (RD-0146), acima do campo de escolha (48 dp, nome e seta; vazio, "Escolher" em <code>ink3</code>). O toque abre a folha, que mantém o título "Transportadora".</div>
+      <div class="nota-prancha"><b>Folha:</b> título "Transportadora"; busca pelo nome; as transportadoras ativas do cadastro do BKO, em ordem alfabética, linhas de 52 dp; a escolhida com ✓; <b>"Outra (digitar)"</b> sempre no fim, também com a busca sem resultado. Tocar escolhe e fecha. Funciona sem sinal (lista no aparelho).</div>
+      <div class="nota-prancha" style="padding:10px"><b>Outra (digitar):</b> o campo mostra "Outra" e abrem embaixo Nome e CNPJ, como hoje (RN-VEN-16).
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <div class="escolha"><span>Outra</span><i data-i="seta" data-t="18" data-c="#16202A"></i></div>
+          <div class="rot-campo">Nome</div><div class="campo" style="margin-top:-4px"></div>
+          <div class="rot-campo">CNPJ</div><div class="campo" style="margin-top:-4px"></div>
+        </div></div>
+      <div class="nota-prancha"><b>Sem transportadora no cadastro:</b> o campo não aparece; ficam direto Nome e CNPJ. <b>Falta a transportadora:</b> só nos Alertas, "Falta a transportadora · aba Entrega".</div>
+      <div class="nota-prancha"><b>OBSERVAÇÃO</b> (a da entrega): um campo (até 500 caracteres), sem texto dentro quando vazio, como a Observação do pedido no Resumo (RD-0147). A do pedido sai daqui e vai para o Resumo.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 
 Aprovação: proposta 2 (compacta) com 4 ajustes, R-20261110-215816-alexandre; filial no cabeçalho das 4 versões, R-20261110-215722-gerente-projetos e R-20261110-220007-alexandre (RN-CORE-39: CNPJ e endereço da filial são obrigatórios; o cabeçalho usa sempre a filial de faturamento). **Visual horizontal**, R-20261111-084832-alexandre; Alertas fora de todos os PDFs, R-20261111-085235-alexandre; **v3** (vale esta): coluna Item e itens em ordem do código, R-20261111-085828-alexandre; observações abaixo dos itens, sempre visíveis, R-20261111-090118-alexandre e R-20261111-094836-alexandre; espaço dobrado acima e abaixo da tabela, R-20261111-090759-alexandre. Conteúdo e regras: §2 a §5; medidas, cores e tokens: §6.
 Histórico das 3 propostas: `pdf-pedido-propostas.md` (1 e 3 descartadas).
+**T-0165 (v1.0.5), R-20261112-031456 regra 10 e R-20261112-032141:** a caixa do Total **do escritório** usa os rótulos da tela ("Valor de tabela", "Valor final") e o desconto sai do rótulo, numa linha de % e outra de R$ (`pedido-v4.md` §5.1). A do cliente fica só com o Valor final (R-20261112-082211). Não há mais desconto do pedido: as linhas são a soma dos itens. As imagens T-0159 mostram a caixa antiga até o modulo-vendedor regenerar pelo código.
 Imagens finais (A4 paisagem, 2246 × 1588 px; as marcas são fictícias):
 - `telas/T-0159-pdf-horizontal-cliente.html/png`: pedido, versão do cliente, com as 2 observações;
 - `telas/T-0159-pdf-horizontal-escritorio.html/png`: pedido, versão do escritório, com as 2 observações e o Histórico;
@@ -34,7 +35,7 @@ Código: `modules/vendedor/domain/pdf-pedido.ts` (`buildOrderPdfHtml`, `pdfDoPed
 | 8 | Abaixo da tabela, à esquerda: Observação do pedido e, embaixo, Observação da entrega | sim, sempre | sim, sempre |
 | 9 | Abaixo das observações, à esquerda: nota | "Valores sem impostos. Preço e estoque confirmados no faturamento." | não sai |
 | 10 | Abaixo das observações, à esquerda: **Histórico** (uma linha com setas) | nunca | sim, com 2 etapas ou mais; só "Salvo", não sai |
-| 11 | Abaixo da tabela, à direita: caixa do Total | "Total" | Tabela · Desconto (ou Acréscimo) x,x% − R$ y, um traço, Total |
+| 11 | Abaixo da tabela, à direita: caixa do Total | "Valor final" | Valor de tabela · Desconto (%) "6,1%" · Desconto (R$) "− R$ 13,62" (ou Acréscimo (%) e Acréscimo (R$)), um traço, Valor final; sem ajuste, só o Valor final |
 
 ## 3. Textos e formatos
 - **Nome do arquivo e `<title>`:** `PED-XXXX-DDMMAAAA` / `ORC-XXXX-DDMMAAAA` (RN-VEN-41, `orderPdfFileName`); sem número, `PROV`. O mesmo nas duas versões.
@@ -48,7 +49,7 @@ Código: `modules/vendedor/domain/pdf-pedido.ts` (`buildOrderPdfHtml`, `pdfDoPed
 - **Observações (as 4 versões):** rótulos "Observação do pedido" e "Observação da entrega", uma embaixo da outra, **sempre**: vazia (ou só com espaços) sai o rótulo com uma linha em branco, para escrever à mão. O texto em negrito, como foi digitado, sem corte (quebra a linha; mantém as quebras digitadas). A linha automática do cadastro incompleto (RN-CORE-17) não entra.
 - **Item:** 1, 2, 3… na ordem do PDF. A ordem do PDF é a alfabética do **código** (`erp_code`), comparada com `localeCompare(…, 'pt-BR', { numeric: true })` (`AGU-2` antes de `AGU-10`); código vazio vai para o fim; empate mantém a ordem do pedido. No app e no BKO a ordem não muda.
 - **Emb.:** coluna própria, alinhada à esquerda, com a sigla e o fator de `unit_label` (`UN`, `FD c/ 10`); vazio = `UN`. **Qtd:** inteiro, sem sigla, alinhada à direita. Some a coluna "Medida" do PDF de hoje.
-- **Desc./Acr. (escritório):** `−15,0%`, `+10,0%` ou `—`.
+- **Desc./Acr. (escritório):** `−15,0%`, `+10,0%` ou `0,0%` (o mesmo formato do Resumo e do detalhe, `pedido-v4.md` §5.4; RD-0139).
 - **Histórico (escritório):** `10/11 05:55 Salvo → 10/11 05:56 Enviado → 10/11 05:58 Rejeitado`; a última etapa em negrito; nome só na etapa feita por outra pessoa que não o vendedor (RN-VEN-30). Orçamento: `Salvo`, `Transformado em pedido nº`, `Cancelado`. Só com 2 etapas ou mais: só `Salvo` (o caso comum do orçamento e do pedido ainda não enviado), o Histórico não sai.
 - **Continua fora:** "Gerado pelo/em", selo de situação, alçada, "Desconto efetivo", Alertas (inclusive "Motivo da pendência"), endereço do cadastro do cliente, "por conta da empresa/do cliente" no frete, % ou a palavra desconto na versão do cliente.
 
@@ -87,7 +88,7 @@ Código: `modules/vendedor/domain/pdf-pedido.ts` (`buildOrderPdfHtml`, `pdfDoPed
 | Desc./Acr. | escritório | `item.discount_pct` / `item.surcharge_pct` | hoje |
 | Líquido | escritório | `netUnitCents(item)` | hoje |
 | Tabela (total) | escritório | `order.subtotal_cents` | hoje |
-| Desconto/Acréscimo do pedido | escritório | `descontoDoPedidoPct` + `order.discount_cents` (uma linha, % e R$) | hoje (corrige o D-T0150-1) |
+| Desconto (%) e Desconto (R$) (ou Acréscimo) | escritório | a soma dos ajustes dos itens: o % sobre `order.subtotal_cents` e o R$ `order.subtotal_cents − order.total_cents`, em 2 linhas, as mesmas dos Totais da tela (`pedido-v4.md` §5.1) | T-0165 (v1.0.5): sem desconto do pedido |
 | Total | as 4 | `order.total_cents` | hoje |
 | Histórico | escritório | `order.history` (`statusText`) | hoje |
 
@@ -105,7 +106,7 @@ O retrato da filial é do pedido: se o cadastro da filial mudar depois, o PDF de
 7. Versão do cliente sem `%` e sem a palavra "desconto" (regra atual).
 8. Nome do arquivo: `PED-0014-10112026` e `ORC-0015-10112026`.
 9. Orçamento só salvo: escritório sem Histórico. Pedido salvo, enviado e rejeitado: escritório com as 3 etapas.
-10. Caixa do Total: "Total" nas 4 versões; nenhuma tem "Total do pedido" nem "Total do orçamento".
+10. Caixa do Total: "Valor final" nas 4 versões; nenhuma tem "Total", "Total do pedido" nem "Total do orçamento". Escritório com desconto: "Valor de tabela", "Desconto (%)" e "Desconto (R$)" acima do traço; sem desconto, só "Valor final".
 11. Observação vazia (ou só com espaços): o rótulo aparece, com a linha em branco, nas 4 versões; com as duas vazias, os 2 rótulos aparecem. Preenchida: o texto sai em negrito, com as quebras digitadas.
 11a. Ordem e Item: pedido com `CAF-500`, `ACU-1K`, `AGU-1500` (nessa ordem no app) sai `1 ACU-1K`, `2 AGU-1500`, `3 CAF-500`; `AGU-2` antes de `AGU-10`. O app e o BKO continuam na ordem do pedido.
 12. Logo: sem `logo_src`, o `<img>` do cabeçalho sai com a imagem do app; com `logo_src`, com a do tenant. Nunca cabeçalho sem imagem.
@@ -143,8 +144,8 @@ A4 **paisagem** (297 × 210 mm), margens de 10 mm em cima, 11 mm dos lados e 12 
 | Rótulo "Pedido"/"Orçamento" (+ "· uso interno") | 13 px | Archivo 700, maiúsculas, .12em, `--pdf-destaque` |
 | Número do documento | 28 px | Archivo 800 |
 | Data | 13 px | 400, `--pdf-tinta-2` |
-| Linhas Tabela e Desconto da caixa | 15 px | 400 |
-| Rótulo "Total" da caixa | 15 px | 700 |
+| Linhas Valor de tabela, Desconto (%) e Desconto (R$) da caixa | 15 px | 400 |
+| Rótulo "Valor final" da caixa | 15 px | 700 |
 | Valor do Total | **26 px** | Archivo 800 |
 | Nota do cliente | 12 px | 400, `--pdf-tinta-2` |
 
@@ -159,7 +160,7 @@ A4 **paisagem** (297 × 210 mm), margens de 10 mm em cima, 11 mm dos lados e 12 
   - escritório: Item 15 · Código 24 · Marca 30 · Emb. 24 · Qtd 15 · Tabela 22 · Desc./Acr. 27 · Líquido 22 · Total 22 mm; Descrição, o resto.
 - **Rodapé** (**24 px** abaixo da tabela, o dobro da v1; as duas colunas alinhadas **pelo topo**, 20 mm ou mais entre elas):
   - à esquerda, de cima para baixo: **Observação do pedido**, 3,5 mm, **Observação da entrega** (rótulo 10,5 px `--pdf-rotulo` em maiúsculas, 1 mm, texto 15 px peso 600 `--pdf-tinta`; sem fundo e sem borda; vazia guarda a altura de uma linha); 4,5 mm; no cliente, a nota; no escritório, o **Histórico** em caixa de borda 1 px `--pdf-linha`, raio 1,6 mm, fundo branco, rótulo e etapas na mesma linha (6 mm entre eles), largura do conteúdo;
-  - à direita, a **caixa do Total**: 87 mm de largura, borda de **2 px** `--pdf-tinta`, raio 1,6 mm, fundo `--pdf-ficha`, 3 mm × 4,5 mm por dentro. No escritório: Tabela e Desconto (rótulo à esquerda, valor à direita), um traço de 1 px `--pdf-linha` e o Total. No cliente: só o Total.
+  - à direita, a **caixa do Total**: 87 mm de largura, borda de **2 px** `--pdf-tinta`, raio 1,6 mm, fundo `--pdf-ficha`, 3 mm × 4,5 mm por dentro. No escritório: Valor de tabela, Desconto (%) e Desconto (R$) (rótulo à esquerda, valor à direita), um traço de 1 px `--pdf-linha` e o Valor final. No cliente: só o Valor final.
 - O Desconto da caixa sai na cor do texto (`--pdf-tinta`), sem laranja: o sinal "−" já diz o que é.
 
 ### 6.5 Logo
