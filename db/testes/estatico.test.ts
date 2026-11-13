@@ -110,6 +110,10 @@ const TABELAS_0056 = ['core.filial'] as const;
 const TABELAS_0057 = ['core.foto_tipo', 'core.cliente_foto'] as const;
 /** Tabela nova da 0058 (T-0158, ADR 0043: diagnóstico do aparelho; fora do sync; diagnostico.test.ts). */
 const TABELAS_0058 = ['plataforma.diagnostico'] as const;
+/** Tabelas novas da 0064–0066 (T-0170: tarefas, frase do dia, avatar, metas de produtividade e km do dia; t0170-*.db.test.ts). */
+const TABELAS_0064_0066 = [
+  'core.tarefa', 'core.tarefa_destinatario', 'core.frase_dia', 'core.usuario_avatar', 'core.meta_produtividade', 'core.deslocamento_dia',
+] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -184,6 +188,9 @@ describe('migrações (estático)', () => {
     expect(nomes[56]).toBe('0057_core_foto_pdv'); // T-0147 (RN-CORE-38, ADR 0041): core.foto_tipo com a Fachada semeada, core.cliente_foto, cliente.inativado_em e arquivo.perfis_leitura (foto-pdv.test.ts)
     expect(nomes[57]).toBe('0058_plataforma_diagnostico'); // T-0158 (ADR 0043): plataforma.diagnostico com protocolo global, RLS, app só insere/lê, worker só alerta_*, sa_listar_diagnosticos/sa_diagnostico e expurgar_diagnosticos (diagnostico.test.ts)
     expect(nomes[62]).toBe('0063_core_usuario_limite_desconto'); // T-0168 (RN-VEN-11a): core.usuario.desconto_limita_item (true), desconto_limita_pedido (false) e desconto_maximo_pedido_permil (0..1000, ‰) com 2 CHECKs (usuario-limite-desconto.db.test.ts)
+    expect(nomes[63]).toBe('0064_core_tarefa'); // T-0170 (RN-CORE-TAR-01..12): core.tarefa e core.tarefa_destinatario, gatilho tarefa_tocar_destinatarios e core.notificacao.tarefa_id (t0170-tarefa.db.test.ts)
+    expect(nomes[64]).toBe('0065_core_frase_avatar'); // T-0170 (RN-CORE-41 e RN-CORE-42): core.frase_dia com as 30 padrão pelo gatilho do tenant e core.usuario_avatar (t0170-frase-avatar.db.test.ts)
+    expect(nomes[65]).toBe('0066_core_meta_produtividade'); // T-0170: core.meta_produtividade, core.deslocamento_dia e 'itens_por_pedido' no CHECK de core.meta.indicador (t0170-meta-produtividade.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -237,6 +244,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0056,
         ...TABELAS_0057,
         ...TABELAS_0058,
+        ...TABELAS_0064_0066,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -455,8 +463,17 @@ describe('Sprint 1: 0005 arquivo, 0006 lote A do core, 0007 vendedor mínimo (es
     expect([...nuvemCore.RESULTADOS_VISITA_BANCO]).toEqual([...RESULTADOS_VISITA, 'nao_finalizado']);
     expect(valoresDoCheck('core.notificacao', 'tipo')).toEqual([...TIPOS_NOTIFICACAO]);
     expect([...nuvemCore.TIPOS_NOTIFICACAO_BANCO]).toEqual([...TIPOS_NOTIFICACAO]);
-    expect(valoresDoCheck('core.meta', 'indicador')).toEqual([...INDICADORES_META]);
-    expect([...nuvemCore.INDICADORES_META_BANCO]).toEqual([...INDICADORES_META]);
+    // core.meta.indicador: vale o ÚLTIMO CHECK meta_indicador_valido (a 0066, T-0170, o recria com 'itens_por_pedido').
+    const recriados = [...sqlUp.matchAll(/alter table core\.meta add constraint meta_indicador_valido\s+check \(indicador in \(([^)]*)\)\)/g)];
+    const checkMeta = recriados.length
+      ? [...recriados.at(-1)![1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!)
+      : valoresDoCheck('core.meta', 'indicador');
+    // T-0170: o banco aceita 'itens_por_pedido' antes do contrato; a parte do modulo-core acrescenta o valor a INDICADORES_META
+    // (modules/core/contracts/sync.ts) e o banco-dados, a INDICADORES_META_BANCO. Só ESTE valor pode sobrar no banco.
+    const SO_NO_BANCO_T0170 = 'itens_por_pedido';
+    const contrato: string[] = [...INDICADORES_META];
+    expect(checkMeta).toEqual(contrato.includes(SO_NO_BANCO_T0170) ? contrato : [...contrato, SO_NO_BANCO_T0170]);
+    expect([...nuvemCore.INDICADORES_META_BANCO]).toEqual(contrato);
     expect(valoresDoCheck('vendedor.pedido', 'status')).toEqual([...ORDER_STATUSES]);
     expect([...(nuvemVendedor.pedido.status.enumValues ?? [])]).toEqual([...ORDER_STATUSES]);
   });

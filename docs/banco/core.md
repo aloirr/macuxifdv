@@ -748,3 +748,147 @@ grava é só o BKO do Core; a carga do ERP e o CSV da Equipe não tocam nas colu
 Volta: `0063_core_usuario_limite_desconto.down.sql` apaga os 2 CHECKs e as 3 colunas (os limites gravados se perdem; reaplicar a
 0063 volta todos ao padrão). Volte antes o código do Core e do Vendedor que lê ou grava as colunas (senão 42703). Teste:
 `db/testes/usuario-limite-desconto.db.test.ts` (estático; banco e up/down no CI).
+
+## 0064 — tarefas do consultor (`0064_core_tarefa`; T-0170, RN-CORE-TAR-01..12, desenho docs/desenho/tarefas-consultor.md §3 e §5)
+Aditiva: 2 tabelas, 1 coluna em `core.notificacao` e 1 gatilho. RLS enable + force, `isolamento_tenant` e `manutencao`;
+`macuxi_app` com select, insert e update, **sem delete** (remover = `deleted_at`). Fotos da conclusão: `plataforma.arquivo`
+(`modulo = 'core'`, `finalidade = 'tarefa'`, `entidade = 'tarefa_destinatario'`); nenhuma tabela de fotos nova.
+
+### tarefa — a tarefa como foi cadastrada no BKO. Vai ao aparelho só pela linha do destinatário
+| Coluna | Tipo | Regra |
+|---|---|---|
+| colunas comuns | | `id` gerado no BKO (idempotência do POST); `external_id` único vivo (`tarefa_external_uk`) |
+| `autor_id` | uuid not null | FK composta `tarefa_autor_fk` -> `core.usuario` |
+| `titulo` | text not null | não vazio e ≤ 120 (`tarefa_titulo_tamanho`) |
+| `descricao` | text | ≤ 1000 (`tarefa_descricao_tamanho`) |
+| `prazo` | date not null | data civil no fuso do tenant |
+| `cliente_id` | uuid | FK composta `tarefa_cliente_fk`; nulo = sem cliente |
+| `tipo` | text not null | `simples`, `foto` ou `pesquisa` (`tarefa_tipo_valido`) |
+| `questionario_id` | uuid | **sem FK** (schema `pesquisa`, regra 1); só e sempre no tipo `pesquisa` (`tarefa_questionario_coerente`) |
+| `alvo` | text not null | `usuarios`, `equipe` ou `todos` (`tarefa_alvo_valido`); só para o BKO mostrar |
+| `equipe_id` | uuid | FK composta `tarefa_equipe_fk`; só e sempre no alvo `equipe` (`tarefa_equipe_coerente`, no gatilho `tarefa_conferir_coerencia`) |
+| `cancelada_em`, `cancelada_por` | timestamptz, uuid | juntos (`tarefa_cancelamento_par`, no gatilho `tarefa_conferir_coerencia`); `cancelada_por` FK composta -> `core.usuario` |
+| `motivo_cancelamento` | text | ≤ 300 (`tarefa_motivo_tamanho`), só na cancelada (`tarefa_motivo_so_cancelada`) |
+
+Índices: `tarefa_sync_ix`, `tarefa_autor_ix (tenant_id, autor_id, created_at desc)` (lista do BKO),
+`tarefa_prazo_abertas_ix (tenant_id, prazo) where cancelada_em is null and deleted_at is null` (atrasadas).
+**Gatilho `tarefa_tocar_destinatarios`** (AFTER UPDATE, função `core.tocar_destinatarios_tarefa()`): quando muda `titulo`,
+`descricao`, `prazo`, `tipo`, `cliente_id`, `questionario_id`, `cancelada_em` ou `deleted_at`, o `updated_at` das linhas de
+`tarefa_destinatario` da tarefa anda (o pull lê pelo destinatário). `external_id` e o próprio `updated_at` não disparam.
+**Gatilho de restrição `tarefa_conferir_coerencia`** (AFTER INSERT/UPDATE de `alvo`, `equipe_id`, `cancelada_em`, `cancelada_por`;
+função `core.tarefa_conferir_coerencia()`): as duas coerências que amarram coluna de FK (`tarefa_equipe_coerente` e
+`tarefa_cancelamento_par`) ficam aqui e não em CHECK. O CHECK roda na escrita da linha, antes da FK (gatilho no fim do
+comando): apontar para equipe ou usuário de outro tenant seria recusado pela coerência (23514) e não pela FK (23503), que é
+quem prova o isolamento (S0-025). Recusa com 23514, `CONSTRAINT` = nome da regra e a mesma mensagem do CHECK; o nome em
+minúsculas ordena o gatilho depois dos da FK (`RI_ConstraintTrigger_*`).
+
+### tarefa_destinatario — uma linha por consultor (a que vai ao aparelho). Pull `tarefa`, escopo **proprio**
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `tarefa_id` | uuid not null | FK composta `tarefa_dest_tarefa_fk` |
+| `usuario_id` | uuid not null | FK composta `tarefa_dest_usuario_fk` |
+| `concluida_em`, `recebida_em` | timestamptz | juntos (`tarefa_dest_conclusao_par`): hora do aparelho e hora do servidor (RN-CORE-TAR-06) |
+| `conclusao_id` | uuid | UUID do comando `tarefa_conclusao`; único no tenant (`tarefa_dest_conclusao_uk`): idempotência |
+| `observacao` | text | ≤ 500 (`tarefa_dest_observacao_tamanho`) |
+| `resposta_id` | uuid | resposta da Pesquisa (sem FK); gravada pelo consumidor de `pesquisa.resposta.registrada@1` |
+| `suspeita` | boolean not null default false | relógio do aparelho adiantado (RN-CORE-TAR-06) |
+
+- **Um vivo** por (tarefa, usuário) (`tarefa_dest_usuario_uk ... where deleted_at is null`; o `on conflict` da API leva o mesmo
+  predicado).
+- Conclusão (servidor): `update … set concluida_em, recebida_em = now(), conclusao_id … where id = $1 and concluida_em is null`
+  (vale a primeira).
+- Índices: `tarefa_dest_sync_ix`, `tarefa_dest_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)` (pull `proprio`),
+  `tarefa_dest_abertas_ix (tenant_id, usuario_id) where concluida_em is null and deleted_at is null`,
+  `tarefa_dest_tarefa_ix (tenant_id, tarefa_id)` (acompanhamento).
+- Volume: ~20 linhas por consultor na janela de 30 dias; até 500 por tarefa.
+
+### notificacao.tarefa_id
+`uuid` nulo; FK composta `notificacao_tarefa_fk` -> `core.tarefa`; só com `subtipo = 'tarefa'` (gatilho de restrição `notificacao_tarefa_subtipo`, AFTER INSERT/UPDATE de `tarefa_id`/`subtipo` com `tarefa_id` preenchido, função `core.notificacao_conferir_tarefa()`: subtipo nulo também recusa; 23514 depois da FK, como em `tarefa_conferir_coerencia`);
+um aviso por (usuário, tarefa) (`notificacao_tarefa_uk ... where tarefa_id is not null`): criar a mesma tarefa de novo não
+duplica. O aviso usa `tipo = 'sistema'` (RN-CORE-TAR-07).
+
+Volta: `0064_core_tarefa.down.sql` apaga as tabelas, as 3 funções, o gatilho de coerência da notificação e a coluna `notificacao.tarefa_id` (os avisos ficam, sem vínculo;
+fotos e bytes ficam). Teste: `db/testes/t0170-tarefa.db.test.ts`.
+
+## 0065 — frase do dia e foto ou avatar (`0065_core_frase_avatar`; T-0170, RN-CORE-41 e RN-CORE-42, desenho docs/desenho/inicio-frase-avatar-pedidos.md §1)
+Aditiva: 2 tabelas e a carga das 30 frases padrão. RLS enable + force, `isolamento_tenant` e `manutencao`; `macuxi_app` com
+select, insert e update, **sem delete**.
+
+### frase_dia — frases do rodízio do Início. Pull `frase_dia`, escopo **tenant** (inclui removidas)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `texto` | text not null | 1..120 depois do trim (`frase_dia_texto_tamanho`); único vivo sem diferenciar maiúsculas nem espaços nas pontas (`frase_dia_texto_uk` sobre `lower(btrim(texto))`) |
+| `ativa` | boolean not null default true | inativa fica no BKO e sai do rodízio |
+| `ordem` | integer not null | ordem do rodízio; empate pelo `id` |
+| `padrao_codigo` | text | `P01`…`P30` nas que vieram com o FDV (`frase_dia_padrao_codigo_formato`, `^P[0-9]{2,3}$`); nulo nas do tenant. Único por tenant **sem** filtro de `deleted_at` (`frase_dia_padrao_uk`): a padrão removida não volta |
+
+- **Carga das 30** (texto de `modules/core/domain/frase-avatar/frases-padrao.ts`, conferido pelo teste): função
+  `core.semear_frase_dia(uuid)`, id `uuid_de_chave('<tenant>:core.frase_dia:<código>')` (no TS:
+  `idDeChave(\`${tenant}:core.frase_dia:${codigo}\`)`), ordem 1..30, `on conflict do nothing`. Tenant novo: gatilho
+  `tenant_semear_frase_dia` (AFTER INSERT em `plataforma.tenant`), na mesma transação do `plataforma.provisionar_tenant` e da
+  `sa_provisionar_tenant`, **sem recriar** as funções (padrão da 0006/0018/0037/0056/0057). Tenants existentes: backfill na
+  migração. A frase padrão editada mantém o código (o texto do tenant vale).
+- Limite de 366 vivas por tenant: domain e API (422 `RN-CORE-41`).
+- Volume: 30 a 366 por tenant. Pull pelo `frase_dia_sync_ix`.
+
+### usuario_avatar — foto ou avatar do usuário, uma linha por troca. Pull `usuario_avatar`, escopo **usuários visíveis**; push pelo aparelho
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `id` | uuid | UUID da troca (aparelho ou navegador): idempotência |
+| `usuario_id` | uuid not null | FK composta `usuario_avatar_usuario_fk` |
+| `tipo` | text not null | `iniciais`, `avatar` ou `foto` (`usuario_avatar_tipo_valido`) |
+| `avatar_codigo` | text | `m1`..`m3`, `f1`..`f3` (`usuario_avatar_codigo_valido`); só e sempre no `avatar` (`usuario_avatar_codigo_coerente`) |
+| `arquivo_id` | uuid | id de `plataforma.arquivo` (sem FK, ADR 0010; `finalidade = 'avatar'`); só e sempre na `foto` (`usuario_avatar_arquivo_coerente`); único no tenant entre todas as linhas (`usuario_avatar_arquivo_uk`) |
+| `alterado_em` | timestamptz not null | instante da troca; decide quem vence (RN-CORE-42) |
+| `alterado_por` | uuid not null | FK composta `usuario_avatar_alterado_por_fk` -> `core.usuario` |
+
+- **Uma viva** por usuário (`usuario_avatar_vivo_uk`); sem viva = iniciais. Trocar = apagar a viva logicamente e gravar a nova
+  na mesma transação; troca superada (offline) é gravada já apagada.
+- Índices: `usuario_avatar_sync_ix`, `usuario_avatar_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)` (pull por
+  usuários visíveis).
+
+Volta: `0065_core_frase_avatar.down.sql` apaga as tabelas, o gatilho e as funções (as frases editadas pelo tenant e as trocas se
+perdem; reaplicar recarrega só as 30 padrão; fotos e bytes ficam). Teste: `db/testes/t0170-frase-avatar.db.test.ts`.
+
+## 0066 — metas de produtividade, km do dia e meta de itens por pedido (`0066_core_meta_produtividade`; T-0170, desenho docs/desenho/performance-produtividade.md §5, §6.1 e §7.4)
+Aditiva: 2 tabelas e 1 valor no CHECK de `core.meta`. RLS enable + force, `isolamento_tenant` e `manutencao`; `macuxi_app` com
+select, insert e update, **sem delete**.
+
+### meta_produtividade — meta de produtividade por escopo. Pull `meta_produtividade`: todas as vivas do tenant, sem janela
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `escopo` | text not null | `tenant`, `equipe` ou `usuario` (`meta_produtividade_escopo_valido`) |
+| `equipe_id` | uuid | FK composta `meta_produtividade_equipe_fk`; só e sempre no escopo `equipe` (`meta_produtividade_equipe_coerente`, no gatilho `meta_produtividade_conferir_alvo`) |
+| `usuario_id` | uuid | FK composta `meta_produtividade_usuario_fk`; só e sempre no escopo `usuario` (`meta_produtividade_usuario_coerente`, no gatilho `meta_produtividade_conferir_alvo`) |
+| `indicador` | text not null | um dos 12 de `INDICADORES_PRODUTIVIDADE` (`meta_produtividade_indicador_valido`) |
+| `valor` | integer not null | ≥ 0 (`meta_produtividade_valor_nao_negativo`), na unidade do indicador; a faixa é do domain/API |
+| `vigencia_inicio` | text not null | `AAAA-MM` (`meta_produtividade_vigencia_formato`) |
+| `atualizado_por` | uuid | FK composta -> `core.usuario`; nulo = carga |
+
+- **Único vivo** `meta_produtividade_vigencia_uk (tenant_id, escopo, coalesce(equipe_id, usuario_id, '0000…'::uuid),
+  indicador, vigencia_inicio) where deleted_at is null` (o `on conflict` da API repete a expressão e o predicado).
+- Índices: `meta_produtividade_indicador_ix (tenant_id, indicador, escopo)`, `meta_produtividade_sync_ix`.
+- **Gatilho de restrição `meta_produtividade_conferir_alvo`** (AFTER INSERT/UPDATE de `escopo`, `equipe_id`, `usuario_id`;
+  função `core.meta_produtividade_conferir_alvo()`): as duas coerências do alvo, fora do CHECK para a FK cruzada decidir antes
+  (23503; S0-025), como em `tarefa_conferir_coerencia`. Recusa com 23514 e o nome da regra.
+- Sentido e padrão do FDV ficam no contrato (`SENTIDO_PRODUTIVIDADE`, `META_PRODUTIVIDADE_PADRAO`): tenant novo sem seed.
+- Volume: ~12 por alvo.
+
+### deslocamento_dia — resumo diário do km. Pull `deslocamento_dia`, janela das visitas, escopo de usuário
+**Vazia até o rastreamento (T-0156)**; mantida só pelo servidor (recalcula o dia inteiro: update da mesma linha).
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `usuario_id`, `data` | uuid not null, date not null | FK composta `deslocamento_dia_usuario_fk`; único vivo `deslocamento_dia_uk (tenant_id, usuario_id, data)` |
+| `metros`, `pontos` | integer not null default 0 | ≥ 0 |
+| `primeiro_ponto_em`, `ultimo_ponto_em` | timestamptz | juntos (`deslocamento_dia_pontos_par`), último ≥ primeiro (`deslocamento_dia_pontos_ordem`) |
+| `origem` | text not null default 'rastreamento' | só `rastreamento` (`deslocamento_dia_origem_valida`); `manual` pede migração nova |
+
+Sem coordenada (dado pessoal derivado; retenção do resumo: 5 anos, T-0145 §5). Índices: `deslocamento_dia_sync_ix`,
+`deslocamento_dia_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`. Volume: 1 por usuário por dia útil.
+
+### meta.indicador
+`meta_indicador_valido` passa a aceitar `itens_por_pedido` (valor em **centésimos**: 3,50 itens = 350). As metas que existem não
+mudam. O `INDICADORES_META_BANCO` do espelho Drizzle ganha o valor junto com o `INDICADORES_META` do contrato.
+
+Volta: `0066_core_meta_produtividade.down.sql` apaga as 2 tabelas, a função do gatilho de alvo e, em `core.meta`, as metas `itens_por_pedido` (DELETE
+físico; reaplicar não as devolve) e volta o CHECK aos 4 indicadores da 0006. Teste: `db/testes/t0170-meta-produtividade.db.test.ts`.

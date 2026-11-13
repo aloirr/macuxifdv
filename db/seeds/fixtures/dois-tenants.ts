@@ -72,6 +72,12 @@
  * - T-0158 (0058, ADR 0043; DIAGNOSTICOS_FIXTURE, grupo 0x0d): diagnósticos do aparelho com o alerta já resolvido — A com 1 do
  *   botão (vendedor-1, enviado) e 1 queda (promotor, desligado), B com 1 erro de tela (vendedor-B, enviado). Sem print; o
  *   protocolo vem da sequência global (a fixture não grava a coluna).
+ * - T-0170 (0064–0066; T0170_FIXTURE, grupos 0x61–0x66): tarefa (A: do gerente para o vendedor-2, aberta, prazo hoje+7; B:
+ *   do admin para o vendedor-B) com 1 destinatário em cada; frase do dia própria (além das 30 padrão do gatilho
+ *   tenant_semear_frase_dia, fora das listas); avatar vivo (A: supervisor 'm2'; B: admin 'iniciais'); meta de produtividade
+ *   (A: equipe-2 visitas_dia 12 desde 2026-01; B: tenant km_dia 150 km desde 2026-01); resumo de km de ontem (A: promotor;
+ *   B: vendedor-B). Fora dos usuários e das vigências que os testes t0170-*.db.test.ts usam (analista, assistente,
+ *   vendedor-1 nas metas e no km, 2030-01, 2031-12, 2032-01).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -186,6 +192,13 @@ const G = {
   cliente_foto: 0x0c,
   // 0058 (T-0158, ADR 0043): diagnóstico do aparelho (protocolo da sequência global; nunca fixo na fixture)
   diagnostico: 0x0d,
+  // 0064–0066 (T-0170): tarefas, frase do dia, avatar, metas de produtividade e resumo do km
+  tarefa: 0x61,
+  tarefa_destinatario: 0x62,
+  frase_dia: 0x63,
+  usuario_avatar: 0x64,
+  meta_produtividade: 0x65,
+  deslocamento_dia: 0x66,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -334,6 +347,26 @@ export const FOTOS_PDV_FIXTURE = {
 export const DIAGNOSTICOS_FIXTURE = {
   A: { botao: a('diagnostico', 1), queda: a('diagnostico', 2) },
   B: { erroTela: b('diagnostico', 1) },
+} as const;
+
+/** 0064–0066 (T-0170): uma linha de cada tabela nova em A e em B (ver o cabeçalho). */
+export const T0170_FIXTURE = {
+  A: {
+    tarefa: a('tarefa', 1),
+    destinatario: a('tarefa_destinatario', 1),
+    frase: a('frase_dia', 1),
+    avatar: a('usuario_avatar', 1),
+    meta: a('meta_produtividade', 1),
+    deslocamento: a('deslocamento_dia', 1),
+  },
+  B: {
+    tarefa: b('tarefa', 1),
+    destinatario: b('tarefa_destinatario', 1),
+    frase: b('frase_dia', 1),
+    avatar: b('usuario_avatar', 1),
+    meta: b('meta_produtividade', 1),
+    deslocamento: b('deslocamento_dia', 1),
+  },
 } as const;
 
 /** 0057 (ADR 0041): quem abre documento sensível do PDV = PERFIS_DOC_SENSIVEL do Core (fonte única; o gerente entrou em R-20261110-084206). */
@@ -609,6 +642,15 @@ export const ORDEM_TABELAS = [
   // 0057 (T-0147): tipos de foto além da "Fachada" (gatilho) e as fotos do PDV (FKs -> core.cliente, core.foto_tipo, core.usuario)
   'core.foto_tipo',
   'core.cliente_foto',
+  // 0064 (T-0170): tarefas (FKs -> core.usuario, core.cliente, core.equipe) e destinatários (FKs -> core.tarefa, core.usuario)
+  'core.tarefa',
+  'core.tarefa_destinatario',
+  // 0065 (T-0170): frase própria (as 30 padrão vêm do gatilho tenant_semear_frase_dia) e avatar (FKs -> core.usuario)
+  'core.frase_dia',
+  'core.usuario_avatar',
+  // 0066 (T-0170): meta de produtividade (FKs -> core.equipe, core.usuario) e resumo do km (FK -> core.usuario)
+  'core.meta_produtividade',
+  'core.deslocamento_dia',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -1010,6 +1052,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'catalogo.produto_referencia': dadosProdutoReferencia(),
     ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
+    ...dadosT0170(hojeA, hojeB),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {
@@ -1020,6 +1063,54 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       hojeB,
     ),
     ...pesquisa,
+  };
+}
+
+/** 0064–0066 (T-0170): tarefa e destinatário, frase própria, avatar, meta de produtividade e resumo do km (T0170_FIXTURE). */
+function dadosT0170(
+  hojeA: string,
+  hojeB: string,
+): Pick<DadosFixture, 'core.tarefa' | 'core.tarefa_destinatario' | 'core.frase_dia' | 'core.usuario_avatar' | 'core.meta_produtividade' | 'core.deslocamento_dia'> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const FA = T0170_FIXTURE.A;
+  const FB = T0170_FIXTURE.B;
+  const comuns = { deleted_at: null, external_id: null };
+  const tarefa = (id: string, tenant_id: string, autor_id: string, titulo: string, prazo: string, cliente_id: string | null): Linha => ({
+    id, tenant_id, autor_id, titulo, descricao: null, prazo, cliente_id, tipo: 'simples', questionario_id: null, alvo: 'usuarios', equipe_id: null,
+    cancelada_em: null, cancelada_por: null, motivo_cancelamento: null, ...comuns,
+  });
+  const destinatario = (id: string, tenant_id: string, tarefa_id: string, usuario_id: string): Linha => ({
+    id, tenant_id, tarefa_id, usuario_id, concluida_em: null, recebida_em: null, conclusao_id: null, observacao: null, resposta_id: null, suspeita: false, ...comuns,
+  });
+  const deslocamento = (id: string, tenant_id: string, usuario_id: string, data: string, metros: number, pontos: number): Linha => ({
+    id, tenant_id, usuario_id, data, metros, pontos, primeiro_ponto_em: instante(data, '12:00'), ultimo_ponto_em: instante(data, '21:00'), origem: 'rastreamento', ...comuns,
+  });
+  return {
+    'core.tarefa': [
+      tarefa(FA.tarefa, A.tenantId, A.usuarios.gerente, 'Conferir a vitrine de freios', somarDias(hojeA, 7), A.clientes.c2),
+      tarefa(FB.tarefa, B.tenantId, B.usuarios.admin, 'Levar o catálogo novo', somarDias(hojeB, 7), null),
+    ],
+    'core.tarefa_destinatario': [
+      destinatario(FA.destinatario, A.tenantId, FA.tarefa, A.usuarios.vendedor2),
+      destinatario(FB.destinatario, B.tenantId, FB.tarefa, B.usuarios.vendedor),
+    ],
+    'core.frase_dia': [
+      { id: FA.frase, tenant_id: A.tenantId, texto: 'Fixture: frase própria da Alfa.', ativa: true, ordem: 31, padrao_codigo: null, ...comuns },
+      { id: FB.frase, tenant_id: B.tenantId, texto: 'Fixture: frase própria da Beta.', ativa: true, ordem: 31, padrao_codigo: null, ...comuns },
+    ],
+    'core.usuario_avatar': [
+      { id: FA.avatar, tenant_id: A.tenantId, usuario_id: A.usuarios.supervisor, tipo: 'avatar', avatar_codigo: 'm2', arquivo_id: null, alterado_em: DATA_FIXA_ACESSO, alterado_por: A.usuarios.supervisor, ...comuns },
+      { id: FB.avatar, tenant_id: B.tenantId, usuario_id: B.usuarios.admin, tipo: 'iniciais', avatar_codigo: null, arquivo_id: null, alterado_em: DATA_FIXA_ACESSO, alterado_por: B.usuarios.admin, ...comuns },
+    ],
+    'core.meta_produtividade': [
+      { id: FA.meta, tenant_id: A.tenantId, escopo: 'equipe', equipe_id: A.equipes.equipe2, usuario_id: null, indicador: 'visitas_dia', valor: 12, vigencia_inicio: '2026-01', atualizado_por: A.usuarios.gerente, ...comuns },
+      { id: FB.meta, tenant_id: B.tenantId, escopo: 'tenant', equipe_id: null, usuario_id: null, indicador: 'km_dia', valor: 150_000, vigencia_inicio: '2026-01', atualizado_por: null, ...comuns },
+    ],
+    'core.deslocamento_dia': [
+      deslocamento(FA.deslocamento, A.tenantId, A.usuarios.promotor, somarDias(hojeA, -1), 42_300, 150),
+      deslocamento(FB.deslocamento, B.tenantId, B.usuarios.vendedor, somarDias(hojeB, -1), 18_700, 96),
+    ],
   };
 }
 
