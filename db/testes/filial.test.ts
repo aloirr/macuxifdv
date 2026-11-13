@@ -105,7 +105,9 @@ describe('0056 filial (estático)', () => {
     expect(getTableConfig(nuvemCore.filial).columns.map((c) => c.name).sort()).toEqual(
       ['id', 'tenant_id', 'created_at', 'updated_at', 'deleted_at', 'external_id', 'codigo', 'nome', 'cidade', 'uf', 'padrao', 'ativo',
         // 0059 (T-0159): dados fiscais (filial-dados-fiscais.test.ts)
-        'cnpj', 'logradouro', 'numero', 'complemento', 'bairro', 'cep', 'telefone'].sort(),
+        'cnpj', 'logradouro', 'numero', 'complemento', 'bairro', 'cep', 'telefone',
+        // 0062 (T-0095): versão do ERP e desligamento pelo BKO
+        'erp_alterado_em', 'desligado_no_bko_em'].sort(),
     );
     expect(col(nuvemCore.cliente, 'filial_id')).toEqual(['uuid', true]);
     expect(col(nuvemCatalogo.deposito, 'filial_id')).toEqual(['uuid', true]);
