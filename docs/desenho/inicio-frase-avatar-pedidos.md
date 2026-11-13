@@ -17,7 +17,7 @@
 | 2 | Rodízio | **Igual para todos os usuários do tenant**, por dia civil no fuso do tenant: índice = dias desde 01/01/1970 mod N, sobre as frases ativas ordenadas. Calculado no aparelho, offline. Sem frase ativa, a linha não aparece. |
 | 3 | Foto ou avatar | Tabela nova `core.usuario_avatar`, uma linha viva por usuário: `iniciais` (padrão, sem linha), `avatar` (1 de 6 códigos) ou `foto` (arquivo). Os 6 avatares vêm **dentro do app e do BKO**, sem download. A foto segue a ADR 0010: fila de arquivos, `PUT /v1/arquivos/:id`, bucket privado, JPEG 480×640 feito no aparelho. |
 | 4 | Troca | O vendedor troca a própria no Perfil, offline (comando na fila). O BKO troca a de qualquer usuário do tenant. A última troca vence pelo `alterado_em`. |
-| 5 | DU | "DU 9 de 20" sai de `diasUteisDoPeriodo` (`@macuxi/comum`) com o calendário do Core (`core.calendario_metas@1`): o mesmo cálculo da Meta/dia. Recomendo contar os feriados nacionais já (decisão D3). |
+| 5 | DU | "DU 9 de 20" sai de `diasUteisDoPeriodo` (`@macuxi/comum`) com o calendário do Core (`core.calendario_metas@1`): o mesmo cálculo da Meta/dia, já com os feriados nacionais (D3 aprovada). |
 | 6 | Cards de Pedidos | Função pura nova no Vendedor. Enviado = pedido que chegou ao servidor e não foi recusado nem cancelado. Orçamento em aberto = não convertido e não cancelado. Período pela **data de emissão** no fuso do tenant. Valor = `total_cents` do pedido (sem frete). Dentro da janela de 90 dias, conta no aparelho; fora dela, uma consulta resumida no servidor. |
 
 ## 1. Dados e tabelas (pedido ao banco-dados)
@@ -191,7 +191,7 @@ export function fraseDoDia(frases: readonly FraseDia[], hoje: string /* AAAA-MM-
 - **Sem frase ativa**: `null`. A linha da frase **não aparece** e o painel encolhe; não há texto substituto.
 - **Exemplo** (12/11/2026, as 30 padrão ativas na ordem do arquivo): dia 20769, 20769 mod 30 = 9, frase nº 10 ("Cada cliente
   atendido é uma relação que cresce.").
-- **Recado do dia (RN-CORE-26)** (decisão D2): o recado marcado pelo supervisor **não ocupa a linha da frase**. Ele continua
+- **Recado do dia (RN-CORE-26)** (decisão D2, **em aberto**; esta é a proposta): o recado marcado pelo supervisor **não ocupa a linha da frase**. Ele continua
   como recado, no topo do balão do sino e da tela Recados e tarefas, destacado, porque o card de Recados sai do Início. O
   parâmetro `inicio.recado_do_dia_padrao` ("Bom trabalho hoje!") deixa de ter onde aparecer e sai do BKO, do contrato
   `ParametrosInicio` e do domain: a frase do dia ocupa esse papel.
@@ -253,7 +253,7 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
   20/11). **Hoje não entram**: a RN-CORE-26 diz "sem feriados até existir o cadastro", e o código só passa os nacionais quando
   a lista do tenant não é vazia (`feriadosDoCalendario`). Em novembro de 2026, segunda a sábado, isso dá 25 dias úteis em vez
   de 23 (Finados em 02/11 e Consciência Negra em 20/11), e a Meta/dia fica menor do que deveria.
-  - **Recomendação (decisão D3)**: contar os nacionais já. A mudança é uma linha no domain do Core (passar `[]` em vez de
+  - **Decisão D3 (aprovada em 13/11)**: os nacionais contam já na v1.0.6. A mudança é uma linha no domain do Core (passar `[]` em vez de
     `undefined` quando o tenant não tem feriado), muda a Meta/dia, a RV projetada e o fechamento no 2º dia útil, e precisa da
     nova redação da RN-CORE-26. Na quinta, 12/11/2026, o Início mostraria "DU 9 de 23".
 - **Feriados do tenant** (estaduais e municipais, ex.: 05/09 no Amazonas): ainda não há cadastro. Proponho, numa tarefa
@@ -267,7 +267,7 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
   FDV; analista e admin adicionam, editam, desativam, reordenam e removem no BKO (até 366, 1 a 120 caracteres, sem repetir).
   A frase de hoje é a mesma para todos os usuários do tenant: entre as frases ativas, na ordem do BKO, a de posição
   (dias desde 01/01/1970 da data de hoje no fuso do tenant) mod (número de frases ativas). Funciona offline. Sem frase ativa, a
-  linha não aparece. Frase padrão removida não volta. O recado do dia (RN-CORE-26) não ocupa a linha da frase.
+  linha não aparece. Frase padrão removida não volta. O recado do dia (RN-CORE-26) não ocupa a linha da frase (depende da D2).
 - **RN-CORE-42 Foto ou avatar.** O Início mostra, à direita do nome, a foto ou o avatar do usuário; o padrão são as
   iniciais. No Perfil do app, o usuário envia uma foto (câmera ou galeria, recortada em 3:4, JPEG 480×640, até 300 KB) ou
   escolhe 1 dos 6 avatares (3 masculinos e 3 femininos), ou volta às iniciais. Quem edita usuários no BKO também pode trocar.
@@ -280,7 +280,7 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
   "Enviado" em diante: recebido, em aprovação, aprovado, enviado ao ERP, integrado, faturado parcial e faturado; ficam fora
   rascunho, na fila, recusado e cancelado) e **Total** (a soma dos dois). Cada um com quantidade e valor (total do documento,
   sem frete). A busca e o chip de situação filtram só a lista.
-- **RN-CORE-26 (ajuste)**: sai a frase padrão do recado do dia (`inicio.recado_do_dia_padrao`); se a D3 for aprovada, "sem
+- **RN-CORE-26 (ajuste)**: se a D2 for aprovada, sai a frase padrão do recado do dia (`inicio.recado_do_dia_padrao`); e "sem
   feriados até existir o cadastro" vira "com os feriados nacionais; os do tenant entram quando houver o cadastro".
 
 ## 7. Plano por agente
@@ -288,12 +288,12 @@ Os cards "Orçamentos" e "A faturar" saem do Início. Saem com eles `resumoOrcam
 | Agente | O que faz | Horas |
 |---|---|---|
 | **banco-dados** | Migração `core.frase_dia` (com as 30 frases e a carga nos tenants existentes) e `core.usuario_avatar`; RLS; `provisionar_tenant`; SQL do pull das duas entidades; SQLite; seed da demo; `.db.test.ts` (RLS entre tenants, únicos, carga idempotente, frase removida não volta). Testes de banco no CI (`stack-isolado.yml`). | 6 |
-| **modulo-core** | Domain com teste antes (`fraseDoDia`, `validarFrase`, `duDoMes`, `aplicarTrocaAvatar`, D3 se aprovada); contratos `frases.ts` e `avatar.ts`; rotas do BKO (frases e avatar); `receber` do push; páginas do BKO (Frases do dia em Parâmetros › Início; foto ou avatar na edição do usuário); `inicio-local.ts` passa a entregar `frase`, `du` e `avatar`; tela do Perfil (folha "Foto ou avatar"); cache `avatar/`; retirada do `recado_do_dia_padrao`. | 18 |
+| **modulo-core** | Domain com teste antes (`fraseDoDia`, `validarFrase`, `duDoMes`, `aplicarTrocaAvatar`, feriados nacionais da D3); contratos `frases.ts` e `avatar.ts`; rotas do BKO (frases e avatar); `receber` do push; páginas do BKO (Frases do dia em Parâmetros › Início; foto ou avatar na edição do usuário); `inicio-local.ts` passa a entregar `frase`, `du` e `avatar`; tela do Perfil (folha "Foto ou avatar"); cache `avatar/`; retirada do `recado_do_dia_padrao`. | 18 |
 | **engenheiro-apps** | Shell: `capturarFotoPerfil()` (câmera frontal ou galeria, recorte 3:4, 480×640, JPEG 80) em `apps/mobile/src/services/camera.ts`; painel do topo do Início em `apps/mobile/src/components/inicio.tsx` (data · DU, saudação, frase, retângulo do avatar); revisão técnica das telas. | 8 |
 | **designer-ux** | Spec do painel (DU, frase, avatar), da folha "Foto ou avatar" do Perfil, dos 3 cards de Pedidos; os 6 avatares e as iniciais na marca v1, como arquivos em `packages/ui` (@2x e @3x ou SVG); componente `Avatar` em `packages/ui` (iniciais, código ou foto). | 7 |
 | **design-de-marca** | Valida os avatares e o painel na marca v1 antes da implementação. | 1 |
 | **modulo-vendedor** | `resumo-pedidos.ts` e `STATUS_ENVIADO` com teste antes (RN-VEN-43); cards na tela Pedidos com o toque que filtra; rota `GET /v1/vendedor/pedidos/resumo`; retirada dos cards do Início (§4.3). | 8 |
-| **modulo-gestor** | Cards na Pedidos do Gestão com o filtro de vendedor (se D6 aprovada). | 2 |
+| **modulo-gestor** | Cards na Pedidos do Gestão com o filtro de vendedor (D6 aprovada). | 2 |
 | **engenheiro-software** | `core/avatar` em `ARQUIVOS_DO_TENANT` e teto de 300 KB por finalidade na rota de arquivos; nota na ADR 0041 (leitura da foto do usuário pelo tenant); revisão final. | 4 |
 | **testes** | Rodízio (fuso, virada à meia-noite sem sinal, lista alterada, sem frase); avatar offline (fila, superado pelo BKO, reenvio idempotente, relógio errado); permissão (vendedor só o próprio; BKO no escopo); RLS entre tenants; cards × regra com o mock (R$ 2.446,00) e fora da janela; DU com e sem feriados. | 8 |
 | **corretor-redundancias** | Parecer nas telas (Início, Perfil, Pedidos, BKO) e no código retirado. | 2 |
@@ -306,25 +306,26 @@ engenheiro-apps (painel) → testes → corretor → revisão final. Os cards de
 
 | Risco | Efeito | Mitigação |
 |---|---|---|
-| DU sem feriados nacionais (D3 recusada) | "DU 10 de 25" em vez de "9 de 23" em 12/11; Meta/dia menor | Aprovar a D3; o cadastro do tenant vem depois. |
+| Feriados nacionais mudam a Meta/dia e a RV projetada no meio do mês (D3) | Meta/dia e RV de novembro sobem para todos na v1.0.6 | O gerente avisa a equipe junto com o build; os feriados do tenant vêm depois, no cadastro próprio. |
 | Foto de rosto é dado pessoal (LGPD) | Visível para o tenant inteiro | Bucket privado, rota autenticada, sem log, sai na troca e no desligamento; incluir a foto do perfil no termo da T-0145. |
 | BKO troca a foto de alguém | Foto sem o consentimento do vendedor | Auditoria da troca; o vendedor volta às iniciais quando quiser. |
 | Aparelho offline e BKO trocam | Escolha antiga sobrescreve a nova | Última troca vence pelo `alterado_em` (§2.3). |
 | Recorte 3:4 do seletor do Android varia por fabricante | Foto mal enquadrada | O app reduz e centraliza de novo depois do recorte; o retângulo usa `cover`. |
 | Frase muda no meio do dia quando o BKO mexe na lista | Duas frases no mesmo dia | Aceito (§3); o BKO mostra a "Frase de hoje" depois de salvar. |
-| Cards e lista com regras de período diferentes | Contagem da lista ≠ soma dos cards | D5; os cards não mostram contagem da lista. |
+| Cards e lista com regras de período diferentes | Contagem da lista ≠ soma dos cards | D5 aprovada; os cards não mostram contagem da lista. |
 | Mesmo arquivo do Início mexido por outras partes da T-0170 (sino, metas, produtividade) | Conflito entre agentes | O gerente sequencia `inicio.tsx` e `inicio-local.ts` numa frente só. |
 | APK anterior | Não conhece as entidades novas | Tudo aditivo: o APK antigo ignora `frase_dia` e `usuario_avatar`; contrato `@1` sem mudança incompatível. |
 
-## 9. Decisões para o Alexandre
+## 9. Decisões do Alexandre
 
-- **D1 — Frase igual para todos?** Recomendo **sim**: a mesma frase para o tenant inteiro no dia. Alternativa: cada vendedor
-  vê uma frase diferente.
-- **D2 — Recado do dia na linha da frase?** Recomendo **não**: o recado do dia fica no sino, destacado no topo, e a linha é
-  sempre a frase. A frase padrão do recado ("Bom trabalho hoje!") sai do BKO.
-- **D3 — Feriados nacionais no DU e na Meta/dia já na v1.0.6?** Recomendo **sim**. Muda o DU de novembro de 25 para 23 e a
-  Meta/dia de todos.
-- **D4 — Quem vê a foto?** Recomendo **todos os usuários do tenant**, como um crachá. Alternativa: só o próprio e os chefes.
-- **D5 — Período dos cards pela data de emissão?** Recomendo **sim**, como a meta. A lista continua mostrando também o que
-  mudou de situação no período.
-- **D6 — Os 3 cards também no Pedidos do Gestão?** Recomendo **sim**, somando a equipe ou o vendedor filtrado.
+Resposta no chat em 13/11/2026, 05h19 (Manaus), texto literal: "frase do dia é para todos. feriados nacional ja contam na
+1.0.6 todos veem a foto do vendedor. cards contam por data de emissão, logico. 3 cards no gestao tambem".
+
+| # | Pergunta | Decisão |
+|---|---|---|
+| D1 | Frase igual para todos? | **Aprovado**: a mesma frase para o tenant inteiro no dia. |
+| D2 | Recado do dia na linha da frase? | **Em aberto.** Recomendo **não**: o recado do dia fica no sino, destacado no topo, e a linha é sempre a frase. A frase padrão do recado ("Bom trabalho hoje!") sai do BKO. Até a resposta, nada muda no recado do dia. |
+| D3 | Feriados nacionais no DU e na Meta/dia na v1.0.6? | **Aprovado.** O DU de novembro/2026 (segunda a sábado) passa de 25 para 23, e a Meta/dia de todos muda junto. |
+| D4 | Quem vê a foto? | **Aprovado**: todos os usuários do tenant. |
+| D5 | Período dos cards pela data de emissão? | **Aprovado.** A lista continua com a regra dela (emitido ou mudou de situação no período). |
+| D6 | Os 3 cards também no Pedidos do Gestão? | **Aprovado**, somando a equipe ou o vendedor filtrado. |
