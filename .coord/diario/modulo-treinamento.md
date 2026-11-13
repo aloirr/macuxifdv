@@ -20,3 +20,4 @@
 2026-11-09 — T-0140 — lote 03: CSV/trilhas usam rotuloDoPerfil (Admin oficial); ranking usa exigirDataCivil e somarDiasCivis do comum; numeros.ts sem ehDataCivil/somarDias
 2026-11-09 — T-0140 — Reteste 2: RD-0014/RD-0042 já fechados; RD-0045 (arredondar/percentual) aguarda publicação no comum, nada alterado
 2026-11-09 — T-0140 — RD-0045: arredondar/percentual reexportados do @macuxi/comum; teste duplicado removido
+2026-11-12 — T-0166 — RD-0186: sai a faixa 'N atividades no aparelho' da aba Treinar (recusadas ficam); sem lógica nova
