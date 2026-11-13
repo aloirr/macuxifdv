@@ -144,3 +144,13 @@ Comportamento do `MotorSync` para quem enfileira (assinaturas sem mudança). Tes
 | Contrato | Dono | Campo | Compatibilidade | Situação |
 |---|---|---|---|---|
 | `SinalConector` (`POST /integracao/v1/sinal`, `modules/integracao/contracts/conector.ts`) | integracao | `atualizacao?: AtualizacaoConector \| null` = `{resultado: 'atualizado'\|'mantido'\|'revertido', codigo?: string ≤ 40, versao_de?: string ≤ 40, versao_para?: string ≤ 40, em: DataHoraUtc, mensagem: string 1..300}` (resultado da atualização automática do Conector, T-0116/T-0100 item 3) | aditivo, mesma versão: o schema do Hub é `z.object` não estrito (Hub antigo descarta o campo); Conector antigo não envia = "Sem informação" no monitor. Sinal sem o campo = sem atualização (não preserva a anterior; o Conector reenvia o último resultado relevante em todo sinal). Persistência em `integracao.conector.sinal_resumo.atualizacao` (jsonb existente, sem migração). `mensagem` sem URL, caminho, usuário nem exceção crua | **aprovado** pelo engenheiro-software em 2026-11-09 (R-20261109-002930); OpenAPI do Hub regerado pelo modulo-integracao no mesmo lote |
+
+## T-0168 (12/11, desenho `docs/desenho/T-0168.md`): limite de desconto do usuário (RN-VEN-11a), tudo aditivo
+
+| Contrato | Dono | O que entra | Compatibilidade |
+|---|---|---|---|
+| `LimiteDescontoSchema`, `LIMITE_DESCONTO_PADRAO` (`modules/core/contracts/usuarios.ts`) | core | `desconto_limita_item` (padrão true), `desconto_limita_pedido` (padrão false), `desconto_maximo_pedido_permil` (int 0..1000, ‰; null) | novo; usuários BKO: item obrigatório, criar com padrão, editar opcional |
+| entidade de sync `usuario` (`UsuarioSyncSchema`) | core | pull · escopo `usuarios` · servidor vence; só os 3 campos + base | nova; APK antigo não pede |
+| `core.cadastro_resumo@1` | core | `usuarios[]` ganha os 3 campos opcionais | aditivo, mesma versão; ausente = padrão |
+| `CODIGOS_RECUSA_PEDIDO` | vendedor | `desconto_pedido_acima_limite` (422) | aditivo |
+| `permilDoDescontoExibido`, `pedidoAcimaDoLimite`, `mensagemPedidoAcimaDoLimite` (`modules/vendedor/domain/limite-desconto.ts`; v2 em 13/11, R-20261112-183709 item 5) | vendedor | **trava pelo valor exibido**: o ‰ da linha "Desconto (%)" dos Totais (`pctExibicao(total_tabela − total, total_tabela)`, 1 casa, metade para cima, em inteiro) > limite ‰. 8,04% (exibe 8,0%) não trava num limite de 8,0%; 8,05% (exibe 8,1%) trava. A alçada (RN-VEN-10) segue pelo nominal exato. Frase única: "Pedido acima do desconto máximo (8,0%)" (RD-0196), sem autor | interno ao Vendedor (app e API usam a mesma função); sem mudança de payload, do código de recusa nem de versão |

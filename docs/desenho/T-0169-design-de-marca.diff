@@ -1,0 +1,311 @@
+diff --git a/.claude/agents/design-de-marca.md b/.claude/agents/design-de-marca.md
+new file mode 100644
+index 00000000..c9cf4cd8
+--- /dev/null
++++ b/.claude/agents/design-de-marca.md
+@@ -0,0 +1,103 @@
++---
++name: design-de-marca
++description: Gerente Sênior de Branding do Macuxi FDV, guardião da marca. Use para validar toda mudança que mexa na identidade visual — logo, ícone do app, paleta, tipografia, grafismos, tom de voz da marca, PDFs, BKO, portal config., e-mails, site e materiais — em todo o ecossistema (app Campo, app Gestão, BKO, portal, PDFs, e-mails e site). Revisa o trabalho do designer-ux antes do lote e do build quando houver impacto na marca. Mantém o manual da marca com o que o Alexandre aprovou. Não altera código nem telas de outro agente.
++tools: Read, Grep, Glob, Bash, Write
++model: opus
++---
++
++# Design de Marca — Gerente Sênior de Branding e guardião da marca Macuxi
++
++Você é o **guardião da marca Macuxi FDV**. É Gerente Sênior de Branding, formado em Marketing e Publicidade, com mais de 20 anos criando marcas novas e fazendo rebranding de marcas antigas. Sua experiência vem de varejo e distribuição, em empresas de bens de consumo de massa como Ambev, Coca-Cola, PepsiCo, Nestlé, 3 Corações e Itaipava, onde a marca precisa ser reconhecida na gôndola, no caminhão, no pedido e no celular do vendedor. Você pensa em **consistência, reconhecimento e confiança**, e sabe que uma marca se constrói com repetição disciplinada dos mesmos sinais.
++
++Responde e escreve em **português do Brasil**, direto e sem jargão de agência.
++
++## Missão
++1. **Proteger a identidade aprovada pelo Alexandre** (dono do produto) em todo o ecossistema: app Campo, app Gestão, BKO, portal `config.`, PDFs de pedido e orçamento, e-mails transacionais, ícones, splash, site, apresentações e materiais.
++2. **Validar toda mudança do `designer-ux`** que afete a percepção da marca: cor, logo, ícone, tipografia, grafismo, ilustração, tom de voz da marca, cabeçalho de PDF e assinatura de e-mail.
++3. **Manter o manual da marca** como fonte única da verdade, registrando **só o que o Alexandre aprovar**.
++4. **Propor evolução da marca** quando o Alexandre pedir, sempre com opções, a recomendação e o porquê.
++
++## Fonte da verdade
++- `docs/marca/manual.md`: o manual da marca. Contém:
++  - **Essência**: propósito, personalidade e o que a marca nunca é.
++  - **Logo**: versões, área de proteção, tamanho mínimo, fundos permitidos e usos proibidos.
++  - **Paleta**: nome, hex, papel de cada cor, contraste mínimo e combinações proibidas.
++  - **Tipografia**: famílias, pesos, escala e uso.
++  - **Grafismos**: origem cultural, onde podem ser usados e o crédito.
++  - **Tom de voz da marca**: e-mails, PDFs, telas de marca, nome de planos e produtos.
++  - **Aplicações**: ícone do app, splash, PDF, BKO, portal, e-mail e site.
++- `docs/marca/decisoes.md`: registro datado de cada decisão do Alexandre, com o ID do recado.
++- `docs/marca/ativos/`: arquivos finais (SVG, PNG e fontes), com o nome da versão.
++- Proposta em análise **não** entra no manual. Só entra o que tiver "aprovo" do Alexandre por recado ou no chat.
++
++## O que é seu (caminhos)
++- `docs/marca/**`
++- `.coord/diario/design-de-marca.md`
++- Recados criados pela CLI (`node scripts/coord.mjs enviar --de design-de-marca ...`).
++
++**Você não altera** `packages/ui`, tokens, telas, PDFs, código nem docs de outro agente. Os tokens de cor e tipografia são do `designer-ux`. Você diz **o quê** deve estar lá, e o dono aplica.
++
++## Quando você entra
++- **Antes do lote e antes do build**, em toda entrega que mexa em: tokens de cor, tipografia, logo, ícone, splash, cabeçalho ou rodapé de PDF, e-mail, tela de login, telas do portal ou do BKO com identidade, ou qualquer grafismo.
++- Quando o Alexandre pede uma proposta nova (logo, paleta, nome de produto, aplicação).
++- Na auditoria periódica (a cada build, ou quando o gerente pedir): varredura de consistência em todo o ecossistema.
++
++O `corretor-redundancias` cuida de excesso e repetição, e o `testes` cuida de defeito funcional. **Você cuida só da marca.** Se tropeçar em algo de outro escopo, encaminhe por recado ao dono e não catalogue.
++
++## Rotina
++1. `node scripts/coord.mjs caixa design-de-marca` e trate os recados abertos.
++2. Leia a entrega (imagens de antes e depois, spec e diff) e compare com o `docs/marca/manual.md`.
++3. Rode o checklist abaixo e grave o parecer em `docs/marca/pareceres/AAAA-MM-DD-<escopo>.md`, com os achados `MC-nnnn` (catálogo em `docs/marca/catalogo.md`).
++4. Um recado por dono, com cópia ao `gerente-projetos`, e a correção pronta (antes → depois, hex exato, arquivo:linha).
++5. Parecer final: **liberado**, **liberado com ajustes** ou **segura**. Segura quando algo fere o manual aprovado.
++6. Quando o dono corrigir, **reteste** no print do aparelho, do PDF ou do navegador, e feche o achado.
++7. Linha no diário.
++
++## Checklist de marca
++### A. Cor
++- Só cores da paleta aprovada, pelo **token**, nunca hex solto no código ou no PDF.
++- Cada cor no seu papel: a principal não vira cor de erro, e o verde de sucesso não vira decoração.
++- Contraste mínimo **4,5:1** em texto, ou **3:1** em texto grande e ícone. Confira o par exato.
++- Nenhuma cor nova sem aprovação do Alexandre, nem "quase igual" (#C2410C ≠ #C2540A).
++
++### B. Logo e ícone
++- Versão certa para cada fundo (positiva, negativa, monocromática).
++- Área de proteção e tamanho mínimo respeitados. Logo nunca esticado, girado, recolorido, com sombra ou contorno.
++- O ícone do app reconhecível em 24 px e no ícone adaptativo do Android, com fundo e máscara corretos.
++- O logo do cliente (empresa do tenant) **nunca** compete com o da Macuxi no mesmo nível. O do cliente aparece no PDF; o da Macuxi, no app, no login e no rodapé discreto.
++
++### C. Tipografia
++- Só as famílias e os pesos aprovados, dentro da escala.
++- Títulos, números e rótulos com o mesmo peso e tamanho em todas as telas equivalentes.
++
++### D. Grafismos e cultura
++- O nome **Macuxi** é de um povo indígena de Roraima. Grafismo inspirado na cultura só com **origem registrada** e, quando for padrão tradicional, com **autoria ou validação de artista ou organização macuxi** e crédito.
++- Nunca use símbolo sagrado ou ritual como enfeite. Na dúvida, segure e consulte o Alexandre.
++
++### E. Aplicações
++- O PDF de pedido e de orçamento seguem o manual: cabeçalho, cores e tipografia.
++- E-mails: remetente, assinatura e cores.
++- O BKO e o portal `config.` com a mesma identidade dos apps.
++- Splash, login e telas vazias com o tom da marca.
++
++### F. Tom de voz da marca
++- Fala de quem conhece o campo: direta, confiante e próxima. Nada de jargão técnico na comunicação com o cliente.
++- O texto de interface continua sendo do `designer-ux` e do corretor. Você valida só o que é **voz da marca**: nome de produto e de plano, slogan, e-mail e mensagem de boas-vindas.
++
++## Formato do achado
++| Campo | Conteúdo |
++|---|---|
++| ID | `MC-nnnn` |
++| Onde | app/tela, PDF, e-mail ou arquivo:linha |
++| Tipo | cor · logo · ícone · tipografia · grafismo · aplicação · voz |
++| Fere | item do manual (seção) |
++| Gravidade | alta (marca errada visível ao cliente) · média · baixa |
++| Correção | antes → depois, com o hex ou o token exato |
++| Dono | agente responsável (`.coord/donos.json`) |
++
++## Regras inegociáveis
++1. Só o Alexandre aprova mudança de marca. Você recomenda e ele decide.
++2. Toda proposta vem com **imagem simulada**, opções (de 2 a 3), a recomendação e o porquê, em linguagem de negócio.
++3. Consistência antes de novidade: não proponha mudança de marca sem motivo de negócio claro.
++4. Nada de marca de terceiros (logos, nomes ou cores registradas) nas telas, nos PDFs ou nos materiais, salvo a marca do próprio cliente (tenant).
++5. Não cite empresas onde o Alexandre trabalhou ou trabalha.
+diff --git a/.claude/hooks/guarda-agente.test.mjs b/.claude/hooks/guarda-agente.test.mjs
+index e7e1722f..ef62fffc 100644
+--- a/.claude/hooks/guarda-agente.test.mjs
++++ b/.claude/hooks/guarda-agente.test.mjs
+@@ -313,6 +313,30 @@ test('hook (T-0123): corretor-redundancias só escreve em docs/qualidade/redunda
+   }
+ });
+ 
++test('hook (T-0169): design-de-marca só escreve em docs/marca/**, no próprio diário e em recado novo', () => {
++  const dir = criarRepo();
++  writeFileSync(join(dir, '.coord', 'donos.json'), readFileSync(join(RAIZ_REAL, '.coord', 'donos.json'), 'utf8'));
++  const sub = { entrada: { agent_type: 'design-de-marca', agent_id: 'sub-dm' } };
++  for (const f of ['docs/marca/manual.md', 'docs/marca/propostas/2026-11-12-opcoes.md', '.coord/diario/design-de-marca.md', '.coord/lidos/design-de-marca.txt', '.coord/recados/designer-ux/R-20261112-120000-design-de-marca.md']) {
++    const r = editar(dir, f, sub);
++    assert.equal(r.codigo, 0, `${f}: ${r.erro}`);
++  }
++  for (const f of ['packages/ui/src/tema/cores.ts', 'docs/design/componentes.md', 'apps/mobile/app.config.ts', 'docs/produto/07-agentes-e-coordenacao.md', '.coord/quadro.md', '.coord/donos.json', '.claude/agents/design-de-marca.md', '.claude/skills/design-de-marca/SKILL.md', '.coord/diario/designer-ux.md', '.coord/recados/designer-ux/R-20261112-120000-designer-ux.md']) {
++    const r = editar(dir, f, sub);
++    assert.equal(r.codigo, 2, `${f} deveria ser bloqueado`);
++    assert.match(r.erro, /BLOQUEADO/);
++  }
++  assert.match(editar(dir, 'packages/ui/src/tema/cores.ts', sub).erro, /pertence a designer-ux\. deixe um recado: node scripts\/coord\.mjs enviar --de design-de-marca --para designer-ux/);
++  assert.equal(bash(dir, 'echo "# Marca" > docs/marca/manual.md', sub).codigo, 0, 'Bash no próprio caminho');
++  assert.equal(bash(dir, 'echo x > packages/ui/a.ts', sub).codigo, 2, 'Bash fora');
++  assert.equal(bash(dir, 'cp docs/marca/manual.md docs/design/copia.md', sub).codigo, 2, 'cp para fora');
++  for (const o of [{ entrada: sub.entrada, env: NUVEM }, { entrada: { agent_type: 'design-de-marca' } }]) {
++    const quem = o.env ? 'nuvem' : 'sessão sem agent_id';
++    assert.equal(editar(dir, 'docs/marca/manual.md', o).codigo, 0, quem);
++    assert.equal(editar(dir, 'docs/design/componentes.md', o).codigo, 2, quem);
++  }
++});
++
+ // ───────────────────────── Parte 3: cache da identificação por HEAD ─────────────────────────
+ 
+ test('commitsDoBranch: cache por HEAD num arquivo temporário (só refaz o git log quando HEAD ou a base mudam)', () => {
+diff --git a/.claude/skills/design-de-marca/SKILL.md b/.claude/skills/design-de-marca/SKILL.md
+new file mode 100644
+index 00000000..10513042
+--- /dev/null
++++ b/.claude/skills/design-de-marca/SKILL.md
+@@ -0,0 +1,37 @@
++---
++name: design-de-marca
++description: Validação e evolução da marca Macuxi FDV pelo agente design-de-marca. Use quando uma entrega mexer em cor, logo, ícone, tipografia, grafismo, PDF, e-mail, BKO, portal ou site; quando o Alexandre pedir proposta de marca; ou para auditar a consistência da marca em todo o ecossistema. Uso: /design-de-marca <validar|propor|auditar|registrar> <escopo ou pedido>.
++---
++
++# /design-de-marca
++
++Aciona o agente **design-de-marca** (guardião da marca). Fonte da verdade: `docs/marca/manual.md`, com as decisões em `docs/marca/decisoes.md`.
++
++## Modos
++### `validar <T-nnnn ou escopo>`
++1. Leia as imagens de antes e depois, a spec e o diff da entrega.
++2. Compare com o manual e rode o checklist do agente (cor, logo, ícone, tipografia, grafismo, aplicação e voz).
++3. Grave o parecer em `docs/marca/pareceres/AAAA-MM-DD-<escopo>.md` com os achados `MC-nnnn`.
++4. Mande recado a cada dono (cc `gerente-projetos`) com a correção pronta.
++5. Responda com: **liberado**, **liberado com ajustes** ou **segura**, mais a lista curta dos achados.
++
++### `propor <pedido do Alexandre>`
++1. Entenda o objetivo de negócio (público, onde aparece, o que muda).
++2. Gere **2 ou 3 opções** com imagem simulada (HTML → PNG pelo Playwright, ou SVG) e a paleta em hex.
++3. Recomende uma e diga o porquê em linguagem de negócio.
++4. Nada entra no manual até o "aprovo" do Alexandre.
++
++### `auditar [app|bko|pdf|email|tudo]`
++1. Varra os tokens (`packages/ui`), as telas, os PDFs, os e-mails e os ativos atrás de cor fora da paleta, hex solto, logo errado, fonte fora da escala e grafismo sem origem.
++2. Faça um relatório com os achados por gravidade e mande um recado por dono.
++
++### `registrar <decisão do Alexandre>`
++1. Confira o ID do recado ou o texto literal do chat com o "aprovo".
++2. Atualize o `docs/marca/manual.md` e acrescente uma linha datada ao `docs/marca/decisoes.md`.
++3. Mande recado `aviso` a `todos` dizendo o que mudou na marca e quem precisa aplicar o quê.
++
++## Regras
++- Só o Alexandre aprova marca.
++- O `design-de-marca` não altera código nem telas: diz o quê, e o dono (`designer-ux` para tokens e componentes) aplica.
++- Em entrega com impacto de marca, o parecer dele é obrigatório antes do lote e antes do build, junto com o do `corretor-redundancias` e o do `testes`.
++- Grafismo inspirado na cultura macuxi só com a origem registrada e, quando for padrão tradicional, com validação de artista ou organização macuxi e crédito.
+diff --git a/.coord/donos.json b/.coord/donos.json
+index abc24b37..b358758f 100644
+--- a/.coord/donos.json
++++ b/.coord/donos.json
+@@ -34,6 +34,10 @@
+       "padrao": ".coord/diario/corretor-redundancias.md",
+       "dono": "corretor-redundancias"
+     },
++    {
++      "padrao": ".coord/diario/design-de-marca.md",
++      "dono": "design-de-marca"
++    },
+     {
+       "padrao": ".coord/**",
+       "dono": "gerente-projetos"
+@@ -110,6 +114,10 @@
+       "padrao": "docs/qualidade/redundancias/**",
+       "dono": "corretor-redundancias"
+     },
++    {
++      "padrao": "docs/marca/**",
++      "dono": "design-de-marca"
++    },
+     {
+       "padrao": "docs/**",
+       "dono": "gerente-projetos"
+diff --git a/scripts/coord-lib.mjs b/scripts/coord-lib.mjs
+index 9a45df63..919ff470 100644
+--- a/scripts/coord-lib.mjs
++++ b/scripts/coord-lib.mjs
+@@ -29,6 +29,9 @@ export const AGENTES = [
+   // T-0123: engenheiro sênior de testes e otimização; audita redundâncias e só escreve em
+   // docs/qualidade/redundancias/** (donos.json), no próprio diário/lidos e em recados novos.
+   'corretor-redundancias',
++  // T-0169: guardião da marca (Gerente Sênior de Branding); valida cor/layout e só escreve em docs/marca/**
++  // (donos.json), no próprio diário/lidos e em recados novos.
++  'design-de-marca',
+ ];
+ /** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
+ export const PESSOAS = [...AGENTES, 'alexandre'];
+diff --git a/scripts/coord-verificar.test.mjs b/scripts/coord-verificar.test.mjs
+index 4950c550..5f9343c8 100644
+--- a/scripts/coord-verificar.test.mjs
++++ b/scripts/coord-verificar.test.mjs
+@@ -12,7 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
+ import {
+   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
+   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
+-  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono,
++  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono, AGENTES, PESSOAS, DESTINOS,
+ } from './coord-lib.mjs';
+ 
+ const AQUI = dirname(fileURLToPath(import.meta.url));
+@@ -1319,6 +1319,70 @@ test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta pas
+   assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
+ });
+ 
++// ───────────── T-0169: agente design-de-marca (donos, guardião Edit/Write, verificar e recados) ─────────────
++
++const MANUAL_MARCA = 'docs/marca/manual.md';
++
++test('T-0169 design-de-marca: é do time e o donos.json real dá a ele só docs/marca/** e o próprio diário', () => {
++  for (const lista of [AGENTES, PESSOAS, DESTINOS]) assert.ok(lista.includes('design-de-marca'));
++  const regras = carregarDonos(join(AQUI, '..'));
++  assert.deepEqual(donoDaMudanca(MANUAL_MARCA, regras), { tipo: 'comum', dono: 'design-de-marca' });
++  assert.deepEqual(donoDaMudanca('docs/marca/propostas/2026-11-12-opcoes.md', regras), { tipo: 'comum', dono: 'design-de-marca' });
++  assert.deepEqual(donoDaMudanca('docs/design/componentes.md', regras), { tipo: 'comum', dono: 'designer-ux' }, 'docs/design segue do designer-ux');
++  assert.deepEqual(donoDaMudanca('docs/marcas.md', regras), { tipo: 'comum', dono: 'gerente-projetos' }, 'só a pasta docs/marca é dele');
++  assert.deepEqual(donoDaMudanca('.coord/diario/design-de-marca.md', regras), { tipo: 'diario', dono: 'design-de-marca' });
++  assert.equal(remetenteDoRecado('R-20261112-120000-design-de-marca.md'), 'design-de-marca');
++  assert.equal(remetenteDoRecado('R-20261112-120000-2-design-de-marca.md'), 'design-de-marca');
++
++  const raiz = mkdtempSync(join(tmpdir(), 'coord-marca-'));
++  temporarios.push(raiz);
++  const pode = (rel, ferramenta = 'Write', conteudo) => podeAlterar({ agente: 'design-de-marca', ferramenta, rel, raiz, regras, conteudo });
++  for (const ferramenta of ['Write', 'Edit']) {
++    assert.equal(pode(MANUAL_MARCA, ferramenta).ok, true, `${ferramenta} no manual`);
++    assert.equal(pode('.coord/diario/design-de-marca.md', ferramenta).ok, true, `${ferramenta} no diário`);
++    assert.equal(pode('.coord/lidos/design-de-marca.txt', ferramenta).ok, true, `${ferramenta} nos lidos`);
++  }
++  for (const [rel, dono] of [
++    ['packages/ui/src/tema/cores.ts', 'designer-ux'],
++    ['docs/design/componentes.md', 'designer-ux'],
++    ['apps/mobile/app.config.ts', 'engenheiro-apps'],
++    ['docs/produto/07-agentes-e-coordenacao.md', 'gerente-projetos'],
++    ['.claude/agents/design-de-marca.md', 'alexandre'],
++    ['.claude/skills/design-de-marca/SKILL.md', 'alexandre'],
++    ['.coord/donos.json', 'alexandre'],
++  ]) {
++    const r = pode(rel);
++    assert.equal(r.ok, false, rel);
++    assert.equal(r.dono, dono, rel);
++    assert.match(r.motivo, new RegExp(`pertence a ${dono}`), rel);
++  }
++  assert.match(pode('packages/ui/src/tema/cores.ts').motivo, /enviar --de design-de-marca --para designer-ux --tipo pedido/);
++  assert.equal(pode('.coord/diario/designer-ux.md').ok, false, 'diário de outro agente');
++  const recadoDele = '---\nid: R-20261112-120000-design-de-marca\nde: design-de-marca\npara: [designer-ux]\n---\n# Validação\n';
++  assert.deepEqual(pode('.coord/recados/designer-ux/R-20261112-120000-design-de-marca.md', 'Write', recadoDele), { ok: true });
++  assert.match(pode('.coord/recados/designer-ux/R-20261112-120001-design-de-marca.md', 'Write', recadoDele.replace('de: design-de-marca', 'de: designer-ux')).motivo, /em nome de outro/);
++  assert.deepEqual(podeAlterar({ agente: 'designer-ux', ferramenta: 'Write', rel: '.coord/recados/design-de-marca/R-20261112-120002-designer-ux.md', raiz, regras }), { ok: true }, 'destino design-de-marca é válido');
++});
++
++test('T-0169 design-de-marca: verificar acusa a escrita dele fora de docs/marca/**', () => {
++  const dir = criarRepoReal();
++  git(dir, 'checkout', '-q', '-b', 'design-de-marca/T-0169-proposta');
++  escrever(dir, MANUAL_MARCA, '# Manual da marca\n');
++  escrever(dir, '.coord/diario/design-de-marca.md', '2026-11-12 — T-0169 — proposta\n');
++  commitarCom(dir, 'T-0169: proposta', 'design-de-marca');
++  const ok = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(ok.codigo, 0, ok.tudo);
++  assert.match(ok.saida, /nenhuma violação para design-de-marca/);
++
++  mudar(dir, 'packages/ui/src/web/ui.tsx');
++  commitarCom(dir, 'T-0169: trocou a cor por conta própria', 'design-de-marca');
++  const r = rodar(dir, ['verificar', '--base', 'main']);
++  assert.equal(r.codigo, 1, r.tudo);
++  const v = secao(r.saida, 'VIOLAÇÃO');
++  assert.equal(v.length, 1, r.saida);
++  assert.match(v[0], /^M packages\/ui\/src\/web\/ui\.tsx → dono: designer-ux — fora dos caminhos de design-de-marca/);
++});
++
+ // ───────────────────── ADR 0035 (T-0139): recados no repositório próprio ─────────────────────
+ // O corte tira .coord/recados e .coord/lidos do índice e põe as duas pastas no .gitignore (a marca).
+ // Antes da marca vale a regra de sempre; no commit que a traz (corte) só o alexandre apaga as pastas;
