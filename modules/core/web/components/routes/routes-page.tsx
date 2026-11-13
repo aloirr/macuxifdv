@@ -455,7 +455,7 @@ function RouteList({
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="m-0 font-display text-[18px] font-bold">Rotas do período</h2>
-        <span className="text-[12px] text-ink-2">{withRoute} com visitas · clique para ver e configurar</span>
+        <span className="text-[12px] text-ink-2">{withRoute} com visitas</span>
       </div>
       {loading && <LoadingBlock />}
       {!loading && rows.length === 0 && <span className="text-[13px] text-ink-2">Nenhuma rota no período com esses filtros.</span>}

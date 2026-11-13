@@ -18,6 +18,7 @@ type Frequencia = 1 | 2 | 4 | null;
  * Carteira (RF-CORE-02; RN-CORE-04): vínculos cliente × usuário × papel, com a frequência e o dia da visita que alimentam
  * "gerar rotas pela frequência". Escolha o vendedor ou promotor, ajuste ou desvincule; para vincular, busque o cliente.
  * Só analista e admin editam (`carteira.editar`); a API revalida e audita. Filtros na URL.
+ * T-0171 (RD-0216): a coluna Situação leva uma tag só (Cadastro incompleto > Sem coordenada); a coluna Ações, só o botão.
  */
 function CarteiraConteudo() {
   const params = useSearchParams();
@@ -140,7 +141,7 @@ function CarteiraConteudo() {
           </Panel>
 
           <Panel title={`${itens.length} cliente${itens.length === 1 ? '' : 's'} vigente${itens.length === 1 ? '' : 's'}`}>
-            <TableScroll minWidth={760}>
+            <TableScroll minWidth={880}>
               <table className="w-full border-collapse text-[13px]">
                 <thead>
                   <tr>
@@ -148,13 +149,14 @@ function CarteiraConteudo() {
                     <th className={th}>Cidade</th>
                     <th className={th}>Frequência</th>
                     <th className={th}>Dia da visita</th>
+                    <th className={th}>Situação</th>
                     <th className={th}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {itens.length === 0 && (
                     <tr>
-                      <td className={td} colSpan={5}>
+                      <td className={td} colSpan={6}>
                         Esta carteira está vazia. Busque um cliente acima para vincular.
                       </td>
                     </tr>
@@ -201,14 +203,13 @@ function CarteiraConteudo() {
                           ))}
                         </select>
                       </td>
+                      <td className={td} data-testid={`carteira.situacao.${c.id}`}>
+                        {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
+                      </td>
                       <td className={td}>
-                        <div className="flex items-center gap-2">
-                          {c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
-                          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
-                          <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
-                            Desvincular
-                          </Button>
-                        </div>
+                        <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
+                          Desvincular
+                        </Button>
                       </td>
                     </tr>
                   ))}
