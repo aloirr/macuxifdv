@@ -33,8 +33,8 @@
   --color-danger-soft: #fde8e6;
   --color-neutral-soft: #e6e9e2;
   --color-nav-active: #2b3743;
-  --color-nav-text: #c9d0d8;
-  --color-nav-muted: #8b96a3;
+  --color-nav-text: #c9ced5;
+  --color-nav-muted: #9aa3b0;
   --color-disabled: #8b96a3;
 
   --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
