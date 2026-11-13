@@ -48,10 +48,10 @@ describe('T-0170 · calendário de novembro de 2026, segunda a sexta (RN-CORE-41
     expect([c.du_total, c.du_decorridos, c.du_restantes]).toEqual([5, 5, 1]);
   });
 
-  // Divergência D-T0170-CAL8: o desenho (§1.3) define du_hoje como a posição de hoje entre os dias úteis do MÊS ("DU 9");
-  // a função devolve a posição no período (5 na semana). Recado ao modulo-core.
-  it.fails('CAL-8 · RN-CORE-41: du_hoje é a posição no mês (9), também num período de uma semana', () => {
-    expect(calendarioDoPeriodo('2026-11-09', '2026-11-15', '2026-11-13', SEG_SEX).du_hoje).toBe(9);
+  // D-T0170-CAL8 encerrado pelo desenho §11.2 (era it.fails): du_hoje é a posição de hoje entre os dias úteis do período.
+  // No mês coincide com o "DU 9" do Início; na semana a tela mostra "DU 5 de 5 · 1 restante".
+  it('CAL-8 · RN-CORE-41: du_hoje é a posição no período (5 na semana 09–15/11)', () => {
+    expect(calendarioDoPeriodo('2026-11-09', '2026-11-15', '2026-11-13', SEG_SEX).du_hoje).toBe(5);
   });
 
   it('CAL-9 · segunda a sábado: quinta 12/11 é o DU 9 de 23, com 15 restantes', () => {

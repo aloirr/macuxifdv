@@ -247,7 +247,8 @@ describe('T-0170 · variações da Produtividade', () => {
       jornada_liquida: { valor: 165, situacao: 'fora', amostra: 1 },
       fora_rota: { valor: 2500, situacao: 'fora', amostra: 4 },
       visitas_dia: { valor: 40, situacao: 'fora', amostra: 1 },
-      cobertura_rota: { valor: 10_000, situacao: 'dentro', amostra: 3 },
+      // A-2 (§3.1 linha 9): em Hoje entram todas as paradas do dia; 3 de 6 visitadas até agora.
+      cobertura_rota: { valor: 5_000, situacao: 'fora', amostra: 6 },
       raio_checkin: { valor: 50, situacao: 'dentro', amostra: 4 },
       km_dia: { valor: 30_000, situacao: 'dentro', amostra: 1 },
       km_cliente: { valor: 10_000, situacao: 'dentro', amostra: 3 },
