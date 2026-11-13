@@ -9,9 +9,7 @@
   uma a uma; o roteiro segue a **recomendação** de cada uma, como manda o desenho: D1 hoje conta nos dois (decorridos e restantes), D2 item = produto diferente, D3 visitas com extras, D4 feriados
   nacionais sempre, D5 padrão do FDV, D6 nome pelo tipo da meta, D7 meta proporcional. Se uma decisão mudar, a tabela
   afetada está indicada em cada caso.
-- **Situação desta entrega:** só o roteiro. As funções da N-A (`calendarioDoPeriodo`, `resultadosDoPeriodo`,
-  `produtividadeDoPeriodo`, `almocoDoDia`, `metaProdutividadeVigente`, `validarMetaProdutividade`) ainda não estão no
-  `main` (conferido em 13/11, `origin/main` = `c98e3d7`). Os testes automáticos (§9) entram quando a N-A chegar.
+- **Situação:** roteiro e testes automáticos contra a N-A (PR #124, `404b089`), com o resultado no §9.
 - **Conferência:** todas as contas foram feitas à mão e conferidas por um script descartável fora do repositório (mesmas
   fórmulas, mesmos dados). Nenhum número abaixo veio de código do produto.
 
@@ -341,7 +339,7 @@ período**.
 | VAL-1 | `tma` 0 · 1 · 480 · 481 | inválido · válido · válido · inválido (`campo` = `tma`) |
 | VAL-2 | `almoco` 0 · 240 · 241 | válido · válido · inválido |
 | VAL-3 | `jornada_liquida` 59 · 60 · 960 · 961 | inválido · válido · válido · inválido |
-| VAL-4 | `primeiro_checkin` 1439 · 1440 | válido · inválido |
+| VAL-4 | `primeiro_checkin` 0 · 1439 · 1440, com `ultimo_checkin` 1439 no mesmo lote (sozinho, 1439 cai na VAL-12) | válido · válido · inválido |
 | VAL-5 | `fora_rota` 10000 · 10001 | válido · inválido |
 | VAL-6 | `visitas_dia` 0 · 1 · 1000 · 1001 | inválido · válido · válido · inválido |
 | VAL-7 | `raio_checkin` 0 · 5000 · 5001 | inválido · válido · inválido |
@@ -356,12 +354,12 @@ período**.
 ## 6. Critérios do §10 do desenho × este roteiro
 | Critério | Onde | Situação |
 |---|---|---|
-| 1. Mês sintético com os mesmos números no app offline, na API e no BKO, para os 16 indicadores | §3 (4 Resultados) e §4 (12 Produtividade): valor esperado, fórmula e RN | roteiro pronto; o domain entra no §9; o app, a API e o BKO entram no e2e da etapa 5 |
-| 2. Cada caso de borda da §3.4 com teste no domain citando a RN | tabela abaixo | casos no roteiro; os testes entram com a N-A |
+| 1. Mês sintético com os mesmos números no app offline, na API e no BKO, para os 16 indicadores | §3 (4 Resultados) e §4 (12 Produtividade): valor esperado, fórmula e RN | domain: testes do §9, 16 indicadores batem no mês; 3 divergências em itens e no `du_hoje` da semana. App, API e BKO no e2e da etapa 5 |
+| 2. Cada caso de borda da §3.4 com teste no domain citando a RN | tabela abaixo | coberto em `core-performance-produtividade.test.ts`, todos verdes |
 | 3. Troca de período em < 100 ms com ~300 visitas | fora deste roteiro (carga no aparelho, etapa 5) | pendente |
 | 4. Vendedor só vê a si; promotor só Visitas; tenant A não lê meta de B | R-13, M-10 (domain); 404 e RLS no e2e | parcial |
-| 5. Usuário > equipe > tenant > padrão; voltar a herdar | M-1 a M-9 | roteiro pronto |
-| 6. Sem resumo de km, 2 cards "—" e os outros 10 normais | K-1 | roteiro pronto |
+| 5. Usuário > equipe > tenant > padrão; voltar a herdar | M-1 a M-9 | verde (domain) |
+| 6. Sem resumo de km, 2 cards "—" e os outros 10 normais | K-1 | verde (domain) |
 
 **Casos de borda da §3.4 do desenho:**
 
@@ -382,11 +380,11 @@ período**.
 | Dia sem almoço | 05/11 (e 07/11, antes do corte) | P-4, P-5, P-6 |
 | Relógio do aparelho errado | não se aplica ao domain (o servidor recusa, RN-CORE-11) | — |
 
-## 7. Como rodar (quando a N-A estiver no `main`)
-Sem banco, no `pnpm test` da raiz:
+## 7. Como rodar
+Sem banco, no `pnpm test` da raiz (`test:tests`):
 ```
-pnpm --filter ./tests exec vitest run modulos/core-performance-
-pnpm --filter ./tests typecheck:tests
+pnpm vitest run --config tests/vitest.config.ts tests/modulos/core-performance-
+pnpm typecheck:tests
 ```
 
 ## 8. Pontos confirmados
@@ -406,12 +404,25 @@ contabilizou." e "Confirmaso a logica de itens por pedido".
 | A-4 | Meta de Itens por pedido em Hoje e em Esta semana | **Meta do dia** | R-10 e R-11: 930. A conta da meta do dia de uma **média**, **confirmada** pelo Alexandre: Meta/pedido da §2.1 com o realizado até ontem e os DU decorridos **antes** de hoje (8), restantes contando hoje (11), como a RN-CORE-26. Pede `pedidos_ate_ontem` e `itens_distintos_ate_ontem` no `RealizadoServidorSchema` (modulo-core) |
 | A-5 | Km por cliente | **km rodado ÷ clientes atendidos**; o período só muda os dois totais | P-12 como está: Σ km ÷ Σ clientes (11.963), `amostra` = clientes (27). A média das razões diárias (11.656) é erro (§4.1) |
 
-## 9. Testes automáticos (entram com a N-A)
-Arquivos novos, um por função, todos com os dados do §1.2 montados num construtor só:
-- `tests/modulos/core-performance-calendario.test.ts`: CAL-1 a CAL-10.
-- `tests/modulos/core-performance-resultados.test.ts`: R-1 a R-15 e V-1.
-- `tests/modulos/core-performance-produtividade.test.ts`: P-1 a P-12, §4.1, K-1, V-2, H-1, S-1 e S-2.
-- `tests/modulos/core-performance-metas.test.ts`: M-1 a M-11 e VAL-1 a VAL-14.
+## 9. Testes automáticos
+Contra a N-A (`main` em `404b089`, PR #124), sem banco, no `pnpm test` da raiz (`test:tests`). Os dados do §1.2 são montados
+em cada arquivo; o oráculo é o deste roteiro, nunca a função testada.
 
-Cada `it` cita o caso e a RN (`P-3 · RN-CORE-43: …`). Divergência entre o esperado e a função vai por recado ao
-modulo-core, com o caso; o testes não corrige o domain.
+| Arquivo | Casos | Resultado (13/11) |
+|---|---|---|
+| `tests/modulos/core-performance-calendario.test.ts` | CAL-1 a CAL-10 | 12 verdes; CAL-8 (`du_hoje`) em `it.fails` |
+| `tests/modulos/core-performance-resultados.test.ts` | R-1 a R-15, V-1, V-2 | 24 verdes; R-7 (A-3) e R-10/R-11 itens (A-4) em `it.fails` |
+| `tests/modulos/core-performance-produtividade.test.ts` | P-1 a P-12, K-1, V-2, H-1, S-1, S-2 | 19 verdes, **sem divergência** |
+| `tests/modulos/core-performance-metas.test.ts` | M-1 a M-11, VAL-1 a VAL-14 | 24 verdes, sem divergência |
+
+`typecheck:tests` e `lint:tests` limpos nos 4 arquivos. Cada `it` cita o caso e a RN (`P-3 · RN-CORE-43: …`).
+
+**Divergências (em `it.fails`; recado ao modulo-core; o testes não corrige o domain).** Cada uma volta para `it` no commit da
+correção.
+
+| # | Caso | Esperado | A função devolve | Origem |
+|---|---|---|---|---|
+| D-T0170-A3 | R-7: Itens por pedido sem pedido | realizado **0**, atingimento 0, Gap 800 | realizado, atingimento e Gap **nulos** (Meta/pedido 800 e `a_cumprir` batem) | A-3 do Alexandre ("0") |
+| D-T0170-A4 | R-10: Itens por pedido em Hoje | meta do dia **930**; atingimento 8065; Gap 180 | meta do mês **800** (atingimento 9375, Gap 50); o contrato não traz `pedidos`/`itens` até ontem | A-4 do Alexandre ("Meta do dia", conta confirmada) |
+| D-T0170-A4 | R-11: Itens por pedido em Esta semana | meta do dia **930**; atingimento 7527; Gap 230 | média ponderada pelos DU, **800** (atingimento 8750, Gap 100) | A-4 |
+| D-T0170-CAL8 | CAL-8: `du_hoje` em Esta semana | **9** (posição no mês, §1.3 do desenho) | **5** (posição no período) | desenho §1.3 |
