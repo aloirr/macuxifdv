@@ -167,12 +167,14 @@ function calcular(e: EntradaProdutividade): Record<IndicadorProdutividade, Calcu
   const contadas = new Set(dias.flatMap((d) => [...d.clientes].map((c) => chave(c, d.data))));
   const fora = [...contadas].filter((k) => !planejadas.has(k)).length;
 
-  // Cobertura: planejadas até ontem + as de hoje já visitadas, dentro do período.
+  // Cobertura: planejadas até ontem + as de hoje já visitadas, dentro do período. No período Hoje, todas as paradas de hoje
+  // (A-2): a cobertura mostra o andamento da rota do dia.
   const fim = menorData(e.ate, e.hoje);
+  const modoHoje = e.de === e.hoje && e.ate === e.hoje;
   const consideradas = [...planejadas].filter((k) => {
     const data = k.slice(k.lastIndexOf('|') + 1);
     if (data < e.de || data > fim) return false;
-    return data < e.hoje || contadas.has(k);
+    return data < e.hoje || modoHoje || contadas.has(k);
   });
   const visitadas = consideradas.filter((k) => contadas.has(k)).length;
 

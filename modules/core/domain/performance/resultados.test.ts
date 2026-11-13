@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ResultadoIndicadorSchema, type RealizadoServidor } from '../../contracts/performance';
+import {
+  RealizadoServidorSchema,
+  ResultadoIndicadorSchema,
+  type RealizadoServidor,
+} from '../../contracts/performance';
 import type { CalendarioTenant } from '../meta-do-dia';
 import {
   resultadosDoPeriodo,
@@ -209,18 +213,26 @@ describe('RN-CORE-42: Gap, Meta/dia e Real/dia (§2.1)', () => {
     );
     expect(r.situacao).toBe('sem_meta');
   });
-  it('RN-CORE-42 (D2): Itens sem pedido no período: realizado nulo e Meta/pedido = a própria meta', () => {
+  it('RN-CORE-42 (D2, A-3): Itens sem pedido no período: realizado 0, atingimento 0, Gap = meta e Meta/pedido = a própria meta', () => {
     const r = resultado(
       { ...ABRIL, metas: METAS_ABRIL, realizado: realizado({ pedidos: 0, itens_distintos: 0 }), visitas: [] },
       'itens_por_pedido',
     );
     expect(r).toMatchObject({
       situacao: 'a_cumprir',
-      realizado: null,
-      gap: null,
-      atingimento_pb: null,
+      realizado: 0,
+      gap: 800,
+      atingimento_pb: 0,
       meta_dia: 800,
+      real_dia: null,
     });
+  });
+  it('RN-CORE-42 (A-3): Itens sem pedido e sem meta: realizado 0, sem_meta', () => {
+    const r = resultado(
+      { ...ABRIL, metas: [], realizado: realizado({ pedidos: 0, itens_distintos: 0 }), visitas: [] },
+      'itens_por_pedido',
+    );
+    expect(r).toMatchObject({ situacao: 'sem_meta', realizado: 0, meta: null });
   });
   it('RN-CORE-42: Real/dia arredonda meio para cima (100 ÷ 8 = 12,5 → 13)', () => {
     const e = {
@@ -385,12 +397,79 @@ describe('RN-CORE-42 (D7): período Hoje usa a meta do dia (RN-CORE-26)', () => 
     );
     expect(r).toMatchObject({ situacao: 'sem_meta', meta: null, realizado: 10, real_dia: null });
   });
-  it('RN-CORE-42: Itens por pedido em Hoje: a meta é a do mês (é razão, não se divide por dia)', () => {
-    const r = resultado(
-      { ...HOJE, metas: METAS_ABRIL, realizado: realizado({ pedidos: 2, itens_distintos: 13 }), visitas: [] },
+  // A-4: meta do dia de itens = meta + (meta − real até ontem) × DU antes de hoje ÷ DU restantes contando hoje, para cima em
+  // décimos. Abril, hoje 14/04: 8 DU antes de hoje e 12 restantes.
+  const itensHoje = (r: Partial<RealizadoServidor>, e: Partial<EntradaResultados> = {}) =>
+    resultado(
+      {
+        ...HOJE,
+        metas: METAS_ABRIL,
+        realizado: realizado({ pedidos: 2, itens_distintos: 13, ...r }),
+        visitas: [],
+        ...e,
+      },
       'itens_por_pedido',
     );
-    expect(r).toMatchObject({ meta: 800, realizado: 650, meta_dia: null });
+  it('RN-CORE-42 (A-4): Itens em Hoje: meta do dia 800 + 170 × 8 ÷ 12 = 913,3 → 920 (até ontem 23 pedidos e 145 itens)', () => {
+    expect(itensHoje({ pedidos_ate_ontem: 23, itens_distintos_ate_ontem: 145 })).toMatchObject({
+      situacao: 'a_cumprir',
+      meta: 920,
+      realizado: 650,
+      gap: 270,
+      atingimento_pb: 7065,
+      meta_dia: null,
+      real_dia: null,
+    });
+  });
+  it('RN-CORE-42 (A-4): Itens em Hoje sem pedido até ontem: a meta do mês', () => {
+    expect(itensHoje({ pedidos_ate_ontem: 0, itens_distintos_ate_ontem: 0 })).toMatchObject({ meta: 800 });
+  });
+  it('RN-CORE-42 (A-4): Itens em Hoje sem o até ontem na cópia (nulo ou ausente): a meta do mês', () => {
+    expect(itensHoje({ pedidos_ate_ontem: null, itens_distintos_ate_ontem: null })).toMatchObject({
+      meta: 800,
+    });
+    expect(itensHoje({})).toMatchObject({ meta: 800 });
+  });
+  it('RN-CORE-42 (A-4): Itens em Hoje com o real até ontem na meta ou acima: a meta do mês (manter a média)', () => {
+    expect(itensHoje({ pedidos_ate_ontem: 10, itens_distintos_ate_ontem: 80 })).toMatchObject({ meta: 800 });
+    expect(itensHoje({ pedidos_ate_ontem: 10, itens_distintos_ate_ontem: 85 })).toMatchObject({ meta: 800 });
+  });
+  it('RN-CORE-42 (A-3, A-4): Itens em Hoje sem pedido hoje: realizado 0, Gap = meta do dia', () => {
+    expect(
+      itensHoje({ pedidos: 0, itens_distintos: 0, pedidos_ate_ontem: 23, itens_distintos_ate_ontem: 145 }),
+    ).toMatchObject({ situacao: 'a_cumprir', meta: 920, realizado: 0, gap: 920, atingimento_pb: 0 });
+  });
+  it('RN-CORE-42 (A-4, RN-CORE-26): Itens em Hoje num dia não útil (domingo 12/04): sem meta do dia', () => {
+    expect(
+      itensHoje(
+        { pedidos_ate_ontem: 23, itens_distintos_ate_ontem: 145 },
+        { de: '2026-04-12', ate: '2026-04-12', hoje: '2026-04-12' },
+      ),
+    ).toMatchObject({ situacao: 'sem_meta', meta: null, realizado: 650 });
+  });
+  it('RN-CORE-42 (A-4): Itens em Hoje sem meta do mês: sem_meta', () => {
+    expect(itensHoje({ pedidos_ate_ontem: 23, itens_distintos_ate_ontem: 145 }, { metas: [] })).toMatchObject(
+      {
+        situacao: 'sem_meta',
+        meta: null,
+      },
+    );
+  });
+});
+
+describe('RN-CORE-42 (A-4): pedidos e itens até ontem no contrato', () => {
+  it('RN-CORE-42: a cópia do servidor aceita os dois campos, nulos sem fonte, e a cópia antiga sem eles', () => {
+    expect(
+      RealizadoServidorSchema.parse(realizado({ pedidos_ate_ontem: 23, itens_distintos_ate_ontem: 145 })),
+    ).toMatchObject({
+      pedidos_ate_ontem: 23,
+      itens_distintos_ate_ontem: 145,
+    });
+    expect(() =>
+      RealizadoServidorSchema.parse(realizado({ pedidos_ate_ontem: null, itens_distintos_ate_ontem: null })),
+    ).not.toThrow();
+    expect(() => RealizadoServidorSchema.parse(realizado())).not.toThrow();
+    expect(() => RealizadoServidorSchema.parse(realizado({ pedidos_ate_ontem: -1 }))).toThrow();
   });
 });
 
@@ -419,6 +498,54 @@ describe('RN-CORE-42 (D7): período menor que o mês: meta proporcional aos dias
     });
     expect(resultado(e, 'positivacao').meta).toBe(18); // round(70 × 5 ÷ 19 = 18,42)
     expect(resultado(e, 'itens_por_pedido')).toMatchObject({ meta: 700, realizado: 750, situacao: 'batida' });
+  });
+  // A-4: Esta semana com hoje útil (quinta 12/11: 7 DU antes de hoje, 12 restantes contando hoje): meta do dia de itens.
+  const semana = (hoje: string, r: Partial<RealizadoServidor> = {}): EntradaResultados => ({
+    de: '2026-11-09',
+    ate: '2026-11-15',
+    hoje,
+    calendario: SEG_SEX,
+    perfil: 'vendedor',
+    metas: NOV,
+    realizado: realizado({
+      pedidos: 2,
+      itens_distintos: 15,
+      pedidos_ate_ontem: 20,
+      itens_distintos_ate_ontem: 100,
+      ...r,
+    }),
+    visitas: [],
+  });
+  it('RN-CORE-42 (A-4): Itens em Esta semana: meta do dia 700 + 200 × 7 ÷ 12 = 816,7 → 820', () => {
+    expect(resultado(semana('2026-11-12'), 'itens_por_pedido')).toMatchObject({
+      situacao: 'a_cumprir',
+      meta: 820,
+      realizado: 750,
+      gap: 70,
+      atingimento_pb: 9146,
+      meta_dia: null,
+    });
+  });
+  it('RN-CORE-42 (A-4): Itens em Esta semana com hoje não útil (sábado 14/11): média ponderada pelos DU (700)', () => {
+    expect(resultado(semana('2026-11-14'), 'itens_por_pedido')).toMatchObject({
+      meta: 700,
+      situacao: 'batida',
+    });
+  });
+  it('RN-CORE-42 (A-4): a meta do dia de itens vale só em Hoje e Esta semana; outra semana fica na média ponderada', () => {
+    // Semana passada (02 a 08/11), com hoje 12/11: não é Esta semana.
+    expect(
+      resultado({ ...semana('2026-11-12'), de: '2026-11-02', ate: '2026-11-08' }, 'itens_por_pedido'),
+    ).toMatchObject({ meta: 700 });
+    // De 10 a 16/11 (não é de segunda a domingo), com hoje dentro: também não.
+    expect(
+      resultado({ ...semana('2026-11-12'), de: '2026-11-10', ate: '2026-11-16' }, 'itens_por_pedido'),
+    ).toMatchObject({ meta: 700 });
+  });
+  it('RN-CORE-42 (A-4): só Itens muda em Esta semana; Faturamento segue proporcional (5.000.000)', () => {
+    expect(resultado(semana('2026-11-12', { venda_cents: 2_000_000 }), 'venda_cents')).toMatchObject({
+      meta: 5_000_000,
+    });
   });
   it('RN-CORE-42: semana que cruza o mês soma a parte de cada mês', () => {
     // 26/10 a 01/11: 5 dias úteis de outubro (21 no mês) e nenhum de novembro (01/11 é domingo).
