@@ -304,6 +304,16 @@ describe('RN-CORE-43: período Hoje (§3.3)', () => {
     expect(r.visitas_dia).toEqual([20, 1]);
     expect(r.km_dia).toEqual([5_000, 1]);
     expect(r.km_cliente).toEqual([5_000, 1]);
+    expect(r.cobertura_rota).toEqual([5_000, 2]); // c1 feita, c2 ainda não: o andamento da rota do dia (A-2)
+  });
+  it('RN-CORE-43 (A-2): em Hoje, a cobertura conta todas as paradas do dia: 4 paradas e 1 visita = 25%, não 100%', () => {
+    const paradas = ['c1', 'c2', 'c3', 'c4'].map((c) => parada(c, QUI));
+    const r = indicadores({ ...HOJE, visitas: [visita('c1', QUI, '07:30', '08:00')], paradas });
+    expect(r.cobertura_rota).toMatchObject({ valor: 2500, amostra: 4, situacao: 'fora' });
+  });
+  it('RN-CORE-43: fora do período Hoje, a parada de hoje ainda não feita continua fora da conta (não é falta)', () => {
+    const paradas = ['c1', 'c2', 'c3', 'c4'].map((c) => parada(c, QUI));
+    const r = valores({ ...SEMANA, visitas: [visita('c1', QUI, '07:30', '08:00')], paradas });
     expect(r.cobertura_rota).toEqual([10_000, 1]);
   });
   it('RN-CORE-43: hoje entra nos indicadores por visita de um período maior (1º check-in, TMA, TMD, raio, fora de rota)', () => {
