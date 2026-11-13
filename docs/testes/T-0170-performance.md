@@ -4,8 +4,9 @@
 - **Desenho:** `docs/desenho/performance-produtividade.md` (§1, §2, §3, §6 e §10).
 - **Regras citadas:** RN-CORE-41 a RN-CORE-46 são as **propostas** da §8 do desenho (numeração a confirmar pelo gerente; ainda
   não estão no doc 03). Também RN-CORE-04, 10, 11, 14, 20, 21, 22, 26, 27 e RN-PRO-01.
-- **Decisões D1–D7:** sem resposta registrada do Alexandre, o roteiro segue a **recomendação** de cada uma, como manda o
-  desenho: D1 hoje conta nos dois (decorridos e restantes), D2 item = produto diferente, D3 visitas com extras, D4 feriados
+- **Decisões D1–D7:** o Alexandre aprovou "tudo" em R-20261112-210236 (T-0170 inteira na v1.0.5). O recado confirma uma a
+  uma só a D3 do Início (feriados nacionais no DU e na Meta/dia), que é a D4 daqui. As D1–D7 da Performance não aparecem
+  uma a uma; o roteiro segue a **recomendação** de cada uma, como manda o desenho: D1 hoje conta nos dois (decorridos e restantes), D2 item = produto diferente, D3 visitas com extras, D4 feriados
   nacionais sempre, D5 padrão do FDV, D6 nome pelo tipo da meta, D7 meta proporcional. Se uma decisão mudar, a tabela
   afetada está indicada em cada caso.
 - **Situação desta entrega:** só o roteiro. As funções da N-A (`calendarioDoPeriodo`, `resultadosDoPeriodo`,
