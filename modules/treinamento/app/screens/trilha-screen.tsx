@@ -70,7 +70,7 @@ export default function TrilhaScreen() {
               <ChipEstado texto="Concluída" tom="sucesso" pequeno />
             ) : trilha.obrigatoria ? (
               <ChipEstado
-                texto={resumo.atrasada ? 'Atrasada' : 'Obrigatória'}
+                texto={prazo ?? (resumo.atrasada ? 'Atrasada' : 'Obrigatória')}
                 tom={resumo.atrasada ? 'erro' : 'destaque'}
                 pequeno
               />
@@ -79,7 +79,6 @@ export default function TrilhaScreen() {
             ) : null}
           </View>
           <ProgressBar pct={resumo.progresso_pct} />
-          {prazo ? <Text style={[t.small, resumo.atrasada && { color: colors.danger }]}>{prazo}</Text> : null}
         </Cartao>
       ) : null}
 

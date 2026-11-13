@@ -176,7 +176,7 @@ function LinhaTrilha({
             <ChipEstado texto="Concluída" tom="sucesso" pequeno />
           ) : tl.obrigatoria ? (
             <ChipEstado
-              texto={tl.atrasada ? 'Atrasada' : 'Obrigatória'}
+              texto={prazo ?? (tl.atrasada ? 'Atrasada' : 'Obrigatória')}
               tom={tl.atrasada ? 'erro' : 'destaque'}
               pequeno
             />
@@ -185,9 +185,8 @@ function LinhaTrilha({
           ) : null}
         </View>
         <ProgressBar pct={tl.progresso_pct} />
-        <Text style={[t.small, tl.atrasada && { color: colors.danger }]}>
+        <Text style={t.small}>
           {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}
-          {prazo ? ` · ${prazo}` : ''}
         </Text>
       </Pressable>
       {tl.proxima_licao_id ? (
@@ -198,8 +197,6 @@ function LinhaTrilha({
           nivel={principal ? 'principal' : 'secundario'}
           onPress={() => irParaLicao(tl.proxima_licao_id!)}
         />
-      ) : !tl.concluida ? (
-        <Text style={t.small}>Abra a trilha para ver o que falta.</Text>
       ) : null}
     </View>
   );
