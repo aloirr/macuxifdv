@@ -2,7 +2,7 @@
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema } from '../../contracts';
-import { etiquetasDoItem, extrasLocais, MAXIMO_REFERENCIAS, montarExtras, SEM_EXTRAS, textoEquivale, textosMostrarMais } from './extras-item';
+import { etiquetasDoItem, extrasLocais, MAXIMO_REFERENCIAS, montarExtras, SEM_EXTRAS, textoEquivale } from './extras-item';
 import type { LeitorLocal } from './local';
 
 const AGORA = '2026-11-09T12:00:00.000Z';
@@ -31,13 +31,6 @@ describe('RN-CAT-09: "Equivale a" no cartão', () => {
   it('etiquetas: sem repetir (ignora maiúsculas); tamanho e quantidade ficam com o contrato (até 4 de 20)', () => {
     expect(etiquetasDoItem(['Novo', 'novo', ' ', 'Promo'])).toEqual(['Novo', 'Promo']);
     expect(ProdutoConteudoSyncSchema.safeParse({ ...conteudo(1), etiquetas: ['a', 'b', 'c', 'd', 'e'] }).success).toBe(false);
-  });
-});
-
-describe('RF-CAT-09: "Mostrar mais"', () => {
-  it('RF-CAT-09: o botão usa separador de milhar e plural certo', () => {
-    expect(textosMostrarMais(1134)).toEqual({ rotulo: 'Mostrar mais (1.134 restantes)', rotuloAcessivel: 'Mostrar mais produtos, 1.134 restantes' });
-    expect(textosMostrarMais(1).rotulo).toBe('Mostrar mais (1 restante)');
   });
 });
 

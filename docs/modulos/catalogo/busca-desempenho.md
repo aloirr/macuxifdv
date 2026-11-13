@@ -38,3 +38,38 @@ O retrato tem **geração por tenant**: cada descarte a incrementa; a carga anot
 - A primeira busca de um tenant (ou logo depois de uma gravação do Catálogo, que descarta o retrato) espera a leitura do catálogo e a montagem do índice em pedaços; as outras requisições seguem atendidas durante a montagem.
 - O retrato fica na memória do processo (até 20 tenants); com várias instâncias cada uma tem o seu, todas expiram em 60 s.
 - `catalogo.busca_produtos@1` na API (`consultas-texto.ts`) lê `produto_referencia` e acha pelo código do concorrente, mas **não é rota quente** (nada no servidor a chama) e ranqueia o catálogo inteiro a cada chamada, sem índice nem cache. Quem ligar no servidor precisa antes passar pelo índice e pelo retrato (R-20261108-182924). Não foi removida porque o manifesto a oferece e o SDK exige a implementação de toda consulta oferecida (ADR 0012).
+
+# Auditoria da busca de produtos no aparelho (T-0167, v1.0.5)
+
+Escopo: a consulta `catalogo.busca_produtos@1`, o índice FTS5 (`catalogo__busca`), o ranking, o cache e a reserva `searchProducts` do Vendedor. A busca da API (acima) é outra rota e não mudou.
+
+## Como a busca funciona hoje
+- **Campos do índice** (`app/indice.ts`, pesos do `bm25`): código (`sku` 10, `ean` 10, `codigos` 8, `referencias` 8), nome/descrição 1 (5), marca (3), categoria (2), aplicação/descrição 2 (2), atributos (1). Os quatro campos pedidos (código, descrição 1, descrição 2, marca) estão todos no índice e no ranking; testes em `app/busca-paginada-aparelho.test.ts`.
+- **Caminho:** `produtosLocais` (catálogo montado uma vez por versão do sync) → `preselecionar` (FTS5: os termos juntos, ou termo a termo com sinônimos, prefixo de 4/3 letras para erro de digitação; no máximo 400 candidatos) → `comAplicacao` (lê a descrição 2 só dos candidatos, com memória de 800 por versão) → `rankear` do domain (o mesmo da vitrine). Catálogo até 500 produtos: sem FTS5, o ranking varre tudo.
+- **Cache:** catálogo, vocabulário, sinônimos e aplicações lidas ficam em memória chaveados pela versão das linhas (`versaoLinhas`); o resultado da busca não é guardado, e agora não precisa: a tela guarda a lista ranqueada e pagina nela.
+
+## Achados da auditoria
+1. **Sem paginação:** a tela pedia `limite: 100` e mostrava 40; do 41º em diante o item nunca aparecia. Corrigido: a consulta devolve a lista inteira (até 400) e a tela mostra 20 por vez.
+2. **5.000 `produto_ids` por busca** enviados só para dizer o que o cliente pode comprar, e o ranking varria esses 5 mil (≈0,3 a 1 ms por produto, ou seja 1,5 a 5 s no aparelho acima de 500 produtos). Corrigido: `cliente_id` na entrada; o filtro (preço vigente na tabela do cliente, RN-CAT-06) corre dentro da consulta, **depois** da pré-seleção e só sobre os candidatos (o preço é lido só deles).
+3. **2ª consulta para a aplicação** (`textos_produto@1`) a cada busca. Corrigido: o item traz `aplicacao`, que a consulta já tinha lido para ranquear.
+4. **Código exato sem garantia de 1º lugar:** o ranking já pontua bem o código, mas o EAN/SKU digitado inteiro podia ficar atrás de produto com nota maior (campanha, mais vendido). Corrigido: SKU, EAN ou código alternativo idêntico ao texto (sem acento, caixa, hífen e espaço) vem em 1º; é a única mudança de ordem, o resto do ranking é o mesmo (testes atuais intactos).
+5. **Consulta de 1 e 2 letras** rodava o FTS5 e o ranking à toa. Corrigido: a regra `buscaPodeRodar` (3 caracteres, sem contar espaços) está no domain; a consulta devolve vazio sem ler o catálogo.
+6. **Sem ajuda quando nada casa.** Corrigido: `sugestao` ("Você quis dizer…") com o termo mais próximo do vocabulário.
+7. **Pendência (SDK):** o vocabulário da sugestão vem dos termos de nome, marca e categoria do catálogo em memória, não da tabela `catalogo__busca_vocab`: o contexto da consulta do SDK não expõe SQL nem o vocabulário do índice. Ver o recado ao engenheiro-software.
+
+## Contrato (aditivo, `catalogo.busca_produtos@1` segue @1)
+- Entrada: `cliente_id` (vendáveis do cliente, no lugar de `produto_ids`) e `lista_completa: true` (a lista ranqueada inteira, até o teto de 400; `limite` segue com máximo 200).
+- Saída: `total` (casaram, até 400), `sugestao` (só quando nada casou) e, por item, `aplicacao`.
+- Domain (`domain/busca-consulta.ts`, usados pelo app): `MINIMO_CARACTERES_BUSCA` (3), `TAMANHO_PAGINA_BUSCA` (20), `TETO_RANKING_BUSCA` (400), `buscaPodeRodar`, `paginaDaBusca(total, paginas)` ("Mostrando 20 de 87"), `codigoExatoNoTopo`, `sugerirTermo`.
+
+## Medição (PC, SQLite/FTS5 real com 20 mil produtos)
+O PC não é um Android: o benchmark (`app/desempenho-busca.test.ts`, `MACUXI_DESEMPENHO=1`) usa o motor SQLite do Node com o índice, a migração e o ranking reais do app. **A medição no aparelho de entrada fica para o teste do dono do produto.** Metas: p95 < 300 ms nos 20 primeiros e < 50 ms no "+ Mostrar mais".
+
+**Rodada de 12/11/2026 (PC do desenvolvimento, 20 mil produtos, aplicação de ~500 caracteres, `MACUXI_APLICACAO=500`):**
+- A máquina estava saturada por outros agentes (o `tsc` do pacote levou mais de 15 minutos; o controle do próprio teste, "ranking por produto", deu 2,9 ms contra a referência de 0,3 ms, cerca de 10 vezes mais lento; indexar 20 mil levou 633 s). **Estes números não valem como medida das metas**; servem como comparação relativa na mesma rodada.
+- Mesma rodada, código da aba sem alteração (`buscarLocal`): p95 das medianas 19.007 ms. Consulta antiga `limite: 20` (C9): p95 13.902 ms, mediana 10.568 ms por consulta.
+- **Consulta nova, lista completa de 400 (`lista_completa`), sem `produto_ids`:** p95 30.469 ms, mediana 13.658 ms. Custo relativo: cerca de +30% sobre a consulta de 20, porque o "Serve em" é calculado para até 400 itens e não para 20.
+- **"+ Mostrar mais" (fatia da lista já ranqueada, sem consulta):** p95 28,8 ms mesmo na máquina saturada; o trabalho é um `slice` de 20 itens, então o orçamento de 50 ms se sustenta.
+- Código exato: SKU `P100010` voltou em 1º. "Você quis dizer": a 1ª sugestão (monta o vocabulário de 20 mil produtos) levou 18.176 ms nesta máquina; a 2ª, com o vocabulário memorizado, 482 ms; devolveu "pastilha" para "pstlha".
+- **Leitura:** a aba (código inalterado) ficou tão lenta quanto a consulta nova, então a lentidão absoluta é da máquina saturada, não da mudança; o que a rodada mostra é o custo relativo (+30% com a lista de 400) e que o "+ Mostrar mais" não consulta nada. **A meta de 300 ms nos 20 primeiros não ficou comprovada** e deve ser conferida numa rodada com a máquina livre e, de fato, no aparelho do dono do produto. Se a consulta de 400 estourar no aparelho, a saída é calcular o "Serve em" só da página aberta (hoje o contrato o devolve para todos os itens), com um campo/chamada nova; não foi feito aqui para não ampliar o contrato além do aprovado.
+- Para repetir com a máquina livre: `MACUXI_DESEMPENHO=1 pnpm --filter @macuxi/catalogo exec vitest run app/desempenho-busca.test.ts` (opcionais `MACUXI_APLICACAO=2000`, `MACUXI_TIMEOUT_MS=1800000`). A linha `[desempenho T-0167]` traz os 20 primeiros, o "+ Mostrar mais" e a sugestão.

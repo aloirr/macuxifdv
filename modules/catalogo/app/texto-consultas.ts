@@ -10,11 +10,13 @@ import { implementarConsultaAparelho, type ContextoConsultaAparelho } from '@mac
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO, type ProdutoConteudoSync, type ProdutoReferenciaSync, type Referencia } from '../contracts';
 import { interpretarConsulta } from '../domain/consulta';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
-import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
+import { buscaPodeRodar, buscarComTotal, sugerirTermo, TETO_RANKING_BUSCA, textosParaConsulta } from '../domain/busca-consulta';
+import { produtosVendaveisNaTabela } from '../domain/arvore';
+import { normalizarTexto } from '../domain/texto';
 import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import type { ProdutoCatalogo } from '../domain/vitrine';
-import { comAplicacao, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
+import { comAplicacao, contextoLocal, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
 
 const vivas = <L extends { deleted_at: string | null }>(l: L[]) => l.filter((x) => !x.deleted_at);
 
@@ -90,7 +92,35 @@ export const consultaTextosProdutoAparelho = implementarConsultaAparelho(CONSULT
   return { itens: textosParaConsulta(produtos, entrada.produto_ids) };
 });
 
+/** Vocabulário do catálogo (termo normalizado → ocorrências) para o "Você quis dizer…"; uma vez por catálogo montado. */
+const vocabulariosDeTermos = new WeakMap<readonly ProdutoCatalogo[], Map<string, number>>();
+function termosDoCatalogo(produtos: readonly ProdutoCatalogo[]): Map<string, number> {
+  let m = vocabulariosDeTermos.get(produtos);
+  if (!m) {
+    m = new Map();
+    for (const p of produtos) for (const t of normalizarTexto(`${p.nome} ${p.marca} ${p.categoria}`).split(' ')) if (t.length >= 3) m.set(t, (m.get(t) ?? 0) + 1);
+    vocabulariosDeTermos.set(produtos, m);
+  }
+  return m;
+}
+
+/** RF-CAT-01 (T-0167): "Você quis dizer…" da busca da aba, do vocabulário do catálogo no aparelho; null sem termo parecido. */
+export async function sugestaoDaBuscaLocal(leitor: LeitorLocal, q: string): Promise<string | null> {
+  if (!buscaPodeRodar(q)) return null;
+  return sugerirTermo(q, termosDoCatalogo(await produtosLocais(leitor, { lerConcorrente: false })));
+}
+
+/** RN-CAT-06: dentro da consulta, só os produtos com preço vigente na tabela do cliente (no lugar dos até 5.000 `produto_ids`). */
+async function soVendaveisDoCliente(ctx: ContextoConsultaAparelho, clienteId: string, produtos: readonly ProdutoCatalogo[]): Promise<ProdutoCatalogo[]> {
+  const agora = ctx.agora().toISOString();
+  const contexto = await contextoLocal(ctx, { perfil: ctx.usuario()?.perfil ?? null, parametros: ctx.parametros(), agora, clienteId, ...(ctx.usuario()?.fuso ? { fuso: ctx.usuario()!.fuso } : {}) }, produtos);
+  const vendaveis = produtosVendaveisNaTabela(contexto.itensPreco, contexto.tabelaClienteId, agora);
+  return produtos.filter((p) => vendaveis.has(p.id));
+}
+
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
+  // RF-CAT-01 (T-0167): abaixo de 3 caracteres a consulta não roda
+  if (!buscaPodeRodar(entrada.q)) return { itens: [], total: 0, sugestao: null };
   // dependência inativa lança ConsultaIndisponivel (o Vendedor cai no plano B do seletor); Error de programação sobe
   const leitor: LeitorLocal = ctx;
   const todos = await produtosLocais(leitor, { lerConcorrente: false });
@@ -100,16 +130,19 @@ export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULT
   const filtros = interpretarConsulta(entrada.q, vocabulario);
   const candidatos = entrada.produto_ids ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length);
   const idsPedidos = entrada.produto_ids ? new Set(entrada.produto_ids) : null;
-  const produtos = await comAplicacao(leitor, candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : todos);
-  const itens = buscarParaConsulta({
+  let base = candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : todos;
+  // o filtro do que o cliente pode comprar corre sobre os candidatos (preço lido só deles), não sobre os 20 mil
+  if (entrada.cliente_id && !idsPedidos) base = await soVendaveisDoCliente(ctx, entrada.cliente_id, base);
+  const produtos = await comAplicacao(leitor, base);
+  const { itens, total } = buscarComTotal({
     produtos,
     q: entrada.q,
     produtoIds: entrada.produto_ids,
-    limite: entrada.limite,
+    limite: entrada.lista_completa ? TETO_RANKING_BUSCA : entrada.limite,
     sinonimos,
     vocabulario,
     parametros: parametrosDoTenant(ctx.parametros()),
     anoAtual: anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso),
   });
-  return { itens };
+  return { itens, total, sugestao: total === 0 ? sugerirTermo(entrada.q, termosDoCatalogo(todos)) : null };
 });

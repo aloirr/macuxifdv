@@ -17,6 +17,7 @@ import { entidadesSyncCatalogo } from '../../../tests/modulos/apoio/entidades-ca
 import { buscarProdutos } from '../domain/vitrine';
 import { interpretarConsulta } from '../domain/consulta';
 import { consultaBuscaProdutosAparelho, esquecerMemoriaTextos } from './texto-consultas';
+import { buscaPodeRodar, paginaDaBusca, TAMANHO_PAGINA_BUSCA } from '../domain/busca-consulta';
 
 const AGORA = '2026-11-06T14:00:00.000Z'; // hora-fixa-ok: instante do catálogo medido
 const base = { updated_at: '2026-10-01T00:00:00.000000Z', deleted_at: null, external_id: null };
@@ -35,6 +36,8 @@ function gerador(semente: number) {
 
 type Linha = Record<string, unknown> & LinhaSync;
 const N = Number(process.env.MACUXI_N ?? 20_000);
+/** Caracteres da aplicação por produto (2.000 = catálogo real; menos acelera a indexação em PC ocupado). */
+const TAMANHO_APLICACAO = Number(process.env.MACUXI_APLICACAO ?? 1950);
 function gerar() {
   const r = gerador(84);
   const pega = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)]!;
@@ -46,7 +49,7 @@ function gerar() {
     produto.push({ id, ...base, sku: `P${100000 + k}`, ean: null, nome: `${pega(PECAS)} ${pega(VEICULOS)} ${k}`, marca: pega(MARCAS), categoria: 'Autopeças', unidade: 'UN', ativo: true } as Linha);
     const trechos: string[] = [];
     let tam = 0;
-    while (tam < 1950) {
+    while (tam < TAMANHO_APLICACAO) {
       const de = 1995 + Math.floor(r() * 28);
       const faixa = r() < 0.1 ? `${de} em diante` : `${de}–${de + Math.floor(r() * 8)}`;
       const t = `Fiat ${pega(VEICULOS)} ${pega(VERSOES)} ${faixa} dianteiro motor flex`;
@@ -70,7 +73,7 @@ const mediana = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.le
 // marcas de progresso: só em memória, impressas se o teste falhar (nada grava em disco)
 const progresso: string[] = [];
 const marca = (m: string) => void progresso.push(m + ' ' + new Date().toISOString());
-describe('desempenho da busca offline: 20 mil produtos com aplicação de 2.000 caracteres (T-0084 critério 5)', { timeout: 600_000 }, () => {
+describe('desempenho da busca offline: 20 mil produtos com aplicação de 2.000 caracteres (T-0084 critério 5)', { timeout: Number(process.env.MACUXI_TIMEOUT_MS ?? 600_000) }, () => {
   // 20 mil produtos levam minutos num PC ocupado: opt-in só com MACUXI_DESEMPENHO=1 (nunca por CI=true: o Actions sempre o define); job próprio do CI
   it.skipIf(process.env.MACUXI_DESEMPENHO !== '1')('RF-CAT-02: aba e C9 com p95 < 300 ms; ranking por produto <= 0,3 ms com a aplicação em memória', async () => {
     onTestFailed(() => console.log(progresso.join('\n')));
@@ -183,6 +186,33 @@ describe('desempenho da busca offline: 20 mil produtos com aplicação de 2.000 
         `aba por etapa (${detalhe}); aba p95 ${p95Aba.toFixed(0)} ms (p95 das medianas ${p95MedAba.toFixed(0)}); C9 p95 ${p95C9.toFixed(0)} ms (medianas ${p95MedC9.toFixed(0)}); ` +
         `ranking por produto: frio ${msPorProdutoFrio.toFixed(2)} ms, com memória ${msPorProduto.toFixed(3)} ms; carga ${loadavg()[0]!.toFixed(2)}, cpus ${cpus().length}`,
     );
+    // T-0167: UMA consulta ranqueia até 400 (sem produto_ids); "+ Mostrar mais" é fatia local da lista; código exato e sugestão
+    type SaidaBusca = { itens: { produto_id: string }[]; total?: number; sugestao?: string | null };
+    const c9Lista = (q: string) => (consultaBuscaProdutosAparelho as unknown as { executar(e: unknown, c: ContextoConsultaAparelho): Promise<SaidaBusca> }).executar({ q, lista_completa: true }, ctx);
+    const primeiros: number[] = [];
+    const maisPaginas: number[] = [];
+    for (let volta = 0; volta < 3; volta++)
+      for (const q of CONSULTAS.filter(buscaPodeRodar)) {
+        let t = performance.now();
+        const r = await c9Lista(q);
+        primeiros.push(performance.now() - t);
+        // "+ Mostrar mais": a próxima página da lista já ranqueada (sem consulta); a contagem sai do domain
+        t = performance.now();
+        const pag = paginaDaBusca(r.total ?? r.itens.length, 2);
+        r.itens.slice(TAMANHO_PAGINA_BUSCA, pag.mostrando).map((i) => i.produto_id);
+        maisPaginas.push(performance.now() - t);
+      }
+    const exato = await c9Lista('P100010');
+    expect(exato.itens[0]!.produto_id, 'código exato em 1º').toBe(dados.produto[10]!.id);
+    const tSug = performance.now();
+    const semResultado = await c9Lista('pstlha');
+    const msSugestao = performance.now() - tSug;
+    const msSugestao2 = await (async () => { const t = performance.now(); await c9Lista('pstlha'); return performance.now() - t; })();
+    console.log(
+      `[desempenho T-0167] 20 primeiros (consulta única, lista completa, sem produto_ids): p95 ${p95(primeiros).toFixed(0)} ms, mediana ${mediana(primeiros).toFixed(0)} ms; ` +
+        `+ Mostrar mais (fatia local): p95 ${p95(maisPaginas).toFixed(2)} ms; sugestão (nada achado) 1ª ${msSugestao.toFixed(0)} ms, 2ª ${msSugestao2.toFixed(0)} ms -> "${semResultado.sugestao ?? ''}"`,
+    );
+    expect(p95(maisPaginas), '+ Mostrar mais p95').toBeLessThan(50 * (Number(process.env.MACUXI_FATOR_DESEMPENHO ?? '1') || 1));
     const folga = Number(process.env.MACUXI_FATOR_DESEMPENHO ?? '1') || 1;
     expect(p95MedAba, `aba p95 das medianas = ${p95MedAba.toFixed(0)} ms`).toBeLessThan(300 * folga);
     expect(p95MedC9, `C9 p95 das medianas = ${p95MedC9.toFixed(0)} ms`).toBeLessThan(300 * folga);

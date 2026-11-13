@@ -78,3 +78,6 @@
 2026-11-11 — T-0119 — busca com 20 mil sem travar a API: retrato renovado em segundo plano (versão max(updated_at) + assinatura, uma por tenant), índice montado em pedaços com setImmediate na carga do retrato, ranking reaproveita termos do índice, tolerância por tamanho/prefixo por faixa; it.fails mantido até o p95 do CI
 2026-11-11 — T-0119 — RD-0133: cederLaco exportado do domain e adiarConferencia/NOVA_TENTATIVA_RETRATO_MS no repositório
 2026-11-11 — T-0119 — it.fails da busca com 20 mil virou it (p95 244 ms no CI v1.0.4); doc atualizado
+2026-11-12 — T-0167 — busca paginada: lista_completa (até 400) + total, aplicacao e sugestao na consulta, cliente_id no lugar dos 5.000 produto_ids, código exato em 1º, mínimo de 3 caracteres e 'você quis dizer' (domain + app + testes); auditoria e medição em docs/modulos/catalogo/busca-desempenho.md (PC saturado: meta de 300 ms não comprovada)
+2026-11-12 — T-0167 — Catálogo do app: MostrarMais (página de 20, contagem do topo só o total) e NadaEncontrado com 'Você quis dizer' (sugestaoDaBuscaLocal) do kit; sai textosMostrarMais/PASSO_MOSTRAR_MAIS; aplicação já vem em busca_produtos@1 (recado ao vendedor)
+2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo
