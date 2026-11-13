@@ -9,6 +9,8 @@
   - o rastreamento de localização (T-0156, `docs/desenho/tracking.md`, na nuvem). Aqui só a interface mínima que a Performance lê (§5);
   - o visual dos cards (designer-ux);
   - a Performance do vendedor vista pelo supervisor no Gestão (fase 2, §7.5).
+- **Revisão de 13/11/2026:** respostas do Alexandre A-1 a A-5 (R-20261113-054601-testes e R-20261113-055707-alexandre),
+  a CAL-8 do testes e as leituras do modulo-core (R-20261113-055130-modulo-core). Resumo na §11.
 
 ## Resumo da decisão
 1. **Uma função pura por visão**, no `domain` do Core: `resultadosDoPeriodo` e `produtividadeDoPeriodo`. O app (offline), a API e o BKO
@@ -72,7 +74,8 @@ testes usa o calendário real.
   - `du_total` = dias úteis de `P`;
   - `du_decorridos` = dias úteis de `P` com data ≤ hoje;
   - `du_restantes` = dias úteis de `P` com data ≥ hoje. Hoje entra se for útil;
-  - `du_hoje` = posição de hoje entre os dias úteis do mês ("DU 9"). Em dia não útil, fica nulo e a tela mostra só "DU — de 20".
+  - `du_hoje` = posição de hoje entre os dias úteis **do período**. No mês, é o "DU 9" do Início; em Esta semana, "DU 5 de 5".
+    Em dia não útil ou com hoje fora do período, fica nulo e a tela mostra "DU — de 20" (CAL-8, §11).
   - Com a D1 recomendada, `du_decorridos + du_restantes = du_total + 1` em dia útil. A tela não soma os dois.
 - Uma função nova, `calendarioDoPeriodo(de, ate, hoje, cal)`, devolve esses quatro números. O Início usa a mesma.
 
@@ -101,6 +104,7 @@ Todos os valores trafegam em **inteiros**. A tela só formata.
 | Distância (raio, km) | metros | meio para cima | "58 m", "88 km", "8,2 km" |
 
 "Meio para cima" vale para valores positivos: `Math.round`. Toda divisão por zero devolve **nulo** ("sem dado"), nunca 0.
+**Exceção (A-3):** Itens por pedido com a fonte disponível e nenhum pedido no período mostra **0**, e não "—" (§2.1).
 
 ### 1.6 Situação de cada indicador
 - **Resultados:** a barra fica vermelha abaixo de 100% e azul noite com 100% ou mais, conforme o recado. Situações:
@@ -121,7 +125,7 @@ Todos os valores trafegam em **inteiros**. A tela só formata.
 | **Faturamento** (`venda_cents`) | RN-CORE-21 pelo tipo da meta: pedido aprovado na data de emissão, ou faturado na data do ERP, líquido de cancelamento e devolução. Com o Vendedor desligado e notas do ERP: RN-CORE-27. | `max(0, meta − real)` | `⌈Gap ÷ du_restantes⌉` em centavos | `round(real ÷ du_decorridos)` |
 | **Positivação** | Clientes distintos positivados no mês (RN-CORE-20 ou RN-CORE-27, nunca somadas). | idem | `⌈Gap ÷ du_restantes⌉`, inteiro | `round(real ÷ du_decorridos)`, inteiro |
 | **Visitas** | Visitas contadas no período (§1.4), extras incluídas (D3). | idem | `⌈Gap ÷ du_restantes⌉`, inteiro | `round(real ÷ du_decorridos)`, inteiro |
-| **Itens por pedido** | `round(100 × Σ itens_distintos ÷ nº de pedidos)`, sobre os mesmos pedidos que contam na meta de pedido (RN-CORE-21: aprovado, integrado ou faturado, pela emissão). | `max(0, meta − real)` | **Meta/pedido** (abaixo) | **Real** = o próprio `real` |
+| **Itens por pedido** | `round(100 × Σ itens_distintos ÷ nº de pedidos)`, sobre os mesmos pedidos que contam na meta de pedido (RN-CORE-21: aprovado, integrado ou faturado, pela emissão). **Sem pedido no período: 0** (A-3): atingimento 0, Gap = meta, Meta/pedido = meta, `a_cumprir`. Sem a fonte (Vendedor desligado, promotor): `sem_dado`. | `max(0, meta − real)` | **Meta/pedido** (abaixo) | **Real** = o próprio `real` |
 
 - **Atingimento** = `round(10000 × real ÷ meta)`. Pode passar de 10000. A barra para em 100% e o número não.
 - **Gap = 0** (meta batida): Meta/dia e Meta/pedido ficam nulas e a tela mostra "batida", como a RN-CORE-26. Nunca aparece
@@ -148,11 +152,21 @@ Positivação 38/70: Gap 32, Meta/dia ⌈32 ÷ 12⌉ = 3, Real/dia round(38 ÷ 9
 | Período | Meta do período | Realizado | Meta/dia · Meta/pedido |
 |---|---|---|---|
 | Um mês (este, passado ou escolhido) | meta do mês | §2.1 | só no mês de hoje (encerrado: nula) |
-| **Hoje** | a meta do dia da RN-CORE-26: `⌈(meta do mês − realizado até ontem) ÷ du_restantes do mês⌉`, contando hoje | realizado de hoje | nula (a própria meta já é do dia) |
-| Ontem, Esta semana, um dia escolhido | **proporcional**: Σ por mês `round(meta_mês × du(P ∩ mês) ÷ du(mês))` | realizado no intervalo; positivação = clientes distintos no intervalo | nula |
+| **Hoje** | a meta do dia da RN-CORE-26: `⌈(meta do mês − realizado até ontem) ÷ du_restantes do mês⌉`, contando hoje. **Itens por pedido:** a meta do dia de itens (abaixo, A-4) | realizado de hoje | nula (a própria meta já é do dia) |
+| **Esta semana** | proporcional, como a linha de baixo. **Itens por pedido:** a meta do dia de itens de hoje (A-4) | realizado no intervalo | nula |
+| Ontem, um dia escolhido | **proporcional**: Σ por mês `round(meta_mês × du(P ∩ mês) ÷ du(mês))`. Itens por pedido: média das metas mensais ponderada pelos dias úteis | realizado no intervalo; positivação = clientes distintos no intervalo | nula |
 | Este ano, ano escolhido | Σ das metas dos meses do período até o mês de hoje; Itens por pedido = média das metas mensais ponderada pelos pedidos de cada mês | Faturamento e visitas somados. Positivação = **soma das positivações mensais** (o cliente conta uma vez por mês, como as metas). Itens = Σ itens ÷ Σ pedidos | nula |
 
 Mês sem meta cadastrada não soma na meta. Se nenhum mês do período tiver meta, a situação fica `sem_meta`.
+
+**Meta do dia de Itens por pedido (A-4, confirmada pelo Alexandre em 13/11):** é a Meta/pedido da §2.1 calculada no começo do dia.
+- Conta: `meta + (meta − real até ontem) × DU decorridos antes de hoje ÷ DU restantes contando hoje`, arredondada para cima em
+  décimos. "Real até ontem" = itens distintos até ontem ÷ pedidos até ontem, no mês.
+- Exemplo do roteiro (`docs/testes/T-0170-performance.md`, R-10): meta 8,00, até ontem 23 pedidos e 145 itens (6,30), 8 DU antes de
+  hoje e 11 restantes: 800 + 170 × 8 ÷ 11 = 923,6 → **9,3** (930).
+- Sem pedido até ontem: a própria meta do mês. Real até ontem ≥ meta: a própria meta do mês (manter a média).
+- Hoje não é dia útil: não há meta do dia (RN-CORE-26). Em Hoje, `sem_meta`; em Esta semana, vale a média ponderada da linha de baixo.
+- O servidor manda `pedidos_ate_ontem` e `itens_distintos_ate_ontem` (§7.4), como já manda a venda e a positivação até ontem.
 
 ### 2.4 Por perfil e licença
 - **Vendedor:** os 4 cards.
@@ -172,15 +186,15 @@ Todas as médias são **por dia trabalhado** (§1.4), salvo indicação na linha
 | 1 | **1º check-in** (`primeiro_checkin`) | média, nos dias trabalhados, do minuto do dia do **primeiro** `checkin_em` | até | minuto do dia |
 | 2 | **Último check-in** (`ultimo_checkin`) | média, nos dias encerrados, do minuto do dia do **último** `checkin_em` | a partir de | minuto do dia |
 | 3 | **TMA**, tempo médio de atendimento (`tma`) | média de `checkout_em − checkin_em` das visitas com check-out real, exceto `cliente_fechado`. Média **por visita**, não por dia | até | minutos |
-| 4 | **TMD**, tempo médio de deslocamento (`tmd`) | média dos **intervalos** entre o check-out real de uma visita e o check-in da visita seguinte no mesmo dia, sem o intervalo do almoço (§3.2). Média por intervalo | até | minutos |
+| 4 | **TMD**, tempo médio de deslocamento (`tmd`) | média dos **intervalos** entre o check-out real de uma visita e o check-in da visita seguinte no mesmo dia, sem o intervalo do almoço (§3.2). O intervalo termina no check-in, então conta mesmo que essa visita seguinte fique sem check-out (A-1). Média por intervalo | até | minutos |
 | 5 | **Almoço** (`almoco`) | média, nos dias encerrados **com almoço identificado** (§3.2), da duração do almoço | até | minutos |
 | 6 | **Jornada líquida** (`jornada_liquida`) | média, nos dias encerrados, de `fim − 1º check-in − almoço do dia` (almoço não identificado = 0). `fim` = o maior entre o último check-out real e o último check-in | a partir de | minutos |
 | 7 | **% fora de rota** (`fora_rota`) | visitas contadas **sem** parada planejada do mesmo cliente no mesmo dia ÷ visitas contadas. O par cliente + dia é a mesma chave da RN-CORE-20, e não `rota_parada_id` | até | pontos-base |
 | 8 | **Visitas por dia** (`visitas_dia`) | visitas contadas nos dias encerrados ÷ dias trabalhados encerrados | a partir de | décimos |
-| 9 | **Cobertura de rota** (`cobertura_rota`) | paradas planejadas visitadas ÷ paradas planejadas consideradas, no máximo 100% (RN-CORE-20 e RN-GES-05). **Consideradas** = paradas com data anterior a hoje, mais as de hoje **já visitadas**: parada de hoje ainda não feita não é falta | a partir de | pontos-base |
+| 9 | **Cobertura de rota** (`cobertura_rota`) | paradas planejadas visitadas ÷ paradas planejadas consideradas, no máximo 100% (RN-CORE-20 e RN-GES-05). **Consideradas** = paradas com data anterior a hoje, mais as de hoje **já visitadas**: parada de hoje ainda não feita não é falta. **No período Hoje**, entram todas as paradas de hoje (A-2): a cobertura mostra o andamento da rota do dia, e não 100% fixo | a partir de | pontos-base |
 | 10 | **Raio médio do check-in** (`raio_checkin`) | média de `distancia_m` das visitas com GPS (`sem_gps = false`) e cliente com coordenada (`distancia_m` não nulo). Média por visita | até | metros |
 | 11 | **Km por dia** (`km_dia`) | Σ `metros` de `core.deslocamento_dia` ÷ dias encerrados **com resumo de km** | até | metros |
-| 12 | **Km por cliente** (`km_cliente`) | Σ `metros` ÷ clientes atendidos, **só nos dias com resumo de km**. Atendido = visita contada com check-out real e resultado diferente de `cliente_fechado` | até | metros |
+| 12 | **Km por cliente** (`km_cliente`) | Σ `metros` ÷ clientes atendidos, **só nos dias com resumo de km**. Atendido = visita contada com check-out real e resultado diferente de `cliente_fechado`. É a soma do km dividida pela soma dos clientes do período, **nunca a média das razões de cada dia** (A-5); `amostra` = clientes atendidos | até | metros |
 
 Para a média de horários (1 e 2), a conta é a média aritmética dos minutos do dia. Não há caso de virada de meia-noite, porque
 cada visita pertence à `data_local` do seu check-in.
@@ -207,8 +221,8 @@ Para cada dia trabalhado:
   líquida, visitas por dia e km por dia.
 - Os indicadores por visita ou por evento já fechado entram com hoje: 1º check-in, TMA, TMD, % fora de rota, raio, cobertura
   (com a regra de hoje da linha 9) e km por cliente (só com resumo de hoje, §5).
-- **Período "Hoje":** todos os indicadores usam só hoje, até agora. A tela mostra os valores parciais. Último check-in, almoço e
-  jornada usam o que já aconteceu: a jornada vai até o último check-out real ou check-in.
+- **Período "Hoje":** todos os indicadores usam só hoje, até agora, **inclusive** os de fim de dia: visitas por dia, km por dia,
+  último check-in, almoço e jornada (A-2). A tela mostra os valores parciais; a jornada vai até o último check-out real ou check-in.
 
 ### 3.4 Casos de borda
 | Caso | Tratamento |
@@ -216,7 +230,7 @@ Para cada dia trabalhado:
 | **Dia sem check-in** (falta, folga, feriado) | Não é dia trabalhado: fica fora de todas as médias "por dia". As paradas planejadas do dia contam na cobertura como não visitadas. O dia útil sem visita continua nos `du_*` dos Resultados. |
 | **Período sem nenhuma visita** | Todos os indicadores ficam `sem_dado`. Cobertura: `sem_dado` se não houver parada; 0% se houver parada planejada. |
 | **Check-in sem check-out** (visita aberta agora) | Entra em visitas, % fora de rota, raio, 1º e último check-in. Fica fora do TMA. Não abre intervalo (TMD e almoço). |
-| **Fechada na virada do dia** (`nao_finalizado`, RN-CORE-11) | É visita (conta), mas o check-out automático **não** é real: fica fora do TMA, do TMD e do almoço. A jornada termina no último check-in, se ele for depois do último check-out real. |
+| **Fechada na virada do dia** (`nao_finalizado`, RN-CORE-11) | É visita (conta), mas o check-out automático **não** é real: fica fora do TMA e do almoço. No TMD, o intervalo que **termina** no check-in dela conta normalmente (A-1); ela não abre intervalo depois de si. A jornada termina no último check-in, se ele for depois do último check-out real. |
 | **Visita que atravessa o almoço** | §3.2, caso 3. O TMA da visita é a duração inteira, sem descontar nada. |
 | **Cliente fechado** (`cliente_fechado`, RN-CORE-14) | Conta como visita, no TMD e no fora de rota. Fica fora do TMA e não é "cliente atendido" no km por cliente. |
 | **Cliente sem coordenada** | `distancia_m` nulo: fica fora do raio. Não há check-in fora do raio sem coordenada (RN-CORE-10 sugere a coordenada). |
@@ -518,7 +532,7 @@ export const ProdutividadeIndicadorSchema = z
     valor: NaoNeg.nullable(),
     meta: NaoNeg.nullable(),
     meta_origem: z.enum(ORIGENS_META_PRODUTIVIDADE).nullable(),
-    /** Base da média: dias, visitas ou intervalos usados (para o teste e o BKO; o app não mostra). */
+    /** Base da média: dias, visitas, intervalos ou, no km por cliente, clientes atendidos (A-5). O app não mostra. */
     amostra: NaoNeg,
   })
   .strict();
@@ -535,6 +549,9 @@ export const RealizadoServidorSchema = z
     venda_ate_ontem_cents: NaoNeg.nullable(),
     pedidos: NaoNeg.nullable(),
     itens_distintos: NaoNeg.nullable(),
+    /** A-4: pedidos e itens distintos do mês até ontem, para a meta do dia de Itens por pedido (Hoje e Esta semana). */
+    pedidos_ate_ontem: NaoNeg.nullable(),
+    itens_distintos_ate_ontem: NaoNeg.nullable(),
     /** Em período de vários meses: positivação somada por mês (§2.3). */
     por_mes: z.array(z.object({ periodo: AnoMes, venda_cents: NaoNeg.nullable(), positivacao: NaoNeg.nullable(), pedidos: NaoNeg.nullable(), itens_distintos: NaoNeg.nullable() }).strict()).max(13),
   })
@@ -590,18 +607,21 @@ export const DeslocamentoDiaSchema = z
     Meta/dia = Gap ÷ restantes e Real/dia = real ÷ decorridos. Positivação e visitas são **inteiras**, com Meta/dia arredondada
     para cima e Real/dia para o inteiro mais próximo. Dinheiro em centavos, com Meta/dia arredondada para cima.
   - Itens por pedido = produtos diferentes ÷ pedidos que contam na meta (RN-CORE-21; D2). Meta/pedido = meta + (meta − real)
-    × decorridos ÷ restantes, arredondada para cima em décimos; sem pedido no período, é a própria meta.
+    × decorridos ÷ restantes, arredondada para cima em décimos; sem pedido no período, é a própria meta, e o realizado mostra 0
+    (A-3). Em Hoje e Esta semana, a meta de Itens por pedido é a meta do dia: a mesma conta com o realizado até ontem, os dias
+    úteis antes de hoje e os restantes contando hoje (A-4).
   - Visitas = cliente × dia com check-in, extras incluídas (D3).
   - Meta batida: "batida", nunca valor negativo. Período encerrado: sem Meta/dia.
   - Período menor que o mês: meta proporcional aos dias úteis; Hoje usa a meta do dia (RN-CORE-26). Período de vários meses:
     soma das metas e das positivações mensais (D7).
 - **RN-CORE-43 Indicadores de produtividade.** As fórmulas da §3.1, com o sentido de cada uma:
-  - médias por dia trabalhado (dia com check-in); TMA e raio por visita; TMD por intervalo;
+  - médias por dia trabalhado (dia com check-in); TMA e raio por visita; TMD por intervalo, do check-out real ao check-in
+    seguinte, mesmo que a visita seguinte fique sem check-out (A-1); km por cliente = soma do km ÷ soma dos clientes (A-5);
   - só check-out feito pelo usuário entra em TMA, TMD, almoço e jornada. O fechamento automático (RN-CORE-11) não entra;
   - cliente fechado fica fora do TMA;
   - cliente sem coordenada ou check-in sem GPS fica fora do raio;
   - indicadores de fim de dia (último check-in, almoço, jornada líquida, visitas por dia, km por dia) só com dias encerrados,
-    salvo no período Hoje;
+    salvo no período Hoje, em que todos usam o dia em andamento (A-2);
   - cobertura = planejadas visitadas ÷ planejadas até ontem mais as de hoje já visitadas (RN-CORE-20 e RN-GES-05).
 - **RN-CORE-44 Almoço e jornada líquida.**
   - Almoço do dia = o intervalo entre visitas (do check-out ao check-in seguinte) que contém o corte [12:00]. Se uma visita
@@ -683,3 +703,55 @@ depois das decisões. Não cabe na v1.0.5 sem atrasá-la. Na v1.0.6, os cards de
    tenant B.
 5. Meta do usuário vence a da equipe, que vence a do tenant, que vence o padrão. "Voltar a herdar" volta ao nível de cima.
 6. Sem resumo de km, os 2 cards de km mostram "—" e os outros 10 seguem normais.
+
+## 11. Revisão de 13/11/2026: respostas do Alexandre e leituras do modulo-core
+
+### 11.1 Respostas A-1 a A-5 (chat do Alexandre, 13/11; R-20261113-054601-testes e R-20261113-055707-alexandre)
+| # | Pergunta do testes | Resposta | Onde mudou |
+|---|---|---|---|
+| A-1 | O intervalo que termina no check-in de uma visita fechada pela virada entra no TMD? | **Sim.** O TMD termina no check-in; o check-out esquecido não importa. | §3.1 linha 4, §3.4, RN-CORE-43 |
+| A-2 | Em Hoje, visitas por dia, km por dia e último check-in usam o dia em andamento? | **Sim.** | §3.3, RN-CORE-43 |
+| A-3 | Itens por pedido sem pedido: "—" ou 0? | **0** (`a_cumprir`, Gap = meta). Sem a fonte continua `sem_dado`. | §1.5, §2.1, RN-CORE-42 |
+| A-4 | Itens por pedido em Hoje e Esta semana: meta do mês ou proporcional? | **Meta do dia**, com a conta da Meta/pedido sobre o realizado até ontem (930 no roteiro). | §2.3, §7.4, RN-CORE-42 |
+| A-5 | Km por cliente: soma ÷ soma ou média das razões diárias? | **Soma do km ÷ soma dos clientes atendidos** no período; `amostra` = clientes. | §3.1 linha 12, §7.4, RN-CORE-43 |
+
+### 11.2 CAL-8 (R-20261113-070723-testes)
+Vale o código da N-A: `du_hoje` é a posição de hoje entre os dias úteis **do período** (§1.3). No mês, coincide com o "DU 9" do
+Início. Em Esta semana, a tela mostra "DU 5 de 5 · 1 restante" (`textoDosDiasUteis`), que só faz sentido com a posição no
+período. O testes passa a esperar 5 na CAL-8; o domain não muda.
+
+### 11.3 Leituras do modulo-core (R-20261113-055130-modulo-core)
+| # | Leitura | Parecer |
+|---|---|---|
+| 1 | `du_hoje` = posição no período | **Confirmada** (§11.2). |
+| 2 | Em Hoje, a meta de Itens é a do mês | **Trocar:** meta do dia de itens (A-4), em Hoje e em Esta semana. |
+| 3 | Período menor que o mês: Itens pela média ponderada pelos DU; sem DU, `sem_meta` | Confirmada, salvo Esta semana com hoje útil (A-4). |
+| 4 | Vários meses: soma até o mês de hoje; Itens sem pedido em nenhum mês = média simples | Confirmada. |
+| 5 | Itens sem pedido: realizado nulo, `a_cumprir`, Meta/pedido = meta | **Trocar:** realizado **0**, atingimento 0 e Gap = meta (A-3). |
+| 6 | Real/dia em todo período; nulo em Itens | Confirmada. |
+| 7 | Check-out real = `fechada_por = 'usuario'` e resultado ≠ `nao_finalizado`; a fila local grava `fechada_por: 'usuario'` | Confirmada. Fica na costura do PC (engenheiro-apps e modulo-core). |
+| 8 | Almoço, caso 3, só se o dia passou do corte | Confirmada: é o caso 5 da §3.2. |
+| 9 | Km só em dias trabalhados com resumo; km por cliente com hoje quando há resumo | Confirmada, com a A-5. |
+| 10 | Parada de rota cancelada ou removida não é planejada; rota ausente conta como válida | Confirmada. |
+| 11 | `metrosDoTrajeto`: ponto sem precisão sai; salto medido desde o último ponto aceito | Confirmada. |
+
+**Pedido ao modulo-core (domain e contrato, sem mudar a interface pública):**
+- `resultados.ts` › `realizadoDoPeriodo`: com `pedidos = 0` e a fonte disponível, realizado 0 (A-3).
+- `resultados.ts` › `metaDoPeriodo`: em Hoje e em Esta semana com hoje útil, a meta de Itens é a meta do dia de itens (A-4).
+- `contracts/performance.ts` › `RealizadoServidorSchema`: `pedidos_ate_ontem` e `itens_distintos_ate_ontem`, nulos quando não há
+  fonte. São campos novos de um contrato que ainda não tem consumidor fora do Core, sem versão nova.
+- Com isso, os 3 `it.fails` de A-3 e A-4 do testes viram `it`; o da CAL-8 vira `it` com o valor 5.
+
+### 11.4 Números das RN
+A numeração da §8 (RN-CORE-41 a 46) colide com a T-0171, a T-0172 e o desenho do Início, que já usam 41 a 43. A troca é só de
+texto, nos títulos dos testes e nos comentários. O gerente define os números no doc 03 e avisa o modulo-core e o testes.
+
+### 11.5 Revisão do código da N-A (PR #124) e da N-C (PR #120)
+- **Cobertura em Hoje sempre 100% (média, modulo-core):** em `produtividade.ts`, o filtro das paradas consideradas usa
+  `data < e.hoje || contadas.has(k)`. No período Hoje, só as paradas já visitadas entram, e a cobertura dá sempre 100%, com o
+  ponto verde. A correção é `data < e.hoje || modoHoje || contadas.has(k)`, conforme a §3.1, linha 9.
+- **Km com o 1º ponto ruim (baixa, T-0156):** em `metrosDoTrajeto`, um 1º ponto errado com boa precisão vira a referência e
+  faz os pontos seguintes parecerem saltos. Fica para a T-0156, porque o km não entra na v1.0.6.
+- **Costura da fila local (baixa):** o check-in ainda não enviado precisa de `data_local` no fuso do tenant e o check-out de
+  `fechada_por: 'usuario'` (leitura 7).
+- **N-C:** sem achado. `STATUS_ENVIADO` vai para `contracts` na costura (desenho do Início, §4.1).
