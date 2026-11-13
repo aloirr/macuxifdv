@@ -4,8 +4,8 @@
  * mão; Gap = máx(0, meta − real), Meta/dia = ⌈Gap ÷ restantes⌉, Real/dia = round(real ÷ decorridos), atingimento em pb.
  * Calendário: segunda a sexta, feriados nacionais 02/11 e 20/11; hoje = sexta 13/11/2026 (DU 9 de 19, 11 restantes).
  *
- * Divergências com as respostas do Alexandre (A-3 e A-4, 13/11/2026) ficam em `it.fails` e foram por recado ao
- * modulo-core: o testes não corrige o domain.
+ * A-3 e A-4 (respostas do Alexandre, 13/11/2026; desenho §2.1 e §2.3): Itens sem pedido = 0; em Hoje e Esta semana, a
+ * meta de Itens é a meta do dia, com o realizado até ontem (23 pedidos e 145 itens).
  */
 import { describe, expect, it } from 'vitest';
 
@@ -49,6 +49,8 @@ const realizado = (o: Partial<RealizadoServidor> = {}): RealizadoServidor => ({
   positivacao_ate_ontem: 36,
   pedidos: 25,
   itens_distintos: 160,
+  pedidos_ate_ontem: 23,
+  itens_distintos_ate_ontem: 145,
   por_mes: [],
   ...o,
 });
@@ -124,15 +126,8 @@ describe('T-0170 · variações dos Resultados (RN-CORE-42)', () => {
     expect(semPedido()).toMatchObject({ situacao: 'a_cumprir', meta: 800, meta_dia: 800 });
   });
 
-  // D-T0170-R7 (A-3, resposta de 13/11: "0"): sem pedido, Itens por pedido mostra 0, não "—". Transição da T-0170 (um
-  // agente por PR): aceita o domain antigo (nulos) e o corrigido (0, 0, 800) até o PR do Core entrar; o PR seguinte do
-  // testes deixa só o valor corrigido.
-  it('R-7 · RN-CORE-42 (A-3): sem pedido, realizado 0, atingimento 0 e Gap 800 (transição: antigo nulo)', () => {
-    const { realizado: real, atingimento_pb, gap } = semPedido();
-    expect([
-      { realizado: 0, atingimento_pb: 0, gap: 800 },
-      { realizado: null, atingimento_pb: null, gap: null },
-    ]).toContainEqual({ realizado: real, atingimento_pb, gap });
+  it('R-7 · RN-CORE-42 (A-3): sem pedido, realizado 0, atingimento 0 e Gap 800', () => {
+    expect(semPedido()).toMatchObject({ realizado: 0, atingimento_pb: 0, gap: 800 });
   });
 
   it('R-8 · RN-CORE-42: Mês passado (outubro, 21 DU) encerrado: sem Meta/dia, Real/dia 15.120.000 ÷ 21', () => {
@@ -187,10 +182,8 @@ describe('T-0170 · variações dos Resultados (RN-CORE-42)', () => {
       expect(card(hoje(), 'visitas')).toMatchObject({ meta: 14, realizado: 4, atingimento_pb: 2857, meta_dia: null });
     });
 
-    // Divergência D-T0170-A4 (A-4, Alexandre 13/11: "Meta do dia", conta confirmada): em Hoje a meta de Itens por pedido é
-    // 800 + (800 − 630) × 8 ÷ 11 = 923,6 → 930, com o realizado até ontem (23 pedidos, 145 itens). A função usa a meta do
-    // mês (800) e o contrato não traz pedidos e itens até ontem. Recado ao modulo-core.
-    it.fails('Itens por pedido (A-4): meta do dia 930; realizado 750; atingimento 8065', () => {
+    // A-4: 800 + (800 − 630) × 8 ÷ 11 = 923,6 → 930, com o realizado até ontem (23 pedidos, 145 itens).
+    it('Itens por pedido (A-4): meta do dia 930; realizado 750; atingimento 8065', () => {
       expect(card(hoje(), 'itens_por_pedido')).toMatchObject({ meta: 930, realizado: 750, atingimento_pb: 8065, gap: 180 });
     });
   });
@@ -212,9 +205,8 @@ describe('T-0170 · variações dos Resultados (RN-CORE-42)', () => {
       expect(card(r, 'visitas')).toMatchObject({ meta: 53, realizado: 27, atingimento_pb: 5094, meta_dia: null });
     });
 
-    // Divergência D-T0170-A4: na semana, a meta de Itens por pedido é a meta do dia de hoje (930); a função usa a média
-    // ponderada pelos DU (800). Recado ao modulo-core.
-    it.fails('Itens por pedido (A-4): meta do dia 930; realizado 700; atingimento 7527', () => {
+    // A-4: na semana, com hoje útil, a meta de Itens por pedido é a meta do dia de hoje (930), não a média pelos DU (800).
+    it('Itens por pedido (A-4): meta do dia 930; realizado 700; atingimento 7527', () => {
       expect(card(semana(), 'itens_por_pedido')).toMatchObject({ meta: 930, realizado: 700, atingimento_pb: 7527, gap: 230 });
     });
   });
