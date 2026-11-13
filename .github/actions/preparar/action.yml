@@ -5,11 +5,7 @@ description: >-
 
 inputs:
   cache-turbo:
-    description: 'Nome do cache do turbo deste job (ex.: lint, typecheck, testes-demais). Vazio = sem cache do turbo.'
-    required: false
-    default: ''
-  cache-turbo-extra:
-    description: 'Até 2 nomes de cache (separados por espaço) a restaurar ANTES do próprio, por prefixo (ex.: o grupo único do PR lê os 2 grupos do main). O turbo guarda por hash de conteúdo, então os caches se somam.'
+    description: 'Nome do cache do turbo deste job (ex.: estatico, testes). Vazio = sem cache do turbo.'
     required: false
     default: ''
 
@@ -31,37 +27,6 @@ runs:
     # Chave por job + lockfile + commit; restaura pelo prefixo (o mais recente do mesmo job). PR lê o cache do main
     # e o do próprio PR (escopo de branch do GitHub); o main nunca lê cache de PR. Fora do PR (push, agendado, manual)
     # NÃO restaura: o TURBO_FORCE do workflow roda tudo e o cache salvo no fim sai só com o resultado dessa execução.
-    - name: nomes extras do cache do turbo
-      id: extra
-      if: inputs.cache-turbo != '' && github.event_name == 'pull_request'
-      shell: bash
-      env:
-        EXTRA: ${{ inputs.cache-turbo-extra }}
-      run: |
-        read -r e1 e2 _ <<< "$EXTRA" || true
-        echo "e1=$e1" >> "$GITHUB_OUTPUT"
-        echo "e2=$e2" >> "$GITHUB_OUTPUT"
-
-    - name: restaurar cache do turbo (extra 1)
-      if: steps.extra.outputs.e1 != ''
-      uses: actions/cache/restore@v4
-      with:
-        path: .turbo/cache
-        key: turbo-v1-${{ steps.extra.outputs.e1 }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-        restore-keys: |
-          turbo-v1-${{ steps.extra.outputs.e1 }}-${{ hashFiles('pnpm-lock.yaml') }}-
-          turbo-v1-${{ steps.extra.outputs.e1 }}-
-
-    - name: restaurar cache do turbo (extra 2)
-      if: steps.extra.outputs.e2 != ''
-      uses: actions/cache/restore@v4
-      with:
-        path: .turbo/cache
-        key: turbo-v1-${{ steps.extra.outputs.e2 }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-        restore-keys: |
-          turbo-v1-${{ steps.extra.outputs.e2 }}-${{ hashFiles('pnpm-lock.yaml') }}-
-          turbo-v1-${{ steps.extra.outputs.e2 }}-
-
     - name: restaurar cache do turbo
       if: inputs.cache-turbo != '' && github.event_name == 'pull_request'
       uses: actions/cache/restore@v4
