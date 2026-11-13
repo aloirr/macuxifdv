@@ -82,7 +82,7 @@ Nenhum intervalo contém 12:00 e nenhum começa entre 11:00 e 15:00: **sem almo�
 | 4 | P | 11:15 | 11:45 | usuário | 80 | 30 | 25 |
 | 5 | P | 13:15 | 13:55 | usuário | 50 | 40 | **90 = almoço** |
 | 6 | P | 14:20 | 15:00 | usuário | 30 | 40 | 25 |
-| 7 | E | 16:50 | 06/11 23:59:59 (2026-11-07T03:59:59Z) | **`auto` / `nao_finalizado`** (RN-CORE-11) | 70 | fora | 110 (ver A-1, §8) |
+| 7 | E | 16:50 | 06/11 23:59:59 (2026-11-07T03:59:59Z) | **`auto` / `nao_finalizado`** (RN-CORE-11) | 70 | fora | 110 (entra no TMD, A-1) |
 
 A 7ª parada planejada do dia não foi visitada.
 
@@ -231,7 +231,7 @@ Período Este mês, hoje 13/11 às 11:00. Meta = padrão do FDV (origem `padrao_
 | P-1 | **1º check-in** | (470 + 470 + 460 + 490 + 480 + 475 + 465 + 470 + 485) ÷ 9 = 4265 ÷ 9 = 473,9. **Hoje entra** | **474** | 07:54 | até 480 (08:00) | **dentro** | 9 dias | RN-CORE-43 |
 | P-2 | **Último check-in** | (990 + 990 + 995 + 1010 + 600 + 975 + 955 + 990) ÷ 8 = 7505 ÷ 8 = 938,1. **Hoje fora** (dia em andamento); visita removida das 17:30 fora | **938** | 15:38 | a partir de 1020 (17:00) | **fora** | 8 dias | RN-CORE-43 |
 | P-3 | **TMA** | Σ das durações com check-out real, sem cliente fechado: 310 × 3 + 460 + 220 + 110 + 270 + 290 + 110 = 2390, em 57 visitas = 41,9. Fora: a fechada pela virada (06), a aberta de hoje, o cliente fechado (09). Entram: a de 270 min (05) e as duas linhas de G1 (11) | **42** | 42 min | até 30 | **fora** | 57 visitas | RN-CORE-43, RN-CORE-11, RN-CORE-14 |
-| P-4 | **TMD** | Σ dos intervalos sem o almoço: 160 × 3 + 115 + 210 + 50 + 190 + 150 + 55 = 1250, em 45 intervalos = 27,8. Entram: o intervalo depois do cliente fechado (09), o de 110 min que termina no check-in da visita fechada pela virada (06, ver A-1) e os de hoje (25, 25, 5). Sai o almoço de cada dia | **28** | 28 min | até 25 | **fora** | 45 intervalos | RN-CORE-43, RN-CORE-44 |
+| P-4 | **TMD** | Σ dos intervalos sem o almoço: 160 × 3 + 115 + 210 + 50 + 190 + 150 + 55 = 1250, em 45 intervalos = 27,8. Entram: o intervalo depois do cliente fechado (09), o de 110 min que termina no check-in da visita fechada pela virada (06, A-1 confirmada) e os de hoje (25, 25, 5). Sai o almoço de cada dia | **28** | 28 min | até 25 | **fora** | 45 intervalos | RN-CORE-43, RN-CORE-44 |
 | P-5 | **Almoço** | dias encerrados com almoço: 90 (03) + 90 (04) + 90 (06) + 70 (09, caso 3) + 90 (11) + 90 (12) = 520 ÷ 6 = 86,7. Fora: 05 (sem almoço), 07 (sábado antes do corte) e hoje | **87** | 1h27 | até 90 | **dentro** | 6 dias | RN-CORE-44 |
 | P-6 | **Jornada líquida** | (470 + 470 + 575 + 430 + 160 + 470 + 440 + 470) ÷ 8 = 3485 ÷ 8 = 435,6. Dia 05 sem almoço = desconto 0 (1035 − 460). Dia 06 termina no **último check-in** (16:50), não no fechamento automático | **436** | 7h16 | a partir de 480 | **fora** | 8 dias | RN-CORE-44 |
 | P-7 | **% fora de rota** | visitas contadas sem parada do mesmo cliente no mesmo dia: 1 + 1 + 1 + 1 + 3 + 0 + 1 + 1 + 1 = 10, sobre 59 = 1694,9. Hoje entra. A removida não conta | **1695** | 16,9% | até 1000 | **fora** | 59 visitas | RN-CORE-43, RN-CORE-20 |
@@ -389,17 +389,21 @@ pnpm --filter ./tests exec vitest run modulos/core-performance-
 pnpm --filter ./tests typecheck:tests
 ```
 
-## 8. Pontos confirmados e em aberto
+## 8. Pontos confirmados
 Respostas do Alexandre no chat da sessão da nuvem, 13/11/2026 ~05:45 (Manaus), texto literal: "A2: Sim · A3: 0 · A4: Meta do
 dia · A5: km por cliente é o km rodado dividido pela quantidade de clientes atendidos. O periodo so aumenta ou diminui o km
 e o cliente."
 
+Depois, pela ponte (sessão do dono do produto), 13/11/2026 ~06h (Manaus), texto literal: "Sobre a pergunta do NG, o tmd
+terminar de contar a partir do checkin, entao o correto é que nao importa se ele esqueceu de fazer o checkout, o tmd ja
+contabilizou." e "Confirmaso a logica de itens por pedido".
+
 | # | Ponto | Resposta | No roteiro |
 |---|---|---|---|
-| A-1 | O intervalo que **termina** no check-in de uma visita fechada pela virada (06/11, 15:00 → 16:50) entra no TMD? A §3.4 diz que a visita "fica fora do TMD", mas o intervalo é aberto pelo check-out real da visita anterior | **em aberto** (engenheiro-software) | assume que **entra** (110 min): TMD = 28. Se não entrar: 1140 ÷ 44 = 25,9 → **26** |
+| A-1 | O intervalo que **termina** no check-in de uma visita fechada pela virada (06/11, 15:00 → 16:50) entra no TMD? A §3.4 diz que a visita "fica fora do TMD", mas o intervalo é aberto pelo check-out real da visita anterior | **Entra**: o TMD termina no check-in; o checkout esquecido não muda o deslocamento já contado | P-4: TMD = **28** (110 min incluídos). Os 26 (sem o intervalo) seriam erro |
 | A-2 | No período **Hoje**, "Visitas por dia", "Km por dia" e "Último check-in" usam o dia em andamento? | **Sim** | H-1 como está |
 | A-3 | Itens por pedido sem pedido no período | **0** | R-7: realizado 0, `a_cumprir`, Meta/pedido = meta. Vendedor desligado continua `sem_dado` (R-14: a fonte não existe) |
-| A-4 | Meta de Itens por pedido em Hoje e em Esta semana | **Meta do dia** | R-10 e R-11: 930. A conta da meta do dia de uma **média** é leitura do testes, a confirmar pelo engenheiro-software: Meta/pedido da §2.1 com o realizado até ontem e os DU decorridos **antes** de hoje (8), restantes contando hoje (11), como a RN-CORE-26. Pede `pedidos_ate_ontem` e `itens_distintos_ate_ontem` no `RealizadoServidorSchema` (modulo-core) |
+| A-4 | Meta de Itens por pedido em Hoje e em Esta semana | **Meta do dia** | R-10 e R-11: 930. A conta da meta do dia de uma **média**, **confirmada** pelo Alexandre: Meta/pedido da §2.1 com o realizado até ontem e os DU decorridos **antes** de hoje (8), restantes contando hoje (11), como a RN-CORE-26. Pede `pedidos_ate_ontem` e `itens_distintos_ate_ontem` no `RealizadoServidorSchema` (modulo-core) |
 | A-5 | Km por cliente | **km rodado ÷ clientes atendidos**; o período só muda os dois totais | P-12 como está: Σ km ÷ Σ clientes (11.963), `amostra` = clientes (27). A média das razões diárias (11.656) é erro (§4.1) |
 
 ## 9. Testes automáticos (entram com a N-A)
