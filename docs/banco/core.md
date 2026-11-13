@@ -797,7 +797,7 @@ Aditiva: 2 tabelas, 1 coluna em `core.notificacao` e 1 gatilho. RLS enable + for
 - Volume: ~20 linhas por consultor na janela de 30 dias; até 500 por tarefa.
 
 ### notificacao.tarefa_id
-`uuid` nulo; FK composta `notificacao_tarefa_fk` -> `core.tarefa`; só com `subtipo = 'tarefa'` (`notificacao_tarefa_subtipo`);
+`uuid` nulo; FK composta `notificacao_tarefa_fk` -> `core.tarefa`; só com `subtipo = 'tarefa'` (`notificacao_tarefa_subtipo`, com `is not distinct from`: subtipo nulo também recusa);
 um aviso por (usuário, tarefa) (`notificacao_tarefa_uk ... where tarefa_id is not null`): criar a mesma tarefa de novo não
 duplica. O aviso usa `tipo = 'sistema'` (RN-CORE-TAR-07).
 

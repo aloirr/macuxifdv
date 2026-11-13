@@ -154,5 +154,5 @@ alter table core.notificacao add column tarefa_id uuid;
 alter table core.notificacao add constraint notificacao_tarefa_fk
   foreign key (tenant_id, tarefa_id) references core.tarefa (tenant_id, id);
 alter table core.notificacao add constraint notificacao_tarefa_subtipo
-  check (tarefa_id is null or subtipo = 'tarefa');
+  check (tarefa_id is null or subtipo is not distinct from 'tarefa'); -- subtipo nulo também recusa (= daria NULL e o CHECK passaria)
 create unique index notificacao_tarefa_uk on core.notificacao (tenant_id, usuario_id, tarefa_id) where tarefa_id is not null;

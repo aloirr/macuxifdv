@@ -69,7 +69,7 @@ describe('0064 tarefas do consultor (estático)', () => {
     expect(valores('alvo')).toEqual(['usuarios', 'equipe', 'todos']);
     expect([...nuvemCore.ALVOS_TAREFA_BANCO]).toEqual(['usuarios', 'equipe', 'todos']);
     expect(nuvemCore.SUBTIPOS_NOTIFICACAO_CONHECIDOS).toContain(SUBTIPO_NOTIFICACAO_TAREFA);
-    expect(umaLinha).toContain(`check (tarefa_id is null or subtipo = '${SUBTIPO_NOTIFICACAO_TAREFA}')`);
+    expect(umaLinha).toContain(`check (tarefa_id is null or subtipo is not distinct from '${SUBTIPO_NOTIFICACAO_TAREFA}')`);
   });
 
   it('índices do desenho (sync, autor, abertas, destinatário) e únicos vivos', () => {

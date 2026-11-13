@@ -114,7 +114,6 @@ begin
   insert into core.frase_dia (id, tenant_id, texto, ativa, ordem, padrao_codigo)
   select plataforma.uuid_de_chave(p_tenant::text || ':core.frase_dia:' || f.codigo), p_tenant, f.texto, true, f.ordem, f.codigo
     from (values
-30
     ('P01', 1, 'Cada visita bem feita abre a porta para a próxima venda.'),
     ('P02', 2, 'O cliente lembra de quem aparece. Apareça.'),
     ('P03', 3, 'Rota cumprida é meta mais perto.'),
