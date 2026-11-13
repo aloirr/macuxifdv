@@ -191,7 +191,7 @@ Todas as médias são **por dia trabalhado** (§1.4), salvo indicação na linha
 | 6 | **Jornada líquida** (`jornada_liquida`) | média, nos dias encerrados, de `fim − 1º check-in − almoço do dia` (almoço não identificado = 0). `fim` = o maior entre o último check-out real e o último check-in | a partir de | minutos |
 | 7 | **% fora de rota** (`fora_rota`) | visitas contadas **sem** parada planejada do mesmo cliente no mesmo dia ÷ visitas contadas. O par cliente + dia é a mesma chave da RN-CORE-20, e não `rota_parada_id` | até | pontos-base |
 | 8 | **Visitas por dia** (`visitas_dia`) | visitas contadas nos dias encerrados ÷ dias trabalhados encerrados | a partir de | décimos |
-| 9 | **Cobertura de rota** (`cobertura_rota`) | paradas planejadas visitadas ÷ paradas planejadas consideradas, no máximo 100% (RN-CORE-20 e RN-GES-05). **Consideradas** = paradas com data anterior a hoje, mais as de hoje **já visitadas**: parada de hoje ainda não feita não é falta | a partir de | pontos-base |
+| 9 | **Cobertura de rota** (`cobertura_rota`) | paradas planejadas visitadas ÷ paradas planejadas consideradas, no máximo 100% (RN-CORE-20 e RN-GES-05). **Consideradas** = paradas com data anterior a hoje, mais as de hoje **já visitadas**: parada de hoje ainda não feita não é falta. **No período Hoje**, entram todas as paradas de hoje (A-2): a cobertura mostra o andamento da rota do dia, e não 100% fixo | a partir de | pontos-base |
 | 10 | **Raio médio do check-in** (`raio_checkin`) | média de `distancia_m` das visitas com GPS (`sem_gps = false`) e cliente com coordenada (`distancia_m` não nulo). Média por visita | até | metros |
 | 11 | **Km por dia** (`km_dia`) | Σ `metros` de `core.deslocamento_dia` ÷ dias encerrados **com resumo de km** | até | metros |
 | 12 | **Km por cliente** (`km_cliente`) | Σ `metros` ÷ clientes atendidos, **só nos dias com resumo de km**. Atendido = visita contada com check-out real e resultado diferente de `cliente_fechado`. É a soma do km dividida pela soma dos clientes do período, **nunca a média das razões de cada dia** (A-5); `amostra` = clientes atendidos | até | metros |
@@ -745,3 +745,13 @@ período. O testes passa a esperar 5 na CAL-8; o domain não muda.
 ### 11.4 Números das RN
 A numeração da §8 (RN-CORE-41 a 46) colide com a T-0171, a T-0172 e o desenho do Início, que já usam 41 a 43. A troca é só de
 texto, nos títulos dos testes e nos comentários. O gerente define os números no doc 03 e avisa o modulo-core e o testes.
+
+### 11.5 Revisão do código da N-A (PR #124) e da N-C (PR #120)
+- **Cobertura em Hoje sempre 100% (média, modulo-core):** em `produtividade.ts`, o filtro das paradas consideradas usa
+  `data < e.hoje || contadas.has(k)`. No período Hoje, só as paradas já visitadas entram, e a cobertura dá sempre 100%, com o
+  ponto verde. A correção é `data < e.hoje || modoHoje || contadas.has(k)`, conforme a §3.1, linha 9.
+- **Km com o 1º ponto ruim (baixa, T-0156):** em `metrosDoTrajeto`, um 1º ponto errado com boa precisão vira a referência e
+  faz os pontos seguintes parecerem saltos. Fica para a T-0156, porque o km não entra na v1.0.6.
+- **Costura da fila local (baixa):** o check-in ainda não enviado precisa de `data_local` no fuso do tenant e o check-out de
+  `fechada_por: 'usuario'` (leitura 7).
+- **N-C:** sem achado. `STATUS_ENVIADO` vai para `contracts` na costura (desenho do Início, §4.1).
