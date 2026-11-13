@@ -2,6 +2,8 @@
 
 Para o supervisor e o gerente. Login, senha, sincronização e uso sem sinal funcionam como no app Campo: veja `vendedor.md`, seções 1, 2, 9 e 10. Os itens marcados com "(conferir na v1.0.5)" ainda podem mudar nesta semana.
 
+Na primeira abertura, a tela **Permissões** pede só **Notificações**. Sem ela o app não entra, porque é por ela que chega o pedido para aprovar.
+
 O Gestão é instalado à parte do Campo. O rodapé do login mostra "Macuxi Gestão · supervisores e gerentes". Supervisor e gerente não entram no Backoffice.
 
 Barra de baixo: **Início · Equipe · Aprovações · Alertas · Mais**. Clientes, Pedidos e Catálogo ficam em **Mais** (conferir na v1.0.5). O Perfil abre ao tocar na saudação do Início.
@@ -43,11 +45,11 @@ O gerente também vê e pode decidir os pedidos do nível do supervisor. O super
 2. Em **Para qual cliente?**, a lista mostra só os **Clientes da carteira de {vendedor}**.
 3. Cliente de outra carteira aparece desligado, com "Cliente da carteira de {nome}". Para vender a ele, transfira o cliente antes, no Backoffice.
 4. O pedido segue as mesmas abas do Campo (**Venda · Itens · Entrega · Resumo**): veja `vendedor.md`, seção 7.
-5. A alçada usada é a sua. Dentro dela, o pedido vai direto ao ERP.
+5. A alçada usada é a sua. Dentro dela, o pedido vai direto ao ERP; acima, o app pergunta se quer enviar para aprovação.
 6. O pedido conta na meta do vendedor e fica registrado com você como autor. O vendedor recebe uma notificação.
 7. Rascunhos do pedido em nome ficam em **Pedidos → Rascunhos (n)** do Gestão.
 
 ## 5. Pedidos e clientes da equipe
-- **Pedidos** mostra os pedidos da equipe, com o filtro **Vendedor** e a situação **Para aprovar**. O período funciona como no Campo.
+- **Pedidos** mostra os pedidos da equipe, com o filtro **Vendedor** e a situação **Para aprovar**. O período funciona como no Campo. O detalhe traz a **Filial** do pedido.
 - Você pode cancelar pedido da equipe antes de ele chegar ao ERP (menu ⋮ do detalhe).
 - **Clientes** mostra a carteira da equipe inteira, com a mesma ficha do Campo.

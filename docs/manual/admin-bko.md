@@ -45,17 +45,32 @@ A importação por CSV fica no **portal de implantação** (`https://config.macu
 **Administração → Aparelhos → Bloquear**. O aparelho deixa de entrar com qualquer usuário da empresa e apaga os dados na próxima conexão, inclusive o que não foi enviado. **Liberar** desfaz o bloqueio.
 
 ## 3. Filiais
-- Filial que usa **o mesmo ERP** entra pelos depósitos que o ERP manda e aparece na coluna **Filial** da exportação de pedidos.
-- Filial com **ERP próprio** é cadastrada no Macuxi como outra empresa, com código, usuários e Conector próprios. Peça ao time da Macuxi.
-- Cadastro de filiais no Backoffice: (conferir na v1.0.5).
+Filial é a unidade de onde saem as entregas. Cada cliente tem uma filial, e o preço e o estoque do pedido saem dela.
+
+1. **Cadastros → Filiais** lista código, nome, CNPJ, cidade/UF, clientes e situação. A empresa nasce com uma filial **Padrão**, que recebe os clientes sem filial informada.
+2. **Nova filial**: código, nome, **CNPJ** e **endereço**. Sem CNPJ e endereço, a filial não salva. Esses dados vão no cabeçalho do PDF do pedido.
+3. Filial sem CNPJ ou endereço, vinda do ERP, aparece com o selo **Incompleta**. Abra em **Editar filial** e complete.
+4. **Tornar padrão** troca a filial que recebe os clientes sem filial.
+5. Os aparelhos recebem a mudança na próxima sincronização.
+6. Em **Operação → Pedidos**, o filtro **Filial** mostra só os pedidos de uma filial.
+
+Analista e admin editam; os outros perfis consultam. Filial com ERP próprio é outra empresa no Macuxi, com código, usuários e Conector próprios: peça ao time da Macuxi.
 
 ## 4. Fotos do PDV
+### Tipos de foto
+**Cadastros → Fotos do PDV** define os tipos de foto que aparecem na ficha do cliente no app (Fachada, CNH do sócio, Contrato social…).
+1. **Novo tipo de foto**: nome e regras (**Obrigatório** ou **Opcional**, **Sensível**).
+2. **Sensível** é para documento: a foto sai do aparelho depois de enviada e o vendedor não abre.
+3. A **Fachada** já vem cadastrada: não se apaga, não se inativa e nunca é sensível. É o único tipo que o vendedor abre.
+4. Os aparelhos recebem o tipo novo na próxima sincronização. Só o admin edita os tipos.
+
+### Onde ver as fotos
 | Foto | Onde ver |
 |---|---|
 | Fachada de cliente fechado | **Operação → Visitas**, coluna **Fachada** → **Ver foto** |
 | Posição da loja sugerida no 1º check-in | **Cadastros → Coordenadas sugeridas** → **Ver no mapa** → **Aprovar esta posição** |
 | Fotos de pesquisa | **Cadastros → Pesquisas** → **Resultados** → galeria |
-| Fotos de gôndola, ruptura e validade do promotor | (conferir na v1.0.5) |
+| Fotos do PDV de cada cliente, gôndola e validade do promotor | (conferir na v1.0.5) |
 
 Os motivos que exigem foto estão em **Cadastros → Motivos**.
 
@@ -76,15 +91,15 @@ Os motivos que exigem foto estão em **Cadastros → Motivos**.
 ### Outros cadastros do pedido
 - **Formas de pagamento e prazos** (Administração): **Nova forma** e **Novo prazo**. Necessário só se o ERP não manda as formas.
 - **Transportadoras**: **Nova transportadora** e, em **Digitadas pelos vendedores**, **Cadastrar** as que vieram no FOB.
-- **Alçadas**: consulta das faixas e das decisões recentes. Para mudar os percentuais, peça ao time da Macuxi (conferir na v1.0.5).
+- **Alçadas**: consulta das faixas e das decisões recentes. Os percentuais (vendedor, supervisor, gerente) e a validade do preço do orçamento são definidos pelo time da Macuxi no portal, ao cadastrar a empresa.
 
 ## 6. Carga por arquivo
-Para a implantação ou para quem não usa o Conector.
+Para a implantação ou para quem não usa o Conector. Na implantação, o time da Macuxi faz a mesma carga pelo portal (aba **Bases**).
 
 1. **Administração → Carga por arquivo**.
 2. Em **Modelos de arquivo (CSV)**, baixe o **Modelo** e o **Dicionário** de cada entidade.
 3. Monte o arquivo: `.csv` separado por `;`, até 25 MB.
-4. Envie nesta ordem: Vendedores · Árvore do catálogo · Formas de pagamento · Prazos de pagamento · Produtos · Unidades do produto · Preços · Tabela escalonada · Estoque · Clientes · Endereços de clientes · Transportadoras · Rotas · Títulos · Notas fiscais. Fora da ordem, a linha fica com erro de referência.
+4. Envie na ordem da tabela de modelos: filiais e vendedores antes dos clientes; árvore do catálogo e produtos antes de preços, tabela escalonada e estoque; clientes antes de endereços, rotas, títulos e notas. Fora da ordem, a linha fica com erro de referência.
 5. Escolha o **Modo**: **Delta (só o que mudou)** ou **Completo (lista inteira)**. No completo, o que não veio no arquivo é inativado.
 6. **Enviar arquivo**. O resultado abre em **Integração ERP**, no lote.
 7. Linhas com erro aparecem com linha, código no ERP, campo e mensagem. **Corrigir no ERP** pede um arquivo novo; as de referência ausente se resolvem ao enviar a entidade que faltava.
@@ -94,7 +109,7 @@ Para a implantação ou para quem não usa o Conector.
 
 1. No topo: **Conectores no ar**, **Lotes com erro**, **Inativações aguardando**, **Pedidos presos ou retidos**.
 2. **Conectores**: sinal de vida ("No ar", "Sinal atrasado", "Sem sinal", "Parado por versão") e versão. Sem sinal: peça ao TI que confira o serviço **Macuxi Conector** no servidor.
-3. **Lotes recentes** e **Carga por entidade**: cada lote termina como concluído, concluído com erros ou falhou. Toque no lote para ver os erros por linha e **Exportar CSV**.
+3. **Lotes recentes** e **Carga por entidade**: cada lote termina como **Aplicado**, **Aplicado com erros** ou **Falhou**. Toque no lote para ver os erros por linha e **Exportar CSV**.
 4. **Inativação em massa**: carga completa que inativaria mais de 30% de uma entidade fica parada. Confira as contagens e toque em **Confirmar** ou **Recusar**. A confirmação vale por 7 dias.
 5. **Pedidos no ERP**: **Presos sem retorno**, **Retidos sem mapeamento** e **Erros de retorno**.
 6. **De-para de códigos**: liga o código do Macuxi ao do ERP (forma de pagamento, depósito). **Salvar de-para** libera sozinho os pedidos retidos.
