@@ -8,8 +8,8 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 | admin / migrador (`postgres` no Docker local; `macuxi_admin` no DBaaS) | superusuário, dono de todos os objetos (no DBaaS: sem SUPERUSER/BYPASSRLS, com CREATEDB/CREATEROLE, membro com INHERIT do `macuxi_manutencao`) | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** (superusuário ou política `manutencao`) — nunca é usado pela API nem para provar isolamento |
 | `macuxi_manutencao` (0031) | NOLOGIN, NOSUPERUSER, **NOBYPASSRLS**; ninguém conecta com ele | só existe para a política `manutencao` (`for all ... using (true) with check (true)`) valer para o migrador, que o herda. **Nunca** concedido a `macuxi_app`, `macuxi_worker` nem `macuxi_portal` |
 | `macuxi_app` | `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`, não é dono de nada | **único** papel da API e dos testes de vazamento |
-| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante das outboxes (ADR 0007; 0040, ADR 0032): só lê e marca `plataforma.evento` e `plataforma.email_saida` (só a linha pendente) de todos os tenants |
-| `macuxi_portal` (0038, T-0091) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel, **nenhum grant de tabela** | portal do super-admin (ADR 0029): 2º pool da API; só `USAGE` em `plataforma` e `EXECUTE` nas `plataforma.sa_*` (20 na 0038; 12 desde a 0039, T-0093) (o único papel com ele) |
+| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante das outboxes (ADR 0007; 0040, ADR 0032): só lê e marca `plataforma.evento` e `plataforma.email_saida` (só a linha pendente) de todos os tenants; desde a 0058 (ADR 0043), lê `plataforma.diagnostico` sem o texto livre e marca só as `alerta_*` |
+| `macuxi_portal` (0038, T-0091) | mesmos atributos (**NOBYPASSRLS**), não é dono de nada, membro de nenhum papel, **nenhum grant de tabela** | portal do super-admin (ADR 0029): 2º pool da API; só `USAGE` em `plataforma` e `EXECUTE` nas `plataforma.sa_*` (20 na 0038; 12 desde a 0039, T-0093; 14 desde a 0042; 16 desde a 0058, T-0158) (o único papel com ele) |
 
 - A migração 0001 cria `macuxi_app` como `NOLOGIN` se não existir; o executor (`db/src/papeis.ts`)
   liga o `LOGIN` e define a senha a partir de `MACUXI_PG_APP_SENHA`. Papéis são do cluster: o `down` não os remove.
@@ -135,7 +135,15 @@ e `plataforma.auditoria`.
   `select, insert`) e, só para o `macuxi_worker`, `despacho_email` (`for select ... using (true)`) e `despacho_email_marcar`
   (`for update ... using (enviado_em is null and falhou_em is null) with check (true)`), com `select` e `update` por coluna
   (`carga, tentativas, proxima_tentativa_em, enviado_em, falhou_em, ultimo_erro`). O `db/scripts/conferir-rls.sql` acusa
-  política do `macuxi_worker` em qualquer tabela fora de `plataforma.evento` e `plataforma.email_saida`.
+  política do `macuxi_worker` em qualquer tabela fora de `plataforma.evento`, `plataforma.email_saida` e
+  `plataforma.diagnostico`.
+- **Alerta do diagnóstico** (0058, T-0158, ADR 0043): `plataforma.diagnostico` tem a `isolamento_tenant` do `macuxi_app`
+  (`select` e `insert` por coluna, sem `protocolo`, `recebido_em`, `alerta_*` nem `external_id`; `usage` na sequência do
+  protocolo) e, só para o `macuxi_worker`, `diagnostico_alerta` (`for select ... using (true)`) e `diagnostico_alerta_marcar`
+  (`for update ... using (alerta_situacao in ('pendente', 'agrupado')) with check (true)`), com `select` por coluna SEM
+  `descricao` e `detalhe` e `update` só das `alerta_*`. O expurgo de 90 dias é a `plataforma.expurgar_diagnosticos`
+  (SECURITY DEFINER, `execute` só ao worker). O portal só pelas `sa_listar_diagnosticos` e `sa_diagnostico` (super-admin).
+  Dicionário: [plataforma.md](plataforma.md).
 - **Hub de Integração** (0010, T-0032): `integracao.autenticar_chave(hash)` (`SECURITY DEFINER`, só `macuxi_app`) é a única
   leitura sem tenant: devolve no máximo a linha da chave (sem o hash) com o `tenant_id` e o Conector; depois a API abre
   `comTenant` com o tenant da chave. `integracao.expurgar_retencao` e `plataforma.expurgar_outbox` (0011) são `SECURITY DEFINER`

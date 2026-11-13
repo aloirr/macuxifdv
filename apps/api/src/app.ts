@@ -94,7 +94,7 @@ import {
 } from '@macuxi/platform-sdk';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { ZodError, type ZodTypeAny } from 'zod';
-import type { BancoApp, BancoPortal } from './banco';
+import { esperaDoPoolEsgotada, RETRY_AFTER_BANCO_OCUPADO_S, type BancoApp, type BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
 import { criarLimitador } from './limitador';
@@ -105,13 +105,15 @@ import { MODULOS_API } from './modulos';
 import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
+import { registrarDiagnosticos } from './diagnosticos';
+import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
 import { atorDaAuditoria, fontePlataformaNoBanco, marcaPortal, marcarPortal, prefixoDoIp, registrarRotasPlataforma, type EmailDoPortal, type FontePlataforma, type SenhaDoPortal } from './plataforma';
 import type { Plataforma } from './tipos';
-import { ErroHttp } from './erros';
+import { ErroHttp, semBanco } from './erros';
 import { SERVICO_EMAIL_DESLIGADO } from './email/servico';
 import { dentroDaTransacao, transacaoAberta } from './transacao-corrente';
 
@@ -180,6 +182,18 @@ export interface OpcoesApp {
    * (`__Secure-macuxi_rt`, `Secure`); o `servidor.ts` lê `MACUXI_SESSAO_COOKIE_SEGURO` (`lerSessaoWeb`).
    */
   sessaoWeb?: OpcoesSessaoWeb;
+  /**
+   * T-0158 (ADR 0043): Portal › Diagnósticos (`GET /v1/plataforma/diagnosticos[/:id[/print]]`, só super-admin). Padrão:
+   * DESLIGADO (as rotas não existem); o `servidor.ts` liga com `MACUXI_DIAGNOSTICOS=1` (a migração 0058 aplicada).
+   */
+  diagnosticosPortal?: boolean;
+  /**
+   * T-0158 (R-20261111-011107): chave remota do botão do app, `recursos.diagnosticos` do `GET /v1/saude`. Padrão: DESLIGADO;
+   * o `servidor.ts` liga com `MACUXI_DIAGNOSTICOS_APP=1` (`diagnosticosAppLigados`). Só vale com `diagnosticosPortal` ligado.
+   */
+  diagnosticosApp?: boolean;
+  /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
+  fonteDiagnosticos?: FonteDiagnosticosPortal;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -193,10 +207,6 @@ export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.j
 export { excedeElementos, MAX_ELEMENTOS_CORPO, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function semBanco(): never {
-  throw new ErroHttp(503, 'BANCO_INDISPONIVEL', 'Banco de dados indisponível. Tente de novo em instantes.');
-}
 
 const acessoIndisponivel: AcessoBanco = { comTenant: async () => semBanco(), semTenant: async () => semBanco() };
 
@@ -357,6 +367,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     if (status && status >= 400 && status < 500) {
       return reply.code(status).send({ codigo: 'REQUISICAO_INVALIDA', mensagem: 'Requisição inválida.' } satisfies ErroApi);
     }
+    // T-0118: a espera por conexão do pool venceu (pool cheio): 503 com Retry-After, o aparelho reenvia; nunca fila sem prazo
+    if (esperaDoPoolEsgotada(erro)) {
+      req.log.warn({ codigo: 'BANCO_OCUPADO' }, 'pool do banco cheio: espera por conexão vencida');
+      reply.header('retry-after', String(RETRY_AFTER_BANCO_OCUPADO_S));
+      return reply.code(503).send({ codigo: 'BANCO_OCUPADO', mensagem: 'Servidor ocupado. Tente de novo em instantes.' } satisfies ErroApi);
+    }
     req.log.error({ err: erro }, 'erro não tratado');
     return reply.code(500).send({ codigo: 'ERRO_INTERNO', mensagem: 'Erro interno. Tente de novo; se continuar, avise o suporte.' } satisfies ErroApi);
   });
@@ -505,7 +521,15 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   // ---------- plataforma ----------
   // identificação verificável (R-20261101-023742-alexandre): o app só salva o servidor e só envia o login se `servico` for macuxi-api
-  const saude = SaudeRespostaSchema.parse({ ok: true, servico: SERVICO_API_MACUXI, versao: op.versao ?? (process.env.MACUXI_VERSAO || VERSAO_API), modulos: manifestos.map((m) => m.id) });
+  // T-0158 (R-20261111-011107): `recursos.diagnosticos` é a chave remota do botão do app (`MACUXI_DIAGNOSTICOS_APP`), e só
+  // liga junto com o Portal › Diagnósticos (`MACUXI_DIAGNOSTICOS`): o app não envia o que ninguém lê
+  const saude = SaudeRespostaSchema.parse({
+    ok: true,
+    servico: SERVICO_API_MACUXI,
+    versao: op.versao ?? (process.env.MACUXI_VERSAO || VERSAO_API),
+    modulos: manifestos.map((m) => m.id),
+    recursos: { diagnosticos: op.diagnosticosPortal === true && op.diagnosticosApp === true },
+  });
   // T-0078: dependências (banco e outbox, só contagens), métricas da janela e códigos de alerta; sempre 200 enquanto o processo
   // responde (o app identifica o servidor por aqui). Quem monitora olha `alertas` (scripts/deploy/demo/alerta-saude.sh).
   const eventosComConsumidor = nomesConsumidos(modulos);
@@ -541,6 +565,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
+  // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)
+  registrarDiagnosticos(app, plataforma);
   // ADR 0029/0031: rotas do portal sem tenant (empresas); a autenticação do portal é do Core (`plataforma/auth/*`)
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
   registrarRotasPlataforma(app, {
@@ -556,6 +582,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       cifrar: (carga, aad) => (email as unknown as EmailDoPortal).cifrar(carga, aad),
     },
   });
+
+  // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão
+  if (op.diagnosticosPortal) {
+    registrarRotasDiagnosticosPortal(app, {
+      acesso: acessoPortal,
+      ...(op.fonteDiagnosticos ? { fonte: op.fonteDiagnosticos } : {}),
+      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      validar,
+      armazenamento: op.arquivos ?? null,
+    });
+  }
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {

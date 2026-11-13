@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   comOrcamento,
   ESPERA_DO_CORTE_MS,
+  ESPERA_INICIAL_MS,
   executarTarefaSegundoPlano,
   INTERVALO_MINIMO_MIN,
   LIMITE_DA_PASSADA_CORTADA_MS,
@@ -348,5 +349,57 @@ describe('executarTarefaSegundoPlano — proteções da T-0140', () => {
     expect(textoDoResultado({ quando: '', resultado: 'pulado', motivo: 'app-aberto', duracao_ms: 0 })).toBe('não rodou: o app estava aberto (ele mesmo sincroniza) · 0 s');
     expect(textoDoResultado({ quando: '', resultado: 'pulado', motivo: 'app-ocupado', duracao_ms: 0 })).toBe('não rodou: o app estava abrindo ou sincronizando · 0 s');
     expect(textoDoResultado({ quando: '', resultado: 'sincronizado', duracao_ms: 3_000, sem_tela: true })).toBe('concluída · 3 s · app fechado');
+  });
+});
+
+describe('executarTarefaSegundoPlano — espera inicial da T-0144', () => {
+  it('a tarefa que dispara junto com a abertura do app espera e desiste quando a tela abre durante a espera', async () => {
+    const c = cenario();
+    let ativo = false;
+    const esperas: number[] = [];
+    const r = await executarTarefaSegundoPlano({
+      ...c.deps,
+      appEmPrimeiroPlano: () => ativo,
+      esperar: (ms) => {
+        esperas.push(ms);
+        // durante a espera o vendedor abriu o app: o Android passa a dizer "primeiro plano"
+        ativo = true;
+        return Promise.resolve();
+      },
+    });
+    expect(esperas).toEqual([ESPERA_INICIAL_MS]);
+    expect(r).toMatchObject({ resultado: 'pulado', motivo: 'app-aberto' });
+    expect(c.abertos).toEqual([]);
+  });
+
+  it('o app começou a abrir (trava) durante a espera → pula sem abrir o SQLite', async () => {
+    const c = cenario();
+    const r = await executarTarefaSegundoPlano({
+      ...c.deps,
+      appEmPrimeiroPlano: () => false,
+      esperar: () => {
+        c.trava.entrar('abertura');
+        return Promise.resolve();
+      },
+    });
+    expect(r).toMatchObject({ resultado: 'pulado', motivo: 'app-ocupado' });
+    expect(c.abertos).toEqual([]);
+  });
+
+  it('app fechado de verdade: depois da espera roda normalmente', async () => {
+    const c = cenario();
+    const r = await executarTarefaSegundoPlano({ ...c.deps, appEmPrimeiroPlano: () => false, esperar: () => Promise.resolve() });
+    expect(r.resultado).toBe('sincronizado');
+    expect(ESPERA_INICIAL_MS).toBe(3_000);
+  });
+});
+
+describe('executarTarefaSegundoPlano — permissões da T-0145', () => {
+  it('sem as permissões obrigatórias → pula sem abrir o SQLite', async () => {
+    const c = cenario();
+    const r = await executarTarefaSegundoPlano({ ...c.deps, permissoesLiberadas: () => Promise.resolve(false) });
+    expect(r).toMatchObject({ resultado: 'pulado', motivo: 'sem-permissao' });
+    expect(c.abertos).toEqual([]);
+    expect(textoDoResultado(r)).toContain('falta permissão do aparelho');
   });
 });

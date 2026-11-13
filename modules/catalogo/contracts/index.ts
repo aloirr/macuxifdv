@@ -13,7 +13,10 @@ export const ProductPrice = z.object({ product_id: Id, price_table_id: Id.nullab
 export type ProductPrice = z.infer<typeof ProductPrice>;
 
 // ---------- estoque (deposito, estoque_saldo) ----------
-/** Saldo de estoque por filial/depósito (na Fase M cada filial é um depósito). */
+/**
+ * Saldo de estoque por filial. Desde a T-0149 (RN-CORE-39) `branch_id`/`branch_name` são o id e o nome da FILIAL do depósito
+ * (o saldo da filial é a soma dos depósitos dela); a forma não mudou.
+ */
 export const StockByBranch = z.object({
   branch_id: Id,
   branch_name: z.string(),
@@ -62,3 +65,4 @@ export * from './extensoes';
 export * from './sync-conteudo';
 export * from './eventos';
 export * from './marcas';
+export * from './estoque-filial';

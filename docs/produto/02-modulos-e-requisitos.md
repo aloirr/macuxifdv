@@ -21,6 +21,17 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-CORE-11 (P0)** Cadastro mínimo do cliente: verificação dos campos obrigatórios do tenant (RN-CORE-16), etiqueta "Cadastro incompleto" e linha automática em Observações (RN-CORE-17) no app (Campo e Gestão) e no BKO. 📱C📱G🖥️
 - **RF-CORE-13 (P0)** Cadastro do produto no BKO: custo e preço de venda (do ERP; editáveis quando o tenant não integra), margem, markup e lucro calculados, desconto máximo aplicável (vazio = padrão do tenant, 15%), preço mínimo e margem no mínimo; aba Parâmetros com o desconto máximo padrão (admin/analista). Custo e derivados só no BKO (RN-CORE-18). 🖥️
 - **RF-CORE-14 (P0)** Medidas por tenant em Parâmetros → Produtos (sigla até 4 letras, única; descrição; ativo; não apaga em uso), com a lista inicial UN, CX, PCT, FD, LT, BD, TB, GL, KG, DZ, DP; produto com medida da unidade e embalagem opcional (RN-CORE-19). 🖥️
+- **RF-CORE-15 (P0)** Fotos do PDV:
+  - BKO › Cadastros › Fotos do PDV, com os tipos e os obrigatórios;
+  - na ficha do cliente, "Ver foto do PDV" (fachada) ao lado de Mapa e o resumo "tem/falta";
+  - captura pela câmera ou pela galeria, offline, em JPEG comprimido no bucket privado;
+  - documentos sensíveis só para admin, analista e supervisor da carteira (RN-CORE-38). 📱C📱G🖥️ *(R-20261110-062234; T-0147.)*
+- **RF-CORE-16 (P0)** Filial:
+  - cadastro no BKO, com código, nome e cidade/UF, e a filial padrão criada com a empresa;
+  - filial no cliente, vinda do ERP ou editada no BKO;
+  - estoque e tabela de preço por filial (Catálogo);
+  - o pedido com a filial no detalhe, nos PDFs e na devolução ao ERP (RN-CORE-39). 📱C📱G🖥️ *(R-20261110-062236; T-0149.)*
+- **RF-CORE-17 (P0)** Permissões obrigatórias na 1ª abertura e a cada abertura (Campo: notificações, localização o tempo todo, câmera e galeria; Gestão: notificações), antes do login e da sincronização (RN-CORE-37). 📱C📱G *(R-20261110-062232; T-0145.)*
 - **RF-CORE-12 (P0)** Endereços de entrega do cliente vindos do ERP (principal + outros), visíveis no Cliente 360 e escolhidos no pedido (RN-VEN-17). 📱C🖥️
 
 ## CAT — Catálogo

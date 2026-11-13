@@ -4,7 +4,9 @@
  */
 import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
 import { CONSULTA_PRECOS_CLIENTE, type ClienteTabelaPrecoSync, type ItemTabelaPreco, type TabelaEscalonadaSync, type TabelaPrecoItemSync, type TabelaPrecoSync } from '../contracts';
+import type { ClienteSync, FilialSync } from '@macuxi/core/contracts';
 import type { LinhaEscalonada } from '../domain/escalonada';
+import { filialDoClienteLocal, filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 import { precosDoCliente } from '../domain/precos-cliente';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
@@ -16,6 +18,7 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
   let tabelaNome: string | null = null;
   let itens: ItemTabelaPreco[] = [];
   let faixas: LinhaEscalonada[] = [];
+  let filial: FilialDoPreco | null = null;
   if (verPreco) {
     const vinculos = (await ctx.linhas<ClienteTabelaPrecoSync>('cliente_tabela_preco')).filter((l) => l.cliente_id === entrada.cliente_id && !l.deleted_at);
     const candidata = vinculos[0]?.tabela_preco_id ?? null;
@@ -29,12 +32,19 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
     if (tabelaId) {
       const id = tabelaId;
       const pedidos = new Set(entrada.produto_ids);
-      itens = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item'))
-        .filter((l) => l.tabela_preco_id === id && pedidos.has(l.produto_id) && !l.deleted_at)
+      const todos = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item')).filter((l) => l.tabela_preco_id === id && !l.deleted_at);
+      // RN-CORE-39: filial do preço (cliente, ou padrão por fallback de tabela). Sem filiais no aparelho (ainda não sincronizou): sem filtro, como antes.
+      const [cliente] = await ctx.linhasPorIds<ClienteSync>('cliente', [entrada.cliente_id]);
+      const local = filialDoClienteLocal(cliente?.filial_id, await ctx.linhas<FilialSync>('filial'));
+      if (local) {
+        filial = filialDoPreco({ tabelaId: id, filialCliente: local.filialCliente, filialPadrao: local.filialPadrao, filiaisComItens: [...new Set(todos.flatMap((l) => (l.filial_id ? [l.filial_id] : [])))] });
+      }
+      itens = todos
+        .filter((l) => pedidos.has(l.produto_id) && (filial === null || l.filial_id === undefined || l.filial_id === filial.filialId))
         .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
       // RN-VEN-23: faixas dos produtos pedidos, da tabela do cliente ou gerais (a vigência e o desempate são do domain)
       faixas = (await ctx.linhas<TabelaEscalonadaSync>('tabela_escalonada')).filter((l) => !l.deleted_at && l.ativo && pedidos.has(l.produto_id) && (l.tabela_preco_id === null || l.tabela_preco_id === id));
     }
   }
-  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco, faixas, fuso: ctx.usuario()?.fuso });
+  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco, faixas, fuso: ctx.usuario()?.fuso, filial });
 });

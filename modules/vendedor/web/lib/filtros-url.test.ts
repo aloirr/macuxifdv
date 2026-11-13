@@ -5,7 +5,7 @@ const VENDEDOR = '0f290000-0000-4000-8000-000000000006';
 
 describe('filtros da lista de pedidos na URL (T-0029 §8)', () => {
   it('ida e volta: o que está na URL volta igual', () => {
-    const f = { status: 'pending_approval', seller_id: VENDEDOR, from: '2026-11-01', to: '2026-11-30', q: 'Auto Peças' };
+    const f = { status: 'pending_approval', seller_id: VENDEDOR, branch_id: VENDEDOR, from: '2026-11-01', to: '2026-11-30', q: 'Auto Peças' };
     expect(lerFiltros(paraBusca(f))).toEqual(f);
   });
 
@@ -18,6 +18,11 @@ describe('filtros da lista de pedidos na URL (T-0029 §8)', () => {
   it('link velho ou digitado à mão: status, vendedor e datas inválidos são ignorados', () => {
     const f = lerFiltros('?status=xpto&seller_id=1%27%20or%201=1&from=ontem&to=2026-13&q=a');
     expect(f).toEqual({ ...FILTROS_VAZIOS, q: 'a' });
+  });
+
+  it('T-0149: filial inválida na URL é ignorada e a válida vai para a query da API', () => {
+    expect(lerFiltros('?branch_id=xpto').branch_id).toBe('');
+    expect(paraQuery({ ...FILTROS_VAZIOS, branch_id: VENDEDOR })).toEqual({ branch_id: VENDEDOR });
   });
 
   it('a busca é limitada a 100 caracteres e a query da API leva só o que foi preenchido', () => {

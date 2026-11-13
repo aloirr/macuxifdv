@@ -220,3 +220,23 @@ e 12 meses de histórico; **rota de hoje** de cada vendedor com carteira (parada
 4 pedidos do Rafael S. (`received`, `approved`, `invoiced`, `pending_approval`) com itens dos produtos da Fase M. Rotas e
 paradas têm id pela data (cada dia de demonstração ganha a sua; as anteriores ficam como histórico). Motivos e parâmetros
 padrão do Core vêm do gatilho do tenant.
+
+## 0056 e 0057 — filiais e fotos do PDV (T-0149, T-0147)
+- **Filiais** (`FILIAIS_FIXTURE`): a padrão `0001` de A e de B vem do gatilho `tenant_semear_filial` (id `idFilialPadrao`, fora
+  das listas); a lista (grupo `0x0a`) tem a `0002` Boa Vista/RR em A (`external_id` FIL-BV) e a `0002` Campinas/SP em B.
+  **Todo cliente da fixture fica na padrão** (`filial_id` no helper `cliente`); depósitos, itens de preço e faixas não informam a
+  filial e o gatilho grava a padrão — estoque e preço de hoje não mudam. Testes que precisam de cliente/depósito/preço na 0002
+  gravam em transação desfeita.
+- **Fotos do PDV** (`FOTOS_PDV_FIXTURE`, `PERFIS_LEITURA_DOC_SENSIVEL`): a "Fachada" de A e de B vem do gatilho
+  `tenant_semear_foto_tipo` (id `idFotoTipoFachada`); a lista (grupo `0x0b`) tem "CNH do sócio" (sensível, obrigatória) em A e
+  "Contrato social" (sensível) em B. Fotos (grupo `0x0c`): A com a fachada (câmera) e a CNH (galeria) de c1, B com a fachada de
+  c1. Arquivos (`plataforma.arquivo`, grupo `0x2c`, seq 11+; finalidade `pdv`, recebidos): a CNH com `perfis_leitura`
+  `{admin,analista,supervisor}`; as demais linhas de arquivo da fixture ficam com `perfis_leitura` nula.
+
+## 0058 — diagnóstico do aparelho (T-0158, ADR 0043)
+- **Diagnósticos** (`DIAGNOSTICOS_FIXTURE`, grupo `0x0d`, `plataforma.diagnostico`): todos com o alerta já resolvido (um worker
+  de teste não acha pendente). A com 1 do botão do vendedor-1 (`enviado`, recado `R-20261031-120000-diagnostico`) e 1 queda do
+  promotor (`crash_nativo`, `desligado`); B com 1 erro de tela do vendedor-B (`enviado`). Aparelho `samsung SM-A155M`, Android
+  14 (API 34), versão `1.0.4`, tela `/m/novo-pedido`. Sem print. O **protocolo** vem da sequência global
+  `plataforma.diagnostico_protocolo_seq` (a fixture não grava a coluna; o número muda entre bancos). Testes que precisam de
+  pendente, de print ou de diagnóstico velho (expurgo) gravam o seu em transação desfeita.

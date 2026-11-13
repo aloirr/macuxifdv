@@ -5,7 +5,7 @@
 import { formatBRL, formatPct } from '@macuxi/comum';
 
 import { textoPrecoDe, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
-import { destinoDoEnvio, ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
+import { ROTULOS_DO_SALVAR } from '../../domain/botoes-resumo';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import type { CalculoPedido } from './novo-pedido';
 
@@ -59,24 +59,6 @@ export function rotuloCurtoDaCondicao(descricao: string): string {
   return d;
 }
 
-export interface FaixaDaAlcada {
-  texto: string;
-  tom: 'ok' | 'aviso' | 'erro';
-  /** o ícone do tom (a `Faixa` do ui desenha o ✓); null = sem ícone */
-  icone: 'check' | 'alert' | null;
-}
-
-/** RN-VEN-10 / RN-VEN-03: a faixa da aba Resumo. Zero = sem faixa (null). */
-export function textoDaFaixa(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'nivel' | 'bloqueado'> & Partial<Pick<CalculoPedido, 'desconto_efetivo_exibicao_pct'>>, _limiteVendedor: number): FaixaDaAlcada | null {
-  // RN-VEN-03: o que a tela mostra é o % de 1 casa calculado dos inteiros (4,647 → 4,6), não o de 2 casas arredondado de novo
-  const pct = c.desconto_efetivo_pct === 0 ? 0 : (c.desconto_efetivo_exibicao_pct ?? c.desconto_efetivo_pct);
-  if (pct === 0) return null;
-  if (pct < 0) return { texto: `Acréscimo ${formatPct(-pct)}`, tom: 'ok', icone: null };
-  if (c.bloqueado) return { texto: `${formatPct(pct)} · acima da alçada`, tom: 'erro', icone: 'alert' };
-  if (c.nivel) return { texto: `${formatPct(pct)} · vai para o ${c.nivel}`, tom: 'aviso', icone: 'alert' };
-  return { texto: `${formatPct(pct)} · dentro da alçada`, tom: 'ok', icone: 'check' };
-}
-
 /** Selo do orçamento (tela 5 e lista): "Orçamento · preço de 10/11", "Cancelado", "Virou pedido 000015". Não há "Vencido" nem "até" (RN-VEN-18, 09/11). */
 export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; preco_data: string; pedido_numero?: string | null }): { texto: string; tom: 'roxo' | 'neutro' | 'sucesso' } {
   const [, m, d] = e.preco_data.split('-');
@@ -115,12 +97,6 @@ export function linhasDeTotais(c: Pick<CalculoPedido, 'total_tabela_cents' | 'de
 }
 
 // ---------- item da aba Itens (T-0071, referência enxuta) ----------
-/** "R$ 17,90 → 17,01" (com ajuste) ou "R$ 17,90" (sem). A segunda moeda vem sem o símbolo, como na referência. */
-export function textoPrecoDaLinha(l: { preco_tabela_cents: number; preco_unitario_cents: number }): string {
-  if (l.preco_unitario_cents === l.preco_tabela_cents) return formatBRL(l.preco_tabela_cents);
-  return `${formatBRL(l.preco_tabela_cents)} → ${formatBRL(l.preco_unitario_cents).replace(/^R\$\s?/, '')}`;
-}
-
 /** O que o ajuste vale na outra moeda: "−R$ 0,89" (digitou %) ou "= 5,3%" (digitou R$); acréscimo com "+". Sem ajuste, vazio. */
 export function textoEquivalente(l: { ajuste_em: 'pct' | 'valor'; equivalente: { sentido: 'desconto' | 'acrescimo'; cents: number; pct_exibicao: number } | null }): string {
   const e = l.equivalente;
@@ -159,12 +135,12 @@ export function seloDaSugestao(s: { origem: string; economia_pct?: number; preco
 // ---------- revisão de UX da fatia 6 (T-0071) ----------
 const ROTULO_IR_PARA_PEDIDOS = 'Ir para Pedidos';
 
-/** Confirmação depois de enviar: orçamento é "salvo" (com o dia do preço), pedido é "recebido" (com o status e a nota da alçada). */
+/** Confirmação depois de enviar: orçamento é "salvo" (com o dia do preço), pedido é "recebido" (com o status e o motivo, quando há). */
 export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: string; status: string; preco_data?: string | null; pending_reason?: string | null; rejection_reason?: string | null }): { titulo: string; nota: string; mostrarStatus: boolean; rodape: string } {
   if (e.tipo === 'orcamento') {
     return { titulo: `Orçamento ${e.numero} salvo`, nota: e.preco_data ? `${textoPrecoDe(e.preco_data)}.` : '', mostrarStatus: false, rodape: ROTULO_IR_PARA_PEDIDOS };
   }
-  const nota = e.status === 'pending_approval' ? (e.pending_reason ?? '') : e.status === 'rejected' ? (e.rejection_reason ?? '') : e.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : '';
+  const nota = e.status === 'rejected' ? (e.rejection_reason ?? '') : '';
   return { titulo: `Pedido ${e.numero} recebido`, nota, mostrarStatus: true, rodape: ROTULO_IR_PARA_PEDIDOS };
 }
 
@@ -176,15 +152,14 @@ export function avisoSalvoNoAparelho(tipo: 'pedido' | 'orcamento'): { titulo: st
 export const ROTULO_IR_PARA_PEDIDOS_RODAPE = ROTULO_IR_PARA_PEDIDOS;
 
 /**
- * RN-VEN-18 / desenho §1.5: a folha do Transformar abre SEMPRE (toque 1), com a alçada e o "Enviar pedido" (toque 2). Sem mudança
+ * RN-VEN-18 / desenho §1.5: a folha do Transformar abre SEMPRE (toque 1), com o "Enviar pedido" (toque 2); a alçada vira a pergunta ao enviar (RN-VEN-10, T-0151). Sem mudança
  * o título é "Transformar em pedido"; com mudança ou bloqueio, "Mudou desde o orçamento" (com o total novo).
  * `null` = sem tabela no aparelho para conferir (a plataforma confere ao receber).
  */
-export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number | null } | null): { titulo: string; subtitulo: string; podeEnviar: boolean; mostrarTotal: boolean } {
-  if (!c) return { titulo: ROTULOS_DO_SALVAR.transformar, subtitulo: 'Confere preço e alçada ao enviar.', podeEnviar: true, mostrarTotal: false };
+export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number | null } | null): { titulo: string; podeEnviar: boolean; mostrarTotal: boolean } {
+  if (!c) return { titulo: ROTULOS_DO_SALVAR.transformar, podeEnviar: true, mostrarTotal: false };
   const mudou = c.mudancas.length > 0 || c.bloqueio !== null;
-  const subtitulo = destinoDoEnvio(c.nivel);
-  return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DO_SALVAR.transformar, subtitulo, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
+  return { titulo: mudou ? 'Mudou desde o orçamento' : ROTULOS_DO_SALVAR.transformar, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
 }
 
 /** Resumo depois do envio (só leitura): o ajuste do pedido vira uma linha de valor. Zero = sem linha. */
@@ -199,7 +174,7 @@ export function linhaDoAjusteSomenteLeitura(a: { sentido: 'desconto' | 'acrescim
  */
 export function textoCancelarDocumento(e: { ehOrcamento: boolean; naFila: boolean; titulo: string; solicitaAoErp?: boolean }): { rotuloAcessivel: string; titulo: string; descricao: string; confirmar: string; ocupado: string } {
   if (e.ehOrcamento) {
-    return { rotuloAcessivel: 'Cancelar orçamento', titulo: 'Cancelar este orçamento?', descricao: e.naFila ? 'O orçamento sai da fila do aparelho e não será enviado.' : 'Ele continua na lista como cancelado e não pode mais virar pedido.', confirmar: 'Cancelar orçamento', ocupado: 'Cancelando…' };
+    return { rotuloAcessivel: 'Cancelar orçamento', titulo: 'Cancelar este orçamento?', descricao: e.naFila ? 'O orçamento sai da fila do aparelho e não será enviado.' : 'Não pode mais virar pedido.', confirmar: 'Cancelar orçamento', ocupado: 'Cancelando…' };
   }
   return {
     rotuloAcessivel: 'Cancelar pedido',

@@ -330,3 +330,53 @@ produto com faixa (milhares por tenant). Aparelho: sem versão nova do SQLite (a
 índice de expressão por produto entra numa v4 quando o modulo-catalogo declarar a entidade, se a leitura pedir).
 Base de demo: BIS-400 com 50 UN a R$ 5,69, 10 CX a R$ 5,49 e 20 CX a R$ 5,29 por UN (todas as tabelas, desde o 1º do mês anterior).
 Fixture: A no p1 com 10 PC (geral), 2 CX (Padrão Alfa) e uma vencida ontem; B no p1 com 12 UN. Volta: o down da 0037 apaga a tabela.
+
+## 0056 — estoque e preço por filial (`0056_core_filial`; T-0149, RN-CORE-39, ADR 0040, desenho docs/desenho/T-0149.md §3.2)
+Pedido R-20261110-064112-engenheiro-software. **Sem FK para o Core** (ADR 0005): o id da filial é validado pelo
+`core.filiais@1`.
+| Coluna | Regra |
+|---|---|
+| `deposito.filial_id uuid not null` | a filial do depósito; o estoque da filial = soma dos depósitos dela. Backfill = padrão. Índice `deposito_filial_ix (tenant_id, filial_id)` (pull do estoque por filial: `deposito_id in (select id from catalogo.deposito where filial_id = any($n))`) |
+| `tabela_preco_item.filial_id uuid not null` | a filial do preço. Backfill = padrão. Único vivo **`tabela_preco_item_filial_vigencia_uk`** `(tenant_id, tabela_preco_id, filial_id, produto_id, unidade, vigencia_inicio) NULLS NOT DISTINCT` (substitui o `tabela_preco_item_unidade_vigencia_uk` da 0013). Índice `tabela_preco_item_filial_ix (tenant_id, tabela_preco_id, filial_id)`: "a tabela tem item nesta filial?" (`filialDoPreco`) |
+| `tabela_escalonada.filial_id uuid` | **nulo = todas as filiais** (as faixas antigas ficam nulas). A filial entra no único `tabela_escalonada_faixa_uk` `(tenant_id, produto_id, medida, quantidade_minima, tabela_preco_id, filial_id, vigencia_inicio)`: a faixa da filial e a geral convivem; a da filial vence (`faixasDaFilial`) |
+
+- **Nulo na escrita vira a padrão** (gatilhos `deposito_filial_padrao` e `tabela_preco_item_filial_padrao`, função
+  `core.preencher_filial_padrao()`, BEFORE INSERT OR UPDATE OF filial_id): é a regra do contrato do Hub ("ausente ou nulo =
+  padrão") e mantém os caminhos que ainda não mandam a filial. Quem conhece a filial (consumidor do ERP, BKO) grava a dela.
+- Backfill anda o `updated_at` dos depósitos e dos itens uma vez (o aparelho repuxa com `filial_id`).
+- **`precos_cliente@1`**: o `where` da consulta ganha `i.filial_id = $filial`, com a filial dada por `filialDoPreco` (a do
+  cliente se a tabela dele tem item vivo nela; senão a padrão). O prefixo do único (`tenant, tabela, filial, produto`) atende.
+- **Aparelho**: só as filiais da carteira + a padrão (`core.filiais@1 { escopo: 'carteira' }.da_carteira`); SQLite v5 com
+  `catalogo__tabela_preco_item_filial` ([aparelho-sqlite.md](aparelho-sqlite.md) §4.4).
+- Volta (`0056_core_filial.down.sql`): faixas e itens de filial **não padrão** são apagados logicamente (voltam na próxima
+  carga) antes de recriar os únicos antigos; as colunas saem; depósitos de outras filiais ficam. Testes: `db/testes/filial.test.ts`.
+
+## T-0119 — busca com 20 mil produtos: o que o banco serve (D-T0107b)
+Sem migração: o gargalo da busca não é o banco. Medida em 11/11/2026 (CI `main` 43008008751, `busca-volume.db.test.ts`): caminho completo 9–828 ms por consulta, p95 828 ms. O mesmo caminho só em memória, sem banco (20 mil produtos sintéticos iguais aos do teste, perfil de CPU), gasta o tempo no índice de pré-seleção, no corte e no ranking (`candidatosDaBusca`, `cortarCandidatos`, `buscarProdutos`), e não nas leituras de preço e estoque. O índice em memória é refeito a cada retrato novo (TTL de 60 s), em CPU síncrona, e trava o event loop da API enquanto roda: é a causa provável do p95 de 15–20 s sob carga (T-0107).
+
+Leituras de banco da busca e o índice que serve cada uma (todas com `tenant_id = plataforma.tenant_atual()` da RLS na frente). O teste estático `db/testes/busca-catalogo-indices.test.ts` impede que alguma migração apague um deles:
+
+| Leitura (repositório do Catálogo) | Índice |
+|---|---|
+| `precos`: itens da tabela do cliente na filial do preço, para os candidatos | `tabela_preco_item_filial_vigencia_uk` (tenant_id, tabela_preco_id, filial_id, produto_id, …) where deleted_at is null |
+| `filialDaTabela`: a tabela tem item na filial do cliente? | o mesmo |
+| `saldos`: estoque dos candidatos + depósito | `estoque_saldo_produto_ix` (tenant_id, produto_id) + PK de `deposito` |
+| tabela do cliente | `cliente_tabela_preco_cliente_uk` (tenant_id, cliente_id) where deleted_at is null |
+| retrato (`enriquecer`): atributos, conteúdo, referências e miniatura | `produto_atributo_uk`, `produto_conteudo_produto_uk`, `produto_referencia_ordem_uk`, `produto_midia_principal_uk`, todos (tenant_id, produto_id, …) |
+
+O EXPLAIN sem Seq Scan das leituras de preço e de estoque dos candidatos é conferido no CI (`busca-volume.db.test.ts`, 300 ids). No corte (2 a 6 mil candidatos, 10 a 30% do catálogo), o Seq Scan em `estoque_saldo` pode ser o plano certo. `catalogo.produto_busca` (0013, tsvector com GIN) continua fora da rota de busca: a busca tolera erro de digitação ("pastlha") e é a mesma do app offline, e o FTS não faz isso.
+
+## 0062 — guarda de ordem do ERP e tabela de preço "desligada no BKO" (`0062_core_catalogo_erp_ordem`; T-0095, RN-INT-02/04/06)
+Mesma migração da parte do Core ([core.md](core.md), "0062", com as regras dos gatilhos). Colunas **nulas, sem backfill**, fora do pull.
+| Tabela.coluna | Tipo | Regra |
+|---|---|---|
+| tabela_preco_item.erp_alterado_em | timestamptz(3) | `alterado_em` do registro de preço do ERP aplicado; gravar também no apagamento (tombstone) |
+| estoque_saldo.erp_alterado_em | timestamptz(3) | `alterado_em` do registro de estoque do ERP. O `atualizado_erp_em` continua sendo o que o app mostra; ao mover o depósito de filial, copie as duas |
+| cliente_tabela_preco.erp_alterado_em | timestamptz(3) | `alterado_em` do registro do **cliente** do ERP que trouxe a tabela (`integracao.cliente.atualizado@1`) |
+| tabela_preco.desligado_no_bko_em | timestamptz(3) | o BKO grava ao desativar a tabela e limpa ao reativar (mesmo update do `ativo`); preenchida, o consumidor de preço não reativa (gatilho `tabela_preco_desligado_no_bko`) |
+
+Gatilhos `tabela_preco_item_versao_erp`, `estoque_saldo_versao_erp` e `cliente_tabela_preco_versao_erp` (versão mais antiga não grava)
+e `tabela_preco_desligado_no_bko`. Índices `tabela_preco_item_erp_versao_ix`, `estoque_saldo_erp_versao_ix` e
+`cliente_tabela_preco_erp_versao_ix` `(tenant_id, external_id, erp_alterado_em)` parciais: a maior versão por `external_id`,
+**apagadas inclusive**, antes do insert (o ERP apaga e o mesmo `external_id` volta como linha nova). No `cliente_tabela_preco` o
+`external_id` é o do cliente. Teste: `db/testes/erp-ordem.test.ts`.

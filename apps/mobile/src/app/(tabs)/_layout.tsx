@@ -9,7 +9,6 @@
  * foco do Início e do "Mais" diz de onde ela veio (o voltar na raiz devolve para lá, e a barra acende essa aba).
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import type { ModuloId } from '@macuxi/platform-sdk';
 import { colors } from '@macuxi/ui/mobile';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
@@ -25,13 +24,11 @@ export default function TabsLayout() {
   // roteador do shell marca a tela que abre (`PARAM_SUBSTITUIR`, ADR 0026), sem evento interno nem janela de tempo
   if (!sessao) return <Redirect href="/login" />;
   if (!estado.sincronizado_em) return <Redirect href="/sync" />;
-  const badges: Partial<Record<ModuloId, number>> = {};
-  for (const i of estado.fila) badges[i.modulo] = (badges[i.modulo] ?? 0) + 1;
   return (
     <Tabs
       backBehavior="history"
       UNSTABLE_router={(original) => comHistoricoDoShell(original)}
-      tabBar={() => <TabBar abas={abasDoShell(visao.navegacao)} badges={badges} />}
+      tabBar={() => <TabBar abas={abasDoShell(visao.navegacao)} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.ground } }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} listeners={{ focus: () => marcarOrigemFora('inicio') }} />
       <Tabs.Screen name={ROTA_MODULO} options={{ title: 'Módulo' }} listeners={{ focus: marcarVoltaAoModulo, blur: marcarSaidaDoModulo }} />

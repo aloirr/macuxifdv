@@ -33,6 +33,24 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
 }
 
 /**
+ * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS` liga o diagnóstico na nuvem do lado do servidor (Portal › Diagnósticos na API;
+ * alerta e expurgo no worker). Só `1`/`true`/`sim` liga; ausente ou outro valor = DESLIGADO (padrão até a v1.0.4).
+ */
+export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
+  return ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS ?? '').trim().toLowerCase());
+}
+
+/**
+ * T-0158 (R-20261111-011107): `MACUXI_DIAGNOSTICOS_APP` é a chave remota do botão "Enviar diagnóstico" no app
+ * (`recursos.diagnosticos` do `GET /v1/saude`). Flag próprio, fora dos `compose.yml`, para o `MACUXI_DIAGNOSTICOS=1` da demo
+ * (portal, alerta, expurgo) não ligar o botão sem a decisão do dono do produto. Só vale com `MACUXI_DIAGNOSTICOS` também
+ * ligado (o portal precisa existir para ler o que chega). Mesmos valores: `1`/`true`/`sim`; o resto = DESLIGADO.
+ */
+export function diagnosticosAppLigados(env: NodeJS.ProcessEnv): boolean {
+  return diagnosticosLigados(env) && ['1', 'true', 'sim'].includes(String(env.MACUXI_DIAGNOSTICOS_APP ?? '').trim().toLowerCase());
+}
+
+/**
  * T-0117 (ADR 0038): `MACUXI_SESSAO_COOKIE_SEGURO` → cookie do token de renovação do BKO com HTTPS (`__Secure-macuxi_rt`,
  * `Secure`) ou sem (`macuxi_rt`, para o `http://localhost` do PC). `1`/`true`/`sim` liga, `0`/`false`/`nao` desliga; ausente
  * ou outro valor: seguro fora do ambiente local (demo e produção) e local no PC (`ehAmbienteLocal`).

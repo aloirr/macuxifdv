@@ -45,9 +45,8 @@ Crie três hostnames públicos:
 Copie o **token** do túnel.
 
 **5. Environment `PRODUCAO` no GitHub** (Settings → Environments)
-- **Required reviewers:** aloirr.
-- **Prevent self-review:** desligado. A tag é enviada pela mesma conta e, ligado, ele não conseguiria aprovar.
 - **Deployment branches and tags:** "Selected", com a regra de tag `v*`.
+- **Aprovação do deploy (R-20261111-213829, opção 2):** o GitHub Pro não oferece "Required reviewers" em repositório privado. A trava é por recado: nenhuma tag `v*` e nenhum run do "producao — publicar" sem um recado do Alexandre com "aprovo deploy vX.Y.Z" para aquela versão exata. O gerente cita o ID desse recado na mensagem da tag.
 
 **6. Secrets do environment `PRODUCAO`** (os nomes são exatos)
 
@@ -66,8 +65,17 @@ Copie o **token** do túnel.
 | `PROD_PG_CA_CERT` | não, recomendado | PEM da CA do DBaaS. Com ele, o TLS confere o certificado (`verify-full`) |
 | `PROD_SSH_KNOWN_HOSTS` | não | linha `ssh-ed25519` da VM. Sem ele, vale a 1ª conexão (keyscan) |
 | `PROD_ALERTA_WEBHOOK` | não | URL de um tópico do ntfy.sh ou de um webhook do Slack/Discord para os alertas |
-| `PROD_TENANT_ADMIN_SENHA` | para o tenant de teste | senha inicial do admin do tenant de teste |
-| `PROD_SUPERADMIN_CONVITE` | para o portal `config.` | convite do seu 1º acesso de super-admin (ADR 0029). Só você sabe o valor. O workflow já lê esse secret (ok dado em 06/11). Os segredos de sessão e TOTP do portal são gerados pelo `preparar-vm.sh` na VM. |
+| `PROD_SUPERADMIN_SENHA` | sim, para entrar no `config.` | senha do seu 1º acesso de super-admin (ADR 0031; substitui o antigo `PROD_SUPERADMIN_CONVITE`, que **não** deve ser criado). Os segredos de sessão e TOTP do portal são gerados pelo `preparar-vm.sh` na VM. |
+| `PROD_SMTP_HOST` | sim, para o e-mail de 1º acesso | Brevo: `smtp-relay.brevo.com` |
+| `PROD_SMTP_USUARIO` | sim, com o Brevo | login SMTP do Brevo |
+| `PROD_SMTP_SENHA` | sim, com o Brevo | chave SMTP do Brevo |
+| `PROD_SMTP_PORTA` | não | padrão 587 |
+| `PROD_SMTP_TLS` | não | padrão `starttls` |
+| `PROD_SMTP_REMETENTE` | não | ex.: `Macuxi FDV <nao-responda@macuxifdv.com.br>`, com o domínio validado no Brevo |
+| `MACUXI_RECADOS_TOKEN_SERVIDOR` | não | token do remetente de sistema `diagnostico` (alerta por recado) |
+| `PROD_TENANT_ADMIN_SENHA` | não, plano B | a empresa nasce no `config.` pelo super-admin (RN-CORE-34); o workflow `producao-tenant` é só plano B |
+
+Os `PROD_SMTP_*` só passam a valer quando o patch `docs/desenho/T-0086-smtp-producao.patch` entrar pelo rito (ver o recado do gerente). Lista conferida pelo engenheiro-software em R-20261111-205903.
 
 **7. Avise o gerente** quando terminar. Depois disso, ele só precisa de você para **aprovar** os runs do `PRODUCAO`.
 

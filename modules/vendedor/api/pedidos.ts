@@ -34,7 +34,7 @@ import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNot
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
 import { exigirLeituraDePedidos } from './opcao-promotor';
-import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
+import { COLUNA_DEVOLVIDO, escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
 function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string): Partial<Order> {
@@ -66,7 +66,7 @@ const CorpoCancelar = z.object({ motivo: z.string().max(500).optional() }).defau
 const NAO_ENCONTRADO = ['PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.'] as const;
 
 /** T-0054: resumo do faturamento (0013; só com `FATURAMENTO_LIGADO`): total faturado, notas e última NF. */
-const COLUNAS_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
+const COLUNAS_FATURAMENTO = `${COLUNA_DEVOLVIDO}, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
 const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
@@ -75,7 +75,8 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_
   p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_nome,
   p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega,
   p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em,
-  p.forma_pagamento_id, p.forma_pagamento_nome, p.prazo_pagamento_id, p.prazo_descricao, p.prazo_parcelas_dias, p.prazo_medio_dias`;
+  p.forma_pagamento_id, p.forma_pagamento_nome, p.prazo_pagamento_id, p.prazo_descricao, p.prazo_parcelas_dias, p.prazo_medio_dias,
+  p.filial_id, p.filial`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;
@@ -110,7 +111,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
               total_cents::float8 as total_cents, unidade, fator, acrescimo_pct::float8 as acrescimo_pct,
-              desconto_unitario_cents::float8 as desconto_unitario_cents, acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, ajuste_em, aplicacao${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
+              desconto_unitario_cents::float8 as desconto_unitario_cents, acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, ajuste_em, aplicacao, marca${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )
@@ -168,7 +169,7 @@ export const rotaListarPedidos: RotaModulo = {
     // T-0071 §1.4 g: sem o parâmetro, a lista traz só pedidos (nenhum orçamento entra por engano em KPI, aprovação ou lista de pedidos)
     const tipo = q.tipo ?? 'pedido';
     // filtros de id fora do formato nunca casam com nada (e não podem estourar o cast uuid do banco)
-    if ((q.seller_id && !UUID.test(q.seller_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
+    if ((q.seller_id && !UUID.test(q.seller_id)) || (q.branch_id && !UUID.test(q.branch_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
     if (q.cursor && !cursor) throw new ErroRegraNegocio('CURSOR_INVALIDO', 'Cursor inválido: recarregue a lista.');
     return ctx.comTenant(async (db) => {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
@@ -192,9 +193,10 @@ export const rotaListarPedidos: RotaModulo = {
             and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
             and ($13::text is null or p.tipo = $13)
             and ($14::text is null or ${SQL_SITUACAO_ORCAMENTO} = $14)
+            and ($16::uuid is null or p.filial_id = $16)
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1'],
+        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null],
       );
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];

@@ -28,7 +28,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pedidoDoOrcamento, type OrcamentoParaPedido } from '../../../modules/vendedor/domain';
 import { A, licenca } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, garantirSaldoNaFilial, listaDe, SALDO_REFERENCIA, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 type Linha = LinhaSync & Record<string, unknown>;
 interface Banco {
@@ -195,6 +195,9 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
     expect([prod.AGU, prod.CAF, prod.BIS].every(Boolean), 'AGU-500, CAF-500 e BIS-400 na base demo').toBe(true);
     miniBox = (await q<{ id: string }>("select id from core.cliente where tenant_id = $1 and external_id = 'C5110'", [TENANT_DEMO]))[0]?.id ?? '';
     expect(miniBox, 'Mini Box Japiim (C5110) na base demo').not.toBe('');
+    // RN-VEN-20 (v1.0.4): os totais da referência dependem de AGU-500, CAF-500 e BIS-400 nessas quantidades; o CAF-500 tem pouco
+    // disponível na filial do Mini Box (saldo − reservas do seed): o preparo completa o saldo antes do 1º sync (a recusa fica ligada)
+    for (const p of [prod.AGU, prod.CAF, prod.BIS]) await garantirSaldoNaFilial(api.admin, miniBox, p, SALDO_REFERENCIA);
     const carteira = await q<{ cliente_id: string }>('select cliente_id from core.carteira where tenant_id = $1 and usuario_id = $2 and deleted_at is null', [TENANT_DEMO, usuarioId.vendedor]);
     expect(carteira.map((c) => c.cliente_id), 'Mini Box na carteira do Lucas').toContain(miniBox);
     outroCliente = carteira.map((c) => c.cliente_id).find((c) => c !== miniBox)!;
@@ -421,7 +424,14 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
            from catalogo.cliente_tabela_preco c
            join catalogo.tabela_preco_item i on i.tabela_preco_id = c.tabela_preco_id and i.tenant_id = c.tenant_id
           where c.cliente_id = $1 and c.deleted_at is null and i.produto_id = $2 and i.unidade is null and i.deleted_at is null
-            and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())`,
+            and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())
+            -- RN-CAT-06 / RN-CORE-39 (T-0149): só a linha da filial do cliente; a tabela sem item nessa filial cai na filial padrão
+            and i.filial_id = coalesce(
+              (select cl.filial_id from core.cliente cl
+                where cl.id = c.cliente_id and cl.tenant_id = c.tenant_id
+                  and exists (select 1 from catalogo.tabela_preco_item x
+                               where x.tenant_id = c.tenant_id and x.tabela_preco_id = c.tabela_preco_id and x.filial_id = cl.filial_id and x.deleted_at is null)),
+              (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null))`,
         [miniBox, prod.CAF],
       );
       expect(precoCafe, 'uma linha vigente do CAF-500 a R$ 18,90 na tabela do Mini Box').toEqual([{ id: expect.any(String), preco_cents: 1890 }]);

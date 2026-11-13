@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ClienteBanco, ContextoBase, ContextoConsumo, DefinicaoEvento, ItemPush, ResultadoItemPush, UsuarioAutenticado } from '@macuxi/platform-sdk';
@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import manifest from '../manifest';
 import { PedidoRetornoErpEvento as RetornoErpConsumido } from '../../integracao/contracts';
 import { entidadePedido } from '../contracts/entidades';
+import { responderFiliais } from './filial-simulada';
 import { apiVendedor } from './index';
 import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 import { rotaCancelarPedido, rotaListarPedidos, rotaVerPedido } from './pedidos';
@@ -47,7 +48,7 @@ describe('T-0053: manifesto e ligação do consumidor', () => {
   it('RN-INT-08: o Vendedor consome integracao.pedido.retorno_erp@1 e publica faturado@1 (o despachante só entrega o que está em consome)', () => {
     expect(manifest.consome).toContain('integracao.pedido.retorno_erp@1');
     expect(manifest.publica).toContain('vendedor.pedido.faturado@1');
-    expect(apiVendedor.consumidores?.map((c) => c.evento.nome)).toEqual(['integracao.pedido.retorno_erp@1', 'integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1']);
+    expect(apiVendedor.consumidores?.map((c) => c.evento.nome)).toEqual(['integracao.pedido.retorno_erp@1', 'integracao.nota.atualizado@1', 'integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1']);
   });
 });
 
@@ -78,6 +79,7 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
         comTenant(pool, u.tenant_id, (c) => {
           const tx = {
             async consultar(def: { nome: string }, entrada: Record<string, unknown>) {
+              if (def.nome === CONSULTA_FILIAIS.nome) return responderFiliais(entrada);
               if (def.nome === CONSULTA_CADASTRO_RESUMO.nome) {
                 const ent = CONSULTA_CADASTRO_RESUMO.entrada.parse(entrada);
                 const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>
@@ -95,6 +97,7 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
                 const tabela: Record<string, number> = { [prod1]: 100_000, [prod2]: 50_000 };
                 return { tabela_preco_id: id(40), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: tabela[p] ?? null, motivo_sem_preco: tabela[p] ? null : 'Sem preço.' })) };
               }
+              if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { interpretarConsulta } from './consulta';
-import { candidatosDaBusca, construirIndiceBusca, cortarCandidatos, indiceDe, MINIMO_PARA_INDICE, posicoesDaPalavra } from './indice-busca';
+import { candidatosDaBusca, construirIndiceBusca, cortarCandidatos, indiceDe, MINIMO_PARA_INDICE, posicoesDaPalavra, prepararIndice } from './indice-busca';
 import { PARAMETROS_PADRAO } from './parametros';
 import { buscarProdutos, docDeBusca, itemDaVitrine, temEstoqueParaBusca, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from './vitrine';
 
@@ -221,5 +221,37 @@ describe('T-0119 (D-T0107b): teto de candidatos antes do ranking completo', () =
     const filtros = interpretarConsulta('pastilha SK000042', vocabularioDe(PRODUTOS));
     const pre = candidatosDaBusca({ produtos: PRODUTOS, contexto: contexto(), filtros, sinonimos: [], minimo: 0 })!;
     expect(cortarCandidatos(pre, contexto(), 3).produtos.map((p) => p.sku)).toContain('SK000042');
+  });
+});
+
+describe('T-0119: aquecimento do índice fora da requisição', () => {
+  it('RF-CAT-01: o índice nasce em pedaços que cedem o laço de eventos e fica igual ao construído de uma vez', async () => {
+    const produtos = gerar(300);
+    let cedidas = 0;
+    const indice = (await prepararIndice(produtos, 2026, { minimo: 0, ceder: async () => void cedidas++ }))!;
+    expect(cedidas).toBeGreaterThan(1);
+    const inteiro = construirIndiceBusca(produtos, 2026);
+    expect([...indice.texto.porTermo]).toEqual([...inteiro.texto.porTermo]);
+    expect([...indice.aplicacao.porTermo]).toEqual([...inteiro.aplicacao.porTermo]);
+    expect(indice.texto.alfa).toEqual([...indice.texto.porTermo.keys()].sort());
+    expect(indice.anos).toEqual(inteiro.anos);
+    expect(indiceDe(produtos, 2026)).toBe(indice); // a busca encontra o índice já pronto, sem construir na requisição
+  });
+
+  it('RF-CAT-01: catálogo abaixo do mínimo não monta índice', async () => {
+    expect(await prepararIndice(gerar(10), 2026)).toBeNull();
+  });
+
+  it('RF-CAT-01: o ranking com os termos preparados no índice dá o mesmo resultado do ranking que normaliza o produto na hora', async () => {
+    const preparados = gerar(400);
+    const iguais = preparados.map((p) => ({ ...p })); // cópias sem termos preparados
+    await prepararIndice(preparados, 2026, { minimo: 0 });
+    for (const q of ['pastilha freio cobreq', 'pastlha de freio', 'filtro oleo tecfil', 'honda civic 2013', 'CB-3100-X', 'xyz inexistente']) {
+      const f = interpretarConsulta(q, vocabularioDe(preparados));
+      const a = buscarProdutos({ produtos: preparados, contexto: contexto(), filtros: f, sinonimos: [], limit: 20, offset: 0 });
+      const b = buscarProdutos({ produtos: iguais, contexto: contexto(), filtros: f, sinonimos: [], limit: 20, offset: 0 });
+      expect(a.items.map((i) => [i.id, i.score])).toEqual(b.items.map((i) => [i.id, i.score]));
+      expect(a.total).toBe(b.total);
+    }
   });
 });

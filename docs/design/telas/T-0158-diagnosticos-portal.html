@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0158 · Portal › Diagnósticos (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .tela.web { width: 1240px; }
+  .nav { width: 1240px; background: var(--ground); border: 1px solid #BFC4BC; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 28px rgba(22, 32, 42, .16); }
+  .barra-nav { height: 30px; background: #E6E9E2; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+  .barra-nav i.b { width: 10px; height: 10px; border-radius: 5px; background: #C9CEC6; display: block; }
+  .barra-nav .url { margin-left: 14px; height: 20px; flex: 0 0 440px; background: var(--surface); border-radius: 6px; font-size: 11px; color: var(--ink2); display: flex; align-items: center; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; }
+  header.p { background: var(--surface); border-bottom: 1px solid var(--line); }
+  header.p .in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 28px; padding: 12px 16px; }
+  .logo-m { width: 40px; height: 40px; border-radius: 11px; background: var(--accent); color: #fff; font-family: Archivo, sans-serif; font-weight: 800; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  .marca-p { display: flex; align-items: center; gap: 12px; }
+  .marca-p b { display: block; font-family: Archivo, sans-serif; font-size: 15px; }
+  .marca-p span { font-size: 12px; color: var(--ink2); }
+  .menu { display: flex; gap: 4px; align-self: stretch; }
+  .menu a { display: flex; align-items: center; padding: 0 12px; font-size: 14px; font-weight: 600; color: var(--ink2); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -13px; padding-bottom: 10px; padding-top: 10px; }
+  .menu a.on { color: var(--ink); border-bottom-color: var(--accent); }
+  .sessao { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
+  .sessao .sair { height: 36px; padding: 0 12px; border: 1px solid var(--lineStrong); border-radius: 10px; display: flex; align-items: center; color: var(--ink); font-weight: 600; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 28px; display: flex; flex-direction: column; gap: 16px; }
+  .ph h2 { font-family: Archivo, sans-serif; font-weight: 800; font-size: 26px; margin: 0; letter-spacing: -.3px; display: flex; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+  .ph p { margin: 4px 0 0; font-size: 14px; color: var(--ink2); }
+  .voltar-w { font-size: 14px; font-weight: 600; color: var(--accentInk); display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+  .painel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+  .filtros { display: grid; grid-template-columns: 1fr 1.3fr 1.6fr 1.3fr 1fr 1.7fr auto; gap: 10px; padding: 14px 16px; align-items: end; }
+  .filtros label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink); }
+  .sel { height: 40px; border: 1px solid var(--lineStrong); border-radius: 10px; background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 14px; font-weight: 400; color: var(--ink); white-space: nowrap; overflow: hidden; }
+  .sel.on { border-color: var(--ink); font-weight: 600; }
+  .sel .ph2 { color: var(--ink3); }
+  .limpar { height: 40px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--accentInk); padding: 0 4px; white-space: nowrap; }
+  .contagem { padding: 0 16px 10px; font-size: 13px; color: var(--ink2); }
+  table.d { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.d th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink2); padding: 10px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #FAFBF9; white-space: nowrap; }
+  table.d td { padding: 0 12px; height: 46px; border-bottom: 1px solid var(--lineSoft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.d tr.hl td { background: var(--accentTint); }
+  table.d td.nr { font-family: Archivo, sans-serif; font-weight: 700; font-size: 14px; }
+  table.d td.nr a { color: var(--ink); text-decoration: none; }
+  table.d td .sub { color: var(--ink2); }
+  table.d td.emp { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+  .selo.aviso { color: var(--warningInk); }
+  .rod-tab { display: flex; justify-content: center; padding: 12px; }
+  .btn-w { height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--lineStrong); background: var(--surface); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+  /* detalhe */
+  .det { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 16px; }
+  .bl { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bl h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--ink2); display: flex; justify-content: space-between; align-items: center; }
+  .bl h3 .ac { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--accentInk); display: flex; align-items: center; gap: 4px; }
+  .desc { font-size: 15px; line-height: 22px; }
+  pre.tec { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 18px; background: #F7F8F5; border: 1px solid var(--lineSoft); border-radius: 10px; padding: 10px 12px; color: var(--ink); white-space: pre-wrap; }
+  pre.tec .m2 { color: var(--ink2); }
+  .kvw { display: grid; grid-template-columns: 112px 1fr; font-size: 14px; }
+  .kvw > div { padding: 8px 0; border-top: 1px solid var(--lineSoft); line-height: 19px; }
+  .kvw > div:nth-child(-n+2) { border-top: none; }
+  .kvw .r { color: var(--ink2); font-size: 13px; }
+  .kvw .mono2 { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink2); display: block; margin-top: 2px; word-break: break-all; }
+  .printw { display: flex; gap: 12px; align-items: center; }
+  .shot { width: 72px; height: 128px; border-radius: 8px; background: var(--ground); border: 1px solid var(--lineStrong); padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; flex: none; }
+  .shot i { display: block; height: 6px; border-radius: 3px; background: var(--lineStrong); }
+  .shot i.c { height: 18px; background: var(--surface); border: 1px solid var(--line); }
+  .shot i.a { background: var(--accent); margin-top: auto; height: 10px; }
+  .notas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 1240px; }
+</style>
+</head>
+<body>
+<h1 class="prancha">Portal › Diagnósticos (só super-admin)</h1>
+<p class="prancha">T-0158 · v1.0.4. Novo item "Diagnósticos" no cabeçalho do portal, ao lado de Empresas, só para o time Macuxi (super-admin); o admin do cliente não vê o item e recebe "sem acesso" no endereço. Lista de 50 em 50, do mais novo ao mais antigo; o detalhe junta o técnico de um envio num lugar só.</p>
+
+<div class="board" style="flex-direction:column;gap:30px">
+
+  <!-- A · Lista -->
+  <div class="tela web">
+    <div class="legenda"><b>A</b>Lista com filtros<span>Uma linha por envio. Origem e print com texto; motivo em português (o código fica no detalhe). Linha inteira abre o detalhe.</span></div>
+    <div class="nav">
+      <div class="barra-nav"><i class="b"></i><i class="b"></i><i class="b"></i><span class="url">config.macuxifdv.com.br/diagnosticos?versao=1.0.4</span></div>
+      <header class="p"><div class="in">
+        <div class="marca-p"><div class="logo-m">M</div><div><b>Portal de implantação</b><span>Macuxi FDV</span></div></div>
+        <nav class="menu"><a>Empresas</a><a class="on">Diagnósticos</a></nav>
+        <div class="sessao"><span>alexandre@macuxifdv.com.br · sessão até 18:40</span><span class="sair">Sair</span></div>
+      </div></header>
+      <main>
+        <div class="ph"><h2>Diagnósticos</h2><p>Enviados pelos aparelhos. Ficam 90 dias.</p></div>
+        <div class="painel">
+          <div class="filtros marca" style="outline-offset:-4px">
+            <label>Versão<span class="sel on">1.0.4 <i data-i="seta" data-t="16"></i></span></label>
+            <label>Aparelho<span class="sel"><span class="ph2">Modelo</span><i data-i="search" data-t="16" data-c="#5B6673"></i></span></label>
+            <label>Empresa<span class="sel">Todas <i data-i="seta" data-t="16"></i></span></label>
+            <label>Motivo<span class="sel">Todos <i data-i="seta" data-t="16"></i></span></label>
+            <label>Origem<span class="sel">Todas <i data-i="seta" data-t="16"></i></span></label>
+            <label>Período<span class="sel">Últimos 7 dias <i data-i="seta" data-t="16"></i></span></label>
+            <span class="limpar">Limpar filtros</span>
+          </div>
+          <div class="contagem">5 diagnósticos</div>
+          <table class="d">
+            <thead><tr><th>Nº</th><th>Recebido</th><th>Empresa</th><th>App</th><th>Aparelho</th><th>Android</th><th>Origem</th><th>Motivo</th><th>Print</th></tr></thead>
+            <tbody>
+              <tr class="hl"><td class="nr"><a>0042</a></td><td>11/11 15:30</td><td class="emp">Distribuidora Norte Ltda</td><td>Campo 1.0.4</td><td>Samsung SM-A155M</td><td>14</td><td><span class="selo neutro">Botão</span></td><td><span class="sub">—</span></td><td>Sim</td></tr>
+              <tr><td class="nr"><a>0041</a></td><td>11/11 14:02</td><td class="emp">Distribuidora Norte Ltda</td><td>Campo 1.0.4</td><td>Motorola moto g54</td><td>14</td><td><span class="selo erro">Queda</span></td><td>Falha nativa</td><td><span class="sub">—</span></td></tr>
+              <tr><td class="nr"><a>0040</a></td><td>11/11 08:47</td><td class="emp">Comercial Roraima S.A.</td><td>Gestão 1.0.4</td><td>Xiaomi Redmi Note 13</td><td>13</td><td><span class="selo aviso">Erro de tela</span></td><td>Erro de renderização</td><td><span class="sub">—</span></td></tr>
+              <tr><td class="nr"><a>0039</a></td><td>10/11 17:21</td><td class="emp">Distribuidora Norte Ltda</td><td>Campo 1.0.4</td><td>Samsung SM-A155M</td><td>14</td><td><span class="selo erro">Queda</span></td><td>App travou (ANR)</td><td><span class="sub">—</span></td></tr>
+              <tr><td class="nr"><a>0038</a></td><td>10/11 11:05</td><td class="emp">Comercial Roraima S.A.</td><td>Campo 1.0.4</td><td>Samsung SM-A055M</td><td>13</td><td><span class="selo neutro">Botão</span></td><td><span class="sub">—</span></td><td>Sim</td></tr>
+            </tbody>
+          </table>
+          <div class="rod-tab"><span class="btn-w">Mostrar mais 50</span></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- B · Detalhe -->
+  <div class="tela web">
+    <div class="legenda"><b>B</b>Detalhe técnico<span>Esquerda: o que o vendedor contou e o que o aparelho registrou. Direita: de onde veio, o print e o recado.</span></div>
+    <div class="nav">
+      <div class="barra-nav"><i class="b"></i><i class="b"></i><i class="b"></i><span class="url">config.macuxifdv.com.br/diagnosticos/6f1c…</span></div>
+      <header class="p"><div class="in">
+        <div class="marca-p"><div class="logo-m">M</div><div><b>Portal de implantação</b><span>Macuxi FDV</span></div></div>
+        <nav class="menu"><a>Empresas</a><a class="on">Diagnósticos</a></nav>
+        <div class="sessao"><span>alexandre@macuxifdv.com.br · sessão até 18:40</span><span class="sair">Sair</span></div>
+      </div></header>
+      <main>
+        <div class="ph">
+          <div class="voltar-w"><i data-i="voltar" data-t="16"></i>Diagnósticos</div>
+          <h2>Diagnóstico nº 0041 <span class="selo m erro">Queda</span></h2>
+          <p>Campo 1.0.4 · Motorola moto g54 · Android 14 (API 34) · recebido 11/11 às 14:02</p>
+        </div>
+        <div class="det">
+          <div class="col">
+            <div class="painel bl"><h3>O que aconteceu?</h3><div class="desc" style="color:var(--ink2)">Sem relato.</div></div>
+            <div class="painel bl marca" style="outline-offset:4px">
+              <h3>Saída do Android <span class="ac"><i data-i="copiar" data-t="15"></i>Copiar</span></h3>
+              <pre class="tec">Motivo      crash_nativo  <span class="m2">(REASON_CRASH_NATIVE = 5)</span>
+Status      11 · importância 100 (primeiro plano)
+Memória     PSS 212.408 KB · RSS 301.772 KB
+Quando      11/11 14:01:37
+Descrição   Fatal signal 11 (SIGSEGV), code 1, fault addr 0x0
+Pilha       #00 pc 0004a1f8  libhermes.so
+            #01 pc 000b31c4  libexpo-sqlite.so (sqlite3_step+88)
+            #02 pc 000b2f60  libexpo-sqlite.so
+            … <span class="m2">mais 14 linhas</span></pre>
+            </div>
+            <div class="painel bl">
+              <h3>Último erro do app <span class="ac"><i data-i="copiar" data-t="15"></i>Copiar</span></h3>
+              <pre class="tec">11/11 14:01:35 · origem: tela
+TypeError: Cannot read property 'itens' of undefined
+  at ResumoPedido (modules/vendedor/app/novo-pedido/resumo.tsx)
+  at renderWithHooks
+  … <span class="m2">mais 22 linhas</span></pre>
+            </div>
+          </div>
+          <div class="col">
+            <div class="painel bl">
+              <h3>Origem</h3>
+              <div class="kvw">
+                <div class="r">Empresa</div><div>Distribuidora Norte Ltda<span class="mono2">tenant 3b9e…a71c</span></div>
+                <div class="r">Usuário</div><div>Vendedor<span class="mono2">usuário 81d2…04ff</span></div>
+                <div class="r">Build</div><div>versionCode 14</div>
+                <div class="r">Tela</div><div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">/m/novo-pedido</div>
+                <div class="r">Fila</div><div>3 itens · última sync 11/11 13:48</div>
+              </div>
+            </div>
+            <div class="painel bl">
+              <h3>Print</h3>
+              <div style="font-size:14px;color:var(--ink2)">Não anexado.</div>
+            </div>
+            <div class="painel bl">
+              <h3>Recado automático</h3>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="selo m ok">Enviado</span><span style="font-size:13px">11/11 14:03 · a alexandre e engenheiro-apps</span></div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accentInk);display:flex;align-items:center;gap:4px">R-20261111-140312-diagnostico <i data-i="abrir" data-t="14" data-c="#8F3D06"></i></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- C · Notas -->
+  <div class="tela web">
+    <div class="legenda"><b>C</b>Estados e textos<span>Sem texto extra na tela.</span></div>
+    <div class="notas">
+      <div class="nota-prancha"><b>Motivo (rótulo · código):</b> Falha nativa · crash_nativo; App travou (ANR) · anr; Sem memória · memoria; Encerrado pelo sistema · encerrado; Erro de renderização · a OrigemDoErro; Botão = "—". O código só aparece no detalhe, na Saída do Android.</div>
+      <div class="nota-prancha"><b>Origem:</b> Botão (neutro), Queda (vermelho), Erro de tela (amarelo); sempre com o texto. Print: "Sim" ou "—". Datas em Manaus, dd/mm hh:mm; no detalhe "11/11 às 14:02".</div>
+      <div class="nota-prancha"><b>Detalhe com print:</b> miniatura 72 × 128 + "Abrir em tamanho real" (abre o JPEG numa aba, rota autenticada). Sem relato do vendedor: "Sem relato." em todos os casos (o selo do título já diz Queda ou Erro de tela). <b>Ocorrido</b> na Origem só no envio pelo botão (difere do "recebido" quando ficou na fila); na queda e no erro de tela a hora já está no bloco técnico.</div>
+      <div class="nota-prancha"><b>Recado automático:</b> Enviado (verde) · Pendente (amarelo, "próxima tentativa hh:mm") · Agrupado (neutro, "no resumo de hh:mm") · Falhou (vermelho, "8 tentativas") · Desligado (neutro, "servidor sem o token de recados").</div>
+      <div class="nota-prancha"><b>Lista vazia:</b> "Nenhum diagnóstico com estes filtros." + Limpar filtros. Sem nenhum envio: "Nenhum diagnóstico recebido." Carregando: "Buscando os diagnósticos…". Erro: o ErrorBlock do kit, com Tentar de novo.</div>
+      <div class="nota-prancha"><b>Filtros:</b> vão para o endereço (?versao=&amp;modelo=&amp;empresa=&amp;motivo=&amp;origem=&amp;de=&amp;ate=), para colar o link no recado. Período padrão: últimos 7 dias. "Limpar filtros" só aparece com filtro ligado.</div>
+      <div class="nota-prancha"><b>Copiar</b> leva o bloco inteiro (com as linhas escondidas); "mais N linhas" abre o bloco no lugar. Ids de empresa e usuário inteiros no title e no Copiar; na tela, o começo e o fim.</div>
+      <div class="nota-prancha"><b>Sem acesso:</b> admin do cliente não vê o item no cabeçalho; no endereço direto, "Esta área é só do time Macuxi." com o link para a empresa dele.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

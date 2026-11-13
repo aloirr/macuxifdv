@@ -17,6 +17,7 @@ import {
   produtosComPrecos,
   type LinhasVendedor,
 } from './pull';
+import { buildOrderPdfHtml, pdfDoPedido } from '../../domain/pdf-pedido';
 
 const base = { updated_at: '2026-11-01T12:00:00.000000Z', deleted_at: null, external_id: null };
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -290,5 +291,17 @@ describe('estoque do catálogo do aparelho (RN-VEN-20)', () => {
   it('RN-VEN-20: saldo removido não conta', () => {
     const l = linhas({ produtos: [produto(1)], saldos: [saldo(1, U(301), 5), { ...saldo(2, U(301), 9), deleted_at: '2026-11-02T00:00:00.000000Z' }] });
     expect(produtosComPrecos(l, new Map())[0]!.stock_total).toBe(5);
+  });
+});
+
+describe('T-0159 (R-20261111-003121): cadeia real retrato da filial → detalhe → PDF', () => {
+  it('D-T0159-5: o cabeçalho do PDF sai com o nome puro do retrato (sem código nem UF); branch_name segue 0002 · Filial Boa Vista/RR no detalhe', () => {
+    const filial = { id: U(900), codigo: '0002', nome: 'Filial Boa Vista', cidade: 'Boa Vista', uf: 'RR', cnpj: '12345678000271', logradouro: 'Rua Cecília Brasil', numero: '450', cep: '69301000', telefone: '9532241000', padrao: false, external_id: null };
+    const l = linhas({ pedidos: [pedido({ id: U(30), filial_id: U(900), filial } as Partial<PedidoSync> & { id: string })], itens: [item(1, U(30), 1, 1, 100)] });
+    const d = detalheDoPedido(l, U(30), 'vendedor', {})!;
+    expect(d.branch_name).toBe('0002 · Filial Boa Vista/RR');
+    for (const v of ['customer', 'bko'] as const) {
+      expect(buildOrderPdfHtml(pdfDoPedido(d), v, { tenant_name: 'Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-11T18:00:00.000Z' })).toContain('Filial Boa Vista · CNPJ 12.345.678/0002-71 · (95) 3224-1000');
+    }
   });
 });

@@ -10,6 +10,7 @@ import {
   CheckoutVisitRequest,
   CreateVisitRequest,
   CustomerSummary,
+  FilialDadosFiscaisSchema,
   Id,
   IsoDate,
   IsoDateTime,
@@ -92,6 +93,8 @@ export const OrderItem = z.object({
   adjust_mode: z.enum(['pct', 'valor']).optional(),
   /** T-0084 (RN-VEN-19): retrato da aplicação do produto no momento do pedido (até 1.000); ausente/nulo = desmarcada ou sem aplicação */
   application: z.string().max(1000).nullable().optional(),
+  /** T-0159: retrato da marca do produto (coluna Marca do PDF); ausente = pedido anterior */
+  brand: z.string().max(100).nullable().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -109,6 +112,8 @@ export const Order = z.object({
   /** legado da Fase M; null no pedido da plataforma nova (T-0029 §3.3) */
   branch_id: Id.nullable(),
   branch_name: z.string().nullable(),
+  /** T-0159 (T-0149): dados fiscais da filial de faturamento no retrato do pedido (CNPJ, endereço, telefone); ausente = pedido anterior */
+  filial: FilialDadosFiscaisSchema.extend({ nome: z.string().nullish(), cidade: z.string().nullish(), uf: z.string().nullish() }).nullable().optional(),
   price_table_id: Id.nullable(),
   discount_pct: Pct,
   subtotal_cents: Cents,

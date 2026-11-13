@@ -42,7 +42,7 @@ import { detalheDoPedido, lerLinhas, listaDePedidos, paraAprovar, politicaApi, p
 import { seloDoOrcamento, situacaoDoClienteSync } from '../../../modules/vendedor/app/lib/textos-pedido';
 import { duplicarDocumento } from '../../../modules/vendedor/domain';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { DEMO, garantirSaldoNaFilial, listaDe, SALDO_REFERENCIA, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 interface Banco {
   id: string;
@@ -170,7 +170,14 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
          from catalogo.cliente_tabela_preco c
          join catalogo.tabela_preco_item i on i.tabela_preco_id = c.tabela_preco_id and i.tenant_id = c.tenant_id
         where c.cliente_id = $1 and c.deleted_at is null and i.produto_id = $2 and i.unidade is null and i.deleted_at is null
-          and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())`,
+          and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())
+            -- RN-CAT-06 / RN-CORE-39 (T-0149): só a linha da filial do cliente; a tabela sem item nessa filial cai na filial padrão
+            and i.filial_id = coalesce(
+              (select cl.filial_id from core.cliente cl
+                where cl.id = c.cliente_id and cl.tenant_id = c.tenant_id
+                  and exists (select 1 from catalogo.tabela_preco_item x
+                               where x.tenant_id = c.tenant_id and x.tabela_preco_id = c.tabela_preco_id and x.filial_id = cl.filial_id and x.deleted_at is null)),
+              (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null))`,
       [cliente, produto],
     );
   /** Um produto ativo com preço vigente na tabela do cliente (unidade base). */
@@ -180,6 +187,13 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
          from catalogo.cliente_tabela_preco c
          join catalogo.tabela_preco_item i on i.tabela_preco_id = c.tabela_preco_id and i.tenant_id = c.tenant_id and i.unidade is null and i.deleted_at is null
               and (i.vigencia_inicio is null or i.vigencia_inicio <= now()) and (i.vigencia_fim is null or i.vigencia_fim > now())
+            -- RN-CAT-06 / RN-CORE-39 (T-0149): só a linha da filial do cliente; a tabela sem item nessa filial cai na filial padrão
+            and i.filial_id = coalesce(
+              (select cl.filial_id from core.cliente cl
+                where cl.id = c.cliente_id and cl.tenant_id = c.tenant_id
+                  and exists (select 1 from catalogo.tabela_preco_item x
+                               where x.tenant_id = c.tenant_id and x.tabela_preco_id = c.tabela_preco_id and x.filial_id = cl.filial_id and x.deleted_at is null)),
+              (select f.id from core.filial f where f.tenant_id = c.tenant_id and f.padrao and f.deleted_at is null))
          join core.produto p on p.id = i.produto_id and p.ativo and p.deleted_at is null
         where c.cliente_id = $1 and c.deleted_at is null
         order by p.sku limit 1`,
@@ -206,6 +220,9 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
     expect([prod.AGU, prod.CAF, prod.BIS].every(Boolean), 'AGU-500, CAF-500 e BIS-400 na base demo').toBe(true);
     miniBox = (await q<{ id: string }>("select id from core.cliente where tenant_id = $1 and external_id = 'C5110'", [TENANT_DEMO]))[0]?.id ?? '';
     expect(miniBox, 'Mini Box Japiim (C5110)').not.toBe('');
+    // RN-VEN-20 (v1.0.4): os totais da referência dependem de AGU-500, CAF-500 e BIS-400 nessas quantidades; o CAF-500 tem pouco
+    // disponível na filial do Mini Box (saldo − reservas do seed): o preparo completa o saldo antes do 1º sync (a recusa fica ligada)
+    for (const p of [prod.AGU, prod.CAF, prod.BIS]) await garantirSaldoNaFilial(api.admin, miniBox, p, SALDO_REFERENCIA);
     cond28 = (await q<{ id: string }>("select id from vendedor.condicao_pagamento where tenant_id = $1 and codigo = '28D'", [TENANT_DEMO]))[0]!.id;
     await esperarHorizonte();
     // o aparelho do Lucas também recebe o saldo de estoque (catalogo.estoque_saldo), como o Campo com o Catálogo (C7)
@@ -340,9 +357,11 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       await sincronizarComHorizonte(lucas);
       const r = await reconferirNoAparelho(lucas, ORC);
       expect(r.mudancas.filter((m) => m.tipo === 'preco'), 'preço congelado: a tabela nova (19,50) não reprecifica o orçamento').toEqual([]);
-      expect(r.mudancas.filter((m) => m.tipo === 'alcada'), 'a alçada não muda').toEqual([]);
+      // RN-VEN-10 (lote v1.0.3): a alçada saiu das mudanças da reconferência (é só a pergunta ao salvar); aqui ela se
+      // confere pelo nível do cálculo, que continua nulo (dentro da alçada do vendedor).
+      expect(r.mudancas.map((m) => m.tipo as string), 'nenhuma mudança de alçada na reconferência').not.toContain('alcada');
       expect(r).toMatchObject({ pode_enviar: true, bloqueio: null });
-      expect(r.calculo.nivel).toBeNull();
+      expect(r.calculo.nivel, 'a alçada não muda: dentro da do vendedor').toBeNull();
     });
 
     it('C3b. Transformar → o servidor grava o preço CONGELADO do orçamento (18,90; R$ 1,00 por unidade mantido), não o de hoje (19,50); o total do aparelho = o do servidor; o orçamento guarda 18,90 e 37979', async () => {

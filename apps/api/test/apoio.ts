@@ -117,10 +117,19 @@ export const LICENCAS_PADRAO: Licencas = {
   },
 };
 
-/** Banco falso: registra as transações abertas com o tenant (prova que a rota passou pelo comTenant). */
+/** Filial padrão do banco falso: todo tenant nasce com uma (0056, RN-CORE-39); sem ela `core.filiais@1` recusa com FILIAL_PADRAO. */
+export const FILIAL_PADRAO_FALSA = { id: '0f000000-0000-4000-8000-0000000000f1', codigo: 'PADRAO', nome: 'Filial padrão', cidade: null, uf: null, padrao: true, ativo: true, external_id: null };
+
+/**
+ * Banco falso: registra as transações abertas com o tenant (prova que a rota passou pelo comTenant). Devolve 0 linhas, exceto a
+ * lista de filiais do Core (`from core.filial f`), que traz só a padrão: o pull e as novidades do Catálogo consultam
+ * `core.filiais@1` (T-0149) e o invariante do banco real é haver uma padrão viva por tenant.
+ */
 export function bancoFalso(horizonte: () => Date = () => new Date(Date.now() - 2_000)) {
   const tenants: string[] = [];
-  const cliente: ClienteBanco = { query: async () => ({ rows: [], rowCount: 0 }) };
+  const cliente: ClienteBanco = {
+    query: async <R>(sql: string) => (/from core\.filial f\b/.test(sql) ? { rows: [FILIAL_PADRAO_FALSA] as R[], rowCount: 1 } : { rows: [] as R[], rowCount: 0 }),
+  };
   const banco: BancoApp = {
     verificar: async () => undefined,
     comTenant: async (t, fn) => {

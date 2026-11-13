@@ -334,3 +334,57 @@ CEP 69058830), sem endereço no cadastro; os outros pedidos ficam no formato ant
 **Volta** (`.down.sql`): só remove os 3 CHECKs (os retratos editados ficam no jsonb e continuam legíveis). Testes:
 `db/testes/pedido-endereco-editado.test.ts` (estático, gravação e leitura, 13 recusas, RLS entre tenants, up/down) e
 `seed-demo.test.ts` (pedido editado da demo).
+
+## 0056 — filial no pedido (`0056_core_filial`; T-0149, RN-CORE-39, RN-VEN-02, ADR 0040, desenho docs/desenho/T-0149.md §3.3)
+Pedido R-20261110-064112-engenheiro-software.
+| Coluna | Regra |
+|---|---|
+| `pedido.filial_id uuid` | id de `core.filial` (SEM FK, fronteira). Nulo nos pedidos anteriores à 0056 |
+| `pedido.filial jsonb` | retrato no recebimento: `{ id, codigo, nome, cidade, uf, external_id, padrao }` (`RetratoFilial` de `modules/vendedor/domain/filial-pedido.ts`, tipo do `$type` em `modules/vendedor/db/nuvem.ts`) |
+
+- CHECKs: `pedido_filial_objeto` (objeto) e `pedido_filial_coerente` (os dois nulos, ou os dois preenchidos com
+  `filial->>'id' = filial_id`). Vale também para o orçamento (mesma tabela).
+- Quem grava: a API do Vendedor no recebimento, na edição do orçamento e na conversão, com a filial **efetiva** do cliente
+  (`core.cadastro_resumo@1`); o `branch_id` do aparelho é ignorado. A reserva (RN-VEN-20) desconta do saldo da filial do pedido.
+- Índice parcial `pedido_filial_ix (tenant_id, filial_id) where filial_id is not null` (filtro "Filial" da lista do BKO).
+- Pull: o retrato vai no `PedidoSyncSchema.filial` (detalhe offline). Volta: as 2 colunas, os CHECKs e o índice saem.
+  Testes: `db/testes/filial.test.ts`.
+
+### 0059 — dados fiscais no retrato da filial (T-0159; sem DDL no Vendedor)
+O cabeçalho do PDF de pedido e de orçamento mostra CNPJ, endereço e telefone da **filial de faturamento do pedido**
+(R-20261110-215816, dono do produto). `pedido.filial` é jsonb com CHECK só de objeto e de id coerente: o retrato passa a levar
+`cnpj` (14 dígitos), `logradouro`, `numero`, `complemento`, `bairro`, `cep` (8 dígitos) e `telefone` **sem migração** no
+Vendedor, ao lado de `cidade`/`uf` (os nomes de `core.filial`, "0059" em core.md). Quem monta é `retratoFilialDoPedido`
+(domain do Vendedor); a seed da demo usa a mesma função. Tipo: `RetratoFilial` (`Omit<Filial, 'ativo'>` do Core); pedidos anteriores ficam como
+estão. Testes: `db/testes/filial-dados-fiscais.test.ts`.
+
+## 0060 — marca no item (`0060_vendedor_pedido_item_marca`; T-0159, pedido R-20261110-215723-modulo-vendedor)
+| Coluna | Regra |
+|---|---|
+| `pedido_item.marca text` | retrato de `core.produto.marca` no **recebimento** (coluna "Marca" do PDF, versões cliente e escritório), como `aplicacao` (0033): gravado pela API do Vendedor, nunca editado. 1..100 sem branco (`pedido_item_marca_tamanho`); `core.produto.marca` não tem limite no banco, então a API corta em 100 e grava nulo se vier vazia. Nulo = produto sem marca ou item anterior à 0060 |
+
+- Sem backfill e sem índice (lida com os itens do pedido, por `pedido_id`). Aparelho: `ent_pedido_item` é JSON, sem DDL.
+- Seed da demo: os itens dos pedidos levam a marca (fictícia) do produto.
+- Volta (`0060_vendedor_pedido_item_marca.down.sql`): apaga o CHECK e a coluna (as marcas retratadas se perdem). Testes:
+  `db/testes/pedido-item-marca.test.ts`.
+
+## 0061 — filial no item, para a reserva por filial (`0061_vendedor_reserva_filial`; T-0149, RN-VEN-20, RN-CORE-39)
+Não há tabela de reserva gravada: a reserva do RN-VEN-20 são os itens dos pedidos aceitos e ainda não faturados, cancelados ou
+rejeitados. Para somar por filial numa tabela só, a filial do pedido passa a existir também no item, **derivada por gatilho**.
+| Coluna | Regra |
+|---|---|
+| `pedido_item.filial_id uuid` | = `pedido.filial_id` do pedido do item (SEM FK, fronteira). Nulo = pedido sem filial (anterior à 0056). **Somente leitura**: a API nunca grava (o valor enviado é sobrescrito) |
+
+- Gatilhos: `pedido_item_filial` (BEFORE INSERT/UPDATE OF `pedido_id`, `tenant_id`, `filial_id`; copia do pedido) e
+  `pedido_filial_nos_itens` (AFTER UPDATE OF `filial_id` em `vendedor.pedido`, só quando muda; leva a filial nova aos itens, que
+  ganham `updated_at` novo). Funções `vendedor.pedido_item_filial()` e `vendedor.pedido_filial_nos_itens()` (invoker, RLS vale).
+- Backfill no up: a filial do pedido quando houver, com o gatilho de `updated_at` desligado (nenhum item volta ao pull).
+- Índice `pedido_item_reserva_filial_ix (tenant_id, produto_id, filial_id) include (pedido_id, quantidade_base,
+  quantidade_faturada) where deleted_at is null and filial_id is not null`. Consulta-modelo (reservado do produto na filial; o
+  status fica com a API, `disponivelNaFilial` em `modules/vendedor/domain/estoque-filial.ts`):
+  `sum(i.quantidade_base - i.quantidade_faturada)` de `pedido_item i join pedido p` com `i.tenant_id, i.produto_id, i.filial_id`
+  fixos, `p.tipo = 'pedido'`, `p.deleted_at is null` e `p.status in ('received','pending_approval','approved','sent_to_erp',
+  'integrated','invoiced_partial')`.
+- RLS, políticas e grants sem mudança. Aparelho: sem DDL (`ent_pedido_item` é JSON; a coluna não entra no contrato de sync).
+- Volta (`0061_vendedor_reserva_filial.down.sql`): apaga índice, gatilhos, funções e a coluna; nada se perde (a filial continua
+  em `pedido.filial_id`). Testes: `db/testes/reserva-filial.test.ts`.

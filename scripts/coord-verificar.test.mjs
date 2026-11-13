@@ -12,7 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
-  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono,
+  donoDaMudanca, podeAlterar, ehAnexoDeRecado, estadoDosRecados, recadosForaDoRepo, agruparPorDono, AGENTES, PESSOAS, DESTINOS,
 } from './coord-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -1317,6 +1317,70 @@ test('T-0123 corretor-redundancias: caixa funciona e o recado de ida e volta pas
   const exc = secao(v.saida, 'Exceções do protocolo').join('\n');
   assert.match(exc, new RegExp(`A \\.coord/recados/engenheiro-software/${idVolta}\\.md — recado novo para engenheiro-software`));
   assert.match(exc, /\.coord\/lidos\/corretor-redundancias\.txt/);
+});
+
+// ───────────── T-0169: agente design-de-marca (donos, guardião Edit/Write, verificar e recados) ─────────────
+
+const MANUAL_MARCA = 'docs/marca/manual.md';
+
+test('T-0169 design-de-marca: é do time e o donos.json real dá a ele só docs/marca/** e o próprio diário', () => {
+  for (const lista of [AGENTES, PESSOAS, DESTINOS]) assert.ok(lista.includes('design-de-marca'));
+  const regras = carregarDonos(join(AQUI, '..'));
+  assert.deepEqual(donoDaMudanca(MANUAL_MARCA, regras), { tipo: 'comum', dono: 'design-de-marca' });
+  assert.deepEqual(donoDaMudanca('docs/marca/propostas/2026-11-12-opcoes.md', regras), { tipo: 'comum', dono: 'design-de-marca' });
+  assert.deepEqual(donoDaMudanca('docs/design/componentes.md', regras), { tipo: 'comum', dono: 'designer-ux' }, 'docs/design segue do designer-ux');
+  assert.deepEqual(donoDaMudanca('docs/marcas.md', regras), { tipo: 'comum', dono: 'gerente-projetos' }, 'só a pasta docs/marca é dele');
+  assert.deepEqual(donoDaMudanca('.coord/diario/design-de-marca.md', regras), { tipo: 'diario', dono: 'design-de-marca' });
+  assert.equal(remetenteDoRecado('R-20261112-120000-design-de-marca.md'), 'design-de-marca');
+  assert.equal(remetenteDoRecado('R-20261112-120000-2-design-de-marca.md'), 'design-de-marca');
+
+  const raiz = mkdtempSync(join(tmpdir(), 'coord-marca-'));
+  temporarios.push(raiz);
+  const pode = (rel, ferramenta = 'Write', conteudo) => podeAlterar({ agente: 'design-de-marca', ferramenta, rel, raiz, regras, conteudo });
+  for (const ferramenta of ['Write', 'Edit']) {
+    assert.equal(pode(MANUAL_MARCA, ferramenta).ok, true, `${ferramenta} no manual`);
+    assert.equal(pode('.coord/diario/design-de-marca.md', ferramenta).ok, true, `${ferramenta} no diário`);
+    assert.equal(pode('.coord/lidos/design-de-marca.txt', ferramenta).ok, true, `${ferramenta} nos lidos`);
+  }
+  for (const [rel, dono] of [
+    ['packages/ui/src/tema/cores.ts', 'designer-ux'],
+    ['docs/design/componentes.md', 'designer-ux'],
+    ['apps/mobile/app.config.ts', 'engenheiro-apps'],
+    ['docs/produto/07-agentes-e-coordenacao.md', 'gerente-projetos'],
+    ['.claude/agents/design-de-marca.md', 'alexandre'],
+    ['.claude/skills/design-de-marca/SKILL.md', 'alexandre'],
+    ['.coord/donos.json', 'alexandre'],
+  ]) {
+    const r = pode(rel);
+    assert.equal(r.ok, false, rel);
+    assert.equal(r.dono, dono, rel);
+    assert.match(r.motivo, new RegExp(`pertence a ${dono}`), rel);
+  }
+  assert.match(pode('packages/ui/src/tema/cores.ts').motivo, /enviar --de design-de-marca --para designer-ux --tipo pedido/);
+  assert.equal(pode('.coord/diario/designer-ux.md').ok, false, 'diário de outro agente');
+  const recadoDele = '---\nid: R-20261112-120000-design-de-marca\nde: design-de-marca\npara: [designer-ux]\n---\n# Validação\n';
+  assert.deepEqual(pode('.coord/recados/designer-ux/R-20261112-120000-design-de-marca.md', 'Write', recadoDele), { ok: true });
+  assert.match(pode('.coord/recados/designer-ux/R-20261112-120001-design-de-marca.md', 'Write', recadoDele.replace('de: design-de-marca', 'de: designer-ux')).motivo, /em nome de outro/);
+  assert.deepEqual(podeAlterar({ agente: 'designer-ux', ferramenta: 'Write', rel: '.coord/recados/design-de-marca/R-20261112-120002-designer-ux.md', raiz, regras }), { ok: true }, 'destino design-de-marca é válido');
+});
+
+test('T-0169 design-de-marca: verificar acusa a escrita dele fora de docs/marca/**', () => {
+  const dir = criarRepoReal();
+  git(dir, 'checkout', '-q', '-b', 'design-de-marca/T-0169-proposta');
+  escrever(dir, MANUAL_MARCA, '# Manual da marca\n');
+  escrever(dir, '.coord/diario/design-de-marca.md', '2026-11-12 — T-0169 — proposta\n');
+  commitarCom(dir, 'T-0169: proposta', 'design-de-marca');
+  const ok = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(ok.codigo, 0, ok.tudo);
+  assert.match(ok.saida, /nenhuma violação para design-de-marca/);
+
+  mudar(dir, 'packages/ui/src/web/ui.tsx');
+  commitarCom(dir, 'T-0169: trocou a cor por conta própria', 'design-de-marca');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  const v = secao(r.saida, 'VIOLAÇÃO');
+  assert.equal(v.length, 1, r.saida);
+  assert.match(v[0], /^M packages\/ui\/src\/web\/ui\.tsx → dono: designer-ux — fora dos caminhos de design-de-marca/);
 });
 
 // ───────────────────── ADR 0035 (T-0139): recados no repositório próprio ─────────────────────

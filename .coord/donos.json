@@ -35,6 +35,10 @@
       "dono": "corretor-redundancias"
     },
     {
+      "padrao": ".coord/diario/design-de-marca.md",
+      "dono": "design-de-marca"
+    },
+    {
       "padrao": ".coord/**",
       "dono": "gerente-projetos"
     },
@@ -109,6 +113,10 @@
     {
       "padrao": "docs/qualidade/redundancias/**",
       "dono": "corretor-redundancias"
+    },
+    {
+      "padrao": "docs/marca/**",
+      "dono": "design-de-marca"
     },
     {
       "padrao": "docs/**",

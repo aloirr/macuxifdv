@@ -9,8 +9,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import { montarUrlMiniatura } from './miniatura';
-import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { anoCivilNoFuso } from '../domain/ano-civil';
+import { filiaisDoEstoque } from '../domain/estoque';
+import { cederLaco, prepararIndice } from '../domain/indice-busca';
+import { filialDaTabela, filialDoClienteNoCore, filiaisDaCarteiraNoCore, nomeDaFilial } from './filiais-core';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
@@ -109,8 +113,31 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
  * requisição por vez (as outras esperam a mesma leitura). O que muda por usuário (preço, estoque) NUNCA entra aqui.
  */
 export const TTL_RETRATO_MS = 60_000;
+/** Sem mudança de versão, o cadastro do Core (que a versão não enxerga) é relido ao menos a cada 10 minutos. */
+export const RECONFERENCIA_RETRATO_MS = 600_000;
+/** A renovação em segundo plano espera a transação da requisição fechar antes de pedir a sua (guarda de conexão da API). */
+const ATRASO_RENOVACAO_MS = 1_000;
+/** Falha ao renovar ou conferir: o retrato antigo segue e a nova tentativa vem em 5 s. */
+const NOVA_TENTATIVA_RETRATO_MS = 5_000;
+const adiarConferencia = (r: { em: number }): void => {
+  r.em = Date.now() - TTL_RETRATO_MS + NOVA_TENTATIVA_RETRATO_MS;
+};
 const MAX_TENANTS_RETRATO = 20;
-const RETRATOS = new Map<string, { em: number; produtos: ProdutoCatalogo[] | null; carregando: Promise<ProdutoCatalogo[]> | null }>();
+interface Retrato {
+  /** Quando o retrato foi conferido pela última vez (carga ou renovação sem mudança). */
+  em: number;
+  /** Quando a lista foi lida de fato do banco e do Core. */
+  carregadoEm: number;
+  produtos: readonly ProdutoCatalogo[] | null;
+  /** Versão barata do Catálogo no momento da leitura (`versaoDoCatalogo`); nulo = desconhecida. */
+  versao: string | null;
+  /** Assinatura do conteúdo da lista, calculada na primeira renovação que precisar compará-la. */
+  assinatura: string | null;
+  carregando: Promise<readonly ProdutoCatalogo[]> | null;
+  /** Uma só renovação por tenant: enquanto true, as requisições seguem servindo o retrato antigo. */
+  renovando: boolean;
+}
+const RETRATOS = new Map<string, Retrato>();
 /**
  * Geração do retrato por tenant: cada descarte a incrementa. Uma carga anota a geração ao começar e só guarda o resultado se ela não
  * mudou — senão uma carga que já estava em andamento quando chegou o descarte gravaria de volta o dado velho (ou sobrescreveria uma
@@ -134,24 +161,127 @@ async function lerProdutos(db: ClienteBanco, tx: TransacaoTenant, marcas: Resolv
   return enriquecer(db, await cadastroDoCore(tx, await idsComPreco(db)), await marcas(tx, db));
 }
 
+/**
+ * Versão barata do Catálogo (T-0119, proposta do banco-dados): a maior `updated_at` das tabelas que mudam o retrato, por varredura
+ * de índice (`*_sync_ix`). A mudança do cadastro no Core não passa por aqui (ver `RECONFERENCIA_RETRATO_MS` e `aposGravar`).
+ */
+async function versaoDoCatalogo(db: ClienteBanco): Promise<string | null> {
+  const r = await db.query<{ versao: string | null }>(
+    `select greatest(
+       (select max(updated_at) from catalogo.tabela_preco_item),
+       (select max(updated_at) from catalogo.produto_atributo),
+       (select max(updated_at) from catalogo.produto_conteudo),
+       (select max(updated_at) from catalogo.produto_referencia),
+       (select max(updated_at) from catalogo.produto_midia))::text as versao`,
+  );
+  return r.rows[0]?.versao ?? null;
+}
+
+/** Assinatura do conteúdo da lista (dois FNV-1a de 32 bits sobre o JSON de cada produto), em pedaços que cedem o laço de eventos. */
+async function assinaturaDaLista(produtos: readonly ProdutoCatalogo[]): Promise<string> {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < produtos.length; i++) {
+    const s = JSON.stringify(produtos[i]);
+    for (let k = 0; k < s.length; k++) {
+      const c = s.charCodeAt(k);
+      h1 = Math.imul(h1 ^ c, 0x01000193);
+      h2 = Math.imul(h2 + c, 0x85ebca6b) ^ (h2 >>> 13);
+    }
+    if (i % 250 === 249) await cederLaco();
+  }
+  return `${produtos.length}:${(h1 >>> 0).toString(16)}:${(h2 >>> 0).toString(16)}`;
+}
+
+/** Ano do índice (a aplicação expande faixas de anos); o relógio é o da requisição (ADR 0015). */
+const anoDoIndice = (ctx: ContextoBase): number => anoCivilNoFuso(ctx.agora());
+
 export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } = {}): FabricaRepositorio {
   const resolverMarcas = opcoes.marcas ?? MARCAS_DO_CATALOGO;
-  return (ctx, db, tx): RepositorioCatalogo => ({
+  return (ctx, db, tx): RepositorioCatalogo => {
+    const tenant = ctx.usuario.tenant_id;
+
+    /** Relê o catálogo e, se mudou, troca o retrato só depois de o índice novo estar pronto (stale-while-revalidate). */
+    async function renovar(r: Retrato, geracao: number, executar: <T>(fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>) => Promise<T>): Promise<void> {
+      try {
+        const lido = await executar(async (db2, tx2) => ({ versao: await versaoDoCatalogo(db2), produtos: await lerProdutos(db2, tx2, resolverMarcas) }));
+        const antiga = (r.assinatura ??= await assinaturaDaLista(r.produtos!));
+        const nova = await assinaturaDaLista(lido.produtos);
+        if (geracaoDe(tenant) !== geracao || RETRATOS.get(tenant) !== r) return; // descartado no meio: a próxima requisição carrega do zero
+        if (nova === antiga) {
+          // nada mudou: mantém a lista e o índice (o mesmo objeto) e só confirma o retrato
+          r.em = Date.now();
+          r.carregadoEm = r.em;
+          r.versao = lido.versao;
+          return;
+        }
+        if (typeof ctx.agora === 'function') await prepararIndice(lido.produtos, anoDoIndice(ctx));
+        if (geracaoDe(tenant) !== geracao || RETRATOS.get(tenant) !== r) return;
+        const agora = Date.now();
+        RETRATOS.set(tenant, { em: agora, carregadoEm: agora, produtos: lido.produtos, versao: lido.versao, assinatura: nova, carregando: null, renovando: false });
+      } catch {
+        // falha na renovação: segue com o retrato antigo e tenta de novo em 5 s
+        adiarConferencia(r);
+      } finally {
+        r.renovando = false;
+      }
+    }
+
+    /** TTL vencido: confere a versão (uma consulta de índice) e, se preciso, renova em segundo plano. Quem pediu recebe o retrato antigo. */
+    async function conferir(r: Retrato): Promise<void> {
+      if (r.renovando) return;
+      r.renovando = true;
+      let precisa = true;
+      try {
+        const versao = await versaoDoCatalogo(db);
+        precisa = !(versao !== null && versao === r.versao && Date.now() - r.carregadoEm < RECONFERENCIA_RETRATO_MS);
+        if (!precisa) r.em = Date.now();
+      } catch {
+        adiarConferencia(r);
+        precisa = false;
+      }
+      if (!precisa) {
+        r.renovando = false;
+        return;
+      }
+      const geracao = geracaoDe(tenant);
+      if (typeof ctx.comTenant !== 'function') {
+        await renovar(r, geracao, (fn) => fn(db, tx));
+        return;
+      }
+      const executar = <T>(fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>): Promise<T> => ctx.comTenant(fn);
+      const temporizador = setTimeout(() => void renovar(r, geracao, executar), ATRASO_RENOVACAO_MS);
+      (temporizador as unknown as { unref?: () => void }).unref?.();
+    }
+
+    return {
     async produtos() {
       return lerProdutos(db, tx, resolverMarcas);
     },
     async produtosEmCache() {
-      const tenant = ctx.usuario.tenant_id;
       const r = RETRATOS.get(tenant);
-      if (r?.produtos && Date.now() - r.em < TTL_RETRATO_MS) return r.produtos;
-      if (r?.carregando) return r.carregando;
+      if (r?.produtos) {
+        if (Date.now() - r.em < TTL_RETRATO_MS) return r.produtos;
+        await conferir(r);
+        const atual = RETRATOS.get(tenant);
+        if (atual?.produtos) return atual.produtos;
+        if (atual?.carregando) return atual.carregando;
+        // descartado durante a conferência: carrega do zero, abaixo
+      } else if (r?.carregando) return r.carregando;
       const geracao = geracaoDe(tenant);
-      const carregando: Promise<ProdutoCatalogo[]> = lerProdutos(db, tx, resolverMarcas).then(
-        (produtos) => {
+      const carregando: Promise<readonly ProdutoCatalogo[]> = (async () => {
+        const versao = await versaoDoCatalogo(db).catch(() => null);
+        const produtos = await lerProdutos(db, tx, resolverMarcas);
+        // o índice nasce aqui, em pedaços que cedem o laço de eventos, e não na primeira busca (T-0119)
+        if (typeof ctx.agora === 'function') await prepararIndice(produtos, anoDoIndice(ctx));
+        return { versao, produtos };
+      })().then(
+        ({ versao, produtos }) => {
           // só guarda se nada foi descartado durante a carga e se esta carga ainda é a registrada (não há uma mais nova)
           if (geracaoDe(tenant) === geracao && RETRATOS.get(tenant)?.carregando === carregando) {
             if (RETRATOS.size >= MAX_TENANTS_RETRATO && !RETRATOS.has(tenant)) RETRATOS.delete(RETRATOS.keys().next().value!);
-            RETRATOS.set(tenant, { em: Date.now(), produtos, carregando: null });
+            const agora = Date.now();
+            RETRATOS.set(tenant, { em: agora, carregadoEm: agora, produtos, versao, assinatura: null, carregando: null, renovando: false });
           }
           return produtos;
         },
@@ -160,7 +290,7 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
           throw e;
         },
       );
-      RETRATOS.set(tenant, { em: 0, produtos: null, carregando });
+      RETRATOS.set(tenant, { em: 0, carregadoEm: 0, produtos: null, versao: null, assinatura: null, carregando, renovando: false });
       return carregando;
     },
     async produto(id) {
@@ -225,21 +355,27 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       const et = await db.query<{ etiquetas: string[] }>(`select etiquetas from catalogo.produto_conteudo where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       return { ofereceJunto, etiquetas: et.rows[0]?.etiquetas ?? [] };
     },
-    async tabelasPreco() {
+    async filiaisDaTela() {
+      const r = await filiaisDaCarteiraNoCore(tx.consultar);
+      return { padraoId: r.filialPadrao, filiais: [...r.filiais.values()].filter((f) => f.ativo).map((f) => ({ id: f.id, nome: f.nome, padrao: f.id === r.filialPadrao })) };
+    },
+    async tabelasPreco(filialId) {
+      // RN-CORE-39: a contagem é dos itens da filial escolhida (a mesma tabela tem itens por filial; sem filtro duplicava)
       const r = await db.query<{ id: string; codigo: string; nome: string; ativo: boolean; itens: string }>(
         `select t.id, t.codigo, t.nome, t.ativo,
-                (select count(*) from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.unidade is null and i.deleted_at is null) as itens
+                (select count(*) from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.filial_id = $1::uuid and i.unidade is null and i.deleted_at is null) as itens
            from catalogo.tabela_preco t where t.deleted_at is null order by lower(t.nome), t.id`,
+        [filialId],
       );
       return r.rows.map((x) => ({ id: x.id, codigo: x.codigo, nome: x.nome, ativo: x.ativo, itens: Number(x.itens) }));
     },
-    async precosUnidade(tabelaId) {
+    async precosUnidade(tabelaId, filialId) {
       // RN-VEN-15 (nova): só o preço da unidade base; a linha de embalagem antiga (unidade não nula) não aparece
       const r = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
         `select produto_id, preco_cents::float8 as preco_cents,
                 to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio, to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
-           from catalogo.tabela_preco_item where tabela_preco_id = $1::uuid and unidade is null and deleted_at is null order by produto_id`,
-        [tabelaId],
+           from catalogo.tabela_preco_item where tabela_preco_id = $1::uuid and filial_id = $2::uuid and unidade is null and deleted_at is null order by produto_id`,
+        [tabelaId, filialId],
       );
       return r.rows;
     },
@@ -335,13 +471,15 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       );
       const tabela = t.rows[0]?.tabela_preco_id ?? null;
       if (!tabela) return { tabelaClienteId: null, itens: [] };
+      // RN-CORE-39: itens da filial do preço (a do cliente; a padrão se a tabela não tem item nenhum na filial dele)
+      const filial = await filialDaTabela(db, tabela, await filialDoClienteNoCore(tx.consultar, clienteId));
       const r = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
         `select produto_id, preco_cents::float8 as preco_cents,
                 to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio,
                 to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
            from catalogo.tabela_preco_item
-          where tabela_preco_id = $1::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
-        [tabela, [...produtoIds]],
+          where tabela_preco_id = $1::uuid and filial_id = $3::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
+        [tabela, [...produtoIds], filial.filialId],
       );
       const itens: ItemTabelaPreco[] = r.rows.map((x) => ({ price_table_id: tabela, product_id: x.produto_id, price_cents: x.preco_cents, valid_from: x.vigencia_inicio, valid_to: x.vigencia_fim }));
       return { tabelaClienteId: tabela, itens };
@@ -352,24 +490,30 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
     async saldos(produtoIds) {
       const saida = new Map<string, StockByBranch[]>();
       if (produtoIds.length === 0) return saida;
-      const r = await db.query<{ produto_id: string; deposito_id: string; nome: string; quantidade: number; atualizado_em: string | null }>(
-        `select s.produto_id, s.deposito_id, d.nome, s.quantidade::float8 as quantidade,
+      const filiais = (await filiaisDaCarteiraNoCore(tx.consultar)).filiais;
+      const r = await db.query<{ produto_id: string; filial_id: string; quantidade: number; atualizado_em: string | null }>(
+        `select s.produto_id, d.filial_id, s.quantidade::float8 as quantidade,
                 to_char(s.atualizado_erp_em at time zone 'UTC', ${UTC}) as atualizado_em
            from catalogo.estoque_saldo s
            join catalogo.deposito d on d.tenant_id = s.tenant_id and d.id = s.deposito_id and d.ativo and d.deleted_at is null
           where s.produto_id = any($1::uuid[]) and s.deleted_at is null
-          order by d.nome, d.id`,
+          order by d.filial_id, d.id`,
         [[...produtoIds]],
       );
       for (const x of r.rows) {
         const lista = saida.get(x.produto_id) ?? [];
-        lista.push({ branch_id: x.deposito_id, branch_name: x.nome, quantity: Math.round(x.quantidade), updated_at: x.atualizado_em });
+        // RN-CORE-39: o saldo é da FILIAL do depósito (o domain soma os depósitos da mesma filial)
+        lista.push({ branch_id: x.filial_id, branch_name: nomeDaFilial(filiais, x.filial_id), quantity: Math.round(x.quantidade), updated_at: x.atualizado_em });
         saida.set(x.produto_id, lista);
       }
       return saida;
     },
-    async filiaisDoUsuario() {
-      return null;
+    async filiaisDoUsuario(clienteId) {
+      const carteira = await ctx.carteira();
+      const cliente = clienteId ? (await filialDoClienteNoCore(tx.consultar, clienteId)).filialCliente : null;
+      const da = cliente === null && carteira !== 'tenant' ? (await filiaisDaCarteiraNoCore(tx.consultar)).daCarteira : null;
+      const lista = filiaisDoEstoque({ filialDoCliente: cliente, escopo: carteira === 'tenant' ? 'tenant' : 'carteira', filiaisDaCarteira: da });
+      return lista === null ? null : [...lista];
     },
     async conteudo(produtoId) {
       const c = await db.query<{ descricao: string | null; argumentos_venda: string | null; faq: { pergunta: string; resposta: string }[]; updated_at: string }>(
@@ -482,5 +626,6 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       }
       return { criado: r.rows[0]?.criado ?? false };
     },
-  });
+    };
+  };
 }

@@ -35,7 +35,7 @@ const manifestoCore = defineModule({
   apps: { campo: { abas: [] }, gestao: { abas: [] }, web: { menus: [] } },
   sync: ['produto'],
   ofereceExtensoes: ['cliente.acoes'],
-  ofereceConsultas: ['core.cadastro_resumo@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.filiais@1'],
 });
 const core = definirModuloShell<string>({ manifesto: manifestoCore, entidadesSync: [definirEntidadeSync({ nome: 'produto', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoSyncSchema })] });
 

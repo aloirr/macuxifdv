@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0153 · Perfil (para aprovação)</title>
+<link rel="stylesheet" href="telas.css">
+<style>
+  .conteudo > * { flex: none; }
+  .quem { display: flex; gap: 14px; align-items: center; }
+  .av { width: 52px; height: 52px; border-radius: 26px; background: var(--ink); color: #fff; font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .quem .n { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; line-height: 26px; }
+  .quem .p { font-size: 13px; color: var(--ink2); margin-top: 2px; }
+  .btn.escuro { background: var(--ink); color: #fff; }
+  .sit-sync { text-align: center; font-size: 12px; color: var(--ink2); margin-top: -6px; font-variant-numeric: tabular-nums; }
+  .linhas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .linhas .l { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px 6px 14px; font-size: 15px; }
+  .linhas .l + .l { border-top: 1px solid var(--lineSoft); }
+  .linhas .l .n { flex: 1; min-width: 0; font-weight: 500; }
+  .linhas .l .v { font-size: 14px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .sw { width: 44px; height: 26px; border-radius: 13px; background: var(--lineStrong); position: relative; margin-right: 6px; }
+  .sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .fila .item { min-height: 56px; padding: 8px 6px 8px 14px; align-items: center; }
+  .fila .nome { font-size: 14px; font-weight: 600; }
+  .fila .l2 { font-size: 12.5px; color: var(--ink2); }
+  .fila .mot { font-size: 12.5px; color: var(--danger); font-weight: 600; }
+  .fila .lk { height: 44px; display: flex; align-items: center; padding: 0 10px; font-size: 14px; font-weight: 600; color: var(--danger); }
+  .selo.ok { background: var(--successBg); color: var(--success); }
+  .selo.erro { background: var(--dangerBg); color: var(--danger); }
+  .alertas .a .lk { height: 44px; display: flex; align-items: center; padding: 0 8px; font-size: 14px; font-weight: 600; color: var(--accentInk); white-space: nowrap; }
+  .btn.sec { background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink); height: 44px; border-radius: 12px; font-size: 15px; }
+  .btn.perigo { background: var(--dangerBg); color: var(--danger); height: 52px; }
+  .versao { text-align: center; font-size: 12px; color: var(--ink2); }
+  .env .item { min-height: 52px; padding: 10px 14px; }
+  .env .nr { font-family: Archivo, sans-serif; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .env .dt { margin-left: auto; font-size: 13px; color: var(--ink2); white-space: nowrap; }
+  .tec { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
+  .tec table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tec td { padding: 6px 0; vertical-align: top; border-top: 1px solid var(--lineSoft); line-height: 16px; }
+  .tec tr:first-child td { border-top: 0; }
+  .tec td:first-child { color: var(--ink2); width: 96px; padding-right: 8px; }
+  .tec td:last-child { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: var(--ink); overflow-wrap: anywhere; }
+  .kv .l .t { overflow-wrap: anywhere; }
+  .copiar { display: flex; justify-content: flex-end; }
+  .copiar span { height: 44px; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--accentInk); }
+</style>
+</head>
+<body>
+<h1 class="prancha">Perfil · conta, sincronização, aparelho e diagnóstico</h1>
+<p class="prancha">T-0153 · Campo e Gestão (o mesmo Perfil). Cada fato uma vez: a última sincronização e a fila só na linha do botão Sincronizar; os itens da fila logo abaixo, só quando há; os problemas (dados que não chegaram, módulo desativado, falha) numa área Alertas no topo; endereço do servidor e build só no "mostrar" do Diagnóstico. O fim da tela (Enviar diagnóstico, Últimos envios, Sair, versão) é o da imagem T-0158.</p>
+
+<div class="board">
+
+  <!-- 1 · Perfil em dia -->
+  <div class="tela">
+    <div class="legenda"><b>1</b>Perfil, tudo em dia<span>Conta numa tabela; Sincronizar como no Início; Aparelho em linhas.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:30</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo" style="padding:6px 16px 16px;gap:12px">
+        <div class="backlink"><i data-i="voltar" data-t="18" data-c="#8F3D06"></i>Início</div>
+        <div class="quem"><div class="av">LA</div><div><div class="n">Lucas Andrade</div><div class="p">Vendedor de campo · Equipe Norte</div></div></div>
+        <div class="secao-t">Conta</div>
+        <div class="kv marca" style="outline-offset:4px">
+          <div class="l"><span class="r">E-mail</span><span class="t">lucas@distamazonas.com.br</span></div>
+          <div class="l"><span class="r">Empresa</span><span class="t">Distribuidora Amazonas</span></div>
+          <div class="l"><span class="r">Desconto máx.</span><span class="t">10%</span></div>
+        </div>
+        <div class="secao-t">Sincronização</div>
+        <div class="btn escuro marca" style="outline-offset:4px"><i data-i="sync" data-t="18" data-c="#fff"></i>Sincronizar</div>
+        <div class="sit-sync">Última sincronização 09:15 · 0 na fila</div>
+        <div class="secao-t">Aparelho</div>
+        <div class="linhas">
+          <div class="l"><span class="n">Meus módulos</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="l"><span class="n">Notificações</span><span class="v">2</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+          <div class="l"><span class="n">Simular sem sinal</span><span class="sw"></span></div>
+        </div>
+        <div class="rotulo-secao"><span class="t">Diagnóstico</span><span class="acao">mostrar</span></div>
+        <div class="btn sec"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Perfil com pendências -->
+  <div class="tela">
+    <div class="legenda"><b>2</b>Com alertas e fila<span>Alertas no topo, um por linha; a fila abaixo do Sincronizar, com o motivo só na recusa.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:30</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo" style="padding:6px 16px 16px;gap:12px">
+        <div class="backlink"><i data-i="voltar" data-t="18" data-c="#8F3D06"></i>Início</div>
+        <div class="quem"><div class="av">LA</div><div><div class="n">Lucas Andrade</div><div class="p">Vendedor de campo · Equipe Norte</div></div></div>
+        <div class="alertas-t">Alertas</div>
+        <div class="alertas marca" style="outline-offset:4px">
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Pesquisa desativada: 2 itens não enviados</span><span class="lk">Apagar</span></div>
+          <div class="a"><i data-i="alerta" data-t="18" data-c="#A8261B"></i><span class="tx">Metas ainda não chegam do servidor</span></div>
+        </div>
+        <div class="secao-t">Sincronização</div>
+        <div class="btn escuro"><i data-i="sync" data-t="18" data-c="#fff"></i>Sincronizar</div>
+        <div class="sit-sync">Última sincronização 09:15 · 3 na fila</div>
+        <div class="lista fila marca" style="outline-offset:4px">
+          <div class="item"><div class="corpo"><span class="nome">Pedido · Atacadinho Cachoeirinha</span><span class="l2">Hoje 09:21</span></div><span class="selo destaque" style="margin-right:8px">Na fila</span></div>
+          <div class="item"><div class="corpo"><span class="nome">Foto do PDV · Rio Negro</span><span class="l2">Hoje 09:05</span></div><span class="selo destaque" style="margin-right:8px">Na fila</span></div>
+          <div class="item"><div class="corpo"><span class="nome">Check-in · Mercearia Dois Irmãos</span><span class="mot">Cliente fora da sua carteira</span></div><span class="lk">Descartar</span></div>
+        </div>
+        <div class="secao-t">Aparelho</div>
+        <div class="linhas">
+          <div class="l"><span class="n">Meus módulos</span><i data-i="chevron" data-t="16" data-c="#5B6673"></i></div>
+        </div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 3 · Diagnóstico aberto -->
+  <div class="tela">
+    <div class="legenda"><b>3</b>Diagnóstico aberto (fim da tela)<span>Tudo o que é técnico numa tabela só, com Copiar. Depois, o fim da T-0158.</span></div>
+    <div class="phone" style="height:800px">
+      <div class="status"><span>09:31</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo" style="padding:10px 16px 16px;gap:12px">
+        <div class="rotulo-secao"><span class="t">Diagnóstico</span><span class="acao">ocultar</span></div>
+        <div class="tec marca" style="outline-offset:4px"><table>
+          <tr><td>Servidor</td><td>https://api.demo.macuxi.app</td></tr>
+          <tr><td>Build</td><td>1.0.4 (104)</td></tr>
+          <tr><td>Última falha</td><td>Nenhuma</td></tr>
+          <tr><td>Segundo plano</td><td>Hoje 08:45 · ok · 12 s</td></tr>
+          <tr><td>Último erro</td><td>Nenhum</td></tr>
+          <tr><td>Saídas do app</td><td>09/11 22:10 · fechado pelo usuário</td></tr>
+          <tr><td>Armazenamento</td><td>SQLite · u_7f3a…db</td></tr>
+          <tr><td>Módulos</td><td>core, catalogo, vendedor, pesquisa</td></tr>
+        </table></div>
+        <div class="copiar"><span><i data-i="copiar" data-t="16" data-c="#8F3D06"></i>Copiar</span></div>
+        <div class="btn sec" style="margin-top:-6px"><i data-i="enviar" data-t="18"></i>Enviar diagnóstico</div>
+        <div class="rotulo-secao"><span class="t">Últimos envios</span></div>
+        <div class="lista env">
+          <div class="item"><span class="selo m ok">Enviado</span><span class="nr">nº 0042</span><span class="dt">Hoje, 08:32</span></div>
+        </div>
+        <div class="btn perigo"><i data-i="sair" data-t="18" data-c="#A8261B"></i>Sair / trocar usuário</div>
+        <div class="versao">Campo-Demo-v1.0.4</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+    </div>
+  </div>
+
+  <!-- 4 · Sair com fila -->
+  <div class="tela">
+    <div class="legenda"><b>4</b>Sair com itens na fila<span>Pergunta do kit, no lugar do texto amarelo acima do botão.</span></div>
+    <div class="phone curto" style="height:600px">
+      <div class="status"><span>09:32</span><span>4G ▮▮▮ 80%</span></div>
+      <div class="conteudo" style="padding:10px 16px 16px;gap:12px">
+        <div class="btn perigo"><i data-i="sair" data-t="18" data-c="#A8261B"></i>Sair / trocar usuário</div>
+        <div class="versao">Campo-Demo-v1.0.4</div>
+      </div>
+      <div class="barra-abas" data-ativa="mais"></div>
+      <div class="scrim"></div>
+      <div class="dialogo marca" style="outline-offset:4px">
+        <div class="dt">Sair com 3 itens na fila?</div>
+        <div class="dx">Eles ficam neste aparelho e vão quando você entrar de novo.</div>
+        <div class="db">
+          <div class="btn-perigo">Sair mesmo assim</div>
+          <div class="btn-texto">Cancelar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · O que muda -->
+  <div class="tela">
+    <div class="legenda"><b>5</b>O que muda<span>Em relação à v1.0.3.</span></div>
+    <div class="estados">
+      <div class="nota-prancha"><b>Cabeçalho:</b> nome e "Vendedor de campo · Equipe Norte". E-mail, empresa e desconto máximo vão para a tabela Conta ("alçada 10%" vira "Desconto máx. 10%").</div>
+      <div class="nota-prancha"><b>Sincronização:</b> sai a linha "Última sincronização · hoje 09:15" acima do botão (o botão já diz embaixo) e o parágrafo "Automática ao abrir o app, ao voltar depois de 30 min…".</div>
+      <div class="nota-prancha"><b>Fila:</b> a seção "Fila do aparelho" com "vazia" e "Nada pendente. Tudo enviado ao servidor." sai; a contagem fica só em "· 3 na fila". Os itens aparecem logo abaixo, só quando há. Fotos pendentes entram na mesma lista. Sai o "Enviar agora": o Sincronizar envia a fila, inclusive os que falharam. Selo "Na fila" igual em todos; com sinal ou sem, o selo do cabeçalho diz.</div>
+      <div class="nota-prancha"><b>Alertas:</b> os cartões soltos "Módulo … desativado" (com o parágrafo e "Entendi, apagar do aparelho"), "Parte dos dados ainda não está disponível no servidor" e o texto vermelho de falha da sincronização viram linhas na área Alertas, no topo. "Apagar" abre a pergunta de confirmação.</div>
+      <div class="nota-prancha"><b>Aparelho:</b> "Módulos" (cartão com frase e botão) vira a linha "Meus módulos"; as telas dos módulos (Notificações, Metas) seguem como linhas; "Modo sem sinal" vira a linha "Simular sem sinal" com a chave, sem a frase.</div>
+      <div class="nota-prancha"><b>Servidor:</b> o cartão com o endereço e "Endereço definido nesta versão do aplicativo." vai para dentro do Diagnóstico. No build de desenvolvimento, o campo editável fica lá também.</div>
+      <div class="nota-prancha"><b>Diagnóstico:</b> as linhas técnicas viram uma tabela com Copiar; sai "Informações técnicas para o suporte.". Enviar diagnóstico e Últimos envios como na T-0158.</div>
+      <div class="nota-prancha"><b>Sair:</b> o texto amarelo "Há 3 itens na fila…" e a troca do rótulo do botão viram a pergunta do kit.</div>
+    </div>
+  </div>
+
+</div>
+<script src="icones.js"></script>
+</body>
+</html>

@@ -12,7 +12,11 @@
  *  - 6 pushes ao mesmo tempo, 1 pedido cada: os 6 aceitos;
  *  - os mesmos 6 de novo, ao mesmo tempo (reenvio do aparelho, corpo idêntico ao 1º envio): aceitos pela idempotência,
  *    nenhum pedido duplicado;
- *  - a guarda em modo erro: conexão pedida dentro de transação do mesmo pool é recusada antes de esperar o pool.
+ *  - a guarda em modo erro: conexão pedida dentro de transação do mesmo pool é recusada antes de esperar o pool;
+ *  - 6 pushes NOVOS ao mesmo tempo com a guarda em modo erro: nenhum ponto do push (carteira, consultas, filial, outbox)
+ *    pede 2ª conexão (critério 1 da T-0118);
+ *  - pool cheio de verdade (1 conexão presa, espera de 300 ms): 503 BANCO_OCUPADO com Retry-After, nada gravado, e o
+ *    reenvio do mesmo corpo depois é aceito (a rede de segurança: nunca fila sem prazo).
  * Pula sem Docker/Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
  */
 import { randomUUID } from 'node:crypto';
@@ -22,7 +26,7 @@ import type { ModuloId, UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
-import { criarBancoApp } from '../src/banco';
+import { criarBancoApp, RETRY_AFTER_BANCO_OCUPADO_S } from '../src/banco';
 import type { LicencasUsuario } from '../src/licencas';
 import { MODULOS_API } from '../src/modulos';
 import { ErroConexaoNaTransacao } from '../src/transacao-corrente';
@@ -122,5 +126,64 @@ describe.skipIf(semBanco())(`T-0118 — ${SIMULTANEOS} pushes de pedido ao mesmo
     // fora de transação, segue normal (e o pool não ficou com conexão presa)
     expect(await guardado.comTenant(A.tenantId, async (db) => (await db.query<{ ok: number }>('select 1 as ok')).rows[0]!.ok)).toBe(1);
     expect(pool.totalCount - pool.idleCount).toBe(0);
+  }, 60_000);
+
+  /** Corpo de push de 1 pedido (mesmo formato da rajada), montado uma vez por id. */
+  const corpoDoPedido = (id: string, criadoEm: string) => ({
+    itens: [
+      {
+        entidade: 'pedido',
+        id,
+        operacao: 'upsert',
+        payload: { id, customer_id: A.clientes.c1, discount_pct: 0, created_offline_at: criadoEm, items: [{ product_id: produto, quantity: 1 }] },
+      },
+    ],
+  });
+
+  it(`${SIMULTANEOS} pushes NOVOS ao mesmo tempo com a guarda em modo erro: nenhum ponto do push pede 2ª conexão`, async () => {
+    const guardado = createApp({ banco: criarBancoApp(pool, { guardaConexao: { modo: 'erro' } }), modulos: MODULOS_API, autenticar, licencas, logger: false });
+    await guardado.ready();
+    try {
+      const criadoEm = new Date().toISOString();
+      const novos = Array.from({ length: SIMULTANEOS }, () => randomUUID());
+      const r = await Promise.all(
+        novos.map((id) => guardado.inject({ method: 'POST', url: '/v1/sync/push', headers: { 'x-teste-usuario': 'vendedor1' }, payload: corpoDoPedido(id, criadoEm) })),
+      );
+      const itens = r.map((x) => ({ status: x.statusCode, item: x.statusCode === 200 ? (x.json() as { resultados: { id: string; status: string }[] }).resultados[0] : x.body }));
+      expect(itens, JSON.stringify(itens)).toEqual(novos.map((id) => ({ status: 200, item: expect.objectContaining({ id, status: 'aceito' }) })));
+    } finally {
+      await guardado.close();
+    }
+  }, 60_000);
+
+  it('pool cheio de verdade (1 conexão presa, espera 300 ms): 503 BANCO_OCUPADO com Retry-After, nada gravado; o reenvio depois é aceito', async () => {
+    const cheio = new pg.Pool({ connectionString: banco.urlApp, max: 1, connectionTimeoutMillis: 300 });
+    cheio.on('error', () => undefined);
+    const app1 = createApp({ banco: criarBancoApp(cheio), modulos: MODULOS_API, autenticar, licencas, logger: false });
+    await app1.ready();
+    const id = randomUUID();
+    const corpo = corpoDoPedido(id, new Date().toISOString());
+    const enviar = () => app1.inject({ method: 'POST', url: '/v1/sync/push', headers: { 'x-teste-usuario': 'vendedor1' }, payload: corpo });
+    try {
+      const presa = await cheio.connect();
+      let r: Awaited<ReturnType<typeof enviar>>;
+      try {
+        const t0 = Date.now();
+        r = await enviar();
+        expect(Date.now() - t0).toBeLessThan(10_000);
+      } finally {
+        presa.release();
+      }
+      expect(r.statusCode, r.body).toBe(503);
+      expect(r.json()).toMatchObject({ codigo: 'BANCO_OCUPADO' });
+      expect(r.headers['retry-after']).toBe(String(RETRY_AFTER_BANCO_OCUPADO_S));
+      expect((await admin.query('select 1 from vendedor.pedido where id = $1', [id])).rowCount).toBe(0);
+      const deNovo = await enviar();
+      expect(deNovo.statusCode, deNovo.body).toBe(200);
+      expect((deNovo.json() as { resultados: { id: string; status: string }[] }).resultados[0]).toMatchObject({ id, status: 'aceito' });
+    } finally {
+      await app1.close().catch(() => undefined);
+      await cheio.end().catch(() => undefined);
+    }
   }, 60_000);
 });

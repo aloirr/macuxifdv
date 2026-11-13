@@ -45,7 +45,17 @@
 
 **Fronteira entre os dois engenheiros** (decisão do Alexandre, R-20261101-073742):
 - Dependência nova, ponto de extensão de UI no SDK, mudança no CI ou na raiz: o engenheiro-apps pede por recado ao engenheiro-software; ADR de UI ele redige como proposta e o engenheiro-software registra em `docs/decisoes/`.
-- **Toda tarefa passa pelo testes e pelo corretor-redundancias** antes do fechamento (dono do produto, 08/11/2026): o testes valida os critérios e caça defeitos (inclusive valor × regra em indicadores); o corretor-redundancias avalia só excessos, duplicidades e redundâncias.
+- **Toda tarefa passa pelo testes e pelo corretor-redundancias** antes do fechamento (dono do produto, 08/11/2026). O testes valida os critérios e caça defeitos, inclusive valor × regra em indicadores. O corretor-redundancias avalia só excessos, duplicidades e redundâncias.
+- **Regra permanente do corretor** (dono do produto, R-20261110-062506 e R-20261110-062239, 10/11/2026):
+  - **Toda** entrega que muda tela, texto, relatório ou regra, de qualquer agente (Campo, Gestão, BKO), passa pelo corretor **antes do lote e antes do build**, sem exceção e sem esperar pedido.
+  - O parecer olha o **print do aparelho**, não só o código: informação repetida na tela ou entre telas, aviso ou caixa repetindo uma linha, texto além do problema e da ação, rótulo e número que não batem.
+  - **Qualquer achado em aberto, de qualquer gravidade, segura a entrega**, como um teste vermelho. Isso substitui o "sem achado alto" de 08/11.
+  - **Exceção** (dono do produto, R-20261111-190159, 11/11/2026): achado de gravidade baixa que esteja **só em comentário ou título de teste** não segura o lote e entra no lote seguinte. Achado em código de produção, tela, texto, PDF, relatório, regra ou doc continua segurando. Motivo: na v1.0.4, cada correção de achado baixo em teste gerou outro achado baixo em teste (RD-0132 a RD-0137).
+  - Cada build leva o relatório do corretor junto com o roteiro do testes.
+  - No fluxo de cada tarefa, o corretor fica ao lado do testes: implementação → testes + corretor → revisão do engenheiro → fechamento.
+  - **Uma informação, um lugar** (dono do produto, R-20261110-093124, 10/11/2026): se uma seção da tela já mostra uma informação (o Histórico mostra a situação, os Totais mostram o %, os Alertas mostram o problema), essa informação não aparece em outro lugar da mesma tela. Nenhum aviso fica solto fora da área "Alertas" (RN-VEN-42). Vale para todas as telas e todas as entregas, inclusive as já liberadas.
+  - **Só o que o usuário usa para agir** (dono do produto, R-20261110-192153, 10/11/2026): a pergunta para todo texto é "o usuário precisa disso para decidir ou agir agora?". Se não precisa, o texto sai, mesmo certo e sem repetição. Exemplos: o que o sistema faz por trás ("vai junto", "o app guarda…", "a equipe vê…"), explicação de funcionamento e texto de garantia.
+  - **Imagem para aprovação** vai ao dono do produto pelos anexos do repositório de recados (`recados/anexos/`), junto com o recado e já com o parecer do corretor (R-20261110-085951).
 - **Quem revisa o quê** (R-20261103-161508): visual, hierarquia, textos e "3 toques" → **designer-ux**; offline, navegação, desempenho e bundle → **engenheiro-apps**; arquitetura, contratos, API, segurança e fronteiras → **engenheiro-software**, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas três revisões.
 - **Transição**: até o Alexandre mudar o `.coord/donos.json` (`apps/mobile/**`, `apps/web/**` e `packages/ui/**` → engenheiro-apps), esses caminhos seguem com o engenheiro-software e o engenheiro-apps não é disparado. O gerente avisa o Alexandre com "pronto para a divisão" quando não houver nada em andamento nesses caminhos.
 
@@ -136,6 +146,15 @@ criado_em: 2026-10-31T14:05:12-04:00
 4. revisão do engenheiro-software sem 🔴 e do designer-ux sem 🔴 nas telas.
 
 Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuvem continuam pela regra A, e a governança, pelo rito de autorização acima. O gerente manda um status com os hashes a cada lote que sobe.
+
+**Deploy de produção só com "aprovo deploy vX.Y.Z"** (dono do produto, R-20261111-213829, opção 2): nenhuma tag `v*` de produção e nenhum run do "producao — publicar" sem um recado do Alexandre com "aprovo deploy vX.Y.Z" para aquela versão exata. O gerente cita o ID desse recado na mensagem da tag. O GitHub Pro não tem "Required reviewers" em repositório privado, e os agentes usam a mesma conta (aloirr), por isso a trava é por recado. A opção 1 (conta própria dos agentes, com regra de tag em que só a aloirr cria `v*`) está anotada para antes do 1º cliente pagante e ainda não foi autorizada.
+
+**Nenhum ensaio sem lint e typecheck limpos no PC** (regra fixa do dono do produto, R-20261111-155339; a v1.0.4 precisou de 5 ensaios, e 3 caíram por erros que dava para pegar no PC):
+- o dono de cada pacote tocado no lote roda no PC o lint e o typecheck do pacote, com o mesmo script do CI (`pnpm --filter <pacote> typecheck` e `lint`), e diz o resultado na entrega;
+- quando `tests/` mudou, também o `typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`);
+- quem muda um tipo público (contrato, `domain`) procura com grep, antes de entregar, os usos em `tests/` e nos outros pacotes;
+- o gerente confere as entregas e só então dispara o ensaio no GitHub;
+- o retrato do ensaio pega os caminhos de governança (`.github/**`, `.claude/**`, `scripts/coord*`, `.coord/donos.json`) do `main`; mudança neles só entra pelo rito.
 
 **Merge pelo gerente de PR pronto que não é de governança** (decisão do Alexandre, R-20261101-165024): vale para PR da nuvem marcado "[PRONTO PARA MERGE]" que não toca `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` nem `.github/**`. Com o CI do `main` verde, o gerente confere três coisas:
 - o CI do PR está verde (com o main já mesclado no branch, se o GitHub exigir);

@@ -22,7 +22,7 @@ import {
 import { ehUf } from '@macuxi/comum/endereco';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
 import type { AjusteItem } from '../../domain/preco-pedido';
-import { chaveDaLinha, unidadesDoProduto, type Ajuste, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
+import { chaveDaLinha, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
 import type { Rascunho } from './pedidos';
 
@@ -252,7 +252,7 @@ export function orcamentoParaReconferir(d: OrderDetail): OrcamentoParaReconferir
   };
 }
 
-/** Dados de hoje do aparelho (tabela do cliente, medidas e estoque) no formato da reconferência. Sem controle de mínimo no aparelho. */
+/** Dados de hoje do aparelho (tabela do cliente, medidas e estoque) no formato da reconferência. O mínimo vem do produto do aparelho (`preco_minimo_base_cents`, quando o sync traz o preço de venda e o desconto máximo). */
 export function dadosAtuaisDoAparelho(e: {
   detalhe: OrderDetail;
   catalogo: readonly Product[];
@@ -277,7 +277,8 @@ export function dadosAtuaisDoAparelho(e: {
       medida_ativa: Boolean(medida),
       estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null,
       fator,
-      minimo_base_cents: null,
+      // RN-VEN-11 (T-0151): o mínimo do produto no aparelho (preço de venda × (1 − desconto máximo)); sem ele, a API revalida
+      minimo_base_cents: (p as ProdutoComMinimo).preco_minimo_base_cents ?? null,
     };
   }
   return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };
@@ -311,9 +312,15 @@ export function textoDaMudanca(m: MudancaNaConversao, nome: (produtoId: string) 
       return `${nome(m.produto_id)}: o desconto passava do preço mínimo e foi reduzido.`;
     case 'medida_inativa':
       return `${nome(m.produto_id)}: a medida ${m.unidade} não está mais ativa. O item sai do pedido.`;
-    case 'alcada':
-      return m.para ? `Alçada: agora o pedido vai para o ${m.para}.` : 'Alçada: agora o pedido vai direto ao ERP.';
     case 'cliente':
       return m.motivo === 'bloqueado' ? 'Cliente bloqueado: só orçamento.' : m.motivo === 'inativo' ? 'Cliente inativo: só orçamento.' : 'Cadastro do cliente incompleto: só orçamento.';
   }
+}
+
+/**
+ * RN-VEN-18 (T-0151): a faixa de cima do rascunho. Editar ou corrigir (orçamento ou pedido) mantém os preços salvos: não há
+ * faixa de "preços atualizados" (item novo entra pelo preço do dia sem avisar). Duplicar entra pelos preços de hoje e diz.
+ */
+export function avisoDaEdicao(e: { modo: 'duplicate' | 'edit'; origem: string }): string {
+  return e.modo === 'duplicate' ? `Cópia do ${e.origem} com os preços de hoje da tabela do cliente.` : '';
 }

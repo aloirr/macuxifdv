@@ -51,6 +51,9 @@ x-ambiente-api: &ambiente-api
   MACUXI_S3_PREFIXO: arquivos/
   # usado só se MACUXI_ARQUIVOS_DRIVER=disco (plano B: volume local)
   MACUXI_ARQUIVOS_DIR: /dados/arquivos
+  # T-0158 (ADR 0043): Portal › Diagnósticos (api) e alerta/expurgo (worker) ligados na demo; o recado automático só com o
+  # recados.env do worker. Na produção fica desligado até a decisão do dono do produto. Desligar: '0' aqui e publicar.
+  MACUXI_DIAGNOSTICOS: '1'
 
 services:
   postgres:
@@ -125,6 +128,14 @@ services:
   worker:
     <<: *imagem-api
     command: ['node', '--import', 'tsx', 'apps/api/src/worker.ts']
+    # T-0158 (ADR 0043): o recados.env (MACUXI_RECADOS_TOKEN_SERVIDOR, remetente de sistema `diagnostico`) só no worker,
+    # nunca na api nem no bko. Sem o arquivo (ou vazio), o alerta fica `desligado` e o expurgo roda do mesmo jeito.
+    env_file:
+      - path: .env
+      - path: segredos.env
+        required: false
+      - path: recados.env
+        required: false
     environment:
       <<: *ambiente-api
       # o worker também não administra o banco (lerConfigApp)

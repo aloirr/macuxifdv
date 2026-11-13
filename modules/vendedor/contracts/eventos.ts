@@ -182,6 +182,16 @@ export const PedidoAprovadoEvento = z.object({
   acrescimo_total_cents: CentsNaoNeg.optional(),
   frete: FreteEvento.nullable().optional(),
   endereco_entrega: EnderecoEntregaEvento.nullable().optional(),
+  /** T-0149 (RN-CORE-39, aditivo e opcional, sem nova versão): retrato da filial do pedido; o Hub leva ao ERP. Ausente = pedido anterior. */
+  filial: z
+    .object({
+      codigo: z.string().min(1),
+      external_id: z.string().nullable(),
+      nome: z.string().optional(),
+      padrao: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type PedidoAprovadoEvento = z.infer<typeof PedidoAprovadoEvento>;
 

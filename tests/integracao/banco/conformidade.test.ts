@@ -77,6 +77,12 @@ const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_redefinir_senha_admin(p_sid uuid, p_tenant uuid, p_usuario uuid, p_senha_hash text, p_email text, p_email_id uuid, p_carga bytea)':
     `${SA}; só super-admin (28000); alvo ativo com algum perfil vivo de base admin (0047; P0002) e o e-mail atual (55000); temporária 72 h + trocar_senha + ` +
     'sessao_versao+1 + refresh revogados; e-mail cifrado na email_saida na mesma transação; auditoria sem dado pessoal; idempotente por p_email_id',
+  // T-0158 (0058, ADR 0043; R-20261110-154349-banco-dados): diagnóstico do aparelho no portal, só super-admin
+  'plataforma.sa_listar_diagnosticos(p_sid uuid, p_filtro jsonb)':
+    `${SA}; só super-admin (admin do cliente 42501, sessão inválida 28000); diagnósticos de todos os tenants com filtros e keyset, 50 por página; ` +
+    'só dado técnico; audita só a contagem',
+  'plataforma.sa_diagnostico(p_sid uuid, p_id uuid)':
+    `${SA}; só super-admin; detalhe + chave do print recebido (a API lê os bytes); P0002 se não achar; audita o id`,
 };
 
 /** Funções de deploy (T-0093, ADR 0031 §5): SECURITY INVOKER, chamadas pela conexão de administração; ninguém mais executa. */
@@ -95,6 +101,9 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
   // T-0039 §2.3 passo 3 (0027; ADR 0022; R-20261105-040202-banco-dados): NÃO entra em DEFINER_REVISADAS (o app não executa)
   'plataforma.tenants_ativos()':
     'agendador das tarefas periódicas (ADR 0022): só ids dos tenants ativos (status ativo, deleted_at nulo), ordenados; nenhuma outra coluna',
+  // T-0158 (0058, ADR 0043; R-20261110-154349-banco-dados): NÃO entra em DEFINER_REVISADAS (o app não executa)
+  'plataforma.expurgar_diagnosticos(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 500)':
+    'retenção LGPD de 90 dias (prints aguardando, 7 dias): apaga de fato o diagnóstico e o arquivo do print na mesma transação; devolve as chaves; p_limite 1..5000',
 };
 
 /**
@@ -109,6 +118,10 @@ const INDICES_UNICOS_GLOBAIS: Record<string, string> = {
   // cliente ("traga sua chave"). Revisão: R-20261101-172531-engenheiro-software (T-0032).
   'integracao.credencial_hash_uk':
     'HMAC-SHA256 (pepper do servidor) de chave gerada pelo servidor; cai se o Hub aceitar chave escolhida pelo cliente',
+  // T-0158 (0058, ADR 0043; R-20261110-154349-banco-dados): protocolo legível global ("nº 0042") só da sequência
+  // plataforma.diagnostico_protocolo_seq; o macuxi_app não tem INSERT na coluna. CONDIÇÃO: cai se o protocolo vier do aparelho/tenant.
+  'plataforma.diagnostico_protocolo_uk':
+    'protocolo só da plataforma.diagnostico_protocolo_seq (sem INSERT do app na coluna); nenhum tenant escolhe o valor, colisão impossível, nada a descobrir de outro tenant',
 };
 
 type Definer = { assinatura: string; config: string[] | null; publico: boolean };

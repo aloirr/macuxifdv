@@ -47,6 +47,15 @@ describe('createApp monta os 8 módulos pelo manifesto', () => {
     expect((await createApp({ versao: '9.9.9' }).inject({ method: 'GET', url: '/v1/saude' })).json().versao).toBe('9.9.9');
   });
 
+  it('/v1/saude devolve recursos.diagnosticos só com portal e app ligados; desligado por padrão (T-0158, R-20261111-011107)', async () => {
+    const recursos = async (op: Parameters<typeof createApp>[0]) => SaudeRespostaSchema.parse((await createApp(op).inject({ method: 'GET', url: '/v1/saude' })).json()).recursos;
+    expect(await recursos({})).toEqual({ diagnosticos: false });
+    expect(await recursos({ diagnosticosPortal: false, diagnosticosApp: false })).toEqual({ diagnosticos: false });
+    expect(await recursos({ diagnosticosPortal: true, diagnosticosApp: false })).toEqual({ diagnosticos: false });
+    expect(await recursos({ diagnosticosPortal: false, diagnosticosApp: true })).toEqual({ diagnosticos: false });
+    expect(await recursos({ diagnosticosPortal: true, diagnosticosApp: true })).toEqual({ diagnosticos: true });
+  });
+
   it('sem autenticação do Core (Fase 2) ninguém entra: 401 (falha fechada)', async () => {
     const app = createApp({});
     const r = await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('vendedor') });

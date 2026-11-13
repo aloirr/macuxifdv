@@ -4,13 +4,14 @@
  * Cadastro e preço simulados em memória (como em `pedido.db.test.ts`); roda no CI (pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha).
  */
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS } from '@macuxi/core/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ClienteBanco, ContextoBase, DefinicaoEvento, ItemPush, ResultadoItemPush, UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { entidadePedido } from '../contracts/entidades';
+import { responderFiliais } from './filial-simulada';
 import { escopoDoPedido } from './sync';
 import { provedoresSyncVendedor } from './sync';
 
@@ -52,6 +53,7 @@ describe.skipIf(semBanco())('Pedido em nome do vendedor × Postgres (RF-GES-05, 
         comTenant(pool, u.tenant_id, (c) => {
           const tx = {
             async consultar(def: { nome: string }, entrada: Record<string, unknown>) {
+              if (def.nome === CONSULTA_FILIAIS.nome) return responderFiliais(entrada);
               if (def.nome === CONSULTA_CADASTRO_RESUMO.nome) {
                 const ent = CONSULTA_CADASTRO_RESUMO.entrada.parse(entrada);
                 const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>
@@ -66,6 +68,7 @@ describe.skipIf(semBanco())('Pedido em nome do vendedor × Postgres (RF-GES-05, 
                 const ent = CONSULTA_PRECOS_CLIENTE.entrada.parse(entrada);
                 return { tabela_preco_id: id(59), itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: 100_000, motivo_sem_preco: null })) };
               }
+              if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {

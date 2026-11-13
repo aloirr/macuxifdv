@@ -19,6 +19,11 @@ export const ROTAS_PORTAL = {
   /** Redefine a senha do admin (`RedefinirSenhaAdminSchema` → `RedefinirSenhaAdminRespostaSchema`); idempotente por `email_id`. */
   redefinirSenhaAdmin: (tenantId: string, usuarioId: string) =>
     `/plataforma/empresas/${encodeURIComponent(tenantId)}/admins/${encodeURIComponent(usuarioId)}/redefinir-senha`,
+  /** T-0158 (ADR 0043): Portal › Diagnósticos, só o time da Macuxi (o admin do cliente recebe 403). Sem `x-macuxi-tenant`. */
+  diagnosticos: '/plataforma/diagnosticos',
+  diagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}`,
+  /** Bytes do print (JPEG), `private, no-store`; o portal abre como `Blob`. */
+  printDoDiagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}/print`,
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',

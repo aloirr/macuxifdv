@@ -3,6 +3,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { aplicarEventos, estadoInicial, visaoDaEquipe, rankingDaEquipe } from '../../domain';
 import { pedidoCriado, statusAlterado, SUPERVISOR, u, VENDEDOR } from '../../domain/fixtures';
 import type { MembroEquipe } from '../../contracts';
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { CABECALHO_EQUIPE, csvDaEquipe, csvDoRanking } from './csv';
 
 const relogio = criarRelogio({ agora: '2026-11-03T15:00:00Z' });
@@ -21,7 +22,8 @@ describe('CSV do BKO do Gestor', () => {
   it('equipe: cabeçalho, reais com vírgula decimal e texto com ; entre aspas', () => {
     const v = visaoDaEquipe({ estado, membros: MEMBROS, viewer, escopo: { tipo: 'equipe', ids: new Set([VENDEDOR]) }, data: relogio.hoje(), modulos, agora: relogio.iso() });
     const [cab, linha] = csvDaEquipe(v).trimEnd().split('\n');
-    expect(cab).toBe(CABECALHO_EQUIPE.join(';'));
+    expect(cab).toBe(BOM_CSV + CABECALHO_EQUIPE.join(';'));
+    expect(csvDaEquipe(v).startsWith(BOM_CSV)).toBe(true);
     expect(linha).toContain('"Vera; ""a melhor"""');
     expect(linha).toContain(';1234,56;1;');
   });

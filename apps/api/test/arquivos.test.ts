@@ -6,14 +6,14 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { definirModuloApi, LIMITE_ARQUIVO_BYTES, type ClienteBanco } from '@macuxi/platform-sdk';
+import { definirModuloApi, LIMITE_ARQUIVO_BYTES, type ClienteBanco, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp, excedeElementos, MAX_ELEMENTOS_CORPO } from '../src/app';
 import { chaveDoArquivo, criarArmazenamentoEmDisco, criarArmazenamentoEmMemoria } from '../src/arquivos';
 import type { BancoApp } from '../src/banco';
-import { bancoFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
+import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, CLIENTE_FORA, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
 
 const ID = '0f000000-0000-4000-8000-0000000000b1';
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x02, 0xff, 0xd9]);
@@ -198,6 +198,86 @@ describe('GET /v1/arquivos/:id — foto sem cliente (T-0097, RN-CAT-04)', () => 
     const r = await get(app, 'vendedor');
     expect(r.statusCode).toBe(403);
     expect(r.json()).toMatchObject({ codigo: 'MODULO_INATIVO' });
+    await app.close();
+  });
+});
+
+describe('GET /v1/arquivos/:id — leitura restrita por perfil (ADR 0041, T-0147, RN-CORE-38)', () => {
+  const CHAVE = `${TENANT}/core/2026-11/${ID}.jpg`;
+  const SENSIVEL = ['admin', 'analista', 'gerente', 'supervisor'];
+  const quem: Record<string, UsuarioAutenticado> = {
+    ...usuarios,
+    gerente: { id: '0b000000-0000-4000-8000-000000000005', tenant_id: TENANT, perfil: 'gerente' as const },
+    admin: { id: '0b000000-0000-4000-8000-000000000006', tenant_id: TENANT, perfil: 'admin' as const },
+  };
+  const licencas = { ...LICENCAS_PADRAO, perfil: { ...LICENCAS_PADRAO.perfil, gerente: ['core' as const], admin: ['core' as const] } };
+
+  /** CNH do sócio (core/pdv) do cliente da carteira, enviada pelo vendedor. */
+  async function montarCom(perfisLeitura: string[] | null, cliente = CLIENTE_DA_CARTEIRA) {
+    const linha = {
+      modulo: 'core',
+      finalidade: 'pdv',
+      enviado_por: usuarios.vendedor!.id,
+      situacao: 'recebido',
+      sha256: 'b'.repeat(64),
+      tamanho_bytes: JPEG.length,
+      cliente_id: cliente,
+      chave_armazenamento: CHAVE,
+      perfis_leitura: perfisLeitura,
+    };
+    const sqls: string[] = [];
+    const db: ClienteBanco = {
+      query: async <R>(sql: string) => {
+        sqls.push(sql);
+        return /from plataforma.arquivo/.test(sql) ? { rows: [linha] as R[], rowCount: 1 } : { rows: [] as R[], rowCount: 0 };
+      },
+    };
+    const banco: BancoApp = { ...bancoFalso().banco, comTenant: async (_t, fn) => fn(db), semTenant: async (fn) => fn(db) };
+    const arquivos = criarArmazenamentoEmMemoria();
+    await arquivos.gravar(CHAVE, JPEG);
+    const app = createApp(
+      opcoesDeTeste(licencas, {
+        banco,
+        arquivos,
+        autenticar: async (h) => quem[h['x-teste-usuario'] ?? ''] ?? null,
+        carteira: async (u) => (u.perfil === 'analista' || u.perfil === 'admin' ? 'tenant' : new Set([CLIENTE_DA_CARTEIRA])),
+      }),
+    );
+    return { app, sqls };
+  }
+  const get = (app: ReturnType<typeof createApp>, q: string, sufixo = '') =>
+    app.inject({ method: 'GET', url: `/v1/arquivos/${ID}${sufixo}`, headers: { 'x-teste-usuario': q } });
+
+  it('sensível: admin, analista, gerente e supervisor da carteira abrem (200, no-store); vendedor e promotor recebem 404 sem motivo', async () => {
+    const { app } = await montarCom(SENSIVEL);
+    for (const q of ['admin', 'analista', 'gerente', 'supervisor'] as const) {
+      const r = await get(app, q);
+      expect(r.statusCode, q).toBe(200);
+      expect(r.headers['cache-control'], q).toBe('private, no-store');
+      expect(r.rawPayload).toEqual(JPEG);
+    }
+    for (const q of ['vendedor', 'promotor'] as const) {
+      const r = await get(app, q);
+      expect(r.statusCode, q).toBe(404);
+      expect(r.json(), q).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+      // a miniatura segue a mesma regra
+      expect((await get(app, q, '/miniatura')).statusCode, `${q} miniatura`).toBe(404);
+    }
+    await app.close();
+  });
+
+  it('sensível fora da carteira: o supervisor e o gerente não abrem (a lista de perfis não dispensa a carteira)', async () => {
+    const { app } = await montarCom(SENSIVEL, CLIENTE_FORA);
+    for (const q of ['supervisor', 'gerente'] as const) expect((await get(app, q)).statusCode, q).not.toBe(200);
+    expect((await get(app, 'analista')).statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('sem perfis_leitura (fachada): vale a regra de sempre, com cache privado de 1 dia', async () => {
+    const { app } = await montarCom(null);
+    const r = await get(app, 'vendedor');
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['cache-control']).toBe('private, max-age=86400');
     await app.close();
   });
 });

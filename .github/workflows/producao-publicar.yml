@@ -90,7 +90,8 @@ jobs:
         env:
           IMG: ghcr.io/${{ steps.alvo.outputs.dono }}/macuxi-api:${{ steps.alvo.outputs.sha }}
         run: |
-          digest="$(docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          # T-0154: a consulta ao GHCR também repete no 403/429/5xx (imagem inexistente não repete)
+          digest="$(bash scripts/deploy/demo/ghcr-tentar.sh "digest da API no GHCR" -- docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' || true)"
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::$IMG não está no GHCR (o \"demo — publicar\" desse commit rodou verde?)"; exit 1; }
           echo "api=${IMG%:*}@$digest" >> "$GITHUB_OUTPUT"
           echo "API: ${IMG%:*}@$digest"
@@ -119,13 +120,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: imagem macuxi-bko-prod
-        id: build
+      # T-0154: build carregado no Docker do runner; o envio ao GHCR é o passo seguinte, com novas tentativas no 403/429/5xx
+      - name: imagem macuxi-bko-prod (build)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          push: true
+          push: false
+          load: true
           provenance: false
           build-args: |
             NEXT_PUBLIC_API_URL=http://api:8100/v1
@@ -140,12 +142,23 @@ jobs:
             type=gha,scope=macuxi-bko-prod
           cache-to: type=gha,scope=macuxi-bko-prod,mode=max
 
+      - name: imagem macuxi-bko-prod (envio ao GHCR, com novas tentativas)
+        env:
+          IMG: ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod
+          SHA: ${{ needs.conferir.outputs.sha }}
+          VERSAO: ${{ needs.conferir.outputs.versao }}
+        run: |
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO de produção ($SHA)" -- docker push "$IMG:$SHA"
+          bash scripts/deploy/demo/ghcr-tentar.sh "envio do BKO de produção ($VERSAO)" -- docker push "$IMG:$VERSAO"
+
       - name: referência por digest
         id: ref
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+          IMG: ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.sha }}
           DONO: ${{ needs.conferir.outputs.dono }}
         run: |
+          # digest do manifesto enviado (o docker push grava o RepoDigest local; sem nova consulta ao GHCR)
+          DIGEST="$(docker image inspect "$IMG" --format '{{range .RepoDigests}}{{println .}}{{end}}' | sed -n "s|^ghcr.io/$DONO/macuxi-bko-prod@||p" | head -n1)"
           [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::digest do BKO inválido"; exit 1; }
           echo "bko=ghcr.io/$DONO/macuxi-bko-prod@$DIGEST" >> "$GITHUB_OUTPUT"
           echo "BKO: ghcr.io/$DONO/macuxi-bko-prod@$DIGEST"
@@ -186,6 +199,13 @@ jobs:
           PROD_S3_SECRET: ${{ secrets.PROD_S3_SECRET }}
           PROD_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
           PROD_PG_PORTA: ${{ secrets.PROD_PG_PORTA }}
+          # T-0094 (ADR 0032): e-mail transacional (opcional em bloco: sem PROD_SMTP_HOST, o e-mail fica desligado)
+          PROD_SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
+          PROD_SMTP_PORTA: ${{ secrets.PROD_SMTP_PORTA }}
+          PROD_SMTP_TLS: ${{ secrets.PROD_SMTP_TLS }}
+          PROD_SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
+          PROD_SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
+          PROD_SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
         run: |
           falta=()
           for n in PROD_SSH_KEY PROD_HOST PROD_USER PROD_PG_HOST PROD_PG_ADMIN_USUARIO PROD_PG_ADMIN_SENHA PROD_S3_KEY_ID PROD_S3_SECRET PROD_CLOUDFLARE_TUNNEL_TOKEN; do
@@ -200,6 +220,21 @@ jobs:
           [[ "$PROD_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "::error::PROD_USER inválido"; exit 1; }
           [[ "$PROD_PG_ADMIN_USUARIO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::PROD_PG_ADMIN_USUARIO inválido"; exit 1; }
           [ -z "$PROD_PG_PORTA" ] || [[ "$PROD_PG_PORTA" =~ ^[0-9]{1,5}$ ]] || { echo "::error::PROD_PG_PORTA inválida"; exit 1; }
+          # SMTP: uma linha, sem aspas simples (o email.env grava usuário, senha e remetente entre aspas simples, sem interpolação)
+          for n in PROD_SMTP_HOST PROD_SMTP_PORTA PROD_SMTP_TLS PROD_SMTP_USUARIO PROD_SMTP_SENHA PROD_SMTP_REMETENTE; do
+            v="$(printf '%s' "${!n}" | tr -d '\r')"
+            case "$v" in *$'\n'*) echo "::error::$n tem quebra de linha"; exit 1;; *"'"*) echo "::error::$n tem aspas simples"; exit 1;; esac
+          done
+          if [ -n "$PROD_SMTP_HOST" ]; then
+            [[ "$PROD_SMTP_HOST" =~ ^[A-Za-z0-9.-]{1,253}$ ]] || { echo "::error::PROD_SMTP_HOST inválido (só o nome do servidor)"; exit 1; }
+            [ -z "$PROD_SMTP_PORTA" ] || [[ "$PROD_SMTP_PORTA" =~ ^[0-9]{1,5}$ ]] || { echo "::error::PROD_SMTP_PORTA inválida"; exit 1; }
+            [ -z "$PROD_SMTP_TLS" ] || [[ "$PROD_SMTP_TLS" =~ ^(starttls|tls)$ ]] || { echo "::error::PROD_SMTP_TLS deve ser starttls ou tls"; exit 1; }
+            [ -n "$PROD_SMTP_USUARIO" ] && [ -n "$PROD_SMTP_SENHA" ] || { echo "::error::com PROD_SMTP_HOST, PROD_SMTP_USUARIO e PROD_SMTP_SENHA são obrigatórios"; exit 1; }
+            echo "e-mail: SMTP ligado"
+          else
+            [ -z "$PROD_SMTP_PORTA$PROD_SMTP_TLS$PROD_SMTP_USUARIO$PROD_SMTP_SENHA$PROD_SMTP_REMETENTE" ] || { echo "::error::há PROD_SMTP_* sem PROD_SMTP_HOST"; exit 1; }
+            echo "::warning::sem PROD_SMTP_HOST: e-mail desligado (o BKO mostra a senha ao admin; a Equipe por CSV recusa)"
+          fi
           echo "secrets obrigatórios presentes"
 
       - name: chave SSH
@@ -225,7 +260,7 @@ jobs:
           USUARIO: ${{ secrets.PROD_USER }}
         run: |
           ssh -l "$USUARIO" prod 'rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy'
-          scp -q -o User="$USUARIO" scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh prod:macuxi-deploy/
+          scp -q -o User="$USUARIO" scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh scripts/deploy/demo/ghcr-tentar.sh prod:macuxi-deploy/
           ssh -l "$USUARIO" prod 'sudo bash ~/macuxi-deploy/preparar-vm.sh "$USER"'
 
       - name: segredos do GitHub na VM (modo 600, pelo stdin)
@@ -240,17 +275,34 @@ jobs:
           S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
           TUNEL: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
           WEBHOOK: ${{ secrets.PROD_ALERTA_WEBHOOK }}
-          # T-0087/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
-          SA_CONVITE: ${{ secrets.PROD_SUPERADMIN_CONVITE }}
+          # T-0094 (ADR 0032): e-mail transacional, só na api e no worker (email.env)
+          SMTP_HOST: ${{ secrets.PROD_SMTP_HOST }}
+          SMTP_PORTA: ${{ secrets.PROD_SMTP_PORTA }}
+          SMTP_TLS: ${{ secrets.PROD_SMTP_TLS }}
+          SMTP_USUARIO: ${{ secrets.PROD_SMTP_USUARIO }}
+          SMTP_SENHA: ${{ secrets.PROD_SMTP_SENHA }}
+          SMTP_REMETENTE: ${{ secrets.PROD_SMTP_REMETENTE }}
+          # T-0158 (ADR 0043): recado automático do diagnóstico (opcional)
+          RECADOS_SERVIDOR: ${{ secrets.MACUXI_RECADOS_TOKEN_SERVIDOR }}
         run: |
           grava() { ssh -l "$USUARIO" prod "umask 077; cat > '/opt/macuxi/$1.tmp' && mv -f '/opt/macuxi/$1.tmp' '/opt/macuxi/$1'"; }
           printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=%s\n' "$PG_HOST" "${PG_PORTA:-5432}" | grava banco.env
           printf 'MACUXI_PG_ADMIN_USUARIO=%s\nMACUXI_PG_ADMIN_SENHA=%s\n' "$PG_ADMIN" "$PG_ADMIN_SENHA" | grava admin.env
-          {
-            printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO"
-            if [ -n "$SA_CONVITE" ]; then printf 'MACUXI_SUPERADMIN_CONVITE=%s\n' "$SA_CONVITE"; fi
-          } | grava segredos.env
+          # T-0093/ADR 0031: sem convite do super-admin (ele nasce pelo workflow "producao — super-admin")
+          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" | grava segredos.env
           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
+          # e-mail (T-0094): sem PROD_SMTP_HOST, email.env vazio e e-mail desligado. Valores conferidos no passo dos secrets;
+          # usuário, senha e remetente entre aspas simples (o compose não interpola $ dentro delas)
+          if [ -n "$SMTP_HOST" ]; then
+            printf 'MACUXI_SMTP_HOST=%s\n' "$SMTP_HOST"
+            [ -z "$SMTP_PORTA" ] || printf 'MACUXI_SMTP_PORTA=%s\n' "$SMTP_PORTA"
+            [ -z "$SMTP_TLS" ] || printf 'MACUXI_SMTP_TLS=%s\n' "$SMTP_TLS"
+            printf "MACUXI_SMTP_USUARIO='%s'\nMACUXI_SMTP_SENHA='%s'\n" "$SMTP_USUARIO" "$SMTP_SENHA"
+            [ -z "$SMTP_REMETENTE" ] || printf "MACUXI_SMTP_REMETENTE='%s'\n" "$SMTP_REMETENTE"
+          fi | tr -d '\r' | grava email.env
+          # token do remetente de sistema `diagnostico`, só no worker (recados.env); sem o secret, arquivo vazio e alerta desligado
+          if [ -n "$RECADOS_SERVIDOR" ]; then printf 'MACUXI_RECADOS_TOKEN_SERVIDOR=%s\n' "$RECADOS_SERVIDOR"; fi | grava recados.env
+          [ -n "$RECADOS_SERVIDOR" ] || echo "::notice::sem MACUXI_RECADOS_TOKEN_SERVIDOR: os diagnósticos chegam ao portal, mas o recado automático fica desligado"
           if [ -n "$WEBHOOK" ]; then
             printf 'MACUXI_ALERTA_WEBHOOK=%s\n' "$WEBHOOK" | grava alerta.env
           else

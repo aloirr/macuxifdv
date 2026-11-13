@@ -18,13 +18,14 @@
  * Só no aparelho (roteiro manual, docs/testes/T-0061.md): as 3 abas e o rodapé fixo, toque de 48 dp, UN/CX em 2 toques,
  * offline (avião) → reconexão, o PDF renderizado/compartilhado (expo-print) e a gaveta do BKO no navegador.
  */
-import { formatBRL } from '@macuxi/comum';
+import { formatarDocumento, formatBRL } from '@macuxi/comum';
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ResultadoItemPush } from '@macuxi/platform-sdk';
 import { OrderDetail } from '@macuxi/vendedor/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildOrderPdfHtml, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
+import { garantirSaldoNaFilial, SALDO_REFERENCIA } from '../apoio/demo';
 
 
 const id = (n: number) => `0f610000-0000-4000-8000-a${String(n).padStart(11, '0')}`;
@@ -90,6 +91,9 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     await api.admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [Object.values(PED)]);
     prod1 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-001'", [A.tenantId]))[0]!.id;
     prod2 = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-002'", [A.tenantId]))[0]!.id;
+    // RN-VEN-20 (v1.0.4): a fixture tem 15 UN de ALFA-001 no CD1 e o roteiro pede 1 CX, 2 CX e 2 CX (fator 10) com preço e faixa
+    // conferidos; o preparo completa o saldo da filial do c1 (a recusa fica ligada; ALFA-002 não tem saldo = sem controle)
+    await garantirSaldoNaFilial(api.admin, A.clientes.c1, prod1, SALDO_REFERENCIA);
     endEntrega = (await q<{ id: string }>("select id from core.cliente_endereco where tenant_id = $1 and cliente_id = $2 and not principal and deleted_at is null", [A.tenantId, A.clientes.c1]))[0]!.id;
     endDeOutro = (await q<{ id: string }>('select id from core.cliente_endereco where tenant_id = $1 and cliente_id <> $2 limit 1', [B.tenantId, A.clientes.c1]))[0]?.id ?? '0f610000-0000-4000-8000-0000000000ee';
     // preço vigente de ALFA-002 só para o caso exato de 5% efetivo (o da fixture vence às 04h do dia)
@@ -212,7 +216,7 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     }
   });
 
-  it('passo 5 — BKO abre o pedido (gerente) e gera o PDF: medida "CX", frete, transportadora e endereço; versão do cliente sem %', async () => {
+  it('passo 5 — BKO abre o pedido (gerente) e gera o PDF: Emb. "CX" e Qtd (spec T-0159), frete, transportadora e endereço; versão do cliente sem %', async () => {
     const d = await detalhe(tk.gerente, PED.endereco);
     expect(d.items[0]).toMatchObject({ unit: 'CX', factor: 10, quantity: 2, discount_pct: 2 });
     expect(String(d.items[0]!.unit_label)).toContain('CX');
@@ -222,17 +226,24 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     const doc = pdfDoPedido(OrderDetail.parse(d));
     const cliente = buildOrderPdfHtml(doc, 'customer', ctx);
     const interno = buildOrderPdfHtml(doc, 'bko', ctx);
-    expect(cliente).toContain('Medida');
+    // spec docs/design/pdf-pedido.md §3 (T-0159): "Emb." e "Qtd" separadas; some a coluna "Medida"; Qtd só o número
+    expect(cliente).toContain('<th>Emb.</th>');
+    expect(cliente).toMatch(/<th[^>]*>Qtd<\/th>/);
+    expect(cliente).not.toMatch(/>Medida</);
     expect(cliente).toContain('CX');
-    expect(cliente).toContain('Frete: CIF');
+    // spec docs/design/pdf-pedido.md (ficha "Entrega"): frete + endereço numa ficha só, sem "Frete:" nem "por conta de"
+    expect(cliente).toMatch(/<div class="r">Entrega<\/div>CIF · [^<]*Av\. do Depósito/);
+    expect(cliente).not.toContain('Frete:');
+    expect(cliente).not.toContain('por conta');
     expect(cliente).toContain('Av. do Depósito');
     expect(cliente).toContain(formatBRL(d.total_cents));
     expect(cliente).not.toContain('%');
     expect(interno).toMatch(/2,0\s*%|2%/);
-    // FOB digitada no PDF: "Frete: FOB – por conta do cliente · transportadora (CNPJ ...)"
+    // FOB digitada no PDF, ficha "Entrega": "FOB · transportadora (CNPJ ...)" (sem "Frete:" nem "por conta de")
     const fob = buildOrderPdfHtml(pdfDoPedido(OrderDetail.parse(await detalhe(tk.gerente, PED.fobDigitada))), 'customer', ctx);
-    expect(fob).toContain('Frete: FOB');
-    expect(fob).toContain(NOME_DIGITADA);
+    expect(fob).toContain(`<div class="r">Entrega</div>FOB · ${NOME_DIGITADA} (CNPJ ${formatarDocumento(CNPJ_DIGITADA)})`);
+    expect(fob).not.toContain('Frete:');
+    expect(fob).not.toContain('por conta');
   });
 
   it('regra 7 (RN-PRO-01): o promotor não cria o pedido novo, nem com os campos do #72; nada gravado', async () => {

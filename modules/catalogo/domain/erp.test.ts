@@ -16,7 +16,7 @@ describe('RN-INT-02: preço do ERP vira item de tabela do Catálogo', () => {
   it('RN-INT-02: preço válido vira upsert com tabela, produto, vigência e centavos', () => {
     expect(planejarPrecoDoErp(preco())).toEqual({
       tipo: 'upsert',
-      linha: { external_id: 'PR-1', tabela_external_id: 'T1', tabela_nome: 'Atacado', produto_external_id: 'P-1', preco_cents: 1500, vigencia_inicio: '2026-11-01', vigencia_fim: null },
+      linha: { external_id: 'PR-1', tabela_external_id: 'T1', tabela_nome: 'Atacado', produto_external_id: 'P-1', preco_cents: 1500, vigencia_inicio: '2026-11-01', vigencia_fim: null, filial_external_id: null },
     });
   });
   it('RN-INT-02: ação inativado, registro inativo ou preço zerado inativam o item (nunca apagam)', () => {
@@ -144,7 +144,7 @@ describe('RN-VEN-23: tabela escalonada do ERP vira faixa do Catálogo', () => {
   it('RN-VEN-23: faixa válida vira upsert com produto, medida, mínimo, preço da unidade base, vigência e tabela', () => {
     expect(planejarEscalonadaDoErp(escalonada({ tabela_external_id: 'T1' }))).toEqual({
       tipo: 'upsert',
-      linha: { external_id: 'ESC-1', produto_external_id: 'P-1', medida: 'FD', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null, tabela_external_id: 'T1' },
+      linha: { external_id: 'ESC-1', produto_external_id: 'P-1', medida: 'FD', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null, tabela_external_id: 'T1', filial_external_id: null },
     });
   });
   it('RN-VEN-23: medida e tabela ausentes = unidade base e todas as tabelas', () => {
@@ -192,5 +192,37 @@ describe('RN-CAT-06: vínculo cliente -> tabela de preço vindo do ERP (T-0120)'
   it('RN-CAT-06: cliente inativado no ERP ou chave vazia não mexem no vínculo', () => {
     expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: 'TAB-A' }, 'inativado'))).toEqual({ tipo: 'ignorar' });
     expect(planejarVinculoTabelaDoErp(cli({ tabela_preco_external_id: '   ' }))).toEqual({ tipo: 'ignorar' });
+  });
+});
+
+describe('RN-CORE-39: filial_external_id no preço, no estoque e na escalonada do ERP (T-0149)', () => {
+  const preco = { tabela_external_id: 'TAB-A', tabela_nome: 'Atacado', vigencia_inicio: '2026-11-01', produto_external_id: 'P-1', preco_cents: 1000 };
+  const linhaPreco = (registro: Record<string, unknown>) => {
+    const p = planejarPrecoDoErp({ external_id: 'PR-1', acao: 'criado', registro: { ...preco, ...registro } });
+    return p.tipo === 'upsert' ? p.linha.filial_external_id : 'nao-upsert';
+  };
+  it('RN-CORE-39: preço com filial_external_id leva a chave da filial; ausente ou nulo = filial padrão (null no plano)', () => {
+    expect(linhaPreco({ filial_external_id: ' FIL-2 ' })).toBe('FIL-2');
+    expect(linhaPreco({})).toBeNull();
+    expect(linhaPreco({ filial_external_id: null })).toBeNull();
+  });
+  const est = { deposito_external_id: 'DEP-1', produto_external_id: 'P-1', saldo: 5 };
+  const filialEstoque = (registro: Record<string, unknown>) => {
+    const p = planejarEstoqueDoErp({ external_id: 'E-1', acao: 'criado', registro: { ...est, ...registro } });
+    return p.tipo === 'upsert' ? p.linha.filial_external_id : 'nao-upsert';
+  };
+  it('RN-CORE-39: estoque distingue filial ausente (depósito conhecido não muda) de nula (padrão) e informada', () => {
+    expect(filialEstoque({})).toBeUndefined();
+    expect(filialEstoque({ filial_external_id: null })).toBeNull();
+    expect(filialEstoque({ filial_external_id: 'FIL-2' })).toBe('FIL-2');
+  });
+  const esc = { produto_external_id: 'P-1', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01' };
+  const filialEsc = (registro: Record<string, unknown>) => {
+    const p = planejarEscalonadaDoErp({ external_id: 'ESC-1', acao: 'criado', registro: { ...esc, ...registro } });
+    return p.tipo === 'upsert' ? p.linha.filial_external_id : 'nao-upsert';
+  };
+  it('RN-CORE-39: escalonada sem filial vale para todas (null); com filial leva a chave', () => {
+    expect(filialEsc({})).toBeNull();
+    expect(filialEsc({ filial_external_id: 'FIL-2' })).toBe('FIL-2');
   });
 });

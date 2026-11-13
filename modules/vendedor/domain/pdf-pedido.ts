@@ -4,14 +4,17 @@
  * Duas versões:
  * - 'customer' (para o cliente): sem nenhum percentual nem a palavra desconto; por item mostra o preço
  *   unitário final (líquido = total do item ÷ quantidade) e o total. O HTML inteiro não tem '%'.
- * - 'bko' (para o backoffice): preço de tabela, desconto %, preço líquido, alçada, status, motivo e histórico.
+ * - 'bko' (para o backoffice): preço de tabela, desconto %, preço líquido e histórico.
  *
  * Layout em grade CSS (sem tabelas com largura percentual), A4, fontes do sistema, cores do app.
  * TODO(fiscal): impostos (ST, ICMS, DIFAL) são calculados no faturamento pelo ERP; o PDF mostra valores sem impostos.
  */
-import { formatBRL } from '@macuxi/comum';
+import { formatarCep, formatarDocumento, formatBRL } from '@macuxi/comum';
+import type { FilialDadosFiscais } from '@macuxi/core/contracts';
 
-import { etiquetaDoDiaDoPreco, etiquetaPrecoDe } from './orcamento';
+import { linhaLiquidaDosTotais, semRs, siglaDaMedida } from './apresentacao-totais';
+import { LOGO_PADRAO_DATA_URI } from './logo-padrao';
+import { dataDaValidade } from './orcamento';
 import { ORDER_STATUS_LABEL, normalizarStatus, type OrderStatus } from './order';
 
 /** Data/hora no fuso (Intl); local ao domínio para não importar a UI (E5 move isto para @macuxi/comum). */
@@ -49,7 +52,12 @@ export interface OrderPdfItem {
    * `referencia_no_orcamento` ligado.
    */
   references?: ReadonlyArray<{ brand: string; code: string }>;
+  /** T-0159: marca do produto (retrato no pedido, como a aplicação); coluna Marca nos dois PDFs, vazia se ausente */
+  brand?: string | null;
 }
+
+/** T-0159 (T-0149): retrato da filial de faturamento do pedido; o cabeçalho do PDF do cliente mostra CNPJ, endereço e telefone dela. */
+export type OrderPdfFilial = FilialDadosFiscais & { nome?: string | null; cidade?: string | null; uf?: string | null };
 
 /** Frete CIF (empresa paga) ou FOB (cliente paga, com transportadora). Sem valor (RN-VEN-13, RN-VEN-16). */
 export interface OrderPdfFreight {
@@ -70,10 +78,9 @@ export interface OrderPdfEvent {
 export interface OrderPdfOrder {
   /** número do pedido; null = ainda na fila do aparelho */
   number: string | null;
-  status: string;
   /** data/hora do pedido (ISO, UTC) */
   created_at: string;
-  customer: { legal_name: string; trade_name: string; cnpj: string; address: string; district: string; city: string; erp_code: string };
+  customer: { legal_name: string; trade_name: string; cnpj: string; erp_code: string };
   seller_name: string;
   /** RN-VEN-35: pedido em nome; quem digitou (o gestor). Ausente = pedido do próprio vendedor */
   made_by?: string;
@@ -81,17 +88,10 @@ export interface OrderPdfOrder {
   discount_pct: number;
   items: OrderPdfItem[];
   subtotal_cents: number;
-  discount_cents: number;
   total_cents: number;
-  pending_reason: string;
-  rejection_reason: string;
   price_table: string;
   /** nome da tabela de preço (T-0061); o PDF interno mostra o nome, não o id */
   price_table_name?: string | null;
-  branch_name: string;
-  erp_order_code: string;
-  /** alçada de desconto do vendedor (%), quando conhecida */
-  seller_limit_pct: number | null;
   history: OrderPdfEvent[];
   // --- T-0061 ---
   freight?: OrderPdfFreight | null;
@@ -105,6 +105,12 @@ export interface OrderPdfOrder {
   tipo?: 'pedido' | 'orcamento';
   /** RN-VEN-18: dia do preço do orçamento (AAAA-MM-DD, o mesmo do selo); ausente = deriva de created_at */
   preco_data?: string;
+  /** T-0159: filial de faturamento do pedido (retrato); ausente = pedido anterior à filial, o cabeçalho sai sem a linha */
+  filial?: OrderPdfFilial | null;
+  /** T-0159: observação do pedido (texto do vendedor); vazia/ausente = o rótulo sai e o texto fica em branco */
+  observacao?: string | null;
+  /** T-0159: observação da entrega; o campo próprio chega na v1.0.5, até lá o PDF sai com o rótulo e o valor em branco */
+  observacao_entrega?: string | null;
 }
 
 export interface OrderPdfContext {
@@ -115,6 +121,8 @@ export interface OrderPdfContext {
   generated_at: string;
   /** `referencia_no_orcamento` do tenant (RN-CAT-10, padrão não): a referência cruzada também sai no PDF do cliente */
   reference_on_customer_pdf?: boolean;
+  /** T-0159: logo cadastrada do tenant (URL ou data URI); ausente = logo padrão do app. Hoje o tenant não tem o campo: vale sempre a padrão. */
+  logo_src?: string | null;
 }
 
 const ROTULO_EXTRA: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado' };
@@ -158,17 +166,10 @@ export function nomeDaDistribuidora(nomeLogin: string | null | undefined, parame
   return 'Macuxi';
 }
 
-export function formatCnpj(cnpj: string): string {
-  const d = cnpj.replace(/\D/g, '');
-  if (d.length !== 14) return cnpj;
-  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
-}
-
 /** Rótulo e valor do documento do cliente: 11 dígitos = CPF, 14 = CNPJ; outro tamanho mantém "CNPJ" com o texto original. */
 export function documentoCliente(doc: string): { rotulo: 'CPF' | 'CNPJ'; valor: string } {
   const d = doc.replace(/\D/g, '');
-  if (d.length === 11) return { rotulo: 'CPF', valor: `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` };
-  return { rotulo: 'CNPJ', valor: formatCnpj(doc) };
+  return { rotulo: d.length === 11 ? 'CPF' : 'CNPJ', valor: formatarDocumento(doc) };
 }
 
 /** Tabela de preço: o nome; sem nome, o id técnico (UUID) nunca aparece. */
@@ -176,16 +177,6 @@ export function priceTableLabel(id: string, nome?: string | null): string {
   if (nome && nome.trim()) return nome.trim();
   if (!id) return 'Padrão';
   return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? 'Padrão do cliente' : id;
-}
-
-/** "Frete: CIF – por conta da empresa" · "Frete: FOB – por conta do cliente · Transp. (CNPJ 00.000.000/0000-00)". */
-export function textoFrete(f: OrderPdfFreight | null | undefined): string {
-  if (!f) return '';
-  if (f.modality === 'CIF') return 'Frete: CIF – por conta da empresa';
-  const nome = (f.carrier_name ?? '').trim();
-  const doc = f.carrier_document ? formatCnpj(f.carrier_document) : '';
-  const transp = nome ? ` · ${nome}${doc ? ` (CNPJ ${doc})` : ''}` : '';
-  return `Frete: FOB – por conta do cliente${transp}`;
 }
 
 /**
@@ -200,95 +191,157 @@ export function orderPdfFileName(number: string | null, createdAt: string, tz: s
   return `${tipo === 'orcamento' ? 'ORC' : 'PED'}-${xxxx}-${pad(p.day)}${pad(p.month)}${p.year}.pdf`;
 }
 
+/** Cor provisória do cabeçalho da tabela de itens (R-20261111-084832; o código oficial vem depois). */
+export const COR_CABECALHO_TABELA = '#00843D';
+
 const CSS = `
-@page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+@page { size: A4 landscape; margin: 10mm 10mm 12mm 10mm; }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: #FFFFFF; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #16202A; font-size: 10pt; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.doc { padding: 0; }
-.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 3px solid #C2540A; padding-bottom: 8px; }
-.brand { font-size: 15pt; font-weight: 800; letter-spacing: -0.2px; }
-.product { font-size: 9pt; color: #4A5562; }
-.doc-title { text-align: right; }
-.doc-title .kind { font-size: 8pt; font-weight: 700; letter-spacing: 0.8px; color: #C2540A; text-transform: uppercase; }
-.doc-title .num { font-size: 16pt; font-weight: 800; }
-.meta { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin-top: 10px; }
-.box { border: 1px solid #E1E4DE; border-radius: 8px; padding: 8px 10px; }
-.label { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #4A5562; margin-bottom: 3px; }
-.strong { font-weight: 700; }
-.muted { color: #4A5562; }
-.kv { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 2px; }
-.kv .k { color: #4A5562; }
-.items { margin-top: 12px; border: 1px solid #E1E4DE; border-radius: 8px; overflow: hidden; }
-.row { display: grid; gap: 6px; padding: 5px 8px; border-top: 1px solid #ECEEE9; break-inside: avoid; page-break-inside: avoid; align-items: baseline; }
-.row.head { border-top: 0; background: #16202A; color: #FFFFFF; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
-.row:nth-child(even):not(.head) { background: #F7F8F5; }
-.cols-customer { grid-template-columns: 22mm 1fr 20mm 11mm 25mm 27mm; }
-.cols-bko { grid-template-columns: 18mm 1fr 18mm 9mm 20mm 15mm 20mm 23mm; }
-.apl { display: block; margin-top: 1px; font-size: 8pt; color: #4A5562; overflow-wrap: anywhere; }
-.code { font-family: "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; font-size: 8.5pt; color: #4A5562; }
-.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.totals { margin-top: 10px; margin-left: auto; width: 82mm; }
-.totals .line { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-.totals .grand { border-top: 2px solid #16202A; margin-top: 4px; padding-top: 5px; font-size: 13pt; font-weight: 800; }
-.totals .disc { color: #8F3D06; }
-.section { margin-top: 12px; break-inside: avoid; page-break-inside: avoid; }
-.badge { display: inline-block; border-radius: 6px; padding: 1px 7px; font-size: 8.5pt; font-weight: 700; background: #E6E9E2; color: #34404D; }
-.badge.warn { background: #FBE9DC; color: #8F3D06; }
-.badge.ok { background: #E2F1EA; color: #1D6B4F; }
-.badge.bad { background: #FDE8E6; color: #A8261B; }
-.reason { margin-top: 4px; color: #8F3D06; }
-.hist { display: grid; grid-template-columns: 30mm 34mm 1fr; column-gap: 8px; row-gap: 2px; font-size: 9pt; }
-.footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #E1E4DE; font-size: 8.5pt; color: #4A5562; display: grid; gap: 2px; }
+html, body { margin: 0; background: #FFFFFF; }
+body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #16202A; font-size: 15px; line-height: 1.35; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cab { display: flex; justify-content: space-between; align-items: center; gap: 8mm; padding-bottom: 3mm; }
+.marca { display: flex; align-items: center; gap: 4mm; }
+.logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 2mm; }
+.empresa { font-weight: 800; font-size: 20px; line-height: 1.15; }
+.emit { font-size: 12px; color: #4A5562; }
+.doc { text-align: right; }
+.doc .t { font-weight: 800; font-size: 24px; line-height: 1.1; }
+.doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #C2540A; margin-right: 2mm; vertical-align: 3px; }
+.doc .d { font-size: 13px; color: #4A5562; }
+.ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
+.c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CEC6; border-bottom: 1px solid #C9CEC6; }
+.c.fim { border-right: 0; }
+.c.base { border-bottom: 0; }
+.ficha.esc { grid-template-columns: 42fr 29fr 29fr; }
+.s2 { grid-column: span 2; }
+.duo { display: flex; gap: 8mm; }
+.r { font-weight: 700; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
+.forte { font-weight: 600; }
+.sec { color: #4A5562; }
+.faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CEC6; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
+.faixa > div { padding: 1.8mm 2.6mm; }
+.faixa .r { margin: 0; align-self: center; }
+.lado .faixa { margin-top: 4.5mm; }
+.etapas > span + span::before { content: "→"; color: #5B6673; margin: 0 2mm; }
+.etapas .q { color: #4A5562; font-variant-numeric: tabular-nums; margin-right: 1mm; }
+.etapas .ultima { font-weight: 600; }
+table { width: 277mm; border-collapse: collapse; table-layout: fixed; margin-top: 28px; }
+thead { display: table-header-group; }
+th { font-weight: 700; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: #fff; background: ${COR_CABECALHO_TABELA}; text-align: left; padding: 1.8mm 2mm; }
+td { padding: 1.6mm 2mm; vertical-align: baseline; font-size: 15px; }
+tbody tr:last-child td { border-bottom: 1.5px solid #16202A; }
+tbody tr:nth-child(even) td { background: #F3F4F1; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+.v { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+td.cod { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 14px; color: #4A5562; }
+td.emb { white-space: nowrap; }
+th.n, td.n { padding-right: 3.2mm; }
+td.tot { font-weight: 600; }
+.apl { display: block; margin-top: 1px; font-size: 12px; color: #4A5562; overflow-wrap: anywhere; }
+.rodape { display: flex; align-items: flex-start; justify-content: space-between; gap: 6mm; margin-top: 24px; break-inside: avoid; page-break-inside: avoid; }
+.rodape .lado { flex: 1; }
+.totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEEA; padding: 2.4mm 4mm; margin-left: auto; }
+.totalbox .lin { display: flex; justify-content: space-between; gap: 6mm; padding: .6mm 0; }
+.totalbox .lin .v { font-weight: 600; }
+.totalbox .total { align-items: baseline; border-top: 1px solid #C9CEC6; margin-top: 1mm; padding-top: 1.6mm; font-weight: 700; }
+.totalbox .total:first-child { border-top: 0; margin-top: 0; padding-top: .6mm; }
+.totalbox .lin .vt { font-weight: 800; font-size: 26px; }
+.nota { font-size: 12px; color: #4A5562; margin-top: 1mm; }
+.obs { margin: 0 0 3.5mm; }
+.obs .r { display: block; margin: 0 0 1mm; }
+.obs b { display: block; min-height: 1.35em; font-weight: 600; white-space: pre-wrap; }
 `;
 
-function badgeClass(status: string): string {
-  if (status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced' || status === 'approved') return 'badge ok';
-  if (status === 'pending_approval' || status === 'queued') return 'badge warn';
-  if (status === 'rejected' || status === 'cancelled') return 'badge bad';
-  return 'badge';
+/** Caixa do Total (borda escura, fundo cinza claro); `linhas` = Tabela e Desconto/Líquido do escritório, acima do Total. */
+function totalBoxHtml(totalCents: number, linhas = ''): string {
+  return `<div class="totalbox">${linhas}<div class="lin total"><span>Total</span><span class="v vt">${formatBRL(totalCents)}</span></div></div>`;
+}
+
+/** Observações abaixo da tabela, à esquerda da caixa do Total, sem fundo: rótulo em cinza pequeno acima, texto do vendedor em negrito logo abaixo; sempre visíveis, mesmo vazias. */
+function observacoesHtml(order: OrderPdfOrder): string {
+  const linha = (rotulo: string, texto: string | null | undefined) => `<div class="obs"><div class="r">${rotulo}</div><b>${escapeHtml(texto?.trim())}</b></div>`;
+  return `${linha('Observação do pedido', order.observacao)}${linha('Observação da entrega', order.observacao_entrega)}`;
+}
+
+/** Telefone com máscara: 10 dígitos "(DD) NNNN-NNNN", 11 "(DD) NNNNN-NNNN"; outro tamanho sai como veio. */
+export function formatTelefone(t: string): string {
+  const d = t.replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  return t.trim();
+}
+
+/**
+ * T-0159: identificação da filial de faturamento no cabeçalho das 4 versões (retrato do pedido, T-0149): linha 1 "Nome · CNPJ … · telefone",
+ * linha 2 o endereço completo com CEP. Cada parte só sai se existir; sem nenhuma, não há linha.
+ */
+export function linhasDaFilial(f: OrderPdfFilial | null | undefined): string[] {
+  if (!f) return [];
+  const nome = f.nome?.trim() ?? '';
+  const cnpj = f.cnpj?.trim() ? `CNPJ ${formatarDocumento(f.cnpj)}` : '';
+  const tel = f.telefone?.trim() ? formatTelefone(f.telefone) : '';
+  const endereco = f.logradouro?.trim() ? enderecoEmLinha({ logradouro: f.logradouro, numero: f.numero, complemento: f.complemento, bairro: f.bairro, cidade: f.cidade ?? '', uf: f.uf ?? '', cep: f.cep }, ', ') : '';
+  return [[nome, cnpj, tel].filter(Boolean).join(' · '), endereco].filter(Boolean);
+}
+
+/** Entrega da ficha: "CIF · endereço" / "FOB · Transportadora (CNPJ …) · endereço" (sem "por conta de"). */
+function textoEntrega(order: OrderPdfOrder): string {
+  const f = order.freight;
+  const nome = (f?.carrier_name ?? '').trim();
+  const doc = f?.carrier_document ? formatarDocumento(f.carrier_document) : '';
+  const frete = !f ? '' : f.modality === 'CIF' ? 'CIF' : ['FOB', nome ? `${nome}${doc ? ` (CNPJ ${doc})` : ''}` : ''].filter(Boolean).join(' · ');
+  return [frete, order.delivery_address].filter((x) => x && x.trim()).join(' · ');
 }
 
 function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext): string {
-  const c = order.customer;
-  const place = [c.address, c.district, c.city].filter((x) => x && x.trim()).join(' · ');
-  const freteTxt = textoFrete(order.freight).replace(/^Frete: /, '');
-  const freteHtml = freteTxt ? `<span class="k">Frete</span><span>${escapeHtml(freteTxt)}</span>` : '';
   const orc = order.tipo === 'orcamento';
-  const doc = orc ? 'Orçamento' : 'Pedido';
-  const numberText = order.number ? `${doc} ${escapeHtml(order.number)}` : `${doc} no aparelho`;
-  // RN-VEN-18 (09/11): o orçamento não vence; o PDF mostra só o dia do preço
-  const validade = orc ? `<div class="muted">${escapeHtml(order.preco_data ? etiquetaDoDiaDoPreco(order.preco_data) : etiquetaPrecoDe(order.created_at, ctx.tz))}</div>` : '';
+  const rotulo = `${orc ? 'Orçamento' : 'Pedido'}${view === 'bko' ? ' · uso interno' : ''}`;
+  const emit = linhasDaFilial(order.filial);
+  // RN-VEN-18: o orçamento não vence; a data é a de emissão e, se o preço for de outro dia, sai "· preço de dd/mm"
+  const dia = pdfDateTime(order.created_at, ctx.tz).slice(0, 10);
+  const z = zonedParts(order.created_at, ctx.tz);
+  const diaIso = `${z.year}-${pad(z.month)}-${pad(z.day)}`;
+  const precoDe = orc && order.preco_data && order.preco_data !== diaIso ? `preço de ${dataDaValidade(order.preco_data, true)}` : '';
+  const c = order.customer;
+  const doc = c.cnpj ? documentoCliente(c.cnpj) : null;
+  const docTxt = doc ? escapeHtml(doc.valor) : 'não informado';
+  const docRotulo = doc ? doc.rotulo : 'CNPJ/CPF';
+  const nome = c.legal_name || c.trade_name;
+  const fantasia = c.legal_name && c.trade_name && c.legal_name !== c.trade_name ? ` <span class="sec">· ${escapeHtml(c.trade_name)}</span>` : '';
+  const entrega = escapeHtml(textoEntrega(order)) || '&nbsp;';
+  const vendedor = `${escapeHtml(order.seller_name)}${order.made_by ? ` <span class="sec">(feito por ${escapeHtml(order.made_by)})</span>` : ''}`;
+  // Ficha em 3 colunas e 2 linhas (spec §6.4): Cliente (colunas 1 e 2) · documento; Entrega · Pagamento · Vendedor (no escritório, com a Tabela ao lado)
+  const cliente = `<div class="c s2"><div class="r">Cliente</div><span class="forte">${escapeHtml(nome)}</span>${fantasia}</div>`;
+  const entregaPagamento = `<div class="c base"><div class="r">Entrega</div>${entrega}</div>
+  <div class="c base"><div class="r">Pagamento</div>${escapeHtml(order.payment_terms)}</div>`;
+  const ficha =
+    view === 'customer'
+      ? `${cliente}
+  <div class="c fim"><div class="r">${docRotulo}</div>${docTxt}</div>
+  ${entregaPagamento}
+  <div class="c base fim"><div class="r">Vendedor</div>${vendedor}</div>`
+      : `${cliente}
+  <div class="c fim"><div class="r">${docRotulo} · código</div>${docTxt}${c.erp_code ? ` · ${escapeHtml(c.erp_code)}` : ''}</div>
+  ${entregaPagamento}
+  <div class="c base fim"><div class="duo"><div><div class="r">Vendedor</div>${vendedor}</div><div><div class="r">Tabela</div>${escapeHtml(priceTableLabel(order.price_table, order.price_table_name))}</div></div></div>`;
   return `
-<div class="top">
-  <div>
-    <div class="brand">${escapeHtml(ctx.tenant_name)}</div>
+<div class="cab">
+  <div class="marca">
+    <img class="logo" src="${escapeHtml(ctx.logo_src?.trim() || LOGO_PADRAO_DATA_URI)}" alt="">
+    <div>
+      <div class="empresa">${escapeHtml(ctx.tenant_name)}</div>
+      ${emit.map((l) => `<div class="emit">${escapeHtml(l)}</div>`).join('')}
+    </div>
   </div>
-  <div class="doc-title">
-    <div class="kind">${view === 'customer' ? (orc ? 'Orçamento' : 'Pedido de venda') : `${doc} · conferência BKO`}</div>
-    <div class="num">${numberText}</div>
-    ${validade}
-    <div class="muted">${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}${order.number ? '' : ' · ainda na fila do aparelho'}</div>
+  <div class="doc">
+    <div class="t"><small>${rotulo}</small>${order.number ? escapeHtml(order.number) : ''}</div>
+    <div class="d">${escapeHtml(dia)}${precoDe ? ` · ${escapeHtml(precoDe)}` : ''}</div>
   </div>
 </div>
-<div class="meta">
-  <div class="box">
-    <div class="label">Cliente</div>
-    <div class="strong">${escapeHtml(c.legal_name || c.trade_name)}</div>
-    ${c.legal_name && c.trade_name && c.legal_name !== c.trade_name ? `<div>${escapeHtml(c.trade_name)}</div>` : ''}
-    <div class="muted">${c.cnpj ? (() => { const dc = documentoCliente(c.cnpj); return `${dc.rotulo} ${escapeHtml(dc.valor)}`; })() : 'CNPJ/CPF não informado'}${c.erp_code ? ` · cód. ${escapeHtml(c.erp_code)}` : ''}</div>
-    ${place ? `<div class="muted">${escapeHtml(place)}</div>` : ''}
-  </div>
-  <div class="box kv">
-    <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? `<span class="k"></span><span class="muted">feito por ${escapeHtml(order.made_by)}</span>` : ''}
-    <span class="k">Prazo</span><span>${escapeHtml(order.payment_terms)}</span>
-    <span class="k">Data</span><span>${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}</span>
-    ${freteHtml}
-    ${order.branch_name ? `<span class="k">Filial</span><span>${escapeHtml(order.branch_name)}</span>` : ''}
-  </div>
+<div class="ficha${view === 'bko' ? ' esc' : ''}">
+  ${ficha}
 </div>`;
 }
-
 /** RN-VEN-19: linha "Aplicação: …" abaixo da descrição do item (texto já cortado no pedido); vazia quando não há retrato. */
 function aplicacaoHtml(it: Pick<OrderPdfItem, 'application'>): string {
   const texto = it.application?.trim();
@@ -309,36 +362,49 @@ export function equivaleAHtml(it: Pick<OrderPdfItem, 'references'>, view: OrderP
   return `<span class="apl eqv">Equivale a: ${refs.map((r) => `${escapeHtml(r.brand.trim())} <strong>${escapeHtml(r.code.trim())}</strong>`).join(' · ')}</span>`;
 }
 
+/** RN-CORE-19: quantidade somada por embalagem ("2 FD + 4 CX + 10 UN"); a medida "CX c/ 12" conta como CX. */
+export function quantidadePorEmbalagem(items: ReadonlyArray<Pick<OrderPdfItem, 'quantity' | 'unit_label'>>): string {
+  const porMedida = new Map<string, number>();
+  for (const i of items) {
+    const medida = siglaDaMedida(i.unit_label);
+    porMedida.set(medida, (porMedida.get(medida) ?? 0) + i.quantity);
+  }
+  return [...porMedida].map(([m, q]) => `${q} ${m}`).join(' + ');
+}
+
+/** Descrição + Aplicação + Equivale a (uma célula). */
+function descricaoHtml(it: OrderPdfItem, view: OrderPdfView, ctx: OrderPdfContext): string {
+  return `${escapeHtml(it.description)}${aplicacaoHtml(it)}${equivaleAHtml(it, view, ctx)}`;
+}
+
+/** T-0159 (R-20261111-085828): no PDF os itens saem em ordem alfabética do código ("AGU-2" antes de "AGU-10"), código vazio no fim, empate na ordem do pedido. */
+export function itensEmOrdemDoCodigo<T extends { erp_code: string }>(items: readonly T[]): T[] {
+  return items
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => {
+      const ca = a.it.erp_code.trim();
+      const cb = b.it.erp_code.trim();
+      if (!ca !== !cb) return ca ? -1 : 1;
+      return ca.localeCompare(cb, 'pt-BR', { numeric: true }) || a.i - b.i;
+    })
+    .map((x) => x.it);
+}
+
 function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
-  const rows = order.items
+  const rows = itensEmOrdemDoCodigo(order.items)
     .map(
-      (it) => `
-  <div class="row cols-customer">
-    <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}${equivaleAHtml(it, 'customer', ctx)}</span>
-    <span>${escapeHtml(it.unit_label || 'UN')}</span>
-    <span class="num">${it.quantity}</span>
-    <span class="num">${formatBRL(netUnitCents(it))}</span>
-    <span class="num strong">${formatBRL(it.total_cents)}</span>
-  </div>`,
+      (it, n) => `
+    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'customer', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${it.quantity}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
     )
     .join('');
   return `
-<div class="items">
-  <div class="row head cols-customer"><span>Código</span><span>Descrição</span><span>Medida</span><span class="num">Qtd</span><span class="num">Preço unit.</span><span class="num">Total</span></div>${rows}
-</div>
-<div class="totals">
-  <div class="line grand"><span>Total do pedido</span><span class="num">${formatBRL(order.total_cents)}</span></div>
-  <div class="line muted"><span>${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'} · ${order.items.reduce((s, i) => s + i.quantity, 0)} un.</span><span>Prazo ${escapeHtml(order.payment_terms)}</span></div>
-</div>
-<div class="footer">
-  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? ` (feito por ${escapeHtml(order.made_by)})` : ''} · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
-  ${order.freight ? `<div class="strong">${escapeHtml(textoFrete(order.freight))}</div>` : ''}
-  ${order.delivery_address ? `<div>Endereço de entrega: ${escapeHtml(order.delivery_address)}</div>` : ''}
-  <div>Valores sem impostos; impostos calculados no faturamento.</div>
-  <div>Preços e disponibilidade sujeitos à confirmação no faturamento.</div>
-  <div>Gerado pelo ${escapeHtml(ctx.product_name || 'Macuxi FDV')}</div>
-</div>`;
+<table>
+  <colgroup><col style="width:15mm"><col style="width:26mm"><col><col style="width:31mm"><col style="width:28mm"><col style="width:16mm"><col style="width:38mm"><col style="width:26mm"></colgroup>
+  <thead><tr><th class="v n">Item</th><th>Código</th><th>Descrição</th><th>Marca</th><th>Emb.</th><th class="v">Qtd</th><th class="v">Preço unit. R$</th><th class="v">Total R$</th></tr></thead>
+  <tbody>${rows}
+  </tbody>
+</table>
+<div class="rodape"><div class="lado">${observacoesHtml(order)}<div class="nota">Valores sem impostos. Preço e estoque confirmados no faturamento.</div></div>${totalBoxHtml(order.total_cents)}</div>`;
 }
 
 /** Coluna Desc./Acr. do item: pedido antigo (sem o campo do item) mostra o desconto do pedido. */
@@ -348,70 +414,40 @@ function itemAdjustText(it: OrderPdfItem, orderPct: number): string {
   return it.discount_pct > 0 ? `−${pctText(it.discount_pct)}` : '—';
 }
 
+/** Faixa Histórico: uma linha com setas; o nome só na etapa feita por quem não é o vendedor (RN-VEN-30). */
+function historicoHtml(order: OrderPdfOrder, ctx: OrderPdfContext): string {
+  const hist = order.history.slice(-8);
+  if (hist.length < 2) return '';
+  const etapas = hist.map((e, i) => {
+    const q = pdfDateTime(e.at, ctx.tz).slice(0, 16);
+    const hora = `${q.slice(0, 5)} ${q.slice(11)}`;
+    const quem = e.by && e.by.trim() && e.by !== order.seller_name ? ` (${escapeHtml(e.by)})` : '';
+    const txt = `${escapeHtml(statusText(e.status))}${quem}`;
+    return `<span><span class="q">${hora}</span>${i === hist.length - 1 ? `<span class="ultima">${txt}</span>` : txt}</span>`;
+  });
+  return `<div class="faixa"><div class="r">Histórico</div><div class="etapas">${etapas.join('')}</div></div>`;
+}
+
 function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const pct = order.discount_pct;
-  const rows = order.items
+  const rows = itensEmOrdemDoCodigo(order.items)
     .map(
-      (it) => `
-  <div class="row cols-bko">
-    <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}${equivaleAHtml(it, 'bko', ctx)}</span>
-    <span>${escapeHtml(it.unit_label || 'UN')}</span>
-    <span class="num">${it.quantity}</span>
-    <span class="num">${formatBRL(it.unit_price_cents)}</span>
-    <span class="num">${itemAdjustText(it, pct)}</span>
-    <span class="num">${formatBRL(netUnitCents(it))}</span>
-    <span class="num strong">${formatBRL(it.total_cents)}</span>
-  </div>`,
+      (it, n) => `
+    <tr><td class="v n">${n + 1}</td><td class="cod">${escapeHtml(it.erp_code)}</td><td>${descricaoHtml(it, 'bko', ctx)}</td><td>${escapeHtml(it.brand?.trim())}</td><td class="emb">${escapeHtml(it.unit_label || 'UN')}</td><td class="v">${it.quantity}</td><td class="v">${semRs(it.unit_price_cents)}</td><td class="v">${itemAdjustText(it, pct)}</td><td class="v">${semRs(netUnitCents(it))}</td><td class="v tot">${semRs(it.total_cents)}</td></tr>`,
     )
     .join('');
-  const reason = order.status === 'pending_approval' ? order.pending_reason : order.status === 'rejected' || order.status === 'cancelled' ? order.rejection_reason : '';
-  const limit = order.seller_limit_pct;
-  const efetivo = order.effective_discount_pct ?? pct;
-  const aboveLimit = limit !== null && efetivo > limit;
-  const acrescimoPedido = order.surcharge_pct ?? 0;
-  const hist = order.history.slice(-8);
+  const linhaLiquida = linhaLiquidaDosTotais(order);
   return `
-<div class="items">
-  <div class="row head cols-bko"><span>Código</span><span>Descrição</span><span>Medida</span><span class="num">Qtd</span><span class="num">Tabela</span><span class="num">Desc./Acr.</span><span class="num">Líquido</span><span class="num">Total</span></div>${rows}
-</div>
-<div class="totals">
-  <div class="line"><span>Subtotal de tabela</span><span class="num">${formatBRL(order.subtotal_cents)}</span></div>
-  ${
-    acrescimoPedido > 0
-      ? `<div class="line"><span>Acréscimo do pedido ${pctText(acrescimoPedido)}</span><span class="num">+ ${formatBRL(Math.max(0, order.total_cents - order.subtotal_cents))}</span></div>`
-      : `<div class="line disc"><span>Desconto ${pctText(pct)}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>`
-  }
-  ${order.effective_discount_pct != null ? `<div class="line muted"><span>Desconto efetivo (sem frete)</span><span class="num">${pctText(order.effective_discount_pct)}</span></div>` : ''}
-  <div class="line grand"><span>Total</span><span class="num">${formatBRL(order.total_cents)}</span></div>
-</div>
-<div class="meta section">
-  <div class="box kv">
-    <span class="k">Status</span><span><span class="${badgeClass(order.status)}">${escapeHtml(statusText(order.status))}</span></span>
-    <span class="k">Alçada do vendedor</span><span>${limit === null ? '—' : `${pctText(limit)}${aboveLimit ? ' · <span class="disc strong">desconto acima da alçada</span>' : ' · dentro da alçada'}`}</span>
-    <span class="k">Tabela de preço</span><span>${escapeHtml(priceTableLabel(order.price_table, order.price_table_name))}</span>
-    ${order.delivery_address ? `<span class="k">Endereço de entrega</span><span>${escapeHtml(order.delivery_address)}</span>` : ''}
-    ${order.erp_order_code ? `<span class="k">Pedido no ERP</span><span>${escapeHtml(order.erp_order_code)}</span>` : ''}
-  </div>
-  <div class="box">
-    <div class="label">${order.status === 'pending_approval' ? 'Motivo da pendência' : order.status === 'rejected' ? 'Motivo da rejeição' : order.status === 'cancelled' ? 'Exclusão' : 'Observação'}</div>
-    <div class="${reason ? 'reason' : 'muted'}">${escapeHtml(reason || 'Sem pendências.')}</div>
-  </div>
-</div>
-${
-  hist.length > 0
-    ? `<div class="section box">
-  <div class="label">Histórico</div>
-  <div class="hist">${hist
-    .map((e) => `<span class="muted">${escapeHtml(pdfDateTime(e.at, ctx.tz))}</span><span class="strong">${escapeHtml(statusText(e.status))}</span><span>${escapeHtml([e.by, e.note].filter(Boolean).join(' · '))}</span>`)
-    .join('')}</div>
-</div>`
-    : ''
-}
-<div class="footer">
-  <div>Valores sem impostos; impostos calculados no faturamento.</div>
-  <div>Gerado em ${escapeHtml(pdfDateTime(ctx.generated_at, ctx.tz))} · uso interno · Gerado pelo ${escapeHtml(ctx.product_name || 'Macuxi FDV')}</div>
-</div>`;
+<table>
+  <colgroup><col style="width:15mm"><col style="width:24mm"><col><col style="width:30mm"><col style="width:24mm"><col style="width:15mm"><col style="width:22mm"><col style="width:27mm"><col style="width:22mm"><col style="width:22mm"></colgroup>
+  <thead><tr><th class="v n">Item</th><th>Código</th><th>Descrição</th><th>Marca</th><th>Emb.</th><th class="v">Qtd</th><th class="v">Tabela</th><th class="v">Desc./Acr.</th><th class="v">Líquido</th><th class="v">Total</th></tr></thead>
+  <tbody>${rows}
+  </tbody>
+</table>
+<div class="rodape"><div class="lado">${observacoesHtml(order)}${historicoHtml(order, ctx)}</div>${totalBoxHtml(
+    order.total_cents,
+    `<div class="lin"><span>Tabela</span><span class="v">${formatBRL(order.subtotal_cents)}</span></div>${linhaLiquida ? `<div class="lin"><span>${escapeHtml(linhaLiquida.rotulo)}</span><span class="v">${escapeHtml(linhaLiquida.valor)}</span></div>` : ''}`,
+  )}</div>`;
 }
 
 /** HTML completo do PDF do pedido. */
@@ -427,18 +463,16 @@ export function buildOrderPdfHtml(order: OrderPdfOrder, view: OrderPdfView, ctx:
 <style>${CSS}</style>
 </head>
 <body>
-<div class="doc">
 ${header(order, view, ctx)}
 ${view === 'customer' ? customerBody(order, ctx) : bkoBody(order, ctx)}
-</div>
 </body>
 </html>`;
 }
 
-/** "Rua A, 10 – Galpão 2 · Distrito · Manaus/AM · CEP 69100-000". */
-export function enderecoEmLinha(e: { logradouro: string; numero?: string | null; complemento?: string | null; bairro?: string | null; cidade: string; uf: string; cep?: string | null }): string {
-  const rua = [[e.logradouro, e.numero].filter((x) => x && x.trim()).join(', '), e.complemento].filter((x) => x && x.trim()).join(' – ');
-  const cep = e.cep ? `CEP ${e.cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')}` : '';
+/** Entrega: "Rua A, 10 – Galpão 2 · Distrito · Manaus/AM · CEP 69100-000". */
+export function enderecoEmLinha(e: { logradouro: string; numero?: string | null; complemento?: string | null; bairro?: string | null; cidade: string; uf: string; cep?: string | null }, separadorDoComplemento = ' – '): string {
+  const rua = [[e.logradouro, e.numero].filter((x) => x && x.trim()).join(', '), e.complemento].filter((x) => x && x.trim()).join(separadorDoComplemento);
+  const cep = e.cep ? `CEP ${formatarCep(e.cep)}` : '';
   return [rua, e.bairro, e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : '', cep].filter((x) => x && x.trim()).join(' · ');
 }
 
@@ -453,14 +487,9 @@ export interface DetalheParaPdf {
   payment_terms: string;
   discount_pct: number;
   subtotal_cents: number;
-  discount_cents: number;
   total_cents: number;
-  pending_reason: string;
-  rejection_reason: string;
-  erp_order_code: string;
   price_table_id: string | null;
-  branch_name?: string | null;
-  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number; unit_label?: string | null; discount_pct?: number; surcharge_pct?: number; application?: string | null }>;
+  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number; unit_label?: string | null; discount_pct?: number; surcharge_pct?: number; application?: string | null; brand?: string | null }>;
   history: OrderPdfEvent[];
   // --- T-0061 (opcionais; detalhe antigo sai igual) ---
   freight?: OrderPdfFreight | null;
@@ -472,16 +501,16 @@ export interface DetalheParaPdf {
     razao_social: string;
     nome_fantasia: string;
     documento: string | null;
-    endereco: string;
-    bairro: string;
-    cidade: string;
     codigo_erp: string;
   } | null;
-  aprovacao?: { limite_vendedor_pct: number } | null;
   /** T-0071: orçamento sai com título e validade; ausente = pedido */
   tipo?: 'pedido' | 'orcamento';
   /** T-0141 (RN-VEN-18): dia civil do preço (AAAA-MM-DD), a mesma conta do selo da tela; ausente = dia de `created_at` no fuso do tenant */
   preco_data?: string;
+  /** T-0159: retrato da filial do pedido (dados fiscais incluídos); ausente = pedido anterior à filial */
+  filial?: OrderPdfFilial | null;
+  observacao?: string | null;
+  observacao_entrega?: string | null;
 }
 
 /**
@@ -492,15 +521,11 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
   const c = d.cliente;
   return {
     number: d.status === 'queued' || d.status === 'draft' || !d.number ? null : d.number,
-    status: d.status,
     created_at: d.created_offline_at || d.received_at,
     customer: {
       legal_name: c?.razao_social ?? d.customer_name,
       trade_name: c?.nome_fantasia ?? d.customer_name,
       cnpj: c?.documento?.trim() ?? '',
-      address: c?.endereco ?? '',
-      district: c?.bairro ?? '',
-      city: c?.cidade ?? '',
       erp_code: c?.codigo_erp ?? '',
     },
     seller_name: d.seller_name,
@@ -516,22 +541,21 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
       ...(i.discount_pct !== undefined && d.effective_discount_pct != null ? { discount_pct: i.discount_pct } : {}),
       ...(i.surcharge_pct ? { surcharge_pct: i.surcharge_pct } : {}),
       ...(i.application ? { application: i.application } : {}),
+      ...(i.brand?.trim() ? { brand: i.brand.trim() } : {}),
     })),
     subtotal_cents: d.subtotal_cents,
-    discount_cents: d.discount_cents,
     total_cents: d.total_cents,
-    pending_reason: d.pending_reason,
-    rejection_reason: d.rejection_reason,
     price_table: d.price_table_id ?? '',
     price_table_name: d.price_table_name ?? null,
     freight: d.freight ?? null,
-    branch_name: d.branch_name ?? '',
-    erp_order_code: d.erp_order_code,
-    seller_limit_pct: d.aprovacao?.limite_vendedor_pct ?? null,
     history: d.history,
     ...(d.delivery_address ? { delivery_address: enderecoEmLinha(d.delivery_address) } : {}),
     ...(d.surcharge_pct ? { surcharge_pct: d.surcharge_pct } : {}),
     ...(d.effective_discount_pct != null ? { effective_discount_pct: d.effective_discount_pct } : {}),
     ...(d.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
+    ...(d.preco_data ? { preco_data: d.preco_data } : {}),
+    ...(d.filial ? { filial: d.filial } : {}),
+    observacao: d.observacao?.trim() ?? '',
+    observacao_entrega: d.observacao_entrega?.trim() ?? '',
   };
 }

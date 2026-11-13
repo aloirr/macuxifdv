@@ -16,14 +16,17 @@
  * (só o contêiner `api` e o passo de papéis do `banco` recebem; o worker nunca).
  * T-0098 (ADR 0037): com S3, o link temporário do instalador do Conector sai do mesmo bucket, em `MACUXI_PACOTES_PREFIXO`
  * (padrão `pacotes/`), válido por `MACUXI_PACOTES_VALIDADE_S` (padrão 300 s); sem S3, a rota do download responde 503.
+ * T-0158 (ADR 0043): `MACUXI_DIAGNOSTICOS=1` liga o Portal › Diagnósticos (padrão desligado; exige a migração 0058).
+ * T-0118: os dois pools esperam no máximo `MACUXI_API_POOL_ESPERA_MS` (padrão 10 s) por uma conexão livre; vencida, a rota
+ * responde 503 `BANCO_OCUPADO` com `Retry-After` em vez de ficar na fila sem prazo (`banco.ts`, `esperaDoPoolMs`).
  */
 import { lerConfigApp, urlApp, urlPortal } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { lerPacotesDoAmbiente } from './pacotes';
-import { criarBancoApp, criarBancoPortal, POOL_PORTAL_PADRAO } from './banco';
-import { conferirSegredoJwt, lerSessaoWeb, lerTrustProxy, opcoesLogger } from './config';
+import { criarBancoApp, criarBancoPortal, esperaDoPoolMs, POOL_PORTAL_PADRAO } from './banco';
+import { conferirSegredoJwt, diagnosticosAppLigados, diagnosticosLigados, lerSessaoWeb, lerTrustProxy, opcoesLogger } from './config';
 import { criarServicoEmailDaConfig, lerConfigEmail, type ConfigEmail } from './email';
 import { registrarMetricasApi } from './observabilidade';
 
@@ -53,6 +56,7 @@ try {
 const pool = new pg.Pool({
   connectionString: urlApp(cfg),
   max: Number(process.env.MACUXI_API_POOL ?? 10),
+  connectionTimeoutMillis: esperaDoPoolMs(),
   // transação esquecida aberta seguraria o horizonte do pull (desenho T-0004 §5): o Postgres derruba em 60 s
   options: '-c idle_in_transaction_session_timeout=60000 -c statement_timeout=30000',
 });
@@ -62,6 +66,7 @@ const poolPortal = cfg.portalSenha
   ? new pg.Pool({
       connectionString: urlPortal(cfg),
       max: Number(process.env.MACUXI_API_POOL_PORTAL ?? POOL_PORTAL_PADRAO),
+      connectionTimeoutMillis: esperaDoPoolMs(),
       options: '-c idle_in_transaction_session_timeout=10000 -c statement_timeout=10000',
     })
   : null;
@@ -75,6 +80,10 @@ const app = createApp({
   trustProxy: lerTrustProxy(process.env),
   // T-0117 (ADR 0038): cookie do token de renovação do BKO (Secure fora do PC)
   sessaoWeb: lerSessaoWeb(process.env, cfg.host),
+  // T-0158 (ADR 0043): Portal › Diagnósticos só com MACUXI_DIAGNOSTICOS=1 (desligado por padrão até a v1.0.4)
+  diagnosticosPortal: diagnosticosLigados(process.env),
+  // T-0158 (R-20261111-011107): botão do app pelo /v1/saude só com MACUXI_DIAGNOSTICOS_APP=1 (decisão do dono do produto)
+  diagnosticosApp: diagnosticosAppLigados(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),
 });

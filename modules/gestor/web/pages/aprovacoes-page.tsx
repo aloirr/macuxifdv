@@ -6,7 +6,7 @@
  * lá (RN-VEN-10). Analista e admin acompanham em leitura (RN-GES-07).
  */
 import Link from 'next/link';
-import { formatBRL } from '@macuxi/comum';
+import { formatBRL, formatPct } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, PageHeader, Panel, TableScroll, td, tdNum, th, thNum, formatDateTime, type BadgeTone } from '@macuxi/ui/web';
 import type { SituacaoPrazo } from '../../contracts';
@@ -24,7 +24,7 @@ export function AprovacoesPage() {
     <div className="flex flex-col gap-4" data-testid="gestor.aprovacoes">
       <PageHeader
         title="Aprovações da equipe"
-        subtitle="Pedidos acima da alçada do vendedor, do prazo mais curto ao mais longo"
+        subtitle="Pedidos esperando decisão, do prazo mais curto ao mais longo"
         actions={
           <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
             Atualizar
@@ -70,7 +70,7 @@ export function AprovacoesPage() {
                       <td className={td}>{formatDateTime(i.solicitada_em, tz)}</td>
                       <td className={td}>{i.motivos.map((m) => MOTIVO_ROTULO[m]).join(', ')}</td>
                       <td className={tdNum}>{formatBRL(i.total_cents)}</td>
-                      <td className={tdNum}>{i.desconto_efetivo_pct}%</td>
+                      <td className={tdNum}>{formatPct(i.desconto_efetivo_pct)}</td>
                       <td className={tdNum}>{i.credito ? formatBRL(i.credito.disponivel_cents) : 'indisponível'}</td>
                       <td className={td}>
                         <Badge tone={TOM[i.situacao]}>{rotuloDoPrazo(i).label}</Badge>
@@ -78,7 +78,7 @@ export function AprovacoesPage() {
                       <td className={td}>
                         {i.pode_decidir ? (
                           <Link className="font-semibold text-accent-ink hover:underline" href={`/pedidos?status=pending_approval&seller_id=${i.vendedor_id}`}>
-                            {i.acima_do_nivel ? 'Decidir (nível do supervisor)' : 'Decidir'}
+                            Decidir
                           </Link>
                         ) : (
                           <span className="text-ink-2">Acompanhar</span>

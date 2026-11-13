@@ -190,6 +190,7 @@ grep -q '^MACUXI_PG_PORTAL_SENHA=' "$PORTAL_ENV" || { printf 'MACUXI_PG_PORTAL_S
 chown "$USUARIO:$USUARIO" "$PORTAL_ENV"
 chmod 600 "$PORTAL_ENV"
 [ -f "$PASTA/segredos.env" ] && { chown "$USUARIO:$USUARIO" "$PASTA/segredos.env"; chmod 600 "$PASTA/segredos.env"; }
+[ -f "$PASTA/recados.env" ] && { chown "$USUARIO:$USUARIO" "$PASTA/recados.env"; chmod 600 "$PASTA/recados.env"; }
 
 # ---------- 7. backup diário (timer do systemd) ----------
 install -d -m 700 -o "$USUARIO" -g "$USUARIO" "$PASTA/backup"

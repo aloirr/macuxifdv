@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO, CONSULTA_PROMOTOR_VE_PEDIDOS } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_FILIAIS, CONSULTA_PROMOTOR_VE_PEDIDOS } from '@macuxi/core/contracts';
 import { CONSULTA_CANCELAMENTO_ERP } from '@macuxi/integracao/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
@@ -25,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import manifest from '../manifest';
 import { ClienteCondicaoSyncSchema, CondicaoPagamentoSyncSchema, OrderDetail, PedidoEventoSyncSchema, PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
 import { entidadePedido } from '../contracts/entidades';
+import { responderFiliais } from './filial-simulada';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { provedoresSyncVendedor } from './sync';
 
@@ -81,6 +82,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
         comTenant(pool, u.tenant_id, (c) => {
           const tx = {
             async consultar(def: { nome: string }, entrada: Record<string, unknown>) {
+              if (def.nome === CONSULTA_FILIAIS.nome) return responderFiliais(entrada);
               if (def.nome === CONSULTA_CADASTRO_RESUMO.nome) {
                 const ent = CONSULTA_CADASTRO_RESUMO.entrada.parse(entrada);
                 const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>
@@ -103,6 +105,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
               }
               if (def.nome === CONSULTA_CANCELAMENTO_ERP.nome) return { aceita: false }; // sem conector que aceite cancelar: mantém o 422 da RN-VEN-31
               if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor }; // Core simulado, lido a cada requisição
+              if (def.nome === 'catalogo.estoque_filial@1') return { itens: [] }; // Catálogo sem saldo: estoque não controlado
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {
@@ -198,6 +201,10 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       ]);
       expect(registro.eventos[2]!.payload).toMatchObject({ de: 'recebido', para: 'aprovado' });
       expect(registro.eventos[3]!.payload).toMatchObject({ pedido_uuid: id(1), total_cents: 242_500 });
+      // RN-CORE-39 (T-0149): filial EFETIVA do cliente gravada no recebimento, os dois campos juntos e o id do retrato em minúsculas; o evento leva o retrato
+      expect(p.filial_id).toBe('0f490000-0000-4000-8000-000000000001');
+      expect(p.filial).toEqual({ id: p.filial_id, codigo: '0001', nome: 'Manaus', cidade: 'Manaus', uf: 'AM', external_id: 'FIL-01', padrao: true });
+      expect(registro.eventos[3]!.payload).toMatchObject({ filial: { codigo: '0001', external_id: 'FIL-01', nome: 'Manaus', padrao: true } });
       // sem dado pessoal no payload
       expect(JSON.stringify(registro.eventos)).not.toMatch(/Auto Peças|33333333000191/);
     });

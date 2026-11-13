@@ -46,16 +46,16 @@ export const TEXTOS_DA_SAIDA = {
 
 /**
  * RN-VEN-38 (v1.0.1): a saída da EDIÇÃO de pedido ou orçamento salvo usa a mesma folha "Sair do pedido?", só com o que cabe:
- * salvar as alterações (com o destino), descartar as alterações (o documento fica como estava) e continuar editando.
+ * salvar as alterações, descartar as alterações (o documento fica como estava) e continuar editando.
  */
 export const TEXTOS_DA_SAIDA_EDICAO = {
-  salvarOrcamento: { rotulo: ROTULOS_DO_SALVAR.salvarOrcamento, subtitulo: 'Guarda as alterações' },
+  salvarOrcamento: { rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
   descartar: { rotulo: 'Descartar alterações', subtitulo: 'Volta como estava' },
   confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
-export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento'; destino: string }): { salvar: { rotulo: string; subtitulo: string }; descartar: { rotulo: string; subtitulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
-  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes, subtitulo: e.destino };
+export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string; subtitulo?: string }; descartar: { rotulo: string; subtitulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
+  const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes };
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
 }
 
@@ -72,9 +72,10 @@ export interface OpcoesDaSaida {
 }
 
 /** RN-VEN-38 (T-0137): opções da folha. Cliente da RN-VEN-13 vê só Apenas salvar, Salvar como orçamento e Descartar; sem pré-venda, Salvar e enviar pedido, Apenas salvar e Descartar. */
-export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string }): OpcoesDaSaida {
-  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, pendencias: 0, nivel: null, preco_data: e.preco_data });
-  return { salvar: b.enviar.visivel, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel, subtituloOrcamento: null, aviso: b.aviso };
+export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string; alertas_impedem_enviar?: boolean }): OpcoesDaSaida {
+  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, pendencias: 0, preco_data: e.preco_data });
+  // RN-VEN-42 (e), RN-VEN-11, RN-VEN-20: alerta de bloqueio (acima do máximo, sem estoque) tira o "Salvar e enviar pedido"
+  return { salvar: b.enviar.visivel && !e.alertas_impedem_enviar, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel, subtituloOrcamento: null, aviso: b.aviso };
 }
 
 export type DestinoDoSalvarDaSaida = 'salvar_agora' | 'mostrar_pendencias';
