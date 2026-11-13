@@ -337,7 +337,6 @@ export function TelaLoja() {
     <>
       <Screen testID="loja.tela" onRefresh={() => void l.recarregar()}>
         <Text style={t.h1}>Loja</Text>
-        {l.offline && <Banner>Sem sinal: as coletas ficam no aparelho e seguem quando o sinal voltar.</Banner>}
         {!l.checkin || !l.loja ? (
           <EstadoVazio testID="loja.sem-checkin" titulo="Sem check-in" texto="Faça o check-in na Rota ou em Clientes." icone="pin" />
         ) : !l.visita ? (

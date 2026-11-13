@@ -21,3 +21,4 @@
 2026-11-09 — T-0113 — RD-0025: removidos validarConcorrente, ConcorrenteEdicao e case 'concorrente' (escrita/CSV) com testes órfãos; tipos de escrita em CadastroGravavel
 2026-11-09 — T-0140 — RD-0025 (ramo 'concorrente' morto fora de cadastros-page/cadastros), RD-0042 (ehDataCivil vem do @macuxi/comum), RD-0044 (csvCelula protege fórmula via @macuxi/comum/csv); RD-0045 sem fonte única no comum, mantido local
 2026-11-09 — T-0140/RD-0045 — arredondar e percentual do promotor passam a reexportar @macuxi/comum
+2026-11-12 — T-0166 — RD-0185: removida a faixa 'Sem sinal' da tela Loja (tela-loja.tsx)
