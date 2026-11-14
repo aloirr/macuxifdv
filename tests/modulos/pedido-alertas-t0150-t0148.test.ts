@@ -20,7 +20,8 @@ import { TITULO_VENCIDO_DIAS_PADRAO, tituloVencidoDias } from '../../modules/ven
 import { botoesDoResumo, ROTULOS_DO_SALVAR, type BotoesDoResumo, type EntradaDosBotoes } from '../../modules/vendedor/domain/botoes-resumo';
 import { eventosDoPedido } from '../../modules/vendedor/domain/historico-pedido';
 import { opcoesDaSaida } from '../../modules/vendedor/domain/sair-do-pedido';
-import { entradaDasPendencias, itensSemEstoque, textoDaFalta } from '../../modules/vendedor/app/lib/alertas-novo-pedido';
+import { pendenciasDePreenchimento } from '../../modules/vendedor/domain/pendencias-preenchimento';
+import { entradaDasPendencias, itensSemEstoque, primeiraAbaComFalta, textoDaFalta } from '../../modules/vendedor/app/lib/alertas-novo-pedido';
 import { acoesDoDetalhe, alertasDoDetalhe, type EntradaAcoesDoDetalhe } from '../../modules/vendedor/app/lib/detalhe-pedido';
 import * as itemPopup from '../../modules/vendedor/app/lib/item-popup';
 import { aplicarItemNoRascunho, alertasDoItemNoPopup, estadoInicialDoItem } from '../../modules/vendedor/app/lib/item-popup';
@@ -30,7 +31,9 @@ import { politicaApi } from '../../modules/vendedor/app/lib/pull';
 
 const ler = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const LIBERADO = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] as string[] };
-const BASE: EntradaDosBotoes = { cliente: LIBERADO, pre_venda_ligada: true, editando: null, pendencias: 0, preco_data: '2026-11-10' };
+// RD-0235 (PR #169): `pendencias` sai do EntradaDosBotoes; a tela já passava 0. A constante só existe para compilar no main de antes do #169 e sai quando ele entrar.
+const SEM_PENDENCIA_LEGADO = { pendencias: 0 };
+const BASE: EntradaDosBotoes = { ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: null, preco_data: '2026-11-10' };
 
 /** O que o Resumo DESENHA (modules/vendedor/app/components/novo-pedido-abas.tsx, BotoesDoResumoView): o principal e os secundários visíveis. */
 function botoesNaTela(b: BotoesDoResumo): Array<{ rotulo: string; habilitado: boolean }> {
@@ -125,11 +128,16 @@ describe('T-0150 — com alerta que bloqueia o envio, ficam só "Salvar como or�
     });
   }
 
-  it('controle: sem alerta, "Salvar e enviar pedido" é o principal; com falta de preenchimento ele fica desligado e "Apenas salvar" continua', () => {
+  it('controle: sem alerta, "Salvar e enviar pedido" é o principal; item fora da regra o desliga e "Apenas salvar" continua; a falta de preenchimento é barrada na tentativa', () => {
     expect(botoesNaTela(botoesDoResumo(BASE))[0]).toEqual({ rotulo: ROTULOS_DO_SALVAR.enviar, habilitado: true });
-    const comFalta = botoesNaTela(botoesDoResumo({ ...BASE, pendencias: 1 }));
-    expect(comFalta[0]).toEqual({ rotulo: ROTULOS_DO_SALVAR.enviar, habilitado: false });
-    expect(comFalta).toContainEqual({ rotulo: ROTULOS_DO_SALVAR.apenasSalvar, habilitado: true });
+    // RN-VEN-11: item acima do máximo, sem pré-venda, o principal continua "Salvar e enviar", desligado
+    const foraDaRegra = botoesNaTela(botoesDoResumo({ ...BASE, pre_venda_ligada: false, itens_acima_do_maximo: ['AGU-1500'] }));
+    expect(foraDaRegra[0]).toEqual({ rotulo: ROTULOS_DO_SALVAR.enviar, habilitado: false });
+    expect(foraDaRegra).toContainEqual({ rotulo: ROTULOS_DO_SALVAR.apenasSalvar, habilitado: true });
+    // RN-CORE-36 (T-0166): a falta não desliga o botão; o toque em Salvar leva à 1ª aba com falta (a forma de pagamento fica em Venda)
+    const falta = pendenciasDePreenchimento({ itens: 1, quantidade_invalida: false, pagamento: { tipo: 'forma' }, frete: 'ok', erros_calculo: [] });
+    expect(primeiraAbaComFalta(falta)).toBe('venda');
+    expect(primeiraAbaComFalta(pendenciasDePreenchimento({ itens: 1, quantidade_invalida: false, pagamento: { tipo: 'ok' }, frete: 'ok', erros_calculo: [] }))).toBeNull();
   });
 
   it('a tela do Resumo só desenha o "Salvar e enviar" como principal (não há outro caminho para ele no BotoesDoResumoView)', () => {
@@ -364,7 +372,6 @@ describe('T-0150 — pedido recusado na fila: a nota "Aguardando envio" (R-20261
 describe('T-0166 — botões e folha de saída sem "aviso" (RD-0176); "Título vencido" só acima do limite da RN-VEN-13 e a prazo (RD-0172)', () => {
   const ENTRADAS: Array<[string, EntradaDosBotoes]> = [
     ['liberado', BASE],
-    ['com pendência', { ...BASE, pendencias: 2 }],
     ['cliente bloqueado', { ...BASE, cliente: { ...LIBERADO, bloqueado: true } }],
     ['cliente inativo', { ...BASE, cliente: { ...LIBERADO, ativo: false } }],
     ['cadastro incompleto', { ...BASE, cliente: { ...LIBERADO, cadastro_incompleto: true, campos_faltantes: ['CEP'] } }],
