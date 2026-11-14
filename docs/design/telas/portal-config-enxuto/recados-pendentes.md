@@ -21,7 +21,7 @@ node scripts/coord.mjs enviar --de designer-ux --para design-de-marca --tipo avi
 
 node scripts/coord.mjs enviar --de designer-ux --para modulo-integracao --tipo pedido --assunto "Guia da API em PDF: revisão de layout" --corpo "Contexto: R-20261114-132000-alexandre; o portal ganha o lado 'Integração via API' com o botão 'Baixar o guia (PDF)' (spec docs/design/telas/portal-config-enxuto.md §10) | O que preciso: mande o guia da API em PDF ao designer-ux para revisão de layout; diga também se já existe credencial de API separada da do Conector (tipo e rota de listagem) — se não, é pendência com o engenheiro-software | Pronto quando: PDF revisado pelo designer-ux e caminho de publicação definido"
 
-node scripts/coord.mjs enviar --de designer-ux --para gerente-projetos --tipo pergunta --assunto "Perguntas ao dono do produto: §10 do portal" --corpo "Contexto: R-20261114-132000-alexandre, spec docs/design/telas/portal-config-enxuto.md §10 | O que preciso: (1) sem CSV, a Integração com o ERP continua 'sempre' na Nova empresa? (2) a Equipe por CSV sai mesmo do portal, ficando só ERP/BKO? | Pronto quando: respostas do dono do produto registradas"
+node scripts/coord.mjs enviar --de designer-ux --para gerente-projetos --tipo pergunta --assunto "Perguntas ao dono do produto: §10 do portal" --corpo "Contexto: R-20261114-132000-alexandre, spec docs/design/telas/portal-config-enxuto.md §10 | O que preciso: (1) sem CSV, a Integração com o ERP continua 'sempre' na Nova empresa? (2) a Equipe por CSV sai mesmo do portal, ficando só ERP/BKO? [RESPONDIDA: sim, R-20261114-133000-alexandre, spec §12; não perguntar de novo] | Pronto quando: respostas do dono do produto registradas"
 ```
 
 ## §11 (R-20261114-132600-alexandre: planos Light, PME, Enterprise e Corporate; CNPJ pela Receita)
@@ -37,3 +37,7 @@ node scripts/coord.mjs enviar --de designer-ux --para engenheiro-software --tipo
 
 node scripts/coord.mjs enviar --de designer-ux --para gerente-projetos --tipo pergunta --assunto "Perguntas ao dono do produto: §11 do portal (planos e CNPJ)" --corpo "Contexto: R-20261114-132600-alexandre, spec docs/design/telas/portal-config-enxuto.md §11.7. A tabela dos planos (preços e licenças) que está no recado NÃO chegou à sessão do designer-ux: spec e simulações usam {preço} e {licenças} | O que preciso: (1) teste de 14 dias: caixa marcada por padrão (decisão da spec) ou toda empresa começa em teste sem caixa? (2) admin do cliente vê o plano só leitura, sem 'Trocar de plano' (decisão da spec), ou pode trocar? (3) CNPJ baixado/suspenso/inapto: só alerta (decisão da spec) ou bloqueia o Criar empresa? (4) todo plano inclui a Integração com o ERP? (5) anexar a tabela dos planos (preço mensal/anual, licenças por tipo, preço dos adicionais, Promotor avulso por licença?) à tarefa do designer-ux | Pronto quando: respostas registradas e a tabela no repositório"
 ```
+
+## §12 (config. cadastra só o admin)
+
+A pergunta (2) do recado ao gerente-projetos do §10 ("a Equipe por CSV sai mesmo do portal?") está **respondida: sim** (spec §12). Ao postar aquele recado, mande só a pergunta (1). Sem recado novo: o engenheiro-apps já tem a saída da Equipe no pedido do §10.

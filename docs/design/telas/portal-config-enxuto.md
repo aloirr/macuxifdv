@@ -172,7 +172,7 @@ Os recados do corretor-redundancias e do design-de-marca não chegaram a esta se
 ## 10. Adendo — Integração via Conector e via API; CSV fora do portal
 > 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-132000-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Onde conflitar, o §10 vale sobre §5 (abas), §6, §7 e o Placar.
 
-**Regra:** ou é Conector, ou é API. O CSV sai do portal: a aba Bases (com a Equipe por CSV), o Conector de arquivo e todo texto sobre CSV.
+**Regra:** ou é Conector, ou é API. O CSV sai do portal: a aba Bases (com a Equipe por CSV), o Conector de arquivo e todo texto sobre CSV. (Confirmado pelo §12: nenhum CSV fica no `config.`.)
 
 ### 10.1 Abas
 Abas da página da empresa: **"Integração" · "Empresa"**; **Integração abre por padrão**. O resto do cabeçalho do §5 fica igual. O §6 (aba Bases) está revogado inteiro.
@@ -232,7 +232,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 - **Saem do portal:** `components/portal/cartao-base.tsx`, `components/portal/cartao-equipe.tsx`, `lib/portal-carga.ts`, `lib/portal-carga-rede.ts` (e `portal-carga.test.ts`), `lib/equipe-csv.ts` (e o teste), o Conector de arquivo em `lib/portal-rotas.ts` ("Carga por arquivo (implantação)"), a Equipe por CSV de `lib/portal-falso.ts` e os testIDs `base-*`, `equipe-*` e `integracao.confirmar-*`. Confirmar com o corretor-redundancias se algum deles é usado fora do portal antes de apagar.
 - `tela-empresa.tsx`: abas Integração e Empresa; Integração abre por padrão.
 - `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia da API"; `integracao.guia` vira o botão do PDF, só quando ele existir.
-- **A Equipe passa a vir só pelo ERP (Conector/API) ou pelo BKO.** Pendência — pergunta ao dono do produto: a Equipe por CSV sai mesmo do portal?
+- **A Equipe passa a vir só pelo ERP (Conector/API) ou pelo BKO.** ~~Pendência — pergunta ao dono do produto: a Equipe por CSV sai mesmo do portal?~~ **Respondida: sim** (§12).
 - **Pendência para engenheiro-software / modulo-integracao:** credencial de API separada da do Conector (tipo próprio, ex. o `nuvem` que já existe em `ROTULO_TIPO`, rota que lista só as de API) e o guia da API em PDF (modulo-integracao faz e manda ao designer-ux para revisão de layout). Se a rota não existir, o lado direito mostra só o guia e o link do OpenAPI.
 
 ## 11. Adendo — Planos (Light, PME, Enterprise, Corporate) e CNPJ pela Receita
@@ -314,9 +314,20 @@ Total de frases que saem: 57 (§10.4) + 2 ("Módulos acrescentados…", "Nada mu
 3. **CNPJ não ativo** (baixado, suspenso, inapto): só alerta (decisão desta spec) — ou bloqueia o "Criar empresa"?
 4. **Integração com o ERP** (§10.3): todo plano inclui?
 5. **Tabela dos planos** (preço por ciclo, licenças por tipo, preço dos adicionais, se Promotor avulso é por licença): não chegou a esta sessão.
+6. ~~**Equipe por CSV** (§10.5): sai mesmo do portal?~~ **Respondida: sim** (§12).
 
 ### 11.8 Para o engenheiro-apps
 - **testIDs novos:** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.situacao`, `empresa.cnae`, `empresa.plano-<id>` (`light|pme|enterprise|corporate`, o id vem do contrato), `empresa.adicional-<id>` (ex.: `promotor-avulso|pesquisa|treinamento`), `empresa.adicional-promotor-avulso-qtd`, `empresa.ciclo-<mensal|anual>`, `empresa.teste`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.ciclo`, `empresa-plano.teste-ate`, `empresa-plano.uso-<tipo>`, `empresa-plano.trocar`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`.
 - **Saem:** os testIDs e o código do cartão "Módulos e licenças" no Criar empresa e na aba Empresa (`empresa.modulo-*`, `empresa.licencas-*`, `empresa.acrescentar-modulos` ou equivalentes) e `ROTULO_MODULO` no portal, se não for usado em outro lugar (confirmar com o corretor-redundancias).
 - O seletor de planos é **um componente só**, usado no Criar empresa e no "Trocar de plano" (prop `atual`).
 - **Dependências (engenheiro-software):** contrato de **planos** (lista com id, nome, preço por ciclo em centavos, licenças por tipo, adicionais com preço e se tem quantidade, ciclo, teste e uso atual por tipo; `CriarEmpresaSchema` com `plano`, `adicionais`, `ciclo`, `teste` no lugar de `modulos`) e contrato de **CNPJ** (consulta → campos e códigos de erro `invalido`, `nao_encontrado`, `indisponivel`; situação). Dinheiro formatado de centavos (`R$ 1.234,00`). O modo falso (`lib/portal-falso.ts`) usa os mesmos marcadores até a tabela chegar.
+
+## 12. Adendo — o `config.` cadastra só o admin da conta do cliente
+> 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-133000-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Responde a pergunta do §10.5 e do §11.7 item 6 ("a Equipe por CSV sai mesmo do portal?"): **sim**.
+
+- O `config.` cadastra **só o administrador da conta do cliente** (cartão "Administrador da empresa" do Criar empresa, §4 item 3, e cartão "Administradores" da aba Empresa, §8 e §11.4).
+- **Sai o cartão Equipe inteiro**: modelo, CSV e importação (já fora com a aba Bases no §10). Os demais usuários o admin cadastra **no BKO**.
+- Dos cartões de usuários, **fica só "Administradores"**. **Nenhum CSV fica no `config.`**: todo trecho anterior que cite CSV (§6, o diálogo "Passar as bases ao Conector do ERP?" do §7, a linha "Aba Bases" do Placar) está **revogado pelo §12** (e já pelo §10).
+- **Simulações:** nenhuma nova. As do §10 e do §11 (`depois-03b-*`, `depois-03c-*`, `depois-05b-*`, `depois-06b-*`) não mostram a Equipe nem CSV; só `depois-04-bases.*` mostra (cartão Equipe = 1), e ela fica só como registro.
+- **Placar:** não muda; a aba Bases, com a Equipe dentro, já sai inteira no §10.4.
+- **Para o engenheiro-apps:** nada além do §10.5 (saem `cartao-equipe.tsx`, `lib/equipe-csv.ts`, a Equipe de `lib/portal-falso.ts` e os testIDs `equipe-*`).
