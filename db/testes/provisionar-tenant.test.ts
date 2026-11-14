@@ -33,6 +33,8 @@ const NOME_ADMIN = 'Fulana Provisionada';
 
 interface Saida {
   tenant_id: string;
+  /** desde a 0068: o código do tenant (o informado ou o número da licença gerado) */
+  codigo: string;
   resultado: 'criado' | 'atualizado' | 'sem_mudanca';
   modulos_adicionados: string[];
   admin: 'criado' | 'existente' | 'senha_redefinida';
@@ -103,7 +105,7 @@ describe.skipIf(semBanco())('0029 provisionar_tenant (banco, fixture dois-tenant
   it('cria tenant, licenças, perfis e admin; semeadura dos gatilhos igual à de um tenant comum; auditoria sem dado pessoal', async () => {
     await emTransacao(admin, null, async () => {
       const r = await provisionar(entrada('t29-cria'));
-      expect(r).toEqual({ tenant_id: expect.any(String), resultado: 'criado', modulos_adicionados: ['catalogo', 'core', 'vendedor'], parametros_gravados: [], admin: 'criado', avisos: [] });
+      expect(r).toEqual({ tenant_id: expect.any(String), codigo: 't29-cria', resultado: 'criado', modulos_adicionados: ['catalogo', 'core', 'vendedor'], parametros_gravados: [], admin: 'criado', avisos: [] });
       const t = (await admin.query('select codigo, nome, documento, fuso, plano, status from plataforma.tenant where id = $1', [r.tenant_id])).rows;
       expect(t).toEqual([{ codigo: 't29-cria', nome: 'Distribuidora T29', documento: null, fuso: 'America/Manaus', plano: 'piloto', status: 'ativo' }]);
       const tm = await admin.query('select modulo, ativo, licencas, ativado_em is not null as ativado from plataforma.tenant_modulo where tenant_id = $1 order by modulo', [r.tenant_id]);
@@ -173,7 +175,7 @@ describe.skipIf(semBanco())('0029 provisionar_tenant (banco, fixture dois-tenant
       const r1 = await provisionar(entrada('t29-idem'));
       const antes = await retratoDoTenant(r1.tenant_id);
       const r2 = await provisionar(entrada('t29-idem'));
-      expect(r2).toEqual({ tenant_id: r1.tenant_id, resultado: 'sem_mudanca', modulos_adicionados: [], parametros_gravados: [], admin: 'existente', avisos: [] });
+      expect(r2).toEqual({ tenant_id: r1.tenant_id, codigo: 't29-idem', resultado: 'sem_mudanca', modulos_adicionados: [], parametros_gravados: [], admin: 'existente', avisos: [] });
       expect(await retratoDoTenant(r1.tenant_id)).toEqual(antes);
       // código com maiúsculas no banco não existe (CHECK), mas a busca é sem diferenciar: o mesmo tenant
       expect((await admin.query('select count(*)::int as n from plataforma.tenant where lower(codigo) = $1', ['t29-idem'])).rows[0].n).toBe(1);

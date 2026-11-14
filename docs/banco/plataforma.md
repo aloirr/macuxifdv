@@ -41,6 +41,22 @@ Com superusuário, desliga `log_statement` e `log_min_duration_statement` na tra
 chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`). Caminho de volta:
 `0029_plataforma_provisionar_tenant.down.sql` (apaga a função; tenants já criados ficam). Teste: `db/testes/provisionar-tenant.test.ts`.
 
+### 0068 — número da licença (código da empresa; pedido do dono do produto, R-20261114-130500)
+O código da empresa passa a ser o **número único da licença**: `plataforma.tenant_numero_licenca_seq` (integer, 100001..999999,
+`no cycle`, sem grant; esgotada = 2200H). A `provisionar_tenant` (mesma assinatura, SECURITY INVOKER) aceita:
+- `id` (opcional, UUID gerado pelo chamador) = id do tenant e **chave de idempotência**. Com id de tenant existente, a chamada é
+  sobre ele (mesmo tenant, mesmo código, nenhum número novo); com id novo, o tenant nasce com ele. Trava consultiva por id
+  (`pg_advisory_xact_lock`) antes da busca: chamadas simultâneas com o mesmo id não gastam dois números.
+- `codigo` ausente, `null` ou `""` = número da licença: o tenant novo recebe `nextval` como texto de 6 dígitos (`"100001"`); número
+  já usado como código (cadastro manual) é pulado. Sem `codigo`, o `id` é obrigatório (22023). O `nextval` só roda depois de toda
+  a validação e só para tenant novo (entrada inválida não gasta número).
+- `codigo` informado: como antes (idempotente pelo código). `id` e `codigo` de tenants diferentes = 23505.
+- Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
+A `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
+não é de tenant vivo. O CHECK `tenant_codigo_formato` (`^[a-z0-9][a-z0-9-]{1,39}$`) já aceita 6 dígitos, `demo` e `teste-macuxi`:
+não muda. Caminho de volta: `0068_plataforma_tenant_numero_licenca.down.sql` (funções da 0040/0039 e apaga a sequência; os
+números já dados ficam; refazer o up recomeça em 100001 e pula os usados). Teste: `db/testes/tenant-numero-licenca.db.test.ts`.
+
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |
 |---|---|---|
