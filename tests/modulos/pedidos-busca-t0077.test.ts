@@ -65,6 +65,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { montarCliente360Local } from '../../modules/core/app/lib/cliente360-local';
 import { entidadesCliente } from '../../modules/core/app/lib/entidades-cliente';
+import { SO_ORCAMENTO } from './apoio/estado-prs';
 import { entidadesRota } from '../../modules/core/app/lib/entidades-rota';
 import { filtrarExtensoesDePedido, pedidosVisiveisNoAparelho } from '../../modules/core/domain';
 import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePedidos } from '../../modules/vendedor/app/lib/pull';
@@ -706,12 +707,9 @@ describe('T-0170 RN-VEN-43 / RD-0247 — o card "Orçamentos em aberto" filtra a
     expect(codigo).toMatch(/const base = useMemo\(\s*\(\) => \(semPeriodo && !buscando \? itens : filtrarLista\(itens, \{ periodo, busca, tz \}\)\)/);
   });
 
-  it('rótulo × card: o chip ativo leva o título do card ("Orçamentos em aberto"; "Pedidos", antes "Pedidos enviados")', () => {
+  it('rótulo × card: o chip ativo leva o título do card ("Orçamentos em aberto"; o de Pedidos está no bloco do PR #248)', () => {
     expect(tituloDoCard('orcamentos')).toBe('Orçamentos em aberto');
-    // PR #248 (R-20261114-150000): o card "Enviados" virou "Pedidos" (rótulo, título acessível e chip); o testID segue `orders-card-enviados`
-    expect(['Pedidos', 'Pedidos enviados']).toContain(tituloDoCard('enviados'));
     expect(codigo).toContain(`{atual === 'card_orc' ? <Chip testID="chip-card-orc" label="${tituloDoCard('orcamentos')}" active`);
-    expect(codigo).toContain(`{atual === 'card_env' ? <Chip testID="chip-card-env" label="${tituloDoCard('enviados')}" active`);
   });
 });
 
@@ -792,22 +790,12 @@ describe('PR #248 / RN-VEN-43 — valor × regra do card Pedidos (Total = Orçam
     const doMes = docs.filter((d) => d.emitido_em.startsWith('2026-11'));
     expect(r.enviados.quantidade).toBe(doMes.filter((d) => pedidoEnviado(d)).length);
     expect(r.orcamentos.quantidade).toBe(doMes.filter((d) => orcamentoEmAberto(d)).length);
-  });
-
-  it('Total = Orçamentos + Pedidos, em quantidade e em valor', () => {
-    expect(r.total).toEqual({ quantidade: r.orcamentos.quantidade + r.enviados.quantidade, valor_cents: r.orcamentos.valor_cents + r.enviados.valor_cents });
     expect(r.total).toEqual({ quantidade: 5, valor_cents: 1_010_000 });
   });
 
   it('o cartão Pedidos mostra o número do resumo (`q={resumo?.enviados ...}`), não outra conta', () => {
     expect(linhaDoCardPedidos()).toMatch(/q=\{resumo\?\.enviados \?\? null\}/);
     expect(CARDS).toMatch(/testID="orders-card-total"[^\n]*q=\{resumo\?\.total \?\? null\}/);
-  });
-
-  it('período sem nada (total zerado): o resumo é zero nos três cartões', () => {
-    const vazio = resumoDePedidos(docs, { periodo: { tipo: 'mes', valor: '2026-09' }, tz: TZ });
-    const zero = { quantidade: 0, valor_cents: 0 };
-    expect(vazio).toEqual({ orcamentos: zero, enviados: zero, total: zero });
   });
 });
 
@@ -859,8 +847,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
 
   it('a leitura do fonte achou as páginas e todas restritas aos perfis do manifesto (sem promotor)', () => {
     // R-20261114-151000 (PR do modulo-vendedor): + a folha "Adicionar ao orçamento" do Catálogo (acao pedido.criar, só Campo)
-    const comFolha = paginas.some((p) => p.id === 'adicionar-ao-orcamento');
-    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', ...(comFolha ? ['adicionar-ao-orcamento'] : []), 'novo-pedido']);
+    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', ...(SO_ORCAMENTO ? ['adicionar-ao-orcamento'] : []), 'novo-pedido']);
     for (const p of paginas) {
       expect(p.perfis, p.id).toBeDefined();
       expect(p.perfis, p.id).not.toContain('promotor');

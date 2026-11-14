@@ -24,7 +24,6 @@
  * Roda só com banco e o papel do portal (CI, `stack-isolado.yml`); sem eles, pula.
  */
 import crypto from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { CODIGOS_AUTH, SessaoRespostaSchema } from '@macuxi/core/contracts';
 import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
 import { CABECALHO_TENANT_PLATAFORMA, CriarEmpresaRespostaSchema, ListaEmpresasSchema, SessaoPortalSchema } from '@macuxi/platform-sdk';
@@ -33,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SENHA, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarEspiaoEmail } from '../apoio/email';
+import { COM_RECEITA } from '../../modulos/apoio/estado-prs';
 import {
   auditoriaDoPortal,
   claimsDe,
@@ -73,8 +73,6 @@ const EMPRESA_C = {
 };
 /** T-0094 (P5): a senha que o admin inicial de C cria no BKO no 1º uso (a master não serve mais). */
 const SENHA_CRIADA_C = 'Criada#T0093-C1';
-/** ADR 0048 (PR #243): o passo Empresa confere o CNPJ na Receita (falsa, sem rede: apoio/api.ts). Estado detectado pelo fonte. */
-const COM_RECEITA = existsSync(new URL('../../../apps/api/src/consulta-cnpj.ts', import.meta.url));
 
 describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senha: empresas, permissões, bloqueio e auditoria', () => {
   let api: ApiDeTeste;

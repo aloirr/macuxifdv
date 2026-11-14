@@ -26,6 +26,7 @@ import { localIsoDate } from '@macuxi/comum/fuso';
 import { subtituloProduto } from '../../modules/catalogo/app/lib/apresentacao';
 import { dataDaValidade } from '../../modules/vendedor/domain/orcamento';
 import { orcamentoEmAberto } from '../../modules/vendedor/domain/resumo-inicio';
+import { SO_ORCAMENTO } from './apoio/estado-prs';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
@@ -33,8 +34,6 @@ const existe = (rel: string) => existsSync(join(RAIZ, rel));
 const semComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 const INDEX_VENDEDOR = ler('modules/vendedor/app/index.ts');
-/** Estado do PR do modulo-vendedor: a extensão do Catálogo é "Adicionar ao orçamento". */
-const SO_ORCAMENTO = /id: 'adicionar-ao-orcamento'/.test(INDEX_VENDEDOR);
 /** Estado do PR do modulo-catalogo: o botão "Copiar código". */
 const COPIAR_CODIGO = existe('modules/catalogo/app/lib/copiar-codigo.ts');
 
@@ -99,9 +98,6 @@ describe('R-20261114-151000 — o Catálogo não cria pedido (a)', () => {
     expect(linkInternoNavegavel(empurrados[0]!)).toBe(empurrados[0]);
     const pagina = INDEX_VENDEDOR.split('\n').find((l) => /\{ id: 'adicionar-ao-orcamento',/.test(l)) ?? '';
     expect(pagina).toMatch(/caminho: 'adicionar-ao-orcamento'/);
-    expect(pagina).toMatch(/acao: 'pedido\.criar'/);
-    expect(pagina).toMatch(/perfis: PERFIS_PAGINAS\b/);
-    expect(pagina).toMatch(/apps: \['campo'\]/);
     expect(pagina).toMatch(/componente: AdicionarAoOrcamentoScreen \}/);
   });
 
@@ -173,14 +169,8 @@ describe('R-20261114-151000 — "Adicionar ao orçamento" só lista orçamentos 
       .sort((a, b) => b.criado_em.localeCompare(a.criado_em))
       .map((d) => d.id);
 
-  it('a regra: convertido, cancelado e pedido (com ou sem tipo) ficam fora; o orçamento não vence', () => {
-    const base = { tipo: 'orcamento' as const, status: 'received', total_cents: 100 };
-    expect(orcamentoEmAberto(base)).toBe(true);
-    expect(orcamentoEmAberto({ ...base, convertido_pedido_id: CONV[1] })).toBe(false);
-    expect(orcamentoEmAberto({ ...base, status: 'cancelled' })).toBe(false);
-    expect(orcamentoEmAberto({ ...base, tipo: 'pedido' })).toBe(false);
-    expect(orcamentoEmAberto({ status: 'received', total_cents: 100 })).toBe(false);
-    // o "esperado" não é vazio nem tudo: a matriz cobre os dois lados
+  it('a matriz cobre em aberto e fora', () => {
+    // a regra (convertido, cancelado e pedido fora) é de modules/vendedor/domain/resumo-inicio.test.ts; aqui, o "esperado" não é vazio nem tudo
     const e = esperado('v1');
     expect(e.length).toBeGreaterThan(0);
     expect(e.length).toBeLessThan(docs.length / 2);

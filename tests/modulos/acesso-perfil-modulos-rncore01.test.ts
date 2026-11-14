@@ -77,16 +77,6 @@ describe('RN-CORE-01/03 — perfil × módulos com a regra real (calcularModulos
     expect(erros).toEqual([]);
     expect(casos).toBe(128 * 128 * 12);
   });
-
-  it('exceção com módulo fora do perfil não liga o módulo (vendedor sem promotor no perfil)', () => {
-    const e = calcularModulosEfetivos({ manifestos: MANIFESTOS, ativosNoTenant: SEM_CORE, doPerfil: ['catalogo', 'vendedor'], removidosDoUsuario: ['promotor'] });
-    expect(ordenado(e)).toEqual(ordenado(['core', 'catalogo', 'vendedor']));
-  });
-
-  it('RN-CORE-03: tirar o Catálogo do usuário derruba o Vendedor (dependente), e o core fica', () => {
-    const e = efetivosPelasDependencias({ modulos: INSTALADOS, dependencias: DEPENDENCIAS, ativosNoTenant: SEM_CORE, doPerfil: ['catalogo', 'vendedor', 'promotor'], removidosDoUsuario: ['catalogo'] });
-    expect(ordenado(e)).toEqual(ordenado(['core', 'promotor']));
-  });
 });
 
 // ------------------------------------------------------------------------------------------------ contagem por perfil

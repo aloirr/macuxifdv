@@ -34,6 +34,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { MANIFESTOS_INSTALADOS } from '../../apps/mobile/src/lib/instalados';
 import { SHELL_WEB } from '../../apps/web/lib/modulos';
+import { SO_ORCAMENTO } from './apoio/estado-prs';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
@@ -93,7 +94,6 @@ const itensVendedorApp = lerModuloApp(FONTE_VENDEDOR_APP);
  * orçamentos em aberto, página própria). Os dois estados valem: lido do fonte. A ação continua `pedido.criar` (escrita de
  * pedido/orçamento): o promotor segue sem ela (RN-PRO-01).
  */
-const SO_ORCAMENTO = /id: 'adicionar-ao-orcamento'/.test(FONTE_VENDEDOR_APP);
 const ID_ACAO_CATALOGO = SO_ORCAMENTO ? 'adicionar-ao-orcamento' : 'adicionar-ao-pedido';
 const TESTID_ACAO_CATALOGO = SO_ORCAMENTO ? 'produto-adicionar-orcamento' : 'produto-adicionar';
 
