@@ -91,8 +91,10 @@ describe('T-0140 C — faixa EM ATENDIMENTO some na ficha do próprio cliente (R
   });
   it('C5. a ficha passa o próprio id nas duas montagens (Cliente 360 e ficha simples); Início e Rota não passam', () => {
     const ficha = ler('modules/core/app/telas/cliente.tsx');
-    expect(ficha.match(/<OpenVisitBar [^>]*clienteAtual=\{id\} \/>/g)).toHaveLength(2);
-    expect(ficha.match(/<OpenVisitBar /g)).toHaveLength(2);
+    // até o #217: duas montagens (Cliente 360 e ficha simples); depois, uma só no topo de todas as abas
+    const comId = ficha.match(/<OpenVisitBar [^>]*clienteAtual=\{id\} \/>/g) ?? [];
+    expect([1, 2]).toContain(comId.length);
+    expect(ficha.match(/<OpenVisitBar /g)).toHaveLength(comId.length);
     for (const f of ['modules/core/app/telas/rota.tsx', 'apps/mobile/src/app/(tabs)/index.tsx']) {
       const s = ler(f);
       if (s.includes('<OpenVisitBar')) expect(s, f).not.toMatch(/<OpenVisitBar [^>]*clienteAtual=/);
