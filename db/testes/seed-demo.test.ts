@@ -1037,16 +1037,17 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.embalagens.sort(porId)).toEqual([...m.embalagens].sort(porId));
     expect(r.embalagens.length).toBeGreaterThanOrEqual(3);
     const porUsuario = Object.fromEntries(r.metas.map((x) => [x.usuario_id, `${x.tipo}:${x.n}`]));
-    expect(porUsuario[idUsuarioDemo('vendedor')]).toBe('pedido:4');
-    expect(porUsuario[idUsuarioDemo('vendedor2')]).toBe('pedido:4');
-    // mês anterior (T-0070, para o "copiar" da T-0068): Lucas e Camila, 4 cada, pelo papel macuxi_app
+    // 4 da T-0070 + itens_por_pedido (T-0170, tarefas-produtividade.ts), no mês corrente e no anterior
+    expect(porUsuario[idUsuarioDemo('vendedor')]).toBe('pedido:5');
+    expect(porUsuario[idUsuarioDemo('vendedor2')]).toBe('pedido:5');
+    // mês anterior (T-0070, para o "copiar" da T-0068): Lucas e Camila, 5 cada, pelo papel macuxi_app
     const anterior = await comTenant(pool, TENANT_DEMO, async (c) =>
       (await c.query<{ usuario_id: string; tipo: string; n: number }>(
         'select usuario_id, tipo, count(*)::int as n from core.meta where periodo = $1 and deleted_at is null group by 1, 2 order by 1',
         [anoMes(hojeCarga, -1)],
       )).rows);
     expect(Object.fromEntries(anterior.map((x) => [x.usuario_id, `${x.tipo}:${x.n}`]))).toEqual({
-      [idUsuarioDemo('vendedor')]: 'pedido:4', [idUsuarioDemo('vendedor2')]: 'pedido:4',
+      [idUsuarioDemo('vendedor')]: 'pedido:5', [idUsuarioDemo('vendedor2')]: 'pedido:5',
     });
     const chefia = { supervisor: USUARIOS_DEMO.supervisor.nome, gerente: USUARIOS_DEMO.gerente.nome };
     expect(r.hierarquia.sort((a, b) => a.nome.localeCompare(b.nome))).toEqual(
