@@ -281,3 +281,161 @@ describe('GET /v1/arquivos/:id — leitura restrita por perfil (ADR 0041, T-0147
     await app.close();
   });
 });
+
+describe('T-0170: foto do perfil (core/avatar, RN-CORE-42) e foto de tarefa (core/tarefa)', () => {
+  const CHAVE = `${TENANT}/core/2026-11/${ID}.jpg`;
+  const TETO_AVATAR = 300 * 1024;
+
+  /** Banco com uma linha de `plataforma.arquivo` do Core; registra os updates (o upload completou a linha). */
+  function bancoCom(linha: Record<string, unknown>) {
+    const updates: string[] = [];
+    const db: ClienteBanco = {
+      query: async <R>(sql: string) => {
+        if (/^\s*update plataforma\.arquivo/.test(sql)) updates.push(sql);
+        return /from plataforma\.arquivo/.test(sql) ? { rows: [linha] as R[], rowCount: 1 } : { rows: [] as R[], rowCount: 0 };
+      },
+    };
+    const banco: BancoApp = { ...bancoFalso().banco, comTenant: async (_t, fn) => fn(db), semTenant: async (fn) => fn(db) };
+    return { banco, updates };
+  }
+
+  /** Core com `tarefa.acompanhar` (gerente, analista, assistente, admin), como o manifesto da costura do T-0170. */
+  const comAcompanhar = modulosDeTeste().map((m) =>
+    m.manifesto.id === 'core'
+      ? {
+          ...m,
+          manifesto: {
+            ...m.manifesto,
+            acoes: {
+              ...m.manifesto.acoes,
+              'tarefa.acompanhar': { perfis: ['gerente', 'analista', 'assistente', 'admin'] as const, descricao: 'Acompanhar tarefas (teste)' },
+            },
+          },
+        }
+      : m,
+  ) as ReturnType<typeof modulosDeTeste>;
+
+  describe('PUT: teto de 300 KB só para core/avatar', () => {
+    const jpegDe = (tamanho: number) => Buffer.concat([JPEG, Buffer.alloc(tamanho - JPEG.length)]);
+    const aguardando = (finalidade: string) => ({
+      modulo: 'core',
+      finalidade,
+      enviado_por: usuarios.vendedor!.id,
+      situacao: 'aguardando',
+      sha256: null,
+      tamanho_bytes: null,
+      cliente_id: null,
+      chave_armazenamento: null,
+    });
+    const put = (app: ReturnType<typeof createApp>, bytes: Buffer) =>
+      app.inject({ method: 'PUT', url: `/v1/arquivos/${ID}`, headers: { ...cab('vendedor'), 'content-type': 'image/jpeg' }, payload: bytes });
+
+    it('acima de 300 KB: 422 RN-CORE-42 com o limite, sem gravar bytes nem completar a linha', async () => {
+      const { banco, updates } = bancoCom(aguardando('avatar'));
+      const arquivos = criarArmazenamentoEmMemoria();
+      const app = createApp(opcoesDeTeste(undefined, { banco, arquivos }));
+      const r = await put(app, jpegDe(TETO_AVATAR + 1));
+      expect(r.statusCode).toBe(422);
+      expect(r.json()).toMatchObject({ codigo: 'RN-CORE-42', detalhes: { limite_bytes: TETO_AVATAR } });
+      expect(arquivos.chaves()).toEqual([]);
+      expect(updates).toEqual([]);
+      await app.close();
+    });
+
+    it('exatamente 300 KB: 201 recebido', async () => {
+      const { banco, updates } = bancoCom(aguardando('avatar'));
+      const arquivos = criarArmazenamentoEmMemoria();
+      const app = createApp(opcoesDeTeste(undefined, { banco, arquivos }));
+      const r = await put(app, jpegDe(TETO_AVATAR));
+      expect(r.statusCode).toBe(201);
+      expect(r.json()).toMatchObject({ situacao: 'recebido', tamanho_bytes: TETO_AVATAR });
+      expect(arquivos.chaves()).toHaveLength(1);
+      expect(updates).toHaveLength(1);
+      await app.close();
+    });
+
+    it('foto de tarefa (core/tarefa) acima de 300 KB segue só o teto de 2 MB da rota: 201', async () => {
+      const { banco } = bancoCom(aguardando('tarefa'));
+      const app = createApp(opcoesDeTeste(undefined, { banco, arquivos: criarArmazenamentoEmMemoria() }));
+      expect((await put(app, jpegDe(TETO_AVATAR + 1))).statusCode).toBe(201);
+      await app.close();
+    });
+  });
+
+  describe('GET', () => {
+    const recebido = (finalidade: string, enviadoPor: string, cliente: string | null = null) => ({
+      modulo: 'core',
+      finalidade,
+      enviado_por: enviadoPor,
+      situacao: 'recebido',
+      sha256: 'c'.repeat(64),
+      tamanho_bytes: JPEG.length,
+      cliente_id: cliente,
+      chave_armazenamento: CHAVE,
+      perfis_leitura: null,
+    });
+    /** Vendedor e promotor só enxergam a si mesmos; o supervisor enxerga o vendedor (equipe); o analista, o tenant. */
+    async function montarCom(linha: Record<string, unknown>, modulos = comAcompanhar) {
+      const { banco } = bancoCom(linha);
+      const arquivos = criarArmazenamentoEmMemoria();
+      await arquivos.gravar(CHAVE, JPEG);
+      return createApp(
+        opcoesDeTeste(undefined, {
+          banco,
+          arquivos,
+          modulos,
+          usuariosVisiveis: async (u) =>
+            u.perfil === 'analista' ? 'tenant' : u.perfil === 'supervisor' ? new Set([u.id, usuarios.vendedor!.id]) : new Set([u.id]),
+        }),
+      );
+    }
+    const get = (app: ReturnType<typeof createApp>, quem: keyof typeof usuarios, sufixo = '') =>
+      app.inject({ method: 'GET', url: `/v1/arquivos/${ID}${sufixo}`, headers: cab(quem) });
+
+    it('core/avatar enviado pelo BKO (analista): vendedor, promotor, supervisor e analista leem (200), também a miniatura', async () => {
+      const app = await montarCom(recebido('avatar', usuarios.analista!.id));
+      for (const quem of ['vendedor', 'promotor', 'supervisor', 'analista'] as const) {
+        const r = await get(app, quem);
+        expect(r.statusCode, quem).toBe(200);
+        expect(r.rawPayload, quem).toEqual(JPEG);
+      }
+      await app.close();
+    });
+
+    it('core/tarefa sem cliente: quem enviou lê; quem acompanha tarefas e enxerga o remetente lê; o resto recebe 404', async () => {
+      const app = await montarCom(recebido('tarefa', usuarios.vendedor!.id));
+      expect((await get(app, 'vendedor')).statusCode).toBe(200);
+      expect((await get(app, 'analista')).statusCode).toBe(200);
+      // o supervisor enxerga o vendedor, mas não tem `tarefa.acompanhar`; o promotor nem enxerga o remetente
+      for (const quem of ['supervisor', 'promotor'] as const) {
+        const r = await get(app, quem);
+        expect(r.statusCode, quem).toBe(404);
+        expect(r.json(), quem).toMatchObject({ codigo: 'ARQUIVO_NAO_ENCONTRADO' });
+        expect((await get(app, quem, '/miniatura')).statusCode, `${quem} miniatura`).toBe(404);
+      }
+      await app.close();
+    });
+
+    it('core/tarefa sem cliente com o Core sem `tarefa.acompanhar`: só quem enviou lê (falha fechada)', async () => {
+      const app = await montarCom(recebido('tarefa', usuarios.vendedor!.id), modulosDeTeste());
+      const semAcao = modulosDeTeste().find((m) => m.manifesto.id === 'core')!.manifesto.acoes?.['tarefa.acompanhar'];
+      expect((await get(app, 'vendedor')).statusCode).toBe(200);
+      // com a ação no manifesto (costura do T-0170) o analista lê; sem ela, ninguém além de quem enviou
+      expect((await get(app, 'analista')).statusCode).toBe(semAcao ? 200 : 404);
+      await app.close();
+    });
+
+    it('core/tarefa com cliente: vale a carteira do cliente da foto (403 FORA_DA_CARTEIRA fora dela)', async () => {
+      const dentro = await montarCom(recebido('tarefa', usuarios.vendedor!.id, CLIENTE_DA_CARTEIRA));
+      expect((await get(dentro, 'vendedor')).statusCode).toBe(200);
+      expect((await get(dentro, 'supervisor')).statusCode).toBe(200);
+      await dentro.close();
+      const fora = await montarCom(recebido('tarefa', usuarios.vendedor!.id, CLIENTE_FORA));
+      const r = await get(fora, 'vendedor');
+      expect(r.statusCode).toBe(403);
+      expect(r.json()).toMatchObject({ codigo: 'FORA_DA_CARTEIRA' });
+      expect((await get(fora, 'analista')).statusCode).toBe(200);
+      await fora.close();
+    });
+  });
+});

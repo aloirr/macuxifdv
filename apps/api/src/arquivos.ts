@@ -3,6 +3,8 @@
  *   PUT /v1/arquivos/:id  corpo `image/jpeg` cru (sem multipart), até 2 MB → completa a linha `aguardando`
  *   GET /v1/arquivos/:id  devolve os bytes (licença do módulo, perfil e carteira do `cliente_id`; foto de produto vale para o tenant;
  *       com `perfis_leitura`, ADR 0041, também um perfil da lista, e a resposta sai com `no-store`)
+ *       foto do perfil (`core/avatar`, T-0170, RN-CORE-42) vale para o tenant; foto de tarefa sem cliente (`core/tarefa`) só
+ *       para quem enviou e para quem tem `tarefa.acompanhar` e enxerga quem enviou
  *   GET /v1/arquivos/:id/miniatura  versão reduzida (T-0097 b: maior lado 320 px, até 30 KB) com a MESMA regra de acesso;
  *       gerada na 1ª leitura e guardada ao lado do original (`<id>.m320.jpg`; `miniatura.ts`)
  *
@@ -11,7 +13,7 @@
  *   - sem linha (o push ainda não chegou) → 409 ARQUIVO_SEM_REFERENCIA (retentável no aparelho);
  *   - já recebido com o mesmo sha256 → 200 (idempotente pelo UUID do aparelho); sha256 diferente → 409 ARQUIVO_DIVERGENTE;
  *   - corpo que não é JPEG (FF D8 FF) ou vazio → 400 ARQUIVO_INVALIDO; acima de 2 MB → 413 ARQUIVO_GRANDE_DEMAIS;
- *     outro Content-Type → 415 TIPO_NAO_ACEITO.
+ *     outro Content-Type → 415 TIPO_NAO_ACEITO; teto menor da categoria (`TETO_POR_CATEGORIA`) → 422 com o código da RN.
  * A autenticação roda ANTES de ler o corpo (gancho `onRequest`): sem sessão, 401 sem receber os 2 MB.
  * Os bytes ficam atrás da porta `ArmazenamentoArquivos`: disco local em `MACUXI_ARQUIVOS_DIR` (dev, CI) ou objeto S3
  * (`armazenamento-s3.ts`, ADR 0020; `MACUXI_ARQUIVOS_DRIVER=s3`).
@@ -27,6 +29,7 @@ import {
   LIMITE_ARQUIVO_BYTES,
   perfilLeArquivo,
   ROTA_ARQUIVOS,
+  verificarAcao,
   verificarAcesso,
   verificarCarteira,
 } from '@macuxi/platform-sdk';
@@ -128,7 +131,28 @@ interface LinhaArquivo {
  * lê, não importa quem enviou. Foto de produto (T-0097): sobe pelo gerente/analista e aparece na miniatura do vendedor e do
  * promotor (RN-CAT-04: todos os perfis consultam o catálogo). As demais fotos sem cliente seguem os usuários visíveis.
  */
-export const ARQUIVOS_DO_TENANT: ReadonlySet<string> = new Set(['catalogo/foto_produto']);
+export const ARQUIVOS_DO_TENANT: ReadonlySet<string> = new Set([
+  'catalogo/foto_produto',
+  // T-0170 (RN-CORE-42, decisão D4): a foto do perfil é lida por todo usuário do tenant com o Core, como um crachá; sem isto,
+  // a foto enviada pelo BKO ficaria invisível para o próprio vendedor
+  'core/avatar',
+]);
+
+/**
+ * Foto de tarefa (T-0170; desenho `tarefas-consultor.md` §6.3). Com cliente vale a carteira, como toda foto de cliente; sem
+ * cliente, só quem enviou (o destinatário) ou quem tem a ação abaixo e enxerga quem enviou (o autor e o acompanhamento do BKO).
+ */
+export const CATEGORIA_FOTO_TAREFA = 'core/tarefa';
+export const ACAO_ACOMPANHAR_TAREFA = 'tarefa.acompanhar';
+
+/**
+ * Teto menor que o da rota (2 MB, ADR 0010) por `<modulo>/<finalidade>`, conferido no PUT depois de achar a linha: acima dele,
+ * 422 com o código da RN (a foto não vira um arquivo de câmera cheio).
+ * `core/avatar` = `AVATAR_FOTO_MAX_BYTES` de `modules/core/contracts/avatar.ts` (RN-CORE-42: JPEG 480×640, qualidade 80).
+ */
+export const TETO_POR_CATEGORIA: ReadonlyMap<string, { bytes: number; codigo: string; mensagem: string }> = new Map([
+  ['core/avatar', { bytes: 300 * 1024, codigo: 'RN-CORE-42', mensagem: 'A foto do perfil passa de 300 KB. Tire ou escolha a foto de novo.' }],
+]);
 
 const indisponivel = () =>
   new ErroHttp(503, 'ARMAZENAMENTO_INDISPONIVEL', 'Armazenamento de arquivos indisponível. Tente de novo em instantes.');
@@ -193,6 +217,8 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
             throw new ErroHttp(409, CODIGOS_ARQUIVO.semReferencia, 'O registro desta foto ainda não chegou ao servidor. Ela fica na fila e vai depois.');
           // T-0158: o print do diagnóstico é da plataforma (não é módulo): sem checagem de licença; o resto da ADR 0010 vale
           if (!ehPrintDeDiagnostico(linha) && !u.modulos.includes(linha.modulo as never)) throw moduloInativo(linha.modulo);
+          const teto = TETO_POR_CATEGORIA.get(`${linha.modulo}/${linha.finalidade}`);
+          if (teto && bytes.length > teto.bytes) throw new ErroHttp(422, teto.codigo, teto.mensagem, { limite_bytes: teto.bytes });
           if (linha.situacao === 'recebido') {
             if (linha.sha256 !== sha256) throw new ErroHttp(409, CODIGOS_ARQUIVO.divergente, 'Esta foto já foi recebida com outro conteúdo.');
             return { repetido: true, tamanho: linha.tamanho_bytes ?? bytes.length };
@@ -253,6 +279,9 @@ export function registrarArquivos(app: FastifyInstance, p: Plataforma, armazenam
         const c = verificarCarteira(linha.cliente_id, await ctx.carteira());
         if (!c.ok) throw new ErroHttp(c.status, c.codigo, c.mensagem);
       } else if (!ARQUIVOS_DO_TENANT.has(`${linha.modulo}/${linha.finalidade}`)) {
+        // foto de tarefa sem cliente: além de enxergar quem enviou, quem não enviou precisa acompanhar tarefas (fora = 404)
+        if (`${linha.modulo}/${linha.finalidade}` === CATEGORIA_FOTO_TAREFA && linha.enviado_por !== u.id && !verificarAcao(u, p.permissoes, ACAO_ACOMPANHAR_TAREFA).ok)
+          throw naoEncontrado();
         const visiveis = await ctx.usuariosVisiveis();
         if (visiveis !== 'tenant' && !visiveis.has(linha.enviado_por)) throw naoEncontrado();
       }
