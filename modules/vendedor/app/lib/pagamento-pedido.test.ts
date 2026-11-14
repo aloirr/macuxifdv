@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { descricaoPrazo, prazoMedioDias, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
-import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, pendenciaDoPagamento, rascunhoComPagamentoPadrao } from './pagamento-pedido';
+import { comForma, comPrazo, opcoesDeForma, opcoesDePrazo, rascunhoComPagamentoPadrao, situacaoDoPagamento } from './pagamento-pedido';
 import { rascunhoVazio } from './pedidos';
 
 const f = (id: string, codigo: string, ordem: number): FormaDePagamento => ({ id, codigo, nome: codigo === 'PIX' ? 'Pix' : 'Boleto', ativo: true, ordem });
@@ -56,31 +56,31 @@ describe('RN-VEN-24: padrão, troca de forma e pendências', () => {
   it('RN-VEN-25: prazo acima do prazo médio do cliente não é trocado; a pendência explica', () => {
     const r = comPrazo(r0, 'b306090', formas, prazos);
     expect(rascunhoComPagamentoPadrao(r, formas, prazos, cliente)).toBe(r);
-    expect(pendenciaDoPagamento(r, formas, prazos, cliente)).toMatch(/prazo/i);
+    expect(situacaoDoPagamento(r, formas, prazos, cliente).tipo).toBe('invalido');
   });
   it('RN-VEN-25: forma que o cadastro não aceita não é trocada; a pendência pede outra forma', () => {
     const r = comPrazo(r0, 'b28', formas, prazos);
     const c = { prazo_medio_max_dias: 45, formas_pagamento: ['PIX'] };
     expect(rascunhoComPagamentoPadrao(r, formas, prazos, c)).toBe(r);
-    expect(pendenciaDoPagamento(r, formas, prazos, c)).toMatch(/não aceita/);
+    expect(situacaoDoPagamento(r, formas, prazos, c).tipo).toBe('invalido');
   });
   it('RN-VEN-24: trocar a forma limpa o prazo que não é dela e o envio fica pendente até escolher', () => {
     const r = comForma(comPrazo(r0, 'avista', formas, prazos), formas[1]!, prazos, cliente);
     expect(r).toMatchObject({ forma_pagamento_id: 'fbol', prazo_pagamento_id: null });
-    expect(pendenciaDoPagamento(r, formas, prazos, cliente)).toBe('Escolha o prazo.');
+    expect(situacaoDoPagamento(r, formas, prazos, cliente).tipo).toBe('prazo');
   });
   it('RN-VEN-24: pagamento completo e permitido não tem pendência; sem forma, pede a forma', () => {
-    expect(pendenciaDoPagamento(comPrazo(r0, 'b28', formas, prazos), formas, prazos, cliente)).toBeNull();
-    expect(pendenciaDoPagamento(r0, formas, prazos, cliente)).toBe('Escolha a forma de pagamento.');
+    expect(situacaoDoPagamento(comPrazo(r0, 'b28', formas, prazos), formas, prazos, cliente).tipo).toBe('ok');
+    expect(situacaoDoPagamento(r0, formas, prazos, cliente).tipo).toBe('forma');
   });
   it('RN-VEN-25: a mesma regra da API recusa prazo acima do máximo do cliente', () => {
     const r = comPrazo(r0, 'b306090', formas, prazos);
-    expect(pendenciaDoPagamento(r, formas, prazos, cliente)).toMatch(/prazo/i);
+    expect(situacaoDoPagamento(r, formas, prazos, cliente).tipo).toBe('invalido');
   });
   it('RN-VEN-24: sem nenhuma forma no aparelho (antes do 1º sync), vale a condição legada e não trava', () => {
-    expect(pendenciaDoPagamento(r0, [], [], cliente)).toBeNull();
+    expect(situacaoDoPagamento(r0, [], [], cliente).tipo).toBe('ok');
   });
   it('RN-VEN-24: todas as formas desativadas pede o cadastro no BKO', () => {
-    expect(pendenciaDoPagamento(r0, [{ ...formas[0]!, ativo: false }], prazos, cliente)).toBe('Sem forma de pagamento para este cliente');
+    expect(situacaoDoPagamento(r0, [{ ...formas[0]!, ativo: false }], prazos, cliente).tipo).toBe('sem_forma_permitida');
   });
 });

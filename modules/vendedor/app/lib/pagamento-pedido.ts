@@ -3,7 +3,6 @@
  * as opções das duas listas suspensas (o Prazo mostra só o prazo, nunca "médio 42"), o padrão do cliente, a troca de forma
  * e as pendências do envio. Tudo sai das linhas do aparelho (vale offline); a API revalida.
  */
-import { TEXTO_SEM_FORMA } from '../../domain/alertas-pedido';
 import { descricaoPrazo, formasDaLista, formasDoCliente, pagamentoPadrao, prazosDaForma, validarPagamento, type FormaDePagamento, type PrazoDePagamento } from '../../domain/pagamento';
 import type { EntradaPendencias } from '../../domain/pendencias-preenchimento';
 import type { Rascunho } from './pedidos';
@@ -22,8 +21,6 @@ export interface LimitesDoCliente {
 
 export const MOTIVO_ACIMA_DO_PRAZO_MEDIO = 'Acima do prazo médio do cliente';
 export const TEXTO_ESCOLHA_A_FORMA = 'Escolha a forma';
-/** RD-0173: a falta é do cadastro (o vendedor não resolve): um alerta só, com este texto, e o campo Forma desligado com "—". */
-export const TEXTO_SEM_FORMAS = TEXTO_SEM_FORMA;
 
 /** Todas as formas ativas, por ordem; a que o cadastro do cliente não aceita fica desabilitada, com o motivo (RN-VEN-25; T-0129). */
 export function opcoesDeForma(formas: readonly FormaDePagamento[], cliente: LimitesDoCliente): OpcaoDaLista[] {
@@ -43,7 +40,7 @@ export function opcoesDePrazo(prazos: readonly PrazoDePagamento[], formaId: stri
 /**
  * Pagamento do rascunho para este cliente. Sem forma e sem prazo (rascunho novo): o padrão (primeira forma permitida e primeiro
  * prazo habilitado). Com escolha do vendedor nunca há troca silenciosa (T-0129): o rascunho fica como está e, se a forma ou o prazo
- * não servem ao cliente, `pendenciaDoPagamento` diz o que corrigir.
+ * não servem ao cliente, `situacaoDoPagamento` diz o que corrigir.
  */
 export function rascunhoComPagamentoPadrao(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): Rascunho {
   if (!r.forma_pagamento_id && !r.prazo_pagamento_id) {
@@ -70,27 +67,7 @@ export function comPrazo(r: Rascunho, prazoId: string, formas: readonly FormaDeP
   return prazo && forma ? comPagamento(r, forma, prazo) : r;
 }
 
-/**
- * Pendência do pagamento que trava o envio (mensagem em português com a ação seguinte), ou `null`. Sem nenhuma forma no
- * aparelho (tenant antigo, antes do primeiro sync) não trava: vale a condição legada. Mesma regra da API (`validarPagamento`).
- */
-export function pendenciaDoPagamento(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): string | null {
-  const s = situacaoDoPagamento(r, formas, prazos, cliente);
-  switch (s.tipo) {
-    case 'ok':
-      return null;
-    case 'sem_forma_permitida':
-      return TEXTO_SEM_FORMAS;
-    case 'forma':
-      return 'Escolha a forma de pagamento.';
-    case 'prazo':
-      return 'Escolha o prazo.';
-    default:
-      return s.mensagem;
-  }
-}
-
-/** Mesma checagem de `pendenciaDoPagamento`, em código, para a falta no campo e em Alertas (RN-CORE-36; `pendenciasDePreenchimento` do domain). */
+/** Pendência do pagamento que trava o envio, em código, para a falta no campo e em Alertas. Sem nenhuma forma no aparelho (antes do 1º sync) não trava; mesma regra da API (`validarPagamento`) (RN-CORE-36; `pendenciasDePreenchimento` do domain). */
 export function situacaoDoPagamento(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): EntradaPendencias['pagamento'] {
   if (formas.length === 0) return { tipo: 'ok' };
   if (formasDoCliente(formas, cliente.formas_pagamento).length === 0) return { tipo: 'sem_forma_permitida' };

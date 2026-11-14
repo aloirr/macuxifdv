@@ -4,7 +4,6 @@
 import { TONS_ESTADO } from '@macuxi/ui/mobile/puro';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
 import { normalizarStatus } from '../../domain/order';
-import { motivoDaRecusa, textoDaRecusa } from './salvar-na-fila';
 
 export interface BadgeStyle {
   label: string;
@@ -77,21 +76,6 @@ export function filterCounts(orders: Array<{ status: string }>): Record<OrderFil
   const out: Record<OrderFilter, number> = { all: 0, queued: 0, pending: 0, integrated: 0, invoiced: 0, rejected: 0, cancelled: 0 };
   for (const o of orders) for (const f of ORDER_FILTERS) if (matchesFilter(o.status, f.id)) out[f.id] += 1;
   return out;
-}
-
-/** Observação exibida abaixo do pedido: motivo da pendência ou da rejeição; no faturado, o resumo do ERP (T-0054). */
-export function orderNote(o: { status: string; pending_reason: string; rejection_reason: string; local_error?: string; local_failed?: boolean; situacao_faturamento?: string[] }): string {
-  // T-0153: faturado/parcial não leva nota na lista (o selo e o Histórico já dizem; RN-VEN-42)
-  if (o.status === 'queued') return o.local_failed ? textoDaRecusaCurto(o.local_error ?? '') : '';
-  // T-0138 (RN-VEN-30): "Recebido pelo servidor" é texto técnico e não aparece mais no app
-  if (o.status === 'received') return '';
-  if (o.status === 'rejected' || o.status === 'cancelled') return o.rejection_reason;
-  return '';
-}
-
-/** Linha da lista de um pedido que a API recusou: só o motivo ("AGU-1500 acima do desconto máximo"), sem código cru (T-0130, T-0151). */
-function textoDaRecusaCurto(bruto: string): string {
-  return textoDaRecusa(motivoDaRecusa(bruto));
 }
 
 /** Selo da linha: o recusado pela API aparece como "Não aceito" (não "Na fila"); o resto segue o status (T-0130). */

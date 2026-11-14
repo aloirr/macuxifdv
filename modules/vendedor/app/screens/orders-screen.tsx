@@ -45,7 +45,7 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
-import { orderNote, statusBadgeDaLinha } from '../lib/order-status';
+import { statusBadgeDaLinha } from '../lib/order-status';
 import { TEXTOS_RASCUNHOS } from '../lib/rascunhos-lista';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
@@ -397,8 +397,10 @@ const TEXTOS_DA_FOLHA = {
 
 const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null }) {
   const b = statusBadgeDaLinha(o);
-  const note = orderNote(o);
   const buscando = normalizarTexto(busca) !== '';
+  // RD-0206: a linha 2 tem um fato só (o número que a busca achou; senão o vendedor, no Gestão; senão quando) e o selo
+  const trechosDoNumeroAchado = o.number && buscando ? trechosDoNumero(o.number, busca) : null;
+  const trechosNumero = trechosDoNumeroAchado?.some((p) => p.destaque) ? trechosDoNumeroAchado : null;
   // T-0053: orçamento mostra a situação (offline, pela validade; RN-VEN-32); V7: o mesmo selo do detalhe
   const seloOrc = o.tipo === 'orcamento' ? seloDaLinha(o, { agora: relogioReal().agora(), fuso: tz, dias: diasValidade, numeroDoPedido }) : null;
   return (
@@ -417,15 +419,19 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
       {buscando && razao && casaComBusca({ numero: '', nome_fantasia: '', razao_social: razao }, busca) ? <Destacado texto={razao} busca={busca} style={t.small} /> : null}
       <View style={styles.line}>
         <Text style={[t.small, { flex: 1 }]} numberOfLines={1}>
-          {o.number ? 'Nº ' : 'No aparelho'}
-          {o.number ? (
-            <Destacado texto={o.number} busca={busca} trechos={trechosDoNumero(o.number, busca)} mono linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
-          ) : null}{' '}
-          · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)}
+          {trechosNumero ? (
+            <>
+              {'Nº '}
+              <Destacado texto={o.number} busca={busca} trechos={trechosNumero} mono linhaUnica={false} testID={`order-numero-${o.number}`} testIDDestaque="order-numero-destaque" />
+            </>
+          ) : mostrarVendedor && o.seller_name ? (
+            o.seller_name
+          ) : (
+            relativeWhen(o.received_at, new Date(), tz)
+          )}
         </Text>
         {seloOrc ? <Selo texto={seloOrc.texto} tom={seloOrc.tom} tamanho="p" pilula /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
       </View>
-      {note ? <Text style={t.small}>{note}</Text> : null}
     </Pressable>
     </View>
   );
