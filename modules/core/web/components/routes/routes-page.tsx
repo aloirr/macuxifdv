@@ -38,7 +38,7 @@ import { RouteEditor } from './route-editor';
 
 const RouteMap = dynamic(() => import('./route-map'), {
   ssr: false,
-  loading: () => <div className="flex h-full items-center justify-center bg-[#e9ece6] text-[13px] text-ink-2">Carregando mapa…</div>,
+  loading: () => <div className="flex h-full items-center justify-center bg-neutral-soft text-[13px] text-ink-2">Carregando mapa…</div>,
 });
 
 interface ListRow {

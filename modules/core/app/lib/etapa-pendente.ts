@@ -23,7 +23,7 @@ export function visitaComEtapaPendente(visitas: readonly VisitaMinima[], cliente
   return ultima ? { checkin_at: ultima.checkin_at, etapas: ultima.etapas_pendentes ?? 0 } : null;
 }
 
-/** Texto do Banner da ficha do cliente (§1.2): a segunda linha depende da fila e do sinal. */
+/** Texto do Banner da ficha do cliente (§1.2); com etapa na fila não há aviso (RD-0181). */
 export function avisoDeEtapaPendente(o: { checkin_at: string; etapas: number; agora: Date; fuso: string; naFila: number}): AvisoEtapaPendente | null {
   if (o.naFila > 0) return null;
   const dia = dataLocal(o.checkin_at, o.fuso);
