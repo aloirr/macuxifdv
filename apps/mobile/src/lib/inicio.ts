@@ -5,7 +5,7 @@
  * as notificações e a "Equipe agora" chegam prontas na `VisaoInicio` do Core (`useInicio()`). O shell só escolhe texto,
  * cor e ordem a partir delas. Dinheiro de centavos arredondado para reais inteiros; horas no fuso do tenant.
  */
-import type { MembroAgoraContrato, MetaDoDia, VisaoInicio } from '@macuxi/core/contracts';
+import { ROTULO_INDICADOR_META, type MembroAgoraContrato, type MetaDoDia, type VisaoInicio } from '@macuxi/core/contracts';
 import { formatBRL0 } from '@macuxi/comum/money';
 import { colors, localIsoDate, longDateLabel, zonedParts } from '@macuxi/ui/mobile/puro';
 
@@ -45,14 +45,6 @@ export function visitasDaEquipe(membros: readonly MembroAgoraContrato[] | null):
 }
 
 // ---------- Meta do mês ----------
-
-export const ROTULO_INDICADOR: Record<MetaDoDia['indicador'], string> = {
-  venda_cents: 'Vendas',
-  positivacao: 'Positivação',
-  visitas: 'Visitas',
-  cobertura_pct: 'Cobertura',
-  itens_por_pedido: 'Itens por pedido',
-};
 
 /** pontos-base (8500) → "85%". */
 const pctDePontos = (pb: number) => `${Math.round(pb / 100)}%`;
@@ -179,7 +171,7 @@ function linhaDoDiaNaoUtil(indicador: MetaDoDia['indicador'], p?: MetaHojePronta
 /** Rótulo do cartão: "Meta do mês" (Gestão: "… da equipe"); indicador que não é vendas: " · Visitas". "Mês" só aqui (RD-0004). */
 export function rotuloDaMeta(equipe: boolean, indicador?: MetaDoDia['indicador'] | null): string {
   const base = `Meta do mês${equipe ? ' da equipe' : ''}`;
-  return indicador && indicador !== 'venda_cents' ? `${base} · ${ROTULO_INDICADOR[indicador]}` : base;
+  return indicador && indicador !== 'venda_cents' ? `${base} · ${ROTULO_INDICADOR_META[indicador]}` : base;
 }
 
 /** Linha compacta de um indicador secundário, sem barra (RD-0010): "Positivação  1 de 15 clientes". */
@@ -191,7 +183,7 @@ export interface DesenhoLinha {
 
 export function desenhoDaLinha(m: MetaDoDia): DesenhoLinha {
   const { valor, de } = xDeY(m.indicador, realizadoDoMes(m), m.meta_mes);
-  return { rotulo: ROTULO_INDICADOR[m.indicador], valor: `${valor} ${de}`, verde: m.situacao === 'mes_batido' };
+  return { rotulo: ROTULO_INDICADOR_META[m.indicador], valor: `${valor} ${de}`, verde: m.situacao === 'mes_batido' };
 }
 
 /** Nota da equipe: "1 de 3 já bateu a meta" (contagem pronta do Core; "mês" só no título, RD-0004). */

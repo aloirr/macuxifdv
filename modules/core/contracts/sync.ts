@@ -361,6 +361,21 @@ export const NotificacaoSyncSchema = z
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;
 
 export const INDICADORES_META = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas', 'itens_por_pedido'] as const;
+/**
+ * RD-0250: um nome por indicador, igual no Campo, na Gestão, no BKO e no PDF (`docs/design/rotulos-indicadores.md`).
+ * Quem exibe usa este mapa e não cria sinônimo. A única exceção (D6) está em `rotuloDoIndicadorMeta`.
+ */
+export const ROTULO_INDICADOR_META: Record<(typeof INDICADORES_META)[number], string> = {
+  venda_cents: 'Vendas',
+  positivacao: 'Positivação',
+  cobertura_pct: 'Cobertura de rota',
+  visitas: 'Visitas',
+  itens_por_pedido: 'Itens por pedido',
+};
+/** D6: `venda_cents` vira "Faturamento" só quando a meta do tenant é de faturamento; sem base (`null`) ou de pedido, "Vendas". */
+export function rotuloDoIndicadorMeta(indicador: (typeof INDICADORES_META)[number], tipoMetaVenda?: (typeof TIPOS_META)[number] | null): string {
+  return indicador === 'venda_cents' && tipoMetaVenda === 'faturamento' ? 'Faturamento' : ROTULO_INDICADOR_META[indicador];
+}
 /** RN-CORE-21: apuração da meta de venda (pedido aprovado por emissão | faturamento por data do ERP). Espelha `core.meta.tipo`. */
 export const TIPOS_META = ['pedido', 'faturamento'] as const;
 export const MetaSyncSchema = z

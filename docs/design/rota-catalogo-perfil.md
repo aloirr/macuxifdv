@@ -22,13 +22,13 @@ Ordem: título "Rota de hoje" + `SeloAtualizacao` · subtítulo · mapa (com "Ir
 | Elemento | Texto |
 |---|---|
 | Subtítulo | `6 visitas · 2 feitas · 38 km · Centro-Sul` ("1 feita" no singular; sem região, sem o último ` · `) |
-| Parada feita, com pedido | `Nº 000015 · R$ 812 · 07:40 · 25 min` |
-| Parada feita, sem pedido | `Sem pedido · Preço alto` (motivo como cadastrado) |
-| Parada feita, fechada na virada | `Check-in 07:40 · fechada na virada do dia` |
+| Parada feita, com pedido | `Pedido R$ 812` |
+| Parada feita, sem pedido | `Sem pedido: Preço alto` (motivo como cadastrado) |
+| Parada feita, fechada na virada | `Fechada na virada do dia` |
 | Etapa pendente (direita) | selo aviso `Etapa pendente` (sem mudança, `checkout-pendencia.md` §1.1) |
-| Próxima | `Próxima · 09:00 · 2,4 km` |
-| Aberta | `10:30 · <dica>`; dica com maiúscula: `Nunca comprou`, `52 dias sem comprar`, `2 títulos vencidos` (danger, semibold), `Positivar no mês`, `Curva A · Flores` |
-| Em atendimento | `Em atendimento · 18 min` (accentInk, semibold); fundo accentTint; nome do cliente em até 2 linhas (`numberOfLines={2}`), nunca cortado pelo botão `Checkout` (RD-0097) |
+| Próxima | `09:00` |
+| Aberta | `10:30` |
+| Em atendimento | `Check-in 09:02` (accentInk, semibold); fundo accentTint; nome do cliente em até 2 linhas (`numberOfLines={2}`), nunca cortado pelo botão `Checkout` (RD-0097) |
 | Vazio | título `Nenhuma rota hoje`, apoio `Puxe a tela para atualizar.` |
 | Depois do checkout | `AvisoRodape`: `Checkout feito · <cliente>` |
 

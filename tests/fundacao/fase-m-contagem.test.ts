@@ -108,6 +108,12 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     decisao: 'RD-0135 (corretor R-20261111-150701) — o teste só conferia a própria fixture, sem chamar código, e foi apagado; subtotal R$ 1.034,00, desconto − R$ 72,38 e total R$ 961,62 no HTML gerado seguem cobertos pelo caso novo',
     removido: true,
   },
+  {
+    origem: 'apps/mobile/src/lib/helpers.test.ts',
+    titulo: 'contagem dos chips e observação',
+    novo: 'contagem dos chips',
+    decisao: 'RD-0206 e RD-0252 (corretor R-20261114-021248) — a lista de pedidos não leva mais a observação do pedido (`orderNote` saiu); o motivo fica só no Histórico e os avisos só em Alertas (RN-VEN-42); o caso segue com a contagem dos chips',
+  },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
 

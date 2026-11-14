@@ -7,8 +7,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
 import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
-import { INDICADORES_META } from '../../../contracts';
-import { ROTULO_INDICADOR } from '../../../app/lib/metas-formato';
+import { INDICADORES_META, ROTULO_INDICADOR_META } from '../../../contracts';
 import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
 import { useHojeDoTenant } from '../../lib/queries';
 import { InicioParametrosPanel } from './inicio-parametros-panel';
@@ -163,7 +162,7 @@ function MetasConteudo() {
           <option value="">Todos</option>
           {INDICADORES_META.map((i) => (
             <option key={i} value={i}>
-              {ROTULO_INDICADOR[i]}
+              {ROTULO_INDICADOR_META[i]}
             </option>
           ))}
         </SelectField>
@@ -207,7 +206,7 @@ function MetasConteudo() {
                     ))}
                     {pode && (
                       <td className={td}>
-                        <button type="button" className={BOTAO_LINHA} disabled={!l.editavel} onClick={() => abrirLinha(l)} aria-label={`${l.meta === 0 ? 'Definir' : 'Editar'} meta de ${ROTULO_INDICADOR[l.indicador]} de ${l.usuario_nome}`} data-testid={`metas.editar.${l.usuario_id}.${l.indicador}`}>
+                        <button type="button" className={BOTAO_LINHA} disabled={!l.editavel} onClick={() => abrirLinha(l)} aria-label={`${l.meta === 0 ? 'Definir' : 'Editar'} meta de ${ROTULO_INDICADOR_META[l.indicador]} de ${l.usuario_nome}`} data-testid={`metas.editar.${l.usuario_id}.${l.indicador}`}>
                           {l.meta === 0 ? 'Definir' : 'Editar'}
                         </button>
                       </td>
@@ -222,7 +221,7 @@ function MetasConteudo() {
 
       <Dialog
         open={modal !== null}
-        title={modal?.tipo === 'linha' ? `Meta de ${ROTULO_INDICADOR[modal.linha.indicador].toLowerCase()} · ${modal.linha.usuario_nome}` : 'Meta da equipe'}
+        title={modal?.tipo === 'linha' ? `Meta de ${ROTULO_INDICADOR_META[modal.linha.indicador].toLowerCase()} · ${modal.linha.usuario_nome}` : 'Meta da equipe'}
         onClose={fechar}
         footer={
           <>
@@ -250,7 +249,7 @@ function MetasConteudo() {
               <SelectField label="Indicador" value={indEquipe} onChange={(e) => setIndEquipe(e.target.value as Indicador)} data-testid="metas.lote-indicador">
                 {INDICADORES_META.map((i) => (
                   <option key={i} value={i}>
-                    {ROTULO_INDICADOR[i]}
+                    {ROTULO_INDICADOR_META[i]}
                   </option>
                 ))}
               </SelectField>

@@ -70,7 +70,7 @@ dentro de um contêiner de 30 dp não vale. Nestas peças o alvo é o tamanho do
 - Tipo desabilitado (ex.: o tenant não permite acréscimo em R$): `desabilitada: true` no tipo, com `motivo`.
 
 ## 2. Aba Detalhes, nesta ordem
-1. **Crédito do cliente** (`CartaoCredito`)
+1. **Crédito do cliente**: a tabela do `pedido-v3.md` §A
 2. Frete (CIF/FOB + transportadora; sai de Itens)
 3. Entrega
 4. Observações
@@ -78,18 +78,7 @@ dentro de um contêiner de 30 dp não vale. Nestas peças o alvo é o tamanho do
 6. Combina com o pedido
 
 ### 2.1 Crédito do cliente (RN-VEN-12, RN-VEN-13; `core.financeiro_cliente@1`)
-> **2026-11-09 (T-0141):** na aba Venda do Novo pedido v3, o crédito é a `TabelaValores` (Limite · Disponível · Prazo médio,
-> valores em Archivo negrito à direita): `pedido-v3.md` §A. O `CartaoCredito` abaixo fica só onde ainda é usado.
-- Título "CRÉDITO DO CLIENTE" (rótulo 11/700 maiúsculas).
-- Dois valores lado a lado: **Limite total** (esquerda) e **Limite disponível** (direita), Archivo 18 tabular, de centavos com
-  `formatBRL`. Disponível negativo: `negativo: true` (número em vermelho, com o sinal "−").
-- **Sem** a linha "Após este pedido".
-- Com título vencido: `alerta={textoInadimplencia({ titulos, valorCents, dias, consequencia: CONSEQUENCIA_VENCIDO })}` →
-  "Cliente inadimplente: 2 títulos vencidos · R$ 480,00 · há 12 dias. Só à vista ou com aprovação." (Faixa vermelha, com texto).
-  `dias` = atraso do título mais antigo.
-- Rodapé: `atualizacao={textoAtualizacao(sincronizadoEm, agora, tz)}` → "Atualizado hoje às 06:20" (fuso do tenant). Sem sinal:
-  `semSinal` troca o ícone; o texto continua (vale offline).
-- Sem dados do cliente: `vazio="Sem dados de crédito deste cliente."` (sem zeros falsos).
+Tabela de crédito (Limite · Disponível · Prazo médio): `pedido-v3.md` §A.
 
 ### 2.2 Leve mais e pague menos (RN-VEN-23)
 - Uma linha por item com próxima faixa (`proximaFaixa` do domain do Vendedor), com `textosLeveMais(...)`:
