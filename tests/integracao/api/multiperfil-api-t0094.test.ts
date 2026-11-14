@@ -26,10 +26,9 @@
  *
  * UM PERFIL POR USUÁRIO (0069, PR do banco `nuvem/cargos-banco-dados`; R-20261114-153500 "Cada usuario so pode ter um perfil"):
  * a exclusão adiada `usuario_perfil_um_vivo` recusa o 2º vínculo vivo (23P01 no COMMIT). Com a 0069 no repositório, as
- * combinações do MP-06a/b/c/d/f deixam de existir: no lugar delas, o arquivo confere que cada combinação é recusada pela API do
- * banco e que a TROCA de perfil (novo vínculo + `deleted_at` no antigo, na mesma transação, nas duas ordens) passa e é o que a API
- * lê. O MP-06e já era troca e vale nos dois estados. A regra no banco (todas as ordens, o gatilho do principal) é do
- * db/testes/cargo-hierarquia.db.test.ts; aqui fica a vista da API.
+ * combinações do MP-06a/b/c/d/f deixam de existir; aqui, a troca de perfil (novo vínculo + `deleted_at` no antigo, na mesma
+ * transação) é o que a API lê. O MP-06e já era troca e vale nos dois estados. A regra no banco (todas as ordens, o gatilho do
+ * principal) é do db/testes/cargo-hierarquia.db.test.ts.
  */
 import { CODIGOS_AUTH } from '@macuxi/core/contracts';
 import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
@@ -56,7 +55,6 @@ const UM_UUID = '0e000000-0000-4000-8000-0000000000f6';
 /** Senha das pessoas deste arquivo (RN-CORE-32) e e-mails fictícios. */
 const SENHA_MP = 'Multi#Perfil-T0094';
 const EM = (x: string) => `${x}.mp06@exemplo.com.br`;
-const EXCLUSAO = { code: '23P01', constraint: 'usuario_perfil_um_vivo' };
 
 describe.skipIf(semBanco())('T-0094/T-0111 MP-06 multiperfil pela API (RN-CORE-35, RN-PRO-01, RN-CORE-33)', () => {
   let api: ApiDeTeste;
@@ -193,15 +191,7 @@ describe.skipIf(semBanco())('T-0094/T-0111 MP-06 multiperfil pela API (RN-CORE-3
       expect(await vivos(pessoas.balcao)).toEqual(['vendedor_balcao']);
     });
 
-    it('o 2º vínculo vivo de cada combinação do MP-06 (vendedor+promotor, analista+vendedor, admin+vendedor, analista+admin) = 23P01 no COMMIT; nada muda', async () => {
-      for (const [quem, codigo] of [['vp', 'promotor'], ['av', 'vendedor'], ['admv', 'vendedor'], ['aadm', 'admin']] as const) {
-        const antes = await vivos(pessoas[quem]);
-        expect(await noCommit([await inserir(A.tenantId, pessoas[quem], await perfilId(A.tenantId, codigo))]), `${quem} + ${codigo}`).toEqual(EXCLUSAO);
-        expect(await vivos(pessoas[quem]), quem).toEqual(antes);
-      }
-    });
-
-    it('troca de perfil na mesma transação (novo vínculo + deleted_at no antigo, nas duas ordens) passa; o mesmo token e o login seguem', async () => {
+    it('troca de perfil na mesma transação (novo vínculo + deleted_at no antigo) passa; o mesmo token e o login seguem', async () => {
       const vendedor = await perfilId(A.tenantId, 'vendedor');
       const externo = await perfilId(A.tenantId, 'vendedor_externo');
       const token = await tokenDe(EM('vp'), 'campo');
@@ -213,8 +203,7 @@ describe.skipIf(semBanco())('T-0094/T-0111 MP-06 multiperfil pela API (RN-CORE-3
         expect(ids(await api.meusModulos(token))).toContain('vendedor');
         expect((await login(EM('vp'), 'campo')).statusCode).toBe(200);
       } finally {
-        // volta apagando antes de inserir (a outra ordem)
-        expect(await noCommit([apagar(pessoas.vp, externo), await inserir(A.tenantId, pessoas.vp, vendedor)])).toBeNull();
+        expect(await noCommit([await inserir(A.tenantId, pessoas.vp, vendedor), apagar(pessoas.vp, externo)])).toBeNull();
       }
       expect(await vivos(pessoas.vp)).toEqual(['vendedor']);
     });

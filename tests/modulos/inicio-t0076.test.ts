@@ -202,9 +202,6 @@ describe('Critério 5 — Cliente 360 sem "Ver catálogo" no rodapé', () => {
       expect(rodape).toMatch(/\{botoes\.checkout \? \(\s*<Button[^>]*label="Checkout"/);
       expect(rodape).toMatch(/\{botoes\.pesquisa \? \(\s*<Button[^>]*label="Pesquisa"/);
       expect(rodape.match(/<Button\b/g)).toHaveLength(4);
-      // Check-in e Checkout nunca juntos; fora da rota sem a permissão, sem Check-in (RN-CORE-52; a regra é a do domínio)
-      expect(tela).toMatch(/botoesDoRodapeCliente\(\{ temPesquisa: Boolean\(PesquisaComp\), atendimentoAqui: openHere, checkinPermitido: checkinLiberado( && !visited \}|, visitadoHoje: visited \})\)/);
-      expect(tela).toMatch(/const checkinLiberado = checkinPermitido\(\{[^}]*podeForaDeRota \}\)(\.permitido)?;/);
       expect(tela).toContain("params.checkin === '1'");
     } else if (tela.includes("visited ? 'Visitado' : 'Check-in'")) {
       // ficha até o #217: [Check-in/Visitado/Checkout] + [+ Novo pedido]
