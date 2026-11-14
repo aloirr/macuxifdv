@@ -320,6 +320,27 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - **Tela de entrada:** é outra peça, com o logo, a barra e as etapas. Spec em `docs/design/entrada-sync.md`; tokens em
   `TEMAS_ENTRADA` (`entrada.ts`).
 
+### 5.3 Cabeçalho do portal `config.` na faixa Azul noite (web; MC-0022 e MC-0023, 14/11/2026)
+Spec das telas: `docs/design/telas/portal-config-enxuto.md` §0. Simulação: `telas/portal-config-enxuto/depois-02-empresas.png`.
+- **Barra:** o `header` inteiro é a faixa (`bg-faixa`, Azul noite `#1E3350`), largura total, 72 px; sem borda inferior. O corpo
+  continua no Pérola, com os cartões brancos.
+- **Marca:** variante da `MarcaNaFaixa` **sem** fundo e sem arredondado próprios (`<MarcaNaFaixa solta={false}>` ou
+  `MarcaNaBarra`; o nome fica com o engenheiro-apps). Logo negativo a **104 px** de largura (22 px de altura, acima do mínimo
+  de 20 px) e **14 px de folga** em volta (`gap-3.5 p-3.5`; área de proteção = altura do "M", manual §2.3). Ao lado, o filete
+  (`bg-faixa-texto/40`) e o nome da área em `text-faixa-texto` (`#C9CED5`, 8,07:1), Archivo 14/700.
+- **Marca solta** (Entrar, Escolha a empresa, login do BKO, sem barra): a mesma peça dentro de uma faixa arredondada
+  (`rounded-xl bg-faixa p-3.5`), com o logo a 104 px.
+- **Abas do menu:** ativa `text-white border-b-2 border-white`; inativa `text-faixa-texto border-transparent hover:text-white`.
+- **Textos da sessão** ("Sessão até 00:56") e o nome da empresa (onde ainda aparecer): `text-faixa-texto`.
+- **Botão sobre a faixa** ("Sair", "Trocar de empresa"): secundário com borda `#C9CED5`, fundo transparente e texto branco
+  (12,77:1); hover `bg-white/10`; 36 px de altura com alvo de 44 px. Nunca o principal na faixa.
+- **Foco de teclado:** `outline-white` (o `outline-accent` some no Azul noite).
+
+**Botão desabilitado no web (escolha pedida pelo design-de-marca, 14/11):** um padrão só, o do app (§3): **Névoa `#ECEEF1`
+com texto `#5B6673` (5,03:1)**, sem transparência. Sai o `#8B96A3` com texto branco (3,00:1, abaixo de 4,5:1) do `Button`
+web (`--color-disabled`). A troca no kit (`packages/ui/src/web/ui.tsx`) entra no próximo lote do designer-ux, depois do
+"aprovo" do Alexandre que o design-de-marca leva.
+
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |
 |---|---|---|---|---|

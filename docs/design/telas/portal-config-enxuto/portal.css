@@ -7,14 +7,18 @@
 * { box-sizing: border-box; }
 body { margin: 0; width: 1280px; min-height: 900px; background: var(--ground); color: var(--ink); font: 14px/1.45 'IBM Plex Sans', system-ui, sans-serif; }
 h1, h2, h3, .marca, .num { font-family: Archivo, 'IBM Plex Sans', system-ui, sans-serif; }
-.topo { background: var(--surface); border-bottom: 1px solid var(--line); height: 72px; }
+/* MC-0023: o cabeçalho inteiro é a faixa Azul noite; MC-0022: logo a 104 px com 14 px de folga */
+.topo { background: var(--faixa); height: 72px; }
 .topo .in { width: 1088px; margin: 0 auto; height: 72px; display: flex; align-items: center; gap: 24px; }
-.marca { background: var(--faixa); color: #fff; border-radius: 10px; height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 22px; }
-.marca small { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; font-size: 15px; color: var(--faixaSub); border-left: 1px solid #5B6B80; padding-left: 12px; }
+.marca { color: #fff; padding: 14px 0; display: flex; align-items: center; gap: 14px; }
+.marca img { display: block; width: 104px; height: auto; }
+.marca.solta { background: var(--faixa); border-radius: 12px; padding: 14px; display: inline-flex; }
+.marca small { font-family: Archivo, 'IBM Plex Sans', system-ui, sans-serif; font-weight: 700; font-size: 14px; color: var(--faixaSub); border-left: 1px solid rgba(201,206,213,.4); padding-left: 14px; line-height: 24px; }
 .menu { display: flex; height: 72px; }
-.menu a { display: flex; align-items: center; padding: 0 12px; font-weight: 600; color: var(--ink2); text-decoration: none; border-bottom: 2px solid transparent; }
-.menu a.ativo { color: var(--ink); border-bottom-color: var(--accent); }
-.sessao { margin-left: auto; color: var(--ink2); font-size: 13px; }
+.menu a { display: flex; align-items: center; padding: 0 12px; font-weight: 600; color: var(--faixaSub); text-decoration: none; border-bottom: 2px solid transparent; }
+.menu a.ativo { color: #fff; border-bottom-color: #fff; }
+.sessao { margin-left: auto; color: var(--faixaSub); font-size: 13px; }
+.topo .btn { background: transparent; border-color: var(--faixaSub); color: #fff; }
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 14px; border: 1px solid var(--lineStrong); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.p { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.d { background: var(--danger); border-color: var(--danger); color: #fff; }
@@ -45,7 +49,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .abas span.ativa { color: var(--ink); border-bottom-color: var(--accent); }
 /* cartão de base em uma linha */
 .base { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 8px; min-height: 60px; }
-.base .num { width: 26px; height: 26px; border-radius: 13px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+.base .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
 .base .tit { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 14px; flex: 1; min-width: 0; white-space: nowrap; display: flex; gap: 8px; align-items: center; }
 .base .links { display: flex; gap: 12px; width: 240px; flex: none; }
 .base .arq { width: 196px; flex: none; white-space: nowrap; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink2); }
@@ -73,7 +77,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .lado > h2.lado-tit { font-size: 20px; margin: 0 0 12px; font-weight: 800; }
 .passo h2 { display: flex; gap: 10px; align-items: center; }
-.passo h2 .num { width: 26px; height: 26px; border-radius: 13px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.passo h2 .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .passos { margin: 0; padding-left: 20px; }
 .passos li { margin: 2px 0; }
 .dado { font-size: 13px; color: var(--ink2); margin-top: 8px; }
@@ -118,8 +122,8 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .adic span.p { color: var(--ink2); font-size: 13px; }
 .adic .qtd { width: 72px; height: 36px; }
 .ciclo { display: inline-flex; border: 1px solid var(--lineStrong); border-radius: 10px; overflow: hidden; }
-.ciclo span { height: 44px; padding: 0 18px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: #fff; }
-.ciclo span.on { background: var(--accent); color: #fff; }
+.ciclo > span { height: 44px; padding: 0 18px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: #fff; }
+.ciclo > span.on { background: var(--accent); color: #fff; }
 .ciclo span.on .selo { background: #fff; color: var(--accent); }
 .linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
@@ -132,3 +136,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
 .estados-cnpj .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
 @media (max-width: 767px) { .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
+/* fechamento (14/11): total do pedido e quantidade dos adicionais */
+.total { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.adic label.q { font-size: 12px; color: var(--ink2); font-weight: 600; }
