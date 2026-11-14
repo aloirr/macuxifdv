@@ -179,7 +179,7 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
       <View style={{ gap: 8 }} testID="cliente-enderecos">
         <SectionHeader title="Endereços de entrega" />
         {ficha.enderecos.length === 0 ? (
-          <Text style={t.sub}>Nenhum endereço de entrega. Sincronize para atualizar.</Text>
+          <Text style={t.sub}>Nenhum endereço de entrega.</Text>
         ) : (
           <Card>
             {ficha.enderecos.map((e, i) => (

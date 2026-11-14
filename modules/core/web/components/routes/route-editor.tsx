@@ -14,7 +14,6 @@ import {
   draftToMapStops,
   formatKm,
   idleLabel,
-  isSuggested,
   type MapStop,
   moveStop,
   moveStopTo,
@@ -343,7 +342,6 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
           className="h-10 rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink"
         />
       </label>
-      {!q && <span className="text-[12px] text-ink-2">Sugestões primeiro: curva A e sem compra há 45+ dias.</span>}
       {wallet.isPending && <LoadingBlock label="Carregando carteira…" />}
       {wallet.isError && <Notice tone="danger">{errorMessage(wallet.error)}</Notice>}
       {wallet.data && results.length === 0 && <span className="py-2 text-[13px] text-ink-2">Nenhum cliente encontrado (ou todos já estão na rota).</span>}
@@ -356,9 +354,7 @@ function AddCustomer({ sellerId, exclude, onAdd }: { sellerId: string; exclude: 
                 <span className="truncate text-[13px] font-semibold">{c.trade_name}</span>
                 <span className="truncate text-[12px] text-ink-2">{c.district}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-1">
-                  <Badge tone={c.abc_curve === 'A' ? 'pending' : 'neutral'}>Curva {c.abc_curve}</Badge>
-                  <Badge tone={idle === null || idle >= 45 ? 'danger' : 'neutral'}>{idleLabel(c)}</Badge>
-                  {isSuggested(c) && <Badge tone="warning">Sugestão</Badge>}
+                  {idle === null || idle >= 45 ? <Badge tone="danger">{idleLabel(c)}</Badge> : c.abc_curve === 'A' ? <Badge tone="pending">Curva A</Badge> : null}
                 </span>
               </div>
               <Button size="sm" onClick={() => onAdd(c)} aria-label={`Incluir ${c.trade_name} na rota`}>

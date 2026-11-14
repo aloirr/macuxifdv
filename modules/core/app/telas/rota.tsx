@@ -10,7 +10,6 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
 
 import type { RouteStop } from '../../contracts';
-import { visitDuration } from '../../domain';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
 import { ROTULO_ACESSIVEL_CHIP_ETAPA_PENDENTE, ROTULO_CHIP_ETAPA_PENDENTE } from '../lib/etapa-pendente';
@@ -164,16 +163,14 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
   if (done) {
     const v = stop.visit;
     const at = v ? formatHHMM(v.checkin_at, tz) : '';
-    if (v?.outcome === 'order') subtitle = `Pedido ${stop.order_total_cents !== null ? formatBRL0(stop.order_total_cents) : ''} · ${at}${v.checkout_at ? ` · ${visitDuration(v.checkin_at, v.checkout_at)}` : ''}`;
-    else if (v?.outcome === 'no_order') subtitle = `Sem pedido · motivo: ${v.no_order_reason.toLowerCase()}`;
-    else if (v?.closed_by === 'auto') subtitle = `Check-in ${at} · fechado na virada do dia`;
+    if (v?.outcome === 'order') subtitle = `Pedido ${stop.order_total_cents !== null ? formatBRL0(stop.order_total_cents) : ''}`.trim();
+    else if (v?.outcome === 'no_order') subtitle = `Sem pedido: ${v.no_order_reason.toLowerCase()}`;
+    else if (v?.closed_by === 'auto') subtitle = 'Fechada na virada do dia';
     else subtitle = `Check-in ${at}`;
   } else if (inProgress) {
-    subtitle = `Em atendimento · check-in às ${stop.visit ? formatHHMM(stop.visit.checkin_at, tz) : '--:--'}`;
-  } else if (isNext) {
-    subtitle = `Próxima · ${stop.window_start} · ${stop.distance_km.toLocaleString('pt-BR')} km`;
+    subtitle = `Check-in ${stop.visit ? formatHHMM(stop.visit.checkin_at, tz) : '--:--'}`;
   } else {
-    subtitle = `${stop.window_start} · ${hint(c)}`;
+    subtitle = stop.window_start;
   }
   const actionLabel = inProgress ? 'Checkout' : 'Check-in';
   return (
@@ -221,14 +218,6 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
       ) : null}
     </View>
   );
-}
-
-function hint(c: RouteStop['customer']): string {
-  if (c.days_since_purchase === null) return 'nunca comprou';
-  if (c.days_since_purchase >= 45) return `${c.days_since_purchase} dias sem comprar`;
-  if (c.overdue_count > 0) return `${c.overdue_count} ${c.overdue_count === 1 ? 'título vencido' : 'títulos vencidos'}`;
-  if (!c.positivated_this_month) return 'positivar no mês';
-  return `Curva ${c.abc_curve} · ${c.district}`;
 }
 
 const styles = StyleSheet.create({

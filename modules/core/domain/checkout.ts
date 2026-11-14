@@ -128,7 +128,7 @@ export interface PreparoCheckout extends AvaliacaoCheckout {
 /**
  * RN-CORE-12 de ponta a ponta para a folha de checkout (função pura, sem I/O e sem relógio):
  * converte a escolha + o motivo no `resultado` do contrato, avalia com `avaliarCheckoutVisita`
- * e devolve as etapas pendentes (para "Falta concluir") e o registro das etapas (para o payload).
+ * e devolve as etapas pendentes e o registro das etapas (para o payload).
  * - Motivo do tipo `cliente_fechado` vence a escolha e vira `cliente_fechado` (RN-CORE-14), para vendedor e promotor.
  * - Com Vendedor efetivo: `pedido` exige o pedido da visita; `sem_pedido` exige motivo; `atendido` não vale.
  * - Sem Vendedor efetivo: só `atendido` (ou cliente fechado).

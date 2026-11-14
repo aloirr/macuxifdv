@@ -358,11 +358,6 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           </View>
         );
       })}
-      {tentou && preparo.etapasPendentes.length > 0 ? (
-        <Text testID="checkout-pendencias" style={styles.pendencia}>
-          Falta concluir: {preparo.etapasPendentes.map((e) => e.rotulo).join(', ')}.
-        </Text>
-      ) : null}
       {erro ? (
         <Text testID="checkout-erro" style={styles.pendencia}>
           {erro}
