@@ -38,3 +38,4 @@ export * from './email';
 export * from './pacotes';
 export * from './diagnostico';
 export * from './planos';
+export * from './cnpj';
