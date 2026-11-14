@@ -52,9 +52,9 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | **Pérola** | `#F8F6F1` | fundo das telas (app, BKO e portal) e fundo do ícone do Gestão |
 | Branco | `#FFFFFF` | cartões, campos, papel do PDF e corpo do e-mail |
 | **Sol laranja** | `#C2540A` | sol do logo e gráficos: barra de meta e de share, contador, marcador. **Nunca texto sobre claro** |
-| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite); como texto, só no título de grupo do menu e do painel do BKO (MC-0054) |
+| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite); como texto, só no título de grupo do menu e do painel do BKO, nunca em item, link ou botão (MC-0054, R-20261114-184400) |
 | Grafite | `#16202A` | texto principal, botão Sincronizar, menu lateral do BKO |
-| Grafite do menu | `#2B3743` | só no menu lateral do BKO: tela atual, hover e divisória (MC-0055) |
+| Grafite do menu | `#2B3743` | só no menu lateral do BKO: tela atual, hover e divisória (MC-0055, R-20261114-184400) |
 | Texto secundário | `#4A5562` | texto de apoio |
 | Texto de apoio | `#5B6673` | legendas e rótulos menores |
 | Azul claro | `#9AA3B0` | azul sobre o grafite |
@@ -105,10 +105,6 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 **Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado".
 
 **Exceção ampliada (decisão do Alexandre, 14/11/2026, recado R-20261114-172200, resposta "A"; fecha a MC-0049):** o **✓ de campo validado** usa `#1D6B4F`, sem texto ao lado, e sempre com rótulo de acessibilidade que diga o resultado (ex.: "CNPJ encontrado"). Só essas duas exceções; nos outros lugares o verde continua só com texto.
-
-**Menu lateral do BKO** (decisões do Alexandre, 14/11/2026, R-20261114-184400, resposta "A"):
-- **Título de grupo em Sol claro `#F59A52`** (MC-0054). Sol claro como texto só no título de grupo do menu e do painel do BKO, **nunca em item, link ou botão**.
-- **`#2B3743`** (MC-0055) marca a tela atual, o hover e a divisória do menu, sobre o grafite `#16202A`. Pares: branco 12,14; Sol claro 5,56; `#C9CED5` 7,67.
 
 **Combinações proibidas:**
 - texto laranja sobre claro. Se for inevitável, use `#8F3D06`;
