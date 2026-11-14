@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0170 · Início do Campo · painel do topo de ponta a ponta</title>
+<link rel="stylesheet" href="T-0170-inicio.css">
+<style>
+  /* Pedido do dono do produto (14/11, 5h40): o Azul noite de ponta a ponta, como no quadro 8 de
+     docs/marca/propostas/2026-11-12-entrada-sync. Dois quadros 412 × 892 dp: Hoje (cartão raio 24) e Ajustado. */
+  body { width: auto; height: auto; overflow: visible; background: #FFFFFF; padding: 32px; display: flex; gap: 48px; }
+  .quadro { display: flex; flex-direction: column; gap: 14px; }
+  .rot { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; color: var(--ink); }
+  .aparelho { border: 1px solid #C9CEC6; border-radius: 28px; box-shadow: 0 10px 28px rgba(22, 32, 42, .14); }
+  .rolagem { padding: 8px 20px 12px; gap: 14px; }
+  /* painel de hoje: cartão Azul noite com raio 24 e margens laterais de 20 (Screen) */
+  .painel-c { background: var(--faixa); border-radius: 24px; padding: 16px; min-height: 140px; display: flex; align-items: center; gap: 12px; flex: none; }
+  .painel-c .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .painel-c .dt { font-size: 14px; color: var(--faixaSub); }
+  .painel-c .sd { font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; line-height: 34px; color: #fff; white-space: nowrap; }
+  .painel-c .fr { font-size: 15px; line-height: 20px; font-style: italic; color: var(--faixaSub); }
+  .painel-c .av { width: 96px; height: 128px; border-radius: 16px; background: var(--accentSoft); color: var(--accentInk); font-family: Archivo, sans-serif; font-weight: 800; font-size: 32px; display: flex; align-items: center; justify-content: center; flex: none; }
+  /* ajustado: o painel começa atrás da barra de status, ocupa a largura toda, sem raio, borda de baixo reta */
+  .ajustado .sb { background: var(--faixa); color: #fff; }
+  .ajustado .painel-c { border-radius: 0; padding: 8px 20px 20px; }
+  .ajustado .rolagem { padding-top: 0; }
+  .ajustado .rolagem > .painel-c { margin: 0 -20px; }
+  .lt { display: flex; align-items: center; justify-content: space-between; min-height: 48px; gap: 12px; }
+  .lt h2 { margin: 0; font-family: Archivo, sans-serif; font-weight: 700; font-size: 17px; color: var(--ink); }
+  .sino-p { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; align-items: center; justify-content: center; position: relative; }
+  .sino-p .cont { position: absolute; top: -8px; right: -8px; min-width: 16px; height: 22px; padding: 0 3px; border-radius: 13px; border: 2px solid var(--ground); background: var(--grafico); color: #fff; font-size: 12px; font-weight: 600; line-height: 22px; text-align: center; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cm { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .cm .t { font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+  .cm .r { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; line-height: 28px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cm .r span { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; font-size: 18px; color: var(--ink2); }
+  .cm .lb { display: flex; align-items: center; gap: 8px; }
+  .cm .lb .barra { flex: 1; }
+  .cm .pc { font-size: 14px; font-weight: 700; color: var(--danger); font-variant-numeric: tabular-nums; }
+  .cm .rp { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--ink2); }
+  .cm .rp b { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .prod { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 6px; display: grid; grid-template-columns: repeat(3, 1fr); row-gap: 12px; }
+  .prod > div { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .prod > div:not(:nth-child(3n+1)) { border-left: 1px solid var(--line); }
+  .prod .t { font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prod .v { display: flex; align-items: center; gap: 4px; font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .prod .v i { width: 8px; height: 8px; border-radius: 4px; background: var(--success); flex: none; }
+  .prod .v i.fora { background: var(--grafico); }
+</style>
+</head>
+<body>
+<template id="conteudo">
+    <div class="painel-c">
+      <div class="tx">
+        <span class="dt">Sábado, 14 de novembro · DU 11 de 23</span>
+        <span class="sd">Bom dia, Lucas</span>
+        <span class="fr">“Cada cliente atendido é uma relação que cresce.”</span>
+      </div>
+      <div class="av">LA</div>
+    </div>
+    <div class="lt">
+      <h2>Metas do mês</h2>
+      <div class="sino-p"><i data-i="sino" data-t="22" data-c="#16202A" data-w="2"></i><span class="cont">2</span></div>
+    </div>
+    <div class="grade">
+      <div class="cm"><span class="t">Vendas</span><span class="r">R$ 21,4 k<span> / 180 k</span></span><div class="lb"><div class="barra"><i style="width:12%"></i></div><span class="pc">12%</span></div><div class="rp">Meta/dia<b>R$ 12.700</b></div></div>
+      <div class="cm"><span class="t">Positivação</span><span class="r">9<span> / 70</span></span><div class="lb"><div class="barra"><i style="width:13%"></i></div><span class="pc">13%</span></div><div class="rp">Meta/dia<b>5</b></div></div>
+      <div class="cm"><span class="t">Visitas</span><span class="r">10<span> / 90</span></span><div class="lb"><div class="barra"><i style="width:11%"></i></div><span class="pc">11%</span></div><div class="rp">Meta/dia<b>7</b></div></div>
+      <div class="cm"><span class="t">Itens por pedido</span><span class="r">5,8<span> / 8,0</span></span><div class="lb"><div class="barra"><i style="width:73%"></i></div><span class="pc">73%</span></div><div class="rp">Meta/pedido<b>9,1</b></div></div>
+    </div>
+    <div class="lt">
+      <h2>Produtividade</h2>
+      <i data-i="chevron" data-t="22" data-c="#16202A"></i>
+    </div>
+    <div class="prod">
+      <div><span class="t">Jornada líquida</span><span class="v"><i></i>7h12</span></div>
+      <div><span class="t">1º check-in</span><span class="v"><i></i>07:52</span></div>
+      <div><span class="t">Almoço</span><span class="v"><i class="fora"></i>1h34</span></div>
+      <div><span class="t">Último check-in</span><span class="v"><i></i>17:40</span></div>
+      <div><span class="t">Fora de rota</span><span class="v"><i></i>1</span></div>
+      <div><span class="t">TMA</span><span class="v">—</span></div>
+    </div>
+</template>
+<div class="quadro"><span class="rot">Hoje</span>
+  <div class="aparelho"><div class="sb"><span>05:40</span><span class="dir">5G ▮▮▮ 54%</span></div><div class="rolagem"></div><div class="barra-abas" data-ativa="inicio"></div></div>
+</div>
+<div class="quadro ajustado"><span class="rot">Ajustado</span>
+  <div class="aparelho"><div class="sb"><span>05:40</span><span class="dir">5G ▮▮▮ 54%</span></div><div class="rolagem"></div><div class="barra-abas" data-ativa="inicio"></div></div>
+</div>
+<script>
+  const t = document.getElementById('conteudo');
+  document.querySelectorAll('.rolagem').forEach((r) => r.appendChild(t.content.cloneNode(true)));
+</script>
+<script src="icones.js"></script>
+</body>
+</html>
