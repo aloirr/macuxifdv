@@ -4,9 +4,7 @@
  */
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it } from 'vitest';
-
-import { progressoDaEntrada } from '../../../../modules/core/domain/entrada-sync';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   cabeLista,
@@ -18,6 +16,14 @@ import {
   textoDoErro,
 } from './entrada';
 import { PROPORCAO_LOGO_EMPILHADO } from './logo-marca';
+
+// o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
+vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+const { progressoDaEntrada } = await import('@macuxi/core/app');
 
 /** Largura e altura de um PNG (cabeçalho IHDR). */
 function tamanhoPng(caminho: URL): { largura: number; altura: number } {

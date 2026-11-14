@@ -22,9 +22,13 @@ import { criarMemoriaDaEntrada } from './entrada';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 import { ordemDaCargaDoUsuario } from './ordem-da-carga';
 
-// o índice de `@macuxi/core/app` puxa telas (react-native); o teste usa a regra pura do Core direto
-vi.mock('@macuxi/core/app', () => import('../../../../modules/core/domain/entrada-sync'));
-const { progressoDaEntrada } = await import('../../../../modules/core/domain/entrada-sync');
+// o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
+vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+const { progressoDaEntrada } = await import('@macuxi/core/app');
 
 /** Registro com todas as entidades dos manifestos instalados (a mistura real de módulos, em ordem alfabética no motor). */
 function registroCompleto() {
