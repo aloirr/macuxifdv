@@ -174,6 +174,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `LinhaDePermissao`: rótulo, ajuda, "Padrão: X" e o controle à direita; com `trava`, o `Cadeado` logo depois do rótulo.
 - `Interruptor`: liga/desliga com "Sim"/"Não"/"Em parte" escrito, `role="switch"`, alvo de 44 px; trilho desligado em `disabled`
   (3:1 sobre branco), ligado em `ink`. Em toda página de permissões, liga/desliga é sempre interruptor; caixa fica para listas.
+  O ligado é grafite (`ink`) de propósito: é estado, não ação; o Azul noite (`accent`) fica para o botão principal (MC-0018).
 - `SeletorDeNivel`: botões lado a lado sobre rádios nativos (setas do teclado); opção acima do permitido com cadeado e motivo.
 - `SeletorDePerfis`: caixas num `fieldset`, opção "todos" opcional, opção travada com motivo. `Cadeado`: regra no hover, foco e
   toque, e como descrição para o leitor de tela. `ResumoDasMudancas`: "Rótulo: antes → depois" por seção, falado sem a seta.
