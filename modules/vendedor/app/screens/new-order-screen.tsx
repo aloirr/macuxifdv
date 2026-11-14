@@ -172,7 +172,7 @@ function CustomerPicker() {
 
 // ---------------------------------------------------------------------------
 
-type Sent = { kind: 'sent'; order: OrderDetail; snapshot: Snapshot } | { kind: 'queued'; message: string; snapshot: Snapshot };
+type Sent = { kind: 'sent'; order: OrderDetail; snapshot: Snapshot } | { kind: 'queued'; snapshot: Snapshot };
 interface Snapshot {
   calculo: CalculoPedido;
   nomes: Array<[string, string]>;
@@ -604,7 +604,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
         router.replace(hrefPedido(destino) as never);
         return true;
       }
-      setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', message: res.message, snapshot });
+      setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', snapshot });
       setQuery('');
       setAba('resumo');
       return true;
