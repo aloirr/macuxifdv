@@ -39,10 +39,17 @@ describe('shell web sem laranja cru em texto', () => {
     expect(css).toMatch(/--color-faixa-texto:\s*#c9ced5/);
     expect(fontes.filter(({ texto }) => /font-extrabold text-on-accent">M</.test(texto)).map(({ f }) => f)).toEqual([]);
     const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
-    expect(de('components/marca-faixa.tsx')).toContain('bg-faixa ');
+    expect(de('components/marca-faixa.tsx')).toContain("'rounded-xl bg-faixa'");
     expect(de('components/marca-faixa.tsx')).toContain('text-faixa-texto');
     expect(de('components/login-screen.tsx')).toContain('<MarcaNaFaixa area="Backoffice" />');
-    expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
+    expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" noPortal semFundo={naBarra} />');
+    // MC-0022: logo a 104 px com 14 px de folga; MC-0023: o cabeçalho do portal é a faixa Azul noite
+    expect(de('components/marca-faixa.tsx')).toContain('noPortal ? 104 : 130');
+    expect(de('components/marca-faixa.tsx')).toContain('gap-3.5 p-3.5');
+    expect(de('components/portal/base.tsx')).toContain('<header data-testid="portal.cabecalho" className="bg-faixa">');
+    // MC-0021: o botão-link principal do portal é Azul noite, sem hex solto
+    expect(de('components/portal/base.tsx')).toContain("'bg-accent text-white hover:bg-accent/90'");
+    expect(de('components/portal/base.tsx')).not.toMatch(/#0b1218/i);
   });
 
   it('as linhas do recado usam accent-ink', () => {

@@ -56,12 +56,12 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
     setEnviando(true);
     setErroDialogo(null);
     try {
-      const r = await chamarPortal(ROTAS_PORTAL.redefinirSenhaAdmin(tenant, alvo.usuario_id), {
+      await chamarPortal(ROTAS_PORTAL.redefinirSenhaAdmin(tenant, alvo.usuario_id), {
         metodo: 'POST',
         corpo: { email_id: emailId },
         schema: RedefinirSenhaAdminRespostaSchema,
       });
-      setAviso({ tom: 'success', texto: textoDoResultado(alvo.email, r, fuso) });
+      setAviso({ tom: 'success', texto: textoDoResultado(alvo.email) });
       setAlvo(null);
       void qc.invalidateQueries({ queryKey: chaveAdmins(tenant) });
     } catch (x) {
@@ -80,7 +80,6 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
   return (
     <Panel title={TEXTOS_ADMINS.titulo} label={TEXTOS_ADMINS.titulo}>
       <div data-testid="empresa-admins" className="flex flex-col gap-3">
-        <span className="text-[13px] text-ink-2">{TEXTOS_ADMINS.ajuda}</span>
         <div aria-live="polite">
           {aviso && (
             <div data-testid="empresa-admins.aviso">
@@ -101,19 +100,18 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
         {q.isSuccess && q.data.length > 0 && (
           <ul data-testid="empresa-admins.lista" className="m-0 flex list-none flex-col p-0">
             {q.data.map((a) => (
-              <li key={a.usuario_id} data-testid={`empresa-admins.item-${a.usuario_id}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-line-2 py-2 last:border-b-0">
+              <li key={a.usuario_id} data-testid={`empresa-admins.item-${a.usuario_id}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-line py-2.5 last:border-b-0">
                 <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[14px] font-semibold">{a.nome}</span>
+                  {/* selo ao lado do nome (spec portal-config-enxuto §8): sem coluna solta no meio da linha */}
+                  <span className="flex flex-wrap items-center gap-2 text-[14px] font-semibold">
+                    {a.nome}
+                    {etiquetasDoAdmin(a, Date.now(), fuso).map((e) => (
+                      <span key={e.texto} title={e.dica}>
+                        <Badge tone={e.tom}>{e.texto}</Badge>
+                      </span>
+                    ))}
+                  </span>
                   <span className="break-all text-[13px] text-ink-2">{a.email}</span>
-                  {etiquetasDoAdmin(a, Date.now(), fuso).length > 0 && (
-                    <span className="flex flex-wrap gap-1">
-                      {etiquetasDoAdmin(a, Date.now(), fuso).map((e) => (
-                        <span key={e.texto} title={e.dica}>
-                          <Badge tone={e.tom}>{e.texto}</Badge>
-                        </span>
-                      ))}
-                    </span>
-                  )}
                 </div>
                 {podeRedefinir(a) && (
                   <Button size="sm" data-testid="empresa-admins.redefinir" aria-label={`${TEXTOS_ADMINS.botao} de ${a.nome}`} onClick={() => abrir(a)}>

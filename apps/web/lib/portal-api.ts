@@ -80,7 +80,7 @@ export function houveUsoRecente(agora = Date.now()): boolean {
 
 // ---------------------------------------------------------------------------------------------------------------- transporte
 
-type Metodo = 'GET' | 'POST' | 'PATCH';
+type Metodo = 'GET' | 'POST' | 'PATCH' | 'PUT';
 
 async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
   if (MODO_PORTAL_FALSO) {
@@ -245,13 +245,6 @@ export async function chamarPortal<T = unknown>(caminho: string, o: OpcoesChamad
   return p.data;
 }
 
-/** Baixa um arquivo (CSV, JSON) de uma rota autenticada: `fetch` + `Blob`, com o nome do `Content-Disposition`. */
-export async function baixarDoPortal(caminho: string, o: { tenant?: string; nomePadrao: string }): Promise<void> {
-  const res = await enviar(caminho, { metodo: 'GET', tenant: o.tenant });
-  const blob = await res.blob();
-  downloadBlob(blob, filenameFromDisposition(res.headers.get('content-disposition'), o.nomePadrao));
-}
-
 /** Bytes de uma rota autenticada como `Blob` (o print do diagnóstico, T-0158), sem baixar: a tela mostra e abre em outra aba. */
 export async function blobDoPortal(caminho: string): Promise<Blob> {
   const res = await enviar(caminho, { metodo: 'GET' });
@@ -260,7 +253,7 @@ export async function blobDoPortal(caminho: string): Promise<Blob> {
 
 /**
  * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`. Hoje só o OpenAPI do Hub
- * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente ("em breve").
+ * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente (`TEXTO_INDISPONIVEL`).
  */
 export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: string): Promise<void> {
   if (MODO_PORTAL_FALSO) throw new ErroPortal(404, 'http_404', 'Documento ausente no modo falso.');
@@ -282,8 +275,11 @@ export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: strin
   downloadBlob(await res.blob(), filenameFromDisposition(res.headers.get('content-disposition'), nomePadrao));
 }
 
+/** O que a tela mostra, ao lado do controle, quando a rota ainda não existe neste servidor (RD-0288: um texto só). */
+export const TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.';
+
 /**
- * 404 de rota que ainda não existe neste servidor (N1/N2 da nuvem antes do merge): a tela mostra "em breve". A API responde
+ * 404 de rota que ainda não existe neste servidor (N1/N2 da nuvem antes do merge): a tela mostra `TEXTO_INDISPONIVEL`. A API responde
  * `NAO_ENCONTRADO` para rota desconhecida (apps/api/src/app.ts); 404 de recurso tem código próprio (`LOTE_NAO_ENCONTRADO`...).
  */
 export function ehRotaAusente(e: unknown): boolean {

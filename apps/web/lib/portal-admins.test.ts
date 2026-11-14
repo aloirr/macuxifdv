@@ -14,7 +14,7 @@ import {
   TEXTOS_ADMINS,
   tituloDoDialogo,
 } from './portal-admins';
-import { ErroPortal, MENSAGEM_SEM_CONEXAO } from './portal-api';
+import { ErroPortal, MENSAGEM_SEM_CONEXAO, TEXTO_INDISPONIVEL } from './portal-api';
 import { responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -74,16 +74,12 @@ describe('partes puras', () => {
     expect(ListaAdminsDaEmpresaSchema.parse({ itens: [admin({ entra_no_portal: false })] }).itens[0]?.entra_no_portal).toBe(false);
   });
 
-  it('diálogo e resultado: e-mail, 72 h e a validade no fuso; nunca a senha', () => {
+  it('diálogo e resultado (spec portal-config-enxuto §8, RD-0291): destino e efeito; a validade fica só no selo; nunca a senha', () => {
     expect(tituloDoDialogo('Ana Souza')).toBe('Redefinir a senha de Ana Souza?');
-    expect(TEXTOS_ADMINS.dialogoTexto(admin())).toBe(
-      'O Macuxi gera uma senha temporária e manda para ana@uma.com.br. Ela vale por 72 horas; no próximo acesso ao backoffice, a pessoa cria uma senha nova. Ana Souza sai do Macuxi agora, em todos os aparelhos.',
-    );
-    // quem só entra pelo app cria a senha no app (RN-CORE-35)
-    expect(TEXTOS_ADMINS.dialogoTexto(admin({ entra_no_portal: false }))).toContain('no próximo acesso ao app, a pessoa cria uma senha nova');
-    expect(textoDoResultado('ana@uma.com.br', { senha_expira_em: '2026-11-11T16:00:00Z' }, 'America/Manaus')).toBe(
-      'Senha temporária enviada para ana@uma.com.br. Vale até 11/11 às 12:00.',
-    );
+    expect(TEXTOS_ADMINS.dialogoTexto(admin())).toBe('Uma senha temporária vai para ana@uma.com.br. Ana Souza sai do Macuxi em todos os aparelhos.');
+    expect(textoDoResultado('ana@uma.com.br')).toBe('Senha temporária enviada para ana@uma.com.br.');
+    expect(TEXTOS_ADMINS.empresaNaoEncontrada).toBe('Empresa não encontrada ou inativa.');
+    expect(TEXTOS_ADMINS.rotaAusente).toBe(TEXTO_INDISPONIVEL);
   });
 
   it('erros da API: o que a tela faz', () => {

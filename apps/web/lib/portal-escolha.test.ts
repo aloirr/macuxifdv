@@ -4,8 +4,7 @@
  * `SessaoPortalSchema` do SDK.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { ImportarEquipeRespostaSchema } from '@macuxi/core/contracts';
+import { ConsultaCnpjRespostaSchema, CriarEmpresaComPlanoRespostaSchema, FichaAssinaturaSchema, ListaPlanosSchema, SessaoPortalSchema } from '@macuxi/platform-sdk';
 
 import { CONTA_SENHA_A_TROCAR, CONTAS_FALSAS, responderFalso, zerarModoFalso } from './portal-falso';
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
@@ -253,23 +252,23 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(itensDaEscolha(s0).map((i) => i.nome)).toEqual(['Atacado Norte S.A.', 'Comercial Boa Vista Ltda']);
     const [a, b] = s0.empresas;
     if (!a || !b) throw new Error('sessão sem as duas empresas');
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s0, { 'x-macuxi-tenant': a.id }))).status).toBe(409);
 
     const s1 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: a.id }, com(s0)));
     expect(s1.empresa?.id).toBe(a.id);
     expect(s1.token).not.toBe(s0.token);
     expect((await responderFalso('POST', ROTAS_PORTAL.renovar, undefined, com(s0))).status).toBe(401);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': a.id }))).status).toBe(200);
     // outra empresa da lista sem escolher de novo: 403
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s1, { 'x-macuxi-tenant': b.id }))).status).toBe(403);
 
     const s2 = await sessaoDe(await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: b.id }, com(s1)));
     expect(s2.empresa?.id).toBe(b.id);
-    expect((await responderFalso('GET', ROTAS_PORTAL.ordemCarga, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
+    expect((await responderFalso('GET', ROTAS_PORTAL.conectores, undefined, com(s2, { 'x-macuxi-tenant': a.id }))).status).toBe(403);
     // empresa fora da lista: 403 na escolha
     expect((await responderFalso('POST', ROTAS_PORTAL.escolherEmpresa, { tenant_id: '0b6f1a52-5c1e-4c4e-9a43-000000000099' }, com(s2))).status).toBe(403);
     // o admin do cliente não cria empresa nem vê as dos outros
-    expect((await responderFalso('POST', ROTAS_PORTAL.empresas, {}, com(s2))).status).toBe(403);
+    expect((await responderFalso('POST', ROTAS_PORTAL.empresaComPlano, {}, com(s2))).status).toBe(403);
     const lista = (await (await responderFalso('GET', ROTAS_PORTAL.empresas, undefined, com(s2))).json()) as { itens: { id: string }[] };
     expect(lista.itens.map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
   });
@@ -290,26 +289,6 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect((await login(CONTA_SENHA_A_TROCAR, 'errada')).status).toBe(401);
   });
 
-  it('T-0094: Equipe por CSV sem convite; acessos enviados por e-mail; 503 EMAIL_INDISPONIVEL antes de gravar', async () => {
-    const s = await sessaoDe(await login('admin@uma.com.br'));
-    const tenant = s.empresa?.id ?? '';
-    const cab = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos';
-    const importar = (csv: string, modo: 'conferir' | 'gravar') => responderFalso('POST', ROTAS_PORTAL.equipeImportacoes, { csv, modo }, com(s, { 'x-macuxi-tenant': tenant }));
-    const csv = [cab, 'Ana,ana@x.com.br,,supervisor,,,', 'Bia,bia@x.com.br,,vendedor,ana@x.com.br,,', ''].join('\n');
-    const r = ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json());
-    expect(r).toMatchObject({ gravado: true, acessos_enviados: 2, email_acesso: 'enfileirado' });
-    expect(r).not.toHaveProperty('convites');
-    // de novo: ninguém novo, nenhum acesso
-    expect(ImportarEquipeRespostaSchema.parse(await (await importar(csv, 'gravar')).json())).toMatchObject({ acessos_enviados: 0, email_acesso: null });
-    const semEmail = [cab, 'Caio,caio@sem-email.com.br,,vendedor,,,', ''].join('\n');
-    expect((await importar(semEmail, 'conferir')).status).toBe(200);
-    const g = await importar(semEmail, 'gravar');
-    expect(g.status).toBe(503);
-    expect(((await g.json()) as { codigo: string }).codigo).toBe('EMAIL_INDISPONIVEL');
-    // a lista da equipe fica na memória: nada de e-mail no sessionStorage
-    expect(st.valores().join(' ')).not.toMatch(/ana@|bia@|caio@/);
-  });
-
   it('nada de senha nem de e-mail no sessionStorage (sessão salva e estado do modo falso)', async () => {
     const s = await sessaoDe(await login('admin@duas.com.br'));
     salvarSessaoPortal(s, st);
@@ -321,18 +300,84 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     expect(tudo).not.toMatch(/"senha"/);
   });
 
-  it('passo Empresa: empresa nova sem admin = 422 RN-CORE-34; senha fraca = 422 RN-CORE-32 com as faltas; com admin = criado', async () => {
+  it('Nova empresa com plano: sem admin = 422 RN-CORE-34; senha fraca = 422 RN-CORE-32; criada com o código UF + 4 dígitos', async () => {
     const s = await sessaoDe(await login('time@macuxi.com.br'));
-    const empresa = { codigo: 'nova-empresa', razao_social: 'Nova Empresa Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'vendedor', licencas: 3 }] };
-    const sem = await responderFalso('POST', ROTAS_PORTAL.empresas, empresa, com(s));
+    const empresa = {
+      uf: 'AM',
+      razao_social: 'Nova Empresa Ltda',
+      cnpj: '11.222.333/0001-81',
+      fuso: 'America/Manaus',
+      assinatura: { plano: 'pme', ciclo: 'mensal', adicionais: [{ adicional: 'promotor', quantidade: 3 }, { adicional: 'pesquisa', quantidade: 10 }], com_teste: false, pedido_id: '3f1c2b4a-1d2e-4f5a-8b6c-7d8e9f0a1b2c' },
+    };
+    const sem = await responderFalso('POST', ROTAS_PORTAL.empresaComPlano, empresa, com(s));
     expect(sem.status).toBe(422);
     expect(((await sem.json()) as { codigo: string }).codigo).toBe('RN-CORE-34');
-    const fraca = await responderFalso('POST', ROTAS_PORTAL.empresas, { ...empresa, admin: { nome: 'Ana', email: 'ana@nova.com.br', senha: 'semnumero' } }, com(s));
+    const fraca = await responderFalso('POST', ROTAS_PORTAL.empresaComPlano, { ...empresa, admin: { nome: 'Ana', email: 'ana@nova.com.br', senha: 'semnumero' } }, com(s));
     expect(fraca.status).toBe(422);
     expect(await fraca.json()).toMatchObject({ codigo: 'RN-CORE-32', detalhes: { faltas: ['numero', 'especial'] } });
-    const ok = await responderFalso('POST', ROTAS_PORTAL.empresas, { ...empresa, admin: { nome: 'Ana', email: 'ana@nova.com.br', senha: SENHA } }, com(s));
+    const ok = await responderFalso('POST', ROTAS_PORTAL.empresaComPlano, { ...empresa, admin: { nome: 'Ana', email: 'ana@nova.com.br', senha: SENHA } }, com(s));
     expect(ok.status).toBe(201);
-    expect(await ok.json()).toMatchObject({ resultado: 'criado', admin: 'criado' });
+    const r = CriarEmpresaComPlanoRespostaSchema.parse(await ok.json());
+    expect(r).toMatchObject({ resultado: 'criado', admin: 'criado', teste_ate: null, valor: { por_ciclo_centavos: 153_700, ciclo: 'mensal' } });
+    expect(r.codigo).toMatch(/^AM\d{4}$/);
+    // a ficha da empresa nova: PME, 3 promotores e 10 de Pesquisa contratados
+    const f = FichaAssinaturaSchema.parse(await (await responderFalso('GET', ROTAS_PORTAL.assinatura(r.tenant_id ?? ''), undefined, com(s))).json());
+    expect(f.plano.codigo).toBe('pme');
+    expect(f.licencas.find((l) => l.item === 'promotor')?.contratadas).toBe(3);
     expect(st.valores().join('\n')).not.toContain(SENHA);
+  });
+
+  it('CNPJ: ativo preenche; baixado, não encontrado e Receita fora como a API; o criar recusa o não ativo', async () => {
+    const s = await sessaoDe(await login('time@macuxi.com.br'));
+    const consultar = (cnpj: string) => responderFalso('POST', ROTAS_PORTAL.cnpj, { cnpj }, com(s));
+    expect(ConsultaCnpjRespostaSchema.parse(await (await consultar('11.222.333/0001-81')).json())).toMatchObject({ razao_social: 'Distribuidora Uma Ltda', uf: 'AM', situacao_cadastral: 'ativa' });
+    expect((await consultar('11.222.333/0001-82')).status).toBe(400);
+    const cnpjCom = (raiz12: string) => {
+      const dv = (b: string) => {
+        const pesos = b.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+        const r = [...b].reduce((a, d, i) => a + Number(d) * (pesos[i] ?? 0), 0) % 11;
+        return r < 2 ? '0' : String(11 - r);
+      };
+      const d1 = dv(raiz12);
+      return raiz12 + d1 + dv(raiz12 + d1);
+    };
+    const baixado = (await consultar(cnpjCom('770000010001'))).json();
+    expect(ConsultaCnpjRespostaSchema.parse(await baixado).situacao_cadastral).toBe('baixada');
+    expect((await consultar(cnpjCom('880000010001'))).status).toBe(404);
+    expect((await consultar(cnpjCom('990000010001'))).status).toBe(503);
+    const criar = await responderFalso(
+      'POST',
+      ROTAS_PORTAL.empresaComPlano,
+      { uf: 'AM', razao_social: 'Baixada Ltda', cnpj: cnpjCom('770000010001'), fuso: 'America/Manaus', admin: { nome: 'Ana', email: 'ana@x.com.br', senha: SENHA }, assinatura: { plano: 'light', pedido_id: '3f1c2b4a-1d2e-4f5a-8b6c-7d8e9f0a1b2d' } },
+      com(s),
+    );
+    expect([criar.status, ((await criar.json()) as { codigo: string }).codigo]).toEqual([422, 'CNPJ_INATIVO']);
+  });
+
+  it('assinatura: o admin do cliente só vê a da própria empresa; planos do catálogo na ordem', async () => {
+    const s = await sessaoDe(await login('admin@uma.com.br'));
+    const id = s.empresa?.id ?? '';
+    const f = FichaAssinaturaSchema.parse(await (await responderFalso('GET', ROTAS_PORTAL.assinatura(id), undefined, com(s))).json());
+    expect([f.plano.nome, f.teste_ate, f.valor.por_ciclo_centavos]).toEqual(['PME', '2026-11-27', 153_700]);
+    expect((await responderFalso('GET', ROTAS_PORTAL.assinatura('0b6f1a52-5c1e-4c4e-9a43-000000000002'), undefined, com(s))).status).toBe(403);
+    const planos = ListaPlanosSchema.parse(await (await responderFalso('GET', ROTAS_PORTAL.planos, undefined, com(s))).json());
+    expect(planos.itens.map((p) => p.nome)).toEqual(['Light', 'PME', 'Enterprise', 'Corporate']);
+  });
+
+  it('trocar de plano (PUT): só o time da Macuxi; abaixo do uso = 422 com os problemas (RN-PLA-05); Enterprise anual grava', async () => {
+    const uma = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
+    const pedido_id = '9b1c2d3e-0000-4000-8000-000000000001';
+    const adicionais = [{ adicional: 'promotor', quantidade: 3 }, { adicional: 'pesquisa', quantidade: 10 }];
+    const cliente = await sessaoDe(await login('admin@uma.com.br'));
+    expect((await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'enterprise', ciclo: 'anual', adicionais, pedido_id }, com(cliente))).status).toBe(403);
+    const time = await sessaoDe(await login('time@macuxi.com.br'));
+    const abaixo = await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'light', ciclo: 'mensal', adicionais, pedido_id }, com(time));
+    expect(abaixo.status).toBe(422);
+    const corpo = (await abaixo.json()) as { codigo: string; detalhes: { problemas: { mensagem: string }[] } };
+    expect(corpo.codigo).toBe('PLANO_ABAIXO_DO_USO');
+    expect(corpo.detalhes.problemas.map((p) => p.mensagem)).toContain('O plano Light tem 10 licenças de vendedor e a empresa usa 14.');
+    const r = await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'enterprise', ciclo: 'anual', adicionais, pedido_id }, com(time));
+    const f = FichaAssinaturaSchema.parse(await r.json());
+    expect([r.status, f.plano.nome, f.valor.ciclo, f.valor.por_ciclo_centavos]).toEqual([200, 'Enterprise', 'anual', 2_059_000]);
   });
 });

@@ -1,66 +1,32 @@
 'use client';
 
 /**
- * Página de uma empresa no portal (T-0087 §3 e §6): abas "Bases" (um cartão por base, na ordem de carga do Hub, lida da rota
- * `GET /v1/integracao/ordem-carga`; o portal não tem lista própria), "Integração automática" e "Empresa" (resumo + acrescentar
- * módulos pelo passo Empresa, idempotente). A Equipe por CSV (Core, fatia E) é o primeiro cartão da aba Bases, visível mesmo sem
- * a Integração. A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
- * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
- * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
- * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
+ * Página de uma empresa no portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §5, §10.1 e §11.4): cabeçalho "Código
+ * AM4821 · CNPJ … · Manaus (UTC−4)" e as abas "Integração" (abre por padrão) e "Empresa" (§8: duas colunas, "Plano {nome}" com o
+ * "Trocar de plano" e "Administradores", para o time da Macuxi; o admin do cliente só vê o Plano, na largura toda). A aba Bases e o CSV saíram do portal (R-20261114-132000 e R-20261114-133000). A aba fica no
+ * `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
+ * T-0093: o admin do cliente só abre a empresa escolhida na sessão (outra = escolher de novo); criar e alterar empresa é do time da
+ * Macuxi (RN-CORE-33). T-0094 fatia S: o time da Macuxi redefine a senha de um administrador (`CartaoAdmins`).
  */
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { OrdemCargaResposta } from '@macuxi/integracao/contracts';
-import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel } from '@macuxi/ui/web';
+import { Badge, cx, ErrorBlock, LoadingBlock, Notice, PageHeader } from '@macuxi/ui/web';
 
-import { chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
-import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
-import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { AbaIntegracao } from './aba-integracao';
-import { CartaoAdmins } from './cartao-admins';
+import { mensagemDoErro } from '@/lib/portal-api';
+import { codigoDaLicenca, mascararCnpj, rotuloCurtoDoFuso, rotuloDoStatus, tomDaSituacao } from '@/lib/portal-formato';
+import { retirarEmpresaCriada, TEXTOS_NOVA_EMPRESA } from '@/lib/portal-nova-empresa';
 import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
+import { AbaIntegracao } from './aba-integracao';
 import { MolduraPortal, useSessaoPortal } from './base';
-import { CartaoBase } from './cartao-base';
-import { CartaoEquipe } from './cartao-equipe';
-import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
-import { CHAVE_EMPRESAS, rotuloDoStatus, useEmpresas } from './tela-empresas';
+import { CartaoAdmins } from './cartao-admins';
+import { CartaoPlano } from './cartao-plano';
+import { useEmpresas } from './tela-empresas';
 
 const ABAS = [
-  { id: 'bases', rotulo: 'Bases' },
-  { id: 'integracao', rotulo: 'Integração automática' },
+  { id: 'integracao', rotulo: 'Integração' },
   { id: 'empresa', rotulo: 'Empresa' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
-
-/** Bases da empresa: a Equipe (Core) primeiro, sempre visível; depois as bases do Hub na ordem de carga (precisam da Integração). */
-function AbaBases({ tenant }: { tenant: string }) {
-  return (
-    <div data-testid="empresa-pagina.bases" className="flex flex-col gap-3">
-      <span className="text-[13px] text-ink-2">Carregue na ordem: cada base usa as anteriores. Confira sem gravar, corrija pelo "Baixar erros" e importe.</span>
-      <CartaoEquipe tenant={tenant} />
-      <BasesDoHub tenant={tenant} />
-    </div>
-  );
-}
-
-function BasesDoHub({ tenant }: { tenant: string }) {
-  const q = useQuery({ queryKey: ['portal', tenant, 'ordem-carga'], queryFn: () => chamarPortal(ROTAS_PORTAL.ordemCarga, { tenant, schema: OrdemCargaResposta }).then((r) => r.itens) });
-  if (q.isPending) return <LoadingBlock label="Buscando a ordem de carga…" />;
-  if (q.isError) {
-    if (q.error instanceof ErroPortal && q.error.status === 403) return <Notice tone="warning">A Integração com o ERP não está licenciada para esta empresa. Acrescente o módulo na aba Empresa para carregar as outras bases.</Notice>;
-    return <ErrorBlock message={ehRotaAusente(q.error) ? 'A ordem de carga ainda não está disponível neste servidor.' : mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />;
-  }
-  const itens = [...q.data].sort((a, b) => a.posicao - b.posicao);
-  return (
-    <>
-      {itens.map((i) => (
-        <CartaoBase key={i.entidade} item={i} tenant={tenant} rotuloDepende={i.depende_de.length ? i.depende_de.map((d) => CARTAO_DA_ENTIDADE[d].titulo).join(', ') : null} />
-      ))}
-    </>
-  );
-}
 
 export function TelaEmpresa({ id }: { id: string }) {
   const sessao = useSessaoPortal();
@@ -81,10 +47,11 @@ export function TelaEmpresa({ id }: { id: string }) {
 
 function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }) {
   const empresas = useEmpresas();
-  const qc = useQueryClient();
-  const [aba, setAba] = useState<Aba>('bases');
-  // Abas já abertas ficam montadas (escondidas com `hidden`): trocar de aba não perde a importação em andamento nem os resultados.
-  const [abertas, setAbertas] = useState<ReadonlySet<Aba>>(() => new Set<Aba>(['bases']));
+  const [aba, setAba] = useState<Aba>('integracao');
+  // Abas já abertas ficam montadas (escondidas com `hidden`): trocar de aba não perde a chave recém-gerada.
+  const [abertas, setAbertas] = useState<ReadonlySet<Aba>>(() => new Set<Aba>(['integracao']));
+  // "Empresa criada. Código da empresa: AM4821.": uma vez, ao chegar do "Nova empresa"
+  const [criada, setCriada] = useState<string | null>(null);
 
   const abrir = (a: Aba) => {
     setAba(a);
@@ -96,11 +63,11 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
   };
   useEffect(() => {
     const h = window.location.hash.replace('#', '');
-    if (ABAS.some((a) => a.id === h)) {
-      setAba(h as Aba);
-      setAbertas((x) => new Set([...x, h as Aba]));
-    }
-  }, []);
+    if (ABAS.some((a) => a.id === h)) abrir(h as Aba);
+    // retira uma vez só (no modo estrito o efeito roda duas vezes: a segunda não apaga o aviso)
+    const codigo = retirarEmpresaCriada(id);
+    if (codigo) setCriada(codigo);
+  }, [id]);
 
   const empresa = empresas.data?.find((e) => e.id === id) ?? null;
 
@@ -112,19 +79,26 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
           <PageHeader
             title={empresa.razao_social}
             subtitle={
-              <span>
-                <span className="font-mono">{empresa.codigo}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · fuso {rotuloDoFuso(empresa.fuso)}
+              <span data-testid="empresa-pagina.resumo">
+                Código <span className="font-mono font-semibold text-ink">{codigoDaLicenca(empresa.codigo)}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · {rotuloCurtoDoFuso(empresa.fuso)}
               </span>
             }
-            badge={<Badge tone={empresa.status === 'ativo' ? 'success' : empresa.status === 'suspenso' ? 'warning' : 'neutral'}>{rotuloDoStatus(empresa.status)}</Badge>}
+            badge={<Badge tone={tomDaSituacao(empresa.status)}>{rotuloDoStatus(empresa.status)}</Badge>}
           />
         ) : undefined
       }
     >
+      {criada && (
+        <div data-testid="empresa-pagina.criada">
+          <Notice tone="success" onClose={() => setCriada(null)}>
+            {TEXTOS_NOVA_EMPRESA.criada(criada)}
+          </Notice>
+        </div>
+      )}
       {empresas.isPending && <LoadingBlock label="Buscando a empresa…" />}
       {empresas.isError && <ErrorBlock message={mensagemDoErro(empresas.error)} onRetry={() => void empresas.refetch()} />}
       {empresas.isSuccess && !empresa && empresas.isFetching && <LoadingBlock label="Buscando a empresa…" />}
-      {empresas.isSuccess && !empresa && !empresas.isFetching && <Notice tone="warning">Empresa não encontrada. Volte à lista de empresas.</Notice>}
+      {empresas.isSuccess && !empresa && !empresas.isFetching && <Notice tone="warning">Empresa não encontrada.</Notice>}
       {empresa && (
         <>
           <div role="tablist" aria-label="Seções da empresa" className="flex gap-1 border-b border-line">
@@ -147,38 +121,23 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
               </button>
             ))}
           </div>
-          {abertas.has('bases') && (
-            <div role="tabpanel" id="empresa-painel-bases" aria-labelledby="empresa-aba-bases" hidden={aba !== 'bases'}>
-              <AbaBases tenant={empresa.id} />
-            </div>
-          )}
           {abertas.has('integracao') && (
             <div role="tabpanel" id="empresa-painel-integracao" aria-labelledby="empresa-aba-integracao" hidden={aba !== 'integracao'}>
               <AbaIntegracao tenant={empresa.id} />
             </div>
           )}
           {abertas.has('empresa') && (
-            <div role="tabpanel" id="empresa-painel-empresa" aria-labelledby="empresa-aba-empresa" hidden={aba !== 'empresa'} className={aba === 'empresa' ? 'flex flex-col gap-4' : undefined}>
-              <Panel title="Módulos licenciados">
-                <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-                  {empresa.modulos.map((m) => (
-                    <li key={m.modulo}>
-                      <Badge tone="neutral">
-                        {ROTULO_MODULO[m.modulo].nome}
-                        {m.licencas !== null ? ` · ${m.licencas} licenças` : ''}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-              {/* T-0094 fatia S: só o time da Macuxi redefine a senha do admin (o admin do cliente usa "Esqueci a senha") */}
+            <div
+              role="tabpanel"
+              id="empresa-painel-empresa"
+              aria-labelledby="empresa-aba-empresa"
+              hidden={aba !== 'empresa'}
+              // duas colunas (Plano · Administradores, 1,25 : 1) a partir de 768 px; o admin do cliente só vê o Plano, na largura toda
+              className={aba === 'empresa' ? cx('grid items-start gap-4', timeMacuxi && 'md:grid-cols-[1.25fr_1fr]') : undefined}
+            >
+              <CartaoPlano tenant={empresa.id} podeTrocar={timeMacuxi} largo={!timeMacuxi} />
+              {/* T-0094 fatia S: só o time da Macuxi vê os administradores e redefine a senha */}
               {timeMacuxi && <CartaoAdmins tenant={empresa.id} fuso={empresa.fuso} />}
-              {timeMacuxi && (
-                <PassoEmpresa
-                  existente={{ id: empresa.id, codigo: empresa.codigo, razao_social: empresa.razao_social, cnpj: empresa.cnpj, fuso: empresa.fuso, modulos: empresa.modulos }}
-                  aoGravar={() => void qc.invalidateQueries({ queryKey: CHAVE_EMPRESAS })}
-                />
-              )}
             </div>
           )}
         </>

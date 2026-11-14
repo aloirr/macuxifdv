@@ -1,7 +1,7 @@
 /**
  * T-0098 — "Baixar o Conector" da aba Integração, renderizado com `react-dom/server`:
  * - antes de gerar: só o botão (o link nunca vem pronto na página);
- * - com o link gerado: o link real (nova aba, sem `opener`), a versão do pacote e a validade.
+ * - com o link gerado: o link real (nova aba, sem `opener`), o tamanho do pacote e a validade.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -22,7 +22,7 @@ describe('BaixarConector', () => {
     expect(html).not.toContain('href=');
   });
 
-  it('com o link: abre em nova aba sem opener, mostra versão, arquivo e validade', () => {
+  it('com o link: abre em nova aba sem opener, mostra o arquivo no link, o tamanho e a validade', () => {
     const html = renderToStaticMarkup(
       <BaixarConector
         tenant={TENANT}
@@ -34,7 +34,8 @@ describe('BaixarConector', () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noreferrer noopener"');
     expect(html).toContain('Baixar macuxi-conector-1.0.0-win-x64.zip');
-    expect(html).toContain('Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · 12,3 MB');
+    expect(html).toContain('12,3 MB');
+    expect(html).not.toContain('Versão');
     expect(html).toContain('O link vale até ');
   });
 });
