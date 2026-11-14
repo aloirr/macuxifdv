@@ -127,14 +127,12 @@ export function MiniaturaProduto({
   miniatura,
   lado = LADO_CAIXA_MINIATURA,
   altura,
-  reserva,
 }: {
   produtoId: string;
   miniatura: Miniatura | null | undefined;
   lado?: number;
-  /** Grade (T-0173): caixa de largura total e esta altura, com `reserva` (ícone ou inicial) enquanto a foto não chega ou não existe. */
+  /** Grade (T-0173): caixa `neutralBg` de largura total e esta altura, vazia enquanto a foto não chega ou não existe (RD-0242). */
   altura?: number;
-  reserva?: React.ReactNode;
 }) {
   const ambiente = useAmbiente();
   const caixa = useRef<View | null>(null);
@@ -162,7 +160,7 @@ export function MiniaturaProduto({
   }, [chave, estado]);
   return (
     <View ref={caixa} collapsable={false} style={[s.caixa, altura ? { width: '100%', height: altura, borderRadius: 12, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' } : { width: lado, height: lado }]} testID={`miniatura-${produtoId}`} accessible={false} importantForAccessibility="no-hide-descendants">
-      {uri ? <Image source={{ uri }} style={altura ? { width: '100%', height: altura } : { width: lado, height: lado }} resizeMode="cover" accessible={false} fadeDuration={0} /> : (reserva ?? null)}
+      {uri ? <Image source={{ uri }} style={altura ? { width: '100%', height: altura } : { width: lado, height: lado }} resizeMode="cover" accessible={false} fadeDuration={0} /> : null}
     </View>
   );
 }

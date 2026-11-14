@@ -11,7 +11,6 @@ import {
   CartaoLeveMais,
   colors,
   fonts,
-  leituraDoSalvar,
   VALOR_SEM_DADO,
   Icon,
   ListaSuspensa,
@@ -380,7 +379,7 @@ function BlocoSugestoes({
 // ---------- aba 4 · Resumo ----------
 /**
  * Resumo completo (RF-VEN-11, T-0137, T-0165; docs/design/pedido-v4.md §5.4): Cliente, Condição de pagamento, Itens (só o código, com balão), Entrega,
- * a Observação do pedido (editável) e os Totais, "Falta para salvar" e os botões. Não há desconto do pedido: o ajuste fica no item. Os botões e
+ * a Observação do pedido (editável), os Totais e os botões. Não há desconto do pedido: o ajuste fica no item. Os botões e
  * os estados vêm do domain (`botoesDoResumo`); aqui só desenha. Sem folha intermediária: cada botão faz o que diz em 1 toque.
  */
 export function AbaResumo({
@@ -535,7 +534,7 @@ function BotoesDoResumoView({
         testID={principal.testID}
         nivel="principal"
         rotulo={principal.botao.rotulo}
-        rotuloAcessivel={principal.botao.habilitado ? principal.botao.rotulo : leituraDoSalvar(principal.botao.rotulo, b.pendencias)}
+        rotuloAcessivel={principal.botao.rotulo}
         desligado={!principal.botao.habilitado}
         ocupado={salvando}
         onPress={principal.onPress}
@@ -549,7 +548,7 @@ function BotoesDoResumoView({
             alto
             quebrarLinha
             rotulo={x.botao.rotulo}
-            rotuloAcessivel={x.botao.habilitado ? x.botao.rotulo : leituraDoSalvar(x.botao.rotulo, b.pendencias)}
+            rotuloAcessivel={x.botao.rotulo}
             desligado={!x.botao.habilitado}
             style={linhaDupla ? { flex: 1 } : undefined}
             onPress={x.onPress}

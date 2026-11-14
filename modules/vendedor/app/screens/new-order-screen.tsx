@@ -382,7 +382,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const nomes = useMemo(() => new Map<string, string>(sent ? sent.snapshot.nomes : catalog.map((p) => [p.id, p.description] as [string, string])), [sent, catalog]);
   const frete = draft.frete ?? { modalidade: fretePadrao };
 
-  // RN-CORE-36: pendências só no Resumo ("Falta para salvar"); a aba com pendência ganha só a bolinha
+  // RN-CORE-36: as pendências de preenchimento; na tentativa, a falta aparece no campo e, vista de outra aba, numa linha de Alertas
   const pendencias = calculoBase
     ? pendenciasDePreenchimento({
         itens: calculoBase.linhas.length,
@@ -619,7 +619,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const editandoTipo = editId ? (editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orcamento' : 'pedido') : null;
-  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, pendencias: 0, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), preco_data: precoData, editando_no_servidor: editingServer });
+  const botoesBase = botoesDoResumo({ cliente: situacaoCliente, pre_venda_ligada: app.preVendaLigada, editando: editandoTipo, itens_acima_do_maximo: calculo.acima_do_maximo, acima_do_limite: calculo.acima_do_limite !== null, itens_sem_estoque: semEstoque.map((x) => x.codigo), preco_data: precoData, editando_no_servidor: editingServer });
   // permissão e sinal (edição de pedido já no servidor) valem além das pendências; na edição de pedido o rótulo diz para onde vai
   const podeAgir = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: false, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
   const liberaSalvar = (b: typeof botoesBase.enviar) => ({ ...b, habilitado: b.habilitado && podeAgir });
@@ -717,7 +717,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     else if (router.canGoBack()) router.back();
     else router.replace(hrefPedidos() as never);
   };
-  /** RN-VEN-38: salvar pela folha valida tudo. Com pendência, fecha a folha, cancela a saída e abre o Resumo no bloco. */
+  /** RN-VEN-38: salvar pela folha valida tudo. Com pendência, fecha a folha, cancela a saída e abre o Resumo. */
   const salvarPelaSaida = (tipo: 'pedido' | 'orcamento') => {
     setSaidaAberta(false);
     aplicarValorPendente();

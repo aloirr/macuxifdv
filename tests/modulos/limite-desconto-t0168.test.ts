@@ -244,6 +244,8 @@ function api(p: Pedido, extra: Partial<RevalidarEntrada> & { limite?: Partial<Li
 const PRODUTO = (id: string, preco: number) =>
   ({ id, erp_code: id.toUpperCase(), description: `Produto ${id}`, unit: 'UN', price_cents: preco, stock_total: 1_000_000, stock: [], brand: '', line: '', ean: null, active: true, external_id: null, applications: '', is_campaign: false }) as EntradaCalculo['catalogo'][number];
 const UNIDADES: UnidadeDaTela[] = [];
+// RD-0235 (PR #169): `pendencias` sai do EntradaDosBotoes; a tela já passava 0. A constante só existe para compilar no main de antes do #169 e sai quando ele entrar.
+const SEM_PENDENCIA_LEGADO = { pendencias: 0 };
 function app(p: Pedido, limite: Partial<LimiteDesconto> | null) {
   const c = calcularPedido({
     lines: Object.fromEntries(p.itens.map((i) => [i.id, i.qtd])),
@@ -254,8 +256,8 @@ function app(p: Pedido, limite: Partial<LimiteDesconto> | null) {
   const LIBERADO = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] as string[] };
   const acimaDaAlcada = c.nivel !== null && !c.bloqueado;
   const alertas = alertasDoPedido({ cliente: LIBERADO, acima_do_limite: c.acima_do_limite, acima_da_alcada: acimaDaAlcada });
-  const botoes = botoesDoResumo({ cliente: LIBERADO, pre_venda_ligada: true, editando: null, pendencias: 0, acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
-  const transformar = botoesDoResumo({ cliente: LIBERADO, pre_venda_ligada: true, editando: 'orcamento', pendencias: 0, acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
+  const botoes = botoesDoResumo({ ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: null, acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
+  const transformar = botoesDoResumo({ ...SEM_PENDENCIA_LEGADO, cliente: LIBERADO, pre_venda_ligada: true, editando: 'orcamento', acima_do_limite: c.acima_do_limite !== null, preco_data: '2026-11-13' });
   return { c, alertas, botoes, transformar, tela_permil: permilDaTela(c.total_tabela_cents, c.total_cents) };
 }
 const LIM80 = L(true, true, 80);
