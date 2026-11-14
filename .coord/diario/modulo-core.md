@@ -159,3 +159,4 @@
 2026-11-14 — RN-CORE-50 — total de visitas e quem visitou por último na aba Performance: entidade cliente_visita_resumo@1 (view core.v_cliente_visita_resumo, escopo carteira), resumoDeVisitas com o resumo do servidor e quemVisitouPorUltimo; carga em Clientes e rota (Campo) e Equipe (Gestão)
 2026-11-14 — T-0174 — v1.0.8: check-in na ficha e na Rota (RN-CORE-51/52, permissão no BKO) + visitas (RN-CORE-50); a folha do check-in deixa de oferecer Novo pedido e abre a ficha
 2026-11-14 — T-0174 — PR #258: RD-0260..0266 e MC-0032..0034 (cliente_ultima_visita retirada, rodapé 48 dp sem fonte local, botoesDoRodapeCliente com visitadoHoje, prints em docs/modulos/core/prints/checkin)
+2026-11-14 — T-0174 — PR #258: gerador versionado dos prints do check-in (docs/modulos/core/prints/checkin/gerar.mjs, TelaCliente real); 7 prints refeitos (faixa nova, folha com e sem GPS); folha-checkin-continuar.png substituído; comentário de cliente.tsx (achado do corretor)

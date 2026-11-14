@@ -118,11 +118,11 @@ export function TelaCliente() {
     if (phase?.kind === 'done' && !estado.visitas.some((v) => v.id === phase.visitId)) setPhase(null);
   }, [phase, estado.visitas]);
 
-  // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil. A regra completa (inclusive visitado hoje) fica no domain
+  // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil
   const checkinLiberado = checkinPermitido({ clienteId: id, clientesDaRota: rota?.stops.map((s) => s.customer.id) ?? [], podeForaDeRota });
-  // A regra do rodapé (check-in, checkout, pesquisa) fica no domain
   const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
   const PesquisaComp = abaPesquisa?.payload.componente;
+  // A regra do rodapé (check-in, checkout, pesquisa) fica no domain
   const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited });
   const acoesRodape = acoesDoRodapeCliente(acoes);
   // "Fazer check-in" na Rota abre a ficha já registrando o check-in
