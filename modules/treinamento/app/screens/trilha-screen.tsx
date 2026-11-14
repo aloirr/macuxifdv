@@ -140,7 +140,7 @@ export default function TrilhaScreen() {
                     </Text>
                     <Text style={t.small}>
                       {TIPO[l.tipo]}
-                      {l.tem_quiz ? ' · com quiz' : ''}
+                      {l.tem_quiz ? ' com quiz' : ''}
                     </Text>
                   </View>
                   <ChipEstado
