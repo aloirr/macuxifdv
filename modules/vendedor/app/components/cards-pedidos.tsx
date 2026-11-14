@@ -14,7 +14,7 @@ function Card({ testID, titulo, q, onPress }: { testID: string; titulo: string; 
     <>
       <View style={{ flex: 1 }}>
         <Text style={t.small}>{titulo}</Text>
-        <Text style={[t.bodyStrong, { fontFamily: fonts.medium, fontVariant: ['tabular-nums'], color: colors.ink }]}>{textoDoCard(q)}</Text>
+        <Text style={[t.bodyStrong, { fontFamily: fonts.displayBold, fontVariant: ['tabular-nums'], color: colors.ink }]}>{textoDoCard(q)}</Text>
       </View>
       {onPress ? <Icon name="chevron" size={18} color={colors.ink3} strokeWidth={2.4} /> : null}
     </>
