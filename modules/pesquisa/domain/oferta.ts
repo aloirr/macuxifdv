@@ -76,6 +76,15 @@ export function ofertaDePesquisas(e: EntradaOferta): { disponiveis: ItemOferta[]
 }
 
 /**
+ * RF-PES-03: há pesquisa para responder neste cliente agora? Decide se o botão "Pesquisa" da ficha aparece (slot
+ * `cliente.abas`, `disponivel`). Mesma regra da lista: só avulsas aplicáveis (RF-PES-02 público e vigência; RN-PES-02
+ * já respondida no período não conta; a obrigatória do checkout fica na etapa, RN-PES-03).
+ */
+export function haPesquisaDisponivel(e: EntradaOferta): boolean {
+  return ofertaDePesquisas(e).disponiveis.length > 0;
+}
+
+/**
  * RN-PES-02 / RF-PES-04: respostas que o aparelho conhece — o resumo do pull (de qualquer usuário, nos clientes da
  * carteira) mais as que ainda estão na fila (do próprio usuário). Linha removida fica de fora; o id repetido vale uma vez.
  */
