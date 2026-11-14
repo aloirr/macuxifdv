@@ -391,7 +391,7 @@ export const DOIS_TENANTS = {
     equipes: { regional: a('equipe', 1), equipe1: a('equipe', 2), equipe2: a('equipe', 3) },
     /**
      * 0041 (T-0111/T-0112, ADR 0033): perfil PERSONALIZADO vendedor_externo (base vendedor, escopo de dados 'proprio' por
-     * sobreposição, sem módulos próprios; cargo vendedor), SEM usuário. Os 7 de fábrica vêm do gatilho tenant_semear_perfis
+     * sobreposição, módulos core, vendedor e catalogo; cargo vendedor), SEM usuário. Os 7 de fábrica vêm do gatilho tenant_semear_perfis
      * (idPerfilFabrica). Desde a 0069 (um perfil por usuário) a fixture não tem multiperfil: cada usuário fica só com o de
      * fábrica do principal (gatilho usuario_perfil_principal); o vínculo vendedor-2 + vendedor_externo saiu.
      */
@@ -904,6 +904,9 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     [tA, 'vendedor', 'catalogo'], [tA, 'supervisor', 'catalogo'], [tA, 'gerente', 'catalogo'],
     [tA, 'analista', 'catalogo'], [tA, 'assistente', 'catalogo'],
     [tB, 'vendedor', 'catalogo'], [tB, 'admin', 'catalogo'],
+    // 0069 (um perfil por usuário): o personalizado vendedor_externo tem os módulos do vendedor (sem o 'teste'), para a troca
+    // de perfil manter o Vendedor; antes ele só aparecia em união com o de fábrica. No fim para manter os ids anteriores.
+    [tA, 'vendedor_externo', 'core'], [tA, 'vendedor_externo', 'vendedor'], [tA, 'vendedor_externo', 'catalogo'],
   ];
   const seqPerfil = { [tA]: 0, [tB]: 0 } as Record<string, number>;
 

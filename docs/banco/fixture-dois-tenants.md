@@ -17,7 +17,7 @@ Constantes em `DOIS_TENANTS` (`@macuxi/db/teste`).
 | usuários (seq) | 1 admin, 2 analista, 3 assistente, 4 gerente, 5 supervisor, 6 vendedor-1, 7 vendedor-2, 8 promotor | 1 admin-B, 2 vendedor-B |
 | equipes | 1 Regional Alfa (resp. gerente) → 2 Equipe 1 (resp. supervisor), 3 Equipe 2 (sem resp.) | 1 Equipe Beta (resp. admin-B) |
 | equipe do usuário | gerente→Regional; supervisor, vendedor-1, promotor→Equipe 1; vendedor-2→Equipe 2 | vendedor-B→Equipe Beta |
-| perfil_modulo | vendedor: core, catalogo, vendedor, teste · promotor: core, promotor, teste · supervisor e gerente: core, catalogo, vendedor, promotor · admin: core · analista: core, catalogo, vendedor, promotor · assistente: core, catalogo, vendedor | vendedor: core, catalogo, vendedor · admin: core, catalogo, vendedor |
+| perfil_modulo | vendedor: core, catalogo, vendedor, teste · promotor: core, promotor, teste · supervisor e gerente: core, catalogo, vendedor, promotor · admin: core · analista: core, catalogo, vendedor, promotor · assistente: core, catalogo, vendedor · vendedor_externo (personalizado): core, catalogo, vendedor | vendedor: core, catalogo, vendedor · admin: core, catalogo, vendedor |
 | usuario_modulo | vendedor-2 **remove** `teste` | admin-B remove `vendedor` (só para B ter linha) |
 | clientes / carteira | c1 (vendedor-1 + promotor), c2 (vendedor-2), c3 (vendedor-1) | c1 (vendedor-B) |
 | produto | ALFA-001, ALFA-002 | BETA-001 |
@@ -190,12 +190,12 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
 - **Semeados pelos gatilhos** (fora das listas): os 7 perfis de fábrica em A e em B (`tenant_semear_perfis`, ids
   `idPerfilFabrica(tenant, base)`) e o vínculo de cada usuário com o perfil de fábrica de `core.usuario.perfil`
   (`usuario_perfil_principal`, ids `idUsuarioPerfil`).
-- **`plataforma.perfil`** (grupo **0x17**): A `vendedor_externo` (base vendedor); B `vendedor_balcao` (base vendedor, sem usuário).
+- **`plataforma.perfil`** (grupo **0x17**): A `vendedor_externo` (base vendedor, sem usuário); B `vendedor_balcao` (base vendedor, sem usuário).
 - **`plataforma.perfil_permissao`** (grupo **0x18**): A `dados.escopo = proprio` no `vendedor_externo`; B `acesso.campo` revogado
   no `vendedor_balcao`.
-- **`plataforma.usuario_perfil`** (grupo **0x19**, só os vínculos ALÉM do principal): A vendedor-2 com `vendedor_externo`;
-  B **multiperfil** vendedor + promotor de fábrica no vendedor-B (B não tem o módulo promotor: a união dos módulos não muda).
-- Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes, vinculos}`.
+- **`plataforma.usuario_perfil`** (grupo **0x19**): desde a 0069 (um perfil por usuário) só o vínculo principal, explícito nos
+  admins de A e de B (mesmo id do gatilho); sem multiperfil.
+- Constantes em `DOIS_TENANTS.X.{perfis, sobreposicoes}`.
 
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus

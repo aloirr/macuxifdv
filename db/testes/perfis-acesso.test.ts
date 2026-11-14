@@ -307,7 +307,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       await admin.query('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [A.usuarios.vendedor2]);
       await admin.query('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, A.usuarios.vendedor2, A.perfis.vendedorExterno]);
       expect(await perfisDoV2()).toEqual([
-        { codigo: 'vendedor_externo', base: 'vendedor', fabrica: false, sobreposicoes: [{ chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null }], modulos: [] },
+        { codigo: 'vendedor_externo', base: 'vendedor', fabrica: false, sobreposicoes: [{ chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null }], modulos: ['catalogo', 'core', 'vendedor'] },
       ]);
       const vb = await como<{ codigo: string }>('macuxi_app', B.tenantId, 'select codigo from plataforma.perfis_do_usuario($1)', [B.usuarios.vendedor]);
       expect(vb.map((x) => x.codigo)).toEqual(['vendedor']);
