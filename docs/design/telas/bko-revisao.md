@@ -95,14 +95,14 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 - **Cor do título do grupo: DECIDIDO (R-20261114-184400, MC-0054): Sol claro `#F59A52`**, como nas simulações do M5. Token próprio `--color-nav-grupo: #f59a52` no shell web, **sem reaproveitar `--color-accent-light`** (mesmo valor, outro papel: se um mudar, o outro não muda junto). Vale para o título, a seta do grupo e a barra de 3 px da tela atual.
 - **`#2B3743` (tela atual, hover e divisória do menu): aprovado para o manual da marca (R-20261114-184400)**, já como `--color-nav-active`.
 - Sem token em `packages/ui`: lá não há conjunto de tokens web de navegação (os `nav-*` só existem em `apps/web/app/globals.css`, e `packages/ui/src/web/cores.ts` só traz as classes de destaque, gráfico e faixa); o shell usa a classe `text-nav-grupo` gerada pelo token dele.
-- **Logo:** o símbolo vem do ativo da marca (`docs/marca/ativos/2026-11-12-v1/macuxi-simbolo-negativo.svg`, 32 × 25 px), nunca redesenhado (MC-0053).
+- **Logo:** o do manual da marca §2.1 (MC-0056).
 
 ### M5. Simulações (1366×768, escala 2, Archivo/IBM Plex de `apps/web/app/fonts/`)
 | Arquivo | O que mostra |
 |---|---|
 | `bko-revisao/menu-completo-1366x768.png` | Administrador com os 8 módulos, sanfona, grupo Operação aberto, Pedidos destacado, sem barra de rolagem |
 | `bko-revisao/menu-tela-atual-e-outro-grupo.png` | Coordenadas sugeridas destacada (Cadastros aberto) e o painel ao lado do grupo Comercial sob o ponteiro (1 clique) |
-| `bko-revisao/menu-perfil-poucos-modulos.png` | Assistente com Core + Vendedor (Catálogo e Integração são nativos): 12 itens em 6 grupos, tudo cabe aberto (a lista termina em 646 px, o rodapé começa em 681 px), sem setas |
+| `bko-revisao/menu-perfil-poucos-modulos.png` | Assistente com Core + Vendedor (Catálogo e Integração são nativos): 12 itens em 6 grupos, tudo cabe aberto (a lista termina em 672 px, o rodapé começa em 683 px), sem setas |
 
 Os `.html` ao lado de cada PNG são a fonte da simulação.
 
