@@ -16,3 +16,5 @@ export * from '../comum/sincronizacao';
 export * from './permissoes';
 // T-0133: histórico do pedido/orçamento em tags (o mesmo do app)
 export * from './historico';
+// MC-0042: módulos adicionais do plano (nome e ícone)
+export * from './adicionais';

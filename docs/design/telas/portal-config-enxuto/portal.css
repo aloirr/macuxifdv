@@ -1,7 +1,14 @@
-/* Simulações do portal config. enxuto (designer-ux, 2026-11-14). Tokens de ../telas.css. Fontes: Archivo e IBM Plex Sans se instaladas; senão, as do sistema. */
+/* Simulações do portal config. enxuto (designer-ux, 2026-11-14). Tokens de ../telas.css. Fontes do BKO (MC-0035): os mesmos arquivos de apps/web/app/fonts. */
+@font-face { font-family: Archivo; font-weight: 700; src: url('../../../../apps/web/app/fonts/Archivo_700Bold.ttf') format('truetype'); }
+@font-face { font-family: Archivo; font-weight: 800; src: url('../../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf') format('truetype'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf') format('truetype'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 500; src: url('../../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf') format('truetype'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf') format('truetype'); }
+@font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url('../../../../apps/web/app/fonts/IBMPlexMono_500Medium.ttf') format('truetype'); }
 :root {
   --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --line: #DFE2E6; --lineStrong: #C9CED5;
-  --accent: #1E3350; --faixa: #1E3350; --faixaSub: #C9CED5;
+  --accent: #1E3350; --accentSoft: #DFE2E6; --nevoa: #ECEEF1; --ink3: #34404D; --placeholder: #5B6673; --faixa: #1E3350; --faixaSub: #C9CED5;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningBg: #FFF1D6; --danger: #A8261B; --dangerBg: #FDE8E6;
 }
 * { box-sizing: border-box; }
@@ -22,7 +29,7 @@ h1, h2, h3, .marca, .num { font-family: Archivo, 'IBM Plex Sans', system-ui, san
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 14px; border: 1px solid var(--lineStrong); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.p { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.d { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn.off { opacity: .45; }
+.btn.off { background: var(--nevoa); border-color: var(--nevoa); color: var(--placeholder); } /* MC-0041 */
 .btn.s { height: 36px; padding: 0 12px; font-size: 13px; }
 .link { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
 main { width: 1088px; margin: 0 auto; padding: 28px 0 48px; }
@@ -36,12 +43,12 @@ th { text-align: left; font-size: 13px; color: var(--ink2); font-weight: 600; pa
 td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; }
 .cod { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: .5px; }
 .selo { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--successBg); color: var(--success); }
-.selo.n { background: #ECEEF1; color: #34404D; }
+.selo.n { background: var(--nevoa); color: var(--ink3); }
 .selo.w { background: var(--warningBg); color: var(--warning); }
 .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
 .campo label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .inp { height: 44px; border: 1px solid var(--lineStrong); border-radius: 10px; background: #fff; display: flex; align-items: center; padding: 0 12px; color: var(--ink); }
-.inp.vazio { color: #8A939D; }
+.inp.vazio { color: var(--placeholder); } /* MC-0040 */
 .ajuda { font-size: 12px; color: var(--ink2); margin-top: 6px; }
 .voltar { display: inline-block; margin-bottom: 14px; }
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 18px 0 18px; }
@@ -107,7 +114,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .estado-cnpj.alerta { color: var(--warning); }
 .planos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .plano { border: 1px solid var(--lineStrong); border-radius: 12px; padding: 14px; min-height: 112px; display: flex; flex-direction: column; gap: 6px; position: relative; background: #fff; }
-.plano.on { border: 2px solid var(--accent); padding: 13px; background: #F2F5F9; }
+.plano.on { border: 2px solid var(--accent); padding: 13px; background: var(--accentSoft); } /* MC-0037 */
 .plano .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 17px; display: flex; gap: 8px; align-items: center; }
 .plano .preco { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 20px; }
 .plano .preco small { font-size: 13px; font-weight: 600; color: var(--ink2); }
@@ -124,10 +131,11 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .ciclo { display: inline-flex; border: 1px solid var(--lineStrong); border-radius: 10px; overflow: hidden; }
 .ciclo > span { height: 44px; padding: 0 18px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: #fff; }
 .ciclo > span.on { background: var(--accent); color: #fff; }
+.ciclo .selo { background: var(--accentSoft); color: var(--accent); } /* MC-0038 */
 .ciclo span.on .selo { background: #fff; color: var(--accent); }
 .linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
-.caixa .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--accent); background: var(--accent); }
+.caixa .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
 .marca-conf { font-size: 11px; color: var(--warning); background: var(--warningBg); border-radius: 6px; padding: 2px 6px; font-weight: 700; }
 .plano-topo { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .plano-topo .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 22px; }
@@ -139,3 +147,18 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 /* fechamento (14/11): total do pedido e quantidade dos adicionais */
 .total { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
 .adic label.q { font-size: 12px; color: var(--ink2); font-weight: 600; }
+/* caixa marcada (como MC-0028): branca, borda e ✓ em Azul noite; vale para .mod, .adic e .caixa */
+.chk { position: relative; }
+.chk.on, .mod .chk:not(.n):not(.t) { background: #fff !important; border-color: var(--accent) !important; }
+.chk.on::after, .mod .chk:not(.n):not(.t)::after { content: ''; position: absolute; left: 4px; top: 0px; width: 5px; height: 10px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+/* MC-0042: ícone e nome dos adicionais (mapa único em packages/ui/src/web/adicionais.tsx) */
+.ico { width: 22px; height: 22px; flex: none; color: var(--accent); display: inline-block; vertical-align: middle; }
+.adic b, .modnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); }
+.modnome { display: inline-flex; gap: 8px; align-items: center; }
+@media (max-width: 767px) {
+  /* Sair na linha do logo, à direita; menu e sessão na linha de baixo */
+  .topo .marca { order: 1; padding: 6px 0; }
+  .topo .btn { order: 2; margin-left: auto; }
+  .topo .menu { order: 3; width: 100%; }
+  .topo .sessao { order: 4; margin-left: 0; }
+}

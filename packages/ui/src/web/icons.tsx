@@ -137,3 +137,35 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="m3 3 18 18" />
   </Svg>
 );
+/**
+ * MC-0042: ícones dos módulos adicionais do plano (mapa id → nome → ícone em `./adicionais`). Traço único, sem cor própria
+ * (herdam o Azul noite do texto). Promotor = gôndola com produtos; Pesquisa = prancheta com respostas; Treinamento = capelo.
+ */
+export const IconPromotor = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 3v18" />
+    <path d="M20 3v18" />
+    <path d="M4 11h16" />
+    <path d="M4 19h16" />
+    <rect x="7" y="6" width="4" height="5" rx="0.5" />
+    <rect x="13" y="7.5" width="4" height="3.5" rx="0.5" />
+    <rect x="7" y="14.5" width="10" height="4.5" rx="0.5" />
+  </Svg>
+);
+export const IconPesquisa = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="5" y="4" width="14" height="17" rx="2" />
+    <path d="M9 2.5h6v3H9z" />
+    <path d="m8.5 11 1.5 1.5 2.5-2.5" />
+    <path d="M14.5 11.5H16" />
+    <path d="m8.5 16.5 1.5 1.5 2.5-2.5" />
+    <path d="M14.5 17H16" />
+  </Svg>
+);
+export const IconTreinamento = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m2 9 10-5 10 5-10 5Z" />
+    <path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
+    <path d="M22 9v6" />
+  </Svg>
+);
