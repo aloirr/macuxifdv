@@ -100,3 +100,20 @@ export function textoDoErro(
   if (comLista) return semSinal ? 'Sem internet' : 'A sincronização parou';
   return `${semSinal ? 'Sem internet' : 'Parou'} na etapa ${parou.numero} de ${total}`;
 }
+
+/**
+ * RN-CORE-48 (pedido do dono do produto, 14/11: "1 de 5, 2 de 5, 3 de 5..."): guarda o último progresso mostrado e o devolve
+ * como `anterior` no cálculo seguinte, para a etapa nunca voltar. Outra carga (outro usuário ou tenant: outra `chave`)
+ * começa do zero (`anterior` = `null`).
+ */
+export function criarMemoriaDaEntrada(): (
+  chave: string,
+  calcular: (anterior: ProgressoEntrada | null) => ProgressoEntrada,
+) => ProgressoEntrada {
+  let guardado: { chave: string; ultimo: ProgressoEntrada } | null = null;
+  return (chave, calcular) => {
+    const ultimo = calcular(guardado?.chave === chave ? guardado.ultimo : null);
+    guardado = { chave, ultimo };
+    return ultimo;
+  };
+}

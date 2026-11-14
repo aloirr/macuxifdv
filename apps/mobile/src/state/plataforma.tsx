@@ -404,6 +404,8 @@ function usePlataformaValor() {
         ambiente,
         // `GET /v1/me` é do mock-api; na API real o perfil e o tenant vêm do login
         etapasExtras: modo === 'demo' ? [etapaMe] : [],
+        // RN-CORE-48: ordem da carga pelo perfil de quem está logado agora
+        perfil: () => sessaoRef.current?.user.perfil ?? s.user.perfil,
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
