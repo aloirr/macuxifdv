@@ -3,13 +3,9 @@
  * Sem React e sem rede. As regras (pesos, faixas, cálculo) moram no domain; aqui só formulário, texto, simulador e CSV.
  */
 import { formatBRL } from '@macuxi/comum';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import { INDICADORES_RV, ROTULO_INDICADOR_META, type PlanoRvDto, type PlanoRvPut, type RvPainel } from '../../contracts';
 import { calcularRvDaPessoa, validarPlanoRv, type FaixaRv, type IndicadorRv, type PerfilRv, type PlanoRv, type SituacaoRv } from '../../domain';
-
-const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
-/** Célula de CSV: texto que começaria com `=`, `+`, `-`, `@`, TAB ou CR ganha um apóstrofo na frente (o Excel não o executa como fórmula). */
-export const protegerFormula = (v: string): string => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
-const aspas = (v: string) => `"${protegerFormula(v).replace(/"/g, '""')}"`;
 
 /** RD-0250: os rótulos são os do mapa único do contrato, só com os indicadores do Plano de RV. */
 export const ROTULO_INDICADOR_RV: Record<IndicadorRv, string> = {
@@ -275,9 +271,9 @@ export function csvDeRv(p: RvPainel): string {
         i.gatilho ? textoDoGatilho(i.gatilho_ok, pessoa.bloqueada_por.includes(i.indicador), p.situacao) : '',
         (pessoa.rv_cents / 100).toFixed(2).replace('.', ','),
       ]
-        .map(aspas)
+        .map(celulaCsv)
         .join(';'),
     ),
   );
-  return BOM + [cabecalhoCsv(p.situacao === 'parcial').map(aspas).join(';'), ...linhas].join('\r\n');
+  return BOM_CSV + [cabecalhoCsv(p.situacao === 'parcial').map(celulaCsv).join(';'), ...linhas].join('\r\n');
 }

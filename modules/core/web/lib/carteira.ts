@@ -2,9 +2,9 @@
  * Visão das telas Carteira e Cliente 360 do BKO (T-0017/T-0018): funções puras sobre `GET /v1/core/usuarios/:id/clientes`
  * e `GET /v1/core/clientes/:id`. Sem React e sem rede.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import type { ClienteDaCarteira } from './rotas-api';
 
-const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 /** Dia ISO da semana (1 = segunda … 7 = domingo), como `core.carteira.dia_semana`. */
@@ -33,5 +33,5 @@ export function csvDaCarteira(itens: readonly ClienteDaCarteira[], usuarioNome: 
   const linhas = itens.map((c) =>
     [usuarioNome, c.nome, c.cidade ?? '', c.bairro ?? '', c.ultima_compra_em ?? '', rotuloFrequencia(c.frequencia_semanas), rotuloDia(c.dia_semana), c.lat === null ? 'sem coordenada' : 'ok'].map(aspas).join(';'),
   );
-  return BOM + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }

@@ -32,6 +32,7 @@ vi.mock('react-native', () => ({
   Platform: { OS: 'android' },
 }));
 vi.mock('expo-router', () => ({ router: { navigate: () => undefined, push: () => undefined } }));
+vi.mock('@/components/area-segura', () => ({ useCorDaFaixaNoFoco: () => undefined }));
 vi.mock('@macuxi/ui/mobile', () => ({
   colors: new Proxy({}, { get: () => '#000' }),
   fonts: new Proxy({}, { get: () => 'f' }),

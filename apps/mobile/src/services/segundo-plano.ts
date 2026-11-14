@@ -202,6 +202,7 @@ async function abrirMotorSemInterface(
     api,
     online,
     ambiente,
+    perfil: () => s?.user?.perfil ?? null,
   });
   motorRef.m = m;
   await m.carregar();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { protegerFormula } from '@macuxi/comum/csv';
 import type { RvPainel } from '../../contracts';
-import { avisoDoPrimeiroPlanoNoPassado, centavosDoTexto, formularioAlterado, corpoDoFormulario, csvDeRv, formDoPlano, formNovo, simularRv, somaDosPesos, protegerFormula, textoDaSituacao, textoDasFaixas, textoDePbp, textoDoErroRv, textoDoGatilho, textoDosPesos } from './plano-rv';
+import { avisoDoPrimeiroPlanoNoPassado, centavosDoTexto, formularioAlterado, corpoDoFormulario, csvDeRv, formDoPlano, formNovo, simularRv, somaDosPesos, textoDaSituacao, textoDasFaixas, textoDePbp, textoDoErroRv, textoDoGatilho, textoDosPesos } from './plano-rv';
 
 const preenchido = () => ({ ...formNovo('2026-12'), nome: 'Plano 2026', valor_maximo: '2.000,00' });
 

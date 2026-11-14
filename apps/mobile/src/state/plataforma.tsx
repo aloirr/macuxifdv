@@ -404,6 +404,8 @@ function usePlataformaValor() {
         ambiente,
         // `GET /v1/me` é do mock-api; na API real o perfil e o tenant vêm do login
         etapasExtras: modo === 'demo' ? [etapaMe] : [],
+        // RN-CORE-48: ordem da carga pelo perfil de quem está logado agora
+        perfil: () => sessaoRef.current?.user.perfil ?? s.user.perfil,
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
@@ -535,6 +537,9 @@ function usePlataformaValor() {
         // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
         if (leve && modo === 'v1')
           return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
+        // spec rota-catalogo-perfil §4: a completa (botão Sincronizar, puxar para baixo) reenvia também os itens que falharam;
+        // o "Enviar agora" do Perfil saiu
+        await m.enviar({ incluirFalhos: true });
         try {
           await atualizarModulos();
         } catch {

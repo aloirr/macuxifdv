@@ -1,5 +1,7 @@
 /**
  * Login do app (T-0003 F2; T-0094).
+ * - Faixa do login (T-0172, quadro 3 de docs/marca/propostas/2026-11-12-entrada-sync): nas três etapas (Entrar, Esqueci a
+ *   senha e Crie sua senha), a `FaixaDoLogin` (Azul noite, logo horizontal negativo) fica no topo e o formulário no Pérola.
  * - API real (padrão): a tela do Core (`TelaLogin`: código da empresa + e-mail + senha; o código fica salvo no
  *   aparelho). O login manda `app` = variante (RN-CORE-33): perfil de outro app (ex.: supervisor no Campo) recebe 403
  *   `PERFIL_FORA_DO_APP` sem sessão, e o aviso diz qual app usar.
@@ -34,6 +36,7 @@ import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressab
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFaixaSuperior } from '@/components/area-segura';
+import { FaixaDoLogin } from '@/components/faixa-login';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
@@ -170,6 +173,7 @@ function LoginReal() {
     const atual = etapa;
     return (
       <AcimaDoTeclado>
+        <FaixaDoLogin />
         <TelaCrieSuaSenha
           motivo={atual.motivo}
           email={atual.email}
@@ -189,6 +193,7 @@ function LoginReal() {
   if (etapa.tipo === 'esqueci') {
     return (
       <AcimaDoTeclado>
+        <FaixaDoLogin />
         <TelaEsqueciSenha
           inicial={{ codigo_empresa: etapa.codigo_empresa, email: etapa.email }}
           semInternet={offline}
@@ -203,6 +208,7 @@ function LoginReal() {
   const { key: chaveDoLogin, ...doLogin } = propsDoLogin(etapa, codigoSalvo);
   return (
     <AcimaDoTeclado>
+      <FaixaDoLogin />
       <TelaLogin
         key={chaveDoLogin}
         {...doLogin}

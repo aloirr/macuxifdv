@@ -7,7 +7,31 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Botao, Card, colors, dateTimeLabel, Dialogo, EstadoVazio, fonts, Folha, HistoricoEmTags, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, TabelaValores, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
+import {
+  Botao,
+  CABECALHO,
+  CabecalhoTela,
+  Card,
+  colors,
+  dateTimeLabel,
+  Dialogo,
+  EstadoVazio,
+  fonts,
+  Folha,
+  HistoricoEmTags,
+  LinhaValor,
+  LinkTexto,
+  Loading,
+  MenuMais,
+  OpcaoFolha,
+  RodapeAcoes,
+  RotuloSecao,
+  TabelaValores,
+  tagsDoHistorico,
+  type as t,
+  useAtualizacaoAutomatica,
+  type AcaoCompacta,
+} from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -28,7 +52,7 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
@@ -72,7 +96,7 @@ export default function OrderDetailScreen() {
   const { id, transformar: abrirTransformar } = useLocalSearchParams<{ id: string; transformar?: string }>();
   const app = useVendedor();
   const ambiente = useAmbiente();
-  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing, perfil, v1 } = app;
+  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, perfil, v1 } = app;
   const podeAprovar = usePode('pedido.aprovar');
   const sheets = useAviso();
   const podeEditar = usePode('pedido.editar');
@@ -167,13 +191,22 @@ export default function OrderDetailScreen() {
         .finally(() => setCarregando(false));
     };
     return (
-      <View style={[styles.root, { paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20 }]}>
-        <BackLink label="Pedidos" fallback={hrefPedidos()} />
-        {ausente.tipo === 'carregando' ? (
-          <Loading />
-        ) : (
-          <EstadoVazio titulo={ausente.titulo} texto={ausente.texto} testID="pedido-fora-do-aparelho" acao={ausente.tentarDeNovo ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: tentarDeNovo } : undefined} />
-        )}
+      <View style={styles.root}>
+        <CabecalhoTela titulo="Pedido" voltar={{ label: 'Pedidos', fallback: hrefPedidos() }} />
+        <View style={{ flex: 1, paddingTop: CABECALHO.respiroCorpo, paddingHorizontal: 20 }}>
+          {ausente.tipo === 'carregando' ? (
+            <Loading />
+          ) : (
+            <EstadoVazio
+              titulo={ausente.titulo}
+              texto={ausente.texto}
+              testID="pedido-fora-do-aparelho"
+              acao={
+                ausente.tentarDeNovo ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: tentarDeNovo } : undefined
+              }
+            />
+          )}
+        </View>
       </View>
     );
   }
@@ -183,8 +216,11 @@ export default function OrderDetailScreen() {
   const sellerNameHeader = queued ? (ambiente.usuario()?.nome ?? '') : (base?.seller_name ?? '');
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
-  const lines: Line[] = queued
-    ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
+  // aceito que o pull ainda não trouxe: as linhas vêm da exibição guardada ao salvar (nunca "Itens (0)")
+  const exibicaoGuardada = !queued && id ? (dados.exibicoes[id]?.lines ?? []) : [];
+  const fonteDasLinhas = fonteDasLinhasDoDetalhe({ naFila: Boolean(queued), itensDoDetalhe: detail?.items.length ?? 0, linhasDaExibicao: exibicaoGuardada.length });
+  const lines: Line[] = queued || fonteDasLinhas === 'exibicao'
+    ? (qd?.lines ?? exibicaoGuardada).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
     : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application, brand: it.brand }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -507,35 +543,44 @@ export default function OrderDetailScreen() {
   const tabelaBase = [...tabelaPagamento.map((l) => (l.rotulo === 'Entrega' && enderecoEditado ? { ...l, complemento: TEXTOS_ENDERECO.editadoNestePedido, testIDComplemento: 'order-delivery-editado' } : l)), ...linhasExtras];
   const tabelaGestao = !ehVendedor && vendedorNome ? [{ rotulo: 'Vendedor', valor: vendedorNome }, ...tabelaBase] : tabelaBase;
   const { visiveis, rotuloVerTodos } = itensVisiveis(lines, mostrarTodosItens);
-  // T-0150 🟡 4: "Enviar agora" é a ação principal do rodapé do pedido na fila (com sinal)
-  const principalDoRodape = principal ?? (queued && naFila?.podeEnviarAgora ? { rotulo: 'Enviar agora', icone: 'send' as const, ocupado: flushing, onPress: () => void reenviarFila().then(() => irParaPedidos()), testID: 'pedido-enviar-agora' } : null);
+  // RN-CORE-23: a fila envia sozinha; o pedido na fila não tem botão "Enviar agora"
+  const principalDoRodape = principal;
   // T-0150 🔴 3: quem decide (Gestão) vê Aprovar e Rejeitar no rodapé; sem sinal ficam desligados ("Aprovar exige internet")
   const decide = Boolean(detail?.aprovacao && detail.aprovacao.pode_decidir && podeAprovar);
   const rodapeFixo = !somenteLeitura && (principalDoRodape !== null || iconesDaTela.length > 0);
 
   return (
     <View style={styles.root}>
+      {/* 1. faixa Azul noite (marca v1): voltar, número do pedido e cliente com código */}
+      <CabecalhoTela
+        testID="detalhe-cabecalho"
+        titulo={title}
+        subtitulo={clienteComCodigo(customerName, codigoDoCliente)}
+        voltar={{ label: 'Pedidos', fallback: hrefPedidos() }}
+      />
       <ScrollView
         style={styles.root}
-        contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
-        refreshControl={<RefreshControl refreshing={auto.puxando} onRefresh={auto.puxar} />}>
-        {/* 1. cabeçalho em destaque: voltar + ⋮, número com a tag, cliente com código, vendedor */}
-        <View style={styles.topo}>
-          <View style={{ flex: 1 }}>
-            <BackLink label="Pedidos" fallback={hrefPedidos()} />
+        contentContainerStyle={{
+          paddingTop: CABECALHO.respiroCorpo,
+          paddingHorizontal: 20,
+          paddingBottom: 24,
+          gap: 14,
+        }}
+        refreshControl={<RefreshControl refreshing={auto.puxando} onRefresh={auto.puxar} />}
+      >
+        {/* ⋮ no corpo até o kit ter o MenuMais claro para a faixa (o ícone é grafite e some no Azul noite) */}
+        {somenteLeitura ? null : (
+          <View style={styles.topo}>
+            <MenuMais
+              rotuloAcessivel={rotuloDoMenu}
+              titulo={title}
+              opcoes={opcoesDoMenu}
+              rotuloFechar="Fechar"
+              rodape="Voltar"
+              testID="menu-mais"
+            />
           </View>
-          {somenteLeitura ? null : (
-            <MenuMais rotuloAcessivel={rotuloDoMenu} titulo={title} opcoes={opcoesDoMenu} rotuloFechar="Fechar" rodape="Voltar" testID="menu-mais" />
-          )}
-        </View>
-        <View style={{ gap: 6 }} testID="detalhe-cabecalho">
-          <Text style={t.h1Small} testID="order-title">
-            {title}
-          </Text>
-          <Text style={[t.body, { color: colors.ink }]} testID="detalhe-cliente">
-            {clienteComCodigo(customerName, codigoDoCliente)}
-          </Text>
-        </View>
+        )}
 
         {/* RN-VEN-42: área Alertas logo abaixo do cliente; sem selo de situação (a situação é a última etapa do Histórico) */}
         <AreaAlertas alertas={alertasDaTela} aoTocar={ehOrc && acoesOrc?.pode_editar ? () => void startDraft('edit') : undefined} />
@@ -711,7 +756,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
-  topo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topo: { flexDirection: 'row', justifyContent: 'flex-end' },
   tituloLinha: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   rodapeDecisao: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
 });

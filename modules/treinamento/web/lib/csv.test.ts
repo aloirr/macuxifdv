@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CSV_BOM, csvPct, pessoasParaCsv, trilhasParaCsv } from './csv';
+import { BOM_CSV } from '@macuxi/comum/csv';
+import { csvPct, pessoasParaCsv, trilhasParaCsv } from './csv';
 
 describe('exportar CSV (RF-TRE-05, RF-TRE-01)', () => {
   it('RF-TRE-05: pessoas com nota em vírgula decimal, sem nota = vazio, hora no fuso do tenant', () => {
@@ -10,7 +11,7 @@ describe('exportar CSV (RF-TRE-05, RF-TRE-01)', () => {
       ],
       'America/Manaus',
     );
-    expect(csv.startsWith(CSV_BOM)).toBe(true);
+    expect(csv.startsWith(BOM_CSV)).toBe(true);
     const linhas = csv.slice(1).split('\r\n');
     expect(linhas[0]).toBe('Pessoa;Perfil;Lições no mês;Trilhas concluídas;Obrigatórias pendentes;Nota média (%);Última atividade');
     expect(linhas[1]).toMatch(/^"Ana; Silva";Vendedor;3;1;0;87,50;02\/11\/2026/);
@@ -31,5 +32,25 @@ describe('exportar CSV (RF-TRE-05, RF-TRE-01)', () => {
   it('RF-TRE-05: percentual sem dado (público vazio) fica em branco', () => {
     expect(csvPct(null)).toBe('');
     expect(csvPct(100)).toBe('100,00');
+  });
+});
+
+describe('RD-0051: saída do CSV byte a byte', () => {
+  const pessoa = (nome: string, nota: number | null) => ({ usuario_id: '0b000000-0000-4000-8000-000000000001', nome, perfil: 'vendedor' as const, equipe_id: null, licoes_no_mes: 1, trilhas_concluidas: 2, obrigatorias_pendentes: 3, nota_media_pct: nota, ultima_atividade_em: null });
+
+  it('RD-0051: BOM, ; , CRLF, aspas, nomes com cara de fórmula e vírgula decimal', () => {
+    const csv = pessoasParaCsv(
+      [pessoa('Ana "Aninha"; Silva', 87.5), pessoa('=1+1', 33.333), pessoa('+Davi', 0), pessoa('@Caio', null), pessoa('-Bia\r\nLinha', 10)],
+      'America/Manaus',
+    );
+    expect(csv).toBe(
+      '\uFEFF' +
+        'Pessoa;Perfil;Lições no mês;Trilhas concluídas;Obrigatórias pendentes;Nota média (%);Última atividade\r\n' +
+        '"Ana ""Aninha""; Silva";Vendedor;1;2;3;87,50;\r\n' +
+        '=1+1;Vendedor;1;2;3;33,33;\r\n' +
+        '+Davi;Vendedor;1;2;3;0,00;\r\n' +
+        '@Caio;Vendedor;1;2;3;;\r\n' +
+        '"-Bia\r\nLinha";Vendedor;1;2;3;10,00;\r\n',
+    );
   });
 });

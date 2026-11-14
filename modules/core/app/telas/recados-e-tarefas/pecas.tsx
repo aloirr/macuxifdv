@@ -6,7 +6,7 @@
 import { ALVO_TOQUE, colors, fonts, Icon, Pressionavel, radius, space, type as t, type IconName } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { CaixaTarefa, IconeLinha } from './linhas-recados-e-tarefas';
+import type { CaixaTarefa, IconeDoBalao, IconeLinha } from './linhas-recados-e-tarefas';
 
 const ICONE: Record<IconeLinha, { nome: IconName; cor: string; fundo: string }> = {
   recado: { nome: 'chat', cor: colors.accentInk, fundo: colors.accentSoft },
@@ -14,6 +14,23 @@ const ICONE: Record<IconeLinha, { nome: IconName; cor: string; fundo: string }> 
   pedido: { nome: 'check', cor: colors.accentInk, fundo: colors.accentSoft },
   aviso: { nome: 'bell', cor: colors.neutralInk, fundo: colors.neutralBg },
 };
+
+const ICONE_BALAO: Record<IconeDoBalao, { nome: IconName; cor: string; fundo: string }> = {
+  recado: { nome: 'chat', cor: colors.accentInk, fundo: colors.accentSoft },
+  tarefa: { nome: 'check', cor: colors.neutralInk, fundo: colors.neutralBg },
+  vencida: { nome: 'alert', cor: colors.danger, fundo: colors.dangerBg },
+  ok: { nome: 'check', cor: colors.success, fundo: colors.successBg },
+};
+
+/** Ícone redondo do balão: balão de conversa (recado), check (tarefa), alerta (vencida) e ok (tudo em dia). */
+export function IconeDoBalaoRedondo({ icone, tamanho = 36 }: { icone: IconeDoBalao; tamanho?: number }) {
+  const i = ICONE_BALAO[icone];
+  return (
+    <View style={[s.icone, { width: tamanho, height: tamanho, borderRadius: tamanho / 2, backgroundColor: i.fundo }]} importantForAccessibility="no-hide-descendants">
+      <Icon name={i.nome} size={tamanho / 2} color={i.cor} strokeWidth={2} />
+    </View>
+  );
+}
 
 export function IconeRecado({ icone, tamanho = 40 }: { icone: IconeLinha; tamanho?: number }) {
   const i = ICONE[icone];

@@ -4,8 +4,9 @@
  * Parâmetros: `questionario` (obrigatório), `cliente` e `visita` (pesquisa do cliente ou da etapa do checkout).
  * Visual T-0072: progresso "3 de 5" (RD-0184: sem chips), um só principal ("Enviar resposta") que abre Folha de confirmação (resposta é
  * imutável), descartar com Dialogo, AvisoRodape para o Desfazer da foto, estados com EstadoVazio.
+ * Cabeçalho na faixa Azul noite do kit (`Screen cabecalho`, componentes.md §5.2): título da pesquisa, descrição como subtítulo e o voltar.
  */
-import { AvisoRodape, BackLink, Banner, Botao, ChipEstado, Dialogo, EstadoVazio, Folha, Icon, Loading, OpcaoFolha, ProgressBar, Screen, colors, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { AvisoRodape, Banner, Botao, ChipEstado, Dialogo, EstadoVazio, Folha, Icon, Loading, OpcaoFolha, ProgressBar, Screen, colors, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -112,8 +113,7 @@ export default function ResponderScreen() {
   if (!carregado) return <Loading />;
   if (!versao || !rascunho) {
     return (
-      <Screen testID="pesquisa.responder">
-        <BackLink label="Pesquisas" fallback={hrefPesquisas()} />
+      <Screen testID="pesquisa.responder" cabecalho={{ titulo: 'Pesquisa', voltar: { label: 'Pesquisas', fallback: hrefPesquisas() } }}>
         <EstadoVazio icone="clipboard" titulo="Pesquisa indisponível" texto="Sincronize e tente de novo." acao={{ rotulo: 'Voltar', onPress: voltar }} testID="pesquisa.indisponivel" />
       </Screen>
     );
@@ -121,7 +121,7 @@ export default function ResponderScreen() {
 
   if (enviada) {
     return (
-      <Screen testID="pesquisa.responder">
+      <Screen testID="pesquisa.responder" cabecalho={{ titulo: versao.titulo }}>
         <View style={{ alignItems: 'center', gap: 10, paddingTop: 24 }} testID="pesquisa.enviada">
           <Icon name="check" size={32} color={colors.success} />
           <Text style={t.h1}>Resposta registrada</Text>
@@ -138,11 +138,10 @@ export default function ResponderScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen testID="pesquisa.responder">
-        <BackLink label="Pesquisas" fallback={hrefPesquisas()} />
+      <Screen
+        testID="pesquisa.responder"
+        cabecalho={{ titulo: versao.titulo, ...(versao.descricao ? { subtitulo: versao.descricao } : {}), voltar: { label: 'Pesquisas', fallback: hrefPesquisas() } }}>
         <View style={{ gap: 8 }}>
-          <Text style={t.h1Small}>{versao.titulo}</Text>
-          {versao.descricao ? <Text style={t.sub}>{versao.descricao}</Text> : null}
           <ProgressBar pct={pct} />
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <Text style={t.bodyStrong} testID="pesquisa.progresso">

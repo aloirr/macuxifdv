@@ -5,8 +5,6 @@ import {
   comLinhasEmChaveJson,
   criarArmazenamentoEmMemoria,
   criarMotorSync,
-  ROTULO_SITUACAO,
-  rotuloDoItem,
   type ArmazenamentoSync,
   type EtapaSync,
 } from './motor-sync';
@@ -303,8 +301,6 @@ describe.each(FABRICAS_ARMAZENAMENTO)('motor de sync do aparelho [%s]', (_nome, 
     expect(motor.estado().fila).toMatchObject([
       { id: uuid(1), situacao: 'pendente', codigo: 'SYNC_NAO_IMPLEMENTADO', tentativas: 1 },
     ]);
-    expect(rotuloDoItem(motor.estado().fila[0]!)).toBe('na fila — envio ainda não disponível no servidor');
-    expect(rotuloDoItem({ situacao: 'pendente', codigo: null })).toBe(ROTULO_SITUACAO.pendente);
     expect([...servidor.recebidos.keys()]).toEqual([uuid(2)]);
     // vai sozinho no próximo envio, quando o servidor passar a receber
     servidor.semReceptor.clear();

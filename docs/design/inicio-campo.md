@@ -78,3 +78,29 @@ dono preferir a tela toda clara, a segunda escolha é a C.
 - engenheiro-apps: montagem em `apps/mobile/src/components/inicio.tsx` e `(tabs)/index.tsx`, barra de status clara sobre o
   painel (B) e fundo sólido atrás da barra de status ao rolar (falha 6).
 - modulo-core: hora "ontem" no `recados_hoje` (falha 4) e o cliente no corpo do aviso de pedido (falha 3).
+
+## 6. Painel do topo de ponta a ponta (14/11/2026)
+> Pedido do dono do produto (chat, 14/11 às 5h40, com o print do Início): "Não gostei dessa parte azul do jeito que está.
+> Nas simulações fica o azul de ponta a ponta e não quadrado arredondado. Simule e ajuste". Referência: quadro 8 de
+> `docs/marca/propostas/2026-11-12-entrada-sync/entrada-sync.png`. Simulação: `telas/T-0170-inicio-ponta-a-ponta.png`
+> (Hoje × Ajustado, com o `.html` ao lado). Substitui o "raio 24" do `PainelInicio` (§3).
+
+**Como fica:**
+- O Azul noite (`colors.faixa`, `#1E3350`) começa no topo da tela, atrás da barra de status, com os ícones do sistema em
+  branco.
+- O painel ocupa a largura toda: sem raio, sem margem lateral, colado no topo. A borda de baixo é reta.
+- Respiro interno: 8 no alto (logo abaixo da barra de status), 20 nas laterais (alinha o texto com a coluna dos cards),
+  20 embaixo. Altura mínima 140, como hoje.
+- O avatar (96 × 128, raio 16, Azul suave com as iniciais) continua dentro do painel, à direita.
+- Abaixo do painel, o Pérola, com o mesmo espaço de hoje (14) até "Metas do mês". O resto da tela não muda.
+- Ao rolar, o painel sobe com o conteúdo; a faixa da barra de status continua Azul noite enquanto o Início estiver em foco.
+- O Sol (`#C2540A`) fica só nas barras de meta, no ponto "fora" da Produtividade e no contador do sino.
+
+**Quem faz:**
+| Parte | Dono | Onde |
+|---|---|---|
+| Faixa da barra de status em Azul noite, ícones claros, enquanto o Início está em foco; volta ao Pérola nas outras abas | engenheiro-apps (shell) | `useCorDaFaixa` em `apps/mobile` |
+| Painel sem raio, sem margem lateral e colado no topo (o `Screen` do Início sem o padding de cima e lateral só no painel) | modulo-core | `s.painel` em `modules/core/app/telas/inicio/tela-inicio-campo.tsx` |
+
+**Pronto quando:** o print do aparelho bate com o quadro "Ajustado": nenhuma faixa Pérola acima do painel, nenhum canto
+arredondado no painel, o Azul noite tocando as duas bordas da tela.

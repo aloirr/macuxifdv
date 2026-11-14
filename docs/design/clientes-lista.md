@@ -32,7 +32,7 @@ Prioridade: **Bloqueado > Devendo > Pré-Cadastro > Em dia** (RN-CORE-41). Mostr
 |---|---|---|
 | `Bloqueado` | cliente bloqueado (`bloqueado`) | `erro`, com `icone="lock"` |
 | `Devendo` | 1 ou mais títulos vencidos (`vencidos_qtd > 0`) e não bloqueado | `erro` |
-| `Pré-Cadastro` | cadastrado no app ou no BKO e ainda sem o código do ERP; sai quando o ERP devolve o cadastro | `neutro` (`neutralInk` #34404D sobre `neutralBg` #E6E9E2, 8,6:1) |
+| `Pré-Cadastro` | cadastrado no app ou no BKO e ainda sem o código do ERP; sai quando o ERP devolve o cadastro | `neutro` (`neutralInk` #34404D sobre `neutralBg` #ECEEF1, 9,09:1) |
 | `Em dia` | nenhum dos anteriores | `sucesso` |
 
 - Sem número na tag ("Devendo", não "2 vencidos"). A quantidade e o valor ficam na ficha do cliente.

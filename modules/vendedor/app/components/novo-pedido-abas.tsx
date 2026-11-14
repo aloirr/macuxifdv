@@ -479,7 +479,7 @@ export function AbaResumo({
       </View>
       <View style={{ gap: 6 }}>
         <RotuloSecao texto="Totais" />
-        <CartaoDeTotais linhas={linhasDosTotais({ subtotal_cents: calculo.total_tabela_cents, total_cents: calculo.total_cents })} total={formatBRL(calculo.total_cents)} testIDTotal="totais-pedido-total" />
+        <CartaoDeTotais linhas={linhasDosTotais({ subtotal_cents: calculo.total_tabela_cents, total_cents: calculo.total_cents }, { fixas: true })} total={formatBRL(calculo.total_cents)} testIDTotal="totais-pedido-total" />
       </View>
       {somenteLeitura ? null : (
         <BotoesDoResumoView botoes={botoes} salvando={salvando} onEnviar={onEnviar} onApenasSalvar={onApenasSalvar} onOrcamento={onOrcamento} onSalvarOrcamento={onSalvarOrcamento} onTransformar={onTransformar} onCancelar={onCancelar} />

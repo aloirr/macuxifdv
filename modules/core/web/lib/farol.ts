@@ -2,6 +2,7 @@
  * Visão da tela "Farol de clientes" do BKO (RN-CORE-28; T-0081): funções puras sobre `GET /v1/core/farol`.
  * Sem React e sem rede. As cores e as regras moram no domain; aqui só apresentação, filtros da URL, CSV e formulário dos parâmetros.
  */
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import type {
   CorFarol,
   ErroParametroFarol,
@@ -12,11 +13,6 @@ import type {
 } from '../../contracts';
 import { CAMPOS_PARAMETROS_FAROL } from '../../contracts';
 import { validarParametrosFarol } from '../../domain';
-
-const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
-/** Célula de CSV: texto que começaria com `=`, `+`, `-`, `@`, TAB ou CR ganha um apóstrofo na frente (o Excel não o executa como fórmula). */
-export const protegerFormula = (v: string): string => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
-const aspas = (v: string) => `"${protegerFormula(v).replace(/"/g, '""')}"`;
 
 export const ROTULO_COR: Record<CorFarol, string> = {
   verde: 'Verde',
@@ -158,10 +154,10 @@ export function csvDoFarol(
       c.positivado_mes ? 'Sim' : 'Não',
       rotuloDaCor(c.cor),
     ]
-      .map(aspas)
+      .map(celulaCsv)
       .join(';'),
   );
-  return BOM + `${[CABECALHO_CSV.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[CABECALHO_CSV.map(celulaCsv).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
 /* ---------- parâmetros ---------- */

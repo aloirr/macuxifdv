@@ -37,3 +37,4 @@
 2026-11-12 — T-0166 — Gestão: saem 4 faixas Sem conexão, Dispensar desligado sem sinal com motivo no toque, SyncStamp em Ficha e Ranking; teste alertas-menos-faixas
 2026-11-13 — T-0168/T-0171 — pedido em nome usa o limite do gestor (casos 19/20, limiteDoPedidoEmNome); Equipe com uma tag e um fato (RD-0208); Aprovações sem crédito/90d; Alertas sem 'responsável · desde'; recado ao Core sobre a lista de Clientes (RN-CORE-41)
 2026-11-13 — RD-0210 — removida a tag fixa 'Atenção' das pendências em alertas-screen.tsx
+2026-11-14 — oficial — cabeçalho Azul noite nas 5 telas do Gestão

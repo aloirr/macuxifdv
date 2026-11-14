@@ -60,6 +60,14 @@ describe('RF-PES-03: a Pesquisa no shell do app (Campo e Gestão)', () => {
     expect(etapa!.payload.concluida()).toBe(true);
   });
 
+  it('RF-PES-03: a seção da ficha expõe disponivel(contexto) do módulo (o botão "Pesquisa" só aparece com pesquisa)', () => {
+    const ctx = { clienteId: 'c1', nomeCliente: 'Loja', visitaId: null, paradaId: null };
+    const comRegra = montarModuloApp<string>({ pesquisas: 'P', responder: 'R', abaCliente: 'A', etapaCheckout: 'E', cardInicio: 'C' }, () => true, [], (c) => c.clienteId === 'c1');
+    const [aba] = criarShell('campo', [{ manifesto: core, paginas: [] }, comRegra]).montar({ perfil: 'vendedor', modulosAtivos: ['core', 'pesquisa'] }).extensoes<{ disponivel: (c: typeof ctx) => boolean }>('cliente.abas');
+    expect(aba!.payload.disponivel(ctx)).toBe(true);
+    expect(aba!.payload.disponivel({ ...ctx, clienteId: 'c2' })).toBe(false);
+  });
+
   it('ADR 0009: o app registra as entidades questionario_versao (pull) e resposta_pesquisa (push + pull)', () => {
     expect(pesquisa.entidadesSync?.map((e) => [e.nome, e.direcao, e.conflito])).toEqual([
       ['questionario_versao', 'pull', 'servidor_vence'],

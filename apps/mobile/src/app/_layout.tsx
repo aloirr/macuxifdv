@@ -14,7 +14,7 @@ import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600Sem
 import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import { DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, router, Stack, ThemeProvider, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
@@ -101,6 +101,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
     tocarBotaoPermissoes,
     variante,
   } = usePlataforma();
+  // pedido de 14/11/2026 (manual da marca §4): a faixa da barra de status segue a rota (Azul noite onde há cabeçalho)
+  const rota = usePathname();
   // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
   const reduzir = useReduzirMovimento();
   // T-0072: vibração leve do kit (principal, confirmar e Desfazer); desligada com "reduzir movimento" (R-20261104-231036)
@@ -164,7 +166,7 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
             importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
             accessibilityElementsHidden={sobre !== null}
           >
-            <AreaSeguraSuperior>
+            <AreaSeguraSuperior rota={rota}>
               {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
               <Stack
                 screenOptions={{

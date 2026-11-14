@@ -4,7 +4,6 @@
  * da lição vai junto, logo atrás (o servidor aplica na ordem e recorrige, RN-TRE-04).
  */
 import {
-  BackLink,
   Botao,
   Cartao,
   ChipEstado,
@@ -49,8 +48,7 @@ export default function QuizScreen() {
 
   if (!tela || !tela.licao.quiz) {
     return (
-      <Screen testID="treinar-quiz">
-        <BackLink label="Treinar" fallback={hrefTreinar()} />
+      <Screen testID="treinar-quiz" cabecalho={{ titulo: 'Quiz', voltar: { label: 'Treinar', fallback: hrefTreinar() } }}>
         {tr.carregado ? (
           <EstadoVazio icone="clipboard" titulo="Quiz não encontrado" texto="Volte e puxe para atualizar." />
         ) : (
@@ -106,12 +104,14 @@ export default function QuizScreen() {
   };
 
   return (
-    <Screen testID="treinar-quiz">
-      <BackLink label={trilha.titulo} fallback={hrefLicao(licao.id)} />
-      <View style={{ gap: 4 }}>
-        <Text style={t.small}>Quiz · nota mínima {tr.params.nota_minima_pct}%</Text>
-        <Text style={t.h1Small}>{licao.titulo}</Text>
-      </View>
+    <Screen
+      testID="treinar-quiz"
+      cabecalho={{
+        titulo: licao.titulo,
+        subtitulo: `Quiz · nota mínima ${tr.params.nota_minima_pct}%`,
+        posicaoSubtitulo: 'acima',
+        voltar: { label: trilha.titulo, fallback: hrefLicao(licao.id) },
+      }}>
 
       {questoes.map((q, qi) => {
         const certo = acertou(q.id);

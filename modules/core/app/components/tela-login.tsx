@@ -7,7 +7,7 @@
  * `aviso` mostra, no lugar do erro, o texto de uma volta (ex.: "Esta senha não vale mais. Entre de novo.").
  */
 import { estilosDeAcesso } from './estilos-de-acesso';
-import { Banner, Button, colors, fonts, Screen, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -58,11 +58,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
 
   return (
     <Screen gap={16} top={36} testID="login.tela">
-      <View style={{ gap: 4 }}>
-        <Text style={styles.marca}>MACUXI FDV</Text>
-        <Text style={t.h1}>Entrar</Text>
-        <Text style={t.sub}>Use o código da sua empresa, o seu e-mail e a sua senha.</Text>
-      </View>
+      <Text style={t.h1}>Entrar</Text>
 
       {erro ?? aviso ? (
         <Banner tone="danger" icon="alert" testID="login.erro">
@@ -107,7 +103,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         onSubmitEditing={() => void entrar()}
       />
 
-      <Button testID="login.entrar" label="Entrar" variant="dark" height={52} loading={entrando} onPress={() => void entrar()} />
+      <Button testID="login.entrar" label="Entrar" variant="accent" height={52} loading={entrando} onPress={() => void entrar()} />
       {onEsqueci ? (
         <Pressable
           testID="login.esqueci"
@@ -167,7 +163,6 @@ function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
 
 const styles = StyleSheet.create({
   ...estilosDeAcesso,
-  marca: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 1.6, color: colors.accentInk },
   esqueci: estilosDeAcesso.link,
   esqueciTexto: estilosDeAcesso.linkTexto,
 });

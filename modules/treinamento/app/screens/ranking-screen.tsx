@@ -5,7 +5,6 @@
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useHttp } from '@macuxi/platform-sdk/react';
 import {
-  BackLink,
   Cartao,
   Chip,
   ChipEstado,
@@ -83,9 +82,11 @@ export default function RankingScreen() {
   }, [carregar]);
 
   return (
-    <Screen testID="treinar-ranking" refreshing={carregando} onRefresh={() => void carregar()}>
-      <BackLink label="Treinar" fallback={hrefTreinar()} />
-      <Text style={t.h1}>Ranking</Text>
+    <Screen
+      testID="treinar-ranking"
+      refreshing={carregando}
+      onRefresh={() => void carregar()}
+      cabecalho={{ titulo: 'Ranking', voltar: { label: 'Treinar', fallback: hrefTreinar() } }}>
       <LinhaChips>
         {PERIODOS.map((p) => (
           <Chip

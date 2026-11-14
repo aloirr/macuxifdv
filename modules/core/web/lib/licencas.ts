@@ -3,6 +3,7 @@
  * `GET /v1/core/licencas`. Sem React e sem rede — testadas em Node. Regras: RN-CORE-01 (tenant ∩ perfil − exceções,
  * exceção do usuário só remove, core sempre ativo) e RN-CORE-03 (desligar um módulo desliga os dependentes).
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import type { ModuloId, Perfil } from '@macuxi/platform-sdk';
 import type { LicencasEstado, NivelLicenca } from '../../contracts';
 import { dependentesDe, efetivosPelasDependencias } from '../../domain/licencas';
@@ -60,7 +61,7 @@ export function csvDeLicencas(e: LicencasEstado): string {
     for (const m of u.removidos) linhas.push(['usuario', u.email, m, 'removido']);
     linhas.push(['efetivos', u.email, efetivosDoUsuario(e, u.id).join(' '), 'efetivo']);
   }
-  return `\uFEFF${linhas.map((l) => l.map(aspas).join(';')).join('\r\n')}\r\n`;
+  return `${BOM_CSV}${linhas.map((l) => l.map(aspas).join(';')).join('\r\n')}\r\n`;
 }
 
 export const ROTULO_NIVEL: Record<NivelLicenca, string> = { tenant: 'Empresa', perfil: 'Perfil', usuario: 'Usuário' };

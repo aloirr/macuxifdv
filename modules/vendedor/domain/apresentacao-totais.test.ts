@@ -26,6 +26,25 @@ describe('RN-VEN-03 (T-0165, R-20261112-032141): os Totais em linhas separadas',
     expect(linhasDosTotais({ subtotal_cents: 10_000, total_cents: 10_000 })).toEqual([]);
   });
 
+  it('RN-VEN-03 (dono do produto, 14/11): com fixas, sem ajuste as três linhas ficam com zeros (folha do item e Resumo)', () => {
+    const l = linhasDosTotais({ subtotal_cents: 9_255, total_cents: 9_255 }, { fixas: true });
+    expect(l.map((x) => [x.rotulo, limpo(x.valor)])).toEqual([
+      ['Valor de tabela', 'R$ 92,55'],
+      ['Desconto (%)', '0,0%'],
+      ['Desconto (R$)', 'R$ 0,00'],
+    ]);
+  });
+
+  it('RN-VEN-03 (dono do produto, 14/11): com fixas e ajuste, as mesmas linhas trocam só os valores (5% sobre R$ 92,55)', () => {
+    const l = linhasDosTotais({ subtotal_cents: 9_255, total_cents: 8_790 }, { fixas: true });
+    expect(l.map((x) => [x.rotulo, limpo(x.valor)])).toEqual([
+      ['Valor de tabela', 'R$ 92,55'],
+      ['Desconto (%)', '5,0%'],
+      ['Desconto (R$)', '− R$ 4,65'],
+    ]);
+    expect(linhasDosTotais({ subtotal_cents: 10_000, total_cents: 10_500 }, { fixas: true }).map((x) => x.rotulo)).toEqual(['Valor de tabela', 'Acréscimo (%)', 'Acréscimo (R$)']);
+  });
+
   it('RN-VEN-02 (T-0165): a coluna Desc./Acrésc. é sempre em % com 1 casa: −5,0%, +10,0%, 0,0%', () => {
     expect(ajusteDoItemEmPct({ discount_pct: 5 })).toBe('−5,0%');
     expect(ajusteDoItemEmPct({ surcharge_pct: 10 })).toBe('+10,0%');

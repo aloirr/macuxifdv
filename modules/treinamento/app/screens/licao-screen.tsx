@@ -4,7 +4,6 @@
  * aparelho (fila do motor) e mostra o XP na hora; o servidor revalida tudo ao sincronizar.
  */
 import {
-  BackLink,
   Banner,
   Botao,
   Cartao,
@@ -51,8 +50,7 @@ export default function LicaoScreen() {
 
   if (!tela) {
     return (
-      <Screen testID="treinar-licao">
-        <BackLink label="Treinar" fallback={hrefTreinar()} />
+      <Screen testID="treinar-licao" cabecalho={{ titulo: 'Lição', voltar: { label: 'Treinar', fallback: hrefTreinar() } }}>
         {tr.carregado ? (
           <EstadoVazio icone="file" titulo="Lição não encontrada" texto="Volte e puxe para atualizar." />
         ) : (
@@ -88,12 +86,14 @@ export default function LicaoScreen() {
   };
 
   return (
-    <Screen testID="treinar-licao">
-      <BackLink label={trilha.titulo} fallback={hrefTrilha(trilha.id)} />
-      <View style={{ gap: 4 }}>
-        <Text style={t.small}>{tela.modulo_titulo}</Text>
-        <Text style={t.h1Small}>{licao.titulo}</Text>
-      </View>
+    <Screen
+      testID="treinar-licao"
+      cabecalho={{
+        titulo: licao.titulo,
+        subtitulo: tela.modulo_titulo,
+        posicaoSubtitulo: 'acima',
+        voltar: { label: trilha.titulo, fallback: hrefTrilha(trilha.id) },
+      }}>
       {tela.status === 'bloqueada' ? (
         <Banner testID="treinar-licao-bloqueada" tone="warning" icon="lock">
           <Strong>Lição bloqueada.</Strong> Conclua as anteriores.

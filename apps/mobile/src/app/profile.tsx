@@ -12,7 +12,6 @@
 import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
-  BackLink,
   Badge,
   BotaoSincronizar,
   Button,
@@ -22,8 +21,6 @@ import {
   fonts,
   Icon,
   initials,
-  intervaloSyncAutoMs,
-  PARAMETRO_SYNC_AUTO,
   ProgressBar,
   radius,
   rotuloDoPerfil,
@@ -114,8 +111,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen top={16} testID="profile" refreshing={auto.puxando} onRefresh={auto.puxar}>
-      <BackLink label="Início" fallback="/" />
+    <Screen testID="profile" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={{ titulo: 'Perfil', voltar: { label: 'Início', fallback: '/' } }}>
       <View style={styles.who}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials(name)}</Text>
@@ -157,9 +153,6 @@ export default function ProfileScreen() {
             </Text>
           ) : null}
           <BotaoSincronizar testID="sync-now" />
-          <Text style={t.small}>
-            {`Automática ao abrir o app, ao voltar depois de 30 min e a cada ${Math.round(intervaloSyncAutoMs(motor?.parametros('core')[PARAMETRO_SYNC_AUTO]) / 60_000)} min com o app em uso. Pedidos e visitas sobem sozinhos assim que houver sinal.`}
-          </Text>
         </Card>
       </View>
 
@@ -170,7 +163,6 @@ export default function ProfileScreen() {
             <Icon name="wifiOff" size={20} color={offline ? colors.warning : colors.ink2} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={t.bodyStrong}>Simular aparelho sem sinal</Text>
-              <Text style={t.small}>Tudo o que você registrar vai para a fila. Ao desligar, a fila é enviada.</Text>
             </View>
             <Switch
               testID="offline-switch"
@@ -187,7 +179,6 @@ export default function ProfileScreen() {
       <View style={{ gap: 8 }}>
         <SectionHeader title="Módulos" />
         <Card style={{ padding: 14, gap: 8 }}>
-          <Text style={t.small}>Os módulos ativos para você, as versões e o que ficou sem enviar de módulo desativado.</Text>
           <Button testID="abrir-meus-modulos" label="Meus módulos" icon="chevron" variant="outline" onPress={() => router.push('/m/meus-modulos')} />
         </Card>
       </View>
@@ -198,7 +189,7 @@ export default function ProfileScreen() {
         <Card key={modulo} testID={`limpeza-${modulo}`} style={{ padding: 14, gap: 10 }}>
           <Text style={t.bodyStrong}>Módulo {modulo} desativado</Text>
           <Text style={t.small}>
-            Os itens abaixo marcados como “Não enviado” não chegaram ao servidor. Ao confirmar, eles e os dados desse módulo são apagados deste aparelho.
+            Ao confirmar, os itens “Não enviado” e os dados desse módulo são apagados deste aparelho.
           </Text>
           <Button testID={`confirmar-limpeza-${modulo}`} label="Entendi, apagar do aparelho" variant="danger" onPress={() => void motor?.confirmarLimpeza(modulo)} />
         </Card>
@@ -207,7 +198,9 @@ export default function ProfileScreen() {
       {estado.avisos.length > 0 ? (
         <Card testID="avisos-sync" style={{ padding: 14, gap: 6 }}>
           <Text style={t.bodyStrong}>Parte dos dados ainda não está disponível no servidor</Text>
-          <Text style={t.small}>O resto foi sincronizado. O que você registrar fica no aparelho e na fila até o servidor receber. Detalhes em Diagnóstico.</Text>
+          <Pressable accessibilityRole="link" testID="avisos-sync-diagnostico" onPress={() => setDiagnosticoAberto(true)} hitSlop={8}>
+            <Text style={[t.small, { color: colors.accent }]}>Diagnóstico</Text>
+          </Pressable>
         </Card>
       ) : null}
 
@@ -258,17 +251,6 @@ export default function ProfileScreen() {
               </View>
             ))}
           </Card>
-        ) : null}
-        {fila.length > 0 || fotos.length > 0 ? (
-          <Button
-            testID="send-now"
-            label={offline ? 'Desligue o modo sem sinal para enviar' : 'Enviar agora'}
-            icon="send"
-            variant="accent"
-            disabled={offline}
-            loading={estado.enviando}
-            onPress={() => void app.enviarFila({ incluirFalhos: true })}
-          />
         ) : null}
       </View>
 
