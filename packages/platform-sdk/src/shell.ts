@@ -45,6 +45,75 @@ export function linkInternoNavegavel(link: string | null | undefined, telaExiste
   return !telaExiste || telaExiste(caminho) ? link : null;
 }
 
+/**
+ * Grupos do menu do BKO (ADR 0050; spec docs/design/telas/bko-revisao.md §M2). O menu mostra os grupos e os itens
+ * em ordem alfabética pelo rótulo (pt-BR, sem diferenciar acento e caixa).
+ */
+export const GRUPOS_MENU = ['acesso', 'analise', 'cadastros', 'comercial', 'comunicacao', 'conteudo_campo', 'operacao', 'produtos', 'sistema'] as const;
+export type GrupoMenu = (typeof GRUPOS_MENU)[number];
+
+export const ROTULO_GRUPO_MENU: Record<GrupoMenu, string> = {
+  acesso: 'Acesso',
+  analise: 'Análise',
+  cadastros: 'Cadastros',
+  comercial: 'Comercial',
+  comunicacao: 'Comunicação',
+  conteudo_campo: 'Conteúdo de campo',
+  operacao: 'Operação',
+  produtos: 'Produtos',
+  sistema: 'Sistema',
+};
+
+/**
+ * Transição da ADR 0050: `<modulo>/<idDaPagina>` → grupo declarado hoje (`de`) e grupo do M2 (`para`). Só vale enquanto
+ * a página declarar o `de`; quando o módulo passar a declarar o grupo novo, a linha deixa de valer sozinha e sai no fim
+ * da transição (junto com 'administracao').
+ */
+const TRANSICAO_GRUPO: Readonly<Record<string, { de: GrupoDeclarado; para: GrupoMenu }>> = {
+  'core/aparelhos': { de: 'administracao', para: 'acesso' },
+  'core/perfis': { de: 'administracao', para: 'acesso' },
+  'core/usuarios': { de: 'administracao', para: 'acesso' },
+  'core/usuarios-e-modulos': { de: 'administracao', para: 'acesso' },
+  'core/clientes': { de: 'operacao', para: 'cadastros' },
+  'core/plano-rv': { de: 'cadastros', para: 'comercial' },
+  'vendedor/alcadas': { de: 'cadastros', para: 'comercial' },
+  'vendedor/formas-pagamento': { de: 'administracao', para: 'comercial' },
+  'vendedor/transportadoras': { de: 'cadastros', para: 'comercial' },
+  'core/recados': { de: 'operacao', para: 'comunicacao' },
+  'gestor/alertas': { de: 'operacao', para: 'comunicacao' },
+  'gestor/regras-alerta': { de: 'administracao', para: 'comunicacao' },
+  'pesquisa/pesquisas': { de: 'cadastros', para: 'conteudo_campo' },
+  'promotor/cadastros': { de: 'cadastros', para: 'conteudo_campo' },
+  'treinamento/trilhas': { de: 'cadastros', para: 'conteudo_campo' },
+  'catalogo/catalogo': { de: 'cadastros', para: 'produtos' },
+  'catalogo/marcas': { de: 'cadastros', para: 'produtos' },
+  'catalogo/tabelas-preco': { de: 'cadastros', para: 'produtos' },
+  'core/produtos': { de: 'cadastros', para: 'produtos' },
+  'integracao/carga-arquivo': { de: 'administracao', para: 'sistema' },
+  'integracao/monitor': { de: 'administracao', para: 'sistema' },
+};
+
+/**
+ * Grupo do menu do BKO da página (ADR 0050): o declarado (padrão 'operacao'), passado pela tabela de transição enquanto a
+ * página declarar o grupo de hoje; 'administracao' fora da tabela cai em 'sistema'.
+ */
+export function grupoDoMenu(modulo: string, pagina: { id: string; grupo?: GrupoDeclarado }): GrupoMenu {
+  return grupoResolvido(modulo, pagina.id, pagina.grupo ?? 'operacao');
+}
+
+function grupoResolvido(modulo: string, id: string, declarado: GrupoDeclarado): GrupoMenu {
+  const transicao = TRANSICAO_GRUPO[`${modulo}/${id}`];
+  if (transicao && transicao.de === declarado) return transicao.para;
+  return semTransicao(declarado);
+}
+
+function semTransicao(declarado: GrupoDeclarado): GrupoMenu {
+  return declarado === 'administracao' ? 'sistema' : declarado;
+}
+
+/** Grupo aceito em `PaginaShell.grupo` durante a transição da ADR 0050. */
+export type GrupoDeclarado = GrupoMenu | 'administracao';
+
 export interface PaginaShell<C> {
   /** Id único no módulo; vira o testID estável `nav-<modulo>-<id>` (menu/aba) e `pagina-<modulo>-<id>`. */
   id: string;
@@ -59,9 +128,12 @@ export interface PaginaShell<C> {
   navegacao?: string;
   /** Nome do ícone do kit de UI (`@macuxi/ui`). */
   icone?: string;
-  /** Agrupamento no menu do BKO (padrão: 'operacao'). */
-  grupo?: 'operacao' | 'cadastros' | 'analise' | 'administracao';
-  /** Menor aparece primeiro (padrão 100). */
+  /**
+   * Grupo no menu do BKO (padrão: 'operacao'; ADR 0050, `GRUPOS_MENU`).
+   * 'administracao' está @deprecated (transição da ADR 0050): vira o grupo do M2 pela tabela do SDK, ou 'sistema'.
+   */
+  grupo?: GrupoDeclarado;
+  /** Menor aparece primeiro na barra de abas do app (padrão 100). O BKO ignora: ordem alfabética (ADR 0050). */
   ordem?: number;
   /** Só nestas variantes do app (padrão: todas as que o manifesto declara). */
   apps?: readonly AppShell[];
@@ -131,7 +203,15 @@ export interface ItemNavegacao<C> {
   rotulo: string;
   caminho: string;
   icone?: string;
+  /**
+   * Grupo declarado pela página (padrão 'operacao').
+   * @deprecated transição da ADR 0050: use `grupoMenu`/`rotuloGrupo`; no fim da transição passa a ser `GrupoMenu`.
+   */
   grupo: NonNullable<PaginaShell<C>['grupo']>;
+  /** Grupo do menu do BKO já com a transição da ADR 0050 (`grupoDoMenu`). */
+  grupoMenu: GrupoMenu;
+  /** Rótulo do grupo (`ROTULO_GRUPO_MENU`). */
+  rotuloGrupo: string;
   /** testID / data-testid estável: `nav-<modulo>-<id>`. */
   testID: string;
   pagina: PaginaShell<C>;
@@ -251,7 +331,11 @@ export interface VisaoShell<C> {
   app: AppShell;
   perfil: Perfil | null;
   modulosAtivos: readonly ModuloId[];
-  /** Itens de menu/aba, em ordem (grupo, ordem, ordem de dependência do módulo). */
+  /**
+   * Itens de menu/aba, em ordem. Web (ADR 0050): rótulo do grupo e rótulo do item em ordem alfabética (pt-BR, sem acento
+   * e caixa), desempate por módulo e id; `ordem` não conta. App: grupo (posição em `GRUPOS_MENU`), `ordem`, ordem de
+   * dependência do módulo, id.
+   */
   navegacao: ItemNavegacao<C>[];
   /** Página do caminho (sem barra inicial) ou null se não existe ou não é permitida. */
   pagina(caminho: string): (PaginaShell<C> & { modulo: ModuloId }) | null;
@@ -261,7 +345,8 @@ export interface VisaoShell<C> {
   extensoes<P = unknown>(slot: string): ItemExtensao<P>[];
 }
 
-const ORDEM_GRUPO = ['operacao', 'cadastros', 'analise', 'administracao'] as const;
+/** Comparador dos rótulos do menu do BKO (pt-BR, sem diferenciar maiúsculas nem acentos; ADR 0050). */
+export const compararRotuloMenu = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
 
 function montarVisao<C>(
   app: AppShell,
@@ -287,16 +372,32 @@ function montarVisao<C>(
       if (p.acao && !pode(p.acao)) continue;
       visiveis.set(p.caminho, { ...p, modulo: id });
       if (p.navegacao) {
-        navegacao.push({ modulo: id, id: p.id, rotulo: p.navegacao, caminho: p.caminho, icone: p.icone, grupo: p.grupo ?? 'operacao', testID: `nav-${id}-${p.id}`, pagina: p });
+        // a tabela de transição é do menu do BKO: no app os ids coincidem (core/clientes, gestor/alertas…) e a ordem das abas não muda
+        const grupo = p.grupo ?? 'operacao';
+        const grupoMenu = app === 'web' ? grupoResolvido(id, p.id, grupo) : semTransicao(grupo);
+        navegacao.push({
+          modulo: id,
+          id: p.id,
+          rotulo: p.navegacao,
+          caminho: p.caminho,
+          icone: p.icone,
+          grupo,
+          grupoMenu,
+          rotuloGrupo: ROTULO_GRUPO_MENU[grupoMenu],
+          testID: `nav-${id}-${p.id}`,
+          pagina: p,
+        });
       }
     }
   }
   navegacao.sort(
-    (a, b) =>
-      ORDEM_GRUPO.indexOf(a.grupo) - ORDEM_GRUPO.indexOf(b.grupo) ||
-      (a.pagina.ordem ?? 100) - (b.pagina.ordem ?? 100) ||
-      (posicaoModulo.get(a.modulo) ?? 0) - (posicaoModulo.get(b.modulo) ?? 0) ||
-      a.id.localeCompare(b.id),
+    app === 'web'
+      ? (a, b) => compararRotuloMenu(a.rotuloGrupo, b.rotuloGrupo) || compararRotuloMenu(a.rotulo, b.rotulo) || a.modulo.localeCompare(b.modulo) || a.id.localeCompare(b.id)
+      : (a, b) =>
+          GRUPOS_MENU.indexOf(a.grupoMenu) - GRUPOS_MENU.indexOf(b.grupoMenu) ||
+          (a.pagina.ordem ?? 100) - (b.pagina.ordem ?? 100) ||
+          (posicaoModulo.get(a.modulo) ?? 0) - (posicaoModulo.get(b.modulo) ?? 0) ||
+          a.id.localeCompare(b.id),
   );
   return {
     app,
