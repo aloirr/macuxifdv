@@ -207,7 +207,7 @@ export interface CalculoPedido {
   unidades_base: number;
   /** impedem o envio (mensagens em português com a ação seguinte) */
   erros: string[];
-  /** RD-0037: os mesmos erros, com código e alvo (o bloco "Falta para salvar" decide por eles, nunca pelo texto) */
+  /** RD-0037: os mesmos erros, com código e alvo (as pendências decidem por eles, nunca pelo texto) */
   pendencias: ErroDeCalculo[];
 }
 
@@ -408,7 +408,7 @@ export function freteValido(f: FreteDoRascunho): string | null {
   return r.codigo === 'cnpj' ? 'CNPJ da transportadora inválido. Confira os 14 dígitos.' : MSG_RECUSA_FRETE[r.recusa];
 }
 
-/** RN-VEN-16: a recusa do frete em código (RD-0037); `codigo` é o que o bloco "Falta para salvar" lê, nunca o texto. */
+/** RN-VEN-16: a recusa do frete em código (RD-0037); `codigo` é o que as pendências leem, nunca o texto. */
 function recusaDoFrete(f: FreteDoRascunho): { recusa: NonNullable<ReturnType<typeof validarFrete>>; codigo: 'transportadora' | 'cnpj' } | null {
   const dig = f.transportadora_digitada;
   const recusa = validarFrete({
@@ -420,7 +420,7 @@ function recusaDoFrete(f: FreteDoRascunho): { recusa: NonNullable<ReturnType<typ
   return { recusa, codigo: recusa === 'transportadora_invalida' && dig && !cnpjValido(dig.cnpj) ? 'cnpj' : 'transportadora' };
 }
 
-/** RN-VEN-16 / RN-CORE-36: o código da pendência do frete para o bloco "Falta para salvar" (a aba é Detalhes). */
+/** RN-VEN-16 / RN-CORE-36: o código da pendência do frete (a aba é Entrega). */
 export function situacaoDoFrete(f: FreteDoRascunho): 'ok' | 'transportadora' | 'cnpj' {
   return recusaDoFrete(f)?.codigo ?? 'ok';
 }

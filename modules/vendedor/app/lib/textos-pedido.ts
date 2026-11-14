@@ -14,7 +14,7 @@ export type AbaNovoPedido = 'venda' | 'itens' | 'entrega' | 'resumo';
 export const ABA_INICIAL_DO_PEDIDO: AbaNovoPedido = 'venda';
 
 /**
- * T-0137: o pedido guardado por "Apenas salvar" reabre no Resumo, onde está o bloco "Falta para salvar".
+ * T-0137: o pedido guardado por "Apenas salvar" reabre no Resumo.
  * T-0141 (RN-VEN-39): o rascunho retomado pela lista Rascunhos abre na aba em que o vendedor parou (`aba`); o novo abre em Venda.
  */
 export function abaInicialDoRascunho(r: { salvo_em?: string | null; aba?: AbaNovoPedido }): AbaNovoPedido {
@@ -36,7 +36,7 @@ export function abaAnteriorDoPedido(aba: AbaNovoPedido): AbaNovoPedido | null {
 
 /**
  * Abas do novo pedido (RF-VEN-11): Venda · Itens (n) · Entrega · Resumo. O contador de Itens aparece sempre ("Itens (0)").
- * A bolinha (RN-CORE-36) fica na aba da correção; o Resumo nunca a recebe (o bloco "Falta para salvar" está nele).
+ * A bolinha (RN-CORE-36) fica na aba da correção; o Resumo nunca a recebe.
  */
 export function abasDoPedido(itens: number, pendentes?: { venda?: boolean; itens?: boolean; entrega?: boolean }): Array<{ id: AbaNovoPedido; rotulo: string; contador?: number | null; pendente?: boolean }> {
   const marca = (v: boolean | undefined) => (v === undefined ? {} : { pendente: v });

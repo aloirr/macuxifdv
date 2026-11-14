@@ -63,7 +63,7 @@ describe('RN-VEN-38: textos da folha (T-0137)', () => {
 });
 
 describe('RN-VEN-38 / RN-CORE-36: salvar pela folha', () => {
-  it('RN-VEN-38: com pendência fecha a folha e abre o Resumo no bloco "Falta para salvar"', () => {
+  it('RN-VEN-38: com pendência fecha a folha e abre o Resumo', () => {
     expect(destinoDoSalvarDaSaida(2)).toBe('mostrar_pendencias');
   });
   it('RN-VEN-38: sem pendência salva na hora', () => {

@@ -5,7 +5,8 @@
  *   RN-VEN-13        Salvar como orçamento (principal, "Válido até dd/mm") · Apenas salvar · Cancelar
  *   editar orçamento Salvar orçamento (principal) · Transformar em pedido · Cancelar
  *   editar pedido    um botão só ("Salvar alterações") · Cancelar
- * Pendência (RN-CORE-36) desliga tudo o que valida; Apenas salvar grava `rascunho` e aceita pendências.
+ * O salvar é sempre tocável: a falta de preenchimento (RN-CORE-36) aparece no campo, na tentativa (a tela valida). Desligam só os
+ * motivos de "só orçamento" por item (RN-VEN-11, RN-VEN-11a, RN-VEN-20). Apenas salvar grava `rascunho` e aceita pendências.
  */
 import { motivoSoOrcamento, type SituacaoCliente } from './orcamento';
 import { mensagemAcimaDoMaximo, type NivelDePreco } from './preco-pedido';
@@ -49,7 +50,6 @@ export interface EntradaDosBotoes {
   pre_venda_ligada: boolean;
   /** `null` = Novo pedido; senão, o tipo do documento em edição */
   editando: 'pedido' | 'orcamento' | null;
-  pendencias: number;
   /** RN-VEN-11 (T-0151): códigos dos itens com desconto acima do máximo do produto; bloqueiam enviar e transformar (só orçamento) */
   itens_acima_do_maximo?: readonly string[];
   /** RN-VEN-11a (T-0168): o desconto efetivo passa do limite do pedido; só orçamento */
@@ -72,19 +72,17 @@ export interface BotoesDoResumo {
   salvarOrcamento: BotaoDoResumo;
   transformar: BotaoDoResumo;
   cancelar: true;
-  pendencias: number;
 }
 
 const OCULTO = (rotulo: string): BotaoDoResumo => ({ visivel: false, habilitado: false, rotulo });
 
 export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
   const soOrcamento = motivoSoOrcamento(e.cliente) !== null;
-  const livre = e.pendencias === 0;
   // RN-VEN-11 (T-0151): desconto acima do máximo do produto não passa nem com aprovação; só o orçamento salva
   const motivoMax = motivoDoMaximo(e.itens_acima_do_maximo);
   const soOrcamentoPorItem = motivoMax !== null || e.acima_do_limite === true || (e.itens_sem_estoque?.length ?? 0) > 0;
-  const podeEnviar = livre && !soOrcamentoPorItem;
-  const comum = { cancelar: true as const, pendencias: e.pendencias };
+  const podeEnviar = !soOrcamentoPorItem;
+  const comum = { cancelar: true as const };
 
   if (e.editando === 'orcamento') {
     return {
@@ -94,7 +92,7 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
       enviar: OCULTO(ROTULOS_DO_SALVAR.enviar),
       apenasSalvar: OCULTO(ROTULOS_DO_SALVAR.apenasSalvar),
       orcamento: OCULTO(ROTULOS_DO_SALVAR.orcamento),
-      salvarOrcamento: { visivel: true, habilitado: livre, rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
+      salvarOrcamento: { visivel: true, habilitado: true, rotulo: ROTULOS_DO_SALVAR.salvarOrcamento },
       transformar: { visivel: !soOrcamento, habilitado: podeEnviar, rotulo: ROTULOS_DO_SALVAR.transformar },
     };
   }
@@ -118,7 +116,7 @@ export function botoesDoResumo(e: EntradaDosBotoes): BotoesDoResumo {
     apenasSalvar: { visivel: true, habilitado: true, rotulo: ROTULOS_DO_SALVAR.apenasSalvar },
     orcamento: {
       visivel: e.pre_venda_ligada || soOrcamento,
-      habilitado: livre,
+      habilitado: true,
       rotulo: ROTULOS_DO_SALVAR.orcamento,
     },
     salvarOrcamento: OCULTO(ROTULOS_DO_SALVAR.salvarOrcamento),

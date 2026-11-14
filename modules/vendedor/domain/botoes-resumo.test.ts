@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { botoesDoResumo, motivoDoMaximo, perguntaDaAlcada, PERGUNTA_DA_ALCADA, ROTULOS_DO_SALVAR, type EntradaDosBotoes } from './botoes-resumo';
 
 const liberado = { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
-const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, pendencias: 0, preco_data: '2026-11-09' };
+const base: EntradaDosBotoes = { cliente: liberado, pre_venda_ligada: true, editando: null, preco_data: '2026-11-09' };
 
-describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
+describe('RF-VEN-11 / RN-VEN-38: botões do Resumo', () => {
   it('RN-VEN-38: Salvar e enviar pedido é o principal, habilitado, sem texto de destino ou de alçada embaixo', () => {
     const b = botoesDoResumo(base);
     expect(b.modo).toBe('novo_pedido');
@@ -36,24 +36,13 @@ describe('RF-VEN-11 / RN-VEN-38: botões do Resumo, sem pendência', () => {
     expect(b.salvarOrcamento.habilitado).toBe(true);
     expect(b.transformar.habilitado).toBe(false);
   });
+  it('RN-CORE-36 (RD-0235): o salvar é sempre tocável; a falta aparece no campo, na tentativa, e o domain não conta pendências', () => {
+    const b = botoesDoResumo(base);
+    expect(b).not.toHaveProperty('pendencias');
+    expect([b.enviar.habilitado, b.apenasSalvar.habilitado, b.orcamento.habilitado]).toEqual([true, true, true]);
+  });
   it('RN-VEN-38: tenant sem pré-venda não oferece o orçamento', () => {
     expect(botoesDoResumo({ ...base, pre_venda_ligada: false }).orcamento.visivel).toBe(false);
-  });
-});
-
-describe('RN-CORE-36 / RN-VEN-38: botões do Resumo, com pendência', () => {
-  const b = botoesDoResumo({ ...base, pendencias: 2 });
-  it('RN-CORE-36: Salvar e enviar pedido fica desligado', () => {
-    expect(b.enviar).toMatchObject({ visivel: true, habilitado: false });
-  });
-  it('RN-VEN-38: Apenas salvar continua habilitado (grava rascunho com pendência)', () => {
-    expect(b.apenasSalvar).toMatchObject({ visivel: true, habilitado: true });
-  });
-  it('RN-VEN-18: Salvar como orçamento valida e fica desligado com pendência', () => {
-    expect(b.orcamento).toMatchObject({ visivel: true, habilitado: false });
-  });
-  it('RN-CORE-36: a leitura do TalkBack diz quantas pendências faltam', () => {
-    expect(b.pendencias).toBe(2);
   });
 });
 
@@ -70,11 +59,6 @@ describe('RN-VEN-13: cliente só de orçamento', () => {
   it('RN-VEN-13: o orçamento aparece mesmo com a pré-venda desligada (a tela nunca fica sem salvar)', () => {
     expect(botoesDoResumo({ ...base, cliente: bloqueado, pre_venda_ligada: false }).orcamento.visivel).toBe(true);
   });
-  it('RN-VEN-13: com pendência, o orçamento desliga e Apenas salvar segue', () => {
-    const b = botoesDoResumo({ ...base, cliente: { ...liberado, ativo: false }, pendencias: 1 });
-    expect(b.orcamento.habilitado).toBe(false);
-    expect(b.apenasSalvar.habilitado).toBe(true);
-  });
 });
 
 describe('RN-VEN-18: editar orçamento', () => {
@@ -90,11 +74,6 @@ describe('RN-VEN-18: editar orçamento', () => {
     expect(b.orcamento.visivel).toBe(false);
     expect(b.cancelar).toBe(true);
   });
-  it('RN-CORE-36: com pendência os dois desligam', () => {
-    const b = botoesDoResumo({ ...edicao, pendencias: 1 });
-    expect(b.salvarOrcamento.habilitado).toBe(false);
-    expect(b.transformar.habilitado).toBe(false);
-  });
   it('RN-VEN-13: cliente bloqueado não transforma em pedido; só salva o orçamento', () => {
     const b = botoesDoResumo({ ...edicao, cliente: { ...liberado, bloqueado: true } });
     expect(b.transformar.visivel).toBe(false);
@@ -103,7 +82,7 @@ describe('RN-VEN-18: editar orçamento', () => {
 });
 
 describe('RN-VEN-38: editar pedido já salvo', () => {
-  it('RN-VEN-38: um botão só (salvar alterações), desligado com pendência; sem rascunho nem orçamento', () => {
+  it('RN-VEN-38: um botão só (salvar alterações), desligado só por item fora da regra; sem rascunho nem orçamento', () => {
     const ok = botoesDoResumo({ ...base, editando: 'pedido' });
     expect(ok.modo).toBe('editar_pedido');
     expect(ok.principal).toBe('enviar');
@@ -111,7 +90,6 @@ describe('RN-VEN-38: editar pedido já salvo', () => {
     expect(botoesDoResumo({ ...base, editando: 'pedido', itens_acima_do_maximo: ['AGU-1500'] }).enviar.habilitado).toBe(false);
     expect(ok.apenasSalvar.visivel).toBe(false);
     expect(ok.orcamento.visivel).toBe(false);
-    expect(botoesDoResumo({ ...base, editando: 'pedido', pendencias: 1 }).enviar.habilitado).toBe(false);
   });
   it('RN-VEN-38 / RD-0036: o rótulo da edição sai do domain (aparelho ou alterações; a alçada não entra no botão)', () => {
     expect(botoesDoResumo({ ...base, editando: 'pedido' }).enviar.rotulo).toBe(ROTULOS_DO_SALVAR.alteracoes);
