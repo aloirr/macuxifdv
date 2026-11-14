@@ -281,20 +281,29 @@ describe.skipIf(semBanco())('0068 código da licença (banco efêmero)', () => {
       }
       expect(await codigoDe(id(91))).toBe('demo');
 
-      // UF esgotada: com 9.999 números de TO em uso, o sorteio acha o último livre; com os 10.000, 54000
-      await c.query('set session_replication_role = replica'); // sem os gatilhos de semeadura do tenant
-      await c.query("insert into plataforma.tenant (codigo, nome) select 'TO' || lpad(n::text, 4, '0'), 'Cheia' from generate_series(0, 9998) n");
-      await c.query('set session_replication_role = origin');
+      // UF esgotada: com 9.999 números de TO em uso, o sorteio acha o último livre; com os 10.000, 54000. Sem os gatilhos de
+      // semeadura do tenant: `disable trigger user` pelo dono da tabela (o papel admin que migrou), numa transação, sem
+      // session_replication_role (o papel do CI não é superusuário). O CHECK, o índice único e as FKs continuam valendo.
+      const semGatilhos = async (sql: string) => {
+        await c.query('begin');
+        try {
+          await c.query('alter table plataforma.tenant disable trigger user');
+          await c.query(sql);
+          await c.query('alter table plataforma.tenant enable trigger user');
+          await c.query('commit');
+        } catch (e) {
+          await c.query('rollback');
+          throw e;
+        }
+      };
+      await semGatilhos("insert into plataforma.tenant (codigo, nome) select 'TO' || lpad(n::text, 4, '0'), 'Cheia' from generate_series(0, 9998) n");
       expect((await c.query<{ v: string }>("select plataforma.sortear_codigo_licenca('to') as v")).rows[0]!.v).toBe('TO9999');
-      await c.query('set session_replication_role = replica');
-      await c.query("insert into plataforma.tenant (codigo, nome) values ('TO9999', 'Cheia')");
-      await c.query('set session_replication_role = origin');
+      await semGatilhos("insert into plataforma.tenant (codigo, nome) values ('TO9999', 'Cheia')");
       const esgotada = await erroDe(provisionar(entrada({ id: id(7), uf: 'TO' })));
       expect(esgotada?.code).toBe('54000');
       expect(esgotada?.message).toContain('não há código livre para a UF TO');
-      await c.query('set session_replication_role = replica');
-      await c.query("delete from plataforma.tenant where nome = 'Cheia'");
-      await c.query('set session_replication_role = origin');
+      await semGatilhos("delete from plataforma.tenant where nome = 'Cheia'");
+      expect(await c.query("select 1 from pg_trigger where tgrelid = 'plataforma.tenant'::regclass and not tgisinternal and tgenabled <> 'O'")).toMatchObject({ rowCount: 0 });
 
       // down com código da licença em uso: falha (55000, transação implícita do texto todo) sem mudar nada
       const comLicenca = await retratoDoCatalogo(c);
