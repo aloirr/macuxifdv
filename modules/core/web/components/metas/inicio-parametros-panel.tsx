@@ -15,8 +15,6 @@ import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapa
 import {
   PARADO_MIN_MAX,
   PARADO_MIN_MIN,
-  RECADO_DO_DIA_PADRAO,
-  RECADO_PADRAO_MAX,
   validarParametrosInicio,
 } from '../../../domain';
 
@@ -34,13 +32,11 @@ const DIAS = [
   [6, 'Sáb', 'Sábado'],
 ] as const;
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink';
-const PERTO_DO_LIMITE = 120;
 
-type CampoParam = 'dias' | 'recado' | 'parado' | 'alerta';
+type CampoParam = 'dias' | 'parado' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
 const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
   dias_uteis_semana: 'dias',
-  recado_do_dia_padrao: 'recado',
   parado_min: 'parado',
 };
 
@@ -66,17 +62,16 @@ function MensagemErro({ id, texto }: { id: string; texto?: string }) {
 }
 
 /**
- * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia), frase padrão do recado
- * do dia e minutos para a equipe aparecer como "parada". Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
+ * Parâmetros do Início por empresa (RN-CORE-26; T-0073 passo 7): dias úteis da semana (base da meta do dia) e
+ * minutos para a equipe aparecer como "parada". Só quem tem `parametro.inicio` (analista e admin) vê; a API revalida e
  * audita antes/depois. Vale nos aparelhos no próximo sync. Erros aparecem no campo (aria-invalid + aria-describedby); o aviso do topo
  * fica só para erro sem campo (rede, 403).
- * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.recado` · `.recado.contador` · `.parado` · `.<campo>.erro` · `.salvar`.
+ * testIDs: `inicio-params.painel` · `.dia.<0-6>` · `.parado` · `.<campo>.erro` · `.salvar`.
  */
 export function InicioParametrosPanel() {
   const pode = usePode('parametro.inicio');
   const qc = useQueryClient();
   const [dias, setDias] = useState<number[]>([]);
-  const [recado, setRecado] = useState('');
   const [parado, setParado] = useState('60');
   const [alertaH, setAlertaH] = useState(String(ALERTA_H_PADRAO));
   const [aviso, setAviso] = useState<string | null>(null);
@@ -104,14 +99,12 @@ export function InicioParametrosPanel() {
   useEffect(() => {
     if (!q.data) return;
     setDias(q.data.dias_uteis_semana);
-    setRecado(q.data.recado_do_dia_padrao);
     setParado(String(q.data.parado_min));
   }, [q.data]);
 
   const gravar = useMutation({
     mutationFn: async (corpo: {
       dias_uteis_semana: number[];
-      recado_do_dia_padrao: string;
       parado_min: number;
       prazo?: number;
     }) => {
@@ -145,7 +138,7 @@ export function InicioParametrosPanel() {
 
   if (!pode) return null;
   const salvar = () => {
-    const corpo = { dias_uteis_semana: dias, recado_do_dia_padrao: recado, parado_min: Number(parado) };
+    const corpo = { dias_uteis_semana: dias, parado_min: Number(parado) };
     const v = validarParametrosInicio(corpo);
     setSalvo(false);
     const a = temAlerta ? validarAlertaH(alertaH) : ({ ok: true, valor: ALERTA_H_PADRAO } as const);
@@ -165,7 +158,6 @@ export function InicioParametrosPanel() {
       atual.includes(d) ? atual.filter((x) => x !== d) : [...atual, d].sort((a, b) => a - b),
     );
   };
-  const tamanhoRecado = recado.trim().length;
 
   return (
     <Panel title="Parâmetros do Início">
@@ -204,38 +196,6 @@ export function InicioParametrosPanel() {
                 ))}
               </div>
             </fieldset>
-            <label className="flex flex-col gap-1 text-[14px] font-semibold text-ink">
-              Frase padrão do recado do dia
-              <span className="text-[13px] font-normal text-ink-2">
-                Aparece no Início quando o supervisor não marcou um recado para hoje. Até {RECADO_PADRAO_MAX}{' '}
-                caracteres. Em branco, vale a frase padrão do sistema.
-              </span>
-              <MensagemErro id="inicio-params.recado.erro" texto={erros.recado} />
-              <input
-                className={`${CAMPO} ${erros.recado ? 'border-danger' : 'border-field'}`}
-                maxLength={RECADO_PADRAO_MAX + 40}
-                placeholder={RECADO_DO_DIA_PADRAO}
-                value={recado}
-                onChange={(e) => {
-                  setSalvo(false);
-                  setRecado(e.target.value);
-                }}
-                aria-invalid={erros.recado ? true : undefined}
-                aria-describedby={erros.recado ? 'inicio-params.recado.erro' : undefined}
-                data-testid="inicio-params.recado"
-              />
-              <span
-                className={`self-end text-[13px] font-normal tabular-nums ${tamanhoRecado > RECADO_PADRAO_MAX ? 'text-danger' : 'text-ink-2'}`}
-                data-testid="inicio-params.recado.contador"
-              >
-                {tamanhoRecado}/{RECADO_PADRAO_MAX}
-              </span>
-              <span className="sr-only" aria-live="polite">
-                {tamanhoRecado >= PERTO_DO_LIMITE
-                  ? `${tamanhoRecado} de ${RECADO_PADRAO_MAX} caracteres`
-                  : ''}
-              </span>
-            </label>
             <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
               Minutos para considerar "parado"
               <span className="text-[13px] font-normal text-ink-2">

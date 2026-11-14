@@ -10,7 +10,8 @@ import type { CaixaTarefa, IconeLinha } from './linhas-recados-e-tarefas';
 
 const ICONE: Record<IconeLinha, { nome: IconName; cor: string; fundo: string }> = {
   recado: { nome: 'chat', cor: colors.accentInk, fundo: colors.accentSoft },
-  pedido: { nome: 'check', cor: colors.success, fundo: colors.successBg },
+  // MC-0012: o tipo "pedido" não é situação; verde só para a tarefa feita (marca v1 §3)
+  pedido: { nome: 'check', cor: colors.accentInk, fundo: colors.accentSoft },
   aviso: { nome: 'bell', cor: colors.neutralInk, fundo: colors.neutralBg },
 };
 

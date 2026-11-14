@@ -18,11 +18,14 @@ describe('T-0121: naJanela das entidades do Core espelha o SQL de janela (ADR 00
     expect(J.historico_compra({ ano_mes: '2025-11' }, H)).toBe(true);
     expect(J.historico_compra({ ano_mes: '2025-10' }, H)).toBe(false);
   });
-  it('rota, rota_parada e visita: >= hoje-40, sem limite superior', () => {
+  it('rota, rota_parada e visita: >= least(hoje-40, início do mês anterior), sem limite superior', () => {
     for (const [j, campo] of [[J.rota, 'data'], [J.rota_parada, 'data'], [J.visita, 'data_local']] as const) {
       expect(j({ [campo]: '2026-09-30' }, H)).toBe(true);
       expect(j({ [campo]: '2027-01-01' }, H)).toBe(true);
       expect(j({ [campo]: '2026-09-29' }, H)).toBe(false);
+      // T-0170: no fim do mês o mês anterior inteiro continua (hoje-40 = 21/10, mas 01/10 fica)
+      expect(j({ [campo]: '2026-10-01' }, '2026-11-30')).toBe(true);
+      expect(j({ [campo]: '2026-09-30' }, '2026-11-30')).toBe(false);
     }
   });
   it('meta: periodo >= mês anterior; indicador_diario: data >= início do mês anterior', () => {

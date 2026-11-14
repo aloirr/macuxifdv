@@ -25,7 +25,7 @@ import {
 import { z } from 'zod';
 import type { RespostaRegistradaV1 } from '../../pesquisa/contracts';
 import { CONSULTA_QUESTIONARIOS_PARA_TAREFA } from '../../pesquisa/contracts/consulta-tarefa';
-import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts/eventos';
+import { EVENTO_NOTIFICACAO_CRIADA, EVENTO_TAREFA_CANCELADA, EVENTO_TAREFA_CONCLUIDA, EVENTO_TAREFA_CRIADA } from '../contracts/eventos';
 import {
   CancelarTarefaSchema,
   ConclusaoTarefaSchema,
@@ -52,7 +52,6 @@ import { expandirDestinatarios, type CandidatoDestinatario } from '../domain/tar
 import { prazoAceito, situacaoTarefa } from '../domain/tarefas/situacao';
 import { auditar } from './auditoria';
 import { dependenciasDoContexto, lerEstadoDeLicencas } from './licencas';
-import { EVENTO_TAREFA_CANCELADA, EVENTO_TAREFA_CONCLUIDA, EVENTO_TAREFA_CRIADA } from './tarefas-eventos';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const IdParam = z.object({ id: z.string().uuid() }).strict();
@@ -135,6 +134,8 @@ async function questionariosDaPesquisa(tx: Partial<Pick<TransacaoTenant, 'consul
     return await (tx.consultar as Consultar)(CONSULTA_QUESTIONARIOS_PARA_TAREFA, { usuario_ids: usuarioIds });
   } catch (e) {
     if (e instanceof ConsultaIndisponivel) return null;
+    // Enquanto a Pesquisa não oferece a consulta (T-0170), o SDK recusa por não estar declarada: trata como indisponível
+    if (e instanceof Error && /a declara em usaConsultas/.test(e.message)) return null;
     throw e;
   }
 }

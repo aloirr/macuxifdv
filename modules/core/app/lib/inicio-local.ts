@@ -119,8 +119,7 @@ export function montarInicio(
   }
 
   const caixa = montarCaixa(l.notificacoes, fila, o.agora);
-  const padrao = parametro(l.parametros, 'inicio.recado_do_dia_padrao');
-  const recado = recadoDoDia(l.notificacoes, { usuario_id: o.usuarioId, hoje, agora: o.agora, padrao: typeof padrao === 'string' ? padrao : null });
+  const recado = recadoDoDia(l.notificacoes, { usuario_id: o.usuarioId, hoje, agora: o.agora });
 
   // T-0076: indicadores com meta no mês e sem realizado (sem cópia de vendas/positivação) ≠ sem meta.
   const semRealizado = ORDEM.filter((ind) => ids.some((uid) => metaDe(uid, ind)) && !ids.some((uid) => realizadoDeFonte(base?.usuarios.get(uid), ind) !== null) && (ind === 'venda_cents' || ind === 'positivacao'));
@@ -174,7 +173,7 @@ export function montarInicio(
     equipe_nome: copia?.equipe_nome ?? null,
     recados_hoje: recadosDeHoje(
       caixa.map((n) => ({ id: n.id, titulo: n.titulo, corpo: n.corpo, tipo: n.tipo, updated_at: n.updated_at, lida: Boolean(n.lida_em), link: linkNavegavel(n.link) })),
-      recado.notificacao_id,
+      recado?.notificacao_id ?? null,
       o.fuso,
     ),
     meta_hoje: principal ? resumoMetaDeHoje(principal) : null,

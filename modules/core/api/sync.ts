@@ -38,7 +38,7 @@ import {
   VisitaSyncSchema,
 } from '../contracts';
 import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
-import { JANELAS_CORE } from './janelas-sync';
+import { JANELAS_CORE, janelaMesAnteriorOu40 } from './janelas-sync';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -143,27 +143,29 @@ export const TABELAS_SYNC = {
     colunas: 'tipo, codigo, descricao, exige_foto, sistema, ativo, ordem',
     colunaCliente: null,
   },
-  // RN-CORE-10 / T-0061: o raio do check-in, a opção promotor_ve_pedidos e (T-0073) os parâmetros do Início vão ao aparelho (lista fixa; nada de outros parâmetros do tenant)
+  // RN-CORE-10 / T-0061: o raio do check-in, a opção promotor_ve_pedidos, (T-0073) os parâmetros do Início e (T-0170) os feriados
+  // do tenant e o almoço da Performance vão ao aparelho (lista fixa; nada de outros parâmetros do tenant)
   parametro: {
     tabela: 'plataforma.parametro',
     colunas: 'modulo, chave, valor',
     colunaCliente: null,
-    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.recado_do_dia_padrao', 'inicio.parado_min')",
+    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.parado_min', 'metas.feriados', 'produtividade.almoco_corte', 'produtividade.almoco_janela')",
   },
   rota: {
     tabela: 'core.rota',
     colunas: "usuario_id, to_char(data, 'YYYY-MM-DD') as data, situacao, origem, regiao, observacao",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    // data ≥ hoje − 40, SEM limite superior (ADR 0009, adendo §5): rota futura nunca fica para trás do cursor
-    janela: 'data >= {{hoje}} - 40',
+    // data ≥ least(hoje − 40, início do mês anterior), SEM limite superior (ADR 0009, adendo §5): rota futura nunca fica para trás
+    // do cursor; o mês anterior inteiro vai para a Performance do aparelho (T-0170, performance-produtividade.md §7.2)
+    janela: janelaMesAnteriorOu40('data'),
   },
   rota_parada: {
     tabela: 'core.rota_parada',
     colunas: "rota_id, usuario_id, to_char(data, 'YYYY-MM-DD') as data, cliente_id, sequencia, to_char(janela_inicio, 'HH24:MI') as janela_inicio, to_char(janela_fim, 'HH24:MI') as janela_fim",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: 'data >= {{hoje}} - 40',
+    janela: janelaMesAnteriorOu40('data'),
   },
   visita: {
     tabela: 'core.visita',
@@ -174,7 +176,7 @@ export const TABELAS_SYNC = {
       fechada_por, checkout_id, etapas_pendentes`,
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: 'data_local >= {{hoje}} - 40',
+    janela: janelaMesAnteriorOu40('data_local'),
   },
   // T-0020: metas e vendas diárias dos usuários visíveis, do mês anterior em diante (desenho T-0016 §2)
   meta: {

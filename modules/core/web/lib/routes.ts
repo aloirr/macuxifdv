@@ -156,8 +156,18 @@ export const WEEKDAY_COLORS: Record<number, string> = {
 
 export const weekdayColor = (iso: string) => WEEKDAY_COLORS[weekday(iso)] ?? OTHER_COLOR;
 
-/** Cores de status das paradas (tokens da web). */
-export const STATUS_FILL = { done: '#1d6b4f', in_progress: '#c2540a' } as const;
+/** Cores de status das paradas: tokens do `globals.css` (MC-0014; sucesso e gráfico da marca v1), sem hex solto. */
+export const STATUS_FILL = { done: 'var(--color-success)', in_progress: 'var(--color-grafico)' } as const;
+
+/**
+ * Valor de uma cor `var(--token)` lido do documento, para quem não aceita variável CSS (atributo `fill` do SVG do Leaflet).
+ * Fora do navegador, ou token ausente, devolve a própria entrada.
+ */
+export function corResolvida(cor: string): string {
+  const m = /^var\((--[\w-]+)\)$/.exec(cor);
+  if (!m || typeof document === 'undefined') return cor;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]!).trim() || cor;
+}
 
 export type ColorBy = 'seller' | 'weekday';
 

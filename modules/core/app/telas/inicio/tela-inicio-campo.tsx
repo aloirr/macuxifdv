@@ -94,7 +94,8 @@ const leituraDaMeta = (c: CardMetaInicio): string =>
   [c.titulo, c.meta ? `${c.real} de ${c.meta}` : c.real, c.percentual ? `${c.percentual} da meta` : null, c.rodape ? `${c.rodape.rotulo} ${c.rodape.valor}` : null].filter(Boolean).join(', ');
 
 function CartaoMeta({ c }: { c: CardMetaInicio }) {
-  const cor = c.tom === 'batida' ? colors.accent : colors.danger;
+  // MC-0010 no Início: barra de meta no laranja do gráfico (marca v1 §3); a situação fica no percentual (ink ou danger)
+  const cor = c.tom === 'batida' ? colors.ink : colors.danger;
   return (
     <View style={s.celula} testID={`inicio.meta.${c.indicador}`} accessible accessibilityLabel={leituraDaMeta(c)}>
       <Cartao gap={space.sm} style={{ flex: 1 }}>
@@ -108,7 +109,7 @@ function CartaoMeta({ c }: { c: CardMetaInicio }) {
         {c.percentual ? (
           <View style={s.linhaBarra}>
             <View style={{ flex: 1 }}>
-              <ProgressBar pct={c.barra * 100} color={cor} rotulo={`${c.titulo}: ${c.percentual} da meta`} />
+              <ProgressBar pct={c.barra * 100} color={colors.grafico} rotulo={`${c.titulo}: ${c.percentual} da meta`} />
             </View>
             <Text style={[s.percentual, { color: cor }]} importantForAccessibility="no">
               {c.percentual}

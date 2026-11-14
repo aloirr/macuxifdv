@@ -7,8 +7,6 @@ import type { Perfil } from '@macuxi/platform-sdk';
 import { PARADO_MIN_PADRAO } from '../contracts/inicio-parametros';
 import type { MembroAgoraContrato, StatusAgoraContrato, VisaoInicio } from '../contracts/inicio';
 
-/** Frase padrão do sistema quando o tenant não definiu `inicio.recado_do_dia_padrao`. */
-export const RECADO_DO_DIA_PADRAO = 'Bom trabalho hoje!';
 /** Padrão do parâmetro `inicio.parado_min`. */
 export { PARADO_MIN_PADRAO };
 
@@ -29,7 +27,6 @@ export interface NotificacaoParaRecado {
 
 /** Recado do dia já resolvido (a visão do Início só expõe `recados_hoje`; RD-0013). */
 export interface RecadoDoDia {
-  origem: 'recado' | 'padrao';
   texto: string;
   titulo: string | null;
   autor_nome: string | null;
@@ -39,17 +36,16 @@ export interface RecadoDoDia {
 
 /**
  * RN-CORE-26: recado do dia = recado do próprio usuário, vivo, não expirado, marcado para `hoje`; vários = o de `updated_at` mais novo.
- * Sem nenhum, a frase padrão do tenant (ou "Bom trabalho hoje!").
+ * Sem nenhum, `null`: não há frase padrão (decisão D2, 13/11: o recado fica no sino e a frase do dia, RN-CORE-41, ocupa o Início).
  */
-export function recadoDoDia(notificacoes: readonly NotificacaoParaRecado[], o: { usuario_id: string; hoje: string; agora: Date; padrao?: string | null }): RecadoDoDia {
+export function recadoDoDia(notificacoes: readonly NotificacaoParaRecado[], o: { usuario_id: string; hoje: string; agora: Date }): RecadoDoDia | null {
   const agora = o.agora.getTime();
   const candidatas = notificacoes
     .filter((n) => n.usuario_id === o.usuario_id && n.tipo === 'recado' && !n.deleted_at && n.recado_do_dia === o.hoje && !(n.expira_em && new Date(n.expira_em).getTime() <= agora))
     .sort((a, b) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0));
   const n = candidatas[0];
-  if (n) return { origem: 'recado', texto: n.corpo, titulo: n.titulo, autor_nome: n.autor_nome ?? null, autor_perfil: n.autor_perfil ?? null, notificacao_id: n.id };
-  const padrao = o.padrao?.trim();
-  return { origem: 'padrao', texto: padrao ? padrao : RECADO_DO_DIA_PADRAO, titulo: null, autor_nome: null, autor_perfil: null, notificacao_id: null };
+  if (!n) return null;
+  return { texto: n.corpo, titulo: n.titulo, autor_nome: n.autor_nome ?? null, autor_perfil: n.autor_perfil ?? null, notificacao_id: n.id };
 }
 
 export type StatusAgora = StatusAgoraContrato;

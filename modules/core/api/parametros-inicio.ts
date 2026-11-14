@@ -1,13 +1,12 @@
 /**
  * Parâmetros do Início por tenant (RN-CORE-26; RN-AUD-01; T-0073 passo 7): `GET|PUT /v1/core/parametros/inicio`, ação `parametro.inicio`
- * (analista e admin; a licença do módulo é checada pelo SDK). Três linhas em `plataforma.parametro` (modulo `core`, RLS do tenant).
+ * (analista e admin; a licença do módulo é checada pelo SDK). Duas linhas em `plataforma.parametro` (modulo `core`, RLS do tenant).
  * A API revalida com `validarParametrosInicio` (domain). Escrita idempotente: só grava e audita (antes/depois) o que mudou.
  */
 import { ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import {
   PARAMETRO_DIAS_UTEIS,
   PARAMETRO_PARADO_MIN,
-  PARAMETRO_RECADO_PADRAO,
   ParametrosInicioPutSchema,
   ParametrosInicioSchema,
   type ParametrosInicio,
@@ -16,7 +15,7 @@ import {
 import { parametrosInicioDasLinhas, validarParametrosInicio } from '../domain';
 import { auditar } from './auditoria';
 
-const CHAVES = [PARAMETRO_DIAS_UTEIS, PARAMETRO_RECADO_PADRAO, PARAMETRO_PARADO_MIN] as const;
+const CHAVES = [PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN] as const;
 
 /** Valor efetivo do tenant da transação (RLS). Sem cache. */
 export async function lerParametrosInicio(db: ClienteBanco): Promise<ParametrosInicio> {
@@ -51,7 +50,6 @@ export const rotasDeParametrosInicio: RotaModulo[] = [
         const antes = await lerParametrosInicio(db);
         const valores: Record<(typeof CHAVES)[number], unknown> = {
           [PARAMETRO_DIAS_UTEIS]: novo.dias_uteis_semana,
-          [PARAMETRO_RECADO_PADRAO]: novo.recado_do_dia_padrao,
           [PARAMETRO_PARADO_MIN]: novo.parado_min,
         };
         for (const chave of CHAVES) {

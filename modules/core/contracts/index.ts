@@ -504,3 +504,7 @@ export * from './equipe-importacao';
 export * from './perfis';
 export * from './ciclo-senha';
 export * from './entrada-sync';
+export * from './tarefa';
+export * from './frases';
+export * from './avatar';
+export * from './performance';

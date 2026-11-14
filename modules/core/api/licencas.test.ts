@@ -173,8 +173,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
       expect(Boolean(p.receber), p.entidade.nome).toBe(comEscrita);
       expect(p.entidade.direcao, p.entidade.nome).toBe(p.entidade.nome === 'visita' || p.entidade.nome === 'cliente_foto' ? 'ambos' : p.entidade.nome === 'visita_checkout' ? 'push' : 'pull');
     }
-    // 20 do Core (com meta e indicador_diario, T-0020, medida, T-0063, usuario, T-0168, e cliente_ultima_visita, T-0171) + notificacao e notificacao_leitura (T-0019, provedores próprios)
-    expect(moduloApi.sync).toHaveLength(25);
+    // 20 do Core (com meta e indicador_diario, T-0020, medida, T-0063, usuario, T-0168, e cliente_ultima_visita, T-0171) + notificacao e notificacao_leitura (T-0019, provedores próprios) + 6 de provedoresSyncT0170 (tarefa, tarefa_conclusao, frase_dia, usuario_avatar, meta_produtividade, deslocamento_dia) = 31
+    expect(moduloApi.sync).toHaveLength(31);
   });
 
   it('pull usa horizonte, cursor (updated_at, id), ordem, limite e microssegundos', () => {

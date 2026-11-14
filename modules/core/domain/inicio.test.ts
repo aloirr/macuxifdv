@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { equipeAgora, RECADO_DO_DIA_PADRAO, recadoDoDia, recadosDeHoje, saudacaoDoDia, type NotificacaoParaRecado, type ParadaDoDia, type VisitaDoDia } from './inicio';
+import { equipeAgora, recadoDoDia, recadosDeHoje, saudacaoDoDia, type NotificacaoParaRecado, type ParadaDoDia, type VisitaDoDia } from './inicio';
 
 const U = '0e700000-0000-4000-8000-000000000001';
 const N1 = '0e700000-0000-4000-8000-0000000000a1';
@@ -11,41 +11,37 @@ const notif = (o: Partial<NotificacaoParaRecado> = {}): NotificacaoParaRecado =>
   id: N1, usuario_id: U, tipo: 'recado', titulo: 'Foco na campanha', corpo: 'Hoje é dia de positivar.', recado_do_dia: HOJE, expira_em: null, updated_at: '2026-11-10T12:00:00Z',
   autor_nome: 'Sueli Supervisora', autor_perfil: 'supervisor', ...o,
 });
-const ctx = { usuario_id: U, hoje: HOJE, agora: AGORA, padrao: null as string | null };
+const ctx = { usuario_id: U, hoje: HOJE, agora: AGORA };
 
 describe('RN-CORE-26: recado do dia no aparelho', () => {
   it('RN-CORE-26: recado marcado para hoje vira o recado do dia, com o autor', () => {
     const r = recadoDoDia([notif()], ctx);
-    expect(r).toEqual({ origem: 'recado', texto: 'Hoje é dia de positivar.', titulo: 'Foco na campanha', autor_nome: 'Sueli Supervisora', autor_perfil: 'supervisor', notificacao_id: N1 });
+    expect(r).toEqual({ texto: 'Hoje é dia de positivar.', titulo: 'Foco na campanha', autor_nome: 'Sueli Supervisora', autor_perfil: 'supervisor', notificacao_id: N1 });
   });
-  it('RN-CORE-26: marcado ontem cai na frase padrão', () => {
-    expect(recadoDoDia([notif({ recado_do_dia: '2026-11-09' })], ctx).origem).toBe('padrao');
-    expect(recadoDoDia([], ctx)).toMatchObject({ origem: 'padrao', texto: RECADO_DO_DIA_PADRAO, titulo: null, notificacao_id: null });
+  it('RN-CORE-26: marcado ontem ou nenhum recado = sem recado do dia (D2: sem frase padrão)', () => {
+    expect(recadoDoDia([notif({ recado_do_dia: '2026-11-09' })], ctx)).toBeNull();
+    expect(recadoDoDia([], ctx)).toBeNull();
   });
   it('RN-CORE-26: decisão do Alexandre (T-0073): recado enviado em outro dia (updated_at de 20 dias atrás) e remarcado para hoje aparece como o recado do dia', () => {
     const r = recadoDoDia([notif({ updated_at: '2026-10-21T12:00:00Z', recado_do_dia: HOJE })], ctx);
-    expect(r).toMatchObject({ origem: 'recado', notificacao_id: N1 });
+    expect(r).toMatchObject({ notificacao_id: N1 });
   });
-  it('RN-CORE-26: recado removido (deleted_at) volta ao padrão', () => {
-    expect(recadoDoDia([notif({ deleted_at: '2026-11-10T13:00:00Z' })], ctx).origem).toBe('padrao');
+  it('RN-CORE-26: recado removido (deleted_at) não vale', () => {
+    expect(recadoDoDia([notif({ deleted_at: '2026-11-10T13:00:00Z' })], ctx)).toBeNull();
   });
   it('RN-CORE-26: tipo sistema, de outra pessoa ou sem marcação é ignorado', () => {
-    expect(recadoDoDia([notif({ tipo: 'sistema' })], ctx).origem).toBe('padrao');
-    expect(recadoDoDia([notif({ usuario_id: '0e700000-0000-4000-8000-0000000000ff' })], ctx).origem).toBe('padrao');
-    expect(recadoDoDia([notif({ recado_do_dia: null })], ctx).origem).toBe('padrao');
+    expect(recadoDoDia([notif({ tipo: 'sistema' })], ctx)).toBeNull();
+    expect(recadoDoDia([notif({ usuario_id: '0e700000-0000-4000-8000-0000000000ff' })], ctx)).toBeNull();
+    expect(recadoDoDia([notif({ recado_do_dia: null })], ctx)).toBeNull();
   });
-  it('RN-CORE-26: o padrão do tenant (inicio.recado_do_dia_padrao) vale; vazio cai no padrão do sistema', () => {
-    expect(recadoDoDia([], { ...ctx, padrao: 'Vamos bater a meta!' }).texto).toBe('Vamos bater a meta!');
-    expect(recadoDoDia([], { ...ctx, padrao: '   ' }).texto).toBe(RECADO_DO_DIA_PADRAO);
-  });
-  it('RN-CORE-26: recado expirado volta ao padrão', () => {
-    expect(recadoDoDia([notif({ expira_em: '2026-11-10T15:00:00Z' })], ctx).origem).toBe('padrao');
-    expect(recadoDoDia([notif({ expira_em: '2026-11-10T17:00:00Z' })], ctx).origem).toBe('recado');
+  it('RN-CORE-26: recado expirado não vale', () => {
+    expect(recadoDoDia([notif({ expira_em: '2026-11-10T15:00:00Z' })], ctx)).toBeNull();
+    expect(recadoDoDia([notif({ expira_em: '2026-11-10T17:00:00Z' })], ctx)?.notificacao_id).toBe(N1);
   });
   it('RN-CORE-26: com mais de um marcado, vale o de updated_at mais novo', () => {
     const velho = notif({ id: N1, updated_at: '2026-11-10T10:00:00Z' });
     const novo = notif({ id: N2, titulo: 'Novo', updated_at: '2026-11-10T11:00:00Z' });
-    expect(recadoDoDia([velho, novo], ctx).notificacao_id).toBe(N2);
+    expect(recadoDoDia([velho, novo], ctx)?.notificacao_id).toBe(N2);
   });
 });
 

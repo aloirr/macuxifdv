@@ -8,13 +8,14 @@
  *   passado inteiro) — RN-CORE-45/46 (`performance-produtividade.md` §7.2).
  * Todos seguem o padrão de `sync.ts`: `updated_at < pedido.ate`, `(updated_at, id) > desde`, `limit`, removidos incluídos.
  */
-import { diasAntes, mesesAntes, definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
+import { diasAntes,definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import { UsuarioAvatarPushSchema, UsuarioAvatarSyncSchema } from '../contracts/avatar';
 import { FraseDiaSyncSchema } from '../contracts/frases';
 import { DeslocamentoDiaSchema, MetaProdutividadeSchema } from '../contracts/performance';
 import { ConclusaoTarefaSchema, TarefaSyncSchema } from '../contracts/tarefa';
 import { dataLocal } from '../domain';
 import { receberAvatares } from './avatar';
+import { dataDesdeMesAnteriorOu40, janelaMesAnteriorOu40 } from './janelas-sync';
 import { sqlDoPull, type Tabela } from './sync';
 import { receberConclusoesTarefa } from './tarefas';
 
@@ -50,7 +51,7 @@ export const TABELAS_SYNC_T0170 = {
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
     // a janela das visitas passa a ser data >= least(hoje − 40, início do mês anterior), para o Mês passado inteiro (§7.2)
-    janela: "data >= least({{hoje}} - 40, date_trunc('month', {{hoje}} - interval '1 month')::date)",
+    janela: janelaMesAnteriorOu40('data'),
   },
 } as const satisfies Record<string, Tabela>;
 
@@ -68,13 +69,7 @@ export const JANELAS_T0170 = {
     return ultima >= diasAntes(h, 30);
   },
   /** `data >= least(hoje − 40, início do mês anterior)` */
-  deslocamento_dia: (l: Linha, h: string) => {
-    const d = texto(l.data);
-    if (d === null) return true;
-    const inicioMesAnterior = `${mesesAntes(h, 1).slice(0, 8)}01`;
-    const limite = diasAntes(h, 40) < inicioMesAnterior ? diasAntes(h, 40) : inicioMesAnterior;
-    return d.slice(0, 10) >= limite;
-  },
+  deslocamento_dia: dataDesdeMesAnteriorOu40('data'),
 } as const satisfies Record<string, (l: Linha, h: string) => boolean>;
 
 function puxarDe(t: Tabela, soProprio = false) {
