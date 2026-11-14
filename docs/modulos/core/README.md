@@ -25,3 +25,4 @@
 - API `api/fotos-pdv.ts`: tipos em `/v1/core/fotos-tipos` (`foto_tipo.editar`, admin) e `GET /v1/core/clientes/:id/fotos` (`cliente_foto.ver`; `arquivo_id` só nos tipos que o perfil abre). Pull `foto_tipo` (tenant) e `cliente_foto` (carteira, `arquivo_id` nulo no sensível).
 - BKO: Cadastros › Fotos do PDV. Ficha do app: seção "Fotos do PDV" (tem/falta, cadeado) e botão "Foto do PDV" (desligado até o shell registrar o visualizador).
 - Pendente: push `cliente_foto` e captura (dependem de `perfis_leitura` no SDK e da galeria no shell).
+- [Performance e Pesquisa na ficha do cliente](performance-cliente.md) (RN-CORE-50 e 51)
