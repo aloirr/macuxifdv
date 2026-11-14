@@ -1,7 +1,4 @@
-// Prints do check-in na ficha do cliente (T-0174, modulo-core). Empacota a TelaCliente REAL com esbuild + react-native-web, com dublês
-// só de rota e de dados (_src/mock-*), as fontes do app (Archivo e IBM Plex Sans), 360 dp a 2x, hora fixa (14/11/2026 09:47 em Boa Vista),
-// e confere por código que nenhum texto do rodapé, da faixa ou da folha sai cortado.
-// Uso, na raiz: MACUXI_CHROMIUM=/opt/pw-browsers/chromium node docs/modulos/core/prints/checkin/gerar.mjs   (sem dependência nova)
+// Prints do check-in (T-0174); uso e cenários no README.md.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
