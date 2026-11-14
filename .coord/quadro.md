@@ -12,7 +12,8 @@
 >   - aba Integração Conector | API e guia da API em PDF (modulo-integracao);
 >   - planos Light, PME, Enterprise e Corporate;
 >   - consulta de CNPJ pela Receita (engenheiro-software, duas sessões);
->   - RD-0263, 0266, 0268, 0269, 0270 (reteste v1.0.7) e MC-0021 a MC-0024.
+>   - RD-0263, 0266, 0268, 0269, 0270 (reteste v1.0.7) e MC-0021 a MC-0024;
+>   - **T-0173 — revisão completa do BKO** (R-20261114-142000): auditoria do corretor (`nuvem/bko-auditoria-corretor`) e da marca (`nuvem/bko-auditoria-marca`), consolidação do designer-ux (`nuvem/bko-revisao-designer-ux`, `docs/design/telas/bko-revisao.md`); depois um PR por dono de tela.
 > - **Pendente do gerente:** docs 02/03 pelos recados R-20261114-130000, 130500, 131200, 131500, 132000 e 132600. Esta sessão não lê o repositório de recados (`coord.mjs` usa GraphQL: HTTP 403; REST fora do escopo); falta o texto literal.
 > - **Economia do Actions** valendo (~11h40): um PR por dono e lote, um commit por PR, rascunho até pronto, um rerun só para infraestrutura.
 
