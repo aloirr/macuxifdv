@@ -16,7 +16,7 @@ const OK: ConsultaCnpjResposta = {
   fonte: 'brasilapi',
 };
 
-describe('consulta de CNPJ (ADR 0046)', () => {
+describe('consulta de CNPJ (ADR 0048)', () => {
   it('pedido aceita com ou sem máscara e sai com 14 dígitos', () => {
     expect(ConsultaCnpjPedidoSchema.parse({ cnpj: '00.000.000/0001-91' })).toEqual({ cnpj: '00000000000191' });
     expect(ConsultaCnpjPedidoSchema.parse({ cnpj: '11222333000181' })).toEqual({ cnpj: '11222333000181' });

@@ -27,6 +27,7 @@ import {
   RedefinirSenhaAdminSchema,
   VALIDADE_SENHA_PROVISORIA_HORAS,
   type CargaEmail,
+  type CriarEmpresa,
   CriarEmpresaRespostaSchema,
   CriarEmpresaSchema,
   linhasDosParametrosIniciais,
@@ -304,6 +305,67 @@ const codigoPg = (e: unknown): unknown => (e as { code?: unknown } | null)?.code
 /** Módulos que o portal liga sempre: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub). */
 export const MODULOS_SEMPRE_NO_PORTAL: readonly ModuloId[] = ['core', 'integracao'];
 
+/** O que `criarEmpresaNoPortal` precisa (o mesmo de `registrarRotasPlataforma`). */
+export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso' | 'fonte' | 'senha'>;
+
+/**
+ * Passo Empresa do portal (RN-CORE-31/32/34; desenho T-0087 §6 e T-0093 §6): o corpo do `POST /v1/plataforma/empresas`, reusado
+ * pelo `POST /v1/plataforma/empresas-com-plano` (ADR 0047). Quem chama já conferiu o super-admin e validou `e`; marca a auditoria
+ * com o `tenant_id` da resposta e responde com o `status`.
+ */
+export async function criarEmpresaNoPortal(
+  dep: DepsCriarEmpresa,
+  quem: AcessoPortalAutenticado,
+  e: CriarEmpresa,
+): Promise<{ status: 200 | 201; resposta: z.output<typeof CriarEmpresaRespostaSchema> }> {
+  const senha = dep.senha ?? senhaDoCore;
+  const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
+  const licencas = Object.fromEntries(e.modulos.filter((m) => m.licencas !== null).map((m) => [m.modulo, m.licencas as number]));
+  const plano = planoDeOnboardingSemAdmin({ codigo: e.codigo, nome: e.razao_social, documento: e.cnpj, fuso: e.fuso, modulos: [...pedidos], licencas }, dep.manifestos);
+  if (!plano.ok) {
+    const [primeiro] = plano.erros;
+    throw new ErroHttp(422, 'RN-CORE-31', primeiro?.mensagem ?? 'Empresa inválida.', {
+      erros: plano.erros.map((x) => ({ codigo: x.codigo, campo: x.campo, ...(x.modulo ? { modulo: x.modulo } : {}), ...(x.dependencia ? { dependencia: x.dependencia } : {}), mensagem: x.mensagem })),
+    });
+  }
+  // admin inicial (RN-CORE-34) com a senha master na RN-CORE-32; ao banco vai só o hash (também no simular: confere tudo)
+  let admin: AdminInicialProvisionar | null = null;
+  if (e.admin) {
+    const email = senha.normalizarEmail(e.admin.email);
+    const problema = senha.validar(e.admin.senha, email);
+    if (problema) throw new ErroHttp(422, 'RN-CORE-32', problema.mensagem, { campo: 'admin.senha', faltas: [...problema.faltas] });
+    admin = { email, nome: e.admin.nome, senha_hash: await senha.hash(e.admin.senha) };
+  }
+  // parâmetros iniciais só valem para o Vendedor licenciado (sem ele, as chaves ficariam soltas)
+  const parametros = pedidos.has('vendedor') ? linhasDosParametrosIniciais(e.parametros) : [];
+  const entrada: EntradaProvisionarPlataforma = {
+    ...plano.plano.tenant,
+    modulos: plano.plano.modulos.map((m) => ({ modulo: m.modulo, licencas: m.licencas, perfis: [...m.perfis] })),
+    parametros,
+    ...(admin ? { admin } : {}),
+  };
+  let bruto: unknown;
+  try {
+    bruto = await dep.fonte.provisionar(quem, entrada, e.simular, dep.acesso);
+  } catch (erro) {
+    if (ehSemAdminNaEmpresaNova(erro)) throw new ErroHttp(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
+    throw erro;
+  }
+  const r = RespostaProvisionarPlataformaSchema.safeParse(bruto);
+  if (!r.success) throw new Error('sa_provisionar_tenant devolveu formato diferente do combinado (desenho T-0087 §6)');
+  const resposta = CriarEmpresaRespostaSchema.parse({
+    tenant_id: r.data.tenant_id,
+    codigo: plano.plano.tenant.codigo,
+    resultado: r.data.resultado,
+    modulos_adicionados: r.data.modulos_adicionados.filter((m) => pedidos.has(m as ModuloId)),
+    parametros_gravados: r.data.parametros_gravados,
+    avisos: r.data.avisos,
+    admin: r.data.admin === 'criado' || r.data.admin === 'existente' ? r.data.admin : null,
+    simulado: e.simular,
+  });
+  return { status: e.simular || r.data.resultado !== 'criado' ? 200 : 201, resposta };
+}
+
 /** `GET|POST /v1/plataforma/empresas`. */
 export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPlataforma): void {
   const senha = dep.senha ?? senhaDoCore;
@@ -327,52 +389,9 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
     // só o time da Macuxi cria ou altera empresa (RN-CORE-33/34; desenho T-0093 §4)
     if (quem.tipo !== 'super_admin') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
     const e = dep.validar(CriarEmpresaSchema, req.body, 'corpo') as z.output<typeof CriarEmpresaSchema>;
-    const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
-    const licencas = Object.fromEntries(e.modulos.filter((m) => m.licencas !== null).map((m) => [m.modulo, m.licencas as number]));
-    const plano = planoDeOnboardingSemAdmin({ codigo: e.codigo, nome: e.razao_social, documento: e.cnpj, fuso: e.fuso, modulos: [...pedidos], licencas }, dep.manifestos);
-    if (!plano.ok) {
-      const [primeiro] = plano.erros;
-      throw new ErroHttp(422, 'RN-CORE-31', primeiro?.mensagem ?? 'Empresa inválida.', {
-        erros: plano.erros.map((x) => ({ codigo: x.codigo, campo: x.campo, ...(x.modulo ? { modulo: x.modulo } : {}), ...(x.dependencia ? { dependencia: x.dependencia } : {}), mensagem: x.mensagem })),
-      });
-    }
-    // admin inicial (RN-CORE-34) com a senha master na RN-CORE-32; ao banco vai só o hash (também no simular: confere tudo)
-    let admin: AdminInicialProvisionar | null = null;
-    if (e.admin) {
-      const email = senha.normalizarEmail(e.admin.email);
-      const problema = senha.validar(e.admin.senha, email);
-      if (problema) throw new ErroHttp(422, 'RN-CORE-32', problema.mensagem, { campo: 'admin.senha', faltas: [...problema.faltas] });
-      admin = { email, nome: e.admin.nome, senha_hash: await senha.hash(e.admin.senha) };
-    }
-    // parâmetros iniciais só valem para o Vendedor licenciado (sem ele, as chaves ficariam soltas)
-    const parametros = pedidos.has('vendedor') ? linhasDosParametrosIniciais(e.parametros) : [];
-    const entrada: EntradaProvisionarPlataforma = {
-      ...plano.plano.tenant,
-      modulos: plano.plano.modulos.map((m) => ({ modulo: m.modulo, licencas: m.licencas, perfis: [...m.perfis] })),
-      parametros,
-      ...(admin ? { admin } : {}),
-    };
-    let bruto: unknown;
-    try {
-      bruto = await dep.fonte.provisionar(quem, entrada, e.simular, dep.acesso);
-    } catch (erro) {
-      if (ehSemAdminNaEmpresaNova(erro)) throw new ErroHttp(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
-      throw erro;
-    }
-    const r = RespostaProvisionarPlataformaSchema.safeParse(bruto);
-    if (!r.success) throw new Error('sa_provisionar_tenant devolveu formato diferente do combinado (desenho T-0087 §6)');
-    if (r.data.tenant_id) marcarPortal(req, { quem, tenantId: r.data.tenant_id });
-    const resposta = CriarEmpresaRespostaSchema.parse({
-      tenant_id: r.data.tenant_id,
-      codigo: plano.plano.tenant.codigo,
-      resultado: r.data.resultado,
-      modulos_adicionados: r.data.modulos_adicionados.filter((m) => pedidos.has(m as ModuloId)),
-      parametros_gravados: r.data.parametros_gravados,
-      avisos: r.data.avisos,
-      admin: r.data.admin === 'criado' || r.data.admin === 'existente' ? r.data.admin : null,
-      simulado: e.simular,
-    });
-    return reply.code(e.simular || r.data.resultado !== 'criado' ? 200 : 201).send(resposta);
+    const { status, resposta } = await criarEmpresaNoPortal(dep, quem, e);
+    if (resposta.tenant_id) marcarPortal(req, { quem, tenantId: resposta.tenant_id });
+    return reply.code(status).send(resposta);
   });
 
   // T-0094 fatia S: só o time da Macuxi (o admin do cliente recupera a própria senha pelo "Esqueci a senha")

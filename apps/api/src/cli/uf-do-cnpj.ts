@@ -1,5 +1,5 @@
 /**
- * UF da empresa pelo CNPJ (ADR 0046; R-20261114-133700-alexandre): uso único para as empresas sem código de licença no
+ * UF da empresa pelo CNPJ (ADR 0048; R-20261114-133700-alexandre): uso único para as empresas sem código de licença no
  * formato `UF+4`. Consulta as fontes reais (BrasilAPI, reserva CNPJá) e imprime uma linha JSON:
  *
  *   pnpm --filter api uf-do-cnpj 63.476.142/0001-40   →   {"cnpj":"63476142000140","uf":"RS","fonte":"brasilapi"}

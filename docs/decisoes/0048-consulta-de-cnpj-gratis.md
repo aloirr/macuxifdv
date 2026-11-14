@@ -1,4 +1,4 @@
-# ADR 0046 — Consulta de CNPJ grátis (BrasilAPI, reserva CNPJá) no portal
+# ADR 0048 — Consulta de CNPJ grátis (BrasilAPI, reserva CNPJá) no portal
 
 - **Status**: proposta em 2026-11-14.
 - **Data**: 2026-11-14

@@ -1,5 +1,5 @@
 /**
- * ADR 0046: consulta de CNPJ do portal (`POST /v1/plataforma/cnpj`) sem rede: as fontes recebem um `buscar` falso com as
+ * ADR 0048: consulta de CNPJ do portal (`POST /v1/plataforma/cnpj`) sem rede: as fontes recebem um `buscar` falso com as
  * amostras reais da BrasilAPI e da CNPJá (formato de 14/11/2026). Cobre ordem das fontes, prazo, cache, 401/429/400 e log
  * sem dado pessoal.
  */
@@ -66,7 +66,7 @@ function falso(resposta: (url: string) => Promise<Response> | Response) {
   return { buscar, urls };
 }
 
-describe('mapeamento das fontes (ADR 0046)', () => {
+describe('mapeamento das fontes (ADR 0048)', () => {
   it('BrasilAPI: tipo + logradouro, "" → null, CNAE com 7 dígitos, situação pelo código, sem QSA, passa no contrato', () => {
     const r = daBrasilApi(BB, BRASILAPI_BB);
     expect(r).toEqual({
@@ -256,7 +256,7 @@ function montarApp(fontes: FonteCnpj[], consulta?: ConsultaCnpj) {
 
 const URL_ROTA = '/v1/plataforma/cnpj';
 
-describe('POST /v1/plataforma/cnpj (ADR 0046)', () => {
+describe('POST /v1/plataforma/cnpj (ADR 0048)', () => {
   const fontesOk = () => [fonteBrasilApi(falso(() => json(200, BRASILAPI_BB)).buscar), fonteCnpja(falso(() => json(200, CNPJA_OUTRO)).buscar)];
 
   it('sem sessão do portal = 401', async () => {

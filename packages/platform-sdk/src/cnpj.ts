@@ -1,5 +1,5 @@
 /**
- * Consulta de CNPJ na base pública da Receita Federal (ADR 0046; pedido do dono do produto, R-20261114-132600-alexandre):
+ * Consulta de CNPJ na base pública da Receita Federal (ADR 0048; pedido do dono do produto, R-20261114-132600-alexandre):
  * no passo Empresa do portal `config.`, o CNPJ digitado preenche razão social, endereço, situação e CNAE.
  *   POST /v1/plataforma/cnpj  { cnpj }  (super-admin ou admin do cliente)
  * POST, e não GET com o CNPJ na URL, para o número não cair no log de acesso. Fonte grátis: BrasilAPI; reserva: CNPJá
