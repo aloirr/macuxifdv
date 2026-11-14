@@ -43,6 +43,11 @@ export interface OpcoesLista {
   pesquisa_ativa?: boolean;
 }
 
+/** Fonte única de "tarefa a fazer" (RN-CORE-TAR-07): é ela que o ponto laranja, o contador do sino e o balão usam. */
+export function tarefaAFazer(situacao: SituacaoTarefa): boolean {
+  return situacao === 'aberta' || situacao === 'atrasada';
+}
+
 const FEITAS: readonly SituacaoTarefa[] = ['feita_no_prazo', 'feita_com_atraso'];
 
 function grupo(item: ItemRecadosETarefas): number {
@@ -86,7 +91,7 @@ export function montarRecadosETarefas<N extends NotificacaoDaLista>(
         id: tarefa.id,
         tarefa,
         situacao,
-        nova: !!aviso && !aviso.lida_em && !FEITAS.includes(situacao) && situacao !== 'cancelada',
+        nova: !!aviso && !aviso.lida_em && tarefaAFazer(situacao),
         aviso_id: aviso?.id ?? null,
         conclusao_pendente: !!concluidaNaFila && naFila?.situacao !== 'aceito',
       };

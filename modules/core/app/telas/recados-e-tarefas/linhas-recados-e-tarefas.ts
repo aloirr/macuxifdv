@@ -12,7 +12,7 @@ import { somarDiasCivis } from '@macuxi/comum/relogio';
 import type { NotificacaoSync } from '../../../contracts';
 import type { SituacaoTarefa, TarefaSync } from '../../../contracts/tarefa';
 import { dataLocal } from '../../../domain';
-import type { ItemRecadosETarefas, NotificacaoDaLista } from '../../../domain/tarefas/recados-e-tarefas';
+import { tarefaAFazer, type ItemRecadosETarefas, type NotificacaoDaLista } from '../../../domain/tarefas/recados-e-tarefas';
 
 /** A notificação da lista: a do pull com a leitura da fila aplicada (`NotificacaoLocal` serve). */
 export type NotificacaoDaTela = NotificacaoDaLista & Pick<NotificacaoSync, 'tipo' | 'titulo' | 'corpo'> & { link?: string | null };
@@ -185,7 +185,7 @@ export function linhasDoBalao(itens: readonly ItemDaTela[], c: ContextoLinha): L
   const chegada = (i: ItemDaTela): number =>
     Date.parse(i.tipo === 'recado' ? i.notificacao.updated_at : ((i.aviso_id && c.chegadaDoAviso?.get(i.aviso_id)) || i.tarefa.updated_at));
   return itens
-    .filter((i) => (i.tipo === 'recado' ? !i.notificacao.lida_em : i.situacao === 'aberta' || i.situacao === 'atrasada'))
+    .filter((i) => (i.tipo === 'recado' ? !i.notificacao.lida_em : tarefaAFazer(i.situacao)))
     .sort((a, b) => chegada(b) - chegada(a) || a.id.localeCompare(b.id))
     .slice(0, MAX_NO_BALAO)
     .map((i): LinhaDoBalao => {
