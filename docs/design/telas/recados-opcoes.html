@@ -60,7 +60,6 @@ body { background: #DADDD6; font-family: Plex, sans-serif; color: var(--tinta); 
 .a { font-size: 13px; line-height: 18px; color: var(--tinta2); margin-top: 2px; }
 .a.venceu { color: var(--erro); font-weight: 600; }
 .txt { flex: 1; min-width: 0; }
-.ponto { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--sol); }
 .chev { flex: none; color: #8A939D; }
 .vazio-t { font-family: Archivo; font-weight: 700; font-size: 17px; color: var(--tinta); }
 
@@ -74,7 +73,6 @@ body { background: #DADDD6; font-family: Plex, sans-serif; color: var(--tinta); 
 .cartoes { display: flex; flex-direction: column; gap: 10px; padding: 4px 20px 0; }
 .cartao { position: relative; background: #fff; border-radius: 14px; min-height: 72px; padding: 14px 12px 14px 16px; display: flex; align-items: center; gap: 12px;
   overflow: hidden; box-shadow: 0 1px 2px rgba(22,32,42,.06); }
-.cartao.novo::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--sol); }
 .botao2 { margin: 16px 20px 0; height: 48px; border-radius: 12px; border: 1.5px solid var(--noite); color: var(--noite);
   display: grid; place-items: center; font-weight: 600; font-size: 15px; background: transparent; }
 .folha-vazio { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 20px 24px; }
@@ -96,10 +94,8 @@ body { background: #DADDD6; font-family: Plex, sans-serif; color: var(--tinta); 
 
 /* Opção C · tela cheia com abas */
 .cab { background: var(--noite); padding-top: 32px; }
-.cab-l { display: flex; align-items: center; height: 56px; padding: 0 20px 0 4px; gap: 4px; }
-.cab-l h2 { font-family: Archivo; font-weight: 800; font-size: 19px; color: #fff; }
-.voltar { width: 48px; height: 48px; display: grid; place-items: center; color: #fff; }
-.abas { display: flex; }
+.voltar { flex: none; width: 48px; height: 48px; display: grid; place-items: center; color: #fff; }
+.abas { display: flex; align-items: center; padding: 0 8px 0 4px; }
 .aba { flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--faixa2); font-weight: 600; font-size: 15px; position: relative; }
 .aba.ativa { color: #fff; }
 .aba.ativa::after { content: ''; position: absolute; left: 24px; right: 24px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: #fff; }
@@ -109,7 +105,7 @@ body { background: #DADDD6; font-family: Plex, sans-serif; color: var(--tinta); 
 .lc > .ic { align-self: center; }
 .lc .cx { flex: 1; min-width: 0; min-height: 72px; margin-left: 14px; padding: 12px 20px 12px 0; display: flex; align-items: center; gap: 12px; }
 .lc + .lc .cx { border-top: 1px solid var(--linha); }
-.c-vazio { position: absolute; left: 0; right: 0; top: 136px; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding-bottom: 60px; }
+.c-vazio { position: absolute; left: 0; right: 0; top: 80px; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding-bottom: 60px; }
 </style>
 </head>
 <body>
@@ -138,8 +134,12 @@ const R1 = { tipo: 'recado', titulo: 'Promoção do óleo começa segunda', apoi
 const R1lido = { ...R1, novo: false };
 const T1 = { tipo: 'tarefa', titulo: 'Foto da gôndola no Atacadão', apoio: 'até hoje', fazer: true };
 const R2 = { tipo: 'recado', titulo: 'Rota de sexta mudou', apoio: 'Escritório · ontem' };
+const R3 = { tipo: 'recado', titulo: 'Tabela de preços de novembro', apoio: 'Escritório · 10/11' };
+const R4 = { tipo: 'recado', titulo: 'Meta da semana atualizada', apoio: 'Carla · supervisão · 09/11' };
 const TV = { tipo: 'vencida', titulo: 'Foto da gôndola no Atacadão', apoio: 'Venceu ontem', fazer: true, venceu: true };
-const ESTADOS = { cheio: { itens: [R1, T1, R2], contador: 2 }, vazio: { itens: [], contador: 0 }, vencida: { itens: [TV, R1lido, R2], contador: 1 } };
+// A e B mostram só os 3 primeiros; os outros ficam para "Ver todos".
+const VISIVEIS = 3;
+const ESTADOS = { cheio: { itens: [R1, T1, R2, R3, R4], contador: 2 }, vazio: { itens: [], contador: 0 }, vencida: { itens: [TV, R1lido, R2, R3, R4], contador: 1 } };
 
 const textos = (it) => `<div class="txt"><div class="t ${it.novo || it.fazer ? 'forte' : ''}">${it.titulo}</div><div class="a ${it.venceu ? 'venceu' : ''}">${it.apoio}</div></div>`;
 
@@ -163,7 +163,7 @@ const opcaoA = ({ itens, contador }) => `<div class="ap">${inicio(contador)}
   <div class="folha">
     <div class="pega"></div>
     <div class="folha-cab"><h2>Recados e tarefas</h2><span class="x">${I.x}</span></div>
-    ${itens.length ? `<div class="cartoes">${itens.map((it) => `<div class="cartao ${it.novo ? 'novo' : ''}">${icone(it.tipo, 40)}${textos(it)}<span class="chev">${I.chev}</span></div>`).join('')}</div>
+    ${itens.length ? `<div class="cartoes">${itens.slice(0, VISIVEIS).map((it) => `<div class="cartao">${icone(it.tipo, 40)}${textos(it)}<span class="chev">${I.chev}</span></div>`).join('')}</div>
     <div class="botao2">Ver todos</div>`
     : `<div class="folha-vazio">${icone('ok', 56)}<div class="vazio-t">Tudo em dia</div></div>`}
   </div></div>`;
@@ -175,7 +175,7 @@ const opcaoB = ({ itens, contador }) => `<div class="ap">${inicio(contador)}
   <div class="balao ${itens.length ? '' : 'vazio'}">
     <span class="seta"></span>
     <h2>Recados e tarefas</h2>
-    ${itens.length ? itens.map((it) => `<div class="lin">${icone(it.tipo, 36)}<div class="cx">${textos(it)}${it.novo ? '<span class="ponto"></span>' : ''}</div></div>`).join('')
+    ${itens.length ? itens.slice(0, VISIVEIS).map((it) => `<div class="lin">${icone(it.tipo, 36)}<div class="cx">${textos(it)}</div></div>`).join('')
       + `<div class="rodape">Ver todos <span style="display:grid">${I.chev}</span></div>`
     : `<div class="lin">${icone('ok', 36)}<div class="cx"><div class="vazio-t" style="font-size:15px">Tudo em dia</div></div></div>`}
   </div></div>`;
@@ -183,13 +183,13 @@ const opcaoB = ({ itens, contador }) => `<div class="ap">${inicio(contador)}
 // C · tela cheia com abas
 const opcaoC = ({ aba, recados, tarefas, itens }) => `<div class="ap">
   <div class="cab">
-    <div class="cab-l"><span class="voltar">${I.voltar}</span><h2>Recados e tarefas</h2></div>
     <div class="abas">
+      <span class="voltar">${I.voltar}</span>
       <div class="aba ${aba === 'recados' ? 'ativa' : ''}">Recados${recados ? `<span class="pill">${recados}</span>` : ''}</div>
       <div class="aba ${aba === 'tarefas' ? 'ativa' : ''}">Tarefas${tarefas ? `<span class="pill">${tarefas}</span>` : ''}</div>
     </div>
   </div>
-  ${itens.length ? `<div class="lista">${itens.map((it) => `<div class="lc">${icone(it.tipo, 40)}<div class="cx">${textos(it)}${it.novo ? '<span class="ponto"></span>' : `<span class="chev">${I.chev}</span>`}</div></div>`).join('')}</div>`
+  ${itens.length ? `<div class="lista">${itens.map((it) => `<div class="lc">${icone(it.tipo, 40)}<div class="cx">${textos(it)}<span class="chev">${I.chev}</span></div></div>`).join('')}</div>`
   : `<div class="c-vazio">${icone('ok', 56)}<div class="vazio-t">Tudo em dia</div></div>`}
   </div>`;
 
@@ -197,7 +197,7 @@ const fileiras = [
   ['Opção A · Folha que sobe, em cartões', ['cheio', 'vazio', 'vencida'].map((e) => opcaoA(ESTADOS[e]))],
   ['Opção B · Balão no sino, lista compacta', ['cheio', 'vazio', 'vencida'].map((e) => opcaoB(ESTADOS[e]))],
   ['Opção C · Tela cheia com abas', [
-    opcaoC({ aba: 'recados', recados: 1, tarefas: 1, itens: [R1, R2] }),
+    opcaoC({ aba: 'recados', recados: 1, tarefas: 1, itens: [R1, R2, R3, R4] }),
     opcaoC({ aba: 'recados', recados: 0, tarefas: 0, itens: [] }),
     opcaoC({ aba: 'tarefas', recados: 0, tarefas: 1, itens: [TV] }),
   ]],
