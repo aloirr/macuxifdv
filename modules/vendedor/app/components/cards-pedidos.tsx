@@ -40,7 +40,7 @@ export function CardsDePedidos({ resumo, onAbrir }: { resumo: ResumoDePedidos | 
   return (
     <View testID="orders-cards" style={{ flexDirection: 'row', gap: 8 }}>
       <Card testID="orders-card-orcamentos" titulo="Orçamentos em aberto" rotulo="Orçamentos" q={resumo?.orcamentos ?? null} onPress={() => onAbrir('orcamentos')} />
-      <Card testID="orders-card-enviados" titulo="Pedidos enviados" rotulo="Pedidos" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
+      <Card testID="orders-card-enviados" titulo="Pedidos" rotulo="Pedidos" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
       <Card testID="orders-card-total" titulo="Total" rotulo="Total" q={resumo?.total ?? null} />
     </View>
   );

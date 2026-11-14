@@ -42,6 +42,7 @@ import { pedidoEnviado, resumoDePedidos } from '../../domain/resumo-pedidos';
 import { CardsDePedidos, type CardDePedidos } from '../components/cards-pedidos';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { periodoSemPedidos } from '../lib/cards-pedidos';
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
 import { statusBadgeDaLinha } from '../lib/order-status';
@@ -180,6 +181,8 @@ export default function OrdersScreen() {
     () => (semResposta ? null : resumoDePedidos(itens.map((i) => ({ ...i.pedido, emitido_em: i.emitido_em })), { periodo, tz })),
     [itens, periodo, tz, semResposta],
   );
+  // RD-0263: período sem pedido fica só com a frase do vazio (sem os 3 cartões zerados nem o chip "Todos" sozinho)
+  const periodoVazio = periodoSemPedidos({ resumo: cards, itensNoPeriodo: base.length, buscando });
   const abrirCard = (c: CardDePedidos) => setSituacao(c === 'orcamentos' ? 'card_orc' : 'card_env');
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
   const hojeDia = periodoDe('dia', new Date(), tz).valor;
@@ -291,7 +294,7 @@ export default function OrdersScreen() {
         }
         ListHeaderComponent={
           <View style={styles.cabecalho}>
-            <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
+            {periodoVazio ? null : <CardsDePedidos resumo={cards} onAbrir={abrirCard} />}
 
             {totalRascunhos > 0 ? (
               <SePode acao="pedido.criar">
@@ -378,7 +381,7 @@ export default function OrdersScreen() {
                   </View>
                 ) : null}
 
-                {semResposta ? null : (
+                {semResposta || periodoVazio ? null : (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -388,7 +391,7 @@ export default function OrdersScreen() {
                     {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
                     {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
                     {atual === 'card_orc' ? <Chip testID="chip-card-orc" label="Orçamentos em aberto" active onPress={() => setSituacao('card_orc')} /> : null}
-                    {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos enviados" active onPress={() => setSituacao('card_env')} /> : null}
+                    {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos" active onPress={() => setSituacao('card_env')} /> : null}
                     {chips.map((c) => (
                       <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
                     ))}
