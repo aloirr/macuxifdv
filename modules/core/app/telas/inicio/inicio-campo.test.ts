@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { INDICADORES_PRODUTIVIDADE, type ProdutividadeIndicador, type ResultadoIndicador } from '../../../contracts/performance';
@@ -102,5 +106,15 @@ describe('T-0170 Início do Campo: sino e sincronização', () => {
   it('"Últ. sincronização 20:22" no fuso do tenant; sem sincronização, null', () => {
     expect(textoUltimaSincronizacao('2026-11-13T00:22:00Z', 'America/Manaus')).toBe('Últ. sincronização 20:22');
     expect(textoUltimaSincronizacao(null, 'America/Manaus')).toBeNull();
+  });
+});
+
+describe('Marca no Início do Campo (fonte da tela)', () => {
+  const fonte = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'tela-inicio-campo.tsx'), 'utf8');
+  it('MC-0017: valorIndicador usa fonts.displayBold (Archivo Bold, família dos números)', () => {
+    expect(fonte).toMatch(/valorIndicador:\s*\{\s*fontFamily:\s*fonts\.displayBold/);
+  });
+  it('MC-0016: a ProgressBar do CartaoMeta usa color={colors.grafico}', () => {
+    expect(fonte).toContain('color={colors.grafico}');
   });
 });

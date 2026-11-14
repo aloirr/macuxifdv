@@ -31,7 +31,7 @@ const chamar = (metodo: 'GET' | 'PUT', db: ClienteBanco, corpo?: unknown) => {
   } as unknown as ContextoBase;
   return r.executar(ctx as never) as Promise<unknown>;
 };
-const valido = { dias_uteis_semana: [1, 2, 3, 4, 5], recado_do_dia_padrao: 'Vamos vender!', parado_min: 45 };
+const valido = { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 };
 const ehAuditoria = (c: { sql: string }) => c.sql.includes('plataforma.auditoria');
 const ehEscrita = (c: { sql: string }) => c.sql.includes('plataforma.parametro (tenant_id');
 
@@ -51,13 +51,12 @@ describe('RN-CORE-26: permissões de parametros/inicio', () => {
 describe('RN-CORE-26: GET parametros/inicio', () => {
   it('RN-CORE-26: sem linha devolve os padrões; a consulta é do tenant da transação', async () => {
     const { db, chamadas } = fakeDb([]);
-    expect(await chamar('GET', db)).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5, 6], recado_do_dia_padrao: 'Bom trabalho hoje!', parado_min: 60 });
+    expect(await chamar('GET', db)).toEqual({ dias_uteis_semana: [1, 2, 3, 4, 5, 6], parado_min: 60 });
     expect(chamadas[0]!.sql).toContain('tenant_id = plataforma.tenant_atual()');
   });
   it('RN-CORE-26: devolve o valor gravado do tenant', async () => {
     const { db } = fakeDb([
       { modulo: 'core', chave: 'metas.dias_uteis_semana', valor: [1, 2, 3, 4, 5] },
-      { modulo: 'core', chave: 'inicio.recado_do_dia_padrao', valor: 'Vamos vender!' },
       { modulo: 'core', chave: 'inicio.parado_min', valor: 45 },
     ]);
     expect(await chamar('GET', db)).toEqual(valido);
@@ -65,10 +64,10 @@ describe('RN-CORE-26: GET parametros/inicio', () => {
 });
 
 describe('RN-CORE-26 / RN-AUD-01: PUT parametros/inicio', () => {
-  it('RN-AUD-01: grava as três chaves e audita antes/depois quando algo muda', async () => {
+  it('RN-AUD-01: grava as duas chaves e audita antes/depois quando algo muda', async () => {
     const { db, chamadas } = fakeDb([]);
     expect(await chamar('PUT', db, { ...valido, dias_uteis_semana: [5, 1, 2, 3, 4] })).toEqual(valido);
-    expect(chamadas.filter(ehEscrita)).toHaveLength(3);
+    expect(chamadas.filter(ehEscrita)).toHaveLength(2);
     expect(chamadas.filter(ehEscrita).every((c) => c.sql.includes('plataforma.tenant_atual()'))).toBe(true);
     const aud = chamadas.filter(ehAuditoria);
     expect(aud).toHaveLength(1);
@@ -79,7 +78,6 @@ describe('RN-CORE-26 / RN-AUD-01: PUT parametros/inicio', () => {
   it('RN-AUD-01: repetir o mesmo valor não audita de novo (idempotente)', async () => {
     const { db, chamadas } = fakeDb([
       { modulo: 'core', chave: 'metas.dias_uteis_semana', valor: [1, 2, 3, 4, 5] },
-      { modulo: 'core', chave: 'inicio.recado_do_dia_padrao', valor: 'Vamos vender!' },
       { modulo: 'core', chave: 'inicio.parado_min', valor: 45 },
     ]);
     await chamar('PUT', db, valido);
@@ -94,5 +92,9 @@ describe('RN-CORE-26 / RN-AUD-01: PUT parametros/inicio', () => {
   it('RN-CORE-26: corpo com campo extra é recusado pelo schema', () => {
     const { db } = fakeDb([]);
     expect(() => chamar('PUT', db, { ...valido, extra: 1 })).toThrow();
+  });
+  it('RN-CORE-26 (D2, 13/11): a frase padrão do recado do dia saiu; o campo recado_do_dia_padrao é recusado', () => {
+    const { db } = fakeDb([]);
+    expect(() => chamar('PUT', db, { ...valido, recado_do_dia_padrao: 'Vamos vender!' })).toThrow();
   });
 });

@@ -136,10 +136,20 @@ describe('RN-CORE-12: baixa da pendência por pesquisa.resposta.registrada@1', (
   it('RN-CORE-12: resposta sem visita (ou evento antes do checkout, sem linha) não faz nada', async () => {
     const a = montar();
     await consumidorBaixaPorResposta.executar(evento(null) as never, a.ctx);
-    expect(a.db.query).not.toHaveBeenCalled();
+    // T-0170 §4.3: sem visita, só a costura da tarefa consulta o banco (core.tarefa_destinatario)
+    expect(a.comandos.every((s) => s.includes('core.tarefa_destinatario'))).toBe(true);
+    expect(a.comandos.some((s) => s.includes('core.visita'))).toBe(false);
+    expect(a.comandos.some((s) => s.includes('core.visita_etapa'))).toBe(false);
     const b = montar({ etapas: [] });
     await consumidorBaixaPorResposta.executar(evento() as never, b.ctx);
     expect(b.consultar).not.toHaveBeenCalled();
+  });
+
+  it('T-0170: a resposta registrada também tenta concluir a tarefa de pesquisa do usuário (mesmo consumidor)', async () => {
+    const t = montar();
+    await consumidorBaixaPorResposta.executar(evento() as never, t.ctx);
+    expect(t.comandos[0]).toContain('core.tarefa_destinatario');
+    expect(t.comandos[0]).toContain('resposta_id');
   });
 });
 

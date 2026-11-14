@@ -152,3 +152,4 @@
 2026-11-13 — T-0171 — RN-CORE-41: tag única (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita (domain/lista-clientes.ts, entidade cliente_ultima_visita), filtro "Devendo"
 2026-11-13 — T-0171 — regex ultima_visita_data, lista de Clientes (RN-CORE-47), etapas da entrada (RN-CORE-48), export progressoDaEntrada
 2026-11-13 — T-0170 — Início do Campo no Core: painel, Metas do mês, Produtividade, sino, Sincronizar (telas/inicio)
+2026-11-14 — T-0170/v1.0.6 — MC-0010 (Início e Performance), MC-0012, MC-0014 (STATUS_FILL), retirada do inicio.recado_do_dia_padrao (D2) e costura #149 (itens 1, 2, 3, 4 e 6); branch nuvem/v106-modulo-core

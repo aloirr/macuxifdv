@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { useEffect, useMemo, useRef } from 'react';
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import type { GeoPoint } from '../../../domain';
-import { boundsPoints, type MapRoute, type MapStop, STATUS_FILL, STATUS_LABEL, idleLabel, dayLabel } from '../../lib/routes';
+import { boundsPoints, corResolvida, type MapRoute, type MapStop, STATUS_FILL, STATUS_LABEL, idleLabel, dayLabel } from '../../lib/routes';
 
 export interface RouteMapProps {
   start: GeoPoint;
@@ -194,7 +194,7 @@ function FeatureRoute({
             pathOptions={{
               color: '#ffffff',
               weight: 1.5,
-              fillColor: s.status === 'done' ? STATUS_FILL.done : s.status === 'in_progress' ? STATUS_FILL.in_progress : route.color,
+              fillColor: corResolvida(s.status === 'done' ? STATUS_FILL.done : s.status === 'in_progress' ? STATUS_FILL.in_progress : route.color),
               fillOpacity: dimmed ? 0.3 : 0.9,
               opacity: dimmed ? 0.4 : 1,
             }}

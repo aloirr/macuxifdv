@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { definirEvento } from '@macuxi/platform-sdk';
 import { ModulosAlteradosSchema } from './licencas';
 import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from './sync';
+import { TAREFA_DESTINATARIOS_MAX, TIPOS_TAREFA } from './tarefa';
 
 export const EVENTO_MODULOS_ALTERADOS = definirEvento('core.usuario.modulos_alterados@1', ModulosAlteradosSchema);
 
@@ -97,3 +98,39 @@ export const RotaDiaPlanejadoSchema = z
   })
   .strict();
 export const EVENTO_ROTA_DIA_PLANEJADO = definirEvento('core.rota.dia_planejado@1', RotaDiaPlanejadoSchema);
+
+// ---------- T-0170: tarefas do consultor (desenho `tarefas-consultor.md` §4.2). Sem título nem descrição no payload (dado pessoal fica no banco).
+
+export const TarefaCriadaSchema = z.object({
+  tarefa_id: Uuid,
+  autor_id: Uuid,
+  tipo: z.enum(TIPOS_TAREFA),
+  cliente_id: Uuid.nullable(),
+  prazo: z.string().regex(DATA_CIVIL),
+  usuario_ids: z.array(Uuid).max(TAREFA_DESTINATARIOS_MAX),
+  criada_em: z.string().datetime(),
+});
+export const EVENTO_TAREFA_CRIADA = definirEvento('core.tarefa.criada@1', TarefaCriadaSchema);
+
+export const TarefaConcluidaSchema = z.object({
+  tarefa_id: Uuid,
+  tarefa_destinatario_id: Uuid,
+  usuario_id: Uuid,
+  cliente_id: Uuid.nullable(),
+  tipo: z.enum(TIPOS_TAREFA),
+  concluida_em: z.string().datetime(),
+  recebida_em: z.string().datetime(),
+  no_prazo: z.boolean(),
+  fotos_total: z.number().int().min(0),
+  resposta_id: Uuid.nullable(),
+  suspeita: z.boolean(),
+});
+export const EVENTO_TAREFA_CONCLUIDA = definirEvento('core.tarefa.concluida@1', TarefaConcluidaSchema);
+
+export const TarefaCanceladaSchema = z.object({
+  tarefa_id: Uuid,
+  cancelada_por: Uuid,
+  cancelada_em: z.string().datetime(),
+  abertas_no_cancelamento: z.number().int().min(0),
+});
+export const EVENTO_TAREFA_CANCELADA = definirEvento('core.tarefa.cancelada@1', TarefaCanceladaSchema);

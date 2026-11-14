@@ -187,7 +187,7 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
         </Text>
         <View style={s.linhaValor}>
           {c.ponto ? <View style={[s.ponto, { backgroundColor: fora ? colors.grafico : colors.success }]} testID={`performance-produtividade-${c.indicador}-ponto`} /> : null}
-          <Text style={[s.valorProdutividade, fora && { color: colors.accentInk }]}>{c.valor}</Text>
+          <Text style={s.valorProdutividade}>{c.valor}</Text>
         </View>
         {c.meta ? <Text style={t.small}>{c.meta}</Text> : null}
       </Cartao>

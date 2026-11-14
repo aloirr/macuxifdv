@@ -354,6 +354,8 @@ export const NotificacaoSyncSchema = z
     autor_perfil: PerfilSchema.nullable().optional(),
     /** T-0039 (aditivo, migração 0030): marcador estável dentro do tipo (ex.: `etapa_pendente_checkout`); null/ausente = sem subtipo. */
     subtipo: z.string().regex(/^[a-z_]{1,40}$/).nullable().optional(),
+    /** T-0170 (aditivo): tarefa do consultor que gerou o aviso; null/ausente = não é de tarefa. */
+    tarefa_id: z.string().uuid().nullable().optional(),
   })
   .strict();
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;

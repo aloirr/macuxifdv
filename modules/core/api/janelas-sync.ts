@@ -16,6 +16,21 @@ const dataDesde = (campo: string, dias: number): NaJanela => (l, h) => {
   return v === null || v.slice(0, 10) >= diasAntes(h, dias);
 };
 
+/**
+ * SQL da janela `campo >= least(hoje − 40, início do mês anterior)` (T-0170, `performance-produtividade.md` §7.2): a Performance
+ * do aparelho mostra o "Mês passado" inteiro. Mesma regra em `dataDesdeMesAnteriorOu40` (poda local).
+ */
+export const janelaMesAnteriorOu40 = (campo: string): string => `${campo} >= least({{hoje}} - 40, date_trunc('month', {{hoje}} - interval '1 month')::date)`;
+
+/** Poda local de `janelaMesAnteriorOu40`; sem o campo, fica. */
+export const dataDesdeMesAnteriorOu40 = (campo: string): NaJanela => (l, h) => {
+  const v = texto(l[campo]);
+  if (v === null) return true;
+  const inicioMesAnterior = `${mesesAntes(h, 1).slice(0, 8)}01`;
+  const menos40 = diasAntes(h, 40);
+  return v.slice(0, 10) >= (menos40 < inicioMesAnterior ? menos40 : inicioMesAnterior);
+};
+
 export const JANELAS_CORE = {
   /** `fim is null or fim >= hoje − 40` */
   carteira: dataDesde('fim', 40),
@@ -26,11 +41,11 @@ export const JANELAS_CORE = {
     const v = texto(l.ano_mes);
     return v === null || v >= mesesAntes(h, 12).slice(0, 7);
   },
-  /** `data >= hoje − 40`, sem limite superior */
-  rota: dataDesde('data', 40),
-  rota_parada: dataDesde('data', 40),
-  /** `data_local >= hoje − 40` */
-  visita: dataDesde('data_local', 40),
+  /** `data >= least(hoje − 40, início do mês anterior)`, sem limite superior */
+  rota: dataDesdeMesAnteriorOu40('data'),
+  rota_parada: dataDesdeMesAnteriorOu40('data'),
+  /** `data_local >= least(hoje − 40, início do mês anterior)` */
+  visita: dataDesdeMesAnteriorOu40('data_local'),
   /** `periodo >= hoje − 1 mês` (AAAA-MM) */
   meta: (l, h) => {
     const v = texto(l.periodo);

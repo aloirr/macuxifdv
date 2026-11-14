@@ -1,7 +1,7 @@
 /**
  * Parâmetros do Início × Postgres real (fixture dois-tenants, RLS): RN-CORE-26, RN-AUD-01 (T-0073 passo 7).
  * Dois tenants isolados; PUT repetido sem auditoria nova e sem mudar o updated_at (o pull só leva o que mudou); linha removida
- * cai no padrão; 422 com a chave do campo e nada gravado; o pull do aparelho leva as três chaves. Pula sem Postgres.
+ * cai no padrão; 422 com a chave do campo e nada gravado; o pull do aparelho leva as duas chaves. Pula sem Postgres.
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
@@ -15,8 +15,8 @@ import { provedoresSyncCore } from './sync';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
-const valido: ParametrosInicio = { dias_uteis_semana: [1, 2, 3, 4, 5], recado_do_dia_padrao: 'Vamos vender!', parado_min: 45 };
-const CHAVES = ['metas.dias_uteis_semana', 'inicio.recado_do_dia_padrao', 'inicio.parado_min'];
+const valido: ParametrosInicio = { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 45 };
+const CHAVES = ['metas.dias_uteis_semana', 'inicio.parado_min'];
 type LinhaParam = { modulo: string; chave: string; valor: unknown };
 
 describe.skipIf(semBanco())('Core T-0073 × Postgres: parâmetros do Início', () => {
@@ -82,7 +82,7 @@ describe.skipIf(semBanco())('Core T-0073 × Postgres: parâmetros do Início', (
 
   it('RN-AUD-01: PUT repetido não audita de novo e não muda o updated_at das linhas (o pull só leva o que mudou)', async () => {
     const antes = await linhas(A.tenantId);
-    expect(antes).toHaveLength(3);
+    expect(antes).toHaveLength(2);
     expect(await chamar('PUT', adminA, 'r-repete-a', valido)).toEqual(valido);
     const depois = await linhas(A.tenantId);
     expect(depois.map((l) => l.updated_at.getTime())).toEqual(antes.map((l) => l.updated_at.getTime()));
@@ -113,7 +113,7 @@ describe.skipIf(semBanco())('Core T-0073 × Postgres: parâmetros do Início', (
     expect(await auditorias(A.tenantId, 'r-invalido')).toEqual([]);
   });
 
-  it('RN-CORE-26: o pull de parâmetros leva as três chaves ao aparelho (só do próprio tenant) e o app lê o mesmo valor efetivo', async () => {
+  it('RN-CORE-26: o pull de parâmetros leva as duas chaves ao aparelho (só do próprio tenant) e o app lê o mesmo valor efetivo', async () => {
     const pull = provedoresSyncCore.find((p) => p.entidade.nome === 'parametro')!.puxar!;
     const lA = (await pull(ctx(vendedorA, 'req-pull-a'), pedido())) as LinhaSync[];
     for (const l of lA) ParametroSyncSchema.parse(l);

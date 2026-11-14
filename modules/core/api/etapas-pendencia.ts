@@ -2,7 +2,8 @@
  * Pendência de etapa no checkout (RN-CORE-12, complemento T-0039 §2; docs/desenho/T-0039.md, docs/design/checkout-pendencia.md).
  * - `gravarEtapasDoCheckout`: upsert de `core.visita_etapa` sem rebaixar uma linha `concluida`, e a contagem `visita.etapas_pendentes`
  *   na MESMA transação do checkout (o banco não recalcula).
- * - `consumidorBaixaPorResposta`: `pesquisa.resposta.registrada@1` → reconsulta `<modulo>.etapas_checkout@1` → baixa (idempotente).
+ * - `consumidorBaixaPorResposta`: `pesquisa.resposta.registrada@1` → conclui a tarefa de pesquisa do usuário (T-0170, `concluirTarefaPorResposta`)
+ *   → reconsulta `<modulo>.etapas_checkout@1` → baixa (idempotente).
  * - `alertarPendenciasVencidas`: varredura do alerta (`checkout_pendencia_alerta_h`, padrão 24): reconsulta, e se ainda pendente
  *   notifica vendedor e supervisor UMA vez (`alertada_em`; `envio_id` = id da linha torna a notificação idempotente).
  * - Dispensa manual no BKO (§2.5a): `POST visitas/:id/etapas/:modulo/:etapa/dispensa`, com justificativa e auditoria (RN-AUD-01).
@@ -24,6 +25,7 @@ import { baixarPendenciasPorEvento, pendenciaViraAlerta, prazoAlertaPendenciaH, 
 import { DEF_RESPOSTA_REGISTRADA } from '../../pesquisa/contracts';
 import { auditar } from './auditoria';
 import { erroHttp } from './erros';
+import { concluirTarefaPorResposta } from './tarefas';
 import { CONSULTAS_ETAPAS_CHECKOUT, MODULO_DO_EVENTO_DE_BAIXA, verificadorPorConsulta } from './etapas-checkout';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -151,6 +153,8 @@ export async function baixarNotificacoesDaPendencia(db: ClienteBanco, etapaId: s
 export const consumidorBaixaPorResposta: ConsumidorEvento = definirConsumidor({
   evento: eventoTolerante(DEF_RESPOSTA_REGISTRADA),
   executar: async (p, ctx: ContextoConsumo) => {
+    // T-0170 (tarefas-consultor.md §4.3): um passo a mais do MESMO consumidor, antes do return de quem não tem visita
+    await concluirTarefaPorResposta(p, ctx);
     if (!p.visita_id) return;
     const modulo = MODULO_DO_EVENTO_DE_BAIXA['pesquisa.resposta.registrada@1'];
     if (!modulo) return;
