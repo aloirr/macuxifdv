@@ -12,7 +12,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { fotoPdvTrancada } from '../lib/foto-fachada';
 import { mapsUrl } from '../lib/route';
-import { compraMediaMesCents, observacaoComCadastro, resumoSemCompras, totalDoMes, type CurvaDoCliente } from '../../domain';
+import { compraMediaMesCents, observacaoComCadastro, resumoSemCompras, totalDoMes } from '../../domain';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
 const mesBr = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
@@ -101,21 +101,18 @@ export function BlocoFotosPdv({ ficha, onAdicionar }: { ficha: Cliente360Local; 
   );
 }
 
-/** Tags do Resumo: curvas por dimensão (RN-CORE-49) e, quando houver, Bloqueado e Inativo. O segmento é dado do cadastro, não tag. */
-export function TagsCliente({ ficha, curvas, atendimento }: { ficha: Cliente360Local; curvas: readonly CurvaDoCliente[]; atendimento?: string | null }) {
+/** Tags do Resumo: quando houver, Bloqueado, Inativo e o atendimento. As curvas (RN-CORE-49) ficam só na Performance. */
+export function TagsCliente({ ficha, atendimento }: { ficha: Cliente360Local; atendimento?: string | null }) {
   const fin = ficha.resumo_financeiro;
   const tags = (
     <>
-      {curvas.map((c) => (
-        <Badge key={c.dimensao} label={c.rotulo} tone={c.curva === 'A' ? 'accent' : c.curva === 'C' ? 'warning' : 'neutral'} />
-      ))}
       {/* RD-0065: o motivo do bloqueio e os vencidos aparecem só na aba Financeiro */}
       {fin?.bloqueado ? <Badge label="Bloqueado" tone="danger" /> : null}
       {!ficha.cliente.ativo ? <Badge label="Inativo" tone="warning" /> : null}
       {atendimento ? <Badge label={atendimento} tone="accent" /> : null}
     </>
   );
-  if (curvas.length === 0 && !fin?.bloqueado && ficha.cliente.ativo && !atendimento) return null;
+  if (!fin?.bloqueado && ficha.cliente.ativo && !atendimento) return null;
   return (
     <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }} testID="cliente-tags">
       {tags}
