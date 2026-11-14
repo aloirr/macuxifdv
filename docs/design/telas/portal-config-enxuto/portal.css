@@ -28,7 +28,6 @@ h1, h2, h3, .marca, .num { font-family: Archivo, 'IBM Plex Sans', system-ui, san
 .topo .btn { background: transparent; border-color: var(--faixaSub); color: #fff; }
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 14px; border: 1px solid var(--lineStrong); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.p { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.d { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn.off { background: var(--nevoa); border-color: var(--nevoa); color: var(--placeholder); } /* MC-0041 */
 .btn.s { height: 36px; padding: 0 12px; font-size: 13px; }
 .link { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
@@ -111,7 +110,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
 .uso td.n, .uso th.n { text-align: right; font-family: Archivo, 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
-.uso td.lim { color: var(--warning); font-weight: 700; }
 .estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
 .estados-cnpj .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
 @media (max-width: 767px) { .adicionais { grid-template-columns: 1fr; } .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
