@@ -162,42 +162,62 @@ export function linhaDoItem(item: ItemDaTela, c: ContextoLinha): LinhaDaLista {
 
 // ---------- balão do sino ----------
 
-/** No máximo 5 itens no balão (§7.2). */
-export const MAX_NO_BALAO = 5;
+/** Layout B (decisão do dono, 14/11): no máximo 3 linhas; o resto fica no "Ver todos". */
+export const MAX_NO_BALAO = 3;
+
+export type IconeDoBalao = 'recado' | 'tarefa' | 'vencida' | 'ok';
 
 export interface LinhaDoBalao {
   id: string;
   tipo: 'recado' | 'tarefa';
   titulo: string;
+  /** "Novo" só pelo negrito: recado não lido ou tarefa a fazer com aviso não lido. */
   forte: boolean;
-  icone: IconeLinha | null;
-  caixa: CaixaTarefa | null;
-  /** "Tarefa · até sexta, 14/11" · "Mercadinho São Jorge · ontem" · o texto do recado. */
+  icone: IconeDoBalao;
+  /** "Carla · hoje" (o texto do recado) · "até hoje" · "Venceu ontem". */
   apoio: string;
+  /** Tarefa vencida: apoio em tom de alerta. */
+  vencida: boolean;
   leitura: string;
 }
 
+export interface BalaoMontado {
+  linhas: LinhaDoBalao[];
+  /** Só quando há mais itens do que os que cabem. */
+  verTodos: boolean;
+  /** Sem nada a mostrar: uma linha "Tudo em dia". */
+  vazio: boolean;
+}
+
+/** "Venceu ontem" ou "Venceu em 10/11": o prazo vencido termina no fim do dia do prazo. */
+export function textoVencida(prazo: string, hoje: string): string {
+  return prazo === somarDiasCivis(hoje, -1) ? 'Venceu ontem' : `Venceu em ${ddmm(prazo)}`;
+}
+
+const ehNovo = (i: ItemDaTela): boolean => (i.tipo === 'recado' ? !i.notificacao.lida_em : i.nova);
+
 /**
- * Itens do balão: recados não lidos e tarefas a fazer, do mais novo para o mais antigo, no máximo 5. A ordem de entrada é a
- * da `montarRecadosETarefas`; aqui só o filtro e o texto curto (sem tag: o "quando" vai no apoio dos avisos).
+ * Itens do balão: entram recados (lidos ou não) e tarefas a fazer; primeiro os novos (os que o contador do sino conta), depois
+ * os demais, cada grupo do mais recente para o mais antigo; corte em 3. `verTodos` só com mais de 3 itens elegíveis.
  */
-export function linhasDoBalao(itens: readonly ItemDaTela[], c: ContextoLinha): LinhaDoBalao[] {
+export function linhasDoBalao(itens: readonly ItemDaTela[], c: ContextoLinha): BalaoMontado {
   const chegada = (i: ItemDaTela): number =>
     Date.parse(i.tipo === 'recado' ? i.notificacao.updated_at : ((i.aviso_id && c.chegadaDoAviso?.get(i.aviso_id)) || i.tarefa.updated_at));
-  return itens
-    .filter((i) => (i.tipo === 'recado' ? !i.notificacao.lida_em : tarefaAFazer(i.situacao)))
-    .sort((a, b) => chegada(b) - chegada(a) || a.id.localeCompare(b.id))
-    .slice(0, MAX_NO_BALAO)
-    .map((i): LinhaDoBalao => {
-      if (i.tipo === 'tarefa') {
-        const apoio = i.situacao === 'atrasada' ? apoioDaTarefa(i.tarefa, i.situacao, c).texto : textoDoPrazo(i.tarefa.prazo, c.hoje);
-        const texto = `Tarefa · ${apoio}`;
-        return { id: i.id, tipo: 'tarefa', titulo: i.tarefa.titulo, forte: true, icone: null, caixa: 'aberta', apoio: texto, leitura: `${i.tarefa.titulo}. ${texto}` };
-      }
-      const n = i.notificacao;
-      const apoio = n.tipo === 'recado' ? n.corpo : `${n.corpo} · ${quandoCurto(n.updated_at, c.hoje, c.fuso)}`;
-      return { id: i.id, tipo: 'recado', titulo: n.titulo, forte: n.tipo !== 'recado', icone: ICONE_DO_TIPO[n.tipo], caixa: null, apoio, leitura: `${n.titulo}. ${apoio}` };
-    });
+  const elegiveis = itens
+    .filter((i) => i.tipo === 'recado' || tarefaAFazer(i.situacao))
+    .sort((a, b) => Number(ehNovo(b)) - Number(ehNovo(a)) || chegada(b) - chegada(a) || a.id.localeCompare(b.id));
+  const linhas = elegiveis.slice(0, MAX_NO_BALAO).map((i): LinhaDoBalao => {
+    if (i.tipo === 'tarefa') {
+      const vencida = i.situacao === 'atrasada';
+      const apoio = vencida ? textoVencida(i.tarefa.prazo, c.hoje) : textoDoPrazo(i.tarefa.prazo, c.hoje);
+      const forte = i.nova;
+      return { id: i.id, tipo: 'tarefa', titulo: i.tarefa.titulo, forte, icone: vencida ? 'vencida' : 'tarefa', apoio, vencida, leitura: [i.tarefa.titulo, apoio, forte ? 'nova' : null].filter(Boolean).join('. ') };
+    }
+    const n = i.notificacao;
+    const forte = !n.lida_em;
+    return { id: i.id, tipo: 'recado', titulo: n.titulo, forte, icone: 'recado', apoio: n.corpo, vencida: false, leitura: [n.titulo, n.corpo, forte ? 'não lido' : null].filter(Boolean).join('. ') };
+  });
+  return { linhas, verTodos: elegiveis.length > MAX_NO_BALAO, vazio: elegiveis.length === 0 };
 }
 
 /** Chegada do aviso de cada tarefa (para a tag), a partir das notificações do aparelho. */

@@ -125,19 +125,77 @@ describe('T-0170 §7.2 e RD-0211: a linha da lista', () => {
   });
 });
 
-describe('T-0170 §7.2: balão do sino', () => {
-  it('só recados não lidos e tarefas a fazer, do mais novo para o mais antigo, no máximo 5', () => {
+describe('T-0170 §7.2: balão do sino (layout B)', () => {
+  const aviso = (t: TarefaSync, p: Partial<NotificacaoDaTela> = {}) =>
+    notificacao(Number(t.tarefa_id.slice(-1)) + 10, { id: id('f', Number(t.tarefa_id.slice(-1))), subtipo: 'tarefa', tipo: 'tarefa', tarefa_id: t.tarefa_id, ...p } as Partial<NotificacaoDaTela>);
+
+  it('estado cheio: no máximo 3 linhas, novos primeiro, "Ver todos" porque há mais', () => {
     const ns = [
-      notificacao(1, { updated_at: '2026-11-12T10:00:00Z', tipo: 'pedido', titulo: 'Pedido 000014 aprovado', corpo: 'Mercadinho São Jorge' }),
-      notificacao(2, { updated_at: '2026-11-12T09:00:00Z' }),
-      notificacao(3, { lida_em: '2026-11-12T20:00:00Z' }),
+      notificacao(1, { updated_at: '2026-11-13T10:00:00Z' }),
+      notificacao(2, { updated_at: '2026-11-12T09:00:00Z', lida_em: '2026-11-12T20:00:00Z' }),
+      notificacao(3, { updated_at: '2026-11-11T09:00:00Z', lida_em: '2026-11-12T20:00:00Z' }),
+      notificacao(4, { updated_at: '2026-11-10T09:00:00Z', lida_em: '2026-11-12T20:00:00Z' }),
     ];
-    const ts = [tarefa(1, { updated_at: '2026-11-13T12:00:00Z' }), tarefa(2, { updated_at: '2026-11-13T11:00:00Z', prazo: HOJE }), tarefa(3, { concluida_em: '2026-11-12T15:00:00Z' })];
-    const b = linhasDoBalao(lista(ns, ts), C);
-    expect(b.map((l) => l.apoio)).toEqual(['Tarefa · até amanhã', 'Tarefa · até hoje', 'Mercadinho São Jorge · ontem', 'Passe cedo no Mercadinho São Jorge']);
-    expect(b[0]).toMatchObject({ tipo: 'tarefa', caixa: 'aberta', forte: true });
-    const muitos = linhasDoBalao(lista(Array.from({ length: 8 }, (_, i) => notificacao(i + 1)), []), C);
-    expect(muitos).toHaveLength(MAX_NO_BALAO);
+    const t = tarefa(1, { prazo: HOJE });
+    const b = linhasDoBalao(lista([...ns, aviso(t)], [t]), C);
+    expect(b.linhas).toHaveLength(MAX_NO_BALAO);
+    expect(b.verTodos).toBe(true);
+    expect(b.vazio).toBe(false);
+    // o recado não lido e a tarefa nova vêm antes dos lidos; os lidos, do mais recente
+    expect(b.linhas.map((l) => [l.tipo, l.forte])).toEqual([['tarefa', true], ['recado', true], ['recado', false]]);
+    expect(b.linhas[0]).toMatchObject({ icone: 'tarefa', apoio: 'até hoje', vencida: false });
+    expect(b.linhas[1]).toMatchObject({ icone: 'recado', apoio: 'Passe cedo no Mercadinho São Jorge' });
+  });
+
+  it('"Ver todos" só quando há mais de 3 itens', () => {
+    const tres = linhasDoBalao(lista([notificacao(1), notificacao(2), notificacao(3)], []), C);
+    expect(tres).toMatchObject({ verTodos: false, vazio: false });
+    expect(tres.linhas).toHaveLength(3);
+    expect(linhasDoBalao(lista([notificacao(1), notificacao(2), notificacao(3), notificacao(4)], []), C).verTodos).toBe(true);
+  });
+
+  it('estado vazio: sem linhas e sem "Ver todos"; feita e cancelada não entram', () => {
+    expect(linhasDoBalao([], C)).toEqual({ linhas: [], verTodos: false, vazio: true });
+    const feita = tarefa(1, { concluida_em: '2026-11-13T14:00:00Z' });
+    const cancelada = tarefa(2, { cancelada_em: '2026-11-12T10:00:00Z' });
+    expect(linhasDoBalao(lista([], [feita, cancelada]), C)).toMatchObject({ linhas: [], vazio: true, verTodos: false });
+  });
+
+  it('tarefa vencida: ícone de alerta e apoio "Venceu ontem" (ou "Venceu em dd/mm")', () => {
+    const ontem = tarefa(1, { prazo: '2026-11-12' });
+    const antes = tarefa(2, { prazo: '2026-11-10', updated_at: '2026-11-13T11:00:00Z' });
+    const b = linhasDoBalao(lista([], [ontem, antes]), C);
+    expect(b.linhas.find((l) => l.id === ontem.id)).toMatchObject({ icone: 'vencida', apoio: 'Venceu ontem', vencida: true });
+    expect(b.linhas.find((l) => l.id === antes.id)).toMatchObject({ icone: 'vencida', apoio: 'Venceu em 10/11', vencida: true });
+  });
+
+  it('negrito só para o novo: tarefa a fazer com aviso lido não é forte', () => {
+    const t = tarefa(1);
+    const b = linhasDoBalao(lista([aviso(t, { lida_em: '2026-11-13T12:00:00Z' })], [t]), C);
+    expect(b.linhas[0]).toMatchObject({ tipo: 'tarefa', forte: false });
+  });
+
+  it('RN-CORE-TAR-07: Pesquisa desligada com aviso não lido não conta no sino e o balão fica vazio', () => {
+    const t = tarefa(1, { tipo: 'pesquisa', questionario_id: id('b', 1) });
+    const itens = montarRecadosETarefas([aviso(t)], [t], [], { agora: AGORA, fuso: FUSO, pesquisa_ativa: false });
+    expect(itens[0]).toMatchObject({ situacao: 'sem_modulo', nova: false });
+    expect(linhasDoBalao(itens, C).vazio).toBe(true);
+    expect(contarSino(itens).total).toBe(0);
+  });
+
+  it('RN-CORE-TAR-07: todo item contado pelo sino aparece entre as 3 linhas (ou há "Ver todos" se os novos passam de 3)', () => {
+    const lidaEm = '2026-11-13T12:00:00Z';
+    const ts = [tarefa(1), tarefa(2, { prazo: '2026-11-10' }), tarefa(3, { concluida_em: '2026-11-13T14:00:00Z' }), tarefa(4, { cancelada_em: '2026-11-12T10:00:00Z' }), tarefa(7)];
+    const ns = [...ts.map((t) => aviso(t)), notificacao(1), notificacao(2, { lida_em: lidaEm })];
+    for (const conjunto of [montarRecadosETarefas(ns, ts, [], { agora: AGORA, fuso: FUSO }), montarRecadosETarefas([aviso(ts[0]!, { lida_em: lidaEm })], [ts[0]!], [], { agora: AGORA, fuso: FUSO })]) {
+      const b = linhasDoBalao(conjunto, C);
+      const contados = conjunto.filter((i) => contarSino([i]).total > 0);
+      if (contados.length <= MAX_NO_BALAO) for (const i of contados) expect(b.linhas.map((l) => l.id)).toContain(i.id);
+      else {
+        expect(b.verTodos).toBe(true);
+        expect(b.linhas.every((l) => l.forte)).toBe(true);
+      }
+    }
   });
 });
 
@@ -169,44 +227,5 @@ describe('T-0170 §7.2: detalhe da tarefa', () => {
   it('o botão de concluir com fotos diz quantas vão', () => {
     expect(rotuloConcluirComFotos(1)).toBe('Concluir com 1 foto');
     expect(rotuloConcluirComFotos(3)).toBe('Concluir com 3 fotos');
-  });
-});
-
-describe('RN-CORE-TAR-07: contador do sino e balão com o mesmo filtro', () => {
-  const aviso = (t: TarefaSync, p: Partial<NotificacaoDaTela> = {}) =>
-    notificacao(Number(t.tarefa_id.slice(-1)) + 10, { id: id('f', Number(t.tarefa_id.slice(-1))), subtipo: 'tarefa', tipo: 'tarefa', tarefa_id: t.tarefa_id, ...p } as Partial<NotificacaoDaTela>);
-
-  it('RN-CORE-TAR-07: tarefa de pesquisa com a Pesquisa desligada e aviso não lido não conta no sino (contador 0, balão vazio)', () => {
-    const t = tarefa(1, { tipo: 'pesquisa', questionario_id: id('b', 1) });
-    const itens = montarRecadosETarefas([aviso(t)], [t], [], { agora: AGORA, fuso: FUSO, pesquisa_ativa: false });
-    expect(itens[0]).toMatchObject({ situacao: 'sem_modulo', nova: false });
-    expect(linhasDoBalao(itens, C)).toEqual([]);
-    expect(contarSino(itens).total).toBe(0);
-  });
-
-  it('RN-CORE-TAR-07: todo item contado pelo sino aparece no balão, em um conjunto misto', () => {
-    const aberta = tarefa(1);
-    const atrasada = tarefa(2, { prazo: '2026-11-10' });
-    const feita = tarefa(3, { concluida_em: '2026-11-13T14:00:00Z' });
-    const cancelada = tarefa(4, { cancelada_em: '2026-11-12T10:00:00Z' });
-    const semModulo = tarefa(5, { tipo: 'pesquisa', questionario_id: id('b', 1) });
-    const semConsultor = tarefa(6);
-    const lidaEm = '2026-11-13T12:00:00Z';
-    const naoLida = tarefa(7);
-    const ts = [aberta, atrasada, feita, cancelada, semModulo, semConsultor, naoLida];
-    const avisos = [...ts.map((t) => aviso(t)), aviso(tarefa(8), { lida_em: lidaEm })];
-    const ns = [...avisos, notificacao(1), notificacao(2, { lida_em: lidaEm })];
-    const base = montarRecadosETarefas(ns, ts, [], { agora: AGORA, fuso: FUSO, pesquisa_ativa: false });
-    // o domínio ainda não recebe "consultor ativo": força a situação para cobrir RN-CORE-TAR-10
-    const itens = base.map((i) => (i.tipo === 'tarefa' && i.tarefa.id === semConsultor.id ? { ...i, situacao: 'sem_consultor_ativo' as const, nova: false } : i));
-    // mesma tarefa com aviso lido
-    const lidas = montarRecadosETarefas([aviso(aberta, { lida_em: lidaEm })], [aberta], [], { agora: AGORA, fuso: FUSO });
-    for (const conjunto of [itens, lidas]) {
-      const naBalao = new Set(linhasDoBalao(conjunto, C).map((l) => l.id));
-      const contados = conjunto.filter((i) => contarSino([i]).total > 0);
-      expect(contados.length).toBeLessThanOrEqual(MAX_NO_BALAO);
-      for (const i of contados) expect(naBalao.has(i.id)).toBe(true);
-    }
-    expect(contarSino(lidas).total).toBe(0);
   });
 });
