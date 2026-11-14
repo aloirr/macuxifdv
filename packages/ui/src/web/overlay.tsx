@@ -4,12 +4,27 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 import { IconX } from './icons';
 import { Notice, type NoticeTone } from './ui';
 
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /**
- * Fecha com Esc e devolve o foco ao elemento que abriu.
+ * Prende o Tab dentro do popup: do último campo volta ao primeiro e, com Shift, do primeiro vai ao último.
+ * Devolve o índice que deve receber o foco, ou `null` quando o navegador pode seguir sozinho.
+ * `atual` = -1 quando o foco está fora do popup.
+ */
+export function alvoDoTab(total: number, atual: number, shift: boolean): number | null {
+  if (total === 0) return null;
+  if (atual < 0) return shift ? total - 1 : 0;
+  if (shift && atual === 0) return total - 1;
+  if (!shift && atual === total - 1) return 0;
+  return null;
+}
+
+/**
+ * Fecha com Esc, prende o Tab dentro do popup e devolve o foco ao elemento que abriu.
  * O efeito depende só de `open`: se dependesse de `onClose` (função nova a cada render),
  * cada tecla digitada rodaria a limpeza e jogaria o foco para fora do campo.
  */
-function useEscape(open: boolean, onClose: () => void) {
+function useEscape(open: boolean, onClose: () => void, caixa: { current: HTMLElement | null }) {
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -18,14 +33,23 @@ function useEscape(open: boolean, onClose: () => void) {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !caixa.current) return;
+      const lista = Array.from(caixa.current.querySelectorAll<HTMLElement>(FOCAVEIS)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      const alvo = alvoDoTab(lista.length, lista.indexOf(document.activeElement as HTMLElement), e.shiftKey);
+      if (alvo === null) return;
+      e.preventDefault();
+      lista[alvo]?.focus();
     };
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
       prev?.focus?.();
     };
-  }, [open]);
+  }, [open, caixa]);
 }
 
 /**
@@ -54,9 +78,9 @@ function useCorpoRola(open: boolean) {
  * sobe de baixo, na largura toda, com os cantos arredondados só em cima e respeitando a área segura.
  */
 export function Dialog({ open, title, children, footer, onClose }: { open: boolean; title: string; children: ReactNode; footer: ReactNode; onClose: () => void }) {
-  useEscape(open, onClose);
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
+  useEscape(open, onClose, ref);
   const corpo = useCorpoRola(open);
   useEffect(() => {
     if (!open) return;
@@ -88,12 +112,20 @@ export function Dialog({ open, title, children, footer, onClose }: { open: boole
 }
 
 export function Drawer({ open, title, subtitle, children, onClose }: { open: boolean; title: ReactNode; subtitle?: ReactNode; children: ReactNode; onClose: () => void }) {
-  useEscape(open, onClose);
   const id = useId();
+  const ref = useRef<HTMLElement>(null);
+  useEscape(open, onClose, ref);
+  useEffect(() => {
+    // Primeiro campo do painel; sem campo, o botão Fechar (fica no cabeçalho, sempre à vista).
+    const caixa = ref.current;
+    if (!open || !caixa) return;
+    const campo = caixa.querySelector<HTMLElement>('[data-corpo] :is(textarea, input, select)') ?? caixa.querySelector<HTMLElement>('button');
+    campo?.focus({ preventScroll: true });
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-ink/35" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
+      <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 id={id} className="m-0 font-display text-[20px] font-extrabold">
@@ -105,7 +137,7 @@ export function Drawer({ open, title, subtitle, children, onClose }: { open: boo
             <IconX size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+        <div data-corpo className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
       </aside>
     </div>
   );
