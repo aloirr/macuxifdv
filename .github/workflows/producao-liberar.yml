@@ -1,0 +1,111 @@
+name: producao — liberar versão
+
+# R-20261114-121700-alexandre ("Acabei com esse negócio de eu entrar para criar tag. Quero só aprovar"). Libera uma versão
+# de PRODUÇÃO sem ninguém criar tag à mão; o único clique do Alexandre continua sendo a aprovação no environment PRODUCAO.
+#   1. conferir (sem segredo, só leitura): versão vX.Y.Z nova (a tag ainda não existe), SHA completo, disparo pelo main e
+#      a MESMA conferência do producao-publicar.yml (scripts/ci/producao-conferir.mjs): o commit está no main, tem CI
+#      verde de push no main e a imagem ghcr.io/<dono>/macuxi-api:<sha> existe no GHCR;
+#   2. liberar (contents: write, actions: write): cria a tag <versao> → <sha> com o GITHUB_TOKEN e dispara o
+#      producao-publicar.yml com --ref <versao>. Push de tag pelo GITHUB_TOKEN não dispara workflow (não há run duplo); o
+#      workflow_dispatch dispara. O run disparado usa o producao-publicar.yml DO COMMIT DA TAG, confere tudo de novo, monta o
+#      BKO de produção e espera a aprovação no PRODUCAO.
+# Commit só de .github/docs não monta imagem na demo (scripts/ci/demo-mudou.mjs): antes de liberar um commit desses, rode o
+# "demo — publicar" manual no main. Nenhum segredo: só o GITHUB_TOKEN; entradas só por variável de ambiente.
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: 'Versão nova (vX.Y.Z, ex.: v1.0.7); a tag não pode existir'
+        required: true
+        type: string
+      sha:
+        description: 'Commit do main a publicar (SHA completo, 40 caracteres)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-liberar
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  conferir:
+    name: versão nova, commit no main, CI verde e imagem da API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    outputs:
+      sha: ${{ steps.alvo.outputs.sha }}
+      versao: ${{ steps.alvo.outputs.versao }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: versão vX.Y.Z nova e SHA completo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ inputs.versao }}
+          SHA: ${{ inputs.sha }}
+        run: node scripts/ci/producao-conferir.mjs entrada
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: commit no main, CI verde e digest da imagem da API
+        id: alvo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ inputs.versao }}
+          SHA: ${{ inputs.sha }}
+          DONO: ${{ github.repository_owner }}
+        run: node scripts/ci/producao-conferir.mjs conferir
+
+  liberar:
+    name: cria a tag e dispara o "producao — publicar" na tag
+    needs: conferir
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSAO: ${{ needs.conferir.outputs.versao }}
+      SHA: ${{ needs.conferir.outputs.sha }}
+    steps:
+      - name: tag
+        run: |
+          [[ "$VERSAO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::saída do conferir inválida"; exit 1; }
+          # a API recusa (422) se a tag já existir: não sobrescreve versão publicada
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$VERSAO" -f sha="$SHA" --jq '.ref' \
+            || { echo "::error::não consegui criar a tag $VERSAO (já existe ou o GITHUB_TOKEN não pode criar tag)"; exit 1; }
+          echo "tag $VERSAO → $SHA"
+
+      - name: dispara o "producao — publicar" na tag
+        run: |
+          gh workflow run producao-publicar.yml -R "$GITHUB_REPOSITORY" --ref "$VERSAO" \
+            || { echo "::error::tag $VERSAO criada, mas o disparo falhou: rode Actions → \"producao — publicar\" → Run workflow na tag $VERSAO"; exit 1; }
+          {
+            echo "### $VERSAO liberada"
+            echo "Tag \`$VERSAO\` → \`$SHA\`. O \"producao — publicar\" foi disparado na tag e espera a aprovação no environment PRODUCAO."
+            echo "Runs: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/producao-publicar.yml"
+          } >> "$GITHUB_STEP_SUMMARY"
