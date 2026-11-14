@@ -19,7 +19,6 @@ import {
   ClienteFotoSyncSchema,
   FilialSyncSchema,
   UsuarioSyncSchema,
-  ClienteUltimaVisitaSyncSchema,
   ClienteVisitaResumoSyncSchema,
   FotoTipoSyncSchema,
   MedidaSyncSchema,
@@ -93,12 +92,6 @@ export const TABELAS_SYNC = {
     colunas: 'desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-  },
-  // RN-CORE-47 (T-0171): último check-in do cliente de qualquer vendedor (id = cliente_id; updated_at = o da visita mais recente alterada)
-  cliente_ultima_visita: {
-    tabela: "(select v.cliente_id as id, v.cliente_id, max(v.updated_at) as updated_at, null::timestamptz as deleted_at, null::text as external_id, to_char(max(v.data_local), 'YYYY-MM-DD') as ultima_visita_data from core.visita v where v.deleted_at is null group by v.cliente_id) as cliente_ultima_visita",
-    colunas: 'cliente_id, ultima_visita_data',
-    colunaCliente: 'cliente_id',
   },
   // RN-CORE-50 (cliente_visita_resumo@1): total de visitas e última visita (instante UTC, quem e nome) de qualquer usuário, da view do banco-dados
   cliente_visita_resumo: {
@@ -269,7 +262,6 @@ export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
 export const entidadeUsuario = pull('usuario', UsuarioSyncSchema);
-export const entidadeClienteUltimaVisita = pull('cliente_ultima_visita', ClienteUltimaVisitaSyncSchema);
 export const entidadeClienteVisitaResumo = pull('cliente_visita_resumo', ClienteVisitaResumoSyncSchema);
 export const entidadeFotoTipo = pull('foto_tipo', FotoTipoSyncSchema);
 /** Foto do PDV (RN-CORE-38): o aparelho envia o comando (`ClienteFotoPushSchema`) e recebe a linha (`ClienteFotoSyncSchema`); os bytes vão pela fila de arquivos. */
@@ -314,7 +306,6 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeMedida, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.medida) },
   { entidade: entidadeFilial, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.filial) },
   { entidade: entidadeUsuario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.usuario) },
-  { entidade: entidadeClienteUltimaVisita, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_ultima_visita) },
   { entidade: entidadeClienteVisitaResumo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_visita_resumo) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },

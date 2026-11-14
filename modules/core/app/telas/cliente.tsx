@@ -19,8 +19,8 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, ACAO_CHECKIN_FORA_DE_ROTA, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
+import { ACAO_CHECKIN_FORA_DE_ROTA, type AbaCliente, type AcaoCliente, type AvisoCliente, type ContextoCliente } from '../../contracts';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
 import { AbaPerformance } from '../components/aba-performance';
 import { AbaCompras, AbaDadosCadastrais, AbaFinanceiro, AcoesContato, BlocoFotosPdv, BotaoFotoPdv, enderecoDoCliente, IndicadoresResumo, nomeDoCliente, TagsCliente } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -119,16 +119,21 @@ export function TelaCliente() {
   }, [phase, estado.visitas]);
 
   // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil. Cliente já visitado hoje não repete (RN-CORE-13)
-  const checkinLiberado = checkinPermitido({ clienteId: id, clientesDaRota: rota?.stops.map((s) => s.customer.id) ?? [], podeForaDeRota }).permitido;
+  const checkinLiberado = checkinPermitido({ clienteId: id, clientesDaRota: rota?.stops.map((s) => s.customer.id) ?? [], podeForaDeRota });
+  // A extensão `pesquisas` abre na folha do botão "Pesquisa"; a regra do rodapé (check-in, checkout, pesquisa) fica no domain
+  const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
+  const PesquisaComp = abaPesquisa?.payload.componente;
+  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited });
+  const acoesRodape = acoesDoRodapeCliente(acoes);
   // "Fazer check-in" na Rota abre a ficha já registrando o check-in
   useEffect(() => {
     if (params.checkin === '1' && customer && autoStarted.current !== id) {
       autoStarted.current = id;
       router.setParams({ checkin: undefined });
       if (locked) sheets.showBlocked(customer.trade_name);
-      else if (!openHere && !visited && checkinLiberado) void startCheckin();
+      else if (botoes.checkin) void startCheckin();
     }
-  }, [params.checkin, customer, id, locked, openHere, visited, checkinLiberado, startCheckin, sheets]);
+  }, [params.checkin, customer, id, locked, botoes.checkin, startCheckin, sheets]);
 
   if (!customer && !ficha) {
     return (
@@ -149,15 +154,9 @@ export function TelaCliente() {
   // A extensão `ultimos-pedidos` (Vendedor) entra em Compras; `mix` na Performance; `pesquisas` na folha do botão "Pesquisa"; as demais ficam no Resumo
   const abaPedidos = abas.find((a) => a.id === 'ultimos-pedidos') ?? null;
   const abaMix = abas.find((a) => a.id === 'mix') ?? null;
-  const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
   const abasResumo = abas.filter((a) => !['ultimos-pedidos', 'mix', 'pesquisas'].includes(a.id));
   const PedidosComp = abaPedidos?.payload.componente;
   const MixComp = abaMix?.payload.componente;
-  const PesquisaComp = abaPesquisa?.payload.componente;
-  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado && !visited });
-  // Rodapé a 360 dp: com Check-in/Checkout + Pesquisa + "+ Novo pedido" os três dividem a largura (1 : 1 : 1,5) e o rótulo cai de 15 para 14
-  const tresBotoes = (botoes.checkin || botoes.checkout) && botoes.pesquisa && acoesDoRodapeCliente(acoes).length > 0;
-  const tamanhoDoRotulo = tresBotoes ? 14 : 15;
 
   // RN-CORE-50: Performance só com linhas do aparelho; pedidos só se o perfil os vê (RN-PRO-01)
   const visitasDoCliente = locais.visitasSync.filter((v) => v.cliente_id === id);
@@ -165,10 +164,9 @@ export function TelaCliente() {
   const itensVisiveis = itensDoPedidoVisiveis(pedidosDoCliente, locais.pedidoItens);
   const dataDoPedido = new Map(pedidosDoCliente.map((p) => [p.id, p.data]));
   const itensComprados = ultimosItensComprados(itensVisiveis.map((i) => ({ ...i, data: dataDoPedido.get(i.pedido_id) ?? '', produto_nome: i.produto_nome ?? null, unidade: i.unidade ?? null })), 20).map((i) => ({ ...i, data_local: dataLocal(i.data, tz) }));
-  const ultimaDoSync = locais.ultimasVisitas.filter((u) => u.cliente_id === id).map((u) => u.ultima_visita_data).sort().pop() ?? null;
   // RN-CORE-50: com o resumo do servidor vale o total e a última visita dele; sem ele, o cálculo local
   const resumoServidor = locais.resumosVisita.find((r) => r.cliente_id === id) ?? null;
-  const visitas = resumoDeVisitas(visitasDoCliente, tz, ultimaDoSync, resumoServidor);
+  const visitas = resumoDeVisitas(visitasDoCliente, tz, resumoServidor);
   const nomeDoVendedor = new Map(pedidosDoCliente.filter((p) => p.vendedor_nome).map((p) => [p.vendedor_id, p.vendedor_nome as string]));
   const quemVisitou = quemVisitouPorUltimo(visitas, core.vendedorId, nomeDoVendedor);
 
@@ -267,10 +265,10 @@ export function TelaCliente() {
               testID="customer-checkin"
               label="Check-in"
               variant={locked ? 'locked' : 'outlineDark'}
+              icon={locked ? 'lock' : undefined}
               accessibilityLabel={locked ? `Check-in bloqueado: você está em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}` : undefined}
-              height={52}
-              style={{ flex: 1 }}
-              textStyle={{ fontSize: tamanhoDoRotulo }}
+              height={48}
+              style={styles.botaoRodape}
               onPress={() => {
                 if (locked) sheets.toast(`Em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}`, 'warning');
                 else void startCheckin();
@@ -278,21 +276,20 @@ export function TelaCliente() {
             />
           ) : null}
           {botoes.checkout ? (
-            <Button testID="customer-checkout" label="Checkout" variant="dark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: tamanhoDoRotulo }} onPress={() => sheets.askCheckout()} />
+            <Button testID="customer-checkout" label="Checkout" variant="outlineDark" height={48} style={styles.botaoRodape} onPress={() => sheets.askCheckout()} />
           ) : null}
           {botoes.pesquisa ? (
-            <Button testID="customer-pesquisa" label="Pesquisa" variant="outlineDark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: tamanhoDoRotulo }} onPress={() => setPesquisaAberta(true)} />
+            <Button testID="customer-pesquisa" label="Pesquisa" variant="outlineDark" height={48} style={styles.botaoRodape} onPress={() => setPesquisaAberta(true)} />
           ) : null}
-          {acoesDoRodapeCliente(acoes).map((a) => (
+          {acoesRodape.map((a) => (
             <Button
               key={`${a.modulo}-${a.id}`}
               testID={a.payload.testID}
               label={rotuloDe(a.payload, contexto)}
               icon={a.payload.icone as IconName | undefined}
               variant={a.payload.destaque ? 'accent' : 'outlineDark'}
-              height={52}
-              style={{ flex: a.payload.destaque ? (tresBotoes ? 1.5 : 2) : 1 }}
-              textStyle={{ fontSize: tamanhoDoRotulo }}
+              height={48}
+              style={styles.botaoRodape}
               onPress={() => a.payload.abrir(contexto)}
             />
           ))}
@@ -345,5 +342,7 @@ const styles = StyleSheet.create({
   stat: { flexBasis: '48%', flexGrow: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 12, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingRight: 10, paddingLeft: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  footer: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, backgroundColor: colors.ground },
+  footer: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, backgroundColor: colors.ground },
+  // Rodapé a 360 dp: cada botão ocupa o que o rótulo pede e divide a sobra; padding e espaço do ícone menores que os do kit para nada ser cortado
+  botaoRodape: { flexGrow: 1, flexBasis: 'auto', paddingHorizontal: 6, gap: 6 },
 });

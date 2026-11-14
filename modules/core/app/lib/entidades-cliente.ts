@@ -12,7 +12,6 @@ import {
   ClienteSyncSchema,
   HistoricoCompraSyncSchema,
   TituloSyncSchema,
-  ClienteUltimaVisitaSyncSchema,
   ClienteVisitaResumoSyncSchema,
   UsuarioSyncSchema,
 } from '../../contracts';
@@ -29,9 +28,7 @@ export const entidadesCliente = [
   pull('historico_compra', HistoricoCompraSyncSchema),
   // Endereços de entrega (RN-VEN-17): pull filtrado pela carteira
   pull('cliente_endereco', ClienteEnderecoSyncSchema),
-  // RN-CORE-47: último check-in do cliente (de qualquer vendedor) para a linha da lista
-  pull('cliente_ultima_visita', ClienteUltimaVisitaSyncSchema),
-  // RN-CORE-50: total de visitas e quem visitou por último (servidor, qualquer usuário) para a aba Performance
+  // RN-CORE-50 e RN-CORE-47: total de visitas, última visita e quem visitou (servidor, qualquer usuário) para a aba Performance e a linha da lista
   pull('cliente_visita_resumo', ClienteVisitaResumoSyncSchema),
   // RN-VEN-11a: funções e limite de desconto do usuário (o app usa a linha da sessão)
   pull('usuario', UsuarioSyncSchema),

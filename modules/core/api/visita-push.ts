@@ -81,7 +81,7 @@ async function checkinNaRotaPermitido(ctx: ContextoBase, db: ClienteBanco, usuar
       where rp.usuario_id = $1 and rp.data = $2::date and rp.cliente_id = $3 and rp.deleted_at is null and r.deleted_at is null and r.situacao <> 'cancelada'`,
     [usuarioId, dia, p.cliente_id],
   );
-  return checkinPermitido({ clienteId: p.cliente_id, clientesDaRota: r.rows.map((x) => x.cliente_id), podeForaDeRota }).permitido;
+  return checkinPermitido({ clienteId: p.cliente_id, clientesDaRota: r.rows.map((x) => x.cliente_id), podeForaDeRota });
 }
 
 export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {

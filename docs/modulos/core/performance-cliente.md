@@ -12,13 +12,13 @@ Mostra, nesta ordem, só o que existe no aparelho (seção sem dado não aparece
 - **Sugestão de mix**: extensão `cliente.abas` id `mix` (Vendedor), renderizada aqui; saiu do Resumo.
 - Promotor sem `promotor_ve_pedidos` (RN-PRO-01): sem prazo médio e sem itens.
 
-Domínio: `domain/performance-cliente.ts` (`prazoMedioDoCliente`, `itensDoPedidoVisiveis`, `ultimosItensComprados`, `resumoDeVisitas`, `quemVisitouPorUltimo`). Dados: linhas `pedido`, `pedido_item` (contratos do Vendedor), `visita`, `cliente_ultima_visita` e `cliente_visita_resumo` do aparelho.
+Domínio: `domain/performance-cliente.ts` (`prazoMedioDoCliente`, `itensDoPedidoVisiveis`, `ultimosItensComprados`, `resumoDeVisitas`, `quemVisitouPorUltimo`). Dados: linhas `pedido`, `pedido_item` (contratos do Vendedor), `visita` e `cliente_visita_resumo` do aparelho (a lista de Clientes também lê a última visita do resumo).
 
 ### Total de visitas e quem visitou por último (decisão do dono do produto, chat, 14/11/2026, 7h28)
 - Entidade de sync `cliente_visita_resumo@1` (`ClienteVisitaResumoSyncSchema`, só pull, `servidor_vence`): uma linha por cliente, `id` = `cliente_id`, com `total_visitas`, `ultima_visita_em` (UTC), `ultima_visita_usuario_id` e `ultima_visita_usuario_nome`. Lida da view `core.v_cliente_visita_resumo` (banco-dados), de **qualquer usuário** e **sem janela**; cursor `updated_at`.
 - Escopo `carteira` (RN-CORE-04): o vendedor e o promotor recebem os clientes da carteira deles; supervisor e gerente, os da equipe. Perfil e licença do Core checados pela rota de sync, como nas outras entidades.
 - **Com o resumo no aparelho:** "Visitas" = `total_visitas` + check-ins do aparelho posteriores a `ultima_visita_em` (ainda não chegaram ao servidor). "Última visita" = a mais recente entre o resumo e o aparelho; data no fuso do tenant; nome do resumo, ou "Você" quando `ultima_visita_usuario_id` é o próprio usuário.
-- **Sem o resumo** (antes do primeiro sync ou servidor antigo): vale o cálculo local — contagem das linhas `visita` do aparelho (usuário e equipe, 40 dias) e a data de `cliente_ultima_visita` (RN-CORE-47) se for mais recente; o nome sai do `vendedor_nome` dos pedidos do cliente.
+- **Sem o resumo** (antes do primeiro sync ou servidor antigo): vale o cálculo local — contagem e última data das linhas `visita` do aparelho (usuário e equipe, 40 dias); o nome sai do `vendedor_nome` dos pedidos do cliente. A entidade `cliente_ultima_visita` foi retirada (RD-0260): a lista de Clientes e a Performance leem a mesma `ultima_visita_em` do resumo.
 - Promotor: vê as visitas (não são pedido); sem `promotor_ve_pedidos` (RN-PRO-01) continua sem prazo médio e sem itens.
 - Carga de entrada (RN-CORE-48): no Campo, a entidade conta na etapa "Clientes e rota"; na Gestão, que não tem essa etapa, em "Equipe" (onde carregam os clientes da equipe), para as etapas seguirem em sequência.
 
@@ -26,5 +26,6 @@ Domínio: `domain/performance-cliente.ts` (`prazoMedioDoCliente`, `itensDoPedido
 - Decisão do dono do produto (14/11/2026, 7h28): o botão de check-in fica **só na ficha do cliente e na Rota** (o Início não tem atalho de check-in; só leva à ficha ou à Rota).
 - Rodapé: **Check-in** (sem atendimento aberto neste cliente, cliente não visitado hoje e check-in permitido pela RN-CORE-52) ou **Checkout** (com atendimento aberto neste cliente), **Pesquisa** e **+ Novo pedido**.
 - Com atendimento aberto em outro cliente, o Check-in aparece bloqueado (RN-CORE-13); o pedido segue liberado.
-- A 360 dp, com os três botões, a largura se divide em 1 : 1 : 1,5 e o rótulo cai de 15 para 14 pt (todos com 52 dp de altura).
+- Os botões têm 48 dp de altura e o rótulo do kit (14 pt) em todos os estados; cada um ocupa a largura do rótulo e divide a sobra. Medido a 360 dp (Campo): Check-in 87,6 · Pesquisa 89,1 · Novo pedido 131,3 dp; com cadeado, 100,9 · 82,5 · 124,6 dp; nenhum rótulo é cortado (prints em `prints/checkin/`).
+- **Folha do check-in** (decisão do dono do produto, 14/11/2026): depois do check-in a folha só confirma o horário e oferece "Continuar" (`checkin-abrir-ficha`). Ela não tem "Novo pedido": o único botão de novo pedido fica no rodapé da ficha.
 - **Pesquisa** só aparece se a extensão `cliente.abas` id `pesquisas` estiver presente (licença e ação já filtradas); abre numa folha o componente dela. A seção "Pesquisas" saiu do Resumo.

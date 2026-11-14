@@ -69,13 +69,11 @@ export interface ResumoVisitasServidor {
 
 /**
  * RN-CORE-50: visitas do cliente. Com o resumo do servidor: total do servidor + check-ins do aparelho posteriores a ele, e a
- * última visita é a mais recente entre as duas fontes. Sem o resumo: contagem do aparelho e `ultimaDataSync` (RN-CORE-47,
- * qualquer vendedor) se for mais recente.
+ * última visita é a mais recente entre as duas fontes. Sem o resumo: só a contagem e a última visita do aparelho.
  */
 export function resumoDeVisitas(
   visitas: readonly { usuario_id: string; checkin_em: string }[],
   fuso: string,
-  ultimaDataSync: string | null,
   servidor: ResumoVisitasServidor | null = null,
 ): ResumoVisitas {
   const ordenadas = [...visitas].sort((a, b) => (a.checkin_em < b.checkin_em ? 1 : -1));
@@ -89,7 +87,6 @@ export function resumoDeVisitas(
     if (depois > 0 || !servidor.ultima_visita_em) return { ...doAparelho, total };
     return { total, ultima_data: dataLocal(servidor.ultima_visita_em, fuso), ultimo_usuario_id: servidor.ultima_visita_usuario_id, ultimo_usuario_nome: servidor.ultima_visita_usuario_nome };
   }
-  if (ultimaDataSync && (!dataTopo || ultimaDataSync > dataTopo)) return { total: visitas.length, ultima_data: ultimaDataSync, ultimo_usuario_id: null, ultimo_usuario_nome: null };
   return doAparelho;
 }
 
@@ -101,9 +98,9 @@ export function quemVisitouPorUltimo(r: ResumoVisitas, meuId: string | null | un
 }
 
 /**
- * RN-CORE-51: rodapé da ficha. "Check-in" quando não há atendimento aberto neste cliente e o check-in é permitido (RN-CORE-52);
- * "Checkout" só com atendimento aberto neste cliente; "Pesquisa" só com a extensão presente.
+ * RN-CORE-51: rodapé da ficha. "Check-in" quando não há atendimento aberto neste cliente, o check-in é permitido (RN-CORE-52) e o
+ * cliente não foi visitado hoje (RN-CORE-13); "Checkout" só com atendimento aberto neste cliente; "Pesquisa" só com a extensão presente.
  */
-export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
-  return { checkin: !e.atendimentoAqui && e.checkinPermitido, checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
+export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
+  return { checkin: !e.atendimentoAqui && e.checkinPermitido && !e.visitadoHoje, checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
 }
