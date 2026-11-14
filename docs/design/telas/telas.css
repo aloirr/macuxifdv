@@ -7,7 +7,7 @@
   --accent: #1E3350; --accentInk: #1E3350; --accentSoft: #DFE2E6; --accentTint: #DFE2E6; --grafico: #C2540A; --graficoEscuro: #F59A52;
   --faixa: #1E3350; --faixaSub: #C9CED5;
   --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningInk: #5C3B00; --warningBg: #FFF1D6;
-  --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #E6E9E2; --neutralInk: #34404D; --violet: #4B2FA3; --violetBg: #ECE7FB;
+  --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #E6E9E2; --neutralInk: #34404D;
   --scrim: rgba(15, 20, 25, 0.45);
 }
 * { box-sizing: border-box; }
@@ -100,7 +100,7 @@ p.prancha { margin: 0 0 22px; font-size: 14px; color: var(--ink2); max-width: 15
 .selo.neutro { background: var(--neutralBg); color: var(--neutralInk); }
 .selo.destaque { background: var(--accentSoft); color: var(--accentInk); }
 .selo.aviso { background: var(--warningBg); color: var(--warning); }
-.selo.roxo { background: var(--violetBg); color: var(--violet); }
+.selo.roxo { background: var(--accentSoft); color: var(--accentInk); } /* MC-0005: sem roxo; o tom antigo é o destaque */
 .selo.m { height: 26px; padding: 0 10px; font-size: 13px; }
 .end { font-size: 14px; line-height: 20px; color: var(--ink); margin-top: 8px; }
 

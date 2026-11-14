@@ -180,7 +180,11 @@ export function ListaSuspensa<T extends string>({
   rotuloFechar: string;
   /** Campo inteiro sem toque (ex.: forma ainda não escolhida, para o Prazo). */
   desligado?: boolean;
-  /** Borda vermelha (falta escolher). O motivo vai em texto perto, pela tela. */
+  /**
+   * Borda vermelha (falta escolher).
+   * @deprecated RD-0235: refaz a borda de `falta`. Use `falta` (borda `danger` 2 e o texto embaixo do campo); a prop sai do kit
+   * quando a UF do endereço do pedido (modules/vendedor/app/components/endereco-pedido.tsx) passar para `falta`.
+   */
   erro?: boolean;
   /** Texto curto da falta já visível (`faltaVisivel`, ex.: "Obrigatório"): borda `danger` 2 e o texto embaixo do campo. */
   falta?: string | null;

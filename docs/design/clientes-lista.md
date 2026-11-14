@@ -40,14 +40,8 @@ Prioridade: **Bloqueado > Devendo > Pré-Cadastro > Em dia** (RN-CORE-41). Mostr
   (R-20261112-204602, item 3).
 - Contraste: `danger` #A8261B sobre `dangerBg` #FDE8E6 e `success` #1D6B4F sobre `successBg` #E2F1EA, ambos acima de 4,5:1.
 
-### Recomendação para Bloqueado e Cadastro incompleto
-- **Bloqueado entra como valor da tag**, no topo da ordem, como a ponte sugeriu. É situação do cliente, como o Devendo, e é o
-  que mais muda o que o vendedor faz na visita. Fica em vermelho como o Devendo; o cadeado e o texto separam os dois.
-- **Cadastro incompleto não entra na tag.** Não é situação financeira: se entrasse na mesma tag, ou esconderia um Devendo ou
-  trocaria o "Em dia" por um assunto de cadastro, que é a mistura que o dono do produto pediu para tirar. Ele sai da linha e
-  continua onde o vendedor age: a etiqueta e as Observações da ficha (`EtiquetaCadastroIncompleto`, `ObservacoesCliente`) e as
-  pendências do pedido.
-- Sem 4º filtro de "Cadastro incompleto" agora (R-20261112-204602, item 6).
+- Cadastro incompleto não é valor da tag (§1, "Saem"): segue na ficha (`EtiquetaCadastroIncompleto`, `ObservacoesCliente`) e
+  nas pendências do pedido, sem filtro próprio (R-20261112-204602, item 6).
 
 ## 3. A última visita
 | Caso | Texto |

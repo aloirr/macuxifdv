@@ -20,11 +20,14 @@
 6. **A saudação passa por baixo da barra de status** quando a tela rola (os ícones do Android ficam por cima do texto).
 
 ## 2. O que muda nas três opções
+Pranchas na marca v1 (MC-0013, v1.0.6): saudação na faixa Azul noite com o sino da MC-0009 à direita, fundo Pérola, ação e
+aba ativa Azul noite; o laranja só na barra de meta e no contador.
+
 - **Cada área tem um título com ícone e um desenho próprio.** "Recados" com o sino; o selo "1 novo" e a seta `›` no título.
   O título inteiro abre a central (alvo 48). Com isso sai o "Ver todos" do rodapé.
 - **Linha de recado em duas partes.** Título na 1ª linha, em negrito quando não lido. Corpo em `ink2` na 2ª e na 3ª linha.
   Hora à direita da 1ª linha ("09:15", "ontem", "seg", "28/10").
-  - À esquerda, um círculo de 36 com o ícone do tipo: balão laranja para o recado da supervisão, ✓ verde para pedido
+  - À esquerda, um círculo de 36 com o ícone do tipo: balão Azul noite para o recado da supervisão, ✓ verde para pedido
     aprovado ou faturado, sino cinza para o resto. O ícone substitui a bolinha de cor; a cor nunca vai sozinha.
   - Não lido: só o título em negrito, sem ponto de cor (RD-0200); o selo do título conta os novos. Vale também na central.
     Leitor: "Pedido 000014 aprovado, Mercadinho São Jorge, ontem, novo".
@@ -42,7 +45,7 @@
 ## 3. As opções
 | | A · Seções com título | B · Painel do mês no topo | C · Recados em primeiro |
 |---|---|---|---|
-| Ideia | A tela de hoje com títulos de seção (Archivo 17 + ícone laranja) fora dos cartões e mais espaço entre as áreas | Painel grafite no alto com a saudação e a meta do mês ("Sem rota" sem "hoje", que já está em "Meta de hoje"; RD-0201). Abaixo, Recados num cartão com faixa de título laranja-clara, Pedidos em dois blocos | Cabeçalho curto com as iniciais (abrem o Perfil). Recados num painel laranja-claro, cada recado num balão branco. Depois Meta e Pedidos |
+| Ideia | A tela de hoje com títulos de seção (Archivo 17 + ícone Azul noite) fora dos cartões e mais espaço entre as áreas | Painel na faixa Azul noite no alto com a saudação e a meta do mês ("Sem rota" sem "hoje", que já está em "Meta de hoje"; RD-0201). Abaixo, Recados num cartão com faixa de título Azul suave, Pedidos em dois blocos | Cabeçalho curto com as iniciais (abrem o Perfil). Recados num painel Azul suave, cada recado num balão branco. Depois Meta e Pedidos |
 | Ordem | Saudação · Recados · Meta · Pedidos · Sincronizar | Saudação + Meta (painel) · Recados · Pedidos · Sincronizar | Saudação · Recados · Meta · Pedidos · Sincronizar |
 | Como Recados se separa | Pelo título e pelo espaço; o cartão é branco como os outros | Pela faixa de título colorida e pelo contraste com o painel escuro acima | Pela cor do painel inteiro: é a única área colorida da tela |
 | Ao entrar, o vendedor vê primeiro | O nome | O nome e quanto já vendeu no mês | O nome e os recados |
@@ -58,7 +61,7 @@ raio 24). A linha de recado vira o `LinhaRecado` do kit, o mesmo na central de n
    grafite também é o que melhor se lê ao sol (contraste acima de 9:1 com o texto a 74%).
 2. **Três áreas que não se confundem:**
    - o painel escuro é "eu e minha meta";
-   - o cartão com faixa laranja-clara é "Recados";
+   - o cartão com faixa Azul suave é "Recados";
    - os dois blocos são "Pedidos";
    - o Sincronizar fica no pé.
 

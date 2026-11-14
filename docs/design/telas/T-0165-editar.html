@@ -7,16 +7,17 @@
 @font-face{font-family:Plex;src:url(../pdf3/fonts/IBMPlexSans_500Medium.ttf);font-weight:500}
 @font-face{font-family:Plex;src:url(../pdf3/fonts/IBMPlexSans_600SemiBold.ttf);font-weight:600}
 @font-face{font-family:Mono;src:url(../pdf3/fonts/IBMPlexMono_500Medium.ttf);font-weight:500}
-:root{--bg:#F3F4F1;--ink:#16202A;--mut:#5B6670;--line:#E2E5E0;--card:#fff;--acc:#C2540A;--acct:#8F3D06;--accbg:#FBEFE6}
+/* marca v1 (MC-0007, v1.0.6): Pérola, Azul noite na ação e na faixa, Azul suave no lápis; valores de packages/ui/src/comum/contraste.ts */
+:root{--bg:#F8F6F1;--ink:#16202A;--mut:#5B6673;--line:#E1E4DE;--card:#fff;--acc:#1E3350;--acct:#1E3350;--accbg:#DFE2E6;--faixa:#1E3350;--faixaSub:#C9CED5}
 *{box-sizing:border-box}
 body{margin:0;background:#DADDD7;font-family:Plex,sans-serif;color:var(--ink);display:flex;gap:40px;padding:40px;align-items:flex-start}
 .tel{flex:none;width:390px;background:var(--bg);border-radius:28px;overflow:hidden;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-.sb{display:flex;justify-content:space-between;padding:12px 22px 4px;font-size:13px;font-weight:600;background:#fff}
-.hd{background:#fff;padding:6px 20px 0}
+.sb{display:flex;justify-content:space-between;padding:12px 22px 4px;font-size:13px;font-weight:600;background:var(--faixa);color:#fff}
+.hd{background:var(--faixa);color:var(--faixaSub);padding:6px 20px 14px}
 .hd .t{display:flex;gap:12px;align-items:center}
-.hd .t b{font-family:Archivo;font-weight:800;font-size:20px}
-.hd .t small{display:block;font-size:12.5px;color:var(--mut);margin-top:1px}
-.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);margin-top:8px}
+.hd .t b{font-family:Archivo;font-weight:800;font-size:20px;color:#fff}
+.hd .t small{display:block;font-size:12.5px;color:var(--faixaSub);margin-top:1px}
+.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line)}
 .tabs div{flex:1;text-align:center;padding:12px 0;font-size:15px;font-weight:500;color:#3A4550}
 .tabs .on{color:var(--acc);font-weight:600;border-bottom:3px solid var(--acc)}
 .ct{padding:16px 16px 20px;display:flex;flex-direction:column;gap:10px}
@@ -53,7 +54,7 @@ th:last-child,td:last-child{padding-right:12px}
 .cod{font-family:Mono;color:var(--acct);text-decoration:underline;text-underline-offset:3px;font-size:12.5px}
 .pop{position:absolute;background:var(--ink);color:#fff;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.35;width:220px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .pop:before{content:"";position:absolute;left:22px;top:-6px;border:6px solid transparent;border-top:0;border-bottom-color:var(--ink)}
-.pop small{display:block;color:#C9CED3;font-size:12px;margin-top:2px}
+.pop small{display:block;color:#C9CED5;font-size:12px;margin-top:2px}
 .tot .row{justify-content:space-between}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;padding:10px 0 18px;box-shadow:0 -6px 20px rgba(0,0,0,.18)}
 .dim{position:absolute;inset:0;background:rgba(22,32,42,.45)}
@@ -65,7 +66,7 @@ th:last-child,td:last-child{padding-right:12px}
 .nm{text-decoration:underline dotted;text-underline-offset:4px}
 .segE div{padding:8px 6px;line-height:1.2}
 .segE small{display:block;font-size:12px;font-weight:500;margin-top:2px}
-.segE .on small{color:#C9CED3}
+.segE .on small{color:#C9CED5}
 .segE div:not(.on) small{color:var(--mut)}
 </style>
 <style>.ed{background:var(--accbg);border-color:var(--acc);color:var(--acct)}.edt{width:32px;height:32px;border-radius:9px;border:1.5px solid var(--acc);background:var(--accbg);color:var(--acct);display:inline-grid;place-items:center;vertical-align:middle}td.e{padding:4px 8px 4px 2px}</style></head><body>
@@ -156,7 +157,7 @@ th:last-child,td:last-child{padding-right:12px}
   <div style="flex:1"><div class="lb">Desc./Acrésc.</div><div style="display:flex;border:1px solid #CDD2CC;border-radius:12px;overflow:hidden;margin-top:8px;background:#fff;height:46px"><div style="padding:0 8px;display:grid;place-items:center;background:#F7F8F6;font-weight:600;font-size:14px;border-right:1px solid #CDD2CC">Desc %⌄</div><div style="flex:1;display:grid;align-items:center;justify-items:end;padding:0 10px;">5,0</div></div></div>
  </div>
  <div class="card" style="margin-top:16px;display:flex;justify-content:space-between;padding:14px 16px;font-size:16px"><b>Valor final</b><b style="font-family:Archivo;font-size:20px">R$ 56,77</b></div>
- <div class="btn" style="margin-top:16px">Salvar alteração</div><div style="margin-top:12px;text-align:center;padding:10px;font-weight:600;font-size:15px;color:#B42318">Remover item</div>
+ <div class="btn" style="margin-top:16px">Salvar alteração</div><div style="margin-top:12px;text-align:center;padding:10px;font-weight:600;font-size:15px;color:#A8261B">Remover item</div>
 </div>
 </div>
 

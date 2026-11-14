@@ -1,0 +1,8 @@
+/* Marca v1 no Novo pedido (MC-0007, v1.0.6): o cabeçalho do pedido é a faixa Azul noite, como no app (new-order-screen.tsx com
+   CabecalhoTela): barra de status e linha do cliente em #1E3350, nome branco, código e voltar em #C9CED5; as abas ficam no branco
+   com a ativa em Azul noite (telas.css). Fundo Pérola, ação Azul noite e lápis em accentInk sobre accentSoft vêm de telas.css. */
+.status:has(+ .cab) { background: var(--faixa); color: #fff; }
+.cab-linha { background: var(--faixa); color: var(--faixaSub); }
+.cab-linha .cab-nome { color: #fff; }
+.cab-linha .cab-cod { color: var(--faixaSub); }
+.cab-linha .voltar svg { color: var(--faixaSub); stroke: var(--faixaSub); }
