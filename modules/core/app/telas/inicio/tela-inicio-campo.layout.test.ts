@@ -44,6 +44,6 @@ describe('R-20261114-145000: Início do Campo enquadrado', () => {
 
   it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
     expect(fonte).toMatch(/avatar: \{ width: e\.painel\.avatar, height: e\.painel\.avatar/);
-    expect(escalaInicio({ largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
+    expect(escalaInicio({ kit: { h2: 17, label: 12, sub: 13, ultima: 12 }, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
   });
 });

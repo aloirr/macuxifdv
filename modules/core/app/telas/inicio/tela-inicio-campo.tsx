@@ -2,7 +2,7 @@
  * Início do Campo (T-0170; R-20261114-145000). Coluna de altura cheia, sem rolagem no uso normal e responsiva (`escala-inicio.ts`: letra, espaços e alturas escalam pela janela e pela fonte do sistema): (a) painel do topo FIXO, Azul
  * noite de ponta a ponta (avatar pequeno, data · DU e o sino à direita, como o `CabecalhoTela`; saudação na largura inteira,
  * que encolhe para caber, e a frase), (b) o meio rolável só se preciso (Metas do mês e Produtividade, compactas, com o puxar
- * para atualizar) e (c) o Sincronizar FIXO no rodapé, fora da rolagem, com "Últ. sincronização hh:mm". Só desenho: textos e tons
+ * para atualizar) e (c) o Sincronizar FIXO no rodapé, fora da rolagem, com "Últ. sincronização" e a hora em 2 linhas. Só desenho: textos e tons
  * saem de `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: o sino vem do
  * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp (`ALVO_TOQUE`).
  */
@@ -16,6 +16,9 @@ import { useCore } from '../../lib/usar-core';
 import { type EscalaInicio, escalaInicio } from './escala-inicio';
 import type { CardMetaInicio, IndicadorInicio } from './inicio-campo';
 import { useInicioCampo } from './usar-inicio-campo';
+
+/** Corpos do kit que a escala toma como base (uma fonte só: `type` do kit). */
+const FONTES_DO_KIT = { h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
 
 export interface PropsTelaInicioCampo {
   /** Só para quem não tem o `ProvedorSinoCabecalho`: o sino com o balão (recebe `useInicioCampo().sino.total`). */
@@ -35,7 +38,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
   const janela = useWindowDimensions();
   const frase = v?.frase ?? undefined;
   const esc = useMemo(
-    () => escalaInicio({ largura: janela.width, altura: janela.height, fontScale: janela.fontScale, topo: insets.top, base: insets.bottom, frase }),
+    () => escalaInicio({ largura: janela.width, altura: janela.height, fontScale: janela.fontScale, topo: insets.top, base: insets.bottom, frase, kit: FONTES_DO_KIT }),
     [janela.width, janela.height, janela.fontScale, insets.top, insets.bottom, frase],
   );
   const s = useMemo(() => estilos(esc), [esc]);
@@ -68,7 +71,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
         </Pressionavel>
       </View>
 
-      <Screen testID="inicio" top={0} gap={space.sm} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={s.meio}>
+      <Screen testID="inicio" top={0} gap={esc.meio.gap} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={s.meio}>
         {avisos}
         <Text style={s.h2} accessibilityRole="header">
           Metas do mês

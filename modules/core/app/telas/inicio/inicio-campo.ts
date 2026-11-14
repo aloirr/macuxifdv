@@ -19,14 +19,14 @@ const NBSP = '\u00a0';
 const semQuebra = (texto: string): string => texto.replace(/ /g, NBSP);
 
 /**
- * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". O trecho
- * depois do "·" não quebra no meio: se não couber na linha, desce inteiro.
+ * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". O "·" e o trecho
+ * depois dele não quebram: se não couberem na linha, descem juntos (o "·" não fica pendurado no fim).
  */
 export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' | 'du_total'>): string {
   const [, mes, dia] = hoje.split('-').map(Number);
   const semana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
   const data = `${WEEKDAYS[semana]}, ${dia} de ${MONTHS[(mes ?? 1) - 1]}`;
-  return `${data} · ${semQuebra(du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`)}`;
+  return `${data} ${semQuebra(`· ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`)}`;
 }
 
 /** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */

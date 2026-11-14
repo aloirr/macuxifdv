@@ -1,13 +1,12 @@
-import { linhaDaData, textoUltimaSincronizacao } from '@core/app/telas/inicio/inicio-campo';
+import { linhaDaData, saudacaoComNome, textoUltimaSincronizacao } from '@core/app/telas/inicio/inicio-campo';
 
 const q = new URLSearchParams(location.search);
 const nome = q.get('nome') ?? 'MARIA EDUARDA SILVA';
 const saud = q.get('saud') ?? 'Boa tarde';
-const primeiro = (n: string) => n.trim().split(/\s+/)[0]!.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('-');
 export const useInicioCampo = () => ({
   // Textos pelas funções reais (DU e "Últ. sincronização" sem quebra no meio)
   data: linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 }),
-  saudacao: `${saud}, ${primeiro(nome)}`,
+  saudacao: saudacaoComNome(saud, nome),
   frase: 'Cada cliente atendido é uma relação que cresce.',
   nome,
   metas: [

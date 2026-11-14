@@ -4,9 +4,9 @@ Gerado por `gerar.mjs` (a `TelaInicioCampo` real com react-native-web; barra de 
 
 | Tela (dp) | Fonte | Nome | Sem rolagem | Sincronizar acima das abas | Saudação sem reticências | "DU 9 de 20" e "Últ. sincronização" sem quebra no meio | Resultado | Print |
 |---|---|---|---|---|---|---|---|---|
-| 360×640 | 1 | MARIA | sim (folga 18 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1.png |
-| 360×640 | 1,15 | MARIA | sim (folga 17 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1_15.png |
-| 360×640 | 1,15 | MAXIMILIANO | sim (folga 17 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1_15-nome-comprido.png |
+| 360×640 | 1 | MARIA | sim (folga 24 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1.png |
+| 360×640 | 1,15 | MARIA | sim (folga 23 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1_15.png |
+| 360×640 | 1,15 | MAXIMILIANO | sim (folga 23 dp) | sim | sim (escala 1) | sim | coube | inicio-360x640-fonte-1_15-nome-comprido.png |
 | 360×800 | 1 | MARIA | sim (folga 79 dp) | sim | sim (escala 1) | sim | coube | inicio-360x800-fonte-1.png |
 | 360×800 | 1,15 | MARIA | sim (folga 30 dp) | sim | sim (escala 1) | sim | coube | inicio-360x800-fonte-1_15.png |
 | 393×852 | 1 | MARIA | sim (folga 131 dp) | sim | sim (escala 1) | sim | coube | inicio-393x852-fonte-1.png |
