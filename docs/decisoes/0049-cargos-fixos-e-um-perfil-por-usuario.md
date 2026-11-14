@@ -42,8 +42,7 @@ código ERP (`external_id`) era opcional no cadastro do BKO.
      há `@v2` (regra 3 do CLAUDE.md). O pedido HTTP do Core (`perfis` em `POST/PATCH /v1/core/usuarios`) passa a aceitar no
      máximo 1 item. Isso estreita o valor, não muda a forma, e o único cliente é o BKO, que sai no mesmo deploy. O modulo-core
      ajusta o `.max(10)` para `.max(1)` no PR dele, e a API devolve 422 com RN-CORE-54 para mais de um.
-   - **Licenças (ADR 0047).** A prioridade "vendedor > gestor > promotor > bko" do multiperfil (RN-PLA-02) perde o objeto: o
-     tipo de licença é o do perfil único. A função de contagem pode manter a prioridade como defesa, sem efeito.
+   - **Licenças (ADR 0047).** O tipo de licença é o do perfil único; a prioridade do multiperfil (RN-PLA-02) sai.
 4. **Hierarquia pelo cargo, gravada na árvore `core.equipe`** (RN-CORE-55 e RN-CORE-56). Não entra coluna nova em
    `core.usuario`: o supervisor e o gerente saem da equipe do usuário e da equipe-pai (`core.v_usuario_hierarquia`, 0069).
    O que o cadastro pede por cargo está em `HIERARQUIA_DO_CARGO` (SDK):
@@ -65,8 +64,6 @@ código ERP (`external_id`) era opcional no cadastro do BKO.
    e o admin inicial do provisionamento), e a unicidade por tenant continua (`usuario_external_uk`). A carga do ERP pelo Hub já
    exige `external_id` (RN-INT-09). A hierarquia do vendedor que vem do ERP segue as RN-INT e aparece no diagnóstico, sem
    recusar a carga.
-6. **Escopo de dados** (RN-CORE-04) continua pela base do perfil. Com um perfil por usuário, "o escopo dos perfis" é o escopo do
-   perfil único.
 
 ## Alternativas
 - **Cargo como tabela editável por tenant**: contraria "cargo é algo padrão do FDV". Recusada.
@@ -81,11 +78,11 @@ código ERP (`external_id`) era opcional no cadastro do BKO.
 ## Consequências
 - Banco (banco-dados): migração 0069 (PR #259). Pendência: o `hint` dos gatilhos do promotor passa a citar `RN-CORE-56`, numa
   migração nova (`create or replace` de `core.conferir_promotores`), ou ainda na 0069, se ela não tiver ido ao `main`.
-- SDK (engenheiro-software): `src/cargos.ts`, com `CARGOS`, `Cargo`, `CargoSchema`, `ehCargo`, `CARGO_DA_BASE`, `cargoDaBase`
-  e `HIERARQUIA_DO_CARGO`, exportados pelo índice. Teste de equivalência com o mapeamento do banco.
+- SDK (engenheiro-software): `src/cargos.ts` (§1, §2 e §4), exportado pelo índice. A equivalência com o banco fica no
+  `db/testes/cargo-hierarquia.db.test.ts`, que importa `CARGO_DA_BASE` do SDK.
 - Core (modulo-core, PR #250): tela de usuário com o cargo (vindo do perfil), os vínculos por cargo e o código ERP obrigatório;
   domain com as RN-CORE-54 a 57; `perfis` com `.max(1)`; `CargoSchema` importado do SDK.
 - Gestor, Treinamento e Pesquisa: nada muda já. Quem quiser o cargo importa do SDK.
 - Doc 03 (gerente-projetos): RN-CORE-01 e RN-CORE-35 revistas e RN-CORE-53 a 57 novas, pelo texto do recado desta ADR.
   Doc 02 (RF-CORE-02): "um ou mais perfis" vira "um perfil, com um cargo".
-- ADR 0033 e ADR 0047: continuam como estão, com a nota "revista pela 0049" no índice.
+- ADR 0033 e ADR 0047: continuam como estão, com a nota "revista pela 0049" no índice (coluna de status) e no cabeçalho de cada uma.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARGO_DA_BASE, CARGOS, CargoSchema, cargoDaBase, ehCargo, HIERARQUIA_DO_CARGO } from './cargos';
+import { CARGOS, CargoSchema, cargoDaBase, HIERARQUIA_DO_CARGO } from './cargos';
 import { PERFIS } from './nomes';
 
 describe('cargos do FDV (ADR 0049)', () => {
@@ -7,13 +7,9 @@ describe('cargos do FDV (ADR 0049)', () => {
     expect(CARGOS).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo']);
     expect(CargoSchema.parse('promotor')).toBe('promotor');
     expect(CargoSchema.safeParse('diretor').success).toBe(false);
-    expect(ehCargo('gerente')).toBe(true);
-    expect(ehCargo('admin')).toBe(false);
-    expect(ehCargo(undefined)).toBe(false);
   });
 
   it('RN-CORE-53: todo perfil base tem um cargo; analista, assistente e admin são administrativo; base desconhecida também', () => {
-    expect(Object.keys(CARGO_DA_BASE).sort()).toEqual([...PERFIS].sort());
     expect(PERFIS.map(cargoDaBase)).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo', 'administrativo', 'administrativo']);
     expect(cargoDaBase('personalizado')).toBe('administrativo');
     expect(cargoDaBase('toString')).toBe('administrativo');

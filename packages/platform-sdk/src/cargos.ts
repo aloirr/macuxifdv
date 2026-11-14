@@ -1,8 +1,6 @@
 /**
  * Cargos do FDV (ADR 0049; RN-CORE-53). Lista FIXA da plataforma, igual em todos os tenants (o admin não cria cargo):
  * cada perfil de acesso tem exatamente um cargo e cada usuário tem exatamente um perfil (RN-CORE-54, fim do multiperfil).
- * Espelha o banco: `plataforma.perfil.cargo` (CHECK `perfil_cargo_valido`) e `plataforma.cargo_da_base(base)` (0069).
- * O cargo não dá permissão (isso é do motor da ADR 0033): diz o lugar na hierarquia e o que o cadastro pede.
  */
 import { z } from 'zod';
 import type { Perfil } from './nomes';
@@ -11,11 +9,7 @@ export const CARGOS = ['vendedor', 'promotor', 'supervisor', 'gerente', 'adminis
 export type Cargo = (typeof CARGOS)[number];
 export const CargoSchema = z.enum(CARGOS);
 
-export function ehCargo(valor: unknown): valor is Cargo {
-  return typeof valor === 'string' && (CARGOS as readonly string[]).includes(valor);
-}
-
-/** Cargo de cada perfil base, igual a `plataforma.cargo_da_base`: analista, assistente e admin = administrativo. */
+/** Cargo de cada perfil base (igual a `plataforma.cargo_da_base`). */
 export const CARGO_DA_BASE: Readonly<Record<Perfil, Cargo>> = {
   vendedor: 'vendedor',
   promotor: 'promotor',
@@ -45,8 +39,7 @@ export interface HierarquiaDoCargo {
 
 /**
  * O que o cadastro de usuário pede por cargo (RN-CORE-55; promotor, RN-CORE-56). O código ERP é obrigatório para todos
- * (RN-CORE-57) e não entra aqui. Promotor com supervisor: o gerente dele tem de ser o gerente do supervisor (o banco também
- * confere: 23514 `promotor_sem_gerente` e `promotor_gerente_do_supervisor`, migração 0069).
+ * (RN-CORE-57) e não entra aqui. Promotor com supervisor: o gerente dele tem de ser o gerente do supervisor.
  */
 export const HIERARQUIA_DO_CARGO: Readonly<Record<Cargo, HierarquiaDoCargo>> = {
   vendedor: { supervisor: 'obrigatorio', gerente: 'derivado', nomeEquipe: 'nao' },
