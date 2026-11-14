@@ -41,6 +41,14 @@ export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
 }
 
 /**
+ * ADR 0046: `MACUXI_PLANOS` liga as rotas de planos e licenças do portal. Só `1`/`true`/`sim` liga; ausente ou outro valor =
+ * DESLIGADO (padrão até a migração de `plataforma.plano`/`plataforma.assinatura` do banco-dados).
+ */
+export function planosLigados(env: NodeJS.ProcessEnv): boolean {
+  return ['1', 'true', 'sim'].includes(String(env.MACUXI_PLANOS ?? '').trim().toLowerCase());
+}
+
+/**
  * T-0158 (R-20261111-011107): `MACUXI_DIAGNOSTICOS_APP` é a chave remota do botão "Enviar diagnóstico" no app
  * (`recursos.diagnosticos` do `GET /v1/saude`). Flag próprio, fora dos `compose.yml`, para o `MACUXI_DIAGNOSTICOS=1` da demo
  * (portal, alerta, expurgo) não ligar o botão sem a decisão do dono do produto. Só vale com `MACUXI_DIAGNOSTICOS` também
