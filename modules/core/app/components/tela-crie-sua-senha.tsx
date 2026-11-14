@@ -136,7 +136,7 @@ export function TelaCrieSuaSenha({ motivo, email, codigoEmpresa, semInternet = f
 
       <RegrasDaSenha faltas={v.faltas} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(v.faltas) ?? undefined} repeticao={repeticaoDaSenha(nova, repetida)} destacar={destacar} testID="crie-senha.regras" />
 
-      <Button testID="crie-senha.salvar" label={salvando ? 'Salvando…' : 'Salvar e entrar'} variant="dark" height={52} loading={salvando} onPress={() => void salvar()} />
+      <Button testID="crie-senha.salvar" label={salvando ? 'Salvando…' : 'Salvar e entrar'} variant="accent" height={52} loading={salvando} onPress={() => void salvar()} />
       <Pressable testID="crie-senha.voltar" accessibilityRole="button" accessibilityLabel="Voltar ao login" onPress={() => onVoltar()} style={styles.link}>
         <Text style={styles.linkTexto}>Voltar ao login</Text>
       </Pressable>
