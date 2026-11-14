@@ -60,7 +60,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa e caixas do PDF) |
 | Azul médio | `#5B7FA6` | só série de gráfico. **Nunca texto nem botão** |
 | Cinza série | `#8B96A3` | série "outros" dos gráficos e desabilitado do BKO |
-| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Única exceção sem texto visível: o lápis do item já adicionado no Novo pedido (veja abaixo) |
+| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Exceções sem texto visível: o lápis do item já adicionado no Novo pedido e o ✓ de campo validado (veja abaixo) |
 
 **Contraste conferido** (WCAG AA; texto ≥ 4,5:1, gráfico ≥ 3:1; lista completa em `ativos/2026-11-12-v1/contraste.json`):
 
@@ -96,7 +96,9 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 
 **Séries de gráfico** (decisão do Alexandre, 14/11/2026, MC-0014 A): ordem fixa Azul noite `#1E3350`, Sol laranja `#C2540A`, `#4A5562` e Azul médio `#5B7FA6`; "outros" em `#8B96A3`. Com mais de 4 séries, a cor repete e o número ou o rótulo no marcador distingue.
 
-**Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado". Vale só para esse botão; nos outros lugares o verde continua só com texto.
+**Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado".
+
+**Exceção ampliada (decisão do Alexandre, 14/11/2026, recado R-20261114-172200, resposta "A"; fecha a MC-0049):** o **✓ de campo validado** usa `#1D6B4F`, sem texto ao lado, e sempre com rótulo de acessibilidade que diga o resultado (ex.: "CNPJ encontrado"). Só essas duas exceções; nos outros lugares o verde continua só com texto.
 
 **Combinações proibidas:**
 - texto laranja sobre claro. Se for inevitável, use `#8F3D06`;
