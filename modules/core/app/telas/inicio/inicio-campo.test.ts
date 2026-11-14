@@ -13,9 +13,9 @@ const r = (p: Partial<ResultadoIndicador> & Pick<ResultadoIndicador, 'indicador'
 const CTX = { tipoMetaVenda: 'faturamento' as const, perfil: 'vendedor' as const };
 
 describe('T-0170 Início do Campo: painel do topo', () => {
-  it('RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20" e, em dia não útil, "Não é dia útil"', () => {
-    expect(linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 })).toBe('Quinta, 12 de novembro · DU 9 de 20');
-    expect(linhaDaData('2026-11-15', { du_hoje: null, du_total: 20 })).toBe('Domingo, 15 de novembro · Não é dia útil');
+  it('RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20" e, em dia não útil, "Não é dia útil"; o trecho do DU não quebra no meio', () => {
+    expect(linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 })).toBe('Quinta, 12 de novembro ·\u00a0DU\u00a09\u00a0de\u00a020');
+    expect(linhaDaData('2026-11-15', { du_hoje: null, du_total: 20 })).toBe('Domingo, 15 de novembro ·\u00a0Não\u00a0é\u00a0dia\u00a0útil');
   });
 
   it('saudação com o primeiro nome; sem nome, só a saudação', () => {
@@ -114,8 +114,8 @@ describe('T-0170 Início do Campo: sino e sincronização', () => {
     expect(contarSino([])).toEqual({ recados: 0, tarefas: 0, total: 0 });
   });
 
-  it('"Últ. sincronização 20:22" no fuso do tenant; sem sincronização, null', () => {
-    expect(textoUltimaSincronizacao('2026-11-13T00:22:00Z', 'America/Manaus')).toBe('Últ. sincronização 20:22');
+  it('"Últ. sincronização" e "20:22" em 2 linhas, no fuso do tenant; sem sincronização, null', () => {
+    expect(textoUltimaSincronizacao('2026-11-13T00:22:00Z', 'America/Manaus')).toBe('Últ.\u00a0sincronização\n20:22');
     expect(textoUltimaSincronizacao(null, 'America/Manaus')).toBeNull();
   });
 });

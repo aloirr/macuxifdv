@@ -34,7 +34,13 @@ describe('R-20261114-145000: Início do Campo enquadrado', () => {
     expect(corpoDaTela).toContain('useSinoCabecalho()');
   });
 
-  it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
-    expect(fonte).toMatch(/avatar: \{ width: 40, height: 40/);
+  it('a tela usa a escala pela janela e pela fonte do sistema (useWindowDimensions)', () => {
+    expect(fonte).toContain('useWindowDimensions()');
+    expect(fonte).toContain('escalaInicio({');
+    expect(fonte).toContain('fontScale: janela.fontScale');
+  });
+
+  it('o avatar do painel usa o tamanho da escala', () => {
+    expect(fonte).toMatch(/avatar: \{ width: e\.painel\.avatar, height: e\.painel\.avatar/);
   });
 });
