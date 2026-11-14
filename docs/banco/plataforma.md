@@ -8,7 +8,7 @@ RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
 ## tenant — empresa cliente (exceção: sem `tenant_id`)
 | Coluna | Tipo | Regra |
 |---|---|---|
-| codigo | text not null | "código da empresa" do login; `^[a-z0-9][a-z0-9-]{1,39}$`; único (minúsculas) |
+| codigo | text not null | "código da empresa" do login; até a 0067 `^[a-z0-9][a-z0-9-]{1,39}$`; **desde a 0068** esse formato (legados: thathyany, demo, teste-macuxi) OU o código da licença `^(UF)[0-9]{4}$` (27 UFs, maiúsculas, ex.: `AM4821`); único sem diferenciar maiúsculas (`tenant_codigo_uk`, `lower(codigo)`) |
 | nome | text not null | |
 | documento | text | CNPJ só dígitos |
 | fuso | text not null | IANA, padrão `America/Sao_Paulo` (exibição no fuso do tenant; dados em UTC) |
@@ -41,21 +41,51 @@ Com superusuário, desliga `log_statement` e `log_min_duration_statement` na tra
 chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`). Caminho de volta:
 `0029_plataforma_provisionar_tenant.down.sql` (apaga a função; tenants já criados ficam). Teste: `db/testes/provisionar-tenant.test.ts`.
 
-### 0068 — número da licença (código da empresa; pedido do dono do produto, R-20261114-130500)
-O código da empresa passa a ser o **número único da licença**: `plataforma.tenant_numero_licenca_seq` (integer, 100001..999999,
-`no cycle`, sem grant; esgotada = 2200H). A `provisionar_tenant` (mesma assinatura, SECURITY INVOKER) aceita:
-- `id` (opcional, UUID gerado pelo chamador) = id do tenant e **chave de idempotência**. Com id de tenant existente, a chamada é
-  sobre ele (mesmo tenant, mesmo código, nenhum número novo); com id novo, o tenant nasce com ele. Trava consultiva por id
-  (`pg_advisory_xact_lock`) antes da busca: chamadas simultâneas com o mesmo id não gastam dois números.
-- `codigo` ausente, `null` ou `""` = número da licença: o tenant novo recebe `nextval` como texto de 6 dígitos (`"100001"`); número
-  já usado como código (cadastro manual) é pulado. Sem `codigo`, o `id` é obrigatório (22023). O `nextval` só roda depois de toda
-  a validação e só para tenant novo (entrada inválida não gasta número).
-- `codigo` informado: como antes (idempotente pelo código). `id` e `codigo` de tenants diferentes = 23505.
-- Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
-A `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
-não é de tenant vivo. O CHECK `tenant_codigo_formato` (`^[a-z0-9][a-z0-9-]{1,39}$`) já aceita 6 dígitos, `demo` e `teste-macuxi`:
-não muda. Caminho de volta: `0068_plataforma_tenant_numero_licenca.down.sql` (funções da 0040/0039 e apaga a sequência; os
-números já dados ficam; refazer o up recomeça em 100001 e pula os usados). Teste: `db/testes/tenant-numero-licenca.db.test.ts`.
+### 0068 — código da licença (código da empresa; dono do produto, R-20261114-130500, R-20261114-131200 e R-20261114-131500)
+"O codigo da licenca e assim: UF0001 onde UF é a UF do cliente. O numero é aleatorio." O código da empresa nasce como
+**UF do cliente + 4 dígitos aleatórios**, em maiúsculas (`AM4821`), único na plataforma. Sem sequência.
+- **CHECK `tenant_codigo_formato`**: `codigo ~ '^[a-z0-9][a-z0-9-]{1,39}$' or codigo ~ '^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)[0-9]{4}$'`.
+  Os legados (`thathyany` em produção, `demo` na demo, `teste-macuxi` nos testes) continuam válidos; a migração não troca código.
+- **Caixa**: grava e exibe em maiúsculas; o login compara sem diferenciar (`tenant_por_codigo`: `lower(t.codigo) = lower(p_codigo)`,
+  0052). O índice único é por `lower(codigo)`: `am4821` (formato legado) e `AM4821` não convivem.
+- `uf_valida(p_uf text) → boolean` (immutable): sigla de uma das 27 UFs, aceita minúscula e espaços nas pontas.
+- `sortear_codigo_licenca(p_uf text) → text`: trava consultiva por UF (`pg_advisory_xact_lock`, até o fim da transação), até 20
+  sorteios de `UF || lpad(random 0..9999)` livres por `lower(codigo)`; sem sorte, sorteia entre os números livres da UF
+  (`generate_series(0, 9999)`); UF esgotada = **54000** ("não há código livre para a UF TO..."); UF inválida = 22023.
+- `provisionar_tenant` (mesma assinatura, SECURITY INVOKER) aceita:
+  - `id` (opcional, UUID gerado pelo chamador) = id do tenant e **chave de idempotência**: com id de tenant existente, a chamada é
+    sobre ele (mesmo tenant, mesmo código, sem sortear); trava consultiva por id antes da busca (chamadas simultâneas com o mesmo
+    id não sorteiam dois códigos). Se o código dele não é da UF pedida, não muda (aviso
+    `tenant existente: o código X não muda (troca: atribuir_codigo_licenca)`).
+  - `uf` (texto; `"am"` vale `AM`): obrigatória sem `codigo`; fora das 27 ou não texto = 22023, mesmo com `codigo`.
+  - `codigo` ausente, `null` ou `""` = código da licença sorteado (tenant novo). Sem `codigo`, `id` e `uf` são obrigatórios (22023).
+  - `codigo` informado: como antes (minúsculas, idempotente pelo código, sem diferenciar maiúsculas). `id` e `codigo` de tenants
+    diferentes = 23505.
+  - Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
+- `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
+  não é de tenant vivo; a `uf` segue na entrada.
+- `atribuir_codigo_licenca(p_tenant_id uuid, p_uf text) → jsonb` (SECURITY INVOKER, sem EXECUTE para a aplicação: roda pela
+  conexão de administração, como a `provisionar_tenant`): dá o código da licença a um tenant existente.
+  `{ tenant_id, codigo_anterior, codigo, resultado: 'atribuido' | 'sem_mudanca' }`. Já com código da mesma UF = o mesmo
+  (`sem_mudanca`; `codigo_anterior` = o da última atribuição na auditoria, ou o próprio). Grava `plataforma.auditoria`
+  `core / tenant.codigo_licenca` com `antes {codigo}` e `depois {codigo}`. UF inválida ou tenant nulo = 22023; tenant inexistente
+  = P0002; encerrado ou excluído = 55000.
+
+**Como dar o código da licença à thathyany** (quando o dono do produto informar a UF; exemplo com RR), na conexão de
+administração de produção:
+```sql
+begin;
+select plataforma.atribuir_codigo_licenca(t.id, 'RR') from plataforma.tenant t where t.codigo = 'thathyany';
+-- confira o retorno: {"codigo": "RR4821", "codigo_anterior": "thathyany", "resultado": "atribuido", ...}
+commit;
+```
+Rodar de novo com a mesma UF devolve o mesmo código. A partir do commit, o login da empresa é com o código novo (o antigo deixa de
+valer): avise o cliente e os aparelhos que guardam o código digitado. Sessões e tokens seguem (são pelo id do tenant).
+
+Caminho de volta: `0068_plataforma_tenant_numero_licenca.down.sql` (funções da 0040/0039, CHECK da 0001 e apaga as 3 funções
+novas). **O down falha (55000) se algum tenant tiver código da licença** (o CHECK da 0001 não aceita maiúsculas), sem mudar nada:
+devolva antes o código antigo de cada um (`antes` da auditoria `tenant.codigo_licenca`; quem nasceu com o código da licença precisa
+de um código no formato antigo, ex.: `lower(codigo)`) e rode de novo. Teste: `db/testes/tenant-numero-licenca.db.test.ts`.
 
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |

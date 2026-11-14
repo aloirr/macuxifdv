@@ -33,7 +33,7 @@ const NOME_ADMIN = 'Fulana Provisionada';
 
 interface Saida {
   tenant_id: string;
-  /** desde a 0068: o código do tenant (o informado ou o número da licença gerado) */
+  /** desde a 0068: o código do tenant (o informado ou o código da licença sorteado, UF + 4 dígitos) */
   codigo: string;
   resultado: 'criado' | 'atualizado' | 'sem_mudanca';
   modulos_adicionados: string[];

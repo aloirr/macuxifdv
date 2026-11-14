@@ -1,7 +1,23 @@
 -- 0068_plataforma_tenant_numero_licenca (down) — desfaz a 0068 e volta ao catálogo da 0067: provisionar_tenant com o texto da
--- 0040 (codigo obrigatório, idempotente pelo código, sem 'codigo' no retorno), sa_provisionar_tenant com o da 0039 e sem a
--- sequência do número da licença. Os tenants que já têm número continuam com ele (o CHECK da 0001 aceita). Volte antes a
--- API/CLI que provisiona sem codigo (senão 22023). Idempotente. Pré-condição: 0069+ desfeitas.
+-- 0040 (codigo obrigatório, idempotente pelo código, sem 'codigo' no retorno), sa_provisionar_tenant com o da 0039, o CHECK
+-- tenant_codigo_formato da 0001 e sem uf_valida, sortear_codigo_licenca e atribuir_codigo_licenca. Volte antes a API/CLI que
+-- provisiona sem codigo (senão 22023). Idempotente. Pré-condição: 0069+ desfeitas.
+-- Tenant com código da licença (UF + 4 dígitos, maiúsculas) não passa no CHECK da 0001: o down FALHA (55000) antes de mudar
+-- qualquer coisa e diz quantos são. Nada é trocado sozinho: devolva antes o código antigo de cada um (o 'antes' da auditoria
+-- 'tenant.codigo_licenca'; tenant que nasceu com o código da licença precisa de um código no formato antigo) e rode de novo.
+
+do $$
+declare
+  v_n integer;
+begin
+  select count(*) into v_n from plataforma.tenant t where t.codigo !~ '^[a-z0-9][a-z0-9-]{1,39}$';
+  if v_n > 0 then
+    raise exception '0068 down: % tenant(s) com código da licença (UF + 4 dígitos) não cabem no CHECK da 0001', v_n
+      using errcode = '55000',
+            hint = 'Devolva o código antigo de cada um (o antes da auditoria tenant.codigo_licenca) e rode o down de novo.';
+  end if;
+end
+$$;
 
 drop function if exists plataforma.provisionar_tenant(jsonb);
 create function plataforma.provisionar_tenant(p jsonb)
@@ -347,4 +363,9 @@ begin
 end
 $$;
 
-drop sequence if exists plataforma.tenant_numero_licenca_seq;
+alter table plataforma.tenant drop constraint tenant_codigo_formato;
+alter table plataforma.tenant add constraint tenant_codigo_formato check (codigo ~ '^[a-z0-9][a-z0-9-]{1,39}$');
+
+drop function if exists plataforma.atribuir_codigo_licenca(uuid, text);
+drop function if exists plataforma.sortear_codigo_licenca(text);
+drop function if exists plataforma.uf_valida(text);
