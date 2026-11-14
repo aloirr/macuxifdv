@@ -127,7 +127,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
   `Card` antigo continua (raio 14).
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
-  `neutro` Na fila · `destaque` Orçamento · `roxo` (selo de orçamento do novo pedido). `Badge` antigo virou pílula de 24 dp.
+  `neutro` Na fila · `destaque` Orçamento (o tom `roxo` saiu do kit, RD-0235). `Badge` antigo virou pílula de 24 dp.
 - Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
 - `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
   `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
@@ -207,7 +207,7 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
   corrida para Limite, Disponível ou Prazo médio.
 - Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
-  "Orçamento · preço de 09/11" (roxo, não vence).
+  "Orçamento · preço de 09/11" (`destaque`, não vence).
 
 ### 4.8 Catálogo pela hierarquia (T-0142; spec `docs/design/catalogo-por-linha.md`)
 - `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em Archivo negrito à direita
@@ -386,7 +386,7 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
   "Transformar em pedido", linha Editar | PDF, depois Duplicar (`neutro`) | Cancelar orçamento (`perigo`, abre o `Dialogo`;
   decidido na conferência de 2026-11-05, R-20261105-114721) e o Histórico. Sem frase do frete,
   sem "Desconto efetivo", Filial e Tabela. Vencido: Duplicar vira o principal, com o PDF (secundário) abaixo; nenhuma frase explicando.
-- **Situação do orçamento**: "Orçamento · até 10/11" (`roxo`), "Vencido", "Cancelado" (`neutro`), "Virou pedido 000015"
+- **Situação do orçamento**: "Orçamento · até 10/11" (`destaque`), "Vencido", "Cancelado" (`neutro`), "Virou pedido 000015"
   (`sucesso`), iguais na lista e no detalhe. Nunca "Orçamento expirado".
 - **Depois de salvar o orçamento**, abre o orçamento (tela 5); o editor sai da pilha e o voltar leva para onde o pedido começou
   (Pedidos ou o Início; §6.1). O aviso
