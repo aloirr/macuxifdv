@@ -14,6 +14,10 @@ describe('manifesto da pesquisa', () => {
     expect(manifest.usaExtensoes).toEqual(expect.arrayContaining(['visita.etapas_checkout', 'cliente.abas']));
   });
 
+  it('T-0170: oferece as três consultas (checkout, questionários para a tarefa e resposta local)', () => {
+    expect([...manifest.ofereceConsultas]).toEqual(['pesquisa.etapas_checkout@1', 'pesquisa.questionarios_para_tarefa@1', 'pesquisa.resposta_local@1']);
+  });
+
   it('publica pesquisa.resposta.registrada@1 (doc 02) e só ele', () => {
     expect(manifest.publica).toContain('pesquisa.resposta.registrada@1');
     expect([...manifest.publica]).toEqual(['pesquisa.resposta.registrada@1']);

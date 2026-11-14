@@ -2,7 +2,7 @@
  * Responder pesquisa (RF-PES-01/04, RN-PES-01): formulário da versão vigente quando abre, rascunho salvo a cada toque
  * no aparelho, regras condicionais aplicadas na hora e envio pela fila do motor (funciona sem sinal).
  * Parâmetros: `questionario` (obrigatório), `cliente` e `visita` (pesquisa do cliente ou da etapa do checkout).
- * Visual T-0072: progresso com chips, um só principal ("Enviar resposta") que abre Folha de confirmação (resposta é
+ * Visual T-0072: progresso "3 de 5" (RD-0184: sem chips), um só principal ("Enviar resposta") que abre Folha de confirmação (resposta é
  * imutável), descartar com Dialogo, AvisoRodape para o Desfazer da foto, estados com EstadoVazio.
  */
 import { AvisoRodape, BackLink, Banner, Botao, ChipEstado, Dialogo, EstadoVazio, Folha, Icon, Loading, OpcaoFolha, ProgressBar, Screen, colors, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
@@ -126,7 +126,6 @@ export default function ResponderScreen() {
           <Icon name="check" size={32} color={colors.success} />
           <Text style={t.h1}>Resposta registrada</Text>
           {offline ? <ChipEstado tom="aviso" icone="wifiOff" texto="Na fila" /> : null}
-          {offline ? <Text style={t.sub}>Vai quando o sinal voltar</Text> : null}
         </View>
         <Botao testID="pesquisa.voltar" rotulo="Voltar" onPress={voltar} />
       </Screen>
@@ -166,7 +165,7 @@ export default function ResponderScreen() {
       </Screen>
 
       <Folha visivel={confirmando} onFechar={() => setConfirmando(false)} rotuloFechar="Fechar" titulo="Enviar resposta?" rodape={{ rotulo: 'Voltar', onPress: () => setConfirmando(false) }} testID="pesquisa.folha-enviar">
-        <OpcaoFolha testID="pesquisa.confirmar-enviar" icone="send" titulo="Enviar agora" subtitulo={offline ? 'Vai quando houver sinal.' : 'Vai para o escritório.'} onPress={() => void concluir()} />
+        <OpcaoFolha testID="pesquisa.confirmar-enviar" icone="send" titulo="Enviar agora" onPress={() => void concluir()} />
       </Folha>
       <Dialogo
         visivel={descartando}

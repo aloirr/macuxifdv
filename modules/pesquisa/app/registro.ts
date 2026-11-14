@@ -4,7 +4,7 @@
  * do checkout (`visita.etapas_checkout`, RN-PES-03) e card no Início. Tudo exige a ação `pesquisa.responder`.
  */
 import type { AbaCliente, CardInicio, ContextoCheckout, EtapaCheckout } from '@macuxi/core/contracts';
-import { definirModuloShell, type ModuloShell } from '@macuxi/platform-sdk';
+import { definirModuloShell, type ImplementacaoConsultaAparelho, type ModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_PESQUISA } from '../contracts/entidades';
 import { manifest } from '../manifest';
 import { CAMINHO_PESQUISAS, CAMINHO_RESPONDER } from './caminhos';
@@ -20,7 +20,7 @@ export interface ComponentesPesquisa<C> {
   cardInicio: C;
 }
 
-export function montarModuloApp<C>(c: ComponentesPesquisa<C>, concluida: (ctx: ContextoCheckout) => boolean): ModuloShell<C> {
+export function montarModuloApp<C>(c: ComponentesPesquisa<C>, concluida: (ctx: ContextoCheckout) => boolean, consultas: readonly ImplementacaoConsultaAparelho[] = []): ModuloShell<C> {
   return definirModuloShell<C>({
     manifesto: manifest,
     paginas: [
@@ -28,6 +28,7 @@ export function montarModuloApp<C>(c: ComponentesPesquisa<C>, concluida: (ctx: C
       { id: 'responder', caminho: CAMINHO_RESPONDER, titulo: 'Responder pesquisa', acao: 'pesquisa.responder', perfis: [...PERFIS_RESPONDEM], apps: ['campo', 'gestao'], componente: c.responder },
     ],
     entidadesSync: ENTIDADES_PESQUISA,
+    consultas,
     extensoes: [
       {
         slot: 'visita.etapas_checkout',

@@ -9,6 +9,8 @@
 import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { criarConsultaEtapasCheckout } from './consulta-etapas-checkout';
+import { criarConsultaQuestionariosParaTarefa } from './consulta-questionarios-para-tarefa';
+import { criarConsultaRespostaLocalApi } from './consulta-resposta-local';
 import { rotasDoConstrutor } from './construtor';
 import type { FabricaRepositorio } from './repositorio';
 import { criarRepositorioPostgres } from './repositorio-postgres';
@@ -25,7 +27,7 @@ export function criarApiPesquisa(fabrica: FabricaRepositorio): ModuloApi {
     manifesto: manifest,
     rotas: [...rotasDoConstrutor(fabrica), ...rotasDeResultados(fabrica)],
     sync: provedoresSync(fabrica),
-    consultas: [criarConsultaEtapasCheckout(fabrica)],
+    consultas: [criarConsultaEtapasCheckout(fabrica), criarConsultaQuestionariosParaTarefa(fabrica), criarConsultaRespostaLocalApi(fabrica)],
   });
 }
 

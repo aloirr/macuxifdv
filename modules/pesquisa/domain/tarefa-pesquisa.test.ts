@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { publicada, QUEST, TENANT, u } from './util-teste';
-import { questionariosParaTarefa, respostaLocalMaisRecente } from './tarefa-pesquisa';
+import { questionariosParaTarefa, respostaLocalMaisRecente, respostasLocaisDoUsuario } from './tarefa-pesquisa';
 import type { Questionario } from '../contracts';
 
 const AGORA = '2026-10-31T15:00:00.000Z';
@@ -66,5 +66,14 @@ describe('RN-PES-02: resposta local mais recente', () => {
   });
   it('RN-PES-02: empate no instante desempata pelo id, de forma estável', () => {
     expect(respostaLocalMaisRecente([r(5, '2026-10-31T10:00:00.000Z'), r(4, '2026-10-31T10:00:00.000Z')], base)).toBe(u(5));
+  });
+});
+
+describe('respostasLocaisDoUsuario (RN-PES-02)', () => {
+  const base = (id: number, usuario: number, apagada: string | null = null) => ({ id: u(id), questionario_id: QUEST, cliente_id: u(60), respondida_em: '2026-10-31T09:00:00.000Z', usuario_id: u(usuario), deleted_at: apagada });
+  it('RN-PES-02: do pull fica só o do usuário e sem apagadas; a fila entra inteira; id repetido vale uma vez', () => {
+    const fila = [{ id: u(3), questionario_id: QUEST, cliente_id: null, respondida_em: '2026-10-31T10:00:00.000Z' }, { id: u(1), questionario_id: QUEST, cliente_id: u(60), respondida_em: '2026-10-31T09:00:00.000Z' }];
+    const r = respostasLocaisDoUsuario([base(1, 5), base(2, 6), base(4, 5, '2026-10-31T11:00:00Z')], fila, u(5));
+    expect(r.map((x) => x.id)).toEqual([u(1), u(3)]);
   });
 });
