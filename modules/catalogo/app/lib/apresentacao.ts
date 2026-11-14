@@ -54,8 +54,8 @@ export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, op
   const a = item.availability;
   if (!item.price_stock_visible || !a) return null;
   // RN-CORE-39: com cliente no contexto o estoque é o da filial dele; sem registro nela é 0, não "sem informação"
-  if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: 'Sem saldo na filial deste cliente.', desatualizado: false };
-  if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: 'O estoque ainda não chegou a este aparelho.', desatualizado: true };
+  if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: '', desatualizado: false };
+  if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
   const f = FAIXA[a.band];
   const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;
   const hora = rotuloAtualizacaoEstoque(a, agora, fuso);
