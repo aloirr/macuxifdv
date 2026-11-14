@@ -21,7 +21,7 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 |---|---|---|
 | nome, nome_curto | text | |
 | email | text not null | único **por tenant** em minúsculas `(tenant_id, lower(email))` (Q3); formato validado |
-| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); os perfis do usuário (1+, multiperfil) ficam em `plataforma.usuario_perfil` e um deles sempre tem esta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
+| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); desde a 0068, **um** perfil por usuário em `plataforma.usuario_perfil`, sempre desta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
 | equipe_id | uuid | FK composta para `equipe` |
 | senha_hash | text | só argon2id em PHC (`$argon2id$...`, check) |
 | ativo, bloqueado_em, ultimo_login_em | | `bloqueado_em` = bloqueio MANUAL do admin (RF-CORE-01) |
@@ -930,3 +930,49 @@ padrão `estoque_alto`/`comprador_ausente`), entre 54 e 60 dias úteis atrás (a
 
 Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (nenhum dado se perde). Volte antes o Core que lê
 a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.
+
+## 0068 — cargo e hierarquia do cadastro de usuário (`0068_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
+Decisão R-20261114-153500: no cadastro de usuário, o **cargo** (Vendedor, Supervisor, Gerente, Administrativo); vendedor
+cadastra o supervisor (o gerente é o do supervisor); supervisor cadastra o gerente e o **nome da equipe** (vai ao Início, na foto
+do vendedor); **código ERP para todos**; um perfil por usuário; um cargo por perfil. O cargo e o "um perfil por usuário" estão em
+[plataforma.md](plataforma.md) ("0068").
+
+**Hierarquia: reaproveita `core.equipe`, sem coluna nova em `core.usuario`** (uma informação, um lugar: a árvore de equipes já é
+a base do escopo RN-CORE-04 do Gestor, do alerta ao supervisor e do nome da equipe no Início; colunas `supervisor_id`/
+`gerente_id`/`nome_equipe` no usuário duplicariam a árvore e divergiriam dela). O cadastro grava:
+
+| Cargo | O que o BKO pede | O que o Core grava |
+|---|---|---|
+| vendedor | supervisor | `core.usuario.equipe_id` = a equipe viva cujo `responsavel_id` é o supervisor (índice `equipe_responsavel_ix`, 0004) |
+| supervisor | gerente e nome da equipe | a equipe dele em `core.equipe` (`responsavel_id` = ele, `nome` = nome da equipe, `equipe_pai_id` = a equipe do gerente) e `core.usuario.equipe_id` = essa equipe |
+| gerente | — (opcional: a regional) | a equipe dele (`responsavel_id` = ele; raiz) e `equipe_id` = essa equipe |
+| administrativo | — | nada (`equipe_id` nulo) |
+
+O **gerente do vendedor não é gravado no vendedor**: é o responsável da equipe-pai da equipe do supervisor. Trocar o supervisor
+do vendedor = trocar o `equipe_id` dele; trocar o gerente do supervisor = trocar o `equipe_pai_id` da equipe dele.
+
+### v_usuario_hierarquia — leitura pronta (security_invoker; `macuxi_app` só select; worker e portal sem acesso)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `tenant_id`, `usuario_id` | uuid | usuários não apagados |
+| `perfil_id`, `cargo` | uuid, text | o perfil vivo do usuário (um só) e o cargo dele |
+| `equipe_id`, `equipe_nome` | uuid, text | a equipe viva do usuário (`core.usuario.equipe_id`) e o nome — é o "nome da equipe" do Início |
+| `supervisor_id` | uuid | só cargo `vendedor`: o responsável da equipe dele (nulo se for ele mesmo ou se a equipe não tem responsável) |
+| `gerente_id` | uuid | cargos `vendedor` e `supervisor`: o responsável da equipe-pai |
+| `updated_at` | timestamptz | o maior entre usuário, vínculo, perfil, equipe e equipe-pai (cursor, se o app puxar) |
+
+Roda com o papel de quem consulta: valem as políticas `isolamento_tenant` de `core.usuario`, `core.equipe`,
+`plataforma.usuario_perfil` e `plataforma.perfil`. Consulta típica: `where usuario_id = $1` (PK de usuário, índices
+`usuario_perfil_usuario_ix` e PK de equipe). Volume: o de `core.usuario`.
+
+**Regras cargo × hierarquia** (vendedor com equipe de um supervisor; supervisor responsável pela própria equipe, com nome e
+equipe-pai de um gerente): **validadas no domain/API do Core**, não por restrição no banco — dados de hoje (ex.: equipe com
+responsável administrativo na fixture B, equipe sem responsável) quebrariam. A consulta 3 de `db/scripts/diagnostico-0068.sql`
+lista quem está fora da regra.
+
+**Código ERP**: `core.usuario.external_id` já atende — único vivo por tenant desde a 0002 (`usuario_external_uk (tenant_id,
+external_id) where external_id is not null and deleted_at is null`; é o `codigo_erp` do CSV da Equipe, 0036). Continua **nulo**
+no banco (usuários antigos e o admin inicial do provisionamento não têm código); o "obrigatório para todos" é regra do cadastro
+(domain/API do Core). Nenhuma coluna nova.
+
+Volta: `0068_core_cargo_hierarquia.down.sql` (a view sai; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.

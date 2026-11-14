@@ -3,7 +3,8 @@
  * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql, 0022_plataforma_geracao_base.up.sql
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
- * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033), para consultas da API.
+ * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
+ * 0068_core_cargo_hierarquia.up.sql), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -13,6 +14,13 @@
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
+
+/**
+ * Cargo do perfil (0068, decisão do dono do produto de 14/11/2026): lista FIXA da plataforma, igual ao CHECK
+ * perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0068 compara com o SQL.
+ */
+export const CARGOS = ['vendedor', 'supervisor', 'gerente', 'administrativo'] as const;
+export type Cargo = (typeof CARGOS)[number];
 
 export const plataforma = pgSchema('plataforma');
 
@@ -81,6 +89,11 @@ export const perfil = plataforma.table('perfil', {
   base: text('base', { enum: PERFIS }).notNull(),
   fabrica: boolean('fabrica').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
+  /**
+   * 0068: o cargo do perfil (um só), sem padrão: quem cria o perfil informa. Os de fábrica e os personalizados que já existiam
+   * receberam plataforma.cargo_da_base(base) (promotor -> vendedor, a confirmar com o dono do produto).
+   */
+  cargo: text('cargo', { enum: CARGOS }).notNull(),
 });
 
 /**
@@ -99,9 +112,12 @@ export const perfilPermissao = plataforma.table('perfil_permissao', {
 });
 
 /**
- * Perfis do usuário (0041, T-0112, multiperfil, RN-CORE-01). Único vivo por (tenant, usuário, perfil). No COMMIT: todo usuário
- * não apagado com 1+ perfis vivos e ativos e um deles da base de core.usuario.perfil (o principal); sempre um admin com a gestão
- * (RN-CORE-35). Gravar com on conflict do nothing: o gatilho usuario_perfil_principal já liga o perfil de fábrica do principal.
+ * Perfil do usuário (0041, RN-CORE-01; UM por usuário desde a 0068). No máximo um vínculo vivo por (tenant, usuário): restrição
+ * de exclusão ADIADA usuario_perfil_um_vivo (23P01 no COMMIT), então a troca pode apagar o antigo e inserir o novo em qualquer
+ * ordem na mesma transação. No COMMIT: todo usuário não apagado com o perfil vivo e ativo, da base de core.usuario.perfil (o
+ * principal); sempre um admin com a gestão (RN-CORE-35). Trocar core.usuario.perfil para outra base substitui o vínculo (gatilho
+ * usuario_perfil_principal). NÃO use `on conflict do nothing` sem alvo nesta tabela: o Postgres recusa restrição adiável como
+ * árbitro (use `on conflict (id)`).
  */
 export const usuarioPerfil = plataforma.table('usuario_perfil', {
   ...comuns(),
