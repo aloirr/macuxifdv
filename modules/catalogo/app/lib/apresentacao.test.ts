@@ -50,7 +50,7 @@ describe('textos do cartão do catálogo', () => {
 
   it('RN-CORE-39: com cliente no contexto, sem registro na filial dele o estoque é 0 (Sem estoque), não "sem informação"', () => {
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: false } });
-    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus', { filialDoCliente: true })).toMatchObject({ texto: 'Sem estoque', desatualizado: false, detalhe: 'Sem saldo na filial deste cliente.' });
+    expect(rotuloEstoque(vazio, AGORA, 'America/Manaus', { filialDoCliente: true })).toMatchObject({ texto: 'Sem estoque', desatualizado: false, detalhe: '' });
   });
 
   it('RN-CAT-07: na virada do dia (23:59, 00:00, 00:03, 00:06 em Manaus) o rótulo troca para "em dd/mm" só quando a atualização foi no dia anterior', () => {

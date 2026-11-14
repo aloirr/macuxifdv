@@ -106,7 +106,7 @@ export default function TelaProduto() {
             <View style={{ gap: 6 }}>
               <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? `Estoque na filial ${item.availability.by_branch[0]!.branch_name}` : clienteId ? 'Estoque na filial do cliente' : 'Estoque'}</Text>
               <Badge label={estoque.texto} tone={estoque.tom} style={{ alignSelf: 'flex-start' }} />
-              <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text>
+              {estoque.detalhe ? <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text> : null}
               {item.availability && item.availability.by_branch.length > 1
                 ? item.availability.by_branch.map((b) => (
                     <Text key={b.branch_id} style={t.small}>
