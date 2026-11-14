@@ -1,11 +1,11 @@
 /**
  * Início do Campo (T-0170; imagem `2026-11-12-T0170-final-inicio.png`). De cima para baixo: painel do topo (data · DU,
- * saudação, frase do dia, foto ou avatar), "Metas do mês" com o sino na linha e 4 cards, "Produtividade" com 6 indicadores e
+ * saudação, frase do dia, foto ou avatar; Azul noite de ponta a ponta, colado no topo), "Metas do mês" com o sino na linha e 4 cards, "Produtividade" com 6 indicadores e
  * a seta para a Performance, e o Sincronizar largo com "Últ. sincronização hh:mm". Só desenho: os textos e os tons saem de
  * `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: ele passa `sino`,
  * `onAbrirPerformance` e `onPerfil`. Alvos de toque >= 48 dp. Sem a foto no aparelho valem as iniciais.
  */
-import { Button, Cartao, colors, fonts, Icon, initials, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Button, Cartao, colors, fonts, Icon, initials, layout, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -28,7 +28,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
   const v = useInicioCampo();
   if (!v) return null;
   return (
-    <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
+    <Screen testID="inicio" top={0} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
       <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.painel}>
         <View style={s.painelTextos}>
           <Text style={s.data} testID="inicio.data">
@@ -144,7 +144,8 @@ function IndicadorDoInicio({ p, divisor }: { p: IndicadorInicio; divisor: boolea
 }
 
 const s = StyleSheet.create({
-  painel: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.faixa, borderRadius: 24, padding: space.lg, minHeight: 140 },
+  // De ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): sai da margem lateral do Screen, colado no topo, sem cantos
+  painel: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.faixa, marginHorizontal: -layout.telaLateral, padding: space.lg, minHeight: 140 },
   painelTextos: { flex: 1, gap: space.xs },
   data: { fontFamily: fonts.body, fontSize: 14, color: colors.faixaSub },
   saudacao: { fontFamily: fonts.display, fontSize: 28, color: colors.faixaTitulo },

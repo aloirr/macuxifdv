@@ -205,7 +205,7 @@ body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe U
 .doc .t small { font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #1E3350; margin-right: 2mm; vertical-align: 3px; }
 .doc .d { font-size: 13px; color: #4A5562; }
 .ficha { display: grid; grid-template-columns: 49fr 29fr 22fr; border: 1px solid #16202A; border-radius: 1.5mm; overflow: hidden; background: #F1F2F0; }
-.c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CEC6; border-bottom: 1px solid #C9CEC6; }
+.c { padding: 1.6mm 2.6mm 1.8mm; border-right: 1px solid #C9CED5; border-bottom: 1px solid #C9CED5; }
 .c.fim { border-right: 0; }
 .c.base { border-bottom: 0; }
 .ficha.esc { grid-template-columns: 42fr 29fr 29fr; }
@@ -214,7 +214,7 @@ body { font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe U
 .r { font-weight: 700; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #5B6673; margin-bottom: .6mm; }
 .forte { font-weight: 600; }
 .sec { color: #4A5562; }
-.faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CEC6; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
+.faixa { display: grid; grid-template-columns: 26mm 1fr; border: 1px solid #C9CED5; border-radius: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
 .faixa > div { padding: 1.8mm 2.6mm; }
 .faixa .r { margin: 0; align-self: center; }
 .lado .faixa { margin-top: 4.5mm; }
@@ -239,7 +239,7 @@ td.tot { font-weight: 600; }
 .totalbox { min-width: 78mm; border: 2px solid #16202A; border-radius: 2mm; background: #ECEEEA; padding: 2.4mm 4mm; margin-left: auto; }
 .totalbox .lin { display: flex; justify-content: space-between; gap: 6mm; padding: .6mm 0; }
 .totalbox .lin .v { font-weight: 600; }
-.totalbox .total { align-items: baseline; border-top: 1px solid #C9CEC6; margin-top: 1mm; padding-top: 1.6mm; font-weight: 700; }
+.totalbox .total { align-items: baseline; border-top: 1px solid #C9CED5; margin-top: 1mm; padding-top: 1.6mm; font-weight: 700; }
 .totalbox .total:first-child { border-top: 0; margin-top: 0; padding-top: .6mm; }
 .totalbox .lin .vt { font-weight: 800; font-size: 26px; }
 .nota { font-size: 12px; color: #4A5562; margin-top: 1mm; }

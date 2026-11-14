@@ -326,7 +326,7 @@ export function TelaLoja() {
 
   if (!podeColetar) {
     return (
-      <Screen testID="loja.tela">
+      <Screen testID="loja.tela" cabecalho={{ titulo: 'Loja' }}>
         <EstadoVazio titulo="Só para o promotor" icone="pin" />
       </Screen>
     );
@@ -335,8 +335,7 @@ export function TelaLoja() {
 
   return (
     <>
-      <Screen testID="loja.tela" onRefresh={() => void l.recarregar()}>
-        <Text style={t.h1}>Loja</Text>
+      <Screen testID="loja.tela" onRefresh={() => void l.recarregar()} cabecalho={{ titulo: 'Loja' }}>
         {!l.checkin || !l.loja ? (
           <EstadoVazio testID="loja.sem-checkin" titulo="Sem check-in" texto="Faça o check-in na Rota ou em Clientes." icone="pin" />
         ) : !l.visita ? (

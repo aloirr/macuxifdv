@@ -3,7 +3,6 @@
  * Toque na lição liberada (ou concluída, para rever) abre a lição.
  */
 import {
-  BackLink,
   Cartao,
   ChipEstado,
   colors,
@@ -38,8 +37,7 @@ export default function TrilhaScreen() {
 
   if (!trilha) {
     return (
-      <Screen testID="treinar-trilha">
-        <BackLink label="Treinar" fallback={hrefTreinar()} />
+      <Screen testID="treinar-trilha" cabecalho={{ titulo: 'Trilha', voltar: { label: 'Treinar', fallback: hrefTreinar() } }}>
         {tr.carregado ? (
           <EstadoVazio icone="file" titulo="Trilha não encontrada" texto="Volte e puxe para atualizar." />
         ) : (
@@ -51,12 +49,13 @@ export default function TrilhaScreen() {
   const prazo = resumo ? rotuloDoPrazo(resumo) : null;
 
   return (
-    <Screen testID="treinar-trilha">
-      <BackLink label="Treinar" fallback={hrefTreinar()} />
-      <View style={{ gap: 4 }}>
-        <Text style={t.h1Small}>{trilha.titulo}</Text>
-        {trilha.descricao ? <Text style={t.sub}>{trilha.descricao}</Text> : null}
-      </View>
+    <Screen
+      testID="treinar-trilha"
+      cabecalho={{
+        titulo: trilha.titulo,
+        ...(trilha.descricao ? { subtitulo: trilha.descricao } : {}),
+        voltar: { label: 'Treinar', fallback: hrefTreinar() },
+      }}>
       {resumo ? (
         <Cartao gap={8}>
           <View style={styles.linha}>

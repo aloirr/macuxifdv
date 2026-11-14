@@ -1,11 +1,10 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
  */
-import { Chip, ChipEstado, EstadoVazio, colors, fonts, Icon, radius, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { CabecalhoTela, Chip, ChipEstado, EstadoVazio, colors, fonts, Icon, radius, SeloAtualizacao, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CustomerSummary } from '../../contracts';
 import { dataLocal, ROTULO_SITUACAO_CLIENTE, situacaoDoCliente, textoUltimaVisita, type SituacaoDoCliente } from '../../domain';
@@ -20,7 +19,6 @@ export function TelaClientes() {
   const core = useCore();
   const { tz } = core;
   const cache = { customers: core.estado.clientes, synced_at: core.estado.sincronizadoEm };
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ filter?: string }>();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<CustomerFilter[]>([]);
@@ -39,16 +37,12 @@ export function TelaClientes() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
-      <View style={[styles.top, { paddingTop: Math.max(28, insets.top + 16) }]}>
-        <View style={styles.header}>
-          <View style={{ gap: 2, flex: 1 }}>
-            <Text style={t.h1}>Clientes</Text>
-            <Text style={t.sub}>
-              {list.length === cache.customers.length ? `${cache.customers.length} na carteira` : `${list.length} de ${cache.customers.length} na carteira`}
-            </Text>
-          </View>
-          <SyncStamp at={cache.synced_at} offline={false} tz={tz} />
-        </View>
+      <CabecalhoTela
+        titulo="Clientes"
+        subtitulo={list.length === cache.customers.length ? `${cache.customers.length} na carteira` : `${list.length} de ${cache.customers.length} na carteira`}
+        direita={<SeloAtualizacao testID="clientes-selo-sync" semRede={false} onSincronizar={core.sincronizar} atualizadoEm={cache.synced_at} tz={tz} sobreFaixa />}
+      />
+      <View style={styles.top}>
         <View style={styles.search}>
           <Icon name="search" size={18} color={colors.ink2} />
           <TextInput
@@ -98,7 +92,6 @@ const FILTROS_LOCAIS: Array<{ id: FiltroLocal; label: string }> = [
 /** Lista de Clientes do aparelho (Cliente 360 offline, T-0017): busca por nome, fantasia, documento e cidade. */
 function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const core = useCore();
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [filtros, setFiltros] = useState<FiltroLocal[]>([]);
   const alternar = (id: FiltroLocal) => setFiltros((fs) => (fs.includes(id) ? fs.filter((x) => x !== id) : [...fs, id]));
@@ -118,14 +111,12 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const total = dados.clientes.filter((c) => c.deleted_at === null).length;
   return (
     <View style={{ flex: 1, backgroundColor: colors.ground }} testID="clientes-locais">
-      <View style={[styles.top, { paddingTop: Math.max(28, insets.top + 16) }]}>
-        <View style={styles.header}>
-          <View style={{ gap: 2, flex: 1 }}>
-            <Text style={t.h1}>Clientes</Text>
-            <Text style={t.sub}>{lista.length === total ? `${total} na carteira` : `${lista.length} de ${total} na carteira`}</Text>
-          </View>
-          <SyncStamp at={core.estado.sincronizadoEm} offline={false} tz={core.tz} />
-        </View>
+      <CabecalhoTela
+        titulo="Clientes"
+        subtitulo={lista.length === total ? `${total} na carteira` : `${lista.length} de ${total} na carteira`}
+        direita={<SeloAtualizacao testID="clientes-selo-sync" semRede={false} onSincronizar={core.sincronizar} atualizadoEm={core.estado.sincronizadoEm} tz={core.tz} sobreFaixa />}
+      />
+      <View style={styles.top}>
         <View style={styles.search}>
           <Icon name="search" size={18} color={colors.ink2} />
           <TextInput
@@ -221,8 +212,7 @@ function CustomerRow({ c, first, last }: { c: CustomerSummary; first: boolean; l
 }
 
 const styles = StyleSheet.create({
-  top: { paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
-  header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  top: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, gap: 12 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, paddingHorizontal: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md },
   searchInput: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 15, color: colors.ink, height: 44 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14, backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line },

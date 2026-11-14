@@ -1,25 +1,29 @@
 /**
- * Os 3 cards do topo de Pedidos (T-0170, RN-VEN-43): Orçamentos em aberto, Pedidos enviados e Total, cada um com quantidade e valor.
+ * Os 3 cartões do topo de Pedidos (T-0170, RN-VEN-43): Orçamentos, Enviados e Total, lado a lado, de largura igual
+ * (rótulo curto em cima, quantidade em destaque, valor em R$ embaixo; mesmo desenho dos cartões de metas do Início).
  * Mesmo componente no Campo e no Gestão (D6). Orçamentos e Enviados abrem a lista filtrada (alvo >= 48 dp); Total não navega.
+ * `titulo` (longo) é o rótulo acessível e o do chip da tela; `rotulo` é o texto curto do cartão.
  */
 import { colors, fonts, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
 import { Text, View } from 'react-native';
 import type { QuantidadeEValor, ResumoDePedidos } from '../../domain/resumo-pedidos';
-import { textoDoCard } from '../lib/cards-pedidos';
+import { quantidadeDoCard, textoDoCard, valorDoCard } from '../lib/cards-pedidos';
 
 export type CardDePedidos = 'orcamentos' | 'enviados';
 
-function Card({ testID, titulo, q, onPress }: { testID: string; titulo: string; q: QuantidadeEValor | null; onPress?: () => void }) {
+function Card({ testID, titulo, rotulo, q, onPress }: { testID: string; titulo: string; rotulo: string; q: QuantidadeEValor | null; onPress?: () => void }) {
+  const valor = valorDoCard(q);
   const corpo = (
     <>
-      <View style={{ flex: 1 }}>
-        <Text style={t.small}>{titulo}</Text>
-        <Text style={[t.bodyStrong, { fontFamily: fonts.displayBold, fontVariant: ['tabular-nums'], color: colors.ink }]}>{textoDoCard(q)}</Text>
+      <Text style={t.small} numberOfLines={1}>{rotulo}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontVariant: ['tabular-nums'], color: colors.ink }}>{quantidadeDoCard(q)}</Text>
+        {onPress ? <Icon name="chevron" size={16} color={colors.ink3} strokeWidth={2.4} /> : null}
       </View>
-      {onPress ? <Icon name="chevron" size={18} color={colors.ink3} strokeWidth={2.4} /> : null}
+      {valor ? <Text style={[t.small, { fontVariant: ['tabular-nums'] }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{valor}</Text> : null}
     </>
   );
-  const estilo = { minHeight: 56, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 12 };
+  const estilo = { flex: 1, minWidth: 0, minHeight: 72, justifyContent: 'center' as const, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 12 };
   return onPress ? (
     <Pressionavel testID={testID} accessibilityRole="button" accessibilityLabel={`${titulo}: ${textoDoCard(q)}. Toque para ver a lista.`} escala={false} onPress={onPress} style={estilo}>
       {corpo}
@@ -34,10 +38,10 @@ function Card({ testID, titulo, q, onPress }: { testID: string; titulo: string; 
 /** `resumo` nulo = sem resposta do servidor: os valores ficam "—". */
 export function CardsDePedidos({ resumo, onAbrir }: { resumo: ResumoDePedidos | null; onAbrir: (card: CardDePedidos) => void }) {
   return (
-    <View testID="orders-cards" style={{ gap: 8 }}>
-      <Card testID="orders-card-orcamentos" titulo="Orçamentos em aberto" q={resumo?.orcamentos ?? null} onPress={() => onAbrir('orcamentos')} />
-      <Card testID="orders-card-enviados" titulo="Pedidos enviados" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
-      <Card testID="orders-card-total" titulo="Total" q={resumo?.total ?? null} />
+    <View testID="orders-cards" style={{ flexDirection: 'row', gap: 8 }}>
+      <Card testID="orders-card-orcamentos" titulo="Orçamentos em aberto" rotulo="Orçamentos" q={resumo?.orcamentos ?? null} onPress={() => onAbrir('orcamentos')} />
+      <Card testID="orders-card-enviados" titulo="Pedidos enviados" rotulo="Enviados" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
+      <Card testID="orders-card-total" titulo="Total" rotulo="Total" q={resumo?.total ?? null} />
     </View>
   );
 }

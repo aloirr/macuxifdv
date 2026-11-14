@@ -25,7 +25,7 @@ export { chaveDaCopiaPerformance, ENTIDADES_PERFORMANCE } from './telas/performa
 export { useInicio } from './lib/usar-inicio';
 export { TelaInicioCampo, useInicioCampo, ENTIDADE_FRASE_DIA, type PropsTelaInicioCampo, type VisaoInicioCampo } from './telas/inicio';
 export { useNotificacoes } from './lib/usar-notificacoes';
-export { progressoDaEntrada } from '../domain/entrada-sync';
+export { chaveDeOrdemDaCarga, progressoDaEntrada, type ItemDaCarga } from '../domain/entrada-sync';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 

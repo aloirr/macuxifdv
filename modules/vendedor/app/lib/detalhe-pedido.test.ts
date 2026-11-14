@@ -8,6 +8,7 @@ import {
   clienteComCodigo,
   eventosDoOrcamento,
   eventosDoPedido,
+  fonteDasLinhasDoDetalhe,
   itensVisiveis,
   motivoDoEvento,
   linhasDosTotais,
@@ -159,5 +160,20 @@ describe('T-0151 (RN-VEN-03): o rótulo do desconto do detalhe sai dos centavos'
   });
   it('RN-VEN-03: 8,8% também sai do total gravado, igual ao Resumo e ao PDF', () => {
     expect(linhasDosTotais({ subtotal_cents: 100_000, total_cents: 91_200 }).map((l) => l.valor)[1]).toBe('8,8%');
+  });
+});
+
+describe('RF-VEN-04: linhas do detalhe do pedido aceito que o pull ainda não trouxe', () => {
+  it('aceito, sem detalhe, exibição com 1 item: mostra a exibição (1 linha, não "Itens (0)")', () => {
+    expect(fonteDasLinhasDoDetalhe({ naFila: false, itensDoDetalhe: 0, linhasDaExibicao: 1 })).toBe('exibicao');
+  });
+  it('com itens no detalhe, vale o detalhe do servidor', () => {
+    expect(fonteDasLinhasDoDetalhe({ naFila: false, itensDoDetalhe: 3, linhasDaExibicao: 1 })).toBe('detalhe');
+  });
+  it('na fila, vale a exibição guardada ao salvar', () => {
+    expect(fonteDasLinhasDoDetalhe({ naFila: true, itensDoDetalhe: 0, linhasDaExibicao: 1 })).toBe('fila');
+  });
+  it('sem detalhe e sem exibição, segue o detalhe (vazio)', () => {
+    expect(fonteDasLinhasDoDetalhe({ naFila: false, itensDoDetalhe: 0, linhasDaExibicao: 0 })).toBe('detalhe');
   });
 });

@@ -10,10 +10,11 @@
  */
 import { TelaInicioCampo, useInicio } from '@macuxi/core/app';
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoSincronizar, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoSincronizar, colors, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
+import { useCorDaFaixaNoFoco } from '@/components/area-segura';
 import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
 import { BoasVindas, EquipeAgora, MetaDoMes } from '@/components/inicio';
@@ -47,6 +48,8 @@ function AvisoModuloDesativado() {
 }
 
 function InicioCampo() {
+  // T-0172: a faixa da barra de status em Azul noite (ícones claros) só com o Início em foco; nas outras abas, a cor da rota
+  useCorDaFaixaNoFoco(colors.faixa);
   return (
     <TelaInicioCampo
       // o `novos` que a tela passa é o mesmo `sino.total` do Core; o sino lê a contagem única do layout (`ProvedorContagemSino`)

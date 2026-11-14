@@ -6,7 +6,7 @@
  * - o cliente abre o Cliente 360 só se estiver na carteira (RN-CORE-TAR-04).
  * A rota é do shell; ele passa `tarefaId` e, quando houver, `responderPesquisa` (consulta da Pesquisa, N-H).
  */
-import { BackLink, Botao, Cartao, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, space, type as t } from '@macuxi/ui/mobile';
+import { Botao, Cartao, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, space, type as t } from '@macuxi/ui/mobile';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -39,8 +39,7 @@ export function TelaTarefa({ tarefaId, responderPesquisa, tirarFoto = capturarFo
 
   if (!item || !d) {
     return (
-      <Screen testID="tarefa.tela">
-        <BackLink label="Recados e tarefas" fallback={rotaDaLista} testID="tarefa-voltar" />
+      <Screen testID="tarefa.tela" cabecalho={{ titulo: 'Tarefa', voltar: { label: 'Recados e tarefas', fallback: rotaDaLista, testID: 'tarefa-voltar' } }}>
         {r.carregado ? <EstadoVazio testID="tarefa-nao-encontrada" icone="inbox" titulo="Tarefa não encontrada" /> : null}
       </Screen>
     );
@@ -63,16 +62,10 @@ export function TelaTarefa({ tarefaId, responderPesquisa, tirarFoto = capturarFo
   const corApoio = d.tomDoApoio === 'atrasada' ? colors.danger : d.tomDoApoio === 'apagado' ? colors.ink3 : colors.ink2;
 
   return (
-    <Screen testID="tarefa.tela">
-      <BackLink label="Recados e tarefas" fallback={rotaDaLista} testID="tarefa-voltar" />
-      <View style={{ gap: space.xs }}>
-        <Text style={t.h1Small} accessibilityRole="header">
-          {d.titulo}
-        </Text>
-        <Text style={[t.body, { color: corApoio }]} testID="tarefa-apoio">
-          {d.apoio}
-        </Text>
-      </View>
+    <Screen testID="tarefa.tela" cabecalho={{ titulo: d.titulo, voltar: { label: 'Recados e tarefas', fallback: rotaDaLista, testID: 'tarefa-voltar' } }}>
+      <Text style={[t.body, { color: corApoio }]} testID="tarefa-apoio">
+        {d.apoio}
+      </Text>
 
       {d.descricao || d.cliente ? (
         <Cartao gap={space.md}>

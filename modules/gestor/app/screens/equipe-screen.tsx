@@ -5,9 +5,10 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { relogioReal } from '@macuxi/comum/relogio';
-import { Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ResumoEquipe } from '../../contracts';
+import { SeloFaixa } from '../components/selo-faixa';
 import { fracao } from '../lib/apresentacao';
 import { contarParados, linhasAgora, type LinhaAgora } from '../lib/equipe-agora';
 import { contagem, pct } from '../lib/formato';
@@ -25,13 +26,10 @@ export default function EquipeScreen() {
   return (
     <Screen
       testID="gestor-equipe"
+      cabecalho={{ titulo: 'Equipe', direita: <SeloFaixa g={g} /> }}
       refreshing={g.auto.puxando}
       onRefresh={g.auto.puxar}>
       <View style={styles.cabecalho}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={t.h1}>Equipe</Text>
-          <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
-        </View>
         <Botao testID="gestor-abrir-ranking" rotulo="Ranking" icone="target" onPress={irParaRanking} />
       </View>
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
@@ -128,7 +126,7 @@ function LinhaMembro({ l, ultimo }: { l: LinhaAgora; ultimo: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  cabecalho: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  cabecalho: { flexDirection: 'row', justifyContent: 'flex-end' },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   membro: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 10, paddingHorizontal: 14 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },

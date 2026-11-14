@@ -9,7 +9,6 @@
  *   5) id do usuário.
  * Quem não tem dado no período (valor `null`) vai ao fim, sem posição, em ordem de nome e id. Valor 0 é dado.
  */
-import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import type { IndicadorRanking, MembroEquipe, PeriodoRanking, RankingEquipe, LinhaRanking } from '../contracts';
 import { escopoDoUsuario, podeVer } from './equipe';
 import { exigirDataCivil } from '@macuxi/comum';
@@ -21,7 +20,6 @@ import type { EstadoProjecao } from './projecao';
 
 
 export interface DefinicaoIndicador {
-  rotulo: string;
   sentido: 'maior' | 'menor';
   /** Perfis que participam do ranking do indicador. */
   perfis: readonly MembroEquipe['perfil'][];
@@ -30,14 +28,14 @@ export interface DefinicaoIndicador {
 }
 
 export const INDICADORES: Readonly<Record<IndicadorRanking, DefinicaoIndicador>> = {
-  vendas_cents: { rotulo: ROTULO_INDICADOR_META.venda_cents, sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  pedidos: { rotulo: 'Pedidos', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  positivados: { rotulo: 'Clientes positivados', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  ticket_medio_cents: { rotulo: 'Ticket médio', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  atingimento_meta_pct: { rotulo: 'Atingimento da meta (mensal)', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  cobertura_pct: { rotulo: ROTULO_INDICADOR_META.cobertura_pct, sentido: 'maior', perfis: ['vendedor', 'promotor'], modulo: 'core' },
-  conformidade_pct: { rotulo: 'Conformidade de gôndola', sentido: 'maior', perfis: ['promotor'], modulo: 'promotor' },
-  ruptura_pct: { rotulo: 'Ruptura', sentido: 'menor', perfis: ['promotor'], modulo: 'promotor' },
+  vendas_cents: { sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  pedidos: { sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  positivados: { sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  ticket_medio_cents: { sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  atingimento_meta_pct: { sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  cobertura_pct: { sentido: 'maior', perfis: ['vendedor', 'promotor'], modulo: 'core' },
+  conformidade_pct: { sentido: 'maior', perfis: ['promotor'], modulo: 'promotor' },
+  ruptura_pct: { sentido: 'menor', perfis: ['promotor'], modulo: 'promotor' },
 };
 
 /** Diário = o dia; semanal = segunda a domingo da semana da data; mensal = mês civil. Tudo em datas civis do fuso do tenant. */

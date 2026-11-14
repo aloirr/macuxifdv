@@ -15,8 +15,17 @@ interface ItemFila {
   payload: unknown;
 }
 
-/** Remove as removidas e as expiradas, aplica a leitura da fila e ordena: não lidas primeiro, alta prioridade, mais novas. */
-export function montarCaixa(linhas: readonly NotificacaoSync[], fila: readonly ItemFila[], agora: Date): NotificacaoLocal[] {
+/**
+ * Remove as removidas e as expiradas, aplica a leitura da fila e ordena: não lidas primeiro, alta prioridade, mais novas.
+ * `lidasNoAparelho` (`leituras-locais.ts`): leituras feitas neste aparelho, que valem também no intervalo em que o sync já
+ * soltou o aceito e a linha ainda não foi relida (sem isso o sino só zerava na segunda abertura).
+ */
+export function montarCaixa(
+  linhas: readonly NotificacaoSync[],
+  fila: readonly ItemFila[],
+  agora: Date,
+  lidasNoAparelho: ReadonlyMap<string, string> = new Map(),
+): NotificacaoLocal[] {
   const lidasNaFila = new Map<string, string>();
   for (const i of fila) {
     if (i.entidade !== 'notificacao_leitura') continue;
@@ -26,8 +35,8 @@ export function montarCaixa(linhas: readonly NotificacaoSync[], fila: readonly I
   return linhas
     .filter((n) => !n.deleted_at && !(n.expira_em && new Date(n.expira_em).getTime() <= agora.getTime()))
     .map((n): NotificacaoLocal => {
-      const pendente = !n.lida_em && lidasNaFila.has(n.id);
-      return { ...n, lida_em: n.lida_em ?? lidasNaFila.get(n.id) ?? null, leituraPendente: pendente };
+      const local = lidasNaFila.get(n.id) ?? lidasNoAparelho.get(n.id);
+      return { ...n, lida_em: n.lida_em ?? local ?? null, leituraPendente: !n.lida_em && local !== undefined };
     })
     .sort((a, b) => {
       const naoLidaA = a.lida_em ? 1 : 0;

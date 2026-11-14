@@ -79,3 +79,14 @@ export function podeAplicarGeral(texto: string, diferentes: number, semItens: bo
   if (texto.trim() === '') return false;
   return semItens || diferentes > 0;
 }
+
+/**
+ * RN-VEN-02 (dono do produto, 14/11): o "−" e o "+" do Desc./Acrésc. geral. Passo de 1 ponto percentual em % e de R$ 1,00 (100 centavos)
+ * em R$; nunca abaixo de 0 e, em %, nunca acima de 100. A alçada não trava o "+": acima dela vira alerta (RN-VEN-10), como no campo digitado.
+ */
+export function passoDoGeral(valor: number, direcao: -1 | 1, em: 'pct' | 'valor'): number {
+  const passo = em === 'pct' ? 1 : 100;
+  const atual = Number.isFinite(valor) && valor > 0 ? valor : 0;
+  const novo = Math.max(0, Math.round((atual + direcao * passo) * 100) / 100);
+  return em === 'pct' ? Math.min(100, novo) : novo;
+}
