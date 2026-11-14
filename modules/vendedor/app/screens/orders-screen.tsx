@@ -324,7 +324,7 @@ export default function OrdersScreen() {
                   testID="orders-busca"
                   valor={busca}
                   onChange={setBusca}
-                  placeholder={gestao ? 'Cliente ou nº' : 'Cliente ou nº'}
+                  placeholder="Cliente ou nº"
                   rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
                   onLimpar={() => setBusca('')}
                   rotuloLimpar="Limpar a busca"

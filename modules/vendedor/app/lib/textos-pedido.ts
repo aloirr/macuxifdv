@@ -195,8 +195,3 @@ export function avisoSugestaoAdicionada(nome: string, troca: boolean): string {
   return troca ? `Trocado por ${nome}` : `${nome} adicionado`;
 }
 
-
-/** Aviso do rodapé no detalhe, depois de salvar um orçamento (V8): com sinal o número; sem sinal, que ficou no aparelho. */
-export function avisoDoOrcamentoSalvo(numero: string | null): string {
-  return numero ? `Orçamento ${numero} salvo` : textoDoAviso(avisoSalvoNoAparelho('orcamento').titulo);
-}

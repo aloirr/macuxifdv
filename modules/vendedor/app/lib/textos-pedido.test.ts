@@ -68,14 +68,6 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
   });
 });
 
-describe('aviso do orçamento salvo (T-0071 V8)', () => {
-  it('RN-VEN-18 V8: o aviso do orçamento salvo traz o número com sinal e "salvo no aparelho" sem sinal, sem ponto final', async () => {
-    const { avisoDoOrcamentoSalvo } = await import('./textos-pedido');
-    expect(avisoDoOrcamentoSalvo('000012')).toBe('Orçamento 000012 salvo');
-    expect(avisoDoOrcamentoSalvo(null)).toBe('Orçamento salvo no aparelho');
-  });
-});
-
 describe('RN-VEN-38 (T-0137): Apenas salvar', () => {
   it('RN-VEN-38: o rascunho guardado reabre no Resumo e o novo abre em Venda', () => {
     expect(abaInicialDoRascunho({ salvo_em: '2026-11-08T14:00:00Z' })).toBe('resumo');
