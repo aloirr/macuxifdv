@@ -1,11 +1,11 @@
 /**
  * Catálogo → "Adicionar ao orçamento" (decisão do dono do produto, R-20261114-151000). Folha com os orçamentos em aberto do
- * vendedor (número, cliente e data): tocar em um põe o produto nele com quantidade 1 (ou soma 1). Lê do aparelho e grava pela
+ * vendedor (cliente; número e data): tocar em um põe o produto nele com quantidade 1 (ou soma 1). Lê do aparelho e grava pela
  * mesma via do "Editar orçamento" (vale sem sinal para o que está na fila). Sem orçamento em aberto: só "Nenhum orçamento em aberto.".
  * A regra de "em aberto" é do domain (`orcamentosEmAberto`).
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
-import { colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonts, Pressionavel, radius, Screen } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -38,62 +38,60 @@ export default function AdicionarAoOrcamentoScreen() {
     }
   };
 
+  // o aviso fica fora da rolagem (irmão do Screen), preso ao rodapé da tela, como no detalhe do pedido
   return (
-    <Screen testID="adicionar-ao-orcamento" cabecalho={{ titulo: 'Adicionar ao orçamento', voltar: { label: 'Voltar', fallback: hrefPedidos(), testID: 'adicionar-ao-orcamento-voltar' } }}>
-      {!app.carregado ? null : lista.length === 0 ? (
-        <EstadoVazio testID="adicionar-ao-orcamento-vazio" icone="clipboard" titulo={TEXTO_SEM_ORCAMENTO_EM_ABERTO} />
-      ) : (
-        <>
-          {nome ? (
-            <Text style={s.produto} numberOfLines={2} testID="adicionar-ao-orcamento-produto">
-              {nome}
-            </Text>
-          ) : null}
-          {erro ? (
-            <Text style={s.erro} accessibilityRole="alert" testID="adicionar-ao-orcamento-erro">
-              {erro}
-            </Text>
-          ) : null}
-          <View style={s.cartao} testID="adicionar-ao-orcamento-lista">
-            {lista.map((o, i) => (
-              <Pressionavel
-                key={o.id}
-                testID={`orcamento-${o.numero || o.id}`}
-                accessibilityRole="button"
-                accessibilityLabel={`${o.numero ? `Orçamento ${o.numero}` : 'Orçamento'}, ${o.cliente_nome}, ${dataDaValidade(localIsoDate(o.criado_em, app.tz), true)}`}
-                disabled={gravando !== null}
-                onPress={() => void escolher(o.id)}
-                style={[s.linha, i > 0 && s.traco, gravando !== null && gravando !== o.id && s.apagada]}>
-                <View style={s.l1}>
-                  <Text style={s.numero}>{o.numero ? `Nº ${o.numero}` : 'Orçamento'}</Text>
-                  <Text style={s.data}>{dataDaValidade(localIsoDate(o.criado_em, app.tz), true)}</Text>
-                </View>
-                <View style={s.l2}>
-                  <Text style={s.cliente} numberOfLines={1}>
-                    {o.cliente_nome || 'Cliente'}
-                  </Text>
-                  <Icon name="chevron" size={16} color={colors.ink3} />
-                </View>
-              </Pressionavel>
-            ))}
-          </View>
-        </>
-      )}
+    <View style={s.raiz}>
+      <Screen testID="adicionar-ao-orcamento" cabecalho={{ titulo: 'Adicionar ao orçamento', voltar: { label: 'Voltar', fallback: hrefPedidos(), testID: 'adicionar-ao-orcamento-voltar' } }}>
+        {!app.carregado ? null : lista.length === 0 ? (
+          <EstadoVazio testID="adicionar-ao-orcamento-vazio" icone="clipboard" titulo={TEXTO_SEM_ORCAMENTO_EM_ABERTO} />
+        ) : (
+          <>
+            {nome ? (
+              <Text style={s.produto} numberOfLines={2} testID="adicionar-ao-orcamento-produto">
+                {nome}
+              </Text>
+            ) : null}
+            {erro ? (
+              <Text style={s.erro} accessibilityRole="alert" testID="adicionar-ao-orcamento-erro">
+                {erro}
+              </Text>
+            ) : null}
+            <View style={s.cartao} testID="adicionar-ao-orcamento-lista">
+              {lista.map((o, i) => {
+                const detalhe = [o.numero ? `Nº ${o.numero}` : null, dataDaValidade(localIsoDate(o.criado_em, app.tz), true)].filter(Boolean).join(' · ');
+                return (
+                  <Pressionavel
+                    key={o.id}
+                    testID={`orcamento-${o.numero || o.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${o.cliente_nome || 'Cliente'}, ${detalhe}`}
+                    disabled={gravando !== null}
+                    onPress={() => void escolher(o.id)}
+                    style={[s.linha, i > 0 && s.traco, gravando !== null && gravando !== o.id && s.apagada]}>
+                    <Text style={s.cliente} numberOfLines={1}>
+                      {o.cliente_nome || 'Cliente'}
+                    </Text>
+                    <Text style={s.detalhe}>{detalhe}</Text>
+                  </Pressionavel>
+                );
+              })}
+            </View>
+          </>
+        )}
+      </Screen>
       <AvisoRapido aviso={aviso} />
-    </Screen>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
+  raiz: { flex: 1 },
   produto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
   erro: { fontFamily: fonts.body, fontSize: 13, color: colors.danger },
   cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
   linha: { minHeight: 64, paddingVertical: 12, paddingHorizontal: 14, gap: 3, justifyContent: 'center' },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   apagada: { opacity: 0.5 },
-  l1: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  numero: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  data: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, fontVariant: ['tabular-nums'] },
-  l2: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cliente: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  cliente: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  detalhe: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, fontVariant: ['tabular-nums'] },
 });
