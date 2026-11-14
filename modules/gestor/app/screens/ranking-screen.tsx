@@ -3,11 +3,12 @@
  * Online busca a API; offline mostra o último ranking guardado da mesma combinação.
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { BackLink, Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { INDICADORES_RANKING, PERIODOS_RANKING, type IndicadorRanking, type PeriodoRanking, type RankingEquipe } from '../../contracts';
 import { INDICADOR_ROTULO, PERIODO_ROTULO, valorDoIndicador } from '../lib/apresentacao';
+import { SeloFaixa } from '../components/selo-faixa';
 import { CAMINHO_EQUIPE } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
@@ -23,12 +24,7 @@ export default function RankingScreen() {
   }, [g.carregado, g.ranking, indicador, periodo]);
 
   return (
-    <Screen testID="gestor-ranking">
-      <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
-      <View style={{ gap: 2 }}>
-        <Text style={t.h1}>Ranking</Text>
-        <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
-      </View>
+    <Screen testID="gestor-ranking" cabecalho={{ titulo: 'Ranking', voltar: { label: 'Equipe', fallback: `/m/${CAMINHO_EQUIPE}` }, direita: <SeloFaixa g={g} /> }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipsConteudo}>
         {PERIODOS_RANKING.map((p) => (
           <Chip key={p} testID={`ranking-periodo-${p}`} label={PERIODO_ROTULO[p]} active={p === periodo} onPress={() => setPeriodo(p)} />

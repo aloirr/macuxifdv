@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CODIGOS_ARQUIVO, type EnvioArquivo, type ResultadoEnvioArquivo } from './arquivos';
 import { defineModule } from './manifesto';
-import { criarArmazenamentoEmMemoria, criarMotorSync, rotuloDoArquivo, type ArmazenamentoSync, type TransporteSync } from './motor-sync';
+import { criarArmazenamentoEmMemoria, criarMotorSync, type ArmazenamentoSync, type TransporteSync } from './motor-sync';
 import { FABRICAS_ARMAZENAMENTO } from './motor-sync.fabricas';
 import { criarRegistroSync, definirEntidadeSync, type ItemPush } from './sync';
 
@@ -88,7 +88,6 @@ describe('motor: fila de arquivos (ADR 0010 §4)', () => {
     expect(t.ordem).toEqual([`push:${VISITA}`, `arquivo:${FOTO}`]);
     expect(t.motor.estado().arquivos[0]).toMatchObject({ situacao: 'enviado', enviado_em: '2026-10-31T12:00:00.000Z', tentativas: 1 });
     expect(t.motor.arquivosPendentes()).toHaveLength(0);
-    expect(rotuloDoArquivo(t.motor.estado().arquivos[0]!)).toBe('enviado');
   });
 
   it('mesmo id não entra duas vezes; id que não é UUID é erro de programação', async () => {
@@ -108,7 +107,6 @@ describe('motor: fila de arquivos (ADR 0010 §4)', () => {
     await t.motor.enviar();
     const [a1, a2] = t.motor.estado().arquivos;
     expect(a1).toMatchObject({ situacao: 'pendente', codigo: 'ARQUIVO_SEM_REFERENCIA', tentativas: 1 });
-    expect(rotuloDoArquivo(a1!)).toMatch(/aguardando o registro/);
     expect(a2).toMatchObject({ situacao: 'enviado' });
     // o comando chegou: no envio seguinte, aceito
     t.responder(null);
@@ -206,7 +204,6 @@ describe('motor: fila de arquivos (ADR 0010 §4)', () => {
     await t.motor.aplicarModulosAtivos(['core']);
     expect(t.motor.estado().limpezaPendente).toEqual(['promotor']);
     expect(t.motor.estado().arquivos[0]).toMatchObject({ situacao: 'modulo_inativo' });
-    expect(rotuloDoArquivo(t.motor.estado().arquivos[0]!)).toBe('não enviado — módulo desativado');
     // voltou: o arquivo volta para a fila
     t.responder(() => ({ status: 'aceito' }));
     await t.motor.aplicarModulosAtivos(['core', 'promotor']);

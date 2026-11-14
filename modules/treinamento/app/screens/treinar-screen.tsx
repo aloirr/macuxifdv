@@ -13,9 +13,9 @@ import {
   Loading,
   ProgressBar,
   Screen,
+  SeloAtualizacao,
   space,
   Strong,
-  SyncStamp,
   type as t,
 } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -32,21 +32,29 @@ export default function TreinarScreen() {
   const destaque = tr.listaDeTrilhas.find((x) => x.proxima_licao_id)?.trilha_id ?? null;
 
   return (
-    <Screen testID="treinar" refreshing={tr.auto.puxando} onRefresh={tr.auto.puxar}>
-      <View style={styles.header}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={t.h1}>Treinar</Text>
-          <Text style={t.sub}>
-            {jornada.obrigatorias_pendentes > 0
-              ? jornada.obrigatorias_pendentes === 1
-                ? '1 obrigatória pendente'
-                : `${jornada.obrigatorias_pendentes} obrigatórias pendentes`
-              : 'Tudo em dia'}
-          </Text>
-        </View>
-        <SyncStamp at={tr.sincronizadoEm} offline={tr.offline} tz={tr.tz} />
-      </View>
-
+    <Screen
+      testID="treinar"
+      refreshing={tr.auto.puxando}
+      onRefresh={tr.auto.puxar}
+      cabecalho={{
+        titulo: 'Treinar',
+        subtitulo:
+          jornada.obrigatorias_pendentes > 0
+            ? jornada.obrigatorias_pendentes === 1
+              ? '1 obrigatória pendente'
+              : `${jornada.obrigatorias_pendentes} obrigatórias pendentes`
+            : 'Tudo em dia',
+        direita: (
+          <SeloAtualizacao
+            testID="treinar-selo-sync"
+            semRede={tr.offline}
+            onSincronizar={tr.auto.puxar}
+            atualizadoEm={tr.sincronizadoEm}
+            tz={tr.tz}
+            sobreFaixa
+          />
+        ),
+      }}>
       {tr.recusadas.length > 0 ? (
         <Banner testID="treinar-recusadas" tone="danger" icon="alert">
           <Strong>
@@ -203,7 +211,6 @@ function LinhaTrilha({
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   kpis: { flexDirection: 'row', gap: 10 },
   kpi: { flex: 1 },

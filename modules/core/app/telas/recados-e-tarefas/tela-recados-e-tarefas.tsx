@@ -7,7 +7,7 @@
  */
 import { linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, Segmentado, space, type as t } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonts, Pressionavel, radius, Screen, Segmentado, space } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -42,13 +42,7 @@ export function TelaRecadosETarefas({ abrirTarefa, filtroInicial = 'todos' }: { 
   };
 
   return (
-    <Screen testID="recados.tela">
-      <Pressionavel testID="recados-voltar" accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => (router.canGoBack() ? router.back() : router.navigate('/' as never))} style={s.titulo}>
-        <Icon name="back" size={22} color={colors.ink} strokeWidth={2.4} />
-        <Text style={t.h1} accessibilityRole="header">
-          Recados e tarefas
-        </Text>
-      </Pressionavel>
+    <Screen testID="recados.tela" cabecalho={{ titulo: 'Recados e tarefas', voltar: { label: 'Voltar', fallback: '/', testID: 'recados-voltar' } }}>
 
       <Segmentado testID="recados-filtro" opcoes={OPCOES_FILTRO} valor={filtro} onChange={setFiltro} rotuloAcessivel="Mostrar" />
 
@@ -88,7 +82,6 @@ function Linha({ linha: l, primeira, onPress, onCaixa }: { linha: LinhaDaLista; 
 }
 
 const s = StyleSheet.create({
-  titulo: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48, alignSelf: 'flex-start' },
   lista: { backgroundColor: colors.surface, borderRadius: radius.secao, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   linha: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.lg, minHeight: 56 },
   divisor: { borderTopWidth: 1, borderTopColor: colors.line },

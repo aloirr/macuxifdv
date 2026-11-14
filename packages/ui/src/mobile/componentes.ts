@@ -164,3 +164,24 @@ export function leituraDoNivel(nome: string, contagem: number, singular = 'produ
   const n = Number.isFinite(contagem) && contagem > 0 ? Math.floor(contagem) : 0;
   return `${nome.trim()}, ${textoDaContagem(n)} ${n === 1 ? singular : plural}`;
 }
+
+/** Respiro lateral de cada aba no modo `rolavel` das `Abas` e folga mínima ao rolar até a ativa (dp). */
+export const RESPIRO_ABA_ROLAVEL = 16;
+
+/**
+ * Destino da rolagem horizontal para a aba ativa ficar à vista (`Abas rolavel`). Já visível: mantém;
+ * cortada à esquerda: volta até o início dela; cortada à direita: rola o mínimo; aba maior que a faixa: alinha o início.
+ */
+export function rolagemAteAba(
+  aba: { x: number; largura: number },
+  rolagemAtual: number,
+  larguraVisivel: number,
+  margem = RESPIRO_ABA_ROLAVEL,
+): number {
+  if (larguraVisivel <= 0) return Math.max(0, rolagemAtual);
+  const inicio = aba.x - margem;
+  const fim = aba.x + aba.largura + margem;
+  if (inicio < rolagemAtual) return Math.max(0, inicio);
+  if (fim > rolagemAtual + larguraVisivel) return Math.max(0, Math.min(inicio, fim - larguraVisivel));
+  return rolagemAtual;
+}

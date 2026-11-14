@@ -17,8 +17,7 @@ export function TelaMetas() {
 
   if (!g) {
     return (
-      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar}>
-        <Text style={t.h1}>Metas</Text>
+      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo: 'Metas' }}>
         <PainelMetas />
         <CartaoMinhaRv />
       </Screen>
@@ -31,14 +30,15 @@ export function TelaMetas() {
   const fechamento = dataDoFechamento(g.period).split('-').reverse().join('/');
 
   return (
-    <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} testID="goals">
+    <Screen
+      refreshing={core.sincronizando}
+      onRefresh={core.sincronizar}
+      testID="goals"
+      cabecalho={{
+        titulo: `Metas · ${monthName(g.period)}`,
+        subtitulo: fechado ? 'Mês fechado · valores congelados' : `Parcial até o fechamento (${fechamento}) · atualizada ${dateTimeLabel(g.computed_at, new Date(), tz)}`,
+      }}>
       <View style={styles.header}>
-        <View style={{ gap: 2, flex: 1 }}>
-          <Text style={t.h1}>Metas · {monthName(g.period)}</Text>
-          <Text style={t.sub}>
-            {fechado ? 'Mês fechado · valores congelados' : `Parcial até o fechamento (${fechamento}) · atualizada ${dateTimeLabel(g.computed_at, new Date(), tz)}`}
-          </Text>
-        </View>
         <ChipEstado texto={`${g.ranking_position}º de ${g.ranking_total}`} tom="neutro" />
       </View>
 
@@ -70,6 +70,6 @@ export function TelaMetas() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end' },
   idle: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentLine, borderRadius: radius.cartao, minHeight: 48 },
 });

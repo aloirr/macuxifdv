@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { aplicarGeralNasLinhas, completarComGeral, linhasDiferentesDoGeral, perguntaDoGeral, podeAplicarGeral } from './desconto-geral';
+import { aplicarGeralNasLinhas, completarComGeral, linhasDiferentesDoGeral, passoDoGeral, perguntaDoGeral, podeAplicarGeral } from './desconto-geral';
 import { descontoEfetivoAlcadaPct, nivelDeAprovacao, precoDoItem, totaisDoPedido } from './preco-pedido';
 
 const DESC5 = { sentido: 'desconto' as const, pct: 5 };
@@ -70,5 +70,26 @@ describe('RD-0148 (T-0165): a pergunta do Aplicar só vem quando um item tem OUT
     expect(linhasComOutroAjuste(['a', 'b'], { a: { em: 'pct', desconto_pct: 5 } }, DESC5)).toEqual([]);
     expect(linhasComOutroAjuste(['a', 'b'], { a: { em: 'pct', desconto_pct: 3 } }, DESC5)).toEqual(['a']);
     expect(linhasComOutroAjuste(['a', 'b'], { b: { em: 'valor', desconto_cents: 50 } }, DESC5)).toEqual(['b']);
+  });
+});
+
+describe('RN-VEN-02 (dono do produto, 14/11): o − e o + do Desc./Acrésc. geral', () => {
+  it('RN-VEN-02: em %, o passo é 1 ponto percentual e mantém as casas digitadas (5 → 6, 5,5 → 4,5)', () => {
+    expect(passoDoGeral(5, 1, 'pct')).toBe(6);
+    expect(passoDoGeral(5.5, -1, 'pct')).toBe(4.5);
+    expect(passoDoGeral(0, 1, 'pct')).toBe(1);
+  });
+
+  it('RN-VEN-02: em R$, o passo é R$ 1,00 (100 centavos)', () => {
+    expect(passoDoGeral(250, 1, 'valor')).toBe(350);
+    expect(passoDoGeral(250, -1, 'valor')).toBe(150);
+  });
+
+  it('RN-VEN-02: nunca abaixo de 0 e, em %, nunca acima de 100', () => {
+    expect(passoDoGeral(0.5, -1, 'pct')).toBe(0);
+    expect(passoDoGeral(0, -1, 'pct')).toBe(0);
+    expect(passoDoGeral(50, -1, 'valor')).toBe(0);
+    expect(passoDoGeral(99.5, 1, 'pct')).toBe(100);
+    expect(passoDoGeral(Number.NaN, 1, 'pct')).toBe(1);
   });
 });

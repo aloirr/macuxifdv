@@ -4,14 +4,17 @@
  * coluna só, com o enunciado da versão mais nova). Datas e horas no fuso do tenant; número com vírgula decimal.
  * Células que começam com `=`, `+`, `@`, `-`, tabulação ou retorno de carro (`protegerFormula` do comum) ganham `'` na frente (injeção de fórmula).
  */
-import { protegerFormula } from '@macuxi/comum/csv';
+import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
 import { zonedParts } from '@macuxi/comum/fuso';
 import type { ItemResposta, Pergunta, QuestionarioVersao, RespostaPesquisa } from '../contracts';
 
 const SEP = ';';
 const FIM = '\r\n';
 
-/** Escapa uma célula: fórmula neutralizada, aspas dobradas, entre aspas se tiver separador, aspas ou quebra. */
+/**
+ * Escapa uma célula: fórmula neutralizada, aspas dobradas, entre aspas se tiver separador, aspas ou quebra.
+ * Fica local porque o `celulaCsv` do comum sempre põe aspas e mudaria a saída (RD-0051).
+ */
 export function celulaCsv(valor: string): string {
   let v = protegerFormula(valor);
   if (/[;"\r\n]/.test(v)) v = `"${v.replace(/"/g, '""')}"`;
@@ -97,7 +100,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
     });
     linhas.push([...fixas, ...respostas].map(celulaCsv).join(SEP));
   }
-  return `\uFEFF${linhas.join(FIM)}${FIM}`;
+  return `${BOM_CSV}${linhas.join(FIM)}${FIM}`;
 }
 
 /** Nome do arquivo: `pesquisa-<titulo-sem-acento>-<dia no fuso>.csv`. */

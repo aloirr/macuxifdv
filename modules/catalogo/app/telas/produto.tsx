@@ -5,7 +5,7 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -48,18 +48,18 @@ export default function TelaProduto() {
     };
   }, [motor, id, clienteId, parametros, ambiente, usuario?.perfil, sync.sincronizado_em]);
 
+  // T-0172: título, subtítulo e voltar na faixa Azul noite do kit (docs/design/componentes.md §5.2)
+  const voltar = { label: 'Catálogo', fallback: hrefCatalogo(clienteId) };
   if (estado.fase === 'carregando') {
     return (
-      <Screen testID="pagina-catalogo-produto">
-        <BackLink label="Catálogo" fallback={hrefCatalogo(clienteId)} />
+      <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
         <ActivityIndicator color={colors.accent} />
       </Screen>
     );
   }
   if (estado.fase === 'nao_encontrado') {
     return (
-      <Screen testID="pagina-catalogo-produto">
-        <BackLink label="Catálogo" fallback={hrefCatalogo(clienteId)} />
+      <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: 'Produto', voltar }}>
         <Empty text="Produto não encontrado neste aparelho. Sincronize e tente de novo, ou busque pelo nome no catálogo." />
       </Screen>
     );
@@ -71,23 +71,19 @@ export default function TelaProduto() {
   const preco = rotuloPreco(item);
   const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
   return (
-    <Screen testID="pagina-catalogo-produto">
-      <BackLink label="Catálogo" fallback={hrefCatalogo(clienteId)} />
-      <View style={{ gap: 4 }}>
-        <Text style={t.h1Small}>{item.description}</Text>
-        <Text style={t.sub}>
-          {subtituloProduto(item)} · {item.unit}
-          {item.ean ? ` · EAN ${item.ean}` : ''}
-        </Text>
-        {item.is_campaign ? <Badge label="Destaque" tone="accent" style={{ alignSelf: 'flex-start', marginTop: 4 }} /> : null}
-        {catalogo && catalogo.etiquetas.length > 0 ? (
-          <View style={[s.etiquetas, { marginTop: 4 }]} testID="produto-etiquetas">
-            {catalogo.etiquetas.map((e) => (
-              <Badge key={e} label={e} tone="neutral" />
-            ))}
-          </View>
-        ) : null}
-      </View>
+    <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
+      {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
+        <View style={{ gap: 4 }}>
+          {item.is_campaign ? <Badge label="Destaque" tone="accent" style={{ alignSelf: 'flex-start' }} /> : null}
+          {catalogo && catalogo.etiquetas.length > 0 ? (
+            <View style={s.etiquetas} testID="produto-etiquetas">
+              {catalogo.etiquetas.map((e) => (
+                <Badge key={e} label={e} tone="neutral" />
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {preco || estoque ? (
         <Card style={s.card} testID="produto-preco-estoque">

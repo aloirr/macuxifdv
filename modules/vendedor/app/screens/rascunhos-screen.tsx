@@ -5,11 +5,10 @@
  * T-0171 (RD-0214): duas linhas, cliente + total e um único fato + o selo "Some em".
  */
 import { formatBRL } from '@macuxi/comum';
-import { BackLink, colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Selo, type as t } from '@macuxi/ui/mobile';
+import { colors, EstadoVazio, fonts, Icon, Pressionavel, radius, Screen, Selo } from '@macuxi/ui/mobile';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { TEXTOS_RASCUNHOS, type LinhaDeRascunho } from '../lib/rascunhos-lista';
 import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
@@ -23,7 +22,6 @@ function leituraDaLinha(l: LinhaDeRascunho): string {
 
 export default function RascunhosScreen() {
   const app = useVendedor();
-  const insets = useSafeAreaInsets();
   const [agora, setAgora] = useState(() => new Date());
   const [puxando, setPuxando] = useState(false);
   // ao focar, relê o aparelho e renova o relógio (o "Some em" depende dele)
@@ -53,16 +51,15 @@ export default function RascunhosScreen() {
   };
 
   return (
-    <ScrollView
+    <Screen
       testID="rascunhos"
-      style={s.root}
-      contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
-      refreshControl={<RefreshControl refreshing={puxando} onRefresh={() => void puxar()} />}>
-      <BackLink label={TEXTOS_RASCUNHOS.voltar} fallback={hrefPedidos()} testID="rascunhos-voltar" />
-      <Text style={t.h1} accessibilityRole="header">
-        {TEXTOS_RASCUNHOS.titulo}
-      </Text>
-
+      refreshing={puxando}
+      onRefresh={() => void puxar()}
+      cabecalho={{
+        titulo: TEXTOS_RASCUNHOS.titulo,
+        voltar: { label: TEXTOS_RASCUNHOS.voltar, fallback: hrefPedidos(), testID: 'rascunhos-voltar' },
+      }}
+    >
       {leitura.estado === 'carregando' ? (
         <View style={s.cartao} testID="rascunhos-carregando" accessibilityState={{ busy: true }}>
           {[0, 1, 2].map((i) => (
@@ -116,13 +113,18 @@ export default function RascunhosScreen() {
           ))}
         </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.ground },
-  cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
+  cartao: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
   linha: { minHeight: 72, paddingVertical: 12, paddingHorizontal: 14, gap: 3 },
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },

@@ -8,7 +8,7 @@ const fonte = (arquivo: string) => readFileSync(join(__dirname, arquivo), 'utf8'
 describe('T-0141: correções da revisão de UX e do engenheiro', () => {
   it('regra 7 (RN-PRO-01): a linha "Rascunhos (n)" fica dentro do SePode de pedido.criar, o promotor não a vê', () => {
     const s = fonte('orders-screen.tsx');
-    expect(s).toMatch(/<SePode acao="pedido\.criar">\s*<LinhaAtalho testID="orders-rascunhos"/);
+    expect(s).toMatch(/<SePode acao="pedido\.criar">\s*<LinhaAtalho\s+testID="orders-rascunhos"/);
   });
   it('D: o vazio da aba Itens é o EstadoVazio da spec ("Nenhum item ainda", ícone search)', () => {
     const s = fonte('new-order-screen.tsx');

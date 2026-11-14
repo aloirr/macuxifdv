@@ -20,3 +20,18 @@ export function dividirAreaSegura(insets: Insets, barraDeStatus?: number | null)
   const faixaSuperior = Math.max(0, Math.round(insets.top), Math.round(barraDeStatus ?? 0));
   return { faixaSuperior, insetsDasTelas: { ...insets, top: 0 } };
 }
+
+/**
+ * Rotas que NÃO têm a faixa Azul noite do cabeçalho: nelas a faixa da barra de status volta ao Pérola (fundo do app).
+ * Pedido do dono do produto (chat de 14/11/2026, 5h50: "Cadê o cabeçalho azul de cliente, de pedidos, igual o
+ * cabeçalho do início") e manual da marca §4 (docs/marca/manual.md): o título de cada tela fica numa faixa Azul noite
+ * que começa na barra de status. A faixa é o padrão; só o Início, o login, a sincronização e a foto ficam no Pérola.
+ */
+export const ROTAS_SEM_FAIXA: readonly string[] = ['/', '/login', '/sync', '/foto'];
+
+/** `true` quando a faixa da barra de status deve ser Azul noite na rota (sem rota → `true`; ignora a barra final). */
+export function rotaComFaixa(rota: string | null | undefined): boolean {
+  if (!rota) return true;
+  const limpa = rota.length > 1 ? rota.replace(/\/+$/, '') || '/' : rota;
+  return !ROTAS_SEM_FAIXA.includes(limpa);
+}

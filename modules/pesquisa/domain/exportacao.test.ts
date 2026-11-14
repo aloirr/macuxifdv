@@ -84,4 +84,18 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
     const csv = exportarRespostasCsv({ versoes: [v1], respostas: [], fuso: 'America/Manaus' });
     expect(csv.slice(1).trimEnd().split('\r\n')).toHaveLength(1);
   });
+
+  it('RF-PES-06: saída inteira byte a byte (BOM, ";", CRLF, aspas dobradas e fórmula neutralizada) — RD-0051', () => {
+    const vq = publicada({ perguntas: [sim_nao(1, { enunciado: '=Tem; "ponto"?' }), texto(2, { enunciado: 'Obs' })] });
+    const csv = exportarRespostasCsv({
+      versoes: [vq],
+      respostas: [resposta({ versao_id: vq.id, suspeita: true, motivos_suspeita: ['-A', 'B'] as unknown as RespostaPesquisa['motivos_suspeita'], itens: [item.simNao(1, true), item.texto(2, '@x "a";b\nc')] })],
+      fuso: 'America/Manaus',
+    });
+    expect(csv).toBe(
+        '\uFEFF' +
+        'resposta_id;versao;respondida_em;recebida_em;usuario_id;equipe_id;cliente_id;visita_id;suspeita;motivos_suspeita;"\'=Tem; ""ponto""?";Obs\r\n' +
+        '00000000-0000-4000-8000-000000005000;1;31/10/2026 09:05;31/10/2026 09:06;00000000-0000-4000-8000-000000000031;;00000000-0000-4000-8000-000000000051;;sim;\'-A | B;Sim;"\'@x ""a"";b\nc"\r\n',
+      );
+  });
 });

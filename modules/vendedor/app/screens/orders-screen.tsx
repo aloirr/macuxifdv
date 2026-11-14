@@ -8,11 +8,10 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, BotaoFiltro, Button, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   casaComBusca,
@@ -166,7 +165,6 @@ export default function OrdersScreen() {
   // V1: o card do Início conta só os orçamentos em aberto (RN-VEN-18); a lista aberta por ele usa a mesma função
   const diasValidade = validadeOrcamentoDias(ambiente.parametros('vendedor'));
   const numeroDoPedido = useCallback((id: string) => pedidoPorId.get(id)?.number ?? null, [pedidoPorId]);
-  const insets = useSafeAreaInsets();
   // R1: com texto a busca procura em tudo (situação Todos); ao apagar o texto volta o chip escolhido antes
   const atual: Situacao = situacaoEfetiva<Situacao>(situacao ?? (gestao && itens.some((i) => paraDecidir.has(i.id)) ? 'decide' : 'todos'), buscando);
   // Y1: o chip ativo fica na linha mesmo com 0
@@ -224,145 +222,198 @@ export default function OrdersScreen() {
   const vazio = textoDoVazio({ fora, modoConsulta, estadoDoServidor: doServidor?.estado, buscando, situacao: atual, gestao });
 
   return (
-    <FlatList
-      testID="orders"
-      style={styles.root}
-      contentContainerStyle={{ paddingTop: Math.max(28, insets.top + 16), paddingHorizontal: 20, paddingBottom: 20 }}
-      keyboardShouldPersistTaps="handled"
-      data={visiveis}
-      keyExtractor={(i) => i.id}
-      initialNumToRender={12}
-      maxToRenderPerBatch={12}
-      windowSize={7}
-      removeClippedSubviews
-      refreshing={auto.puxando}
-      onRefresh={() => {
-        setTentativa((n) => n + 1);
-        auto.puxar();
-      }}
-      renderItem={({ item: i, index: k }) => {
-        const pedido = pedidoPorId.get(i.id);
-        return pedido ? <OrderRow o={pedido} razao={i.razao_social} busca={busca} primeiro={k === 0} last={k === visiveis.length - 1} tz={tz} mostrarVendedor={gestao} diasValidade={diasValidade} numeroDoPedido={numeroDoPedido} /> : null;
-      }}
-      ListEmptyComponent={
-        <Card>
-          <Empty text={vazio} />
-        </Card>
-      }
-      ListHeaderComponent={
-    <View style={styles.cabecalho}>
-      <View style={styles.header}>
-        <Text style={[t.h1, { flex: 1 }]}>{gestao ? 'Pedidos da equipe' : 'Pedidos'}</Text>
-        {/* RD-0076 (pedido-v4 §4.1): o estado do sinal e da consulta é um selo só, sem faixa nem rodapé */}
-        <SeloAtualizacao
-          testID="orders-selo-sync"
-          semRede={!ambiente.online()}
-          atualizando={parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro'}
-          semResposta={(!sync.running && !!sync.error) || doServidor?.estado === 'erro'}
-          onSincronizar={() => {
-            setTentativa((n) => n + 1);
-            auto.puxar();
-          }}
-          onAbrirPerfil={() => router.push('/profile' as never)}
-        />
-        <SePode acao="pedido.criar">
-          {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
-        </SePode>
-      </View>
-
-      <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
-
-      {totalRascunhos > 0 ? (
-        <SePode acao="pedido.criar">
-          <LinhaAtalho testID="orders-rascunhos" icone="edit" rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)} onPress={irParaRascunhos} />
-        </SePode>
-      ) : null}
-
-      <View style={styles.linhaBusca}>
-        <View style={{ flex: 1 }}>
-          <CampoBusca
-            testID="orders-busca"
-            valor={busca}
-            onChange={setBusca}
-            placeholder={gestao ? 'Cliente ou nº' : 'Cliente ou nº'}
-            rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
-            onLimpar={() => setBusca('')}
-            rotuloLimpar="Limpar a busca"
+    <View style={styles.root}>
+      <CabecalhoTela
+        titulo={gestao ? 'Pedidos da equipe' : 'Pedidos'}
+        direita={
+          // RD-0076 (pedido-v4 §4.1): o estado do sinal e da consulta é um selo só, sem faixa nem rodapé
+          <SeloAtualizacao
+            testID="orders-selo-sync"
+            sobreFaixa
+            semRede={!ambiente.online()}
+            atualizando={
+              parcial &&
+              !semSinal &&
+              modoConsulta === 'consultar' &&
+              doServidor?.estado !== 'ok' &&
+              doServidor?.estado !== 'erro'
+            }
+            semResposta={(!sync.running && !!sync.error) || doServidor?.estado === 'erro'}
+            onSincronizar={() => {
+              setTentativa((n) => n + 1);
+              auto.puxar();
+            }}
+            onAbrirPerfil={() => router.push('/profile' as never)}
           />
-        </View>
-        <BotaoFiltro testID="orders-filtro" contagem={filtro.contagem} rotulo="Filtrar" onPress={() => setFolhaAberta(true)} />
-      </View>
-      <FolhaPeriodo
-        testID="periodo"
-        visivel={folhaAberta}
-        onFechar={() => setFolhaAberta(false)}
-        textos={TEXTOS_DA_FOLHA}
-        atalhos={ATALHOS_DE_PERIODO}
-        atalhoAtivo={semPeriodo ? null : filtro.atalho}
-        onAtalho={aplicarAtalho}
-        escolha={semPeriodo ? null : filtro.escolha}
-        onEscolher={(e) => escolherPeriodo(periodoDaEscolha(e))}
-        onLimpar={limparFiltros}
-        limparDesligado={filtro.contagem === 0 && !semPeriodo}
-        hoje={filtro.hoje}
-        diasMarcados={diasMarcados}
-        ajuda={filtro.ajuda}
-        extra={
-          gestao ? (
-            <ListaSuspensa
-              testID="orders-vendedor"
-              rotulo="Vendedor"
-              rotuloAcessivel="Filtrar por vendedor"
-              opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome }))}
-              valor={vendedorAtivo}
-              onChange={setVendedorId}
-              placeholder="Todos os vendedores"
-              rotuloFechar="Fechar a lista"
-            />
-          ) : null
         }
       />
+      <FlatList
+        testID="orders"
+        style={styles.root}
+        contentContainerStyle={{
+          paddingTop: CABECALHO.respiroCorpo,
+          paddingHorizontal: 20,
+          paddingBottom: 20,
+        }}
+        keyboardShouldPersistTaps="handled"
+        data={visiveis}
+        keyExtractor={(i) => i.id}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={7}
+        removeClippedSubviews
+        refreshing={auto.puxando}
+        progressViewOffset={CABECALHO.respiroCorpo}
+        onRefresh={() => {
+          setTentativa((n) => n + 1);
+          auto.puxar();
+        }}
+        renderItem={({ item: i, index: k }) => {
+          const pedido = pedidoPorId.get(i.id);
+          return pedido ? (
+            <OrderRow
+              o={pedido}
+              razao={i.razao_social}
+              busca={busca}
+              primeiro={k === 0}
+              last={k === visiveis.length - 1}
+              tz={tz}
+              mostrarVendedor={gestao}
+              diasValidade={diasValidade}
+              numeroDoPedido={numeroDoPedido}
+            />
+          ) : null;
+        }}
+        ListEmptyComponent={
+          <Card>
+            <Empty text={vazio} />
+          </Card>
+        }
+        ListHeaderComponent={
+          <View style={styles.cabecalho}>
+            <SePode acao="pedido.criar">
+              {/* o botão principal fica no corpo, nunca na faixa (docs/design/componentes.md §5.2) */}
+              {gestao ? null : (
+                <Button
+                  testID="pedido-novo"
+                  label="Novo"
+                  icon="plus"
+                  variant="accent"
+                  onPress={() => irParaNovoPedido()}
+                  style={{ paddingHorizontal: 16, alignSelf: 'flex-end' }}
+                />
+              )}
+            </SePode>
 
-      {buscando ? (
-        <>
-          <Text style={t.small} testID="orders-busca-resumo">
-            {resumoDaBusca(visiveis.length, nomeDoVendedor)}
-          </Text>
-          {nomeDoVendedor ? (
-            <View style={styles.etiquetas} testID="orders-etiquetas">
-              <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor)} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+            <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
+
+            {totalRascunhos > 0 ? (
+              <SePode acao="pedido.criar">
+                <LinhaAtalho
+                  testID="orders-rascunhos"
+                  icone="edit"
+                  rotulo={rotuloComContador(TEXTOS_RASCUNHOS.titulo, totalRascunhos)}
+                  onPress={irParaRascunhos}
+                />
+              </SePode>
+            ) : null}
+
+            <View style={styles.linhaBusca}>
+              <View style={{ flex: 1 }}>
+                <CampoBusca
+                  testID="orders-busca"
+                  valor={busca}
+                  onChange={setBusca}
+                  placeholder={gestao ? 'Cliente ou nº' : 'Cliente ou nº'}
+                  rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
+                  onLimpar={() => setBusca('')}
+                  rotuloLimpar="Limpar a busca"
+                />
+              </View>
+              <BotaoFiltro
+                testID="orders-filtro"
+                contagem={filtro.contagem}
+                rotulo="Filtrar"
+                onPress={() => setFolhaAberta(true)}
+              />
             </View>
-          ) : null}
-        </>
-      ) : (
-        <>
-          {(filtro.contagem > 0 && !semPeriodo) || vendedorAtivo !== TODOS_OS_VENDEDORES ? (
-            <View style={styles.etiquetas} testID="orders-etiquetas">
-              {filtro.periodoPadrao || semPeriodo ? null : <EtiquetaFiltro testID="orders-etiqueta-periodo" texto={filtro.etiqueta} rotuloRemover={`Remover filtro ${filtro.etiqueta}`} onRemover={removerPeriodo} />}
-              {vendedorAtivo !== TODOS_OS_VENDEDORES ? (
-                <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor ?? 'Vendedor'} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor ?? 'Vendedor')} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
-              ) : null}
-            </View>
-          ) : null}
+            <FolhaPeriodo
+              testID="periodo"
+              visivel={folhaAberta}
+              onFechar={() => setFolhaAberta(false)}
+              textos={TEXTOS_DA_FOLHA}
+              atalhos={ATALHOS_DE_PERIODO}
+              atalhoAtivo={semPeriodo ? null : filtro.atalho}
+              onAtalho={aplicarAtalho}
+              escolha={semPeriodo ? null : filtro.escolha}
+              onEscolher={(e) => escolherPeriodo(periodoDaEscolha(e))}
+              onLimpar={limparFiltros}
+              limparDesligado={filtro.contagem === 0 && !semPeriodo}
+              hoje={filtro.hoje}
+              diasMarcados={diasMarcados}
+              ajuda={filtro.ajuda}
+              extra={
+                gestao ? (
+                  <ListaSuspensa
+                    testID="orders-vendedor"
+                    rotulo="Vendedor"
+                    rotuloAcessivel="Filtrar por vendedor"
+                    opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome }))}
+                    valor={vendedorAtivo}
+                    onChange={setVendedorId}
+                    placeholder="Todos os vendedores"
+                    rotuloFechar="Fechar a lista"
+                  />
+                ) : null
+              }
+            />
 
-          {semResposta ? null : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
-            {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
-            {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
-            {atual === 'card_orc' ? <Chip testID="chip-card-orc" label="Orçamentos em aberto" active onPress={() => setSituacao('card_orc')} /> : null}
-            {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos enviados" active onPress={() => setSituacao('card_env')} /> : null}
-            {chips.map((c) => (
-              <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
-            ))}
-          </ScrollView>
-          )}
+            {buscando ? (
+              <>
+                <Text style={t.small} testID="orders-busca-resumo">
+                  {resumoDaBusca(visiveis.length, nomeDoVendedor)}
+                </Text>
+                {nomeDoVendedor ? (
+                  <View style={styles.etiquetas} testID="orders-etiquetas">
+                    <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor)} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {(filtro.contagem > 0 && !semPeriodo) || vendedorAtivo !== TODOS_OS_VENDEDORES ? (
+                  <View style={styles.etiquetas} testID="orders-etiquetas">
+                    {filtro.periodoPadrao || semPeriodo ? null : (
+                      <EtiquetaFiltro testID="orders-etiqueta-periodo" texto={filtro.etiqueta} rotuloRemover={`Remover filtro ${filtro.etiqueta}`} onRemover={removerPeriodo} />
+                    )}
+                    {vendedorAtivo !== TODOS_OS_VENDEDORES ? (
+                      <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor ?? 'Vendedor'} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor ?? 'Vendedor')} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+                    ) : null}
+                  </View>
+                ) : null}
 
-        </>
-      )}
-
+                {semResposta ? null : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginHorizontal: -20, flexGrow: 0 }}
+                    contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}
+                  >
+                    {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
+                    {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
+                    {atual === 'card_orc' ? <Chip testID="chip-card-orc" label="Orçamentos em aberto" active onPress={() => setSituacao('card_orc')} /> : null}
+                    {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos enviados" active onPress={() => setSituacao('card_env')} /> : null}
+                    {chips.map((c) => (
+                      <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            )}
+          </View>
+        }
+      />
     </View>
-      }
-    />
   );
 }
 
@@ -442,10 +493,24 @@ const styles = StyleSheet.create({
   cabecalho: { gap: 14, marginBottom: 14 },
   rodape: { gap: 14, marginTop: 14 },
   // a lista virtualizada desenha o Card linha a linha: borda dos lados em todas, em cima na primeira e embaixo na última
-  linhaCartao: { backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line },
-  linhaPrimeira: { borderTopWidth: 1, borderTopLeftRadius: radius.cartao, borderTopRightRadius: radius.cartao, overflow: 'hidden' },
-  linhaUltima: { borderBottomWidth: 1, borderBottomLeftRadius: radius.cartao, borderBottomRightRadius: radius.cartao, overflow: 'hidden' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  linhaCartao: {
+    backgroundColor: colors.surface,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.line,
+  },
+  linhaPrimeira: {
+    borderTopWidth: 1,
+    borderTopLeftRadius: radius.cartao,
+    borderTopRightRadius: radius.cartao,
+    overflow: 'hidden',
+  },
+  linhaUltima: {
+    borderBottomWidth: 1,
+    borderBottomLeftRadius: radius.cartao,
+    borderBottomRightRadius: radius.cartao,
+    overflow: 'hidden',
+  },
   linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: -6 },
   destaque: { backgroundColor: colors.accentSoft, color: colors.accentInk },

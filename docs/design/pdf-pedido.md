@@ -124,7 +124,7 @@ Unidades em px CSS (96 dpi) e mm; as imagens estão em 2x. Fontes: Archivo (tít
 | `--pdf-destaque` | #C2540A | rótulo "Pedido"/"Orçamento" do cabeçalho |
 | `--pdf-ficha` | #F1F2F0 | fundo da ficha **e** da caixa do Total (o mesmo cinza) |
 | `--pdf-zebra` | #F3F4F1 | linhas pares da tabela |
-| `--pdf-linha` | #C9CEC6 | divisórias internas da ficha, traço da caixa do Total, borda do Histórico |
+| `--pdf-linha` | #C9CED5 | divisórias internas da ficha, traço da caixa do Total, borda do Histórico |
 | `--pdf-cab-tabela` | **#00843D (provisório)** | fundo do cabeçalho da tabela; no código, a constante `COR_CABECALHO_TABELA`. O código oficial da cor vem do dono do produto: troca só aqui |
 | `--pdf-cab-tabela-texto` | #FFFFFF | texto do cabeçalho da tabela (contraste ≈ 5:1 sobre #00843D) |
 

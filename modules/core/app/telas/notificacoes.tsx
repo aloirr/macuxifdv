@@ -24,13 +24,15 @@ export function TelaNotificacoes() {
   };
 
   return (
-    <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} testID="notificacoes.tela">
-      <View style={{ gap: 2 }}>
-        <Text style={t.h1}>Notificações</Text>
-        <Text style={t.sub} testID="notificacoes.resumo">
-          {naoLidas === 0 ? 'Você está em dia.' : naoLidas === 1 ? '1 aviso não lido.' : `${naoLidas} avisos não lidos.`}
-        </Text>
-      </View>
+    <Screen
+      refreshing={core.sincronizando}
+      onRefresh={core.sincronizar}
+      testID="notificacoes.tela"
+      cabecalho={{
+        titulo: 'Notificações',
+        subtitulo: naoLidas === 0 ? 'Você está em dia.' : naoLidas === 1 ? '1 aviso não lido.' : `${naoLidas} avisos não lidos.`,
+        testID: 'notificacoes.resumo',
+      }}>
       {carregado && caixa.length === 0 ? (
         <EstadoVazio testID="notificacoes.vazio" icone="inbox" titulo="Nenhum aviso por enquanto" texto="Puxe a tela para atualizar quando tiver sinal." />
       ) : null}

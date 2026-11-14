@@ -128,29 +128,30 @@ export function sameWeekdayNext(iso: string, weeks: number): string[] {
 /* ---------- cores ---------- */
 
 /**
- * Paleta categórica validada (ordem fixa; nunca ciclada por posição na tela):
- * a cor segue o vendedor, pela ordem do cadastro, e não muda quando o filtro esconde outros.
+ * Paleta da marca (MC-0014): 4 séries, em hex porque vão em estilo inline (Leaflet/SVG).
+ * Tokens do apps/web/app/globals.css: accent #1e3350, grafico #c2540a, ink-2 #4a5562, disabled #8b96a3.
+ * A cor segue o vendedor pela ordem do cadastro; com mais de 4 as séries se repetem e o número no marcador diferencia.
  */
-export const SERIES_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
-export const OTHER_COLOR = '#6b7480';
+export const SERIES_COLORS = ['#1e3350', '#c2540a', '#4a5562', '#5b7fa6'];
+export const OTHER_COLOR = '#8b96a3';
 
 /** Cor do vendedor pela posição no cadastro (lista completa, não a filtrada). */
 export function sellerColorMap(sellerIds: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   sellerIds.forEach((id, i) => {
-    out[id] = SERIES_COLORS[i] ?? OTHER_COLOR;
+    out[id] = SERIES_COLORS[i % SERIES_COLORS.length]!;
   });
   return out;
 }
 
-/** Cor por dia da semana (seg…sáb); domingo cinza. */
+/** Cor por dia da semana: seg…sáb ciclam as 4 séries; domingo cinza. */
 export const WEEKDAY_COLORS: Record<number, string> = {
   1: SERIES_COLORS[0]!,
   2: SERIES_COLORS[1]!,
   3: SERIES_COLORS[2]!,
-  4: SERIES_COLORS[6]!,
-  5: SERIES_COLORS[7]!,
-  6: SERIES_COLORS[4]!,
+  4: SERIES_COLORS[3]!,
+  5: SERIES_COLORS[0]!,
+  6: SERIES_COLORS[1]!,
   0: OTHER_COLOR,
 };
 

@@ -98,6 +98,17 @@ export interface EntradaProgresso {
   erro: string | null;
   /** Há `sincronizado_em`: carga completa gravada. */
   sincronizado: boolean;
+  /**
+   * Progresso já mostrado na tela (RN-CORE-48: o número da etapa nunca volta). O shell guarda o último e devolve aqui; a etapa
+   * mostrada é a maior entre a da entidade em curso e a dele. Se a etapa dele não está na lista do perfil, é ignorado.
+   */
+  anterior?: Pick<ProgressoEntrada, 'atual'> | null;
+}
+
+/** Item da carga do motor, só o que a ordem precisa. */
+export interface ItemDaCarga {
+  entidade: string;
+  modulo: string | null;
 }
 
 const ehGestao = (perfil: string | null | undefined): boolean => Boolean(perfil && PERFIS_GESTAO.has(perfil));
@@ -125,16 +136,32 @@ export function etapaDaEntidade(perfil: string | null | undefined, modulos: read
 }
 
 /**
+ * RN-CORE-48: chave de ordem da carga = número da etapa do perfil a que o item pertence. Com ordenação estável, a carga
+ * percorre as etapas 1, 2, 3... e, dentro de cada etapa, mantém a ordem do registro. Pedido do dono do produto (14/11).
+ */
+export function chaveDeOrdemDaCarga(perfil: string | null | undefined, modulos: readonly string[]): (item: ItemDaCarga) => number {
+  const lista = etapasDaEntrada(perfil, modulos);
+  return (item) => {
+    const id = etapaDaEntidade(perfil, modulos, item);
+    return lista.find((x) => x.id === id)?.numero ?? 1;
+  };
+}
+
+/**
  * RN-CORE-48: o que a tela de entrada mostra. Percentual = progresso do motor sobre o total da carga (entidades e etapas
- * extras), no máximo 99 enquanto não termina e 100 com a carga pronta. As etapas anteriores à atual ficam feitas; com erro,
- * a atual vira `parou` e vai ao Diagnóstico (`paradaParaDiagnostico`).
+ * extras), no máximo 99 enquanto não termina e 100 com a carga pronta. A etapa atual nunca volta: vale a maior entre a da
+ * entidade em curso e a de `anterior`. As etapas antes dela ficam feitas; com erro, a atual (a maior já mostrada) vira
+ * `parou` e vai ao Diagnóstico (`paradaParaDiagnostico`).
  */
 export function progressoDaEntrada(e: EntradaProgresso): ProgressoEntrada {
   const lista = etapasDaEntrada(e.perfil, e.modulos);
   const pronta = e.sincronizado && !e.sincronizando && !e.erro;
   const parou = Boolean(e.erro) && !e.sincronizando;
   const idAtual = etapaDaEntidade(e.perfil, e.modulos, e.carga);
-  const posAtual = pronta ? lista.length - 1 : Math.max(0, lista.findIndex((x) => x.id === idAtual));
+  const posEmCurso = Math.max(0, lista.findIndex((x) => x.id === idAtual));
+  const ant = e.anterior?.atual;
+  const posAnterior = ant ? lista.findIndex((x) => x.id === ant.id && x.numero === ant.numero) : -1;
+  const posAtual = pronta ? lista.length - 1 : Math.max(posEmCurso, posAnterior);
   const etapas: EtapaEntrada[] = lista.map((x, i) => ({
     ...x,
     situacao: pronta || i < posAtual ? 'feita' : i === posAtual ? (parou ? 'parou' : 'atual') : 'pendente',

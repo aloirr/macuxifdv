@@ -28,8 +28,7 @@ export function TelaRota() {
 
   if (!route || route.stops.length === 0) {
     return (
-      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar}>
-        <Text style={t.h1}>Rota de hoje</Text>
+      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo: 'Rota de hoje' }}>
         <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota para hoje" texto="O escritório define a rota do dia. Puxe a tela para atualizar quando tiver sinal" />
       </Screen>
     );
@@ -61,14 +60,12 @@ export function TelaRota() {
   };
 
   return (
-    <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} testID="route">
+    <Screen
+      refreshing={core.sincronizando}
+      onRefresh={core.sincronizar}
+      testID="route"
+      cabecalho={{ titulo: 'Rota de hoje', subtitulo: `${stops.length} visitas · ${Math.round(route.total_km).toLocaleString('pt-BR')} km · ${route.region}` }}>
       <View style={styles.header}>
-        <View style={{ gap: 2, flex: 1 }}>
-          <Text style={t.h1}>Rota de hoje</Text>
-          <Text style={t.sub}>
-            {stops.length} visitas · {Math.round(route.total_km).toLocaleString('pt-BR')} km · {route.region}
-          </Text>
-        </View>
         <ChipEstado texto={route.done_count === 1 ? '1 feita' : `${route.done_count} feitas`} tom={route.done_count === 0 ? 'neutro' : 'sucesso'} />
       </View>
 
@@ -164,7 +161,7 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
     const v = stop.visit;
     const at = v ? formatHHMM(v.checkin_at, tz) : '';
     if (v?.outcome === 'order') subtitle = `Pedido ${stop.order_total_cents !== null ? formatBRL0(stop.order_total_cents) : ''}`.trim();
-    else if (v?.outcome === 'no_order') subtitle = `Sem pedido: ${v.no_order_reason.toLowerCase()}`;
+    else if (v?.outcome === 'no_order') subtitle = `Sem pedido: ${v.no_order_reason}`;
     else if (v?.closed_by === 'auto') subtitle = 'Fechada na virada do dia';
     else subtitle = `Check-in ${at}`;
   } else if (inProgress) {
@@ -221,7 +218,7 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end' },
   map: { height: MAP_H, borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder },
   goBtn: { position: 'absolute', left: 12, bottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 14, paddingRight: 12, minHeight: 56 },

@@ -28,7 +28,6 @@ import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
-import { avisoDoSalvar } from '../lib/salvar-na-fila';
 import { linhasDosRascunhos, type LinhaDeRascunho } from '../lib/rascunhos-lista';
 import type { DadosDosPrecosDeHoje } from '../lib/precos-de-hoje';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
@@ -82,7 +81,7 @@ const LOTE_PRECOS = 500;
 const MSG_APP_CARREGANDO = 'Aplicativo ainda carregando. Aguarde um instante e tente de novo.';
 
 /** `id` do documento na fila (T-0071, V8): a tela abre o detalhe dele em vez de ficar no editor */
-export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string; id?: string };
+export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; id?: string };
 export type ResultadoAlteracao = { kind: 'local' } | { kind: 'server'; order: OrderDetail };
 
 export function useVendedor() {
@@ -477,7 +476,7 @@ export function useVendedor() {
       // T-0130 (RN-VEN-30, RN-CORE-23 item 2): a tela fecha na hora; o envio sai pela fila comum do motor, em segundo plano, com
       // retentativa e o UUID do aparelho. A recusa da API deixa o item `falhou` na fila ("Não aceito", com o motivo) para corrigir.
       if (ambiente.online()) void seguirEnvioEmSegundoPlano(id);
-      return { kind: 'queued', id, message: avisoDoSalvar(!ambiente.online()) };
+      return { kind: 'queued', id };
     },
     [motor, repo, prepararDoRascunho, recarregar, ambiente, seguirEnvioEmSegundoPlano],
   );
@@ -676,14 +675,14 @@ export function useVendedor() {
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${d.customer_name}`, detalhe: `do orçamento ${d.number}` });
       if (!ambiente.online()) {
         await recarregar();
-        return { kind: 'queued', message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
+        return { kind: 'queued' };
       }
       const r = (await motor.enviar()).find((x) => x.id === id);
       if (r && r.status === 'aceito') {
         await motor.sincronizar().catch(() => false);
         await recarregar();
         const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
-        return det ? { kind: 'sent', order: det } : { kind: 'queued', message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
+        return det ? { kind: 'sent', order: det } : { kind: 'queued' };
       }
       if (r) {
         await motor.descartar(id);
@@ -691,7 +690,7 @@ export function useVendedor() {
         throw new Error(('mensagem' in r && r.mensagem) || 'O servidor recusou o pedido. Revise o orçamento e tente de novo.');
       }
       await recarregar();
-      return { kind: 'queued', message: 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
+      return { kind: 'queued' };
     },
     [motor, repo, recarregar, ambiente, perfil],
   );
@@ -800,12 +799,12 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
-  /** T-0148: quem tem foto (sem rede) e abrir a foto (baixa e guarda no cache; sem sinal e sem cache, aviso curto). */
+  /** T-0148: quem tem foto (sem rede) e abrir a foto (baixa e guarda no cache; senão aviso curto: sem sinal ou foto indisponível). */
   const fotosDeProdutos = useCallback(
     async (ids: string[]): Promise<Set<string>> => (v1 ? idsComFoto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), ids) : new Set()),
     [v1, ambiente],
   );
-  const abrirFotoProduto = useCallback((id: string) => abrirFotoDoProduto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), id), [ambiente]);
+  const abrirFotoProduto = useCallback((id: string) => abrirFotoDoProduto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), id, () => ambiente.online()), [ambiente]);
   /**
    * T-0138 (RN-CAT-09/10): referências cruzadas ("Equivale a") só na hora de gerar o PDF, de `catalogo.textos_produto@1`; não são
    * retrato do pedido. Falha ou aparelho sem a leitura = sem referência (o PDF sai sem a linha, nunca trava).

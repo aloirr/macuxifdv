@@ -1,7 +1,7 @@
 /**
  * Componentes genéricos de formulário (T-0071, fatia 4; medidas da referência do Novo pedido,
  * docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.html):
- * - `Abas`: abas com sublinhado Azul noite e contador opcional ("Itens (3)");
+ * - `Abas`: abas com sublinhado Azul noite e contador opcional ("Itens (3)"); `rolavel` = faixa horizontal com nomes inteiros;
  * - `Segmentado`: escolha única em botões lado a lado (CIF/FOB, prazo, Desc./Acrésc., %/R$);
  * - `Passo`: − n + (quantidade), com digitação opcional;
  * - `CampoBusca`: busca com lupa e botão de limpar;
@@ -13,10 +13,22 @@
  * rótulos do leitor de tela); sem regra de negócio (quem decide valores e limites é o domain do módulo).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
-import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, rotuloComContador } from './componentes';
+import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, RESPIRO_ABA_ROLAVEL, rolagemAteAba, rotuloComContador } from './componentes';
 import { Icon, type IconName } from './icon';
+import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
 import { colors, fonts, radius } from './theme';
 
@@ -41,6 +53,7 @@ export function Abas<T extends string>({
   valor,
   onChange,
   rotuloPendencia,
+  rolavel = false,
   testID = 'abas',
 }: {
   abas: ReadonlyArray<AbaItem<T>>;
@@ -48,29 +61,68 @@ export function Abas<T extends string>({
   onChange: (id: T) => void;
   /** Texto lido pelo leitor de tela quando a aba tem pendência (ex.: "falta informar"). */
   rotuloPendencia?: string;
+  /** Faixa horizontal rolável, cada aba com a largura do rótulo (nomes inteiros quando não cabem em 360 dp). */
+  rolavel?: boolean;
   testID?: string;
 }) {
+  const rolagem = useRef<ScrollView>(null);
+  const posicoes = useRef(new Map<string, { x: number; largura: number }>());
+  const larguraVisivel = useRef(0);
+  const deslocamento = useRef(0);
+  const reduzir = useReduzirMovimento();
+
+  useEffect(() => {
+    if (!rolavel) return;
+    const aba = posicoes.current.get(valor);
+    if (!aba) return;
+    const destino = rolagemAteAba(aba, deslocamento.current, larguraVisivel.current);
+    if (destino !== deslocamento.current) rolagem.current?.scrollTo({ x: destino, animated: !reduzir });
+  }, [rolavel, valor, reduzir]);
+
+  const itens = abas.map((a) => {
+    const on = a.id === valor;
+    const texto = rotuloComContador(a.rotulo, a.contador);
+    return (
+      <Pressable
+        key={a.id}
+        testID={a.testID ?? `${testID}-${a.id}`}
+        accessibilityRole="tab"
+        accessibilityLabel={a.pendente && rotuloPendencia ? `${texto}, ${rotuloPendencia}` : texto}
+        accessibilityState={{ selected: on }}
+        onPress={() => onChange(a.id)}
+        onLayout={rolavel ? (e) => posicoes.current.set(a.id, { x: e.nativeEvent.layout.x, largura: e.nativeEvent.layout.width }) : undefined}
+        style={({ pressed }) => [rolavel ? s.abaRolavel : s.aba, on && s.abaOn, pressed && s.pressionado]}>
+        <Text style={[s.abaTexto, on && s.abaTextoOn]} numberOfLines={1}>
+          {texto}
+        </Text>
+        {a.pendente ? <View style={s.ponto} /> : null}
+      </Pressable>
+    );
+  });
+
+  if (!rolavel) {
+    return (
+      <View style={s.abas} accessibilityRole="tablist" testID={testID}>
+        {itens}
+      </View>
+    );
+  }
   return (
-    <View style={s.abas} accessibilityRole="tablist" testID={testID}>
-      {abas.map((a) => {
-        const on = a.id === valor;
-        const texto = rotuloComContador(a.rotulo, a.contador);
-        return (
-          <Pressable
-            key={a.id}
-            testID={a.testID ?? `${testID}-${a.id}`}
-            accessibilityRole="tab"
-            accessibilityLabel={a.pendente && rotuloPendencia ? `${texto}, ${rotuloPendencia}` : texto}
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(a.id)}
-            style={({ pressed }) => [s.aba, on && s.abaOn, pressed && s.pressionado]}>
-            <Text style={[s.abaTexto, on && s.abaTextoOn]} numberOfLines={1}>
-              {texto}
-            </Text>
-            {a.pendente ? <View style={s.ponto} /> : null}
-          </Pressable>
-        );
-      })}
+    <View style={s.abas} testID={testID}>
+      <ScrollView
+        ref={rolagem}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        accessibilityRole="tablist"
+        scrollEventThrottle={16}
+        onLayout={(e) => {
+          larguraVisivel.current = e.nativeEvent.layout.width;
+        }}
+        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+          deslocamento.current = e.nativeEvent.contentOffset.x;
+        }}>
+        {itens}
+      </ScrollView>
     </View>
   );
 }
@@ -490,6 +542,8 @@ const s = StyleSheet.create({
   // .tabs / .tab / .tab.on
   abas: { flexDirection: 'row', backgroundColor: colors.ground, borderBottomWidth: 1, borderBottomColor: colors.line },
   aba: { flex: 1, minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 4, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  // modo rolável: largura do rótulo + respiro, sem flex
+  abaRolavel: { minHeight: ALVO_TOQUE, minWidth: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: RESPIRO_ABA_ROLAVEL, borderBottomWidth: 3, borderBottomColor: 'transparent' },
   abaOn: { borderBottomColor: colors.accent },
   abaTexto: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink2 },
   abaTextoOn: { fontFamily: fonts.bold, color: colors.ink },

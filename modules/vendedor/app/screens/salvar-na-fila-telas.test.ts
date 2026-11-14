@@ -14,7 +14,7 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
     expect(bloco).toContain('const id = ambiente.novoId()');
     expect(bloco).toContain("motor.enfileirar({ id, entidade: 'pedido'");
     expect(bloco).not.toContain('await motor.enviar()');
-    expect(bloco).toContain('return { kind: \'queued\', id, message: avisoDoSalvar(!ambiente.online()) }');
+    expect(bloco).toContain('return { kind: \'queued\', id }');
   });
 
   it('RN-CORE-23 item 2: com sinal o envio sobe sozinho, em segundo plano, pela fila comum do motor', () => {
@@ -32,10 +32,12 @@ describe('T-0130 (RN-VEN-30, RF-VEN-04, RN-CORE-23 item 2, RN-VEN-33): salvar pe
     expect(hook).toContain("motor.enviar({ incluirFalhos: true })");
   });
 
-  it('RN-VEN-30: a tela fecha na hora (replace para o detalhe) com "Pedido salvo · enviando", sem o botão girando', () => {
+  it('RN-VEN-30: a tela fecha na hora e vai para a ficha (com check-in) ou para Pedidos, não para o detalhe do pedido', () => {
     const envio = tela.slice(tela.indexOf('const send = async'), tela.indexOf('const docEdicao'));
-    expect(envio).toContain('router.replace(hrefPedido(destino) as never)');
-    expect(envio).toContain('avisoDoSalvar(offline)');
+    expect(envio).toContain('destinoAposSalvar(');
+    expect(envio).not.toContain('hrefPedido(destino)');
+    expect(envio).toContain('hrefPedidos()');
+    expect(envio.indexOf('destinoAposSalvar(')).toBeLessThan(envio.indexOf('setSent('));
     expect(envio.indexOf('router.replace')).toBeLessThan(envio.indexOf('setSent('));
   });
 
