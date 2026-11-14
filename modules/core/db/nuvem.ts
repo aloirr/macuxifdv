@@ -571,10 +571,10 @@ export const notificacao = core.table('notificacao', {
 });
 
 /**
- * Indicadores da meta mensal. A 0066 (T-0170) já aceita 'itens_por_pedido' no CHECK meta_indicador_valido; o valor entra aqui
- * junto com o INDICADORES_META do contrato (modules/core/contracts/sync.ts; estatico.test.ts compara as duas listas).
+ * Indicadores da meta mensal = CHECK meta_indicador_valido (o último, da 0066) = INDICADORES_META do contrato
+ * (modules/core/contracts/sync.ts; estatico.test.ts compara). 'itens_por_pedido' (0066, T-0170) em centésimos: 3,50 = 350.
  */
-export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
+export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas', 'itens_por_pedido'] as const;
 
 /** Tipo da meta (0019, RN-CORE-21): realizado por pedido aprovado (data de emissão) ou por faturamento (data do ERP). */
 export const TIPOS_META_BANCO = ['pedido', 'faturamento'] as const;
