@@ -21,8 +21,6 @@ import {
   fonts,
   Icon,
   initials,
-  intervaloSyncAutoMs,
-  PARAMETRO_SYNC_AUTO,
   ProgressBar,
   radius,
   rotuloDoPerfil,
@@ -155,9 +153,6 @@ export default function ProfileScreen() {
             </Text>
           ) : null}
           <BotaoSincronizar testID="sync-now" />
-          <Text style={t.small}>
-            {`Automática ao abrir o app, ao voltar depois de 30 min e a cada ${Math.round(intervaloSyncAutoMs(motor?.parametros('core')[PARAMETRO_SYNC_AUTO]) / 60_000)} min com o app em uso. Pedidos e visitas sobem sozinhos assim que houver sinal.`}
-          </Text>
         </Card>
       </View>
 
@@ -168,7 +163,6 @@ export default function ProfileScreen() {
             <Icon name="wifiOff" size={20} color={offline ? colors.warning : colors.ink2} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={t.bodyStrong}>Simular aparelho sem sinal</Text>
-              <Text style={t.small}>Tudo o que você registrar vai para a fila. Ao desligar, a fila é enviada.</Text>
             </View>
             <Switch
               testID="offline-switch"
@@ -185,7 +179,6 @@ export default function ProfileScreen() {
       <View style={{ gap: 8 }}>
         <SectionHeader title="Módulos" />
         <Card style={{ padding: 14, gap: 8 }}>
-          <Text style={t.small}>Os módulos ativos para você, as versões e o que ficou sem enviar de módulo desativado.</Text>
           <Button testID="abrir-meus-modulos" label="Meus módulos" icon="chevron" variant="outline" onPress={() => router.push('/m/meus-modulos')} />
         </Card>
       </View>
@@ -205,7 +198,9 @@ export default function ProfileScreen() {
       {estado.avisos.length > 0 ? (
         <Card testID="avisos-sync" style={{ padding: 14, gap: 6 }}>
           <Text style={t.bodyStrong}>Parte dos dados ainda não está disponível no servidor</Text>
-          <Text style={t.small}>O resto foi sincronizado. O que você registrar fica no aparelho e na fila até o servidor receber. Detalhes em Diagnóstico.</Text>
+          <Pressable accessibilityRole="link" testID="avisos-sync-diagnostico" onPress={() => setDiagnosticoAberto(true)} hitSlop={8}>
+            <Text style={[t.small, { color: colors.accent }]}>Diagnóstico</Text>
+          </Pressable>
         </Card>
       ) : null}
 
