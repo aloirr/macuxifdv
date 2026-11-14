@@ -219,7 +219,6 @@ describe('Critério 3 — o Início não cria timer automático < 15 min (RN-COR
     'modules/core/app/lib/usar-inicio.ts',
     'modules/core/app/lib/inicio-local.ts',
     'modules/vendedor/app/components/cards-inicio.tsx',
-    'modules/vendedor/app/state/use-resumo-inicio.ts',
     'modules/gestor/app/components/card-aprovacoes.tsx',
     'packages/ui/src/mobile/sincronizacao.tsx',
   ];

@@ -5,7 +5,7 @@
  * - Critério 2: pelo `contracts` PÚBLICO do Vendedor (`@macuxi/vendedor/contracts`, o que o Gestão pode importar): busca
  *   sem acento/maiúscula, número com e sem zeros, período no fuso do TENANT (Manaus, São Paulo, Noronha e Rio Branco, com a
  *   virada do dia em UTC), "emitido 31/10 e aprovado 02/11" em outubro e em novembro, texto ignora período e situação.
- *   O que a tela usa e não está no contrato (`situacaoEfetiva`, `periodoParcialNaJanela`, `resumoDaSituacao`) vem do domain.
+ *   O que a tela usa e não está no contrato (`situacaoEfetiva`, `periodoParcialNaJanela`) vem do domain.
  * - Critério 3: o MOTOR DE SYNC real do platform-sdk (`criarMotorSync`, armazenamento em memória, registro com as entidades
  *   do Core e do Vendedor) puxa as linhas de um servidor falso; depois, em modo avião, as linhas locais passam pelo mesmo
  *   caminho da tela (`lerLinhas` → `listaDePedidos`/`listaDeClientes` → `ItemDaBusca`) e a busca/período respondem sem rede.
@@ -69,7 +69,7 @@ import { entidadesRota } from '../../modules/core/app/lib/entidades-rota';
 import { filtrarExtensoesDePedido, pedidosVisiveisNoAparelho } from '../../modules/core/domain';
 import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePedidos } from '../../modules/vendedor/app/lib/pull';
 import { ENTIDADES_VENDEDOR } from '../../modules/vendedor/contracts/entidades';
-import { periodoParcialNaJanela, resumoDaSituacao, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
+import { periodoParcialNaJanela, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../modules/vendedor/domain/filtro-vendedor';
 import { estadoDaConsulta, mensagemForaDaJanela, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio } from '../../modules/vendedor/app/lib/consulta-periodo';
 
@@ -269,7 +269,7 @@ describe('T-0077 critério 2 — com texto na busca, período e situação são 
 
   it('a situação escolhida vira Todos enquanto há texto, e volta quando o texto sai', () => {
     expect(situacaoEfetiva('aprovados', true)).toBe('todos');
-    expect(situacaoEfetiva('orc_abertos', true)).toBe('todos');
+    expect(situacaoEfetiva('card_orc', true)).toBe('todos');
     expect(situacaoEfetiva('aprovados', false)).toBe('aprovados');
     const achados = filtrarLista(TODOS, { periodo: mes('2026-11'), busca: 'auto', tz: MANAUS });
     // P13 é rejeitado; com o chip Aprovados escolhido antes, continua visível porque a situação efetiva é Todos
@@ -299,10 +299,11 @@ describe('T-0077 critérios 3 e 4 da referência — linha de situações e resu
     expect(c.chips.map((x) => `${x.rotulo} ${x.quantidade}`)).toEqual(['Todos 2', 'Aprovados 1', 'Rejeitados 1']);
   });
 
-  it('resumo "N pedidos · R$ X": sem orçamento e sem cancelado; no chip Orçamentos conta os orçamentos', () => {
+  it('resumo "N pedidos · R$ X": sem orçamento e sem cancelado; o chip Orçamentos tem o orçamento do período', () => {
     const nov = filtrarLista(TODOS, { periodo: mes('2026-11'), busca: '', tz: MANAUS });
     expect(resumoDaLista(nov)).toEqual({ quantidade: 3, total_cents: 150_000 + 80_000 + 12_300 });
-    expect(resumoDaSituacao(nov.filter((i) => itemNaSituacao(i, 'orcamentos')), 'orcamentos')).toEqual({ quantidade: 1, total_cents: 99_900, orcamentos: true });
+    // o resumo por situação saiu da tela (RD-0247/RD-0248): os números dos orçamentos ficam nos cards (RN-VEN-43)
+    expect(nov.filter((i) => itemNaSituacao(i, 'orcamentos')).map((i) => i.id)).toEqual(['P14']);
   });
 });
 
@@ -650,10 +651,9 @@ describe('T-0090 UX1 — com busca, o resumo e a etiqueta dizem qual vendedor es
 });
 
 describe('T-0090 UX2 — escolher um período sai dos chips A faturar e Em aberto (vindos do Início)', () => {
-  it('situacaoAoEscolherPeriodo: A faturar e Em aberto → Todos; as demais situações e o "nenhuma escolhida" ficam', () => {
+  it('situacaoAoEscolherPeriodo: A faturar → Todos; as demais situações (inclusive os cards, que já são do período) e o "nenhuma escolhida" ficam', () => {
     expect(situacaoAoEscolherPeriodo('a_faturar')).toBe('todos');
-    expect(situacaoAoEscolherPeriodo('orc_abertos')).toBe('todos');
-    for (const s of ['todos', 'aguardando', 'aprovados', 'rejeitados', 'orcamentos', 'na_fila', 'decide'] as const) expect(situacaoAoEscolherPeriodo(s)).toBe(s);
+    for (const s of ['todos', 'aguardando', 'aprovados', 'rejeitados', 'orcamentos', 'na_fila', 'decide', 'card_orc', 'card_env'] as const) expect(situacaoAoEscolherPeriodo(s)).toBe(s);
     expect(situacaoAoEscolherPeriodo(null)).toBeNull();
   });
 
@@ -671,7 +671,44 @@ describe('T-0090 UX2 — escolher um período sai dos chips A faturar e Em abert
     expect(TELA).toMatch(/const removerPeriodo = \(\) => aplicarAtalho\(ATALHO_PADRAO\)/);
     // os chips A faturar e Em aberto só aparecem enquanto são a situação atual: saindo deles, somem da linha
     expect(TELA).toMatch(/\{atual === 'a_faturar' \? <Chip testID="chip-a-faturar"/);
-    expect(TELA).toMatch(/\{atual === 'orc_abertos' \? <Chip testID="chip-orc-abertos"/);
+    // T-0170 (RD-0247; docs/desenho/inicio-frase-avatar-pedidos.md §4.1): o chip "Em aberto" vindo do Início saiu; os orçamentos
+    // em aberto vêm do card (situação `card_orc`, ver o bloco RN-VEN-43 abaixo)
+    expect(TELA).toMatch(/\{atual === 'card_orc' \? <Chip testID="chip-card-orc"/);
+  });
+});
+
+/** Título de cada card de `cards-pedidos.tsx` pelo testID (`orders-card-<id>`). */
+const CARDS = ler('modules/vendedor/app/components/cards-pedidos.tsx');
+const tituloDoCard = (id: string) => new RegExp(`testID="orders-card-${id}" titulo="([^"]+)"`).exec(CARDS)?.[1];
+
+describe('T-0170 RN-VEN-43 / RD-0247 — o card "Orçamentos em aberto" filtra a lista (desenho inicio-frase-avatar-pedidos §4.1)', () => {
+  const codigo = semComentarios(TELA);
+
+  it('uma situação só para orçamentos em aberto: `card_orc`; o `orc_abertos` (chip "Em aberto" do Início) não existe mais na tela', () => {
+    expect(codigo).not.toMatch(/orc_abertos|chip-orc-abertos/);
+    expect(codigo).toMatch(/type Situacao = [^;\n]*'card_orc'/);
+  });
+
+  it('o toque no card Orçamentos abre `card_orc` (e o de enviados, `card_env`); o Total não navega', () => {
+    expect(codigo).toMatch(/<CardsDePedidos resumo=\{cards\} onAbrir=\{abrirCard\} \/>/);
+    expect(codigo).toMatch(/const abrirCard = \(c: CardDePedidos\) => setSituacao\(c === 'orcamentos' \? 'card_orc' : 'card_env'\)/);
+    expect(CARDS).toMatch(/testID="orders-card-orcamentos"[^\n]*onPress=\{\(\) => onAbrir\('orcamentos'\)\}/);
+    expect(CARDS).toMatch(/testID="orders-card-enviados"[^\n]*onPress=\{\(\) => onAbrir\('enviados'\)\}/);
+    expect(CARDS).not.toMatch(/testID="orders-card-total"[^\n]*onPress/);
+  });
+
+  it('`card_orc` filtra os orçamentos em aberto (orcamentoEmAberto, RN-VEN-18) da lista do período (`base`), não da janela toda', () => {
+    expect(codigo).toMatch(/atual === 'card_orc' \? base\.filter\(\(i\) => \{ const p = pedidoPorId\.get\(i\.id\); return p \? orcamentoEmAberto\(p\) : false; \}\)/);
+    expect(codigo).toMatch(/atual === 'card_env' \? base\.filter\(\(i\) => \{ const p = pedidoPorId\.get\(i\.id\); return p \? pedidoEnviado\(p\) : false; \}\)/);
+    // `base` é a lista do período (filtrarLista com o período da FolhaPeriodo)
+    expect(codigo).toMatch(/const base = useMemo\(\s*\(\) => \(semPeriodo && !buscando \? itens : filtrarLista\(itens, \{ periodo, busca, tz \}\)\)/);
+  });
+
+  it('rótulo × card: o chip ativo leva o título do card ("Orçamentos em aberto", "Pedidos enviados")', () => {
+    expect(tituloDoCard('orcamentos')).toBe('Orçamentos em aberto');
+    expect(tituloDoCard('enviados')).toBe('Pedidos enviados');
+    expect(codigo).toContain(`{atual === 'card_orc' ? <Chip testID="chip-card-orc" label="${tituloDoCard('orcamentos')}" active`);
+    expect(codigo).toContain(`{atual === 'card_env' ? <Chip testID="chip-card-env" label="${tituloDoCard('enviados')}" active`);
   });
 });
 
