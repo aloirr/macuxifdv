@@ -222,14 +222,9 @@ export function FormularioEndereco({
                 valor={(UFS_BRASIL as readonly string[]).includes(v.uf.toUpperCase()) ? (v.uf.toUpperCase() as (typeof UFS_BRASIL)[number]) : null}
                 placeholder="UF"
                 rotuloFechar="Fechar a lista"
-                erro={Boolean(erros.uf)}
+                falta={erros.uf ?? null}
                 onChange={(u) => set('uf', u)}
               />
-              {erros.uf ? (
-                <Text style={s.erro} accessibilityLiveRegion="polite" testID="endereco-uf-erro">
-                  {erros.uf}
-                </Text>
-              ) : null}
             </View>,
             2,
             1,

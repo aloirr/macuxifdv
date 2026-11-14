@@ -90,7 +90,7 @@ export function pendenciaDoPagamento(r: Rascunho, formas: readonly FormaDePagame
   }
 }
 
-/** Mesma checagem de `pendenciaDoPagamento`, em código, para o bloco "Falta para salvar" (RN-CORE-36; `pendenciasDePreenchimento` do domain). */
+/** Mesma checagem de `pendenciaDoPagamento`, em código, para a falta no campo e em Alertas (RN-CORE-36; `pendenciasDePreenchimento` do domain). */
 export function situacaoDoPagamento(r: Rascunho, formas: readonly FormaDePagamento[], prazos: readonly PrazoDePagamento[], cliente: LimitesDoCliente): EntradaPendencias['pagamento'] {
   if (formas.length === 0) return { tipo: 'ok' };
   if (formasDoCliente(formas, cliente.formas_pagamento).length === 0) return { tipo: 'sem_forma_permitida' };

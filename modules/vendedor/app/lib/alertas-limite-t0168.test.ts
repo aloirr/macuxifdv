@@ -15,7 +15,7 @@ describe('RN-VEN-11a: Alertas e botões do pedido acima do limite', () => {
     expect(alertasDoPedido({ cliente: CLIENTE, acima_do_limite: null })).toEqual([]);
   });
   it('RN-VEN-11a: acima do limite só "Salvar como orçamento" (o enviar fica desligado)', () => {
-    const b = botoesDoResumo({ cliente: CLIENTE, pre_venda_ligada: true, editando: null, pendencias: 0, acima_do_limite: true } as never);
+    const b = botoesDoResumo({ cliente: CLIENTE, pre_venda_ligada: true, editando: null, acima_do_limite: true } as never);
     expect(b.enviar.habilitado).toBe(false);
     expect(b.principal).toBe('orcamento');
   });

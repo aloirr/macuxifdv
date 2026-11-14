@@ -53,7 +53,7 @@ export const TEXTOS_DA_SAIDA_EDICAO = {
   confirmacao: { titulo: 'Descartar as alterações?', mensagem: 'O documento volta como estava antes desta edição.', voltar: 'Voltar', confirmar: 'Descartar' },
 } as const;
 
-export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string; subtitulo?: string }; descartar: { rotulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
+export function opcoesDaSaidaEdicao(e: { tipo: 'pedido' | 'orcamento' }): { salvar: { rotulo: string }; descartar: { rotulo: string }; confirmacao: typeof TEXTOS_DA_SAIDA_EDICAO.confirmacao } {
   const salvar = e.tipo === 'orcamento' ? TEXTOS_DA_SAIDA_EDICAO.salvarOrcamento : { rotulo: ROTULOS_DO_SALVAR.alteracoes };
   return { salvar, descartar: TEXTOS_DA_SAIDA_EDICAO.descartar, confirmacao: TEXTOS_DA_SAIDA_EDICAO.confirmacao };
 }
@@ -69,14 +69,14 @@ export interface OpcoesDaSaida {
 
 /** RN-VEN-38 (T-0137): opções da folha. Cliente da RN-VEN-13 vê só Apenas salvar, Salvar como orçamento e Descartar; sem pré-venda, Salvar e enviar pedido, Apenas salvar e Descartar. */
 export function opcoesDaSaida(e: { cliente: SituacaoCliente; pre_venda_ligada: boolean; preco_data: string; alertas_impedem_enviar?: boolean }): OpcoesDaSaida {
-  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, pendencias: 0, preco_data: e.preco_data });
+  const b = botoesDoResumo({ cliente: e.cliente, pre_venda_ligada: e.pre_venda_ligada, editando: null, preco_data: e.preco_data });
   // RN-VEN-42 (e), RN-VEN-11, RN-VEN-20: alerta de bloqueio (acima do máximo, sem estoque) tira o "Salvar e enviar pedido"
   return { salvar: b.enviar.visivel && !e.alertas_impedem_enviar, apenasSalvar: b.apenasSalvar.visivel, orcamento: b.orcamento.visivel };
 }
 
 export type DestinoDoSalvarDaSaida = 'salvar_agora' | 'mostrar_pendencias';
 
-/** RN-VEN-38 / RN-CORE-36: salvar pela folha valida tudo; com pendência, fecha a folha e abre o Resumo no bloco "Falta para salvar". */
+/** RN-VEN-38 / RN-CORE-36: salvar pela folha valida tudo; com pendência, fecha a folha e abre o Resumo. */
 export function destinoDoSalvarDaSaida(pendencias: number): DestinoDoSalvarDaSaida {
   return pendencias > 0 ? 'mostrar_pendencias' : 'salvar_agora';
 }
