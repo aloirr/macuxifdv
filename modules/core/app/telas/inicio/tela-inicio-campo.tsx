@@ -17,7 +17,6 @@ import { type EscalaInicio, escalaInicio } from './escala-inicio';
 import type { CardMetaInicio, IndicadorInicio } from './inicio-campo';
 import { useInicioCampo } from './usar-inicio-campo';
 
-/** Corpos do kit que a escala toma como base (uma fonte só: `type` do kit). */
 const FONTES_DO_KIT = { h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
 
 export interface PropsTelaInicioCampo {

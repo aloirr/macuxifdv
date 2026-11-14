@@ -40,6 +40,10 @@ describe('R-20261114-153500: escala do Início', () => {
     expect(e.cabe).toBe(false);
   });
 
+  it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
+    expect(escalaInicio({ kit: KIT, largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
+  });
+
   it('entradas inválidas não quebram (fontScale 0 vira 1)', () => {
     const e = escalaInicio({ kit: KIT, largura: 360, altura: 800, fontScale: 0, topo: Number.NaN, base: -3 });
     expect(Number.isFinite(e.estimada)).toBe(true);
