@@ -12,6 +12,9 @@ import { ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanc
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CheckinVisitaSchema, CheckoutVisitaSchema, MotivoSyncSchema, ParametroSyncSchema, RotaParadaSyncSchema, RotaSyncSchema, VisitaSyncSchema } from '../contracts';
+import { resolverPerfil, matrizDeFabrica, perfilDeFabrica } from '@macuxi/platform-sdk';
+import { manifest } from '../manifest';
+import { dataLocal } from '../domain';
 import { carteiraDoUsuario } from './carteira';
 import { rotasDeRotasEVisitas } from './rotas';
 import { provedoresSyncCore } from './sync';
@@ -64,6 +67,14 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
   const analista = usuario(U.analista, 'analista');
   const vendedorB = usuario(B.usuarios.vendedor, 'vendedor', B.tenantId);
 
+  /** RN-CORE-52: perfil de fábrica (a ação `visita.checkin_fora_de_rota` vem ligada); `semForaDeRota` simula o BKO desligando a ação. */
+  const perfisSemForaDeRota = new Set<string>();
+  function perfilDoTeste(u: UsuarioAutenticado, semForaDeRota: boolean) {
+    const matriz = matrizDeFabrica([manifest]);
+    const base = perfilDeFabrica(u.perfil);
+    return resolverPerfil(semForaDeRota ? { ...base, sobreposicoes: [{ chave: 'visita.checkin_fora_de_rota', concedida: false }] } : base, matriz);
+  }
+
   function ctx(u: UsuarioAutenticado, modulos: ModuloId[] = ['core', 'vendedor']): ContextoBase {
     const tx = {
       publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
@@ -85,7 +96,7 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       },
     };
     return {
-      usuario: { ...u, modulos },
+      usuario: { ...u, modulos, perfis: [perfilDoTeste(u, perfisSemForaDeRota.has(u.id))] },
       requestId: 'req-teste',
       agora: () => AGORA,
       fuso: () => 'America/Manaus',
@@ -196,6 +207,39 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       expect(await checkin(vendedor1, vid, { cliente_id: C.c3, lat: -3.29, lng: -60.62 })).toEqual([{ id: vid, status: 'aceito' }]);
       expect(await linhaVisita(vid)).toMatchObject({ sugere_coordenada: true, fora_do_raio: false });
       await checkout(vendedor1, id(105), vid);
+    });
+
+    it('RN-CORE-52: sem a ação visita.checkin_fora_de_rota, cliente fora da rota do dia é rejeitado (CHECKIN_FORA_DE_ROTA); na rota ou com a ação passa', async () => {
+      const dia = dataLocal(AGORA, 'America/Manaus');
+      const rotaId = id(950);
+      const paradaId = id(951);
+      // a fixture já põe c1 na rota de HOJE do vendedor-1 (A.paradas.v1c1): tira a parada do dia (soft delete) e devolve no fim
+      const ocultas = await comTenant(pool, A.tenantId, async (c) =>
+        (await c.query<{ id: string }>('update core.rota_parada set deleted_at = now() where usuario_id = $1 and data = $2::date and cliente_id = $3 and deleted_at is null returning id', [vendedor1.id, dia, C.c1])).rows.map((r) => r.id),
+      );
+      const devolver = () => comTenant(pool, A.tenantId, (c) => c.query('update core.rota_parada set deleted_at = null where id = any($1::uuid[])', [ocultas]));
+      perfisSemForaDeRota.add(vendedor1.id);
+      try {
+        const sem = id(952);
+        expect((await checkin(vendedor1, sem, { cliente_id: C.c1 }))[0]).toMatchObject({ status: 'rejeitado', codigo: 'CHECKIN_FORA_DE_ROTA' });
+        expect(await linhaVisita(sem)).toBeUndefined();
+        if (ocultas.length > 0) await devolver();
+        else
+          await comTenant(pool, A.tenantId, async (c) => {
+            await c.query("insert into core.rota (id, tenant_id, usuario_id, data, situacao, origem) values ($1, $2, $3, $4, 'publicada', 'bko')", [rotaId, A.tenantId, vendedor1.id, dia]);
+            await c.query('insert into core.rota_parada (id, tenant_id, rota_id, usuario_id, data, cliente_id, sequencia) values ($1, $2, $3, $4, $5, $6, 1)', [paradaId, A.tenantId, rotaId, vendedor1.id, dia, C.c1]);
+          });
+        const na = id(953);
+        expect(await checkin(vendedor1, na, { cliente_id: C.c1 })).toEqual([{ id: na, status: 'aceito' }]);
+        await checkout(vendedor1, id(954), na);
+      } finally {
+        perfisSemForaDeRota.delete(vendedor1.id);
+        await devolver();
+        await comTenant(pool, A.tenantId, async (c) => {
+          await c.query('delete from core.rota_parada where id = $1', [paradaId]);
+          await c.query('delete from core.rota where id = $1', [rotaId]);
+        });
+      }
     });
 
     it('RN-CORE-04: cliente fora da carteira (c2 do vendedor-2) é rejeitado; o promotor só faz check-in na sua carteira', async () => {

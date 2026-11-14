@@ -73,6 +73,7 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `produtos.unidades.<sku>` | coluna Unidades de venda (UN, CX c/ fator; padrão marcada) da página Produtos (T-0061) |
 | `cliente360.tela` · `cliente360.contato.<id>` · `cliente360.endereco.<id>` | página Cliente 360 (`/cliente?id=`) |
 | `checkin-justificar` · `checkin-justificativa` · `checkin-confirmar-justificativa` · `checkin-cancelar` | folha do check-in fora do raio (RN-CORE-10) |
+| `checkin-abrir-ficha` | folha do check-in concluído: fecha a folha e deixa a ficha do cliente (onde fica o único "Novo pedido") |
 | `checkout-atendido` · `reason-<codigo>` · `checkout-erro` | folha do checkout (promotor "atendido"; chips de motivo vindos de `motivo`) |
 
 ## T-0019 — notificações (app) e recados (BKO)
