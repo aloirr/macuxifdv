@@ -116,6 +116,12 @@ export const IconChevronRight = (p: IconProps) => (
     <path d="m9 6 6 6-6 6" />
   </Svg>
 );
+/** Seta dos selects (MC-0047). */
+export const IconChevronDown = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
 export const IconUser = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="8" r="4" />

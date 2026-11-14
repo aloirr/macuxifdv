@@ -91,14 +91,6 @@ Sai o subtítulo "Enviados pelos aparelhos. Ficam 90 dias." inteiro (o RD-0295 p
 |---|---|
 | ![Diagnósticos, antes](portal-config-enxuto/antes-07-diagnosticos.png) | ![Diagnósticos, depois](portal-config-enxuto/depois-07-diagnosticos.png) |
 
-## Achados RD (corretor) e MC (marca)
-~~Os recados do corretor-redundancias e do design-de-marca não chegaram a esta sessão (…). Achados MC (cor/layout) idem; o layout novo do cartão de base em uma linha precisa da validação do design-de-marca antes do lote.~~ **Respondidos no §13** (RD-0260 a RD-0295, RD-0089/RD-0090, MC-0021 a MC-0024 e os itens fora de catálogo dos dois pareceres).
-
-## Para o engenheiro-apps
-- testIDs ficam; mudam os asserts de texto (`TEXTOS_*`, `CARTAO_DA_ENTIDADE`, `ROTULO_MODO`, `TEXTOS_ADMINS`, `TEXTOS_PORTAL_DIAGNOSTICOS`). Saem `empresa.codigo`, `empresa.alcada-*`, `empresa.validade-orcamento`, `empresa.aplicacao-orcamento`, `empresa.conferir`, `empresa.admin-existente`; entra `empresa.uf`.
-- `CARTAO_DA_ENTIDADE[*].descricao` e `ROTULO_MODULO[*].ajuda` saem do código.
-- Código UF+4 depende da API (`CriarEmpresaSchema` com `uf` e sem `codigo`; resposta com `codigo`) — dono: engenheiro-software/modulo-core. O modo falso (`lib/portal-falso.ts`) gera `AM4821` igual.
-
 ## 10. Adendo — Integração via Conector e via API; CSV fora do portal
 > 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-132000-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Onde conflitar, o §10 vale sobre o §5 (abas); as antigas §6 e §7 saíram (§14).
 
@@ -179,7 +171,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 | Encontrado (situação ativa) | ✓ à direita | — (decisão: sem texto; os campos preenchidos já mostram o resultado) |
 | CNPJ inválido (dígito verificador ou menos de 14 dígitos) | borda de erro | **"CNPJ inválido. Confira os 14 dígitos."** |
 | Não encontrado | borda de erro | **"CNPJ não encontrado na Receita."** |
-| Receita fora (tempo esgotado, 5xx, limite de consultas; a API do #243 responde 503 com `Retry-After`) | borda de alerta + link **"Tentar de novo"** à direita; "Criar empresa" desabilitado | **"A Receita não respondeu. Tente de novo em alguns minutos."** |
+| Receita fora (tempo esgotado, 5xx, limite de consultas; a API do #243 responde 503 com `Retry-After`) | borda de alerta + link **"Tentar de novo"** à direita; "Criar empresa" desabilitado | **"A Receita não respondeu."** |
 | Situação não ativa (baixada, suspensa, inapta, nula) | **borda de erro**; os campos se preenchem; "Criar empresa" desabilitado | **"CNPJ {situação} na Receita. Use um CNPJ ativo."** — "CNPJ baixado na Receita. Use um CNPJ ativo.", "CNPJ suspenso na Receita. Use um CNPJ ativo.", "CNPJ inapto na Receita. Use um CNPJ ativo.", "CNPJ nulo na Receita. Use um CNPJ ativo." (`{situação}` no masculino, minúsculo) |
 
 - **Decidido em 14/11 (dono do produto):** CNPJ inválido, não encontrado ou não ativo **não cria empresa**: o "Criar empresa" fica desabilitado (Névoa `#ECEEF1`, texto `#5B6673`) até o CNPJ voltar ao estado Encontrado. Com a **Receita fora** também não cria (a API responde 503 com `Retry-After` e não grava); sem "Preencha os campos": a pessoa só tenta de novo. A API revalida tudo.
@@ -224,10 +216,9 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 Ordem dos cartões: **"Plano"** → **"Administradores"** (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
 - Linha de cima: **nome do plano** (ex.: **PME**) · se `teste_ate` e não `paga`, selo de alerta **"Teste até 27/11/2026"** (data no fuso do tenant; 14 dias a partir de 14/11 terminam em 27/11, `fimDoTeste`) · valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, por isso sai o selo "Mensal"/"Anual", ajustado pelo P4 do corretor) · à direita **"Trocar de plano"** (principal: é a única ação da aba).
 - Tabela **Licenças · Em uso · Contratadas** (`licencas[]`, `em_uso` e `contratadas`): **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (com o ícone do §11.10) só quando contratados (`contratadas` ≠ 0). `contratadas` = `null`: **"sem limite"**. Em uso = contratadas: número em cor de alerta **com o texto "no limite"** (ex.: **"2 · no limite"**; cor nunca sozinha).
-- ~~Embaixo, uma linha: "Adicionais: Promotor avulso · Pesquisa" (some se não houver).~~ **Sai:** repetia as linhas Promotor Avulso e Pesquisa da tabela (uma informação, um lugar).
 - **"Trocar de plano"**: o cartão dá lugar ao **mesmo seletor do Criar empresa** (Plano + Adicionais + Ciclo, sem a caixa de teste), com o plano atual marcado **"Atual"** (selo Névoa `#ECEEF1`, texto `#34404D`, a mesma cor do "Atual" da Escolha a empresa, MC-0039) e já selecionado, os adicionais e as quantidades atuais marcados; ao mudar, o botão vira **"Trocar para {plano}"** (principal) + **"Cancelar"**, com a linha **"Total: R$ 20.590,00/ano"** ao lado. Sem mudança, o botão fica desabilitado como **"Trocar de plano"**. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
   - Sucesso: aviso success fechável **"Plano trocado: Enterprise."**
-  - Plano abaixo do uso (`conferirTrocaDePlano` na tela; 422 `PLANO_ABAIXO_DO_USO` na API, `detalhes.problemas[].mensagem`): erro no cartão do plano, uma linha por item, botão desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** ~~"{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."~~ A frase do contrato não diz a ação: pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
+  - Plano abaixo do uso (`conferirTrocaDePlano` na tela; 422 `PLANO_ABAIXO_DO_USO` na API, `detalhes.problemas[].mensagem`): erro no cartão do plano, uma linha por item, botão desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** A frase do contrato não diz a ação: pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
   - Plano atual fora de venda (`PLANO_INATIVO`): **"O plano {nome} não está mais à venda."** (do contrato), no cartão dele.
   - Quando a troca vale e como cobra: a tela não explica cobrança.
 - **Decidido em 14/11 (dono do produto):** o admin do cliente **só vê** o cartão (plano, selo do teste, valor, tabela), **sem "Trocar de plano"** (o `PUT` é só do super-admin). O cartão "Administradores" não aparece para ele (só time Macuxi, §8). Simulação: `depois-06c-aba-empresa-cliente.png`.
@@ -374,6 +365,9 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam nos diálogos + 2 "Volte à lista de empresas." + 1 "Vale até …" + 1 "Adicionais: …" = **66**.
 
 ### 13.4 Para o engenheiro-apps (além do §10.5 e do §11.8)
+- testIDs ficam; mudam os asserts de texto (`TEXTOS_*`, `CARTAO_DA_ENTIDADE`, `ROTULO_MODO`, `TEXTOS_ADMINS`, `TEXTOS_PORTAL_DIAGNOSTICOS`). Saem `empresa.codigo`, `empresa.alcada-*`, `empresa.validade-orcamento`, `empresa.aplicacao-orcamento`, `empresa.conferir`, `empresa.admin-existente`; entra `empresa.uf`.
+- `CARTAO_DA_ENTIDADE[*].descricao` e `ROTULO_MODULO[*].ajuda` saem do código.
+- Código UF+4 depende da API (`CriarEmpresaSchema` com `uf` e sem `codigo`; resposta com `codigo`) — dono: engenheiro-software/modulo-core. O modo falso (`lib/portal-falso.ts`) gera `AM4821` igual.
 - **RD-0262:** apagar os 3 diálogos de `base.tsx` e o que só eles usam; `lib/portal-saida.ts` fica só com o que a sessão usa, ou sai com o teste.
 - **RD-0263:** `hora` e `tomDaSituacao` num lugar só (`base.tsx` ou `lib/portal.ts`).
 - **RD-0288:** uma constante `TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.'` em `lib/portal-api.ts`.
@@ -388,7 +382,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | P1 | 03b com a caixa do teste marcada | aceito: caixa vazia (decisão de 14/11) | §11.3; `depois-03b` |
 | P2 | campo só leitura "Situação: Ativa" no cartão Empresa | aceito: o campo sai | §11.2; `depois-03b` |
 | P3 | estado 7 "não ativa" só alerta | aceito: erro (borda vermelha), "CNPJ baixado na Receita. Use um CNPJ ativo." e equivalentes; "Criar empresa" bloqueado | §11.2; `depois-03c` |
-| P3 (estado 6) | Receita fora com "Preencha os campos" | aceito: bloqueia; "A Receita não respondeu. Tente de novo em alguns minutos." (API: 503 com `Retry-After`) | §11.2; `depois-03c` |
+| P3 (estado 6) | Receita fora com "Preencha os campos" | aceito: bloqueia; "A Receita não respondeu." e o link "Tentar de novo" (API: 503 com `Retry-After`) | §11.2; `depois-03c` |
 | P4 | selo "Mensal"/"Anual" no cartão Plano | aceito: sai (o "/mês" do valor já diz) | §11.4; `depois-06b`, `depois-06c` |
 | P5 | adicionais em "/mês" no Anual | aceito: seguem o ciclo pelo `valorDaAssinatura` | §11.3; `depois-06b` |
 | P6 | "Versão 1.4.0 · 38 MB" | aceito: só "38 MB" | §10.2; `depois-05b` |
@@ -409,4 +403,5 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).
 - **Placares antigos** (§Placar, §10.4, §11.6): substituídos pelo §13.3, o único.
+- **§11.4, linha "Adicionais: Promotor avulso · Pesquisa"** embaixo da tabela: saiu (repetia as linhas da tabela). **Texto antigo da troca abaixo do uso** ("{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."): trocado pelo do contrato.
 - **Simulações de registro** `depois-03-nova-empresa`, `depois-04-bases`, `depois-05-integracao`, `depois-06-aba-empresa`: apagadas (MC-0036); no git até o commit `8fa541e`.
