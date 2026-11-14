@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { itensDoPedidoVisiveis, prazoMedioDias, resumoDeVisitas, ultimosItensComprados } from './performance-cliente';
+import { itensDoPedidoVisiveis, prazoMedioDoCliente, resumoDeVisitas, ultimosItensComprados } from './performance-cliente';
 
 const ped = (id: string, dias: number | null | undefined, status = 'approved', deleted_at: string | null = null) => ({ id, status, deleted_at, prazo_medio_dias: dias, data: '2026-11-01T10:00:00.000Z' });
 const it_ = (produto_id: string, quando: string, quantidade: number, preco: number, unidade: string | null = 'CX') => ({ produto_id, produto_nome: `P ${produto_id}`, quantidade, unidade, preco_unitario_cents: preco, data: quando });
 
 describe('RN-CORE-50: aba Performance do cliente', () => {
   it('RN-CORE-50: prazo médio é a média, em dias, do prazo dos pedidos do cliente; pedido sem prazo não entra', () => {
-    expect(prazoMedioDias([ped('a', 28), ped('b', 14), ped('c', null), ped('d', undefined)])).toBe(21);
-    expect(prazoMedioDias([ped('a', 10), ped('b', 15)])).toBe(13);
+    expect(prazoMedioDoCliente([ped('a', 28), ped('b', 14), ped('c', null), ped('d', undefined)])).toBe(21);
+    expect(prazoMedioDoCliente([ped('a', 10), ped('b', 15)])).toBe(13);
   });
   it('RN-CORE-50: sem pedido com prazo, o prazo médio é nulo (a seção não aparece)', () => {
-    expect(prazoMedioDias([])).toBeNull();
-    expect(prazoMedioDias([ped('a', null)])).toBeNull();
+    expect(prazoMedioDoCliente([])).toBeNull();
+    expect(prazoMedioDoCliente([ped('a', null)])).toBeNull();
   });
   it('RN-CORE-50: rascunho, cancelado, rejeitado e pedido apagado não contam no prazo médio nem nos itens', () => {
     const peds = [ped('a', 30), ped('b', 0, 'draft'), ped('c', 0, 'cancelled'), ped('d', 0, 'rejected'), ped('e', 0, 'approved', '2026-11-02T00:00:00Z')];
-    expect(prazoMedioDias(peds)).toBe(30);
+    expect(prazoMedioDoCliente(peds)).toBe(30);
     const itens = [{ pedido_id: 'a', produto_id: 'p1' }, { pedido_id: 'b', produto_id: 'p2' }, { pedido_id: 'e', produto_id: 'p3' }];
     expect(itensDoPedidoVisiveis(peds, itens).map((i) => i.produto_id)).toEqual(['p1']);
   });

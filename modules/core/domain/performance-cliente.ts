@@ -16,7 +16,7 @@ export interface PedidoParaPerformance {
 const vale = (p: PedidoParaPerformance) => p.deleted_at === null && !STATUS_FORA.has(p.status);
 
 /** RN-CORE-50: média, em dias, do prazo dos pedidos do cliente (inteiro); sem nenhum pedido com prazo, nulo. */
-export function prazoMedioDias(pedidos: readonly PedidoParaPerformance[]): number | null {
+export function prazoMedioDoCliente(pedidos: readonly PedidoParaPerformance[]): number | null {
   const prazos = pedidos.filter((p) => vale(p) && typeof p.prazo_medio_dias === 'number').map((p) => p.prazo_medio_dias as number);
   if (prazos.length === 0) return null;
   return Math.round(prazos.reduce((s, x) => s + x, 0) / prazos.length);

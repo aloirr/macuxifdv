@@ -12,7 +12,7 @@ Mostra, nesta ordem, só o que existe no aparelho (seção sem dado não aparece
 - **Sugestão de mix**: extensão `cliente.abas` id `mix` (Vendedor), renderizada aqui; saiu do Resumo.
 - Promotor sem `promotor_ve_pedidos` (RN-PRO-01): sem prazo médio e sem itens.
 
-Domínio: `domain/performance-cliente.ts` (`prazoMedioDias`, `itensDoPedidoVisiveis`, `ultimosItensComprados`, `resumoDeVisitas`). Dados: linhas `pedido`, `pedido_item` (contratos do Vendedor), `visita` e `cliente_ultima_visita` do aparelho.
+Domínio: `domain/performance-cliente.ts` (`prazoMedioDoCliente`, `itensDoPedidoVisiveis`, `ultimosItensComprados`, `resumoDeVisitas`). Dados: linhas `pedido`, `pedido_item` (contratos do Vendedor), `visita` e `cliente_ultima_visita` do aparelho.
 
 Limites do dado: `visita` traz só as do usuário e da equipe em 40 dias, então "Visitas" é a contagem do que o aparelho tem; o nome de quem visitou só é conhecido pelo nome do vendedor nos pedidos do cliente (a linha de visita só tem `usuario_id`).
 

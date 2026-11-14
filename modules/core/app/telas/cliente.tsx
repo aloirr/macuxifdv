@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDias, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDoCliente, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
 import { AbaPerformance } from '../components/aba-performance';
 import { AbaCompras, AbaDadosCadastrais, AbaFinanceiro, AcoesContato, BlocoFotosPdv, BotaoFotoPdv, enderecoDoCliente, IndicadoresResumo, nomeDoCliente, TagsCliente } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -238,7 +238,7 @@ export function TelaCliente() {
           <AbaCompras ficha={ficha} hoje={hoje} pedidos={PedidosComp && abaPedidos ? <View testID={abaPedidos.payload.testID}><PedidosComp contexto={contexto} /></View> : undefined} />
         ) : aba === 'performance' ? (
           <AbaPerformance
-            dados={{ visitas, quemVisitou, prazoMedio: ficha.pedidos_visiveis ? prazoMedioDias(pedidosDoCliente) : null, curvas, itens: ficha.pedidos_visiveis ? itensComprados : [] }}
+            dados={{ visitas, quemVisitou, prazoMedio: ficha.pedidos_visiveis ? prazoMedioDoCliente(pedidosDoCliente) : null, curvas, itens: ficha.pedidos_visiveis ? itensComprados : [] }}
             mix={MixComp && abaMix ? (
               <View testID={abaMix.payload.testID} style={{ gap: 8 }}>
                 <SectionHeader title={abaMix.payload.rotulo} />
