@@ -81,6 +81,23 @@ export const ClienteUltimaVisitaSyncSchema = z
   .strict();
 export type ClienteUltimaVisitaSync = z.infer<typeof ClienteUltimaVisitaSyncSchema>;
 
+/**
+ * RN-CORE-50 (cliente_visita_resumo@1): resumo das visitas do cliente no servidor, de QUALQUER usuário e sem janela, lido da
+ * view `core.v_cliente_visita_resumo`. `id` = `cliente_id`. `ultima_visita_em` em UTC (a tela mostra a data no fuso do tenant).
+ * Sem linha no aparelho, a aba Performance usa o cálculo local (`visita` + `cliente_ultima_visita`).
+ */
+export const ClienteVisitaResumoSyncSchema = z
+  .object({
+    ...Base,
+    cliente_id: z.string().uuid(),
+    total_visitas: z.number().int().min(0),
+    ultima_visita_em: z.string().datetime({ offset: true }).nullable(),
+    ultima_visita_usuario_id: z.string().uuid().nullable(),
+    ultima_visita_usuario_nome: z.string().nullable(),
+  })
+  .strict();
+export type ClienteVisitaResumoSync = z.infer<typeof ClienteVisitaResumoSyncSchema>;
+
 export const CarteiraSyncSchema = z
   .object({
     ...Base,

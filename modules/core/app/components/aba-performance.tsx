@@ -1,6 +1,7 @@
 /**
  * Aba Performance da ficha do cliente (RN-CORE-50): visitas (total e última), prazo médio, curvas ABC (RN-CORE-49), últimos
- * itens comprados e a sugestão de mix (extensão `cliente.abas` id `mix`, montada pela tela). Só o que há no aparelho; seção sem dado não aparece.
+ * itens comprados e a sugestão de mix (extensão `cliente.abas` id `mix`, montada pela tela). Visitas: resumo do servidor
+ * (`cliente_visita_resumo`) quando sincronizado, senão o que o aparelho tem. Seção sem dado não aparece.
  */
 import { formatBRL } from '@macuxi/comum';
 import { Badge, Card, SectionHeader, colors, type as t } from '@macuxi/ui/mobile';

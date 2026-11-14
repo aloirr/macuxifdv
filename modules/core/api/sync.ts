@@ -1,7 +1,7 @@
 /**
  * Provedores de sync do Core (T-0003 Fase 2, T-0017, T-0018; desenho T-0016 §2; ADR 0009):
  * pull de `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`,
- * `motivo`, `rota`, `rota_parada`, `visita`, `meta` e `indicador_diario` (T-0020); push de `visita` (check-in) e `visita_checkout` (`visita-push.ts`).
+ * `motivo`, `rota`, `rota_parada`, `visita`, `meta`, `indicador_diario` (T-0020) e `cliente_visita_resumo` (RN-CORE-50, view); push de `visita` (check-in) e `visita_checkout` (`visita-push.ts`).
  * Todos: `updated_at < pedido.ate` (horizonte seguro) e `(updated_at, id) > desde`, ordenados, `limit`, `updated_at`
  * com microssegundos, removidos incluídos (`deleted_at`) e filtrados pela carteira do usuário (RN-CORE-04) quando
  * a entidade é de cliente (`escopo: 'carteira'`: a API devolve `versao_escopo` e o aparelho ressincroniza quando a
@@ -20,6 +20,7 @@ import {
   FilialSyncSchema,
   UsuarioSyncSchema,
   ClienteUltimaVisitaSyncSchema,
+  ClienteVisitaResumoSyncSchema,
   FotoTipoSyncSchema,
   MedidaSyncSchema,
   ProdutoUnidadeSyncSchema,
@@ -97,6 +98,12 @@ export const TABELAS_SYNC = {
   cliente_ultima_visita: {
     tabela: "(select v.cliente_id as id, v.cliente_id, max(v.updated_at) as updated_at, null::timestamptz as deleted_at, null::text as external_id, to_char(max(v.data_local), 'YYYY-MM-DD') as ultima_visita_data from core.visita v where v.deleted_at is null group by v.cliente_id) as cliente_ultima_visita",
     colunas: 'cliente_id, ultima_visita_data',
+    colunaCliente: 'cliente_id',
+  },
+  // RN-CORE-50 (cliente_visita_resumo@1): total de visitas e última visita (instante UTC, quem e nome) de qualquer usuário, da view do banco-dados
+  cliente_visita_resumo: {
+    tabela: '(select r.cliente_id as id, r.cliente_id, r.updated_at, null::timestamptz as deleted_at, null::text as external_id, r.total_visitas, r.ultima_visita_em, r.ultima_visita_usuario_id, r.ultima_visita_usuario_nome from core.v_cliente_visita_resumo r) as cliente_visita_resumo',
+    colunas: `cliente_id, total_visitas::int as total_visitas, to_char(ultima_visita_em at time zone 'UTC', ${UTC}) as ultima_visita_em, ultima_visita_usuario_id, ultima_visita_usuario_nome`,
     colunaCliente: 'cliente_id',
   },
   foto_tipo: { tabela: 'core.foto_tipo', colunas: 'nome, obrigatorio, sensivel, fachada, ordem, ativo', colunaCliente: null },
@@ -263,6 +270,7 @@ export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
 export const entidadeUsuario = pull('usuario', UsuarioSyncSchema);
 export const entidadeClienteUltimaVisita = pull('cliente_ultima_visita', ClienteUltimaVisitaSyncSchema);
+export const entidadeClienteVisitaResumo = pull('cliente_visita_resumo', ClienteVisitaResumoSyncSchema);
 export const entidadeFotoTipo = pull('foto_tipo', FotoTipoSyncSchema);
 /** Foto do PDV (RN-CORE-38): o aparelho envia o comando (`ClienteFotoPushSchema`) e recebe a linha (`ClienteFotoSyncSchema`); os bytes vão pela fila de arquivos. */
 export const entidadeClienteFoto = definirEntidadeSync({ nome: 'cliente_foto', modulo: 'core', direcao: 'ambos', conflito: 'servidor_vence', schema: ClienteFotoPushSchema, schemaLinha: ClienteFotoSyncSchema });
@@ -307,6 +315,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeFilial, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.filial) },
   { entidade: entidadeUsuario, escopo: 'usuarios', puxar: puxarDe(TABELAS_SYNC.usuario) },
   { entidade: entidadeClienteUltimaVisita, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_ultima_visita) },
+  { entidade: entidadeClienteVisitaResumo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_visita_resumo) },
   { entidade: entidadeFotoTipo, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.foto_tipo) },
   { entidade: entidadeClienteFoto, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_foto), receber: receberFotosPdv },
   { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },

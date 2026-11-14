@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { itensDoPedidoVisiveis, prazoMedioDoCliente, resumoDeVisitas, ultimosItensComprados } from './performance-cliente';
+import { itensDoPedidoVisiveis, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados } from './performance-cliente';
 
 const ped = (id: string, dias: number | null | undefined, status = 'approved', deleted_at: string | null = null) => ({ id, status, deleted_at, prazo_medio_dias: dias, data: '2026-11-01T10:00:00.000Z' });
 const it_ = (produto_id: string, quando: string, quantidade: number, preco: number, unidade: string | null = 'CX') => ({ produto_id, produto_nome: `P ${produto_id}`, quantidade, unidade, preco_unitario_cents: preco, data: quando });
@@ -32,16 +32,47 @@ describe('RN-CORE-50: aba Performance do cliente', () => {
   });
   it('RN-CORE-50: visitas: total, data e quem visitou por último (a data do sync vale se for mais recente)', () => {
     const v = [{ usuario_id: 'u1', checkin_em: '2026-11-03T12:00:00.000Z' }, { usuario_id: 'u2', checkin_em: '2026-11-10T12:00:00.000Z' }];
-    expect(resumoDeVisitas(v, 'America/Sao_Paulo', null)).toEqual({ total: 2, ultima_data: '2026-11-10', ultimo_usuario_id: 'u2' });
-    expect(resumoDeVisitas(v, 'America/Sao_Paulo', '2026-11-12')).toEqual({ total: 2, ultima_data: '2026-11-12', ultimo_usuario_id: null });
-    expect(resumoDeVisitas([], 'America/Sao_Paulo', null)).toEqual({ total: 0, ultima_data: null, ultimo_usuario_id: null });
+    expect(resumoDeVisitas(v, 'America/Sao_Paulo', null)).toEqual({ total: 2, ultima_data: '2026-11-10', ultimo_usuario_id: 'u2', ultimo_usuario_nome: null });
+    expect(resumoDeVisitas(v, 'America/Sao_Paulo', '2026-11-12')).toEqual({ total: 2, ultima_data: '2026-11-12', ultimo_usuario_id: null, ultimo_usuario_nome: null });
+    expect(resumoDeVisitas([], 'America/Sao_Paulo', null)).toEqual({ total: 0, ultima_data: null, ultimo_usuario_id: null, ultimo_usuario_nome: null });
+  });
+  const resumo = (o: Partial<{ total_visitas: number; ultima_visita_em: string | null; ultima_visita_usuario_id: string | null; ultima_visita_usuario_nome: string | null }> = {}) => ({
+    total_visitas: 37,
+    ultima_visita_em: '2026-11-13T02:30:00.000000Z',
+    ultima_visita_usuario_id: 'u9',
+    ultima_visita_usuario_nome: 'Ana Souza',
+    ...o,
+  });
+  it('RN-CORE-50: com o resumo do servidor, o total é o do servidor e a última visita traz data no fuso do tenant e nome', () => {
+    const v = [{ usuario_id: 'u1', checkin_em: '2026-11-03T12:00:00.000Z' }];
+    // 02:30 UTC de 13/11 = 22:30 de 12/11 em Manaus
+    expect(resumoDeVisitas(v, 'America/Manaus', '2026-11-12', resumo())).toEqual({ total: 37, ultima_data: '2026-11-12', ultimo_usuario_id: 'u9', ultimo_usuario_nome: 'Ana Souza' });
+  });
+  it('RN-CORE-50: check-in do aparelho depois do resumo soma no total e vira a última visita', () => {
+    const v = [
+      { usuario_id: 'u1', checkin_em: '2026-11-10T12:00:00.000Z' },
+      { usuario_id: 'u1', checkin_em: '2026-11-14T13:00:00.000Z' },
+    ];
+    expect(resumoDeVisitas(v, 'America/Manaus', null, resumo())).toEqual({ total: 38, ultima_data: '2026-11-14', ultimo_usuario_id: 'u1', ultimo_usuario_nome: null });
+  });
+  it('RN-CORE-50: resumo de cliente sem visita no servidor usa o que o aparelho tem', () => {
+    const v = [{ usuario_id: 'u1', checkin_em: '2026-11-14T13:00:00.000Z' }];
+    expect(resumoDeVisitas(v, 'America/Manaus', null, resumo({ total_visitas: 0, ultima_visita_em: null, ultima_visita_usuario_id: null, ultima_visita_usuario_nome: null }))).toEqual({ total: 1, ultima_data: '2026-11-14', ultimo_usuario_id: 'u1', ultimo_usuario_nome: null });
+  });
+  it('RN-CORE-50: quem visitou por último: "Você" para o próprio usuário, senão o nome do resumo ou dos pedidos', () => {
+    const r = { total: 1, ultima_data: '2026-11-12', ultimo_usuario_id: 'u9', ultimo_usuario_nome: 'Ana Souza' };
+    expect(quemVisitouPorUltimo(r, 'u9', new Map())).toBe('Você');
+    expect(quemVisitouPorUltimo(r, 'u1', new Map([['u9', 'Outro']]))).toBe('Ana Souza');
+    expect(quemVisitouPorUltimo({ ...r, ultimo_usuario_nome: null }, 'u1', new Map([['u9', 'Bruno']]))).toBe('Bruno');
+    expect(quemVisitouPorUltimo({ ...r, ultimo_usuario_nome: null }, 'u1', new Map())).toBeNull();
+    expect(quemVisitouPorUltimo({ ...r, ultimo_usuario_id: null }, 'u1', new Map())).toBeNull();
   });
 });
 
 describe('RN-CORE-51: botão Pesquisa no rodapé e checkout só com atendimento aberto', () => {
   it('RN-CORE-51: o rodapé mostra Pesquisa se a extensão existe; Checkout só com atendimento aberto neste cliente', async () => {
     const { botoesDoRodapeCliente } = await import('./performance-cliente');
-    expect(botoesDoRodapeCliente({ temPesquisa: true, atendimentoAqui: false })).toEqual({ checkout: false, pesquisa: true });
-    expect(botoesDoRodapeCliente({ temPesquisa: false, atendimentoAqui: true })).toEqual({ checkout: true, pesquisa: false });
+    expect(botoesDoRodapeCliente({ temPesquisa: true, atendimentoAqui: false, checkinPermitido: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ temPesquisa: false, atendimentoAqui: true, checkinPermitido: true })).toEqual({ checkin: false, checkout: true, pesquisa: false });
   });
 });

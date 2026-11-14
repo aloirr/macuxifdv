@@ -13,18 +13,11 @@ export type CheckinPhase =
   | { kind: 'justificar'; distancia_m: number; raio_m: number }
   | { kind: 'done'; visitId: string; at: string; gps: boolean; foraDoRaio?: boolean; sugereCoordenada?: boolean };
 
-/** Ação de destaque do slot `cliente.acoes` (ex.: "Novo pedido" do Vendedor); sem ela, a folha só tem "Continuar". */
-export interface AcaoDaFolha {
-  rotulo: string;
-  testID: string;
-  onPress: () => void;
-}
-
-export function CheckinSheet({ phase, customerName, onClose, acao, onJustificar }: { phase: CheckinPhase | null; customerName: string; onClose: () => void; acao?: AcaoDaFolha; onJustificar?: (texto: string) => void }) {
+export function CheckinSheet({ phase, customerName, onClose, onJustificar }: { phase: CheckinPhase | null; customerName: string; onClose: () => void; onJustificar?: (texto: string) => void }) {
   const [texto, setTexto] = useState('');
   const localizando = phase?.kind === 'locating';
-  // rodapé em texto: o botão principal é o da própria folha (registrar ou ação do slot)
-  const rodape = phase?.kind === 'justificar' ? { rotulo: 'Cancelar', onPress: onClose, testID: 'checkin-cancelar' } : phase?.kind === 'done' ? { rotulo: 'Continuar', onPress: onClose, testID: 'checkin-continue' } : undefined;
+  // rodapé: depois do check-in, a folha só abre a ficha do cliente (o único "Novo pedido" fica lá)
+  const rodape = phase?.kind === 'justificar' ? { rotulo: 'Cancelar', onPress: onClose, testID: 'checkin-cancelar' } : phase?.kind === 'done' ? { rotulo: 'Abrir ficha do cliente', onPress: onClose, testID: 'checkin-abrir-ficha' } : undefined;
   return (
     <Folha visivel={phase !== null} onFechar={localizando ? () => undefined : onClose} rotuloFechar="Fechar" rotuloAcessivel="Check-in" rodape={rodape} evitarTeclado testID="checkin-sheet">
       {phase?.kind === 'locating' ? (
@@ -70,7 +63,6 @@ export function CheckinSheet({ phase, customerName, onClose, acao, onJustificar 
             </View>
           </View>
           {phase.foraDoRaio ? <ChipEstado texto="Fora do raio · justificado" tom="aviso" /> : null}
-          {acao ? <Botao testID={acao.testID} nivel="principal" icone="plus" rotulo={acao.rotulo} onPress={acao.onPress} /> : null}
         </View>
       ) : null}
     </Folha>

@@ -164,7 +164,7 @@ describe('T-0004 §5: provedores de pull do Core', () => {
 
   it('registra os provedores do Core (T-0017/T-0018): pull com escopo declarado; visita também recebe check-in, cliente_foto recebe o envio da foto do PDV (T-0147) e visita_checkout só recebe', () => {
     const nomes = provedoresSyncCore.map((p) => p.entidade.nome).sort();
-    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'cliente_foto', 'cliente_ultima_visita', 'filial', 'foto_tipo', 'historico_compra', 'indicador_diario', 'medida', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'usuario', 'visita', 'visita_checkout']);
+    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'cliente_foto', 'cliente_ultima_visita', 'cliente_visita_resumo', 'filial', 'foto_tipo', 'historico_compra', 'indicador_diario', 'medida', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'usuario', 'visita', 'visita_checkout']);
     const escopo: Record<string, string> = { produto: 'tenant', produto_unidade: 'tenant', medida: 'tenant', filial: 'tenant', foto_tipo: 'tenant', motivo: 'tenant', parametro: 'tenant', usuario: 'usuarios', rota: 'usuarios', rota_parada: 'usuarios', visita: 'usuarios', meta: 'usuarios', indicador_diario: 'usuarios' };
     for (const p of provedoresSyncCore.filter((x) => x.puxar)) expect(p.escopo, p.entidade.nome).toBe(escopo[p.entidade.nome] ?? 'carteira');
     for (const p of provedoresSyncCore) {
@@ -173,8 +173,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
       expect(Boolean(p.receber), p.entidade.nome).toBe(comEscrita);
       expect(p.entidade.direcao, p.entidade.nome).toBe(p.entidade.nome === 'visita' || p.entidade.nome === 'cliente_foto' ? 'ambos' : p.entidade.nome === 'visita_checkout' ? 'push' : 'pull');
     }
-    // 20 do Core (com meta e indicador_diario, T-0020, medida, T-0063, usuario, T-0168, e cliente_ultima_visita, T-0171) + notificacao e notificacao_leitura (T-0019, provedores próprios) + 6 de provedoresSyncT0170 (tarefa, tarefa_conclusao, frase_dia, usuario_avatar, meta_produtividade, deslocamento_dia) = 31
-    expect(moduloApi.sync).toHaveLength(31);
+    // 20 do Core (com meta e indicador_diario, T-0020, medida, T-0063, usuario, T-0168, cliente_ultima_visita, T-0171, e cliente_visita_resumo, RN-CORE-50) + notificacao e notificacao_leitura (T-0019, provedores próprios) + 6 de provedoresSyncT0170 (tarefa, tarefa_conclusao, frase_dia, usuario_avatar, meta_produtividade, deslocamento_dia) = 32
+    expect(moduloApi.sync).toHaveLength(32);
   });
 
   it('pull usa horizonte, cursor (updated_at, id), ordem, limite e microssegundos', () => {
@@ -210,6 +210,21 @@ describe('T-0004 §5: provedores de pull do Core', () => {
     expect(t.tabela).toMatch(/group by v\.cliente_id/);
     expect(t.tabela).toMatch(/v.deleted_at is null/);
     expect(sqlDoPull(t, pedido, new Set(['c1'])).sql).toContain('and cliente_id = any($5::uuid[])');
+  });
+
+  it('RN-CORE-50: cliente_visita_resumo lê a view do banco (id = cliente), instante em UTC e filtra pela carteira do vendedor ou da equipe', () => {
+    const t = TABELAS_SYNC.cliente_visita_resumo;
+    expect(t.tabela).toMatch(/from core\.v_cliente_visita_resumo/);
+    expect(t.tabela).toMatch(/cliente_id as id/);
+    expect(t.tabela).not.toMatch(/core\.visita\b/);
+    expect(t.colunas).toContain('total_visitas');
+    expect(t.colunas).toContain('ultima_visita_usuario_id, ultima_visita_usuario_nome');
+    expect(t.colunas).toMatch(/to_char\(ultima_visita_em at time zone 'UTC', .*\) as ultima_visita_em/);
+    const { sql, valores } = sqlDoPull(t, pedido, new Set(['c1', 'c2']));
+    expect(sql).toContain('and cliente_id = any($5::uuid[])');
+    expect(sql).toMatch(/\(updated_at, id\) > \(\$2::timestamptz, \$3::uuid\)/);
+    expect(valores[4]).toEqual(['c1', 'c2']);
+    expect(provedoresSyncCore.find((p) => p.entidade.nome === 'cliente_visita_resumo')?.escopo).toBe('carteira');
   });
 
   it('RN-CORE-04: carteira vazia devolve zero linhas (filtro com conjunto vazio, nunca "tudo")', () => {

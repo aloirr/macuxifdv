@@ -1,10 +1,10 @@
 /**
  * Ficha do cliente (Cliente.dc.html) em seis abas: Resumo · Cadastro (Dados cadastrais) · Financeiro · Compras · Performance · Anexos.
  * Faixa Azul noite no topo (nome, endereço e "cliente desde"), abas paradas logo abaixo e o conteúdo rolando; o rodapé
- * ("Checkout" só com atendimento aberto neste cliente, "Pesquisa" e ações `cliente.acoes`) fica visível em todas as abas. Alertas (visita aberta, etapa pendente, `cliente.avisos`,
+ * ("Check-in" sem atendimento aberto neste cliente ou "Checkout" com, "Pesquisa" e ações `cliente.acoes`) fica visível em todas as abas. Alertas (visita aberta, etapa pendente, `cliente.avisos`,
  * erro de foto) ficam no topo do conteúdo em todas as abas. Lê só do aparelho (offline-first, linhas do sync).
- * Check-in único (RN-CORE-13): o botão de check-in saiu do rodapé (RN-CORE-51); o check-in vem do Início/Rota (`?checkin=1`) e,
- * com atendimento aberto em outro cliente, fica bloqueado; o pedido continua liberado.
+ * Check-in único (RN-CORE-13): o botão de check-in vive só aqui e na Rota (`?checkin=1`; RN-CORE-51); com atendimento aberto em outro
+ * cliente, fica bloqueado; o pedido continua liberado. Cliente fora da rota do dia só com a ação `visita.checkin_fora_de_rota` (RN-CORE-52).
  *
  * Pontos de extensão que o Core oferece aqui (contracts/extensoes.ts):
  *  - `cliente.abas`  → "ultimos-pedidos" (Vendedor) entra em Compras, dentro de "Histórico de Pedidos"; "mix" entra na Performance;
@@ -13,14 +13,14 @@
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
  * Curvas ABC (RN-CORE-49), visitas, prazo médio e últimos itens (RN-CORE-50) ficam só na Performance.
  */
-import { useExtensoes } from '@macuxi/platform-sdk/react';
+import { useExtensoes, usePode } from '@macuxi/platform-sdk/react';
 import { Abas, BackLink, Badge, Banner, Button, CabecalhoTela, Folha, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDoCliente, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, checkinPermitido, ACAO_CHECKIN_FORA_DE_ROTA, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDoCliente, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
 import { AbaPerformance } from '../components/aba-performance';
 import { AbaCompras, AbaDadosCadastrais, AbaFinanceiro, AcoesContato, BlocoFotosPdv, BotaoFotoPdv, enderecoDoCliente, IndicadoresResumo, nomeDoCliente, TagsCliente } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -44,6 +44,7 @@ export function TelaCliente() {
   const abasTodas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
   const acoesTodas = useExtensoes<AcaoCliente>('cliente.acoes');
   const avisosExt = useExtensoes<AvisoCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.avisos');
+  const podeForaDeRota = usePode(ACAO_CHECKIN_FORA_DE_ROTA);
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
   // RN-PRO-01 / RN-CORE-01: promotor com `promotor_ve_pedidos` desligado não vê pedidos (offline, pelo parâmetro sincronizado):
@@ -117,15 +118,17 @@ export function TelaCliente() {
     if (phase?.kind === 'done' && !estado.visitas.some((v) => v.id === phase.visitId)) setPhase(null);
   }, [phase, estado.visitas]);
 
-  // "Fazer check-in" no Início/Rota abre a ficha já registrando o check-in
+  // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil. Cliente já visitado hoje não repete (RN-CORE-13)
+  const checkinLiberado = checkinPermitido({ clienteId: id, clientesDaRota: rota?.stops.map((s) => s.customer.id) ?? [], podeForaDeRota }).permitido;
+  // "Fazer check-in" na Rota abre a ficha já registrando o check-in
   useEffect(() => {
     if (params.checkin === '1' && customer && autoStarted.current !== id) {
       autoStarted.current = id;
       router.setParams({ checkin: undefined });
       if (locked) sheets.showBlocked(customer.trade_name);
-      else if (!openHere && !visited) void startCheckin();
+      else if (!openHere && !visited && checkinLiberado) void startCheckin();
     }
-  }, [params.checkin, customer, id, locked, openHere, visited, startCheckin, sheets]);
+  }, [params.checkin, customer, id, locked, openHere, visited, checkinLiberado, startCheckin, sheets]);
 
   if (!customer && !ficha) {
     return (
@@ -136,8 +139,6 @@ export function TelaCliente() {
     );
   }
 
-  // ação de destaque (ex.: "Novo pedido") também aparece na folha do check-in
-  const acaoDestaque = acoes.find((a) => a.payload.destaque) ?? acoes[0] ?? null;
   const rotuloDe = (a: AcaoCliente, ctx: ContextoCliente) => (typeof a.rotulo === 'function' ? a.rotulo(ctx) : a.rotulo);
 
   const nome = ficha ? nomeDoCliente(ficha.cliente) : (customer?.trade_name ?? '');
@@ -153,7 +154,10 @@ export function TelaCliente() {
   const PedidosComp = abaPedidos?.payload.componente;
   const MixComp = abaMix?.payload.componente;
   const PesquisaComp = abaPesquisa?.payload.componente;
-  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere });
+  const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado && !visited });
+  // Rodapé a 360 dp: com Check-in/Checkout + Pesquisa + "+ Novo pedido" os três dividem a largura (1 : 1 : 1,5) e o rótulo cai de 15 para 14
+  const tresBotoes = (botoes.checkin || botoes.checkout) && botoes.pesquisa && acoesDoRodapeCliente(acoes).length > 0;
+  const tamanhoDoRotulo = tresBotoes ? 14 : 15;
 
   // RN-CORE-50: Performance só com linhas do aparelho; pedidos só se o perfil os vê (RN-PRO-01)
   const visitasDoCliente = locais.visitasSync.filter((v) => v.cliente_id === id);
@@ -162,23 +166,25 @@ export function TelaCliente() {
   const dataDoPedido = new Map(pedidosDoCliente.map((p) => [p.id, p.data]));
   const itensComprados = ultimosItensComprados(itensVisiveis.map((i) => ({ ...i, data: dataDoPedido.get(i.pedido_id) ?? '', produto_nome: i.produto_nome ?? null, unidade: i.unidade ?? null })), 20).map((i) => ({ ...i, data_local: dataLocal(i.data, tz) }));
   const ultimaDoSync = locais.ultimasVisitas.filter((u) => u.cliente_id === id).map((u) => u.ultima_visita_data).sort().pop() ?? null;
-  const visitas = resumoDeVisitas(visitasDoCliente, tz, ultimaDoSync);
+  // RN-CORE-50: com o resumo do servidor vale o total e a última visita dele; sem ele, o cálculo local
+  const resumoServidor = locais.resumosVisita.find((r) => r.cliente_id === id) ?? null;
+  const visitas = resumoDeVisitas(visitasDoCliente, tz, ultimaDoSync, resumoServidor);
   const nomeDoVendedor = new Map(pedidosDoCliente.filter((p) => p.vendedor_nome).map((p) => [p.vendedor_id, p.vendedor_nome as string]));
-  const quemVisitou = visitas.ultimo_usuario_id ? (visitas.ultimo_usuario_id === core.vendedorId ? 'Você' : (nomeDoVendedor.get(visitas.ultimo_usuario_id) ?? null)) : null;
+  const quemVisitou = quemVisitouPorUltimo(visitas, core.vendedorId, nomeDoVendedor);
 
   const itensAbas = [
     { id: 'resumo', rotulo: 'Resumo' },
     { id: 'cadastro', rotulo: 'Cadastro' },
-    { id: 'financeiro', rotulo: 'Finanças' },
+    { id: 'financeiro', rotulo: 'Financeiro' },
     { id: 'compras', rotulo: 'Compras' },
-    { id: 'performance', rotulo: 'Perform.' },
+    { id: 'performance', rotulo: 'Performance' },
     { id: 'anexos', rotulo: 'Anexos' },
   ] as const;
 
   return (
     <View style={styles.root}>
       <CabecalhoTela titulo={nome} subtitulo={`${endereco}${desde}`} voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes' }} />
-      <Abas abas={itensAbas} valor={aba} onChange={setAba} testID="abas-cliente" />
+      <Abas abas={itensAbas} valor={aba} onChange={setAba} rolavel testID="abas-cliente" />
       <ScrollView contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
         {/* alertas ficam no topo do conteúdo em todas as abas */}
         <OpenVisitBar from={nome} clienteAtual={id} />
@@ -256,11 +262,26 @@ export function TelaCliente() {
 
       {customer ? (
         <View style={styles.footer}>
+          {botoes.checkin ? (
+            <Button
+              testID="customer-checkin"
+              label="Check-in"
+              variant={locked ? 'locked' : 'outlineDark'}
+              accessibilityLabel={locked ? `Check-in bloqueado: você está em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}` : undefined}
+              height={52}
+              style={{ flex: 1 }}
+              textStyle={{ fontSize: tamanhoDoRotulo }}
+              onPress={() => {
+                if (locked) sheets.toast(`Em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}`, 'warning');
+                else void startCheckin();
+              }}
+            />
+          ) : null}
           {botoes.checkout ? (
-            <Button testID="customer-checkout" label="Checkout" variant="dark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: 15 }} onPress={() => sheets.askCheckout()} />
+            <Button testID="customer-checkout" label="Checkout" variant="dark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: tamanhoDoRotulo }} onPress={() => sheets.askCheckout()} />
           ) : null}
           {botoes.pesquisa ? (
-            <Button testID="customer-pesquisa" label="Pesquisa" variant="outlineDark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: 15 }} onPress={() => setPesquisaAberta(true)} />
+            <Button testID="customer-pesquisa" label="Pesquisa" variant="outlineDark" height={52} style={{ flex: 1 }} textStyle={{ fontSize: tamanhoDoRotulo }} onPress={() => setPesquisaAberta(true)} />
           ) : null}
           {acoesDoRodapeCliente(acoes).map((a) => (
             <Button
@@ -270,7 +291,8 @@ export function TelaCliente() {
               icon={a.payload.icone as IconName | undefined}
               variant={a.payload.destaque ? 'accent' : 'outlineDark'}
               height={52}
-              style={{ flex: a.payload.destaque ? 2 : 1 }}
+              style={{ flex: a.payload.destaque ? (tresBotoes ? 1.5 : 2) : 1 }}
+              textStyle={{ fontSize: tamanhoDoRotulo }}
               onPress={() => a.payload.abrir(contexto)}
             />
           ))}
@@ -289,19 +311,6 @@ export function TelaCliente() {
           customerName={customer.trade_name}
           onClose={() => setPhase(null)}
           onJustificar={(texto) => void startCheckin(texto)}
-          acao={
-            acaoDestaque
-              ? {
-                  rotulo: rotuloDe(acaoDestaque.payload, { ...contexto, visitaId: phase?.kind === 'done' ? phase.visitId : contexto.visitaId }),
-                  testID: 'checkin-new-order',
-                  onPress: () => {
-                    const visitaId = phase?.kind === 'done' ? phase.visitId : contexto.visitaId;
-                    setPhase(null);
-                    acaoDestaque.payload.abrir({ ...contexto, visitaId });
-                  },
-                }
-              : undefined
-          }
         />
       ) : null}
     </View>
