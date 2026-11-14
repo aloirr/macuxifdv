@@ -77,7 +77,7 @@ export function TelaCliente() {
   const sync = useSincronizacao();
   const pendente = visitaComEtapaPendente(estado.visitas, id);
   const avisoPendente = pendente
-    ? avisoDeEtapaPendente({ ...pendente, agora: new Date(), fuso: tz, naFila: sync?.naFila ?? 0, semSinal: sync?.semSinal ?? false })
+    ? avisoDeEtapaPendente({ ...pendente, agora: new Date(), fuso: tz, naFila: sync?.naFila ?? 0 })
     : null;
 
   const contexto: ContextoCliente = { clienteId: id, nomeCliente: customer?.trade_name ?? '', visitaId: openHere && openVisit ? openVisit.id : null, paradaId: stop?.id ?? null };

@@ -24,8 +24,7 @@ export function visitaComEtapaPendente(visitas: readonly VisitaMinima[], cliente
 }
 
 /** Texto do Banner da ficha do cliente (§1.2): a segunda linha depende da fila e do sinal. */
-/** RD-0181: só pede ação sem item na fila; com a etapa na fila ela sobe sozinha e o Sincronizar já mostra "N na fila" (null). */
-export function avisoDeEtapaPendente(o: { checkin_at: string; etapas: number; agora: Date; fuso: string; naFila: number; semSinal?: boolean }): AvisoEtapaPendente | null {
+export function avisoDeEtapaPendente(o: { checkin_at: string; etapas: number; agora: Date; fuso: string; naFila: number}): AvisoEtapaPendente | null {
   if (o.naFila > 0) return null;
   const dia = dataLocal(o.checkin_at, o.fuso);
   const quando = dia === dataLocal(o.agora, o.fuso) ? 'de hoje' : `de ${dia.slice(8, 10)}/${dia.slice(5, 7)}`;

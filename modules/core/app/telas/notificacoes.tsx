@@ -39,11 +39,9 @@ export function TelaNotificacoes() {
           <Cartao preenchimento={12} gap={6} style={{ borderLeftWidth: n.lida_em ? 0 : 4, borderLeftColor: n.prioridade === 'alta' ? colors.danger : colors.accent }}>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <ChipEstado pequeno tom={n.prioridade === 'alta' ? 'erro' : 'neutro'} texto={n.prioridade === 'alta' ? 'Importante' : rotuloDoTipo[n.tipo]} />
-              {n.leituraPendente ? <ChipEstado pequeno tom="aviso" texto="Leitura não enviada" /> : null}
-              {!n.lida_em ? <ChipEstado pequeno tom="destaque" texto="Não lida" /> : null}
             </View>
             <Text style={n.lida_em ? t.body : t.bodyStrong}>{n.titulo}</Text>
-            <Text style={t.small}>{n.corpo}</Text>
+            {n.corpo ? <Text style={t.small}>{n.corpo}</Text> : null}
           </Cartao>
         </Pressable>
       ))}

@@ -70,8 +70,6 @@ export function CheckinSheet({ phase, customerName, onClose, acao, onJustificar 
             </View>
           </View>
           {phase.foraDoRaio ? <ChipEstado texto="Fora do raio · justificado" tom="aviso" /> : null}
-          {phase.sugereCoordenada ? <Text style={t.small}>Este cliente ainda não tem coordenada. Sugerimos esta posição ao gestor para aprovação.</Text> : null}
-          <Text style={t.sub}>Você está em atendimento. Outros check-ins ficam bloqueados até o checkout; pedidos para outros clientes continuam liberados.</Text>
           {acao ? <Botao testID={acao.testID} nivel="principal" icone="plus" rotulo={acao.rotulo} onPress={acao.onPress} /> : null}
         </View>
       ) : null}
