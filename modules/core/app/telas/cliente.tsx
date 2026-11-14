@@ -10,14 +10,14 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, Button, CabecalhoTela, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Banner, Button, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
 import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen, resumoSemCompras } from '../../domain';
-import { AcoesContato, BlocoFotosPdv, CabecalhoCliente, enderecoDoCliente, nomeDoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
+import { AcoesContato, BlocoFotosPdv, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
@@ -123,8 +123,8 @@ export function TelaCliente() {
   if (!customer && ficha) {
     return (
       <View style={styles.root}>
-        <CabecalhoTela testID="customer-name" titulo={nomeDoCliente(ficha.cliente)} subtitulo={enderecoDoCliente(ficha.cliente) || 'Endereço não informado'} voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes', testID: 'cliente-voltar' }} />
         <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
+          <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
           <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} clienteAtual={id} />
           <CabecalhoCliente ficha={ficha} />
           <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
@@ -151,9 +151,9 @@ export function TelaCliente() {
 
   if (!customer) {
     return (
-      <View style={styles.root}>
-        <CabecalhoTela titulo="Cliente" voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes', testID: 'cliente-voltar' }} />
-        <Text style={[t.sub, { paddingTop: 16, paddingHorizontal: 20 }]}>Cliente não está no aparelho. Sincronize para atualizar.</Text>
+      <View style={[styles.root, { paddingTop: 16, paddingHorizontal: 20 }]}>
+        <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
+        <Text style={t.sub}>Cliente não está no aparelho. Sincronize para atualizar.</Text>
       </View>
     );
   }
@@ -182,10 +182,16 @@ export function TelaCliente() {
 
   return (
     <View style={styles.root}>
-      <CabecalhoTela testID="customer-name" titulo={customer.trade_name} subtitulo={`${customer.address}, ${customer.district} · cliente desde ${since}`} voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes', testID: 'cliente-voltar' }} />
       <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
+        <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
         <OpenVisitBar from={customer.trade_name} clienteAtual={id} />
         <View style={{ gap: 6 }}>
+          <Text style={t.h1Small} testID="customer-name">
+            {customer.trade_name}
+          </Text>
+          <Text style={t.sub}>
+            {customer.address}, {customer.district} · cliente desde {since}
+          </Text>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             <Badge label={`Curva ${customer.abc_curve}`} tone={customer.abc_curve === 'A' ? 'accent' : 'neutral'} />
             <Badge label={customer.segment} tone="neutral" />
