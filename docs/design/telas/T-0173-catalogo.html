@@ -10,7 +10,7 @@
   .tela { width: 412px; }
   .phone { width: 412px; height: 915px; }
   .status.claro { background: var(--faixa); color: #fff; }
-  /* CabecalhoTela: faixa Azul noite, subtítulo acima (a contagem), SeloAtualizacao sobreFaixa à direita */
+  /* CabecalhoTela: faixa Azul noite, subtítulo abaixo do título (a contagem, como em Clientes; MC-0008), SeloAtualizacao sobreFaixa à direita */
   .fx { background: var(--faixa); padding: 4px 20px 16px; flex: none; display: flex; flex-direction: column; }
   .fx .v { display: flex; align-items: center; gap: 4px; height: 40px; color: var(--faixaSub); font-size: 14px; font-weight: 500; }
   .fx .lin { display: flex; align-items: center; gap: 8px; }
@@ -51,7 +51,7 @@
 </head>
 <body>
 <h1 class="prancha">Catálogo em grade · marca v1 (T-0173)</h1>
-<p class="prancha">R-20261112-180555, -181237 e -181527 (Alexandre); RN-VEN-01 (catálogo sem cliente). Igual à simulação de marca: faixa Azul noite com a contagem e a hora do sync, busca, sistema e categoria em chips, grade de 2 colunas com foto ou inicial, nome, marca, preço e estoque. Saem "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</p>
+<p class="prancha">R-20261112-180555, -181237 e -181527 (Alexandre); RN-VEN-01 (catálogo sem cliente). Igual à simulação de marca: faixa Azul noite com a contagem e a hora do sync, busca, sistema e categoria em chips, grade de 2 colunas com foto, nome, marca, preço e estoque. Saem "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</p>
 
 <div class="board">
 
@@ -60,17 +60,17 @@
     <div class="legenda"><b>1</b>Aberto pelo menu (sem cliente)<span>Preço da filial padrão do vendedor; sem preço na filial, "Sem preço".</span></div>
     <div class="phone">
       <div class="status claro"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
-      <div class="fx"><div class="lin"><div><span class="s">40 produtos</span><span class="t">Catálogo</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
+      <div class="fx"><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
         <div class="grade">
           <div class="card"><div class="foto img"><svg width="76" height="96" viewBox="0 0 76 96"><rect x="14" y="20" width="48" height="70" rx="8" fill="#6B4A2E"/><rect x="14" y="40" width="48" height="30" fill="#E9D8B4"/><text x="38" y="60" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="11" fill="#6B4A2E">CAFÉ</text><rect x="20" y="10" width="36" height="12" rx="3" fill="#4E3521"/></svg></div><span class="n">Café torrado 500 g</span><span class="m">Serra Alta</span><span class="p">R$ 13,40</span><span class="tg"><span class="ce suc">84 em estoque</span></span></div>
           <div class="card"><div class="foto img"><svg width="60" height="100" viewBox="0 0 60 100"><rect x="22" y="2" width="16" height="10" rx="2" fill="#2F6FA8"/><path d="M20 12h20l6 14v66a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V26z" fill="#CFE6F5" stroke="#8DB9D9" stroke-width="2"/><rect x="14" y="44" width="32" height="22" fill="#2F6FA8"/><text x="30" y="59" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="8" fill="#fff">ÁGUA</text></svg></div><span class="n">Água mineral 1,5 L</span><span class="m">Fonte Clara</span><span class="p">R$ 3,32</span><span class="tg"><span class="ce suc">383 em estoque</span></span></div>
-          <div class="card"><div class="foto">A</div><span class="n">Açúcar cristal 1 kg</span><span class="m">Doce Vale</span><span class="p">R$ 4,95</span><span class="tg"><span class="ce av">6 em estoque</span></span></div>
-          <div class="card"><div class="foto">D</div><span class="n">Detergente neutro 500 ml</span><span class="m">Brilho Limpo</span><span class="p sem">Sem preço</span><span class="tg"><span class="ce suc">120 em estoque</span></span></div>
-          <div class="card"><div class="foto">A</div><span class="n">Arroz tipo 1 5 kg</span><span class="m">Grão Bom</span><span class="p">R$ 28,90</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
-          <div class="card"><div class="foto">F</div><span class="n">Filtro de óleo PH-5548</span><span class="m">Freiomax</span><span class="p">R$ 38,70</span><span class="tg"><span class="ce av">2 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Açúcar cristal 1 kg</span><span class="m">Doce Vale</span><span class="p">R$ 4,95</span><span class="tg"><span class="ce av">6 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Detergente neutro 500 ml</span><span class="m">Brilho Limpo</span><span class="p sem">Sem preço</span><span class="tg"><span class="ce suc">120 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Arroz tipo 1 5 kg</span><span class="m">Grão Bom</span><span class="p">R$ 28,90</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Filtro de óleo PH-5548</span><span class="m">Freiomax</span><span class="p">R$ 38,70</span><span class="tg"><span class="ce av">2 em estoque</span></span></div>
         </div>
       </div>
       <div class="barra-abas" data-ativa="mais"></div>
@@ -82,17 +82,17 @@
     <div class="legenda"><b>2</b>Sistema e categoria em chips<span>Bebidas abre a linha das categorias; a contagem segue o filtro.</span></div>
     <div class="phone">
       <div class="status claro"><span>06:31</span><span>4G ▮▮▮ 90%</span></div>
-      <div class="fx"><div class="lin"><div><span class="s">5 produtos</span><span class="t">Catálogo</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
+      <div class="fx"><div class="lin"><div><span class="t">Catálogo</span><span class="s">5 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>06:30</span></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip">Todos</div><div class="chip">Alimentos</div><div class="chip on">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
         <div class="fil"><div class="chip on">Todas</div><div class="chip">Águas</div><div class="chip">Refrigerantes</div><div class="chip">Sucos</div></div>
         <div class="grade">
           <div class="card"><div class="foto img"><svg width="60" height="100" viewBox="0 0 60 100"><rect x="22" y="2" width="16" height="10" rx="2" fill="#2F6FA8"/><path d="M20 12h20l6 14v66a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V26z" fill="#CFE6F5" stroke="#8DB9D9" stroke-width="2"/><rect x="14" y="44" width="32" height="22" fill="#2F6FA8"/><text x="30" y="59" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="8" fill="#fff">ÁGUA</text></svg></div><span class="n">Água mineral 1,5 L</span><span class="m">Fonte Clara</span><span class="p">R$ 3,32</span><span class="tg"><span class="ce suc">383 em estoque</span></span></div>
-          <div class="card"><div class="foto">Á</div><span class="n">Água com gás 500 ml</span><span class="m">Fonte Clara</span><span class="p">R$ 2,49</span><span class="tg"><span class="ce av">9 em estoque</span></span></div>
-          <div class="card"><div class="foto">R</div><span class="n">Refrigerante cola 2 L</span><span class="m">Tropical</span><span class="p">R$ 8,99<s>R$ 9,90</s></span><span class="tg"><span class="ce suc">46 em estoque</span></span></div>
-          <div class="card"><div class="foto">R</div><span class="n">Refrigerante guaraná 2 L</span><span class="m">Tropical</span><span class="p sem">Sem preço</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
-          <div class="card"><div class="foto">S</div><span class="n">Suco de caju 1 L</span><span class="m">Sabor do Norte</span><span class="p">R$ 6,75</span><span class="tg"><span class="ce suc">31 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Água com gás 500 ml</span><span class="m">Fonte Clara</span><span class="p">R$ 2,49</span><span class="tg"><span class="ce av">9 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Refrigerante cola 2 L</span><span class="m">Tropical</span><span class="p">R$ 8,99<s>R$ 9,90</s></span><span class="tg"><span class="ce suc">46 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Refrigerante guaraná 2 L</span><span class="m">Tropical</span><span class="p sem">Sem preço</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Suco de caju 1 L</span><span class="m">Sabor do Norte</span><span class="p">R$ 6,75</span><span class="tg"><span class="ce suc">31 em estoque</span></span></div>
         </div>
       </div>
       <div class="barra-abas" data-ativa="mais"></div>
@@ -104,17 +104,17 @@
     <div class="legenda"><b>3</b>Aberto pela ficha do cliente<span>Voltar na faixa com o nome do cliente; preço da tabela dele (RN-VEN-01).</span></div>
     <div class="phone">
       <div class="status claro"><span>09:12</span><span>4G ▮▮▮ 82%</span></div>
-      <div class="fx"><span class="v"><i data-i="voltar" data-t="18"></i>Mercadinho São Jorge</span><div class="lin"><div><span class="s">40 produtos</span><span class="t">Catálogo</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
+      <div class="fx"><span class="v"><i data-i="voltar" data-t="18"></i>Mercadinho São Jorge</span><div class="lin"><div><span class="t">Catálogo</span><span class="s">40 produtos</span></div><span class="selo-fx"><i data-i="sync" data-t="14"></i>09:05</span></div></div>
       <div class="corpo">
         <div class="busca-g"><i data-i="search" data-t="18" data-c="#4A5562"></i>Produto, código ou aplicação</div>
         <div class="fil"><div class="chip on">Todos</div><div class="chip">Alimentos</div><div class="chip">Bebidas</div><div class="chip">Limpeza e higiene</div><div class="chip">Automotivo</div></div>
         <div class="grade">
           <div class="card"><div class="foto img"><svg width="76" height="96" viewBox="0 0 76 96"><rect x="14" y="20" width="48" height="70" rx="8" fill="#6B4A2E"/><rect x="14" y="40" width="48" height="30" fill="#E9D8B4"/><text x="38" y="60" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="11" fill="#6B4A2E">CAFÉ</text><rect x="20" y="10" width="36" height="12" rx="3" fill="#4E3521"/></svg></div><span class="n">Café torrado 500 g</span><span class="m">Serra Alta</span><span class="p">R$ 12,90</span><span class="tg"><span class="ce suc">84 em estoque</span></span></div>
           <div class="card"><div class="foto img"><svg width="60" height="100" viewBox="0 0 60 100"><rect x="22" y="2" width="16" height="10" rx="2" fill="#2F6FA8"/><path d="M20 12h20l6 14v66a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V26z" fill="#CFE6F5" stroke="#8DB9D9" stroke-width="2"/><rect x="14" y="44" width="32" height="22" fill="#2F6FA8"/><text x="30" y="59" text-anchor="middle" font-family="Archivo" font-weight="800" font-size="8" fill="#fff">ÁGUA</text></svg></div><span class="n">Água mineral 1,5 L</span><span class="m">Fonte Clara</span><span class="p">R$ 3,19</span><span class="tg"><span class="ce suc">383 em estoque</span></span></div>
-          <div class="card"><div class="foto">A</div><span class="n">Açúcar cristal 1 kg</span><span class="m">Doce Vale</span><span class="p">R$ 4,80</span><span class="tg"><span class="ce av">6 em estoque</span></span></div>
-          <div class="card"><div class="foto">A</div><span class="n">Arroz tipo 1 5 kg</span><span class="m">Grão Bom</span><span class="p">R$ 27,50</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
-          <div class="card"><div class="foto">D</div><span class="n">Detergente neutro 500 ml</span><span class="m">Brilho Limpo</span><span class="p">R$ 2,85</span><span class="tg"><span class="ce suc">120 em estoque</span></span></div>
-          <div class="card"><div class="foto">F</div><span class="n">Filtro de óleo PH-5548</span><span class="m">Freiomax</span><span class="p">R$ 36,90</span><span class="tg"><span class="ce av">2 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Açúcar cristal 1 kg</span><span class="m">Doce Vale</span><span class="p">R$ 4,80</span><span class="tg"><span class="ce av">6 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Arroz tipo 1 5 kg</span><span class="m">Grão Bom</span><span class="p">R$ 27,50</span><span class="tg"><span class="ce erro">Sem estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Detergente neutro 500 ml</span><span class="m">Brilho Limpo</span><span class="p">R$ 2,85</span><span class="tg"><span class="ce suc">120 em estoque</span></span></div>
+          <div class="card"><div class="foto"></div><span class="n">Filtro de óleo PH-5548</span><span class="m">Freiomax</span><span class="p">R$ 36,90</span><span class="tg"><span class="ce av">2 em estoque</span></span></div>
         </div>
       </div>
       <div class="barra-abas" data-ativa="clientes"></div>
@@ -123,9 +123,9 @@
 
   <div class="quadro">
     <h3>O que muda</h3>
-    <div><b>Faixa Azul noite:</b> a contagem da lista acima do título (como na simulação) e a hora do sync à direita (↻ 06:30). Com cliente, o voltar leva o nome dele.</div>
+    <div><b>Faixa Azul noite:</b> a contagem da lista abaixo do título (como em Clientes) e a hora do sync à direita (↻ 06:30). Com cliente, o voltar leva o nome dele.</div>
     <div><b>Sistema e categoria viram chips</b> acima da grade. Tocar num sistema abre a linha das categorias dele. A lista de "Sistemas" sai da entrada.</div>
-    <div><b>Cartão:</b> foto (ou a inicial), nome em até 2 linhas, marca, preço e uma tag de estoque.</div>
+    <div><b>Cartão:</b> foto (sem foto, a caixa cinza vazia), nome em até 2 linhas, marca, preço e uma tag de estoque.</div>
     <div class="ex"><span class="ce suc">84 em estoque</span><span class="ce av">6 em estoque</span><span class="ce erro">Sem estoque</span></div>
     <div><b>Preço:</b> pelo menu, o da filial padrão do vendedor; sem preço na filial, "Sem preço" (nunca o de outra tabela). Pela ficha do cliente, o da tabela dele.</div>
     <div><b>Saem:</b> "Abra pela ficha do cliente…", a lista de Sistemas, "40 produtos ativos" e "Atualizado às… · puxe para sincronizar".</div>

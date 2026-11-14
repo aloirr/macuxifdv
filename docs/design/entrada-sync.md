@@ -15,7 +15,7 @@ A tela é sempre a mesma: o logo parado e, embaixo, a área de sincronização. 
 | 2 | Antes do login, com o que fazer sem usuário | a barra com "Atualizando o app" ou "Conferindo o servidor" e o percentual. Conferir o servidor só mostra a barra depois de 400 ms |
 | 3 | Login | é a tela de login (fora desta spec): logo negativo na faixa Azul noite e formulário no Pérola |
 | 4 | Depois do login | "Olá, Lucas", a barra do total e a lista de etapas |
-| 5 | Pronto | "Pronto", 100% e todas as etapas com ✓. O Início abre sozinho, sem botão, depois de 600 ms |
+| 5 | Pronto | "Pronto", 100% e todas as etapas com ✓. O Início abre sozinho, sem botão, depois de 600 ms (o bastante para ver o 100%) |
 | 6 | Parou | a etapa que parou marcada, a linha do erro e as ações (§3) |
 
 ## 2. Área de baixo (estados 2, 4, 5 e 6)
@@ -38,13 +38,11 @@ De cima para baixo, alinhada à margem lateral de 32 dp:
    - **Gestão:** Envio do que ficou no aparelho · Equipe · Aprovações · Metas · Alertas.
    - Os nomes e a divisão vêm do modulo-core.
 
-   **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra. O logo
-   não se move.
+   **Tela baixa:** se a lista não cabe entre o logo e a borda de baixo, ela sai e ficam só a linha da barra e a barra.
 
 **Fora da tela:**
 - frase que se alterna, dica, texto sobre o que o app faz por trás, nome de tabela, de entidade ou de módulo;
-- percentual por etapa e contagem de registros;
-- botão no estado 5.
+- percentual por etapa e contagem de registros.
 
 ## 3. Parou (estado 6)
 No lugar da linha da barra e da barra, de cima para baixo (a lista continua, com a etapa marcada):
@@ -78,13 +76,12 @@ Use os tokens de `@macuxi/ui/mobile`, sem hex na tela.
 
 ## 5. Logo e posição
 - **Arquivo:** empilhado, negativo no Campo e positivo no Gestão (`docs/marca/ativos/2026-11-12-v1/`).
-- **Posição:** o tamanho e o centro são os da splash nativa (`app.config.ts`). O logo fica parado em todos os estados.
+- **Posição:** o tamanho e o centro são os da splash nativa (`app.config.ts`).
 - **Área de baixo:** presa à borda de baixo (32 dp + área segura). Ela nunca cobre o logo.
 
 ## 6. Movimento e acessibilidade
 - **Movimento:**
   - a área de baixo aparece com esmaecer de 240 ms;
-  - a troca de estado não move o logo;
   - com "reduzir movimento", não há animação nenhuma.
 - **Barra:** `accessibilityRole="progressbar"`, nome "Sincronização", `accessibilityValue` { min 0, max 100, now }.
 - **Leitor de tela:** anuncia só a troca de etapa ("Etapa 3 de 5, Catálogo e preços") e o erro, que é região viva assertiva.
@@ -96,4 +93,3 @@ Use os tokens de `@macuxi/ui/mobile`, sem hex na tela.
 - O Gestão usa o Pérola, como a splash dele (manual §6). A proposta diz "o Gestão é igual" sobre o fluxo. Se o design-de-marca
   quiser o Azul noite também no Gestão, muda só o fundo da splash nativa dele e o `temaDaEntrada`.
 - "Parou na etapa n de N" para erro que não é falta de sinal: a proposta só desenha o "Sem internet".
-- Os 600 ms do estado 5 bastam para ver o 100% sem segurar a entrada.

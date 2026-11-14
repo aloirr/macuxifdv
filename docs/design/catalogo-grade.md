@@ -12,9 +12,9 @@ Tela: `modules/catalogo/app/telas/catalogo.tsx` e `comum.tsx` (modulo-catalogo).
 
 ## 1. Ordem da tela
 1. **Faixa Azul noite** (`<Screen cabecalho>`, `componentes.md` §5.2):
-   - subtítulo **acima** do título (`posicaoSubtitulo="acima"`, como na simulação): a contagem da lista, `40 produtos`
-     (`1 produto` no singular). Com filtro ou busca, a contagem é a do resultado (`5 produtos`);
    - título `Catálogo`;
+   - subtítulo **abaixo** do título, como em Clientes (`posicaoSubtitulo="abaixo"`, o padrão; MC-0008): a contagem da lista,
+     `40 produtos` (`1 produto` no singular). Com filtro ou busca, a contagem é a do resultado (`5 produtos`);
    - à direita, a hora do sync: `SeloAtualizacao` com `sobreFaixa` (`↻ 06:30`, "Atualizando…", "Sem sinal", "Sem resposta",
      os textos de `desenhoSeloAtualizacao`). O toque é o mesmo do puxar para baixo;
    - aberto pela ficha do cliente: o voltar na faixa com o nome do cliente (`‹ Mercadinho São Jorge`).
@@ -40,7 +40,7 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
 
 | Ordem | O que aparece | Como |
 |---|---|---|
-| 1 | foto | 112 dp de altura, raio 12, `cover`. Sem foto: a inicial do nome (Archivo 800 34, `ink3`) sobre `neutralBg` |
+| 1 | foto | 112 dp de altura, raio 12, `cover`. Sem foto: a caixa `neutralBg` vazia, do mesmo tamanho (sem a inicial, que repetia a 1ª letra do nome; RD-0242) |
 | 2 | nome | 15/600, até 2 linhas com reticências |
 | 3 | marca | 13 `ink2`, 1 linha. Sem marca no cadastro, a linha fica vazia |
 | 4 | preço | Archivo 700 18, números tabulares (§3) |

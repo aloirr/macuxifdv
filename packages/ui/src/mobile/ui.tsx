@@ -16,7 +16,7 @@ import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
 import { useSaidaDaTela, useSinoCabecalho, useVoltarDaTela } from './voltar';
-import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
+import { BOTAO_DESABILITADO, colors, CORES_CHIP, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 export interface PropsCabecalhoTela {
   titulo: string;
@@ -247,7 +247,7 @@ export function Chip({ label, active, onPress, testID, rotuloAcessivel }: { labe
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6 }}
       style={[styles.chip, active ? styles.chipOn : styles.chipOff]}>
-      <Text style={[styles.chipText, { color: active ? '#FFFFFF' : colors.ink }]}>{label}</Text>
+      <Text style={[styles.chipText, { color: active ? CORES_CHIP.ativo.texto : CORES_CHIP.inativo.texto }]}>{label}</Text>
     </Pressionavel>
   );
 }
@@ -406,8 +406,8 @@ export const styles = StyleSheet.create({
   badge: { borderRadius: radius.pilula, paddingHorizontal: 10, minHeight: 24, justifyContent: 'center', alignSelf: 'flex-start' },
   badgeText: { fontFamily: fonts.semibold, fontSize: 12 },
   chip: { height: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipOff: { backgroundColor: colors.surface, borderColor: colors.lineStrong },
+  chipOn: { backgroundColor: CORES_CHIP.ativo.fundo, borderColor: CORES_CHIP.ativo.borda },
+  chipOff: { backgroundColor: CORES_CHIP.inativo.fundo, borderColor: CORES_CHIP.inativo.borda },
   chipText: { fontFamily: fonts.semibold, fontSize: 13 },
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.cartao, paddingVertical: 12, paddingHorizontal: 14 },
   bannerText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5 },

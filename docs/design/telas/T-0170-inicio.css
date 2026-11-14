@@ -1,6 +1,7 @@
 /* T-0170 · Início do Campo: 3 opções na resolução do aparelho do dono do produto (412 × 892 dp; print da v1.0.4 com
    923 × 2000 px). Tokens iguais a packages/ui/src/mobile/tokens.ts (telas.css). Render: Chrome sem janela, 412 × 892,
-   escala 2,24 (sai 923 × 1998 px). */
+   escala 2,24 (sai 923 × 1998 px). Marca v1 (MC-0013, v1.0.6): faixa Azul noite #1E3350 no cabeçalho com o sino da MC-0009,
+   fundo Pérola #F8F6F1, ação e aba ativa Azul noite; o laranja #C2540A só na barra de meta e no contador. */
 @import url('telas.css');
 
 body { margin: 0; padding: 0; background: var(--ground); width: 412px; height: 892px; overflow: hidden; }
@@ -9,12 +10,21 @@ body { margin: 0; padding: 0; background: var(--ground); width: 412px; height: 8
 /* barra de status do Android (28 dp) */
 .sb { height: 28px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 22px 0 24px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .sb .dir { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-.sb.escura { background: var(--ink); color: #fff; }
+.sb.escura, .sb.faixa { background: var(--faixa); color: #fff; }
 
 /* área rolável do Início: lateral 20, blocos separados */
 .rolagem { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 8px 20px 12px; gap: 14px; }
 .rolagem > * { flex: none; }
 .mola { flex: 1 1 auto !important; min-height: 4px; }
+
+/* cabeçalho na faixa Azul noite (componentes.md §5.2): data e rota em #C9CED5, saudação branca, sino à direita */
+.fx-ini { background: var(--faixa); padding: 4px 20px 16px; display: flex; align-items: flex-start; gap: 12px; flex: none; }
+.fx-ini .ola { flex: 1; }
+.fx-ini .ola .dt, .fx-ini .ola .rt { color: var(--faixaSub); }
+.fx-ini .ola .sd { color: #fff; }
+/* sino na faixa (MC-0009): botão transparente com borda #3A4D68, ícone branco, contador #F59A52 com número grafite e aro Azul noite */
+.sino-fx { width: 44px; height: 44px; border-radius: 22px; border: 1px solid #3A4D68; background: transparent; display: flex; align-items: center; justify-content: center; position: relative; flex: none; }
+.sino-fx .cont { position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 11px; border: 2px solid var(--faixa); background: var(--graficoEscuro); color: var(--ink); font-size: 12px; font-weight: 700; line-height: 18px; box-sizing: content-box; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* boas-vindas */
 .ola { display: flex; flex-direction: column; gap: 2px; min-height: 48px; }
@@ -45,7 +55,7 @@ body { margin: 0; padding: 0; background: var(--ground); width: 412px; height: 8
 .rec .cp { font-size: 14px; line-height: 19px; color: var(--ink2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* selo "1 novo" */
-.selo-novo { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.selo-novo { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--grafico); color: #fff; font-size: 12px; font-weight: 700; }
 
 /* meta no cartão claro */
 .m-topo { display: flex; justify-content: space-between; align-items: center; }
@@ -53,7 +63,7 @@ body { margin: 0; padding: 0; background: var(--ground); width: 412px; height: 8
 .m-val .v { font-family: Archivo, sans-serif; font-weight: 800; font-size: 30px; line-height: 36px; font-variant-numeric: tabular-nums; }
 .m-val .de { font-size: 14px; color: var(--ink2); font-variant-numeric: tabular-nums; }
 .barra { height: 8px; border-radius: 4px; background: var(--lineSoft); overflow: hidden; }
-.barra i { display: block; height: 100%; min-width: 8px; border-radius: 4px; background: var(--accent); }
+.barra i { display: block; height: 100%; min-width: 8px; border-radius: 4px; background: var(--grafico); }
 .m-hoje { font-size: 14px; color: var(--ink2); }
 .m-hoje b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--lineSoft); }
