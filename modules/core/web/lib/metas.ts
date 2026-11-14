@@ -3,13 +3,13 @@
  * Na tela o valor é o que a pessoa entende (R$, contagem, %); no contrato é o inteiro do domínio
  * (centavos, contagem, pontos-base). Os textos de exibição vêm de `app/lib/metas-formato`, os mesmos do app.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { ROTULO_INDICADOR_META, type LinhaMetaBko, type PutMeta } from '../../contracts';
 import { formatarIndicador } from '../../app/lib/metas-formato';
 import { centavosDoTexto } from './indicadores';
 
 type Indicador = LinhaMetaBko['indicador'];
 
-const BOM = String.fromCharCode(0xfeff);
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export const CABECALHO_METAS = ['Vendedor ou promotor', 'Indicador', 'Tipo', 'Meta', 'Realizado', 'Atingimento'];
@@ -37,7 +37,7 @@ export function celulasDaLinha(l: LinhaMetaBko): string[] {
 
 export function csvDeMetas(linhas: readonly LinhaMetaBko[]): string {
   const corpo = linhas.map((l) => celulasDaLinha(l).map(aspas).join(';'));
-  return BOM + `${[CABECALHO_METAS.map(aspas).join(';'), ...corpo].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[CABECALHO_METAS.map(aspas).join(';'), ...corpo].join('\r\n')}\r\n`;
 }
 
 /** Valor atual no campo de edição: reais com vírgula, contagem, ou percentual (pontos-base ÷ 100). Sem meta = vazio. */

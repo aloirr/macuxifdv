@@ -1,9 +1,9 @@
 /**
  * Visão da tela "Aparelhos" do BKO (RN-CORE-15): funções puras sobre `GET /v1/core/dispositivos`. Sem React e sem rede.
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import type { DispositivoItem } from '../../contracts';
 
-const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 /** Data/hora curta no fuso informado (o tenant); sem data = "Nunca". */
@@ -22,5 +22,5 @@ export function csvDeAparelhos(itens: readonly DispositivoItem[], fuso: string):
   const linhas = itens.map((d) =>
     [d.nome ?? d.id, d.usuario_nome, d.plataforma ?? '', quandoEmPortugues(d.ultimo_acesso_em, fuso), textoDoBloqueio(d), d.bloqueado_em ? quandoEmPortugues(d.bloqueado_em, fuso) : ''].map(aspas).join(';'),
   );
-  return BOM + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
