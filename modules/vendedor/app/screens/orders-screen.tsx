@@ -1,5 +1,5 @@
 /**
- * Pedidos (Pedidos.dc.html; T-0077; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
+ * Pedidos (Pedidos.dc.html; T-0077; sem "Novo": o novo pedido nasce só na ficha do cliente, R-20261114-150000; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
  * mesma linha (T-0090, modelo A: selo com o número de filtros, etiqueta removível e folha Período; Gestão: vendedor na mesma folha),
  * depois uma linha de situações, incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela
  * de 90 dias do aparelho. O período fora dessa janela (inteiro ou em parte) consulta o servidor, com sinal.
@@ -8,7 +8,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, BotaoFiltro, Button, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -42,13 +42,14 @@ import { pedidoEnviado, resumoDePedidos } from '../../domain/resumo-pedidos';
 import { CardsDePedidos, type CardDePedidos } from '../components/cards-pedidos';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { periodoSemPedidos } from '../lib/cards-pedidos';
 import { trechosDoNumero } from '../lib/destaque-numero';
 import { seloDaLinha } from '../lib/selo-lista';
 import { statusBadgeDaLinha } from '../lib/order-status';
 import { TEXTOS_RASCUNHOS } from '../lib/rascunhos-lista';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
-import { irParaNovoPedido, irParaPedido, irParaRascunhos } from '../rotas';
+import { irParaPedido, irParaRascunhos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'card_orc' | 'card_env';
@@ -180,6 +181,8 @@ export default function OrdersScreen() {
     () => (semResposta ? null : resumoDePedidos(itens.map((i) => ({ ...i.pedido, emitido_em: i.emitido_em })), { periodo, tz })),
     [itens, periodo, tz, semResposta],
   );
+  // RD-0263: período sem pedido fica só com a frase do vazio (sem os 3 cartões zerados nem o chip "Todos" sozinho)
+  const periodoVazio = periodoSemPedidos({ resumo: cards, itensNoPeriodo: base.length, buscando });
   const abrirCard = (c: CardDePedidos) => setSituacao(c === 'orcamentos' ? 'card_orc' : 'card_env');
   // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
   const hojeDia = periodoDe('dia', new Date(), tz).valor;
@@ -291,21 +294,7 @@ export default function OrdersScreen() {
         }
         ListHeaderComponent={
           <View style={styles.cabecalho}>
-            <SePode acao="pedido.criar">
-              {/* o botão principal fica no corpo, nunca na faixa (docs/design/componentes.md §5.2) */}
-              {gestao ? null : (
-                <Button
-                  testID="pedido-novo"
-                  label="Novo"
-                  icon="plus"
-                  variant="accent"
-                  onPress={() => irParaNovoPedido()}
-                  style={{ paddingHorizontal: 16, alignSelf: 'flex-end' }}
-                />
-              )}
-            </SePode>
-
-            <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
+            {periodoVazio ? null : <CardsDePedidos resumo={cards} onAbrir={abrirCard} />}
 
             {totalRascunhos > 0 ? (
               <SePode acao="pedido.criar">
@@ -392,7 +381,7 @@ export default function OrdersScreen() {
                   </View>
                 ) : null}
 
-                {semResposta ? null : (
+                {semResposta || periodoVazio ? null : (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -402,7 +391,7 @@ export default function OrdersScreen() {
                     {gestao ? <Chip testID="chip-decide" label="Para aprovar" active={atual === 'decide'} onPress={() => setSituacao('decide')} /> : null}
                     {atual === 'a_faturar' ? <Chip testID="chip-a-faturar" label={ROTULO_A_FATURAR} active onPress={() => setSituacao('a_faturar')} /> : null}
                     {atual === 'card_orc' ? <Chip testID="chip-card-orc" label="Orçamentos em aberto" active onPress={() => setSituacao('card_orc')} /> : null}
-                    {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos enviados" active onPress={() => setSituacao('card_env')} /> : null}
+                    {atual === 'card_env' ? <Chip testID="chip-card-env" label="Pedidos" active onPress={() => setSituacao('card_env')} /> : null}
                     {chips.map((c) => (
                       <Chip key={c.id} testID={`chip-${c.id}`} label={c.rotulo} active={atual === c.id} onPress={() => setSituacao(c.id)} />
                     ))}
@@ -490,7 +479,7 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
-  cabecalho: { gap: 14, marginBottom: 14 },
+  cabecalho: { gap: 10, marginBottom: 12 },
   rodape: { gap: 14, marginTop: 14 },
   // a lista virtualizada desenha o Card linha a linha: borda dos lados em todas, em cima na primeira e embaixo na última
   linhaCartao: {

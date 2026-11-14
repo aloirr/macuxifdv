@@ -95,18 +95,19 @@ function ListaLocal({ dados, hoje }: { dados: ClientesLocais; hoje: string }) {
   const [query, setQuery] = useState('');
   const [filtros, setFiltros] = useState<FiltroLocal[]>([]);
   const alternar = (id: FiltroLocal) => setFiltros((fs) => (fs.includes(id) ? fs.filter((x) => x !== id) : [...fs, id]));
-  // RN-CORE-47: o check-in feito agora no aparelho já vale (antes do sync); o do sync traz o de qualquer vendedor
+  // RN-CORE-47: o check-in feito agora no aparelho já vale (antes do sync); o resumo do servidor traz o de qualquer vendedor
   const fuso = fusoDe(core.estado.me);
   const doAparelho = useMemo(() => core.estado.visitas.map((v) => ({ cliente_id: v.customer_id, ultima_visita_data: dataLocal(new Date(v.checkin_at), fuso) })), [core.estado.visitas, fuso]);
+  const doServidor = useMemo(() => dados.resumosVisita.flatMap((r) => (r.ultima_visita_em ? [{ cliente_id: r.cliente_id, ultima_visita_data: dataLocal(r.ultima_visita_em, fuso) }] : [])), [dados.resumosVisita, fuso]);
   const lista = useMemo(
     () =>
-      listarClientesLocais({ ...dados, ultimasVisitas: [...dados.ultimasVisitas, ...doAparelho] }, hoje, {
+      listarClientesLocais({ ...dados, ultimasVisitas: [...doServidor, ...doAparelho] }, hoje, {
         q: query,
         comVencidos: filtros.includes('vencidos') || undefined,
         bloqueado: filtros.includes('bloqueados') || undefined,
         semCompraHa: filtros.includes('sem_compra') ? 45 : undefined,
       }),
-    [dados, doAparelho, hoje, query, filtros],
+    [dados, doServidor, doAparelho, hoje, query, filtros],
   );
   const total = dados.clientes.filter((c) => c.deleted_at === null).length;
   return (

@@ -65,11 +65,14 @@ import {
 import { describe, expect, it } from 'vitest';
 import { montarCliente360Local } from '../../modules/core/app/lib/cliente360-local';
 import { entidadesCliente } from '../../modules/core/app/lib/entidades-cliente';
+import { SO_ORCAMENTO } from './apoio/estado-prs';
 import { entidadesRota } from '../../modules/core/app/lib/entidades-rota';
 import { filtrarExtensoesDePedido, pedidosVisiveisNoAparelho } from '../../modules/core/domain';
 import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePedidos } from '../../modules/vendedor/app/lib/pull';
 import { ENTIDADES_VENDEDOR } from '../../modules/vendedor/contracts/entidades';
 import { periodoParcialNaJanela, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
+import { orcamentoEmAberto } from '../../modules/vendedor/domain/resumo-inicio';
+import { pedidoEnviado, resumoDePedidos, type DocumentoDoResumo } from '../../modules/vendedor/domain/resumo-pedidos';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../modules/vendedor/domain/filtro-vendedor';
 import { estadoDaConsulta, mensagemForaDaJanela, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio } from '../../modules/vendedor/app/lib/consulta-periodo';
 
@@ -704,11 +707,95 @@ describe('T-0170 RN-VEN-43 / RD-0247 — o card "Orçamentos em aberto" filtra a
     expect(codigo).toMatch(/const base = useMemo\(\s*\(\) => \(semPeriodo && !buscando \? itens : filtrarLista\(itens, \{ periodo, busca, tz \}\)\)/);
   });
 
-  it('rótulo × card: o chip ativo leva o título do card ("Orçamentos em aberto", "Pedidos enviados")', () => {
+  it('rótulo × card: o chip ativo leva o título do card ("Orçamentos em aberto"; o de Pedidos está no bloco do PR #248)', () => {
     expect(tituloDoCard('orcamentos')).toBe('Orçamentos em aberto');
-    expect(tituloDoCard('enviados')).toBe('Pedidos enviados');
     expect(codigo).toContain(`{atual === 'card_orc' ? <Chip testID="chip-card-orc" label="${tituloDoCard('orcamentos')}" active`);
-    expect(codigo).toContain(`{atual === 'card_env' ? <Chip testID="chip-card-env" label="${tituloDoCard('enviados')}" active`);
+  });
+});
+
+/** PR #248: o card "Enviados" virou "Pedidos" e o "+ Novo" saiu da aba (o novo pedido nasce na ficha do cliente). */
+const PEDIDOS_SEM_NOVO = /testID="orders-card-enviados" titulo="Pedidos" rotulo="Pedidos"/.test(CARDS);
+const linhaDoCardPedidos = () => /<Card testID="orders-card-enviados"[^\n]*/.exec(CARDS)?.[0] ?? '';
+
+describe('PR #248 (R-20261114-150000) — aba Pedidos: card "Pedidos", sem "+ Novo" e período vazio só com a frase', () => {
+  const codigo = semComentarios(TELA);
+  const linhaDoCard = linhaDoCardPedidos();
+
+  it('o card do meio: testID `orders-card-enviados` mantido, abre `card_env`; rótulo, título acessível e chip com o mesmo nome', () => {
+    expect(linhaDoCard, 'cards-pedidos.tsx: card orders-card-enviados não encontrado').not.toBe('');
+    expect(linhaDoCard).toMatch(/onPress=\{\(\) => onAbrir\('enviados'\)\}/);
+    const titulo = /titulo="([^"]+)"/.exec(linhaDoCard)?.[1];
+    const rotulo = /rotulo="([^"]+)"/.exec(linhaDoCard)?.[1];
+    expect(codigo).toContain(`<Chip testID="chip-card-env" label="${titulo}" active`);
+    if (PEDIDOS_SEM_NOVO) {
+      expect([titulo, rotulo]).toEqual(['Pedidos', 'Pedidos']);
+      expect(semComentarios(CARDS)).not.toMatch(/"Enviados"|"Pedidos enviados"/);
+      expect(codigo).not.toMatch(/"Pedidos enviados"/);
+    } else {
+      expect([titulo, rotulo]).toEqual(['Pedidos enviados', 'Enviados']);
+    }
+  });
+
+  it('a aba não tem o botão "+ Novo": sem `pedido-novo` e sem `irParaNovoPedido` em orders-screen.tsx', () => {
+    if (!PEDIDOS_SEM_NOVO) {
+      // antes do PR #248 o botão existia só no Campo, atrás de pedido.criar
+      expect(codigo).toMatch(/\{gestao \? null : \(\s*<Button\s+testID="pedido-novo"/);
+      return;
+    }
+    expect(TELA).not.toContain('pedido-novo');
+    expect(TELA).not.toMatch(/\birParaNovoPedido\b/);
+    expect(codigo).not.toMatch(/label="Novo"/);
+    // o vazio do Campo não manda mais tocar em Novo
+    expect(textoDoVazio({ fora: false, modoConsulta: null, estadoDoServidor: 'ok', buscando: false, situacao: 'todos', gestao: false })).toBe('Nenhum pedido neste período.');
+  });
+
+  it('total zerado: cartões e chips somem e fica só "Nenhum pedido neste período."', () => {
+    if (!PEDIDOS_SEM_NOVO) return;
+    expect(codigo).toMatch(/const periodoVazio = periodoSemPedidos\(\{ resumo: cards, itensNoPeriodo: base\.length, buscando \}\)/);
+    expect(codigo).toMatch(/\{periodoVazio \? null : <CardsDePedidos resumo=\{cards\} onAbrir=\{abrirCard\} \/>\}/);
+    expect(codigo).toMatch(/\{semResposta \|\| periodoVazio \? null : \(\s*<ScrollView\s+horizontal/);
+  });
+});
+
+describe('PR #248 / RN-VEN-43 — valor × regra do card Pedidos (Total = Orçamentos + Pedidos)', () => {
+  const NOV: Periodo = { tipo: 'mes', valor: '2026-11' };
+  const TZ = 'America/Manaus';
+  const doc = (
+    tipo: 'pedido' | 'orcamento',
+    status: string,
+    total_cents: number,
+    emitido_em = '2026-11-10T15:00:00.000Z',
+    extra: Pick<DocumentoDoResumo, 'convertido_pedido_id' | 'local'> = {},
+  ): DocumentoDoResumo => ({ tipo, status, total_cents, emitido_em, ...extra });
+  const docs = [
+    doc('orcamento', 'draft', 10_000), // orçamento em aberto
+    doc('orcamento', 'draft', 20_000, undefined, { convertido_pedido_id: 'p-1' }), // convertido: sai do card Orçamentos
+    doc('orcamento', 'cancelled', 30_000), // cancelado: fora
+    doc('pedido', 'received', 100_000),
+    doc('pedido', 'pending_approval', 200_000),
+    doc('pedido', 'approved', 300_000),
+    doc('pedido', 'invoiced', 400_000),
+    doc('pedido', 'rejected', 500_000), // recusado: fora
+    doc('pedido', 'cancelled', 600_000), // cancelado: fora
+    doc('pedido', 'draft', 700_000), // rascunho: fora
+    doc('pedido', 'received', 800_000, undefined, { local: true }), // ainda na fila do aparelho: fora
+    doc('pedido', 'approved', 900_000, '2026-10-15T15:00:00.000Z'), // outro mês: fora
+  ];
+  const r = resumoDePedidos(docs, { periodo: NOV, tz: TZ });
+
+  it('Pedidos = os que chegaram ao servidor e não foram recusados nem cancelados (4 · R$ 10.000,00); Orçamentos = em aberto (1 · R$ 100,00)', () => {
+    expect(r.enviados).toEqual({ quantidade: 4, valor_cents: 1_000_000 });
+    expect(r.orcamentos).toEqual({ quantidade: 1, valor_cents: 10_000 });
+    // oráculo pela regra exportada (pedidoEnviado / orcamentoEmAberto), não pelo número à mão
+    const doMes = docs.filter((d) => d.emitido_em.startsWith('2026-11'));
+    expect(r.enviados.quantidade).toBe(doMes.filter((d) => pedidoEnviado(d)).length);
+    expect(r.orcamentos.quantidade).toBe(doMes.filter((d) => orcamentoEmAberto(d)).length);
+    expect(r.total).toEqual({ quantidade: 5, valor_cents: 1_010_000 });
+  });
+
+  it('o cartão Pedidos mostra o número do resumo (`q={resumo?.enviados ...}`), não outra conta', () => {
+    expect(linhaDoCardPedidos()).toMatch(/q=\{resumo\?\.enviados \?\? null\}/);
+    expect(CARDS).toMatch(/testID="orders-card-total"[^\n]*q=\{resumo\?\.total \?\? null\}/);
   });
 });
 
@@ -759,7 +846,8 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
   const TUDO = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor'] as const;
 
   it('a leitura do fonte achou as páginas e todas restritas aos perfis do manifesto (sem promotor)', () => {
-    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', 'novo-pedido']);
+    // R-20261114-151000 (PR do modulo-vendedor): + a folha "Adicionar ao orçamento" do Catálogo (acao pedido.criar, só Campo)
+    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', ...(SO_ORCAMENTO ? ['adicionar-ao-orcamento'] : []), 'novo-pedido']);
     for (const p of paginas) {
       expect(p.perfis, p.id).toBeDefined();
       expect(p.perfis, p.id).not.toContain('promotor');
@@ -773,6 +861,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
     expect(v.pagina('pedido')).toBeNull();
     expect(v.pagina('novo-pedido')).toBeNull();
     expect(v.pagina('rascunhos')).toBeNull();
+    expect(v.pagina('adicionar-ao-orcamento')).toBeNull();
     expect(v.navegacao.filter((n) => n.modulo === 'vendedor')).toEqual([]);
   });
 

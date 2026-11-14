@@ -43,6 +43,8 @@ describe('registro de telas dos módulos no shell', () => {
       ['Pedidos', 'nav-vendedor-pedidos'],
       ['Clientes', 'nav-core-clientes'],
     ]);
+    // a transição de grupos da ADR 0050 é só do menu do BKO: no app, core/clientes continua em 'operacao'
+    expect(v.navegacao.find((n) => n.id === 'clientes')?.grupoMenu).toBe('operacao');
     expect(shell.montar({ perfil: 'vendedor', modulosAtivos: ['core'] }).navegacao.map((n) => n.id)).toEqual(['clientes']);
     expect(shell.registroSync.entidadesAtivas(['core']).map((e) => e.nome)).toEqual(['cliente']);
   });
@@ -74,10 +76,7 @@ describe('registro de telas dos módulos no shell', () => {
     expect(shell.montar({ perfil: 'vendedor', modulosAtivos: ['core', 'vendedor'] }).extensoes('produto.acoes')).toEqual([]);
   });
 
-  it('web: menus por grupo e página só da variante/app declarada', () => {
-    const shell = criarShell('web', [core, vendedor]);
-    const analista = shell.montar({ perfil: 'analista', modulosAtivos: ['core', 'vendedor'] });
-    expect(analista.navegacao.map((n) => `${n.grupo}:${n.rotulo}`)).toEqual(['operacao:Pedidos', 'operacao:Clientes', 'cadastros:Alçadas']);
+  it('página só da variante/app declarada', () => {
     expect(criarShell('campo', [core, vendedor]).montar({ perfil: 'analista', modulosAtivos: ['core', 'vendedor'] }).pagina('alcadas')).toBeNull();
   });
 

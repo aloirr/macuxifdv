@@ -1,8 +1,9 @@
 @import 'tailwindcss';
 
-/* Classes usadas pelo kit de UI e pelas páginas dos módulos (montadas por este shell). */
-@source '../../../packages/ui/src';
-@source '../../../modules/*/web';
+/* Classes usadas pelo kit de UI e pelas páginas dos módulos (montadas por este shell).
+   Glob de arquivo, não de pasta: no Tailwind 4 o curinga só na pasta (modules, curinga, web) não casa nenhum arquivo. */
+@source '../../../packages/ui/src/web/**/*.{ts,tsx}';
+@source '../../../modules/*/web/**/*.{ts,tsx}';
 
 /* Tokens do backoffice (docs/07-web-bko.md e mockups Bko*.dc.html). */
 @theme inline {
@@ -68,6 +69,15 @@
   td,
   th {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* foco pelo teclado no Azul noite em todo campo (MC-0027); na camada base,
+     as classes focus-visible:* do kit (camada utilities) prevalecem */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 
   input[type='number']::-webkit-inner-spin-button {

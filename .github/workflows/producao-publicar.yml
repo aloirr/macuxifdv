@@ -14,16 +14,24 @@ name: producao — publicar
 #      run, roda o implantar.sh (pull, banco-dbaas.sh: papéis B0, vector, migrações com o admin herdando o
 #      macuxi_manutencao da 0031; up; /v1/saude com banco ok e a versão da tag; VOLTA ATRÁS sozinho se falhar), sai do
 #      GHCR e confere pelo domínio.
-# Gatilho: SÓ push de tag v* (sem workflow_dispatch, sem branch). Voltar a uma versão anterior = "Re-run all jobs" no run
-# da tag anterior (mesma aprovação). Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh,
-# nunca na linha de comando; nenhum set -x.
+# Gatilho: SÓ tag v*: push da tag ou disparo manual NA tag (workflow_dispatch com --ref v*; branch é recusada no conferir
+# e pelo environment PRODUCAO, que só aceita ref de tag). TRAVA (ADR 0046): o PRODUCAO não para (sem "Required
+# reviewers" no plano), então a tag só publica com a issue "Aprovar deploy <tag>" aprovada (scripts/ci/producao-trava.mjs
+# publicar: fechada como concluída, rótulo aprovado, SHA do marcador = commit da tag, comentário "aprovado <tag>" do
+# aloirr). O caminho normal: "producao — liberar versão" (confere e abre a issue) → comentário "aprovado vX.Y.Z" na issue
+# → "producao — aprovar versão" (confere de novo, cria a tag com o GITHUB_TOKEN, fecha a issue e dispara este na tag).
+# Tag criada à mão sem issue aprovada fica vermelha no conferir. A conferência de commit, CI e imagem é a mesma nos três
+# (scripts/ci/producao-conferir.mjs). Voltar a uma versão anterior = "Re-run all jobs" no run da tag anterior (a issue
+# dela continua aprovada; as tags até v1.0.7, anteriores à trava, rodam o publicar do próprio commit, sem a trava).
+# Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh, nunca na linha de comando; nenhum set -x.
 
 on:
   push:
     tags: ['v*']
+  # só na tag (o conferir recusa branch); disparado pelo producao-aprovar.yml
+  workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 # uma publicação por vez na VM de produção; a nova espera a anterior (nunca dois compose up ao mesmo tempo)
 concurrency:
@@ -36,48 +44,41 @@ defaults:
 
 jobs:
   conferir:
-    name: tag no main, CI verde e imagem da API do commit
+    name: tag aprovada na issue, no main, CI verde e imagem da API do commit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       actions: read
       packages: read
+      issues: read
     outputs:
       sha: ${{ steps.alvo.outputs.sha }}
       versao: ${{ steps.alvo.outputs.versao }}
       dono: ${{ steps.alvo.outputs.dono }}
-      api: ${{ steps.imagem.outputs.api }}
+      api: ${{ steps.alvo.outputs.api }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: tag e commit
-        id: alvo
-        env:
-          TAG: ${{ github.ref_name }}
-          DONO: ${{ github.repository_owner }}
-        run: |
-          [[ "$GITHUB_REF" == refs/tags/v* ]] || { echo "::error::só tag v* publica produção"; exit 1; }
-          [[ "$TAG" =~ ^v[0-9A-Za-z._-]{1,64}$ ]] || { echo "::error::tag inválida: $TAG"; exit 1; }
-          sha="$(git rev-parse "$GITHUB_SHA^{commit}")"
-          # fetch-depth: 0 já trouxe refs/remotes/origin/main (sem credencial guardada, não dá para fazer fetch de novo)
-          git rev-parse --verify -q origin/main > /dev/null || { echo "::error::origin/main ausente no checkout"; exit 1; }
-          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::a tag $TAG aponta para $sha, que não está no main"; exit 1; }
-          { echo "sha=$sha"; echo "versao=$TAG"; echo "dono=${DONO,,}"; } >> "$GITHUB_OUTPUT"
-          echo "tag $TAG → commit $sha (no main)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
-      - name: CI verde do commit (push no main)
+      - name: tag v* (push ou disparo na tag)
+        run: node scripts/ci/producao-conferir.mjs ref
+
+      # trava do deploy (ADR 0046): sem a issue "Aprovar deploy <tag>" aprovada, nada segue (nem o BKO nem o PRODUCAO)
+      - name: issue "Aprovar deploy" da tag aprovada
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.alvo.outputs.sha }}
+          VERSAO: ${{ github.ref_name }}
         run: |
-          n="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
-                 -f head_sha="$SHA" -f event=push -f branch=main -f status=success --jq '.total_count')"
-          [ "${n:-0}" -ge 1 ] || { echo "::error::o commit $SHA não tem CI verde de push no main: publique só um commit que passou no CI"; exit 1; }
-          echo "CI verde: $n execução(ões) com sucesso para $SHA"
+          SHA="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          export SHA
+          node scripts/ci/producao-trava.mjs publicar
 
       - uses: docker/login-action@v3
         with:
@@ -85,16 +86,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: digest da imagem da API do commit
-        id: imagem
+      # Mesma conferência do producao-liberar.yml (scripts/ci/producao-conferir.mjs): commit no main, CI verde de push no
+      # main e digest da imagem da API do commit (fixa o DIGEST: a produção roda a imagem que passou no CI e roda na demo).
+      - name: commit no main, CI verde e digest da imagem da API
+        id: alvo
         env:
-          IMG: ghcr.io/${{ steps.alvo.outputs.dono }}/macuxi-api:${{ steps.alvo.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ github.ref_name }}
+          DONO: ${{ github.repository_owner }}
         run: |
-          # T-0154: a consulta ao GHCR também repete no 403/429/5xx (imagem inexistente não repete)
-          digest="$(bash scripts/deploy/demo/ghcr-tentar.sh "digest da API no GHCR" -- docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' || true)"
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::$IMG não está no GHCR (o \"demo — publicar\" desse commit rodou verde?)"; exit 1; }
-          echo "api=${IMG%:*}@$digest" >> "$GITHUB_OUTPUT"
-          echo "API: ${IMG%:*}@$digest"
+          SHA="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          export SHA
+          node scripts/ci/producao-conferir.mjs conferir
 
   bko:
     name: BKO de produção do mesmo commit

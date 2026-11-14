@@ -107,6 +107,8 @@ import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
+import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
+import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -194,6 +196,15 @@ export interface OpcoesApp {
   diagnosticosApp?: boolean;
   /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
   fonteDiagnosticos?: FonteDiagnosticosPortal;
+  /** ADR 0048: consulta de CNPJ do portal (`POST /v1/plataforma/cnpj` e a conferência do CNPJ ATIVO no `POST /v1/plataforma/empresas`). Padrão: BrasilAPI com a reserva CNPJá. Testes injetam a sua. */
+  consultaCnpj?: ConsultaCnpj;
+  /**
+   * ADR 0047: planos e licenças no portal (`/v1/plataforma/planos`, `empresas-com-plano`, `empresas/:tenant_id/assinatura`).
+   * Padrão: DESLIGADO (as rotas não existem); o `servidor.ts` liga com `MACUXI_PLANOS=1` (depois da migração do banco-dados).
+   */
+  planosPortal?: boolean;
+  /** ADR 0047: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
+  fontePlanos?: FontePlanosPortal;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -569,6 +580,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarDiagnosticos(app, plataforma);
   // ADR 0029/0031: rotas do portal sem tenant (empresas); a autenticação do portal é do Core (`plataforma/auth/*`)
   // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
+  // ADR 0048: uma consulta de CNPJ só (mesmo cache) para a rota de consulta e para a criação da empresa
+  const consultaCnpj = op.consultaCnpj ?? consultaCnpjPadrao();
   registrarRotasPlataforma(app, {
     manifestos,
     acesso: acessoPortal,
@@ -581,6 +594,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       disponivel: () => email.disponivel() && typeof (email as Partial<EmailDoPortal>).cifrar === 'function',
       cifrar: (carga, aad) => (email as unknown as EmailDoPortal).cifrar(carga, aad),
     },
+    consultaCnpj,
   });
 
   // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão
@@ -591,6 +605,26 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
       validar,
       armazenamento: op.arquivos ?? null,
+    });
+  }
+
+  // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
+  registrarRotaConsultaCnpj(app, {
+    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    validar,
+    consulta: consultaCnpj,
+  });
+  // ADR 0047: planos e licenças no portal, no banco do portal; desligado por padrão
+  if (op.planosPortal) {
+    registrarRotasPlanosPortal(app, {
+      manifestos,
+      acesso: acessoPortal,
+      fonte: fontePlataforma,
+      ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
+      ...(op.fontePlanos ? { fontePlanos: op.fontePlanos } : {}),
+      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      validar,
+      relogio,
     });
   }
 
