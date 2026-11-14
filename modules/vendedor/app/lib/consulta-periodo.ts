@@ -49,7 +49,7 @@ export function textoDoVazio(e: EntradaTextoDoVazio): string {
   if (e.buscando) return 'Nenhum pedido encontrado. Confira o nome ou o número, ou limpe a busca.';
   if (e.situacao === 'orcamentos') return 'Nenhum orçamento neste período.';
   if (e.situacao === 'decide') return 'Nada para aprovar agora.';
-  if (e.situacao === 'todos') return e.gestao ? 'Nenhum pedido da equipe neste período.' : 'Nenhum pedido neste período. Toque em Novo para começar.';
+  if (e.situacao === 'todos') return e.gestao ? 'Nenhum pedido da equipe neste período.' : 'Nenhum pedido neste período.';
   return 'Nenhum pedido com esta situação neste período.';
 }
 

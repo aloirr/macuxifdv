@@ -75,4 +75,4 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 
 ## Lista de Clientes (T-0171, RN-CORE-41)
 - Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
-- Última visita: entidade de sync `cliente_ultima_visita` (id = cliente; último check-in de qualquer vendedor, `data_local`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
+- Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.

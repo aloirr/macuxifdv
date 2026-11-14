@@ -32,6 +32,8 @@ const PERFIS_GESTAO: ReadonlySet<string> = new Set(['supervisor', 'gerente']);
 
 /** Entidades/etapas do Core por etapa do Campo; fora daqui vale o módulo (`ETAPA_DO_MODULO_CAMPO`). */
 const ENTIDADE_CAMPO: Record<string, EtapaEntradaId> = {
+  // RN-CORE-50: resumo de visitas do cliente junto dos clientes, para as etapas seguirem em sequência
+  cliente_visita_resumo: 'clientes_rota',
   meta: 'pedidos_metas',
   indicador_diario: 'pedidos_metas',
   parametro: 'pedidos_metas',
@@ -58,6 +60,8 @@ const ETAPA_DO_MODULO_CAMPO: Record<string, EtapaEntradaId> = {
 };
 
 const ENTIDADE_GESTAO: Record<string, EtapaEntradaId> = {
+  // RN-CORE-50: a Gestão não tem "Clientes e rota"; os clientes da equipe carregam em Equipe
+  cliente_visita_resumo: 'equipe',
   meta: 'metas',
   indicador_diario: 'metas',
   parametro: 'metas',

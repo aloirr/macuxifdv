@@ -50,8 +50,6 @@ import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } fro
 import { hrefFichaDoCliente, hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { destinoAposSalvar } from '../../domain/destino-apos-salvar';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
-import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
 import { pendenciasDePreenchimento, type AbaDoPedido } from '../../domain/pendencias-preenchimento';
 import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
 import { FolhaSaidaDoPedido } from '../components/saida-do-pedido';
@@ -67,8 +65,6 @@ function chavesDasLinhas(lines: Record<string, number>): string[] {
 
 export default function NewOrderScreen() {
   const { customerId, editId, visitId, stopId, vendedorId, vendedorNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string }>();
-  // desistiu antes de escolher o cliente: o produto pendente não sobra para o próximo pedido
-  useEffect(() => () => descartarProdutoPendente(), []);
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Loading />;
   // RN-VEN-35: o gestor faz o pedido pelo vendedor e não tem carteira de vendedor (`me`) no aparelho
@@ -94,16 +90,6 @@ function CustomerPicker() {
   const { dados, carteiras, pedidos, tz } = useVendedor();
   const { vendedorId, vendedorNome } = useLocalSearchParams<{ vendedorId?: string; vendedorNome?: string }>();
   const [q, setQ] = useState('');
-  // lido no render sem reagir: o pendente só muda antes de navegar para cá, nunca com o seletor aberto
-  const idEmEspera = produtoPendente()?.produtoId;
-  const produtoEmEspera = useMemo(() => {
-    if (!idEmEspera) return null;
-    for (const tabela of Object.values(dados.produtos)) {
-      const achado = tabela.items.find((p) => p.id === idEmEspera);
-      if (achado) return achado.description;
-    }
-    return null;
-  }, [dados.produtos, idEmEspera]);
   // RN-VEN-35 (T-0101): pedido em nome mostra a carteira do vendedor dono; o Campo (sem vendedorId) segue como antes
   const emNome = useMemo(() => {
     if (!vendedorId) return null;
@@ -121,7 +107,6 @@ function CustomerPicker() {
           {subtituloDoSeletor(emNome.nomeDoDono)}
         </Text>
       ) : null}
-      {produtoEmEspera ? <Text style={t.small}>Item: {produtoEmEspera}</Text> : null}
       <CampoBusca valor={q} onChange={setQ} onLimpar={() => setQ('')} rotuloLimpar="Limpar a busca" placeholder="Nome, código ou bairro" rotuloAcessivel="Buscar cliente" testID="picker-search" />
       {opcoes.length === 0 ? (
         <EstadoVazio titulo="Nenhum cliente" texto={emNome ? vazioDoSeletor(emNome, q.trim() !== '') : 'Nenhum cliente encontrado. Confira o nome, o código ou o bairro.'} />
@@ -138,10 +123,7 @@ function CustomerPicker() {
                 accessibilityLabel={rotuloAcessivelDaOpcao(o)}
                 accessibilityState={o.selecionavel ? undefined : { disabled: true }}
                 disabled={!o.selecionavel}
-                onPress={() => {
-                  fixarClienteDoPendente(c.id);
-                  router.setParams({ customerId: c.id });
-                }}
+                onPress={() => router.setParams({ customerId: c.id })}
                 style={({ pressed }) => [styles.pickRow, !ultima && styles.divider, pressed && o.selecionavel && { backgroundColor: colors.ground }]}>
                 <View style={{ flex: 1, gap: 1 }}>
                   <Text style={o.selecionavel ? t.bodyStrong : [t.bodyStrong, { color: colors.ink2 }]} numberOfLines={1}>
@@ -223,27 +205,8 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     if (customer && catalog.length === 0) void ensureProducts(customer);
   }, [customer, catalog.length, ensureProducts]);
 
-  // T-0052: "Adicionar ao pedido" do Catálogo. O produto vem de um pendente em memória (consumido uma vez, fora da URL):
-  // no catálogo carregado e ao voltar do Catálogo aberto de dentro do pedido (a tela já montada ganha o foco).
   const draftAtual = useRef(draft);
   draftAtual.current = draft;
-  const aplicarProdutoPendente = useCallback(() => {
-    if (sent || catalog.length === 0) return;
-    const id = pegarProdutoPendente(customerId, editId);
-    if (!id) return;
-    const r = rascunhoComProduto(draftAtual.current, id, catalog);
-    if (r.resultado === 'adicionado') {
-      updateDraft(customerId, (d) => rascunhoComProduto(d, id, catalog).rascunho);
-      const desfazer = () => updateDraft(customerId, (d) => rascunhoSemProduto(d, id));
-      avisoRodape.mostrar({ texto: textoRetornoProduto(r), acao: { rotulo: 'Desfazer', onPress: desfazer, testID: 'produto-desfazer' } });
-    } else {
-      avisoRodape.mostrar({ texto: textoRetornoProduto(r) });
-    }
-  }, [editId, sent, catalog, customerId, avisoRodape.mostrar]);
-  // voltou ao editor sem escolher produto: a origem do Catálogo não sobra para outro fluxo
-  useEffect(() => descartarOrigemEditor(), []);
-  useEffect(() => aplicarProdutoPendente(), [aplicarProdutoPendente]);
-  useFocusEffect(aplicarProdutoPendente);
 
   // RN-VEN-24/25: forma e prazo entre os permitidos ao cliente (formas do aparelho). Sem formas (antes do 1º sync com a 0037) vale a
   // lista de condições de antes; a demonstração usa a lista fixa da Fase M.
