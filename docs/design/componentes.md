@@ -254,6 +254,14 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
     altura máxima desconta o teclado e o campo com foco rola até ficar inteiro à vista (8 dp de folga). Liga `rolavel`. Um toque
     num botão da folha com o teclado aberto já vale (não precisa fechar o teclado antes).
   - Partes puras testadas: `alturaMaximaDaFolha`, `coberturaDoTeclado`, `rolagemAteCampo` (`voltar.test.ts`).
+- **Botões das folhas de ação do pedido** (`BotaoFolha`, `LinhaOpcaoFolha`; RD-0039, `botao-folha.ts` e `botao-folha-rn.tsx`):
+  - `BotaoFolha tom="perigo"`: vermelho sólido (`danger`) com texto branco (`onAccent`), 50 dp; `tom="contorno"`: branco com borda
+    `lineStrong`, 46 dp. Raio `radius.lg`, fonte 15 (≥ 50 dp) ou 14, toque por opacidade 0,8 (sem escala), desligado sem mudar a
+    cor. Use só nas folhas de confirmação do pedido (Excluir pedido · Voltar). Em qualquer outra tela ou folha, o botão é
+    `Button`/`Botao` do §3 (principal, secundário, neutro, perigo claro).
+  - `LinhaOpcaoFolha`: linha de 64 dp com ícone (padrão `file`) num quadrado `accentSoft` de 38 dp, título 15, texto `type.small`
+    e seta. Use para escolher o destino de uma ação com texto explicativo (PDF para o cliente / para o BKO). Para escolha simples
+    numa `Folha` (2–5 opções de uma linha), continue com `OpcaoFolha`.
 - **Diálogo** (`Dialogo`): só para confirmar o que não tem volta. Cancelar = neutro; confirmar = Azul noite ou vermelho (`perigo`).
 - **Aviso no rodapé** (`AvisoRodape` + `useAvisoRodape`): grafite, ícone verde de ok, texto branco, ação laranja-clara à direita.
   Some em **2,5 s** (8 s com TalkBack). Texto no passado e com o objeto: "Pedido 000013 enviado para aprovação", "Item removido".
