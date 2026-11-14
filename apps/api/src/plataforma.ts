@@ -310,7 +310,7 @@ export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso'
 
 /**
  * Passo Empresa do portal (RN-CORE-31/32/34; desenho T-0087 §6 e T-0093 §6): o corpo do `POST /v1/plataforma/empresas`, reusado
- * pelo `POST /v1/plataforma/empresas-com-plano` (ADR 0046). Quem chama já conferiu o super-admin e validou `e`; marca a auditoria
+ * pelo `POST /v1/plataforma/empresas-com-plano` (ADR 0047). Quem chama já conferiu o super-admin e validou `e`; marca a auditoria
  * com o `tenant_id` da resposta e responde com o `status`.
  */
 export async function criarEmpresaNoPortal(

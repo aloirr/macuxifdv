@@ -15,21 +15,23 @@ name: producao — publicar
 #      macuxi_manutencao da 0031; up; /v1/saude com banco ok e a versão da tag; VOLTA ATRÁS sozinho se falhar), sai do
 #      GHCR e confere pelo domínio.
 # Gatilho: SÓ tag v*: push da tag ou disparo manual NA tag (workflow_dispatch com --ref v*; branch é recusada no conferir
-# e pelo environment PRODUCAO, que só aceita ref de tag). O caminho normal é o "producao — liberar versão"
-# (producao-liberar.yml; R-20261114-121700-alexandre): ele cria a tag com o GITHUB_TOKEN (push de tag pelo GITHUB_TOKEN não
-# dispara workflow) e dispara este na tag; o único clique do Alexandre é a aprovação no PRODUCAO. A conferência é a mesma
-# nos dois (scripts/ci/producao-conferir.mjs). Voltar a uma versão anterior = "Re-run all jobs" no run da tag anterior
-# (mesma aprovação). Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh,
-# nunca na linha de comando; nenhum set -x.
+# e pelo environment PRODUCAO, que só aceita ref de tag). TRAVA (ADR 0046): o PRODUCAO não para (sem "Required
+# reviewers" no plano), então a tag só publica com a issue "Aprovar deploy <tag>" aprovada (scripts/ci/producao-trava.mjs
+# publicar: fechada como concluída, rótulo aprovado, SHA do marcador = commit da tag, comentário "aprovado <tag>" do
+# aloirr). O caminho normal: "producao — liberar versão" (confere e abre a issue) → comentário "aprovado vX.Y.Z" na issue
+# → "producao — aprovar versão" (confere de novo, cria a tag com o GITHUB_TOKEN, fecha a issue e dispara este na tag).
+# Tag criada à mão sem issue aprovada fica vermelha no conferir. A conferência de commit, CI e imagem é a mesma nos três
+# (scripts/ci/producao-conferir.mjs). Voltar a uma versão anterior = "Re-run all jobs" no run da tag anterior (a issue
+# dela continua aprovada; as tags até v1.0.7, anteriores à trava, rodam o publicar do próprio commit, sem a trava).
+# Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh, nunca na linha de comando; nenhum set -x.
 
 on:
   push:
     tags: ['v*']
-  # só na tag (o conferir recusa branch); disparado pelo producao-liberar.yml
+  # só na tag (o conferir recusa branch); disparado pelo producao-aprovar.yml
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 # uma publicação por vez na VM de produção; a nova espera a anterior (nunca dois compose up ao mesmo tempo)
 concurrency:
@@ -42,13 +44,14 @@ defaults:
 
 jobs:
   conferir:
-    name: tag no main, CI verde e imagem da API do commit
+    name: tag aprovada na issue, no main, CI verde e imagem da API do commit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       actions: read
       packages: read
+      issues: read
     outputs:
       sha: ${{ steps.alvo.outputs.sha }}
       versao: ${{ steps.alvo.outputs.versao }}
@@ -66,6 +69,16 @@ jobs:
 
       - name: tag v* (push ou disparo na tag)
         run: node scripts/ci/producao-conferir.mjs ref
+
+      # trava do deploy (ADR 0046): sem a issue "Aprovar deploy <tag>" aprovada, nada segue (nem o BKO nem o PRODUCAO)
+      - name: issue "Aprovar deploy" da tag aprovada
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ github.ref_name }}
+        run: |
+          SHA="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          export SHA
+          node scripts/ci/producao-trava.mjs publicar
 
       - uses: docker/login-action@v3
         with:

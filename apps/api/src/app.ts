@@ -196,11 +196,11 @@ export interface OpcoesApp {
   /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
   fonteDiagnosticos?: FonteDiagnosticosPortal;
   /**
-   * ADR 0046: planos e licenças no portal (`/v1/plataforma/planos`, `empresas-com-plano`, `empresas/:tenant_id/assinatura`).
+   * ADR 0047: planos e licenças no portal (`/v1/plataforma/planos`, `empresas-com-plano`, `empresas/:tenant_id/assinatura`).
    * Padrão: DESLIGADO (as rotas não existem); o `servidor.ts` liga com `MACUXI_PLANOS=1` (depois da migração do banco-dados).
    */
   planosPortal?: boolean;
-  /** ADR 0046: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
+  /** ADR 0047: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
   fontePlanos?: FontePlanosPortal;
 }
 
@@ -602,7 +602,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     });
   }
 
-  // ADR 0046: planos e licenças no portal, no banco do portal; desligado por padrão
+  // ADR 0047: planos e licenças no portal, no banco do portal; desligado por padrão
   if (op.planosPortal) {
     registrarRotasPlanosPortal(app, {
       manifestos,

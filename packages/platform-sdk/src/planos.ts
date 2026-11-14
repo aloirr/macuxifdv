@@ -1,5 +1,5 @@
 /**
- * Planos e licenças (ADR 0046; desenho docs/desenho/planos-e-licencas.md; recado R-20261114-132600-alexandre, item 1).
+ * Planos e licenças (ADR 0047; desenho docs/desenho/planos-e-licencas.md; recado R-20261114-132600-alexandre, item 1).
  *
  * O catálogo de planos é DADO da plataforma (`plataforma.plano`, seed do banco-dados), nunca código fixo: preço em centavos,
  * licenças por tipo, módulos incluídos, adicionais e as condições comerciais (meses grátis no anual, dias de teste). Aqui ficam
@@ -299,7 +299,7 @@ export type ResultadoTrava =
   | { pode: true }
   | { pode: false; codigo: 'LICENCAS_ESGOTADAS' | 'TESTE_VENCIDO'; item?: ItemContado; mensagem: string };
 
-/** Situação do tenant que a trava lê (a função `plataforma.licencas_do_tenant()` devolve; ADR 0046 §5). */
+/** Situação do tenant que a trava lê (a função `plataforma.licencas_do_tenant()` devolve; ADR 0047 §5). */
 export interface SituacaoDeLicencas {
   /** `null` = empresa sem assinatura (legado anterior aos planos): a trava não se aplica (RN-PLA-04). */
   contratadas: Readonly<Record<ItemContado, number | null>> | null;

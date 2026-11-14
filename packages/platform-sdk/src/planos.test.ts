@@ -1,5 +1,5 @@
 /**
- * Planos e licenças (ADR 0046; desenho docs/desenho/planos-e-licencas.md): RN-PLA-01 catálogo e adicionais, RN-PLA-02 tipo de
+ * Planos e licenças (ADR 0047; desenho docs/desenho/planos-e-licencas.md): RN-PLA-01 catálogo e adicionais, RN-PLA-02 tipo de
  * licença e contagem, RN-PLA-03 "por usuário" da Pesquisa e do Treinamento, RN-PLA-04 trava, RN-PLA-05 troca de plano,
  * RN-PLA-06 valor anual e teste. Os números dos planos aqui são de teste: os reais vêm do seed (dado, não código).
  */

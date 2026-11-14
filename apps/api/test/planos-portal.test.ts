@@ -1,5 +1,5 @@
 /**
- * Planos e licenças no portal (ADR 0046; desenho docs/desenho/planos-e-licencas.md) sem banco real: desligado por padrão,
+ * Planos e licenças no portal (ADR 0047; desenho docs/desenho/planos-e-licencas.md) sem banco real: desligado por padrão,
  * permissões (super-admin; admin do cliente só a própria empresa), a criação com plano pelo mesmo fluxo do passo Empresa, o
  * `simular` sem gravar a assinatura, a ficha no contrato do SDK com o valor anual e a recusa da troca abaixo do uso
  * (RN-PLA-05). As funções `sa_*` de verdade são testadas no CI (`*.db.test.ts` do banco-dados).
@@ -118,7 +118,7 @@ const corpoEmpresa = (simular = false) => ({
   simular,
 });
 
-describe('Portal › Planos e licenças (ADR 0046)', () => {
+describe('Portal › Planos e licenças (ADR 0047)', () => {
   it('desligado por padrão: sem planosPortal, as rotas não existem (404)', async () => {
     const { app } = montar({ ligado: false });
     expect((await app.inject({ method: 'GET', url: '/v1/plataforma/planos', headers: sa })).statusCode).toBe(404);

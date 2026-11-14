@@ -41,7 +41,7 @@ export function diagnosticosLigados(env: NodeJS.ProcessEnv): boolean {
 }
 
 /**
- * ADR 0046: `MACUXI_PLANOS` liga as rotas de planos e licenças do portal. Só `1`/`true`/`sim` liga; ausente ou outro valor =
+ * ADR 0047: `MACUXI_PLANOS` liga as rotas de planos e licenças do portal. Só `1`/`true`/`sim` liga; ausente ou outro valor =
  * DESLIGADO (padrão até a migração de `plataforma.plano`/`plataforma.assinatura` do banco-dados).
  */
 export function planosLigados(env: NodeJS.ProcessEnv): boolean {

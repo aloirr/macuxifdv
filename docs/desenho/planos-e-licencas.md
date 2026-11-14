@@ -1,7 +1,7 @@
-# Desenho — Planos e licenças (ADR 0046)
+# Desenho — Planos e licenças (ADR 0047)
 
 - **Origem**: R-20261114-132600-alexandre, item 1. A sessão da nuvem não lê esse recado: o GraphQL do GitHub dá 403. Por isso, os números (preços, licenças e módulos de cada plano) não estão aqui nem no código; entram no seed do banco-dados, copiados do recado.
-- **Decisão**: [ADR 0046](../decisoes/0046-planos-e-licencas.md). RN propostas: RN-PLA-01..06.
+- **Decisão**: [ADR 0047](../decisoes/0047-planos-e-licencas.md). RN propostas: RN-PLA-01..06.
 - **Autor**: engenheiro-software, 2026-11-14.
 
 ## 1. Módulos afetados
@@ -45,9 +45,9 @@ Regras da API:
 O `node scripts/coord.mjs enviar` deu 403 na sessão da nuvem (GraphQL bloqueado). Os textos abaixo devem ser enviados como estão, por quem tiver acesso ao repositório de recados. Todos vão `--de engenheiro-software --tipo pedido`.
 
 ### 5.1 Para o gerente-projetos — "Planos e licenças: RN-PLA-01..06 e premissas para o doc 03"
-- **Contexto**: o R-20261114-132600-alexandre, item 1, aprovou os planos Light, PME, Enterprise e Corporate, os adicionais Promotor, Pesquisa e Treinamento, o anual com 2 meses grátis, o teste de 14 dias e a trava de licença. A ADR 0046 está em proposta e o desenho em `docs/desenho/planos-e-licencas.md`. O SDK (`planos.ts`) e as rotas do portal (`planos-portal.ts`, flag `MACUXI_PLANOS`) estão no branch `nuvem/planos-engenheiro-software`.
+- **Contexto**: o R-20261114-132600-alexandre, item 1, aprovou os planos Light, PME, Enterprise e Corporate, os adicionais Promotor, Pesquisa e Treinamento, o anual com 2 meses grátis, o teste de 14 dias e a trava de licença. A ADR 0047 está em proposta e o desenho em `docs/desenho/planos-e-licencas.md`. O SDK (`planos.ts`) e as rotas do portal (`planos-portal.ts`, flag `MACUXI_PLANOS`) estão no branch `nuvem/planos-engenheiro-software`.
 - **O que preciso**:
-  - incluir no doc 03 as RN-PLA-01..06 da ADR 0046, seção "RN novas propostas";
+  - incluir no doc 03 as RN-PLA-01..06 da ADR 0047, seção "RN novas propostas";
   - confirmar com o Alexandre as 5 premissas da ADR:
     1. o mapa perfil → tipo (analista, assistente e admin = BKO; supervisor e gerente = gestor);
     2. a prioridade no multiperfil (vendedor > gestor > promotor > bko);
@@ -55,10 +55,10 @@ O `node scripts/coord.mjs enviar` deu 403 na sessão da nuvem (GraphQL bloqueado
     4. o teste vencido sem pagamento trava só novos usuários, sem bloquear o uso;
     5. os preços e as quantidades vêm só do recado, pelo seed;
   - repassar os recados 5.2 a 5.5 deste desenho, se ainda não tiverem chegado.
-- **Pronto quando**: o doc 03 tiver as RN-PLA-01..06, as premissas estiverem confirmadas ou corrigidas por recado e a ADR 0046 estiver com o status atualizado.
+- **Pronto quando**: o doc 03 tiver as RN-PLA-01..06, as premissas estiverem confirmadas ou corrigidas por recado e a ADR 0047 estiver com o status atualizado.
 
-### 5.2 Para o banco-dados — "Planos e licenças: migração, funções sa_*, licencas_do_tenant e seed (ADR 0046)"
-- **Contexto**: ADR 0046 e `docs/desenho/planos-e-licencas.md`, §3. Contratos em `packages/platform-sdk/src/planos.ts` (`PlanoSchema`, `FichaAssinaturaSchema`, `UsoDeLicencaSchema`). As rotas da API estão prontas atrás de `MACUXI_PLANOS` (desligado) e chamam as funções abaixo no banco do portal (`macuxi_portal`, `semTenant`).
+### 5.2 Para o banco-dados — "Planos e licenças: migração, funções sa_*, licencas_do_tenant e seed (ADR 0047)"
+- **Contexto**: ADR 0047 e `docs/desenho/planos-e-licencas.md`, §3. Contratos em `packages/platform-sdk/src/planos.ts` (`PlanoSchema`, `FichaAssinaturaSchema`, `UsoDeLicencaSchema`). As rotas da API estão prontas atrás de `MACUXI_PLANOS` (desligado) e chamam as funções abaixo no banco do portal (`macuxi_portal`, `semTenant`).
 - **O que preciso**:
   1. Migração com:
      - `plataforma.plano`: `codigo` único, `nome`, `ordem`, `preco_mensal_centavos`, `licencas` (vendedor, gestor, bko e promotor; `null` = sem limite), `modulos`, `adicionais` (`adicional`, `preco_unitario_centavos`, `incluidos`), `meses_gratis_anual` (0–11), `dias_teste` (0–90) e `ativo`;
@@ -79,8 +79,8 @@ O `node scripts/coord.mjs enviar` deu 403 na sessão da nuvem (GraphQL bloqueado
   5. Seed dos 4 planos (Light, PME, Enterprise e Corporate), com os preços, as licenças, os módulos e os adicionais do R-20261114-132600-alexandre, item 1; `meses_gratis_anual` = 2 e `dias_teste` = 14.
 - **Pronto quando**: a migração e o seed estiverem no `main` com o CI verde (stack isolado), o formato bater com os schemas do SDK e o recado de entrega trouxer o número da migração, para eu ligar `MACUXI_PLANOS` na demo.
 
-### 5.3 Para o engenheiro-apps — "Portal config.: escolha do plano, ficha e troca de plano (ADR 0046)"
-- **Contexto**: ADR 0046 e `docs/desenho/planos-e-licencas.md`, §2. Os contratos estão no `@macuxi/platform-sdk`: `ListaPlanosSchema`, `CriarEmpresaComPlanoSchema` / `CriarEmpresaComPlanoRespostaSchema`, `FichaAssinaturaSchema` e `TrocarPlanoSchema`. As rotas e os helpers são `ROTA_PORTAL_PLANOS`, `ROTA_PORTAL_EMPRESA_COM_PLANO` e `rotaPortalAssinatura(tenantId)`. As rotas existem só com `MACUXI_PLANOS=1`; desligado, dão 404.
+### 5.3 Para o engenheiro-apps — "Portal config.: escolha do plano, ficha e troca de plano (ADR 0047)"
+- **Contexto**: ADR 0047 e `docs/desenho/planos-e-licencas.md`, §2. Os contratos estão no `@macuxi/platform-sdk`: `ListaPlanosSchema`, `CriarEmpresaComPlanoSchema` / `CriarEmpresaComPlanoRespostaSchema`, `FichaAssinaturaSchema` e `TrocarPlanoSchema`. As rotas e os helpers são `ROTA_PORTAL_PLANOS`, `ROTA_PORTAL_EMPRESA_COM_PLANO` e `rotaPortalAssinatura(tenantId)`. As rotas existem só com `MACUXI_PLANOS=1`; desligado, dão 404.
 - **O que preciso**:
   - **passo Empresa**: escolher o plano (só os `ativo`, por `ordem`), o ciclo, os adicionais e o teste, e enviar para `POST empresas-com-plano` com `pedido_id` gerado no portal, no lugar da lista de módulos. Usar o `simular` para a conferência;
   - **ficha da empresa**: licenças em uso e contratadas por item (`null` = sem limite), o valor mensal e por ciclo (centavos) e o fim do teste. O admin do cliente vê só a própria empresa;
@@ -88,7 +88,7 @@ O `node scripts/coord.mjs enviar` deu 403 na sessão da nuvem (GraphQL bloqueado
   - com 404 na rota (flag desligado), manter o passo Empresa atual.
 - **Pronto quando**: as três telas estiverem no portal com teste e com a revisão do designer-ux, do corretor-redundancias e do design-de-marca.
 
-### 5.4 Para o designer-ux — "Portal config.: telas de plano, ficha de licenças e troca (ADR 0046)"
+### 5.4 Para o designer-ux — "Portal config.: telas de plano, ficha de licenças e troca (ADR 0047)"
 - **Contexto**: o mesmo do 5.3. As telas são do portal `config.`: a escolha do plano no passo Empresa, a ficha com as licenças em uso e contratadas e a troca de plano. Os contratos e as rotas estão no §2 do desenho.
 - **O que preciso**:
   - o desenho visual e os textos das três telas;
@@ -98,8 +98,8 @@ O `node scripts/coord.mjs enviar` deu 403 na sessão da nuvem (GraphQL bloqueado
   - Uma informação, um lugar; nada de texto sobre o que o sistema faz por trás.
 - **Pronto quando**: o desenho e os textos estiverem em `docs/design/` e repassados ao engenheiro-apps, com a validação do design-de-marca.
 
-### 5.5 Para o modulo-core — "Trava de licença no cadastro de usuários do BKO (RN-PLA-04, ADR 0046)"
-- **Contexto**: ADR 0046, §5. A regra pura é `conferirNovoUsuario(situacao, novo, hoje)` em `@macuxi/platform-sdk` (`planos.ts`). A situação vem de `plataforma.licencas_do_tenant()` (banco-dados, recado 5.2), convertida com `usoPorItem`. `hoje` é o dia civil no fuso do tenant (`ctx.fuso()`).
+### 5.5 Para o modulo-core — "Trava de licença no cadastro de usuários do BKO (RN-PLA-04, ADR 0047)"
+- **Contexto**: ADR 0047, §5. A regra pura é `conferirNovoUsuario(situacao, novo, hoje)` em `@macuxi/platform-sdk` (`planos.ts`). A situação vem de `plataforma.licencas_do_tenant()` (banco-dados, recado 5.2), convertida com `usoPorItem`. `hoje` é o dia civil no fuso do tenant (`ctx.fuso()`).
 - **O que preciso**:
   - aplicar a trava ao criar, reativar e mudar o perfil de um usuário, e ao liberar Pesquisa ou Treinamento a ele;
   - em `novo`, passar só o que o usuário ainda não ocupa. Exemplo: liberar Pesquisa a um vendedor = `bases: []`, `modulos: ['pesquisa']`;

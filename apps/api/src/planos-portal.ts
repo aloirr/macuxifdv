@@ -1,5 +1,5 @@
 /**
- * Planos e licenças no portal (`config.`; ADR 0046; desenho docs/desenho/planos-e-licencas.md; R-20261114-132600-alexandre,
+ * Planos e licenças no portal (`config.`; ADR 0047; desenho docs/desenho/planos-e-licencas.md; R-20261114-132600-alexandre,
  * item 1). O catálogo é DADO (`plataforma.plano`, seed do banco-dados); a API só aplica as regras puras do SDK (`planos.ts`) e
  * revalida antes de gravar. Tudo pelo banco do portal (`macuxi_portal`), só pelas funções `SECURITY DEFINER` `sa_*`, que
  * conferem a sessão e auditam; a API audita a requisição no `onResponse` (`marcarPortal`), como as outras rotas do portal.
@@ -140,7 +140,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
       traduzir(e, false);
     }
     const r = ListaPlanosSchema.safeParse(bruto);
-    if (!r.success) throw new Error('sa_listar_planos devolveu formato diferente do combinado (ADR 0046; ListaPlanosSchema)');
+    if (!r.success) throw new Error('sa_listar_planos devolveu formato diferente do combinado (ADR 0047; ListaPlanosSchema)');
     return [...r.data.itens].sort((a, b) => a.ordem - b.ordem);
   };
   const planoPeloCodigo = async (quem: AcessoPortalAutenticado, codigo: string): Promise<Plano> => {
@@ -157,7 +157,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
     }
     if (bruto === null || bruto === undefined) throw SEM_ASSINATURA();
     const r = FichaCruaSchema.safeParse(bruto);
-    if (!r.success) throw new Error('sa_assinatura_da_empresa devolveu formato diferente do combinado (ADR 0046; FichaAssinaturaSchema)');
+    if (!r.success) throw new Error('sa_assinatura_da_empresa devolveu formato diferente do combinado (ADR 0047; FichaAssinaturaSchema)');
     const f = r.data;
     const ordem = (i: string) => (ITENS_CONTADOS as readonly string[]).indexOf(i);
     const montada = FichaAssinaturaSchema.safeParse({
@@ -165,7 +165,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
       licencas: [...f.licencas].sort((a, b) => ordem(a.item) - ordem(b.item)),
       valor: valorDaAssinatura(f.plano, f.adicionais, f.ciclo),
     });
-    if (!montada.success) throw new Error('sa_assinatura_da_empresa devolveu licenças diferentes dos 6 itens contados (ADR 0046)');
+    if (!montada.success) throw new Error('sa_assinatura_da_empresa devolveu licenças diferentes dos 6 itens contados (ADR 0047)');
     return montada.data;
   };
 
@@ -203,7 +203,7 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
         traduzir(erro, true);
       }
       const g = GravouSchema.safeParse(bruto);
-      if (!g.success) throw new Error('sa_gravar_assinatura devolveu formato diferente do combinado (ADR 0046)');
+      if (!g.success) throw new Error('sa_gravar_assinatura devolveu formato diferente do combinado (ADR 0047)');
       assinatura = g.data.resultado;
       testeGravado = g.data.teste_ate;
     }

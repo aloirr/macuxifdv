@@ -1,4 +1,4 @@
-# ADR 0046 — Planos e licenças: catálogo como dado, contagem por tipo e trava no cadastro de usuários
+# ADR 0047 — Planos e licenças: catálogo como dado, contagem por tipo e trava no cadastro de usuários
 
 - **Status**: proposta em 2026-11-14.
 - **Data**: 2026-11-14
