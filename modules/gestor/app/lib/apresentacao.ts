@@ -3,6 +3,7 @@
  * pelo domain/API (RN-GES-03, RF-GES-03/07); aqui eles viram rótulo em português e cor.
  */
 import type { TomEstado } from '@macuxi/ui/mobile/puro';
+import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import type { IndicadorRanking, ItemFilaAprovacao, MotivoAprovacao, PeriodoRanking, Severidade, StatusDia, TipoAlerta, VisaoEquipe } from '../../contracts';
 
 export type Tom = 'success' | 'warning' | 'danger' | 'accent' | 'neutral';
@@ -48,13 +49,14 @@ export const TIPO_ALERTA_ROTULO: Readonly<Record<TipoAlerta, string>> = {
 
 export const SEVERIDADE_TOM: Readonly<Record<Severidade, Tom>> = { info: 'neutral', atencao: 'warning', critica: 'danger' };
 
+/** RD-0250: indicador que também é de meta usa o nome do Core (`ROTULO_INDICADOR_META`); os demais são só do ranking. */
 export const INDICADOR_ROTULO: Readonly<Record<IndicadorRanking, string>> = {
-  vendas_cents: 'Vendas',
+  vendas_cents: ROTULO_INDICADOR_META.venda_cents,
   pedidos: 'Pedidos',
   positivados: 'Positivados',
   ticket_medio_cents: 'Ticket médio',
   atingimento_meta_pct: 'Meta',
-  cobertura_pct: 'Cobertura',
+  cobertura_pct: ROTULO_INDICADOR_META.cobertura_pct,
   conformidade_pct: 'Gôndola',
   ruptura_pct: 'Ruptura',
 };

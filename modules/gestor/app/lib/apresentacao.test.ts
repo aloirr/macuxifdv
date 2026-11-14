@@ -11,6 +11,11 @@ describe('apresentação das telas do Gestor', () => {
     for (const i of INDICADORES_RANKING) expect(INDICADOR_ROTULO[i]).toBeTruthy();
   });
 
+  it('RD-0250: indicador que também é de meta usa o nome do Core, sem sinônimo', () => {
+    expect(INDICADOR_ROTULO.cobertura_pct).toBe('Cobertura de rota');
+    expect(INDICADOR_ROTULO.vendas_cents).toBe('Vendas');
+  });
+
   it('RN-GES-03: o prazo vem calculado; a tela só escreve e colore', () => {
     expect(rotuloDoPrazo({ situacao: 'vencido', horas_restantes: -3.4 })).toEqual({ label: 'Vencido há 3 h úteis', tom: 'danger' });
     expect(rotuloDoPrazo({ situacao: 'vencendo', horas_restantes: 1 })).toEqual({ label: 'Vence em 1 h útil', tom: 'warning' });
