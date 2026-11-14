@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SENHA, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarEspiaoEmail } from '../apoio/email';
+import { COM_RECEITA } from '../../modulos/apoio/estado-prs';
 import {
   auditoriaDoPortal,
   claimsDe,
@@ -351,6 +352,42 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
       const criar = await api.app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comToken(tokenSuper), payload: { ...EMPRESA_C, modulos: [{ modulo: 'integracao', licencas: null }] } });
       expect(criar.statusCode, criar.body).toBe(201);
       ids.tenantC = CriarEmpresaRespostaSchema.parse(criar.json()).tenant_id!;
+      const lista = ListaEmpresasSchema.parse((await listar(tokenSuper)).json());
+      expect(lista.itens.map((e) => e.id).sort()).toEqual([A.tenantId, B.tenantId, ids.tenantC].sort());
+    });
+
+    it.runIf(COM_RECEITA)('ADR 0048: a criação de C consultou a Receita com o CNPJ dela; baixada/suspensa/inapta/nula = 422 CNPJ_INATIVO, não encontrado = 422, Receita fora = 503 com Retry-After, dígito errado = 400 sem consultar; nada é criado', async () => {
+      expect(api.receita.consultados).toContain(EMPRESA_C.cnpj);
+      const corpo = (codigo: string, cnpj = '11222333000181') => ({ ...EMPRESA_C, codigo, cnpj, modulos: [{ modulo: 'integracao', licencas: null }] });
+      const criar = (payload: object) => api.app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comToken(tokenSuper), payload });
+      try {
+        for (const situacao of ['baixada', 'suspensa', 'inapta', 'nula'] as const) {
+          api.receita.definir(situacao);
+          const r = await criar(corpo(`receita-${situacao}-t0093`));
+          expect(r.statusCode, `${situacao}: ${r.body}`).toBe(422);
+          expect(erroDe(r)).toMatchObject({ codigo: 'CNPJ_INATIVO', detalhes: { campo: 'cnpj', situacao_cadastral: situacao } });
+          // simular também consulta e recusa (ADR 0048, item 8)
+          const sim = await criar({ ...corpo(`receita-${situacao}-sim-t0093`), simular: true });
+          expect(sim.statusCode, `${situacao} (simular): ${sim.body}`).toBe(422);
+        }
+        api.receita.definir('nao_encontrado');
+        const nao = await criar(corpo('receita-nao-encontrado-t0093'));
+        expect(`${nao.statusCode} ${erroDe(nao).codigo}`, nao.body).toBe('422 CNPJ_NAO_ENCONTRADO');
+        api.receita.definir('fora');
+        const fora = await criar(corpo('receita-fora-t0093'));
+        expect(`${fora.statusCode} ${erroDe(fora).codigo}`, fora.body).toBe('503 CNPJ_FONTE_FORA');
+        expect(Number(fora.headers['retry-after'])).toBeGreaterThan(0);
+        // dígito verificador errado: 400 antes da Receita (nenhuma consulta nova)
+        api.receita.definir('ativa');
+        const antes = api.receita.consultados.length;
+        const digito = await criar(corpo('receita-digito-t0093', '11222333000182'));
+        expect(`${digito.statusCode} ${erroDe(digito).codigo}`, digito.body).toBe('400 CNPJ_INVALIDO');
+        expect(api.receita.consultados.length).toBe(antes);
+      } finally {
+        api.receita.definir('ativa');
+      }
+      const n = await api.admin.query<{ n: number }>(`select count(*)::int as n from plataforma.tenant where codigo like 'receita-%'`);
+      expect(n.rows[0]!.n, 'nenhuma empresa criada com o CNPJ recusado').toBe(0);
       const lista = ListaEmpresasSchema.parse((await listar(tokenSuper)).json());
       expect(lista.itens.map((e) => e.id).sort()).toEqual([A.tenantId, B.tenantId, ids.tenantC].sort());
     });
