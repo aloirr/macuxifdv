@@ -59,11 +59,11 @@ export function rotuloCurtoDaCondicao(descricao: string): string {
 }
 
 /** Selo do orçamento (tela 5 e lista): "Orçamento · preço de 10/11", "Cancelado", "Virou pedido 000015". Não há "Vencido" nem "até" (RN-VEN-18, 09/11). */
-export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; preco_data: string; pedido_numero?: string | null }): { texto: string; tom: 'roxo' | 'neutro' | 'sucesso' } {
+export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; preco_data: string; pedido_numero?: string | null }): { texto: string; tom: 'destaque' | 'neutro' | 'sucesso' } {
   const [, m, d] = e.preco_data.split('-');
   switch (e.situacao) {
     case 'aberto':
-      return { texto: `Orçamento · preço de ${d}/${m}`, tom: 'roxo' };
+      return { texto: `Orçamento · preço de ${d}/${m}`, tom: 'destaque' };
     case 'cancelado':
       return { texto: 'Cancelado', tom: 'neutro' };
     case 'convertido':

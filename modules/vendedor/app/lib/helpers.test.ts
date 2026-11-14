@@ -1,3 +1,4 @@
+import { TONS_ESTADO } from '@macuxi/ui/mobile/puro';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -100,6 +101,13 @@ describe('Precisa de atenção', () => {
 });
 
 describe('status de pedido', () => {
+  it('MC-0006: as cores do selo vêm do TONS_ESTADO (aviso, erro, sucesso, neutro), sem hex solto', () => {
+    const tom = (st: string) => { const b = statusBadge(st); return { fg: b.fg, bg: b.bg }; };
+    for (const st of ['pending_approval', 'queued', 'edited']) expect(tom(st)).toEqual(TONS_ESTADO.aviso);
+    for (const st of ['cancelled', 'rejected']) expect(tom(st)).toEqual(TONS_ESTADO.erro);
+    for (const st of ['approved', 'integrated', 'invoiced', 'invoiced_partial']) expect(tom(st)).toEqual(TONS_ESTADO.sucesso);
+    for (const st of ['draft', 'received', 'sent_to_erp']) expect(tom(st)).toEqual(TONS_ESTADO.neutro);
+  });
   it('contagem dos chips e observação', () => {
     const c = filterCounts([{ status: 'queued' }, { status: 'pending_approval' }, { status: 'integrated' }, { status: 'sent_to_erp' }, { status: 'rejected' }]);
     expect(c).toEqual({ all: 5, queued: 1, pending: 1, integrated: 1, invoiced: 0, rejected: 1, cancelled: 0 });

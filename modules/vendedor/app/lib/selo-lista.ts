@@ -7,7 +7,7 @@ import { dataDoPrecoDoOrcamento } from '../../domain/orcamento';
 import { situacaoNaTela, validadeCivilDoDocumento } from './pre-venda';
 import { seloDoOrcamento } from './textos-pedido';
 
-export function seloDaLinha(o: PedidoDaLista, p: { agora: Date; fuso: string; dias: number; numeroDoPedido: (id: string) => string | null }): { texto: string; tom: 'roxo' | 'neutro' | 'sucesso' } | null {
+export function seloDaLinha(o: PedidoDaLista, p: { agora: Date; fuso: string; dias: number; numeroDoPedido: (id: string) => string | null }): { texto: string; tom: 'destaque' | 'neutro' | 'sucesso' } | null {
   const situacao = situacaoNaTela(o, p.agora);
   if (!situacao) return null;
   const validade = validadeCivilDoDocumento({ validade_data: o.validade_data ?? null, validade_ate: o.validade_ate ?? null, criado_em: o.received_at ?? null }, { fuso: p.fuso, dias: p.dias });

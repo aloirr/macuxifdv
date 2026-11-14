@@ -33,7 +33,7 @@ describe('abasDoPedido e folha do Salvar', () => {
 
 describe('seloDoOrcamento (RN-VEN-18)', () => {
   it('aberto: "Orçamento · preço de 10/11"', () => {
-    expect(seloDoOrcamento({ situacao: 'aberto', preco_data: '2026-11-10' })).toEqual({ texto: 'Orçamento · preço de 10/11', tom: 'roxo' });
+    expect(seloDoOrcamento({ situacao: 'aberto', preco_data: '2026-11-10' })).toEqual({ texto: 'Orçamento · preço de 10/11', tom: 'destaque' });
   });
   it('cancelado e convertido (não há vencido)', () => {
     expect(seloDoOrcamento({ situacao: 'cancelado', preco_data: '2026-11-10' }).texto).toBe('Cancelado');

@@ -13,17 +13,17 @@ export interface BadgeStyle {
 }
 
 const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
-  draft: { fg: '#34404D', bg: '#E6E9E2' },
-  queued: { fg: '#5C3B00', bg: '#FFF1D6' },
-  received: { fg: '#34404D', bg: '#E6E9E2' },
-  pending_approval: TONS_ESTADO.destaque,
-  approved: { fg: '#1D6B4F', bg: '#E2F1EA' },
-  sent_to_erp: { fg: '#34404D', bg: '#E6E9E2' },
-  integrated: { fg: '#1D6B4F', bg: '#E2F1EA' },
-  invoiced_partial: { fg: '#1D6B4F', bg: '#E2F1EA' },
-  invoiced: { fg: '#1D6B4F', bg: '#E2F1EA' },
-  rejected: { fg: '#A8261B', bg: '#FDE8E6' },
-  cancelled: { fg: '#A8261B', bg: '#F1E4E2' },
+  draft: TONS_ESTADO.neutro,
+  queued: TONS_ESTADO.aviso,
+  received: TONS_ESTADO.neutro,
+  pending_approval: TONS_ESTADO.aviso,
+  approved: TONS_ESTADO.sucesso,
+  sent_to_erp: TONS_ESTADO.neutro,
+  integrated: TONS_ESTADO.sucesso,
+  invoiced_partial: TONS_ESTADO.sucesso,
+  invoiced: TONS_ESTADO.sucesso,
+  rejected: TONS_ESTADO.erro,
+  cancelled: TONS_ESTADO.erro,
 };
 
 /**
@@ -31,7 +31,7 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
  * `edited` é evento de histórico (não é status do pedido).
  */
 const LABEL_OVERRIDE: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado', draft: 'Salvo' };
-const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: TONS_ESTADO.destaque };
+const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: TONS_ESTADO.aviso };
 
 export function statusBadge(statusErp: string): BadgeStyle {
   const status = normalizarStatus(statusErp);
