@@ -16,10 +16,10 @@ import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp,
 import { NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
 
 /**
- * Cargo do perfil (0068, decisão do dono do produto de 14/11/2026): lista FIXA da plataforma, igual ao CHECK
- * perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0068 compara com o SQL.
+ * Cargo do perfil (0068, decisões do dono do produto de 14/11/2026; o promotor desde R-20261114-153800): lista FIXA da
+ * plataforma, igual ao CHECK perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0068 compara com o SQL.
  */
-export const CARGOS = ['vendedor', 'supervisor', 'gerente', 'administrativo'] as const;
+export const CARGOS = ['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo'] as const;
 export type Cargo = (typeof CARGOS)[number];
 
 export const plataforma = pgSchema('plataforma');
@@ -91,7 +91,7 @@ export const perfil = plataforma.table('perfil', {
   ativo: boolean('ativo').notNull().default(true),
   /**
    * 0068: o cargo do perfil (um só), sem padrão: quem cria o perfil informa. Os de fábrica e os personalizados que já existiam
-   * receberam plataforma.cargo_da_base(base) (promotor -> vendedor, a confirmar com o dono do produto).
+   * receberam plataforma.cargo_da_base(base) (promotor -> promotor).
    */
   cargo: text('cargo', { enum: CARGOS }).notNull(),
 });

@@ -424,13 +424,14 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       // 0068 (um perfil por usuário): o vendedor-B sem o vínculo de vendedor fica sem perfil
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(B.usuarios.vendedor, 'vendedor', B.tenantId)]]]))
         .toEqual({ code: '23514', constraint: 'usuario_sem_perfil' });
-      // trocar o vínculo por promotor sem trocar o principal (vendedor): o principal não está entre os perfis
+      // trocar o vínculo por supervisor sem trocar o principal (vendedor): o principal não está entre os perfis. Supervisor, não
+      // promotor: o vendedor-B está numa equipe de responsável administrativo (promotor sem gerente, 0068)
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(B.usuarios.vendedor, 'vendedor', B.tenantId)]],
-        ['insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [B.tenantId, B.usuarios.vendedor, idPerfilFabrica(B.tenantId, 'promotor')]]]))
+        ['insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [B.tenantId, B.usuarios.vendedor, idPerfilFabrica(B.tenantId, 'supervisor')]]]))
         .toEqual({ code: '23514', constraint: 'usuario_perfil_principal' });
       // ... e passa trocando o principal na mesma transação
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(B.usuarios.vendedor, 'vendedor', B.tenantId)]],
-        ["update core.usuario set perfil = 'promotor' where id = $1", [B.usuarios.vendedor]]])).toBeNull();
+        ["update core.usuario set perfil = 'supervisor' where id = $1", [B.usuarios.vendedor]]])).toBeNull();
       // perfil personalizado em uso não é desativado nem apagado: o vendedor-2 troca o de fábrica pelo vendedor_externo (conferido já)
       await admin.query('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [A.usuarios.vendedor2]);
       await admin.query('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, A.usuarios.vendedor2, A.perfis.vendedorExterno]);
@@ -498,7 +499,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       expect((await noCommit([['delete from plataforma.perfil where id = $1', [A.perfis.vendedorExterno]]], 'macuxi_app', A.tenantId))?.code).toBe('42501');
       // o app cria um personalizado, sobrepõe, troca o perfil de um usuário por ele (0068: apaga o vivo) e o restaura ao padrão
       expect(await noCommit([
-        ["insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ('aaaaaaaa-0017-4000-8000-000000000041', $1, 'promotor_lider', 'Promotor líder', 'promotor', 'vendedor')", [A.tenantId]],
+        ["insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ('aaaaaaaa-0017-4000-8000-000000000041', $1, 'promotor_lider', 'Promotor líder', 'promotor', 'promotor')", [A.tenantId]],
         ["insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, 'aaaaaaaa-0017-4000-8000-000000000041', 'coleta.registrar', false)", [A.tenantId]],
         ['update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [A.usuarios.promotor]],
         ["insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, 'aaaaaaaa-0017-4000-8000-000000000041')", [A.tenantId, A.usuarios.promotor]],

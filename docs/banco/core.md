@@ -932,10 +932,12 @@ Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (
 a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.
 
 ## 0068 — cargo e hierarquia do cadastro de usuário (`0068_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
-Decisão R-20261114-153500: no cadastro de usuário, o **cargo** (Vendedor, Supervisor, Gerente, Administrativo); vendedor
+Decisão R-20261114-153500: no cadastro de usuário, o **cargo** (Vendedor, Supervisor, Gerente, Administrativo — e Promotor desde
+R-20261114-153800); vendedor
 cadastra o supervisor (o gerente é o do supervisor); supervisor cadastra o gerente e o **nome da equipe** (vai ao Início, na foto
 do vendedor); **código ERP para todos**; um perfil por usuário; um cargo por perfil. O cargo e o "um perfil por usuário" estão em
-[plataforma.md](plataforma.md) ("0068").
+[plataforma.md](plataforma.md) ("0068"). R-20261114-154000: o promotor fica **embaixo do gerente** (obrigatório) e o
+**supervisor é opcional**; com supervisor, o gerente do promotor é o gerente desse supervisor.
 
 **Hierarquia: reaproveita `core.equipe`, sem coluna nova em `core.usuario`** (uma informação, um lugar: a árvore de equipes já é
 a base do escopo RN-CORE-04 do Gestor, do alerta ao supervisor e do nome da equipe no Início; colunas `supervisor_id`/
@@ -945,11 +947,41 @@ a base do escopo RN-CORE-04 do Gestor, do alerta ao supervisor e do nome da equi
 |---|---|---|
 | vendedor | supervisor | `core.usuario.equipe_id` = a equipe viva cujo `responsavel_id` é o supervisor (índice `equipe_responsavel_ix`, 0004) |
 | supervisor | gerente e nome da equipe | a equipe dele em `core.equipe` (`responsavel_id` = ele, `nome` = nome da equipe, `equipe_pai_id` = a equipe do gerente) e `core.usuario.equipe_id` = essa equipe |
+| promotor | gerente (obrigatório) e supervisor (opcional) | com supervisor: `equipe_id` = a equipe do supervisor (como o vendedor); sem supervisor: `equipe_id` = a equipe do gerente (`responsavel_id` = o gerente) |
 | gerente | — (opcional: a regional) | a equipe dele (`responsavel_id` = ele; raiz) e `equipe_id` = essa equipe |
 | administrativo | — | nada (`equipe_id` nulo) |
 
 O **gerente do vendedor não é gravado no vendedor**: é o responsável da equipe-pai da equipe do supervisor. Trocar o supervisor
 do vendedor = trocar o `equipe_id` dele; trocar o gerente do supervisor = trocar o `equipe_pai_id` da equipe dele.
+
+**Promotor** (R-20261114-154000): os 2 casos se separam pelo **cargo do responsável da equipe dele** — equipe de um supervisor
+(supervisor = esse responsável; gerente = o responsável da equipe-pai) ou equipe de um gerente (sem supervisor; gerente = o
+responsável da própria equipe). Nenhuma coluna nova: `supervisor_id`/`gerente_id` no promotor duplicariam a árvore e poderiam
+divergir dela, que é justamente o que a regra proíbe. **A consistência gerente × supervisor é garantida pela própria árvore**:
+com supervisor, o gerente do promotor é sempre o responsável da equipe-pai da equipe do supervisor, nada gravado no promotor pode
+apontar para outro gerente. Sobra um caso, o supervisor membro (`core.usuario.equipe_id`) de outra equipe que não a que lidera,
+em que o "gerente do supervisor" na view seria outro; esse é recusado.
+
+**Garantia no banco (gatilhos de restrição adiados, conferidos no COMMIT)**: função `core.conferir_promotores(tenant, usuarios[],
+equipes[])`, que lê a view, e a função de gatilho `core.promotor_conferir()` em 4 gatilhos:
+
+| Gatilho | Quando | Promotores conferidos |
+|---|---|---|
+| `usuario_conferir_promotor` | `core.usuario`: insert; update de `perfil`, `equipe_id`, `ativo`, `deleted_at` | o próprio (se promotor) e os das equipes que ele lidera e das filhas delas |
+| `equipe_conferir_promotor` | `core.equipe`: update de `responsavel_id`, `equipe_pai_id`, `deleted_at` | os da equipe, das filhas e das equipes lideradas por membros dela |
+| `usuario_perfil_conferir_promotor` | `plataforma.usuario_perfil`: insert; update de `perfil_id`, `deleted_at` | o usuário (se virou promotor) e os que ele lidera |
+| `perfil_conferir_promotor` | `plataforma.perfil`: update de `cargo` | os usuários do perfil e os que eles lideram |
+
+Erros (23514, `hint` R-20261114-154000, `detail` só com o `usuario_id`): `promotor_sem_gerente` (promotor vivo e **ativo** sem
+`gerente_id` na view, ou com `gerente_id` de cargo diferente de `gerente`: sem equipe, equipe sem responsável, equipe de um
+vendedor/administrativo, equipe de supervisor sem equipe-pai de gerente) e `promotor_gerente_do_supervisor` (com supervisor cujo
+`gerente_id` na view não é o do promotor). Adiados: a ordem das gravações na transação não importa (ex.: mover o promotor para
+a equipe e só depois dar o supervisor à equipe). Promotor inativo não é conferido (desligado). **Legado**: os gatilhos só valem
+para gravações novas ou alteradas que alcançam o promotor; a 0068 não recusa promotor que já está fora da regra, e gravação que
+não o alcança (ex.: `nome`, `ultimo_login_em`) passa. Lista: consulta 3 de `db/scripts/diagnostico-0068.sql`
+(`promotor_sem_gerente`, `promotor_gerente_do_supervisor`); corrija a equipe dele antes de tocar no cadastro. Custo: por
+gravação, uma leitura da view restrita aos promotores alcançados (índices `usuario_equipe_ix`, `equipe_pai_ix`,
+`equipe_responsavel_ix`, `usuario_perfil_usuario_ix`); nenhum índice novo.
 
 ### v_usuario_hierarquia — leitura pronta (security_invoker; `macuxi_app` só select; worker e portal sem acesso)
 | Coluna | Tipo | Regra |
@@ -957,16 +989,17 @@ do vendedor = trocar o `equipe_id` dele; trocar o gerente do supervisor = trocar
 | `tenant_id`, `usuario_id` | uuid | usuários não apagados |
 | `perfil_id`, `cargo` | uuid, text | o perfil vivo do usuário (um só) e o cargo dele |
 | `equipe_id`, `equipe_nome` | uuid, text | a equipe viva do usuário (`core.usuario.equipe_id`) e o nome — é o "nome da equipe" do Início |
-| `supervisor_id` | uuid | só cargo `vendedor`: o responsável da equipe dele (nulo se for ele mesmo ou se a equipe não tem responsável) |
-| `gerente_id` | uuid | cargos `vendedor` e `supervisor`: o responsável da equipe-pai |
-| `updated_at` | timestamptz | o maior entre usuário, vínculo, perfil, equipe e equipe-pai (cursor, se o app puxar) |
+| `supervisor_id` | uuid | cargo `vendedor`: o responsável da equipe dele (nulo se for ele mesmo ou se a equipe não tem responsável); cargo `promotor`: o responsável da equipe dele quando tem cargo `supervisor` (**nulo** no promotor sem supervisor) |
+| `gerente_id` | uuid | cargos `vendedor` e `supervisor`: o responsável da equipe-pai; cargo `promotor`: o responsável da equipe-pai (equipe de supervisor) ou o da própria equipe (equipe de gerente) |
+| `updated_at` | timestamptz | o maior entre usuário, vínculo, perfil, equipe, equipe-pai e (promotor) o perfil do responsável da equipe (cursor, se o app puxar) |
 
 Roda com o papel de quem consulta: valem as políticas `isolamento_tenant` de `core.usuario`, `core.equipe`,
 `plataforma.usuario_perfil` e `plataforma.perfil`. Consulta típica: `where usuario_id = $1` (PK de usuário, índices
 `usuario_perfil_usuario_ix` e PK de equipe). Volume: o de `core.usuario`.
 
-**Regras cargo × hierarquia** (vendedor com equipe de um supervisor; supervisor responsável pela própria equipe, com nome e
-equipe-pai de um gerente): **validadas no domain/API do Core**, não por restrição no banco — dados de hoje (ex.: equipe com
+**Regras cargo × hierarquia do vendedor e do supervisor** (vendedor com equipe de um supervisor; supervisor responsável pela
+própria equipe, com nome e equipe-pai de um gerente): **validadas no domain/API do Core** (o promotor tem a garantia no banco,
+acima), não por restrição no banco — dados de hoje (ex.: equipe com
 responsável administrativo na fixture B, equipe sem responsável) quebrariam. A consulta 3 de `db/scripts/diagnostico-0068.sql`
 lista quem está fora da regra.
 
@@ -975,4 +1008,4 @@ external_id) where external_id is not null and deleted_at is null`; é o `codigo
 no banco (usuários antigos e o admin inicial do provisionamento não têm código); o "obrigatório para todos" é regra do cadastro
 (domain/API do Core). Nenhuma coluna nova.
 
-Volta: `0068_core_cargo_hierarquia.down.sql` (a view sai; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
+Volta: `0068_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.

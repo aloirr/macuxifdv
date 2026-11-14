@@ -37,19 +37,28 @@ select t.codigo as tenant, o.usuario_id, u.perfil as principal_atual, o.vivos,
 --  where up.deleted_at = (select aplicada_em from public.macuxi_migracao where versao = '0068')
 --  order by 1, 2, 3;
 
--- Consulta 3 — DEPOIS da 0068: cadastro fora da hierarquia (o domain do Core recusa no próximo salvamento; aqui só lista).
---   vendedor_sem_supervisor   vendedor sem equipe ou cuja equipe não tem responsável de cargo supervisor
---   supervisor_sem_equipe     supervisor que não é o responsável da própria equipe (core.usuario.equipe_id)
---   supervisor_sem_gerente    supervisor cuja equipe não tem equipe-pai com responsável de cargo gerente
+-- Consulta 3 — DEPOIS da 0068: cadastro fora da hierarquia (aqui só lista). Vendedor e supervisor: o domain do Core recusa no
+-- próximo salvamento. Promotor (R-20261114-154000): o BANCO recusa no COMMIT a próxima gravação que o alcance (gatilhos
+-- *_conferir_promotor), com os mesmos 2 nomes de erro; o promotor legado listado aqui precisa de equipe antes disso.
+--   vendedor_sem_supervisor          vendedor sem equipe ou cuja equipe não tem responsável de cargo supervisor
+--   supervisor_sem_equipe            supervisor que não é o responsável da própria equipe (core.usuario.equipe_id)
+--   supervisor_sem_gerente           supervisor cuja equipe não tem equipe-pai com responsável de cargo gerente
+--   promotor_sem_gerente             promotor ativo sem gerente (equipe de um supervisor sem gerente na equipe-pai, equipe de
+--                                    outro cargo, sem responsável ou sem equipe)
+--   promotor_gerente_do_supervisor   promotor ativo com supervisor cujo gerente não é o dele
 -- select h.tenant_id, h.usuario_id, h.cargo, problema
 --   from core.v_usuario_hierarquia h
+--   join core.usuario u on u.tenant_id = h.tenant_id and u.id = h.usuario_id
 --   left join core.v_usuario_hierarquia s on s.tenant_id = h.tenant_id and s.usuario_id = h.supervisor_id
 --   left join core.v_usuario_hierarquia g on g.tenant_id = h.tenant_id and g.usuario_id = h.gerente_id
 --   cross join lateral (values
 --     (case when h.cargo = 'vendedor' and s.cargo is distinct from 'supervisor' then 'vendedor_sem_supervisor' end),
 --     (case when h.cargo = 'supervisor' and not exists (select 1 from core.equipe e where e.tenant_id = h.tenant_id
 --            and e.id = h.equipe_id and e.responsavel_id = h.usuario_id) then 'supervisor_sem_equipe' end),
---     (case when h.cargo = 'supervisor' and g.cargo is distinct from 'gerente' then 'supervisor_sem_gerente' end)
+--     (case when h.cargo = 'supervisor' and g.cargo is distinct from 'gerente' then 'supervisor_sem_gerente' end),
+--     (case when h.cargo = 'promotor' and u.ativo and g.cargo is distinct from 'gerente' then 'promotor_sem_gerente' end),
+--     (case when h.cargo = 'promotor' and u.ativo and h.supervisor_id is not null
+--            and s.gerente_id is distinct from h.gerente_id then 'promotor_gerente_do_supervisor' end)
 --   ) as x (problema)
 --  where x.problema is not null
 --  order by 1, 3, 2;

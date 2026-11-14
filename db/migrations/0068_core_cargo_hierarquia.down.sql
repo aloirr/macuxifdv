@@ -1,12 +1,19 @@
 -- 0068_core_cargo_hierarquia (down) — desfaz a 0068 (cargo, um perfil por usuário, view da hierarquia) e volta ao catálogo da
--- 0067. Ordem: a view; a restrição de exclusão (antes de devolver vínculos); as 2 funções aos textos anteriores
+-- 0067. Ordem: os 4 gatilhos do promotor (gerente obrigatório) e as 2 funções deles, antes de mexer nos vínculos; a view; a
+-- restrição de exclusão (antes de devolver vínculos); as 2 funções aos textos anteriores
 -- (garantir_perfil_principal da 0041, semear_perfis_fabrica da 0051); os vínculos que a 0068 apagou voltam a vivos — os de
 -- deleted_at = public.macuxi_migracao.aplicada_em da 0068 (o migrador apaga a linha só depois do down), cujo perfil segue ativo
 -- e vivo e sem outro vínculo vivo igual; por fim a coluna cargo (com o CHECK) e a função cargo_da_base.
--- Limites: core.usuario.perfil fica com a base mais alta (válida: continua entre os perfis do usuário); o cargo gravado em perfil
+-- Limites: sem os gatilhos, o banco volta a aceitar promotor sem gerente (a regra fica só no Core); core.usuario.perfil fica com a base mais alta (válida: continua entre os perfis do usuário); o cargo gravado em perfil
 -- personalizado se perde (reaplicar a 0068 volta ao cargo da base); vínculo apagado pelo Core depois da 0068 não volta.
 -- Idempotente. Pré-condição: 0069+ desfeitas e o código do Core que grava/lê o cargo e a view já desfeito.
 
+drop trigger if exists usuario_conferir_promotor on core.usuario;
+drop trigger if exists equipe_conferir_promotor on core.equipe;
+drop trigger if exists usuario_perfil_conferir_promotor on plataforma.usuario_perfil;
+drop trigger if exists perfil_conferir_promotor on plataforma.perfil;
+drop function if exists core.promotor_conferir();
+drop function if exists core.conferir_promotores(uuid, uuid[], uuid[]);
 drop view if exists core.v_usuario_hierarquia;
 alter table plataforma.usuario_perfil drop constraint if exists usuario_perfil_um_vivo;
 
