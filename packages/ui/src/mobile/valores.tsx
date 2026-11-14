@@ -5,7 +5,7 @@
  * - `LinhaValor`: linha rótulo ··· valor (itens compactos, Tabela, Descontos, Total);
  * - `BlocoTotais`: cartão com as linhas e a linha final em destaque, com espaço para a `Faixa` abaixo;
  * - `Faixa`: faixa de estado ok/aviso/erro ("4,6% · dentro da alçada");
- * - `Selo`: etiqueta curta (tons sucesso, aviso, erro, roxo, neutro, destaque).
+ * - `Selo`: etiqueta curta (tons sucesso, aviso, erro, neutro, destaque; `roxo` é o nome antigo do destaque).
  * Os valores chegam já formatados (dinheiro a partir de centavos, % no domain); nenhum texto fixo no componente.
  */
 import type { ReactNode } from 'react';
@@ -14,7 +14,7 @@ import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewSty
 import { ehSemDado, leituraDaLinhaDeValor, VALOR_SEM_DADO } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { ALTURA, BOTAO_DESABILITADO, colors, fonts, radius } from './theme';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonts, radius, TONS_ESTADO, type TomEstado } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -294,16 +294,8 @@ export function Faixa({
 }
 
 // ---------- Selo ----------
-export type TomSelo = 'sucesso' | 'aviso' | 'erro' | 'roxo' | 'neutro' | 'destaque';
-
-const TOM_SELO: Record<TomSelo, { fg: string; bg: string }> = {
-  sucesso: { fg: colors.success, bg: colors.successBg },
-  aviso: { fg: colors.warning, bg: colors.warningBg },
-  erro: { fg: colors.danger, bg: colors.dangerBg },
-  roxo: { fg: colors.violet, bg: colors.violetBg },
-  neutro: { fg: colors.neutralInk, bg: colors.neutralBg },
-  destaque: { fg: colors.accentInk, bg: colors.accentSoft },
-};
+/** Os tons do selo são os do chip de estado (`TONS_ESTADO`), uma tabela só. */
+export type TomSelo = TomEstado;
 
 export function Selo({
   texto,
@@ -326,7 +318,7 @@ export function Selo({
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
-  const c = TOM_SELO[tom];
+  const c = TONS_ESTADO[tom];
   return (
     <View style={[s.selo, tamanho === 'm' && s.seloM, pilula && s.seloPilula, { backgroundColor: c.bg }, style]} testID={testID} accessible accessibilityLabel={rotuloAcessivel ?? texto}>
       <Text style={[s.seloTexto, tamanho === 'm' && s.seloTextoM, { color: c.fg }]} numberOfLines={1}>

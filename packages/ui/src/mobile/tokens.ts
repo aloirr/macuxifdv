@@ -65,9 +65,6 @@ export const colors = {
   dangerBg: '#FDE8E6',
   neutralBg: '#E6E9E2',
   neutralInk: '#34404D',
-  /** roxo da referência do Novo pedido (selo de orçamento, T-0071): contraste 7,9:1 sobre o fundo */
-  violet: '#4B2FA3',
-  violetBg: '#ECE7FB',
   /** texto claro sobre o escuro (grafite e faixa): o mesmo #C9CED5 da faixa, sem cor "quase igual" */
   darkMuted: MARCA.claroNaFaixa,
   darkTrack: '#34404D',
@@ -201,5 +198,15 @@ export const TONS_ESTADO: Record<TomEstado, { fg: string; bg: string }> = {
   erro: { fg: colors.danger, bg: colors.dangerBg },
   neutro: { fg: colors.neutralInk, bg: colors.neutralBg },
   destaque: { fg: colors.accentInk, bg: colors.accentSoft },
-  roxo: { fg: colors.violet, bg: colors.violetBg },
+  /** MC-0005: o roxo saiu da paleta (manual §3); `roxo` fica como nome antigo do destaque até o modulo-vendedor trocar o tom do selo */
+  roxo: { fg: colors.accentInk, bg: colors.accentSoft },
 };
+
+/**
+ * Chip de escolha (filtro, prazo, transportadora), MC-0002: o ativo no Azul suave com texto Azul noite (9,83:1), como nas
+ * pranchas T-0171 e T-0173; o inativo branco com linha e texto grafite. O mesmo chip tem a mesma cor em todas as telas.
+ */
+export const CORES_CHIP = {
+  ativo: { fundo: colors.accentSoft, borda: colors.accentSoft, texto: colors.accentInk },
+  inativo: { fundo: colors.surface, borda: colors.lineStrong, texto: colors.ink },
+} as const;
