@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Recados e tarefas · opções</title>
+<style>
+@font-face { font-family: Archivo; font-weight: 700; src: url('../../../apps/web/app/fonts/Archivo_700Bold.ttf'); }
+@font-face { font-family: Archivo; font-weight: 800; src: url('../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf'); }
+@font-face { font-family: Plex; font-weight: 400; src: url('../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf'); }
+@font-face { font-family: Plex; font-weight: 500; src: url('../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf'); }
+@font-face { font-family: Plex; font-weight: 600; src: url('../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf'); }
+@font-face { font-family: Plex; font-weight: 700; src: url('../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf'); }
+
+:root {
+  --noite: #1E3350; --perola: #F8F6F1; --branco: #FFFFFF; --sol: #C2540A;
+  --tinta: #16202A; --tinta2: #4A5562; --linha: #E1E4DE; --suave: #DFE2E6; --faixa2: #C9CED5;
+  --erro: #A8261B; --erro-fundo: #FDE8E6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #DADDD6; font-family: Plex, sans-serif; color: var(--tinta); }
+.prancha { padding: 56px 56px 48px; display: flex; flex-direction: column; gap: 56px; width: max-content; }
+.fileira { display: flex; flex-direction: column; gap: 22px; }
+.aparelhos { display: flex; gap: 40px; }
+.rotulo { font-family: Archivo; font-weight: 800; font-size: 22px; color: var(--tinta); }
+
+/* aparelho */
+.ap { position: relative; width: 350px; height: 680px; border-radius: 28px; overflow: hidden; background: var(--perola);
+  box-shadow: 0 18px 40px rgba(22,32,42,.18), 0 2px 6px rgba(22,32,42,.10); }
+
+/* Início do Campo (fundo das opções A e B) */
+.faixa { background: var(--noite); padding: 40px 20px 22px; position: relative; }
+.faixa h1 { font-family: Archivo; font-weight: 800; font-size: 22px; line-height: 28px; color: #fff; }
+.faixa p { font-size: 14px; line-height: 20px; color: var(--faixa2); margin-top: 2px; }
+.sino { position: absolute; right: 8px; top: 40px; width: 48px; height: 48px; display: grid; place-items: center; }
+.contador { position: absolute; top: 6px; right: 6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--sol);
+  color: #fff; font-family: Archivo; font-weight: 800; font-size: 12px; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--noite); }
+.corpo { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.bloco { background: #fff; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.ph { height: 10px; border-radius: 5px; background: var(--linha); }
+.ph.g { height: 18px; border-radius: 6px; background: #D3D7D0; }
+.meta { height: 10px; border-radius: 5px; background: var(--linha); overflow: hidden; }
+.meta i { display: block; height: 100%; width: 62%; background: var(--sol); border-radius: 5px; }
+.par { display: flex; gap: 12px; }
+.par .bloco { flex: 1; }
+.abas-app { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: #fff; border-top: 1px solid var(--linha);
+  display: flex; justify-content: space-around; align-items: center; }
+.abas-app b { width: 26px; height: 26px; border-radius: 8px; background: var(--linha); }
+.abas-app b:first-child { background: var(--noite); }
+.scrim { position: absolute; inset: 0; }
+
+/* ícones por tipo */
+.ic { flex: none; display: grid; place-items: center; background: var(--suave); color: var(--noite); }
+.ic.recado { border-radius: 50%; }
+.ic.tarefa { border-radius: 12px; }
+.ic.vencida { border-radius: 12px; background: var(--erro-fundo); color: var(--erro); }
+.ic.ok { border-radius: 50%; }
+.t { font-size: 15px; line-height: 20px; color: var(--tinta); font-weight: 400;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.t.forte { font-weight: 600; }
+.a { font-size: 13px; line-height: 18px; color: var(--tinta2); margin-top: 2px; }
+.a.venceu { color: var(--erro); font-weight: 600; }
+.txt { flex: 1; min-width: 0; }
+.ponto { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--sol); }
+.chev { flex: none; color: #8A939D; }
+.vazio-t { font-family: Archivo; font-weight: 700; font-size: 17px; color: var(--tinta); }
+
+/* Opção A · folha que sobe */
+.folha { position: absolute; left: 0; right: 0; bottom: 0; background: var(--perola); border-radius: 24px 24px 0 0; padding: 8px 0 28px;
+  box-shadow: 0 -8px 24px rgba(15,20,25,.18); }
+.pega { width: 40px; height: 4px; border-radius: 2px; background: #C4C9C2; margin: 0 auto; }
+.folha-cab { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 8px 20px; }
+.folha-cab h2 { font-family: Archivo; font-weight: 800; font-size: 19px; line-height: 24px; }
+.x { width: 48px; height: 48px; display: grid; place-items: center; color: var(--tinta2); }
+.cartoes { display: flex; flex-direction: column; gap: 10px; padding: 4px 20px 0; }
+.cartao { position: relative; background: #fff; border-radius: 14px; min-height: 72px; padding: 14px 12px 14px 16px; display: flex; align-items: center; gap: 12px;
+  overflow: hidden; box-shadow: 0 1px 2px rgba(22,32,42,.06); }
+.cartao.novo::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--sol); }
+.botao2 { margin: 16px 20px 0; height: 48px; border-radius: 12px; border: 1.5px solid var(--noite); color: var(--noite);
+  display: grid; place-items: center; font-weight: 600; font-size: 15px; background: transparent; }
+.folha-vazio { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 20px 24px; }
+
+/* Opção B · balão no sino */
+.balao { position: absolute; left: 20px; width: 310px; top: 98px; background: #fff; border-radius: 16px;
+  box-shadow: 0 14px 36px rgba(15,20,25,.28), 0 2px 6px rgba(15,20,25,.12); }
+.seta { position: absolute; top: -7px; left: 291px; width: 14px; height: 14px; background: #fff; transform: rotate(45deg); border-radius: 2px 0 0 0; }
+.balao h2 { position: relative; font-family: Archivo; font-weight: 800; font-size: 17px; line-height: 22px; padding: 16px 16px 6px; }
+.lin { display: flex; align-items: stretch; padding-left: 16px; }
+.lin > .ic { align-self: center; }
+.lin .cx { flex: 1; min-width: 0; min-height: 60px; margin-left: 12px; padding: 10px 16px 10px 0; display: flex; align-items: center; gap: 12px; }
+.lin + .lin .cx { border-top: 1px solid var(--linha); }
+.rodape { height: 48px; border-top: 1px solid var(--linha); display: flex; align-items: center; padding-left: 16px;
+  color: var(--noite); font-weight: 600; font-size: 15px; gap: 4px; }
+.balao .lin:last-of-type .cx { min-height: 60px; }
+.balao.vazio .lin { padding-bottom: 6px; }
+.sino-acima { position: absolute; right: 8px; top: 40px; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.14); }
+
+/* Opção C · tela cheia com abas */
+.cab { background: var(--noite); padding-top: 32px; }
+.cab-l { display: flex; align-items: center; height: 56px; padding: 0 20px 0 4px; gap: 4px; }
+.cab-l h2 { font-family: Archivo; font-weight: 800; font-size: 19px; color: #fff; }
+.voltar { width: 48px; height: 48px; display: grid; place-items: center; color: #fff; }
+.abas { display: flex; }
+.aba { flex: 1; height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--faixa2); font-weight: 600; font-size: 15px; position: relative; }
+.aba.ativa { color: #fff; }
+.aba.ativa::after { content: ''; position: absolute; left: 24px; right: 24px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: #fff; }
+.pill { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--sol); color: #fff; font-family: Archivo; font-weight: 800; font-size: 12px; line-height: 20px; text-align: center; }
+.lista { background: #fff; border-bottom: 1px solid var(--linha); }
+.lc { display: flex; align-items: stretch; padding-left: 20px; }
+.lc > .ic { align-self: center; }
+.lc .cx { flex: 1; min-width: 0; min-height: 72px; margin-left: 14px; padding: 12px 20px 12px 0; display: flex; align-items: center; gap: 12px; }
+.lc + .lc .cx { border-top: 1px solid var(--linha); }
+.c-vazio { position: absolute; left: 0; right: 0; top: 136px; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding-bottom: 60px; }
+</style>
+</head>
+<body>
+<div class="prancha" id="prancha"></div>
+
+<script>
+// Ícones (traço de 2, como os de packages/ui)
+const svg = (d, s = 20, w = 2) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I = {
+  sino: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 24),
+  chat: (s) => svg('<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 20.5l1.4-4.6A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/>', s),
+  check: (s, w = 2.4) => svg('<path d="M20 6 9 17l-5-5"/>', s, w),
+  alerta: (s) => svg('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', s),
+  chev: svg('<path d="m9 18 6-6-6-6"/>', 20),
+  x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 24),
+  voltar: svg('<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>', 24),
+};
+const icone = (tipo, tam) => {
+  const s = Math.round(tam / 2);
+  const dentro = tipo === 'recado' ? I.chat(s) : tipo === 'vencida' ? I.alerta(s) : I.check(s);
+  return `<span class="ic ${tipo}" style="width:${tam}px;height:${tam}px">${dentro}</span>`;
+};
+
+// Dados
+const R1 = { tipo: 'recado', titulo: 'Promoção do óleo começa segunda', apoio: 'Carla · supervisão · hoje', novo: true };
+const R1lido = { ...R1, novo: false };
+const T1 = { tipo: 'tarefa', titulo: 'Foto da gôndola no Atacadão', apoio: 'até hoje', fazer: true };
+const R2 = { tipo: 'recado', titulo: 'Rota de sexta mudou', apoio: 'Escritório · ontem' };
+const TV = { tipo: 'vencida', titulo: 'Foto da gôndola no Atacadão', apoio: 'Venceu ontem', fazer: true, venceu: true };
+const ESTADOS = { cheio: { itens: [R1, T1, R2], contador: 2 }, vazio: { itens: [], contador: 0 }, vencida: { itens: [TV, R1lido, R2], contador: 1 } };
+
+const textos = (it) => `<div class="txt"><div class="t ${it.novo || it.fazer ? 'forte' : ''}">${it.titulo}</div><div class="a ${it.venceu ? 'venceu' : ''}">${it.apoio}</div></div>`;
+
+// Início do Campo
+const inicio = (contador, sinoAcima) => `
+  <div class="faixa">
+    <h1>Bom dia, Rafael</h1><p>sábado, 14/11</p>
+    <div class="sino" style="color:#fff">${I.sino}${contador ? `<span class="contador">${contador}</span>` : ''}</div>
+  </div>
+  <div class="corpo">
+    <div class="bloco"><div class="ph g" style="width:46%"></div><div class="meta"><i></i></div><div class="ph" style="width:70%"></div></div>
+    <div class="par"><div class="bloco"><div class="ph g" style="width:60%"></div><div class="ph" style="width:80%"></div></div>
+      <div class="bloco"><div class="ph g" style="width:50%"></div><div class="ph" style="width:70%"></div></div></div>
+    <div class="bloco"><div class="ph g" style="width:40%"></div><div class="ph"></div><div class="ph" style="width:85%"></div></div>
+  </div>
+  <div class="abas-app"><b></b><b></b><b></b><b></b></div>`;
+
+// A · folha que sobe, em cartões
+const opcaoA = ({ itens, contador }) => `<div class="ap">${inicio(contador)}
+  <div class="scrim" style="background:rgba(15,20,25,.45)"></div>
+  <div class="folha">
+    <div class="pega"></div>
+    <div class="folha-cab"><h2>Recados e tarefas</h2><span class="x">${I.x}</span></div>
+    ${itens.length ? `<div class="cartoes">${itens.map((it) => `<div class="cartao ${it.novo ? 'novo' : ''}">${icone(it.tipo, 40)}${textos(it)}<span class="chev">${I.chev}</span></div>`).join('')}</div>
+    <div class="botao2">Ver todos</div>`
+    : `<div class="folha-vazio">${icone('ok', 56)}<div class="vazio-t">Tudo em dia</div></div>`}
+  </div></div>`;
+
+// B · balão no sino, lista compacta
+const opcaoB = ({ itens, contador }) => `<div class="ap">${inicio(contador)}
+  <div class="scrim" style="background:rgba(15,20,25,.28)"></div>
+  <div class="sino-acima" style="color:#fff">${I.sino}${contador ? `<span class="contador">${contador}</span>` : ''}</div>
+  <div class="balao ${itens.length ? '' : 'vazio'}">
+    <span class="seta"></span>
+    <h2>Recados e tarefas</h2>
+    ${itens.length ? itens.map((it) => `<div class="lin">${icone(it.tipo, 36)}<div class="cx">${textos(it)}${it.novo ? '<span class="ponto"></span>' : ''}</div></div>`).join('')
+      + `<div class="rodape">Ver todos <span style="display:grid">${I.chev}</span></div>`
+    : `<div class="lin">${icone('ok', 36)}<div class="cx"><div class="vazio-t" style="font-size:15px">Tudo em dia</div></div></div>`}
+  </div></div>`;
+
+// C · tela cheia com abas
+const opcaoC = ({ aba, recados, tarefas, itens }) => `<div class="ap">
+  <div class="cab">
+    <div class="cab-l"><span class="voltar">${I.voltar}</span><h2>Recados e tarefas</h2></div>
+    <div class="abas">
+      <div class="aba ${aba === 'recados' ? 'ativa' : ''}">Recados${recados ? `<span class="pill">${recados}</span>` : ''}</div>
+      <div class="aba ${aba === 'tarefas' ? 'ativa' : ''}">Tarefas${tarefas ? `<span class="pill">${tarefas}</span>` : ''}</div>
+    </div>
+  </div>
+  ${itens.length ? `<div class="lista">${itens.map((it) => `<div class="lc">${icone(it.tipo, 40)}<div class="cx">${textos(it)}${it.novo ? '<span class="ponto"></span>' : `<span class="chev">${I.chev}</span>`}</div></div>`).join('')}</div>`
+  : `<div class="c-vazio">${icone('ok', 56)}<div class="vazio-t">Tudo em dia</div></div>`}
+  </div>`;
+
+const fileiras = [
+  ['Opção A · Folha que sobe, em cartões', ['cheio', 'vazio', 'vencida'].map((e) => opcaoA(ESTADOS[e]))],
+  ['Opção B · Balão no sino, lista compacta', ['cheio', 'vazio', 'vencida'].map((e) => opcaoB(ESTADOS[e]))],
+  ['Opção C · Tela cheia com abas', [
+    opcaoC({ aba: 'recados', recados: 1, tarefas: 1, itens: [R1, R2] }),
+    opcaoC({ aba: 'recados', recados: 0, tarefas: 0, itens: [] }),
+    opcaoC({ aba: 'tarefas', recados: 0, tarefas: 1, itens: [TV] }),
+  ]],
+];
+document.getElementById('prancha').innerHTML = fileiras
+  .map(([rotulo, aps]) => `<section class="fileira"><div class="aparelhos">${aps.join('')}</div><div class="rotulo">${rotulo}</div></section>`)
+  .join('');
+</script>
+</body>
+</html>
