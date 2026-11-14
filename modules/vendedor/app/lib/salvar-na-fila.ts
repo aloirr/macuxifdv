@@ -73,7 +73,6 @@ export interface EstadoNaFila {
   /** pedido `na_fila` é só de leitura; só o recusado reabre para correção */
   somenteLeitura: boolean;
   podeCorrigir: boolean;
-  podeEnviarAgora: boolean;
 }
 
 /** Nota da etapa "Na fila" do histórico: "Aguardando envio" só enquanto o pedido está de fato na fila; o recusado não leva nota (a faixa de recusa diz o motivo). */
@@ -89,13 +88,11 @@ export function estadoNaFila(e: { recusado: boolean; offline: boolean; motivoBru
       faixa: { texto: textoDaRecusa(motivo), tom: 'danger', icone: 'alert' },
       somenteLeitura: false,
       podeCorrigir: true,
-      podeEnviarAgora: false,
     };
   }
   return {
     faixa: { texto: avisoDoSalvar(e.offline), tom: 'warning', icone: e.offline ? 'wifiOff' : 'sync' },
     somenteLeitura: true,
     podeCorrigir: false,
-    podeEnviarAgora: !e.offline,
   };
 }

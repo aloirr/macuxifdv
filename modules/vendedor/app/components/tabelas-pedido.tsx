@@ -1,7 +1,9 @@
 /**
  * T-0150 (spec docs/design/pedido-v4.md §1 e §2): tabelas do detalhe do pedido/orçamento e do Resumo do Novo pedido.
  *  - `TabelaRotuloValor`: Pagamento/Entrega (Cliente, Venda) em cartão, rótulo 13 ink2 numa coluna de 92 dp;
- *  - `TabelaDeItens`: Produto · Qtd · Preço unit. · Desc./Acrésc. · Total, larguras fixas 40/48/58/56 dp, números sem "R$";
+ *  - `TabelaDeItens`: Código · Emb. · Qtd · Valor tabela · Desc./Acrésc. · Total, números sem "R$". Larguras: o Código pelo conteúdo
+ *    (`larguraDoCodigo`, 48 a 96 dp); as colunas numéricas dividem o resto por peso (30/26/48/40/54), flexBasis 0, à direita,
+ *    com `adjustsFontSizeToFit` (valor grande encolhe em vez de quebrar); gap 4 e padding 8, iguais no cabeçalho e nas linhas;
  *  - `CartaoDeTotais`: Tabela · linha líquida (% sobre a tabela) · Total. Sem texto de regra: tudo vem de funções puras.
  * Números em IBM Plex Sans tabular (abaixo de 15 px o 6 do Archivo parece 8).
  */
@@ -11,6 +13,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ROTULO_VALOR_FINAL } from '../../domain/apresentacao-totais';
 
 import type { LinhaDeItemEmTabela } from '../lib/detalhe-pedido';
+import { larguraDoCodigo } from '../lib/tabela-itens';
 
 export function TabelaRotuloValor({ linhas, testID }: { linhas: ReadonlyArray<{ rotulo: string; valor: string; testID?: string; complemento?: string; testIDComplemento?: string }>; testID?: string }) {
   return (
@@ -39,32 +42,57 @@ export function TabelaRotuloValor({ linhas, testID }: { linhas: ReadonlyArray<{ 
  * balão com "nome - marca" logo abaixo da linha (um por vez; outro toque fecha). `aoTocarLinha` (Resumo) abre a folha do item pelo resto da linha e pelo lápis (T-0165), depois do Total.
  */
 export function TabelaDeItens({ itens, testID = 'tabela-itens', aoTocarLinha }: { itens: ReadonlyArray<LinhaDeItemEmTabela & { key: string }>; testID?: string; aoTocarLinha?: (key: string) => void }) {
+  const larguraCodigo = larguraDoCodigo(itens.map((l) => l.codigo));
   return (
     <View style={s.cartao} testID={testID}>
       <View style={s.cabecalho}>
-        <Text style={[s.cab, s.colCodigo]}>Código</Text>
-        <Text style={[s.cab, s.colEmb]}>Emb.</Text>
-        <Text style={[s.cab, s.dir, s.colQtd]}>Qtd</Text>
-        <Text style={[s.cab, s.dir, s.colTabela]}>Valor tabela</Text>
-        <Text style={[s.cab, s.dir, s.colAjuste]}>Desc./ Acrésc.</Text>
-        <Text style={[s.cab, s.dir, s.colTotal]}>Total</Text>
+        <Text style={[s.cab, { width: larguraCodigo }]} numberOfLines={1}>
+          Código
+        </Text>
+        <View style={s.restoDoCabecalho}>
+          <Text style={[s.cab, s.dir, s.colEmb]} numberOfLines={1}>
+            Emb.
+          </Text>
+          <Text style={[s.cab, s.dir, s.colQtd]} numberOfLines={1}>
+            Qtd
+          </Text>
+          <Text style={[s.cab, s.dir, s.colTabela]}>Valor tabela</Text>
+          <Text style={[s.cab, s.dir, s.colAjuste]}>Desc./ Acrésc.</Text>
+          <Text style={[s.cab, s.dir, s.colTotal]} numberOfLines={1}>
+            Total
+          </Text>
+        </View>
         {aoTocarLinha ? <View style={s.colLapis} /> : null}
       </View>
       {itens.map((l) => (
         <View key={l.key} style={s.traco}>
           <View style={s.linhaItem}>
-            <Balao testID={`codigo-${l.codigo}`} texto={l.nomeComMarca} rotuloAcessivel={`${l.codigo}, ${l.nomeComMarca}`} tamanhoFonte={14} style={s.colCodigo}>
-              <Text style={s.codigoLink}>{l.codigo}</Text>
+            <Balao testID={`codigo-${l.codigo}`} texto={l.nomeComMarca} rotuloAcessivel={`${l.codigo}, ${l.nomeComMarca}`} tamanhoFonte={14} style={[s.colCodigo, { width: larguraCodigo }]}>
+              <Text style={s.codigoLink} numberOfLines={1}>{l.codigo}</Text>
             </Balao>
             <Pressable accessibilityRole={aoTocarLinha ? 'button' : undefined} accessibilityLabel={`${l.codigo}, ${l.emb} ${l.fator}, quantidade ${l.qtd}, valor de tabela ${l.valorTabela}, ajuste ${l.ajuste}, total ${l.total}${aoTocarLinha ? '. Toque para editar.' : ''}`} disabled={!aoTocarLinha} onPress={() => aoTocarLinha?.(l.key)} style={s.restoDaLinha} testID={`linha-${l.codigo}`}>
               <View style={s.colEmb}>
-                <Text style={s.emb}>{l.emb}</Text>
-                {l.fator ? <Text style={s.fator}>{l.fator}</Text> : null}
+                <Text style={[s.emb, s.dir]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  {l.emb}
+                </Text>
+                {l.fator ? (
+                  <Text style={[s.fator, s.dir]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                    {l.fator}
+                  </Text>
+                ) : null}
               </View>
-              <Text style={[s.num, s.dir, s.colQtd]}>{l.qtd}</Text>
-              <Text style={[s.num, s.dir, s.colTabela]}>{l.valorTabela}</Text>
-              <Text style={[s.num, s.dir, s.colAjuste, l.ajuste === '0,0%' && { color: colors.ink2 }]}>{l.ajuste}</Text>
-              <Text style={[s.num, s.total, s.dir, s.colTotal]}>{l.total}</Text>
+              <Text style={[s.num, s.dir, s.colQtd]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {l.qtd}
+              </Text>
+              <Text style={[s.num, s.dir, s.colTabela]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {l.valorTabela}
+              </Text>
+              <Text style={[s.num, s.dir, s.colAjuste, l.ajuste === '0,0%' && { color: colors.ink2 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {l.ajuste}
+              </Text>
+              <Text style={[s.num, s.total, s.dir, s.colTotal]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {l.total}
+              </Text>
             </Pressable>
             {aoTocarLinha ? (
               <BotaoEditar testID={`editar-${l.codigo}`} item={l.codigo} tamanho="tabela" onPress={() => aoTocarLinha(l.key)} />
@@ -104,16 +132,17 @@ const s = StyleSheet.create({
   rotulo: { width: 92, fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   complemento: { fontFamily: fonts.body, fontSize: 12, lineHeight: 16, color: colors.ink2 },
   valor: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.ink },
-  cabecalho: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6, alignItems: 'flex-end' },
+  cabecalho: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 6, alignItems: 'flex-end' },
+  restoDoCabecalho: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end' },
   cab: { fontFamily: fonts.semibold, fontSize: 11, color: colors.ink2 },
-  linhaItem: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, alignItems: 'center', minHeight: 44 },
-  restoDaLinha: { flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 44, paddingVertical: 8 },
-  colCodigo: { flex: 1, minHeight: 44, justifyContent: 'center' },
-  colEmb: { width: 40 },
-  colQtd: { width: 30 },
-  colTabela: { width: 50 },
-  colAjuste: { width: 54 },
-  colTotal: { width: 56 },
+  linhaItem: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, alignItems: 'center', minHeight: 44 },
+  restoDaLinha: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'center', minHeight: 44, paddingVertical: 8 },
+  colCodigo: { minHeight: 44, justifyContent: 'center' },
+  colEmb: { flexGrow: 30, flexShrink: 1, flexBasis: 0, minWidth: 0, alignItems: 'flex-end' },
+  colQtd: { flexGrow: 26, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  colTabela: { flexGrow: 48, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  colAjuste: { flexGrow: 40, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  colTotal: { flexGrow: 54, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   colLapis: { width: 32 },
   dir: { textAlign: 'right' },
   codigoLink: { fontFamily: fonts.mono, fontSize: 12, color: colors.accentInk, textDecorationLine: 'underline' },

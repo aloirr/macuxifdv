@@ -110,7 +110,7 @@ export function acoesDoDetalhe(e: EntradaAcoesDoDetalhe): AcoesDoDetalhe {
     return { principal: null, icones: compactar([e.podeEditar && editar(true), e.podePdf && pdf(true), e.podeDuplicar && duplicar(true), e.situacao === 'convertido' && e.pedidoGeradoId ? PEDIDO_GERADO : null]), menu };
   }
   const menu = compactar([e.podeCancelar && cancelar(false, e.status === 'draft')]);
-  // pedido na fila e ainda não recusado: só leitura (RN-VEN-30); o "Enviar agora" fica na faixa
+  // pedido na fila e ainda não recusado: só leitura (RN-VEN-30); a fila envia sozinha (RN-CORE-23), sem botão "Enviar agora"
   if (e.naFila && !e.recusado) return { principal: null, icones: compactar([e.podePdf && pdf(false)]), menu: [] };
   if ((e.naFila && e.recusado) || e.status === 'rejected') return { principal: e.podeEditar ? CORRIGIR : null, icones: compactar([e.podePdf && pdf(false), e.podeDuplicar && duplicar(false)]), menu };
   if (e.status === 'draft') return { principal: e.podeEditar ? CONTINUAR : null, icones: [], menu };
@@ -188,4 +188,14 @@ export function alertasDoDetalhe(e: EntradaAlertasDoDetalhe): AlertaDoPedido[] {
     itens_acima_do_maximo: unicos('abaixo_minimo'),
     itens_sem_estoque: unicos('estoque'),
   });
+}
+
+/**
+ * De onde vêm as linhas do detalhe. Na fila: a exibição guardada ao salvar. Fora da fila: o detalhe do servidor; se ele ainda
+ * não trouxe os itens (pedido aceito que o pull não buscou), a exibição guardada ao salvar, em vez de "Itens (0)".
+ */
+export function fonteDasLinhasDoDetalhe(e: { naFila: boolean; itensDoDetalhe: number; linhasDaExibicao: number }): 'fila' | 'detalhe' | 'exibicao' {
+  if (e.naFila) return 'fila';
+  if (e.itensDoDetalhe > 0) return 'detalhe';
+  return e.linhasDaExibicao > 0 ? 'exibicao' : 'detalhe';
 }

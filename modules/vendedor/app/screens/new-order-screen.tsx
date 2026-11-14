@@ -33,7 +33,7 @@ import { itensLeveMais, linhasNaFaixa } from '../lib/leve-mais';
 import { rascunhoComPagamentoPadrao, situacaoDoPagamento } from '../lib/pagamento-pedido';
 import { enderecoDoRascunho } from '../lib/endereco-pedido';
 import { calcularPedido, enderecosDoCliente, lerChaveDaLinha, situacaoDoFrete, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abaAnteriorDoPedido, abaInicialDoRascunho, AVISO_PEDIDO_SALVO, abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, proximaAbaDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
 import { alertasDoNovoPedido, idDaAba, itensSemEstoque, pendenciasDasAbasTentadas, primeiraAbaComFalta } from '../lib/alertas-novo-pedido';
@@ -48,7 +48,8 @@ import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
-import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
+import { hrefFichaDoCliente, hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
+import { destinoAposSalvar } from '../../domain/destino-apos-salvar';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
 import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
@@ -57,7 +58,6 @@ import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlter
 import { FolhaSaidaDoPedido, VoltarDoFormulario } from '../components/saida-do-pedido';
 import { useBloquearSaida } from '../lib/bloquear-saida';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
-import { avisoDoSalvar } from '../lib/salvar-na-fila';
 import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -596,12 +596,14 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: rascunhoEnviado };
     try {
       const res = await submitOrder(rascunhoEnviado, customer, catalog);
-      // V8 e T-0130 (RN-VEN-30): o editor sai da pilha (replace) na hora e abre o detalhe ("‹ Pedidos"); o pedido já está na fila e o
-      // envio segue em segundo plano. O aviso do rodapé diz o destino: "Pedido salvo · enviando" ou "· vai quando houver sinal".
+      // RN-VEN-30: o editor fecha na hora e o envio segue em segundo plano. Com check-in aberto neste cliente volta para a ficha dele;
+      // sem check-in vai para a lista de Pedidos, onde o pedido aparece com o status. Nenhuma das duas lê aviso pendente: não deixa um.
       const destino = res.kind === 'sent' ? res.order.id : (res.id ?? null);
       if (destino) {
-        deixarAvisoPendente(tipo === 'orcamento' ? avisoDoOrcamentoSalvo(res.kind === 'sent' ? res.order.number : null) : avisoDoSalvar(offline));
-        router.replace(hrefPedido(destino) as never);
+        const depois = destinoAposSalvar({ clienteId: customerId, visitaAtivaNoCliente: Boolean(visitId) });
+        if (depois.tela === 'pedidos') router.replace(hrefPedidos() as never);
+        else if (router.canGoBack()) router.back();
+        else router.replace(hrefFichaDoCliente(depois.clienteId) as never);
         return true;
       }
       setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', message: res.message, snapshot });
