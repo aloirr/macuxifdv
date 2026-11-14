@@ -132,15 +132,6 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Técnico:** ADR 0040 e `docs/desenho/T-0149.md`. Tudo é aditivo: consulta `core.filiais@1`, evento `integracao.filial.atualizado@1` e Conector 1.4.0 para pedido de filial que não é a padrão.
 
   *(Alexandre, R-20261110-062236; T-0149.)*
-- **RN-CORE-52 Curvas ABC do cliente** (Alexandre, chat de 14/11/2026 ~6h, R-20261114-060400; Oficial. Os padrões abaixo valem até ele confirmar.)
-  - **Três curvas**, cada uma com o nome escrito: **Faturamento**, **Volume** e **Frequência de compra**. A tag "Curva X" sem dizer de quê não é mais usada.
-  - **Base:** o mês atual comparado com a média dos 3 meses anteriores do próprio cliente.
-  - **Faixas padrão**, parametrizáveis por tenant:
-    - **A:** 50% ou mais acima da média;
-    - **B:** de 20% abaixo a menos de 50% acima;
-    - **C:** mais de 20% abaixo da média.
-  - **Sem histórico** de 3 meses: "—", sem curva.
-  - **Onde aparece:** na ficha do cliente (aba Resumo).
 - **RN-CORE-40 Indicadores de compra da ficha do cliente** (topo da ficha, Campo, Gestão e BKO; T-0146).
   - **Janela:** os 12 meses que terminam no mês de hoje, inclusive, no fuso do tenant.
   - **Fórmulas:**
@@ -173,6 +164,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Nada mais na linha**: só o nome, a tag, a última visita e a seta. "Cadastro incompleto" fica na ficha do cliente e nas pendências do pedido.
   - **Filtros**: o filtro "Com título vencido" passa a se chamar **"Devendo"**, igual à tag. Os outros filtros ficam.
   - **Regra geral das listas**: uma informação por linha. A tag diz a situação e a linha de baixo diz um único fato.
+- **RN-CORE-49 Curvas ABC do cliente** (Alexandre, chat de 14/11/2026 5h55; ficha do cliente, Campo e Gestão):
+  - **Três curvas por cliente**, cada uma com o nome da dimensão na tag: **Faturamento** (R$), **Volume** (itens) e **Frequência** (pedidos). Ex.: "Faturamento A", "Volume B", "Frequência C". A tag "Curva X" sem dimensão sai.
+  - **Base**: o mês atual comparado com a média dos 3 meses anteriores do próprio cliente (linhas do histórico do mesmo mês somadas; mês sem compra conta como zero).
+  - **Padrões** (Alexandre, chat de 14/11/2026 6h16: "Curva A entre 20% ou mais acima da media. Curva B: abaixo de 20% até a média. Curva C abaixo da media."): **A** com +20% ou mais; **B** da média (0%) até abaixo de +20%; **C** abaixo da média. As mesmas faixas valem para as três dimensões.
+  - Os percentuais são parâmetros do tenant (`cliente.curva_abc.a_min_pct` e `cliente.curva_abc.c_abaixo_pct`); ausente ou inválido vale o padrão.
+  - **Sem histórico de 3 meses**, a curva não aparece. Dimensão com média zero também não.
+  - O promotor sem `promotor_ve_pedidos` não vê as curvas (RN-PRO-01).
+  - Na ficha, as curvas ficam no **Resumo**. "Positivado em <mês>" sai da ficha; o segmento deixa de ser tag e vira dado de **Dados cadastrais**.
 
 **Produto — custo, preço e medidas** (decisões do Alexandre, 2026-11-02, R-20261102-094644 e R-20261102-111619)
 - **RN-CORE-18** Cadastro do produto: custo e preço de venda são obrigatórios. Margem (%) = (preço − custo) ÷ preço; markup (%) = (preço − custo) ÷ custo; lucro (R$) = preço − custo; calculados, nunca digitados. Produto sem preço de venda não é vendável. Produto sem custo é vendável, mas aparece como "custo não informado" no BKO e no monitor de integração. **Custo, margem, markup e lucro são dados internos:** só o BKO (admin, analista, gerente) os vê; não vão para o app de campo nem para o PDF do cliente.
@@ -428,6 +427,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Validade do orçamento (`validade_orcamento_dias`) | 7 dias |
 | Dias úteis da semana para a meta do dia (`dias_uteis_semana`; no código `metas.dias_uteis_semana`) | segunda a sábado |
 | Frase padrão do recado do dia (`recado_do_dia_padrao`; no código `inicio.recado_do_dia_padrao`) | "Bom trabalho hoje!" |
+| Curva ABC do cliente, por dimensão (`cliente.curva_abc.a_min_pct` / `cliente.curva_abc.c_abaixo_pct`; RN-CORE-49) | A com +20% ou mais · B da média até abaixo de +20% · C abaixo da média dos 3 meses |
 | Minutos sem visita para "parado" na Equipe agora (`inicio.parado_min`) | 60 |
 | Desconto máximo padrão do produto (`desconto_maximo_produto_pct`) | 15% |
 | Raio de check-in | 200 m |
