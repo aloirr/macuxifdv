@@ -149,6 +149,8 @@ describe('linhas Positivação, Visitas e Cobertura (RD-0005, RD-0007, RD-0010)'
     expect(desenhoDaLinha(meta({ indicador: 'visitas', meta_mes: 90, realizado_ate_ontem: 0, realizado_hoje: 0 }))).toEqual({ rotulo: 'Visitas', valor: '0 de 90', verde: false });
     expect(desenhoDaLinha(meta({ indicador: 'cobertura_pct', situacao: 'do_mes', meta_mes: 9000, realizado_ate_ontem: 0, realizado_hoje: 0 }))).toEqual({ rotulo: 'Cobertura', valor: '0% de 90%', verde: false });
     expect(desenhoDaLinha(meta({ indicador: 'positivacao', meta_mes: 1, realizado_ate_ontem: 1, realizado_hoje: 0, situacao: 'mes_batido' }))).toEqual({ rotulo: 'Positivação', valor: '1 de 1 cliente', verde: true });
+    // T-0170: itens por pedido em centésimos, uma casa como no Core
+    expect(desenhoDaLinha(meta({ indicador: 'itens_por_pedido', situacao: 'do_mes', meta_mes: 800, realizado_ate_ontem: 640, realizado_hoje: 0 }))).toEqual({ rotulo: 'Itens por pedido', valor: '6,4 de 8,0', verde: false });
   });
   it('mesma gramática em todas: nenhuma "meta N%" nem unidade repetida', () => {
     const textos = [xDeY('venda_cents', 55_300, 18_000_000), xDeY('positivacao', 1, 15), xDeY('visitas', 0, 90), xDeY('cobertura_pct', 0, 9000)].map((x) => `${x.valor} ${x.de}`);

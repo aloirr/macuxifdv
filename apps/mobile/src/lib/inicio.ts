@@ -51,10 +51,14 @@ export const ROTULO_INDICADOR: Record<MetaDoDia['indicador'], string> = {
   positivacao: 'Positivação',
   visitas: 'Visitas',
   cobertura_pct: 'Cobertura',
+  itens_por_pedido: 'Itens por pedido',
 };
 
 /** pontos-base (8500) → "85%". */
 const pctDePontos = (pb: number) => `${Math.round(pb / 100)}%`;
+
+/** T-0170: itens por pedido em centésimos, uma casa como no Core (800 → "8,0"). */
+const itensDeCentesimos = (c: number) => (Math.round(c / 10) / 10).toFixed(1).replace('.', ',');
 
 /** Percentual do mês em pontos-base, pronto do Core: abaixo de 1% com 1 casa ("0,3%"), senão inteiro ("40%"). */
 export function percentualDoMes(pb: number): string {
@@ -68,6 +72,7 @@ function valorDe(indicador: MetaDoDia['indicador'], n: number): string {
   if (indicador === 'venda_cents') return formatBRL0(n);
   if (indicador === 'cobertura_pct') return pctDePontos(n);
   if (indicador === 'positivacao') return `${n} ${n === 1 ? 'cliente' : 'clientes'}`;
+  if (indicador === 'itens_por_pedido') return itensDeCentesimos(n);
   return visitas(n);
 }
 
@@ -78,6 +83,7 @@ function valorDe(indicador: MetaDoDia['indicador'], n: number): string {
 export function xDeY(indicador: MetaDoDia['indicador'], feito: number, meta: number): { valor: string; de: string } {
   if (indicador === 'venda_cents' || indicador === 'cobertura_pct') return { valor: valorDe(indicador, feito), de: `de ${valorDe(indicador, meta)}` };
   if (indicador === 'positivacao') return { valor: String(feito), de: `de ${meta} ${meta === 1 ? 'cliente' : 'clientes'}` };
+  if (indicador === 'itens_por_pedido') return { valor: itensDeCentesimos(feito), de: `de ${itensDeCentesimos(meta)}` };
   return { valor: String(feito), de: `de ${meta}` };
 }
 
