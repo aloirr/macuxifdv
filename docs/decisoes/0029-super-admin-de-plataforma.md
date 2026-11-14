@@ -30,7 +30,7 @@ usa o portal não é usuário de nenhum tenant: precisa enxergar todos e criar t
    AES-256-GCM (`MACUXI_CHAVE_TOTP`; AAD = id do super-admin). 10 códigos de recuperação de uso único, só o SHA-256 guardado. Implementado com
    `node:crypto`; a única dependência nova é o gerador de QR no apps/web (`qrcode`, JS puro, MIT), aceita por esta ADR.
 4. **Sessão curta e revogável**: JWT com **segredo próprio** (`MACUXI_JWT_SEGREDO_PLATAFORMA`), `aud=macuxi-plataforma`, `sid`,
-   `amr=["pwd","otp"]`, 15 min renováveis com uso, teto de 8 h. A sessão é conferida no banco **a cada requisição** (revogar vale na hora).
+   `amr=["pwd","otp"]`, 2 h renováveis com uso (eram 15 min; Emenda 1), teto de 8 h. A sessão é conferida no banco **a cada requisição** (revogar vale na hora).
    5 falhas → bloqueio de 15 min. O token fica no `sessionStorage` da origem `config.` (o BKO, outra origem, nunca o lê).
 5. **Rota de módulo opta pelo super-admin** (`RotaModulo.superAdmin: 'aceita' | 'exige'`), com o tenant no cabeçalho `x-macuxi-tenant`.
    A API monta um usuário `admin` do tenant com os módulos **licenciados ao tenant** e `ctx.superAdmin`; licença, Zod e RLS continuam
@@ -81,3 +81,14 @@ usa o portal não é usuário de nenhum tenant: precisa enxergar todos e criar t
 - Mais um pool na API (2 conexões; ADR 0024 item 8) e mais um segredo na VM; sem ele, o portal responde 503 e os tenants seguem.
 - A `sa_provisionar_tenant` grava `plataforma.parametro` (entidade de sync) num papel que o horizonte do pull não enxerga: roda com
   `statement_timeout` abaixo da margem do horizonte (desenho T-0091 §3 item 5).
+
+## Emenda 1 (2026-11-14) — token do portal de 2 h
+
+- **Origem**: dono do produto, 14/11/2026, recado R-20261114-125500-alexandre ("aumente o tempo de sessao para duas horas"), com o
+  print do portal `config.` em "Sua sessão terminou. Entre de novo.".
+- **Decisão**: no §4, "15 min renováveis com uso" passa a **2 h (120 min) renováveis com uso** (`SESSAO_PLATAFORMA.tokenMin = 120`
+  no platform-sdk). Sem uso por 2 h, o portal pede login de novo.
+- **Não muda**: o teto absoluto de 8 h, a sessão conferida no banco a cada requisição (revogar continua valendo na hora), o bloqueio
+  de 15 min após 5 falhas e o token no `sessionStorage` da origem `config.`.
+- **Consequência**: um token vazado vale até 2 h em vez de 15 min; a revogação na hora continua, porque o banco é conferido a cada
+  requisição.
