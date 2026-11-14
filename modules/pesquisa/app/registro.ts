@@ -3,7 +3,7 @@
  * Native: aba "Pesquisas" e formulário (Campo e Gestão), seção na ficha do cliente (`cliente.abas`), etapa obrigatória
  * do checkout (`visita.etapas_checkout`, RN-PES-03) e card no Início. Tudo exige a ação `pesquisa.responder`.
  */
-import type { AbaCliente, CardInicio, ContextoCheckout, ContextoCliente, EtapaCheckout } from '@macuxi/core/contracts';
+import type { AbaCliente, CardInicio, ContextoCheckout, EtapaCheckout } from '@macuxi/core/contracts';
 import { definirModuloShell, type ImplementacaoConsultaAparelho, type ModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_PESQUISA } from '../contracts/entidades';
 import { manifest } from '../manifest';
@@ -20,17 +20,10 @@ export interface ComponentesPesquisa<C> {
   cardInicio: C;
 }
 
-/**
- * RF-PES-03: o botão "Pesquisa" da ficha só aparece com pesquisa disponível para o cliente. Campo aditivo que o
- * contrato `AbaCliente` do Core ainda não declara; quando declarar, este tipo continua compatível.
- */
-export type DisponivelCliente = (contexto: ContextoCliente) => boolean;
-
 export function montarModuloApp<C>(
   c: ComponentesPesquisa<C>,
   concluida: (ctx: ContextoCheckout) => boolean,
   consultas: readonly ImplementacaoConsultaAparelho[] = [],
-  disponivel: DisponivelCliente = () => true,
 ): ModuloShell<C> {
   return definirModuloShell<C>({
     manifesto: manifest,
@@ -53,7 +46,7 @@ export function montarModuloApp<C>(
         id: 'pesquisas',
         acao: 'pesquisa.responder',
         apps: ['campo', 'gestao'],
-        payload: { rotulo: 'Pesquisas', testID: 'ficha-pesquisas', componente: c.abaCliente, disponivel } satisfies AbaCliente<C> & { disponivel: DisponivelCliente },
+        payload: { rotulo: 'Pesquisas', testID: 'ficha-pesquisas', componente: c.abaCliente } satisfies AbaCliente<C>,
       },
       {
         slot: 'inicio.cards',
