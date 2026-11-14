@@ -11,10 +11,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alerta } from '../../contracts';
 import { SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { irParaCliente } from '../rotas';
-import { useGestor } from '../state/use-gestor';
+import { SEM_SINAL_PARA_DISPENSAR, useGestor } from '../state/use-gestor';
 
 const relogio = relogioReal();
-const SEM_SINAL = 'Sem sinal. Precisa de internet.';
 
 export default function AlertasScreen() {
   const g = useGestor({ pendencias: true });
@@ -83,7 +82,7 @@ export default function AlertasScreen() {
               {a.status === 'aberto' ? (
                 <SePode acao="alerta_equipe.dispensar">
                   {g.offline ? (
-                    <Pressable testID={`gestor-dispensar-sem-sinal-${a.id}`} accessibilityRole="button" accessibilityLabel="Dispensar. Sem sinal." onPress={() => setAviso(SEM_SINAL)}>
+                    <Pressable testID={`gestor-dispensar-sem-sinal-${a.id}`} accessibilityRole="button" accessibilityLabel="Dispensar. Sem sinal." onPress={() => setAviso(SEM_SINAL_PARA_DISPENSAR)}>
                       <View pointerEvents="none">
                         <Botao testID={`gestor-dispensar-${a.id}`} rotulo="Dispensar" nivel="neutro" desligado />
                       </View>
