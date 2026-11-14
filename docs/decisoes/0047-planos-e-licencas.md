@@ -1,6 +1,7 @@
 # ADR 0047 — Planos e licenças: catálogo como dado, contagem por tipo e trava no cadastro de usuários
 
 - **Status**: proposta em 2026-11-14.
+- **Revista por**: [0049](0049-cargos-fixos-e-um-perfil-por-usuario.md) — um perfil por usuário; o multiperfil (prioridade do multiperfil no §3 e na RN-PLA-02) não vale mais.
 - **Data**: 2026-11-14
 - **Tarefa**: planos e licenças ([desenho](../desenho/planos-e-licencas.md))
 - **Autor**: engenheiro-software
