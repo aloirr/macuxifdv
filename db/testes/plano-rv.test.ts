@@ -11,6 +11,7 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { INDICADORES_RV, RegraRvSchema } from '../../modules/core/contracts/plano-rv';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import { idUsuarioDemo, TENANT_DEMO } from '../seeds/demo/demo';
 import { dadosDemoPlanoRv, ID_PLANO_RV_DEMO, REGRAS_PLANO_RV_DEMO } from '../seeds/demo/plano-rv';
@@ -77,7 +78,9 @@ describe('0028 core.plano_rv (estático)', () => {
     const l = dadosDemoPlanoRv({ tenantId: TENANT_DEMO, hoje: '2030-03-15', atualizadoPor: idUsuarioDemo('analista') });
     expect(l).toMatchObject({ id: ID_PLANO_RV_DEMO, tenant_id: TENANT_DEMO, vigencia_inicio: '2030-03', perfis: '{vendedor}', valor_maximo_cents: 200_000 });
     const regras = REGRAS_PLANO_RV_DEMO;
-    expect(regras.map((r) => r.indicador).sort()).toEqual([...nuvemCore.INDICADORES_META_BANCO].sort());
+    // o plano de RV usa os indicadores do contrato (INDICADORES_RV): itens_por_pedido (T-0170) é só meta
+    expect(regras.map((r) => r.indicador).sort()).toEqual([...INDICADORES_RV].sort());
+    for (const r of regras) expect(RegraRvSchema.safeParse(r).success).toBe(true);
     expect(regras.filter((r) => !r.gatilho).reduce((s, r) => s + r.peso_pct, 0)).toBe(100);
     for (const r of regras.filter((x) => !x.gatilho)) expect(r.faixas[0]).toEqual({ de_pct: 0, modo: 'zero', pagamento_pct: 0 });
     expect(regras.filter((r) => r.gatilho).map((r) => [r.indicador, r.peso_pct])).toEqual([['cobertura_pct', 0]]);
