@@ -3,7 +3,7 @@ import { AbaPesquisasCliente } from './components/aba-cliente';
 import { CardPesquisas } from './components/card-inicio';
 import { EtapaPesquisaCheckout } from './components/etapa-checkout';
 import { criarConsultaRespostaLocal, fonteRespostasLocaisPadrao } from './lib/consulta-resposta-local';
-import { etapaConcluida, pesquisaDisponivelNoCliente } from './lib/local';
+import { etapaConcluida } from './lib/local';
 import { montarModuloApp } from './registro';
 import PesquisasScreen from './screens/pesquisas-screen';
 import ResponderScreen from './screens/responder-screen';
@@ -24,5 +24,4 @@ export const moduloApp = montarModuloApp<ComponentType>(
   },
   etapaConcluida,
   [criarConsultaRespostaLocal(fonteRespostasLocaisPadrao)],
-  pesquisaDisponivelNoCliente,
 );

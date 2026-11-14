@@ -58,7 +58,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
           </Pressionavel>
           {sinoDoPainel}
         </View>
-        <Pressionavel accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.textos}>
+        <Pressionavel accessible={false} importantForAccessibility="no-hide-descendants" onPress={onPerfil} style={s.textos}>
           <Text style={s.saudacao} testID="inicio.saudacao" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
             {v.saudacao}
           </Text>

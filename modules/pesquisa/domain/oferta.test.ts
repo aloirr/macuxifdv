@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { QuestionarioVersao, QuestionarioVersaoSync, RespostaEnvio, RespostaPesquisaSync } from '../contracts';
-import { haPesquisaDisponivel, montarPesquisasDoAparelho, ofertaDePesquisas, respostasConhecidas } from './oferta';
+import { montarPesquisasDoAparelho, ofertaDePesquisas, respostasConhecidas } from './oferta';
 import { publicada, QUEST, sim_nao, TENANT, u } from './util-teste';
 
 const linha = (v: QuestionarioVersao, extra: Partial<QuestionarioVersaoSync> = {}): QuestionarioVersaoSync => ({
@@ -81,37 +81,6 @@ describe('RF-PES-03: oferta da aba "Pesquisas" (avulsas aplicáveis)', () => {
     const futura = publicada({ id: u(751), questionario_id: u(851), titulo: 'Futura', perguntas: [sim_nao(1)], vigencia: { inicio: '2026-12-01T00:00:00Z', fim: null } });
     const o = ofertaDePesquisas({ pesquisas: montarPesquisasDoAparelho([linha(futura)]), usuario: USUARIO, cliente: null, visita_id: null, agora: AGORA, respostas: [], fuso: 'America/Manaus' });
     expect(o.disponiveis).toEqual([]);
-  });
-});
-
-describe('RF-PES-03: há pesquisa disponível para o cliente (botão "Pesquisa" da ficha)', () => {
-  const CLIENTE = { id: u(51), segmento: null, regiao: null };
-  const base = { usuario: USUARIO, cliente: CLIENTE, visita_id: null, agora: AGORA, respostas: [], fuso: 'America/Manaus' };
-  const avulsa = publicada({ id: u(761), questionario_id: u(861), titulo: 'Avulsa', frequencia: 'mensal', perguntas: [sim_nao(1)] });
-
-  it('RF-PES-03: avulsa aplicável ao cliente = disponível', () => {
-    expect(haPesquisaDisponivel({ ...base, pesquisas: montarPesquisasDoAparelho([linha(avulsa)]) })).toBe(true);
-  });
-
-  it('sem pesquisa no aparelho = indisponível', () => {
-    expect(haPesquisaDisponivel({ ...base, pesquisas: [] })).toBe(false);
-  });
-
-  it('RN-PES-02: já respondida no período não conta como disponível', () => {
-    const resp = [{ questionario_id: u(861), usuario_id: u(31), cliente_id: u(51), visita_id: null, respondida_em: '2026-10-05T15:00:00Z' }];
-    expect(haPesquisaDisponivel({ ...base, pesquisas: montarPesquisasDoAparelho([linha(avulsa)]), respostas: resp })).toBe(false);
-  });
-
-  it('RF-PES-02: cliente fora do público, perfil fora do público ou fora da vigência não contam', () => {
-    const outroCliente = publicada({ id: u(762), questionario_id: u(862), perguntas: [sim_nao(1)], publico_alvo: { perfis: [], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [u(52)] } });
-    const soPromotor = publicada({ id: u(763), questionario_id: u(863), perguntas: [sim_nao(1)], publico_alvo: { perfis: ['promotor'], equipes: [], segmentos: [], regioes: [], canais: [], clientes: [] } });
-    const futura = publicada({ id: u(764), questionario_id: u(864), perguntas: [sim_nao(1)], vigencia: { inicio: '2026-12-01T00:00:00Z', fim: null } });
-    expect(haPesquisaDisponivel({ ...base, pesquisas: montarPesquisasDoAparelho([linha(outroCliente), linha(soPromotor), linha(futura)]) })).toBe(false);
-  });
-
-  it('RN-PES-03: a obrigatória do checkout fica na etapa, não no botão', () => {
-    const obrig = publicada({ id: u(765), questionario_id: u(865), modo: 'checkout_obrigatoria', perguntas: [sim_nao(1)] });
-    expect(haPesquisaDisponivel({ ...base, pesquisas: montarPesquisasDoAparelho([linha(obrig)]) })).toBe(false);
   });
 });
 

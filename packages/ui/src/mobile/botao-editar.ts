@@ -8,15 +8,11 @@
 import { folgaDeToque } from './componentes';
 import { colors } from './tokens';
 
-/** Medidas dos dois tamanhos (dp). O ícone `edit` em `accentInk` (6,27:1 sobre `accentSoft`); a borda `accent` 1,5. */
+/** Medidas dos dois tamanhos (dp) e cores de cada tom. */
 export const BOTAO_EDITAR = {
   linha: { lado: 44, raio: 12, icone: 20 },
   tabela: { lado: 32, raio: 9, icone: 16 },
-  larguraBorda: 1.5,
-  borda: colors.accent,
-  fundo: colors.accentSoft,
-  icone: colors.accentInk,
-  /** Tons: `padrao` repete os campos raiz; `adicionado` usa o verde de sucesso, borda 2 (ícone 5,51:1 sobre `successBg`; borda 6,43:1 sobre o branco). */
+  /** Tons: `padrao` com ícone `accentInk` (6,27:1 sobre `accentSoft`) e borda `accent` 1,5; `adicionado` usa o verde de sucesso, borda 2 (ícone 5,51:1 sobre `successBg`; borda 6,43:1 sobre o branco). */
   tons: {
     padrao: { larguraBorda: 1.5, borda: colors.accent, fundo: colors.accentSoft, icone: colors.accentInk },
     adicionado: { larguraBorda: 2, borda: colors.success, fundo: colors.successBg, icone: colors.success },
