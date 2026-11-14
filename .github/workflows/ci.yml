@@ -3,7 +3,8 @@ name: CI
 # T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main).
 # 5 jobs (antes 12): cada job paga a preparação (checkout + pnpm install) e o minuto arredondado para cima. Sem fail-fast;
 # dentro de cada job todos os passos rodam mesmo depois de uma falha (R-20261101-014652).
-#   governanca          coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas do guardião v5 (T-0049);
+#   governanca          coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas do guardião v5 (T-0049),
+#                       guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045);
 #                       e DECIDE o escopo (scripts/ci/escopo.mjs):
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
 #                                         só ela e o ci-ok (a guarda R4 prova que nenhum código lê documentação);
@@ -88,6 +89,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # ADR 0045: um rerun só, para infraestrutura (137, runner desligado). Na 3ª tentativa fica vermelho ANTES do escopo:
+      # o escopo pula (sem if), os outros jobs não rodam e o ci-ok acusa. Segundos, no job que já existe.
+      - name: economia — um rerun só
+        run: node scripts/ci/economia-actions.mjs tentativa
+
       # PRIMEIRO passo útil: os outros jobs esperam por este (needs). Erro ou dúvida = código com todos os pacotes.
       - name: escopo
         id: escopo
@@ -107,6 +113,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: node --test .claude/hooks/*.test.mjs
 
+      # ADR 0045: o guardião não desliga no CI nem na nuvem. Vermelho se o job roda com a variável de desligar o guardião
+      # (ou a do gh simulado) no ambiente, ou se um workflow/configuração versionada atribui uma delas.
+      - name: guardião ligado (CI e nuvem)
+        if: ${{ !cancelled() }}
+        run: node scripts/ci/guardiao-ligado.mjs
+
       # Cache do turbo só é seguro se toda dependência fora do grafo declarado estiver nos inputs; e pular os testes em
       # commit só de documentação só é seguro se nenhum código a ler (R4). Testes do escopo também (ADR 0014, ADR 0044).
       - name: guardas do CI (scripts/ci)
@@ -123,6 +135,19 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+
+      # ADR 0045, só no PR de nuvem/*: o agente do sufixo do branch (nuvem/<assunto>--<agente>) é o do trailer "Agente:"
+      # dos commits. Branch por variável de ambiente, nunca interpolado no shell.
+      - name: agente do branch da nuvem × trailer
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/ci/agente-do-branch.mjs
+
+      # ADR 0045, só no PR: mais de um commit vira aviso (cada push é um CI inteiro). Nunca vermelho.
+      - name: economia — um commit por PR (aviso)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: node scripts/ci/economia-actions.mjs commits
 
       # Só no push ao main: cada commit novo desde o último push VERDE (o cancelado entra) × o agente do trailer "Agente:"
       # dele (guardião v3, .coord/README.md "Por commit"). SHAs por variável de ambiente, nunca interpolados no shell.
