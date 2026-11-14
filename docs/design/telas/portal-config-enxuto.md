@@ -46,7 +46,7 @@ Título **"Escolha a empresa"** · lista (nome; embaixo o código, ex. **AM4821*
 
 ## 3. Empresas
 Título **"Empresas"** + **"Nova empresa"**. Sai o subtítulo "Cada empresa cliente é um tenant. Crie a empresa e carregue as bases dela, na ordem dos cartões." Tabela **Empresa · Código · CNPJ · Módulos · Situação · Criada em** (Código em maiúsculas, ex. AM4821). Vazio: só **"Nenhuma empresa ainda."** (sai "Comece pela empresa cliente: razão social, CNPJ, fuso, módulos e os parâmetros iniciais." e o botão "Cadastrar a primeira empresa", que repete o "Nova empresa"). Sai: 3 frases + 1 botão.
-> Ver §11: a coluna "Módulos" vira **"Plano"**.
+> Ver §11: a coluna "Módulos" vira **"Plano"**. Ver §15: coluna **"Backup"** e ações **Backup · Inativar/Reativar · Excluir** por empresa.
 
 | Antes | Depois (lista e, abaixo, o estado vazio) |
 |---|---|
@@ -365,7 +365,7 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 | Moldura | 1 frase da sessão; **3 diálogos inteiros** (títulos, textos e botões); o nome da empresa repetido no cabeçalho (admin do cliente); 11 textos de rota ausente viram 1 | cabeçalho na faixa Azul noite (logo 104 px); "Ainda não disponível neste servidor." |
 | Entrar | 1 frase | marca na faixa solta |
 | Escolha a empresa | 1 frase | marca na faixa solta |
-| Empresas | 3 frases, 1 botão repetido, coluna "Módulos" | coluna "Plano" (+ selo "teste"); "Nova empresa" em Azul noite |
+| Empresas | 3 frases, 1 botão repetido, coluna "Módulos" | coluna "Plano" (+ selo "teste"); "Nova empresa" em Azul noite; §15: coluna "Backup", 3 ações por linha, 3 diálogos, 4 avisos |
 | Nova empresa | 18 frases, campo Código, cartão Parâmetros (5 campos), "Passo 1", "Conferir sem gravar", cartão "Módulos e licenças" (8 linhas, 8 campos, 2 selos); as regras da senha em vermelho com a senha vazia | CNPJ com 5 textos de estado (bloqueiam o "Criar empresa"); 6 campos da Receita; cartões Plano (4), Adicionais (3, com Quantidade), Ciclo (+ teste); "Escolha o plano.", "Informe a quantidade." e a linha "Total" |
 | Página da empresa | 2 frases ("Volte à lista de empresas.") | — |
 | Aba Bases | **a aba inteira** (17 cartões; até 59 frases) | — |
@@ -424,6 +424,57 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | MC-0050 | "Anual" cheio no rodapé disputa com "Trocar para Enterprise" | aceito: alternador numa linha própria abaixo dos Adicionais; rodapé só com Total, Cancelar e o principal | §11.4; `depois-06d` |
 | Senha | lista da senha da 03b diferente do kit | aceito: como `packages/ui/src/web/senha.tsx` (título, um item por linha, ✓ num círculo de 18 px em `#E2F1EA`, as 4 regras da RN-CORE-32 com o mínimo do Core, 8) | `depois-03b` |
 | MC-0049 | ✓ verde sozinho no CNPJ "Encontrado" | decidido pelo dono do produto (opção A, R-20261114-172200): o ✓ continua verde #1D6B4F e sem texto visível, como exceção aprovada; sai o `aria-hidden` e entra `role="img" aria-label="CNPJ encontrado"` | §11.2; `depois-03b`, `depois-03c` |
+
+## 15. Adendo — Backup, Inativar e Excluir na lista de Empresas
+> 2026-11-14 ~20h (Manaus) · designer-ux · pedido do dono do produto R-20261114-195600: "Nao vi a opcao de inativar a empresa no config. Ajuste para ter essa opção na lista de empresa, junto com o botao backup e excluir. A inativação desabilita todos os acessos mas nao exclui nada. O botao excluir fica do lado de inativar e so pode ser usado apos ser feito o backup da empresa." Só o time Macuxi vê a lista (§3) e as ações.
+
+Simulações (1366 × 768, escala 2, `portal.css`): `depois-02b-empresas-acoes` (lista com os estados) e `depois-02c-empresas-dialogos` (diálogos).
+
+| Lista com os estados | Diálogos |
+|---|---|
+| ![Empresas com ações](portal-config-enxuto/depois-02b-empresas-acoes.png) | ![Diálogos de Inativar, Reativar e Excluir](portal-config-enxuto/depois-02c-empresas-dialogos.png) |
+
+### 15.1 Lista
+Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em · Backup** + a coluna das ações, sem título visível (`aria-label` "Ações"). Ações à direita, nesta ordem: **"Backup"** · **"Inativar"** (ou **"Reativar"**) · **"Excluir"** — Excluir sempre ao lado de Inativar. Botões `Button` `size="sm"` secundários; Excluir no secundário de perigo (borda e texto `#A8261B`, §15.4). O único principal da tela segue sendo "Nova empresa". Células sem quebra de linha; abaixo de 1088 px, a tabela rola na horizontal (`TableScroll`).
+
+| Estado da linha | Situação | Backup | Ações |
+|---|---|---|---|
+| Ativa, com backup | selo **"Ativa"** | **"14/11/2026 19:40"** (`formatDateTimeFull`, fuso do tenant) | Backup · Inativar · Excluir |
+| Ativa, sem backup | selo **"Ativa"** | **"Nenhum"** (`ink-2`) | Backup · Inativar · Excluir **desabilitado** |
+| Backup em andamento | igual | giro + **"Em andamento"** | Backup e Excluir **desabilitados** · Inativar |
+| Inativa | selo neutro **"Inativa"**; textos da linha em `ink-2` | último backup ou "Nenhum" | Backup · **Reativar** · Excluir (se houver backup) |
+
+- **Backup** não pede confirmação (não muda nada da empresa): o clique já põe a linha em "Em andamento"; ao terminar, a célula mostra a data e a hora. Sem aviso de sucesso: a data na célula basta (uma informação, um lugar).
+- **Excluir desabilitado** sem backup ou com backup em andamento; o motivo está na coluna Backup da mesma linha ("Nenhum"/"Em andamento"), sem dica nem texto extra. O botão leva `aria-disabled` + `aria-describedby` apontando para a célula Backup (o leitor de tela ouve o motivo).
+- **Backup que não terminou:** aviso de erro fechável no topo da lista (`Notice tone="danger"`), **"O backup da {empresa} não terminou. Tente de novo."**; a célula volta ao backup anterior (ou "Nenhum").
+- **Avisos de sucesso** (`Notice tone="success"`, fecháveis, uma vez): **"{empresa} inativada."** · **"{empresa} reativada."** · **"{empresa} excluída."** (a linha some da lista).
+
+### 15.2 Diálogos (`Dialog` de `@macuxi/ui/web`, 460 px; folha de baixo para cima abaixo de 640 px)
+| Diálogo | Título | Corpo | Rodapé |
+|---|---|---|---|
+| Inativar | **"Inativar {empresa}?"** | **"Todos os acessos da empresa ficam bloqueados. Nada é excluído."** | "Cancelar" · **"Inativar"** (`variant="danger"`) |
+| Reativar | **"Reativar {empresa}?"** | **"Os acessos da empresa voltam a funcionar."** | "Cancelar" · **"Reativar"** (`primary`) |
+| Excluir | **"Excluir {empresa}?"** | **"Último backup: 14/11/2026 19:40"** · **"Não dá para desfazer."** · campo **"Digite AM4821 para confirmar"** (código em IBM Plex Mono, foco ao abrir) | "Cancelar" · **"Excluir empresa"** (`variant="danger"`), desabilitado até o código digitado bater (sem diferença de maiúsculas e de espaços nas pontas) |
+
+- Confirmação pelo **código** (6 caracteres, único) e não pelo nome: mais curto de digitar e sem dúvida de acento ou "Ltda".
+- Código errado: o botão só fica desabilitado; sem mensagem de erro.
+- Esc e "Cancelar" fecham sem gravar. Enquanto grava: "Inativando…"/"Reativando…"/"Excluindo…", desabilitado.
+- Erro da API: uma linha embaixo do corpo, em `danger`: **"Faça o backup antes de excluir."** (sem backup concluído) ou o `ErrorBlock` padrão.
+
+### 15.3 Para o engenheiro-apps
+- Tela em `apps/web/app/config/**` (lista de Empresas); modo falso (`lib/portal-falso.ts`) com os 4 estados da simulação.
+- **testIDs:** `empresas.linha-<codigo>`, `empresas.situacao-<codigo>`, `empresas.backup-data-<codigo>` (`data-estado` = `nenhum|andamento|pronto`), `empresas.backup-<codigo>`, `empresas.inativar-<codigo>`, `empresas.reativar-<codigo>`, `empresas.excluir-<codigo>`, `empresa-acao.dialogo`, `empresa-acao.cancelar`, `empresa-acao.confirmar`, `empresa-excluir.codigo`, `empresa-acao.erro`.
+- **Contratos e rotas (engenheiro-software/modulo-core):** iniciar o backup e ler o estado (`nenhum|andamento|pronto|falhou` + `concluido_em` em UTC); inativar/reativar (a inativação bloqueia todos os acessos, inclusive sessões abertas, sem apagar dado); excluir com o código no corpo e **409 `SEM_BACKUP`** sem backup concluído (a API revalida). Situação na lista: `ativa|inativa`.
+
+### 15.4 Componentes que faltam em `packages/ui`
+- **`Button variant="danger-secondary"`** (borda e texto `danger` `#A8261B`, fundo `surface`; desabilitado como o `.btn.off`, MC-0041): o `danger` cheio em toda linha pesa demais na tabela; o cheio fica só no diálogo. Entra no kit pelo designer-ux (`packages/ui/src/web/ui.tsx`) no lote da implementação.
+- **Confirmação por digitação** (`ConfirmarDigitando`: rótulo "Digite {código} para confirmar" + campo + estado do botão): padrão para ações sem volta; entra no kit no mesmo lote.
+- O resto já existe: `Dialog`, `Badge` (`success` "Ativa", `neutral` "Inativa"), `Notice`, `Button` `sm`/`primary`/`danger`, `TableScroll`, `formatDateTimeFull`.
+
+### 15.5 Premissas e perguntas ao dono do produto
+1. Qualquer backup concluído libera o Excluir (sem prazo). Pergunta: exigir backup feito depois da última inativação, ou das últimas 24 h?
+2. Excluir vale para empresa ativa ou inativa. Pergunta: exigir inativar antes de excluir?
+3. O backup fica guardado no servidor; a tela não oferece download. Pergunta: o time precisa baixar o arquivo?
 
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).

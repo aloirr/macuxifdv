@@ -185,3 +185,24 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .regras-senha li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
 .regras-senha .ok { width: 18px; height: 18px; border-radius: 9px; background: var(--successBg); color: var(--success); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .regras-senha .ex { color: var(--ink2); }
+/* R-20261114-195600: ações por empresa na lista (Backup · Inativar/Reativar · Excluir), estados da linha e diálogos de confirmação */
+.lista-acoes th, .lista-acoes td { padding: 10px 6px; white-space: nowrap; }
+.lista-acoes td { vertical-align: middle; }
+.lista-acoes .cnpj { font-variant-numeric: tabular-nums; }
+.lista-acoes .acoes { display: flex; gap: 6px; justify-content: flex-end; }
+.lista-acoes tr.inativa td:not(.col-acoes) { color: var(--ink2); }
+.bkp { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.bkp.nenhum, .bkp.andamento { color: var(--ink2); }
+.bkp.andamento .giro { width: 14px; height: 14px; }
+.btn.perigo { color: var(--danger); border-color: var(--danger); } /* secundário de perigo (falta no kit, §15.4) */
+.btn.perigo-cheio { background: var(--danger); border-color: var(--danger); color: #fff; }
+.prancha-dlg { background: rgba(22,32,42,.5); padding: 28px; min-height: 696px; display: grid; grid-template-columns: repeat(2, 460px); gap: 24px 28px; justify-content: center; align-content: center; }
+.prancha-dlg .rot { font-size: 11px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+.dlg-p { width: 460px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
+.dlg-p h2 { margin: 0; padding: 20px 20px 12px; font-size: 18px; font-weight: 700; }
+.dlg-p .corpo { padding: 2px 20px; display: flex; flex-direction: column; gap: 12px; }
+.dlg-p .corpo p { margin: 0; }
+.dlg-p .pe { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px 20px; }
+.dlg-p b { font-variant-numeric: tabular-nums; }
+.dlg-p .inp.cod { letter-spacing: 1px; }
+.dlg-p .inp.foco { border: 2px solid var(--accent); padding: 0 11px; }
