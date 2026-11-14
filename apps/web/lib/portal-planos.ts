@@ -41,9 +41,12 @@ export const QUANTIDADE_MAXIMA = 100_000;
 
 const sufixo = (ciclo: Ciclo): string => (ciclo === 'anual' ? '/ano' : '/mês');
 
-/** "R$ 1.197,00/mês" ou, no anual, o que se paga por ano ((12 − meses grátis) × mensal, RN-PLA-06). */
-export function precoDoPlano(plano: Plano, ciclo: Ciclo): string {
-  return `${formatBRL(valorDaAssinatura(plano, [], ciclo).por_ciclo_centavos)}${sufixo(ciclo)}`;
+/**
+ * Preço do cartão do plano em duas partes, o valor e o "/mês" ou "/ano" (a tela mostra o ciclo menor; simulações 03b e 06d):
+ * "R$ 1.197,00" + "/mês" ou, no anual, o que se paga por ano ((12 − meses grátis) × mensal, RN-PLA-06).
+ */
+export function partesDoPrecoDoPlano(plano: Plano, ciclo: Ciclo): { valor: string; ciclo: string } {
+  return { valor: formatBRL(valorDaAssinatura(plano, [], ciclo).por_ciclo_centavos), ciclo: sufixo(ciclo) };
 }
 
 /** Valor por ciclo já formatado ("R$ 1.537,00/mês"). */

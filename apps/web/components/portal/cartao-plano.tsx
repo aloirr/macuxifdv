@@ -72,6 +72,22 @@ function BlocosDeLicencas({ ficha, largo }: { ficha: FichaAssinatura; largo: boo
   );
 }
 
+/** Valor no ciclo ("/mês" ou "/ano" já diz o ciclo) e o selo "Teste até …" (teste sem pagamento). */
+function ValorETeste({ ficha, tamanho }: { ficha: FichaAssinatura; tamanho: 'text-[16px]' | 'text-[18px]' }) {
+  return (
+    <>
+      <span data-testid="empresa-plano.valor" className={cx('font-display font-bold tabular-nums text-ink', tamanho)}>
+        {valorPorCiclo(ficha.valor.por_ciclo_centavos, ficha.valor.ciclo)}
+      </span>
+      {emTeste(ficha) && ficha.teste_ate && (
+        <span data-testid="empresa-plano.teste-ate">
+          <Badge tone="warning">{TEXTOS_PLANO.testeAte(diaCivil(ficha.teste_ate))}</Badge>
+        </span>
+      )}
+    </>
+  );
+}
+
 export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: string; podeTrocar: boolean; largo?: boolean }) {
   const q = useFicha(tenant);
   const [aberto, setAberto] = useState(false);
@@ -101,27 +117,26 @@ export function CartaoPlano({ tenant, podeTrocar, largo = false }: { tenant: str
           ))}
         {q.data && (
           <>
+            {/* time da Macuxi: título e "Trocar de plano" numa linha, valor e teste embaixo (depois-06b); admin do cliente: tudo numa
+                linha só (depois-06c) */}
             <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-3">
                 <h2 data-testid="empresa-plano.nome" className="m-0 font-display text-[22px] font-extrabold text-ink">
                   {titulo}
                 </h2>
-                {podeTrocar && (
+                {podeTrocar ? (
                   <Button variant="primary" data-testid="empresa-plano.trocar" className="ml-auto" onClick={() => setAberto(true)}>
                     {TEXTOS_PLANO.trocar}
                   </Button>
+                ) : (
+                  <ValorETeste ficha={q.data} tamanho="text-[16px]" />
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span data-testid="empresa-plano.valor" className="font-display text-[17px] font-bold tabular-nums text-ink">
-                  {valorPorCiclo(q.data.valor.por_ciclo_centavos, q.data.valor.ciclo)}
-                </span>
-                {emTeste(q.data) && q.data.teste_ate && (
-                  <span data-testid="empresa-plano.teste-ate">
-                    <Badge tone="warning">{TEXTOS_PLANO.testeAte(diaCivil(q.data.teste_ate))}</Badge>
-                  </span>
-                )}
-              </div>
+              {podeTrocar && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <ValorETeste ficha={q.data} tamanho="text-[18px]" />
+                </div>
+              )}
             </div>
             <BlocosDeLicencas ficha={q.data} largo={largo} />
             {podeTrocar && aberto && (

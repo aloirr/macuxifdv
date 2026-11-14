@@ -10,13 +10,13 @@
 import type { Adicional, Ciclo, Plano } from '@macuxi/platform-sdk';
 import { Badge, cx, iconeDoAdicional, nomeDoAdicional, Panel } from '@macuxi/ui/web';
 
-import { adicionaisAVenda, licencasDoPlano, licencasDoPlanoEmDuasLinhas, precoDoAdicional, precoDoPlano, TEXTOS_PLANO, type EscolhaDaTela } from '@/lib/portal-planos';
+import { adicionaisAVenda, licencasDoPlano, licencasDoPlanoEmDuasLinhas, partesDoPrecoDoPlano, precoDoAdicional, TEXTOS_PLANO, type EscolhaDaTela } from '@/lib/portal-planos';
 
 /** Caixa de marcar do portal: branca, borda e ✓ em Azul noite (spec §11.3). */
 export const caixaCss = 'h-[18px] w-[18px] shrink-0 accent-accent';
 
 const qtdCss =
-  'h-9 w-[88px] rounded-xl border border-field bg-surface px-3 text-[15px] text-ink tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger';
+  'h-9 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink tabular-nums outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger';
 
 type Erros = Readonly<Record<string, string | undefined>>;
 
@@ -40,6 +40,7 @@ export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { plan
       {planosVisiveis(planos, atual).map((p) => {
         const on = escolha.plano === p.codigo;
         const [linha1, linha2] = licencasDoPlanoEmDuasLinhas(p);
+        const partes = partesDoPrecoDoPlano(p, escolha.ciclo);
         return (
           <label
             key={p.codigo}
@@ -55,7 +56,10 @@ export function EscolhaDoPlano({ planos, escolha, aoMudar, erro, atual }: { plan
               {p.nome}
               {atual === p.codigo && <Badge tone="neutral">{TEXTOS_PLANO.atual}</Badge>}
             </span>
-            <span className="font-display text-[15px] font-bold whitespace-nowrap tabular-nums text-ink sm:text-[18px]">{precoDoPlano(p, escolha.ciclo)}</span>
+            <span className="font-display text-[15px] font-bold whitespace-nowrap tabular-nums text-ink sm:text-[20px]">
+              {partes.valor}
+              <span className="text-[13px] font-semibold text-ink-2">{partes.ciclo}</span>
+            </span>
             {atual === undefined ? (
               <span className="text-[13px] text-ink-2">{licencasDoPlano(p)}</span>
             ) : (
@@ -96,14 +100,14 @@ export function AlternadorCiclo({ ciclo, mesesGratis, aoMudar }: { ciclo: Ciclo;
 }
 
 /** Campo "Quantidade" de um adicional marcado (só dígitos; o erro vem de `errosDaEscolha`). */
-function CampoQuantidade({ a, valor, erro, aoMudar }: { a: Adicional; valor: string; erro?: string; aoMudar: (q: string) => void }) {
+function CampoQuantidade({ a, valor, erro, aoMudar, estreito = false }: { a: Adicional; valor: string; erro?: string; aoMudar: (q: string) => void; estreito?: boolean }) {
   return (
     <input
       data-testid={`empresa.adicional-${a}-qtd`}
       aria-label={TEXTOS_PLANO.quantidadeDe(nomeDoAdicional(a))}
       aria-invalid={erro ? true : undefined}
       inputMode="numeric"
-      className={qtdCss}
+      className={cx(qtdCss, estreito ? 'w-[72px]' : 'w-[88px]')}
       value={valor}
       onChange={(e) => aoMudar(e.target.value.replace(/\D/g, '').slice(0, 6))}
     />
@@ -183,17 +187,18 @@ export function SeletorPlano({ planos, escolha, aoMudar, erros }: { planos: read
               const Icone = iconeDoAdicional(a);
               const erro = erros[`adicional-${a}`];
               return (
-                <div key={a} className={cx('flex min-h-[58px] flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3.5 py-2', erro ? 'border-danger' : 'border-field')}>
+                <div key={a} className={cx('flex min-h-[52px] flex-wrap items-center gap-x-2.5 gap-y-2 rounded-xl border px-3.5 py-2', erro ? 'border-danger' : 'border-field')}>
+                  {/* simulação 03b: caixa, ícone, nome e preço numa linha só (o preço não quebra) */}
                   <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-1">
                     <input type="checkbox" data-testid={`empresa.adicional-${a}`} className={caixaCss} checked={marcado} onChange={(e) => aoMudar(comAdicional(escolha, a, e.target.checked ? '1' : undefined))} />
                     {Icone && <Icone size={22} aria-hidden="true" className="shrink-0 text-accent-ink" />}
-                    <span className="font-display text-[15px] font-bold text-accent-ink">{nome}</span>
-                    <span className="text-[13px] text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
+                    <span className="font-display text-[14px] font-bold whitespace-nowrap text-accent-ink">{nome}</span>
+                    <span className="text-[13px] whitespace-nowrap text-ink-2">{precoDoAdicional(plano, a, escolha.ciclo)}</span>
                   </label>
                   {marcado && (
-                    <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-2">
+                    <label className="flex items-center gap-2.5 text-[12px] font-semibold text-ink-2">
                       {TEXTOS_PLANO.quantidade}
-                      <CampoQuantidade a={a} valor={q} erro={erro} aoMudar={(v) => aoMudar(comAdicional(escolha, a, v))} />
+                      <CampoQuantidade a={a} valor={q} erro={erro} estreito aoMudar={(v) => aoMudar(comAdicional(escolha, a, v))} />
                     </label>
                   )}
                   {erro && <span className="w-full text-[12px] text-danger">{erro}</span>}

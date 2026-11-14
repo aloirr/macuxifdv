@@ -69,7 +69,8 @@ export interface Etiqueta {
 export function etiquetasDoAdmin(a: AdminDaEmpresa, agora: number, fuso?: string): Etiqueta[] {
   const e: Etiqueta[] = [];
   if (!a.ativo) e.push({ texto: 'Inativo', tom: 'neutral' });
-  if (a.bloqueado) e.push({ texto: 'Bloqueado', tom: 'danger' });
+  // "Bloqueado" em amarelo no portal (simulação depois-06b, R-20261114-170200)
+  if (a.bloqueado) e.push({ texto: 'Bloqueado', tom: 'warning' });
   if (!a.tem_senha) e.push({ texto: 'Sem senha', tom: 'neutral' });
   else if (a.trocar_senha) {
     if (!a.senha_expira_em) e.push({ texto: 'Troca de senha pendente', tom: 'warning' });

@@ -133,7 +133,7 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
               aria-labelledby="empresa-aba-empresa"
               hidden={aba !== 'empresa'}
               // duas colunas (Plano · Administradores, 1,25 : 1) a partir de 768 px; o admin do cliente só vê o Plano, na largura toda
-              className={aba === 'empresa' ? cx('grid items-start gap-4', timeMacuxi && 'md:grid-cols-[1.25fr_1fr]') : undefined}
+              className={aba === 'empresa' ? cx('grid items-start gap-4', timeMacuxi && 'md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]') : undefined}
             >
               <CartaoPlano tenant={empresa.id} podeTrocar={timeMacuxi} largo={!timeMacuxi} />
               {/* T-0094 fatia S: só o time da Macuxi vê os administradores e redefine a senha */}

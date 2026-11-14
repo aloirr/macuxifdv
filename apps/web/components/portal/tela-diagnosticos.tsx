@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { DiagnosticoDetalheSchema, DiagnosticoListaSchema, ORIGENS_DIAGNOSTICO, type DiagnosticoDetalhe } from '@macuxi/platform-sdk';
-import { Badge, Button, cx, ErrorBlock, LoadingBlock, PageHeader, Panel, rotuloDoPerfil, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
+import { Badge, Button, cx, ErrorBlock, LoadingBlock, PageHeader, Panel, rotuloDoPerfil, TableScroll, td, th } from '@macuxi/ui/web';
 
 import { blobDoPortal, chamarPortal, mensagemDoErro } from '@/lib/portal-api';
 import {
@@ -54,7 +54,7 @@ import {
 } from '@/lib/portal-diagnosticos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
-import { campoCss, LinkBotao, MolduraPortal, useSessaoPortal } from './base';
+import { Campo, CampoSelecao, LinkBotao, MolduraPortal, useSessaoPortal } from './base';
 import { useEmpresas } from './tela-empresas';
 
 /** Só o time Macuxi: `null` = ainda lendo a sessão; `false` = admin do cliente (mostra o "sem acesso"). */
@@ -222,56 +222,54 @@ function Filtros({ filtros, versoes, agora, ir }: { filtros: FiltrosDaTela; vers
   const opcoesVersao = filtros.versao && !versoes.includes(filtros.versao) ? [filtros.versao, ...versoes] : versoes;
 
   return (
-    <div data-testid="diagnosticos.filtros" className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-line bg-surface p-3">
-      <SelectField label="Versão" data-testid="diagnosticos.filtro-versao" value={filtros.versao} onChange={mudar('versao')}>
+    <div data-testid="diagnosticos.filtros" className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-line bg-surface px-[18px] py-4">
+      <CampoSelecao rotulo="Versão" testId="diagnosticos.filtro-versao" className="w-[120px]" value={filtros.versao} onChange={mudar('versao')}>
         <option value="">Todas</option>
         {opcoesVersao.map((v) => (
           <option key={v} value={v}>
             {v}
           </option>
         ))}
-      </SelectField>
-      <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
-        Aparelho
-        <input
-          data-testid="diagnosticos.filtro-modelo"
-          type="search"
-          placeholder="Modelo"
-          value={modelo}
-          maxLength={80}
-          onChange={(e) => setModelo(e.target.value)}
-          onBlur={aplicarModelo}
-          onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === 'Enter') aplicarModelo();
-          }}
-          className={cx(campoCss, 'h-[38px] w-[170px] rounded-[10px] text-[14px]')}
-        />
-      </label>
-      <SelectField label="Empresa" data-testid="diagnosticos.filtro-empresa" value={filtros.empresa} onChange={mudar('empresa')} className="min-w-[200px]">
+      </CampoSelecao>
+      <Campo
+        rotulo="Aparelho"
+        testId="diagnosticos.filtro-modelo"
+        className="w-[215px]"
+        type="search"
+        placeholder="Modelo"
+        value={modelo}
+        maxLength={80}
+        onChange={(e) => setModelo(e.target.value)}
+        onBlur={aplicarModelo}
+        onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === 'Enter') aplicarModelo();
+        }}
+      />
+      <CampoSelecao rotulo="Empresa" testId="diagnosticos.filtro-empresa" className="w-[200px]" value={filtros.empresa} onChange={mudar('empresa')}>
         <option value="">Todas</option>
         {(empresas.data ?? []).map((e) => (
           <option key={e.id} value={e.id}>
             {e.razao_social}
           </option>
         ))}
-      </SelectField>
-      <SelectField label="Motivo" data-testid="diagnosticos.filtro-motivo" value={filtros.motivo} onChange={mudar('motivo')}>
+      </CampoSelecao>
+      <CampoSelecao rotulo="Motivo" testId="diagnosticos.filtro-motivo" className="w-[190px]" value={filtros.motivo} onChange={mudar('motivo')}>
         <option value="">Todos</option>
         {[...new Set([...MOTIVOS_DO_FILTRO, ...(filtros.motivo ? [filtros.motivo] : [])])].map((m) => (
           <option key={m} value={m}>
             {rotuloDoMotivo(m)}
           </option>
         ))}
-      </SelectField>
-      <SelectField label="Origem" data-testid="diagnosticos.filtro-origem" value={filtros.origem} onChange={mudar('origem')}>
+      </CampoSelecao>
+      <CampoSelecao rotulo="Origem" testId="diagnosticos.filtro-origem" className="w-[120px]" value={filtros.origem} onChange={mudar('origem')}>
         <option value="">Todas</option>
         {ORIGENS_DIAGNOSTICO.map((o) => (
           <option key={o} value={o}>
             {ROTULO_ORIGEM[o].rotulo}
           </option>
         ))}
-      </SelectField>
-      <SelectField label="Período" data-testid="diagnosticos.filtro-periodo" value={periodo} onChange={(e) => ir(filtrosComPeriodo(filtros, e.target.value, agora))}>
+      </CampoSelecao>
+      <CampoSelecao rotulo="Período" testId="diagnosticos.filtro-periodo" className="w-[150px]" value={periodo} onChange={(e) => ir(filtrosComPeriodo(filtros, e.target.value, agora))}>
         {PERIODOS.map((p) => (
           <option key={p.valor} value={p.valor}>
             {p.rotulo}
@@ -282,13 +280,13 @@ function Filtros({ filtros, versoes, agora, ir }: { filtros: FiltrosDaTela; vers
             {`${filtros.de || '…'} a ${filtros.ate || 'hoje'}`}
           </option>
         )}
-      </SelectField>
+      </CampoSelecao>
       {temFiltro(filtros) && (
         <button
           type="button"
           data-testid="diagnosticos.limpar"
           onClick={() => ir(FILTROS_VAZIOS)}
-          className="h-[38px] px-2 text-[13px] font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+          className="h-11 px-2 text-[13px] font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {T.limpar}
         </button>

@@ -8,8 +8,8 @@
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type ReactNode } from 'react';
-import { cx, ESCONDER_SENHA, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { cx, ESCONDER_SENHA, IconChevronDown, IconEye, IconEyeOff, LoadingBlock, MOSTRAR_SENHA } from '@macuxi/ui/web';
 
 import { MarcaNaFaixa } from '@/components/marca-faixa';
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -76,7 +76,10 @@ export function MolduraEstreita({ children, testId }: { children: ReactNode; tes
       <AvisoModoFalso />
       <div data-testid={testId} className="flex flex-col items-center px-4 py-10 sm:py-16">
         <div className="flex w-full max-w-[440px] flex-col gap-5">
-          <Marca />
+          {/* a faixa envolve só o logo e o nome da área, não a largura do cartão (simulações 01 e 09) */}
+          <div className="self-start">
+            <Marca />
+          </div>
           {/* cartão branco: hierarquia e contraste dos links (accent sobre o fundo dá 4,2:1; sobre branco, 4,6:1; R-20261106-023316 🟡 9) */}
           <div className="rounded-2xl border border-line bg-surface p-5">{children}</div>
         </div>
@@ -114,18 +117,45 @@ export function Campo({
 }
 
 /**
+ * Seleção do portal com a seta do kit (`IconChevronDown`, MC-0047) no lugar da nativa: a mesma caixa do `Campo` (simulações 03b e
+ * 07). O valor e as opções são os do `<select>` nativo (teclado e leitor de tela iguais).
+ */
+export function CampoSelecao({
+  rotulo,
+  erro,
+  testId,
+  className,
+  children,
+  ...rest
+}: SelectHTMLAttributes<HTMLSelectElement> & { rotulo: string; erro?: string | null; testId: string }) {
+  return (
+    <label className={cx('flex flex-col gap-1', className)}>
+      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
+      <span className="relative flex">
+        <select data-testid={testId} aria-invalid={erro ? true : undefined} className={cx(campoCss, 'appearance-none pr-8')} {...rest}>
+          {children}
+        </select>
+        <IconChevronDown size={16} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-2" />
+      </span>
+      {erro && <span className="text-[12px] text-danger">{erro}</span>}
+    </label>
+  );
+}
+
+/**
  * Campo de senha com o botão do olho dentro, à direita (spec docs/design/portal-entrar.md §1 e §6): "Mostrar senha" /
  * "Esconder senha" (`MOSTRAR_SENHA`/`ESCONDER_SENHA` do kit) com `IconEye`/`IconEyeOff` do kit, alvo de 44 px. `descrito` liga a lista das regras (`RegrasDaSenha`)
- * ao campo pelo `aria-describedby`, junto com o erro.
+ * ao campo pelo `aria-describedby`, junto com o erro. `semOlho`: sem o botão (a "Senha inicial" da Nova empresa, simulação 03b).
  */
 export function CampoSenha({
   rotulo,
   erro,
   testId,
   descrito,
+  semOlho = false,
   className,
   ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string; erro?: string | null; testId: string; descrito?: string }) {
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string; erro?: string | null; testId: string; descrito?: string; semOlho?: boolean }) {
   const [mostrar, setMostrar] = useState(false);
   const idCampo = useId();
   const idErro = `${idCampo}-erro`;
@@ -144,9 +174,10 @@ export function CampoSenha({
           autoCapitalize="none"
           aria-invalid={erro ? true : undefined}
           aria-describedby={ligados}
-          className={cx(campoCss, 'pr-12')}
+          className={cx(campoCss, !semOlho && 'pr-12')}
           {...rest}
         />
+        {!semOlho && (
         <button
           type="button"
           data-testid={`${testId}.olho`}
@@ -156,6 +187,7 @@ export function CampoSenha({
         >
           {mostrar ? <IconEyeOff size={18} /> : <IconEye size={18} />}
         </button>
+        )}
       </div>
       {erro && (
         <span id={idErro} className="text-[12px] text-danger">

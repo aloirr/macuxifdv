@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { SessaoPortalSchema } from '@macuxi/platform-sdk';
-import { Badge, Button, cx, IconChevronRight, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { Badge, Button, cx, LoadingBlock, Notice } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro, sairDoPortal } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
@@ -182,31 +182,25 @@ export function TelaEscolherEmpresa() {
                 disabled={escolhendo !== null}
                 onClick={() => void escolher(e.id, e.atual)}
                 className={cx(
-                  'flex min-h-[52px] w-full items-center gap-3 rounded-xl border border-line bg-surface px-4 py-2.5 text-left transition-colors',
+                  'flex min-h-[52px] w-full items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-3 text-left transition-colors',
                   'hover:bg-ground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-default',
                   escolhendo !== null && escolhendo !== e.id && 'opacity-60',
                 )}
               >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2">
-                    <span className="truncate text-[15px] font-semibold text-ink">{e.nome}</span>
+                    <span className="truncate text-[14px] font-bold text-ink">{e.nome}</span>
                     {e.atual && <Badge tone="neutral">{TEXTOS_ESCOLHER.atual}</Badge>}
                   </span>
-                  <span className="text-[12px] text-ink-2">{e.codigo.toUpperCase()}</span>
+                  <span className="mt-1 font-mono text-[13px] font-medium tracking-[.5px] text-ink-2">{e.codigo.toUpperCase()}</span>
                 </span>
-                {escolhendo === e.id ? (
-                  <span className="text-[13px] font-semibold text-ink-2">{TEXTOS_ESCOLHER.entrando}</span>
-                ) : (
-                  <span className="text-ink-2" aria-hidden="true">
-                    <IconChevronRight size={18} />
-                  </span>
-                )}
+                {escolhendo === e.id && <span className="text-[13px] font-semibold text-ink-2">{TEXTOS_ESCOLHER.entrando}</span>}
               </button>
             </li>
           ))}
         </ul>
         <div>
-          <Button data-testid="escolher.sair" variant="link" className="min-h-11" onClick={sair}>
+          <Button data-testid="escolher.sair" variant="secondary" onClick={sair}>
             {TEXTOS_ESCOLHER.sair}
           </Button>
         </div>

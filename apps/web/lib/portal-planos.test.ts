@@ -41,8 +41,8 @@ import {
   licencasDoPlanoEmDuasLinhas,
   linhasDaFicha,
   mudouDaFicha,
+  partesDoPrecoDoPlano,
   precoDoAdicional,
-  precoDoPlano,
   problemasDaTroca,
   totalDaEscolha,
   type EscolhaDaTela,
@@ -53,8 +53,8 @@ if (!light || !pme || !enterprise || !corporate) throw new Error('catálogo fals
 
 describe('planos (§11.3)', () => {
   it('preço por ciclo: mensal e anual = (12 − 2 meses grátis) × mensal', () => {
-    expect(PLANOS_FALSOS.map((p) => precoDoPlano(p, 'mensal'))).toEqual(['R$ 610,00/mês', 'R$ 1.197,00/mês', 'R$ 1.719,00/mês', 'R$ 2.592,50/mês']);
-    expect(PLANOS_FALSOS.map((p) => precoDoPlano(p, 'anual'))).toEqual(['R$ 6.100,00/ano', 'R$ 11.970,00/ano', 'R$ 17.190,00/ano', 'R$ 25.925,00/ano']);
+    expect(PLANOS_FALSOS.map((p) => Object.values(partesDoPrecoDoPlano(p, 'mensal')).join(''))).toEqual(['R$ 610,00/mês', 'R$ 1.197,00/mês', 'R$ 1.719,00/mês', 'R$ 2.592,50/mês']);
+    expect(PLANOS_FALSOS.map((p) => Object.values(partesDoPrecoDoPlano(p, 'anual')).join(''))).toEqual(['R$ 6.100,00/ano', 'R$ 11.970,00/ano', 'R$ 17.190,00/ano', 'R$ 25.925,00/ano']);
   });
   it('licenças: singular com 1, BKO invariável, promotor 0 não aparece, null = sem limite', () => {
     expect(PLANOS_FALSOS.map(licencasDoPlano)).toEqual([

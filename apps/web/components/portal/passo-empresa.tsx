@@ -43,7 +43,7 @@ import {
 } from '@/lib/portal-nova-empresa';
 import { ESCOLHA_VAZIA, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { Campo, campoCss, CampoSenha, principalDesabilitadoCss } from './base';
+import { Campo, campoCss, CampoSelecao, CampoSenha, principalDesabilitadoCss } from './base';
 import { SeletorPlano } from './seletor-plano';
 
 const CHAVE_PLANOS = ['portal', 'planos'] as const;
@@ -204,7 +204,7 @@ export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
                 )}
               </span>
             </div>
-            <span id="empresa-cnpj-estado" aria-live="polite" className={cx('text-[12px]', cnpjComErro ? 'text-danger' : estado === 'receita-fora' ? 'text-warning' : 'text-ink-2')}>
+            <span id="empresa-cnpj-estado" aria-live="polite" className={cx('text-[13px]', cnpjComErro ? 'font-semibold text-danger' : estado === 'receita-fora' ? 'font-semibold text-warning' : 'font-medium text-ink-2')}>
               {textoCnpj}
             </span>
           </div>
@@ -215,28 +215,21 @@ export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
           <Campo rotulo="Endereço" testId="empresa.endereco" value={campos.endereco} onChange={(e) => setCampo('endereco', e.target.value)} />
           <div className="grid gap-4 sm:grid-cols-[1fr_140px_1fr]">
             <Campo rotulo="Município" testId="empresa.municipio" value={campos.municipio} onChange={(e) => setCampo('municipio', e.target.value)} />
-            <label className="flex flex-col gap-1">
-              <span className="text-[13px] font-semibold text-ink">UF</span>
-              <select data-testid="empresa.uf" className={campoCss} value={campos.uf} aria-invalid={erros.uf ? true : undefined} onChange={(e) => setCampo('uf', e.target.value)}>
-                <option value="" disabled />
-                {UFS_BRASIL.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-              {erros.uf && <span className="text-[12px] text-danger">{erros.uf}</span>}
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[13px] font-semibold text-ink">Fuso</span>
-              <select data-testid="empresa.fuso" className={campoCss} value={fuso} onChange={(e) => setFuso(e.target.value)}>
-                {FUSOS_BRASIL.map(([v]) => (
-                  <option key={v} value={v}>
-                    {rotuloCurtoDoFuso(v)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <CampoSelecao rotulo="UF" testId="empresa.uf" value={campos.uf} erro={erros.uf} onChange={(e) => setCampo('uf', e.target.value)}>
+              <option value="" disabled />
+              {UFS_BRASIL.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </CampoSelecao>
+            <CampoSelecao rotulo="Fuso" testId="empresa.fuso" value={fuso} onChange={(e) => setFuso(e.target.value)}>
+              {FUSOS_BRASIL.map(([v]) => (
+                <option key={v} value={v}>
+                  {rotuloCurtoDoFuso(v)}
+                </option>
+              ))}
+            </CampoSelecao>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Telefone" testId="empresa.telefone" inputMode="tel" value={campos.telefone} onChange={(e) => setCampo('telefone', e.target.value)} />
@@ -274,6 +267,7 @@ export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
             <CampoSenha
               rotulo="Senha inicial"
               testId="empresa.admin-senha"
+              semOlho
               autoComplete="new-password"
               descrito="empresa-admin-senha-regras"
               value={admin.senha}

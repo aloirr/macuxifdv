@@ -57,6 +57,7 @@ describe('partes puras', () => {
     expect(etiquetasDoAdmin(admin({ trocar_senha: true }), AGORA)).toEqual([{ texto: 'Troca de senha pendente', tom: 'warning' }]);
     expect(etiquetasDoAdmin(admin({ tem_senha: false }), AGORA)).toEqual([{ texto: 'Sem senha', tom: 'neutral' }]);
     expect(etiquetasDoAdmin(admin({ bloqueado: true, ativo: false }), AGORA).map((e) => e.texto)).toEqual(['Inativo', 'Bloqueado']);
+    expect(etiquetasDoAdmin(admin({ bloqueado: true }), AGORA)).toEqual([{ texto: 'Bloqueado', tom: 'warning' }]);
   });
 
   it('entra_no_portal = false (0047, RN-CORE-35): etiqueta "Entra só pelo app", por último, com a dica; o redefinir continua', () => {
