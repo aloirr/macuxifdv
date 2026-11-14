@@ -98,12 +98,12 @@ describe('D-V106-3 — "Equivale a" no cartão da grade (RN-CAT-09, catalogo-gra
   // D-V106-3b ABERTO — dono: modulo-catalogo (comum.tsx, CartaoGrade). Fere RN-CAT-09 e catalogo-grade.md §2 ("com o trecho
   // destacado"): o cartão mostra o "Equivale a …" em texto corrido, sem o trecho que casou com a busca. O `partirPorMarcas`
   // de app/lib/apresentacao.ts existe e não é usado (RD-0245 do corretor).
-  // Guarda do it.fails abaixo: ele tem de falhar pela falta do destaque, não pelo `destaque` de `principal` (comum.tsx:23,
-  // botões da ficha), que fica fora do corpo lido do CartaoGrade.
-  it('o corpo lido do CartaoGrade não inclui o `destaque` da função principal', () => {
-    expect(COMUM).toMatch(/const principal = \(destaque/);
+  // Guarda do it.fails abaixo: ele tem de falhar pela falta do destaque, não pelo `payload.destaque` da extensão
+  // `produto.acoes` (botão principal da ficha, em BotoesAcao), que fica fora do corpo lido do CartaoGrade.
+  it('o corpo lido do CartaoGrade não inclui o `destaque` dos botões da extensão', () => {
+    expect(COMUM).toMatch(/\.payload\.destaque\b/);
     expect(CARTAO_GRADE.startsWith('export function CartaoGrade')).toBe(true);
-    expect(CARTAO_GRADE).not.toContain('const principal');
+    expect(CARTAO_GRADE).not.toMatch(/\bdestaque\b/);
   });
 
   it.fails('o trecho que casou com a busca aparece destacado no cartão', () => {
