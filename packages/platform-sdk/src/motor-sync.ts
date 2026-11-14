@@ -498,27 +498,6 @@ const CHAVE = {
   modulo: (m: string) => `mod:${m}:`,
 };
 
-export const ROTULO_SITUACAO: Readonly<Record<SituacaoItemOutbox, string>> = {
-  pendente: 'na fila',
-  falhou: 'não enviado — corrija ou descarte',
-  modulo_inativo: 'não enviado — módulo desativado',
-};
-
-/** Rótulo do item na tela de sync, distinguindo o pendente retido pelo servidor (ADR 0009 §7) do pendente comum. */
-export function rotuloDoItem(item: Pick<ItemOutbox, 'situacao' | 'codigo'>): string {
-  if (item.situacao === 'pendente' && item.codigo && CODIGOS_RETENTAVEIS.includes(item.codigo))
-    return 'na fila — envio ainda não disponível no servidor';
-  return ROTULO_SITUACAO[item.situacao];
-}
-
-/** Situação do arquivo na tela de sync. */
-export function rotuloDoArquivo(a: Pick<ItemArquivo, 'situacao' | 'codigo'>): string {
-  if (a.situacao === 'enviado') return 'enviado';
-  if (a.situacao === 'pendente' && a.codigo && CODIGOS_ARQUIVO_RETENTAVEIS.includes(a.codigo))
-    return 'na fila — aguardando o registro chegar ao servidor';
-  return ROTULO_SITUACAO[a.situacao];
-}
-
 const UUID_ARQUIVO_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIA_MS = 86_400_000;
 
