@@ -932,24 +932,21 @@ Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (
 a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.
 
 ## 0069 — cargo e hierarquia do cadastro de usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
-Decisão R-20261114-153500: no cadastro de usuário, o **cargo** (Vendedor, Supervisor, Gerente, Administrativo — e Promotor desde
-R-20261114-153800); vendedor
-cadastra o supervisor (o gerente é o do supervisor); supervisor cadastra o gerente e o **nome da equipe** (vai ao Início, na foto
-do vendedor); **código ERP para todos**; um perfil por usuário; um cargo por perfil. O cargo e o "um perfil por usuário" estão em
-[plataforma.md](plataforma.md) ("0069"). R-20261114-154000: o promotor fica **embaixo do gerente** (obrigatório) e o
-**supervisor é opcional**; com supervisor, o gerente do promotor é o gerente desse supervisor.
+Decisão: [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (R-20261114-153500, -153800, -154000).
 
 **Hierarquia: reaproveita `core.equipe`, sem coluna nova em `core.usuario`** (uma informação, um lugar: a árvore de equipes já é
 a base do escopo RN-CORE-04 do Gestor, do alerta ao supervisor e do nome da equipe no Início; colunas `supervisor_id`/
 `gerente_id`/`nome_equipe` no usuário duplicariam a árvore e divergiriam dela). O cadastro grava:
 
-| Cargo | O que o BKO pede | O que o Core grava |
-|---|---|---|
-| vendedor | supervisor | `core.usuario.equipe_id` = a equipe viva cujo `responsavel_id` é o supervisor (índice `equipe_responsavel_ix`, 0004) |
-| supervisor | gerente e nome da equipe | a equipe dele em `core.equipe` (`responsavel_id` = ele, `nome` = nome da equipe, `equipe_pai_id` = a equipe do gerente) e `core.usuario.equipe_id` = essa equipe |
-| promotor | gerente (obrigatório) e supervisor (opcional) | com supervisor: `equipe_id` = a equipe do supervisor (como o vendedor); sem supervisor: `equipe_id` = a equipe do gerente (`responsavel_id` = o gerente) |
-| gerente | — (opcional: a regional) | a equipe dele (`responsavel_id` = ele; raiz) e `equipe_id` = essa equipe |
-| administrativo | — | nada (`equipe_id` nulo) |
+| Cargo | O que o Core grava |
+|---|---|
+| vendedor | `core.usuario.equipe_id` = a equipe viva cujo `responsavel_id` é o supervisor (índice `equipe_responsavel_ix`, 0004) |
+| supervisor | a equipe dele em `core.equipe` (`responsavel_id` = ele, `nome` = nome da equipe, `equipe_pai_id` = a equipe do gerente) e `core.usuario.equipe_id` = essa equipe |
+| promotor | com supervisor: `equipe_id` = a equipe do supervisor (como o vendedor); sem supervisor: `equipe_id` = a equipe do gerente (`responsavel_id` = o gerente) |
+| gerente | a equipe dele (`responsavel_id` = ele; raiz) e `equipe_id` = essa equipe |
+| administrativo | nada (`equipe_id` nulo) |
+
+O que o cadastro pede: ADR 0049 §4.
 
 O **gerente do vendedor não é gravado no vendedor**: é o responsável da equipe-pai da equipe do supervisor. Trocar o supervisor
 do vendedor = trocar o `equipe_id` dele; trocar o gerente do supervisor = trocar o `equipe_pai_id` da equipe dele.

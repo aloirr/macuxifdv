@@ -30,7 +30,7 @@ import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA_0058, FUNCOES_SA_ATUAIS } from './funcoes-sa';
-import { emTransacao, erroDe, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m58 = migracoes.find((m) => m.versao === '0058')!;
@@ -57,7 +57,6 @@ const OCORRIDO = '2026-11-09T15:00:00Z';
 const CORTE_EXPURGO = '2026-11-10T00:00:00Z'; // p_agora do expurgo: 90 dias antes = 2026-08-12
 const VELHO = '2026-08-01T10:00:00Z';
 const NOVO_O_BASTANTE = '2026-08-20T10:00:00Z';
-const H2 = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 
 describe('0058 diagnóstico do aparelho (estático)', () => {
   const up = semComentarios(m58.up);
@@ -204,7 +203,7 @@ describe.skipIf(semBanco())('0058 diagnóstico do aparelho (banco, fixture dois-
   const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
   async function sessaoSuperAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t158@macuxi.exemplo', nome: 'Operador 0058', senha_hash: H2 })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t158@macuxi.exemplo', nome: 'Operador 0058', senha_hash: HASH_TESTE })]))[0]!.r;
     return (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!.sessao_id;
   }
   const listar = async (sid: string, filtro: unknown = {}) =>

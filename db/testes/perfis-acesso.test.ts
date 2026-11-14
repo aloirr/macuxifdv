@@ -33,7 +33,7 @@ import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
 import { idDeChave, idPerfilFabrica, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { emTransacao, retratoDoCatalogo } from './util';
+import { emTransacao, HASH_TESTE, retratoDoCatalogo, vivos } from './util';
 
 const migracoes = lerMigracoes();
 const m41 = migracoes.find((m) => m.versao === '0041')!;
@@ -268,13 +268,6 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       await admin.query('reset role');
     }
   }
-  const vivos = (usuario: string) =>
-    q<{ codigo: string }>(
-      `select p.codigo from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-        where up.usuario_id = $1 and up.deleted_at is null order by p.codigo`,
-      [usuario],
-    ).then((r) => r.map((x) => x.codigo));
-  const H = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 
   it('semeadura: 7 de fábrica em A e B (ids, nomes, ativos); todo usuário com o principal; nenhuma sobreposição de fábrica', async () => {
     await emTransacao(admin, null, async () => {
@@ -287,9 +280,9 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
                        where not exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
                                           where up.tenant_id = u.tenant_id and up.usuario_id = u.id and up.deleted_at is null and p.base = u.perfil)`))
         .toEqual([{ n: 0 }]);
-      expect(await vivos(B.usuarios.vendedor)).toEqual(['vendedor']); // 0069: um perfil por usuário (sem o promotor extra)
-      expect(await vivos(A.usuarios.vendedor2)).toEqual(['vendedor']);
-      expect(await vivos(A.usuarios.admin)).toEqual(['admin']);
+      expect(await vivos(admin, B.usuarios.vendedor)).toEqual(['vendedor']); // 0069: um perfil por usuário (sem o promotor extra)
+      expect(await vivos(admin, A.usuarios.vendedor2)).toEqual(['vendedor']);
+      expect(await vivos(admin, A.usuarios.admin)).toEqual(['admin']);
       const principal = await q<{ id: string }>('select id from plataforma.usuario_perfil where usuario_id = $1 and perfil_id = $2', [A.usuarios.admin, idPerfilFabrica(A.tenantId, 'admin')]);
       expect(principal).toEqual([{ id: idUsuarioPerfil(A.tenantId, A.usuarios.admin, idPerfilFabrica(A.tenantId, 'admin')) }]);
       expect(await q("select count(*)::int as n from plataforma.perfil_permissao p join plataforma.perfil f on f.id = p.perfil_id where f.fabrica")).toEqual([{ n: 0 }]);
@@ -324,24 +317,19 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
 
       const U = 'cccccccc-0041-4000-8000-000000000002';
       const erro = await noCommit([
-        ["insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'p41@exemplo.com.br', 'vendedor', $3)", [U, A.tenantId, H]],
+        ["insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'p41@exemplo.com.br', 'vendedor', $3)", [U, A.tenantId, HASH_TESTE]],
         ['select 1'],
       ], 'macuxi_app', A.tenantId);
       expect(erro).toBeNull();
       // de novo, fora do noCommit, para conferir o efeito
-      await admin.query("insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'p41@exemplo.com.br', 'vendedor', $3)", [U, A.tenantId, H]);
-      expect(await vivos(U)).toEqual(['vendedor']);
+      await admin.query("insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'p41@exemplo.com.br', 'vendedor', $3)", [U, A.tenantId, HASH_TESTE]);
+      expect(await vivos(admin, U)).toEqual(['vendedor']);
       await admin.query("update core.usuario set perfil = 'supervisor' where id = $1", [U]);
-      expect(await vivos(U)).toEqual(['supervisor']);
+      expect(await vivos(admin, U)).toEqual(['supervisor']);
       expect(await q('select deleted_at is not null as apagado from plataforma.usuario_perfil where usuario_id = $1 and perfil_id = $2', [U, idPerfilFabrica(A.tenantId, 'vendedor')]))
         .toEqual([{ apagado: true }]);
       await admin.query("update core.usuario set perfil = 'vendedor' where id = $1", [U]);
-      expect(await vivos(U)).toEqual(['vendedor']);
-      // 0069 (um perfil por usuário): trocar o principal sempre substitui o vínculo
-      await admin.query("update core.usuario set perfil = 'promotor' where id = $1", [B.usuarios.vendedor]);
-      expect(await vivos(B.usuarios.vendedor)).toEqual(['promotor']);
-      await admin.query("update core.usuario set perfil = 'supervisor' where id = $1", [B.usuarios.vendedor]);
-      expect(await vivos(B.usuarios.vendedor)).toEqual(['supervisor']);
+      expect(await vivos(admin, U)).toEqual(['vendedor']);
       await admin.query('set constraints all immediate');
     });
   });
@@ -470,7 +458,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       // (a "gestão por outro perfil do mesmo usuário" da 0041 saiu com a 0069: um perfil por usuário)
       // com um segundo admin, o primeiro pode sair
       expect(await noCommit([
-        ["insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ('cccccccc-0041-4000-8000-000000000003', $1, 'Outra', 'adm41@exemplo.com.br', 'admin', $2)", [A.tenantId, H]],
+        ["insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ('cccccccc-0041-4000-8000-000000000003', $1, 'Outra', 'adm41@exemplo.com.br', 'admin', $2)", [A.tenantId, HASH_TESTE]],
         ['update core.usuario set ativo = false where id = $1', [ADM]],
       ])).toBeNull();
       // o mesmo pelo papel da aplicação (como o Core faria)
@@ -479,7 +467,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       const T = 'cccccccc-0041-4000-8000-000000000010';
       expect(await noCommit([
         ["insert into plataforma.tenant (id, codigo, nome) values ($1, 't41-sem-admin', 'Sem admin')", [T]],
-        ["insert into core.usuario (tenant_id, nome, email, perfil, senha_hash) values ($1, 'V', 'v41@exemplo.com.br', 'vendedor', $2)", [T, H]],
+        ["insert into core.usuario (tenant_id, nome, email, perfil, senha_hash) values ($1, 'V', 'v41@exemplo.com.br', 'vendedor', $2)", [T, HASH_TESTE]],
         ["insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, 'usuario.criar', true)", [T, idPerfilFabrica(T, 'analista')]],
       ])).toBeNull();
     });
@@ -515,7 +503,6 @@ describe.skipIf(semBanco())('0041 up/down (banco efêmero)', () => {
   const U = 'cccccccc-0041-4000-8000-000000000101';
   const V = 'cccccccc-0041-4000-8000-000000000102';
   const W = 'cccccccc-0041-4000-8000-000000000103';
-  const H = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
   });
@@ -533,7 +520,7 @@ describe.skipIf(semBanco())('0041 up/down (banco efêmero)', () => {
            ($1, $4, 'Pessoa', 'pessoa@exemplo.com.br', 'vendedor', $5, true, null),
            ($2, $4, 'Admin', 'admin@exemplo.com.br', 'admin', $5, true, null),
            ($3, $4, 'Antiga', 'antiga@exemplo.com.br', 'promotor', $5, false, now())`,
-        [U, V, W, T, H],
+        [U, V, W, T, HASH_TESTE],
       );
       await c.query("insert into plataforma.perfil_modulo (tenant_id, perfil, modulo) values ($1, 'vendedor', 'core')", [T]);
 

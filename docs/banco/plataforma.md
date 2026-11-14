@@ -621,14 +621,10 @@ ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenan
 `tenant_da_sessao` sai. Testes: `db/testes/tenant-por-codigo-minimo.test.ts`.
 
 ### 0069 — cargo do perfil e um perfil por usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
-Decisão R-20261114-153500 (cadastro de usuário com cargo; "cada usuário só pode ter um perfil e cada perfil só pode ter um
-cargo"; cargo padrão do FDV: Vendedor, Supervisor, Gerente, Administrativo) e, no mesmo dia, R-20261114-153800 ("Crie o cargo
-promotor.") e R-20261114-154000 (o promotor fica embaixo do gerente; supervisor opcional). A hierarquia e o código ERP estão em
-`docs/banco/core.md` ("0069"). **Substitui o multiperfil da 0041** (RN-CORE-01 multiperfil e a "união" dos perfis deixam de
-valer para gravação; o SDK pode seguir com `combinarPerfis` sobre uma lista de 1).
+Decisão: [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (R-20261114-153500, -153800, -154000).
 
 **`perfil.cargo`** text NOT NULL, **sem padrão** (`perfil_cargo_valido`: `vendedor`, `promotor`, `supervisor`, `gerente`, `administrativo`;
-espelho `CARGOS` em `db/esquema/plataforma.ts`). Quem cria perfil personalizado informa o cargo (insert sem cargo = 23502). O
+lista `CARGOS` do `@macuxi/platform-sdk` (ADR 0049 §1), importada pelo espelho). Quem cria perfil personalizado informa o cargo (insert sem cargo = 23502). O
 cargo é editável (o domain do Core decide se o BKO deixa trocar o de fábrica; o banco não trava). Mapeamento base → cargo =
 `plataforma.cargo_da_base(text)` (SQL imutável, EXECUTE ao `macuxi_app`), usado no backfill (fábrica e personalizados que já
 existiam: o cargo da base deles; não existe perfil sem base) e em `semear_perfis_fabrica` (tenant novo):

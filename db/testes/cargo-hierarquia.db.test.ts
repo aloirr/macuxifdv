@@ -1,19 +1,4 @@
-/**
- * 0069 — cargo do perfil, um perfil por usuário e hierarquia do cadastro (decisão do dono do produto de 14/11/2026,
- * R-20261114-153500). Dicionário: docs/banco/plataforma.md e docs/banco/core.md, "0069". O que o BANCO garante:
- * - plataforma.perfil.cargo NOT NULL, sem padrão, em vendedor | promotor | supervisor | gerente | administrativo
- *   (perfil_cargo_valido; promotor desde R-20261114-153800); backfill e semeadura por plataforma.cargo_da_base;
- * - promotor (R-20261114-154000, RN-CORE-56): gerente obrigatório e supervisor opcional; com supervisor, o gerente é o do
- *   supervisor — gatilhos adiados (promotor_sem_gerente, promotor_gerente_do_supervisor, hint RN-CORE-56) em gravações
- *   novas/alteradas do promotor COM equipe (sem equipe = domain/API do Core); legado não trava; a função de gatilho é
- *   SECURITY DEFINER (o COMMIT do portal, fora da sa_*, não tem acesso a core: ver conferencias-no-commit.test.ts);
- * - no máximo um vínculo vivo por usuário (usuario_perfil_um_vivo, exclusão adiada: 23P01 no COMMIT); trocar
- *   core.usuario.perfil substitui o vínculo; a migração deixa quem tinha vários com o de nível mais alto;
- * - core.v_usuario_hierarquia (security_invoker): cargo, equipe, supervisor_id e gerente_id derivados de core.equipe;
- * - RLS: o tenant B não vê nem altera o cargo/hierarquia do A; worker e portal sem acesso à view;
- * - up/down: o down devolve os vínculos apagados e volta exatamente ao catálogo da 0068; up de novo igual.
- * Estático no PC; banco (fixture dois-tenants, sempre com ROLLBACK) e up/down num banco efêmero no CI.
- */
+/** 0069 (cargo, um perfil por usuário e hierarquia): o que o banco garante está em docs/banco/plataforma.md e docs/banco/core.md, "0069". */
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { CARGO_DA_BASE, CARGOS, PERFIS } from '@macuxi/platform-sdk';
@@ -24,7 +9,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { idPerfilFabrica } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { emTransacao, retratoDoCatalogo } from './util';
+import { emTransacao, HASH_TESTE, retratoDoCatalogo, vivos } from './util';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -56,8 +41,6 @@ const SEM_GERENTE = { code: '23514', constraint: 'promotor_sem_gerente' };
 /** hint dos 2 erros do promotor (ADR 0049). */
 const HINT_PROMOTOR = 'RN-CORE-56';
 const GERENTE_DO_SUPERVISOR = { code: '23514', constraint: 'promotor_gerente_do_supervisor' };
-/** Hash argon2id de teste (formato PHC exigido pelo CHECK de core.usuario.senha_hash). */
-const HASH = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 
 describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
   it('nome e posição: 0069_core_cargo_hierarquia logo depois da 0068_plataforma_tenant_numero_licenca', () => {
@@ -74,15 +57,13 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(up).toContain("when 'promotor' then 'promotor'");
     expect(m69.up).not.toMatch(/a confirmar/i);
     expect(up.indexOf('update plataforma.perfil set cargo = plataforma.cargo_da_base(base);')).toBeLessThan(up.indexOf('alter column cargo set not null'));
-    // toda base dos PERFIS tem cargo na lista
-    for (const p of PERFIS) expect(CARGOS as readonly string[]).toContain(CARGO_DA_BASE[p]);
   });
 
   it('semeadura com o cargo: o texto da 0051 + a coluna cargo (mesmos nomes de fábrica)', () => {
     const da51 = bloco(semComentarios(m51.up), 'plataforma.semear_perfis_fabrica');
-    const da68 = bloco(up, 'plataforma.semear_perfis_fabrica');
+    const da69 = bloco(up, 'plataforma.semear_perfis_fabrica');
     expect(da51).not.toBe('');
-    expect(da68.replace(', cargo)', ')').replace(/, true, true,\s+plataforma\.cargo_da_base\(f\.base\)/, ', true, true')).toBe(da51);
+    expect(da69.replace(', cargo)', ')').replace(/, true, true,\s+plataforma\.cargo_da_base\(f\.base\)/, ', true, true')).toBe(da51);
   });
 
   it('um perfil por usuário: exclusão adiada nos vínculos vivos, criada DEPOIS da limpeza; gatilho do principal substitui', () => {
@@ -201,17 +182,11 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
       await admin.query('reset role');
     }
   }
-  const vivos = (usuario: string) =>
-    q<{ codigo: string }>(
-      `select p.codigo from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-        where up.usuario_id = $1 and up.deleted_at is null order by p.codigo`,
-      [usuario],
-    ).then((r) => r.map((x) => x.codigo));
 
   it('cargo dos 7 de fábrica (A, B e tenant novo) pelo mapeamento; personalizado da fixture = vendedor', async () => {
     await emTransacao(admin, null, async () => {
       const T = 'cccccccc-0069-4000-8000-000000000001';
-      await admin.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 't68-novo', 'Novo 68')", [T]);
+      await admin.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 't69-novo', 'Novo 69')", [T]);
       for (const t of [A.tenantId, B.tenantId, T]) {
         const r = await q<{ base: string; cargo: string }>('select base, cargo from plataforma.perfil where tenant_id = $1 and fabrica order by base', [t]);
         expect(r).toEqual([...PERFIS].sort().map((base) => ({ base, cargo: CARGO_DA_BASE[base] })));
@@ -225,9 +200,9 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
   it('cargo obrigatório e da lista: sem cargo = 23502; fora da lista = 23514 perfil_cargo_valido; troca para outro da lista passa', async () => {
     await emTransacao(admin, null, async () => {
       const ins = (cargo: string | null): Array<[string, unknown[]]> => [[
-        'insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, $2, $3, $4, $5)', [A.tenantId, 'coord_68', 'Coordenador', 'analista', cargo],
+        'insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, $2, $3, $4, $5)', [A.tenantId, 'coord_69', 'Coordenador', 'analista', cargo],
       ]];
-      expect(await noCommit([["insert into plataforma.perfil (tenant_id, codigo, nome, base) values ($1, 'sem_cargo_68', 'Sem cargo', 'vendedor')", [A.tenantId]]], 'macuxi_app', A.tenantId))
+      expect(await noCommit([["insert into plataforma.perfil (tenant_id, codigo, nome, base) values ($1, 'sem_cargo_69', 'Sem cargo', 'vendedor')", [A.tenantId]]], 'macuxi_app', A.tenantId))
         .toMatchObject({ code: '23502' });
       expect(await noCommit(ins(null))).toMatchObject({ code: '23502' });
       expect(await noCommit(ins('diretor'))).toEqual({ code: '23514', constraint: 'perfil_cargo_valido' });
@@ -238,10 +213,10 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
     });
   });
 
-  it('um perfil por usuário: 2º vínculo vivo = 23P01 no COMMIT; trocar (apaga + insere, qualquer ordem) passa; trocar o principal substitui', async () => {
+  it('um perfil por usuário: 2º vínculo vivo = 23P01 no COMMIT; trocar (apaga + insere, qualquer ordem) passa', async () => {
     await emTransacao(admin, null, async () => {
       const V1 = A.usuarios.vendedor1;
-      expect(await vivos(V1)).toEqual(['vendedor']);
+      expect(await vivos(admin, V1)).toEqual(['vendedor']);
       const segundo: [string, unknown[]] = ['insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, V1, A.perfis.vendedorExterno]];
       const apagaVivo: [string, unknown[]] = ['update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and perfil_id = $2 and deleted_at is null', [V1, idPerfilFabrica(A.tenantId, 'vendedor')]];
       expect(await noCommit([segundo])).toEqual({ code: '23P01', constraint: EXCLUSAO });
@@ -250,12 +225,6 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
       expect(await noCommit([apagaVivo, segundo], 'macuxi_app', A.tenantId)).toBeNull();
       // o mesmo perfil duas vezes continua 23505 na hora (o único da 0041)
       expect(await noCommit([[segundo[0], [A.tenantId, V1, idPerfilFabrica(A.tenantId, 'vendedor')]]])).toEqual({ code: '23505', constraint: 'usuario_perfil_uk' });
-      // trocar o principal substitui o vínculo (os anteriores ficam apagados e não contam)
-      await admin.query("update core.usuario set perfil = 'supervisor' where id = $1", [V1]);
-      expect(await vivos(V1)).toEqual(['supervisor']);
-      await admin.query("update core.usuario set perfil = 'promotor' where id = $1", [V1]);
-      expect(await vivos(V1)).toEqual(['promotor']);
-      expect(await q('select count(*)::int as n from plataforma.usuario_perfil where usuario_id = $1 and deleted_at is not null', [V1])).toEqual([{ n: 2 }]);
       await admin.query('set constraints all immediate');
     });
   });
@@ -320,7 +289,7 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
       // promotor novo: sem equipe passa no banco (a API do Core recusa); na equipe do gerente passa; na Equipe 2 (sem responsável) falha
       const novo = (equipe: string | null): [string, unknown[]] => [
         "insert into core.usuario (id, tenant_id, nome, email, perfil, equipe_id, senha_hash) values ('aaaaaaaa-0069-4000-8000-000000000301', $1, 'Promotor Novo', 'prom69@exemplo.com.br', 'promotor', $2, $3)",
-        [A.tenantId, equipe, HASH],
+        [A.tenantId, equipe, HASH_TESTE],
       ];
       expect(await app([novo(null)])).toBeNull();
       expect(await app([novo(A.equipes.regional)])).toBeNull();
@@ -358,7 +327,7 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
       expect(await como('macuxi_app', null, `select 1 from ${VIEW}`)).toEqual([]);
       expect(await como('macuxi_app', B.tenantId, 'select cargo from plataforma.perfil where id = $1', [A.perfis.vendedorExterno])).toEqual([]);
       expect(await como('macuxi_app', B.tenantId, "update plataforma.perfil set cargo = 'gerente' where id = $1 returning id", [A.perfis.vendedorExterno])).toEqual([]);
-      expect(await noCommit([["insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'de_a_68', 'X', 'vendedor', 'vendedor')", [A.tenantId]]], 'macuxi_app', B.tenantId))
+      expect(await noCommit([["insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'de_a_69', 'X', 'vendedor', 'vendedor')", [A.tenantId]]], 'macuxi_app', B.tenantId))
         .toEqual({ code: '42501', constraint: null });
       for (const papel of ['macuxi_worker', 'macuxi_portal']) {
         expect((await noCommit([[`select 1 from ${VIEW} limit 1`]], papel))?.code, papel).toBe('42501');
@@ -370,7 +339,6 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
 describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000069';
-  const H = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
   const U = {
     adm: 'cccccccc-0069-4000-8000-000000000101', // admin + admin_x (personalizado) + analista -> fica o admin de FÁBRICA
     multi: 'cccccccc-0069-4000-8000-000000000102', // vendedor + promotor + supervisor -> fica supervisor (principal muda)
@@ -388,23 +356,19 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
 
   it('limpa o multiperfil pelo nível, cargo pelo mapeamento; down devolve os vínculos e o catálogo da 0068; idempotente; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
-      const vivos = async (u: string) =>
-        (await c.query<{ codigo: string }>(
-          `select p.codigo from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
-            where up.usuario_id = $1 and up.deleted_at is null order by p.codigo`, [u])).rows.map((x) => x.codigo);
       const principal = async (u: string) => (await c.query<{ perfil: string }>('select perfil from core.usuario where id = $1', [u])).rows[0]!.perfil;
       const ligar = (u: string, perfil: string) =>
         c.query('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [T, u, perfil]);
 
       await migrarUp(c, { ate: '0068' });
       const antes = await retratoDoCatalogo(c);
-      await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo68', 'Antigo 68')", [T]);
+      await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo69', 'Antigo 69')", [T]);
       const usuario = (id: string, email: string, perfil: string) =>
-        c.query('insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, $3, $4, $5, $6)', [id, T, `Pessoa ${perfil}`, email, perfil, H]);
-      await usuario(U.adm, 'adm68@exemplo.com.br', 'admin');
-      await usuario(U.multi, 'multi68@exemplo.com.br', 'vendedor');
-      await usuario(U.pers, 'pers68@exemplo.com.br', 'vendedor');
-      await usuario(U.so, 'so68@exemplo.com.br', 'vendedor');
+        c.query('insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, $3, $4, $5, $6)', [id, T, `Pessoa ${perfil}`, email, perfil, HASH_TESTE]);
+      await usuario(U.adm, 'adm69@exemplo.com.br', 'admin');
+      await usuario(U.multi, 'multi69@exemplo.com.br', 'vendedor');
+      await usuario(U.pers, 'pers69@exemplo.com.br', 'vendedor');
+      await usuario(U.so, 'so69@exemplo.com.br', 'vendedor');
       await usuario(U.prom, 'prom69@exemplo.com.br', 'promotor');
       await c.query("insert into plataforma.perfil (id, tenant_id, codigo, nome, base) values ($1, $2, 'admin_x', 'Admin X', 'admin')", [PERS.adminX, T]);
       await c.query("insert into plataforma.perfil (id, tenant_id, codigo, nome, base) values ($1, $2, 'vendedor_x', 'Vendedor X', 'vendedor')", [PERS.vendedorX, T]);
@@ -414,7 +378,7 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
       await ligar(U.multi, idPerfilFabrica(T, 'supervisor'));
       await ligar(U.pers, PERS.vendedorX);
       const multiAntes = {
-        adm: await vivos(U.adm), multi: await vivos(U.multi), pers: await vivos(U.pers), so: await vivos(U.so),
+        adm: await vivos(c, U.adm), multi: await vivos(c, U.multi), pers: await vivos(c, U.pers), so: await vivos(c, U.so),
       };
       expect(multiAntes).toEqual({
         adm: ['admin', 'admin_x', 'analista'], multi: ['promotor', 'supervisor', 'vendedor'], pers: ['vendedor', 'vendedor_x'], so: ['vendedor'],
@@ -445,7 +409,7 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
            from pg_proc p where p.oid in ('core.promotor_conferir()'::regprocedure, 'core.conferir_promotores(uuid, uuid[], uuid[])'::regprocedure)
           order by 1`);
       expect(fns.rows).toEqual([{ nome: 'conferir_promotores', definer: false, outros: 0 }, { nome: 'promotor_conferir', definer: true, outros: 0 }]);
-      expect({ adm: await vivos(U.adm), multi: await vivos(U.multi), pers: await vivos(U.pers), so: await vivos(U.so) })
+      expect({ adm: await vivos(c, U.adm), multi: await vivos(c, U.multi), pers: await vivos(c, U.pers), so: await vivos(c, U.so) })
         .toEqual({ adm: ['admin'], multi: ['supervisor'], pers: ['vendedor_x'], so: ['vendedor'] });
       expect([await principal(U.adm), await principal(U.multi), await principal(U.pers), await principal(U.so)]).toEqual(['admin', 'supervisor', 'vendedor', 'vendedor']);
       const cargos = (await c.query<{ codigo: string; cargo: string }>('select codigo, cargo from plataforma.perfil where tenant_id = $1 order by codigo', [T])).rows;
@@ -461,16 +425,16 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
 
       expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0069_core_cargo_hierarquia']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      expect({ adm: await vivos(U.adm), multi: await vivos(U.multi), pers: await vivos(U.pers), so: await vivos(U.so) }).toEqual(multiAntes);
+      expect({ adm: await vivos(c, U.adm), multi: await vivos(c, U.multi), pers: await vivos(c, U.pers), so: await vivos(c, U.so) }).toEqual(multiAntes);
       // o principal fica com a base mais alta (continua entre os perfis do usuário)
       expect(await principal(U.multi)).toBe('supervisor');
       await c.query(m69.down); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      expect(await vivos(U.multi)).toEqual(multiAntes.multi);
+      expect(await vivos(c, U.multi)).toEqual(multiAntes.multi);
 
       await migrarUp(c, { ate: '0069' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
-      expect(await vivos(U.multi)).toEqual(['supervisor']);
+      expect(await vivos(c, U.multi)).toEqual(['supervisor']);
     });
   });
 });

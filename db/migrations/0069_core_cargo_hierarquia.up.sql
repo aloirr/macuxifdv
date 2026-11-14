@@ -1,11 +1,5 @@
 -- 0069_core_cargo_hierarquia (up) — cargo do perfil, um perfil por usuário e a hierarquia do cadastro de usuário.
--- Decisão do dono do produto (R-20261114-153500-alexandre, 14/11/2026): "No cadastro de usuario devem ter os cargos. Se é
--- vendedor tem o supervisor para cadastrar, e o gerente é o gerente do supervisor. Se é supervisor cadastra o gerente e o nome
--- da equipe para aparecer na tela inicial da foto do vendedor. Codigo ERP para todos. Cada usuario so pode ter um perfil. E
--- cada perfil so pode ter um cargo. cargo é algo padrao do fdv. Vendedor, Supervisor, Gerente, Administrativo".
--- No mesmo dia, R-20261114-153800 ("Crie o cargo promotor.") e R-20261114-154000 ("Fica embaixo do gerente. Supervisor é
--- opcional"): 5 cargos; o promotor tem gerente OBRIGATÓRIO e supervisor OPCIONAL; com supervisor, o gerente do promotor é o
--- gerente desse supervisor (conferido no banco, item 3).
+-- Decisão: ADR 0049, docs/decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md (R-20261114-153500, -153800, -154000).
 -- Migração em cima da 0068 (plataforma_tenant_numero_licenca). Dicionário: docs/banco/plataforma.md ("0069") e docs/banco/core.md ("0069"). Teste:
 -- db/testes/cargo-hierarquia.db.test.ts (estático no PC; banco e up/down no CI). Diagnóstico: db/scripts/diagnostico-0069.sql.
 --
