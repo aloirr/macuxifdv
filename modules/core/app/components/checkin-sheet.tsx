@@ -57,9 +57,7 @@ export function CheckinSheet({ phase, customerName, onClose, onJustificar }: { p
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={t.h2}>Check-in às {phase.at}</Text>
-              <Text style={t.small} numberOfLines={2}>
-                {customerName} · {phase.gps ? 'GPS do aparelho' : 'sem GPS neste check-in'}
-              </Text>
+              {phase.gps ? null : <Text style={t.small}>Sem GPS neste check-in</Text>}
             </View>
           </View>
           {phase.foraDoRaio ? <ChipEstado texto="Fora do raio · justificado" tom="aviso" /> : null}

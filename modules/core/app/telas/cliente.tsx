@@ -118,9 +118,9 @@ export function TelaCliente() {
     if (phase?.kind === 'done' && !estado.visitas.some((v) => v.id === phase.visitId)) setPhase(null);
   }, [phase, estado.visitas]);
 
-  // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil. Cliente já visitado hoje não repete (RN-CORE-13)
+  // RN-CORE-52: na rota do dia sempre; fora dela só com a ação no perfil. A regra completa (inclusive visitado hoje) fica no domain
   const checkinLiberado = checkinPermitido({ clienteId: id, clientesDaRota: rota?.stops.map((s) => s.customer.id) ?? [], podeForaDeRota });
-  // A extensão `pesquisas` abre na folha do botão "Pesquisa"; a regra do rodapé (check-in, checkout, pesquisa) fica no domain
+  // A regra do rodapé (check-in, checkout, pesquisa) fica no domain
   const abaPesquisa = abas.find((a) => a.id === 'pesquisas') ?? null;
   const PesquisaComp = abaPesquisa?.payload.componente;
   const botoes = botoesDoRodapeCliente({ temPesquisa: Boolean(PesquisaComp), atendimentoAqui: openHere, checkinPermitido: checkinLiberado, visitadoHoje: visited });
