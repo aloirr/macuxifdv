@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { etapaDaEntidade, etapasDaEntrada, paradaParaDiagnostico, progressoDaEntrada, type EntradaProgresso } from './entrada-sync';
+import { chaveDeOrdemDaCarga, etapaDaEntidade, etapasDaEntrada, paradaParaDiagnostico, progressoDaEntrada, type EntradaProgresso, type ItemDaCarga } from './entrada-sync';
 
 const base = (o: Partial<EntradaProgresso> = {}): EntradaProgresso => ({
   perfil: 'vendedor',
@@ -58,5 +58,97 @@ describe('RN-CORE-48: etapas nomeadas da entrada por perfil e módulos efetivos'
   });
   it('RN-CORE-48: carga que não parou não gera parada para o Diagnóstico', () => {
     expect(paradaParaDiagnostico(progressoDaEntrada(base()))).toBeNull();
+  });
+});
+
+describe('RN-CORE-48: etapas em sequência, sem voltar', () => {
+  // ordem de hoje do motor: entidades do registro e, depois, as etapas extras (misturadas entre as etapas da tela)
+  const cargaCampo: ItemDaCarga[] = [
+    { entidade: 'meta', modulo: 'core' },
+    { entidade: 'cliente', modulo: 'core' },
+    { entidade: 'produto', modulo: 'core' },
+    { entidade: 'rota', modulo: 'core' },
+    { entidade: 'cliente_foto', modulo: 'core' },
+    { entidade: 'tabela_preco', modulo: 'catalogo' },
+    { entidade: 'pedido', modulo: 'vendedor' },
+    { entidade: 'core-inicio', modulo: 'core' },
+    { entidade: 'tarefa_promotor', modulo: 'promotor' },
+  ];
+  const cargaGestao: ItemDaCarga[] = [
+    { entidade: 'meta', modulo: 'core' },
+    { entidade: 'notificacao', modulo: 'core' },
+    { entidade: 'cliente', modulo: 'core' },
+    { entidade: 'pedido', modulo: 'vendedor' },
+    { entidade: 'painel_vendedor_dia', modulo: 'gestor' },
+    { entidade: 'core-inicio', modulo: 'core' },
+  ];
+  const ordenar = (perfil: string, modulos: string[], itens: ItemDaCarga[]) => {
+    const chave = chaveDeOrdemDaCarga(perfil, modulos);
+    return [...itens].sort((a, b) => chave(a) - chave(b));
+  };
+  /** Números mostrados ao longo da carga, como o shell faz: guarda o progresso anterior e passa de volta. */
+  const numerosMostrados = (perfil: string, modulos: string[], itens: ItemDaCarga[]) => {
+    let anterior: ReturnType<typeof progressoDaEntrada> | null = null;
+    const vistos: number[] = [];
+    for (const it of [null, ...itens]) {
+      const carga = { entidade: it?.entidade ?? null, modulo: it?.modulo ?? null, concluidas: 0, total: itens.length + 1 };
+      anterior = progressoDaEntrada(base({ perfil, modulos, carga, anterior }));
+      vistos.push(anterior.atual.numero);
+    }
+    return { vistos, ultimo: anterior! };
+  };
+  const semRepetir = (l: number[]) => l.filter((n, i) => n !== l[i - 1]);
+
+  it('RN-CORE-48: Campo, na ordem nova a carga mostra 1, 2, 3, 4 e 5', () => {
+    const modulos = ['core', 'catalogo', 'vendedor', 'promotor'];
+    const ordenada = ordenar('vendedor', modulos, cargaCampo);
+    expect(ordenada.map((i) => i.entidade)).toEqual(['cliente', 'rota', 'produto', 'tabela_preco', 'meta', 'pedido', 'core-inicio', 'cliente_foto', 'tarefa_promotor']);
+    expect(semRepetir(numerosMostrados('vendedor', modulos, ordenada).vistos)).toEqual([1, 2, 3, 4, 5]);
+  });
+  it('RN-CORE-48: dentro da etapa vale a ordem de hoje (ordenação estável pela chave)', () => {
+    const chave = chaveDeOrdemDaCarga('vendedor', ['core', 'catalogo', 'vendedor']);
+    expect(chave({ entidade: 'meta', modulo: 'core' })).toBe(chave({ entidade: 'pedido', modulo: 'vendedor' }));
+    expect(chave({ entidade: 'cliente', modulo: 'core' })).toBeLessThan(chave({ entidade: 'produto', modulo: 'core' }));
+  });
+  it('RN-CORE-48: sem o Catálogo a chave segue a numeração do perfil (1 a 4)', () => {
+    const modulos = ['core', 'vendedor', 'promotor'];
+    const ordenada = ordenar('vendedor', modulos, cargaCampo.filter((i) => i.modulo !== 'catalogo'));
+    expect(semRepetir(numerosMostrados('vendedor', modulos, ordenada).vistos)).toEqual([1, 2, 3, 4]);
+  });
+  it('RN-CORE-48: entidade fora de ordem não faz o número voltar e as anteriores ficam feitas', () => {
+    const modulos = ['core', 'catalogo', 'vendedor', 'promotor'];
+    // ordem de hoje (sem a chave): 4, 2, 3, 2, 5, 3, 4, 4, 5 — a tela não pode voltar
+    const { vistos, ultimo } = numerosMostrados('vendedor', modulos, cargaCampo);
+    expect(vistos.every((n, i) => i === 0 || n >= vistos[i - 1]!)).toBe(true);
+    expect(semRepetir(vistos)).toEqual([1, 4, 5]);
+    expect(ultimo.etapas.slice(0, 4).every((e) => e.situacao === 'feita')).toBe(true);
+    expect(ultimo.atual.situacao).toBe('atual');
+  });
+  it('RN-CORE-48: com a anterior, o percentual segue o motor', () => {
+    const anterior = progressoDaEntrada(base({ carga: { entidade: 'pedido', modulo: 'vendedor', concluidas: 6, total: 10 }, progresso: 0.6 }));
+    const p = progressoDaEntrada(base({ carga: { entidade: 'cliente', modulo: 'core', concluidas: 7, total: 10 }, progresso: 0.7, anterior }));
+    expect(p.atual.id).toBe('pedidos_metas');
+    expect(p.percentual).toBe(70);
+  });
+  it('RN-CORE-48: parou depois de avançar, a parada é a maior etapa já mostrada', () => {
+    const anterior = progressoDaEntrada(base({ carga: { entidade: 'pedido', modulo: 'vendedor', concluidas: 6, total: 10 }, progresso: 0.6 }));
+    const p = progressoDaEntrada(base({ carga: { entidade: 'cliente', modulo: 'core', concluidas: 6, total: 10 }, progresso: 0.6, sincronizando: false, erro: 'Sem sinal', anterior }));
+    expect(paradaParaDiagnostico(p)).toEqual({ numero: 4, total: 5, nome: 'Pedidos e metas' });
+  });
+  it('RN-CORE-48: anterior de outra lista de etapas (outro perfil) é ignorada', () => {
+    const anterior = progressoDaEntrada(base({ perfil: 'gerente', modulos: ['core', 'vendedor', 'gestor'], carga: { entidade: 'notificacao', modulo: 'core', concluidas: 1, total: 4 } }));
+    const p = progressoDaEntrada(base({ carga: { entidade: 'cliente', modulo: 'core', concluidas: 1, total: 4 }, anterior }));
+    expect(p.atual.id).toBe('clientes_rota');
+  });
+  it('RN-CORE-48: Gestão, na ordem nova mostra 1, 2, 3, 4 e 5', () => {
+    const modulos = ['core', 'vendedor', 'gestor'];
+    const ordenada = ordenar('gerente', modulos, cargaGestao);
+    expect(ordenada.map((i) => i.entidade)).toEqual(['cliente', 'painel_vendedor_dia', 'pedido', 'meta', 'core-inicio', 'notificacao']);
+    expect(semRepetir(numerosMostrados('gerente', modulos, ordenada).vistos)).toEqual([1, 2, 3, 4, 5]);
+  });
+  it('RN-CORE-48: Gestão, entidade fora de ordem não faz o número voltar', () => {
+    const { vistos } = numerosMostrados('supervisor', ['core', 'vendedor', 'gestor'], cargaGestao);
+    expect(vistos.every((n, i) => i === 0 || n >= vistos[i - 1]!)).toBe(true);
+    expect(semRepetir(vistos)).toEqual([1, 4, 5]);
   });
 });

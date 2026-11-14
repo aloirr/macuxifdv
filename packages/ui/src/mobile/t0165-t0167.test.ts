@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { BALAO, larguraMaximaDoBalao, posicaoDoBalao } from './balao';
-import { BOTAO_EDITAR, folgaDoBotaoEditar, leituraDoBotaoEditar } from './botao-editar';
+import { BOTAO_EDITAR, folgaDoBotaoEditar, leituraDoBotaoEditar, tomDoBotaoEditar } from './botao-editar';
 import {
   leituraDoMostrarMais,
   PAGINA_DA_BUSCA,
@@ -193,6 +193,38 @@ describe('T-0165: BotaoEditar, o lápis do item já no pedido (R-20261112-082212
     expect(BOTAO_EDITAR.borda).toBe(colors.accent);
     expect(BOTAO_EDITAR.fundo).toBe(colors.accentSoft);
     expect(contraste(BOTAO_EDITAR.icone, BOTAO_EDITAR.fundo)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('tom adicionado (14/11/2026): verde de situação, borda mais grossa que a do padrão', () => {
+    const { adicionado, padrao } = BOTAO_EDITAR.tons;
+    expect(adicionado.fundo).toBe(colors.successBg);
+    expect(adicionado.borda).toBe(colors.success);
+    expect(adicionado.icone).toBe(colors.success);
+    expect(adicionado.larguraBorda).toBeGreaterThan(padrao.larguraBorda);
+  });
+
+  it('tom adicionado: ícone 5,51:1 sobre successBg e borda 6,43:1 sobre o branco (surface), ambos ≥ 3:1', () => {
+    const { adicionado } = BOTAO_EDITAR.tons;
+    expect(contraste(adicionado.icone, adicionado.fundo)).toBeGreaterThanOrEqual(3);
+    expect(contraste(adicionado.icone, adicionado.fundo)).toBeCloseTo(5.51, 2);
+    expect(contraste(adicionado.borda, '#FFFFFF')).toBeGreaterThanOrEqual(3);
+    expect(contraste(adicionado.borda, colors.surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('tomDoBotaoEditar: adicionado na linha e padrao na tabela, salvo tom explícito', () => {
+    expect(tomDoBotaoEditar('linha')).toBe('adicionado');
+    expect(tomDoBotaoEditar('tabela')).toBe('padrao');
+    expect(tomDoBotaoEditar('linha', 'padrao')).toBe('padrao');
+    expect(tomDoBotaoEditar('tabela', 'adicionado')).toBe('adicionado');
+  });
+
+  it('tons.padrao repete os campos raiz de BOTAO_EDITAR', () => {
+    expect(BOTAO_EDITAR.tons.padrao).toEqual({
+      larguraBorda: BOTAO_EDITAR.larguraBorda,
+      borda: BOTAO_EDITAR.borda,
+      fundo: BOTAO_EDITAR.fundo,
+      icone: BOTAO_EDITAR.icone,
+    });
   });
 
   it('TalkBack: "<nome>, no pedido. Editar" na aba Itens e "Editar <código>" no Resumo', () => {

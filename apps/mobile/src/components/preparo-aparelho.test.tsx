@@ -87,7 +87,7 @@ describe('T-0088: tela de erro do armazenamento', () => {
     const src = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
     expect(src).toContain("importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}");
     const envolve = src.slice(src.indexOf("'no-hide-descendants'"), src.indexOf('{sobre}'));
-    expect(envolve).toContain('<AreaSeguraSuperior>');
+    expect(envolve).toContain('<AreaSeguraSuperior rota={rota}>');
     expect(envolve).toContain('</AreaSeguraSuperior>');
   });
 });

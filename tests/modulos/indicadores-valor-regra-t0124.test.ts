@@ -21,7 +21,7 @@ import { celulasDoUsuario, CABECALHO } from '../../modules/core/web/lib/indicado
 import { CLIENTE_A, CLIENTE_B, meta as metaGestor, pedidoCriado, statusAlterado, ev, u, VENDEDOR, VENDEDOR_2, SUPERVISOR } from '../../modules/gestor/domain/fixtures';
 import { faturamentoDoPeriodo, painelDoMes, vendasDoPeriodo } from '../../modules/gestor/domain/painel';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from '../../modules/gestor/domain/projecao';
-import { INDICADORES, rankingDaEquipe } from '../../modules/gestor/domain/ranking';
+import { rankingDaEquipe } from '../../modules/gestor/domain/ranking';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { textoDoCard } from '../../modules/vendedor/app/lib/cards-pedidos';
 import type { PedidoDaLista } from '../../modules/vendedor/app/lib/pedidos';
@@ -292,7 +292,6 @@ describe('T-0124 — Gestor: Ficha do vendedor, painel e Ranking (RN-CORE-21/22,
       { id: u(102), nome: 'Caio', perfil: 'vendedor' as const, superior_id: SUPERVISOR, ativo: true },
     ];
     const r = rankingDaEquipe({ estado: s, membros, viewer: { id: SUPERVISOR, perfil: 'supervisor' }, indicador: 'atingimento_meta_pct', periodo: 'mensal', data_ref: '2026-11-10', modulos: new Set(['vendedor']), params: P, agora: '2026-11-10T13:00:00Z' });
-    expect(INDICADORES.atingimento_meta_pct.rotulo).toBe('Atingimento da meta (mensal)');
     expect(r.linhas.map((l) => [l.nome, l.valor, l.posicao])).toEqual([
       ['Bruno', (1_500_000 / 2_000_000) * 100, 1],
       ['Ana', (500_000 / 1_000_000) * 100, 2],

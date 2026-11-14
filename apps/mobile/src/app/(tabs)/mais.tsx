@@ -17,8 +17,7 @@ export default function Mais() {
   const visao = useVisaoShell();
   const { mais } = abasDoShell(visao.navegacao, MAX_ABAS_POR_VARIANTE[varianteAtual()]);
   return (
-    <Screen testID="tela-mais">
-      <Text style={t.h1}>Mais</Text>
+    <Screen testID="tela-mais" cabecalho={{ titulo: 'Mais' }}>
       <SectionHeader title="Outras telas" />
       {mais.length === 0 ? (
         <Empty text="Todas as suas telas já estão na barra de baixo." />

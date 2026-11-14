@@ -317,7 +317,7 @@ tags, em `<ul>`, com a leitura em `sr-only`). **Gestão**: os mesmos componentes
   (5,5:1); erro `danger` no `dangerBg` (6,0:1). Motivo `ink2` no fundo (6,9:1).
 - Equivalente do desconto: `success` no branco (6,4:1); acréscimo `ink2` (7,6:1); erro `danger` (7,1:1).
 - Ícone + rótulo do rodapé em `ink` (16,5:1); desabilitado em `ink3` (5,8:1 no branco), sem transparência.
-- Secundários do Resumo: texto `ink` no branco com borda `ink` 1,5; desabilitado `#5B6673` no `#E6E9E2` (4,8:1).
+- Secundários do Resumo: texto `ink` no branco com borda `ink` 1,5; desabilitado `#5B6673` no `#ECEEF1` (5,03:1).
 
 ## 7. Componentes do kit
 | Peça | Componente | Onde |

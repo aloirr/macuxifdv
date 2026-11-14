@@ -48,8 +48,8 @@ function AvisoModuloDesativado() {
 }
 
 function InicioCampo() {
-  // T-0172: a faixa da barra de status em Azul noite (barra light) só com o Início em foco; nas outras abas, o fundo do app
-  useCorDaFaixaNoFoco(colors.faixa, 'light');
+  // T-0172: a faixa da barra de status em Azul noite (ícones claros) só com o Início em foco; nas outras abas, a cor da rota
+  useCorDaFaixaNoFoco(colors.faixa);
   return (
     <TelaInicioCampo
       // o `novos` que a tela passa é o mesmo `sino.total` do Core; o sino lê a contagem única do layout (`ProvedorContagemSino`)
