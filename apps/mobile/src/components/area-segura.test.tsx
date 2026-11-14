@@ -41,8 +41,11 @@ vi.mock('@macuxi/ui/mobile', () => ({
   colors: { faixa: '#1E3350', ground: '#F8F6F1' },
   estiloBarraDeStatus: (comCabecalho: boolean) => (comCabecalho ? 'light' : 'dark'),
 }));
+// o foco da aba: guarda o efeito de foco para o teste disparar o foco e o desfoco
+const foco = vi.hoisted(() => ({ efeitos: [] as Array<() => void | (() => void)> }));
+vi.mock('expo-router', () => ({ useFocusEffect: (efeito: () => void | (() => void)) => void foco.efeitos.push(efeito) }));
 
-const { AreaSeguraSuperior, useFaixaSuperior } = await import('./area-segura');
+const { AreaSeguraSuperior, CorDaFaixaContext, useCorDaFaixaNoFoco, useFaixaSuperior } = await import('./area-segura');
 const { useSafeAreaInsets } = await import('react-native-safe-area-context');
 
 /** Uma "tela" qualquer de módulo: soma `insets.top` como o detalhe do pedido e o `Screen` fazem. */
@@ -92,6 +95,32 @@ describe('AreaSeguraSuperior', () => {
   });
 });
 
+describe('useCorDaFaixaNoFoco (T-0172, Início do Campo)', () => {
+  function AbaInicio() {
+    useCorDaFaixaNoFoco(FAIXA);
+    return null;
+  }
+
+  it('no foco pinta a faixa de Azul noite; no desfoco a faixa volta à cor da rota (null)', () => {
+    const cores: Array<string | null> = [];
+    foco.efeitos.length = 0;
+    renderToStaticMarkup(createElement(CorDaFaixaContext.Provider, { value: (cor: string | null) => void cores.push(cor) }, createElement(AbaInicio)));
+    expect(foco.efeitos).toHaveLength(1);
+    expect(cores).toEqual([]); // montada sem foco não pinta
+
+    const desfocar = foco.efeitos[0]?.();
+    expect(cores).toEqual([FAIXA]);
+
+    if (typeof desfocar === 'function') desfocar();
+    expect(cores).toEqual([FAIXA, null]);
+  });
+
+  it('o Início do Campo usa a faixa no foco com o token da faixa (a barra de status acompanha a cor no shell)', () => {
+    const src = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('useCorDaFaixaNoFoco(colors.faixa)');
+  });
+});
+
 /** Renderiza o shell na rota e devolve o fundo da faixa e o estilo da barra de status. */
 function faixaNa(rota: string | undefined) {
   const html = renderToStaticMarkup(createElement(AreaSeguraSuperior, { rota, children: createElement(TelaDeModulo) }));
@@ -105,7 +134,7 @@ describe('cor da faixa da barra de status (pedido de 14/11/2026, manual da marca
   it('rota com cabeçalho (Catálogo): faixa Azul noite e ícones claros', () => {
     expect(faixaNa('/m/catalogo')).toEqual({ fundo: FAIXA, barra: 'light' });
   });
-  it('Início ("/"): Pérola e ícones escuros', () => {
+  it('Início ("/") sem tela pintando: Pérola e ícones escuros', () => {
     expect(faixaNa('/')).toEqual({ fundo: PEROLA, barra: 'dark' });
   });
   it('barra final não muda a rota: "/mais/" tem faixa', () => {
