@@ -157,3 +157,4 @@
 2026-11-14 — ficha-cliente-performance — aba Performance (RN-CORE-50), botão Pesquisa e Checkout só em atendimento (RN-CORE-51)
 2026-11-14 — BKO Acesso — Usuários (tabela, gaveta, módulos) e Perfis de acesso (lista, Novo perfil por módulo); branch nuvem/acesso-bko-modulo-core
 2026-11-14 — BKO Acesso — RD-0264 a RD-0268, MC-0025/26: textos de Desativar/Redefinir, sem CSV em Usuários, Geral agrupada em 3 colunas, criar×editar pedido separados, rótulos de RV; prints com o menu real
+2026-11-14 — R-20261114-145000 — Início do Campo enquadrado: primeiro nome completo (primeiroNome), sino no painel do topo, painel e Sincronizar fixos, meio compacto; prints em docs/modulos/core/prints/inicio-enquadrado
