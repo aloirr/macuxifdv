@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { AbaPesquisasCliente } from './components/aba-cliente';
 import { CardPesquisas } from './components/card-inicio';
 import { EtapaPesquisaCheckout } from './components/etapa-checkout';
+import { criarConsultaRespostaLocal, fonteRespostasLocaisPadrao } from './lib/consulta-resposta-local';
 import { etapaConcluida } from './lib/local';
 import { montarModuloApp } from './registro';
 import PesquisasScreen from './screens/pesquisas-screen';
@@ -22,4 +23,5 @@ export const moduloApp = montarModuloApp<ComponentType>(
     cardInicio: CardPesquisas,
   },
   etapaConcluida,
+  [criarConsultaRespostaLocal(fonteRespostasLocaisPadrao)],
 );

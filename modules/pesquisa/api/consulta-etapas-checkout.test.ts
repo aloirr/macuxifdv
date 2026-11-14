@@ -55,10 +55,10 @@ async function ambiente(versao = publicada({ modo: 'checkout_obrigatoria', titul
 
 describe('pesquisa.etapas_checkout@1 (RN-PES-03, RN-CORE-12)', () => {
   it('RN-PES-03: o manifesto oferece a consulta e a API a implementa (contrato do Core)', () => {
-    expect(manifest.ofereceConsultas).toEqual(['pesquisa.etapas_checkout@1']);
+    expect(manifest.ofereceConsultas).toContain('pesquisa.etapas_checkout@1');
     expect(CONSULTA_ETAPAS_CHECKOUT_PESQUISA.nome).toBe('pesquisa.etapas_checkout@1');
     const api = criarApiPesquisa(criarRepositorioEmMemoria());
-    expect((api.consultas ?? []).map((c) => c.consulta.nome)).toEqual(['pesquisa.etapas_checkout@1']);
+    expect((api.consultas ?? []).map((c) => c.consulta.nome)).toEqual([...manifest.ofereceConsultas]);
   });
 
   it('RN-PES-03: pesquisa obrigatória sem resposta na visita = etapa obrigatória e pendente', async () => {

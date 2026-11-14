@@ -1,6 +1,7 @@
 import { criarShell, defineModule, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { montarModuloApp } from './registro';
+import { criarConsultaRespostaLocal } from './lib/consulta-resposta-local';
 
 /** Core mínimo de teste: só oferece os slots que a Pesquisa usa (o manifesto real é interno do Core). */
 const core = defineModule({
@@ -13,6 +14,14 @@ const core = defineModule({
 
 const pesquisa = montarModuloApp<string>({ pesquisas: 'Pesquisas', responder: 'Responder', abaCliente: 'Aba', etapaCheckout: 'Etapa', cardInicio: 'Card' }, () => true);
 const visao = (app: 'campo' | 'gestao', perfil: Perfil, modulosAtivos: ('core' | 'pesquisa')[] = ['core', 'pesquisa']) => criarShell(app, [{ manifesto: core, paginas: [] }, pesquisa]).montar({ perfil, modulosAtivos });
+
+describe('T-0170: consulta do aparelho no shell', () => {
+  it('RN-PES-02: o shell aceita pesquisa.resposta_local@1 no aparelho e criarShell não lança', () => {
+    const comConsulta = montarModuloApp<string>({ pesquisas: 'P', responder: 'R', abaCliente: 'A', etapaCheckout: 'E', cardInicio: 'C' }, () => true, [criarConsultaRespostaLocal(async () => [])]);
+    expect(comConsulta.consultas?.map((c) => c.consulta.nome)).toEqual(['pesquisa.resposta_local@1']);
+    expect(() => criarShell('campo', [{ manifesto: core, paginas: [] }, comConsulta])).not.toThrow();
+  });
+});
 
 describe('RF-PES-03: a Pesquisa no shell do app (Campo e Gestão)', () => {
   it('o registro é aceito pelo criarShell real nas duas variantes (rótulos, caminhos, ações, entidades, slots)', () => {

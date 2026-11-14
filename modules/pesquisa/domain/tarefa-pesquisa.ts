@@ -64,3 +64,25 @@ export function respostaLocalMaisRecente(respostas: readonly RespostaLocalLida[]
   }
   return melhor?.id ?? null;
 }
+
+/**
+ * RN-PES-02: respostas do PRÓPRIO usuário que o aparelho conhece para `resposta_local@1` — linhas do pull (sem as
+ * apagadas e só as do usuário; o pull traz respostas de outros na carteira) mais as da fila (sempre do aparelho).
+ * O id repetido vale uma vez.
+ */
+export function respostasLocaisDoUsuario(
+  linhas: readonly (RespostaLocalLida & { usuario_id: string; deleted_at: string | null })[],
+  fila: readonly RespostaLocalLida[],
+  usuarioId: string,
+): RespostaLocalLida[] {
+  const vistos = new Set<string>();
+  const saida: RespostaLocalLida[] = [];
+  const quero = (r: RespostaLocalLida) => {
+    if (vistos.has(r.id)) return;
+    vistos.add(r.id);
+    saida.push({ id: r.id, questionario_id: r.questionario_id, cliente_id: r.cliente_id, respondida_em: r.respondida_em });
+  };
+  for (const l of linhas) if (l.deleted_at === null && l.usuario_id === usuarioId) quero(l);
+  for (const f of fila) quero(f);
+  return saida;
+}
