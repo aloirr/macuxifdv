@@ -5,7 +5,7 @@
  * - `LinhaValor`: linha rótulo ··· valor (itens compactos, Tabela, Descontos, Total);
  * - `BlocoTotais`: cartão com as linhas e a linha final em destaque, com espaço para a `Faixa` abaixo;
  * - `Faixa`: faixa de estado ok/aviso/erro ("4,6% · dentro da alçada");
- * - `Selo`: etiqueta curta (tons sucesso, aviso, erro, neutro, destaque; `roxo` é o nome antigo do destaque).
+ * - `Selo`: etiqueta curta (tons sucesso, aviso, erro, neutro, destaque).
  * Os valores chegam já formatados (dinheiro a partir de centavos, % no domain); nenhum texto fixo no componente.
  */
 import type { ReactNode } from 'react';

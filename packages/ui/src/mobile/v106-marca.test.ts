@@ -1,7 +1,7 @@
 /**
  * v1.0.6, achados do design-de-marca (docs/marca/pareceres/2026-11-13-v1.0.6.md):
  * - MC-0002: o chip de escolha ativo é Azul suave com texto Azul noite (como nas pranchas T-0171 e T-0173), não grafite;
- * - MC-0005: o roxo saiu da paleta (manual §3); o tom `roxo` do selo é o nome antigo do destaque.
+ * - MC-0005: o roxo saiu da paleta (manual §3); o selo usa `destaque` e o tom `roxo` saiu (RD-0235).
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -45,8 +45,8 @@ describe('MC-0005: sem roxo no kit', () => {
     expect(ler('./tokens.ts')).not.toMatch(/violet/i);
   });
 
-  it('o tom roxo é o destaque', () => {
-    expect(TONS_ESTADO.roxo).toEqual(TONS_ESTADO.destaque);
+  it('sem tom roxo (RD-0235): o selo usa destaque', () => {
+    expect(Object.keys(TONS_ESTADO)).not.toContain('roxo');
   });
 
   it('valores.tsx usa TONS_ESTADO, sem tabela de tons própria', () => {

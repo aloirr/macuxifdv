@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { apoioDaRetomada, eventoDaSaida, leituraDoSalvar, tituloDaRetomada, type PassoDaSaida } from './pendencias';
+import { apoioDaRetomada, eventoDaSaida, tituloDaRetomada, type PassoDaSaida } from './pendencias';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -15,12 +15,6 @@ describe('T-0166 (RD-0179): o bloco "Falta para salvar" saiu do kit', () => {
     expect(rn).not.toMatch(/export function BlocoPendencias/);
     expect(puro).not.toMatch(/export function abasComPendencia/);
     expect(puro).not.toMatch(/TITULO_FALTA_PARA_SALVAR/);
-  });
-
-  it('leituraDoSalvar (obsoleta) continua igual até o Novo pedido ligar o modo "tentou"', () => {
-    expect(leituraDoSalvar('Salvar', 2)).toBe('Salvar. Falta para salvar: 2 pendências, na lista acima');
-    expect(leituraDoSalvar('Salvar', 1)).toBe('Salvar. Falta para salvar: 1 pendência, na lista acima');
-    expect(leituraDoSalvar('Salvar', 0)).toBe('Salvar');
   });
 });
 

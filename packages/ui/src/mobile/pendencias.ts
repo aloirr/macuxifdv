@@ -6,15 +6,6 @@
  * (`FolhaSairDoFormulario`, `FolhaRetomarRascunho`) só desenham o que estas funções devolvem.
  */
 
-/**
- * @deprecated T-0166 (RD-0179): o salvar com falta passa a ser tocável (`formulario-pendencias.md` §0.0) e esta leitura sai
- * quando o Novo pedido ligar o modo "tentou". Leitura do botão desligado: "Salvar. Falta para salvar: 2 pendências, na lista acima".
- */
-export function leituraDoSalvar(rotulo: string, n: number): string {
-  if (n <= 0) return rotulo;
-  return `${rotulo}. Falta para salvar: ${n === 1 ? '1 pendência' : `${n} pendências`}, na lista acima`;
-}
-
 // ---------- Folha de saída de formulário alterado (RN-VEN-38) ----------
 
 /** Passo da folha: as opções, a confirmação do descarte (diálogo) ou fechada. */

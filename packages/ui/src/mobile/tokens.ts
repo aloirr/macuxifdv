@@ -190,7 +190,7 @@ export function estiloDoNivel(nivel: NivelBotao, opcoes: { alto?: boolean; desab
 }
 
 /** Tons do chip de estado (cor SEMPRE acompanhada de texto). */
-export type TomEstado = 'sucesso' | 'aviso' | 'erro' | 'neutro' | 'destaque' | 'roxo';
+export type TomEstado = 'sucesso' | 'aviso' | 'erro' | 'neutro' | 'destaque';
 
 export const TONS_ESTADO: Record<TomEstado, { fg: string; bg: string }> = {
   sucesso: { fg: colors.success, bg: colors.successBg },
@@ -198,8 +198,6 @@ export const TONS_ESTADO: Record<TomEstado, { fg: string; bg: string }> = {
   erro: { fg: colors.danger, bg: colors.dangerBg },
   neutro: { fg: colors.neutralInk, bg: colors.neutralBg },
   destaque: { fg: colors.accentInk, bg: colors.accentSoft },
-  /** MC-0005: o roxo saiu da paleta (manual §3); `roxo` fica como nome antigo do destaque até o modulo-vendedor trocar o tom do selo */
-  roxo: { fg: colors.accentInk, bg: colors.accentSoft },
 };
 
 /**
