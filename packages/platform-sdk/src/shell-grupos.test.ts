@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
-import { criarShell, definirModuloShell, grupoDoMenu, GRUPOS_MENU, ROTULO_GRUPO_MENU } from './shell';
+import { compararRotuloMenu, criarShell, definirModuloShell, grupoDoMenu, GRUPOS_MENU, ROTULO_GRUPO_MENU } from './shell';
 
 describe('GRUPOS_MENU e rótulos (ADR 0050)', () => {
   it('9 grupos, cada um com o rótulo do M2', () => {
@@ -82,6 +82,11 @@ describe('navegação do BKO em ordem alfabética (ADR 0050)', () => {
       'Operação:Ácido',
       'Operação:Rotas',
     ]);
+  });
+
+  it('compararRotuloMenu ignora acento e caixa (pt-BR)', () => {
+    expect(['Rotas', 'ácido', 'Análise'].sort(compararRotuloMenu)).toEqual(['ácido', 'Análise', 'Rotas']);
+    expect(compararRotuloMenu('Operação', 'operacao')).toBe(0);
   });
 
   it('o item mantém o grupo declarado (transição) e traz grupoMenu/rotuloGrupo', () => {

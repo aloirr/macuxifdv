@@ -98,19 +98,21 @@ const TRANSICAO_GRUPO: Readonly<Record<string, { de: GrupoDeclarado; para: Grupo
  * página declarar o grupo de hoje; 'administracao' fora da tabela cai em 'sistema'.
  */
 export function grupoDoMenu(modulo: string, pagina: { id: string; grupo?: GrupoDeclarado }): GrupoMenu {
-  const declarado = pagina.grupo ?? 'operacao';
-  const transicao = TRANSICAO_GRUPO[`${modulo}/${pagina.id}`];
+  return grupoResolvido(modulo, pagina.id, pagina.grupo ?? 'operacao');
+}
+
+function grupoResolvido(modulo: string, id: string, declarado: GrupoDeclarado): GrupoMenu {
+  const transicao = TRANSICAO_GRUPO[`${modulo}/${id}`];
   if (transicao && transicao.de === declarado) return transicao.para;
   return semTransicao(declarado);
 }
 
-function semTransicao(grupo: GrupoDeclarado | undefined): GrupoMenu {
-  const declarado = grupo ?? 'operacao';
+function semTransicao(declarado: GrupoDeclarado): GrupoMenu {
   return declarado === 'administracao' ? 'sistema' : declarado;
 }
 
 /** Grupo aceito em `PaginaShell.grupo` durante a transição da ADR 0050. */
-type GrupoDeclarado = GrupoMenu | 'administracao';
+export type GrupoDeclarado = GrupoMenu | 'administracao';
 
 export interface PaginaShell<C> {
   /** Id único no módulo; vira o testID estável `nav-<modulo>-<id>` (menu/aba) e `pagina-<modulo>-<id>`. */
@@ -130,7 +132,7 @@ export interface PaginaShell<C> {
    * Grupo no menu do BKO (padrão: 'operacao'; ADR 0050, `GRUPOS_MENU`).
    * 'administracao' está @deprecated (transição da ADR 0050): vira o grupo do M2 pela tabela do SDK, ou 'sistema'.
    */
-  grupo?: GrupoMenu | 'administracao';
+  grupo?: GrupoDeclarado;
   /** Menor aparece primeiro na barra de abas do app (padrão 100). O BKO ignora: ordem alfabética (ADR 0050). */
   ordem?: number;
   /** Só nestas variantes do app (padrão: todas as que o manifesto declara). */
@@ -343,7 +345,8 @@ export interface VisaoShell<C> {
   extensoes<P = unknown>(slot: string): ItemExtensao<P>[];
 }
 
-const compararTexto = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
+/** Comparador dos rótulos do menu do BKO (pt-BR, sem diferenciar maiúsculas nem acentos; ADR 0050). */
+export const compararRotuloMenu = (a: string, b: string): number => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
 
 function montarVisao<C>(
   app: AppShell,
@@ -370,14 +373,15 @@ function montarVisao<C>(
       visiveis.set(p.caminho, { ...p, modulo: id });
       if (p.navegacao) {
         // a tabela de transição é do menu do BKO: no app os ids coincidem (core/clientes, gestor/alertas…) e a ordem das abas não muda
-        const grupoMenu = app === 'web' ? grupoDoMenu(id, p) : semTransicao(p.grupo);
+        const grupo = p.grupo ?? 'operacao';
+        const grupoMenu = app === 'web' ? grupoResolvido(id, p.id, grupo) : semTransicao(grupo);
         navegacao.push({
           modulo: id,
           id: p.id,
           rotulo: p.navegacao,
           caminho: p.caminho,
           icone: p.icone,
-          grupo: p.grupo ?? 'operacao',
+          grupo,
           grupoMenu,
           rotuloGrupo: ROTULO_GRUPO_MENU[grupoMenu],
           testID: `nav-${id}-${p.id}`,
@@ -388,7 +392,7 @@ function montarVisao<C>(
   }
   navegacao.sort(
     app === 'web'
-      ? (a, b) => compararTexto(a.rotuloGrupo, b.rotuloGrupo) || compararTexto(a.rotulo, b.rotulo) || a.modulo.localeCompare(b.modulo) || a.id.localeCompare(b.id)
+      ? (a, b) => compararRotuloMenu(a.rotuloGrupo, b.rotuloGrupo) || compararRotuloMenu(a.rotulo, b.rotulo) || a.modulo.localeCompare(b.modulo) || a.id.localeCompare(b.id)
       : (a, b) =>
           GRUPOS_MENU.indexOf(a.grupoMenu) - GRUPOS_MENU.indexOf(b.grupoMenu) ||
           (a.pagina.ordem ?? 100) - (b.pagina.ordem ?? 100) ||

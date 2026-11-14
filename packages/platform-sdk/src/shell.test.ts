@@ -76,11 +76,7 @@ describe('registro de telas dos módulos no shell', () => {
     expect(shell.montar({ perfil: 'vendedor', modulosAtivos: ['core', 'vendedor'] }).extensoes('produto.acoes')).toEqual([]);
   });
 
-  it('web: menus por grupo (ADR 0050, ordem alfabética) e página só da variante/app declarada', () => {
-    const shell = criarShell('web', [core, vendedor]);
-    const analista = shell.montar({ perfil: 'analista', modulosAtivos: ['core', 'vendedor'] });
-    // core/clientes (sem grupo = operacao) e vendedor/alcadas (cadastros) passam pela transição do M2
-    expect(analista.navegacao.map((n) => `${n.grupoMenu}:${n.rotulo}`)).toEqual(['cadastros:Clientes', 'comercial:Alçadas', 'operacao:Pedidos']);
+  it('página só da variante/app declarada', () => {
     expect(criarShell('campo', [core, vendedor]).montar({ perfil: 'analista', modulosAtivos: ['core', 'vendedor'] }).pagina('alcadas')).toBeNull();
   });
 
