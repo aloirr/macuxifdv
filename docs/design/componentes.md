@@ -230,9 +230,15 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   toque, ao começar a rolar e no Voltar. Sem `texto`, só o filho, sem toque.
 - **`MostrarMais`** e **`NadaEncontrado`** (`busca-rn.tsx`; imagem `telas/T-0167-mostrar-mais.png`): "Mostrando 20 de 87" +
   botão secundário "+ Mostrar mais" (some com tudo à vista); "Nenhum produto com “agau”." + "Você quis dizer “água”?".
-- **`BotaoEditar`** (`botao-editar-rn.tsx`; `pedido-v4.md` §5.8; R-20261112-082212): o lápis do item já no pedido. Borda
-  `accent` 1,5, fundo `accentSoft`, ícone `edit` `accentInk`; `tamanho="linha"` 44 dp (aba Itens, no lugar do "+") ou
-  `"tabela"` 32 dp (fim da linha do Resumo), alvo de 48 dp nos dois. Prop `item` monta a leitura do TalkBack.
+- **`BotaoEditar`** (`botao-editar-rn.tsx`; `pedido-v4.md` §5.8; R-20261112-082212): o lápis do item já no pedido.
+  `tamanho="linha"` 44 dp (aba Itens, no lugar do "+") ou `"tabela"` 32 dp (fim da linha do Resumo), alvo de 48 dp nos dois.
+  Prop `item` monta a leitura do TalkBack. Prop `tom` (pedido do dono do produto, 14/11/2026: cor mais viva, verde para dizer
+  que o produto já foi adicionado; verde de situação do manual de marca §3):
+  - `adicionado`: borda `success` 2, fundo `successBg`, ícone `success` (5,51:1 sobre o fundo; borda 6,43:1 sobre o branco).
+    Padrão da `linha`: na aba Itens o lápis verde diz "já no pedido".
+  - `padrao`: borda `accent` 1,5, fundo `accentSoft`, ícone `accentInk`. Padrão da `tabela`: no Resumo tudo está no pedido e o
+    lápis só quer dizer "editar".
+  Sem a prop, o tom sai do tamanho (`tomDoBotaoEditar`); o módulo não precisa passar nada.
 
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do

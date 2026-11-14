@@ -1,7 +1,9 @@
 /**
  * T-0165 (pedido-v4.md §5.8; R-20261112-082212, aprovado com imagens): parte PURA do `BotaoEditar`, o lápis do item que já está
  * no pedido. Dois tamanhos: `linha` (aba Itens, no lugar do "+", 44 dp) e `tabela` (fim da linha do Resumo, depois do Total,
- * 32 dp com folga de toque até 48). Borda e ícone na cor de destaque, fundo claro de destaque. Sem react-native: roda em Node.
+ * 32 dp com folga de toque até 48). Sem react-native: roda em Node.
+ * Dois tons (pedido do dono do produto, 14/11/2026): `adicionado` (verde de situação do manual §3, "item já no pedido"; padrão
+ * do tamanho `linha`) e `padrao` (destaque azul, só "editar"; padrão do tamanho `tabela`, no Resumo).
  */
 import { folgaDeToque } from './componentes';
 import { colors } from './tokens';
@@ -14,9 +16,20 @@ export const BOTAO_EDITAR = {
   borda: colors.accent,
   fundo: colors.accentSoft,
   icone: colors.accentInk,
+  /** Tons: `padrao` repete os campos raiz; `adicionado` usa o verde de sucesso, borda 2 (ícone 5,51:1 sobre `successBg`; borda 6,43:1 sobre o branco). */
+  tons: {
+    padrao: { larguraBorda: 1.5, borda: colors.accent, fundo: colors.accentSoft, icone: colors.accentInk },
+    adicionado: { larguraBorda: 2, borda: colors.success, fundo: colors.successBg, icone: colors.success },
+  },
 } as const;
 
 export type TamanhoBotaoEditar = 'linha' | 'tabela';
+export type TomBotaoEditar = keyof typeof BOTAO_EDITAR.tons;
+
+/** Tom explícito ou, por padrão, `adicionado` na aba Itens (`linha`) e `padrao` no Resumo (`tabela`). */
+export function tomDoBotaoEditar(tamanho: TamanhoBotaoEditar, tom?: TomBotaoEditar): TomBotaoEditar {
+  return tom ?? (tamanho === 'linha' ? 'adicionado' : 'padrao');
+}
 
 /** Folga de toque (hitSlop) de cada lado: o alvo fica com 48 dp nos dois tamanhos. */
 export function folgaDoBotaoEditar(tamanho: TamanhoBotaoEditar): number {
