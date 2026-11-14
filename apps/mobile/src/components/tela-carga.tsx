@@ -20,7 +20,13 @@ import { AppState } from 'react-native';
 
 import { AcaoEntrada, ErroEntrada, TelaEntrada } from '@/components/tela-entrada';
 import { percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
-import { erroDeSinal, ESPERA_PRONTO_MS, rotuloDaBarra, textoDoErro } from '@/lib/entrada';
+import {
+  criarMemoriaDaEntrada,
+  erroDeSinal,
+  ESPERA_PRONTO_MS,
+  rotuloDaBarra,
+  textoDoErro,
+} from '@/lib/entrada';
 import { usePlataforma } from '@/state/plataforma';
 
 export function TelaCarga() {
@@ -36,6 +42,8 @@ export function TelaCarga() {
     perfil,
   } = usePlataforma();
   const { estado } = useMotorSync();
+  // RN-CORE-48: a etapa mostrada nunca volta (1, 2, 3... de N); tela montada de novo = carga nova, do zero
+  const [lembrar] = useState(criarMemoriaDaEntrada);
   /** A carga já estava gravada quando a tela abriu: não prende o usuário enquanto a sincronização roda. */
   const tinhaCarga = useRef(Boolean(estado.sincronizado_em)).current;
   const situacao = situacaoDaCarga(estado, { tinhaCarga });
@@ -64,15 +72,18 @@ export function TelaCarga() {
 
   // RN-CORE-48 (domain do Core): etapas, situação e percentual. O shell entrega a sua leitura do motor: a situação da carga
   // (navegação, T-0059) e o percentual com as páginas gravadas (ADR 0017).
-  const progresso = progressoDaEntrada({
-    perfil,
-    modulos: modulosAtivos,
-    carga: estado.carga,
-    progresso: percentualDaCarga(estado, situacao) / 100,
-    sincronizando: situacao === 'carregando',
-    erro: situacao === 'erro' ? (estado.erro ?? 'erro') : null,
-    sincronizado: pronta,
-  });
+  const progresso = lembrar(`${sessao.user.id}|${sessao.tenant?.id ?? ''}`, (anterior) =>
+    progressoDaEntrada({
+      perfil,
+      modulos: modulosAtivos,
+      carga: estado.carga,
+      progresso: percentualDaCarga(estado, situacao) / 100,
+      sincronizando: situacao === 'carregando',
+      erro: situacao === 'erro' ? (estado.erro ?? 'erro') : null,
+      sincronizado: pronta,
+      anterior,
+    }),
+  );
   const parou = progresso.parou_em;
 
   return (

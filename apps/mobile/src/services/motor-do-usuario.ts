@@ -11,6 +11,7 @@ import { criarMotorSync, type AmbienteAparelho, type ArmazenamentoSync, type Eta
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
+import { ordemDaCargaDoUsuario } from '@/lib/ordem-da-carga';
 
 import { ApiClient, errorMessage, HttpError } from './api';
 import { arquivosLocais } from './arquivos';
@@ -62,11 +63,14 @@ export interface OpcoesMotorDoUsuario {
   ambiente: AmbienteAparelho;
   /** Etapas de plataforma antes das dos módulos (ex.: `GET /me` da demonstração). */
   etapasExtras?: readonly EtapaSync[];
+  /** Perfil do usuário logado, lido a cada carga (RN-CORE-48: ordem das etapas da entrada). Sem ele, a ordem do Campo. */
+  perfil?: () => string | null | undefined;
 }
 
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
-  return criarMotorSync({
+  const ref: { m: MotorSync | null } = { m: null };
+  ref.m = criarMotorSync({
     registro: o.shell.registroSync,
     armazenamento: o.armazenamento,
     transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
@@ -78,7 +82,9 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     arquivos: arquivosLocais(),
     // ADR 0012: `ambiente.consultar` (ex.: preço do Catálogo para o Vendedor, offline) sobre as linhas locais do dono
     consultas: o.shell.consultas,
+    ordemDaCarga: ordemDaCargaDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
   });
+  return ref.m;
 }
 
 /**
