@@ -28,3 +28,7 @@ export const Text = (props: any) => {
   const novo = { ...st, fontSize: fs, ...(st.lineHeight ? { lineHeight: st.lineHeight * F } : {}) };
   return createElement(Base, { ...resto, ref, style: novo });
 };
+
+// useWindowDimensions com a janela do print e a fonte do sistema simulada (o RN-web devolve fontScale 1)
+const [LJ, AJ] = (new URLSearchParams(location.search).get('t') ?? '360x640').split('x').map(Number);
+export const useWindowDimensions = () => ({ width: LJ, height: AJ, scale: 1, fontScale: F });

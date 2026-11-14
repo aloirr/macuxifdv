@@ -1,8 +1,8 @@
 // Entrada do gerador: a TelaInicioCampo REAL, com o sino simulado no ProvedorSinoCabecalho e a fonte do sistema escalada.
-import { colors, fonts, Icon, ProvedorSinoCabecalho, Pressionavel } from '@macuxi/ui/mobile';
+import { BarraAbas, colors, Icon, type IconName, ProvedorSinoCabecalho, Pressionavel } from '@macuxi/ui/mobile';
 import { createRoot } from 'react-dom/client';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 
 import { TelaInicioCampo } from '@core/app/telas/inicio/tela-inicio-campo';
 
@@ -10,7 +10,6 @@ const q = new URLSearchParams(location.search);
 const [L, A] = (q.get('t') ?? '360x640').split('x').map(Number);
 const TOP = 24;
 const BOTTOM = 24;
-const ABAS = 64;
 
 function Sino() {
   return (
@@ -21,16 +20,17 @@ function Sino() {
   );
 }
 
+// A `BarraAbas` REAL do kit (aba ativa em `colors.accent`, Azul noite, com ícone), com as abas do Campo
+const ABAS_CAMPO: { id: string; rotulo: string; icone: IconName }[] = [
+  { id: 'inicio', rotulo: 'Início', icone: 'home' },
+  { id: 'rota', rotulo: 'Rota', icone: 'pin' },
+  { id: 'clientes', rotulo: 'Clientes', icone: 'users' },
+  { id: 'pedidos', rotulo: 'Pedidos', icone: 'clipboard' },
+  { id: 'mais', rotulo: 'Mais', icone: 'menu' },
+];
+
 function Abas() {
-  return (
-    <View testID="abas" style={{ height: ABAS + BOTTOM, paddingBottom: BOTTOM, flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line }}>
-      {['Início', 'Clientes', 'Pedidos', 'Mais'].map((n, i) => (
-        <View key={n} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontFamily: fonts.semibold, fontSize: 12, color: i === 0 ? colors.ink : colors.ink2 }}>{n}</Text>
-        </View>
-      ))}
-    </View>
-  );
+  return <BarraAbas testID="abas" respiroInferior={BOTTOM} itens={ABAS_CAMPO.map((a) => ({ ...a, ativo: a.id === 'inicio', onPress: () => undefined }))} />;
 }
 
 createRoot(document.getElementById('raiz')!).render(
