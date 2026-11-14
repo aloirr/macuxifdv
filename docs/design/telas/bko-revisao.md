@@ -17,13 +17,12 @@ Pedido do Alexandre (literal): "quero o menor numero de cliques possiveis, e bar
 - Título do grupo em `#9AA3B0`, quase a mesma cor dos itens (`#C9CED5`).
 
 ### M2. Grupos e itens (inventário completo, `modules/*/web/index.ts` + plataforma)
-São 36 itens em 9 grupos. Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: `localeCompare('pt-BR', { sensitivity: 'base' })`). Nenhum item fora de grupo. A coluna "grupo hoje" mostra de onde o item sai.
+São **36 telas**: 35 no menu, em 9 grupos, e "Usuários e módulos" (`/usuarios-e-modulos`), que sai do menu e fica só por URL (decisão do dono do produto, R-20261114-144500: os módulos do usuário ficam na gaveta de Novo usuário). Das 35 do menu, 34 são páginas de módulo e 1 é a Auditoria da plataforma. Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: `localeCompare('pt-BR', { sensitivity: 'base' })`). Nenhum item fora de grupo. A coluna "grupo hoje" mostra de onde o item sai.
 
 | Grupo | Item (rótulo do menu) | Módulo | Rota | Grupo hoje |
 |---|---|---|---|---|
 | **Acesso** | Aparelhos | core | `/aparelhos` | Administração |
-| | Módulos | core | `/usuarios-e-modulos` | Administração |
-| | Perfis | core | `/perfis` | Administração |
+| | Perfis de acesso | core | `/perfis` | Administração |
 | | Usuários | core | `/usuarios` | Administração |
 | **Análise** | Indicadores | core | `/indicadores` | Análise |
 | | Metas | core | `/metas` | Análise |
@@ -57,13 +56,18 @@ São 36 itens em 9 grupos. Grupos e itens em **ordem alfabética** (pt-BR, sem d
 | **Sistema** | Auditoria | plataforma | `/auditoria` | Plataforma |
 | | Carga por arquivo | integracao | `/integracao/carga-arquivo` | Administração |
 | | Integração ERP | integracao | `/integracao` | Administração |
+| *(fora do menu)* | Usuários e módulos | core | `/usuarios-e-modulos` (só por URL) | Administração |
+
+Contagem por grupo: Acesso 3, Análise 5, Cadastros 6, Comercial 4, Comunicação 3, Conteúdo de campo 3, Operação 4, Produtos 4, Sistema 3 = **35 no menu** + 1 só por URL = **36 telas**.
 
 Por que assim:
 - Os 7 itens soltos foram para **Operação** (Aprovações, Pedidos, Rotas, Visitas), **Comunicação** (Alertas, Recados) e **Cadastros** (Clientes), como sugere o recado.
 - "Cadastros" tinha 16 itens: sozinho já passaria da altura da tela. Foi dividido pelo que o usuário procura: **Cadastros** (clientes e campo), **Comercial** (regras de venda), **Produtos** e **Conteúdo de campo** (o que o vendedor e o promotor respondem ou estudam).
 - "Administração" deixa de existir: **Acesso** (quem entra e o que vê) e **Sistema** (auditoria e integração). "Plataforma" (só Auditoria) entra em Sistema.
 - Itens do slot `menu.itens` do Core (`ItemMenu`) continuam no grupo **Mais**, na posição alfabética dele; hoje nenhum módulo usa o slot.
-- Rótulos curtos, sem repetir o grupo: "Módulos" e "Perfis" (o grupo já diz Acesso), "Preço e custo" (o grupo já diz Produtos), "Trade" (o grupo já diz Conteúdo de campo). O título da página não muda.
+- Rótulos curtos, sem repetir o grupo: "Preço e custo" (o grupo já diz Produtos), "Trade" (o grupo já diz Conteúdo de campo). O título da página não muda.
+- "Perfis de acesso": **manter (decisão do dono do produto, R-20261114-144500)**, no lugar do renome para "Perfis" sugerido pelo corretor. É o texto literal do pedido ("UM MENU PERFIL DE ACESSO") e da simulação de Usuários e Perfis já aprovada.
+- "Usuários e módulos": **sai do menu** (R-20261114-144500), sem renome. A rota segue por URL e os módulos do usuário ficam na gaveta de Novo usuário.
 - O item `Tarefas` do `manifest.ts` do Core não tem página web: não aparece (nada muda).
 
 ### M3. Comportamento (menor número de cliques, sem barra de rolagem)
@@ -113,17 +117,15 @@ O rótulo do menu (`navegacao` em `modules/<m>/web/index.ts`) tem de estar na li
 
 | Dono | Arquivo | Rótulo antigo → novo |
 |---|---|---|
-| modulo-core | `modules/core/web/index.ts` (página `usuarios-e-modulos`, campo `navegacao`) | "Usuários e módulos" → "Módulos" |
-| modulo-core | `modules/core/web/index.ts` (página `perfis`, campo `navegacao`) | "Perfis de acesso" → "Perfis" |
+| modulo-core | `modules/core/web/index.ts` (página `usuarios-e-modulos`) | **tirar do menu, sem renome**: remover o campo `navegacao` (a página, o `caminho` e a `acao` `modulo.gerir_licencas` ficam; o `criarShell` só põe no menu a página que tem `navegacao`) |
+| modulo-core | `modules/core/web/index.ts` (página `perfis`) | **não muda**: "Perfis de acesso" fica (R-20261114-144500) |
 | modulo-core | `modules/core/web/index.ts` (página `produtos`, campo `navegacao`) | "Produtos" → "Preço e custo" |
-| modulo-core | `modules/core/manifest.ts` (`apps.web.menus`) | "Usuários e módulos" → "Módulos"; "Perfis de acesso" → "Perfis"; "Produtos" → "Preço e custo" |
+| modulo-core | `modules/core/manifest.ts` (`apps.web.menus`) | tirar "Usuários e módulos" da lista; "Produtos" → "Preço e custo"; "Perfis de acesso" fica |
 | modulo-promotor | `modules/promotor/web/index.ts` (página `cadastros`, campo `navegacao`) | "Cadastros de trade" → "Trade" |
 | modulo-promotor | `modules/promotor/manifest.ts` (`apps.web.menus`) | "Cadastros de trade" → "Trade" |
 | engenheiro-software | `packages/platform-sdk/src/shell.ts` (tipo `grupo`) | grupo `produtos_precos` (rótulo "Produtos e preços", das versões anteriores desta spec) → `produtos` (rótulo "Produtos"), com os demais grupos do M6 |
-| engenheiro-apps | `apps/web/components/app-shell.tsx` e o teste do menu | rótulos dos grupos conforme o M2 (inclusive "Produtos"); conferir textos fixos de teste que citem os 4 rótulos antigos acima |
-| testes | `tests/modulos/acesso-perfil-modulos-rncore01.test.ts` (linhas 147–163: procura `navegacao: 'Usuários e módulos'` e exige `'Perfis de acesso'` em `apps.web.menus`) e `tests/e2e/bko/demo-bko.spec.ts` (linhas 105–106, comentário) | "Usuários e módulos" → "Módulos"; "Perfis de acesso" → "Perfis" |
-
-Atenção (R-20261114-144500): esse teste já espera "Usuários e módulos" **fora** do menu (rota só por URL). Se essa decisão valer, o item "Módulos" sai do grupo Acesso (que fica com Aparelhos, Perfis e Usuários) e o renome vale só para o título e os testes; o gerente confirma qual das duas vale antes da implementação.
+| engenheiro-apps | `apps/web/components/app-shell.tsx` e o teste do menu | rótulos dos grupos conforme o M2 (inclusive "Produtos"); conferir textos fixos de teste que citem os rótulos antigos "Produtos" (item do Core) e "Cadastros de trade" |
+| testes | `tests/modulos/acesso-perfil-modulos-rncore01.test.ts` (linhas 147–163) e `tests/e2e/bko/demo-bko.spec.ts` (linhas 105–108) | **nada a mudar nesses dois pontos**: o teste já espera, no estado novo, "Usuários e módulos" fora do `navegacao` e fora de `apps.web.menus`, com a página registrada por URL, e exige "Usuários" e "Perfis de acesso" no manifesto; o e2e já procura `nav-core-usuarios` e `nav-core-perfis`. Conferir só os testes que citem os rótulos antigos "Produtos" (item do Core) e "Cadastros de trade" |
 
 Os `data-testid` (`nav-<modulo>-<id>`) e as rotas não mudam.
 
