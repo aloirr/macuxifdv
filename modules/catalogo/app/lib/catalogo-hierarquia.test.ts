@@ -34,7 +34,8 @@ describe('T-0173: cartão da grade', () => {
   it('T-0173: foto de 112 dp com a inicial de reserva, nome, marca, preço "Sem preço" e uma tag de estoque; nenhuma tela lista-por-linha', () => {
     expect(fonte).toContain('<CartaoGrade');
     expect(comum).toContain('altura={112}');
-    expect(comum).toContain("'Sem preço'");
+    expect(comum).toContain('precoDoCartao(preco)');
+    expect(comum).not.toContain("'Sem preço'");
     expect(comum).toContain('<ChipEstado');
     expect(indice).not.toContain('lista-por-linha');
     expect(existsSync(join(__dirname, '..', 'telas', 'lista-por-linha.tsx'))).toBe(false);

@@ -1,21 +1,21 @@
 /**
  * Sino do shell (T-0170; desenho `docs/desenho/tarefas-consultor.md` §7.2): parte pura, roda em Node nos testes.
- * O número é a soma das notificações não lidas do Core (`useNotificacoes().naoLidas`, que já inclui os avisos de tarefa nova,
- * RN-CORE-TAR-07): escondido com 0 e "9+" acima de 9.
+ * O número é o `sino.total` do Core (`useInicioCampo()`, `contarSino`: recados não lidos + tarefas novas, RN-CORE-TAR-07),
+ * contado uma vez no layout: escondido com 0 e "9+" acima de 9.
  */
 export const ROTA_RECADOS_E_TAREFAS = 'recados-e-tarefas';
 /** Central antiga, enquanto o Core não registra a página de Recados e tarefas. */
 export const ROTA_NOTIFICACOES = 'notificacoes';
 
-export function numeroDoSino(naoLidas: number): string | null {
-  if (!Number.isFinite(naoLidas) || naoLidas <= 0) return null;
-  return naoLidas > 9 ? '9+' : String(Math.floor(naoLidas));
+export function numeroDoSino(total: number): string | null {
+  if (!Number.isFinite(total) || total <= 0) return null;
+  return total > 9 ? '9+' : String(Math.floor(total));
 }
 
 /** Leitura do botão no TalkBack. */
-export function leituraDoSino(naoLidas: number): string {
-  if (!Number.isFinite(naoLidas) || naoLidas <= 0) return 'Recados e tarefas';
-  return naoLidas === 1 ? 'Recados e tarefas, 1 novo' : `Recados e tarefas, ${Math.floor(naoLidas)} novos`;
+export function leituraDoSino(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return 'Recados e tarefas';
+  return total === 1 ? 'Recados e tarefas, 1 novo' : `Recados e tarefas, ${Math.floor(total)} novos`;
 }
 
 /** "Ver todos": a tela Recados e tarefas quando existe para o usuário; senão a central de notificações. */
