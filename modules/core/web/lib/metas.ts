@@ -3,8 +3,8 @@
  * Na tela o valor é o que a pessoa entende (R$, contagem, %); no contrato é o inteiro do domínio
  * (centavos, contagem, pontos-base). Os textos de exibição vêm de `app/lib/metas-formato`, os mesmos do app.
  */
-import type { LinhaMetaBko, PutMeta } from '../../contracts';
-import { formatarIndicador, ROTULO_INDICADOR } from '../../app/lib/metas-formato';
+import { ROTULO_INDICADOR_META, type LinhaMetaBko, type PutMeta } from '../../contracts';
+import { formatarIndicador } from '../../app/lib/metas-formato';
 import { centavosDoTexto } from './indicadores';
 
 type Indicador = LinhaMetaBko['indicador'];
@@ -27,7 +27,7 @@ export const textoDaMeta = (l: LinhaMetaBko): string => (semMeta(l) ? '—' : fo
 export function celulasDaLinha(l: LinhaMetaBko): string[] {
   return [
     l.usuario_nome,
-    ROTULO_INDICADOR[l.indicador],
+    ROTULO_INDICADOR_META[l.indicador],
     l.indicador === 'venda_cents' ? ROTULO_TIPO[l.tipo] : '—',
     textoDaMeta(l),
     formatarIndicador(l.indicador, l.realizado),
@@ -72,7 +72,7 @@ export function corpoDaMeta(indicador: Indicador, texto: string, tipo: LinhaMeta
     if (!/^\d+([.,]\d)?$/.test(t)) return { ok: false, erro: 'Informe os itens por pedido com até uma casa decimal, por exemplo 8,5.' };
     return { ok: true, corpo: { indicador, valor: Math.round(Number(t.replace(',', '.')) * 100) } };
   }
-  if (!/^\d+$/.test(t)) return { ok: false, erro: `Informe a meta de ${ROTULO_INDICADOR[indicador].toLowerCase()} como número inteiro, por exemplo 40.` };
+  if (!/^\d+$/.test(t)) return { ok: false, erro: `Informe a meta de ${ROTULO_INDICADOR_META[indicador].toLowerCase()} como número inteiro, por exemplo 40.` };
   return { ok: true, corpo: { indicador, valor: Number(t) } };
 }
 

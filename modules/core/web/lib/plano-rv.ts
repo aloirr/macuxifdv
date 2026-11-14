@@ -3,7 +3,7 @@
  * Sem React e sem rede. As regras (pesos, faixas, cálculo) moram no domain; aqui só formulário, texto, simulador e CSV.
  */
 import { formatBRL } from '@macuxi/comum';
-import { INDICADORES_RV, type PlanoRvDto, type PlanoRvPut, type RvPainel } from '../../contracts';
+import { INDICADORES_RV, ROTULO_INDICADOR_META, type PlanoRvDto, type PlanoRvPut, type RvPainel } from '../../contracts';
 import { calcularRvDaPessoa, validarPlanoRv, type FaixaRv, type IndicadorRv, type PerfilRv, type PlanoRv, type SituacaoRv } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
@@ -11,11 +11,12 @@ const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
 export const protegerFormula = (v: string): string => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
 const aspas = (v: string) => `"${protegerFormula(v).replace(/"/g, '""')}"`;
 
+/** RD-0250: os rótulos são os do mapa único do contrato, só com os indicadores do Plano de RV. */
 export const ROTULO_INDICADOR_RV: Record<IndicadorRv, string> = {
-  venda_cents: 'Venda',
-  positivacao: 'Positivação',
-  cobertura_pct: 'Cobertura de rota',
-  visitas: 'Visitas',
+  venda_cents: ROTULO_INDICADOR_META.venda_cents,
+  positivacao: ROTULO_INDICADOR_META.positivacao,
+  cobertura_pct: ROTULO_INDICADOR_META.cobertura_pct,
+  visitas: ROTULO_INDICADOR_META.visitas,
 };
 export const ROTULO_MODO: Record<FaixaRv['modo'], string> = { zero: 'Não paga', proporcional: 'Igual ao atingimento (85% paga 85%)', fixo: 'Percentual fixo' };
 

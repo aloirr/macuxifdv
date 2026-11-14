@@ -60,8 +60,8 @@ describe('RN-CORE-30: formulário do plano de RV', () => {
     expect(textoDasFaixas(preenchido().regras[0]!.faixas)).toBe('Abaixo de 80%: não paga · de 80% a 99%: paga o mesmo % do atingimento · a partir de 100%: paga 100% do peso');
   });
   it('RN-CORE-30: erro do domain sai com o nome do indicador, sem código técnico', () => {
-    expect(textoDoErroRv('venda_cents: A primeira faixa deve começar em 0%.')).toBe('Venda: a primeira faixa deve começar em 0%.');
-    expect(textoDoErroRv('O indicador venda_cents aparece mais de uma vez.')).toBe('O indicador Venda aparece mais de uma vez.');
+    expect(textoDoErroRv('venda_cents: A primeira faixa deve começar em 0%.')).toBe('Vendas: a primeira faixa deve começar em 0%.');
+    expect(textoDoErroRv('O indicador venda_cents aparece mais de uma vez.')).toBe('O indicador Vendas aparece mais de uma vez.');
   });
   it('RN-CORE-29: gatilho no mês aberto diz que ainda zera se fechar assim', () => {
     expect(textoDoGatilho(false, true, 'parcial')).toBe('Ainda não atingido: se o mês fechar assim, a RV zera');
@@ -70,7 +70,7 @@ describe('RN-CORE-30: formulário do plano de RV', () => {
     expect(textoDoGatilho(false, true)).toBe('Não atingido (RV zerada)');
   });
   it('RN-CORE-30: erros da API em linhas, cada um com o nome do indicador', () => {
-    expect(textoDoErroRv('venda_cents: A primeira faixa.\nvisitas: A soma.')).toBe('Venda: a primeira faixa.\nVisitas: a soma.');
+    expect(textoDoErroRv('venda_cents: A primeira faixa.\nvisitas: A soma.')).toBe('Vendas: a primeira faixa.\nVisitas: a soma.');
   });
   it('RN-CORE-29: situação do mês em frases, parcial como estimativa', () => {
     expect(textoDaSituacao('parcial', '2026-12-02', '2026-11')).toMatch(/^Novembro 2026 fecha em 02\/12\/2026\. Até lá a RV é uma estimativa/);
