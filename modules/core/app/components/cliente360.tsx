@@ -100,10 +100,6 @@ export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
   const fin = ficha.resumo_financeiro;
   return (
     <View style={{ gap: 6 }}>
-      <Text style={t.h1Small} testID="customer-name">
-        {nomeDoCliente(c)}
-      </Text>
-      <Text style={t.sub}>{enderecoDoCliente(c) || 'Endereço não informado'}</Text>
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
         {c.segmento ? <Badge label={c.segmento} tone="neutral" /> : null}
         {/* RD-0065: o motivo do bloqueio e os vencidos aparecem só no bloco Financeiro */}

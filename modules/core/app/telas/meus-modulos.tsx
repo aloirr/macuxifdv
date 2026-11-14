@@ -52,11 +52,11 @@ export function TelaMeusModulos() {
   const naoEnviados = itensNaoEnviadosPorModulo(estado.fila);
 
   return (
-    <Screen refreshing={estado.sincronizando} onRefresh={atualizar} testID="meus-modulos.tela">
-      <View style={{ gap: 2 }}>
-        <Text style={t.h1}>Meus módulos</Text>
-        <Text style={t.sub}>O que está liberado para você. Mudanças feitas pela sua empresa chegam na próxima sincronização.</Text>
-      </View>
+    <Screen
+      refreshing={estado.sincronizando}
+      onRefresh={atualizar}
+      testID="meus-modulos.tela"
+      cabecalho={{ titulo: 'Meus módulos', subtitulo: 'O que está liberado para você' }}>
 
       {aviso ? <Banner testID="meus-modulos.aviso">{aviso}</Banner> : null}
       {estado.erro ? <Banner tone="danger">{estado.erro}</Banner> : null}
