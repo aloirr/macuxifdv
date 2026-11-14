@@ -98,7 +98,7 @@ jobs:
         if: ${{ !inputs.so_conferir }}
         with:
           eas-version: latest
-          packager: pnpm
+          packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
       # 2>&1: a linha "✖ o build ... falhou" e os erros do eas saem no stderr; assim também entram no resumo.
