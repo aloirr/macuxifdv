@@ -439,6 +439,14 @@ interface RegistroRessinc {
   vistos: string[] | null;
 }
 
+/** Item da sincronização completa entregue a `OpcoesMotorSync.ordemDaCarga`. */
+export interface ItemDaCarga {
+  /** Nome da entidade ou id da etapa extra (o mesmo de `ProgressoCarga.entidade` enquanto ele roda). */
+  chave: string;
+  modulo: ModuloId | null;
+  tipo: 'entidade' | 'etapa';
+}
+
 /** Posição vazia da carga (estado inicial; telas e testes que montam um `EstadoMotorSync`). */
 export const CARGA_VAZIA: ProgressoCarga = Object.freeze({ entidade: null, modulo: null, concluidas: 0, total: 0, paginas: 0, retomada: false });
 
@@ -454,8 +462,26 @@ export interface OpcoesMotorSync {
    * (`motor.ambiente`). Sem ele, `ctx.http` falha com mensagem em português (`ambienteIndisponivel`).
    */
   ambiente?: AmbienteAparelho;
-  /** Etapas extras de carga, por módulo; rodam depois do pull genérico, só de módulos efetivos. */
+  /**
+   * Etapas extras de carga, por módulo; rodam depois do pull genérico, só de módulos efetivos (a menos que `ordemDaCarga`
+   * as misture com as entidades).
+   */
   etapas?: readonly EtapaSync[];
+  /**
+   * Ordem da sincronização completa (RN-CORE-48: a tela de entrada mostra as etapas "n de N" em sequência). Recebe cada
+   * entidade de pull e cada etapa extra e devolve a chave de ordenação: menor roda antes. Entidades e etapas formam UMA
+   * sequência; a ordenação é estável (empate = a ordem padrão: entidades na ordem do registro, depois etapas na ordem de
+   * `etapas`). Chave não finita ou função que lança = ordem padrão. Sem ela, a ordem padrão. Também ordena o pull das
+   * novidades (só entidades; empate = ordem alfabética).
+   *
+   * Dependências que a ordem precisa respeitar (dê a mesma chave ou uma menor ao item de que o outro depende):
+   * - Vendedor (demonstração, Fase M): `produtos` lê os `clientes` gravados pela etapa `carteira`; `pedidos` lê o `me`
+   *   gravado pela etapa `alcadas` (sem ele, cai no fuso padrão). Mesma chave para as quatro preserva a ordem.
+   * - Entidades de pull não dependem umas das outras (coberturas, retomada e `ressinc` são por entidade); a busca é
+   *   finalizada uma vez no fim, depois de todas. As etapas do Core (`metas`, `pedidos-da-visita`, `core-inicio`,
+   *   `core-rv`) e do Gestor (`gestor-equipe`) leem só a API e o `me` do Core: não dependem de entidade nem de etapa.
+   */
+  ordemDaCarga?: (item: ItemDaCarga) => number;
   /** Mensagem legível de um erro de transporte (o shell traduz HttpError etc.). */
   mensagemDeErro?: (e: unknown) => string;
   /** Leitura (e remoção) dos arquivos locais da fila de arquivos. Sem ela, os arquivos ficam na fila sem envio. */
@@ -1222,6 +1248,24 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     return 'ok';
   };
 
+  /** `op.ordemDaCarga` aplicada com ordenação estável; sem ela (ou se ela lança), a lista como veio. */
+  const ordenarCarga = <T,>(lista: readonly T[], itemDe: (x: T) => ItemDaCarga): T[] => {
+    const ordem = op.ordemDaCarga;
+    if (!ordem) return [...lista];
+    try {
+      const chaves = lista.map((x) => {
+        const k = ordem(itemDe(x));
+        return Number.isFinite(k) ? k : Number.POSITIVE_INFINITY;
+      });
+      return lista
+        .map((x, i) => ({ x, i, k: chaves[i]! }))
+        .sort((a, b) => (a.k === b.k ? a.i - b.i : a.k < b.k ? -1 : 1))
+        .map((y) => y.x);
+    } catch {
+      return [...lista];
+    }
+  };
+
   /**
    * Sincronização completa (corpo de `motor.sincronizar`, sem o controle de uma-por-vez). `podeTrocar` = pode fazer a troca de
    * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro.
@@ -1276,29 +1320,38 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         op.transporte.novidades && puladas === 0 ? await op.transporte.novidades(null).catch(() => null) : null;
       let feito = 1 + puladas;
       const avisos: AvisoSync[] = [];
-      for (const e of entidades) {
-        if (jaFeitas.has(e)) continue;
-        mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: moduloDe.get(e) ?? null, paginas: 0 }) });
-        const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
-        if (resultado === 'indisponivel') {
-          avisos.push({
-            entidade: e,
-            codigo: SYNC_NAO_IMPLEMENTADO,
-            mensagem: MENSAGEM_PULL_INDISPONIVEL,
-          });
-          mudar({ avisos: [...avisos] });
+      const sequencia = ordenarCarga<{ item: ItemDaCarga; etapa?: EtapaSync }>(
+        [
+          ...entidades.map((e) => ({ item: { chave: e, modulo: moduloDe.get(e) ?? null, tipo: 'entidade' as const } })),
+          ...etapas.map((e) => ({ item: { chave: e.id, modulo: e.modulo, tipo: 'etapa' as const }, etapa: e })),
+        ],
+        (x) => x.item,
+      );
+      for (const { item, etapa: et } of sequencia) {
+        if (et === undefined) {
+          const e = item.chave;
+          if (jaFeitas.has(e)) continue;
+          mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: item.modulo, paginas: 0 }) });
+          const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
+          if (resultado === 'indisponivel') {
+            avisos.push({
+              entidade: e,
+              codigo: SYNC_NAO_IMPLEMENTADO,
+              mensagem: MENSAGEM_PULL_INDISPONIVEL,
+            });
+            mudar({ avisos: [...avisos] });
+          }
+          feito++;
+          await concluir(e);
+          mudar({ carga: carga({ concluidas: feito - 1 }) });
+        } else {
+          if (jaFeitas.has(chaveEtapa(et.id))) continue;
+          mudar({ etapa: et.rotulo, progresso: feito / total, carga: carga({ entidade: et.id, modulo: et.modulo, paginas: 0 }) });
+          await et.executar(contextoDaEtapa(et));
+          feito++;
+          await concluir(chaveEtapa(et.id));
+          mudar({ carga: carga({ concluidas: feito - 1 }) });
         }
-        feito++;
-        await concluir(e);
-        mudar({ carga: carga({ concluidas: feito - 1 }) });
-      }
-      for (const e of etapas) {
-        if (jaFeitas.has(chaveEtapa(e.id))) continue;
-        mudar({ etapa: e.rotulo, progresso: feito / total, carga: carga({ entidade: e.id, modulo: e.modulo, paginas: 0 }) });
-        await e.executar(contextoDaEtapa(e));
-        feito++;
-        await concluir(chaveEtapa(e.id));
-        mudar({ carga: carga({ concluidas: feito - 1 }) });
       }
       // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3); antes, a versão dos índices (T-0084)
       await conferirVersoesBusca();
@@ -1585,7 +1638,11 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             // ADR 0021: base recriada → troca de geração e passada completa (o `catch` abaixo)
             await conferirGeracao(r.geracao_base);
             const ativas = ativasPull();
-            alvo = [...new Set(r.entidades)].filter((e) => ativas.has(e)).sort();
+            const defsPull = new Map(op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((d) => [d.nome, d.modulo] as const));
+            alvo = ordenarCarga(
+              [...new Set(r.entidades)].filter((e) => ativas.has(e)).sort(),
+              (e): ItemDaCarga => ({ chave: e, modulo: defsPull.get(e) ?? null, tipo: 'entidade' }),
+            );
             cursorNovo = r.cursor;
           }
           const avisos: AvisoSync[] = [];
