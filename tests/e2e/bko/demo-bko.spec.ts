@@ -102,10 +102,11 @@ for (const quem of ['analista', 'admin'] as const) {
       for (const n of ['nav-core-clientes', 'nav-core-rotas', 'nav-core-visitas', 'nav-core-recados', 'nav-core-carteira', 'nav-core-metas', 'nav-core-indicadores', 'nav-core-aparelhos', 'nav-vendedor-pedidos', 'nav-vendedor-alcadas']) {
         await expect(page.getByTestId(n).first(), n).toBeVisible();
       }
-      await expect(page.getByTestId('nav-core-usuarios-e-modulos')).toHaveCount(quem === 'admin' ? 2 : 0, { timeout: 5_000 }).catch(async () => {
-        // o menu compacto pode não existir neste tamanho de tela: basta aparecer (admin) ou não (analista)
-        expect(await page.getByTestId('nav-core-usuarios-e-modulos').count() > 0).toBe(quem === 'admin');
-      });
+      // Acesso do BKO (R-20261114-144500): "Usuários e módulos" saiu do menu (a rota segue por URL, D-B09); o admin gere o acesso
+      // por "Perfis de acesso" (perfil.gerir) e "Usuários" (usuario.ver). Antes da mudança o item ainda existia: não se exige nada dele.
+      if (quem === 'admin') {
+        for (const n of ['nav-core-usuarios', 'nav-core-perfis']) await expect(page.getByTestId(n).first(), n).toBeVisible();
+      }
     });
 
     // ---------------------------------------------------------------- funcionam
@@ -137,8 +138,13 @@ for (const quem of ['analista', 'admin'] as const) {
     });
 
     if (quem === 'admin') {
-      test('D-B09 Usuários e módulos: o admin vê as licenças do tenant (core, catálogo, vendedor, promotor)', async ({ page }) => {
-        await abrirPeloMenu(page, a, 'nav-core-usuarios-e-modulos', 'pagina-core-usuarios-e-modulos');
+      test('D-B09 Usuários e módulos: abre pela URL; o menu não tem mais o item (o admin vê as licenças do tenant)', async ({ page }) => {
+        // a página segue registrada (caminho `usuarios-e-modulos`, sem prefixo do módulo, como /pedidos e /auditoria)
+        a.falhas.length = 0;
+        a.chamadas.length = 0;
+        await page.goto('/usuarios-e-modulos');
+        await expect(page.getByTestId('pagina-core-usuarios-e-modulos')).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(3_000);
         await semQuebra(page, a);
         await expect(page.locator('main')).toContainText('Empresa');
       });
