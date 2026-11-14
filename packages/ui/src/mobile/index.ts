@@ -54,3 +54,6 @@ export * from './busca-rn';
 // T-0165: BotaoEditar, o lápis do item já no pedido (aba Itens e Resumo; pedido-v4.md §5.8)
 export * from './botao-editar';
 export * from './botao-editar-rn';
+// RD-0039: BotaoFolha (perigo sólido / contorno, toque por opacidade) e LinhaOpcaoFolha, das folhas de ação do pedido
+export * from './botao-folha';
+export * from './botao-folha-rn';
