@@ -87,7 +87,7 @@ O cabeçalho "depois" aparece no topo de `depois-05b-integracao.png` e `depois-0
 |---|---|---|---|
 | 1 | Título "Plano" e, embaixo, a linha "PME" | título **"Plano PME"** | uma linha a menos; o título só dizia o nome do cartão |
 | 2 | Tabela de 3 colunas (Licenças · Em uso · Contratadas), 5 linhas na largura toda, número longe do nome | **blocos** "Vendedor **14** de 20" (3 por linha) | sai o cabeçalho de coluna; nome e número juntos; metade da altura |
-| 3 | "**2** · no limite" em Em uso e "**2**" de novo em Contratadas | "**2** de 2" + selo **"no limite"** e borda de alerta | o número contratado aparecia duas vezes na mesma linha |
+| 3 | "**2** · no limite" em Em uso e "**2**" de novo em Contratadas | "**2** de 2" + selo **"no limite"** (o bloco segue igual aos demais, RD-a) | o número contratado aparecia duas vezes na mesma linha |
 | 4 | Seletor "Trocar de plano" sempre aberto embaixo (4 planos, 3 adicionais, ciclo, total, 2 botões) | **diálogo** aberto pelo botão (`depois-06d-trocar-plano`) | ~60 % da altura da página; o plano atual aparecia duas vezes (cartão e seletor com "Atual") |
 | 5 | Legenda "Estado ao tocar em 'Trocar de plano': o cartão Plano dá lugar a este seletor…" | sai | explica o funcionamento; o estado tem simulação própria |
 | 6 | Legenda "Dados fictícios. Seletor no Anual: Enterprise … = R$ 20.590,00/ano. As linhas … só aparecem quando contratadas." | sai | conta e regra de exibição ficam na spec (§11.4), não na tela |
@@ -131,14 +131,14 @@ Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **di
 
 Embaixo: **"Conectores"** — tabela **Identificador · Pedidos · Situação**; vazio **"Nenhum Conector."**
 
-**Direita — "Integração via API":**
-1. **"Gerar a credencial da API"**: os mesmos campos e textos do passo 2 da esquerda — **Identificador** · **Nome** · **"Envia os pedidos aprovados ao ERP"** · **"Gerar credencial"** (neutro) · chave gerada com o mesmo aviso e "Copiar".
+**Direita — "Integração via API":** (o título do lado já diz "API"; os cartões não repetem, RD-b)
+1. **"Gerar a credencial"**: os mesmos campos e textos do passo 2 da esquerda — **Identificador** · **Nome** · **"Envia os pedidos aprovados ao ERP"** · **"Gerar credencial"** (neutro) · chave gerada com o mesmo aviso e "Copiar".
    - Decisão (caixa de pedidos fica): pela API o ERP também busca os pedidos aprovados; a caixa diz se esta credencial pode buscá-los, igual ao Conector.
    - Decisão (botão neutro): um só principal por tela; o principal fica no Conector, que é o primeiro caminho.
-2. **"Guia da API"**: botão **"Baixar o guia (PDF)"** + link **"Documentação da API (OpenAPI 3.1)"** (o link sai do lado do Conector: uma informação, um lugar).
+2. **"Guia"**: botão **"Baixar o guia (PDF)"** + link **"Documentação (OpenAPI 3.1)"** (o link sai do lado do Conector: uma informação, um lugar).
    - Decisão: enquanto o PDF não existir, o botão **não aparece** e o cartão fica só com o link do OpenAPI. Sem "O guia chega em breve.": a pessoa não age com esse texto.
 
-Embaixo: **"Credenciais da API"** — tabela **Identificador · Pedidos · Situação** (a coluna Pedidos fica, porque a caixa ficou); vazio **"Nenhuma credencial."**
+Embaixo: **"Credenciais"** — tabela **Identificador · Pedidos · Situação** (a coluna Pedidos fica, porque a caixa ficou); vazio **"Nenhuma credencial."**
 
 **Sai:** o diálogo "Passar as bases ao Conector do ERP?" inteiro (título, 3 frases, botões "Gerar só para as bases livres" e "Desativar o de arquivo e passar todas"), o tipo "Carga por arquivo" (`ROTULO_TIPO.arquivo`), "Nenhum Conector ainda. A primeira importação de CSV cria o Conector de arquivo do portal.", "O guia da API (…) chega em breve neste servidor.", "Gera a chave que o Conector…" e "Vai no arquivo de configuração do Conector."
 
@@ -157,7 +157,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 ### 10.5 Para o engenheiro-apps
 - **Saem do portal:** `components/portal/cartao-base.tsx`, `components/portal/cartao-equipe.tsx`, `lib/portal-carga.ts`, `lib/portal-carga-rede.ts` (e `portal-carga.test.ts`), `lib/equipe-csv.ts` (e o teste), o Conector de arquivo em `lib/portal-rotas.ts` ("Carga por arquivo (implantação)"), a Equipe por CSV de `lib/portal-falso.ts` e os testIDs `base-*`, `equipe-*` e `integracao.confirmar-*`. Confirmar com o corretor-redundancias se algum deles é usado fora do portal antes de apagar.
 - `tela-empresa.tsx`: abas Integração e Empresa; Integração abre por padrão.
-- `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia da API"; `integracao.guia` vira o botão do PDF, só quando ele existir.
+- `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia"; `integracao.guia` vira o botão do PDF, só quando ele existir.
 - **A Equipe passa a vir só pelo ERP (Conector/API) ou pelo BKO.** ~~Pendência — pergunta ao dono do produto: a Equipe por CSV sai mesmo do portal?~~ **Respondida: sim** (§12).
 - **Pendência para engenheiro-software / modulo-integracao:** credencial de API separada da do Conector (tipo próprio, ex. o `nuvem` que já existe em `ROTULO_TIPO`, rota que lista só as de API) e o guia da API em PDF (modulo-integracao faz e manda ao designer-ux para revisão de layout). Se a rota não existir, o lado direito mostra só o guia e o link do OpenAPI.
 
@@ -231,13 +231,14 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 ### 11.4 Aba Empresa: cartão "Plano" e diálogo "Trocar de plano"
 Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
 - **Título "Plano {nome}"** (ex.: **"Plano PME"**) e, à direita, **"Trocar de plano"** (principal: a única ação principal da aba; só super-admin). Embaixo do título, uma linha: valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, P4) + selo de alerta **"Teste até 27/11/2026"** se `teste_ate` e não `paga` (data no fuso do tenant, `fimDoTeste`).
-- **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: borda e número em cor de alerta **com o selo "no limite"** (cor nunca sozinha). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
+- **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: só o selo de alerta **"no limite"** ao lado do número; borda e número seguem iguais aos demais blocos (RD-a: uma informação, um sinal). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
 - **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores. Simulação: `depois-06c-aba-empresa-cliente.png`.
 
 **Diálogo "Trocar de plano"** (`depois-06d-trocar-plano.png`; 880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
 - **4 planos** em uma linha (o mesmo seletor do Criar empresa, §11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
 - **Adicionais** numa lista de uma linha por adicional: caixa · ícone · nome · preço no ciclo · campo de quantidade (só com a caixa marcada); um cabeçalho só, **"Adicionais"** e **"Quantidade"** (`aria-label` "Quantidade de {adicional}" em cada campo). Os atuais já marcados, com as quantidades atuais.
-- **Rodapé:** alternador **Mensal / Anual** (selo "2 meses grátis") à esquerda; à direita **"Total: R$ 20.590,00/ano"**, **"Cancelar"** e **"Trocar para {plano}"** (principal). Sem mudança, o principal fica desabilitado como **"Trocar de plano"**. Sem a caixa do teste. "Cancelar" e Esc fecham sem gravar. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
+- **Ciclo:** o alternador **Mensal / Anual** (selo "2 meses grátis") numa linha própria, logo abaixo dos Adicionais: o mesmo componente do cartão "Ciclo" do Criar empresa (§11.3), sem título e sem a caixa do teste (MC-0050).
+- **Rodapé:** só **"Total: R$ 20.590,00/ano"** à esquerda e, à direita, **"Cancelar"** e **"Trocar para {plano}"** (principal). Sem mudança, o principal fica desabilitado como **"Trocar de plano"**. "Cancelar" e Esc fecham sem gravar. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
 - Sucesso: o diálogo fecha e aparece o aviso success fechável **"Plano trocado: Enterprise."**
 - Plano abaixo do uso (`conferirTrocaDePlano`; 422 `PLANO_ABAIXO_DO_USO`, `detalhes.problemas[].mensagem`): erro embaixo do cartão do plano, dentro do diálogo, uma linha por item, principal desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** Pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
 - Plano atual fora de venda (`PLANO_INATIVO`): **"O plano {nome} não está mais à venda."** (do contrato), no cartão dele.
@@ -412,6 +413,17 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | Fora | caixa marcada; "Sair" no celular | aceito: caixa branca com borda e ✓ em Azul noite; no celular, "Sair" na linha do logo, à direita | §11.3; §10.2; `depois-05b-integracao-celular` |
 
 **Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-06c-aba-empresa-cliente`, `depois-06d-trocar-plano`, `depois-07-diagnosticos` e `prancha-icones-adicionais`.
+
+### 13.6 Terceira passada (corretor RD-a a RD-d; marca MC-0050 e lista da senha) — respostas
+| Id | Achado (curto) | Resposta | Onde ficou |
+|---|---|---|---|
+| RD-a | "no limite" dito de 4 jeitos (2 de 2, selo, borda, número em cor de alerta) | aceito: fica só o selo | §8 linha 3; §11.4; `portal.css`; `depois-06b`, `depois-06c`, `depois-06d` |
+| RD-b | "da API" repetido nos cartões do lado API | aceito: "Gerar a credencial", "Guia", "Credenciais", "Documentação (OpenAPI 3.1)"; os títulos dos lados ficam (texto do dono do produto) | §10.2; `depois-05b` (+ `-celular`) |
+| RD-c | legenda "Dados fictícios. Total = …" na 03b | aceito: sai (a conta está no §11.3, item 4) | `depois-03b` |
+| RD-d | `.lados` em duas regras; 18 regras mortas da aba Bases; `.chk` repetido por contexto | aceito: `.lados` numa regra; as 18 regras saem (nenhum HTML usa); `.chk` com uma regra base (nenhum contexto muda nada) | `portal.css` |
+| MC-0050 | "Anual" cheio no rodapé disputa com "Trocar para Enterprise" | aceito: alternador numa linha própria abaixo dos Adicionais; rodapé só com Total, Cancelar e o principal | §11.4; `depois-06d` |
+| Senha | lista da senha da 03b diferente do kit | aceito: como `packages/ui/src/web/senha.tsx` (título, um item por linha, ✓ num círculo de 18 px em `#E2F1EA`, as 4 regras da RN-CORE-32 com o mínimo do Core, 8) | `depois-03b` |
+| MC-0049 | ✓ verde sozinho no CNPJ "Encontrado" | aguarda a decisão do dono do produto; sem mudança | — |
 
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).

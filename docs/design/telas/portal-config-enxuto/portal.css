@@ -54,41 +54,18 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 18px 0 18px; }
 .abas span { padding: 10px 12px; font-weight: 600; color: var(--ink2); border-bottom: 2px solid transparent; }
 .abas span.ativa { color: var(--ink); border-bottom-color: var(--accent); }
-/* cartão de base em uma linha */
-.base { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 8px; min-height: 60px; }
-.base .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
-.base .tit { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 14px; flex: 1; min-width: 0; white-space: nowrap; display: flex; gap: 8px; align-items: center; }
-.base .links { display: flex; gap: 12px; width: 240px; flex: none; }
-.base .arq { width: 196px; flex: none; white-space: nowrap; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink2); }
-.base .modo { display: flex; gap: 10px; font-size: 13px; width: 200px; flex: none; white-space: nowrap; }
-.base .modo i { display: inline-block; width: 14px; height: 14px; border-radius: 7px; border: 2px solid var(--ink2); vertical-align: -2px; margin-right: 4px; }
-.base .modo i.on { border-color: var(--accent); box-shadow: inset 0 0 0 3px #fff; background: var(--accent); }
-.base .acoes { display: flex; gap: 6px; flex: none; }
-.base .acoes .btn { padding: 0 10px; }
-.expandido { padding: 0; }
-.expandido .base { margin: 0; border: 0; }
-.estado { border-top: 1px solid var(--line); padding: 12px 16px 14px 56px; font-size: 13px; }
 .aviso { border-radius: 10px; padding: 10px 12px; font-weight: 600; font-size: 13px; display: flex; gap: 16px; align-items: center; }
 .aviso.w { background: var(--warningBg); color: var(--warning); }
 .aviso.ok { background: var(--successBg); color: var(--success); justify-content: space-between; }
-.lista-erros { margin: 8px 0 0; padding-left: 18px; color: var(--ink2); }
-.mod { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.mod:last-child { border-bottom: 0; }
-.mod .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--accent); background: var(--accent); flex: none; }
-.mod .chk.n { background: #fff; border-color: var(--ink2); }
-.mod .chk.t { background: #C9CED5; border-color: #C9CED5; }
-.mod .nome { font-weight: 600; width: 260px; }
-.mod .lic { margin-left: auto; width: 180px; }
 .legenda-sim { font-size: 11px; color: var(--ink2); text-align: center; padding: 8px; }
 /* §10: aba Integração em dois lados (Conector | API); abaixo de 768 px, empilhados, Conector primeiro */
-.lados { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.lados { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: stretch; }
 .lado > h2.lado-tit { font-size: 20px; margin: 0 0 12px; font-weight: 800; }
 .passo h2 { display: flex; gap: 10px; align-items: center; }
 .passo h2 .num { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .passos { margin: 0; padding-left: 20px; }
 .passos li { margin: 2px 0; }
 .dado { font-size: 13px; color: var(--ink2); margin-top: 8px; }
-.chave { display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 767px) {
   body { width: auto; min-height: 0; }
   .topo, .topo .in { height: auto; }
@@ -124,8 +101,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .adicionais { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .adic label.q { margin-left: auto; font-size: 12px; color: var(--ink2); font-weight: 600; }
 .adic { display: flex; align-items: center; gap: 10px; border: 1px solid var(--lineStrong); border-radius: 10px; padding: 0 14px; min-height: 52px; background: #fff; }
-.adic .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
-.adic .chk.on { border-color: var(--accent); background: var(--accent); }
 .adic span.p { color: var(--ink2); font-size: 13px; white-space: nowrap; }
 .adic .qtd { width: 72px; height: 36px; }
 .ciclo { display: inline-flex; border: 1px solid var(--lineStrong); border-radius: 10px; overflow: hidden; }
@@ -135,10 +110,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .ciclo span.on .selo { background: #fff; color: var(--accent); }
 .linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
-.caixa .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
-.marca-conf { font-size: 11px; color: var(--warning); background: var(--warningBg); border-radius: 6px; padding: 2px 6px; font-weight: 700; }
-.plano-topo { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.plano-topo .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 22px; }
 .uso td.n, .uso th.n { text-align: right; font-family: Archivo, 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
 .uso td.lim { color: var(--warning); font-weight: 700; }
 .estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
@@ -146,10 +117,10 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 @media (max-width: 767px) { .adicionais { grid-template-columns: 1fr; } .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
 /* total do pedido */
 .total { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
-/* caixa marcada (como MC-0028): branca, borda e ✓ em Azul noite; vale para .mod, .adic e .caixa */
-.chk { position: relative; }
-.chk.on, .mod .chk:not(.n):not(.t) { background: #fff !important; border-color: var(--accent) !important; }
-.chk.on::after, .mod .chk:not(.n):not(.t)::after { content: ''; position: absolute; left: 4px; top: 0px; width: 5px; height: 10px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+/* caixa de marcar: uma regra base para todos os contextos (.adic, .caixa, .adics, Integração); marcada (como MC-0028) branca, borda e ✓ em Azul noite */
+.chk { position: relative; display: inline-block; width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
+.chk.on { border-color: var(--accent); }
+.chk.on::after { content: ''; position: absolute; left: 4px; top: 0px; width: 5px; height: 10px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 /* MC-0042: ícone e nome dos adicionais (mapa único em packages/ui/src/web/adicionais.tsx) */
 .ico { width: 22px; height: 22px; flex: none; color: var(--accent); display: inline-block; vertical-align: middle; }
 .adic b { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); white-space: nowrap; }
@@ -167,7 +138,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
   .topo .sessao { order: 4; margin-left: 0; }
 }
 /* R-20261114-170200: divisória vertical no meio da aba Integração (filete --line, altura dos dois lados); no celular, horizontal entre os lados */
-.lados { gap: 0; align-items: stretch; }
 .lados > .lado:first-child { padding-right: 24px; border-right: 1px solid var(--line); }
 .lados > .lado + .lado { padding-left: 24px; }
 @media (max-width: 767px) {
@@ -189,8 +159,6 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .licb .rot.modnome { font-size: 14px; color: var(--accent); }
 .licb .val { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; }
 .licb .val small { font-size: 14px; font-weight: 600; color: var(--ink2); }
-.licb.lim { border-color: var(--warning); }
-.licb.lim .val { color: var(--warning); }
 .licb .selo { align-self: center; }
 .adm { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .adm:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -206,10 +174,16 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .adics .cab { height: 34px; font-size: 12px; font-weight: 600; color: var(--ink2); border-bottom: 1px solid var(--line); }
 .adics .lin { min-height: 52px; border-bottom: 1px solid var(--line); }
 .adics .lin:last-child { border-bottom: 0; }
-.adics .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; }
-.adics .chk.on { border-color: var(--accent); }
 .adics b { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); }
 .adics .p { color: var(--ink2); font-size: 13px; }
 .adics .qtd { width: 88px; height: 36px; }
 .rodape-dlg { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
-.rodape-dlg .ciclo { margin-right: auto; }
+.dlg-ciclo { margin-top: 16px; }
+.rodape-dlg .total { margin-right: auto; }
+/* lista "A senha precisa ter" como o kit (packages/ui/src/web/senha.tsx): título 12 px, itens 13 px, ✓ num círculo de 18 px em #E2F1EA */
+.regras-senha { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.regras-senha .tit { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.regras-senha ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.regras-senha li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+.regras-senha .ok { width: 18px; height: 18px; border-radius: 9px; background: var(--successBg); color: var(--success); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.regras-senha .ex { color: var(--ink2); }
