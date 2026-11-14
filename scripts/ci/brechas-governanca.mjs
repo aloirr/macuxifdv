@@ -10,6 +10,11 @@
  *    passa pelo hook do Bash). Squash com o corpo padrão do GitHub (lista dos commits do PR, último bloco "Agente: <agente
  *    da nuvem>") fica VERMELHO. Commit de merge conta só os arquivos que diferem de TODOS os pais (git diff-tree -c:
  *    alteração feita no próprio merge); os commits trazidos pelo merge são conferidos um a um.
+ *    Autorização retroativa (ADR 0045, 14/11/2026): squash que já entrou no main sem o rito trava todo push seguinte (o
+ *    ANTES é o último push verde). A lista .github/governanca-retroativa.json, lida no TOPO do intervalo (DEPOIS), traz o
+ *    SHA completo, o PR e o recado do Alexandre (R-...-alexandre) que autorizou o conteúdo; o commit listado vira
+ *    ::notice:: em vez de ::error::. A lista é governança (.github/**): só entra pelo rito, e quem a altera sem o rito
+ *    fica vermelho. Lista inválida = saída 2 (falha fechada). É exceção para squash já feito; não substitui o rito.
  * 2. recados  (pull_request) — o PR não pode adicionar nem alterar recado (.coord/recados/**) cujo texto contenha
  *    "autorizo o merge" (sem diferenciar maiúsculas, acentos, quebras de linha e marcação markdown). Autorização de merge
  *    só vale escrita localmente pelo Alexandre, nunca vinda de PR.
@@ -78,6 +83,53 @@ export function violacoesDeTrailer(commits, padroes = CAMINHOS_DE_GOVERNANCA) {
   return ruins;
 }
 
+export const ARQUIVO_RETROATIVAS = '.github/governanca-retroativa.json';
+const SHA_COMPLETO = /^[0-9a-f]{40}$/;
+const RECADO_DO_ALEXANDRE = /^R-\d{8}-\d{6}-alexandre$/;
+
+/**
+ * Lista de autorizações retroativas (função pura). null/undefined = arquivo ausente (Map vazio).
+ * Chaves que começam com "_" são comentário. Qualquer defeito lança Error (falha fechada).
+ * @returns {Map<string, {sha: string, pr: number, recado: string, motivo: string}>}
+ */
+export function lerRetroativas(texto) {
+  const mapa = new Map();
+  if (texto === null || texto === undefined) return mapa;
+  const falha = (msg) => new Error(`lista retroativa (${ARQUIVO_RETROATIVAS}) inválida: ${msg}`);
+  let dados;
+  try {
+    dados = JSON.parse(texto);
+  } catch (e) {
+    throw falha(`JSON quebrado (${e.message})`);
+  }
+  if (!dados || typeof dados !== 'object' || Array.isArray(dados) || !Array.isArray(dados.autorizacoes)) {
+    throw falha('esperado um objeto com o array "autorizacoes"');
+  }
+  dados.autorizacoes.forEach((it, i) => {
+    const onde = `autorizacoes[${i}]`;
+    if (!it || typeof it !== 'object' || Array.isArray(it)) throw falha(`${onde} não é objeto`);
+    if (typeof it.sha !== 'string' || !SHA_COMPLETO.test(it.sha)) throw falha(`${onde}.sha tem de ser o SHA completo (40 hex minúsculos)`);
+    if (typeof it.pr !== 'number' || !Number.isInteger(it.pr) || it.pr <= 0) throw falha(`${onde}.pr tem de ser inteiro positivo`);
+    if (typeof it.recado !== 'string' || !RECADO_DO_ALEXANDRE.test(it.recado)) throw falha(`${onde}.recado tem de ser um recado do Alexandre (R-AAAAMMDD-HHMMSS-alexandre)`);
+    if (typeof it.motivo !== 'string' || !it.motivo.trim()) throw falha(`${onde}.motivo vazio`);
+    if (mapa.has(it.sha)) throw falha(`${onde}.sha ${it.sha} repetido`);
+    mapa.set(it.sha, { sha: it.sha, pr: it.pr, recado: it.recado, motivo: it.motivo });
+  });
+  return mapa;
+}
+
+/** Separa as violações de trailer em violações de fato e regularizadas pela lista retroativa (SHA exato). */
+export function separarRetroativas(ruins, autorizados) {
+  const violacoes = [];
+  const regularizados = [];
+  for (const r of ruins) {
+    const autorizacao = autorizados.get(r.sha);
+    if (autorizacao) regularizados.push({ ...r, autorizacao });
+    else violacoes.push(r);
+  }
+  return { violacoes, regularizados };
+}
+
 /** Texto normalizado para procurar a frase: sem acento, minúsculo, sem marcação markdown, espaços colapsados. */
 export function normalizarTexto(texto) {
   return String(texto || '')
@@ -127,6 +179,13 @@ export function recadosDoDiff(base, topo, cwd) {
   return mudancas;
 }
 
+/** Texto da lista retroativa no commit TOPO; null se o caminho não existe nele (erro de git propaga: falha fechada). */
+export function retroativasNoTopo(topo, cwd) {
+  git(['rev-parse', '--verify', '--quiet', `${topo}^{commit}`], { cwd });
+  const existe = git(['ls-tree', '--name-only', '-z', topo, '--', ARQUIVO_RETROATIVAS], { cwd });
+  return listaZ(existe).includes(ARQUIVO_RETROATIVAS) ? git(['show', `${topo}:${ARQUIVO_RETROATIVAS}`], { cwd }) : null;
+}
+
 function rodarTrailer(intervalo) {
   if (!intervalo || !/^[^.\s]+\.\.[^.\s]+$/.test(intervalo)) {
     console.error('uso: node scripts/ci/brechas-governanca.mjs trailer ANTES..DEPOIS');
@@ -138,8 +197,22 @@ function rodarTrailer(intervalo) {
     return 0;
   }
   const commits = commitsDoIntervalo(intervalo);
-  const ruins = violacoesDeTrailer(commits);
-  console.log(`[trailer] ${commits.length} commit(s) em ${intervalo}; ${ruins.length} alteram governança sem "Agente: alexandre".`);
+  const textoLista = retroativasNoTopo(intervalo.split('..')[1]); // erro de git: falha fechada no chamador
+  let autorizados;
+  try {
+    autorizados = lerRetroativas(textoLista);
+  } catch (e) {
+    console.log(`::error title=brechas-governanca::${e.message}: falha fechada.`);
+    return 2;
+  }
+  const { violacoes: ruins, regularizados } = separarRetroativas(violacoesDeTrailer(commits), autorizados);
+  console.log(
+    `[trailer] ${commits.length} commit(s) em ${intervalo}; ${ruins.length + regularizados.length} alteram governança sem "Agente: alexandre"; ${regularizados.length} regularizado(s) (lista retroativa).`,
+  );
+  for (const r of regularizados) {
+    const a = r.autorizacao;
+    console.log(`::notice title=governança: autorização retroativa::commit ${r.sha} (${r.assunto}) altera ${r.arquivos.join(', ')}; autorizado pelo Alexandre no recado ${a.recado} (PR #${a.pr}).`);
+  }
   for (const r of ruins) {
     const declarado = r.agentes.length ? `último bloco declara "Agente: ${r.agentes.join('", "Agente: ')}"` : 'último bloco sem "Agente:"';
     console.log(`::error title=governança sem "Agente: alexandre"::commit ${r.sha} (${r.assunto}) altera ${r.arquivos.join(', ')} e o ${declarado}.`);

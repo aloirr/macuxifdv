@@ -1,15 +1,18 @@
 // Testes das brechas do guardião v5 no CI (T-0049). node --test scripts/ci/*.test.mjs
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  ARQUIVO_RETROATIVAS,
   agentesDoUltimoBloco,
   caminhosDeGovernanca,
   contemAutorizacao,
+  lerRetroativas,
+  separarRetroativas,
   temTrailerAlexandre,
   ultimoBloco,
   violacoesDeRecado,
@@ -17,6 +20,7 @@ import {
 } from './brechas-governanca.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./brechas-governanca.mjs', import.meta.url));
+const RAIZ = fileURLToPath(new URL('../../', import.meta.url));
 
 // Mensagens reais do main (git log -1 --format=%B).
 const SQUASH_GH_BODY = 'T-0043: relógio de teste comum e lint de hora fixa (aviso) (#34)\n\nAgente: alexandre\n';
@@ -102,6 +106,59 @@ test('violações de recado: só recado adicionado ou alterado com a frase', () 
   assert.deepEqual(r, ['.coord/recados/gerente-projetos/R-20261102-1-alexandre.md', '.coord/recados/alexandre/R-20261102-2-engenheiro-software.md']);
 });
 
+// ---------------------------------------------------------------- autorização retroativa (ADR 0045)
+
+const SHA_A = '706c96f282037f3eaa8434673455cc1d7cfcee33';
+const SHA_B = 'f7c87190b6883ea1f68d1395f4be57e5e491a388';
+const RECADO_ALEXANDRE = 'R-20261114-112000-alexandre';
+const item = (extra = {}) => ({ sha: SHA_A, pr: 232, recado: RECADO_ALEXANDRE, motivo: 'squash da ponte sem o rito', ...extra });
+const lista = (...itens) => JSON.stringify({ _leia: 'comentário ignorado', autorizacoes: itens });
+
+test('lista retroativa: item válido; SHA completo minúsculo, recado do Alexandre, pr inteiro, motivo; falha em tudo o mais', () => {
+  assert.equal(lerRetroativas(null).size, 0);
+  assert.equal(lerRetroativas(undefined).size, 0);
+  const m = lerRetroativas(lista(item(), item({ sha: SHA_B, pr: 237 })));
+  assert.equal(m.size, 2);
+  assert.equal(m.get(SHA_A).pr, 232);
+  assert.equal(m.get(SHA_B).recado, RECADO_ALEXANDRE);
+  const casos = [
+    ['SHA curto', lista(item({ sha: '706c96f2' }))],
+    ['SHA maiúsculo', lista(item({ sha: SHA_A.toUpperCase() }))],
+    ['recado de outro autor', lista(item({ recado: 'R-20261114-112000-gerente-projetos' }))],
+    ['recado vazio', lista(item({ recado: '' }))],
+    ['pr como string', lista(item({ pr: '232' }))],
+    ['pr zero', lista(item({ pr: 0 }))],
+    ['motivo só espaço', lista(item({ motivo: '   ' }))],
+    ['JSON quebrado', '{"autorizacoes": ['],
+    ['array no topo', '[]'],
+    ['sem autorizacoes', '{}'],
+  ];
+  for (const [nome, texto] of casos) assert.throws(() => lerRetroativas(texto), /retroativa/, nome);
+  assert.throws(() => lerRetroativas(lista(item(), item({ pr: 237 }))), /repetido/);
+});
+
+test('lista retroativa: só o SHA exato listado sai das violações, com a autorização anexada', () => {
+  const ruins = [
+    { sha: SHA_A, assunto: 'a', arquivos: ['.github/workflows/eas-build.yml'], agentes: ['engenheiro-software'] },
+    { sha: SHA_B, assunto: 'b', arquivos: ['.github/workflows/eas-build.yml'], agentes: ['engenheiro-software'] },
+    { sha: SHA_A.slice(0, 39) + '0', assunto: 'c', arquivos: ['.claude/x'], agentes: [] },
+  ];
+  const { violacoes, regularizados } = separarRetroativas(ruins, lerRetroativas(lista(item())));
+  assert.deepEqual(violacoes.map((v) => v.assunto), ['b', 'c']);
+  assert.equal(regularizados.length, 1);
+  assert.equal(regularizados[0].sha, SHA_A);
+  assert.equal(regularizados[0].autorizacao.recado, RECADO_ALEXANDRE);
+  assert.deepEqual(separarRetroativas(ruins, new Map()), { violacoes: ruins, regularizados: [] });
+});
+
+test('lista retroativa versionada: #232 e #237 autorizados no recado do Alexandre', () => {
+  const m = lerRetroativas(readFileSync(join(RAIZ, ARQUIVO_RETROATIVAS), 'utf8'));
+  assert.equal(m.get(SHA_A)?.pr, 232);
+  assert.equal(m.get(SHA_B)?.pr, 237);
+  assert.equal(m.get(SHA_A)?.recado, RECADO_ALEXANDRE);
+  assert.equal(m.get(SHA_B)?.recado, RECADO_ALEXANDRE);
+});
+
 // ---------------------------------------------------------------- CLI num repositório git de verdade
 
 function repo() {
@@ -185,6 +242,57 @@ test('CLI trailer: push com squash "Agente: alexandre" → verde; squash padrão
     assert.equal(r.rodar('trailer', `${'0'.repeat(40)}..${ok}`).codigo, 0);
     assert.equal(r.rodar('trailer', 'lixo').codigo, 2);
     assert.equal(r.rodar('trailer', `${'f'.repeat(40)}..${ok}`).codigo, 2);
+  } finally {
+    r.fim();
+  }
+});
+
+test('CLI trailer: lista retroativa no topo do intervalo regulariza só os SHAs listados; a lista só entra pelo rito; lista inválida → 2', () => {
+  const r = repo();
+  try {
+    r.escrever('.github/workflows/ci.yml', 'on: push\n');
+    const base = r.commit('base\n\nAgente: alexandre');
+    r.escrever('.github/workflows/eas-build.yml', '1\n');
+    const c1 = r.commit(COMMIT_NUVEM);
+    r.escrever('.github/workflows/eas-build.yml', '2\n');
+    const c2 = r.commit(COMMIT_NUVEM);
+    const autorizacao = (sha, pr) => ({ sha, pr, recado: RECADO_ALEXANDRE, motivo: 'squash da ponte sem o rito; conteúdo autorizado pelo Alexandre' });
+
+    // sem lista → vermelho
+    let s = r.rodar('trailer', `${base}..${c2}`);
+    assert.equal(s.codigo, 1, s.saida);
+
+    // lista com só o primeiro (entra pelo rito) → vermelho; notice para c1, error só para c2
+    r.escrever(ARQUIVO_RETROATIVAS, lista(autorizacao(c1, 232)));
+    const l1 = r.commit(SQUASH_GH_BODY);
+    s = r.rodar('trailer', `${base}..${l1}`);
+    assert.equal(s.codigo, 1, s.saida);
+    assert.ok(s.saida.includes(`::notice title=governança: autorização retroativa::commit ${c1}`), s.saida);
+    assert.ok(s.saida.includes(`recado ${RECADO_ALEXANDRE} (PR #232)`), s.saida);
+    assert.ok(!s.saida.includes(`::error title=governança sem "Agente: alexandre"::commit ${c1}`), s.saida);
+    assert.ok(s.saida.includes(`::error title=governança sem "Agente: alexandre"::commit ${c2}`), s.saida);
+    assert.match(s.saida, /1 regularizado\(s\)/);
+
+    // lista com os dois → verde
+    r.escrever(ARQUIVO_RETROATIVAS, lista(autorizacao(c1, 232), autorizacao(c2, 237)));
+    const l2 = r.commit(SQUASH_GH_BODY);
+    s = r.rodar('trailer', `${base}..${l2}`);
+    assert.equal(s.codigo, 0, s.saida);
+    assert.match(s.saida, /2 alteram governança sem "Agente: alexandre"; 2 regularizado\(s\)/);
+
+    // a própria lista alterada sem o rito → vermelho, citando o arquivo
+    r.escrever(ARQUIVO_RETROATIVAS, lista(autorizacao(c1, 232), autorizacao(c2, 237), autorizacao('a'.repeat(40), 1)));
+    const l3 = r.commit(COMMIT_NUVEM);
+    s = r.rodar('trailer', `${base}..${l3}`);
+    assert.equal(s.codigo, 1, s.saida);
+    assert.ok(s.saida.includes(`commit ${l3}`) && s.saida.includes(ARQUIVO_RETROATIVAS), s.saida);
+
+    // lista inválida no topo (mesmo com o rito) → 2 (falha fechada)
+    r.escrever(ARQUIVO_RETROATIVAS, '{"autorizacoes": [');
+    const l4 = r.commit(SQUASH_GH_BODY);
+    s = r.rodar('trailer', `${base}..${l4}`);
+    assert.equal(s.codigo, 2, s.saida);
+    assert.match(s.saida, /::error title=brechas-governanca::.*retroativa/);
   } finally {
     r.fim();
   }
