@@ -1,8 +1,8 @@
 'use client';
 
-import { cloneElement, useEffect, type ButtonHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { cloneElement, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { ehMensagemTecnica, MENSAGEM_ERRO_PADRAO, mensagemParaTela } from './erros';
-import { IconAlert, IconCheck, IconInfo } from './icons';
+import { IconAlert, IconBusca, IconCheck, IconInfo } from './icons';
 import { estiloDaTabela, tabelaPronta } from './tabela';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
@@ -11,18 +11,37 @@ export function cx(...c: Array<string | false | null | undefined>): string {
 
 /* ---------- cabeçalho e filtros ---------- */
 
-export function PageHeader({ title, subtitle, eyebrow, badge, actions }: { title: ReactNode; subtitle?: ReactNode; eyebrow?: ReactNode; badge?: ReactNode; actions?: ReactNode }) {
+/**
+ * Cabeçalho da página (revisão do BKO §P1): título à esquerda, ações à direita, na mesma linha. No máximo uma ação
+ * principal e uma secundária visíveis; o resto (Exportar CSV, Atualizar) vai no `MenuAcoes` da página.
+ * `subtitle` está obsoleto: frase de explicação sob o título sai (R-20261114-142000; o que o usuário precisa para agir
+ * fica no rótulo do campo ou no estado vazio). Continua aceito só até cada tela sair dele.
+ */
+export function PageHeader({
+  title,
+  subtitle,
+  eyebrow,
+  badge,
+  actions,
+}: {
+  title: ReactNode;
+  /** @deprecated Revisão do BKO §P1: sem frase de explicação sob o título. */
+  subtitle?: ReactNode;
+  eyebrow?: ReactNode;
+  badge?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex min-h-[42px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex min-w-0 flex-col gap-0.5">
         {eyebrow && <span className="text-[13px] text-ink-2">{eyebrow}</span>}
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="m-0 font-display text-[24px] leading-tight font-extrabold sm:text-[28px]">{title}</h1>
+          <h1 className="m-0 font-display text-[24px] leading-tight font-extrabold">{title}</h1>
           {badge}
         </div>
         {subtitle && <span className="text-[13px] text-ink-2">{subtitle}</span>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
@@ -42,6 +61,38 @@ export function SelectField({ label, children, className, ...rest }: SelectHTMLA
         {children}
       </select>
     </label>
+  );
+}
+
+/** Campo de texto dos filtros, na mesma altura e no mesmo traço do `SelectField` (revisão do BKO §P4). */
+export function TextField({ label, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  return (
+    <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
+      {label}
+      <input
+        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60', className)}
+        {...rest}
+      />
+    </label>
+  );
+}
+
+/**
+ * Busca da lista (revisão do BKO §P4): primeiro filtro da barra, com lupa e sem rótulo visível (o `placeholder` diz o que
+ * procura, o `aria-label` repete). Largura de 280 px; na tela estreita, a linha inteira.
+ */
+export function CampoBusca({ rotulo, className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string }) {
+  return (
+    <div className={cx('relative w-full sm:w-[280px]', className)}>
+      <IconBusca size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-2" />
+      <input
+        type="search"
+        aria-label={rotulo}
+        placeholder={rotulo}
+        className="h-[38px] w-full rounded-[10px] border border-field bg-surface pr-2.5 pl-9 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2"
+        {...rest}
+      />
+    </div>
   );
 }
 
@@ -120,6 +171,36 @@ const BADGE: Record<BadgeTone, string> = {
 
 export function Badge({ tone, children, className }: { tone: BadgeTone; children: ReactNode; className?: string }) {
   return <span className={cx('inline-block rounded-lg px-2 py-[3px] text-[11px] font-bold whitespace-nowrap', BADGE[tone], className)}>{children}</span>;
+}
+
+/** Um selo da Situação. A tela monta a lista do mais importante para o menos. */
+export interface Selo {
+  tom: BadgeTone;
+  texto: string;
+}
+
+/** Revisão do BKO §P5: a Situação mostra um selo só, o primeiro da lista (o mais importante). Lista vazia não mostra nada. */
+export function seloPrincipal(selos: ReadonlyArray<Selo | null | undefined>): Selo | null {
+  return selos.find((s): s is Selo => !!s) ?? null;
+}
+
+export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | undefined> }) {
+  const s = seloPrincipal(selos);
+  return s ? <Badge tone={s.tom}>{s.texto}</Badge> : null;
+}
+
+/**
+ * Lista vazia (revisão do BKO §P7): uma frase do que falta e, quando o perfil pode, a ação que resolve. Sem ilustração,
+ * sem explicação do sistema. Mesmo nome e mesma regra do `EstadoVazio` do app. Filtro sem resultado: "Nenhum <item> com esses
+ * filtros." com o botão "Limpar filtros".
+ */
+export function EstadoVazio({ titulo, acao, testId }: { titulo: string; acao?: ReactNode; testId?: string }) {
+  return (
+    <div data-testid={testId} className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-field px-6 py-10 text-center">
+      <span className="text-[14px] font-semibold text-ink-2">{titulo}</span>
+      {acao}
+    </div>
+  );
 }
 
 export function Bar({ pct, colorClass, min = 80 }: { pct: number; colorClass: string; min?: number }) {

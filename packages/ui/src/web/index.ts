@@ -16,3 +16,8 @@ export * from '../comum/sincronizacao';
 export * from './permissoes';
 // T-0133: histórico do pedido/orçamento em tags (o mesmo do app)
 export * from './historico';
+// Revisão do BKO (docs/design/telas/bko-revisao.md): tabela sem rolagem lateral, menu "⋯", mapa único dos módulos
+export * from './tabela-dados';
+export * from './tabela-dados-componente';
+export * from './menu-acoes';
+export * from './modulos';

@@ -137,3 +137,10 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="m3 3 18 18" />
   </Svg>
 );
+/** Lupa do `CampoBusca` (revisão do BKO §P4). */
+export const IconBusca = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Svg>
+);
