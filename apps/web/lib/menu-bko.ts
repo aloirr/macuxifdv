@@ -1,11 +1,12 @@
 /**
  * Menu lateral do BKO (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): funções puras do shell.
- * - Todo grupo tem título; grupos e itens em ordem alfabética pt-BR, sem diferenciar acento e caixa.
- * - Auditoria (página da plataforma) fica em Sistema; o slot `menu.itens` do Core entra no grupo "Mais".
- * - Grupo sem item visível some (a licença e o perfil já filtraram a `navegacao`: RN-CORE-01/03, ADR 0004).
+ * - Todo grupo tem título; grupos e itens em ordem alfabética pt-BR (`compararRotuloMenu` do SDK).
+ * - O grupo e o título vêm do SDK (`grupoMenu`/`rotuloGrupo`, ADR 0050); só o grupo "Mais" (slot `menu.itens` do Core)
+ *   é do shell. Auditoria (página da plataforma) fica em Sistema.
+ * - Grupo sem item visível não aparece (a licença e o perfil já filtraram a `navegacao`: RN-CORE-01/03, ADR 0004).
  * - Altura do menu aberto (título 30 px, item 32 px, 2 px entre grupos) decide entre "tudo aberto" e a sanfona (§M3).
- * Funciona com o `grupo` de hoje do SDK (`operacao|cadastros|analise|administracao`) e com os 9 grupos do §M2.
  */
+import { compararRotuloMenu, ROTULO_GRUPO_MENU, type ItemNavegacao } from '@macuxi/platform-sdk';
 
 export interface ItemMenuBko {
   href: string;
@@ -14,19 +15,14 @@ export interface ItemMenuBko {
 }
 
 export interface GrupoMenuBko {
-  /** Chave estável do grupo (`grupo` do SDK, `mais` ou `sistema`). */
+  /** Chave estável do grupo (`grupoMenu` do SDK ou `mais`). */
   id: string;
   titulo: string;
   itens: ItemMenuBko[];
 }
 
 /** Item de navegação do SDK (`ItemNavegacao`), só com o que o menu usa. */
-export interface EntradaNavegacao {
-  grupo: string;
-  caminho: string;
-  rotulo: string;
-  testID: string;
-}
+export type EntradaNavegacao = Pick<ItemNavegacao<unknown>, 'grupoMenu' | 'rotuloGrupo' | 'caminho' | 'rotulo' | 'testID'>;
 
 /** Item do slot `menu.itens` do Core (`ItemMenu`). */
 export interface EntradaMais {
@@ -34,23 +30,6 @@ export interface EntradaMais {
   rotulo: string;
   testID: string;
 }
-
-/**
- * Rótulo de cada grupo do §M2. `administracao` é PROVISÓRIO: some quando o SDK trocar o tipo `grupo` pelos 9 grupos
- * (engenheiro-software, `packages/platform-sdk/src/shell.ts`) e os módulos migrarem as páginas.
- */
-export const ROTULO_GRUPO: Readonly<Record<string, string>> = {
-  acesso: 'Acesso',
-  analise: 'Análise',
-  cadastros: 'Cadastros',
-  comercial: 'Comercial',
-  comunicacao: 'Comunicação',
-  conteudo_campo: 'Conteúdo de campo',
-  operacao: 'Operação',
-  produtos: 'Produtos',
-  sistema: 'Sistema',
-  administracao: 'Administração',
-};
 
 /** Páginas da própria plataforma (RN-AUD-01: trilha de auditoria, para todo perfil que entra no BKO). */
 export const ITENS_PLATAFORMA: readonly ItemMenuBko[] = [{ href: '/auditoria', label: 'Auditoria', testId: 'nav-plataforma-auditoria' }];
@@ -60,19 +39,23 @@ export const ALTURA_TITULO = 30;
 export const ALTURA_ITEM = 32;
 export const ESPACO_ENTRE_GRUPOS = 2;
 
-const compararPtBr = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
+/** Caminho do slot "Mais" (escrito pelo módulo, com ou sem barra inicial) → href. */
+const href = (caminho: string) => `/${caminho.replace(/^\/+/, '')}`;
 
 /** Grupos do menu, em ordem alfabética, cada um com os itens em ordem alfabética. */
 export function montarGruposMenu(entrada: { navegacao: readonly EntradaNavegacao[]; mais?: readonly EntradaMais[]; plataforma: boolean }): GrupoMenuBko[] {
-  const grupos = new Map<string, ItemMenuBko[]>();
-  const incluir = (id: string, item: ItemMenuBko) => grupos.set(id, [...(grupos.get(id) ?? []), item]);
-  for (const n of entrada.navegacao) incluir(n.grupo, { href: `/${n.caminho.replace(/^\/+/, '')}`, label: n.rotulo, testId: n.testID });
-  for (const i of entrada.mais ?? []) incluir('mais', { href: `/${i.caminho.replace(/^\/+/, '')}`, label: i.rotulo, testId: i.testID });
-  if (entrada.plataforma) for (const i of ITENS_PLATAFORMA) incluir('sistema', i);
-  return [...grupos]
-    .filter(([, itens]) => itens.length > 0)
-    .map(([id, itens]) => ({ id, titulo: id === 'mais' ? 'Mais' : (ROTULO_GRUPO[id] ?? id), itens: [...itens].sort((a, b) => compararPtBr(a.label, b.label)) }))
-    .sort((a, b) => compararPtBr(a.titulo, b.titulo));
+  const grupos = new Map<string, GrupoMenuBko>();
+  const incluir = (id: string, titulo: string, item: ItemMenuBko) => {
+    const g = grupos.get(id) ?? { id, titulo, itens: [] };
+    g.itens.push(item);
+    grupos.set(id, g);
+  };
+  for (const n of entrada.navegacao) incluir(n.grupoMenu, n.rotuloGrupo, { href: `/${n.caminho}`, label: n.rotulo, testId: n.testID });
+  for (const i of entrada.mais ?? []) incluir('mais', 'Mais', { href: href(i.caminho), label: i.rotulo, testId: i.testID });
+  if (entrada.plataforma) for (const i of ITENS_PLATAFORMA) incluir('sistema', ROTULO_GRUPO_MENU.sistema, i);
+  return [...grupos.values()]
+    .map((g) => ({ ...g, itens: g.itens.sort((a, b) => compararRotuloMenu(a.label, b.label)) }))
+    .sort((a, b) => compararRotuloMenu(a.titulo, b.titulo));
 }
 
 /** Item da tela atual: a rota mais longa que casa com o endereço (`/catalogo/marcas` não acende `/catalogo`). */

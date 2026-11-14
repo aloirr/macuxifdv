@@ -2,11 +2,19 @@
  * Menu do BKO (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M3): ordem alfabética, Auditoria em Sistema,
  * grupo "Mais", grupo vazio, tela atual pela rota mais longa e a altura que decide entre "tudo aberto" e a sanfona.
  */
+import { GRUPOS_MENU, ROTULO_GRUPO_MENU, type GrupoMenu } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { alturaDoMenu, cabeTudoAberto, grupoDaTela, hrefAtivo, montarGruposMenu, type EntradaNavegacao } from './menu-bko';
+import { SHELL_WEB } from './modulos';
 
-const n = (grupo: string, caminho: string, rotulo: string, modulo = 'core'): EntradaNavegacao => ({ grupo, caminho, rotulo, testID: `nav-${modulo}-${caminho.replace(/\//g, '-')}` });
+const n = (grupoMenu: GrupoMenu, caminho: string, rotulo: string, modulo = 'core'): EntradaNavegacao => ({
+  grupoMenu,
+  rotuloGrupo: ROTULO_GRUPO_MENU[grupoMenu],
+  caminho,
+  rotulo,
+  testID: `nav-${modulo}-${caminho.replace(/\//g, '-')}`,
+});
 
 /** Administrador com os 8 módulos: as 34 páginas de módulo do §M2 (a 35ª é a Auditoria, da plataforma). */
 const ADMIN: EntradaNavegacao[] = [
@@ -86,7 +94,7 @@ describe('menu do BKO: grupos e itens (§M2)', () => {
   });
 
   it('sem acesso ao BKO não há Auditoria; grupo sem item não aparece', () => {
-    const sem = montarGruposMenu({ navegacao: ADMIN.filter((e) => e.grupo !== 'sistema'), plataforma: false });
+    const sem = montarGruposMenu({ navegacao: ADMIN.filter((e) => e.grupoMenu !== 'sistema'), plataforma: false });
     expect(sem.some((g) => g.id === 'sistema')).toBe(false);
     expect(montarGruposMenu({ navegacao: [], plataforma: false })).toEqual([]);
   });
@@ -97,8 +105,33 @@ describe('menu do BKO: grupos e itens (§M2)', () => {
     expect(com.find((g) => g.id === 'mais')?.itens).toEqual([{ href: '/extra', label: 'Extra', testId: 'nav-x-extra' }]);
   });
 
-  it('grupo antigo do SDK (administracao) tem rótulo provisório', () => {
-    expect(montarGruposMenu({ navegacao: [n('administracao', 'usuarios', 'Usuários')], plataforma: false })[0]?.titulo).toBe('Administração');
+  it('o item do slot "Mais" ganha a barra inicial uma vez só', () => {
+    const mais = montarGruposMenu({ navegacao: [], mais: [{ caminho: 'extra', rotulo: 'Extra', testID: 'nav-x-extra' }], plataforma: false });
+    expect(mais[0]?.itens[0]?.href).toBe('/extra');
+  });
+
+  it('o título do grupo vem do rotuloGrupo do SDK', () => {
+    expect(montarGruposMenu({ navegacao: [{ ...n('acesso', 'usuarios', 'Usuários'), rotuloGrupo: 'Acesso X' }], plataforma: false })[0]?.titulo).toBe('Acesso X');
+  });
+});
+
+describe('menu do BKO: registro real dos 8 módulos (ADR 0050)', () => {
+  const visao = SHELL_WEB.montar({ perfil: 'admin', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] });
+  const grupos = montarGruposMenu({ navegacao: visao.navegacao, plataforma: true });
+  const de = (id: GrupoMenu) => grupos.find((g) => g.id === id)?.itens.map((i) => i.testId) ?? [];
+
+  it('só os grupos do §M2 (sem "Administração")', () => {
+    const titulos = grupos.map((g) => g.titulo);
+    expect(titulos.every((t) => Object.values(ROTULO_GRUPO_MENU).includes(t))).toBe(true);
+    expect(grupos.map((g) => g.id)).toEqual(GRUPOS_MENU.filter((id) => grupos.some((g) => g.id === id)));
+    expect(titulos).not.toContain('Administração');
+  });
+
+  it('Alertas e Recados em Comunicação; Clientes em Cadastros; Formas de pagamento em Comercial', () => {
+    expect(de('comunicacao')).toEqual(expect.arrayContaining(['nav-gestor-alertas', 'nav-core-recados']));
+    expect(de('operacao')).not.toEqual(expect.arrayContaining(['nav-gestor-alertas']));
+    expect(de('cadastros')).toContain('nav-core-clientes');
+    expect(de('comercial')).toContain('nav-vendedor-formas-pagamento');
   });
 });
 

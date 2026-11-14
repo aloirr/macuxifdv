@@ -6,7 +6,7 @@
  * permissão por ação (ADR 0004), mais as páginas da plataforma (Auditoria, no grupo Sistema). Promotor e vendedor não
  * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`). Itens do slot
  * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
- * Menu (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): grupos com título em ordem alfabética
+ * Menu (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): grupos do SDK (`grupoMenu`/`rotuloGrupo`, ADR 0050), em ordem alfabética
  * (lib/menu-bko.ts); tudo aberto quando cabe na altura, senão sanfona com o grupo da tela atual aberto e painel ao lado
  * do menu ao passar o ponteiro (ou dar foco) num grupo fechado. Marca: logo A negativo para o grafite (MC-0056).
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
@@ -27,7 +27,7 @@ import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
-import { grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
+import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
@@ -41,7 +41,12 @@ const LARGURA_LOGO = Math.round(ALTURA_LOGO * PROPORCAO_LOGO_HORIZONTAL);
 // com rolagem (abaixo de 640 px de altura) não cortar o contorno
 const FOCO = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white';
 
-function NavLink({ item, active, recuo = true, onNavegar }: { item: ItemMenuBko; active: boolean; recuo?: boolean; onNavegar?: () => void }) {
+/**
+ * Item do menu. `lateral` (padrão): 32 px, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela atual
+ * com a barra de 3 px em Sol claro à esquerda (§M3 item 4). `compact`: chip da faixa de rolagem da tela estreita.
+ */
+function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }: { item: ItemMenuBko; active: boolean; variante?: 'lateral' | 'compact'; recuo?: boolean; onNavegar?: () => void }) {
+  const lateral = variante === 'lateral';
   return (
     <Link
       href={item.href}
@@ -49,31 +54,11 @@ function NavLink({ item, active, recuo = true, onNavegar }: { item: ItemMenuBko;
       aria-current={active ? 'page' : undefined}
       onClick={onNavegar}
       className={cx(
-        'relative flex h-8 shrink-0 items-center rounded-lg pr-2.5 text-[14px] whitespace-nowrap no-underline transition-colors',
+        'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
         FOCO,
-        recuo ? 'pl-5' : 'pl-2.5',
-        // tela atual: fundo nav-active, branco semibold e barra de 3 px em Sol claro à esquerda (§M3 item 4)
-        active
-          ? "bg-nav-active font-semibold text-white before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']"
-          : 'text-nav-text hover:bg-nav-active hover:text-white',
-      )}
-    >
-      {item.label}
-    </Link>
-  );
-}
-
-/** Item da faixa de rolagem lateral (tela estreita). */
-function NavChip({ item, active }: { item: ItemMenuBko; active: boolean }) {
-  return (
-    <Link
-      href={item.href}
-      data-testid={item.testId}
-      aria-current={active ? 'page' : undefined}
-      className={cx(
-        'flex h-9 shrink-0 items-center rounded-lg px-3 text-[13px] whitespace-nowrap no-underline transition-colors',
-        FOCO,
+        lateral ? cx('relative h-8 pr-2.5 text-[14px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
         active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
+        active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
       )}
     >
       {item.label}
@@ -145,7 +130,7 @@ function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string 
     cancelarFechar();
     const r = titulo.getBoundingClientRect();
     const menu = titulo.closest('nav')?.getBoundingClientRect();
-    const altura = grupo.itens.length * 32 + 18;
+    const altura = grupo.itens.length * ALTURA_ITEM + 18;
     setPainel({ grupo: grupo.id, top: Math.max(8, Math.min(r.top - 6, window.innerHeight - altura - 8)), left: (menu?.right ?? r.right) - 2 });
   };
 
@@ -257,7 +242,7 @@ function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string
         aria-label="Grupo do menu"
         value={grupo.id}
         onChange={(e) => setEscolhido(e.target.value)}
-        className={cx('h-9 max-w-[45%] shrink-0 rounded-lg border border-nav-active bg-ink px-2 text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase', FOCO)}
+        className={cx('h-9 max-w-[45%] shrink-0 rounded-lg border border-nav-active bg-ink px-2', TITULO_GRUPO, FOCO)}
       >
         {grupos.map((g) => (
           <option key={g.id} value={g.id}>
@@ -267,7 +252,7 @@ function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string
       </select>
       <div className="-mr-4 flex min-w-0 flex-1 gap-1 overflow-x-auto pr-4 pb-1">
         {grupo.itens.map((i) => (
-          <NavChip key={i.href} item={i} active={i.href === ativo} />
+          <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />
         ))}
       </div>
     </div>
