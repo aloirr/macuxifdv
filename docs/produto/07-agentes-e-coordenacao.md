@@ -203,6 +203,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Conflito com o `main`**: o dono do branch mescla o `main` no próprio branch e resolve só arquivos dele; arquivo de outro dono → recado ao dono. O Alexandre é avisado por recado só se o conflito durar mais de uma ronda.
 - **Proibido**: force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
 - **Permissão de push**: a regra do `.claude/settings.json` permite push para `nuvem/*`, `alexandre/*` e `agente/*` (e `main`, que deixa de ser usado) e nega force e delete.
+- **Arquivar sessão finalizada** (ordem permanente do dono do produto, R-20261114-133500): em toda ronda, quem abriu a sessão (gerente ou ponte) arquiva as que terminaram, isto é, com PR mesclado ou fechado, ou com a entrega concluída. Sessão com trabalho em aberto não é arquivada: branch sem PR, PR aberto ou pedido esperando resposta.
 - **Governança** (`.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs`, `.github/**`): PR próprio com `Agente: alexandre`, merge só pelo rito de autorização (acima).
 
 **4. Esteira permanente** (dono do produto, R-20261107-164646, vale até ele mandar parar)
