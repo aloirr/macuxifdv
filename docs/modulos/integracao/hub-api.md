@@ -358,7 +358,7 @@ Permissões na UI espelham as ações do manifesto (a proteção real é na API)
 - **Versão**: descreve o v1 (`info.version`). Mudança compatível (campo opcional novo) fica no v1; incompatível vira `/v2` e ADR (regra 3 do CLAUDE.md). Arquivo de referência versionado: `modules/integracao/docs/openapi-hub-v1.json`.
 - **Manutenção**: `pnpm --filter @macuxi/integracao openapi` regrava o arquivo e os exemplos do guia. Um teste compara o arquivo com o que os contratos geram e falha no CI se um contrato mudar sem regravar.
 - **Fora da especificação**: rotas do BKO (`/v1/integracao/*`, JWT) e do portal; regras que o JSON Schema não expressa (como a regra cruzada de `numero_erp`, motivo e nota no retorno do ERP), descritas em texto e validadas só pelo Hub. Sem dado de tenant, chave de API ou exemplo com dado real.
-- **Guia**: passo a passo para o TI (autenticar com a chave do Conector, enviar lote, consultar, retorno de pedido, erros e limites) em `modules/integracao/docs/guia-api-hub.md`, com exemplos gerados do mesmo OpenAPI.
+- **Guia**: passo a passo para o TI (autenticar com a chave do Conector, enviar lote, consultar, retorno de pedido, erros e limites) em `modules/integracao/docs/guia-api-hub.pdf`, com exemplos gerados do mesmo OpenAPI.
 
 ## 16. Compatibilidade com o Conector (`apps/conector/src/hub`)
 

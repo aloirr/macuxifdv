@@ -17,7 +17,7 @@ export function validarChaveIdempotencia(chave: unknown): ResultadoChaveIdempote
   return {
     ok: false,
     codigo: 'chave_idempotencia_invalida',
-    mensagem: 'O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.',
+    mensagem: 'O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). Recomendado: SHA-256 hexadecimal do corpo.',
   };
 }
 
@@ -64,6 +64,6 @@ export function decidirIdempotenciaLote(e: { chave: string; hashConteudo: string
     lote_id: e.existente.lote_id,
     status_http: 409,
     codigo: 'chave_idempotencia_reutilizada',
-    mensagem: 'A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.',
+    mensagem: 'A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo ou reenvie exatamente o mesmo lote.',
   };
 }

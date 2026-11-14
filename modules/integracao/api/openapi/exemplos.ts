@@ -1,5 +1,5 @@
 /**
- * Exemplos do OpenAPI do Hub (T-0087). Fonte única: o gerador publica estes valores, o guia (`docs/guia-api-hub.md`) usa os
+ * Exemplos do OpenAPI do Hub (T-0087). Fonte única: o gerador publica estes valores e o guia em PDF (`docs/guia-api-hub.pdf`) usa os
  * mesmos e `openapi.test.ts` prova que cada um passa no contrato Zod e no JSON Schema gerado.
  *
  * Dados fictícios: CNPJ 11222333000181 (formato válido, não é de empresa real), nomes genéricos, domínio example.com,
@@ -398,7 +398,7 @@ export const EXEMPLOS_LOTE_RESULTADO: readonly Exemplo<z.output<typeof LoteResul
     recebido_em: '2026-11-05T13:46:01Z',
     concluido_em: '2026-11-05T13:46:04Z',
   }),
-  ex('concluido_com_erros', 'Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)', {
+  ex('concluido_com_erros', 'Concluído com erros por linha (reprocessavel: true = o Macuxi reprocessa sozinho)', {
     lote_id: LOTE_ID_EXEMPLO,
     entidade: 'preco',
     modo: 'delta',
@@ -410,7 +410,7 @@ export const EXEMPLOS_LOTE_RESULTADO: readonly Exemplo<z.output<typeof LoteResul
         external_id: 'TAB01:P000044',
         codigo: 'referencia_ausente',
         campo: 'produto_external_id',
-        mensagem: 'O campo "produto_external_id" aponta para um produto que ainda não foi carregado. Envie o produto; o Hub reprocessa a linha.',
+        mensagem: 'Produto ainda não carregado. Envie o produto; o Macuxi reprocessa a linha.',
         reprocessavel: true,
         origem: 'hub',
       },
@@ -419,7 +419,7 @@ export const EXEMPLOS_LOTE_RESULTADO: readonly Exemplo<z.output<typeof LoteResul
         external_id: 'TAB01:P000046',
         codigo: 'valor_fora_da_faixa',
         campo: 'preco_cents',
-        mensagem: 'O campo "preco_cents" não pode ser negativo. Corrija no ERP; o registro volta no próximo delta.',
+        mensagem: 'preco_cents não pode ser negativo. Corrija no ERP e reenvie.',
         reprocessavel: false,
         origem: 'hub',
       },
@@ -508,14 +508,14 @@ export const PEDIDO_PARA_ERP_EXEMPLO: z.output<typeof PedidoParaErp> = {
 };
 
 export const EXEMPLOS_PEDIDOS_PENDENTES: readonly Exemplo<z.output<typeof PedidosPendentes>>[] = [
-  ex('com_pedido', 'Um pedido aprovado (o Hub o marca como enviado ao entregar)', { pedidos: [PEDIDO_PARA_ERP_EXEMPLO] }),
+  ex('com_pedido', 'Um pedido aprovado', { pedidos: [PEDIDO_PARA_ERP_EXEMPLO] }),
   ex('vazio', 'Nenhum pedido pendente (normal)', { pedidos: [] }),
 ];
 
 export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAceito>>[] = [
   ex('integrado', 'Retorno aplicado', { pedido_uuid: PEDIDO_UUID_EXEMPLO, status: 'integrado', repetido: false }),
   ex('repetido', 'Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)', { pedido_uuid: PEDIDO_UUID_EXEMPLO, status: 'integrado', repetido: true }),
-  ex('itens_descartados', 'Faturamento aceito; um item não bate com o pedido enviado e foi descartado (P-4)', {
+  ex('itens_descartados', 'Faturamento aceito; um item não bate com o pedido enviado e foi descartado', {
     pedido_uuid: PEDIDO_UUID_EXEMPLO,
     status: 'faturado_parcial',
     repetido: false,
@@ -528,7 +528,7 @@ export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAc
         codigo: 'sequencia_inexistente',
         codigos: ['sequencia_inexistente'],
         campo: 'itens_faturados[1].sequencia',
-        motivo: 'O pedido enviado não tem o item de sequência 9. O item foi ignorado; o status do retorno valeu.',
+        motivo: 'Item de sequência 9 inexistente no pedido enviado; o item foi ignorado.',
       },
     ],
   }),
@@ -536,7 +536,7 @@ export const EXEMPLOS_RETORNO_ACEITO: readonly Exemplo<z.output<typeof RetornoAc
 
 export const EXEMPLOS_RESPOSTA_SINAL: readonly Exemplo<z.output<typeof RespostaSinal>>[] = [
   ex('com_politica', 'Política de versão vigente para este Conector', {
-    politica_versao: { versao_minima: '1.2.1', versao_recomendada: '1.2.1', mensagem: 'O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.', pacote: null },
+    politica_versao: { versao_minima: '1.2.1', versao_recomendada: '1.2.1', mensagem: 'Atualize o seu software para a versão recomendada.', pacote: null },
     conector_id: CONECTOR_ID_EXEMPLO,
     recebido_em: '2026-11-05T14:00:01Z',
   }),
@@ -561,11 +561,11 @@ export const EXEMPLOS_ERRO_COMUM: Record<401 | 403 | 429 | 500 | 503, readonly E
     ex('modulo_inativo', 'A empresa não tem o módulo Integração ativo', erro('modulo_inativo', 'O módulo Integração não está ativo para esta empresa.')),
   ],
   429: [
-    ex('limite_de_taxa', 'Balde de chamadas do Conector vazio: espere Retry-After segundos', erro('limite_de_taxa', 'O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.')),
+    ex('limite_de_taxa', 'Balde de chamadas do Conector vazio: espere Retry-After segundos', erro('limite_de_taxa', 'O Conector chamou o Macuxi mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.')),
     ex('falhas_de_autenticacao', 'Muitas falhas de autenticação do mesmo IP (20 por minuto)', erro('limite_de_taxa', 'Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.')),
   ],
-  500: [ex('erro_interno', 'Erro inesperado no Hub; informe o requisicao_id ao suporte', erro('erro_interno', 'Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.'))],
-  503: [ex('servico_indisponivel', 'Banco ou fila indisponível; repita com backoff', erro('servico_indisponivel', 'O Hub está indisponível no momento. O Conector tenta de novo sozinho.'))],
+  500: [ex('erro_interno', 'Erro inesperado; informe o requisicao_id ao suporte', erro('erro_interno', 'Erro interno no Macuxi. O Conector tenta de novo; se continuar, avise o suporte.'))],
+  503: [ex('servico_indisponivel', 'Banco ou fila indisponível; repita com backoff', erro('servico_indisponivel', 'O Macuxi está indisponível no momento. O Conector tenta de novo sozinho.'))],
 };
 
 /** Erros próprios de cada rota, por status. */
@@ -573,9 +573,9 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
   enviar_lote: {
     400: [
       ex('envelope_invalido', 'Corpo fora do envelope (todos os problemas voltam juntos)', recusa('envelope_invalido', 'modo', 'modo: use "completo" ou "delta".')),
-      ex('chave_idempotencia_invalida', 'Idempotency-Key ausente ou fora do formato', recusa('chave_idempotencia_invalida', 'Idempotency-Key', 'O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.')),
+      ex('chave_idempotencia_invalida', 'Idempotency-Key ausente ou fora do formato', recusa('chave_idempotencia_invalida', 'Idempotency-Key', 'O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). Recomendado: SHA-256 hexadecimal do corpo.')),
     ],
-    409: [ex('chave_idempotencia_reutilizada', 'Mesma Idempotency-Key com conteúdo diferente', recusa('chave_idempotencia_reutilizada', 'Idempotency-Key', 'A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.'))],
+    409: [ex('chave_idempotencia_reutilizada', 'Mesma Idempotency-Key com conteúdo diferente', recusa('chave_idempotencia_reutilizada', 'Idempotency-Key', 'A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo ou reenvie exatamente o mesmo lote.'))],
     413: [ex('corpo_grande', 'Corpo acima de 8 MiB', erro('corpo_grande', 'O corpo da requisição passa do limite desta rota.', { detalhes: { limite_bytes: 8388608 } }))],
     422: [
       ex('lote_vazio', 'Sem registros e sem linhas inválidas', recusa('lote_vazio', 'registros', 'O lote não tem registros. Envie ao menos um registro.')),
@@ -604,7 +604,7 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
   retorno_pedido: {
     400: [ex('requisicao_invalida', 'Corpo fora do contrato (ou pedido_uuid do caminho diferente do corpo)', erro('requisicao_invalida', 'Dados inválidos em corpo.', { detalhes: { problemas: [{ caminho: 'corpo.numero_erp', mensagem: 'informe o número do pedido no ERP' }] } }))],
     422: [
-      ex('pedido_desconhecido', 'O Hub não conhece o pedido', recusa('pedido_desconhecido', null, 'O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.')),
+      ex('pedido_desconhecido', 'Pedido desconhecido', recusa('pedido_desconhecido', null, 'O Macuxi não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.')),
       ex('transicao_invalida', 'Estado informado não é possível a partir do estado atual', recusa('transicao_invalida', 'status', 'Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final.')),
       ex('numero_erp_divergente', 'O mesmo pedido já tem outro número no ERP', recusa('numero_erp_divergente', 'numero_erp', 'O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes.')),
     ],

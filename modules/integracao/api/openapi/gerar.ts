@@ -163,7 +163,7 @@ const DESCRICAO_ERRO_ROTA: Record<string, Record<number, string>> = {
 const DESCRICAO_PARAMETRO: Record<string, string> = {
   [CABECALHO_CONECTOR_ID.toLowerCase()]: 'Identificador do Conector cadastrado no BKO (letras, números, ponto, hífen e sublinhado). A chave de API só vale com o identificador do Conector dono dela.',
   [CABECALHO_CONECTOR_VERSAO.toLowerCase()]: 'Versão do Conector (semver, ex.: 1.2.1). Informativa: ausente ou ilegível nunca bloqueia; só versão legível abaixo da mínima é recusada com 426.',
-  [CABECALHO_IDEMPOTENCIA.toLowerCase()]: 'Chave de idempotência do lote (16 a 128 caracteres). O Conector envia o SHA-256 hexadecimal do conteúdo; reenvie a MESMA chave após queda ou resposta perdida.',
+  [CABECALHO_IDEMPOTENCIA.toLowerCase()]: 'Chave de idempotência do lote (16 a 128 caracteres). Recomendado: SHA-256 hexadecimal do corpo; reenvie a MESMA chave após queda ou resposta perdida.',
   id: 'Identificador do lote (`lote_id` devolvido pelo `POST /lotes`).',
   entidade: 'Entidade do contrato.',
   pedido_uuid: 'UUID do pedido (`pedido_uuid` de `GET /pedidos/pendentes`).',
@@ -379,7 +379,7 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
         'Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). ' +
         'Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. ' +
         'O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) ' +
-        'está em `modules/integracao/docs/guia-api-hub.md`.',
+        'está em `modules/integracao/docs/guia-api-hub.pdf`.',
     },
     servers: [
       {

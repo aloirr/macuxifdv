@@ -2,7 +2,7 @@
 
 Material para a equipe de TI do cliente que vai integrar o ERP **direto pela API** (sem o Conector Macuxi). Tudo aqui é de exemplo: nenhuma chave real, nenhum dado real.
 
-- Guia (convenções, idempotência, cursor, limites, erros, devolução de pedidos): [`../guia-api-hub.md`](../guia-api-hub.md)
+- Guia (convenções, idempotência, cursor, limites, erros, devolução de pedidos): [`../guia-api-hub.pdf`](../guia-api-hub.pdf)
 - Contrato completo (OpenAPI 3.1, 7 rotas): [`../openapi-hub-v1.json`](../openapi-hub-v1.json)
 
 ## O que tem aqui
@@ -19,7 +19,7 @@ Os três clientes fazem a mesma coisa: consultam o cursor; sem cursor, carga com
 
 ## Por onde começar
 
-1. Leia as seções 2 a 9 do [guia](../guia-api-hub.md).
+1. Leia as Seções 1 a 8 do [guia](../guia-api-hub.pdf).
 2. Suba o simulador (`node simulador/hub-simulado.mjs`) e rode um dos clientes contra ele (veja o README de cada pasta). Com o simulador, os erros aparecem sem risco.
 3. Importe a coleção no Postman ou no Insomnia e teste as rotas à mão contra a demonstração (`api-demo.macuxifdv.com.br`) com a chave que o administrador gerou no BKO.
 4. Troque o "ERP fictício" do exemplo pelas consultas do seu ERP (a leitura precisa ser **ordenada** por `alterado_em`, `external_id` e filtrar pelo cursor).

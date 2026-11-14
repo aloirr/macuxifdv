@@ -1,6 +1,6 @@
 // T-0108 - Cliente da API do Hub (/integracao/v1) em .NET 8 (HttpClient + System.Text.Json), sem pacote externo.
 //
-// Segue o guia (../../guia-api-hub.md):
+// Segue o guia (../../guia-api-hub.pdf):
 //   - Idempotency-Key = SHA-256 do conteudo estavel do lote, SEMPRE a mesma ao repetir (rede, 429, 500, 503, com Retry-After);
 //   - recusa de envelope (400/409/413/422/426) vira RecusaLoteException e NAO e repetida;
 //   - delta paginado por cursor (keyset) e carga completa em partes de uma mesma sessao;

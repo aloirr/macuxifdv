@@ -4,7 +4,7 @@
     "title": "Macuxi FDV — Hub de Integração (API do Conector)",
     "version": "v1",
     "summary": "API do Hub de Integração com o ERP: lotes, cursores, reconciliação, pedidos e sinal de vida.",
-    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`."
+    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.pdf`."
   },
   "servers": [
     {
@@ -726,12 +726,12 @@
                     "summary": "Idempotency-Key ausente ou fora do formato",
                     "value": {
                       "codigo": "chave_idempotencia_invalida",
-                      "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.",
+                      "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). Recomendado: SHA-256 hexadecimal do corpo.",
                       "erros": [
                         {
                           "codigo": "chave_idempotencia_invalida",
                           "campo": "Idempotency-Key",
-                          "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote."
+                          "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). Recomendado: SHA-256 hexadecimal do corpo."
                         }
                       ],
                       "requisicao_id": "req-7f3a9c2e41d8"
@@ -764,12 +764,12 @@
                     "summary": "Mesma Idempotency-Key com conteúdo diferente",
                     "value": {
                       "codigo": "chave_idempotencia_reutilizada",
-                      "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.",
+                      "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo ou reenvie exatamente o mesmo lote.",
                       "erros": [
                         {
                           "codigo": "chave_idempotencia_reutilizada",
                           "campo": "Idempotency-Key",
-                          "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote."
+                          "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo ou reenvie exatamente o mesmo lote."
                         }
                       ],
                       "requisicao_id": "req-7f3a9c2e41d8"
@@ -1045,7 +1045,7 @@
                     }
                   },
                   "concluido_com_erros": {
-                    "summary": "Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)",
+                    "summary": "Concluído com erros por linha (reprocessavel: true = o Hub reprocessa sozinho)",
                     "value": {
                       "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
                       "entidade": "preco",
@@ -1066,7 +1066,7 @@
                           "external_id": "TAB01:P000044",
                           "codigo": "referencia_ausente",
                           "campo": "produto_external_id",
-                          "mensagem": "O campo \"produto_external_id\" aponta para um produto que ainda não foi carregado. Envie o produto; o Hub reprocessa a linha.",
+                          "mensagem": "Produto ainda não carregado. Envie o produto; o Hub reprocessa a linha.",
                           "reprocessavel": true,
                           "origem": "hub"
                         },
@@ -1075,7 +1075,7 @@
                           "external_id": "TAB01:P000046",
                           "codigo": "valor_fora_da_faixa",
                           "campo": "preco_cents",
-                          "mensagem": "O campo \"preco_cents\" não pode ser negativo. Corrija no ERP; o registro volta no próximo delta.",
+                          "mensagem": "preco_cents não pode ser negativo. Corrija no ERP e reenvie.",
                           "reprocessavel": false,
                           "origem": "hub"
                         }
@@ -1895,7 +1895,7 @@
                     }
                   },
                   "itens_descartados": {
-                    "summary": "Faturamento aceito; um item não bate com o pedido enviado e foi descartado (P-4)",
+                    "summary": "Faturamento aceito; um item não bate com o pedido enviado e foi descartado",
                     "value": {
                       "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
                       "status": "faturado_parcial",
@@ -1911,7 +1911,7 @@
                             "sequencia_inexistente"
                           ],
                           "campo": "itens_faturados[1].sequencia",
-                          "motivo": "O pedido enviado não tem o item de sequência 9. O item foi ignorado; o status do retorno valeu."
+                          "motivo": "Item de sequência 9 inexistente no pedido enviado; o item foi ignorado."
                         }
                       ]
                     }
@@ -2143,7 +2143,7 @@
                       "politica_versao": {
                         "versao_minima": "1.2.1",
                         "versao_recomendada": "1.2.1",
-                        "mensagem": "O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.",
+                        "mensagem": "Atualize o seu software para a versão recomendada.",
                         "pacote": null
                       },
                       "conector_id": "erp-matriz",
@@ -2245,7 +2245,7 @@
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "Chave de idempotência do lote (16 a 128 caracteres). O Conector envia o SHA-256 hexadecimal do conteúdo; reenvie a MESMA chave após queda ou resposta perdida.",
+        "description": "Chave de idempotência do lote (16 a 128 caracteres). Recomendado: SHA-256 hexadecimal do corpo; reenvie a MESMA chave após queda ou resposta perdida.",
         "schema": {
           "type": "string",
           "pattern": "^[A-Za-z0-9._:-]{16,128}$"

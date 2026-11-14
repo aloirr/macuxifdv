@@ -9,7 +9,7 @@
       "_type": "workspace",
       "parentId": null,
       "name": "Macuxi FDV — Hub de Integração v1",
-      "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`.\n\nGerado de openapi-hub-v1.json por docs/exemplos/colecao/gerar-colecao.mjs. Não edite à mão.",
+      "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.pdf`.\n\nGerado de openapi-hub-v1.json por docs/exemplos/colecao/gerar-colecao.mjs. Não edite à mão.",
       "scope": "collection"
     },
     {
