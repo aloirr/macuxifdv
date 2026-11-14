@@ -98,8 +98,8 @@ describe('RN-VEN-24: filtros na URL e CSV', () => {
   });
   it('RN-VEN-24: o CSV tem uma linha por prazo, com o prazo médio, em padrão brasileiro', () => {
     const csv = formasToCsv(filtrarFormas(formas, prazos, { q: '', ativas: '' }));
-    expect(csv).toContain('Prazo médio (dias)');
-    expect(csv).toContain('Boleto;BOLETO;28 dias;BOL-28;28;Inativo;BKO');
+    expect(csv).toContain('"Prazo médio (dias)"');
+    expect(csv).toContain('"Boleto";"BOLETO";"28 dias";"BOL-28";"28";"Inativo";"BKO"');
     expect(csv.split('\r\n').filter(Boolean)).toHaveLength(1 + 3);
   });
 });
