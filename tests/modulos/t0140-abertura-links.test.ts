@@ -1,8 +1,18 @@
 /**
  * T-0140 (teste de campo de 08/11 à noite, branch claude/relaxed-johnson-w2afvp aplicado à mão) — o que dá para provar sem
- * aparelho: (A) "Novo pedido" não fecha mais o app, pela ficha, pela Rota e pelo Catálogo; (B) o link do recado do Início e da
- * central só navega para tela que o perfil tem, e o shell (`destinoDaNotificacao`) decide igual ao Core
- * (desde a RD-0032, os dois usam a regra única do SDK: `linkInternoNavegavel`). Sem banco: roda local e no CI. Matriz e roteiro do aparelho: docs/testes/T-0140.md.
+ * aparelho: (A) "Novo pedido" não fecha mais o app, pela ficha, pela Rota e pelo Catálogo; (B) o link do recado só navega para
+ * tela que o perfil tem (RN-CORE-23; regra única do SDK `linkInternoNavegavel` desde a RD-0032). Sem banco: roda local e no CI.
+ * Matriz e roteiro do aparelho: docs/testes/T-0140.md.
+ *
+ * (B) desde o 8b79045 (T-0170; D2, R-20261113-054158; RD-0249) o cartão Recados saiu do Início e o recado ficou só no sino:
+ * `destinoDaNotificacao` e `recadosDoInicio` (apps/mobile/src/lib/inicio.ts) foram apagados. Hoje o toque no recado mora no Core,
+ * em três entradas: o balão do sino (`BalaoRecadosETarefas`), a tela "Recados e tarefas" e a central antiga (`TelaNotificacoes`);
+ * as três chamam `linkInternoNavegavel(link, (c) => visao.pagina(c) !== null)`. O shell só abre o balão, o "Ver todos"
+ * (`destinoVerTodos`) e a tarefa (`destinoDaTarefa`), em apps/mobile/src/lib/sino.ts.
+ * Convenção (a de kit-piloto-t0162.test.ts): `it` = vale hoje; `it.fails` = desvio aberto D-T0140-n (fica vermelho quando
+ * corrigido e vira `it` no mesmo commit).
+ * - D-T0140-1 (modulo-core, balao-recados-e-tarefas.tsx): no balão, recado com link para tela que o perfil não tem (ex.: /m/rota
+ *   no Gestão, /m/core-rota) fecha o balão e não abre nada; a regra manda para a central ("Recados e tarefas").
  *
  * (A) A causa era hook depois de `return` antecipado no `OrderEditor` (o 1º render saía em "Cliente não encontrado", o 2º chamava
  * mais hooks e o React lançava; sem tela de erro no build, o Android fechava o app). As telas importam react-native e não
@@ -26,7 +36,7 @@ vi.mock('expo-router', () => ({
 }));
 
 import { caminhoDoLinkInterno as caminhoDoLink, linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
-import { destinoDaNotificacao, recadosDoInicio } from '../../apps/mobile/src/lib/inicio';
+import { destinoDaTarefa, destinoVerTodos } from '../../apps/mobile/src/lib/sino';
 import { CAMINHO_NOVO_PEDIDO, hrefNovoPedido, irParaNovoPedido } from '../../modules/vendedor/app/rotas';
 
 const RAIZ = join(__dirname, '..', '..');
@@ -137,9 +147,12 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
 });
 
 // ---------------------------------------------------------------- (B) links do recado
-/** Páginas do Campo de um vendedor (manifesto real: rota é só do Campo) e do Gestão (sem rota). */
-const PAGINAS_CAMPO = new Set(['rota', 'cliente', 'clientes', 'notificacoes', 'metas', 'pedidos', 'pedido', 'novo-pedido', 'catalogo']);
-const PAGINAS_GESTAO = new Set(['notificacoes', 'cliente', 'pedidos', 'pedido', 'novo-pedido', 'equipe']);
+/**
+ * Páginas do Campo de um vendedor (manifesto real: rota é só do Campo) e do Gestão (sem rota). Recados e tarefas, tarefa e
+ * notificações existem nos dois (modules/core/app/index.ts, conferido no B3).
+ */
+const PAGINAS_CAMPO = new Set(['rota', 'cliente', 'clientes', 'notificacoes', 'recados-e-tarefas', 'tarefa', 'metas', 'pedidos', 'pedido', 'novo-pedido', 'catalogo']);
+const PAGINAS_GESTAO = new Set(['notificacoes', 'recados-e-tarefas', 'tarefa', 'cliente', 'pedidos', 'pedido', 'novo-pedido', 'equipe']);
 const LINKS: Array<string | null | undefined> = [
   '/m/rota',
   '/m/core-rota', // o link gravado no seed antes da T-0140 (tela que não existe)
@@ -159,59 +172,109 @@ const LINKS: Array<string | null | undefined> = [
   null,
   undefined,
 ];
+/** A central de hoje: "Recados e tarefas" (o "Ver todos" do sino), que substitui a caixa de notificações. */
+const CENTRAL = '/m/recados-e-tarefas';
 
-describe('T-0140 B — link do recado: shell (`caminhoDoLink`/`destinoDaNotificacao`) = Core (`linkNavegavel`) (RN-CORE-23)', () => {
+const BALAO = 'modules/core/app/telas/recados-e-tarefas/balao-recados-e-tarefas.tsx';
+const TELA_RECADOS = 'modules/core/app/telas/recados-e-tarefas/tela-recados-e-tarefas.tsx';
+const NOTIFICACOES = 'modules/core/app/telas/notificacoes.tsx';
+/** As três entradas do toque no recado e o nome com que cada uma importa a regra do SDK. */
+const ENTRADAS = [
+  [BALAO, 'linkInternoNavegavel'],
+  [TELA_RECADOS, 'linkInternoNavegavel'],
+  [NOTIFICACOES, 'linkNavegavel'],
+] as const;
+
+/** Corpo da função `abrir` da tela (de `const abrir =` até o `};` que a fecha). Falha alto se sumir, para o `it.fails` não passar por erro de leitura. */
+function corpoDoAbrir(rel: string): string {
+  const fonte = ler(rel);
+  const inicio = fonte.indexOf('const abrir = (');
+  if (inicio < 0) throw new Error(`${rel} sem \`const abrir = (\`: atualize os casos B do T-0140`);
+  return fonte.slice(inicio, fonte.indexOf('\n  };', inicio));
+}
+
+describe('T-0140 B — link do recado: só abre tela que o perfil tem; senão, a central (RN-CORE-23, regra única do SDK)', () => {
   for (const [app, paginas] of [
     ['Campo', PAGINAS_CAMPO],
     ['Gestão', PAGINAS_GESTAO],
   ] as const) {
     const telaExiste = (c: string) => paginas.has(c);
-    it.each(LINKS.map((l) => [JSON.stringify(l), l] as const))(`B1 ${app}: %s — Início e central decidem igual`, (_n, link) => {
-      const core = linkNavegavel(link, telaExiste);
-      const shell = destinoDaNotificacao(link ?? null, telaExiste);
-      // o Core devolve o link ou nada; o shell devolve o link ou a central. Mesmo critério nos dois.
-      expect(shell).toBe(core ?? '/m/notificacoes');
-      // nunca navega para fora do app nem para tela que o perfil não tem
-      if (core) {
-        expect(core.startsWith('/m/')).toBe(true);
-        expect(telaExiste(caminhoDoLink(core)!)).toBe(true);
+    it.each(LINKS.map((l) => [JSON.stringify(l), l] as const))(`B1 ${app}: %s — a regra do SDK só devolve link interno de tela da visão`, (_n, link) => {
+      // as três entradas chamam assim (B4): `linkInternoNavegavel(link ?? null, (c) => visao.pagina(c) !== null)`
+      const destino = linkNavegavel(link ?? null, telaExiste);
+      expect(destino).toBe(linkNavegavel(link, telaExiste)); // null e undefined decidem igual
+      if (destino) {
+        // nunca navega para fora do app nem para tela que o perfil não tem; o link sai como veio
+        expect(destino).toBe(link);
+        expect(destino.startsWith('/m/')).toBe(true);
+        expect(telaExiste(caminhoDoLink(destino)!)).toBe(true);
+      } else {
+        // sem destino, quem chama fica na central (ou deveria ir para ela: D-T0140-1)
+        expect(link == null || caminhoDoLink(link) === null || !telaExiste(caminhoDoLink(link)!)).toBe(true);
       }
     });
   }
 
-  it('B2. sem `telaExiste` (o Core monta o Início antes do shell filtrar), os dois aceitam os mesmos links internos', () => {
+  it('B2. sem `telaExiste`, a regra aceita exatamente os links com caminho interno (`caminhoDoLinkInterno`), e o shell não tem cópia', () => {
     for (const l of LINKS) {
-      expect(destinoDaNotificacao(l ?? null), String(l)).toBe(linkNavegavel(l) ?? '/m/notificacoes');
       expect(caminhoDoLink(l) === null, String(l)).toBe(linkNavegavel(l) === null);
+      if (linkNavegavel(l)) expect(linkNavegavel(l), String(l)).toBe(l);
     }
+    // 8b79045 (RD-0249): `destinoDaNotificacao` e `recadosDoInicio` saíram de apps/mobile/src/lib/inicio.ts junto com o cartão
+    expect(ler('apps/mobile/src/lib/inicio.ts')).not.toMatch(/destinoDaNotificacao|recadosDoInicio|linkInternoNavegavel/);
+    expect(ler('apps/mobile/src/components/sino.tsx')).not.toContain('destinoDaNotificacao');
   });
 
-  it('B3. casos do relato: /m/core-rota abre a central; /m/rota abre a Rota no Campo e a central no Gestão (rota é só do Campo)', () => {
-    expect(destinoDaNotificacao('/m/core-rota', (c) => PAGINAS_CAMPO.has(c))).toBe('/m/notificacoes');
-    expect(destinoDaNotificacao('/m/rota', (c) => PAGINAS_CAMPO.has(c))).toBe('/m/rota');
-    expect(destinoDaNotificacao('/m/rota', (c) => PAGINAS_GESTAO.has(c))).toBe('/m/notificacoes');
+  it('B3. casos do relato: /m/core-rota não abre tela (fica na central); /m/rota abre a Rota no Campo e não abre no Gestão', () => {
+    const campo = (c: string) => PAGINAS_CAMPO.has(c);
+    const gestao = (c: string) => PAGINAS_GESTAO.has(c);
+    // o destino que a central "Recados e tarefas" e a central antiga dão ao toque: o link, ou continuar na central
+    const naCentral = (link: string, telaExiste: (c: string) => boolean) => linkNavegavel(link, telaExiste) ?? CENTRAL;
+    expect(naCentral('/m/core-rota', campo)).toBe(CENTRAL);
+    expect(naCentral('/m/core-rota', gestao)).toBe(CENTRAL);
+    expect(naCentral('/m/rota', campo)).toBe('/m/rota');
+    expect(naCentral('/m/rota', gestao)).toBe(CENTRAL);
     expect(caminhoDoLink('/m/pedido?id=1#x')).toBe('pedido');
-    expect(ler('modules/core/app/index.ts')).toMatch(/\{ id: 'rota', caminho: 'rota',[^}]*apps: \['campo'\]/);
+    // manifesto real: a Rota é só do Campo; a central e a tarefa existem nos dois apps
+    const manifesto = ler('modules/core/app/index.ts');
+    expect(manifesto).toMatch(/\{ id: 'rota', caminho: 'rota',[^}]*apps: \['campo'\]/);
+    expect(manifesto).toMatch(/\{ id: 'recados-e-tarefas', caminho: 'recados-e-tarefas',[^}]*apps: \['campo', 'gestao'\]/);
+    expect(manifesto).toMatch(/\{ id: 'tarefa', caminho: 'tarefa',[^}]*apps: \['campo', 'gestao'\]/);
+    expect(manifesto).toMatch(/\{ id: 'notificacoes', caminho: 'notificacoes',[^}]*apps: \['campo', 'gestao'\]/);
+    // o "Ver todos" do sino leva à central de hoje quando ela existe; senão, à antiga
+    expect(destinoVerTodos(campo)).toBe(CENTRAL);
+    expect(destinoVerTodos(gestao)).toBe(CENTRAL);
+    expect(destinoVerTodos((c) => c === 'notificacoes')).toBe('/m/notificacoes');
+    expect(destinoDaTarefa('a b/c')).toBe('/m/tarefa?id=a%20b%2Fc');
   });
 
-  it('B4. o item do Início guarda o link e o toque passa pela tela do perfil (`visaoShell.pagina`)', () => {
-    const itens = recadosDoInicio({
-      itens: [
-        { id: 'n1', titulo: 'Prioridade', subtitulo: 'Passe cedo', hora: '09:15', tipo: 'recado', destaque: true, lida: false, link: '/m/core-rota' },
-        { id: 'n2', titulo: 'Rota', subtitulo: 'Veja a rota', hora: '09:20', tipo: 'recado', destaque: false, lida: true, link: '/m/rota' },
-        { id: 'n3', titulo: 'Externo', subtitulo: '', hora: '09:30', tipo: 'sistema', destaque: false, lida: false, link: 'https://exemplo.com' },
-      ],
-      total: 3,
-    } as unknown as Parameters<typeof recadosDoInicio>[0]);
-    // RD-0032: o item guarda o link como veio do Core (que já filtrou o formato em `inicio-local`); o toque decide pela visão
-    expect(itens.map((i) => i.destino).slice(0, 2)).toEqual(['/m/core-rota', '/m/rota']);
-    // o shell reaplica com a visão do usuário: /m/core-rota (sem tela) vai para a central
-    expect(itens.map((i) => destinoDaNotificacao(i.destino, (c) => PAGINAS_CAMPO.has(c)))).toEqual(['/m/notificacoes', '/m/rota', '/m/notificacoes']);
-    expect(ler('apps/mobile/src/app/(tabs)/index.tsx')).toContain('navegar(destinoDaNotificacao(r.destino, (c) => visaoShell.pagina(c) !== null))');
-    expect(ler('modules/core/app/telas/notificacoes.tsx')).toContain('linkNavegavel(n.link, (c) => visao.pagina(c) !== null)');
-    // a regra é a ÚNICA do SDK (RD-0032): o Core e o shell importam `linkInternoNavegavel`, sem cópia própria
-    expect(ler('modules/core/app/telas/notificacoes.tsx')).toContain("import { linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk'");
-    expect(ler('apps/mobile/src/lib/inicio.ts')).toContain('linkInternoNavegavel(link, telaExiste)');
+  it('B4. o toque no recado passa pela visão do perfil nas três entradas do Core (balão, Recados e tarefas, central antiga); o Início não tem mais recado', () => {
+    for (const [rel, nome] of ENTRADAS) {
+      const fonte = ler(rel);
+      // a regra é a ÚNICA do SDK (RD-0032), sem cópia própria
+      expect(fonte, rel).toMatch(new RegExp(`import \\{ linkInternoNavegavel${nome === 'linkInternoNavegavel' ? '' : ` as ${nome}`} \\} from '@macuxi/platform-sdk'`));
+      expect(corpoDoAbrir(rel), rel).toMatch(new RegExp(`${nome}\\(\\w+\\.(notificacao\\.)?link( \\?\\? null)?, \\(c\\) => visao\\.pagina\\(c\\) !== null\\)`));
+    }
+    // 8b79045 (D2, RD-0249): o Início só mostra o sino; o recado não tem mais cartão nem navegação própria no Início
+    const inicio = ler('apps/mobile/src/app/(tabs)/index.tsx');
+    expect(inicio).not.toMatch(/<Recados\b|destinoDaNotificacao|recadosDoInicio/);
+    expect(inicio).toContain('<Sino testID="inicio-sino" />');
+    // o shell entrega ao balão o "Ver todos" pela visão do usuário
+    expect(ler('apps/mobile/src/components/sino.tsx')).toContain('destinoVerTodos((c) => visao.pagina(c) !== null)');
+  });
+
+  it.fails('B4b. D-T0140-1 (dono: modulo-core, balao-recados-e-tarefas.tsx): no balão, recado sem tela na visão vai para a central', () => {
+    // Hoje o `abrir` do balão faz `if (destino) router.navigate(destino)` e mais nada: o balão fecha (`onFechar`) e o usuário
+    // fica onde estava, sem ver o recado. Na tela "Recados e tarefas" e na central antiga o mesmo `null` deixa o usuário na
+    // central, que é a regra. Passos no aparelho: Gestão, recado com link /m/rota, tocar no sino e no recado: nada abre.
+    // Pronto quando o `abrir` do balão cair na central (ex.: `else onVerTodos()`) quando `linkInternoNavegavel` devolve null.
+    expect(corpoDoAbrir(BALAO)).toMatch(/onVerTodos\(\)|recados-e-tarefas|notificacoes/);
+  });
+
+  it('B4c. nas duas centrais, o recado sem tela na visão não navega (o usuário continua na central)', () => {
+    for (const rel of [TELA_RECADOS, NOTIFICACOES]) {
+      expect(corpoDoAbrir(rel), rel).toMatch(/if \(destino\) router\.navigate\(destino as never\);/);
+    }
   });
 
   it('B5. seed da demo e fixture dois-tenants gravam o recado com /m/rota (tela que existe), nunca /m/core-rota', () => {
