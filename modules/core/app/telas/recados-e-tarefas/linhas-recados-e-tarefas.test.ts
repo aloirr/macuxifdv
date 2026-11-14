@@ -100,12 +100,12 @@ describe('T-0170 §7.2 e RD-0211: a linha da lista', () => {
     expect(l.apoio).not.toContain(l.tag.texto);
   });
 
-  it('atrasada: "atrasada desde" em vermelho; feita: caixa cheia, riscada, "Feita ontem"; cancelada: "Cancelada"', () => {
+  it('atrasada: "Venceu em dd/mm" em vermelho, como no balão; feita: caixa cheia, riscada, "Feita ontem"; cancelada: "Cancelada"', () => {
     const [atrasada, feita, cancelada] = lista(
       [],
       [tarefa(1, { prazo: '2026-11-11' }), tarefa(2, { concluida_em: '2026-11-12T15:00:00Z' }), tarefa(3, { cancelada_em: '2026-11-12T16:00:00Z' })],
     ).map((i) => linhaDoItem(i, C));
-    expect(atrasada).toMatchObject({ caixa: 'aberta', apoio: 'atrasada desde 12/11', tomDoApoio: 'atrasada' });
+    expect(atrasada).toMatchObject({ caixa: 'aberta', apoio: 'Venceu em 11/11', tomDoApoio: 'atrasada' });
     expect(feita).toMatchObject({ caixa: 'feita', riscado: true, forte: false, apoio: 'Feita ontem', tomDoApoio: 'apagado' });
     expect(cancelada).toMatchObject({ caixa: 'bloqueada', apoio: 'Cancelada', tomDoApoio: 'apagado' });
   });

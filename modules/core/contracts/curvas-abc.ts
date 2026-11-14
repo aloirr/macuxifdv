@@ -13,21 +13,16 @@ export const PARAMETRO_CURVA_ABC_FREQUENCIA = 'cliente.curva_abc.frequencia';
 export const CURVA_ABC_PCT_MIN = -100;
 export const CURVA_ABC_PCT_MAX = 1000;
 
-const pct = z.number().min(CURVA_ABC_PCT_MIN, 'Use um percentual de −100 a 1000.').max(CURVA_ABC_PCT_MAX, 'Use um percentual de −100 a 1000.');
+const pct = z.number();
 
-export const FaixaCurvaAbcSchema = z
-  .object({ a_min_pct: pct, b_min_pct: pct })
-  .strict()
-  .refine((f) => f.a_min_pct > f.b_min_pct, { message: 'A curva A deve começar acima da curva B. Aumente o valor de A ou diminua o de B.', path: ['a_min_pct'] });
+export const FaixaCurvaAbcSchema = z.object({ a_min_pct: pct, b_min_pct: pct }).strict();
 export type FaixaCurvaAbc = z.infer<typeof FaixaCurvaAbcSchema>;
 
 export const ParametrosCurvaAbcSchema = z.object({ faturamento: FaixaCurvaAbcSchema, volume: FaixaCurvaAbcSchema, frequencia: FaixaCurvaAbcSchema }).strict();
 export type ParametrosCurvaAbc = z.infer<typeof ParametrosCurvaAbcSchema>;
 
 /** Forma do PUT (só o formato; a regra de faixa é do domain: `validarParametrosCurvaAbc`). */
-export const ParametrosCurvaAbcPutSchema = z
-  .object({ faturamento: z.object({ a_min_pct: z.number(), b_min_pct: z.number() }).strict(), volume: z.object({ a_min_pct: z.number(), b_min_pct: z.number() }).strict(), frequencia: z.object({ a_min_pct: z.number(), b_min_pct: z.number() }).strict() })
-  .strict();
+export const ParametrosCurvaAbcPutSchema = ParametrosCurvaAbcSchema;
 export type ParametrosCurvaAbcPut = z.infer<typeof ParametrosCurvaAbcPutSchema>;
 
 export const DIMENSOES_CURVA_ABC = ['faturamento', 'volume', 'frequencia'] as const;
