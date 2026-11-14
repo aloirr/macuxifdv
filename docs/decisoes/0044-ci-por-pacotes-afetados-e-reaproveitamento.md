@@ -1,6 +1,6 @@
 # ADR 0044 — CI por pacotes afetados, 5 jobs e reaproveitamento da árvore verde
 
-- **Status**: proposta em 2026-11-11, no branch `agente/t0160-actions`. Mexe em `.github/**`, então o merge segue o rito de governança, com o "aprovo" do dono do produto.
+- **Status**: proposta em 2026-11-11, no branch `agente/t0160-actions`. Mexe em `.github/**`, então o merge segue o rito de governança, com o "aprovo" do dono do produto. O §6 (`demo-publicar` e `demo-mudou.mjs`) caiu com a demo, desligada em 14/11/2026 (ADR 0051).
 - **Data**: 2026-11-11
 - **Tarefa**: T-0160 (itens 1 a 7). Proposta R-20261110-193300-gerente-projetos, aprovada em R-20261110-202509-alexandre.
 - **Autor**: engenheiro-software

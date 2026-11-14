@@ -1,6 +1,7 @@
 # ADR 0024 — PostgreSQL gerenciado (DBaaS) da Magalu Cloud como banco de produção: teste de compatibilidade
 
-- **Status**: **proposta**. O veredito técnico está fechado: o DBaaS é **compatível com ajustes (plano B: B0, B1 e B2)**.
+- **Status**: **proposta**. O `dbaas-teste.yml` e o alvo `teste-db` saíram em 14/11/2026 com a VM da demo, por onde o teste
+  entrava na VPC (ADR 0051); o que segue abaixo é o registro do teste. O veredito técnico está fechado: o DBaaS é **compatível com ajustes (plano B: B0, B1 e B2)**.
   A ADR passa a **aceita** quando três coisas acontecerem:
   1. o dono do produto confirmar o custo e aprovar o uso em produção;
   2. B0, B1 e B2 entrarem no `main`;
