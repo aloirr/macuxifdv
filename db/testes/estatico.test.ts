@@ -785,8 +785,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0047 (resto do D-MP2): a sa_admins_da_empresa recriada (drop + create, o retorno ganha entra_no_portal; portal-admin-multiperfil.test.ts)
     // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
     // 0058 (T-0158, ADR 0043): as 2 sa_* do diagnóstico (portal) e o expurgo de 90 dias (worker) (diagnostico.test.ts)
+    // 0069 (ADR 0049): a função de gatilho do promotor, conferida no COMMIT do portal (cargo-hierarquia.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);

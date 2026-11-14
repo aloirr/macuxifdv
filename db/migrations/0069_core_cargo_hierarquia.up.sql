@@ -41,10 +41,12 @@
 --    supervisor; o do promotor sem supervisor é o responsável da própria equipe. O que separa os 2 casos do promotor é o CARGO
 --    do responsável da equipe dele (supervisor ou gerente).
 --    Leitura pronta: view core.v_usuario_hierarquia (security_invoker) — cargo, equipe, supervisor_id e gerente_id derivados.
---    PROMOTOR (R-20261114-154000) — gerente OBRIGATÓRIO, conferido no banco por gatilhos de restrição ADIADOS (no COMMIT; a
---    ordem das gravações na transação não importa), função core.conferir_promotores:
---      promotor_sem_gerente (23514)           promotor vivo e ativo sem gerente na view (gerente_id nulo ou de cargo diferente
---                                             de gerente, ou equipe sem responsável supervisor/gerente);
+--    PROMOTOR (R-20261114-154000, RN-CORE-56, ADR 0049) — gerente OBRIGATÓRIO. Promotor COM equipe (core.usuario.equipe_id
+--    não nulo) é conferido no banco por gatilhos de restrição ADIADOS (no COMMIT; a ordem das gravações na transação não
+--    importa), função core.conferir_promotores; promotor SEM equipe (ainda não alocado: carga do ERP/CSV, cadastro antigo) é
+--    recusado pelo domain/API do Core (RN-CORE-56, 422), como o vendedor sem supervisor, e listado no diagnóstico:
+--      promotor_sem_gerente (23514)           promotor vivo e ativo, com equipe, sem gerente na view (gerente_id nulo ou de
+--                                             cargo diferente de gerente: equipe apagada, sem responsável supervisor/gerente);
 --      promotor_gerente_do_supervisor (23514) promotor com supervisor cujo gerente (a linha do supervisor na view) não é o
 --                                             gerente do promotor.
 --      Pela árvore, o gerente do promotor com supervisor JÁ É o responsável da equipe-pai da equipe do supervisor (nada gravado
@@ -54,6 +56,12 @@
 --      responsavel_id, equipe_pai_id, deleted_at: os promotores da equipe, das filhas e das equipes lideradas por membros
 --      dela), plataforma.usuario_perfil (insert; update de perfil_id, deleted_at) e plataforma.perfil (update de cargo).
 --      Promotor legado fora da regra não quebra a migração nem gravação que não o alcança: consulta 3 do diagnóstico.
+--      hint = 'RN-CORE-56' nos 2 erros (ADR 0049).
+--      core.promotor_conferir() é SECURITY DEFINER (como as conferências da 0041 desde a 0049): gatilho adiado dispara no
+--      COMMIT, fora da sa_* (DEFINER) que escreveu; a sa_provisionar_tenant cria o admin em core.usuario pelo macuxi_portal, que
+--      não tem USAGE em core nem grant de tabela (ADR 0029) — como invoker, "permission denied for schema core" no COMMIT = 500
+--      ao criar empresa pelo portal. Roda como o dono, só LÊ, só o tenant da linha (new.tenant_id); nenhum EXECUTE a ninguém
+--      (função de gatilho só é chamada pelo gatilho; core.conferir_promotores, invoker, só é chamada de dentro dela).
 --    Regras do vendedor e do supervisor (vendedor com equipe de um supervisor; equipe-pai de um gerente; nome da equipe
 --    obrigatório): validadas no domain/API do Core, NÃO por restrição — os dados que já existem (ex.: equipe com responsável
 --    administrativo) quebrariam. O diagnóstico lista as inconsistências. A equipe do supervisor escolhido sai pelo
@@ -63,8 +71,8 @@
 --    "obrigatório para todos" é regra do cadastro (domain/API do Core).
 -- RLS: nenhuma tabela nova. perfil e usuario_perfil seguem com isolamento_tenant/manutencao; a view roda com o papel de quem
 -- consulta (RLS de core.usuario, core.equipe, plataforma.usuario_perfil e plataforma.perfil). macuxi_app: select na view e
--- EXECUTE em cargo_da_base; worker e portal: nada. Os gatilhos do promotor rodam com o papel de quem grava (só o macuxi_app e
--- o dono gravam as 4 tabelas) e leem a view com o tenant da linha.
+-- EXECUTE em cargo_da_base; worker e portal: nada. Os gatilhos do promotor rodam como o dono (SECURITY DEFINER, item 3) e
+-- leem a view só do tenant da linha.
 -- Volume: 7 + poucos perfis por tenant; 1 vínculo vivo por usuário; dezenas de equipes; promotores: dezenas por tenant.
 --
 -- Caminho de volta: 0069_core_cargo_hierarquia.down.sql — apaga os 4 gatilhos do promotor e as funções deles, a view, a
@@ -221,8 +229,8 @@ comment on view core.v_usuario_hierarquia is
   'Cargo e hierarquia do usuário (0069, R-20261114-153500, R-20261114-153800 e R-20261114-154000): cargo do perfil único; equipe e nome da equipe; supervisor_id (vendedor: responsável da equipe dele; promotor: idem, quando ele tem cargo supervisor); gerente_id (vendedor e supervisor: responsável da equipe-pai; promotor: o responsável da equipe-pai quando a equipe é de um supervisor, ou o da própria equipe quando ela é de um gerente). Nada gravado no usuário: deriva de core.equipe. security_invoker: RLS das 4 tabelas.';
 grant select on core.v_usuario_hierarquia to macuxi_app;
 
--- Promotor: gerente obrigatório e, com supervisor, o gerente do supervisor (R-20261114-154000) -------------------------------------
--- Confere os promotores (cargo promotor, vivos e ativos) alcançados por uma gravação: os usuários dados (o próprio e os
+-- Promotor: gerente obrigatório e, com supervisor, o gerente do supervisor (R-20261114-154000, RN-CORE-56) ----------------------
+-- Confere os promotores (cargo promotor, vivos, ativos e COM equipe; sem equipe = domain/API do Core) alcançados por uma gravação: os usuários dados (o próprio e os
 -- promotores das equipes que eles lideram e das filhas delas) e as equipes dadas (os promotores delas, das filhas e das equipes
 -- lideradas por membros delas). Lê a view (uma regra, um lugar). Sem tenant (exclusão do tenant em curso) = nada a conferir.
 create function core.conferir_promotores(p_tenant uuid, p_usuarios uuid[], p_equipes uuid[]) returns void
@@ -253,28 +261,28 @@ begin
                     where s.tenant_id = h.tenant_id and s.usuario_id = h.supervisor_id and s.gerente_id = h.gerente_id) as gerente_do_supervisor
       from core.v_usuario_hierarquia h
       join core.usuario u on u.tenant_id = h.tenant_id and u.id = h.usuario_id
-     where h.tenant_id = p_tenant and h.cargo = 'promotor' and u.ativo
+     where h.tenant_id = p_tenant and h.cargo = 'promotor' and u.ativo and u.equipe_id is not null
        and (u.id = any(coalesce(p_usuarios, '{}')) or u.equipe_id in (select alvo.id from alvo))
   loop
     if not v.com_gerente then
       raise exception 'promotor sem gerente: a equipe dele precisa ser a de um supervisor (com gerente na equipe-pai) ou a de um gerente'
         using errcode = '23514', constraint = 'promotor_sem_gerente', detail = 'usuario_id=' || v.usuario_id::text,
-              hint = 'R-20261114-154000';
+              hint = 'RN-CORE-56';
     end if;
     if v.supervisor_id is not null and not v.gerente_do_supervisor then
       raise exception 'o gerente do promotor precisa ser o gerente do supervisor dele'
         using errcode = '23514', constraint = 'promotor_gerente_do_supervisor', detail = 'usuario_id=' || v.usuario_id::text,
-              hint = 'R-20261114-154000';
+              hint = 'RN-CORE-56';
     end if;
   end loop;
 end
 $$;
 revoke all on function core.conferir_promotores(uuid, uuid[], uuid[]) from public;
-grant execute on function core.conferir_promotores(uuid, uuid[], uuid[]) to macuxi_app;
 
--- Uma função de gatilho para as 4 tabelas (roda com o papel de quem grava; conferida no COMMIT).
+-- Uma função de gatilho para as 4 tabelas, conferida no COMMIT. SECURITY DEFINER (roda como o dono; ver o item 3 do cabeçalho
+-- e a 0049): o COMMIT de uma sa_* chamada pelo macuxi_portal não tem acesso a core.
 create function core.promotor_conferir() returns trigger
-  language plpgsql
+  language plpgsql security definer
   set search_path = pg_catalog, core, plataforma, pg_temp
   as $$
 begin
