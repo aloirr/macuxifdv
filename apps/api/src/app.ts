@@ -107,6 +107,7 @@ import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
+import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -194,6 +195,13 @@ export interface OpcoesApp {
   diagnosticosApp?: boolean;
   /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
   fonteDiagnosticos?: FonteDiagnosticosPortal;
+  /**
+   * ADR 0047: planos e licenças no portal (`/v1/plataforma/planos`, `empresas-com-plano`, `empresas/:tenant_id/assinatura`).
+   * Padrão: DESLIGADO (as rotas não existem); o `servidor.ts` liga com `MACUXI_PLANOS=1` (depois da migração do banco-dados).
+   */
+  planosPortal?: boolean;
+  /** ADR 0047: fonte das funções `sa_*` dos planos (padrão: `fontePlanosNoBanco`). Testes injetam a sua. */
+  fontePlanos?: FontePlanosPortal;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -591,6 +599,20 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
       validar,
       armazenamento: op.arquivos ?? null,
+    });
+  }
+
+  // ADR 0047: planos e licenças no portal, no banco do portal; desligado por padrão
+  if (op.planosPortal) {
+    registrarRotasPlanosPortal(app, {
+      manifestos,
+      acesso: acessoPortal,
+      fonte: fontePlataforma,
+      ...(op.senhaPortal ? { senha: op.senhaPortal } : {}),
+      ...(op.fontePlanos ? { fontePlanos: op.fontePlanos } : {}),
+      autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+      validar,
+      relogio,
     });
   }
 
