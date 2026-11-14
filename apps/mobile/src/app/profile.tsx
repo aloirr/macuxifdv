@@ -12,7 +12,6 @@
 import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
-  BackLink,
   Badge,
   BotaoSincronizar,
   Button,
@@ -114,8 +113,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen top={16} testID="profile" refreshing={auto.puxando} onRefresh={auto.puxar}>
-      <BackLink label="Início" fallback="/" />
+    <Screen testID="profile" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={{ titulo: 'Perfil', voltar: { label: 'Início', fallback: '/' } }}>
       <View style={styles.who}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials(name)}</Text>
