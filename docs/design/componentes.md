@@ -263,6 +263,9 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
   aviso.mostrar({ texto: 'Item removido', acao: { rotulo: 'Desfazer', onPress: desfazer } });
   return (<View style={{ flex: 1 }}><Screen>…</Screen><AvisoRodape {...aviso.props} respiroInferior={0} /></View>);
   ```
+- **Abas** (`Abas`): padrão com largura igual (cada aba `flex: 1`), sublinhado 3 dp na ativa. Com `rolavel`, faixa horizontal:
+  cada aba com a largura do rótulo + 16 dp de cada lado, alvo ≥ 48 dp, e a ativa rola até ficar à vista (destino em
+  `rolagemAteAba`, parte pura testada). Use quando os rótulos não cabem em 360 dp (ficha do cliente, 6 abas). Nomes inteiros, nunca abreviar.
 - **Barra de abas** (`BarraAbas`): 64 dp + área segura, até 5 abas, ícone 22, rótulo 11. Ativa: ícone Azul noite e rótulo `accentInk`
   em negrito; inativa: `ink2`. Contador no canto do ícone: laranja de gráfico (`destaque`, não lidas) ou âmbar (`aviso`, fila). O shell decide as abas.
 - **Estados de tela**:
