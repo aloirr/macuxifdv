@@ -1,6 +1,6 @@
 # Portal `config.` enxuto — textos finais, tela por tela (designer-ux)
 
-**Situação:** Fechada em 14/11/2026: achados RD e MC respondidos (§13); perguntas do §11.7 decididas pelo dono do produto em 14/11; segunda passada do corretor (P1–P6) e da marca (MC-0035 a MC-0042) respondida no §13.5. Simulações re-renderizadas com as fontes do BKO, aguardando a nova conferência do corretor e da marca antes de irem ao dono do produto.
+**Situação:** Fechada em 14/11/2026: achados RD e MC respondidos (§13); perguntas do §11.7 decididas pelo dono do produto em 14/11; segunda passada do corretor (P1–P6) e da marca (MC-0035 a MC-0042) respondida no §13.5. Aba Empresa refeita (§8, §11.4) e divisória da Integração (§10.2) pelo R-20261114-170200. Simulações re-renderizadas com as fontes do BKO, aguardando a nova conferência do corretor e da marca antes de irem ao dono do produto.
 
 > 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-130000-alexandre; R-20261114-122200 (sai o "Parâmetros iniciais"); R-20261114-130500-alexandre e R-20261114-131200-alexandre (código da empresa = número da licença, **UF + 4 dígitos aleatórios, ex.: `AM4821`**, gerado pelo servidor; os dois últimos chegaram pela ponte e não foram lidos no repositório de recados nesta sessão — confirmar). Implementação: engenheiro-apps, branch `nuvem/portal-parametros-engenheiro-apps`. Telas: `apps/web/app/config/**`, `apps/web/components/portal/**` e textos em `apps/web/lib/{portal-carga,portal-admins,conector-download,equipe-csv,portal-diagnosticos}.ts`. Simulações em `docs/design/telas/portal-config-enxuto/` (`antes-*` = print do BKO no modo falso; `depois-*` = simulação, HTML + PNG em 1280 px e escala 2, estilo e fontes do BKO em `portal.css`; dados fictícios: Distribuidora Uma Ltda, `AM4821`, 11.222.333/0001-81). Onde conflitar, esta spec substitui `docs/design/portal-entrar.md` §1, §2 e §6.
 
@@ -75,14 +75,33 @@ Sai: 18 frases, "Passo 1", 1 campo, 1 cartão (5 campos), 1 botão. Entra: campo
 O cabeçalho "depois" aparece no topo de `depois-05b-integracao.png` e `depois-06b-aba-empresa.png`. As antigas §6 (aba Bases) e §7 (aba Integração em uma coluna) foram revogadas pelo §10 e saíram (Histórico, §14).
 
 ## 8. Aba Empresa
-> Ver §11: o cartão 1 ("Módulos e licenças" + "Acrescentar módulos") dá lugar ao cartão **"Plano"**. O cartão "Administradores" fica. Simulação nova: `depois-06b-aba-empresa.png`.
+> 2026-11-14 17h02 · designer-ux · refeita do zero pelo pedido do dono do produto R-20261114-170200 ("Não gostei da tela 7, muito complexa e com redundâncias. Simplifique e aproveite melhor o espaço."). O cartão Plano e o diálogo de troca estão no §11.4.
 
-Dois cartões: 1. **"Módulos e licenças"** (sem descrições; já licenciado = selo "licenciado", travado) + **"Acrescentar módulos"** (sai "Conferir sem gravar"); resultado **"Módulos acrescentados: Catálogo."**/**"Nada mudou."**; admin do cliente vê só leitura (nome + licenças, sem caixas e sem botão). 2. **"Administradores"** (só time Macuxi): lista + selos "Bloqueado"/"Entra só pelo app" + "Redefinir senha"; sai a ajuda "Quem administra esta empresa no backoffice. Se um deles perdeu a senha, mande uma senha temporária nova por e-mail."; diálogo **"Uma senha temporária vai para {e-mail}. {Nome} sai do Macuxi em todos os aparelhos."**; sucesso **"Senha temporária enviada para {e-mail}."** (sai "Vale até 17/11 às 12:59.": a validade fica só no selo da linha, ajustado pelo RD-0291); e-mail não configurado: **"O envio de e-mail não está configurado neste servidor: nada foi gravado. Confira a configuração de e-mail."** (um texto só: o cartão é só do time da Macuxi e a Equipe saiu no §12; ajustado pelo RD-0292)
-Saem três cartões repetidos: "Módulos licenciados", "Empresa" (campos travados que repetem o cabeçalho) e "Administrador da empresa" ("Esta empresa já tem administrador. A senha dele não muda aqui."). Sai: 17 frases, 3 cartões, 1 botão.
+**Layout (≥ 768 px):** duas colunas lado a lado, sem rolagem em 1280 × 800: **esquerda "Plano"** (§11.4) · **direita "Administradores"**, com larguras 1,25 : 1. Abaixo de 768 px, empilhados (Plano primeiro). Admin do cliente: só o Plano, na largura toda (licenças em uma linha só).
 
-| Antes | Depois |
-|---|---|
-| ![Aba Empresa, antes](portal-config-enxuto/antes-06-aba-empresa.png) | ![Aba Empresa, depois](portal-config-enxuto/depois-06b-aba-empresa.png) |
+**"Administradores"** (só time Macuxi): uma linha por pessoa: **nome** com o selo ao lado (**"Bloqueado"**/**"Entra só pelo app"**), o e-mail embaixo e **"Redefinir senha"** (secundário) à direita. Diálogo **"Uma senha temporária vai para {e-mail}. {Nome} sai do Macuxi em todos os aparelhos."**; sucesso **"Senha temporária enviada para {e-mail}."** (a validade fica só no selo da linha, RD-0291); e-mail não configurado: **"O envio de e-mail não está configurado neste servidor: nada foi gravado. Confira a configuração de e-mail."** (RD-0292).
+
+**Antes × depois** (o "antes" é a 06b da manhã de 14/11, no git até `9b4dd17`):
+
+| # | Antes | Depois | Por quê |
+|---|---|---|---|
+| 1 | Título "Plano" e, embaixo, a linha "PME" | título **"Plano PME"** | uma linha a menos; o título só dizia o nome do cartão |
+| 2 | Tabela de 3 colunas (Licenças · Em uso · Contratadas), 5 linhas na largura toda, número longe do nome | **blocos** "Vendedor **14** de 20" (3 por linha) | sai o cabeçalho de coluna; nome e número juntos; metade da altura |
+| 3 | "**2** · no limite" em Em uso e "**2**" de novo em Contratadas | "**2** de 2" + selo **"no limite"** e borda de alerta | o número contratado aparecia duas vezes na mesma linha |
+| 4 | Seletor "Trocar de plano" sempre aberto embaixo (4 planos, 3 adicionais, ciclo, total, 2 botões) | **diálogo** aberto pelo botão (`depois-06d-trocar-plano`) | ~60 % da altura da página; o plano atual aparecia duas vezes (cartão e seletor com "Atual") |
+| 5 | Legenda "Estado ao tocar em 'Trocar de plano': o cartão Plano dá lugar a este seletor…" | sai | explica o funcionamento; o estado tem simulação própria |
+| 6 | Legenda "Dados fictícios. Seletor no Anual: Enterprise … = R$ 20.590,00/ano. As linhas … só aparecem quando contratadas." | sai | conta e regra de exibição ficam na spec (§11.4), não na tela |
+| 7 | Rótulo "Quantidade" em cada adicional (2×) | um cabeçalho **"Quantidade"** na lista de adicionais do diálogo | rótulo repetido |
+| 8 | Adicionais em grade 2 × 2, com a terceira caixa sozinha e vazio ao lado | lista de uma linha por adicional (caixa · ícone · nome · preço · quantidade) | sem vazio; preço e quantidade alinhados |
+| 9 | Cartões em uma coluna, com vazio no meio das linhas (Plano 1.537 px de altura de página) | **duas colunas** (Plano · Administradores), página com 636 px | usa a largura; sem rolagem |
+| 10 | Selos dos administradores numa coluna solta no meio da linha | selo ao lado do nome | a coluna ficava vazia na maioria das linhas |
+| 11 | Valor e selo do teste na linha do nome, botão no meio da altura do cartão | valor + selo do teste numa linha só, logo abaixo do título; botão ao lado do título | leitura em uma passada: nome → valor → prazo |
+
+Fica: um só principal na aba ("Trocar de plano"); ícones e nomes dos adicionais (§11.10); "Atual" no plano de hoje, dentro do diálogo; admin do cliente só vê (§11.4).
+
+| Antes | Depois (super-admin) | Depois (admin do cliente) | "Trocar de plano" aberto |
+|---|---|---|---|
+| ![Aba Empresa, antes](portal-config-enxuto/antes-06-aba-empresa.png) | ![Aba Empresa, depois](portal-config-enxuto/depois-06b-aba-empresa.png) | ![Aba Empresa, cliente](portal-config-enxuto/depois-06c-aba-empresa-cliente.png) | ![Trocar de plano](portal-config-enxuto/depois-06d-trocar-plano.png) |
 
 ## 9. Diagnósticos
 Sai o subtítulo "Enviados pelos aparelhos. Ficam 90 dias." inteiro (o RD-0295 propõe manter "Ficam 90 dias."; fica a saída inteira: o prazo é o que o sistema faz por trás e o time não age por ele). A contagem ("12 diagnósticos") só aparece com 1 ou mais; no vazio fica só **"Nenhum diagnóstico com estes filtros."**/**"Nenhum diagnóstico recebido."** (ajustado pelo RD-0294). Resto igual. Sai: 2 + a contagem "0 diagnósticos".
@@ -100,7 +119,7 @@ Sai o subtítulo "Enviados pelos aparelhos. Ficam 90 dias." inteiro (o RD-0295 p
 Abas da página da empresa: **"Integração" · "Empresa"**; **Integração abre por padrão**. O resto do cabeçalho do §5 fica igual. A aba Bases sai inteira.
 
 ### 10.2 Aba Integração em dois lados
-Dois lados lado a lado, com a mesma largura (≥ 768 px). Abaixo de ~768 px, empilhados: **Conector primeiro**, API depois. Cada lado tem título de seção e, embaixo, só a lista do que já existe.
+Dois lados lado a lado, com a mesma largura (≥ 768 px), separados por uma **divisória vertical no meio**: filete de 1 px na cor de linha do kit (`line`, `#DFE2E6`), da altura do lado mais alto, com 24 px de folga para cada lado (pedido do dono do produto R-20261114-170200). Abaixo de ~768 px, empilhados: **Conector primeiro**, API depois, e a divisória vira **horizontal** entre os dois (mesmo filete, 24 px antes do título "Integração via API"). Cada lado tem título de seção e, embaixo, só a lista do que já existe.
 
 **Esquerda — "Integração via Conector"** (passos numerados na ordem em que a pessoa age; o círculo do número em Azul noite `bg-accent`, texto branco, ajustado pelo MC-0024):
 1. **"Baixar o Conector"**: botão "Gerar o link do Conector"/"Gerando o link…" (texto atual de `TEXTOS_DOWNLOAD_CONECTOR`) → link **"Baixar {arquivo}"**, embaixo só **"38 MB"** (saem o nome do arquivo e a versão: os dois já estão no link; ajustado pelo P6 do corretor), **"O link vale até 01:30. Depois disso, gere outro."** e **"SHA-256 {hash}"**. Estados de erro do download sem mudança.
@@ -212,25 +231,20 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 |---|---|
 | ![Nova empresa com planos](portal-config-enxuto/depois-03b-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
 
-### 11.4 Aba Empresa: cartão "Plano"
-Ordem dos cartões: **"Plano"** → **"Administradores"** (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
-- Linha de cima: **nome do plano** (ex.: **PME**) · se `teste_ate` e não `paga`, selo de alerta **"Teste até 27/11/2026"** (data no fuso do tenant; 14 dias a partir de 14/11 terminam em 27/11, `fimDoTeste`) · valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, por isso sai o selo "Mensal"/"Anual", ajustado pelo P4 do corretor) · à direita **"Trocar de plano"** (principal: é a única ação da aba).
-- Tabela **Licenças · Em uso · Contratadas** (`licencas[]`, `em_uso` e `contratadas`): **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (com o ícone do §11.10) só quando contratados (`contratadas` ≠ 0). `contratadas` = `null`: **"sem limite"**. Em uso = contratadas: número em cor de alerta **com o texto "no limite"** (ex.: **"2 · no limite"**; cor nunca sozinha).
-- **"Trocar de plano"**: o cartão dá lugar ao **mesmo seletor do Criar empresa** (Plano + Adicionais + Ciclo, sem a caixa de teste), com o plano atual marcado **"Atual"** (selo Névoa `#ECEEF1`, texto `#34404D`, a mesma cor do "Atual" da Escolha a empresa, MC-0039) e já selecionado, os adicionais e as quantidades atuais marcados; ao mudar, o botão vira **"Trocar para {plano}"** (principal) + **"Cancelar"**, com a linha **"Total: R$ 20.590,00/ano"** ao lado. Sem mudança, o botão fica desabilitado como **"Trocar de plano"**. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
-  - Sucesso: aviso success fechável **"Plano trocado: Enterprise."**
-  - Plano abaixo do uso (`conferirTrocaDePlano` na tela; 422 `PLANO_ABAIXO_DO_USO` na API, `detalhes.problemas[].mensagem`): erro no cartão do plano, uma linha por item, botão desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** A frase do contrato não diz a ação: pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
-  - Plano atual fora de venda (`PLANO_INATIVO`): **"O plano {nome} não está mais à venda."** (do contrato), no cartão dele.
-  - Quando a troca vale e como cobra: a tela não explica cobrança.
-- **Decidido em 14/11 (dono do produto):** o admin do cliente **só vê** o cartão (plano, selo do teste, valor, tabela), **sem "Trocar de plano"** (o `PUT` é só do super-admin). O cartão "Administradores" não aparece para ele (só time Macuxi, §8). Simulação: `depois-06c-aba-empresa-cliente.png`.
-- Saem do §8: "Módulos e licenças" (8 linhas com caixa e campo Licenças, selos "licenciado"), "Acrescentar módulos" e os resultados "Módulos acrescentados: …"/"Nada mudou.".
+### 11.4 Aba Empresa: cartão "Plano" e diálogo "Trocar de plano"
+Coluna esquerda da aba (§8). Dados da ficha: `GET rotaPortalAssinatura(tenantId)` (`FichaAssinaturaSchema`).
+- **Título "Plano {nome}"** (ex.: **"Plano PME"**) e, à direita, **"Trocar de plano"** (principal: a única ação principal da aba; só super-admin). Embaixo do título, uma linha: valor **"R$ 1.537,00/mês"** (ou **"R$ 15.370,00/ano"**; `valor.por_ciclo_centavos`; o "/mês" ou "/ano" já diz o ciclo, P4) + selo de alerta **"Teste até 27/11/2026"** se `teste_ate` e não `paga` (data no fuso do tenant, `fimDoTeste`).
+- **Licenças em blocos** (`licencas[]`): um bloco por item, com o nome em cima e **"{em uso} de {contratadas}"** embaixo (número em Archivo 700). **Vendedor**, **Gestor** e **BKO** sempre; **Promotor Avulso**, **Pesquisa** e **Treinamento** (ícone + nome do §11.10) só quando contratados. `contratadas` = `null`: **"{em uso} · sem limite"**. Em uso = contratadas: borda e número em cor de alerta **com o selo "no limite"** (cor nunca sozinha). Grade: 3 por linha na coluna do super-admin; 5 por linha (até 6) na largura toda do admin do cliente; 2 por linha abaixo de 768 px.
+- **Admin do cliente** (decidido em 14/11): só vê; o valor e o selo do teste ficam na linha do título, sem "Trocar de plano" (o `PUT` é só do super-admin); sem o cartão Administradores. Simulação: `depois-06c-aba-empresa-cliente.png`.
 
-| Depois — aba Empresa (cartão Plano + Administradores; embaixo, o seletor aberto pelo "Trocar de plano", no Anual) |
-|---|
-| ![Aba Empresa com plano](portal-config-enxuto/depois-06b-aba-empresa.png) |
-
-| Depois — aba Empresa vista pelo admin do cliente (só leitura) |
-|---|
-| ![Aba Empresa, admin do cliente](portal-config-enxuto/depois-06c-aba-empresa-cliente.png) |
+**Diálogo "Trocar de plano"** (`depois-06d-trocar-plano.png`; 880 px no desktop, folha de tela cheia abaixo de 768 px, planos 2 × 2):
+- **4 planos** em uma linha (o mesmo seletor do Criar empresa, §11.3; licenças em duas linhas, "30 vendedores" / "3 gestores · 5 BKO"); o atual com o selo **"Atual"** (Névoa `#ECEEF1`, texto `#34404D`, MC-0039) e já selecionado.
+- **Adicionais** numa lista de uma linha por adicional: caixa · ícone · nome · preço no ciclo · campo de quantidade (só com a caixa marcada); um cabeçalho só, **"Adicionais"** e **"Quantidade"** (`aria-label` "Quantidade de {adicional}" em cada campo). Os atuais já marcados, com as quantidades atuais.
+- **Rodapé:** alternador **Mensal / Anual** (selo "2 meses grátis") à esquerda; à direita **"Total: R$ 20.590,00/ano"**, **"Cancelar"** e **"Trocar para {plano}"** (principal). Sem mudança, o principal fica desabilitado como **"Trocar de plano"**. Sem a caixa do teste. "Cancelar" e Esc fecham sem gravar. Envio: `PUT rotaPortalAssinatura(tenantId)` (`TrocarPlanoSchema`, com `pedido_id`).
+- Sucesso: o diálogo fecha e aparece o aviso success fechável **"Plano trocado: Enterprise."**
+- Plano abaixo do uso (`conferirTrocaDePlano`; 422 `PLANO_ABAIXO_DO_USO`, `detalhes.problemas[].mensagem`): erro embaixo do cartão do plano, dentro do diálogo, uma linha por item, principal desabilitado. Texto do contrato: **"O plano Light tem 10 licenças de vendedor e a empresa usa 14."** Pedido ao engenheiro-software para acrescentar **"Inative 4 antes de trocar."** (recados-pendentes.md); até lá, vale a do contrato.
+- Plano atual fora de venda (`PLANO_INATIVO`): **"O plano {nome} não está mais à venda."** (do contrato), no cartão dele.
+- A tela não explica cobrança nem quando a troca vale.
 
 ### 11.5 Lista de Empresas (§3)
 Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A coluna Plano mostra o nome (ex.: "PME"); em teste, o selo **"teste"** ao lado. Sem simulação nova (só troca o cabeçalho e o conteúdo da coluna).
@@ -244,7 +258,7 @@ Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A col
 6. ~~**Equipe por CSV** (§10.5): sai mesmo do portal?~~ **Respondida: sim** (§12).
 
 ### 11.8 Para o engenheiro-apps
-- **testIDs (alinhados ao `planos.ts`):** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.cnae`, `empresa.plano-<codigo>` (`light|pme|enterprise|corporate`, o `codigo` do catálogo), `empresa.adicional-<adicional>` (`promotor|pesquisa|treinamento`, os valores de `ADICIONAIS`; antes `promotor-avulso`), `empresa.adicional-<adicional>-qtd` (antes só `empresa.adicional-promotor-avulso-qtd`), `empresa.ciclo-<mensal|anual>` (`CICLOS`), `empresa.teste` (`com_teste`), `empresa.total`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.teste-ate`, `empresa-plano.valor`, `empresa-plano.uso-<item>` (`vendedor|gestor|bko|promotor|pesquisa|treinamento`, os valores de `ITENS_CONTADOS`), `empresa-plano.trocar`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`, `empresa-plano.total`.
+- **testIDs (alinhados ao `planos.ts`):** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.cnae`, `empresa.plano-<codigo>` (`light|pme|enterprise|corporate`, o `codigo` do catálogo), `empresa.adicional-<adicional>` (`promotor|pesquisa|treinamento`, os valores de `ADICIONAIS`; antes `promotor-avulso`), `empresa.adicional-<adicional>-qtd` (antes só `empresa.adicional-promotor-avulso-qtd`), `empresa.ciclo-<mensal|anual>` (`CICLOS`), `empresa.teste` (`com_teste`), `empresa.total`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.teste-ate`, `empresa-plano.valor`, `empresa-plano.uso-<item>` (`vendedor|gestor|bko|promotor|pesquisa|treinamento`, os valores de `ITENS_CONTADOS`), `empresa-plano.trocar`, `empresa-plano.dialogo`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`, `empresa-plano.total`.
 - **Rótulos na tela por item:** `vendedor` = "Vendedor", `gestor` = "Gestor", `bko` = "BKO", `promotor` = "Promotor Avulso", `pesquisa` = "Pesquisa", `treinamento` = "Treinamento" — os três adicionais pelo mapa `ADICIONAIS_DO_PLANO` de `@macuxi/ui/web` (§11.10), nunca rótulo solto na tela.
 - **Saem:** `empresa.situacao` (o campo Situação) e `empresa-plano.ciclo` (o selo Mensal/Anual).
 - **Saem:** os testIDs e o código do cartão "Módulos e licenças" no Criar empresa e na aba Empresa (`empresa.modulo-*`, `empresa.licencas-*`, `empresa.acrescentar-modulos` ou equivalentes) e `ROTULO_MODULO` no portal, se não for usado em outro lugar (confirmar com o corretor-redundancias).
@@ -269,7 +283,7 @@ Os números batem: Light 10 × 50 + 1 × 70 + 1 × 40 = R$ 610,00; PME (1.000 + 
 Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a letra maiúscula, talvez um ícone, tanto no config quanto no BKO. VALORIZE-OS."
 - **Mapa único** em `packages/ui/src/web/adicionais.tsx` (exportado por `@macuxi/ui/web`): `ADICIONAIS_DO_PLANO` (id do contrato → nome → ícone), `nomeDoAdicional(id)` e `iconeDoAdicional(id)`. Ids = `ADICIONAIS` de `planos.ts`: `promotor` → **"Promotor Avulso"** (`IconPromotor`, gôndola com produtos), `pesquisa` → **"Pesquisa"** (`IconPesquisa`, prancheta com respostas), `treinamento` → **"Treinamento"** (`IconTreinamento`, capelo).
 - Ícones em `icons.tsx`: traço único de 2 px, grade 24 × 24, sem preenchimento, cor herdada (Azul noite `#1E3350`); sem laranja, sem cor de situação, sem grafismo. Tamanho na tela: **22 px** (legível de 20 a 24 px).
-- **Onde aparecem:** na caixa do adicional (Criar empresa e "Trocar de plano"), entre a caixa de marcar e o nome; na linha da tabela de licenças da aba Empresa, antes do nome. O nome vai em Archivo 700, Azul noite. No BKO, onde o módulo adicional aparecer pelo nome (licenças, perfis, menus), usar o mesmo mapa.
+- **Onde aparecem:** na caixa do adicional (Criar empresa) e na linha do adicional (diálogo "Trocar de plano"), entre a caixa de marcar e o nome; no bloco de licenças da aba Empresa, antes do nome. O nome vai em Archivo 700, Azul noite. No BKO, onde o módulo adicional aparecer pelo nome (licenças, perfis, menus), usar o mesmo mapa.
 - Prancha para a marca conferir: `portal-config-enxuto/prancha-icones-adicionais.png` (48, 24 e 20 px, na caixa e na linha da tabela).
 
 ## 12. Adendo — o `config.` cadastra só o admin da conta do cliente
@@ -278,7 +292,7 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 - O `config.` cadastra **só o administrador da conta do cliente** (cartão "Administrador da empresa" do Criar empresa, §4 item 3, e cartão "Administradores" da aba Empresa, §8 e §11.4).
 - **Sai o cartão Equipe inteiro**: modelo, CSV e importação (já fora com a aba Bases no §10). Os demais usuários o admin cadastra **no BKO**.
 - Dos cartões de usuários, **fica só "Administradores"**. **Nenhum CSV fica no `config.`**: todo trecho anterior que cite CSV (a aba Bases, o diálogo "Passar as bases ao Conector do ERP?" e a linha "Aba Bases" dos placares antigos, hoje no §14) está **revogado pelo §12** (e já pelo §10).
-- **Simulações:** nenhuma nova. As do §10 e do §11 (`depois-03b-*`, `depois-03c-*`, `depois-05b-*`, `depois-06b-*`, `depois-06c-*`) não mostram a Equipe nem CSV.
+- **Simulações:** nenhuma nova. As do §10 e do §11 (`depois-03b-*`, `depois-03c-*`, `depois-05b-*`, `depois-06b-*`, `depois-06c-*`, `depois-06d-*`) não mostram a Equipe nem CSV.
 - **Placar:** não muda; a aba Bases, com a Equipe dentro, já sai inteira (§13.3).
 - **Para o engenheiro-apps:** nada além do §10.5 (saem `cartao-equipe.tsx`, `lib/equipe-csv.ts`, a Equipe de `lib/portal-falso.ts` e os testIDs `equipe-*`).
 
@@ -357,8 +371,8 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 | Nova empresa | 18 frases, campo Código, cartão Parâmetros (5 campos), "Passo 1", "Conferir sem gravar", cartão "Módulos e licenças" (8 linhas, 8 campos, 2 selos); as regras da senha em vermelho com a senha vazia | CNPJ com 5 textos de estado (bloqueiam o "Criar empresa"); 6 campos da Receita; cartões Plano (4), Adicionais (3, com Quantidade), Ciclo (+ teste); "Escolha o plano.", "Informe a quantidade." e a linha "Total" |
 | Página da empresa | 2 frases ("Volte à lista de empresas.") | — |
 | Aba Bases | **a aba inteira** (17 cartões; até 59 frases) | — |
-| Aba Integração | 8 frases; o diálogo inteiro (3 botões); o tipo "Carga por arquivo"; o título interno e o rodapé da credencial | 2 lados, 3 passos (número em Azul noite), cartões da API |
-| Aba Empresa | 17 frases, 3 cartões repetidos, "Conferir sem gravar", cartão "Módulos e licenças", "Acrescentar módulos", 2 resultados, "Vale até …" no sucesso, a linha "Adicionais: …" | cartão Plano (nome, teste, valor com o ciclo, tabela por item com "no limite"/"sem limite", "Trocar de plano"); "Plano trocado: {plano}.", as mensagens de troca do contrato |
+| Aba Integração | 8 frases; o diálogo inteiro (3 botões); o tipo "Carga por arquivo"; o título interno e o rodapé da credencial | 2 lados com a divisória no meio (horizontal no celular), 3 passos (número em Azul noite), cartões da API |
+| Aba Empresa | 17 frases, 3 cartões repetidos, "Conferir sem gravar", cartão "Módulos e licenças", "Acrescentar módulos", 2 resultados, "Vale até …" no sucesso, a linha "Adicionais: …"; na refação de 14/11 17h (§8): o título "Plano" separado do nome, o cabeçalho da tabela, o número contratado repetido no limite, o seletor sempre aberto, 2 legendas, o "Quantidade" repetido, a coluna solta dos selos | duas colunas (Plano · Administradores); cartão "Plano {nome}" (valor com o ciclo, teste, blocos "{em uso} de {contratadas}" com "no limite"/"sem limite", "Trocar de plano"); diálogo de troca; "Plano trocado: {plano}.", as mensagens de troca do contrato |
 | Diagnósticos | 2 frases, a contagem "0 diagnósticos" | — |
 | **Total** | **66 frases + a aba Bases inteira + 3 diálogos inteiros** | **13 textos de estado/erro, todos de ação** (5 do CNPJ, "Escolha o plano.", "Informe a quantidade.", "Plano trocado: {plano}.", 2 mensagens de troca do contrato, "no limite", "sem limite", "Ainda não disponível neste servidor.") + a linha "Total" e o valor na ficha |
 
@@ -398,10 +412,11 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | MC-0042 | módulos adicionais sem destaque | aceito: mapa id → nome → ícone no kit; ícone na caixa e na linha da tabela; prancha própria | §11.10; `prancha-icones-adicionais.png` |
 | Fora | caixa marcada; "Sair" no celular | aceito: caixa branca com borda e ✓ em Azul noite; no celular, "Sair" na linha do logo, à direita | §11.3; §10.2; `depois-05b-integracao-celular` |
 
-**Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-06c-aba-empresa-cliente`, `depois-07-diagnosticos` e `prancha-icones-adicionais`.
+**Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-06c-aba-empresa-cliente`, `depois-06d-trocar-plano`, `depois-07-diagnosticos` e `prancha-icones-adicionais`.
 
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).
 - **Placares antigos** (§Placar, §10.4, §11.6): substituídos pelo §13.3, o único.
 - **§11.4, linha "Adicionais: Promotor avulso · Pesquisa"** embaixo da tabela: saiu (repetia as linhas da tabela). **Texto antigo da troca abaixo do uso** ("{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."): trocado pelo do contrato.
 - **Simulações de registro** `depois-03-nova-empresa`, `depois-04-bases`, `depois-05-integracao`, `depois-06-aba-empresa`: apagadas (MC-0036); no git até o commit `8fa541e`.
+- **§8 e §11.4 da manhã de 14/11** (aba Empresa com o título "Plano" + linha do nome, tabela Licenças · Em uso · Contratadas com "2 · no limite", seletor "Trocar de plano" aberto no lugar do cartão, cartões em uma coluna; antes disso, o cartão "Módulos e licenças" + "Acrescentar módulos" com os resultados "Módulos acrescentados: Catálogo."/"Nada mudou."): substituídos pela refação do R-20261114-170200 (§8, tabela antes × depois); no git até `9b4dd17`.

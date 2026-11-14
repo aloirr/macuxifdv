@@ -169,3 +169,50 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
   .topo .menu { order: 3; width: 100%; }
   .topo .sessao { order: 4; margin-left: 0; }
 }
+/* R-20261114-170200: divisória vertical no meio da aba Integração (filete --line, altura dos dois lados); no celular, horizontal entre os lados */
+.lados { gap: 0; align-items: stretch; }
+.lados > .lado:first-child { padding-right: 24px; border-right: 1px solid var(--line); }
+.lados > .lado + .lado { padding-left: 24px; }
+@media (max-width: 767px) {
+  .lados > .lado:first-child { padding-right: 0; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 24px; }
+  .lados > .lado + .lado { padding-left: 0; }
+}
+/* R-20261114-170200: aba Empresa enxuta — duas colunas (Plano | Administradores), licenças em blocos, troca de plano em diálogo */
+.empresa-cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start; }
+.empresa-cols.uma { grid-template-columns: 1fr; }
+.plano-cab { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plano-cab h2 { margin: 0; font-size: 22px; font-weight: 800; }
+.plano-cab .total { font-size: 16px; }
+.plano-cab .dir { margin-left: auto; }
+.plano-linha2 { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; }
+.lics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.uma .lics { grid-template-columns: repeat(5, 1fr); }
+.licb { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 74px; }
+.licb .rot { font-weight: 600; color: var(--ink2); font-size: 13px; height: 22px; display: flex; align-items: center; }
+.licb .rot.modnome { font-size: 14px; color: var(--accent); }
+.licb .val { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 4px; display: flex; align-items: baseline; gap: 6px; }
+.licb .val small { font-size: 14px; font-weight: 600; color: var(--ink2); }
+.licb.lim { border-color: var(--warning); }
+.licb.lim .val { color: var(--warning); }
+.licb .selo { align-self: center; }
+.adm { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.adm:last-child { border-bottom: 0; padding-bottom: 0; }
+.adm .quem { min-width: 0; }
+.adm .quem b { font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
+.adm .quem .sub { margin-top: 2px; }
+.adm .btn { margin-left: auto; }
+.veu { position: fixed; inset: 0; background: rgba(22,32,42,.5); display: flex; align-items: center; justify-content: center; }
+.dialogo { width: 880px; background: var(--surface); border-radius: 16px; padding: 22px 24px; box-shadow: 0 12px 40px rgba(22,32,42,.25); }
+.dialogo h2 { font-size: 22px; font-weight: 800; margin: 0 0 16px; }
+.adics { margin-top: 16px; border: 1px solid var(--lineStrong); border-radius: 10px; }
+.adics .cab, .adics .lin { display: grid; grid-template-columns: 24px 22px 160px 1fr 88px; gap: 10px; align-items: center; padding: 0 14px; }
+.adics .cab { height: 34px; font-size: 12px; font-weight: 600; color: var(--ink2); border-bottom: 1px solid var(--line); }
+.adics .lin { min-height: 52px; border-bottom: 1px solid var(--line); }
+.adics .lin:last-child { border-bottom: 0; }
+.adics .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; }
+.adics .chk.on { border-color: var(--accent); }
+.adics b { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--accent); }
+.adics .p { color: var(--ink2); font-size: 13px; }
+.adics .qtd { width: 88px; height: 36px; }
+.rodape-dlg { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.rodape-dlg .ciclo { margin-right: auto; }
