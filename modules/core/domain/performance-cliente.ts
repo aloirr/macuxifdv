@@ -52,7 +52,7 @@ export interface ResumoVisitas {
   total: number;
   /** AAAA-MM-DD no fuso do tenant. */
   ultima_data: string | null;
-  /** Quem fez o último check-in conhecido; nulo quando a data mais recente vem só do sync por cliente (RN-CORE-47). */
+  /** Quem fez o último check-in conhecido (aparelho ou resumo do servidor); nulo quando não se sabe. */
   ultimo_usuario_id: string | null;
   /** Nome de quem fez o último check-in, vindo do resumo do servidor; nulo quando o último é do aparelho ou não se sabe. */
   ultimo_usuario_nome: string | null;

@@ -6,29 +6,20 @@
  */
 import { ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import {
-  PARAMETRO_CURVA_ABC_FATURAMENTO,
-  PARAMETRO_CURVA_ABC_FREQUENCIA,
-  PARAMETRO_CURVA_ABC_VOLUME,
   ParametrosCurvaAbcPutSchema,
   ParametrosCurvaAbcSchema,
   type DimensaoCurvaAbc,
   type ParametrosCurvaAbc,
   type ParametrosCurvaAbcPut,
 } from '../contracts';
-import { faixasCurvaAbcDasLinhas, validarParametrosCurvaAbc } from '../domain';
+import { CHAVE_DA_DIMENSAO, faixasCurvaAbcDasLinhas, validarParametrosCurvaAbc } from '../domain';
 import { auditar } from './auditoria';
-
-const CHAVES: Record<DimensaoCurvaAbc, string> = {
-  faturamento: PARAMETRO_CURVA_ABC_FATURAMENTO,
-  volume: PARAMETRO_CURVA_ABC_VOLUME,
-  frequencia: PARAMETRO_CURVA_ABC_FREQUENCIA,
-};
 
 /** Valor efetivo do tenant da transação (RLS). Sem cache. */
 export async function lerParametrosCurvaAbc(db: ClienteBanco): Promise<ParametrosCurvaAbc> {
   const r = await db.query<{ modulo: string; chave: string; valor: unknown }>(
     "select modulo, chave, valor from plataforma.parametro where tenant_id = plataforma.tenant_atual() and modulo = 'core' and chave = any($1::text[]) and deleted_at is null",
-    [Object.values(CHAVES)],
+    [Object.values(CHAVE_DA_DIMENSAO)],
   );
   return faixasCurvaAbcDasLinhas(r.rows);
 }
@@ -55,12 +46,12 @@ export const rotasDeParametrosCurvaAbc: RotaModulo[] = [
       const novo = v.valores;
       return ctx.comTenant(async (db): Promise<ParametrosCurvaAbc> => {
         const antes = await lerParametrosCurvaAbc(db);
-        for (const d of Object.keys(CHAVES) as DimensaoCurvaAbc[]) {
+        for (const d of Object.keys(CHAVE_DA_DIMENSAO) as DimensaoCurvaAbc[]) {
           await db.query(
             `insert into plataforma.parametro (tenant_id, modulo, chave, valor) values (plataforma.tenant_atual(), 'core', $1, $2::jsonb)
              on conflict (tenant_id, modulo, chave) where deleted_at is null do update set valor = excluded.valor
                where plataforma.parametro.valor is distinct from excluded.valor`,
-            [CHAVES[d], JSON.stringify(novo[d])],
+            [CHAVE_DA_DIMENSAO[d], JSON.stringify(novo[d])],
           );
         }
         if (JSON.stringify(antes) !== JSON.stringify(novo)) {

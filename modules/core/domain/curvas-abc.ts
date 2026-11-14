@@ -26,7 +26,7 @@ export const PARAMETROS_CURVA_ABC_PADRAO: ParametrosCurvaAbc = {
   volume: { ...FAIXAS_CURVA_ABC_PADRAO },
   frequencia: { ...FAIXAS_CURVA_ABC_PADRAO },
 };
-const CHAVE_DA_DIMENSAO: Record<DimensaoCurvaAbc, string> = {
+export const CHAVE_DA_DIMENSAO: Record<DimensaoCurvaAbc, string> = {
   faturamento: PARAMETRO_CURVA_ABC_FATURAMENTO,
   volume: PARAMETRO_CURVA_ABC_VOLUME,
   frequencia: PARAMETRO_CURVA_ABC_FREQUENCIA,
@@ -109,8 +109,7 @@ export function faixasCurvaAbcDasLinhas(linhas: readonly Linha[]): FaixasPorDime
   return { faturamento: faixa('faturamento'), volume: faixa('volume'), frequencia: faixa('frequencia') };
 }
 
-const ROTULO_DIMENSAO: Record<DimensaoCurvaAbc, string> = { faturamento: 'Faturamento', volume: 'Volume', frequencia: 'Frequência' };
-export const ROTULOS_DIMENSAO_CURVA = ROTULO_DIMENSAO;
+export const ROTULOS_DIMENSAO_CURVA: Record<DimensaoCurvaAbc, string> = { faturamento: 'Faturamento', volume: 'Volume', frequencia: 'Frequência' };
 
 export type ResultadoParametrosCurvaAbc = { ok: true; valores: ParametrosCurvaAbc } | { ok: false; erros: ErroParametroCurvaAbc[] };
 
@@ -119,7 +118,7 @@ export function validarParametrosCurvaAbc(e: ParametrosCurvaAbc): ResultadoParam
   const erros: ErroParametroCurvaAbc[] = [];
   for (const d of DIMENSOES_CURVA_ABC) {
     const f = e[d];
-    const nome = ROTULO_DIMENSAO[d];
+    const nome = ROTULOS_DIMENSAO_CURVA[d];
     const bom = { a_min_pct: pctValido(f.a_min_pct), b_min_pct: pctValido(f.b_min_pct) };
     for (const c of ['a_min_pct', 'b_min_pct'] as const) {
       if (!bom[c]) erros.push({ campo: `${d}.${c}`, mensagem: `${nome}: informe um percentual de ${PCT_MIN} a ${PCT_MAX} para a curva ${c === 'a_min_pct' ? 'A' : 'B'}.` });
