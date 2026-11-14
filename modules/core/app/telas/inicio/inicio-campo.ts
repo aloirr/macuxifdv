@@ -22,9 +22,18 @@ export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' 
   return `${data} · ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`;
 }
 
-/** "Boa tarde" + "Lucas Andrade" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
+/** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */
+export function primeiroNome(nomeCompleto: string): string {
+  const primeira = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  return primeira
+    .split('-')
+    .map((parte) => (parte ? parte.charAt(0).toLocaleUpperCase('pt-BR') + parte.slice(1).toLocaleLowerCase('pt-BR') : parte))
+    .join('-');
+}
+
+/** "Boa tarde" + "LUCAS ANDRADE" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
 export function saudacaoComNome(saudacao: string, nomeCompleto: string): string {
-  const primeiro = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  const primeiro = primeiroNome(nomeCompleto);
   return primeiro ? `${saudacao}, ${primeiro}` : saudacao;
 }
 
@@ -67,7 +76,7 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
       const col = card.colunas.find((x) => x.rotulo === 'Meta/dia' || x.rotulo === 'Meta/pedido');
       return {
         indicador: card.indicador,
-        titulo: card.titulo,
+        titulo: card.indicador === 'itens_por_pedido' ? 'Itens/pedido' : card.titulo,
         real: card.real,
         meta: card.meta,
         percentual: r.atingimento_pb === null || card.atingimento === null ? null : `${Math.round(r.atingimento_pb / 100)}%`,
@@ -83,10 +92,10 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
 
 /** Os 6 do Início, na ordem da imagem aprovada (3 colunas × 2 linhas) e com o nome curto. */
 const DO_INICIO: ReadonlyArray<{ indicador: IndicadorProdutividade; titulo: string }> = [
-  { indicador: 'jornada_liquida', titulo: 'Jornada líquida' },
+  { indicador: 'jornada_liquida', titulo: 'Jornada' },
   { indicador: 'primeiro_checkin', titulo: '1º check-in' },
   { indicador: 'almoco', titulo: 'Almoço' },
-  { indicador: 'ultimo_checkin', titulo: 'Último check-in' },
+  { indicador: 'ultimo_checkin', titulo: 'Últ. check-in' },
   { indicador: 'fora_rota', titulo: 'Fora de rota' },
   { indicador: 'tma', titulo: 'TMA' },
 ];
