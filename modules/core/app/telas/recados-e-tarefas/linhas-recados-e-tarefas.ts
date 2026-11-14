@@ -162,7 +162,7 @@ export function linhaDoItem(item: ItemDaTela, c: ContextoLinha): LinhaDaLista {
 
 // ---------- balão do sino ----------
 
-/** Layout B (decisão do dono, 14/11): no máximo 3 linhas; o resto fica no "Ver todos". */
+/** Layout B (decisão do dono, 14/11): no máximo 3 linhas; o resto fica no "Ver todos", que aparece sempre. */
 export const MAX_NO_BALAO = 3;
 
 export type IconeDoBalao = 'recado' | 'tarefa' | 'vencida' | 'ok';
@@ -183,8 +183,6 @@ export interface LinhaDoBalao {
 
 export interface BalaoMontado {
   linhas: LinhaDoBalao[];
-  /** Só quando há mais itens do que os que cabem. */
-  verTodos: boolean;
   /** Sem nada a mostrar: uma linha "Tudo em dia". */
   vazio: boolean;
 }
@@ -198,7 +196,7 @@ const ehNovo = (i: ItemDaTela): boolean => (i.tipo === 'recado' ? !i.notificacao
 
 /**
  * Itens do balão: entram recados (lidos ou não) e tarefas a fazer; primeiro os novos (os que o contador do sino conta), depois
- * os demais, cada grupo do mais recente para o mais antigo; corte em 3. `verTodos` só com mais de 3 itens elegíveis.
+ * os demais, cada grupo do mais recente para o mais antigo; corte em 3. O "Ver todos" aparece sempre (é do componente).
  */
 export function linhasDoBalao(itens: readonly ItemDaTela[], c: ContextoLinha): BalaoMontado {
   const chegada = (i: ItemDaTela): number =>
@@ -217,7 +215,7 @@ export function linhasDoBalao(itens: readonly ItemDaTela[], c: ContextoLinha): B
     const forte = !n.lida_em;
     return { id: i.id, tipo: 'recado', titulo: n.titulo, forte, icone: 'recado', apoio: n.corpo, vencida: false, leitura: [n.titulo, n.corpo, forte ? 'não lido' : null].filter(Boolean).join('. ') };
   });
-  return { linhas, verTodos: elegiveis.length > MAX_NO_BALAO, vazio: elegiveis.length === 0 };
+  return { linhas, vazio: elegiveis.length === 0 };
 }
 
 /** Chegada do aviso de cada tarefa (para a tag), a partir das notificações do aparelho. */

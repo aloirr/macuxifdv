@@ -129,7 +129,7 @@ describe('T-0170 §7.2: balão do sino (layout B)', () => {
   const aviso = (t: TarefaSync, p: Partial<NotificacaoDaTela> = {}) =>
     notificacao(Number(t.tarefa_id.slice(-1)) + 10, { id: id('f', Number(t.tarefa_id.slice(-1))), subtipo: 'tarefa', tipo: 'tarefa', tarefa_id: t.tarefa_id, ...p } as Partial<NotificacaoDaTela>);
 
-  it('estado cheio: no máximo 3 linhas, novos primeiro, "Ver todos" porque há mais', () => {
+  it('estado cheio: no máximo 3 linhas, novos primeiro, mais de 3 itens', () => {
     const ns = [
       notificacao(1, { updated_at: '2026-11-13T10:00:00Z' }),
       notificacao(2, { updated_at: '2026-11-12T09:00:00Z', lida_em: '2026-11-12T20:00:00Z' }),
@@ -139,7 +139,6 @@ describe('T-0170 §7.2: balão do sino (layout B)', () => {
     const t = tarefa(1, { prazo: HOJE });
     const b = linhasDoBalao(lista([...ns, aviso(t)], [t]), C);
     expect(b.linhas).toHaveLength(MAX_NO_BALAO);
-    expect(b.verTodos).toBe(true);
     expect(b.vazio).toBe(false);
     // o recado não lido e a tarefa nova vêm antes dos lidos; os lidos, do mais recente
     expect(b.linhas.map((l) => [l.tipo, l.forte])).toEqual([['tarefa', true], ['recado', true], ['recado', false]]);
@@ -147,18 +146,17 @@ describe('T-0170 §7.2: balão do sino (layout B)', () => {
     expect(b.linhas[1]).toMatchObject({ icone: 'recado', apoio: 'Passe cedo no Mercadinho São Jorge' });
   });
 
-  it('"Ver todos" só quando há mais de 3 itens', () => {
+  it('com até 3 itens mostra todos e não fica vazio', () => {
     const tres = linhasDoBalao(lista([notificacao(1), notificacao(2), notificacao(3)], []), C);
-    expect(tres).toMatchObject({ verTodos: false, vazio: false });
+    expect(tres).toMatchObject({ vazio: false });
     expect(tres.linhas).toHaveLength(3);
-    expect(linhasDoBalao(lista([notificacao(1), notificacao(2), notificacao(3), notificacao(4)], []), C).verTodos).toBe(true);
   });
 
-  it('estado vazio: sem linhas e sem "Ver todos"; feita e cancelada não entram', () => {
-    expect(linhasDoBalao([], C)).toEqual({ linhas: [], verTodos: false, vazio: true });
+  it('estado vazio: sem linhas; feita e cancelada não entram', () => {
+    expect(linhasDoBalao([], C)).toEqual({ linhas: [], vazio: true });
     const feita = tarefa(1, { concluida_em: '2026-11-13T14:00:00Z' });
     const cancelada = tarefa(2, { cancelada_em: '2026-11-12T10:00:00Z' });
-    expect(linhasDoBalao(lista([], [feita, cancelada]), C)).toMatchObject({ linhas: [], vazio: true, verTodos: false });
+    expect(linhasDoBalao(lista([], [feita, cancelada]), C)).toMatchObject({ linhas: [], vazio: true });
   });
 
   it('tarefa vencida: ícone de alerta e apoio "Venceu ontem" (ou "Venceu em dd/mm")', () => {
@@ -183,7 +181,7 @@ describe('T-0170 §7.2: balão do sino (layout B)', () => {
     expect(contarSino(itens).total).toBe(0);
   });
 
-  it('RN-CORE-TAR-07: todo item contado pelo sino aparece entre as 3 linhas (ou há "Ver todos" se os novos passam de 3)', () => {
+  it('RN-CORE-TAR-07: todo item contado pelo sino aparece entre as 3 linhas', () => {
     const lidaEm = '2026-11-13T12:00:00Z';
     const ts = [tarefa(1), tarefa(2, { prazo: '2026-11-10' }), tarefa(3, { concluida_em: '2026-11-13T14:00:00Z' }), tarefa(4, { cancelada_em: '2026-11-12T10:00:00Z' }), tarefa(7)];
     const ns = [...ts.map((t) => aviso(t)), notificacao(1), notificacao(2, { lida_em: lidaEm })];
@@ -192,7 +190,6 @@ describe('T-0170 §7.2: balão do sino (layout B)', () => {
       const contados = conjunto.filter((i) => contarSino([i]).total > 0);
       if (contados.length <= MAX_NO_BALAO) for (const i of contados) expect(b.linhas.map((l) => l.id)).toContain(i.id);
       else {
-        expect(b.verTodos).toBe(true);
         expect(b.linhas.every((l) => l.forte)).toBe(true);
       }
     }
