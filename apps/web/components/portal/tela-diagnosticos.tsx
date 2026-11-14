@@ -90,7 +90,7 @@ function OrigemBadge({ origem }: { origem: keyof typeof ROTULO_ORIGEM }) {
 export function TelaDiagnosticos() {
   const pode = useTimeMacuxi();
   return (
-    <MolduraPortal titulo={pode ? <PageHeader title={T.titulo} subtitle={T.subtitulo} /> : undefined}>
+    <MolduraPortal titulo={pode ? <PageHeader title={T.titulo} /> : undefined}>
       {pode === null ? <LoadingBlock label={T.carregando} /> : pode ? <ListaDiagnosticos /> : <SemAcesso />}
     </MolduraPortal>
   );
@@ -130,10 +130,12 @@ function ListaDiagnosticos() {
         <ErrorBlock message={mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />
       ) : (
         <>
-          <span data-testid="diagnosticos.contagem" className="text-[13px] text-ink-2">
-            {itens.length}
-            {q.hasNextPage ? '+' : ''} {itens.length === 1 ? 'diagnóstico' : 'diagnósticos'}
-          </span>
+          {itens.length > 0 && (
+            <span data-testid="diagnosticos.contagem" className="text-[13px] text-ink-2">
+              {itens.length}
+              {q.hasNextPage ? '+' : ''} {itens.length === 1 ? 'diagnóstico' : 'diagnósticos'}
+            </span>
+          )}
           {itens.length === 0 ? (
             <Panel>
               <div data-testid="diagnosticos.vazio" className="flex flex-col items-start gap-3 py-4">

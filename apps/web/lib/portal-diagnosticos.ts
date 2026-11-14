@@ -24,7 +24,6 @@ export const FUSO_PORTAL = 'America/Manaus';
 
 export const TEXTOS_PORTAL_DIAGNOSTICOS = {
   titulo: 'Diagnósticos',
-  subtitulo: 'Enviados pelos aparelhos. Ficam 90 dias.',
   carregando: 'Buscando os diagnósticos…',
   vazioFiltro: 'Nenhum diagnóstico com estes filtros.',
   vazio: 'Nenhum diagnóstico recebido.',

@@ -61,7 +61,7 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
         corpo: { email_id: emailId },
         schema: RedefinirSenhaAdminRespostaSchema,
       });
-      setAviso({ tom: 'success', texto: textoDoResultado(alvo.email, r, fuso) });
+      setAviso({ tom: 'success', texto: textoDoResultado(alvo.email) });
       setAlvo(null);
       void qc.invalidateQueries({ queryKey: chaveAdmins(tenant) });
     } catch (x) {
@@ -80,7 +80,6 @@ export function CartaoAdmins({ tenant, fuso }: { tenant: string; fuso: string })
   return (
     <Panel title={TEXTOS_ADMINS.titulo} label={TEXTOS_ADMINS.titulo}>
       <div data-testid="empresa-admins" className="flex flex-col gap-3">
-        <span className="text-[13px] text-ink-2">{TEXTOS_ADMINS.ajuda}</span>
         <div aria-live="polite">
           {aviso && (
             <div data-testid="empresa-admins.aviso">

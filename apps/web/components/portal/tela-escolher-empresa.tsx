@@ -42,7 +42,6 @@ import { MolduraEstreita, useSessaoPortal } from './base';
 
 export const TEXTOS_ESCOLHER = Object.freeze({
   titulo: 'Escolha a empresa',
-  instrucao: 'Seu acesso vale para estas empresas.',
   atual: 'Atual',
   entrando: 'Entrando…',
   sair: 'Sair',
@@ -161,10 +160,7 @@ export function TelaEscolherEmpresa() {
   return (
     <MolduraEstreita testId="escolher.tela">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ESCOLHER.titulo}</h1>
-          <span className="text-[13px] text-ink-2">{TEXTOS_ESCOLHER.instrucao}</span>
-        </div>
+        <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ESCOLHER.titulo}</h1>
         {aviso && (
           <div data-testid="escolher.aviso">
             <Notice tone="info">{aviso}</Notice>
@@ -196,7 +192,7 @@ export function TelaEscolherEmpresa() {
                     <span className="truncate text-[15px] font-semibold text-ink">{e.nome}</span>
                     {e.atual && <Badge tone="neutral">{TEXTOS_ESCOLHER.atual}</Badge>}
                   </span>
-                  <span className="text-[12px] text-ink-2">{e.codigo}</span>
+                  <span className="text-[12px] text-ink-2">{e.codigo.toUpperCase()}</span>
                 </span>
                 {escolhendo === e.id ? (
                   <span className="text-[13px] font-semibold text-ink-2">{TEXTOS_ESCOLHER.entrando}</span>

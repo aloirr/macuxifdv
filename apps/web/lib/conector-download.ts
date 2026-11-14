@@ -2,12 +2,12 @@
  * T-0098 — download do Conector on-premise por link temporário (presign de bucket privado), na aba Integração do portal.
  * Contrato do Integração (`LinkDownloadConectorSchema`, ADR 0037; R-20261109-083700): `POST /v1/integracao/conector/download`
  * com o token do portal e `x-macuxi-tenant`, auditado no servidor, devolve `{ url, expira_em, versao, arquivo, tamanho_bytes?,
- * sha256? }`. Sem a rota neste servidor (404 de rota, 501/503 sem storage, 404 `CONECTOR_SEM_PACOTE`), a tela segue com "em
- * breve". O link nunca é guardado: cada clique gera outro. Puro (roda em Node); a tela é `components/portal/aba-integracao.tsx`.
+ * sha256? }`. Sem a rota neste servidor (404 de rota, 501/503 sem storage, 404 `CONECTOR_SEM_PACOTE`), a tela mostra
+ * `TEXTO_INDISPONIVEL`. O link nunca é guardado: cada clique gera outro. Puro (roda em Node); a tela é `components/portal/aba-integracao.tsx`.
  */
 import { CODIGO_CONECTOR_SEM_PACOTE, LinkDownloadConectorSchema, type LinkDownloadConector } from '@macuxi/integracao/contracts';
 
-import { ehRotaAusente, ErroPortal, mensagemDoErro } from './portal-api';
+import { ehRotaAusente, ErroPortal, mensagemDoErro, TEXTO_INDISPONIVEL } from './portal-api';
 
 export type { LinkDownloadConector };
 
@@ -31,9 +31,9 @@ export function tamanhoLegivel(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024)).toLocaleString('pt-BR')} KB`;
 }
 
-/** "Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · 12,3 MB" (só o que veio). */
+/** "Versão 1.0.0 · 12,3 MB" (só o que veio; o nome do arquivo já está no link "Baixar {arquivo}", spec portal-config-enxuto §10.2). */
 export function textoDoPacote(l: LinkDownloadConector): string | null {
-  const partes = [l.versao ? `Versão ${l.versao}` : null, l.arquivo, l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null].filter(Boolean);
+  const partes = [l.versao ? `Versão ${l.versao}` : null, l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null].filter(Boolean);
   return partes.length > 0 ? partes.join(' · ') : null;
 }
 
@@ -48,7 +48,7 @@ export const TEXTOS_DOWNLOAD_CONECTOR = Object.freeze({
   botao: 'Gerar o link do Conector',
   gerando: 'Gerando o link…',
   baixar: (arquivo: string | null) => (arquivo ? `Baixar ${arquivo}` : 'Baixar o Conector'),
-  emBreve: 'o pacote será publicado aqui em breve.',
+  emBreve: TEXTO_INDISPONIVEL,
   espera: 'Muitos links seguidos. Espere um minuto e tente de novo.',
   semAcesso: 'Só quem administra a empresa no portal baixa o Conector.',
 });

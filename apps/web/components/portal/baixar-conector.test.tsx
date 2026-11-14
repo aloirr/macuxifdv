@@ -22,7 +22,7 @@ describe('BaixarConector', () => {
     expect(html).not.toContain('href=');
   });
 
-  it('com o link: abre em nova aba sem opener, mostra versão, arquivo e validade', () => {
+  it('com o link: abre em nova aba sem opener, mostra o arquivo no link, versão e validade', () => {
     const html = renderToStaticMarkup(
       <BaixarConector
         tenant={TENANT}
@@ -34,7 +34,7 @@ describe('BaixarConector', () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noreferrer noopener"');
     expect(html).toContain('Baixar macuxi-conector-1.0.0-win-x64.zip');
-    expect(html).toContain('Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · 12,3 MB');
+    expect(html).toContain('Versão 1.0.0 · 12,3 MB');
     expect(html).toContain('O link vale até ');
   });
 });
