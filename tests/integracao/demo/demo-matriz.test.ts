@@ -254,31 +254,39 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect(Number((await api.admin.query('select count(*)::int n from core.visita where id = $1', [ci.visit.id])).rows[0].n)).toBe(1);
     });
 
-    it('D-C06: Metas do mês no aparelho (painel offline): Lucas tem as 4 metas do mês (venda, positivação, cobertura, visitas)', async () => {
+    it('D-C06: Metas do mês no aparelho (painel offline): Lucas tem as 5 metas do mês (venda, positivação, cobertura, visitas, itens por pedido — T-0170)', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       const m = c.ap.motor;
       const [paradas, visitas, diarios, metas] = await Promise.all([m.linhas('rota_parada'), m.linhas('visita'), m.linhas('indicador_diario'), m.linhas('meta')]);
       const painel = painelLocal({ paradas, visitas, diarios, metas } as never, m.sobreposicao(), { usuarioId: usuarioId.vendedor, fuso: 'America/Manaus', agora: new Date() });
-      expect(painel.metas.map((l) => l.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+      expect(painel.metas.map((l) => l.indicador).sort()).toEqual(['cobertura_pct', 'itens_por_pedido', 'positivacao', 'venda_cents', 'visitas']);
       expect(painel.metas.every((l) => l.meta > 0)).toBe(true);
+      // itens_por_pedido em centésimos (seed tarefas-produtividade: 3,50 = 350 no mês corrente)
+      expect(painel.metas.find((l) => l.indicador === 'itens_por_pedido')!.meta).toBe(350);
       // no dia 1º do mês o realizado é 0: os pedidos da base são dos dias úteis ANTERIORES (observação O-2 da matriz)
       expect(painel.indicadores.realizado_cents).toBeGreaterThanOrEqual(0);
     });
 
-    it('D-C07: Notificações: Lucas tem o recado do supervisor não lido; marcar como lida sobe pela fila', async () => {
+    it('D-C07: Notificações: Lucas tem o recado do supervisor não lido (os demais itens são os avisos das tarefas do seed, RN-CORE-TAR-07); marcar o recado como lido sobe pela fila', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       const caixa = montarCaixa(await c.ap.motor.linhas('notificacao'), c.ap.motor.estado().fila, new Date());
-      expect(caixa).toHaveLength(1);
-      expect(caixa[0]!.tipo).toBe('recado');
-      expect(contarNaoLidas(caixa)).toBe(1);
+      const recados = caixa.filter((n) => n.tipo === 'recado');
+      expect(recados).toHaveLength(1);
+      expect(contarNaoLidas(recados)).toBe(1);
+      const outros = caixa.filter((n) => n.tipo !== 'recado');
+      expect(outros.length).toBeGreaterThan(0);
+      expect(outros.every((n) => n.tipo === 'sistema' && n.subtipo === 'tarefa')).toBe(true);
+      const recado = recados[0]!;
       const cmd = randomUUID();
-      await c.ap.motor.enfileirar({ id: cmd, entidade: 'notificacao_leitura', payload: { id: cmd, notificacao_id: caixa[0]!.id, lida_em: new Date().toISOString() } });
+      await c.ap.motor.enfileirar({ id: cmd, entidade: 'notificacao_leitura', payload: { id: cmd, notificacao_id: recado.id, lida_em: new Date().toISOString() } });
       expect(await c.ap.sincronizar()).toBe(true);
       expect(c.ap.motor.estado().fila).toEqual([]);
       const r = await api.get(token.vendedor, '/v1/core/notificacoes');
-      expect((listaDe(r.corpo) as Array<{ lida_em: string | null }>)[0]!.lida_em).toBeTruthy();
+      const noServidor = (listaDe(r.corpo) as Array<{ id: string; lida_em: string | null }>).find((n) => n.id === recado.id);
+      expect(noServidor, 'o recado está na lista da API').toBeDefined();
+      expect(noServidor!.lida_em).toBeTruthy();
     });
 
     it('D-C08a: os pedidos do Lucas CHEGAM ao aparelho pelo pull (8 pedidos desde a 0020 — p11 novo, T-0071; com itens; 1 aguardando aprovação)', async () => {
