@@ -26,8 +26,8 @@ describe('filtros na URL e CSV das transportadoras', () => {
   it('exporta CSV com CNPJ formatado e origem', () => {
     const t: Transportadora = { id: '11111111-1111-4111-8111-111111111111', nome: 'Rápido Norte', documento: '11222333000181', inscricao_estadual: null, telefone: '92 3000-0000', ativo: true, external_id: null, updated_at: '2026-11-02T10:00:00.000000Z' };
     const csv = transportadorasToCsv([t, { ...t, nome: 'Parada', ativo: false, external_id: 'ERP-9' }]);
-    expect(csv).toContain('Nome;CNPJ;Inscrição estadual;Telefone;Situação;Origem');
-    expect(csv).toContain('Rápido Norte;11.222.333/0001-81;;92 3000-0000;Ativa;BKO');
-    expect(csv).toContain('Parada;11.222.333/0001-81;;92 3000-0000;Inativa;ERP');
+    expect(csv).toContain('"Nome";"CNPJ";"Inscrição estadual";"Telefone";"Situação";"Origem"');
+    expect(csv).toContain('"Rápido Norte";"11.222.333/0001-81";"";"92 3000-0000";"Ativa";"BKO"');
+    expect(csv).toContain('"Parada";"11.222.333/0001-81";"";"92 3000-0000";"Inativa";"ERP"');
   });
 });

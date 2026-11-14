@@ -1,22 +1,16 @@
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../contracts';
-import { BOM_CSV } from '@macuxi/comum/csv';
+import { BOM_CSV, celulaCsv } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull } from '@macuxi/ui/web';
 
 /**
- * BOM para o Excel abrir em UTF-8 sem perguntar: o do `@macuxi/comum/csv` (RD-0051). A célula (`csvCell`) continua local:
- * a `celulaCsv`/`protegerFormula` do comum põe aspas sempre e prefixa `'` em `=`, `+`, `-` e `@`, o que mudaria a saída.
+ * CSV do BKO do Vendedor. Decisão "Unifica" (dono do produto, 14/11/2026, RD-0051): BOM e célula vêm do `@macuxi/comum/csv`;
+ * `celulaCsv` põe aspas em toda célula, dobra as internas e prefixa `'` em `=`, `+`, `-`, `@`, tab e CR (CWE-1236).
  */
 export const CSV_BOM = BOM_CSV;
 
-/** Escapa uma célula: aspas quando houver ; " ou quebra de linha. */
-export function csvCell(v: string | number | null | undefined): string {
-  const s = v === null || v === undefined ? '' : String(v);
-  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/** Monta o CSV no padrão brasileiro do Excel: separador ;, CRLF e BOM. */
+/** Monta o CSV no padrão brasileiro do Excel: separador ;, CRLF e BOM. Vazio vira `""`. */
 export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
-  return CSV_BOM + rows.map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
+  return CSV_BOM + rows.map((r) => r.map((v) => celulaCsv(v === null || v === undefined ? '' : String(v))).join(';')).join('\r\n') + '\r\n';
 }
 
 /** Número com vírgula decimal e casas fixas (sem separador de milhar, para o Excel somar). */
