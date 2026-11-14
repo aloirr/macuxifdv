@@ -1,0 +1,17 @@
+{
+  "_leia": "ADR 0045, Autorização retroativa. Só entra pelo rito (squash com Agente: alexandre).",
+  "autorizacoes": [
+    {
+      "sha": "706c96f282037f3eaa8434673455cc1d7cfcee33",
+      "pr": 232,
+      "recado": "R-20261114-112000-alexandre",
+      "motivo": "squash da ponte com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/eas-build.yml) autorizado pelo Alexandre em 14/11/2026 8h13"
+    },
+    {
+      "sha": "f7c87190b6883ea1f68d1395f4be57e5e491a388",
+      "pr": 237,
+      "recado": "R-20261114-112000-alexandre",
+      "motivo": "squash da ponte com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/eas-build.yml) autorizado pelo Alexandre em 14/11/2026 8h13"
+    }
+  ]
+}

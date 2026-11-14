@@ -95,6 +95,17 @@
    | `cancel-in-progress` em todo workflow de PR. | Já existe no `ci.yml` e no `stack-isolado.yml`; os outros são manuais ou de deploy, e lá o cancelamento seria errado. |
    - Os três passos novos rodam em segundos dentro do job "governança", que já existe: nenhum job, runner ou instalação nova.
 
+### Autorização retroativa (14/11/2026)
+- **Impasse:** os squashes `706c96f2` (#232) e `f7c87190` (#237) alteraram `.github/workflows/eas-build.yml` e entraram no `main` pela ponte com o último bloco "Agente: engenheiro-software", sem o rito "Agente: alexandre". O passo `brechas-governanca.mjs trailer` confere `BASE..DEPOIS`, e o BASE é o último push verde do `main` (`scripts/ci/escopo.mjs`, `baseDoPush`). Por isso todo push seguinte continuaria vermelho. O conteúdo foi autorizado pelo Alexandre às 8h13, no recado `R-20261114-112000-alexandre`.
+- **Decisão:** a lista versionada `.github/governanca-retroativa.json` (`autorizacoes`: `sha`, `pr`, `recado`, `motivo`). O commit listado sai como `::notice::` (autorização retroativa) em vez de `::error::`. As regras:
+  - o SHA é completo (40 hex minúsculos) e casa exato;
+  - o recado é do Alexandre (`R-AAAAMMDD-HHMMSS-alexandre`);
+  - o `pr` é inteiro positivo, o motivo não é vazio e SHA repetido é erro;
+  - a lista é lida no **topo** do intervalo (`DEPOIS`). Se o arquivo não existe, a lista fica vazia;
+  - lista inválida dá saída 2 (falha fechada);
+  - a lista fica em `.github/**`, que é governança. Ela só entra pelo rito (squash com "Agente: alexandre"), e quem a altera sem o rito fica vermelho no mesmo passo.
+- **O caminho normal continua sendo o rito.** A lista é exceção para squash já feito e não substitui o rito: cada entrada precisa da autorização escrita do Alexandre num recado.
+
 ## Alternativas consideradas
 - **Manter o PC como frente local e a nuvem só para tarefas isoladas:** foi recusada pelo dono do produto ("migre tudo").
 - **Uma sessão só (o gerente) com todos os agentes como subagentes, na mesma árvore:**
