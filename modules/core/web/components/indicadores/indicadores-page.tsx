@@ -6,8 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll, type NoticeTone } from '@macuxi/ui/web';
-import { IndicadoresListaSchema } from '../../../contracts';
-import { ROTULO_INDICADOR } from '../../../app/lib/metas-formato';
+import { IndicadoresListaSchema, ROTULO_INDICADOR_META } from '../../../contracts';
 import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 
@@ -128,7 +127,7 @@ function IndicadoresConteudo() {
       )}
 
       {pode && (
-        <Panel title={`Definir ${ROTULO_INDICADOR.venda_cents.toLowerCase()} do mês`}>
+        <Panel title={`Definir ${ROTULO_INDICADOR_META.venda_cents.toLowerCase()} do mês`}>
           <FilterBar>
             <SelectField label="Pessoa" value={editar.usuario} onChange={(e) => setEditar({ ...editar, usuario: e.target.value })} data-testid="indicadores.meta-usuario">
               <option value="">Escolha…</option>

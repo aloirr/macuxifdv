@@ -76,6 +76,12 @@ describe('T-0170 §2 (RN-CORE-42): cards de Resultados', () => {
     expect(c!.titulo).toBe('Vendas');
   });
 
+  it('RD-0250 (D6): sem base definida o título é "Vendas"; "Faturamento" só com meta de faturamento', () => {
+    const r = resultado({ indicador: 'venda_cents', meta: 100, realizado: 10, atingimento_pb: 1000, gap: 90 });
+    expect(cardsDeResultados([r], { ...VENDEDOR, tipoMetaVenda: null })[0]!.titulo).toBe('Vendas');
+    expect(cardsDeResultados([r], VENDEDOR)[0]!.titulo).toBe('Faturamento');
+  });
+
   it('Itens por pedido: Gap, Meta/pedido e Real, em uma casa', () => {
     const [c] = cardsDeResultados([resultado({ indicador: 'itens_por_pedido', meta: 800, realizado: 640, atingimento_pb: 8000, gap: 160, meta_dia: 920 })], VENDEDOR);
     expect(c!.real).toBe('6,4');

@@ -15,6 +15,7 @@ import {
   type ProdutividadeIndicador,
   type ResultadoIndicador,
 } from '../../../contracts/performance';
+import { rotuloDoIndicadorMeta } from '../../../contracts/sync';
 
 // ---------- números ----------
 
@@ -70,15 +71,9 @@ export interface CardResultado {
   colunas: ColunaResultado[];
 }
 
-const TITULO_RESULTADO: Record<IndicadorResultado, string> = {
-  venda_cents: 'Faturamento',
-  positivacao: 'Positivação',
-  visitas: 'Visitas',
-  itens_por_pedido: 'Itens por pedido',
-};
 
 export interface ContextoResultados {
-  /** D6: "Vendas" quando a meta do tenant é de pedido; "Faturamento" quando é de faturamento ou sem base ainda. */
+  /** D6 (RD-0250): "Faturamento" só quando a meta do tenant é de faturamento; de pedido ou sem base, "Vendas". */
   tipoMetaVenda: 'pedido' | 'faturamento' | null;
   /** Promotor só vê Visitas (RN-PRO-01, §2.4). */
   perfil: 'vendedor' | 'promotor';
@@ -91,7 +86,7 @@ export function cardsDeResultados(itens: readonly ResultadoIndicador[], c: Conte
   return itens
     .filter((r) => c.perfil === 'vendedor' || r.indicador === 'visitas')
     .map((r): CardResultado => {
-      const titulo = r.indicador === 'venda_cents' && c.tipoMetaVenda === 'pedido' ? 'Vendas' : TITULO_RESULTADO[r.indicador];
+      const titulo = rotuloDoIndicadorMeta(r.indicador, c.tipoMetaVenda);
       const base = { indicador: r.indicador, titulo };
       if (r.situacao === 'sem_dado' || r.realizado === null)
         return { ...base, real: VALOR_SEM_DADO, meta: null, atingimento: null, barra: 0, tom: null, colunas: [] };
