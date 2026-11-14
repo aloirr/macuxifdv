@@ -21,3 +21,5 @@ export * from './tabela-dados';
 export * from './tabela-dados-componente';
 export * from './menu-acoes';
 export * from './modulos';
+// MC-0042: módulos adicionais do plano (nome e ícone)
+export * from './adicionais';

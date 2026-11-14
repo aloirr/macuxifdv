@@ -171,12 +171,16 @@ const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' :
   e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa."**
 
 ## 6. Equipe por CSV (T-0087 E, sem convite)
+> **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §12: a Equipe por CSV saiu do portal inteira (RD-0275 a RD-0278); esta seção fica só como registro.
+
 - Resultado do "Gravar": **"<n> acessos enviados por e-mail."** (1: **"1 acesso enviado por e-mail."**; 0: a linha não aparece).
   Saem a lista e o CSV de convites.
 - 503 `EMAIL_INDISPONIVEL` (antes de gravar): **"O envio de e-mail não está configurado, e nada foi gravado. Fale com o suporte
   da Macuxi."** (`Notice tone="danger"`; o "Conferir" continua funcionando).
 
 ## 7. Portal `config.`
+> **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §1, §4 e §12: senha a trocar = só "Crie a sua senha no backoffice antes de entrar aqui." (RD-0264); passo Empresa = só "Passe esta senha ao administrador."; o cartão Equipe saiu (RD-0275); Redefinir senha dos admins: sucesso "Senha temporária enviada para {e-mail}." (RD-0291).
+
 - 403 `SENHA_A_TROCAR` no Entrar (`entrar.erro`): **"Crie a sua senha no backoffice antes de entrar aqui. Use o código da
   empresa, o e-mail e a senha que você recebeu."**
 - Linha do Entrar (portal-entrar.md §1, item 8): passa a **"Esqueceu a senha? Use "Esqueci a senha" no backoffice."**

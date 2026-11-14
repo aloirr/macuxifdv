@@ -27,7 +27,7 @@ import { TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { CRIAR_SUPER_ADMIN, FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_ATUAIS, FUNCOES_SA_REMOVIDAS_0039, SA_INTERNA, SA_INTERNA_0035 } from './funcoes-sa';
-import { emTransacao, erroDe, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m39 = migracoes.find((m) => m.versao === '0039')!;
@@ -40,7 +40,6 @@ const TABELAS_0039 = ['plataforma.portal_tentativa', 'plataforma.portal_sessao',
 const EMAIL_SA = 'operador.t93@macuxi.exemplo';
 const EMAIL_CLI = 'cliente.t93@exemplo.com.br';
 const H1 = '$argon2id$v=19$m=1,t=1,p=1$c2FsdW0$aGFzaHVt';
-const H2 = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 const H3 = '$argon2id$v=19$m=1,t=1,p=1$dGVyY2Vpcm8$dGVyY2Vpcm9oYXNo';
 const chave = (s: string) => createHash('sha256').update(s).digest('hex');
 const A = DOIS_TENANTS.A.tenantId;
@@ -180,7 +179,7 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
     ]))[0]!.r;
   const superAdmin = async (p: Record<string, unknown>) =>
     (await q<{ r: { resultado: string; super_admin_id: string | null; sessoes_revogadas: number } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify(p)]))[0]!.r;
-  const usuario = async (tenant: string, email: string, perfil: string, hash: string | null = H2): Promise<string> =>
+  const usuario = async (tenant: string, email: string, perfil: string, hash: string | null = HASH_TESTE): Promise<string> =>
     (await q<{ id: string }>('insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, $2, $3, $4, true, $5) returning id', [
       tenant, `Usuário T93 ${perfil}`, email, perfil, hash,
     ]))[0]!.id;
@@ -254,14 +253,14 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
 
   it('sa_contas_para_login: admin ativo de empresa ativa por nome; super-admin primeiro; vendedor, inativo, bloqueado, apagado, sem senha e empresa suspensa ficam de fora; grava sa.login.consulta sem e-mail', async () => {
     await emTransacao(admin, null, async () => {
-      const uA = await usuario(A, EMAIL_CLI, 'admin', H2);
+      const uA = await usuario(A, EMAIL_CLI, 'admin', HASH_TESTE);
       const uB = await usuario(B, EMAIL_CLI.toUpperCase(), 'admin', H3);
       const c = (await q<{ id: string }>("insert into plataforma.tenant (codigo, nome) values ('t93-gama', 'Gama T93') returning id"))[0]!.id;
       await usuario(c, EMAIL_CLI, 'vendedor');
       const [nA, nB] = [await nomeDe(A), await nomeDe(B)];
       const esperado = [
         // 0040 (T-0094): + trocar_senha, senha_expira_em e sessao_versao (senha-email-saida.test.ts)
-        { tipo: 'admin_cliente', conta_id: uA, tenant_id: A, tenant_codigo: nA.codigo, tenant_nome: nA.nome, senha_hash: H2, trocar_senha: false, senha_expira_em: null, sessao_versao: 0 },
+        { tipo: 'admin_cliente', conta_id: uA, tenant_id: A, tenant_codigo: nA.codigo, tenant_nome: nA.nome, senha_hash: HASH_TESTE, trocar_senha: false, senha_expira_em: null, sessao_versao: 0 },
         { tipo: 'admin_cliente', conta_id: uB, tenant_id: B, tenant_codigo: nB.codigo, tenant_nome: nB.nome, senha_hash: H3, trocar_senha: false, senha_expira_em: null, sessao_versao: 0 },
       ].sort((x, y) => x.tenant_nome.localeCompare(y.tenant_nome));
       expect(await contas(`  ${EMAIL_CLI.toUpperCase()} `)).toEqual(esperado);
@@ -305,7 +304,7 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
   it('sa_contas_para_login: no máximo 20 linhas (as primeiras por nome da empresa)', async () => {
     await emTransacao(admin, null, async () => {
       await q("insert into plataforma.tenant (codigo, nome) select 't93-l' || g, 'Lote T93 ' || lpad(g::text, 2, '0') from generate_series(1, 21) g");
-      await q("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) select id, 'Admin Lote', 'muitas.t93@exemplo.com.br', 'admin', true, $1 from plataforma.tenant where codigo like 't93-l%'", [H2]);
+      await q("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) select id, 'Admin Lote', 'muitas.t93@exemplo.com.br', 'admin', true, $1 from plataforma.tenant where codigo like 't93-l%'", [HASH_TESTE]);
       const r = await contas('muitas.t93@exemplo.com.br');
       expect(r).toHaveLength(20);
       expect(r.map((x) => x.tenant_nome)).toEqual(Array.from({ length: 20 }, (_, i) => `Lote T93 ${String(i + 1).padStart(2, '0')}`));
@@ -454,19 +453,19 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
     await emTransacao(admin, null, async () => {
       const sa = await criarSuperAdmin();
       const s = (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!;
-      const adm = { email: 'admin.novo.t93@exemplo.com.br', nome: 'Admin Novo', senha_hash: H2 };
+      const adm = { email: 'admin.novo.t93@exemplo.com.br', nome: 'Admin Novo', senha_hash: HASH_TESTE };
       const r1 = await um<Record<string, unknown>>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [s.sessao_id, JSON.stringify(entradaEmpresa('t93-nova', { admin: adm }))]);
       expect(r1).toMatchObject({ resultado: 'criado', admin: 'criado', avisos: [] });
       const tenant = r1.tenant_id as string;
       const criado = await q('select perfil, ativo, senha_hash from core.usuario where tenant_id = $1', [tenant]);
-      expect(criado).toEqual([{ perfil: 'admin', ativo: true, senha_hash: H2 }]);
+      expect(criado).toEqual([{ perfil: 'admin', ativo: true, senha_hash: HASH_TESTE }]);
       expect(await q('select usuario_id from plataforma.auditoria where tenant_id = $1 and acao = $2', [tenant, 'tenant.provisionar'])).toEqual([{ usuario_id: sa.super_admin_id }]);
       // o admin inicial já entra pelo portal
       expect((await contas(adm.email)).map((x) => x.tenant_id)).toEqual([tenant]);
       // empresa existente: o admin fica como está (RN-CORE-31), a senha não muda
       const r2 = await um<Record<string, unknown>>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [s.sessao_id, JSON.stringify(entradaEmpresa('t93-nova', { admin: { ...adm, senha_hash: H3 } }))]);
       expect(r2).toMatchObject({ tenant_id: tenant, resultado: 'sem_mudanca', admin: 'existente' });
-      expect(await q('select senha_hash from core.usuario where tenant_id = $1', [tenant])).toEqual([{ senha_hash: H2 }]);
+      expect(await q('select senha_hash from core.usuario where tenant_id = $1', [tenant])).toEqual([{ senha_hash: HASH_TESTE }]);
       // sem admin = sem_admin (empresa existente ganhando módulo)
       expect(await um<Record<string, unknown>>('plataforma.sa_provisionar_tenant($1, $2::jsonb)', [s.sessao_id, JSON.stringify(entradaEmpresa('t93-nova'))]))
         .toMatchObject({ admin: 'sem_admin', resultado: 'sem_mudanca' });
@@ -504,14 +503,14 @@ describe.skipIf(semBanco())('0039 portal só com e-mail e senha (banco, fixture 
       await admin.query('update plataforma.super_admin set ativo = false'); // o caso não depende de super-admin já gravado
       const c1 = await criarSuperAdmin();
       expect(c1).toEqual({ resultado: 'criado', super_admin_id: expect.any(String), sessoes_revogadas: 0 });
-      expect(await criarSuperAdmin(` ${EMAIL_SA.toUpperCase()} `, H2)).toEqual({ resultado: 'sem_mudanca', super_admin_id: c1.super_admin_id, sessoes_revogadas: 0 });
+      expect(await criarSuperAdmin(` ${EMAIL_SA.toUpperCase()} `, HASH_TESTE)).toEqual({ resultado: 'sem_mudanca', super_admin_id: c1.super_admin_id, sessoes_revogadas: 0 });
       expect(await q('select senha_hash from plataforma.super_admin where lower(email) = $1', [EMAIL_SA])).toEqual([{ senha_hash: H1 }]);
 
       const s = (await abrir({ tipo: 'super_admin', super_admin_id: c1.super_admin_id }))!;
-      expect(await superAdmin({ acao: 'redefinir', email: EMAIL_SA, senha_hash: H2 })).toEqual({ resultado: 'redefinido', super_admin_id: c1.super_admin_id, sessoes_revogadas: 1 });
-      expect(await q('select senha_hash, falhas, bloqueado_ate from plataforma.super_admin where id = $1', [c1.super_admin_id])).toEqual([{ senha_hash: H2, falhas: 0, bloqueado_ate: null }]);
+      expect(await superAdmin({ acao: 'redefinir', email: EMAIL_SA, senha_hash: HASH_TESTE })).toEqual({ resultado: 'redefinido', super_admin_id: c1.super_admin_id, sessoes_revogadas: 1 });
+      expect(await q('select senha_hash, falhas, bloqueado_ate from plataforma.super_admin where id = $1', [c1.super_admin_id])).toEqual([{ senha_hash: HASH_TESTE, falhas: 0, bloqueado_ate: null }]);
       expect(await valida(s.sessao_id)).toEqual([]);
-      expect(await superAdmin({ acao: 'redefinir', email: 'ninguem.t93@macuxi.exemplo', senha_hash: H2 })).toEqual({ resultado: 'nao_encontrado', super_admin_id: null, sessoes_revogadas: 0 });
+      expect(await superAdmin({ acao: 'redefinir', email: 'ninguem.t93@macuxi.exemplo', senha_hash: HASH_TESTE })).toEqual({ resultado: 'nao_encontrado', super_admin_id: null, sessoes_revogadas: 0 });
 
       // o último ativo não sai
       const ultimo = await erroAdmin('select plataforma.criar_super_admin($1::jsonb)', [JSON.stringify({ acao: 'desativar', email: EMAIL_SA })]);

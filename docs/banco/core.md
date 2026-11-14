@@ -21,7 +21,7 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 |---|---|---|
 | nome, nome_curto | text | |
 | email | text not null | único **por tenant** em minúsculas `(tenant_id, lower(email))` (Q3); formato validado |
-| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); os perfis do usuário (1+, multiperfil) ficam em `plataforma.usuario_perfil` e um deles sempre tem esta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
+| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); desde a 0069, **um** perfil por usuário em `plataforma.usuario_perfil`, sempre desta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
 | equipe_id | uuid | FK composta para `equipe` |
 | senha_hash | text | só argon2id em PHC (`$argon2id$...`, check) |
 | ativo, bloqueado_em, ultimo_login_em | | `bloqueado_em` = bloqueio MANUAL do admin (RF-CORE-01) |
@@ -930,3 +930,86 @@ padrão `estoque_alto`/`comprador_ausente`), entre 54 e 60 dias úteis atrás (a
 
 Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (nenhum dado se perde). Volte antes o Core que lê
 a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.
+
+## 0069 — cargo e hierarquia do cadastro de usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
+Decisão: [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (R-20261114-153500, -153800, -154000).
+
+**Hierarquia: reaproveita `core.equipe`, sem coluna nova em `core.usuario`** (uma informação, um lugar: a árvore de equipes já é
+a base do escopo RN-CORE-04 do Gestor, do alerta ao supervisor e do nome da equipe no Início; colunas `supervisor_id`/
+`gerente_id`/`nome_equipe` no usuário duplicariam a árvore e divergiriam dela). O cadastro grava:
+
+| Cargo | O que o Core grava |
+|---|---|
+| vendedor | `core.usuario.equipe_id` = a equipe viva cujo `responsavel_id` é o supervisor (índice `equipe_responsavel_ix`, 0004) |
+| supervisor | a equipe dele em `core.equipe` (`responsavel_id` = ele, `nome` = nome da equipe, `equipe_pai_id` = a equipe do gerente) e `core.usuario.equipe_id` = essa equipe |
+| promotor | com supervisor: `equipe_id` = a equipe do supervisor (como o vendedor); sem supervisor: `equipe_id` = a equipe do gerente (`responsavel_id` = o gerente) |
+| gerente | a equipe dele (`responsavel_id` = ele; raiz) e `equipe_id` = essa equipe |
+| administrativo | nada (`equipe_id` nulo) |
+
+O que o cadastro pede: ADR 0049 §4.
+
+O **gerente do vendedor não é gravado no vendedor**: é o responsável da equipe-pai da equipe do supervisor. Trocar o supervisor
+do vendedor = trocar o `equipe_id` dele; trocar o gerente do supervisor = trocar o `equipe_pai_id` da equipe dele.
+
+**Promotor** (R-20261114-154000): os 2 casos se separam pelo **cargo do responsável da equipe dele** — equipe de um supervisor
+(supervisor = esse responsável; gerente = o responsável da equipe-pai) ou equipe de um gerente (sem supervisor; gerente = o
+responsável da própria equipe). Nenhuma coluna nova: `supervisor_id`/`gerente_id` no promotor duplicariam a árvore e poderiam
+divergir dela, que é justamente o que a regra proíbe. **A consistência gerente × supervisor é garantida pela própria árvore**:
+com supervisor, o gerente do promotor é sempre o responsável da equipe-pai da equipe do supervisor, nada gravado no promotor pode
+apontar para outro gerente. Sobra um caso, o supervisor membro (`core.usuario.equipe_id`) de outra equipe que não a que lidera,
+em que o "gerente do supervisor" na view seria outro; esse é recusado.
+
+**Garantia no banco (gatilhos de restrição adiados, conferidos no COMMIT; RN-CORE-56, ADR 0049)**: função
+`core.conferir_promotores(tenant, usuarios[], equipes[])` (SECURITY INVOKER), que lê a view, e a função de gatilho
+`core.promotor_conferir()` (**SECURITY DEFINER**, `search_path = pg_catalog, core, plataforma, pg_temp`) em 4 gatilhos. Nenhuma
+das 2 tem EXECUTE para papel da aplicação. Por que DEFINER: gatilho adiado dispara no COMMIT, fora da `sa_*` (DEFINER) que
+escreveu; a `sa_provisionar_tenant` cria o admin em `core.usuario` pelo `macuxi_portal`, sem USAGE em `core` — como invoker, o
+COMMIT dava "permission denied for schema core" (500 ao criar empresa pelo portal). Mesmo desenho da 0049 para as conferências
+da 0041 (ver [plataforma.md](plataforma.md), "0049"). O banco confere só o promotor **com equipe** (`core.usuario.equipe_id` não
+nulo): o promotor sem equipe (ainda não alocado: carga do ERP ou CSV, cadastro antigo) é recusado pelo domain/API do Core
+(RN-CORE-56, 422), como o vendedor sem supervisor, e aparece na consulta 3 do diagnóstico.
+
+| Gatilho | Quando | Promotores conferidos |
+|---|---|---|
+| `usuario_conferir_promotor` | `core.usuario`: insert; update de `perfil`, `equipe_id`, `ativo`, `deleted_at` | o próprio (se promotor) e os das equipes que ele lidera e das filhas delas |
+| `equipe_conferir_promotor` | `core.equipe`: update de `responsavel_id`, `equipe_pai_id`, `deleted_at` | os da equipe, das filhas e das equipes lideradas por membros dela |
+| `usuario_perfil_conferir_promotor` | `plataforma.usuario_perfil`: insert; update de `perfil_id`, `deleted_at` | o usuário (se virou promotor) e os que ele lidera |
+| `perfil_conferir_promotor` | `plataforma.perfil`: update de `cargo` | os usuários do perfil e os que eles lideram |
+
+Erros (23514, `hint` RN-CORE-56, `detail` só com o `usuario_id`): `promotor_sem_gerente` (promotor vivo, **ativo** e com equipe
+sem `gerente_id` na view, ou com `gerente_id` de cargo diferente de `gerente`: equipe apagada, equipe sem responsável, equipe de um
+vendedor/administrativo, equipe de supervisor sem equipe-pai de gerente) e `promotor_gerente_do_supervisor` (com supervisor cujo
+`gerente_id` na view não é o do promotor). Adiados: a ordem das gravações na transação não importa (ex.: mover o promotor para
+a equipe e só depois dar o supervisor à equipe). Promotor inativo não é conferido (desligado). **Legado**: os gatilhos só valem
+para gravações novas ou alteradas que alcançam o promotor; a 0069 não recusa promotor que já está fora da regra, e gravação que
+não o alcança (ex.: `nome`, `ultimo_login_em`) passa. Lista: consulta 3 de `db/scripts/diagnostico-0069.sql`
+(`promotor_sem_gerente`, `promotor_gerente_do_supervisor`); corrija a equipe dele antes de tocar no cadastro. Custo: por
+gravação, uma leitura da view restrita aos promotores alcançados (índices `usuario_equipe_ix`, `equipe_pai_ix`,
+`equipe_responsavel_ix`, `usuario_perfil_usuario_ix`); nenhum índice novo.
+
+### v_usuario_hierarquia — leitura pronta (security_invoker; `macuxi_app` só select; worker e portal sem acesso)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `tenant_id`, `usuario_id` | uuid | usuários não apagados |
+| `perfil_id`, `cargo` | uuid, text | o perfil vivo do usuário (um só) e o cargo dele |
+| `equipe_id`, `equipe_nome` | uuid, text | a equipe viva do usuário (`core.usuario.equipe_id`) e o nome — é o "nome da equipe" do Início |
+| `supervisor_id` | uuid | cargo `vendedor`: o responsável da equipe dele (nulo se for ele mesmo ou se a equipe não tem responsável); cargo `promotor`: o responsável da equipe dele quando tem cargo `supervisor` (**nulo** no promotor sem supervisor) |
+| `gerente_id` | uuid | cargos `vendedor` e `supervisor`: o responsável da equipe-pai; cargo `promotor`: o responsável da equipe-pai (equipe de supervisor) ou o da própria equipe (equipe de gerente) |
+| `updated_at` | timestamptz | o maior entre usuário, vínculo, perfil, equipe, equipe-pai e (promotor) o perfil do responsável da equipe (cursor, se o app puxar) |
+
+Roda com o papel de quem consulta: valem as políticas `isolamento_tenant` de `core.usuario`, `core.equipe`,
+`plataforma.usuario_perfil` e `plataforma.perfil`. Consulta típica: `where usuario_id = $1` (PK de usuário, índices
+`usuario_perfil_usuario_ix` e PK de equipe). Volume: o de `core.usuario`.
+
+**Regras cargo × hierarquia do vendedor e do supervisor** (vendedor com equipe de um supervisor; supervisor responsável pela
+própria equipe, com nome e equipe-pai de um gerente): **validadas no domain/API do Core** (o promotor tem a garantia no banco,
+acima), não por restrição no banco — dados de hoje (ex.: equipe com
+responsável administrativo na fixture B, equipe sem responsável) quebrariam. A consulta 3 de `db/scripts/diagnostico-0069.sql`
+lista quem está fora da regra.
+
+**Código ERP**: `core.usuario.external_id` já atende — único vivo por tenant desde a 0002 (`usuario_external_uk (tenant_id,
+external_id) where external_id is not null and deleted_at is null`; é o `codigo_erp` do CSV da Equipe, 0036). Continua **nulo**
+no banco (usuários antigos e o admin inicial do provisionamento não têm código); o "obrigatório para todos" é regra do cadastro
+(domain/API do Core). Nenhuma coluna nova.
+
+Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.

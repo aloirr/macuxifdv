@@ -3,9 +3,12 @@
 /**
  * Layout do BKO (copiado de components/app-shell.tsx da Fase M). O menu deixou de ser fixo: vem do
  * registro dos módulos efetivos do usuário (lib/modulos.ts → `criarShell`), filtrado por perfil e por
- * permissão por ação (ADR 0004), mais as páginas da plataforma (Auditoria). Promotor e vendedor não
+ * permissão por ação (ADR 0004), mais as páginas da plataforma (Auditoria, no grupo Sistema). Promotor e vendedor não
  * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`). Itens do slot
  * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
+ * Menu (R-20261114-192700; docs/design/telas/bko-revisao.md §M2–§M4): grupos do SDK (`grupoMenu`/`rotuloGrupo`, ADR 0050), em ordem alfabética
+ * (lib/menu-bko.ts); tudo aberto quando cabe na altura, senão sanfona com o grupo da tela atual aberto e painel ao lado
+ * do menu ao passar o ponteiro (ou dar foco) num grupo fechado. Marca: logo A negativo para o grafite (MC-0056).
  * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
  * RN-CORE-33 (T-0094; spec docs/design/ciclo-de-senha.md §1): perfil sem backoffice (a sessão cujo perfil não tem `acesso.bko`
  * no motor de permissões do SDK, `entraEm`, ou o 403 `PERFIL_SEM_BKO` de qualquer chamada) encerra a sessão e volta ao
@@ -13,47 +16,49 @@
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
 import { entraEm, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API, tentarRestaurarSessao } from '@macuxi/platform-sdk/web';
-import { cx, ErrorBlock, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
+import { cx, ErrorBlock, IconChevronRight, IconLogout, LoadingBlock, rotuloDoPerfil } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { aoPerfilSemBko, guardarAvisoDoLogin, mensagemSemBko } from '@/lib/ciclo-senha';
 import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
-import { PROPORCAO_SIMBOLO, SRC_SIMBOLO_NEGATIVO } from '@/lib/logo-marca';
-import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
+import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
+import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
+import { SHELL_WEB } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
-interface NavItem {
-  href: string;
-  label: string;
-  testId: string;
-}
+/** Largura do logo A a 28 px de altura (viewBox 514,41 × 110,85 → ≈ 130 px). */
+const ALTURA_LOGO = 28;
+const LARGURA_LOGO = Math.round(ALTURA_LOGO * PROPORCAO_LOGO_HORIZONTAL);
+
+// foco branco no grafite (o Azul noite do outline-accent some no grafite, 1,29:1; T-0172); por dentro, para a lista
+// com rolagem (abaixo de 640 px de altura) não cortar o contorno
+const FOCO = 'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white';
 
 /**
- * Páginas da própria plataforma (não são de módulo). RN-AUD-01: trilha de auditoria, para todo perfil que entra no BKO (a API
- * filtra as linhas pela licença dos módulos e pelo escopo do perfil).
+ * Item do menu. `lateral` (padrão): 32 px, com recuo sob o título do grupo (`recuo=false` no painel ao lado); tela atual
+ * com a barra de 3 px em Sol claro à esquerda (§M3 item 4). `compact`: chip da faixa de rolagem da tela estreita.
  */
-const PLATAFORMA: NavItem[] = [{ href: '/auditoria', label: 'Auditoria', testId: 'nav-plataforma-auditoria' }];
-
-const ROTULO_GRUPO = { operacao: 'Operação', cadastros: 'Cadastros', analise: 'Análise', administracao: 'Administração' } as const;
-
-function NavLink({ item, active, compact }: { item: NavItem; active: boolean; compact?: boolean }) {
+function NavLink({ item, active, variante = 'lateral', recuo = true, onNavegar }: { item: ItemMenuBko; active: boolean; variante?: 'lateral' | 'compact'; recuo?: boolean; onNavegar?: () => void }) {
+  const lateral = variante === 'lateral';
   return (
     <Link
       href={item.href}
       data-testid={item.testId}
       aria-current={active ? 'page' : undefined}
+      onClick={onNavegar}
       className={cx(
-        // foco branco no grafite (o Azul noite do outline-accent some no grafite, 1,29:1; T-0172)
-        'flex h-10 shrink-0 items-center justify-between gap-2 rounded-[10px] px-3 text-[14px] whitespace-nowrap no-underline transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
-        active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active/60 hover:text-white',
-        compact && 'h-9 text-[13px]',
+        'flex shrink-0 items-center rounded-lg whitespace-nowrap no-underline transition-colors',
+        FOCO,
+        lateral ? cx('relative h-8 pr-2.5 text-[14px]', recuo ? 'pl-5' : 'pl-2.5') : 'h-9 px-3 text-[13px]',
+        active ? 'bg-nav-active font-semibold text-white' : 'text-nav-text hover:bg-nav-active hover:text-white',
+        active && lateral && "before:absolute before:top-2 before:bottom-2 before:left-2 before:w-[3px] before:rounded-sm before:bg-nav-grupo before:content-['']",
       )}
     >
       {item.label}
@@ -61,33 +66,197 @@ function NavLink({ item, active, compact }: { item: NavItem; active: boolean; co
   );
 }
 
-function Brand({ product, company }: { product: string; company: string }) {
+/**
+ * Logo A (MC-0056) no grafite e, abaixo, o nome da distribuidora fora da área de proteção (manual §2.3: margem igual à
+ * altura do "M", ≈ 17,4 px a 28 px de altura → 18 px).
+ */
+function Brand({ company }: { company: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      {/* símbolo negativo da marca v1 (T-0172) direto no grafite: o Azul noite não encosta no grafite (manual §3) */}
-      <img src={SRC_SIMBOLO_NEGATIVO} alt="" aria-hidden="true" width={32} height={Math.round(32 / PROPORCAO_SIMBOLO)} className="block h-auto w-8 shrink-0" />
-      <div className="flex min-w-0 flex-col">
-        <span className="truncate font-display text-[15px] font-bold text-white">{product}</span>
-        <span className="truncate text-[12px] text-nav-text">{company}</span>
-      </div>
+    <div className="flex min-w-0 flex-col items-start">
+      <img src={SRC_LOGO_NEGATIVO_GRAFITE} alt="Macuxi Força de Vendas" width={LARGURA_LOGO} height={ALTURA_LOGO} className="block h-7 w-auto shrink-0" />
+      {company && <span className="mt-[18px] max-w-full truncate text-[12px] leading-4 text-nav-text">{company}</span>}
     </div>
   );
 }
 
-/** Grupos do menu: itens dos módulos efetivos (por grupo) + plataforma. */
-function gruposDoMenu(visao: VisaoShell<ComponentePagina>, perfil: Perfil | null): { titulo: string; itens: NavItem[] }[] {
-  const grupos = new Map<string, NavItem[]>();
-  for (const n of visao.navegacao) {
-    const lista = grupos.get(n.grupo) ?? [];
-    lista.push({ href: `/${n.caminho}`, label: n.rotulo, testId: n.testID });
-    grupos.set(n.grupo, lista);
+const TITULO_GRUPO = 'text-[11.5px] font-semibold tracking-[0.07em] text-nav-grupo uppercase';
+
+interface Painel {
+  grupo: string;
+  top: number;
+  left: number;
+}
+
+/**
+ * Lista do menu lateral (§M3): mede a própria altura (flex-1 entre a marca e o rodapé). Tudo cabe → tudo aberto, títulos
+ * sem seta e sem clique. Não cabe → sanfona: só o grupo da tela atual aberto; ponteiro ou foco de teclado num grupo
+ * fechado abre o painel ao lado (fixed, fora do overflow da lista); clique no título troca o grupo aberto.
+ */
+function MenuLateral({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
+  const listaRef = useRef<HTMLDivElement>(null);
+  const [disponivel, setDisponivel] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = listaRef.current;
+    if (!el) return;
+    const medir = () => setDisponivel(el.clientHeight);
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const tudoAberto = disponivel !== null && cabeTudoAberto(grupos, disponivel);
+
+  // a sanfona acompanha a tela: ao abrir uma tela de outro grupo, o grupo dela abre e o anterior fecha
+  const grupoAtual = grupoDaTela(grupos, ativo);
+  const [aberto, setAberto] = useState<string | null>(grupoAtual);
+  const [grupoVisto, setGrupoVisto] = useState<string | null>(grupoAtual);
+  if (grupoVisto !== grupoAtual) {
+    setGrupoVisto(grupoAtual);
+    setAberto(grupoAtual);
   }
-  const saida: { titulo: string; itens: NavItem[] }[] = [...grupos].map(([g, itens]) => ({ titulo: ROTULO_GRUPO[g as keyof typeof ROTULO_GRUPO], itens }));
-  const mais = visao.extensoes<ItemMenu>('menu.itens').map((i) => ({ href: `/${i.payload.caminho.replace(/^\/+/, '')}`, label: i.payload.rotulo, testId: i.payload.testID }));
-  if (mais.length > 0) saida.push({ titulo: 'Mais', itens: mais });
-  const plataforma = entraEm('bko', perfil) ? PLATAFORMA : [];
-  if (plataforma.length > 0) saida.push({ titulo: 'Plataforma', itens: plataforma });
-  return saida;
+
+  const [painel, setPainel] = useState<Painel | null>(null);
+  const fechar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelarFechar = () => {
+    if (fechar.current) clearTimeout(fechar.current);
+    fechar.current = null;
+  };
+  const fecharPainel = () => {
+    cancelarFechar();
+    setPainel(null);
+  };
+  const abrirPainel = (grupo: GrupoMenuBko, titulo: HTMLElement) => {
+    cancelarFechar();
+    const r = titulo.getBoundingClientRect();
+    const menu = titulo.closest('nav')?.getBoundingClientRect();
+    const altura = grupo.itens.length * ALTURA_ITEM + 18;
+    setPainel({ grupo: grupo.id, top: Math.max(8, Math.min(r.top - 6, window.innerHeight - altura - 8)), left: (menu?.right ?? r.right) - 2 });
+  };
+
+  // Esc ou clique fora fecham o painel
+  useEffect(() => {
+    if (!painel) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPainel(null);
+    };
+    const clique = (e: PointerEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest(`[data-menu-grupo="${painel.grupo}"]`)) setPainel(null);
+    };
+    document.addEventListener('keydown', tecla);
+    document.addEventListener('pointerdown', clique);
+    return () => {
+      document.removeEventListener('keydown', tecla);
+      document.removeEventListener('pointerdown', clique);
+    };
+  }, [painel]);
+  useEffect(() => cancelarFechar, []);
+
+  return (
+    <div ref={listaRef} className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
+      {grupos.map((g) => {
+        const estaAberto = tudoAberto || aberto === g.id;
+        const comPainel = !estaAberto && painel?.grupo === g.id;
+        const titulo = (e: { currentTarget: HTMLElement }) => e.currentTarget.querySelector<HTMLElement>('[data-menu-titulo]');
+        return (
+          <div
+            key={g.id}
+            data-menu-grupo={g.id}
+            className="flex shrink-0 flex-col"
+            onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
+              const t = titulo(e);
+              if (!estaAberto && t) abrirPainel(g, t);
+            }}
+            onMouseLeave={() => {
+              if (!comPainel) return;
+              cancelarFechar();
+              fechar.current = setTimeout(() => setPainel(null), 150);
+            }}
+            onBlur={(e: FocusEvent<HTMLDivElement>) => {
+              if (comPainel && !e.currentTarget.contains(e.relatedTarget as Node | null)) setPainel(null);
+            }}
+          >
+            {tudoAberto ? (
+              <span data-menu-titulo="" className={cx('flex h-[30px] shrink-0 items-center px-2.5', TITULO_GRUPO)}>
+                {g.titulo}
+              </span>
+            ) : (
+              <button
+                type="button"
+                data-menu-titulo=""
+                aria-expanded={estaAberto}
+                aria-controls={`menu-grupo-${g.id}`}
+                onClick={() => {
+                  fecharPainel();
+                  setAberto(estaAberto ? null : g.id);
+                }}
+                onFocus={(e) => {
+                  if (!estaAberto && e.currentTarget.matches(':focus-visible')) abrirPainel(g, e.currentTarget);
+                }}
+                className={cx('flex h-[30px] w-full shrink-0 items-center justify-between rounded-lg px-2.5 text-left transition-colors hover:bg-nav-active', TITULO_GRUPO, FOCO, comPainel && 'bg-nav-active')}
+              >
+                {g.titulo}
+                <IconChevronRight size={14} strokeWidth={2.2} className={cx('shrink-0 transition-transform', estaAberto && 'rotate-90')} />
+              </button>
+            )}
+            {estaAberto && (
+              <div id={`menu-grupo-${g.id}`} className="flex flex-col">
+                {g.itens.map((item) => (
+                  <NavLink key={item.href} item={item} active={item.href === ativo} />
+                ))}
+              </div>
+            )}
+            {comPainel && (
+              <div
+                aria-label={g.titulo}
+                role="group"
+                style={{ top: painel.top, left: painel.left }}
+                className="fixed z-50 flex w-[250px] flex-col rounded-[10px] border border-nav-active bg-ink px-1.5 py-2 shadow-[0_8px_24px_rgba(22,32,42,0.35)]"
+              >
+                {g.itens.map((item) => (
+                  <NavLink key={item.href} item={item} active={item.href === ativo} recuo={false} onNavegar={fecharPainel} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Tela estreita: seletor do grupo e a faixa lateral só com os itens dele (padrão: o grupo da tela atual; §M3 item 5). */
+function MenuEstreito({ grupos, ativo }: { grupos: GrupoMenuBko[]; ativo: string | null }) {
+  const grupoAtual = grupoDaTela(grupos, ativo);
+  const [escolhido, setEscolhido] = useState<string | null>(grupoAtual);
+  const [grupoVisto, setGrupoVisto] = useState<string | null>(grupoAtual);
+  if (grupoVisto !== grupoAtual) {
+    setGrupoVisto(grupoAtual);
+    setEscolhido(grupoAtual);
+  }
+  const grupo = grupos.find((g) => g.id === escolhido) ?? grupos[0];
+  if (!grupo) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        aria-label="Grupo do menu"
+        value={grupo.id}
+        onChange={(e) => setEscolhido(e.target.value)}
+        className={cx('h-9 max-w-[45%] shrink-0 rounded-lg border border-nav-active bg-ink px-2', TITULO_GRUPO, FOCO)}
+      >
+        {grupos.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.titulo}
+          </option>
+        ))}
+      </select>
+      <div className="-mr-4 flex min-w-0 flex-1 gap-1 overflow-x-auto pr-4 pb-1">
+        {grupo.itens.map((i) => (
+          <NavLink key={i.href} item={i} active={i.href === ativo} variante="compact" />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -138,37 +307,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   // API real: empresa do login (Core); demonstração: `GET /me` do mock-api
-  const product = MODO_API === 'demo' ? (me.data?.tenant.product_name ?? '…') : 'Macuxi FDV';
   const company = MODO_API === 'demo' ? (me.data?.tenant.name ?? '') : (session.user?.empresa ?? '');
   const user = session.user;
   // RD-0014: nome curto do perfil, o mesmo do login, do portal e do app (kit)
   const roleLabel = perfil ? rotuloDoPerfil(perfil) : '';
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const grupos = gruposDoMenu(visao, perfil);
-  const todos = grupos.flatMap((g) => g.itens);
+  const grupos = montarGruposMenu({
+    navegacao: visao.navegacao,
+    mais: visao.extensoes<ItemMenu>('menu.itens').map((i) => i.payload),
+    plataforma: entraEm('bko', perfil),
+  });
+  const ativo = hrefAtivo(pathname, grupos.flatMap((g) => g.itens.map((i) => i.href)));
   const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: entraEm('bko', perfil), modulos });
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
-      {/* menu lateral (desktop) */}
-      <nav aria-label="Menu do backoffice" data-testid="menu-bko" className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col gap-1 overflow-y-auto bg-ink px-3.5 py-6 text-white md:flex">
-        <div className="px-2 pb-5">
-          <Brand product={product} company={company} />
+      {/* menu lateral (desktop): a lista ocupa o espaço entre a marca e o rodapé; o menu em si não rola */}
+      <nav aria-label="Menu do backoffice" data-testid="menu-bko" className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col bg-ink px-3 pt-3.5 pb-3 text-white md:flex">
+        <div className="shrink-0 px-2 pb-3">
+          <Brand company={company} />
         </div>
-        {grupos.map((g, i) => (
-          <div key={g.titulo} className="flex flex-col gap-1">
-            {i > 0 && <span className="px-3 pt-[18px] pb-1.5 text-[11px] font-semibold tracking-[0.06em] text-nav-muted uppercase">{g.titulo}</span>}
-            {g.itens.map((item) => (
-              <NavLink key={item.href} item={item} active={isActive(item.href)} />
-            ))}
-          </div>
-        ))}
-        <div className="mt-auto flex flex-col gap-2 border-t border-nav-active px-2 pt-4">
+        <MenuLateral grupos={grupos} ativo={ativo} />
+        <div className="mt-1 flex shrink-0 flex-col gap-0.5 border-t border-nav-active px-2 pt-3">
           <div className="flex flex-col">
-            <span className="truncate text-[14px] font-semibold">{user?.name ?? '—'}</span>
-            <span className="text-[12px] text-nav-text">{roleLabel}</span>
+            <span className="truncate text-[14px] leading-5 font-semibold">{user?.name ?? '—'}</span>
+            <span className="text-[12px] leading-4 text-nav-text">{roleLabel}</span>
           </div>
-          <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className="flex h-9 items-center gap-2 rounded-[10px] px-0 text-[13px] font-semibold text-nav-text hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          <button type="button" data-testid="trocar-perfil" onClick={switchProfile} className={cx('flex h-8 items-center gap-2 rounded-lg px-0 text-[13px] font-semibold text-nav-text hover:text-white', FOCO)}>
             <IconLogout size={15} />
             Trocar perfil
           </button>
@@ -177,18 +341,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* menu no topo (tela estreita) */}
       <nav aria-label="Menu do backoffice" className="flex flex-col gap-3 bg-ink px-4 pt-4 pb-3 text-white md:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <Brand product={product} company={company} />
-          <button type="button" onClick={switchProfile} className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+        <div className="flex items-start justify-between gap-3">
+          <Brand company={company} />
+          <button type="button" onClick={switchProfile} className={cx('flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] border border-nav-active px-3 text-[12px] font-semibold text-nav-text', FOCO)}>
             <IconLogout size={14} />
             Trocar perfil
           </button>
         </div>
-        <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
-          {todos.map((i) => (
-            <NavLink key={i.href} item={i} active={isActive(i.href)} compact />
-          ))}
-        </div>
+        <MenuEstreito grupos={grupos} ativo={ativo} />
         <span className="text-[12px] text-nav-text">
           {user?.name} · {roleLabel}
         </span>

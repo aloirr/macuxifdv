@@ -158,8 +158,13 @@ describe.skipIf(semBanco())('0046 portal pelos perfis do usuário (banco, fixtur
     q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [tenant, usuario, perfilId]);
   const desvincular = (usuario: string, perfilId: string) =>
     q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and perfil_id = $2 and deleted_at is null', [usuario, perfilId]);
-  /** Roda agora as conferências adiadas da 0041 (sem perfil, principal, último admin): o estado montado é um estado válido. */
-  const conferir = () => q('set constraints all immediate');
+  /**
+   * Roda agora as conferências adiadas da 0041 (sem perfil, principal, último admin): o estado montado é válido para elas. Só as 4
+   * da 0041: desde a 0069 (um perfil por usuário) a restrição usuario_perfil_um_vivo recusaria no COMMIT os estados com 2+ perfis
+   * montados aqui. Esses estados agora só existem dentro de uma transação; o portal mantém a regra mais restritiva como defesa.
+   */
+  const conferir = () =>
+    q('set constraints core.usuario_conferir_acesso, plataforma.usuario_perfil_conferir, plataforma.perfil_conferir, plataforma.perfil_permissao_conferir immediate');
 
   it('admin só (fixture, A e B) entra; a função e as 4 sa_* têm os privilégios da 0046', async () => {
     await emTransacao(admin, null, async () => {
@@ -227,7 +232,7 @@ describe.skipIf(semBanco())('0046 portal pelos perfis do usuário (banco, fixtur
     await emTransacao(admin, null, async () => {
       const email = 'adm-pers.0046@exemplo.com.br';
       const u = await criarAdmin(A, email, 'Admin Personalizado 0046');
-      const pers = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base) values ($1, 'admin_sem_portal', 'Admin sem portal', 'admin') returning id", [A]))[0]!.id;
+      const pers = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'admin_sem_portal', 'Admin sem portal', 'admin', 'administrativo') returning id", [A]))[0]!.id;
       await vincular(A, u, pers);
       await conferir();
       expect(await contas(email)).toHaveLength(1);
@@ -260,7 +265,7 @@ describe.skipIf(semBanco())('0046 portal pelos perfis do usuário (banco, fixtur
     await emTransacao(admin, null, async () => {
       const email = 'adm-inativo.0046@exemplo.com.br';
       const u = await criarAdmin(A, email, 'Admin com Gerente Inativo 0046');
-      const ger = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base) values ($1, 'gerente_x0046', 'Gerente X', 'gerente') returning id", [A]))[0]!.id;
+      const ger = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'gerente_x0046', 'Gerente X', 'gerente', 'gerente') returning id", [A]))[0]!.id;
       await vincular(A, u, ger);
       expect(await contas(email)).toEqual([]);
       // sem COMMIT (a 0041 recusaria o vínculo vivo com perfil inativo): a função ignora o inativo, como o SDK

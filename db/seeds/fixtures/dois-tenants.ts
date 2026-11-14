@@ -82,7 +82,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeInteiros, arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica } from '../../src/ids';
+import { idDeChave, idFilialPadrao, idFixo, idFotoTipoFachada, idMedida, idMotivoPadrao, idPerfilFabrica, idUsuarioPerfil } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { PERFIS_DOC_SENSIVEL } from '../../../modules/core/domain/fotos-pdv';
@@ -391,13 +391,12 @@ export const DOIS_TENANTS = {
     equipes: { regional: a('equipe', 1), equipe1: a('equipe', 2), equipe2: a('equipe', 3) },
     /**
      * 0041 (T-0111/T-0112, ADR 0033): perfil PERSONALIZADO vendedor_externo (base vendedor, escopo de dados 'proprio' por
-     * sobreposição, sem módulos próprios). Os 7 de fábrica vêm do gatilho tenant_semear_perfis (idPerfilFabrica). Multiperfil
-     * SEM efeito nas permissões de hoje: o vendedor-2 tem vendedor (principal, do gatilho) + vendedor_externo (a união dá o
-     * mesmo escopo 'carteira' e os mesmos módulos).
+     * sobreposição, módulos core, vendedor e catalogo; cargo vendedor), SEM usuário. Os 7 de fábrica vêm do gatilho tenant_semear_perfis
+     * (idPerfilFabrica). Desde a 0069 (um perfil por usuário) a fixture não tem multiperfil: cada usuário fica só com o de
+     * fábrica do principal (gatilho usuario_perfil_principal); o vínculo vendedor-2 + vendedor_externo saiu.
      */
     perfis: { vendedorExterno: a('perfil', 1) },
     sobreposicoes: { vendedorExternoEscopo: a('perfil_permissao', 1) },
-    vinculos: { vendedor2Externo: a('usuario_perfil', 1) },
     clientes: { c1: a('cliente', 1), c2: a('cliente', 2), c3: a('cliente', 3) },
     dispositivos: { vendedor1: a('dispositivo', 1), promotorBloqueado: a('dispositivo', 2) },
     sessoes: { vendedor1: a('sessao', 1) },
@@ -463,14 +462,12 @@ export const DOIS_TENANTS = {
     usuarios: { admin: b('usuario', 1), vendedor: b('usuario', 2) },
     equipes: { equipe: b('equipe', 1) },
     /**
-     * 0041 (T-0112): MULTIPERFIL vendedor + promotor — o vendedor-B (que já faz as coletas de trade da fixture do Promotor em B)
-     * tem vendedor (principal, do gatilho) + promotor de fábrica (vinculo vendedorPromotor). B não tem linha de perfil_modulo
-     * do promotor nem o módulo promotor: a união dos módulos não muda. Perfil PERSONALIZADO vendedor_balcao (base vendedor,
-     * acesso.campo revogado por sobreposição), sem usuário.
+     * 0041 (T-0111): perfil PERSONALIZADO vendedor_balcao (base vendedor, cargo vendedor, acesso.campo revogado por
+     * sobreposição), sem usuário. Desde a 0069 (um perfil por usuário) o vendedor-B tem só o vendedor (o promotor extra saiu;
+     * ele segue fazendo as coletas de trade da fixture do Promotor em B: o banco não confere perfil no promotor_id).
      */
     perfis: { vendedorBalcao: b('perfil', 1) },
     sobreposicoes: { vendedorBalcaoCampo: b('perfil_permissao', 1) },
-    vinculos: { vendedorPromotor: b('usuario_perfil', 1) },
     clientes: { c1: b('cliente', 1) },
     dispositivos: { vendedor: b('dispositivo', 1) },
     sessoes: { vendedor: b('sessao', 1) },
@@ -595,7 +592,7 @@ export const ORDEM_TABELAS = [
   'plataforma.perfil_modulo',
   'core.equipe',
   'core.usuario',
-  // 0041 (T-0112): vínculos ALÉM do principal (o gatilho usuario_perfil_principal liga o de fábrica de core.usuario.perfil)
+  // 0041 (T-0112): vínculos além do principal — vazio desde a 0069 (um perfil por usuário: o gatilho usuario_perfil_principal liga o de fábrica de core.usuario.perfil)
   'plataforma.usuario_perfil',
   'plataforma.usuario_modulo',
   // 0018 (T-0063): a lista inicial vem do gatilho tenant_semear_medidas; aqui só as siglas próprias de cada tenant
@@ -907,6 +904,9 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     [tA, 'vendedor', 'catalogo'], [tA, 'supervisor', 'catalogo'], [tA, 'gerente', 'catalogo'],
     [tA, 'analista', 'catalogo'], [tA, 'assistente', 'catalogo'],
     [tB, 'vendedor', 'catalogo'], [tB, 'admin', 'catalogo'],
+    // 0069 (um perfil por usuário): o personalizado vendedor_externo tem os módulos do vendedor (sem o 'teste'), para a troca
+    // de perfil manter o Vendedor; antes ele só aparecia em união com o de fábrica. No fim para manter os ids anteriores.
+    [tA, 'vendedor_externo', 'core'], [tA, 'vendedor_externo', 'vendedor'], [tA, 'vendedor_externo', 'catalogo'],
   ];
   const seqPerfil = { [tA]: 0, [tB]: 0 } as Record<string, number>;
 
@@ -921,17 +921,25 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ],
     // 0041 (ADR 0033): personalizados (os de fábrica são do gatilho tenant_semear_perfis); sobreposições só nos personalizados
     'plataforma.perfil': [
-      { id: A.perfis.vendedorExterno, tenant_id: tA, codigo: 'vendedor_externo', nome: 'Vendedor externo', descricao: 'fixture: personalizado do vendedor-2', base: 'vendedor', fabrica: false, ativo: true, external_id: null },
-      { id: B.perfis.vendedorBalcao, tenant_id: tB, codigo: 'vendedor_balcao', nome: 'Vendedor de balcão', descricao: 'fixture: personalizado sem usuário', base: 'vendedor', fabrica: false, ativo: true, external_id: null },
+      { id: A.perfis.vendedorExterno, tenant_id: tA, codigo: 'vendedor_externo', nome: 'Vendedor externo', descricao: 'fixture: personalizado sem usuário (A)', base: 'vendedor', cargo: 'vendedor', fabrica: false, ativo: true, external_id: null },
+      { id: B.perfis.vendedorBalcao, tenant_id: tB, codigo: 'vendedor_balcao', nome: 'Vendedor de balcão', descricao: 'fixture: personalizado sem usuário', base: 'vendedor', cargo: 'vendedor', fabrica: false, ativo: true, external_id: null },
     ],
     'plataforma.perfil_permissao': [
       { id: A.sobreposicoes.vendedorExternoEscopo, tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null, external_id: null },
       { id: B.sobreposicoes.vendedorBalcaoCampo, tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'acesso.campo', concedida: false, nivel: null, alvos: null, external_id: null },
     ],
+    // 0069: um perfil por usuário — só o vínculo principal, o MESMO que o gatilho usuario_perfil_principal cria (id
+    // idUsuarioPerfil; a carga é upsert por id, nada duplica). Fica explícito dos admins para a tabela ter linha em A e em B.
     'plataforma.usuario_perfil': [
-      { id: A.vinculos.vendedor2Externo, tenant_id: tA, usuario_id: A.usuarios.vendedor2, perfil_id: A.perfis.vendedorExterno, external_id: null },
-      { id: B.vinculos.vendedorPromotor, tenant_id: tB, usuario_id: B.usuarios.vendedor, perfil_id: idPerfilFabrica(tB, 'promotor'), external_id: null },
-    ],
+      { tenant_id: tA, usuario_id: A.usuarios.admin },
+      { tenant_id: tB, usuario_id: B.usuarios.admin },
+    ].map(({ tenant_id, usuario_id }) => ({
+      id: idUsuarioPerfil(tenant_id, usuario_id, idPerfilFabrica(tenant_id, 'admin')),
+      tenant_id,
+      usuario_id,
+      perfil_id: idPerfilFabrica(tenant_id, 'admin'),
+      external_id: null,
+    })),
     'plataforma.perfil_modulo': perfilModulo.map(([tenant_id, perfil, modulo]) => {
       seqPerfil[tenant_id] = (seqPerfil[tenant_id] ?? 0) + 1;
       const id = tenant_id === tA ? a('perfil_modulo', seqPerfil[tenant_id]!) : b('perfil_modulo', seqPerfil[tenant_id]!);
