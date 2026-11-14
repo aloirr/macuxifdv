@@ -25,6 +25,8 @@ export const PedidoDaMetaSchema = z.object({
   total_cents: Cents,
   frete_cents: Cents.nullable(),
   cancelado_cents: Cents.nullable(),
+  /** Produtos distintos do pedido (indicador `itens_por_pedido`). Opcional: campo novo, compatível com quem já consome a @1. */
+  itens_distintos: z.number().int().nonnegative().optional(),
 });
 
 export const FaturamentoDaMetaSchema = z.object({

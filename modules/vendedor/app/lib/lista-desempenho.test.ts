@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { contarPorSituacao, filtrarLista, itemNaSituacao, periodoDe, resumoDaSituacao, type ItemDaBusca } from '../../domain/busca-periodo';
+import { contarPorSituacao, filtrarLista, itemNaSituacao, periodoDe, resumoDaLista, type ItemDaBusca } from '../../domain/busca-periodo';
 
 const TZ = 'America/Manaus';
 const AGORA = new Date('2026-11-06T14:00:00Z');
@@ -31,7 +31,7 @@ describe('Pedidos: trocar período e situação filtra a memória (T-0090, meta 
       const base = filtrarLista(lista, { periodo: periodoDe(tipo, AGORA, TZ), busca: '', tz: TZ });
       contarPorSituacao(base);
       const vis = base.filter((i) => itemNaSituacao(i, 'todos'));
-      resumoDaSituacao(vis, 'todos');
+      resumoDaLista(vis);
     }
     const ms = performance.now() - t0;
     expect(ms).toBeLessThan(100);

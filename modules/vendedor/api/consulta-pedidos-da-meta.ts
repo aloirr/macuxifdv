@@ -3,11 +3,12 @@
  * consulta (RLS do tenant). Pedido: aprovados pela data de emissão (aparelho, senão criação); pedido em nome conta para o
  * `vendedor_id`. Faturamento: uma linha por retorno faturado do ERP, pela data do faturamento; pedido cancelado depois
  * abate o valor. Devolução ainda não existe (RN-VEN-37 proposta): `devolvido_cents` nulo. O frete não tem valor (CIF/FOB).
+ * `itens_distintos`: produtos distintos de cada pedido (indicador `itens_por_pedido`), contados no domain.
  * Vendedor e promotor só recebem o próprio número; os demais perfis, os `usuario_ids` pedidos (o Core já os escopou).
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_PEDIDOS_DA_META } from '../contracts';
-import { DIAS_PRECO_RETROATIVO, janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
+import { DIAS_PRECO_RETROATIVO, itensDistintos, janelaDoPeriodo, STATUS_QUE_CONTAM_NA_META, statusParaMeta } from '../domain';
 
 /**
  * Emissão LIMITADA (T-0138): o espelho em SQL de `emitidoEm` (domain/aprovacao.ts), com o recebimento como "agora". Sem hora do
@@ -18,6 +19,7 @@ export const EMITIDO_EM_SQL = `(case when p.criado_no_aparelho_em is null then p
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 interface LinhaPedidoMeta {
+  id: string;
   vendedor_id: string;
   autor_id: string | null;
   cliente_id: string | null;
@@ -25,6 +27,11 @@ interface LinhaPedidoMeta {
   aprovado_em: string | null;
   status: string;
   total_cents: number;
+}
+interface LinhaItemMeta {
+  pedido_id: string;
+  produto_id: string;
+  quantidade: number;
 }
 interface LinhaFaturamentoMeta {
   vendedor_id: string;
@@ -41,7 +48,7 @@ export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_MET
   const { de, ate } = janelaDoPeriodo(entrada.periodo);
 
   const ped = await ctx.db.query<LinhaPedidoMeta>(
-    `select p.vendedor_id, p.autor_id, p.cliente_id, p.status, p.total_cents::float8 as total_cents,
+    `select p.id, p.vendedor_id, p.autor_id, p.cliente_id, p.status, p.total_cents::float8 as total_cents,
             to_char(${EMITIDO_EM_SQL} at time zone 'UTC', ${UTC}) as emitido_em,
             to_char(p.decidido_em at time zone 'UTC', ${UTC}) as aprovado_em
        from vendedor.pedido p
@@ -51,6 +58,16 @@ export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_MET
       order by emitido_em, p.id`,
     [ids, [...STATUS_QUE_CONTAM_NA_META], de, ate],
   );
+  const itensPorPedido = new Map<string, LinhaItemMeta[]>();
+  if (ped.rows.length > 0) {
+    const it = await ctx.db.query<LinhaItemMeta>(
+      `select pedido_id, produto_id, quantidade::float8 as quantidade
+         from vendedor.pedido_item
+        where deleted_at is null and pedido_id = any($1::uuid[])`,
+      [ped.rows.map((r) => r.id)],
+    );
+    for (const i of it.rows) itensPorPedido.set(i.pedido_id, [...(itensPorPedido.get(i.pedido_id) ?? []), { ...i, quantidade: Number(i.quantidade) }]);
+  }
   const fat = await ctx.db.query<LinhaFaturamentoMeta>(
     `select p.vendedor_id, p.cliente_id, (p.status = 'cancelled') as cancelado,
             to_char(f.faturado_em at time zone 'UTC', ${UTC}) as faturado_em,
@@ -74,6 +91,7 @@ export const consultaPedidosDaMeta = implementarConsulta(CONSULTA_PEDIDOS_DA_MET
       total_cents: Number(r.total_cents),
       frete_cents: null,
       cancelado_cents: null,
+      itens_distintos: itensDistintos(itensPorPedido.get(r.id) ?? []),
     })),
     faturamentos: fat.rows.map((r) => ({
       vendedor_id: r.vendedor_id,

@@ -21,3 +21,11 @@ export function janelaDoPeriodo(periodo: string): { de: string; ate: string } {
   const DIA = 86_400_000;
   return { de: new Date(Date.UTC(a, m - 1, 1) - DIA).toISOString(), ate: new Date(Date.UTC(a, m, 1) + DIA).toISOString() };
 }
+
+/**
+ * Indicador `itens_por_pedido` (RN-CORE-21): quantos produtos distintos o pedido tem. Item excluído ou com quantidade zero não
+ * conta; o mesmo produto em duas linhas conta uma vez.
+ */
+export function itensDistintos(itens: ReadonlyArray<{ produto_id: string; quantidade: number; deleted_at?: string | null }>): number {
+  return new Set(itens.filter((i) => !i.deleted_at && i.quantidade > 0).map((i) => i.produto_id)).size;
+}

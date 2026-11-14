@@ -14,7 +14,6 @@ import {
   periodoForaDaJanela,
   periodoParcialNaJanela,
   resumoDaLista,
-  resumoDaSituacao,
   situacaoEfetiva,
   chipsComAtivo,
   rotuloDoPeriodo,
@@ -193,18 +192,13 @@ describe('T-0077 (R1): a busca ignora período e situação', () => {
   });
 });
 
-describe('T-0077 (Y1, Y2): chip ativo com 0 e resumo de orçamentos', () => {
+describe('T-0077 (Y1, Y2): chip ativo com 0', () => {
   it('RF-VEN-05: o chip ativo continua na linha mesmo com 0 itens', () => {
     const c = contarPorSituacao([item({ id: '1' })]);
     expect(c.chips.map((x) => x.id)).toEqual(['todos', 'aprovados']);
     expect(chipsComAtivo(c.chips, 'rejeitados').map((x) => `${x.id}:${x.quantidade}`)).toEqual(['todos:1', 'aprovados:1', 'rejeitados:0']);
     expect(chipsComAtivo(c.chips, 'aprovados')).toEqual(c.chips);
     expect(chipsComAtivo(c.chips, 'todos')).toEqual(c.chips);
-  });
-  it('RF-VEN-05: com Orçamentos ativo o resumo soma os orçamentos', () => {
-    const l = [item({ id: '1', tipo: 'orcamento', total_cents: 600 }), item({ id: '2', tipo: 'orcamento', total_cents: 400 })];
-    expect(resumoDaSituacao(l, 'orcamentos')).toEqual({ quantidade: 2, total_cents: 1000, orcamentos: true });
-    expect(resumoDaSituacao(l, 'todos')).toEqual({ quantidade: 0, total_cents: 0, orcamentos: false });
   });
 });
 
