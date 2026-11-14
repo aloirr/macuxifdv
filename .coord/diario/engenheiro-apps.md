@@ -120,3 +120,4 @@
 2026-11-13 — T-0170 — v1.0.6: Início do Campo passa a ser a TelaInicioCampo do Core com o sino do shell (prop sino); saem Orçamentos, A faturar e o cartão de Recados (RD-0249, também no Início da Gestão); código morto do cartão de Recados removido (components/inicio.tsx, lib/inicio.ts e testes).
 2026-11-14 — T-0170 — v1.0.6: costura do sync no app (tarefa, frase_dia, usuario_avatar, meta_produtividade, deslocamento_dia; filas tarefa_conclusao e usuario_avatar); depende do #152
 2026-11-14 — Oficial — workflow do EAS sem o PC (pronto em apps/mobile/scripts/eas/eas-build.yml)
+2026-11-14 — Menu BKO (PR #272) — RD-0333: teste de menu-bko sem a conferência de Formas de pagamento repetida de menu-formas-pagamento.test.ts; merge do main com o #271 (SDK)

@@ -127,11 +127,10 @@ describe('menu do BKO: registro real dos 8 módulos (ADR 0050)', () => {
     expect(titulos).not.toContain('Administração');
   });
 
-  it('Alertas e Recados em Comunicação; Clientes em Cadastros; Formas de pagamento em Comercial', () => {
+  it('Alertas e Recados em Comunicação; Clientes em Cadastros', () => {
     expect(de('comunicacao')).toEqual(expect.arrayContaining(['nav-gestor-alertas', 'nav-core-recados']));
     expect(de('operacao')).not.toEqual(expect.arrayContaining(['nav-gestor-alertas']));
     expect(de('cadastros')).toContain('nav-core-clientes');
-    expect(de('comercial')).toContain('nav-vendedor-formas-pagamento');
   });
 });
 
