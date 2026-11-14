@@ -38,6 +38,7 @@ vi.mock('expo-router', () => ({
 import { caminhoDoLinkInterno as caminhoDoLink, linkInternoNavegavel as linkNavegavel } from '@macuxi/platform-sdk';
 import { destinoDaTarefa, destinoVerTodos } from '../../apps/mobile/src/lib/sino';
 import { CAMINHO_NOVO_PEDIDO, hrefNovoPedido, irParaNovoPedido } from '../../modules/vendedor/app/rotas';
+import { CHECKIN_NA_FICHA, SO_ORCAMENTO } from './apoio/estado-prs';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
@@ -114,11 +115,11 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
       irParaNovoPedido({ customerId: C });
       expect(empurrados).toEqual([`/m/novo-pedido?customerId=${C}`]);
     });
-    it('Rota → ficha → folha do check-in "Novo pedido": leva a visita e a parada', () => {
+    it('com atendimento aberto (ficha aberta pela Rota): leva a visita e a parada', () => {
       irParaNovoPedido({ customerId: C, visitId: V, stopId: S });
       expect(empurrados).toEqual([`/m/novo-pedido?customerId=${C}&visitId=${V}&stopId=${S}`]);
     });
-    it('Catálogo "Adicionar ao pedido" sem cliente: /m/novo-pedido (abre o seletor de cliente, não o editor)', () => {
+    it('sem cliente: /m/novo-pedido (abre o seletor de cliente, não o editor; era a entrada do Catálogo antes do R-20261114-151000)', () => {
       irParaNovoPedido({ customerId: undefined });
       expect(empurrados).toEqual(['/m/novo-pedido']);
     });
@@ -132,10 +133,23 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
     it('as extensões usam a mesma função: ficha e check-in (cliente.acoes) e Catálogo (produto.acoes)', () => {
       const idx = ler('modules/vendedor/app/index.ts');
       expect(idx).toContain('abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined })');
-      expect(idx).toMatch(/slot: 'produto\.acoes'[\s\S]*?irParaNovoPedido\(origem \?\? \{ customerId: ctx\.clienteId \?\? undefined \}\)/);
-      // a folha do check-in (aberta pela Rota) chama a MESMA ação de destaque da ficha, com a visita recém-aberta
+      // R-20261114-151000 (Catálogo só para consulta): com o PR do Vendedor, o Catálogo abre a folha do orçamento e não o novo
+      // pedido; isso é conferido em tests/modulos/catalogo-so-consulta-r20261114.test.ts. Aqui ficam a ficha e o check-in.
+      if (!SO_ORCAMENTO) expect(idx).toMatch(/slot: 'produto\.acoes'[\s\S]*?irParaNovoPedido\(origem \?\? \{ customerId: ctx\.clienteId \?\? undefined \}\)/);
       const ficha = ler('modules/core/app/telas/cliente.tsx');
-      expect(ficha).toMatch(/testID: 'checkin-new-order'[\s\S]*?acaoDestaque\.payload\.abrir\(\{ \.\.\.contexto, visitaId \}\)/);
+      const folha = ler('modules/core/app/components/checkin-sheet.tsx');
+      if (CHECKIN_NA_FICHA) {
+        // PR #258 (R-20261114-150000/150500): a folha do check-in não oferece mais "Novo pedido"; o rodapé dela só fecha e volta à
+        // ficha (`checkin-abrir-ficha`) e o único "+ Novo pedido" é o do rodapé da ficha, com o contexto (visita aberta incluída)
+        expect(folha).toMatch(/onPress: onClose, testID: 'checkin-abrir-ficha'/);
+        expect(folha).not.toMatch(/checkin-new-order|AcaoDaFolha|\bacao\b|rotulo="[^"]*Novo pedido/);
+        expect(ficha).not.toMatch(/checkin-new-order|acaoDestaque/);
+        expect(ficha.slice(ficha.indexOf('<CheckinSheet'))).not.toMatch(/\bacao=/);
+        expect(ficha).toMatch(/(acoesDoRodapeCliente\(acoes\)|acoesRodape)\.map\([\s\S]*?onPress=\{\(\) => a\.payload\.abrir\(contexto\)\}/);
+      } else {
+        // até o #258: a folha do check-in (aberta pela Rota) chama a MESMA ação de destaque da ficha, com a visita recém-aberta
+        expect(ficha).toMatch(/testID: 'checkin-new-order'[\s\S]*?acaoDestaque\.payload\.abrir\(\{ \.\.\.contexto, visitaId \}\)/);
+      }
       expect(ler('modules/core/app/telas/rota.tsx')).toMatch(/abrirCliente\(s\.customer\.id, 'Rota de hoje', true\)/);
     });
     it('a tela decide editor × seletor só pelo `customerId` e remonta o editor por cliente (chave)', () => {
