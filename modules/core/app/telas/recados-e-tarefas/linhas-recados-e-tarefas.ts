@@ -114,7 +114,7 @@ export function apoioDaTarefa(t: TarefaSync, situacao: SituacaoTarefa, c: Contex
   }
   if (situacao === 'cancelada') return { texto: 'Cancelada', tom: 'apagado' };
   if (situacao === 'sem_modulo') return { texto: 'Pesquisa desligada', tom: 'apagado' };
-  if (situacao === 'atrasada') return { texto: `atrasada desde ${ddmm(somarDiasCivis(t.prazo, 1))}`, tom: 'atrasada' };
+  if (situacao === 'atrasada') return { texto: textoVencida(t.prazo, c.hoje), tom: 'atrasada' };
   return { texto: `${origemDaTarefa(t.autor_perfil)} · ${textoDoPrazo(t.prazo, c.hoje)}`, tom: 'normal' };
 }
 
