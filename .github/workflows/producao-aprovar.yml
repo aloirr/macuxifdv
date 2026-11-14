@@ -1,0 +1,162 @@
+name: producao — aprovar versão
+
+# Trava do deploy por issue (ADR 0046). O Alexandre aprova no chat; a ponte comenta "aprovado vX.Y.Z" com a conta aloirr
+# na issue "Aprovar deploy vX.Y.Z" aberta pelo producao-liberar.yml. Este workflow:
+#   - filtra barato no nível do job (sem runner): issue (não PR) aberta, com o rótulo trava-deploy, comentário do aloirr;
+#   - conferir (só leitura): scripts/ci/producao-trava.mjs comentario decide pelo arquivo do evento (issue aberta pelo
+#     bot, linha "aprovado vX.Y.Z" com a versão do título, SHA do marcador). Comentário que não aprova é ignorado SEM
+#     comentar na issue. Aprovado: a MESMA conferência do liberar e do publicar (producao-conferir.mjs entrada e conferir:
+#     tag nova, commit no main, CI verde e imagem da API no GHCR);
+#   - liberar (contents/issues/actions: write): cria a tag com o GITHUB_TOKEN, põe o rótulo aprovado, fecha a issue como
+#     concluída e SÓ ENTÃO dispara o producao-publicar.yml na tag (o publicar exige a issue fechada como aprovada); comenta
+#     o link do run na issue;
+#   - falha: se uma aprovação válida não passou na conferência, comenta o link do run e a issue continua aberta.
+# O workflow de issue_comment é sempre o do main (comentário não roda workflow de branch). Nenhum texto do evento é
+# interpolado no shell: o script lê o GITHUB_EVENT_PATH; o resto vai por env:.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: producao-aprovar-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  conferir:
+    name: comentário de aprovação, commit no main, CI verde e imagem da API
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.labels.*.name, 'trava-deploy') &&
+      github.event.comment.user.login == 'aloirr'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    outputs:
+      aprovar: ${{ steps.decisao.outputs.aprovar }}
+      issue: ${{ steps.decisao.outputs.issue }}
+      sha: ${{ steps.alvo.outputs.sha }}
+      versao: ${{ steps.alvo.outputs.versao }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: o comentário aprova a versão da issue?
+        id: decisao
+        run: node scripts/ci/producao-trava.mjs comentario
+
+      - name: versão vX.Y.Z nova e SHA completo
+        if: steps.decisao.outputs.aprovar == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ steps.decisao.outputs.versao }}
+          SHA: ${{ steps.decisao.outputs.sha }}
+        run: node scripts/ci/producao-conferir.mjs entrada
+
+      - uses: docker/login-action@v3
+        if: steps.decisao.outputs.aprovar == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: commit no main, CI verde e digest da imagem da API
+        id: alvo
+        if: steps.decisao.outputs.aprovar == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSAO: ${{ steps.decisao.outputs.versao }}
+          SHA: ${{ steps.decisao.outputs.sha }}
+          DONO: ${{ github.repository_owner }}
+        run: node scripts/ci/producao-conferir.mjs conferir
+
+  liberar:
+    name: cria a tag, fecha a issue como aprovada e dispara o "producao — publicar" na tag
+    needs: conferir
+    if: needs.conferir.outputs.aprovar == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSAO: ${{ needs.conferir.outputs.versao }}
+      SHA: ${{ needs.conferir.outputs.sha }}
+      ISSUE: ${{ needs.conferir.outputs.issue }}
+    steps:
+      - name: tag
+        run: |
+          [[ "$VERSAO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$SHA" =~ ^[0-9a-f]{40}$ && "$ISSUE" =~ ^[0-9]+$ ]] || { echo "::error::saída do conferir inválida"; exit 1; }
+          # a API recusa (422) se a tag já existir: não sobrescreve versão publicada
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$VERSAO" -f sha="$SHA" --jq '.ref' \
+            || { echo "::error::não consegui criar a tag $VERSAO (já existe ou o GITHUB_TOKEN não pode criar tag)"; exit 1; }
+          echo "tag $VERSAO → $SHA"
+
+      # antes do disparo: o publicar confere a issue fechada como concluída, com o rótulo aprovado
+      - name: issue aprovada e fechada
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/labels" -f name=aprovado -f color=0e8a16 \
+            -f description='Deploy aprovado pelo dono do produto' >/dev/null 2>&1 || true
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE/labels" -f 'labels[]=aprovado' >/dev/null
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$ISSUE" -f state=closed -f state_reason=completed >/dev/null
+          echo "issue #$ISSUE fechada como aprovada"
+
+      - name: dispara o "producao — publicar" na tag e comenta o link
+        run: |
+          corpo="$RUNNER_TEMP/comentario.md"
+          if gh workflow run producao-publicar.yml -R "$GITHUB_REPOSITORY" --ref "$VERSAO"; then
+            # o disparo não devolve o id do run: procura o run da tag por até 30 s
+            url=""
+            for _ in $(seq 1 10); do
+              url="$(gh run list -R "$GITHUB_REPOSITORY" --workflow producao-publicar.yml --branch "$VERSAO" --event workflow_dispatch --limit 1 --json url --jq '.[0].url // empty' || true)"
+              [ -n "$url" ] && break
+              sleep 3
+            done
+            [ -n "$url" ] || url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/producao-publicar.yml"
+            printf 'Aprovado. Tag `%s` → `%s` criada; "producao — publicar" disparado: %s\n' "$VERSAO" "$SHA" "$url" > "$corpo"
+            falhou=0
+          else
+            printf 'Tag `%s` criada, mas o disparo do "producao — publicar" falhou (%s). Rode Actions → "producao — publicar" → Run workflow na tag `%s`.\n' \
+              "$VERSAO" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" "$VERSAO" > "$corpo"
+            falhou=1
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -F body=@"$corpo" --jq '.html_url'
+          cat "$corpo" >> "$GITHUB_STEP_SUMMARY"
+          [ "$falhou" = 0 ] || { echo "::error::disparo do producao-publicar.yml na tag $VERSAO falhou"; exit 1; }
+
+  falha:
+    name: avisa na issue que a aprovação não passou na conferência
+    needs: [conferir, liberar]
+    if: always() && needs.conferir.outputs.aprovar == 'true' && needs.conferir.result == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ needs.conferir.outputs.issue }}
+    steps:
+      - name: comentário com o link do run
+        run: |
+          [[ "$ISSUE" =~ ^[0-9]+$ ]] || exit 0
+          printf 'A conferência falhou e nada foi publicado: %s\nA issue continua aberta; depois de corrigir, comente de novo.\n' \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > "$RUNNER_TEMP/falha.md"
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -F body=@"$RUNNER_TEMP/falha.md" --jq '.html_url'

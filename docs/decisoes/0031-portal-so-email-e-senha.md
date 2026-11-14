@@ -19,7 +19,7 @@ time da Macuxi vê todas. O portal da 0029 só conhecia o super-admin, com convi
 1. **Login de uma etapa** (`POST /v1/plataforma/auth/login`, e-mail e senha) abre a sessão do portal. Saem o desafio de 2ª etapa, o
    TOTP, os códigos de recuperação, o convite e o primeiro acesso (rotas, funções, telas, a dependência `qrcode` e os secrets
    `*_SUPERADMIN_CONVITE`).
-2. **Dois tipos de acesso** na mesma sessão curta (token de 15 min, teto de 8 h, revogável, conferida no banco a cada requisição,
+2. **Dois tipos de acesso** na mesma sessão curta (token de 2 h, eram 15 min até a Emenda 1; teto de 8 h, revogável, conferida no banco a cada requisição,
    segredo e `aud` próprios, `amr=["pwd"]`):
    - `super_admin` (time da Macuxi, `plataforma.super_admin`): vê todas as empresas; o tenant vem no `x-macuxi-tenant` (como na 0029 §5);
    - `admin_cliente` (`core.usuario` com perfil `admin`, ativo, de empresa ativa): só nas empresas em que **a senha conferiu**; a
@@ -55,7 +55,7 @@ time da Macuxi vê todas. O portal da 0029 só conhecia o super-admin, com convi
 
 ## Consequências
 - **Risco registrado (decisão do dono do produto):** sem 2º fator, o super-admin, que cria e altera qualquer empresa, fica protegido
-  só pela senha (RN-CORE-32), pelo bloqueio por e-mail, pelo limite por IP, pela sessão de 15 min/8 h e pela auditoria. Uma senha
+  só pela senha (RN-CORE-32), pelo bloqueio por e-mail, pelo limite por IP, pela sessão de 2 h/8 h (Emenda 1) e pela auditoria. Uma senha
   vazada do time da Macuxi dá acesso a todas as empresas até alguém revogar (workflow `redefinir`/`desativar`). Mitigações sem
   código: senha longa e única em gerenciador de senhas; Cloudflare Access no host `config.` com os e-mails do time.
 - **O limite do `macuxi_portal` (0029, T-0091) cresce um pouco:** quem tiver a senha desse papel abre sessão sem senha também de
@@ -68,3 +68,10 @@ time da Macuxi vê todas. O portal da 0029 só conhecia o super-admin, com convi
 - Quem estava logado no portal entra de novo depois do deploy (token antigo sem tipo). Super-admin já criado continua valendo, só com a senha.
 - O `tenant:criar` e o cadastro de usuário passam a recusar senha sem caractere especial (o `PROD_TENANT_ADMIN_SENHA` precisa atender).
 - Fixtures de teste que criam senha fraca precisam mudar.
+
+## Emenda 1 (2026-11-14) — sessão de 2 h
+
+- **Origem**: dono do produto, 14/11/2026, recado R-20261114-125500-alexandre ("aumente o tempo de sessao para duas horas").
+- **Decisão**: no item 2, o token da sessão curta passa de 15 min para **2 h (120 min) renováveis com uso**, igual à Emenda 1 da
+  [ADR 0029](0029-super-admin-de-plataforma.md). O teto de 8 h, a conferência no banco a cada requisição e o bloqueio de 15 min
+  após 5 falhas não mudam.
