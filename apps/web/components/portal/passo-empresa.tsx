@@ -5,6 +5,8 @@
  * `tenant:criar` da T-0083 (RN-CORE-31, idempotente pelo código). "Conferir" = `simular: true` (nada é gravado). Core e
  * Integração entram sempre (marcados e travados). Empresa existente: código, razão social, CNPJ e fuso ficam travados (não mudam) e
  * o passo só acrescenta módulos. A API revalida tudo (dependências entre módulos, RN-CORE-03). testIDs: empresa.*.
+ * Parâmetros iniciais (alçadas, validade do orçamento, aplicação no orçamento) não ficam aqui: a empresa nasce com os padrões do
+ * `ParametrosIniciaisSchema` e o BKO muda depois (R-20261114-122200).
  * T-0093 (RN-CORE-34; spec docs/design/portal-entrar.md §6): empresa nova leva o administrador inicial (nome, e-mail e senha
  * master, na RN-CORE-32 com a lista das regras ao vivo); empresa existente não troca a senha dele (RN-CORE-31). A senha só vive no
  * estado da tela: nunca vai ao `sessionStorage`, à URL nem a log, e o campo é limpo depois de gravar.
@@ -13,7 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { faltasNaSenha, mensagemDaSenha, SENHA_MIN_CARACTERES, textoDoErroDaSenha } from '@macuxi/core/contracts';
 import { AdminInicialEmpresaSchema, CriarEmpresaRespostaSchema, CriarEmpresaSchema, MODULOS, type ModuloId } from '@macuxi/platform-sdk';
-import { Badge, Button, Notice, Panel, parseDecimalInput, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
+import { Badge, Button, Notice, Panel, RegrasDaSenha, SelectField, SENHA_ATENDE_AS_REGRAS } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
@@ -70,11 +72,6 @@ interface Form {
   cnpj: string;
   fuso: string;
   modulos: Partial<Record<ModuloId, { marcado: boolean; licencas: string }>>;
-  alcada_vendedor_pct: string;
-  alcada_supervisor_pct: string;
-  alcada_gerente_pct: string;
-  validade_orcamento_dias: string;
-  aplicacao_no_orcamento_padrao: boolean;
   /** Administrador inicial (só na empresa nova; RN-CORE-34). */
   admin?: AdminDoForm;
 }
@@ -142,29 +139,15 @@ export function mascararCnpj(v: string): string {
   return d.replace(/^(\w{2})(\w)/, '$1.$2').replace(/^(\w{2})\.(\w{3})(\w)/, '$1.$2.$3').replace(/\.(\w{3})(\w)/, '.$1/$2').replace(/(\w{4})(\w)/, '$1-$2');
 }
 
-const num = (s: string): number | undefined => {
-  const n = parseDecimalInput(s);
-  return n === null ? undefined : n;
-};
-
-/** Monta o corpo do `POST /plataforma/empresas` a partir do formulário (vazio = padrão do schema). */
+/** Monta o corpo do `POST /plataforma/empresas` a partir do formulário (sem `parametros`: valem os padrões do schema). */
 export function corpoDaEmpresa(f: Form, simular: boolean): unknown {
   const modulos = MODULOS.filter((m) => MODULOS_SEMPRE.includes(m) || f.modulos[m]?.marcado).map((m) => {
     const l = f.modulos[m]?.licencas.trim() ?? '';
     return { modulo: m, licencas: l === '' ? null : Number(l) };
   });
-  const parametros = Object.fromEntries(
-    Object.entries({
-      alcada_vendedor_pct: num(f.alcada_vendedor_pct),
-      alcada_supervisor_pct: num(f.alcada_supervisor_pct),
-      alcada_gerente_pct: num(f.alcada_gerente_pct),
-      validade_orcamento_dias: f.validade_orcamento_dias.trim() === '' ? undefined : Number(f.validade_orcamento_dias),
-      aplicacao_no_orcamento_padrao: f.aplicacao_no_orcamento_padrao,
-    }).filter(([, v]) => v !== undefined),
-  );
   // sem `trim` na senha (RN-CORE-32); o e-mail o contrato normaliza
   const admin = f.admin ? { admin: { nome: f.admin.nome.trim(), email: f.admin.email.trim(), senha: f.admin.senha } } : {};
-  return { codigo: f.codigo.trim(), razao_social: f.razao_social.trim(), cnpj: f.cnpj, fuso: f.fuso, modulos, parametros, ...admin, simular };
+  return { codigo: f.codigo.trim(), razao_social: f.razao_social.trim(), cnpj: f.cnpj, fuso: f.fuso, modulos, ...admin, simular };
 }
 
 /**
@@ -178,10 +161,6 @@ const MENSAGEM_DO_CAMPO: Record<string, string> = {
   fuso: 'Escolha o fuso da empresa.',
   'modulos.modulos': 'Escolha ao menos um módulo.',
   'modulos.licencas': 'Licenças: número inteiro, 0 ou mais (vazio = sem limite).',
-  'parametros.alcada_vendedor_pct': 'Informe um percentual de 0 a 100.',
-  'parametros.alcada_supervisor_pct': 'Informe um percentual de 0 a 100.',
-  'parametros.alcada_gerente_pct': 'Informe um percentual de 0 a 100.',
-  'parametros.validade_orcamento_dias': 'Informe de 1 a 90 dias.',
 };
 const CODIGOS_GENERICOS = new Set(['too_small', 'too_big', 'invalid_type', 'not_finite', 'not_multiple_of']);
 
@@ -193,7 +172,7 @@ export function errosDaEmpresa(corpo: unknown): Record<string, string> {
   for (const i of p.error.issues) {
     // o administrador tem mensagens próprias (`errosDoAdmin`)
     if (i.path[0] === 'admin') continue;
-    const k = i.path[0] === 'parametros' || i.path[0] === 'modulos' ? `${String(i.path[0])}.${String(i.path.at(-1) ?? '')}` : String(i.path[0]);
+    const k = i.path[0] === 'modulos' ? `modulos.${String(i.path.at(-1) ?? '')}` : String(i.path[0]);
     const pt = CODIGOS_GENERICOS.has(i.code) ? MENSAGEM_DO_CAMPO[k] : undefined;
     e[k] ??= pt ?? i.message;
   }
@@ -239,11 +218,6 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
         return [m, { marcado: MODULOS_SEMPRE.includes(m) || !!atual, licencas: atual?.licencas != null ? String(atual.licencas) : '' }];
       }),
     ),
-    alcada_vendedor_pct: '5',
-    alcada_supervisor_pct: '10',
-    alcada_gerente_pct: '15',
-    validade_orcamento_dias: '7',
-    aplicacao_no_orcamento_padrao: true,
     ...(existente ? {} : { admin: { nome: '', email: '', senha: '' } }),
   }));
   const [codigoTocado, setCodigoTocado] = useState(!!existente);
@@ -454,21 +428,6 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
         {erros['modulos.modulos'] && <span className="text-[12px] text-danger">{erros['modulos.modulos']}</span>}
       </Panel>
 
-      {!existente && (
-        <Panel title="Parâmetros iniciais">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Campo rotulo="Alçada do vendedor (%)" testId="empresa.alcada-vendedor" inputMode="decimal" value={f.alcada_vendedor_pct} onChange={(e) => set('alcada_vendedor_pct', e.target.value)} erro={erros['parametros.alcada_vendedor_pct']} ajuda="Desconto que o vendedor dá sem aprovação." />
-            <Campo rotulo="Alçada do supervisor (%)" testId="empresa.alcada-supervisor" inputMode="decimal" value={f.alcada_supervisor_pct} onChange={(e) => set('alcada_supervisor_pct', e.target.value)} erro={erros['parametros.alcada_supervisor_pct']} />
-            <Campo rotulo="Alçada do gerente (%)" testId="empresa.alcada-gerente" inputMode="decimal" value={f.alcada_gerente_pct} onChange={(e) => set('alcada_gerente_pct', e.target.value)} erro={erros['parametros.alcada_gerente_pct']} />
-            <Campo rotulo="Validade do orçamento (dias)" testId="empresa.validade-orcamento" inputMode="numeric" value={f.validade_orcamento_dias} onChange={(e) => set('validade_orcamento_dias', e.target.value.replace(/\D/g, '').slice(0, 2))} erro={erros['parametros.validade_orcamento_dias']} />
-            <label className="flex items-center gap-2.5 self-end pb-2.5 text-[14px] sm:col-span-2">
-              <input type="checkbox" data-testid="empresa.aplicacao-orcamento" className="h-4 w-4 accent-accent" checked={f.aplicacao_no_orcamento_padrao} onChange={(e) => set('aplicacao_no_orcamento_padrao', e.target.checked)} />
-              Mostrar a aplicação do produto no orçamento (padrão)
-            </label>
-          </div>
-        </Panel>
-      )}
-
       {erro && (
         <div data-testid="empresa.erro">
           <Notice tone="danger">{erro}</Notice>
@@ -496,7 +455,6 @@ function ResultadoEmpresa({ r, emailAdmin }: { r: Resposta; emailAdmin: string |
         <span className="flex flex-col gap-1">
           <strong>{r.simulado ? `Conferido, nada gravado: ${ROTULO_RESULTADO[r.resultado].toLowerCase()} ao gravar.` : `${ROTULO_RESULTADO[r.resultado]}.`}</strong>
           {r.modulos_adicionados.length > 0 && <span>Módulos {r.simulado ? 'que entram' : 'que entraram'}: {r.modulos_adicionados.map((m) => ROTULO_MODULO[m].nome).join(', ')}.</span>}
-          {r.parametros_gravados.length > 0 && <span>Parâmetros {r.simulado ? 'que serão gravados' : 'gravados'}: {r.parametros_gravados.length}.</span>}
           {admin && <span data-testid="empresa.resultado-admin">{admin}</span>}
           {r.avisos.map((a) => (
             <span key={a}>{a}</span>

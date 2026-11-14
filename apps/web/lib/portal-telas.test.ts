@@ -26,39 +26,38 @@ const form = {
   cnpj: '11.222.333/0001-81',
   fuso: 'America/Manaus',
   modulos: { vendedor: { marcado: true, licencas: '12' }, catalogo: { marcado: true, licencas: '' }, promotor: { marcado: false, licencas: '5' } },
-  alcada_vendedor_pct: '5',
-  alcada_supervisor_pct: '10,5',
-  alcada_gerente_pct: '15',
-  validade_orcamento_dias: '7',
-  aplicacao_no_orcamento_padrao: true,
 };
 
 describe('passo Empresa', () => {
-  it('corpo: core e integracao sempre; licença vazia = sem limite; vírgula decimal; passa no CriarEmpresaSchema', () => {
-    const c = corpoDaEmpresa(form, true) as { modulos: { modulo: string; licencas: number | null }[]; parametros: Record<string, unknown>; simular: boolean };
+  it('corpo: core e integracao sempre; licença vazia = sem limite; passa no CriarEmpresaSchema', () => {
+    const c = corpoDaEmpresa(form, true) as { modulos: { modulo: string; licencas: number | null }[]; simular: boolean };
     expect(c.modulos).toEqual([
       { modulo: 'core', licencas: null },
       { modulo: 'catalogo', licencas: null },
       { modulo: 'vendedor', licencas: 12 },
       { modulo: 'integracao', licencas: null },
     ]);
-    expect(c.parametros.alcada_supervisor_pct).toBe(10.5);
     expect(c.simular).toBe(true);
     const p = CriarEmpresaSchema.parse(c);
     expect(p.cnpj).toBe('11222333000181');
     expect(errosDaEmpresa(c)).toEqual({});
   });
-  it('erros por campo: CNPJ com dígito errado e alçadas fora de ordem', () => {
-    const e = errosDaEmpresa(corpoDaEmpresa({ ...form, cnpj: '11.222.333/0001-82', alcada_supervisor_pct: '20', alcada_gerente_pct: '15' }, false));
-    expect(Object.keys(e).sort()).toEqual(['cnpj', 'parametros.alcada_supervisor_pct']);
+  it('R-20261114-122200: sem parâmetros iniciais no corpo; a empresa nasce com os padrões do schema (o BKO muda depois)', () => {
+    const c = corpoDaEmpresa(form, false);
+    expect(c).not.toHaveProperty('parametros');
+    expect(CriarEmpresaSchema.parse(c).parametros).toEqual({
+      alcada_vendedor_pct: 5,
+      alcada_supervisor_pct: 10,
+      alcada_gerente_pct: 15,
+      validade_orcamento_dias: 7,
+      aplicacao_no_orcamento_padrao: true,
+    });
   });
-  it('erros por campo em pt-BR: razão social curta, alçada acima de 100, validade fora de 1-90', () => {
-    const e = errosDaEmpresa(corpoDaEmpresa({ ...form, razao_social: 'A', alcada_supervisor_pct: '10', alcada_gerente_pct: '150', validade_orcamento_dias: '91' }, false));
+  it('erros por campo em pt-BR: CNPJ com dígito errado e razão social curta', () => {
+    const e = errosDaEmpresa(corpoDaEmpresa({ ...form, razao_social: 'A', cnpj: '11.222.333/0001-82' }, false));
+    expect(Object.keys(e).sort()).toEqual(['cnpj', 'razao_social']);
     expect(e.razao_social).toBe('Informe a razão social, de 2 a 200 caracteres.');
-    expect(e['parametros.alcada_gerente_pct']).toBe('Informe um percentual de 0 a 100.');
-    expect(e['parametros.validade_orcamento_dias']).toBe('Informe de 1 a 90 dias.');
     expect(Object.values(e).join(' ')).not.toMatch(/must|String|Number/);
-    expect(errosDaEmpresa(corpoDaEmpresa({ ...form, validade_orcamento_dias: '0' }, false))['parametros.validade_orcamento_dias']).toBe('Informe de 1 a 90 dias.');
   });
   it('sugestão do código e máscara do CNPJ', () => {
     expect(sugerirCodigo('Distribuidora São João Ltda.')).toBe('distribuidora-sao-joao');
