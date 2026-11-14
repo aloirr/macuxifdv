@@ -4,7 +4,9 @@
  * - a `TelaLogin` do Core recebe o código salvo no aparelho e, na primeira abertura, nenhum e-mail inicial (o retorno com
  *   código e e-mail é coberto em lib/etapa-login.test.ts);
  * - contraste do laranja (docs/design/componentes.md §1.1, R-20261108-103740): o texto laranja do shell (marca da
- *   demonstração e link "Avançado") usa `accentInk`, nunca o `accent` cru; o `accent` fica só em ícone e spinner.
+ *   demonstração e link "Avançado") usa `accentInk`, nunca o `accent` cru; o `accent` fica só em ícone e spinner;
+ * - faixa do login (T-0172, quadro 3 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite com o logo fica
+ *   no topo das três etapas (Entrar, Esqueci a senha e Crie sua senha) e não entra na demonstração.
  */
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -48,7 +50,12 @@ vi.mock('@macuxi/ui/mobile', () => ({
   Screen: host('main'),
 }));
 
-const sim = vi.hoisted(() => ({ modo: 'real' as 'real' | 'demo', perfilBuild: 'development', telaLogin: [] as Record<string, unknown>[] }));
+const sim = vi.hoisted(() => ({
+  modo: 'real' as 'real' | 'demo',
+  perfilBuild: 'development',
+  telaLogin: [] as Record<string, unknown>[],
+  etapa: null as Record<string, unknown> | null,
+}));
 vi.mock('@macuxi/core/app', () => ({
   AVISO_SENHA_CRIADA: 'Senha criada.',
   detalhesDaTroca: () => null,
@@ -61,6 +68,17 @@ vi.mock('@macuxi/core/app', () => ({
   },
 }));
 vi.mock('@/components/area-segura', () => ({ useFaixaSuperior: () => 0 }));
+vi.mock('@/components/faixa-login', () => ({ FaixaDoLogin: () => createElement('header', { 'data-testid': 'login.faixa' }) }));
+// a etapa em que o login abre (`null` = a de verdade, Entrar): o teste da faixa abre direto em Esqueci e em Crie sua senha
+vi.mock('@/lib/etapa-login', async (original) => {
+  const real = await original<typeof import('@/lib/etapa-login')>();
+  return {
+    ...real,
+    get ETAPA_INICIAL() {
+      return sim.etapa ?? real.ETAPA_INICIAL;
+    },
+  };
+});
 vi.mock('@/components/tela-entrada', () => ({
   TelaEntrada: ({ barra }: { barra?: { rotulo: string } | null }) => createElement('div', { 'data-testid': 'tela-entrada' }, barra?.rotulo ?? ''),
 }));
@@ -101,6 +119,30 @@ beforeEach(() => {
   sim.modo = 'real';
   sim.perfilBuild = 'development';
   sim.telaLogin = [];
+  sim.etapa = null;
+});
+
+describe('T-0172: faixa Azul noite com o logo no topo do login (quadro 3, entrada-sync)', () => {
+  it('Entrar: a faixa vem antes do formulário', () => {
+    const m = html();
+    expect(m).toContain('data-testid="login.tela"');
+    expect(m.indexOf('login.faixa')).toBeGreaterThan(-1);
+    expect(m.indexOf('login.faixa')).toBeLessThan(m.indexOf('login.tela'));
+  });
+  it('Esqueci a senha e Crie sua senha: a faixa vem antes da tela do Core', () => {
+    sim.etapa = { tipo: 'esqueci', codigo_empresa: 'DIST01', email: 'a@b.c' };
+    const esqueci = html();
+    expect(esqueci.indexOf('login.faixa')).toBeGreaterThan(-1);
+    expect(esqueci.indexOf('login.faixa')).toBeLessThan(esqueci.indexOf('data-testid="esqueci"'));
+    sim.etapa = { tipo: 'trocar', codigo_empresa: 'DIST01', email: 'a@b.c', senha_atual: 'x', motivo: 'primeiro_acesso' };
+    const troca = html();
+    expect(troca.indexOf('login.faixa')).toBeGreaterThan(-1);
+    expect(troca.indexOf('login.faixa')).toBeLessThan(troca.indexOf('data-testid="crie-sua-senha"'));
+  });
+  it('a demonstração fica como está, sem a faixa', () => {
+    sim.modo = 'demo';
+    expect(html()).not.toContain('login.faixa');
+  });
 });
 
 describe('T-0172: antes do login, a tela de entrada confere o servidor uma vez por abertura', () => {
