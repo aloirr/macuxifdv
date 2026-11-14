@@ -11,9 +11,10 @@ describe('T-0166: menos alertas no Gestão', () => {
       expect(ler(n), n).not.toMatch(/Sem conexão:/);
     }
   });
-  it('RD-0188: Dispensar fica desligado sem sinal e, ao tocar, diz "Sem sinal. Precisa de internet."', () => {
+  it('RD-0188: Dispensar fica desligado sem sinal e, ao tocar, diz "Sem sinal para dispensar" (RD-0254)', () => {
     const s = ler('alertas-screen.tsx');
-    expect(s).toContain("'Sem sinal. Precisa de internet.'");
+    expect(s).toContain('setAviso(SEM_SINAL_PARA_DISPENSAR)');
+    expect(readFileSync(join(__dirname, 'state', 'use-gestor.ts'), 'utf8')).toContain("SEM_SINAL_PARA_DISPENSAR = 'Sem sinal para dispensar'");
     expect(s).toMatch(/g\.offline \? \(/);
     expect(s).toMatch(/rotulo="Dispensar" nivel="neutro" desligado \/>/);
   });
