@@ -1,7 +1,7 @@
 /**
  * Perfil (copiado da Fase M): sincronizar agora, fila do aparelho, modo sem sinal (simulado),
  * endereço do servidor (editável só no build de desenvolvimento; nos demais, só leitura — T-0038) e sair/trocar usuário. A fila agora é a do motor de sync (genérica, de todos os
- * módulos) e mostra os itens de módulo desativado como "não enviado — módulo desativado"; os dados do
+ * módulos) e mostra os itens de módulo desativado como o selo "Não enviado"; os dados do
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  * T-0059 (R-20261102-090915): o cartão de sincronização não mostra nome de entidade nem etapa; o detalhe técnico da
  * última falha (etapa e mensagem) e as entidades ainda sem provedor ficam na área "Diagnóstico", fechada por padrão.
@@ -9,7 +9,7 @@
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  */
-import { rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
+import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
   BackLink,
@@ -54,6 +54,12 @@ import { lerUltimoErro } from '@/services/erros';
 import { lerSaidasDoAndroid } from '@/services/saida-android';
 import { idDoBuildAtual } from '@/services/segundo-plano';
 import { usePlataforma } from '@/state/plataforma';
+
+/** Selo da fila (spec rota-catalogo-perfil §4): "Na fila" na espera; "Não enviado" no módulo desativado. */
+function SeloDaFila({ situacao }: { situacao: SituacaoArquivo }) {
+  if (situacao === 'modulo_inativo') return <Badge label="Não enviado" tone="danger" />;
+  return situacao === 'pendente' ? <Badge label="Na fila" tone="accent" /> : null;
+}
 
 export default function ProfileScreen() {
   const app = usePlataforma();
@@ -147,7 +153,7 @@ export default function ProfileScreen() {
           ) : null}
           {estado.erro && !estado.sincronizando ? (
             <Text style={[t.small, { color: colors.danger }]} testID="sync-erro">
-              {mensagemDeErroDaCarga(offline)} O detalhe fica em Diagnóstico, no fim desta tela.
+              {mensagemDeErroDaCarga(offline)}
             </Text>
           ) : null}
           <BotaoSincronizar testID="sync-now" />
@@ -192,7 +198,7 @@ export default function ProfileScreen() {
         <Card key={modulo} testID={`limpeza-${modulo}`} style={{ padding: 14, gap: 10 }}>
           <Text style={t.bodyStrong}>Módulo {modulo} desativado</Text>
           <Text style={t.small}>
-            Os itens abaixo marcados como “não enviado — módulo desativado” não chegaram ao servidor. Ao confirmar, eles e os dados desse módulo são apagados deste aparelho.
+            Os itens abaixo marcados como “Não enviado” não chegaram ao servidor. Ao confirmar, eles e os dados desse módulo são apagados deste aparelho.
           </Text>
           <Button testID={`confirmar-limpeza-${modulo}`} label="Entendi, apagar do aparelho" variant="danger" onPress={() => void motor?.confirmarLimpeza(modulo)} />
         </Card>
@@ -206,28 +212,27 @@ export default function ProfileScreen() {
       ) : null}
 
       <View style={{ gap: 8 }}>
-        <SectionHeader title="Fila do aparelho" right={fila.length === 0 ? 'vazia' : `${fila.length} ${fila.length === 1 ? 'item' : 'itens'}`} />
+        <SectionHeader title="Fila do aparelho" right={fila.length === 0 ? undefined : `${fila.length} ${fila.length === 1 ? 'item' : 'itens'}`} />
         <Card testID="outbox-card">
-          {fila.length === 0 ? <Text style={[t.sub, { padding: 14 }]}>Nada pendente. Tudo enviado ao servidor.</Text> : null}
+          {fila.length === 0 ? <Text style={[t.sub, { padding: 14 }]}>Nada pendente.</Text> : null}
           {fila.map((it, i) => (
             <View key={it.id} testID={`fila-${it.id}`} style={[styles.qRow, i < fila.length - 1 && styles.divider]}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={t.bodyStrong} numberOfLines={1}>
                   {it.rotulo}
                 </Text>
-                <Text style={t.small}>
-                  {dateTimeLabel(it.criado_em, new Date(), tz)}
-                  {it.detalhe ? ` · ${it.detalhe}` : ''}
-                  {it.tentativas > 0 ? ` · ${it.tentativas} tentativa${it.tentativas > 1 ? 's' : ''}` : ''}
-                </Text>
-                {it.ultimo_erro ? <Text style={[t.small, { color: it.situacao === 'pendente' ? colors.warning : colors.danger }]}>{it.ultimo_erro}</Text> : null}
+                {it.situacao === 'falhou' ? (
+                  <Text style={[t.small, { color: colors.danger }]}>{it.ultimo_erro}</Text>
+                ) : (
+                  <Text style={t.small}>{dateTimeLabel(it.criado_em, new Date(), tz)}</Text>
+                )}
               </View>
               {it.situacao === 'falhou' ? (
                 <Pressable accessibilityRole="button" testID={`descartar-${it.id}`} onPress={() => void motor?.descartar(it.id)} hitSlop={8} style={styles.discard}>
                   <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
                 </Pressable>
               ) : (
-                <Badge label={it.situacao === 'pendente' && offline ? 'aguardando sinal' : rotuloDoItem(it)} tone={it.situacao === 'modulo_inativo' ? 'danger' : 'warning'} />
+                <SeloDaFila situacao={it.situacao} />
               )}
             </View>
           ))}
@@ -239,15 +244,17 @@ export default function ProfileScreen() {
               <View key={a.id} testID={`foto-${a.id}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={t.small} numberOfLines={1}>
-                    {a.rotulo} · {offline && a.situacao === 'pendente' ? 'aguardando sinal' : rotuloDoArquivo(a)}
+                    {a.rotulo}
                   </Text>
-                  {a.ultimo_erro ? <Text style={[t.small, { color: a.situacao === 'pendente' ? colors.warning : colors.danger }]}>{a.ultimo_erro}</Text> : null}
+                  {a.situacao === 'falhou' ? <Text style={[t.small, { color: colors.danger }]}>{a.ultimo_erro}</Text> : null}
                 </View>
                 {a.situacao === 'falhou' ? (
                   <Pressable accessibilityRole="button" testID={`descartar-foto-${a.id}`} onPress={() => void motor?.descartarArquivo(a.id)} hitSlop={8} style={styles.discard}>
                     <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <SeloDaFila situacao={a.situacao} />
+                )}
               </View>
             ))}
           </Card>
