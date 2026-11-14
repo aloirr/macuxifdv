@@ -70,6 +70,15 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* foco pelo teclado no Azul noite em todo campo (MC-0027); na camada base,
+     as classes focus-visible:* do kit (camada utilities) prevalecem */
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   input[type='number']::-webkit-inner-spin-button {
     opacity: 0.6;
   }

@@ -20,6 +20,7 @@ import { MANIFESTOS_INSTALADOS } from '../../apps/mobile/src/lib/instalados';
 import { acoesDoRodapeCliente } from '../../modules/core/domain/rodape-cliente';
 import { extensoesDoInicio } from '../../modules/gestor/app/registro-inicio';
 import { montarModuloApp as montarPesquisa } from '../../modules/pesquisa/app/registro';
+import { CHECKIN_NA_FICHA } from './apoio/estado-prs';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
@@ -158,7 +159,7 @@ describe('Critério 4 — promotor (RN-PRO-01): sem Orçamentos, A faturar e Ped
   });
 });
 
-describe('Critério 5 — Cliente 360 sem "Ver catálogo": rodapé [Visitado] + [+ Novo pedido]', () => {
+describe('Critério 5 — Cliente 360 sem "Ver catálogo" no rodapé', () => {
   it('o Catálogo não contribui mais com cliente.acoes: nem no fonte do app nem no manifesto', () => {
     const fonte = ler('modules/catalogo/app/index.ts');
     expect(fonte).not.toMatch(/slot:\s*'cliente\.acoes'/);
@@ -189,11 +190,20 @@ describe('Critério 5 — Cliente 360 sem "Ver catálogo": rodapé [Visitado] + 
     expect(acoesDoRodapeCliente(visao('campo', 'vendedor', ['core', 'catalogo']).extensoes<{ destaque?: boolean }>('cliente.acoes'))).toEqual([]);
   });
 
-  it('a tela monta o rodapé com o botão da visita e acoesDoRodapeCliente (sem outras ações); o check-in segue pelo Início e pela Rota', () => {
+  it('a tela monta o rodapé com o botão da visita e acoesDoRodapeCliente (sem outras ações)', () => {
     const tela = ler('modules/core/app/telas/cliente.tsx');
     const rodape = tela.slice(tela.indexOf('<View style={styles.footer}>'), tela.indexOf('<CheckinSheet'));
-    expect(rodape).toContain('acoesDoRodapeCliente(acoes).map(');
-    if (tela.includes("visited ? 'Visitado' : 'Check-in'")) {
+    // a lista vem de acoesDoRodapeCliente, direto no JSX ou numa constante (`acoesRodape`, PR #258)
+    if (rodape.includes('acoesRodape.map(')) expect(tela).toContain('const acoesRodape = acoesDoRodapeCliente(acoes);');
+    else expect(rodape).toContain('acoesDoRodapeCliente(acoes).map(');
+    if (CHECKIN_NA_FICHA) {
+      // ficha do #258 (RN-CORE-51/52, R-20261114-150000/150500): o Check-in volta ao rodapé; [Check-in/Checkout] + [Pesquisa] + [+ Novo pedido]
+      expect(rodape).toMatch(/\{botoes\.checkin \? \(\s*<Button\s+testID="customer-checkin"\s+label="Check-in"/);
+      expect(rodape).toMatch(/\{botoes\.checkout \? \(\s*<Button[^>]*label="Checkout"/);
+      expect(rodape).toMatch(/\{botoes\.pesquisa \? \(\s*<Button[^>]*label="Pesquisa"/);
+      expect(rodape.match(/<Button\b/g)).toHaveLength(4);
+      expect(tela).toContain("params.checkin === '1'");
+    } else if (tela.includes("visited ? 'Visitado' : 'Check-in'")) {
       // ficha até o #217: [Check-in/Visitado/Checkout] + [+ Novo pedido]
       expect(rodape).toContain('label={visitLabel}');
       expect(rodape.match(/<Button\b/g)).toHaveLength(2);

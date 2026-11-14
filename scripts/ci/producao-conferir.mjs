@@ -2,9 +2,12 @@
 /**
  * Conferência da publicação de PRODUÇÃO, usada pelos dois workflows (R-20261114-121700-alexandre: "Acabei com esse
  * negócio de eu entrar para criar tag. Quero só aprovar"). Sem dependência: node:child_process e node:fs.
+ * A aprovação é a trava por issue (ADR 0046, scripts/ci/producao-trava.mjs).
  *
- *   producao-liberar.yml  — `entrada` (versão vX.Y.Z nova, SHA completo, disparo pelo main) e `conferir`; depois cria a
- *                           tag com o GITHUB_TOKEN e dispara o producao-publicar.yml na tag;
+ *   producao-liberar.yml  — `entrada` (versão vX.Y.Z nova, SHA completo, disparo pelo main) e `conferir`; depois abre a
+ *                           issue "Aprovar deploy vX.Y.Z";
+ *   producao-aprovar.yml  — `entrada` e `conferir` de novo no comentário "aprovado vX.Y.Z"; depois cria a tag com o
+ *                           GITHUB_TOKEN e dispara o producao-publicar.yml na tag;
  *   producao-publicar.yml — `ref` (push de tag v* ou disparo manual NA tag v*) e `conferir`.
  *
  * Modos (tudo por variável de ambiente, nada interpolado no shell):
