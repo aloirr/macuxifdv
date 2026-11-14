@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>T-0170 · Início do Campo · como está no código (marca v1, MC-0013)</title>
+<link rel="stylesheet" href="T-0170-inicio.css">
+<style>
+  /* Espelha modules/core/app/telas/inicio/tela-inicio-campo.tsx (Screen: lateral 20, gap 14) e o Sino do shell fora da faixa
+     (apps/mobile/src/components/sino.tsx, coresDoSino(false)). Rótulos: docs/design/rotulos-indicadores.md (RD-0250). */
+  /* a tela rola no aparelho: a prancha mostra a tela inteira, de cima ao Sincronizar (412 de largura, altura do conteúdo) */
+  body, .aparelho { height: auto; overflow: visible; }
+  .rolagem { padding: 8px 20px 20px; gap: 14px; overflow: visible; }
+  .mola { display: none; }
+  /* painel do topo: faixa Azul noite, raio 24, padding 16, altura mínima 140; avatar 96 × 128 no Azul suave com as iniciais */
+  .painel-c { background: var(--faixa); border-radius: 24px; padding: 16px; min-height: 140px; display: flex; align-items: center; gap: 12px; }
+  .painel-c .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .painel-c .dt { font-size: 14px; color: var(--faixaSub); }
+  .painel-c .sd { font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; line-height: 34px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .painel-c .fr { font-size: 15px; line-height: 20px; font-style: italic; color: var(--faixaSub); }
+  .painel-c .av { width: 96px; height: 128px; border-radius: 16px; background: var(--accentSoft); color: var(--accentInk); font-family: Archivo, sans-serif; font-weight: 800; font-size: 32px; display: flex; align-items: center; justify-content: center; flex: none; }
+  /* linha de título (48) com o sino à direita */
+  .lt { display: flex; align-items: center; justify-content: space-between; min-height: 48px; gap: 12px; }
+  .lt h2 { margin: 0; font-family: Archivo, sans-serif; font-weight: 700; font-size: 17px; color: var(--ink); }
+  /* Sino no Pérola: botão branco 48 com borda, ícone grafite, contador Sol laranja #C2540A com número branco e aro Pérola */
+  .sino-p { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; align-items: center; justify-content: center; position: relative; }
+  .sino-p .cont { position: absolute; top: -8px; right: -8px; min-width: 16px; height: 22px; padding: 0 3px; border-radius: 13px; border: 2px solid var(--ground); background: var(--grafico); color: #fff; font-size: 12px; font-weight: 600; line-height: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+  /* grade 2 × 2 das Metas do mês */
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cm { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .cm .t { font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+  .cm .r { font-family: Archivo, sans-serif; font-weight: 800; font-size: 22px; line-height: 28px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cm .r span { font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; font-size: 18px; color: var(--ink2); }
+  .cm .lb { display: flex; align-items: center; gap: 8px; }
+  .cm .lb .barra { flex: 1; }
+  .cm .pc { font-size: 14px; font-weight: 700; color: var(--danger); font-variant-numeric: tabular-nums; }
+  .cm .rp { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--ink2); }
+  .cm .rp b { font-size: 14px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* Produtividade: 3 colunas × 2 linhas, divisor à esquerda, ponto verde (dentro) ou laranja (fora) */
+  .prod { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 6px; display: grid; grid-template-columns: repeat(3, 1fr); row-gap: 12px; }
+  .prod > div { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .prod > div:not(:nth-child(3n+1)) { border-left: 1px solid var(--line); }
+  .prod .t { font-size: 13px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prod .v { display: flex; align-items: center; gap: 4px; font-family: Archivo, sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .prod .v i { width: 8px; height: 8px; border-radius: 4px; background: var(--success); flex: none; }
+  .prod .v i.fora { background: var(--grafico); }
+  /* Sincronizar largo com a última sincronização ao lado (96) */
+  .ls { display: flex; align-items: center; gap: 12px; }
+  .ls .bt { flex: 1; height: 52px; border-radius: 14px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size: 16px; }
+  .ls .st { width: 96px; font-size: 12px; color: var(--ink2); }
+</style>
+</head>
+<body>
+<!-- Início do Campo como o código da T-0170 desenha (MC-0013): painel do topo na faixa Azul noite, "Metas do mês" com o sino
+     no Pérola, 4 cards com a barra em Sol laranja, "Produtividade" com 6 indicadores e o Sincronizar. Números dos testes de
+     inicio-campo.test.ts; "Vendas" pela tabela RD-0250 (meta sem base de faturamento). -->
+<div class="aparelho">
+  <div class="sb"><span>12:29</span><span class="dir">5G ▮▮▮ 54%</span></div>
+  <div class="rolagem">
+    <div class="painel-c">
+      <div class="tx">
+        <span class="dt">Quinta, 12 de novembro · DU 9 de 20</span>
+        <span class="sd">Boa tarde, Lucas</span>
+        <span class="fr">“Cada cliente atendido é uma relação que cresce.”</span>
+      </div>
+      <div class="av">LA</div>
+    </div>
+
+    <div class="lt">
+      <h2>Metas do mês</h2>
+      <div class="sino-p" aria-label="Recados e tarefas, 2 novos"><i data-i="sino" data-t="22" data-c="#16202A" data-w="2"></i><span class="cont">2</span></div>
+    </div>
+    <div class="grade">
+      <div class="cm"><span class="t">Vendas</span><span class="r">R$ 84,6 k<span> / 180 k</span></span><div class="lb"><div class="barra"><i style="width:47%"></i></div><span class="pc">47%</span></div><div class="rp">Meta/dia<b>R$ 8.700</b></div></div>
+      <div class="cm"><span class="t">Positivação</span><span class="r">38<span> / 70</span></span><div class="lb"><div class="barra"><i style="width:54%"></i></div><span class="pc">54%</span></div><div class="rp">Meta/dia<b>3</b></div></div>
+      <div class="cm"><span class="t">Visitas</span><span class="r">96<span> / 220</span></span><div class="lb"><div class="barra"><i style="width:44%"></i></div><span class="pc">44%</span></div><div class="rp">Meta/dia<b>12</b></div></div>
+      <div class="cm"><span class="t">Itens por pedido</span><span class="r">6,4<span> / 8,0</span></span><div class="lb"><div class="barra"><i style="width:80%"></i></div><span class="pc">80%</span></div><div class="rp">Meta/pedido<b>9,3</b></div></div>
+    </div>
+
+    <div class="lt">
+      <h2>Produtividade</h2>
+      <i data-i="chevron" data-t="22" data-c="#16202A"></i>
+    </div>
+    <div class="prod">
+      <div><span class="t">Jornada líquida</span><span class="v"><i></i>7h12</span></div>
+      <div><span class="t">1º check-in</span><span class="v"><i></i>07:52</span></div>
+      <div><span class="t">Almoço</span><span class="v"><i class="fora"></i>1h34</span></div>
+      <div><span class="t">Último check-in</span><span class="v"><i></i>17:40</span></div>
+      <div><span class="t">Fora de rota</span><span class="v"><i></i>1</span></div>
+      <div><span class="t">TMA</span><span class="v">—</span></div>
+    </div>
+
+    <div class="mola"></div>
+    <div class="ls">
+      <div class="bt"><i data-i="sync" data-t="20" data-c="#FFFFFF"></i>Sincronizar</div>
+      <span class="st">Últ. sincronização 12:20</span>
+    </div>
+  </div>
+  <div class="barra-abas" data-ativa="inicio"></div>
+  <div class="sysnav"><span>|||</span><span>◯</span><span>‹</span></div>
+</div>
+<script src="icones.js"></script>
+</body>
+</html>
