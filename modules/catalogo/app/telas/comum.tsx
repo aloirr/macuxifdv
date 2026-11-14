@@ -45,7 +45,7 @@ export function BotoesAcao({ item, clienteId, compacto = false }: { item: ItemVi
 }
 
 /**
- * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (ou a inicial do nome), nome em até 2 linhas,
+ * Cartão da grade de 2 colunas (T-0173, docs/design/catalogo-grade.md §2): foto (sem foto, a caixa `neutralBg` vazia; RD-0242), nome em até 2 linhas,
  * marca, preço e uma tag de estoque. Uma informação por linha: sem código, hora nem etiquetas (ficam na ficha). O cartão inteiro
  * abre a ficha; o botão da extensão `produto.acoes` (só dentro do pedido) fica ao lado do preço.
  */
@@ -54,21 +54,11 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
   const tag = tagDeEstoque(item, { filialDoCliente: clienteId !== null });
   const linhaMarca = linhaDaMarca(item);
   const precoTexto = precoDoCartao(preco);
-  const inicial = item.description.trim().charAt(0).toUpperCase();
   const acoes = useAcoesProduto();
   const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, tag?.texto]);
   return (
     <Cartao testID={`catalogo-item-${item.erp_code}`} onPress={onPress} rotuloAcessivel={rotulo} preenchimento={10} gap={6} style={g.cartao}>
-      <MiniaturaProduto
-        produtoId={item.id}
-        miniatura={miniatura}
-        altura={112}
-        reserva={
-          <Text style={g.inicial} accessible={false}>
-            {inicial}
-          </Text>
-        }
-      />
+      <MiniaturaProduto produtoId={item.id} miniatura={miniatura} altura={112} />
       <Text style={g.nome} numberOfLines={2}>
         {item.description}
       </Text>
@@ -96,7 +86,6 @@ export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { it
 
 const g = StyleSheet.create({
   cartao: { flex: 1, borderRadius: 16 },
-  inicial: { fontFamily: fonts.display, fontSize: 34, color: colors.ink3 },
   nome: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   marca: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2, minHeight: 18 },
   precoLinha: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
