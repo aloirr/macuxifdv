@@ -75,15 +75,13 @@ export function TelaPerformance() {
   return (
     <Screen
       testID="performance.tela"
+      cabecalho={{ titulo: 'Performance' }}
       refreshing={auto.puxando}
       onRefresh={() => {
         perf.tentarDeNovo();
         auto.puxar();
       }}>
-      <View style={s.cabecalho}>
-        <Text style={[t.h1, { flex: 1 }]} accessibilityRole="header">
-          Performance
-        </Text>
+      <View style={s.filtro}>
         <BotaoFiltro testID="performance-filtro" contagem={contarFiltros(selecao)} rotulo="Filtrar" onPress={() => setFolhaAberta(true)} />
       </View>
 
@@ -196,7 +194,7 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
 }
 
 const s = StyleSheet.create({
-  cabecalho: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  filtro: { flexDirection: 'row', justifyContent: 'flex-end' },
   linhaPeriodo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   real: { fontFamily: fonts.display, fontSize: 30, color: colors.ink, fontVariant: ['tabular-nums'] },
   meta: { fontFamily: fonts.body, fontSize: 24, color: colors.ink2 },
