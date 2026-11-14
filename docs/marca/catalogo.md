@@ -36,3 +36,24 @@ Em 13/11/2026 o catálogo foi alinhado ao parecer final da v1.0.5 (o primeiro ti
 | MC-0029 | `pareceres/2026-11-14-prs-ponte.md` | foco dos campos do BKO fora do Azul noite (`packages/ui/src/web/ui.tsx:39`, `permissoes.tsx:340`; PR #253) e no `apps/web/app/globals.css` (linha a confirmar) | baixa | designer-ux (kit) · engenheiro-apps (`globals.css`) | aberto; foco `outline-accent` |
 | MC-0030 | `pareceres/2026-11-14-prs-ponte.md` | prints do PR #251 com fonte serifada (`docs/modulos/vendedor/prints/gerar.mjs`; causa a confirmar no PR) | baixa | modulo-vendedor | aberto; gerar de novo em Archivo e IBM Plex Sans (manual §5) |
 | MC-0031 | `pareceres/2026-11-14-prs-ponte.md` | maquete do PR #251 diferente do `AvisoRodape` e do `EstadoVazio` do kit (`gerar.mjs:30-32`) | baixa | modulo-vendedor | aberto; maquete com as medidas e as cores do kit |
+| MC-0032 | `pareceres/2026-11-14-lote-tarde.md` | print do Início com a barra de abas imitada | baixa | modulo-core | fechado no PR #256 (merge `75a1051`) |
+| MC-0033 | `pareceres/2026-11-14-lote-tarde.md` | print `apps/web/docs/prints/mc-0027-foco-busca.png` cobre o logo; e o comentário de `apps/web/app/globals.css` cita MC-0027 em vez de MC-0029 | baixa | engenheiro-apps | aberto; print sem cobrir o logo e comentário com MC-0029 |
+| MC-0034 | `pareceres/2026-11-14-lote-tarde.md` | não usado (número provisório do #258; ver MC-0043 a MC-0045) | — | — | — |
+| MC-0035 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: fontes | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0036 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: prints de registro | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0037 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: `.plano.on` | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0038 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: "2 meses grátis" | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0039 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: "Atual" | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0040 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: placeholder | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0041 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: `.btn.off` | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0042 | `pareceres/2026-11-14-lote-tarde.md` | simulação do `config.`: ícones dos adicionais | baixa | designer-ux | fechado (branch `nuvem/config-enxuto-designer-ux`) |
+| MC-0043 | `pareceres/2026-11-14-lote-tarde.md` | check-in (PR #258): tamanho único do rótulo (provisório MC-0032 no parecer do PR) | baixa | modulo-core | fechado no #258 (em revisão final) |
+| MC-0044 | `pareceres/2026-11-14-lote-tarde.md` | check-in (PR #258): cadeado (provisório MC-0033) | baixa | modulo-core | fechado no #258 (em revisão final) |
+| MC-0045 | `pareceres/2026-11-14-lote-tarde.md` | check-in (PR #258): Checkout secundário (provisório MC-0034) | baixa | modulo-core | fechado no #258 (em revisão final) |
+| MC-0046 | `pareceres/2026-11-14-lote-tarde.md` | `config.`: altura das linhas dos adicionais | baixa | designer-ux | fechado |
+| MC-0047 | `pareceres/2026-11-14-lote-tarde.md` | `config.`: seta dos selects | baixa | designer-ux | fechado |
+| MC-0048 | `pareceres/2026-11-14-lote-tarde.md` | `config.`: ✓ de texto | baixa | designer-ux | fechado |
+| MC-0049 | `pareceres/2026-11-14-lote-tarde.md` | `config.`: ✓ verde sem texto (campo validado) | média | designer-ux | fechado pela decisão A do Alexandre (R-20261114-172200; manual §3) |
+| MC-0050 | `pareceres/2026-11-14-lote-tarde.md` | `config.`: alternador Anual no rodapé do diálogo de troca de plano | baixa | designer-ux | aberto; em correção pelo designer-ux |
+| MC-0051 | `pareceres/2026-11-14-lote-tarde.md` | BKO: caixa marcada do `SeletorDePerfis` em grafite (`packages/ui/src/web/permissoes.tsx:341`) | baixa | designer-ux | aberto; caixa marcada em Azul noite (`accent`) |
+| MC-0052 | `pareceres/2026-11-14-lote-tarde.md` | BKO: barra superior em Azul noite (manual §4) não aparece no shell | média | engenheiro-apps (shell) · designer-ux (especificação) | aberto; barra superior inteira na faixa Azul noite |
