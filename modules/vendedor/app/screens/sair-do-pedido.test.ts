@@ -7,8 +7,8 @@ const fonte = (arquivo: string) => readFileSync(join(__dirname, arquivo), 'utf8'
 const tela = fonte('new-order-screen.tsx');
 
 describe('RN-VEN-38 (T-0128): as saídas do Novo pedido passam pela folha "Sair do pedido?"', () => {
-  it('RN-VEN-38: Voltar do cabeçalho usa o VoltarDoFormulario que chama pedirSaida (não o BackLink direto)', () => {
-    expect(tela).toContain('<VoltarDoFormulario rotulo="Voltar" onPress={() => pedirSaida(');
+  it('RN-VEN-38: Voltar do cabeçalho (aoVoltar do CabecalhoTela) chama pedirSaida (não o BackLink direto)', () => {
+    expect(tela).toContain('aoVoltar: () => pedirSaida(');
   });
   it('RN-VEN-38: botão Voltar do Android na aba Venda (a primeira) com o pedido alterado chama pedirSaida e consome o evento', () => {
     expect(tela).toMatch(/if \(anterior === null\) \{[\s\S]*?if \(!alterado\) return false;[\s\S]*?pedirSaidaRef\.current\([\s\S]*?return true;/);
