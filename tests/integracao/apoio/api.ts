@@ -8,6 +8,8 @@
  * T-0091 (condição da ADR 0029): a API sobe com o 2º pool, do papel `macuxi_portal` (`criarBancoPortal`), como em produção;
  * `semPortal: true` sobe sem ele (o portal responde 503 e os tenants seguem). `sqlApp`/`sqlPortal` guardam o texto de cada
  * comando de cada pool (só o SQL, nunca os parâmetros), para provar qual conexão cada rota usou.
+ * ADR 0048 (PR #243): o passo Empresa do portal confere o CNPJ na Receita. Aqui a API sobe com uma Receita FALSA, sem rede
+ * (`receita`: ATIVA para o CNPJ recebido por padrão), trocável no meio do arquivo por `api.receita.definir(...)`.
  */
 import { MeusModulosRespostaSchema, SessaoRespostaSchema, type MeusModulosResposta, type SessaoResposta } from '@macuxi/core/contracts';
 import { criarModuloApiCore } from '@macuxi/core/api';
@@ -30,6 +32,78 @@ export const SEGREDO_JWT = 'segredo-do-agente-testes-com-mais-de-32-caracteres';
 
 export type Tenant = typeof A | typeof B;
 
+/**
+ * ADR 0048 (PR #243): situação devolvida pela Receita falsa. Os tipos ficam aqui, estruturais (iguais ao `ResultadoConsultaCnpj`
+ * de apps/api/src/consulta-cnpj.ts), para o typecheck passar também no `main` sem a consulta (onde `OpcoesApp` não tem
+ * `consultaCnpj` e a opção é ignorada).
+ */
+export type SituacaoReceita = 'ativa' | 'suspensa' | 'inapta' | 'baixada' | 'nula';
+export type ReceitaDeTeste = SituacaoReceita | 'nao_encontrado' | 'fora';
+interface DadosReceitaDeTeste {
+  cnpj: string;
+  razao_social: string;
+  nome_fantasia: null;
+  endereco: { logradouro: string; numero: string; complemento: null; bairro: string };
+  municipio: string;
+  uf: 'AM';
+  cep: string;
+  situacao_cadastral: SituacaoReceita;
+  cnae_principal: null;
+  telefone: null;
+  email: null;
+  fonte: 'brasilapi';
+}
+type ResultadoReceitaDeTeste = ({ resultado: 'ok'; dados: DadosReceitaDeTeste } | { resultado: 'nao_encontrado' } | { resultado: 'fora' }) & { cache: false; tentativas: never[] };
+/** A porta `ConsultaCnpj` do PR #243 (`consultar(cnpj)`), estrutural. */
+export interface ConsultaCnpjDeTeste {
+  consultar(cnpj: string): Promise<ResultadoReceitaDeTeste>;
+}
+/** Controle da Receita falsa: troca a resposta e lista os CNPJs consultados (só dígitos), na ordem. */
+export interface ReceitaFalsa {
+  definir(r: ReceitaDeTeste): void;
+  readonly consultados: string[];
+  readonly consulta: ConsultaCnpjDeTeste;
+}
+
+/** Receita falsa sem rede (ADR 0048): `ok` com a situação escolhida para o CNPJ recebido, `nao_encontrado` ou `fora`. */
+export function criarReceitaFalsa(inicial: ReceitaDeTeste = 'ativa'): ReceitaFalsa {
+  let atual: ReceitaDeTeste = inicial;
+  const consultados: string[] = [];
+  const consulta: ConsultaCnpjDeTeste = {
+    async consultar(cnpj) {
+      const d = cnpj.replace(/\D/g, '');
+      consultados.push(d);
+      if (atual === 'nao_encontrado' || atual === 'fora') return { resultado: atual, cache: false, tentativas: [] };
+      return {
+        resultado: 'ok',
+        cache: false,
+        tentativas: [],
+        dados: {
+          cnpj: d,
+          razao_social: 'EMPRESA FICTICIA DO AGENTE TESTES LTDA',
+          nome_fantasia: null,
+          endereco: { logradouro: 'RUA FICTICIA', numero: '100', complemento: null, bairro: 'CENTRO' },
+          municipio: 'MANAUS',
+          uf: 'AM',
+          cep: '69000000',
+          situacao_cadastral: atual,
+          cnae_principal: null,
+          telefone: null,
+          email: null,
+          fonte: 'brasilapi',
+        },
+      };
+    },
+  };
+  return {
+    definir: (r) => {
+      atual = r;
+    },
+    consultados,
+    consulta,
+  };
+}
+
 export interface ApiDeTeste {
   app: FastifyInstance;
   pool: pg.Pool;
@@ -41,6 +115,8 @@ export interface ApiDeTeste {
   sqlPortal: string[];
   banco: BancoDeTeste;
   modulos: readonly ModuloApi[];
+  /** ADR 0048 (PR #243): a Receita falsa que a API usa no passo Empresa (sem efeito no `main`, que não consulta CNPJ). */
+  receita: ReceitaFalsa;
   /** POST /v1/auth/login (cada chamada vem de um IP próprio, para não esbarrar no limite de 5/5 min). */
   /** `app` (T-0094, RN-CORE-33): o app que pede o login; ausente = não confere (APK antigo). */
   entrar(email: string, opcoes?: { senha?: string; tenant?: Tenant; ip?: string; dispositivo_id?: string; app?: 'campo' | 'gestao' | 'web' }): Promise<LightMyRequestResponse>;
@@ -142,6 +218,8 @@ export async function subirApi(
      * redefine a senha do admin). Sem ela, a porta fica desligada, como no servidor sem adaptador (portal = 503).
      */
     emailReal?: ServicoEmailDaApi;
+    /** ADR 0048 (PR #243): resposta inicial da Receita falsa (padrão `ativa`) ou a própria consulta. Nunca vai à rede. */
+    receita?: ReceitaDeTeste | ConsultaCnpjDeTeste;
   } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
@@ -160,6 +238,9 @@ export async function subirApi(
   const coreApi = opcoes.plataforma ? criarModuloApiCore({ segredo: () => SEGREDO_JWT }, opcoes.plataforma) : criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const coreComEmail = opcoes.email ? comEmail(coreApi, opcoes.email) : coreApi;
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreComEmail : m));
+  const receita = criarReceitaFalsa(typeof opcoes.receita === 'string' ? opcoes.receita : 'ativa');
+  // por variável e spread: no `main` o `OpcoesApp` ainda não tem `consultaCnpj` (o PR #243 acrescenta)
+  const comReceita: { consultaCnpj: ConsultaCnpjDeTeste } = { consultaCnpj: typeof opcoes.receita === 'object' ? opcoes.receita : receita.consulta };
   const app = createApp({
     banco: criarBancoApp(pool),
     bancoPortal: portal_ ? criarBancoPortal(portal_.pool) : null,
@@ -168,6 +249,7 @@ export async function subirApi(
     arquivos: opcoes.arquivos ?? null,
     ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}),
     ...(opcoes.emailReal ? { email: opcoes.emailReal } : {}),
+    ...comReceita,
   });
   await app.ready();
 
@@ -188,6 +270,7 @@ export async function subirApi(
     sqlPortal,
     banco,
     modulos,
+    receita,
     entrar,
     async sessao(email, tenant = A) {
       const r = await entrar(email, { tenant });

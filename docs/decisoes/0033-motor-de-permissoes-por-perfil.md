@@ -1,6 +1,7 @@
 # ADR 0033 — Motor de permissões por perfil de acesso: chaves estáveis, padrão de fábrica com sobreposições por tenant, multiperfil e limites travados
 
 - **Status**: **proposta** em 2026-11-07 (aceita com o ok do gerente-projetos; o §6 tem um ponto para o dono do produto confirmar).
+- **Revista por**: [0049](0049-cargos-fixos-e-um-perfil-por-usuario.md) — um perfil por usuário; o multiperfil (§6) não vale mais.
 - **Data**: 2026-11-07
 - **Tarefa**: T-0111 (motor), T-0112 (multiperfil); entra junto com a T-0094
 - **Autor**: engenheiro-software
