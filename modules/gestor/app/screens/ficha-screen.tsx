@@ -7,13 +7,14 @@
 import { formatBRL0 } from '@macuxi/comum';
 import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { ContextoPedidoEmNome, FichaMembro, PainelDia } from '../../contracts';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { statusAgora } from '../../domain/agora-status';
+import { SeloFaixa } from '../components/selo-faixa';
 import { fracao } from '../lib/apresentacao';
 import { PARADO_MIN_PADRAO, STATUS_AGORA_ROTULO } from '../lib/equipe-agora';
 import { pct } from '../lib/formato';
@@ -48,8 +49,7 @@ export default function FichaScreen() {
   const f = estado.ficha;
   if (!f) {
     return (
-      <Screen testID="gestor-ficha">
-        <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
+      <Screen testID="gestor-ficha" cabecalho={{ titulo: 'Ficha', voltar: { label: 'Equipe', fallback: `/m/${CAMINHO_EQUIPE}` } }}>
         <EstadoVazio icone="users" titulo={estado.erro ? 'Não deu para abrir a ficha' : 'Esta pessoa não está na sua equipe'} texto={estado.erro ?? 'Volte à equipe e escolha outra pessoa.'} />
         {estado.erro ? <Botao testID="gestor-ficha-tentar-de-novo" nivel="principal" rotulo="Tentar de novo" icone="sync" onPress={tentarDeNovo} /> : null}
       </Screen>
@@ -59,15 +59,16 @@ export default function FichaScreen() {
   const s = STATUS_AGORA_ROTULO[statusAgora({ status_dia: p.status_dia, paradas_planejadas: p.paradas_planejadas, paradas_pendentes: p.paradas_pendentes, ultimo_checkout_em: p.ultimo_checkout_em, parado_min: g.visao?.parado_min ?? PARADO_MIN_PADRAO, agora: relogioReal().agora().toISOString() }).status];
   const acao = f.pedido_em_nome.permitido && g.usuarioId ? emNome[0] : undefined;
   return (
-    <Screen testID="gestor-ficha">
-      <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
-      <View style={{ gap: 4 }}>
-        <Text style={t.h1}>{f.membro.nome}</Text>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Text style={t.small}>{f.membro.perfil === 'promotor' ? 'Promotor' : 'Vendedor'}</Text>
-          <ChipEstado texto={s.label} tom={s.tom} pequeno />
-        </View>
-        <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
+    <Screen
+      testID="gestor-ficha"
+      cabecalho={{
+        titulo: f.membro.nome,
+        subtitulo: f.membro.perfil === 'promotor' ? 'Promotor' : 'Vendedor',
+        voltar: { label: 'Equipe', fallback: `/m/${CAMINHO_EQUIPE}` },
+        direita: <SeloFaixa g={g} />,
+      }}>
+      <View style={{ flexDirection: 'row' }}>
+        <ChipEstado texto={s.label} tom={s.tom} pequeno />
       </View>
       {estado.erro && !estado.doCache ? <Banner tone="danger">{estado.erro}</Banner> : null}
       <Secoes p={f.painel} />

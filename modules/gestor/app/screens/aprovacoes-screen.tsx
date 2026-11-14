@@ -5,9 +5,10 @@
  * Offline: a fila vem do cache; a decisão precisa de internet (aviso do Vendedor).
  */
 import { formatBRL } from '@macuxi/comum';
-import { Banner, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
+import { SeloFaixa } from '../components/selo-faixa';
 import { linhaDeMotivos, nomesDaVisao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { contagem, pct } from '../lib/formato';
 import { irParaPedidoDoVendedor } from '../rotas';
@@ -21,12 +22,9 @@ export default function AprovacoesScreen() {
   return (
     <Screen
       testID="gestor-aprovacoes"
+      cabecalho={{ titulo: 'Aprovações', direita: <SeloFaixa g={g} /> }}
       refreshing={g.auto.puxando}
       onRefresh={g.auto.puxar}>
-      <View style={{ gap: 2 }}>
-        <Text style={t.h1}>Aprovações</Text>
-        <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
-      </View>
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
       {fila ? (
         <Text style={t.sub} testID="gestor-fila-resumo">
