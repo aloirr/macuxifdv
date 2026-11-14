@@ -1,5 +1,5 @@
 /**
- * Pedidos (Pedidos.dc.html; T-0077; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
+ * Pedidos (Pedidos.dc.html; T-0077; sem "Novo": o novo pedido nasce só na ficha do cliente, R-20261114-150000; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
  * mesma linha (T-0090, modelo A: selo com o número de filtros, etiqueta removível e folha Período; Gestão: vendedor na mesma folha),
  * depois uma linha de situações, incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela
  * de 90 dias do aparelho. O período fora dessa janela (inteiro ou em parte) consulta o servidor, com sinal.
@@ -8,7 +8,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, BotaoFiltro, Button, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, BotaoFiltro, CABECALHO, CabecalhoTela, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, LinhaAtalho, ListaSuspensa, radius, relativeWhen, rotuloComContador, Selo, SeloAtualizacao, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -48,7 +48,7 @@ import { statusBadgeDaLinha } from '../lib/order-status';
 import { TEXTOS_RASCUNHOS } from '../lib/rascunhos-lista';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
-import { irParaNovoPedido, irParaPedido, irParaRascunhos } from '../rotas';
+import { irParaPedido, irParaRascunhos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'card_orc' | 'card_env';
@@ -291,20 +291,6 @@ export default function OrdersScreen() {
         }
         ListHeaderComponent={
           <View style={styles.cabecalho}>
-            <SePode acao="pedido.criar">
-              {/* o botão principal fica no corpo, nunca na faixa (docs/design/componentes.md §5.2) */}
-              {gestao ? null : (
-                <Button
-                  testID="pedido-novo"
-                  label="Novo"
-                  icon="plus"
-                  variant="accent"
-                  onPress={() => irParaNovoPedido()}
-                  style={{ paddingHorizontal: 16, alignSelf: 'flex-end' }}
-                />
-              )}
-            </SePode>
-
             <CardsDePedidos resumo={cards} onAbrir={abrirCard} />
 
             {totalRascunhos > 0 ? (
@@ -490,7 +476,7 @@ const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, m
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
-  cabecalho: { gap: 14, marginBottom: 14 },
+  cabecalho: { gap: 10, marginBottom: 12 },
   rodape: { gap: 14, marginTop: 14 },
   // a lista virtualizada desenha o Card linha a linha: borda dos lados em todas, em cima na primeira e embaixo na última
   linhaCartao: {

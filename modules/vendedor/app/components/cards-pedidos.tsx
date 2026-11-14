@@ -1,7 +1,7 @@
 /**
- * Os 3 cartões do topo de Pedidos (T-0170, RN-VEN-43): Orçamentos, Enviados e Total, lado a lado, de largura igual
+ * Os 3 cartões do topo de Pedidos (T-0170, RN-VEN-43): Orçamentos, Pedidos e Total, lado a lado, de largura igual
  * (rótulo curto em cima, quantidade em destaque, valor em R$ embaixo; mesmo desenho dos cartões de metas do Início).
- * Mesmo componente no Campo e no Gestão (D6). Orçamentos e Enviados abrem a lista filtrada (alvo >= 48 dp); Total não navega.
+ * Mesmo componente no Campo e no Gestão (D6). Orçamentos e Pedidos abrem a lista filtrada (alvo >= 48 dp); Total não navega.
  * `titulo` (longo) é o rótulo acessível e o do chip da tela; `rotulo` é o texto curto do cartão.
  */
 import { colors, fonts, Icon, Pressionavel, type as t } from '@macuxi/ui/mobile';
@@ -40,7 +40,7 @@ export function CardsDePedidos({ resumo, onAbrir }: { resumo: ResumoDePedidos | 
   return (
     <View testID="orders-cards" style={{ flexDirection: 'row', gap: 8 }}>
       <Card testID="orders-card-orcamentos" titulo="Orçamentos em aberto" rotulo="Orçamentos" q={resumo?.orcamentos ?? null} onPress={() => onAbrir('orcamentos')} />
-      <Card testID="orders-card-enviados" titulo="Pedidos enviados" rotulo="Enviados" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
+      <Card testID="orders-card-enviados" titulo="Pedidos enviados" rotulo="Pedidos" q={resumo?.enviados ?? null} onPress={() => onAbrir('enviados')} />
       <Card testID="orders-card-total" titulo="Total" rotulo="Total" q={resumo?.total ?? null} />
     </View>
   );
