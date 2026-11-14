@@ -198,7 +198,7 @@ export default function ProfileScreen() {
         <Card key={modulo} testID={`limpeza-${modulo}`} style={{ padding: 14, gap: 10 }}>
           <Text style={t.bodyStrong}>Módulo {modulo} desativado</Text>
           <Text style={t.small}>
-            Os itens abaixo marcados como “Não enviado” não chegaram ao servidor. Ao confirmar, eles e os dados desse módulo são apagados deste aparelho.
+            Ao confirmar, os itens “Não enviado” e os dados desse módulo são apagados deste aparelho.
           </Text>
           <Button testID={`confirmar-limpeza-${modulo}`} label="Entendi, apagar do aparelho" variant="danger" onPress={() => void motor?.confirmarLimpeza(modulo)} />
         </Card>
@@ -258,17 +258,6 @@ export default function ProfileScreen() {
               </View>
             ))}
           </Card>
-        ) : null}
-        {fila.length > 0 || fotos.length > 0 ? (
-          <Button
-            testID="send-now"
-            label={offline ? 'Desligue o modo sem sinal para enviar' : 'Enviar agora'}
-            icon="send"
-            variant="accent"
-            disabled={offline}
-            loading={estado.enviando}
-            onPress={() => void app.enviarFila({ incluirFalhos: true })}
-          />
         ) : null}
       </View>
 

@@ -535,6 +535,9 @@ function usePlataformaValor() {
         // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
         if (leve && modo === 'v1')
           return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
+        // spec rota-catalogo-perfil §4: a completa (botão Sincronizar, puxar para baixo) reenvia também os itens que falharam;
+        // o "Enviar agora" do Perfil saiu
+        await m.enviar({ incluirFalhos: true });
         try {
           await atualizarModulos();
         } catch {
