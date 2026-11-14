@@ -52,7 +52,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       id: 'usuarios-e-modulos',
       caminho: 'usuarios-e-modulos',
       titulo: 'Usuários e módulos',
-      navegacao: 'Usuários e módulos',
+      // sem item de menu: o menu Acesso tem só "Perfis de acesso" e "Usuários" (R-20261114-144500); a rota segue valendo por URL
       grupo: 'administracao',
       ordem: 10,
       acao: 'modulo.gerir_licencas',
@@ -64,7 +64,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       titulo: 'Usuários',
       navegacao: 'Usuários',
       grupo: 'administracao',
-      ordem: 15,
+      ordem: 17,
       acao: 'usuario.ver',
       componente: UsuariosPage,
     },

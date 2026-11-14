@@ -3,16 +3,15 @@
 import { Suspense, useState, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ROTULO_PERFIL } from '@macuxi/platform-sdk';
+import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, Interruptor, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, TableScroll, useToast, alternarMarcado, AJUDA_CAMPO_PERFIS, ROTULO_CAMPO_PERFIS, ROTULO_PERFIL_BASE, SELO_PADRAO, SeletorDePerfis, rotuloDoPerfil, textoOndeEntra } from '@macuxi/ui/web';
-import { CriarUsuarioRespostaSchema, EquipeListaRespostaSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type UsuarioItem } from '../../../contracts';
+import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil } from '@macuxi/ui/web';
+import { CriarUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
+import { efetivosPelasDependencias } from '../../../domain/licencas';
 import {
   acaoDeSenha,
-  AJUDA_SENHA_INICIAL,
   corpoDeRedefinicao,
-  etiquetaDeSenha,
   faltasDaSenhaDigitada,
   gerarSenhaNoNavegador,
   resultadoDeCriar,
@@ -27,12 +26,13 @@ import {
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
-  ondeEntraDosPerfis,
-  textoDoSuperiorDaEquipe,
   type FormularioUsuario,
   ERRO_SEM_PERFIL,
 } from '../../lib/usuarios';
-import { useMe } from '../../lib/queries';
+import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
+import { efetivosDoUsuario } from '../../lib/licencas';
+import { IconeComNome, IconeDoModulo } from '../acesso/icones-modulo';
+import { MenuDaLinha } from '../acesso/menu-linha';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 const BOTAO_LINHA = 'h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled';
@@ -50,13 +50,13 @@ function Campo({ rotulo, erro, children }: { rotulo: string; erro?: string; chil
 }
 
 /**
- * Tela "Usuários" do BKO (RF-CORE-02; T-0067; T-0094): lista com busca e filtros na URL, exportar CSV e, só para quem tem as chaves do motor
- * (`usuario.criar|editar|desativar`, `senha.redefinir`; fábrica = admin), criar (senha inicial por e-mail, com "Gerar senha"), editar, ativar/desativar e "Redefinir senha" /
- * "Enviar acesso" (nunca para admin, P7). O gerente consulta as equipes abaixo (a API recorta pelo escopo, RN-CORE-04);
- * supervisor não usa o BKO (RN-CORE-33). O superior imediato deriva da equipe. Nunca apaga usuário. A senha nunca é guardada
- * na tela depois de salvar. testIDs: docs/modulos/core/test-ids.md.
+ * Tela "Usuários" do BKO (RF-CORE-02; T-0067; T-0094; simplificada a pedido do dono do produto, R-20261114-144500): título, "Novo usuário"
+ * e a tabela Nome · E-mail · Perfil · Módulos · ⋯ (Editar, Desativar, Redefinir senha). "Novo usuário" e "Editar" abrem numa gaveta com
+ * Nome, E-mail, Perfil e Módulos; a senha inicial é gerada e vai por e-mail (RN-CORE-34). Os módulos vêm da licença (RN-CORE-01: a exceção
+ * do usuário só remove, e só dentro do que o perfil tem); Core, Catálogo e Integração não aparecem. Escrita só para quem tem as chaves do
+ * motor (`usuario.criar|editar|desativar`, `senha.redefinir`); a API revalida. testIDs: docs/modulos/core/test-ids.md.
  */
-function UsuariosConteudo() {
+export function UsuariosConteudo() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -65,18 +65,16 @@ function UsuariosConteudo() {
   const podeEditar = usePode('usuario.editar');
   const podeDesativar = usePode('usuario.desativar');
   const podeSenha = usePode('senha.redefinir');
-  const pode = podeCriar || podeEditar || podeDesativar || podeSenha;
   const [modal, setModal] = useState<Modal>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<FormularioUsuario>(FORMULARIO_VAZIO);
+  const [desmarcados, setDesmarcados] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
-  const [aba, setAba] = useState<'dados' | 'parametros'>('dados');
   const [erroApi, setErroApi] = useState<string | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   // e-mail que não saiu: a senha aparece UMA vez, da memória da tela, e some ao fechar o aviso ou sair da página
   const [semEmail, setSemEmail] = useState<Extract<ResultadoDoEmail, { tipo: 'sem_email' }> | null>(null);
-  const fuso = useMe().data.tenant.timezone;
   const toast = useToast();
   const copiarSenha = async (senha: string) => {
     try {
@@ -89,24 +87,27 @@ function UsuariosConteudo() {
 
   const q = params.get('q') ?? '';
   const perfil = params.get('perfil') ?? '';
-  const equipe = params.get('equipe') ?? '';
   const situacao = params.get('situacao') ?? '';
 
   const lista = useQuery({
-    queryKey: ['core', 'usuarios', q, perfil, equipe, situacao],
+    queryKey: ['core', 'usuarios', q, perfil, situacao],
     queryFn: async () => {
       const qs = new URLSearchParams();
       if (q) qs.set('q', q);
       if (perfil) qs.set('perfil', perfil);
-      if (equipe) qs.set('equipe_id', equipe);
       if (situacao) qs.set('ativo', situacao === 'ativo' ? 'true' : 'false');
       return UsuarioListaRespostaSchema.parse(await api(`/core/usuarios${qs.size ? `?${qs.toString()}` : ''}`)).itens;
     },
   });
-  const equipesQ = useQuery({ queryKey: ['core', 'equipes'], queryFn: async () => EquipeListaRespostaSchema.parse(await api('/core/equipes')).itens });
-  const equipes = equipesQ.data ?? [];
   const perfisQ = useQuery({ queryKey: ['core', 'perfis', 'opcoes'], queryFn: async () => PerfilOpcoesRespostaSchema.parse(await api('/core/perfis/opcoes')).itens });
   const opcoesDePerfil = perfisQ.data ?? [];
+  // só o admin lê as licenças (`modulo.gerir_licencas`); sem elas a coluna e a lista de módulos não aparecem
+  const licencasQ = useQuery({
+    queryKey: ['core', 'licencas'],
+    queryFn: async () => LicencasEstadoSchema.parse(await api('/core/licencas')),
+    retry: false,
+  });
+  const licencas: LicencasEstado | undefined = licencasQ.data;
 
   const fechar = () => {
     setModal(null);
@@ -119,7 +120,8 @@ function UsuariosConteudo() {
     fechar();
     setAviso(msg);
     await qc.invalidateQueries({ queryKey: ['core', 'usuarios'] });
-    await qc.invalidateQueries({ queryKey: ['core', 'equipes'] });
+    await qc.invalidateQueries({ queryKey: ['core', 'licencas'] });
+    await qc.invalidateQueries({ queryKey: ['core', 'perfis'] });
   };
 
   const mostrar = (res: ResultadoDoEmail) => {
@@ -131,17 +133,47 @@ function UsuariosConteudo() {
     return concluir(null);
   };
 
+  /** Módulos do perfil escolhido (o padrão do perfil base, RN-CORE-01) e os efetivos do formulário. */
+  const baseEscolhida = opcoesDePerfil.find((p) => p.codigo === form.perfis[0])?.base;
+  const doPerfil: ModuloId[] = licencas && baseEscolhida ? (licencas.perfis[baseEscolhida] ?? []) : [];
+  const efetivosDoForm = licencas
+    ? efetivosPelasDependencias({
+        modulos: licencas.modulos,
+        dependencias: licencas.dependencias,
+        ativosNoTenant: licencas.modulos.filter((m) => licencas.tenant[m] === true),
+        doPerfil,
+        removidosDoUsuario: [...desmarcados] as ModuloId[],
+      })
+    : [];
+  const modulosDoForm = licencas ? modulosExibiveis(licencas.modulos.filter((m) => licencas.tenant[m] === true)) : [];
+
+  /** Grava só a diferença das exceções do usuário (PUT por módulo; só o admin chega aqui, a API revalida). */
+  const gravarModulos = async (usuarioId: string, antes: readonly string[]) => {
+    if (!licencas) return;
+    const depois = removidosDoFormulario(doPerfil, new Set(modulosDoForm.map((m) => m.id).filter((m) => !desmarcados.has(m))));
+    const ids = new Set<string>([...antes, ...depois]);
+    for (const modulo of ids) {
+      const removerAgora = depois.includes(modulo as ModuloId);
+      if (removerAgora === antes.includes(modulo)) continue;
+      await api(`/core/licencas/usuarios/${usuarioId}/${modulo}`, { method: 'PUT', body: { ativo: !removerAgora } });
+    }
+  };
+
   const salvar = useMutation({
-    mutationFn: async (editando: UsuarioItem | null) =>
-      editando ? api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(form) }) : api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(form) }),
-    onSuccess: (r, editando) => {
+    mutationFn: async ({ editando, corpo }: { editando: UsuarioItem | null; corpo: FormularioUsuario }) => {
       if (editando) {
-        setForm(FORMULARIO_VAZIO);
-        return concluir('Usuário atualizado.');
+        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo) });
+        await gravarModulos(editando.id, licencas?.usuarios.find((x) => x.id === editando.id)?.removidos ?? []);
+        return null;
       }
-      const res = resultadoDeCriar(CriarUsuarioRespostaSchema.parse(r).email_acesso, form.email.trim().toLowerCase(), form.senha);
-      setForm(FORMULARIO_VAZIO); // a senha digitada sai da memória da tela assim que o servidor responde
-      return mostrar(res);
+      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo) }));
+      await gravarModulos(criado.id, []);
+      return criado;
+    },
+    onSuccess: (criado, { editando, corpo }) => {
+      setForm(FORMULARIO_VAZIO);
+      if (editando || !criado) return concluir('Usuário atualizado.');
+      return mostrar(resultadoDeCriar(criado.email_acesso, corpo.email.trim().toLowerCase(), corpo.senha));
     },
     onError: (e) => setErroApi(errorMessage(e)),
   });
@@ -180,22 +212,58 @@ function UsuariosConteudo() {
     setSemEmail(null);
     setErroApi(null);
     setTentou(false);
-    setAba('dados');
-    setForm(u ? formularioDoUsuario(u) : FORMULARIO_VAZIO);
+    setForm(u ? formularioDoUsuario(u) : { ...FORMULARIO_VAZIO, perfil: 'vendedor', perfis: [] });
+    setDesmarcados(new Set(u ? (licencas?.usuarios.find((x) => x.id === u.id)?.removidos ?? []) : []));
     setModal({ tipo: 'form', usuario: u });
   };
   const editando = modal?.tipo === 'form' ? modal.usuario : null;
-  const erros = modal?.tipo === 'form' ? errosDoFormulario(form, editando ? 'editar' : 'criar') : [];
+  const comSenha = (f: FormularioUsuario): FormularioUsuario => (editando ? f : { ...f, senha: f.senha || gerarSenhaNoNavegador() });
+  const erros = modal?.tipo === 'form' ? errosDoFormulario(comSenha(form), editando ? 'editar' : 'criar') : [];
   const erroDe = (campo: string) => (tentou ? erros.find((e) => e.campo === campo)?.mensagem : undefined);
   const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending;
   const upd = (patch: Partial<FormularioUsuario>) => setForm((f) => ({ ...f, ...patch }));
 
   const itens = lista.data ?? [];
+  const rotuloDoPerfilDe = (u: UsuarioItem) => {
+    const principal = u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil];
+    return u.perfis.length > 1 ? `${principal} +${u.perfis.length - 1}` : principal;
+  };
+  const menuDe = (u: UsuarioItem) => [
+    ...(podeEditar ? [{ rotulo: 'Editar', onSelecionar: () => abrirForm(u), testId: `usuarios.editar.${u.id}` }] : []),
+    ...(podeDesativar
+      ? [
+          {
+            rotulo: u.ativo ? 'Desativar' : 'Reativar',
+            perigo: u.ativo,
+            testId: `usuarios.alternar.${u.id}`,
+            onSelecionar: () => {
+              setAviso(null);
+              setErroApi(null);
+              setModal({ tipo: 'ativo', usuario: u });
+            },
+          },
+        ]
+      : []),
+    ...(podeSenha && acaoDeSenha(u)
+      ? [
+          {
+            rotulo: acaoDeSenha(u)!.rotulo,
+            testId: `usuarios.senha.${u.id}`,
+            onSelecionar: () => {
+              setAviso(null);
+              setErroApi(null);
+              setNovaSenha('');
+              setModal({ tipo: 'senha', usuario: u });
+            },
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="usuarios.tela">
       <PageHeader
         title="Usuários"
-        subtitle="Quem entra no Macuxi, com qual perfil e em qual equipe. O superior imediato vem da equipe. Usuário não se apaga: desative para cortar o acesso."
         actions={
           <>
             {podeCriar && (
@@ -209,7 +277,6 @@ function UsuariosConteudo() {
           </>
         }
       />
-      {!pode && <Notice tone="info">O seu perfil só consulta usuários. Para criar ou alterar, peça a quem administra a sua empresa.</Notice>}
       {semEmail && (
         <Notice tone="warning" onClose={() => setSemEmail(null)}>
           <span data-testid="usuarios.aviso-sem-email">
@@ -246,14 +313,6 @@ function UsuariosConteudo() {
             </option>
           ))}
         </SelectField>
-        <SelectField label="Equipe" value={equipe} onChange={(e) => set({ equipe: e.target.value })} data-testid="usuarios.filtro-equipe">
-          <option value="">Todas</option>
-          {equipes.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.nome}
-            </option>
-          ))}
-        </SelectField>
         <SelectField label="Situação" value={situacao} onChange={(e) => set({ situacao: e.target.value })} data-testid="usuarios.filtro-situacao">
           <option value="">Todos</option>
           <option value="ativo">Ativos</option>
@@ -265,268 +324,139 @@ function UsuariosConteudo() {
       {lista.isPending && <LoadingBlock label="Carregando os usuários…" />}
 
       {lista.data && (
-        <Panel title={`${itens.length} usuário${itens.length === 1 ? '' : 's'}`}>
-          <TableScroll minWidth={980}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
+        <Panel label="Usuários">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>
+                <th className={th}>Nome</th>
+                <th className={th}>E-mail</th>
+                <th className={th}>Perfil</th>
+                <th className={th}>Módulos</th>
+                <th className={th}>
+                  <span className="sr-only">Ações</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.length === 0 && (
                 <tr>
-                  <th className={th}>Nome</th>
-                  <th className={th}>E-mail</th>
-                  <th className={th}>Perfis</th>
-                  <th className={th}>Equipe</th>
-                  <th className={th}>Superior imediato</th>
-                  <th className={th}>Código do ERP</th>
-                  <th className={th}>Situação</th>
-                  {pode && <th className={th}>Ações</th>}
+                  <td className={td} colSpan={5}>
+                    Nenhum usuário com esses filtros. Limpe a busca ou os filtros para ver todos.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {itens.length === 0 && (
-                  <tr>
-                    <td className={td} colSpan={pode ? 8 : 7}>
-                      Nenhum usuário com esses filtros. Limpe a busca ou os filtros para ver todos.
-                    </td>
-                  </tr>
-                )}
-                {itens.map((u) => (
+              )}
+              {itens.map((u) => {
+                const modulos = licencas ? modulosExibiveis(efetivosDoUsuario(licencas, u.id)) : null;
+                return (
                   <tr key={u.id} data-testid={`usuarios.linha.${u.id}`}>
-                    <td className={td}>{u.nome}</td>
-                    <td className={td}>{u.email}</td>
-                    <td className={td} title={u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')}>
-                      {u.perfis.length === 0 ? ROTULO_PERFIL[u.perfil] : u.perfis.length <= 2 ? u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ') : `${u.perfis.slice(0, 2).map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')} +${u.perfis.length - 2}`}
-                    </td>
-                    <td className={td}>{u.equipe_nome ?? '—'}</td>
-                    <td className={td}>{u.superior_nome ?? '—'}</td>
-                    <td className={td}>{u.external_id ?? '—'}</td>
                     <td className={td}>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <Badge tone={u.ativo ? 'success' : 'neutral'}>{u.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                        {(() => {
-                          const e = etiquetaDeSenha(u, fuso);
-                          return e ? (
-                            <span data-testid={`usuarios.etiqueta-senha.${u.id}`}>
-                              <Badge tone={e.tom}>{e.texto}</Badge>
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {u.nome}
+                        {!u.ativo && <Badge tone="neutral">Inativo</Badge>}
+                      </span>
                     </td>
-                    {pode && (
-                      <td className={td}>
-                        <div className="flex flex-wrap gap-2">
-                          {podeEditar && (
-                            <button type="button" className={BOTAO_LINHA} onClick={() => abrirForm(u)} data-testid={`usuarios.editar.${u.id}`}>
-                              Editar
-                            </button>
-                          )}
-                          {podeDesativar && (
-                          <button
-                            type="button"
-                            className={BOTAO_LINHA}
-                            onClick={() => {
-                              setAviso(null);
-                              setErroApi(null);
-                              setModal({ tipo: 'ativo', usuario: u });
-                            }}
-                            data-testid={`usuarios.alternar.${u.id}`}
-                          >
-                            {u.ativo ? 'Desativar' : 'Reativar'}
-                          </button>
-                          )}
-                          {podeSenha && acaoDeSenha(u) && (
-                            <button
-                              type="button"
-                              className={`${BOTAO_LINHA} px-4`}
-                              onClick={() => {
-                                setAviso(null);
-                                setErroApi(null);
-                                setNovaSenha('');
-                                setModal({ tipo: 'senha', usuario: u });
-                              }}
-                              data-testid={`usuarios.senha.${u.id}`}
-                            >
-                              {acaoDeSenha(u)?.rotulo}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    <td className={`${td} whitespace-nowrap`}>{u.email}</td>
+                    <td className={td} title={u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')}>
+                      {rotuloDoPerfilDe(u)}
+                    </td>
+                    <td className={td}>
+                      {modulos === null ? (
+                        '—'
+                      ) : (
+                        <span className="flex flex-wrap gap-1" data-testid={`usuarios.modulos.${u.id}`}>
+                          {modulos.length === 0 ? '—' : modulos.map((m) => <IconeComNome key={m.id} id={m.id} />)}
+                        </span>
+                      )}
+                    </td>
+                    <td className={`${td} w-[56px] text-right`}>
+                      <MenuDaLinha rotulo={`Ações de ${u.nome}`} itens={menuDe(u)} testId={`usuarios.menu.${u.id}`} />
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+                );
+              })}
+            </tbody>
+          </table>
         </Panel>
       )}
 
-      <Dialog
-        open={modal?.tipo === 'form'}
-        title={editando ? 'Editar usuário' : 'Novo usuário'}
-        onClose={fechar}
-        footer={
-          <>
-            <Button onClick={fechar} data-testid="usuarios.cancelar">
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              disabled={ocupado}
-              onClick={() => {
-                setTentou(true);
-                setErroApi(null);
-                if (erros.length === 0) salvar.mutate(editando);
-                else if (erros.every((e) => e.campo === 'desconto_maximo_pedido')) setAba('parametros');
-                else setAba('dados');
-              }}
-              data-testid="usuarios.salvar"
-            >
-              {salvar.isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <div role="tablist" aria-label="Seções do usuário" className="flex gap-1 border-b border-line" data-testid="usuarios.abas">
-            {(['dados', 'parametros'] as const).map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={aba === id}
-                onClick={() => setAba(id)}
-                data-testid={`usuarios.aba-${id}`}
-                className={`-mb-px inline-flex min-h-[44px] items-center border-b-2 bg-transparent px-4 text-[14px] font-semibold ${aba === id ? 'border-accent text-accent-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}
-              >
-                {id === 'dados' ? 'Dados' : 'Parâmetros'}
-              </button>
-            ))}
-          </div>
-          {aba === 'parametros' && (
-            <div role="tabpanel" className="flex flex-col" data-testid="usuarios.painel-parametros">
-              <div className="flex items-center justify-between gap-3 border-b border-line-2 py-3">
-                <div className="flex flex-col gap-0.5">
-                  <span id="usuarios-limita-item" className="text-[14px] font-semibold text-ink">
-                    Limitar desconto por item
-                  </span>
-                  <span id="usuarios-limita-item-ajuda" className="text-[12px] text-ink-2">
-                    Nenhum item passa do desconto máximo do produto.
-                  </span>
-                </div>
-                <Interruptor ligado={form.limita_item} onChange={(v) => upd({ limita_item: v })} rotuloId="usuarios-limita-item" descricaoId="usuarios-limita-item-ajuda" testId="usuarios.limita-item" />
-              </div>
-              <div className="flex items-center justify-between gap-3 border-b border-line-2 py-3">
-                <span id="usuarios-limita-pedido" className="text-[14px] font-semibold text-ink">
-                  Limitar desconto por pedido
-                </span>
-                <Interruptor ligado={form.limita_pedido} onChange={(v) => upd({ limita_pedido: v })} rotuloId="usuarios-limita-pedido" testId="usuarios.limita-pedido" />
-              </div>
-              {form.limita_pedido && (
-                <div className="py-3">
-                  <Campo rotulo="Desconto máximo do pedido (%)" erro={erroDe('desconto_maximo_pedido')}>
-                    <input
-                      inputMode="decimal"
-                      value={form.desconto_maximo_pedido}
-                      onChange={(e) => upd({ desconto_maximo_pedido: e.target.value })}
-                      aria-invalid={!!erroDe('desconto_maximo_pedido')}
-                      placeholder="0,0"
-                      className={`${CAMPO} w-[160px] ${erroDe('desconto_maximo_pedido') ? 'border-2 border-danger' : ''}`}
-                      data-testid="usuarios.campo-desconto-pedido"
-                    />
-                  </Campo>
-                </div>
-              )}
-            </div>
-          )}
-          <div className={aba === 'dados' ? 'flex flex-col gap-3' : 'hidden'}>
+      <Drawer open={modal?.tipo === 'form'} title={editando ? 'Editar usuário' : 'Novo usuário'} onClose={fechar}>
+        <form
+          className="flex min-h-full flex-col gap-4"
+          data-testid="usuarios.gaveta"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setTentou(true);
+            setErroApi(null);
+            const corpo = comSenha(form);
+            if (erros.length === 0 && !ocupado) salvar.mutate({ editando, corpo });
+          }}
+        >
           <Campo rotulo="Nome" erro={erroDe('nome')}>
             <input value={form.nome} onChange={(e) => upd({ nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-nome" />
           </Campo>
-          <Campo rotulo="E-mail (usado no login)" erro={erroDe('email')}>
+          <Campo rotulo="E-mail" erro={erroDe('email')}>
             <input type="email" value={form.email} onChange={(e) => upd({ email: e.target.value })} className={CAMPO} data-testid="usuarios.campo-email" />
           </Campo>
-          <div className={opcoesDePerfil.length > 10 ? 'max-h-[280px] overflow-y-auto' : undefined}>
-            <SeletorDePerfis
-              nome="usuario-perfis"
-              legenda={ROTULO_CAMPO_PERFIS}
-              ajuda={AJUDA_CAMPO_PERFIS}
-              opcoes={opcoesDePerfil.map((p) => ({ valor: p.codigo, rotulo: rotuloDoPerfil(p.codigo, { nome: p.nome }), detalhe: p.fabrica ? undefined : `Base: ${ROTULO_PERFIL_BASE[p.base]}`, selo: p.fabrica ? SELO_PADRAO : undefined }))}
-              marcados={form.perfis}
-              onChange={(valor) => upd({ perfis: alternarMarcado(form.perfis, valor, opcoesDePerfil.map((p) => p.codigo)) })}
-              erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : null}
-              testId="usuarios.campo-perfis"
-            />
-          </div>
-          <div className="flex flex-col gap-1 rounded-[10px] border border-line bg-ground p-3" aria-live="polite" data-testid="usuarios.previa">
-            <span className="text-[12px] font-semibold text-ink-2">Onde esta pessoa entra</span>
-            {form.perfis.length === 0 ? (
-              <span className="text-[12px] text-ink-2">Marque um perfil para ver onde a pessoa entra.</span>
-            ) : (
-              <>
-                <span className="text-[13px]" data-testid="usuarios.previa.onde-entra">
-                  {textoOndeEntra(ondeEntraDosPerfis(opcoesDePerfil.filter((p) => form.perfis.includes(p.codigo))))}
-                </span>
-              </>
-            )}
-          </div>
-          <Campo rotulo="Equipe">
-            <select value={form.equipe_id} onChange={(e) => upd({ equipe_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe">
-              <option value="">Sem equipe</option>
-              {equipes.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nome}
+          <Campo rotulo="Perfil" erro={tentou && form.perfis.length === 0 ? ERRO_SEM_PERFIL : undefined}>
+            <select
+              value={form.perfis[0] ?? ''}
+              onChange={(e) => upd({ perfis: e.target.value ? [e.target.value] : [], perfil: opcoesDePerfil.find((p) => p.codigo === e.target.value)?.base ?? form.perfil })}
+              className={CAMPO}
+              data-testid="usuarios.campo-perfis"
+            >
+              <option value="">Escolha…</option>
+              {opcoesDePerfil.map((p) => (
+                <option key={p.codigo} value={p.codigo}>
+                  {rotuloDoPerfil(p.codigo, { nome: p.nome })}
                 </option>
               ))}
             </select>
           </Campo>
-          <p className="m-0 text-[12px] text-ink-2" data-testid="usuarios.superior">
-            {textoDoSuperiorDaEquipe(equipes, form.equipe_id)}
-          </p>
-          <Campo rotulo="Código do ERP (opcional)" erro={erroDe('external_id')}>
-            <input value={form.external_id} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
-          </Campo>
-          {!editando && (
-            <div className="flex flex-col gap-2">
-              <Campo rotulo="Senha inicial" erro={erroDe('senha')}>
-                <input
-                  type={senhaVisivel ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={form.senha}
-                  onChange={(e) => upd({ senha: e.target.value })}
-                  aria-describedby="usuarios-regras-senha"
-                  className={CAMPO}
-                  data-testid="usuarios.campo-senha"
-                />
-              </Campo>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={BOTAO_LINHA}
-                  onClick={() => {
-                    upd({ senha: gerarSenhaNoNavegador() });
-                    setSenhaVisivel(true);
-                  }}
-                  data-testid="usuarios.gerar-senha"
-                >
-                  Gerar senha
-                </button>
-                <button type="button" className={BOTAO_LINHA} onClick={() => setSenhaVisivel((v) => !v)} aria-pressed={senhaVisivel} data-testid="usuarios.mostrar-senha">
-                  {senhaVisivel ? 'Esconder senha' : 'Mostrar senha'}
-                </button>
-              </div>
-              <RegrasDaSenha id="usuarios-regras-senha" faltas={faltasDaSenhaDigitada(form.senha)} minimo={SENHA_MIN_CARACTERES} resumo={mensagemDaSenha(faltasDaSenhaDigitada(form.senha)) ?? undefined} destacar={tentou && !!erroDe('senha')} />
-              <p className="m-0 text-[12px] text-ink-2" data-testid="usuarios.aviso-email">
-                {AJUDA_SENHA_INICIAL}
-              </p>
-            </div>
+          {licencas && (
+            <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">
+              <legend className="mb-1 p-0 text-[13px] font-semibold text-ink">Módulos</legend>
+              {modulosDoForm.map((m) => {
+                const noPerfil = doPerfil.includes(m.id);
+                const marcado = efetivosDoForm.includes(m.id);
+                return (
+                  <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-[#1e3350]"
+                      checked={marcado}
+                      disabled={!noPerfil}
+                      onChange={() =>
+                        setDesmarcados((d) => {
+                          const novo = new Set(d);
+                          if (marcado) novo.add(m.id);
+                          else novo.delete(m.id);
+                          return novo;
+                        })
+                      }
+                      data-testid={`usuarios.modulo.${m.id}`}
+                    />
+                    <IconeDoModulo id={m.id} />
+                    {m.nome}
+                  </label>
+                );
+              })}
+            </fieldset>
           )}
-          </div>
           {erroApi && (
             <Notice tone="danger">
               <span data-testid="usuarios.erro">{erroApi}</span>
             </Notice>
           )}
-        </div>
-      </Dialog>
+          <div className="sticky bottom-0 -mx-5 mt-auto flex justify-end gap-2 border-t border-line bg-ground px-5 py-3">
+            <Button onClick={fechar} data-testid="usuarios.cancelar">
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary" disabled={ocupado} data-testid="usuarios.salvar">
+              {salvar.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </div>
+        </form>
+      </Drawer>
 
       <Dialog
         open={modal?.tipo === 'ativo'}
