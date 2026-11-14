@@ -239,6 +239,7 @@ export const rotasDePlanoRv: RotaModulo[] = [
           const metas: Partial<Record<IndicadorRv, number>> = {};
           const realizados: Partial<Record<IndicadorRv, number>> = {};
           for (const m of item.metas) {
+            if (m.indicador === 'itens_por_pedido') continue; // T-0170: itens por pedido não entra no RV
             metas[m.indicador] = m.meta;
             realizados[m.indicador] = m.realizado ?? 0;
           }

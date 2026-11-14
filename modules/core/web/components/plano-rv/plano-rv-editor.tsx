@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, Notice, Panel, td, tdNum, th, thNum, TableScroll, rotuloDoPerfil } from '@macuxi/ui/web';
 import { formatBRL } from '@macuxi/comum';
 import type { PlanoRvPut } from '../../../contracts';
-import { INDICADORES_META } from '../../../contracts';
+import { INDICADORES_RV } from '../../../contracts';
 import type { IndicadorRv } from '../../../domain';
 import {
   corpoDoFormulario,
@@ -251,7 +251,7 @@ export function PlanoRvEditor({
           </div>
           <h3 className="m-0 text-[15px] font-semibold text-ink">Indicadores, pesos e faixas</h3>
           <div className="flex flex-col gap-3">
-            {INDICADORES_META.map((ind) => {
+            {INDICADORES_RV.map((ind) => {
               const regra = form.regras.find((r) => r.indicador === ind)!;
               return <RegraEditor key={ind} regra={regra} onChange={(r) => mudar({ regras: form.regras.map((x) => (x.indicador === ind ? r : x)) })} />;
             })}

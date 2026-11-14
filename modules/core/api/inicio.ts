@@ -155,6 +155,8 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
       positivacao: u.positivacao ? [u.positivacao.ate_ontem, u.positivacao.hoje] : null,
       visitas: [ateOntem.visitados, total.visitados - ateOntem.visitados],
       cobertura_pct: [ateOntem.cobertura_pct, Math.max(0, total.cobertura_pct - ateOntem.cobertura_pct)],
+      // T-0170 (A-4): média não se divide por dia; o card de Itens por pedido vem da Performance
+      itens_por_pedido: null,
     };
     for (const ind of ORDEM) {
       const meta = metaDe(u.usuario_id, ind);

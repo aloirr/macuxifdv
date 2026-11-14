@@ -264,3 +264,28 @@ describe('T-0065 B: painel pela apuração do tipo da meta (RN-CORE-21)', () => 
     expect(painelDoUsuario(linhas).indicadores.realizado_cents).toBe(9_999_00);
   });
 });
+
+describe('T-0170 (A-4): Itens por pedido no painel de metas', () => {
+  const linhas = {
+    periodo: '2026-11',
+    usuario_id: 'u1',
+    hoje: '2026-11-20',
+    paradas: [],
+    visitas: [],
+    diarios: [],
+    metas: [
+      { usuario_id: 'u1', periodo: '2026-11', indicador: 'itens_por_pedido' as const, valor: 800 },
+      { usuario_id: 'u1', periodo: '2026-11', indicador: 'venda_cents' as const, valor: 1_000_00 },
+    ],
+  };
+  const pedido = (itens?: number) => ({ vendedor_id: 'u1', cliente_id: 'c1', emitido_em: '2026-11-10T14:00:00Z', status: 'aprovado', total_cents: 100_00, ...(itens === undefined ? {} : { itens_distintos: itens }) });
+  it('T-0170: com itens_distintos da consulta do Vendedor, realizado em centésimos e atingimento sobre a meta; linha depois das outras', () => {
+    const p = painelDoUsuario({ ...linhas, apuracao: { tipo: 'pedido', fuso: 'America/Manaus', pedidos: [pedido(6), pedido(4)] } });
+    expect(p.metas.map((m) => m.indicador)).toEqual(['venda_cents', 'itens_por_pedido']);
+    expect(p.metas[1]).toEqual({ indicador: 'itens_por_pedido', meta: 800, realizado: 500, atingimento_pct: 6250 });
+  });
+  it('T-0170: sem itens_distintos ou sem a consulta do Vendedor, realizado nulo (sem dado)', () => {
+    expect(painelDoUsuario({ ...linhas, apuracao: { tipo: 'pedido', fuso: 'America/Manaus', pedidos: [pedido()] } }).metas[1]).toMatchObject({ realizado: null, atingimento_pct: null });
+    expect(painelDoUsuario(linhas).metas[1]).toMatchObject({ realizado: null, atingimento_pct: null });
+  });
+});

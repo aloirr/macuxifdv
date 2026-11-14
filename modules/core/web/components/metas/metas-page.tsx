@@ -258,7 +258,7 @@ function MetasConteudo() {
           )}
           <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
             Meta ({UNIDADE_DO_CAMPO[campoRotulo]})
-            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : '40'} data-testid="metas.valor" className={CAMPO} />
+            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={alvoVenda ? '25.000,00' : campoRotulo === 'cobertura_pct' ? '85' : campoRotulo === 'itens_por_pedido' ? '8,5' : '40'} data-testid="metas.valor" className={CAMPO} />
           </label>
           {alvoVenda && (
             <SelectField label="Apurar por" value={tipo} onChange={(e) => setTipo(e.target.value as LinhaMetaBko['tipo'])} data-testid="metas.tipo">

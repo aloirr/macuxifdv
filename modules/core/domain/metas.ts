@@ -6,7 +6,8 @@
 import { yearMonthOf } from '@macuxi/comum';
 
 import { CALENDARIO_PADRAO, diasUteisRestantes, type CalendarioTenant } from './meta-do-dia';
-import { positivadosDoPeriodo, realizadoPorTipo, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from './apuracao';
+import { itensPorPedidoDoPeriodo, positivadosDoPeriodo, realizadoPorTipo, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from './apuracao';
+import type { INDICADORES_META } from '../contracts/sync';
 
 export type BaseApuracao = 'aprovado' | 'faturado';
 
@@ -76,7 +77,7 @@ export interface EntradaIndicadores {
   base?: BaseApuracao;
   meta_cents?: number | null;
   /** T-0065 B: realizado já apurado pelo tipo da meta (`apuracao.ts`); vence `pedidos` e `diarios`. */
-  apurado?: { realizado_cents: number; positivados: number };
+  apurado?: { realizado_cents: number; positivados: number; /** T-0170: centésimos; null/ausente = sem dado. */ itens_por_pedido?: number | null };
 }
 
 export interface IndicadoresCalculados {
@@ -131,7 +132,7 @@ export function indicadoresDoPeriodo(e: EntradaIndicadores): IndicadoresCalculad
   };
 }
 
-export type IndicadorMeta = 'venda_cents' | 'positivacao' | 'cobertura_pct' | 'visitas';
+export type IndicadorMeta = (typeof INDICADORES_META)[number];
 
 export interface LinhaDePainel {
   indicador: IndicadorMeta;
@@ -147,7 +148,7 @@ export interface PainelDeMetas {
   metas: LinhaDePainel[];
 }
 
-const ORDEM_INDICADORES: IndicadorMeta[] = ['venda_cents', 'visitas', 'cobertura_pct', 'positivacao'];
+const ORDEM_INDICADORES: IndicadorMeta[] = ['venda_cents', 'visitas', 'cobertura_pct', 'positivacao', 'itens_por_pedido'];
 
 /**
  * RN-CORE-20..22: indicadores do mês + cada meta (venda_cents, visitas, cobertura_pct, positivacao) contra o
@@ -161,6 +162,8 @@ export function painelDeMetas(e: Omit<EntradaIndicadores, 'meta_cents'>, metas: 
     visitas: indicadores.visitados,
     cobertura_pct: indicadores.cobertura_pct,
     positivacao: indicadores.positivados,
+    // T-0170 (A-4): só com os pedidos da consulta do Vendedor trazendo `itens_distintos`; sem eles, sem dado
+    itens_por_pedido: e.apurado?.itens_por_pedido ?? null,
   };
   const linhas = [...metas]
     .sort((a, b) => ORDEM_INDICADORES.indexOf(a.indicador) - ORDEM_INDICADORES.indexOf(b.indicador))
@@ -201,7 +204,7 @@ export function painelDoUsuario(l: LinhasDoPainel): PainelDeMetas {
   const meu = <T extends Removivel & { usuario_id: string }>(x: T) => !x.deleted_at && x.usuario_id === l.usuario_id;
   const a = l.apuracao;
   const o = a ? { usuario_id: l.usuario_id, periodo: l.periodo, fuso: a.fuso } : null;
-  const apurado = a && o ? { realizado_cents: realizadoPorTipo(a.tipo, { pedidos: a.pedidos, faturamentos: a.faturamentos }, o), positivados: positivadosDoPeriodo(a.pedidos, o) } : undefined;
+  const apurado = a && o ? { realizado_cents: realizadoPorTipo(a.tipo, { pedidos: a.pedidos, faturamentos: a.faturamentos }, o), positivados: positivadosDoPeriodo(a.pedidos, o), itens_por_pedido: itensPorPedidoDoPeriodo(a.pedidos, o) } : undefined;
   return painelDeMetas(
     {
       apurado,

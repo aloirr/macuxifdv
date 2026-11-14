@@ -14,7 +14,7 @@ const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export const CABECALHO_METAS = ['Vendedor ou promotor', 'Indicador', 'Tipo', 'Meta', 'Realizado', 'Atingimento'];
 export const ROTULO_TIPO: Record<LinhaMetaBko['tipo'], string> = { pedido: 'Pedido aprovado', faturamento: 'Faturamento' };
-export const UNIDADE_DO_CAMPO: Record<Indicador, string> = { venda_cents: 'R$', visitas: 'visitas', positivacao: 'clientes', cobertura_pct: '%' };
+export const UNIDADE_DO_CAMPO: Record<Indicador, string> = { venda_cents: 'R$', visitas: 'visitas', positivacao: 'clientes', cobertura_pct: '%', itens_por_pedido: 'itens por pedido' };
 
 const pontosBase = (v: number): string => `${(v / 100).toFixed(2).replace('.', ',')}%`;
 
@@ -44,7 +44,7 @@ export function csvDeMetas(linhas: readonly LinhaMetaBko[]): string {
 export function textoDeEdicao(indicador: Indicador, valor: number): string {
   if (valor === 0) return '';
   if (indicador === 'venda_cents') return (valor / 100).toFixed(2).replace('.', ',');
-  if (indicador === 'cobertura_pct') return String(valor / 100).replace('.', ',');
+  if (indicador === 'cobertura_pct' || indicador === 'itens_por_pedido') return String(valor / 100).replace('.', ',');
   return String(valor);
 }
 
@@ -52,7 +52,7 @@ export type CorpoDaMeta = { ok: true; corpo: PutMeta } | { ok: false; erro: stri
 
 /**
  * Texto digitado → corpo do contrato. Venda em R$ → centavos; cobertura em % (0 a 100) → pontos-base (RN-CORE-20);
- * visitas e positivação, inteiros. `tipo` só vale para venda (RN-CORE-21).
+ * itens por pedido com uma casa → centésimos; visitas e positivação, inteiros. `tipo` só vale para venda (RN-CORE-21).
  */
 export function corpoDaMeta(indicador: Indicador, texto: string, tipo: LinhaMetaBko['tipo'] = 'pedido'): CorpoDaMeta {
   const t = texto.trim();
@@ -66,6 +66,11 @@ export function corpoDaMeta(indicador: Indicador, texto: string, tipo: LinhaMeta
     const pb = Math.round(Number(t.replace(',', '.')) * 100);
     if (pb > 10000) return { ok: false, erro: 'A meta de cobertura vai de 0 a 100%. Informe um valor até 100.' };
     return { ok: true, corpo: { indicador, valor: pb } };
+  }
+  if (indicador === 'itens_por_pedido') {
+    // T-0170 (A-4): média com uma casa → centésimos (8,5 → 850)
+    if (!/^\d+([.,]\d)?$/.test(t)) return { ok: false, erro: 'Informe os itens por pedido com até uma casa decimal, por exemplo 8,5.' };
+    return { ok: true, corpo: { indicador, valor: Math.round(Number(t.replace(',', '.')) * 100) } };
   }
   if (!/^\d+$/.test(t)) return { ok: false, erro: `Informe a meta de ${ROTULO_INDICADOR[indicador].toLowerCase()} como número inteiro, por exemplo 40.` };
   return { ok: true, corpo: { indicador, valor: Number(t) } };

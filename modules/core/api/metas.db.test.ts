@@ -278,7 +278,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
       const ind = await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
       const linhas = painel.linhas.filter((l: { usuario_id: string }) => l.usuario_id === U.vendedor1);
-      expect(linhas.map((l: { indicador: string }) => l.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+      expect(linhas.map((l: { indicador: string }) => l.indicador).sort()).toEqual(['cobertura_pct', 'itens_por_pedido', 'positivacao', 'venda_cents', 'visitas']);
       expect(linhas.every((l: { equipe_id: string }) => l.equipe_id === A.equipes.equipe1)).toBe(true);
       const venda = linhas.find((l: { indicador: string }) => l.indicador === 'venda_cents');
       expect(venda).toMatchObject({ meta: 100000, tipo: 'pedido', realizado: ind.itens[0].indicadores.realizado_cents, editavel: true });
