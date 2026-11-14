@@ -799,12 +799,12 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
-  /** T-0148: quem tem foto (sem rede) e abrir a foto (baixa e guarda no cache; sem sinal e sem cache, aviso curto). */
+  /** T-0148: quem tem foto (sem rede) e abrir a foto (baixa e guarda no cache; senão aviso curto: sem sinal ou foto indisponível). */
   const fotosDeProdutos = useCallback(
     async (ids: string[]): Promise<Set<string>> => (v1 ? idsComFoto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), ids) : new Set()),
     [v1, ambiente],
   );
-  const abrirFotoProduto = useCallback((id: string) => abrirFotoDoProduto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), id), [ambiente]);
+  const abrirFotoProduto = useCallback((id: string) => abrirFotoDoProduto((e) => ambiente.consultar(CONSULTA_FOTO_PRODUTO, e), id, () => ambiente.online()), [ambiente]);
   /**
    * T-0138 (RN-CAT-09/10): referências cruzadas ("Equivale a") só na hora de gerar o PDF, de `catalogo.textos_produto@1`; não são
    * retrato do pedido. Falha ou aparelho sem a leitura = sem referência (o PDF sai sem a linha, nunca trava).

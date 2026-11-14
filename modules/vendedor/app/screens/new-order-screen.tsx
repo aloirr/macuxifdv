@@ -14,7 +14,7 @@ import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { Abas, AvisoRodape, Dialogo, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
@@ -476,10 +476,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const abrirFoto = useCallback(
     async (id: string) => {
       const r = await app.abrirFotoProduto(id);
+      // relato de 14/11 (v1.0.6): o aviso da foto sai em popup no meio da tela, não no rodapé
       if (r.tipo === 'foto') setFotoAberta(r.uri);
-      else avisoRodape.mostrar({ texto: r.texto });
+      else Alert.alert(r.texto, undefined, [{ text: 'OK' }]);
     },
-    [app.abrirFotoProduto, avisoRodape.mostrar],
+    [app.abrirFotoProduto],
   );
   useEffect(() => {
     if (idsComTexto.length === 0) return;

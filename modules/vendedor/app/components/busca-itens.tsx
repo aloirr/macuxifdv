@@ -63,7 +63,7 @@ export function ResultadosDaBusca({
                 ) : null}
               </View>
               {comFoto?.has(p.id) && aoAbrirFoto ? (
-                <Pressable testID={`foto-${p.erp_code}`} accessibilityRole="button" accessibilityLabel={`Ver foto de ${p.description}`} onPress={() => aoAbrirFoto(p.id)} hitSlop={4} style={s.foto}>
+                <Pressable testID={`foto-${p.erp_code}`} accessibilityRole="button" accessibilityLabel={`Ver foto de ${p.description}`} onPress={() => aoAbrirFoto(p.id)} style={({ pressed }) => [s.foto, pressed && s.fotoPressionada]}>
                   <Icon name="camera" size={22} color={colors.ink2} />
                 </Pressable>
               ) : null}
@@ -131,7 +131,9 @@ export function VisorDeFoto({ uri, aoFechar }: { uri: string | null; aoFechar: (
 const s = StyleSheet.create({
   cartao: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  foto: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  // relato de 14/11 (v1.0.6): alvo de 48 dp e o toque afunda (fundo escurece e escala 0,92 enquanto pressionado)
+  foto: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  fotoPressionada: { backgroundColor: colors.neutralBg, transform: [{ scale: 0.92 }] },
   botaoMais: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: colors.accentInk, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   visor: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   visorImagem: { width: '100%', height: '80%' },
