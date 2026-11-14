@@ -654,12 +654,6 @@ export function useVendedor() {
     [ambiente, motor, recarregar],
   );
 
-  const reenviarFila = useCallback(async () => {
-    if (!motor) return;
-    await motor.enviar({ incluirFalhos: true });
-    await recarregar();
-  }, [motor, recarregar]);
-
   /**
    * T-0053 (RF-VEN-03): converte o orçamento em pedido OFFLINE — pedido novo na fila com `orcamento_origem_id`; o servidor
    * revalida preço do dia, alçada e validade (RN-VEN-32). Sem sinal, segue na fila como qualquer pedido.
@@ -841,7 +835,6 @@ export function useVendedor() {
     fila,
     pedidos,
     aguardandoMinhaDecisao,
-    enviando: estado.enviando,
     sincronizando: estado.sincronizando,
     erroSync: estado.erro,
     motor,
@@ -884,7 +877,6 @@ export function useVendedor() {
     salvarEdicao,
     excluirPedido,
     decidirPedido,
-    reenviarFila,
     acoesDe,
   };
 }
