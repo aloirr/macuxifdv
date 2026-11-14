@@ -218,7 +218,10 @@ describe('T-0150 — detalhe do pedido/orçamento: Alertas no topo, situação s
 
   it('situação só no Histórico: o topo do detalhe não tem selo de situação (só pode haver o "Editado neste pedido" do endereço)', () => {
     const tela = ler('modules/vendedor/app/screens/order-detail-screen.tsx');
-    const corpo = tela.slice(tela.indexOf('<BackLink label="Pedidos"'));
+    // âncora estável antes e depois do cabeçalho Azul noite do kit: o testID do cabeçalho do detalhe (o BackLink saiu do corpo)
+    const inicio = tela.indexOf('testID="detalhe-cabecalho"');
+    expect(inicio).toBeGreaterThan(0);
+    const corpo = tela.slice(inicio);
     expect(corpo.length).toBeGreaterThan(1_000);
     // nenhum Selo, a não ser o "Editado neste pedido" do endereço (que não é situação)
     const selos = corpo.match(/<Selo\b[^>]*>/g) ?? [];
