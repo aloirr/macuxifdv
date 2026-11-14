@@ -163,9 +163,6 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 
 ## 11. Adendo — Planos (Light, PME, Enterprise, Corporate) e CNPJ pela Receita
 > 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-132600-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Onde conflitar, o §11 vale sobre §3 (coluna Módulos), §4 (cartões Empresa e Módulos e licenças), §8 (cartão Módulos e licenças) e §10.3. Contratos novos (planos e CNPJ) vêm do engenheiro-software.
->
-> ~~**A tabela dos planos (preço e licenças) não chegou a esta sessão.** Nenhum preço nem limite foi inventado: a spec e as simulações usam os marcadores `{preço}` e `{licenças}`, **a confirmar pela tabela do recado**.~~
-> **Fechamento (14/11):** a tabela chegou pela ponte (recado do dono do produto R-20261114-132600, a tabela que faltava) e foi conferida contra o contrato `packages/platform-sdk/src/planos.ts` e a ADR 0046 (branch `nuvem/planos-engenheiro-software`). Os valores batem com o contrato (preço mensal e anual = 10 × o mensal); as diferenças de forma e o que a spec segue estão no §11.9. A tela mostra reais; o contrato guarda centavos (`preco_mensal_centavos`, `preco_unitario_centavos`, `valor.*_centavos`).
 
 **Premissa:** os módulos da empresa passam a vir do **plano + adicionais**. O cartão "Módulos e licenças" sai do Criar empresa e da aba Empresa; o portal não marca mais módulo por módulo.
 
@@ -294,7 +291,7 @@ Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a 
 - Dos cartões de usuários, **fica só "Administradores"**. **Nenhum CSV fica no `config.`**: todo trecho anterior que cite CSV (a aba Bases, o diálogo "Passar as bases ao Conector do ERP?" e a linha "Aba Bases" dos placares antigos, hoje no §14) está **revogado pelo §12** (e já pelo §10).
 - **Simulações:** nenhuma nova. As do §10 e do §11 (`depois-03b-*`, `depois-03c-*`, `depois-05b-*`, `depois-06b-*`, `depois-06c-*`, `depois-06d-*`) não mostram a Equipe nem CSV.
 - **Placar:** não muda; a aba Bases, com a Equipe dentro, já sai inteira (§13.3).
-- **Para o engenheiro-apps:** nada além do §10.5 (saem `cartao-equipe.tsx`, `lib/equipe-csv.ts`, a Equipe de `lib/portal-falso.ts` e os testIDs `equipe-*`).
+- **Para o engenheiro-apps:** nada além do §10.5.
 
 ## 13. Achados RD (corretor) e MC (marca) — respostas
 > 2026-11-14 · designer-ux. Fontes: parecer do corretor-redundancias `docs/qualidade/redundancias/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-corretor`; RD-0260 a RD-0295, RD-0089/RD-0090 fechados e os 3 desvios do §12 dele) e parecer do design-de-marca `docs/marca/pareceres/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-marca`; MC-0021 a MC-0024 e 3 itens fora do escopo da marca). Os dois pareceres olharam o portal **de hoje** (`main` `bb20d06`); muitos achados já estavam resolvidos por esta spec, que tira mais do que eles pediam (aba Bases, Equipe e CSV saem inteiros, §10 e §12).
@@ -386,6 +383,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 - **RD-0263:** `hora` e `tomDaSituacao` num lugar só (`base.tsx` ou `lib/portal.ts`).
 - **RD-0288:** uma constante `TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.'` em `lib/portal-api.ts`.
 - **MC-0021 a MC-0024:** como nos §0 e §10.2 e em `componentes.md` §5.3; o reteste da marca pede o print de Entrar, Empresas e Empresa (aba Integração, que substitui a aba Bases).
+- MC-0047: seta dos selects do portal = `IconChevronDown` de `@macuxi/ui/web`.
 - Simulações vigentes: lista no §13.5. As de registro (`depois-03`, `-04`, `-05`, `-06`) foram apagadas (MC-0036).
 
 ### 13.5 Segunda passada do corretor (P1–P6) e da marca (MC-0035 a MC-0042) — respostas
@@ -410,6 +408,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | MC-0040 | placeholder `#8A939D` | aceito: `#5B6673` (o kit não tem token de placeholder) | `portal.css`; `depois-05b`, `depois-03c`, `depois-07` |
 | MC-0041 | `.btn.off` com opacidade | aceito: fundo e borda `#ECEEF1`, texto `#5B6673` | `portal.css`; `depois-03c`, `depois-05b` |
 | MC-0042 | módulos adicionais sem destaque | aceito: mapa id → nome → ícone no kit; ícone na caixa e na linha da tabela; prancha própria | §11.10; `prancha-icones-adicionais.png` |
+| MC-0048 | "✓" em texto sai em fonte de reserva (o IBM Plex não tem o glifo) | aceito: o SVG do `IconCheck` do kit em `#1D6B4F`, 16 px no CNPJ e 12 px na lista da senha (como `packages/ui/src/web/senha.tsx`) | `depois-03b` (CNPJ e senha), `depois-03c` (estado 3) |
 | Fora | caixa marcada; "Sair" no celular | aceito: caixa branca com borda e ✓ em Azul noite; no celular, "Sair" na linha do logo, à direita | §11.3; §10.2; `depois-05b-integracao-celular` |
 
 **Simulações vigentes** (PNG em escala 2, fontes do BKO): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-06c-aba-empresa-cliente`, `depois-06d-trocar-plano`, `depois-07-diagnosticos` e `prancha-icones-adicionais`.
@@ -418,5 +417,6 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).
 - **Placares antigos** (§Placar, §10.4, §11.6): substituídos pelo §13.3, o único.
 - **§11.4, linha "Adicionais: Promotor avulso · Pesquisa"** embaixo da tabela: saiu (repetia as linhas da tabela). **Texto antigo da troca abaixo do uso** ("{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."): trocado pelo do contrato.
+- **§11, aviso da tabela dos planos** ("A tabela dos planos (preço e licenças) não chegou a esta sessão", com os marcadores `{preço}` e `{licenças}`) e o "Fechamento (14/11)" que o respondia: saíram; a tabela chegou pelo R-20261114-132600 e a conferência com `planos.ts` e a ADR 0046 está no §11.9.
 - **Simulações de registro** `depois-03-nova-empresa`, `depois-04-bases`, `depois-05-integracao`, `depois-06-aba-empresa`: apagadas (MC-0036); no git até o commit `8fa541e`.
 - **§8 e §11.4 da manhã de 14/11** (aba Empresa com o título "Plano" + linha do nome, tabela Licenças · Em uso · Contratadas com "2 · no limite", seletor "Trocar de plano" aberto no lugar do cartão, cartões em uma coluna; antes disso, o cartão "Módulos e licenças" + "Acrescentar módulos" com os resultados "Módulos acrescentados: Catálogo."/"Nada mudou."): substituídos pela refação do R-20261114-170200 (§8, tabela antes × depois); no git até `9b4dd17`.
