@@ -48,6 +48,7 @@ import {
   tomDaCor,
 } from '../../lib/farol';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
+import { CurvasAbcParametrosPanel } from './curvas-abc-parametros-panel';
 import { FarolParametrosPanel } from './farol-parametros-panel';
 
 const CAMPO =
@@ -422,6 +423,9 @@ export function FarolPage() {
       <FarolConteudo />
       <div id="farol-parametros" className="mt-5 w-full max-w-[1280px]">
         <FarolParametrosPanel />
+      </div>
+      <div id="curvas-abc-parametros" className="mt-5 w-full max-w-[1280px]">
+        <CurvasAbcParametrosPanel />
       </div>
     </Suspense>
   );

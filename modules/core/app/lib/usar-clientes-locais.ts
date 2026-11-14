@@ -2,12 +2,13 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteUltimaVisitaSync, ClienteFinanceiroSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteUltimaVisitaSync, ClienteFinanceiroSync, VisitaSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
 import type { LinhaSync } from '@macuxi/platform-sdk';
+import type { PedidoItemSync, PedidoSync } from '../../../vendedor/contracts';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { dataLocal, fotosComPendentes, pedidosVisiveisNoAparelho, type FotoPdvPush } from '../../domain';
+import { dataLocal, faixasCurvaAbcDasLinhas, PARAMETROS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasPorDimensao, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
 import { useCore } from './usar-core';
@@ -33,9 +34,15 @@ export interface ClientesLocais extends BaseLocal {
    * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
    */
   verPedidos: boolean;
+  /** RN-CORE-49: faixas das curvas ABC do tenant (parâmetros `cliente.curva_abc.<dimensão>`; ausente = padrão por dimensão). */
+  faixasCurva: FaixasPorDimensao;
+  /** RN-CORE-50 (aba Performance): pedidos, itens e visitas já sincronizados no aparelho, para prazo médio, últimos itens e visitas. Contratos do Vendedor (só leitura). */
+  pedidos: readonly PedidoSync[];
+  pedidoItens: readonly PedidoItemSync[];
+  visitasSync: readonly VisitaSync[];
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [] };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -47,7 +54,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, ultimasVisitas] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, ultimasVisitas, pedidos, pedidoItens, visitasSync] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -59,9 +66,12 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<FotoTipoSync>('foto_tipo'),
         motor.linhas<ClienteFotoSync>('cliente_foto'),
         motor.linhas<ClienteUltimaVisitaSync>('cliente_ultima_visita'),
+        motor.linhas<PedidoSync>('pedido'),
+        motor.linhas<PedidoItemSync>('pedido_item'),
+        motor.linhas<VisitaSync>('visita'),
       ]);
       const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null) });
     })();
     return () => {
       ativo = false;

@@ -494,6 +494,7 @@ export * from './enderecos';
 export * from './usuarios';
 export * from './inicio';
 export * from './inicio-parametros';
+export * from './curvas-abc';
 export * from './farol';
 export * from './etapas-pendencia';
 export * from './plano-rv';

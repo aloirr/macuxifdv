@@ -50,3 +50,5 @@ export * from './canal-cliente';
 export * from './filial';
 export * from './fotos-pdv';
 export * from './entrada-sync';
+export * from './curvas-abc';
+export * from './performance-cliente';

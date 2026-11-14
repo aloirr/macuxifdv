@@ -10,9 +10,11 @@ describe('T-0147: botões de ação da ficha (spec permissoes-e-fotos-pdv §2)',
     expect(fonte).toMatch(/actionOff: \{[^}]*backgroundColor: colors\.neutralBg/);
     expect(fonte).not.toMatch(/opacity: 0\.4/);
   });
-  it('RN-CORE-38: Foto do PDV lê "Ver foto do PDV" e, desligado, "sem foto da fachada"', () => {
+  it('RN-CORE-38: Foto do PDV (aba Anexos) lê "Ver foto do PDV" e, desligado, "sem foto da fachada"', () => {
     expect(fonte).toContain('rotuloLigado="Ver foto do PDV"');
     expect(fonte).toContain('rotuloDesligado="Foto do PDV indisponível: sem foto da fachada"');
     expect(fonte).toContain('icon="galeria"');
+    // 14/11: a Foto do PDV saiu dos atalhos de contato e vive em Anexos
+    expect(fonte.slice(fonte.indexOf('export function AcoesContato'), fonte.indexOf('/** Aba Anexos'))).not.toContain('Foto do PDV"');
   });
 });
