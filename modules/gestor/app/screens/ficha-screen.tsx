@@ -5,6 +5,7 @@
  * simplesmente não aparece (RN-CORE-03). RN-PRO-01: na ficha do promotor nunca há pedido.
  */
 import { formatBRL0 } from '@macuxi/comum';
+import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { BackLink, Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
@@ -90,7 +91,7 @@ function Secoes({ p }: { p: PainelDia }) {
       <Cartao preenchimento={14} gap={6}>
         <Text style={t.h2}>Visitas</Text>
         <Linha rotulo="Realizadas" valor={fracao(p.visitas.realizadas, p.visitas.planejadas)} />
-        <Linha rotulo="Cobertura da rota" valor={p.visitas.cobertura_pct === null ? '—' : pct(Math.round(p.visitas.cobertura_pct))} />
+        <Linha rotulo={ROTULO_INDICADOR_META.cobertura_pct} valor={p.visitas.cobertura_pct === null ? '—' : pct(Math.round(p.visitas.cobertura_pct))} />
         <Linha rotulo="Tempo em cliente" valor={`${Math.round(p.visitas.tempo_total_min)} min`} />
         {p.visitas.curtas > 0 ? <Linha rotulo="Visitas curtas" valor={String(p.visitas.curtas)} /> : null}
       </Cartao>

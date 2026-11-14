@@ -8,6 +8,7 @@
 import { Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { formatBRL0 } from '@macuxi/comum';
+import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, ErrorBlock, FilterBar, KpiCard, KpiGrid, LoadingBlock, PageHeader, Panel, TableScroll, td, tdNum, th, thNum, type BadgeTone } from '@macuxi/ui/web';
 import type { StatusDia } from '../../contracts';
@@ -61,7 +62,7 @@ function Conteudo() {
           <KpiGrid>
             <KpiCard label="Em visita" value={v.resumo.em_visita} sub={`${v.resumo.em_rota} em rota · ${v.resumo.sem_checkin} sem check-in`} />
             <KpiCard label="Vendas do dia" value={brl(v.resumo.vendas_cents)} sub={`${v.resumo.pedidos ?? 0} pedidos`} />
-            <KpiCard label="Cobertura da rota" value={pct(v.resumo.cobertura_pct)} sub={`${v.resumo.visitas_planejadas_realizadas} de ${v.resumo.visitas_planejadas} planejadas`} />
+            <KpiCard label={ROTULO_INDICADOR_META.cobertura_pct} value={pct(v.resumo.cobertura_pct)} sub={`${v.resumo.visitas_planejadas_realizadas} de ${v.resumo.visitas_planejadas} planejadas`} />
             <KpiCard label="Meta do mês" value={pct(v.resumo.atingimento_pct)} sub={v.resumo.meta_cents === null ? 'sem meta' : `meta ${brl(v.resumo.meta_cents)}`} />
             <KpiCard label="A faturar" value={brl(v.resumo.a_faturar_cents)} sub={`faturado ${brl(v.resumo.faturado_cents)}`} />
           </KpiGrid>
