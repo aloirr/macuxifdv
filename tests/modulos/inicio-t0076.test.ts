@@ -189,22 +189,39 @@ describe('Critério 5 — Cliente 360 sem "Ver catálogo": rodapé [Visitado] + 
     expect(acoesDoRodapeCliente(visao('campo', 'vendedor', ['core', 'catalogo']).extensoes<{ destaque?: boolean }>('cliente.acoes'))).toEqual([]);
   });
 
-  it('a tela monta o rodapé com o botão Check-in/Visitado/Checkout e acoesDoRodapeCliente (sem outras ações)', () => {
+  it('a tela monta o rodapé com o botão da visita e acoesDoRodapeCliente (sem outras ações); o check-in segue pelo Início e pela Rota', () => {
     const tela = ler('modules/core/app/telas/cliente.tsx');
-    expect(tela).toContain("visited ? 'Visitado' : 'Check-in'");
     const rodape = tela.slice(tela.indexOf('<View style={styles.footer}>'), tela.indexOf('<CheckinSheet'));
-    expect(rodape).toContain('label={visitLabel}');
     expect(rodape).toContain('acoesDoRodapeCliente(acoes).map(');
-    expect(rodape.match(/<Button\b/g)).toHaveLength(2);
+    if (tela.includes("visited ? 'Visitado' : 'Check-in'")) {
+      // ficha até o #217: [Check-in/Visitado/Checkout] + [+ Novo pedido]
+      expect(rodape).toContain('label={visitLabel}');
+      expect(rodape.match(/<Button\b/g)).toHaveLength(2);
+    } else {
+      // ficha do #217 (RN-CORE-51, 14/11): sem Check-in/Visitado no rodapé; "Checkout" só com atendimento aberto, "Pesquisa" e o + Novo pedido
+      expect(rodape).not.toMatch(/'Check-in'|"Check-in"|'Visitado'|"Visitado"/);
+      expect(rodape).toMatch(/\{botoes\.checkout \? \(\s*<Button[^>]*label="Checkout"/);
+      expect(rodape).toMatch(/\{botoes\.pesquisa \? \(\s*<Button[^>]*label="Pesquisa"/);
+      expect(rodape.match(/<Button\b/g)).toHaveLength(3);
+      // o check-in continua: Início e Rota abrem a ficha com ?checkin=1 e a ficha inicia o check-in
+      expect(tela).toContain("params.checkin === '1'");
+      expect(ler('modules/core/app/lib/navegacao.ts')).toContain("q.set('checkin', '1')");
+    }
   });
 
   it('"Última compra" uma vez só: a tela passa os cartões à grade do Cliente 360, que então não repete o seu', () => {
     const tela = ler('modules/core/app/telas/cliente.tsx');
     expect(tela.match(/label="Última compra"/g)).toHaveLength(1);
-    expect(tela).toMatch(/<SecoesCliente360 ficha=\{ficha\} indicadoresIniciais=\{indicadoresDoCliente\} \/>/);
     const c360 = ler('modules/core/app/components/cliente360.tsx');
     expect(c360.match(/label="Última compra"/g)).toHaveLength(1);
-    expect(c360).toMatch(/\{indicadoresIniciais \? null : <Stat label="Última compra"/);
+    if (tela.includes('<SecoesCliente360')) {
+      expect(tela).toMatch(/<SecoesCliente360 ficha=\{ficha\} indicadoresIniciais=\{indicadoresDoCliente\} \/>/);
+      expect(c360).toMatch(/\{indicadoresIniciais \? null : <Stat label="Última compra"/);
+    } else {
+      // ficha do #217: com a ficha, o Resumo usa IndicadoresResumo; o cartão da tela só aparece sem ficha (ramo `customer`)
+      expect(tela).toMatch(/\{ficha \? \([\s\S]*?<IndicadoresResumo ficha=\{ficha\} hoje=\{hoje\} \/>[\s\S]*?\) : customer \? \([\s\S]*?label="Última compra"/);
+      expect(c360).toMatch(/export function IndicadoresResumo[\s\S]*?<Stat label="Última compra"/);
+    }
   });
 });
 
