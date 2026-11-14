@@ -14,12 +14,19 @@ import { cardsDeProdutividade, cardsDeResultados, type CardProdutividade, type C
 
 // ---------- painel do topo ----------
 
-/** RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". */
+/** Espaço que não quebra a linha: "DU 9 de 20" e "Últ. sincronização" nunca se partem no meio. */
+const NBSP = '\u00a0';
+const semQuebra = (texto: string): string => texto.replace(/ /g, NBSP);
+
+/**
+ * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". O "·" e o trecho
+ * depois dele não quebram: se não couberem na linha, descem juntos (o "·" não fica pendurado no fim).
+ */
 export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' | 'du_total'>): string {
   const [, mes, dia] = hoje.split('-').map(Number);
   const semana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
   const data = `${WEEKDAYS[semana]}, ${dia} de ${MONTHS[(mes ?? 1) - 1]}`;
-  return `${data} · ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`;
+  return `${data} ${semQuebra(`· ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`)}`;
 }
 
 /** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */
@@ -132,7 +139,7 @@ export function contarSino(itens: readonly ItemParaContar[]): ContagemSino {
   return { recados, tarefas, total: recados + tarefas };
 }
 
-/** "Últ. sincronização 20:22" no fuso do tenant; nunca sincronizou: null. */
+/** "Últ. sincronização" e, na linha de baixo, "20:22" no fuso do tenant (ao lado do Sincronizar, em 2 linhas); nunca sincronizou: null. */
 export function textoUltimaSincronizacao(sincronizadoEm: string | null | undefined, fuso: string): string | null {
-  return sincronizadoEm ? `Últ. sincronização ${formatHHMM(sincronizadoEm, fuso)}` : null;
+  return sincronizadoEm ? `${semQuebra('Últ. sincronização')}\n${formatHHMM(sincronizadoEm, fuso)}` : null;
 }

@@ -14,7 +14,7 @@ import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
-import { comToken, novoIp, SENHA, SEGREDO_JWT, type ApiDeTeste, type Tenant } from './api';
+import { comToken, criarReceitaFalsa, novoIp, SENHA, SEGREDO_JWT, type ApiDeTeste, type ConsultaCnpjDeTeste, type Tenant } from './api';
 
 /** Senha da base de demo nos testes (fixa: não depende de `MACUXI_SENHA_DEMO` do .env). */
 export const SENHA_DEMO = 'demo-macuxi';
@@ -77,7 +77,10 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
   const admin = blindarPool(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
   const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
-  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: false, arquivos: null });
+  // ADR 0048 (PR #243): Receita falsa, sem rede (a demo sobe sem o portal; no `main` a opção é ignorada)
+  const receita = criarReceitaFalsa();
+  const comReceita: { consultaCnpj: ConsultaCnpjDeTeste } = { consultaCnpj: receita.consulta };
+  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: false, arquivos: null, ...comReceita });
   await app.ready();
 
   const entrar: ApiDeTeste['entrar'] = (email, o = {}) =>
@@ -98,6 +101,7 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
     sqlPortal: [],
     banco,
     modulos,
+    receita,
     hoje,
     entrar,
     async sessao(email): Promise<SessaoResposta> {
