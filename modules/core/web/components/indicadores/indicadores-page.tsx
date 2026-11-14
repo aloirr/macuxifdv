@@ -59,7 +59,7 @@ function IndicadoresConteudo() {
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="indicadores.tela">
       <PageHeader
         title="Indicadores"
-        subtitle="Visitados, cobertura de rota, positivação e meta × realizado por pessoa. Os números são os mesmos do aplicativo."
+        subtitle="Visitados, cobertura de rota, positivação e meta × realizado por pessoa."
         actions={
           <>
           <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar os indicadores" data-testid="indicadores.atualizar">
