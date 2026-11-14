@@ -80,7 +80,6 @@ describe.skipIf(semBanco())('T-0039 — etapa pendente no app (Rota, ficha, noti
     const agora = new Date();
     const rota = effectiveRoute(estado.rota, estado.visitas, agora, c.acao.tz);
     const naFila = c.ap.motor.estado().fila.length;
-    const semSinal = !c.ap.online.valor;
     const caixa = montarCaixa(await c.ap.motor.linhas<NotificacaoSync & LinhaSync>('notificacao'), c.ap.motor.sobreposicao(['notificacao_leitura']), agora);
     return {
       estado,
@@ -93,7 +92,7 @@ describe.skipIf(semBanco())('T-0039 — etapa pendente no app (Rota, ficha, noti
       /** Banner da ficha do cliente (telas/cliente.tsx). */
       aviso: (clienteId: string) => {
         const p = visitaComEtapaPendente(estado.visitas, clienteId);
-        return p ? avisoDeEtapaPendente({ ...p, agora, fuso: c.acao.tz, naFila, semSinal }) : null;
+        return p ? avisoDeEtapaPendente({ ...p, agora, fuso: c.acao.tz, naFila }) : null; // RD-0181: o sinal não entra no aviso (só a fila)
       },
       caixa,
     };
