@@ -130,6 +130,7 @@ export type EscolhaNaCriacao = z.output<typeof EscolhaNaCriacaoSchema>;
 /**
  * Corpo de `POST /v1/plataforma/empresas-com-plano` (só super-admin): o passo Empresa (`CriarEmpresaSchema`) sem `modulos`, que
  * saem do plano (`modulosDaAssinatura`), mais a `assinatura`. O resto (admin inicial, parâmetros, `simular`) é igual.
+ * Sem `codigo` e sem `tenant_id`, o `assinatura.pedido_id` é o id do tenant novo (chave de idempotência do sorteio da 0068).
  */
 export const CriarEmpresaComPlanoSchema = CriarEmpresaSchema.omit({ modulos: true }).extend({ assinatura: EscolhaNaCriacaoSchema });
 export type CriarEmpresaComPlano = z.output<typeof CriarEmpresaComPlanoSchema>;
@@ -361,6 +362,14 @@ export function fimDoTeste(hoje: string, dias: number): string | null {
   const d = new Date(`${hoje}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + dias - 1);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Coluna Plano da lista de empresas (R-20261114-170600): em teste = assinatura não paga e hoje (no fuso da empresa) até o fim do
+ * teste, inclusive. Teste vencido sem pagamento não é "em teste" (é o `TESTE_VENCIDO` da RN-PLA-04).
+ */
+export function emTeste(situacao: { testeAte: string | null; paga: boolean }, hoje: string): boolean {
+  return !situacao.paga && situacao.testeAte !== null && hoje <= situacao.testeAte;
 }
 
 /** Linhas por item (`plataforma.licencas_do_tenant()`) → registros; item ausente = sem limite e 0 em uso. */

@@ -40,7 +40,8 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp } from './erros';
-import { criarEmpresaNoPortal, marcarPortal, type DepsCriarEmpresa } from './plataforma';
+import type { ConsultaCnpj } from './consulta-cnpj';
+import { criarEmpresaNoPortal, exigirCnpjAtivo, marcarPortal, type DepsCriarEmpresa } from './plataforma';
 
 /** Assinatura gravada pela `sa_gravar_assinatura` (idempotente: uma por tenant). */
 export interface EntradaAssinatura {
@@ -87,6 +88,8 @@ export interface DepsPlanosPortal extends DepsCriarEmpresa {
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
   /** Relógio (o "hoje" do teste grátis no fuso da empresa). */
   relogio?: () => Date;
+  /** ADR 0048, item 8: a Receita confere o CNPJ (só ATIVA cria) e dá a UF do código da licença, como no passo Empresa. */
+  consultaCnpj: ConsultaCnpj;
 }
 
 const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
@@ -184,7 +187,10 @@ export function registrarRotasPlanosPortal(app: FastifyInstance, dep: DepsPlanos
     if (problemas.length > 0) recusar(problemas);
     // os módulos saem do plano (RN-PLA-01): o mesmo fluxo do passo Empresa, sem teto de licença por módulo (a trava é a RN-PLA-04)
     const modulos = modulosDaAssinatura(plano, escolha.adicionais).map((modulo) => ({ modulo, licencas: null }));
-    const { status, resposta } = await criarEmpresaNoPortal(dep, quem, { ...empresa, modulos });
+    // sem código e sem tenant_id: o pedido_id (UUID gerado no portal, um por "Nova empresa") é o id do tenant novo e a chave de
+    // idempotência do sorteio (0068): reenviar o mesmo pedido cai na mesma empresa, com o mesmo código
+    const tenantId = empresa.tenant_id ?? (empresa.codigo === undefined ? escolha.pedido_id : undefined);
+    const { status, resposta } = await criarEmpresaNoPortal(dep, quem, { ...empresa, ...(tenantId ? { tenant_id: tenantId } : {}), modulos }, () => exigirCnpjAtivo(req, dep.consultaCnpj, empresa.cnpj, reply));
     if (resposta.tenant_id) marcarPortal(req, { quem, tenantId: resposta.tenant_id });
     const testeAte = escolha.com_teste ? fimDoTeste(localIsoDate(relogio(), empresa.fuso), plano.dias_teste) : null;
     let assinatura: 'criada' | 'existente' | 'simulada' = 'simulada';

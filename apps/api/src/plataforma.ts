@@ -17,12 +17,15 @@
 import { randomBytes } from 'node:crypto';
 import * as apiDoCore from '@macuxi/core/api';
 import { faltasNaSenha } from '@macuxi/core/contracts';
+import { localIsoDate } from '@macuxi/comum/fuso';
 import { hashSenha } from '@macuxi/db';
 import {
   APPS_COM_LOGIN,
   CargaEmailSchema,
   cnpjComDigitosValidos,
   CODIGOS_CNPJ,
+  emTeste,
+  EmpresaResumoSchema,
   situacaoCriaEmpresa,
   ListaAdminsDaEmpresaSchema,
   perfilUsaApp,
@@ -38,6 +41,7 @@ import {
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
   type AcessoPortalAutenticado,
+  type ConsultaCnpjResposta,
   type Manifesto,
   type ModuloId,
   type TipoAcessoPortal,
@@ -88,7 +92,12 @@ export interface AdminInicialProvisionar {
  * com 22023; RN-CORE-31: o portal não troca senha de admin existente).
  */
 export interface EntradaProvisionarPlataforma {
-  codigo: string;
+  /** Ausente = código da licença sorteado pelo banco para a `uf` (0068); aí `id` e `uf` vão sempre. */
+  codigo?: string;
+  /** UUID do tenant gerado no portal: id do tenant novo e chave de idempotência (0068). */
+  id?: string;
+  /** Sigla da UF do CNPJ na Receita (0068: obrigatória sem `codigo`). */
+  uf?: string;
   nome: string;
   documento: string | null;
   fuso: string;
@@ -262,6 +271,8 @@ export const marcaPortal = (req: FastifyRequest): MarcaPortal | undefined => MAR
 /** Resposta da função `sa_provisionar_tenant` (o resumo da T-0083 §3, com os parâmetros gravados e, desde a T-0093, o admin). */
 const RespostaProvisionarPlataformaSchema = z.object({
   tenant_id: z.string().uuid().nullable(),
+  /** 0068: o código do tenant (o informado, o já existente ou o da licença sorteado). */
+  codigo: z.string().optional(),
   resultado: z.enum(['criado', 'atualizado', 'sem_mudanca']),
   modulos_adicionados: z.array(z.string()).default([]),
   parametros_gravados: z.array(z.string()).default([]),
@@ -294,6 +305,8 @@ export interface DepsRotasPlataforma {
   email?: EmailDoPortal | null;
   /** ADR 0048 e R-20261114-144000 (item 3): a Receita confere o CNPJ antes de criar a empresa (sem ela, nada é criado). */
   consultaCnpj: ConsultaCnpj;
+  /** Relógio (o "hoje" do teste grátis na lista, no fuso de cada empresa). */
+  relogio?: () => Date;
 }
 
 /** O que a rota do portal precisa do e-mail: saber se há adaptador e cifrar a carga com o AAD da linha da outbox. */
@@ -308,6 +321,14 @@ const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 const ParamsAdmin = z.object({ tenant_id: z.string().uuid(), usuario_id: z.string().uuid() }).strict();
 const codigoPg = (e: unknown): unknown => (e as { code?: unknown } | null)?.code;
 
+/**
+ * Lista como a `sa_listar_tenants` devolve (R-20261114-170600): com a assinatura (0047), o nome do plano, o fim do teste e se já
+ * está paga; a API tira o `paga` e calcula o `em_teste` no fuso de cada empresa. Sem os campos (banco de antes) = sem plano.
+ */
+const ListaEmpresasDoBancoSchema = z.object({
+  itens: z.array(EmpresaResumoSchema.omit({ em_teste: true }).extend({ paga: z.boolean().default(false) })),
+});
+
 /** Segundos sugeridos no `Retry-After` quando a Receita está fora. */
 const ESPERA_RECEITA_FORA_S = 30;
 
@@ -316,12 +337,12 @@ const ESPERA_RECEITA_FORA_S = 30;
  * Empresa confere o CNPJ na Receita (mesma consulta e cache do `POST /v1/plataforma/cnpj`). Só ATIVA segue; não encontrado,
  * outra situação ou a Receita fora recusam, também no `simular`. Log sem o CNPJ.
  */
-async function exigirCnpjAtivo(req: FastifyRequest, consulta: ConsultaCnpj, cnpj: string, reply: FastifyReply): Promise<void> {
+export async function exigirCnpjAtivo(req: FastifyRequest, consulta: ConsultaCnpj, cnpj: string, reply: FastifyReply): Promise<ConsultaCnpjResposta> {
   const r = await consulta.consultar(cnpj);
   req.log.info({ cnpj_empresa: { resultado: r.resultado, cache: r.cache, ...(r.resultado === 'ok' ? { situacao: r.dados.situacao_cadastral, fonte: r.dados.fonte } : {}) } }, 'CNPJ da empresa na Receita');
   if (r.resultado === 'ok') {
     const situacao = r.dados.situacao_cadastral;
-    if (situacaoCriaEmpresa(situacao)) return;
+    if (situacaoCriaEmpresa(situacao)) return r.dados;
     throw new ErroHttp(422, CODIGOS_CNPJ.inativo, `Este CNPJ não está ativo na Receita (situação: ${situacao}). A empresa não foi criada.`, { campo: 'cnpj', situacao_cadastral: situacao });
   }
   if (r.resultado === 'invalido') throw new ErroHttp(400, CODIGOS_CNPJ.invalido, 'CNPJ inválido: confira os dígitos.', { campo: 'cnpj' });
@@ -335,6 +356,19 @@ async function exigirCnpjAtivo(req: FastifyRequest, consulta: ConsultaCnpj, cnpj
 /** Módulos que o portal liga sempre: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub). */
 export const MODULOS_SEMPRE_NO_PORTAL: readonly ModuloId[] = ['core', 'integracao'];
 
+/**
+ * UF que vai ao sorteio do código da licença (empresa sem `codigo`; ADR 0048, adendo): a da Receita; a do corpo só quando a
+ * Receita não tem (sede no exterior). Diferentes = 422 `UF_DIFERENTE_DA_RECEITA`; nenhuma = 422 `UF_OBRIGATORIA`.
+ */
+function ufDoSorteio(ufCorpo: string | undefined, receita: ConsultaCnpjResposta): string {
+  if (ufCorpo !== undefined && receita.uf !== null && ufCorpo !== receita.uf) {
+    throw new ErroHttp(422, CODIGOS_CNPJ.ufDiferente, `A UF do CNPJ na Receita é ${receita.uf}. Confira a UF.`, { campo: 'uf', uf_receita: receita.uf });
+  }
+  const uf = receita.uf ?? ufCorpo;
+  if (!uf) throw new ErroHttp(422, CODIGOS_CNPJ.ufObrigatoria, 'Informe a UF da empresa.', { campo: 'uf' });
+  return uf;
+}
+
 /** O que `criarEmpresaNoPortal` precisa (o mesmo de `registrarRotasPlataforma`). */
 export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso' | 'fonte' | 'senha'>;
 
@@ -342,15 +376,19 @@ export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso'
  * Passo Empresa do portal (RN-CORE-31/32/34; desenho T-0087 §6 e T-0093 §6): o corpo do `POST /v1/plataforma/empresas`, reusado
  * pelo `POST /v1/plataforma/empresas-com-plano` (ADR 0047). Quem chama já conferiu o super-admin e validou `e`; marca a auditoria
  * com o `tenant_id` da resposta e responde com o `status`. `conferirCnpj` roda depois das validações locais e antes do banco
- * (ADR 0048, item 8: a Receita confere o CNPJ, também no `simular`).
+ * (ADR 0048, item 8: a Receita confere o CNPJ, também no `simular`) e dá a UF do sorteio do código da licença (sem `codigo`).
  */
 export async function criarEmpresaNoPortal(
   dep: DepsCriarEmpresa,
   quem: AcessoPortalAutenticado,
   e: CriarEmpresa,
-  conferirCnpj?: () => Promise<void>,
+  conferirCnpj: () => Promise<ConsultaCnpjResposta>,
 ): Promise<{ status: 200 | 201; resposta: z.output<typeof CriarEmpresaRespostaSchema> }> {
   const senha = dep.senha ?? senhaDoCore;
+  // sem código, o tenant_id do portal é a chave de idempotência do sorteio (0068): reenviar sem ele sortearia outro código
+  if (e.codigo === undefined && e.tenant_id === undefined) {
+    throw new ErroHttp(400, 'VALIDACAO', 'Sem código, envie o tenant_id (UUID gerado no portal).', { campo: 'tenant_id' });
+  }
   const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
   const licencas = Object.fromEntries(e.modulos.filter((m) => m.licencas !== null).map((m) => [m.modulo, m.licencas as number]));
   const plano = planoDeOnboardingSemAdmin({ codigo: e.codigo, nome: e.razao_social, documento: e.cnpj, fuso: e.fuso, modulos: [...pedidos], licencas }, dep.manifestos);
@@ -368,11 +406,16 @@ export async function criarEmpresaNoPortal(
     if (problema) throw new ErroHttp(422, 'RN-CORE-32', problema.mensagem, { campo: 'admin.senha', faltas: [...problema.faltas] });
     admin = { email, nome: e.admin.nome, senha_hash: await senha.hash(e.admin.senha) };
   }
-  if (conferirCnpj) await conferirCnpj();
+  const receita = await conferirCnpj();
+  // sem código: o banco sorteia o código da licença para a UF (0068), com o tenant_id do portal como chave de idempotência
+  const { codigo, ...tenant } = plano.plano.tenant;
+  const identificacao = codigo !== null ? { codigo } : { uf: ufDoSorteio(e.uf, receita) };
   // parâmetros iniciais só valem para o Vendedor licenciado (sem ele, as chaves ficariam soltas)
   const parametros = pedidos.has('vendedor') ? linhasDosParametrosIniciais(e.parametros) : [];
   const entrada: EntradaProvisionarPlataforma = {
-    ...plano.plano.tenant,
+    ...identificacao,
+    ...(e.tenant_id ? { id: e.tenant_id } : {}),
+    ...tenant,
     modulos: plano.plano.modulos.map((m) => ({ modulo: m.modulo, licencas: m.licencas, perfis: [...m.perfis] })),
     parametros,
     ...(admin ? { admin } : {}),
@@ -386,9 +429,11 @@ export async function criarEmpresaNoPortal(
   }
   const r = RespostaProvisionarPlataformaSchema.safeParse(bruto);
   if (!r.success) throw new Error('sa_provisionar_tenant devolveu formato diferente do combinado (desenho T-0087 §6)');
+  const codigoGravado = r.data.codigo ?? codigo;
+  if (!codigoGravado) throw new Error('sa_provisionar_tenant não devolveu o código sorteado (0068)');
   const resposta = CriarEmpresaRespostaSchema.parse({
     tenant_id: r.data.tenant_id,
-    codigo: plano.plano.tenant.codigo,
+    codigo: codigoGravado,
     resultado: r.data.resultado,
     modulos_adicionados: r.data.modulos_adicionados.filter((m) => pedidos.has(m as ModuloId)),
     parametros_gravados: r.data.parametros_gravados,
@@ -402,6 +447,7 @@ export async function criarEmpresaNoPortal(
 /** `GET|POST /v1/plataforma/empresas`. */
 export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPlataforma): void {
   const senha = dep.senha ?? senhaDoCore;
+  const relogio = dep.relogio ?? (() => new Date());
   const exigir = async (req: FastifyRequest): Promise<AcessoPortalAutenticado> => {
     const quem = await dep.autenticar(req);
     if (!quem) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Entre no portal para continuar.');
@@ -412,9 +458,16 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
   // os dois tipos (T-0093 §4): a função filtra; o admin do cliente vê só as empresas da sessão, também antes de escolher
   app.get('/v1/plataforma/empresas', async (req) => {
     const quem = await exigir(req);
-    const r = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
+    const r = ListaEmpresasDoBancoSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     if (!r.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
-    return r.data;
+    const agora = relogio();
+    return ListaEmpresasSchema.parse({
+      itens: r.data.itens.map(({ paga, teste_ate, ...x }) => ({
+        ...x,
+        teste_ate: paga ? null : teste_ate,
+        em_teste: emTeste({ testeAte: teste_ate, paga }, localIsoDate(agora, x.fuso)),
+      })),
+    });
   });
 
   app.post('/v1/plataforma/empresas', async (req, reply) => {

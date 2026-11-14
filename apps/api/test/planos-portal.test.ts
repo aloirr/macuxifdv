@@ -8,10 +8,13 @@ import {
   FichaAssinaturaSchema,
   ITENS_CONTADOS,
   type AcessoPortalAutenticado,
+  type ConsultaCnpjResposta,
   type Plano,
+  type SituacaoCadastral,
 } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import type { ConsultaCnpj } from '../src/consulta-cnpj';
 import type { EntradaAssinatura, EntradaTrocaDePlano, FontePlanosPortal } from '../src/planos-portal';
 import { fontePlataformaNoBanco, type EntradaProvisionarPlataforma, type FontePlataforma, type LinhaAuditoriaPlataforma, type SenhaDoPortal } from '../src/plataforma';
 import { bancoFalso, bancoPortalFalso, opcoesDeTeste } from './apoio';
@@ -67,7 +70,30 @@ const fichaCrua = (tenant: string, em: Partial<Record<string, number>> = {}) => 
   atualizada_em: '2026-11-14T12:00:00+00:00',
 });
 
-function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>; semAssinatura?: boolean } = {}) {
+/** Receita falsa (sem rede; ADR 0048): o CNPJ do corpo, ativo e em Roraima por padrão. */
+const RECEITA: ConsultaCnpjResposta = {
+  cnpj: '11222333000181',
+  razao_social: 'DISTRIBUIDORA NOVA LTDA',
+  nome_fantasia: null,
+  endereco: { logradouro: null, numero: null, complemento: null, bairro: null },
+  municipio: 'BOA VISTA',
+  uf: 'RR',
+  cep: null,
+  situacao_cadastral: 'ativa',
+  cnae_principal: null,
+  telefone: null,
+  email: null,
+  fonte: 'brasilapi',
+};
+
+function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>; semAssinatura?: boolean; situacao?: SituacaoCadastral } = {}) {
+  const consultasCnpj: string[] = [];
+  const consultaCnpj: ConsultaCnpj = {
+    consultar: async (cnpj) => {
+      consultasCnpj.push(cnpj);
+      return { resultado: 'ok', cache: false, tentativas: [], dados: { ...RECEITA, cnpj, situacao_cadastral: op.situacao ?? 'ativa' } };
+    },
+  };
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const provisionados: { entrada: EntradaProvisionarPlataforma; simular: boolean }[] = [];
   const gravadas: { tenant: string; e: EntradaAssinatura }[] = [];
@@ -77,7 +103,7 @@ function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>;
     auditar: async (l) => void auditoria.push(l),
     provisionar: async (_q, entrada, simular) => {
       provisionados.push({ entrada, simular });
-      return { tenant_id: simular ? null : NOVA, resultado: 'criado', modulos_adicionados: entrada.modulos.map((m) => m.modulo), parametros_gravados: [], avisos: [], admin: 'criado' };
+      return { tenant_id: simular ? null : NOVA, codigo: entrada.codigo ?? `${entrada.uf}0007`, resultado: 'criado', modulos_adicionados: entrada.modulos.map((m) => m.modulo), parametros_gravados: [], avisos: [], admin: 'criado' };
     },
   };
   const fontePlanos: FontePlanosPortal = {
@@ -100,11 +126,12 @@ function montar(op: { ligado?: boolean; emUso?: Partial<Record<string, number>>;
       plataforma,
       senhaPortal,
       fontePlanos,
+      consultaCnpj,
       relogio: () => new Date('2026-11-14T15:00:00Z'),
       ...(op.ligado === false ? {} : { planosPortal: true }),
     }),
   );
-  return { app, auditoria, provisionados, gravadas, trocas };
+  return { app, auditoria, provisionados, gravadas, trocas, consultasCnpj };
 }
 
 const sa = { 'x-quem': 'sa' };
@@ -196,6 +223,40 @@ describe('Portal › Planos e licenças (ADR 0047)', () => {
     const r3 = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas-com-plano', headers: sa, payload: nenhum });
     expect([r3.statusCode, r3.json().codigo]).toEqual([422, 'PLANO_DESCONHECIDO']);
     expect(provisionados).toHaveLength(1);
+  });
+
+  it('criar com plano sem código: confere o CNPJ na Receita e o banco sorteia o código da licença pela UF dela', async () => {
+    const { app, provisionados, consultasCnpj } = montar();
+    const { codigo: _codigo, ...semCodigo } = corpoEmpresa();
+    const r = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas-com-plano', headers: sa, payload: { ...semCodigo, tenant_id: NOVA } });
+    expect(r.statusCode).toBe(201);
+    expect(consultasCnpj).toEqual(['11222333000181']);
+    expect(provisionados[0]?.entrada).toMatchObject({ id: NOVA, uf: 'RR' });
+    expect(provisionados[0]?.entrada).not.toHaveProperty('codigo');
+    expect(r.json()).toMatchObject({ tenant_id: NOVA, codigo: 'RR0007', assinatura: 'criada' });
+  });
+
+  it('criar com plano como a tela "Nova empresa" manda (sem código, sem tenant_id, com uf): o pedido_id é o id do tenant novo', async () => {
+    const { app, provisionados } = montar();
+    const { codigo: _codigo, ...semCodigo } = corpoEmpresa();
+    const corpo = { ...semCodigo, uf: 'RR', fuso: 'America/Boa_Vista' };
+    for (let i = 0; i < 2; i++) {
+      const r = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas-com-plano', headers: sa, payload: corpo });
+      expect(r.statusCode).toBe(201);
+    }
+    // reenvio do mesmo pedido = mesma chave de idempotência (o banco não sorteia outro código)
+    expect(provisionados.map((p) => p.entrada.id)).toEqual([PEDIDO, PEDIDO]);
+    expect(provisionados[0]?.entrada).toMatchObject({ uf: 'RR' });
+    expect(provisionados[0]?.entrada).not.toHaveProperty('codigo');
+  });
+
+  it('criar com plano: CNPJ fora da situação ATIVA = 422 CNPJ_INATIVO, sem provisionar nem gravar a assinatura (também no simular)', async () => {
+    const { app, provisionados, gravadas } = montar({ situacao: 'baixada' });
+    for (const simular of [false, true]) {
+      const r = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas-com-plano', headers: sa, payload: corpoEmpresa(simular) });
+      expect([r.statusCode, r.json().codigo]).toEqual([422, 'CNPJ_INATIVO']);
+    }
+    expect([provisionados, gravadas]).toEqual([[], []]);
   });
 
   it('troca abaixo do uso = 422 PLANO_ABAIXO_DO_USO com os problemas, sem chamar a sa_trocar_plano', async () => {

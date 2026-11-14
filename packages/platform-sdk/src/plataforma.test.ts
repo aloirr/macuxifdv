@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
 import { definirModuloApi, problemasConexaoRotaPublica, type RotaModulo, type RotaPublica } from './api';
-import { CriarEmpresaSchema, linhasDosParametrosIniciais, ParametrosIniciaisSchema } from './plataforma';
+import { CriarEmpresaSchema, EmpresaResumoSchema, linhasDosParametrosIniciais, ParametrosIniciaisSchema } from './plataforma';
 
 describe('CriarEmpresaSchema (passo Empresa; RN-CORE-31)', () => {
   const base = { codigo: 'Distribuidora-X', razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'vendedor' }] };
@@ -19,6 +19,23 @@ describe('CriarEmpresaSchema (passo Empresa; RN-CORE-31)', () => {
     expect(CriarEmpresaSchema.safeParse({ ...base, cnpj: '123' }).success).toBe(false);
     expect(CriarEmpresaSchema.safeParse({ ...base, modulos: [{ modulo: 'vendedor' }, { modulo: 'vendedor' }] }).success).toBe(false);
     expect(ParametrosIniciaisSchema.safeParse({ alcada_vendedor_pct: 20 }).success).toBe(false);
+  });
+
+  it('código da licença (R-20261114-170600): sem `codigo`, vai o `tenant_id` do portal (idempotência) e a UF opcional', () => {
+    const { codigo: _semCodigo, ...semCodigo } = base;
+    const tenant_id = '0a000000-0000-4000-8000-0000000000c1';
+    const e = CriarEmpresaSchema.parse({ ...semCodigo, tenant_id, uf: ' am ' });
+    expect(e).toMatchObject({ tenant_id, uf: 'AM' });
+    expect(e.codigo).toBeUndefined();
+    expect(CriarEmpresaSchema.parse({ ...semCodigo, tenant_id }).uf).toBeUndefined();
+    // sem código e sem tenant_id o contrato passa (o portal de antes compila), mas a API recusa: 400 VALIDACAO
+    expect(CriarEmpresaSchema.safeParse(semCodigo).success).toBe(true);
+    expect(CriarEmpresaSchema.safeParse({ ...semCodigo, tenant_id, uf: 'XX' }).success).toBe(false);
+    expect(CriarEmpresaSchema.safeParse({ ...semCodigo, tenant_id: 'dist-a' }).success).toBe(false);
+    // o código da licença (UF+4) é sorteado pelo banco: o portal não o escolhe
+    expect(CriarEmpresaSchema.safeParse({ ...base, codigo: 'AM1234' }).success).toBe(false);
+    // com código (legado e CLI), segue como antes
+    expect(CriarEmpresaSchema.parse({ ...base, tenant_id }).codigo).toBe('distribuidora-x');
   });
 
   it('parâmetros iniciais viram as chaves que o Vendedor lê', () => {
@@ -69,5 +86,18 @@ describe('RotaPublica.conexao portal (T-0091; condição da ADR 0029)', () => {
     expect(problemasConexaoRotaPublica('vendedor', publica('plataforma/auth/login', 'portal'))).toEqual([expect.stringMatching(/só no manifesto core/)]);
     expect(problemasConexaoRotaPublica('core', { ...publica('plataforma/auth/login'), conexao: 'app' as never })).toEqual([expect.stringMatching(/só aceita 'portal'/)]);
     expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [publica('auth/entrar', 'portal')] })).toThrow(/só em caminho plataforma/);
+  });
+});
+
+describe('EmpresaResumoSchema: plano e teste na lista (R-20261114-170600)', () => {
+  const item = { id: '0a000000-0000-4000-8000-0000000000c1', codigo: 'AM0042', razao_social: 'X Ltda', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [] };
+
+  it('sem plano: plano e teste_ate nulos, em_teste falso', () => {
+    expect(EmpresaResumoSchema.parse(item)).toMatchObject({ plano: null, teste_ate: null, em_teste: false });
+  });
+
+  it('com plano em teste: nome do plano, fim do teste (AAAA-MM-DD) e em_teste', () => {
+    expect(EmpresaResumoSchema.parse({ ...item, plano: 'PME', teste_ate: '2026-11-27', em_teste: true })).toMatchObject({ plano: 'PME', teste_ate: '2026-11-27', em_teste: true });
+    expect(EmpresaResumoSchema.safeParse({ ...item, teste_ate: '27/11/2026' }).success).toBe(false);
   });
 });
