@@ -5,6 +5,7 @@
 import { formatBRL } from '@macuxi/comum';
 import type { ItemVitrine } from '../../contracts';
 import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE, rotuloAtualizacaoEstoque } from '../../domain/estoque';
+import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 export type TomCatalogo = 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -20,7 +21,7 @@ export function rotuloPreco(item: ItemVitrine): RotuloPreco | null {
   if (!item.price_stock_visible || !item.price) return null;
   const p = item.price;
   if (p.sellable && p.price_cents !== null) return { texto: formatBRL(p.price_cents), riscado: p.on_promotion && p.base_cents !== null ? formatBRL(p.base_cents) : null, vendavel: true };
-  return { texto: p.notice ?? 'Sem preço', riscado: null, vendavel: false };
+  return { texto: p.notice ?? MENSAGEM_SEM_PRECO_CATALOGO, riscado: null, vendavel: false };
 }
 
 export interface RotuloEstoque {

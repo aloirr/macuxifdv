@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { montarArvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
+import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, subtituloDaGrade, tagDeEstoque } from './grade';
+import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 const no = (id: string, pai: string | null, nivel: number, nome: string): NoCatalogo => ({ id, pai_id: pai, nivel, codigo: id, nome, ordem: 0, ativo: true });
 const arvore = montarArvore([no('S1', null, 1, 'Mercearia'), no('S2', null, 1, 'Bebidas'), no('C1', 'S1', 2, 'Açúcar'), no('C2', 'S1', 2, 'Café'), no('G1', 'C1', 3, 'Refinado')]);
@@ -64,5 +65,16 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(subtituloDaGrade(40)).toBe('40 produtos');
     expect(emLinhas([1, 2, 3])).toEqual([[1, 2], [3]]);
     expect(rotuloAcessivelDoCartao(['Açúcar', null, 'R$ 4,95', ' '])).toBe('Açúcar, R$ 4,95');
+  });
+
+  it('RN-CAT-09 (RD-0246): com equivalência a linha da marca diz "Equivale a <marca> <código>"; sem ela, a marca', () => {
+    expect(linhaDaMarca({ brand: 'Doce Vale', equivale_a: null })).toBe('Doce Vale');
+    expect(linhaDaMarca({ brand: 'Fras-le', equivale_a: { marca_nome: 'Freiomax', codigo: 'CB 3401' } as never })).toBe('Equivale a Freiomax CB 3401');
+  });
+
+  it('RN-CAT-05 (RD-0246): preço do cartão: o valor quando vendável; senão a mensagem única do domain; sem preço visível, nada', () => {
+    expect(precoDoCartao(null)).toBeNull();
+    expect(precoDoCartao({ texto: 'R$ 4,95', riscado: null, vendavel: true })).toBe('R$ 4,95');
+    expect(precoDoCartao({ texto: 'Fora da tabela do cliente', riscado: null, vendavel: false })).toBe(MENSAGEM_SEM_PRECO_CATALOGO);
   });
 });

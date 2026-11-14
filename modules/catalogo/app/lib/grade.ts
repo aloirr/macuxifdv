@@ -4,6 +4,8 @@
  */
 import type { TomEstado } from '@macuxi/ui/mobile';
 import type { ItemVitrine } from '../../contracts';
+import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
+import { textoEquivaleA, type RotuloPreco } from './apresentacao';
 import { filhosDe, produtosDoNo, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 
 export interface FiltroDaGrade {
@@ -59,6 +61,18 @@ export function emLinhas<T>(itens: readonly T[], colunas = 2): T[][] {
   const r: T[][] = [];
   for (let i = 0; i < itens.length; i += colunas) r.push(itens.slice(i, i + colunas));
   return r;
+}
+
+/** Linha da marca do cartão (spec §2, RN-CAT-09): "Equivale a Freiomax CB 3401" quando há equivalência; senão a marca. */
+export function linhaDaMarca(item: Pick<ItemVitrine, 'brand' | 'equivale_a'>): string {
+  const equivale = textoEquivaleA(item);
+  return equivale ? `Equivale a ${equivale}` : item.brand ?? '';
+}
+
+/** Preço do cartão: o valor quando vendável; senão a mensagem única do domain (RN-CAT-05); `null` = o perfil não vê preço. */
+export function precoDoCartao(preco: RotuloPreco | null): string | null {
+  if (!preco) return null;
+  return preco.vendavel ? preco.texto : MENSAGEM_SEM_PRECO_CATALOGO;
 }
 
 /** TalkBack do cartão: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, 6 em estoque". */
