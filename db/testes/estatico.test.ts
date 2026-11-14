@@ -40,7 +40,7 @@ import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } fro
 import { carregarFixtureDosTestes, dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { FUNCOES_SA, FUNCOES_SA_0035, FUNCOES_SA_0042, FUNCOES_SA_0058 } from './funcoes-sa';
-import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
+import { idDeChave, idDeterministico, idFixo, idMedida, idUsuarioPerfil } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { PASTA_DB } from '../src/config';
 import { hashSenha, verificarSenha } from '../src/senha';
@@ -193,6 +193,7 @@ describe('migrações (estático)', () => {
     expect(nomes[65]).toBe('0066_core_meta_produtividade'); // T-0170: core.meta_produtividade, core.deslocamento_dia e 'itens_por_pedido' no CHECK de core.meta.indicador (t0170-meta-produtividade.db.test.ts)
     expect(nomes[66]).toBe('0067_core_cliente_visita_resumo'); // Oficial (14/11): view core.v_cliente_visita_resumo (security_invoker, só select ao app) e 2 índices em core.visita (cliente-visita-resumo.db.test.ts)
     expect(nomes[67]).toBe('0068_plataforma_tenant_numero_licenca'); // R-20261114-130500/131200/131500: código da licença UF + 4 dígitos aleatórios (CHECK aceita os legados ou ^UF[0-9]{4}$), provisionar_tenant sem codigo sorteia pela uf e é idempotente pelo id do chamador, atribuir_codigo_licenca (tenant-numero-licenca.db.test.ts)
+    expect(nomes[68]).toBe('0069_core_cargo_hierarquia'); // decisão do dono (14/11): plataforma.perfil.cargo (5 da plataforma, com promotor), gerente obrigatório do promotor (gatilhos adiados), um perfil vivo por usuário (exclusão adiada) e view core.v_usuario_hierarquia (cargo-hierarquia.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -784,8 +785,9 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     // 0047 (resto do D-MP2): a sa_admins_da_empresa recriada (drop + create, o retorno ganha entra_no_portal; portal-admin-multiperfil.test.ts)
     // 0052 (T-0122 N5): tenant_por_codigo recriada (drop + create, o retorno fica só id e status; tenant-por-codigo-minimo.test.ts)
     // 0058 (T-0158, ADR 0043): as 2 sa_* do diagnóstico (portal) e o expurgo de 90 dias (worker) (diagnostico.test.ts)
+    // 0069 (ADR 0049): a função de gatilho do promotor, conferida no COMMIT do portal (cargo-hierarquia.db.test.ts)
     expect(novas.map((x) => x[1]).sort()).toEqual(
-      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos'].sort(),
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA_0035.map(nome), ...FUNCOES_SA.map(nome).filter((f) => !reescritas039.includes(f)), ...recriadas040, ...FUNCOES_SA_0042.map(nome), 'plataforma.sa_admins_da_empresa', 'plataforma.tenant_por_codigo', ...FUNCOES_SA_0058.map(nome), 'plataforma.expurgar_diagnosticos', 'core.promotor_conferir'].sort(),
     );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
@@ -1001,6 +1003,11 @@ describe('fixture dois-tenants (estático)', () => {
         // core.medida (0018): id determinístico do banco (a semeadura e a fixture gravam a MESMA linha)
         if (t === 'core.medida') {
           expect(l.id).toBe(idMedida(String(l.tenant_id), String(l.sigla)));
+          continue;
+        }
+        // plataforma.usuario_perfil (0069): o vínculo principal com o id do gatilho usuario_perfil_principal (a carga e o gatilho gravam a MESMA linha)
+        if (t === 'plataforma.usuario_perfil') {
+          expect(l.id).toBe(idUsuarioPerfil(String(l.tenant_id), String(l.usuario_id), String(l.perfil_id)));
           continue;
         }
         expect(String(l.id).slice(0, 8)).toBe(dono === A ? 'aaaaaaaa' : 'bbbbbbbb');

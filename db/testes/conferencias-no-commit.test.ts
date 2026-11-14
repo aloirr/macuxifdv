@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { semBanco } from './estado';
-import { comCliente, erroDe, retratoDoCatalogo } from './util';
+import { comCliente, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m49 = migracoes.find((m) => m.versao === '0049')!;
@@ -37,13 +37,12 @@ const AUXILIARES = [
 /** Dados de mentira (nunca de uma pessoa real). */
 const EMAIL_SA = 'operador.t0049@macuxi.exemplo';
 const H1 = '$argon2id$v=19$m=1,t=1,p=1$c2FsdW0$aGFzaHVt';
-const H2 = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 const TODOS = ['admin', 'analista', 'assistente', 'supervisor', 'gerente', 'vendedor', 'promotor'];
 /** Entrada do passo Empresa (a forma de EntradaProvisionarPlataforma em apps/api/src/plataforma.ts), com o admin inicial. */
 const empresa = (codigo: string, email: string) => ({
   codigo, nome: `Distribuidora ${codigo}`, documento: '12345678000195', fuso: 'America/Manaus', plano: 'piloto',
   modulos: [{ modulo: 'core', licencas: null, perfis: TODOS }, { modulo: 'vendedor', licencas: 5, perfis: ['admin', 'vendedor'] }],
-  admin: { email, nome: 'Admin Inicial', senha_hash: H2 },
+  admin: { email, nome: 'Admin Inicial', senha_hash: HASH_TESTE },
 });
 
 describe('0049 conferências do COMMIT como dono (estático)', () => {

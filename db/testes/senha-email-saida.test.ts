@@ -24,7 +24,7 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA } from './funcoes-sa';
-import { emTransacao, erroDe, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m40 = migracoes.find((m) => m.versao === '0040')!;
@@ -53,7 +53,6 @@ const CABECALHO: Record<(typeof SA_0040)[number], string> = {
 };
 
 /** Dados de mentira (nunca de uma pessoa real); hashes no formato PHC, sem senha nenhuma por trás. */
-const H2 = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 const HT = '$argon2id$v=19$m=1,t=1,p=1$dGVtcG9yYXJpYQ$dGVtcG9yYXJpYWhhc2g';
 const EMAIL_CLI = 'cliente.t94@exemplo.com.br';
 const A = DOIS_TENANTS.A.tenantId;
@@ -337,7 +336,7 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
   describe('portal', () => {
     const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
     const usuario = async (tenant: string, email: string) =>
-      (await q<{ id: string }>("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, 'Admin T94', $2, 'admin', true, $3) returning id", [tenant, email, H2]))[0]!.id;
+      (await q<{ id: string }>("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, 'Admin T94', $2, 'admin', true, $3) returning id", [tenant, email, HASH_TESTE]))[0]!.id;
     const contas = (email: string) => portal<Record<string, unknown>>('select * from plataforma.sa_contas_para_login($1)', [email]);
     const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
     const valida = (sid: string) => portal('select * from plataforma.sa_sessao_valida($1)', [sid]);
@@ -351,7 +350,7 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
         const r = await contas(EMAIL_CLI);
         expect(r).toHaveLength(1);
         expect(Object.keys(r[0]!)).toEqual(['tipo', 'conta_id', 'tenant_id', 'tenant_codigo', 'tenant_nome', 'senha_hash', 'trocar_senha', 'senha_expira_em', 'sessao_versao']);
-        expect(r[0]).toMatchObject({ conta_id: uA, senha_hash: H2, trocar_senha: true, sessao_versao: 4 });
+        expect(r[0]).toMatchObject({ conta_id: uA, senha_hash: HASH_TESTE, trocar_senha: true, sessao_versao: 4 });
         expect(r[0]!.senha_expira_em).toBeInstanceOf(Date);
         expect(JSON.stringify(r)).not.toContain(HT);
       });
@@ -401,7 +400,7 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
         expect(await escolher(s.sessao_id, A)).toEqual([]);
         expect(await escolher(s.sessao_id, B)).toEqual([]);
         // a sessão do super-admin não depende de conta de tenant
-        const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94@macuxi.exemplo', nome: 'Operador T94', senha_hash: H2 })]))[0]!.r;
+        const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94@macuxi.exemplo', nome: 'Operador T94', senha_hash: HASH_TESTE })]))[0]!.r;
         const ss = (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!;
         expect(await valida(ss.sessao_id)).toHaveLength(1);
       });
@@ -409,9 +408,9 @@ describe.skipIf(semBanco())('0040 estado da senha e outbox de e-mail (banco, fix
 
     it('sa_provisionar_tenant e provisionar_tenant: admin inicial com trocar_senha e sem validade; não entra no portal até trocar; redefinir sobe a versão e revoga refresh', async () => {
       await emTransacao(admin, null, async () => {
-        const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94@macuxi.exemplo', nome: 'Operador T94', senha_hash: H2 })]))[0]!.r;
+        const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94@macuxi.exemplo', nome: 'Operador T94', senha_hash: HASH_TESTE })]))[0]!.r;
         const ss = (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!;
-        const adm = { email: EMAIL_CLI, nome: 'Admin Novo T94', senha_hash: H2 };
+        const adm = { email: EMAIL_CLI, nome: 'Admin Novo T94', senha_hash: HASH_TESTE };
         const r1 = (await portal<{ r: { tenant_id: string; admin: string } }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [ss.sessao_id, JSON.stringify(entradaEmpresa('t94-portal', { admin: adm }))]))[0]!.r;
         expect(r1.admin).toBe('criado');
         expect(await q('select trocar_senha, senha_expira_em, sessao_versao from core.usuario where tenant_id = $1', [r1.tenant_id]))
@@ -493,7 +492,7 @@ describe.skipIf(semBanco())('0040 up/down (banco efêmero)', () => {
       const catalogo = await retratoDoCatalogo(c);
       const acl = await retratoAcl(c);
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo40', 'Antigo')", [T]);
-      await c.query("insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'pessoa@exemplo.com.br', 'vendedor', $3), ($4, $2, 'Outra', 'outra@exemplo.com.br', 'vendedor', $3)", [U, T, H2, V]);
+      await c.query("insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, 'Pessoa', 'pessoa@exemplo.com.br', 'vendedor', $3), ($4, $2, 'Outra', 'outra@exemplo.com.br', 'vendedor', $3)", [U, T, HASH_TESTE, V]);
       await c.query("insert into core.usuario_convite (tenant_id, usuario_id, token_hash, expira_em) values ($1, $2, repeat('a', 64), now() + interval '7 days')", [T, U]);
       await c.query("insert into core.usuario_convite (tenant_id, usuario_id, token_hash, expira_em, usado_em) values ($1, $2, repeat('b', 64), now() + interval '7 days', now())", [T, V]);
       const linha = () => c.query('select id, nome, email, perfil, senha_hash, updated_at from core.usuario where id = $1', [U]).then((r) => r.rows[0]);

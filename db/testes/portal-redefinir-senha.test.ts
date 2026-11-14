@@ -19,7 +19,7 @@ import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-tes
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { FUNCOES_SA, FUNCOES_SA_0042, FUNCOES_SA_ATE_0057 } from './funcoes-sa';
-import { emTransacao, erroDe, retratoDoCatalogo } from './util';
+import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
 const m42 = migracoes.find((m) => m.versao === '0042')!;
@@ -36,7 +36,6 @@ const LISTA = 'plataforma.sa_admins_da_empresa(uuid, uuid)';
 const REDEFINIR = 'plataforma.sa_redefinir_senha_admin(uuid, uuid, uuid, text, text, uuid, bytea)';
 
 /** Dados de mentira (nunca de uma pessoa real); hashes no formato PHC, sem senha nenhuma por trás. */
-const H2 = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 const HT = '$argon2id$v=19$m=1,t=1,p=1$dGVtcG9yYXJpYQ$dGVtcG9yYXJpYWhhc2g';
 const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
@@ -142,7 +141,7 @@ describe.skipIf(semBanco())('0042 redefinir a senha do admin pelo portal (banco,
   const valida = (sid: string) => portal('select * from plataforma.sa_sessao_valida($1)', [sid]);
   /** Sessão viva de super-admin (criado pela conexão de administração, como no deploy). */
   async function sessaoSuperAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94r@macuxi.exemplo', nome: 'Operador 0042', senha_hash: H2 })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t94r@macuxi.exemplo', nome: 'Operador 0042', senha_hash: HASH_TESTE })]))[0]!.r;
     const s = (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!;
     return { sid: s.sessao_id, superAdmin: sa.super_admin_id };
   }
@@ -183,7 +182,7 @@ describe.skipIf(semBanco())('0042 redefinir a senha do admin pelo portal (banco,
     await emTransacao(admin, null, async () => {
       const { sid, superAdmin } = await sessaoSuperAdmin();
       // um admin apagado e um vendedor não aparecem
-      await q("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash, deleted_at) values ($1, 'Admin Apagado', 'apagado.0042@exemplo.com.br', 'admin', false, $2, now())", [A, H2]);
+      await q("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash, deleted_at) values ($1, 'Admin Apagado', 'apagado.0042@exemplo.com.br', 'admin', false, $2, now())", [A, HASH_TESTE]);
       const rA = await listar(sid, A);
       expect(rA.map((x) => x.usuario_id)).toEqual([ADMIN_A]);
       // 0047: a lista ganha entra_no_portal no fim (portal-admin-multiperfil.test.ts); o resto é o retorno da 0042
@@ -212,7 +211,7 @@ describe.skipIf(semBanco())('0042 redefinir a senha do admin pelo portal (banco,
       const { sid, superAdmin } = await sessaoSuperAdmin();
       // o admin de A tem tentativas falhas, bloqueio temporário, uma temporária do "Esqueci", um refresh vivo e sessão no portal
       await q(`update core.usuario set tentativas_falhas = 3, bloqueio_ate = now() + interval '10 minutes', senha_temporaria_hash = $2,
-                 senha_temporaria_expira_em = now() + interval '72 hours', senha_temporaria_criada_em = now() where id = $1`, [ADMIN_A, H2]);
+                 senha_temporaria_expira_em = now() + interval '72 hours', senha_temporaria_criada_em = now() where id = $1`, [ADMIN_A, HASH_TESTE]);
       await q("insert into core.sessao (tenant_id, usuario_id, familia_id, token_hash, expira_em) values ($1, $2, gen_random_uuid(), repeat('d', 64), now() + interval '30 days')", [A, ADMIN_A]);
       const cli = (await abrir({ tipo: 'admin_cliente', empresas: [{ tenant_id: A, usuario_id: ADMIN_A }] }))!;
       expect(await valida(cli.sessao_id)).toHaveLength(1);
@@ -248,7 +247,7 @@ describe.skipIf(semBanco())('0042 redefinir a senha do admin pelo portal (banco,
     await emTransacao(admin, null, async () => {
       const { sid } = await sessaoSuperAdmin();
       const [r1] = await redefinir(sid);
-      const [r2] = await redefinir(sid, { hash: H2 });
+      const [r2] = await redefinir(sid, { hash: HASH_TESTE });
       expect(r2).toEqual({ ...r1, repetida: true });
       expect(await estado(ADMIN_A)).toEqual([expect.objectContaining({ senha_hash: HT, sessao_versao: 1 })]);
       expect(await q('select count(*)::int as n from plataforma.email_saida where usuario_id = $1', [ADMIN_A])).toEqual([{ n: 1 }]);
