@@ -1,14 +1,16 @@
 /**
  * v1.0.6 — desvios de spec encaminhados pelo corretor-redundancias (docs/qualidade/redundancias/2026-11-13-v1.0.6.md,
  * seção "Encaminhado ao testes"), conferidos no FONTE: as telas importam React Native, que não roda no Node (mesmo padrão de
- * tests/modulos/demo-abas.test.ts).
+ * tests/modulos/demo-abas.test.ts). A lib pura do cartão (modules/catalogo/app/lib/grade.ts) carrega no Node e o D-V106-3
+ * prova o comportamento dela.
  *
  * Convenção (a de kit-piloto-t0162.test.ts): `it` = vale hoje; `it.fails` = desvio aberto D-V106-n (fica vermelho quando
  * corrigido e vira `it` no mesmo commit).
  * - D-V106-1 subtítulo do Catálogo: vale "abaixo" (parecer de marca 2026-11-13-v1.0.6, MC-0008 corrigida); a spec
  *   docs/design/catalogo-grade.md §1.1 ainda diz "acima" e a prancha está na MC-0013 (designer-ux).
  * - D-V106-2 filtro vazio sem "Ver todos" (RD-0244): conforme.
- * - D-V106-3 "Equivale a" no cartão da grade (RN-CAT-09, catalogo-grade.md §2): TalkBack e destaque abertos (modulo-catalogo).
+ * - D-V106-3 "Equivale a" no cartão da grade (RN-CAT-09, catalogo-grade.md §2): a linha sai de `linhaDaMarca` (grade.ts);
+ *   TalkBack (3a) corrigido no #151; destaque (3b) aberto (modulo-catalogo).
  * - D-V106-4 consulta de Pedidos cortada no servidor (pedido-v4.md:170): `cortada` gravado e nunca exibido (modulo-vendedor e
  *   designer-ux).
  * Roteiro do aparelho: docs/testes/v1.0.6-roteiro.md.
@@ -16,6 +18,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { linhaDaMarca } from '../../modules/catalogo/app/lib/grade';
+import type { ItemVitrine } from '../../modules/catalogo/contracts';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
@@ -60,20 +64,48 @@ describe('D-V106-2 — filtro sem produto sem "Ver todos" (RD-0244, catalogo-gra
 });
 
 describe('D-V106-3 — "Equivale a" no cartão da grade (RN-CAT-09, catalogo-grade.md §2)', () => {
-  it('a linha da marca vira "Equivale a …" quando a busca achou pelo código do concorrente', () => {
-    expect(CARTAO_GRADE).toContain('Equivale a ${');
+  const FREIOMAX: NonNullable<ItemVitrine['equivale_a']> = {
+    marca_id: '00000000-0000-4000-8000-000000000001',
+    marca_nome: 'Freiomax',
+    codigo: 'CB 3401',
+    marcas: [[0, 8]],
+  };
+
+  it('a linha da marca vira "Equivale a <marca> <código>" quando a busca achou pelo código do concorrente', () => {
+    expect(linhaDaMarca({ brand: 'Doce Vale', equivale_a: FREIOMAX })).toBe('Equivale a Freiomax CB 3401');
+    expect(linhaDaMarca({ brand: '', equivale_a: FREIOMAX })).toBe('Equivale a Freiomax CB 3401');
   });
 
-  // D-V106-3a ABERTO — dono: modulo-catalogo (comum.tsx:59). Fere catalogo-grade.md §2 ("TalkBack do cartão: <nome>, <marca>,
-  // <preço>, <estoque>", com a marca = a linha exibida): quando a linha mostra "Equivale a …", o TalkBack lê `item.brand`,
-  // um texto que não está na tela. Correção esperada: passar `linhaMarca` no lugar de `item.brand`.
-  it.fails('o TalkBack lê a mesma linha que a tela mostra (linhaMarca, não item.brand)', () => {
+  // `brand` é string obrigatória no contrato (ProductBase, core/contracts): "sem marca" chega como ''.
+  it('sem equivalência, a linha é a marca do cadastro; sem marca, fica vazia', () => {
+    expect(linhaDaMarca({ brand: 'Doce Vale', equivale_a: null })).toBe('Doce Vale');
+    expect(linhaDaMarca({ brand: 'Doce Vale' })).toBe('Doce Vale');
+    expect(linhaDaMarca({ brand: '', equivale_a: null })).toBe('');
+    expect(linhaDaMarca({ brand: '' })).toBe('');
+  });
+
+  it('o CartaoGrade exibe a linha que vem de linhaDaMarca(item)', () => {
+    expect(CARTAO_GRADE).toContain('const linhaMarca = linhaDaMarca(item);');
+    expect(CARTAO_GRADE).toMatch(/<Text style=\{g\.marca\}[^>]*>\s*\{linhaMarca\}\s*<\/Text>/);
+  });
+
+  // D-V106-3a corrigido no #151 (comum.tsx:59): o TalkBack lê `linhaMarca`, a mesma linha que a tela mostra
+  // (catalogo-grade.md §2: "<nome>, <marca>, <preço>, <estoque>").
+  it('o TalkBack lê a mesma linha que a tela mostra (linhaMarca, não item.brand)', () => {
     expect(CARTAO_GRADE).toMatch(/rotuloAcessivelDoCartao\(\[\s*item\.description,\s*linhaMarca\b/);
   });
 
   // D-V106-3b ABERTO — dono: modulo-catalogo (comum.tsx, CartaoGrade). Fere RN-CAT-09 e catalogo-grade.md §2 ("com o trecho
   // destacado"): o cartão mostra o "Equivale a …" em texto corrido, sem o trecho que casou com a busca. O `partirPorMarcas`
   // de app/lib/apresentacao.ts existe e não é usado (RD-0245 do corretor).
+  // Guarda do it.fails abaixo: ele tem de falhar pela falta do destaque, não pelo `destaque` de `principal` (comum.tsx:23,
+  // botões da ficha), que fica fora do corpo lido do CartaoGrade.
+  it('o corpo lido do CartaoGrade não inclui o `destaque` da função principal', () => {
+    expect(COMUM).toMatch(/const principal = \(destaque/);
+    expect(CARTAO_GRADE.startsWith('export function CartaoGrade')).toBe(true);
+    expect(CARTAO_GRADE).not.toContain('const principal');
+  });
+
   it.fails('o trecho que casou com a busca aparece destacado no cartão', () => {
     expect(CARTAO_GRADE).toMatch(/partirPorMarcas|destaque|Destacad/);
   });
