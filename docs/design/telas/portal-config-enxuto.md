@@ -184,7 +184,7 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 |---|---|---|
 | Vazio | placeholder `00.000.000/0000-00` | — |
 | Buscando | indicador girando à direita, campo travado | **"Buscando na Receita…"** |
-| Encontrado (situação ativa) | ✓ à direita | — (decisão: sem texto; os campos preenchidos já mostram o resultado) |
+| Encontrado (situação ativa) | ✓ verde (#1D6B4F) à direita, com `role="img" aria-label="CNPJ encontrado"` (sem `aria-hidden`) | — (decisão: sem texto visível; os campos preenchidos já mostram o resultado. Exceção à regra "cor sempre com texto" aprovada pelo dono do produto, MC-0049 opção A, R-20261114-172200: o texto vai no rótulo de acessibilidade) |
 | CNPJ inválido (dígito verificador ou menos de 14 dígitos) | borda de erro | **"CNPJ inválido. Confira os 14 dígitos."** |
 | Não encontrado | borda de erro | **"CNPJ não encontrado na Receita."** |
 | Receita fora (tempo esgotado, 5xx, limite de consultas; a API do #243 responde 503 com `Retry-After`) | borda de alerta + link **"Tentar de novo"** à direita; "Criar empresa" desabilitado | **"A Receita não respondeu."** |
@@ -423,7 +423,7 @@ Conta das frases: 59 (placares anteriores, §14) + 3 frases curtas que ficavam n
 | RD-d | `.lados` em duas regras; 18 regras mortas da aba Bases; `.chk` repetido por contexto | aceito: `.lados` numa regra; as 18 regras saem (nenhum HTML usa); `.chk` com uma regra base (nenhum contexto muda nada) | `portal.css` |
 | MC-0050 | "Anual" cheio no rodapé disputa com "Trocar para Enterprise" | aceito: alternador numa linha própria abaixo dos Adicionais; rodapé só com Total, Cancelar e o principal | §11.4; `depois-06d` |
 | Senha | lista da senha da 03b diferente do kit | aceito: como `packages/ui/src/web/senha.tsx` (título, um item por linha, ✓ num círculo de 18 px em `#E2F1EA`, as 4 regras da RN-CORE-32 com o mínimo do Core, 8) | `depois-03b` |
-| MC-0049 | ✓ verde sozinho no CNPJ "Encontrado" | aguarda a decisão do dono do produto; sem mudança | — |
+| MC-0049 | ✓ verde sozinho no CNPJ "Encontrado" | decidido pelo dono do produto (opção A, R-20261114-172200): o ✓ continua verde #1D6B4F e sem texto visível, como exceção aprovada; sai o `aria-hidden` e entra `role="img" aria-label="CNPJ encontrado"` | §11.2; `depois-03b`, `depois-03c` |
 
 ## 14. Histórico
 - **§6 Aba Bases** (cartões de base em uma linha, Equipe = 1, estados da carga por CSV) e **§7 Aba Integração em uma coluna**: revogados pelo §10 e pelo §12 (o CSV sai do portal) e retirados da spec em 14/11; o texto está no histórico do git (commit `8fa541e`).
