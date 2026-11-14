@@ -7,7 +7,7 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { dataLocal, faixasCurvaAbcDasLinhas, FAIXAS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasCurvaAbc, type FotoPdvPush } from '../../domain';
+import { dataLocal, faixasCurvaAbcDasLinhas, PARAMETROS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasPorDimensao, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
 import { useCore } from './usar-core';
@@ -33,11 +33,11 @@ export interface ClientesLocais extends BaseLocal {
    * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
    */
   verPedidos: boolean;
-  /** RN-CORE-49: faixas das curvas ABC do tenant (parâmetros `cliente.curva_abc.*`; ausente = padrão). */
-  faixasCurva: FaixasCurvaAbc;
+  /** RN-CORE-49: faixas das curvas ABC do tenant (parâmetros `cliente.curva_abc.<dimensão>`; ausente = padrão por dimensão). */
+  faixasCurva: FaixasPorDimensao;
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: FAIXAS_CURVA_ABC_PADRAO };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: PARAMETROS_CURVA_ABC_PADRAO };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
