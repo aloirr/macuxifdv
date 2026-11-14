@@ -49,7 +49,7 @@ export function modulosDaGrade(licenciados: Iterable<string>): { id: ModuloId; n
 
 // ---------------------------------------------------------------- rótulos das permissões
 
-/** Rótulo simples de cada ação (chave do manifesto). Chaves com o mesmo rótulo viram uma linha só. */
+/** Rótulo simples de cada ação (chave do manifesto). Cada chave tem rótulo próprio: uma linha, uma permissão. */
 export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   // Geral (Core e plataforma)
   'acesso.campo': 'Entrar no app Campo',
@@ -65,7 +65,7 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   'meta.ver': 'Ver metas',
   'meta.editar': 'Editar metas',
   'meta.fechar_periodo': 'Fechar e reabrir o mês',
-  'rv.ver': 'Ver remuneração variável',
+  'rv.ver': 'Ver RV',
   'plano_rv.ver': 'Ver plano de RV',
   'plano_rv.editar': 'Editar plano de RV',
   'rota.editar': 'Montar rotas',
@@ -89,7 +89,7 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   'notificacao.ler': 'Ler recados',
   'frase_dia.editar': 'Cadastrar frases do dia',
   'meta_produtividade.editar': 'Editar metas de produtividade',
-  'parametro.promotor_ve_pedidos': 'Promotor ver pedidos',
+  'parametro.promotor_ve_pedidos': 'Promotor vê pedidos',
   'parametro.farol': 'Ajustar o farol',
   'parametro.inicio': 'Ajustar o Início',
   'parametro.curva_abc': 'Ajustar curvas ABC',
@@ -107,7 +107,7 @@ export const ROTULO_DA_PERMISSAO: Readonly<Record<string, string>> = {
   // Vendedor
   'pedido.ver': 'Ver pedidos',
   'pedido.criar': 'Criar pedidos',
-  'pedido.editar': 'Criar pedidos',
+  'pedido.editar': 'Editar pedidos',
   'pedido.criar_em_nome': 'Criar pedidos em nome do vendedor',
   'pedido.cancelar': 'Cancelar pedidos',
   'pedido.excluir': 'Excluir pedidos',
@@ -205,6 +205,75 @@ export function linhasPorModulo(catalogo: readonly ChaveDoCatalogo[], modulos: r
     else linhas.push({ rotulo, chaves: [c.chave] });
   }
   return saida;
+}
+
+// ---------------------------------------------------------------- grupos da coluna Geral
+
+/** Subtítulos da coluna Geral, nesta ordem (RD-0266). */
+export const GRUPOS_DO_GERAL = ['Entrar em', 'Usuários', 'Clientes', 'Metas e RV', 'Fotos', 'Recados', 'Tarefas', 'Ajustes', 'Cadastros'] as const;
+export type GrupoDoGeral = (typeof GRUPOS_DO_GERAL)[number];
+
+const GRUPO_DA_CHAVE: Readonly<Record<string, GrupoDoGeral>> = {
+  'acesso.campo': 'Entrar em',
+  'acesso.gestao': 'Entrar em',
+  'acesso.bko': 'Entrar em',
+  'acesso.portal': 'Entrar em',
+  'usuario.ver': 'Usuários',
+  'usuario.criar': 'Usuários',
+  'usuario.editar': 'Usuários',
+  'usuario.desativar': 'Usuários',
+  'perfil.gerir': 'Usuários',
+  'modulo.gerir_licencas': 'Usuários',
+  'usuario_avatar.trocar': 'Usuários',
+  'usuario_avatar.trocar_outro': 'Usuários',
+  'dispositivo.bloquear': 'Usuários',
+  'dispositivo.registrar_push': 'Usuários',
+  'inicio.ver': 'Clientes',
+  'farol.ver': 'Clientes',
+  'rota.editar': 'Clientes',
+  'carteira.editar': 'Clientes',
+  'cliente.pagamento_editar': 'Clientes',
+  'cliente.aprovar_coordenada': 'Clientes',
+  'cliente.filial_editar': 'Clientes',
+  'visita.dispensar_etapa': 'Clientes',
+  'meta.ver': 'Metas e RV',
+  'meta.editar': 'Metas e RV',
+  'meta.fechar_periodo': 'Metas e RV',
+  'meta_produtividade.editar': 'Metas e RV',
+  'rv.ver': 'Metas e RV',
+  'plano_rv.ver': 'Metas e RV',
+  'plano_rv.editar': 'Metas e RV',
+  'cliente_foto.ver': 'Fotos',
+  'cliente_foto.enviar': 'Fotos',
+  'foto_tipo.editar': 'Fotos',
+  'notificacao.ler': 'Recados',
+  'notificacao.enviar': 'Recados',
+  'notificacao.recado_do_dia': 'Recados',
+  'frase_dia.editar': 'Recados',
+  'tarefa.criar': 'Tarefas',
+  'tarefa.editar': 'Tarefas',
+  'tarefa.cancelar': 'Tarefas',
+  'tarefa.acompanhar': 'Tarefas',
+  'tarefa.concluir': 'Tarefas',
+  'parametro.promotor_ve_pedidos': 'Ajustes',
+  'parametro.farol': 'Ajustes',
+  'parametro.inicio': 'Ajustes',
+  'parametro.curva_abc': 'Ajustes',
+  'parametro.checkout_pendencia': 'Ajustes',
+  'produto.parametros': 'Ajustes',
+  'motivo.editar': 'Cadastros',
+  'produto.editar_preco': 'Cadastros',
+  'filial.ver': 'Cadastros',
+  'filial.editar': 'Cadastros',
+  'medida.gerenciar': 'Cadastros',
+};
+
+/** Grupo de uma chave da coluna Geral; chave nova sem grupo cai em "Cadastros", o último. */
+export const grupoDaPermissao = (chave: string): GrupoDoGeral => GRUPO_DA_CHAVE[chave] ?? 'Cadastros';
+
+/** As linhas da coluna Geral separadas por subtítulo, na ordem de `GRUPOS_DO_GERAL`, sem grupo vazio. */
+export function gruposDoGeral(linhas: readonly LinhaDeAcesso[]): { titulo: GrupoDoGeral; linhas: LinhaDeAcesso[] }[] {
+  return GRUPOS_DO_GERAL.map((titulo) => ({ titulo, linhas: linhas.filter((l) => grupoDaPermissao(l.chaves[0]!) === titulo) })).filter((g) => g.linhas.length > 0);
 }
 
 export type Marcacao = 'todas' | 'nenhuma' | 'parte';

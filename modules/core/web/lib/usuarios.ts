@@ -2,12 +2,9 @@
  * Visão da tela "Usuários" do BKO (RF-CORE-02; T-0067): funções puras sobre `GET /v1/core/usuarios`. Sem React e sem rede.
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
-import { BOM_CSV } from '@macuxi/comum/csv';
-import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
+import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
-
-const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export interface FormularioUsuario {
   nome: string;
@@ -99,15 +96,6 @@ export function textoDoSuperiorDaEquipe(equipes: readonly EquipeOpcao[], equipeI
   return e.superior_nome ? `Superior imediato: ${e.superior_nome} (responsável da equipe).` : 'Esta equipe não tem responsável definido: sem superior imediato.';
 }
 
-/** CSV com ponto e vírgula (Excel pt-BR). Sem senha nem hash (a API nunca os envia). */
-export function csvDeUsuarios(itens: readonly UsuarioItem[]): string {
-  const cab = ['Nome', 'E-mail', 'Perfil', 'Equipe', 'Superior imediato', 'Código do ERP', 'Situação'];
-  const linhas = itens.map((u) =>
-    [u.nome, u.email, ROTULO_PERFIL[u.perfil], u.equipe_nome ?? '', u.superior_nome ?? '', u.external_id ?? '', u.ativo ? 'Ativo' : 'Inativo'].map(aspas).join(';'),
-  );
-  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
-}
-
 // ---------- T-0094: senha por e-mail, troca no 1º acesso, "Redefinir senha" / "Enviar acesso" (RN-CORE-34; docs/design/ciclo-de-senha.md §5) ----------
 
 /** Faltas da senha digitada (campo vazio = as quatro), para o componente `RegrasDaSenha`. */
@@ -160,20 +148,19 @@ export type ResultadoDoEmail =
 
 /** Depois de criar: toast quando o e-mail foi na fila; aviso com a senha quando não foi. */
 export function resultadoDeCriar(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
-  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no primeiro acesso.' };
-  return { tipo: 'enviado', texto: `Usuário criado. O acesso vai para ${destino} em alguns minutos.` };
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '.' };
+  return { tipo: 'enviado', texto: `Usuário criado. O acesso vai para ${destino}.` };
 }
 
 /** Depois de redefinir (com senha definida na tela). */
 export function resultadoDeRedefinir(email: EmailAcesso, destino: string, senha: string): ResultadoDoEmail {
-  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Senha redefinida, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '. Ela cria a dela no próximo acesso.' };
-  return { tipo: 'enviado', texto: `Senha redefinida. A senha nova vai para ${destino} em alguns minutos.` };
+  if (email === 'indisponivel') return { tipo: 'sem_email', antes: 'Senha redefinida, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: ', senha, depois: '.' };
+  return { tipo: 'enviado', texto: `Senha redefinida e enviada para ${destino}.` };
 }
 
 export const textoAcessoEnviado = (destino: string): string => `Acesso enviado para ${destino}.`;
 export const TEXTO_ENVIAR_ACESSO_SEM_EMAIL = 'Não conseguimos enviar o e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa.';
 export const TEXTO_SENHA_NAO_REDEFINIVEL = 'Esta senha não pode ser redefinida aqui. O administrador usa "Esqueci a senha".';
-export const AJUDA_SENHA_INICIAL = 'Ela vai para o e-mail da pessoa, que cria a dela no primeiro acesso. Vale por 72 horas.';
 
 /** Onde a pessoa entra com os perfis escolhidos: apps = qualquer perfil; BKO e portal = todos (regra mais restritiva, RN-CORE-35). */
 export function ondeEntraDosPerfis(escolhidos: readonly { onde_entra: readonly ('campo' | 'gestao' | 'bko' | 'portal')[] }[]): ('campo' | 'gestao' | 'bko' | 'portal')[] {

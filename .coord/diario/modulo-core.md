@@ -156,3 +156,4 @@
 2026-11-14 — RD-0250 — ROTULO_INDICADOR_META no contracts, core usando o mapa; Faturamento só com meta de faturamento
 2026-11-14 — ficha-cliente-performance — aba Performance (RN-CORE-50), botão Pesquisa e Checkout só em atendimento (RN-CORE-51)
 2026-11-14 — BKO Acesso — Usuários (tabela, gaveta, módulos) e Perfis de acesso (lista, Novo perfil por módulo); branch nuvem/acesso-bko-modulo-core
+2026-11-14 — BKO Acesso — RD-0264 a RD-0268, MC-0025/26: textos de Desativar/Redefinir, sem CSV em Usuários, Geral agrupada em 3 colunas, criar×editar pedido separados, rótulos de RV; prints com o menu real

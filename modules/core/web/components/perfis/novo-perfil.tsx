@@ -11,27 +11,61 @@ import {
   alternarModulo,
   baseDoNovoPerfil,
   edicaoDaGrade,
+  gruposDoGeral,
   linhasPorModulo,
   marcacaoDoModulo,
   modulosDaGrade,
   rotuloMarcarTodos,
   type LinhaDeAcesso,
+  type Marcacao,
 } from '../../lib/acesso';
 import { corpoDoPerfil, edicaoInicial, frasesDaRecusa } from '../../lib/perfis';
 import { IconeDoModulo } from '../acesso/icones-modulo';
 
 const CAMPO = 'h-[44px] w-full max-w-[420px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
 
-function CaixaDoCabecalho({ nome, estado, onChange }: { nome: string; estado: 'todas' | 'nenhuma' | 'parte'; onChange: (marcar: boolean) => void }) {
+/**
+ * Caixa "marcar todos" do cabeçalho em Azul noite (MC-0026): caixa própria (`appearance-none`) com fundo branco, o ✓ e o traço do
+ * estado "parte" em `text-accent`; desmarcada, só a caixa branca. O `indeterminate` continua no input para o leitor de tela.
+ */
+function CaixaDoCabecalho({ nome, estado, onChange }: { nome: string; estado: Marcacao; onChange: (marcar: boolean) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = estado === 'parte';
   }, [estado]);
-  return <input ref={ref} type="checkbox" aria-label={rotuloMarcarTodos(nome)} checked={estado === 'todas'} onChange={() => onChange(estado !== 'todas')} className="h-5 w-5 accent-white" />;
+  return (
+    <span className="relative inline-flex h-5 w-5 shrink-0">
+      <input
+        ref={ref}
+        type="checkbox"
+        aria-label={rotuloMarcarTodos(nome)}
+        checked={estado === 'todas'}
+        onChange={() => onChange(estado !== 'todas')}
+        className="h-5 w-5 cursor-pointer appearance-none rounded-[4px] border border-white bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+      />
+      {estado !== 'nenhuma' && (
+        <svg viewBox="0 0 20 20" aria-hidden="true" className="pointer-events-none absolute inset-0 h-5 w-5 text-accent">
+          {estado === 'todas' ? <path d="M5 10.5l3.2 3.2L15 6.8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M5.5 10h9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />}
+        </svg>
+      )}
+    </span>
+  );
 }
 
-/** Uma tabela vertical de um módulo: cabeçalho em Azul noite (ícone, nome e "marcar todos") e uma linha por acesso. */
-export function TabelaDoModulo({ id, nome, linhas, marcadas, onChange }: { id: string; nome: string; linhas: readonly LinhaDeAcesso[]; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void }) {
+function LinhaDaCaixa({ linha, marcadas, onChange }: { linha: LinhaDeAcesso; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void }) {
+  return (
+    <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-ink">
+      <input type="checkbox" className="h-5 w-5 shrink-0 accent-accent" checked={linha.chaves.every((c) => marcadas.has(c))} onChange={() => onChange(alternarLinha(linha, marcadas))} />
+      {linha.rotulo}
+    </label>
+  );
+}
+
+/**
+ * Uma tabela de um módulo: cabeçalho em Azul noite (caixa "marcar todos", ícone e nome) e uma linha por acesso. A coluna Geral
+ * (`agrupada`) vai na largura total, com as linhas sob subtítulos (RD-0266) em até 3 colunas.
+ */
+function TabelaDoModulo({ id, nome, linhas, marcadas, onChange, agrupada = false }: { id: string; nome: string; linhas: readonly LinhaDeAcesso[]; marcadas: ReadonlySet<string>; onChange: (m: Set<string>) => void; agrupada?: boolean }) {
   return (
     <table className="w-full border-collapse overflow-hidden rounded-2xl border border-line bg-surface text-[14px]" data-testid={`perfil.modulo.${id}`}>
       <thead>
@@ -46,16 +80,30 @@ export function TabelaDoModulo({ id, nome, linhas, marcadas, onChange }: { id: s
         </tr>
       </thead>
       <tbody>
-        {linhas.map((l) => (
-          <tr key={l.rotulo} className="border-t border-line-2">
-            <td className="p-0">
-              <label className="flex min-h-[44px] cursor-pointer items-center gap-3 px-4 text-ink">
-                <input type="checkbox" className="h-5 w-5 accent-[#1e3350]" checked={l.chaves.every((c) => marcadas.has(c))} onChange={() => onChange(alternarLinha(l, marcadas))} />
-                {l.rotulo}
-              </label>
+        {agrupada ? (
+          <tr>
+            <td className="px-4 pb-2 pt-1">
+              <div className="gap-x-8 sm:columns-2 lg:columns-3">
+                {gruposDoGeral(linhas).map((g) => (
+                  <section key={g.titulo} className="break-inside-avoid pt-3" data-testid={`perfil.grupo.${g.titulo}`}>
+                    <h3 className="m-0 border-b border-line-2 pb-1 text-[12px] font-bold uppercase tracking-[0.04em] text-ink-2">{g.titulo}</h3>
+                    {g.linhas.map((l) => (
+                      <LinhaDaCaixa key={l.rotulo} linha={l} marcadas={marcadas} onChange={onChange} />
+                    ))}
+                  </section>
+                ))}
+              </div>
             </td>
           </tr>
-        ))}
+        ) : (
+          linhas.map((l) => (
+            <tr key={l.rotulo} className="border-t border-line-2">
+              <td className="px-4 py-0">
+                <LinhaDaCaixa linha={l} marcadas={marcadas} onChange={onChange} />
+              </td>
+            </tr>
+          ))
+        )}
       </tbody>
     </table>
   );
@@ -147,7 +195,9 @@ export function NovoPerfil() {
         {modulos
           .filter((m) => (linhas[m.id]?.length ?? 0) > 0)
           .map((m) => (
-            <TabelaDoModulo key={m.id} id={m.id} nome={m.nome} linhas={linhas[m.id]!} marcadas={marcadas} onChange={(novo) => setMarcadas(novo)} />
+            <div key={m.id} className={m.id === 'core' ? 'md:col-span-2 xl:col-span-3' : undefined}>
+              <TabelaDoModulo id={m.id} nome={m.nome} linhas={linhas[m.id]!} marcadas={marcadas} onChange={(novo) => setMarcadas(novo)} agrupada={m.id === 'core'} />
+            </div>
           ))}
       </div>
     </div>

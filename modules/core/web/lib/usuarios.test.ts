@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, csvDeUsuarios, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -68,13 +68,6 @@ describe('RF-CORE-02: tela Usuários do BKO', () => {
     expect(textoDoSuperiorDaEquipe([eq({ superior_nome: 'Sérgio' })], 'e1')).toContain('Sérgio');
     expect(textoDoSuperiorDaEquipe([eq({})], 'e1')).toContain('sem superior');
   });
-  it('CSV: cabeçalho em português, aspas escapadas, BOM e nada de senha', () => {
-    const csv = csvDeUsuarios([u(), u({ ativo: false, equipe_nome: null })]);
-    expect(csv.startsWith('﻿"Nome";"E-mail"')).toBe(true);
-    expect(csv).toContain('"Vera ""Vendedora"""');
-    expect(csv).toContain('"Inativo"');
-    expect(csv.toLowerCase()).not.toContain('senha');
-  });
 });
 
 describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
@@ -105,11 +98,11 @@ describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
     expect(corpoDeRedefinicao('Abcdef1!')).toEqual({ senha: 'Abcdef1!' });
   });
   it('RN-CORE-34: os avisos dependem do resultado do e-mail; a senha só aparece quando o e-mail não saiu', () => {
-    expect(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Usuário criado. O acesso vai para ana@x.com em alguns minutos.' });
+    expect(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Usuário criado. O acesso vai para ana@x.com.' });
     const sem = resultadoDeCriar('indisponivel', 'ana@x.com', 'Abcdef1!');
     expect(sem).toMatchObject({ tipo: 'sem_email', senha: 'Abcdef1!' });
-    expect(sem.tipo === 'sem_email' && sem.antes + sem.senha + sem.depois).toBe('Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: Abcdef1!. Ela cria a dela no primeiro acesso.');
-    expect(resultadoDeRedefinir('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Senha redefinida. A senha nova vai para ana@x.com em alguns minutos.' });
+    expect(sem.tipo === 'sem_email' && sem.antes + sem.senha + sem.depois).toBe('Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: Abcdef1!.');
+    expect(resultadoDeRedefinir('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Senha redefinida e enviada para ana@x.com.' });
     expect(resultadoDeRedefinir('indisponivel', 'ana@x.com', 'Abcdef1!')).toMatchObject({ tipo: 'sem_email' });
     expect(JSON.stringify(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!'))).not.toContain('Abcdef1!');
     expect(textoAcessoEnviado('ana@x.com')).toBe('Acesso enviado para ana@x.com.');

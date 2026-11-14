@@ -98,7 +98,7 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 ## BKO — tela Usuários (`/usuarios`, T-0067)
 | data-testid | Elemento |
 |---|---|
-| `usuarios.tela` · `usuarios.novo` · `usuarios.exportar-csv` | página; botão "Novo usuário" (só admin, ausente para os demais); CSV |
+| `usuarios.tela` · `usuarios.novo` | página; botão "Novo usuário" (só admin, ausente para os demais) |
 | `usuarios.busca` · `usuarios.filtro-perfil` · `usuarios.filtro-equipe` · `usuarios.filtro-situacao` | filtros (ficam na URL: `q`, `perfil`, `equipe`, `situacao`) |
 | `usuarios.linha.<id>` | linha do usuário |
 | `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e "Redefinir senha"/"Enviar acesso" (só admin; a senha não aparece para admin nem inativo) |

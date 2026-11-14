@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ROTULO_PERFIL, type ModuloId } from '@macuxi/platform-sdk';
 import { usePode } from '@macuxi/platform-sdk/react';
-import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
+import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, Drawer, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, RegrasDaSenha, SelectField, td, th, useToast, rotuloDoPerfil } from '@macuxi/ui/web';
 import { CriarUsuarioRespostaSchema, LicencasEstadoSchema, PerfilOpcoesRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioListaRespostaSchema, SENHA_MIN_CARACTERES, mensagemDaSenha, type LicencasEstado, type UsuarioItem } from '../../../contracts';
 import { efetivosPelasDependencias } from '../../../domain/licencas';
@@ -22,7 +22,6 @@ import {
   type ResultadoDoEmail,
   corpoDeCriacao,
   corpoDeEdicao,
-  csvDeUsuarios,
   errosDoFormulario,
   FORMULARIO_VAZIO,
   formularioDoUsuario,
@@ -179,7 +178,7 @@ export function UsuariosConteudo() {
   });
   const alternar = useMutation({
     mutationFn: async (u: UsuarioItem) => api(`/core/usuarios/${u.id}/ativo`, { method: 'PUT', body: { ativo: !u.ativo } }),
-    onSuccess: (_r, u) => concluir(u.ativo ? 'Usuário desativado. Ele perde o acesso na próxima requisição e as sessões foram encerradas.' : 'Usuário reativado. Ele já pode entrar com a senha atual.'),
+    onSuccess: (_r, u) => concluir(u.ativo ? 'Usuário desativado.' : 'Usuário reativado.'),
     onError: (e) => setErroApi(errorMessage(e)),
   });
   const redefinir = useMutation({
@@ -265,16 +264,11 @@ export function UsuariosConteudo() {
       <PageHeader
         title="Usuários"
         actions={
-          <>
-            {podeCriar && (
-              <Button variant="primary" onClick={() => abrirForm(null)} data-testid="usuarios.novo">
-                Novo usuário
-              </Button>
-            )}
-            <Button onClick={() => downloadBlob(new Blob([csvDeUsuarios(itens)], { type: 'text/csv;charset=utf-8' }), 'usuarios.csv')} disabled={itens.length === 0} data-testid="usuarios.exportar-csv">
-              Exportar CSV
+          podeCriar && (
+            <Button variant="primary" onClick={() => abrirForm(null)} data-testid="usuarios.novo">
+              Novo usuário
             </Button>
-          </>
+          )
         }
       />
       {semEmail && (
@@ -422,7 +416,7 @@ export function UsuariosConteudo() {
                   <label key={m.id} className={`flex min-h-[48px] items-center gap-3 rounded-xl border border-line bg-surface px-3 text-[14px] font-semibold ${noPerfil ? 'text-ink' : 'text-disabled'}`}>
                     <input
                       type="checkbox"
-                      className="h-5 w-5 accent-[#1e3350]"
+                      className="h-5 w-5 accent-accent"
                       checked={marcado}
                       disabled={!noPerfil}
                       onChange={() =>
@@ -482,8 +476,8 @@ export function UsuariosConteudo() {
           <div className="flex flex-col gap-3">
             <p className="m-0">
               {modal.usuario.ativo
-                ? `${modal.usuario.nome} perde o acesso na próxima requisição e as sessões dele são encerradas. Os dados e o histórico ficam guardados. Fica registrado na auditoria.`
-                : `${modal.usuario.nome} volta a poder entrar com a senha atual. Fica registrado na auditoria.`}
+                ? `${modal.usuario.nome} perde o acesso e sai de todos os aparelhos.`
+                : `${modal.usuario.nome} volta a entrar com a senha atual.`}
             </p>
             {erroApi && <Notice tone="danger">{erroApi}</Notice>}
           </div>
@@ -513,10 +507,12 @@ export function UsuariosConteudo() {
         {modal?.tipo === 'senha' && (
           <div className="flex flex-col gap-3">
             {modal.usuario.sem_senha ? (
-              <p className="m-0">O Macuxi gera uma senha temporária e manda para {modal.usuario.email}. A pessoa cria a dela no primeiro acesso.</p>
+              <p className="m-0">O acesso vai para {modal.usuario.email}.</p>
             ) : (
               <>
-                <p className="m-0">A pessoa recebe a senha nova por e-mail e cria a dela no próximo acesso. Ela sai do Macuxi agora em todos os aparelhos.</p>
+                <p className="m-0">
+                  {modal.usuario.nome} sai de todos os aparelhos e recebe a senha nova em {modal.usuario.email}.
+                </p>
                 <Campo rotulo="Senha nova">
                   <input
                     type={senhaVisivel ? 'text' : 'password'}
