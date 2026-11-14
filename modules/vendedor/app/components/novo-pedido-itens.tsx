@@ -18,9 +18,10 @@ import { textoDoAjuste, valorDoTexto } from '../lib/ajuste-pedido';
 
 /**
  * Desconto/acréscimo do item: o `DescontoCompacto` do kit, o mesmo do pedido (T-0130: um componente só para item e pedido).
- * Sempre aberto, com o tipo ao lado; cada número válido vale na hora (RN-VEN-02); o equivalente (% ↔ R$ por unidade) fica na linha.
+ * Sempre aberto, com o tipo ao lado; cada número válido vale na hora (RN-VEN-02). O equivalente (% ↔ R$ por unidade) só serve para trocar o tipo
+ * levando o valor; não aparece ao lado do campo (dono do produto, 14/11: repetia o cartão de totais da folha).
  */
-export function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; medida: string | null; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
+export function AjusteDoItem({ k, nome, p, ajuste, equivalente, onAjuste }: { k: string; nome: string; p: Product; ajuste: Ajuste; equivalente: { cents: number; pct_exibicao: number } | null; onAjuste: (a: Ajuste) => void }) {
   const valorAtual = valorDoAjuste(ajuste);
   const [escolhido, setEscolhido] = useState<TipoDoAjuste>(tipoDoAjuste(ajuste));
   // com valor, o tipo é o do ajuste; sem valor, o que a pessoa escolheu
@@ -49,8 +50,7 @@ export function AjusteDoItem({ k, nome, p, ajuste, medida, equivalente, onAjuste
         onAjuste(ajusteDoTipo(tipo, teto !== undefined ? Math.min(teto, n) : n));
       }}
       onConfirmar={() => setTexto(textoDoAjuste(tipo, valorDoAjuste(ajuste)))}
-      equivalente={equivalente ? { cents: equivalente.cents, pct: equivalente.pct_exibicao } : null}
-      medida={medida}
+      equivalente={null}
       placeholder="0"
       rotuloAcessivel={`Valor do ajuste de ${nome}`}
       rotuloTipo={`Tipo do ajuste de ${nome}`}
