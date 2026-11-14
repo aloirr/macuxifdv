@@ -463,7 +463,7 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - RLS: enable + force + `isolamento_tenant`; `macuxi_app` com select/insert/update/delete; `macuxi_worker` sem acesso.
 - Fixture dois-tenants: A com um plano vivo do mês da fixture (vendedor e promotor, autor analista) + uma versão apagada do
   mesmo mês; B com um plano sem autor (grupo de UUID `0x39`). Demo (`db/seeds/demo/plano-rv.ts`): plano do vendedor desde o
-  mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 40% / positivação 25% / itens por pedido 20% (T-0170) / visitas 15% com faixas
+  mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 50% / positivação 30% / visitas 20% (só `INDICADORES_RV`; itens_por_pedido é só meta) com faixas
   0: zero · 80: proporcional · 100: fixo 100 · 110: fixo 120, cobertura como gatilho; banco sem a 0028 = o seed não grava.
 - Caminho de volta: `0028_core_plano_rv.down.sql` (APAGA a tabela e os planos). Teste: `db/testes/plano-rv.test.ts`.
 
