@@ -1,7 +1,7 @@
 # Revisão do BKO — especificação visual (designer-ux)
 
 Origem: pedidos do Alexandre de 14/11/2026 (R-20261114-142000, R-20261114-143000, R-20261114-143500).
-Situação: **§M (menu da esquerda) especificada**, aguardando a validação do design-de-marca (cor do título do grupo) e a implementação.
+Situação: **§M (menu da esquerda) especificada**, aguardando a decisão sobre a cor do título do grupo (MC-0054, ver M4) e a implementação.
 As seções §P1 a §P10 (kit já no branch `nuvem/bko-revisao-designer-ux`) ganham o texto completo no próximo lote; a lista no fim deste doc diz onde cada uma está no kit.
 
 ---
@@ -13,18 +13,18 @@ Pedido do Alexandre (literal): "quero o menor numero de cliques possiveis, e bar
 ### M1. Problema hoje (`apps/web/components/app-shell.tsx`)
 - O primeiro grupo (`operacao`) é desenhado **sem título**: Clientes, Rotas, Visitas, Recados (Core), Aprovações, Alertas (Gestor) e Pedidos (Vendedor) ficam soltos no topo.
 - Ordem por `ordem` numérica e por módulo, não alfabética.
-- 34 telas abertas de uma vez (perfil Administrador com os 8 módulos): não cabem em 768 px de altura e o menu ganha barra de rolagem (`overflow-y-auto`).
+- 36 telas abertas de uma vez (perfil Administrador com os 8 módulos: 35 páginas de módulo e a Auditoria da plataforma): não cabem em 768 px de altura e o menu ganha barra de rolagem (`overflow-y-auto`).
 - Título do grupo em `#9AA3B0`, quase a mesma cor dos itens (`#C9CED5`).
 
 ### M2. Grupos e itens (inventário completo, `modules/*/web/index.ts` + plataforma)
-Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: `localeCompare('pt-BR', { sensitivity: 'base' })`). Nenhum item fora de grupo. A coluna "grupo hoje" mostra de onde o item sai.
+São 36 itens em 9 grupos. Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: `localeCompare('pt-BR', { sensitivity: 'base' })`). Nenhum item fora de grupo. A coluna "grupo hoje" mostra de onde o item sai.
 
 | Grupo | Item (rótulo do menu) | Módulo | Rota | Grupo hoje |
 |---|---|---|---|---|
 | **Acesso** | Aparelhos | core | `/aparelhos` | Administração |
-| | Perfis de acesso | core | `/perfis` | Administração |
+| | Módulos | core | `/usuarios-e-modulos` | Administração |
+| | Perfis | core | `/perfis` | Administração |
 | | Usuários | core | `/usuarios` | Administração |
-| | Usuários e módulos | core | `/usuarios-e-modulos` | Administração |
 | **Análise** | Indicadores | core | `/indicadores` | Análise |
 | | Metas | core | `/metas` | Análise |
 | | Painel da equipe | gestor | `/equipe` | Análise |
@@ -43,16 +43,16 @@ Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: 
 | **Comunicação** | Alertas | gestor | `/alertas` | solto (Operação) |
 | | Recados | core | `/recados` | solto (Operação) |
 | | Regras de alerta | gestor | `/regras-alerta` | Administração |
-| **Conteúdo de campo** | Cadastros de trade | promotor | `/trade-cadastros` | Cadastros |
-| | Pesquisas | pesquisa | `/pesquisas` | Cadastros |
+| **Conteúdo de campo** | Pesquisas | pesquisa | `/pesquisas` | Cadastros |
+| | Trade | promotor | `/trade-cadastros` | Cadastros |
 | | Trilhas | treinamento | `/treinamento` | Cadastros |
 | **Operação** | Aprovações | gestor | `/aprovacoes` | solto (Operação) |
 | | Pedidos | vendedor | `/pedidos` | solto (Operação) |
 | | Rotas | core | `/rotas` | solto (Operação) |
 | | Visitas | core | `/visitas` | solto (Operação) |
-| **Produtos e preços** | Catálogo | catalogo | `/catalogo` | Cadastros |
+| **Produtos** | Catálogo | catalogo | `/catalogo` | Cadastros |
 | | Marcas concorrentes | catalogo | `/catalogo/marcas` | Cadastros |
-| | Produtos | core | `/produtos` | Cadastros |
+| | Preço e custo | core | `/produtos` | Cadastros |
 | | Tabelas de preço | catalogo | `/tabelas-preco` | Cadastros |
 | **Sistema** | Auditoria | plataforma | `/auditoria` | Plataforma |
 | | Carga por arquivo | integracao | `/integracao/carga-arquivo` | Administração |
@@ -60,9 +60,10 @@ Grupos e itens em **ordem alfabética** (pt-BR, sem diferenciar acento e caixa: 
 
 Por que assim:
 - Os 7 itens soltos foram para **Operação** (Aprovações, Pedidos, Rotas, Visitas), **Comunicação** (Alertas, Recados) e **Cadastros** (Clientes), como sugere o recado.
-- "Cadastros" tinha 16 itens: sozinho já passaria da altura da tela. Foi dividido pelo que o usuário procura: **Cadastros** (clientes e campo), **Comercial** (regras de venda), **Produtos e preços** e **Conteúdo de campo** (o que o vendedor e o promotor respondem ou estudam).
+- "Cadastros" tinha 16 itens: sozinho já passaria da altura da tela. Foi dividido pelo que o usuário procura: **Cadastros** (clientes e campo), **Comercial** (regras de venda), **Produtos** e **Conteúdo de campo** (o que o vendedor e o promotor respondem ou estudam).
 - "Administração" deixa de existir: **Acesso** (quem entra e o que vê) e **Sistema** (auditoria e integração). "Plataforma" (só Auditoria) entra em Sistema.
 - Itens do slot `menu.itens` do Core (`ItemMenu`) continuam no grupo **Mais**, na posição alfabética dele; hoje nenhum módulo usa o slot.
+- Rótulos curtos, sem repetir o grupo: "Módulos" e "Perfis" (o grupo já diz Acesso), "Preço e custo" (o grupo já diz Produtos), "Trade" (o grupo já diz Conteúdo de campo). O título da página não muda.
 - O item `Tarefas` do `manifest.ts` do Core não tem página web: não aparece (nada muda).
 
 ### M3. Comportamento (menor número de cliques, sem barra de rolagem)
@@ -87,22 +88,44 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 | Seta do grupo | igual ao título | — | 14 px |
 
 - Medidas: menu com **240 px** de largura (hoje 220; "Formas de pagamento e prazos" cabe sem cortar), título do grupo 30 px de altura, item 32 px, recuo do item 20 px.
-- **Validação da marca (design-de-marca):** o Sol claro hoje é só "o sol e os gráficos sobre fundo escuro" (manual §3). Usá-lo como **texto do título do grupo** é uso novo e precisa de aprovação do Alexandre. Alternativa caso não aprove: título em **branco** 600 com os itens em `#C9CED5`. Ela também atende o pedido, mas com menos diferença entre título e item.
+- **Cor do título do grupo: depende da decisão do Alexandre (MC-0054, design-de-marca).** O Sol claro hoje é só "o sol e os gráficos sobre fundo escuro" (manual §3); usá-lo como texto é uso novo. Opções: **A** = Sol claro `#F59A52` (como está nesta spec e nas simulações); **B** = branco 600, com os itens em `#C9CED5` (atende o pedido com menos diferença entre título e item). Fica A até a decisão; se for B, mudam só a linha "Título do grupo" e a "Seta do grupo" da tabela acima e os PNG do M5.
+- **Logo:** o símbolo vem do ativo da marca (`docs/marca/ativos/2026-11-12-v1/macuxi-simbolo-negativo.svg`, 32 × 25 px), nunca redesenhado (MC-0053).
 
 ### M5. Simulações (1366×768, escala 2, Archivo/IBM Plex de `apps/web/app/fonts/`)
 | Arquivo | O que mostra |
 |---|---|
 | `bko-revisao/menu-completo-1366x768.png` | Administrador com os 8 módulos, sanfona, grupo Operação aberto, Pedidos destacado, sem barra de rolagem |
 | `bko-revisao/menu-tela-atual-e-outro-grupo.png` | Coordenadas sugeridas destacada (Cadastros aberto) e o painel ao lado do grupo Comercial sob o ponteiro (1 clique) |
-| `bko-revisao/menu-perfil-poucos-modulos.png` | Supervisor com Core + Vendedor (Catálogo e Integração são nativos): tudo cabe, todos os grupos abertos, sem setas |
+| `bko-revisao/menu-perfil-poucos-modulos.png` | Assistente com Core + Vendedor (Catálogo e Integração são nativos): 12 itens em 6 grupos, tudo cabe aberto (a lista termina em 646 px, o rodapé começa em 681 px), sem setas |
 
 Os `.html` ao lado de cada PNG são a fonte da simulação.
 
+Por que o Assistente na terceira simulação: a lista é a real, filtrada pelo perfil e pela ação de cada página (`modules/*/web/index.ts` e `acoes` dos `manifest.ts`). O Supervisor não serve: no perfil de fábrica ele não tem `acesso.bko` (`packages/platform-sdk/src/permissoes-perfil.ts`, RN-CORE-33) e, mesmo com o acesso liberado, com Core + Vendedor veria 16 itens em 7 grupos (Filiais, Alçadas, Plano de RV e Transportadoras a mais), que não cabem abertos e caem na sanfona. O Assistente com Core + Vendedor vê: Análise (Indicadores, Metas), Cadastros (Carteira, Clientes, Filiais), Comercial (Alçadas, Transportadoras), Operação (Pedidos, Rotas, Visitas), Produtos (Catálogo) e Sistema (Auditoria).
+
 ### M6. Quem implementa (proposta ao gerente; nada disso é caminho do designer-ux)
-- **engenheiro-software** (`packages/platform-sdk/src/shell.ts`): trocar o tipo `grupo` (`operacao | cadastros | analise | administracao`) pelos 9 grupos do M2 (`acesso | analise | cadastros | comercial | comunicacao | conteudo_campo | operacao | produtos_precos | sistema`) e ordenar a `navegacao` por rótulo do grupo e depois pelo rótulo do item (pt-BR), ignorando `ordem` no BKO. A troca do tipo é incompatível: falar com o engenheiro sobre a migração dos módulos no mesmo lote.
+- **engenheiro-software** (`packages/platform-sdk/src/shell.ts`): trocar o tipo `grupo` (`operacao | cadastros | analise | administracao`) pelos 9 grupos do M2 (`acesso | analise | cadastros | comercial | comunicacao | conteudo_campo | operacao | produtos | sistema`) e ordenar a `navegacao` por rótulo do grupo e depois pelo rótulo do item (pt-BR), ignorando `ordem` no BKO. A troca do tipo é incompatível: falar com o engenheiro sobre a migração dos módulos no mesmo lote.
 - **Cada modulo-*** (`modules/<m>/web/index.ts`): ajustar o `grupo` das páginas conforme a tabela do M2.
 - **engenheiro-apps** (`apps/web/components/app-shell.tsx`): título em todos os grupos (inclusive o primeiro), Auditoria dentro de Sistema, sanfona e painel ao lado (M3), medição de altura, cores e medidas (M4), largura de 240 px, `aria-expanded` no título do grupo e `aria-current="page"` no item (este já existe). Atualizar o teste do menu e os `data-testid` (`nav-<modulo>-<id>` continuam iguais).
 - **testes**: e2e em 1366×768 sem rolagem no `menu-bko` (Administrador com os 8 módulos) e item invisível sem licença ou sem perfil.
+
+### M7. Para os módulos e o engenheiro-apps (renomes do menu)
+O rótulo do menu (`navegacao` em `modules/<m>/web/index.ts`) tem de estar na lista `apps.web.menus` do `manifest.ts` do mesmo módulo (o `criarShell` acusa a diferença): os dois mudam juntos, no mesmo PR do dono. O `titulo` da página não muda.
+
+| Dono | Arquivo | Rótulo antigo → novo |
+|---|---|---|
+| modulo-core | `modules/core/web/index.ts` (página `usuarios-e-modulos`, campo `navegacao`) | "Usuários e módulos" → "Módulos" |
+| modulo-core | `modules/core/web/index.ts` (página `perfis`, campo `navegacao`) | "Perfis de acesso" → "Perfis" |
+| modulo-core | `modules/core/web/index.ts` (página `produtos`, campo `navegacao`) | "Produtos" → "Preço e custo" |
+| modulo-core | `modules/core/manifest.ts` (`apps.web.menus`) | "Usuários e módulos" → "Módulos"; "Perfis de acesso" → "Perfis"; "Produtos" → "Preço e custo" |
+| modulo-promotor | `modules/promotor/web/index.ts` (página `cadastros`, campo `navegacao`) | "Cadastros de trade" → "Trade" |
+| modulo-promotor | `modules/promotor/manifest.ts` (`apps.web.menus`) | "Cadastros de trade" → "Trade" |
+| engenheiro-software | `packages/platform-sdk/src/shell.ts` (tipo `grupo`) | grupo `produtos_precos` (rótulo "Produtos e preços", das versões anteriores desta spec) → `produtos` (rótulo "Produtos"), com os demais grupos do M6 |
+| engenheiro-apps | `apps/web/components/app-shell.tsx` e o teste do menu | rótulos dos grupos conforme o M2 (inclusive "Produtos"); conferir textos fixos de teste que citem os 4 rótulos antigos acima |
+| testes | `tests/modulos/acesso-perfil-modulos-rncore01.test.ts` (linhas 147–163: procura `navegacao: 'Usuários e módulos'` e exige `'Perfis de acesso'` em `apps.web.menus`) e `tests/e2e/bko/demo-bko.spec.ts` (linhas 105–106, comentário) | "Usuários e módulos" → "Módulos"; "Perfis de acesso" → "Perfis" |
+
+Atenção (R-20261114-144500): esse teste já espera "Usuários e módulos" **fora** do menu (rota só por URL). Se essa decisão valer, o item "Módulos" sai do grupo Acesso (que fica com Aparelhos, Perfis e Usuários) e o renome vale só para o título e os testes; o gerente confirma qual das duas vale antes da implementação.
+
+Os `data-testid` (`nav-<modulo>-<id>`) e as rotas não mudam.
 
 ---
 
