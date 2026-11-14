@@ -115,9 +115,16 @@ const RECEITA_ATIVA: ConsultaCnpjResposta = {
   fonte: 'brasilapi',
 };
 
+/** Empresas com assinatura na lista (hoje = 2026-11-20 no teste): em teste, teste vencido sem pagar e paga. */
+const EMPRESAS_COM_PLANO = [
+  { id: '0a000000-0000-4000-8000-0000000000d1', codigo: 'AM0001', razao_social: 'Em Teste Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-14T00:00:00Z', modulos: [], plano: 'PME', teste_ate: '2026-11-27', paga: false },
+  { id: '0a000000-0000-4000-8000-0000000000d2', codigo: 'RR0002', razao_social: 'Vencido Ltda', cnpj: null, fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [], plano: 'Light', teste_ate: '2026-11-14', paga: false },
+  { id: '0a000000-0000-4000-8000-0000000000d3', codigo: 'SP0003', razao_social: 'Paga Ltda', cnpj: null, fuso: 'America/Sao_Paulo', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [], plano: 'PME', teste_ate: '2026-11-27', paga: true },
+];
+
 function montar(
   licTenant: Partial<Record<string, LicencasTenant>> = {},
-  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown; receita?: SituacaoCadastral | 'nao_encontrado' | 'fora' } = {},
+  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown; receita?: SituacaoCadastral | 'nao_encontrado' | 'fora'; ufReceita?: ConsultaCnpjResposta['uf']; relogio?: () => Date } = {},
 ) {
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const redefinicoes: EntradaRedefinirSenhaAdmin[] = [];
@@ -131,7 +138,7 @@ function montar(
       consultasCnpj.push(cnpj);
       const r = op.receita ?? 'ativa';
       if (r === 'nao_encontrado' || r === 'fora') return { resultado: r, cache: false, tentativas: [] };
-      return { resultado: 'ok', cache: false, tentativas: [], dados: { ...RECEITA_ATIVA, cnpj, situacao_cadastral: r } };
+      return { resultado: 'ok', cache: false, tentativas: [], dados: { ...RECEITA_ATIVA, cnpj, situacao_cadastral: r, ...(op.ufReceita !== undefined ? { uf: op.ufReceita } : {}) } };
     },
   };
   // cada fonte falsa abre uma transação no banco recebido, como a real: sem o banco do portal, dá 503
@@ -148,7 +155,11 @@ function montar(
     listarEmpresas: async (_sa, b) => {
       await usar('listarEmpresas', b);
       return {
-        itens: [{ id: TENANT, codigo: 'cliente-x', razao_social: 'Cliente X Ltda', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [] }],
+        itens: [
+          { id: TENANT, codigo: 'cliente-x', razao_social: 'Cliente X Ltda', cnpj: null, fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T00:00:00Z', modulos: [] },
+          // com assinatura (0047): o banco devolve o nome do plano, o fim do teste e se já está paga; a API calcula o em_teste
+          ...EMPRESAS_COM_PLANO,
+        ],
       };
     },
     adminsDaEmpresa: async (_sa, t, b) => {
@@ -172,6 +183,8 @@ function montar(
       if (op.erroProvisionar) throw op.erroProvisionar;
       return {
         tenant_id: simular ? null : '0a000000-0000-4000-8000-0000000000aa',
+        // 0068: o banco devolve o código (o informado ou o da licença sorteado para a UF)
+        codigo: entrada.codigo ?? `${entrada.uf}0042`,
         resultado: 'criado',
         modulos_adicionados: entrada.modulos.map((m) => m.modulo),
         parametros_gravados: entrada.parametros.map((p) => p.chave),
@@ -200,6 +213,7 @@ function montar(
       senhaPortal,
       consultaCnpj,
       plataforma: fonte,
+      ...(op.relogio ? { relogio: op.relogio } : {}),
       ...(op.semEmail ? {} : { email: criarServicoEmail({ cifra, log: { info: () => undefined, warn: () => undefined, error: () => undefined } }) }),
       licencasTenant: async (t, b) => {
         usos.push({ onde: 'licencasTenant', banco: b });
@@ -304,6 +318,72 @@ describe('POST /v1/plataforma/empresas (passo Empresa; RN-CORE-31)', () => {
     expect(dep.json().codigo).toBe('RN-CORE-31');
     expect(dep.json().detalhes.erros[0]).toMatchObject({ codigo: 'DEPENDENCIA_FALTANDO', dependencia: 'catalogo' });
     expect((await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: { ...corpo, cnpj: '11.222.333/0001-82' } })).statusCode).toBe(400);
+  });
+});
+
+/** Código da empresa = código da licença, UF + 4 dígitos sorteados pelo banco (R-20261114-170600; 0068; ADR 0048, adendo). */
+describe('POST /v1/plataforma/empresas sem código: código da licença pela UF da Receita', () => {
+  const TENANT_NOVO = '0a000000-0000-4000-8000-0000000000c1';
+  const corpo = { tenant_id: TENANT_NOVO, razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'catalogo' }] };
+  const criar = (app: ReturnType<typeof montar>['app'], extra: Record<string, unknown> = {}) =>
+    app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: { ...corpo, ...extra } });
+
+  it('vai ao banco sem codigo, com o id do portal e a UF da Receita; a resposta traz o código sorteado', async () => {
+    const { app, provisionados } = montar();
+    const r = await criar(app);
+    expect(r.statusCode).toBe(201);
+    const e = provisionados[0]!.entrada;
+    expect(e).toMatchObject({ id: TENANT_NOVO, uf: 'AM', nome: 'Distribuidora X Ltda' });
+    expect(e).not.toHaveProperty('codigo');
+    expect(r.json()).toMatchObject({ codigo: 'AM0042', resultado: 'criado' });
+  });
+
+  it('UF no corpo igual à da Receita segue; diferente = 422 UF_DIFERENTE_DA_RECEITA, sem ir ao banco', async () => {
+    const igual = montar();
+    expect((await criar(igual.app, { uf: 'am' })).statusCode).toBe(201);
+    const diferente = montar();
+    const r = await criar(diferente.app, { uf: 'RR' });
+    expect([r.statusCode, r.json().codigo]).toEqual([422, 'UF_DIFERENTE_DA_RECEITA']);
+    expect(r.json().detalhes).toEqual({ campo: 'uf', uf_receita: 'AM' });
+    expect(diferente.provisionados).toEqual([]);
+  });
+
+  it('Receita sem UF (sede no exterior): vale a UF do corpo; sem ela, 422 UF_OBRIGATORIA sem ir ao banco', async () => {
+    const comUf = montar({}, { ufReceita: null });
+    expect((await criar(comUf.app, { uf: 'SP' })).statusCode).toBe(201);
+    expect(comUf.provisionados[0]!.entrada.uf).toBe('SP');
+    const semUf = montar({}, { ufReceita: null });
+    const r = await criar(semUf.app);
+    expect([r.statusCode, r.json().codigo]).toEqual([422, 'UF_OBRIGATORIA']);
+    expect(semUf.provisionados).toEqual([]);
+  });
+
+  it('sem codigo e sem tenant_id = 400 (reenviar sortearia outro código); com codigo legado, nem id nem uf vão ao banco', async () => {
+    const { app, provisionados } = montar();
+    const { tenant_id: _id, ...semId } = corpo;
+    const r = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: semId });
+    expect([r.statusCode, r.json().codigo, r.json().detalhes]).toEqual([400, 'VALIDACAO', { campo: 'tenant_id' }]);
+    expect(provisionados).toEqual([]);
+    expect((await criar(app, { tenant_id: undefined, codigo: 'distribuidora-x' })).statusCode).toBe(201);
+    expect(provisionados[0]!.entrada).toMatchObject({ codigo: 'distribuidora-x' });
+    expect(provisionados[0]!.entrada).not.toHaveProperty('id');
+    expect(provisionados[0]!.entrada).not.toHaveProperty('uf');
+  });
+});
+
+describe('GET /v1/plataforma/empresas: plano e teste na lista, sem consulta por linha (R-20261114-170600)', () => {
+  it('nome do plano, teste_ate só enquanto não paga e em_teste pelo dia no fuso da empresa', async () => {
+    const { app, usos } = montar({}, { relogio: () => new Date('2026-11-20T15:00:00Z') });
+    const r = await app.inject({ method: 'GET', url: '/v1/plataforma/empresas', headers: comSA(null) });
+    expect(r.statusCode).toBe(200);
+    const porCodigo = Object.fromEntries((r.json().itens as { codigo: string }[]).map((e) => [e.codigo, e]));
+    expect(porCodigo['cliente-x']).toMatchObject({ plano: null, teste_ate: null, em_teste: false });
+    expect(porCodigo['AM0001']).toMatchObject({ plano: 'PME', teste_ate: '2026-11-27', em_teste: true });
+    expect(porCodigo['RR0002']).toMatchObject({ plano: 'Light', teste_ate: '2026-11-14', em_teste: false });
+    expect(porCodigo['SP0003']).toMatchObject({ plano: 'PME', teste_ate: null, em_teste: false });
+    // a resposta segue o contrato (sem o `paga` cru do banco) e a lista é uma chamada só
+    expect(porCodigo['AM0001']).not.toHaveProperty('paga');
+    expect(usos.filter((u) => u.onde === 'listarEmpresas')).toHaveLength(1);
   });
 });
 

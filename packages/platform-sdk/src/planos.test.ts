@@ -10,6 +10,7 @@ import {
   conferirTrocaDePlano,
   contarLicencasEmUso,
   CriarEmpresaComPlanoSchema,
+  emTeste,
   EscolhaNaCriacaoSchema,
   FichaAssinaturaSchema,
   fimDoTeste,
@@ -200,6 +201,13 @@ describe('RN-PLA-06 valor e teste', () => {
     expect(fimDoTeste('2026-11-14', 1)).toBe('2026-11-14');
     expect(fimDoTeste('2026-11-14', 0)).toBeNull();
   });
+
+  it('emTeste (coluna Plano da lista): não paga e hoje até o fim do teste, inclusive', () => {
+    expect(emTeste({ testeAte: '2026-11-27', paga: false }, '2026-11-27')).toBe(true);
+    expect(emTeste({ testeAte: '2026-11-27', paga: false }, '2026-11-28')).toBe(false);
+    expect(emTeste({ testeAte: '2026-11-27', paga: true }, '2026-11-20')).toBe(false);
+    expect(emTeste({ testeAte: null, paga: false }, '2026-11-20')).toBe(false);
+  });
 });
 
 describe('contratos (Zod)', () => {
@@ -236,6 +244,12 @@ describe('contratos (Zod)', () => {
     expect(r.success).toBe(true);
     expect(r.success && 'modulos' in r.data).toBe(false);
     expect(CriarEmpresaComPlanoSchema.safeParse({ ...base, assinatura: undefined }).success).toBe(false);
+  });
+
+  it('criar empresa com plano: sem `codigo` (código da licença sorteado), com o `tenant_id` do portal e a UF', () => {
+    const base = { razao_social: 'Distribuidora Teste', cnpj: '11222333000181', uf: 'rr', assinatura: { plano: 'pme', pedido_id: '9b000000-0000-4000-8000-000000000001' } };
+    const r = CriarEmpresaComPlanoSchema.parse({ ...base, tenant_id: '0a000000-0000-4000-8000-0000000000c1' });
+    expect([r.codigo, r.uf]).toEqual([undefined, 'RR']);
   });
 
   it('ficha: os 6 itens contados; usoPorItem preenche o ausente com sem limite e 0', () => {

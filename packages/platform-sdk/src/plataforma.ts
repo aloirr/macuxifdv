@@ -8,6 +8,7 @@
  *   `/v1/plataforma/auth/*`. O primeiro acesso com convite, o TOTP e os códigos de recuperação da ADR 0029 saíram.
  * Nada aqui vai ao log: e-mail e senha só trafegam no corpo.
  */
+import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import { z } from 'zod';
 import { MODULOS } from './nomes';
 
@@ -112,6 +113,11 @@ export const AdminInicialEmpresaSchema = z
 const ModuloId = z.enum(MODULOS);
 /** Mesmo check `tenant_codigo_formato` da 0001 (e `CODIGO_TENANT_RE` do onboarding). */
 const CodigoTenant = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,39}$/, 'Use de 2 a 40 letras minúsculas, dígitos ou hífen.');
+/** Código legado informado na criação: nunca no formato do código da licença (`UF` + 4 dígitos), que só o banco sorteia (0068). */
+const CodigoLegadoNovo = CodigoTenant.refine(
+  (c) => !(c.length === 6 && /^\d{4}$/.test(c.slice(2)) && (UFS_BRASIL as readonly string[]).includes(c.slice(0, 2).toUpperCase())),
+  'O código da licença (UF + 4 dígitos) é sorteado pelo sistema: deixe o código em branco.',
+);
 /** Dígitos verificadores do CNPJ numérico (módulo 11; o mesmo cálculo do `@macuxi/comum/documento`, sem a dependência). */
 export function cnpjComDigitosValidos(cnpj: string): boolean {
   if (!/^\d{14}$/.test(cnpj) || /^(\d)\1{13}$/.test(cnpj)) return false;
@@ -135,6 +141,13 @@ const Cnpj = z
   .transform((s) => s.replace(/\D/g, ''))
   .pipe(z.string().regex(/^\d{14}$/, 'O CNPJ tem 14 dígitos.').refine(cnpjComDigitosValidos, 'CNPJ inválido: confira os dígitos.'));
 
+/**
+ * Empresa na lista do portal. `plano`, `teste_ate` e `em_teste` (R-20261114-170600; a coluna Plano sem uma consulta por linha):
+ * - `plano`: nome do plano da assinatura (ADR 0047); `null` = sem assinatura;
+ * - `teste_ate`: fim do teste grátis (AAAA-MM-DD, no fuso da empresa, inclusive) enquanto a assinatura não está paga; `null` =
+ *   paga, sem teste ou sem plano;
+ * - `em_teste`: hoje (no fuso da empresa) até `teste_ate`; calculado pela API (`emTeste` do SDK).
+ */
 export const EmpresaResumoSchema = z.object({
   id: Uuid,
   codigo: z.string(),
@@ -144,6 +157,9 @@ export const EmpresaResumoSchema = z.object({
   status: z.string(),
   criada_em: Instante,
   modulos: z.array(z.object({ modulo: ModuloId, licencas: z.number().int().min(0).nullable() })),
+  plano: z.string().nullable().default(null),
+  teste_ate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD.').nullable().default(null),
+  em_teste: z.boolean().default(false),
 });
 export const ListaEmpresasSchema = z.object({ itens: z.array(EmpresaResumoSchema) });
 
@@ -177,12 +193,18 @@ export function linhasDosParametrosIniciais(p: ParametrosIniciais): { modulo: 'v
 }
 
 /**
- * Passo Empresa: por baixo, o `tenant:criar` da T-0083 (RN-CORE-31; idempotente pelo `codigo`). Core e Integração entram
- * sempre (o portal carrega as bases pelo Hub). Sem admin: o admin do cliente vem na Equipe, com convite. `simular` = conferir
- * sem gravar.
+ * Passo Empresa: por baixo, o `tenant:criar` da T-0083 (RN-CORE-31). Core e Integração entram sempre (o portal carrega as bases
+ * pelo Hub). `simular` = conferir sem gravar.
+ * Código da empresa = código da licença, `UF` + 4 dígitos aleatórios (R-20261114-170600; migração 0068):
+ * - sem `codigo` (o portal): o banco sorteia o código para a UF do CNPJ na Receita; o `tenant_id` (UUID gerado no portal) é a
+ *   chave de idempotência e é obrigatório (reenviar não sorteia outro código; a API recusa sem ele com 400 `VALIDACAO`). `uf` é opcional: a API usa a UF da Receita e
+ *   recusa a que vier diferente (ADR 0048, adendo);
+ * - com `codigo` (legado, minúsculas): idempotente pelo código, como antes. O código da licença nunca vem do portal.
  */
 export const CriarEmpresaSchema = z.object({
-  codigo: CodigoTenant,
+  codigo: CodigoLegadoNovo.optional(),
+  tenant_id: Uuid.optional(),
+  uf: z.string().trim().toUpperCase().pipe(z.enum(UFS_BRASIL)).optional(),
   razao_social: z.string().trim().min(2).max(200),
   cnpj: Cnpj,
   fuso: z.string().trim().min(3).max(64).default('America/Manaus'),

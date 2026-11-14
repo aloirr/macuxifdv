@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
-import { FUSO_PADRAO_ONBOARDING, planoDeOnboarding, type EntradaOnboarding, type ResultadoOnboarding } from './onboarding';
+import { FUSO_PADRAO_ONBOARDING, planoDeOnboarding, planoDeOnboardingSemAdmin, type EntradaOnboarding, type ResultadoOnboarding } from './onboarding';
 
 const todos = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 const manifestos = [
@@ -116,5 +116,24 @@ describe('planoDeOnboarding (RN-CORE-31)', () => {
     const p = ok(planoDeOnboarding(entrada, manifestos));
     expect(entrada).toEqual(copia);
     expect(p.modulos[0]!.perfis).not.toBe(manifestos[0]!.perfis);
+  });
+});
+
+describe('planoDeOnboardingSemAdmin (portal; código da licença da 0068)', () => {
+  const { admin: _admin, ...semAdmin } = base;
+  it('sem código: o plano sai com codigo nulo (o banco sorteia UF + 4 dígitos) e as mesmas regras de módulos', () => {
+    const { codigo: _codigo, ...semCodigo } = semAdmin;
+    const r = planoDeOnboardingSemAdmin(semCodigo, manifestos);
+    expect(r.ok && r.plano.tenant.codigo).toBeNull();
+    expect(r.ok && r.plano.modulos.map((m) => m.modulo)).toEqual(['core', 'catalogo', 'vendedor']);
+    const dep = planoDeOnboardingSemAdmin({ ...semCodigo, modulos: ['vendedor'] }, manifestos);
+    expect(dep.ok ? [] : dep.erros.map((x) => x.codigo)).toEqual(['DEPENDENCIA_FALTANDO']);
+  });
+
+  it('com código: valida e normaliza como antes', () => {
+    const r = planoDeOnboardingSemAdmin({ ...semAdmin, codigo: ' Distribuidora-X ' }, manifestos);
+    expect(r.ok && r.plano.tenant.codigo).toBe('distribuidora-x');
+    const x = planoDeOnboardingSemAdmin({ ...semAdmin, codigo: 'x' }, manifestos);
+    expect(x.ok ? [] : x.erros.map((e) => e.codigo)).toEqual(['CODIGO_INVALIDO']);
   });
 });

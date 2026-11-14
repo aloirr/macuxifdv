@@ -23,6 +23,10 @@ export const CODIGOS_CNPJ = {
   limite: 'CNPJ_LIMITE',
   /** 422 no `POST /v1/plataforma/empresas`: situação na Receita diferente de ATIVA (R-20261114-144000, item 3). */
   inativo: 'CNPJ_INATIVO',
+  /** 422 na criação sem código: a `uf` do corpo não é a da Receita (`detalhes.uf_receita`; ADR 0048, adendo). */
+  ufDiferente: 'UF_DIFERENTE_DA_RECEITA',
+  /** 422 na criação sem código: a Receita não tem UF (sede no exterior) e o corpo não trouxe `uf`. */
+  ufObrigatoria: 'UF_OBRIGATORIA',
 } as const;
 export type CodigoCnpj = (typeof CODIGOS_CNPJ)[keyof typeof CODIGOS_CNPJ];
 

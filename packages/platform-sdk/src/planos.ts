@@ -363,6 +363,14 @@ export function fimDoTeste(hoje: string, dias: number): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Coluna Plano da lista de empresas (R-20261114-170600): em teste = assinatura não paga e hoje (no fuso da empresa) até o fim do
+ * teste, inclusive. Teste vencido sem pagamento não é "em teste" (é o `TESTE_VENCIDO` da RN-PLA-04).
+ */
+export function emTeste(situacao: { testeAte: string | null; paga: boolean }, hoje: string): boolean {
+  return !situacao.paga && situacao.testeAte !== null && hoje <= situacao.testeAte;
+}
+
 /** Linhas por item (`plataforma.licencas_do_tenant()`) → registros; item ausente = sem limite e 0 em uso. */
 export function usoPorItem(linhas: readonly UsoDeLicenca[]): { contratadas: Record<ItemContado, number | null>; emUso: Record<ItemContado, number> } {
   const contratadas = Object.fromEntries(ITENS_CONTADOS.map((i) => [i, null])) as Record<ItemContado, number | null>;

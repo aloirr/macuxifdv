@@ -595,6 +595,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       cifrar: (carga, aad) => (email as unknown as EmailDoPortal).cifrar(carga, aad),
     },
     consultaCnpj,
+    relogio,
   });
 
   // T-0158 (ADR 0043): Portal › Diagnósticos, só super-admin, no banco do portal; desligado por padrão
@@ -625,6 +626,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
       validar,
       relogio,
+      consultaCnpj,
     });
   }
 
