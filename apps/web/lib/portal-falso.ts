@@ -8,38 +8,47 @@
  * - `admin@uma.com.br`: admin do cliente com 1 empresa (entra direto);
  * - `admin@duas.com.br`: admin do cliente com 2 empresas (escolhe; "Trocar de empresa");
  * - `troca@uma.com.br`: admin do cliente com a senha ainda por trocar (403 `SENHA_A_TROCAR`, T-0094).
- * Outro e-mail = 401 (mesma resposta da senha errada). Na carga, linha sem `external_id` ou com `erro` no texto vira erro de linha.
+ * Outro e-mail = 401 (mesma resposta da senha errada).
+ * Planos (ADR 0047): o catálogo da spec portal-config-enxuto §11.3; cada empresa fictícia tem uma assinatura (Uma: PME em teste,
+ * com Promotor Avulso 3 e Pesquisa 10). CNPJ (ADR 0048), pela raiz (8 primeiros dígitos) de um CNPJ com dígitos válidos: começa
+ * com `99` = Receita fora (503), `88` = não encontrado (404), `77` = baixado; o resto = ativo. A empresa nova recebe o código da
+ * licença UF + 4 dígitos, como a migração 0068.
  * Admins da empresa (T-0094 fatia S, só o time da Macuxi): na Distribuidora Uma, um admin normal, um bloqueado, um em
  * `@sem-email.` (o redefinir dele responde 503 `EMAIL_INDISPONIVEL`, como a API sem e-mail configurado) e um admin + vendedor
  * (`entra_no_portal = false`, migração 0047, RN-CORE-35); nas outras, o admin
  * inicial com a troca pendente. Só na memória da aba (nada de e-mail no `sessionStorage`).
  */
+import { cnpjValido, somenteDigitos } from '@macuxi/comum/documento';
+import { ehUf } from '@macuxi/comum/endereco';
 import {
-  CriarEmpresaSchema,
+  CODIGOS_CNPJ,
+  ConsultaCnpjPedidoSchema,
+  CriarEmpresaComPlanoSchema,
   EscolherEmpresaPortalSchema,
+  fimDoTeste,
+  ITENS_CONTADOS,
+  licencasContratadas,
   LoginPortalSchema,
+  modulosDaAssinatura,
   RedefinirSenhaAdminSchema,
   SessaoPortalSchema,
-  linhasDosParametrosIniciais,
+  valorDaAssinatura,
+  type AdicionalContratado,
   type AdminDaEmpresa,
+  type Ciclo,
+  type ConsultaCnpjResposta,
+  type FichaAssinatura,
+  type ItemContado,
+  type Plano,
   type RedefinirSenhaAdminResposta,
 } from '@macuxi/platform-sdk';
-import {
-  CargaArquivoEntrada,
-  ConectorCriar,
-  ConferirArquivoEntrada,
-  type ConectorResumo,
-  type Entidade,
-  type LinhaErro,
-  type LoteResultado,
-} from '@macuxi/integracao/contracts';
+import { ConectorCriar, type ConectorResumo, type Entidade } from '@macuxi/integracao/contracts';
 
-import { CODIGOS_PORTAL, faltasNaSenha, ImportarEquipeRequestSchema, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, PerfilSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
 const CHAVE = 'macuxi.portal.falso';
-const ORDEM: Entidade[] = ['vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
 interface EmpresaFalsa {
   id: string;
@@ -50,14 +59,6 @@ interface EmpresaFalsa {
   status: string;
   criada_em: string;
   modulos: { modulo: string; licencas: number | null }[];
-}
-interface LoteFalso {
-  tenant: string;
-  resultado: LoteResultado;
-  sessao: string | null;
-  parte: number;
-  total: number;
-  pronto_em: number;
 }
 /** Sessão do modo falso: o token é a chave; o admin do cliente tem a lista conferida e a escolhida. */
 interface SessaoFalsa {
@@ -70,14 +71,49 @@ interface Estado {
   sessoes: Record<string, SessaoFalsa>;
   empresas: EmpresaFalsa[];
   conectores: Record<string, ConectorResumo[]>;
-  lotes: Record<string, LoteFalso>;
+  assinaturas: Record<string, AssinaturaFalsa>;
 }
+/** Assinatura fictícia: a escolha e o uso (sem dado pessoal; vai ao `sessionStorage`). */
+interface AssinaturaFalsa {
+  plano: string;
+  ciclo: Ciclo;
+  adicionais: AdicionalContratado[];
+  teste_ate: string | null;
+  paga: boolean;
+  em_uso: Partial<Record<ItemContado, number>>;
+  desde: string;
+}
+
+/** Catálogo da spec portal-config-enxuto §11.3 (no servidor, é dado do banco). */
+const plano = (n: number, codigo: string, nome: string, centavos: number, vendedor: number, gestor: number, bko: number): Plano => ({
+  id: `7c2a0f10-0000-4000-8000-00000000000${n}`,
+  codigo,
+  nome,
+  ordem: n,
+  preco_mensal_centavos: centavos,
+  licencas: { vendedor, gestor, bko, promotor: 0 },
+  modulos: ['core', 'catalogo', 'vendedor', 'gestor', 'integracao'],
+  adicionais: [
+    { adicional: 'promotor', preco_unitario_centavos: 8000, incluidos: 0 },
+    { adicional: 'pesquisa', preco_unitario_centavos: 1000, incluidos: 0 },
+    { adicional: 'treinamento', preco_unitario_centavos: 1000, incluidos: 0 },
+  ],
+  meses_gratis_anual: 2,
+  dias_teste: 14,
+  ativo: true,
+});
+export const PLANOS_FALSOS: readonly Plano[] = [
+  plano(1, 'light', 'Light', 61_000, 10, 1, 1),
+  plano(2, 'pme', 'PME', 119_700, 20, 2, 3),
+  plano(3, 'enterprise', 'Enterprise', 171_900, 30, 3, 5),
+  plano(4, 'corporate', 'Corporate', 259_250, 50, 5, 5),
+];
 
 /** Empresas dos admins do cliente falsos (ids fixos: o F5 e os testes acham as mesmas). */
 const EMPRESAS_DOS_CLIENTES: EmpresaFalsa[] = [
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'distribuidora-uma', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }] },
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'atacado-norte', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }] },
-  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'comercial-boa-vista', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000001', codigo: 'AM4821', razao_social: 'Distribuidora Uma Ltda', cnpj: '11222333000181', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-01T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 10 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000002', codigo: 'RR3907', razao_social: 'Atacado Norte S.A.', cnpj: '04252011000110', fuso: 'America/Manaus', status: 'ativo', criada_em: '2026-11-02T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'vendedor', licencas: 25 }, { modulo: 'integracao', licencas: null }] },
+  { id: '0b6f1a52-5c1e-4c4e-9a43-000000000003', codigo: 'RR1562', razao_social: 'Comercial Boa Vista Ltda', cnpj: '33000167000101', fuso: 'America/Boa_Vista', status: 'ativo', criada_em: '2026-11-03T12:00:00.000Z', modulos: [{ modulo: 'core', licencas: null }, { modulo: 'promotor', licencas: 5 }, { modulo: 'integracao', licencas: null }] },
 ];
 /** Contas falsas por e-mail: `null` = time da Macuxi; lista = admin do cliente nessas empresas (por nome). */
 export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> = Object.freeze({
@@ -88,9 +124,6 @@ export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> =
 
 /** Conta falsa com a senha certa, mas ainda temporária: o portal responde 403 `SENHA_A_TROCAR` (T-0094). */
 export const CONTA_SENHA_A_TROCAR = 'troca@uma.com.br';
-
-/** E-mails já gravados pela Equipe por CSV, por empresa: só na memória da aba (nada de e-mail no `sessionStorage`). */
-const equipeFalsa = new Map<string, Set<string>>();
 
 /** Admins por empresa e redefinições já feitas (por `email_id`): só na memória da aba (e-mail não vai ao `sessionStorage`). */
 const adminsFalsos = new Map<string, AdminDaEmpresa[]>();
@@ -151,7 +184,75 @@ function responderAdmins(metodo: string, tenant: string, usuario: string | undef
   return json(200, resposta);
 }
 
-const vazio = (): Estado => ({ sessoes: {}, empresas: [...EMPRESAS_DOS_CLIENTES], conectores: {}, lotes: {} });
+const [UMA = '', NORTE = '', BOA_VISTA = ''] = EMPRESAS_DOS_CLIENTES.map((x) => x.id);
+const ASSINATURAS_INICIAIS: Record<string, AssinaturaFalsa> = {
+  [UMA]: {
+    plano: 'pme',
+    ciclo: 'mensal',
+    adicionais: [
+      { adicional: 'promotor', quantidade: 3 },
+      { adicional: 'pesquisa', quantidade: 10 },
+    ],
+    teste_ate: '2026-11-27',
+    paga: false,
+    em_uso: { vendedor: 14, gestor: 2, bko: 1, promotor: 3, pesquisa: 6 },
+    desde: '2026-11-14T12:00:00.000Z',
+  },
+  [NORTE]: { plano: 'light', ciclo: 'anual', adicionais: [], teste_ate: null, paga: true, em_uso: { vendedor: 8, gestor: 1, bko: 1 }, desde: '2026-11-02T12:00:00.000Z' },
+  [BOA_VISTA]: { plano: 'enterprise', ciclo: 'mensal', adicionais: [], teste_ate: '2026-11-16', paga: false, em_uso: { vendedor: 3, gestor: 1, bko: 1 }, desde: '2026-11-03T12:00:00.000Z' },
+};
+
+const vazio = (): Estado => ({ sessoes: {}, empresas: [...EMPRESAS_DOS_CLIENTES], conectores: {}, assinaturas: { ...ASSINATURAS_INICIAIS } });
+
+/** Ficha como a API (`FichaAssinaturaSchema`): contratadas pelo plano + adicionais, valor pelo `valorDaAssinatura`. */
+function fichaFalsa(tenant: string, a: AssinaturaFalsa): FichaAssinatura | null {
+  const p = PLANOS_FALSOS.find((x) => x.codigo === a.plano);
+  if (!p) return null;
+  const contratadas = licencasContratadas(p, a.adicionais);
+  return {
+    tenant_id: tenant,
+    plano: p,
+    ciclo: a.ciclo,
+    adicionais: a.adicionais,
+    teste_ate: a.teste_ate,
+    paga: a.paga,
+    licencas: ITENS_CONTADOS.map((item) => ({ item, contratadas: contratadas[item], em_uso: a.em_uso[item] ?? 0 })),
+    valor: valorDaAssinatura(p, a.adicionais, a.ciclo),
+    desde: a.desde,
+    atualizada_em: a.desde,
+  };
+}
+
+/** Consulta fictícia do CNPJ (regras no topo do arquivo); `Response` = erro como a API. */
+function consultaFalsa(cnpj: string): ConsultaCnpjResposta | Response {
+  const d = somenteDigitos(cnpj);
+  if (!cnpjValido(d)) return erro(400, CODIGOS_CNPJ.invalido, 'CNPJ inválido: confira os dígitos.', { campo: 'cnpj' });
+  if (d.startsWith('99')) return erro(503, CODIGOS_CNPJ.fonteFora, 'A consulta à Receita está fora do ar. Tente de novo em instantes.');
+  if (d.startsWith('88')) return erro(404, CODIGOS_CNPJ.naoEncontrado, 'CNPJ não encontrado na Receita Federal.');
+  const uma = d === '11222333000181';
+  return {
+    cnpj: d,
+    razao_social: uma ? 'Distribuidora Uma Ltda' : 'Empresa Exemplo Ltda',
+    nome_fantasia: uma ? 'Distribuidora Uma' : null,
+    endereco: { logradouro: 'Rua Fictícia', numero: '100', complemento: null, bairro: 'Bairro Teste' },
+    municipio: 'Manaus',
+    uf: 'AM',
+    cep: '69000000',
+    situacao_cadastral: d.startsWith('77') ? 'baixada' : 'ativa',
+    cnae_principal: { codigo: '4639701', descricao: 'Comércio atacadista de alimentos' },
+    telefone: '9200000000',
+    email: uma ? 'contato@distribuidorauma.invalid' : null,
+    fonte: 'brasilapi',
+  };
+}
+
+/** Código da licença: UF + 4 dígitos que ninguém usa (migração 0068). */
+function sortearCodigo(uf: string, usados: readonly string[]): string {
+  for (;;) {
+    const c = `${uf}${String(Math.floor(Math.random() * 10_000)).padStart(4, '0')}`;
+    if (!usados.includes(c)) return c;
+  }
+}
 
 function ler(): Estado {
   try {
@@ -199,31 +300,6 @@ function lerCorpo<T>(schema: { safeParse(x: unknown): { success: true; data: T }
   return erro(400, 'VALIDACAO', p.error.issues[0]?.message ?? 'Dados inválidos.');
 }
 
-const NL = String.fromCharCode(10);
-
-/** BOM do UTF-8 (o Excel abre o CSV sem perguntar a codificação). */
-const BOM = String.fromCharCode(0xfeff);
-const BOM_INICIO = new RegExp(`^${BOM}`);
-
-function linhasDoCsv(texto: string): string[][] {
-  const linhas = texto.replace(BOM_INICIO, '').split(/\r?\n/).filter((l) => l.trim() !== '');
-  const sep = (linhas[0] ?? '').includes(';') ? ';' : ',';
-  return linhas.map((l) => l.split(sep));
-}
-
-/** Erros de linha do modo falso: sem `external_id` na 1ª coluna, ou com a palavra "erro". */
-function errosFalsos(texto: string, linhaInicial = 2): { total: number; erros: LinhaErro[] } {
-  const [, ...dados] = linhasDoCsv(texto);
-  const erros: LinhaErro[] = [];
-  dados.forEach((cols, i) => {
-    const id = (cols[0] ?? '').trim();
-    const n = linhaInicial + i;
-    if (!id) erros.push({ indice: i, external_id: null, codigo: 'campo_obrigatorio', campo: 'external_id', mensagem: `Linha ${n} do arquivo: external_id é obrigatório.`, reprocessavel: false, origem: 'hub' });
-    else if (cols.join(' ').toLowerCase().includes('erro')) erros.push({ indice: i, external_id: id, codigo: 'formato_invalido', campo: cols.length > 1 ? 'nome' : null, mensagem: `Linha ${n} do arquivo: valor em formato inválido (exemplo do modo falso).`, reprocessavel: false, origem: 'hub' });
-  });
-  return { total: dados.length, erros };
-}
-
 function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorResumo['tipo']; recebe_pedidos: boolean; aceita_cancelamento?: boolean; entidades: Entidade[] }): ConectorResumo {
   return {
     id: crypto.randomUUID(),
@@ -243,11 +319,6 @@ function conectorResumo(c: { conector_id: string; nome: string; tipo: ConectorRe
     chave: { prefixo: 'mx_falso', criada_em: agoraIso(), anterior_prefixo: null, anterior_valida_ate: null, expira_em: null },
     criado_em: agoraIso(),
   };
-}
-
-function statusDoLote(l: LoteFalso): LoteResultado {
-  if (Date.now() < l.pronto_em) return { ...l.resultado, status: Date.now() < l.pronto_em - 1000 ? 'recebido' : 'processando', concluido_em: null };
-  return l.resultado;
 }
 
 export async function responderFalso(metodo: string, caminhoComQuery: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
@@ -306,44 +377,58 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
 
   // ---------- empresas
   if (rota === `GET ${ROTAS_PORTAL.empresas}`) return json(200, { itens: sessao.tipo === 'super_admin' ? e.empresas : e.empresas.filter((x) => sessao.empresas.includes(x.id)) });
-  if (rota === `POST ${ROTAS_PORTAL.empresas}`) {
-    if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
-    const c = lerCorpo(CriarEmpresaSchema, corpo);
+  // ---------- planos e CNPJ (ADR 0047 e 0048)
+  if (rota === `GET ${ROTAS_PORTAL.planos}`) return json(200, { itens: PLANOS_FALSOS });
+  if (rota === `POST ${ROTAS_PORTAL.cnpj}`) {
+    const bruto = (corpo as { cnpj?: unknown } | null)?.cnpj;
+    if (typeof bruto === 'string' && !cnpjValido(somenteDigitos(bruto))) return consultaFalsa(bruto) as Response;
+    const c = lerCorpo(ConsultaCnpjPedidoSchema, corpo);
     if (c instanceof Response) return c;
-    const jaExiste = e.empresas.some((x) => x.codigo === c.codigo);
-    // RN-CORE-34 e RN-CORE-32 como a API: empresa nova sem admin = 422; senha fora da regra do Core = 422 com as faltas
-    if (!jaExiste && !c.admin) return erro(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
-    if (!jaExiste && c.admin) {
-      const faltas = faltasNaSenha(c.admin.senha);
-      const m = mensagemDaSenha(faltas, c.admin.senha);
-      if (m) return erro(422, 'RN-CORE-32', m, { campo: 'admin.senha', faltas });
-    }
-    const modulos = [...new Map([{ modulo: 'core', licencas: null }, { modulo: 'integracao', licencas: null }, ...c.modulos].map((m) => [m.modulo, m])).values()];
-    const existente = e.empresas.find((x) => x.codigo === c.codigo);
-    const adicionados = modulos.filter((m) => !existente?.modulos.some((x) => x.modulo === m.modulo)).map((m) => m.modulo);
-    const resposta = {
-      tenant_id: c.simular ? (existente?.id ?? null) : (existente?.id ?? crypto.randomUUID()),
-      codigo: c.codigo,
-      resultado: existente ? (adicionados.length ? 'atualizado' : 'sem_mudanca') : 'criado',
-      modulos_adicionados: adicionados,
-      parametros_gravados: existente ? [] : linhasDosParametrosIniciais(c.parametros).map((l) => l.chave),
-      avisos: existente ? ['A empresa já existe: razão social e fuso não mudam.'] : [],
-      admin: existente ? (c.admin ? 'existente' : null) : 'criado',
-      simulado: c.simular,
-    };
-    if (!c.simular) {
-      const lista = existente
-        ? e.empresas.map((x) => (x.id === existente.id ? { ...x, modulos: [...x.modulos, ...modulos.filter((m) => adicionados.includes(m.modulo))] } : x))
-        : [...e.empresas, { id: resposta.tenant_id as string, codigo: c.codigo, razao_social: c.razao_social, cnpj: c.cnpj, fuso: c.fuso, status: 'ativo', criada_em: agoraIso(), modulos }];
-      gravar({ ...e, empresas: lista });
-      // o admin inicial da empresa nova entra na lista de admins (só na memória), com a troca pendente (RN-CORE-34)
-      if (!existente && c.admin && resposta.tenant_id) {
-        adminsFalsos.set(resposta.tenant_id, [
-          { usuario_id: crypto.randomUUID(), nome: c.admin.nome, email: c.admin.email, ativo: true, bloqueado: false, tem_senha: true, trocar_senha: true, senha_expira_em: null, entra_no_portal: true },
-        ]);
-      }
-    }
-    return json(c.simular ? 200 : 201, resposta);
+    const r = consultaFalsa(c.cnpj);
+    return r instanceof Response ? r : json(200, r);
+  }
+  if (rota === `POST ${ROTAS_PORTAL.empresaComPlano}`) {
+    if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
+    const uf = (corpo as { uf?: unknown } | null)?.uf;
+    if (typeof uf !== 'string' || !ehUf(uf)) return erro(400, 'VALIDACAO', 'Escolha a UF.', { campo: 'uf' });
+    const c = lerCorpo(CriarEmpresaComPlanoSchema.omit({ codigo: true }), corpo);
+    if (c instanceof Response) return c;
+    // RN-CORE-34 e RN-CORE-32 como a API: sem admin = 422; senha fora da regra do Core = 422 com as faltas
+    if (!c.admin) return erro(422, 'RN-CORE-34', 'Informe o administrador da empresa.', { campo: 'admin' });
+    const faltas = faltasNaSenha(c.admin.senha);
+    const m = mensagemDaSenha(faltas, c.admin.senha);
+    if (m) return erro(422, 'RN-CORE-32', m, { campo: 'admin.senha', faltas });
+    const receita = consultaFalsa(c.cnpj);
+    if (receita instanceof Response) return receita.status === 404 ? erro(422, CODIGOS_CNPJ.naoEncontrado, 'CNPJ não encontrado na Receita Federal. A empresa não foi criada.', { campo: 'cnpj' }) : receita;
+    if (receita.situacao_cadastral !== 'ativa') return erro(422, CODIGOS_CNPJ.inativo, `Este CNPJ não está ativo na Receita (situação: ${receita.situacao_cadastral}). A empresa não foi criada.`, { campo: 'cnpj', situacao_cadastral: receita.situacao_cadastral });
+    const p = PLANOS_FALSOS.find((x) => x.codigo === c.assinatura.plano);
+    if (!p) return erro(422, 'PLANO_DESCONHECIDO', 'Plano não encontrado no catálogo.', { campo: 'plano' });
+    const codigo = sortearCodigo(uf, e.empresas.map((x) => x.codigo));
+    const id = crypto.randomUUID();
+    const teste_ate = c.assinatura.com_teste ? fimDoTeste(agoraIso().slice(0, 10), p.dias_teste) : null;
+    const modulos = modulosDaAssinatura(p, c.assinatura.adicionais).map((modulo) => ({ modulo, licencas: null }));
+    const assinatura: AssinaturaFalsa = { plano: p.codigo, ciclo: c.assinatura.ciclo, adicionais: c.assinatura.adicionais, teste_ate, paga: !teste_ate, em_uso: { bko: 1 }, desde: agoraIso() };
+    gravar({
+      ...e,
+      empresas: [...e.empresas, { id, codigo, razao_social: c.razao_social, cnpj: c.cnpj, fuso: c.fuso, status: 'ativo', criada_em: agoraIso(), modulos }],
+      assinaturas: { ...e.assinaturas, [id]: assinatura },
+    });
+    // o admin inicial entra na lista de admins (só na memória), com a troca pendente (RN-CORE-34)
+    adminsFalsos.set(id, [{ usuario_id: crypto.randomUUID(), nome: c.admin.nome, email: c.admin.email, ativo: true, bloqueado: false, tem_senha: true, trocar_senha: true, senha_expira_em: null, entra_no_portal: true }]);
+    return json(201, { tenant_id: id, codigo, resultado: 'criado', assinatura: 'criada', teste_ate, valor: valorDaAssinatura(p, c.assinatura.adicionais, c.assinatura.ciclo), avisos: [], admin: 'criado', simulado: false });
+  }
+  const assinaturaM = /^\/plataforma\/empresas\/([^/]+)\/assinatura$/.exec(caminho);
+  if (metodo === 'GET' && assinaturaM) {
+    const t = decodeURIComponent(assinaturaM[1] ?? '');
+    if (sessao.tipo === 'admin_cliente' && t !== sessao.empresa) return erro(403, 'PERFIL_SEM_ACESSO', 'Você só vê o plano da sua empresa.');
+    const a = e.assinaturas[t];
+    const f = a ? fichaFalsa(t, a) : null;
+    return f ? json(200, f) : erro(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
+  }
+  // ---------- diagnósticos (T-0158): o modo falso não tem aparelhos, a lista vem vazia
+  if (rota === `GET ${ROTAS_PORTAL.diagnosticos}`) {
+    if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi vê os diagnósticos.');
+    return json(200, { itens: [], cursor: null });
   }
 
   const adminsM = ADMINS_M.exec(caminho);
@@ -355,89 +440,6 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     if (tenant !== sessao.empresa) return erro(403, 'EMPRESA_NAO_PERMITIDA', 'Você não tem acesso a esta empresa. Escolha outra.');
   }
   if (!tenant || !e.empresas.some((x) => x.id === tenant)) return erro(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
-  if (rota === `GET ${ROTAS_PORTAL.ordemCarga}`) {
-    return json(200, { itens: ORDEM.map((entidade, i) => ({ entidade, posicao: i + 1, opcional: entidade === 'titulo' || entidade === 'nota', depende_de: [] })) });
-  }
-  if (rota === `POST ${ROTAS_PORTAL.conferirArquivo}`) {
-    const c = lerCorpo(ConferirArquivoEntrada, corpo);
-    if (c instanceof Response) return c;
-    const r = errosFalsos(c.conteudo, c.linha_inicial ?? 2);
-    const comErro = new Set(r.erros.map((x) => x.indice)).size;
-    return json(200, { entidade: c.entidade, modo: c.modo ?? 'delta', linhas_lidas: r.total, linhas_validas: r.total - comErro, linhas_com_erro: comErro, erros: r.erros.slice(0, 200), erros_omitidos: Math.max(0, r.erros.length - 200), pode_gravar: comErro === 0, gravou: false });
-  }
-  if (rota === `POST ${ROTAS_PORTAL.cargaArquivo}`) {
-    const c = lerCorpo(CargaArquivoEntrada, corpo);
-    if (c instanceof Response) return c;
-    const conectores = e.conectores[tenant] ?? [];
-    const dono = conectores.find((x) => x.tipo === 'arquivo' && x.entidades.includes(c.entidade as Entidade));
-    if (!dono) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Esta empresa ainda não tem um Conector de arquivo para esta base.');
-    const r = errosFalsos(c.conteudo, c.linha_inicial ?? 2);
-    const id = crypto.randomUUID();
-    const comErro = new Set(r.erros.map((x) => x.indice)).size;
-    const resultado: LoteResultado = {
-      lote_id: id,
-      entidade: c.entidade as Entidade,
-      modo: (c.modo ?? 'delta') as LoteResultado['modo'],
-      status: comErro ? 'concluido_com_erros' : 'concluido',
-      contagens: { recebidas: r.total, duplicadas_no_lote: 0, com_erro: comErro, novas: r.total - comErro, atualizadas: 0, inalteradas: 0, obsoletas: 0 },
-      erros: r.erros,
-      avisos: [],
-      cursor: null,
-      inativadas: 0,
-      erros_total: r.erros.length,
-      recebido_em: agoraIso(),
-      concluido_em: agoraIso(),
-    };
-    gravar({ ...e, lotes: { ...e.lotes, [id]: { tenant, resultado, sessao: c.sessao_id ?? null, parte: c.parte ?? 1, total: c.total_partes ?? 1, pronto_em: Date.now() + 2500 } } });
-    return json(202, {
-      lote_id: id,
-      status: 'recebido',
-      entidade: c.entidade,
-      modo: c.modo ?? 'delta',
-      recebidos: Math.max(1, r.total),
-      consulta: `/v1/integracao/lotes/${id}`,
-      conector_id: dono.conector_id,
-      linhas_lidas: Math.max(1, r.total),
-      linhas_invalidas_leitura: 0,
-      ...(c.sessao_id ? { sessao: { id: c.sessao_id, parte: c.parte, total_partes: c.total_partes, consulta: `/v1/integracao/cargas-arquivo/sessoes/${c.sessao_id}` } } : {}),
-    });
-  }
-  const sessaoM = /^\/integracao\/cargas-arquivo\/sessoes\/([^/]+)$/.exec(caminho);
-  if (metodo === 'GET' && sessaoM) {
-    const partes = Object.values(e.lotes).filter((l) => l.sessao === sessaoM[1]);
-    const p0 = partes[0];
-    if (!p0) return erro(404, 'SESSAO_NAO_ENCONTRADA', 'Sessão de carga não encontrada.');
-    const prontas = partes.filter((l) => Date.now() >= l.pronto_em);
-    const soma = (k: 'recebidas' | 'com_erro' | 'novas' | 'atualizadas' | 'inalteradas' | 'obsoletas') => partes.reduce((a, l) => a + l.resultado.contagens[k], 0);
-    const faltando = Array.from({ length: p0.total }, (_, i) => i + 1).filter((n) => !partes.some((l) => l.parte === n));
-    return json(200, {
-      sessao_id: sessaoM[1],
-      entidade: p0.resultado.entidade,
-      modo: p0.resultado.modo,
-      total_partes: p0.total,
-      situacao: faltando.length === 0 && prontas.length === partes.length ? 'completa' : 'aberta',
-      partes_recebidas: partes.length,
-      partes_aplicadas: prontas.length,
-      partes_com_falha: 0,
-      partes_faltando: faltando,
-      partes: partes.map((l) => ({ parte: l.parte, lote_id: l.resultado.lote_id, status: statusDoLote(l).status, ...l.resultado.contagens })).map(({ duplicadas_no_lote: _d, ...x }) => x),
-      contagens: { recebidas: soma('recebidas'), com_erro: soma('com_erro'), novas: soma('novas'), atualizadas: soma('atualizadas'), inalteradas: soma('inalteradas'), obsoletas: soma('obsoletas') },
-      erros_total: partes.reduce((a, l) => a + l.resultado.erros.length, 0),
-      iniciada_em: p0.resultado.recebido_em,
-      expira_em: agoraIso(24 * 60),
-    });
-  }
-  const loteM = /^\/integracao\/lotes\/([^/]+?)(\/erros(\.csv)?)?$/.exec(caminho);
-  if (metodo === 'GET' && loteM) {
-    const l = e.lotes[loteM[1] ?? ''];
-    if (!l || l.tenant !== tenant) return erro(404, 'LOTE_NAO_ENCONTRADO', 'Lote não encontrado.');
-    if (loteM[3]) {
-      const csv = ['linha_do_lote;external_id;codigo;campo;reprocessavel;mensagem', ...l.resultado.erros.map((x) => [x.indice + 1, x.external_id ?? '', x.codigo, x.campo ?? '', x.reprocessavel ? 'sim' : 'nao', x.mensagem].join(';'))].join('\r\n');
-      return new Response(`${BOM}${csv}\r\n`, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="erros-${l.resultado.lote_id}.csv"` } });
-    }
-    if (loteM[2]) return json(200, { itens: l.resultado.erros, total: l.resultado.erros.length });
-    return json(200, statusDoLote(l));
-  }
   if (rota === `GET ${ROTAS_PORTAL.conectores}`) return json(200, { itens: e.conectores[tenant] ?? [] });
   if (rota === `POST ${ROTAS_PORTAL.conectores}`) {
     const c = lerCorpo(ConectorCriar, corpo);
@@ -453,60 +455,13 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: [...lista, novo] } });
     return json(201, { conector: novo, chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: `mx_falso_${crypto.randomUUID().replace(/-/g, '')}`, prefixo: 'mx_falso', criada_em: agoraIso(), anterior_valida_ate: null } });
   }
-  const conectorM = /^\/integracao\/conectores\/([^/]+)$/.exec(caminho);
-  if (metodo === 'PATCH' && conectorM) {
-    const lista = e.conectores[tenant] ?? [];
-    if (!lista.some((x) => x.id === conectorM[1])) return erro(404, 'CONECTOR_NAO_ENCONTRADO', 'Conector não encontrado.');
-    const ativo = (corpo as { ativo?: boolean } | null)?.ativo;
-    const nova = lista.map((x) => (x.id === conectorM[1] && typeof ativo === 'boolean' ? { ...x, ativo, saude: ativo ? x.saude : ('desativado' as const) } : x));
-    gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
-    return json(200, nova.find((x) => x.id === conectorM[1]));
-  }
-  // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova recebe o acesso por e-mail
-  //            (T-0094); arquivo com alguém em `@sem-email.` simula o 503 EMAIL_INDISPONIVEL no gravar
-  if (rota === `GET ${ROTAS_PORTAL.equipeModeloCsv}`) {
-    const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos', 'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,,,', 'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,vendedor', ''].join(NL);
-    return new Response(csv, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="modelo-equipe.csv"' } });
-  }
-  if (rota === `POST ${ROTAS_PORTAL.equipeImportacoes}`) {
-    const c = lerCorpo(ImportarEquipeRequestSchema, corpo);
-    if (c instanceof Response) return c;
-    if (c.modo === 'gravar' && /@sem-email\./i.test(c.csv)) return erro(503, 'EMAIL_INDISPONIVEL', 'O envio de e-mail não está configurado. Fale com o suporte da Macuxi.');
-    return json(200, importarEquipeFalsa(tenant, c.csv, c.modo));
-  }
   // N1/N2 (nuvem) ainda não existem: igual à API real antes do merge
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
-}
-
-function importarEquipeFalsa(tenant: string, csv: string, modo: 'conferir' | 'gravar'): ImportarEquipeResposta {
-  const [cab = [], ...dados] = linhasDoCsv(csv);
-  const col = (nome: string) => cab.findIndex((x) => x.trim().toLowerCase() === nome);
-  const [iNome, iEmail, iPerfil, iSup] = [col('nome'), col('email'), col('perfil'), col('email_superior')];
-  const existentes = equipeFalsa.get(tenant) ?? new Set<string>();
-  const erros: ImportarEquipeResposta['erros'] = [];
-  const plano: ImportarEquipeResposta['plano'] = [];
-  dados.forEach((cols, i) => {
-    const linha = i + 2;
-    const email = (cols[iEmail] ?? '').trim().toLowerCase();
-    const perfil = PerfilSchema.safeParse((cols[iPerfil] ?? '').trim().toLowerCase());
-    if (!email.includes('@')) erros.push({ linha, coluna: 'email', mensagem: `Linha ${linha}: informe um e-mail válido, como nome@empresa.com.br.` });
-    else if (!perfil.success) erros.push({ linha, coluna: 'perfil', mensagem: `Linha ${linha}: perfil fora da lista (admin, gerente, supervisor, vendedor, promotor...).` });
-    else plano.push({ linha, acao: existentes.has(email) ? 'sem_mudanca' : 'criar', usuario_id: null, email, nome: (cols[iNome] ?? '').trim(), perfil: perfil.data, superior_email: (cols[iSup] ?? '').trim() || null, external_id: null, modulos_removidos: [] });
-  });
-  const comErro = new Set(erros.map((x) => x.linha)).size;
-  const resumo = { total: dados.length, novos: plano.filter((p) => p.acao === 'criar').length, atualizados: 0, sem_mudanca: plano.filter((p) => p.acao === 'sem_mudanca').length, com_erro: comErro };
-  const erros_csv = erros.length ? ['linha,coluna,mensagem', ...erros.map((x) => `${x.linha},${x.coluna},"${x.mensagem.replace(/"/g, '""')}"`)].join(NL) + NL : '';
-  const base = { modo, resumo, erros, avisos: [], plano, erros_csv, acessos_enviados: 0, email_acesso: null };
-  if (modo === 'conferir' || erros.length) return { ...base, gravado: false };
-  const novos = plano.filter((p) => p.acao === 'criar').map((p) => p.email);
-  equipeFalsa.set(tenant, new Set([...existentes, ...novos]));
-  return { ...base, gravado: true, acessos_enviados: novos.length, email_acesso: novos.length > 0 ? 'enfileirado' : null };
 }
 
 /** Para os testes e para "recomeçar" o modo falso. */
 export function zerarModoFalso() {
   falhas.clear();
-  equipeFalsa.clear();
   adminsFalsos.clear();
   adminsSemeados = false;
   redefinicoesFalsas.clear();

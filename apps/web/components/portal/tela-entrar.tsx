@@ -37,7 +37,7 @@ export const TEXTOS_ENTRAR = Object.freeze({
   bloqueado: 'Muitas tentativas erradas. Espere 15 minutos e tente de novo.',
   limiteIp: 'Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.',
   /** T-0094 (RN-CORE-34; spec ciclo-de-senha §7): a senha conferiu, mas ainda é a temporária; a troca é no backoffice. */
-  senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui. Use o código da empresa, o e-mail e a senha que você recebeu.',
+  senhaATrocar: 'Crie a sua senha no backoffice antes de entrar aqui.',
 });
 
 /**

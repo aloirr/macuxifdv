@@ -3,7 +3,10 @@
  * Todos relativos ao `/v1` da API (o navegador chama `/api-proxy<caminho>`, o proxy same-origin do Next). Um lugar só: se um
  * caminho mudar, muda aqui.
  */
-import type { Entidade } from '@macuxi/integracao/contracts';
+import { ROTA_PORTAL_CNPJ, ROTA_PORTAL_EMPRESA_COM_PLANO, ROTA_PORTAL_PLANOS, rotaPortalAssinatura } from '@macuxi/platform-sdk';
+
+/** As rotas do SDK vêm com o `/v1`; aqui os caminhos são relativos a ele. */
+const semV1 = (rota: string): string => rota.replace(/^\/v1(?=\/)/, '');
 
 export const ROTAS_PORTAL = {
   // Core: acesso ao portal só com e-mail e senha (T-0093; ADR 0031). `login` é pública; `empresa`, `renovar` e `sair` levam o token.
@@ -13,6 +16,7 @@ export const ROTAS_PORTAL = {
   renovar: '/plataforma/auth/renovar',
   sair: '/plataforma/auth/sair',
   // API da plataforma
+  /** Lista das empresas (`ListaEmpresasSchema`); criar é pelo `empresaComPlano`. */
   empresas: '/plataforma/empresas',
   /** T-0094 fatia S: admins da empresa (`ListaAdminsDaEmpresaSchema`); só o time da Macuxi. Tenant no caminho, sem `x-macuxi-tenant`. */
   adminsDaEmpresa: (tenantId: string) => `/plataforma/empresas/${encodeURIComponent(tenantId)}/admins`,
@@ -24,23 +28,16 @@ export const ROTAS_PORTAL = {
   diagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}`,
   /** Bytes do print (JPEG), `private, no-store`; o portal abre como `Blob`. */
   printDoDiagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}/print`,
+  /** ADR 0047: planos e licenças (`ListaPlanosSchema`, `CriarEmpresaComPlanoSchema`, `FichaAssinaturaSchema`). */
+  planos: semV1(ROTA_PORTAL_PLANOS),
+  empresaComPlano: semV1(ROTA_PORTAL_EMPRESA_COM_PLANO),
+  assinatura: (tenantId: string) => semV1(rotaPortalAssinatura(encodeURIComponent(tenantId))),
+  /** ADR 0048: CNPJ na base pública da Receita (`ConsultaCnpjPedidoSchema` → `ConsultaCnpjRespostaSchema`); POST, CNPJ fora da URL. */
+  cnpj: semV1(ROTA_PORTAL_CNPJ),
   // Integração (com `x-macuxi-tenant`)
-  ordemCarga: '/integracao/ordem-carga',
-  cargaArquivo: '/integracao/cargas-arquivo',
-  conferirArquivo: '/integracao/cargas-arquivo/conferir',
-  sessaoArquivo: (sessaoId: string) => `/integracao/cargas-arquivo/sessoes/${encodeURIComponent(sessaoId)}`,
-  lote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}`,
-  errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
-  errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
   conectores: '/integracao/conectores',
-  /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = 'em breve'. */
+  /** T-0098: link temporário (presign) do pacote do Conector on-premise; auditado na API. Ausente = indisponível. */
   conectorDownload: '/integracao/conector/download',
-  // Core: Equipe por CSV (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`); sem convite desde a T-0094
-  equipeModeloCsv: '/core/equipe/modelo.csv',
-  equipeImportacoes: '/core/equipe/importacoes',
-  // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
-  modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
-  dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,
 } as const;
 
 /**
@@ -51,11 +48,3 @@ export const OPENAPI_HUB = Object.freeze({ rotaNaApi: '/integracao/v1/openapi.js
 
 /** Rotas públicas (sem token): só a entrada com e-mail e senha (T-0093: sem primeiro acesso, convite nem 2º passo). */
 export const ROTAS_PUBLICAS_PORTAL: readonly string[] = [ROTAS_PORTAL.login];
-
-/** Identificador do Conector tipo arquivo que o portal cria na primeira importação (R-20261106-011153). */
-export const CONECTOR_ARQUIVO_PORTAL = Object.freeze({
-  conector_id: 'implantacao-csv',
-  nome: 'Carga por arquivo (implantação)',
-  tipo: 'arquivo' as const,
-  recebe_pedidos: false,
-});

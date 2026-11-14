@@ -68,10 +68,8 @@ describe('urlDeDownloadValida', () => {
 
 describe('textos', () => {
   const base = { url: URL_PRESIGN, expira_em: '2026-11-09T05:15:00.000Z', versao: '', arquivo: '' };
-  it('pacote: versão · arquivo · tamanho, só o que veio', () => {
-    expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 })).toBe(
-      `Versão 1.0.0 · macuxi-conector-1.0.0-win-x64.zip · ${tamanhoLegivel(12_900_000)}`,
-    );
+  it('pacote: versão · tamanho, só o que veio (o arquivo já está no link)', () => {
+    expect(textoDoPacote({ ...base, versao: '1.0.0', arquivo: 'macuxi-conector-1.0.0-win-x64.zip', tamanho_bytes: 12_900_000 })).toBe(`Versão 1.0.0 · ${tamanhoLegivel(12_900_000)}`);
     expect(textoDoPacote({ ...base, versao: '1.0.0' })).toBe('Versão 1.0.0');
     expect(textoDoPacote(base)).toBeNull();
   });
