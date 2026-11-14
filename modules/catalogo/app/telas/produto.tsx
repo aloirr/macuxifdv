@@ -1,8 +1,8 @@
 /**
  * Ficha do produto (RF-CAT-03, T-0052). OFFLINE-FIRST: abre do aparelho (cadastro, preço da tabela do cliente,
  * estoque, atributos e conteúdo sincronizados); com sinal e sem o produto no aparelho, busca na API. Preço e estoque
- * seguem o RN-CAT-05; o Catálogo é só consulta: botão "Copiar código" próprio e, além dele, só as ações de outros módulos pela
- * extensão `produto.acoes` (o promotor nunca vê as de pedido).
+ * seguem o RN-CAT-05. Botão "Copiar código" próprio e, além dele, só as ações de outros módulos pela extensão `produto.acoes`
+ * (o promotor nunca vê as de pedido).
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';

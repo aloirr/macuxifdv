@@ -4,7 +4,7 @@
  * a busca com texto usa a API (busca inteligente) quando há sinal e sem filtro de árvore, e cai para a busca local (FTS5 + sinônimos
  * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
  * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
- * produto sem preço mostra "Sem preço". Preço e estoque somem para quem não vê (RN-CAT-05). O Catálogo é só consulta (copiar o código é a única ação própria);
+ * produto sem preço mostra "Sem preço". Preço e estoque somem para quem não vê (RN-CAT-05). Copiar o código é a única ação própria;
  * ações de outros módulos só pela extensão `produto.acoes` (RN-PRO-01). Com `?pedido=1` só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
  */
 import { relogioReal } from '@macuxi/comum/relogio';

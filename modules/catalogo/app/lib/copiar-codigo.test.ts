@@ -5,7 +5,7 @@ import { AVISO_CODIGO_COPIADO, AVISO_CODIGO_NAO_COPIADO, copiarCodigo, definirCo
 
 const fonte = (arq: string) => readFileSync(join(__dirname, '..', arq), 'utf8');
 
-describe('Catálogo só consulta: copiar o código do produto (decisão do dono, R-20261114-151000-alexandre)', () => {
+describe('copiar o código do produto', () => {
   afterEach(() => definirCopiadorTexto(null));
 
   it('copia o código e avisa "Código copiado"', async () => {
@@ -47,6 +47,9 @@ describe('Catálogo só consulta: copiar o código do produto (decisão do dono,
     expect(comum).toContain('BotaoCopiarCodigo');
     expect(produto).toContain('<BotaoCopiarCodigo');
     expect(comum).toContain("'copy'");
+    // Um aviso só: o toast é só do ícone da lista; a ficha confirma pelo rótulo e o leitor de tela anuncia quando não há toast.
+    expect(comum).toContain("if (variante === 'icone' && Platform.OS === 'android') ToastAndroid.show");
+    expect(comum).toContain('else AccessibilityInfo.announceForAccessibility');
     for (const arq of [comum, produto, fonte('telas/catalogo.tsx')]) expect(arq).not.toMatch(/['"`>]\s*Adicionar ao pedido/);
   });
 });
