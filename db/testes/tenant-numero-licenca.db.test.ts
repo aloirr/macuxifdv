@@ -190,7 +190,9 @@ describe.skipIf(semBanco())('0068 código da licença (banco efêmero)', () => {
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'thathyany', 'Thathyany'), ($2, 'demo', 'Demo')", [id(90), id(91)]);
       expect((await migrarUp(c, { ate: '0068' })).aplicadas).toEqual(['0068_plataforma_tenant_numero_licenca']);
       const depois = await retratoDoCatalogo(c);
-      expect(depois.filter((x) => x.includes('sequence') || x.includes('_seq '))).toEqual([]);
+      // só o que a 0068 acrescentou: o retrato inteiro já traz sequências de outras migrações (ex.: 0058)
+      const novos = depois.filter((x) => !antes.includes(x));
+      expect(novos.filter((x) => x.includes('sequence') || x.includes('_seq ') || / S rls=/.test(x))).toEqual([]);
       expect([await codigoDe(id(90)), await codigoDe(id(91))]).toEqual(['thathyany', 'demo']);
 
       // sem codigo (ausente, nulo e vazio): UF da entrada (minúscula aceita) + 4 dígitos, em maiúsculas, distintos
