@@ -7,7 +7,7 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { dataLocal, fotosComPendentes, pedidosVisiveisNoAparelho, type FotoPdvPush } from '../../domain';
+import { dataLocal, faixasCurvaAbcDasLinhas, FAIXAS_CURVA_ABC_PADRAO, fotosComPendentes, pedidosVisiveisNoAparelho, type FaixasCurvaAbc, type FotoPdvPush } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
 import { useCore } from './usar-core';
@@ -33,9 +33,11 @@ export interface ClientesLocais extends BaseLocal {
    * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
    */
   verPedidos: boolean;
+  /** RN-CORE-49: faixas das curvas ABC do tenant (parâmetros `cliente.curva_abc.*`; ausente = padrão). */
+  faixasCurva: FaixasCurvaAbc;
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: FAIXAS_CURVA_ABC_PADRAO };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -61,7 +63,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<ClienteUltimaVisitaSync>('cliente_ultima_visita'),
       ]);
       const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, faixasCurva: faixasCurvaAbcDasLinhas(parametros) });
     })();
     return () => {
       ativo = false;

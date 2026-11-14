@@ -1,9 +1,10 @@
 /**
  * Seções do Cliente 360 (RF-CORE-04; desenho T-0016 §3.4), montadas com as linhas do aparelho: funcionam em modo
  * avião. Ligar, WhatsApp e mapa em 1 toque (alvos ≥ 48 dp). Valores em centavos formatados com `formatBRL0`.
- * As abas de módulos (`cliente.abas`) são desenhadas pela tela da ficha, não aqui.
+ * Uma peça por aba da ficha (Resumo, Dados cadastrais, Financeiro, Compras, Anexos). As abas de módulos
+ * (`cliente.abas`) são montadas pela tela da ficha, não aqui.
  */
-import { formatBRL0 } from '@macuxi/comum';
+import { formatarDocumento, formatBRL0 } from '@macuxi/comum';
 import { Badge, Card, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -11,10 +12,9 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { fotoPdvTrancada } from '../lib/foto-fachada';
 import { mapsUrl } from '../lib/route';
-import { observacaoComCadastro, resumoSemCompras } from '../../domain';
+import { compraMediaMesCents, observacaoComCadastro, resumoSemCompras, totalDoMes, type CurvaDoCliente } from '../../domain';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
-const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 const mesBr = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
 
 export function nomeDoCliente(c: Cliente360Local['cliente']): string {
@@ -27,8 +27,8 @@ export function enderecoDoCliente(c: Cliente360Local['cliente']): string {
     .join(' · ');
 }
 
-/** Ligar, WhatsApp, mapa e (com fotos do PDV) Foto do PDV: botões iguais em pé, 64 dp de altura (T-0147, spec permissoes-e-fotos-pdv §2). */
-export function AcoesContato({ ficha, onVerFotoPdv }: { ficha: Cliente360Local; onVerFotoPdv?: () => void }) {
+/** Ligar, WhatsApp e mapa (só no Resumo): botões iguais em pé, 64 dp de altura. A Foto do PDV fica em Anexos (`BotaoFotoPdv`). */
+export function AcoesContato({ ficha }: { ficha: Cliente360Local }) {
   const c = ficha.cliente;
   const abrir = (url: string | null) => {
     if (url) void Linking.openURL(url);
@@ -38,18 +38,24 @@ export function AcoesContato({ ficha, onVerFotoPdv }: { ficha: Cliente360Local; 
       <Acao icon="phone" label="Ligar" desligado={!ficha.ligar} rotuloDesligado="Ligar indisponível: sem número cadastrado" onPress={() => abrir(ficha.ligar)} testID="cliente-ligar" />
       <Acao icon="chat" label="WhatsApp" desligado={!ficha.whatsapp} rotuloDesligado="WhatsApp indisponível: sem número cadastrado" onPress={() => abrir(ficha.whatsapp)} testID="cliente-whatsapp" />
       <Acao icon="navigate" label="Mapa" onPress={() => abrir(mapsUrl(num(c.latitude), num(c.longitude), enderecoDoCliente(c)))} testID="cliente-mapa" />
-      {/* RN-CORE-38: ligado só com a fachada enviada e com o visualizador do shell registrado */}
-      {ficha.fotos_pdv ? (
-        <Acao
-          icon="galeria"
-          label="Foto do PDV"
-          desligado={!ficha.fotos_pdv.fachada_foto || !onVerFotoPdv}
-          rotuloLigado="Ver foto do PDV"
-          rotuloDesligado="Foto do PDV indisponível: sem foto da fachada"
-          onPress={() => onVerFotoPdv?.()}
-          testID="cliente-foto-pdv"
-        />
-      ) : null}
+    </View>
+  );
+}
+
+/** Aba Anexos: "Foto do PDV" (RN-CORE-38: ligado só com a fachada enviada e com o visualizador do shell registrado). */
+export function BotaoFotoPdv({ ficha, onVerFotoPdv }: { ficha: Cliente360Local; onVerFotoPdv?: () => void }) {
+  if (!ficha.fotos_pdv) return null;
+  return (
+    <View style={{ flexDirection: 'row' }}>
+      <Acao
+        icon="galeria"
+        label="Foto do PDV"
+        desligado={!ficha.fotos_pdv.fachada_foto || !onVerFotoPdv}
+        rotuloLigado="Ver foto do PDV"
+        rotuloDesligado="Foto do PDV indisponível: sem foto da fachada"
+        onPress={() => onVerFotoPdv?.()}
+        testID="cliente-foto-pdv"
+      />
     </View>
   );
 }
@@ -95,62 +101,61 @@ export function BlocoFotosPdv({ ficha, onAdicionar }: { ficha: Cliente360Local; 
   );
 }
 
-export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
-  const c = ficha.cliente;
+/** Tags do Resumo: curvas por dimensão (RN-CORE-49) e, quando houver, Bloqueado e Inativo. O segmento é dado do cadastro, não tag. */
+export function TagsCliente({ ficha, curvas, atendimento }: { ficha: Cliente360Local; curvas: readonly CurvaDoCliente[]; atendimento?: string | null }) {
   const fin = ficha.resumo_financeiro;
+  const tags = (
+    <>
+      {curvas.map((c) => (
+        <Badge key={c.dimensao} label={c.rotulo} tone={c.curva === 'A' ? 'accent' : c.curva === 'C' ? 'warning' : 'neutral'} />
+      ))}
+      {/* RD-0065: o motivo do bloqueio e os vencidos aparecem só na aba Financeiro */}
+      {fin?.bloqueado ? <Badge label="Bloqueado" tone="danger" /> : null}
+      {!ficha.cliente.ativo ? <Badge label="Inativo" tone="warning" /> : null}
+      {atendimento ? <Badge label={atendimento} tone="accent" /> : null}
+    </>
+  );
+  if (curvas.length === 0 && !fin?.bloqueado && ficha.cliente.ativo && !atendimento) return null;
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={t.h1Small} testID="customer-name">
-        {nomeDoCliente(c)}
-      </Text>
-      <Text style={t.sub}>{enderecoDoCliente(c) || 'Endereço não informado'}</Text>
-      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-        {c.segmento ? <Badge label={c.segmento} tone="neutral" /> : null}
-        {/* RD-0065: o motivo do bloqueio e os vencidos aparecem só no bloco Financeiro */}
-        {fin?.bloqueado ? <Badge label="Bloqueado" tone="danger" /> : null}
-        {!c.ativo ? <Badge label="Inativo" tone="warning" /> : null}
-      </View>
+    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }} testID="cliente-tags">
+      {tags}
     </View>
   );
 }
 
 /**
- * `indicadoresIniciais`: cartões que a tela já montou (Compra média, Última compra; limite e vencidos ficam só no Financeiro, T-0146) e que
- * entram no começo da MESMA grade, na ordem da referência (T-0076). Com eles, "Última compra" não se repete aqui.
+ * Resumo: "Compras no mês" e "Última compra". RN-CORE-40: sem compra em 12 meses, uma linha só. RN-PRO-01: sem `pedidos_visiveis`,
+ * nenhum valor de compra.
  */
-export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Cliente360Local; indicadoresIniciais?: ReactNode }) {
-  const fin = ficha.resumo_financeiro;
+export function IndicadoresResumo({ ficha, hoje }: { ficha: Cliente360Local; hoje: string }) {
+  if (!ficha.pedidos_visiveis) return null;
   const compras = ficha.resumo_compras;
-  const vencidos = ficha.titulos.filter((x) => x.situacao_calculada === 'vencido');
-  const aVencer = ficha.titulos.filter((x) => x.situacao_calculada === 'a_vencer');
-  // RN-CORE-40: sem compra na janela de 12 meses, uma linha no lugar dos indicadores de compra, sem zeros
-  const semCompras = ficha.pedidos_visiveis && resumoSemCompras(compras);
+  if (resumoSemCompras(compras)) {
+    return (
+      <Text style={t.sub} testID="cliente-sem-compras">
+        Sem compras em 12 meses
+      </Text>
+    );
+  }
   return (
-    <View style={{ gap: 14 }} testID="cliente-360">
-      {/* RN-PRO-01: com a opção promotor_ve_pedidos desligada o promotor não vê compras, valores nem contagem de pedidos */}
-      {semCompras ? (
-        <Text style={t.sub} testID="cliente-sem-compras">
-          Sem compras em 12 meses
-        </Text>
-      ) : ficha.pedidos_visiveis || indicadoresIniciais ? (
-        <View style={styles.grid}>
-          {indicadoresIniciais}
-          {ficha.pedidos_visiveis ? (
-            <>
-              {indicadoresIniciais ? null : <Stat label="Última compra" value={ultimaCompraDaFicha(compras.dias_sem_compra)} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />}
-              <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
-              <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
-              <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
-            </>
-          ) : null}
-        </View>
-      ) : null}
+    <View style={styles.grid} testID="cliente-resumo-compras">
+      <Stat label="Compras no mês" value={formatBRL0(totalDoMes(ficha.historico, hoje.slice(0, 7)))} />
+      <Stat label="Última compra" value={ultimaCompraDaFicha(compras.dias_sem_compra)} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />
+    </View>
+  );
+}
 
-      {ficha.filial_rotulo ? (
-        <Text style={t.sub} testID="cliente-filial">
-          Filial: {ficha.filial_rotulo}
-        </Text>
-      ) : null}
+/** Aba Dados cadastrais: CNPJ, endereço, filial e segmento em cartões; depois contatos, endereços de entrega e observações. */
+export function AbaDadosCadastrais({ ficha }: { ficha: Cliente360Local }) {
+  const c = ficha.cliente;
+  return (
+    <View style={{ gap: 14 }} testID="cliente-cadastro">
+      <View style={{ gap: 8 }}>
+        {c.documento ? <Campo label="CNPJ" value={formatarDocumento(c.documento)} testID="cliente-cnpj" /> : null}
+        <Campo label="Endereço" value={enderecoDoCliente(c) || 'Não informado'} testID="cliente-endereco-cadastro" />
+        {ficha.filial_rotulo ? <Campo label="Filial" value={ficha.filial_rotulo} testID="cliente-filial" /> : null}
+        {c.segmento ? <Campo label="Segmento" value={c.segmento} testID="cliente-segmento" /> : null}
+      </View>
 
       <View style={{ gap: 8 }}>
         <SectionHeader title="Contatos" />
@@ -158,17 +163,17 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
           <Text style={t.sub}>Nenhum contato cadastrado.</Text>
         ) : (
           <Card>
-            {ficha.contatos.map((c, i) => (
-              <View key={c.id} style={[styles.row, i < ficha.contatos.length - 1 && styles.divider]}>
+            {ficha.contatos.map((ct, i) => (
+              <View key={ct.id} style={[styles.row, i < ficha.contatos.length - 1 && styles.divider]}>
                 <View style={{ flex: 1, gap: 1 }}>
                   <Text style={t.bodyStrong}>
-                    {c.nome}
-                    {c.principal ? ' · principal' : ''}
+                    {ct.nome}
+                    {ct.principal ? ' · principal' : ''}
                   </Text>
-                  {c.cargo ? <Text style={t.small}>{c.cargo}</Text> : null}
+                  {ct.cargo ? <Text style={t.small}>{ct.cargo}</Text> : null}
                 </View>
-                {c.tel ? <Mini icon="phone" label={`Ligar para ${c.nome}`} onPress={() => void Linking.openURL(c.tel!)} /> : null}
-                {c.whatsapp_url ? <Mini icon="chat" label={`WhatsApp de ${c.nome}`} onPress={() => void Linking.openURL(c.whatsapp_url!)} /> : null}
+                {ct.tel ? <Mini icon="phone" label={`Ligar para ${ct.nome}`} onPress={() => void Linking.openURL(ct.tel!)} /> : null}
+                {ct.whatsapp_url ? <Mini icon="chat" label={`WhatsApp de ${ct.nome}`} onPress={() => void Linking.openURL(ct.whatsapp_url!)} /> : null}
               </View>
             ))}
           </Card>
@@ -201,45 +206,57 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
 
       {/* RN-CORE-17: linha automática de cadastro incompleto no topo, texto do ERP intacto abaixo (montada aqui, nunca gravada) */}
       <ObservacoesCliente automatica={observacaoComCadastro(null, ficha.cliente.cadastro_campos_faltantes ?? [])} texto={ficha.cliente.observacao ?? null} />
+    </View>
+  );
+}
 
-      <View style={{ gap: 8 }} testID="cliente-financeiro">
-        <SectionHeader title="Financeiro" />
-        {!fin ? (
-          <Text style={t.sub}>Sem dados financeiros.</Text>
-        ) : (
-          <>
-            <View style={styles.grid}>
-              <Stat label="Limite" value={formatBRL0(fin.limite_cents)} />
-              <Stat label="Saldo em aberto" value={formatBRL0(fin.saldo_aberto_cents)} />
-              <Stat label="Crédito disponível" value={formatBRL0(fin.credito_disponivel_cents)} aviso={fin.credito_disponivel_cents <= 0} />
-              <Stat label="Vencidos" value={fin.vencidos_qtd === 0 ? 'Nenhum' : `${fin.vencidos_qtd} · ${formatBRL0(fin.vencidos_cents)}`} aviso={fin.vencidos_qtd > 0} />
-            </View>
-            {fin.bloqueado && fin.motivo_bloqueio ? <Text style={[t.small, { color: colors.danger }]}>Motivo do bloqueio: {fin.motivo_bloqueio}</Text> : null}
-            {vencidos.length + aVencer.length > 0 ? (
-              <Card>
-                {[...vencidos, ...aVencer].map((x, i, todos) => (
-                  <View key={x.id} style={[styles.row, i < todos.length - 1 && styles.divider]}>
-                    <View style={{ flex: 1, gap: 1 }}>
-                      <Text style={[t.bodyStrong, { fontFamily: fonts.mono, fontSize: 13 }]}>
-                        {x.documento}
-                        {x.parcela ? ` · ${x.parcela}` : ''}
-                      </Text>
-                      <Text style={[t.small, x.situacao_calculada === 'vencido' ? { color: colors.danger } : null]}>
-                        {x.situacao_calculada === 'vencido' ? `venceu ${dataBr(x.vencimento)} · ${x.dias_atraso} dias` : `vence ${dataBr(x.vencimento)}`}
-                      </Text>
-                    </View>
-                    <Text style={t.bodyStrong}>{formatBRL0(x.saldo_cents)}</Text>
-                  </View>
-                ))}
-              </Card>
-            ) : null}
-          </>
-        )}
+/** Aba Financeiro: limite, saldo, crédito, vencidos e motivo do bloqueio. Sem lista de títulos (pedido de 14/11). */
+export function AbaFinanceiro({ ficha }: { ficha: Cliente360Local }) {
+  const fin = ficha.resumo_financeiro;
+  return (
+    <View style={{ gap: 8 }} testID="cliente-financeiro">
+      {!fin ? (
+        <Text style={t.sub}>Sem dados financeiros.</Text>
+      ) : (
+        <>
+          <View style={styles.grid}>
+            <Stat label="Limite" value={formatBRL0(fin.limite_cents)} />
+            <Stat label="Saldo em aberto" value={formatBRL0(fin.saldo_aberto_cents)} />
+            <Stat label="Crédito disponível" value={formatBRL0(fin.credito_disponivel_cents)} aviso={fin.credito_disponivel_cents <= 0} />
+            <Stat label="Vencidos" value={fin.vencidos_qtd === 0 ? 'Nenhum' : `${fin.vencidos_qtd} · ${formatBRL0(fin.vencidos_cents)}`} aviso={fin.vencidos_qtd > 0} />
+          </View>
+          {fin.bloqueado && fin.motivo_bloqueio ? <Text style={[t.small, { color: colors.danger }]}>Motivo do bloqueio: {fin.motivo_bloqueio}</Text> : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Aba Compras: indicadores do período e UMA seção "Histórico de Pedidos". `pedidos` é o componente da extensão `ultimos-pedidos`
+ * (pedidos do mais recente ao mais antigo); em seguida, no mesmo bloco, as linhas mensais. RN-PRO-01 / RN-CORE-40 como no Resumo.
+ */
+export function AbaCompras({ ficha, hoje, pedidos }: { ficha: Cliente360Local; hoje: string; pedidos?: ReactNode }) {
+  if (!ficha.pedidos_visiveis) return null;
+  const compras = ficha.resumo_compras;
+  if (resumoSemCompras(compras)) {
+    return (
+      <Text style={t.sub} testID="cliente-sem-compras-aba">
+        Sem compras em 12 meses
+      </Text>
+    );
+  }
+  return (
+    <View style={{ gap: 14 }} testID="cliente-compras">
+      <View style={styles.grid}>
+        <Stat label="Compra média/mês" value={formatBRL0(compraMediaMesCents(ficha.historico, hoje))} />
+        <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
+        <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
+        <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
       </View>
-
-      {ficha.pedidos_visiveis && !semCompras ? (
       <View style={{ gap: 8 }} testID="cliente-historico">
-        <SectionHeader title="Compras dos últimos 12 meses" />
+        <SectionHeader title="Histórico de Pedidos" />
+        {pedidos}
         {ficha.historico.length === 0 ? null : (
           <Card>
             {ficha.historico.map((h, i) => (
@@ -256,7 +273,16 @@ export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Client
           </Card>
         )}
       </View>
-      ) : null}
+    </View>
+  );
+}
+
+/** Cartão rótulo/valor da aba Dados cadastrais (mesmo estilo do `Stat`, em linha cheia). */
+function Campo({ label, value, testID }: { label: string; value: string; testID?: string }) {
+  return (
+    <View style={[styles.stat, { flexBasis: '100%' }]} testID={testID}>
+      <Text style={t.small}>{label}</Text>
+      <Text style={t.bodyStrong}>{value}</Text>
     </View>
   );
 }

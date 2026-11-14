@@ -1,23 +1,26 @@
 /**
- * Ficha do cliente (Cliente.dc.html): ligar, WhatsApp, navegar, indicadores, títulos vencidos e
- * check-in/checkout. Lê só do aparelho (offline-first, linhas do sync: sem carga REST da Fase M desde a T-0018).
+ * Ficha do cliente (Cliente.dc.html) em cinco abas: Resumo · Cadastro (Dados cadastrais) · Financeiro · Compras · Anexos.
+ * Faixa Azul noite no topo (nome, endereço e "cliente desde"), abas paradas logo abaixo e o conteúdo rolando; o rodapé
+ * (check-in e ações `cliente.acoes`) fica visível em todas as abas. Alertas (visita aberta, etapa pendente, `cliente.avisos`,
+ * erro de foto) ficam no topo do conteúdo em todas as abas. Lê só do aparelho (offline-first, linhas do sync).
  * Check-in único: com atendimento aberto em outro cliente o check-in fica bloqueado; o pedido continua liberado.
  *
  * Pontos de extensão que o Core oferece aqui (contracts/extensoes.ts):
- *  - `cliente.abas`  → seções extras (ex.: sugestão de mix e últimos pedidos, do Vendedor; loja, do Promotor);
+ *  - `cliente.abas`  → "ultimos-pedidos" (Vendedor) entra em Compras, dentro de "Histórico de Pedidos"; as demais (mix, pesquisas,
+ *    loja) ficam no Resumo, cada uma com seu cabeçalho;
  *  - `cliente.acoes` → botões do rodapé (ex.: "Novo pedido", do Vendedor, já escondido do promotor — RN-PRO-01).
  * A tela só lê os itens; quem registra decide o conteúdo. Sem o módulo ativo, o item some (RN-CORE-03).
+ * Curvas ABC (RN-CORE-49) calculadas aqui com o histórico da ficha e as faixas do tenant.
  */
-import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Button, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Abas, BackLink, Badge, Banner, Button, CabecalhoTela, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen, resumoSemCompras } from '../../domain';
-import { AcoesContato, BlocoFotosPdv, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
+import { acoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
+import { AbaCompras, AbaDadosCadastrais, AbaFinanceiro, AcoesContato, BlocoFotosPdv, BotaoFotoPdv, enderecoDoCliente, IndicadoresResumo, nomeDoCliente, TagsCliente } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
@@ -72,6 +75,7 @@ export function TelaCliente() {
   const visited = Boolean(visit && !openHere && !isVisitOpen(visit, new Date(), tz));
   const [phase, setPhase] = useState<CheckinPhase | null>(null);
   const autoStarted = useRef<string | null>(null);
+  const [aba, setAba] = useState<'resumo' | 'cadastro' | 'financeiro' | 'compras' | 'anexos'>('resumo');
 
   // T-0039 (checkout-pendencia.md §1.2): etapa obrigatória da visita ainda não chegou ao Macuxi; vem do pull, lida do aparelho
   const sync = useSincronizacao();
@@ -80,7 +84,7 @@ export function TelaCliente() {
     ? avisoDeEtapaPendente({ ...pendente, agora: new Date(), fuso: tz, naFila: sync?.naFila ?? 0 })
     : null;
 
-  const contexto: ContextoCliente = { clienteId: id, nomeCliente: customer?.trade_name ?? '', visitaId: openHere && openVisit ? openVisit.id : null, paradaId: stop?.id ?? null };
+  const contexto: ContextoCliente = { clienteId: id, nomeCliente: ficha ? nomeDoCliente(ficha.cliente) : (customer?.trade_name ?? ''), visitaId: openHere && openVisit ? openVisit.id : null, paradaId: stop?.id ?? null };
 
   const posicaoDoToque = useRef<PosicaoGps | null | undefined>(undefined);
   const startCheckin = useCallback(async (justificativa?: string) => {
@@ -120,36 +124,7 @@ export function TelaCliente() {
     }
   }, [params.checkin, customer, id, locked, openHere, visited, startCheckin, sheets]);
 
-  if (!customer && ficha) {
-    return (
-      <View style={styles.root}>
-        <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
-          <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
-          <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} clienteAtual={id} />
-          <CabecalhoCliente ficha={ficha} />
-          <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
-          <BlocoFotosPdv ficha={ficha} onAdicionar={adicionarFotoPdv} />
-          {avisoFoto ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{avisoFoto}</Banner> : null}
-          {avisosExt.map((a) => {
-            const Aviso = a.payload.componente;
-            return <Aviso key={`${a.modulo}-${a.id}`} contexto={{ clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, visitaId: null, paradaId: null }} />;
-          })}
-          <SecoesCliente360 ficha={ficha} />
-          {abas.map((a) => {
-            const Aba = a.payload.componente;
-            return (
-              <View key={`${a.modulo}-${a.id}`} testID={a.payload.testID} style={{ gap: 8 }}>
-                <SectionHeader title={a.payload.rotulo} />
-                <Aba contexto={{ clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, visitaId: null, paradaId: null }} />
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (!customer) {
+  if (!customer && !ficha) {
     return (
       <View style={[styles.root, { paddingTop: 16, paddingHorizontal: 20 }]}>
         <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
@@ -158,48 +133,36 @@ export function TelaCliente() {
     );
   }
 
-  const monthShort = MONTHS_SHORT[Number((estado.me?.today ?? new Date().toISOString()).slice(5, 7)) - 1] ?? '';
-  const since = customer.customer_since.slice(0, 4);
   const visitLabel = openHere ? 'Checkout' : visited ? 'Visitado' : 'Check-in';
   // ação de destaque (ex.: "Novo pedido") também aparece na folha do check-in
   const acaoDestaque = acoes.find((a) => a.payload.destaque) ?? acoes[0] ?? null;
   const rotuloDe = (a: AcaoCliente, ctx: ContextoCliente) => (typeof a.rotulo === 'function' ? a.rotulo(ctx) : a.rotulo);
 
-  const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;
-  // RN-CORE-40: sem compra na janela de 12 meses a ficha mostra uma linha só ("Sem compras em 12 meses"), sem Compra média nem Última compra
-  const indicadoresDoCliente = ficha && resumoSemCompras(ficha.resumo_compras) ? null : (
-    <>
-      {locais.verPedidos ? <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} /> : null}
-      {locais.verPedidos ? (
-        <Stat
-          label="Última compra"
-          value={ficha ? ultimaCompraDaFicha(diasUltimaCompra) : daysAgoLabel(diasUltimaCompra)}
-          color={diasUltimaCompra !== null && diasUltimaCompra >= 45 ? colors.warning : undefined}
-        />
-      ) : null}
-    </>
-  );
+  const nome = ficha ? nomeDoCliente(ficha.cliente) : (customer?.trade_name ?? '');
+  const endereco = ficha ? enderecoDoCliente(ficha.cliente) || 'Endereço não informado' : `${customer?.address ?? ''}, ${customer?.district ?? ''}`;
+  const desde = customer?.customer_since ? ` · cliente desde ${customer.customer_since.slice(0, 4)}` : '';
+  // RN-CORE-49: curvas do mês atual contra a média dos 3 meses anteriores; só com pedidos visíveis (RN-PRO-01)
+  const curvas = ficha && ficha.pedidos_visiveis ? curvasAbcDoCliente(ficha.historico, hoje, locais.faixasCurva) : [];
+  // A extensão `ultimos-pedidos` (Vendedor) entra em Compras, dentro de "Histórico de Pedidos"; as demais abas de módulos ficam no Resumo
+  const abaPedidos = abas.find((a) => a.id === 'ultimos-pedidos') ?? null;
+  const abasResumo = abas.filter((a) => a.id !== 'ultimos-pedidos');
+  const PedidosComp = abaPedidos?.payload.componente;
+
+  const itensAbas = [
+    { id: 'resumo', rotulo: 'Resumo' },
+    { id: 'cadastro', rotulo: 'Cadastro' },
+    { id: 'financeiro', rotulo: 'Financeiro' },
+    { id: 'compras', rotulo: 'Compras' },
+    { id: 'anexos', rotulo: 'Anexos' },
+  ] as const;
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
-        <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
-        <OpenVisitBar from={customer.trade_name} clienteAtual={id} />
-        <View style={{ gap: 6 }}>
-          <Text style={t.h1Small} testID="customer-name">
-            {customer.trade_name}
-          </Text>
-          <Text style={t.sub}>
-            {customer.address}, {customer.district} · cliente desde {since}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-            <Badge label={`Curva ${customer.abc_curve}`} tone={customer.abc_curve === 'A' ? 'accent' : 'neutral'} />
-            <Badge label={customer.segment} tone="neutral" />
-            {customer.positivated_this_month ? <Badge label={`Positivado em ${monthShort}`} tone="success" /> : <Badge label={`Não positivado em ${monthShort}`} tone="warning" />}
-          </View>
-          {openHere && openVisit ? <Badge label={`Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}`} tone="accent" style={{ marginTop: 2 }} /> : null}
-        </View>
-
+      <CabecalhoTela titulo={nome} subtitulo={`${endereco}${desde}`} voltar={{ label: params.from ?? 'Clientes', fallback: '/m/clientes' }} />
+      <Abas abas={itensAbas} valor={aba} onChange={setAba} testID="abas-cliente" />
+      <ScrollView contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+        {/* alertas ficam no topo do conteúdo em todas as abas */}
+        <OpenVisitBar from={nome} clienteAtual={id} />
         {avisoPendente ? (
           <Banner tone="warning" icon="clock" testID="cliente-etapa-pendente">
             <Strong>{avisoPendente.linha1}</Strong>
@@ -207,94 +170,114 @@ export function TelaCliente() {
             {avisoPendente.linha2}
           </Banner>
         ) : null}
-
         {avisosExt.map((a) => {
           const Aviso = a.payload.componente;
           return <Aviso key={`${a.modulo}-${a.id}`} contexto={contexto} />;
         })}
+        {avisoFoto ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{avisoFoto}</Banner> : null}
 
-        {ficha ? (
+        {aba === 'resumo' ? (
           <>
-            <AcoesContato ficha={ficha} onVerFotoPdv={verFotoPdv} />
-            <BlocoFotosPdv ficha={ficha} onAdicionar={adicionarFotoPdv} />
-          {avisoFoto ? <Banner tone="danger" icon="alert" testID="cliente-foto-erro" anunciar>{avisoFoto}</Banner> : null}
+            {ficha ? (
+              <>
+                <TagsCliente ficha={ficha} curvas={curvas} atendimento={openHere && openVisit ? `Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}` : null} />
+                <AcoesContato ficha={ficha} />
+                <IndicadoresResumo ficha={ficha} hoje={hoje} />
+              </>
+            ) : customer ? (
+              <>
+                {openHere && openVisit ? <Badge label={`Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}`} tone="accent" style={{ alignSelf: 'flex-start' }} /> : null}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Action icon="phone" label="Ligar" onPress={() => void Linking.openURL(telUrl(customer.phone))} />
+                  <Action icon="chat" label="WhatsApp" onPress={() => void Linking.openURL(whatsappUrl(customer.phone))} />
+                  <Action icon="navigate" label="Mapa" onPress={() => void Linking.openURL(mapsUrl(customer.lat, customer.lng, customer.address))} />
+                </View>
+                {locais.verPedidos ? (
+                  <View style={styles.grid}>
+                    <Stat label="Última compra" value={daysAgoLabel(customer.days_since_purchase)} color={customer.days_since_purchase !== null && customer.days_since_purchase >= 45 ? colors.warning : undefined} />
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+            {abasResumo.map((a) => {
+              const Aba = a.payload.componente;
+              return (
+                <View key={`${a.modulo}-${a.id}`} testID={a.payload.testID} style={{ gap: 8 }}>
+                  <SectionHeader title={a.payload.rotulo} />
+                  <Aba contexto={contexto} />
+                </View>
+              );
+            })}
           </>
+        ) : !ficha ? (
+          <Text style={t.sub}>Dados do cliente ainda não chegaram ao aparelho. Sincronize para atualizar.</Text>
+        ) : aba === 'cadastro' ? (
+          <AbaDadosCadastrais ficha={ficha} />
+        ) : aba === 'financeiro' ? (
+          <AbaFinanceiro ficha={ficha} />
+        ) : aba === 'compras' ? (
+          <AbaCompras ficha={ficha} hoje={hoje} pedidos={PedidosComp && abaPedidos ? <View testID={abaPedidos.payload.testID}><PedidosComp contexto={contexto} /></View> : undefined} />
         ) : (
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Action icon="phone" label="Ligar" onPress={() => void Linking.openURL(telUrl(customer.phone))} />
-          <Action icon="chat" label="WhatsApp" onPress={() => void Linking.openURL(whatsappUrl(customer.phone))} />
-          <Action icon="navigate" label="Navegar" onPress={() => void Linking.openURL(mapsUrl(customer.lat, customer.lng, customer.address))} />
-        </View>
+          <>
+            <BotaoFotoPdv ficha={ficha} onVerFotoPdv={verFotoPdv} />
+            <BlocoFotosPdv ficha={ficha} onAdicionar={adicionarFotoPdv} />
+          </>
         )}
-
-        {/* T-0076: uma grade só, na ordem da referência (Compra média · Última compra · Ticket · Frequência · 12 meses); limite e vencidos ficam só no Financeiro (T-0146) */}
-        {ficha ? (
-          <SecoesCliente360 ficha={ficha} indicadoresIniciais={indicadoresDoCliente} />
-        ) : (
-          <View style={styles.grid}>{indicadoresDoCliente}</View>
-        )}
-
-        {abas.map((a) => {
-          const Aba = a.payload.componente;
-          return (
-            <View key={`${a.modulo}-${a.id}`} testID={a.payload.testID} style={{ gap: 8 }}>
-              <SectionHeader title={a.payload.rotulo} />
-              <Aba contexto={contexto} />
-            </View>
-          );
-        })}
-
       </ScrollView>
 
-      <View style={styles.footer}>
-        <Button
-          testID="customer-checkin"
-          label={visitLabel}
-          icon={locked ? 'lock' : undefined}
-          variant={openHere ? 'dark' : locked ? 'locked' : visited ? 'muted' : 'outlineDark'}
-          accessibilityLabel={locked ? `Check-in bloqueado: você está em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}` : undefined}
-          height={52}
-          style={{ flex: 1 }}
-          textStyle={{ fontSize: 15 }}
-          onPress={() => {
-            if (openHere) sheets.askCheckout();
-            else if (locked) sheets.toast(`Em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}`, 'warning');
-            else if (!visited) void startCheckin();
-          }}
-        />
-        {acoesDoRodapeCliente(acoes).map((a) => (
+      {customer ? (
+        <View style={styles.footer}>
           <Button
-            key={`${a.modulo}-${a.id}`}
-            testID={a.payload.testID}
-            label={rotuloDe(a.payload, contexto)}
-            icon={a.payload.icone as IconName | undefined}
-            variant={a.payload.destaque ? 'accent' : 'outlineDark'}
+            testID="customer-checkin"
+            label={visitLabel}
+            icon={locked ? 'lock' : undefined}
+            variant={openHere ? 'dark' : locked ? 'locked' : visited ? 'muted' : 'outlineDark'}
+            accessibilityLabel={locked ? `Check-in bloqueado: você está em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}` : undefined}
             height={52}
-            style={{ flex: a.payload.destaque ? 2 : 1 }}
-            onPress={() => a.payload.abrir(contexto)}
+            style={{ flex: 1 }}
+            textStyle={{ fontSize: 15 }}
+            onPress={() => {
+              if (openHere) sheets.askCheckout();
+              else if (locked) sheets.toast(`Em atendimento em ${openVisit?.customer_name ?? 'outro cliente'}`, 'warning');
+              else if (!visited) void startCheckin();
+            }}
           />
-        ))}
-      </View>
+          {acoesDoRodapeCliente(acoes).map((a) => (
+            <Button
+              key={`${a.modulo}-${a.id}`}
+              testID={a.payload.testID}
+              label={rotuloDe(a.payload, contexto)}
+              icon={a.payload.icone as IconName | undefined}
+              variant={a.payload.destaque ? 'accent' : 'outlineDark'}
+              height={52}
+              style={{ flex: a.payload.destaque ? 2 : 1 }}
+              onPress={() => a.payload.abrir(contexto)}
+            />
+          ))}
+        </View>
+      ) : null}
 
-      <CheckinSheet
-        phase={phase}
-        customerName={customer.trade_name}
-        onClose={() => setPhase(null)}
-        onJustificar={(texto) => void startCheckin(texto)}
-        acao={
-          acaoDestaque
-            ? {
-                rotulo: rotuloDe(acaoDestaque.payload, { ...contexto, visitaId: phase?.kind === 'done' ? phase.visitId : contexto.visitaId }),
-                testID: 'checkin-new-order',
-                onPress: () => {
-                  const visitaId = phase?.kind === 'done' ? phase.visitId : contexto.visitaId;
-                  setPhase(null);
-                  acaoDestaque.payload.abrir({ ...contexto, visitaId });
-                },
-              }
-            : undefined
-        }
-      />
+      {customer ? (
+        <CheckinSheet
+          phase={phase}
+          customerName={customer.trade_name}
+          onClose={() => setPhase(null)}
+          onJustificar={(texto) => void startCheckin(texto)}
+          acao={
+            acaoDestaque
+              ? {
+                  rotulo: rotuloDe(acaoDestaque.payload, { ...contexto, visitaId: phase?.kind === 'done' ? phase.visitId : contexto.visitaId }),
+                  testID: 'checkin-new-order',
+                  onPress: () => {
+                    const visitaId = phase?.kind === 'done' ? phase.visitId : contexto.visitaId;
+                    setPhase(null);
+                    acaoDestaque.payload.abrir({ ...contexto, visitaId });
+                  },
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </View>
   );
 }
