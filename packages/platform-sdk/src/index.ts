@@ -37,3 +37,4 @@ export * from './plataforma';
 export * from './email';
 export * from './pacotes';
 export * from './diagnostico';
+export * from './cnpj';

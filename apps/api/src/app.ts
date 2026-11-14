@@ -107,6 +107,7 @@ import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
+import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
@@ -194,6 +195,8 @@ export interface OpcoesApp {
   diagnosticosApp?: boolean;
   /** T-0158: fonte das funções `sa_*` dos diagnósticos (padrão: `fonteDiagnosticosNoBanco`). Testes injetam a sua. */
   fonteDiagnosticos?: FonteDiagnosticosPortal;
+  /** ADR 0046: consulta de CNPJ do portal (`POST /v1/plataforma/cnpj`). Padrão: BrasilAPI com a reserva CNPJá. Testes injetam a sua. */
+  consultaCnpj?: ConsultaCnpj;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -593,6 +596,13 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       armazenamento: op.arquivos ?? null,
     });
   }
+
+  // ADR 0046: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
+  registrarRotaConsultaCnpj(app, {
+    autenticar: async (req) => (bancoPortal ? autenticarPortal(cabecalhos(req), acessoPortal) : semPortal()),
+    validar,
+    consulta: op.consultaCnpj ?? consultaCnpjPadrao(),
+  });
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {
