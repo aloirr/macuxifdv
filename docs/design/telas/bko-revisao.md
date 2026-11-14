@@ -76,7 +76,7 @@ Por que assim:
    - **Passar o ponteiro** (ou dar foco pelo teclado) num grupo fechado abre a lista dele **ao lado do menu** (painel flutuante, mesmas cores do menu). A tela fica a **1 clique**. O painel fecha ao sair do grupo e do painel, com `Esc` ou ao clicar fora.
    - **Clicar no título** de um grupo fechado abre esse grupo na sanfona e fecha o anterior (para quem prefere clicar, ou em tela de toque).
    - Ao abrir uma tela de outro grupo, a sanfona passa para o grupo dela.
-3. **Sem barra de rolagem em 1366×768.** Medido na simulação: com o maior grupo aberto (Cadastros, 6 itens), a lista termina em 550 px e o rodapé começa em 681 px. Sobra espaço até para o grupo Mais. Abaixo de 640 px de altura (raro no desktop), o menu pode rolar; é a única exceção.
+3. **Sem barra de rolagem em 1366×768.** Medido na simulação: com o maior grupo aberto (Cadastros, 6 itens), a lista termina em 576 px e o rodapé começa em 680 px. Sobra espaço até para o grupo Mais. Abaixo de 640 px de altura (raro no desktop), o menu pode rolar; é a única exceção.
 4. **Tela aberta destacada:** fundo `#2B3743` (`nav-active`), texto branco semibold e barra vertical de 3 px em Sol claro (`nav-grupo`) à esquerda. O título do grupo dela fica aberto.
 5. **Tela estreita (`md:hidden`)**: a barra de cima continua com a rolagem lateral que já existe, mas só com os itens do grupo da tela atual, depois de um seletor com o nome do grupo. Detalhe na implementação, sem simulação neste lote.
 6. **Licença e perfil (sem mudança):** o item só aparece se o módulo estiver licenciado e o perfil puder ver a tela (`criarShell`/`montar`, RN-CORE-01/03, ADR 0004). Grupo sem nenhum item visível não aparece.
@@ -102,7 +102,7 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 |---|---|
 | `bko-revisao/menu-completo-1366x768.png` | Administrador com os 8 módulos, sanfona, grupo Operação aberto, Pedidos destacado, sem barra de rolagem |
 | `bko-revisao/menu-tela-atual-e-outro-grupo.png` | Coordenadas sugeridas destacada (Cadastros aberto) e o painel ao lado do grupo Comercial sob o ponteiro (1 clique) |
-| `bko-revisao/menu-perfil-poucos-modulos.png` | Assistente com Core + Vendedor (Catálogo e Integração são nativos): 12 itens em 6 grupos, tudo cabe aberto (a lista termina em 672 px, o rodapé começa em 683 px), sem setas |
+| `bko-revisao/menu-perfil-poucos-modulos.png` | Assistente com Core + Vendedor (Catálogo e Integração são nativos): 12 itens em 6 grupos, tudo cabe aberto (a lista termina em 672 px, o rodapé começa em 680 px), sem setas |
 
 Os `.html` ao lado de cada PNG são a fonte da simulação.
 
