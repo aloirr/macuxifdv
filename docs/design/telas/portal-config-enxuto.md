@@ -39,12 +39,15 @@ Título **"Escolha a empresa"** · lista (nome; embaixo o código, ex. **AM4821*
 
 ## 3. Empresas
 Título **"Empresas"** + **"Nova empresa"**. Sai o subtítulo "Cada empresa cliente é um tenant. Crie a empresa e carregue as bases dela, na ordem dos cartões." Tabela **Empresa · Código · CNPJ · Módulos · Situação · Criada em** (Código em maiúsculas, ex. AM4821). Vazio: só **"Nenhuma empresa ainda."** (sai "Comece pela empresa cliente: razão social, CNPJ, fuso, módulos e os parâmetros iniciais." e o botão "Cadastrar a primeira empresa", que repete o "Nova empresa"). Sai: 3 frases + 1 botão.
+> Ver §11: a coluna "Módulos" vira **"Plano"**.
 
 | Antes | Depois (lista e, abaixo, o estado vazio) |
 |---|---|
 | ![Empresas, antes](portal-config-enxuto/antes-02-empresas.png) | ![Empresas, depois](portal-config-enxuto/depois-02-empresas.png) |
 
 ## 4. Nova empresa
+> Ver §11: CNPJ no topo preenche o cartão "Empresa" pela Receita; o cartão "Módulos e licenças" (item 2) dá lugar a Plano, Adicionais e Ciclo. Simulação nova: `depois-03b-nova-empresa.png`.
+
 "← Empresas" · **"Nova empresa"**. Saem "Passo 1" e "Confira antes de gravar: o código da empresa não muda depois. As bases vêm nos próximos passos."
 1. **"Empresa"**: **Razão social** · **CNPJ** · **UF** (obrigatório, lista das 27, sem pré-seleção; erro **"Escolha a UF."**) · **Fuso**. Sai o campo "Código da empresa" e a ajuda dele; sai a ajuda do fuso "Datas e horários do app e do BKO aparecem neste fuso."
 2. **"Módulos e licenças"**: só o nome de cada módulo, selo **"sempre"** em Core e Integração com o ERP (fica; pergunta ao dono do produto no §10), campo **"Licenças"** (placeholder "sem limite"). Saem as 8 descrições (`ROTULO_MODULO[*].ajuda`, 10 frases).
@@ -122,6 +125,8 @@ Diálogo "Passar as bases ao Conector do ERP?": **"A carga por CSV para de funci
 | ![Aba Integração, antes](portal-config-enxuto/antes-05-integracao.png) | ![Aba Integração, depois](portal-config-enxuto/depois-05-integracao.png) |
 
 ## 8. Aba Empresa
+> Ver §11: o cartão 1 ("Módulos e licenças" + "Acrescentar módulos") dá lugar ao cartão **"Plano"**. O cartão "Administradores" fica. Simulação nova: `depois-06b-aba-empresa.png`.
+
 Dois cartões: 1. **"Módulos e licenças"** (sem descrições; já licenciado = selo "licenciado", travado) + **"Acrescentar módulos"** (sai "Conferir sem gravar"); resultado **"Módulos acrescentados: Catálogo."**/**"Nada mudou."**; admin do cliente vê só leitura (nome + licenças, sem caixas e sem botão). 2. **"Administradores"** (só time Macuxi): lista + selos "Bloqueado"/"Entra só pelo app" + "Redefinir senha"; sai a ajuda "Quem administra esta empresa no backoffice. Se um deles perdeu a senha, mande uma senha temporária nova por e-mail."; diálogo **"Uma senha temporária vai para {e-mail}. {Nome} sai do Macuxi em todos os aparelhos."**
 Saem três cartões repetidos: "Módulos licenciados", "Empresa" (campos travados que repetem o cabeçalho) e "Administrador da empresa" ("Esta empresa já tem administrador. A senha dele não muda aqui."). Sai: 17 frases, 3 cartões, 1 botão.
 
@@ -137,7 +142,7 @@ Sai o subtítulo "Enviados pelos aparelhos. Ficam 90 dias." Resto igual. Sai: 2.
 | ![Diagnósticos, antes](portal-config-enxuto/antes-07-diagnosticos.png) | ![Diagnósticos, depois](portal-config-enxuto/depois-07-diagnosticos.png) |
 
 ## Placar
-> Linhas "Aba Bases", "Aba Integração" e "Total" revogadas pelo §10 (placar novo lá).
+> Linhas "Aba Bases", "Aba Integração" e "Total" revogadas pelo §10 (placar novo lá). Ver §11.6: "Nova empresa" e "Aba Empresa" mudam de novo.
 
 | Tela | Frases que saem | Além disso |
 |---|---|---|
@@ -205,7 +210,11 @@ A simulação do §7 (`depois-05-integracao.*`) e a do §6 (`depois-04-bases.*`)
 ### 10.3 Nova empresa (§4)
 Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergunta ao dono do produto:** sem CSV, toda empresa precisa de Conector ou API; a Integração com o ERP continua "sempre"?
 
+> Ver §11: com os planos, a Nova empresa não lista mais módulos; a pergunta acima passa a ser se todo plano inclui a Integração com o ERP.
+
 ### 10.4 Placar novo
+> Linhas "Nova empresa" e "Aba Empresa" atualizadas no §11.6.
+
 | Tela | Frases que saem | Além disso |
 |---|---|---|
 | Moldura | 7 | — |
@@ -225,3 +234,89 @@ Fica como está: selo **"sempre"** em Core e em Integração com o ERP. **Pergun
 - `aba-integracao.tsx`: dois lados (grid de 2 colunas ≥ 768 px; 1 coluna abaixo, Conector primeiro); o botão do Conector passa para dentro do passo 1; `textoDoPacote` sem o nome do arquivo quando o link já o mostra; o link do OpenAPI vai para o cartão "Guia da API"; `integracao.guia` vira o botão do PDF, só quando ele existir.
 - **A Equipe passa a vir só pelo ERP (Conector/API) ou pelo BKO.** Pendência — pergunta ao dono do produto: a Equipe por CSV sai mesmo do portal?
 - **Pendência para engenheiro-software / modulo-integracao:** credencial de API separada da do Conector (tipo próprio, ex. o `nuvem` que já existe em `ROTULO_TIPO`, rota que lista só as de API) e o guia da API em PDF (modulo-integracao faz e manda ao designer-ux para revisão de layout). Se a rota não existir, o lado direito mostra só o guia e o link do OpenAPI.
+
+## 11. Adendo — Planos (Light, PME, Enterprise, Corporate) e CNPJ pela Receita
+> 2026-11-14 · designer-ux · pedido do dono do produto R-20261114-132600-alexandre (chegou pela ponte; não lido no repositório de recados nesta sessão — confirmar). Onde conflitar, o §11 vale sobre §3 (coluna Módulos), §4 (cartões Empresa e Módulos e licenças), §8 (cartão Módulos e licenças), §10.3 e os placares. Contratos novos (planos e CNPJ) vêm do engenheiro-software.
+>
+> **A tabela dos planos (preço e licenças) não chegou a esta sessão.** Nenhum preço nem limite foi inventado: a spec e as simulações usam os marcadores `{preço}` e `{licenças}`, **a confirmar pela tabela do recado**.
+
+**Premissa:** os módulos da empresa passam a vir do **plano + adicionais**. O cartão "Módulos e licenças" sai do Criar empresa e da aba Empresa; o portal não marca mais módulo por módulo.
+
+### 11.1 Ordem do Criar empresa
+**CNPJ → dados preenchidos → Plano → Adicionais → Ciclo e teste → Administrador → "Criar empresa".** Um só botão principal (52 px), no fim.
+
+### 11.2 Cartão "Empresa" com o CNPJ pela Receita
+- **CNPJ** no topo, sozinho na primeira linha (máscara `00.000.000/0000-00`, placeholder igual). A busca dispara **ao sair do campo** com 14 dígitos válidos.
+- Embaixo, sempre visíveis (vazios até a busca, para quem preenche à mão): **Razão social · Nome fantasia** / **Endereço** (linha inteira) / **Município · UF · Fuso** / **Telefone · E-mail** / **Situação · CNAE**.
+- A busca preenche **razão social, nome fantasia, endereço, município, UF, situação, CNAE, telefone e e-mail**. A UF gera o código UF+4 (§4, §5), como antes. O **Fuso** vem pré-escolhido pela UF/município e continua editável (ex.: AM → Manaus (UTC−4)).
+- **Decisão (edição):** todos os campos preenchidos continuam **editáveis**, exceto **Situação** e **CNAE**, que são **só leitura** (fundo cinza, sem borda) porque vêm da Receita e não mudam no portal. Se a Receita estiver fora, Situação e CNAE ficam vazios e a empresa pode ser criada sem eles.
+- Editar o CNPJ de novo limpa o estado e busca outra vez ao sair; os campos que a pessoa editou à mão **não são sobrescritos** sem ela apagar (decisão: não perder digitação).
+- Nenhum texto explicando a consulta (sem "Os dados vêm da Receita Federal").
+
+**Estados do campo CNPJ** (uma frase, embaixo do campo, `aria-live="polite"`; somem quando a pessoa edita o CNPJ):
+
+| Estado | Campo | Texto final |
+|---|---|---|
+| Vazio | placeholder `00.000.000/0000-00` | — |
+| Buscando | indicador girando à direita, campo travado | **"Buscando na Receita…"** |
+| Encontrado | ✓ à direita | — (decisão: sem texto; os campos preenchidos já mostram o resultado) |
+| CNPJ inválido (dígito verificador ou menos de 14 dígitos) | borda de erro | **"CNPJ inválido. Confira os 14 dígitos."** |
+| Não encontrado | borda de erro | **"CNPJ não encontrado na Receita."** |
+| Receita fora (tempo esgotado, 5xx, limite de consultas) | borda de alerta + link **"Tentar de novo"** à direita | **"Não deu para buscar na Receita. Preencha os campos ou tente de novo."** |
+| Situação não ativa (baixada, suspensa, inapta, nula) | borda de alerta; os campos se preenchem | **"CNPJ {situação} na Receita."** (ex.: "CNPJ baixado na Receita.", "CNPJ suspenso na Receita.", "CNPJ inapto na Receita."; `{situação}` no masculino, minúsculo) |
+
+- **Decisão (situação não ativa):** alerta, **não bloqueia** o "Criar empresa". Pergunta ao dono do produto no §11.7.
+- CNPJ que já tem empresa no Macuxi: segue o erro da API que já existe ao criar (sem mudança).
+
+### 11.3 Cartões "Plano", "Adicionais" e "Ciclo"
+1. **"Plano"**: 4 cartões de **escolha única** (rádio), em uma linha (2 × 2 abaixo de 768 px): **Light · PME · Enterprise · Corporate**. Cada um: **nome**, **`{preço}`/mês** (ou **`{preço}`/ano** quando o ciclo é Anual) e **`{licenças}`** (ex.: "{n} vendedores · {n} promotores · {n} gestores", formato a confirmar pela tabela). Sem descrição. Sem pré-seleção; sem plano, erro no cartão **"Escolha o plano."** Selecionado: borda de destaque de 2 px + rádio cheio.
+2. **"Adicionais"**: três caixas lado a lado, cada uma com nome + **`{preço}`/mês**: **Promotor avulso** · **Pesquisa** · **Treinamento**. Promotor avulso marcado mostra o campo **Quantidade** (número, mínimo 1; padrão 1) — **a confirmar pelo contrato** se o avulso é por licença. Adicional que o plano já inclui some da lista (a confirmar pela tabela).
+3. **"Ciclo"**: alternador **Mensal / Anual** (padrão **Mensal**); no Anual, selo curto **"2 meses grátis"**. Ao lado, a caixa **"Começar com 14 dias de teste"**, **marcada por padrão**.
+   - **Decisão (teste):** caixa marcada por padrão. No caso comum (começar em teste) é **zero ação**; quem já fecha contrato desmarca com um toque. O "estado padrão sem caixa" exigiria outra tela para começar sem teste. Pergunta ao dono do produto no §11.7.
+
+Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro geral: **"Confira os campos marcados."**
+
+| Depois — Nova empresa (CNPJ preenchido, PME escolhido) | Depois — estados do campo CNPJ |
+|---|---|
+| ![Nova empresa com planos](portal-config-enxuto/depois-03b-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
+
+### 11.4 Aba Empresa: cartão "Plano"
+Ordem dos cartões: **"Plano"** → **"Administradores"** (§8, sem mudança).
+- Linha de cima: **nome do plano** (ex.: **PME**) · selo **"Mensal"**/**"Anual"** · se houver teste, selo de alerta **"Teste até 28/11/2026"** (data no fuso do tenant) · à direita **"Trocar de plano"** (principal: é a única ação da aba).
+- Tabela **Licenças · Em uso · Contratadas**, uma linha por tipo (**tipos a confirmar pelo contrato**; ex.: Vendedor, Promotor, Gestor). O avulso soma no tipo dele e aparece entre parênteses, ex.: "Promotor (3 avulsos)". Em uso = contratadas: número em cor de alerta **com o texto "no limite"** (cor nunca sozinha).
+- Embaixo, uma linha: **"Adicionais: Promotor avulso · Pesquisa"** (some se não houver).
+- **"Trocar de plano"**: o cartão dá lugar ao **mesmo seletor do Criar empresa** (Plano + Adicionais + Ciclo, sem a caixa de teste), com o plano atual marcado **"Atual"** e já selecionado; ao escolher outro, o botão vira **"Trocar para {plano}"** (principal) + **"Cancelar"**. Sem mudança, o botão fica desabilitado como **"Trocar de plano"**.
+  - Sucesso: aviso success fechável **"Plano trocado: Enterprise."**
+  - Plano com menos licenças que as em uso: erro no cartão do plano, botão desabilitado: **"{Plano} tem {n} licenças de {tipo}; {m} em uso. Desative {m−n} antes de trocar."** (a confirmar pela regra do contrato).
+  - Quando a troca vale (na hora ou no próximo ciclo) e como cobra: **a confirmar pelo contrato**; a tela não explica cobrança.
+- **Decisão (admin do cliente):** vê o cartão **só leitura** (plano, selos, tabela, adicionais), **sem "Trocar de plano"**. Pergunta ao dono do produto no §11.7.
+- Saem do §8: "Módulos e licenças" (8 linhas com caixa e campo Licenças, selos "licenciado"), "Acrescentar módulos" e os resultados "Módulos acrescentados: …"/"Nada mudou.".
+
+| Depois — aba Empresa (cartão Plano + Administradores; embaixo, o seletor aberto pelo "Trocar de plano") |
+|---|
+| ![Aba Empresa com plano](portal-config-enxuto/depois-06b-aba-empresa.png) |
+
+### 11.5 Lista de Empresas (§3)
+Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A coluna Plano mostra o nome (ex.: "PME"); em teste, o selo **"teste"** ao lado. Sem simulação nova (só troca o cabeçalho e o conteúdo da coluna).
+
+### 11.6 Placar (substitui as linhas "Nova empresa" e "Aba Empresa" do §10.4)
+| Tela | Sai | Entra |
+|---|---|---|
+| Empresas | coluna "Módulos" | coluna "Plano" (+ selo "teste") |
+| Nova empresa | 18 frases, campo Código, cartão Parâmetros (5 campos), "Passo 1", "Conferir sem gravar" (§4) **+ cartão "Módulos e licenças" (8 linhas, 8 campos Licenças, 2 selos "sempre")** | CNPJ no topo com 5 textos de estado; 7 campos novos preenchidos pela Receita (nome fantasia, endereço, município, telefone, e-mail, situação e CNAE — os 2 últimos só leitura); UF e Fuso pré-preenchidos; cartões **Plano** (4 opções), **Adicionais** (3 caixas), **Ciclo** (Mensal/Anual + "2 meses grátis" + caixa do teste) |
+| Aba Empresa | 17 frases, 3 cartões repetidos, "Conferir sem gravar" (§8) **+ cartão "Módulos e licenças", botão "Acrescentar módulos", 2 resultados** | cartão **Plano** (nome, ciclo, fim do teste, tabela em uso/contratadas por tipo, adicionais, "Trocar de plano" com o seletor) |
+
+Total de frases que saem: 57 (§10.4) + 2 ("Módulos acrescentados…", "Nada mudou.") = **59 frases + a aba Bases inteira**. Entram 9 textos de estado/erro, todos de ação: 5 do CNPJ, "Escolha o plano.", "Plano trocado: {plano}.", o de licenças em uso e "no limite".
+
+### 11.7 Perguntas ao dono do produto
+1. **Teste de 14 dias:** caixa "Começar com 14 dias de teste" marcada por padrão (decisão desta spec) — ou toda empresa começa em teste, sem caixa?
+2. **Admin do cliente:** vê o plano só leitura, sem "Trocar de plano" (decisão desta spec) — ou ele mesmo pode trocar?
+3. **CNPJ não ativo** (baixado, suspenso, inapto): só alerta (decisão desta spec) — ou bloqueia o "Criar empresa"?
+4. **Integração com o ERP** (§10.3): todo plano inclui?
+5. **Tabela dos planos** (preço por ciclo, licenças por tipo, preço dos adicionais, se Promotor avulso é por licença): não chegou a esta sessão.
+
+### 11.8 Para o engenheiro-apps
+- **testIDs novos:** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.situacao`, `empresa.cnae`, `empresa.plano-<id>` (`light|pme|enterprise|corporate`, o id vem do contrato), `empresa.adicional-<id>` (ex.: `promotor-avulso|pesquisa|treinamento`), `empresa.adicional-promotor-avulso-qtd`, `empresa.ciclo-<mensal|anual>`, `empresa.teste`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.ciclo`, `empresa-plano.teste-ate`, `empresa-plano.uso-<tipo>`, `empresa-plano.trocar`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`.
+- **Saem:** os testIDs e o código do cartão "Módulos e licenças" no Criar empresa e na aba Empresa (`empresa.modulo-*`, `empresa.licencas-*`, `empresa.acrescentar-modulos` ou equivalentes) e `ROTULO_MODULO` no portal, se não for usado em outro lugar (confirmar com o corretor-redundancias).
+- O seletor de planos é **um componente só**, usado no Criar empresa e no "Trocar de plano" (prop `atual`).
+- **Dependências (engenheiro-software):** contrato de **planos** (lista com id, nome, preço por ciclo em centavos, licenças por tipo, adicionais com preço e se tem quantidade, ciclo, teste e uso atual por tipo; `CriarEmpresaSchema` com `plano`, `adicionais`, `ciclo`, `teste` no lugar de `modulos`) e contrato de **CNPJ** (consulta → campos e códigos de erro `invalido`, `nao_encontrado`, `indisponivel`; situação). Dinheiro formatado de centavos (`R$ 1.234,00`). O modo falso (`lib/portal-falso.ts`) usa os mesmos marcadores até a tabela chegar.

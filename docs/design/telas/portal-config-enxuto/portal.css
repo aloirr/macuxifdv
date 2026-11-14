@@ -89,3 +89,46 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
   .campos { grid-template-columns: 1fr; }
   .aviso { flex-wrap: wrap; }
 }
+/* §11: planos (cartões de escolha única), adicionais, ciclo, CNPJ pela Receita, cartão Plano */
+.campos .largo { grid-column: span 2; }
+.linha3 { display: grid; grid-template-columns: 1fr 120px 1fr; gap: 16px; grid-column: span 2; }
+.inp.ler { background: #ECEEF1; border-color: #ECEEF1; color: var(--ink); }
+.inp.erro { border-color: var(--danger); }
+.inp.alerta { border-color: var(--warning); }
+.inp .dir { margin-left: auto; font-size: 13px; color: var(--ink2); display: flex; gap: 8px; align-items: center; }
+.giro { width: 16px; height: 16px; border-radius: 8px; border: 2px solid var(--line); border-top-color: var(--accent); display: inline-block; }
+.estado-cnpj { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.estado-cnpj.busca { color: var(--ink2); font-weight: 500; }
+.estado-cnpj.erro { color: var(--danger); }
+.estado-cnpj.alerta { color: var(--warning); }
+.planos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.plano { border: 1px solid var(--lineStrong); border-radius: 12px; padding: 14px; min-height: 112px; display: flex; flex-direction: column; gap: 6px; position: relative; background: #fff; }
+.plano.on { border: 2px solid var(--accent); padding: 13px; background: #F2F5F9; }
+.plano .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 17px; display: flex; gap: 8px; align-items: center; }
+.plano .preco { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 20px; }
+.plano .preco small { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.plano .lic { font-size: 13px; color: var(--ink2); }
+.plano .rad { position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; border-radius: 9px; border: 2px solid var(--ink2); }
+.plano.on .rad { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #fff; }
+.adicionais { display: flex; gap: 12px; flex-wrap: wrap; }
+.adic { display: flex; align-items: center; gap: 10px; border: 1px solid var(--lineStrong); border-radius: 10px; padding: 0 14px; min-height: 52px; background: #fff; }
+.adic .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink2); background: #fff; flex: none; }
+.adic .chk.on { border-color: var(--accent); background: var(--accent); }
+.adic b { font-weight: 600; }
+.adic span.p { color: var(--ink2); font-size: 13px; }
+.adic .qtd { width: 72px; height: 36px; }
+.ciclo { display: inline-flex; border: 1px solid var(--lineStrong); border-radius: 10px; overflow: hidden; }
+.ciclo span { height: 44px; padding: 0 18px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: #fff; }
+.ciclo span.on { background: var(--accent); color: #fff; }
+.ciclo span.on .selo { background: #fff; color: var(--accent); }
+.linha-ciclo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.caixa { display: flex; align-items: center; gap: 10px; font-weight: 600; min-height: 44px; }
+.caixa .chk { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--accent); background: var(--accent); }
+.marca-conf { font-size: 11px; color: var(--warning); background: var(--warningBg); border-radius: 6px; padding: 2px 6px; font-weight: 700; }
+.plano-topo { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.plano-topo .pnome { font-family: Archivo, 'IBM Plex Sans', sans-serif; font-weight: 800; font-size: 22px; }
+.uso td.n, .uso th.n { text-align: right; font-family: Archivo, 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; width: 140px; }
+.uso td.lim { color: var(--warning); font-weight: 700; }
+.estados-cnpj { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+.estados-cnpj .rot { font-size: 11px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+@media (max-width: 767px) { .planos { grid-template-columns: 1fr 1fr; } .linha3 { grid-template-columns: 1fr; } .campos .largo, .linha3 { grid-column: auto; } }
