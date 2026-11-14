@@ -155,3 +155,4 @@
 2026-11-14 — T-0170/v1.0.6 — MC-0010 (Início e Performance), MC-0012, MC-0014 (STATUS_FILL), retirada do inicio.recado_do_dia_padrao (D2) e costura #149 (itens 1, 2, 3, 4 e 6); branch nuvem/v106-modulo-core
 2026-11-14 — RD-0250 — ROTULO_INDICADOR_META no contracts, core usando o mapa; Faturamento só com meta de faturamento
 2026-11-14 — ficha-cliente-performance — aba Performance (RN-CORE-50), botão Pesquisa e Checkout só em atendimento (RN-CORE-51)
+2026-11-14 — checkin-ficha-rota — Check-in volta ao rodapé da ficha (RN-CORE-51) e ação visita.checkin_fora_de_rota por perfil (RN-CORE-52, erro CHECKIN_FORA_DE_ROTA)

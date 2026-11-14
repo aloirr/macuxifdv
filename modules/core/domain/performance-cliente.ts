@@ -65,7 +65,10 @@ export function resumoDeVisitas(visitas: readonly { usuario_id: string; checkin_
   return { total: visitas.length, ultima_data: dataTopo, ultimo_usuario_id: topo?.usuario_id ?? null };
 }
 
-/** RN-CORE-51: "Pesquisa" só com a extensão presente; "Checkout" só com atendimento aberto neste cliente (o check-in vem do Início/Rota). */
-export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean }): { checkout: boolean; pesquisa: boolean } {
-  return { checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
+/**
+ * RN-CORE-51: rodapé da ficha. "Check-in" quando não há atendimento aberto neste cliente e o check-in é permitido (RN-CORE-52);
+ * "Checkout" só com atendimento aberto neste cliente; "Pesquisa" só com a extensão presente.
+ */
+export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
+  return { checkin: !e.atendimentoAqui && e.checkinPermitido, checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
 }

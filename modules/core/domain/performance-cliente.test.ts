@@ -41,7 +41,7 @@ describe('RN-CORE-50: aba Performance do cliente', () => {
 describe('RN-CORE-51: botão Pesquisa no rodapé e checkout só com atendimento aberto', () => {
   it('RN-CORE-51: o rodapé mostra Pesquisa se a extensão existe; Checkout só com atendimento aberto neste cliente', async () => {
     const { botoesDoRodapeCliente } = await import('./performance-cliente');
-    expect(botoesDoRodapeCliente({ temPesquisa: true, atendimentoAqui: false })).toEqual({ checkout: false, pesquisa: true });
-    expect(botoesDoRodapeCliente({ temPesquisa: false, atendimentoAqui: true })).toEqual({ checkout: true, pesquisa: false });
+    expect(botoesDoRodapeCliente({ temPesquisa: true, atendimentoAqui: false, checkinPermitido: false })).toEqual({ checkin: false, checkout: false, pesquisa: true });
+    expect(botoesDoRodapeCliente({ temPesquisa: false, atendimentoAqui: true, checkinPermitido: true })).toEqual({ checkin: false, checkout: true, pesquisa: false });
   });
 });

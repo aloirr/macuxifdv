@@ -22,6 +22,12 @@ export const CheckinVisitaSchema = z
   .strict();
 export type CheckinVisita = z.infer<typeof CheckinVisitaSchema>;
 
+/** RN-CORE-52: ação do catálogo que libera o check-in em cliente fora da rota do dia (ligável por perfil de acesso). */
+export const ACAO_CHECKIN_FORA_DE_ROTA = 'visita.checkin_fora_de_rota';
+/** RN-CORE-52: código de erro do push de check-in (`rejeitado`) quando o cliente não está na rota do dia e o perfil não tem a ação. */
+export const CODIGO_CHECKIN_FORA_DE_ROTA = 'CHECKIN_FORA_DE_ROTA';
+export const MENSAGEM_CHECKIN_FORA_DE_ROTA = 'Este cliente não está na sua rota de hoje e seu perfil não permite check-in fora da rota. Peça a liberação ao administrador ou inclua o cliente na rota.';
+
 export const EtapaCheckoutPayloadSchema = z
   .object({
     modulo: z.string().regex(/^[a-z][a-z0-9-]*$/),
