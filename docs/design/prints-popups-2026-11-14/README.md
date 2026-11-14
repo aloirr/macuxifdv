@@ -11,3 +11,5 @@ Prints do `Dialog` e do `Drawer` de `packages/ui/src/web/overlay.tsx`, com o CSS
 Larguras: 360×740 (celular: folha que sobe de baixo, largura toda), 768×1024, 1366×768 e 1920×1080 (cartão centrado de até 460 px; o painel tem até 560 px).
 
 Verificado em todos os 12 prints: a caixa cabe na área visível, o título e o último botão aparecem, o foco inicial cai no primeiro campo (ou no primeiro botão, no Cancelar da confirmação), o Tab não sai do popup e o Esc fecha.
+
+`painel-foco-1366x768.png` (MC-0022): o botão Fechar do painel com foco de teclado mostra o contorno Azul noite do kit (`outline-accent`, 2 px, afastado 2 px), no lugar do contorno padrão do navegador.

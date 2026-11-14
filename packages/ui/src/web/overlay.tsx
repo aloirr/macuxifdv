@@ -133,7 +133,7 @@ export function Drawer({ open, title, subtitle, children, onClose }: { open: boo
             </h2>
             {subtitle && <div className="text-[13px] text-ink-2">{subtitle}</div>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar painel" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-field bg-surface hover:bg-ground">
+          <button type="button" onClick={onClose} aria-label="Fechar painel" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-field bg-surface hover:bg-ground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <IconX size={18} />
           </button>
         </div>
