@@ -6,12 +6,14 @@
  * Se nem no menor fator couber (fonte do sistema muito grande), `cabe` vem falso e o meio rola, como antes.
  *
  * A altura é estimada com 1,3 de entrelinha por linha de texto; o RN já multiplica a letra pela fonte do sistema, então aqui
- * `fontSize` é o valor base (sem `fontScale`) e `fontScale` só entra na conta da altura e no piso.
+ * `fontSize` é o valor base (sem `fontScale`) e `fontScale` só entra na conta da altura e no piso. Alturas e respiros do kit
+ * (`ALTURA`, `ALVO_TOQUE`, `CABECALHO`) vêm de `@macuxi/ui/mobile/puro`; o respiro de cima do painel é o do `layoutCabecalho`
+ * (não escala), e só ele soma a área segura.
  */
-export const ALTURA_ABAS = 64;
+import { ALTURA, ALVO_TOQUE, CABECALHO } from '@macuxi/ui/mobile/puro';
+
 export const FATOR_MINIMO = 0.6;
 export const PISO_LETRA_DP = 11;
-export const ALVO_TOQUE_DP = 48;
 const ENTRELINHA = 1.3;
 const MARGEM = 6;
 /** Largura média de um caractere em fração do corpo da letra (IBM Plex Sans), para estimar as linhas da frase. */
@@ -27,7 +29,7 @@ export interface EntradaEscalaInicio {
   base: number;
   /** Texto da frase, para estimar 1 ou 2 linhas (sem ele, 1 linha). */
   frase?: string;
-  /** Altura da barra de abas sem a área segura (padrão 64, `ALTURA.barraAbas` do kit). */
+  /** Altura da barra de abas sem a área segura (padrão `ALTURA.barraAbas` do kit). */
   alturaAbas?: number;
 }
 
@@ -38,8 +40,8 @@ export interface EscalaInicio {
   /** Altura estimada do Início inteiro (painel + meio + rodapé) e a disponível, em dp. */
   estimada: number;
   disponivel: number;
-  fonte: { data: number; saudacao: number; frase: number; iniciais: number; h2: number; label: number; percentual: number; real: number; meta: number; sub: number; valorRodape: number; valorIndicador: number };
-  painel: { paddingTop: number; paddingBottom: number; gap: number; avatar: number };
+  fonte: { data: number; saudacao: number; frase: number; iniciais: number; h2: number; label: number; percentual: number; real: number; meta: number; sub: number; valorRodape: number; valorIndicador: number; ultima: number };
+  painel: { paddingBottom: number; gap: number; avatar: number };
   meio: { paddingTop: number; paddingBottom: number; gap: number; linhaTitulo: number };
   cartao: { preenchimento: number; gap: number; barra: number; alturaMaxima: number };
   produtividade: { preenchimento: number; gapLinhas: number };
@@ -47,12 +49,12 @@ export interface EscalaInicio {
 }
 
 const BASE = {
-  fonte: { data: 14, saudacao: 24, frase: 14, iniciais: 16, h2: 17, label: 12, percentual: 14, real: 18, meta: 14, sub: 13, valorRodape: 14, valorIndicador: 18 },
-  painel: { paddingTop: 12, paddingBottom: 16, gap: 4, avatar: 40 },
+  fonte: { data: 14, saudacao: 24, frase: 14, iniciais: 16, h2: 17, label: 12, percentual: 14, real: 18, meta: 14, sub: 13, valorRodape: 14, valorIndicador: 18, ultima: 12 },
+  painel: { paddingBottom: 16, gap: 4, avatar: 40 },
   meio: { paddingTop: 8, paddingBottom: 8, gap: 8, linhaTitulo: 32 },
   cartao: { preenchimento: 12, gap: 4, barra: 6, alturaMaxima: 132 },
   produtividade: { preenchimento: 12, gapLinhas: 8 },
-  rodape: { paddingTop: 8, paddingBottom: 12, botao: 52 },
+  rodape: { paddingTop: 8, paddingBottom: 12, botao: ALTURA.principal },
 } as const;
 
 const arredonda = (n: number): number => Math.round(n);
@@ -69,12 +71,13 @@ export function tamanhosParaFator(fator: number, fontScale: number): Omit<Escala
     fonte: {
       data: letra(f.data), saudacao: letra(f.saudacao), frase: letra(f.frase), iniciais: letra(f.iniciais), h2: letra(f.h2), label: letra(f.label),
       percentual: letra(f.percentual), real: letra(f.real), meta: letra(f.meta), sub: letra(f.sub), valorRodape: letra(f.valorRodape), valorIndicador: letra(f.valorIndicador),
+      ultima: letra(f.ultima),
     },
-    painel: { paddingTop: esp(BASE.painel.paddingTop), paddingBottom: esp(BASE.painel.paddingBottom), gap: esp(BASE.painel.gap), avatar: limita(esp(BASE.painel.avatar), 36, 40) },
+    painel: { paddingBottom: esp(BASE.painel.paddingBottom), gap: esp(BASE.painel.gap), avatar: limita(esp(BASE.painel.avatar), 36, 40) },
     meio: { paddingTop: esp(BASE.meio.paddingTop), paddingBottom: esp(BASE.meio.paddingBottom), gap: esp(BASE.meio.gap), linhaTitulo: Math.max(28, esp(BASE.meio.linhaTitulo)) },
     cartao: { preenchimento: esp(BASE.cartao.preenchimento), gap: esp(BASE.cartao.gap), barra: Math.max(4, esp(BASE.cartao.barra)), alturaMaxima: BASE.cartao.alturaMaxima },
     produtividade: { preenchimento: esp(BASE.produtividade.preenchimento), gapLinhas: esp(BASE.produtividade.gapLinhas) },
-    rodape: { paddingTop: esp(BASE.rodape.paddingTop), paddingBottom: esp(BASE.rodape.paddingBottom), botao: Math.max(ALVO_TOQUE_DP, esp(BASE.rodape.botao)) },
+    rodape: { paddingTop: esp(BASE.rodape.paddingTop), paddingBottom: esp(BASE.rodape.paddingBottom), botao: Math.max(ALVO_TOQUE, esp(BASE.rodape.botao)) },
   };
 }
 
@@ -92,7 +95,7 @@ export function alturaEstimadaInicio(t: Tamanhos, e: Pick<EntradaEscalaInicio, '
   const fs = e.fontScale > 0 ? e.fontScale : 1;
   const linha = (corpo: number, n = 1): number => corpo * fs * ENTRELINHA * n;
   const painel =
-    e.topo + t.painel.paddingTop + ALVO_TOQUE_DP + t.painel.gap + linha(t.fonte.saudacao) + (e.frase ? t.painel.gap / 2 + linha(t.fonte.frase, linhasDaFrase(e.frase, t.fonte.frase, fs, e.largura)) : 0) + t.painel.paddingBottom;
+    e.topo + CABECALHO.respiroTopo + ALVO_TOQUE + t.painel.gap + linha(t.fonte.saudacao) + (e.frase ? t.painel.gap / 2 + linha(t.fonte.frase, linhasDaFrase(e.frase, t.fonte.frase, fs, e.largura)) : 0) + t.painel.paddingBottom;
   const c = t.cartao;
   const cartao =
     2 * c.preenchimento + Math.max(linha(t.fonte.label), linha(t.fonte.percentual)) + Math.max(linha(t.fonte.real), linha(t.fonte.meta)) + c.barra + Math.max(linha(t.fonte.sub), linha(t.fonte.valorRodape)) + 3 * c.gap;
@@ -105,7 +108,7 @@ export function alturaEstimadaInicio(t: Tamanhos, e: Pick<EntradaEscalaInicio, '
 
 /** O maior fator (passo de 0,02, de 1 até {@link FATOR_MINIMO}) em que o Início cabe; sem fator que sirva, o mínimo e `cabe: false`. */
 export function escalaInicio(entrada: EntradaEscalaInicio): EscalaInicio {
-  const abas = (entrada.alturaAbas ?? ALTURA_ABAS) + (Number.isFinite(entrada.base) ? Math.max(0, entrada.base) : 0);
+  const abas = (entrada.alturaAbas ?? ALTURA.barraAbas) + (Number.isFinite(entrada.base) ? Math.max(0, entrada.base) : 0);
   const disponivel = entrada.altura - abas - MARGEM;
   const fs = Number.isFinite(entrada.fontScale) && entrada.fontScale > 0 ? entrada.fontScale : 1;
   const dados = { largura: entrada.largura, fontScale: fs, topo: Number.isFinite(entrada.topo) ? Math.max(0, entrada.topo) : 0, frase: entrada.frase };

@@ -1,9 +1,12 @@
+import { linhaDaData, textoUltimaSincronizacao } from '@core/app/telas/inicio/inicio-campo';
+
 const q = new URLSearchParams(location.search);
 const nome = q.get('nome') ?? 'MARIA EDUARDA SILVA';
 const saud = q.get('saud') ?? 'Boa tarde';
 const primeiro = (n: string) => n.trim().split(/\s+/)[0]!.split('-').map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('-');
 export const useInicioCampo = () => ({
-  data: 'Quinta, 12 de novembro · DU 9 de 20',
+  // Textos pelas funções reais (DU e "Últ. sincronização" sem quebra no meio)
+  data: linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 }),
   saudacao: `${saud}, ${primeiro(nome)}`,
   frase: 'Cada cliente atendido é uma relação que cresce.',
   nome,
@@ -22,5 +25,5 @@ export const useInicioCampo = () => ({
     { indicador: 'tma', titulo: 'TMA', valor: '18 min', ponto: null },
   ],
   sino: { recados: 1, tarefas: 1, total: 2 },
-  ultimaSincronizacao: 'Últ. sincronização 14:32',
+  ultimaSincronizacao: textoUltimaSincronizacao('2026-11-12T18:32:00Z', 'America/Sao_Paulo'),
 });

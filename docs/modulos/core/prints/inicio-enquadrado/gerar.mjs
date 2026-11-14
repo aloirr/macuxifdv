@@ -1,5 +1,5 @@
 // Prints do Início do Campo enquadrado (R-20261114-145000, modulo-core). Empacota a TelaInicioCampo REAL com esbuild +
-// react-native-web, simula a barra de status (24), a barra de abas (64 + 24) e a fonte do sistema em 1,0 e 1,15, e confere por
+// react-native-web, simula a barra de status (24), usa a BarraAbas do kit (64 + 24) e a fonte do sistema em 1,0 e 1,15, e confere por
 // código: sem rolagem, Sincronizar inteiro acima das abas, saudação sem reticências.
 // Uso, na raiz: node docs/modulos/core/prints/inicio-enquadrado/gerar.mjs   (usa o que está em node_modules; sem dependência nova)
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -89,6 +89,19 @@ for (const [L, A] of TAMANHOS) {
           const r = c.getBoundingClientRect();
           return [...c.querySelectorAll('*')].every((e) => e.getBoundingClientRect().bottom <= r.bottom + 0.5);
         });
+        // Trecho que não pode partir no meio: um só retângulo de linha para ele
+        const inteiro = (id, trecho) => {
+          const el = q(id);
+          const no = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.includes(trecho)) ?? el.firstChild;
+          const i = no.textContent.indexOf(trecho);
+          if (i < 0) return false;
+          const r = document.createRange();
+          r.setStart(no, i);
+          r.setEnd(no, i + trecho.length);
+          return new Set([...r.getClientRects()].map((c) => Math.round(c.top))).size === 1;
+        };
+        const ult = q('inicio.ultima-sincronizacao');
+        const linhasUlt = Math.round(ult.getBoundingClientRect().height / parseFloat(getComputedStyle(ult).lineHeight || String(parseFloat(getComputedStyle(ult).fontSize) * 1.2)));
         const prod = q('inicio.produtividade').getBoundingClientRect();
         const rolR = rol.getBoundingClientRect();
         const conteudoCabe = prod.bottom <= rolR.bottom + 0.5;
@@ -98,15 +111,17 @@ for (const [L, A] of TAMANHOS) {
           sincAcimaDasAbas: sinc.bottom <= abas.top + 0.5 && sinc.top >= 0,
           saudacaoSemReticencias: sau.scrollWidth <= sau.clientWidth + 1 && getComputedStyle(sau).textOverflow !== 'ellipsis' || sau.scrollWidth <= sau.clientWidth + 1,
           escalaDaSaudacao: sau.dataset.escala ?? '1',
+          semQuebraNoMeio: inteiro('inicio.data', 'DU\u00a09\u00a0de\u00a020') && inteiro('inicio.ultima-sincronizacao', 'Últ.\u00a0sincronização') && ult.scrollWidth <= ult.clientWidth + 1,
+          linhasUlt,
           sinoDentroDoPainel: sino.right <= window.innerWidth && sino.top < painel.top + 40,
         };
       });
       const arq = `inicio-${L}x${A}-fonte-${String(f).replace('.', '_')}${caso.id}.png`;
       await pagina.screenshot({ path: join(AQUI, arq) });
-      const ok = m.semRolagem && m.sincAcimaDasAbas && m.saudacaoSemReticencias;
+      const ok = m.semRolagem && m.sincAcimaDasAbas && m.saudacaoSemReticencias && m.semQuebraNoMeio;
       // Início responsivo (R-20261114-153500): em todo tamanho e fonte tem de caber sem rolar
       if (!ok) falhas++;
-      linhas.push(`| ${L}×${A} | ${f.toString().replace('.', ',')} | ${caso.nome.split(' ')[0]} | ${m.semRolagem ? `sim (folga ${m.folga} dp)` : `NÃO (${m.rol[0]} > ${m.rol[1]})`} | ${m.sincAcimaDasAbas ? 'sim' : 'NÃO'} | ${m.saudacaoSemReticencias ? `sim (escala ${m.escalaDaSaudacao})` : 'NÃO'} | ${ok ? 'coube' : 'não coube'} | ${arq} |`);
+      linhas.push(`| ${L}×${A} | ${f.toString().replace('.', ',')} | ${caso.nome.split(' ')[0]} | ${m.semRolagem ? `sim (folga ${m.folga} dp)` : `NÃO (${m.rol[0]} > ${m.rol[1]})`} | ${m.sincAcimaDasAbas ? 'sim' : 'NÃO'} | ${m.saudacaoSemReticencias ? `sim (escala ${m.escalaDaSaudacao})` : 'NÃO'} | ${m.semQuebraNoMeio ? 'sim' : 'NÃO'} | ${ok ? 'coube' : 'não coube'} | ${arq} |`);
       await pagina.close();
     }
   }
@@ -114,10 +129,10 @@ for (const [L, A] of TAMANHOS) {
 await navegador.close();
 const md = `# Início do Campo enquadrado (R-20261114-145000)
 
-Gerado por \`gerar.mjs\` (a \`TelaInicioCampo\` real com react-native-web; barra de status 24 dp, abas 64 dp + 24 dp de área segura; fonte do sistema simulada). Nomes e números são fictícios. O Início é responsivo (\`escala-inicio.ts\`: letra, espaços, cartões e painel escalam pela janela e pela fonte do sistema) e cabe sem rolar em todos os tamanhos abaixo; \"folga\" é o espaço livre do meio, em dp.
+Gerado por \`gerar.mjs\` (a \`TelaInicioCampo\` real com react-native-web; barra de status 24 dp, a \`BarraAbas\` do kit (64 dp + 24 dp de área segura); fonte do sistema simulada). Nomes e números são fictícios. O Início é responsivo (\`escala-inicio.ts\`: letra, espaços, cartões e painel escalam pela janela e pela fonte do sistema) e cabe sem rolar em todos os tamanhos abaixo; \"folga\" é o espaço livre do meio, em dp.
 
-| Tela (dp) | Fonte | Nome | Sem rolagem | Sincronizar acima das abas | Saudação sem reticências | Resultado | Print |
-|---|---|---|---|---|---|---|---|
+| Tela (dp) | Fonte | Nome | Sem rolagem | Sincronizar acima das abas | Saudação sem reticências | "DU 9 de 20" e "Últ. sincronização" sem quebra no meio | Resultado | Print |
+|---|---|---|---|---|---|---|---|---|
 ${linhas.join('\n')}
 `;
 writeFileSync(join(AQUI, 'README.md'), md);

@@ -4,9 +4,9 @@
  * que encolhe para caber, e a frase), (b) o meio rolável só se preciso (Metas do mês e Produtividade, compactas, com o puxar
  * para atualizar) e (c) o Sincronizar FIXO no rodapé, fora da rolagem, com "Últ. sincronização hh:mm". Só desenho: textos e tons
  * saem de `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: o sino vem do
- * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp.
+ * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp (`ALVO_TOQUE`).
  */
-import { Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, Screen, space, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
+import { ALVO_TOQUE, Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -33,8 +33,12 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
   const insets = useSafeAreaInsets();
   const sinoDoCabecalho = useSinoCabecalho();
   const janela = useWindowDimensions();
-  const esc = escalaInicio({ largura: janela.width, altura: janela.height, fontScale: janela.fontScale, topo: insets.top, base: insets.bottom, frase: v?.frase ?? undefined });
-  const s = useMemo(() => estilos(esc, insets.top), [esc, insets.top]);
+  const frase = v?.frase ?? undefined;
+  const esc = useMemo(
+    () => escalaInicio({ largura: janela.width, altura: janela.height, fontScale: janela.fontScale, topo: insets.top, base: insets.bottom, frase }),
+    [janela.width, janela.height, janela.fontScale, insets.top, insets.bottom, frase],
+  );
+  const s = useMemo(() => estilos(esc), [esc]);
   if (!v) return null;
   const sinoDoPainel = sinoDoCabecalho ?? sino?.(v.sino.total) ?? null;
   const pares = [v.metas.slice(0, 2), v.metas.slice(2, 4)].filter((p) => p.length > 0);
@@ -99,7 +103,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
           <Button testID="inicio-sincronizar" label="Sincronizar" icon="sync" variant="dark" height={esc.rodape.botao} loading={auto.puxando} onPress={auto.puxar} />
         </View>
         {v.ultimaSincronizacao ? (
-          <Text style={s.ultima} testID="inicio.ultima-sincronizacao">
+          <Text style={s.ultima} testID="inicio.ultima-sincronizacao" numberOfLines={2}>
             {v.ultimaSincronizacao}
           </Text>
         ) : null}
@@ -162,14 +166,15 @@ function IndicadorDoInicio({ p, divisor, s }: { p: IndicadorInicio; divisor: boo
 type Estilos = ReturnType<typeof estilos>;
 
 /** Estilos do Início para uma escala (`escala-inicio.ts`): letra, espaços e alturas saem do fator que faz a tela caber. */
-function estilos(e: EscalaInicio, topo: number) {
+function estilos(e: EscalaInicio) {
   const f = e.fonte;
   return StyleSheet.create({
     raiz: { flex: 1, backgroundColor: colors.ground },
-    // Painel fixo, de ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite do `CabecalhoTela`
-    painel: { paddingTop: Math.max(0, topo) + e.painel.paddingTop, paddingBottom: e.painel.paddingBottom, gap: e.painel.gap },
+    // Painel fixo, de ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite do `CabecalhoTela`;
+    // a área segura e o respiro de cima vêm só do `layoutCabecalho`
+    painel: { paddingBottom: e.painel.paddingBottom, gap: e.painel.gap },
     linhaTopo: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-    perfil: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
+    perfil: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: ALVO_TOQUE },
     textos: { gap: space.xxs },
     data: { flex: 1, fontFamily: fonts.body, fontSize: f.data, color: colors.faixaSub },
     saudacao: { fontFamily: fonts.display, fontSize: f.saudacao, color: colors.faixaTitulo },
@@ -177,20 +182,20 @@ function estilos(e: EscalaInicio, topo: number) {
     avatar: { width: e.painel.avatar, height: e.painel.avatar, borderRadius: 12, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
     iniciais: { fontFamily: fonts.display, fontSize: f.iniciais, color: colors.accentInk },
     meio: { paddingTop: e.meio.paddingTop, paddingBottom: e.meio.paddingBottom, flexGrow: 1 },
-    h2: { fontFamily: fonts.displayBold, fontSize: f.h2, color: colors.ink },
+    h2: { ...t.h2, fontSize: f.h2 },
     linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: e.meio.linhaTitulo, gap: space.md },
     grade: { gap: e.meio.gap },
     parLinha: { flexDirection: 'row', flexGrow: 1, flexShrink: 0, maxHeight: e.cartao.alturaMaxima, gap: e.meio.gap },
     celula: { flex: 1 },
     // Realizado e meta quebram em 2 linhas quando não cabem na largura do cartão (nunca cortam o valor)
     valores: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
-    rotuloMeta: { flex: 1, fontFamily: fonts.semibold, fontSize: f.label, color: colors.ink2 },
+    rotuloMeta: { ...t.label, flex: 1, fontSize: f.label },
     real: { fontFamily: fonts.display, fontSize: f.real, color: colors.ink, fontVariant: ['tabular-nums'] },
     meta: { fontFamily: fonts.body, fontSize: f.meta, color: colors.ink2 },
     linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
     percentual: { fontFamily: fonts.bold, fontSize: f.percentual, fontVariant: ['tabular-nums'] },
     rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    sub: { fontFamily: fonts.body, fontSize: f.sub, color: colors.ink2 },
+    sub: { ...t.sub, fontSize: f.sub },
     valorRodape: { fontFamily: fonts.semibold, fontSize: f.valorRodape, color: colors.ink, fontVariant: ['tabular-nums'] },
     gradeProd: { flexDirection: 'row', flexWrap: 'wrap', rowGap: e.produtividade.gapLinhas },
     indicador: { width: '33.333%', paddingHorizontal: space.xs, gap: space.xxs },
@@ -199,6 +204,7 @@ function estilos(e: EscalaInicio, topo: number) {
     ponto: { width: 8, height: 8, borderRadius: 4 },
     valorIndicador: { fontFamily: fonts.displayBold, fontSize: f.valorIndicador, color: colors.ink, fontVariant: ['tabular-nums'] },
     linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: layout.telaLateral, paddingTop: e.rodape.paddingTop, paddingBottom: e.rodape.paddingBottom, backgroundColor: colors.ground },
-    ultima: { width: 96, fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
+    // "Últ. sincronização" em cima e a hora embaixo, na largura do texto (sem largura fixa: não quebra com a fonte do sistema)
+    ultima: { ...t.small, flexShrink: 0, fontSize: f.ultima },
   });
 }

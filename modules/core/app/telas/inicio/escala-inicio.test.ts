@@ -1,7 +1,8 @@
 /** R-20261114-153500: o Início escala pela janela e pela fonte do sistema e sempre cabe sem rolar nos tamanhos de referência. */
+import { ALVO_TOQUE } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
-import { ALVO_TOQUE_DP, escalaInicio, FATOR_MINIMO, linhasDaFrase, PISO_LETRA_DP } from './escala-inicio';
+import { escalaInicio, FATOR_MINIMO, linhasDaFrase, PISO_LETRA_DP } from './escala-inicio';
 
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
 const TELAS: [number, number][] = [[360, 640], [360, 800], [393, 852], [412, 915]];
@@ -15,7 +16,7 @@ describe('R-20261114-153500: escala do Início', () => {
         expect(e.estimada).toBeLessThanOrEqual(e.disponivel);
         expect(e.fator).toBeGreaterThanOrEqual(FATOR_MINIMO);
         for (const corpo of Object.values(e.fonte)) expect(corpo * fontScale).toBeGreaterThanOrEqual(PISO_LETRA_DP - 0.5);
-        expect(e.rodape.botao).toBeGreaterThanOrEqual(ALVO_TOQUE_DP);
+        expect(e.rodape.botao).toBeGreaterThanOrEqual(ALVO_TOQUE);
       });
     }
   }
