@@ -13,6 +13,7 @@
  * - `ResumoDasMudancas`: o "o que mudou" antes de salvar e no histórico, agrupado por seção.
  */
 import type { ReactNode } from 'react';
+import { CLASSES_DESTAQUE } from './cores';
 import { IconLock } from './icons';
 import {
   agruparMudancas,
@@ -337,7 +338,7 @@ export function SeletorDePerfis({
           checked={marcado}
           disabled={off}
           onChange={(e) => onChange(valor, e.target.checked)}
-          className="h-[18px] w-[18px] shrink-0 accent-[var(--color-ink)]"
+          className={cx('h-[18px] w-[18px] shrink-0 accent-[var(--color-ink)]', CLASSES_DESTAQUE.foco)}
           data-testid={`${testId}.${valor === ALVO_TODOS_PERFIS ? 'todos' : valor}`}
         />
         <span className="flex min-w-0 flex-1 flex-col">

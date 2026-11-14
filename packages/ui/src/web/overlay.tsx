@@ -4,12 +4,27 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 import { IconX } from './icons';
 import { Notice, type NoticeTone } from './ui';
 
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /**
- * Fecha com Esc e devolve o foco ao elemento que abriu.
+ * Prende o Tab dentro do popup: do último campo volta ao primeiro e, com Shift, do primeiro vai ao último.
+ * Devolve o índice que deve receber o foco, ou `null` quando o navegador pode seguir sozinho.
+ * `atual` = -1 quando o foco está fora do popup.
+ */
+export function alvoDoTab(total: number, atual: number, shift: boolean): number | null {
+  if (total === 0) return null;
+  if (atual < 0) return shift ? total - 1 : 0;
+  if (shift && atual === 0) return total - 1;
+  if (!shift && atual === total - 1) return 0;
+  return null;
+}
+
+/**
+ * Fecha com Esc, prende o Tab dentro do popup e devolve o foco ao elemento que abriu.
  * O efeito depende só de `open`: se dependesse de `onClose` (função nova a cada render),
  * cada tecla digitada rodaria a limpeza e jogaria o foco para fora do campo.
  */
-function useEscape(open: boolean, onClose: () => void) {
+function useEscape(open: boolean, onClose: () => void, caixa: { current: HTMLElement | null }) {
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -18,56 +33,111 @@ function useEscape(open: boolean, onClose: () => void) {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !caixa.current) return;
+      const lista = Array.from(caixa.current.querySelectorAll<HTMLElement>(FOCAVEIS)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      const alvo = alvoDoTab(lista.length, lista.indexOf(document.activeElement as HTMLElement), e.shiftKey);
+      if (alvo === null) return;
+      e.preventDefault();
+      lista[alvo]?.focus();
     };
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
       prev?.focus?.();
     };
-  }, [open]);
+  }, [open, caixa]);
 }
 
+/**
+ * Mostra a divisa do cabeçalho e do rodapé só quando o corpo do popup rola (conteúdo maior que a tela).
+ */
+function useCorpoRola(open: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [rola, setRola] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!open || !el) return;
+    const medir = () => setRola(el.scrollHeight > el.clientHeight + 1);
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    for (const filho of Array.from(el.children)) obs.observe(filho);
+    return () => obs.disconnect();
+  }, [open]);
+  return { ref, rola };
+}
+
+/**
+ * Popup do BKO (R-20261114-141500): nunca passa da área visível. Título e botões ficam sempre à vista;
+ * só o corpo rola. A partir de 640 px é um cartão centrado de até 460 px; abaixo disso vira folha que
+ * sobe de baixo, na largura toda, com os cantos arredondados só em cima e respeitando a área segura.
+ */
 export function Dialog({ open, title, children, footer, onClose }: { open: boolean; title: string; children: ReactNode; footer: ReactNode; onClose: () => void }) {
-  useEscape(open, onClose);
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
+  useEscape(open, onClose, ref);
+  const corpo = useCorpoRola(open);
   useEffect(() => {
-    if (open) ref.current?.querySelector<HTMLElement>('textarea, input, select, button')?.focus();
+    if (!open) return;
+    const alvo = ref.current?.querySelector<HTMLElement>('textarea, input, select, button');
+    // Sem rolar a página nem centralizar o corpo: só o mínimo para o campo aparecer.
+    alvo?.focus({ preventScroll: true });
+    alvo?.scrollIntoView?.({ block: 'nearest' });
   }, [open]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="flex w-full max-w-[460px] flex-col gap-3 rounded-2xl bg-surface p-5 shadow-xl">
-        <h2 id={id} className="m-0 font-display text-[18px] font-bold">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 pt-8 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={id}
+        className="flex max-h-full w-full flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl sm:max-w-[460px] sm:rounded-2xl"
+      >
+        <h2 id={id} className={`m-0 shrink-0 px-5 pt-5 pb-3 font-display text-[18px] font-bold ${corpo.rola ? 'border-b border-line' : ''}`}>
           {title}
         </h2>
-        <div className="text-[14px] text-ink">{children}</div>
-        <div className="flex flex-wrap justify-end gap-2">{footer}</div>
+        <div ref={corpo.ref} className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 text-[14px] text-ink ${corpo.rola ? 'py-3' : 'py-0.5'}`}>
+          {children}
+        </div>
+        <div className={`flex shrink-0 flex-wrap justify-end gap-2 px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5 ${corpo.rola ? 'border-t border-line' : ''}`}>{footer}</div>
       </div>
     </div>
   );
 }
 
 export function Drawer({ open, title, subtitle, children, onClose }: { open: boolean; title: ReactNode; subtitle?: ReactNode; children: ReactNode; onClose: () => void }) {
-  useEscape(open, onClose);
   const id = useId();
+  const ref = useRef<HTMLElement>(null);
+  useEscape(open, onClose, ref);
+  useEffect(() => {
+    // Primeiro campo do painel; sem campo, o botão Fechar (fica no cabeçalho, sempre à vista).
+    const caixa = ref.current;
+    if (!open || !caixa) return;
+    const campo = caixa.querySelector<HTMLElement>('[data-corpo] :is(textarea, input, select)') ?? caixa.querySelector<HTMLElement>('button');
+    campo?.focus({ preventScroll: true });
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-ink/35" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
+      <aside ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className="flex h-full w-full max-w-[560px] flex-col overflow-hidden bg-ground shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-surface px-5 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 id={id} className="m-0 font-display text-[20px] font-extrabold">
               {title}
             </h2>
             {subtitle && <div className="text-[13px] text-ink-2">{subtitle}</div>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar painel" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-field bg-surface hover:bg-ground">
+          <button type="button" onClick={onClose} aria-label="Fechar painel" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-field bg-surface hover:bg-ground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <IconX size={18} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div data-corpo className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
       </aside>
     </div>
   );

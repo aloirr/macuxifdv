@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { INDICADORES_PRODUTIVIDADE, type ProdutividadeIndicador, type ResultadoIndicador } from '../../../contracts/performance';
-import { cardsDeMetasDoMes, contarSino, fraseDoPainel, indicadoresDoInicio, linhaDaData, saudacaoComNome, textoUltimaSincronizacao } from './inicio-campo';
+import { cardsDeMetasDoMes, contarSino, fraseDoPainel, indicadoresDoInicio, linhaDaData, primeiroNome, saudacaoComNome, textoUltimaSincronizacao } from './inicio-campo';
 
 const r = (p: Partial<ResultadoIndicador> & Pick<ResultadoIndicador, 'indicador'>): ResultadoIndicador => ({
   situacao: 'a_cumprir', meta: null, realizado: null, atingimento_pb: null, gap: null, meta_dia: null, real_dia: null, ...p,
@@ -13,14 +13,25 @@ const r = (p: Partial<ResultadoIndicador> & Pick<ResultadoIndicador, 'indicador'
 const CTX = { tipoMetaVenda: 'faturamento' as const, perfil: 'vendedor' as const };
 
 describe('T-0170 Início do Campo: painel do topo', () => {
-  it('RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20" e, em dia não útil, "Não é dia útil"', () => {
-    expect(linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 })).toBe('Quinta, 12 de novembro · DU 9 de 20');
-    expect(linhaDaData('2026-11-15', { du_hoje: null, du_total: 20 })).toBe('Domingo, 15 de novembro · Não é dia útil');
+  it('RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20" e, em dia não útil, "Não é dia útil"; o trecho do DU não quebra no meio', () => {
+    expect(linhaDaData('2026-11-12', { du_hoje: 9, du_total: 20 })).toBe('Quinta, 12 de novembro ·\u00a0DU\u00a09\u00a0de\u00a020');
+    expect(linhaDaData('2026-11-15', { du_hoje: null, du_total: 20 })).toBe('Domingo, 15 de novembro ·\u00a0Não\u00a0é\u00a0dia\u00a0útil');
   });
 
   it('saudação com o primeiro nome; sem nome, só a saudação', () => {
     expect(saudacaoComNome('Boa tarde', 'Lucas Andrade')).toBe('Boa tarde, Lucas');
     expect(saudacaoComNome('Boa tarde', '')).toBe('Boa tarde');
+  });
+
+  it('R-20261114-145000: o primeiro nome vem inteiro, com a primeira letra maiúscula e o resto minúsculo', () => {
+    expect(primeiroNome('MARIA EDUARDA')).toBe('Maria');
+    expect(primeiroNome('  lucas  andrade ')).toBe('Lucas');
+    expect(primeiroNome('ÉRICA')).toBe('Érica');
+    expect(primeiroNome('joão')).toBe('João');
+    expect(primeiroNome('ANA-CLARA SOUZA')).toBe('Ana-Clara');
+    expect(primeiroNome('')).toBe('');
+    expect(saudacaoComNome('Boa tarde', 'MARIA EDUARDA SILVA')).toBe('Boa tarde, Maria');
+    expect(saudacaoComNome('Boa tarde', 'MAXIMILIANO')).toBe('Boa tarde, Maximiliano');
   });
 
   it('RN-CORE-41: frase do dia em rodízio pelas 30 padrão quando o aparelho ainda não tem frases do tenant; 12/11/2026 = frase 10', () => {
@@ -53,7 +64,7 @@ describe('T-0170 Início do Campo: Metas do mês', () => {
     expect(cs.map((c) => [c.titulo, c.real, c.meta, c.percentual, c.rodape])).toEqual([
       ['Positivação', '38', '70', '54%', { rotulo: 'Meta/dia', valor: '3' }],
       ['Visitas', '96', '220', '44%', { rotulo: 'Meta/dia', valor: '12' }],
-      ['Itens por pedido', '6,4', '8,0', '80%', { rotulo: 'Meta/pedido', valor: '9,3' }],
+      ['Itens/pedido', '6,4', '8,0', '80%', { rotulo: 'Meta/pedido', valor: '9,3' }],
     ]);
   });
 
@@ -79,7 +90,7 @@ describe('T-0170 Início do Campo: Produtividade', () => {
   const todos = INDICADORES_PRODUTIVIDADE.map((i) => p(i, 60, 'dentro'));
 
   it('mostra os 6 da imagem, na ordem, com nomes curtos', () => {
-    expect(indicadoresDoInicio(todos).map((c) => c.titulo)).toEqual(['Jornada líquida', '1º check-in', 'Almoço', 'Último check-in', 'Fora de rota', 'TMA']);
+    expect(indicadoresDoInicio(todos).map((c) => c.titulo)).toEqual(['Jornada', '1º check-in', 'Almoço', 'Últ. check-in', 'Fora de rota', 'TMA']);
   });
 
   it('ponto verde dentro, laranja fora; sem dado "—" e sem ponto', () => {
@@ -103,8 +114,8 @@ describe('T-0170 Início do Campo: sino e sincronização', () => {
     expect(contarSino([])).toEqual({ recados: 0, tarefas: 0, total: 0 });
   });
 
-  it('"Últ. sincronização 20:22" no fuso do tenant; sem sincronização, null', () => {
-    expect(textoUltimaSincronizacao('2026-11-13T00:22:00Z', 'America/Manaus')).toBe('Últ. sincronização 20:22');
+  it('"Últ. sincronização" e "20:22" em 2 linhas, no fuso do tenant; sem sincronização, null', () => {
+    expect(textoUltimaSincronizacao('2026-11-13T00:22:00Z', 'America/Manaus')).toBe('Últ.\u00a0sincronização\n20:22');
     expect(textoUltimaSincronizacao(null, 'America/Manaus')).toBeNull();
   });
 });
