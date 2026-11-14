@@ -122,10 +122,10 @@ function CartaoMeta({ c }: { c: CardMetaInicio }) {
             </Text>
           ) : null}
         </View>
-        <Text style={s.real} numberOfLines={1} adjustsFontSizeToFit>
-          {c.real}
-          {c.meta ? <Text style={s.meta}> / {c.meta}</Text> : null}
-        </Text>
+        <View style={s.valores}>
+          <Text style={s.real}>{c.real}</Text>
+          {c.meta ? <Text style={s.meta}>/ {c.meta}</Text> : null}
+        </View>
         {c.percentual ? <ProgressBar pct={c.barra * 100} color={colors.grafico} height={6} rotulo={`${c.titulo}: ${c.percentual} da meta`} /> : null}
         {c.rodape ? (
           <View style={s.rodape}>
@@ -164,22 +164,24 @@ const s = StyleSheet.create({
   data: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.faixaSub },
   saudacao: { fontFamily: fonts.display, fontSize: 24, color: colors.faixaTitulo },
   frase: { fontFamily: fonts.body, fontSize: 14, fontStyle: 'italic', color: colors.faixaSub },
-  avatar: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' },
   iniciais: { fontFamily: fonts.display, fontSize: 16, color: colors.accentInk },
-  meio: { paddingTop: space.md, paddingBottom: space.sm, flexGrow: 1 },
+  meio: { paddingTop: space.sm, paddingBottom: space.sm, flexGrow: 1 },
   titulo: { minHeight: 24 },
   linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 32, gap: space.md },
   grade: { gap: space.sm },
   parLinha: { flexDirection: 'row', flexGrow: 1, flexShrink: 0, maxHeight: 132, gap: space.sm },
   celula: { flex: 1 },
-  real: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
-  meta: { fontFamily: fonts.body, fontSize: 16, color: colors.ink2 },
+  // Realizado e meta quebram em 2 linhas quando não cabem na largura do cartão (nunca cortam o valor)
+  valores: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: space.xs },
+  real: { fontFamily: fonts.display, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
+  meta: { fontFamily: fonts.body, fontSize: 14, color: colors.ink2 },
   linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   percentual: { fontFamily: fonts.bold, fontSize: 14, fontVariant: ['tabular-nums'] },
   rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   valorRodape: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
   gradeProd: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.sm },
-  indicador: { width: '33.333%', paddingHorizontal: space.sm, gap: space.xxs },
+  indicador: { width: '33.333%', paddingHorizontal: space.xs, gap: space.xxs },
   indicadorComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   ponto: { width: 8, height: 8, borderRadius: 4 },

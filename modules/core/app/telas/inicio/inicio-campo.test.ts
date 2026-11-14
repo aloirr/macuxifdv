@@ -64,7 +64,7 @@ describe('T-0170 Início do Campo: Metas do mês', () => {
     expect(cs.map((c) => [c.titulo, c.real, c.meta, c.percentual, c.rodape])).toEqual([
       ['Positivação', '38', '70', '54%', { rotulo: 'Meta/dia', valor: '3' }],
       ['Visitas', '96', '220', '44%', { rotulo: 'Meta/dia', valor: '12' }],
-      ['Itens por pedido', '6,4', '8,0', '80%', { rotulo: 'Meta/pedido', valor: '9,3' }],
+      ['Itens/pedido', '6,4', '8,0', '80%', { rotulo: 'Meta/pedido', valor: '9,3' }],
     ]);
   });
 
@@ -90,7 +90,7 @@ describe('T-0170 Início do Campo: Produtividade', () => {
   const todos = INDICADORES_PRODUTIVIDADE.map((i) => p(i, 60, 'dentro'));
 
   it('mostra os 6 da imagem, na ordem, com nomes curtos', () => {
-    expect(indicadoresDoInicio(todos).map((c) => c.titulo)).toEqual(['Jornada líquida', '1º check-in', 'Almoço', 'Último check-in', 'Fora de rota', 'TMA']);
+    expect(indicadoresDoInicio(todos).map((c) => c.titulo)).toEqual(['Jornada', '1º check-in', 'Almoço', 'Últ. check-in', 'Fora de rota', 'TMA']);
   });
 
   it('ponto verde dentro, laranja fora; sem dado "—" e sem ponto', () => {

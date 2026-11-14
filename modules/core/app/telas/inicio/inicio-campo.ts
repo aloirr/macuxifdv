@@ -76,7 +76,7 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
       const col = card.colunas.find((x) => x.rotulo === 'Meta/dia' || x.rotulo === 'Meta/pedido');
       return {
         indicador: card.indicador,
-        titulo: card.titulo,
+        titulo: card.indicador === 'itens_por_pedido' ? 'Itens/pedido' : card.titulo,
         real: card.real,
         meta: card.meta,
         percentual: r.atingimento_pb === null || card.atingimento === null ? null : `${Math.round(r.atingimento_pb / 100)}%`,
@@ -92,10 +92,10 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
 
 /** Os 6 do Início, na ordem da imagem aprovada (3 colunas × 2 linhas) e com o nome curto. */
 const DO_INICIO: ReadonlyArray<{ indicador: IndicadorProdutividade; titulo: string }> = [
-  { indicador: 'jornada_liquida', titulo: 'Jornada líquida' },
+  { indicador: 'jornada_liquida', titulo: 'Jornada' },
   { indicador: 'primeiro_checkin', titulo: '1º check-in' },
   { indicador: 'almoco', titulo: 'Almoço' },
-  { indicador: 'ultimo_checkin', titulo: 'Último check-in' },
+  { indicador: 'ultimo_checkin', titulo: 'Últ. check-in' },
   { indicador: 'fora_rota', titulo: 'Fora de rota' },
   { indicador: 'tma', titulo: 'TMA' },
 ];
