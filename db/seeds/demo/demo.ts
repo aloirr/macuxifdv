@@ -99,6 +99,7 @@ import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoIntegracao } from './integracao';
 import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
+import { gravarDemoTarefasProdutividade } from './tarefas-produtividade';
 import { gravarTreinamentoDemo } from './treinamento';
 
 export const TENANT_DEMO = 'dd000000-0000-4000-8000-000000000001';
@@ -1570,6 +1571,9 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0028 (T-0082): plano de RV do vendedor vigente desde o mês do primeiro seed (plano-rv.ts; banco sem a 0028 = nada)
     await gravarDemoPlanoRv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, atualizadoPor: idUsuarioDemo('analista') });
+    // 0064 a 0066 (T-0170): tarefas (uma de pesquisa) com os avisos, metas de produtividade, metas de itens por pedido e km
+    // rodados (tarefas-produtividade.ts; banco sem a 0066 = nada). As 30 frases do dia nascem com o tenant (gatilho da 0065).
+    await gravarDemoTarefasProdutividade(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string });
     // 0037 (T-0089): formas e prazos, prazo médio e formas do cliente, tabela escalonada; apaga a forma padrão da 0037 (pagamento.ts)
     await gravarDemoPagamento(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0056 (T-0149): filial padrão completada (Manaus), a Boa Vista (4 clientes, preço +5%, CD-BVB; chave SEED_BOA_VISTA_DEMO)

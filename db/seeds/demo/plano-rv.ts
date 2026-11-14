@@ -5,8 +5,9 @@
  *
  * Um plano para o perfil vendedor, vigente desde o mês do PRIMEIRO seed (o mês de início não anda nas recargas: plano
  * que já valeu para mês fechado não muda, RN-CORE-30; o --recriar começa de novo no mês corrente). Valor máximo
- * R$ 2.000,00; venda 50%, positivação 30% e visitas 20%, todos com as faixas 0%: zero · 80%: proporcional ·
- * 100%: cheio · 110%: 120%; cobertura como gatilho (sem peso).
+ * R$ 2.000,00; venda 40%, positivação 25%, itens por pedido 20% (T-0170) e visitas 15%, todos com as faixas 0%: zero ·
+ * 80%: proporcional · 100%: cheio · 110%: 120%; cobertura como gatilho (sem peso). A recarga regrava as regras do plano
+ * da demo (só o mês de início fica).
  *
  * Idempotente (upsert por id determinístico). Plano vivo do ensaio (gravado pelo BKO) no mesmo mês de início ou o plano
  * da demo excluído pelo BKO = o seed não grava (respeita o ensaio, como as metas). Banco sem a 0028 = nada a fazer.
@@ -30,9 +31,10 @@ const FAIXAS = [
 
 /** Regras do plano da demo (formato RegraRvSchema de modules/core/contracts/plano-rv.ts). */
 export const REGRAS_PLANO_RV_DEMO = [
-  { indicador: 'venda_cents', peso_pct: 50, gatilho: false, faixas: FAIXAS },
-  { indicador: 'positivacao', peso_pct: 30, gatilho: false, faixas: FAIXAS },
-  { indicador: 'visitas', peso_pct: 20, gatilho: false, faixas: FAIXAS },
+  { indicador: 'venda_cents', peso_pct: 40, gatilho: false, faixas: FAIXAS },
+  { indicador: 'positivacao', peso_pct: 25, gatilho: false, faixas: FAIXAS },
+  { indicador: 'itens_por_pedido', peso_pct: 20, gatilho: false, faixas: FAIXAS },
+  { indicador: 'visitas', peso_pct: 15, gatilho: false, faixas: FAIXAS },
   { indicador: 'cobertura_pct', peso_pct: 0, gatilho: true, faixas: [] },
 ];
 

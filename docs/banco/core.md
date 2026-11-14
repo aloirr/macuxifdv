@@ -463,7 +463,7 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - RLS: enable + force + `isolamento_tenant`; `macuxi_app` com select/insert/update/delete; `macuxi_worker` sem acesso.
 - Fixture dois-tenants: A com um plano vivo do mês da fixture (vendedor e promotor, autor analista) + uma versão apagada do
   mesmo mês; B com um plano sem autor (grupo de UUID `0x39`). Demo (`db/seeds/demo/plano-rv.ts`): plano do vendedor desde o
-  mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 50% / positivação 30% / visitas 20% com faixas
+  mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 40% / positivação 25% / itens por pedido 20% (T-0170) / visitas 15% com faixas
   0: zero · 80: proporcional · 100: fixo 100 · 110: fixo 120, cobertura como gatilho; banco sem a 0028 = o seed não grava.
 - Caminho de volta: `0028_core_plano_rv.down.sql` (APAGA a tabela e os planos). Teste: `db/testes/plano-rv.test.ts`.
 
@@ -888,7 +888,13 @@ Sem coordenada (dado pessoal derivado; retenção do resumo: 5 anos, T-0145 §5)
 
 ### meta.indicador
 `meta_indicador_valido` passa a aceitar `itens_por_pedido` (valor em **centésimos**: 3,50 itens = 350). As metas que existem não
-mudam. O `INDICADORES_META_BANCO` do espelho Drizzle ganha o valor junto com o `INDICADORES_META` do contrato.
+mudam. O `INDICADORES_META_BANCO` do espelho Drizzle tem o valor (v1.0.6), em par com o `INDICADORES_META` do contrato.
+
+Demo (`db/seeds/demo/tarefas-produtividade.ts`, chamado pelo `demo.ts`; banco sem a 0066 = nada): 4 tarefas da supervisora
+(foto, **pesquisa** com o questionário de exposição para a Equipe Manaus, simples concluída pelo Lucas e uma vencida para
+todos) com o aviso de cada destinatário; metas de produtividade da Equipe Manaus, do Lucas e da Camila; `itens_por_pedido`
+de Lucas e Camila (mês corrente e anterior); km dos 5 dias antes do "hoje". As 30 frases padrão não são do seed: nascem com
+o tenant (gatilho da 0065). O ensaio é respeitado (cancelamento, conclusão, leitura e meta viva do BKO na mesma chave ficam).
 
 Volta: `0066_core_meta_produtividade.down.sql` apaga as 2 tabelas, a função do gatilho de alvo e, em `core.meta`, as metas `itens_por_pedido` (DELETE
 físico; reaplicar não as devolve) e volta o CHECK aos 4 indicadores da 0006. Teste: `db/testes/t0170-meta-produtividade.db.test.ts`.
