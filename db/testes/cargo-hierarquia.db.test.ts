@@ -16,7 +16,7 @@
  */
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
-import { PERFIS } from '@macuxi/platform-sdk';
+import { CARGO_DA_BASE, CARGOS, PERFIS } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -43,11 +43,6 @@ const bloco = (sql: string, nome: string) => {
   const fim = /^\$\$;$/m.exec(sql.slice(i));
   return fim ? sql.slice(i, i + fim.index + fim[0].length).replace(/^create (or replace )?function/, 'create function') : '';
 };
-/** Cargo esperado de cada base (o PARÂMETRO da migração). */
-const CARGO_DA_BASE: Record<string, string> = {
-  vendedor: 'vendedor', promotor: 'promotor', supervisor: 'supervisor', gerente: 'gerente',
-  analista: 'administrativo', assistente: 'administrativo', admin: 'administrativo',
-};
 const VIEW = 'core.v_usuario_hierarquia';
 const EXCLUSAO = 'usuario_perfil_um_vivo';
 /** Gatilhos do promotor (R-20261114-154000): nome e "quando" (o texto entre o nome e o deferrable). */
@@ -70,10 +65,9 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(nomes[nomes.indexOf('0068_plataforma_tenant_numero_licenca') + 1]).toBe('0069_core_cargo_hierarquia');
   });
 
-  it('cargo: lista fixa (5, com promotor) = CARGOS do espelho; NOT NULL sem padrão; mapeamento promotor -> promotor', () => {
+  it('cargo: lista fixa (5, com promotor) = CARGOS do SDK; NOT NULL sem padrão; mapeamento promotor -> promotor', () => {
     const check = /constraint perfil_cargo_valido\s+check \(cargo in \(([^)]*)\)\)/.exec(up)?.[1] ?? '';
-    expect([...check.matchAll(/'([a-z]+)'/g)].map((x) => x[1])).toEqual([...esquemaPlataforma.CARGOS]);
-    expect([...esquemaPlataforma.CARGOS]).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo']);
+    expect([...check.matchAll(/'([a-z]+)'/g)].map((x) => x[1])).toEqual([...CARGOS]);
     expect(up).toContain('alter table plataforma.perfil add column cargo text;');
     expect(up).toContain('alter table plataforma.perfil alter column cargo set not null;');
     expect(up).not.toMatch(/cargo text (not null )?default/);
@@ -81,7 +75,7 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(m69.up).not.toMatch(/a confirmar/i);
     expect(up.indexOf('update plataforma.perfil set cargo = plataforma.cargo_da_base(base);')).toBeLessThan(up.indexOf('alter column cargo set not null'));
     // toda base dos PERFIS tem cargo na lista
-    for (const p of PERFIS) expect(esquemaPlataforma.CARGOS as readonly string[]).toContain(CARGO_DA_BASE[p]);
+    for (const p of PERFIS) expect(CARGOS as readonly string[]).toContain(CARGO_DA_BASE[p]);
   });
 
   it('semeadura com o cargo: o texto da 0051 + a coluna cargo (mesmos nomes de fábrica)', () => {
@@ -159,7 +153,7 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
   it('espelho Drizzle: perfil.cargo com a lista CARGOS, NOT NULL e sem padrão', () => {
     const col = getTableConfig(esquemaPlataforma.perfil).columns.find((c) => c.name === 'cargo');
     expect([col?.getSQLType(), col?.notNull, col?.default]).toEqual(['text', true, undefined]);
-    expect([...(esquemaPlataforma.perfil.cargo.enumValues ?? [])]).toEqual([...esquemaPlataforma.CARGOS]);
+    expect([...(esquemaPlataforma.perfil.cargo.enumValues ?? [])]).toEqual([...CARGOS]);
   });
 });
 
@@ -456,7 +450,7 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
       expect([await principal(U.adm), await principal(U.multi), await principal(U.pers), await principal(U.so)]).toEqual(['admin', 'supervisor', 'vendedor', 'vendedor']);
       const cargos = (await c.query<{ codigo: string; cargo: string }>('select codigo, cargo from plataforma.perfil where tenant_id = $1 order by codigo', [T])).rows;
       expect(cargos).toEqual([
-        ...PERFIS.map((p) => ({ codigo: p, cargo: CARGO_DA_BASE[p]! })),
+        ...PERFIS.map((p) => ({ codigo: p, cargo: CARGO_DA_BASE[p] })),
         { codigo: 'admin_x', cargo: 'administrativo' },
         { codigo: 'vendedor_x', cargo: 'vendedor' },
       ].sort((x, y) => (x.codigo < y.codigo ? -1 : 1)));

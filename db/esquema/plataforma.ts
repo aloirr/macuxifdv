@@ -8,19 +8,12 @@
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
- * colunas daqui batem com o banco migrado. Perfis vêm de @macuxi/platform-sdk (fonte única); o CHECK
- * do SQL é comparado com eles em db/testes/estatico.test.ts.
+ * colunas daqui batem com o banco migrado. Perfis e cargos vêm de @macuxi/platform-sdk (fonte única); o CHECK
+ * do SQL é comparado com eles em db/testes/estatico.test.ts e db/testes/cargo-hierarquia.db.test.ts.
  */
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
-
-/**
- * Cargo do perfil (0069, decisões do dono do produto de 14/11/2026; o promotor desde R-20261114-153800): lista FIXA da
- * plataforma, igual ao CHECK perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0069 compara com o SQL.
- */
-export const CARGOS = ['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo'] as const;
-export type Cargo = (typeof CARGOS)[number];
+import { CARGOS, NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
 
