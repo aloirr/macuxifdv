@@ -118,3 +118,16 @@ export async function retratoDoCatalogo(admin: pg.ClientBase): Promise<string[]>
     select item from objetos where nsp ${filtro} order by item`);
   return r.rows.map((x) => x.item);
 }
+
+/** Hash argon2id de teste (formato PHC exigido pelo CHECK de core.usuario.senha_hash; sem senha nenhuma por trás). */
+export const HASH_TESTE = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
+
+/** Códigos dos perfis com vínculo vivo do usuário (plataforma.usuario_perfil), em ordem. */
+export async function vivos(c: pg.ClientBase, usuario: string): Promise<string[]> {
+  const r = await c.query<{ codigo: string }>(
+    `select p.codigo from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
+      where up.usuario_id = $1 and up.deleted_at is null order by p.codigo`,
+    [usuario],
+  );
+  return r.rows.map((x) => x.codigo);
+}

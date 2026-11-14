@@ -25,6 +25,8 @@ import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDa
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
 import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
+import { orcamentosEmAberto, type OrcamentoParaEscolha } from '../../domain/orcamento-em-aberto';
+import { avisoDoOrcamento, produtoNoOrcamento } from '../lib/produto-no-orcamento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
@@ -597,6 +599,43 @@ export function useVendedor() {
     [motor, repo, prepararDoRascunho, recarregar, ambiente, v1, perfil],
   );
 
+  /** Catálogo → "Adicionar ao orçamento": os orçamentos em aberto do vendedor (fila do aparelho e servidor), do mais novo ao mais antigo. */
+  const orcamentosParaAdicionar = useMemo((): OrcamentoParaEscolha[] => {
+    if (!vendedor) return [];
+    return orcamentosEmAberto(
+      pedidos.map((p) => ({ id: p.id, tipo: p.tipo, status: p.status, convertido_pedido_id: p.convertido_pedido_id ?? null, vendedor_id: p.seller_id, numero: p.number, cliente_nome: p.customer_name, criado_em: p.received_at })),
+      vendedor.id,
+    );
+  }, [pedidos, vendedor]);
+
+  /**
+   * Soma 1 do produto ao orçamento pelo mesmo caminho do "Editar" (rascunho de edição + `salvarEdicao`): o que está na fila do
+   * aparelho altera a fila (sem sinal); o já recebido pelo servidor edita pela API e exige sinal (RN-VEN-18). Devolve o texto de confirmação.
+   */
+  const adicionarProdutoAoOrcamento = useCallback(
+    async (orcamentoId: string, produtoId: string): Promise<string> => {
+      if (!repo) throw new Error(MSG_APP_CARREGANDO);
+      const { customerId, chave } = await prepararRascunhoDoPedido(orcamentoId, 'edit');
+      try {
+        const cliente = clientes.find((c) => c.id === customerId);
+        if (!cliente) throw new Error('Cliente fora da carteira sincronizada no aparelho.');
+        const catalogo = await garantirProdutos(cliente);
+        const base = dadosRef.current.rascunhos[chave];
+        if (!base) throw new Error('Não foi possível abrir o orçamento. Tente de novo.');
+        const r = produtoNoOrcamento(base, produtoId, catalogo);
+        if (r.resultado === 'sem_preco' || r.resultado === 'nao_encontrado') throw new Error(r.aviso);
+        await repo.guardarRascunho(chave, { ...r.rascunho, updated_at: new Date().toISOString() });
+        await salvarEdicao(orcamentoId, r.rascunho, cliente, catalogo);
+      } catch (e) {
+        await repo.limparRascunho(chave);
+        await recarregar();
+        throw e;
+      }
+      return avisoDoOrcamento(pedidos.find((p) => p.id === orcamentoId)?.number ?? '');
+    },
+    [repo, prepararRascunhoDoPedido, clientes, garantirProdutos, salvarEdicao, recarregar, pedidos],
+  );
+
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
   const excluirPedido = useCallback(
     async (orderId: string, motivo: string): Promise<ResultadoAlteracao> => {
@@ -875,6 +914,8 @@ export function useVendedor() {
     preVendaLigada,
     prepararRascunhoDoPedido,
     salvarEdicao,
+    orcamentosParaAdicionar,
+    adicionarProdutoAoOrcamento,
     excluirPedido,
     decidirPedido,
     acoesDe,

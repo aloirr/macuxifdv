@@ -1,6 +1,6 @@
 # Manual da marca Macuxi FDV
 
-> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface e séries de gráfico aprovados em 14/11/2026 (MC-0004 B e MC-0014 A). O histórico das decisões está em [`decisoes.md`](decisoes.md).
+> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface, séries de gráfico e menu lateral do BKO aprovados em 14/11/2026 (MC-0004 B, MC-0014 A, MC-0054 a MC-0056). O histórico das decisões está em [`decisoes.md`](decisoes.md).
 > Fonte única da verdade da marca. Só entra aqui o que o Alexandre aprovou. Os arquivos finais estão em [`ativos/2026-11-12-v1/`](ativos/2026-11-12-v1/), e a prancha de conferência é [`ativos.png`](ativos/2026-11-12-v1/ativos.png).
 
 ## 1. Essência
@@ -15,11 +15,13 @@
 |---|---|
 | `macuxi-logo-positivo.svg` | fundo claro: Pérola, branco |
 | `macuxi-logo-negativo-azul-noite.svg` | sobre o Azul noite: cabeçalho, login, portal |
-| `macuxi-logo-negativo-grafite.svg` | sobre o grafite: menu lateral do BKO |
+| `macuxi-logo-negativo-grafite.svg` | sobre o grafite: menu lateral do BKO (veja abaixo) |
 | `macuxi-logo-mono-preto.svg` / `macuxi-logo-mono-branco.svg` | impressão em uma cor, carimbo, gravação |
 | `macuxi-logo-empilhado-positivo.svg` / `-negativo.svg` | splash e materiais quadrados |
 | `macuxi-simbolo.svg` / `-negativo.svg` / `-mono.svg` | onde a escrita não cabe |
 | `macuxi-logo-positivo-1200.png` / `macuxi-logo-negativo-azul-noite-1200.png` | apresentações e documentos que não aceitam SVG |
+
+**Logo do menu lateral do BKO** (decisão do Alexandre, 14/11/2026, R-20261114-192700, MC-0056): `macuxi-logo-negativo-grafite.svg` com cerca de 28 px de altura, no topo do menu. O nome da distribuidora vai numa linha abaixo, em `#C9CED5`, **fora da área de proteção** do logo (§2.3).
 
 O texto do logo está em contorno: os arquivos não dependem de fonte instalada. **Use sempre o arquivo pronto. Não remonte o logo com texto digitado.**
 
@@ -50,8 +52,9 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | **Pérola** | `#F8F6F1` | fundo das telas (app, BKO e portal) e fundo do ícone do Gestão |
 | Branco | `#FFFFFF` | cartões, campos, papel do PDF e corpo do e-mail |
 | **Sol laranja** | `#C2540A` | sol do logo e gráficos: barra de meta e de share, contador, marcador. **Nunca texto sobre claro** |
-| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite) |
+| Sol claro | `#F59A52` | o sol e os gráficos sobre fundo escuro (Azul noite e grafite); como texto, só no título de grupo do menu e do painel do BKO, nunca em item, link ou botão (MC-0054, R-20261114-184400) |
 | Grafite | `#16202A` | texto principal, botão Sincronizar, menu lateral do BKO |
+| Grafite do menu | `#2B3743` | só no menu lateral do BKO: tela atual, hover e divisória (MC-0055, R-20261114-184400) |
 | Texto secundário | `#4A5562` | texto de apoio |
 | Texto de apoio | `#5B6673` | legendas e rótulos menores |
 | Azul claro | `#9AA3B0` | azul sobre o grafite |
@@ -60,7 +63,7 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa e caixas do PDF) |
 | Azul médio | `#5B7FA6` | só série de gráfico. **Nunca texto nem botão** |
 | Cinza série | `#8B96A3` | série "outros" dos gráficos e desabilitado do BKO |
-| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Única exceção sem texto visível: o lápis do item já adicionado no Novo pedido (veja abaixo) |
+| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Exceções sem texto visível: o lápis do item já adicionado no Novo pedido e o ✓ de campo validado (veja abaixo) |
 
 **Contraste conferido** (WCAG AA; texto ≥ 4,5:1, gráfico ≥ 3:1; lista completa em `ativos/2026-11-12-v1/contraste.json`):
 
@@ -79,6 +82,9 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | grafite na Névoa | 14,18 |
 | `#34404D` na Névoa | 9,09 |
 | `#4A5562` na Névoa | 6,53 |
+| branco no `#2B3743` (menu do BKO) | 12,14 |
+| sol claro no `#2B3743` (título de grupo) | 5,56 |
+| `#C9CED5` no `#2B3743` (menu do BKO) | 7,67 |
 | `#5B6673` na Névoa (botão desabilitado) | 5,03 |
 | Azul noite na Névoa | 10,99 |
 | Azul suave no branco (linha, enfeite) | 1,30 |
@@ -96,7 +102,9 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 
 **Séries de gráfico** (decisão do Alexandre, 14/11/2026, MC-0014 A): ordem fixa Azul noite `#1E3350`, Sol laranja `#C2540A`, `#4A5562` e Azul médio `#5B7FA6`; "outros" em `#8B96A3`. Com mais de 4 séries, a cor repete e o número ou o rótulo no marcador distingue.
 
-**Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado". Vale só para esse botão; nos outros lugares o verde continua só com texto.
+**Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado".
+
+**Exceção ampliada (decisão do Alexandre, 14/11/2026, recado R-20261114-172200, resposta "A"; fecha a MC-0049):** o **✓ de campo validado** usa `#1D6B4F`, sem texto ao lado, e sempre com rótulo de acessibilidade que diga o resultado (ex.: "CNPJ encontrado"). Só essas duas exceções; nos outros lugares o verde continua só com texto.
 
 **Combinações proibidas:**
 - texto laranja sobre claro. Se for inevitável, use `#8F3D06`;

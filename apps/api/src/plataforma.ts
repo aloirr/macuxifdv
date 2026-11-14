@@ -21,6 +21,9 @@ import { hashSenha } from '@macuxi/db';
 import {
   APPS_COM_LOGIN,
   CargaEmailSchema,
+  cnpjComDigitosValidos,
+  CODIGOS_CNPJ,
+  situacaoCriaEmpresa,
   ListaAdminsDaEmpresaSchema,
   perfilUsaApp,
   RedefinirSenhaAdminRespostaSchema,
@@ -39,9 +42,10 @@ import {
   type ModuloId,
   type TipoAcessoPortal,
 } from '@macuxi/platform-sdk';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { PRAZO_PROVISIONAR_PORTAL_MS } from './banco';
+import type { ConsultaCnpj } from './consulta-cnpj';
 import { ErroHttp } from './erros';
 
 /** Linha de `plataforma.auditoria_plataforma` gravada pela API (a do login é do Core). */
@@ -288,6 +292,8 @@ export interface DepsRotasPlataforma {
    * outbox na mesma transação). `null` ou `disponivel() = false` = 503 `EMAIL_INDISPONIVEL` antes de mudar nada.
    */
   email?: EmailDoPortal | null;
+  /** ADR 0048 e R-20261114-144000 (item 3): a Receita confere o CNPJ antes de criar a empresa (sem ela, nada é criado). */
+  consultaCnpj: ConsultaCnpj;
 }
 
 /** O que a rota do portal precisa do e-mail: saber se há adaptador e cifrar a carga com o AAD da linha da outbox. */
@@ -302,6 +308,30 @@ const ParamsEmpresa = z.object({ tenant_id: z.string().uuid() }).strict();
 const ParamsAdmin = z.object({ tenant_id: z.string().uuid(), usuario_id: z.string().uuid() }).strict();
 const codigoPg = (e: unknown): unknown => (e as { code?: unknown } | null)?.code;
 
+/** Segundos sugeridos no `Retry-After` quando a Receita está fora. */
+const ESPERA_RECEITA_FORA_S = 30;
+
+/**
+ * "CNPJ inválido não se cria empresa" (dono do produto, R-20261114-144000, item 3; ADR 0048): antes de ir ao banco, o passo
+ * Empresa confere o CNPJ na Receita (mesma consulta e cache do `POST /v1/plataforma/cnpj`). Só ATIVA segue; não encontrado,
+ * outra situação ou a Receita fora recusam, também no `simular`. Log sem o CNPJ.
+ */
+async function exigirCnpjAtivo(req: FastifyRequest, consulta: ConsultaCnpj, cnpj: string, reply: FastifyReply): Promise<void> {
+  const r = await consulta.consultar(cnpj);
+  req.log.info({ cnpj_empresa: { resultado: r.resultado, cache: r.cache, ...(r.resultado === 'ok' ? { situacao: r.dados.situacao_cadastral, fonte: r.dados.fonte } : {}) } }, 'CNPJ da empresa na Receita');
+  if (r.resultado === 'ok') {
+    const situacao = r.dados.situacao_cadastral;
+    if (situacaoCriaEmpresa(situacao)) return;
+    throw new ErroHttp(422, CODIGOS_CNPJ.inativo, `Este CNPJ não está ativo na Receita (situação: ${situacao}). A empresa não foi criada.`, { campo: 'cnpj', situacao_cadastral: situacao });
+  }
+  if (r.resultado === 'invalido') throw new ErroHttp(400, CODIGOS_CNPJ.invalido, 'CNPJ inválido: confira os dígitos.', { campo: 'cnpj' });
+  if (r.resultado === 'nao_encontrado') {
+    throw new ErroHttp(422, CODIGOS_CNPJ.naoEncontrado, 'CNPJ não encontrado na Receita Federal. Confira o número. A empresa não foi criada.', { campo: 'cnpj' });
+  }
+  reply.header('retry-after', String(ESPERA_RECEITA_FORA_S));
+  throw new ErroHttp(503, CODIGOS_CNPJ.fonteFora, 'A consulta à Receita está fora do ar e a empresa não foi criada. Tente de novo em instantes.');
+}
+
 /** Módulos que o portal liga sempre: core (RN-CORE-31) e integracao (o portal carrega as bases pelo Hub). */
 export const MODULOS_SEMPRE_NO_PORTAL: readonly ModuloId[] = ['core', 'integracao'];
 
@@ -311,12 +341,14 @@ export type DepsCriarEmpresa = Pick<DepsRotasPlataforma, 'manifestos' | 'acesso'
 /**
  * Passo Empresa do portal (RN-CORE-31/32/34; desenho T-0087 §6 e T-0093 §6): o corpo do `POST /v1/plataforma/empresas`, reusado
  * pelo `POST /v1/plataforma/empresas-com-plano` (ADR 0047). Quem chama já conferiu o super-admin e validou `e`; marca a auditoria
- * com o `tenant_id` da resposta e responde com o `status`.
+ * com o `tenant_id` da resposta e responde com o `status`. `conferirCnpj` roda depois das validações locais e antes do banco
+ * (ADR 0048, item 8: a Receita confere o CNPJ, também no `simular`).
  */
 export async function criarEmpresaNoPortal(
   dep: DepsCriarEmpresa,
   quem: AcessoPortalAutenticado,
   e: CriarEmpresa,
+  conferirCnpj?: () => Promise<void>,
 ): Promise<{ status: 200 | 201; resposta: z.output<typeof CriarEmpresaRespostaSchema> }> {
   const senha = dep.senha ?? senhaDoCore;
   const pedidos = new Set<ModuloId>([...MODULOS_SEMPRE_NO_PORTAL, ...e.modulos.map((m) => m.modulo)]);
@@ -336,6 +368,7 @@ export async function criarEmpresaNoPortal(
     if (problema) throw new ErroHttp(422, 'RN-CORE-32', problema.mensagem, { campo: 'admin.senha', faltas: [...problema.faltas] });
     admin = { email, nome: e.admin.nome, senha_hash: await senha.hash(e.admin.senha) };
   }
+  if (conferirCnpj) await conferirCnpj();
   // parâmetros iniciais só valem para o Vendedor licenciado (sem ele, as chaves ficariam soltas)
   const parametros = pedidos.has('vendedor') ? linhasDosParametrosIniciais(e.parametros) : [];
   const entrada: EntradaProvisionarPlataforma = {
@@ -388,8 +421,13 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
     const quem = await exigir(req);
     // só o time da Macuxi cria ou altera empresa (RN-CORE-33/34; desenho T-0093 §4)
     if (quem.tipo !== 'super_admin') throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi cadastra empresas.');
+    // CNPJ com dígito errado tem código próprio (R-20261114-144000, item 3), antes da validação genérica do corpo
+    const cnpjBruto = (req.body as { cnpj?: unknown } | null)?.cnpj;
+    if (typeof cnpjBruto === 'string' && !cnpjComDigitosValidos(cnpjBruto.replace(/\D/g, ''))) {
+      throw new ErroHttp(400, CODIGOS_CNPJ.invalido, 'CNPJ inválido: confira os dígitos.', { campo: 'cnpj' });
+    }
     const e = dep.validar(CriarEmpresaSchema, req.body, 'corpo') as z.output<typeof CriarEmpresaSchema>;
-    const { status, resposta } = await criarEmpresaNoPortal(dep, quem, e);
+    const { status, resposta } = await criarEmpresaNoPortal(dep, quem, e, () => exigirCnpjAtivo(req, dep.consultaCnpj, e.cnpj, reply));
     if (resposta.tenant_id) marcarPortal(req, { quem, tenantId: resposta.tenant_id });
     return reply.code(status).send(resposta);
   });

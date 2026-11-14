@@ -4,10 +4,10 @@
  * enviadas ou aceitas e não puxadas). Guarda um retrato em memória para o `concluida()` da etapa do checkout, que
  * o Core chama de forma síncrona (RN-PES-03). Sem retrato carregado, a etapa fica PENDENTE (falha fechada).
  */
-import type { ClienteSync, ContextoCheckout, ContextoCliente } from '@macuxi/core/contracts';
+import type { ClienteSync, ContextoCheckout } from '@macuxi/core/contracts';
 import type { ItemSobreposicao, LinhaSync } from '@macuxi/platform-sdk';
 import { RespostaEnvio, type QuestionarioVersaoSync, type RespostaPesquisaSync } from '../../contracts';
-import { avaliarEtapaCheckout, clienteFechadoNoContexto, haPesquisaDisponivel, montarPesquisasDoAparelho, respostasConhecidas, type ClienteAlvo, type PesquisaDoTenant, type ResultadoEtapaCheckout, type UsuarioAlvo } from '../../domain';
+import { avaliarEtapaCheckout, clienteFechadoNoContexto, montarPesquisasDoAparelho, respostasConhecidas, type ClienteAlvo, type PesquisaDoTenant, type ResultadoEtapaCheckout, type UsuarioAlvo } from '../../domain';
 
 /** O que o motor oferece (subconjunto estrutural de `MotorSync`). */
 export interface LeitorLocal {
@@ -117,22 +117,4 @@ export function etapaDoCheckout(ctx: Pick<ContextoCheckout, 'clienteId' | 'visit
 export function etapaConcluida(ctx: Pick<ContextoCheckout, 'clienteId' | 'visitaId' | 'clienteFechado' | 'motivoClienteFechado'>): boolean {
   if (clienteFechadoNoContexto(ctx)) return true;
   return etapaDoCheckout(ctx)?.concluida ?? false;
-}
-
-/**
- * `disponivel` do slot `cliente.abas` (RF-PES-03): o botão "Pesquisa" da ficha só aparece com pesquisa para responder
- * neste cliente. Síncrono, sobre o retrato em memória e a fila do motor (offline). Sem retrato carregado, não aparece.
- */
-export function pesquisaDisponivelNoCliente(ctx: Pick<ContextoCliente, 'clienteId' | 'visitaId'>): boolean {
-  if (!memoria) return false;
-  const usuario = memoria.usuario;
-  return haPesquisaDisponivel({
-    pesquisas: memoria.retrato.pesquisas,
-    usuario,
-    cliente: memoria.retrato.clientes.get(ctx.clienteId) ?? { id: ctx.clienteId, segmento: null, regiao: null },
-    visita_id: ctx.visitaId,
-    agora: memoria.agora().toISOString(),
-    respostas: respostasConhecidas({ linhas: memoria.retrato.respostasPull, fila: respostasDaFila(memoria.leitor.sobreposicao(['resposta_pesquisa'])), usuario_id: usuario.id }),
-    fuso: memoria.fuso,
-  });
 }

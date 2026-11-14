@@ -619,6 +619,52 @@ ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenan
 (`tenantParaExibicao`). `evento_nome_formato` e `evento_consumo_consumidor_formato` alinhados ao `EVENTO_RE` do SDK (segmento
 `[a-z][a-z0-9_]*`, sem hífen; NOT VALID + VALIDATE). **Volta**: a função da 0001 (id, nome, fuso, status) e os CHECKs com hífen;
 `tenant_da_sessao` sai. Testes: `db/testes/tenant-por-codigo-minimo.test.ts`.
+
+### 0069 — cargo do perfil e um perfil por usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
+Decisão: [ADR 0049](../decisoes/0049-cargos-fixos-e-um-perfil-por-usuario.md) (R-20261114-153500, -153800, -154000).
+
+**`perfil.cargo`** text NOT NULL, **sem padrão** (`perfil_cargo_valido`: `vendedor`, `promotor`, `supervisor`, `gerente`, `administrativo`;
+lista `CARGOS` do `@macuxi/platform-sdk` (ADR 0049 §1), importada pelo espelho). Quem cria perfil personalizado informa o cargo (insert sem cargo = 23502). O
+cargo é editável (o domain do Core decide se o BKO deixa trocar o de fábrica; o banco não trava). Mapeamento base → cargo =
+`plataforma.cargo_da_base(text)` (SQL imutável, EXECUTE ao `macuxi_app`), usado no backfill (fábrica e personalizados que já
+existiam: o cargo da base deles; não existe perfil sem base) e em `semear_perfis_fabrica` (tenant novo):
+
+| base | vendedor | promotor | supervisor | gerente | analista | assistente | admin | outro |
+|---|---|---|---|---|---|---|---|---|
+| cargo | vendedor | promotor | supervisor | gerente | administrativo | administrativo | administrativo | administrativo |
+
+Mudar o mapeamento depois = migração nova com `create or replace function plataforma.cargo_da_base` + `update` dos perfis.
+O cargo `promotor` tem regra no banco (gerente obrigatório): ver [core.md](core.md) "0069"; trocar o cargo de um perfil em uso
+(`update ... set cargo`) também é conferido (gatilho `perfil_conferir_promotor`).
+
+**Um perfil por usuário** — restrição de exclusão `usuario_perfil_um_vivo` em `usuario_perfil`: `exclude using btree (tenant_id
+with =, usuario_id with =) where (deleted_at is null) deferrable initially deferred`. No máximo **um vínculo vivo** por (tenant,
+usuário); conferida no COMMIT (23P01), então a troca pode apagar o antigo e inserir o novo em qualquer ordem na mesma transação; é
+índice, segura também contra duas gravações concorrentes. **Não use `on conflict do nothing` sem alvo** em `usuario_perfil`: o
+Postgres recusa restrição adiável como árbitro (use `on conflict (id)`). O único `usuario_perfil_uk` da 0041 continua (o mesmo
+perfil vivo duas vezes = 23505 na hora).
+- Gatilho `usuario_perfil_principal` (função `garantir_perfil_principal`, create or replace): trocar `core.usuario.perfil` para
+  uma base que o usuário não tem **substitui** o vínculo (soft delete do vivo + o de fábrica da base nova). Sem o "com 2+ perfis
+  só acrescenta" da 0041.
+- Limpeza na migração (quem tinha 2+ vínculos vivos): fica **um**, pela ordem — perfil ativo e vivo antes de inativo/apagado;
+  base `admin > gerente > supervisor > analista > assistente > vendedor > promotor` (pela **base**: o cargo `promotor` não muda
+  a ordem, o promotor já era o último); na mesma base, o personalizado antes do de
+  fábrica (foi a escolha do admin), **salvo na base admin**, em que fica o de fábrica (garante a gestão do acesso, RN-CORE-35);
+  depois o vínculo mais novo; por fim o id. Os outros: soft delete com `deleted_at` = instante da migração (=
+  `public.macuxi_migracao.aplicada_em` da 0069). `core.usuario.perfil` passa à base do que ficou quando era outra (anda o
+  `updated_at`). Lista dos afetados (rodar **antes** do deploy): `db/scripts/diagnostico-0069.sql`, consulta 1.
+- As conferências da 0041 (`usuario_sem_perfil`, `usuario_perfil_indisponivel`, `usuario_perfil_principal`, `tenant_ultimo_admin`)
+  continuam iguais. Na fixture dois-tenants, desde a 0069, ninguém tem 2 perfis (`vendedor_externo` e `vendedor_balcao` ficam sem
+  usuário). Os testes de portal da 0046/0047 montam 2+ perfis só **dentro** da transação (sem COMMIT) para provar a regra mais
+  restritiva do portal, que fica como defesa.
+
+**Volta** (`.down.sql`): saem os 4 gatilhos do promotor e as 2 funções deles, a view da hierarquia, a exclusão, `perfil.cargo` (o cargo de personalizado se perde;
+reaplicar volta ao da base) e `cargo_da_base`; `garantir_perfil_principal` volta ao texto da 0041 e `semear_perfis_fabrica` ao
+da 0051; os vínculos apagados pela 0069 (deleted_at = `aplicada_em` da 0069, perfil ainda ativo e sem vínculo vivo igual) voltam
+a vivos. `core.usuario.perfil` **não volta** (fica a base mais alta, que continua entre os perfis). Volte antes o Core que grava o
+cargo e lê a view. Testes: `db/testes/cargo-hierarquia.db.test.ts` (estático no PC; fixture e up/down no CI); ajustados
+`perfis-acesso`, `portal-multiperfil` e `portal-admin-multiperfil`.
+
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
 - `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012); só (id, status) desde a 0052.

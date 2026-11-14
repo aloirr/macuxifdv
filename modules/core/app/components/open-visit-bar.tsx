@@ -27,7 +27,7 @@ export function OpenVisitBar({ from, clienteAtual }: { from: string; clienteAtua
     const what = orders.length > 1 ? `${orders.length} pedidos feitos` : `${first.number ? `Pedido ${first.number}` : 'Pedido na fila'} feito`;
     hint = `${what} nesta visita · ${checkoutDuration(open.checkin_at, now)}`;
   } else {
-    hint = `Check-in às ${since} · ${elapsedLabel(open.checkin_at, now)}`;
+    hint = elapsedLabel(open.checkin_at, now);
   }
   return (
     <View style={styles.bar} accessibilityLabel="Atendimento em aberto" testID="open-visit-bar">

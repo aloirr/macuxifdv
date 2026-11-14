@@ -213,8 +213,13 @@ describe.skipIf(semBanco())('0047 suporte pelos perfis de base admin (banco, fix
     q('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [tenant, usuario, perfilId]);
   const desvincular = (usuario: string, perfilId: string) =>
     q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and perfil_id = $2 and deleted_at is null', [usuario, perfilId]);
-  /** Roda agora as conferências adiadas da 0041 (sem perfil, principal, último admin): o estado montado é um estado válido. */
-  const conferir = () => q('set constraints all immediate');
+  /**
+   * Roda agora as conferências adiadas da 0041 (sem perfil, principal, último admin): o estado montado é válido para elas. Só as 4
+   * da 0041: desde a 0069 (um perfil por usuário) a restrição usuario_perfil_um_vivo recusaria no COMMIT os estados com 2+ perfis
+   * montados aqui. Esses estados agora só existem dentro de uma transação; o portal mantém a regra mais restritiva como defesa.
+   */
+  const conferir = () =>
+    q('set constraints core.usuario_conferir_acesso, plataforma.usuario_perfil_conferir, plataforma.perfil_conferir, plataforma.perfil_permissao_conferir immediate');
   /** Admin novo (principal 'admin'; o gatilho da 0041 liga o perfil admin de fábrica), ativo e com senha. */
   const criarAdmin = async (tenant: string, email: string, nomeDaPessoa: string) =>
     (await q<{ id: string }>("insert into core.usuario (tenant_id, nome, email, perfil, ativo, senha_hash) values ($1, $2, $3, 'admin', true, $4) returning id", [tenant, nomeDaPessoa, email, H]))[0]!.id;
@@ -306,7 +311,7 @@ describe.skipIf(semBanco())('0047 suporte pelos perfis de base admin (banco, fix
 
   /** Perfil personalizado de base admin com acesso.portal revogado (sobreposição). */
   const criarAdminSemPortal = async () => {
-    const pers = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base) values ($1, 'admin_sem_portal_0047', 'Admin sem portal 0047', 'admin') returning id", [A]))[0]!.id;
+    const pers = (await q<{ id: string }>("insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'admin_sem_portal_0047', 'Admin sem portal 0047', 'admin', 'administrativo') returning id", [A]))[0]!.id;
     await q("insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, 'acesso.portal', false)", [A, pers]);
     return pers;
   };

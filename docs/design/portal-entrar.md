@@ -8,6 +8,8 @@
 > "super-admin" ou "2º fator" na tela. Uma frase por aviso; o erro diz o que fazer.
 
 ## 1. Entrar (`/entrar`)
+> **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §1 (RD-0264: senha a trocar = só "Crie a sua senha no backoffice antes de entrar aqui.").
+
 De cima para baixo, na `MolduraEstreita` de hoje:
 1. Título **"Entrar"** (28/800, Archivo).
 2. ~~Subtítulo "Portal de implantação Macuxi"~~ — **sai** (revisão da fatia W, 07/11): a marca logo acima do cartão já diz
@@ -25,6 +27,8 @@ De cima para baixo, na `MolduraEstreita` de hoje:
 "Acesso só do super-admin…". O e-mail fica no campo depois do erro; a senha é limpa.
 
 ## 2. Escolha a empresa (admin do cliente com 2+ empresas)
+> **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §2 (RD-0265: sai a instrução "Seu acesso vale para estas empresas.").
+
 Mesma `MolduraEstreita`. Aparece depois do login (`empresa: null`, `empresas: [A, B…]`) e no "Trocar de empresa".
 1. Título **"Escolha a empresa"**.
 2. Instrução (13, `text-ink-2`): **"Seu acesso vale para estas empresas."**
@@ -41,6 +45,8 @@ Mesma `MolduraEstreita`. Aparece depois do login (`empresa: null`, `empresas: [A
 Com **1 empresa**, a tela não aparece: entra direto. O **time da Macuxi** não vê esta tela: segue para "Empresas", como hoje.
 
 ## 3. Trocar de empresa
+> **Revisto em 14/11/2026:** onde conflitar, vale `docs/design/telas/portal-config-enxuto.md` §0 (RD-0261: o nome da empresa atual sai do cabeçalho e fica só no título da página; RD-0260: fica só "Sessão até 14:32"; MC-0022/MC-0023: o cabeçalho é a faixa Azul noite).
+
 - No cabeçalho do portal (`MolduraPortal`), só para o admin do cliente: à esquerda do "Sair", o **nome da empresa atual**
   (13/600, `text-ink`, corta com "…") e, se ele tiver 2+ empresas, o botão secundário pequeno **"Trocar de empresa"**.
 - Tocar abre a "Escolha a empresa" (§2). Com dados não salvos, passa antes pela confirmação de saída que já existe.

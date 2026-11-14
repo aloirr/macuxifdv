@@ -1,8 +1,9 @@
 @import 'tailwindcss';
 
-/* Classes usadas pelo kit de UI e pelas páginas dos módulos (montadas por este shell). */
-@source '../../../packages/ui/src';
-@source '../../../modules/*/web';
+/* Classes usadas pelo kit de UI e pelas páginas dos módulos (montadas por este shell).
+   Glob de arquivo, não de pasta: no Tailwind 4 o curinga só na pasta (modules, curinga, web) não casa nenhum arquivo. */
+@source '../../../packages/ui/src/web/**/*.{ts,tsx}';
+@source '../../../modules/*/web/**/*.{ts,tsx}';
 
 /* Tokens do backoffice (docs/07-web-bko.md e mockups Bko*.dc.html). */
 @theme inline {
@@ -34,7 +35,9 @@
   --color-neutral-soft: #eceef1;
   --color-nav-active: #2b3743;
   --color-nav-text: #c9ced5;
-  --color-nav-muted: #9aa3b0;
+  /* título e seta dos grupos do menu lateral e barra da tela atual (Sol claro; R-20261114-184400, MC-0054). Token
+     próprio, não o accent-light: mesmo valor, outro papel (docs/design/telas/bko-revisao.md §M4) */
+  --color-nav-grupo: #f59a52;
   --color-disabled: #8b96a3;
 
   --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;

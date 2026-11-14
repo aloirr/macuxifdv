@@ -45,6 +45,18 @@ describe('shell web sem laranja cru em texto', () => {
     expect(de('components/portal/base.tsx')).toContain('<MarcaNaFaixa area="Portal de implantação" />');
   });
 
+  it('menu do BKO (R-20261114-184400, MC-0054/MC-0056): token nav-grupo próprio, sem accent-light; logo A no grafite', () => {
+    const css = readFileSync(join(RAIZ, 'app/globals.css'), 'utf8').toLowerCase();
+    expect(css).toMatch(/--color-nav-grupo:\s*#f59a52/);
+    expect(css).toMatch(/--color-nav-active:\s*#2b3743/);
+    const shell = fontes.find((x) => x.f.split(sep).join('/') === 'components/app-shell.tsx')?.texto ?? '';
+    expect(shell).toContain('text-nav-grupo');
+    expect(shell).toContain('before:bg-nav-grupo');
+    expect(shell).not.toMatch(/accent-light/);
+    expect(shell).toContain('SRC_LOGO_NEGATIVO_GRAFITE');
+    expect(shell).not.toContain('Macuxi FDV');
+  });
+
   it('as linhas do recado usam accent-ink', () => {
     const de = (f: string) => fontes.find((x) => x.f.split(sep).join('/') === f)?.texto ?? '';
     expect(de('components/later-page.tsx')).toMatch(/text-accent-ink uppercase">Em breve/);

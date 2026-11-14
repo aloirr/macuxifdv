@@ -129,6 +129,7 @@ const ROTULO_DA_CHAVE: Readonly<Record<string, string>> = {
   'parametro.farol': 'Ajustar o farol',
   'parametro.inicio': 'Ajustar o Início',
   'parametro.curva_abc': 'Ajustar as curvas ABC',
+  'visita.checkin_fora_de_rota': 'Check-in fora de rota',
   'visita.dispensar_etapa': 'Dispensar etapa pendente da visita',
   'parametro.checkout_pendencia': 'Ajustar o prazo do alerta de checkout',
 };
