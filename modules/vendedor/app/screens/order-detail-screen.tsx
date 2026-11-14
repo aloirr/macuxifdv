@@ -7,7 +7,31 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Botao, Card, colors, dateTimeLabel, Dialogo, EstadoVazio, fonts, Folha, HistoricoEmTags, LinhaValor, LinkTexto, Loading, MenuMais, OpcaoFolha, RodapeAcoes, RotuloSecao, TabelaValores, tagsDoHistorico, type as t, useAtualizacaoAutomatica, type AcaoCompacta } from '@macuxi/ui/mobile';
+import {
+  Botao,
+  CABECALHO,
+  CabecalhoTela,
+  Card,
+  colors,
+  dateTimeLabel,
+  Dialogo,
+  EstadoVazio,
+  fonts,
+  Folha,
+  HistoricoEmTags,
+  LinhaValor,
+  LinkTexto,
+  Loading,
+  MenuMais,
+  OpcaoFolha,
+  RodapeAcoes,
+  RotuloSecao,
+  TabelaValores,
+  tagsDoHistorico,
+  type as t,
+  useAtualizacaoAutomatica,
+  type AcaoCompacta,
+} from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -167,13 +191,22 @@ export default function OrderDetailScreen() {
         .finally(() => setCarregando(false));
     };
     return (
-      <View style={[styles.root, { paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20 }]}>
-        <BackLink label="Pedidos" fallback={hrefPedidos()} />
-        {ausente.tipo === 'carregando' ? (
-          <Loading />
-        ) : (
-          <EstadoVazio titulo={ausente.titulo} texto={ausente.texto} testID="pedido-fora-do-aparelho" acao={ausente.tentarDeNovo ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: tentarDeNovo } : undefined} />
-        )}
+      <View style={styles.root}>
+        <CabecalhoTela titulo="Pedido" voltar={{ label: 'Pedidos', fallback: hrefPedidos() }} />
+        <View style={{ flex: 1, paddingTop: CABECALHO.respiroCorpo, paddingHorizontal: 20 }}>
+          {ausente.tipo === 'carregando' ? (
+            <Loading />
+          ) : (
+            <EstadoVazio
+              titulo={ausente.titulo}
+              texto={ausente.texto}
+              testID="pedido-fora-do-aparelho"
+              acao={
+                ausente.tentarDeNovo ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: tentarDeNovo } : undefined
+              }
+            />
+          )}
+        </View>
       </View>
     );
   }
@@ -515,27 +548,36 @@ export default function OrderDetailScreen() {
 
   return (
     <View style={styles.root}>
+      {/* 1. faixa Azul noite (marca v1): voltar, número do pedido e cliente com código */}
+      <CabecalhoTela
+        testID="detalhe-cabecalho"
+        titulo={title}
+        subtitulo={clienteComCodigo(customerName, codigoDoCliente)}
+        voltar={{ label: 'Pedidos', fallback: hrefPedidos() }}
+      />
       <ScrollView
         style={styles.root}
-        contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
-        refreshControl={<RefreshControl refreshing={auto.puxando} onRefresh={auto.puxar} />}>
-        {/* 1. cabeçalho em destaque: voltar + ⋮, número com a tag, cliente com código, vendedor */}
-        <View style={styles.topo}>
-          <View style={{ flex: 1 }}>
-            <BackLink label="Pedidos" fallback={hrefPedidos()} />
+        contentContainerStyle={{
+          paddingTop: CABECALHO.respiroCorpo,
+          paddingHorizontal: 20,
+          paddingBottom: 24,
+          gap: 14,
+        }}
+        refreshControl={<RefreshControl refreshing={auto.puxando} onRefresh={auto.puxar} />}
+      >
+        {/* ⋮ no corpo até o kit ter o MenuMais claro para a faixa (o ícone é grafite e some no Azul noite) */}
+        {somenteLeitura ? null : (
+          <View style={styles.topo}>
+            <MenuMais
+              rotuloAcessivel={rotuloDoMenu}
+              titulo={title}
+              opcoes={opcoesDoMenu}
+              rotuloFechar="Fechar"
+              rodape="Voltar"
+              testID="menu-mais"
+            />
           </View>
-          {somenteLeitura ? null : (
-            <MenuMais rotuloAcessivel={rotuloDoMenu} titulo={title} opcoes={opcoesDoMenu} rotuloFechar="Fechar" rodape="Voltar" testID="menu-mais" />
-          )}
-        </View>
-        <View style={{ gap: 6 }} testID="detalhe-cabecalho">
-          <Text style={t.h1Small} testID="order-title">
-            {title}
-          </Text>
-          <Text style={[t.body, { color: colors.ink }]} testID="detalhe-cliente">
-            {clienteComCodigo(customerName, codigoDoCliente)}
-          </Text>
-        </View>
+        )}
 
         {/* RN-VEN-42: área Alertas logo abaixo do cliente; sem selo de situação (a situação é a última etapa do Histórico) */}
         <AreaAlertas alertas={alertasDaTela} aoTocar={ehOrc && acoesOrc?.pode_editar ? () => void startDraft('edit') : undefined} />
@@ -711,7 +753,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ground },
-  topo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topo: { flexDirection: 'row', justifyContent: 'flex-end' },
   tituloLinha: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   rodapeDecisao: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
 });

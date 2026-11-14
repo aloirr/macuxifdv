@@ -11,11 +11,10 @@
 import { formatarDocumento } from '@macuxi/comum';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, AvisoRodape, Dialogo, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, CABECALHO, CabecalhoTela, Dialogo, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, Icon, Loading, radius, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
 import { botoesDoResumo, PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
@@ -54,7 +53,7 @@ import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../
 import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
 import { pendenciasDePreenchimento, type AbaDoPedido } from '../../domain/pendencias-preenchimento';
 import { destinoDoSalvarDaSaida, opcoesDaSaida, opcoesDaSaidaEdicao, pedidoAlterado } from '../../domain/sair-do-pedido';
-import { FolhaSaidaDoPedido, VoltarDoFormulario } from '../components/saida-do-pedido';
+import { FolhaSaidaDoPedido } from '../components/saida-do-pedido';
 import { useBloquearSaida } from '../lib/bloquear-saida';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
 import { avisoDoSalvar } from '../lib/salvar-na-fila';
@@ -83,8 +82,7 @@ export default function NewOrderScreen() {
 function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; acao?: { rotulo: string; onPress: () => void } }) {
   const { vendedorId } = useLocalSearchParams<{ vendedorId?: string }>();
   return (
-    <Screen testID="new-order-aviso">
-      <BackLink label={rotuloVoltarNovoPedido(vendedorId)} fallback={hrefPedidos()} />
+    <Screen testID="new-order-aviso" cabecalho={{ titulo: 'Novo pedido', voltar: { label: rotuloVoltarNovoPedido(vendedorId), fallback: hrefPedidos() } }}>
       <EstadoVazio titulo={titulo} texto={texto} acao={acao} />
     </Screen>
   );
@@ -95,7 +93,6 @@ function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; 
 function CustomerPicker() {
   const { dados, carteiras, pedidos, tz } = useVendedor();
   const { vendedorId, vendedorNome } = useLocalSearchParams<{ vendedorId?: string; vendedorNome?: string }>();
-  const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   // lido no render sem reagir: o pendente só muda antes de navegar para cá, nunca com o seletor aberto
   const idEmEspera = produtoPendente()?.produtoId;
@@ -118,10 +115,7 @@ function CustomerPicker() {
     [emNome, dados.clientes, q],
   );
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 12 }} keyboardShouldPersistTaps="handled">
-      <BackLink label={rotuloVoltarNovoPedido(vendedorId)} fallback={hrefPedidos()} />
-      <Text style={t.h1Small}>Novo pedido</Text>
-      <Text style={t.sub}>Para qual cliente?</Text>
+    <Screen gap={12} cabecalho={{ titulo: 'Novo pedido', subtitulo: 'Para qual cliente?', voltar: { label: rotuloVoltarNovoPedido(vendedorId), fallback: hrefPedidos() } }}>
       {emNome ? (
         <Text style={t.small} testID="picker-carteira">
           {subtituloDoSeletor(emNome.nomeDoDono)}
@@ -166,7 +160,7 @@ function CustomerPicker() {
           })}
         </Card>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -183,7 +177,6 @@ interface Snapshot {
 
 function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, vendedorEmNomeNome }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null }) {
   const app = useVendedor();
-  const insets = useSafeAreaInsets();
   const avisoRodape = useAvisoRodape();
   const [chaveDaRemocao, setChaveDaRemocao] = useState(0);
   const podeEditar = usePode('pedido.editar');
@@ -516,22 +509,26 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
   if (editId && (!dados.rascunhos[draftKey] || !editTarget)) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20, gap: 8 }]}>
-        <BackLink label="Pedido" fallback={hrefPedido(editId)} />
+      <View style={styles.root}>
+        <CabecalhoTela titulo="Editar" voltar={{ label: 'Pedido', fallback: hrefPedido(editId) }} />
+        <View style={{ paddingHorizontal: 20, paddingTop: CABECALHO.respiroCorpo }}>
         <EstadoVazio
           titulo={editTarget ? 'A edição ainda não começou' : 'Este pedido não está no aparelho'}
           texto={editTarget ? 'Volte ao pedido e toque em Editar.' : 'Conecte-se e puxe a tela de Pedidos para baixo para sincronizar.'}
           acao={{ rotulo: editTarget ? 'Voltar ao pedido' : 'Ir para Pedidos', onPress: () => (editTarget ? router.replace(hrefPedido(editId) as never) : irParaPedidos()) }}
         />
+        </View>
       </View>
     );
   }
 
   if (!customer || !calculo || !politica) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
-        <BackLink label="Voltar" fallback={hrefPedidos()} />
-        <EstadoVazio titulo="Cliente não encontrado" texto="Sincronize com sinal para atualizar a carteira." acao={{ rotulo: 'Ir para Pedidos', onPress: () => irParaPedidos() }} />
+      <View style={styles.root}>
+        <CabecalhoTela titulo={editId ? 'Editar' : 'Novo pedido'} voltar={{ label: 'Voltar', fallback: hrefPedidos() }} />
+        <View style={{ paddingHorizontal: 20, paddingTop: CABECALHO.respiroCorpo }}>
+          <EstadoVazio titulo="Cliente não encontrado" texto="Sincronize com sinal para atualizar a carteira." acao={{ rotulo: 'Ir para Pedidos', onPress: () => irParaPedidos() }} />
+        </View>
       </View>
     );
   }
@@ -752,24 +749,16 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
 
   return (
     <View style={styles.root}>
-      <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
-        {editId ? (
-          <BackLink label="Pedido" fallback={hrefPedido(editId)} />
-        ) : (
-          <VoltarDoFormulario rotulo="Voltar" onPress={() => pedirSaida(() => (router.canGoBack() ? router.back() : router.replace(hrefPedidos() as never)))} />
-        )}
-        <Text style={t.h1Small} testID="order-editor-title">
-          {editId ? editTitle : 'Novo pedido'}
-        </Text>
-        <Text style={t.sub} numberOfLines={2} testID="order-editor-cliente">
-          {customer.trade_name} · cód. {customer.erp_code}
-        </Text>
-        {vendedorEmNomeId ? (
-          <Text style={t.sub} testID="order-editor-em-nome">
-            Em nome de {vendedorEmNomeNome ?? 'vendedor'}
-          </Text>
-        ) : null}
-      </View>
+      <CabecalhoTela
+        testID="order-editor-cabecalho"
+        titulo={editId ? editTitle : 'Novo pedido'}
+        subtitulo={`${customer.trade_name} · cód. ${customer.erp_code}${vendedorEmNomeId ? ` · em nome de ${vendedorEmNomeNome ?? 'vendedor'}` : ''}`}
+        voltar={
+          editId
+            ? { label: 'Pedido', fallback: hrefPedido(editId) }
+            : { label: 'Voltar', fallback: hrefPedidos(), aoVoltar: () => pedirSaida(() => (router.canGoBack() ? router.back() : router.replace(hrefPedidos() as never))) }
+        }
+      />
       {!sent ? <Abas abas={abas} valor={aba} onChange={irParaAba} testID="abas-pedido" /> : null}
 
       <AcimaDoTeclado>
