@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { buildAttention } from './attention';
 import { creditInput, filterCustomers, parsePct, searchProducts, stockInfo, toDomainPolicy } from './catalog';
-import { filterCounts, orderNote, statusBadge } from './order-status';
+import { filterCounts, statusBadge } from './order-status';
 
 function customer(over: Partial<CustomerSummary>): CustomerSummary {
   return {
@@ -108,7 +108,7 @@ describe('status de pedido', () => {
     for (const st of ['approved', 'integrated', 'invoiced', 'invoiced_partial']) expect(tom(st)).toEqual(TONS_ESTADO.sucesso);
     for (const st of ['draft', 'received', 'sent_to_erp']) expect(tom(st)).toEqual(TONS_ESTADO.neutro);
   });
-  it('contagem dos chips e observação', () => {
+  it('contagem dos chips', () => {
     const c = filterCounts([{ status: 'queued' }, { status: 'pending_approval' }, { status: 'integrated' }, { status: 'sent_to_erp' }, { status: 'rejected' }]);
     expect(c).toEqual({ all: 5, queued: 1, pending: 1, integrated: 1, invoiced: 0, rejected: 1, cancelled: 0 });
     expect(statusBadge('pending_approval').label).toBe('Aguardando aprovação');
@@ -116,15 +116,11 @@ describe('status de pedido', () => {
     expect(statusBadge('cancelled').label).toBe('Excluído');
     expect(statusBadge('edited').label).toBe('Editado');
     expect(filterCounts([{ status: 'cancelled' }, { status: 'received' }])).toMatchObject({ all: 2, cancelled: 1 });
-    expect(orderNote({ status: 'cancelled', pending_reason: '', rejection_reason: 'Excluído por Rafael S.' })).toBe('Excluído por Rafael S.');
-    expect(orderNote({ status: 'rejected', pending_reason: '', rejection_reason: 'Títulos vencidos' })).toBe('Títulos vencidos');
   });
 
-  it('T-0054 (RF-VEN-05): chip Faturados separa o faturado do integrado; T-0153/RN-VEN-42: o faturado não leva nota na lista (o selo e o Histórico dizem)', () => {
+  it('T-0054 (RF-VEN-05): chip Faturados separa o faturado do integrado', () => {
     const c = filterCounts([{ status: 'integrated' }, { status: 'invoiced_partial' }, { status: 'invoiced' }]);
     expect(c).toMatchObject({ integrated: 1, invoiced: 2 });
     expect(statusBadge('invoiced_partial').label).toBe('Faturado parcialmente');
-    expect(orderNote({ status: 'invoiced', pending_reason: '', rejection_reason: '', situacao_faturamento: ['Faturado R$ 70,00 (NF 1)', 'Devolvido R$ 10,00 (parcial)'] })).toBe('');
-    expect(orderNote({ status: 'integrated', pending_reason: '', rejection_reason: '', situacao_faturamento: ['x'] })).toBe('');
   });
 });

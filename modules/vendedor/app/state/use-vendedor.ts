@@ -24,6 +24,7 @@ import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from '../lib/documento';
 import { precoDoOrcamentoVale, type MudancaNaConversao } from '../../domain/orcamento';
 import { limparRascunhosExpirados } from '../../domain/rascunhos';
+import { TEXTO_SEM_SINAL_PARA_SALVAR } from '../../domain/alertas-pedido';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { calcularPedido, faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
@@ -77,7 +78,6 @@ import { rascunhosAposLeitura } from '../lib/rascunhos-apos-leitura';
 import { podeSincronizarManual } from '../lib/sincronizar';
 import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
-const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
 const LOTE_PRECOS = 500;
 const MSG_APP_CARREGANDO = 'Aplicativo ainda carregando. Aguarde um instante e tente de novo.';
 
@@ -564,14 +564,14 @@ export function useVendedor() {
       const linhaOrc = linhasRef.current.pedidos.find((p) => p.id === orderId);
       if (v1 && linhaOrc?.tipo === 'orcamento') {
         // T-0071 (RN-VEN-18): orçamento aberto já recebido edita pela API, com a versão que o aparelho tem (concorrência otimista)
-        if (!ambiente.online()) throw new Error('Sem sinal: para salvar a edição de um orçamento já enviado, conecte-se. Suas alterações continuam aqui.');
+        if (!ambiente.online()) throw new Error(TEXTO_SEM_SINAL_PARA_SALVAR);
         const { id: _id, tipo: _tipo, orcamento_origem_id: _origem, created_offline_at: _criado, ...corpoBase } = montarPedido({ id: orderId, cliente, rascunho, v, semSinal: false, agora: new Date().toISOString() });
         void [_id, _tipo, _origem, _criado];
         const corpo: EditarOrcamentoRequest = { ...corpoBase, atualizado_em: linhaOrc.updated_at };
         try {
           await ambiente.http.requisitar('PUT', `/vendedor/orcamentos/${encodeURIComponent(orderId)}`, { body: corpo });
         } catch (e) {
-          if (ehSemConexao(e)) throw new Error('Sem conexão: conecte-se para salvar a edição do orçamento. Suas alterações continuam aqui.');
+          if (ehSemConexao(e)) throw new Error(TEXTO_SEM_SINAL_PARA_SALVAR);
           throw e;
         }
         await motor.sincronizar().catch(() => false);
@@ -581,13 +581,13 @@ export function useVendedor() {
         return atualizado ? { kind: 'server', order: atualizado } : { kind: 'local' };
       }
       if (v1) throw new Error('Pedido já recebido pelo servidor não é editado. Duplique-o para fazer um novo.');
-      if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL} Desligue no Perfil quando tiver sinal.`);
+      if (!ambiente.online()) throw new Error('Modo sem sinal ligado: desligue no Perfil para salvar');
       const corpo: UpdateOrderRequest = { customer_id: cliente.id, discount_pct: rascunho.discount_pct, payment_terms: rascunho.payment_terms, items: itens };
       let order: OrderDetail;
       try {
         order = await ambiente.http.requisitar<OrderDetail>('PUT', `/orders/${encodeURIComponent(orderId)}`, { body: corpo });
       } catch (e) {
-        if (ehSemConexao(e)) throw new Error(`Sem conexão: ${PRECISA_SINAL} Suas alterações continuam aqui; tente de novo.`);
+        if (ehSemConexao(e)) throw new Error(TEXTO_SEM_SINAL_PARA_SALVAR);
         throw e;
       }
       await repo.guardarPedido(order);
@@ -609,7 +609,7 @@ export function useVendedor() {
         await recarregar();
         return { kind: 'local' };
       }
-      if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL}`);
+      if (!ambiente.online()) throw new Error('Sem sinal para cancelar');
       try {
         if (v1) {
           const ehOrc = linhasRef.current.pedidos.find((p) => p.id === orderId)?.tipo === 'orcamento';
@@ -625,7 +625,7 @@ export function useVendedor() {
         await recarregar();
         return { kind: 'server', order };
       } catch (e) {
-        if (ehSemConexao(e)) throw new Error(`Sem conexão: ${PRECISA_SINAL}`);
+        if (ehSemConexao(e)) throw new Error('Sem sinal para cancelar');
         throw e;
       }
     },
@@ -638,14 +638,14 @@ export function useVendedor() {
    */
   const decidirPedido = useCallback(
     async (orderId: string, decisao: 'aprovar' | 'rejeitar', texto: string): Promise<OrderDetail> => {
-      if (!ambiente.online()) throw new Error('Aprovar e rejeitar exigem internet: o pedido pode ter sido decidido por outra pessoa. Conecte-se e tente de novo.');
+      if (!ambiente.online()) throw new Error('Sem sinal para decidir');
       let order: OrderDetail;
       try {
         order = await ambiente.http.requisitar<OrderDetail>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
           body: decisao === 'aprovar' ? (texto.trim() ? { comentario: texto.trim() } : {}) : { motivo: texto.trim() },
         });
       } catch (e) {
-        if (ehSemConexao(e)) throw new Error('Sem conexão: aprovar e rejeitar exigem internet. Tente de novo quando o sinal voltar.');
+        if (ehSemConexao(e)) throw new Error('Sem sinal para decidir');
         throw e;
       }
       setDecididos((d) => ({ ...d, [orderId]: order }));

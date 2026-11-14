@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatBRL } from '@macuxi/comum';
-import { formatAge, type NoticeTone, Panel } from '@macuxi/ui/web';
+import { Badge, formatAge, type NoticeTone, Panel } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 
@@ -37,13 +37,14 @@ export function ApprovalsPanel({ approvals, nowMs, onOpen }: { approvals: Order[
               <div className="flex justify-between gap-2">
                 <button type="button" onClick={() => onOpen(a)} className="flex min-w-0 flex-col gap-px text-left hover:underline" aria-label={`Abrir pedido ${a.number}`}>
                   <span className="text-[14px] font-semibold">{a.customer_name}</span>
-                  <span className="text-[12px] text-ink-2">
-                    <span className="font-mono">{a.number}</span> · {a.seller_name} · há {formatAge(idade)}
-                  </span>
                 </button>
                 <span className="text-[14px] font-semibold whitespace-nowrap tabular-nums">{formatBRL(a.total_cents)}</span>
               </div>
-              <span className="text-[12px] font-semibold text-accent-ink">{motivoDoCartao(a)}</span>
+              {/* RD-0217: a linha 2 é o motivo, com a idade em tag ao lado; o Nº fica só no aria-label */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-semibold text-accent-ink">{motivoDoCartao(a)}</span>
+                <Badge tone="neutral">há {formatAge(idade)}</Badge>
+              </div>
               {a.pode_decidir ? (
                 <BotoesDeDecisao pedido={a} onFeito={(tom, texto) => setAviso({ tom, texto })} />
               ) : null}
