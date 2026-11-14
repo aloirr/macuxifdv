@@ -150,8 +150,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `Segmentado compacto`: 30 dp de visual (o visual não estica até o alvo), 44 × 44 dp de alvo por opção e 6 dp entre elas; largura mínima
   `larguraSegmentadoCompacto(n)` (2 → 94, 3 → 144). UN | CX da linha 3 do item; Dia | Mês | Ano da folha. Num pai com `flex: 1`,
   a linha passa a ter 44 dp de altura de layout (o alvo entra no layout, não é folga).
-- `CartaoCredito`: limite total e disponível (Archivo 18), alerta vermelho `Faixa tom="erro"` com o texto de
-  `textoInadimplencia`, e a data da sincronização (`textoAtualizacao`). `CartaoLeveMais`: uma linha tocável (≥ 56 dp) por item com
+- Crédito do cliente: a tabela do `pedido-v3.md` §A. `CartaoLeveMais`: uma linha tocável (≥ 56 dp) por item com
   a próxima faixa (`textosLeveMais`); sem item, não aparece.
 - Token novo: `colors.inkDisabled` `#8A949C` (3:1 no branco) só para texto de opção desabilitada, **sempre** com outro sinal
   (cadeado, sem toque); nunca para texto que precisa ser lido.

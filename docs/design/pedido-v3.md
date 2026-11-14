@@ -85,8 +85,8 @@ Tabela rótulo ··· valor genérica (serve ao crédito e a outros blocos de co
   rodape={{ icone: semSinal ? 'wifiOff' : 'sync', texto: textoAtualizacao(sincronizadoEm, agora, tz) }}
 />
 ```
-`linhas[].valor === '—'` sai em `ink3`. O `CartaoCredito` (2 colunas, da T-0089) fica para o Gestão até o modulo-gestor migrar; a
-aba Venda usa a `TabelaValores`. O `LinhaValor` "Limite · R$ x · disponível R$ y" **sai** da aba Venda.
+`linhas[].valor === '—'` sai em `ink3`. A aba Venda usa a
+`TabelaValores`. O `LinhaValor` "Limite · R$ x · disponível R$ y" **sai** da aba Venda.
 
 ## B. Aba Entrega: frete sem frase
 ```

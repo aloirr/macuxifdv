@@ -135,11 +135,10 @@ Ordem: **Alertas (§0.1, só se houver) · No pedido (compacto) · busca · resu
   descrição. Sem sinal e sem cópia: "Foto indisponível sem sinal."
 
 ## 4. Início e Pedidos (T-0153)
-- Início: o `inicio.md` continua valendo, com 2 cortes: Orçamentos e A faturar só "3 · R$ 1.150" e "6 · R$ 3.989" (sem parênteses).
-- Pedidos: Rascunhos (n) sem frase; a linha de contagem vira **"Total R$ 8.420"**; cada pedido em 2 linhas: cliente ··· total
-  (Archivo 15/700) e **"Nº 000013 · hoje 05:55"** ··· selo (Rejeitado, Aprovado, Em aprovação, Orçamento, Faturado, Na fila).
-  Recusa: + uma linha 13 `ink` com o motivo. Gestão: o vendedor no lugar da hora. Na lista o selo por linha **continua**
-  (RN-VEN-42: é a única forma de ver a situação de vários pedidos).
+- Início: só a retomada do pedido (RN-VEN-38); os cartões Orçamentos e A faturar saíram (RD-0248). Pedidos: Rascunhos (n) sem
+  frase; a contagem é **"Total R$ 8.420"**. Cada pedido tem 2 linhas: cliente ··· total (Archivo 15/700) e **"hoje 05:55"** ···
+  selo. Na busca pelo número, o `Nº 000013` destacado entra no lugar da hora. No Gestão, o vendedor entra no lugar da hora. O
+  motivo da recusa fica no detalhe, na área Alertas (RN-VEN-42). O selo por linha **continua**.
 
 ### 4.1 Sinal, servidor e fila na tela Pedidos (RD-0076, R-20261110-104300; 10/11)
 Regra: "uma informação, um lugar" e "nenhum aviso solto" (RN-VEN-42). A lista não tem área Alertas (os Alertas são do pedido);
