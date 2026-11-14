@@ -206,3 +206,42 @@ describe('comum.mjs: ambiente do eas (v1.0.1)', () => {
     expect(ambienteDoEas({ EAS_SKIP_AUTO_FINGERPRINT: '0' }).EAS_SKIP_AUTO_FINGERPRINT).toBe('0');
   });
 });
+
+describe('eas-build.yml: workflow do EAS sem o PC (Oficial v1.0.7)', () => {
+  const yml = readFileSync(new URL('./eas-build.yml', import.meta.url), 'utf8');
+  const blocoOn = /^on:\n([\s\S]*?)^\S/m.exec(yml)?.[1] ?? '';
+
+  it('só manual: on com workflow_dispatch e nenhum outro gatilho', () => {
+    expect(blocoOn).toMatch(/^ {2}workflow_dispatch:/m);
+    expect(blocoOn.match(/^ {2}\S[^:]*:/gm)).toEqual(['  workflow_dispatch:']);
+    for (const g of ['pull_request', 'pull_request_target', 'push', 'schedule', 'workflow_run']) expect(yml).not.toMatch(new RegExp(`^\\s*${g}:`, 'm'));
+  });
+
+  it('permissions só de leitura', () => {
+    expect(yml).toMatch(/^permissions:\n {2}contents: read\n/m);
+    expect(yml).not.toMatch(/:\s*write\b/);
+  });
+
+  it('EXPO_TOKEN ausente dá a mensagem do passo a passo e o eas roda sem perguntar e sem esperar', () => {
+    expect(yml).toContain('Crie o secret EXPO_TOKEN em Settings → Secrets and variables → Actions');
+    expect(yml).toContain('--non-interactive --no-wait');
+  });
+
+  it('cada perfil do formulário vira o canal do build.mjs e perfis existentes do eas.json', () => {
+    const opcoes = /perfil:[\s\S]*?options: \[([^\]]+)\]/.exec(yml)?.[1]?.split(',').map((s) => s.trim());
+    expect(opcoes).toEqual(['producao', 'preview', 'desenvolvimento']);
+    const esperado: Record<string, [string, string[]]> = {
+      producao: ['oficial', ['campo-producao', 'gestao-producao']],
+      preview: ['demo', ['campo-preview', 'gestao-preview']],
+      desenvolvimento: ['dev', ['campo', 'gestao']],
+    };
+    for (const opcao of opcoes ?? []) {
+      const [canal, perfis] = esperado[opcao] ?? ['', []];
+      expect(yml).toContain(`${opcao}) CANAL=${canal} ;;`);
+      const builds = planoDeBuild(['ambos', canal, '--', '--non-interactive', '--no-wait'], versaoAtual()).builds;
+      expect(builds.map((b) => b.perfilEas)).toEqual(perfis);
+      for (const b of builds) expect(eas.build[b.perfilEas], b.perfilEas).toBeDefined();
+    }
+    expect(yml).toContain('ambas) VARIANTE=ambos ;;');
+  });
+});
