@@ -1,6 +1,7 @@
 'use client';
 
 import { cloneElement, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { CLASSES_DESTAQUE } from './cores';
 import { ehMensagemTecnica, MENSAGEM_ERRO_PADRAO, mensagemParaTela } from './erros';
 import { IconAlert, IconBusca, IconCheck, IconInfo } from './icons';
 import { estiloDaTabela, tabelaPronta } from './tabela';
@@ -55,7 +56,7 @@ export function SelectField({ label, children, className, ...rest }: SelectHTMLA
     <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
       {label}
       <select
-        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink disabled:opacity-60', className)}
+        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink disabled:opacity-60', CLASSES_DESTAQUE.foco, className)}
         {...rest}
       >
         {children}

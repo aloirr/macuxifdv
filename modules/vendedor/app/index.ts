@@ -8,8 +8,8 @@ import type { AbaCliente, AcaoCliente, CardInicio, ContextoCliente } from '@macu
 import { CardsPedidosInicio } from './components/cards-inicio';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
 import { etapasVendedor } from './etapas';
-import { deixarProdutoPendente, pegarOrigemEditor } from './lib/produto-pendente';
-import { irParaNovoPedido } from './rotas';
+import { irParaAdicionarAoOrcamento, irParaNovoPedido } from './rotas';
+import AdicionarAoOrcamentoScreen from './screens/adicionar-ao-orcamento-screen';
 import NewOrderScreen from './screens/new-order-screen';
 import OrderDetailScreen from './screens/order-detail-screen';
 import OrdersScreen from './screens/orders-screen';
@@ -32,6 +32,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', ordem: 40, perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrdersScreen },
     { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrderDetailScreen },
     { id: 'rascunhos', caminho: 'rascunhos', titulo: 'Rascunhos', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: RascunhosScreen },
+    { id: 'adicionar-ao-orcamento', caminho: 'adicionar-ao-orcamento', titulo: 'Adicionar ao orçamento', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo'], componente: AdicionarAoOrcamentoScreen },
     { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: NewOrderScreen },
   ],
   entidadesSync: ENTIDADES_VENDEDOR,
@@ -65,25 +66,18 @@ export const moduloApp = definirModuloShell<ComponentType>({
         abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined }),
       } satisfies AcaoCliente,
     },
-    // T-0052: o Catálogo oferece produto.acoes; o promotor não vê (acao pedido.criar, regra 7). Sem cliente em contexto, o novo pedido abre o seletor.
+    // R-20261114-151000: o Catálogo é só consulta e não cria nem edita pedido. A ação do Vendedor é "Adicionar ao orçamento":
+    // abre a folha com os orçamentos em aberto do vendedor. O promotor não vê (acao pedido.criar, regra 7).
     {
       slot: 'produto.acoes',
-      id: 'adicionar-ao-pedido',
+      id: 'adicionar-ao-orcamento',
       acao: 'pedido.criar',
       apps: ['campo'],
       payload: {
-        rotulo: 'Adicionar ao pedido',
-        testID: 'produto-adicionar',
+        rotulo: 'Adicionar ao orçamento',
+        testID: 'produto-adicionar-orcamento',
         icone: 'plus',
-        destaque: true,
-        abrir: (ctx) => {
-          // o produto fica pendente em memória (consumido uma vez pelo editor); a URL é a do pedido, sem produtoId
-          // se o Catálogo foi aberto de dentro de um editor (pedido novo, edição ou ficha), volta a essa mesma URL: o shell
-          // volta até a entrada da pilha, sem editor duplicado, e o item vai para aquele pedido
-          const origem = pegarOrigemEditor(ctx.clienteId);
-          deixarProdutoPendente({ produtoId: ctx.produtoId, clienteId: ctx.clienteId ?? null, editId: origem?.editId ?? null });
-          irParaNovoPedido(origem ?? { customerId: ctx.clienteId ?? undefined });
-        },
+        abrir: (ctx) => irParaAdicionarAoOrcamento(ctx.produtoId, ctx.nomeProduto),
       } satisfies AcaoProduto,
     },
     // T-0085 (RF-GES-05, RN-VEN-35): o Gestor abre o novo pedido pelo vendedor da equipe/área. Só supervisor e gerente

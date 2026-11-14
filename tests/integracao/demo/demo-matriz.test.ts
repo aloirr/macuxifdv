@@ -16,7 +16,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { dadosDemo } from '@macuxi/db/teste';
-import type { CustomerSummary } from '@macuxi/core/contracts';
+import { LicencasEstadoSchema, PerfilListaRespostaSchema, UsuarioListaRespostaSchema, type CustomerSummary } from '@macuxi/core/contracts';
 import { mensagemPerfilForaDoApp, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fazerCheckin, fazerCheckout, type ContextoAcao } from '../../../modules/core/app/lib/acoes-visita';
@@ -27,6 +27,7 @@ import { armazemDe } from '../../../modules/core/app/lib/estado';
 import { entrarComSenha } from '../../../modules/core/app/lib/login';
 import { painelLocal } from '../../../modules/core/app/lib/metas-local';
 import { contarNaoLidas, montarCaixa } from '../../../modules/core/app/lib/notificacoes';
+import { efetivosPelasDependencias } from '../../../modules/core/domain/licencas';
 import { etapasVendedor } from '../../../modules/vendedor/app/etapas';
 import { buildOrderPdfHtml, pdfDoPedido, type OrderPdfOrder } from '../../../modules/vendedor/app/lib/order-pdf';
 import { detalheDoPedido, lerLinhas, listaDeClientes, listaDePedidos, paraAprovar, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
@@ -475,7 +476,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       ['D-B06 Motivos', '/v1/core/motivos', 'analista'],
       ['D-B07 Coordenadas sugeridas', '/v1/core/coordenadas-sugeridas', 'analista'],
       ['D-B08 Aparelhos', '/v1/core/dispositivos', 'admin'],
-      ['D-B09 Usuários e módulos', '/v1/core/licencas', 'admin'],
+      ['D-B09 Usuários e módulos (por URL, fora do menu)', '/v1/core/licencas', 'admin'],
       ['D-B10 Rotas (lista da semana)', `/v1/core/rotas?de=HOJE&ate=HOJE`, 'analista'],
       ['D-B11 Lista de pedidos da API nova (página Pedidos)', '/v1/vendedor/pedidos', 'analista'],
       ['D-B11 Lista de pedidos da API nova (admin, T-0029 §7)', '/v1/vendedor/pedidos', 'admin'],
@@ -488,6 +489,41 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
         expect(r.status, JSON.stringify(r.corpo)).toBe(200);
       });
     }
+
+    it('Acesso (RN-CORE-01): pela API real, o usuário só tem módulo do perfil (core à parte) e a exceção só remove', async () => {
+      const r = await api.get(token.admin, '/v1/core/licencas');
+      expect(r.status, JSON.stringify(r.corpo)).toBe(200);
+      const estado = LicencasEstadoSchema.parse(r.corpo);
+      const ativosNoTenant = estado.modulos.filter((m) => estado.tenant[m]);
+      expect(estado.usuarios.length, 'usuários na tela de licenças').toBeGreaterThan(0);
+      for (const u of estado.usuarios) {
+        const doPerfil = estado.perfis[u.perfil] ?? [];
+        const base = { modulos: estado.modulos, dependencias: estado.dependencias, ativosNoTenant, doPerfil };
+        const comExcecao = efetivosPelasDependencias({ ...base, removidosDoUsuario: u.removidos });
+        const semExcecao = efetivosPelasDependencias({ ...base, removidosDoUsuario: [] });
+        expect(comExcecao.filter((m) => m !== 'core' && !doPerfil.includes(m)), `${u.email}: módulo fora do perfil ${u.perfil}`).toEqual([]);
+        expect(comExcecao.filter((m) => !semExcecao.includes(m)), `${u.email}: a exceção acrescentou módulo`).toEqual([]);
+        expect(comExcecao, `${u.email}: o core nunca sai`).toContain('core');
+      }
+    });
+
+    it('Acesso — Perfis de acesso: a contagem de usuários de cada perfil = a lista de Usuários filtrada pelo perfil', async () => {
+      const rp = await api.get(token.admin, '/v1/core/perfis');
+      expect(rp.status, JSON.stringify(rp.corpo)).toBe(200);
+      const ru = await api.get(token.admin, '/v1/core/usuarios');
+      expect(ru.status, JSON.stringify(ru.corpo)).toBe(200);
+      const perfis = PerfilListaRespostaSchema.parse(rp.corpo).itens;
+      // a lista sem filtro traz ativos e inativos; a API de perfis conta por usuario_perfil, inclusive inativos
+      const usuarios = UsuarioListaRespostaSchema.parse(ru.corpo).itens;
+      expect(perfis.length).toBeGreaterThan(0);
+      for (const p of perfis) {
+        const naLista = usuarios.filter((u) => u.perfis.some((x) => x.codigo === p.codigo)).length;
+        expect(p.usuarios, `${p.codigo}: contagem × lista de Usuários`).toBe(naLista);
+        const filtrada = await api.get(token.admin, `/v1/core/usuarios?perfil=${encodeURIComponent(p.codigo)}`);
+        expect(filtrada.status, JSON.stringify(filtrada.corpo)).toBe(200);
+        expect(p.usuarios, `${p.codigo}: contagem × GET /v1/core/usuarios?perfil=`).toBe(listaDe(filtrada.corpo).length);
+      }
+    });
 
     it('D-B12 Cliente 360 do BKO: GET /v1/core/clientes/:id de um cliente do Lucas responde 200 com títulos e contatos', async () => {
       const lista = listaDe((await api.get(token.analista, `/v1/core/usuarios/${usuarioId.vendedor}/clientes`)).corpo) as Array<{ cliente_id?: string; id?: string }>;

@@ -14,17 +14,33 @@ import { cardsDeProdutividade, cardsDeResultados, type CardProdutividade, type C
 
 // ---------- painel do topo ----------
 
-/** RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". */
+/** Espaço que não quebra a linha: "DU 9 de 20" e "Últ. sincronização" nunca se partem no meio. */
+const NBSP = '\u00a0';
+const semQuebra = (texto: string): string => texto.replace(/ /g, NBSP);
+
+/**
+ * RN-CORE-43: "Quinta, 12 de novembro · DU 9 de 20"; em dia não útil, "Domingo, 15 de novembro · Não é dia útil". O "·" e o trecho
+ * depois dele não quebram: se não couberem na linha, descem juntos (o "·" não fica pendurado no fim).
+ */
 export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' | 'du_total'>): string {
   const [, mes, dia] = hoje.split('-').map(Number);
   const semana = new Date(`${hoje}T12:00:00Z`).getUTCDay();
   const data = `${WEEKDAYS[semana]}, ${dia} de ${MONTHS[(mes ?? 1) - 1]}`;
-  return `${data} · ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`;
+  return `${data} ${semQuebra(`· ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`)}`;
 }
 
-/** "Boa tarde" + "Lucas Andrade" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
+/** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */
+export function primeiroNome(nomeCompleto: string): string {
+  const primeira = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  return primeira
+    .split('-')
+    .map((parte) => (parte ? parte.charAt(0).toLocaleUpperCase('pt-BR') + parte.slice(1).toLocaleLowerCase('pt-BR') : parte))
+    .join('-');
+}
+
+/** "Boa tarde" + "LUCAS ANDRADE" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
 export function saudacaoComNome(saudacao: string, nomeCompleto: string): string {
-  const primeiro = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  const primeiro = primeiroNome(nomeCompleto);
   return primeiro ? `${saudacao}, ${primeiro}` : saudacao;
 }
 
@@ -67,7 +83,7 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
       const col = card.colunas.find((x) => x.rotulo === 'Meta/dia' || x.rotulo === 'Meta/pedido');
       return {
         indicador: card.indicador,
-        titulo: card.titulo,
+        titulo: card.indicador === 'itens_por_pedido' ? 'Itens/pedido' : card.titulo,
         real: card.real,
         meta: card.meta,
         percentual: r.atingimento_pb === null || card.atingimento === null ? null : `${Math.round(r.atingimento_pb / 100)}%`,
@@ -83,10 +99,10 @@ export function cardsDeMetasDoMes(itens: readonly ResultadoIndicador[], c: Conte
 
 /** Os 6 do Início, na ordem da imagem aprovada (3 colunas × 2 linhas) e com o nome curto. */
 const DO_INICIO: ReadonlyArray<{ indicador: IndicadorProdutividade; titulo: string }> = [
-  { indicador: 'jornada_liquida', titulo: 'Jornada líquida' },
+  { indicador: 'jornada_liquida', titulo: 'Jornada' },
   { indicador: 'primeiro_checkin', titulo: '1º check-in' },
   { indicador: 'almoco', titulo: 'Almoço' },
-  { indicador: 'ultimo_checkin', titulo: 'Último check-in' },
+  { indicador: 'ultimo_checkin', titulo: 'Últ. check-in' },
   { indicador: 'fora_rota', titulo: 'Fora de rota' },
   { indicador: 'tma', titulo: 'TMA' },
 ];
@@ -123,7 +139,7 @@ export function contarSino(itens: readonly ItemParaContar[]): ContagemSino {
   return { recados, tarefas, total: recados + tarefas };
 }
 
-/** "Últ. sincronização 20:22" no fuso do tenant; nunca sincronizou: null. */
+/** "Últ. sincronização" e, na linha de baixo, "20:22" no fuso do tenant (ao lado do Sincronizar, em 2 linhas); nunca sincronizou: null. */
 export function textoUltimaSincronizacao(sincronizadoEm: string | null | undefined, fuso: string): string | null {
-  return sincronizadoEm ? `Últ. sincronização ${formatHHMM(sincronizadoEm, fuso)}` : null;
+  return sincronizadoEm ? `${semQuebra('Últ. sincronização')}\n${formatHHMM(sincronizadoEm, fuso)}` : null;
 }

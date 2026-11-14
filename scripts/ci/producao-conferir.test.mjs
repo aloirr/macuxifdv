@@ -69,20 +69,20 @@ test('conferir: cada falha vira erro e para antes do passo seguinte', () => {
   assert.match(conferir({ ...ALVO, sha: 'abc' }, execFalso().exec).erro, /SHA inválido/);
 });
 
-test('workflows: os dois usam a mesma conferência; liberar cria a tag e dispara o publicar na tag', () => {
+test('workflows: liberar, aprovar e publicar usam a mesma conferência; só o aprovar cria a tag e dispara o publicar', () => {
   const pub = ler('.github/workflows/producao-publicar.yml');
   const lib = ler('.github/workflows/producao-liberar.yml');
+  const apr = ler('.github/workflows/producao-aprovar.yml');
   assert.match(pub, /^ {2}workflow_dispatch:/m);
   assert.match(pub, /producao-conferir\.mjs ref/);
   assert.match(pub, /producao-conferir\.mjs conferir/);
-  assert.doesNotMatch(pub, /actions\/workflows\/ci\.yml\/runs/, 'conferência duplicada no publicar');
   assert.match(pub, /name: PRODUCAO/);
-  assert.match(lib, /producao-conferir\.mjs entrada/);
-  assert.match(lib, /producao-conferir\.mjs conferir/);
-  assert.match(lib, /contents: write/);
-  assert.match(lib, /actions: write/);
-  assert.match(lib, /gh workflow run producao-publicar\.yml -R "\$GITHUB_REPOSITORY" --ref "\$VERSAO"/);
-  assert.doesNotMatch(lib, /environment:/, 'o liberar não aprova nada: a aprovação é só no PRODUCAO do publicar');
-  for (const linha of lib.split('\n').filter((l) => /^\s+(run:|gh |\[\[)/.test(l)))
-    assert.doesNotMatch(linha, /\$\{\{/, `interpolação no shell: ${linha.trim()}`);
+  for (const wf of [lib, apr]) {
+    assert.match(wf, /producao-conferir\.mjs entrada/);
+    assert.match(wf, /producao-conferir\.mjs conferir/);
+    assert.doesNotMatch(wf, /environment:/, 'liberar e aprovar não usam o PRODUCAO: os segredos ficam só no publicar');
+  }
+  for (const wf of [pub, lib, apr]) assert.doesNotMatch(wf, /actions\/workflows\/ci\.yml\/runs/, 'conferência duplicada fora do script');
+  assert.match(apr, /gh workflow run producao-publicar\.yml -R "\$GITHUB_REPOSITORY" --ref "\$VERSAO"/);
+  assert.doesNotMatch(lib, /gh workflow run|git\/refs|contents: write|actions: write/, 'o liberar para na issue: sem tag e sem disparo');
 });
