@@ -9,6 +9,7 @@
  *   5) id do usuário.
  * Quem não tem dado no período (valor `null`) vai ao fim, sem posição, em ordem de nome e id. Valor 0 é dado.
  */
+import { ROTULO_INDICADOR_META } from '@macuxi/core/contracts';
 import type { IndicadorRanking, MembroEquipe, PeriodoRanking, RankingEquipe, LinhaRanking } from '../contracts';
 import { escopoDoUsuario, podeVer } from './equipe';
 import { exigirDataCivil } from '@macuxi/comum';
@@ -29,12 +30,12 @@ export interface DefinicaoIndicador {
 }
 
 export const INDICADORES: Readonly<Record<IndicadorRanking, DefinicaoIndicador>> = {
-  vendas_cents: { rotulo: 'Vendas', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
+  vendas_cents: { rotulo: ROTULO_INDICADOR_META.venda_cents, sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
   pedidos: { rotulo: 'Pedidos', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
   positivados: { rotulo: 'Clientes positivados', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
   ticket_medio_cents: { rotulo: 'Ticket médio', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
   atingimento_meta_pct: { rotulo: 'Atingimento da meta (mensal)', sentido: 'maior', perfis: ['vendedor'], modulo: 'vendedor' },
-  cobertura_pct: { rotulo: 'Cobertura de rota', sentido: 'maior', perfis: ['vendedor', 'promotor'], modulo: 'core' },
+  cobertura_pct: { rotulo: ROTULO_INDICADOR_META.cobertura_pct, sentido: 'maior', perfis: ['vendedor', 'promotor'], modulo: 'core' },
   conformidade_pct: { rotulo: 'Conformidade de gôndola', sentido: 'maior', perfis: ['promotor'], modulo: 'promotor' },
   ruptura_pct: { rotulo: 'Ruptura', sentido: 'menor', perfis: ['promotor'], modulo: 'promotor' },
 };
