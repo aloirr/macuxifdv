@@ -898,3 +898,35 @@ o tenant (gatilho da 0065). O ensaio é respeitado (cancelamento, conclusão, le
 
 Volta: `0066_core_meta_produtividade.down.sql` apaga as 2 tabelas, a função do gatilho de alvo e, em `core.meta`, as metas `itens_por_pedido` (DELETE
 físico; reaplicar não as devolve) e volta o CHECK aos 4 indicadores da 0006. Teste: `db/testes/t0170-meta-produtividade.db.test.ts`.
+
+## 0067 — resumo de visitas por cliente (`0067_core_cliente_visita_resumo`; Oficial, decisão do dono do produto de 14/11/2026, aba Performance da ficha do cliente)
+Aditiva: 1 view e 2 índices em `core.visita`; nenhuma tabela nem coluna nova. A view é `security_invoker = true` (pg15+): roda
+com o papel de quem consulta, então valem as políticas `isolamento_tenant` (FORCE RLS) de `core.visita` e `core.usuario`.
+`macuxi_app`: só select. `macuxi_worker`: sem acesso.
+
+### v_cliente_visita_resumo — total de visitas e última visita do cliente. Uma linha por (tenant, cliente) com ao menos uma visita
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `cliente_id`, `tenant_id` | uuid | o cliente da visita |
+| `total_visitas` | integer | visitas **concluídas**: `deleted_at` nulo, `checkout_em` não nulo e `resultado <> 'nao_finalizado'` (o fechamento automático da virada do dia, RN-CORE-11, não é check-out real). `cliente_fechado` conta |
+| `ultima_visita_em` | timestamptz (UTC) | `checkin_em` da concluída mais recente (empate: maior `id`); nulo sem concluída |
+| `ultima_visita_usuario_id` | uuid | quem fez essa visita |
+| `ultima_visita_usuario_nome` | text | `core.usuario.nome` dele (anonimizado pela LGPD aparece anonimizado) |
+| `updated_at` | timestamptz | cursor do sync: o maior entre o `updated_at` de **todas** as visitas do cliente (inclusive apagadas e abertas, para o apagamento chegar ao aparelho) e o do usuário da última visita (troca de nome) |
+
+- Cliente cuja única visita foi apagada (ou só tem visita aberta / `nao_finalizado`) fica com `total_visitas = 0` e a última nula;
+  cliente sem visita nenhuma **não tem linha** (o app lê como 0).
+- Índices: `visita_cliente_resumo_ix (tenant_id, cliente_id, checkin_em desc, id desc) include (usuario_id)` parcial nas
+  concluídas (contagem e última visita) e `visita_cliente_sync_ix (tenant_id, cliente_id, updated_at)` (o `max(updated_at)`
+  por cliente).
+- **Consulta recomendada para o pull** (sempre com a carteira; nunca a view inteira do tenant):
+  `select cliente_id, total_visitas, ultima_visita_em, ultima_visita_usuario_id, ultima_visita_usuario_nome, updated_at
+  from core.v_cliente_visita_resumo where cliente_id = any($carteira) and updated_at > $cursor order by updated_at, cliente_id`.
+  Linha sem `id` próprio: a chave no aparelho é `cliente_id`; o desempate do cursor é `cliente_id`.
+- Volume: o de `core.visita` (~1 por cliente por semana); a view devolve no máximo 1 linha por cliente.
+
+Demo (`db/seeds/demo/demo.ts`): todo cliente ganha a visita histórica `v-hist:<n>` do dono da carteira (`sem_pedido`, motivo
+padrão `estoque_alto`/`comprador_ausente`), entre 54 e 60 dias úteis atrás (antes do mês anterior: metas e realizados não mudam).
+
+Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (nenhum dado se perde). Volte antes o Core que lê
+a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.

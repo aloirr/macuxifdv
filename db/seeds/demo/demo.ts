@@ -11,7 +11,8 @@
  *   R-20261107-174523); a carga deixa a senha definitiva (0040: trocar_senha falso, sem temporária).
  *   Equipes: "Regional Norte" (gerente) é pai da "Equipe Manaus" (supervisora): o gerente vê a equipe (RN-CORE-04).
  * - 30 clientes de Manaus (endereço, bairro, coordenadas), contato principal com telefone fictício, financeiro e
- *   títulos (8 com título vencido, 1 bloqueado), 12 meses de histórico, pedidos em vários estados e visitas passadas.
+ *   títulos (8 com título vencido, 1 bloqueado), 12 meses de histórico, pedidos em vários estados e visitas passadas (0067:
+ *   todo cliente com ao menos uma visita concluída, a histórica `v-hist:<n>` do dono da carteira).
  * - T-0029 (fatia do pedido): tabelas de preço "Varejo" (todos os produtos) e "Atacado" (~7% menor, SEM 3 produtos:
  *   "Sem preço para este cliente", RN-CAT-06), uma por cliente (supermercado e atacarejo no Atacado), vigência desde o
  *   1º dia do mês anterior; condições À vista (padrão), 28 dias, 28/56 e 30/60/90 (cliente com título vencido só À vista
@@ -672,6 +673,14 @@ const VISITAS_SEM_PEDIDO: Array<[string, ChaveUsuario, number, number, 'sem_pedi
   ['v-pr2', 'promotor', 4, 1, 'atendido', null],
 ];
 
+/**
+ * 0067 (Oficial, 14/11/2026): visita histórica de TODO cliente pelo dono da carteira, para a aba Performance da ficha mostrar o
+ * total de visitas e quem visitou por último (core.v_cliente_visita_resumo). 'sem_pedido' com motivo padrão, entre 54 e 60 dias
+ * úteis atrás (antes do mês anterior: não mexe em metas nem realizados; depois do início da base do gestor.ts). Chave `v-hist:<n>`.
+ */
+const VISITA_HISTORICA_DIAS = [54, 55, 56, 57, 58, 59, 60] as const;
+const MOTIVOS_VISITA_HISTORICA: readonly CodigoMotivoPadrao[] = ['estoque_alto', 'comprador_ausente'];
+
 /** Motivos além dos padrões do gatilho core.semear_tenant (RN-CORE-14). */
 const MOTIVOS_EXTRAS: Array<[string, string, string, number]> = [
   ['nao_venda', 'mix_completo', 'Cliente com mix completo', 20],
@@ -1063,6 +1072,12 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     const data = diasUteisAtras(hoje, atras);
     visitas.push(visita(chave, quem, n, data, '15:20', resultado, motivo ? { motivo_id: idMotivoPadrao(T, motivo) } : {}));
   }
+  CLIENTES.forEach(([, , , , dono], n) => {
+    const data = diasUteisAtras(hoje, VISITA_HISTORICA_DIAS[n % VISITA_HISTORICA_DIAS.length]!);
+    const hora = `${String(8 + 2 * Math.floor(n / VISITA_HISTORICA_DIAS.length)).padStart(2, '0')}:10`;
+    const motivo = MOTIVOS_VISITA_HISTORICA[n % MOTIVOS_VISITA_HISTORICA.length]!;
+    visitas.push(visita(`v-hist:${n}`, dono, n, data, hora, 'sem_pedido', { motivo_id: idMotivoPadrao(T, motivo) }));
+  });
 
   const indicadores: Linha[] = [...diario.values()].map((d) => ({
     id: id(`indicador_diario:${d.chave}`), tenant_id: T, usuario_id: u(d.usuario), data: d.data, pedidos: d.pedidos,
