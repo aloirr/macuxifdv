@@ -4,7 +4,7 @@
  *
  * Para cada número: a RN que o define, um ORÁCULO escrito aqui a partir do texto da RN (nunca a função testada) e o valor
  * que a tela recebe da lib/domain do dono, com dia útil, dia não útil, virada de mês e fuso de Manaus quando se aplicam.
- * Telas cobertas: Início do Campo (linhas de Visitas, Positivação e Cobertura; cards Orçamentos e A faturar), Metas do Campo
+ * Telas cobertas: Início do Campo (linhas de Visitas, Positivação e Cobertura), cards da tela Pedidos (RN-VEN-43), Metas do Campo
  * ("Indicadores do mês"), Indicadores do BKO (mesmo texto do app), Ficha do vendedor e painel do Gestor (painelDoMes /
  * faturamento) e Ranking.
  *
@@ -22,8 +22,10 @@ import { CLIENTE_A, CLIENTE_B, meta as metaGestor, pedidoCriado, statusAlterado,
 import { faturamentoDoPeriodo, painelDoMes, vendasDoPeriodo } from '../../modules/gestor/domain/painel';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from '../../modules/gestor/domain/projecao';
 import { INDICADORES, rankingDaEquipe } from '../../modules/gestor/domain/ranking';
-import { linhaOrcamentos, resumoDoInicio, textoCartaoAFaturar } from '../../modules/vendedor/app/lib/resumo-inicio';
+import { localIsoDate } from '@macuxi/comum/fuso';
+import { textoDoCard } from '../../modules/vendedor/app/lib/cards-pedidos';
 import type { PedidoDaLista } from '../../modules/vendedor/app/lib/pedidos';
+import { resumoDePedidos } from '../../modules/vendedor/domain/resumo-pedidos';
 
 // ---------- oráculos (texto da RN, independentes do código) ----------
 const SEG_A_SAB = [1, 2, 3, 4, 5, 6]; // RN-CORE-26: calendário do tenant [`metas.dias_uteis_semana` = segunda a sábado]
@@ -147,43 +149,84 @@ describe('T-0124 — Início do Campo: linhas de Visitas, Positivação e Cobert
   });
 });
 
-describe('T-0124 — cards Orçamentos e A faturar do Início (RN-VEN-18, RN-VEN-30)', () => {
-  const doc = (o: Partial<PedidoDaLista> & { total_cents: number }): PedidoDaLista =>
-    ({ id: id(Math.floor(Math.random() * 1e6)), seller_id: ANA, tipo: 'pedido', status: 'approved', local: false, local_error: '', convertido_pedido_id: null, validade_data: null, validade_ate: null, received_at: null, ...o }) as unknown as PedidoDaLista;
-  const pedidos = [
-    doc({ tipo: 'orcamento', status: 'received', total_cents: 100_000, validade_data: '2026-11-08' }),
-    doc({ tipo: 'orcamento', status: 'received', total_cents: 15_000, validade_data: '2026-11-09' }),
-    doc({ tipo: 'orcamento', status: 'cancelled', total_cents: 70_000, validade_data: '2026-11-30' }),
-    doc({ status: 'pending_approval', total_cents: 50_000 }),
-    doc({ status: 'integrated', total_cents: 248_000 }),
-    doc({ status: 'invoiced', total_cents: 900_000 }),
-    doc({ status: 'cancelled', total_cents: 300_000 }),
-    doc({ status: 'queued', total_cents: 11_000, local: true }),
-    doc({ status: 'approved', total_cents: 77_700, seller_id: id(2) }),
+describe('T-0124 — cards de Pedidos: Orçamentos, Enviados e Total (RN-VEN-43, RN-VEN-18, RN-VEN-30)', () => {
+  // O cartão do Início (Orçamentos / A faturar) saiu (RD-0247/RD-0248); os números foram para os 3 cards da tela Pedidos.
+  type Doc = PedidoDaLista & { emitido_em: string };
+  let n = 0;
+  const doc = (o: Partial<Doc> & { total_cents: number; emitido_em: string; /** campo estranho: o card nunca soma frete */ frete_cents?: number }): Doc =>
+    ({ id: id(5000 + n++), seller_id: ANA, tipo: 'pedido', status: 'approved', local: false, local_error: '', convertido_pedido_id: null, frete_cents: 0, ...o }) as unknown as Doc;
+  const docs: Doc[] = [
+    doc({ tipo: 'orcamento', status: 'received', total_cents: 100_000, emitido_em: '2026-11-08T15:00:00Z' }),
+    doc({ tipo: 'orcamento', status: 'received', total_cents: 15_000, emitido_em: '2026-11-09T15:00:00Z' }),
+    doc({ tipo: 'orcamento', status: 'cancelled', total_cents: 70_000, emitido_em: '2026-11-09T15:00:00Z' }),
+    doc({ tipo: 'orcamento', status: 'received', total_cents: 33_000, emitido_em: '2026-11-09T15:00:00Z', convertido_pedido_id: id(4999) }),
+    doc({ status: 'received', total_cents: 12_000, emitido_em: '2026-11-02T15:00:00Z' }),
+    doc({ status: 'pending_approval', total_cents: 50_000, emitido_em: '2026-11-09T15:00:00Z' }),
+    doc({ status: 'integrated', total_cents: 248_000, frete_cents: 9_900, emitido_em: '2026-11-10T13:00:00Z' }),
+    doc({ status: 'invoiced', total_cents: 900_000, emitido_em: '2026-11-03T15:00:00Z' }),
+    doc({ status: 'rejected', total_cents: 41_000, emitido_em: '2026-11-04T15:00:00Z' }),
+    doc({ status: 'cancelled', total_cents: 300_000, emitido_em: '2026-11-05T15:00:00Z' }),
+    doc({ status: 'queued', total_cents: 11_000, local: true, emitido_em: '2026-11-10T13:00:00Z' }),
+    // virada de mês no fuso de Manaus: 31/10 22h em Manaus = 01/11 02h UTC → é de outubro
+    doc({ status: 'approved', total_cents: 7_000, emitido_em: '2026-11-01T02:00:00Z' }),
+    doc({ status: 'approved', total_cents: 77_700, seller_id: id(2), emitido_em: '2026-11-10T13:00:00Z' }),
   ];
-  // RN-VEN-18 (09/11): o resumo não depende mais da hora (o orçamento não vence); `agora` fica no nome dos casos para provar isso
-  const resumo = (_agora: string) => resumoDoInicio(pedidos, { vendedorId: ANA, preVendaLigada: true });
 
-  // RN-VEN-18 mudou em 09/11 (dono do produto, R-20261109-064818; T-0141): o orçamento NÃO expira; os 7 dias limitam só o preço
-  // congelado. Antes O1/O2 conferiam a validade ("vence amanhã" e o de 08/11 saindo na virada); agora o card conta todo orçamento
-  // aberto (cancelado e convertido ficam fora), a qualquer hora, e a linha não fala em vencimento.
-  it('O1. RN-VEN-18 (09/11): orçamento aberto conta em qualquer dia, inclusive o de preço de 08/11; a linha não fala em vencimento', () => {
-    const r = resumo('2026-11-09T03:30:00Z');
-    expect(r.orcamentos).toMatchObject({ quantidade: 2, valor_cents: 115_000 });
-    expect(limpo(linhaOrcamentos(r.orcamentos!))).toMatch(/^R\$ 1\.150/);
-    expect(limpo(linhaOrcamentos(r.orcamentos!))).not.toMatch(/venc/i);
+  // ---------- oráculo (texto da RN-VEN-43, sem chamar a função testada) ----------
+  // Enviados: do "Enviado" do histórico (RN-VEN-30) em diante — fora rascunho, na fila (local), recusado e cancelado.
+  const ENVIADO_PELA_RN = ['received', 'pending_approval', 'approved', 'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced'];
+  // Orçamento em aberto (RN-VEN-18): não cancelado e não convertido, a qualquer tempo.
+  const ehOrcAberto = (d: Doc) => d.tipo === 'orcamento' && d.status !== 'cancelled' && !d.convertido_pedido_id;
+  const ehEnviado = (d: Doc) => d.tipo !== 'orcamento' && !d.local && ENVIADO_PELA_RN.includes(d.status);
+  /** valor em total_cents (sem frete); período pela data de EMISSÃO no fuso do tenant; filtro de vendedor opcional. */
+  const oraculo = (de: string, ate: string, vendedor?: string) => {
+    const soma = (f: (d: Doc) => boolean) => {
+      const l = docs.filter((d) => f(d) && (!vendedor || d.seller_id === vendedor) && localIsoDate(d.emitido_em, FUSO) >= de && localIsoDate(d.emitido_em, FUSO) <= ate);
+      return { quantidade: l.length, valor_cents: l.reduce((t, d) => t + d.total_cents, 0) };
+    };
+    const orcamentos = soma(ehOrcAberto);
+    const enviados = soma(ehEnviado);
+    return { orcamentos, enviados, total: { quantidade: orcamentos.quantidade + enviados.quantidade, valor_cents: orcamentos.valor_cents + enviados.valor_cents } };
+  };
+  const NOV = { periodo: { tipo: 'mes', valor: '2026-11' }, tz: FUSO } as const;
+
+  it('C1. mês de novembro, só a Ana: o valor de cada card = o oráculo da RN-VEN-43 (números conferidos à mão)', () => {
+    const r = resumoDePedidos(docs, { ...NOV, vendedorId: ANA });
+    expect(r).toEqual(oraculo('2026-11-01', '2026-11-30', ANA));
+    // à mão: orçamentos 1.000 + 150 (cancelado e convertido fora); enviados 120 + 500 + 2.480 + 9.000 (recusado, cancelado, fila e outubro fora)
+    expect(r.orcamentos).toEqual({ quantidade: 2, valor_cents: 115_000 });
+    expect(r.enviados).toEqual({ quantidade: 4, valor_cents: 1_210_000 });
+    expect(r.total).toEqual({ quantidade: 6, valor_cents: 1_325_000 });
   });
 
-  it('O2. virada do dia em Manaus (09/11 00h30) e um mês depois: o mesmo total; cancelado nunca conta', () => {
-    for (const agora of ['2026-11-09T04:30:00Z', '2026-12-10T15:00:00Z']) expect(resumo(agora).orcamentos, agora).toMatchObject({ quantidade: 2, valor_cents: 115_000 });
+  it('C2. valor sem frete: o integrado de R$ 2.480 com R$ 99 de frete entra por R$ 2.480 (total_cents)', () => {
+    const r = resumoDePedidos(docs, { periodo: { tipo: 'dia', valor: '2026-11-10' }, tz: FUSO, vendedorId: ANA });
+    expect(r.enviados).toEqual({ quantidade: 1, valor_cents: 248_000 });
+    expect(r).toEqual(oraculo('2026-11-10', '2026-11-10', ANA));
   });
 
-  it('F1. A faturar (RN-VEN-30, decisão de 04/11): aguardando aprovação + aprovado/enviado/integrado do próprio vendedor; faturado, cancelado, na fila e de outro vendedor ficam fora', () => {
-    const r = resumo('2026-11-10T13:00:00Z');
-    expect(r.aFaturar).toEqual({ quantidade: 2, valor_cents: 298_000, aguardando_aprovacao: 1 });
-    // RD-0011 (08/11): o cartão traz a quantidade antes do valor; rótulo × valor: 2 pedidos somam R$ 2.980, 1 deles aguardando
-    expect(limpo(textoCartaoAFaturar(r.aFaturar))).toBe('2 · R$ 2.980 (1 aguardando aprovação)');
-    expect(textoCartaoAFaturar({ quantidade: 0, valor_cents: 0, aguardando_aprovacao: 0 })).toBe('nenhum');
+  it('C3. virada de mês no fuso de Manaus: o emitido 31/10 22h (01/11 02h UTC) é de outubro, não de novembro', () => {
+    expect(resumoDePedidos(docs, { periodo: { tipo: 'mes', valor: '2026-10' }, tz: FUSO, vendedorId: ANA }).enviados).toEqual({ quantidade: 1, valor_cents: 7_000 });
+    expect(resumoDePedidos(docs, { periodo: { tipo: 'dia', valor: '2026-11-01' }, tz: FUSO, vendedorId: ANA }).total).toEqual({ quantidade: 0, valor_cents: 0 });
+  });
+
+  it('C4. dia útil (seg 09/11) e dia não útil (dom 08/11): o card conta o que foi emitido naquele dia, sem regra de calendário', () => {
+    expect(resumoDePedidos(docs, { periodo: { tipo: 'dia', valor: '2026-11-09' }, tz: FUSO, vendedorId: ANA })).toEqual(oraculo('2026-11-09', '2026-11-09', ANA));
+    const dom = resumoDePedidos(docs, { periodo: { tipo: 'dia', valor: '2026-11-08' }, tz: FUSO, vendedorId: ANA });
+    expect(dom).toEqual({ orcamentos: { quantidade: 1, valor_cents: 100_000 }, enviados: { quantidade: 0, valor_cents: 0 }, total: { quantidade: 1, valor_cents: 100_000 } });
+  });
+
+  it('C5. Gestão sem filtro de vendedor soma a equipe (o aprovado de R$ 777 do outro vendedor entra)', () => {
+    const r = resumoDePedidos(docs, NOV);
+    expect(r).toEqual(oraculo('2026-11-01', '2026-11-30'));
+    expect(r.enviados.valor_cents - resumoDePedidos(docs, { ...NOV, vendedorId: ANA }).enviados.valor_cents).toBe(77_700);
+  });
+
+  it('C6. rótulo × valor: o card mostra "quantidade · valor" com o mesmo número do resumo; sem resposta, traço', () => {
+    const r = resumoDePedidos(docs, { ...NOV, vendedorId: ANA });
+    expect(limpo(textoDoCard(r.enviados))).toBe('4 · R$ 12.100,00');
+    expect(limpo(textoDoCard(r.orcamentos))).toBe('2 · R$ 1.150,00');
+    expect(textoDoCard(null)).toBe('—');
   });
 });
 

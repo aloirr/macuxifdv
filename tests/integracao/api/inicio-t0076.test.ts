@@ -6,16 +6,20 @@
  * 1. `GET /v1/core/inicio` (`core.inicio@1`, campo aditivo `equipe_nome`): cada um vê o nome da SUA equipe e só os números do
  *    seu escopo (vendedor = ele; supervisor = a equipe dele; gerente = as equipes abaixo; nunca o outro tenant). Promotor sem
  *    dado de pedido (venda e positivação nulas, meta só de visitas). Perfis sem Início (analista) = 403.
- * 2. Cards Orçamentos e A faturar: saem do APARELHO. O motor de sync real puxa os pedidos da carteira e o `resumoDoInicio` do
- *    Vendedor (a mesma função do card) conta só os do vendedor logado; o outro vendedor e o outro tenant ficam de fora.
+ * 2. Cards da tela Pedidos (RN-VEN-43; o cartão do Início saiu, RD-0247/RD-0248): saem do APARELHO. O motor de sync real puxa
+ *    os pedidos da carteira e o `resumoDePedidos` do Vendedor (a mesma função dos cards) soma, pela data de emissão no fuso do
+ *    tenant, só o que chegou ao aparelho do vendedor logado; o outro vendedor e o outro tenant ficam de fora.
  * Matriz: docs/testes/T-0076.md (I-01..I-09).
  */
+import { localIsoDate } from '@macuxi/comum/fuso';
+import { somarDiasCivis } from '@macuxi/comum/relogio';
 import { InicioSchema, type Inicio } from '@macuxi/core/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { lerLinhas, listaDePedidos } from '../../../modules/vendedor/app/lib/pull';
 import { mergeOrders } from '../../../modules/vendedor/app/lib/pedidos';
-import { resumoDoInicio } from '../../../modules/vendedor/app/lib/resumo-inicio';
+import type { Periodo } from '../../../modules/vendedor/domain/busca-periodo';
+import { resumoDePedidos, STATUS_ENVIADO } from '../../../modules/vendedor/domain/resumo-pedidos';
 import { A, B, erroDe, licenca, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte } from '../apoio/campo';
 
@@ -131,7 +135,7 @@ describe.skipIf(semBanco())('T-0076 — GET /v1/core/inicio: equipe e números s
   });
 });
 
-describe.skipIf(semBanco())('T-0076 — cards Orçamentos e A faturar saem do aparelho, só da carteira de quem está logado (motor real)', () => {
+describe.skipIf(semBanco())('T-0076 — cards de Pedidos (RN-VEN-43) saem do aparelho, só da carteira de quem está logado (motor real)', () => {
   let api: ApiDeTeste;
 
   beforeAll(async () => {
@@ -142,34 +146,51 @@ describe.skipIf(semBanco())('T-0076 — cards Orçamentos e A faturar saem do ap
     await api?.fechar();
   });
 
-  /** O que o card calcula (useResumoInicio): linhas do pull → lista de pedidos → resumoDoInicio do vendedor logado. */
+  /** Dia civil no fuso do tenant, relativo a hoje (a fixture grava as datas relativas a "hoje" no fuso de cada tenant). */
+  const diaNoFuso = (tenant: Tenant, deslocamento: number): Periodo => ({
+    tipo: 'dia',
+    valor: somarDiasCivis(localIsoDate(new Date(), tenant.fuso), deslocamento),
+  });
+
+  /** O que a tela Pedidos calcula: linhas do pull → lista de pedidos → resumoDePedidos (emissão = received_at, fuso do tenant). */
   async function cardsDoAparelho(email: string, tenant: Tenant) {
     const ap = await aparelhoCampo(api, email, { tenant });
     expect(await ap.sincronizar()).toBe(true);
     const linhas = await lerLinhas(ap.motor);
     const eu = { id: ap.sessao.usuario.id, name: ap.sessao.usuario.nome, branch_id: '' };
     const pedidos = mergeOrders(listaDePedidos(linhas, {}), [], eu);
-    const resumo = resumoDoInicio(pedidos, { vendedorId: eu.id, preVendaLigada: true });
-    return { ids: linhas.pedidos.map((p) => p.id).sort(), resumo };
+    const docs = pedidos.map((p) => ({ ...p, emitido_em: p.received_at }));
+    const cards = (periodo: Periodo) => resumoDePedidos(docs, { periodo, tz: tenant.fuso });
+    return { ids: linhas.pedidos.map((p) => p.id).sort(), pedidos, cards };
   }
 
-  it('I-09 vendedor-2 (A): A faturar = o pedido aguardando aprovação dele (R$ 4.400, 1 aguardando); nada do vendedor-1 nem de B', async () => {
-    const { ids, resumo } = await cardsDoAparelho('vendedor2@exemplo.com.br', A);
+  it('I-09 vendedor-2 (A): Enviados de ontem = o pedido aguardando aprovação dele (R$ 4.400); Total = Enviados; nada do vendedor-1 nem de B', async () => {
+    const { ids, pedidos, cards } = await cardsDoAparelho('vendedor2@exemplo.com.br', A);
     expect(ids).toEqual([A.pedidos.p2]);
-    expect(resumo.aFaturar).toEqual({ quantidade: 1, valor_cents: 440_000, aguardando_aprovacao: 1 });
-    expect(resumo.orcamentos).toEqual({ quantidade: 0, valor_cents: 0 }); // RN-VEN-18 (09/11): sem "vence amanhã"
+    // valor × regra: o esperado sai da RN-VEN-43 (status em STATUS_ENVIADO, total_cents sem frete), não do número da função
+    const p2 = pedidos.find((p) => p.id === A.pedidos.p2)!;
+    expect((STATUS_ENVIADO as readonly string[]).includes(p2.status)).toBe(true);
+    const r = cards(diaNoFuso(A, -1));
+    expect(r.enviados).toEqual({ quantidade: 1, valor_cents: 440_000 });
+    expect(r.orcamentos).toEqual({ quantidade: 0, valor_cents: 0 });
+    expect(r.total).toEqual({ quantidade: 1, valor_cents: 440_000 });
+    // período pela data de emissão: hoje não tem nada dele
+    expect(cards(diaNoFuso(A, 0)).total).toEqual({ quantidade: 0, valor_cents: 0 });
   });
 
-  it('I-09 vendedor-1 (A): o recebido (legado) e o faturado não contam; o aguardando do vendedor-2 não chega ao aparelho', async () => {
-    const { ids, resumo } = await cardsDoAparelho(VENDEDOR, A);
+  it('I-09 vendedor-1 (A): Enviados de hoje = o recebido dele (R$ 2.850); ontem vazio (o aguardando do vendedor-2 não chega ao aparelho)', async () => {
+    const { ids, cards } = await cardsDoAparelho(VENDEDOR, A);
     expect(ids).not.toContain(A.pedidos.p2);
     expect(ids).not.toContain(B.pedidos.p1);
-    expect(resumo.aFaturar).toEqual({ quantidade: 0, valor_cents: 0, aguardando_aprovacao: 0 });
+    expect(cards(diaNoFuso(A, 0)).enviados).toEqual({ quantidade: 1, valor_cents: 285_000 });
+    expect(cards(diaNoFuso(A, -1)).total).toEqual({ quantidade: 0, valor_cents: 0 });
   });
 
-  it('I-09 vendedor Beta (B, mesmo e-mail): A faturar = o aprovado dele (R$ 450); nada de A', async () => {
-    const { ids, resumo } = await cardsDoAparelho(VENDEDOR, B);
+  it('I-09 vendedor Beta (B, mesmo e-mail): Enviados de ontem = o aprovado dele (R$ 450); nada de A', async () => {
+    const { ids, cards } = await cardsDoAparelho(VENDEDOR, B);
     expect(ids).toEqual([B.pedidos.p1]);
-    expect(resumo.aFaturar).toEqual({ quantidade: 1, valor_cents: 45_000, aguardando_aprovacao: 0 });
+    const r = cards(diaNoFuso(B, -1));
+    expect(r.enviados).toEqual({ quantidade: 1, valor_cents: 45_000 });
+    expect(r.total).toEqual({ quantidade: 1, valor_cents: 45_000 });
   });
 });
