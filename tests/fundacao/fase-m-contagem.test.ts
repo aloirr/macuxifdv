@@ -114,6 +114,24 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     novo: 'contagem dos chips',
     decisao: 'RD-0206 e RD-0252 (corretor R-20261114-021248) — a lista de pedidos não leva mais a observação do pedido (`orderNote` saiu); o motivo fica só no Histórico e os avisos só em Alertas (RN-VEN-42); o caso segue com a contagem dos chips',
   },
+  {
+    origem: 'apps/web/lib/routes.test.ts',
+    titulo: 'cor segue o vendedor pela ordem do cadastro; do 9º em diante, cinza',
+    novo: 'cor segue o vendedor pela ordem do cadastro; do 5º em diante as séries se repetem',
+    decisao: 'MC-0014 opção A (dono do produto, 14/11/2026; parecer oficial-final do recado R-20261114-043038; docs/marca/decisoes.md) — séries do mapa de rotas nas 4 cores da marca; com mais de 4 vendedores as séries se repetem e o marcador distingue',
+  },
+  {
+    origem: 'apps/web/lib/routes.test.ts',
+    titulo: 'dia da semana: cada dia útil tem cor própria',
+    novo: 'dia da semana: seg–qui usam as 4 séries, sex/sáb repetem e domingo é cinza',
+    decisao: 'MC-0014 opção A (dono do produto, 14/11/2026; parecer oficial-final do recado R-20261114-043038; docs/marca/decisoes.md) — seg–qui usam as 4 séries da marca, sex/sáb repetem e domingo fica em "outros"',
+  },
+  {
+    origem: 'apps/web/lib/csv.test.ts',
+    titulo: 'escapa ; aspas e quebra de linha',
+    novo: 'Unifica (14/11): aspas em toda célula, internas dobradas, vazio vira "" e fórmula ganha apóstrofo (byte a byte)',
+    decisao: '"Unifica" (dono do produto, 14/11/2026, recado R-20261114-070800-alexandre; RD-0051, PR #221) — o CSV do BKO do Vendedor usa o celulaCsv de @macuxi/comum/csv: aspas em toda célula e apóstrofo antes de = + - @; o caso segue coberto byte a byte',
+  },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
 
@@ -171,7 +189,9 @@ describe('S0-002 / S0-005 — os 277 estão nos novos locais', () => {
     expect(ref, 'o caso precisa existir na referência da Fase M').toBeDefined();
     expect(x.decisao).toMatch(/R-\d{8}-\d{6}/);
     const fontes = (MAPA[x.origem] ?? []).map(([d]) => readFileSync(join(raiz, d), 'utf8'));
-    expect(fontes.some((f) => f.includes(x.novo)), x.novo).toBe(true);
+    // antes de entrar o PR que aplica a decisão, o título da Fase M ainda está no destino e o caso segue coberto
+    // (ex.: MC-0014 antes do #197); depois dele, o título novo tem de existir
+    expect(fontes.some((f) => f.includes(x.novo) || f.includes(x.titulo)), x.novo).toBe(true);
   });
 
   it('cada describe de origem continua existindo no destino (exceção registrada: outbox → "outbox (pedidos)")', () => {

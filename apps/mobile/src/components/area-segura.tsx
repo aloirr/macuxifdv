@@ -7,31 +7,47 @@
  * então quem usa `behavior="padding"` passa `keyboardVerticalOffset={useFaixaSuperior()}`.
  * `useCorDaFaixa(cor)` (T-0172): a tela de entrada pinta a faixa com o fundo dela (Azul noite no Campo) enquanto está
  * montada; ao sair, a faixa volta à cor da rota.
+ * `useCorDaFaixaNoFoco(cor)` (T-0172): o mesmo, ligado ao foco da tela (as abas ficam montadas): ao focar, pinta a faixa;
+ * ao perder o foco, a faixa volta à cor da rota. É assim que o Início do Campo fica em Azul noite, embora "/" esteja em
+ * `ROTAS_SEM_FAIXA` (o Início da Gestão continua no Pérola).
  *
  * Cor da faixa (pedido do dono do produto em 14/11/2026; manual da marca §4): Azul noite (`colors.faixa`) por padrão,
  * para emendar no `CabecalhoTela` das telas com `<Screen cabecalho>`; só as rotas sem cabeçalho (`ROTAS_SEM_FAIXA`:
  * Início, login, sincronização e foto) ficam no Pérola. A prop `rota` vem do `usePathname()` do layout raiz. A barra de
- * status acompanha: ícones claros na faixa escura, escuros no Pérola (`estiloBarraDeStatus`). Este `StatusBar` monta
- * depois do da raiz e manda; a tela de entrada sobreposta monta depois e continua mandando.
+ * status acompanha a cor efetiva (a da tela, se pintou, senão a da rota): ícones claros na faixa escura, escuros no
+ * Pérola (`estiloBarraDeStatus`). Este `StatusBar` monta depois do da raiz e manda; a tela de entrada sobreposta monta
+ * depois e continua mandando.
  */
 import { colors, estiloBarraDeStatus } from '@macuxi/ui/mobile';
+import { useFocusEffect } from 'expo-router';
 import { StatusBar as BarraDeStatus } from 'expo-status-bar';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, StatusBar, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dividirAreaSegura, rotaComFaixa } from '@/lib/area-segura';
 
 const FaixaSuperiorContext = createContext(0);
-const CorDaFaixaContext = createContext<(cor: string | null) => void>(() => undefined);
+export const CorDaFaixaContext = createContext<(cor: string | null) => void>(() => undefined);
 
-/** Pinta a faixa da barra de status com `cor` enquanto a tela está montada (`null` = fundo do app). */
+/** Pinta a faixa da barra de status com `cor` enquanto a tela está montada (`null` = cor da rota). */
 export function useCorDaFaixa(cor: string | null): void {
   const definir = useContext(CorDaFaixaContext);
   useEffect(() => {
     definir(cor);
     return () => definir(null);
   }, [cor, definir]);
+}
+
+/** Pinta a faixa com `cor` enquanto a tela está em foco (a barra de status acompanha); no desfoco, volta à cor da rota. */
+export function useCorDaFaixaNoFoco(cor: string | null): void {
+  const definir = useContext(CorDaFaixaContext);
+  useFocusEffect(
+    useCallback(() => {
+      definir(cor);
+      return () => definir(null);
+    }, [cor, definir]),
+  );
 }
 
 export function useFaixaSuperior(): number {

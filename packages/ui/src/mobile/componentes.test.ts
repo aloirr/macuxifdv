@@ -1,7 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ALVO_TOQUE, folgaDeToque, leituraDoAtalho, lerQuantidade, limitarPasso, proximoPasso, rotuloComContador } from './componentes';
+import {
+  ALVO_TOQUE,
+  folgaDeToque,
+  leituraDoAtalho,
+  lerQuantidade,
+  limitarPasso,
+  proximoPasso,
+  RESPIRO_ABA_ROLAVEL,
+  rolagemAteAba,
+  rotuloComContador,
+} from './componentes';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -67,6 +77,31 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
       // props de texto com literal (accessibilityLabel="Fechar", placeholder="Buscar")
       expect(src, arq).not.toMatch(/(accessibilityLabel|accessibilityHint|placeholder|title)=["'][^"']+["']/);
     }
+  });
+
+  it('rolagemAteAba (Abas rolavel): leva a aba ativa até ficar à vista', () => {
+    const m = RESPIRO_ABA_ROLAVEL;
+    // já visível: não mexe
+    expect(rolagemAteAba({ x: 100, largura: 80 }, 0, 360)).toBe(0);
+    // cortada à direita: rola o mínimo (fim + respiro encosta na borda)
+    expect(rolagemAteAba({ x: 320, largura: 90 }, 0, 360)).toBe(320 + 90 + m - 360);
+    // cortada à esquerda: volta até o início com respiro
+    expect(rolagemAteAba({ x: 50, largura: 80 }, 200, 360)).toBe(50 - m);
+    // nunca negativo
+    expect(rolagemAteAba({ x: 0, largura: 80 }, 40, 360)).toBe(0);
+    expect(rolagemAteAba({ x: 10, largura: 80 }, -5, 0)).toBe(0);
+    // aba maior que a faixa: alinha o início
+    expect(rolagemAteAba({ x: 400, largura: 500 }, 0, 360)).toBe(400 - m);
+    // sem largura medida: mantém
+    expect(rolagemAteAba({ x: 400, largura: 80 }, 30, 0)).toBe(30);
+  });
+
+  it('Abas tem o modo rolável (faixa horizontal) sem mudar o padrão', () => {
+    const form = ler('./formulario.tsx');
+    expect(form).toContain('rolavel?: boolean');
+    expect(form).toContain('ScrollView');
+    expect(form).toContain('rolagemAteAba(');
+    expect(form).toMatch(/abaRolavel: \{[^}]*minWidth: ALVO_TOQUE/);
   });
 
   it('alvos de toque: nenhum height/minHeight/width fixo abaixo de 48 sem hitSlop no mesmo componente', () => {

@@ -161,7 +161,7 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
     const v = stop.visit;
     const at = v ? formatHHMM(v.checkin_at, tz) : '';
     if (v?.outcome === 'order') subtitle = `Pedido ${stop.order_total_cents !== null ? formatBRL0(stop.order_total_cents) : ''}`.trim();
-    else if (v?.outcome === 'no_order') subtitle = `Sem pedido: ${v.no_order_reason.toLowerCase()}`;
+    else if (v?.outcome === 'no_order') subtitle = `Sem pedido: ${v.no_order_reason}`;
     else if (v?.closed_by === 'auto') subtitle = 'Fechada na virada do dia';
     else subtitle = `Check-in ${at}`;
   } else if (inProgress) {

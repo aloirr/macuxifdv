@@ -24,6 +24,7 @@ import {
   removeStop,
   resequenceWindows,
   routeKey,
+  OTHER_COLOR,
   routeKpis,
   sameDraft,
   sameWeekdayNext,
@@ -134,16 +135,20 @@ describe('período', () => {
 });
 
 describe('cores', () => {
-  it('cor segue o vendedor pela ordem do cadastro; do 9º em diante, cinza', () => {
+  it('cor segue o vendedor pela ordem do cadastro; do 5º em diante as séries se repetem', () => {
     const ids = Array.from({ length: 9 }, (_, i) => `s${i}`);
     const m = sellerColorMap(ids);
     expect(m.s0).toBe(SERIES_COLORS[0]);
-    expect(m.s7).toBe(SERIES_COLORS[7]);
-    expect(m.s8).toBe('#6b7480');
+    expect(m.s3).toBe(SERIES_COLORS[3]);
+    expect(m.s4).toBe(SERIES_COLORS[0]);
+    expect(m.s8).toBe(SERIES_COLORS[0]);
   });
-  it('dia da semana: cada dia útil tem cor própria', () => {
-    const weekdays = [1, 2, 3, 4, 5].map((d) => WEEKDAY_COLORS[d]);
-    expect(new Set(weekdays).size).toBe(5);
+  it('dia da semana: seg–qui usam as 4 séries, sex/sáb repetem e domingo é cinza', () => {
+    const [seg, ter, qua, qui, sex, sab, dom] = [1, 2, 3, 4, 5, 6, 0].map((d) => WEEKDAY_COLORS[d]);
+    expect(new Set([seg, ter, qua, qui]).size).toBe(4);
+    expect(sex).toBe(seg);
+    expect(sab).toBe(ter);
+    expect(dom).toBe(OTHER_COLOR);
     expect(weekdayColor('2026-10-12')).toBe(WEEKDAY_COLORS[1]);
   });
   it('um vendedor em semana/mês pinta por dia; senão por vendedor', () => {

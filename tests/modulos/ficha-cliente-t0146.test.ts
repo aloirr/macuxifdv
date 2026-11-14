@@ -150,8 +150,18 @@ describe('T-0146 — valor × regra dos indicadores de compra do topo', () => {
     expect(f.historico).toEqual([]);
     expect(f.resumo_compras.total_12m_cents).toBe(0);
     const tela = ler('modules/core/app/telas/cliente.tsx');
-    expect(tela).toMatch(/\{locais\.verPedidos \? <Stat label="Compra média\/mês"/);
-    expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<Stat\s+label="Última compra"/);
+    if (tela.includes('<IndicadoresResumo')) {
+      // ficha do #217: média e última compra nas peças do Cliente 360, que não mostram nada sem pedidos_visiveis
+      const c360 = ler('modules/core/app/components/cliente360.tsx');
+      for (const peca of ['IndicadoresResumo', 'AbaCompras']) {
+        expect(c360, peca).toMatch(new RegExp(`export function ${peca}\\([^)]*\\) \\{\\s*if \\(!ficha\\.pedidos_visiveis\\) return null;`));
+      }
+      expect(c360).toMatch(/export function AbaCompras[\s\S]*?<Stat label="Compra média\/mês"/);
+      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<View[^>]*>\s*<Stat\s+label="Última compra"/);
+    } else {
+      expect(tela).toMatch(/\{locais\.verPedidos \? <Stat label="Compra média\/mês"/);
+      expect(tela).toMatch(/\{locais\.verPedidos \? \(\s*<Stat\s+label="Última compra"/);
+    }
   });
 
   it('RN-CORE-40 (D-1 corrigido): Compra média/mês (topo do Campo) = total da janela ÷ 12; R$ 5.000 ÷ 12 = R$ 416,67', () => {
@@ -195,12 +205,18 @@ describe('T-0146 — rótulo × valor e topo sem limite/vencidos (fonte das tela
   const web = ler('modules/core/web/components/cliente360/cliente360-page.tsx');
 
   it('Campo/Gestão: cada rótulo do topo mostra o campo da regra', () => {
-    expect(tela).toContain('<Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} />');
+    // até o #217 a média vinha do resumo da rota (tela); depois, da aba Compras (cliente360), com a conta do domínio
+    expect([
+      tela.includes('<Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} />'),
+      c360.includes('<Stat label="Compra média/mês" value={formatBRL0(compraMediaMesCents(ficha.historico, hoje))} />'),
+    ]).toContain(true);
     expect(c360).toContain('<Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />');
     expect(c360).toContain("<Stat label=\"Frequência média\" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />");
     expect(c360).toContain('<Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />');
     // Última compra do topo vem da mesma janela da ficha (resumo_compras), não do resumo da rota
-    expect(tela).toContain('const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;');
+    if (!tela.includes('const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;')) {
+      expect(c360).toMatch(/export function IndicadoresResumo[\s\S]*?const compras = ficha\.resumo_compras;[\s\S]*?<Stat label="Última compra" value=\{ultimaCompraDaFicha\(compras\.dias_sem_compra\)\}/);
+    }
   });
 
   it('Campo/Gestão: a grade do topo não tem limite, crédito nem vencidos; o Financeiro tem cada um uma vez', () => {
