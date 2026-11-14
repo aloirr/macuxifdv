@@ -6,6 +6,7 @@
  */
 import type { Perfil } from '@macuxi/platform-sdk';
 import { escopoDeUsuarios } from './clientes';
+import type { IndicadorMeta } from './metas';
 
 export type DecisaoEdicaoMeta = { ok: true } | { ok: false; codigo: 'META_FORA_DA_EQUIPE' | 'META_SEM_PERMISSAO'; mensagem: string };
 
@@ -43,7 +44,7 @@ export function expandirEquipe(membros: readonly MembroMeta[]): string[] {
 
 export interface MetaCopiavel {
   usuario_id: string;
-  indicador: 'venda_cents' | 'positivacao' | 'cobertura_pct' | 'visitas';
+  indicador: IndicadorMeta;
   valor: number;
   tipo: 'pedido' | 'faturamento';
 }

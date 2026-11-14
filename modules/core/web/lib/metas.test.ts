@@ -21,6 +21,12 @@ describe('RN-CORE-20: valor digitado vira o inteiro do contrato', () => {
     expect(corpoDaMeta('positivacao', '4,5')).toMatchObject({ ok: false });
     expect(corpoDaMeta('visitas', '-1')).toMatchObject({ ok: false });
   });
+  it('T-0170: itens por pedido aceita uma casa decimal e vira centésimos', () => {
+    expect(corpoDaMeta('itens_por_pedido', '8,5')).toEqual({ ok: true, corpo: { indicador: 'itens_por_pedido', valor: 850 } });
+    expect(corpoDaMeta('itens_por_pedido', '8')).toEqual({ ok: true, corpo: { indicador: 'itens_por_pedido', valor: 800 } });
+    expect(corpoDaMeta('itens_por_pedido', '8,55')).toMatchObject({ ok: false });
+    expect(textoDeEdicao('itens_por_pedido', 850)).toBe('8,5');
+  });
   it('RN-CORE-20: o texto de edição é o inverso do corpo', () => {
     expect(textoDeEdicao('venda_cents', 2500050)).toBe('25000,50');
     expect(textoDeEdicao('cobertura_pct', 8550)).toBe('85,5');

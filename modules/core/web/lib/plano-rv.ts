@@ -3,7 +3,7 @@
  * Sem React e sem rede. As regras (pesos, faixas, cálculo) moram no domain; aqui só formulário, texto, simulador e CSV.
  */
 import { formatBRL } from '@macuxi/comum';
-import { INDICADORES_META, type PlanoRvDto, type PlanoRvPut, type RvPainel } from '../../contracts';
+import { INDICADORES_RV, type PlanoRvDto, type PlanoRvPut, type RvPainel } from '../../contracts';
 import { calcularRvDaPessoa, validarPlanoRv, type FaixaRv, type IndicadorRv, type PerfilRv, type PlanoRv, type SituacaoRv } from '../../domain';
 
 const BOM = String.fromCharCode(0xfeff); // o Excel abre o CSV em UTF-8
@@ -64,7 +64,7 @@ export function formNovo(vigenciaInicio: string): FormPlano {
     vigencia_inicio: vigenciaInicio,
     perfis: { vendedor: true, promotor: false },
     valor_maximo: '',
-    regras: INDICADORES_META.map((indicador) => ({
+    regras: INDICADORES_RV.map((indicador) => ({
       indicador,
       ativo: indicador === 'venda_cents' || indicador === 'positivacao',
       gatilho: false,

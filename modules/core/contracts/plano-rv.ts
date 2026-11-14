@@ -3,7 +3,8 @@
  * Dinheiro em centavos; atingimento em pontos-base (10000 = 100%).
  */
 import { z } from 'zod';
-import { INDICADORES_META } from './sync';
+/** Indicadores que o Plano de RV aceita: os da meta mensal sem `itens_por_pedido` (T-0170 não leva itens ao RV). */
+export const INDICADORES_RV = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
 
 const AnoMes = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const Uuid = z.string().uuid();
@@ -19,7 +20,7 @@ export const FaixaRvSchema = z.object({
 export type FaixaRvDto = z.infer<typeof FaixaRvSchema>;
 
 export const RegraRvSchema = z.object({
-  indicador: z.enum(INDICADORES_META),
+  indicador: z.enum(INDICADORES_RV),
   peso_pct: z.number().int().min(0).max(100),
   gatilho: z.boolean(),
   faixas: z.array(FaixaRvSchema).max(10),
@@ -60,7 +61,7 @@ export const RvQuerySchema = z
 export type RvQuery = z.infer<typeof RvQuerySchema>;
 
 export const RvIndicadorSchema = z.object({
-  indicador: z.enum(INDICADORES_META),
+  indicador: z.enum(INDICADORES_RV),
   meta: z.number().nullable(),
   realizado: z.number(),
   atingimento_pbp: z.number().int(),
@@ -86,7 +87,7 @@ export const RvPainelSchema = z.object({
       plano_id: Uuid.optional(),
       rv_cents: z.number().int(),
       rv_bruta_cents: z.number().int(),
-      bloqueada_por: z.array(z.enum(INDICADORES_META)),
+      bloqueada_por: z.array(z.enum(INDICADORES_RV)),
       indicadores: z.array(RvIndicadorSchema),
     }),
   ),

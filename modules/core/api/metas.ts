@@ -59,6 +59,8 @@ export const CONSULTA_PEDIDOS_DA_META = definirConsulta({
         total_cents: Cents,
         frete_cents: Cents.nullable(),
         cancelado_cents: Cents.nullable(),
+        /** T-0170 (A-4, aditivo): produtos distintos do pedido; ausente = Vendedor antigo, Itens por pedido sem dado. */
+        itens_distintos: z.number().int().nonnegative().optional(),
       }),
     ),
     faturamentos: z.array(
@@ -363,6 +365,7 @@ export const rotasDeMetas: RotaModulo[] = [
             visitas: item.indicadores.visitados,
             cobertura_pct: item.indicadores.cobertura_pct,
             positivacao: item.indicadores.positivados ?? null,
+            itens_por_pedido: null,
           };
           const tipoVenda = tipoDaMeta(metas.rows, item.usuario_id);
           for (const indicador of INDICADORES_META) {

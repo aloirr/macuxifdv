@@ -30,6 +30,8 @@ export interface PedidoDaMeta {
   frete_cents?: number | null;
   /** Cancelamento parcial já abatido. */
   cancelado_cents?: number | null;
+  /** T-0170 (A-4): produtos distintos do pedido; ausente = Vendedor antigo (Itens por pedido sem dado). */
+  itens_distintos?: number;
 }
 
 export interface FaturamentoApuravel {
@@ -59,6 +61,17 @@ function liquidoDoPedido(p: PedidoDaMeta): number {
 
 function pedidosDoPeriodo(pedidos: readonly PedidoDaMeta[], o: OpcoesApuracao): PedidoDaMeta[] {
   return pedidos.filter((p) => p.vendedor_id === o.usuario_id && contaComoAprovado(p.status) && yearMonthOf(dataCivil(p.emitido_em, o.fuso)) === o.periodo);
+}
+
+/**
+ * T-0170 (A-4): itens por pedido do período em centésimos = 100 × Σ itens distintos ÷ pedidos aprovados (emissão no fuso do tenant).
+ * Sem pedido = 0 (A-3). Algum pedido sem `itens_distintos` = null (sem dado), nunca zero.
+ */
+export function itensPorPedidoDoPeriodo(pedidos: readonly PedidoDaMeta[], o: OpcoesApuracao): number | null {
+  const doPeriodo = pedidosDoPeriodo(pedidos, o);
+  if (doPeriodo.some((p) => p.itens_distintos === undefined)) return null;
+  if (doPeriodo.length === 0) return 0;
+  return Math.round((100 * doPeriodo.reduce((s, p) => s + (p.itens_distintos ?? 0), 0)) / doPeriodo.length);
 }
 
 /** RN-CORE-21: realizado do vendedor no período, conforme o tipo da meta. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   dataDoFechamento,
+  itensPorPedidoDoPeriodo,
   periodoFechado,
   positivadosDoDia,
   positivadosPorDia,
@@ -211,5 +212,21 @@ describe('RN-CORE-26: positivados de cada dia do mês (T-0073)', () => {
   it('RN-CORE-26: rodar duas vezes com a mesma fonte dá o mesmo resultado (idempotente)', () => {
     const ps = [pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 })];
     expect(positivadosPorDia(ps, o)).toEqual(positivadosPorDia(ps, o));
+  });
+});
+
+describe('T-0170 (A-4): itens por pedido do período', () => {
+  const o = { usuario_id: V1, periodo: '2026-11', fuso: MANAUS };
+  const nov = (itens: number | undefined, extra: Partial<PedidoDaMeta> = {}) => pedido({ emitido_em: '2026-11-10T14:00:00Z', ...(itens === undefined ? {} : { itens_distintos: itens }), ...extra });
+  it('T-0170: média em centésimos sobre os pedidos aprovados do mês (outro vendedor, outro mês e não aprovado ficam fora)', () => {
+    const ps = [nov(4), nov(5), nov(9, { vendedor_id: V2 }), nov(9, { status: 'rascunho' }), pedido({ itens_distintos: 9 })];
+    expect(itensPorPedidoDoPeriodo(ps, o)).toBe(450);
+    expect(itensPorPedidoDoPeriodo([nov(1), nov(1), nov(2)], o)).toBe(133);
+  });
+  it('T-0170 (A-3): sem pedido no mês, realizado 0', () => {
+    expect(itensPorPedidoDoPeriodo([], o)).toBe(0);
+  });
+  it('T-0170: pedido sem itens_distintos (Vendedor antigo) deixa o indicador sem dado, nunca zero', () => {
+    expect(itensPorPedidoDoPeriodo([nov(4), nov(undefined)], o)).toBeNull();
   });
 });

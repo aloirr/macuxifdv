@@ -11,6 +11,7 @@ export const ROTULO_INDICADOR: Record<IndicadorMeta, string> = {
   visitas: 'Visitas',
   cobertura_pct: 'Cobertura de rota',
   positivacao: 'Positivação',
+  itens_por_pedido: 'Itens por pedido',
 };
 
 export const AGUARDANDO_PEDIDOS = 'Aguardando pedidos';
@@ -21,6 +22,8 @@ export function formatarIndicador(indicador: IndicadorMeta, v: number | null): s
   if (v === null) return AGUARDANDO_PEDIDOS;
   if (indicador === 'venda_cents') return formatBRL0(v);
   if (indicador === 'cobertura_pct') return pontosBase(v);
+  // T-0170 (A-4): centésimos, uma casa como no card da Performance (800 → "8,0")
+  if (indicador === 'itens_por_pedido') return (Math.round(v / 10) / 10).toFixed(1).replace('.', ',');
   return String(v);
 }
 

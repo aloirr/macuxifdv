@@ -360,7 +360,7 @@ export const NotificacaoSyncSchema = z
   .strict();
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;
 
-export const INDICADORES_META = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
+export const INDICADORES_META = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas', 'itens_por_pedido'] as const;
 /** RN-CORE-21: apuração da meta de venda (pedido aprovado por emissão | faturamento por data do ERP). Espelha `core.meta.tipo`. */
 export const TIPOS_META = ['pedido', 'faturamento'] as const;
 export const MetaSyncSchema = z
