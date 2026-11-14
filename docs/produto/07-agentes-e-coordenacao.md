@@ -108,28 +108,30 @@ criado_em: 2026-10-31T14:05:12-04:00
 2. Durante: trabalhar só nos seus caminhos; dúvidas e pedidos → recado.
 3. Ao terminar: recado `entrega` ao gerente (o que fez, testes, pendências) + linha no diário `.coord/diario/<eu>.md`.
 
-## Frentes de trabalho: local e nuvem
-> Decisão do Alexandre, 2026-10-31 (versão final; vale a partir de agora, sem pedir confirmação).
+## Frentes de trabalho: time 100% na nuvem
+> Decisão do Alexandre, chat de 14/11/2026: "Migre tudo para a nuvem." Vale desde o build Oficial v1.0.7. Substitui a divisão local × nuvem de 2026-10-31. Base técnica (guardião na nuvem e economia do Actions): **ADR do time na nuvem (proposto)**, do engenheiro-software.
 
-**1. Frentes**
-- **Local** (este VS Code, agentes de `.claude/`): tudo que precisa da pasta da Fase M, de build ou aparelho Android, ou que mexe em arquivos de um agente ativo. **Sem Docker no PC** (decisão do Alexandre, R-20261105-053835): nenhum agente local roda `docker` nem depende do Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (branch de verificação e `stack-isolado.yml`), e o CI verde é o critério.
-- **Nuvem** (claude.ai/code, sessões abertas pelo Alexandre sobre o GitHub `aloirr/macuxifdv`): tarefas só de código e testes, sem dependência local, cada uma no seu branch (`nuvem/*`, `alexandre/*` ou `agente/*`), com **merge automático no `main` quando os testes passam**.
+**1. Uma frente só: a nuvem**
+- **Todo o time roda em sessões do claude.ai/code** sobre o GitHub `aloirr/macuxifdv` (Linux, bash). O PC do Alexandre (VS Code, Windows, `C:\macuxifdv`) não roda mais agentes, commits nem pushes.
+- Cada sessão trabalha num branch `nuvem/*`, `alexandre/*` ou `agente/*` e entrega **por PR**; o merge acontece depois do CI do PR verde (regra de "Quem faz o merge", abaixo).
+- **Sem Docker** (decisão do Alexandre, R-20261105-053835; vale também na nuvem): nenhum agente roda `docker` nem depende de Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (CI do PR e `stack-isolado.yml`), e o CI verde é o critério.
+- **Fase M** (`C:\Users\domon\dev\forca-vendas`, no PC do Alexandre): continua **só para consulta e cópia**, nunca alterada. Como a nuvem não alcança o PC, o que for preciso dela o Alexandre anexa à tarefa ou ao recado.
+- **Aparelho Android**: o build sai pelo `eas-build.yml` (seção 5); o teste no aparelho continua com o Alexandre.
 
-**2. Trava de arquivos**
-- O quadro tem a coluna **Onde** (`local` | `nuvem`) em cada tarefa e a seção **Travado pela nuvem** com os caminhos travados.
-- Nenhum agente local altera caminho travado. Nenhuma tarefa roda nas duas frentes ao mesmo tempo.
-- Quando o merge da nuvem chega no pull, o gerente-projetos **destrava** os caminhos daquela tarefa.
+**2. Trava de arquivos entre sessões**
+- O quadro mantém a coluna **Onde** (agora a sessão: `nuvem/<branch>`) e a seção **Travado pela nuvem** com os caminhos de cada sessão aberta.
+- Duas sessões nunca alteram o mesmo caminho ao mesmo tempo. Quando o PR de uma sessão entra no `main`, o gerente **destrava** os caminhos dela.
 
 **Escrita da nuvem**: a sessão da nuvem só altera os caminhos travados da tarefa e cria recados novos. Não edita `.coord/quadro.md`, `.coord/tarefas/`, `docs/backlog.md` nem `docs/produto/`; isso é do gerente-projetos, quando o merge chega. Commits da nuvem levam o trailer `Agente: <dono do caminho>` (convenção no R-20261031-093259-2-alexandre).
 
-**Commit de rodada por dono (verificar --por-commit no CI)**: cada commit leva o trailer `Agente:` de UM agente e só arquivos dele — inclusive o próprio `.coord/diario/<agente>.md`, `.coord/lidos/<agente>.txt` e os recados novos que ele enviou (`R-...-<agente>.md`). Recados e lidos do Alexandre vão num commit com `Agente: alexandre`. O gerente separa os arquivos de `.coord/` por autor no fechamento da rodada; nunca juntar arquivos de agentes diferentes num commit só.
+**Commit e PR por dono (verificar --base no PR, --por-commit no `main`)**: cada commit leva o trailer `Agente:` de UM agente e só arquivos dele — inclusive o próprio `.coord/diario/<agente>.md`. Na nuvem, cada PR é de um dono só (seção 3); nunca juntar arquivos de agentes diferentes num commit nem num PR. Recados e lidos ficam no repositório de recados, fora dos commits de código.
 
 **Nome do branch da nuvem** (R-20261101-184624): a sessão da nuvem usa sempre `nuvem/T-nnnn-<assunto>`, mesmo que o ambiente indique outro branch (`claude/...`).
 
 **Numeração de tarefa**: antes de abrir uma tarefa, o gerente lê a própria caixa, porque o Alexandre pode ter reservado números para a nuvem, e confere o maior T-nnnn em `.coord/tarefas/` e no `git log` do `main`. Números reservados pelo Alexandre não são usados para outra coisa.
 
 **Vaga de correção do teste de campo** (Alexandre, 2026-11-02, R-20261102-115114)
-- Das 3 vagas de agente local, **1 fica sempre reservada para correções do teste de campo**: bugs e ajustes em entrega já feita, reportados em recados `de: alexandre` com "Teste de campo" no contexto ou "Bug —" no título. As outras 2 seguem as sprints. Sem correção na fila, a vaga volta para a sprint até chegar a próxima.
+- Das vagas de sessão (hoje 7, todas na nuvem), **1 fica sempre reservada para correções do teste de campo**: bugs e ajustes em entrega já feita, reportados em recados `de: alexandre` com "Teste de campo" no contexto ou "Bug —" no título. As outras 2 seguem as sprints. Sem correção na fila, a vaga volta para a sprint até chegar a próxima.
 - Correção do teste de campo passa na frente de qualquer tarefa nova na fila dessa vaga. Ela usa o agente dono do arquivo (engenheiro-apps, modulo-vendedor, modulo-gestor…). Se o módulo estiver travado pela nuvem, o pedido vai à sessão da nuvem pelo recado do dono, ou espera o merge, sem quebrar a trava.
 - Cada correção entra no próximo build de preview. A entrega responde (`--responde-a`) ao recado do teste que ela fecha, para o Alexandre reconferir no aparelho.
 
@@ -141,7 +143,9 @@ criado_em: 2026-10-31T14:05:12-04:00
 - PR de governança exige, na caixa do gerente, um recado `R-...-alexandre.md` com `de: alexandre` e a frase "autorizo o merge do PR #N no commit <sha>", com o mesmo N e SHA. Nenhum agente cria recado em nome do Alexandre (o guardião barra).
 - Depois que a T-0049 entrar, o CI do main fica vermelho se um commit mexer em governança sem `Agente: alexandre`.
 
-**Lotes locais direto ao `main`, sem PR** (decisão do Alexandre, 04/11/2026, para os lotes do APK): o gerente monta um branch `verificacao/<tarefas>-lote` em cima do `main`, com um commit por dono e o trailer `Agente: <dono>`. Esse branch só sobe com as quatro condições:
+**Lotes por PR, um por dono** (14/11/2026, time 100% na nuvem): cada dono abre **um PR por lote**, com um commit só e o trailer `Agente: <dono>`; as quatro condições abaixo continuam valendo, agora conferidas no PR antes do merge (CI do PR verde no head que vai entrar, `verificar --base origin/main` e `brechas-governanca` OK, revisões sem 🔴). O texto a seguir, dos lotes locais, fica como histórico.
+
+**Lotes locais direto ao `main`, sem PR** (decisão do Alexandre, 04/11/2026, para os lotes do APK; **substituído** pelos lotes por PR acima desde 14/11/2026): o gerente monta um branch `verificacao/<tarefas>-lote` em cima do `main`, com um commit por dono e o trailer `Agente: <dono>`. Esse branch só sobe com as quatro condições:
 1. CI completo (`workflow_dispatch`) verde **exatamente no commit que vai subir**;
 2. push **fast-forward**, sem force e sem rebase de commit já enviado;
 3. `node scripts/coord.mjs verificar --por-commit origin/main..<commit>` OK em todos os commits **e** `node scripts/ci/brechas-governanca.mjs trailer origin/main..<commit>` OK. Commit que toca caminho de governança leva `Agente: alexandre` no **último bloco** da mensagem, na mesma linha seguida do `Co-Authored-By`, sem linha em branco entre os dois. O 108e18a de 05/11 saiu com os dois em blocos separados e deixou o CI do `main` vermelho (R-20261105-124257);
@@ -151,8 +155,8 @@ Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuve
 
 **Deploy de produção só com "aprovo deploy vX.Y.Z"** (dono do produto, R-20261111-213829, opção 2): nenhuma tag `v*` de produção e nenhum run do "producao — publicar" sem um recado do Alexandre com "aprovo deploy vX.Y.Z" para aquela versão exata. O gerente cita o ID desse recado na mensagem da tag. O GitHub Pro não tem "Required reviewers" em repositório privado, e os agentes usam a mesma conta (aloirr), por isso a trava é por recado. A opção 1 (conta própria dos agentes, com regra de tag em que só a aloirr cria `v*`) está anotada para antes do 1º cliente pagante e ainda não foi autorizada.
 
-**Nenhum ensaio sem lint e typecheck limpos no PC** (regra fixa do dono do produto, R-20261111-155339; a v1.0.4 precisou de 5 ensaios, e 3 caíram por erros que dava para pegar no PC):
-- o dono de cada pacote tocado no lote roda no PC o lint e o typecheck do pacote, com o mesmo script do CI (`pnpm --filter <pacote> typecheck` e `lint`), e diz o resultado na entrega;
+**Nenhum ensaio sem lint e typecheck limpos na sessão** (regra fixa do dono do produto, R-20261111-155339, nascida "no PC"; a v1.0.4 precisou de 5 ensaios, e 3 caíram por erros que dava para pegar antes do push):
+- o dono de cada pacote tocado no lote roda na própria sessão da nuvem o lint e o typecheck do pacote, com o mesmo script do CI (`pnpm --filter <pacote> typecheck` e `lint`), e diz o resultado na entrega;
 - quando `tests/` mudou, também o `typecheck:tests` (`tsc --noEmit -p tests/tsconfig.json`);
 - quem muda um tipo público (contrato, `domain`) procura com grep, antes de entregar, os usos em `tests/` e nos outros pacotes;
 - o gerente confere as entregas e só então dispara o ensaio no GitHub;
@@ -165,7 +169,12 @@ Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuve
 
 Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-head-commit <sha> --body "Agente: <dono da tarefa>"`, sem pedir autorização. Se o branch estiver desatualizado, o gerente mescla o main nele, espera o CI do PR ficar verde e só então faz o merge, sem mexer em código. Depois do merge: `git pull`, quadro, diário e um recado curto ao Alexandre com o commit do squash.
 
-**Rotina de push (custo do CI)** (R-20261101-165024): o push acontece ao fechar uma tarefa ou, no máximo, a cada 2 horas, e não a cada rodada. Os testes rodam localmente antes, como sempre. A exceção é a correção de main vermelho, que sobe na hora.
+**Rotina de push (custo do CI)** (R-20261101-165024; ajustada para a nuvem em 14/11/2026): o push acontece ao fechar a entrega do PR, e não a cada rodada. Lint, typecheck e testes rodam na sessão antes, como sempre. A exceção é a correção de main vermelho, que sobe na hora.
+
+**Economia do Actions** (14/11/2026; ADR do time na nuvem, proposto):
+- **um commit por PR** e **um push só**: os ajustes antes do push entram com `git commit --amend` local, nunca em commits extras;
+- **um rerun só**, e apenas para falha de infraestrutura (rede, runner, serviço externo fora). Falha de código, lint ou teste não ganha rerun: volta ao dono, que corrige e manda o novo push;
+- o commit vazio de início de sessão (abaixo) não é enviado sozinho: a entrega entra nele por `git commit --amend`, e o PR sai com um commit só.
 
 **Credenciais da Cloudflare** (R-20261101-164531): a autorização do `cloudflared` (`%USERPROFILE%\.cloudflared`: cert.pem, JSON do túnel) fica fora do repositório e fora do alcance dos agentes. A regra é a mesma do `.env`: nenhum agente lê, copia, move ou commita esses arquivos. Os scripts só chamam o `cloudflared`, que os lê sozinho.
 
@@ -185,27 +194,31 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 
 **GitHub CLI (`gh`)**: o gerente-projetos acompanha CI e PRs pelo `gh` (`gh auth status`, `gh run list --limit 5`, `gh run view <id> --log-failed`, `gh pr list`), em vez de pedir ao Alexandre para abrir o navegador. O `gh pr merge` segue as regras de "Quem faz o merge" acima e passa pelo guardião (v6 desde 02/11). Sem pedido do Alexandre, o `gh` **não** é usado para fechar PR, apagar branch ou mudar configuração do repositório.
 
-**3. Git automático** (executado pelo gerente-projetos, sem pedir confirmação; os demais agentes não fazem commit)
-- **Início de cada rodada**: `git pull --no-rebase origin main`. Se vieram commits da nuvem: `pnpm install`, registrar a entrega no quadro e na tarefa, destravar os caminhos e mandar recado de revisão ao dono do caminho.
-- **Fim de cada rodada**, com `pnpm lint`, `pnpm typecheck` e `pnpm test` da raiz verdes: commit no `main` (`T-nnnn: <resumo>` + trailer `Agente: <nome>`) → `git pull --no-rebase origin main` → lint, typecheck e test de novo → `git push origin main` se verde.
-- **Vermelho depois do pull**: não fazer push; disparar a correção para o dono e fazer o push quando ficar verde.
-- **Conflito no pull**: o gerente resolve só se o arquivo for dele (`.coord/`, `docs/produto/`); se for de outro dono, chama o dono para resolver e só então faz o push. O Alexandre é avisado por recado só se o conflito durar mais de uma rodada.
-- **Proibido**: force push, rebase do `main`, push com teste vermelho, apagar histórico.
-- **Permissão de push**: a regra do `.claude/settings.json` permite push para `main`, `nuvem/*`, `alexandre/*` e `agente/*` e nega force e delete (entregue pela T-0005 na nuvem). Enquanto a regra não chegar pelo pull, o gerente faz só o commit local e segue.
-- **Diff de governança aplicado**: o gerente aplica no worktree de verificação, com `Agente: alexandre`. O dono do caminho alinha também a árvore local ao `main` (`git restore --source=HEAD --worktree -- <arquivos>`), senão o guardião e o `verificar` locais seguem com a regra antiga.
+**3. Git só por PR** (time 100% na nuvem, 14/11/2026; substitui o "git automático" com commit no `main` pelo gerente no fim da rodada)
+- **Cada sessão** parte do `main` atual (`git fetch origin main` + branch novo), trabalha só nos caminhos do dono, roda lint, typecheck e testes dos pacotes tocados e faz **um commit** (`T-nnnn: <resumo>` + trailer `Agente: <dono>`) e **um push** para o próprio branch. Abre o PR `[PRONTO PARA MERGE] ...` com a entrega.
+- **Um PR por dono e por lote**: nunca juntar arquivos de donos diferentes no mesmo PR. Recados e lidos ficam no repositório de recados, fora do PR.
+- **Merge**: depois do CI do PR verde, com o `main` verde, pela regra de "Quem faz o merge" (acima). Ninguém faz commit nem push direto no `main`.
+- **Gerente = sessão fixa com rondas agendadas** a cada 15–20 min: lê as caixas e cobra recados não lidos, varre os PRs `[PRONTO PARA MERGE]` e o CI, faz os merges pela regra A, atualiza quadro e diário, destrava caminhos e abre as próximas sessões para manter as 7 vagas ocupadas.
+- **Vermelho no PR**: sem merge; o dono corrige no mesmo branch (um commit novo só se o PR já foi enviado; ver "Economia do Actions"). Rerun só para falha de infraestrutura, uma vez.
+- **Conflito com o `main`**: o dono do branch mescla o `main` no próprio branch e resolve só arquivos dele; arquivo de outro dono → recado ao dono. O Alexandre é avisado por recado só se o conflito durar mais de uma ronda.
+- **Proibido**: force push, rebase do `main`, push direto ao `main`, merge com CI vermelho, apagar histórico.
+- **Permissão de push**: a regra do `.claude/settings.json` permite push para `nuvem/*`, `alexandre/*` e `agente/*` (e `main`, que deixa de ser usado) e nega force e delete.
+- **Governança** (`.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs`, `.github/**`): PR próprio com `Agente: alexandre`, merge só pelo rito de autorização (acima).
 
 **4. Esteira permanente** (dono do produto, R-20261107-164646, vale até ele mandar parar)
 - Tudo o que o dono do produto pede, e tudo o que é necessário para entregar o que ele pediu, **entra na esteira e segue em execução**. Não se espera fase, piloto nem build.
 - **Backlog só com autorização escrita dele**: num recado, ou numa mensagem no chat com a palavra "backlog". Item adiado sem essa autorização vira tarefa com dono e ordem.
-- **Nenhum agente ocioso**: as **7 vagas locais** (dono do produto, 07/11 22h35; antes 8, 6 e 4) ficam sempre ocupadas. Sem trabalho local que não colida, o gerente abre frentes na nuvem em caminhos exclusivos e manda ao dono do produto o prompt de abertura.
+- **Nenhum agente ocioso**: as **7 vagas** (dono do produto, 07/11 22h35; antes 8, 6 e 4) são **7 sessões da nuvem** sempre ocupadas, cada uma em caminhos exclusivos que não colidem com os das outras. Quando uma sessão entrega, o gerente abre a próxima na mesma ronda e manda ao dono do produto o prompt de abertura, se a sessão precisar ser aberta por ele.
+- **Gerente em sessão fixa**: as rondas agendadas (15–20 min) substituem as rodadas do PC; em cada ronda o gerente confere caixas, PRs prontos, CI do `main` e vagas livres.
 - **Prioridade**: T-0093 → T-0094 → build único Campo-Demo-v1.0.0 / Gestao-Demo-v1.0.0 → o resto. O que não colide roda em paralelo.
 - **Chat vira recado**: tudo o que o dono do produto disser no chat com o gerente é gravado como recado `aviso` para `todos`, com o texto literal.
 
 **Recados no repositório próprio** (dono do produto, 08/11/2026 ~22h e 09/11/2026; ADR 0035 e ADR 0039, T-0139 e T-0143)
 - **Fonte única:** o repositório privado `aloirr/macuxifdv-recados`, com `recados/<destino>/R-*.md` e `lidos/<agente>.txt`.
-- **Direto no GitHub (T-0143, desde 09/11 ~19h30):** o `coord.mjs` grava `enviar` e `lido` com um commit pela API do GitHub (`createCommitOnBranch` com `expectedHeadOid`; em conflito relê e tenta de novo) e lê `caixa`, `pendencias`, `ler` e `fio` do `main` na hora, com cópia local por commit. "Enviado" só aparece com o commit confirmado; sem rede, nada é gravado e o comando avisa. Token: `MACUXI_RECADOS_TOKEN` (fine-grained, só Contents do repositório de recados; no PC e nas variáveis da nuvem) ou o do `gh` logado; nunca em arquivo ou log. A guarda de merge lê a autorização sempre do GitHub.
+- **Direto no GitHub (T-0143, desde 09/11 ~19h30):** o `coord.mjs` grava `enviar` e `lido` com um commit pela API do GitHub (`createCommitOnBranch` com `expectedHeadOid`; em conflito relê e tenta de novo) e lê `caixa`, `pendencias`, `ler` e `fio` do `main` na hora, com cópia local por commit. "Enviado" só aparece com o commit confirmado; sem rede, nada é gravado e o comando avisa. Token: `MACUXI_RECADOS_TOKEN` (fine-grained, só Contents do repositório de recados; nas variáveis do ambiente da nuvem) ou o do `gh` logado; nunca em arquivo ou log. A guarda de merge lê a autorização sempre do GitHub.
 - **Acabou:** junção `.coord/recados`/`.coord/lidos`, clone `C:\macuxifdv-recados` (arquivado em `C:\macuxifdv-recados-arquivo-20261109`), Agendador e hook de sincronização. Volta: `MACUXI_RECADOS=local` + clone + junções (ADR 0039) ou `git revert` do f25bbe88.
-- **Conferência:** cada agente roda `node scripts/coord.mjs caixa <agente>` no início de cada tarefa. O gerente confere as caixas a cada 5 min e cobra recado não lido.
+- **Na nuvem (pendência, 14/11/2026):** as sessões do claude.ai/code barram a GraphQL do GitHub (HTTP 403, "use the REST API"), e o `coord.mjs` grava e lê os recados por GraphQL; até o `coord.mjs` ganhar a rota REST (governança: Alexandre, com o engenheiro-software e o ADR do time na nuvem), a sessão que não alcança os recados registra o que enviaria no PR e no diário.
+- **Conferência:** cada agente roda `node scripts/coord.mjs caixa <agente>` no início de cada tarefa. O gerente confere as caixas em toda ronda (15–20 min; no PC era a cada 5 min) e cobra recado não lido.
 - **Dono do produto:** escreve pelo formulário de issue "Recado" ou pela ponte; toda rodada de recados dele termina com um aviso ao gerente para ler. Telegram (aviso, resumo e resposta) no **backlog sem data** (R-20261109-125750).
 - **Código:** recados e lidos ficam fora dos commits do repositório de código (`/.coord/recados` e `/.coord/lidos` no `.gitignore`).
 - **Status diário:** recado do gerente ao dono do produto às 18h, com o percentual de cada dia do cronograma (doc 05) e o risco para a entrega.
@@ -223,6 +236,8 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 - **Versão visível**: a versão aparece em Perfil → linha da versão, igual ao nome do build.
 - **Arquivo legível**: além do link do expo.dev, o APK sai como `Campo-Demo-vX.Y.Z.apk`, com link temporário de um bucket privado.
 - **Assunto do recado**: `BUILD PRONTO Campo-Demo-vX.Y.Z / Gestao-Demo-vX.Y.Z (<sha curto>)`.
+- **Onde sai o build** (time 100% na nuvem, 14/11/2026): pelo workflow `eas-build.yml` ("eas build", `workflow_dispatch`, inputs `variante`, `perfil` e `so_conferir`), disparado a partir do `main` depois do merge do lote. Antes do primeiro build de cada ciclo, um run com **`so_conferir=true`** testa o `EXPO_TOKEN` (`eas whoami`) sem gastar build do EAS. O `EXPO_TOKEN` fica só nos segredos do Actions.
+- **Deploy**: só pelos workflows de produção (`producao-publicar.yml` "producao — publicar" e, quando preciso, `producao-tenant.yml`, `producao-super-admin.yml` e `producao-ensaio-restauracao.yml`), com a tag `v*` e o recado "aprovo deploy vX.Y.Z" do Alexandre citado na mensagem da tag. A demo segue pelo `demo-publicar.yml` e, no plano B, pelo `demo-recriar-base.yml`.
 
 ## Contratos entre módulos
 `.coord/contratos/` (dono: engenheiro-software) registra eventos, extensões e dependências. O módulo publicador é dono do schema do evento em `modules/<m>/contracts`; mudança incompatível = nova versão + recado a todos os consumidores.

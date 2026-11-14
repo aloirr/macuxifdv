@@ -15,6 +15,17 @@ CLI: `node scripts/coord.mjs` (sem argumentos mostra a ajuda). Protocolo complet
 
 Você (Alexandre) também conversa por aqui: `node scripts/coord.mjs caixa alexandre` mostra o que o time te mandou; `node scripts/coord.mjs enviar --de alexandre --para gerente-projetos --tipo pedido --assunto "..." --corpo "..."` deixa uma ordem.
 
+## Rondas, commit, push e PR (time 100% na nuvem)
+
+Decisão do Alexandre (chat, 14/11/2026: "Migre tudo para a nuvem"), valendo desde o build Oficial v1.0.7. Base técnica: ADR do time na nuvem (proposto), do engenheiro-software. Detalhes: doc 07, seções 1 a 5.
+
+- **Onde**: todo agente roda numa sessão do claude.ai/code, num branch `nuvem/*`, `alexandre/*` ou `agente/*`. O PC (VS Code, `C:\macuxifdv`) não roda mais o time. A pasta da Fase M continua só para consulta.
+- **Rondas**: o gerente-projetos é uma sessão fixa com rondas agendadas a cada 15–20 min (caixas, PRs `[PRONTO PARA MERGE]`, CI, quadro, vagas). As 7 vagas são 7 sessões da nuvem.
+- **Commit e push**: um commit por PR (`T-nnnn: <resumo>` + `Agente: <dono>`; ajustes por `--amend` antes do push) e um push só. Lint, typecheck e testes rodam na sessão antes.
+- **PR**: um por dono e por lote; merge (squash) só com o CI do PR verde e o `main` verde. Nada direto no `main`. Governança só pelo rito de autorização do Alexandre.
+- **Actions**: um rerun só, e apenas para falha de infraestrutura. Build pelo `eas-build.yml` (`so_conferir=true` testa o `EXPO_TOKEN` sem build); deploy pelos workflows `producao-*`, com "aprovo deploy vX.Y.Z".
+- **Recados**: no repositório `aloirr/macuxifdv-recados`, fora dos commits de código (as linhas `recados/` e `lidos/` da tabela acima são histórico).
+
 ## Verificação de donos (`verificar`)
 
 Confere os arquivos alterados contra `donos.json` (a primeira regra que casa define o dono).
@@ -51,9 +62,9 @@ node scripts/coord.mjs verificar --por-commit origin/main..HEAD  # cada commit �
 - No CI (checkout limpo) a base precisa existir localmente: `actions/checkout` com `fetch-depth: 0` ou `git fetch origin main` antes de rodar `node scripts/coord.mjs verificar --base origin/main`.
 - Testes do script: `node --test scripts/coord-verificar.test.mjs` (casos A1–A11 e B1–B12 do engenheiro, R-20261031-071802-engenheiro-software).
 
-### Por commit (`--por-commit <de>..<até>`) — push direto ao `main`
+### Por commit (`--por-commit <de>..<até>`) — conferência do `main`
 
-Os agentes locais enviam direto ao `main`, um commit por tarefa, cada um com o trailer `Agente: <nome>`. O `--base` olha o branch inteiro como de um só agente; o `--por-commit` confere **cada** commit de `git log <de>..<até>` contra o agente do trailer **daquele** commit, com as mesmas regras e exceções do `--base` (tabela acima, coluna "Com `--base`").
+Desde 14/11/2026 nada vai direto ao `main`: tudo entra por PR (squash), e cada commit leva o trailer `Agente: <nome>`. O `--por-commit` continua no CI do push ao `main` e serve para conferir um intervalo de commits de vários donos. O `--base` olha o branch inteiro como de um só agente; o `--por-commit` confere **cada** commit de `git log <de>..<até>` contra o agente do trailer **daquele** commit, com as mesmas regras e exceções do `--base` (tabela acima, coluna "Com `--base`").
 
 - Commit de merge (mais de um pai) é ignorado.
 - Commit sem o trailer, com agente fora do time ou com dois agentes diferentes → código **2** com a lista desses commits (os demais são conferidos e aparecem na saída).
