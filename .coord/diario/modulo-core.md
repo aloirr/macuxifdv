@@ -155,3 +155,4 @@
 2026-11-14 — T-0170/v1.0.6 — MC-0010 (Início e Performance), MC-0012, MC-0014 (STATUS_FILL), retirada do inicio.recado_do_dia_padrao (D2) e costura #149 (itens 1, 2, 3, 4 e 6); branch nuvem/v106-modulo-core
 2026-11-14 — RD-0250 — ROTULO_INDICADOR_META no contracts, core usando o mapa; Faturamento só com meta de faturamento
 2026-11-14 — ficha-cliente-performance — aba Performance (RN-CORE-50), botão Pesquisa e Checkout só em atendimento (RN-CORE-51)
+2026-11-14 — RN-CORE-50 — total de visitas e quem visitou por último na aba Performance: entidade cliente_visita_resumo@1 (view core.v_cliente_visita_resumo, escopo carteira), resumoDeVisitas com o resumo do servidor e quemVisitouPorUltimo; carga em Clientes e rota (Campo) e Equipe (Gestão)

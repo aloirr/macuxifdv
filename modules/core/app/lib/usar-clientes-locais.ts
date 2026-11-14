@@ -2,7 +2,7 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteUltimaVisitaSync, ClienteFinanceiroSync, VisitaSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteUltimaVisitaSync, ClienteVisitaResumoSync, ClienteFinanceiroSync, VisitaSync, ClienteFotoSync, ClienteSync, FilialSync, FotoTipoSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { PedidoItemSync, PedidoSync } from '../../../vendedor/contracts';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -40,9 +40,11 @@ export interface ClientesLocais extends BaseLocal {
   pedidos: readonly PedidoSync[];
   pedidoItens: readonly PedidoItemSync[];
   visitasSync: readonly VisitaSync[];
+  /** RN-CORE-50: total de visitas e quem visitou por último (servidor, qualquer usuário); vazio = vale o cálculo local. */
+  resumosVisita: readonly ClienteVisitaResumoSync[];
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [] };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], filiais: [], fotoTipos: [], clienteFotos: [], fotosPendentes: [], ultimasVisitas: [], pronto: false, carregado: false, verPedidos: true, faixasCurva: PARAMETROS_CURVA_ABC_PADRAO, pedidos: [], pedidoItens: [], visitasSync: [], resumosVisita: [] };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -54,7 +56,7 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, ultimasVisitas, pedidos, pedidoItens, visitasSync] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros, filiais, fotoTipos, clienteFotos, ultimasVisitas, pedidos, pedidoItens, visitasSync, resumosVisita] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
@@ -69,9 +71,10 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
         motor.linhas<PedidoSync>('pedido'),
         motor.linhas<PedidoItemSync>('pedido_item'),
         motor.linhas<VisitaSync>('visita'),
+        motor.linhas<ClienteVisitaResumoSync>('cliente_visita_resumo'),
       ]);
       const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null) });
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, filiais, fotoTipos, clienteFotos, ultimasVisitas: ultimasVisitas.filter((u) => u.deleted_at === null), fotosPendentes: [], pronto: clientes.length > 0, carregado: true, verPedidos, faixasCurva: faixasCurvaAbcDasLinhas(parametros), pedidos: verPedidos ? pedidos.filter((p) => p.deleted_at === null) : [], pedidoItens: verPedidos ? pedidoItens.filter((i) => i.deleted_at === null) : [], visitasSync: visitasSync.filter((v) => v.deleted_at === null), resumosVisita: resumosVisita.filter((r) => r.deleted_at === null) });
     })();
     return () => {
       ativo = false;

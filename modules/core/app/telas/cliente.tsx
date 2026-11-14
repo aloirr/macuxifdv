@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AbaCliente, AcaoCliente, AvisoCliente, ContextoCliente } from '../../contracts';
-import { acoesDoRodapeCliente, botoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDias, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
+import { acoesDoRodapeCliente, botoesDoRodapeCliente, curvasAbcDoCliente, filtrarExtensoesDePedido, isVisitOpen, itensDoPedidoVisiveis, prazoMedioDias, quemVisitouPorUltimo, resumoDeVisitas, ultimosItensComprados, dataLocal } from '../../domain';
 import { AbaPerformance } from '../components/aba-performance';
 import { AbaCompras, AbaDadosCadastrais, AbaFinanceiro, AcoesContato, BlocoFotosPdv, BotaoFotoPdv, enderecoDoCliente, IndicadoresResumo, nomeDoCliente, TagsCliente } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
@@ -162,9 +162,11 @@ export function TelaCliente() {
   const dataDoPedido = new Map(pedidosDoCliente.map((p) => [p.id, p.data]));
   const itensComprados = ultimosItensComprados(itensVisiveis.map((i) => ({ ...i, data: dataDoPedido.get(i.pedido_id) ?? '', produto_nome: i.produto_nome ?? null, unidade: i.unidade ?? null })), 20).map((i) => ({ ...i, data_local: dataLocal(i.data, tz) }));
   const ultimaDoSync = locais.ultimasVisitas.filter((u) => u.cliente_id === id).map((u) => u.ultima_visita_data).sort().pop() ?? null;
-  const visitas = resumoDeVisitas(visitasDoCliente, tz, ultimaDoSync);
+  // RN-CORE-50: com o resumo do servidor vale o total e a última visita dele; sem ele, o cálculo local
+  const resumoServidor = locais.resumosVisita.find((r) => r.cliente_id === id) ?? null;
+  const visitas = resumoDeVisitas(visitasDoCliente, tz, ultimaDoSync, resumoServidor);
   const nomeDoVendedor = new Map(pedidosDoCliente.filter((p) => p.vendedor_nome).map((p) => [p.vendedor_id, p.vendedor_nome as string]));
-  const quemVisitou = visitas.ultimo_usuario_id ? (visitas.ultimo_usuario_id === core.vendedorId ? 'Você' : (nomeDoVendedor.get(visitas.ultimo_usuario_id) ?? null)) : null;
+  const quemVisitou = quemVisitouPorUltimo(visitas, core.vendedorId, nomeDoVendedor);
 
   const itensAbas = [
     { id: 'resumo', rotulo: 'Resumo' },
