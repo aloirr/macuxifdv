@@ -58,12 +58,13 @@ describe('T-0124 — Metas do Campo e Indicadores do BKO (RN-CORE-20/21/22)', ()
   const agora = new Date('2026-11-10T13:00:00Z');
   const linhas = { paradas: [], visitas: [], diarios: [diario('2026-11-09', 55_300)], metas: [metaSync('venda_cents', META)] };
 
-  it('I1. Venda: realizado = soma dos diários líquidos do mês; atingimento = realizado ÷ meta; rótulo "Venda" com "R$ 553 de R$ 180.000"', () => {
+  it('I1. Venda: realizado = soma dos diários líquidos do mês; atingimento = realizado ÷ meta; rótulo "Vendas" (ou "Venda" antes do RD-0250) com "R$ 553 de R$ 180.000"', () => {
     const p = painelLocal(linhas, [], { usuarioId: ANA, fuso: FUSO, agora });
     const l = p.metas.find((m) => m.indicador === 'venda_cents')!;
     expect(l).toMatchObject({ meta: META, realizado: 55_300, atingimento_pct: Math.round((55_300 / META) * 10_000) });
     const t = textoDaLinha(l);
-    expect(t.rotulo).toBe('Venda');
+    // RD-0250 (PR #171): venda_cents passa de "Venda" para "Vendas"; aceita os dois até o merge.
+    expect(t.rotulo).toMatch(/^Vendas?$/);
     expect(limpo(`${t.realizado} de ${t.meta}`)).toBe('R$ 553 de R$ 180.000');
     expect(t.atingimento).toBe('0,31%');
   });
