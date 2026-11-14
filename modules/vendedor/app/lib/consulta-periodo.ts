@@ -47,7 +47,7 @@ export function textoDoVazio(e: EntradaTextoDoVazio): string {
     return mensagemForaDaJanela(e.modoConsulta === 'disponivel_com_conexao' ? 'disponivel_com_conexao' : e.estadoDoServidor === 'erro' ? 'erro' : 'carregando');
   }
   if (e.buscando) return 'Nenhum pedido encontrado. Confira o nome ou o número, ou limpe a busca.';
-  if (e.situacao === 'orcamentos' || e.situacao === 'orc_abertos') return 'Nenhum orçamento neste período.';
+  if (e.situacao === 'orcamentos') return 'Nenhum orçamento neste período.';
   if (e.situacao === 'decide') return 'Nada para aprovar agora.';
   if (e.situacao === 'todos') return e.gestao ? 'Nenhum pedido da equipe neste período.' : 'Nenhum pedido neste período. Toque em Novo para começar.';
   return 'Nenhum pedido com esta situação neste período.';
@@ -72,9 +72,9 @@ export function resumoDaBusca(quantidade: number, vendedor: string | null): stri
   return vendedor ? `${n} · ${vendedor} · últimos 90 dias` : `${n} · últimos 90 dias`;
 }
 
-/** T-0090 UX2: os chips A faturar e Em aberto (do Início) ignoram o período; escolher um período volta para Todos, para a etiqueta não mentir. */
+/** T-0090 UX2: o chip A faturar (do Início) ignora o período; escolher um período volta para Todos, para a etiqueta não mentir. */
 export function situacaoAoEscolherPeriodo<S extends string>(situacao: S | null): S | 'todos' | null {
-  return situacao === 'a_faturar' || situacao === 'orc_abertos' ? 'todos' : situacao;
+  return situacao === 'a_faturar' ? 'todos' : situacao;
 }
 
 /** T-0090 UX5: mesmo padrão da etiqueta de período. */

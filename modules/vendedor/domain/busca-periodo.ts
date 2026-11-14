@@ -277,15 +277,6 @@ export function chipsComAtivo(chips: ContagemPorSituacao['chips'], ativo: string
   return depois < 0 ? [...chips, novo] : [...chips.slice(0, depois), novo, ...chips.slice(depois)];
 }
 
-/** Resumo da tela: com o chip Orçamentos ativo conta e soma os orçamentos; nos demais, os pedidos que valem. */
-export function resumoDaSituacao(itens: readonly ItemDaBusca[], situacao: string): { quantidade: number; total_cents: number; orcamentos: boolean } {
-  if (situacao === 'orcamentos') {
-    const o = itens.filter((i) => i.tipo === 'orcamento');
-    return { quantidade: o.length, total_cents: o.reduce((s, i) => s + i.total_cents, 0), orcamentos: true };
-  }
-  return { ...resumoDaLista(itens), orcamentos: false };
-}
-
 /**
  * T-0077 D1 (RF-VEN-05): data da última mudança de status do pedido, a partir dos eventos do aparelho (`pedido_evento`,
  * `de` ≠ nulo = troca de status). Só o evento de criação = nunca mudou (null). Sem nenhum evento no aparelho, cai no

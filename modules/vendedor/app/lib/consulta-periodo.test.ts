@@ -43,7 +43,7 @@ describe('textoDoVazio (T-0077)', () => {
     expect(textoDoVazio({ ...b, buscando: true })).toMatch(/limpe a busca/);
   });
   it('por situação e perfil', () => {
-    expect(textoDoVazio({ ...b, situacao: 'orc_abertos' })).toBe('Nenhum orçamento neste período.');
+    expect(textoDoVazio({ ...b, situacao: 'orcamentos' })).toBe('Nenhum orçamento neste período.');
     expect(textoDoVazio({ ...b, situacao: 'decide' })).toBe('Nada para aprovar agora.');
     expect(textoDoVazio({ ...b, gestao: true })).toBe('Nenhum pedido da equipe neste período.');
     expect(textoDoVazio(b)).toMatch(/Toque em Novo/);
@@ -83,9 +83,8 @@ describe('T-0090 revisão de UX (🟡1, 🟡2, 🟡5)', () => {
     expect(resumoDaBusca(1, 'Ana Souza')).toBe('1 resultado · Ana Souza · últimos 90 dias');
     expect(resumoDaBusca(0, 'Ana Souza')).toBe('0 resultados · Ana Souza · últimos 90 dias');
   });
-  it('UX2: escolher um período sai dos chips A faturar e Em aberto (voltam para Todos); os demais ficam', () => {
+  it('UX2: escolher um período sai do chip A faturar (volta para Todos); os demais ficam', () => {
     expect(situacaoAoEscolherPeriodo('a_faturar')).toBe('todos');
-    expect(situacaoAoEscolherPeriodo('orc_abertos')).toBe('todos');
     expect(situacaoAoEscolherPeriodo('decide')).toBe('decide');
     expect(situacaoAoEscolherPeriodo(null)).toBeNull();
   });
