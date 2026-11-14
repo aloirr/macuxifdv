@@ -2,7 +2,7 @@
  * Catálogo em grade (T-0173, docs/design/catalogo-grade.md): chips de sistema e de categoria sobre a árvore do ERP e a tag de
  * estoque do cartão. Puro, testável em Node; a decisão de preço e de faixa é do domain.
  */
-import type { TomEstado } from '@macuxi/ui/mobile';
+import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { ItemVitrine } from '../../contracts';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 import { textoEquivaleA, type RotuloPreco } from './apresentacao';
