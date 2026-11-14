@@ -17,7 +17,7 @@ const PERFIS_CONTEUDO = ['analista', 'admin'] as const;
  * o Catálogo reage só a preço e estoque do Hub (o evento de produto do ERP é consumido pelo Core).
  * `assistente` entra nos perfis porque o Vendedor depende do Catálogo (RN-CORE-03) e o assistente de BKO trabalha
  * com pedidos; `admin` entra para cadastrar conteúdo, sinônimos e destaques no BKO.
- * Nenhuma ação de pedido aqui: "Adicionar ao pedido" é do Vendedor, registrado na extensão `produto.acoes`.
+ * Nenhuma ação de pedido aqui: as do Vendedor (ex.: "Adicionar ao orçamento") entram pela extensão `produto.acoes`.
  */
 export const manifest = defineModule({
   id: 'catalogo',

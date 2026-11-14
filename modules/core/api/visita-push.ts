@@ -2,6 +2,7 @@
  * Push de visita (desenho T-0016 §4.3): check-in (`visita`, id = id da visita) e checkout (`visita_checkout`,
  * id = UUID do comando). O servidor sempre revalida:
  *  - RN-CORE-10: fora do raio exige justificativa (sinaliza `fora_do_raio`); cliente sem coordenada sugere a coordenada;
+ *  - RN-CORE-52: cliente fora da rota do dia do usuário só com a ação `visita.checkin_fora_de_rota` (erro `CHECKIN_FORA_DE_ROTA`);
  *  - RN-CORE-11: um atendimento aberto por usuário (a anterior fecha como `auto`/`nao_finalizado`);
  *  - RN-CORE-12: com Vendedor efetivo, `sem_pedido` exige motivo; sem Vendedor o resultado é `atendido`;
  *  - RN-CORE-13: o GPS só chega no check-in e no checkout (nunca rastro);
@@ -12,6 +13,7 @@
  */
 import {
   ErroHttpModulo,
+  pode,
   type ClienteBanco,
   type ContextoBase,
   type ItemPush,
@@ -19,8 +21,8 @@ import {
   type TransacaoTenant,
 } from '@macuxi/platform-sdk';
 import type { CheckinVisita, CheckoutVisita } from '../contracts';
-import { EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT } from '../contracts';
-import { avaliarCheckin, avaliarCheckoutTolerante, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
+import { ACAO_CHECKIN_FORA_DE_ROTA, CODIGO_CHECKIN_FORA_DE_ROTA, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, MENSAGEM_CHECKIN_FORA_DE_ROTA } from '../contracts';
+import { avaliarCheckin, checkinPermitido, avaliarCheckoutTolerante, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
 
 import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
 import { gravarEtapasDoCheckout } from './etapas-pendencia';
@@ -68,6 +70,20 @@ interface AbertaLinha {
   checkin_em: Date;
 }
 
+/** RN-CORE-52: clientes das paradas da rota do dia (rota não cancelada) do usuário + a ação do perfil, pela regra pura do domínio. */
+async function checkinNaRotaPermitido(ctx: ContextoBase, db: ClienteBanco, usuarioId: string, p: CheckinVisita): Promise<boolean> {
+  const podeForaDeRota = pode(ctx.usuario.perfis, ACAO_CHECKIN_FORA_DE_ROTA);
+  // com a ação, qualquer cliente da carteira passa: nem consulta a rota
+  if (podeForaDeRota) return true;
+  const dia = dataLocal(p.checkin_em, ctx.fuso());
+  const r = await db.query<{ cliente_id: string }>(
+    `select rp.cliente_id from core.rota_parada rp join core.rota r on r.id = rp.rota_id
+      where rp.usuario_id = $1 and rp.data = $2::date and rp.cliente_id = $3 and rp.deleted_at is null and r.deleted_at is null and r.situacao <> 'cancelada'`,
+    [usuarioId, dia, p.cliente_id],
+  );
+  return checkinPermitido({ clienteId: p.cliente_id, clientesDaRota: r.rows.map((x) => x.cliente_id), podeForaDeRota });
+}
+
 export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
   const visiveis = await ctx.carteira();
   const eu = ctx.usuario.id;
@@ -82,11 +98,13 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
     if (visiveis !== 'tenant' && !visiveis.has(p.cliente_id)) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Este cliente não está na sua carteira. Atualize os dados e tente de novo.');
     const cli = (await db.query<{ lat: number | null; lng: number | null }>('select latitude::float8 as lat, longitude::float8 as lng from core.cliente where id = $1 and deleted_at is null', [p.cliente_id])).rows[0];
     if (!cli) return rejeitado(item.id, 'FORA_DA_CARTEIRA', 'Cliente não encontrado. Atualize os dados e tente de novo.');
-    // 3) RN-CORE-10 / RN-CORE-13
+    // 3) RN-CORE-52: fora da rota do dia, só com a ação no perfil (o dia é o do check-in, no fuso do tenant)
+    if (!(await checkinNaRotaPermitido(ctx, db, eu, p))) return rejeitado(item.id, CODIGO_CHECKIN_FORA_DE_ROTA, MENSAGEM_CHECKIN_FORA_DE_ROTA);
+    // 4) RN-CORE-10 / RN-CORE-13
     const posicao = p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : null;
     const aval = avaliarCheckin({ cliente: { lat: cli.lat, lng: cli.lng }, posicao, raio_m: await raioDoTenant(db), justificativa: p.justificativa_fora_raio });
     if (!aval.pode) return rejeitado(item.id, 'RN-CORE-10', 'Check-in fora do raio do cliente exige justificativa.');
-    // 4) RN-CORE-11: fecha as abertas antes (o índice único parcial é a trava final)
+    // 5) RN-CORE-11: fecha as abertas antes (o índice único parcial é a trava final)
     const fuso = ctx.fuso();
     const abertas = (await db.query<AbertaLinha>('select id, cliente_id, checkin_em from core.visita where usuario_id = $1 and checkout_em is null and deleted_at is null', [eu])).rows;
     const { fechar } = resolverCheckin(

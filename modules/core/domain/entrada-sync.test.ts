@@ -31,6 +31,12 @@ describe('RN-CORE-48: etapas nomeadas da entrada por perfil e módulos efetivos'
   it('RN-CORE-48: entidade de módulo inativo cai na etapa anterior que existe', () => {
     expect(etapaDaEntidade('vendedor', ['core', 'vendedor'], { entidade: 'tabela_preco', modulo: 'catalogo' })).toBe('clientes_rota');
   });
+  it('RN-CORE-48: o resumo de visitas do cliente (RN-CORE-50) carrega em Clientes e rota no Campo e em Equipe na Gestão', () => {
+    const carga = { entidade: 'cliente_visita_resumo', modulo: 'core' };
+    expect(etapaDaEntidade('vendedor', ['core', 'vendedor'], carga)).toBe('clientes_rota');
+    expect(etapaDaEntidade('promotor', ['core', 'promotor'], carga)).toBe('clientes_rota');
+    expect(etapaDaEntidade('supervisor', ['core', 'vendedor', 'gestor'], carga)).toBe('equipe');
+  });
   it('RN-CORE-48: antes de qualquer entidade a etapa é o envio, com 0%', () => {
     const p = progressoDaEntrada(base());
     expect(p.atual).toMatchObject({ id: 'envio', numero: 1, situacao: 'atual' });

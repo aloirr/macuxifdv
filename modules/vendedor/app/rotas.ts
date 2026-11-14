@@ -8,6 +8,7 @@ export const CAMINHO_PEDIDOS = 'pedidos';
 export const CAMINHO_PEDIDO = 'pedido';
 export const CAMINHO_NOVO_PEDIDO = 'novo-pedido';
 export const CAMINHO_RASCUNHOS = 'rascunhos';
+export const CAMINHO_ADICIONAR_AO_ORCAMENTO = 'adicionar-ao-orcamento';
 
 const rota = (caminho: string, params: Record<string, string | undefined> = {}) => {
   const qs = Object.entries(params)
@@ -20,6 +21,9 @@ const rota = (caminho: string, params: Record<string, string | undefined> = {}) 
 export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
 /** T-0141 (RN-VEN-39): a lista Rascunhos, aberta pela linha no topo de Pedidos. */
 export const hrefRascunhos = () => rota(CAMINHO_RASCUNHOS);
+/** Catálogo → "Adicionar ao orçamento": a folha com os orçamentos em aberto, para o produto escolhido. */
+export const hrefAdicionarAoOrcamento = (produtoId: string, nome: string) => rota(CAMINHO_ADICIONAR_AO_ORCAMENTO, { produtoId, nome });
+export const irParaAdicionarAoOrcamento = (produtoId: string, nome: string) => router.push(hrefAdicionarAoOrcamento(produtoId, nome) as never);
 /** T-0076: a lista de Pedidos já filtrada pelos cards do Início. */
 export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });

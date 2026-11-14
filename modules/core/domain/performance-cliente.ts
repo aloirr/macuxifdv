@@ -1,6 +1,6 @@
 /**
  * Aba Performance da ficha do cliente (RN-CORE-50) e botões do rodapé (RN-CORE-51). Funções puras sobre as linhas que o aparelho
- * já tem (pedido, pedido_item e visita): sem leitura de tabela de outro módulo.
+ * já tem (pedido, pedido_item, visita e o resumo `cliente_visita_resumo`): sem leitura de tabela de outro módulo.
  */
 import { dataLocal } from './checkin';
 
@@ -52,20 +52,55 @@ export interface ResumoVisitas {
   total: number;
   /** AAAA-MM-DD no fuso do tenant. */
   ultima_data: string | null;
-  /** Quem fez o último check-in conhecido no aparelho; nulo quando a data mais recente vem só do sync por cliente. */
+  /** Quem fez o último check-in conhecido (aparelho ou resumo do servidor); nulo quando não se sabe. */
   ultimo_usuario_id: string | null;
+  /** Nome de quem fez o último check-in, vindo do resumo do servidor; nulo quando o último é do aparelho ou não se sabe. */
+  ultimo_usuario_nome: string | null;
 }
 
-/** RN-CORE-50: visitas do cliente no aparelho; `ultimaDataSync` (RN-CORE-47, qualquer vendedor) vale se for mais recente. */
-export function resumoDeVisitas(visitas: readonly { usuario_id: string; checkin_em: string }[], fuso: string, ultimaDataSync: string | null): ResumoVisitas {
+/** Resumo do servidor (`cliente_visita_resumo@1`): todas as visitas do cliente, de qualquer usuário, sem janela. */
+export interface ResumoVisitasServidor {
+  total_visitas: number;
+  /** Instante UTC. */
+  ultima_visita_em: string | null;
+  ultima_visita_usuario_id: string | null;
+  ultima_visita_usuario_nome: string | null;
+}
+
+/**
+ * RN-CORE-50: visitas do cliente. Com o resumo do servidor: total do servidor + check-ins do aparelho posteriores a ele, e a
+ * última visita é a mais recente entre as duas fontes. Sem o resumo: só a contagem e a última visita do aparelho.
+ */
+export function resumoDeVisitas(
+  visitas: readonly { usuario_id: string; checkin_em: string }[],
+  fuso: string,
+  servidor: ResumoVisitasServidor | null = null,
+): ResumoVisitas {
   const ordenadas = [...visitas].sort((a, b) => (a.checkin_em < b.checkin_em ? 1 : -1));
   const topo = ordenadas[0];
   const dataTopo = topo ? dataLocal(topo.checkin_em, fuso) : null;
-  if (ultimaDataSync && (!dataTopo || ultimaDataSync > dataTopo)) return { total: visitas.length, ultima_data: ultimaDataSync, ultimo_usuario_id: null };
-  return { total: visitas.length, ultima_data: dataTopo, ultimo_usuario_id: topo?.usuario_id ?? null };
+  const doAparelho: ResumoVisitas = { total: visitas.length, ultima_data: dataTopo, ultimo_usuario_id: topo?.usuario_id ?? null, ultimo_usuario_nome: null };
+  if (servidor) {
+    const corte = servidor.ultima_visita_em ? Date.parse(servidor.ultima_visita_em) : -Infinity;
+    const depois = visitas.filter((v) => Date.parse(v.checkin_em) > corte).length;
+    const total = servidor.total_visitas + depois;
+    if (depois > 0 || !servidor.ultima_visita_em) return { ...doAparelho, total };
+    return { total, ultima_data: dataLocal(servidor.ultima_visita_em, fuso), ultimo_usuario_id: servidor.ultima_visita_usuario_id, ultimo_usuario_nome: servidor.ultima_visita_usuario_nome };
+  }
+  return doAparelho;
 }
 
-/** RN-CORE-51: "Pesquisa" só com a extensão presente; "Checkout" só com atendimento aberto neste cliente (o check-in vem do Início/Rota). */
-export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean }): { checkout: boolean; pesquisa: boolean } {
-  return { checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
+/** RN-CORE-50: "Você" quando o último check-in é do próprio usuário; senão o nome do resumo ou, sem ele, o `vendedor_nome` dos pedidos. */
+export function quemVisitouPorUltimo(r: ResumoVisitas, meuId: string | null | undefined, nomesPorUsuario: ReadonlyMap<string, string>): string | null {
+  if (!r.ultimo_usuario_id) return null;
+  if (r.ultimo_usuario_id === meuId) return 'Você';
+  return r.ultimo_usuario_nome ?? nomesPorUsuario.get(r.ultimo_usuario_id) ?? null;
+}
+
+/**
+ * RN-CORE-51: rodapé da ficha. "Check-in" quando não há atendimento aberto neste cliente, o check-in é permitido (RN-CORE-52) e o
+ * cliente não foi visitado hoje (RN-CORE-13); "Checkout" só com atendimento aberto neste cliente; "Pesquisa" só com a extensão presente.
+ */
+export function botoesDoRodapeCliente(e: { temPesquisa: boolean; atendimentoAqui: boolean; checkinPermitido: boolean; visitadoHoje: boolean }): { checkin: boolean; checkout: boolean; pesquisa: boolean } {
+  return { checkin: !e.atendimentoAqui && e.checkinPermitido && !e.visitadoHoje, checkout: e.atendimentoAqui, pesquisa: e.temPesquisa };
 }
