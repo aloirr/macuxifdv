@@ -3,8 +3,10 @@
  * R-20261114-153500). Dicionário: docs/banco/plataforma.md e docs/banco/core.md, "0069". O que o BANCO garante:
  * - plataforma.perfil.cargo NOT NULL, sem padrão, em vendedor | promotor | supervisor | gerente | administrativo
  *   (perfil_cargo_valido; promotor desde R-20261114-153800); backfill e semeadura por plataforma.cargo_da_base;
- * - promotor (R-20261114-154000): gerente obrigatório e supervisor opcional; com supervisor, o gerente é o do supervisor —
- *   gatilhos adiados (promotor_sem_gerente, promotor_gerente_do_supervisor) em gravações novas/alteradas; legado não trava;
+ * - promotor (R-20261114-154000, RN-CORE-56): gerente obrigatório e supervisor opcional; com supervisor, o gerente é o do
+ *   supervisor — gatilhos adiados (promotor_sem_gerente, promotor_gerente_do_supervisor, hint RN-CORE-56) em gravações
+ *   novas/alteradas do promotor COM equipe (sem equipe = domain/API do Core); legado não trava; a função de gatilho é
+ *   SECURITY DEFINER (o COMMIT do portal, fora da sa_*, não tem acesso a core: ver conferencias-no-commit.test.ts);
  * - no máximo um vínculo vivo por usuário (usuario_perfil_um_vivo, exclusão adiada: 23P01 no COMMIT); trocar
  *   core.usuario.perfil substitui o vínculo; a migração deixa quem tinha vários com o de nível mais alto;
  * - core.v_usuario_hierarquia (security_invoker): cargo, equipe, supervisor_id e gerente_id derivados de core.equipe;
@@ -56,6 +58,8 @@ const GATILHOS_PROMOTOR: Array<[string, string]> = [
   ['perfil_conferir_promotor', 'after update of cargo on plataforma.perfil'],
 ];
 const SEM_GERENTE = { code: '23514', constraint: 'promotor_sem_gerente' };
+/** hint dos 2 erros do promotor (ADR 0049). */
+const HINT_PROMOTOR = 'RN-CORE-56';
 const GERENTE_DO_SUPERVISOR = { code: '23514', constraint: 'promotor_gerente_do_supervisor' };
 /** Hash argon2id de teste (formato PHC exigido pelo CHECK de core.usuario.senha_hash). */
 const HASH = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
@@ -106,7 +110,7 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(up).not.toMatch(/create (unique )?index/);
   });
 
-  it('promotor: 4 gatilhos de restrição ADIADOS na mesma função, que confere pela view; 2 erros nomeados; criados depois da view', () => {
+  it('promotor: 4 gatilhos de restrição ADIADOS na mesma função (DEFINER, sem EXECUTE a ninguém), que confere pela view; 2 erros nomeados com hint RN-CORE-56; só promotor com equipe; criados depois da view', () => {
     const u1 = umaLinha(up);
     for (const [gatilho, quando] of GATILHOS_PROMOTOR) {
       expect(u1).toContain(`create constraint trigger ${gatilho} ${quando} deferrable initially deferred for each row execute function core.promotor_conferir();`);
@@ -115,8 +119,14 @@ describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(f).toContain('from core.v_usuario_hierarquia h');
     expect(f).toContain("constraint = 'promotor_sem_gerente'");
     expect(f).toContain("constraint = 'promotor_gerente_do_supervisor'");
-    expect(f).toContain("h.cargo = 'promotor' and u.ativo");
-    expect(up).toContain('grant execute on function core.conferir_promotores(uuid, uuid[], uuid[]) to macuxi_app;');
+    expect(f).toContain("h.cargo = 'promotor' and u.ativo and u.equipe_id is not null");
+    expect(f.match(new RegExp(`hint = '${HINT_PROMOTOR}'`, 'g'))).toHaveLength(2);
+    expect(f).not.toContain('R-20261114-154000');
+    // a função de gatilho roda como o dono (COMMIT do portal); nenhuma das 2 tem EXECUTE para papel da aplicação
+    expect(umaLinha(bloco(up, 'core.promotor_conferir'))).toContain('returns trigger language plpgsql security definer set search_path = pg_catalog, core, plataforma, pg_temp');
+    expect(f).not.toMatch(/security definer/);
+    expect(up).not.toMatch(/grant execute on function core\.(conferir_promotores|promotor_conferir)/);
+    expect(up).toContain('revoke all on function core.conferir_promotores(uuid, uuid[], uuid[]) from public;');
     expect(up).toContain('revoke all on function core.promotor_conferir() from public;');
     expect(up.indexOf(`create view ${VIEW}`)).toBeLessThan(up.indexOf('create constraint trigger'));
     // view: promotor com supervisor (equipe de um supervisor) ou direto no gerente (equipe de um gerente)
@@ -300,8 +310,9 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
       await admin.query('update core.usuario set equipe_id = $2 where id = $1', [P, A.equipes.regional]);
       expect(await hier(P)).toEqual([{ cargo: 'promotor', supervisor_id: null, gerente_id: u.gerente }]);
       await admin.query('update core.usuario set equipe_id = $2 where id = $1', [P, A.equipes.equipe1]);
-      // sem gerente: sem equipe; equipe sem responsável (Equipe 2); equipe de um vendedor
-      expect(await app([['update core.usuario set equipe_id = null where id = $1', [P]]])).toEqual(SEM_GERENTE);
+      // sem equipe: o banco não confere (ainda não alocado; RN-CORE-56 no domain/API do Core, 422)
+      expect(await app([['update core.usuario set equipe_id = null where id = $1', [P]]])).toBeNull();
+      // sem gerente: equipe sem responsável (Equipe 2); equipe de um vendedor
       expect(await app([['update core.usuario set equipe_id = $2 where id = $1', [P, A.equipes.equipe2]]])).toEqual(SEM_GERENTE);
       expect(await noCommit([
         ['update core.equipe set responsavel_id = $2 where id = $1', [A.equipes.equipe2, u.vendedor2]],
@@ -312,13 +323,14 @@ describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (ba
         ['update core.usuario set equipe_id = $2 where id = $1', [P, A.equipes.equipe2]],
         ['update core.equipe set responsavel_id = $2 where id = $1', [A.equipes.equipe2, u.supervisor]],
       ])).toBeNull();
-      // promotor novo: sem equipe falha; na equipe do gerente passa
+      // promotor novo: sem equipe passa no banco (a API do Core recusa); na equipe do gerente passa; na Equipe 2 (sem responsável) falha
       const novo = (equipe: string | null): [string, unknown[]] => [
         "insert into core.usuario (id, tenant_id, nome, email, perfil, equipe_id, senha_hash) values ('aaaaaaaa-0069-4000-8000-000000000301', $1, 'Promotor Novo', 'prom69@exemplo.com.br', 'promotor', $2, $3)",
         [A.tenantId, equipe, HASH],
       ];
-      expect(await app([novo(null)])).toEqual(SEM_GERENTE);
+      expect(await app([novo(null)])).toBeNull();
       expect(await app([novo(A.equipes.regional)])).toBeNull();
+      expect(await app([novo(A.equipes.equipe2)])).toEqual(SEM_GERENTE);
       // inativo não confere (desligado)
       expect(await app([['update core.usuario set ativo = false, equipe_id = null where id = $1', [P]]])).toBeNull();
       // o gerente do supervisor diverge do do promotor: supervisor membro de outra equipe que não a que lidera
@@ -370,7 +382,7 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
     multi: 'cccccccc-0069-4000-8000-000000000102', // vendedor + promotor + supervisor -> fica supervisor (principal muda)
     pers: 'cccccccc-0069-4000-8000-000000000103', // vendedor + vendedor_x (personalizado) -> fica vendedor_x
     so: 'cccccccc-0069-4000-8000-000000000104', // só vendedor -> não muda
-    prom: 'cccccccc-0069-4000-8000-000000000105', // promotor legado sem equipe -> a 0069 aplica; só trava quando a gravação o alcança
+    prom: 'cccccccc-0069-4000-8000-000000000105', // promotor legado sem equipe -> a 0069 aplica; só trava quando entra numa equipe sem gerente
   };
   const PERS = { adminX: 'cccccccc-0069-4000-8000-000000000201', vendedorX: 'cccccccc-0069-4000-8000-000000000202' };
   beforeAll(async () => {
@@ -422,11 +434,23 @@ describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
       expect(depois).toContain('fn plataforma.cargo_da_base(p_base text)');
       expect(depois).toContain('fn core.conferir_promotores(p_tenant uuid, p_usuarios uuid[], p_equipes uuid[])');
       for (const [gatilho, quando] of GATILHOS_PROMOTOR) expect(depois).toContain(`trg ${/on ([a-z_.]+)$/.exec(quando)![1]}.${gatilho}`);
-      // promotor legado sem gerente: a 0069 aplica; gravação que não o alcança passa; a que mexe na equipe dele é recusada
+      // promotor legado sem gerente: a 0069 aplica; gravação que não o alcança passa; sem equipe o banco não confere (Core);
+      // entrar numa equipe sem responsável é recusado no COMMIT, com o hint RN-CORE-56
       expect((await c.query(`select cargo, supervisor_id, gerente_id from ${VIEW} where usuario_id = $1`, [U.prom])).rows)
         .toEqual([{ cargo: 'promotor', supervisor_id: null, gerente_id: null }]);
       await c.query("update core.usuario set nome = 'Promotor Legado' where id = $1", [U.prom]);
-      await expect(c.query('update core.usuario set equipe_id = null where id = $1', [U.prom])).rejects.toMatchObject(SEM_GERENTE);
+      await c.query('update core.usuario set equipe_id = null where id = $1', [U.prom]);
+      await c.query("insert into core.equipe (id, tenant_id, nome) values ('cccccccc-0069-4000-8000-000000000301', $1, 'Sem responsável 69')", [T]);
+      await expect(c.query("update core.usuario set equipe_id = 'cccccccc-0069-4000-8000-000000000301' where id = $1", [U.prom]))
+        .rejects.toMatchObject({ ...SEM_GERENTE, hint: HINT_PROMOTOR });
+      // a função de gatilho é DEFINER; nenhuma das 2 tem EXECUTE fora do dono
+      const fns = await c.query<{ nome: string; definer: boolean; outros: number }>(
+        `select p.proname as nome, p.prosecdef as definer,
+                (select count(*)::int from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                  where a.privilege_type = 'EXECUTE' and a.grantee <> p.proowner) as outros
+           from pg_proc p where p.oid in ('core.promotor_conferir()'::regprocedure, 'core.conferir_promotores(uuid, uuid[], uuid[])'::regprocedure)
+          order by 1`);
+      expect(fns.rows).toEqual([{ nome: 'conferir_promotores', definer: false, outros: 0 }, { nome: 'promotor_conferir', definer: true, outros: 0 }]);
       expect({ adm: await vivos(U.adm), multi: await vivos(U.multi), pers: await vivos(U.pers), so: await vivos(U.so) })
         .toEqual({ adm: ['admin'], multi: ['supervisor'], pers: ['vendedor_x'], so: ['vendedor'] });
       expect([await principal(U.adm), await principal(U.multi), await principal(U.pers), await principal(U.so)]).toEqual(['admin', 'supervisor', 'vendedor', 'vendedor']);

@@ -962,8 +962,15 @@ com supervisor, o gerente do promotor é sempre o responsável da equipe-pai da 
 apontar para outro gerente. Sobra um caso, o supervisor membro (`core.usuario.equipe_id`) de outra equipe que não a que lidera,
 em que o "gerente do supervisor" na view seria outro; esse é recusado.
 
-**Garantia no banco (gatilhos de restrição adiados, conferidos no COMMIT)**: função `core.conferir_promotores(tenant, usuarios[],
-equipes[])`, que lê a view, e a função de gatilho `core.promotor_conferir()` em 4 gatilhos:
+**Garantia no banco (gatilhos de restrição adiados, conferidos no COMMIT; RN-CORE-56, ADR 0049)**: função
+`core.conferir_promotores(tenant, usuarios[], equipes[])` (SECURITY INVOKER), que lê a view, e a função de gatilho
+`core.promotor_conferir()` (**SECURITY DEFINER**, `search_path = pg_catalog, core, plataforma, pg_temp`) em 4 gatilhos. Nenhuma
+das 2 tem EXECUTE para papel da aplicação. Por que DEFINER: gatilho adiado dispara no COMMIT, fora da `sa_*` (DEFINER) que
+escreveu; a `sa_provisionar_tenant` cria o admin em `core.usuario` pelo `macuxi_portal`, sem USAGE em `core` — como invoker, o
+COMMIT dava "permission denied for schema core" (500 ao criar empresa pelo portal). Mesmo desenho da 0049 para as conferências
+da 0041 (ver [plataforma.md](plataforma.md), "0049"). O banco confere só o promotor **com equipe** (`core.usuario.equipe_id` não
+nulo): o promotor sem equipe (ainda não alocado: carga do ERP ou CSV, cadastro antigo) é recusado pelo domain/API do Core
+(RN-CORE-56, 422), como o vendedor sem supervisor, e aparece na consulta 3 do diagnóstico.
 
 | Gatilho | Quando | Promotores conferidos |
 |---|---|---|
@@ -972,8 +979,8 @@ equipes[])`, que lê a view, e a função de gatilho `core.promotor_conferir()` 
 | `usuario_perfil_conferir_promotor` | `plataforma.usuario_perfil`: insert; update de `perfil_id`, `deleted_at` | o usuário (se virou promotor) e os que ele lidera |
 | `perfil_conferir_promotor` | `plataforma.perfil`: update de `cargo` | os usuários do perfil e os que eles lideram |
 
-Erros (23514, `hint` R-20261114-154000, `detail` só com o `usuario_id`): `promotor_sem_gerente` (promotor vivo e **ativo** sem
-`gerente_id` na view, ou com `gerente_id` de cargo diferente de `gerente`: sem equipe, equipe sem responsável, equipe de um
+Erros (23514, `hint` RN-CORE-56, `detail` só com o `usuario_id`): `promotor_sem_gerente` (promotor vivo, **ativo** e com equipe
+sem `gerente_id` na view, ou com `gerente_id` de cargo diferente de `gerente`: equipe apagada, equipe sem responsável, equipe de um
 vendedor/administrativo, equipe de supervisor sem equipe-pai de gerente) e `promotor_gerente_do_supervisor` (com supervisor cujo
 `gerente_id` na view não é o do promotor). Adiados: a ordem das gravações na transação não importa (ex.: mover o promotor para
 a equipe e só depois dar o supervisor à equipe). Promotor inativo não é conferido (desligado). **Legado**: os gatilhos só valem

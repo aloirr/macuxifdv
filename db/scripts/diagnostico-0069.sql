@@ -38,8 +38,9 @@ select t.codigo as tenant, o.usuario_id, u.perfil as principal_atual, o.vivos,
 --  order by 1, 2, 3;
 
 -- Consulta 3 — DEPOIS da 0069: cadastro fora da hierarquia (aqui só lista). Vendedor e supervisor: o domain do Core recusa no
--- próximo salvamento. Promotor (R-20261114-154000): o BANCO recusa no COMMIT a próxima gravação que o alcance (gatilhos
--- *_conferir_promotor), com os mesmos 2 nomes de erro; o promotor legado listado aqui precisa de equipe antes disso.
+-- próximo salvamento. Promotor (R-20261114-154000, RN-CORE-56): com equipe, o BANCO recusa no COMMIT a próxima gravação que
+-- o alcance (gatilhos *_conferir_promotor, hint RN-CORE-56), com os mesmos 2 nomes de erro; sem equipe, quem recusa é o domain
+-- do Core no próximo salvamento. O promotor legado listado aqui precisa de equipe com gerente antes disso.
 --   vendedor_sem_supervisor          vendedor sem equipe ou cuja equipe não tem responsável de cargo supervisor
 --   supervisor_sem_equipe            supervisor que não é o responsável da própria equipe (core.usuario.equipe_id)
 --   supervisor_sem_gerente           supervisor cuja equipe não tem equipe-pai com responsável de cargo gerente
