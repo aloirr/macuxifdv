@@ -2,11 +2,11 @@
  * Visão da tela "Usuários" do BKO (RF-CORE-02; T-0067): funções puras sobre `GET /v1/core/usuarios`. Sem React e sem rede.
  * A validação reaproveita as regras do domínio (a API revalida tudo).
  */
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { ROTULO_PERFIL, temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
-const BOM = String.fromCharCode(0xfeff); // marca de ordem de bytes: o Excel abre o CSV em UTF-8
 const aspas = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 export interface FormularioUsuario {
@@ -105,7 +105,7 @@ export function csvDeUsuarios(itens: readonly UsuarioItem[]): string {
   const linhas = itens.map((u) =>
     [u.nome, u.email, ROTULO_PERFIL[u.perfil], u.equipe_nome ?? '', u.superior_nome ?? '', u.external_id ?? '', u.ativo ? 'Ativo' : 'Inativo'].map(aspas).join(';'),
   );
-  return BOM + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
+  return BOM_CSV + `${[cab.map(aspas).join(';'), ...linhas].join('\r\n')}\r\n`;
 }
 
 // ---------- T-0094: senha por e-mail, troca no 1º acesso, "Redefinir senha" / "Enviar acesso" (RN-CORE-34; docs/design/ciclo-de-senha.md §5) ----------

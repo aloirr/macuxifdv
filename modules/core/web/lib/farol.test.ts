@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { protegerFormula } from '@macuxi/comum/csv';
 import type { FarolCliente } from '../../contracts';
-import { aoEscolherEquipe, avisoDoMesPassado, consultaDoFarol, csvDoFarol, filtrosDaUrl, legendaDasFaixas, legendaEmLinhas, aoEscolherVendedor, protegerFormula, mesMaximo, rotuloDoExportar, rotuloDaCor, ROTULO_COR_PLURAL, textoDeDias, textoDePositivacao, textoDoResumo, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
+import { aoEscolherEquipe, avisoDoMesPassado, consultaDoFarol, csvDoFarol, filtrosDaUrl, legendaDasFaixas, legendaEmLinhas, aoEscolherVendedor, mesMaximo, rotuloDoExportar, rotuloDaCor, ROTULO_COR_PLURAL, textoDeDias, textoDePositivacao, textoDoResumo, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
 
 const PADRAO = { verde_ate_dias: 30, amarelo_ate_dias: 45, positivacao_verde_pct: 70, positivacao_amarelo_pct: 50 };
 const url = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
