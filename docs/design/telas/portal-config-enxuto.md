@@ -372,3 +372,92 @@ Os números batem: Light 10 × 50 + 1 × 70 + 1 × 40 = R$ 610,00; PME (1.000 + 
 - **Simulações:** nenhuma nova. As do §10 e do §11 (`depois-03b-*`, `depois-03c-*`, `depois-05b-*`, `depois-06b-*`) não mostram a Equipe nem CSV; só `depois-04-bases.*` mostra (cartão Equipe = 1), e ela fica só como registro.
 - **Placar:** não muda; a aba Bases, com a Equipe dentro, já sai inteira no §10.4.
 - **Para o engenheiro-apps:** nada além do §10.5 (saem `cartao-equipe.tsx`, `lib/equipe-csv.ts`, a Equipe de `lib/portal-falso.ts` e os testIDs `equipe-*`).
+
+## 13. Achados RD (corretor) e MC (marca) — respostas
+> 2026-11-14 · designer-ux. Fontes: parecer do corretor-redundancias `docs/qualidade/redundancias/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-corretor`; RD-0260 a RD-0295, RD-0089/RD-0090 fechados e os 3 desvios do §12 dele) e parecer do design-de-marca `docs/marca/pareceres/2026-11-14-portal-config.md` (branch `nuvem/config-auditoria-marca`; MC-0021 a MC-0024 e 3 itens fora do escopo da marca). Os dois pareceres olharam o portal **de hoje** (`main` `bb20d06`); muitos achados já estavam resolvidos por esta spec, que tira mais do que eles pediam (aba Bases, Equipe e CSV saem inteiros, §10 e §12).
+>
+> **Resposta:** **aceito** = a spec mudou agora (nota "ajustado pelo …" na seção); **coberto** = a spec já resolvia antes do parecer; **recusado** = não entra, com o motivo. **Nenhum recusado.**
+
+### 13.1 Corretor-redundancias (RD)
+| Id | Tela | Achado (curto) | Resposta | Onde ficou |
+|---|---|---|---|---|
+| RD-0260 | Moldura | "encerra após 15 min sem uso" explica a sessão | coberto | §0: "Sessão até 00:56" |
+| RD-0261 | Moldura (admin do cliente) | nome da empresa no cabeçalho e no título | **aceito**: sai do cabeçalho, fica no título (a regra "uma informação, um lugar", de 10/11, vale sobre a escolha de 07/11 em `portal-entrar.md` §3) | §0; nota em `portal-entrar.md` §3 |
+| RD-0262 | Moldura | 3 diálogos dos convites são código morto | **aceito**: saem inteiros (a spec só os encurtava e perguntava se eram mortos) | §0 |
+| RD-0263 | Moldura (código) | `hora`, tom da situação, strings de leitura e `ListaErros` copiados | **aceito** (só código, sem texto novo): `hora` e `tomDaSituacao` num lugar só; as strings de leitura e a `ListaErros` saem junto com `cartao-base`/`cartao-equipe` (§10.5) | §13.4 |
+| RD-0264 | Entrar | 2ª frase da senha a trocar repete a tela do BKO | coberto | §1; nota em `portal-entrar.md` §1 e `ciclo-de-senha.md` §7 |
+| RD-0265 | Escolha a empresa | subtítulo explica a lista | coberto | §2; nota em `portal-entrar.md` §2 |
+| RD-0266 | Empresas | subtítulo "Cada empresa cliente é um tenant…" | coberto | §3 |
+| RD-0267 | Empresas | coluna Módulos repete Core e Integração | coberto: a coluna sai e vira **Plano** | §11.5; `depois-02-empresas.png` |
+| RD-0268 | Empresas | vazio com frase e 2º botão | coberto | §3 |
+| RD-0269 | Nova empresa | "Passo 1" e subtítulo | coberto | §4 |
+| RD-0270 | Nova empresa | ajudas do fuso, do administrador e da alçada | coberto (a alçada sai com o cartão Parâmetros) | §4, itens 1, 3 e 4 |
+| RD-0271 | Nova empresa | 8 ajudas dos módulos e "Sempre entra" | coberto: as ajudas saíram e depois o cartão inteiro (planos) | §4 item 2; §11 |
+| RD-0272 | Nova empresa | senha vazia: erro + 4 regras em vermelho | **aceito**: só "Informe a senha inicial.", regras neutras | §4 item 3 |
+| RD-0273 | Nova empresa | 4 linhas do "Conferido" | coberto: o "Conferir sem gravar" sai; com planos, o resultado é o aviso de sucesso | §4; §11.3 |
+| RD-0274 | Bases | "Carregue na ordem…" | coberto: a aba Bases sai | §6; §10.1 |
+| RD-0275 (alta) | Bases · Equipe | 3 frases do cartão Equipe | coberto: as 3 frases saíram (§6) e depois o cartão inteiro | §6; §10; §12 |
+| RD-0276 | Bases · Equipe | rodapé "Se alguma linha tiver erro…" | coberto | §6; §12 |
+| RD-0277 | Bases | nome do arquivo 2× e "(até 5.000 linhas…)" | coberto | §6; §10 |
+| RD-0278 | Bases · Equipe | resultados com unidade repetida, zeros e "acessos enviados" | coberto: a Equipe sai | §10; §12; nota em `ciclo-de-senha.md` §6 |
+| RD-0279 | Bases | descrições das 16 bases | coberto: nenhuma fica (os cartões saem; pedido de decisão do corretor respondido) | §6; §10 |
+| RD-0280 | Bases | regra do Completo 3× e `title` | coberto | §6; §10 |
+| RD-0281 | Bases | conferência com "nada gravado" e unidade repetida | coberto | §6; §10 |
+| RD-0282 | Bases | "o Hub", "com a mesma chave", zeros | coberto | §6; §10 |
+| RD-0283 | Bases · Equipe (modo falso) | "Linha 3 · email: Linha 3: …" | coberto: a Equipe sai do `portal-falso.ts` | §12 |
+| RD-0284 | Integração | "A primeira importação de CSV cria o Conector…" | coberto | §10.2: "Nenhum Conector." |
+| RD-0285 | Integração | "Gera a chave…" e "Vai no arquivo de configuração…" | coberto | §7; §10.2 |
+| RD-0286 | Integração | título interno, rodapé e aviso da chave repetidos | **aceito**: saem o título interno e o rodapé; o aviso fica o da spec, "Copie a chave agora: ela não aparece de novo." (o "cole na configuração" está no passo 3) | §10.2, passo 2 |
+| RD-0287 | Integração | diálogo "Passar as bases ao Conector do ERP?" | coberto: sai inteiro | §10.2 |
+| RD-0288 | Integração e várias | guia "chega em breve" + 11 textos de rota ausente | **aceito**: o guia já saía (§10.2); os textos de rota ausente viram **"Ainda não disponível neste servidor."** | §0; §10.2 |
+| RD-0289 | Aba Empresa | "Módulos licenciados" repete o formulário | coberto: os dois saem; fica o cartão Plano | §8; §11.4 |
+| RD-0290 | Aba Empresa | painéis Empresa e Administrador repetidos | coberto | §8 |
+| RD-0291 | Aba Empresa · Admins | ajuda, diálogo e validade 2× | **aceito**: ajuda e diálogo já estavam (§8); o sucesso fica "Senha temporária enviada para {e-mail}." | §8 |
+| RD-0292 | Aba Empresa · Admins | e-mail não configurado com 2 textos | **aceito**: um texto só, o do time (a Equipe saiu e o cartão é só do time) | §8 |
+| RD-0293 | Página da empresa | "Volte à lista de empresas." repete o link | **aceito** | §5 |
+| RD-0294 | Diagnósticos | "0 diagnósticos" + frase de vazio | **aceito**: contagem só com 1 ou mais | §9 |
+| RD-0295 | Diagnósticos | "Enviados pelos aparelhos." | coberto, e a spec tira mais: o subtítulo sai inteiro, com "Ficam 90 dias." (o corretor propõe manter; é funcionamento) | §9 |
+| RD-0089 | Diagnósticos | "Sem relato." | coberto: fechado pelo corretor nesta passada | `diagnostico.md` |
+| RD-0090 | Diagnósticos | "Ocorrido" só no botão | coberto: fechado pelo corretor nesta passada | `diagnostico.md` |
+| §12-1 (sem RD) | Bases | "vendedores do erp" em minúscula | coberto: o diálogo sai com a carga completa | §10 |
+| §12-2 (sem RD) | Bases | 403 manda o admin do cliente à aba Empresa | coberto: a aba Bases sai | §10 |
+| §12-3 (sem RD) | Bases · Equipe | "Choose File" / "No file chosen" | coberto: o campo de arquivo sai com o CSV | §10; §12 |
+
+**Contagem RD:** 36 achados novos + 2 fechados = 38. **Aceitos 10** (RD-0261, 0262, 0263, 0272, 0286, 0288, 0291, 0292, 0293, 0294); **cobertos 28**; **recusados 0**. Os 3 desvios funcionais sem RD estão cobertos pelo §10/§12.
+
+### 13.2 Design-de-marca (MC)
+| Id | Tela | Achado (curto) | Resposta | Onde ficou |
+|---|---|---|---|---|
+| MC-0021 | Empresas, Diagnósticos | botão-link principal em grafite, hover `#0b1218` | **aceito**: Azul noite (`bg-accent`, hover `bg-accent/90`); "Cadastrar a primeira empresa" já saía (§3). A MC-0019 (`BotaoLink` do kit) fica para o próximo lote do designer-ux em `packages/ui` | §0 |
+| MC-0022 | Entrar, Escolha a empresa, cabeçalho | logo sem área de proteção | **aceito**: logo a 104 px, 14 px de folga | §0; `componentes.md` §5.3; `depois-01-entrar.png`, `depois-09-escolher.png` |
+| MC-0023 | todas as telas com sessão | cabeçalho branco com o logo numa "pílula" | **aceito**: a barra inteira é a faixa Azul noite; especificação da variante da marca, das abas, do botão sobre a faixa e do foco | §0; `componentes.md` §5.3; todas as simulações vigentes re-renderizadas |
+| MC-0024 | Bases (e passos do Conector) | número dos passos em grafite | **aceito**: círculo em Azul noite. As bases saem (§10), mas os passos 1-2-3 do Conector usam o mesmo círculo | §10.2; `depois-05b-integracao*.png` |
+| Fora 1 | Bases | "Choose File / No file chosen" | coberto: sai com o CSV | §10; §12 |
+| Fora 2 | Diagnósticos (modo falso) | "Empresa não encontrada ou inativa" para o time | fora da spec: defeito do modo falso, do engenheiro-apps e do testes (o corretor já pediu a resposta falsa dos Diagnósticos) | recados-pendentes.md |
+| Fora 3 | todas | dois padrões de botão desabilitado | **decidido**: Névoa `#ECEEF1` com texto `#5B6673` (5,03:1), o do app; sai o `#8B96A3` com branco (3,00:1). Vai ao Alexandre pelo design-de-marca | `componentes.md` §5.3 |
+
+**Contagem MC:** **aceitos 4** (MC-0021 a MC-0024); cobertos 0; recusados 0. Itens fora do catálogo: 1 coberto, 1 encaminhado, 1 decidido.
+
+### 13.3 Placar final (substitui os do §Placar, §10.4 e §11.6)
+| Tela | Sai | Entra |
+|---|---|---|
+| Moldura | 1 frase da sessão; **3 diálogos inteiros** (títulos, textos e botões); o nome da empresa repetido no cabeçalho (admin do cliente); 11 textos de rota ausente viram 1 | cabeçalho na faixa Azul noite (logo 104 px); "Ainda não disponível neste servidor." |
+| Entrar | 1 frase | marca na faixa solta |
+| Escolha a empresa | 1 frase | marca na faixa solta |
+| Empresas | 3 frases, 1 botão repetido, coluna "Módulos" | coluna "Plano" (+ selo "teste"); "Nova empresa" em Azul noite |
+| Nova empresa | 18 frases, campo Código, cartão Parâmetros (5 campos), "Passo 1", "Conferir sem gravar", cartão "Módulos e licenças" (8 linhas, 8 campos, 2 selos); as regras da senha em vermelho com a senha vazia | CNPJ com 5 textos de estado; 7 campos da Receita; cartões Plano (4), Adicionais (3, com Quantidade), Ciclo (+ teste); "Escolha o plano.", "Informe a quantidade." e a linha "Total" |
+| Página da empresa | 2 frases ("Volte à lista de empresas.") | — |
+| Aba Bases | **a aba inteira** (17 cartões; até 59 frases) | — |
+| Aba Integração | 8 frases; o diálogo inteiro (3 botões); o tipo "Carga por arquivo"; o título interno e o rodapé da credencial | 2 lados, 3 passos (número em Azul noite), cartões da API |
+| Aba Empresa | 17 frases, 3 cartões repetidos, "Conferir sem gravar", cartão "Módulos e licenças", "Acrescentar módulos", 2 resultados, "Vale até …" no sucesso, a linha "Adicionais: …" | cartão Plano (nome, ciclo, teste, valor, tabela por item com "no limite"/"sem limite", "Trocar de plano"); "Plano trocado: {plano}.", as mensagens de troca do contrato |
+| Diagnósticos | 2 frases, a contagem "0 diagnósticos" | — |
+| **Total** | **66 frases + a aba Bases inteira + 3 diálogos inteiros** | **13 textos de estado/erro, todos de ação** (5 do CNPJ, "Escolha o plano.", "Informe a quantidade.", "Plano trocado: {plano}.", 2 mensagens de troca do contrato, "no limite", "sem limite", "Ainda não disponível neste servidor.") + a linha "Total" e o valor na ficha |
+
+Conta das frases: 59 (§11.6) + 3 frases curtas que ficavam nos diálogos + 2 "Volte à lista de empresas." + 1 "Vale até …" + 1 "Adicionais: …" = **66**.
+
+### 13.4 Para o engenheiro-apps (além do §10.5 e do §11.8)
+- **RD-0262:** apagar os 3 diálogos de `base.tsx` e o que só eles usam; `lib/portal-saida.ts` fica só com o que a sessão usa, ou sai com o teste.
+- **RD-0263:** `hora` e `tomDaSituacao` num lugar só (`base.tsx` ou `lib/portal.ts`).
+- **RD-0288:** uma constante `TEXTO_INDISPONIVEL = 'Ainda não disponível neste servidor.'` em `lib/portal-api.ts`.
+- **MC-0021 a MC-0024:** como nos §0 e §10.2 e em `componentes.md` §5.3; o reteste da marca pede o print de Entrar, Empresas e Empresa (aba Integração, que substitui a aba Bases).
+- Simulações re-renderizadas no fechamento (1280 px, escala 1): `depois-01-entrar`, `depois-09-escolher`, `depois-02-empresas`, `depois-03b-nova-empresa`, `depois-03c-cnpj-estados`, `depois-05b-integracao` (+ `-celular`, 390 px), `depois-06b-aba-empresa`, `depois-07-diagnosticos`. As de registro (`depois-03`, `-04`, `-05`, `-06`) ficam como estavam.
