@@ -183,7 +183,7 @@ De cima para baixo: BackLink · título "Pedido 000013" · cliente · `ChipEstad
 - **Sobre o laranja cheio = `onAccent`** (branco, 4,6:1): o [Salvar] principal e o contador da aba Pedidos.
 - O `accent` é só preenchimento e gráfico: botão principal, borda da aba ativa, ícone da opção "Salvar e enviar pedido" no quadrado
   `accentSoft` (3,9:1, gráfico ≥ 3:1).
-- Desabilitado: texto `#5B6673` sobre `#E6E9E2` (4,8:1), sem transparência.
+- Desabilitado: texto `#5B6673` sobre `#ECEEF1` (5,03:1), sem transparência.
 
 ## 6. Componentes do kit a usar
 | Peça | Componente | Observação |

@@ -55,9 +55,11 @@ export const MARCA = {
   grafite: '#16202A',
   textoSecundario: '#4A5562',
   textoApoio: '#5B6673',
-  /** fundo do chip e do cartão em destaque */
+  /** fundo do chip e do cartão em destaque; linha (divisória e borda do cartão) */
   azulSuave: '#DFE2E6',
-  /** subtítulo dentro do cabeçalho Azul noite */
+  /** Névoa (MC-0004 B, 14/11/2026): linha suave, chip neutro, botão desabilitado, avatar, fundo do mapa */
+  nevoa: '#ECEEF1',
+  /** subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa) */
   claroNaFaixa: '#C9CED5',
   /** azul sobre o grafite (menu do BKO) */
   azulClaro: '#9AA3B0',

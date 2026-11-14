@@ -21,9 +21,10 @@ export const colors = {
   ink3: '#5B6673',
   /** texto de opção desabilitada (lista suspensa, dia futuro): 3:1 no branco, sempre com outro sinal (cadeado, sem toque) */
   inkDisabled: '#8A949C',
-  line: '#E1E4DE',
-  lineSoft: '#ECEEE9',
-  lineStrong: '#C9CEC6',
+  /** neutros da marca (MC-0004 B, manual §3): linha no Azul suave, linha suave na Névoa, linha forte no #C9CED5 */
+  line: MARCA.azulSuave,
+  lineSoft: MARCA.nevoa,
+  lineStrong: MARCA.claroNaFaixa,
   /** AÇÃO (Azul noite): botão principal, aba ativa (ícone e borda), seleção, foco, ícone de ação. Nunca sobre o grafite. */
   accent: DESTAQUE.accent,
   /** ação e gráfico sobre o grafite: sol claro (7,56:1) */
@@ -63,13 +64,14 @@ export const colors = {
   warningBg: '#FFF1D6',
   danger: '#A8261B',
   dangerBg: '#FDE8E6',
-  neutralBg: '#E6E9E2',
+  /** chip neutro e botão desabilitado: Névoa (neutralInk 9,09:1; ink3 5,03:1) */
+  neutralBg: MARCA.nevoa,
   neutralInk: '#34404D',
   /** texto claro sobre o escuro (grafite e faixa): o mesmo #C9CED5 da faixa, sem cor "quase igual" */
   darkMuted: MARCA.claroNaFaixa,
   darkTrack: '#34404D',
-  mapBg: '#E6E9E2',
-  mapBorder: '#D6DAD1',
+  mapBg: MARCA.nevoa,
+  mapBorder: MARCA.claroNaFaixa,
   /** fundo escurecido atrás da folha e do diálogo */
   scrim: 'rgba(15,20,25,0.45)',
 } as const;

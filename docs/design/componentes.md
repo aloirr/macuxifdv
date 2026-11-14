@@ -82,9 +82,9 @@ Pérola) e a barra em `bg-grafico`; o botão principal passou de grafite a `bg-a
 |---|---|---|---|---|
 | principal | `<Botao nivel="principal">` · `Button variant="accent"` · `RodapeTotal` | 52 | Azul noite cheio, texto branco 16 | a ação que fecha a tarefa da tela: Enviar pedido, Começar a rota, Registrar check-in |
 | secundário | `<Botao>` (padrão) · `Button variant="outlineDark"` | 44 (`alto` → 52 ao lado do principal) | branco, borda grafite 1,5 | alternativa real: Salvar orçamento, Ver rota |
-| neutro | `<Botao nivel="neutro">` · `Button variant="ghost"` | 44 | cinza claro `#ECEEE9` | Cancelar, Voltar, Fechar |
+| neutro | `<Botao nivel="neutro">` · `Button variant="ghost"` | 44 | Névoa `#ECEEF1` | Cancelar, Voltar, Fechar |
 | perigo | `<Botao nivel="perigo">` · `Button variant="danger"` | 44 | rosa `#FDE8E6`, texto vermelho | Rejeitar, Excluir, Descartar |
-| desabilitado | `desligado` / `disabled` | do nível | cinza `#E6E9E2`, texto `#5B6673` (sem transparência) | falta dado; diga o motivo perto ("Escolha a forma de pagamento") |
+| desabilitado | `desligado` / `disabled` | do nível | Névoa `#ECEEF1`, texto `#5B6673` (5,03:1) (sem transparência) | falta dado; diga o motivo perto ("Escolha a forma de pagamento") |
 | ocupado | `ocupado` / `loading` | do nível | indicador no lugar do ícone, toque bloqueado | enviando; o texto muda ("Sincronizando…") |
 
 Regras:

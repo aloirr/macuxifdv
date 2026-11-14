@@ -35,6 +35,7 @@ describe('marca v1 (T-0172): paleta e contraste do manual §3', () => {
       textoSecundario: '#4A5562',
       textoApoio: '#5B6673',
       azulSuave: '#DFE2E6',
+      nevoa: '#ECEEF1',
       claroNaFaixa: '#C9CED5',
       azulClaro: '#9AA3B0',
     });
