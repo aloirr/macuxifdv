@@ -158,3 +158,4 @@
 2026-11-14 — BKO Acesso — Usuários (tabela, gaveta, módulos) e Perfis de acesso (lista, Novo perfil por módulo); branch nuvem/acesso-bko-modulo-core
 2026-11-14 — BKO Acesso — RD-0264 a RD-0268, MC-0025/26: textos de Desativar/Redefinir, sem CSV em Usuários, Geral agrupada em 3 colunas, criar×editar pedido separados, rótulos de RV; prints com o menu real
 2026-11-14 — R-20261114-145000 — Início do Campo enquadrado: primeiro nome completo (primeiroNome), sino no painel do topo, painel e Sincronizar fixos, meio compacto; prints em docs/modulos/core/prints/inicio-enquadrado
+2026-11-14 — BKO Acesso — cargos (ADR 0049, RN-CORE-54 a 57): um perfil por usuário, Cargo no Novo perfil e na lista, gaveta com Supervisor/Gerente/Nome da equipe/Código no ERP pelo cargo, hierarquia no domain e na API (contrato da 0069)

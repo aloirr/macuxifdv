@@ -4,6 +4,8 @@
  */
 import { temPerfilDeBase, type Perfil } from '@macuxi/platform-sdk';
 import { DESCONTO_PEDIDO_PERMIL_MAX, type CriarUsuarioRequest, type EditarUsuarioRequest, type EmailAcesso, type EquipeOpcao, type UsuarioItem } from '../../contracts';
+import { erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, type PessoaDaHierarquia } from '../../domain/cargos';
+import type { Cargo } from '../../contracts/cargos';
 import { ERRO_SEM_PERFIL, faltasNaSenha, gerarSenhaTemporaria, validarDadosDeUsuario, validarSenhaInicial, type ErroDeCampo, type FaltaNaSenha } from '../../domain';
 
 export interface FormularioUsuario {
@@ -20,9 +22,13 @@ export interface FormularioUsuario {
   limita_item: boolean;
   limita_pedido: boolean;
   desconto_maximo_pedido: string;
+  /** RN-CORE-55 (0069): hierarquia pelo cargo do perfil (`regrasDoCargo`); vazio = sem escolha. */
+  supervisor_id: string;
+  gerente_id: string;
+  equipe_nome: string;
 }
 
-export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '' };
+export const FORMULARIO_VAZIO: FormularioUsuario = { nome: '', nome_curto: '', email: '', perfil: 'vendedor', perfis: [], equipe_id: '', external_id: '', senha: '', limita_item: true, limita_pedido: false, desconto_maximo_pedido: '', supervisor_id: '', gerente_id: '', equipe_nome: '' };
 
 export const ERRO_DESCONTO_OBRIGATORIO = 'Obrigatório';
 export const ERRO_DESCONTO_FAIXA = 'De 0 a 100';
@@ -42,13 +48,26 @@ export function textoDoPermil(permil: number | null): string {
 export { ERRO_SEM_PERFIL };
 
 export function formularioDoUsuario(u: UsuarioItem): FormularioUsuario {
-  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil) };
+  return { nome: u.nome, nome_curto: u.nome_curto ?? '', email: u.email, perfil: u.perfil, perfis: u.perfis.length > 0 ? u.perfis.map((p) => p.codigo) : [u.perfil], equipe_id: u.equipe_id ?? '', external_id: u.external_id ?? '', senha: '', limita_item: u.desconto_limita_item, limita_pedido: u.desconto_limita_pedido, desconto_maximo_pedido: textoDoPermil(u.desconto_maximo_pedido_permil), supervisor_id: u.supervisor_id ?? '', gerente_id: u.gerente_id ?? '', equipe_nome: u.cargo === 'supervisor' ? (u.equipe_nome ?? '') : '' };
 }
 
 const ouNulo = (v: string): string | null => (v.trim() === '' ? null : v.trim());
 
-/** Erros por campo, em português; vazio = pode enviar. Na criação a senha inicial é obrigatória. */
-export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'): ErroDeCampo[] {
+/** Cargo, gerente e situação de cada usuário da lista: quem pode ser escolhido como supervisor ou gerente. */
+export const pessoasDaLista = (itens: readonly UsuarioItem[]): PessoaDaHierarquia[] => itens.map((u) => ({ id: u.id, cargo: u.cargo ?? null, gerente_id: u.gerente_id ?? null, ativo: u.ativo }));
+
+/** Opções do select de Supervisor ou Gerente: ativos do cargo, por nome; o supervisor do promotor só entre os do gerente escolhido. */
+export function opcoesDeChefia(itens: readonly UsuarioItem[], cargo: 'supervisor' | 'gerente', doGerente = ''): UsuarioItem[] {
+  return itens.filter((u) => u.ativo && u.cargo === cargo && (!doGerente || u.gerente_id === doGerente)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+const hierarquiaDoForm = (f: FormularioUsuario, cargo: Cargo | null) => hierarquiaDoCargo(cargo, { supervisor_id: ouNulo(f.supervisor_id), gerente_id: ouNulo(f.gerente_id), equipe_nome: ouNulo(f.equipe_nome) });
+
+/**
+ * Erros por campo, em português; vazio = pode enviar. Na criação a senha inicial é obrigatória. Com `hierarquia` (cargo do perfil
+ * escolhido e as pessoas da lista), confere também supervisor, gerente, nome da equipe (RN-CORE-55/56) e código no ERP (RN-CORE-57), como a API.
+ */
+export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar', hierarquia?: { cargo: Cargo | null; pessoas: readonly PessoaDaHierarquia[] }): ErroDeCampo[] {
   const erros = validarDadosDeUsuario({ nome: f.nome, email: f.email, perfil: f.perfil, external_id: f.external_id.trim() === '' ? null : f.external_id });
   if (f.perfis.length === 0) erros.push({ campo: 'perfil', mensagem: ERRO_SEM_PERFIL });
   // RN-VEN-11a: o número só é exigido com "por pedido" ligada (desligada, o valor fica guardado)
@@ -61,10 +80,18 @@ export function errosDoFormulario(f: FormularioUsuario, modo: 'criar' | 'editar'
     const fraca = validarSenhaInicial(f.senha, f.email);
     if (fraca) erros.push({ campo: 'senha', mensagem: fraca });
   }
+  if (hierarquia) {
+    for (const e of errosDaHierarquia(hierarquia.cargo, hierarquiaDoForm(f, hierarquia.cargo), hierarquia.pessoas)) erros.push({ campo: e.campo, mensagem: e.mensagem });
+    const erp = erroDoCodigoErp(f.external_id);
+    if (erp) erros.push({ campo: erp.campo, mensagem: erp.mensagem });
+  }
   return erros;
 }
 
-export function corpoDeCriacao(f: FormularioUsuario): CriarUsuarioRequest {
+/** Corpo com a hierarquia só do que o cargo usa (`cargo` ausente = sem hierarquia, como antes da 0069). */
+const corpoDaHierarquia = (f: FormularioUsuario, cargo: Cargo | null | undefined) => (cargo === undefined ? {} : hierarquiaDoForm(f, cargo));
+
+export function corpoDeCriacao(f: FormularioUsuario, cargo?: Cargo | null): CriarUsuarioRequest {
   return {
     nome: f.nome.trim(),
     nome_curto: ouNulo(f.nome_curto),
@@ -74,12 +101,16 @@ export function corpoDeCriacao(f: FormularioUsuario): CriarUsuarioRequest {
     external_id: ouNulo(f.external_id),
     ativo: true,
     senha: f.senha,
+    supervisor_id: null,
+    gerente_id: null,
+    equipe_nome: null,
     ...corpoDoLimite(f),
+    ...corpoDaHierarquia(f, cargo),
   };
 }
 
-export function corpoDeEdicao(f: FormularioUsuario): EditarUsuarioRequest {
-  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f) };
+export function corpoDeEdicao(f: FormularioUsuario, cargo?: Cargo | null): EditarUsuarioRequest {
+  return { nome: f.nome.trim(), nome_curto: ouNulo(f.nome_curto), email: f.email.trim(), perfis: f.perfis, equipe_id: ouNulo(f.equipe_id), external_id: ouNulo(f.external_id), ...corpoDoLimite(f), ...corpoDaHierarquia(f, cargo) };
 }
 
 /** A API só fala ‰; o valor guardado vai mesmo com "por pedido" desligada. */

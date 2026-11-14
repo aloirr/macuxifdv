@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -106,5 +106,53 @@ describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
     expect(resultadoDeRedefinir('indisponivel', 'ana@x.com', 'Abcdef1!')).toMatchObject({ tipo: 'sem_email' });
     expect(JSON.stringify(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!'))).not.toContain('Abcdef1!');
     expect(textoAcessoEnviado('ana@x.com')).toBe('Acesso enviado para ana@x.com.');
+  });
+});
+
+describe('RN-CORE-55/56/57 (0069): hierarquia e código no ERP na gaveta Novo usuário (R-20261114-153500/153800/154000)', () => {
+  const G1 = '5d000000-0000-4000-8000-0000000000a1';
+  const G2 = '5d000000-0000-4000-8000-0000000000a2';
+  const S1 = '5d000000-0000-4000-8000-0000000000b1';
+  const S2 = '5d000000-0000-4000-8000-0000000000b2';
+  const lista = [
+    u({ id: G1, nome: 'Gil', cargo: 'gerente' }),
+    u({ id: G2, nome: 'Gabi', cargo: 'gerente', ativo: false }),
+    u({ id: S2, nome: 'Sara', cargo: 'supervisor', gerente_id: G1 }),
+    u({ id: S1, nome: 'Rui', cargo: 'supervisor', gerente_id: G2 }),
+  ];
+  const ok = { ...FORMULARIO_VAZIO, nome: 'Ana', email: 'ana@exemplo.com.br', senha: 'Abcdef1!', perfis: ['vendedor'], external_id: 'V-10' };
+
+  it('RN-CORE-57: sem código no ERP a gaveta para no campo, para todos os cargos', () => {
+    expect(errosDoFormulario({ ...ok, external_id: ' ' }, 'editar', { cargo: 'administrativo', pessoas: [] })).toEqual([{ campo: 'external_id', mensagem: 'Informe o código no ERP.' }]);
+  });
+
+  it('supervisores e gerentes ativos, por nome; o supervisor do promotor só entre os do gerente escolhido', () => {
+    expect(opcoesDeChefia(lista, 'gerente').map((x) => x.nome)).toEqual(['Gil']);
+    expect(opcoesDeChefia(lista, 'supervisor').map((x) => x.nome)).toEqual(['Rui', 'Sara']);
+    expect(opcoesDeChefia(lista, 'supervisor', G1).map((x) => x.nome)).toEqual(['Sara']);
+  });
+
+  it('a tela confere a mesma regra da API: vendedor sem supervisor e promotor sem gerente param no campo', () => {
+    const pessoas = pessoasDaLista(lista);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'vendedor', pessoas }).map((e) => e.campo)).toEqual(['supervisor_id']);
+    expect(errosDoFormulario({ ...ok, supervisor_id: S2 }, 'criar', { cargo: 'vendedor', pessoas })).toEqual([]);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'promotor', pessoas }).map((e) => e.mensagem)).toEqual(['Escolha o gerente.']);
+    expect(errosDoFormulario({ ...ok, gerente_id: G1, supervisor_id: S1 }, 'criar', { cargo: 'promotor', pessoas }).map((e) => e.campo)).toEqual(['gerente_id']);
+    expect(errosDoFormulario({ ...ok, gerente_id: G1 }, 'criar', { cargo: 'supervisor', pessoas }).map((e) => e.campo)).toEqual(['equipe_nome']);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'administrativo', pessoas })).toEqual([]);
+  });
+
+  it('o corpo leva só a hierarquia do cargo; sem cargo, nada de hierarquia (como antes)', () => {
+    const f = { ...ok, supervisor_id: S2, gerente_id: G1, equipe_nome: 'Norte' };
+    expect(corpoDeCriacao(f, 'vendedor')).toMatchObject({ supervisor_id: S2, gerente_id: null, equipe_nome: null });
+    expect(corpoDeCriacao(f, 'supervisor')).toMatchObject({ supervisor_id: null, gerente_id: G1, equipe_nome: 'Norte' });
+    expect(corpoDeEdicao(f, 'administrativo')).toMatchObject({ supervisor_id: null, gerente_id: null, equipe_nome: null });
+    expect(corpoDeEdicao(f, 'gerente')).toMatchObject({ supervisor_id: null, gerente_id: null, equipe_nome: 'Norte' });
+    expect(corpoDeEdicao(f)).not.toHaveProperty('supervisor_id');
+  });
+
+  it('editar abre com a hierarquia gravada; o nome da equipe só para o supervisor', () => {
+    expect(formularioDoUsuario(u({ cargo: 'vendedor', supervisor_id: S2, gerente_id: G1 }))).toMatchObject({ supervisor_id: S2, gerente_id: G1, equipe_nome: '' });
+    expect(formularioDoUsuario(u({ cargo: 'supervisor', gerente_id: G1, equipe_nome: 'Norte' })).equipe_nome).toBe('Norte');
   });
 });

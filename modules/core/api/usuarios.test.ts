@@ -102,7 +102,7 @@ describe('RF-CORE-02: permissões das rotas de usuários (T-0067)', () => {
 
 /** Perfis do tenant como a 0041 deixa (7 de fábrica + um admin ativo com seu vínculo): o estado que a conferência de limites lê (T-0111). */
 export const respostasDoTenant = (): Resposta[] => [
-  [/select id, codigo, nome, descricao, base, fabrica, ativo from plataforma.perfil/, PERFIS.map((b) => ({ id: `0d000000-0000-4000-8000-00000000000${PERFIS.indexOf(b)}`, codigo: b, nome: b, descricao: null, base: b, fabrica: true, ativo: true }))],
+  [/select id, codigo, nome, descricao, base, fabrica, ativo, cargo from plataforma.perfil/, PERFIS.map((b) => ({ id: `0d000000-0000-4000-8000-00000000000${PERFIS.indexOf(b)}`, codigo: b, nome: b, descricao: null, base: b, fabrica: true, ativo: true }))],
   [/from plataforma.perfil_permissao/, []],
   [/coalesce\(array_agg/, [{ id: ADMIN.id, ativo: true, perfis: ['admin'] }]],
   [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }]],
@@ -152,13 +152,13 @@ describe('RF-CORE-02: criar usuário', () => {
     expect(chamadas.some((c) => c.valores.includes(SENHA))).toBe(false);
   });
 
-  it('RN-CORE-01/35: com vários perfis grava os vínculos e o principal é a base do primeiro; perfil desativado ou inexistente é 422 PERFIL_INDISPONIVEL', async () => {
-    const escolhidos = [{ codigo: 'promotor', nome: 'Promotor', base: 'promotor' }, { codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }];
-    const { db, chamadas } = fakeDb([[/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, escolhidos], ...respostas]);
-    await executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, perfil: undefined, perfis: ['promotor', 'vendedor'] } });
-    expect(chamadas.find((c) => /insert into core.usuario/.test(c.sql))!.valores[3]).toBe('promotor');
-    expect(chamadas.filter((c) => /insert into plataforma.usuario_perfil/.test(c.sql)).map((c) => c.valores[1])).toEqual(['promotor', 'vendedor']);
-    expect(jsonDaAuditoria(chamadas)).toContain('promotor');
+  it('RN-CORE-01 (0069): um perfil por usuário: grava o vínculo e o principal é a base dele; dois perfis o contrato recusa; perfil inexistente é 422 PERFIL_INDISPONIVEL', async () => {
+    const escolhidos = [{ codigo: 'gerente', nome: 'Gerente', base: 'gerente' }];
+    const { db, chamadas } = fakeDb([[/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, escolhidos], [/select cargo from plataforma.perfil/, [{ cargo: 'gerente' }]], ...respostas]);
+    await executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, perfil: undefined, perfis: ['gerente'] } });
+    expect(chamadas.find((c) => /insert into core.usuario/.test(c.sql))!.valores[3]).toBe('gerente');
+    expect(chamadas.filter((c) => /insert into plataforma.usuario_perfil/.test(c.sql)).map((c) => c.valores[1])).toEqual(['gerente']);
+    expect(() => rota('POST', 'usuarios').corpo!.parse({ ...corpo, perfil: undefined, perfis: ['promotor', 'vendedor'] })).toThrow();
     const sem = fakeDb([[/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, []], ...respostas]);
     await expect(executar(rota('POST', 'usuarios'), contexto(sem.db), { corpo: { ...corpo, perfil: undefined, perfis: ['fantasma'] } })).rejects.toMatchObject({ codigo: 'PERFIL_INDISPONIVEL' });
     expect(sem.chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
@@ -199,6 +199,69 @@ describe('RF-CORE-02: criar usuário', () => {
     expect(() => r.corpo!.parse({ ...corpo, superior_id: ALVO })).toThrow();
     expect(() => r.corpo!.parse({ ...corpo, perfil: 'dono' })).toThrow();
     expect(r.corpo!.parse({ ...corpo, perfil: 'assistente' })).toBeTruthy();
+  });
+});
+
+describe('RN-CORE-54/55/56/57: um perfil, hierarquia pelo cargo e código no ERP no cadastro (0069; R-20261114-153500/153800/154000)', () => {
+  const GER = '0b000000-0000-4000-8000-0000000000e1';
+  const GER2 = '0b000000-0000-4000-8000-0000000000e2';
+  const SUP = '0b000000-0000-4000-8000-0000000000e3';
+  const EQ_SUP = '0c000000-0000-4000-8000-0000000000e3';
+  const EQ_GER = '0c000000-0000-4000-8000-0000000000e1';
+  const corpo = { nome: 'Nova Pessoa', email: 'nova@exemplo.com.br', external_id: 'V-100', senha: SENHA };
+  const pessoas = [
+    { id: GER, cargo: 'gerente', gerente_id: null, ativo: true },
+    { id: GER2, cargo: 'gerente', gerente_id: null, ativo: true },
+    { id: SUP, cargo: 'supervisor', gerente_id: GER, ativo: true },
+  ];
+  const chefiadas: Record<string, string> = { [SUP]: EQ_SUP, [GER]: EQ_GER };
+  const banco = (perfil: string, cargo: string): Resposta[] => [
+    [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: perfil, nome: perfil, base: perfil }]],
+    [/select cargo from plataforma.perfil/, [{ cargo }]],
+    [/from core.v_usuario_hierarquia h join core.usuario u/, (v) => pessoas.filter((p) => (v[0] as string[]).includes(p.id))],
+    [/from core.equipe where responsavel_id = \$1/, (v) => (chefiadas[v[0] as string] ? [{ id: chefiadas[v[0] as string], responsavel_id: v[0] }] : [])],
+    [/insert into core.equipe/, [{ id: '0c000000-0000-4000-8000-0000000000ff' }]],
+    ...respostasDoTenant(),
+    [/insert into core.usuario/, [{ id: ALVO }]],
+    [/from core.usuario u left join/, [linhaItem()]],
+  ];
+  const criar = (b: Resposta[], extra: Record<string, unknown>) => {
+    const f = fakeDb(b);
+    return { ...f, r: executar(rota('POST', 'usuarios'), contexto(f.db), { corpo: { ...corpo, ...extra } }) };
+  };
+
+  it('vendedor sem supervisor é 422 HIERARQUIA_SUPERVISOR_OBRIGATORIO e não grava; com gerente no lugar do supervisor, 422 SUPERVISOR_INVALIDO', async () => {
+    const a = criar(banco('vendedor', 'vendedor'), { perfis: ['vendedor'] });
+    await expect(a.r).rejects.toMatchObject({ status: 422, codigo: 'HIERARQUIA_SUPERVISOR_OBRIGATORIO' });
+    expect(a.chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
+    await expect(criar(banco('vendedor', 'vendedor'), { perfis: ['vendedor'], supervisor_id: GER }).r).rejects.toMatchObject({ codigo: 'HIERARQUIA_SUPERVISOR_INVALIDO' });
+  });
+
+  it('vendedor com supervisor entra na equipe do supervisor, na mesma transação, e a auditoria leva o supervisor', async () => {
+    const { r, chamadas } = criar(banco('vendedor', 'vendedor'), { perfis: ['vendedor'], supervisor_id: SUP });
+    await r;
+    expect(chamadas.find((c) => /update core.usuario set equipe_id/.test(c.sql))?.valores).toEqual([ALVO, EQ_SUP]);
+    expect(jsonDaAuditoria(chamadas)).toContain(SUP);
+  });
+
+  it('promotor: gerente obrigatório; com supervisor, o gerente tem de ser o dele (R-20261114-154000); sem supervisor entra na equipe do gerente', async () => {
+    await expect(criar(banco('promotor', 'promotor'), { perfis: ['promotor'] }).r).rejects.toMatchObject({ codigo: 'HIERARQUIA_GERENTE_OBRIGATORIO' });
+    await expect(criar(banco('promotor', 'promotor'), { perfis: ['promotor'], supervisor_id: SUP, gerente_id: GER2 }).r).rejects.toMatchObject({ codigo: 'HIERARQUIA_GERENTE_DO_SUPERVISOR' });
+    const ok = criar(banco('promotor', 'promotor'), { perfis: ['promotor'], gerente_id: GER });
+    await ok.r;
+    expect(ok.chamadas.find((c) => /update core.usuario set equipe_id/.test(c.sql))?.valores).toEqual([ALVO, EQ_GER]);
+  });
+
+  it('supervisor: gerente e nome da equipe obrigatórios; cria a equipe dele abaixo da do gerente', async () => {
+    await expect(criar(banco('supervisor', 'supervisor'), { perfis: ['supervisor'], gerente_id: GER }).r).rejects.toMatchObject({ codigo: 'HIERARQUIA_EQUIPE_OBRIGATORIA' });
+    const ok = criar(banco('supervisor', 'supervisor'), { perfis: ['supervisor'], gerente_id: GER, equipe_nome: 'Equipe Norte' });
+    await ok.r;
+    expect(ok.chamadas.find((c) => /insert into core.equipe/.test(c.sql))?.valores).toEqual(['Equipe Norte', EQ_GER, ALVO]);
+  });
+
+  it('o erro do banco no COMMIT (23514 promotor_sem_gerente) vira 422 com a frase da tela', async () => {
+    const { db } = fakeDb(banco('promotor', 'promotor'), { code: '23514', constraint: 'promotor_sem_gerente' });
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, perfil: 'promotor' } })).rejects.toMatchObject({ status: 422, codigo: 'HIERARQUIA_GERENTE_OBRIGATORIO', message: 'Escolha o gerente.' });
   });
 });
 

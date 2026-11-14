@@ -27,7 +27,10 @@ import {
   formularioDoUsuario,
   type FormularioUsuario,
   ERRO_SEM_PERFIL,
+  opcoesDeChefia,
+  pessoasDaLista,
 } from '../../lib/usuarios';
+import { regrasDoCargo } from '../../../domain/cargos';
 import { modulosExibiveis, removidosDoFormulario } from '../../lib/acesso';
 import { efetivosDoUsuario } from '../../lib/licencas';
 import { IconeComNome, IconeDoModulo } from '../acesso/icones-modulo';
@@ -107,6 +110,9 @@ export function UsuariosConteudo() {
     retry: false,
   });
   const licencas: LicencasEstado | undefined = licencasQ.data;
+  // RN-CORE-55 (0069): supervisores e gerentes para a hierarquia da gaveta, de todos os ativos (a lista da tela pode estar filtrada)
+  const ativosQ = useQuery({ queryKey: ['core', 'usuarios', 'ativos'], queryFn: async () => UsuarioListaRespostaSchema.parse(await api('/core/usuarios?ativo=true')).itens });
+  const ativos = ativosQ.data ?? [];
 
   const fechar = () => {
     setModal(null);
@@ -133,7 +139,10 @@ export function UsuariosConteudo() {
   };
 
   /** Módulos do perfil escolhido (o padrão do perfil base, RN-CORE-01) e os efetivos do formulário. */
-  const baseEscolhida = opcoesDePerfil.find((p) => p.codigo === form.perfis[0])?.base;
+  const perfilEscolhido = opcoesDePerfil.find((p) => p.codigo === form.perfis[0]);
+  const baseEscolhida = perfilEscolhido?.base;
+  const cargo = perfilEscolhido?.cargo ?? null;
+  const regras = regrasDoCargo(cargo);
   const doPerfil: ModuloId[] = licencas && baseEscolhida ? (licencas.perfis[baseEscolhida] ?? []) : [];
   const efetivosDoForm = licencas
     ? efetivosPelasDependencias({
@@ -161,11 +170,11 @@ export function UsuariosConteudo() {
   const salvar = useMutation({
     mutationFn: async ({ editando, corpo }: { editando: UsuarioItem | null; corpo: FormularioUsuario }) => {
       if (editando) {
-        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo) });
+        await api(`/core/usuarios/${editando.id}`, { method: 'PUT', body: corpoDeEdicao(corpo, cargo) });
         await gravarModulos(editando.id, licencas?.usuarios.find((x) => x.id === editando.id)?.removidos ?? []);
         return null;
       }
-      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo) }));
+      const criado = CriarUsuarioRespostaSchema.parse(await api('/core/usuarios', { method: 'POST', body: corpoDeCriacao(corpo, cargo) }));
       await gravarModulos(criado.id, []);
       return criado;
     },
@@ -217,16 +226,16 @@ export function UsuariosConteudo() {
   };
   const editando = modal?.tipo === 'form' ? modal.usuario : null;
   const comSenha = (f: FormularioUsuario): FormularioUsuario => (editando ? f : { ...f, senha: f.senha || gerarSenhaNoNavegador() });
-  const erros = modal?.tipo === 'form' ? errosDoFormulario(comSenha(form), editando ? 'editar' : 'criar') : [];
+  const erros = modal?.tipo === 'form' ? errosDoFormulario(comSenha(form), editando ? 'editar' : 'criar', { cargo, pessoas: pessoasDaLista(ativos) }) : [];
   const erroDe = (campo: string) => (tentou ? erros.find((e) => e.campo === campo)?.mensagem : undefined);
   const ocupado = salvar.isPending || alternar.isPending || redefinir.isPending;
   const upd = (patch: Partial<FormularioUsuario>) => setForm((f) => ({ ...f, ...patch }));
 
   const itens = lista.data ?? [];
-  const rotuloDoPerfilDe = (u: UsuarioItem) => {
-    const principal = u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil];
-    return u.perfis.length > 1 ? `${principal} +${u.perfis.length - 1}` : principal;
-  };
+  // um perfil por usuário (0069, R-20261114-153500)
+  const rotuloDoPerfilDe = (u: UsuarioItem) => (u.perfis[0] ? rotuloDoPerfil(u.perfis[0].codigo, { nome: u.perfis[0].nome }) : ROTULO_PERFIL[u.perfil]);
+  const supervisores = opcoesDeChefia(ativos, 'supervisor', cargo === 'promotor' ? form.gerente_id : '').filter((u) => u.id !== editando?.id);
+  const gerentes = opcoesDeChefia(ativos, 'gerente').filter((u) => u.id !== editando?.id);
   const menuDe = (u: UsuarioItem) => [
     ...(podeEditar ? [{ rotulo: 'Editar', onSelecionar: () => abrirForm(u), testId: `usuarios.editar.${u.id}` }] : []),
     ...(podeDesativar
@@ -350,9 +359,7 @@ export function UsuariosConteudo() {
                       </span>
                     </td>
                     <td className={`${td} whitespace-nowrap`}>{u.email}</td>
-                    <td className={td} title={u.perfis.map((p) => rotuloDoPerfil(p.codigo, { nome: p.nome })).join(', ')}>
-                      {rotuloDoPerfilDe(u)}
-                    </td>
+                    <td className={td}>{rotuloDoPerfilDe(u)}</td>
                     <td className={td}>
                       {modulos === null ? (
                         '—'
@@ -405,6 +412,43 @@ export function UsuariosConteudo() {
                 </option>
               ))}
             </select>
+          </Campo>
+          {(regras.gerente === 'obrigatorio' || regras.gerente === 'opcional') && (
+            <Campo rotulo="Gerente" erro={erroDe('gerente_id')}>
+              <select
+                value={form.gerente_id}
+                onChange={(e) => upd({ gerente_id: e.target.value, ...(cargo === 'promotor' && ativos.find((x) => x.id === form.supervisor_id)?.gerente_id !== e.target.value ? { supervisor_id: '' } : {}) })}
+                className={CAMPO}
+                data-testid="usuarios.campo-gerente"
+              >
+                <option value="">Escolha…</option>
+                {gerentes.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.nome}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
+          {regras.supervisor !== 'nao' && (
+            <Campo rotulo="Supervisor" erro={erroDe('supervisor_id')}>
+              <select value={form.supervisor_id} onChange={(e) => upd({ supervisor_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-supervisor">
+                <option value="">{regras.supervisor === 'opcional' ? 'Sem supervisor' : 'Escolha…'}</option>
+                {supervisores.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.nome}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
+          {regras.nomeEquipe !== 'nao' && (
+            <Campo rotulo="Nome da equipe" erro={erroDe('equipe_nome')}>
+              <input value={form.equipe_nome} maxLength={80} onChange={(e) => upd({ equipe_nome: e.target.value })} className={CAMPO} data-testid="usuarios.campo-equipe-nome" />
+            </Campo>
+          )}
+          <Campo rotulo="Código no ERP" erro={erroDe('external_id')}>
+            <input value={form.external_id} maxLength={100} onChange={(e) => upd({ external_id: e.target.value })} className={CAMPO} data-testid="usuarios.campo-external-id" />
           </Campo>
           {licencas && (
             <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" data-testid="usuarios.modulos-campo">

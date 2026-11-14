@@ -15,6 +15,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { CargoSchema } from './cargos';
 
 const Uuid = z.string().uuid();
 const Texto = (max: number) => z.string().trim().max(max);
@@ -68,6 +69,10 @@ export const UsuarioItemSchema = z
     senha_expira_em: z.string().datetime().nullable(),
     /** Sem senha gravada (usuário antigo da Equipe por CSV que nunca aceitou o convite): ação "Enviar acesso". */
     sem_senha: z.boolean(),
+    /** 0069 (R-20261114-153500/154000): cargo do perfil e a hierarquia do cadastro (`core.v_usuario_hierarquia`). */
+    cargo: CargoSchema.nullable().optional(),
+    supervisor_id: Uuid.nullable().optional(),
+    gerente_id: Uuid.nullable().optional(),
   })
   .strict();
 export type UsuarioItem = z.infer<typeof UsuarioItemSchema>;
@@ -122,9 +127,15 @@ export const CriarUsuarioRequestSchema = z
     email: CamposEditaveis.email,
     /** Legado: um perfil de fábrica. Com `perfis`, vale `perfis`. */
     perfil: CamposEditaveis.perfil.optional(),
-    /** T-0111: um ou mais perfis do tenant (códigos); o primeiro é o principal. */
-    perfis: z.array(CodigoPerfil).min(1).max(10).optional(),
+    /** Um perfil por usuário (RN-CORE-54): lista com um código só. */
+    perfis: z.array(CodigoPerfil).min(1).max(1).optional(),
     equipe_id: CamposEditaveis.equipe_id.default(null),
+    /** Hierarquia pelo cargo do perfil (RN-CORE-55/56; `regrasDoCargo`): vendedor e promotor; a API põe o usuário na equipe certa. */
+    supervisor_id: Uuid.nullable().default(null),
+    /** Promotor e supervisor. */
+    gerente_id: Uuid.nullable().default(null),
+    /** Supervisor (obrigatório) e gerente (opcional): nome da equipe que ele chefia. */
+    equipe_nome: Texto(80).nullable().default(null),
     external_id: CamposEditaveis.external_id.default(null),
     ativo: z.boolean().default(true),
     /** RN-VEN-11a (T-0168): ausente = padrão. */
@@ -148,8 +159,11 @@ export const EditarUsuarioRequestSchema = z
     nome_curto: CamposEditaveis.nome_curto.optional(),
     email: CamposEditaveis.email.optional(),
     perfil: CamposEditaveis.perfil.optional(),
-    perfis: z.array(CodigoPerfil).min(1).max(10).optional(),
+    perfis: z.array(CodigoPerfil).min(1).max(1).optional(),
     equipe_id: CamposEditaveis.equipe_id.optional(),
+    supervisor_id: Uuid.nullable().optional(),
+    gerente_id: Uuid.nullable().optional(),
+    equipe_nome: Texto(80).nullable().optional(),
     external_id: CamposEditaveis.external_id.optional(),
     /** RN-VEN-11a (T-0168): ausente = mantém. O servidor junta com o gravado e confere `limiteDescontoCompleto`. */
     desconto_limita_item: z.boolean().optional(),

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { useMe } from '../../lib/queries';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
+import { ROTULO_CARGO } from '../../../contracts/cargos';
 import {
   alternarMarcado,
   Badge,
@@ -130,6 +131,7 @@ function ListaDePerfis() {
           <thead>
             <tr>
               <th className={th}>Perfil</th>
+              <th className={th}>Cargo</th>
               <th className={`${th} text-right`}>Usuários</th>
               <th className={`${th} w-[56px]`}>
                 <span className="sr-only">Ações</span>
@@ -147,6 +149,7 @@ function ListaDePerfis() {
                     {!p.ativo && <Badge tone="neutral">Inativo</Badge>}
                   </div>
                 </td>
+                <td className={td}>{ROTULO_CARGO[p.cargo]}</td>
                 <td className={`${td} text-right`}>
                   {usuariosDe(p) === 0 ? (
                     <span className="text-ink-2">0</span>

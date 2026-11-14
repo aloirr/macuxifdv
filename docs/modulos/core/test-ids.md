@@ -143,3 +143,5 @@ Lista em `/core/perfis`; edição em `/core/perfis?perfil=<codigo>` (o shell nã
 | `perfil.contagem` · `perfil.descartar` · `perfil.salvar` · `perfil.restaurar` · `perfil.historico` · `perfil.outras` | moldura, rodapé fixo e ações |
 | `perfil.resumo` · `.erro` · `.salvar` · `.voltar` | diálogo "Confira antes de salvar" |
 | `usuarios.campo-perfis` · `usuarios.previa` · `usuarios.previa.onde-entra` | campo "Perfis" e prévia no formulário de Usuários |
+| `usuarios.campo-gerente` · `usuarios.campo-supervisor` · `usuarios.campo-equipe-nome` · `usuarios.campo-external-id` | gaveta Novo usuário: Gerente, Supervisor e Nome da equipe conforme o cargo do perfil (RN-CORE-55/56) e Código no ERP (RN-CORE-57) |
+| `perfil.novo.nome` · `perfil.novo.cargo` · `perfil.novo.salvar` · `perfil.novo.cancelar` · `perfil.novo.grade` · `perfil.modulo.<id>` · `perfil.grupo.<subtítulo>` | Novo perfil: nome, cargo (RN-CORE-53), grade por módulo e subtítulos de Geral |

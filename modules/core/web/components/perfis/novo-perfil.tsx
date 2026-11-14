@@ -19,6 +19,7 @@ import {
   type LinhaDeAcesso,
   type Marcacao,
 } from '../../lib/acesso';
+import { CARGOS, MENSAGEM_CARGO_OBRIGATORIO, ROTULO_CARGO, type Cargo } from '../../../contracts/cargos';
 import { corpoDoPerfil, edicaoInicial, frasesDaRecusa } from '../../lib/perfis';
 import { IconeDoModulo } from '../acesso/icones-modulo';
 
@@ -119,6 +120,7 @@ export function NovoPerfil() {
   const qc = useQueryClient();
   const toast = useToast();
   const [nome, setNome] = useState('');
+  const [cargo, setCargo] = useState<Cargo | ''>('');
   const [marcadas, setMarcadas] = useState<ReadonlySet<string>>(new Set());
   const [tentou, setTentou] = useState(false);
   const [erro, setErro] = useState<string[]>([]);
@@ -139,7 +141,7 @@ export function NovoPerfil() {
   const salvar = useMutation({
     mutationFn: async () => {
       const base = baseDoNovoPerfil(marcadas);
-      const d = criado ?? PerfilDetalheSchema.parse(await api('/core/perfis', { method: 'POST', body: { nome: nome.trim(), base } }));
+      const d = criado ?? PerfilDetalheSchema.parse(await api('/core/perfis', { method: 'POST', body: { nome: nome.trim(), base, cargo } }));
       setCriado(d);
       const edicao = edicaoDaGrade(edicaoInicial(d), daGrade, marcadas);
       await api(`/core/perfis/${d.perfil.codigo}`, { method: 'PUT', body: corpoDoPerfil(edicao, { nome: nome.trim(), descricao: '', ativo: true }, false) });
@@ -159,7 +161,7 @@ export function NovoPerfil() {
   const enviar = () => {
     setTentou(true);
     setErro([]);
-    if (nome.trim() === '') return;
+    if (nome.trim() === '' || cargo === '') return;
     salvar.mutate();
   };
 
@@ -185,6 +187,18 @@ export function NovoPerfil() {
         Nome
         <input className={CAMPO} value={nome} maxLength={40} autoFocus onChange={(e) => setNome(e.target.value)} aria-invalid={tentou && nome.trim() === ''} data-testid="perfil.novo.nome" />
         {tentou && nome.trim() === '' && <span className="text-[12px] font-medium text-danger">{MENSAGEM_NOME_OBRIGATORIO}</span>}
+      </label>
+      <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
+        Cargo
+        <select className={CAMPO} value={cargo} onChange={(e) => setCargo(e.target.value as Cargo | '')} aria-invalid={tentou && cargo === ''} data-testid="perfil.novo.cargo">
+          <option value="">Escolha…</option>
+          {CARGOS.map((c) => (
+            <option key={c} value={c}>
+              {ROTULO_CARGO[c]}
+            </option>
+          ))}
+        </select>
+        {tentou && cargo === '' && <span className="text-[12px] font-medium text-danger">{MENSAGEM_CARGO_OBRIGATORIO}</span>}
       </label>
       {erro.length > 0 && (
         <Notice tone="danger">

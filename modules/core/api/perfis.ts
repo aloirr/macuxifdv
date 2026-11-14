@@ -42,6 +42,8 @@ import {
   type PerfilDetalhe,
   type PerfilResumo,
   type ValorDaChave,
+  cargoDaBase,
+  type Cargo,
 } from '../contracts';
 import { avaliarEstadoDePerfis, codigoDoPerfil, diffAuditavelDePerfil, sobreposicoesDoDesejado, validarNomeDoPerfil } from '../domain';
 import { auditar } from './auditoria';
@@ -57,6 +59,8 @@ interface LinhaPerfil {
   base: Perfil;
   fabrica: boolean;
   ativo: boolean;
+  /** 0069: NOT NULL no banco; sem a coluna (leitura antiga), vale o cargo da base. */
+  cargo?: Cargo | null;
 }
 interface LinhaPermissao {
   perfil_id: string;
@@ -84,7 +88,7 @@ interface Carga {
 /** Perfis vivos com as sobreposições e os usuários com seus perfis. `travar` = `for update` nos perfis (escrita). */
 export async function carregar(db: ClienteBanco, travar: boolean): Promise<Carga> {
   const lock = travar ? ' for update' : '';
-  const ps = await db.query<LinhaPerfil>(`select id, codigo, nome, descricao, base, fabrica, ativo from plataforma.perfil where deleted_at is null order by codigo${lock}`);
+  const ps = await db.query<LinhaPerfil>(`select id, codigo, nome, descricao, base, fabrica, ativo, cargo from plataforma.perfil where deleted_at is null order by codigo${lock}`);
   const sobre = await db.query<LinhaPermissao>('select perfil_id, chave, concedida, nivel, alvos from plataforma.perfil_permissao where deleted_at is null order by chave');
   const us = await db.query<{ id: string; ativo: boolean; perfis: string[] }>(
     `select u.id, u.ativo, coalesce(array_agg(p.codigo order by p.codigo) filter (where p.codigo is not null), '{}') as perfis
@@ -105,8 +109,10 @@ const LUGARES = ['campo', 'gestao', 'bko', 'portal'] as const;
 
 function resumoDe(l: LinhaPerfil, p: PerfilDeAcesso, matriz: MatrizFabrica, usuarios: number): PerfilResumo {
   const r = resolverPerfil(p, matriz);
-  return PerfilResumoSchema.parse({ codigo: l.codigo, nome: l.nome, descricao: l.descricao, base: l.base, fabrica: l.fabrica, ativo: l.ativo, usuarios, onde_entra: LUGARES.filter((x) => podeEntrar([r], x)) });
+  return PerfilResumoSchema.parse({ codigo: l.codigo, nome: l.nome, descricao: l.descricao, base: l.base, fabrica: l.fabrica, ativo: l.ativo, usuarios, onde_entra: LUGARES.filter((x) => podeEntrar([r], x)), cargo: cargoDe(l) });
 }
+
+const cargoDe = (l: LinhaPerfil): Cargo => l.cargo ?? cargoDaBase(l.base);
 
 const valorDe = (v: ValorPermissao | undefined): ValorDaChave => ({ concedida: !!v, nivel: v?.nivel ?? null, alvos: v?.alvos ? [...v.alvos] : null });
 
@@ -138,7 +144,7 @@ function detalheDe(ctx: ContextoBase, c: Carga, codigo: string, modulos: string[
   return PerfilDetalheSchema.parse({
     perfil: resumoDe(linha, perfil, matriz, contagem),
     chaves,
-    alvos_possiveis: c.linhas.filter((l) => l.ativo).map((l) => ({ codigo: l.codigo, nome: l.nome, base: l.base, fabrica: l.fabrica, onde_entra: [] })),
+    alvos_possiveis: c.linhas.filter((l) => l.ativo).map((l) => ({ codigo: l.codigo, nome: l.nome, base: l.base, fabrica: l.fabrica, onde_entra: [], cargo: cargoDe(l) })),
     escopo_maximo: escopoMaximoDaBase(perfil.base),
     modulos,
   });
@@ -211,7 +217,7 @@ export const rotasDePerfis: readonly RotaModulo[] = [
         const ativos = c.linhas
           .map((l, i) => ({ l, p: c.perfis[i]! }))
           .filter(({ l }) => l.ativo)
-          .map(({ l, p }) => ({ codigo: l.codigo, nome: l.nome, base: l.base, fabrica: l.fabrica, onde_entra: resumoDe(l, p, matriz, 0).onde_entra }));
+          .map(({ l, p }) => ({ codigo: l.codigo, nome: l.nome, base: l.base, fabrica: l.fabrica, onde_entra: resumoDe(l, p, matriz, 0).onde_entra, cargo: cargoDe(l) }));
         ativos.sort((a, b) => Number(!a.fabrica) - Number(!b.fabrica) || (a.fabrica ? ordemDaBase(a.base) - ordemDaBase(b.base) : a.nome.localeCompare(b.nome, 'pt-BR')));
         return PerfilOpcoesRespostaSchema.parse({ itens: ativos });
       }),
@@ -234,7 +240,7 @@ export const rotasDePerfis: readonly RotaModulo[] = [
     status: 201,
     corpo: CriarPerfilRequestSchema,
     executar: async (ctx) => {
-      const { base, copiar_de } = ctx.corpo;
+      const { base, copiar_de, cargo } = ctx.corpo;
       const nome = ctx.corpo.nome.trim();
       const descricao = ctx.corpo.descricao?.trim() || null;
       const erros = validarNomeDoPerfil(nome, descricao);
@@ -254,8 +260,8 @@ export const rotasDePerfis: readonly RotaModulo[] = [
         conferir(ctx, c, [...c.perfis, novo]);
         const id = randomUUID();
         await db.query(
-          'insert into plataforma.perfil (id, tenant_id, codigo, nome, descricao, base, fabrica, ativo) values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, false, true)',
-          [id, codigo, nome, descricao, base],
+          'insert into plataforma.perfil (id, tenant_id, codigo, nome, descricao, base, fabrica, ativo, cargo) values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, false, true, $6)',
+          [id, codigo, nome, descricao, base, cargo],
         );
         await gravarSobreposicoes(db, id, sobre);
         await db.query(
@@ -263,7 +269,7 @@ export const rotasDePerfis: readonly RotaModulo[] = [
            select plataforma.tenant_atual(), $1, modulo from plataforma.perfil_modulo where perfil = $2 and deleted_at is null`,
           [codigo, origem?.codigo ?? base],
         );
-        await auditar(db, ctx, { acao: 'perfil.criar', entidade: 'perfil', entidadeId: id, antes: null, depois: { codigo, nome, base, copiado_de: origem?.codigo ?? null, sobreposicoes: sobre } });
+        await auditar(db, ctx, { acao: 'perfil.criar', entidade: 'perfil', entidadeId: id, antes: null, depois: { codigo, nome, base, cargo, copiado_de: origem?.codigo ?? null, sobreposicoes: sobre } });
         return detalheDe(ctx, await carregar(db, false), codigo, await modulosDoPerfil(db, codigo));
       });
     },
