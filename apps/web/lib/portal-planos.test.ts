@@ -15,6 +15,7 @@ import {
   estadoLocalDoCnpj,
   preencherCampos,
   textoDoEstadoCnpj,
+  TEXTOS_CNPJ,
   type CamposDaReceita,
 } from './portal-cnpj';
 import { PLANOS_FALSOS } from './portal-falso';
@@ -30,7 +31,22 @@ import {
   TEXTOS_NOVA_EMPRESA,
   type FormNovaEmpresa,
 } from './portal-nova-empresa';
-import { adicionaisAVenda, ESCOLHA_VAZIA, errosDaEscolha, licencasDoPlano, linhasDaFicha, precoDoAdicional, precoDoPlano, totalDaEscolha, type EscolhaDaTela } from './portal-planos';
+import {
+  adicionaisAVenda,
+  corpoDaTroca,
+  ESCOLHA_VAZIA,
+  errosDaEscolha,
+  escolhaDaFicha,
+  licencasDoPlano,
+  licencasDoPlanoEmDuasLinhas,
+  linhasDaFicha,
+  mudouDaFicha,
+  precoDoAdicional,
+  precoDoPlano,
+  problemasDaTroca,
+  totalDaEscolha,
+  type EscolhaDaTela,
+} from './portal-planos';
 
 const [light, pme, enterprise, corporate] = PLANOS_FALSOS;
 if (!light || !pme || !enterprise || !corporate) throw new Error('catálogo falso incompleto');
@@ -75,7 +91,7 @@ describe('planos (§11.3)', () => {
 
 describe('ficha da assinatura (§11.4)', () => {
   const ficha = (licencas: FichaAssinatura['licencas']): Pick<FichaAssinatura, 'licencas'> => ({ licencas });
-  it('Vendedor, Gestor e BKO sempre; adicional só contratado; "no limite" com texto; null = sem limite', () => {
+  it('blocos "{em uso} de {contratadas}": Vendedor, Gestor e BKO sempre; adicional só contratado; no limite = selo; null = sem limite', () => {
     const linhas = linhasDaFicha(
       ficha([
         { item: 'vendedor', contratadas: 20, em_uso: 14 },
@@ -86,13 +102,58 @@ describe('ficha da assinatura (§11.4)', () => {
         { item: 'treinamento', contratadas: 0, em_uso: 0 },
       ]),
     );
-    expect(linhas.map((l) => [l.rotulo, l.emUso, l.contratadas, l.adicional])).toEqual([
-      ['Vendedor', '14', '20', false],
-      ['Gestor', '2 · no limite', '2', false],
-      ['BKO', '1', 'sem limite', false],
-      ['Promotor Avulso', '3 · no limite', '3', true],
-      ['Pesquisa', '6', '10', true],
+    expect(linhas.map((l) => [l.rotulo, l.emUso, l.complemento, l.noLimite, l.adicional])).toEqual([
+      ['Vendedor', 14, 'de 20', false, false],
+      ['Gestor', 2, 'de 2', true, false],
+      ['BKO', 1, '· sem limite', false, false],
+      ['Promotor Avulso', 3, 'de 3', true, true],
+      ['Pesquisa', 6, 'de 10', false, true],
     ]);
+  });
+});
+
+describe('trocar de plano (§11.4)', () => {
+  const licencas: FichaAssinatura['licencas'] = [
+    { item: 'vendedor', contratadas: 20, em_uso: 14 },
+    { item: 'gestor', contratadas: 2, em_uso: 2 },
+    { item: 'bko', contratadas: 3, em_uso: 1 },
+    { item: 'promotor', contratadas: 3, em_uso: 3 },
+    { item: 'pesquisa', contratadas: 10, em_uso: 6 },
+    { item: 'treinamento', contratadas: 0, em_uso: 0 },
+  ];
+  const ficha = { plano: pme, ciclo: 'mensal' as const, adicionais: [{ adicional: 'promotor' as const, quantidade: 3 }, { adicional: 'pesquisa' as const, quantidade: 10 }], licencas };
+
+  it('abre com o plano, o ciclo e os adicionais de hoje; sem mudança não troca', () => {
+    const e = escolhaDaFicha(ficha);
+    expect(e).toEqual({ plano: 'pme', ciclo: 'mensal', adicionais: { promotor: '3', pesquisa: '10' }, teste: false });
+    expect(mudouDaFicha(ficha, e)).toBe(false);
+    expect(mudouDaFicha(ficha, { ...e, ciclo: 'anual' })).toBe(true);
+    expect(mudouDaFicha(ficha, { ...e, plano: 'enterprise' })).toBe(true);
+    expect(mudouDaFicha(ficha, { ...e, adicionais: { promotor: '3' } })).toBe(true);
+  });
+
+  it('Enterprise no Anual com Promotor Avulso 3 e Pesquisa 10 = R$ 20.590,00/ano (simulação 06d)', () => {
+    const e: EscolhaDaTela = { ...escolhaDaFicha(ficha), plano: 'enterprise', ciclo: 'anual' };
+    expect(totalDaEscolha(PLANOS_FALSOS, e)).toBe('Total: R$ 20.590,00/ano');
+    expect(problemasDaTroca(PLANOS_FALSOS, ficha, e)).toEqual([]);
+    expect(corpoDaTroca(e, '9b1c2d3e-0000-4000-8000-000000000001')).toEqual({
+      plano: 'enterprise',
+      ciclo: 'anual',
+      adicionais: [{ adicional: 'promotor', quantidade: 3 }, { adicional: 'pesquisa', quantidade: 10 }],
+      pedido_id: '9b1c2d3e-0000-4000-8000-000000000001',
+    });
+  });
+
+  it('plano abaixo do uso: uma frase por item, do contrato (RN-PLA-05)', () => {
+    const e: EscolhaDaTela = { ...escolhaDaFicha(ficha), plano: 'light' };
+    expect(problemasDaTroca(PLANOS_FALSOS, ficha, e)).toEqual([
+      'O plano Light tem 10 licenças de vendedor e a empresa usa 14.',
+      'O plano Light tem 1 licença de gestor e a empresa usa 2.',
+    ]);
+  });
+
+  it('licenças do plano em duas linhas no diálogo', () => {
+    expect(licencasDoPlanoEmDuasLinhas(enterprise)).toEqual(['30 vendedores', '3 gestores · 5 BKO']);
   });
 });
 
@@ -120,6 +181,7 @@ describe('CNPJ pela Receita (§11.2)', () => {
   it('textos dos estados (uma frase; o encontrado não tem texto); só o encontrado libera o Criar', () => {
     expect(textoDoEstadoCnpj('buscando', null)).toBe('Buscando na Receita…');
     expect(textoDoEstadoCnpj('encontrado', 'ativa')).toBeNull();
+    expect(TEXTOS_CNPJ.encontrado).toBe('CNPJ encontrado');
     expect(textoDoEstadoCnpj('invalido', null)).toBe('CNPJ inválido. Confira os 14 dígitos.');
     expect(textoDoEstadoCnpj('nao-encontrado', null)).toBe('CNPJ não encontrado na Receita.');
     expect(textoDoEstadoCnpj('receita-fora', null)).toBe('A Receita não respondeu.');

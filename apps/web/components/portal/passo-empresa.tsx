@@ -43,10 +43,13 @@ import {
 } from '@/lib/portal-nova-empresa';
 import { ESCOLHA_VAZIA, totalDaEscolha, type EscolhaDaTela } from '@/lib/portal-planos';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { Campo, campoCss, CampoSenha } from './base';
+import { Campo, campoCss, CampoSenha, principalDesabilitadoCss } from './base';
 import { SeletorPlano } from './seletor-plano';
 
-export const CHAVE_PLANOS = ['portal', 'planos'] as const;
+const CHAVE_PLANOS = ['portal', 'planos'] as const;
+
+/** Catálogo de planos (`GET ROTA_PORTAL_PLANOS`): o mesmo no Criar empresa e no "Trocar de plano". */
+export const usePlanos = () => useQuery({ queryKey: CHAVE_PLANOS, queryFn: () => chamarPortal(ROTAS_PORTAL.planos, { schema: ListaPlanosSchema }).then((r) => r.itens) });
 
 const CAMPOS_VAZIOS: CamposDaReceita = { razao_social: '', nome_fantasia: '', endereco: '', municipio: '', uf: '', telefone: '', email: '' };
 
@@ -57,7 +60,7 @@ function semChaves(e: Record<string, string>, ...ks: string[]): Record<string, s
 
 export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
   const router = useRouter();
-  const planos = useQuery({ queryKey: CHAVE_PLANOS, queryFn: () => chamarPortal(ROTAS_PORTAL.planos, { schema: ListaPlanosSchema }).then((r) => r.itens) });
+  const planos = usePlanos();
   const [cnpj, setCnpj] = useState('');
   const [estado, setEstado] = useState<EstadoCnpj>('vazio');
   const [situacao, setSituacao] = useState<SituacaoCadastral | null>(null);
@@ -192,7 +195,8 @@ export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
               />
               <span className="absolute right-3 top-0 flex h-11 items-center gap-2 text-[13px]">
                 {estado === 'buscando' && <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-field border-t-accent" />}
-                {estado === 'encontrado' && <IconCheck size={16} aria-hidden="true" className="text-success" />}
+                {/* ✓ verde sem texto visível; o texto vai no rótulo de acessibilidade (MC-0049 opção A, R-20261114-172200) */}
+                {estado === 'encontrado' && <IconCheck size={16} role="img" aria-hidden={undefined} aria-label={TEXTOS_CNPJ.encontrado} data-testid="empresa.cnpj-encontrado" className="text-success" />}
                 {estado === 'receita-fora' && (
                   <button type="button" data-testid="empresa.cnpj-tentar" className="font-semibold text-accent-ink underline-offset-2 hover:underline" onClick={() => void buscar(cnpj)}>
                     {TEXTOS_CNPJ.tentar}
@@ -296,7 +300,7 @@ export function NovaEmpresa({ aoGravar }: { aoGravar?: () => void }) {
       )}
 
       <div className="flex flex-wrap items-center gap-5">
-        <Button data-testid="empresa.gravar" type="submit" variant="primary" className="h-[52px] px-6 text-[15px]" disabled={!podeCriar}>
+        <Button data-testid="empresa.gravar" type="submit" variant="primary" className={cx('h-[52px] px-6 text-[15px]', principalDesabilitadoCss)} disabled={!podeCriar}>
           {enviando ? TEXTOS_NOVA_EMPRESA.criando : TEXTOS_NOVA_EMPRESA.criar}
         </Button>
         {total && (

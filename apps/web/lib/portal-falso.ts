@@ -10,7 +10,7 @@
  * - `troca@uma.com.br`: admin do cliente com a senha ainda por trocar (403 `SENHA_A_TROCAR`, T-0094).
  * Outro e-mail = 401 (mesma resposta da senha errada).
  * Planos (ADR 0047): o catálogo da spec portal-config-enxuto §11.3; cada empresa fictícia tem uma assinatura (Uma: PME em teste,
- * com Promotor Avulso 3 e Pesquisa 10). CNPJ (ADR 0048), pela raiz (8 primeiros dígitos) de um CNPJ com dígitos válidos: começa
+ * com Promotor Avulso 3 e Pesquisa 10; o `PUT` troca o plano com a trava da RN-PLA-05, só o time da Macuxi). CNPJ (ADR 0048), pela raiz (8 primeiros dígitos) de um CNPJ com dígitos válidos: começa
  * com `99` = Receita fora (503), `88` = não encontrado (404), `77` = baixado; o resto = ativo. A empresa nova recebe o código da
  * licença UF + 4 dígitos, como a migração 0068.
  * Admins da empresa (T-0094 fatia S, só o time da Macuxi): na Distribuidora Uma, um admin normal, um bloqueado, um em
@@ -22,6 +22,7 @@ import { cnpjValido, somenteDigitos } from '@macuxi/comum/documento';
 import { ehUf } from '@macuxi/comum/endereco';
 import {
   CODIGOS_CNPJ,
+  conferirTrocaDePlano,
   ConsultaCnpjPedidoSchema,
   CriarEmpresaComPlanoSchema,
   EscolherEmpresaPortalSchema,
@@ -32,6 +33,8 @@ import {
   modulosDaAssinatura,
   RedefinirSenhaAdminSchema,
   SessaoPortalSchema,
+  TrocarPlanoSchema,
+  usoPorItem,
   valorDaAssinatura,
   type AdicionalContratado,
   type AdminDaEmpresa,
@@ -424,6 +427,23 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     const a = e.assinaturas[t];
     const f = a ? fichaFalsa(t, a) : null;
     return f ? json(200, f) : erro(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
+  }
+  if (metodo === 'PUT' && assinaturaM) {
+    const t = decodeURIComponent(assinaturaM[1] ?? '');
+    if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi troca o plano.');
+    const a = e.assinaturas[t];
+    const atual = a ? fichaFalsa(t, a) : null;
+    if (!a || !atual) return erro(404, 'SEM_ASSINATURA', 'Esta empresa ainda não tem plano.');
+    const c = lerCorpo(TrocarPlanoSchema, corpo);
+    if (c instanceof Response) return c;
+    const novo = PLANOS_FALSOS.find((x) => x.codigo === c.plano);
+    if (!novo) return erro(422, 'PLANO_DESCONHECIDO', 'Plano não encontrado no catálogo.', { campo: 'plano' });
+    // RN-PLA-05, como a API: abaixo do uso = 422 com os problemas
+    const problemas = conferirTrocaDePlano(novo, c.adicionais, usoPorItem(atual.licencas).emUso);
+    if (problemas.length > 0) return erro(422, problemas[0]?.codigo ?? 'VALIDACAO', problemas[0]?.mensagem ?? 'Plano inválido.', { problemas });
+    const nova: AssinaturaFalsa = { ...a, plano: novo.codigo, ciclo: c.ciclo, adicionais: c.adicionais };
+    gravar({ ...e, assinaturas: { ...e.assinaturas, [t]: nova } });
+    return json(200, fichaFalsa(t, nova));
   }
   // ---------- diagnósticos (T-0158): o modo falso não tem aparelhos, a lista vem vazia
   if (rota === `GET ${ROTAS_PORTAL.diagnosticos}`) {

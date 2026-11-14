@@ -23,6 +23,8 @@ export const TEXTOS_CNPJ = Object.freeze({
   naoEncontrado: 'CNPJ não encontrado na Receita.',
   receitaFora: 'A Receita não respondeu.',
   tentar: 'Tentar de novo',
+  /** Rótulo de acessibilidade do ✓ verde do "Encontrado" (sem texto visível; MC-0049 opção A, R-20261114-172200). */
+  encontrado: 'CNPJ encontrado',
   naoAtiva: (s: SituacaoCadastral) => `CNPJ ${SITUACAO_NO_MASCULINO[s]} na Receita. Use um CNPJ ativo.`,
 });
 

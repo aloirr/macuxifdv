@@ -80,7 +80,7 @@ export function houveUsoRecente(agora = Date.now()): boolean {
 
 // ---------------------------------------------------------------------------------------------------------------- transporte
 
-type Metodo = 'GET' | 'POST' | 'PATCH';
+type Metodo = 'GET' | 'POST' | 'PATCH' | 'PUT';
 
 async function transportar(metodo: Metodo, caminho: string, corpo: unknown, cabecalhos: Record<string, string>): Promise<Response> {
   if (MODO_PORTAL_FALSO) {

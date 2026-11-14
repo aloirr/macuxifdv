@@ -35,6 +35,9 @@ import {
 export const campoCss =
   'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
 
+/** Principal desabilitado do portal: Névoa `#ECEEF1` com texto `#5B6673` (MC-0041; spec portal-config-enxuto §11.2). */
+export const principalDesabilitadoCss = 'disabled:bg-neutral-soft! disabled:text-[#5b6673]!';
+
 /** Marca do portal: o logo negativo na faixa Azul noite (T-0172). `naBarra` = dentro do cabeçalho, que já é a faixa (MC-0023). */
 export function Marca({ naBarra = false }: { naBarra?: boolean }) {
   return <MarcaNaFaixa area="Portal de implantação" noPortal semFundo={naBarra} />;
@@ -274,38 +277,42 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
       <div className="min-h-screen bg-ground">
         <AvisoModoFalso />
         <header data-testid="portal.cabecalho" className="bg-faixa">
-          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center justify-between gap-3 px-4 py-2">
-            <div className="flex flex-wrap items-center gap-6">
-              <Link href={inicio} className="rounded-xl no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" data-testid="portal.marca">
-                <Marca naBarra />
-              </Link>
-              {ehTimeMacuxi(sessao) && (
-                <nav aria-label="Portal" className="flex items-stretch gap-1 self-stretch">
-                  {MENU_TIME_MACUXI.map((i) => (
-                    <Link
-                      key={i.href}
-                      href={i.href}
-                      data-testid={i.testId}
-                      aria-current={ativo === i.href ? 'page' : undefined}
-                      className={cx(
-                        '-mb-2 flex min-h-11 items-center border-b-2 px-3 pb-2 text-[14px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
-                        ativo === i.href ? 'border-white text-white' : 'border-transparent text-faixa-texto hover:text-white',
-                      )}
-                    >
-                      {i.rotulo}
-                    </Link>
-                  ))}
-                </nav>
+          {/* celular (< 768 px): "Sair" na linha do logo, à direita; abas e "Sessão até" na linha de baixo (spec §10.2). O grupo da
+              direita é `contents` no celular para cada item achar a sua linha pela ordem, sem repetir nenhum. */}
+          <div className="mx-auto flex w-full max-w-[1120px] flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 md:gap-x-6">
+            <Link href={inicio} className="order-1 -ml-3.5 rounded-xl no-underline md:ml-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" data-testid="portal.marca">
+              <Marca naBarra />
+            </Link>
+            {ehTimeMacuxi(sessao) && (
+              <nav aria-label="Portal" className="order-3 flex w-full items-stretch gap-1 self-stretch md:order-2 md:w-auto">
+                {MENU_TIME_MACUXI.map((i) => (
+                  <Link
+                    key={i.href}
+                    href={i.href}
+                    data-testid={i.testId}
+                    aria-current={ativo === i.href ? 'page' : undefined}
+                    className={cx(
+                      '-mb-2 flex min-h-11 items-center border-b-2 px-3 pb-2 text-[14px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white',
+                      ativo === i.href ? 'border-white text-white' : 'border-transparent text-faixa-texto hover:text-white',
+                    )}
+                  >
+                    {i.rotulo}
+                  </Link>
+                ))}
+              </nav>
+            )}
+            <div className="contents text-[13px] text-faixa-texto md:order-3 md:ml-auto md:flex md:min-w-0 md:flex-wrap md:items-center md:gap-3">
+              {sessao && (
+                <span data-testid="portal.sessao-ate" className="order-4 w-full py-1 text-[13px] text-faixa-texto md:order-none md:w-auto md:py-0">
+                  Sessão até {hora(sessao.sessao_expira_em)}
+                </span>
               )}
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-3 text-[13px] text-faixa-texto">
-              {sessao && <span data-testid="portal.sessao-ate">Sessão até {hora(sessao.sessao_expira_em)}</span>}
               {podeTrocarDeEmpresa(sessao) && (
-                <button type="button" data-testid="portal.trocar-empresa" className={botaoNaFaixa} onClick={() => router.push(CAMINHO_ESCOLHER_EMPRESA)}>
+                <button type="button" data-testid="portal.trocar-empresa" className={cx(botaoNaFaixa, 'order-5 md:order-none')} onClick={() => router.push(CAMINHO_ESCOLHER_EMPRESA)}>
                   Trocar de empresa
                 </button>
               )}
-              <button type="button" data-testid="portal.sair" className={botaoNaFaixa} onClick={sair}>
+              <button type="button" data-testid="portal.sair" className={cx(botaoNaFaixa, 'order-2 ml-auto md:order-none md:ml-0')} onClick={sair}>
                 Sair
               </button>
             </div>

@@ -2,7 +2,7 @@
 
 /**
  * T-0098: "Baixar o Conector" da aba Integração. Cada clique gera um link temporário na API (presign de bucket privado,
- * auditado) e mostra o link real para o operador clicar (gesto dele: o navegador não bloqueia como pop-up), com a versão do
+ * auditado) e mostra o link real para o operador clicar (gesto dele: o navegador não bloqueia como pop-up), com o tamanho do
  * pacote e até quando o link vale. Sem a rota neste servidor (ou sem pacote publicado), fica `TEXTO_INDISPONIVEL` (RD-0288).
  * Fica no passo 1 do lado "Integração via Conector" (spec portal-config-enxuto §10.2).
  * Regras e textos: `lib/conector-download.ts`. testIDs: integracao.baixar-conector*.

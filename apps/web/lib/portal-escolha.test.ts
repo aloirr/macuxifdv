@@ -363,4 +363,21 @@ describe('fluxo no modo falso (mesmos schemas da API)', () => {
     const planos = ListaPlanosSchema.parse(await (await responderFalso('GET', ROTAS_PORTAL.planos, undefined, com(s))).json());
     expect(planos.itens.map((p) => p.nome)).toEqual(['Light', 'PME', 'Enterprise', 'Corporate']);
   });
+
+  it('trocar de plano (PUT): só o time da Macuxi; abaixo do uso = 422 com os problemas (RN-PLA-05); Enterprise anual grava', async () => {
+    const uma = '0b6f1a52-5c1e-4c4e-9a43-000000000001';
+    const pedido_id = '9b1c2d3e-0000-4000-8000-000000000001';
+    const adicionais = [{ adicional: 'promotor', quantidade: 3 }, { adicional: 'pesquisa', quantidade: 10 }];
+    const cliente = await sessaoDe(await login('admin@uma.com.br'));
+    expect((await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'enterprise', ciclo: 'anual', adicionais, pedido_id }, com(cliente))).status).toBe(403);
+    const time = await sessaoDe(await login('time@macuxi.com.br'));
+    const abaixo = await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'light', ciclo: 'mensal', adicionais, pedido_id }, com(time));
+    expect(abaixo.status).toBe(422);
+    const corpo = (await abaixo.json()) as { codigo: string; detalhes: { problemas: { mensagem: string }[] } };
+    expect(corpo.codigo).toBe('PLANO_ABAIXO_DO_USO');
+    expect(corpo.detalhes.problemas.map((p) => p.mensagem)).toContain('O plano Light tem 10 licenças de vendedor e a empresa usa 14.');
+    const r = await responderFalso('PUT', ROTAS_PORTAL.assinatura(uma), { plano: 'enterprise', ciclo: 'anual', adicionais, pedido_id }, com(time));
+    const f = FichaAssinaturaSchema.parse(await r.json());
+    expect([r.status, f.plano.nome, f.valor.ciclo, f.valor.por_ciclo_centavos]).toEqual([200, 'Enterprise', 'anual', 2_059_000]);
+  });
 });

@@ -5,7 +5,7 @@
  * (`nomeDoAdicional`, MC-0042), nunca rótulo solto na tela.
  */
 import { formatBRL } from '@macuxi/comum/money';
-import { ADICIONAIS, valorDaAssinatura, type Adicional, type AdicionalContratado, type Ciclo, type FichaAssinatura, type ItemContado, type Plano, type TipoLicenca } from '@macuxi/platform-sdk';
+import { ADICIONAIS, conferirTrocaDePlano, usoPorItem, valorDaAssinatura, type Adicional, type AdicionalContratado, type Ciclo, type FichaAssinatura, type ItemContado, type Plano, type TipoLicenca, type TrocarPlano } from '@macuxi/platform-sdk';
 import { nomeDoAdicional } from '@macuxi/ui/web';
 
 export const TEXTOS_PLANO = Object.freeze({
@@ -20,14 +20,20 @@ export const TEXTOS_PLANO = Object.freeze({
   quantidadeDe: (adicional: string) => `Quantidade de ${adicional}`,
   semLimite: 'sem limite',
   noLimite: 'no limite',
-  licencas: 'Licenças',
-  emUso: 'Em uso',
-  contratadas: 'Contratadas',
   mesesGratis: (n: number) => `${n} ${n === 1 ? 'mês grátis' : 'meses grátis'}`,
   comTeste: (dias: number) => `Começar com ${dias} dias de teste`,
   testeAte: (data: string) => `Teste até ${data}`,
   total: (valor: string) => `Total: ${valor}`,
   teste: 'teste',
+  /** "de 20" embaixo do número em uso (bloco de licenças, §11.4). */
+  de: (n: number) => `de ${n}`,
+  /** Título do cartão da aba Empresa: "Plano PME". */
+  planoDe: (nome: string) => `Plano ${nome}`,
+  trocar: 'Trocar de plano',
+  trocarPara: (nome: string) => `Trocar para ${nome}`,
+  cancelar: 'Cancelar',
+  atual: 'Atual',
+  trocado: (nome: string) => `Plano trocado: ${nome}.`,
 });
 
 /** Quantidade máxima de um adicional (`AdicionalContratadoSchema`). */
@@ -54,6 +60,12 @@ export function licencasDoPlano(plano: Plano): string {
     if (n === null) return [`${varios} ${TEXTOS_PLANO.semLimite}`];
     return n > 0 ? [`${n} ${n === 1 ? um : varios}`] : [];
   }).join(' · ');
+}
+
+/** As licenças do plano em duas linhas (diálogo "Trocar de plano", §11.4): "30 vendedores" / "3 gestores · 5 BKO". */
+export function licencasDoPlanoEmDuasLinhas(plano: Plano): [string, string] {
+  const [primeira = '', ...resto] = licencasDoPlano(plano).split(' · ');
+  return [primeira, resto.join(' · ')];
 }
 
 /** Adicionais que o plano vende (fora de `plano.adicionais` não aparece), na ordem de `ADICIONAIS`. */
@@ -124,33 +136,63 @@ export function rotuloDoItem(item: ItemContado): string {
 export interface LinhaDaFicha {
   item: ItemContado;
   rotulo: string;
-  /** Item de adicional: a linha leva o ícone do kit. */
+  /** Item de adicional: o bloco leva o ícone do kit. */
   adicional: boolean;
-  emUso: string;
-  contratadas: string;
+  emUso: number;
+  /** "de 20" ou "· sem limite" (`contratadas` = `null`). */
+  complemento: string;
+  /** Em uso = contratadas: só o selo "no limite" (RD-a: borda e número iguais aos demais blocos). */
   noLimite: boolean;
 }
 
 const ITENS_SEMPRE: readonly ItemContado[] = ['vendedor', 'gestor', 'bko'];
 
 /**
- * Tabela "Licenças · Em uso · Contratadas" (spec §11.4): Vendedor, Gestor e BKO sempre; Promotor Avulso, Pesquisa e Treinamento só
- * quando contratados (`contratadas` ≠ 0). Em uso = contratadas: "2 · no limite" (cor nunca sozinha).
+ * Blocos de licenças "{em uso} de {contratadas}" (spec §11.4): Vendedor, Gestor e BKO sempre; Promotor Avulso, Pesquisa e
+ * Treinamento só quando contratados (`contratadas` ≠ 0). `null` = "{em uso} · sem limite".
  */
 export function linhasDaFicha(f: Pick<FichaAssinatura, 'licencas'>): LinhaDaFicha[] {
   return f.licencas
     .filter((l) => ITENS_SEMPRE.includes(l.item) || l.contratadas !== 0)
-    .map((l) => {
-      const noLimite = l.contratadas !== null && l.em_uso >= l.contratadas;
-      return {
-        item: l.item,
-        rotulo: rotuloDoItem(l.item),
-        adicional: !ITENS_SEMPRE.includes(l.item),
-        emUso: noLimite ? `${l.em_uso} · ${TEXTOS_PLANO.noLimite}` : String(l.em_uso),
-        contratadas: l.contratadas === null ? TEXTOS_PLANO.semLimite : String(l.contratadas),
-        noLimite,
-      };
-    });
+    .map((l) => ({
+      item: l.item,
+      rotulo: rotuloDoItem(l.item),
+      adicional: !ITENS_SEMPRE.includes(l.item),
+      emUso: l.em_uso,
+      complemento: l.contratadas === null ? `· ${TEXTOS_PLANO.semLimite}` : TEXTOS_PLANO.de(l.contratadas),
+      noLimite: l.contratadas !== null && l.em_uso >= l.contratadas,
+    }));
+}
+
+/** A escolha de hoje (diálogo "Trocar de plano" abre com o plano, o ciclo e os adicionais atuais já marcados). */
+export function escolhaDaFicha(f: Pick<FichaAssinatura, 'plano' | 'ciclo' | 'adicionais'>): EscolhaDaTela {
+  const adicionais: Partial<Record<Adicional, string>> = {};
+  for (const a of f.adicionais) adicionais[a.adicional] = String(a.quantidade);
+  return { plano: f.plano.codigo, ciclo: f.ciclo, adicionais, teste: false };
+}
+
+const assinaturaDa = (plano: string | null, ciclo: Ciclo, adicionais: readonly AdicionalContratado[]): string =>
+  JSON.stringify([plano, ciclo, [...adicionais].sort((a, b) => a.adicional.localeCompare(b.adicional)).map((a) => [a.adicional, a.quantidade])]);
+
+/** A escolha difere da assinatura de hoje (sem mudança, o principal fica desabilitado). */
+export function mudouDaFicha(f: Pick<FichaAssinatura, 'plano' | 'ciclo' | 'adicionais'>, e: EscolhaDaTela): boolean {
+  return assinaturaDa(e.plano, e.ciclo, adicionaisDaEscolha(e)) !== assinaturaDa(f.plano.codigo, f.ciclo, f.adicionais);
+}
+
+/**
+ * Por que a troca não vale (RN-PLA-05, `conferirTrocaDePlano` do SDK): plano fora de venda, adicional fora do plano ou plano
+ * abaixo do uso, uma frase por item ("O plano Light tem 10 licenças de vendedor e a empresa usa 14."). A API revalida (422).
+ */
+export function problemasDaTroca(planos: readonly Plano[], f: Pick<FichaAssinatura, 'licencas'>, e: EscolhaDaTela): string[] {
+  const novo = planos.find((p) => p.codigo === e.plano);
+  if (!novo) return [];
+  return conferirTrocaDePlano(novo, adicionaisDaEscolha(e), usoPorItem(f.licencas).emUso).map((p) => p.mensagem);
+}
+
+/** Corpo do `PUT rotaPortalAssinatura` (`TrocarPlanoSchema`); `null` sem plano. */
+export function corpoDaTroca(e: EscolhaDaTela, pedidoId: string): TrocarPlano | null {
+  if (!e.plano) return null;
+  return { plano: e.plano, ciclo: e.ciclo, adicionais: adicionaisDaEscolha(e), pedido_id: pedidoId };
 }
 
 /** "27/11/2026" de um dia civil (AAAA-MM-DD, já no fuso do tenant). */

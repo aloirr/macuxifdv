@@ -31,10 +31,9 @@ export function tamanhoLegivel(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024)).toLocaleString('pt-BR')} KB`;
 }
 
-/** "Versão 1.0.0 · 12,3 MB" (só o que veio; o nome do arquivo já está no link "Baixar {arquivo}", spec portal-config-enxuto §10.2). */
+/** "38 MB": só o tamanho (a versão e o nome do arquivo já estão no link "Baixar {arquivo}", spec portal-config-enxuto §10.2, P6). */
 export function textoDoPacote(l: LinkDownloadConector): string | null {
-  const partes = [l.versao ? `Versão ${l.versao}` : null, l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null].filter(Boolean);
-  return partes.length > 0 ? partes.join(' · ') : null;
+  return l.tamanho_bytes ? tamanhoLegivel(l.tamanho_bytes) : null;
 }
 
 /** "O link vale até 01:30. Depois disso, gere outro." `hora` formata no fuso de quem vê (o contrato sempre manda `expira_em`). */

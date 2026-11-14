@@ -2,8 +2,8 @@
 
 /**
  * Página de uma empresa no portal (T-0087; spec docs/design/telas/portal-config-enxuto.md §5, §10.1 e §11.4): cabeçalho "Código
- * AM4821 · CNPJ … · Manaus (UTC−4)" e as abas "Integração" (abre por padrão) e "Empresa" (cartão "Plano", só leitura, e, para o
- * time da Macuxi, "Administradores"). A aba Bases e o CSV saíram do portal (R-20261114-132000 e R-20261114-133000). A aba fica no
+ * AM4821 · CNPJ … · Manaus (UTC−4)" e as abas "Integração" (abre por padrão) e "Empresa" (§8: duas colunas, "Plano {nome}" com o
+ * "Trocar de plano" e "Administradores", para o time da Macuxi; o admin do cliente só vê o Plano, na largura toda). A aba Bases e o CSV saíram do portal (R-20261114-132000 e R-20261114-133000). A aba fica no
  * `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (outra = escolher de novo); criar e alterar empresa é do time da
  * Macuxi (RN-CORE-33). T-0094 fatia S: o time da Macuxi redefine a senha de um administrador (`CartaoAdmins`).
@@ -127,8 +127,15 @@ function PaginaDaEmpresa({ id, timeMacuxi }: { id: string; timeMacuxi: boolean }
             </div>
           )}
           {abertas.has('empresa') && (
-            <div role="tabpanel" id="empresa-painel-empresa" aria-labelledby="empresa-aba-empresa" hidden={aba !== 'empresa'} className={aba === 'empresa' ? 'flex flex-col gap-4' : undefined}>
-              <CartaoPlano tenant={empresa.id} />
+            <div
+              role="tabpanel"
+              id="empresa-painel-empresa"
+              aria-labelledby="empresa-aba-empresa"
+              hidden={aba !== 'empresa'}
+              // duas colunas (Plano · Administradores, 1,25 : 1) a partir de 768 px; o admin do cliente só vê o Plano, na largura toda
+              className={aba === 'empresa' ? cx('grid items-start gap-4', timeMacuxi && 'md:grid-cols-[1.25fr_1fr]') : undefined}
+            >
+              <CartaoPlano tenant={empresa.id} podeTrocar={timeMacuxi} largo={!timeMacuxi} />
               {/* T-0094 fatia S: só o time da Macuxi vê os administradores e redefine a senha */}
               {timeMacuxi && <CartaoAdmins tenant={empresa.id} fuso={empresa.fuso} />}
             </div>
