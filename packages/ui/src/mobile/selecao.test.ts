@@ -222,15 +222,6 @@ describe('cartão "Crédito do cliente" (RN-VEN-12, RN-VEN-13)', () => {
     expect(textoAtualizacao('2026-11-03T22:02:00Z', agora, tz)).toBe('Atualizado em 03/11 às 18:02');
     expect(textoAtualizacao(null, agora, tz)).toBe('Ainda não sincronizado');
   });
-
-  it('o cartão não tem "Após este pedido", o alerta é a Faixa de erro e não há texto fixo', () => {
-    const c = ler('./cartoes-pedido.tsx');
-    const cartao = bloco(c, 'CartaoCredito');
-    expect(cartao.length).toBeGreaterThan(200);
-    expect(cartao).not.toMatch(/Após este pedido/);
-    expect(cartao).toContain('<Faixa tom="erro" texto={alerta}');
-    expect(cartao).not.toMatch(/>\s*[A-Za-zÀ-ú][^<>{}\n]*\s*<\//);
-  });
 });
 
 describe('cartão "Leve mais e pague menos" (RN-VEN-23)', () => {

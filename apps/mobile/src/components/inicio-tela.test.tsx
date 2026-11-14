@@ -301,7 +301,7 @@ describe('domingo 08/11 do teste de campo (RD-0001 a RD-0010)', () => {
     expect(conta(html, /mês/gi)).toBe(1);
     expect(html).toMatch(/data-testid="inicio\.meta\.positivacao"><span>Positivação<\/span><span>1 de 15 clientes<\/span>/);
     expect(html).toMatch(/data-testid="inicio\.meta\.visitas"><span>Visitas<\/span><span>0 de 90<\/span>/);
-    expect(html).toMatch(/data-testid="inicio\.meta\.cobertura_pct"><span>Cobertura<\/span><span>0% de 90%<\/span>/);
+    expect(html).toMatch(/data-testid="inicio\.meta\.cobertura_pct"><span>Cobertura de rota<\/span><span>0% de 90%<\/span>/);
     expect(html).not.toMatch(/clientes? de \d+ clientes?|visitas de \d+ visitas|meta \d+%/);
     expect(conta(html, /<progress/g)).toBe(1);
   });

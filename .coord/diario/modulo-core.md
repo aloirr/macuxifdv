@@ -153,3 +153,4 @@
 2026-11-13 — T-0171 — regex ultima_visita_data, lista de Clientes (RN-CORE-47), etapas da entrada (RN-CORE-48), export progressoDaEntrada
 2026-11-13 — T-0170 — Início do Campo no Core: painel, Metas do mês, Produtividade, sino, Sincronizar (telas/inicio)
 2026-11-14 — T-0170/v1.0.6 — MC-0010 (Início e Performance), MC-0012, MC-0014 (STATUS_FILL), retirada do inicio.recado_do_dia_padrao (D2) e costura #149 (itens 1, 2, 3, 4 e 6); branch nuvem/v106-modulo-core
+2026-11-14 — RD-0250 — ROTULO_INDICADOR_META no contracts, core usando o mapa; Faturamento só com meta de faturamento

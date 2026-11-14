@@ -106,7 +106,7 @@ function linhas(visitas: VisitaSync[]): LinhasRota {
 }
 
 /** O que a tela usa: estado do armazém (`montarEstadoLocal`) e a rota efetiva da `useCore` (`effectiveRoute`). */
-function telaDoAparelho(visitas: VisitaSync[], fila: ItemSobreposicao[] = [], o: { naFila?: number; semSinal?: boolean } = {}) {
+function telaDoAparelho(visitas: VisitaSync[], fila: ItemSobreposicao[] = [], o: { naFila?: number } = {}) {
   const estado = montarEstadoLocal(linhas(visitas), fila, { usuarioId: EU, hoje: HOJE, fuso: FUSO, agora: AGORA });
   const rotaEfetiva = effectiveRoute(estado.rota, estado.visitas, AGORA, FUSO);
   /** Condição do chip em telas/rota.tsx (`StopRow`): parada feita com `etapas_pendentes > 0`. */
@@ -115,7 +115,7 @@ function telaDoAparelho(visitas: VisitaSync[], fila: ItemSobreposicao[] = [], o:
   /** Banner da ficha, como telas/cliente.tsx (linhas 59-62). */
   const aviso = (clienteId: string) => {
     const p = visitaComEtapaPendente(estado.visitas, clienteId);
-    return p ? avisoDeEtapaPendente({ ...p, agora: AGORA, fuso: FUSO, naFila: o.naFila ?? 0, semSinal: o.semSinal ?? false }) : null;
+    return p ? avisoDeEtapaPendente({ ...p, agora: AGORA, fuso: FUSO, naFila: o.naFila ?? 0 }) : null;
   };
   return { estado, rotaEfetiva, chip: (id: string) => chip(parada_(id)), status: (id: string) => parada_(id).status, aviso };
 }
@@ -176,13 +176,12 @@ describe('T-0039 — etapa pendente no aparelho: Rota (chip) e ficha (aviso) a p
   });
 
   // T-0166 (RD-0181, R-20261112-042519-modulo-core): com item na fila o aviso some (a fila já mostra o que falta subir); o sinal não muda o texto.
-  it('E-07 §1.2 (T-0166): com a fila cheia não há aviso, com ou sem sinal; com a fila vazia, "Fale com seu supervisor" com ou sem sinal', () => {
+  // RD-0181 (#175): o parâmetro `semSinal` saiu de `avisoDeEtapaPendente` porque o sinal não muda o aviso; as asserções que
+  // comparavam "com sinal" × "sem sinal" saíram junto (o sinal não é mais entrada da regra), e o aviso depende só da fila.
+  it('E-07 §1.2 (T-0166): com a fila cheia não há aviso; com a fila vazia, "Fale com seu supervisor"', () => {
     const v = [visita({ id: 'a1000000-0000-4000-8000-000000000008', cliente: C1, parada: P1, checkin: '2026-11-05T12:00:00.000Z', checkout: '2026-11-05T12:30:00.000Z', pendentes: 1 })];
     expect(telaDoAparelho(v, [], { naFila: 2 }).aviso(C1)).toBeNull();
-    expect(telaDoAparelho(v, [], { naFila: 2, semSinal: true }).aviso(C1)).toBeNull();
-    expect(telaDoAparelho(v, [], { naFila: 0, semSinal: true }).aviso(C1)).toEqual({ linha1: 'Uma etapa da visita de hoje não chegou', linha2: 'Fale com seu supervisor' });
-    expect(telaDoAparelho(v, [], { naFila: 0, semSinal: false }).aviso(C1)).toEqual(telaDoAparelho(v, [], { naFila: 0, semSinal: true }).aviso(C1));
-    expect(telaDoAparelho(v, [], { naFila: 0 }).aviso(C1)?.linha2).toBe('Fale com seu supervisor');
+    expect(telaDoAparelho(v, [], { naFila: 0 }).aviso(C1)).toEqual({ linha1: 'Uma etapa da visita de hoje não chegou', linha2: 'Fale com seu supervisor' });
   });
 
   // D-T0039b (🟡 1 do designer-ux, R-20261105-150128-designer-ux) — corrigido pelo modulo-core em 05/11 (R-20261105-154625-modulo-core)
@@ -199,7 +198,6 @@ describe('T-0039 — etapa pendente no aparelho: Rota (chip) e ficha (aviso) a p
   it('E-09 D-T0039c §1.2 (concordância; T-0166): N etapas sem fila → "2 etapas … não chegaram" (plural); com fila, sem aviso', () => {
     const v = [visita({ id: 'a1000000-0000-4000-8000-000000000011', cliente: C1, parada: P1, checkin: '2026-11-05T12:00:00.000Z', checkout: '2026-11-05T12:30:00.000Z', pendentes: 2 })];
     expect(telaDoAparelho(v).aviso(C1)).toEqual({ linha1: '2 etapas da visita de hoje não chegaram', linha2: 'Fale com seu supervisor' });
-    expect(telaDoAparelho(v, [], { naFila: 1, semSinal: true }).aviso(C1)).toBeNull();
     expect(telaDoAparelho(v, [], { naFila: 1 }).aviso(C1)).toBeNull();
   });
 });

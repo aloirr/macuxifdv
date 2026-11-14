@@ -6,8 +6,8 @@
 import { formatBRL0 } from '@macuxi/comum';
 import { desenhoBotaoSincronizar } from '@macuxi/ui/mobile/puro';
 
-import { RvLocalSchema, type RvLocal } from '../../contracts';
-import { formatarIndicador, ROTULO_INDICADOR } from './metas-formato';
+import { ROTULO_INDICADOR_META, RvLocalSchema, type RvLocal } from '../../contracts';
+import { formatarIndicador } from './metas-formato';
 
 export type TomRv = 'sucesso' | 'aviso' | 'neutro';
 
@@ -112,7 +112,7 @@ export function montarMinhaRv(copia: RvLocal | null, usuarioId: string, fuso: st
   const bloqueada = p.bloqueada_por.length > 0;
   const linhas: LinhaMinhaRv[] = p.indicadores.map((i) => {
     const ating = parcial ? i.projetado_pbp : i.atingimento_pbp;
-    const rotulo = ROTULO_INDICADOR[i.indicador];
+    const rotulo = ROTULO_INDICADOR_META[i.indicador];
     const detalhe = i.sem_meta || i.meta === null ? 'Sem meta definida' : `Meta ${formatarIndicador(i.indicador, i.meta)} · realizado ${formatarIndicador(i.indicador, i.realizado)}`;
     const gatilho_texto = i.gatilho ? textoDoGatilhoRv(i.gatilho_ok, p.bloqueada_por.includes(i.indicador), parcial) : null;
     const tom: TomRv = i.gatilho ? (i.gatilho_ok === null ? 'neutro' : i.gatilho_ok ? 'sucesso' : 'aviso') : i.pagamento_pct > 0 ? 'sucesso' : 'neutro';
@@ -130,7 +130,7 @@ export function montarMinhaRv(copia: RvLocal | null, usuarioId: string, fuso: st
     };
   });
   const noRitmo = !bloqueada && p.rv_cents > 0;
-  const nomes = p.bloqueada_por.map((k) => ROTULO_INDICADOR[k]).join(', ');
+  const nomes = p.bloqueada_por.map((k) => ROTULO_INDICADOR_META[k]).join(', ');
   return {
     tipo: 'ok',
     periodo: copia.painel.periodo,

@@ -4,15 +4,8 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 
+import { ROTULO_INDICADOR_META } from '../../contracts';
 import type { IndicadorMeta, LinhaDePainel } from '../../domain';
-
-export const ROTULO_INDICADOR: Record<IndicadorMeta, string> = {
-  venda_cents: 'Venda',
-  visitas: 'Visitas',
-  cobertura_pct: 'Cobertura de rota',
-  positivacao: 'Positivação',
-  itens_por_pedido: 'Itens por pedido',
-};
 
 export const AGUARDANDO_PEDIDOS = 'Aguardando pedidos';
 
@@ -29,7 +22,7 @@ export function formatarIndicador(indicador: IndicadorMeta, v: number | null): s
 
 export function textoDaLinha(l: LinhaDePainel): { rotulo: string; meta: string; realizado: string; atingimento: string } {
   return {
-    rotulo: ROTULO_INDICADOR[l.indicador],
+    rotulo: ROTULO_INDICADOR_META[l.indicador],
     meta: formatarIndicador(l.indicador, l.meta),
     realizado: formatarIndicador(l.indicador, l.realizado),
     atingimento: l.atingimento_pct === null ? '—' : pontosBase(l.atingimento_pct),
