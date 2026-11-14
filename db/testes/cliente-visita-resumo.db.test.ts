@@ -173,7 +173,8 @@ describe.skipIf(semBanco())('0067 resumo de visitas por cliente (banco)', () => 
       const todos = await q(`select distinct tenant_id from ${VIEW}`);
       expect(todos.rows).toEqual([{ tenant_id: A.tenantId }]);
       await q('savepoint s');
-      expect(await erroDe(q(`delete from ${VIEW} where cliente_id = $1`, [A.clientes.c1]))).toMatchObject({ code: '42501' });
+      // View só leitura (GROUP BY/DISTINCT ON): o rewriter recusa com 55000 antes da checagem de permissão (42501); o grant é só SELECT.
+      expect(await erroDe(q(`delete from ${VIEW} where cliente_id = $1`, [A.clientes.c1]))).toMatchObject({ code: '55000' });
       await q('rollback to savepoint s');
     });
     await emTransacao(app, B.tenantId, async () => {
