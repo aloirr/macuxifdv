@@ -42,7 +42,9 @@ criou a VM `macuxi-demo-se1` (br-se1-a, Ubuntu 24.04, 2 vCPU, 8 GB, 40 GB; só T
    4. grava os segredos do GitHub em `/opt/macuxi/segredos.env` e `/opt/macuxi/tunel.env` (modo 600, pelo stdin do ssh);
    5. faz login no GHCR **na VM** com o `GITHUB_TOKEN` do run (expira no fim do job; logout no fim);
    6. roda o `implantar.sh`: pull, migrações, seed da demo só no 1º deploy, `compose up -d --wait`, conferência local de
-      `/v1/saude` e `/login` e `docker image prune -f`.
+      `/v1/saude` e `/login` e limpeza das imagens: as tags `macuxi-api`/`macuxi-bko` diferentes da publicada e sem
+      contêiner (também antes do pull) e as dangling (`docker image prune -f`). Sem isso, as tags `<sha>` se acumulavam e
+      encheram o disco de 40 GB da VM (run 43647565571 do `demo-publicar`, 14/11/2026).
 
    O workflow manual `demo-recriar-base.yml` (confirmação "RECRIAR") roda `seed demo --recriar`. Um grupo de concorrência
    (`demo-vm`) impede dois deploys ao mesmo tempo.

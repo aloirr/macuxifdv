@@ -11,7 +11,8 @@
 # Ordem: compose.yml para /opt/macuxi → pull → Postgres no ar → migrações (com os papéis macuxi_app e macuxi_worker
 # e as senhas do .env) → seed da demo (só no primeiro deploy, ou com --recriar-base) → up -d → conferência local
 # (/v1/saude e /login) → scripts do backup em /opt/macuxi/backup (tirados da imagem) e conferência do backup mais novo
-# (só aviso) → docker image prune -f. Qualquer falha, menos as do backup, para o script com saída != 0 (workflow vermelho).
+# (só aviso) → limpeza das imagens (tags macuxi-api/macuxi-bko diferentes de <tag>, sem contêiner, e as dangling).
+# A limpeza das tags antigas também roda antes do pull. Qualquer falha, menos as do backup, para o script com saída != 0 (workflow vermelho).
 # Nenhum segredo é impresso: os .env só são lidos pelo compose.
 set -euo pipefail
 
@@ -57,6 +58,21 @@ if [ -f "$ORIGEM/ghcr-tentar.sh" ]; then
 else
   ghcr_tentar() { shift; "$@"; }
 fi
+# Disco da VM (40 GB): cada deploy baixa macuxi-api:<sha> e macuxi-bko:<sha> e as tags antigas não ficam "dangling"
+# (o "prune -f" não as remove); o disco encheu (demo-publicar run 43647565571, scp "write remote ...: Failure").
+# Remove só as tags macuxi-api/macuxi-bko diferentes de $TAG; o "rm" sem -f recusa a imagem que ainda tem contêiner
+# (a do serviço no ar fica até o up). Postgres (pgvector), cloudflared e o resto nunca entram aqui.
+limpar_tags_antigas() {
+  local ref
+  docker image ls --format '{{.Repository}}:{{.Tag}}' | while IFS= read -r ref; do
+    case "$ref" in
+      *:"<none>") ;;
+      */macuxi-api:"$TAG" | */macuxi-bko:"$TAG") ;;
+      */macuxi-api:* | */macuxi-bko:*) docker image rm "$ref" >/dev/null 2>&1 || true ;;
+    esac
+  done
+}
+limpar_tags_antigas || true
 ghcr_tentar "pull das imagens na VM" dc pull --quiet
 
 log "Postgres"
@@ -168,6 +184,7 @@ conferir_backup() {
 instalar_backup || true
 conferir_backup || true
 
+limpar_tags_antigas || true
 docker image prune -f >/dev/null
 dc ps --format 'table {{.Service}}\t{{.Status}}'
 log "publicado: $TAG"

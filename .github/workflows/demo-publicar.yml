@@ -5,7 +5,8 @@ name: demo — publicar
 #      publica no GHCR (pacotes privados) com o GITHUB_TOKEN, tags <sha> e main;
 #   2. deploy (environment DEMO_SSH_KEY): copia scripts/deploy/demo para a VM, roda o preparar-vm.sh (idempotente),
 #      grava os segredos vindos do GitHub em /opt/macuxi (modo 600), faz login no GHCR NA VM com o GITHUB_TOKEN deste run,
-#      roda o implantar.sh (pull, migrações, seed só no 1º deploy, compose up -d, conferência, docker image prune -f)
+#      roda o implantar.sh (pull, migrações, seed só no 1º deploy, compose up -d, conferência, remoção das tags
+#      macuxi-api/macuxi-bko antigas e docker image prune -f)
 #      e sai do GHCR.
 # Gatilho: o CI terminar VERDE num push ao main (workflow_run), ou manual (Actions → "demo — publicar" → Run workflow).
 # T-0160 item 6 (ADR 0044): no gatilho do CI, só publica se mudou apps/**, modules/**, packages/**, db/** (ou o que monta a
