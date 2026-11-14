@@ -139,3 +139,4 @@
 2026-11-13 — T-0168 — v1.0.5: teste movido p/ app/lib, MC-0001 aplicada, typecheck/lint ok
 2026-11-13 — T-0170 — tela Pedidos com 3 cards (RN-VEN-43)
 2026-11-14 — T-0170 — cards de Pedidos viram 3 cartões lado a lado (rótulo, quantidade Archivo 22, valor); quantidadeDoCard/valorDoCard; progressViewOffset no puxar-para-atualizar
+2026-11-14 — R-20261114-151000 — Catálogo: 'Adicionar ao orçamento' no lugar de 'Adicionar ao pedido' (domain orcamento-em-aberto, folha, ação produto.acoes)
