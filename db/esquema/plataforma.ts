@@ -4,7 +4,7 @@
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0068_core_cargo_hierarquia.up.sql), para consultas da API.
+ * 0069_core_cargo_hierarquia.up.sql), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -16,8 +16,8 @@ import { bigint, boolean, customType, integer, jsonb, pgSchema, text, timestamp,
 import { NIVEIS_ALCADA, NIVEIS_ESCOPO, PERFIS } from '@macuxi/platform-sdk';
 
 /**
- * Cargo do perfil (0068, decisões do dono do produto de 14/11/2026; o promotor desde R-20261114-153800): lista FIXA da
- * plataforma, igual ao CHECK perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0068 compara com o SQL.
+ * Cargo do perfil (0069, decisões do dono do produto de 14/11/2026; o promotor desde R-20261114-153800): lista FIXA da
+ * plataforma, igual ao CHECK perfil_cargo_valido. Fica aqui até o SDK/contratos exportarem a lista; o estático da 0069 compara com o SQL.
  */
 export const CARGOS = ['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo'] as const;
 export type Cargo = (typeof CARGOS)[number];
@@ -90,7 +90,7 @@ export const perfil = plataforma.table('perfil', {
   fabrica: boolean('fabrica').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
   /**
-   * 0068: o cargo do perfil (um só), sem padrão: quem cria o perfil informa. Os de fábrica e os personalizados que já existiam
+   * 0069: o cargo do perfil (um só), sem padrão: quem cria o perfil informa. Os de fábrica e os personalizados que já existiam
    * receberam plataforma.cargo_da_base(base) (promotor -> promotor).
    */
   cargo: text('cargo', { enum: CARGOS }).notNull(),
@@ -112,7 +112,7 @@ export const perfilPermissao = plataforma.table('perfil_permissao', {
 });
 
 /**
- * Perfil do usuário (0041, RN-CORE-01; UM por usuário desde a 0068). No máximo um vínculo vivo por (tenant, usuário): restrição
+ * Perfil do usuário (0041, RN-CORE-01; UM por usuário desde a 0069). No máximo um vínculo vivo por (tenant, usuário): restrição
  * de exclusão ADIADA usuario_perfil_um_vivo (23P01 no COMMIT), então a troca pode apagar o antigo e inserir o novo em qualquer
  * ordem na mesma transação. No COMMIT: todo usuário não apagado com o perfil vivo e ativo, da base de core.usuario.perfil (o
  * principal); sempre um admin com a gestão (RN-CORE-35). Trocar core.usuario.perfil para outra base substitui o vínculo (gatilho

@@ -21,7 +21,7 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 |---|---|---|
 | nome, nome_curto | text | |
 | email | text not null | único **por tenant** em minúsculas `(tenant_id, lower(email))` (Q3); formato validado |
-| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); desde a 0068, **um** perfil por usuário em `plataforma.usuario_perfil`, sempre desta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
+| perfil | text not null | `admin, analista, assistente, supervisor, gerente, vendedor, promotor`. Desde a 0041 (ADR 0033): o perfil **principal** (vai no token); desde a 0069, **um** perfil por usuário em `plataforma.usuario_perfil`, sempre desta base (gatilho `usuario_perfil_principal`, conferência no COMMIT; ver [plataforma.md](plataforma.md) "Perfis de acesso") |
 | equipe_id | uuid | FK composta para `equipe` |
 | senha_hash | text | só argon2id em PHC (`$argon2id$...`, check) |
 | ativo, bloqueado_em, ultimo_login_em | | `bloqueado_em` = bloqueio MANUAL do admin (RF-CORE-01) |
@@ -931,12 +931,12 @@ padrão `estoque_alto`/`comprador_ausente`), entre 54 e 60 dias úteis atrás (a
 Volta: `0067_core_cliente_visita_resumo.down.sql` apaga a view e os 2 índices (nenhum dado se perde). Volte antes o Core que lê
 a view (senão 42P01). Teste: `db/testes/cliente-visita-resumo.db.test.ts`.
 
-## 0068 — cargo e hierarquia do cadastro de usuário (`0068_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
+## 0069 — cargo e hierarquia do cadastro de usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
 Decisão R-20261114-153500: no cadastro de usuário, o **cargo** (Vendedor, Supervisor, Gerente, Administrativo — e Promotor desde
 R-20261114-153800); vendedor
 cadastra o supervisor (o gerente é o do supervisor); supervisor cadastra o gerente e o **nome da equipe** (vai ao Início, na foto
 do vendedor); **código ERP para todos**; um perfil por usuário; um cargo por perfil. O cargo e o "um perfil por usuário" estão em
-[plataforma.md](plataforma.md) ("0068"). R-20261114-154000: o promotor fica **embaixo do gerente** (obrigatório) e o
+[plataforma.md](plataforma.md) ("0069"). R-20261114-154000: o promotor fica **embaixo do gerente** (obrigatório) e o
 **supervisor é opcional**; com supervisor, o gerente do promotor é o gerente desse supervisor.
 
 **Hierarquia: reaproveita `core.equipe`, sem coluna nova em `core.usuario`** (uma informação, um lugar: a árvore de equipes já é
@@ -977,8 +977,8 @@ Erros (23514, `hint` R-20261114-154000, `detail` só com o `usuario_id`): `promo
 vendedor/administrativo, equipe de supervisor sem equipe-pai de gerente) e `promotor_gerente_do_supervisor` (com supervisor cujo
 `gerente_id` na view não é o do promotor). Adiados: a ordem das gravações na transação não importa (ex.: mover o promotor para
 a equipe e só depois dar o supervisor à equipe). Promotor inativo não é conferido (desligado). **Legado**: os gatilhos só valem
-para gravações novas ou alteradas que alcançam o promotor; a 0068 não recusa promotor que já está fora da regra, e gravação que
-não o alcança (ex.: `nome`, `ultimo_login_em`) passa. Lista: consulta 3 de `db/scripts/diagnostico-0068.sql`
+para gravações novas ou alteradas que alcançam o promotor; a 0069 não recusa promotor que já está fora da regra, e gravação que
+não o alcança (ex.: `nome`, `ultimo_login_em`) passa. Lista: consulta 3 de `db/scripts/diagnostico-0069.sql`
 (`promotor_sem_gerente`, `promotor_gerente_do_supervisor`); corrija a equipe dele antes de tocar no cadastro. Custo: por
 gravação, uma leitura da view restrita aos promotores alcançados (índices `usuario_equipe_ix`, `equipe_pai_ix`,
 `equipe_responsavel_ix`, `usuario_perfil_usuario_ix`); nenhum índice novo.
@@ -1000,7 +1000,7 @@ Roda com o papel de quem consulta: valem as políticas `isolamento_tenant` de `c
 **Regras cargo × hierarquia do vendedor e do supervisor** (vendedor com equipe de um supervisor; supervisor responsável pela
 própria equipe, com nome e equipe-pai de um gerente): **validadas no domain/API do Core** (o promotor tem a garantia no banco,
 acima), não por restrição no banco — dados de hoje (ex.: equipe com
-responsável administrativo na fixture B, equipe sem responsável) quebrariam. A consulta 3 de `db/scripts/diagnostico-0068.sql`
+responsável administrativo na fixture B, equipe sem responsável) quebrariam. A consulta 3 de `db/scripts/diagnostico-0069.sql`
 lista quem está fora da regra.
 
 **Código ERP**: `core.usuario.external_id` já atende — único vivo por tenant desde a 0002 (`usuario_external_uk (tenant_id,
@@ -1008,4 +1008,4 @@ external_id) where external_id is not null and deleted_at is null`; é o `codigo
 no banco (usuários antigos e o admin inicial do provisionamento não têm código); o "obrigatório para todos" é regra do cadastro
 (domain/API do Core). Nenhuma coluna nova.
 
-Volta: `0068_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
+Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.

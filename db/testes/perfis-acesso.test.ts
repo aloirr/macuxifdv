@@ -199,7 +199,7 @@ describe('0041 perfis de acesso (estático)', () => {
     expect(esquemaPlataforma.perfilModulo.perfil.enumValues ?? []).toEqual([]);
   });
 
-  it('fixture: personalizado (sem usuário) em A e em B, uma sobreposição em cada; vínculos só os principais dos admins (0068: um perfil por usuário)', () => {
+  it('fixture: personalizado (sem usuário) em A e em B, uma sobreposição em cada; vínculos só os principais dos admins (0069: um perfil por usuário)', () => {
     const d = dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA');
     const A = DOIS_TENANTS.A;
     const B = DOIS_TENANTS.B;
@@ -287,7 +287,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
                        where not exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
                                           where up.tenant_id = u.tenant_id and up.usuario_id = u.id and up.deleted_at is null and p.base = u.perfil)`))
         .toEqual([{ n: 0 }]);
-      expect(await vivos(B.usuarios.vendedor)).toEqual(['vendedor']); // 0068: um perfil por usuário (sem o promotor extra)
+      expect(await vivos(B.usuarios.vendedor)).toEqual(['vendedor']); // 0069: um perfil por usuário (sem o promotor extra)
       expect(await vivos(A.usuarios.vendedor2)).toEqual(['vendedor']);
       expect(await vivos(A.usuarios.admin)).toEqual(['admin']);
       const principal = await q<{ id: string }>('select id from plataforma.usuario_perfil where usuario_id = $1 and perfil_id = $2', [A.usuarios.admin, idPerfilFabrica(A.tenantId, 'admin')]);
@@ -303,7 +303,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       expect(await perfisDoV2()).toEqual([
         { codigo: 'vendedor', base: 'vendedor', fabrica: true, sobreposicoes: [], modulos: ['catalogo', 'core', 'teste', 'vendedor'] },
       ]);
-      // 0068 (um perfil por usuário): o vendedor-2 troca o de fábrica pelo personalizado (apaga o vivo e liga o novo)
+      // 0069 (um perfil por usuário): o vendedor-2 troca o de fábrica pelo personalizado (apaga o vivo e liga o novo)
       await admin.query('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [A.usuarios.vendedor2]);
       await admin.query('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [A.tenantId, A.usuarios.vendedor2, A.perfis.vendedorExterno]);
       expect(await perfisDoV2()).toEqual([
@@ -316,7 +316,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
     });
   });
 
-  it('tenant novo: 7 de fábrica pelo gatilho; usuário novo (macuxi_app) ligado ao principal; troca do principal substitui o vínculo (0068: um perfil por usuário)', async () => {
+  it('tenant novo: 7 de fábrica pelo gatilho; usuário novo (macuxi_app) ligado ao principal; troca do principal substitui o vínculo (0069: um perfil por usuário)', async () => {
     await emTransacao(admin, null, async () => {
       const T = 'cccccccc-0041-4000-8000-000000000001';
       await admin.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 't41-novo', 'Novo 41')", [T]);
@@ -337,7 +337,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
         .toEqual([{ apagado: true }]);
       await admin.query("update core.usuario set perfil = 'vendedor' where id = $1", [U]);
       expect(await vivos(U)).toEqual(['vendedor']);
-      // 0068 (um perfil por usuário): trocar o principal sempre substitui o vínculo
+      // 0069 (um perfil por usuário): trocar o principal sempre substitui o vínculo
       await admin.query("update core.usuario set perfil = 'promotor' where id = $1", [B.usuarios.vendedor]);
       expect(await vivos(B.usuarios.vendedor)).toEqual(['promotor']);
       await admin.query("update core.usuario set perfil = 'supervisor' where id = $1", [B.usuarios.vendedor]);
@@ -411,7 +411,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       }
       // apagar fisicamente um de fábrica com o tenant vivo (só o dono do banco consegue): recusado no COMMIT
       expect(await noCommit([['delete from plataforma.perfil where id = $1', [idPerfilFabrica(B.tenantId, 'assistente')]]])).toEqual({ code: '23514', constraint: 'perfil_fabrica_presente' });
-      // nome e descrição editáveis; personalizado sem usuário (desde a 0068 o vendedor_externo da fixture não tem usuário) pode ser desativado
+      // nome e descrição editáveis; personalizado sem usuário (desde a 0069 o vendedor_externo da fixture não tem usuário) pode ser desativado
       expect(await noCommit([["update plataforma.perfil set nome = 'Externo', descricao = null, ativo = false where id = $1", [A.perfis.vendedorExterno]]])).toBeNull();
     });
   });
@@ -421,11 +421,11 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       const prin = (u: string, base: string, t = A.tenantId) => idUsuarioPerfil(t, u, idPerfilFabrica(t, base));
       expect(await noCommit([['delete from plataforma.usuario_perfil where usuario_id = $1', [A.usuarios.analista]]])).toEqual({ code: '23514', constraint: 'usuario_sem_perfil' });
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(A.usuarios.analista, 'analista')]]])).toEqual({ code: '23514', constraint: 'usuario_sem_perfil' });
-      // 0068 (um perfil por usuário): o vendedor-B sem o vínculo de vendedor fica sem perfil
+      // 0069 (um perfil por usuário): o vendedor-B sem o vínculo de vendedor fica sem perfil
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(B.usuarios.vendedor, 'vendedor', B.tenantId)]]]))
         .toEqual({ code: '23514', constraint: 'usuario_sem_perfil' });
       // trocar o vínculo por supervisor sem trocar o principal (vendedor): o principal não está entre os perfis. Supervisor, não
-      // promotor: o vendedor-B está numa equipe de responsável administrativo (promotor sem gerente, 0068)
+      // promotor: o vendedor-B está numa equipe de responsável administrativo (promotor sem gerente, 0069)
       expect(await noCommit([['update plataforma.usuario_perfil set deleted_at = now() where id = $1', [prin(B.usuarios.vendedor, 'vendedor', B.tenantId)]],
         ['insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [B.tenantId, B.usuarios.vendedor, idPerfilFabrica(B.tenantId, 'supervisor')]]]))
         .toEqual({ code: '23514', constraint: 'usuario_perfil_principal' });
@@ -467,7 +467,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
         expect(await noCommit([['insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, $2, $3, false)', [A.tenantId, fabAdmin, chave]]]), chave)
           .toEqual(ultimo);
       }
-      // (a "gestão por outro perfil do mesmo usuário" da 0041 saiu com a 0068: um perfil por usuário)
+      // (a "gestão por outro perfil do mesmo usuário" da 0041 saiu com a 0069: um perfil por usuário)
       // com um segundo admin, o primeiro pode sair
       expect(await noCommit([
         ["insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ('cccccccc-0041-4000-8000-000000000003', $1, 'Outra', 'adm41@exemplo.com.br', 'admin', $2)", [A.tenantId, H]],
@@ -497,7 +497,7 @@ describe.skipIf(semBanco())('0041 perfis de acesso (banco, fixture dois-tenants)
       expect(await noCommit([["insert into plataforma.perfil (tenant_id, codigo, nome, base, cargo) values ($1, 'de_b', 'B', 'vendedor', 'vendedor')", [B.tenantId]]], 'macuxi_app', A.tenantId))
         .toEqual({ code: '42501', constraint: null });
       expect((await noCommit([['delete from plataforma.perfil where id = $1', [A.perfis.vendedorExterno]]], 'macuxi_app', A.tenantId))?.code).toBe('42501');
-      // o app cria um personalizado, sobrepõe, troca o perfil de um usuário por ele (0068: apaga o vivo) e o restaura ao padrão
+      // o app cria um personalizado, sobrepõe, troca o perfil de um usuário por ele (0069: apaga o vivo) e o restaura ao padrão
       expect(await noCommit([
         ["insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ('aaaaaaaa-0017-4000-8000-000000000041', $1, 'promotor_lider', 'Promotor líder', 'promotor', 'promotor')", [A.tenantId]],
         ["insert into plataforma.perfil_permissao (tenant_id, perfil_id, chave, concedida) values ($1, 'aaaaaaaa-0017-4000-8000-000000000041', 'coleta.registrar', false)", [A.tenantId]],

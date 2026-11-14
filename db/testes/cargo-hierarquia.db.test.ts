@@ -1,6 +1,6 @@
 /**
- * 0068 — cargo do perfil, um perfil por usuário e hierarquia do cadastro (decisão do dono do produto de 14/11/2026,
- * R-20261114-153500). Dicionário: docs/banco/plataforma.md e docs/banco/core.md, "0068". O que o BANCO garante:
+ * 0069 — cargo do perfil, um perfil por usuário e hierarquia do cadastro (decisão do dono do produto de 14/11/2026,
+ * R-20261114-153500). Dicionário: docs/banco/plataforma.md e docs/banco/core.md, "0069". O que o BANCO garante:
  * - plataforma.perfil.cargo NOT NULL, sem padrão, em vendedor | promotor | supervisor | gerente | administrativo
  *   (perfil_cargo_valido; promotor desde R-20261114-153800); backfill e semeadura por plataforma.cargo_da_base;
  * - promotor (R-20261114-154000): gerente obrigatório e supervisor opcional; com supervisor, o gerente é o do supervisor —
@@ -9,7 +9,7 @@
  *   core.usuario.perfil substitui o vínculo; a migração deixa quem tinha vários com o de nível mais alto;
  * - core.v_usuario_hierarquia (security_invoker): cargo, equipe, supervisor_id e gerente_id derivados de core.equipe;
  * - RLS: o tenant B não vê nem altera o cargo/hierarquia do A; worker e portal sem acesso à view;
- * - up/down: o down devolve os vínculos apagados e volta exatamente ao catálogo da 0067; up de novo igual.
+ * - up/down: o down devolve os vínculos apagados e volta exatamente ao catálogo da 0068; up de novo igual.
  * Estático no PC; banco (fixture dois-tenants, sempre com ROLLBACK) e up/down num banco efêmero no CI.
  */
 import pg from 'pg';
@@ -29,10 +29,10 @@ const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
 const m41 = migracoes.find((m) => m.versao === '0041')!;
 const m51 = migracoes.find((m) => m.versao === '0051')!;
-const m68 = migracoes.find((m) => m.versao === '0068')!;
+const m69 = migracoes.find((m) => m.versao === '0069')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m68.up);
-const down = semComentarios(m68.down);
+const up = semComentarios(m69.up);
+const down = semComentarios(m69.down);
 const umaLinha = (s: string) => s.replace(/\s+/g, ' ');
 /** Bloco de uma função do `create [or replace] function <nome>` até o "$$;" que fecha o corpo. */
 const bloco = (sql: string, nome: string) => {
@@ -60,10 +60,10 @@ const GERENTE_DO_SUPERVISOR = { code: '23514', constraint: 'promotor_gerente_do_
 /** Hash argon2id de teste (formato PHC exigido pelo CHECK de core.usuario.senha_hash). */
 const HASH = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
 
-describe('0068 cargo, um perfil por usuário e hierarquia (estático)', () => {
-  it('nome e posição: 0068_core_cargo_hierarquia logo depois da 0067', () => {
+describe('0069 cargo, um perfil por usuário e hierarquia (estático)', () => {
+  it('nome e posição: 0069_core_cargo_hierarquia logo depois da 0068_plataforma_tenant_numero_licenca', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    expect(nomes[nomes.indexOf('0067_core_cliente_visita_resumo') + 1]).toBe('0068_core_cargo_hierarquia');
+    expect(nomes[nomes.indexOf('0068_plataforma_tenant_numero_licenca') + 1]).toBe('0069_core_cargo_hierarquia');
   });
 
   it('cargo: lista fixa (5, com promotor) = CARGOS do espelho; NOT NULL sem padrão; mapeamento promotor -> promotor', () => {
@@ -74,7 +74,7 @@ describe('0068 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(up).toContain('alter table plataforma.perfil alter column cargo set not null;');
     expect(up).not.toMatch(/cargo text (not null )?default/);
     expect(up).toContain("when 'promotor' then 'promotor'");
-    expect(m68.up).not.toMatch(/a confirmar/i);
+    expect(m69.up).not.toMatch(/a confirmar/i);
     expect(up.indexOf('update plataforma.perfil set cargo = plataforma.cargo_da_base(base);')).toBeLessThan(up.indexOf('alter column cargo set not null'));
     // toda base dos PERFIS tem cargo na lista
     for (const p of PERFIS) expect(esquemaPlataforma.CARGOS as readonly string[]).toContain(CARGO_DA_BASE[p]);
@@ -124,7 +124,7 @@ describe('0068 cargo, um perfil por usuário e hierarquia (estático)', () => {
     expect(u1).toContain("when p.cargo = 'promotor' and r.cargo = 'gerente' then e.responsavel_id when p.cargo = 'promotor' and r.cargo = 'supervisor' then ep.responsavel_id end as gerente_id");
   });
 
-  it('down: desfaz tudo e volta as 2 funções aos textos da 0041 e da 0051; devolve os vínculos pelo instante da 0068', () => {
+  it('down: desfaz tudo e volta as 2 funções aos textos da 0041 e da 0051; devolve os vínculos pelo instante da 0069', () => {
     for (const [gatilho, quando] of GATILHOS_PROMOTOR) {
       const tabela = /on ([a-z_.]+)$/.exec(quando)![1];
       expect(down).toContain(`drop trigger if exists ${gatilho} on ${tabela};`);
@@ -141,7 +141,7 @@ describe('0068 cargo, um perfil por usuário e hierarquia (estático)', () => {
     ]) expect(down).toContain(s);
     expect(bloco(down, 'plataforma.garantir_perfil_principal')).toBe(bloco(semComentarios(m41.up), 'plataforma.garantir_perfil_principal'));
     expect(bloco(down, 'plataforma.semear_perfis_fabrica')).toBe(bloco(semComentarios(m51.up), 'plataforma.semear_perfis_fabrica'));
-    expect(umaLinha(down)).toContain("where up.deleted_at = (select m.aplicada_em from public.macuxi_migracao m where m.versao = '0068')");
+    expect(umaLinha(down)).toContain("where up.deleted_at = (select m.aplicada_em from public.macuxi_migracao m where m.versao = '0069')");
     // a exclusão sai antes de os vínculos voltarem (senão 23P01 no COMMIT do down)
     expect(down.indexOf(`drop constraint if exists ${EXCLUSAO}`)).toBeLessThan(down.indexOf('update plataforma.usuario_perfil up set deleted_at = null'));
   });
@@ -155,7 +155,7 @@ describe('0068 cargo, um perfil por usuário e hierarquia (estático)', () => {
 
 type ErroPg = { code: string; constraint: string | null } | null;
 
-describe.skipIf(semBanco())('0068 cargo, um perfil por usuário e hierarquia (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0069 cargo, um perfil por usuário e hierarquia (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -206,7 +206,7 @@ describe.skipIf(semBanco())('0068 cargo, um perfil por usuário e hierarquia (ba
 
   it('cargo dos 7 de fábrica (A, B e tenant novo) pelo mapeamento; personalizado da fixture = vendedor', async () => {
     await emTransacao(admin, null, async () => {
-      const T = 'cccccccc-0068-4000-8000-000000000001';
+      const T = 'cccccccc-0069-4000-8000-000000000001';
       await admin.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 't68-novo', 'Novo 68')", [T]);
       for (const t of [A.tenantId, B.tenantId, T]) {
         const r = await q<{ base: string; cargo: string }>('select base, cargo from plataforma.perfil where tenant_id = $1 and fabrica order by base', [t]);
@@ -314,7 +314,7 @@ describe.skipIf(semBanco())('0068 cargo, um perfil por usuário e hierarquia (ba
       ])).toBeNull();
       // promotor novo: sem equipe falha; na equipe do gerente passa
       const novo = (equipe: string | null): [string, unknown[]] => [
-        "insert into core.usuario (id, tenant_id, nome, email, perfil, equipe_id, senha_hash) values ('aaaaaaaa-0068-4000-8000-000000000301', $1, 'Promotor Novo', 'prom68@exemplo.com.br', 'promotor', $2, $3)",
+        "insert into core.usuario (id, tenant_id, nome, email, perfil, equipe_id, senha_hash) values ('aaaaaaaa-0069-4000-8000-000000000301', $1, 'Promotor Novo', 'prom69@exemplo.com.br', 'promotor', $2, $3)",
         [A.tenantId, equipe, HASH],
       ];
       expect(await app([novo(null)])).toEqual(SEM_GERENTE);
@@ -333,9 +333,9 @@ describe.skipIf(semBanco())('0068 cargo, um perfil por usuário e hierarquia (ba
       expect(await app([["update core.usuario set perfil = 'promotor' where id = $1", [u.vendedor2]]])).toEqual(SEM_GERENTE);
       // perfil personalizado de cargo promotor (base vendedor) dado ao vendedor-2 = vira promotor: precisa de gerente
       expect(await app([
-        ["insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ('aaaaaaaa-0068-4000-8000-000000000302', $1, 'repositor_68', 'Repositor', 'vendedor', 'promotor')", [A.tenantId]],
+        ["insert into plataforma.perfil (id, tenant_id, codigo, nome, base, cargo) values ('aaaaaaaa-0069-4000-8000-000000000302', $1, 'repositor_69', 'Repositor', 'vendedor', 'promotor')", [A.tenantId]],
         ['update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and deleted_at is null', [u.vendedor2]],
-        ["insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, 'aaaaaaaa-0068-4000-8000-000000000302')", [A.tenantId, u.vendedor2]],
+        ["insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, 'aaaaaaaa-0069-4000-8000-000000000302')", [A.tenantId, u.vendedor2]],
       ])).toEqual(SEM_GERENTE);
       // vendedor e supervisor seguem sem trava no banco (regra no Core)
       expect(await app([['update core.usuario set equipe_id = null where id = $1', [u.vendedor1]]])).toBeNull();
@@ -361,18 +361,18 @@ describe.skipIf(semBanco())('0068 cargo, um perfil por usuário e hierarquia (ba
   });
 });
 
-describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0069 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
-  const T = 'cccccccc-0000-4000-8000-000000000068';
+  const T = 'cccccccc-0000-4000-8000-000000000069';
   const H = '$argon2id$v=19$m=1,t=1,p=1$b3V0cm8$b3V0cm9oYXNo';
   const U = {
-    adm: 'cccccccc-0068-4000-8000-000000000101', // admin + admin_x (personalizado) + analista -> fica o admin de FÁBRICA
-    multi: 'cccccccc-0068-4000-8000-000000000102', // vendedor + promotor + supervisor -> fica supervisor (principal muda)
-    pers: 'cccccccc-0068-4000-8000-000000000103', // vendedor + vendedor_x (personalizado) -> fica vendedor_x
-    so: 'cccccccc-0068-4000-8000-000000000104', // só vendedor -> não muda
-    prom: 'cccccccc-0068-4000-8000-000000000105', // promotor legado sem equipe -> a 0068 aplica; só trava quando a gravação o alcança
+    adm: 'cccccccc-0069-4000-8000-000000000101', // admin + admin_x (personalizado) + analista -> fica o admin de FÁBRICA
+    multi: 'cccccccc-0069-4000-8000-000000000102', // vendedor + promotor + supervisor -> fica supervisor (principal muda)
+    pers: 'cccccccc-0069-4000-8000-000000000103', // vendedor + vendedor_x (personalizado) -> fica vendedor_x
+    so: 'cccccccc-0069-4000-8000-000000000104', // só vendedor -> não muda
+    prom: 'cccccccc-0069-4000-8000-000000000105', // promotor legado sem equipe -> a 0069 aplica; só trava quando a gravação o alcança
   };
-  const PERS = { adminX: 'cccccccc-0068-4000-8000-000000000201', vendedorX: 'cccccccc-0068-4000-8000-000000000202' };
+  const PERS = { adminX: 'cccccccc-0069-4000-8000-000000000201', vendedorX: 'cccccccc-0069-4000-8000-000000000202' };
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
   });
@@ -380,7 +380,7 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('limpa o multiperfil pelo nível, cargo pelo mapeamento; down devolve os vínculos e o catálogo da 0067; idempotente; up de novo igual', async () => {
+  it('limpa o multiperfil pelo nível, cargo pelo mapeamento; down devolve os vínculos e o catálogo da 0068; idempotente; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
       const vivos = async (u: string) =>
         (await c.query<{ codigo: string }>(
@@ -390,7 +390,7 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
       const ligar = (u: string, perfil: string) =>
         c.query('insert into plataforma.usuario_perfil (tenant_id, usuario_id, perfil_id) values ($1, $2, $3)', [T, u, perfil]);
 
-      await migrarUp(c, { ate: '0067' });
+      await migrarUp(c, { ate: '0068' });
       const antes = await retratoDoCatalogo(c);
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'antigo68', 'Antigo 68')", [T]);
       const usuario = (id: string, email: string, perfil: string) =>
@@ -399,7 +399,7 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
       await usuario(U.multi, 'multi68@exemplo.com.br', 'vendedor');
       await usuario(U.pers, 'pers68@exemplo.com.br', 'vendedor');
       await usuario(U.so, 'so68@exemplo.com.br', 'vendedor');
-      await usuario(U.prom, 'prom68@exemplo.com.br', 'promotor');
+      await usuario(U.prom, 'prom69@exemplo.com.br', 'promotor');
       await c.query("insert into plataforma.perfil (id, tenant_id, codigo, nome, base) values ($1, $2, 'admin_x', 'Admin X', 'admin')", [PERS.adminX, T]);
       await c.query("insert into plataforma.perfil (id, tenant_id, codigo, nome, base) values ($1, $2, 'vendedor_x', 'Vendedor X', 'vendedor')", [PERS.vendedorX, T]);
       await ligar(U.adm, PERS.adminX);
@@ -414,7 +414,7 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
         adm: ['admin', 'admin_x', 'analista'], multi: ['promotor', 'supervisor', 'vendedor'], pers: ['vendedor', 'vendedor_x'], so: ['vendedor'],
       });
 
-      expect((await migrarUp(c, { ate: '0068' })).aplicadas).toEqual(['0068_core_cargo_hierarquia']);
+      expect((await migrarUp(c, { ate: '0069' })).aplicadas).toEqual(['0069_core_cargo_hierarquia']);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col plataforma.perfil.cargo text nn=true');
       expect(depois.some((l) => l.startsWith(`con plataforma.${EXCLUSAO} EXCLUDE USING btree`) && l.includes('DEFERRABLE INITIALLY DEFERRED'))).toBe(true);
@@ -422,7 +422,7 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
       expect(depois).toContain('fn plataforma.cargo_da_base(p_base text)');
       expect(depois).toContain('fn core.conferir_promotores(p_tenant uuid, p_usuarios uuid[], p_equipes uuid[])');
       for (const [gatilho, quando] of GATILHOS_PROMOTOR) expect(depois).toContain(`trg ${/on ([a-z_.]+)$/.exec(quando)![1]}.${gatilho}`);
-      // promotor legado sem gerente: a 0068 aplica; gravação que não o alcança passa; a que mexe na equipe dele é recusada
+      // promotor legado sem gerente: a 0069 aplica; gravação que não o alcança passa; a que mexe na equipe dele é recusada
       expect((await c.query(`select cargo, supervisor_id, gerente_id from ${VIEW} where usuario_id = $1`, [U.prom])).rows)
         .toEqual([{ cargo: 'promotor', supervisor_id: null, gerente_id: null }]);
       await c.query("update core.usuario set nome = 'Promotor Legado' where id = $1", [U.prom]);
@@ -436,21 +436,21 @@ describe.skipIf(semBanco())('0068 up/down (banco efêmero)', () => {
         { codigo: 'admin_x', cargo: 'administrativo' },
         { codigo: 'vendedor_x', cargo: 'vendedor' },
       ].sort((x, y) => (x.codigo < y.codigo ? -1 : 1)));
-      // os apagados pela 0068 têm o instante da migração (é por ele que o down os devolve)
+      // os apagados pela 0069 têm o instante da migração (é por ele que o down os devolve)
       const marcados = await c.query<{ n: number }>(
-        "select count(*)::int as n from plataforma.usuario_perfil where deleted_at = (select aplicada_em from public.macuxi_migracao where versao = '0068')");
+        "select count(*)::int as n from plataforma.usuario_perfil where deleted_at = (select aplicada_em from public.macuxi_migracao where versao = '0069')");
       expect(marcados.rows).toEqual([{ n: 5 }]);
 
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0068_core_cargo_hierarquia']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0069_core_cargo_hierarquia']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       expect({ adm: await vivos(U.adm), multi: await vivos(U.multi), pers: await vivos(U.pers), so: await vivos(U.so) }).toEqual(multiAntes);
       // o principal fica com a base mais alta (continua entre os perfis do usuário)
       expect(await principal(U.multi)).toBe('supervisor');
-      await c.query(m68.down); // idempotente
+      await c.query(m69.down); // idempotente
       expect(await retratoDoCatalogo(c)).toEqual(antes);
       expect(await vivos(U.multi)).toEqual(multiAntes.multi);
 
-      await migrarUp(c, { ate: '0068' });
+      await migrarUp(c, { ate: '0069' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
       expect(await vivos(U.multi)).toEqual(['supervisor']);
     });

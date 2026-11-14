@@ -191,14 +191,14 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > padrão. Detalhes no [core.md](core.md); teste `db/testes/usuario-limite-desconto.db.test.ts`.
 >
 > **2026-11-14 (decisões do dono do produto, R-20261114-153500, R-20261114-153800 e R-20261114-154000):**
-> `0068_core_cargo_hierarquia` (em cima da 0067): `plataforma.perfil.cargo` NOT NULL sem padrão (`vendedor`, `promotor`,
+> `0069_core_cargo_hierarquia` (em cima da 0068): `plataforma.perfil.cargo` NOT NULL sem padrão (`vendedor`, `promotor`,
 > `supervisor`, `gerente`, `administrativo`; mapeamento `plataforma.cargo_da_base`, promotor → promotor); **promotor com
 > gerente obrigatório e supervisor opcional** (gatilhos adiados `promotor_sem_gerente` e `promotor_gerente_do_supervisor`, em
 > gravações novas ou alteradas); **um perfil vivo por usuário** (exclusão adiada
 > `usuario_perfil_um_vivo`; quem tinha vários fica com o de nível mais alto); hierarquia pela árvore `core.equipe` com a view
 > `core.v_usuario_hierarquia`; código ERP = `core.usuario.external_id` (já único por tenant). Detalhes no
 > [plataforma.md](plataforma.md) e no [core.md](core.md); teste `db/testes/cargo-hierarquia.db.test.ts`; diagnóstico
-> `db/scripts/diagnostico-0068.sql`.
+> `db/scripts/diagnostico-0069.sql`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

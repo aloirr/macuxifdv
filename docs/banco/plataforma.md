@@ -8,7 +8,7 @@ RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
 ## tenant — empresa cliente (exceção: sem `tenant_id`)
 | Coluna | Tipo | Regra |
 |---|---|---|
-| codigo | text not null | "código da empresa" do login; `^[a-z0-9][a-z0-9-]{1,39}$`; único (minúsculas) |
+| codigo | text not null | "código da empresa" do login; até a 0067 `^[a-z0-9][a-z0-9-]{1,39}$`; **desde a 0068** esse formato (legados: thathyany, demo, teste-macuxi) OU o código da licença `^(UF)[0-9]{4}$` (27 UFs, maiúsculas, ex.: `AM4821`); único sem diferenciar maiúsculas (`tenant_codigo_uk`, `lower(codigo)`) |
 | nome | text not null | |
 | documento | text | CNPJ só dígitos |
 | fuso | text not null | IANA, padrão `America/Sao_Paulo` (exibição no fuso do tenant; dados em UTC) |
@@ -40,6 +40,52 @@ pessoal na mensagem; o hash é conferido antes do insert para o CHECK não expor
 Com superusuário, desliga `log_statement` e `log_min_duration_statement` na transação (o comando também desliga antes da
 chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`). Caminho de volta:
 `0029_plataforma_provisionar_tenant.down.sql` (apaga a função; tenants já criados ficam). Teste: `db/testes/provisionar-tenant.test.ts`.
+
+### 0068 — código da licença (código da empresa; dono do produto, R-20261114-130500, R-20261114-131200 e R-20261114-131500)
+"O codigo da licenca e assim: UF0001 onde UF é a UF do cliente. O numero é aleatorio." O código da empresa nasce como
+**UF do cliente + 4 dígitos aleatórios**, em maiúsculas (`AM4821`), único na plataforma. Sem sequência.
+- **CHECK `tenant_codigo_formato`**: `codigo ~ '^[a-z0-9][a-z0-9-]{1,39}$' or codigo ~ '^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)[0-9]{4}$'`.
+  Os legados (`thathyany` em produção, `demo` na demo, `teste-macuxi` nos testes) continuam válidos; a migração não troca código.
+- **Caixa**: grava e exibe em maiúsculas; o login compara sem diferenciar (`tenant_por_codigo`: `lower(t.codigo) = lower(p_codigo)`,
+  0052). O índice único é por `lower(codigo)`: `am4821` (formato legado) e `AM4821` não convivem.
+- `uf_valida(p_uf text) → boolean` (immutable): sigla de uma das 27 UFs, aceita minúscula e espaços nas pontas.
+- `sortear_codigo_licenca(p_uf text) → text`: trava consultiva por UF (`pg_advisory_xact_lock`, até o fim da transação), até 20
+  sorteios de `UF || lpad(random 0..9999)` livres por `lower(codigo)`; sem sorte, sorteia entre os números livres da UF
+  (`generate_series(0, 9999)`); UF esgotada = **54000** ("não há código livre para a UF TO..."); UF inválida = 22023.
+- `provisionar_tenant` (mesma assinatura, SECURITY INVOKER) aceita:
+  - `id` (opcional, UUID gerado pelo chamador) = id do tenant e **chave de idempotência**: com id de tenant existente, a chamada é
+    sobre ele (mesmo tenant, mesmo código, sem sortear); trava consultiva por id antes da busca (chamadas simultâneas com o mesmo
+    id não sorteiam dois códigos). Se o código dele não é da UF pedida, não muda (aviso
+    `tenant existente: o código X não muda (troca: atribuir_codigo_licenca)`).
+  - `uf` (texto; `"am"` vale `AM`): obrigatória sem `codigo`; fora das 27 ou não texto = 22023, mesmo com `codigo`.
+  - `codigo` ausente, `null` ou `""` = código da licença sorteado (tenant novo). Sem `codigo`, `id` e `uf` são obrigatórios (22023).
+  - `codigo` informado: como antes (minúsculas, idempotente pelo código, sem diferenciar maiúsculas). `id` e `codigo` de tenants
+    diferentes = 23505.
+  - Saída ganha `codigo` (text): `{ tenant_id, codigo, resultado, modulos_adicionados, parametros_gravados, admin, avisos }`.
+- `sa_provisionar_tenant` trata como empresa **nova** (sem admin = 22023, hint RN-CORE-34) também a entrada sem `codigo` cujo `id`
+  não é de tenant vivo; a `uf` segue na entrada.
+- `atribuir_codigo_licenca(p_tenant_id uuid, p_uf text) → jsonb` (SECURITY INVOKER, sem EXECUTE para a aplicação: roda pela
+  conexão de administração, como a `provisionar_tenant`): dá o código da licença a um tenant existente.
+  `{ tenant_id, codigo_anterior, codigo, resultado: 'atribuido' | 'sem_mudanca' }`. Já com código da mesma UF = o mesmo
+  (`sem_mudanca`; `codigo_anterior` = o da última atribuição na auditoria, ou o próprio). Grava `plataforma.auditoria`
+  `core / tenant.codigo_licenca` com `antes {codigo}` e `depois {codigo}`. UF inválida ou tenant nulo = 22023; tenant inexistente
+  = P0002; encerrado ou excluído = 55000.
+
+**Como dar o código da licença à thathyany** (quando o dono do produto informar a UF; exemplo com RR), na conexão de
+administração de produção:
+```sql
+begin;
+select plataforma.atribuir_codigo_licenca(t.id, 'RR') from plataforma.tenant t where t.codigo = 'thathyany';
+-- confira o retorno: {"codigo": "RR4821", "codigo_anterior": "thathyany", "resultado": "atribuido", ...}
+commit;
+```
+Rodar de novo com a mesma UF devolve o mesmo código. A partir do commit, o login da empresa é com o código novo (o antigo deixa de
+valer): avise o cliente e os aparelhos que guardam o código digitado. Sessões e tokens seguem (são pelo id do tenant).
+
+Caminho de volta: `0068_plataforma_tenant_numero_licenca.down.sql` (funções da 0040/0039, CHECK da 0001 e apaga as 3 funções
+novas). **O down falha (55000) se algum tenant tiver código da licença** (o CHECK da 0001 não aceita maiúsculas), sem mudar nada:
+devolva antes o código antigo de cada um (`antes` da auditoria `tenant.codigo_licenca`; quem nasceu com o código da licença precisa
+de um código no formato antigo, ex.: `lower(codigo)`) e rode de novo. Teste: `db/testes/tenant-numero-licenca.db.test.ts`.
 
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |
@@ -574,11 +620,11 @@ ao `macuxi_app`: o Core lê o nome e o fuso depois da senha, dentro de `comTenan
 `[a-z][a-z0-9_]*`, sem hífen; NOT VALID + VALIDATE). **Volta**: a função da 0001 (id, nome, fuso, status) e os CHECKs com hífen;
 `tenant_da_sessao` sai. Testes: `db/testes/tenant-por-codigo-minimo.test.ts`.
 
-### 0068 — cargo do perfil e um perfil por usuário (`0068_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
+### 0069 — cargo do perfil e um perfil por usuário (`0069_core_cargo_hierarquia`; decisão do dono do produto de 14/11/2026)
 Decisão R-20261114-153500 (cadastro de usuário com cargo; "cada usuário só pode ter um perfil e cada perfil só pode ter um
 cargo"; cargo padrão do FDV: Vendedor, Supervisor, Gerente, Administrativo) e, no mesmo dia, R-20261114-153800 ("Crie o cargo
 promotor.") e R-20261114-154000 (o promotor fica embaixo do gerente; supervisor opcional). A hierarquia e o código ERP estão em
-`docs/banco/core.md` ("0068"). **Substitui o multiperfil da 0041** (RN-CORE-01 multiperfil e a "união" dos perfis deixam de
+`docs/banco/core.md` ("0069"). **Substitui o multiperfil da 0041** (RN-CORE-01 multiperfil e a "união" dos perfis deixam de
 valer para gravação; o SDK pode seguir com `combinarPerfis` sobre uma lista de 1).
 
 **`perfil.cargo`** text NOT NULL, **sem padrão** (`perfil_cargo_valido`: `vendedor`, `promotor`, `supervisor`, `gerente`, `administrativo`;
@@ -592,7 +638,7 @@ existiam: o cargo da base deles; não existe perfil sem base) e em `semear_perfi
 | cargo | vendedor | promotor | supervisor | gerente | administrativo | administrativo | administrativo | administrativo |
 
 Mudar o mapeamento depois = migração nova com `create or replace function plataforma.cargo_da_base` + `update` dos perfis.
-O cargo `promotor` tem regra no banco (gerente obrigatório): ver [core.md](core.md) "0068"; trocar o cargo de um perfil em uso
+O cargo `promotor` tem regra no banco (gerente obrigatório): ver [core.md](core.md) "0069"; trocar o cargo de um perfil em uso
 (`update ... set cargo`) também é conferido (gatilho `perfil_conferir_promotor`).
 
 **Um perfil por usuário** — restrição de exclusão `usuario_perfil_um_vivo` em `usuario_perfil`: `exclude using btree (tenant_id
@@ -609,16 +655,16 @@ perfil vivo duas vezes = 23505 na hora).
   a ordem, o promotor já era o último); na mesma base, o personalizado antes do de
   fábrica (foi a escolha do admin), **salvo na base admin**, em que fica o de fábrica (garante a gestão do acesso, RN-CORE-35);
   depois o vínculo mais novo; por fim o id. Os outros: soft delete com `deleted_at` = instante da migração (=
-  `public.macuxi_migracao.aplicada_em` da 0068). `core.usuario.perfil` passa à base do que ficou quando era outra (anda o
-  `updated_at`). Lista dos afetados (rodar **antes** do deploy): `db/scripts/diagnostico-0068.sql`, consulta 1.
+  `public.macuxi_migracao.aplicada_em` da 0069). `core.usuario.perfil` passa à base do que ficou quando era outra (anda o
+  `updated_at`). Lista dos afetados (rodar **antes** do deploy): `db/scripts/diagnostico-0069.sql`, consulta 1.
 - As conferências da 0041 (`usuario_sem_perfil`, `usuario_perfil_indisponivel`, `usuario_perfil_principal`, `tenant_ultimo_admin`)
-  continuam iguais. Na fixture dois-tenants, desde a 0068, ninguém tem 2 perfis (`vendedor_externo` e `vendedor_balcao` ficam sem
+  continuam iguais. Na fixture dois-tenants, desde a 0069, ninguém tem 2 perfis (`vendedor_externo` e `vendedor_balcao` ficam sem
   usuário). Os testes de portal da 0046/0047 montam 2+ perfis só **dentro** da transação (sem COMMIT) para provar a regra mais
   restritiva do portal, que fica como defesa.
 
 **Volta** (`.down.sql`): saem os 4 gatilhos do promotor e as 2 funções deles, a view da hierarquia, a exclusão, `perfil.cargo` (o cargo de personalizado se perde;
 reaplicar volta ao da base) e `cargo_da_base`; `garantir_perfil_principal` volta ao texto da 0041 e `semear_perfis_fabrica` ao
-da 0051; os vínculos apagados pela 0068 (deleted_at = `aplicada_em` da 0068, perfil ainda ativo e sem vínculo vivo igual) voltam
+da 0051; os vínculos apagados pela 0069 (deleted_at = `aplicada_em` da 0069, perfil ainda ativo e sem vínculo vivo igual) voltam
 a vivos. `core.usuario.perfil` **não volta** (fica a base mais alta, que continua entre os perfis). Volte antes o Core que grava o
 cargo e lê a view. Testes: `db/testes/cargo-hierarquia.db.test.ts` (estático no PC; fixture e up/down no CI); ajustados
 `perfis-acesso`, `portal-multiperfil` e `portal-admin-multiperfil`.

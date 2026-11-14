@@ -160,7 +160,7 @@ describe.skipIf(semBanco())('0046 portal pelos perfis do usuário (banco, fixtur
     q('update plataforma.usuario_perfil set deleted_at = now() where usuario_id = $1 and perfil_id = $2 and deleted_at is null', [usuario, perfilId]);
   /**
    * Roda agora as conferências adiadas da 0041 (sem perfil, principal, último admin): o estado montado é válido para elas. Só as 4
-   * da 0041: desde a 0068 (um perfil por usuário) a restrição usuario_perfil_um_vivo recusaria no COMMIT os estados com 2+ perfis
+   * da 0041: desde a 0069 (um perfil por usuário) a restrição usuario_perfil_um_vivo recusaria no COMMIT os estados com 2+ perfis
    * montados aqui. Esses estados agora só existem dentro de uma transação; o portal mantém a regra mais restritiva como defesa.
    */
   const conferir = () =>

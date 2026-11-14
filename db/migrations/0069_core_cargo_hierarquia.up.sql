@@ -1,4 +1,4 @@
--- 0068_core_cargo_hierarquia (up) — cargo do perfil, um perfil por usuário e a hierarquia do cadastro de usuário.
+-- 0069_core_cargo_hierarquia (up) — cargo do perfil, um perfil por usuário e a hierarquia do cadastro de usuário.
 -- Decisão do dono do produto (R-20261114-153500-alexandre, 14/11/2026): "No cadastro de usuario devem ter os cargos. Se é
 -- vendedor tem o supervisor para cadastrar, e o gerente é o gerente do supervisor. Se é supervisor cadastra o gerente e o nome
 -- da equipe para aparecer na tela inicial da foto do vendedor. Codigo ERP para todos. Cada usuario so pode ter um perfil. E
@@ -6,8 +6,8 @@
 -- No mesmo dia, R-20261114-153800 ("Crie o cargo promotor.") e R-20261114-154000 ("Fica embaixo do gerente. Supervisor é
 -- opcional"): 5 cargos; o promotor tem gerente OBRIGATÓRIO e supervisor OPCIONAL; com supervisor, o gerente do promotor é o
 -- gerente desse supervisor (conferido no banco, item 3).
--- Migração em cima da 0067. Dicionário: docs/banco/plataforma.md ("0068") e docs/banco/core.md ("0068"). Teste:
--- db/testes/cargo-hierarquia.db.test.ts (estático no PC; banco e up/down no CI). Diagnóstico: db/scripts/diagnostico-0068.sql.
+-- Migração em cima da 0068 (plataforma_tenant_numero_licenca). Dicionário: docs/banco/plataforma.md ("0069") e docs/banco/core.md ("0069"). Teste:
+-- db/testes/cargo-hierarquia.db.test.ts (estático no PC; banco e up/down no CI). Diagnóstico: db/scripts/diagnostico-0069.sql.
 --
 -- 1. CARGO (lista fixa da plataforma): vendedor | promotor | supervisor | gerente | administrativo. Coluna plataforma.perfil.cargo NOT NULL,
 --    sem padrão (CHECK perfil_cargo_valido): todo perfil tem exatamente um cargo; quem cria perfil (o Core, BKO) informa.
@@ -21,7 +21,7 @@
 --    troca de perfil numa transação pode inserir o novo e apagar o antigo em qualquer ordem. Segura também contra 2 gravações
 --    concorrentes (é índice, não gatilho). Erro: 23P01, constraint usuario_perfil_um_vivo.
 --    Antes, quem tem 2+ vínculos vivos fica com UM (os demais: soft delete, deleted_at = now() desta transação, igual ao
---    public.macuxi_migracao.aplicada_em da 0068 — é por esse instante que o down os devolve). Ordem de nível (fica o 1º):
+--    public.macuxi_migracao.aplicada_em da 0069 — é por esse instante que o down os devolve). Ordem de nível (fica o 1º):
 --      perfil ativo e vivo antes do inativo/apagado; base admin > gerente > supervisor > analista > assistente > vendedor >
 --      promotor (pela BASE; o cargo promotor não muda a ordem); na MESMA base, o personalizado antes do de fábrica (foi a escolha explícita do admin), salvo na base admin,
 --      em que fica o de fábrica (garante a gestão do acesso, RN-CORE-35); depois o vínculo mais novo; por fim o id.
@@ -67,10 +67,10 @@
 -- o dono gravam as 4 tabelas) e leem a view com o tenant da linha.
 -- Volume: 7 + poucos perfis por tenant; 1 vínculo vivo por usuário; dezenas de equipes; promotores: dezenas por tenant.
 --
--- Caminho de volta: 0068_core_cargo_hierarquia.down.sql — apaga os 4 gatilhos do promotor e as funções deles, a view, a
+-- Caminho de volta: 0069_core_cargo_hierarquia.down.sql — apaga os 4 gatilhos do promotor e as funções deles, a view, a
 -- restrição de exclusão e a coluna cargo
 -- (o cargo de perfil personalizado se perde), volta garantir_perfil_principal ao texto da 0041 e semear_perfis_fabrica ao da
--- 0051, e devolve os vínculos que a 0068 apagou (os de deleted_at = aplicada_em da 0068). core.usuario.perfil NÃO volta (fica
+-- 0051, e devolve os vínculos que a 0069 apagou (os de deleted_at = aplicada_em da 0069). core.usuario.perfil NÃO volta (fica
 -- a base mais alta, que continua entre os perfis do usuário). Volte antes o código do Core que grava/lê o cargo e a view.
 
 -- 1. Cargo ----------------------------------------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ begin
     raise exception 'usuário sem o perfil de fábrica da base no tenant (contexto do tenant ausente?)' using errcode = '23514',
       constraint = 'usuario_perfil_principal', hint = 'RN-CORE-35';
   end if;
-  -- 0068: um perfil por usuário — o vínculo vivo de outra base sai (soft delete) e entra o de fábrica da base nova
+  -- 0069: um perfil por usuário — o vínculo vivo de outra base sai (soft delete) e entra o de fábrica da base nova
   update plataforma.usuario_perfil up set deleted_at = now()
    where up.tenant_id = new.tenant_id and up.usuario_id = new.id and up.deleted_at is null;
   insert into plataforma.usuario_perfil (id, tenant_id, usuario_id, perfil_id)
@@ -154,7 +154,7 @@ begin
 end
 $$;
 
--- Quem tem 2+ vínculos vivos fica com o de nível mais alto (a consulta de quem é afetado: db/scripts/diagnostico-0068.sql).
+-- Quem tem 2+ vínculos vivos fica com o de nível mais alto (a consulta de quem é afetado: db/scripts/diagnostico-0069.sql).
 with ordem as (
   select up.id,
          row_number() over (
@@ -218,7 +218,7 @@ select u.tenant_id,
   ) r on true
  where u.deleted_at is null;
 comment on view core.v_usuario_hierarquia is
-  'Cargo e hierarquia do usuário (0068, R-20261114-153500, R-20261114-153800 e R-20261114-154000): cargo do perfil único; equipe e nome da equipe; supervisor_id (vendedor: responsável da equipe dele; promotor: idem, quando ele tem cargo supervisor); gerente_id (vendedor e supervisor: responsável da equipe-pai; promotor: o responsável da equipe-pai quando a equipe é de um supervisor, ou o da própria equipe quando ela é de um gerente). Nada gravado no usuário: deriva de core.equipe. security_invoker: RLS das 4 tabelas.';
+  'Cargo e hierarquia do usuário (0069, R-20261114-153500, R-20261114-153800 e R-20261114-154000): cargo do perfil único; equipe e nome da equipe; supervisor_id (vendedor: responsável da equipe dele; promotor: idem, quando ele tem cargo supervisor); gerente_id (vendedor e supervisor: responsável da equipe-pai; promotor: o responsável da equipe-pai quando a equipe é de um supervisor, ou o da própria equipe quando ela é de um gerente). Nada gravado no usuário: deriva de core.equipe. security_invoker: RLS das 4 tabelas.';
 grant select on core.v_usuario_hierarquia to macuxi_app;
 
 -- Promotor: gerente obrigatório e, com supervisor, o gerente do supervisor (R-20261114-154000) -------------------------------------

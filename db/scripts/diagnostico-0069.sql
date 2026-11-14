@@ -1,7 +1,7 @@
--- Diagnóstico da 0068_core_cargo_hierarquia (cargo, um perfil por usuário, hierarquia). Só leitura; rode como administrador do
--- banco (vê todos os tenants) ou como macuxi_app com app.tenant_id (vê só o tenant). Dicionário: docs/banco/plataforma.md ("0068").
+-- Diagnóstico da 0069_core_cargo_hierarquia (cargo, um perfil por usuário, hierarquia). Só leitura; rode como administrador do
+-- banco (vê todos os tenants) ou como macuxi_app com app.tenant_id (vê só o tenant). Dicionário: docs/banco/plataforma.md ("0069").
 --
--- Consulta 1 — ANTES da 0068: quem tem 2+ perfis vivos e o que a migração faz (fica = o vínculo que fica; o resto vai para soft
+-- Consulta 1 — ANTES da 0069: quem tem 2+ perfis vivos e o que a migração faz (fica = o vínculo que fica; o resto vai para soft
 -- delete; principal_novo = a base que core.usuario.perfil passa a ter). Mesma ordem de nível da migração: perfil ativo e vivo
 -- primeiro; admin > gerente > supervisor > analista > assistente > vendedor > promotor; mesma base: personalizado antes do de
 -- fábrica, salvo admin (fica o de fábrica); vínculo mais novo; id.
@@ -31,13 +31,13 @@ select t.codigo as tenant, o.usuario_id, u.perfil as principal_atual, o.vivos,
  group by t.codigo, o.usuario_id, u.perfil, o.vivos
  order by t.codigo, o.usuario_id;
 
--- Consulta 2 — DEPOIS da 0068: vínculos que a 0068 apagou (o down os devolve).
+-- Consulta 2 — DEPOIS da 0069: vínculos que a 0069 apagou (o down os devolve).
 -- select up.tenant_id, up.usuario_id, p.codigo
 --   from plataforma.usuario_perfil up join plataforma.perfil p on p.tenant_id = up.tenant_id and p.id = up.perfil_id
---  where up.deleted_at = (select aplicada_em from public.macuxi_migracao where versao = '0068')
+--  where up.deleted_at = (select aplicada_em from public.macuxi_migracao where versao = '0069')
 --  order by 1, 2, 3;
 
--- Consulta 3 — DEPOIS da 0068: cadastro fora da hierarquia (aqui só lista). Vendedor e supervisor: o domain do Core recusa no
+-- Consulta 3 — DEPOIS da 0069: cadastro fora da hierarquia (aqui só lista). Vendedor e supervisor: o domain do Core recusa no
 -- próximo salvamento. Promotor (R-20261114-154000): o BANCO recusa no COMMIT a próxima gravação que o alcance (gatilhos
 -- *_conferir_promotor), com os mesmos 2 nomes de erro; o promotor legado listado aqui precisa de equipe antes disso.
 --   vendedor_sem_supervisor          vendedor sem equipe ou cuja equipe não tem responsável de cargo supervisor

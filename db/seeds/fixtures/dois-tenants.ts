@@ -392,7 +392,7 @@ export const DOIS_TENANTS = {
     /**
      * 0041 (T-0111/T-0112, ADR 0033): perfil PERSONALIZADO vendedor_externo (base vendedor, escopo de dados 'proprio' por
      * sobreposição, sem módulos próprios; cargo vendedor), SEM usuário. Os 7 de fábrica vêm do gatilho tenant_semear_perfis
-     * (idPerfilFabrica). Desde a 0068 (um perfil por usuário) a fixture não tem multiperfil: cada usuário fica só com o de
+     * (idPerfilFabrica). Desde a 0069 (um perfil por usuário) a fixture não tem multiperfil: cada usuário fica só com o de
      * fábrica do principal (gatilho usuario_perfil_principal); o vínculo vendedor-2 + vendedor_externo saiu.
      */
     perfis: { vendedorExterno: a('perfil', 1) },
@@ -463,7 +463,7 @@ export const DOIS_TENANTS = {
     equipes: { equipe: b('equipe', 1) },
     /**
      * 0041 (T-0111): perfil PERSONALIZADO vendedor_balcao (base vendedor, cargo vendedor, acesso.campo revogado por
-     * sobreposição), sem usuário. Desde a 0068 (um perfil por usuário) o vendedor-B tem só o vendedor (o promotor extra saiu;
+     * sobreposição), sem usuário. Desde a 0069 (um perfil por usuário) o vendedor-B tem só o vendedor (o promotor extra saiu;
      * ele segue fazendo as coletas de trade da fixture do Promotor em B: o banco não confere perfil no promotor_id).
      */
     perfis: { vendedorBalcao: b('perfil', 1) },
@@ -592,7 +592,7 @@ export const ORDEM_TABELAS = [
   'plataforma.perfil_modulo',
   'core.equipe',
   'core.usuario',
-  // 0041 (T-0112): vínculos além do principal — vazio desde a 0068 (um perfil por usuário: o gatilho usuario_perfil_principal liga o de fábrica de core.usuario.perfil)
+  // 0041 (T-0112): vínculos além do principal — vazio desde a 0069 (um perfil por usuário: o gatilho usuario_perfil_principal liga o de fábrica de core.usuario.perfil)
   'plataforma.usuario_perfil',
   'plataforma.usuario_modulo',
   // 0018 (T-0063): a lista inicial vem do gatilho tenant_semear_medidas; aqui só as siglas próprias de cada tenant
@@ -925,7 +925,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: A.sobreposicoes.vendedorExternoEscopo, tenant_id: tA, perfil_id: A.perfis.vendedorExterno, chave: 'dados.escopo', concedida: true, nivel: 'proprio', alvos: null, external_id: null },
       { id: B.sobreposicoes.vendedorBalcaoCampo, tenant_id: tB, perfil_id: B.perfis.vendedorBalcao, chave: 'acesso.campo', concedida: false, nivel: null, alvos: null, external_id: null },
     ],
-    // 0068: um perfil por usuário — só o vínculo principal, o MESMO que o gatilho usuario_perfil_principal cria (id
+    // 0069: um perfil por usuário — só o vínculo principal, o MESMO que o gatilho usuario_perfil_principal cria (id
     // idUsuarioPerfil; a carga é upsert por id, nada duplica). Fica explícito dos admins para a tabela ter linha em A e em B.
     'plataforma.usuario_perfil': [
       { tenant_id: tA, usuario_id: A.usuarios.admin },

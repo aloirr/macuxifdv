@@ -1,11 +1,12 @@
--- 0068_core_cargo_hierarquia (down) — desfaz a 0068 (cargo, um perfil por usuário, view da hierarquia) e volta ao catálogo da
--- 0067. Ordem: os 4 gatilhos do promotor (gerente obrigatório) e as 2 funções deles, antes de mexer nos vínculos; a view; a
+-- 0069_core_cargo_hierarquia (down) — desfaz a 0069 (cargo, um perfil por usuário, view da hierarquia) e volta ao catálogo da
+-- 0068 (a 0068_plataforma_tenant_numero_licenca não mexe nas funções de perfil). Ordem: os 4 gatilhos do promotor
+-- (gerente obrigatório) e as 2 funções deles, antes de mexer nos vínculos; a view; a
 -- restrição de exclusão (antes de devolver vínculos); as 2 funções aos textos anteriores
--- (garantir_perfil_principal da 0041, semear_perfis_fabrica da 0051); os vínculos que a 0068 apagou voltam a vivos — os de
--- deleted_at = public.macuxi_migracao.aplicada_em da 0068 (o migrador apaga a linha só depois do down), cujo perfil segue ativo
+-- (garantir_perfil_principal da 0041, semear_perfis_fabrica da 0051); os vínculos que a 0069 apagou voltam a vivos — os de
+-- deleted_at = public.macuxi_migracao.aplicada_em da 0069 (o migrador apaga a linha só depois do down), cujo perfil segue ativo
 -- e vivo e sem outro vínculo vivo igual; por fim a coluna cargo (com o CHECK) e a função cargo_da_base.
 -- Limites: sem os gatilhos, o banco volta a aceitar promotor sem gerente (a regra fica só no Core); core.usuario.perfil fica com a base mais alta (válida: continua entre os perfis do usuário); o cargo gravado em perfil
--- personalizado se perde (reaplicar a 0068 volta ao cargo da base); vínculo apagado pelo Core depois da 0068 não volta.
+-- personalizado se perde (reaplicar a 0069 volta ao cargo da base); vínculo apagado pelo Core depois da 0069 não volta.
 -- Idempotente. Pré-condição: 0069+ desfeitas e o código do Core que grava/lê o cargo e a view já desfeito.
 
 drop trigger if exists usuario_conferir_promotor on core.usuario;
@@ -81,9 +82,9 @@ begin
 end
 $$;
 
--- Vínculos que a 0068 apagou (multiperfil de antes): voltam a vivos.
+-- Vínculos que a 0069 apagou (multiperfil de antes): voltam a vivos.
 update plataforma.usuario_perfil up set deleted_at = null
- where up.deleted_at = (select m.aplicada_em from public.macuxi_migracao m where m.versao = '0068')
+ where up.deleted_at = (select m.aplicada_em from public.macuxi_migracao m where m.versao = '0069')
    and exists (select 1 from plataforma.perfil p
                 where p.tenant_id = up.tenant_id and p.id = up.perfil_id and p.ativo and p.deleted_at is null)
    and not exists (select 1 from plataforma.usuario_perfil o
