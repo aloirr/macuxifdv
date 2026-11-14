@@ -858,7 +858,9 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
   const TUDO = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor'] as const;
 
   it('a leitura do fonte achou as páginas e todas restritas aos perfis do manifesto (sem promotor)', () => {
-    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', 'novo-pedido']);
+    // R-20261114-151000 (PR do modulo-vendedor): + a folha "Adicionar ao orçamento" do Catálogo (acao pedido.criar, só Campo)
+    const comFolha = paginas.some((p) => p.id === 'adicionar-ao-orcamento');
+    expect(paginas.map((p) => p.id)).toEqual(['pedidos', 'pedido', 'rascunhos', ...(comFolha ? ['adicionar-ao-orcamento'] : []), 'novo-pedido']);
     for (const p of paginas) {
       expect(p.perfis, p.id).toBeDefined();
       expect(p.perfis, p.id).not.toContain('promotor');
@@ -872,6 +874,7 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
     expect(v.pagina('pedido')).toBeNull();
     expect(v.pagina('novo-pedido')).toBeNull();
     expect(v.pagina('rascunhos')).toBeNull();
+    expect(v.pagina('adicionar-ao-orcamento')).toBeNull();
     expect(v.navegacao.filter((n) => n.modulo === 'vendedor')).toEqual([]);
   });
 

@@ -118,7 +118,7 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
       irParaNovoPedido({ customerId: C, visitId: V, stopId: S });
       expect(empurrados).toEqual([`/m/novo-pedido?customerId=${C}&visitId=${V}&stopId=${S}`]);
     });
-    it('Catálogo "Adicionar ao pedido" sem cliente: /m/novo-pedido (abre o seletor de cliente, não o editor)', () => {
+    it('sem cliente: /m/novo-pedido (abre o seletor de cliente, não o editor; era a entrada do Catálogo antes do R-20261114-151000)', () => {
       irParaNovoPedido({ customerId: undefined });
       expect(empurrados).toEqual(['/m/novo-pedido']);
     });
@@ -132,7 +132,14 @@ describe('T-0140 A — Novo pedido sem fechar o app (regra dos hooks, RF-VEN-05)
     it('as extensões usam a mesma função: ficha e check-in (cliente.acoes) e Catálogo (produto.acoes)', () => {
       const idx = ler('modules/vendedor/app/index.ts');
       expect(idx).toContain('abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined })');
-      expect(idx).toMatch(/slot: 'produto\.acoes'[\s\S]*?irParaNovoPedido\(origem \?\? \{ customerId: ctx\.clienteId \?\? undefined \}\)/);
+      if (/id: 'adicionar-ao-orcamento'/.test(idx)) {
+        // R-20261114-151000 (Catálogo só para consulta): o Catálogo não abre mais o novo pedido; abre a folha do orçamento
+        // (tests/modulos/catalogo-so-consulta-r20261114.test.ts). As entradas de pedido novo ficam a ficha e o check-in.
+        expect(idx).toMatch(/slot: 'produto\.acoes'[\s\S]*?abrir: \(ctx\) => irParaAdicionarAoOrcamento\(ctx\.produtoId, ctx\.nomeProduto\)/);
+        expect(idx.split("slot: 'produto.acoes'")[1]!.split('slot: ')[0]).not.toContain('irParaNovoPedido');
+      } else {
+        expect(idx).toMatch(/slot: 'produto\.acoes'[\s\S]*?irParaNovoPedido\(origem \?\? \{ customerId: ctx\.clienteId \?\? undefined \}\)/);
+      }
       // a folha do check-in (aberta pela Rota) chama a MESMA ação de destaque da ficha, com a visita recém-aberta
       const ficha = ler('modules/core/app/telas/cliente.tsx');
       expect(ficha).toMatch(/testID: 'checkin-new-order'[\s\S]*?acaoDestaque\.payload\.abrir\(\{ \.\.\.contexto, visitaId \}\)/);
