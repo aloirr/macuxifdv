@@ -125,7 +125,6 @@ O rótulo do menu (`navegacao` em `modules/<m>/web/index.ts`) tem de estar na li
 | modulo-core | `modules/core/manifest.ts` (`apps.web.menus`) | tirar "Usuários e módulos" da lista; "Produtos" → "Preço e custo"; "Perfis de acesso" fica |
 | modulo-promotor | `modules/promotor/web/index.ts` (página `cadastros`, campo `navegacao`) | "Cadastros de trade" → "Trade" |
 | modulo-promotor | `modules/promotor/manifest.ts` (`apps.web.menus`) | "Cadastros de trade" → "Trade" |
-| engenheiro-software | `packages/platform-sdk/src/shell.ts` (tipo `grupo`) | grupo `produtos_precos` (rótulo "Produtos e preços", das versões anteriores desta spec) → `produtos` (rótulo "Produtos"), com os demais grupos do M6 |
 | engenheiro-apps | `apps/web/app/globals.css` e `apps/web/components/app-shell.tsx` | **token novo (R-20261114-184400)**: criar `--color-nav-grupo: #f59a52` no `globals.css` e usá-lo (`text-nav-grupo`) no título e na seta dos grupos do menu e na barra da tela atual, **sem reaproveitar `--color-accent-light`** |
 | design-de-marca | `docs/marca/` (manual, §3) | **incluir no manual (R-20261114-184400)**: Sol claro `#F59A52` como cor do título de grupo do menu lateral do BKO (uso novo como texto, sobre o Grafite) e `#2B3743` (tela atual, hover e divisória do menu) |
 | engenheiro-apps | `apps/web/components/app-shell.tsx` e o teste do menu | rótulos dos grupos conforme o M2 (inclusive "Produtos"); conferir textos fixos de teste que citem os rótulos antigos "Produtos" (item do Core) e "Cadastros de trade" |
