@@ -68,7 +68,7 @@ const sim = vi.hoisted(() => ({
 }));
 vi.mock('@macuxi/core/app', () => ({
   useInicio: () => sim.inicio,
-  useNotificacoes: () => ({ naoLidas: 0, marcarLida: async () => undefined }),
+  useInicioCampo: () => ({ sino: { recados: 0, tarefas: sim.novos, total: sim.novos } }),
   // a tela do Core simulada: só o que o shell passa (o sino, os avisos e as rotas)
   TelaInicioCampo: ({ sino, avisos }: { sino: (n: number) => ReactNode; avisos?: ReactNode }) =>
     createElement('main', { 'data-testid': 'inicio' }, createElement('section', { 'data-testid': 'inicio-campo.metas' }, sino(sim.novos)), avisos),

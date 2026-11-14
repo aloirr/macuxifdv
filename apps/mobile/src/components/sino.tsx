@@ -2,8 +2,11 @@
  * Sino do shell (T-0170; desenho `docs/desenho/tarefas-consultor.md` §7.2; imagem `2026-11-12-T0170-final-inicio-sino-aberto.png`).
  * Fica no cabeçalho de todas as telas do Campo e do Gestão: o shell entrega o `<Sino />` ao `CabecalhoTela` do kit pelo
  * `ProvedorSinoCabecalho` ((tabs)/_layout.tsx) e o põe à mão no Início (que não usa o `CabecalhoTela`).
- * - Número: notificações não lidas do Core (`useNotificacoes().naoLidas`), lido uma vez no layout (`ProvedorContagemSino`), e
- *   não uma vez por tela montada; escondido com 0 e "9+" acima de 9 (`lib/sino.ts`).
+ * - Número: `useInicioCampo().sino.total` do Core (recados não lidos + tarefas novas, `contarSino`), lido uma vez no layout
+ *   (`ProvedorContagemSino`) e repartido por contexto com todos os sinos montados, inclusive o do Início; escondido com 0 e "9+"
+ *   acima de 9 (`lib/sino.ts`). Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
+ *   aparelho (notificações + pull `tarefa`); a parte de Performance do hook não se aplica ao supervisor/gerente (a consulta de
+ *   renovação recebe recusa do servidor, que o hook engole) e não afeta o número. Enquanto o hook não tem dados (null), o sino fica sem número.
  * - Toque: abre o balão com o `BalaoRecadosETarefas` do Core (no máximo 5 itens e "Ver todos"). Sem o balão exportado pelo Core,
  *   o toque abre direto a lista.
  * - "Ver todos" abre `/m/recados-e-tarefas` (ou a central antiga, se a página ainda não existe); a tarefa abre `/m/tarefa?id=`.
@@ -33,20 +36,20 @@ const BalaoDoCore = (appCore as unknown as { BalaoRecadosETarefas?: ComponentTyp
 const ContagemCtx = createContext(0);
 ContagemCtx.displayName = 'ContagemSino';
 
-/** Lê as não lidas uma vez para todos os sinos montados (uma leitura do banco do aparelho, não uma por tela). */
+/** Conta o sino uma vez para todos os sinos montados (o `sino.total` do Core; nenhuma contagem por tela). */
 export function ProvedorContagemSino({ children }: { children: ReactNode }) {
-  const { naoLidas } = appCore.useNotificacoes();
-  return <ContagemCtx.Provider value={naoLidas}>{children}</ContagemCtx.Provider>;
+  const total = appCore.useInicioCampo()?.sino.total ?? 0;
+  return <ContagemCtx.Provider value={total}>{children}</ContagemCtx.Provider>;
 }
 
 const cor = (token: 'transparente' | keyof typeof colors) => (token === 'transparente' ? 'transparent' : colors[token]);
 
 export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string; sobreFaixa?: boolean }) {
-  const naoLidas = useContext(ContagemCtx);
+  const total = useContext(ContagemCtx);
   const visao = useVisaoShell();
   const insets = useSafeAreaInsets();
   const [aberto, setAberto] = useState(false);
-  const numero = numeroDoSino(naoLidas);
+  const numero = numeroDoSino(total);
   const c = coresDoSino(sobreFaixa);
 
   const ir = (href: string) => bloqueioDoShell.tentarSair(() => router.navigate(href as never));
@@ -57,7 +60,7 @@ export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string;
       <Pressionavel
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={leituraDoSino(naoLidas)}
+        accessibilityLabel={leituraDoSino(total)}
         onPress={() => (BalaoDoCore ? setAberto(true) : verTodos())}
         style={[s.botao, { backgroundColor: cor(c.botaoFundo), borderColor: cor(c.botaoBorda) }]}>
         <Icon name="bell" size={22} color={cor(c.icone)} />

@@ -16,8 +16,8 @@ const pg = (id: string, navegacao: string, extra: Partial<Pg> = {}): Pg => ({ id
 
 /** Telas de exemplo por módulo (os rótulos são os declarados nos manifestos reais). */
 const PAGINAS: Partial<Record<ModuloId, Pg[]>> = {
-  // ordem igual à de modules/core/app (Rota 20, Clientes 30, Metas 50); Pedidos sem ordem (100), como hoje
-  core: [pg('rota', 'Rota', { apps: ['campo'], ordem: 20 }), pg('clientes', 'Clientes', { apps: ['campo', 'gestao'], ordem: 30 }), pg('metas', 'Metas', { apps: ['campo'], ordem: 50 })],
+  // ordem igual à de modules/core/app (Rota 20, Clientes 30, Performance 50); Pedidos sem ordem (100), como hoje
+  core: [pg('rota', 'Rota', { apps: ['campo'], ordem: 20 }), pg('clientes', 'Clientes', { apps: ['campo', 'gestao'], ordem: 30 }), pg('performance', 'Performance', { apps: ['campo'], ordem: 50 })],
   catalogo: [pg('catalogo', 'Catálogo', { apps: ['campo', 'gestao'], acao: 'produto.consultar' })],
   // como em modules/vendedor/app/index.ts: a página de pedidos declara os perfis do manifesto do Vendedor (sem promotor)
   vendedor: [pg('pedidos', 'Pedidos', { apps: ['campo', 'gestao'], perfis: MANIFESTOS_INSTALADOS.find((m) => m.id === 'vendedor')!.perfis })],
@@ -41,11 +41,11 @@ describe('T-0034 — abas do shell mobile', () => {
   it('Campo do vendedor: até 5 posições na barra; com o Catálogo licenciado o excedente vai para "Mais"', () => {
     const r = rotulos('campo', 'vendedor', ['core', 'vendedor', 'catalogo'], ['core', 'vendedor', 'catalogo']);
     // Catálogo licenciado e com página ⇒ entra; 6 destinos ⇒ 3 na barra + "Mais"
-    expect(r.todas).toEqual(['Início', 'Rota', 'Clientes', 'Metas', 'Mais', 'Catálogo', 'Pedidos']);
+    expect(r.todas).toEqual(['Início', 'Rota', 'Clientes', 'Performance', 'Mais', 'Catálogo', 'Pedidos']);
     expect(r.barra).toHaveLength(MAX_ABAS_BARRA);
     const sem = rotulos('campo', 'vendedor', ['core', 'vendedor'], ['core', 'vendedor']);
     // sem o Catálogo licenciado o Vendedor sai em cascata (RN-CORE-03): nem Catálogo nem Pedidos
-    expect(sem.barra).toEqual(['Início', 'Rota', 'Clientes', 'Metas']);
+    expect(sem.barra).toEqual(['Início', 'Rota', 'Clientes', 'Performance']);
     expect(sem.mais).toEqual([]);
   });
 
@@ -103,7 +103,7 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(abaAtiva(abaMais, '/m/clientes', mais)).toBe(false);
     expect(abaAtiva(barra[0]!, '/', mais)).toBe(true);
     expect(abaAtiva(barra[0]!, '/m/rota', mais)).toBe(false);
-    expect(barra.map((a) => a.testID)).toEqual(['tab-inicio', 'tab-core-rota', 'tab-core-clientes', 'tab-core-metas', 'tab-mais']);
+    expect(barra.map((a) => a.testID)).toEqual(['tab-inicio', 'tab-core-rota', 'tab-core-clientes', 'tab-core-performance', 'tab-mais']);
   });
 
   // T-0072 (R-20261105-125027; docs/design/componentes.md §6.1): numa tela de módulo, acende a aba dona da pilha
