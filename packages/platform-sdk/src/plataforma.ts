@@ -15,8 +15,8 @@ import { MODULOS } from './nomes';
 export const CABECALHO_TENANT_PLATAFORMA = 'x-macuxi-tenant';
 /** `aud` do token de plataforma (o token de tenant nunca tem este `aud`; o segredo também é outro). */
 export const AUDIENCIA_TOKEN_PLATAFORMA = 'macuxi-plataforma';
-/** Sessão curta (ADR 0029 §4): token de 15 min renovável com uso; teto absoluto de 8 h; 5 falhas = 15 min de bloqueio. */
-export const SESSAO_PLATAFORMA = Object.freeze({ tokenMin: 15, maximaHoras: 8, falhasParaBloquear: 5, bloqueioMin: 15 });
+/** Sessão do portal (ADR 0029 §4, Emenda 1): token de 2 h (120 min) renovável com uso; teto absoluto de 8 h; 5 falhas = 15 min de bloqueio. */
+export const SESSAO_PLATAFORMA = Object.freeze({ tokenMin: 120, maximaHoras: 8, falhasParaBloquear: 5, bloqueioMin: 15 });
 /** Prefixo das rotas da plataforma (API) e das rotas públicas de autenticação do Core (`plataforma/auth/*`). */
 export const PREFIXO_ROTAS_PLATAFORMA = 'plataforma';
 
@@ -69,7 +69,7 @@ export const LoginPortalSchema = z.object({ email: Email, senha: z.string().min(
 /** Empresa em que o admin do cliente pode entrar (a senha conferiu nela no login). */
 export const EmpresaDoAcessoSchema = z.object({ id: Uuid, codigo: z.string(), nome: z.string() });
 /**
- * Resposta do login, da escolha de empresa e do renovar. Token de 15 min, teto de 8 h (`SESSAO_PLATAFORMA`).
+ * Resposta do login, da escolha de empresa e do renovar. Token de 2 h, teto de 8 h (`SESSAO_PLATAFORMA`).
  * - `super_admin`: `empresa` nula e `empresas` vazia (a lista de todas vem de `GET /v1/plataforma/empresas`);
  * - `admin_cliente`: `empresas` = as que conferiram (1 a 20); com uma só, `empresa` já vem escolhida; com mais, `empresa`
  *   nula até `POST /v1/plataforma/auth/empresa`. O token sem empresa só vale para escolher, renovar, sair e listar.

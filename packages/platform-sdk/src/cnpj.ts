@@ -1,5 +1,5 @@
 /**
- * Consulta de CNPJ na base pública da Receita Federal (ADR 0046; pedido do dono do produto, R-20261114-132600-alexandre):
+ * Consulta de CNPJ na base pública da Receita Federal (ADR 0047; pedido do dono do produto, R-20261114-132600-alexandre):
  * no passo Empresa do portal `config.`, o CNPJ digitado preenche razão social, endereço, situação e CNAE.
  *   POST /v1/plataforma/cnpj  { cnpj }  (super-admin ou admin do cliente)
  * POST, e não GET com o CNPJ na URL, para o número não cair no log de acesso. Fonte grátis: BrasilAPI; reserva: CNPJá
@@ -21,6 +21,8 @@ export const CODIGOS_CNPJ = {
   fonteFora: 'CNPJ_FONTE_FORA',
   /** 429 com `Retry-After`: consultas demais da mesma sessão do portal. */
   limite: 'CNPJ_LIMITE',
+  /** 422 no `POST /v1/plataforma/empresas`: situação na Receita diferente de ATIVA (R-20261114-144000, item 3). */
+  inativo: 'CNPJ_INATIVO',
 } as const;
 export type CodigoCnpj = (typeof CODIGOS_CNPJ)[keyof typeof CODIGOS_CNPJ];
 
@@ -29,6 +31,14 @@ export const CONSULTAS_CNPJ_POR_MINUTO = 20;
 
 export const SITUACOES_CADASTRAIS = ['ativa', 'suspensa', 'inapta', 'baixada', 'nula'] as const;
 export type SituacaoCadastral = (typeof SITUACOES_CADASTRAIS)[number];
+
+/**
+ * "CNPJ inválido não se cria empresa" (dono do produto, R-20261114-144000, item 3): o passo Empresa só cria com o CNPJ
+ * ATIVO na Receita. Dígito errado, não encontrado, situação baixada/suspensa/inapta/nula ou a Receita fora = não cria.
+ */
+export function situacaoCriaEmpresa(s: SituacaoCadastral): boolean {
+  return s === 'ativa';
+}
 
 export const FONTES_CNPJ = ['brasilapi', 'cnpja'] as const;
 export type FonteCnpjNome = (typeof FONTES_CNPJ)[number];

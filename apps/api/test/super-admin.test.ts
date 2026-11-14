@@ -13,7 +13,18 @@
  * - T-0094 fatia S (0042): o super-admin lista os admins da empresa e redefine a senha de um (senha temporária no e-mail cifrado,
  *   ao banco só o hash); o admin do cliente não; sem e-mail configurado, 503 antes de mudar nada.
  */
-import { definirModuloApi, RedefinirSenhaAdminRespostaSchema, renderizarEmail, type AcessoBanco, type AcessoPortalAutenticado, type RotaModulo } from '@macuxi/platform-sdk';
+import {
+  definirModuloApi,
+  RedefinirSenhaAdminRespostaSchema,
+  renderizarEmail,
+  SITUACOES_CADASTRAIS,
+  type AcessoBanco,
+  type AcessoPortalAutenticado,
+  type ConsultaCnpjResposta,
+  type RotaModulo,
+  type SituacaoCadastral,
+} from '@macuxi/platform-sdk';
+import type { ConsultaCnpj } from '../src/consulta-cnpj';
 import { criarCifraEmail } from '../src/email/cifra';
 import { derivarChaveEmail } from '../src/email/config';
 import { criarServicoEmail } from '../src/email/servico';
@@ -88,16 +99,41 @@ const EMAIL_ALVO = 'admin.alvo@cliente.com.br';
 const ADMIN_VENDEDOR = '0b000000-0000-4000-8000-0000000000b2';
 const EMAIL_ID = '0e000000-0000-4000-8000-0000000000e1';
 const cifra = criarCifraEmail(derivarChaveEmail('s'.repeat(40)));
+/** Resposta da Receita para o CNPJ do passo Empresa (o `montar` troca o CNPJ e a situação). */
+const RECEITA_ATIVA: ConsultaCnpjResposta = {
+  cnpj: '11222333000181',
+  razao_social: 'DISTRIBUIDORA X LTDA',
+  nome_fantasia: null,
+  endereco: { logradouro: 'RUA A', numero: '1', complemento: null, bairro: 'CENTRO' },
+  municipio: 'MANAUS',
+  uf: 'AM',
+  cep: '69000000',
+  situacao_cadastral: 'ativa',
+  cnae_principal: null,
+  telefone: null,
+  email: null,
+  fonte: 'brasilapi',
+};
 
 function montar(
   licTenant: Partial<Record<string, LicencasTenant>> = {},
-  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown } = {},
+  op: { semPortal?: boolean; erroProvisionar?: unknown; adminResposta?: string; semEmail?: boolean; erroRedefinir?: unknown; receita?: SituacaoCadastral | 'nao_encontrado' | 'fora' } = {},
 ) {
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const redefinicoes: EntradaRedefinirSenhaAdmin[] = [];
   const provisionados: { entrada: EntradaProvisionarPlataforma; simular: boolean }[] = [];
   const app_ = bancoFalso();
   const portal = bancoPortalFalso();
+  // Receita falsa (sem rede): ATIVA por padrão; guarda os CNPJs consultados
+  const consultasCnpj: string[] = [];
+  const consultaCnpj: ConsultaCnpj = {
+    consultar: async (cnpj) => {
+      consultasCnpj.push(cnpj);
+      const r = op.receita ?? 'ativa';
+      if (r === 'nao_encontrado' || r === 'fora') return { resultado: r, cache: false, tentativas: [] };
+      return { resultado: 'ok', cache: false, tentativas: [], dados: { ...RECEITA_ATIVA, cnpj, situacao_cadastral: r } };
+    },
+  };
   // cada fonte falsa abre uma transação no banco recebido, como a real: sem o banco do portal, dá 503
   const usos: { onde: string; banco: AcessoBanco }[] = [];
   const usar = async (onde: string, banco: AcessoBanco) => {
@@ -162,6 +198,7 @@ function montar(
         return h['x-teste-sa'] === '1' ? SA : cli === 'com' ? CLI_COM_EMPRESA : CLI_SEM_EMPRESA;
       },
       senhaPortal,
+      consultaCnpj,
       plataforma: fonte,
       ...(op.semEmail ? {} : { email: criarServicoEmail({ cifra, log: { info: () => undefined, warn: () => undefined, error: () => undefined } }) }),
       licencasTenant: async (t, b) => {
@@ -170,7 +207,7 @@ function montar(
       },
     }),
   );
-  return { app, auditoria, provisionados, usos, bancoApp: app_, portal, redefinicoes };
+  return { app, auditoria, provisionados, usos, bancoApp: app_, portal, redefinicoes, consultasCnpj };
 }
 
 describe('rota de módulo com superAdmin (ADR 0029 §5)', () => {
@@ -267,6 +304,63 @@ describe('POST /v1/plataforma/empresas (passo Empresa; RN-CORE-31)', () => {
     expect(dep.json().codigo).toBe('RN-CORE-31');
     expect(dep.json().detalhes.erros[0]).toMatchObject({ codigo: 'DEPENDENCIA_FALTANDO', dependencia: 'catalogo' });
     expect((await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: { ...corpo, cnpj: '11.222.333/0001-82' } })).statusCode).toBe(400);
+  });
+});
+
+/** "CNPJ inválido não se cria empresa" (dono do produto, R-20261114-144000, item 3; ADR 0047). */
+describe('POST /v1/plataforma/empresas: só CNPJ ATIVO na Receita cria empresa', () => {
+  const corpo = { codigo: 'distribuidora-x', razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'catalogo' }] };
+  const criar = (app: ReturnType<typeof montar>['app'], extra: Record<string, unknown> = {}) =>
+    app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: { ...corpo, ...extra } });
+
+  it('ATIVA: consulta a Receita com os 14 dígitos e cria', async () => {
+    const { app, provisionados, consultasCnpj } = montar();
+    expect((await criar(app)).statusCode).toBe(201);
+    expect(consultasCnpj).toEqual(['11222333000181']);
+    expect(provisionados).toHaveLength(1);
+  });
+
+  it('dígito errado: 400 CNPJ_INVALIDO, sem consultar a Receita e sem ir ao banco', async () => {
+    const { app, provisionados, consultasCnpj } = montar();
+    const r = await criar(app, { cnpj: '11.222.333/0001-82' });
+    expect([r.statusCode, r.json().codigo]).toEqual([400, 'CNPJ_INVALIDO']);
+    expect(r.json().mensagem).toMatch(/CNPJ inválido/);
+    expect([consultasCnpj, provisionados]).toEqual([[], []]);
+  });
+
+  it.each(SITUACOES_CADASTRAIS.filter((s) => s !== 'ativa'))('situação %s: 422 CNPJ_INATIVO com a situação, sem ir ao banco (também no simular)', async (situacao) => {
+    const { app, provisionados } = montar({}, { receita: situacao });
+    for (const simular of [false, true]) {
+      const r = await criar(app, { simular });
+      expect([r.statusCode, r.json().codigo]).toEqual([422, 'CNPJ_INATIVO']);
+      expect(r.json().detalhes).toEqual({ campo: 'cnpj', situacao_cadastral: situacao });
+      expect(r.json().mensagem).toMatch(/não está ativo na Receita/);
+    }
+    expect(provisionados).toEqual([]);
+  });
+
+  it('não encontrado na Receita: 422 CNPJ_NAO_ENCONTRADO, sem ir ao banco', async () => {
+    const { app, provisionados } = montar({}, { receita: 'nao_encontrado' });
+    const r = await criar(app);
+    expect([r.statusCode, r.json().codigo]).toEqual([422, 'CNPJ_NAO_ENCONTRADO']);
+    expect(provisionados).toEqual([]);
+  });
+
+  it('Receita fora do ar: 503 CNPJ_FONTE_FORA com "tente de novo" e Retry-After, sem ir ao banco', async () => {
+    const { app, provisionados, auditoria } = montar({}, { receita: 'fora' });
+    const r = await criar(app);
+    expect([r.statusCode, r.json().codigo]).toEqual([503, 'CNPJ_FONTE_FORA']);
+    expect(r.json().mensagem).toMatch(/tente de novo/i);
+    expect(Number(r.headers['retry-after'])).toBeGreaterThan(0);
+    expect(provisionados).toEqual([]);
+    expect(auditoria.at(-1)).toMatchObject({ rota: '/v1/plataforma/empresas', status: 503 });
+  });
+
+  it('admin do cliente continua 403 antes de qualquer consulta à Receita', async () => {
+    const { app, consultasCnpj } = montar();
+    const r = await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comCli(null, 'sem'), payload: corpo });
+    expect(r.statusCode).toBe(403);
+    expect(consultasCnpj).toEqual([]);
   });
 });
 

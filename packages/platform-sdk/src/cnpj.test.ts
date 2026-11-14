@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConsultaCnpjPedidoSchema, ConsultaCnpjRespostaSchema, type ConsultaCnpjResposta } from './cnpj';
+import { CODIGOS_CNPJ, ConsultaCnpjPedidoSchema, ConsultaCnpjRespostaSchema, SITUACOES_CADASTRAIS, situacaoCriaEmpresa, type ConsultaCnpjResposta } from './cnpj';
 
 const OK: ConsultaCnpjResposta = {
   cnpj: '00000000000191',
@@ -16,7 +16,7 @@ const OK: ConsultaCnpjResposta = {
   fonte: 'brasilapi',
 };
 
-describe('consulta de CNPJ (ADR 0046)', () => {
+describe('consulta de CNPJ (ADR 0047)', () => {
   it('pedido aceita com ou sem máscara e sai com 14 dígitos', () => {
     expect(ConsultaCnpjPedidoSchema.parse({ cnpj: '00.000.000/0001-91' })).toEqual({ cnpj: '00000000000191' });
     expect(ConsultaCnpjPedidoSchema.parse({ cnpj: '11222333000181' })).toEqual({ cnpj: '11222333000181' });
@@ -35,5 +35,16 @@ describe('consulta de CNPJ (ADR 0046)', () => {
     expect(ConsultaCnpjRespostaSchema.safeParse({ ...OK, situacao_cadastral: 'ATIVA' }).success).toBe(false);
     expect(ConsultaCnpjRespostaSchema.safeParse({ ...OK, telefone: '(61) 3493-9002' }).success).toBe(false);
     expect(ConsultaCnpjRespostaSchema.parse({ ...OK, uf: null, cep: null, cnae_principal: null })).toMatchObject({ uf: null });
+  });
+});
+
+describe('CNPJ inválido não cria empresa (R-20261114-144000, item 3)', () => {
+  it('só a situação ATIVA na Receita cria empresa; baixada, suspensa, inapta e nula recusam', () => {
+    expect(SITUACOES_CADASTRAIS.filter(situacaoCriaEmpresa)).toEqual(['ativa']);
+  });
+
+  it('a recusa por situação tem código próprio, diferente do dígito errado, do não encontrado e da fonte fora', () => {
+    expect(CODIGOS_CNPJ.inativo).toBe('CNPJ_INATIVO');
+    expect(new Set(Object.values(CODIGOS_CNPJ)).size).toBe(Object.values(CODIGOS_CNPJ).length);
   });
 });

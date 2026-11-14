@@ -1,5 +1,5 @@
 /**
- * Consulta de CNPJ na base pública da Receita (ADR 0046; R-20261114-132600-alexandre): `POST /v1/plataforma/cnpj` do portal
+ * Consulta de CNPJ na base pública da Receita (ADR 0047; R-20261114-132600-alexandre): `POST /v1/plataforma/cnpj` do portal
  * `config.` (super-admin ou admin do cliente). Fonte grátis BrasilAPI; reserva CNPJá (API aberta), infra independente.
  * - Ordem: BrasilAPI → se fora OU 404, CNPJá (base mais nova: pega empresa recém-aberta). 404 nas duas, ou 404 numa e a
  *   outra fora = não encontrado; as duas fora = 503.
