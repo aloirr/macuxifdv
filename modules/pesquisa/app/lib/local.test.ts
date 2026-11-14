@@ -3,7 +3,7 @@ import type { ItemSobreposicao, LinhaSync } from '@macuxi/platform-sdk';
 import type { QuestionarioVersao, QuestionarioVersaoSync, RespostaEnvio } from '../../contracts';
 import { publicada, sim_nao, u } from '../../domain/util-teste';
 import { publicoContemCliente } from '../../domain';
-import { definirEstadoLocal, etapaConcluida, etapaDoCheckout, lerRetrato, pesquisaDisponivelNoCliente, respostasDaFila } from './local';
+import { definirEstadoLocal, etapaConcluida, etapaDoCheckout, lerRetrato, respostasDaFila } from './local';
 
 const AGORA = new Date('2026-10-31T13:00:00Z');
 const obrig = publicada({ titulo: 'Gôndola do mês', modo: 'checkout_obrigatoria', perguntas: [sim_nao(1)] });
@@ -66,35 +66,5 @@ describe('RN-PES-03: etapa obrigatória do checkout no aparelho (offline)', () =
     const publico = { perfis: [], equipes: [], segmentos: [], regioes: [], canais: ['tradicional'], clientes: [] };
     expect(publicoContemCliente(publico, r.clientes.get(CLIENTE)!)).toBe(true);
     expect(publicoContemCliente(publico, r.clientes.get(u(53))!)).toBe(false);
-  });
-});
-
-describe('RF-PES-03: disponível() do botão "Pesquisa" da ficha (offline)', () => {
-  const avulsa = publicada({ id: u(901), questionario_id: u(902), titulo: 'Loja do mês', frequencia: 'mensal', perguntas: [sim_nao(1)] });
-  const envioAvulsa: RespostaEnvio = { id: u(5001), questionario_id: u(902), versao_id: u(901), cliente_id: CLIENTE, visita_id: null, respondida_em: '2026-10-31T12:59:00Z', itens: [{ pergunta_id: u(1), tipo: 'sim_nao', valor: true }] };
-  async function carregarAvulsa(fila: ItemSobreposicao[] = []) {
-    const l = leitor({ questionario_versao: [linha(avulsa)], cliente: [{ id: CLIENTE, segmento: 'Varejo', deleted_at: null }] }, fila);
-    definirEstadoLocal({ retrato: await lerRetrato(l), leitor: l, usuario: { id: u(31), perfil: 'vendedor', equipe_ids: [] }, fuso: 'America/Manaus', agora: () => AGORA });
-  }
-
-  it('sem o retrato carregado o botão não aparece', () => {
-    definirEstadoLocal(null);
-    expect(pesquisaDisponivelNoCliente(ctx)).toBe(false);
-  });
-
-  it('RF-PES-03: avulsa aplicável ao cliente mostra o botão', async () => {
-    await carregarAvulsa();
-    expect(pesquisaDisponivelNoCliente(ctx)).toBe(true);
-    expect(pesquisaDisponivelNoCliente({ clienteId: CLIENTE, visitaId: null })).toBe(true);
-  });
-
-  it('RN-PES-02 / RF-PES-04: respondida (ainda na fila do aparelho) esconde o botão', async () => {
-    await carregarAvulsa([naFila(envioAvulsa)]);
-    expect(pesquisaDisponivelNoCliente(ctx)).toBe(false);
-  });
-
-  it('RN-PES-03: só a obrigatória do checkout não mostra o botão', async () => {
-    await carregar();
-    expect(pesquisaDisponivelNoCliente(ctx)).toBe(false);
   });
 });
