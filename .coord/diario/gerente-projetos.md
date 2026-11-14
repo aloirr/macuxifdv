@@ -427,3 +427,4 @@
 2026-11-14 — ronda nuvem — recados inacessíveis (coord.mjs usa GraphQL: 403 na sessão; add_repo/send_later indisponíveis); 0 PRs abertos; sem tag v1.0.7; branches checkin-core-2 e visitas-core-2 ainda não existem; reteste-v107-corretor parado há 2h, sem PR. Nada a mergear.
 2026-11-14 — ronda — main verde de novo na governança (#240, bb20d06), merges liberados; economia do Actions valendo (pedido do Alexandre ~11h40); 0 PRs para mergear, sem tag v1.0.7; CIs disparados por mim nesta ronda: 0.
 2026-11-14 — ronda — R-20261114-121700-alexandre: sem tag; v1.0.7 sai do merge do PR 'producao — liberar versão' (nuvem/liberar-versao-engenheiro-software, único liberado no main congelado); merges da v1.0.8 só depois do deploy. CIs disparados por mim: 0.
+2026-11-14 — ronda — v1.0.7 no ar (8cff349); congelamento encerrado; quadro com as frentes da v1.0.8; docs 02/03 pendentes (recados ilegíveis nesta sessão). CIs disparados por mim: 0.

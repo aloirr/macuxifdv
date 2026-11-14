@@ -2,6 +2,20 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **14/11 — v1.0.7 no ar; esteira da v1.0.8 (gerente fixo na nuvem, pelo aviso da ponte):**
+> - **v1.0.7 em produção:** tag `v1.0.7` = `8cff349` (#241, "producao — liberar versão"); `/v1/saude` com v1.0.7 (R-20261114-132500). Sem tag manual daqui em diante: o dono do produto só aprova o deploy (R-20261114-121700). Congelamento do main encerrado.
+> - **Frentes da v1.0.8 (sessões abertas pela ponte):**
+>   - check-in na ficha e na Rota + permissão "check-in fora de rota" no BKO (modulo-core);
+>   - total de visitas e quem visitou por último (modulo-core, banco-dados);
+>   - `config.` enxuto (corretor-redundancias, design-de-marca, designer-ux, engenheiro-apps);
+>   - sessão de 2 h + código da licença `UF+4` (engenheiro-software, banco-dados); trava de licença por recado ao modulo-core;
+>   - aba Integração Conector | API e guia da API em PDF (modulo-integracao);
+>   - planos Light, PME, Enterprise e Corporate;
+>   - consulta de CNPJ pela Receita (engenheiro-software, duas sessões);
+>   - RD-0263, 0266, 0268, 0269, 0270 (reteste v1.0.7) e MC-0021 a MC-0024.
+> - **Pendente do gerente:** docs 02/03 pelos recados R-20261114-130000, 130500, 131200, 131500, 132000 e 132600. Esta sessão não lê o repositório de recados (`coord.mjs` usa GraphQL: HTTP 403; REST fora do escopo); falta o texto literal.
+> - **Economia do Actions** valendo (~11h40): um PR por dono e lote, um commit por PR, rascunho até pronto, um rerun só para infraestrutura.
+
 > **Manhã de 10/11 — teste da v1.0.2 (dono do produto, 05h32–06h02; 11 recados às 06h22 + regra do corretor às 06h25; "tudo na esteira já"):**
 > - **Build v1.0.2 pronto** (f25bbe88, R-20261109-204045).
 > - **Tarefas novas:**
