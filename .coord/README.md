@@ -20,7 +20,7 @@ Você (Alexandre) também conversa por aqui: `node scripts/coord.mjs caixa alexa
 Decisão do Alexandre (chat, 14/11/2026: "Migre tudo para a nuvem"), valendo desde o build Oficial v1.0.7. Base técnica: ADR do time na nuvem (proposto), do engenheiro-software. Detalhes: doc 07, seções 1 a 5.
 
 - **Onde**: todo agente roda numa sessão do claude.ai/code, num branch `nuvem/*`, `alexandre/*` ou `agente/*`. O PC (VS Code, `C:\macuxifdv`) não roda mais o time. A pasta da Fase M continua só para consulta.
-- **Rondas**: o gerente-projetos é uma sessão fixa com rondas agendadas a cada 15–20 min (caixas, PRs `[PRONTO PARA MERGE]`, CI, quadro, vagas). As 7 vagas são 7 sessões da nuvem.
+- **Rondas**: o gerente-projetos é uma sessão fixa com rondas agendadas a cada 10 min (caixas, PRs `[PRONTO PARA MERGE]`, CI, quadro, vagas). As 7 vagas são 7 sessões da nuvem.
 - **Commit e push**: um commit por PR (`T-nnnn: <resumo>` + `Agente: <dono>`; ajustes por `--amend` antes do push) e um push só. Lint, typecheck e testes rodam na sessão antes.
 - **PR**: um por dono e por lote; merge (squash) só com o CI do PR verde e o `main` verde. Nada direto no `main`. Governança só pelo rito de autorização do Alexandre.
 - **Actions**: um rerun só, e apenas para falha de infraestrutura. Build pelo `eas-build.yml` (`so_conferir=true` testa o `EXPO_TOKEN` sem build); deploy pelos workflows `producao-*`, com "aprovo deploy vX.Y.Z".

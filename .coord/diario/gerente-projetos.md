@@ -429,3 +429,4 @@
 2026-11-14 — ronda — R-20261114-121700-alexandre: sem tag; v1.0.7 sai do merge do PR 'producao — liberar versão' (nuvem/liberar-versao-engenheiro-software, único liberado no main congelado); merges da v1.0.8 só depois do deploy. CIs disparados por mim: 0.
 2026-11-14 — ronda — v1.0.7 no ar (8cff349); congelamento encerrado; quadro com as frentes da v1.0.8; docs 02/03 pendentes (recados ilegíveis nesta sessão). CIs disparados por mim: 0.
 2026-11-14 — ronda — R-20261114-133500: arquivar sessão finalizada registrado no doc 07 (seção 3). Sessões abertas por mim: nenhuma; nada a arquivar. CIs: 0.
+2026-11-14 ~13h45 — ronda — R-20261114-134200: ronda a cada 10 min registrada (doc 07, CLAUDE.md, .coord/README). Sessões vistas: 0, destravadas: 0, arquivadas: 0 — esta sessão não tem list_sessions, send_later nem send_message (claude-code-remote indisponível), nem leitura de recados (403). CIs: 0.
