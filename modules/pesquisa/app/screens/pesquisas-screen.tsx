@@ -4,6 +4,7 @@
  * T-0171 (RD-0212): uma informação por linha. Disponível: título + nº de perguntas (a descrição fica na tela de responder);
  * respondida: título + "Volta em"; na ficha: só o título (a seção já diz a situação, sem tag repetindo o título dela).
  * A obrigatória do checkout não aparece aqui: ela é etapa da visita (`visita.etapas_checkout`).
+ * Cabeçalho na faixa Azul noite do kit (`Screen cabecalho`, componentes.md §5.2); a fila fica à direita do título.
  * Visual T-0072 (docs/design/componentes.md): cartões tocáveis, chips de estado com texto, estados vazios; sem principal.
  */
 import { Cartao, ChipEstado, colors, EstadoVazio, Icon, Loading, RotuloSecao, Screen, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
@@ -26,20 +27,23 @@ export default function PesquisasScreen() {
   const semNada = disponiveis.length === 0 && indisponiveis.length === 0;
 
   return (
-    <Screen testID="pesquisas" refreshing={auto.puxando} onRefresh={auto.puxar}>
-      <View style={estilos.topo}>
-        <Text style={[t.h1, { flex: 1 }]}>Pesquisas</Text>
-        {pendentesNaFila > 0 ? (
-          <ChipEstado
-            testID="pesquisas.fila"
-            tom={offline ? 'aviso' : 'neutro'}
-            icone={offline ? 'wifiOff' : 'sync'}
-            texto={`${pendentesNaFila} na fila`}
-            rotuloAcessivel={`${pendentesNaFila === 1 ? '1 resposta' : `${pendentesNaFila} respostas`} na fila${offline ? ', sem sinal' : ', enviando'}`}
-          />
-        ) : null}
-      </View>
-
+    <Screen
+      testID="pesquisas"
+      refreshing={auto.puxando}
+      onRefresh={auto.puxar}
+      cabecalho={{
+        titulo: 'Pesquisas',
+        direita:
+          pendentesNaFila > 0 ? (
+            <ChipEstado
+              testID="pesquisas.fila"
+              tom={offline ? 'aviso' : 'neutro'}
+              icone={offline ? 'wifiOff' : 'sync'}
+              texto={`${pendentesNaFila} na fila`}
+              rotuloAcessivel={`${pendentesNaFila === 1 ? '1 resposta' : `${pendentesNaFila} respostas`} na fila${offline ? ', sem sinal' : ', enviando'}`}
+            />
+          ) : null,
+      }}>
       {!carregado ? <Loading /> : null}
       {carregado && !usuario?.perfil ? <EstadoVazio icone="user" titulo="Entre com seu usuário" testID="pesquisas.sem-usuario" /> : null}
       {carregado && usuario?.perfil && semNada ? (
@@ -104,7 +108,6 @@ export default function PesquisasScreen() {
 }
 
 const estilos = StyleSheet.create({
-  topo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   titulo: { ...t.bodyStrong, fontSize: 15 },
   item: { gap: 4, paddingVertical: 12, paddingHorizontal: 14 },
