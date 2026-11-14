@@ -1,7 +1,7 @@
 # Revisão do BKO — especificação visual (designer-ux)
 
 Origem: pedidos do Alexandre de 14/11/2026 (R-20261114-142000, R-20261114-143000, R-20261114-143500).
-Situação: **§M (menu da esquerda) especificada**, aguardando a decisão sobre a cor do título do grupo (MC-0054, ver M4) e a implementação.
+Situação: **§M (menu da esquerda) especificada**, com a cor do título do grupo decidida (MC-0054, opção A, R-20261114-184400; ver M4); falta a implementação.
 As seções §P1 a §P10 (kit já no branch `nuvem/bko-revisao-designer-ux`) ganham o texto completo no próximo lote; a lista no fim deste doc diz onde cada uma está no kit.
 
 ---
@@ -77,7 +77,7 @@ Por que assim:
    - **Clicar no título** de um grupo fechado abre esse grupo na sanfona e fecha o anterior (para quem prefere clicar, ou em tela de toque).
    - Ao abrir uma tela de outro grupo, a sanfona passa para o grupo dela.
 3. **Sem barra de rolagem em 1366×768.** Medido na simulação: com o maior grupo aberto (Cadastros, 6 itens), a lista termina em 550 px e o rodapé começa em 681 px. Sobra espaço até para o grupo Mais. Abaixo de 640 px de altura (raro no desktop), o menu pode rolar; é a única exceção.
-4. **Tela aberta destacada:** fundo `#2B3743` (`nav-active`), texto branco semibold e barra vertical de 3 px em Sol claro à esquerda. O título do grupo dela fica aberto.
+4. **Tela aberta destacada:** fundo `#2B3743` (`nav-active`), texto branco semibold e barra vertical de 3 px em Sol claro (`nav-grupo`) à esquerda. O título do grupo dela fica aberto.
 5. **Tela estreita (`md:hidden`)**: a barra de cima continua com a rolagem lateral que já existe, mas só com os itens do grupo da tela atual, depois de um seletor com o nome do grupo. Detalhe na implementação, sem simulação neste lote.
 6. **Licença e perfil (sem mudança):** o item só aparece se o módulo estiver licenciado e o perfil puder ver a tela (`criarShell`/`montar`, RN-CORE-01/03, ADR 0004). Grupo sem nenhum item visível não aparece.
 
@@ -86,13 +86,15 @@ O brief cita "Azul noite", mas o menu lateral do BKO é Grafite no manual da mar
 
 | Elemento | Cor | Contraste | Tipo |
 |---|---|---|---|
-| Título do grupo | **Sol claro `#F59A52`** | 7,56:1 no Grafite (5,56:1 no `#2B3743` do hover; 5,85:1 no Azul noite) | IBM Plex Sans 600, 11,5 px, caixa alta, espaço 0,07em |
+| Título do grupo | **Sol claro `#F59A52`** (`--color-nav-grupo`) | 7,56:1 no Grafite (5,56:1 no `#2B3743` do hover; 5,85:1 no Azul noite) | IBM Plex Sans 600, 11,5 px, caixa alta, espaço 0,07em |
 | Item | `#C9CED5` (`nav-text`) | 10,42:1 | IBM Plex Sans 400, 14 px |
 | Item da tela atual | branco no `#2B3743` + barra Sol claro | 12,14:1 | IBM Plex Sans 600, 14 px |
 | Seta do grupo | igual ao título | — | 14 px |
 
 - Medidas: menu com **240 px** de largura (hoje 220; "Formas de pagamento e prazos" cabe sem cortar), título do grupo 30 px de altura, item 32 px, recuo do item 20 px.
-- **Cor do título do grupo: depende da decisão do Alexandre (MC-0054, design-de-marca).** O Sol claro hoje é só "o sol e os gráficos sobre fundo escuro" (manual §3); usá-lo como texto é uso novo. Opções: **A** = Sol claro `#F59A52` (como está nesta spec e nas simulações); **B** = branco 600, com os itens em `#C9CED5` (atende o pedido com menos diferença entre título e item). Fica A até a decisão; se for B, mudam só a linha "Título do grupo" e a "Seta do grupo" da tabela acima e os PNG do M5.
+- **Cor do título do grupo: DECIDIDO (R-20261114-184400, MC-0054): Sol claro `#F59A52`**, como nas simulações do M5. Token próprio `--color-nav-grupo: #f59a52` no shell web, **sem reaproveitar `--color-accent-light`** (mesmo valor, outro papel: se um mudar, o outro não muda junto). Vale para o título, a seta do grupo e a barra de 3 px da tela atual.
+- **`#2B3743` (tela atual, hover e divisória do menu): aprovado para o manual da marca (R-20261114-184400)**, já como `--color-nav-active`.
+- Sem token em `packages/ui`: lá não há conjunto de tokens web de navegação (os `nav-*` só existem em `apps/web/app/globals.css`, e `packages/ui/src/web/cores.ts` só traz as classes de destaque, gráfico e faixa); o shell usa a classe `text-nav-grupo` gerada pelo token dele.
 - **Logo:** o símbolo vem do ativo da marca (`docs/marca/ativos/2026-11-12-v1/macuxi-simbolo-negativo.svg`, 32 × 25 px), nunca redesenhado (MC-0053).
 
 ### M5. Simulações (1366×768, escala 2, Archivo/IBM Plex de `apps/web/app/fonts/`)
@@ -112,7 +114,7 @@ Por que o Assistente na terceira simulação: a lista é a real, filtrada pelo p
 - **engenheiro-apps** (`apps/web/components/app-shell.tsx`): título em todos os grupos (inclusive o primeiro), Auditoria dentro de Sistema, sanfona e painel ao lado (M3), medição de altura, cores e medidas (M4), largura de 240 px, `aria-expanded` no título do grupo e `aria-current="page"` no item (este já existe). Atualizar o teste do menu e os `data-testid` (`nav-<modulo>-<id>` continuam iguais).
 - **testes**: e2e em 1366×768 sem rolagem no `menu-bko` (Administrador com os 8 módulos) e item invisível sem licença ou sem perfil.
 
-### M7. Para os módulos e o engenheiro-apps (renomes do menu)
+### M7. Para os módulos e o engenheiro-apps (renomes do menu, token e manual)
 O rótulo do menu (`navegacao` em `modules/<m>/web/index.ts`) tem de estar na lista `apps.web.menus` do `manifest.ts` do mesmo módulo (o `criarShell` acusa a diferença): os dois mudam juntos, no mesmo PR do dono. O `titulo` da página não muda.
 
 | Dono | Arquivo | Rótulo antigo → novo |
@@ -124,6 +126,8 @@ O rótulo do menu (`navegacao` em `modules/<m>/web/index.ts`) tem de estar na li
 | modulo-promotor | `modules/promotor/web/index.ts` (página `cadastros`, campo `navegacao`) | "Cadastros de trade" → "Trade" |
 | modulo-promotor | `modules/promotor/manifest.ts` (`apps.web.menus`) | "Cadastros de trade" → "Trade" |
 | engenheiro-software | `packages/platform-sdk/src/shell.ts` (tipo `grupo`) | grupo `produtos_precos` (rótulo "Produtos e preços", das versões anteriores desta spec) → `produtos` (rótulo "Produtos"), com os demais grupos do M6 |
+| engenheiro-apps | `apps/web/app/globals.css` e `apps/web/components/app-shell.tsx` | **token novo (R-20261114-184400)**: criar `--color-nav-grupo: #f59a52` no `globals.css` e usá-lo (`text-nav-grupo`) no título e na seta dos grupos do menu e na barra da tela atual, **sem reaproveitar `--color-accent-light`** |
+| design-de-marca | `docs/marca/` (manual, §3) | **incluir no manual (R-20261114-184400)**: Sol claro `#F59A52` como cor do título de grupo do menu lateral do BKO (uso novo como texto, sobre o Grafite) e `#2B3743` (tela atual, hover e divisória do menu) |
 | engenheiro-apps | `apps/web/components/app-shell.tsx` e o teste do menu | rótulos dos grupos conforme o M2 (inclusive "Produtos"); conferir textos fixos de teste que citem os rótulos antigos "Produtos" (item do Core) e "Cadastros de trade" |
 | testes | `tests/modulos/acesso-perfil-modulos-rncore01.test.ts` (linhas 147–163) e `tests/e2e/bko/demo-bko.spec.ts` (linhas 105–108) | **nada a mudar nesses dois pontos**: o teste já espera, no estado novo, "Usuários e módulos" fora do `navegacao` e fora de `apps.web.menus`, com a página registrada por URL, e exige "Usuários" e "Perfis de acesso" no manifesto; o e2e já procura `nav-core-usuarios` e `nav-core-perfis`. Conferir só os testes que citem os rótulos antigos "Produtos" (item do Core) e "Cadastros de trade" |
 
