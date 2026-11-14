@@ -189,10 +189,10 @@ describe('T-0165: BotaoEditar, o lápis do item já no pedido (R-20261112-082212
     expect(BOTAO_EDITAR.tabela.lado + 2 * folgaDoBotaoEditar('tabela')).toBeGreaterThanOrEqual(48);
   });
 
-  it('borda accent, fundo accentSoft e ícone accentInk com contraste ≥ 4,5:1 sobre o fundo', () => {
-    expect(BOTAO_EDITAR.borda).toBe(colors.accent);
-    expect(BOTAO_EDITAR.fundo).toBe(colors.accentSoft);
-    expect(contraste(BOTAO_EDITAR.icone, BOTAO_EDITAR.fundo)).toBeGreaterThanOrEqual(4.5);
+  it('tom padrao: borda accent 1,5, fundo accentSoft e ícone accentInk com contraste ≥ 4,5:1 sobre o fundo', () => {
+    const { padrao } = BOTAO_EDITAR.tons;
+    expect(padrao).toEqual({ larguraBorda: 1.5, borda: colors.accent, fundo: colors.accentSoft, icone: colors.accentInk });
+    expect(contraste(padrao.icone, padrao.fundo)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('tom adicionado (14/11/2026): verde de situação, borda mais grossa que a do padrão', () => {
@@ -216,15 +216,6 @@ describe('T-0165: BotaoEditar, o lápis do item já no pedido (R-20261112-082212
     expect(tomDoBotaoEditar('tabela')).toBe('padrao');
     expect(tomDoBotaoEditar('linha', 'padrao')).toBe('padrao');
     expect(tomDoBotaoEditar('tabela', 'adicionado')).toBe('adicionado');
-  });
-
-  it('tons.padrao repete os campos raiz de BOTAO_EDITAR', () => {
-    expect(BOTAO_EDITAR.tons.padrao).toEqual({
-      larguraBorda: BOTAO_EDITAR.larguraBorda,
-      borda: BOTAO_EDITAR.borda,
-      fundo: BOTAO_EDITAR.fundo,
-      icone: BOTAO_EDITAR.icone,
-    });
   });
 
   it('TalkBack: "<nome>, no pedido. Editar" na aba Itens e "Editar <código>" no Resumo', () => {
