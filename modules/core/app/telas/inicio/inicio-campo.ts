@@ -22,9 +22,18 @@ export function linhaDaData(hoje: string, du: Pick<CalendarioPeriodo, 'du_hoje' 
   return `${data} · ${du.du_hoje === null ? 'Não é dia útil' : `DU ${du.du_hoje} de ${du.du_total}`}`;
 }
 
-/** "Boa tarde" + "Lucas Andrade" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
+/** R-20261114-145000: a primeira palavra do cadastro inteira, com a primeira letra (de cada parte do hífen) maiúscula e o resto minúsculo. */
+export function primeiroNome(nomeCompleto: string): string {
+  const primeira = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  return primeira
+    .split('-')
+    .map((parte) => (parte ? parte.charAt(0).toLocaleUpperCase('pt-BR') + parte.slice(1).toLocaleLowerCase('pt-BR') : parte))
+    .join('-');
+}
+
+/** "Boa tarde" + "LUCAS ANDRADE" → "Boa tarde, Lucas"; sem o nome, só a saudação. */
 export function saudacaoComNome(saudacao: string, nomeCompleto: string): string {
-  const primeiro = nomeCompleto.trim().split(/\s+/)[0] ?? '';
+  const primeiro = primeiroNome(nomeCompleto);
   return primeiro ? `${saudacao}, ${primeiro}` : saudacao;
 }
 

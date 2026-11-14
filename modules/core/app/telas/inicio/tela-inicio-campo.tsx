@@ -1,21 +1,23 @@
 /**
- * Início do Campo (T-0170; imagem `2026-11-12-T0170-final-inicio.png`). De cima para baixo: painel do topo (data · DU,
- * saudação, frase do dia, foto ou avatar; Azul noite de ponta a ponta, colado no topo), "Metas do mês" com o sino na linha e 4 cards, "Produtividade" com 6 indicadores e
- * a seta para a Performance, e o Sincronizar largo com "Últ. sincronização hh:mm". Só desenho: os textos e os tons saem de
- * `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: ele passa `sino`,
- * `onAbrirPerformance` e `onPerfil`. Alvos de toque >= 48 dp. Sem a foto no aparelho valem as iniciais.
+ * Início do Campo (T-0170; R-20261114-145000). Coluna de altura cheia, sem rolagem no uso normal: (a) painel do topo FIXO, Azul
+ * noite de ponta a ponta (avatar pequeno, data · DU e o sino à direita, como o `CabecalhoTela`; saudação na largura inteira,
+ * que encolhe para caber, e a frase), (b) o meio rolável só se preciso (Metas do mês e Produtividade, compactas, com o puxar
+ * para atualizar) e (c) o Sincronizar FIXO no rodapé, fora da rolagem, com "Últ. sincronização hh:mm". Só desenho: textos e tons
+ * saem de `inicio-campo.ts` (puro, testado). O sino (com o balão), a barra de abas e as rotas são do shell: o sino vem do
+ * `ProvedorSinoCabecalho` (o mesmo das outras telas); a prop `sino` só vale sem provedor. Alvos de toque >= 48 dp.
  */
-import { Button, Cartao, colors, fonts, Icon, initials, layout, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Button, Cartao, colors, fonts, Icon, initials, layout, layoutCabecalho, Pressionavel, ProgressBar, Screen, space, type as t, useAtualizacaoAutomatica, useSinoCabecalho } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCore } from '../../lib/usar-core';
 import type { CardMetaInicio, IndicadorInicio } from './inicio-campo';
 import { useInicioCampo } from './usar-inicio-campo';
 
 export interface PropsTelaInicioCampo {
-  /** O sino com o balão (do shell); recebe o número de recados e tarefas novos (`useInicioCampo().sino.total`). */
-  sino: (novos: number) => ReactNode;
+  /** Só para quem não tem o `ProvedorSinoCabecalho`: o sino com o balão (recebe `useInicioCampo().sino.total`). */
+  sino?: (novos: number) => ReactNode;
   onAbrirPerformance: () => void;
   onPerfil: () => void;
   /** Avisos do shell logo abaixo do painel (ex.: módulo desativado com itens na fila). */
@@ -26,57 +28,68 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
   const core = useCore();
   const auto = useAtualizacaoAutomatica({ tz: core.tz });
   const v = useInicioCampo();
+  const insets = useSafeAreaInsets();
+  const sinoDoCabecalho = useSinoCabecalho();
   if (!v) return null;
+  const sinoDoPainel = sinoDoCabecalho ?? sino?.(v.sino.total) ?? null;
+  const pares = [v.metas.slice(0, 2), v.metas.slice(2, 4)].filter((p) => p.length > 0);
   return (
-    <Screen testID="inicio" top={0} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={{ flexGrow: 1 }}>
-      <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.painel}>
-        <View style={s.painelTextos}>
-          <Text style={s.data} testID="inicio.data">
-            {v.data}
-          </Text>
-          <Text style={s.saudacao} testID="inicio.saudacao" numberOfLines={1}>
+    <View style={s.raiz}>
+      <View style={[layoutCabecalho(insets.top), s.painel]}>
+        <View style={s.linhaTopo}>
+          <Pressionavel testID="abrir-perfil" accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.perfil}>
+            <View style={s.avatar} testID="inicio.avatar" accessibilityLabel={`Foto de ${v.nome}`}>
+              <Text style={s.iniciais}>{initials(v.nome)}</Text>
+            </View>
+            <Text style={s.data} testID="inicio.data" numberOfLines={2}>
+              {v.data}
+            </Text>
+          </Pressionavel>
+          {sinoDoPainel}
+        </View>
+        <Pressionavel accessibilityRole="button" accessibilityLabel={`${v.saudacao}. Abrir perfil`} onPress={onPerfil} style={s.textos}>
+          <Text style={s.saudacao} testID="inicio.saudacao" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
             {v.saudacao}
           </Text>
           {v.frase ? (
-            <Text style={s.frase} testID="inicio.frase">
+            <Text style={s.frase} testID="inicio.frase" numberOfLines={2}>
               “{v.frase}”
             </Text>
           ) : null}
-        </View>
-        <View style={s.avatar} testID="inicio.avatar" accessibilityLabel={`Foto de ${v.nome}`}>
-          <Text style={s.iniciais}>{initials(v.nome)}</Text>
-        </View>
-      </Pressionavel>
-      {avisos}
+        </Pressionavel>
+      </View>
 
-      <View style={s.linhaTitulo}>
-        <Text style={t.h2} accessibilityRole="header">
+      <Screen testID="inicio" top={0} gap={space.sm} refreshing={auto.puxando} onRefresh={auto.puxar} contentStyle={s.meio}>
+        {avisos}
+        <Text style={[t.h2, s.titulo]} accessibilityRole="header">
           Metas do mês
         </Text>
-        {sino(v.sino.total)}
-      </View>
-      <View style={s.grade}>
-        {v.metas.map((c) => (
-          <CartaoMeta key={c.indicador} c={c} />
-        ))}
-      </View>
-
-      <Pressionavel testID="inicio.produtividade.abrir" accessibilityRole="button" accessibilityLabel="Produtividade. Abrir a Performance" onPress={onAbrirPerformance} style={s.linhaTitulo}>
-        <Text style={t.h2} accessibilityRole="header">
-          Produtividade
-        </Text>
-        <Icon name="chevron" size={22} color={colors.ink} />
-      </Pressionavel>
-      <Cartao testID="inicio.produtividade">
-        <View style={s.gradeProd}>
-          {v.produtividade.map((p, i) => (
-            <IndicadorDoInicio key={p.indicador} p={p} divisor={i % 3 !== 0} />
+        <View style={s.grade}>
+          {pares.map((par, i) => (
+            <View key={i} style={s.parLinha}>
+              {par.map((c) => (
+                <CartaoMeta key={c.indicador} c={c} />
+              ))}
+            </View>
           ))}
         </View>
-      </Cartao>
 
-      <View style={{ flex: 1, minHeight: 4 }} />
-      <View style={s.linhaSinc}>
+        <Pressionavel testID="inicio.produtividade.abrir" accessibilityRole="button" accessibilityLabel="Produtividade. Abrir a Performance" hitSlop={{ top: 8, bottom: 8 }} onPress={onAbrirPerformance} style={s.linhaTitulo}>
+          <Text style={t.h2} accessibilityRole="header">
+            Produtividade
+          </Text>
+          <Icon name="chevron" size={22} color={colors.ink} />
+        </Pressionavel>
+        <Cartao testID="inicio.produtividade" preenchimento={space.md}>
+          <View style={s.gradeProd}>
+            {v.produtividade.map((p, i) => (
+              <IndicadorDoInicio key={p.indicador} p={p} divisor={i % 3 !== 0} />
+            ))}
+          </View>
+        </Cartao>
+      </Screen>
+
+      <View style={s.linhaSinc} testID="inicio.rodape">
         <View style={{ flex: 1 }}>
           <Button testID="inicio-sincronizar" label="Sincronizar" icon="sync" variant="dark" height={52} loading={auto.puxando} onPress={auto.puxar} />
         </View>
@@ -86,7 +99,7 @@ export function TelaInicioCampo({ sino, onAbrirPerformance, onPerfil, avisos }: 
           </Text>
         ) : null}
       </View>
-    </Screen>
+    </View>
   );
 }
 
@@ -98,24 +111,22 @@ function CartaoMeta({ c }: { c: CardMetaInicio }) {
   const corDoTom = c.tom === 'batida' ? colors.ink : colors.danger;
   return (
     <View style={s.celula} testID={`inicio.meta.${c.indicador}`} accessible accessibilityLabel={leituraDaMeta(c)}>
-      <Cartao gap={space.sm} style={{ flex: 1 }}>
-        <Text style={t.label} numberOfLines={1}>
-          {c.titulo}
-        </Text>
+      <Cartao gap={space.xs} preenchimento={space.md} style={{ flex: 1 }}>
+        <View style={s.linhaBarra}>
+          <Text style={[t.label, { flex: 1 }]} numberOfLines={1}>
+            {c.titulo}
+          </Text>
+          {c.percentual ? (
+            <Text style={[s.percentual, { color: corDoTom }]} importantForAccessibility="no">
+              {c.percentual}
+            </Text>
+          ) : null}
+        </View>
         <Text style={s.real} numberOfLines={1} adjustsFontSizeToFit>
           {c.real}
           {c.meta ? <Text style={s.meta}> / {c.meta}</Text> : null}
         </Text>
-        {c.percentual ? (
-          <View style={s.linhaBarra}>
-            <View style={{ flex: 1 }}>
-              <ProgressBar pct={c.barra * 100} color={colors.grafico} rotulo={`${c.titulo}: ${c.percentual} da meta`} />
-            </View>
-            <Text style={[s.percentual, { color: corDoTom }]} importantForAccessibility="no">
-              {c.percentual}
-            </Text>
-          </View>
-        ) : null}
+        {c.percentual ? <ProgressBar pct={c.barra * 100} color={colors.grafico} height={6} rotulo={`${c.titulo}: ${c.percentual} da meta`} /> : null}
         {c.rodape ? (
           <View style={s.rodape}>
             <Text style={t.sub}>{c.rodape.rotulo}</Text>
@@ -144,29 +155,35 @@ function IndicadorDoInicio({ p, divisor }: { p: IndicadorInicio; divisor: boolea
 }
 
 const s = StyleSheet.create({
-  // De ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): sai da margem lateral do Screen, colado no topo, sem cantos
-  painel: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.faixa, marginHorizontal: -layout.telaLateral, padding: space.lg, minHeight: 140 },
-  painelTextos: { flex: 1, gap: space.xs },
-  data: { fontFamily: fonts.body, fontSize: 14, color: colors.faixaSub },
-  saudacao: { fontFamily: fonts.display, fontSize: 28, color: colors.faixaTitulo },
-  frase: { fontFamily: fonts.body, fontSize: 15, fontStyle: 'italic', color: colors.faixaSub },
-  avatar: { width: 96, height: 128, borderRadius: 16, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  iniciais: { fontFamily: fonts.display, fontSize: 32, color: colors.accentInk },
-  linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, gap: space.md },
-  grade: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -space.xs },
-  celula: { width: '50%', padding: space.xs },
-  real: { fontFamily: fonts.display, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
-  meta: { fontFamily: fonts.body, fontSize: 18, color: colors.ink2 },
+  raiz: { flex: 1, backgroundColor: colors.ground },
+  // Painel fixo, de ponta a ponta (quadro 8 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite do `CabecalhoTela`
+  painel: { paddingBottom: space.lg, gap: space.xs },
+  linhaTopo: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  perfil: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 48 },
+  textos: { gap: space.xxs },
+  data: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.faixaSub },
+  saudacao: { fontFamily: fonts.display, fontSize: 24, color: colors.faixaTitulo },
+  frase: { fontFamily: fonts.body, fontSize: 14, fontStyle: 'italic', color: colors.faixaSub },
+  avatar: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  iniciais: { fontFamily: fonts.display, fontSize: 16, color: colors.accentInk },
+  meio: { paddingTop: space.md, paddingBottom: space.sm, flexGrow: 1 },
+  titulo: { minHeight: 24 },
+  linhaTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 32, gap: space.md },
+  grade: { gap: space.sm },
+  parLinha: { flexDirection: 'row', flexGrow: 1, flexShrink: 0, maxHeight: 132, gap: space.sm },
+  celula: { flex: 1 },
+  real: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
+  meta: { fontFamily: fonts.body, fontSize: 16, color: colors.ink2 },
   linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   percentual: { fontFamily: fonts.bold, fontSize: 14, fontVariant: ['tabular-nums'] },
   rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   valorRodape: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  gradeProd: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.md },
+  gradeProd: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.sm },
   indicador: { width: '33.333%', paddingHorizontal: space.sm, gap: space.xxs },
   indicadorComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   ponto: { width: 8, height: 8, borderRadius: 4 },
   valorIndicador: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
-  linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: layout.telaLateral, paddingTop: space.sm, paddingBottom: space.md, backgroundColor: colors.ground },
   ultima: { width: 96 },
 });
