@@ -435,7 +435,6 @@ export function AbaResumo({
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
   const pagamentoEPrazo = dividirPagamentoPrazo(prazo);
-  const semDado = '—';
   const obsEntrega = (r.observacao_entrega ?? '').trim();
   const linhasEntrega = [
     { rotulo: 'Frete', valor: textoDoFrete(frete.modalidade, transportadora) },
@@ -447,7 +446,7 @@ export function AbaResumo({
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <View style={{ gap: 6 }} testID="resumo-pedido">
         <RotuloSecao texto="Cliente" />
-        <TabelaRotuloValor testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || semDado }]} />
+        <TabelaRotuloValor testID="resumo-cliente" linhas={[{ rotulo: 'Razão social', valor: clienteRazao }, { rotulo: 'CNPJ', valor: clienteCnpj || VALOR_SEM_DADO }]} />
       </View>
       <View style={{ gap: 6 }}>
         <RotuloSecao texto="Condição de pagamento" />
@@ -458,7 +457,7 @@ export function AbaResumo({
         {calculo.linhas.length > 0 ? (
           <TabelaDeItens itens={itensDoResumoEmTabela(calculo.linhas, (id) => nomes.get(id) ?? '', (id) => codigos.get(id) ?? '', (id) => marcas.get(id))} aoTocarLinha={somenteLeitura ? undefined : (chave) => aoAbrirItem(lerChaveDaLinha(chave).product_id)} />
         ) : (
-          <Text style={t.sub}>{semDado}</Text>
+          <Text style={t.sub}>{VALOR_SEM_DADO}</Text>
         )}
       </View>
       <View style={{ gap: 6 }}>

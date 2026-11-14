@@ -40,6 +40,13 @@ describe('csv', () => {
     expect(csvCell(12)).toBe('12');
   });
 
+  it('RD-0051: saída byte a byte (BOM U+FEFF, ;, CRLF, aspas; fórmula sem prefixo, como sempre foi)', () => {
+    const csv = toCsv([['=SOMA(A1)', '-5', '+1', '@x', 'a;b', 'diz "oi"', null], [1, 'linha\r\nnova', '']]);
+    expect(CSV_BOM).toBe('﻿');
+    expect(Array.from(Buffer.from(csv, 'utf8').subarray(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+    expect(csv).toBe('﻿=SOMA(A1);-5;+1;@x;"a;b";"diz ""oi""";\r\n1;"linha\r\nnova";\r\n');
+  });
+
   it('usa BOM, ; e CRLF', () => {
     expect(toCsv([['a', 'b'], ['1', '2']])).toBe(`${CSV_BOM}a;b\r\n1;2\r\n`);
   });

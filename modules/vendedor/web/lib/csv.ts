@@ -1,8 +1,12 @@
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../contracts';
+import { BOM_CSV } from '@macuxi/comum/csv';
 import { DEFAULT_TZ, formatDateTimeFull } from '@macuxi/ui/web';
 
-/** BOM para o Excel abrir em UTF-8 sem perguntar. */
-export const CSV_BOM = '﻿';
+/**
+ * BOM para o Excel abrir em UTF-8 sem perguntar: o do `@macuxi/comum/csv` (RD-0051). A célula (`csvCell`) continua local:
+ * a `celulaCsv`/`protegerFormula` do comum põe aspas sempre e prefixa `'` em `=`, `+`, `-` e `@`, o que mudaria a saída.
+ */
+export const CSV_BOM = BOM_CSV;
 
 /** Escapa uma célula: aspas quando houver ; " ou quebra de linha. */
 export function csvCell(v: string | number | null | undefined): string {
