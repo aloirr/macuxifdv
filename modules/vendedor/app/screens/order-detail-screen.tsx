@@ -52,7 +52,7 @@ import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { PERGUNTA_DA_ALCADA, perguntaDaAlcada } from '../../domain/botoes-resumo';
-import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
+import { acoesDoDetalhe, alertasDoDetalhe, clienteComCodigo, eventosDoOrcamento, eventosDoPedido, fonteDasLinhasDoDetalhe, itensVisiveis, linhaDeItemEmTabela, linhasDosTotais } from '../lib/detalhe-pedido';
 import { textoDoFrete } from '../lib/resumo-tabela';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
@@ -96,7 +96,7 @@ export default function OrderDetailScreen() {
   const { id, transformar: abrirTransformar } = useLocalSearchParams<{ id: string; transformar?: string }>();
   const app = useVendedor();
   const ambiente = useAmbiente();
-  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing, perfil, v1 } = app;
+  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, perfil, v1 } = app;
   const podeAprovar = usePode('pedido.aprovar');
   const sheets = useAviso();
   const podeEditar = usePode('pedido.editar');
@@ -216,8 +216,11 @@ export default function OrderDetailScreen() {
   const sellerNameHeader = queued ? (ambiente.usuario()?.nome ?? '') : (base?.seller_name ?? '');
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
-  const lines: Line[] = queued
-    ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
+  // aceito que o pull ainda não trouxe: as linhas vêm da exibição guardada ao salvar (nunca "Itens (0)")
+  const exibicaoGuardada = !queued && id ? (dados.exibicoes[id]?.lines ?? []) : [];
+  const fonteDasLinhas = fonteDasLinhasDoDetalhe({ naFila: Boolean(queued), itensDoDetalhe: detail?.items.length ?? 0, linhasDaExibicao: exibicaoGuardada.length });
+  const lines: Line[] = queued || fonteDasLinhas === 'exibicao'
+    ? (qd?.lines ?? exibicaoGuardada).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
     : (detail?.items ?? []).map((it) => ({ key: it.id, product_id: it.product_id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application, brand: it.brand }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -540,8 +543,8 @@ export default function OrderDetailScreen() {
   const tabelaBase = [...tabelaPagamento.map((l) => (l.rotulo === 'Entrega' && enderecoEditado ? { ...l, complemento: TEXTOS_ENDERECO.editadoNestePedido, testIDComplemento: 'order-delivery-editado' } : l)), ...linhasExtras];
   const tabelaGestao = !ehVendedor && vendedorNome ? [{ rotulo: 'Vendedor', valor: vendedorNome }, ...tabelaBase] : tabelaBase;
   const { visiveis, rotuloVerTodos } = itensVisiveis(lines, mostrarTodosItens);
-  // T-0150 🟡 4: "Enviar agora" é a ação principal do rodapé do pedido na fila (com sinal)
-  const principalDoRodape = principal ?? (queued && naFila?.podeEnviarAgora ? { rotulo: 'Enviar agora', icone: 'send' as const, ocupado: flushing, onPress: () => void reenviarFila().then(() => irParaPedidos()), testID: 'pedido-enviar-agora' } : null);
+  // RN-CORE-23: a fila envia sozinha; o pedido na fila não tem botão "Enviar agora"
+  const principalDoRodape = principal;
   // T-0150 🔴 3: quem decide (Gestão) vê Aprovar e Rejeitar no rodapé; sem sinal ficam desligados ("Aprovar exige internet")
   const decide = Boolean(detail?.aprovacao && detail.aprovacao.pode_decidir && podeAprovar);
   const rodapeFixo = !somenteLeitura && (principalDoRodape !== null || iconesDaTela.length > 0);

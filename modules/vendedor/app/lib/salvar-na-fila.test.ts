@@ -13,8 +13,12 @@ describe('RN-VEN-30 (08/11), RF-VEN-04: salvar pela fila', () => {
     const e = estadoNaFila({ recusado: false, offline: true });
     expect(e.somenteLeitura).toBe(true);
     expect(e.podeCorrigir).toBe(false);
-    expect(e.podeEnviarAgora).toBe(false);
-    expect(estadoNaFila({ recusado: false, offline: false }).podeEnviarAgora).toBe(true);
+    expect(e).not.toHaveProperty('podeEnviarAgora');
+  });
+
+  it('RN-CORE-23: a fila envia sozinha; o estado da fila não oferece "Enviar agora" nem com sinal', () => {
+    expect(estadoNaFila({ recusado: false, offline: false })).not.toHaveProperty('podeEnviarAgora');
+    expect(estadoNaFila({ recusado: true, offline: false })).not.toHaveProperty('podeEnviarAgora');
   });
 
   it('RN-VEN-30: na fila o detalhe não oferece editar; recusado volta a poder ser reaberto', () => {

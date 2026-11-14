@@ -9,16 +9,19 @@ import { createContext, createElement, useContext, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { dividirAreaSegura, type Insets } from '@/lib/area-segura';
+import { dividirAreaSegura, ROTAS_SEM_FAIXA, rotaComFaixa, type Insets } from '@/lib/area-segura';
 
 const APARELHO: Insets = { top: 24, bottom: 48, left: 0, right: 0 };
 
-type Props = { children?: ReactNode; testID?: string; style?: { paddingTop?: number } };
+type Props = { children?: ReactNode; testID?: string; style?: { paddingTop?: number; backgroundColor?: string } };
 vi.mock('react-native', () => ({
   Platform: { OS: 'android' },
   StatusBar: { currentHeight: 20 },
   View: ({ children, testID, style }: Props) =>
-    createElement('div', { 'data-testid': testID, 'data-padding-top': style?.paddingTop ?? '' }, children),
+    createElement('div', { 'data-testid': testID, 'data-padding-top': style?.paddingTop ?? '', 'data-fundo': style?.backgroundColor ?? '' }, children),
+}));
+vi.mock('expo-status-bar', () => ({
+  StatusBar: ({ style }: { style?: string }) => createElement('i', { 'data-testid': 'barra-de-status', 'data-style': style ?? '' }),
 }));
 vi.mock('react-native-safe-area-context', () => {
   // contexto de verdade, como o da biblioteca: o provedor do aparelho fica na raiz (expo-router)
@@ -32,9 +35,17 @@ vi.mock('react-native-safe-area-context', () => {
     },
   };
 });
-vi.mock('@macuxi/ui/mobile', () => ({ colors: new Proxy({}, { get: () => '#000' }) }));
+const FAIXA = '#1E3350';
+const PEROLA = '#F8F6F1';
+vi.mock('@macuxi/ui/mobile', () => ({
+  colors: { faixa: '#1E3350', ground: '#F8F6F1' },
+  estiloBarraDeStatus: (comCabecalho: boolean) => (comCabecalho ? 'light' : 'dark'),
+}));
+// o foco da aba: guarda o efeito de foco para o teste disparar o foco e o desfoco
+const foco = vi.hoisted(() => ({ efeitos: [] as Array<() => void | (() => void)> }));
+vi.mock('expo-router', () => ({ useFocusEffect: (efeito: () => void | (() => void)) => void foco.efeitos.push(efeito) }));
 
-const { AreaSeguraSuperior, useFaixaSuperior } = await import('./area-segura');
+const { AreaSeguraSuperior, CorDaFaixaContext, useCorDaFaixaNoFoco, useFaixaSuperior } = await import('./area-segura');
 const { useSafeAreaInsets } = await import('react-native-safe-area-context');
 
 /** Uma "tela" qualquer de módulo: soma `insets.top` como o detalhe do pedido e o `Screen` fazem. */
@@ -69,7 +80,8 @@ describe('AreaSeguraSuperior', () => {
 
   it('o layout raiz envolve o Stack inteiro (todas as telas empilhadas e as abas, nas duas variantes)', () => {
     const src = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
-    const ini = src.indexOf('<AreaSeguraSuperior>');
+    expect(src).toMatch(/const rota = usePathname\(\);/);
+    const ini = src.indexOf('<AreaSeguraSuperior rota={rota}>');
     const fim = src.indexOf('</AreaSeguraSuperior>');
     expect(ini).toBeGreaterThan(0);
     const dentro = src.slice(ini, fim);
@@ -80,5 +92,69 @@ describe('AreaSeguraSuperior', () => {
   it('o login (KeyboardAvoidingView com padding) desconta a faixa ao medir o teclado', () => {
     const src = readFileSync(new URL('../app/login.tsx', import.meta.url), 'utf8');
     expect(src).toMatch(/behavior="padding" keyboardVerticalOffset=\{faixaSuperior\}/);
+  });
+});
+
+describe('useCorDaFaixaNoFoco (T-0172, Início do Campo)', () => {
+  function AbaInicio() {
+    useCorDaFaixaNoFoco(FAIXA);
+    return null;
+  }
+
+  it('no foco pinta a faixa de Azul noite; no desfoco a faixa volta à cor da rota (null)', () => {
+    const cores: Array<string | null> = [];
+    foco.efeitos.length = 0;
+    renderToStaticMarkup(createElement(CorDaFaixaContext.Provider, { value: (cor: string | null) => void cores.push(cor) }, createElement(AbaInicio)));
+    expect(foco.efeitos).toHaveLength(1);
+    expect(cores).toEqual([]); // montada sem foco não pinta
+
+    const desfocar = foco.efeitos[0]?.();
+    expect(cores).toEqual([FAIXA]);
+
+    if (typeof desfocar === 'function') desfocar();
+    expect(cores).toEqual([FAIXA, null]);
+  });
+
+  it('o Início do Campo usa a faixa no foco com o token da faixa (a barra de status acompanha a cor no shell)', () => {
+    const src = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('useCorDaFaixaNoFoco(colors.faixa)');
+  });
+});
+
+/** Renderiza o shell na rota e devolve o fundo da faixa e o estilo da barra de status. */
+function faixaNa(rota: string | undefined) {
+  const html = renderToStaticMarkup(createElement(AreaSeguraSuperior, { rota, children: createElement(TelaDeModulo) }));
+  return {
+    fundo: /data-testid="area-segura-superior"[^>]*data-fundo="([^"]*)"/.exec(html)?.[1],
+    barra: /data-testid="barra-de-status" data-style="([^"]*)"/.exec(html)?.[1],
+  };
+}
+
+describe('cor da faixa da barra de status (pedido de 14/11/2026, manual da marca §4)', () => {
+  it('rota com cabeçalho (Catálogo): faixa Azul noite e ícones claros', () => {
+    expect(faixaNa('/m/catalogo')).toEqual({ fundo: FAIXA, barra: 'light' });
+  });
+  it('Início ("/") sem tela pintando: Pérola e ícones escuros', () => {
+    expect(faixaNa('/')).toEqual({ fundo: PEROLA, barra: 'dark' });
+  });
+  it('barra final não muda a rota: "/mais/" tem faixa', () => {
+    expect(faixaNa('/mais/')).toEqual({ fundo: FAIXA, barra: 'light' });
+  });
+  it('sem rota: a faixa é o padrão', () => {
+    expect(faixaNa(undefined)).toEqual({ fundo: FAIXA, barra: 'light' });
+  });
+});
+
+describe('rotaComFaixa', () => {
+  it('só Início, login, sincronização e foto ficam sem faixa', () => {
+    expect(ROTAS_SEM_FAIXA).toEqual(['/', '/login', '/sync', '/foto']);
+    for (const r of ROTAS_SEM_FAIXA) expect(rotaComFaixa(r)).toBe(false);
+    expect(rotaComFaixa('/login/')).toBe(false);
+  });
+  it('as demais rotas têm faixa; sem rota também', () => {
+    for (const r of ['/mais', '/mais/', '/profile', '/diagnostico-carga', '/m/catalogo', '/m/vendedor/clientes']) expect(rotaComFaixa(r)).toBe(true);
+    expect(rotaComFaixa(undefined)).toBe(true);
+    expect(rotaComFaixa(null)).toBe(true);
+    expect(rotaComFaixa('')).toBe(true);
   });
 });

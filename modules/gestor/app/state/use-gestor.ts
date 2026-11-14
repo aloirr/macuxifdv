@@ -16,7 +16,7 @@ import { aplicarParadoMinDoTenant } from '../lib/parado-min';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
 const relogio = relogioReal();
-export const PRECISA_SINAL = 'Sem conexão: esta ação precisa de internet. Tente de novo quando o sinal voltar.';
+export const SEM_SINAL_PARA_DISPENSAR = 'Sem sinal para dispensar';
 
 /** `pendencias: true` só na aba Alertas: as demais telas não leem as notificações do SQLite (T-0039 G1). */
 export function useGestor(opcoes: { pendencias?: boolean } = {}) {
@@ -54,7 +54,7 @@ export function useGestor(opcoes: { pendencias?: boolean } = {}) {
   const dispensar = useCallback(
     async (id: string): Promise<{ ok: true } | { ok: false; mensagem: string }> => {
       if (!cache) return { ok: false, mensagem: 'Carregando…' };
-      if (!ambiente.online()) return { ok: false, mensagem: PRECISA_SINAL };
+      if (!ambiente.online()) return { ok: false, mensagem: SEM_SINAL_PARA_DISPENSAR };
       try {
         const a = Alerta.parse(await ambiente.http.requisitar<unknown>('POST', ROTAS_GESTOR.dispensarAlerta(id)));
         const atual = await cache.ler('alertas');

@@ -263,6 +263,7 @@ export default function OrdersScreen() {
         windowSize={7}
         removeClippedSubviews
         refreshing={auto.puxando}
+        progressViewOffset={CABECALHO.respiroCorpo}
         onRefresh={() => {
           setTentativa((n) => n + 1);
           auto.puxar();

@@ -132,6 +132,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Técnico:** ADR 0040 e `docs/desenho/T-0149.md`. Tudo é aditivo: consulta `core.filiais@1`, evento `integracao.filial.atualizado@1` e Conector 1.4.0 para pedido de filial que não é a padrão.
 
   *(Alexandre, R-20261110-062236; T-0149.)*
+- **RN-CORE-52 Curvas ABC do cliente** (Alexandre, chat de 14/11/2026 ~6h, R-20261114-060400; Oficial. Os padrões abaixo valem até ele confirmar.)
+  - **Três curvas**, cada uma com o nome escrito: **Faturamento**, **Volume** e **Frequência de compra**. A tag "Curva X" sem dizer de quê não é mais usada.
+  - **Base:** o mês atual comparado com a média dos 3 meses anteriores do próprio cliente.
+  - **Faixas padrão**, parametrizáveis por tenant:
+    - **A:** 50% ou mais acima da média;
+    - **B:** de 20% abaixo a menos de 50% acima;
+    - **C:** mais de 20% abaixo da média.
+  - **Sem histórico** de 3 meses: "—", sem curva.
+  - **Onde aparece:** na ficha do cliente (aba Resumo).
 - **RN-CORE-40 Indicadores de compra da ficha do cliente** (topo da ficha, Campo, Gestão e BKO; T-0146).
   - **Janela:** os 12 meses que terminam no mês de hoje, inclusive, no fuso do tenant.
   - **Fórmulas:**

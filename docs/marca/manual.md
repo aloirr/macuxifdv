@@ -1,6 +1,6 @@
 # Manual da marca Macuxi FDV
 
-> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). O histórico das decisões está em [`decisoes.md`](decisoes.md).
+> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface e séries de gráfico aprovados em 14/11/2026 (MC-0004 B e MC-0014 A). O histórico das decisões está em [`decisoes.md`](decisoes.md).
 > Fonte única da verdade da marca. Só entra aqui o que o Alexandre aprovou. Os arquivos finais estão em [`ativos/2026-11-12-v1/`](ativos/2026-11-12-v1/), e a prancha de conferência é [`ativos.png`](ativos/2026-11-12-v1/ativos.png).
 
 ## 1. Essência
@@ -55,9 +55,12 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Texto secundário | `#4A5562` | texto de apoio |
 | Texto de apoio | `#5B6673` | legendas e rótulos menores |
 | Azul claro | `#9AA3B0` | azul sobre o grafite |
-| Azul suave | `#DFE2E6` | fundo do chip e do cartão em destaque |
-| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite |
-| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração |
+| Azul suave | `#DFE2E6` | fundo do chip e do cartão em destaque; linha (divisória e borda do cartão) |
+| Névoa | `#ECEEF1` | linha suave, chip neutro, botão desabilitado, avatar, fundo do mapa |
+| Texto claro na faixa | `#C9CED5` | subtítulo dentro do cabeçalho Azul noite; borda forte (campo, linha forte, borda do mapa e caixas do PDF) |
+| Azul médio | `#5B7FA6` | só série de gráfico. **Nunca texto nem botão** |
+| Cinza série | `#8B96A3` | série "outros" dos gráficos e desabilitado do BKO |
+| Sucesso, aviso e erro | `#1D6B4F`, `#7A4F00`, `#A8261B` (fundos `#E2F1EA`, `#FFF1D6`, `#FDE8E6`) | só para situação, sempre com texto. Nunca decoração. Única exceção sem texto visível: o lápis do item já adicionado no Novo pedido (veja abaixo) |
 
 **Contraste conferido** (WCAG AA; texto ≥ 4,5:1, gráfico ≥ 3:1; lista completa em `ativos/2026-11-12-v1/contraste.json`):
 
@@ -73,6 +76,27 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 | Azul claro no grafite | 6,47 |
 | sol laranja no Pérola (gráfico) | 4,26 |
 | sol claro no Azul noite (gráfico) | 5,85 |
+| grafite na Névoa | 14,18 |
+| `#34404D` na Névoa | 9,09 |
+| `#4A5562` na Névoa | 6,53 |
+| `#5B6673` na Névoa (botão desabilitado) | 5,03 |
+| Azul noite na Névoa | 10,99 |
+| Azul suave no branco (linha, enfeite) | 1,30 |
+| Névoa no branco (enfeite) | 1,16 |
+| `#C9CED5` no branco (borda) | 1,58 |
+| sol laranja no branco (gráfico) | 4,60 |
+| `#4A5562` no branco (gráfico) | 7,59 |
+| Azul médio no branco (gráfico) | 4,17 |
+| Azul médio contra o Azul noite (séries vizinhas) | 3,06 |
+| `#8B96A3` no branco (gráfico) | 3,00 |
+| `#1D6B4F` no `#E2F1EA` (ícone) | 5,51 |
+| `#1D6B4F` no branco (borda do lápis) | 6,43 |
+
+**Neutros de interface** (decisão do Alexandre, 14/11/2026, MC-0004 B): linha, campo, chip e fundo do mapa usam só os neutros do Azul suave acima (`#DFE2E6`, `#ECEEF1` e `#C9CED5`). Saem os esverdeados `#E1E4DE`, `#ECEEE9`, `#E6E9E2`, `#C9CEC6`, `#D6DAD1` e `#E9ECE6`, em tokens, CSS e PDF.
+
+**Séries de gráfico** (decisão do Alexandre, 14/11/2026, MC-0014 A): ordem fixa Azul noite `#1E3350`, Sol laranja `#C2540A`, `#4A5562` e Azul médio `#5B7FA6`; "outros" em `#8B96A3`. Com mais de 4 séries, a cor repete e o número ou o rótulo no marcador distingue.
+
+**Exceção (decisão do Alexandre, 14/11/2026):** o botão Editar (lápis) do item já adicionado no Novo pedido usa fundo `#E2F1EA`, borda e ícone `#1D6B4F`, sem texto visível; a situação "já adicionado" vai no ícone e no rótulo de acessibilidade "Adicionado". Vale só para esse botão; nos outros lugares o verde continua só com texto.
 
 **Combinações proibidas:**
 - texto laranja sobre claro. Se for inevitável, use `#8F3D06`;

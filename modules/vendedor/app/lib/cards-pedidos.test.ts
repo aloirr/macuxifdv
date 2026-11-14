@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { periodoDe } from '../../domain/busca-periodo';
 import { resumoDePedidos } from '../../domain/resumo-pedidos';
-import { textoDoCard } from './cards-pedidos';
+import { quantidadeDoCard, textoDoCard, valorDoCard } from './cards-pedidos';
 
 describe('RN-VEN-43: cards de Pedidos', () => {
   it('RN-VEN-43: texto do card = quantidade · valor; sem resposta, traço', () => {
@@ -19,5 +19,13 @@ describe('RN-VEN-43: cards de Pedidos', () => {
       { periodo: periodoDe('mes', new Date('2026-11-12T12:00:00Z'), 'America/Manaus'), tz: 'America/Manaus' },
     );
     expect(r.total).toEqual({ quantidade: 2, valor_cents: 1200 });
+  });
+  it('RN-VEN-43: o cartão separa a quantidade em destaque do valor em R$; sem resposta, traço e sem valor', () => {
+    const q = { quantidade: 7, valor_cents: 123400 };
+    expect(quantidadeDoCard(q)).toBe('7');
+    expect(valorDoCard(q)).toMatch(/^R\$\s?1\.234,00$/);
+    expect(quantidadeDoCard(null)).toBe('—');
+    expect(valorDoCard(null)).toBeNull();
+    expect(`${quantidadeDoCard(q)} · ${valorDoCard(q)}`).toBe(textoDoCard(q));
   });
 });

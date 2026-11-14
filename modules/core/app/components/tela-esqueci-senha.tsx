@@ -57,7 +57,7 @@ export function TelaEsqueciSenha({ inicial, semInternet = false, onPedir, onVolt
           <Text style={[styles.avisoTexto, { color: toneColors.accent.fg }]}>{TEXTO_ESQUECI_CONFIRMACAO}</Text>
         </View>
         <Text style={t.small}>{TEXTO_ESQUECI_NAO_CHEGOU}</Text>
-        <Button testID="esqueci.voltar" label="Voltar ao login" variant="dark" height={52} onPress={() => onVoltar(campos)} />
+        <Button testID="esqueci.voltar" label="Voltar ao login" variant="accent" height={52} onPress={() => onVoltar(campos)} />
       </Screen>
     );
   }
@@ -108,7 +108,7 @@ export function TelaEsqueciSenha({ inicial, semInternet = false, onPedir, onVolt
         onSubmitEditing={() => void pedir()}
       />
 
-      <Button testID="esqueci.enviar" label={enviando ? 'Enviando…' : 'Enviar senha temporária'} variant="dark" height={52} loading={enviando} onPress={() => void pedir()} />
+      <Button testID="esqueci.enviar" label={enviando ? 'Enviando…' : 'Enviar senha temporária'} variant="accent" height={52} loading={enviando} onPress={() => void pedir()} />
       <Pressable testID="esqueci.voltar-login" accessibilityRole="button" accessibilityLabel="Voltar ao login" onPress={() => onVoltar(campos)} style={styles.link}>
         <Text style={styles.linkTexto}>Voltar ao login</Text>
       </Pressable>

@@ -2,11 +2,11 @@
  * Sino do shell (T-0170; desenho `docs/desenho/tarefas-consultor.md` §7.2; imagem `2026-11-12-T0170-final-inicio-sino-aberto.png`).
  * Fica no cabeçalho de todas as telas do Campo e do Gestão: o shell entrega o `<Sino />` ao `CabecalhoTela` do kit pelo
  * `ProvedorSinoCabecalho` ((tabs)/_layout.tsx) e o põe à mão no Início (que não usa o `CabecalhoTela`).
- * - Número: `useInicioCampo().sino.total` do Core (recados não lidos + tarefas novas, `contarSino`), lido uma vez no layout
- *   (`ProvedorContagemSino`) e repartido por contexto com todos os sinos montados, inclusive o do Início; escondido com 0 e "9+"
- *   acima de 9 (`lib/sino.ts`). Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
+ * - Bolinha (sem número, dono do produto 14/11/2026): acesa quando `useInicioCampo().sino.total` do Core (recados não lidos +
+ *   tarefas novas, `contarSino`) passa de 0; o total é lido uma vez no layout (`ProvedorContagemSino`) e repartido por contexto
+ *   com todos os sinos montados, inclusive o do Início (`temNovoNoSino`, `lib/sino.ts`). Premissa da Gestão: o layout é das duas variantes e o hook roda nas duas. A contagem sai só do
  *   aparelho (notificações + pull `tarefa`); a parte de Performance do hook não se aplica ao supervisor/gerente (a consulta de
- *   renovação recebe recusa do servidor, que o hook engole) e não afeta o número. Enquanto o hook não tem dados (null), o sino fica sem número.
+ *   renovação recebe recusa do servidor, que o hook engole) e não afeta a bolinha. Enquanto o hook não tem dados (null), o sino fica sem bolinha.
  * - Toque: abre o balão com o `BalaoRecadosETarefas` do Core (no máximo 5 itens e "Ver todos"). Sem o balão exportado pelo Core,
  *   o toque abre direto a lista.
  * - "Ver todos" abre `/m/recados-e-tarefas` (ou a central antiga, se a página ainda não existe); a tarefa abre `/m/tarefa?id=`.
@@ -15,13 +15,13 @@
  */
 import * as appCore from '@macuxi/core/app';
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { colors, fonts, Icon, Pressionavel, radius, shadow } from '@macuxi/ui/mobile';
+import { colors, Icon, Pressionavel, radius, shadow } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { createContext, useContext, useState, type ComponentType, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { coresDoSino, destinoDaTarefa, destinoVerTodos, leituraDoSino, numeroDoSino } from '@/lib/sino';
+import { coresDoSino, destinoDaTarefa, destinoVerTodos, leituraDoSino, temNovoNoSino } from '@/lib/sino';
 import { bloqueioDoShell } from '@/state/bloqueio-do-shell';
 
 interface PropsBalaoCore {
@@ -49,7 +49,7 @@ export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string;
   const visao = useVisaoShell();
   const insets = useSafeAreaInsets();
   const [aberto, setAberto] = useState(false);
-  const numero = numeroDoSino(total);
+  const novo = temNovoNoSino(total);
   const c = coresDoSino(sobreFaixa);
 
   const ir = (href: string) => bloqueioDoShell.tentarSair(() => router.navigate(href as never));
@@ -64,12 +64,8 @@ export function Sino({ testID = 'sino', sobreFaixa = false }: { testID?: string;
         onPress={() => (BalaoDoCore ? setAberto(true) : verTodos())}
         style={[s.botao, { backgroundColor: cor(c.botaoFundo), borderColor: cor(c.botaoBorda) }]}>
         <Icon name="bell" size={22} color={cor(c.icone)} />
-        {numero ? (
-          <View style={[s.numero, { backgroundColor: cor(c.contadorFundo), borderColor: cor(c.contadorAro) }]} testID={`${testID}-numero`}>
-            <Text style={[s.numeroTexto, { color: cor(c.contadorNumero) }]} numberOfLines={1}>
-              {numero}
-            </Text>
-          </View>
+        {novo ? (
+          <View style={[s.bolinha, { backgroundColor: cor(c.bolinhaFundo), borderColor: cor(c.bolinhaAro) }]} testID={`${testID}-bolinha`} />
         ) : null}
       </Pressionavel>
       {BalaoDoCore ? (
@@ -94,20 +90,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  numero: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    // MC-0009: 26 dp com aro de 2 deixam 22 dp por dentro, o bastante para o "9+" sem cortar
-    minWidth: 26,
-    height: 26,
-    paddingHorizontal: 5,
-    borderRadius: 13,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  numeroTexto: { fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16, includeFontPadding: false, textAlignVertical: 'center' },
+  // canto superior direito do ícone de 22 no botão de 48
+  bolinha: { position: 'absolute', top: 10, right: 10, width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   fundo: { flex: 1, backgroundColor: colors.scrim, paddingHorizontal: 16 },
   balao: { backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden', ...shadow.aviso },
 });

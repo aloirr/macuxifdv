@@ -13,7 +13,7 @@
  * quadros (`requestAnimationFrame` da thread JS) e o compartilhar (o Android oferece "Copiar" na folha).
  */
 import { FUSO_PADRAO_TENANT } from '@macuxi/platform-sdk';
-import { BackLink, Button, Card, ChipEstado, colors, fonts, ProgressBar, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Button, Card, ChipEstado, colors, fonts, ProgressBar, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Redirect } from 'expo-router';
@@ -151,10 +151,8 @@ function Diagnostico({ perfil }: { perfil: ReturnType<typeof perfilBuildAtual> }
   const pct = emCurso && estado.progresso.total > 0 ? (estado.progresso.feito / estado.progresso.total) * 100 : 0;
 
   return (
-    <Screen top={16} testID="diagnostico-carga">
-      <BackLink label="Perfil" fallback="/profile" />
+    <Screen testID="diagnostico-carga" cabecalho={{ titulo: 'Diagnóstico de carga', voltar: { label: 'Perfil', fallback: '/profile' } }}>
       <View style={{ gap: 4 }}>
-        <Text style={t.h1Small}>Diagnóstico de carga</Text>
         <Text style={t.sub}>
           {`Grava ${milhar(CONFIG_PADRAO.produtos)} produtos com aplicação longa e referências e ${milhar(CONFIG_PADRAO.clientes)} clientes de teste, refaz o índice de busca e mede ${CONFIG_PADRAO.buscasProduto + (CONFIG_PADRAO.buscasC9 ?? 0) + CONFIG_PADRAO.buscasCliente} buscas sem internet, incluindo a do Novo pedido.`}
         </Text>

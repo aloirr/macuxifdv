@@ -138,3 +138,4 @@
 2026-11-13 — T-0168 — corrigidos 2 erros de typecheck (import de LimiteDesconto em domain/aprovacao.ts e app/lib/pedidos.ts); typecheck/lint 0 erros, 53 testes verdes
 2026-11-13 — T-0168 — v1.0.5: teste movido p/ app/lib, MC-0001 aplicada, typecheck/lint ok
 2026-11-13 — T-0170 — tela Pedidos com 3 cards (RN-VEN-43)
+2026-11-14 — T-0170 — cards de Pedidos viram 3 cartões lado a lado (rótulo, quantidade Archivo 22, valor); quantidadeDoCard/valorDoCard; progressViewOffset no puxar-para-atualizar

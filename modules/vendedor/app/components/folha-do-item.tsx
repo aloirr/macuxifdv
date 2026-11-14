@@ -1,7 +1,7 @@
 /**
  * T-0148 e T-0165 (docs/design/pedido-v4.md §5.2): a folha do item, de baixo para cima. "Nome - marca" na linha do ✕, só o código embaixo,
  * Alertas do item, Embalagem (as do cadastro, da largura da Quantidade) com o ESTOQUE à direita (só o número, na embalagem marcada; laranja de
- * 1 a 9 com "Risco de ruptura"), Quantidade e Desc./Acrésc. lado a lado, Totais (mesma regra do Resumo) e o botão principal. Reaberto (T-0165, lápis Editar):
+ * 1 a 9 com "Risco de ruptura"), Quantidade e Desc./Acrésc. lado a lado (sem o equivalente ao lado: o cartão já mostra), Totais fixos (mesma regra do Resumo: as quatro linhas desde a abertura, zeros sem ajuste) e o botão principal. Reaberto (T-0165, lápis Editar):
  * "Salvar alteração" e "Remover item" (texto vermelho). O estado é LOCAL: o pedido só recalcula ao confirmar; a prévia usa um cálculo de uma linha só.
  * Com alerta, o botão continua: o item entra e o pedido só sai como orçamento (RN-VEN-11, RN-VEN-20). RD-0177: o máximo não repete na área do item: borda no campo e "Máx. 10,0%" embaixo.
  */
@@ -52,7 +52,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
   const acima = alertas.some((a) => a.tipo === 'maximo');
   const nome = `${p.description} ${rotuloMedida(medida.unidade, medida.fator)}`;
   const tabelaTotal = linha ? linha.preco_tabela_cents * qtd : 0;
-  const linhasTot = linha ? linhasDosTotais({ subtotal_cents: tabelaTotal, total_cents: linha.total_cents }) : [];
+  const linhasTot = linha ? linhasDosTotais({ subtotal_cents: tabelaTotal, total_cents: linha.total_cents }, { fixas: true }) : [];
   const estoque = estoqueNaEmbalagem(p.stock_total, medida.fator);
   const risco = riscoDeRuptura(estoque);
   return (
@@ -100,7 +100,6 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
                 nome={nome}
                 p={p}
                 ajuste={ajuste}
-                medida={medida.unidade}
                 equivalente={linha?.equivalente ?? null}
                 onAjuste={(aj) => setAjuste({ ...aj, ...(ajuste.aplicacao_marcada !== undefined ? { aplicacao_marcada: ajuste.aplicacao_marcada } : {}), ...(ajuste.aplicacao_retrato ? { aplicacao_retrato: ajuste.aplicacao_retrato } : {}) })}
               />
@@ -121,7 +120,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
                 <Text style={s.totValor}>{l.valor}</Text>
               </View>
             ))}
-            <View style={[s.linhaTot, linhasTot.length > 0 && s.totalDoItem]}>
+            <View style={[s.linhaTot, s.totalDoItem]}>
               <Text style={s.totRotuloForte}>{ROTULO_VALOR_FINAL}</Text>
               <Text style={s.totTotal} testID="popup-item-total">
                 {formatBRL(linha.total_cents)}

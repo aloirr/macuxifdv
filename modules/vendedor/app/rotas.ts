@@ -34,3 +34,6 @@ export const irParaRascunhos = () => router.push(hrefRascunhos() as never);
 export const irParaPedido = (id: string) => router.navigate(hrefPedido(id) as never);
 export const irParaNovoPedido = (params: ParamsNovoPedido = {}) => router.push(hrefNovoPedido(params) as never);
 export const irParaPedidosFiltrados = (filtro: FiltroDoInicio) => router.navigate(hrefPedidosFiltrados(filtro) as never);
+
+/** Ficha do cliente (rota do Core, `/m/cliente?id=…`); só a string, sem importar o módulo Core. */
+export const hrefFichaDoCliente = (id: string) => rota('cliente', { id });

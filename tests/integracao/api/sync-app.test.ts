@@ -24,7 +24,6 @@ import {
   type ResultadoItemPush,
   type TransporteSync,
   MENSAGEM_PULL_INDISPONIVEL,
-  rotuloDoItem,
   SYNC_NAO_IMPLEMENTADO,
 } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -311,11 +310,10 @@ describe.skipIf(semBanco())('C3.1 com o registro de sync que o app Campo declara
     for (const a of e.avisos) expect(a).toMatchObject({ codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
     expect(await motor.linhas(SEM_PROVEDOR)).toEqual([]);
     expect(idsDe(await motor.linhas('pedido'))).toEqual([A.pedidos.p2]);
-    // o item feito no aparelho continua na fila, pendente, com o código retentável e o rótulo de "na fila"
+    // o item feito no aparelho continua na fila, pendente, com o código retentável (estado, não rótulo: RD-0257)
     const naFila = e.fila.find((i) => i.id === id);
     expect(naFila, 'o item continua na fila').toBeDefined();
     expect(naFila).toMatchObject({ situacao: 'pendente', codigo: SYNC_NAO_IMPLEMENTADO, tentativas: 1 });
-    expect(rotuloDoItem(naFila!)).toBe('na fila — envio ainda não disponível no servidor');
     // o próximo sync tenta de novo, sem erro e sem duplicar o item
     expect(await sincronizarComoOShell(motor, t)).toBe(true);
     expect(motor.estado().fila.filter((i) => i.id === id)).toMatchObject([{ situacao: 'pendente', tentativas: 2 }]);
