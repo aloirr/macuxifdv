@@ -46,7 +46,7 @@ describe('textoDoVazio (T-0077)', () => {
     expect(textoDoVazio({ ...b, situacao: 'orcamentos' })).toBe('Nenhum orçamento neste período.');
     expect(textoDoVazio({ ...b, situacao: 'decide' })).toBe('Nada para aprovar agora.');
     expect(textoDoVazio({ ...b, gestao: true })).toBe('Nenhum pedido da equipe neste período.');
-    expect(textoDoVazio(b)).toMatch(/Toque em Novo/);
+    expect(textoDoVazio(b)).toBe('Nenhum pedido neste período.');
     expect(textoDoVazio({ ...b, situacao: 'queued' })).toBe('Nenhum pedido com esta situação neste período.');
   });
 });
