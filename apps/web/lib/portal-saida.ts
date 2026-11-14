@@ -1,6 +1,6 @@
 /**
  * "Segurar a saída" do portal `config.` (T-0087 fatia E; revisão de UX R-20261106-050553 R1, Y2): o que aparece uma vez só
- * (links dos convites da Equipe, links renovados) fica registrado aqui enquanto não for baixado. O cabeçalho do portal
+ * (ex.: links renovados) fica registrado aqui enquanto não for baixado. O cabeçalho do portal
  * ("← Empresas", a marca, "Sair") consulta antes de navegar e abre o Dialog; a guarda da sessão avisa antes do fim e, se a sessão
  * vencer com pendência, oferece baixar antes de mandar ao login; o `beforeunload` cobre fechar a aba e o F5.
  * Só memória da aba (LGPD, T-0087 §7): nada vai ao storage nem ao `console`. As regras de tempo são puras, para teste.
@@ -8,7 +8,7 @@
 import { RENOVAR_ANTES_MS, type SessaoPortal } from './portal-sessao';
 
 export interface SaidaPendente {
-  /** Quem segura (ex.: `equipe:<tenant>:novos`); registrar de novo com o mesmo id substitui. */
+  /** Quem segura (ex.: `renovados:<tenant>`); registrar de novo com o mesmo id substitui. */
   id: string;
   /** Rótulo do botão "Baixar …" no Dialog. */
   rotulo: string;

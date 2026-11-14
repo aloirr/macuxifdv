@@ -3,8 +3,8 @@
 /**
  * Página de uma empresa no portal (T-0087 §3 e §6): abas "Bases" (um cartão por base, na ordem de carga do Hub, lida da rota
  * `GET /v1/integracao/ordem-carga`; o portal não tem lista própria), "Integração automática" e "Empresa" (resumo + acrescentar
- * módulos pelo passo Empresa, idempotente). A Equipe por CSV (Core, fatia E) é o primeiro cartão da aba Bases, visível mesmo sem
- * a Integração. A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
+ * módulos pelo passo Empresa, idempotente). A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
+ * R-20261114-133000: o portal cadastra só o admin da conta; os demais usuários o admin cadastra no BKO (saiu a Equipe por CSV).
  * T-0093: o admin do cliente só abre a empresa escolhida na sessão (o `x-macuxi-tenant` é sempre ela; outra = escolher de novo) e,
  * na aba Empresa, só vê os módulos: criar e alterar empresa é do time da Macuxi (RN-CORE-33).
  * T-0094 fatia S: na aba Empresa, o time da Macuxi vê os administradores e redefine a senha de um deles (`CartaoAdmins`).
@@ -23,7 +23,6 @@ import { CartaoAdmins } from './cartao-admins';
 import { desvioDaPaginaDaEmpresa, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { MolduraPortal, useSessaoPortal } from './base';
 import { CartaoBase } from './cartao-base';
-import { CartaoEquipe } from './cartao-equipe';
 import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
 import { CHAVE_EMPRESAS, rotuloDoStatus, useEmpresas } from './tela-empresas';
 
@@ -34,12 +33,11 @@ const ABAS = [
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
-/** Bases da empresa: a Equipe (Core) primeiro, sempre visível; depois as bases do Hub na ordem de carga (precisam da Integração). */
+/** Bases da empresa: as bases do Hub na ordem de carga (precisam da Integração). */
 function AbaBases({ tenant }: { tenant: string }) {
   return (
     <div data-testid="empresa-pagina.bases" className="flex flex-col gap-3">
       <span className="text-[13px] text-ink-2">Carregue na ordem: cada base usa as anteriores. Confira sem gravar, corrija pelo "Baixar erros" e importe.</span>
-      <CartaoEquipe tenant={tenant} />
       <BasesDoHub tenant={tenant} />
     </div>
   );

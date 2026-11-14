@@ -34,7 +34,7 @@ import {
   type LoteResultado,
 } from '@macuxi/integracao/contracts';
 
-import { CODIGOS_PORTAL, faltasNaSenha, ImportarEquipeRequestSchema, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR, PerfilSchema, type ImportarEquipeResposta } from '@macuxi/core/contracts';
+import { CODIGOS_PORTAL, faltasNaSenha, mensagemDaSenha, MENSAGEM_PORTAL_SENHA_A_TROCAR } from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -88,9 +88,6 @@ export const CONTAS_FALSAS: Readonly<Record<string, readonly string[] | null>> =
 
 /** Conta falsa com a senha certa, mas ainda temporária: o portal responde 403 `SENHA_A_TROCAR` (T-0094). */
 export const CONTA_SENHA_A_TROCAR = 'troca@uma.com.br';
-
-/** E-mails já gravados pela Equipe por CSV, por empresa: só na memória da aba (nada de e-mail no `sessionStorage`). */
-const equipeFalsa = new Map<string, Set<string>>();
 
 /** Admins por empresa e redefinições já feitas (por `email_id`): só na memória da aba (e-mail não vai ao `sessionStorage`). */
 const adminsFalsos = new Map<string, AdminDaEmpresa[]>();
@@ -198,8 +195,6 @@ function lerCorpo<T>(schema: { safeParse(x: unknown): { success: true; data: T }
   if (p.success) return p.data;
   return erro(400, 'VALIDACAO', p.error.issues[0]?.message ?? 'Dados inválidos.');
 }
-
-const NL = String.fromCharCode(10);
 
 /** BOM do UTF-8 (o Excel abre o CSV sem perguntar a codificação). */
 const BOM = String.fromCharCode(0xfeff);
@@ -462,51 +457,13 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
-  // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova recebe o acesso por e-mail
-  //            (T-0094); arquivo com alguém em `@sem-email.` simula o 503 EMAIL_INDISPONIVEL no gravar
-  if (rota === `GET ${ROTAS_PORTAL.equipeModeloCsv}`) {
-    const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos', 'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,,,', 'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,vendedor', ''].join(NL);
-    return new Response(csv, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="modelo-equipe.csv"' } });
-  }
-  if (rota === `POST ${ROTAS_PORTAL.equipeImportacoes}`) {
-    const c = lerCorpo(ImportarEquipeRequestSchema, corpo);
-    if (c instanceof Response) return c;
-    if (c.modo === 'gravar' && /@sem-email\./i.test(c.csv)) return erro(503, 'EMAIL_INDISPONIVEL', 'O envio de e-mail não está configurado. Fale com o suporte da Macuxi.');
-    return json(200, importarEquipeFalsa(tenant, c.csv, c.modo));
-  }
   // N1/N2 (nuvem) ainda não existem: igual à API real antes do merge
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
-}
-
-function importarEquipeFalsa(tenant: string, csv: string, modo: 'conferir' | 'gravar'): ImportarEquipeResposta {
-  const [cab = [], ...dados] = linhasDoCsv(csv);
-  const col = (nome: string) => cab.findIndex((x) => x.trim().toLowerCase() === nome);
-  const [iNome, iEmail, iPerfil, iSup] = [col('nome'), col('email'), col('perfil'), col('email_superior')];
-  const existentes = equipeFalsa.get(tenant) ?? new Set<string>();
-  const erros: ImportarEquipeResposta['erros'] = [];
-  const plano: ImportarEquipeResposta['plano'] = [];
-  dados.forEach((cols, i) => {
-    const linha = i + 2;
-    const email = (cols[iEmail] ?? '').trim().toLowerCase();
-    const perfil = PerfilSchema.safeParse((cols[iPerfil] ?? '').trim().toLowerCase());
-    if (!email.includes('@')) erros.push({ linha, coluna: 'email', mensagem: `Linha ${linha}: informe um e-mail válido, como nome@empresa.com.br.` });
-    else if (!perfil.success) erros.push({ linha, coluna: 'perfil', mensagem: `Linha ${linha}: perfil fora da lista (admin, gerente, supervisor, vendedor, promotor...).` });
-    else plano.push({ linha, acao: existentes.has(email) ? 'sem_mudanca' : 'criar', usuario_id: null, email, nome: (cols[iNome] ?? '').trim(), perfil: perfil.data, superior_email: (cols[iSup] ?? '').trim() || null, external_id: null, modulos_removidos: [] });
-  });
-  const comErro = new Set(erros.map((x) => x.linha)).size;
-  const resumo = { total: dados.length, novos: plano.filter((p) => p.acao === 'criar').length, atualizados: 0, sem_mudanca: plano.filter((p) => p.acao === 'sem_mudanca').length, com_erro: comErro };
-  const erros_csv = erros.length ? ['linha,coluna,mensagem', ...erros.map((x) => `${x.linha},${x.coluna},"${x.mensagem.replace(/"/g, '""')}"`)].join(NL) + NL : '';
-  const base = { modo, resumo, erros, avisos: [], plano, erros_csv, acessos_enviados: 0, email_acesso: null };
-  if (modo === 'conferir' || erros.length) return { ...base, gravado: false };
-  const novos = plano.filter((p) => p.acao === 'criar').map((p) => p.email);
-  equipeFalsa.set(tenant, new Set([...existentes, ...novos]));
-  return { ...base, gravado: true, acessos_enviados: novos.length, email_acesso: novos.length > 0 ? 'enfileirado' : null };
 }
 
 /** Para os testes e para "recomeçar" o modo falso. */
 export function zerarModoFalso() {
   falhas.clear();
-  equipeFalsa.clear();
   adminsFalsos.clear();
   adminsSemeados = false;
   redefinicoesFalsas.clear();
