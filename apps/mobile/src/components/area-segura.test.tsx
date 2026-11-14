@@ -33,8 +33,12 @@ vi.mock('react-native-safe-area-context', () => {
   };
 });
 vi.mock('@macuxi/ui/mobile', () => ({ colors: new Proxy({}, { get: () => '#000' }) }));
+// o foco da aba: guarda o efeito de foco para o teste disparar o foco e o desfoco
+const foco = vi.hoisted(() => ({ efeitos: [] as Array<() => void | (() => void)>, estilos: [] as string[] }));
+vi.mock('expo-router', () => ({ useFocusEffect: (efeito: () => void | (() => void)) => void foco.efeitos.push(efeito) }));
+vi.mock('expo-status-bar', () => ({ setStatusBarStyle: (estilo: string) => void foco.estilos.push(estilo) }));
 
-const { AreaSeguraSuperior, useFaixaSuperior } = await import('./area-segura');
+const { AreaSeguraSuperior, CorDaFaixaContext, useCorDaFaixaNoFoco, useFaixaSuperior } = await import('./area-segura');
 const { useSafeAreaInsets } = await import('react-native-safe-area-context');
 
 /** Uma "tela" qualquer de módulo: soma `insets.top` como o detalhe do pedido e o `Screen` fazem. */
@@ -80,5 +84,34 @@ describe('AreaSeguraSuperior', () => {
   it('o login (KeyboardAvoidingView com padding) desconta a faixa ao medir o teclado', () => {
     const src = readFileSync(new URL('../app/login.tsx', import.meta.url), 'utf8');
     expect(src).toMatch(/behavior="padding" keyboardVerticalOffset=\{faixaSuperior\}/);
+  });
+});
+
+describe('useCorDaFaixaNoFoco (T-0172, Início do Campo)', () => {
+  function AbaInicio() {
+    useCorDaFaixaNoFoco('#1E3350', 'light');
+    return null;
+  }
+
+  it('no foco pinta a faixa de Azul noite com a barra light; no desfoco a faixa volta ao fundo do app (null) e a barra a dark', () => {
+    const cores: Array<string | null> = [];
+    foco.efeitos.length = 0;
+    foco.estilos.length = 0;
+    renderToStaticMarkup(createElement(CorDaFaixaContext.Provider, { value: (cor: string | null) => void cores.push(cor) }, createElement(AbaInicio)));
+    expect(foco.efeitos).toHaveLength(1);
+    expect(cores).toEqual([]); // montada sem foco não pinta
+
+    const desfocar = foco.efeitos[0]?.();
+    expect(cores).toEqual(['#1E3350']);
+    expect(foco.estilos).toEqual(['light']);
+
+    if (typeof desfocar === 'function') desfocar();
+    expect(cores).toEqual(['#1E3350', null]);
+    expect(foco.estilos).toEqual(['light', 'dark']);
+  });
+
+  it('o Início do Campo usa a faixa no foco com o token da faixa e a barra light', () => {
+    const src = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
+    expect(src).toContain("useCorDaFaixaNoFoco(colors.faixa, 'light')");
   });
 });

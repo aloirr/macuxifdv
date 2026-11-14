@@ -8,16 +8,20 @@
  * então quem usa `behavior="padding"` passa `keyboardVerticalOffset={useFaixaSuperior()}`.
  * `useCorDaFaixa(cor)` (T-0172): a tela de entrada pinta a faixa com o fundo dela (Azul noite no Campo) enquanto está
  * montada; ao sair, a faixa volta ao fundo do app.
+ * `useCorDaFaixaNoFoco(cor, barra)` (T-0172): o mesmo, ligado ao foco da tela (as abas ficam montadas): ao focar, pinta a
+ * faixa e põe a barra de status no estilo `barra`; ao perder o foco, a faixa volta ao fundo do app e a barra a `dark`.
  */
 import { colors } from '@macuxi/ui/mobile';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { setStatusBarStyle, type StatusBarStyle } from 'expo-status-bar';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, StatusBar, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dividirAreaSegura } from '@/lib/area-segura';
 
 const FaixaSuperiorContext = createContext(0);
-const CorDaFaixaContext = createContext<(cor: string | null) => void>(() => undefined);
+export const CorDaFaixaContext = createContext<(cor: string | null) => void>(() => undefined);
 
 /** Pinta a faixa da barra de status com `cor` enquanto a tela está montada (`null` = fundo do app). */
 export function useCorDaFaixa(cor: string | null): void {
@@ -26,6 +30,21 @@ export function useCorDaFaixa(cor: string | null): void {
     definir(cor);
     return () => definir(null);
   }, [cor, definir]);
+}
+
+/** Pinta a faixa com `cor` e a barra de status em `barra` enquanto a tela está em foco; no desfoco, volta ao fundo do app. */
+export function useCorDaFaixaNoFoco(cor: string | null, barra: StatusBarStyle = 'dark'): void {
+  const definir = useContext(CorDaFaixaContext);
+  useFocusEffect(
+    useCallback(() => {
+      definir(cor);
+      setStatusBarStyle(barra);
+      return () => {
+        definir(null);
+        setStatusBarStyle('dark');
+      };
+    }, [cor, barra, definir]),
+  );
 }
 
 export function useFaixaSuperior(): number {
