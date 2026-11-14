@@ -337,7 +337,7 @@ export function SeletorDePerfis({
           checked={marcado}
           disabled={off}
           onChange={(e) => onChange(valor, e.target.checked)}
-          className="h-[18px] w-[18px] shrink-0 accent-[var(--color-ink)]"
+          className="h-[18px] w-[18px] shrink-0 accent-[var(--color-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           data-testid={`${testId}.${valor === ALVO_TODOS_PERFIS ? 'todos' : valor}`}
         />
         <span className="flex min-w-0 flex-1 flex-col">
