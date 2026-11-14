@@ -94,8 +94,8 @@ const leituraDaMeta = (c: CardMetaInicio): string =>
   [c.titulo, c.meta ? `${c.real} de ${c.meta}` : c.real, c.percentual ? `${c.percentual} da meta` : null, c.rodape ? `${c.rodape.rotulo} ${c.rodape.valor}` : null].filter(Boolean).join(', ');
 
 function CartaoMeta({ c }: { c: CardMetaInicio }) {
-  // MC-0010 no Início: barra de meta no laranja do gráfico (marca v1 §3); a situação fica no percentual (ink ou danger)
-  const cor = c.tom === 'batida' ? colors.ink : colors.danger;
+  // MC-0016: barra de meta no Sol laranja #C2540A (colors.grafico); a situação fica no percentual, em ink ou danger
+  const corDoTom = c.tom === 'batida' ? colors.ink : colors.danger;
   return (
     <View style={s.celula} testID={`inicio.meta.${c.indicador}`} accessible accessibilityLabel={leituraDaMeta(c)}>
       <Cartao gap={space.sm} style={{ flex: 1 }}>
@@ -111,7 +111,7 @@ function CartaoMeta({ c }: { c: CardMetaInicio }) {
             <View style={{ flex: 1 }}>
               <ProgressBar pct={c.barra * 100} color={colors.grafico} rotulo={`${c.titulo}: ${c.percentual} da meta`} />
             </View>
-            <Text style={[s.percentual, { color: cor }]} importantForAccessibility="no">
+            <Text style={[s.percentual, { color: corDoTom }]} importantForAccessibility="no">
               {c.percentual}
             </Text>
           </View>
@@ -165,7 +165,7 @@ const s = StyleSheet.create({
   indicadorComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   ponto: { width: 8, height: 8, borderRadius: 4 },
-  valorIndicador: { fontFamily: fonts.semibold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorIndicador: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
   linhaSinc: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   ultima: { width: 96 },
 });
