@@ -94,7 +94,7 @@ for (const [L, A] of TAMANHOS) {
         const conteudoCabe = prod.bottom <= rolR.bottom + 0.5;
         return {
           semRolagem: rol.scrollHeight <= rol.clientHeight + 1 && conteudoCabe && cartaoSemSobra,
-          rol: [rol.scrollHeight, rol.clientHeight],
+          rol: [rol.scrollHeight, rol.clientHeight], folga: Math.round(rolR.bottom - prod.bottom - parseFloat(getComputedStyle(rol.firstElementChild ?? rol).paddingBottom || '0')),
           sincAcimaDasAbas: sinc.bottom <= abas.top + 0.5 && sinc.top >= 0,
           saudacaoSemReticencias: sau.scrollWidth <= sau.clientWidth + 1 && getComputedStyle(sau).textOverflow !== 'ellipsis' || sau.scrollWidth <= sau.clientWidth + 1,
           escalaDaSaudacao: sau.dataset.escala ?? '1',
@@ -104,9 +104,9 @@ for (const [L, A] of TAMANHOS) {
       const arq = `inicio-${L}x${A}-fonte-${String(f).replace('.', '_')}${caso.id}.png`;
       await pagina.screenshot({ path: join(AQUI, arq) });
       const ok = m.semRolagem && m.sincAcimaDasAbas && m.saudacaoSemReticencias;
-      // 360×640 é a exceção prevista: o meio rola, o Sincronizar e a saudação continuam inteiros
-      if (!(m.sincAcimaDasAbas && m.saudacaoSemReticencias) || (!ok && A > 640)) falhas++;
-      linhas.push(`| ${L}×${A} | ${f.toString().replace('.', ',')} | ${caso.nome.split(' ')[0]} | ${m.semRolagem ? 'sim' : `NÃO (${m.rol[0]} > ${m.rol[1]})`} | ${m.sincAcimaDasAbas ? 'sim' : 'NÃO'} | ${m.saudacaoSemReticencias ? `sim (escala ${m.escalaDaSaudacao})` : 'NÃO'} | ${ok ? 'coube' : 'não coube'} | ${arq} |`);
+      // Início responsivo (R-20261114-153500): em todo tamanho e fonte tem de caber sem rolar
+      if (!ok) falhas++;
+      linhas.push(`| ${L}×${A} | ${f.toString().replace('.', ',')} | ${caso.nome.split(' ')[0]} | ${m.semRolagem ? `sim (folga ${m.folga} dp)` : `NÃO (${m.rol[0]} > ${m.rol[1]})`} | ${m.sincAcimaDasAbas ? 'sim' : 'NÃO'} | ${m.saudacaoSemReticencias ? `sim (escala ${m.escalaDaSaudacao})` : 'NÃO'} | ${ok ? 'coube' : 'não coube'} | ${arq} |`);
       await pagina.close();
     }
   }
@@ -114,7 +114,7 @@ for (const [L, A] of TAMANHOS) {
 await navegador.close();
 const md = `# Início do Campo enquadrado (R-20261114-145000)
 
-Gerado por \`gerar.mjs\` (a \`TelaInicioCampo\` real com react-native-web; barra de status 24 dp, abas 64 dp + 24 dp de área segura; fonte do sistema simulada). Nomes e números são fictícios. Em 360×640 (a tela mais baixa) o meio não cabe inteiro: Metas do mês e Produtividade rolam, com o painel do topo e o Sincronizar fixos e inteiros.
+Gerado por \`gerar.mjs\` (a \`TelaInicioCampo\` real com react-native-web; barra de status 24 dp, abas 64 dp + 24 dp de área segura; fonte do sistema simulada). Nomes e números são fictícios. O Início é responsivo (\`escala-inicio.ts\`: letra, espaços, cartões e painel escalam pela janela e pela fonte do sistema) e cabe sem rolar em todos os tamanhos abaixo; \"folga\" é o espaço livre do meio, em dp.
 
 | Tela (dp) | Fonte | Nome | Sem rolagem | Sincronizar acima das abas | Saudação sem reticências | Resultado | Print |
 |---|---|---|---|---|---|---|---|

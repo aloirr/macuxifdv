@@ -7,6 +7,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { escalaInicio } from './escala-inicio';
+
 const fonte = readFileSync(join(__dirname, 'tela-inicio-campo.tsx'), 'utf8');
 const corpoDaTela = fonte.slice(fonte.indexOf('export function TelaInicioCampo'), fonte.indexOf('const leituraDaMeta'));
 const dentroDoScreen = corpoDaTela.slice(corpoDaTela.indexOf('<Screen'), corpoDaTela.indexOf('</Screen>'));
@@ -34,7 +36,14 @@ describe('R-20261114-145000: Início do Campo enquadrado', () => {
     expect(corpoDaTela).toContain('useSinoCabecalho()');
   });
 
+  it('a tela usa a escala pela janela e pela fonte do sistema (useWindowDimensions)', () => {
+    expect(fonte).toContain('useWindowDimensions()');
+    expect(fonte).toContain('escalaInicio({');
+    expect(fonte).toContain('fontScale: janela.fontScale');
+  });
+
   it('o avatar do painel é pequeno (40) e não tira largura da saudação', () => {
-    expect(fonte).toMatch(/avatar: \{ width: 40, height: 40/);
+    expect(fonte).toMatch(/avatar: \{ width: e\.painel\.avatar, height: e\.painel\.avatar/);
+    expect(escalaInicio({ largura: 412, altura: 915, fontScale: 1, topo: 24, base: 24 }).painel.avatar).toBe(40);
   });
 });
