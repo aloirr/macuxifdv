@@ -5,10 +5,11 @@
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { SePode } from '@macuxi/platform-sdk/react';
-import { AvisoRodape, Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, relativeWhen, Screen, SyncStamp, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { AvisoRodape, Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, relativeWhen, Screen, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alerta } from '../../contracts';
+import { SeloFaixa } from '../components/selo-faixa';
 import { SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { irParaCliente } from '../rotas';
 import { useGestor } from '../state/use-gestor';
@@ -35,15 +36,12 @@ export default function AlertasScreen() {
     <View style={{ flex: 1 }}>
       <Screen
         testID="gestor-alertas"
+        cabecalho={{ titulo: 'Alertas', direita: <SeloFaixa g={g} /> }}
         refreshing={g.auto.puxando}
         onRefresh={() => {
           setAviso(null);
           g.auto.puxar();
         }}>
-        <View style={{ gap: 2 }}>
-          <Text style={t.h1}>Alertas</Text>
-          <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
-        </View>
         {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
         {aviso ? <Banner tone="danger">{aviso}</Banner> : null}
         <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
