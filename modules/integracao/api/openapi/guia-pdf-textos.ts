@@ -3,7 +3,7 @@
  * Os JSON de exemplo, os tipos, os limites e os status vêm do OpenAPI (`gerar.ts`); aqui ficam só as explicações em português.
  * Regras do texto (corretor): só o que o integrador usa para agir; nada de como o sistema funciona por dentro; uma informação, um lugar.
  */
-import { ENTIDADES, EXTERNAL_ID_MAX, LIMITE_LINHAS_INVALIDAS_PADRAO, type Entidade } from '../../contracts';
+import { ENTIDADES, LIMITE_LINHAS_INVALIDAS_PADRAO, type Entidade } from '../../contracts';
 
 /** Texto único para "uma das N entidades" (N vem do contrato). */
 export const UMA_DAS_ENTIDADES = `uma das ${ENTIDADES.length} entidades`;

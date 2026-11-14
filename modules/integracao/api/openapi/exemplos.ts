@@ -398,7 +398,7 @@ export const EXEMPLOS_LOTE_RESULTADO: readonly Exemplo<z.output<typeof LoteResul
     recebido_em: '2026-11-05T13:46:01Z',
     concluido_em: '2026-11-05T13:46:04Z',
   }),
-  ex('concluido_com_erros', 'Concluído com erros por linha (reprocessavel: true = o Macuxi reprocessa sozinho)', {
+  ex('concluido_com_erros', 'Concluído com erros por linha', {
     lote_id: LOTE_ID_EXEMPLO,
     entidade: 'preco',
     modo: 'delta',

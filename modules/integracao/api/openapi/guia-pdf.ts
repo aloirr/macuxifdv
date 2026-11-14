@@ -5,11 +5,11 @@
  * Marca: `docs/marca/manual.md` (Azul noite, Pérola, Archivo e IBM Plex).
  */
 import { createHash } from 'node:crypto';
-import { ENTIDADES, LIMITE_ERROS_RESPOSTA_MAX, LIMITE_ERROS_RESPOSTA_PADRAO, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, type Entidade } from '../../contracts';
+import { ENTIDADES, EXTERNAL_ID_MAX, LIMITE_ERROS_RESPOSTA_MAX, LIMITE_ERROS_RESPOSTA_PADRAO, LIMITE_PEDIDOS_POLL_MAX, LIMITE_PEDIDOS_POLL_PADRAO, type Entidade } from '../../contracts';
 import { PARAMETROS_PADRAO } from '../../domain';
 import { DEPENDENCIAS } from '../../domain/ordem';
 import { gerarOpenApiHub, type DocumentoOpenApi } from './gerar';
-import { ACAO_STATUS, CODIGOS_LINHA, DESCRICAO_CAMPO, ENTIDADE_TEXTO, RESUMO_ROTA, SEQUENCIA_PRIMEIRA_CARGA, TEXTO_ENUM, TEXTO_ROTA, TITULO_ROTA } from './guia-pdf-textos';
+import { ACAO_STATUS, CODIGOS_LINHA, DESCRICAO_CAMPO, ENTIDADE_TEXTO, QUANDO_STATUS, RESUMO_ROTA, SEQUENCIA_PRIMEIRA_CARGA, SUCESSO_ROTA, TEXTO_ENUM, TEXTO_ROTA, TITULO_ROTA, UMA_DAS_ENTIDADES } from './guia-pdf-textos';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -26,6 +26,8 @@ export interface SecaoGuia {
   titulo: string;
   /** Título do grupo, impresso acima do título da seção (e listado no sumário na mesma página). */
   grupo?: { id: string; numero: string; titulo: string };
+  /** Começa em página nova (cada endpoint, a primeira seção e o Anexo); as demais seguem o texto. */
+  quebra?: boolean;
   html: string;
 }
 
@@ -57,7 +59,10 @@ const tabela = (cabecalho: readonly string[], linhas: readonly (readonly string[
     .join('')}</tbody></table>`;
 /** Código de erro: só quebra depois de `_` (nunca no meio de uma palavra). */
 const cod = (s: string) => `<code>${esc(s).replaceAll('_', '_<wbr>')}</code>`;
-const milhar = (n: number) => n.toLocaleString('pt-BR');
+const milhar = (n: number) => n.toLocaleString('pt-BR', { useGrouping: true, minimumGroupingDigits: 1 });
+/** Permite quebrar um código só depois de `_`, `.` ou `]` (nunca no meio de uma palavra). */
+const comQuebras = (html: string) => html.replace(/<code>([^<]*)<\/code>/g, (_m, c: string) => `<code>${c.replaceAll('_', '_<wbr>')}</code>`);
+const rotuloGrupo = (g: { numero: string; titulo: string }) => `${g.numero}${g.numero === 'Anexo A' ? '. ' : ' '}${g.titulo}`;
 
 // ------------------------------------------------------------------------------------------------ campos (OpenAPI -> tabela)
 
@@ -71,7 +76,6 @@ const PADROES: Record<string, string> = {
   [String.raw`^[A-Z0-9]{1,6}$`]: '1 a 6 letras maiúsculas ou números',
   [String.raw`^[A-Z]{2}$`]: '2 letras maiúsculas',
   [String.raw`^[0-9a-f]{64}$`]: 'SHA-256 em hexadecimal',
-  [String.raw`^[A-Za-z0-9._:-]{16,128}$`]: '16 a 128 caracteres: letras, números, `.`, `_`, `:` e `-`',
 };
 const ehSemver = (pt: string) => pt.startsWith('^(0|[1-9]');
 
@@ -106,19 +110,19 @@ function rotuloTipo(q: Json, itemDe?: string): string {
 function regraDe(k: string, q: Json): string {
   const r: string[] = [];
   if (q['const'] !== undefined) r.push(`sempre \`${String(q['const'])}\``);
-  if (q['enum']) r.push((q['enum'] as string[]).length === ENTIDADES.length && ENTIDADES.every((e) => (q['enum'] as string[]).includes(e)) ? 'uma das 16 entidades (Anexo A)' : `um de: ${(q['enum'] as string[]).join(', ')}`);
+  if (q['enum']) r.push((q['enum'] as string[]).length === ENTIDADES.length && ENTIDADES.every((e) => (q['enum'] as string[]).includes(e)) ? `${UMA_DAS_ENTIDADES} (Anexo A)` : `um de: ${(q['enum'] as string[]).map((v) => `\`${v}\``).join(' ')}`);
   if (q['format'] === 'date-time') r.push('UTC, termina em `Z`');
   if (typeof q['pattern'] === 'string' && q['format'] !== 'date-time') {
     const pt = q['pattern'] as string;
     r.push(PADROES[pt] ?? (ehSemver(pt) ? 'versão X.Y.Z' : `formato \`${pt}\``));
   }
-  if (typeof q['maxLength'] === 'number') r.push(`até ${q['maxLength']} caracteres`);
-  if (typeof q['minimum'] === 'number' && typeof q['maximum'] === 'number') r.push(`de ${q['minimum']} a ${q['maximum']}`);
-  else if (typeof q['minimum'] === 'number' && q['minimum'] !== 0) r.push(`mínimo ${q['minimum']}`);
-  else if (typeof q['maximum'] === 'number') r.push(`máximo ${q['maximum']}`);
+  if (typeof q['maxLength'] === 'number') r.push(`até ${milhar(q['maxLength'])} caracteres`);
+  if (typeof q['minimum'] === 'number' && typeof q['maximum'] === 'number') r.push(`de ${milhar(q['minimum'])} a ${milhar(q['maximum'])}`);
+  else if (typeof q['minimum'] === 'number' && q['minimum'] !== 0) r.push(`mínimo ${milhar(q['minimum'])}`);
+  else if (typeof q['maximum'] === 'number') r.push(`máximo ${milhar(q['maximum'])}`);
   else if (q['minimum'] === 0 && q['type'] === 'integer') r.push('não negativo');
-  if (typeof q['maxItems'] === 'number') r.push(`até ${q['maxItems']} itens`);
-  if (typeof q['minItems'] === 'number' && q['minItems'] > 0) r.push(`ao menos ${q['minItems']}`);
+  if (typeof q['maxItems'] === 'number') r.push(`até ${milhar(q['maxItems'])} itens`);
+  if (typeof q['minItems'] === 'number' && q['minItems'] > 0) r.push(`ao menos ${milhar(q['minItems'])}`);
   if (q['default'] !== undefined && !Array.isArray(q['default'])) r.push(`padrão \`${String(q['default'])}\``);
   if (k.endsWith('_cents')) r.push('em centavos');
   return r.join('; ');
@@ -218,7 +222,7 @@ export function achatarCampos(ctx: Contexto, schemaNome: string, schema: Json, p
     }
     const tipo = f.lista ? `lista de ${f.itemDe ?? 'valores'}` : rotuloTipo(f.q);
     let regra = regraDe(k, f.q);
-    if (k === 'entidade' && !regra && f.q['type'] === 'string') regra = 'uma das 16 entidades (Anexo A)';
+    if (k === 'entidade' && !regra && f.q['type'] === 'string') regra = `${UMA_DAS_ENTIDADES} (Anexo A)`;
     if (f.lista && !f.filhos) {
       const itens = (bruto['anyOf'] ? ((bruto['anyOf'] as Json[]).find((x) => x['type'] === 'array') as Json) : bruto)['items'] as Json;
       const r = itens ? regraDe(k, ctx.resolver(itens).q) : '';
@@ -233,10 +237,21 @@ export function achatarCampos(ctx: Contexto, schemaNome: string, schema: Json, p
   return linhas;
 }
 
+/** O que a coluna Regra já diz não se repete na Descrição (uma informação, um lugar). */
+export function descricaoSemRegra(descricao: string, regra: string): string {
+  let d = descricao;
+  if (regra.includes('em centavos')) d = d.replace(/,? em centavos/g, '');
+  if (regra.includes('AAAA-MM-DD')) d = d.replace(/\s*\(`?AAAA-MM-DD`?\)/g, '');
+  if (/até \d+ itens/.test(regra)) d = d.replace(/\s*\(até \d+\)/g, '');
+  if (regra.includes('14 dígitos')) d = d.replace(/,? \(?14 dígitos\)?/g, '');
+  if (regra.includes('8, 12, 13 ou 14 dígitos')) d = d.replace(/\s*\(8, 12, 13 ou 14 dígitos\)/g, '');
+  return d;
+}
+
 const tabelaCampos = (linhas: readonly LinhaCampo[]) =>
   tabela(
     ['Campo', 'Tipo', 'Obrig.', 'Descrição', 'Regra'],
-    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), md(l.descricao), md(l.regra)]),
+    linhas.map((l) => [`<code>${esc(l.campo).replace(/([.\]])/g, '$1<wbr>')}</code>`, esc(l.tipo), esc(l.obrigatorio), comQuebras(md(descricaoSemRegra(l.descricao, l.regra))), comQuebras(md(l.regra))]),
     'campos',
   );
 
@@ -272,7 +287,7 @@ function secaoRota(ctx: Contexto, caminho: string, metodo: string, op: Json, ind
   if (!t) throw new Error(`guia-pdf: falta texto da rota ${id}`);
   const doc = ctx.doc;
   const partes: string[] = [];
-  if (indice === 0) partes.push(p('Em todas as rotas: cabeçalhos de autenticação (Seção 2) e falhas comuns 401, 403, 426, 429, 500 e 503 (Seção 7).'));
+  if (indice === 0) partes.push(p(`Em todas as rotas: cabeçalhos de autenticação (Seção 2) e falhas comuns ${[...STATUS_COMUNS].slice(0, -1).join(', ')} e ${[...STATUS_COMUNS].at(-1)} (Seção 7).`));
   partes.push(`<div class="rota"><span class="metodo ${metodo}">${metodo.toUpperCase()}</span><code>${esc(BASE + caminho)}</code></div>`);
   partes.push(`<p><strong>Para que serve.</strong> ${md(t.serve)}</p>`);
   partes.push(`<p><strong>Quando chamar.</strong> ${md(t.quando)}</p>`);
@@ -311,7 +326,7 @@ function secaoRota(ctx: Contexto, caminho: string, metodo: string, op: Json, ind
   const conteudo = resp['content']['application/json'] as Json;
   const schemaSaida = String((conteudo['schema'] as Json)['$ref']).split('/').pop() as string;
   const exsSaida = conteudo['examples'] as Record<string, { summary: string; value: unknown }>;
-  partes.push(`<h3>Resposta de sucesso ${stSucesso}</h3>`, p(String(resp['description'])));
+  partes.push(`<h3>Resposta de sucesso ${stSucesso}</h3>`, p(SUCESSO_ROTA[id] ?? String(resp['description'])));
   [t.exemploSaida, ...(t.exemplosExtraSaida ?? [])].forEach((c, i) => {
     const e = exsSaida[c];
     if (!e) throw new Error(`guia-pdf: exemplo de saída ${id}:${c} não existe`);
@@ -335,7 +350,7 @@ function secaoRota(ctx: Contexto, caminho: string, metodo: string, op: Json, ind
       for (const c of (lista[2] as string).matchAll(/`([a-z_]+)`/g)) if (!proprios.includes(c[1] as string) && !comuns.has(c[1] as string)) proprios.push(c[1] as string);
       quando = `${lista[1]}. ${lista[3]}`;
     }
-    especificos.push([`<strong>${st}</strong>`, proprios.map(cod).join(' '), md(quando)]);
+    especificos.push([`<strong>${st}</strong>`, proprios.map(cod).join(' '), md(QUANDO_STATUS[`${id}:${st}`] ?? quando)]);
   }
   if (especificos.length) partes.push('<h3>Outros status desta rota</h3>', tabela(['HTTP', 'Códigos', 'Quando'], especificos, 'compacta status'));
 
@@ -347,6 +362,7 @@ function secaoRota(ctx: Contexto, caminho: string, metodo: string, op: Json, ind
     numero: num,
     titulo: TITULO_ROTA[id] ?? id,
     ...(indice === 0 ? { grupo: { id: 'endpoints', numero: '8', titulo: 'Referência dos endpoints' } } : {}),
+    quebra: true,
     html: partes.join('\n'),
   };
 }
@@ -375,6 +391,7 @@ function secaoCamposComuns(ctx: Contexto): SecaoGuia {
     numero: 'A.1',
     titulo: 'Campos de toda entidade',
     grupo: { id: 'anexo-a', numero: 'Anexo A', titulo: 'Registros por entidade' },
+    quebra: true,
     html: [p('Todo registro de `registros`, de qualquer entidade, leva estes campos. As tabelas das entidades (A.2 em diante) trazem só os campos próprios.'), tabelaCampos(linhas)].join('\n'),
   };
 }
@@ -430,7 +447,6 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
 
   const visao = [
     p('Esta API recebe os dados do seu ERP (clientes, produtos, preços, estoque, títulos e notas) e entrega os pedidos aprovados no Macuxi para o ERP gravar.'),
-    `<div class="fluxo"><div class="caixa">Seu ERP</div><div class="seta">envia lotes &#8594;<br/>&#8592; entrega pedidos</div><div class="caixa destaque">API Macuxi<br/><code>${BASE}</code></div></div>`,
     '<h3>As 7 rotas</h3>',
     `<table class="compacta rotas"><thead><tr><th>Rota</th><th>Para que serve</th><th>Seção</th></tr></thead><tbody>${linhasRotas.join('')}</tbody></table>`,
     '<h3>Antes de começar</h3>',
@@ -457,7 +473,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
       ],
       'compacta',
     ),
-    p(`A empresa vem da chave: nunca envie \`tenant_id\`. Os exemplos \`curl\` do guia usam estas variáveis; para testar a credencial, rode o curl da ${secaoDe('consultar_cursor')}: \`200\` com \`cursor: null\` confirma a chave. Falhas: Seção 7.`),
+    p(`A empresa vem da chave: nunca envie \`tenant_id\`. Os exemplos \`curl\` do guia usam estas variáveis; para testar a credencial, rode o curl da ${secaoDe('consultar_cursor')}: \`200\` confirma a chave. Falhas: Seção 7.`),
     pre(`export HUB="https://api-demo.macuxifdv.com.br${BASE}"\nexport MACUXI_CHAVE="<chave de API>"\nexport MACUXI_CONECTOR="erp-matriz"\nH_AUTH=(-H "Authorization: Bearer $MACUXI_CHAVE" -H "X-Macuxi-Conector-Id: $MACUXI_CONECTOR")`),
     '<h3>Passo 3. Respeitar a ordem de carga</h3>',
     p('Um registro que cita outro (um cliente cita o vendedor) só entra se o alvo já existir; senão a linha vira `referencia_ausente`. Na primeira carga, envie nesta ordem (cada grupo depende dos anteriores; dentro do grupo, qualquer ordem):'),
@@ -465,7 +481,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
     p('As dependências de cada entidade estão no Anexo A. Envie só as entidades que o administrador marcou para o seu Conector: outra entidade recebe `422 entidade_de_outro_conector`.'),
     '<h3>Passo 4. Fazer o primeiro envio</h3>',
     ol([
-      `Consulte o cursor da entidade (${secaoDe('consultar_cursor')}). \`cursor: null\` = carga inicial completa (Seção 4).`,
+      `Consulte o cursor da entidade (${secaoDe('consultar_cursor')}); a regra do cursor está na Seção 4.`,
       `Envie o lote com \`POST /lotes\`. Exemplo e curl: ${secaoDe('enviar_lote')}.`,
       `Acompanhe o resultado com \`GET /lotes/{id}\` e leia \`erros[]\` (${secaoDe('consultar_lote')}).`,
     ]),
@@ -480,7 +496,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
       '**Dinheiro** em centavos inteiros (campos `_cents`): R$ 7,90 é `790`.',
       '**Data-hora** em UTC com `Z` (`2026-11-05T13:45:10Z`). Deslocamento como `-03:00` é recusado.',
       '**Data civil** no formato `AAAA-MM-DD`.',
-      '**`external_id`**: a chave do registro no seu ERP, de 1 a 200 caracteres. Toda linha leva `external_id` e `alterado_em`.',
+      '**`external_id`**: a chave do registro no seu ERP, (limite na Seção 6). Toda linha leva `external_id` e `alterado_em`.',
       '**`ativo: false`** inativa o registro no Macuxi; nada é apagado.',
       '**Campos desconhecidos** são ignorados. Campo novo opcional é compatível com `v1`; qualquer outra mudança vira `/v2`.',
       '**`X-Request-Id`**: toda resposta traz esse cabeçalho; os erros trazem o mesmo valor em `requisicao_id`. Informe-o ao suporte.',
@@ -534,7 +550,7 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
         ['Corpo de `POST /lotes`', `${pp.limiteCorpoLoteBytes / 2 ** 20} MiB (\`413 corpo_grande\`). Recomendado: até cerca de 4 MiB`],
         ['Corpo das demais rotas', `${pp.limiteCorpoGeralBytes / 2 ** 20} MiB`],
         ['Linhas inválidas detalhadas por lote', `${pp.limiteLinhasInvalidas}; o excedente só entra em \`linhas_invalidas_omitidas\``],
-        ['`external_id`', '1 a 200 caracteres'],
+        ['`external_id`', `1 a ${EXTERNAL_ID_MAX} caracteres`],
         ['Taxa de `POST /lotes`', `balde de ${pp.taxaPorConector.lote.capacidade} chamadas, repõe ${pp.taxaPorConector.lote.reposicaoPorMin} por minuto, por Conector`],
         ['Taxa das demais rotas', `balde de ${pp.taxaPorConector.geral.capacidade}, repõe ${pp.taxaPorConector.geral.reposicaoPorMin} por minuto, por Conector`],
         ['Falhas de autenticação', `mais de ${FALHAS_AUTENTICACAO_POR_MIN} por minuto do mesmo IP levam a \`429\``],
@@ -551,15 +567,15 @@ function secoesTexto(ctx: Contexto): SecaoGuia[] {
     p('Todo erro tem o corpo `{ "codigo", "mensagem", "detalhes"?, "requisicao_id" }`. As recusas de lote e de retorno acrescentam `erros[]` (`codigo`, `campo`, `mensagem`).'),
     json(exemploErro),
     '<h3>O que fazer por status HTTP</h3>',
-    tabela(['HTTP', 'Códigos', 'O que fazer'], ACAO_STATUS.map((a) => [`<strong>${a.status}</strong>`, a.codigos.split(', ').map(cod).join(' '), md(a.acao)]), 'compacta status'),
+    tabela(['HTTP', 'Códigos', 'O que fazer'], ACAO_STATUS.map((a) => [`<strong>${a.status}</strong>`, a.codigos.startsWith('Em cada') ? esc(a.codigos) : a.codigos.split(', ').map(cod).join(' '), md(a.acao)]), 'compacta status'),
     '<h3>Erros por linha</h3>',
     p('Um lote aceito (`202`) pode ter linhas com erro. Elas não travam o lote: as válidas são aplicadas e o lote termina `concluido_com_erros`. `GET /lotes/{id}` lista cada erro com `indice`, `external_id`, `codigo`, `campo`, `mensagem` e `reprocessavel`.'),
     tabela(['Código da linha', 'Significado', 'Reprocessável'], CODIGOS_LINHA.map((c) => [cod(c.codigo), md(c.significado), c.reprocessavel ? 'sim' : 'não']), 'compacta linhas'),
-    p('Linha **reprocessável** o Macuxi reprocessa sozinho. As demais: corrija na origem e reenvie o registro com `alterado_em` atualizado.'),
+    p('`reprocessavel: true`: o Macuxi tenta a linha de novo sozinho. Nas demais, corrija na origem e reenvie o registro com `alterado_em` atualizado.'),
   ].join('\n');
 
   const textos: SecaoGuia[] = [
-    { id: 'visao', numero: '1', titulo: 'Visão geral', html: visao },
+    { id: 'visao', numero: '1', titulo: 'Visão geral', quebra: true, html: visao },
     { id: 'passo-a-passo', numero: '2', titulo: 'Primeira integração, passo a passo', html: passo },
     { id: 'convencoes', numero: '3', titulo: 'Convenções', html: convencoes },
     { id: 'delta-cursor', numero: '4', titulo: 'Delta, carga completa e cursor', html: delta },
