@@ -49,7 +49,7 @@ function AvisoModuloDesativado() {
 function InicioCampo() {
   return (
     <TelaInicioCampo
-      // o número do sino é o mesmo das outras telas (contagem única do layout, `ProvedorContagemSino`)
+      // o `novos` que a tela passa é o mesmo `sino.total` do Core; o sino lê a contagem única do layout (`ProvedorContagemSino`)
       sino={() => <Sino testID="inicio-sino" />}
       onAbrirPerformance={() => navegar('/m/performance')}
       onPerfil={abrirPerfil}

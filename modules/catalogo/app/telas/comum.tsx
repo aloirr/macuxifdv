@@ -6,8 +6,8 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, Button, Cartao, ChipEstado, colors, fonts, type IconName } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
-import { rotuloPreco, textoEquivaleA } from '../lib/apresentacao';
-import { rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
+import { rotuloPreco } from '../lib/apresentacao';
+import { linhaDaMarca, precoDoCartao, rotuloAcessivelDoCartao, tagDeEstoque } from '../lib/grade';
 import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
@@ -52,11 +52,11 @@ export function BotoesAcao({ item, clienteId, compacto = false }: { item: ItemVi
 export function CartaoGrade({ item, clienteId, miniatura = null, onPress }: { item: ItemVitrine; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
   const preco = rotuloPreco(item);
   const tag = tagDeEstoque(item, { filialDoCliente: clienteId !== null });
-  const linhaMarca = textoEquivaleA(item) ? `Equivale a ${textoEquivaleA(item)}` : item.brand ?? '';
-  const precoTexto = preco ? (preco.vendavel ? preco.texto : 'Sem preço') : null;
+  const linhaMarca = linhaDaMarca(item);
+  const precoTexto = precoDoCartao(preco);
   const inicial = item.description.trim().charAt(0).toUpperCase();
   const acoes = useAcoesProduto();
-  const rotulo = rotuloAcessivelDoCartao([item.description, item.brand, precoTexto, tag?.texto]);
+  const rotulo = rotuloAcessivelDoCartao([item.description, linhaMarca, precoTexto, tag?.texto]);
   return (
     <Cartao testID={`catalogo-item-${item.erp_code}`} onPress={onPress} rotuloAcessivel={rotulo} preenchimento={10} gap={6} style={g.cartao}>
       <MiniaturaProduto
