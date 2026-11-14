@@ -4,8 +4,8 @@
  * `core.equipe` (sem coluna nova no usuário). Leitura do cargo e da hierarquia: `core.v_usuario_hierarquia`. Os dois erros do banco
  * no COMMIT (`promotor_sem_gerente`, `promotor_gerente_do_supervisor`, 23514) viram 422 com frase curta.
  */
-import { ErroRegraNegocio, type ClienteBanco } from '@macuxi/platform-sdk';
-import { CODIGOS_HIERARQUIA, MENSAGENS_HIERARQUIA, type Cargo } from '../contracts';
+import { ErroRegraNegocio, type Cargo, type ClienteBanco } from '@macuxi/platform-sdk';
+import { CODIGOS_HIERARQUIA, MENSAGENS_HIERARQUIA } from '../contracts';
 import { equipeChefiadaPor, erroDoCodigoErp, errosDaHierarquia, hierarquiaDoCargo, responsavelDaEquipe, type HierarquiaPedida, type PessoaDaHierarquia } from '../domain';
 
 export interface HierarquiaAtual extends HierarquiaPedida {

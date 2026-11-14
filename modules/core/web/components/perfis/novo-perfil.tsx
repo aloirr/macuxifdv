@@ -19,7 +19,8 @@ import {
   type LinhaDeAcesso,
   type Marcacao,
 } from '../../lib/acesso';
-import { CARGOS, MENSAGEM_CARGO_OBRIGATORIO, ROTULO_CARGO, type Cargo } from '../../../contracts/cargos';
+import { CARGOS, type Cargo } from '@macuxi/platform-sdk';
+import { MENSAGEM_CARGO_OBRIGATORIO, ROTULO_CARGO } from '../../../contracts/cargos';
 import { corpoDoPerfil, edicaoInicial, frasesDaRecusa } from '../../lib/perfis';
 import { IconeDoModulo } from '../acesso/icones-modulo';
 

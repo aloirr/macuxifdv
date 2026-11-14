@@ -42,9 +42,8 @@ import {
   type PerfilDetalhe,
   type PerfilResumo,
   type ValorDaChave,
-  cargoDaBase,
-  type Cargo,
 } from '../contracts';
+import { cargoDaBase, type Cargo } from '@macuxi/platform-sdk';
 import { avaliarEstadoDePerfis, codigoDoPerfil, diffAuditavelDePerfil, sobreposicoesDoDesejado, validarNomeDoPerfil } from '../domain';
 import { auditar } from './auditoria';
 

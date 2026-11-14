@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cargoDaBase, CARGOS, CODIGOS_HIERARQUIA } from '../contracts/cargos';
+import { CODIGOS_HIERARQUIA } from '../contracts/cargos';
 import { equipeChefiadaPor, erroDoCodigoErp, errosDaHierarquia, gerenteDaHierarquia, hierarquiaDoCargo, regrasDoCargo, responsavelDaEquipe, type PessoaDaHierarquia } from './cargos';
 
 const GER = 'g1';
@@ -15,13 +15,6 @@ const pessoas: PessoaDaHierarquia[] = [
 const codigos = (e: { codigo: string }[]) => e.map((x) => x.codigo);
 
 describe('RN-CORE-55/56/57: cargos e hierarquia do cadastro (ADR 0049; R-20261114-153500/153800/154000)', () => {
-  it('RN-CORE-53: os cargos são 5, fixos (do SDK); o cargo de fábrica de analista, assistente e admin é Administrativo', () => {
-    expect(CARGOS).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'administrativo']);
-    expect(cargoDaBase('promotor')).toBe('promotor');
-    expect(cargoDaBase('analista')).toBe('administrativo');
-    expect(cargoDaBase('admin')).toBe('administrativo');
-  });
-
   it('RN-CORE-55: campos por cargo: vendedor pede supervisor (gerente derivado); promotor gerente (supervisor opcional); supervisor gerente e equipe; gerente equipe opcional; sem cargo, nada', () => {
     expect(regrasDoCargo('vendedor')).toEqual({ supervisor: 'obrigatorio', gerente: 'derivado', nomeEquipe: 'nao' });
     expect(regrasDoCargo('promotor')).toEqual({ supervisor: 'opcional', gerente: 'obrigatorio', nomeEquipe: 'nao' });

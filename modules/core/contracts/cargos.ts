@@ -1,11 +1,9 @@
 /**
  * Cargo do perfil de acesso no core (ADR 0049; RN-CORE-53 a RN-CORE-57; migração 0069). A lista fixa, o schema, o cargo de cada
- * base e o que o cadastro pede por cargo (`HIERARQUIA_DO_CARGO`) são do SDK; aqui ficam só o rótulo da tela e os códigos e
- * frases dos erros da hierarquia.
+ * base e o que o cadastro pede por cargo (`HIERARQUIA_DO_CARGO`) vêm direto de `@macuxi/platform-sdk`; aqui ficam só o rótulo da
+ * tela e os códigos e frases dos erros da hierarquia.
  */
-import { type Cargo } from '@macuxi/platform-sdk';
-
-export { CARGOS, CargoSchema, cargoDaBase, HIERARQUIA_DO_CARGO, type Cargo } from '@macuxi/platform-sdk';
+import type { Cargo } from '@macuxi/platform-sdk';
 
 export const ROTULO_CARGO: Readonly<Record<Cargo, string>> = {
   vendedor: 'Vendedor',

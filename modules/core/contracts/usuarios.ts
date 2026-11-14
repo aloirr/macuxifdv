@@ -15,7 +15,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
-import { CargoSchema } from './cargos';
+import { CargoSchema } from '@macuxi/platform-sdk';
 
 const Uuid = z.string().uuid();
 const Texto = (max: number) => z.string().trim().max(max);

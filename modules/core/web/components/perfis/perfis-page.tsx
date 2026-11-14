@@ -154,7 +154,7 @@ function ListaDePerfis() {
                   {usuariosDe(p) === 0 ? (
                     <span className="text-ink-2">0</span>
                   ) : (
-                    <button type="button" className="min-h-[44px] min-w-[44px] font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
+                    <button type="button" className="min-h-[44px] min-w-[44px] font-semibold text-accent-ink hover:underline" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(p.codigo)}`)}>
                       {usuariosDe(p)}
                     </button>
                   )}
@@ -184,7 +184,7 @@ function ListaDePerfis() {
             acao.tipo === 'desativar' && usuariosDe(acao.perfil) > 0 ? (
               <>
                 <Button onClick={() => setAcao(null)}>Fechar</Button>
-                <Button variant="primary" onClick={() => router.push(`/core/usuarios?perfil=${encodeURIComponent(acao.perfil.codigo)}`)}>
+                <Button variant="primary" onClick={() => router.push(`/usuarios?perfil=${encodeURIComponent(acao.perfil.codigo)}`)}>
                   Ver os usuários
                 </Button>
               </>
@@ -500,7 +500,6 @@ function EdicaoDoPerfil({ codigo }: { codigo: string }) {
                   s.id,
                   s.titulo,
                   <>
-                    {s.id === 'onde-entra' && <p className="m-0 text-[13px] text-ink-2">Em quais apps e sites quem tem este perfil consegue entrar.</p>}
                     {linhas.filter((l) => l.secao === s.id).map(renderLinha)}
                     {s.id === 'clientes' && (
                       <LinhaDePermissao id="cliente-ver-360" rotulo="Ver o Cliente 360" testId="permissao.cliente-ver-360">

@@ -13,7 +13,7 @@
  * PERFIL_DADOS_INVALIDOS, e `detalhes.regra` com a RN.
  */
 import { z } from 'zod';
-import { CargoSchema } from './cargos';
+import { CargoSchema } from '@macuxi/platform-sdk';
 import { PerfilSchema } from './auth';
 
 /** RD-0017: código e textos únicos da recusa de nome repetido e de nome vazio (a tela decide pelo código, nunca pelo texto). */

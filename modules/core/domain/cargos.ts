@@ -7,7 +7,8 @@
  * - Supervisor: Gerente e o nome da equipe que ele chefia, obrigatórios.
  * - Gerente: nome da equipe própria, opcional. Administrativo: sem hierarquia.
  */
-import { CODIGOS_HIERARQUIA, HIERARQUIA_DO_CARGO, MENSAGENS_HIERARQUIA, type Cargo } from '../contracts/cargos';
+import { HIERARQUIA_DO_CARGO, type Cargo } from '@macuxi/platform-sdk';
+import { CODIGOS_HIERARQUIA, MENSAGENS_HIERARQUIA } from '../contracts/cargos';
 
 export type RegrasDoCargo = (typeof HIERARQUIA_DO_CARGO)[Cargo];
 
