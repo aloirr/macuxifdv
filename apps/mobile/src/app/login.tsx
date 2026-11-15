@@ -438,7 +438,7 @@ function LoginDemo() {
                     <Text style={styles.avatarText}>{initials(u.name)}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={t.title16}>{u.name}</Text>
+                    <Text style={t.bodyStrong}>{u.name}</Text>
                     <Text style={t.small}>
                       {rotulo(u.perfil)}
                       {u.team_name ? ` · ${u.team_name}` : ''}
@@ -479,13 +479,13 @@ function LoginDemo() {
 
 const styles = StyleSheet.create({
   // texto laranja sobre claro: accentInk (contraste >= 4,5:1; docs/design/componentes.md §1.1)
-  brand: { ...fonte.displayBold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
+  brand: { ...fonte.bold, fontSize: 12, letterSpacing: 1.2, color: colors.accentInk },
   group: { ...fonte.semibold, fontSize: 12, color: colors.ink2, textTransform: 'uppercase', letterSpacing: 0.6 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, minHeight: 60 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   muted: { opacity: 0.75 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...fonte.displayBold, fontSize: 14, color: '#FFFFFF' },
+  avatarText: { ...fonte.bold, fontSize: 14, color: '#FFFFFF' },
   link: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // alvo de toque >= 48 dp
   avancado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48 },
