@@ -27,6 +27,7 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
+import { STATUS_FORA_DO_TOTAL } from '../domain/totais';
 import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, enviadoAoErp, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { payloadAprovado } from './aprovado-erp';
@@ -174,9 +175,7 @@ export const rotaListarPedidos: RotaModulo = {
     return ctx.comTenant(async (db) => {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
-      const { rows } = await db.query<LinhaPedido>(
-        `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
-          where p.deleted_at is null
+      const filtro = `where p.deleted_at is null
             and ($1::uuid[] is null or p.vendedor_id = any($1::uuid[]))
             and ($2::uuid[] is null or p.cliente_id = any($2::uuid[]))
             and ($3::text[] is null or p.status = any($3::text[]))
@@ -190,20 +189,41 @@ export const rotaListarPedidos: RotaModulo = {
                                     and ($6::date is null or ev.ocorrido_em >= ($6::date)::timestamp at time zone $10)
                                     and ($7::date is null or ev.ocorrido_em < (($7::date) + 1)::timestamp at time zone $10))))
             and ($8::text is null or p.cliente_nome ilike $8 or p.numero ilike $8)
-            and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
             and ($13::text is null or p.tipo = $13)
             and ($14::text is null or ${SQL_SITUACAO_ORCAMENTO} = $14)
             and ($16::uuid is null or p.filial_id = $16)
+            and (not $17::boolean or p.status <> 'pending_approval')`;
+      const valores = [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null, q.sem_pendentes === '1'];
+      const { rows } = await db.query<LinhaPedido>(
+        `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
+          ${filtro}
+            and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, q.por_status === '1', q.branch_id ?? null],
+        valores,
       );
+      // §P6 (regra 3): quantidade e soma do filtro inteiro, só na primeira página e só a pedido (`totais=1`); mesmo filtro e mesmo escopo da lista.
+      let total_filtro: { quantidade: number; soma_cents: number } | undefined;
+      if (q.totais === '1' && !cursor) {
+        const t = (
+          await db.query<{ quantidade: number; soma_cents: number }>(
+            `select count(*)::int as quantidade,
+                    coalesce(sum(p.total_cents) filter (where p.status <> all($18::text[])), 0)::float8 as soma_cents
+               from vendedor.pedido p
+               ${filtro}
+                and ($9::int is not null and ($11::timestamptz is null or $12::uuid is not null))`,
+            [...valores, [...STATUS_FORA_DO_TOTAL]],
+          )
+        ).rows[0];
+        total_filtro = { quantidade: Number(t?.quantidade ?? 0), soma_cents: Math.round(Number(t?.soma_cents ?? 0)) };
+      }
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
       const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
       return {
         itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
+        ...(total_filtro ? { total_filtro } : {}),
       };
     });
   },

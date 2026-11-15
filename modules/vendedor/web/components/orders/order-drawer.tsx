@@ -3,16 +3,17 @@
 import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
-import { errorMessage, imprimirHtml } from '@macuxi/platform-sdk/web';
+import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, HistoricoEmTags, LoadingBlock, type NoticeTone, Notice, tagsDoHistorico, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import type { Order } from '../../../contracts';
 import { eventosDoOrcamento, eventosDoPedido } from '../../../domain/historico-pedido';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { descontoDoPedidoPct } from '../../../domain/preco-pedido';
-import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
+import type { OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega, enderecoFoiEditado, SELO_ENDERECO_EDITADO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
+import { exportarPdfDoPedido } from './exportar-pdf';
 import { OrderStatusBadge } from './status';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -42,10 +43,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     setGerando(view);
     setErroPdf(null);
     try {
-      const pdf = pdfDoPedido(dados);
-      const html = buildOrderPdfHtml(pdf, view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
-      // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
-      await imprimirHtml(html, orderPdfFileName(pdf.number, pdf.created_at, tz, pdf.tipo).replace(/\.pdf$/, ''));
+      await exportarPdfDoPedido(dados, view, { empresa: sessao.empresa, tz });
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
