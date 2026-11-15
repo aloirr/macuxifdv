@@ -114,6 +114,7 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
   });
 
   if (!pode) return null;
+  const alterado = !!q.data && (parado !== String(q.data.parado_min) || JSON.stringify([...dias].sort()) !== JSON.stringify([...q.data.dias_uteis_semana].sort()));
   const salvar = () => {
     const corpo = { dias_uteis_semana: dias, parado_min: Number(parado) };
     const v = validarParametrosInicio(corpo);
@@ -164,7 +165,7 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
                     aria-describedby={erros.dias ? 'inicio-params.dias.erro' : undefined}
                     data-testid={`inicio-params.dia.${n}`}
                     onClick={() => alternar(n)}
-                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+                    className={`h-[44px] min-w-[56px] rounded-xl border px-3 text-[13px] font-semibold ${dias.includes(n) ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
                   >
                     {rotulo}
                   </button>
@@ -200,8 +201,8 @@ export function InicioParametrosPanel({ semMoldura }: { semMoldura?: boolean } =
               </span>
             </label>
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={salvar} disabled={gravar.isPending} data-testid="inicio-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar parâmetros'}
+              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="inicio-params.salvar">
+                {gravar.isPending ? 'Salvando…' : 'Salvar dias úteis'}
               </Button>
               {salvo && (
                 <Notice tone="success" onClose={() => setSalvo(false)}>

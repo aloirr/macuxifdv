@@ -8,6 +8,8 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { LicencasEstadoSchema, NIVEIS_LICENCA, type LicencasEstado, type NivelLicenca } from '../../../contracts';
+import { rotuloDoModulo } from '../../lib/perfis';
+import { Moldura } from '../moldura';
 import { csvDeLicencas, efetivosDoUsuario, linhasDoNivel, modulosQueTambemDesligam, ROTULO_NIVEL } from '../../lib/licencas';
 
 const CHAVE = ['core', 'licencas'] as const;
@@ -28,11 +30,11 @@ function caminhoDaAlteracao(a: Alteracao): string {
 }
 
 /**
- * Tela "Usuários e módulos" do BKO (RF-CORE-02; RN-CORE-01/02/03). Só admin: o item de menu e a página dependem da
+ * Tela "Módulos" (Parâmetros › Acesso) do BKO (RF-CORE-02; RN-CORE-01/02/03). Só admin: o item de menu e a página dependem da
  * ação `modulo.gerir_licencas` e a API revalida. Filtros (nível, perfil, usuário) ficam na URL. Desligar módulo com
  * dependentes mostra o aviso antes de confirmar; o `core` não desliga. testIDs: docs/modulos/core/test-ids.md.
  */
-function LicencasConteudo() {
+function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -56,7 +58,7 @@ function LicencasConteudo() {
     mutationFn: async (a: Alteracao) => api(caminhoDaAlteracao(a), { method: 'PUT', body: { ativo: a.ativo } }),
     onSuccess: async (_r, a) => {
       setPendente(null);
-      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${a.modulo}. Vale para os aparelhos no próximo sync.`);
+      setAviso(`${a.ativo ? 'Ativado' : 'Desativado'}: ${rotuloDoModulo(a.modulo)}. Vale para os aparelhos no próximo sync.`);
       await qc.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e) => {
@@ -91,16 +93,23 @@ function LicencasConteudo() {
   };
 
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="licencas.tela">
-      <PageHeader
-        title="Usuários e módulos"
-        subtitle="Quais módulos cada empresa, perfil e usuário usa. O usuário só enxerga o que passa pelos três níveis (empresa ∩ perfil, menos as exceções)."
-        actions={
+    <div className={`flex w-full flex-col gap-5 ${emPainel ? '' : 'max-w-[1180px]'}`} data-testid="licencas.tela">
+      {emPainel ? (
+        <div className="flex justify-end">
           <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
             Exportar CSV
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Módulos"
+          actions={
+            <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
+              Exportar CSV
+            </Button>
+          }
+        />
+      )}
 
       {!pode && <Notice tone="info">Só o administrador altera licenças. Você pode consultar.</Notice>}
       {aviso && (
@@ -150,55 +159,55 @@ function LicencasConteudo() {
       {q.isPending && <LoadingBlock label="Carregando as licenças…" />}
 
       {estado && (
-        <Panel title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
+        <Moldura sem={emPainel} title={nivel === 'usuario' ? 'Exceções do usuário (só removem módulo)' : `Módulos — ${ROTULO_NIVEL[nivel]}`}>
           <TableScroll minWidth={560}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
                   <th className={th}>Módulo</th>
-                  <th className={th}>Estado</th>
                   <th className={th}>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {linhas.map((l) => (
                   <tr key={l.modulo} data-testid={`licencas.modulo.${nivel}.${l.modulo}`}>
-                    <td className={td}>{l.modulo}</td>
+                    <td className={td}>{rotuloDoModulo(l.modulo)}</td>
                     <td className={td}>
-                      <span data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado={l.ativo ? 'ativo' : 'inativo'}>
-                        <Badge tone={l.ativo ? 'success' : 'neutral'}>{l.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                      </span>
-                    </td>
-                    <td className={td}>
+                      {l.travado ? (
+                        <span className="text-[13px] text-ink-2" data-testid={`licencas.estado.${nivel}.${l.modulo}`} data-estado="ativo">
+                          Sempre ativo
+                        </span>
+                      ) : (
                       <button
                         type="button"
                         role="switch"
                         aria-checked={l.ativo}
-                        aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${l.modulo}`}
-                        aria-disabled={l.travado || !pode}
-                        disabled={l.travado || !pode}
+                        data-estado={l.ativo ? 'ativo' : 'inativo'}
+                        aria-label={`${l.ativo ? 'Desativar' : 'Ativar'} ${rotuloDoModulo(l.modulo)}`}
+                        aria-disabled={!pode}
+                        disabled={!pode}
                         data-testid={`licencas.toggle.${nivel}.${l.modulo}`}
                         onClick={() => pedir(l.modulo, !l.ativo)}
                         className="h-[44px] min-w-[96px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground disabled:cursor-not-allowed disabled:text-disabled"
                       >
-                        {l.travado ? 'Sempre ativo' : l.ativo ? 'Desativar' : 'Ativar'}
+                        {l.ativo ? 'Desativar' : 'Ativar'}
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </TableScroll>
-        </Panel>
+        </Moldura>
       )}
-
 
       {estado && nivel === 'usuario' && (
         <Panel title="Módulos efetivos do usuário">
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0" data-testid="licencas.efetivos">
             {efetivos.map((m) => (
               <li key={m} data-testid={`licencas.efetivo.${m}`}>
-                <Badge tone="success">{m}</Badge>
+                <Badge tone="success">{rotuloDoModulo(m)}</Badge>
               </li>
             ))}
           </ul>
@@ -207,7 +216,7 @@ function LicencasConteudo() {
 
       <Dialog
         open={pendente !== null}
-        title={pendente?.ativo ? `Ativar ${pendente.modulo}?` : `Desativar ${pendente?.modulo ?? ''}?`}
+        title={pendente?.ativo ? `Ativar ${rotuloDoModulo(pendente.modulo)}?` : `Desativar ${pendente ? rotuloDoModulo(pendente.modulo) : ''}?`}
         onClose={() => setPendente(null)}
         footer={
           <>
@@ -229,7 +238,7 @@ function LicencasConteudo() {
             </p>
             {pendente.tambemDesligam.length > 0 && (
               <Notice tone="warning">
-                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.join(', ')}.</span>
+                <span data-testid="licencas.aviso-dependencia">Este módulo também desliga: {pendente.tambemDesligam.map(rotuloDoModulo).join(', ')}.</span>
               </Notice>
             )}
           </div>
@@ -240,10 +249,10 @@ function LicencasConteudo() {
 }
 
 /** `useSearchParams` exige Suspense no Next. */
-export function LicencasPage() {
+export function LicencasPage({ emPainel }: { emPainel?: boolean }) {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando…" />}>
-      <LicencasConteudo />
+      <LicencasConteudo emPainel={emPainel} />
     </Suspense>
   );
 }

@@ -13,6 +13,7 @@ const CAMINHO = '/core/parametros/curvas-abc';
 export const CHAVE_PARAMETROS_CURVAS_ABC = ['core', 'parametros', 'curvas-abc'] as const;
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 pr-10 text-[14px] font-normal text-ink';
 
+const LINHAS = [['a_min_pct', 'Curva A'], ['b_min_pct', 'Curva B']] as const;
 type Campo = 'a_min_pct' | 'b_min_pct';
 type Textos = Record<DimensaoCurvaAbc, Record<Campo, string>>;
 type Erros = Partial<Record<ErroParametroCurvaAbc['campo'], string>>;
@@ -26,8 +27,8 @@ const numero = (t: string) => (/^-?\d+([.,]\d+)?$/.test(t.trim()) ? Number(t.tri
 function CampoPct({ dimensao, campo, rotulo, valor, erro, onChange }: { dimensao: DimensaoCurvaAbc; campo: Campo; rotulo: string; valor: string; erro?: string; onChange: (v: string) => void }) {
   const id = `curvas-abc-params.${dimensao}.${campo}`;
   return (
-    <label className="flex w-[200px] flex-col gap-1 text-[13px] font-semibold text-ink">
-      {rotulo}
+    <label className="flex flex-col gap-1">
+      <span className="sr-only">{rotulo}</span>
       {erro && (
         <span id={`${id}.erro`} className="text-[13px] font-normal text-danger" data-testid={`${id}.erro`}>
           {erro}
@@ -87,6 +88,7 @@ export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean 
   });
 
   if (!pode) return null;
+  const alterado = !!textos && !!q.data && JSON.stringify(textos) !== JSON.stringify(comoTextos(q.data));
   const mudar = (d: DimensaoCurvaAbc, c: Campo) => (v: string) => {
     setSalvo(false);
     setTextos((t) => (t ? { ...t, [d]: { ...t[d], [c]: v } } : t));
@@ -117,18 +119,37 @@ export function CurvasAbcParametrosPanel({ semMoldura }: { semMoldura?: boolean 
         )}
         {textos && (
           <>
-            {DIMENSOES_CURVA_ABC.map((d) => (
-              <fieldset key={d} className="m-0 flex flex-col gap-2 border-0 p-0">
-                <legend className="text-[14px] font-semibold text-ink">{ROTULOS_DIMENSAO_CURVA[d]}</legend>
-                <div className="flex flex-wrap items-start gap-6">
-                  <CampoPct dimensao={d} campo="a_min_pct" rotulo="Curva A a partir de (%)" valor={textos[d].a_min_pct} erro={erros[`${d}.a_min_pct`]} onChange={mudar(d, 'a_min_pct')} />
-                  <CampoPct dimensao={d} campo="b_min_pct" rotulo="Curva B a partir de (%)" valor={textos[d].b_min_pct} erro={erros[`${d}.b_min_pct`]} onChange={mudar(d, 'b_min_pct')} />
-                  <span className="self-end pb-3 text-[13px] text-ink-2">C abaixo disso</span>
-                </div>
-              </fieldset>
-            ))}
+            <div className="overflow-x-auto">
+              <table className="border-separate border-spacing-x-4 border-spacing-y-2 text-left" data-testid="curvas-abc-params.grade">
+                <thead>
+                  <tr className="text-[13px] font-semibold text-ink">
+                    <th scope="col" className="w-[200px]" />
+                    {DIMENSOES_CURVA_ABC.map((d) => (
+                      <th key={d} scope="col" className="w-[160px] font-semibold">
+                        {ROTULOS_DIMENSAO_CURVA[d]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {LINHAS.map(([campo, titulo]) => (
+                    <tr key={campo} className="align-top">
+                      <th scope="row" className="pt-2 text-[14px] font-semibold text-ink">
+                        {titulo}
+                        <span className="block text-[13px] font-normal text-ink-2">a partir de</span>
+                      </th>
+                      {DIMENSOES_CURVA_ABC.map((d) => (
+                        <td key={d}>
+                          <CampoPct dimensao={d} campo={campo} rotulo={`${titulo} · ${ROTULOS_DIMENSAO_CURVA[d]}`} valor={textos[d][campo]} erro={erros[`${d}.${campo}` as keyof Erros]} onChange={mudar(d, campo)} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending} data-testid="curvas-abc-params.salvar">
+              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="curvas-abc-params.salvar">
                 {gravar.isPending ? 'Salvando…' : 'Salvar curvas'}
               </Button>
               {salvo && (

@@ -7,6 +7,7 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { useMe } from '../../lib/queries';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { ROTULO_CARGO } from '../../../contracts/cargos';
+import { Moldura } from '../moldura';
 import {
   alternarMarcado,
   Badge,
@@ -78,7 +79,7 @@ const ehSemConexao = (e: unknown) => e instanceof TypeError || (e instanceof Api
 
 // ---------------------------------------------------------------- lista
 
-function ListaDePerfis() {
+function ListaDePerfis({ emPainel }: { emPainel?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
@@ -118,15 +119,23 @@ function ListaDePerfis() {
 
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-4" data-testid="perfis.lista">
-      <PageHeader
-        title="Perfis de acesso"
-        actions={
+      {emPainel ? (
+        <div className="flex justify-end">
           <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
             Novo perfil
           </Button>
-        }
-      />
-      <Panel label="Perfis de acesso">
+        </div>
+      ) : (
+        <PageHeader
+          title="Perfis de acesso"
+          actions={
+            <Button variant="primary" onClick={() => router.push(`${pathname}?novo=1`)} data-testid="perfis.novo">
+              Novo perfil
+            </Button>
+          }
+        />
+      )}
+      <Moldura sem={emPainel} title="">
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
@@ -174,7 +183,7 @@ function ListaDePerfis() {
             ))}
           </tbody>
         </table>
-      </Panel>
+      </Moldura>
       {acao && (
         <Dialog
           open
@@ -685,19 +694,19 @@ function HistoricoDoPerfil({ codigo, nome, detalhe, onClose }: { codigo: string;
 
 // ---------------------------------------------------------------- página
 
-function PerfisConteudo() {
+function PerfisConteudo({ emPainel }: { emPainel?: boolean }) {
   const params = useSearchParams();
   const podeGerir = usePode('perfil.gerir');
   const codigo = params.get('perfil');
   if (!podeGerir) return <Notice tone="info">{SEM_PERMISSAO}</Notice>;
   if (params.get('novo')) return <NovoPerfil />;
-  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis />;
+  return codigo ? <EdicaoDoPerfil key={codigo} codigo={codigo} /> : <ListaDePerfis emPainel={emPainel} />;
 }
 
-export function PerfisPage() {
+export function PerfisPage({ emPainel }: { emPainel?: boolean }) {
   return (
     <Suspense fallback={<LoadingBlock label="Carregando perfis…" />}>
-      <PerfisConteudo />
+      <PerfisConteudo emPainel={emPainel} />
     </Suspense>
   );
 }

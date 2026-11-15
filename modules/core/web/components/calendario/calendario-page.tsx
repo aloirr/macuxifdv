@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
@@ -92,7 +92,8 @@ export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalen
       )}
       {p && textoAlmoco && (
         <>
-          <Panel
+          <Secao
+            embutido={embutido}
             title="Feriados"
             aside={
               <SelectField label="Ano" value={String(ano)} onChange={(e) => setAno(Number(e.target.value))} data-testid="calendario.ano">
@@ -140,8 +141,8 @@ export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalen
               </div>
               <TabelaFeriados linhas={feriadosDoAno(ano, p.feriados)} ocupado={gravar.isPending} onRemover={remover} />
             </div>
-          </Panel>
-          <Panel title="Almoço">
+          </Secao>
+          <Secao embutido={embutido} title="Almoço">
             <div className="flex flex-wrap items-start gap-4 text-[13px]">
               <label className="flex flex-col gap-1 font-semibold text-ink">
                 Corte
@@ -169,10 +170,24 @@ export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalen
                 Salvar
               </Button>
             </div>
-          </Panel>
+          </Secao>
         </>
       )}
     </div>
+  );
+}
+
+/** Cartão avulso na página; embutido em Parâmetros o shell já tem a caixa, então vira seção solta (sem caixa dentro de caixa). */
+function Secao({ embutido, title, aside, children }: { embutido?: boolean; title: string; aside?: ReactNode; children: ReactNode }) {
+  if (!embutido) return <Panel title={title} aside={aside}>{children}</Panel>;
+  return (
+    <section aria-label={title} className="flex flex-col gap-3 border-t border-line-2 pt-4 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h3 className="m-0 text-[15px] font-semibold text-ink">{title}</h3>
+        {aside}
+      </div>
+      {children}
+    </section>
   );
 }
 

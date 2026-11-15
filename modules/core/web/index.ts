@@ -43,6 +43,10 @@ const PainelEtapaPendente = painel(CheckoutPendenciaPanel);
 const PainelDesconto = painel(DescontoPadraoPanel);
 const PainelMedidas = painel(MedidasParametrosPanel);
 const PainelPromotorPedidos = painel(PromotorPedidosPanel);
+const PainelPerfis: ComponentType = () => createElement(PerfisPage, { emPainel: true });
+const PainelModulos: ComponentType = () => createElement(LicencasPage, { emPainel: true });
+const PainelMotivos: ComponentType = () => createElement(MotivosPage, { emPainel: true });
+const PainelFotosPdv: ComponentType = () => createElement(FotosPdvPage, { emPainel: true });
 const PainelCalendario: ComponentType = () => createElement(CalendarioPage, { embutido: true });
 
 /**
@@ -55,6 +59,10 @@ export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   // ADR 0058: página única de Parâmetros; cada painel mantém a ação de antes (a API revalida)
   paineisParametros: [
+    { id: 'perfis', secao: 'acesso', titulo: 'Perfis de acesso', ordem: 10, acao: 'perfil.gerir', caminhosAntigos: ['perfis'], componente: PainelPerfis },
+    { id: 'usuarios-e-modulos', secao: 'acesso', titulo: 'Módulos', ordem: 20, acao: 'modulo.gerir_licencas', caminhosAntigos: ['usuarios-e-modulos'], componente: PainelModulos },
+    { id: 'motivos', secao: 'visitas', titulo: 'Motivos de não venda', ordem: 10, acao: 'motivo.editar', caminhosAntigos: ['motivos'], componente: PainelMotivos },
+    { id: 'fotos-pdv', secao: 'visitas', titulo: 'Fotos do PDV', ordem: 20, acao: 'foto_tipo.editar', caminhosAntigos: ['fotos-pdv'], componente: PainelFotosPdv },
     { id: 'farol', secao: 'clientes', titulo: 'Farol', ordem: 10, acao: 'parametro.farol', componente: PainelFarol },
     { id: 'curvas-abc', secao: 'clientes', titulo: 'Curvas ABC', ordem: 20, acao: 'parametro.curva_abc', componente: PainelCurvasAbc },
     { id: 'inicio', secao: 'inicio', titulo: 'Dias úteis e equipe parada', ordem: 10, acao: 'parametro.inicio', componente: PainelInicio },

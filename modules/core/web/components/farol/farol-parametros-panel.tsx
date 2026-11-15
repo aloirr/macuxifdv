@@ -83,6 +83,7 @@ export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () =
   });
 
   if (!pode) return null;
+  const alterado = !!textos && !!q.data && JSON.stringify(textos) !== JSON.stringify(textosDosParametros(q.data));
   const mudar = (campo: keyof TextosDosParametros) => (v: string) => {
     setSalvo(false);
     setTextos((t) => (t ? { ...t, [campo]: v } : t));
@@ -121,8 +122,8 @@ export function FarolParametrosPanel({ aoSalvar, semMoldura }: { aoSalvar?: () =
               <CampoNumerico id="positivacao_amarelo_pct" rotulo="Vendedor amarelo a partir de" ajuda="Abaixo deste percentual o vendedor fica vermelho. Deve ser menor que o verde." unidade="%" valor={textos.positivacao_amarelo_pct} erro={erros.positivacao_amarelo_pct} onChange={mudar('positivacao_amarelo_pct')} />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" onClick={salvar} disabled={gravar.isPending} data-testid="farol-params.salvar">
-                {gravar.isPending ? 'Salvando…' : 'Salvar parâmetros'}
+              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="farol-params.salvar">
+                {gravar.isPending ? 'Salvando…' : 'Salvar farol'}
               </Button>
               {salvo && (
                 <Notice tone="success" onClose={() => setSalvo(false)}>

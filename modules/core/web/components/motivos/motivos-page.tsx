@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Moldura } from '../moldura';
+import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, td, th, TableScroll } from '@macuxi/ui/web';
 import { MotivoSyncSchema, type MotivoPut, type MotivoSync } from '../../../contracts';
 import { novoId } from '../../lib/visitas';
 
@@ -27,7 +28,7 @@ const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
  * Cadastro de motivos (RN-CORE-14): motivos de não venda do tenant. Os de sistema (loja fechada e acesso negado, que exigem
  * a foto da fachada) aparecem travados. Só analista e admin editam (ação `motivo.editar`); a API revalida e audita.
  */
-export function MotivosPage() {
+export function MotivosPage({ emPainel }: { emPainel?: boolean }) {
   const qc = useQueryClient();
   const pode = usePode('motivo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -57,16 +58,25 @@ export function MotivosPage() {
   const itens = lista.data ?? [];
   const novo = (): Rascunho => ({ id: novoId(), existente: false, tipo: 'nao_venda', codigo: '', descricao: '', ativo: true, ordem: (itens.at(-1)?.ordem ?? 0) + 10 });
   return (
-    <div className="flex w-full max-w-[960px] flex-col gap-5" data-testid="motivos.tela">
-      <PageHeader
-        title="Motivos de não venda"
-        subtitle="Lista que o vendedor vê no checkout quando não há pedido. Loja fechada e acesso negado são do sistema e exigem a foto da fachada."
-        actions={
+    <div className={`flex w-full flex-col ${emPainel ? 'gap-4' : 'max-w-[960px] gap-5'}`} data-testid="motivos.tela">
+      {emPainel ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 text-[13px] text-ink-2">Lista que o vendedor vê no checkout quando não há pedido.</p>
           <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
             Novo motivo
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Motivos de não venda"
+          subtitle="Lista que o vendedor vê no checkout quando não há pedido."
+          actions={
+            <Button variant="primary" disabled={!pode} onClick={() => setRascunho(novo())} data-testid="motivos.novo">
+              Novo motivo
+            </Button>
+          }
+        />
+      )}
       {!pode && <Notice tone="info">Só analista e administrador editam motivos. Você pode consultar.</Notice>}
       {aviso && (
         <Notice tone="info" onClose={() => setAviso(null)}>
@@ -76,7 +86,7 @@ export function MotivosPage() {
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os motivos…" />}
       {lista.data && (
-        <Panel title={`${itens.length} motivos`}>
+        <Moldura sem={emPainel} title={`${itens.length} motivos`}>
           <TableScroll minWidth={640}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
@@ -120,7 +130,7 @@ export function MotivosPage() {
               </tbody>
             </table>
           </TableScroll>
-        </Panel>
+        </Moldura>
       )}
       {rascunho && (
         <Dialog
