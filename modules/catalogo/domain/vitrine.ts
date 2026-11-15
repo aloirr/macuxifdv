@@ -83,12 +83,14 @@ function precoDoCartao(p: ProdutoCatalogo, ctx: ContextoVitrine): PrecoVisivel {
  */
 export function itemDaVitrine(p: ProdutoCatalogo, ctx: ContextoVitrine): ItemVitrine {
   const base = { id: p.id, erp_code: p.sku, description: p.nome, brand: p.marca, line: p.categoria, unit: p.unidade, ean: p.ean, thumbnail_url: p.thumbnail_url, is_campaign: p.campanha };
-  const availability = estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, ...(ctx.filiaisFolha !== undefined ? { filiaisFolha: ctx.filiaisFolha } : {}), agora: ctx.agora, parametros: ctx.parametros });
+  // RN-CAT-05 / RN-CORE-39: sem filial de venda (sem_filial ou sem usuário) o estoque fica VAZIO (nulo), nunca "0"
+  const semFilialDeVenda = ctx.filiaisFolha !== undefined && ctx.filiaisFolha !== null && ctx.filiaisFolha.length === 0;
+  const availability = semFilialDeVenda ? null : estoqueVisivel(p.id, ctx.saldos.get(p.id) ?? [], { filiais: ctx.filiais, ...(ctx.filiaisFolha !== undefined ? { filiaisFolha: ctx.filiaisFolha } : {}), agora: ctx.agora, parametros: ctx.parametros });
   if (!podeVerPrecoEstoque(ctx.perfil, ctx.parametros)) return { ...base, price: null, availability, price_stock_visible: false };
   const item: ItemVitrine = {
     ...base,
     price: precoDoCartao(p, ctx),
-    availability: availability!,
+    availability,
     price_stock_visible: true,
   };
   return itemVitrineParaPerfil(item, ctx.perfil, ctx.parametros);

@@ -61,6 +61,13 @@ const ctx = (o: Partial<ContextoVitrine> = {}): ContextoVitrine => ({
 });
 
 describe('itemDaVitrine — preço e estoque do cartão (RF-CAT-03)', () => {
+  it('RN-CAT-05 / RN-CORE-39: sem filial de venda (folha vazia) o estoque fica nulo, nunca 0', () => {
+    for (const perfil of ['vendedor', 'promotor'] as const) {
+      const item = itemDaVitrine(PRODUTOS[0]!, ctx({ perfil, filiais: [], filiaisFolha: [] }));
+      expect(item.availability, perfil).toBeNull();
+    }
+  });
+
   it('RN-CAT-06: com cliente em contexto, o preço é o da tabela dele; fora dela, "Sem preço para este cliente." e não vendável', () => {
     const cafe = itemDaVitrine(PRODUTOS[0]!, ctx());
     expect(cafe).toMatchObject({ id: id(1), erp_code: 'SKU-1', description: 'Café torrado e moído 500 g', brand: 'Aroma da Serra', line: 'Mercearia', unit: 'UN', price_stock_visible: true });

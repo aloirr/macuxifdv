@@ -291,7 +291,7 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   // sem usuário logado não há perfil para liberar preço (falha fechada): trata como promotor
   const perfil: Perfil = e.perfil ?? 'promotor';
   const base = { perfil, parametros, agora: e.agora, clienteId: e.clienteId };
-  if (e.perfil === null) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
+  if (e.perfil === null) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [], filiaisFolha: [] };
   // RN-CAT-05 (revista): promotor sem direito ao preço lê o estoque, nunca o preço (as linhas de preço nem chegam ao aparelho)
   const lePreco = podeVerPrecoEstoque(perfil, parametros);
 

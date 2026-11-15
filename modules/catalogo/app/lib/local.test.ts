@@ -73,7 +73,7 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
   it('RN-CAT-05 (revista): o promotor lê o ESTOQUE e não o preço; o aparelho sem usuário não lê nada (estoque 0, sem preço)', async () => {
     const sem = await buscarLocal(leitor(), { ...entrada, perfil: null, q: 'café', limit: 20, offset: 0, offline: true });
     expect(sem.items[0]).toMatchObject({ price: null, price_stock_visible: false });
-    expect(sem.items[0]!.availability?.quantity ?? 0).toBe(0);
+    expect(sem.items[0]!.availability).toBeNull();
     const promotor = await buscarLocal(leitor(), { ...entrada, perfil: 'promotor', q: 'café', limit: 20, offset: 0, offline: true });
     expect(promotor.items[0]).toMatchObject({ price: null, price_stock_visible: false });
     expect(promotor.items[0]!.availability).toMatchObject({ band: 'disponivel', quantity: 50 });
@@ -144,10 +144,9 @@ describe('estoque por filial no aparelho (catalogo-campo-v2 §3 e §4; RN-CAT-05
     for (const perfil of ['vendedor', 'promotor'] as const) expect((await cafe(perfil, [F1], { filtroFilial: F2 })).quantity, perfil).toBe(0);
   });
 
-  it('RN-CORE-39: sem_filial = preço e estoque vazios no aparelho', async () => {
+  it('RN-CAT-05 / RN-CORE-39: sem_filial = preço e estoque VAZIOS no aparelho (availability nula, não 0)', async () => {
     const r = await buscarLocal(leitor(comFiliais([])), { ...entrada, perfil: 'vendedor', usuarioId: U, clienteId: null, q: 'café', limit: 20, offset: 0, offline: true });
-    expect(r.items[0]!.availability!.quantity).toBe(0);
-    expect(r.items[0]!.availability!.by_branch).toEqual([]);
+    expect(r.items[0]!.availability).toBeNull();
     expect(r.items[0]!.price).toMatchObject({ price_cents: null, sellable: false });
   });
 
