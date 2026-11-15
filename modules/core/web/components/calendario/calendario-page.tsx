@@ -167,7 +167,7 @@ export function CalendarioPage({ cliente, hoje, embutido }: { cliente?: ApiCalen
                 <ErroCampo id="calendario.almoco.janela.erro" texto={errosAlmoco.janela} />
               </fieldset>
               <Button variant="primary" className="mt-[21px]" disabled={gravar.isPending || Object.keys(almoco).length === 0} onClick={salvarAlmoco} data-testid="calendario.almoco.salvar">
-                Salvar
+                Salvar almoço
               </Button>
             </div>
           </Secao>

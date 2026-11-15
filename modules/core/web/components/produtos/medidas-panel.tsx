@@ -98,7 +98,6 @@ export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string)
                 <tr>
                   <th className={th}>Sigla</th>
                   <th className={th}>Descrição</th>
-                  <th className={th}>Situação</th>
                   <th className={th}>Produtos</th>
                   <th className={th}>Ações</th>
                 </tr>
@@ -106,11 +105,10 @@ export function MedidasPanel({ onAviso, semMoldura }: { onAviso: (texto: string)
               <tbody>
                 {itens.map((m) => (
                   <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
-                    <td className={`${td} font-mono font-semibold`}>{m.sigla}</td>
-                    <td className={td}>{m.descricao}</td>
-                    <td className={td}>
-                      {!m.ativo && <Badge tone="warning">Inativa</Badge>}
+                    <td className={`${td} font-mono font-semibold`}>
+                      {m.sigla} {!m.ativo && <Badge tone="warning">Inativa</Badge>}
                     </td>
+                    <td className={td}>{m.descricao}</td>
                     <td className={td}>{m.em_uso === 0 ? <span className="text-ink-2">sem uso</span> : `${m.em_uso} em uso`}</td>
                     <td className={td}>
                       <MenuAcoes

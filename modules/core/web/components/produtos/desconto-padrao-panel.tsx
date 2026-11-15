@@ -54,19 +54,22 @@ export function DescontoPadraoPanel({ semMoldura }: { semMoldura?: boolean } = {
           </Notice>
         )}
         <label className="flex max-w-[260px] flex-col gap-1">
-          Percentual (%)
+          Percentual
+          <span className="relative block">
           <input
             inputMode="decimal"
             value={valor}
             onChange={(e) => setTexto(e.target.value)}
             data-testid="produtos.parametro-desconto"
-            className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
+            className="h-[44px] w-full rounded-xl border border-field bg-surface px-3 pr-8 text-[14px] font-normal"
           />
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">%</span>
+          </span>
         </label>
         <p className="font-normal text-ink-2">Vale para todo produto sem desconto máximo próprio. Define o preço mínimo de venda.</p>
         {novo === undefined && <p className="font-normal text-danger">Informe um valor entre 0 e 100.</p>}
         <div>
-          <Button variant="primary" disabled={salvar.isPending || novo === undefined || novo === null} onClick={() => novo != null && salvar.mutate(novo)} data-testid="produtos.parametro-salvar">
+          <Button variant="primary" disabled={salvar.isPending || novo === undefined || novo === null || novo === padrao} onClick={() => novo != null && salvar.mutate(novo)} data-testid="produtos.parametro-salvar">
             Salvar desconto
           </Button>
         </div>

@@ -47,7 +47,7 @@ export function PromotorPedidosPanel({ semMoldura }: { semMoldura?: boolean } = 
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex min-w-[240px] flex-1 flex-col gap-1">
               {!semMoldura && <span className="text-[14px] font-semibold text-ink">Promotor vê pedidos</span>}
-              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele (Cliente 360 e lista de pedidos). Ele nunca cria nem altera pedido.</span>
+              <span className="text-[13px] text-ink-2">Mostra ao promotor, só para leitura, os pedidos dos clientes da carteira dele.</span>
             </div>
             <button
               type="button"

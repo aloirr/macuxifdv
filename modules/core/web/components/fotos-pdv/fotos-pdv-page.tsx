@@ -120,7 +120,7 @@ export function FotosPdvPage({ emPainel }: { emPainel?: boolean }) {
                         </Button>
                         {!t.fachada ? (
                           <Button disabled={!pode || apagar.isPending} onClick={() => apagar.mutate(t.id)} data-testid={`fotos-pdv.apagar.${t.id}`}>
-                            Apagar
+                            Remover
                           </Button>
                         ) : null}
                       </div>

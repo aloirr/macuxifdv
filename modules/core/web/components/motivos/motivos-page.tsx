@@ -112,9 +112,7 @@ export function MotivosPage({ emPainel }: { emPainel?: boolean }) {
                       <Badge tone={m.sistema ? 'neutral' : m.ativo ? 'success' : 'warning'}>{m.sistema ? 'Sistema' : m.ativo ? 'Ativo' : 'Desativado'}</Badge>
                     </td>
                     <td className={td}>
-                      {m.sistema ? (
-                        <span className="text-ink-2">Não editável</span>
-                      ) : (
+                      {m.sistema ? null : (
                         <div className="flex gap-2">
                           <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, tipo: m.tipo, codigo: m.codigo, descricao: m.descricao, ativo: m.ativo, ordem: m.ordem })} data-testid={`motivos.editar.${m.codigo}`}>
                             Editar

@@ -95,13 +95,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
 
   return (
     <div className={`flex w-full flex-col gap-5 ${emPainel ? '' : 'max-w-[1180px]'}`} data-testid="licencas.tela">
-      {emPainel ? (
-        <div className="flex justify-end">
-          <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
-            Exportar CSV
-          </Button>
-        </div>
-      ) : (
+      {!emPainel && (
         <PageHeader
           title="Módulos"
           actions={
@@ -119,6 +113,7 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
         </Notice>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div role="tablist" aria-label="Nível da licença" className="flex flex-wrap gap-2">
         {NIVEIS_LICENCA.map((n) => (
           <button
@@ -128,11 +123,17 @@ function LicencasConteudo({ emPainel }: { emPainel?: boolean }) {
             aria-selected={n === nivel}
             data-testid={`licencas.nivel.${n}`}
             onClick={() => set({ nivel: n === 'tenant' ? null : n })}
-            className={`h-[42px] rounded-xl border px-4 text-[14px] font-semibold ${n === nivel ? 'border-ink bg-ink text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
+            className={`h-[42px] rounded-xl border px-4 text-[14px] font-semibold ${n === nivel ? 'border-accent bg-accent text-white' : 'border-field bg-surface text-ink hover:bg-ground'}`}
           >
             {ROTULO_NIVEL[n]}
           </button>
         ))}
+      </div>
+      {emPainel && (
+        <Button onClick={exportar} disabled={!estado} data-testid="licencas.exportar-csv">
+          Exportar CSV
+        </Button>
+      )}
       </div>
 
       <FilterBar>

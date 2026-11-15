@@ -46,6 +46,7 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
     },
   });
   if (!pode) return null;
+  const alterado = q.data != null && horas !== String(q.data);
   const salvar = () => {
     const v = validarAlertaH(horas);
     setSalvo(false);
@@ -66,15 +67,16 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
         {q.data != null && (
           <>
             <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
-              Prazo para avisar etapa pendente (horas)
+              Prazo para avisar
               <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
               {erro && (
                 <span id="checkout-pendencia.erro" className="text-[13px] font-normal text-danger" data-testid="checkout-pendencia.erro">
                   {erro}
                 </span>
               )}
+              <span className="relative block">
               <input
-                className={`h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink ${erro ? 'border-danger' : 'border-field'}`}
+                className={`h-[44px] w-full rounded-xl border bg-surface px-3 pr-8 text-[14px] font-normal text-ink ${erro ? 'border-danger' : 'border-field'}`}
                 inputMode="numeric"
                 value={horas}
                 onChange={(e) => {
@@ -85,9 +87,11 @@ export function CheckoutPendenciaPanel({ semMoldura }: { semMoldura?: boolean } 
                 aria-describedby={erro ? 'checkout-pendencia.erro' : undefined}
                 data-testid="checkout-pendencia.alerta"
               />
+              <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">h</span>
+              </span>
             </label>
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={salvar} disabled={gravar.isPending} data-testid="checkout-pendencia.salvar">
+              <Button variant="primary" onClick={salvar} disabled={gravar.isPending || !alterado} data-testid="checkout-pendencia.salvar">
                 {gravar.isPending ? 'Salvando…' : 'Salvar prazo'}
               </Button>
               {salvo && (
