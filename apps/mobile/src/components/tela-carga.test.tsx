@@ -122,7 +122,11 @@ vi.mock('@/state/plataforma', () => ({
   }),
 }));
 
+// T-0174: a frase é sorteada no aparelho (efeito da montagem, que não roda no render estático)
+vi.mock('@/services/storage', () => ({ readJson: () => Promise.resolve(null), writeJson: () => Promise.resolve() }));
+
 const { TelaCarga } = await import('./tela-carga');
+const { FraseCarga } = await import('./frase-carga');
 
 // ---------- utilitários ----------
 const montar = () => renderToStaticMarkup(createElement(TelaCarga));
@@ -288,5 +292,35 @@ describe('Carga na tela de entrada — parou (T-0172)', () => {
     const modo = montar();
     expect(modo).toContain('data-testid="desligar-sem-sinal"');
     expect(modo).toContain('data-testid="tentar-de-novo"');
+  });
+});
+
+describe('Carga na tela de entrada — aviso e "Você sabia?" (T-0174, spec carga-aviso-frases §1)', () => {
+  const AVISO = 'Baixando os dados do servidor. Não desligue.';
+
+  it('aviso com o texto literal durante a carga (estado 4) e no 100% (estado 5)', () => {
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: true, progresso: 0.4 };
+    const durante = montar();
+    expect(durante).toContain('data-testid="carga-aviso"');
+    expect(texto(durante)).toContain(AVISO);
+    // acima da barra, na ordem da tela
+    expect(durante.indexOf('carga-aviso')).toBeLessThan(durante.indexOf('entrada-etapa"'));
+    sim.estado = { ...ESTADO_INICIAL, sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: '2026-11-02T13:09:00.000Z' };
+    expect(texto(montar())).toContain(AVISO);
+  });
+
+  it('no erro (estado 6) o aviso e o "Você sabia?" saem', () => {
+    sim.estado = { ...ESTADO_INICIAL, erro: 'HTTP 500' };
+    const html = montar();
+    expect(html).not.toContain('carga-aviso');
+    expect(html).not.toContain('carga-frase');
+    expect(texto(html)).not.toContain('Não desligue');
+  });
+
+  it('"Você sabia?" com a lâmpada e a frase; título e frase lidos juntos; a fonte não aparece', () => {
+    const html = renderToStaticMarkup(createElement(FraseCarga, { variante: 'campo', texto: 'O lavrado é a savana de Roraima.', linhas: 2 }));
+    expect(texto(html)).toBe('Você sabia? O lavrado é a savana de Roraima.');
+    expect(html).toContain('<i>');
+    expect(html).not.toMatch(/https?:|Fonte|ISA|IBGE/);
   });
 });

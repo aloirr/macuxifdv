@@ -11,6 +11,7 @@
  *   `ProgressoEntrada`) e o percentual do total. Aqui ficam só os textos da tela.
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 
 import { PROPORCAO_LOGO_EMPILHADO } from './logo-marca';
 
@@ -37,9 +38,62 @@ const ALTURA_ETAPA = 32;
 const ESPACO_AREA = 18;
 const ALTURA_SAUDACAO = 48;
 
+/** Aviso da carga (1 linha) e o espaço até a linha da barra (T-0174, spec carga-aviso-frases §1). */
+const ALTURA_AVISO = MEDIDAS_FRASE_CARGA.aviso.linha + MEDIDAS_FRASE_CARGA.aviso.acimaDaBarra;
+
+/** Linhas da frase do "Você sabia?" na tela: 2, 1 ou nenhuma (o bloco inteiro sai). */
+export type LinhasFrase = 0 | 1 | 2;
+
+/** Altura do bloco "Você sabia?" (título e frase): 84 dp com 2 linhas, 64 com 1, 0 sem o bloco. */
+export function alturaDoBlocoFrase(linhas: LinhasFrase): number {
+  if (linhas === 0) return 0;
+  const { titulo, frase } = MEDIDAS_FRASE_CARGA;
+  return titulo.abaixoDoOla + titulo.linha + titulo.ateFrase + linhas * frase.linha;
+}
+
+/**
+ * Caracteres que cabem com folga numa linha de 280 dp em IBM Plex Sans 14 (largura média ~7,7 dp; folga para as
+ * maiúsculas). Conta de propósito por baixo: a frase em 1 linha nunca pode ser cortada (sem reticências, spec §1.1).
+ */
+export const CARACTERES_FRASE_EM_UMA_LINHA = 32;
+
+/** A frase cabe inteira em 1 linha? */
+export function fraseEmUmaLinha(texto: string): boolean {
+  return Array.from(texto.trim()).length <= CARACTERES_FRASE_EM_UMA_LINHA;
+}
+
+/**
+ * Espaço livre entre o pé do "Olá" e o topo do aviso, na carga (aviso e barra na área de baixo), em dp.
+ */
+function livreAbaixoDoOla(janela: number, insetInferior: number): number {
+  const { altura, topo } = posicaoDoLogo(janela);
+  return janela - (topo + altura) - ALTURA_SAUDACAO - (MARGEM_ENTRADA + insetInferior) - ALTURA_BARRA - ALTURA_AVISO;
+}
+
+/**
+ * Bloco "Você sabia?" na carga (spec carga-aviso-frases §1.1, MC-0077): precisa de 24 dp livres entre o pé da frase e o
+ * topo do aviso. Sem isso, a frase cai para 1 linha (só se couber inteira em 1 linha); se ainda não couber, o bloco inteiro
+ * sai (o título nunca aparece sozinho). Logo, "Olá", aviso e barra vêm antes; a lista de etapas sai antes do bloco
+ * (`cabeLista` recebe o resultado daqui).
+ */
+export function cabeFrase(janela: number, insetInferior: number, texto: string): LinhasFrase {
+  if (janela <= 0 || texto.trim() === '') return 0;
+  const livre = livreAbaixoDoOla(janela, insetInferior) - MEDIDAS_FRASE_CARGA.frase.livreAteAviso;
+  if (livre >= alturaDoBlocoFrase(2)) return 2;
+  if (livre >= alturaDoBlocoFrase(1) && fraseEmUmaLinha(texto)) return 1;
+  return 0;
+}
+
+/** O que a carga põe entre o "Olá" e a barra (T-0174): o aviso acima da barra e o bloco "Você sabia?". */
+export interface ExtrasDaCarga {
+  aviso?: boolean;
+  linhasFrase?: LinhasFrase;
+}
+
 /**
  * A lista de etapas cabe entre o logo (parado no centro) e a borda de baixo? Na tela baixa ela sai e ficam a barra com
- * "Etapa n de N · nome" e o percentual (ou, parada, a linha do erro e as ações), sem cobrir o logo.
+ * "Etapa n de N · nome" e o percentual (ou, parada, a linha do erro e as ações), sem cobrir o logo. Na carga, conta o aviso
+ * e o bloco "Você sabia?" (com o respiro de 24 dp): a lista sai antes do bloco (spec carga-aviso-frases §1.1).
  */
 export function cabeLista(
   alturaTela: number,
@@ -47,16 +101,19 @@ export function cabeLista(
   insetInferior: number,
   comSaudacao: boolean,
   comErro = false,
+  extras: ExtrasDaCarga = {},
 ): boolean {
   if (alturaTela <= 0) return false;
   const { altura, topo } = posicaoDoLogo(alturaTela);
+  const bloco = alturaDoBlocoFrase(extras.linhasFrase ?? 0);
   const livre =
     alturaTela -
     (topo + altura) -
     (comSaudacao ? ALTURA_SAUDACAO : 0) -
-    ESPACO_AREA -
+    (bloco > 0 ? bloco + MEDIDAS_FRASE_CARGA.frase.livreAteAviso : ESPACO_AREA) -
     (MARGEM_ENTRADA + insetInferior);
-  const precisa = (comErro ? ALTURA_ERRO : ALTURA_BARRA) + ESPACO_AREA + etapas * ALTURA_ETAPA;
+  const acimaDaLista = comErro ? ALTURA_ERRO : ALTURA_BARRA + (extras.aviso ? ALTURA_AVISO : 0);
+  const precisa = acimaDaLista + ESPACO_AREA + etapas * ALTURA_ETAPA;
   return livre >= precisa;
 }
 

@@ -16,6 +16,12 @@
  */
 import {
   CriarEmpresaSchema,
+  FRASES_CARGA_INICIAIS,
+  FraseCargaAlteracaoSchema,
+  FraseCargaEntradaSchema,
+  ordenarFrasesDoPortal,
+  validarTextoFrase,
+  type FraseCarga,
   EscolherEmpresaPortalSchema,
   LoginPortalSchema,
   RedefinirSenhaAdminSchema,
@@ -149,6 +155,47 @@ function responderAdmins(metodo: string, tenant: string, usuario: string | undef
   redefinicoesFalsas.set(c.email_id, { tenant, usuario, resposta });
   adminsFalsos.set(tenant, lista.map((a) => (a.usuario_id === usuario ? { ...a, tem_senha: true, trocar_senha: true, senha_expira_em: resposta.senha_expira_em } : a)));
   return json(200, resposta);
+}
+
+/** T-0174: frases da carga (só na memória da aba), como a API: só o time da Macuxi; sem DELETE. */
+const frasesFalsas = new Map<string, FraseCarga>();
+const FRASE_M = /^\/plataforma\/frases-carga\/([^/]+)$/;
+
+function responderFrases(metodo: string, id: string | undefined, sessao: SessaoFalsa, corpo: unknown): Response {
+  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi mantém as frases da carga.');
+  if (frasesFalsas.size === 0) for (const f of FRASES_CARGA_INICIAIS) frasesFalsas.set(f.id, { ...f });
+  const lista = [...frasesFalsas.values()];
+  const recusa = (codigo: string, mensagem: string) => erro(422, codigo, mensagem);
+  if (metodo === 'GET' && !id) return json(200, { itens: ordenarFrasesDoPortal(lista) });
+  if (metodo === 'POST' && !id) {
+    const c = lerCorpo(FraseCargaEntradaSchema, corpo);
+    if (c instanceof Response) return c;
+    const novoId = c.id ?? crypto.randomUUID();
+    const r = validarTextoFrase(c.texto, lista, novoId);
+    if (!r.ok) return recusa(r.codigo, r.mensagem);
+    const existente = frasesFalsas.get(novoId);
+    if (existente) return json(201, existente);
+    const numero = Math.max(0, ...lista.map((f) => f.numero)) + 1;
+    const nova: FraseCarga = { id: novoId, numero, texto: r.texto, ativa: true, ordem: Math.max(0, ...lista.map((f) => f.ordem)) + 1 };
+    frasesFalsas.set(novoId, nova);
+    return json(201, nova);
+  }
+  if (metodo === 'PATCH' && id) {
+    const c = lerCorpo(FraseCargaAlteracaoSchema, corpo);
+    if (c instanceof Response) return c;
+    const atual = frasesFalsas.get(id);
+    if (!atual) return erro(404, 'FRASE_NAO_ENCONTRADA', 'Frase não encontrada.');
+    let texto = atual.texto;
+    if (c.texto !== undefined) {
+      const r = validarTextoFrase(c.texto, lista, id);
+      if (!r.ok) return recusa(r.codigo, r.mensagem);
+      texto = r.texto;
+    }
+    const nova = { ...atual, texto, ativa: c.ativa ?? atual.ativa };
+    frasesFalsas.set(id, nova);
+    return json(200, nova);
+  }
+  return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
 }
 
 const vazio = (): Estado => ({ sessoes: {}, empresas: [...EMPRESAS_DOS_CLIENTES], conectores: {}, lotes: {} });
@@ -303,6 +350,11 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, sessoes });
     return json(204, null);
   }
+
+  // ---------- frases da carga (T-0174)
+  if (caminho === ROTAS_PORTAL.frasesCarga) return responderFrases(metodo, undefined, sessao, corpo);
+  const mFrase = FRASE_M.exec(caminho);
+  if (mFrase) return responderFrases(metodo, decodeURIComponent(mFrase[1] ?? ''), sessao, corpo);
 
   // ---------- empresas
   if (rota === `GET ${ROTAS_PORTAL.empresas}`) return json(200, { itens: sessao.tipo === 'super_admin' ? e.empresas : e.empresas.filter((x) => sessao.empresas.includes(x.id)) });
@@ -510,5 +562,6 @@ export function zerarModoFalso() {
   adminsFalsos.clear();
   adminsSemeados = false;
   redefinicoesFalsas.clear();
+  frasesFalsas.clear();
   gravar(vazio());
 }

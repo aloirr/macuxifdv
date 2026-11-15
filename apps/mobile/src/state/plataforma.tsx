@@ -119,6 +119,7 @@ import {
   travaSync,
 } from '@/services/segundo-plano';
 import { gravarErro } from '@/services/erros';
+import { atualizarFrasesDaCarga } from '@/services/frase-carga';
 import { atualizarDiagnosticoRemoto, ligarEnvioDeDiagnosticos, useDiagnosticoNuvem } from '@/services/diagnostico';
 import { registrarSaidaAnterior } from '@/services/saida-android';
 import { apiDoAndroid, executarAcaoDePermissao, lerPermissoes } from '@/services/permissoes';
@@ -545,6 +546,8 @@ function usePlataformaValor() {
         } catch {
           // sem rede: o motor registra o erro na sincronização abaixo
         }
+        // T-0174: as frases da carga (plataforma), sem segurar a carga; a falha mantém a lista anterior
+        if (modo === 'v1') void atualizarFrasesDaCarga(api());
         return m.sincronizar();
       })().finally(() => {
         travaSync.sair('sincronizacao');
@@ -553,7 +556,7 @@ function usePlataformaValor() {
       syncEmCursoRef.current = p;
       return p;
     },
-    [atualizarModulos, modo],
+    [api, atualizarModulos, modo],
   );
 
   /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */

@@ -10,6 +10,7 @@
  * - R-20261102-090919 item 2: montar a tela (ou remontar) não reinicia a carga em andamento (`sincronizarSeNecessario`).
  * - ADR 0017: a barra é o percentual do total já gravado (`percentualDaCarga`), também na retomada.
  * As frases que se alternavam saíram (T-0172): fica só o nome da etapa e o percentual.
+ * T-0174: durante a carga, o aviso acima da barra e o "Você sabia?" com a frase sorteada (uma por carga); no erro, os dois saem.
  */
 import { progressoDaEntrada } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -18,6 +19,8 @@ import { Redirect, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { AvisoCarga } from '@/components/aviso-carga';
+import { FraseCarga, useFraseDaCarga } from '@/components/frase-carga';
 import { AcaoEntrada, ErroEntrada, TelaEntrada } from '@/components/tela-entrada';
 import { percentualDaCarga, situacaoDaCarga } from '@/lib/carga';
 import {
@@ -42,6 +45,7 @@ export function TelaCarga() {
     perfil,
   } = usePlataforma();
   const { estado } = useMotorSync();
+  const frase = useFraseDaCarga();
   // RN-CORE-48: a etapa mostrada nunca volta (1, 2, 3... de N); tela montada de novo = carga nova, do zero
   const [lembrar] = useState(criarMemoriaDaEntrada);
   /** A carga já estava gravada quando a tela abriu: não prende o usuário enquanto a sincronização roda. */
@@ -94,6 +98,12 @@ export function TelaCarga() {
         saudacao={`Olá, ${firstName(sessao.user.name)}`}
         barra={parou ? null : { rotulo: rotuloDaBarra(progresso), pct: progresso.percentual }}
         etapas={progresso.etapas}
+        aviso={parou ? null : <AvisoCarga variante={variante} />}
+        frase={
+          parou || !frase
+            ? null
+            : { texto: frase.texto, desenhar: (linhas) => <FraseCarga variante={variante} texto={frase.texto} linhas={linhas} /> }
+        }
       >
         {parou
           ? (comLista: boolean) => (

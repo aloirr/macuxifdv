@@ -7,9 +7,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  alturaDoBlocoFrase,
+  cabeFrase,
   cabeLista,
   criarMemoriaDaEntrada,
   erroDeSinal,
+  fraseEmUmaLinha,
   LARGURA_LOGO_ENTRADA,
   posicaoDoLogo,
   rotuloDaBarra,
@@ -56,6 +59,52 @@ describe('logo da entrada × splash nativa', () => {
     // parada: o erro e as ações ocupam o lugar da barra; a lista só fica na tela alta
     expect(cabeLista(915, 5, 48, true, true)).toBe(false);
     expect(cabeLista(1280, 5, 48, true, true)).toBe(true);
+  });
+});
+
+describe('carga: bloco "Você sabia?" e aviso (T-0174, spec carga-aviso-frases §1.1)', () => {
+  const LONGA = 'Os Macuxi se autodenominam Pemon e falam uma língua da família Karib.';
+  const CURTA = 'O lavrado é a savana de Roraima.';
+
+  it('bloco: 84 dp com a frase em 2 linhas, 64 com 1; a frase curta cabe em 1 linha, a longa não', () => {
+    expect(alturaDoBlocoFrase(2)).toBe(84);
+    expect(alturaDoBlocoFrase(1)).toBe(64);
+    expect(alturaDoBlocoFrase(0)).toBe(0);
+    expect(fraseEmUmaLinha(CURTA)).toBe(true);
+    expect(fraseEmUmaLinha(LONGA)).toBe(false);
+  });
+
+  it('360 × 800 sem navegação: tudo aparece, frase em 2 linhas', () => {
+    expect(cabeFrase(800, 0, LONGA)).toBe(2);
+  });
+
+  it('360 × 800 com 48 dp de navegação: tudo aparece, frase em 2 linhas', () => {
+    expect(cabeFrase(800, 48, LONGA)).toBe(2);
+  });
+
+  it('360 × 640 com 48 dp de navegação: o bloco inteiro sai (ficam logo, "Olá", aviso e barra)', () => {
+    expect(cabeFrase(640, 48, LONGA)).toBe(0);
+    expect(cabeFrase(640, 48, CURTA)).toBe(0);
+  });
+
+  it('altura intermediária: a frase cai para 1 linha só se couber inteira; senão o bloco sai (sem reticências)', () => {
+    expect(cabeFrase(700, 48, CURTA)).toBe(1);
+    expect(cabeFrase(700, 48, LONGA)).toBe(0);
+    expect(cabeFrase(0, 48, CURTA)).toBe(0);
+    expect(cabeFrase(800, 0, '   ')).toBe(0);
+  });
+
+  it('a lista de etapas sai antes do bloco: conta o aviso e o bloco com o respiro de 24 dp', () => {
+    // 860 com 48 de navegação: sem o bloco a lista cabia; com aviso e bloco de 2 linhas, sai e o bloco fica
+    expect(cabeLista(860, 5, 48, true)).toBe(true);
+    expect(cabeFrase(860, 48, LONGA)).toBe(2);
+    expect(cabeLista(860, 5, 48, true, false, { aviso: true, linhasFrase: 2 })).toBe(false);
+    // só o aviso já pesa
+    expect(cabeLista(860, 5, 48, true, false, { aviso: true })).toBe(false);
+    // tela alta: tudo junto
+    expect(cabeLista(1100, 5, 48, true, false, { aviso: true, linhasFrase: 2 })).toBe(true);
+    // parada (sem aviso nem bloco): a regra de antes
+    expect(cabeLista(1280, 5, 48, true, true, {})).toBe(true);
   });
 });
 

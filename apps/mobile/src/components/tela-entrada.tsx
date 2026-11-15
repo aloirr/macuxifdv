@@ -3,11 +3,13 @@
  * o fundo e o logo da splash, parados no centro, e embaixo só a área que muda (barra, etapas, erro). Usada:
  * - na abertura do app (só o logo e o nome do app no rodapé), em `app/_layout.tsx`, no lugar da splash nativa;
  * - antes do login: "Atualizando o app" (passagem dos dados do aparelho) e "Conferindo o servidor";
- * - depois do login, na rota `/sync` (`components/tela-carga.tsx`): "Olá", a barra do total, as etapas e o erro.
+ * - depois do login, na rota `/sync` (`components/tela-carga.tsx`): "Olá", a barra do total, as etapas e o erro; na carga,
+ *   o bloco "Você sabia?" abaixo do "Olá" e o aviso acima da barra (T-0174, `cabeFrase`).
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
 import { Botao, fonts, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCorDaFaixa, useFaixaSuperior } from '@/components/area-segura';
 import {
+  cabeFrase,
   cabeLista,
   LARGURA_LOGO_ENTRADA,
   MARGEM_ENTRADA,
@@ -49,6 +52,13 @@ interface Props {
   aoDesenhar?: () => void;
   /** Nome do app no rodapé, só com a área de baixo vazia (abertura). */
   nomeDoApp?: string;
+  /**
+   * Carga (T-0174): o bloco "Você sabia?" abaixo do "Olá". Entra com 2 linhas, 1 linha ou não entra, pela altura da tela
+   * (`cabeFrase`); a lista de etapas sai antes dele.
+   */
+  frase?: { texto: string; desenhar: (linhas: 1 | 2) => ReactNode } | null;
+  /** Carga (T-0174): o aviso, 10 dp acima da linha da barra (só com a barra na tela). */
+  aviso?: ReactNode;
 }
 
 /** Duração do esmaecer da área de baixo e da largura da barra (spec §6). */
@@ -64,6 +74,8 @@ export function TelaEntrada({
   children,
   aoDesenhar,
   nomeDoApp,
+  frase,
+  aviso,
 }: Props) {
   const tema = temaDaEntrada(variante);
   const insets = useSafeAreaInsets();
@@ -80,11 +92,18 @@ export function TelaEntrada({
     if (desenhou) aoDesenhar?.();
   }, [desenhou, aoDesenhar]);
   const logo = posicaoDoLogo(janela);
+  const comAviso = Boolean(barra && aviso);
+  // T-0174: o bloco "Você sabia?" só depois de medir a tela (prioridade: logo, "Olá", aviso e barra; spec §1.1)
+  const linhasFrase = frase && saudacao && desenhou ? cabeFrase(janela, insets.bottom, frase.texto) : 0;
   // antes de medir a tela, a lista entra (o logo ainda não aparece): na tela baixa ela sai assim que a altura chega
   const mostrarEtapas = Boolean(
     etapas &&
     etapas.length > 0 &&
-    (altura === 0 || cabeLista(janela, etapas.length, insets.bottom, Boolean(saudacao), Boolean(children))),
+    (altura === 0 ||
+      cabeLista(janela, etapas.length, insets.bottom, Boolean(saudacao), Boolean(children), {
+        aviso: comAviso,
+        linhasFrase,
+      })),
   );
   const vazia = !barra && !mostrarEtapas && !children;
   const opacidade = useEsmaecer(!vazia, reduzir);
@@ -110,6 +129,7 @@ export function TelaEntrada({
             {saudacao}
           </Text>
         ) : null}
+        {frase && linhasFrase > 0 ? frase.desenhar(linhasFrase === 1 ? 1 : 2) : null}
       </View>
       <View style={[styles.baixo, { paddingBottom: MARGEM_ENTRADA + insets.bottom }]}>
         {vazia ? (
@@ -120,7 +140,14 @@ export function TelaEntrada({
           ) : null
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
-            {barra ? <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} /> : null}
+            {barra && comAviso ? (
+              <View style={styles.avisoEBarra}>
+                {aviso}
+                <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} />
+              </View>
+            ) : barra ? (
+              <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} />
+            ) : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
           </Animated.View>
@@ -326,6 +353,7 @@ const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
+  avisoEBarra: { gap: MEDIDAS_FRASE_CARGA.aviso.acimaDaBarra },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },

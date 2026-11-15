@@ -24,6 +24,9 @@ export const ROTAS_PORTAL = {
   diagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}`,
   /** Bytes do print (JPEG), `private, no-store`; o portal abre como `Blob`. */
   printDoDiagnostico: (id: string) => `/plataforma/diagnosticos/${encodeURIComponent(id)}/print`,
+  /** T-0174: frases da tela de carga do app, só o time da Macuxi (o admin do cliente recebe 403). Sem DELETE. */
+  frasesCarga: '/plataforma/frases-carga',
+  fraseCarga: (id: string) => `/plataforma/frases-carga/${encodeURIComponent(id)}`,
   // Integração (com `x-macuxi-tenant`)
   ordemCarga: '/integracao/ordem-carga',
   cargaArquivo: '/integracao/cargas-arquivo',
