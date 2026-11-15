@@ -90,6 +90,7 @@ aside{position:absolute;right:0;top:0;bottom:0;width:560px;background:#F8F6F1;z-
 .ctl.ph{color:#4A5562;font-weight:400}
 .ctl.erro{border:2px solid #A8261B}
 .ctl.foco{border:2px solid #1E3350}
+.ctl.so{background:#ECEEF1;border:none;font-family:Mono;font-size:14px}
 .err{display:flex;gap:4px;font-size:12px;font-weight:400;color:#A8261B;line-height:16px}
 .err svg{margin-top:2px;flex-shrink:0}
 .par{display:flex;gap:12px;flex:none}
@@ -147,7 +148,7 @@ function menu(ativo) {
     const aberto = itens.includes(ativo);
     return `<div class="grupo"><div class="titulo"><span>${g}</span>${seta(aberto)}</div>${aberto ? itens.map((i) => `<a class="item${i === ativo ? ' ativo' : ''}">${i}</a>`).join('') : ''}</div>`;
   }).join('');
-  return `<nav class="menu"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${grupos}</div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav>`;
+  return `<nav class="menu"><div class="brand"><img src="${LOGO}" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista">${grupos}</div><div class="rodape"><b>Ana Exemplo</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav>`;
 }
 
 // ---------- lista de Usuários ----------
@@ -155,34 +156,37 @@ const sel = (rotulo, valor, w, ligado) => `<label class="f">${rotulo}<span class
 function filtros({ busca = '', perfil = 'Todos', filial = 'Todas', equipe = 'Todas', situacao = 'Todas', limpar = false } = {}) {
   const b = busca
     ? `<span class="campo busca ligado">${ic.busca}<span>${busca}</span></span>`
-    : `<span class="campo busca sem">${ic.busca}<span>Buscar nome, e-mail ou código no ERP</span></span>`;
+    : `<span class="campo busca sem">${ic.busca}<span>Buscar nome, e-mail ou código</span></span>`;
   return `<div class="filtros">${b}${sel('Perfil', perfil, 140, perfil !== 'Todos')}${sel('Filial', filial, 150, filial !== 'Todas')}${sel('Equipe', equipe, 150, equipe !== 'Todas')}${sel('Situação', situacao, 140, situacao !== 'Todas')}${limpar ? '<span class="btn2">Limpar filtros</span>' : ''}</div>`;
 }
-const L = (nome, perfis, filial, equipe, codigo, situacao, opts = {}) => ({ nome, perfis, filial, equipe, codigo, situacao, ...opts });
+const L = (nome, perfis, filial, equipe, fdv, codigo, situacao, opts = {}) => ({ nome, perfis, filial, equipe, fdv, codigo, situacao, ...opts });
+const vazio = '<span class="vazio-c">—</span>';
 function tabela(linhas, { menuEm = -1, menuItens = [] } = {}) {
   const tr = linhas
-    .map((l, i) => `<tr><td class="nome">${l.nome}</td><td>${l.perfis}</td><td${l.filialTitle ? ` title="${l.filialTitle}"` : ''}>${l.filial === null ? '<span class="vazio-c">—</span>' : l.filial}</td><td>${l.equipe ?? '<span class="vazio-c">—</span>'}</td><td class="mono">${l.codigo ?? '<span class="vazio-c">—</span>'}</td><td>${l.situacao}</td><td class="ac"><span class="dots${i === menuEm ? ' on' : ''}" aria-label="Ações de ${l.nome}">${ic.dots}</span></td></tr>`)
+    .map((l, i) => `<tr><td class="nome">${l.nome}</td><td>${l.perfis}</td><td${l.filialTitle ? ` title="${l.filialTitle}"` : ''}>${l.filial ?? vazio}</td><td>${l.equipe ?? vazio}</td><td class="mono">${l.fdv}</td><td class="mono">${l.codigo ?? vazio}</td><td>${l.situacao}</td><td class="ac"><span class="dots${i === menuEm ? ' on' : ''}" aria-label="Ações de ${l.nome}">${ic.dots}</span></td></tr>`)
     .join('');
   const menuHtml = menuEm >= 0 ? `<div class="menuacoes" style="right:44px;top:${46 + 44 * menuEm + 40}px">${menuItens.join('')}</div>` : '';
-  return `<section class="quadro" aria-label="Usuários" style="position:relative"><table><colgroup><col style="width:24%"><col style="width:13%"><col style="width:17%"><col><col style="width:13%"><col style="width:130px"><col style="width:52px"></colgroup><thead><tr><th>Nome</th><th>Perfis</th><th>Filial</th><th>Equipe</th><th>Código no ERP</th><th>Situação</th><th class="ac"></th></tr></thead><tbody>${tr}</tbody></table>${menuHtml}</section>`;
+  return `<section class="quadro" aria-label="Usuários" style="position:relative"><table><colgroup><col style="width:17%"><col style="width:10%"><col style="width:14%"><col><col style="width:96px"><col style="width:112px"><col style="width:178px"><col style="width:52px"></colgroup><thead><tr><th>Nome</th><th>Perfis</th><th>Filial</th><th>Equipe</th><th>Código FDV</th><th>Código ERP</th><th>Situação</th><th class="ac"></th></tr></thead><tbody>${tr}</tbody></table>${menuHtml}</section>`;
 }
 const cabUsuarios = (n) => `<div class="cab"><h1>Usuários${n ? ` · ${n}` : ''}</h1><div style="display:flex;gap:8px"><span class="pri">Novo usuário</span><span class="mais" aria-label="Mais ações">${ic.dots}</span></div></div>`;
 
 const ATIVO = '<span class="selo ok">Ativo</span>';
+// Nomes e códigos fictícios (sobrenome "Exemplo"): nenhum dado real na simulação.
+const BLOQ = '<span class="selo pe">Bloqueado · sem filial</span>';
 const LISTA_TODOS = [
-  L('Ana Souza', 'Admin', null, null, null, ATIVO),
-  L('Bruno Costa', 'Vendedor', 'Porto Velho', 'Porto Velho', 'VEN-000033', '<span class="selo ne">Inativo</span>'),
-  L('Carla Souza', 'Vendedor', 'Boa Vista', 'Boa Vista Centro', 'VEN-000012', ATIVO),
-  L('João Lima', 'Vendedor', 'Manaus', 'Manaus Norte', 'VEN-000021', ATIVO),
-  L('Lúcia Matos', 'Analista', null, null, null, '<span class="selo pend">Senha a criar</span>'),
-  L('Marta Reis', 'Supervisor', 'Boa Vista, Manaus', 'Boa Vista Centro', 'SUP-0007', ATIVO),
-  L('Paulo Brito', 'Promotor', 'Boa Vista +2', 'Boa Vista Centro', 'PRO-0003', ATIVO, { filialTitle: 'Boa Vista, Manaus, Santarém' }),
-  L('Rafael Prado', 'Vendedor', '<span class="selo al">Sem filial</span>', 'Manaus Norte', 'VEN-000040', ATIVO),
-  L('Sérgio Nunes', 'Gerente', 'Boa Vista +3', null, 'GER-0001', ATIVO, { filialTitle: 'Boa Vista, Manaus, Porto Velho, Santarém' }),
+  L('Ana Exemplo', 'Admin', null, null, '0001', null, ATIVO),
+  L('Bruno Exemplo', 'Vendedor', 'Porto Velho', 'Porto Velho', '0002', 'VEN-000101', '<span class="selo ne">Inativo</span>'),
+  L('Carla Exemplo', 'Vendedor', 'Boa Vista', 'Boa Vista Centro', '0003', 'VEN-000102', ATIVO),
+  L('Davi Exemplo', 'Vendedor', 'Manaus', 'Manaus Norte', '0004', 'VEN-000103', ATIVO),
+  L('Elisa Exemplo', 'Analista', null, null, '0005', null, '<span class="selo pend">Senha a criar</span>'),
+  L('Fernanda Exemplo', 'Supervisor', 'Boa Vista, Manaus', 'Boa Vista Centro', '0006', 'SUP-0101', ATIVO),
+  L('Gustavo Exemplo', 'Promotor', 'Boa Vista +2', 'Boa Vista Centro', '0007', 'PRO-0101', ATIVO, { filialTitle: 'Boa Vista, Manaus, Santarém' }),
+  L('Helena Exemplo', 'Gerente', 'Boa Vista +3', null, '0009', 'GER-0101', ATIVO, { filialTitle: 'Boa Vista, Manaus, Porto Velho, Santarém' }),
+  L('Rafael Exemplo', 'Vendedor', null, 'Manaus Norte', '0008', 'VEN-000104', BLOQ),
 ];
 const LISTA_PROVISORIOS = [
-  L('Anderson Souza', 'Vendedor', 'Boa Vista', null, 'VEN-000034', '<span class="selo al">Provisório</span>'),
-  L('Josué Lima', 'Vendedor', 'Boa Vista', null, 'VEN-000051', '<span class="selo al">Provisório</span>'),
+  L('Vendedor Exemplo', 'Vendedor', 'Boa Vista', null, '0012', 'VEN-000123', '<span class="selo al">Provisório</span>'),
+  L('Vendedora Exemplo', 'Vendedor', 'Boa Vista', null, '0013', 'VEN-000124', '<span class="selo al">Provisório</span>'),
 ];
 const telaLista = (main) => `<main>${main}</main>`;
 
@@ -200,6 +204,8 @@ const abas = '<div class="abas"><div class="on">Dados</div><div>Parâmetros</div
 const dadosTopo = (nome, email) => `${abas}${campo('Nome', nome)}${campo('E-mail (usado no login)', email)}`;
 const previa = (t) => `<div class="previa"><b>Onde esta pessoa entra</b><span>${t}</span></div>`;
 const equipe = (nome, superior) => `${campo('Equipe', nome, { seletor: true })}<p class="nota-s">Superior imediato: ${superior} (responsável da equipe).</p>`;
+// Código FDV: gerado e só de leitura (aparece em Editar); Código ERP: igual ao do ERP, opcional
+const codigos = (fdv, erp, o = {}) => `<div class="par"><div style="flex:0 0 130px">${campo('Código FDV', fdv, { classe: 'so' })}</div>${campo('Código ERP', erp, { op: true, ...o })}</div>`;
 const senha = `${campo('Senha inicial', '', {})}<div style="display:flex;gap:8px;flex:none"><span class="bsm">Gerar senha</span></div>`;
 
 // Telas: id, html (sem menu), menu ativo, rolagem da gaveta (seletor do elemento que fica no topo)
@@ -214,7 +220,7 @@ telas.push({
     telaLista(cabUsuarios(9) + filtros() + tabela(LISTA_TODOS)) +
     gaveta(
       'Novo usuário',
-      `${dadosTopo('Rafael Prado', 'rafael.prado@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}<div class="par">${campo('Código no ERP', 'VEN-000040', { op: true })}${campo('Filial', 'Boa Vista', { seletor: true })}</div>${equipe('Manaus Norte', 'Marta Reis')}${senha}`,
+      `${dadosTopo('Rafael Exemplo', 'rafael.exemplo@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}${campo('Filial', 'Boa Vista', { seletor: true })}<div class="par">${campo('Código ERP', 'VEN-000104', { op: true })}<div style="flex:1"></div></div>${equipe('Manaus Norte', 'Fernanda Exemplo')}${senha}`,
     ),
 });
 
@@ -227,7 +233,7 @@ telas.push({
     telaLista(cabUsuarios(9) + filtros() + tabela(LISTA_TODOS)) +
     gaveta(
       'Editar usuário',
-      `${dadosTopo('Marta Reis', 'marta.reis@distexemplo.com.br')}${perfis(['Supervisor'])}${previa('Entra em: Gestão.')}<div class="cf" role="group" aria-label="Filiais"><span>Filiais</span><div class="chips"><span class="chip on">${ic.check('#1E3350', 14)}Boa Vista</span><span class="chip on">${ic.check('#1E3350', 14)}Manaus</span><span class="chip">Porto Velho</span><span class="chip">Santarém</span></div></div><div class="par"><div style="flex:1">${campo('Código no ERP', 'SUP-0007', { op: true })}</div><div style="flex:1"></div></div>${equipe('Boa Vista Centro', 'Sérgio Nunes')}`,
+      `${dadosTopo('Fernanda Exemplo', 'fernanda.exemplo@distexemplo.com.br')}${perfis(['Supervisor'])}${previa('Entra em: Gestão.')}<div class="cf" role="group" aria-label="Filiais"><span>Filiais</span><div class="chips"><span class="chip on">${ic.check('#1E3350', 14)}Boa Vista</span><span class="chip on">${ic.check('#1E3350', 14)}Manaus</span><span class="chip">Porto Velho</span><span class="chip">Santarém</span></div></div>${codigos('0006', 'SUP-0101')}${equipe('Boa Vista Centro', 'Helena Exemplo')}`,
     ),
 });
 
@@ -240,7 +246,7 @@ telas.push({
     telaLista(cabUsuarios(9) + filtros() + tabela(LISTA_TODOS)) +
     gaveta(
       'Novo usuário',
-      `${dadosTopo('Rafael Prado', 'rafael.prado@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}<div class="par">${campo('Código no ERP', 'VEN-000040', { op: true })}${campo('Filial', 'Escolha', { ph: true, seletor: true, erro: 'Escolha a filial do vendedor.' })}</div>${equipe('Manaus Norte', 'Marta Reis')}${senha}`,
+      `${dadosTopo('Rafael Exemplo', 'rafael.exemplo@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}${campo('Filial', 'Escolha', { ph: true, seletor: true, erro: 'Escolha a filial do vendedor.' })}<div class="par">${campo('Código ERP', 'VEN-000104', { op: true })}<div style="flex:1"></div></div>${equipe('Manaus Norte', 'Fernanda Exemplo')}${senha}`,
     ),
 });
 
@@ -253,7 +259,7 @@ telas.push({
     `<div class="cab"><h1>Alertas · 4</h1><div style="display:flex;gap:8px"><span class="mais" aria-label="Mais ações">${ic.dots}</span></div></div>` +
       `<div class="filtros">${sel('Situação', 'Abertos', 150, false)}</div>` +
       `<section class="quadro" aria-label="Alertas"><table><colgroup><col style="width:150px"><col><col style="width:120px"><col style="width:110px"><col style="width:170px"></colgroup><thead><tr><th>Tipo</th><th>Mensagem</th><th style="text-align:right">Desde</th><th>Situação</th><th></th></tr></thead><tbody>` +
-      linhaAlerta('Cadastro', '3 vendedores sem filial', '15/11 07:40', '<span class="selo pe">Aberto</span>', '<span class="bsm">Ver vendedores</span>') +
+      linhaAlerta('Cadastro', '3 vendedores sem filial: bloqueados no app', '15/11 07:40', '<span class="selo pe">Aberto</span>', '<span class="bsm">Informar filial</span>') +
       linhaAlerta('Cadastro', '2 vendedores provisórios do ERP', '15/11 06:10', '<span class="selo al">Aberto</span>', '<span class="bsm">Ver provisórios</span>') +
       linhaAlerta('Sem visita', '12 clientes sem visita há 30 dias · Manaus Norte', '14/11 18:00', '<span class="selo al">Aberto</span>', `<span class="dots">${ic.dots}</span>`) +
       linhaAlerta('Aprovação parada', '2 pedidos aguardando há mais de 24 h', '14/11 16:20', '<span class="selo al">Aberto</span>', `<span class="dots">${ic.dots}</span>`) +
@@ -274,9 +280,9 @@ telas.push({
     cabUsuarios(3) +
       filtros({ perfil: 'Vendedor', filial: 'Sem filial', limpar: true }) +
       tabela([
-        L('Diego Alves', 'Vendedor', '<span class="selo al">Sem filial</span>', 'Boa Vista Centro', 'VEN-000058', ATIVO),
-        L('Rafael Prado', 'Vendedor', '<span class="selo al">Sem filial</span>', 'Manaus Norte', 'VEN-000040', ATIVO),
-        L('Vitor Rocha', 'Vendedor', '<span class="selo al">Sem filial</span>', null, 'VEN-000062', ATIVO),
+        L('Igor Exemplo', 'Vendedor', null, 'Boa Vista Centro', '0010', 'VEN-000105', BLOQ),
+        L('Júlia Exemplo', 'Vendedor', null, null, '0011', 'VEN-000106', BLOQ),
+        L('Rafael Exemplo', 'Vendedor', null, 'Manaus Norte', '0008', 'VEN-000104', BLOQ),
       ]),
   ),
 });
@@ -294,7 +300,7 @@ telas.push({
 telas.push({
   id: '6b-busca-codigo-erp',
   ativo: 'Usuários',
-  html: telaLista(cabUsuarios(1) + filtros({ busca: '000034', limpar: true }) + tabela([LISTA_PROVISORIOS[0]])),
+  html: telaLista(cabUsuarios(1) + filtros({ busca: '000123', limpar: true }) + tabela([LISTA_PROVISORIOS[0]])),
 });
 
 // 6c · Gaveta Vincular vendedor do ERP
@@ -305,9 +311,9 @@ telas.push({
     telaLista(cabUsuarios(2) + filtros({ situacao: 'Provisórios', limpar: true }) + tabela(LISTA_PROVISORIOS)) +
     gaveta(
       'Vincular vendedor do ERP',
-      `<div class="cartao"><span class="rot">Vendedor do ERP</span><span class="val">Anderson Souza</span></div>` +
-        campo('Usuário do BKO', '<span class="opc2">Anderson Lima Souza<small>anderson@distexemplo.com.br</small></span>', { seletor: true, classe: 'alto' }) +
-        `<div class="cartao"><span class="rot">Passa para o usuário do BKO</span><dl class="dl"><dt>Código no ERP</dt><dd class="mono" style="font-size:14px">VEN-000034</dd><dt>Carteira</dt><dd>48 clientes</dd></dl></div>`,
+      `<div class="cartao"><span class="rot">Vendedor do ERP</span><span class="val">Vendedor Exemplo</span></div>` +
+        campo('Usuário do BKO', '<span class="opc2">Vendedor Exemplo da Silva<small>vendedor.exemplo@distexemplo.com.br</small></span>', { seletor: true, classe: 'alto' }) +
+        `<div class="cartao"><span class="rot">Passa para o usuário do BKO</span><dl class="dl"><dt>Código ERP</dt><dd class="mono" style="font-size:14px">VEN-000123</dd><dt>Carteira</dt><dd>48 clientes</dd></dl></div>`,
       'Vincular',
     ),
 });
@@ -316,14 +322,48 @@ telas.push({
 telas.push({
   id: '6d-erro-codigo-de-provisorio',
   ativo: 'Usuários',
-  rolar: '#perfis',
+  rolar: '.previa',
   html:
     telaLista(cabUsuarios(9) + filtros() + tabela(LISTA_TODOS)) +
     gaveta(
       'Editar usuário',
-      `${dadosTopo('Anderson Lima Souza', 'anderson@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}<div class="par">${campo('Código no ERP', 'VEN-000034', { op: true, erro: 'Código do provisório Anderson Souza.', extra: '<span style="margin-top:2px"><span class="bsm">Vincular vendedor do ERP</span></span>' })}${campo('Filial', 'Boa Vista', { seletor: true })}</div>${equipe('Boa Vista Centro', 'Marta Reis')}`,
+      `${dadosTopo('Vendedor Exemplo da Silva', 'vendedor.exemplo@distexemplo.com.br')}${perfis(['Vendedor'])}${previa('Entra em: Campo.')}${campo('Filial', 'Boa Vista', { seletor: true })}${codigos('0014', 'VEN-000123', { erro: 'Este Código ERP já está num usuário provisório.', extra: '<span style="margin-top:2px"><span class="bsm">Vincular vendedor do ERP</span></span>' })}${equipe('Boa Vista Centro', 'Fernanda Exemplo')}`,
     ),
 });
+
+// ---------- app Macuxi Campo: vendedor sem filial (bloqueado) ----------
+// Visual do kit (packages/ui/src/mobile): o mesmo arranjo da `TelaDeErro` (ícone num círculo, título, o que fazer,
+// um principal e um secundário), fundo Pérola, Botao principal 52 (Azul noite) e secundário alto 52 (contorno grafite).
+// Aparelho: Pixel 7 do Playwright (devices['Pixel 7']), sem mudar o deviceScaleFactor dele.
+const CSS_APP = `
+@font-face{font-family:Archivo;font-weight:700;src:url(${FONTES}/Archivo_700Bold.ttf)}
+@font-face{font-family:Plex;font-weight:400;src:url(${FONTES}/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:Plex;font-weight:600;src:url(${FONTES}/IBMPlexSans_600SemiBold.ttf)}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:Plex;background:#F8F6F1;color:#16202A;display:flex;flex-direction:column}
+.sb{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:#16202A}
+.sb i{display:inline-block;width:14px;height:10px;border:1.5px solid #16202A;border-radius:2px;margin-left:6px;position:relative}
+.sb i:after{content:'';position:absolute;inset:1px;right:4px;background:#16202A}
+.conteudo{flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px 20px;gap:24px}
+.topo{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.icone{width:56px;height:56px;border-radius:28px;background:#FFF1D6;display:flex;align-items:center;justify-content:center}
+h1{font-family:Archivo;font-weight:700;font-size:20px;line-height:26px}
+p{font-size:15px;line-height:22px;color:#4A5562}
+.acoes{display:flex;flex-direction:column;gap:8px}
+.b{height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600}
+.pri{background:#1E3350;color:#fff}
+.sec{background:#fff;border:1.5px solid #16202A;color:#16202A}
+.nav{height:24px;display:flex;align-items:center;justify-content:center}
+.nav span{width:108px;height:4px;border-radius:2px;background:#16202A;opacity:.85}
+`;
+const cadeado = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7A4F00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const telasApp = [
+  {
+    id: '7-app-vendedor-sem-filial',
+    html: `<div class="sb"><span>8:15</span><span>4G<i></i></span></div><main class="conteudo" aria-live="polite"><div class="topo"><div class="icone" aria-hidden="true">${cadeado}</div><h1>Seu cadastro está sem filial</h1><p>Peça ao administrador para informar a sua filial.</p></div><div class="acoes"><span class="b pri">Tentar de novo</span><span class="b sec">Sair</span></div></main><div class="nav"><span></span></div>`,
+  },
+];
 
 (async () => {
   const browser = await chromium.launch();
@@ -343,6 +383,18 @@ telas.push({
     }
     if (t.depois) await t.depois(page);
     await page.screenshot({ path: path.join(DIR, `${t.id}.png`) });
+    console.log('ok', t.id);
+  }
+  const { devices } = carregarPlaywright();
+  const { defaultBrowserType: _tipo, ...pixel7 } = devices['Pixel 7'];
+  const celular = await browser.newPage(pixel7);
+  for (const t of telasApp) {
+    const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T-0176 · ${t.id}</title><style>${CSS_APP}</style><body>${t.html}</body></html>`;
+    const arq = path.join(DIR, `${t.id}.html`);
+    fs.writeFileSync(arq, html);
+    await celular.goto(`file://${arq}`);
+    await celular.evaluate(() => document.fonts.ready);
+    await celular.screenshot({ path: path.join(DIR, `${t.id}.png`) });
     console.log('ok', t.id);
   }
   await browser.close();
