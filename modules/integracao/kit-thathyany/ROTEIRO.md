@@ -32,7 +32,7 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
    py carga_csv.py --pasta csv --validar
    py carga_csv.py --pasta csv
    ```
-   No `vendedor.csv`, `filial_external_id` é a filial do vendedor (uma só, a mesma do `filial.csv`); sem ela o vendedor fica bloqueado no Macuxi até a filial ser informada. No `produto.csv`, `marca_codigo` leva o código da marca no ERP (ex.: 980). `referencia_1` a `referencia_3` levam até 3 códigos da concorrência e, de cada um, levam o código da marca no ERP (`marca_referencia_codigo_1` a `_3`) e o nome da marca (`marca_referencia_1` a `_3`), os dois opcionais. Com as três vazias, o Macuxi mantém as referências do cadastro (para tirar uma, use o Backoffice).
+   No `vendedor.csv`, `filial_external_id` é a filial do vendedor (uma só, a mesma do `filial.csv`); sem ela o vendedor fica bloqueado no Macuxi até a filial ser informada. No `produto.csv`, `marca_codigo` leva o código da marca no ERP (ex.: 980). `referencia_1` a `referencia_3` levam até 3 códigos da concorrência; de cada um, o código da marca no ERP (`marca_referencia_codigo_1` a `_3`) e o nome (`marca_referencia_1` a `_3`), os dois opcionais. Com as três vazias, o Macuxi mantém as referências do cadastro (para tirar uma, use o Backoffice).
    O relatório mostra, por tabela, as linhas lidas, inseridas, atualizadas, sem mudança e recusadas, com a linha e o motivo da recusa. Corrija o CSV e rode de novo.
 5. **Confira a carga:** em 2 a 5 minutos, os vendedores, clientes e produtos aparecem no Backoffice. O Monitor da integração mostra o Conector `thathyany-conector` em dia, versão 1.4.0.
 6. **Pedido no app:** o vendedor sincroniza, faz um pedido para um cliente da carga e o envia.

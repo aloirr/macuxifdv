@@ -285,7 +285,6 @@ describe('Referência cruzada do produto (até 3 códigos da concorrência)', ()
   it('RN-CAT-09: a view do produto monta `referencias` em JSON {marca_nome, codigo}; as três vazias = NULL (não altera)', () => {
     const view = /CREATE OR ALTER VIEW dbo\.vw_macuxi_produto AS[\s\S]*?GO/.exec(sql)?.[0] ?? '';
     expect(view).toContain('FOR JSON PATH');
-    expect(view).toContain('marca_nome');
     expect(view).toContain('marca_referencia_codigo_1, marca_referencia_1, referencia_1');
     expect(view).toContain('r.marca_external_id, r.marca_nome, r.codigo');
     expect(view).toMatch(/referencia_1 IS NULL AND referencia_2 IS NULL AND referencia_3 IS NULL THEN NULL/);

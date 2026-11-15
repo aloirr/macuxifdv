@@ -102,8 +102,9 @@ export const REGRAS_ENTIDADE: Record<string, RegraEntidade[]> = {
   produto: [
     { regra: 'juntos', campos: ['embalagem_medida', 'embalagem_quantidade'], motivo: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas' },
     // só do kit: a marca é opcional (RN-CAT-09), mas marca sem código não tem o que carregar
-    ...NUMEROS_REFERENCIA.map((n): RegraEntidade => ({ regra: 'requer', campos: [`marca_referencia_${n}`, `referencia_${n}`], motivo: `marca_referencia_${n} só vale com referencia_${n} preenchida` })),
-    ...NUMEROS_REFERENCIA.map((n): RegraEntidade => ({ regra: 'requer', campos: [`marca_referencia_codigo_${n}`, `referencia_${n}`], motivo: `marca_referencia_codigo_${n} só vale com referencia_${n} preenchida` })),
+    ...NUMEROS_REFERENCIA.flatMap((n): RegraEntidade[] =>
+      [`marca_referencia_${n}`, `marca_referencia_codigo_${n}`].map((campo) => ({ regra: 'requer', campos: [campo, `referencia_${n}`], motivo: `${campo} só vale com referencia_${n} preenchida` })),
+    ),
   ],
   // entidades.ts `PrecoPayload.superRefine`
   preco: [{ regra: 'data_nao_anterior', campos: ['vigencia_fim', 'vigencia_inicio'], motivo: 'fim da vigência anterior ao início' }],

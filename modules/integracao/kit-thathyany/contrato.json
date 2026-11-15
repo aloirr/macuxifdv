@@ -992,22 +992,6 @@
         {
           "regra": "requer",
           "campos": [
-            "marca_referencia_2",
-            "referencia_2"
-          ],
-          "motivo": "marca_referencia_2 só vale com referencia_2 preenchida"
-        },
-        {
-          "regra": "requer",
-          "campos": [
-            "marca_referencia_3",
-            "referencia_3"
-          ],
-          "motivo": "marca_referencia_3 só vale com referencia_3 preenchida"
-        },
-        {
-          "regra": "requer",
-          "campos": [
             "marca_referencia_codigo_1",
             "referencia_1"
           ],
@@ -1016,10 +1000,26 @@
         {
           "regra": "requer",
           "campos": [
+            "marca_referencia_2",
+            "referencia_2"
+          ],
+          "motivo": "marca_referencia_2 só vale com referencia_2 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
             "marca_referencia_codigo_2",
             "referencia_2"
           ],
           "motivo": "marca_referencia_codigo_2 só vale com referencia_2 preenchida"
+        },
+        {
+          "regra": "requer",
+          "campos": [
+            "marca_referencia_3",
+            "referencia_3"
+          ],
+          "motivo": "marca_referencia_3 só vale com referencia_3 preenchida"
         },
         {
           "regra": "requer",
