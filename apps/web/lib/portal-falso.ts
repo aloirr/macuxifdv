@@ -202,7 +202,7 @@ const ACOES_M = /^\/plataforma\/empresas\/([^/]+)\/(inativar|reativar|backups|ex
 
 /** Rotas das ações da empresa (ADR 0052 §4), só do time da Macuxi. */
 function responderAcoes(metodo: string, tenant: string, acao: string, sub: string | undefined, sessao: SessaoFalsa, e: Estado, corpo: unknown): Response {
-  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi usa estas ações.');
+  if (sessao.tipo !== 'super_admin') return erro(403, 'PERFIL_SEM_ACESSO', 'Só o time da Macuxi faz esta ação.');
   // a exclusão concluída continua legível (GET …/exclusao), como o registro da API
   const x = e.empresas.find((y) => y.id === tenant && (!excluida(y) || (acao === 'exclusao' && metodo === 'GET')));
   if (!x) return erro(404, CODIGOS_ACOES_EMPRESA.naoEncontrada, fraseDaApi(CODIGOS_ACOES_EMPRESA.naoEncontrada));
