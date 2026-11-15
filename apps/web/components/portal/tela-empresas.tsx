@@ -20,7 +20,7 @@ import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
 import { CelulaBackup, MenuDaEmpresa, useAcoesDasEmpresas } from './empresas-acoes';
-import { mascararCnpj, PassoEmpresa, ROTULO_MODULO } from './passo-empresa';
+import { mascararCnpj, PassoEmpresa } from './passo-empresa';
 
 export const CHAVE_EMPRESAS = ['portal', 'empresas'] as const;
 
@@ -37,6 +37,22 @@ export function useEmpresas() {
 }
 
 const data = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
+
+/** Coluna Plano (§11.5): nome do plano ou "—" sem plano (`null` ou banco sem a 0071); `teste` = mostrar o selo "teste". */
+export function celulaDoPlano(e: Pick<EmpresaResumo, 'plano' | 'em_teste'>): { nome: string; teste: boolean } {
+  const nome = e.plano?.trim();
+  return nome ? { nome, teste: e.em_teste === true } : { nome: '—', teste: false };
+}
+
+function CelulaPlano({ empresa }: { empresa: EmpresaResumo }) {
+  const { nome, teste } = celulaDoPlano(empresa);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {nome}
+      {teste && <Badge tone="neutral">teste</Badge>}
+    </span>
+  );
+}
 
 /** Página só do time da Macuxi: o admin do cliente é levado à página inicial dele. `true` = pode mostrar. */
 function useSoTimeMacuxi(): boolean {
@@ -101,7 +117,7 @@ export function ListaEmpresas() {
                 <th className={th}>Empresa</th>
                 <th className={th}>Código</th>
                 <th className={th}>CNPJ</th>
-                <th className={th}>Módulos</th>
+                <th className={th}>Plano</th>
                 <th className={th}>Situação</th>
                 <th className={th}>Criada em</th>
                 {comAcoes && <th className={th}>{TEXTOS_EMPRESA_ACOES.colunaBackup}</th>}
@@ -118,7 +134,9 @@ export function ListaEmpresas() {
                   </td>
                   <td className={`${td} font-mono whitespace-nowrap`}>{e.codigo}</td>
                   <td className={`${td} whitespace-nowrap tabular-nums`}>{e.cnpj ? mascararCnpj(e.cnpj) : '—'}</td>
-                  <td className={td}>{e.modulos.map((m) => ROTULO_MODULO[m.modulo].nome).join(', ')}</td>
+                  <td className={td}>
+                    <CelulaPlano empresa={e} />
+                  </td>
                   <td className={td} data-testid={`empresas.situacao-${e.codigo}`}>
                     <Badge tone={tomDoStatus(e.status)}>{rotuloDoStatus(e.status)}</Badge>
                   </td>
