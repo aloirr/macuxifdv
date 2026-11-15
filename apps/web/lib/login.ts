@@ -1,6 +1,6 @@
 /**
  * Regras puras do login do BKO (T-0003 F2): mensagem a partir do erro da API, em português e com a ação seguinte. A
- * validação campo a campo é a `validarLogin` da fonte única do Core (`@macuxi/core/contracts`, RD-0020), a mesma do app.
+ * validação campo a campo é a `validarLoginNovo` da fonte única do Core (`@macuxi/core/contracts`, RD-0020), a mesma do app.
  */
 import { CODIGOS_AUTH, TEXTOS_LOGIN_SENHA } from '@macuxi/core/contracts';
 import { CODIGO_PERFIL_FORA_DO_APP } from '@macuxi/platform-sdk';

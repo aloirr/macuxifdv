@@ -34,6 +34,7 @@ import {
 } from '../domain';
 import { appsDoPerfil, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { hashSenha } from './seguranca';
+import { erroDaHierarquiaNoBanco } from './hierarquia-cadastro';
 
 type Tx = Parameters<Parameters<ContextoBase['comTenant']>[0]>[1];
 const MSG_CONCORRENCIA = 'Outra pessoa gravou o mesmo e-mail ou código do ERP ao mesmo tempo. Confira o arquivo e envie de novo.';
@@ -237,7 +238,8 @@ export const rotasDeEquipeCsv: readonly RotaModulo[] = [
         });
       } catch (e) {
         if ((e as { code?: string })?.code === '23505') throw new ErroHttpModulo(409, 'EQUIPE_CSV_CONCORRENCIA', MSG_CONCORRENCIA);
-        throw e;
+        // 0069: promotor sem gerente, ou com gerente que não é o do supervisor (23514 no COMMIT), vira 422 com a frase da tela
+        throw erroDaHierarquiaNoBanco(e) ?? e;
       }
     },
   },

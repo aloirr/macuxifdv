@@ -5,7 +5,7 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLogin, type CamposLogin, type ErrosLogin, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, validarLoginNovo as validarLogin, type CamposLogin, type ErrosLogin, CODIGO_EMPRESA_TAMANHO, MENSAGEM_SENHA_A_TROCAR, MENSAGEM_SENHA_VENCIDA, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 import { ESCONDER_SENHA, MOSTRAR_SENHA } from '@macuxi/ui/mobile/puro';
 import { tolerante } from './leitor-tolerante';
 
@@ -56,6 +56,9 @@ export function mensagemDeErroDeLogin(e: unknown): string {
       return 'Não foi possível entrar agora. Tente de novo; se continuar, avise o suporte.';
   }
 }
+
+/** Propriedades do campo Código da empresa (login e "Esqueci a senha"): cabe só o código da licença, UF + 4 dígitos (ex.: AM4821). */
+export const propsDoCampoCodigoEmpresa = { maxLength: CODIGO_EMPRESA_TAMANHO, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false } as const;
 
 /** Rótulo acessível do botão de olho da senha. */
 export function rotuloOlhoSenha(visivel: boolean): string {

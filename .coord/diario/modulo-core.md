@@ -155,7 +155,11 @@
 2026-11-14 — T-0170/v1.0.6 — MC-0010 (Início e Performance), MC-0012, MC-0014 (STATUS_FILL), retirada do inicio.recado_do_dia_padrao (D2) e costura #149 (itens 1, 2, 3, 4 e 6); branch nuvem/v106-modulo-core
 2026-11-14 — RD-0250 — ROTULO_INDICADOR_META no contracts, core usando o mapa; Faturamento só com meta de faturamento
 2026-11-14 — ficha-cliente-performance — aba Performance (RN-CORE-50), botão Pesquisa e Checkout só em atendimento (RN-CORE-51)
+2026-11-14 — BKO Acesso — Usuários (tabela, gaveta, módulos) e Perfis de acesso (lista, Novo perfil por módulo); branch nuvem/acesso-bko-modulo-core
+2026-11-14 — BKO Acesso — RD-0264 a RD-0268, MC-0025/26: textos de Desativar/Redefinir, sem CSV em Usuários, Geral agrupada em 3 colunas, criar×editar pedido separados, rótulos de RV; prints com o menu real
 2026-11-14 — R-20261114-145000 — Início do Campo enquadrado: primeiro nome completo (primeiroNome), sino no painel do topo, painel e Sincronizar fixos, meio compacto; prints em docs/modulos/core/prints/inicio-enquadrado
+2026-11-14 — BKO Acesso — cargos (ADR 0049, RN-CORE-54 a 57): um perfil por usuário, Cargo no Novo perfil e na lista, gaveta com Supervisor/Gerente/Nome da equipe/Código no ERP pelo cargo, hierarquia no domain e na API (contrato da 0069)
+2026-11-14 — BKO Acesso — achados do corretor (#261/#260): sem frase de 'Onde entra', link de usuários para /usuarios, cargos direto do SDK, sem testes repetidos do SDK
 2026-11-14 — checkin-ficha-rota — Check-in volta ao rodapé da ficha (RN-CORE-51) e ação visita.checkin_fora_de_rota por perfil (RN-CORE-52, erro CHECKIN_FORA_DE_ROTA)
 2026-11-14 — RN-CORE-50 — total de visitas e quem visitou por último na aba Performance: entidade cliente_visita_resumo@1 (view core.v_cliente_visita_resumo, escopo carteira), resumoDeVisitas com o resumo do servidor e quemVisitouPorUltimo; carga em Clientes e rota (Campo) e Equipe (Gestão)
 2026-11-14 — T-0174 — v1.0.8: check-in na ficha e na Rota (RN-CORE-51/52, permissão no BKO) + visitas (RN-CORE-50); a folha do check-in deixa de oferecer Novo pedido e abre a ficha
@@ -164,3 +168,7 @@
 2026-11-15 — R-20261114-212000 — Início do Campo, cabeçalho variação C (foto 72 à esquerda, textos à direita, sino na linha da saudação); escala e prints
 2026-11-15 — retrabalho cabeçalho do Início (variação C) — RD-0398: uma conta de linhas (linhasDeTexto) e uma de altura (alturaDeLinha); foto do perfil ligada a usuario_avatar via resolvedor injetável (foto-perfil.ts); sem foto, iniciais
 2026-11-15 — RD-0399 — Início do Campo: tirado painelAltura, reexport morto e exportada ENTIDADE_USUARIO_AVATAR no índice do Core (item 3 aguarda engenheiro-apps)
+2026-11-15 — BKO Acesso — merge do main (0069, menu em 9 grupos); fim do multiperfil (testes e textos mortos fora); grupos novos do menu (ADR 0050), 'Preço e custo', 'Usuários e módulos' fora do menu; prints em modules/core/web/docs/prints/acesso
+2026-11-15 — PR #250 — MC-0061/62/63, RD-0394/0395 e plural de perfis; Desbloquear no BKO (selo Bloqueado/Bloqueado até HHhMM, item no ⋯ e faixa na gaveta; DELETE /core/usuarios/:id/bloqueio idempotente e auditado; usuario.desbloquear); MenuAcoes e modulos.tsx do kit; prints 1366×768 refeitos
+2026-11-15 — PR #250 — RD-0414/0415: prints do Acesso só em docs/modulos/core/telas/acesso; hora no fuso pelo formatTime/formatDateTime do kit; gaveta Novo/Editar usuário com rodapé -bottom-4 -mb-4 (nada rola por baixo do Cancelar/Salvar) e os 11 prints refeitos
+2026-11-15 — v1.0.9 (PR próprio, sem apps/web) — código da empresa UF+4 (CODIGO_EMPRESA_TAMANHO/REGEX, MENSAGEM_CODIGO_EMPRESA, validarCodigoEmpresaNovo e validarLoginNovo no app; validarLogin do BKO inalterado), senha sem espaço nas pontas (RD-0431, PE-02), servidor aceita código antigo e novo, D-01 (usuarioPorEmail travar no esqueci); RD-0430 do core
