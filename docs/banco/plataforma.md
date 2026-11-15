@@ -1002,3 +1002,7 @@ select plataforma.sa_acoes_das_empresas($1) as r;                 -- GET /v1/pla
 select plataforma.pegar_backup() as r;                            -- worker (macuxi_worker)
 select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 ```
+
+### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
+`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
+[sync-pacote.md](sync-pacote.md).
