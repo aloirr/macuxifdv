@@ -16,7 +16,7 @@
 ## Decisão
 
 ### 1. Inativar e Reativar (RN-PLA-07)
-1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre; **opcional e nulo**: a tela aprovada pelo dono do produto, "Inativar {empresa}? Todos os acessos ficam bloqueados. [Cancelar] [Inativar]", não pede motivo, e a API inativa sem ele). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
+1. **Estado**: o próprio `plataforma.tenant.status`. Inativa = `suspenso` (o portal mostra "Inativa"; `ROTULO_STATUS_EMPRESA`). O valor do banco não muda e não há migração do check. Colunas novas: `inativada_em`, `motivo_inativacao` (lista `MOTIVOS_INATIVACAO`, sem texto livre; **opcional e nulo**: a tela, portal-config-enxuto §15, não pede motivo, e a API inativa sem ele). Inativar **não apaga nem altera** nenhum dado da empresa e **não revoga** as sessões: ao reativar, quem estava logado volta sem novo login e a fila do aparelho sobe.
 2. **Quem**: só o super-admin, pelas rotas do portal (§4). O admin do cliente recebe 403 `PERFIL_SEM_ACESSO`.
 3. **O que bloqueia** (código único `EMPRESA_INATIVA`, `CODIGO_EMPRESA_INATIVA` no SDK):
 

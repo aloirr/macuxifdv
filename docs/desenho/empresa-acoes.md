@@ -7,7 +7,7 @@
 Textos e estados: `docs/design/telas/portal-config-enxuto.md` §15 (designer-ux). Dados da linha: `EmpresaResumoSchema.acoes`.
 
 ## 2. Sequências
-**Inativar**: `POST …/inativar` → `sa_inativar_tenant(sid, tenant, motivo)` numa transação (motivo opcional e nulo: o diálogo não o pede): status `suspenso`, `inativada_em = now()`, motivo, auditoria `tenant.inativado`, evento `plataforma.tenant.inativado@1`. A partir do commit, a próxima requisição de qualquer token do tenant leva 403 `EMPRESA_INATIVA`.
+**Inativar**: `POST …/inativar` → `sa_inativar_tenant(sid, tenant, motivo)` numa transação (motivo opcional): status `suspenso`, `inativada_em = now()`, motivo, auditoria `tenant.inativado`, evento `plataforma.tenant.inativado@1`. A partir do commit, a próxima requisição de qualquer token do tenant leva 403 `EMPRESA_INATIVA`.
 
 **Backup**: `POST …/backups` → `sa_pedir_backup(sid, tenant, id)` grava `em_andamento` (único por empresa; o mesmo `id` devolve o mesmo) e marca `consistente = (status = 'suspenso')`. O worker, a cada ciclo:
 1. pega um job (`for update skip locked`);
