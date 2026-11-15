@@ -34,8 +34,6 @@ import {
 import { estilosDeAcesso } from './estilos-de-acesso';
 
 export interface PropsTelaTrocarSenha {
-  /** Código da empresa e e-mail de quem está no app (o shell os usa no corpo da chamada). */
-  sessao: { codigoEmpresa: string; email: string };
   /** O app sabe que está online. Sem rede, o aviso aparece antes de tocar em Salvar (o botão continua ativo). */
   online: boolean;
   /** Troca a senha; lança o erro HTTP em caso de falha (ver o cabeçalho). */
@@ -119,7 +117,7 @@ export function TelaTrocarSenha({ online, trocar, aoConcluir, aoEsqueci }: Props
   return (
     <Screen
       gap={16}
-      cabecalho={{ titulo: TEXTOS_TROCAR_SENHA.titulo, voltar: { label: 'Perfil', fallback: '/profile' } }}
+      cabecalho={{ titulo: TEXTOS_TROCAR_SENHA.titulo, voltar: { label: TEXTOS_TROCAR_SENHA.voltarAoPerfil, fallback: '/profile' } }}
       testID="trocar-senha.tela"
     >
       {avisoNoTopo?.texto ? (

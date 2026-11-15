@@ -36,6 +36,7 @@ export const TEXTOS_CRIE_SENHA = Object.freeze({
 /** "Trocar senha" no Perfil (docs/design/trocar-senha/spec.md §8). Os outros textos vêm do kit e de `TEXTOS_CRIE_SENHA`/`TEXTOS_ESQUECI`. */
 export const TEXTOS_TROCAR_SENHA = Object.freeze({
   titulo: 'Trocar senha',
+  voltarAoPerfil: 'Perfil',
   senhaAtual: 'Senha atual',
   salvar: 'Salvar senha',
   salvando: 'Salvando…',
@@ -49,6 +50,8 @@ export const TEXTOS_TROCAR_SENHA = Object.freeze({
 /** "Esqueci a senha" (spec §3). A confirmação é sempre a mesma, exista ou não o cadastro; a validade vem do SDK. */
 export const TEXTOS_ESQUECI = Object.freeze({
   titulo: 'Esqueci a senha',
+  codigoEmpresa: 'Código da empresa',
+  email: 'E-mail',
   instrucao: 'Informe o código da empresa e o seu e-mail. Vamos mandar uma senha temporária para o seu e-mail.',
   enviar: 'Enviar senha temporária',
   enviando: 'Enviando…',

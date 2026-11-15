@@ -18,8 +18,6 @@ import { trocarSenhaPeloApp } from './senha';
 
 export interface ResultadoDoPrecheck {
   ok: boolean;
-  /** Liga `destacar` no `RegrasDaSenha` (regra em falta ou senhas diferentes). */
-  destacarRegras: boolean;
   atualVazia: boolean;
   /** Para onde vai o foco quando não envia. */
   foco: 'atual' | 'nova' | 'repita' | null;
@@ -37,7 +35,6 @@ export function precheckDaTrocaVoluntaria(
   const foco = atualVazia ? 'atual' : faltas ? 'nova' : diferentes ? 'repita' : null;
   return {
     ok: !atualVazia && !faltas && !diferentes,
-    destacarRegras: faltas || diferentes,
     atualVazia,
     foco,
   };

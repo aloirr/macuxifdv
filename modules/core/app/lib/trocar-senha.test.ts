@@ -26,10 +26,10 @@ const sessao = {
 };
 
 describe('RF-CORE-01 / RN-CORE-32 / RN-CORE-34: precheck da troca voluntária (antes de chamar a API)', () => {
-  it('RN-CORE-32: senha nova fraca não envia e destaca as regras', () => {
+  it('RN-CORE-32: senha nova fraca não envia e o foco vai para a senha nova', () => {
     expect(precheckDaTrocaVoluntaria('Atual#123', 'abc', 'abc')).toMatchObject({
       ok: false,
-      destacarRegras: true,
+      foco: 'nova',
     });
   });
   it('RN-CORE-32: senhas diferentes não enviam; o foco vai para "Repita a senha"', () => {
