@@ -306,7 +306,7 @@ function EditorLicao({
   return (
     <div className="rounded-xl border border-line p-3" data-testid={prefixo}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-bold text-ink-2">Lição {li + 1}</span>
+        <span className="text-[13px] font-semibold text-ink-2">Lição {li + 1}</span>
         {!somenteLeitura && (
           <div className="flex gap-1">
             <Button size="sm" onClick={() => mudar((e) => alterarModulo(e, mi, (m) => ({ ...m, licoes: mover(m.licoes, li, -1) })))} disabled={li === 0} aria-label={`Subir lição ${li + 1}`}>
