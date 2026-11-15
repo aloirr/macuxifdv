@@ -23,8 +23,14 @@ export const CHECKIN_NA_FICHA = existe('modules/core/domain/checkin-rota.ts');
 /** 0069 (banco-dados, R-20261114-153500): um perfil por usuário (exclusão adiada `usuario_perfil_um_vivo`). */
 export const UM_PERFIL = existe('db/migrations/0069_core_cargo_hierarquia.up.sql');
 
-/** T-0180 (modulo-core): parâmetros `alertas.produtividade`, `jornada.almoco_padrao` e `PUT /core/parametros/parado-min`. */
+/**
+ * T-0180 (modulo-core): parâmetros `alertas.produtividade`, `jornada.almoco_padrao`, `PUT /core/parametros/parado-min` e a consulta
+ * `core.produtividade_equipe@1`. Entra antes do PR do testes (ordem banco → engenheiro → designer → core → testes → gestor).
+ */
 export const ALERTAS_CORE_T0180 = existe('modules/core/contracts/alertas-produtividade.ts');
 
-/** T-0180 (modulo-gestor): Parâmetros › Alertas (`/parametros/alertas`) e os tipos `parado_entre_visitas` e `sem_checkin_inicio`. */
+/**
+ * T-0180 (modulo-gestor): Parâmetros › Alertas, os tipos `parado_entre_visitas` e `sem_checkin_inicio` e `GET alertas?produtividade=1`.
+ * Entra depois do PR do testes: até lá, os blocos do Gestor em `alertas-produtividade-t0180.test.ts` não rodam.
+ */
 export const ALERTAS_GESTOR_T0180 = existe('modules/gestor/domain/produtividade-do-dia.ts');
