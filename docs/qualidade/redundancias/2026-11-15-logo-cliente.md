@@ -39,6 +39,8 @@ Sem defeito funcional para o testes.
 
 > **Reteste em 15/11, 10h34: ver §6.** RD-0700, RD-0702, RD-0703 e RD-0704 corrigidos; RD-0701 aberto; novos RD-0705 a RD-0707.
 >
+> **Reteste final em 15/11, 11h10: ver §8. LIBERADO** (RD-0708 e RD-0709 corrigidos; fica só o RD-0706, de teste, para o lote seguinte).
+
 > **Conferência final em 15/11, 10h57: ver §7.** Não liberado: RD-0701, RD-0705 e RD-0707 corrigidos; RD-0706 parcial (só teste, não segura); novos RD-0708 e RD-0709 (código de produção, seguram).
 
 **Veredito: COM ACHADO (não liberado).** São 5 achados novos, de **RD-0700 a RD-0704**: 1 de gravidade média e 4 de
@@ -491,3 +493,24 @@ Os recados continuam com erro 403. O gerente-projetos repassa aos donos:
 
 Corrigidos o RD-0708 e o RD-0709, o reteste olha só esses dois arquivos. Com os dois fechados, o parecer fica **liberado**,
 e o RD-0706 fica aberto para o lote seguinte.
+
+## 8. Reteste final (15/11/2026, 11h10 em Manaus)
+
+**Veredito: LIBERADO.** Os dois achados que seguravam o lote estão corrigidos, e a correção não trouxe excesso novo.
+
+| RD | Evidência | Status |
+|---|---|---|
+| RD-0708 | `nuvem/logo-cliente-engenheiro-apps` 3dc4cf73. `apps/mobile/src/services/logo-empresa.ts:22-30`: `copiaGuardada(caminho)` única (navegador, sem arquivo, 0 byte ou erro = `null`). Usada por `existeArquivo` (`:47`), `uriDaLogo` (`:61`) e `dataUriDaLogoGuardada` (`:66`); o molde `Platform.OS`/`try`/`.exists` não aparece mais fora dela. Em `apps/mobile/src/lib/logo-empresa.ts` saíram os 2 `gravarRegistro(null)` antes do `apagarTudo()`; o contrato `PortaLogoEmpresa.apagarTudo` diz que apaga a pasta e o registro, e o `apagarPastaDaEmpresa` é o único que zera o registro nesse caminho. A `portaFalsa` do teste da `lib` zera o registro no `apagarTudo`. O `gravarRegistro(null)` que sobra (`lib:82`) é outro caso (cópia sumida, pasta pode existir) e fica. Teste novo `services/logo-empresa.test.ts`: as 3 leituras com bytes, com 0 byte e sem arquivo, e `apagarTudo` gravando o registro nulo uma vez só. Resolve também o 7.4 (0 byte = ausente nas 3 leituras) | **corrigido** (3dc4cf73) |
+| RD-0709 | `nuvem/logo-cliente-modulo-vendedor` c0d5d7ae. `modules/vendedor/domain/empresa-pdf.ts:9`: `return (await ambiente.logoDaEmpresa?.()) ?? null;` dentro do único `try/catch`; o `.catch(() => null)` saiu. O `empresa-pdf.test.ts:11-12` cobre o erro assíncrono e o síncrono | **corrigido** (c0d5d7ae) |
+
+### 8.1 Excesso novo na correção
+Nenhum.
+- O `!l ||` em `dataUriDaLogoGuardada` (`:67`) não repete o `!f`: é ele que estreita o tipo de `l` para o `l.tipo` da linha seguinte.
+- O comentário do contrato (`lib`) e o do `apagarPastaDaEmpresa` (`services`) dizem o mesmo efeito, um na interface e outro na implementação: `manter`.
+- O teste novo do `services` prova a camada do disco (`expo-file-system`), que o teste da `lib` (porta falsa) não alcança: sem sobreposição.
+
+### 8.2 Para o lote seguinte (não segura)
+- **RD-0706** (testes; só teste, baixa, R-20261111-190159): o `FRASES` de `logo-cliente-t0182.test.ts:50-55` passa a ser `MENSAGENS_LOGO[cod]` e o caso "81 caracteres = 400" (`:234`) sai.
+- Condições de merge que continuam (sem RD): uma declaração só de `TEXTO_INDISPONIVEL` no merge do config-enxuto-v2 (§7.1, RD-0701) e uma linha `./imagens` só no `index.ts` do SDK no merge com a T-0174 (§1). A referência "§3.2" do desenho (7.4) segue com o engenheiro-software.
+
+Recados continuam com erro 403; o gerente-projetos repassa ao testes o RD-0706.
