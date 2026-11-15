@@ -154,5 +154,5 @@ const s = StyleSheet.create({
   rotuloTot: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   valorTot: { ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   rotuloTotal: { ...fonte.semibold, fontSize: 16, color: colors.ink },
-  valorTotal: { ...fonte.displayBold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorTotal: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

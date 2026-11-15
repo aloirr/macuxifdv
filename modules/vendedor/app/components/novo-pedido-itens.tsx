@@ -64,7 +64,7 @@ export function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: str
   const partes = partirTrecho(trecho.texto, trecho.marcas);
   return (
     <Text style={s.aplicacao} numberOfLines={2} testID={`serve-em-${codigo}`}>
-      <Text style={t.smallStrong}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      <Text style={t.label}>Serve em:</Text> {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.label}>{x.texto}</Text> : x.texto))}
       {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
     </Text>
   );
@@ -82,5 +82,5 @@ const s = StyleSheet.create({
   controles: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 0 },
   total: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'baseline', gap: 6, minHeight: 24 },
   totalRotulo: { ...fonte.body, fontSize: 12, color: colors.ink2 },
-  totalValor: { ...fonte.displayBold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  totalValor: { ...fonte.bold, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

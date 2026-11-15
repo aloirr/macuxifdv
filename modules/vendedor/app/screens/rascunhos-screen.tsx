@@ -129,7 +129,7 @@ const s = StyleSheet.create({
   traco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   cliente: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 16, color: colors.ink },
-  total: { ...fonte.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   fato: { flexShrink: 1, minWidth: 0, ...fonte.body, fontSize: 14, color: colors.ink2 },
   seta: { marginLeft: 'auto' },

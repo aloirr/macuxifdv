@@ -940,8 +940,8 @@ const styles = StyleSheet.create({
   qty: { width: 44, height: 48, textAlign: 'center', ...fonte.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   step: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   pctBox: { flex: 1, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', ...fonte.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
-  pctSuffix: { flex: 1, ...fonte.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
+  pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', ...fonte.bold, fontSize: 18, color: colors.ink, padding: 0 },
+  pctSuffix: { flex: 1, ...fonte.bold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
   segment: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   segItem: { flexGrow: 1, minWidth: 72, paddingHorizontal: 10, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
@@ -951,5 +951,5 @@ const styles = StyleSheet.create({
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   sumLabel: { ...fonte.body, fontSize: 14, color: colors.ink2 },
   sumValue: { ...fonte.body, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
-  total: { ...fonte.display, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  total: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

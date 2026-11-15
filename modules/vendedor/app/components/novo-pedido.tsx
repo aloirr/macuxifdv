@@ -142,7 +142,7 @@ const s = StyleSheet.create({
   linkAjuste: { minHeight: 48, justifyContent: 'center', paddingRight: 8 },
   ajuste: { gap: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.ground },
   pctBox: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  pctInput: { flex: 1, minWidth: 0, height: 46, textAlign: 'right', ...fonte.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
-  reaisPrefixo: { ...fonte.displayBold, fontSize: 18, color: colors.ink2, marginRight: 4 },
-  pctSufixo: { flex: 1, ...fonte.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
+  pctInput: { flex: 1, minWidth: 0, height: 46, textAlign: 'right', ...fonte.bold, fontSize: 18, color: colors.ink, padding: 0 },
+  reaisPrefixo: { ...fonte.bold, fontSize: 18, color: colors.ink2, marginRight: 4 },
+  pctSufixo: { flex: 1, ...fonte.bold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
 });
