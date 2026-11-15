@@ -1,7 +1,8 @@
--- 0070_core_usuario_filial (up) — T-0176: filial do usuário (vendedor com UMA filial; supervisor, promotor e gerente com
+-- 0077_core_usuario_filial (up) — T-0176: filial do usuário (vendedor com UMA filial; supervisor, promotor e gerente com
 -- várias). Decisão do dono do produto R-20261115-073000, item 1 (muda a RN-CORE-39, que dizia que o vendedor não tem filial
 -- própria), e R-20261115-080000 (o vendedor sem filial fica BLOQUEADO no app; a migração não dá filial provisória nem a
--- padrão). Migração em cima da 0069 (core_cargo_hierarquia). Dicionário: docs/banco/core.md ("0070"). Teste:
+-- padrão). Depende da 0069 (core_cargo_hierarquia); número 0077 porque a 0070–0076 são de outros lotes.
+-- Dicionário: docs/banco/core.md ("0077"). Teste:
 -- db/testes/usuario-filial.db.test.ts (estático sempre; banco e up/down no CI).
 -- Migração ADITIVA: 1 tabela nova (vazia), 3 funções e 6 gatilhos; SEM backfill. Nenhuma coluna nova em tabela existente; nenhum
 -- contrato muda de versão (o filial_ids do usuário é do modulo-core, aditivo).
@@ -36,8 +37,8 @@
 --
 -- RLS: core.usuario_filial com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app: select, insert,
 -- update. macuxi_worker e macuxi_portal: nada.
--- Caminho de volta: 0070_core_usuario_filial.down.sql — apaga os 6 gatilhos, as 3 funções e a tabela (os vínculos de filial dos
--- usuários se perdem; reaplicar a 0070 recria a tabela vazia). Volte antes o código do Core que lê/grava a tabela.
+-- Caminho de volta: 0077_core_usuario_filial.down.sql — apaga os 6 gatilhos, as 3 funções e a tabela (os vínculos de filial dos
+-- usuários se perdem; reaplicar a 0077 recria a tabela vazia). Volte antes o código do Core que lê/grava a tabela.
 
 -- =============================================================================================
 -- core.usuario_filial — filiais do usuário (RN-CORE-39)
