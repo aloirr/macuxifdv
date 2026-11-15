@@ -11,6 +11,8 @@
  *   `ProgressoEntrada`) e o percentual do total. Aqui ficam só os textos da tela.
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
+import { tamanhoFrase } from '@macuxi/platform-sdk';
+import { MEDIDAS_FRASE_CARGA } from '@macuxi/ui/mobile/puro';
 
 import { PROPORCAO_LOGO_EMPILHADO } from './logo-marca';
 
@@ -35,11 +37,104 @@ const ALTURA_BARRA = 34;
 const ALTURA_ERRO = 24 + 18 + 52 + 18 + 48;
 const ALTURA_ETAPA = 32;
 const ESPACO_AREA = 18;
-const ALTURA_SAUDACAO = 48;
+/** "Olá": 28 dp acima e a linha do texto (Plex 15, ~20 dp na escala de fonte 1,0). */
+const ACIMA_DA_SAUDACAO = 28;
+const LINHA_SAUDACAO = 20;
+
+const { titulo: TITULO, frase: FRASE, aviso: AVISO } = MEDIDAS_FRASE_CARGA;
+
+/**
+ * Escala de fonte do aparelho (`fontScale` do Android; 1 = normal). O texto cresce com ela, e a altura de cada linha também;
+ * os espaços em dp, não. Fora de faixa (0, NaN) conta como 1.
+ */
+function linhaNaEscala(linha: number, escala: number): number {
+  return Math.ceil(linha * (escala > 0 ? escala : 1));
+}
+
+/** "Olá" com o espaço acima dele, na escala de fonte dada. */
+function alturaDaSaudacao(escala: number): number {
+  return ACIMA_DA_SAUDACAO + linhaNaEscala(LINHA_SAUDACAO, escala);
+}
+
+/**
+ * Linhas do aviso da carga (T-0181): o aviso nunca é cortado. Na escala 1,0 cabe em 1 linha (medido: 264 dp em Plex 13
+ * numa linha de 296 dp, 360 − 2 × 32); com fonte grande quebra (a partir de ~1,12) e cabe em 2 até a escala 2,0, a maior
+ * do Android. Acima de 1,0 conta 2 de propósito: a conta nunca fica abaixo do que a tela desenha.
+ */
+export function linhasDoAviso(escala = 1): number {
+  return escala > 1 ? 2 : AVISO.linhas;
+}
+
+/** Aviso da carga e o espaço até a linha da barra (T-0181, spec carga-aviso-frases §1), na escala de fonte dada. */
+export function alturaDoAviso(escala = 1): number {
+  return linhasDoAviso(escala) * linhaNaEscala(AVISO.linha, escala) + AVISO.acimaDaBarra;
+}
+
+/** Linhas da frase do "Você sabia?" na tela: até `MEDIDAS_FRASE_CARGA.frase.linhasMax`, 1 ou nenhuma (o bloco inteiro sai). */
+export type LinhasFrase = 0 | 1 | (typeof MEDIDAS_FRASE_CARGA)['frase']['linhasMax'];
+/** Linhas com que a frase entra na tela (o bloco está na tela). */
+export type LinhasNaTela = Exclude<LinhasFrase, 0>;
+
+/** Altura do bloco "Você sabia?" (título e frase): na escala 1,0, 84 dp com 2 linhas, 64 com 1, 0 sem o bloco. */
+export function alturaDoBlocoFrase(linhas: LinhasFrase, escala = 1): number {
+  if (linhas === 0) return 0;
+  return TITULO.abaixoDoOla + linhaNaEscala(TITULO.linha, escala) + TITULO.ateFrase + linhas * linhaNaEscala(FRASE.linha, escala);
+}
+
+/**
+ * Caracteres que cabem com folga numa linha de 280 dp em IBM Plex Sans 14 na escala de fonte 1,0 (largura média ~7,7 dp;
+ * folga para as maiúsculas); com fonte grande, cabem menos na mesma proporção. Conta de propósito por baixo: a frase em
+ * 1 linha nunca pode ser cortada (sem reticências, spec §1.1). A tela ainda confere o que desenhou (`fraseInteira`).
+ */
+export const CARACTERES_FRASE_EM_UMA_LINHA = 32;
+
+/** A frase cabe inteira em 1 linha, na escala de fonte dada? Conta como o contrato (`tamanhoFrase` do SDK). */
+export function fraseEmUmaLinha(texto: string, escala = 1): boolean {
+  return tamanhoFrase(texto.trim()) * Math.max(1, escala) <= CARACTERES_FRASE_EM_UMA_LINHA;
+}
+
+/**
+ * A frase desenhada (linhas medidas pela tela, `onTextLayout`) coube nas linhas dadas? Se não coube, o bloco "Você sabia?"
+ * inteiro sai: a frase nunca é cortada com reticências (spec §1.1). Sem medida ainda (`null`), não aparece.
+ */
+export function fraseInteira(linhasMedidas: number | null, linhas: LinhasNaTela): boolean {
+  return linhasMedidas !== null && linhasMedidas > 0 && linhasMedidas <= linhas;
+}
+
+/**
+ * Espaço livre entre o pé do "Olá" e o topo do aviso, na carga (aviso e barra na área de baixo), em dp.
+ */
+function livreAbaixoDoOla(janela: number, insetInferior: number, escala: number): number {
+  const { altura, topo } = posicaoDoLogo(janela);
+  return janela - (topo + altura) - alturaDaSaudacao(escala) - (MARGEM_ENTRADA + insetInferior) - ALTURA_BARRA - alturaDoAviso(escala);
+}
+
+/**
+ * Bloco "Você sabia?" na carga (spec carga-aviso-frases §1.1, MC-0077): precisa de 24 dp livres entre o pé da frase e o
+ * topo do aviso. Sem isso, a frase cai para 1 linha (só se couber inteira em 1 linha); se ainda não couber, o bloco inteiro
+ * sai (o título nunca aparece sozinho). Logo, "Olá", aviso e barra vêm antes; a lista de etapas sai antes do bloco
+ * (`cabeLista` recebe o resultado daqui). A escala de fonte do aparelho entra nas alturas e no que cabe em 1 linha.
+ */
+export function cabeFrase(janela: number, insetInferior: number, texto: string, escala = 1): LinhasFrase {
+  if (janela <= 0 || texto.trim() === '') return 0;
+  const livre = livreAbaixoDoOla(janela, insetInferior, escala) - FRASE.livreAteAviso;
+  if (livre >= alturaDoBlocoFrase(FRASE.linhasMax, escala)) return FRASE.linhasMax;
+  if (livre >= alturaDoBlocoFrase(1, escala) && fraseEmUmaLinha(texto, escala)) return 1;
+  return 0;
+}
+
+/** O que a carga põe entre o "Olá" e a barra (T-0181): o aviso acima da barra, o bloco "Você sabia?" e a escala de fonte. */
+export interface ExtrasDaCarga {
+  aviso?: boolean;
+  linhasFrase?: LinhasFrase;
+  /** Escala de fonte do aparelho (1 = normal); entra nas alturas do "Olá", do aviso e do bloco. */
+  escala?: number;
+}
 
 /**
  * A lista de etapas cabe entre o logo (parado no centro) e a borda de baixo? Na tela baixa ela sai e ficam a barra com
- * "Etapa n de N · nome" e o percentual (ou, parada, a linha do erro e as ações), sem cobrir o logo.
+ * "Etapa n de N · nome" e o percentual (ou, parada, a linha do erro e as ações), sem cobrir o logo. Na carga, conta o aviso
+ * e o bloco "Você sabia?" (com o respiro de 24 dp): a lista sai antes do bloco (spec carga-aviso-frases §1.1).
  */
 export function cabeLista(
   alturaTela: number,
@@ -47,16 +142,20 @@ export function cabeLista(
   insetInferior: number,
   comSaudacao: boolean,
   comErro = false,
+  extras: ExtrasDaCarga = {},
 ): boolean {
   if (alturaTela <= 0) return false;
+  const escala = extras.escala ?? 1;
   const { altura, topo } = posicaoDoLogo(alturaTela);
+  const bloco = alturaDoBlocoFrase(extras.linhasFrase ?? 0, escala);
   const livre =
     alturaTela -
     (topo + altura) -
-    (comSaudacao ? ALTURA_SAUDACAO : 0) -
-    ESPACO_AREA -
+    (comSaudacao ? alturaDaSaudacao(escala) : 0) -
+    (bloco > 0 ? bloco + FRASE.livreAteAviso : ESPACO_AREA) -
     (MARGEM_ENTRADA + insetInferior);
-  const precisa = (comErro ? ALTURA_ERRO : ALTURA_BARRA) + ESPACO_AREA + etapas * ALTURA_ETAPA;
+  const acimaDaLista = comErro ? ALTURA_ERRO : ALTURA_BARRA + (extras.aviso ? alturaDoAviso(escala) : 0);
+  const precisa = acimaDaLista + ESPACO_AREA + etapas * ALTURA_ETAPA;
   return livre >= precisa;
 }
 
@@ -75,8 +174,8 @@ export const TEMPO_SERVIDOR_ABERTURA_MS = 5_000;
 export const servidorNaAbertura = { conferido: false };
 
 /**
- * "Etapa 2 de 5 · Clientes e rota"; com a carga pronta, "Pronto". Na tela só sem a lista de etapas (tela baixa); com a
- * lista visível, vai só ao leitor de tela (RD-0239: a lista já mostra a etapa em destaque).
+ * "Etapa 2 de 5 · Clientes e rota"; com a carga pronta, "Pronto". Sempre à vista em cima da barra, com ou sem a lista de
+ * etapas (RD-1105); é também a região viva do leitor de tela.
  */
 export function rotuloDaBarra(p: Pick<ProgressoEntrada, 'atual' | 'total' | 'pronta'>): string {
   return p.pronta ? ROTULO_PRONTO : `Etapa ${p.atual.numero} de ${p.total} · ${p.atual.nome}`;
