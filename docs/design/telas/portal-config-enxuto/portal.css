@@ -193,9 +193,10 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .lista-acoes .acoes { display: flex; gap: 6px; justify-content: flex-end; }
 .lista-acoes .cnpj, .bkp, .dlg-p b { font-variant-numeric: tabular-nums; }
 .bkp { display: inline-flex; align-items: center; gap: 6px; }
-.bkp.nenhum, .bkp.andamento { color: var(--ink2); }
-.bkp.andamento .giro { width: 14px; height: 14px; }
-.btn.perigo { color: var(--danger); border-color: var(--danger); } /* secundário de perigo (falta no kit, §15.4) */
+.bkp.sem, .bkp.em-andamento, .bkp-motivo { color: var(--ink2); }
+.bkp.em-andamento .giro { width: 14px; height: 14px; }
+.bkp-motivo { display: block; font-size: 12px; margin-top: 2px; }
+.btn.perigo { color: var(--danger); border-color: var(--danger); } /* kit: Button variant="danger-secondary" (§15.4) */
 .btn.perigo-cheio { background: var(--danger); border-color: var(--danger); color: #fff; }
 .prancha-dlg { background: rgba(22,32,42,.5); padding: 28px; min-height: 696px; display: grid; grid-template-columns: repeat(2, 460px); gap: 24px 28px; justify-content: center; align-content: center; }
 .prancha-dlg .rot { color: #fff; margin-bottom: 8px; }
@@ -203,6 +204,7 @@ td { padding: 12px 10px; border-bottom: 1px solid var(--line); font-size: 14px; 
 .dlg-p h2 { margin: 0; padding: 20px 20px 12px; font-size: 18px; font-weight: 700; }
 .dlg-p .corpo { padding: 2px 20px; display: flex; flex-direction: column; gap: 12px; }
 .dlg-p .corpo p { margin: 0; }
+.dlg-p .erro-l { color: var(--danger); font-size: 13px; }
 .dlg-p .pe { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px 20px; }
 .dlg-p .inp.cod { letter-spacing: 1px; }
 .dlg-p .inp.foco { border: 2px solid var(--accent); padding: 0 11px; }
