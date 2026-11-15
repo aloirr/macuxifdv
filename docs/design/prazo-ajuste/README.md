@@ -2,7 +2,7 @@
 
 Pedido do Alexandre: R-20261115-111000, alvo **v1.0.13**. Modelo refeito pelas decisões de **R-20261115-121000**. **Só simulação**, sem código de produção.
 
-**Aprovado:** a tabela única de prazos com as abas "Prazos" e "Formas" no BKO. **Menu:** a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
+**Menu:** a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
 
 Nas imagens, o **contorno laranja tracejado só marca o que muda**. Ele não sai no app, no PDF nem no BKO.
 
@@ -53,7 +53,7 @@ Imagens de 1366 × 768 (PNG em 2×), com Cadastros aberto no menu lateral e o it
 
 ### 3.0 Menu e trilha (R-20261115-122000)
 - O item sai de Comercial e entra em **Cadastros**, com o mesmo rótulo, "Formas de pagamento e prazos", em ordem alfabética: Carteira · Clientes · Coordenadas sugeridas · Filiais · **Formas de pagamento e prazos**. Nada vai para um grupo Financeiro.
-- Os grupos do menu seguem a ordem do branch `nuvem/menu-parametros-designer-ux` (`docs/design/menu-parametros/gerar.mjs`): Acesso · Análise · Cadastros · Comercial · Comunicação · Operação · Parâmetros · Pesquisa · Produtos · Sistema · Trade · Treinamento. Os itens de Cadastros são os de lá, mais este. Premissa: aquele branch ainda põe a tela em Parâmetros › Pedidos. Vale a R-20261115-122000, e o menu de lá precisa ser alinhado a ela.
+- Os grupos do menu seguem a ordem do branch `nuvem/menu-parametros-designer-ux` (`docs/design/menu-parametros/gerar.mjs`): Acesso · Análise · Cadastros · Comercial · Comunicação · Operação · Parâmetros · Pesquisa · Produtos · Sistema · Trade · Treinamento. Os itens de Cadastros são os de lá, mais este. Premissa: aquele branch ainda põe a tela em Parâmetros › Pedidos. O menu de lá precisa ser alinhado a esta.
 - O item ativo tem o fundo e a barra laranja de sempre. O nome é longo para os 240 px do menu, então quebra em duas linhas, sem reticências.
 - No título, "Cadastros ›" fica acima (o `eyebrow` do `PageHeader`) e "Formas de pagamento e prazos" no título. A trilha se lê **Cadastros › Formas de pagamento e prazos**.
 
@@ -67,7 +67,7 @@ Imagens de 1366 × 768 (PNG em 2×), com Cadastros aberto no menu lateral e o it
 
 ### 3.2 Editar prazo
 - Campo **"Desc./Acrésc. (%) · Vem do ERP"** depois da prévia, na metade esquerda da grade, **só leitura** (`readOnly` + `aria-readonly`), no mesmo padrão do "Código · Vem do ERP" e "Dias das parcelas · Vem do ERP" de hoje. Sem ajuda e sem validação: não há o que digitar.
-- Novo prazo: o campo não aparece; entra com 0,00 (proposta §7).
+- Novo prazo: o campo não aparece; entra com 0,00 (RN-VEN-46).
 
 ## 4. Decisões para o Alexandre aprovar
 1. **Coluna "Valor tabela" refeita** ao escolher ou trocar o prazo, sem aviso e sem selo.
