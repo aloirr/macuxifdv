@@ -113,7 +113,7 @@ export function TelaEntrar() {
     <MolduraEstreita testId="entrar.tela">
       <form onSubmit={(e) => void entrar(e)} noValidate className="flex flex-col gap-4">
         {/* sem subtítulo: a Marca, logo acima do cartão, já diz "Portal de implantação · Macuxi FDV" (R-20261107-174216 🟡 1) */}
-        <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ENTRAR.titulo}</h1>
+        <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_ENTRAR.titulo}</h1>
         {aviso && (
           <div data-testid="entrar.aviso">
             <Notice tone="info">{aviso}</Notice>
