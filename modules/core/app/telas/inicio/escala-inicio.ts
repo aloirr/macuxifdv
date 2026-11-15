@@ -35,11 +35,11 @@ export interface EntradaEscalaInicio {
   frase?: string;
   /** Altura da barra de abas sem a área segura (padrão `ALTURA.barraAbas` do kit). */
   alturaAbas?: number;
-  /** Corpos do kit (`type.h2/label/sub/small` de `@macuxi/ui/mobile`) que o Início usa como base: a tela passa os `fontSize` deles. */
+  /** Corpos do kit (`type.saudacao/h2/label/sub/small` de `@macuxi/ui/mobile`) que o Início usa como base: a tela passa os `fontSize` deles. */
   kit: FontesDoKit;
 }
 
-export interface FontesDoKit { h2: number; label: number; sub: number; ultima: number }
+export interface FontesDoKit { h2: number; label: number; sub: number; ultima: number; saudacao: number }
 
 export interface EscalaInicio {
   fator: number;

@@ -16,7 +16,7 @@ import { type EscalaInicio, escalaInicio } from './escala-inicio';
 import type { CardMetaInicio, IndicadorInicio } from './inicio-campo';
 import { useInicioCampo } from './usar-inicio-campo';
 
-const FONTES_DO_KIT = { h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
+const FONTES_DO_KIT = { saudacao: t.saudacao.fontSize, h2: t.h2.fontSize, label: t.label.fontSize, sub: t.sub.fontSize, ultima: t.small.fontSize };
 
 export interface PropsTelaInicioCampo {
   /** Só para quem não tem o `ProvedorSinoCabecalho`: o sino com o balão (recebe `useInicioCampo().sino.total`). */

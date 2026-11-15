@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { alturaDoPainel, escalaInicio, fonteDoSistemaValida, tamanhosParaFator, FATOR_MINIMO, linhasDeTexto, alturaDeLinha, PISO_LETRA_DP } from './escala-inicio';
 
-const KIT = { h2: 17, label: 12, sub: 13, ultima: 12 };
+const KIT = { h2: 17, label: 12, sub: 13, ultima: 12, saudacao: 22 };
 const FRASE = 'Cada cliente atendido é uma relação que cresce.';
 const TELAS: [number, number][] = [[360, 640], [360, 800], [393, 852], [412, 915]];
 
