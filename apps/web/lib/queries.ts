@@ -95,9 +95,12 @@ export function useIntervaloSyncAutoMs(): number {
   return useMeusModulos(perfil, soIntervalo).data ?? LIVE_REFETCH_MS;
 }
 
+/** Quantos registros a Auditoria pede à API: com esse número na resposta, pode haver mais (título "Auditoria · 300+"). */
+export const LIMITE_AUDITORIA = 300;
+
 /**
  * Trilha de auditoria (RN-AUD-01): `GET /v1/auditoria` da plataforma (T-0030 D-B29). A API filtra pela licença dos
- * módulos e pelo escopo do perfil; aqui só a página mais recente (até 300 linhas).
+ * módulos e pelo escopo do perfil; aqui só a página mais recente (até `LIMITE_AUDITORIA` linhas).
  */
 export function useAuditoria(entidade: string) {
   const enabled = useAuthed();
@@ -105,7 +108,7 @@ export function useAuditoria(entidade: string) {
   return useQuery({
     queryKey: qk.auditoria(entidade),
     queryFn: async () =>
-      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { entidade, limite: 300 } })).itens,
+      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { entidade, limite: LIMITE_AUDITORIA } })).itens,
     enabled,
     // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
     refetchInterval: intervalo,

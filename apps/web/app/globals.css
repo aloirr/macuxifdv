@@ -82,6 +82,12 @@
     outline-offset: 2px;
   }
 
+  /* caixas de seleção e opções nativas no Azul noite, não no azul padrão do navegador (MC-0074) */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-accent);
+  }
+
   input[type='number']::-webkit-inner-spin-button {
     opacity: 0.6;
   }

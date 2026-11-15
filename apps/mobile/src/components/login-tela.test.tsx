@@ -6,7 +6,9 @@
  * - contraste do laranja (docs/design/componentes.md §1.1, R-20261108-103740): o texto laranja do shell (marca da
  *   demonstração e link "Avançado") usa `accentInk`, nunca o `accent` cru; o `accent` fica só em ícone e spinner;
  * - faixa do login (T-0172, quadro 3 de docs/marca/propostas/2026-11-12-entrada-sync): a faixa Azul noite com o logo fica
- *   no topo das três etapas (Entrar, Esqueci a senha e Crie sua senha) e não entra na demonstração.
+ *   no topo das três etapas (Entrar, Esqueci a senha e Crie sua senha) e não entra na demonstração;
+ * - rodapé legal (docs/design/telas/rodape-legal.md): só no Entrar, último item do bloco de baixo, no lugar da frase da
+ *   variante; dados do cache/rota pública (simulados) e versão do app.
  */
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -33,7 +35,9 @@ vi.mock('react-native', () => ({
   StyleSheet: { create: <T,>(s: T) => s },
   BackHandler: { addEventListener: () => ({ remove: () => undefined }) },
   Keyboard: { addListener: () => ({ remove: () => undefined }) },
+  Linking: { openURL: async () => undefined },
 }));
+vi.mock('expo-constants', () => ({ default: { expoConfig: { version: '1.0.9' } } }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('expo-router', () => ({ router: { replace: () => undefined } }));
 vi.mock('@macuxi/ui/mobile', () => ({
@@ -48,6 +52,7 @@ vi.mock('@macuxi/ui/mobile', () => ({
   Card: host('section'),
   Icon: ({ color }: Props) => createElement('i', { 'data-cor': color }),
   Screen: host('main'),
+  Pressionavel: host('a'),
 }));
 
 const sim = vi.hoisted(() => ({
@@ -55,7 +60,9 @@ const sim = vi.hoisted(() => ({
   perfilBuild: 'development',
   telaLogin: [] as Record<string, unknown>[],
   etapa: null as Record<string, unknown> | null,
+  dadosLegais: null as { razao_social: string | null; cnpj: string | null; site: string } | null,
 }));
+vi.mock('@/services/dados-legais', () => ({ useDadosLegais: () => sim.dadosLegais }));
 vi.mock('@macuxi/core/app', () => ({
   AVISO_SENHA_CRIADA: 'Senha criada.',
   detalhesDaTroca: () => null,
@@ -120,6 +127,7 @@ beforeEach(() => {
   sim.perfilBuild = 'development';
   sim.telaLogin = [];
   sim.etapa = null;
+  sim.dadosLegais = null;
 });
 
 describe('T-0172: faixa Azul noite com o logo no topo do login (quadro 3, entrada-sync)', () => {
@@ -163,7 +171,39 @@ describe('login real: a tela do Core com o que o shell sabe', () => {
     expect(props.codigoSalvo).toBe('DIST01');
     expect(props.aviso).toBeNull();
     expect('emailInicial' in props).toBe(false);
-    expect(props.rodape).toBe('Macuxi Campo · vendedores e promotores');
+    // a frase da variante saiu: o rodapé agora é o legal, no shell
+    expect('rodape' in props).toBe(false);
+  });
+});
+
+describe('rodapé legal no Entrar (rodape-legal.md §2 e §3.5)', () => {
+  it('é o último item do bloco de baixo, depois do "Avançado", com a versão do app e o site', () => {
+    const m = html();
+    expect(m).toContain('data-testid="login.rodape-legal"');
+    expect(m.indexOf('login.avancado')).toBeLessThan(m.indexOf('login.rodape-legal'));
+    expect(m).toContain('Versão 1.0.9 · ');
+    expect(m).toContain('data-testid="login.site"');
+    expect(m).toContain('macuxifdv.com.br');
+    expect(m).not.toContain('Macuxi Campo · vendedores e promotores');
+  });
+  it('em branco (sem cache e sem rede): só direitos, versão e site', () => {
+    const m = html();
+    expect(m).not.toContain('login.rodape-empresa');
+    expect(m).toMatch(/© \d{4} · Todos os direitos reservados/);
+  });
+  it('com os dados do cadastro (cache ou rota): razão social e CNPJ com máscara', () => {
+    sim.dadosLegais = { razao_social: 'Empresa Teste Ltda.', cnpj: '11444777000161', site: 'exemplo.com.br' };
+    const m = html();
+    expect(m).toContain('data-testid="login.rodape-empresa"');
+    expect(m).toContain('Empresa Teste Ltda.');
+    expect(m).toContain('CNPJ\u00A011.444.777/0001-61');
+    expect(m).toContain('exemplo.com.br');
+  });
+  it('não entra no Esqueci a senha nem no Crie sua senha', () => {
+    sim.etapa = { tipo: 'esqueci', codigo_empresa: 'DIST01', email: 'a@b.c' };
+    expect(html()).not.toContain('login.rodape-legal');
+    sim.etapa = { tipo: 'trocar', codigo_empresa: 'DIST01', email: 'a@b.c', senha_atual: 'x', motivo: 'primeiro_acesso' };
+    expect(html()).not.toContain('login.rodape-legal');
   });
 });
 

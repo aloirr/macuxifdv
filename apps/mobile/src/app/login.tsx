@@ -17,6 +17,8 @@
  * (`testarServidor`, R-20261101-023742-alexandre).
  * Teclado e área segura (R-20261101-023401 e 023857): `KeyboardAvoidingView` (padding; o Android edge-to-edge não
  * redimensiona a janela) e o espaço da barra de navegação embaixo do cartão quando o teclado está fechado.
+ * Rodapé legal (docs/design/telas/rodape-legal.md): só no Entrar, último item do bloco de baixo (razão social e CNPJ do
+ * cadastro, direitos, versão do app e site); some com o teclado aberto. Substitui a frase da variante.
  */
 import {
   AVISO_SENHA_CRIADA,
@@ -30,6 +32,7 @@ import {
 import type { FakeUser } from '@macuxi/core/contracts';
 import { entraEm, ErroHttp, PERFIS, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, rotuloDoPerfil, Screen, type as t } from '@macuxi/ui/mobile';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -37,6 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFaixaSuperior } from '@/components/area-segura';
 import { FaixaDoLogin } from '@/components/faixa-login';
+import { RodapeLegal } from '@/components/rodape-legal';
 import { TelaEntrada } from '@/components/tela-entrada';
 import { ondeOPerfilEntra } from '@/lib/acesso';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
@@ -45,6 +49,7 @@ import { ETAPA_INICIAL, etapaDeVolta, propsDoLogin, type EtapaLogin } from '@/li
 import { guardarAvisoPosLogin } from '@/lib/aviso-pos-login';
 import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
 import { ApiClient, errorMessage } from '@/services/api';
+import { useDadosLegais } from '@/services/dados-legais';
 import { usePlataforma, usuarioDaFaseM } from '@/state/plataforma';
 
 const ordem = (p: Perfil | null) => (p ? PERFIS.indexOf(p) : PERFIS.length);
@@ -118,7 +123,7 @@ export default function LoginScreen() {
 
 /** Login real: tela do Core + "Crie sua senha" + "Esqueci a senha" + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
 function LoginReal() {
-  const { avisoLogin, codigoSalvo, loginComSenha, offline, pedirSenha, perfilBuild, trocarSenha, variante } = usePlataforma();
+  const { apiUrl, avisoLogin, codigoSalvo, loginComSenha, offline, pedirSenha, perfilBuild, trocarSenha, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
   const [servidorFora, setServidorFora] = useState<string | null>(null);
   const [etapa, setEtapa] = useState<EtapaLogin>(ETAPA_INICIAL);
@@ -127,6 +132,8 @@ function LoginReal() {
   // volta com o código e o e-mail preenchidos (spec ciclo-de-senha §2 item 8 e §3 Confirmação item 4); a senha nunca volta
   const voltarAoLogin = useCallback((avisoDoLogin: string | null | undefined, codigo: string, email: string) => setEtapa(etapaDeVolta(avisoDoLogin, codigo, email)), []);
   const servidor = useServidorNaAbertura(setServidorFora);
+  // rodapé legal (docs/design/telas/rodape-legal.md §3.5): cache do aparelho + rota pública no servidor em uso
+  const dadosLegais = useDadosLegais(apiUrl);
 
   // voltar do Android na troca ou no pedido: volta ao login (nunca para dentro do app, que não abriu)
   useEffect(() => {
@@ -214,7 +221,6 @@ function LoginReal() {
         {...doLogin}
         onEntrar={entrar}
         onEsqueci={(c) => setEtapa({ tipo: 'esqueci', codigo_empresa: c.codigo_empresa.trim(), email: c.email.trim() })}
-        rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'}
       />
       <View style={[styles.rodape, { paddingBottom: 12 + (teclado ? 0 : insets.bottom) }]} testID="login.rodape">
         {avisoLogin ? (
@@ -233,6 +239,8 @@ function LoginReal() {
           </Banner>
         ) : null}
         <ServidorDoLogin />
+        {/* rodapé legal: último item do bloco; some com o teclado aberto (o formulário tem prioridade) */}
+        {!teclado ? <RodapeLegal dados={dadosLegais} versao={Constants.expoConfig?.version} /> : null}
       </View>
     </AcimaDoTeclado>
   );

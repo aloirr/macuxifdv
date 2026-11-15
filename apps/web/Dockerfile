@@ -52,8 +52,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY . .
 ARG NEXT_PUBLIC_API_URL=http://api:8100/v1
 ARG MACUXI_BKO_ORIGEM=https://bko.macuxifdv.com.br
+# versão do rodapé legal (docs/design/telas/rodape-legal.md §4): número da tag sem o "v"; vazia = o rodapé mostra só o site
+ARG MACUXI_VERSAO=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     MACUXI_BKO_ORIGEM=$MACUXI_BKO_ORIGEM \
+    NEXT_PUBLIC_VERSAO=$MACUXI_VERSAO \
     MACUXI_NEXT_STANDALONE=1 \
     NODE_ENV=production
 RUN pnpm --filter web exec next build

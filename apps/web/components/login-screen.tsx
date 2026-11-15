@@ -13,6 +13,8 @@
  * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem os perfis que entram no BKO pelo motor de permissões do
  *   SDK (`entraEm`; RN-CORE-33: supervisor fora).
+ * - Rodapé legal (docs/design/telas/rodape-legal.md): só na etapa Entrar (real e demonstração), no pé da página; a linha
+ *   "Vendedores e promotores usam…" fica (é ação, não identidade).
  * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro, login.aviso, login.esqueci.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -38,6 +40,7 @@ import { api, apiFetch, errorMessage, MODO_API } from '@macuxi/platform-sdk/web'
 import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice, rotuloDoPerfil, useToast } from '@macuxi/ui/web';
 import { CrieSuaSenha, EsqueciSenha } from '@/components/ciclo-senha';
 import { MarcaNaFaixa } from '@/components/marca-faixa';
+import { RodapeLegal } from '@/components/rodape-legal';
 import { CAMINHO_ESQUECI_SENHA, consumirAvisoDoLogin } from '@/lib/ciclo-senha';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin } from '@/lib/login';
 import { encerrarSessao, pedirLogin, pedirTrocaDeSenha, salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
@@ -228,7 +231,7 @@ function LoginReal() {
   }
 
   return (
-    <Moldura>
+    <Moldura rodapeLegal>
       <form data-testid="login.tela" onSubmit={(e) => void entrar(e)} noValidate className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
           <h1 className="m-0 font-display text-[28px] font-extrabold">Entrar</h1>
@@ -271,14 +274,18 @@ function LoginReal() {
   );
 }
 
-/** Moldura do login (marca + coluna estreita), igual nas três etapas. */
-function Moldura({ children }: { children: ReactNode }) {
+/**
+ * Moldura do login (marca + coluna estreita), igual nas três etapas. `rodapeLegal` (só o Entrar): o rodapé vai ao pé da
+ * página (`mt-auto`); com a janela baixa, fica no fluxo depois do formulário.
+ */
+function Moldura({ children, rodapeLegal = false }: { children: ReactNode; rodapeLegal?: boolean }) {
   return (
-    <div className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
+    <div className={`flex min-h-screen flex-col items-center bg-ground px-4 pt-10 sm:pt-16 ${rodapeLegal ? '' : 'pb-10 sm:pb-16'}`}>
       <div className="flex w-full max-w-[400px] flex-col gap-5">
         <Marca />
         {children}
       </div>
+      {rodapeLegal && <RodapeLegal className="mt-auto pt-8 pb-6" />}
     </div>
   );
 }
@@ -306,7 +313,7 @@ function LoginDemo() {
   const doCampo = todos.length - bko.length;
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
+    <div className="flex min-h-screen flex-col items-center bg-ground px-4 pt-10 sm:pt-16">
       <div className="flex w-full max-w-[1060px] flex-col gap-6">
         <Marca />
         <div className="flex flex-col gap-1">
@@ -346,6 +353,7 @@ function LoginDemo() {
         </div>
         {doCampo > 0 && <span className="text-[12px] text-ink-2">Os {doCampo} usuários de campo e de supervisão usam os apps Macuxi Campo e Macuxi Gestão, não o backoffice.</span>}
       </div>
+      <RodapeLegal className="mt-auto pt-8 pb-6" />
     </div>
   );
 }
