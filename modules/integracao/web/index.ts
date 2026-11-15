@@ -13,9 +13,8 @@ export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
     { id: 'monitor', caminho: 'integracao', titulo: 'Integração ERP', navegacao: 'Integração ERP', grupo: 'administracao', ordem: 30, acao: 'monitor.ver', componente: MonitorPage },
-    // T-0173: o de-para sai do monitor e vai para Parâmetros > Integração. O tipo do grupo ainda não aceita 'parametros' (GRUPOS_MENU do SDK):
-    // fica em 'sistema' até o engenheiro-apps alinhar o grupo no shell.
-    { id: 'de-para', caminho: 'parametros/integracao', titulo: 'Integração', navegacao: 'Integração', grupo: 'sistema', ordem: 32, acao: 'mapeamento.editar', componente: DeParaPage },
+    // T-0173: o de-para sai do monitor e vai para Parâmetros > Integração (grupo 'parametros' do SDK).
+    { id: 'de-para', caminho: 'parametros/integracao', titulo: 'Integração', navegacao: 'Integração', grupo: 'parametros', ordem: 32, acao: 'mapeamento.editar', componente: DeParaPage },
     // T-0100: o admin da empresa baixa os modelos e carrega as bases sem o suporte; a página monta só com a ação carga.arquivo (motor, ADR 0033)
     { id: 'carga-arquivo', caminho: 'integracao/carga-arquivo', titulo: 'Carga por arquivo', navegacao: 'Carga por arquivo', grupo: 'administracao', ordem: 31, acao: 'carga.arquivo', componente: CargaArquivoPage },
   ],

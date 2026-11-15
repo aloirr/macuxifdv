@@ -5,7 +5,6 @@
  * perfil por ação do manifesto e o tenant do token). A resposta é validada pelo contrato (Zod) antes de chegar à tela.
  *  - `GET  /v1/integracao/monitor` (`monitor.ver`) → `MonitorResumo`
  *  - `GET  /v1/integracao/lotes/{id}/erros` (`monitor.ver`) → `ErrosLoteResposta` (contrato em `contracts/bko.ts`)
- *  - `POST /v1/integracao/inativacoes/{id}/decidir` (`inativacao.decidir`, P-3) → `DecidirInativacaoResposta`
  *  - `POST /v1/integracao/lotes/{id}/cancelar` (`lote.cancelar`) e `POST /v1/integracao/lotes/{id}/reprocessar` (RN-INT-15/16)
  *  - `GET  /v1/integracao/lotes/autorizadores` e `GET /v1/integracao/mapeamentos/codigos-macuxi` (`monitor.ver`)
  */
@@ -20,13 +19,11 @@ import {
   AutorizadoresResposta,
   CancelarLoteResposta,
   CodigosMacuxiResposta,
-  DecidirInativacaoResposta,
   ErrosLoteResposta,
   GravarMapeamentoResposta,
   MapeamentosResposta,
   MonitorResumo,
   ReprocessarLoteResposta,
-  type DecidirInativacaoEntrada,
   type LinhaErro,
   type Mapeamento,
   type TipoMapeamento,
@@ -135,16 +132,6 @@ export async function buscarTodosErros(loteId: string, codigo: string): Promise<
     if (r.itens.length === 0 || itens.length >= r.total) break;
   }
   return { itens, total, truncado: itens.length < total };
-}
-
-/** Confirmar ou recusar a inativação em massa (RN-INT-06, P-3). Atualiza o monitor ao terminar. */
-export function useDecidirInativacao() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, entrada }: { id: string; entrada: DecidirInativacaoEntrada }) =>
-      DecidirInativacaoResposta.parse(await api<unknown>(`/integracao/inativacoes/${encodeURIComponent(id)}/decidir`, { method: 'POST', body: entrada })),
-    onSettled: () => qc.invalidateQueries({ queryKey: qk.monitor }),
-  });
 }
 
 /** De-para de códigos (T-0120): lista e condições do Macuxi sem correspondente. */

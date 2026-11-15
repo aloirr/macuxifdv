@@ -27,9 +27,9 @@ Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens 
 
 ## Arquivos
 - `web/index.ts` — `moduloWeb` (página `monitor`).
-- `web/components/` — `monitor-page`, `alertas-panel`, `conectores-panel`, `inativacoes-panel`, `lotes-panel`, `lote-drawer`, `pedidos-panel`.
+- `web/components/` — `monitor-page` (cabeçalho, filtros e tabela de lotes), `lotes-panel`, `lote-drawer`, `autorizar-reprocessamento`, `de-para-page`, `carga-arquivo-page`.
 - `web/lib/` — `apresentacao` (rótulos, tons, `tempoDesde`, `podeExecutar`, `decisaoDaPendencia`), `filtros-url`, `use-filtros`, `csv`, `queries`.
-- Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa) e `web/components/paineis.render.test.ts` (renderização no servidor: botões de decisão por perfil e validade, sinal de vida).
+- Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa).
 
 ## Pendências (fora da T-0051 nuvem)
 1. **Rota `GET /v1/integracao/lotes/{id}/erros`** — implementada em `modules/integracao/api/bko-carga-arquivo.ts` (T-0032, carga por arquivo): `ErrosLoteQuery` → `ErrosLoteResposta`, paginada, filtro por `codigo`/`reprocessavel`; a gaveta já a consome. Junto veio `GET /v1/integracao/lotes/{id}` (`LoteResultado`).
