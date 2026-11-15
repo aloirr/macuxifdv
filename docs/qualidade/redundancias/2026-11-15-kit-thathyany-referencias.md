@@ -57,3 +57,38 @@ Corretor-redundancias, 15/11/2026 (Manaus). Conferi o branch `nuvem/referencia-c
 - **`ALTER` idempotente:** é gerado pelo `sqlTabela` a partir de `so_kit`. Ele não repete o `CREATE`: o `CREATE` serve ao banco novo, e o `ALTER` serve ao banco criado pela 1.0.4.
 - **Testes:** o TS confere o modelo, a view, o `ALTER` e o contrato do Hub. O Python confere a validação linha a linha. As camadas são diferentes, e nenhum caso se repete.
 - **`VERSAO_KIT` e o nome do zip:** os 2 passaram para 1.0.5. O zip só aparece no ROTEIRO, que é o texto que o cliente lê.
+
+## 4. Reteste (15/11/2026, commits 130de72 e 569f176 do modulo-integracao)
+**Veredito: COM ACHADO.**
+- **2 corrigidos:** RD-0489 e RD-0491.
+- **1 reaberto, com sobra pequena em código:** RD-0490. **Segura** o lote.
+- **1 achado novo, só em comentário e em comentário de teste:** RD-0503, de gravidade baixa. **Não segura** (R-20261111-190159).
+
+Conferi `git diff f4af0b16..569f176b`:
+- `gerar.ts` e os gerados;
+- `carga_csv.py`, com a regra nova `requer` ("marca sem código é recusada");
+- `ROTEIRO.md`;
+- `contracts/entidades.ts` e `domain/catalogo-produto.ts`, com a marca opcional, decisão do dono do produto de 15/11;
+- os testes TS e Python.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0489 | **corrigido** | O `N_REFERENCIAS` vem de `LIMITES_CATALOGO_PRODUTO.referencias`, e `NUMEROS_REFERENCIA` monta os campos, as regras e o `SQL_REFERENCIAS` (`gerar.ts:41-50`). `REFERENCIAS_POR_PRODUTO` e o `[1, 2, 3]` saíram. |
+| RD-0490 | **reaberto** (sobra) | `'referencias'` saiu de `COLUNAS_SO_CONECTOR`. O `COLUNAS_DERIVADAS` virou o mapa coluna → expressão, e a `sqlView` lê o mapa, sem o `if`. **Sobra:** `gerar.ts:237`, `extras = … .filter((col) => COLUNAS_SO_CONECTOR.includes(col) && !derivadas.includes(col))`. Como as 2 listas não têm mais coluna em comum, o `&& !derivadas.includes(col)` não muda nada, e só repete na `extras` a exclusão que a `faltando` (`:238`) já faz. **Proposta:** `const extras = colunasDoConector(exemplo, e).filter((col) => COLUNAS_SO_CONECTOR.includes(col));` |
+| RD-0491 | **corrigido** | O ROTEIRO tem o texto proposto, ajustado à marca opcional: "…levam a marca de cada um (opcional), já cadastrada em Marcas do Catálogo. Com as três vazias, o Macuxi mantém as referências do cadastro (para tirar uma, use o Backoffice)." O limite de 30, o "juntos" e o nome do aviso não aparecem mais. |
+
+### Mudanças novas (130de72 e a regra `requer`)
+- **Hub:** `referenciaValida` deixou de exigir a marca, e o aviso `referencia_descartada` deixou de falar em "sem marca". O comentário de `ReferenciaCruzada` diz o mesmo. Não vi texto velho no Hub.
+- **`carga_csv.py`:** a regra `requer` é genérica e lê o `contrato.json`, como a `juntos`. O motivo ("marca_referencia_N só vale com referencia_N preenchida") e a observação do campo ("opcional, só com referencia_N") cumprem 2 papéis: o motivo é a mensagem do erro, e a observação é o dicionário. Não é repetição.
+- **Observação sem RD:** a marca sem código é recusada pelo kit (a linha volta no relatório), e o Hub descarta a referência sem código com um aviso, carregando o produto. É uma escolha de comportamento entre as 2 camadas, não redundância.
+
+### RD-0503 · baixa · comentário · modulo-integracao · não segura
+- **Onde:**
+  - `gerar.ts:33-36`: o JSDoc de `CAMPOS_SO_KIT` ainda diz "(RN-CAT-09: até 3 por produto, **marca obrigatória**)" e ficou separado da constante por outro JSDoc (`:37`);
+  - `gerar.ts:89`: a documentação de `RegraEntidade.regra` descreve `juntos` e `data_nao_anterior`, mas não `requer`;
+  - `testes/test_carga_csv.py:238`: o comentário diz "toda referência leva a marca (o Hub descartaria sem ela)".
+- **O que se repete:** os 3 comentários repetem a regra antiga, que contradiz o código ao lado (marca opcional e `requer`). O "até 3" também repete o número que o `N_REFERENCIAS` acabou de centralizar.
+- **Proposta:**
+  - `:33-36`: "Colunas que o kit acrescenta ao CSV e a `tha_<entidade>` e que não são campos do Hub: a view monta o campo do Hub a partir delas (produto: `referencia_N` e `marca_referencia_N` → `referencias`; RN-CAT-09)." Esse bloco fica junto do `CAMPOS_SO_KIT`.
+  - `:89`: acrescentar "`requer`: o 1º campo só vale com o 2º preenchido".
+  - `test_carga_csv.py:238`: "RN-CAT-09: até N referências por produto; a marca é opcional".
