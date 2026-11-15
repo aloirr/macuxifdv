@@ -5,14 +5,21 @@
  * - push recebido com o app aberto → o agendador sincroniza só as entidades indicadas (sem lista = novidades);
  * - toque no push → abre a tela certa (ex.: detalhe do pedido).
  * Fica dentro do `ShellProvider` e do `Stack` (o roteador já existe para abrir a rota do push).
+ *
+ * R-20261115-100000: o toque do botão é a rápida (o `manual` do agendador, ver `lib/sync-completa.ts`); segurar 10 s chama
+ * `sincronizarCompleta`, que abre o popup da completa (`PopupSyncCompleta`, montado aqui uma vez para o Início e o Perfil).
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { SincronizacaoProvider, type ValorSincronizacao } from '@macuxi/ui/mobile';
+import { SincronizacaoProvider, useReduzirMovimento, type ValorSincronizacao } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { PopupSyncCompleta } from '@/components/popup-sync-completa';
+import { completaVisivel, criarPopupCompleta, type FaseCompleta } from '@/lib/sync-completa';
 
 import { dispositivoId } from '@/services/motor-do-usuario';
 import { ouvirPush, registrarPush } from '@/services/push';
+import { vibrarSegurar } from '@/services/vibracao';
 import { usePlataforma } from '@/state/plataforma';
 
 /** Espera entre o fim da carga (ou a abertura com carga) e o registro do push, que pode pedir a permissão. */
@@ -21,9 +28,29 @@ const ESPERA_REGISTRO_PUSH_MS = 4_000;
 export function SincronizacaoDoShell({ children }: { children: ReactNode }) {
   const app = usePlataforma();
   const { estado } = useMotorSync();
-  const { agendador, estadoAgendador, offline, sessao, me, modo, ambiente } = app;
+  const { agendador, estadoAgendador, offline, sessao, me, modo, ambiente, sincronizar } = app;
+  const reduzir = useReduzirMovimento();
   const tz = me?.tenant.timezone ?? sessao?.tenant?.fuso ?? 'America/Manaus';
   const naFila = estado.fila.length + estado.arquivos.filter((a) => a.situacao !== 'enviado').length;
+
+  // ---------- R-20261115-100000: sincronização completa (segurar 10 s) e o popup dela ----------
+  const sincronizarRef = useRef(sincronizar);
+  sincronizarRef.current = sincronizar;
+  const [completa, setCompleta] = useState<{ fase: FaseCompleta; rodada: number }>({ fase: 'fechado', rodada: 0 });
+  const popup = useMemo(
+    () =>
+      criarPopupCompleta({
+        executar: () => sincronizarRef.current(),
+        aoMudar: (fase, rodada) => setCompleta({ fase, rodada }),
+      }),
+    // outro usuário (ou saiu): popup novo, fechado; o da sessão anterior não muda mais nada
+    [sessao?.user.id],
+  );
+  useEffect(() => {
+    setCompleta({ fase: 'fechado', rodada: 0 });
+    return () => popup.desligar();
+  }, [popup]);
+  const emCurso = completaVisivel(completa.fase);
 
   const valor = useMemo<ValorSincronizacao | null>(
     () =>
@@ -36,9 +63,12 @@ export function SincronizacaoDoShell({ children }: { children: ReactNode }) {
             sincronizando: estado.sincronizando,
             semSinal: offline,
             tz,
+            sincronizarCompleta: () => popup.abrir(),
+            vibrar: (forca) => vibrarSegurar(forca, reduzir),
+            completaEmCurso: emCurso,
           }
         : null,
-    [agendador, estadoAgendador, estado.sincronizado_em, estado.sincronizando, naFila, offline, tz],
+    [agendador, estadoAgendador, estado.sincronizado_em, estado.sincronizando, naFila, offline, tz, popup, reduzir, emCurso],
   );
 
   // ---------- push: ouvintes (app aberto) ----------
@@ -87,5 +117,17 @@ export function SincronizacaoDoShell({ children }: { children: ReactNode }) {
     };
   }, [usuarioId, modo, cargaFeita]);
 
-  return <SincronizacaoProvider value={valor}>{children}</SincronizacaoProvider>;
+  return (
+    <SincronizacaoProvider value={valor}>
+      {children}
+      {temSessao ? (
+        <PopupSyncCompleta
+          fase={completa.fase}
+          rodada={completa.rodada}
+          aoTentarDeNovo={() => popup.tentarDeNovo()}
+          aoFechar={() => popup.fechar()}
+        />
+      ) : null}
+    </SincronizacaoProvider>
+  );
 }

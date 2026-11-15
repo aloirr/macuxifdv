@@ -66,6 +66,14 @@ vi.mock('@macuxi/ui/mobile', () => {
       Icon: () => createElement('i'),
       useReduzirMovimento: () => true,
       Botao: ({ rotulo, testID }: { rotulo: string; testID?: string }) => createElement('button', { 'data-testid': testID }, rotulo),
+      // RD-0635: a barra do kit (mesmo contrato: `${testID}-etapa` com o rótulo ao leitor e `${testID}-pct`)
+      BarraProgresso: ({ rotulo, pct, mostrarRotulo = true, testID = 'entrada' }: { rotulo: string; pct: number | null; mostrarRotulo?: boolean; testID?: string }) =>
+        createElement(
+          'div',
+          null,
+          createElement(TextoHost, { testID: `${testID}-etapa`, accessibilityLabel: rotulo }, mostrarRotulo ? rotulo : ''),
+          pct === null ? null : createElement(TextoHost, { testID: `${testID}-pct` }, `${pct}%`),
+        ),
     } as Record<string | symbol, unknown>,
     { get: (simulado, chave) => (chave in simulado ? simulado[chave] : chave === 'then' ? undefined : vazio), has: () => true },
   );

@@ -79,6 +79,7 @@ import {
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
+import { decidirPedidoSync, pedidoDoAgendador, rodarSync, type PedidoSync, type TipoSync } from '@/lib/sync-completa';
 import {
   mesmoEstadoDePermissoes,
   permissoesLiberadas,
@@ -226,6 +227,8 @@ function usePlataformaValor() {
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
+  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a rápida espera e roda depois). */
+  const tipoEmCursoRef = useRef<TipoSync | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
   /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
   const sincronizarAoAbrirRef = useRef(false);
@@ -511,15 +514,24 @@ function usePlataformaValor() {
   }, [api, modo]);
 
   /**
-   * Sincronização completa. Uma por vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem
-   * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
+   * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): rápida (botão, puxar para baixo e selo: fila + pedidos e
+   * clientes), completa (segurar 10 s, tela de carga: fila + módulos + tudo) ou leve (automática e aviso: novidades). Uma por
+   * vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem consultar os módulos de novo nem reiniciar a
+   * carga; só a completa pedida durante uma rápida ou leve espera ela terminar e roda depois. Telas navegam pelo ESTADO do
+   * motor, não por esta promessa.
    */
   const executarSync = useCallback(
-    (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
+    function executar(pedido: PedidoSync): Promise<boolean> {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
-      if (syncEmCursoRef.current) return syncEmCursoRef.current;
+      const emCurso = syncEmCursoRef.current;
+      const decisao = decidirPedidoSync(pedido.tipo, emCurso ? tipoEmCursoRef.current : null);
+      if (emCurso && decisao === 'juntar') return emCurso;
+      if (emCurso && decisao === 'esperar') {
+        const depois = (): Promise<boolean> => (motorRef.current === m ? executar(pedido) : Promise.resolve(false));
+        return emCurso.then(depois, depois);
+      }
       ultimoInicioRef.current = Date.now();
       // T-0140: a sincronização do app (inclui a carga inicial) segura a trava única: a tarefa sem tela não começa junto
       travaSync.entrar('sincronizacao');
@@ -532,32 +544,24 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        if (offlineRef.current) return m.sincronizar();
-        // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
-        // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
-        if (leve && modo === 'v1')
-          return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
-        // spec rota-catalogo-perfil §4: a completa (botão Sincronizar, puxar para baixo) reenvia também os itens que falharam;
-        // o "Enviar agora" do Perfil saiu
-        await m.enviar({ incluirFalhos: true });
-        try {
-          await atualizarModulos();
-        } catch {
-          // sem rede: o motor registra o erro na sincronização abaixo
-        }
-        return m.sincronizar();
+        // spec rota-catalogo-perfil §4: a rápida e a completa reenviam também os itens que falharam (o "Enviar agora" saiu)
+        return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos });
       })().finally(() => {
         travaSync.sair('sincronizacao');
-        if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
+        if (syncEmCursoRef.current === p) {
+          syncEmCursoRef.current = null;
+          tipoEmCursoRef.current = null;
+        }
       });
       syncEmCursoRef.current = p;
+      tipoEmCursoRef.current = pedido.tipo;
       return p;
     },
     [atualizarModulos, modo],
   );
 
-  /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
-  const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
+  /** Sincronização completa (segurar 10 s no Sincronizar, tela de carga, modo sem sinal desligado): envia a fila e puxa tudo. */
+  const sincronizar = useCallback((): Promise<boolean> => executarSync({ tipo: 'completa' }), [executarSync]);
 
   /** Sincroniza só se faz sentido agora (`deveSincronizar`): não reinicia a carga em andamento nem a que acabou de terminar. */
   const sincronizarSeNecessario = useCallback(
@@ -725,6 +729,7 @@ function usePlataformaValor() {
     desassinarRef.current?.();
     desassinarRef.current = null;
     syncEmCursoRef.current = null;
+    tipoEmCursoRef.current = null;
     ultimoInicioRef.current = null;
     sincronizarAoAbrirRef.current = false;
     const usuarioId = sessaoRef.current?.user.id;
@@ -901,8 +906,8 @@ function usePlataformaValor() {
     const m = motor;
     const ag = criarAgendadorSync({
       intervaloMs: () => intervaloSyncAutoMs(m.parametros('core')[PARAMETRO_SYNC_AUTO]),
-      sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) =>
-        motivo === 'manual' ? executarSync(null) : executarSync(entidades ? { entidades } : {}),
+      // R-20261115-100000: `manual` (botão, puxar para baixo, selo) = rápida; os outros = leve
+      sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) => executarSync(pedidoDoAgendador(motivo, entidades)),
       ultimaSincronizacao: () => {
         const em = m.estado().sincronizado_em;
         const ms = em ? Date.parse(em) : NaN;
@@ -1020,7 +1025,7 @@ function usePlataformaValor() {
         sincronizadoEm: () => motor.estado().sincronizado_em,
         prepararSessao: async () => 'ok',
         // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
-        sincronizar: () => executarSync({}),
+        sincronizar: () => executarSync({ tipo: 'leve' }),
         erro: () => motor.estado().erro,
       },
     );
