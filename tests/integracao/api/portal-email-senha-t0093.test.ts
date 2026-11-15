@@ -32,7 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
 import { A, B, comToken, erroDe, novoIp, SENHA, subirApi, type ApiDeTeste } from '../apoio/api';
 import { criarEspiaoEmail } from '../apoio/email';
-import { camposDeFilial, filiaisDoTenant } from '../apoio/filial-usuario';
+import { camposDeFilial, codigoDaFilialPadrao } from '../apoio/filial-usuario';
 import { COM_RECEITA } from '../../modulos/apoio/estado-prs';
 import {
   auditoriaDoPortal,
@@ -457,8 +457,7 @@ describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0093 portal só com e-mail e senh
     it('como o admin REAL de A: a Equipe por CSV grava a pessoa em A com o autor = usuário de A na auditoria; a pessoa sem senha de B não existe para ele', async () => {
       // T-0094: o convite saiu; a prova do "usuário real" passa a ser a auditoria da Equipe por CSV (rota `superAdmin: 'aceita'`)
       const emailB = 'sem.senha.semsenhab@exemplo.com.br';
-      // RN-CORE-39 (#361): A tem 2 filiais, então a coluna `filial` vai no CSV; o main antes do #361 a ignora
-      const filial = (await filiaisDoTenant(api.admin, A.tenantId))[0]!.codigo;
+      const filial = await codigoDaFilialPadrao(api.admin, A.tenantId);
       const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial', `Pessoa Portal Fictícia,csv.portal.t0093@exemplo.com.br,,gerente,,,,${filial}`, `Pessoa B Fictícia,${emailB},,gerente,,,,${filial}`].join('\n');
       const conferir = await comTenant(tokenA, 'POST', '/v1/core/equipe/importacoes', A.tenantId, { csv, modo: 'conferir' });
       expect(conferir.statusCode, conferir.body).toBe(200);
