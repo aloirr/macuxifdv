@@ -44,7 +44,7 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { comandoSetRole, SQL_PRECISA_SET_ROLE } from '../src/papeis';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0081, FUNCOES_SA_ATE_0080, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_PLANOS, FUNCOES_SA_ATE_0080, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 const migracoes = lerMigracoes();
@@ -65,7 +65,8 @@ const TROCAR = 'create function plataforma.sa_trocar_plano(p_sid uuid, p_tenant 
 const TRAVA = 'create function plataforma.licencas_do_tenant()';
 const EM_USO = 'create function plataforma.licencas_em_uso(p_tenant uuid)';
 const CONTRATADAS = 'create function plataforma.contratadas_do_plano(p_plano plataforma.plano, p_adicionais jsonb)';
-const FUNCOES_APP = ['plataforma.contratadas_do_plano(plataforma.plano, jsonb)', 'plataforma.licencas_em_uso(uuid)', 'plataforma.licencas_do_tenant()'];
+const FUNCOES_APP = ['plataforma.contratadas_do_plano(plataforma.plano, jsonb)', 'plataforma.licencas_em_uso(uuid)', 'plataforma.situacao_das_licencas(plataforma.plano, jsonb, uuid)', 'plataforma.licencas_do_tenant()'];
+const SITUACAO = 'create function plataforma.situacao_das_licencas(p_plano plataforma.plano, p_adicionais jsonb, p_tenant uuid)';
 
 /** Os 4 planos de venda como o PlanoSchema os descreve (números da spec, §11.3). */
 const MODULOS_DO_PLANO: ModuloId[] = ['core', 'catalogo', 'vendedor', 'gestor', 'integracao'];
@@ -114,7 +115,7 @@ describe('0081 planos, troca e licenças (estático)', () => {
       'grant select on plataforma.plano to macuxi_app;',
       'grant update (updated_at) on plataforma.assinatura to macuxi_app;',
       ...FUNCOES_APP.map((f) => `grant execute on function ${f} to macuxi_app;`),
-      ...FUNCOES_SA_0081.map((f) => `grant execute on function ${f} to macuxi_portal;`),
+      ...FUNCOES_SA_PLANOS.map((f) => `grant execute on function ${f} to macuxi_portal;`),
     ]);
     expect(up).not.toMatch(/create policy [a-z_]+ on plataforma\.[a-z_]+ for [a-z]+ to macuxi_(worker|portal)/);
     // o app só trava a assinatura: o gatilho recusa o UPDATE de quem tem os privilégios do macuxi_app ('usage' pega o papel que o
@@ -151,13 +152,22 @@ describe('0081 planos, troca e licenças (estático)', () => {
     expect(uso).toContain("um.efeito = 'remover' and um.deleted_at is null");
     // os 6 itens na ordem de ITENS_CONTADOS
     expect(uso).toContain(`unnest(array[${ITENS_CONTADOS.map((i) => `'${i}'`).join(', ')}])`);
-    expect(b).toContain(`array_position(array[${ITENS_CONTADOS.map((i) => `'${i}'`).join(', ')}], c.item)`);
+    // RD-1625: a junção contratadas × em uso só na situacao_das_licencas, na ordem de contratadas_do_plano; quem lê ordena por n
+    const situacao = bloco(up, SITUACAO);
+    expect(situacao).toMatch(/language sql stable\s+set search_path = pg_catalog, plataforma, pg_temp/);
+    expect(situacao).toContain('from plataforma.contratadas_do_plano(p_plano, p_adicionais) with ordinality as c (item, contratadas, n)');
+    expect(situacao).toContain('join plataforma.licencas_em_uso(p_tenant) u on u.item = c.item');
+    expect(up.match(/join plataforma\.licencas_em_uso\(/g)).toHaveLength(1);
+    expect(up).not.toContain('array_position(');
+    expect(b).toContain('plataforma.situacao_das_licencas(pl, v_a.adicionais, v_a.tenant_id) l');
     expect([...bloco(up, CONTRATADAS).matchAll(/\((\d), '([a-z]+)', /g)].map((x) => x[2])).toEqual([...ITENS_CONTADOS]);
     expect(bloco(up, CONTRATADAS)).toMatch(/language sql immutable\s+set search_path = pg_catalog, plataforma, pg_temp/);
   });
 
   it('sa_*: SECURITY DEFINER, sessão (28000), permissão (42501), P0002, hints do 422, idempotência por pedido_id e trava da assinatura', () => {
-    expect(FUNCOES_SA_ATUAIS).toEqual([...FUNCOES_SA_ATE_0080, ...FUNCOES_SA_0081]);
+    // as 27 até o main na frente; as dos lotes da v1.0.14 (outros lotes, como a logo, também entram) depois
+    expect(FUNCOES_SA_ATUAIS.slice(0, FUNCOES_SA_ATE_0080.length)).toEqual([...FUNCOES_SA_ATE_0080]);
+    expect(FUNCOES_SA_ATUAIS).toEqual(expect.arrayContaining([...FUNCOES_SA_PLANOS]));
     expect(FUNCOES_SA_ATUAIS).toHaveLength(30);
     for (const inicio of [LISTAR, FICHA, TROCAR]) {
       const b = bloco(up, inicio);
@@ -165,7 +175,7 @@ describe('0081 planos, troca e licenças (estático)', () => {
       expect(b, inicio).toContain('from plataforma.sa_sessao_valida(p_sid) v;');
       expect(b, inicio).toMatch(/if v_tipo is null then\s+raise exception '[^']+' using errcode = '28000';/);
     }
-    for (const f of FUNCOES_SA_0081) {
+    for (const f of FUNCOES_SA_PLANOS) {
       expect(up).toContain(`revoke all on function ${f} from public, macuxi_app, macuxi_worker;`);
       expect(up).toContain(`grant execute on function ${f} to macuxi_portal;`);
     }
@@ -195,7 +205,7 @@ describe('0081 planos, troca e licenças (estático)', () => {
     expect(repetido).toBeGreaterThan(forUpdate);
     expect(catalogo).toBeGreaterThan(repetido);
     // RN-PLA-05: o uso igual ao contratado cabe (só o uso maior recusa)
-    expect(t).toContain('where c.contratadas is not null and u.em_uso > c.contratadas;');
+    expect(t).toContain('where l.contratadas is not null and l.em_uso > l.contratadas;');
     expect(t).not.toMatch(/u\.em_uso >= c\.contratadas/);
     // a recusa (raise, que desfaz a transação) vem antes de gravar o histórico: o pedido recusado não fica como existente
     const abaixo = t.indexOf("hint = 'PLANO_ABAIXO_DO_USO'");
@@ -263,7 +273,7 @@ describe('0081 planos, troca e licenças (estático)', () => {
   });
 
   it('down: apaga funções, gatilho, grants, política e o histórico, e só os planos do seed sem assinatura; nada criado', () => {
-    for (const f of [...FUNCOES_SA_0081, ...FUNCOES_APP, 'plataforma.plano_json(plataforma.plano)', 'plataforma.assinatura_so_trava()']) {
+    for (const f of [...FUNCOES_SA_PLANOS, ...FUNCOES_APP, 'plataforma.plano_json(plataforma.plano)', 'plataforma.assinatura_so_trava()']) {
       expect(down).toContain(`drop function if exists ${f};`);
     }
     expect(down).toContain('drop trigger if exists assinatura_so_trava on plataforma.assinatura;');
@@ -699,7 +709,7 @@ describe.skipIf(semBanco())('0081 corrida e up/down (banco efêmero, COMMIT de v
     }
   });
 
-  it('up/down: só acrescenta (tabela, 8 funções, 2 gatilhos, 4 políticas, o único (tenant_id, id) da assinatura e os 4 planos); o down volta exatamente', async () => {
+  it('up/down: só acrescenta (tabela, 9 funções, 2 gatilhos, 4 políticas, o único (tenant_id, id) da assinatura e os 4 planos); o down volta exatamente', async () => {
     const outro = await criarBancoDeTeste({ migrar: false });
     try {
       await comAdmin(outro.nome, async (c) => {
@@ -728,6 +738,7 @@ describe.skipIf(semBanco())('0081 corrida e up/down (banco efêmero, COMMIT de v
           'fn plataforma.sa_assinatura_da_empresa(p_sid uuid, p_tenant uuid)',
           'fn plataforma.sa_listar_planos(p_sid uuid)',
           'fn plataforma.sa_trocar_plano(p_sid uuid, p_tenant uuid, p jsonb)',
+          'fn plataforma.situacao_das_licencas(p_plano plataforma.plano, p_adicionais jsonb, p_tenant uuid)',
         ]);
         expect(novos.filter((l) => l.startsWith('rel ')).sort()).toEqual([
           'rel plataforma.assinatura_historico r rls=true force=true',

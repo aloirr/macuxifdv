@@ -944,9 +944,12 @@ null) e `paga` se repetem em cada linha. O Core chama na **mesma transação** d
     prioridade de multiperfil: há um perfil por usuário (`usuario_perfil_um_vivo`). Pesquisa e Treinamento: usuário ativo com o
     módulo efetivo (`perfil_modulo` do perfil ∩ `tenant_modulo` ativo − exceção `remover` do usuário), de qualquer tipo. STABLE;
     EXECUTE ao `macuxi_app` (outro tenant, pela RLS, dá zeros); o dono a usa nas `sa_*` com o tenant da chamada.
+  - `plataforma.situacao_das_licencas(plano, adicionais jsonb, p_tenant uuid)` → `(item, contratadas, em_uso, n)`: a única
+    junção das duas, na ordem de `contratadas_do_plano` (`n` = posição). A trava e as `sa_*` leem daqui. STABLE; EXECUTE ao
+    `macuxi_app`.
   - `plataforma.plano_json(plano)` → o `PlanoSchema` (licenças em objeto). Só o dono.
 
-### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; o portal passa a 30 `sa_*`)
+### Funções do portal (SECURITY DEFINER; EXECUTE só ao `macuxi_portal`; o portal ganha 3 `sa_*`)
 SQLSTATE: 28000 sessão inválida ou vencida; 42501 permissão; P0002 não achou; 22023 validação (na escrita, com o código no `hint`).
 - `plataforma.sa_listar_planos(p_sid uuid) returns jsonb` → `{ itens: Plano[] }` (`ListaPlanosSchema`): todos os planos vivos,
   ativos e inativos, por `ordem` e `codigo`. Super-admin e admin do cliente. Sem auditoria (a API audita a requisição).
@@ -975,8 +978,7 @@ SQLSTATE: 28000 sessão inválida ou vencida; 42501 permissão; P0002 não achou
 Conferência no fim da migração: nenhuma `sa_*` para app, worker ou PUBLIC; as 3 novas ao portal; o total do portal = o de antes
 + 3 (pela diferença, porque as 0075 a 0080 de outros lotes também acrescentam `sa_*`); a trava e as de apoio só ao app;
 `plano_json` e o gatilho só do dono; nenhum privilégio de tabela fora do desenho. `db/testes/funcoes-sa.ts` ganhou
-`FUNCOES_SA_0081` (`FUNCOES_SA_ATUAIS` = 30); `apps/api/test/funcoes-sa.ts`, `scripts/deploy/producao/banco-dbaas.sh` e
-`tests/integracao/banco/conformidade.test.ts` ganham as 3 pelos donos.
+`FUNCOES_SA_PLANOS` (em `FUNCOES_SA_ATUAIS`); a API e o `banco-dbaas.sh` leem essa lista (RD-0910).
 
 Consultas (referência):
 ```sql

@@ -12,6 +12,7 @@ drop function if exists plataforma.sa_trocar_plano(uuid, uuid, jsonb);
 drop function if exists plataforma.sa_assinatura_da_empresa(uuid, uuid);
 drop function if exists plataforma.sa_listar_planos(uuid);
 drop function if exists plataforma.licencas_do_tenant();
+drop function if exists plataforma.situacao_das_licencas(plataforma.plano, jsonb, uuid);
 drop function if exists plataforma.licencas_em_uso(uuid);
 drop function if exists plataforma.contratadas_do_plano(plataforma.plano, jsonb);
 drop function if exists plataforma.plano_json(plataforma.plano);

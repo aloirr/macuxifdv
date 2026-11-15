@@ -29,6 +29,8 @@
 --      vendedor; promotor; supervisor e gerente = gestor; analista, assistente e admin = bko. Pesquisa e Treinamento: usuário
 --      ativo com o módulo efetivo (perfil_modulo do perfil ∩ tenant_modulo ativo − exceção 'remover' do usuário), de qualquer
 --      tipo. Sem prioridade de multiperfil. STABLE. Sob RLS para o macuxi_app (outro tenant = zeros); o dono passa o tenant.
+--    - plataforma.situacao_das_licencas(plano, adicionais jsonb, p_tenant) -> (item, contratadas, em_uso, n): a junção das duas,
+--      na ordem de contratadas_do_plano (n = posição). A trava e as sa_* leem daqui. STABLE. EXECUTE ao macuxi_app e ao dono.
 -- 5. plataforma.licencas_do_tenant() -> (item, contratadas, em_uso, teste_ate 'AAAA-MM-DD' | null, paga): a situação que o
 --    cadastro de usuários do Core lê na MESMA transação do insert ou update (RN-PLA-04; conferirNovoUsuario + usoPorItem do SDK).
 --    SECURITY INVOKER, sob RLS do tenant corrente (app.tenant_id). Primeiro trava a assinatura viva (for no key update, comando
@@ -237,6 +239,21 @@ create function plataforma.licencas_em_uso(p_tenant uuid)
 revoke all on function plataforma.licencas_em_uso(uuid) from public, macuxi_worker, macuxi_portal;
 grant execute on function plataforma.licencas_em_uso(uuid) to macuxi_app;
 
+-- contratadas × em uso, item a item, na ordem de contratadas_do_plano (vendedor, gestor, bko, promotor, pesquisa, treinamento):
+-- a única junção das duas; a trava e as sa_* leem daqui (n = a posição, para o order by de quem agrega)
+create function plataforma.situacao_das_licencas(p_plano plataforma.plano, p_adicionais jsonb, p_tenant uuid)
+  returns table (item text, contratadas integer, em_uso integer, n bigint)
+  language sql stable
+  set search_path = pg_catalog, plataforma, pg_temp
+  as $$
+    select c.item, c.contratadas, u.em_uso, c.n
+      from plataforma.contratadas_do_plano(p_plano, p_adicionais) with ordinality as c (item, contratadas, n)
+      join plataforma.licencas_em_uso(p_tenant) u on u.item = c.item
+     order by c.n
+  $$;
+revoke all on function plataforma.situacao_das_licencas(plataforma.plano, jsonb, uuid) from public, macuxi_worker, macuxi_portal;
+grant execute on function plataforma.situacao_das_licencas(plataforma.plano, jsonb, uuid) to macuxi_app;
+
 -- 5. licencas_do_tenant (a trava do cadastro de usuários; SECURITY INVOKER, sob RLS) ---------------------------------------
 create function plataforma.licencas_do_tenant()
   returns table (item text, contratadas integer, em_uso integer, teste_ate text, paga boolean)
@@ -256,12 +273,11 @@ begin
   end if;
   -- 2º comando (foto nova): conta já vendo o que a transação que segurava a trava gravou
   return query
-    select c.item, c.contratadas, u.em_uso, to_char(v_a.teste_ate, 'YYYY-MM-DD'), v_a.paga
+    select l.item, l.contratadas, l.em_uso, to_char(v_a.teste_ate, 'YYYY-MM-DD'), v_a.paga
       from plataforma.plano pl
-      cross join lateral plataforma.contratadas_do_plano(pl, v_a.adicionais) c
-      join plataforma.licencas_em_uso(v_a.tenant_id) u on u.item = c.item
+      cross join lateral plataforma.situacao_das_licencas(pl, v_a.adicionais, v_a.tenant_id) l
      where pl.id = v_a.plano_id
-     order by array_position(array['vendedor', 'gestor', 'bko', 'promotor', 'pesquisa', 'treinamento'], c.item);
+     order by l.n;
 end
 $$;
 revoke all on function plataforma.licencas_do_tenant() from public, macuxi_worker, macuxi_portal;
@@ -324,11 +340,9 @@ begin
   end if;
   select pl.* into v_pl from plataforma.plano pl where pl.id = v_a.plano_id;
 
-  select jsonb_agg(jsonb_build_object('item', c.item, 'contratadas', c.contratadas, 'em_uso', u.em_uso)
-                   order by array_position(array['vendedor', 'gestor', 'bko', 'promotor', 'pesquisa', 'treinamento'], c.item))
+  select jsonb_agg(jsonb_build_object('item', l.item, 'contratadas', l.contratadas, 'em_uso', l.em_uso) order by l.n)
     into v_lic
-    from plataforma.contratadas_do_plano(v_pl, v_a.adicionais) c
-    join plataforma.licencas_em_uso(p_tenant) u on u.item = c.item;
+    from plataforma.situacao_das_licencas(v_pl, v_a.adicionais, p_tenant) l;
 
   return jsonb_build_object(
     'tenant_id', p_tenant,
@@ -477,12 +491,10 @@ begin
   end if;
 
   -- RN-PLA-05: o plano novo cobre o que está em uso, item a item (nunca desativa usuário)
-  select string_agg(format('%s: %s em uso, %s contratadas', c.item, u.em_uso, c.contratadas), '; '
-                    order by array_position(array['vendedor', 'gestor', 'bko', 'promotor', 'pesquisa', 'treinamento'], c.item))
+  select string_agg(format('%s: %s em uso, %s contratadas', l.item, l.em_uso, l.contratadas), '; ' order by l.n)
     into v_problemas
-    from plataforma.contratadas_do_plano(v_novo, p -> 'adicionais') c
-    join plataforma.licencas_em_uso(p_tenant) u on u.item = c.item
-   where c.contratadas is not null and u.em_uso > c.contratadas;
+    from plataforma.situacao_das_licencas(v_novo, p -> 'adicionais', p_tenant) l
+   where l.contratadas is not null and l.em_uso > l.contratadas;
   if v_problemas is not null then
     raise exception 'sa_trocar_plano: o plano fica abaixo do uso (%)', v_problemas using errcode = '22023', hint = 'PLANO_ABAIXO_DO_USO';
   end if;
@@ -569,7 +581,8 @@ begin
   -- a trava e as de apoio: só o app (e o dono); nenhuma ao worker, ao portal ou a PUBLIC
   select string_agg(f, ', ') into v_f
     from unnest(array['plataforma.licencas_do_tenant()', 'plataforma.licencas_em_uso(uuid)',
-                      'plataforma.contratadas_do_plano(plataforma.plano, jsonb)']) f
+                      'plataforma.contratadas_do_plano(plataforma.plano, jsonb)',
+                      'plataforma.situacao_das_licencas(plataforma.plano, jsonb, uuid)']) f
    where not has_function_privilege('macuxi_app', f, 'execute')
       or has_function_privilege('macuxi_worker', f, 'execute') or has_function_privilege('macuxi_portal', f, 'execute')
       or exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a

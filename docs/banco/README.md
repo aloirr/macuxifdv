@@ -243,8 +243,8 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `0081_plataforma_planos_troca_licencas` (em cima da 0080; aditiva): os 4 planos de venda no
 > catálogo (Light, PME, Enterprise e Corporate, números do §11.3 da spec do portal); `plataforma.assinatura_historico` (uma linha
 > por troca, idempotente por `pedido_id`); 3 `sa_*` do portal (`sa_listar_planos`, `sa_assinatura_da_empresa` e
-> `sa_trocar_plano`; o portal passa a 30); a trava do cadastro de usuários `plataforma.licencas_do_tenant()` (SECURITY INVOKER,
-> sob RLS, `for update` na assinatura); o app passa a ler o plano do próprio tenant. Detalhes no [plataforma.md](plataforma.md);
+> `sa_trocar_plano`); a trava do cadastro de usuários `plataforma.licencas_do_tenant()`; o app passa a ler o plano do
+> próprio tenant. Detalhes no [plataforma.md](plataforma.md);
 > teste `db/testes/planos-troca-licencas.db.test.ts`.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
