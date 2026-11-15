@@ -15,6 +15,7 @@ import { Pressionavel, useReduzirMovimento } from './movimento-rn';
 import {
   ACAO_LEITOR_SYNC_COMPLETA,
   ANEL_SEGURAR,
+  criarAvisoIntervalo,
   criarControleSegurar,
   desenhoSegurar,
   dicaDoSegurar,
@@ -76,6 +77,11 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * rótulo conta "Continue segurando · N s"; vibra leve no início do anel e média aos 10 s, quando a completa dispara na hora
  * (mesmo com o dedo no botão). Soltar antes = toque normal. A linha `{testID}-dica` (abaixo da situação) diz que dá para
  * segurar. Leitor de tela: ação "Sincronização completa". Sem sinal ou ocupado: desabilitado, segurar nada faz.
+ *
+ * R-20261115-130000: a completa dentro do intervalo mínimo (`agendador.liberarManual()` = false) não abre o popup nem vibra
+ * média; mostra a linha `{testID}-aviso-intervalo` ("Dados atualizados agora há pouco…"), no mesmo padrão da linha
+ * `{testID}-sem-sinal` (13, `warningInk`, centralizada, logo abaixo do botão), anunciada pelo leitor de tela e que some
+ * sozinha em `AVISO_INTERVALO_MS` (5 s). O toque normal bloqueado segue em silêncio.
  */
 export function BotaoSincronizar({
   testID = 'sincronizar',
@@ -90,6 +96,9 @@ export function BotaoSincronizar({
   const s = useSincronizacao();
   const reduzir = useReduzirMovimento();
   const [segurandoMs, setSegurandoMs] = useState<number | null>(null);
+  const [avisoIntervalo, setAvisoIntervalo] = useState(false);
+  const aviso = useMemo(() => criarAvisoIntervalo({ aoMudar: setAvisoIntervalo }), []);
+  useEffect(() => () => aviso.desligar(), [aviso]);
   const ocupado = Boolean(s && (s.estado.puxando || s.sincronizando || s.completaEmCurso));
   const modo: ModoSegurar = s ? modoDoSegurar({ temCompleta: Boolean(s.sincronizarCompleta), semSinal: s.semSinal, ocupado }) : 'nenhum';
   // o controle lê sempre o valor mais novo (o provider muda a cada passo do motor)
@@ -102,11 +111,12 @@ export function BotaoSincronizar({
         parcial: () => void atual.current.s?.agendador.puxar(),
         completa: () => atual.current.s?.sincronizarCompleta?.(),
         liberar: () => atual.current.s?.agendador.liberarManual() ?? false,
+        bloqueada: () => aviso.mostrar(),
         vibrar: (forca) => atual.current.s?.vibrar?.(forca),
         aoMudar: setSegurandoMs,
         passoMs: reduzir ? 250 : 50,
       }),
-    [reduzir],
+    [reduzir, aviso],
   );
   useEffect(() => () => controle.desligar(), [controle]);
   useEffect(() => {
@@ -140,6 +150,11 @@ export function BotaoSincronizar({
       {d.aviso ? (
         <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-sem-sinal`}>
           {d.aviso}
+        </Text>
+      ) : null}
+      {avisoIntervalo ? (
+        <Text style={[t.small, { color: colors.warningInk, textAlign: 'center' }]} testID={`${testID}-aviso-intervalo`} accessibilityLiveRegion="polite" accessibilityRole="alert">
+          {TEXTOS_SYNC_COMPLETA.bloqueada}
         </Text>
       ) : null}
       {d.tom === 'atencao' ? (

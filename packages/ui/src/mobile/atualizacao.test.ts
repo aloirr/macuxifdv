@@ -122,8 +122,8 @@ describe('textos', () => {
     const src = readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
     expect(src).toContain('height={ALTURA.principal}');
     expect(src.match(/testID=\{`\$\{testID\}-situacao`\}/g)?.length).toBe(2);
-    // aviso sem sinal, situação (normal e em atenção) e a dica do segurar (R-20261115-100000)
-    expect(src.match(/textAlign: 'center'/g)?.length).toBe(4);
+    // aviso sem sinal, aviso do intervalo (R-20261115-130000), situação (normal e em atenção) e a dica do segurar
+    expect(src.match(/textAlign: 'center'/g)?.length).toBe(5);
     expect(src).toContain('desenhoBotaoSincronizar(');
     expect(src).not.toContain('Sem sinal: desligue');
   });

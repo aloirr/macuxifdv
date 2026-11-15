@@ -53,6 +53,8 @@ export interface OpcoesAgendadorSync {
 export interface EstadoAgendadorSync {
   /** true durante a sincronização pedida pelo puxar/botão (liga o indicador do topo). A automática é silenciosa. */
   puxando: boolean;
+  /** @deprecated R-20261115-125500: ignorado; sai quando plataforma.tsx e minha-rv.ts pararem de passar. */
+  recente?: boolean;
 }
 
 export interface AgendadorSync {
@@ -218,6 +220,8 @@ export function desenhoBotaoSincronizar(s: {
   naFila: number;
   tz?: string;
   avisoDados?: string | null;
+  /** @deprecated R-20261115-125500: ignorado; sai quando plataforma.tsx e minha-rv.ts pararem de passar. */
+  recente?: boolean;
 }): { rotulo: string; situacao: string; tom: 'neutro' | 'atencao'; aviso: string | null } {
   const avisoDados = s.avisoDados?.trim();
   return {

@@ -17,7 +17,12 @@ export const TEXTOS_SYNC_COMPLETA = {
   titulo: 'Realizando a sincronização completa',
   texto: 'Aguarde e não saia desta tela.',
   acao: 'Sincronização completa',
+  /** R-20261115-130000: completa pedida dentro do intervalo mínimo (segurar 10 s ou ação do leitor); o popup não abre. */
+  bloqueada: 'Dados atualizados agora há pouco. Aguarde alguns segundos e tente novamente.',
 } as const;
+
+/** Tempo que o aviso da completa bloqueada fica na tela (linha `{testID}-aviso-intervalo`) antes de sumir sozinho. */
+export const AVISO_INTERVALO_MS = 5_000;
 
 /** Linha abaixo da situação: em repouso e enquanto segura. */
 export const DICAS_SEGURAR = {
@@ -102,10 +107,15 @@ export interface OpcoesControleSegurar {
   /** Aos 10 s segurando. */
   completa: () => void;
   /**
-   * Intervalo mínimo entre disparos manuais (R-20261115-125500, `agendador.liberarManual()`): `false` = a completa é ignorada
-   * em silêncio (sem a vibração final e sem `completa`). Ausente = sempre livre.
+   * Intervalo mínimo entre disparos manuais (R-20261115-125500, `agendador.liberarManual()`): `false` = a completa não
+   * acontece (sem a vibração final e sem `completa`) e chama `bloqueada`. Ausente = sempre livre.
    */
   liberar?: () => boolean;
+  /**
+   * R-20261115-130000: a completa (segurar 10 s ou ação do leitor) caiu no intervalo mínimo; o botão mostra o aviso
+   * `TEXTOS_SYNC_COMPLETA.bloqueada`. O toque normal bloqueado continua em silêncio (não passa por aqui).
+   */
+  bloqueada?: () => void;
   vibrar?: (forca: ForcaVibracao) => void;
   /** Ms segurando a cada passo (`null` = solto), para redesenhar. */
   aoMudar: (ms: number | null) => void;
@@ -160,7 +170,10 @@ export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar 
     if (ms >= SEGURAR_COMPLETA_MS) {
       disparou = true;
       parar();
-      if (o.liberar && !o.liberar()) return;
+      if (o.liberar && !o.liberar()) {
+        o.bloqueada?.();
+        return;
+      }
       if (forca) o.vibrar?.(forca);
       o.completa();
       return;
@@ -191,11 +204,56 @@ export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar 
     },
     acaoDoLeitor() {
       if (o.modo() !== 'segurar') return;
-      if (o.liberar && !o.liberar()) return;
+      if (o.liberar && !o.liberar()) {
+        o.bloqueada?.();
+        return;
+      }
       o.completa();
     },
     desligar() {
       parar();
+    },
+  };
+}
+
+// ---------- aviso da completa bloqueada (R-20261115-130000) ----------
+
+export interface OpcoesAvisoIntervalo {
+  /** `true` = mostra a linha `{testID}-aviso-intervalo`; `false` = esconde. */
+  aoMudar: (visivel: boolean) => void;
+  definirTempo?: (fn: () => void, ms: number) => unknown;
+  limparTempo?: (id: unknown) => void;
+}
+
+export interface AvisoIntervalo {
+  /** Mostra o aviso e (re)começa a contar `AVISO_INTERVALO_MS`; ao fim, some sozinho. */
+  mostrar(): void;
+  /** Desmontou: esconde e cancela a contagem. */
+  desligar(): void;
+}
+
+export function criarAvisoIntervalo(o: OpcoesAvisoIntervalo): AvisoIntervalo {
+  // setTimeout único de 5 s, só depois de um bloqueio pedido pelo usuário; não consulta o servidor.
+  const definir = o.definirTempo ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
+  const limpar = o.limparTempo ?? ((id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>));
+  let id: unknown = null;
+  const cancelar = () => {
+    if (id !== null) limpar(id);
+    id = null;
+  };
+  return {
+    mostrar() {
+      cancelar();
+      o.aoMudar(true);
+      id = definir(() => {
+        id = null;
+        o.aoMudar(false);
+      }, AVISO_INTERVALO_MS);
+    },
+    desligar() {
+      const estava = id !== null;
+      cancelar();
+      if (estava) o.aoMudar(false);
     },
   };
 }
