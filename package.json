@@ -23,6 +23,7 @@
     "db:derrubar": "pnpm --filter @macuxi/db banco derrubar",
     "db:migrar": "pnpm --filter @macuxi/db migrar",
     "tenant:criar": "pnpm --filter api tenant criar",
+    "tenant:codigo-licenca": "pnpm --filter api tenant:codigo-licenca",
     "super-admin": "pnpm --filter api super-admin"
   },
   "devDependencies": {

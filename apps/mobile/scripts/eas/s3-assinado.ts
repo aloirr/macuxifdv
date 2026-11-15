@@ -93,7 +93,7 @@ export function urlAssinada(p: PedidoAssinado): string {
 }
 
 /**
- * Chave do objeto no bucket: `apk/<versionCode>/<Campo-Demo-v1.0.0>.apk`. A pasta pelo versionCode guarda cada build
+ * Chave do objeto no bucket: `apk/<versionCode>/<Campo-Oficial-v1.0.0>.apk`. A pasta pelo versionCode guarda cada build
  * (dois builds da mesma versão não se sobrescrevem) e o arquivo mantém o nome do build.
  */
 export function chaveDoApk(nomeApk: string, versionCode: string | number | null | undefined, prefixo = 'apk'): string {

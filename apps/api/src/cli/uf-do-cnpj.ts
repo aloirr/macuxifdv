@@ -9,6 +9,8 @@
  */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Uf } from '@macuxi/comum/endereco';
+import type { FonteCnpjNome } from '@macuxi/platform-sdk';
 import { consultaCnpjPadrao, type ConsultaCnpj } from '../consulta-cnpj';
 
 export interface DepsUfDoCnpj {
@@ -17,29 +19,41 @@ export interface DepsUfDoCnpj {
   erro(linha: string): void;
 }
 
+/** Por que a UF não saiu (e o código de saída do `uf-do-cnpj` para cada caso). */
+export type FalhaUf = 'cnpj_invalido' | 'cnpj_nao_encontrado' | 'consulta_fora' | 'sem_uf';
+
+export const MENSAGEM_FALHA_UF: Record<FalhaUf, string> = {
+  cnpj_invalido: 'CNPJ inválido (confira os dígitos).',
+  cnpj_nao_encontrado: 'CNPJ não encontrado na Receita (BrasilAPI e CNPJá).',
+  consulta_fora: 'as fontes estão fora (BrasilAPI e CNPJá). Tente de novo em instantes.',
+  sem_uf: 'a Receita não traz UF para este CNPJ (sede no exterior).',
+};
+
+const SAIDA_FALHA_UF: Record<FalhaUf, number> = { cnpj_invalido: 2, cnpj_nao_encontrado: 3, consulta_fora: 4, sem_uf: 5 };
+
+export type ResultadoUf = { ok: true; cnpj: string; uf: Uf; fonte: FonteCnpjNome } | { ok: false; falha: FalhaUf };
+
+/** UF da empresa pela consulta de CNPJ (a mesma do `uf-do-cnpj` e do `tenant:codigo-licenca`). */
+export async function ufDoCnpj(consulta: ConsultaCnpj, cnpj: string): Promise<ResultadoUf> {
+  const r = await consulta.consultar(cnpj);
+  if (r.resultado === 'invalido') return { ok: false, falha: 'cnpj_invalido' };
+  if (r.resultado === 'nao_encontrado') return { ok: false, falha: 'cnpj_nao_encontrado' };
+  if (r.resultado === 'fora') return { ok: false, falha: 'consulta_fora' };
+  if (!r.dados.uf) return { ok: false, falha: 'sem_uf' };
+  return { ok: true, cnpj: r.dados.cnpj, uf: r.dados.uf, fonte: r.dados.fonte };
+}
+
 export async function executarUfDoCnpj(args: readonly string[], dep: DepsUfDoCnpj): Promise<number> {
   if (args.length !== 1) {
     dep.erro('[uf-do-cnpj] uso: pnpm --filter api uf-do-cnpj <CNPJ>');
     return 2;
   }
-  const r = await dep.consulta.consultar(args[0] ?? '');
-  if (r.resultado === 'invalido') {
-    dep.erro('[uf-do-cnpj] erro: CNPJ inválido (confira os dígitos).');
-    return 2;
+  const r = await ufDoCnpj(dep.consulta, args[0] ?? '');
+  if (!r.ok) {
+    dep.erro(`[uf-do-cnpj] erro: ${MENSAGEM_FALHA_UF[r.falha]}`);
+    return SAIDA_FALHA_UF[r.falha];
   }
-  if (r.resultado === 'nao_encontrado') {
-    dep.erro('[uf-do-cnpj] erro: CNPJ não encontrado na Receita (BrasilAPI e CNPJá).');
-    return 3;
-  }
-  if (r.resultado === 'fora') {
-    dep.erro(`[uf-do-cnpj] erro: as fontes estão fora (${r.tentativas.map((t) => t.fonte).join(', ')}). Tente de novo em instantes.`);
-    return 4;
-  }
-  if (!r.dados.uf) {
-    dep.erro('[uf-do-cnpj] erro: a Receita não traz UF para este CNPJ (sede no exterior).');
-    return 5;
-  }
-  dep.saida(JSON.stringify({ cnpj: r.dados.cnpj, uf: r.dados.uf, fonte: r.dados.fonte }));
+  dep.saida(JSON.stringify({ cnpj: r.cnpj, uf: r.uf, fonte: r.fonte }));
   return 0;
 }
 

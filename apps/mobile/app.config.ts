@@ -3,24 +3,21 @@
  *  - APP_VARIANT=campo  → "Macuxi Campo"  (vendedor/promotor)
  *  - APP_VARIANT=gestao → "Macuxi Gestão" (supervisor/gerente)
  * Mesmo código e mesmo projeto EAS; nome, pacote Android e scheme diferentes para conviverem no aparelho.
- * Perfis de build em eas.json (desenho T-0004 §7): `campo`/`gestao` = build de desenvolvimento (APK com
- * expo-dev-client, JS servido pelo `expo start`); `*-preview` = APK interno sem Metro, apontando para a demo;
- * `campo-producao`/`gestao-producao` (T-0086, environment `production` da EAS) = APK de distribuição direta, assinado com
- * a chave gerenciada pela EAS (`credentialsSource: remote`, nenhuma keystore no repositório), versionCode pela EAS
- * (`autoIncrement`) e API `https://api.macuxifdv.com.br/v1`. O Google Play (AAB) fica para depois.
- * Nome e ícone são os mesmos em todos os perfis ("Macuxi Campo"/"Macuxi Gestão", sem "Preview"): o pacote é um só por
- * variante, então o APK de produção instala por cima do de preview (a sessão e a base local são por usuário).
- * Endereço da API por perfil (T-0038, doc 04 "Domínio e endereços"): `EXPO_PUBLIC_API_URL` (api-demo no dev e no
- * preview; api.macuxifdv.com.br no producao) e `EXPO_PUBLIC_PERFIL_BUILD` (desenvolvimento|preview|producao), que
- * decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No dev o JS vem do Metro do PC: valem as
- * variáveis de quem roda o `expo start`.
+ * Perfis de build em eas.json: só `campo-producao`/`gestao-producao` (T-0086, environment `production` da EAS; os perfis
+ * de desenvolvimento e preview saíram com a demo) = APK de distribuição direta, assinado com a chave gerenciada pela EAS
+ * (`credentialsSource: remote`, nenhuma keystore no repositório), versionCode pela EAS (`autoIncrement`) e API
+ * `https://api.macuxifdv.com.br/v1`. O Google Play (AAB) fica para depois.
+ * Nome e ícone são os mesmos em todos os builds ("Macuxi Campo"/"Macuxi Gestão"): o pacote é um só por variante.
+ * Endereço da API (T-0038, doc 04 "Domínio e endereços"): `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_PERFIL_BUILD`
+ * (`producao` no eas.json), que decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No `expo start`
+ * local valem as variáveis de quem roda o Metro (sem a flag, o bundle de desenvolvimento edita o servidor).
  * Ícone e splash por variante (marca v1, T-0172; arquivos de docs/marca/ativos/2026-11-12-v1/): Campo no Azul noite
  * `#1E3350` (logo negativo) e Gestão no Pérola `#F8F6F1` (logo positivo); monocromático e notificação iguais nas duas,
  * cor da notificação `#1E3350`. A tela de entrada do JS (`components/tela-entrada.tsx`) repete o fundo e o logo da splash
  * no mesmo lugar e no mesmo tamanho (`LARGURA_LOGO_ENTRADA`), para a passagem não ter corte.
  * Versão (T-0109): `version` vem de `scripts/eas/versao.json` (fonte única, igual nas duas variantes e em todos os
  * perfis) e o `android.versionCode` é do EAS (`appVersionSource: remote` + `autoIncrement` no eas.json): sobe a cada
- * build e nunca repete por pacote. Nome do build (`Campo-Demo-v1.0.0`) em `src/lib/nome-build.ts`.
+ * build e nunca repete por pacote. Nome do build (`Campo-Oficial-v1.0.0`) em `src/lib/nome-build.ts`.
  * Base copiada do app.json da Fase M.
  */
 import type { ConfigContext, ExpoConfig } from 'expo/config';

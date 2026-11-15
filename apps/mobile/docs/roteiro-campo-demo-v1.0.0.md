@@ -1,5 +1,8 @@
 # Roteiro único de teste — Campo-Demo-v1.0.0 e Gestao-Demo-v1.0.0 (714d0d1b)
 
+> **Histórico.** A demo foi desligada (ADR 0051) e os perfis de preview saíram do `eas.json`: este roteiro não se aplica
+> mais a builds novos. Os endereços `*-demo.macuxifdv.com.br` citados aqui não existem mais.
+
 > Para o Alexandre. Cobre tudo o que mudou no app desde o build do **e9a65286** (07/11, 02h): o **d1e0d2a** (que você
 > não testou) e o lote 01 inteiro (commit **714d0d1b**, 08/11), juntos.
 > Pedidos: R-20261107-163525 (item 4), R-20261107-151653 (nome), R-20261107-092152 (build único) e R-20261108-175721
