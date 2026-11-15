@@ -4,7 +4,7 @@
  * de negócio aqui. Visual da T-0072: `Cartao`, `ProgressBar height={6}`, rótulos em caixa alta. Alvos de toque ≥ 48 dp.
  */
 import type { MembroAgoraContrato, MetaDoDia, VisaoInicio } from '@macuxi/core/contracts';
-import { Cartao, colors, fonts, Icon, initials, ProgressBar, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, fonte, Icon, initials, ProgressBar, type as t } from '@macuxi/ui/mobile';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -78,7 +78,7 @@ export function MetaDoMes({ metas, pronto, equipe, semVendas = false }: { metas:
     <Cartao gap={8} testID="inicio.meta" tom={d.verde ? 'sucesso' : 'padrao'}>
       <TopoDoCartao rotulo={rotuloDaMeta(equipe, principal.indicador)} direita={d.mes ? <Text style={t.sub} testID="inicio.meta.mes">{d.mes}</Text> : undefined} />
       <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 6 }}>
-        <Text style={{ fontFamily: fonts.display, fontSize: 30, color: d.verde ? colors.success : colors.ink, fontVariant: ['tabular-nums'] }} numberOfLines={1} testID="inicio.meta.valor">
+        <Text style={{ ...fonte.display, fontSize: 28, color: d.verde ? colors.success : colors.ink, fontVariant: ['tabular-nums'] }} numberOfLines={1} testID="inicio.meta.valor">
           {d.valor}
         </Text>
         <Text style={t.sub} numberOfLines={1}>
@@ -126,17 +126,17 @@ export function EquipeAgora({ membros, tz, onAbrir }: { membros: readonly Membro
           const conteudo = (
             <>
               <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.neutralBg, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontFamily: fonts.bold, fontSize: 13, color: colors.neutralInk }}>{initials(m.nome)}</Text>
+                <Text style={{ ...fonte.bold, fontSize: 14, color: colors.neutralInk }}>{initials(m.nome)}</Text>
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={t.bodyStrong} numberOfLines={1}>
                   {m.nome}
                 </Text>
-                <Text style={{ fontFamily: fonts.body, fontSize: 12, color: s.cor }} numberOfLines={1}>
+                <Text style={{ ...fonte.body, fontSize: 12, color: s.cor }} numberOfLines={1}>
                   {s.texto}
                 </Text>
               </View>
-              <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: colors.ink, fontVariant: ['tabular-nums'] }}>{resumo}</Text>
+              <Text style={{ ...fonte.medium, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] }}>{resumo}</Text>
             </>
           );
           const estilo = { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, minHeight: 56, paddingVertical: 8, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.lineSoft };

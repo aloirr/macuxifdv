@@ -7,7 +7,7 @@
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
-import { Botao, fonts, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { Botao, fonte, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,7 +22,7 @@ import {
   posicaoDoLogo,
   ROTULO_BARRA_ENTRADA,
 } from '@/lib/entrada';
-import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO } from '@/lib/logo-marca';
+import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO, svgParaDesenho } from '@/lib/logo-marca';
 import type { Variante } from '@/lib/variante-tipo';
 
 export interface BarraEntrada {
@@ -100,7 +100,7 @@ export function TelaEntrada({
       <View style={[styles.logo, { top: logo.topo - faixa, opacity: desenhou ? 1 : 0 }]}>
         <View accessible accessibilityRole="image" accessibilityLabel="Macuxi Força de Vendas">
           <SvgXml
-            xml={tema.logo === 'negativo' ? LOGO_EMPILHADO_NEGATIVO : LOGO_EMPILHADO_POSITIVO}
+            xml={svgParaDesenho(tema.logo === 'negativo' ? LOGO_EMPILHADO_NEGATIVO : LOGO_EMPILHADO_POSITIVO)}
             width={LARGURA_LOGO_ENTRADA}
             height={logo.altura}
           />
@@ -239,7 +239,7 @@ function ListaEtapas({ tema, etapas }: { tema: TemaEntrada; etapas: readonly Eta
                 styles.nomeEtapa,
                 {
                   color: e.situacao === 'pendente' ? tema.textoClaro : tema.texto,
-                  fontFamily: destaque ? fonts.semibold : fonts.body,
+                  ...(destaque ? fonte.semibold : fonte.body),
                 },
               ]}
             >
@@ -325,12 +325,12 @@ export function AcaoEntrada({
 const styles = StyleSheet.create({
   raiz: { flex: 1 },
   logo: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
+  saudacao: { ...fonte.body, fontSize: 16, marginTop: 28, textAlign: 'center' },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
-  nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
+  nomeDoApp: { ...fonte.body, fontSize: 14, textAlign: 'center' },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  rotulo: { flex: 1, fontFamily: fonts.body, fontSize: 13 },
-  pct: { fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  rotulo: { flex: 1, ...fonte.body, fontSize: 14 },
+  pct: { ...fonte.bold, fontSize: 14, fontVariant: ['tabular-nums'] },
   trilho: { height: 6, borderRadius: 3, overflow: 'hidden' },
   preenchimento: { height: 6, borderRadius: 3 },
   etapa: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 32 },
@@ -343,10 +343,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ponto: { width: 8, height: 8, borderRadius: 4 },
-  exclamacao: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 16 },
+  exclamacao: { ...fonte.bold, fontSize: 14, lineHeight: 16 },
   nomeEtapa: { fontSize: 14 },
   erro: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  textoErro: { fontFamily: fonts.semibold, fontSize: 14 },
+  textoErro: { ...fonte.semibold, fontSize: 14 },
   link: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  textoLink: { fontFamily: fonts.semibold, fontSize: 14 },
+  textoLink: { ...fonte.semibold, fontSize: 14 },
 });

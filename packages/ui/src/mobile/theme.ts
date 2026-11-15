@@ -10,7 +10,7 @@ export * from './tokens';
 export * from './movimento';
 
 /**
- * Fonte do SISTEMA (R-20261115-110600, v1.0.13): saem Archivo e IBM Plex. No Android a família é a padrão do aparelho
+ * Fonte do SISTEMA (R-20261115-110600, v1.0.13), sem fonte carregada pelo app. No Android a família é a padrão do aparelho
  * (Roboto na maioria) e a hierarquia vem só do PESO (`fontWeight` 400 · 500 · 600 · 700); códigos em `monospace` com
  * algarismos tabulares. Uso: `{ ...fonte.semibold, fontSize: 14 }`, sem `fontFamily`. Os nomes de antes ficam (display,
  * body, semibold…) para a troca ser só de `fontFamily: fonts.x` por `...fonte.x`.
@@ -27,9 +27,9 @@ export const fonte = {
 } as const satisfies Record<string, TextStyle>;
 
 /**
- * @deprecated Transição para as telas que ainda usam `fontFamily: fonts.x`. Android: famílias do sistema por nome (só há
- * 400, 500 e 900 por nome); web e demais: a pilha do sistema (`PILHA_SISTEMA`/`PILHA_MONO`), sem cair em serifa.
- * Troque por `...fonte.x`, que dá o peso certo (600 e 700).
+ * @deprecated Use `...fonte.x` (peso certo, 600 e 700, sem `fontFamily`); os módulos migram na v1.0.13 e este nome sai
+ * depois. Android: famílias do sistema por nome, só 400 (`sans-serif`) e 500 (`sans-serif-medium`), nunca a Roboto Black;
+ * web e demais: a pilha do sistema (`PILHA_SISTEMA`/`PILHA_MONO`), sem cair em serifa.
  */
 export const fonts = Platform.select({ android: familiasFonte('android'), web: familiasFonte('web'), default: familiasFonte('default') });
 
