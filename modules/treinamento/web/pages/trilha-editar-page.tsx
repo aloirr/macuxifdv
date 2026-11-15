@@ -129,7 +129,7 @@ export function TrilhaEditarPage() {
         eyebrow={<VoltarParaTrilhas />}
         title={base ? estado.titulo || 'Trilha sem título' : 'Nova trilha'}
         badge={base ? <Badge tone={TOM_STATUS[base.status] ?? 'neutral'}>{ROTULO_STATUS[base.status] ?? base.status}</Badge> : <Badge tone="neutral">Rascunho (não salvo)</Badge>}
-        actions={acoesDaPagina.length > 0 ? <MenuAcoes acoes={acoesDaPagina} rotulo="Mais ações" /> : null}
+        actions={acoesDaPagina.length > 0 ? <MenuAcoes acoes={acoesDaPagina} /> : null}
       />
       {erro && <Notice tone="danger">{errorMessage(erro)}</Notice>}
       {somenteLeitura && <Notice tone="info">{base?.status === 'publicada' ? 'Só leitura. Para mudar o conteúdo, arquive e crie uma nova trilha.' : 'Só leitura.'}</Notice>}

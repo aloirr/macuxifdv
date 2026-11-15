@@ -92,7 +92,7 @@ export function TrilhasPage() {
                   <IconPlus size={15} /> Nova trilha
                 </Button>
               )}
-              <MenuAcoes acoes={acoes} rotulo="Mais ações" />
+              <MenuAcoes acoes={acoes} />
             </div>
           )
         }
