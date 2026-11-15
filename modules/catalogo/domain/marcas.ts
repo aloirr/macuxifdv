@@ -5,7 +5,7 @@
  */
 import type { Referencia } from '../contracts';
 import { LIMITES_CADASTRO_CATALOGO, type ErroCadastro } from './cadastro-catalogo';
-import { chaveDoNomeMarca, nomeMarcaIgual } from './marcas-cadastro';
+import { chaveDoNomeMarca, LIMITE_NOME_MARCA, nomeMarcaIgual } from './marcas-cadastro';
 import { codigoCompacto } from './ranking';
 
 export type MapaMarcas = ReadonlyMap<string, { nome: string; ativo: boolean }>;
@@ -97,21 +97,17 @@ export interface PlanoMarcasDoErp {
 export function planejarMarcasDoErp(entrada: readonly ReferenciaDoErp[], marcas: readonly MarcaDoCadastro[]): PlanoMarcasDoErp {
   const plano: PlanoMarcasDoErp = { criar: [], adotar: [] };
   const codigos = new Set(marcas.map((m) => m.external_id).filter((x): x is string => !!x));
-  const nomes = new Set(marcas.map((m) => chaveDoNomeMarca(m.nome)));
+  const nomes = new Set<string>(); // nomes já adotados ou criados nesta linha
   for (const e of entrada) {
     const codigo = e.marca_external_id?.trim() ?? '';
-    const nome = (e.marca_nome?.trim() ?? '').slice(0, 120);
-    if (codigo === '' || nome === '' || codigos.has(codigo)) continue;
+    const nome = (e.marca_nome?.trim() ?? '').slice(0, LIMITE_NOME_MARCA);
+    if (codigo === '' || nome === '' || codigos.has(codigo) || nomes.has(chaveDoNomeMarca(nome))) continue;
     const mesmoNome = marcas.find((m) => nomeMarcaIgual(m.nome, nome));
-    if (mesmoNome) {
-      if (mesmoNome.external_id) continue;
-      plano.adotar.push({ id: mesmoNome.id, external_id: codigo });
-      codigos.add(codigo);
-    } else if (!nomes.has(chaveDoNomeMarca(nome))) {
-      plano.criar.push({ external_id: codigo, nome });
-      codigos.add(codigo);
-      nomes.add(chaveDoNomeMarca(nome));
-    }
+    if (mesmoNome?.external_id) continue;
+    if (mesmoNome) plano.adotar.push({ id: mesmoNome.id, external_id: codigo });
+    else plano.criar.push({ external_id: codigo, nome });
+    codigos.add(codigo);
+    nomes.add(chaveDoNomeMarca(nome));
   }
   return plano;
 }
@@ -157,7 +153,7 @@ export function marcasDesconhecidasDaLinha(
   for (const d of semMarca) {
     if (d.motivo !== 'marca_desconhecida') continue;
     const e = entrada.find((x) => x.codigo.trim() === d.codigo);
-    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, 120);
+    const bruta = (e?.marca_nome?.trim() || e?.marca_external_id?.trim() || '').slice(0, LIMITE_NOME_MARCA);
     if (bruta === '' || vistas.has(chaveDoNomeMarca(bruta)) || marcas.length >= 3) continue;
     vistas.add(chaveDoNomeMarca(bruta));
     marcas.push(bruta);
