@@ -37,27 +37,30 @@ De cima para baixo:
 Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "reduzir movimento", nada anima).
 
 ## 2. Sorteio (offline)
-- Uma frase por carga, sorteada quando a tela monta, entre as **ativas** do público do usuário (§4). Não troca durante a carga.
+- Uma frase por carga, sorteada quando a tela monta, entre as **ativas**. Não troca durante a carga.
 - Não repete a última mostrada no aparelho (guarda só o id dela).
-- A lista vem no sync e fica no aparelho. Na primeira carga, antes de qualquer sync, o app usa as 30 iniciais que vão no
-  bundle (`frases.md`). Sem nenhuma ativa, a frase não aparece.
+- A lista vem no sync e fica no aparelho. Na primeira carga, antes de qualquer sync, o app usa as ativas das 30 iniciais que
+  vão no bundle (`frases.md`; hoje 18). Sem nenhuma ativa, a frase não aparece.
 
 ## 3. Portal `config.` · Frases da carga (só o time Macuxi, super-admin)
 - **Menu:** novo item "Frases da carga" depois de "Diagnósticos" (`MENU_TIME_MACUXI`), na `MolduraPortal`.
 - **Título:** `PageHeader` "Frases da carga", sem subtítulo; ação principal (única da tela) **"Incluir frase"** (`Button primary`).
-- **`Panel`** com a tabela (`th`/`td` do kit): **Nº** · **Frase** · **Para** (Vendedor, Promotor, Gestão, Todos; as 30 iniciais são "Todos") ·
-  **Situação** (`Badge` success "Ativa" / neutral "Inativa") · links "Editar" e "Desativar" / "Ativar". As ativas vêm primeiro,
+- **`Panel`** com a tabela (`th`/`td` do kit): **Nº** · **Frase** · **Situação** (`Badge` success "Ativa" / neutral "Inativa") · links "Editar" e "Desativar" / "Ativar". As ativas vêm primeiro,
   pelo Nº; as inativas no fim. Ativar e desativar são imediatos e reversíveis, sem confirmação; a situação muda só por esse link.
 - **Incluir / Editar** (`Dialog` do kit): título "Incluir frase" ou "Editar frase {nº}"; campo **Frase** (área de texto que
-  para em 90 caracteres, contador "n de 90"); **Para** (lista); "Cancelar" e **"Salvar"**. A frase incluída nasce ativa.
+  para em 90 caracteres, contador "n de 90"); "Cancelar" e **"Salvar"**. A frase incluída nasce ativa.
   Erros na linha do campo: "Escreva a frase." · "Essa frase já está na lista."
 - Sem excluir (desativar basta); não foi pedido.
 
 ## 4. Para o dono do produto decidir
 - **Tema (R-20261115-071500-alexandre):** as 30 frases são sobre a história e a tradição de Roraima: 8 sobre o povo Macuxi,
   8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros aspectos do estado (80% nos três temas principais).
-- **Coluna "Para":** o tema não depende do perfil, então as 30 são "Todos". A coluna fica para uma frase futura de um perfil só.
-  Se o dono do produto preferir, ela sai do portal e do sorteio.
+- **Validação indígena (recomendação do parecer da marca de 15/11):** 18 frases entram **ativas** (paisagem, natureza e
+  história documentada: 3, 5, 6, 9 a 15 e 23 a 30). As 12 que falam do povo e das narrativas (1, 2, 4, 7, 8 e 16 a 22) entram
+  **inativas** no cadastro inicial e só são ativadas depois da validação de pessoa ou organização indígena que o dono do produto
+  escolher (por exemplo, uma organização que reúna os povos Macuxi, Ingarikó, Taurepang e Wapichana). As frases 7 (Carmézia
+  Emiliano) e 8 (Jaider Esbell) pedem também a concordância da artista ou de quem responde pela obra; sem ela, são trocadas.
+  O app sorteia entre as 18 ativas.
 - As frases valem para todas as empresas (cadastro do super-admin); frase por empresa não foi pedida.
 
 ## 5. Na aprovação
@@ -69,7 +72,8 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 
 ## 6. Fontes
 Cada fato foi conferido na fonte citada (pesquisa de 15/11/2026). Nº da pesquisa = número da candidata na lista de 40
-(R = reserva). Regras de redação (parecer da marca `docs/marca/pareceres/2026-11-15-carga-frases.md`): narrativa com
+(R = reserva). A fonte não vai no texto da tela; quando o número depende do ano, a frase traz o ano (RD-0483, MC-0084).
+Nome de povo sempre com inicial maiúscula (MC-0081). Regras de redação (parecer da marca `docs/marca/pareceres/2026-11-15-carga-frases.md`): narrativa com
 "Segundo a tradição {povo},"; sem "mito" no sentido de mentira, sem "índio", sem passado para um povo que existe hoje; nada
 sagrado ou ritual como curiosidade; nenhuma ligação com venda; "Makunaimã" numa grafia só (Macunaíma só para o livro de 1928).
 Ficaram de fora: o pajé e o parixara (xamanismo e ritual), o "Pikatënninan" (grafia não conferida) e o "Makunaimë".
@@ -97,7 +101,7 @@ Ficaram de fora: o pajé e o parixara (xamanismo e ritual), o "Pikatënninan" (g
 | 19 | Makunaimã | 25+26 | "Macuxi", seção "Cosmogonia", ISA · https://pib.socioambiental.org/pt/Povo:Macuxi |
 | 20 | Makunaimã | 28 | "Taurepang", ISA · https://pib.socioambiental.org/pt/Povo:Taurepang |
 | 21 | Makunaimã | 30 | "Ingarikó", ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
-| 22 | Makunaimã | 31 | "Ingarikó", mito da agricultura (narrativa de 2017), ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
+| 22 | Makunaimã | 31 | "Ingarikó", narrativa da agricultura (registrada em 2017), ISA · https://pib.socioambiental.org/pt/Povo:Ingarik%C3%B3 |
 | 23 | Makunaimã | 32 | Resenha de P. C. Albernaz (UFRR), Revista Pesquisa FAPESP nº 327, maio 2023 · https://revistapesquisa.fapesp.br/wp-content/uploads/2023/05/096_resenha_327.pdf |
 | 24 | Makunaimã | 33 | Jobim et al., Brasil/Brazil (UFRGS) · https://seer.ufrgs.br/index.php/brasilbrazil/article/download/149161/96406/670067 |
 | 25 | Roraima | 34 | Folder "Fique por dentro do patrimônio cultural de Roraima", Iphan-RR · https://www.gov.br/iphan/pt-br/superintendencias/roraima/FOLDERPCRR_PTBRDIGITAL1.pdf |
