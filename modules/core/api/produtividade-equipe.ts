@@ -7,6 +7,7 @@
 import { implementarConsulta, type ContextoBase } from '@macuxi/platform-sdk';
 import { CONSULTA_PRODUTIVIDADE_EQUIPE, PARAMETRO_ALMOCO_PADRAO, type ProdutividadeEquipeSaida } from '../contracts';
 import { almocoDoUsuario, almocoPadraoDasLinhas } from '../domain';
+import { lerParametroCore } from './parametro-tenant';
 import { lerParadoMin, lerParametrosAlertasProdutividade } from './parametros-alertas';
 
 const ISO = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`;
@@ -25,9 +26,7 @@ export async function registrarContatoDoAparelho(ctx: ContextoBase): Promise<voi
 }
 
 export const consultaProdutividadeEquipe = implementarConsulta(CONSULTA_PRODUTIVIDADE_EQUIPE, async (entrada, ctx): Promise<ProdutividadeEquipeSaida> => {
-  const padrao = almocoPadraoDasLinhas(
-    (await ctx.db.query<{ modulo: string; chave: string; valor: unknown }>("select modulo, chave, valor from plataforma.parametro where tenant_id = plataforma.tenant_atual() and modulo = 'core' and chave = $1 and deleted_at is null", [PARAMETRO_ALMOCO_PADRAO])).rows,
-  );
+  const padrao = almocoPadraoDasLinhas(await lerParametroCore(ctx.db, PARAMETRO_ALMOCO_PADRAO));
   const alertas = await lerParametrosAlertasProdutividade(ctx.db);
   const parado_min = await lerParadoMin(ctx.db);
   const linhas = (

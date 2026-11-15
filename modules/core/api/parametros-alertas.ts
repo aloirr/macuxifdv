@@ -19,23 +19,17 @@ import {
 } from '../contracts';
 import { parametrosAlertasDasLinhas, validarParadoMin, validarParametrosAlertasProdutividade } from '../domain';
 import { auditar } from './auditoria';
+import { gravarParametroCore, lerParametroCore } from './parametro-tenant';
 
 export const ACAO_ALERTAS_PRODUTIVIDADE = 'parametro.alertas_produtividade';
 
-const SQL_LER = "select modulo, chave, valor from plataforma.parametro where tenant_id = plataforma.tenant_atual() and modulo = 'core' and chave = $1 and deleted_at is null";
-const SQL_GRAVAR = `insert into plataforma.parametro (tenant_id, modulo, chave, valor) values (plataforma.tenant_atual(), 'core', $1, $2::jsonb)
-  on conflict (tenant_id, modulo, chave) where deleted_at is null do update set valor = excluded.valor
-    where plataforma.parametro.valor is distinct from excluded.valor`;
-
 /** Valor efetivo do tenant da transação (RLS). Sem cache. */
 export async function lerParametrosAlertasProdutividade(db: ClienteBanco): Promise<ParametrosAlertasProdutividade> {
-  const r = await db.query<{ modulo: string; chave: string; valor: unknown }>(SQL_LER, [PARAMETRO_ALERTAS_PRODUTIVIDADE]);
-  return parametrosAlertasDasLinhas(r.rows);
+  return parametrosAlertasDasLinhas(await lerParametroCore(db, PARAMETRO_ALERTAS_PRODUTIVIDADE));
 }
 
 export async function lerParadoMin(db: ClienteBanco): Promise<number> {
-  const r = await db.query<{ modulo: string; chave: string; valor: unknown }>(SQL_LER, [PARAMETRO_PARADO_MIN]);
-  return paradoMinDasLinhas(r.rows);
+  return paradoMinDasLinhas(await lerParametroCore(db, PARAMETRO_PARADO_MIN));
 }
 
 export const rotasDeParametrosAlertas: RotaModulo[] = [
@@ -61,7 +55,7 @@ export const rotasDeParametrosAlertas: RotaModulo[] = [
       return ctx.comTenant(async (db): Promise<ParametrosAlertasProdutividade> => {
         const antes = await lerParametrosAlertasProdutividade(db);
         if (JSON.stringify(antes) !== JSON.stringify(novo)) {
-          await db.query(SQL_GRAVAR, [PARAMETRO_ALERTAS_PRODUTIVIDADE, JSON.stringify(novo)]);
+          await gravarParametroCore(db, PARAMETRO_ALERTAS_PRODUTIVIDADE, novo);
           await auditar(db, ctx, { acao: ACAO_ALERTAS_PRODUTIVIDADE, entidade: 'parametro', entidadeId: null, antes, depois: novo });
         }
         return novo;
@@ -81,7 +75,7 @@ export const rotasDeParametrosAlertas: RotaModulo[] = [
       return ctx.comTenant(async (db): Promise<ParametroParadoMin> => {
         const antes = await lerParadoMin(db);
         if (antes !== v.valor) {
-          await db.query(SQL_GRAVAR, [PARAMETRO_PARADO_MIN, JSON.stringify(v.valor)]);
+          await gravarParametroCore(db, PARAMETRO_PARADO_MIN, v.valor);
           await auditar(db, ctx, { acao: ACAO_ALERTAS_PRODUTIVIDADE, entidade: 'parametro', entidadeId: null, antes: { parado_min: antes }, depois: { parado_min: v.valor } });
         }
         return { parado_min: v.valor };

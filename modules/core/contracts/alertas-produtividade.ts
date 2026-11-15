@@ -1,7 +1,7 @@
 /**
  * Parâmetros dos alertas de produtividade (T-0180, D4/D6; RF-CORE-17, RN-CORE-26, RN-CORE-44): parâmetro `alertas.produtividade`
  * (JSON em `plataforma.parametro`, modulo `core`, um por tenant). `GET|PUT /v1/core/parametros/alertas-produtividade`
- * (ação `alerta_regra.gerenciar`, auditado, idempotente). O pull `parametro` leva o valor ao Campo e ao Gestão; o Campo agenda
+ * (ação `parametro.alertas_produtividade`, auditado, idempotente). O pull `parametro` leva o valor ao Campo e ao Gestão; o Campo agenda
  * os lembretes locais com ele. O limite do "parado" NÃO mora aqui: é `inicio.parado_min` (um valor num lugar só), gravado por
  * `PUT /v1/core/parametros/parado-min` (`CAMINHO_PARAMETRO_PARADO_MIN`). Horários ("10:00", "16:00") são minutos do dia no fuso do tenant.
  */
@@ -10,7 +10,7 @@ import { z } from 'zod';
 export const PARAMETRO_ALERTAS_PRODUTIVIDADE = 'alertas.produtividade';
 /** Caminho (sem `/v1/core/`) das rotas dos parâmetros dos alertas de produtividade. */
 export const CAMINHO_PARAMETROS_ALERTAS_PRODUTIVIDADE = 'parametros/alertas-produtividade';
-/** Gravação do "parado" (`inicio.parado_min`, RN-CORE-26): `PUT /v1/core/parametros/parado-min` com `{ parado_min }`, ação `alerta_regra.gerenciar`. */
+/** Gravação do "parado" (`inicio.parado_min`, RN-CORE-26): `PUT /v1/core/parametros/parado-min` com `{ parado_min }`, ação `parametro.alertas_produtividade`. */
 export const CAMINHO_PARAMETRO_PARADO_MIN = 'parametros/parado-min';
 
 export const CHAVES_REGRA_PRODUTIVIDADE = [
@@ -22,6 +22,19 @@ export const CHAVES_REGRA_PRODUTIVIDADE = [
   'envio_pendente',
 ] as const;
 export type ChaveRegraProdutividade = (typeof CHAVES_REGRA_PRODUTIVIDADE)[number];
+
+/** Nome de cada regra, igual ao da spec e ao do Gestor (uma cópia só: o Gestor importa daqui). */
+export const NOME_REGRA_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, string>> = {
+  fim_almoco: 'Fim do almoço',
+  parado_entre_visitas: 'Parado entre visitas',
+  sem_checkin_inicio: 'Sem check-in no início do dia',
+  rota_incompleta: 'Rota do dia incompleta',
+  visita_aberta: 'Visita aberta',
+  envio_pendente: 'Envio pendente',
+};
+
+/** Horário comercial do Campo e do Gestão (minutos do dia, 08:00 às 18:00): o lembrete só sai dentro dele. Uma definição só (RD-0338). */
+export const HORARIO_COMERCIAL_PADRAO = { inicio_min: 8 * 60, fim_min: 18 * 60 } as const;
 
 const Minuto = z.number().int().min(0).max(1439);
 
@@ -49,8 +62,6 @@ export const ParametrosAlertasProdutividadeSchema = z
   })
   .strict();
 export type ParametrosAlertasProdutividade = z.infer<typeof ParametrosAlertasProdutividadeSchema>;
-/** Nome combinado com o modulo-gestor. */
-export const parametrosAlertasProdutividadeSchema = ParametrosAlertasProdutividadeSchema;
 
 /** Padrões D6 (T-0180): valem enquanto o tenant não salvou. */
 export const PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO: ParametrosAlertasProdutividade = {

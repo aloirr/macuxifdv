@@ -7,13 +7,10 @@ import { ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/pl
 import { PARAMETRO_ALMOCO_PADRAO, ParametrosJornadaSchema, type ParametrosJornada } from '../contracts';
 import { almocoPadraoDasLinhas, validarHorarioAlmoco } from '../domain';
 import { auditar } from './auditoria';
+import { gravarParametroCore, lerParametroCore } from './parametro-tenant';
 
 export async function lerParametrosJornada(db: ClienteBanco): Promise<ParametrosJornada> {
-  const r = await db.query<{ modulo: string; chave: string; valor: unknown }>(
-    "select modulo, chave, valor from plataforma.parametro where tenant_id = plataforma.tenant_atual() and modulo = 'core' and chave = $1 and deleted_at is null",
-    [PARAMETRO_ALMOCO_PADRAO],
-  );
-  return { almoco_padrao: almocoPadraoDasLinhas(r.rows) };
+  return { almoco_padrao: almocoPadraoDasLinhas(await lerParametroCore(db, PARAMETRO_ALMOCO_PADRAO)) };
 }
 
 export const rotasDeParametrosJornada: RotaModulo[] = [
@@ -39,12 +36,7 @@ export const rotasDeParametrosJornada: RotaModulo[] = [
       return ctx.comTenant(async (db): Promise<ParametrosJornada> => {
         const antes = await lerParametrosJornada(db);
         if (JSON.stringify(antes) !== JSON.stringify(novo)) {
-          await db.query(
-            `insert into plataforma.parametro (tenant_id, modulo, chave, valor) values (plataforma.tenant_atual(), 'core', $1, $2::jsonb)
-             on conflict (tenant_id, modulo, chave) where deleted_at is null do update set valor = excluded.valor
-               where plataforma.parametro.valor is distinct from excluded.valor`,
-            [PARAMETRO_ALMOCO_PADRAO, JSON.stringify(v.valor)],
-          );
+          await gravarParametroCore(db, PARAMETRO_ALMOCO_PADRAO, v.valor);
           await auditar(db, ctx, { acao: 'parametro.inicio', entidade: 'parametro', entidadeId: null, antes, depois: novo });
         }
         return novo;

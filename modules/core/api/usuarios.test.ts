@@ -591,7 +591,7 @@ describe('RN-CORE-44 (D5): a lista leva o padrão de almoço da empresa para que
     const semParam = fakeDb(base);
     const r1 = (await executar(rota('GET', 'usuarios'), contexto(semParam.db), { query: {} })) as { almoco_padrao: unknown };
     expect(r1.almoco_padrao).toEqual({ inicio_min: 720, fim_min: 780 });
-    const comParam = fakeDb([[/jornada\.almoco_padrao|from plataforma\.parametro/, (v) => (v[0] === 'jornada.almoco_padrao' ? [{ modulo: 'core', chave: 'jornada.almoco_padrao', valor: { inicio_min: 690, fim_min: 750 } }] : [])], ...base]);
+    const comParam = fakeDb([[/jornada\.almoco_padrao|from plataforma\.parametro/, (v) => ((v[0] as string[]).includes('jornada.almoco_padrao') ? [{ modulo: 'core', chave: 'jornada.almoco_padrao', valor: { inicio_min: 690, fim_min: 750 } }] : [])], ...base]);
     const r2 = (await executar(rota('GET', 'usuarios'), contexto(comParam.db), { query: {} })) as { almoco_padrao: unknown };
     expect(r2.almoco_padrao).toEqual({ inicio_min: 690, fim_min: 750 });
     expect(UsuarioListaRespostaSchema.safeParse(r2).success).toBe(true);

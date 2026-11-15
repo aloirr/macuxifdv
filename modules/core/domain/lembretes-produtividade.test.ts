@@ -65,13 +65,16 @@ describe('RN-CORE-26 (D4/D6): lembretes locais de produtividade no Campo', () =>
     expect(r[0]).toMatchObject({ tipo: 'fim_almoco' });
     expect(r[0]).not.toHaveProperty('corpo');
   });
-  it('RN-CORE-26: parado entre visitas sai 60 min depois do último checkout, com paradas pendentes e sem visita aberta', () => {
+  it('RN-CORE-26: parado entre visitas sai 60 min depois do último checkout, sem visita aberta; com ou sem rota (RD-0341)', () => {
     const p = so({ parado_entre_visitas: PADRAO.parado_entre_visitas });
     const base = { parametros: p, visitas: [v('c1', '08:00', '09:00')] };
     const r = agendaDeLembretes(entrada(base, '09:05'));
     expect(r).toEqual([{ id: `parado_entre_visitas:${em('09:00')}`, tipo: 'parado_entre_visitas', em: em('10:00'), titulo: 'Há 1 h sem visita', corpo: 'Próxima visita: Padaria Sol.' }]);
     expect(agendaDeLembretes(entrada({ ...base, visitas: [v('c1', '08:00', '09:00'), v('c2', '09:10', null)] }, '09:15'))).toEqual([]);
-    expect(agendaDeLembretes(entrada({ ...base, paradas: [paradas[0]!] }, '09:05'))).toEqual([]);
+    // sem cliente da rota para visitar (rota toda feita ou sem rota): o lembrete vai só com o título
+    const semProxima = { id: `parado_entre_visitas:${em('09:00')}`, tipo: 'parado_entre_visitas', em: em('10:00'), titulo: 'Há 1 h sem visita' };
+    expect(agendaDeLembretes(entrada({ ...base, paradas: [paradas[0]!] }, '09:05'))).toEqual([semProxima]);
+    expect(agendaDeLembretes(entrada({ ...base, paradas: [] }, '09:05'))).toEqual([semProxima]);
     expect(agendaDeLembretes(entrada({ ...base, visitas: [] }, '09:05'))).toEqual([]);
   });
   it('RN-CORE-44: o tempo do almoço não conta no "parado" (checkout 11:30 + 60 min dentro do almoço vira 13:30)', () => {

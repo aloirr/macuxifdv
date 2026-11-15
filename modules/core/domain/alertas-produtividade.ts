@@ -2,13 +2,10 @@
  * Parâmetros dos alertas de produtividade (T-0180, D4/D6; RN-CORE-26, RN-CORE-44). Funções puras: a API valida o PUT e lê o valor
  * efetivo; o app lê o mesmo valor do pull `parametro`. Ausente ou inválido = padrões D6.
  */
-import {
-  PARADO_MIN_MAX,
-  PARADO_MIN_MIN,
-  paradoMinValido,
-} from '../contracts/inicio-parametros';
+import { PARADO_MIN_MAX, PARADO_MIN_MIN, paradoMinValido } from '../contracts/inicio-parametros';
 import {
   FAIXAS_ALERTAS_PRODUTIVIDADE as F,
+  NOME_REGRA_PRODUTIVIDADE,
   PARAMETRO_ALERTAS_PRODUTIVIDADE,
   PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO,
   ParametrosAlertasProdutividadeSchema,
@@ -25,14 +22,7 @@ export function parametrosAlertasDasLinhas(linhas: readonly Linha[]): Parametros
   return structuredClone(r.success ? r.data : PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO);
 }
 
-const NOMES: Record<string, string> = {
-  fim_almoco: 'Fim do almoço',
-  parado_entre_visitas: 'Parado entre visitas',
-  sem_checkin_inicio: 'Sem check-in no início do dia',
-  rota_incompleta: 'Rota incompleta',
-  visita_aberta: 'Visita aberta',
-  envio_pendente: 'Envio pendente',
-};
+const NOMES = NOME_REGRA_PRODUTIVIDADE;
 const faixa = (n: unknown, f: { min: number; max: number }) => typeof n === 'number' && Number.isInteger(n) && n >= f.min && n <= f.max;
 
 /** RN-CORE-26 (D6): valida as faixas do PUT; as mensagens dizem a regra, o intervalo e a ação. */

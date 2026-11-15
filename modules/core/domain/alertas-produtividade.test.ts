@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO as PADRAO } from '../contracts';
+import { NOME_REGRA_PRODUTIVIDADE } from '../contracts/alertas-produtividade';
 import { parametrosAlertasDasLinhas, validarParadoMin, validarParametrosAlertasProdutividade } from './alertas-produtividade';
 
 describe('RN-CORE-26 (D6): parâmetros dos alertas de produtividade', () => {
@@ -34,5 +35,13 @@ describe('RN-CORE-26 (D6): parâmetros dos alertas de produtividade', () => {
     expect(validarParadoMin(14).ok).toBe(false);
     expect(validarParadoMin(481).ok).toBe(false);
     expect(validarParadoMin(30.5).ok).toBe(false);
+  });
+});
+
+describe('RN-CORE-26 (spec §1.3): nomes das regras', () => {
+  it('RN-CORE-26: os seis nomes são os da spec e as mensagens de faixa usam o mesmo nome', () => {
+    expect(Object.values(NOME_REGRA_PRODUTIVIDADE)).toEqual(['Fim do almoço', 'Parado entre visitas', 'Sem check-in no início do dia', 'Rota do dia incompleta', 'Visita aberta', 'Envio pendente']);
+    const r = validarParametrosAlertasProdutividade({ ...PADRAO, visita_aberta: { ...PADRAO.visita_aberta, apos_min: 5 } });
+    expect(r.ok ? [] : r.erros.map((e) => e.mensagem)).toEqual([expect.stringContaining('Visita aberta:')]);
   });
 });

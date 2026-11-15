@@ -10,7 +10,7 @@ import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 import type { MetaSync, ParametroSync, RotaParadaSync, RotaSync, UsuarioSync, VisitaSync } from '../../../contracts';
 import type { CalendarioPeriodo, Performance, ProdutividadeIndicador, RealizadoServidor, ResultadoIndicador } from '../../../contracts/performance';
 import { almocoDoUsuario, almocoPadraoDasLinhas, aplicarPendentesVisita, calendarioDoTenant, dataLocal, type CalendarioTenant } from '../../../domain';
-import { ALMOCO_PADRAO, type ParametrosAlmoco } from '../../../domain/performance/almoco';
+import type { HorarioAlmoco } from '../../../contracts';
 import { calendarioDoPeriodo } from '../../../domain/performance/calendario';
 import { metasProdutividadeVigentes, type EquipeArvore, type LinhaMetaProdutividade } from '../../../domain/performance/metas-produtividade';
 import { produtividadeDoPeriodo, type DeslocamentoResumo } from '../../../domain/performance/produtividade';
@@ -81,25 +81,9 @@ export function calendarioDoAparelho(ps: readonly ParametroSync[]): CalendarioTe
   return validos.length > 0 ? { ...base, feriados: validos } : base;
 }
 
-const minutoDoTexto = (v: unknown): number | null => {
-  if (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1440) return v;
-  const m = typeof v === 'string' ? /^(\d{2}):(\d{2})$/.exec(v) : null;
-  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null;
-};
-
-/** `produtividade.almoco_corte` ("12:00") e `produtividade.almoco_janela` ({ inicio, fim }); inválido ou ausente = padrão. */
-export function almocoDoAparelho(ps: readonly ParametroSync[], eu?: { almoco_inicio_min?: number | null; almoco_fim_min?: number | null } | null): ParametrosAlmoco {
-  // RN-CORE-44 (D5): o horário cadastrado (o do usuário ou o padrão da empresa) manda; a janela e o corte ficam só como base
-  return { ...almocoDaJanela(ps), horario: almocoDoUsuario(eu, almocoPadraoDasLinhas(ps)) };
-}
-
-function almocoDaJanela(ps: readonly ParametroSync[]): ParametrosAlmoco {
-  const corte = minutoDoTexto(parametro(ps, 'produtividade.almoco_corte'));
-  const janela = parametro(ps, 'produtividade.almoco_janela') as { inicio?: unknown; fim?: unknown } | null | undefined;
-  const inicio = minutoDoTexto(janela?.inicio);
-  const fim = minutoDoTexto(janela?.fim);
-  const ok = corte !== null && inicio !== null && fim !== null && inicio <= corte && corte <= fim;
-  return ok ? { corte_min: corte, janela_inicio_min: inicio, janela_fim_min: fim } : ALMOCO_PADRAO;
+/** RN-CORE-44 (D5): o horário de almoço do usuário ou, sem ele, o padrão da empresa (`jornada.almoco_padrao`). */
+export function almocoDoAparelho(ps: readonly ParametroSync[], eu?: { almoco_inicio_min?: number | null; almoco_fim_min?: number | null } | null): HorarioAlmoco {
+  return almocoDoUsuario(eu, almocoPadraoDasLinhas(ps));
 }
 
 /** D6: o tipo da meta de venda; a cópia do servidor manda, senão a meta do mês de hoje. */

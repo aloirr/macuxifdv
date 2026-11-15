@@ -27,7 +27,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
     onSuccess: async () => {
       setTexto({});
       setErros({});
-      setAviso({ tom: 'success', texto: 'Horário de almoço salvo.' });
+      setAviso({ tom: 'success', texto: 'Almoço salvo.' });
       await qc.invalidateQueries({ queryKey: CHAVE_JORNADA });
     },
     onError: (e) => {
@@ -51,7 +51,7 @@ export function AlmocoPadraoPanel({ cliente }: { cliente?: ApiJornada }) {
     gravar.mutate({ almoco_padrao: { inicio_min: r.inicio_min, fim_min: r.fim_min } });
   };
   return (
-    <Panel title="Horário de almoço padrão">
+    <Panel title="Almoço">
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock label="Carregando o horário de almoço…" />}
       {aviso && (

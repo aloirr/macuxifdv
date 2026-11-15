@@ -5,13 +5,14 @@
  *
  * Regras (um lembrete por tipo e ocasião; cada um tem um `id` estável):
  * - só vendedor e promotor; só em dia útil; só dentro do horário comercial (antes da abertura sobe para a abertura; depois do fechamento não sai);
+ * - o "parado" vale com ou sem rota;
  * - ordem de prioridade: sem check-in, fim do almoço, parado, rota incompleta, visita aberta, envio pendente;
  * - teto por pessoa por dia (`teto_lembretes_dia`, padrão 4): o que já saiu hoje conta; passou do teto, não agenda mais;
  * - rota incompleta não sai se o "parado" disparou na última hora;
  * - o que já passou da hora não sai atrasado (aparelho desligado na hora perde o lembrete).
- * Textos: título curto e o corpo "Próxima visita: <cliente>." igual em todos (sem rota, sem corpo). Vai só para a bandeja do aparelho.
+ * Textos: título curto e o corpo "Próxima visita: <cliente>." igual em todos (sem próxima visita, só o título). Vai só para a bandeja do aparelho.
  */
-import type { ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
+import { HORARIO_COMERCIAL_PADRAO, type ParametrosAlertasProdutividade } from '../contracts/alertas-produtividade';
 import type { HorarioAlmoco } from '../contracts/jornada';
 import { textoDoMinuto } from './jornada';
 
@@ -20,8 +21,6 @@ export type TipoLembrete = 'sem_checkin_inicio' | 'fim_almoco' | 'parado_entre_v
 /** Ordem de prioridade para o teto. */
 export const PRIORIDADE_LEMBRETES: readonly TipoLembrete[] = ['sem_checkin_inicio', 'fim_almoco', 'parado_entre_visitas', 'rota_incompleta', 'visita_aberta', 'envio_pendente'];
 
-/** Expediente padrão enquanto o tenant não tem parâmetro de horário comercial: 08:00 às 18:00. */
-export const HORARIO_COMERCIAL_PADRAO = { inicio_min: 8 * 60, fim_min: 18 * 60 } as const;
 
 export interface ParadaDaRotaLembrete {
   cliente_id: string;
@@ -122,11 +121,11 @@ export function agendaDeLembretes(e: EntradaLembretes): LembreteDoDia[] {
     add('fim_almoco', `fim_almoco:${e.inicio_do_dia_em}`, almoco.fim - p.fim_almoco.antecedencia_min * MIN, `Seu almoço termina às ${textoDoMinuto(e.almoco.fim_min)}`, corpoDe());
   }
 
-  // parado entre visitas: depois do 1º check-in, sem visita aberta, com paradas pendentes; não conta o almoço
+  // parado entre visitas: depois do 1º check-in e sem visita aberta, com ou sem rota (sem próxima visita, só o título); não conta o almoço
   const checkouts = visitas.filter((v) => v.checkout_em).map((v) => ms(v.checkout_em!));
   const ultimoCheckout = checkouts.length > 0 ? Math.max(...checkouts) : null;
   let paradoEm: number | null = null;
-  if (p.parado_entre_visitas.ativa && p.parado_entre_visitas.vendedor && visitas.length > 0 && aberta.length === 0 && ultimoCheckout !== null && pendentes.length > 0) {
+  if (p.parado_entre_visitas.ativa && p.parado_entre_visitas.vendedor && visitas.length > 0 && aberta.length === 0 && ultimoCheckout !== null) {
     paradoEm = somarSemAlmoco(ultimoCheckout, e.parado_min, almoco);
     add('parado_entre_visitas', `parado_entre_visitas:${new Date(ultimoCheckout).toISOString()}`, paradoEm, `Há ${duracaoCurta(e.parado_min)} sem visita`, corpoDe());
   }

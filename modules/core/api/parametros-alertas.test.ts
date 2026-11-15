@@ -63,7 +63,7 @@ describe('RN-CORE-26 (D6): GET e PUT alertas-produtividade', () => {
     const { db, chamadas } = fakeDb([]);
     expect(await chamar(alertasGet, db)).toEqual(PADRAO);
     expect(chamadas[0]!.sql).toContain('tenant_id = plataforma.tenant_atual()');
-    expect(chamadas[0]!.valores).toEqual(['alertas.produtividade']);
+    expect(chamadas[0]!.valores).toEqual([['alertas.produtividade']]);
   });
   it('RN-AUD-01: grava e audita antes/depois quando algo muda; repetir o mesmo valor não grava nem audita (idempotente)', async () => {
     const novo = { ...PADRAO, teto_lembretes_dia: 3 };

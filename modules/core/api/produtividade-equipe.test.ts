@@ -11,7 +11,8 @@ function banco(parametros: Record<string, unknown>, usuarios: unknown[]) {
   const db: ClienteBanco = {
     query: async (sql, valores = []) => {
       chamadas.push({ sql, valores });
-      const rows = /from plataforma\.parametro/.test(sql) ? (parametros[valores[0] as string] === undefined ? [] : [{ modulo: 'core', chave: valores[0], valor: parametros[valores[0] as string] }]) : /from core\.usuario u/.test(sql) ? usuarios : [];
+      const chaves = (valores[0] ?? []) as string[];
+      const rows = /from plataforma\.parametro/.test(sql) ? chaves.filter((c) => parametros[c] !== undefined).map((c) => ({ modulo: 'core', chave: c, valor: parametros[c] })) : /from core\.usuario u/.test(sql) ? usuarios : [];
       return { rows: rows as never[], rowCount: rows.length };
     },
   };

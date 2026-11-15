@@ -29,11 +29,10 @@ const DIAS = [
 ] as const;
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink';
 
-type CampoParam = 'dias' | 'parado' | 'alerta';
+type CampoParam = 'dias' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
 const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
   dias_uteis_semana: 'dias',
-  parado_min: 'parado',
 };
 
 /** Liga cada erro (local ou 422 da API) ao campo pela CHAVE `campo`; sem campo, vai para o aviso do topo. */
@@ -99,7 +98,6 @@ export function InicioParametrosPanel() {
   const gravar = useMutation({
     mutationFn: async (corpo: {
       dias_uteis_semana: number[];
-      parado_min: number;
       prazo?: number;
     }) => {
       const { prazo, ...inicio } = corpo;
@@ -132,9 +130,8 @@ export function InicioParametrosPanel() {
 
   if (!pode) return null;
   const salvar = () => {
-    // RN-CORE-26 (T-0180, D1): o "parado" mora em Parâmetros › Alertas; aqui o PUT só devolve o valor já salvo
-    const corpo = { dias_uteis_semana: dias, parado_min: q.data?.parado_min ?? 60 };
-    const v = validarParametrosInicio(corpo);
+    // RN-CORE-26 (T-0180, D1 e RD-0334): o "parado" mora em Parâmetros › Alertas e só o PUT dele o grava; aqui vão só os dias
+    const v = validarParametrosInicio({ dias_uteis_semana: dias });
     setSalvo(false);
     const a = temAlerta ? validarAlertaH(alertaH) : ({ ok: true, valor: ALERTA_H_PADRAO } as const);
     const m = v.ok ? { campos: {} as ErrosCampo, soltos: [] as string[] } : mapearErros(v.erros);
