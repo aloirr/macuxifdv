@@ -375,7 +375,8 @@ describe('ADR 0054: equivalência pacote + incremental = pull paginado', () => {
     expect(motor.estado().carga.bytes).toBeUndefined();
     expect(temporarios()).toEqual([]);
     expect(s.chamadas.pacotes).toBe(1);
-  });
+    // Timeout explícito: a equivalência roda o volume nos 3 armazenamentos e o runner do CI é mais lento (7,8 s).
+  }, 30_000);
 
   it('sem as peças opcionais (sem arquivos de pacote), a carga é a de hoje: nem pede o manifesto', async () => {
     const s = servidor();
