@@ -16,18 +16,25 @@ import {
   UsuarioSyncSchema,
 } from '../../contracts';
 
-const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema']) =>
-  definirEntidadeSync({ nome, modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema });
+const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['schema'], parcial = false) =>
+  definirEntidadeSync({
+    nome,
+    modulo: 'core',
+    direcao: 'pull',
+    conflito: 'servidor_vence',
+    schema,
+    ...(parcial ? { parcial } : {}),
+  });
 
 export const entidadesCliente = [
-  pull('cliente', ClienteSyncSchema),
-  pull('carteira', CarteiraSyncSchema),
-  pull('cliente_contato', ClienteContatoSyncSchema),
+  pull('cliente', ClienteSyncSchema, true),
+  pull('carteira', CarteiraSyncSchema, true),
+  pull('cliente_contato', ClienteContatoSyncSchema, true),
   pull('cliente_financeiro', ClienteFinanceiroSyncSchema),
   pull('titulo', TituloSyncSchema),
   pull('historico_compra', HistoricoCompraSyncSchema),
   // Endereços de entrega (RN-VEN-17): pull filtrado pela carteira
-  pull('cliente_endereco', ClienteEnderecoSyncSchema),
+  pull('cliente_endereco', ClienteEnderecoSyncSchema, true),
   // RN-CORE-50 e RN-CORE-47: total de visitas, última visita e quem visitou (servidor, qualquer usuário) para a aba Performance e a linha da lista
   pull('cliente_visita_resumo', ClienteVisitaResumoSyncSchema),
   // RN-VEN-11a: funções e limite de desconto do usuário (o app usa a linha da sessão)
