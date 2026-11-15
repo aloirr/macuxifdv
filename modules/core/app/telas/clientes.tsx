@@ -1,6 +1,6 @@
 /**
  * Carteira: busca e filtros locais (funcionam sem sinal).
- * Filtro padrão (R-20261115-072200; spec `docs/design/filtro-padrao-campo/spec.md` §3): `CampoBusca` + `BotaoFiltro` na mesma
+ * Filtro padrão (R-20261115-072200): `CampoBusca` + `BotaoFiltro` na mesma
  * linha; as situações saem da tela e viram o grupo "Situação" da folha "Filtrar"; cada uma marcada vira etiqueta removível. A
  * carteira vazia mostra só "Sua carteira está vazia." (RD-0501, RD-0504). Regras no domain (`filtro-padrao.ts`).
  */

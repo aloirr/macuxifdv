@@ -2,7 +2,7 @@
  * Rota do dia: "mapa" em SVG com as paradas posicionadas pela lat/lng normalizada,
  * atalho para navegar até a próxima e lista com status (feita, em atendimento, próxima, pendente).
  * Check-in único: com um atendimento aberto, o check-in das outras paradas fica bloqueado (cadeado).
- * Filtro padrão (R-20261115-072200; spec `docs/design/filtro-padrao-campo/spec.md` §2): cliente, cidade, bairro e data na folha
+ * Filtro padrão (R-20261115-072200): cliente, cidade, bairro e data na folha
  * "Filtrar"; com outra data, a rota inteira daquele dia, só para ver (R-20261115-074500). Regras no domain (`filtro-padrao.ts`).
  */
 import { formatBRL0 } from '@macuxi/comum';
@@ -301,7 +301,7 @@ export function TelaRota() {
                   return (
                     <G key={s.id}>
                       <Circle cx={p.x} cy={p.y} r={16} fill={colors.accent} stroke={colors.surface} strokeWidth={3} />
-                      <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="700" fill={colors.surface} textAnchor="middle">
+                      <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="600" fill={colors.surface} textAnchor="middle">
                         {String(s.sequence)}
                       </SvgText>
                     </G>
@@ -311,7 +311,7 @@ export function TelaRota() {
                   return (
                     <G key={s.id}>
                       <Circle cx={p.x} cy={p.y} r={16} fill={colors.ink} stroke={colors.surface} strokeWidth={3} />
-                      <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="700" fill={colors.surface} textAnchor="middle">
+                      <SvgText x={p.x} y={p.y + 5} fontSize={14} fontWeight="600" fill={colors.surface} textAnchor="middle">
                         {String(s.sequence)}
                       </SvgText>
                     </G>
@@ -321,7 +321,7 @@ export function TelaRota() {
                 return (
                   <G key={s.id}>
                     <Circle cx={p.x} cy={p.y} r={done ? 12 : 11} fill={done ? colors.success : colors.surface} stroke={done ? colors.success : colors.ink} strokeWidth={done ? 0 : 2} />
-                    <SvgText x={p.x} y={p.y + 4} fontSize={12} fontWeight="700" fill={done ? colors.surface : colors.ink} textAnchor="middle">
+                    <SvgText x={p.x} y={p.y + 4} fontSize={12} fontWeight="600" fill={done ? colors.surface : colors.ink} textAnchor="middle">
                       {String(s.sequence)}
                     </SvgText>
                   </G>
@@ -393,7 +393,7 @@ function StopRow({ stop, last, tz, comAcao, locked, onPress, onAction }: { stop:
         </View>
       ) : inProgress || isNext ? (
         <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
-          <Text style={[styles.numText, { color: colors.onAccent, ...fonte.bold, fontSize: 14 }]}>{stop.sequence}</Text>
+          <Text style={[styles.numText, { color: colors.onAccent, ...fonte.semibold, fontSize: 14 }]}>{stop.sequence}</Text>
         </View>
       ) : (
         <View style={[styles.num, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink }]}>
@@ -441,5 +441,5 @@ const styles = StyleSheet.create({
   action: { paddingHorizontal: 12 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   num: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  numText: { ...fonte.bold, fontSize: 12, color: colors.ink },
+  numText: { ...fonte.semibold, fontSize: 12, color: colors.ink },
 });

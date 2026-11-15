@@ -82,7 +82,7 @@ export function TelaPerformance() {
         perf.tentarDeNovo();
         auto.puxar();
       }}>
-      {/* filtro padrão (R-20261115-072200, spec filtro-padrao-campo §4): o filtro na linha de Resultados · Produtividade */}
+      {/* filtro padrão (R-20261115-072200): o filtro na linha de Resultados · Produtividade */}
       <View style={s.linhaVisao}>
         <View style={{ flex: 1 }}>
           <Segmentado testID="performance-visao" opcoes={OPCOES_VISAO} valor={visao} onChange={setVisao} rotuloAcessivel="Visão da Performance" />
@@ -209,10 +209,10 @@ function CartaoProdutividade({ c }: { c: CardProdutividade }) {
 const s = StyleSheet.create({
   linhaVisao: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   linhaPeriodo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  real: { ...fonte.bold, fontSize: 28, color: colors.ink, fontVariant: ['tabular-nums'] },
+  real: { ...t.number, fontSize: 28 },
   meta: { ...fonte.body, fontSize: 22, color: colors.ink2 },
   linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  percentual: { ...fonte.bold, fontSize: 16, fontVariant: ['tabular-nums'] },
+  percentual: { ...fonte.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
   colunas: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space.md },
   coluna: { flex: 1, gap: space.xxs },
   colunaComDivisor: { borderLeftWidth: 1, borderLeftColor: colors.line, paddingLeft: space.md },
@@ -221,5 +221,5 @@ const s = StyleSheet.create({
   celula: { width: '50%', padding: space.xs },
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   ponto: { width: 10, height: 10, borderRadius: 5 },
-  valorProdutividade: { ...fonte.bold, fontSize: 22, color: colors.ink, fontVariant: ['tabular-nums'] },
+  valorProdutividade: { ...t.number, fontSize: 22 },
 });

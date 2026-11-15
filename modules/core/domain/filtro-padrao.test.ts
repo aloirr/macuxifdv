@@ -43,7 +43,7 @@ const PARADAS = [
 ];
 const f = (p: Partial<FiltroRota>): FiltroRota => ({ ...FILTRO_ROTA_PADRAO, ...p });
 
-describe('Filtro padrão da Rota (R-20261115-072200; spec filtro-padrao-campo §2)', () => {
+describe('Filtro padrão da Rota (R-20261115-072200)', () => {
   it('cidades e bairros saem das paradas, sem repetição e em ordem; o bairro segue a cidade', () => {
     expect(cidadesDaRota(PARADAS)).toEqual(['Boa Vista', 'Mucajaí']);
     expect(bairrosDaRota(PARADAS, null)).toEqual(['Centro', 'Paraviana', 'Pricumã']);
@@ -132,7 +132,7 @@ describe('Filtro padrão da Rota: virada do dia, troca de data e rota só para v
   });
 });
 
-describe('Filtro padrão de Clientes (spec filtro-padrao-campo §3)', () => {
+describe('Filtro padrão de Clientes (R-20261115-072200)', () => {
   it('RD-0501: carteira vazia sem subtítulo; com filtro, "5 de 86 na carteira"', () => {
     expect(subtituloDaCarteira(0, 0)).toBeUndefined();
     expect(subtituloDaCarteira(86, 86)).toBe('86 na carteira');

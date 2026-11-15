@@ -1,6 +1,6 @@
 /**
  * Filtro padrão do app Campo nas telas do Core (Rota, Clientes e Performance), aprovado pelo dono do produto
- * (R-20261115-072200, R-20261115-074500 e R-20261115-082500; spec `docs/design/filtro-padrao-campo/spec.md`).
+ * (R-20261115-072200, R-20261115-074500 e R-20261115-082500).
  * Puro, sem relógio: "hoje" (data civil no fuso do tenant) chega por parâmetro. A tela só desenha o resultado.
  * - Rota: cliente (nome ou código), cidade, bairro (segue a cidade) e data (padrão: hoje). O padrão não conta nem vira etiqueta.
  * - Clientes: as situações marcadas viram etiquetas; a etiqueta da situação já filtrada não se repete na linha (RD-0500).

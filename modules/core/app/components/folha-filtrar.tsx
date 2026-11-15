@@ -1,5 +1,5 @@
 /**
- * Folha "Filtrar" do filtro padrão do Campo (spec `docs/design/filtro-padrao-campo/spec.md` §1): título, ✕, grupos com rótulo e,
+ * Folha "Filtrar" do filtro padrão do Campo: título, ✕, grupos com rótulo e,
  * com vários grupos, o rodapé `Limpar` (neutro) + `Ver N …` (principal, 52 dp), que fecha. Composição sobre a `Folha` do kit
  * enquanto o `FolhaFiltro` do kit (designer-ux) não chega; quando chegar, as telas trocam este arquivo por ele.
  * O campo de Data que abre a `FolhaPeriodo` é o `CampoAbrir` do kit (RD-0509). Sem regra e sem texto fixo: tudo por props.
