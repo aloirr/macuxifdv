@@ -74,6 +74,7 @@
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 1. vendedor — cadastro de vendedores/representantes do ERP. Mapeamento: ativo booleano; o resto texto.
+--    filial_external_id: a filial do vendedor (view 1b); a filial carrega antes do vendedor no Hub (RN-CORE-39).
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE VIEW vw_macuxi_vendedor AS
 SELECT
@@ -84,7 +85,11 @@ SELECT
     CASE WHEN v.situacao = 'A' THEN 1 ELSE 0 END             AS ativo,           -- situação ativa/inativa/bloqueada
     v.nome                                                   AS nome,            -- até 120
     v.email                                                  AS email,           -- e-mail corporativo (até 160)
-    v.telefone                                               AS telefone         -- até 30
+    v.telefone                                               AS telefone,        -- até 30
+    -- filial do vendedor (RN-CORE-39): o MESMO external_id da view da filial (1b); NULL quando o ERP não tem a filial do vendedor.
+    -- [Oracle]     TO_CHAR(v.id_filial)                     AS filial_external_id,
+    -- [SQL Server]
+    CAST(v.id_filial AS VARCHAR(200))                        AS filial_external_id
 FROM erp_vendedor v;
 
 
