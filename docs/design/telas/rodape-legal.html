@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Rodapé legal nas telas de entrada (Campo, Gestão, BKO, portal): antes e depois</title>
+<link rel="stylesheet" href="telas.css">
+<!--
+  Simulação da spec docs/design/telas/rodape-legal.md (pedido R-20261114-201200-alexandre).
+  Uso: rodape-legal.html?v=<campo|gestao|bko|portal>-<antes|depois>. Campo e Gestão em 390 x 844; BKO e portal em 1366 x 768.
+  PNG gerados com Playwright (deviceScaleFactor 2): rodape-legal-<v>.png nesta pasta.
+  {RAZÃO SOCIAL} e {00.000.000/0000-00} são espaços reservados: o dono do produto informa os dados (não inventar).
+-->
+<style>
+  body { margin: 0; padding: 0; background: var(--ground); }
+  /* ---------- celular (390 x 844) ---------- */
+  .cel { width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--ground); overflow: hidden; }
+  .cel .st { height: 24px; flex: none; background: var(--faixa); color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; font-size: 12px; font-weight: 600; }
+  .cel .fx { background: var(--faixa); padding: 26px 24px; flex: none; }
+  .cel .fx img { display: block; height: 44px; width: auto; }
+  .cel .sc { flex: 1; padding: 36px 20px 20px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+  .cel h1 { margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; line-height: 34px; color: var(--ink); }
+  .cel .cp { display: flex; flex-direction: column; gap: 4px; }
+  .cel .cp label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .cel .cp .ent { min-height: 52px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; padding: 0 14px; font-size: 16px; color: var(--ink); justify-content: space-between; }
+  .cel .cp .ent .olho { font-size: 12px; font-weight: 600; color: var(--accentInk); }
+  .cel .btn { height: 52px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .cel .esqueci { min-height: 48px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: var(--accentInk); }
+  .cel .rod-antigo { font-size: 12px; color: var(--ink2); }
+  .cel .pe { flex: none; padding: 0 16px 16px; }
+  .cel .nav { height: 24px; flex: none; }
+
+  /* RodapeLegal (celular): 12 / 16, ink2 no Pérola 7,03:1; o link em accentInk 11,82:1, sublinhado */
+  .legal { display: flex; flex-direction: column; align-items: center; text-align: center; font-size: 12px; line-height: 16px; color: var(--ink2); gap: 2px; }
+  .legal .l { max-width: 100%; }
+  .legal a { color: var(--accentInk); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+  .nb { white-space: nowrap; }
+  /* área de toque do link (só para conferência: ?alvo=1) */
+  .alvo .legal a { outline: 1px dashed #C2540A; padding: 14px 6px; margin: -14px -6px; }
+
+  /* ---------- web (1366 x 768) ---------- */
+  .web { width: 1366px; height: 768px; background: var(--ground); display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+  .web .col { width: 100%; display: flex; flex-direction: column; align-items: center; padding: 64px 16px 0; }
+  .web .coluna { width: 400px; display: flex; flex-direction: column; gap: 20px; }
+  .web.portal .coluna { width: 440px; }
+  .mfaixa { display: flex; align-items: center; gap: 12px; border-radius: 12px; background: var(--faixa); padding: 10px 14px; }
+  .mfaixa img { width: 130px; height: auto; display: block; }
+  .mfaixa .div { width: 1px; height: 24px; background: rgba(201, 206, 213, .4); }
+  .mfaixa .area { font-family: Archivo, sans-serif; font-weight: 700; font-size: 14px; color: var(--faixaSub); }
+  .web h1 { margin: 0; font-family: Archivo, sans-serif; font-weight: 800; font-size: 28px; line-height: 34px; }
+  .web .sub { font-size: 13px; color: var(--ink2); }
+  .web form { display: flex; flex-direction: column; gap: 20px; }
+  .web.portal form { gap: 16px; }
+  .web .cp { display: flex; flex-direction: column; gap: 4px; }
+  .web .cp > span { font-size: 13px; font-weight: 600; }
+  .web .cp .ent { height: 44px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; padding: 0 12px; font-size: 15px; justify-content: space-between; }
+  .web .cp .ent .olho { font-size: 12px; font-weight: 600; color: var(--accentInk); }
+  .web .btn { height: 42px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .web .lk { min-height: 44px; display: flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--accentInk); }
+  .web .nota { font-size: 12px; color: var(--ink2); }
+  .web .cartao { border-radius: 16px; border: 1px solid var(--line); background: #fff; padding: 20px; }
+  /* web: o rodapé desce para o pé da página quando sobra espaço (mt-auto) e fica no fluxo quando falta */
+  .web .pe { margin-top: auto; padding: 32px 16px 24px; width: 100%; display: flex; justify-content: center; }
+  .web .pe .legal { max-width: 440px; }
+</style>
+</head>
+<body>
+<div id="raiz"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const v = q.get('v') || 'campo-depois';
+  if (q.get('alvo') === '1') document.body.classList.add('alvo');
+  const [sup, fase] = v.split('-');
+  const depois = fase === 'depois';
+  const LOGO = '../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg';
+
+  // Texto do RodapeLegal (o mesmo nas quatro telas). Versão: app = scripts/eas/versao.json (1.0.8); web = tag da produção (ex.: v1.0.7).
+  const legal = (versao) => `
+    <footer class="legal" role="contentinfo">
+      <div class="l">{RAZÃO SOCIAL} · <span class="nb">CNPJ {00.000.000/0000-00}</span></div>
+      <div class="l">© 2026 · Todos os direitos reservados</div>
+      <div class="l">Versão ${versao} · <a href="https://macuxifdv.com.br">macuxifdv.com.br</a></div>
+    </footer>`;
+
+  const campoCel = (r, o) => `<div class="cp"><label>${r}</label><div class="ent"><span>${o || ''}</span>${r === 'Senha' ? '<span class="olho">Mostrar</span>' : ''}</div></div>`;
+
+  function celular(gestao) {
+    const antigo = gestao ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores';
+    return `<div class="cel">
+      <div class="st"><span>06:30</span><span>4G ▮▮▮ 90%</span></div>
+      <div class="fx"><img src="${LOGO}" alt="Macuxi Força de Vendas"></div>
+      <div class="sc">
+        <h1>Entrar</h1>
+        ${campoCel('Código da empresa', 'distribuidora-norte')}
+        ${campoCel('E-mail', gestao ? 'carla@distribuidora.com.br' : 'lucas@distribuidora.com.br')}
+        ${campoCel('Senha', '')}
+        <div class="btn">Entrar</div>
+        <div class="esqueci">Esqueci a senha</div>
+        ${depois ? '' : `<div class="rod-antigo">${antigo}</div>`}
+      </div>
+      ${depois ? `<div class="pe">${legal('1.0.8')}</div>` : ''}
+      <div class="nav"></div>
+    </div>`;
+  }
+
+  const campoWeb = (r, o) => `<label class="cp"><span>${r}</span><div class="ent"><span>${o || ''}</span>${r === 'Senha' && sup === 'portal' ? '<span class="olho">Mostrar senha</span>' : ''}</div></label>`;
+
+  function bko() {
+    return `<div class="web">
+      <div class="col"><div class="coluna">
+        <div class="mfaixa"><img src="${LOGO}" alt="Macuxi Força de Vendas"><span class="div"></span><span class="area">Backoffice</span></div>
+        <form>
+          <div style="display:flex;flex-direction:column;gap:4px"><h1>Entrar</h1><span class="sub">Use o código da sua empresa, o seu e-mail e a sua senha.</span></div>
+          ${campoWeb('Código da empresa', 'distribuidora-norte')}
+          ${campoWeb('E-mail', 'marina@distribuidora.com.br')}
+          ${campoWeb('Senha', '')}
+          <div style="display:flex;flex-direction:column;gap:4px"><div class="btn">Entrar</div><div class="lk">Esqueci a senha</div></div>
+          <span class="nota">Vendedores e promotores usam o app Macuxi Campo; supervisores, o Macuxi Gestão.</span>
+        </form>
+      </div></div>
+      ${depois ? `<div class="pe">${legal('1.0.7')}</div>` : ''}
+    </div>`;
+  }
+
+  function portal() {
+    return `<div class="web portal">
+      <div class="col"><div class="coluna">
+        <div class="mfaixa"><img src="${LOGO}" alt="Macuxi Força de Vendas"><span class="div"></span><span class="area">Portal de implantação</span></div>
+        <div class="cartao"><form>
+          <h1>Entrar</h1>
+          ${campoWeb('E-mail', 'implantacao@macuxi')}
+          ${campoWeb('Senha', '')}
+          <div class="btn">Entrar</div>
+          <span class="nota">Esqueceu a senha? Use "Esqueci a senha" no backoffice.</span>
+        </form></div>
+      </div></div>
+      ${depois ? `<div class="pe">${legal('1.0.7')}</div>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('raiz').innerHTML = sup === 'campo' ? celular(false) : sup === 'gestao' ? celular(true) : sup === 'bko' ? bko() : portal();
+</script>
+</body>
+</html>
