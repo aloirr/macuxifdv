@@ -22,28 +22,7 @@
 --   ultimo_erro só código curto (sem dado pessoal). Volume: no máximo 1 pendente por partição.
 -- Fora do sync (db/src/excecoes.ts): nenhuma das duas vai ao aparelho (o manifesto é montado pela API).
 --
--- Acesso (desenho §5 B: macuxi_app leitura + pedido, macuxi_worker escrita):
---   macuxi_app: sync_pacote só SELECT no próprio tenant (o manifesto e a rota /arquivo); sync_pacote_pedido SELECT e INSERT por
---     coluna (id, tenant_id, modulo, particao, filial_id, origem) no próprio tenant (isolamento_tenant). Sem UPDATE nem DELETE.
---   macuxi_worker (gerador, todos os tenants, como as despacho_* das outboxes): sync_pacote SELECT, INSERT por coluna (sem
---     situacao, substituido_em, arquivo_apagado_em e colunas comuns de controle), UPDATE só de situacao, substituido_em,
---     arquivo_apagado_em e deleted_at em linha que não está 'apagado', DELETE só de linha 'apagado' (retenção);
---     sync_pacote_pedido SELECT, INSERT por coluna (+ gerar_apos), UPDATE só de situacao, gerar_apos, tentativas, ultimo_erro,
---     atendido_em e deleted_at em linha pendente, DELETE só de linha que não está pendente (retenção).
---   macuxi_portal e PUBLIC: nada.
---
--- Índices: sync_pacote_pronto_uk (tenant_id, modulo, particao) único parcial do pronto vivo (manifesto); sync_pacote_filial_ix
--- (tenant_id, filial_id) parcial (por filial); sync_pacote_substituido_ix (substituido_em) parcial do substituído (retenção do
--- worker). sync_pacote_pedido_pendente_uk (tenant_id, modulo, particao) único parcial do pendente vivo (idempotência);
--- sync_pacote_pedido_fila_ix (gerar_apos) parcial do pendente (fila do worker); sync_pacote_pedido_filial_ix (tenant_id,
--- filial_id) parcial. catalogo.tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id): leitura por filial do
--- pull (filtroFilial do Catálogo) e do pacote.puxar (páginas de 5.000 até o horizonte), pedido no desenho §5 B.
---
--- Caminho de volta: 0074_plataforma_sync_pacote.down.sql (APAGA as 2 tabelas e o índice). Os arquivos no armazenamento
--- (sync-pacotes/<tenant_id>/...) FICAM: liste antes as chaves com
---   select chave_armazenamento from plataforma.sync_pacote where situacao <> 'apagado';
--- e apague os objetos. Pré-condição: a API e o worker sem as rotas e o gerador de pacotes (MACUXI_SYNC_PACOTES desligado);
--- o aparelho sem pacote segue no pull paginado.
+-- Acesso, índices e volume: docs/banco/sync-pacote.md. Caminho de volta: 0074_plataforma_sync_pacote.down.sql (cabeçalho).
 
 -- =============================================================================================
 -- plataforma.sync_pacote — o pacote gerado (desenho §1.4 e §1.6)
@@ -86,7 +65,6 @@ create table plataforma.sync_pacote (
 );
 create unique index sync_pacote_pronto_uk on plataforma.sync_pacote (tenant_id, modulo, particao)
   where situacao = 'pronto' and deleted_at is null;
-create index sync_pacote_filial_ix on plataforma.sync_pacote (tenant_id, filial_id) where filial_id is not null;
 create index sync_pacote_substituido_ix on plataforma.sync_pacote (substituido_em) where situacao = 'substituido';
 create trigger sync_pacote_updated_at before update on plataforma.sync_pacote
   for each row execute function plataforma.definir_updated_at();
@@ -146,7 +124,6 @@ create table plataforma.sync_pacote_pedido (
 create unique index sync_pacote_pedido_pendente_uk on plataforma.sync_pacote_pedido (tenant_id, modulo, particao)
   where situacao = 'pendente' and deleted_at is null;
 create index sync_pacote_pedido_fila_ix on plataforma.sync_pacote_pedido (gerar_apos) where situacao = 'pendente';
-create index sync_pacote_pedido_filial_ix on plataforma.sync_pacote_pedido (tenant_id, filial_id) where filial_id is not null;
 create trigger sync_pacote_pedido_updated_at before update on plataforma.sync_pacote_pedido
   for each row execute function plataforma.definir_updated_at();
 alter table plataforma.sync_pacote_pedido enable row level security;

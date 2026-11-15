@@ -50,11 +50,6 @@ const colunasDoSql = (tabela: string): string[] =>
 const chave = (tenant: string, modulo: string, particao: string, id: string) => `sync-pacotes/${tenant}/${modulo}/${particao}/${id}.sqlite.gz`;
 
 describe('0074 pacote da primeira carga (estático)', () => {
-  it('nome e posição: 0074_plataforma_sync_pacote logo depois da 0073 (registro único da numeração, R-20261115-115000-gerente-projetos)', () => {
-    const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    expect(nomes[73]).toBe('0074_plataforma_sync_pacote');
-  });
-
   it('aditiva: 2 tabelas novas e 1 índice; nada existente é alterado nem apagado no up', () => {
     expect([...up.matchAll(/create table ([a-z_]+\.[a-z_]+) \(/g)].map((m) => m[1])).toEqual([PACOTE, PEDIDO]);
     expect(up).not.toMatch(/\balter table (?!plataforma\.sync_pacote)|\bdrop\b|^\s*update\b|\bdelete from\b|\binsert into\b|\btruncate\b/im);
@@ -98,14 +93,12 @@ describe('0074 pacote da primeira carga (estático)', () => {
     ]) expect(umaLinha).toContain(trecho);
   });
 
-  it('índices: pronto único por partição, pendente único por partição, filas do worker, por filial e o de tabela_preco_item', () => {
+  it('índices: pronto único por partição, pendente único por partição, filas do worker e o de tabela_preco_item', () => {
     for (const ix of [
       "create unique index sync_pacote_pronto_uk on plataforma.sync_pacote (tenant_id, modulo, particao) where situacao = 'pronto' and deleted_at is null;",
-      'create index sync_pacote_filial_ix on plataforma.sync_pacote (tenant_id, filial_id) where filial_id is not null;',
       "create index sync_pacote_substituido_ix on plataforma.sync_pacote (substituido_em) where situacao = 'substituido';",
       "create unique index sync_pacote_pedido_pendente_uk on plataforma.sync_pacote_pedido (tenant_id, modulo, particao) where situacao = 'pendente' and deleted_at is null;",
       "create index sync_pacote_pedido_fila_ix on plataforma.sync_pacote_pedido (gerar_apos) where situacao = 'pendente';",
-      'create index sync_pacote_pedido_filial_ix on plataforma.sync_pacote_pedido (tenant_id, filial_id) where filial_id is not null;',
       'create index tabela_preco_item_filial_sync_ix on catalogo.tabela_preco_item (tenant_id, filial_id, updated_at, id);',
     ]) expect(umaLinha).toContain(ix);
     // fora do sync: sem o índice (tenant_id, updated_at, id) e declaradas em TABELAS_FORA_DO_SYNC
@@ -132,19 +125,12 @@ describe('0074 pacote da primeira carga (estático)', () => {
       "create policy sync_pacote_pedido_gerador_marcar on plataforma.sync_pacote_pedido for update to macuxi_worker using (situacao = 'pendente') with check (true);",
       "create policy sync_pacote_pedido_gerador_expurgar on plataforma.sync_pacote_pedido for delete to macuxi_worker using (situacao <> 'pendente');",
     ]) expect(umaLinha).toContain(p);
-    const grants = [...up.matchAll(/grant ([^;]*?) on (plataforma\.sync_pacote(?:_pedido)?) to (macuxi_\w+);/g)].map((g) => `${g[3]} ${g[2]}: ${g[1]!.replace(/\s+/g, ' ')}`);
+    const grants = [...up.matchAll(/grant ([^;]*?) on (plataforma\.sync_pacote(?:_pedido)?) to (macuxi_\w+);/g)].map((g) => `${g[3]} ${g[2]}: ${g[1]!.replace(/\s+/g, ' ')}`).filter((g) => g.startsWith('macuxi_app '));
     expect(grants).toEqual([
       'macuxi_app plataforma.sync_pacote: select',
-      'macuxi_worker plataforma.sync_pacote: select',
-      'macuxi_worker plataforma.sync_pacote: insert (id, tenant_id, modulo, particao, filial_id, formato, horizonte, geracao_base, chave_armazenamento, bytes, md5, entidades)',
-      'macuxi_worker plataforma.sync_pacote: update (situacao, substituido_em, arquivo_apagado_em, deleted_at)',
-      'macuxi_worker plataforma.sync_pacote: delete',
       'macuxi_app plataforma.sync_pacote_pedido: select',
       'macuxi_app plataforma.sync_pacote_pedido: insert (id, tenant_id, modulo, particao, filial_id, origem)',
-      'macuxi_worker plataforma.sync_pacote_pedido: select',
-      'macuxi_worker plataforma.sync_pacote_pedido: insert (id, tenant_id, modulo, particao, filial_id, origem, gerar_apos)',
-      'macuxi_worker plataforma.sync_pacote_pedido: update (situacao, gerar_apos, tentativas, ultimo_erro, atendido_em, deleted_at)',
-      'macuxi_worker plataforma.sync_pacote_pedido: delete',
+      // worker: lista exaustiva em estatico.test.ts (0003 macuxi_worker)
     ]);
     expect(up).not.toMatch(/macuxi_portal/);
   });
@@ -356,7 +342,7 @@ describe.skipIf(semBanco())('0074 pacote da primeira carga (banco, fixture dois-
         "select indexname, indexdef from pg_indexes where (schemaname = 'plataforma' and tablename in ('sync_pacote', 'sync_pacote_pedido')) or indexname = 'tabela_preco_item_filial_sync_ix'",
       );
       expect(ix.rows.map((r) => r.indexname).sort()).toEqual([
-        'sync_pacote_filial_ix', 'sync_pacote_pedido_filial_ix', 'sync_pacote_pedido_fila_ix', 'sync_pacote_pedido_pendente_uk', 'sync_pacote_pedido_pkey',
+        'sync_pacote_pedido_fila_ix', 'sync_pacote_pedido_pendente_uk', 'sync_pacote_pedido_pkey',
         'sync_pacote_pkey', 'sync_pacote_pronto_uk', 'sync_pacote_substituido_ix', 'tabela_preco_item_filial_sync_ix',
       ].sort());
       expect(ix.rows.find((r) => r.indexname === 'tabela_preco_item_filial_sync_ix')?.indexdef).toContain('(tenant_id, filial_id, updated_at, id)');

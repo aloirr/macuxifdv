@@ -34,7 +34,6 @@ A **API** monta o manifesto (`GET /v1/sync/pacotes`) lendo essa tabela e, quando
 Índices:
 - `sync_pacote_pronto_uk` — **único** `(tenant_id, modulo, particao) where situacao = 'pronto' and deleted_at is null`: uma só
   linha pronta viva por partição; é o índice do manifesto.
-- `sync_pacote_filial_ix` — `(tenant_id, filial_id) where filial_id is not null`: pacotes de uma filial.
 - `sync_pacote_substituido_ix` — `(substituido_em) where situacao = 'substituido'`: retenção do worker (apagar o arquivo 1 h depois).
 
 ## `plataforma.sync_pacote_pedido` — pedido de geração
@@ -56,7 +55,6 @@ A **API** monta o manifesto (`GET /v1/sync/pacotes`) lendo essa tabela e, quando
   `insert ... on conflict (tenant_id, modulo, particao) where situacao = 'pendente' and deleted_at is null do nothing`; o gatilho de
   lote do worker usa `... do update set gerar_apos = excluded.gerar_apos`.
 - `sync_pacote_pedido_fila_ix` — `(gerar_apos) where situacao = 'pendente'`: fila do worker (`for update skip locked`).
-- `sync_pacote_pedido_filial_ix` — `(tenant_id, filial_id) where filial_id is not null`.
 
 ## Índice novo em `catalogo.tabela_preco_item`
 `tabela_preco_item_filial_sync_ix (tenant_id, filial_id, updated_at, id)`: leitura por filial com o keyset `(updated_at, id)`,
@@ -73,11 +71,9 @@ no USING e no WITH CHECK) e `manutencao` (0031). `revoke all ... from public`.
 | `macuxi_worker` (gerador) | SELECT (todos os tenants); INSERT só de `id, tenant_id, modulo, particao, filial_id, formato, horizonte, geracao_base, chave_armazenamento, bytes, md5, entidades`; UPDATE só de `situacao, substituido_em, arquivo_apagado_em, deleted_at` em linha que **não** está `apagado`; DELETE só de linha `apagado` | SELECT (todos); INSERT de `id, tenant_id, modulo, particao, filial_id, origem, gerar_apos`; UPDATE só de `situacao, gerar_apos, tentativas, ultimo_erro, atendido_em, deleted_at` em linha `pendente`; DELETE só de linha que não está `pendente` |
 | `macuxi_portal`, PUBLIC | nada | nada |
 
-Políticas do worker (como as `despacho_*` das outboxes): `sync_pacote_gerador` (select, true), `sync_pacote_gerador_gravar`
-(insert, true), `sync_pacote_gerador_marcar` (update, `situacao <> 'apagado'`), `sync_pacote_gerador_expurgar` (delete,
-`situacao = 'apagado'`); `sync_pacote_pedido_gerador`, `_gravar`, `_marcar` (`situacao = 'pendente'`) e `_expurgar`
-(`situacao <> 'pendente'`). O app não escolhe `situacao`, `gerar_apos` nem `atendido_em` (sem INSERT na coluna); a `origem`
-gravada pela API é sempre `manifesto` (regra da API; o banco não distingue).
+Políticas do worker (como as `despacho_*` das outboxes): `sync_pacote_gerador`, `_gravar`, `_marcar` e `_expurgar`, e as
+`sync_pacote_pedido_gerador*` correspondentes; as condições estão na tabela acima. A `origem` gravada pela API é sempre
+`manifesto` (regra da API; o banco não distingue).
 
 ## Ciclo de vida (desenho §1.4)
 1. **Pedido**: lote concluído (outbox), manifesto sem pacote ou agendado de 24 h grava `sync_pacote_pedido` `pendente` (um por
@@ -103,5 +99,4 @@ worker sem as rotas e o gerador (`MACUXI_SYNC_PACOTES` desligado). Idempotente. 
 do tenant (descoberta dinâmica de tabelas com `tenant_id`); os objetos do armazenamento do tenant são do gerador.
 
 ## Fixture dois-tenants
-`SYNC_PACOTE_FIXTURE` (grupos `0x67` e `0x68`): A com `catalogo`·`tenant` pronto, `catalogo`·`filial:<padrão>` pronto e um
-`catalogo`·`tenant` substituído; B com `core`·`tenant` pronto. Pedidos atendidos (A `lote`, B `manifesto`); nenhum pendente.
+[fixture-dois-tenants.md](fixture-dois-tenants.md) § 0074.
