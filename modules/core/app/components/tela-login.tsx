@@ -9,9 +9,10 @@
 import { estilosDeAcesso } from './estilos-de-acesso';
 import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
+import { normalizarCodigoEmpresa } from '../../contracts';
+import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, propsDoCampoSenha, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
   /** Código da empresa lembrado do último login neste aparelho. */
@@ -41,13 +42,14 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
 
   const entrar = async () => {
     if (entrando) return;
-    const e = validarLogin(campos);
+    const enviar = { ...campos, codigo_empresa: normalizarCodigoEmpresa(campos.codigo_empresa) };
+    const e = validarLogin(enviar);
     setErros(e);
     setErro(null);
     if (Object.keys(e).length > 0) return;
     setEntrando(true);
     try {
-      await onEntrar(campos);
+      await onEntrar(enviar);
     } catch (x) {
       setErro(mensagemDeErroDeLogin(x));
       setCampos((c) => ({ ...c, senha: '' }));
@@ -71,7 +73,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         valor={campos.codigo_empresa}
         erro={erros.codigo_empresa}
         testID="login.codigo-empresa"
-        onChangeText={mudar('codigo_empresa')}
+        onChangeText={(v) => mudar('codigo_empresa')(v.toUpperCase())}
         {...propsDoCampoCodigoEmpresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}
@@ -97,7 +99,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         onChangeText={mudar('senha')}
         secureTextEntry={!senhaVisivel}
         olho={{ visivel: senhaVisivel, alternar: () => setSenhaVisivel((v) => !v) }}
-        textContentType="password"
+        {...propsDoCampoSenha(senhaVisivel, Platform.OS)}
         returnKeyType="go"
         inputRef={senha}
         onSubmitEditing={() => void entrar()}

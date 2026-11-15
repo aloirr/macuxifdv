@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, propsDoCampoSenha, rotuloOlhoSenha, validarLogin } from './login';
 import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS } from '../../contracts';
 
 const U = '0b000000-0000-4000-8000-000000000001';
@@ -55,7 +55,7 @@ describe('RF-CORE-01: login do app', () => {
       { codigo_empresa: ' am4821 ', email: 'v@x.com', senha: 'segredo' },
       { id: U, nome: 'Moto G' },
     );
-    expect(enviado).toEqual({ codigo_empresa: 'am4821', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
+    expect(enviado).toEqual({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
     expect(r.tenant.fuso).toBe('America/Manaus');
     await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
   });
@@ -92,5 +92,20 @@ describe('RF-CORE-01: TelaLogin reabre com o e-mail (T-0094)', () => {
 describe('RF-CORE-01: campo Código da empresa do login', () => {
   it('RF-CORE-01: o campo aceita no máximo 6 caracteres (UF + 4 dígitos), igual ao contrato', () => {
     expect(propsDoCampoCodigoEmpresa).toMatchObject({ maxLength: 6, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false });
+  });
+});
+
+describe('RF-CORE-01: teclado não muda a senha nem o código da empresa (v1.0.10)', () => {
+  it('RF-CORE-01: campo da senha desliga correção, capitalização e pontuação inteligente; visível no Android usa visible-password', () => {
+    expect(propsDoCampoSenha(false, 'android')).toEqual({ autoCapitalize: 'none', autoCorrect: false, spellCheck: false, autoComplete: 'password', textContentType: 'password' });
+    expect(propsDoCampoSenha(true, 'ios')).not.toHaveProperty('keyboardType');
+    expect(propsDoCampoSenha(false, 'android')).not.toHaveProperty('keyboardType');
+    expect(propsDoCampoSenha(true, 'android')).toMatchObject({ keyboardType: 'visible-password', autoCorrect: false, autoCapitalize: 'none' });
+  });
+  it('RF-CORE-01: código "aM2808 " é validado e enviado como "AM2808"', async () => {
+    expect(validarLogin({ codigo_empresa: 'aM2808 ', email: 'a@b.com', senha: 'x' })).toEqual({});
+    let corpo: { codigo_empresa?: string } = {};
+    await entrarComSenha(async (_c, c) => { corpo = c as { codigo_empresa: string }; return {}; }, { codigo_empresa: ' aM2808 ', email: 'a@b.com', senha: 'x' }).catch(() => undefined);
+    expect(corpo.codigo_empresa).toBe('AM2808');
   });
 });

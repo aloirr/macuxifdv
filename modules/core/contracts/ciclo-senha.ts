@@ -5,7 +5,7 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
-import { CodigoEmpresaFormatoSchema, CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, MENSAGEM_CODIGO_EMPRESA, type DetalhesSenhaATrocar } from './auth';
+import { CodigoEmpresaFormatoSchema, CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, MENSAGEM_CODIGO_EMPRESA, normalizarCodigoEmpresa, type DetalhesSenhaATrocar } from './auth';
 import { faltasNaSenha, mensagemDaSenha, MENSAGEM_SENHA_ESPACO_NAS_PONTAS, temEspacoNasPontas, type FaltaNaSenha } from './senha';
 
 /** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
@@ -144,7 +144,7 @@ export function validarEsqueci(c: CamposEsqueci): ErrosEsqueci {
 
 /** RF-CORE-01: regra NOVA do campo (UF + 4 dígitos): mensagem única do código inválido (com a ação seguinte); `null` se vale. O BKO segue com `validarLogin` (regra antiga) até o PR do engenheiro-apps. */
 export function validarCodigoEmpresaNovo(valor: string): string | null {
-  return CodigoEmpresaFormatoSchema.safeParse(valor).success ? null : MENSAGEM_CODIGO_EMPRESA;
+  return CodigoEmpresaFormatoSchema.safeParse(normalizarCodigoEmpresa(valor)).success ? null : MENSAGEM_CODIGO_EMPRESA;
 }
 
 export interface CamposLogin {
