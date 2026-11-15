@@ -9,6 +9,6 @@ export function avisoVendedorSemFilial(registro: { external_id: string; filial_e
   return {
     external_id: registro.external_id,
     codigo: 'vendedor_sem_filial',
-    mensagem: 'Vendedor sem filial: bloqueado até informar a filial (na carga ou no Backoffice). O cadastro foi carregado.',
+    mensagem: 'Vendedor sem filial: bloqueado até informar a filial (na carga ou no Backoffice).',
   };
 }
