@@ -40,7 +40,7 @@ describe('Catálogo em grade (T-0173)', () => {
     expect(filtroDoNo(arvore, 'x')).toEqual({ sistemaId: null, categoriaId: null });
   });
 
-  it('catalogo-campo-v2 §3 e catalogo-grade §4: "Estoque: N", verde acima de 0 e vermelho em 0 ou menos, sem laranja', () => {
+  it('catalogo-campo-v2 §3: tagDeEstoque junta texto e tom (negativo com o sinal de menos)', () => {
     expect(tagDeEstoque(disp('sem_estoque', -2))).toEqual({ texto: 'Estoque: \u22122', tom: 'erro' });
   });
 

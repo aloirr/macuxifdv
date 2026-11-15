@@ -65,8 +65,7 @@ export default function TelaCatalogo() {
   const [folhaFiltro, setFolhaFiltro] = useState(false);
   const [dadosDaFolhaEstoque, setDadosDaFolhaEstoque] = useState<DadosDaFolha | null>(null);
   const [filiais, setFiliais] = useState<{ proprias: readonly string[]; todas: { id: string; nome: string }[] }>({ proprias: [], todas: [] });
-  const [filialCadastro, setFilialCadastro] = useState<string | null>(null);
-  const [filialCadastroId, setFilialCadastroId] = useState<string | null>(null);
+  const [cadastro, setCadastro] = useState<{ id: string; nome: string | null } | null>(null);
   const usuarioId = usuario?.id ?? null;
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
@@ -83,14 +82,12 @@ export default function TelaCatalogo() {
       .then(([doUsuario, todas, cadastro]) => {
         if (!vivo) return;
         setFiliais({ proprias: doUsuario?.filiaisVenda ?? [], todas });
-        setFilialCadastro(cadastro?.nome ?? null);
-        setFilialCadastroId(doUsuario?.filialCadastro ?? null);
+        setCadastro(cadastro);
       })
       .catch(() => {
         if (!vivo) return;
         setFiliais({ proprias: [], todas: [] });
-        setFilialCadastro(null);
-        setFilialCadastroId(null);
+        setCadastro(null);
       });
     return () => {
       vivo = false;
@@ -189,12 +186,12 @@ export default function TelaCatalogo() {
   const selos = (chipFilial ? 1 : 0) + (escolha.soComEstoque ? 1 : 0);
   const abrirEstoque = (item: ItemVitrine) => {
     if (!item.availability || !perfil) return;
-    setDadosDaFolhaEstoque(dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro: filialCadastroId, agora: relogioReal().agora().toISOString(), fuso }));
+    setDadosDaFolhaEstoque(dadosDaFolha({ codigo: item.erp_code, availability: item.availability, cargaEm: sync.sincronizado_em, filialCadastro: cadastro?.id ?? null, agora: relogioReal().agora().toISOString(), fuso }));
   };
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
-    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloDaGrade(lista.total, filialCadastro) }),
+    ...(lista.carregando && lista.itens.length === 0 ? {} : { subtitulo: subtituloDaGrade(lista.total, cadastro?.nome ?? null) }),
     posicaoSubtitulo: 'abaixo' as const,
     ...(clienteId ? { voltar: { label: nomeCliente ?? 'Cliente', fallback: '/' } } : {}),
     direita: <SeloAtualizacao testID="catalogo-selo-sync" semRede={!ambiente.online()} onSincronizar={auto.puxar} sobreFaixa />,

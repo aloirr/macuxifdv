@@ -124,6 +124,13 @@ function vocabularioEmCache(produtos: readonly ProdutoCatalogo[]): ReturnType<ty
   return v;
 }
 
+/** Uma leitura de `core.filiais@1` (filiaisDaTela) e de `filiais_do_usuario` (filiaisDeVenda) por requisição: o repositório guarda a promessa. */
+function umaLeituraPorRequisicao(repo: RepositorioCatalogo): RepositorioCatalogo {
+  let daTela: ReturnType<RepositorioCatalogo['filiaisDaTela']> | undefined;
+  let deVenda: ReturnType<RepositorioCatalogo['filiaisDeVenda']> | undefined;
+  return { ...repo, filiaisDaTela: () => (daTela ??= repo.filiaisDaTela()), filiaisDeVenda: () => (deVenda ??= repo.filiaisDeVenda()) };
+}
+
 type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoRota<C, Q, P>;
 
 /** RN-CORE-39: filial dos preços na tela do BKO (a pedida ou a padrão); filial que não é do tenant dá 422. */
@@ -257,7 +264,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     const ids = r.tipo === 'produtos' ? new Set(r.produtoIds) : arvore.nos.has(no) ? produtosDoNo(arvore, vinculos, no) : ativos;
     return produtos.filter((p) => ids.has(p.id) && ativos.has(p.id));
   };
-  const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(dep.repositorio(ctx, db, tx)));
+  const comRepo = <T>(ctx: ContextoBase, fn: (repo: RepositorioCatalogo) => Promise<T>) => ctx.comTenant((db, tx) => fn(umaLeituraPorRequisicao(dep.repositorio(ctx, db, tx))));
 
   const busca: RotaModulo = {
     metodo: 'GET',

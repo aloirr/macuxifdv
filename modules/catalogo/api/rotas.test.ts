@@ -307,7 +307,6 @@ describe('GET /v1/catalogo/busca — sem cliente: preço e estoque da filial (RN
     const a = cafe((await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('supervisor'), { query: { q: 'café' } })).corpo).availability!;
     expect(a.quantity).toBe(7);
     expect(a.by_branch.map((b) => [b.branch_id, b.quantity])).toEqual([[FILIAL_BVB, 7], [FILIAL_PADRAO_MEMORIA, 0]]);
-    expect(a.by_branch.map((b) => b.branch_id)).not.toContain(FILIAL_DEMO);
     const fora = await chamar(rota('GET', 'busca'), usuario('supervisor'), { query: { q: 'café', filial: FILIAL_DEMO } });
     expect(fora).toMatchObject({ status: 403, codigo: 'FILIAL_FORA_DAS_SUAS' });
   });

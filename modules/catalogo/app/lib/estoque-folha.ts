@@ -3,7 +3,8 @@
  * em Node; as regras (quem vê quais filiais, texto e cor) são do domain (`estoque-campo.ts`, `estoque.ts`).
  */
 import type { ItemVitrine } from '../../contracts';
-import { linhasDaFolhaEstoque, ordemPorNome, rotuloCargaEstoque, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
+import { ordemPorNome } from '../../domain/estoque';
+import { linhasDaFolhaEstoque, rotuloCargaEstoque, type LinhaFolhaEstoque } from '../../domain/estoque-campo';
 
 export const TITULO_FOLHA_ESTOQUE = 'Estoque por filial';
 
@@ -19,7 +20,7 @@ export function dadosDaFolha(e: { codigo: string; availability: NonNullable<Item
   const a = e.availability;
   const hora = rotuloCargaEstoque(e.cargaEm, e.agora, e.fuso);
   const mostrar = a.quantity !== null || a.by_branch.some((b) => b.quantity !== null);
-  const linhas = linhasDaFolhaEstoque(a.by_branch, { proprias: e.filialCadastro === null ? [] : [e.filialCadastro], mostrarQuantidade: mostrar, marcarPropria: true });
+  const linhas = linhasDaFolhaEstoque(a.by_branch, { filialCadastro: e.filialCadastro, mostrarQuantidade: mostrar });
   return {
     apoio: `${e.codigo} · ${hora}`,
     linhas,

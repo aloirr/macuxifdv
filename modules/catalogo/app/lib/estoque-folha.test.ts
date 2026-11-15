@@ -15,10 +15,10 @@ const disp = (por: { id: string; nome: string; q: number | null }[], o: Partial<
 const AGORA = '2026-11-15T16:00:00Z';
 
 describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
-  it('spec §2.1: título, linha "código · Atualizado às hh:mm" no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
+  it('spec §2.1: linha "código · Atualizado às hh:mm" no fuso do tenant; a filial de cadastro primeiro, "sua filial", as outras em ordem alfabética', () => {
     const d = dadosDaFolha({
       codigo: 'PAF.1434',
-      availability: disp([{ id: 'm', nome: 'Manaus', q: 12 }, { id: 'b', nome: 'Belém', q: -2 }, { id: 'v', nome: 'Boa Vista', q: 0 }]),
+      availability: disp([{ id: 'v', nome: 'Boa Vista', q: 0 }, { id: 'b', nome: 'Belém', q: -2 }, { id: 'm', nome: 'Manaus', q: 12 }]),
       cargaEm: '2026-11-15T10:12:00Z',
       filialCadastro: 'v',
       agora: AGORA,
@@ -30,7 +30,7 @@ describe('folha "Estoque por filial" (catalogo-campo-v2 §2.1)', () => {
   });
 
   it('decisão 3 do R-20261115-100000: a folha lista só as filiais de venda, sem linha "Total"', () => {
-    const d = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'v', nome: 'V', q: 1 }, { id: 'w', nome: 'W', q: 2 }]), cargaEm: AGORA, filialCadastro: 'w', agora: AGORA, fuso: 'America/Manaus' });
+    const d = dadosDaFolha({ codigo: 'C', availability: disp([{ id: 'w', nome: 'W', q: 2 }, { id: 'v', nome: 'V', q: 1 }]), cargaEm: AGORA, filialCadastro: 'w', agora: AGORA, fuso: 'America/Manaus' });
     expect(d.linhas.map((l) => l.nome)).toEqual(['W', 'V']);
     expect(d.leitura.some((l) => /total/i.test(l.texto))).toBe(false);
   });

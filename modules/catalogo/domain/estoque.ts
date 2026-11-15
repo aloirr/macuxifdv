@@ -34,6 +34,9 @@ export function faixaDeEstoque(quantidade: number, baixoAte: number): FaixaEstoq
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Ordem alfabética (pt-BR) por nome, a única das listas de filial. */
+export const ordemPorNome = (a: { nome: string }, b: { nome: string }): number => a.nome.localeCompare(b.nome, 'pt-BR');
+
 export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch[], opcoes: OpcoesEstoque): EstoqueVisivel {
   const agora = Date.parse(opcoes.agora);
   if (Number.isNaN(agora)) throw new RangeError('Informe o instante da consulta em ISO 8601 UTC.');
@@ -62,7 +65,7 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
   }
   const cadastro = opcoes.filialCadastro ?? null;
   // catalogo-campo-v2 §2.1: a de cadastro primeiro; as outras em ordem alfabética
-  const filiais = [...porFilial.entries()].sort(([ia, a], [ib, b]) => Number(ib === cadastro) - Number(ia === cadastro) || cmp(a.nome, b.nome) || cmp(ia, ib));
+  const filiais = [...porFilial.entries()].sort(([ia, a], [ib, b]) => Number(ib === cadastro) - Number(ia === cadastro) || ordemPorNome(a, b) || cmp(ia, ib));
   const doTotal = filiais.filter(([id]) => !permitidas || permitidas.has(id));
   const total = doTotal.reduce((acc, [, f]) => acc + f.quantidade, 0);
   const horas_conhecidas = doTotal.map(([, f]) => f.atualizado).filter((t): t is number => t !== null);

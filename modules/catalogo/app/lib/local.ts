@@ -365,12 +365,12 @@ export async function filiaisDoUsuarioLocal(leitor: LeitorLocal, usuarioId: stri
 }
 
 /** Filial de CADASTRO do usuário e o nome dela, pelas linhas locais (`usuario` e `filial`); só para a faixa do Catálogo (decisão 2 do R-20261115-100000). */
-export async function filialDeCadastroLocal(leitor: LeitorLocal, usuarioId: string | null): Promise<{ id: string; nome: string } | null> {
+export async function filialDeCadastroLocal(leitor: LeitorLocal, usuarioId: string | null): Promise<{ id: string; nome: string | null } | null> {
   const id = (await filiaisDoUsuarioLocal(leitor, usuarioId))?.filialCadastro ?? null;
   if (id === null) return null;
   const nomes = await lembrar('nomesFilial', leitor, ['filial'], async () => Object.fromEntries(vivas(await leitor.linhas<FilialSync & LinhaSync>('filial')).map((f) => [f.id, f.nome])));
   const nome = nomes[id];
-  return nome ? { id, nome } : null;
+  return { id, nome: nome || null };
 }
 
 /**

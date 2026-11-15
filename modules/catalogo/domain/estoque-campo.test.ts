@@ -89,14 +89,14 @@ describe('Catálogo v2: chip da filial e linhas da folha', () => {
   it('spec §4: uma filial escolhida vira "Filial X" com ✕ (o ✕ volta a "Suas filiais")', () => {
     expect(rotuloChipFiliais({ nomesProprias: ['A', 'B'], escolhida: 'Manaus' })).toEqual({ texto: 'Filial Manaus', removivel: true });
   });
-  it('spec §2.1: folha com as filiais do usuário primeiro, cada grupo em ordem alfabética, negativo com menos', () => {
+  it('spec §2.1: folha mantém a ordem recebida, marca só a de cadastro, negativo com menos', () => {
     const l = linhasDaFolhaEstoque(
       [
-        { branch_id: 'm', branch_name: 'Manaus', quantity: 12 },
-        { branch_id: 'b', branch_name: 'Belém', quantity: -2 },
         { branch_id: 'v', branch_name: 'Boa Vista', quantity: 0 },
+        { branch_id: 'b', branch_name: 'Belém', quantity: -2 },
+        { branch_id: 'm', branch_name: 'Manaus', quantity: 12 },
       ],
-      { proprias: ['v'], mostrarQuantidade: true, marcarPropria: true },
+      { filialCadastro: 'v', mostrarQuantidade: true },
     );
     expect(l.map((x) => [x.nome, x.valor, x.propria, x.tom])).toEqual([
       ['Boa Vista', '0', true, 'erro'],
@@ -104,8 +104,8 @@ describe('Catálogo v2: chip da filial e linhas da folha', () => {
       ['Manaus', '12', false, 'sucesso'],
     ]);
   });
-  it('spec §2.1: sem marcar a própria (quem só vê as suas), nenhuma linha leva "sua filial"; tenant que esconde a quantidade mostra Em estoque/Sem estoque', () => {
-    const l = linhasDaFolhaEstoque([{ branch_id: 'v', branch_name: 'Boa Vista', quantity: null, band: 'disponivel' }], { proprias: ['v'], mostrarQuantidade: false, marcarPropria: false });
+  it('spec §2.1: sem filial de cadastro nenhuma linha leva "sua filial"; tenant que esconde a quantidade mostra Em estoque/Sem estoque', () => {
+    const l = linhasDaFolhaEstoque([{ branch_id: 'v', branch_name: 'Boa Vista', quantity: null, band: 'disponivel' }], { filialCadastro: null, mostrarQuantidade: false });
     expect(l).toEqual([{ id: 'v', nome: 'Boa Vista', valor: 'Em estoque', propria: false, tom: 'sucesso' }]);
   });
 });
