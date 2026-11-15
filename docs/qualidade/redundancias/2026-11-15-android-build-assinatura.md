@@ -38,3 +38,12 @@ Corretor-redundancias, 15/11/2026 (Manaus). Conferi o PR #325, branch `nuvem/and
 - O `::error` aparece uma vez por falha: no shell, quando o apksigner falha; no `.mjs`, quando a leitura recusa.
 - A normalização do esperado (sem `:`, sem espaço, em minúsculas) agora fica só no `.mjs`; a cópia do shell saiu.
 - O teste antigo `apksigner" verify --print-certs` saiu e entrou um mais preciso; os casos de teste não se repetem.
+
+## 4. Reteste (15/11/2026, commit 69a23c2 do engenheiro-software)
+**Veredito: LIMPO.** Os 3 achados estão corrigidos e não há achado novo.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0486 | **corrigido** | A linha `/DOES NOT VERIFY/` saiu do `certificadoDoApk`, e o caso dela saiu do teste, inclusive do título. A recusa do APK que não verifica fica só no shell (`if ! CERTS=…; then … exit 1`). `git grep "DOES NOT VERIFY"` não acha nada no `.mjs` nem no workflow. |
+| RD-0487 | **corrigido** | O `certificadoDoApk` devolve `dns` no lugar de `linhas`. O log mostra o DN de cada assinante e uma linha com o SHA-256 e o resultado, ou seja, o hash sai uma vez só. O teste confere que `dns` só traz linhas de DN, e o cabeçalho do `.mjs` diz o mesmo. |
+| RD-0488 | **corrigido** | O comentário do workflow ficou com 2 linhas: "Só o DN e o SHA-256 (públicos) vão ao log, e o SHA-256 vai ao resumo. A conferência (…) é do scripts/ci/android-build.mjs certificado." Os formatos e os motivos de vermelho ficam só no `.mjs`. |
