@@ -10,6 +10,19 @@ export interface RequisicaoPreparada {
   licencas: LicencasUsuario;
   /** Mesmo usuário e requisição, com outro módulo de origem (logs e eventos publicados). */
   doModulo(modulo: ModuloId): ContextoBase;
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): usuário sem a filial de cadastro numa entrada que o aceita (`semFilial: 'aceita'`). A carteira
+   * vem vazia e a equipe é só ele; quem chamou serve só o estado de bloqueio.
+   */
+  restritoSemFilial: boolean;
+}
+
+/** Opções do `preparar`. */
+export interface OpcoesPreparar {
+  /** Só rota de módulo que declarou (ADR 0029): aceita também o token de plataforma, com o tenant do cabeçalho `x-macuxi-tenant`. */
+  superAdmin?: ModoSuperAdmin | undefined;
+  /** T-0176 (ADR 0056): a entrada atende o usuário sem filial (restrito). Ausente = 403 `USUARIO_SEM_FILIAL` para ele. */
+  semFilial?: 'aceita' | undefined;
 }
 
 export interface Plataforma {
@@ -18,10 +31,10 @@ export interface Plataforma {
   /** Permissão por ação dos manifestos instalados (ADR 0004). */
   permissoes: Permissoes;
   /**
-   * Autentica, calcula os efetivos e devolve o contexto da requisição (lança ErroHttp 401/503). `superAdmin` (só rota de
-   * módulo que declarou, ADR 0029): aceita também o token de plataforma, com o tenant do cabeçalho `x-macuxi-tenant`.
+   * Autentica, aplica a guarda do usuário sem filial (403 `USUARIO_SEM_FILIAL`, RN-CORE-39), calcula os efetivos e devolve o
+   * contexto da requisição (lança ErroHttp 401/403/503). Ver `OpcoesPreparar`.
    */
-  preparar(req: FastifyRequest, modulo: ModuloId | null, superAdmin?: ModoSuperAdmin): Promise<RequisicaoPreparada>;
+  preparar(req: FastifyRequest, modulo: ModuloId | null, opcoes?: OpcoesPreparar): Promise<RequisicaoPreparada>;
   relogio: () => Date;
   banco: BancoApp | null;
 }

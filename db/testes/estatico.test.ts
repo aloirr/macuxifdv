@@ -120,6 +120,8 @@ const TABELAS_0070 = ['plataforma.plano', 'plataforma.assinatura'] as const;
 const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_parte', 'plataforma.exclusao_empresa', 'plataforma.empresa_excluida'] as const;
 /** Tabela nova da 0073 (rodapé legal: dados legais da Macuxi; sem tenant_id, só por função; dados-legais.db.test.ts). */
 const TABELAS_0073 = ['plataforma.dados_legais'] as const;
+/** Tabelas novas da 0074 (ADR 0054: pacote da primeira carga e pedido de geração; fora do sync; sync-pacote.db.test.ts). */
+const TABELAS_0074 = ['plataforma.sync_pacote', 'plataforma.sync_pacote_pedido'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -200,6 +202,7 @@ describe('migrações (estático)', () => {
     expect(nomes[66]).toBe('0067_core_cliente_visita_resumo'); // Oficial (14/11): view core.v_cliente_visita_resumo (security_invoker, só select ao app) e 2 índices em core.visita (cliente-visita-resumo.db.test.ts)
     expect(nomes[67]).toBe('0068_plataforma_tenant_numero_licenca'); // R-20261114-130500/131200/131500: código da licença UF + 4 dígitos aleatórios (CHECK aceita os legados ou ^UF[0-9]{4}$), provisionar_tenant sem codigo sorteia pela uf e é idempotente pelo id do chamador, atribuir_codigo_licenca (tenant-numero-licenca.db.test.ts)
     expect(nomes[68]).toBe('0069_core_cargo_hierarquia'); // decisão do dono (14/11): plataforma.perfil.cargo (5 da plataforma, com promotor), gerente obrigatório do promotor (gatilhos adiados), um perfil vivo por usuário (exclusão adiada) e view core.v_usuario_hierarquia (cargo-hierarquia.db.test.ts)
+    expect(nomes[73]).toBe('0074_plataforma_sync_pacote'); // ADR 0054 (pacote da primeira carga): plataforma.sync_pacote e sync_pacote_pedido (app lê e pede, worker gera), fora do sync, e índice por filial em catalogo.tabela_preco_item (sync-pacote.db.test.ts)
     expect(nomes[61]).toBe('0062_core_catalogo_erp_ordem'); // T-0095 (RN-INT-02/04): erp_alterado_em em mais 9 tabelas do Core e do Catálogo, desligado_no_bko_em em filial e tabela_preco, gatilhos <tabela>_versao_erp e <tabela>_desligado_no_bko e 5 índices da maior versão (erp-ordem.test.ts)
     expect(nomes[60]).toBe('0061_vendedor_reserva_filial'); // T-0149 (RN-VEN-20): vendedor.pedido_item.filial_id derivada do pedido por gatilho e índice da reserva por (tenant, produto, filial) (reserva-filial.test.ts)
     expect(nomes[59]).toBe('0060_vendedor_pedido_item_marca'); // T-0159: vendedor.pedido_item.marca, retrato nulo 1..100 da marca do produto (pedido-item-marca.test.ts)
@@ -257,6 +260,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0070,
         ...TABELAS_0072,
         ...TABELAS_0073,
+        ...TABELAS_0074,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -334,6 +338,15 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'execute on function plataforma.expurgar_diagnosticos(timestamptz, integer)',
       // 0072 (ADR 0052): política do despachante e do e-mail (tenant ativo) e o job de backup e de exclusão da empresa
       ...FUNCOES_WORKER_0072.map((f) => `execute on function ${f}`),
+      // 0074 (ADR 0054): gerador de pacotes da primeira carga
+      'select on plataforma.sync_pacote',
+      'insert (id, tenant_id, modulo, particao, filial_id, formato, horizonte, geracao_base, chave_armazenamento, bytes, md5, entidades) on plataforma.sync_pacote',
+      'update (situacao, substituido_em, arquivo_apagado_em, deleted_at) on plataforma.sync_pacote',
+      'delete on plataforma.sync_pacote',
+      'select on plataforma.sync_pacote_pedido',
+      'insert (id, tenant_id, modulo, particao, filial_id, origem, gerar_apos) on plataforma.sync_pacote_pedido',
+      'update (situacao, gerar_apos, tentativas, ultimo_erro, atendido_em, deleted_at) on plataforma.sync_pacote_pedido',
+      'delete on plataforma.sync_pacote_pedido',
     ]);
   });
 
