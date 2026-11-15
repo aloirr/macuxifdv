@@ -96,8 +96,13 @@ Página **De-para de códigos** (rota em Parâmetros → Integração), campos r
    da entidade; mostra `código · nome`; marca **{n} retidos** e deixa desligado o que já tem de-para, com "já tem: ERP {código}") ·
    **No ERP** (texto, até 60) · **Descrição (opcional)**. Na lista, o único aviso é o selo **{n} retidos**. Rodapé: **Cancelar** e **Salvar de-para**. Novo nasce ativo (o "Ativo" sai do formulário).
    Aviso ao salvar: **De-para salvo.** ou **De-para salvo. {n} pedidos seguiram para o ERP.**
-6. Vazio (`EstadoVazio`): **Nenhum de-para ainda.** + **Novo de-para**.
+6. Vazio (`EstadoVazio`): só **Nenhum de-para ainda.**, sem botão; o **Novo de-para** fica só no `PageHeader` (item 1: um só principal).
+   Sem itens, o `FilterBar` (Entidade e Buscar) some.
 Premissa: a lista de códigos do Macuxi por entidade vem de uma consulta do modulo-integracao (a pedir).
+Decisões da marca (valem para a tabela de lotes e para o de-para):
+- MC-0061: tabelas e o vazio ficam dentro de um cartão branco (`--surface`) com borda contínua (`--line`), raio 12 px.
+- MC-0062: códigos (Macuxi, ERP e lote) em IBM Plex Mono; **{n} retidos** é um selo `Badge` de aviso (`warning`).
+- MC-0063: o nome da entidade na tabela vai em peso 400 (texto comum, sem negrito).
 
 ## 10. Simulações (1366×768, PNG 2x)
 `simulacoes/`: `lotes.png` (menu ⋯ aberto num lote em andamento: só Cancelar), `lotes-popup.png`, `de-para.png` (menu ⋯ de um inativo),
