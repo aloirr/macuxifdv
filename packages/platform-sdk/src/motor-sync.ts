@@ -47,7 +47,7 @@ import {
   CODIGOS_ARQUIVO,
   CODIGOS_ARQUIVO_RETENTAVEIS,
   DIAS_RETENCAO_ARQUIVO_LOCAL,
-  TIPOS_ARQUIVO,
+  TIPOS_ENVIO_APARELHO,
   type EnvioArquivo,
   type ResultadoEnvioArquivo,
   type TipoArquivo,
@@ -1490,7 +1490,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       if (existente) return existente;
       if (!UUID_ARQUIVO_RE.test(id)) throw new Error('Arquivo: id precisa ser o UUID gerado no aparelho');
       const tipo = novo.tipo ?? 'image/jpeg';
-      if (!(TIPOS_ARQUIVO as readonly string[]).includes(tipo)) throw new Error(`Arquivo: tipo ${tipo} não aceito`);
+      if (!(TIPOS_ENVIO_APARELHO as readonly string[]).includes(tipo)) throw new Error(`Arquivo: tipo ${tipo} não aceito`);
       const item: ItemArquivo = {
         id,
         modulo: novo.modulo,

@@ -8,6 +8,7 @@
  * (`motor.enfileirarArquivo`). No servidor, o comando cria a linha `aguardando` (`tx.registrarArquivo`) e o upload só a
  * completa. Upload que chega antes do comando → 409 `ARQUIVO_SEM_REFERENCIA` (retentável: fica na fila).
  */
+import { z } from 'zod';
 import { PERFIS, type Perfil } from './nomes';
 
 /** Rota de plataforma (fora de `/v1/<modulo>`): `PUT` grava os bytes, `GET` devolve. */
@@ -30,9 +31,65 @@ export function caminhoMiniaturaArquivo(id: string): string {
   return `${ROTA_ARQUIVOS}/${id.toLowerCase()}/miniatura`;
 }
 
-/** Tipos aceitos (a migração 0005 restringe `plataforma.arquivo.tipo` aos mesmos). */
-export const TIPOS_ARQUIVO = ['image/jpeg'] as const;
+/**
+ * Tipos aceitos em `plataforma.arquivo` (o CHECK `arquivo_tipo_valido` do banco acompanha). PNG e WEBP só entram pela foto
+ * do lote (ADR 0058, gravada pelo trabalho); o ZIP do lote nunca é servido. O aparelho só envia `TIPOS_ENVIO_APARELHO`.
+ */
+export const TIPOS_ARQUIVO = ['image/jpeg', 'image/png', 'image/webp', 'application/zip'] as const;
 export type TipoArquivo = (typeof TIPOS_ARQUIVO)[number];
+
+/** O que `PUT /v1/arquivos/:id` aceita (corpo inteiro, até `LIMITE_ARQUIVO_BYTES`): a foto do aparelho e do BKO. */
+export const TIPOS_ENVIO_APARELHO = ['image/jpeg'] as const;
+
+/**
+ * ADR 0058 §1: arquivo grande (o ZIP do lote de fotos) vai em partes de 8 MiB (`PUT /v1/arquivos/:id/partes/:n`), cada uma
+ * um objeto no armazenamento; `POST /v1/arquivos/:id/concluir` confere as partes e marca o arquivo `recebido`.
+ */
+export const PARTE_ENVIO_BYTES = 8 * 1024 * 1024;
+/** 63 × 8 MiB ≥ 500 MB (RN-CAT-14). */
+export const PARTES_ENVIO_MAX = 63;
+
+/** Quantas partes um arquivo de `tamanhoBytes` ocupa. */
+export function partesDoEnvio(tamanhoBytes: number): number {
+  return Math.ceil(tamanhoBytes / PARTE_ENVIO_BYTES);
+}
+
+export const ConcluirEnvioSchema = z
+  .object({ partes: z.number().int().min(1).max(PARTES_ENVIO_MAX), tamanho_bytes: z.number().int().positive() })
+  .strict();
+export type ConcluirEnvio = z.infer<typeof ConcluirEnvioSchema>;
+
+/** `GET /v1/arquivos/:id/partes/:n/url-envio` (só com S3 e `MACUXI_ENVIO_URL_ASSINADA=1`). */
+export const UrlEnvioSchema = z.object({ url: z.string().url(), metodo: z.literal('PUT'), expira_em: z.string().datetime() }).strict();
+export type UrlEnvio = z.infer<typeof UrlEnvioSchema>;
+
+/**
+ * Confere os tamanhos das partes guardadas (`null` = não existe): da 1ª à penúltima com exatamente `PARTE_ENVIO_BYTES`, a
+ * última de 1 byte a `PARTE_ENVIO_BYTES`, e a soma igual a `total`. `partes_faltando` lista as partes a reenviar (1-based);
+ * vazia com `ok: false` = as partes estão certas, mas a soma não bate com o total informado.
+ */
+export function conferirPartes(tamanhos: readonly (number | null)[], total: number): { ok: true } | { ok: false; partes_faltando: number[] } {
+  const faltando: number[] = [];
+  tamanhos.forEach((t, i) => {
+    const ultima = i === tamanhos.length - 1;
+    const certo = t !== null && (ultima ? t >= 1 && t <= PARTE_ENVIO_BYTES : t === PARTE_ENVIO_BYTES);
+    if (!certo) faltando.push(i + 1);
+  });
+  if (faltando.length > 0) return { ok: false, partes_faltando: faltando };
+  const soma = tamanhos.reduce<number>((a, t) => a + (t ?? 0), 0);
+  return soma === total ? { ok: true } : { ok: false, partes_faltando: [] };
+}
+
+/** O que a plataforma conta ao módulo sobre um arquivo dele (`tx.infoArquivo`). */
+export interface InfoArquivo {
+  id: string;
+  tipo: TipoArquivo;
+  situacao: 'aguardando' | 'recebido';
+  tamanho_bytes: number | null;
+  entidade: string;
+  entidade_id: string;
+  enviado_por: string;
+}
 
 /** Códigos de erro do upload/download (corpo `ErroApiSchema`). */
 export const CODIGOS_ARQUIVO = {
@@ -50,6 +107,12 @@ export const CODIGOS_ARQUIVO = {
   jaReferenciado: 'ARQUIVO_JA_REFERENCIADO',
   /** Só no aparelho: o arquivo local sumiu antes do envio. */
   ausenteNoAparelho: 'ARQUIVO_AUSENTE_NO_APARELHO',
+  /** 400: número da parte fora de 1..`PARTES_ENVIO_MAX` ou parte vazia (ADR 0058). */
+  parteInvalida: 'PARTE_INVALIDA',
+  /** 409: `concluir` com parte faltando ou de tamanho errado (`detalhes.partes_faltando`). */
+  envioIncompleto: 'ENVIO_INCOMPLETO',
+  /** 404: URL assinada desligada (só com S3 e `MACUXI_ENVIO_URL_ASSINADA=1`). */
+  urlAssinadaDesligada: 'URL_ASSINADA_DESLIGADA',
 } as const;
 
 /** Rejeições do upload que não são culpa do arquivo: o motor o mantém `pendente` e tenta no próximo envio. */
