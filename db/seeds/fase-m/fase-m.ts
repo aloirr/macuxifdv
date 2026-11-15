@@ -10,12 +10,14 @@
  * Só roda contra o Postgres local (exigirBancoLocal): senha pública + usuários fake nunca vão para banco compartilhado.
  * Sprint 1 (0006–0007): Cliente 360 dos 18 clientes, rota de hoje de cada vendedor e pedidos do Rafael S.
  * (dadosSprint1FaseM; datas relativas a hoje em America/Manaus, opção `hoje` para fixar).
+ * 0077 (T-0176, RN-CORE-39): todo usuário com a filial padrão (gatilho tenant_semear_filial) como cadastro e venda; sem ela
+ * ficaria bloqueado (R-20261115-094500). Banco sem a 0077 = nada.
  */
 import type { ClientBase } from 'pg';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeterministico, idMedida } from '../../src/ids';
+import { idDeterministico, idFilialPadrao, idMedida } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
 
 export const TENANT_FASE_M = '7d0c2f4e-1a2b-4c3d-8e9f-000000000001';
@@ -344,6 +346,23 @@ export function dadosFaseM(senhaHash: string, opcoes: OpcoesFaseM = {}): DadosFa
   };
 }
 
+/** 0077 (T-0176): filial padrão como cadastro e venda de todo usuário (o gatilho adiado confere no COMMIT). */
+async function gravarFilialDosUsuarios(admin: ClientBase, usuarios: Linha[]): Promise<void> {
+  const existe = await admin.query<{ ok: boolean }>("select to_regclass('core.usuario_filial') is not null as ok");
+  if (!existe.rows[0]?.ok) return;
+  const padrao = idFilialPadrao(T);
+  await gravarLinhas(
+    admin,
+    'core.usuario_filial',
+    usuarios.map((u) => ({ id: id(`usuario_filial:${String(u.id)}:0001`), tenant_id: T, usuario_id: u.id, filial_id: padrao, deleted_at: null, external_id: null })),
+  );
+  await admin.query('update core.usuario set filial_cadastro_id = $3 where tenant_id = $1 and id = any($2::uuid[]) and filial_cadastro_id is distinct from $3', [
+    T,
+    usuarios.map((u) => u.id),
+    padrao,
+  ]);
+}
+
 /** Carrega o seed com cliente ADMIN, numa transação. Rodar 2× não duplica (S0-033). */
 export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string } & OpcoesFaseM = {}): Promise<DadosFaseM> {
   exigirBancoLocal(hostDoCliente(admin), 'Seed de demonstração da Fase M');
@@ -356,6 +375,7 @@ export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string 
       await gravarLinhas(admin, tabela, linhas, { preservar: tabela === 'core.usuario' ? ['senha_hash'] : [] });
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
+    await gravarFilialDosUsuarios(admin, dados['core.usuario']);
     await admin.query('commit');
   } catch (e) {
     await admin.query('rollback');

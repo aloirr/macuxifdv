@@ -3,6 +3,7 @@
  * `comTenant` (como o despachante o entrega) e a ligação no manifesto/`moduloApi`; o ciclo do despachante em si
  * (consumo único, reentrega) é do teste de `apps/api`. Pula sem Postgres.
  */
+import { generateKeyPairSync } from 'node:crypto';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ContextoAposConfirmar, ContextoConsumo } from '@macuxi/platform-sdk';
@@ -15,7 +16,21 @@ import { moduloApi } from './index';
 const A = DOIS_TENANTS.A;
 const U = A.usuarios;
 const NIDS = [1, 2, 3].map((n) => `0e500000-0000-4000-8000-${String(n).padStart(12, '0')}`);
-const TOKEN = 'ExponentPushToken[fixture-push]';
+const TOKEN = 'fcm-fixture-push:APA91b';
+const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
+const ENV_PUSH = {
+  MACUXI_PUSH_ATIVO: '1',
+  FCM_PROJECT_ID: 'proj-x',
+  FCM_SERVICE_ACCOUNT_JSON: Buffer.from(JSON.stringify({ client_email: 'srv@proj.iam.gserviceaccount.com', private_key: privateKey })).toString('base64'),
+};
+/** Responde o OAuth do Google (200) e o FCM com `statusFcm`. */
+const fetcherFcm = (statusFcm: number) =>
+  vi.fn(async (url: string) =>
+    url.startsWith('https://oauth2.googleapis.com')
+      ? new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), { status: 200 })
+      : new Response('{}', { status: statusFcm }),
+  );
+const chamadasFcm = (f: ReturnType<typeof fetcherFcm>) => f.mock.calls.filter((c) => String(c[0]).includes('fcm.googleapis.com'));
 
 describe('T-0022: o Core consome o próprio evento de notificação', () => {
   it('manifesto declara o consumo e o moduloApi expõe o consumidor (o despachante só entrega o que está em consome)', () => {
@@ -74,23 +89,30 @@ describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', ()
   });
 
   it('flag ligada: envia ao token do aparelho com título/corpo do banco e marca push_enviado_em; repetir o evento não reenvia', async () => {
-    const fetcher = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
-    const opcoes = { env: { MACUXI_PUSH_ATIVO: '1' }, fetcher: fetcher as never };
+    const fetcher = fetcherFcm(200);
+    const opcoes = { env: ENV_PUSH, fetcher: fetcher as never };
     await rodar(opcoes, NIDS[1]!);
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    const corpo = JSON.parse((fetcher.mock.calls[0] as unknown as [string, { body: string }])[1].body);
-    expect(corpo).toEqual([{ to: TOKEN, title: 'Aviso de push', body: 'Corpo do aviso', priority: 'high', data: { link: null, entidades: ['notificacao'] } }]);
+    expect(chamadasFcm(fetcher)).toHaveLength(1);
+    const corpo = JSON.parse((chamadasFcm(fetcher)[0] as unknown as [string, { body: string }])[1].body);
+    expect(corpo).toEqual({
+      message: {
+        token: TOKEN,
+        notification: { title: 'Aviso de push', body: 'Corpo do aviso' },
+        android: { priority: 'HIGH', notification: { channel_id: 'avisos' } },
+        data: { entidades: '["notificacao"]' },
+      },
+    });
     expect((await enviadoEm(NIDS[1]!))?.toISOString()).toBe(agora.toISOString());
     await rodar(opcoes, NIDS[1]!);
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(chamadasFcm(fetcher)).toHaveLength(1);
   });
 
   it('RN-CORE-15: usuário inativo ou bloqueado não recebe push', async () => {
-    const fetcher = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
+    const fetcher = fetcherFcm(200);
     await consumo(async (c) => void (await c.query('update core.usuario set ativo = false where id = $1', [U.vendedor1])));
     try {
       await consumo(async (c) => void (await c.query('update core.notificacao set push_enviado_em = null, lida_em = null where id = $1', [NIDS[2]!])));
-      await rodar({ env: { MACUXI_PUSH_ATIVO: '1' }, fetcher: fetcher as never }, NIDS[2]!);
+      await rodar({ env: ENV_PUSH, fetcher: fetcher as never }, NIDS[2]!);
       expect(fetcher).not.toHaveBeenCalled();
     } finally {
       await consumo(async (c) => void (await c.query('update core.usuario set ativo = true where id = $1', [U.vendedor1])));
@@ -99,8 +121,8 @@ describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', ()
 
   it('já lida não gera push; HTTP recusado lança (o despachante retenta) e não marca; outro tenant não enxerga a notificação (RLS)', async () => {
     await consumo(async (c) => void (await c.query('update core.notificacao set lida_em = now() where id = $1', [NIDS[2]!])));
-    const fetcher = vi.fn(async () => ({ ok: false, status: 500 }) as Response);
-    const opcoes = { env: { MACUXI_PUSH_ATIVO: '1' }, fetcher: fetcher as never };
+    const fetcher = fetcherFcm(500);
+    const opcoes = { env: ENV_PUSH, fetcher: fetcher as never };
     await rodar(opcoes, NIDS[2]!);
     expect(fetcher).not.toHaveBeenCalled();
     await consumo(async (c) => void (await c.query('update core.notificacao set lida_em = null where id = $1', [NIDS[2]!])));
