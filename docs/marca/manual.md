@@ -1,6 +1,6 @@
 # Manual da marca Macuxi FDV
 
-> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface, séries de gráfico e menu lateral do BKO aprovados em 14/11/2026 (MC-0004 B, MC-0014 A, MC-0054 a MC-0056). O histórico das decisões está em [`decisoes.md`](decisoes.md).
+> Versão 1 · aprovada pelo Alexandre (dono do produto) em 12/11/2026, no chat: "Aprovado" (T-0169). Neutros de interface, séries de gráfico e menu lateral do BKO aprovados em 14/11/2026 (MC-0004 B, MC-0014 A, MC-0054 a MC-0056). Tipografia: fonte do sistema, aprovada em 15/11/2026 (R-20261115-110600, §5). O histórico das decisões está em [`decisoes.md`](decisoes.md).
 > Fonte única da verdade da marca. Só entra aqui o que o Alexandre aprovou. Os arquivos finais estão em [`ativos/2026-11-12-v1/`](ativos/2026-11-12-v1/), e a prancha de conferência é [`ativos.png`](ativos/2026-11-12-v1/ativos.png).
 
 ## 1. Essência
@@ -121,10 +121,42 @@ O texto do logo está em contorno: os arquivos não dependem de fonte instalada.
 - **Entrada no app (aprovada em 12/11/2026, meta v1.0.5):** a splash e a sincronização são a mesma tela, com o fundo Azul noite e o logo empilhado negativo parado no centro. A área de sincronização fica embaixo: a barra com o preenchimento no sol claro `#F59A52` e o trilho `#3A4D68`; "Etapa n de N · nome" e o percentual em branco; a lista de etapas com ✓ `#7FD1A8` e o ponto da etapa atual em sol claro; o erro em `#F7A59C`. Referência: `propostas/2026-11-12-entrada-sync/entrada-sync.png`.
 
 ## 5. Tipografia
-- **Archivo ExtraBold/Bold:** títulos e números.
-- **IBM Plex Sans** (400 a 700): texto. **IBM Plex Mono:** códigos.
+Decisão do Alexandre de 15/11/2026 (R-20261115-110600, meta v1.0.13): a marca usa a **fonte do sistema** em todas as superfícies (BKO, portal `config.`, app Campo e app Gestão), no texto e nos títulos. Saem a Archivo e a IBM Plex, inclusive a Plex Mono. **O logo não muda:** a escrita "Macuxi" continua desenhada em Archivo ExtraBold e está em contorno nos arquivos de `ativos/` (§2.1), por isso não depende de fonte instalada.
 
-São as fontes de hoje, que estão em `apps/web/app/fonts`. A escala e os pesos são os de `packages/ui`.
+### 5.1 Famílias
+| Uso | Pilha |
+|---|---|
+| Texto e títulos | `system-ui, "Segoe UI", Roboto, -apple-system, sans-serif` (Segoe UI no Windows, Roboto no Android, SF no Apple pelo `-apple-system`) |
+| Códigos (SKU, código do cliente, número do pedido) | `ui-monospace, "Cascadia Mono", "Roboto Mono", monospace`, sempre com `font-variant-numeric: tabular-nums` |
+
+- Nenhuma outra família e nenhuma fonte baixada ou embutida (`@font-face`, `next/font`, `expo-font`).
+- Valores, quantidades e percentuais em coluna ou em card usam a fonte de texto com `tabular-nums`, para os algarismos alinharem.
+
+### 5.2 Pesos
+Não há fonte de display: o título se distingue do texto pelo peso e pelo tamanho, nunca por outra família.
+
+| Peso | Uso |
+|---|---|
+| 400 | texto corrido, valores em tabela, legendas |
+| 500 | ênfase leve: rótulo, item de menu, chip, botão secundário |
+| 600 | ênfase: botão principal, número de card, cabeçalho de tabela, aba ativa |
+| 700 | títulos (de página, de seção e do cabeçalho Azul noite) |
+
+Só esses quatro pesos. Telas equivalentes usam o mesmo peso e o mesmo tamanho para o mesmo papel.
+
+### 5.3 Escala de tamanhos
+| Papel | Web (px) | App |
+|---|---|---|
+| mínimo: legenda, chip, rótulo de tabela | 12 | 12 |
+| secundário | 13 | 14 |
+| **base** (texto corrido) | **15** | **16** |
+| subtítulo, título de cartão | 17 | 18 |
+| título de seção | 20 | 22 |
+| título de página | 24 | 28 |
+
+- **Nada abaixo de 12** em nenhuma superfície.
+- A web é pensada para **1366×768**.
+- Os tokens ficam em `packages/ui` e em `apps/web/app/globals.css` (designer-ux), com esta mesma escala. Fora dela, nenhum tamanho solto.
 
 ## 6. Ícones do app
 | App | Fundo | Símbolo | Arquivos |
