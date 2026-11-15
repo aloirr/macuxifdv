@@ -227,7 +227,7 @@ function usePlataformaValor() {
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
   /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
   const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
-  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a rápida espera e roda depois). */
+  /** Tipo da sincronização em curso (R-20261115-100000: a completa pedida durante a parcial espera e roda depois). */
   const tipoEmCursoRef = useRef<TipoSync | null>(null);
   const ultimoInicioRef = useRef<number | null>(null);
   /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
@@ -514,10 +514,10 @@ function usePlataformaValor() {
   }, [api, modo]);
 
   /**
-   * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): rápida (botão, puxar para baixo e selo: fila + pedidos e
+   * Sincronização do app (R-20261115-100000, `lib/sync-completa.ts`): parcial (botão, puxar para baixo e selo: fila + pedidos e
    * clientes), completa (segurar 10 s, tela de carga: fila + módulos + tudo) ou leve (automática e aviso: novidades). Uma por
    * vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem consultar os módulos de novo nem reiniciar a
-   * carga; só a completa pedida durante uma rápida ou leve espera ela terminar e roda depois. Telas navegam pelo ESTADO do
+   * carga; só a completa pedida durante uma parcial ou leve espera ela terminar e roda depois. Telas navegam pelo ESTADO do
    * motor, não por esta promessa.
    */
   const executarSync = useCallback(
@@ -544,7 +544,7 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        // spec rota-catalogo-perfil §4: a rápida e a completa reenviam também os itens que falharam (o "Enviar agora" saiu)
+        // spec rota-catalogo-perfil §4: a parcial e a completa reenviam também os itens que falharam (o "Enviar agora" saiu)
         return rodarSync(pedido, m, { modo, offline: offlineRef.current, atualizarModulos });
       })().finally(() => {
         travaSync.sair('sincronizacao');
@@ -906,7 +906,7 @@ function usePlataformaValor() {
     const m = motor;
     const ag = criarAgendadorSync({
       intervaloMs: () => intervaloSyncAutoMs(m.parametros('core')[PARAMETRO_SYNC_AUTO]),
-      // R-20261115-100000: `manual` (botão, puxar para baixo, selo) = rápida; os outros = leve
+      // R-20261115-100000: `manual` (botão, puxar para baixo, selo) = parcial; os outros = leve
       sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) => executarSync(pedidoDoAgendador(motivo, entidades)),
       ultimaSincronizacao: () => {
         const em = m.estado().sincronizado_em;

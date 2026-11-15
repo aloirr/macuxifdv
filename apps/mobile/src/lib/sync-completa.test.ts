@@ -1,5 +1,5 @@
 /**
- * R-20261115-100000 (aprovada em R-20261115-104500): toque do Sincronizar = rápida (fila + pedidos e clientes); segurar 10 s
+ * R-20261115-100000 (aprovada em R-20261115-104500): toque do Sincronizar = parcial (fila + pedidos e clientes); segurar 10 s
  * = completa (fila + módulos + tudo), com o popup que fecha sozinho, mostra o erro com "Tentar de novo" e "Fechar" e deixa a
  * tela acesa só enquanto roda. Uma sincronização por vez.
  */
@@ -14,7 +14,7 @@ import {
   decidirPedidoSync,
   desenhoPopupCompleta,
   entradaDoProgressoCompleta,
-  ENTIDADES_SYNC_RAPIDA,
+  ENTIDADES_SYNC_PARCIAL,
   pedidoDoAgendador,
   rodarSync,
   telaAcesaNaCompleta,
@@ -44,34 +44,34 @@ function motorFalso(ok = true) {
 
 const modulosOk = () => Promise.resolve();
 
-describe('rápida e completa no motor (R-20261115-100000)', () => {
-  it('as entidades da rápida são só de pedidos (vendedor) e clientes (core), e existem nos manifestos', () => {
+describe('parcial e completa no motor (R-20261115-100000)', () => {
+  it('as entidades da parcial são só de pedidos (vendedor) e clientes (core), e existem nos manifestos', () => {
     const core = MANIFESTOS_INSTALADOS.find((x) => x.id === 'core')!;
     const vendedor = MANIFESTOS_INSTALADOS.find((x) => x.id === 'vendedor')!;
     const declaradas = new Set([...(core.sync ?? []), ...(vendedor.sync ?? [])]);
-    for (const e of ENTIDADES_SYNC_RAPIDA) {
+    for (const e of ENTIDADES_SYNC_PARCIAL) {
       expect(declaradas.has(e)).toBe(true);
       expect(/^(pedido|cliente|carteira)/.test(e)).toBe(true);
     }
     // sem estoque, preço, catálogo ou produto: isso é da completa
-    expect(ENTIDADES_SYNC_RAPIDA.some((e) => /estoque|preco|produto|catalogo/.test(e))).toBe(false);
+    expect(ENTIDADES_SYNC_PARCIAL.some((e) => /estoque|preco|produto|catalogo/.test(e))).toBe(false);
     // clientes antes dos pedidos
-    expect(ENTIDADES_SYNC_RAPIDA.indexOf('cliente')).toBeLessThan(ENTIDADES_SYNC_RAPIDA.indexOf('pedido'));
+    expect(ENTIDADES_SYNC_PARCIAL.indexOf('cliente')).toBeLessThan(ENTIDADES_SYNC_PARCIAL.indexOf('pedido'));
   });
 
-  it('o `manual` do agendador (botão, puxar para baixo, selo) vira a rápida; os outros, a leve', () => {
-    expect(pedidoDoAgendador('manual')).toEqual({ tipo: 'rapida' });
+  it('o `manual` do agendador (botão, puxar para baixo, selo) vira a parcial; os outros, a leve', () => {
+    expect(pedidoDoAgendador('manual')).toEqual({ tipo: 'parcial' });
     expect(pedidoDoAgendador('periodico')).toEqual({ tipo: 'leve' });
     expect(pedidoDoAgendador('aviso', ['pedido'])).toEqual({ tipo: 'leve', entidades: ['pedido'] });
   });
 
-  it('rápida (v1): envia a fila com os que falharam e puxa só pedidos e clientes, sem módulos nem a completa', async () => {
+  it('parcial (v1): envia a fila com os que falharam e puxa só pedidos e clientes, sem módulos nem a completa', async () => {
     const { m, chamadas } = motorFalso();
     const atualizarModulos = vi.fn(modulosOk);
-    expect(await rodarSync({ tipo: 'rapida' }, m, { modo: 'v1', offline: false, atualizarModulos })).toBe(
+    expect(await rodarSync({ tipo: 'parcial' }, m, { modo: 'v1', offline: false, atualizarModulos })).toBe(
       true,
     );
-    expect(chamadas).toEqual(['enviar+falhos', `novidades:${ENTIDADES_SYNC_RAPIDA.join(',')}`]);
+    expect(chamadas).toEqual(['enviar+falhos', `novidades:${ENTIDADES_SYNC_PARCIAL.join(',')}`]);
     expect(atualizarModulos).not.toHaveBeenCalled();
     expect(m.sincronizar).not.toHaveBeenCalled();
   });
@@ -107,15 +107,15 @@ describe('rápida e completa no motor (R-20261115-100000)', () => {
     expect(chamadas).toEqual(['novidades', 'novidades:pedido']);
   });
 
-  it('demonstração: a rápida continua sendo a completa de antes (a Fase M não tem novidades)', async () => {
+  it('demonstração: a parcial continua sendo a completa de antes (a Fase M não tem novidades)', async () => {
     const { m, chamadas } = motorFalso();
-    await rodarSync({ tipo: 'rapida' }, m, { modo: 'demo', offline: false, atualizarModulos: modulosOk });
+    await rodarSync({ tipo: 'parcial' }, m, { modo: 'demo', offline: false, atualizarModulos: modulosOk });
     expect(chamadas).toEqual(['enviar+falhos', 'sincronizar']);
   });
 
   it('modo sem sinal: só o sincronizar (o motor registra a falta de sinal), como antes', async () => {
     const { m, chamadas } = motorFalso(false);
-    await rodarSync({ tipo: 'rapida' }, m, { modo: 'v1', offline: true, atualizarModulos: modulosOk });
+    await rodarSync({ tipo: 'parcial' }, m, { modo: 'v1', offline: true, atualizarModulos: modulosOk });
     await rodarSync({ tipo: 'completa' }, m, { modo: 'v1', offline: true, atualizarModulos: modulosOk });
     expect(chamadas).toEqual(['sincronizar', 'sincronizar']);
   });
@@ -123,18 +123,18 @@ describe('rápida e completa no motor (R-20261115-100000)', () => {
 
 describe('uma sincronização por vez', () => {
   it('sem nada em curso, roda', () => {
-    expect(decidirPedidoSync('rapida', null)).toBe('rodar');
+    expect(decidirPedidoSync('parcial', null)).toBe('rodar');
     expect(decidirPedidoSync('completa', null)).toBe('rodar');
   });
-  it('completa durante a rápida ou a leve: espera a atual e roda a completa depois', () => {
-    expect(decidirPedidoSync('completa', 'rapida')).toBe('esperar');
+  it('completa durante a parcial ou a leve: espera a atual e roda a completa depois', () => {
+    expect(decidirPedidoSync('completa', 'parcial')).toBe('esperar');
     expect(decidirPedidoSync('completa', 'leve')).toBe('esperar');
   });
   it('o resto junta-se à que está rodando (mesma promessa)', () => {
     expect(decidirPedidoSync('completa', 'completa')).toBe('juntar');
-    expect(decidirPedidoSync('rapida', 'completa')).toBe('juntar');
-    expect(decidirPedidoSync('rapida', 'rapida')).toBe('juntar');
-    expect(decidirPedidoSync('leve', 'rapida')).toBe('juntar');
+    expect(decidirPedidoSync('parcial', 'completa')).toBe('juntar');
+    expect(decidirPedidoSync('parcial', 'parcial')).toBe('juntar');
+    expect(decidirPedidoSync('leve', 'parcial')).toBe('juntar');
   });
 });
 

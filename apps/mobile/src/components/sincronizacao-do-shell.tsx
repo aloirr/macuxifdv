@@ -6,7 +6,7 @@
  * - toque no push → abre a tela certa (ex.: detalhe do pedido).
  * Fica dentro do `ShellProvider` e do `Stack` (o roteador já existe para abrir a rota do push).
  *
- * R-20261115-100000: o toque do botão é a rápida (o `manual` do agendador, ver `lib/sync-completa.ts`); segurar 10 s chama
+ * R-20261115-100000: o toque do botão é a parcial (o `manual` do agendador, ver `lib/sync-completa.ts`); segurar 10 s chama
  * `sincronizarCompleta`, que abre o popup da completa (`PopupSyncCompleta`, montado aqui uma vez para o Início e o Perfil).
  */
 import { useMotorSync } from '@macuxi/platform-sdk/react';

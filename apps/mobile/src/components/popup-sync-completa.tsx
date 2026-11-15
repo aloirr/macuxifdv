@@ -1,7 +1,7 @@
 /**
  * Popup da sincronização completa (R-20261115-100000; spec docs/design/sync-completa/spec.md §4), montado uma vez no shell
  * (`SincronizacaoDoShell`): vale no Início e no Perfil, no Campo e no Gestão. É o `Dialogo` do kit, sem botões e com o Voltar
- * bloqueado enquanto roda, com a `BarraProgresso` (a mesma da tela de carga, RD-0635) nas cores do tema Pérola. As etapas e o
+ * bloqueado enquanto roda, com a `BarraProgresso` (a mesma da tela de carga, RD-0635) nas cores `CORES_BARRA_DIALOGO` do kit. As etapas e o
  * percentual vêm do mesmo `progressoDaEntrada` (RN-CORE-48) da tela de carga; fases e textos em `lib/sync-completa.ts`.
  * Com erro: a linha de erro da carga, "Fechar" e "Tentar de novo", e o Voltar fecha. A tela fica acesa só enquanto roda.
  */
@@ -9,6 +9,7 @@ import { progressoDaEntrada } from '@macuxi/core/app';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
   BarraProgresso,
+  CORES_BARRA_DIALOGO,
   Dialogo,
   TEMAS_ENTRADA,
   TEXTOS_SYNC_COMPLETA,
@@ -27,8 +28,6 @@ import {
   type FaseCompleta,
 } from '@/lib/sync-completa';
 import { usePlataforma } from '@/state/plataforma';
-
-const TEMA = TEMAS_ENTRADA.perola;
 
 export function PopupSyncCompleta({
   fase,
@@ -75,13 +74,13 @@ export function PopupSyncCompleta({
           <BarraProgresso
             rotulo={d.barra.rotulo}
             pct={d.barra.pct}
-            cores={TEMA}
+            cores={CORES_BARRA_DIALOGO}
             reduzirMovimento={reduzir}
             rotuloAcessivel={ROTULO_BARRA_ENTRADA}
             testID="sync-completa"
           />
         ) : null}
-        {d.erro ? <ErroEntrada variante={variante} tema={TEMA} texto={d.erro} /> : null}
+        {d.erro ? <ErroEntrada variante={variante} tema={TEMAS_ENTRADA.perola} texto={d.erro} /> : null}
       </Dialogo>
     </>
   );

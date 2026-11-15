@@ -3,8 +3,8 @@
  * sincronizações. Parte PURA do shell (roda em Node nos testes); `state/plataforma.tsx` e `components/sincronizacao-do-shell.tsx`
  * só ligam isto ao motor, ao relógio e às telas.
  *
- * - RÁPIDA (toque, puxar para baixo e selo ↻ das listas: o motivo `manual` do agendador): envia a fila, com os itens que
- *   falharam, e puxa só as entidades de pedidos e clientes (`ENTIDADES_SYNC_RAPIDA`), pelo `sincronizarNovidades` com a lista
+ * - PARCIAL (toque, puxar para baixo e selo ↻ das listas: o motivo `manual` do agendador): envia a fila, com os itens que
+ *   falharam, e puxa só as entidades de pedidos e clientes (`ENTIDADES_SYNC_PARCIAL`), pelo `sincronizarNovidades` com a lista
  *   (puxa essas entidades do cursor delas, sem consultar as novidades e sem trocar os módulos efetivos).
  * - COMPLETA (segurar 10 s, tela de carga, "Tentar de novo", desligar o modo sem sinal): envio com os falhos, módulos
  *   efetivos e `motor.sincronizar()` (tudo, inclusive estoque e catálogo).
@@ -16,11 +16,11 @@ import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
 import { ESPERA_PRONTO_MS, rotuloDaBarra, textoDoErro } from './entrada';
 
 /**
- * Entidades da rápida, na ordem do pull (a carteira e o cliente antes do pedido). Clientes = `core` (carteira, cliente,
+ * Entidades da parcial, na ordem do pull (a carteira e o cliente antes do pedido). Clientes = `core` (carteira, cliente,
  * endereços e contatos); pedidos = `vendedor` (pedido, itens e eventos/situação). Entidade de módulo que o usuário não tem
  * (ex.: Gestão sem o vendedor) o motor ignora (`entidadesAtivas`).
  */
-export const ENTIDADES_SYNC_RAPIDA = [
+export const ENTIDADES_SYNC_PARCIAL = [
   'carteira',
   'cliente',
   'cliente_endereco',
@@ -30,14 +30,14 @@ export const ENTIDADES_SYNC_RAPIDA = [
   'pedido_evento',
 ] as const;
 
-export type TipoSync = 'rapida' | 'completa' | 'leve';
+export type TipoSync = 'parcial' | 'completa' | 'leve';
 
 export type PedidoSync =
-  { tipo: 'rapida' } | { tipo: 'completa' } | { tipo: 'leve'; entidades?: readonly string[] };
+  { tipo: 'parcial' } | { tipo: 'completa' } | { tipo: 'leve'; entidades?: readonly string[] };
 
-/** O motivo do agendador do kit vira o pedido: `manual` = rápida; os outros = leve (com a lista do aviso, se veio). */
+/** O motivo do agendador do kit vira o pedido: `manual` = parcial; os outros = leve (com a lista do aviso, se veio). */
 export function pedidoDoAgendador(motivo: string, entidades?: readonly string[]): PedidoSync {
-  if (motivo === 'manual') return { tipo: 'rapida' };
+  if (motivo === 'manual') return { tipo: 'parcial' };
   return entidades ? { tipo: 'leve', entidades } : { tipo: 'leve' };
 }
 
@@ -60,11 +60,11 @@ export async function rodarSync(pedido: PedidoSync, m: MotorDoSync, c: ContextoD
   if (c.offline) return m.sincronizar();
   if (c.modo === 'v1' && pedido.tipo === 'leve')
     return m.sincronizarNovidades(pedido.entidades ? { entidades: pedido.entidades } : {});
-  if (c.modo === 'v1' && pedido.tipo === 'rapida') {
+  if (c.modo === 'v1' && pedido.tipo === 'parcial') {
     await m.enviar({ incluirFalhos: true });
-    return m.sincronizarNovidades({ entidades: ENTIDADES_SYNC_RAPIDA });
+    return m.sincronizarNovidades({ entidades: ENTIDADES_SYNC_PARCIAL });
   }
-  // completa (e, na demonstração, também a rápida e a leve: a Fase M não tem novidades)
+  // completa (e, na demonstração, também a parcial e a leve: a Fase M não tem novidades)
   await m.enviar({ incluirFalhos: true });
   try {
     await c.atualizarModulos();
@@ -76,8 +76,8 @@ export async function rodarSync(pedido: PedidoSync, m: MotorDoSync, c: ContextoD
 
 /**
  * Uma sincronização por vez (T-0059). Com outra em curso:
- * - completa pedida durante uma rápida ou leve → `esperar`: espera a atual terminar e roda a completa (o usuário segurou
- *   10 s: a completa não pode virar a rápida que já estava rodando);
+ * - completa pedida durante uma parcial ou leve → `esperar`: espera a atual terminar e roda a completa (o usuário segurou
+ *   10 s: a completa não pode virar a parcial que já estava rodando);
  * - qualquer outra → `juntar`: recebe a mesma promessa da que está rodando.
  */
 export function decidirPedidoSync(
