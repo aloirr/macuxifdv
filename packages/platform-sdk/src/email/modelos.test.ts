@@ -55,6 +55,15 @@ describe('RN-CORE-34 — "Seu acesso ao Macuxi" (design ciclo-de-senha §8.1)', 
     expect(Math.min(...tamanhos)).toBeGreaterThanOrEqual(12);
   });
 
+  it('HTML: valor em ênfase 600 e só cores da paleta (MC-0061)', () => {
+    const r = renderizarEmail('acesso_inicial', carga);
+    expect(r.html).not.toContain('<strong>');
+    expect(r.html).not.toMatch(/font-weight:(700|800|900|bold)/);
+    expect(r.html).toContain('<span style="font-weight:600">');
+    expect(r.html).not.toContain('#1f2933');
+    expect(r.html).toContain('color:#16202A');
+  });
+
   it('validade nula (admin inicial, P5): sem a frase da validade nem a do "Se ela vencer"', () => {
     const r = renderizarEmail('acesso_inicial', { ...carga, dados: { ...dados, validade_horas: null, apps: ['web'] } });
     expect(r.texto).toContain('No primeiro acesso, você cria a sua senha.');
