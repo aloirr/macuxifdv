@@ -37,10 +37,14 @@ export interface ContextoDoSync {
   offline: boolean;
   /** `GET /v1/me/modulos` e `aplicarModulosAtivos` (só na completa). Falha calada: o motor registra o erro no pull. */
   atualizarModulos: () => Promise<void>;
+  /** A sincronização do shell em curso quando a completa foi pedida (a completa espera ela antes do envio e dos módulos). */
+  emCurso?: Promise<unknown> | null;
 }
 
 /** Os passos de cada sincronização no motor (a trava única e a permissão ficam no shell; "uma por vez", no motor). */
 export async function rodarSync(pedido: PedidoSync, m: MotorDoSync, c: ContextoDoSync): Promise<boolean> {
+  // cobre só os passos do shell (envio e módulos); a passada do motor já espera a em curso sozinha
+  if (c.emCurso) await c.emCurso.catch(() => false);
   if (c.offline) return m.sincronizar();
   if (c.modo === 'v1' && pedido.tipo === 'leve')
     return m.sincronizarNovidades(pedido.entidades ? { entidades: pedido.entidades } : {});
@@ -58,13 +62,11 @@ export async function rodarSync(pedido: PedidoSync, m: MotorDoSync, c: ContextoD
 
 /**
  * Uma sincronização do shell por vez (T-0059): o pedido junta-se à que está rodando (mesma promessa), menos a completa
- * pedida durante uma parcial ou leve, que roda (o usuário segurou 10 s: não pode virar a parcial em curso). A espera fica
- * no motor: `sincronizar({ modo: 'completa' })` espera a sincronização em curso terminar e roda depois.
+ * pedida durante uma parcial ou leve, que roda depois dela (o usuário segurou 10 s: não pode virar a parcial em curso):
+ * `rodarSync` espera a em curso (`emCurso`) antes do envio e dos módulos.
  */
 export function decidirPedidoSync(pedido: TipoSync, emCurso: TipoSync | null): 'rodar' | 'juntar' {
-  if (emCurso === null) return 'rodar';
-  if (pedido === 'completa' && emCurso !== 'completa') return 'rodar';
-  return 'juntar';
+  return emCurso === null || (pedido === 'completa' && emCurso !== 'completa') ? 'rodar' : 'juntar';
 }
 
 // ---------- popup da completa ----------
