@@ -126,6 +126,7 @@ export interface ControleSegurar {
 
 export function criarControleSegurar(o: OpcoesControleSegurar): ControleSegurar {
   const agora = o.agora ?? (() => Date.now());
+  // timer-permitido: contagem visual do segurar 10 s, só com o dedo no botão; não consulta o servidor.
   const definir = o.definirIntervalo ?? ((fn: () => void, ms: number) => setInterval(fn, ms));
   const limpar = o.limparIntervalo ?? ((id: unknown) => clearInterval(id as ReturnType<typeof setInterval>));
   let inicio: number | null = null;
