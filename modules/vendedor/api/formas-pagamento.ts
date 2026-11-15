@@ -12,7 +12,7 @@ import { descricaoPrazo, prazoMedioDias } from '../domain';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const COLUNAS_FORMA = `id, codigo, nome, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
-const COLUNAS_PRAZO = `id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
+const COLUNAS_PRAZO = `id, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, round(percentual_ajuste, 2)::float8 as percentual_ajuste, ativo, ordem, external_id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at`;
 const ParamsId = z.object({ id: z.string().uuid() });
 
 async function lerForma(db: ClienteBanco, id: string): Promise<FormaPagamento | null> {

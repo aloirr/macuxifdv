@@ -21,8 +21,8 @@ import {
 } from '../../domain/orcamento';
 import { ehUf } from '@macuxi/comum/endereco';
 import type { EnderecoEditadoValido } from '../../domain/endereco-pedido';
-import type { AjusteItem } from '../../domain/preco-pedido';
-import { chaveDaLinha, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
+import { tabelaAjustadaCents, type AjusteItem } from '../../domain/preco-pedido';
+import { chaveDaLinha, minimoDoProdutoNoPrazo, unidadesDoProduto, type Ajuste, type ProdutoComMinimo, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
 import { prefillLines, prefillNotice } from './order-prefill';
 import type { Rascunho } from './pedidos';
 
@@ -262,7 +262,10 @@ export function dadosAtuaisDoAparelho(e: {
   cliente: SituacaoCliente;
   policy: DadosAtuais['policy'];
   estoque_bloqueia: boolean;
+  /** RN-VEN-43/46: % do prazo do documento em bp; a tabela de hoje é ajustada por ele (o orçamento guarda a tabela já ajustada), senão a diferença de preço seria falsa */
+  percentual_ajuste_bp?: number;
 }): DadosAtuais {
+  const bp = e.percentual_ajuste_bp ?? 0;
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
   const itens: DadosAtuais['itens'] = {};
   for (const it of e.detalhe.items) {
@@ -273,12 +276,12 @@ export function dadosAtuaisDoAparelho(e: {
     const medida = sigla ? medidas.find((m) => m.unidade === sigla) : medidas[0];
     const fator = medida?.fator ?? it.factor ?? 1;
     itens[p.id] = {
-      tabela_cents: p.price_cents === null ? null : precoBaseDoItem({ preco_tabela_unidade_cents: p.price_cents, faixas: e.faixas?.[p.id], medida: medidaDaFaixa(medida?.unidade ?? '', fator), fator, quantidade: it.quantity }).base_medida_cents,
+      tabela_cents: p.price_cents === null ? null : precoBaseDoItem({ preco_tabela_unidade_cents: tabelaAjustadaCents(p.price_cents, bp), faixas: e.faixas?.[p.id], medida: medidaDaFaixa(medida?.unidade ?? '', fator), fator, quantidade: it.quantity }).base_medida_cents,
       medida_ativa: Boolean(medida),
       estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null,
       fator,
       // RN-VEN-11 (T-0151): o mínimo do produto no aparelho (preço de venda × (1 − desconto máximo)); sem ele, a API revalida
-      minimo_base_cents: (p as ProdutoComMinimo).preco_minimo_base_cents ?? null,
+      minimo_base_cents: minimoDoProdutoNoPrazo(p as ProdutoComMinimo, bp),
     };
   }
   return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };

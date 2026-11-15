@@ -222,7 +222,7 @@ export function sqlFormaPagamento(pedido: PedidoPull): { sql: string; valores: u
 
 /** T-0089 (RN-VEN-24, 0037): prazos do tenant, com `parcelas_dias` e o prazo médio já calculado. */
 export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
-  const sql = `select ${BASE}, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem
+  const sql = `select ${BASE}, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, round(percentual_ajuste, 2)::float8 as percentual_ajuste, ativo, ordem
     from vendedor.prazo_pagamento
    where updated_at < $1::timestamptz
      and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))

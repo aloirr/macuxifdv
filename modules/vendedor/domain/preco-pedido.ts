@@ -43,6 +43,16 @@ export function tabelaAjustadaCents(tabelaCents: number, percentualBp: number): 
   return aplicarPontosBase(tabelaCents, percentualBp);
 }
 
+/**
+ * RN-VEN-46: desconto/acréscimo digitado em R$ na troca de prazo. O R$ vira o % equivalente sobre a tabela ANTERIOR, o % se
+ * mantém e o R$ é refeito sobre a NOVA tabela (meia para cima, centavos inteiros). As tabelas podem ser o preço do item ou, sem
+ * o catálogo, `10 000 + bp` de cada prazo (a razão é a mesma). Tabela anterior inválida (<= 0) mantém o valor.
+ */
+export function valorMantendoPercentualCents(valorCents: number, tabelaAnteriorCents: number, tabelaNovaCents: number): number {
+  if (!(tabelaAnteriorCents > 0) || valorCents <= 0) return valorCents;
+  return Math.floor((valorCents * tabelaNovaCents * 2 + tabelaAnteriorCents) / (tabelaAnteriorCents * 2));
+}
+
 export const MSG_DESCONTO_E_ACRESCIMO = 'Desconto e acréscimo são excludentes: use um ou outro.';
 
 /** RN-VEN-02: desconto e acréscimo (item ou pedido) são excludentes. `null` = ok. */

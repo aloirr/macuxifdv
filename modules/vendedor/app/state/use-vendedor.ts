@@ -749,6 +749,8 @@ export function useVendedor() {
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
+        // RN-VEN-46: o % do prazo do orçamento ajusta a tabela de hoje (o orçamento guarda a tabela já ajustada)
+        percentual_ajuste_bp: percentualAjusteParaBp(d.prazo_pagamento_id ? prazos.find((p) => p.id === d.prazo_pagamento_id)?.percentual_ajuste : 0),
         // RN-VEN-18 (09/11): passados os 7 dias do preço, Transformar usa a tabela do dia e mostra a diferença
         preco_vale: precoDoOrcamentoVale(d.validade_ate, new Date()),
       });
@@ -762,7 +764,7 @@ export function useVendedor() {
       };
       return { mudancas: total ? [...frases, total] : frases, mudancas_brutas: r.mudancas, bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents, precos };
     },
-    [perfil, clientes, garantirProdutos],
+    [perfil, clientes, garantirProdutos, prazos],
   );
   /**
    * T-0071 (RF-CAT-03): "Combina com o pedido" e "Leve mais" da aba Detalhes. A consulta `catalogo.sugestoes_pedido@1` roda no

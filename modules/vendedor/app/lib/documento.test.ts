@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { Product } from '@macuxi/catalogo/contracts';
 import type { SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import { EditarOrcamentoRequest, PedidoPush, type OrderDetail } from '../../contracts';
+import { tabelaAjustadaCents } from '../../domain/preco-pedido';
 import { copiaDoDetalhe, copiaDoPayload, freteDaCopia, precosCongeladosDoOrcamento, rascunhoDaCopia, reconferirDocumento, textoDaDiferencaTotal, textoDaMudanca } from './documento';
 import { calcularPedido, linhasParaPush, reaisParaCents, centsParaCampo, trocarModoDoAjuste } from './novo-pedido';
 import { aplicarAjusteDoPedido, montarPedido, rascunhoVazio } from './pedidos';
@@ -190,6 +191,16 @@ describe('RN-VEN-18 (T-0071): Transformar reconfere o que mudou, offline', () =>
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]));
     expect(r.mudancas).toEqual([]);
     expect(r.pode_enviar).toBe(true);
+  });
+  it('RN-VEN-46: com o % do prazo, a tabela de hoje é ajustada e não aparece diferença falsa de preço', () => {
+    // o orçamento guarda a tabela já ajustada (-1,71%): 1890 vira 1858; o catálogo do aparelho traz 1890 (tabela pura)
+    const e = entrada([P(AGUA, 149), P(CAFE, 1890), P(GAS, 11780)]);
+    const d = detalhe();
+    const ajustado = { ...d, items: d.items.map((i) => ({ ...i, unit_price_cents: tabelaAjustadaCents(i.unit_price_cents / (i.factor ?? 1), -171) * (i.factor ?? 1) })) };
+    const sem = reconferirDocumento({ ...e, detalhe: ajustado, preco_vale: false });
+    const com = reconferirDocumento({ ...e, detalhe: ajustado, preco_vale: false, percentual_ajuste_bp: -171 });
+    expect(com.diferenca_total_cents).toBe(0);
+    expect(sem.diferenca_total_cents).not.toBe(0);
   });
   it('RN-VEN-18: preço alterado (café 18,90 → 19,50) aparece em português e mantém o desconto em R$', () => {
     const r = reconferirDocumento(entrada([P(AGUA, 149), P(CAFE, 1950), P(GAS, 11780)]));
