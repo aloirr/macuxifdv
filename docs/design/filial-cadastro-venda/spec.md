@@ -2,7 +2,7 @@
 
 > 2026-11-15 · designer-ux · origem: R-20261115-093000-alexandre (regra definitiva de filial, para todo perfil) e
 > R-20261115-080000-alexandre (sem filial, bloqueado). **Simulação para o dono do produto**; nada vai a PR antes do ok.
-> Fonte: `filial.html` (`?v=login|bko-lista|bko-editar`) e `filial.css`, com os tokens de
+> Fonte: `filial.html` (`?v=login|bko-lista|bko-editar|16a|16b|16c|16d|16e`) e `filial.css`, com os tokens de
 > `../catalogo-campo-v2/simulacao.css`. PNGs: aparelho 360 × 800 e BKO 1280 × 800, escala 2. Dados fictícios.
 > Os nomes dos campos são os desta simulação; o `modulo-core` propõe os campos no banco e na API.
 > Catálogo (faixa, `Estoque: N`, filtro e folha; opção A, R-20261115-100000): `../catalogo-campo-v2/spec.md` §2.1, §3 e §4.
@@ -12,6 +12,11 @@
 | `13-login-sem-filial.png` | login do app de quem está sem filial de cadastro |
 | `14-bko-usuarios-sem-filial.png` | BKO › Usuários com o filtro `Filial de cadastro: Sem filial` (sem a coluna Filial) |
 | `15-bko-editar-usuario-filiais.png` | BKO › Usuários › Editar usuário com `Filial de cadastro` e `Filiais de venda` |
+| `16a-carregando.png` | BKO, usuário sem filial (admin, analista): a tela única, carregando as filiais |
+| `16b-escolher.png` | a escolha da filial de cadastro e o Salvar |
+| `16c-empresa-sem-filial.png` | a empresa não tem filial: só a ação |
+| `16d-erro-ao-salvar.png` | erro ao salvar |
+| `16e-salvo-entra-no-bko.png` | salvo: entra no Início do BKO, com o menu |
 
 ## 1. A regra (R-20261115-093000)
 - **Filial de cadastro:** uma, obrigatória, para todo perfil (vendedor, promotor, supervisor, gerente). É a base do usuário.
@@ -45,3 +50,18 @@ hierarquia (Gerente, Supervisor, Nome da equipe) e antes de `Código no ERP`:
   (`TelaLogin`, prop `aviso`; `Banner tone="danger"` com o ícone `alert`):
   `Sua conta está sem filial de cadastro. Peça ao administrador da empresa para informar a filial.`
 - Os campos ficam preenchidos. Depois que o admin informa a filial, o mesmo `Entrar` funciona.
+
+## 5. BKO: usuário sem filial de cadastro (`16a` a `16e`, v1.0.12)
+Regra: RN-CORE-39 (a API responde 403 `USUARIO_SEM_FILIAL`; o próprio usuário se destrava em `GET|PUT /v1/core/eu/filial-cadastro`).
+Decisão do dono do produto: o BKO abre **só** esta tela, sem menu e sem outra rota, até a filial ser salva.
+- Moldura do login do BKO (`apps/web/components/login-screen.tsx`, `Moldura` e `MarcaNaFaixa area="Backoffice"`): coluna de 400 px
+  no fundo `ground`, a faixa com o logo e, embaixo, o título `Escolha a sua filial` (Archivo 800, 28).
+- **Escolher (`16b`):** campo `Filial de cadastro` (`select` 44 px, as filiais da empresa em ordem alfabética, `Escolha…` no início),
+  o `Salvar` (principal, largura toda; `Salvando…` durante a chamada) e o link `Sair`, que encerra a sessão e volta ao login.
+- **Carregando (`16a`):** o campo sem toque com `Carregando…` e o `Salvar` desabilitado.
+- **Empresa sem filial (`16c`):** sai o campo e o `Salvar`; `Notice tone="warning"`: `Envie as filiais pela carga do ERP e tente de novo.`
+  e o principal `Tentar de novo`, que busca a lista outra vez.
+- **Erro ao salvar (`16d`):** `Notice tone="danger"` acima do campo: `Não deu para salvar. Tente de novo.`; a escolha continua.
+- **Salvo (`16e`):** entra direto no Início do BKO, com o menu, sem aviso.
+- Acessibilidade: foco inicial no campo; o aviso é região viva; `Sair` com alvo de 44 px.
+

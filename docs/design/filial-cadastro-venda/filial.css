@@ -67,3 +67,19 @@
   .box.on { background: var(--accent); border-color: var(--accent); }
   .ck.off .box.on { background: #5B6673; border-color: #5B6673; }
   .gv-rod { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #fff; border-top: 1px solid var(--line); }
+
+  /* 16 · destravamento no BKO: a moldura do login (apps/web/components/login-screen.tsx, Moldura e MarcaNaFaixa) */
+  .bko.estreita { justify-content: center; }
+  .estreita .col { width: 400px; padding-top: 64px; display: flex; flex-direction: column; gap: 20px; }
+  .faixa-bko { display: flex; align-items: center; gap: 12px; background: var(--faixa); border-radius: 12px; padding: 10px 14px; }
+  .faixa-bko img { width: 130px; display: block; }
+  .faixa-bko .div { width: 1px; height: 24px; background: rgba(201, 206, 213, .4); }
+  .faixa-bko .area { font-family: Archivo; font-weight: 700; font-size: 14px; color: var(--faixaSub); }
+  .h1w { margin: 0; font-family: Archivo; font-weight: 800; font-size: 28px; }
+  .bt.larga { justify-content: center; }
+  .bt.off { background: #C9CED5; border-color: #C9CED5; color: #fff; }
+  .inp.off { color: var(--ink3); background: var(--lineSoft); }
+  .link-w { min-height: 44px; display: flex; align-items: center; font-size: 14px; font-weight: 600; color: var(--accentInk); text-decoration: underline; margin-top: -12px; }
+  .estreita .notice.danger { background: var(--dangerBg); color: var(--danger); }
+  .estreita .notice { padding: 12px 14px; }
+  .painel.vazio { height: 320px; }
