@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abaVisivel, FILTROS_VAZIOS, lerFiltros, paraBusca, queryDasTrilhas, queryDoPainel } from './filtros-url';
+import { abaVisivel, FILTROS_VAZIOS, lerFiltros, mesDoFiltro, paraBusca, queryDasTrilhas, queryDoPainel } from './filtros-url';
 import { apiTreinamento, hrefEditarTrilha, hrefTrilhas } from './rotas';
 
 const EQUIPE = '0f290000-0000-4000-8000-000000000006';
@@ -45,5 +45,12 @@ describe('caminhos (ADR 0003)', () => {
     expect(hrefEditarTrilha()).toBe('/trilha-editar');
     expect(hrefEditarTrilha(EQUIPE)).toBe(`/trilha-editar?id=${EQUIPE}`);
     expect(hrefTrilhas('trilhas')).toBe('/trilhas?aba=trilhas');
+  });
+
+  it('RF-TRE-05: o campo Mês vem com o mês atual no fuso do tenant quando a URL não traz mês', () => {
+    const agora = new Date('2026-12-01T02:30:00Z'); // 30/11 22h30 em Manaus
+    expect(mesDoFiltro(FILTROS_VAZIOS, 'America/Manaus', agora)).toBe('2026-11');
+    expect(mesDoFiltro(FILTROS_VAZIOS, 'UTC', agora)).toBe('2026-12');
+    expect(mesDoFiltro({ ...FILTROS_VAZIOS, mes: '2026-05' }, 'America/Manaus', agora)).toBe('2026-05');
   });
 });
