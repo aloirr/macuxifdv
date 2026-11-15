@@ -1,0 +1,72 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Parâmetros — Início</title><style>
+@font-face{font-family:Archivo;font-weight:700;src:url(../../../apps/web/app/fonts/Archivo_700Bold.ttf)}
+@font-face{font-family:Archivo;font-weight:800;src:url(../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf)}
+@font-face{font-family:Plex;font-weight:400;src:url(../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf)}
+@font-face{font-family:Plex;font-weight:500;src:url(../../../apps/web/app/fonts/IBMPlexSans_500Medium.ttf)}
+@font-face{font-family:Plex;font-weight:600;src:url(../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Plex;background:#F8F6F1;color:#16202A;width:1440px;height:900px;display:flex;overflow:hidden;position:relative}
+.menu{width:240px;height:900px;background:#16202A;color:#fff;display:flex;flex-direction:column;padding:20px 12px 16px;flex-shrink:0}
+.brand{display:flex;flex-direction:column;align-items:flex-start;padding:0 8px 16px}
+.brand img{display:block;height:28px;width:auto}
+.brand span{font-size:12px;line-height:16px;color:#C9CED5;margin-top:18px}
+.lista{display:flex;flex-direction:column;gap:2px}
+.titulo{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 10px;border-radius:8px;color:#F59A52;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.item{display:flex;align-items:center;height:32px;padding:0 10px 0 20px;border-radius:8px;font-size:14px;color:#C9CED5;white-space:nowrap;position:relative}
+.item.ativo{background:#2B3743;color:#fff;font-weight:600}
+.item.ativo:before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:3px;border-radius:2px;background:#F59A52}
+.rodape{margin-top:auto;border-top:1px solid #2B3743;padding:12px 8px 0;display:flex;flex-direction:column}
+.rodape b{font-size:14px}.rodape span{font-size:12px;color:#C9CED5}.sair{font-size:13px;font-weight:600;color:#C9CED5;margin-top:8px}
+main{flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:20px;max-width:1212px}
+.cab{display:flex;flex-direction:column;gap:2px;min-height:42px;justify-content:center}
+.eyebrow{font-size:13px;color:#4A5562}
+h1{font-family:Archivo;font-weight:800;font-size:24px;line-height:1.2}
+.quadro{background:#fff;border:1px solid #DFE2E6;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.quadro .topo{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h2{font-family:Archivo;font-weight:700;font-size:18px}
+.grade{display:grid;grid-template-columns:repeat(2,minmax(0,300px));gap:16px 32px}
+.campo{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+.campo small{font-size:13px;font-weight:400;color:#4A5562;line-height:1.35}
+.input{height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-variant-numeric:tabular-nums}
+.input.editado{border:2px solid #1E3350}
+.input i{font-style:normal;font-size:13px;font-weight:400;color:#4A5562}
+.acoes{display:flex;justify-content:flex-end;gap:8px}
+.btn{height:44px;border-radius:10px;padding:0 18px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.p{background:#1E3350;color:#fff}
+.btn.s{border:1px solid #C9CED5;background:#fff;color:#16202A}
+.btn.d{background:#8B96A3;color:#fff}
+.dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+fieldset{border:1px solid #ECEEF1;border-radius:12px;padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+legend{font-size:14px;font-weight:600;padding:0 4px}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}
+th{text-align:left;font-size:13px;font-weight:600;color:#4A5562;padding:8px 10px;border-bottom:1px solid #DFE2E6;white-space:nowrap}
+td{padding:0 10px;height:44px;border-bottom:1px solid #ECEEF1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:0}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.sub td:first-child{padding-left:28px;color:#34404D}
+.forte{font-weight:600}
+.selo{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.ok{color:#1D6B4F;background:#E2F1EA}.ne{color:#34404D;background:#ECEEF1}
+.ac{width:52px;text-align:center;padding:0}
+.dots{display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:10px;color:#4A5562}
+.mais{width:44px;height:44px;border:1px solid #C9CED5;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#16202A}
+.dias{display:flex;gap:8px}
+.dia{width:52px;height:44px;border-radius:10px;border:1px solid #C9CED5;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#34404D}
+.dia.on{background:#1E3350;border-color:#1E3350;color:#fff}
+.hoje{font-size:14px;background:#F8F6F1;border-radius:10px;padding:10px 12px}
+.nova{display:flex;gap:8px}
+.nova .input{flex:1;color:#4A5562;font-weight:400}
+.nota{position:absolute;right:20px;bottom:16px;max-width:620px;font-size:12px;line-height:1.5;color:#34404D;background:#fff;border:1px solid #DFE2E6;border-left:4px solid #1D6B4F;border-radius:8px;padding:8px 12px;box-shadow:0 4px 12px rgba(22,32,42,.08);z-index:9}
+.mapa td{height:40px}
+.mapa .sai{color:#4A5562;font-size:13px}
+</style><body><nav class="menu"><div class="brand"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-grafite.svg" height="28" alt="Macuxi Força de Vendas"><span>Distribuidora Exemplo</span></div><div class="lista"><div class="grupo"><div class="titulo"><span>Acesso</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Análise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Cadastros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comercial</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Comunicação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Conteúdo de campo</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Operação</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo aberto"><span>Parâmetros</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(90deg)"><path d="M9 6l6 6-6 6"/></svg></div><a class="item">Acesso</a><a class="item">Alertas</a><a class="item">Calendário</a><a class="item">Clientes</a><a class="item ativo">Início</a><a class="item">Metas e RV</a><a class="item">Pedidos</a><a class="item">Produtos</a><a class="item">Trade</a><a class="item">Visitas</a></div><div class="grupo"><div class="titulo"><span>Produtos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div><div class="grupo"><div class="titulo"><span>Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(0deg)"><path d="M9 6l6 6-6 6"/></svg></div></div></div><div class="rodape"><b>Ana Souza</b><span>Administrador</span><div class="sair">↪ Trocar perfil</div></div></nav><main><div class="cab"><span class="eyebrow">Parâmetros</span><h1>Início</h1></div>
+  <section class="quadro"><h2>Dias úteis e equipe parada</h2>
+  <div class="campo">Dias úteis da semana<small>Base da meta do dia.</small><div class="dias"><span class="dia" aria-pressed="false">Dom</span><span class="dia on" aria-pressed="true">Seg</span><span class="dia on" aria-pressed="true">Ter</span><span class="dia on" aria-pressed="true">Qua</span><span class="dia on" aria-pressed="true">Qui</span><span class="dia on" aria-pressed="true">Sex</span><span class="dia" aria-pressed="false">Sáb</span></div></div>
+  <div class="grade" style="grid-template-columns:minmax(0,380px)"><label class="campo">Minutos para considerar "parado"<small>Sem check-in depois do último checkout. De 15 a 480.</small><span class="input">45<i>min</i></span></label></div>
+  <div class="acoes"><span class="btn d">Salvar</span></div></section>
+  <section class="quadro"><h2>Frases do dia · 4</h2>
+  <div class="hoje"><b>Frase de hoje:</b> Cada visita é uma chance de fazer o cliente voltar.</div>
+  <div class="nova"><span class="input">Nova frase</span><span class="btn p">Adicionar</span></div>
+  <table><colgroup><col style="width:44px"><col><col style="width:130px"><col style="width:130px"><col style="width:52px"></colgroup><thead><tr><th class="n">#</th><th>Frase</th><th>Origem</th><th>Situação</th><th class="ac"></th></tr></thead><tbody>
+  <tr><td class="n">1</td><td>Cada visita é uma chance de fazer o cliente voltar.</td><td>Padrão</td><td><span class="selo ok">Ativa</span></td><td class="ac"><span class="dots"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span></td></tr><tr><td class="n">2</td><td>Organize a rota antes de sair: menos volta, mais venda.</td><td>Padrão</td><td><span class="selo ok">Ativa</span></td><td class="ac"><span class="dots"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span></td></tr><tr><td class="n">3</td><td>Cliente bem atendido indica outro cliente.</td><td>Da empresa</td><td><span class="selo ok">Ativa</span></td><td class="ac"><span class="dots"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span></td></tr><tr><td class="n">4</td><td>Confira a validade na gôndola antes de oferecer.</td><td>Da empresa</td><td><span class="selo ne">Desativada</span></td><td class="ac"><span class="dots"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span></td></tr>
+  </tbody></table></section></main><div class="nota"><b>Simulação.</b> Dias úteis e minutos de "parado" saem de Análise › Metas; Frases do dia ganham lugar no menu. O prazo da etapa pendente do checkout vai para Parâmetros › Visitas. Subir, descer, editar e remover a frase ficam no "⋯".</div></body></html>
