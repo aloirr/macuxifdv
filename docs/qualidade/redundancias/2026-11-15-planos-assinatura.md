@@ -29,3 +29,19 @@
 
 Sem achado novo no `spec.md` nem no PNG 06 (erro em 2 linhas, sem repetir o limite; rodapé só Total + 2 botões). Nenhum defeito funcional para o `testes`.
 **Resultado:** nenhum achado em aberto na simulação. O RD-0323 volta a reteste no SDK e no §11.4 se o dono do produto aprovar a pergunta 4.
+
+## Reteste 2 (15/11, commit `0320e0e`, branch `nuvem/planos-assinatura-designer-ux`; SDK no `ba89662`)
+
+| ID | Resultado | Evidência |
+|---|---|---|
+| RD-0323 | **corrigido** | A pergunta 4 da `spec.md` foi respondida ("Sim: o texto novo vale, uma linha por item"). O §11.4 do `portal-config-enxuto.md` diz: "Texto (aprovado em 15/11, R-20261115-123000; já no contrato): **Vendedores: 14 em uso. Inative 4 antes de trocar.**", e o pedido ao engenheiro-software saiu. O SDK diz o mesmo (`planos.ts:295`, no `565d1b0`/`ba89662`). O `recados-pendentes.md` marca o item (1) como resolvido. |
+| RD-0324 | **corrigido** | O §11.4 aponta para `../planos-assinatura/03` a `06`, o §11.5 para a `01` e o §13 traz uma nota e a lista "Simulações vigentes" com `01` a `06`. `depois-03b`, `-06b`, `-06c` e `-06d` estão marcadas como substituídas (notas no §8 e no §11.3). |
+
+### Achado novo
+
+| ID | Onde | Tipo | O que se repete | Impacto | Severidade | Proposta (antes → depois) | Dono |
+|---|---|---|---|---|---|---|---|
+| RD-0956 | `docs/design/telas/portal-config-enxuto.md` §4 (l. 56) e §11.4 (l. 236) | doc | (1) O §4 ainda diz "Simulação nova: `depois-03b-nova-empresa.png`", que o §11.3 marca como substituída. Para a mesma tela, há dois PNG sem dizer qual vale (é a sobra do RD-0324 fora do §11.4/§11.5/§13). (2) O §11.4 diz "substituem `depois-06b`, `depois-06c` e `depois-06d`", o que repete a nota do §8 (l. 106). | decisão (o engenheiro-apps pode abrir o PNG antigo pelo §4); manutenção | baixa | (1) l. 56: "Simulação nova: `depois-03b-nova-empresa.png`." → "Simulação: `../planos-assinatura/02-nova-empresa.png`." (2) l. 236: sai "; substituem `depois-06b`, `depois-06c` e `depois-06d`" (a nota do §8 já diz). | designer-ux |
+
+Sem defeito funcional para o `testes`.
+**Resultado:** RD-0323 a RD-0326 fechados. O RD-0956 fica aberto: é baixo, mas está em doc, e por isso segura o lote (R-20261111-190159).
