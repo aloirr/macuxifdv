@@ -21,7 +21,7 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.portal_sessao': 'sessão do portal, super-admin ou admin do cliente (ADR 0031); só por função',
   /** tenant_alvo_id (sem FK) no lugar de tenant_id, como na auditoria_plataforma: não é tabela de tenant. */
   'plataforma.portal_sessao_empresa': 'empresas conferidas no login do portal (ADR 0031); só por função',
-  /** Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
+  /** Frases da tela de carga (0082, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
   'plataforma.frase_carga': 'frases da tela de carga, globais (T-0181); portal pelas sa_*_frase_carga, app pela frases_carga_ativas()',
 } as const;
 
@@ -39,7 +39,7 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.portal_tentativa',
   'plataforma.portal_sessao',
   'plataforma.portal_sessao_empresa',
-  /** 0081 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
+  /** 0082 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
   'plataforma.frase_carga',
 ] as const;
 

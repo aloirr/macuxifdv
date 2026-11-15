@@ -1,6 +1,6 @@
 /**
- * 0081 — frases da tela de carga (T-0181; spec docs/design/carga-aviso-frases/spec.md §2 a §4 e frases.md, commit 3cdb384).
- * Dicionário: docs/banco/plataforma.md, "Frases da carga (0081)". O que o BANCO garante:
+ * 0082 — frases da tela de carga (T-0181; spec docs/design/carga-aviso-frases/spec.md §2 a §4 e frases.md, commit 3cdb384).
+ * Dicionário: docs/banco/plataforma.md, "Frases da carga (0082)". O que o BANCO garante:
  * - plataforma.frase_carga GLOBAL (sem tenant_id), só por função: RLS enable + force, só a política manutencao, nenhum grant de
  *   tabela para app, worker ou portal; sem DELETE (não há exclusão);
  * - texto 1..90 depois do trim, sem frase repetida entre as vivas (sem diferenciar maiúsculas nem espaços nas pontas), Nº único,
@@ -23,7 +23,7 @@ import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } fr
 import { idDeChave } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { FUNCOES_SA_0081, FUNCOES_SA_ATUAIS } from './funcoes-sa';
+import { FUNCOES_SA_0082, FUNCOES_SA_ATUAIS } from './funcoes-sa';
 import { emTransacao, erroDe, HASH_TESTE, retratoDoCatalogo } from './util';
 
 /** As 30 frases iniciais, texto literal do frases.md aprovado (commit 3cdb384), na ordem do Nº. */
@@ -65,11 +65,11 @@ const MAX = 90;
 const idInicial = (n: number) => idDeChave(`plataforma:frase_carga:${String(n).padStart(2, '0')}`);
 
 const migracoes = lerMigracoes();
-const m81 = migracoes.find((m) => m.versao === '0081')!;
-const anterior = migracoes[migracoes.indexOf(m81) - 1]!.versao;
+const m82 = migracoes.find((m) => m.versao === '0082')!;
+const anterior = migracoes[migracoes.indexOf(m82) - 1]!.versao;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m81.up);
-const down = semComentarios(m81.down);
+const up = semComentarios(m82.up);
+const down = semComentarios(m82.down);
 const nome = (f: string) => f.slice(0, f.indexOf('('));
 /** Bloco de uma função até o "$$;" que fecha o corpo. */
 const bloco = (sql: string, inicio: string) => {
@@ -80,17 +80,17 @@ const bloco = (sql: string, inicio: string) => {
 };
 /** As linhas do VALUES da carga, na ordem do arquivo. */
 const frasesDaMigracao = () =>
-  [...m81.up.matchAll(/^\s+\((\d+), '((?:[^']|'')*)'\),?$/gm)].map((m) => ({ numero: Number(m[1]), texto: m[2]!.replace(/''/g, "'") }));
+  [...m82.up.matchAll(/^\s+\((\d+), '((?:[^']|'')*)'\),?$/gm)].map((m) => ({ numero: Number(m[1]), texto: m[2]!.replace(/''/g, "'") }));
 /** Comando da carga (insert ... on conflict do nothing;), para provar a idempotência no banco. */
-const CARGA = /insert into plataforma\.frase_carga \(id, numero, texto, ativa, ordem\)[\s\S]*?on conflict do nothing;/.exec(m81.up)?.[0] ?? '';
+const CARGA = /insert into plataforma\.frase_carga \(id, numero, texto, ativa, ordem\)[\s\S]*?on conflict do nothing;/.exec(m82.up)?.[0] ?? '';
 const corpoTabela = /create table plataforma\.frase_carga \(([\s\S]*?)\n\);/.exec(up)?.[1] ?? '';
 const colunasDoSql = () => [...corpoTabela.matchAll(/^\s+([a-z_]+)\s+(?:uuid|text|timestamptz|boolean|integer)\b/gm)].map((m) => m[1]!);
 const LEITURA_APP = 'plataforma.frases_carga_ativas()';
 
-describe('0081 frases da carga (estático)', () => {
-  it('nome: 0081_plataforma_frase_carga, com up e down', () => {
-    expect(`${m81.versao}_${m81.nome}`).toBe('0081_plataforma_frase_carga');
-    expect(m81.down.length).toBeGreaterThan(0);
+describe('0082 frases da carga (estático)', () => {
+  it('nome: 0082_plataforma_frase_carga, com up e down', () => {
+    expect(`${m82.versao}_${m82.nome}`).toBe('0082_plataforma_frase_carga');
+    expect(m82.down.length).toBeGreaterThan(0);
   });
 
   it('as 30 frases da carga são as do frases.md (texto literal), Nº 1..30, cada uma em 1..90 e sem repetição', () => {
@@ -158,9 +158,9 @@ describe('0081 frases da carga (estático)', () => {
   });
 
   it('as 3 sa_*: SECURITY DEFINER, pg_temp por último, EXECUTE só ao portal; 28000 sem sessão, 42501 admin do cliente; auditoria sem o texto', () => {
-    expect(FUNCOES_SA_0081.map(nome)).toEqual(['plataforma.sa_listar_frases_carga', 'plataforma.sa_incluir_frase_carga', 'plataforma.sa_editar_frase_carga']);
+    expect(FUNCOES_SA_0082.map(nome)).toEqual(['plataforma.sa_listar_frases_carga', 'plataforma.sa_incluir_frase_carga', 'plataforma.sa_editar_frase_carga']);
     expect(FUNCOES_SA_ATUAIS).toHaveLength(19);
-    for (const f of FUNCOES_SA_0081) {
+    for (const f of FUNCOES_SA_0082) {
       const b = bloco(up, `create function ${nome(f)}(`);
       expect(b, f).toMatch(/returns jsonb\s+language plpgsql volatile security definer\s+set search_path = pg_catalog, plataforma, pg_temp/);
       expect(b, f).toMatch(/if v_tipo is null then\s+raise exception '[^']+' using errcode = '28000';/);
@@ -197,13 +197,13 @@ describe('0081 frases da carga (estático)', () => {
   });
 
   it('down idempotente desfaz tudo (4 funções e a tabela), sem criar nada', () => {
-    for (const f of [LEITURA_APP, ...FUNCOES_SA_0081]) expect(down).toContain(`drop function if exists ${f};`);
+    for (const f of [LEITURA_APP, ...FUNCOES_SA_0082]) expect(down).toContain(`drop function if exists ${f};`);
     expect(down).toContain('drop table if exists plataforma.frase_carga;');
     expect(down).not.toMatch(/\b(create|grant|insert)\b/i);
   });
 });
 
-describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)', () => {
+describe.skipIf(semBanco())('0082 frases da carga (banco, fixture dois-tenants)', () => {
   let admin: pg.Client;
   beforeAll(async () => {
     admin = new pg.Client({ connectionString: banco().urlAdmin });
@@ -232,7 +232,7 @@ describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)'
   const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params).then((r) => r.rows);
   const abrir = async (p: unknown) => (await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao_portal($1::jsonb)', [JSON.stringify(p)]))[0];
   async function sessaoSuperAdmin() {
-    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t181@macuxi.exemplo', nome: 'Operador 0081', senha_hash: HASH_TESTE })]))[0]!.r;
+    const sa = (await q<{ r: { super_admin_id: string } }>('select plataforma.criar_super_admin($1::jsonb) as r', [JSON.stringify({ acao: 'criar', email: 'operador.t181@macuxi.exemplo', nome: 'Operador 0082', senha_hash: HASH_TESTE })]))[0]!.r;
     return (await abrir({ tipo: 'super_admin', super_admin_id: sa.super_admin_id }))!.sessao_id;
   }
   type Frase = { id: string; numero: number; texto: string; ativa: boolean; ordem: number };
@@ -326,7 +326,7 @@ describe.skipIf(semBanco())('0081 frases da carga (banco, fixture dois-tenants)'
   });
 });
 
-describe.skipIf(semBanco())('0081 up/down (banco efêmero)', () => {
+describe.skipIf(semBanco())('0082 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ migrar: false });
@@ -339,16 +339,16 @@ describe.skipIf(semBanco())('0081 up/down (banco efêmero)', () => {
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: anterior });
       const antes = await retratoDoCatalogo(c);
-      expect((await migrarUp(c, { ate: '0081' })).aplicadas).toEqual(['0081_plataforma_frase_carga']);
+      expect((await migrarUp(c, { ate: '0082' })).aplicadas).toEqual(['0082_plataforma_frase_carga']);
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('rel plataforma.frase_carga r rls=true force=true');
       expect((await c.query<{ n: number }>('select count(*)::int as n from plataforma.frase_carga where ativa')).rows[0]!.n).toBe(30);
       expect((await c.query<{ id: string }>('select plataforma.uuid_de_chave($1)::text as id', ['plataforma:frase_carga:07'])).rows[0]!.id).toBe(idInicial(7));
-      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0081_plataforma_frase_carga']);
+      expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0082_plataforma_frase_carga']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await c.query(m81.down);
+      await c.query(m82.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      await migrarUp(c, { ate: '0081' });
+      await migrarUp(c, { ate: '0082' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
     });
   });

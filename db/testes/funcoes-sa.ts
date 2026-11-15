@@ -89,10 +89,10 @@ export const FUNCOES_SA_0058 = ['plataforma.sa_listar_diagnosticos(uuid, jsonb)'
 export const FUNCOES_SA_ATE_0057 = [...FUNCOES_SA, ...FUNCOES_SA_0042] as const;
 
 /**
- * As 3 sa_* da 0081 (T-0181): o super-admin lista, inclui e edita (texto e/ou ativa) as frases da tela de carga. EXECUTE só ao
+ * As 3 sa_* da 0082 (T-0181): o super-admin lista, inclui e edita (texto e/ou ativa) as frases da tela de carga. EXECUTE só ao
  * macuxi_portal; admin do cliente = 42501.
  */
-export const FUNCOES_SA_0081 = [
+export const FUNCOES_SA_0082 = [
   'plataforma.sa_listar_frases_carga(uuid)',
   'plataforma.sa_incluir_frase_carga(uuid, uuid, text)',
   'plataforma.sa_editar_frase_carga(uuid, uuid, text, boolean)',
@@ -102,11 +102,11 @@ export const FUNCOES_SA_0081 = [
 export const FUNCOES_SA_ATE_0058 = [...FUNCOES_SA_ATE_0057, ...FUNCOES_SA_0058] as const;
 
 /**
- * As sa_* públicas do banco migrado até a ÚLTIMA (0081): as 16 até a 0058 (FUNCOES_SA_ATE_0058) + as 3 da 0081 = 19. Use esta
+ * As sa_* públicas do banco migrado até a ÚLTIMA (0082): as 16 até a 0058 (FUNCOES_SA_ATE_0058) + as 3 da 0082 = 19. Use esta
  * lista nas conferências pelo catálogo do banco migrado até o fim; a FUNCOES_SA continua sendo a do banco parado na 0039, 0040
- * ou 0041. Na junção com as 0070 a 0080 (branches abertos), somar as delas aqui.
+ * ou 0041. Na junção com as 0070 a 0081 (branches abertos), somar as delas aqui.
  */
-export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0058, ...FUNCOES_SA_0081] as const;
+export const FUNCOES_SA_ATUAIS = [...FUNCOES_SA_ATE_0058, ...FUNCOES_SA_0082] as const;
 
 /** Interna (SECURITY INVOKER, sem EXECUTE para ninguém além do dono), chamada de dentro das sa_*: assinatura da 0039. */
 export const SA_INTERNA = 'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)';

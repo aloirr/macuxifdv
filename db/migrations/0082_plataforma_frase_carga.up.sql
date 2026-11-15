@@ -1,9 +1,10 @@
--- 0081_plataforma_frase_carga (up) — T-0181 (tela de carga: frase sorteada abaixo do "Olá"; cadastro das frases pelo
+-- 0082_plataforma_frase_carga (up) — T-0181 (tela de carga: frase sorteada abaixo do "Olá"; cadastro das frases pelo
 -- super-admin no portal config.). Spec aprovada: docs/design/carga-aviso-frases/spec.md §2 a §4 e frases.md (commit 3cdb384;
 -- R-20261115-070000, R-20261115-071500 e R-20261115-075500 do dono do produto). Dicionário: docs/banco/plataforma.md
--- ("Frases da carga (0081)"). Teste: db/testes/t0181-frase-carga.db.test.ts (estático na sessão; banco e up/down no CI).
--- Número 0081 (renumerada da 0075 pelo gerente na T-0181): as 0070 a 0080 estão em branches abertos; o migrador recusa buraco,
--- então esta só migra depois delas no main (a numeração final é conferida de novo no merge).
+-- ("Frases da carga (0082)"). Teste: db/testes/t0181-frase-carga.db.test.ts (estático na sessão; banco e up/down no CI).
+-- Número 0082 (renumerada da 0075 e depois da 0081 pelo gerente na T-0181; a 0081 é a do logo do cliente, #343): as 0070 a
+-- 0081 estão em branches abertos; o migrador recusa buraco, então esta só migra depois delas no main (a numeração final
+-- é conferida de novo no merge).
 --
 -- Migração ADITIVA: 1 tabela, 4 funções SECURITY DEFINER e a carga das 30 frases iniciais. Nada existente muda.
 --
@@ -41,10 +42,10 @@
 --   frase não achada (P0002). Sem exclusão (não foi pedida; desativar basta).
 --   plataforma.frases_carga_ativas() -> jsonb { frases: [{ id, texto, ordem }] }: as ativas e vivas, por ordem e numero.
 --     EXECUTE só ao macuxi_app (a API chama dentro do comTenant da requisição; nada de tenant entra nem sai).
--- A conferência do fim não fixa o total de sa_* do portal (16 no main, mais as das 0070 a 0080 em branches abertos): confere
+-- A conferência do fim não fixa o total de sa_* do portal (16 no main, mais as das 0070 a 0081 em branches abertos): confere
 -- as 3 desta migração e que nenhuma sa_* é do app, do worker ou de PUBLIC. O total fica em db/testes/funcoes-sa.ts.
 --
--- Caminho de volta: 0081_plataforma_frase_carga.down.sql (APAGA as frases, inclusive as incluídas e editadas no portal; a
+-- Caminho de volta: 0082_plataforma_frase_carga.down.sql (APAGA as frases, inclusive as incluídas e editadas no portal; a
 -- auditoria em plataforma.auditoria_plataforma fica). Volte antes a API que chama as funções (senão 42883).
 
 -- =============================================================================================
@@ -281,14 +282,14 @@ begin
           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'));
   if v_f is not null then
-    raise exception '0081: função executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
+    raise exception '0082: função executável pelo macuxi_app, macuxi_worker ou PUBLIC: %', v_f using errcode = '42501';
   end if;
   select count(*) into v_n
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'plataforma' and p.proname in ('sa_listar_frases_carga', 'sa_incluir_frase_carga', 'sa_editar_frase_carga')
      and has_function_privilege('macuxi_portal', p.oid, 'execute');
   if v_n <> 3 then
-    raise exception '0081: esperadas as 3 sa_* das frases executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
+    raise exception '0082: esperadas as 3 sa_* das frases executáveis pelo macuxi_portal, há %', v_n using errcode = '42501';
   end if;
   select string_agg(r, ', ') into v_f
     from unnest(array['macuxi_worker', 'macuxi_portal']) r
@@ -296,12 +297,12 @@ begin
   if v_f is not null or not has_function_privilege('macuxi_app', 'plataforma.frases_carga_ativas()', 'execute')
      or exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                  where p.oid = 'plataforma.frases_carga_ativas()'::regprocedure and a.grantee = 0 and a.privilege_type = 'EXECUTE') then
-    raise exception '0081: plataforma.frases_carga_ativas fora do desenho (só o macuxi_app executa): %', v_f using errcode = '42501';
+    raise exception '0082: plataforma.frases_carga_ativas fora do desenho (só o macuxi_app executa): %', v_f using errcode = '42501';
   end if;
   if has_table_privilege('macuxi_app', 'plataforma.frase_carga', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
      or has_table_privilege('macuxi_worker', 'plataforma.frase_carga', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
      or has_table_privilege('macuxi_portal', 'plataforma.frase_carga', 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') then
-    raise exception '0081: privilégio de tabela fora do desenho em plataforma.frase_carga' using errcode = '42501';
+    raise exception '0082: privilégio de tabela fora do desenho em plataforma.frase_carga' using errcode = '42501';
   end if;
 end
 $$;

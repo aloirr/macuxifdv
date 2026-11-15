@@ -4,7 +4,7 @@
  * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), 0039_plataforma_portal_email_senha.up.sql (portal por
  * e-mail e senha, só por função), 0040_core_senha_email_saida.up.sql (outbox de e-mail) e
  * 0041_plataforma_perfis_de_acesso.up.sql (perfis de acesso, ADR 0033; cargo e um perfil por usuário desde a
- * 0069_core_cargo_hierarquia.up.sql) e 0081_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por
+ * 0069_core_cargo_hierarquia.up.sql) e 0082_plataforma_frase_carga.up.sql (frases da tela de carga, globais, só por
  * função), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
@@ -386,7 +386,7 @@ export const diagnostico = plataforma.table('diagnostico', {
 });
 
 /**
- * Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin (sem tenant_id), vale para todas as empresas. Só por
+ * Frases da tela de carga (0082, T-0181): cadastro GLOBAL do super-admin (sem tenant_id), vale para todas as empresas. Só por
  * função: o portal usa sa_listar_frases_carga / sa_incluir_frase_carga / sa_editar_frase_carga e o app a
  * frases_carga_ativas(); nenhum papel da aplicação lê a tabela direto. numero = Nº do portal (único, max + 1 na inclusão);
  * texto 1..90 depois do trim, único entre as vivas sem diferenciar maiúsculas; as 30 iniciais com id

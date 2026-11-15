@@ -790,8 +790,8 @@ select id, tenant_id, protocolo, origem, app, versao_app, aparelho_modelo, andro
  order by recebido_em limit 10 for update skip locked;
 ```
 
-## Frases da carga (0081, T-0181) — `frase_carga`. Global, só por função, fora do sync por linha
-Migração `0081_plataforma_frase_carga` (volta: `.down.sql`, APAGA as frases, inclusive as incluídas e editadas no portal; a
+## Frases da carga (0082, T-0181) — `frase_carga`. Global, só por função, fora do sync por linha
+Migração `0082_plataforma_frase_carga` (volta: `.down.sql`, APAGA as frases, inclusive as incluídas e editadas no portal; a
 auditoria fica). Spec aprovada: `docs/design/carga-aviso-frases/spec.md` §2 a §4 e `frases.md` (commit `3cdb384`). Drizzle:
 `fraseCarga` em `db/esquema/plataforma.ts`. Teste: `db/testes/t0181-frase-carga.db.test.ts`.
 
@@ -840,10 +840,10 @@ API na tabela da seção 3, "Banco — funções que a API chama", de `docs/dese
   vivas, por `ordem, numero`. EXECUTE só ao `macuxi_app` (`GET /v1/sync/frases-carga`, dentro do `comTenant` da requisição;
   nada de tenant entra nem sai). O aparelho guarda a lista e sorteia offline.
 
-As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_0081`, `FUNCOES_SA_ATUAIS` = 19 sobre o
+As 3 `sa_*` entram nas listas de conformidade (`db/testes/funcoes-sa.ts` `FUNCOES_SA_0082`, `FUNCOES_SA_ATUAIS` = 19 sobre o
 `main`; somar as das migrações de outros branches na junção). Fora deste caminho, a cargo dos donos: `apps/api/test/funcoes-sa.ts` e
 `scripts/deploy/producao/banco-dbaas.sh` (engenheiro-software) e `DEFINER_REVISADAS`/`DEFINER_REVISADAS_PORTAL` de
-`tests/integracao/banco/conformidade.test.ts` (testes). A conferência do fim da 0081 não fixa o total de `sa_*` (as 0070 a 0080
+`tests/integracao/banco/conformidade.test.ts` (testes). A conferência do fim da 0082 não fixa o total de `sa_*` (as 0070 a 0081
 estão em branches abertos): confere as 3 novas no portal e nenhuma `sa_*` no app, no worker ou em PUBLIC.
 
 Consultas da API (referência):
