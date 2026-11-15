@@ -21,16 +21,13 @@ A tela é sempre a mesma: o logo parado e, embaixo, a área de sincronização. 
 ## 2. Área de baixo (estados 2, 4, 5 e 6)
 De cima para baixo, alinhada à margem lateral de 32 dp:
 1. **"Olá, {primeiro nome}"** (só depois do login): IBM Plex Sans 15, `textoClaro`, centralizado, logo abaixo do logo.
-   - **"Você sabia?" e frase sorteada** (estados 4 e 5), 20 dp abaixo do "Olá", centralizados: lâmpada de 16 dp
-     (`<Icon name="lampada">`, cor `preenchimento`, gráfico) e, 6 dp depois, "Você sabia?" em Plex Sans SemiBold 13/18, `texto`;
-     6 dp abaixo, a frase em Plex Sans 14/20, `textoClaro`, largura máxima 280 dp, até 2 linhas, sem aspas e sem itálico. Uma
-     frase por carga, parada. Precisa de 24 dp livres até o aviso; sem isso, a frase cai para 1 linha (se couber inteira) ou o
-     bloco inteiro sai. O título nunca aparece sozinho.
-   - **Aviso** (estados 4 e 5), 10 dp acima da linha da barra, alinhado à esquerda: "Baixando os dados do servidor. Não
-     desligue.", Plex Sans 13/18, `textoClaro`, 1 linha na escala de fonte 1,0; com fonte grande pode quebrar em 2, nunca é
-     cortado. Sem caixa, sem borda, sem negrito e sem ícone. No erro (estado 6) sai.
-   - Medidas em `MEDIDAS_FRASE_CARGA` (`packages/ui/src/mobile/entrada.ts`); sorteio, respiro e cadastro em
-     `docs/design/carga-aviso-frases/spec.md` (T-0181).
+   - **"Você sabia?" e frase sorteada** (estados 4 e 5), abaixo do "Olá", centralizados: lâmpada (`<Icon name="lampada">`,
+     gráfico), o rótulo "Você sabia?" e a frase, sem aspas e sem itálico. Uma frase por carga, parada. Sem respiro até o aviso,
+     a frase cai para 1 linha (se couber inteira) ou o bloco inteiro sai. O rótulo nunca aparece sozinho.
+   - **Aviso** (estados 4 e 5), acima da linha da barra, alinhado à esquerda: "Baixando os dados do servidor. Não desligue."
+     Sem caixa, sem borda, sem negrito e sem ícone. No erro (estado 6) sai.
+   - Medidas, fontes e cores: só em `MEDIDAS_FRASE_CARGA` (`packages/ui/src/mobile/entrada.ts`) e na §1 de
+     `docs/design/carga-aviso-frases/spec.md` (T-0181), que também traz o sorteio, o respiro e o cadastro.
 2. **Linha da barra:** à esquerda "Etapa {n} de {N} · {nome da etapa}" (Plex Sans 13, `texto`); à direita o percentual (Plex Sans
    Bold 13, `texto`, números tabulares). Antes do login, o nome da tarefa no lugar da etapa. Pronto: "Pronto" e "100%".
 3. **Barra:** 6 dp de altura, raio 3, trilho `trilho`, preenchimento `preenchimento`. É o percentual do total (ADR 0017), de 0 a

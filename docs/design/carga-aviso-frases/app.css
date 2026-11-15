@@ -1,0 +1,36 @@
+/* Simulação da tela de carga (Campo e Gestão), 360 x 800 dp. Medidas da spec entrada-sync.md e desta pasta (spec.md). */
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf'); }
+* { box-sizing: border-box; margin: 0; }
+body { background: #888; font-family: 'IBM Plex Sans', sans-serif; }
+.tela { position: relative; width: 360px; height: 800px; overflow: hidden; background: var(--fundo); color: var(--texto); }
+.campo { --fundo: #1E3350; --texto: #FFFFFF; --textoClaro: #C9CED5; --trilho: #3A4D68; --preenchimento: #F59A52; }
+.gestao { --fundo: #F8F6F1; --texto: #1E3350; --textoClaro: #4A5562; --trilho: #DFE2E6; --preenchimento: #C2540A; }
+/* a lâmpada usa a cor do preenchimento da barra (sol claro no Campo, sol laranja no Gestão): gráfico, nunca texto */
+.status { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 12px; font-weight: 600; color: var(--texto); }
+/* logo empilhado 136 dp, centro da tela (posicaoDoLogo): altura 126, topo (800 - 126) / 2 = 337 */
+.logo { position: absolute; top: 337px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; }
+.logo img { width: 136px; height: 126px; display: block; }
+.saudacao { margin-top: 28px; font-size: 15px; color: var(--textoClaro); text-align: center; }
+/* NOVO: "Você sabia?" com a lâmpada e a frase sorteada, embaixo do "Olá" */
+.sabia { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.rot { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--texto); }
+.rot svg { color: var(--preenchimento); flex: none; }
+.frase { max-width: 280px; font-size: 14px; line-height: 20px; color: var(--textoClaro); text-align: center; }
+.baixo { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 32px 32px; display: flex; flex-direction: column; gap: 18px; }
+/* NOVO: aviso acima da barra, sem destaque (R-20261115-080500-alexandre) */
+.aviso { margin-bottom: -8px; font-size: 13px; line-height: 18px; color: var(--textoClaro); }
+.barra { display: flex; flex-direction: column; gap: 8px; }
+.linha { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
+.pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+.trilho { height: 6px; border-radius: 3px; background: var(--trilho); overflow: hidden; }
+.trilho i { display: block; height: 6px; border-radius: 3px; background: var(--preenchimento); }
+/* Variante 360 x 640 com 3 botões de navegação (inset de baixo 48 dp): logo no centro da janela, (640 - 126) / 2 = 257 */
+.baixa { height: 640px; }
+.baixa .logo { top: 257px; }
+.baixa .baixo { bottom: 48px; }
+.nav { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; display: flex; justify-content: space-around; align-items: center; background: #000; color: #fff; font-size: 14px; opacity: .85; }
+/* Regra de respiro (spec §1.1): sem 24 dp entre a frase e o aviso, a frase cai para 1 linha e, se ainda não couber, sai
+   junto com o "Você sabia?". Na 640 com navegação, o bloco sai. */
+.baixa .sabia { display: none; }
