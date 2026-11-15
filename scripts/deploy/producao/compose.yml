@@ -27,6 +27,7 @@
 #   bash ~/macuxi-deploy/banco-dbaas.sh                     (papéis, banco, extensão vector, migrações e conferências)
 #   dc --profile ferramentas run --rm -T pgcliente psql -d macuxi -c 'select 1'   (psql 16 no DBaaS, como admin)
 #   dc --profile ferramentas run --rm tenant criar ...       (pnpm tenant:criar da T-0083; ver producao-tenant.yml)
+#   dc --profile ferramentas run --rm -T codigo-licenca --codigo <código> [--simular]   (producao-codigo-licenca.yml)
 #   dc --profile ferramentas run --rm super-admin criar --email ... --nome ... --confirmar ...   (T-0093; producao-super-admin.yml)
 name: macuxi-prod
 
@@ -170,6 +171,23 @@ services:
     profiles: [ferramentas]
     restart: 'no'
     entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/tenant.ts']
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: admin.env
+    environment:
+      <<: *ambiente-api
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Código da licença (UF + 4 dígitos) para as empresas com o código de antes (ADR 0048, 0068 §6): pnpm tenant:codigo-licenca
+  # pela conexão de administração (workflow producao-codigo-licenca.yml). Consulta a UF na BrasilAPI/CNPJá (rede com saída).
+  codigo-licenca:
+    <<: *imagem-api
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/codigo-licenca.ts']
     env_file:
       - path: .env
       - path: banco.env
