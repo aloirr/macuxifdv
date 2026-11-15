@@ -23,9 +23,7 @@ import {
 import { Button, CLASSE_CAMPO, Dialog, ErrorBlock, MenuAcoes, Notice, cx, formatDateTimeFull, type AcaoDoMenu } from '@macuxi/ui/web';
 
 import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
-import { celulaDoBackup, type EmpresaResumo, erroDoExcluir, estadoDasAcoes, rotaDaAcao, TEXTOS_EMPRESA_ACOES as T, type ErroDoExcluir } from '@/lib/portal-empresa-acoes';
-
-const CONSULTA_MS = 5_000;
+import { ACOMPANHAR_ACAO_MS, celulaDoBackup, type EmpresaResumo, erroDoExcluir, estadoDasAcoes, rotaDaAcao, TEXTOS_EMPRESA_ACOES as T, type ErroDoExcluir } from '@/lib/portal-empresa-acoes';
 
 type Empresa = EmpresaResumo & { acoes: AcoesDaEmpresa };
 type Aviso = { tom: 'success' | 'danger'; texto: string };
@@ -179,7 +177,8 @@ function AcompanharBackup({ tenant, id, aoTerminar }: { tenant: string; id: stri
   const q = useQuery({
     queryKey: ['portal', 'empresa-backup', id],
     queryFn: () => chamarPortal(rotaDaAcao('backup', tenant, id), { schema: BackupEmpresaSchema }),
-    refetchInterval: CONSULTA_MS,
+    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    refetchInterval: ACOMPANHAR_ACAO_MS,
     retry: false,
   });
   const situacao = q.data?.situacao;
@@ -195,7 +194,8 @@ function AcompanharExclusao({ tenant, aoTerminar }: { tenant: string; aoTerminar
   const q = useQuery({
     queryKey: ['portal', 'empresa-exclusao', tenant],
     queryFn: () => chamarPortal(rotaDaAcao('exclusao', tenant), { schema: ExclusaoEmpresaSchema }),
-    refetchInterval: CONSULTA_MS,
+    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    refetchInterval: ACOMPANHAR_ACAO_MS,
     retry: false,
   });
   const situacao = q.data?.situacao;

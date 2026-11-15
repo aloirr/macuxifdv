@@ -14,6 +14,9 @@ const C = CODIGOS_ACOES_EMPRESA;
 /** Item da lista de empresas (`EmpresaResumoSchema`; o SDK não exporta o tipo). */
 export type EmpresaResumo = ReturnType<typeof EmpresaResumoSchema.parse>;
 
+/** Intervalo da consulta enquanto um backup ou uma exclusão está em andamento (ADR 0052); para quando termina. */
+export const ACOMPANHAR_ACAO_MS = 5_000;
+
 export const TEXTOS_EMPRESA_ACOES = Object.freeze({
   colunaBackup: 'Backup',
   colunaAcoes: 'Ações',

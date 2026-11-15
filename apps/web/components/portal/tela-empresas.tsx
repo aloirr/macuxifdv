@@ -15,7 +15,7 @@ import { ListaEmpresasSchema } from '@macuxi/platform-sdk';
 import { Badge, ErrorBlock, LoadingBlock, PageHeader, Panel, TableScroll, td, th } from '@macuxi/ui/web';
 
 import { chamarPortal, mensagemDoErro } from '@/lib/portal-api';
-import { rotuloDoStatus, TEXTOS_EMPRESA_ACOES, tomDoStatus, type EmpresaResumo } from '@/lib/portal-empresa-acoes';
+import { ACOMPANHAR_ACAO_MS, rotuloDoStatus, TEXTOS_EMPRESA_ACOES, tomDoStatus, type EmpresaResumo } from '@/lib/portal-empresa-acoes';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { destinoDaSessao, ehTimeMacuxi } from '@/lib/portal-sessao';
 import { LinkBotao, MolduraPortal, useSessaoPortal } from './base';
@@ -24,14 +24,15 @@ import { mascararCnpj, PassoEmpresa, ROTULO_MODULO } from './passo-empresa';
 
 export const CHAVE_EMPRESAS = ['portal', 'empresas'] as const;
 
-/** Backup ou exclusão rodando no worker: a lista se atualiza a cada 5 s até terminar (ADR 0052). */
+/** Backup ou exclusão rodando no worker: a lista se atualiza em ACOMPANHAR_ACAO_MS até terminar (ADR 0052). */
 const rodando = (e: EmpresaResumo) => e.status === 'encerrado' || e.acoes?.ultimo_backup?.situacao === 'em_andamento' || e.acoes?.exclusao?.situacao === 'em_andamento';
 
 export function useEmpresas() {
   return useQuery({
     queryKey: CHAVE_EMPRESAS,
     queryFn: () => chamarPortal(ROTAS_PORTAL.empresas, { schema: ListaEmpresasSchema }).then((r) => r.itens),
-    refetchInterval: (q) => (q.state.data?.some(rodando) ? 5_000 : false),
+    // timer-permitido: acompanha backup/exclusão em andamento; para quando termina
+    refetchInterval: (q) => (q.state.data?.some(rodando) ? ACOMPANHAR_ACAO_MS : false),
   });
 }
 
