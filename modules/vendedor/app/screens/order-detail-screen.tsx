@@ -436,7 +436,10 @@ export default function OrderDetailScreen() {
       const referenciaNoCliente = referenciaNoOrcamento(ambiente.parametros('vendedor'));
       const refs = view === 'bko' || referenciaNoCliente ? await app.referenciasDeProdutos(lines.map((l) => l.product_id).filter((x): x is string => Boolean(x))) : new Map<string, Array<{ brand: string; code: string }>>();
       const pedidoPdf = pdfOrder(refs);
+      // T-0182: logo da empresa do aparelho; sem logo ou com erro de leitura, o PDF sai com a logo padrão
+      const logo_src = await Promise.resolve(ambiente.logoDaEmpresa?.()).then((l) => l ?? undefined, () => undefined);
       const html = buildOrderPdfHtml(pedidoPdf, view, {
+        ...(logo_src ? { logo_src } : {}),
         tenant_name: nomeDaDistribuidora(me?.tenant.name, ambiente.parametros('core')),
         product_name: me?.tenant.product_name ?? 'Macuxi FDV',
         tz,
