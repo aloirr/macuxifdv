@@ -383,3 +383,127 @@ Continuam abertos, fora destes lotes: MC-0021, MC-0052, MC-0068 e MC-0070 (além
 - **Lote 17:** mandar a MC-0073 ao `modulo-core`, com as quatro linhas.
 - **Lote 18:** liberado. Mandar a MC-0074 ao `engenheiro-apps` e a nota da data ao `testes` e ao corretor.
 - **Lote 19:** mandar ao Alexandre os 4 PNG da carga, mais o `login-campo.png` e o `mais.png`, com a pergunta acima. Com a resposta, o design-de-marca registra a decisão em `decisoes.md` e põe a §2.5 no manual.
+
+---
+
+# Parte 4 · lotes 20 a 28 (v1.0.10, 15/11/2026)
+
+> 2026-11-15 · design-de-marca · continuação, pedido do gerente-projetos, para a v1.0.10. Mesma base: `docs/marca/manual.md` v1, `decisoes.md` e a spec da T-0173 (`docs/design/telas/bko-revisao.md`). `origin/main` = `b536b82` (v1.0.9).
+> Cada lote foi lido com `git diff origin/main...origin/<branch>`. Nos retestes, também com o diff contra o SHA lido nas partes 1 a 3. O SHA de cada branch foi conferido com `git rev-parse`. Os prints foram abertos um a um, e as cores conferidas no pixel.
+> **Achado novo:** MC-0075. A numeração segue na MC-0076. **Retestadas e fechadas:** MC-0066 (decisão do Alexandre, com o registro pendente abaixo), MC-0073 e MC-0074.
+> **Recados:** a CLI continua com HTTP 403. Os avisos aos donos vão pelo gerente-projetos.
+
+## Resumo da parte 4
+| Lote | Branch · SHA | Achados | Parecer |
+|---|---|---|---|
+| 20 | `nuvem/bko-revisao-modulo-core` · `da495ed0` | MC-0073 fechada; MC-0075 (média, fora das linhas do lote) | **liberado** |
+| 21 | `nuvem/bko-revisao-modulo-catalogo` · `364ac40a` | nenhum | **liberado** |
+| 22 | `nuvem/rodape-shell-engenheiro-apps` · `474164cb` | MC-0074 fechada no código | **liberado** (reteste no navegador) |
+| 23 | `nuvem/empresa-acoes-engenheiro-apps` · `8705f496` | nenhum (a MC-0021 continua aberta, fora do lote) | **liberado** |
+| 24 | `nuvem/logo-cliente-designer-ux` · `c6d5a4b4` | MC-0066 fechada pela escolha A | **liberado**; registro em `decisoes.md` pendente do texto literal do recado |
+| 25 | `nuvem/inicio-cabecalho-engenheiro-apps` · `b227367e` | nenhum | **liberado** (reteste no print do aparelho) |
+| 26 | `nuvem/push-fcm-engenheiro-apps` · `9334bf0e` | sem impacto de marca | **liberado** |
+| 27 | `nuvem/bko-revisao-modulo-vendedor` · `f93f44cd` | nenhum (a MC-0068 continua aberta, fora do lote) | **liberado** |
+| 28 | `nuvem/bko-revisao-modulo-treinamento` · `cf22a7a6` | nenhum | **liberado** |
+
+## Lote 20 · Core, reteste da MC-0073 e dos prints (`da495ed0`, anterior `6bf52819`)
+Um commit (`da495ed`): 15 telas, `lib/lista-bko.tsx`, `lib/indicadores.ts` e 10 prints refeitos.
+- **MC-0073 fechada.** As quatro linhas passaram a `neutral`: `filiais-page.tsx:119` ("Inativa"), `fotos-pdv-page.tsx:83` ("Inativo"), `motivos-page.tsx:97` ("Desativado") e `produtos/medidas-panel.tsx:93` ("Inativa"). Nos prints de Filiais, Fotos do PDV e Motivos, o fundo do selo é a Névoa `#ECEEF1` no pixel, igual a Usuários, Catálogo e Vendedor. A "Incompleta" da Filial continua no tom de aviso, e isso está certo.
+- **O resto do diff:**
+  - "Limpar filtros" em todas as telas virou um componente só (`LimparFiltros`, o `Button size="sm"` do kit);
+  - Indicadores perdeu a gaveta "Definir meta de venda" e ganhou a coluna "Por dia útil (12 restantes)";
+  - Rotas juntou "Visitadas" e "Pendentes" num KPI ("8 de 24", em `text-success`, com o rótulo);
+  - Coordenadas pôs o nome do vendedor em `text-ink-3` abaixo da data;
+  - Cliente 360 e Visitas passaram a data para dd/mm.
+
+  Tudo com tokens do kit. Não há hex solto nem cor nova.
+- **Prints** (abri Filiais, Fotos do PDV, Motivos, Rotas, Indicadores e Coordenadas): botão principal Azul noite, menu "⋯" do kit, selos sempre com texto, shell conforme (MC-0054 a MC-0056). As datas já saem no formato do Brasil. O "November 2026" do campo Mês continua, e isso é para o `testes` e o corretor, não é marca.
+- **MC-0075 (média, fora das linhas do lote, `modulo-core`): seleção ativa em grafite em Rotas e em Parâmetros do Início.** No print `depois/rotas-1366x768.png`, o "Dia" ativo do alternador Dia/Semana/Mês sai em grafite `#16202A` no pixel. É o mesmo caso da MC-0069 (aba ativa de Usuários e módulos, já fechada): no mesmo BKO, a aba e o segmento ativos são Azul noite em Recados, Catálogo e Licenças (§3, o Azul noite é ação e estado ativo).
+  - As linhas vêm do `main` e o lote não as tocou. A tela de Rotas já estava no print da parte 2, e o achado passou na leitura daquela parte.
+  - **Não segura o lote:** o defeito é de antes, e as linhas não foram reescritas, como na MC-0070 e na MC-0074. Vai no próximo lote do `modulo-core`.
+  - Correção:
+
+| Arquivo:linha (no branch) | Antes | Depois |
+|---|---|---|
+| `modules/core/web/components/routes/routes-page.tsx:67` (Dia/Semana/Mês) | `'bg-ink text-white'` | `'bg-accent text-white'` |
+| `routes-page.tsx:352` (chip "Todos") | `'border-ink bg-ink text-white'` | `'border-accent bg-accent text-white'` |
+| `routes-page.tsx:364` (chip do vendedor) | `'border-ink bg-ink text-white'` | `'border-accent bg-accent text-white'` |
+| `modules/core/web/components/metas/inicio-parametros-panel.tsx:206` (dias marcados) | `'border-ink bg-ink text-white'` | `'border-accent bg-accent text-white'` |
+
+  O branco no Azul noite dá 12,77:1. O "CD" da legenda do mapa (`routes-page.tsx:111`) é o desenho do marcador de saída, não é estado ativo, e fica como está.
+- **Liberado.**
+
+## Lote 21 · Catálogo (`364ac40a`, anterior `a058713b`)
+Um commit (`364ac40`): "Limpar filtros" num componente só (`lib/lista.tsx`, o `Button size="sm"` do kit), "Mais ações" sem o rótulo repetido, o selo "Destaque" passa para dentro da célula do produto e a coluna "Situação" de Marcas sai (o filtro "Ativas/Inativas/Todas" continua).
+- O selo "Destaque" continua `pending` (MC-0071): no print `catalogo-produtos-depois`, Azul noite no Azul suave, ao lado do nome. O link de Marcas segue `text-accent-ink` (MC-0072).
+- Abri os prints `catalogo-produtos-depois` e `marcas-depois`: botões e abas no Azul noite, shell conforme, não há cor nova. Os nomes de marca (Bosch, NGK…) são dado de cadastro do cliente, não marca no produto.
+- **Liberado.**
+
+## Lote 22 · Rodapé e shell do BKO, reteste da MC-0074 (engenheiro-apps, `474164cb`, anterior `155bc0d4`)
+Um commit (`474164c`): CNPJ pelo `formatarDocumento` comum, quadro da Auditoria sem título, `LIMITE_AUDITORIA` num lugar só e a MC-0074.
+- **MC-0074 fechada no código.** `apps/web/app/globals.css`, dentro do `@layer base`: `input[type='checkbox'], input[type='radio'] { accent-color: var(--color-accent); }`. O `--color-accent` é `#1e3350`, então as caixas nativas do BKO e do portal saem em Azul noite, não no `#0075FF` do navegador. Falta o print do navegador com uma caixa marcada (a gaveta "Nova faixa" serve).
+- **Exceção que continua:** a caixa do `SeletorDePerfis` (`packages/ui/src/web/permissoes.tsx:341`) tem a classe `accent-[var(--color-ink)]`, que vence a regra geral e fica grafite. É a **MC-0051** (designer-ux), aberta.
+- **Rodapé:** o texto da linha do CNPJ é o mesmo (máscara `00.000.000/0000-00`). Não há mudança de cor, fonte ou posição.
+- **Liberado.** Reteste no navegador (1366×768).
+
+## Lote 23 · Ações de empresa no portal (engenheiro-apps, `8705f496`, anterior `3dec04a5`)
+Diff grande (38 arquivos), quase todo de banco, API e SDK (migração 0072, rotas do ADR 0052). Do lado da tela, o que mudou foi:
+- as frases de recusa passam a vir de uma tabela só do SDK (`MENSAGENS_ACOES_EMPRESA`), com os mesmos textos do lote 9;
+- nenhum componente `.tsx` de tela mudou (só o teste), e não há CSS nem print.
+
+A frase "O backup está indisponível neste servidor. Avise o suporte da Macuxi." é curta e direta, como pede o tom da marca. O texto de interface é do designer-ux e do corretor.
+- **Liberado.**
+- **MC-0021** (`LinkBotao` do portal em grafite, `apps/web/components/portal/base.tsx:61`): continua aberta, fora do lote.
+
+## Lote 24 · Logo do cliente, decisão do Alexandre (designer-ux, `c6d5a4b4`, anterior `64a18b97`)
+Dois commits (`147ce5c`, `c6d5a4b`): a spec `logo-cliente.md` registra no topo a decisão "R-20261114-234500-alexandre, 14/11/2026 ~23h45, Manaus, pelo gerente-projetos":
+- a carga com a logo **ao lado**, que é a variação A;
+- o login e as telas de senha **sem a logo do cliente** (§4);
+- o Mais, os PDFs e o portal ficam como estavam.
+
+Saem a variação B, a opção C, o `login.html` e os PNG do login.
+- **Imagens:** `carga-campo.png` e `carga-gestao.png` são os PNG da variação A no pixel. A única diferença é a legenda ("Carga, com logo"). Abri o do Campo: logo Macuxi de 124 dp, filete `#3A4D68` a 24 dp, placa branca de 64 dp e o resto da tela igual à entrada aprovada. O `carga.html` só perdeu o ramo da B.
+- **Mais:** a mesma placa de 52/36, que agora existe só ali, e o comentário do `mais.html` acompanha. Conforme.
+- **MC-0066 fechada pela escolha A**, a recomendada no parecer. Com o login sem logo, a placa de 52/36 fica só no Mais, e a MC-0067 continua fechada.
+- **A escolha está registrada?**
+  - **Na spec, sim:** pelo ID do recado (`logo-cliente.md`, topo e §4), e no diário do designer-ux.
+  - **Em `docs/marca/decisoes.md`, não.** Não consegui ler o texto do recado, porque o repositório de recados dá HTTP 403 nesta sessão.
+  - **Por isso não registrei a decisão em `decisoes.md` nem a §2.5 no manual.** Pela regra, só entra o "aprovo" do Alexandre com o texto dele.
+- **Parecer:** **liberado** para a implementação da carga A e do Mais, desde que o gerente confirme que o recado diz "A". Com o texto literal (ou a cópia do chat), o design-de-marca grava a decisão em `decisoes.md` e a §2.5 do manual: a placa branca, sempre menor que o logo Macuxi da tela e fora da área de proteção, com 64/48 na carga, 52/36 no Mais e nada no login. Se o recado não disser isso, a carga com logo volta a segurar.
+
+## Lote 25 · Início do Campo, foto do perfil pelo shell (engenheiro-apps, `b227367e`)
+O branch traz o lote 7 (`6f04e77`, liberado na parte 1) e mais dois commits: `e0ac444` (modulo-core) tira o `painelAltura` sem uso e expõe a `ENTIDADE_USUARIO_AVATAR`, e `b227367` (engenheiro-apps) liga a foto do perfil pelo mesmo download e cache da miniatura do Catálogo (`foto-perfil-endereco.ts`, `services/miniaturas.ts`, `state/plataforma.tsx`).
+- A tela (`tela-inicio-campo.tsx`) e os dois prints não mudaram desde o `6f04e77`: foto de 72 com raio 16 e `cover`, iniciais quando não há foto, faixa Azul noite. O diff contra o `6f04e77` também traz o `ci.yml` e os `scripts/ci/shards`, que vêm do `main` e não têm superfície de marca.
+- **Liberado.** O reteste no print do aparelho continua pendente, agora com a foto real baixada (recorte no raio 16 e troca para as iniciais sem sinal).
+
+## Lote 26 · Push pelo FCM direto (engenheiro-apps, `9334bf0e`)
+O diff mexe no `app.config.ts` (caminho do `google-services.json`) e no `push.ts` (token FCM do aparelho em vez do token do Expo, e o push só de dados com o app aberto).
+- O ícone, a cor e o canal da notificação não mudaram: `icone-notificacao.png`, `AZUL_NOITE` e o canal `avisos` (`app.config.ts:180`). O título e o texto da notificação vêm do servidor, como antes.
+- **Sem impacto de marca. Liberado.** No primeiro push real da v1.0.10, conferir no print do aparelho que o ícone e a cor continuam (o FCM direto usa a mesma configuração do `expo-notifications`).
+
+## Lote 27 · Vendedor (`f93f44cd`, anterior `1a151258`)
+Dois commits: a frase de erro da impressão vai para uma constante só (`ERRO_IMPRESSAO`, no mesmo `Notice` `danger` e no toast), sai o `totalDoPeriodo` sem uso, e os parâmetros da consulta de Pedidos voltam a ficar inline. Não há mudança de cor, fonte nem do PDF.
+- **Liberado.**
+- **MC-0068** (neutros do PDF, `pdf-pedido.ts:207,229,239`): continua aberta, fora do lote.
+
+## Lote 28 · Treinamento (`cf22a7a6`, anterior `1d1436eb`)
+Um commit: o `MenuAcoes` perde o `rotulo="Mais ações"`, que é o rótulo padrão do kit. Não há efeito visual. O "Nova trilha" continua o `Button primary` (MC-0065 fechada).
+- **Liberado.**
+
+## Achados da parte 4
+| ID | Gravidade | Onde | Fere | Correção | Dono | Estado |
+|---|---|---|---|---|---|---|
+| MC-0066 | média | carga com logo (`logo-cliente.md` §3) | §2.4, §2.3 | variação A (`c6d5a4b`) | designer-ux · dono do produto | **fechado** pela escolha A (R-20261114-234500); registro em `decisoes.md` e §2.5 pendentes do texto literal |
+| MC-0073 | baixa | `filiais-page.tsx:119`, `fotos-pdv-page.tsx:83`, `motivos-page.tsx:97`, `medidas-panel.tsx:93` | §3 | `'neutral'` | modulo-core | **fechado** (`da495ed`; Névoa no pixel) |
+| MC-0074 | média | `apps/web/app/globals.css` (caixas nativas) | §3 | `accent-color: var(--color-accent)` | engenheiro-apps | **fechado** no código (`474164c`); print do navegador pendente |
+| MC-0075 | média | `routes-page.tsx:67,352,364` e `inicio-parametros-panel.tsx:206` (seleção ativa em grafite, no `main`) | §3 (estado ativo Azul noite) e MC-0069 | `bg-ink` → `bg-accent` (e `border-ink` → `border-accent`) | modulo-core | **aberto**; fora das linhas do lote, não segura |
+
+Continuam abertos, fora destes lotes: MC-0021, MC-0051, MC-0052, MC-0068 e MC-0070 (além dos antigos).
+
+## Pendências da parte 4 para o gerente-projetos
+- **Lotes 20 a 23 e 25 a 28:** liberados pela marca para a v1.0.10.
+- **Lote 24:** mandar ao design-de-marca o texto literal do R-20261114-234500-alexandre (ou a cópia do chat). Se disser "A" e "login sem logo", fica liberado, e o design-de-marca grava a decisão em `decisoes.md` e a §2.5 no manual. Se não disser, a carga com logo volta a segurar.
+- **MC-0075:** mandar ao `modulo-core`, com as quatro linhas, para o próximo lote.
+- **Prints para reteste:**
+  - navegador (1366×768): uma caixa de seleção marcada no BKO (MC-0074) e o Entrar do BKO e do portal com o rodapé;
+  - aparelho (v1.0.10): o Início com a foto real e o ícone da notificação no primeiro push pelo FCM.
