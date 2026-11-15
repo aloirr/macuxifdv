@@ -27,3 +27,5 @@ export * from './adicionais';
 export * from './campo-senha';
 // T-0174: barra de progresso (envio e processamento de Fotos em lote, docs/design/telas/fotos-em-lote.md)
 export * from './progresso';
+// RD-0323 (T-0104): abas acessíveis (Abas, PainelAba, ItemAba, idDaAba, idDoPainel)
+export * from './abas';
