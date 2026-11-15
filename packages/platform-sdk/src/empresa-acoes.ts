@@ -43,6 +43,9 @@ export const MENSAGEM_EMPRESA_INATIVA =
 /** 403 `PERFIL_SEM_ACESSO` das rotas de ações da empresa quando quem pede é o admin do cliente (só super-admin). */
 export const MENSAGEM_SO_SUPER_ADMIN_ACOES = 'Só o time da Macuxi faz esta ação.';
 
+/** 404 `EXCLUSAO_NAO_ENCONTRADA` de GET .../exclusao quando a empresa não tem exclusão pedida (fonte única: API e portal falso). */
+export const MENSAGEM_EXCLUSAO_NAO_ENCONTRADA = 'Nenhuma exclusão pedida para esta empresa.';
+
 /** Códigos de erro das rotas de ações da empresa no portal (status HTTP no comentário). */
 export const CODIGOS_ACOES_EMPRESA = {
   /** 404 — empresa inexistente ou já excluída (o mesmo código das outras rotas do portal). */

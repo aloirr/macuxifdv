@@ -21,6 +21,7 @@
 import {
   CODIGOS_ACOES_EMPRESA,
   MENSAGENS_ACOES_EMPRESA,
+  MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   CriarEmpresaSchema,
   ExcluirEmpresaSchema,
@@ -237,7 +238,7 @@ function responderAcoes(metodo: string, tenant: string, acao: string, sub: strin
   }
   if (acao === 'exclusao' && metodo === 'GET') {
     const ex = exclusaoDaApi(x);
-    return ex ? json(200, ex) : erro(404, 'EXCLUSAO_NAO_ENCONTRADA', 'Nenhuma exclusão pedida para esta empresa.');
+    return ex ? json(200, ex) : erro(404, 'EXCLUSAO_NAO_ENCONTRADA', MENSAGEM_EXCLUSAO_NAO_ENCONTRADA);
   }
   if (acao === 'exclusao' && metodo === 'POST') {
     const c = lerCorpo(ExcluirEmpresaSchema, corpo);

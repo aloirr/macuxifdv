@@ -11,6 +11,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ManifestoBackupEmpresaSchema,
+  MENSAGEM_EXCLUSAO_NAO_ENCONTRADA,
   MENSAGEM_SO_SUPER_ADMIN_ACOES,
   MENSAGENS_ACOES_EMPRESA,
   parteDaTabela,
@@ -58,6 +59,7 @@ const backupJson = {
 describe('RN-PLA-07: inativar e reativar', () => {
   it('RD-0454: o 403 do admin do cliente tem uma frase só, a do SDK', () => {
     expect(MENSAGEM_SO_SUPER_ADMIN_ACOES).toBe('Só o time da Macuxi faz esta ação.');
+    expect(MENSAGEM_EXCLUSAO_NAO_ENCONTRADA).toBe('Nenhuma exclusão pedida para esta empresa.');
   });
 
   it('inativa = status suspenso, com o rótulo "Inativa" no portal; o valor do banco não muda', () => {
