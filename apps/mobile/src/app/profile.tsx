@@ -222,7 +222,7 @@ export default function ProfileScreen() {
               </View>
               {it.situacao === 'falhou' ? (
                 <Pressable accessibilityRole="button" testID={`descartar-${it.id}`} onPress={() => void motor?.descartar(it.id)} hitSlop={8} style={styles.discard}>
-                  <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
+                  <Text style={[t.label, { color: colors.danger }]}>Descartar</Text>
                 </Pressable>
               ) : (
                 <SeloDaFila situacao={it.situacao} />
@@ -243,7 +243,7 @@ export default function ProfileScreen() {
                 </View>
                 {a.situacao === 'falhou' ? (
                   <Pressable accessibilityRole="button" testID={`descartar-foto-${a.id}`} onPress={() => void motor?.descartarArquivo(a.id)} hitSlop={8} style={styles.discard}>
-                    <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
+                    <Text style={[t.label, { color: colors.danger }]}>Descartar</Text>
                   </Pressable>
                 ) : (
                   <SeloDaFila situacao={a.situacao} />
@@ -365,7 +365,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   who: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { ...fonte.displayBold, fontSize: 18, color: '#FFFFFF' },
+  avatarText: { ...fonte.bold, fontSize: 18, color: '#FFFFFF' },
   qRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
