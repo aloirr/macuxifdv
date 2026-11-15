@@ -79,10 +79,8 @@ describe('folha da nova tarefa', () => {
     ],
     equipes: [{ id: EQUIPE, nome: 'Equipe Norte', equipe_pai_id: null, responsavel_id: null, responsavel_nome: null, superior_id: null, superior_nome: null }],
     questionarios: null,
-    enviando: false,
     onChange: () => {},
     onEnviar: () => {},
-    onCancelar: () => {},
     ...patch,
   });
 

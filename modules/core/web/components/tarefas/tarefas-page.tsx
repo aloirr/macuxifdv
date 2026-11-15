@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, formatDayMonthLong, td, tdNum, th, thNum } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, PageHeader, SelectField, TabelaDados, TextField, formatDayMonthLong, rotuloComContagem, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
 import type { EquipeOpcao } from '../../../contracts';
+import { LimparFiltros, QuadroDaLista } from '../../lib/lista-bko';
 import { useHojeDoTenant, useMe } from '../../lib/queries';
 import {
   CHAVE_CONSULTORES,
@@ -21,7 +22,7 @@ import {
 } from './api';
 import { NovaTarefa } from './nova-tarefa';
 import { TarefaDetalhe } from './tarefa-detalhe';
-import { CAMPO_TAREFA, FILTROS_SITUACAO, pctNoPrazo, ROTULO_TIPO, rotuloDestino } from './tarefas';
+import { FILTROS_SITUACAO, pctNoPrazo, ROTULO_TIPO, rotuloDestino } from './tarefas';
 
 type Visao = 'tarefas' | 'consultores';
 
@@ -41,7 +42,7 @@ export function TarefasPage({ cliente }: { cliente?: ApiTarefas }) {
   const [visao, setVisao] = useState<Visao>('tarefas');
   const [detalhe, setDetalhe] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const toast = useToast();
 
   const lista = useQuery({ queryKey: chaveLista(filtros), queryFn: () => apiTarefas.listar(filtros), enabled: podeVer && visao === 'tarefas' });
   const porConsultor = useQuery({ queryKey: chavePorConsultor(filtros), queryFn: () => apiTarefas.porConsultor(filtros), enabled: podeVer && visao === 'consultores' });
@@ -52,23 +53,15 @@ export function TarefasPage({ cliente }: { cliente?: ApiTarefas }) {
   if (!podeVer) return null;
   const set = (patch: Partial<FiltrosTarefas>) => setFiltros((f) => ({ ...f, ...patch }));
   const atual = visao === 'tarefas' ? lista : porConsultor;
+  const filtroLigado = Object.values(filtros).some((v) => v !== undefined && v !== '');
+  const botaoNova = podeCriar ? (
+    <Button variant="primary" onClick={() => setNova(true)} data-testid="tarefas.nova">
+      Nova tarefa
+    </Button>
+  ) : undefined;
   return (
     <div className="flex w-full max-w-[1100px] flex-col gap-5" data-testid="tarefas.tela">
-      <PageHeader
-        title="Tarefas"
-        actions={
-          podeCriar ? (
-            <Button variant="primary" onClick={() => setNova(true)} data-testid="tarefas.nova">
-              Nova tarefa
-            </Button>
-          ) : null
-        }
-      />
-      {aviso && (
-        <Notice tone="success" onClose={() => setAviso(null)}>
-          {aviso}
-        </Notice>
-      )}
+      <PageHeader title={rotuloComContagem('Tarefas', visao === 'tarefas' && lista.data ? lista.data.length : 0)} actions={botaoNova} />
       <div className="flex gap-2" role="group" aria-label="Ver por">
         {(
           [
@@ -81,11 +74,11 @@ export function TarefasPage({ cliente }: { cliente?: ApiTarefas }) {
           </Button>
         ))}
       </div>
-      <FiltrosDasTarefas filtros={filtros} set={set} consultores={consultores.data ?? []} equipes={equipes.data ?? null} comSituacao={visao === 'tarefas'} />
+      <FiltrosDasTarefas filtros={filtros} set={set} onLimpar={() => setFiltros({})} consultores={consultores.data ?? []} equipes={equipes.data ?? null} comSituacao={visao === 'tarefas'} />
       {atual.isError && <ErrorBlock message={errorMessage(atual.error)} onRetry={() => void atual.refetch()} />}
       {atual.isPending && <LoadingBlock label="Carregando as tarefas…" />}
-      {visao === 'tarefas' && lista.data && <TabelaTarefas tarefas={lista.data} onAbrir={setDetalhe} />}
-      {visao === 'consultores' && porConsultor.data && <TabelaPorConsultor linhas={porConsultor.data} />}
+      {visao === 'tarefas' && lista.data && <TabelaTarefas tarefas={lista.data} onAbrir={setDetalhe} comFiltro={filtroLigado} acaoCriar={podeCriar ? <Button variant="primary" onClick={() => setNova(true)}>Nova tarefa</Button> : undefined} />}
+      {visao === 'consultores' && porConsultor.data && <TabelaPorConsultor linhas={porConsultor.data} comFiltro={filtroLigado} />}
       {detalhe && <TarefaDetalhe cliente={apiTarefas} id={detalhe} fuso={fuso} onClose={() => setDetalhe(null)} />}
       {nova && (
         <NovaTarefa
@@ -96,7 +89,7 @@ export function TarefasPage({ cliente }: { cliente?: ApiTarefas }) {
           onClose={() => setNova(false)}
           onCriada={(texto) => {
             setNova(false);
-            setAviso(texto);
+            toast('success', texto);
           }}
         />
       )}
@@ -107,17 +100,20 @@ export function TarefasPage({ cliente }: { cliente?: ApiTarefas }) {
 export function FiltrosDasTarefas({
   filtros,
   set,
+  onLimpar,
   consultores,
   equipes,
   comSituacao,
 }: {
   filtros: FiltrosTarefas;
   set: (patch: Partial<FiltrosTarefas>) => void;
+  onLimpar?: () => void;
   consultores: readonly ConsultorOpcao[];
   equipes: readonly EquipeOpcao[] | null;
   comSituacao: boolean;
 }) {
   const vazio = (v: string) => (v === '' ? undefined : v);
+  const ligado = Object.values(filtros).some((v) => v !== undefined && v !== '');
   return (
     <FilterBar>
       {comSituacao && (
@@ -147,93 +143,54 @@ export function FiltrosDasTarefas({
           ))}
         </SelectField>
       )}
-      <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-        Prazo de
-        <input type="date" value={filtros.de ?? ''} onChange={(e) => set({ de: vazio(e.target.value) })} className={CAMPO_TAREFA} data-testid="tarefas.filtro.de" />
-      </label>
-      <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-        até
-        <input type="date" value={filtros.ate ?? ''} min={filtros.de} onChange={(e) => set({ ate: vazio(e.target.value) })} className={CAMPO_TAREFA} data-testid="tarefas.filtro.ate" />
-      </label>
+      <TextField label="Prazo de" type="date" value={filtros.de ?? ''} onChange={(e) => set({ de: vazio(e.target.value) })} data-testid="tarefas.filtro.de" />
+      <TextField label="Prazo até" type="date" value={filtros.ate ?? ''} min={filtros.de} onChange={(e) => set({ ate: vazio(e.target.value) })} data-testid="tarefas.filtro.ate" />
+      {onLimpar && <LimparFiltros ligado={ligado} onLimpar={onLimpar} />}
     </FilterBar>
   );
 }
 
-export function TabelaTarefas({ tarefas, onAbrir }: { tarefas: readonly TarefaResumoBko[]; onAbrir: (id: string) => void }) {
-  if (tarefas.length === 0) return <Notice tone="info">Nenhuma tarefa com estes filtros.</Notice>;
+export function TabelaTarefas({ tarefas, onAbrir, comFiltro = false, acaoCriar }: { tarefas: readonly TarefaResumoBko[]; onAbrir: (id: string) => void; comFiltro?: boolean; acaoCriar?: ReactNode }) {
+  const colunas: ReadonlyArray<ColunaDaTabela<TarefaResumoBko>> = [
+    { id: 'tarefa', titulo: 'Tarefa', largura: '34%', texto: (t) => t.titulo, celula: (t) => t.titulo },
+    { id: 'tipo', titulo: 'Tipo', prioridade: 3, largura: '100px', celula: (t) => ROTULO_TIPO[t.tipo] },
+    { id: 'prazo', titulo: 'Prazo', numero: true, largura: '130px', celula: (t) => formatDayMonthLong(t.prazo), texto: (t) => formatDayMonthLong(t.prazo) },
+    { id: 'destino', titulo: 'Destino', prioridade: 2, largura: '20%', celula: (t) => rotuloDestino(t), texto: (t) => rotuloDestino(t) },
+    {
+      id: 'feitas',
+      titulo: 'Feitas',
+      numero: true,
+      largura: '170px',
+      celula: (t) =>
+        t.cancelada_em ? (
+          <Badge tone="neutral">Cancelada</Badge>
+        ) : (
+          <span className="inline-flex items-center gap-2">
+            {t.atrasadas > 0 && <Badge tone="danger">{t.atrasadas === 1 ? '1 atrasada' : `${t.atrasadas} atrasadas`}</Badge>}
+            {t.feitas} / {t.total}
+          </span>
+        ),
+    },
+  ];
   return (
-    <Panel>
-      <TableScroll minWidth={760}>
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr>
-              <th className={th}>Tarefa</th>
-              <th className={th}>Tipo</th>
-              <th className={th}>Prazo</th>
-              <th className={th}>Destino</th>
-              <th className={thNum}>Feitas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tarefas.map((t) => (
-              <tr key={t.id} data-testid={`tarefas.linha.${t.id}`}>
-                <td className={td}>
-                  <Button variant="link" onClick={() => onAbrir(t.id)} data-testid={`tarefas.abrir.${t.id}`}>
-                    {t.titulo}
-                  </Button>
-                </td>
-                <td className={td}>{ROTULO_TIPO[t.tipo]}</td>
-                <td className={td}>{formatDayMonthLong(t.prazo)}</td>
-                <td className={td}>{rotuloDestino(t)}</td>
-                <td className={tdNum}>
-                  {t.cancelada_em ? (
-                    <Badge tone="neutral">Cancelada</Badge>
-                  ) : (
-                    <span className="inline-flex items-center gap-2">
-                      {t.atrasadas > 0 && <Badge tone="danger">{t.atrasadas === 1 ? '1 atrasada' : `${t.atrasadas} atrasadas`}</Badge>}
-                      {t.feitas} / {t.total}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableScroll>
-    </Panel>
+    <QuadroDaLista vazia={tarefas.length === 0} vazio={<EstadoVazio titulo={comFiltro ? 'Nenhuma tarefa com esses filtros.' : 'Nenhuma tarefa cadastrada.'} acao={comFiltro ? undefined : acaoCriar} />}>
+      <TabelaDados rotulo="Tarefas" colunas={colunas} linhas={tarefas} chave={(t) => t.id} linhaTestId={(t) => `tarefas.linha.${t.id}`} aoAbrir={(t) => onAbrir(t.id)} />
+    </QuadroDaLista>
   );
 }
 
-export function TabelaPorConsultor({ linhas }: { linhas: readonly ResumoPorConsultor[] }) {
-  if (linhas.length === 0) return <Notice tone="info">Nenhuma tarefa com estes filtros.</Notice>;
+export function TabelaPorConsultor({ linhas, comFiltro = false }: { linhas: readonly ResumoPorConsultor[]; comFiltro?: boolean }) {
+  const colunas: ReadonlyArray<ColunaDaTabela<ResumoPorConsultor>> = [
+    { id: 'consultor', titulo: 'Consultor', texto: (l) => l.nome, celula: (l) => l.nome },
+    { id: 'abertas', titulo: 'Abertas', numero: true, largura: '90px', celula: (l) => l.abertas },
+    { id: 'atrasadas', titulo: 'Atrasadas', numero: true, largura: '100px', celula: (l) => (l.atrasadas > 0 ? <Badge tone="danger">{l.atrasadas}</Badge> : 0) },
+    { id: 'no-prazo', titulo: 'Feitas no prazo', numero: true, prioridade: 2, largura: '130px', celula: (l) => l.feitas_no_prazo },
+    { id: 'com-atraso', titulo: 'Feitas com atraso', numero: true, prioridade: 2, largura: '140px', celula: (l) => l.feitas_com_atraso },
+    { id: 'pct', titulo: 'No prazo', numero: true, largura: '90px', celula: (l) => pctNoPrazo(l.pct_no_prazo_pb) },
+  ];
   return (
-    <Panel>
-      <TableScroll minWidth={720}>
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr>
-              <th className={th}>Consultor</th>
-              <th className={thNum}>Abertas</th>
-              <th className={thNum}>Atrasadas</th>
-              <th className={thNum}>Feitas no prazo</th>
-              <th className={thNum}>Feitas com atraso</th>
-              <th className={thNum}>No prazo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((l) => (
-              <tr key={l.usuario_id} data-testid={`tarefas.consultor.${l.usuario_id}`}>
-                <td className={td}>{l.nome}</td>
-                <td className={tdNum}>{l.abertas}</td>
-                <td className={tdNum}>{l.atrasadas > 0 ? <Badge tone="danger">{l.atrasadas}</Badge> : 0}</td>
-                <td className={tdNum}>{l.feitas_no_prazo}</td>
-                <td className={tdNum}>{l.feitas_com_atraso}</td>
-                <td className={tdNum}>{pctNoPrazo(l.pct_no_prazo_pb)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableScroll>
-    </Panel>
+    <QuadroDaLista vazia={linhas.length === 0} vazio={<EstadoVazio titulo={comFiltro ? 'Nenhuma tarefa com esses filtros.' : 'Nenhuma tarefa cadastrada.'} />}>
+      <TabelaDados rotulo="Tarefas por consultor" colunas={colunas} linhas={linhas} chave={(l) => l.usuario_id} linhaTestId={(l) => `tarefas.consultor.${l.usuario_id}`} />
+    </QuadroDaLista>
   );
 }

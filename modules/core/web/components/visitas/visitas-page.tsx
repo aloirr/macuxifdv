@@ -4,11 +4,12 @@ import { Suspense, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, EstadoVazio, FilterBar, intervaloSyncAutoMs, LoadingBlock, MenuAcoes, PageHeader, rotuloComContagem, SelectField, SeloSituacao, SYNC_AUTO_PADRAO_MIN, TabelaDados, TextField, type ColunaDaTabela } from '@macuxi/ui/web';
 import type { VisitaBko } from '../../../contracts';
 import { filtrarPorEtapas, filtroEtapasDaUrl, rotuloAcessivelSelo, rotuloSeloEtapas, VisitasComEtapasListaSchema, type VisitaComEtapas } from '../../lib/etapas-visita';
 import { EtapasDialog } from './etapas-dialog';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
+import { LimparFiltros, QuadroDaLista } from '../../lib/lista-bko';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
 
 const FUSO_PADRAO = 'America/Manaus';
@@ -77,34 +78,91 @@ function VisitasConteudo() {
 
   const itens = filtrarPorEtapas(lista.data ?? [], pendente);
   const visitaEtapas: VisitaComEtapas | null = (lista.data ?? []).find((v) => v.id === etapasId) ?? null;
-  const foraDoRaio = itens.filter((v) => v.fora_do_raio).length;
+  const filtroLigado = [params.get('de'), params.get('ate'), usuario, fora, pendente].some((v) => !!v);
+
+  const colunas: ReadonlyArray<ColunaDaTabela<VisitaComEtapas>> = [
+    { id: 'cliente', titulo: 'Cliente', largura: '26%', texto: (v) => v.cliente_nome, celula: (v) => v.cliente_nome },
+    { id: 'checkin', titulo: 'Check-in', largura: '120px', celula: (v) => quando(v.checkin_em, FUSO_PADRAO), texto: (v) => quando(v.checkin_em, FUSO_PADRAO) },
+    { id: 'vendedor', titulo: 'Vendedor', prioridade: 2, largura: '17%', texto: (v) => v.usuario_nome, celula: (v) => v.usuario_nome },
+    {
+      id: 'tempo',
+      titulo: 'Tempo',
+      numero: true,
+      prioridade: 3,
+      largura: '110px',
+      celula: (v) => {
+        const min = permanenciaMin(v);
+        return min === null ? 'Em atendimento' : `${min} min`;
+      },
+    },
+    {
+      id: 'resultado',
+      titulo: 'Resultado',
+      prioridade: 2,
+      largura: '18%',
+      texto: (v) => [rotuloResultado(v.resultado), v.motivo_descricao ?? v.motivo_texto].filter(Boolean).join(' · '),
+      celula: (v) => (
+        <>
+          {rotuloResultado(v.resultado)}
+          {v.motivo_descricao || v.motivo_texto ? <span className="block truncate text-ink-2">{v.motivo_descricao ?? v.motivo_texto}</span> : null}
+        </>
+      ),
+    },
+    {
+      id: 'situacao',
+      titulo: 'Situação',
+      largura: '190px',
+      texto: (v) => (v.fora_do_raio ? `${v.distancia_m ?? '?'} m · ${v.justificativa_fora_raio}` : ''),
+      celula: (v) => (
+        <>
+          {v.etapas_pendentes > 0 ? (
+            <button
+              type="button"
+              onClick={() => setEtapasId(v.id)}
+              aria-label={rotuloAcessivelSelo(v.cliente_nome)}
+              data-testid={`visitas.ver-etapas.${v.id}`}
+              className="rounded-[10px] hover:bg-ground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <Badge tone="warning">{rotuloSeloEtapas(v.etapas_pendentes)}</Badge>
+            </button>
+          ) : (
+            <SeloSituacao selos={sinais(v).map((s) => ({ tom: s === 'Fora do raio' ? ('danger' as const) : ('neutral' as const), texto: s }))} />
+          )}
+          {v.fora_do_raio ? (
+            <span className="mt-1 block truncate text-ink-2" data-testid={`visitas.justificativa.${v.id}`}>
+              {v.distancia_m ?? '?'} m · {v.justificativa_fora_raio}
+            </span>
+          ) : null}
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="visitas.tela">
       <PageHeader
-        title="Visitas"
-        subtitle="Check-ins e checkouts da equipe. As fora do raio do cliente ficam sinalizadas com a justificativa do vendedor."
+        title={rotuloComContagem('Visitas', lista.data ? itens.length : 0)}
         actions={
-          <>
-          <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar as visitas" data-testid="visitas.atualizar">
-            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
-          </Button>
-          <Button onClick={() => downloadBlob(new Blob([csvDeVisitas(itens, FUSO_PADRAO)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`)} disabled={itens.length === 0} data-testid="visitas.exportar-csv">
-            Exportar CSV
-          </Button>
-          </>
+          <MenuAcoes
+            testId="visitas.mais-acoes"
+            acoes={[
+              {
+                id: 'csv',
+                rotulo: 'Exportar CSV',
+                desligada: itens.length === 0,
+                aoEscolher: () => downloadBlob(new Blob([csvDeVisitas(itens, FUSO_PADRAO)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`),
+                testId: 'visitas.exportar-csv',
+              },
+              { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch(), testId: 'visitas.atualizar' },
+            ]}
+          />
         }
       />
       <FilterBar>
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          De
-          <input type="date" value={de} max={ate} onChange={(e) => e.target.value && set({ de: e.target.value })} data-testid="visitas.filtro-de" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
-        </label>
-        <label className="flex flex-col gap-1 text-[13px] font-semibold text-ink">
-          Até
-          <input type="date" value={ate} min={de} onChange={(e) => e.target.value && set({ ate: e.target.value })} data-testid="visitas.filtro-ate" className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px]" />
-        </label>
+        <TextField label="De" type="date" value={de} max={ate} onChange={(e) => e.target.value && set({ de: e.target.value })} data-testid="visitas.filtro-de" />
+        <TextField label="Até" type="date" value={ate} min={de} onChange={(e) => e.target.value && set({ ate: e.target.value })} data-testid="visitas.filtro-ate" />
         <SelectField label="Vendedor ou promotor" value={usuario} onChange={(e) => set({ usuario: e.target.value })} data-testid="visitas.filtro-usuario">
-          <option value="">Toda a equipe</option>
+          <option value="">Todos</option>
           {(vendedores.data ?? []).map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -112,7 +170,7 @@ function VisitasConteudo() {
           ))}
         </SelectField>
         <SelectField label="Raio" value={fora} onChange={(e) => set({ fora: e.target.value })} data-testid="visitas.filtro-fora">
-          <option value="">Todas</option>
+          <option value="">Todos</option>
           <option value="true">Só fora do raio</option>
           <option value="false">Só dentro do raio</option>
         </SelectField>
@@ -121,85 +179,23 @@ function VisitasConteudo() {
           <option value="true">Com etapa pendente</option>
           <option value="false">Sem pendência</option>
         </SelectField>
+        <LimparFiltros ligado={filtroLigado} onLimpar={() => set({ de: null, ate: null, usuario: null, fora: null, pendente: null })} />
       </FilterBar>
 
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as visitas…" />}
 
       {lista.data && (
-        <Panel title={`${itens.length} visita${itens.length === 1 ? '' : 's'}${foraDoRaio ? ` · ${foraDoRaio} fora do raio` : ''}`}>
-          <TableScroll minWidth={960}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Check-in</th>
-                  <th className={th}>Vendedor</th>
-                  <th className={th}>Cliente</th>
-                  <th className={th}>Tempo</th>
-                  <th className={th}>Resultado</th>
-                  <th className={th}>Sinais</th>
-                  <th className={th}>Fachada</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.length === 0 && (
-                  <tr>
-                    <td className={td} colSpan={7}>
-                      Nenhuma visita neste período. Amplie as datas ou limpe os filtros.
-                    </td>
-                  </tr>
-                )}
-                {itens.map((v) => {
-                  const min = permanenciaMin(v);
-                  return (
-                    <tr key={v.id} data-testid={`visitas.linha.${v.id}`}>
-                      <td className={td}>{quando(v.checkin_em, FUSO_PADRAO)}</td>
-                      <td className={td}>{v.usuario_nome}</td>
-                      <td className={td}>{v.cliente_nome}</td>
-                      <td className={td}>{min === null ? 'Em atendimento' : `${min} min`}</td>
-                      <td className={td}>
-                        {rotuloResultado(v.resultado)}
-                        {v.motivo_descricao || v.motivo_texto ? <span className="block text-ink-2">{v.motivo_descricao ?? v.motivo_texto}</span> : null}
-                      </td>
-                      <td className={td}>
-                        <div className="flex flex-wrap gap-1">
-                          {sinais(v).map((s) => (
-                            <Badge key={s} tone={s === 'Fora do raio' ? 'danger' : 'neutral'}>
-                              {s}
-                            </Badge>
-                          ))}
-                          {v.etapas_pendentes > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => setEtapasId(v.id)}
-                              aria-label={rotuloAcessivelSelo(v.cliente_nome)}
-                              data-testid={`visitas.ver-etapas.${v.id}`}
-                              className="h-[44px] rounded-xl border border-field bg-surface px-2 hover:bg-ground"
-                            >
-                              <Badge tone="warning">{rotuloSeloEtapas(v.etapas_pendentes)}</Badge>
-                            </button>
-                          ) : null}
-                        </div>
-                        {v.fora_do_raio ? (
-                          <span className="mt-1 block text-ink-2" data-testid={`visitas.justificativa.${v.id}`}>
-                            {v.distancia_m ?? '?'} m · {v.justificativa_fora_raio}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className={td}>
-                        {v.foto_fachada_id ? (
-                          <button type="button" onClick={() => setFoto(v)} data-testid={`visitas.ver-foto.${v.id}`} className="h-[44px] min-w-[88px] rounded-xl border border-field bg-surface px-3 text-[13px] font-semibold text-ink hover:bg-ground">
-                            Ver foto
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+        <QuadroDaLista vazia={itens.length === 0} vazio={<EstadoVazio titulo={filtroLigado ? 'Nenhuma visita com esses filtros.' : 'Nenhuma visita neste período.'} testId="visitas.vazio" />}>
+          <TabelaDados
+            rotulo="Visitas"
+            colunas={colunas}
+            linhas={itens}
+            chave={(v) => v.id}
+            linhaTestId={(v) => `visitas.linha.${v.id}`}
+            acoes={(v) => (v.foto_fachada_id ? [{ id: 'foto', rotulo: 'Ver foto da fachada', aoEscolher: () => setFoto(v), testId: `visitas.ver-foto.${v.id}` }] : [])}
+          />
+        </QuadroDaLista>
       )}
       {visitaEtapas && <EtapasDialog visita={visitaEtapas} fuso={FUSO_PADRAO} onClose={() => setEtapasId(null)} />}
       {foto?.foto_fachada_id && <FotoFachada id={foto.foto_fachada_id} cliente={foto.cliente_nome} onClose={() => setFoto(null)} />}

@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Drawer, Notice } from '@macuxi/ui/web';
+import { Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Drawer, IconAlert, Notice } from '@macuxi/ui/web';
 import type { EquipeOpcao } from '../../../contracts';
 import { TAREFA_DESCRICAO_MAX, TAREFA_TITULO_MAX, TIPOS_TAREFA, type TipoTarefa } from '../../../contracts/tarefa';
 import { novoId } from '../../lib/visitas';
 import { CHAVE_QUESTIONARIOS, CHAVE_TAREFAS, type ApiTarefas, type ConsultorOpcao, type QuestionarioParaTarefa } from './api';
-import { CAMPO_TAREFA, corpoDaTarefa, errosDaApi, formTarefaVazio, ROTULO_TIPO, type AlvoTarefa, type CampoTarefa, type ErrosTarefa, type FormTarefa } from './tarefas';
+import { corpoDaTarefa, errosDaApi, formTarefaVazio, ROTULO_TIPO, type AlvoTarefa, type CampoTarefa, type ErrosTarefa, type FormTarefa } from './tarefas';
 
 /** Folha "Nova tarefa" (§7.1). O `id` nasce ao abrir a folha: reenviar depois de uma falha não duplica a tarefa. */
 export function NovaTarefa({
@@ -55,7 +55,19 @@ export function NovaTarefa({
   };
 
   return (
-    <Drawer open title="Nova tarefa" onClose={onClose}>
+    <Drawer
+      open
+      title="Nova tarefa"
+      onClose={onClose}
+      rodape={
+        <>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button type="submit" form="nova-tarefa.form" variant="primary" disabled={criar.isPending} data-testid="nova-tarefa.criar">
+            {criar.isPending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
       <FormNovaTarefa
         form={form}
         erros={erros}
@@ -64,10 +76,8 @@ export function NovaTarefa({
         consultores={consultores}
         equipes={equipes}
         questionarios={questionarios.data && questionarios.data.length > 0 ? questionarios.data : null}
-        enviando={criar.isPending}
         onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
         onEnviar={enviar}
-        onCancelar={onClose}
       />
     </Drawer>
   );
@@ -76,7 +86,8 @@ export function NovaTarefa({
 function Erro({ campo, erros }: { campo: CampoTarefa; erros: ErrosTarefa }) {
   const texto = erros[campo];
   return texto ? (
-    <span id={`nova-tarefa.${campo}.erro`} className="text-[13px] font-normal text-danger" data-testid={`nova-tarefa.${campo}.erro`}>
+    <span id={`nova-tarefa.${campo}.erro`} className="flex items-start gap-1 text-[12px] font-normal text-danger" data-testid={`nova-tarefa.${campo}.erro`}>
+      <IconAlert size={13} className="mt-[2px] shrink-0" />
       {texto}
     </span>
   ) : null;
@@ -99,10 +110,8 @@ export function FormNovaTarefa({
   consultores,
   equipes,
   questionarios,
-  enviando,
   onChange,
   onEnviar,
-  onCancelar,
 }: {
   form: FormTarefa;
   erros: ErrosTarefa;
@@ -112,10 +121,8 @@ export function FormNovaTarefa({
   equipes: readonly EquipeOpcao[] | null;
   /** Nulo: sem a Pesquisa ou sem questionário publicado; o tipo Pesquisa não aparece. */
   questionarios: readonly QuestionarioParaTarefa[] | null;
-  enviando: boolean;
   onChange: (patch: Partial<FormTarefa>) => void;
   onEnviar: () => void;
-  onCancelar: () => void;
 }) {
   const [busca, setBusca] = useState('');
   const tipos = TIPOS_TAREFA.filter((t) => t !== 'pesquisa' || questionarios);
@@ -126,6 +133,7 @@ export function FormNovaTarefa({
 
   return (
     <form
+      id="nova-tarefa.form"
       className="flex flex-col gap-4 text-[13px] font-semibold text-ink"
       data-testid="nova-tarefa.form"
       onSubmit={(e) => {
@@ -134,29 +142,18 @@ export function FormNovaTarefa({
       }}
     >
       {aviso && <Notice tone="danger">{aviso}</Notice>}
-      <label className="flex flex-col gap-1">
-        Título
-        <input value={form.titulo} maxLength={TAREFA_TITULO_MAX} onChange={(e) => onChange({ titulo: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.titulo" {...descrito('titulo', erros)} />
+      <CampoFormulario rotulo="Título">
+        <input value={form.titulo} maxLength={TAREFA_TITULO_MAX} onChange={(e) => onChange({ titulo: e.target.value })} className={CLASSE_CAMPO} data-testid="nova-tarefa.titulo" {...descrito('titulo', erros)} />
         <Erro campo="titulo" erros={erros} />
-      </label>
-      <label className="flex flex-col gap-1">
-        Descrição (opcional)
-        <textarea
-          value={form.descricao}
-          maxLength={TAREFA_DESCRICAO_MAX}
-          rows={3}
-          onChange={(e) => onChange({ descricao: e.target.value })}
-          className="rounded-xl border border-field bg-surface p-3 text-[14px] font-normal text-ink"
-          data-testid="nova-tarefa.descricao"
-          {...descrito('descricao', erros)}
-        />
+      </CampoFormulario>
+      <CampoFormulario rotulo="Descrição" opcional>
+        <textarea value={form.descricao} maxLength={TAREFA_DESCRICAO_MAX} rows={3} onChange={(e) => onChange({ descricao: e.target.value })} className={`${CLASSE_CAMPO} h-auto py-2`} data-testid="nova-tarefa.descricao" {...descrito('descricao', erros)} />
         <Erro campo="descricao" erros={erros} />
-      </label>
-      <label className="flex flex-col gap-1">
-        Prazo
-        <input type="date" value={form.prazo} min={hoje} onChange={(e) => onChange({ prazo: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.prazo" {...descrito('prazo', erros)} />
+      </CampoFormulario>
+      <CampoFormulario rotulo="Prazo">
+        <input type="date" value={form.prazo} min={hoje} onChange={(e) => onChange({ prazo: e.target.value })} className={CLASSE_CAMPO} data-testid="nova-tarefa.prazo" {...descrito('prazo', erros)} />
         <Erro campo="prazo" erros={erros} />
-      </label>
+      </CampoFormulario>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
         <legend className="mb-1">Tipo</legend>
         <div className="flex flex-wrap gap-4 font-normal">
@@ -169,9 +166,8 @@ export function FormNovaTarefa({
         </div>
       </fieldset>
       {form.tipo === 'pesquisa' && questionarios && (
-        <label className="flex flex-col gap-1">
-          Questionário
-          <select value={form.questionario_id} onChange={(e) => onChange({ questionario_id: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.questionario" {...descrito('questionario_id', erros)}>
+        <CampoFormulario rotulo="Questionário">
+          <select value={form.questionario_id} onChange={(e) => onChange({ questionario_id: e.target.value })} className={CLASSE_CAMPO} data-testid="nova-tarefa.questionario" {...descrito('questionario_id', erros)}>
             <option value="">Escolha</option>
             {questionarios.map((q) => (
               <option key={q.questionario_id} value={q.questionario_id}>
@@ -180,7 +176,7 @@ export function FormNovaTarefa({
             ))}
           </select>
           <Erro campo="questionario_id" erros={erros} />
-        </label>
+        </CampoFormulario>
       )}
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0" {...descrito('destino', erros)}>
         <legend className="mb-1">Para quem</legend>
@@ -194,7 +190,7 @@ export function FormNovaTarefa({
         </div>
         {form.alvo === 'usuarios' && (
           <div className="flex flex-col gap-2">
-            <input type="search" value={busca} placeholder="Buscar pelo nome" aria-label="Buscar pelo nome" onChange={(e) => setBusca(e.target.value)} className={CAMPO_TAREFA} data-testid="nova-tarefa.busca" />
+            <CampoBusca rotulo="Buscar pessoa" value={busca} onChange={(e) => setBusca(e.target.value)} className="sm:w-full" data-testid="nova-tarefa.busca" />
             <span className="font-normal text-ink-2" data-testid="nova-tarefa.escolhidas">
               {form.usuario_ids.length === 1 ? '1 escolhida' : `${form.usuario_ids.length} escolhidas`}
             </span>
@@ -211,7 +207,7 @@ export function FormNovaTarefa({
           </div>
         )}
         {form.alvo === 'equipe' && equipes && (
-          <select value={form.equipe_id} aria-label="Equipe" onChange={(e) => onChange({ equipe_id: e.target.value })} className={CAMPO_TAREFA} data-testid="nova-tarefa.equipe">
+          <select value={form.equipe_id} aria-label="Equipe" onChange={(e) => onChange({ equipe_id: e.target.value })} className={CLASSE_CAMPO} data-testid="nova-tarefa.equipe">
             <option value="">Escolha a equipe</option>
             {equipes.map((q) => (
               <option key={q.id} value={q.id}>
@@ -222,12 +218,6 @@ export function FormNovaTarefa({
         )}
         <Erro campo="destino" erros={erros} />
       </fieldset>
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button onClick={onCancelar}>Cancelar</Button>
-        <Button type="submit" variant="primary" disabled={enviando} data-testid="nova-tarefa.criar">
-          Criar tarefa
-        </Button>
-      </div>
     </form>
   );
 }

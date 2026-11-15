@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
-import { FotoTipoCriarSchema, FotoTipoEditarSchema, FotoTiposListaSchema } from '../../../contracts';
+import { Badge, Button, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, EstadoVazio, LoadingBlock, Notice, PageHeader, rotuloComContagem, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
+import { FotoTipoCriarSchema, FotoTipoEditarSchema, FotoTiposListaSchema, type FotoTipo } from '../../../contracts';
+import { fraseDoVazio, QuadroDaLista } from '../../lib/lista-bko';
 import { novoId } from '../../lib/visitas';
 
 interface Rascunho {
@@ -27,9 +28,10 @@ const vazio = (): Rascunho => ({ id: novoId(), existente: false, fachada: false,
  */
 export function FotosPdvPage() {
   const qc = useQueryClient();
+  const toast = useToast();
   const pode = usePode('foto_tipo.editar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [erroApi, setErroApi] = useState<string | null>(null);
   const lista = useQuery({
     queryKey: ['core', 'fotos-tipos'],
     queryFn: async () => FotoTiposListaSchema.parse(await api<unknown>('/core/fotos-tipos')).itens,
@@ -42,122 +44,114 @@ export function FotosPdvPage() {
         : api('/core/fotos-tipos', { method: 'POST', body: FotoTipoCriarSchema.parse({ id: r.id, nome: r.nome, obrigatorio: r.obrigatorio, sensivel: r.sensivel }) }),
     onSuccess: async () => {
       setRascunho(null);
-      setAviso('Tipo de foto salvo. Os aparelhos recebem na próxima sincronização.');
+      toast('success', 'Tipo de foto salvo.');
       await atualizar();
     },
-    onError: (e) => setAviso(errorMessage(e)),
+    onError: (e) => setErroApi(errorMessage(e)),
   });
   const apagar = useMutation({
     mutationFn: (id: string) => api(`/core/fotos-tipos/${id}`, { method: 'DELETE' }),
     onSuccess: async () => {
-      setAviso('Tipo de foto apagado.');
+      toast('success', 'Tipo de foto apagado.');
       await atualizar();
     },
-    onError: (e) => setAviso(errorMessage(e)),
+    onError: (e) => toast('danger', errorMessage(e)),
   });
 
   const itens = lista.data ?? [];
-  const campo = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal';
+  const abrir = (r: Rascunho) => {
+    setErroApi(null);
+    setRascunho(r);
+  };
+  const editar = (t: FotoTipo) => abrir({ id: t.id, existente: true, fachada: t.fachada, nome: t.nome, obrigatorio: t.obrigatorio, sensivel: t.sensivel, ativo: t.ativo });
+
+  const colunas: ReadonlyArray<ColunaDaTabela<FotoTipo>> = [
+    { id: 'tipo', titulo: 'Tipo', texto: (t) => t.nome, celula: (t) => t.nome },
+    {
+      id: 'regras',
+      titulo: 'Regras',
+      prioridade: 2,
+      largura: '34%',
+      celula: (t) => (
+        <span className="flex gap-1">
+          {t.fachada ? <Badge tone="neutral">Fachada</Badge> : null}
+          {t.obrigatorio ? <Badge tone="warning">Obrigatório</Badge> : <Badge tone="neutral">Opcional</Badge>}
+          {t.sensivel ? <Badge tone="danger">Sensível</Badge> : null}
+        </span>
+      ),
+    },
+    { id: 'situacao', titulo: 'Situação', largura: '110px', celula: (t) => <Badge tone={t.ativo ? 'success' : 'warning'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge> },
+  ];
+  const criar = pode ? (
+    <Button variant="primary" onClick={() => abrir(vazio())} data-testid="fotos-pdv.novo">
+      Novo tipo
+    </Button>
+  ) : undefined;
+
   return (
     <div className="flex w-full max-w-[960px] flex-col gap-5" data-testid="fotos-pdv.tela">
-      <PageHeader
-        title="Fotos do PDV"
-        subtitle="Tipos de foto da ficha do cliente. O vendedor vê só a fachada."
-        actions={
-          <Button variant="primary" disabled={!pode} onClick={() => setRascunho(vazio())} data-testid="fotos-pdv.novo">
-            Novo tipo
-          </Button>
-        }
-      />
-      {!pode && <Notice tone="info">Só o administrador edita os tipos de foto. Você pode consultar.</Notice>}
-      {aviso && (
-        <Notice tone="info" onClose={() => setAviso(null)}>
-          {aviso}
-        </Notice>
-      )}
+      <PageHeader title={rotuloComContagem('Fotos do PDV', itens.length)} actions={criar} />
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando os tipos de foto…" />}
       {lista.data && (
-        <Panel title={`${itens.length} ${itens.length === 1 ? 'tipo' : 'tipos'}`}>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Tipo</th>
-                  <th className={th}>Regras</th>
-                  <th className={th}>Situação</th>
-                  <th className={th}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((t) => (
-                  <tr key={t.id} data-testid={`fotos-pdv.linha.${t.id}`}>
-                    <td className={td}>{t.nome}</td>
-                    <td className={td}>
-                      <div className="flex flex-wrap gap-1">
-                        {t.fachada ? <Badge tone="neutral">Fachada</Badge> : null}
-                        {t.obrigatorio ? <Badge tone="warning">Obrigatório</Badge> : <Badge tone="neutral">Opcional</Badge>}
-                        {t.sensivel ? <Badge tone="danger">Sensível</Badge> : null}
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <Badge tone={t.ativo ? 'success' : 'warning'}>{t.ativo ? 'Ativo' : 'Inativo'}</Badge>
-                    </td>
-                    <td className={td}>
-                      <div className="flex gap-2">
-                        <Button disabled={!pode} onClick={() => setRascunho({ id: t.id, existente: true, fachada: t.fachada, nome: t.nome, obrigatorio: t.obrigatorio, sensivel: t.sensivel, ativo: t.ativo })} data-testid={`fotos-pdv.editar.${t.id}`}>
-                          Editar
-                        </Button>
-                        {!t.fachada ? (
-                          <Button disabled={!pode || apagar.isPending} onClick={() => apagar.mutate(t.id)} data-testid={`fotos-pdv.apagar.${t.id}`}>
-                            Apagar
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+        <QuadroDaLista vazia={itens.length === 0} vazio={<EstadoVazio titulo={fraseDoVazio('tipo de foto', false, false)} acao={criar} />}>
+          <TabelaDados
+            rotulo="Tipos de foto do PDV"
+            colunas={colunas}
+            linhas={itens}
+            chave={(t) => t.id}
+            linhaTestId={(t) => `fotos-pdv.linha.${t.id}`}
+            esmaecida={(t) => !t.ativo}
+            aoAbrir={pode ? editar : undefined}
+            acoes={(t) =>
+              pode
+                ? [
+                    { id: 'editar', rotulo: 'Editar', aoEscolher: () => editar(t), testId: `fotos-pdv.editar.${t.id}` },
+                    ...(!t.fachada ? [{ id: 'apagar', rotulo: 'Apagar', perigo: true, desligada: apagar.isPending, aoEscolher: () => apagar.mutate(t.id), testId: `fotos-pdv.apagar.${t.id}` }] : []),
+                  ]
+                : []
+            }
+          />
+        </QuadroDaLista>
       )}
-      {rascunho && (
-        <Dialog
-          open
-          title={rascunho.existente ? 'Editar tipo de foto' : 'Novo tipo de foto'}
-          onClose={() => setRascunho(null)}
-          footer={
+      <Drawer
+        open={rascunho !== null}
+        title={rascunho?.existente ? 'Editar tipo de foto' : 'Novo tipo de foto'}
+        onClose={() => setRascunho(null)}
+        rodape={
+          rascunho && (
             <>
               <Button onClick={() => setRascunho(null)}>Cancelar</Button>
               <Button variant="primary" disabled={salvar.isPending || !rascunho.nome.trim()} onClick={() => salvar.mutate(rascunho)} data-testid="fotos-pdv.salvar">
-                Salvar
+                {salvar.isPending ? 'Salvando…' : 'Salvar'}
               </Button>
             </>
-          }
-        >
-          <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
-            <label className="flex flex-col gap-1">
-              Nome (o que o vendedor lê)
-              <input value={rascunho.nome} maxLength={60} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="fotos-pdv.nome" className={campo} />
-            </label>
-            <label className="flex items-center gap-2 font-normal">
+          )
+        }
+      >
+        {rascunho && (
+          <div className="flex flex-col gap-4">
+            {erroApi && <Notice tone="danger">{erroApi}</Notice>}
+            <CampoFormulario rotulo="Nome">
+              <input value={rascunho.nome} maxLength={60} onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })} data-testid="fotos-pdv.nome" className={CLASSE_CAMPO} />
+            </CampoFormulario>
+            <label className="flex min-h-[44px] items-center gap-2 text-[14px] font-medium">
               <input type="checkbox" checked={rascunho.obrigatorio} onChange={(e) => setRascunho({ ...rascunho, obrigatorio: e.target.checked })} className="h-5 w-5" data-testid="fotos-pdv.obrigatorio" />
               Obrigatório
             </label>
-            <label className="flex items-center gap-2 font-normal">
+            <label className="flex min-h-[44px] items-center gap-2 text-[14px] font-medium">
               <input type="checkbox" checked={rascunho.sensivel} disabled={rascunho.fachada} onChange={(e) => setRascunho({ ...rascunho, sensivel: e.target.checked })} className="h-5 w-5" data-testid="fotos-pdv.sensivel" />
-              Documento sensível (apagado do aparelho)
+              Documento sensível
             </label>
             {rascunho.existente && !rascunho.fachada ? (
-              <label className="flex items-center gap-2 font-normal">
+              <label className="flex min-h-[44px] items-center gap-2 text-[14px] font-medium">
                 <input type="checkbox" checked={rascunho.ativo} onChange={(e) => setRascunho({ ...rascunho, ativo: e.target.checked })} className="h-5 w-5" data-testid="fotos-pdv.ativo" />
                 Ativo
               </label>
             ) : null}
           </div>
-        </Dialog>
-      )}
+        )}
+      </Drawer>
     </div>
   );
 }

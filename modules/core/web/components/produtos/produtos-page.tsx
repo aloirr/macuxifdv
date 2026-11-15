@@ -5,10 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, Notice, PageHeader, Panel, rotuloComContagem, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
 import { ProdutoParametrosSchema, ProdutosPrecoListaSchema, type ProdutoPreco } from '../../../contracts';
+import { fraseDoVazio, LimparFiltros, QuadroDaLista, useBuscaComEspera } from '../../lib/lista-bko';
 import { rotuloMedidaDoProduto } from '../../lib/medidas';
-import { MedidasPanel, useMedidas } from './medidas-panel';
+import { filtrarMedidas, MedidasPanel, useMedidas } from './medidas-panel';
 import { ProdutoMedidasDialog } from './produto-medidas-dialog';
 import { descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
 
@@ -45,14 +46,16 @@ interface Rascunho {
  */
 export function ProdutosPage() {
   const qc = useQueryClient();
+  const toast = useToast();
   const podeParametros = usePode('produto.parametros');
   const podeMedidas = usePode('medida.gerenciar');
   const [aba, setAba] = useState<'produtos' | 'medidas' | 'parametros'>('produtos');
   const [medidasDe, setMedidasDe] = useState<ProdutoPreco | null>(null);
   const medidas = useMedidas();
-  const [busca, setBusca] = useState('');
+  const buscaMedidas = useBuscaComEspera();
+  const { texto, termo: busca, setTexto, aplicar, limpar } = useBuscaComEspera();
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [erroApi, setErroApi] = useState<string | null>(null);
   const [padraoTexto, setPadraoTexto] = useState<string | null>(null);
 
   const lista = useQuery({
@@ -66,19 +69,19 @@ export function ProdutosPage() {
       api(`/core/produtos/${r.id}/preco`, { method: 'PUT', body: { custo_cents: r.custo, preco_venda_cents: r.preco, desconto_maximo_pct: r.desconto } }),
     onSuccess: async () => {
       setRascunho(null);
-      setAviso('Produto salvo. O custo não vai para o aparelho; o preço chega na próxima sincronização.');
+      toast('success', 'Produto salvo.');
       await qc.invalidateQueries({ queryKey: ['core', 'produtos'] });
     },
-    onError: (e) => setAviso(errorMessage(e)),
+    onError: (e) => setErroApi(errorMessage(e)),
   });
   const salvarPadrao = useMutation({
     mutationFn: (v: number) => api('/core/produtos/parametros', { method: 'PUT', body: ProdutoParametrosSchema.parse({ desconto_maximo_produto_pct: v }) }),
     onSuccess: async () => {
       setPadraoTexto(null);
-      setAviso('Desconto máximo padrão salvo. Vale para os produtos sem desconto próprio.');
+      toast('success', 'Desconto máximo padrão salvo.');
       await qc.invalidateQueries({ queryKey: ['core', 'produtos'] });
     },
-    onError: (e) => setAviso(errorMessage(e)),
+    onError: (e) => toast('danger', errorMessage(e)),
   });
 
   const custo = rascunho ? paraCentavos(rascunho.custo) : null;
@@ -97,19 +100,80 @@ export function ProdutosPage() {
         }
       : null;
 
-  const abrir = (p: ProdutoPreco) => setRascunho({ id: p.id, nome: p.nome, custo: emReais(p.custo_cents), preco: emReais(p.preco_venda_cents), desconto: p.desconto_maximo_pct === null ? '' : String(p.desconto_maximo_pct).replace('.', ',') });
+  const abrir = (p: ProdutoPreco) => {
+    setErroApi(null);
+    setRascunho({ id: p.id, nome: p.nome, custo: emReais(p.custo_cents), preco: emReais(p.preco_venda_cents), desconto: p.desconto_maximo_pct === null ? '' : String(p.desconto_maximo_pct).replace('.', ',') });
+  };
   const valorPadrao = padraoTexto ?? String(padrao).replace('.', ',');
   const padraoNovo = paraPct(valorPadrao);
+  const produtos = lista.data?.itens ?? [];
+
+  const colunas: ReadonlyArray<ColunaDaTabela<ProdutoPreco>> = [
+    {
+      id: 'produto',
+      titulo: 'Produto',
+      largura: '30%',
+      texto: (p) => p.nome,
+      celula: (p) => (
+        <>
+          {p.nome}
+          <span className="block truncate font-mono text-[12px] font-normal text-ink-2">{p.sku}</span>
+          {!p.vendavel && <Badge tone="warning">Sem preço: não vendável</Badge>}
+        </>
+      ),
+    },
+    { id: 'preco', titulo: 'Preço', numero: true, largura: '110px', celula: (p) => brl(p.preco_venda_cents), texto: (p) => brl(p.preco_venda_cents) },
+    { id: 'custo', titulo: 'Custo', numero: true, prioridade: 2, largura: '110px', celula: (p) => (p.custo_nao_informado ? '—' : brl(p.custo_cents)), texto: (p) => (p.custo_nao_informado ? 'Custo não informado' : brl(p.custo_cents)) },
+    { id: 'margem', titulo: 'Margem', numero: true, prioridade: 2, largura: '90px', celula: (p) => pct(p.margem_pct), texto: (p) => pct(p.margem_pct) },
+    {
+      id: 'medida',
+      titulo: 'Medida',
+      prioridade: 2,
+      largura: '90px',
+      celula: (p) => <span data-testid={`produtos.medida.${p.sku}`}>{rotuloMedidaDoProduto(p)}</span>,
+      texto: (p) => rotuloMedidaDoProduto(p),
+    },
+    {
+      id: 'desconto',
+      titulo: 'Desc. máx.',
+      numero: true,
+      prioridade: 2,
+      largura: '100px',
+      celula: (p) => formatPct(p.desconto_maximo_aplicavel_pct, 2),
+      texto: (p) => `${formatPct(p.desconto_maximo_aplicavel_pct, 2)}${p.desconto_maximo_pct === null ? ' (padrão)' : ''}`,
+    },
+    {
+      id: 'unidades',
+      titulo: 'Unidades de venda',
+      prioridade: 3,
+      largura: '18%',
+      texto: (p) => (p.unidades ?? []).map((u) => u.rotulo).join(', '),
+      celula: (p) => (
+        // RN-VEN-15: UN/CX e fator vindos do ERP; a padrão marcada. Sem cadastro, só a unidade base.
+        <span className="flex gap-1" data-testid={`produtos.unidades.${p.sku}`}>
+          {(p.unidades ?? []).map((u) => (
+            <Badge key={`${u.unidade}-${u.fator}`} tone={u.padrao ? 'success' : 'neutral'}>
+              {u.rotulo}
+              {u.padrao ? ' · padrão' : ''}
+            </Badge>
+          ))}
+        </span>
+      ),
+    },
+    { id: 'minimo', titulo: 'Preço mínimo', numero: true, prioridade: 3, largura: '110px', celula: (p) => brl(p.preco_minimo_cents), texto: (p) => brl(p.preco_minimo_cents) },
+  ];
+
+  const erroDoCampo = (v: number | null | undefined, msg: string) => (v === undefined ? msg : undefined);
 
   return (
     <div className="flex w-full max-w-[1100px] flex-col gap-5" data-testid="produtos.tela">
-      <PageHeader title="Preço e custo dos produtos" subtitle="Custo, preço de venda e desconto máximo. O custo é interno: nunca aparece no app nem no PDF do cliente." />
+      <PageHeader title="Preço e custo dos produtos" />
       <div className="flex gap-2" role="tablist">
         <Button variant={aba === 'produtos' ? 'primary' : undefined} onClick={() => setAba('produtos')} data-testid="produtos.aba-produtos">
-          Produtos
+          {rotuloComContagem('Produtos', lista.data ? produtos.length : 0)}
         </Button>
         <Button variant={aba === 'medidas' ? 'primary' : undefined} onClick={() => setAba('medidas')} data-testid="produtos.aba-medidas">
-          Medidas
+          {rotuloComContagem('Medidas', medidas.data ? filtrarMedidas(medidas.data, buscaMedidas.termo).length : 0)}
         </Button>
         {podeParametros && (
           <Button variant={aba === 'parametros' ? 'primary' : undefined} onClick={() => setAba('parametros')} data-testid="produtos.aba-parametros">
@@ -117,32 +181,18 @@ export function ProdutosPage() {
           </Button>
         )}
       </div>
-      {aviso && (
-        <Notice tone="info" onClose={() => setAviso(null)}>
-          {aviso}
-        </Notice>
-      )}
 
-      {aba === 'medidas' && <MedidasPanel onAviso={setAviso} />}
+      {aba === 'medidas' && <MedidasPanel busca={buscaMedidas} />}
 
       {aba === 'parametros' && podeParametros && (
         <Panel title="Desconto máximo padrão">
-          <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
-            <label className="flex max-w-[260px] flex-col gap-1">
-              Desconto máximo do produto (%)
-              <input
-                inputMode="decimal"
-                value={valorPadrao}
-                onChange={(e) => setPadraoTexto(e.target.value)}
-                data-testid="produtos.parametro-desconto"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
-              />
-            </label>
-            <p className="font-normal text-ink-2">Vale para todo produto sem desconto máximo próprio (padrão 15%). Define o preço mínimo de venda.</p>
-            {padraoNovo === undefined && <p className="font-normal text-danger">Informe um valor entre 0 e 100.</p>}
+          <div className="flex max-w-[260px] flex-col gap-3">
+            <CampoFormulario rotulo="Desconto máximo do produto (%)" erro={padraoNovo === undefined ? 'Informe um valor entre 0 e 100.' : undefined}>
+              <input inputMode="decimal" value={valorPadrao} onChange={(e) => setPadraoTexto(e.target.value)} aria-invalid={padraoNovo === undefined} data-testid="produtos.parametro-desconto" className={CLASSE_CAMPO} />
+            </CampoFormulario>
             <div>
               <Button variant="primary" disabled={salvarPadrao.isPending || padraoNovo === undefined || padraoNovo === null} onClick={() => padraoNovo != null && salvarPadrao.mutate(padraoNovo)} data-testid="produtos.parametro-salvar">
-                Salvar
+                {salvarPadrao.isPending ? 'Salvando…' : 'Salvar'}
               </Button>
             </div>
           </div>
@@ -151,109 +201,45 @@ export function ProdutosPage() {
 
       {aba === 'produtos' && (
         <>
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por código ou nome"
-            aria-label="Buscar produto"
-            data-testid="produtos.busca"
-            className="h-[44px] max-w-[360px] rounded-xl border border-field bg-surface px-3 text-[14px]"
-          />
+          <FilterBar>
+            <CampoBusca
+              rotulo="Buscar código ou nome do produto"
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && aplicar()}
+              data-testid="produtos.busca"
+            />
+            <LimparFiltros ligado={texto !== ''} onLimpar={limpar} />
+          </FilterBar>
           {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
           {lista.isPending && <LoadingBlock label="Carregando os produtos…" />}
           {lista.data && (
-            <Panel title={`${lista.data.itens.length} produtos · desconto máximo padrão ${formatPct(padrao, 2)}`}>
-              <TableScroll minWidth={1300}>
-                <table className="w-full border-collapse text-[13px]">
-                  <thead>
-                    <tr>
-                      <th className={th}>Produto</th>
-                      <th className={th}>Medida</th>
-                      <th className={th}>Unidades de venda</th>
-                      <th className={th}>Custo</th>
-                      <th className={th}>Preço</th>
-                      <th className={th}>Margem</th>
-                      <th className={th}>Markup</th>
-                      <th className={th}>Lucro</th>
-                      <th className={th}>Desc. máx.</th>
-                      <th className={th}>Preço mínimo</th>
-                      <th className={th}>Margem no mínimo</th>
-                      <th className={th}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lista.data.itens.map((p) => (
-                      <tr key={p.id} data-testid={`produtos.linha.${p.sku}`}>
-                        <td className={td}>
-                          {p.nome}
-                          <span className="block font-mono text-[12px] text-ink-2">{p.sku}</span>
-                          {!p.vendavel && <Badge tone="warning">Sem preço: não vendável</Badge>}
-                        </td>
-                        <td className={td} data-testid={`produtos.medida.${p.sku}`}>
-                          {rotuloMedidaDoProduto(p)}
-                        </td>
-                        <td className={td} data-testid={`produtos.unidades.${p.sku}`}>
-                          {/* RN-VEN-15: UN/CX e fator vindos do ERP; a padrão marcada. Sem cadastro, só a unidade base. */}
-                          <div className="flex flex-wrap gap-1">
-                            {(p.unidades ?? []).map((u) => (
-                              <Badge key={`${u.unidade}-${u.fator}`} tone={u.padrao ? 'success' : 'neutral'}>
-                                {u.rotulo}
-                                {u.padrao ? ' · padrão' : ''}
-                              </Badge>
-                            ))}
-                          </div>
-                        </td>
-                        <td className={td}>{p.custo_nao_informado ? <span className="text-ink-2">custo não informado</span> : brl(p.custo_cents)}</td>
-                        <td className={td}>{brl(p.preco_venda_cents)}</td>
-                        <td className={td}>{pct(p.margem_pct)}</td>
-                        <td className={td}>{pct(p.markup_pct)}</td>
-                        <td className={td}>{brl(p.lucro_cents)}</td>
-                        <td className={td}>
-                          {formatPct(p.desconto_maximo_aplicavel_pct, 2)}
-                          {p.desconto_maximo_pct === null && <span className="block text-ink-2">padrão</span>}
-                        </td>
-                        <td className={td}>{brl(p.preco_minimo_cents)}</td>
-                        <td className={td}>{pct(p.margem_no_minimo_pct)}</td>
-                        <td className={td}>
-                          <div className="flex flex-wrap gap-2">
-                            <Button onClick={() => abrir(p)} data-testid={`produtos.editar.${p.sku}`}>
-                              Editar
-                            </Button>
-                            {podeMedidas && (
-                              <Button onClick={() => setMedidasDe(p)} disabled={!medidas.data} data-testid={`produtos.medidas.${p.sku}`}>
-                                Medidas
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableScroll>
-            </Panel>
+            <QuadroDaLista vazia={produtos.length === 0} vazio={<EstadoVazio titulo={fraseDoVazio('produto', false, busca !== '')} testId="produtos.vazio" />}>
+              <TabelaDados
+                rotulo="Produtos"
+                colunas={colunas}
+                linhas={produtos}
+                chave={(p) => p.id}
+                linhaTestId={(p) => `produtos.linha.${p.sku}`}
+                aoAbrir={abrir}
+                acoes={(p) => [
+                  { id: 'editar', rotulo: 'Editar', aoEscolher: () => abrir(p), testId: `produtos.editar.${p.sku}` },
+                  ...(podeMedidas ? [{ id: 'medidas', rotulo: 'Medidas', aoEscolher: () => setMedidasDe(p), desligada: !medidas.data, testId: `produtos.medidas.${p.sku}` }] : []),
+                ]}
+              />
+            </QuadroDaLista>
           )}
         </>
       )}
 
-      {medidasDe && medidas.data && (
-        <ProdutoMedidasDialog
-          produto={medidasDe}
-          medidas={medidas.data}
-          onFechar={() => setMedidasDe(null)}
-          onSalvo={(texto) => {
-            setMedidasDe(null);
-            setAviso(texto);
-          }}
-        />
-      )}
+      {medidasDe && medidas.data && <ProdutoMedidasDialog produto={medidasDe} medidas={medidas.data} onFechar={() => setMedidasDe(null)} onSalvo={() => setMedidasDe(null)} />}
 
-      {rascunho && (
-        <Dialog
-          open
-          title={`Preço e custo · ${rascunho.nome}`}
-          onClose={() => setRascunho(null)}
-          footer={
+      <Drawer
+        open={rascunho !== null}
+        title={rascunho ? `Editar ${rascunho.nome}` : ''}
+        onClose={() => setRascunho(null)}
+        rodape={
+          rascunho && (
             <>
               <Button onClick={() => setRascunho(null)}>Cancelar</Button>
               <Button
@@ -262,56 +248,52 @@ export function ProdutosPage() {
                 onClick={() => valido && salvar.mutate({ id: rascunho.id, custo: custo ?? null, preco: preco ?? null, desconto: desconto ?? null })}
                 data-testid="produtos.salvar"
               >
-                Salvar
+                {salvar.isPending ? 'Salvando…' : 'Salvar'}
               </Button>
             </>
-          }
-        >
-          <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
-            {(['custo', 'preco'] as const).map((campo) => (
-              <label key={campo} className="flex flex-col gap-1">
-                {campo === 'custo' ? 'Custo (R$)' : 'Preço de venda (R$)'}
-                <input
-                  inputMode="decimal"
-                  value={rascunho[campo]}
-                  onChange={(e) => setRascunho({ ...rascunho, [campo]: e.target.value })}
-                  data-testid={`produtos.${campo}`}
-                  className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
-                />
-              </label>
-            ))}
-            <label className="flex flex-col gap-1">
-              Desconto máximo (%) · vazio usa o padrão de {formatPct(padrao, 2)}
+          )
+        }
+      >
+        {rascunho && (
+          <div className="flex flex-col gap-4">
+            {erroApi && <Notice tone="danger">{erroApi}</Notice>}
+            <CampoFormulario rotulo="Custo (R$)" erro={erroDoCampo(custo, 'Use um número positivo.')}>
+              <input inputMode="decimal" value={rascunho.custo} onChange={(e) => setRascunho({ ...rascunho, custo: e.target.value })} aria-invalid={custo === undefined} data-testid="produtos.custo" className={CLASSE_CAMPO} />
+            </CampoFormulario>
+            <CampoFormulario rotulo="Preço de venda (R$)" erro={erroDoCampo(preco, 'Use um número positivo.')}>
+              <input inputMode="decimal" value={rascunho.preco} onChange={(e) => setRascunho({ ...rascunho, preco: e.target.value })} aria-invalid={preco === undefined} data-testid="produtos.preco" className={CLASSE_CAMPO} />
+            </CampoFormulario>
+            <CampoFormulario rotulo="Desconto máximo (%)" opcional erro={erroDoCampo(desconto, 'Use um valor de 0 a 100.')}>
               <input
                 inputMode="decimal"
                 value={rascunho.desconto}
+                placeholder={`Padrão ${formatPct(padrao, 2)}`}
                 onChange={(e) => setRascunho({ ...rascunho, desconto: e.target.value })}
+                aria-invalid={desconto === undefined}
                 data-testid="produtos.desconto"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
+                className={CLASSE_CAMPO}
               />
-            </label>
-            {!valido && <p className="font-normal text-danger">Revise os valores: use números positivos e desconto de 0 a 100.</p>}
+            </CampoFormulario>
             {calc && (
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-xl border border-field p-3 font-normal" data-testid="produtos.calculo">
+              <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-1 rounded-xl border border-field p-3 text-[13px]" data-testid="produtos.calculo">
                 <dt>Margem</dt>
-                <dd>{pct(calc.margem)}</dd>
+                <dd className="m-0 text-right tabular-nums">{pct(calc.margem)}</dd>
                 <dt>Markup</dt>
-                <dd>{pct(calc.markup)}</dd>
+                <dd className="m-0 text-right tabular-nums">{pct(calc.markup)}</dd>
                 <dt>Lucro</dt>
-                <dd>{brl(calc.lucro)}</dd>
+                <dd className="m-0 text-right tabular-nums">{brl(calc.lucro)}</dd>
                 <dt>Desconto máximo aplicado</dt>
-                <dd>{formatPct(calc.aplicavel, 2)}</dd>
+                <dd className="m-0 text-right tabular-nums">{formatPct(calc.aplicavel, 2)}</dd>
                 <dt>Preço mínimo</dt>
-                <dd>{brl(calc.minimo)}</dd>
+                <dd className="m-0 text-right tabular-nums">{brl(calc.minimo)}</dd>
                 <dt>Margem no preço mínimo</dt>
-                <dd>{pct(calc.margemMinimo)}</dd>
+                <dd className="m-0 text-right tabular-nums">{pct(calc.margemMinimo)}</dd>
               </dl>
             )}
-            {valido && preco === null && <p className="font-normal text-ink-2">Sem preço de venda o produto não é vendável.</p>}
-            {valido && custo === null && <p className="font-normal text-ink-2">Custo não informado: margem, markup e lucro ficam em branco.</p>}
+            {valido && preco === null && <p className="m-0 text-[13px] text-ink-2">Sem preço de venda o produto não é vendável.</p>}
           </div>
-        </Dialog>
-      )}
+        )}
+      </Drawer>
     </div>
   );
 }

@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Panel, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, Notice, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
 import { MedidasListaSchema, type Medida } from '../../../contracts';
 import { DESCRICAO_MEDIDA_MAX, normalizarSigla } from '../../../domain';
 import { erroDoFormularioDeMedida } from '../../lib/medidas';
+import { fraseDoVazio, LimparFiltros, QuadroDaLista, type useBuscaComEspera } from '../../lib/lista-bko';
 import { novoId } from '../../lib/visitas';
 
 interface Rascunho {
@@ -26,16 +27,23 @@ export const useMedidas = () =>
     queryFn: async ({ signal }) => MedidasListaSchema.parse(await api<unknown>('/core/medidas', { signal })).itens,
   });
 
+/** Medidas que casam com a busca (sigla ou descrição). */
+export const filtrarMedidas = (medidas: readonly Medida[], termo: string): Medida[] => {
+  const t = termo.trim().toLowerCase();
+  return medidas.filter((m) => !t || `${m.sigla} ${m.descricao}`.toLowerCase().includes(t));
+};
+
 /**
  * Medidas do produto (RN-CORE-19; RF-CORE-14), na aba Medidas de Parâmetros → Produtos. Cadastra, edita, inativa e reativa;
- * só apaga medida sem uso (em uso, o botão fica desligado e explica: inative em vez de apagar). Analista e admin editam
- * (ação `medida.gerenciar`); gerente consulta. A API revalida tudo e audita.
+ * só apaga medida sem uso (em uso, a ação "Apagar" não aparece: inative em vez de apagar). Analista e admin editam
+ * (ação `medida.gerenciar`); gerente consulta. A API revalida tudo e audita. A busca vem da página (a contagem fica na aba).
  */
-export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) {
+export function MedidasPanel({ busca }: { busca: ReturnType<typeof useBuscaComEspera> }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const pode = usePode('medida.gerenciar');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
-  const [busca, setBusca] = useState('');
+  const [erroApi, setErroApi] = useState<string | null>(null);
   const lista = useMedidas();
 
   const atualizar = () => qc.invalidateQueries({ queryKey: ['core'] });
@@ -46,137 +54,143 @@ export function MedidasPanel({ onAviso }: { onAviso: (texto: string) => void }) 
         : api<unknown>('/core/medidas', { method: 'POST', body: { id: r.id, sigla: normalizarSigla(r.sigla), descricao: r.descricao.trim() } }),
     onSuccess: async () => {
       setRascunho(null);
-      onAviso('Medida salva. Os aparelhos recebem na próxima sincronização.');
+      toast('success', 'Medida salva.');
       await atualizar();
     },
-    onError: (e) => onAviso(errorMessage(e)),
+    onError: (e) => setErroApi(errorMessage(e)),
   });
   const alternar = useMutation({
     mutationFn: (m: Medida) => api<unknown>(`/core/medidas/${m.id}`, { method: 'PUT', body: { ativo: !m.ativo } }),
     onSuccess: async (_r, m) => {
-      onAviso(m.ativo ? `Medida ${m.sigla} inativada. Produtos que já a usam mantêm a sigla; ela não aparece mais nas escolhas novas.` : `Medida ${m.sigla} reativada.`);
+      toast('success', m.ativo ? `Medida ${m.sigla} inativada.` : `Medida ${m.sigla} reativada.`);
       await atualizar();
     },
-    onError: (e) => onAviso(errorMessage(e)),
+    onError: (e) => toast('danger', errorMessage(e)),
   });
   const apagar = useMutation({
     mutationFn: (m: Medida) => api<unknown>(`/core/medidas/${m.id}`, { method: 'DELETE' }),
     onSuccess: async (_r, m) => {
-      onAviso(`Medida ${m.sigla} apagada.`);
+      toast('success', `Medida ${m.sigla} apagada.`);
       await atualizar();
     },
-    onError: (e) => onAviso(errorMessage(e)),
+    onError: (e) => toast('danger', errorMessage(e)),
   });
 
-  const itens = (lista.data ?? []).filter((m) => !busca.trim() || `${m.sigla} ${m.descricao}`.toLowerCase().includes(busca.trim().toLowerCase()));
+  const itens = filtrarMedidas(lista.data ?? [], busca.termo);
   const erroForm = rascunho ? erroDoFormularioDeMedida(rascunho.sigla, rascunho.descricao) : null;
+  const abrirNova = () => {
+    setErroApi(null);
+    setRascunho({ id: novoId(), existente: false, sigla: '', descricao: '', siglaTravada: false });
+  };
+  const editar = (m: Medida) => {
+    setErroApi(null);
+    setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 });
+  };
+
+  const colunas: ReadonlyArray<ColunaDaTabela<Medida>> = [
+    { id: 'sigla', titulo: 'Sigla', largura: '110px', texto: (m) => m.sigla, celula: (m) => <span className="font-mono">{m.sigla}</span> },
+    { id: 'descricao', titulo: 'Descrição', texto: (m) => m.descricao, celula: (m) => m.descricao },
+    { id: 'situacao', titulo: 'Situação', largura: '120px', celula: (m) => <Badge tone={m.ativo ? 'success' : 'warning'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge> },
+    { id: 'produtos', titulo: 'Produtos', numero: true, prioridade: 2, largura: '110px', celula: (m) => (m.em_uso === 0 ? '—' : `${m.em_uso} em uso`), texto: (m) => (m.em_uso === 0 ? 'Sem uso' : `${m.em_uso} em uso`) },
+  ];
 
   return (
     <div className="flex flex-col gap-4" data-testid="medidas.tela">
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por sigla ou descrição"
-          aria-label="Buscar medida"
+      <FilterBar>
+        <CampoBusca
+          rotulo="Buscar sigla ou descrição"
+          value={busca.texto}
+          onChange={(e) => busca.setTexto(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && busca.aplicar()}
           data-testid="medidas.busca"
-          className="h-[44px] max-w-[360px] flex-1 rounded-xl border border-field bg-surface px-3 text-[14px]"
         />
-        <Button variant="primary" disabled={!pode} onClick={() => setRascunho({ id: novoId(), existente: false, sigla: '', descricao: '', siglaTravada: false })} data-testid="medidas.nova">
-          Nova medida
-        </Button>
-      </div>
-      {!pode && <p className="text-[13px] text-ink-2">Só analista e administrador cadastram medidas. Você pode consultar.</p>}
+        <LimparFiltros ligado={busca.texto !== ''} onLimpar={busca.limpar} />
+        {pode && (
+          <Button variant="primary" className="ml-auto" onClick={abrirNova} data-testid="medidas.nova">
+            Nova medida
+          </Button>
+        )}
+      </FilterBar>
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as medidas…" />}
       {lista.data && (
-        <Panel title={`${itens.length} medidas`}>
-          <TableScroll minWidth={640}>
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={th}>Sigla</th>
-                  <th className={th}>Descrição</th>
-                  <th className={th}>Situação</th>
-                  <th className={th}>Produtos</th>
-                  <th className={th}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((m) => (
-                  <tr key={m.id} data-testid={`medidas.linha.${m.sigla}`}>
-                    <td className={`${td} font-mono font-semibold`}>{m.sigla}</td>
-                    <td className={td}>{m.descricao}</td>
-                    <td className={td}>
-                      <Badge tone={m.ativo ? 'success' : 'warning'}>{m.ativo ? 'Ativa' : 'Inativa'}</Badge>
-                    </td>
-                    <td className={td}>{m.em_uso === 0 ? <span className="text-ink-2">sem uso</span> : `${m.em_uso} em uso`}</td>
-                    <td className={td}>
-                      <div className="flex flex-wrap gap-2">
-                        <Button disabled={!pode} onClick={() => setRascunho({ id: m.id, existente: true, sigla: m.sigla, descricao: m.descricao, siglaTravada: m.em_uso > 0 })} data-testid={`medidas.editar.${m.sigla}`}>
-                          Editar
-                        </Button>
-                        <Button disabled={!pode || alternar.isPending} onClick={() => alternar.mutate(m)} data-testid={`medidas.alternar.${m.sigla}`}>
-                          {m.ativo ? 'Inativar' : 'Reativar'}
-                        </Button>
-                        <Button
-                          disabled={!pode || apagar.isPending || m.em_uso > 0}
-                          title={m.em_uso > 0 ? `Medida em uso por ${m.em_uso} produto(s): inative em vez de apagar.` : undefined}
-                          onClick={() => apagar.mutate(m)}
-                          data-testid={`medidas.apagar.${m.sigla}`}
-                        >
-                          Apagar
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+        <QuadroDaLista
+          vazia={itens.length === 0}
+          vazio={
+            <EstadoVazio
+              titulo={fraseDoVazio('medida', true, busca.termo !== '')}
+              acao={
+                busca.termo === '' && pode ? (
+                  <Button variant="primary" onClick={abrirNova}>
+                    Nova medida
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+        >
+          <TabelaDados
+            rotulo="Medidas"
+            colunas={colunas}
+            linhas={itens}
+            chave={(m) => m.id}
+            linhaTestId={(m) => `medidas.linha.${m.sigla}`}
+            esmaecida={(m) => !m.ativo}
+            aoAbrir={pode ? editar : undefined}
+            acoes={(m) =>
+              pode
+                ? [
+                    { id: 'editar', rotulo: 'Editar', aoEscolher: () => editar(m), testId: `medidas.editar.${m.sigla}` },
+                    { id: 'alternar', rotulo: m.ativo ? 'Inativar' : 'Reativar', desligada: alternar.isPending, aoEscolher: () => alternar.mutate(m), testId: `medidas.alternar.${m.sigla}` },
+                    ...(m.em_uso === 0 ? [{ id: 'apagar', rotulo: 'Apagar', perigo: true, desligada: apagar.isPending, aoEscolher: () => apagar.mutate(m), testId: `medidas.apagar.${m.sigla}` }] : []),
+                  ]
+                : []
+            }
+          />
+        </QuadroDaLista>
       )}
-      {rascunho && (
-        <Dialog
-          open
-          title={rascunho.existente ? `Editar medida ${rascunho.sigla}` : 'Nova medida'}
-          onClose={() => setRascunho(null)}
-          footer={
+      <Drawer
+        open={rascunho !== null}
+        title={rascunho?.existente ? `Editar medida ${rascunho.sigla}` : 'Nova medida'}
+        onClose={() => setRascunho(null)}
+        rodape={
+          rascunho && (
             <>
               <Button onClick={() => setRascunho(null)}>Cancelar</Button>
               <Button variant="primary" disabled={salvar.isPending || erroForm !== null} onClick={() => salvar.mutate(rascunho)} data-testid="medidas.salvar">
-                Salvar
+                {salvar.isPending ? 'Salvando…' : 'Salvar'}
               </Button>
             </>
-          }
-        >
-          <div className="flex flex-col gap-3 text-[13px] font-semibold text-ink">
-            <label className="flex flex-col gap-1">
-              Sigla (1 a 4 letras)
+          )
+        }
+      >
+        {rascunho && (
+          <div className="flex flex-col gap-4">
+            {erroApi && <Notice tone="danger">{erroApi}</Notice>}
+            <CampoFormulario rotulo="Sigla (1 a 4 letras)">
               <input
                 value={rascunho.sigla}
                 maxLength={4}
                 disabled={rascunho.siglaTravada}
                 onChange={(e) => setRascunho({ ...rascunho, sigla: e.target.value.toUpperCase() })}
                 data-testid="medidas.sigla"
-                className="h-[44px] max-w-[160px] rounded-xl border border-field bg-surface px-3 font-mono text-[14px] font-normal uppercase"
+                className={`${CLASSE_CAMPO} max-w-[160px] font-mono uppercase`}
               />
-            </label>
-            {rascunho.siglaTravada && <p className="font-normal text-ink-2">A sigla não muda enquanto algum produto usa a medida. Altere só a descrição ou crie outra medida e inative esta.</p>}
-            <label className="flex flex-col gap-1">
-              Descrição (ex.: Caixa)
+            </CampoFormulario>
+            <CampoFormulario rotulo="Descrição" erro={erroForm && (rascunho.sigla !== '' || rascunho.descricao !== '') ? erroForm : undefined}>
               <input
                 value={rascunho.descricao}
                 maxLength={DESCRICAO_MEDIDA_MAX}
+                placeholder="Ex.: Caixa"
                 onChange={(e) => setRascunho({ ...rascunho, descricao: e.target.value })}
+                aria-invalid={erroForm !== null && (rascunho.sigla !== '' || rascunho.descricao !== '')}
                 data-testid="medidas.descricao"
-                className="h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal"
+                className={CLASSE_CAMPO}
               />
-            </label>
-            {erroForm && (rascunho.sigla !== '' || rascunho.descricao !== '') && <p className="font-normal text-danger">{erroForm}</p>}
+            </CampoFormulario>
           </div>
-        </Dialog>
-      )}
+        )}
+      </Drawer>
     </div>
   );
 }
