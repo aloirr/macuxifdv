@@ -66,7 +66,7 @@ Sai: 18 frases, "Passo 1", 1 campo, 1 cartão (5 campos), 1 botão. Entra: campo
 
 | Antes | Depois (com os planos do §11) |
 |---|---|
-| ![Nova empresa, antes](portal-config-enxuto/antes-03-nova-empresa.png) | ![Nova empresa, depois](portal-config-enxuto/depois-03b-nova-empresa.png) |
+| ![Nova empresa, antes](portal-config-enxuto/antes-03-nova-empresa.png) | ![Nova empresa, depois](../planos-assinatura/02-nova-empresa.png) |
 
 ## 5. Página da empresa — cabeçalho
 "← Empresas" (só time Macuxi) · razão social + selo da situação · **"Código AM4821 · CNPJ 11.222.333/0001-81 · Manaus (UTC−4)"**. Empresa que não existe: só **"Empresa não encontrada."** (ou **"Empresa não encontrada ou inativa."**); sai "Volte à lista de empresas.", que repete o "← Empresas" (ajustado pelo RD-0293). Abas **"Bases" · "Integração" · "Empresa"** (sai "automática").
@@ -101,7 +101,7 @@ Fica: um só principal na aba ("Trocar de plano"); ícones e nomes dos adicionai
 
 | Antes | Depois (super-admin) | Depois (admin do cliente) | "Trocar de plano" aberto |
 |---|---|---|---|
-| ![Aba Empresa, antes](portal-config-enxuto/antes-06-aba-empresa.png) | ![Aba Empresa, depois](portal-config-enxuto/depois-06b-aba-empresa.png) | ![Aba Empresa, cliente](portal-config-enxuto/depois-06c-aba-empresa-cliente.png) | ![Trocar de plano](portal-config-enxuto/depois-06d-trocar-plano.png) |
+| ![Aba Empresa, antes](portal-config-enxuto/antes-06-aba-empresa.png) | ![Aba Empresa, depois](../planos-assinatura/03-aba-empresa.png) | ![Aba Empresa, cliente](../planos-assinatura/04-aba-empresa-cliente.png) | ![Trocar de plano](../planos-assinatura/05-trocar-plano.png) |
 
 > **Substituídas em 15/11** (R-20261115-123000): `depois-06b`, `depois-06c` e `depois-06d` dão lugar a `../planos-assinatura/03-aba-empresa.png`, `04-aba-empresa-cliente.png` e `05-trocar-plano.png` (§11.4).
 
@@ -228,7 +228,7 @@ Sucesso, como no §4: **"Empresa criada. Código da empresa: AM4821."** Erro ger
 
 | Depois — Nova empresa (CNPJ preenchido, PME, Promotor 3 e Pesquisa 10, total) | Depois — estados do campo CNPJ |
 |---|---|
-| ![Nova empresa com planos](portal-config-enxuto/depois-03b-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
+| ![Nova empresa com planos](../planos-assinatura/02-nova-empresa.png) | ![Estados do CNPJ](portal-config-enxuto/depois-03c-cnpj-estados.png) |
 
 > **Substituída em 15/11** (R-20261115-123000): `depois-03b` dá lugar a `../planos-assinatura/02-nova-empresa.png`. A `depois-03c` (estados do CNPJ) continua vigente.
 
