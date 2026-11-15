@@ -85,6 +85,7 @@
 | N-G: `docs/testes/T-0170-performance.md` e os testes novos do prompt N-G | T-0170 roteiro e testes de valor × regra da Performance | ver prompt N-G | 2026-11-13 04h |
 | N-I: caminhos do R-20261113-115509 (correções da Performance: A-3, A-4, cobertura em Hoje, testes com CAL-8 = 5) | T-0170 Performance, correções; aberta pela ponte (R-20261113-120542); PR até as 15h, entra na v1.0.6 | `nuvem/T-0170-performance-correcoes` | 2026-11-13 12h |
 | N-J: caminhos do R-20261113-115509 (RD-0212, RD-0214, RD-0216 e RD-0218) | T-0171 listas do corretor; aberta pela ponte; PR até as 15h, entra na v1.0.6 | `nuvem/T-0171-listas-livres` | 2026-11-13 12h |
+| ADR nova (`docs/decisoes/0054-*`, número reservado) · `db/` (migração de `catalogo.foto_lote`, `foto_lote_item`, `produto_midia.hash_conteudo`) · `modules/catalogo/**` (domain, contracts, api, web das fotos em lote) · plataforma da API (`apps/api/src/arquivos*`, outbox/worker do job) · `docs/design/` (spec da tela) | T-0174 fotos dos produtos em lote por ZIP (R-20261115-071800, R-20261115-073000 item 6) | `nuvem/T-0174-<dono>` (um por dono) | 2026-11-15 |
 | `docs/manual/**` e `docs/producao/sabado.md` (novos) | T-0157 (N21) manuais e roteiro da produção de sábado (gerente-projetos), aberta pelo dono do produto | `nuvem/N21-manual-sabado` | 2026-11-10 09h |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
