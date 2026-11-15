@@ -79,3 +79,31 @@ Fora da lista pedida, saiu também o "Limpar" da folha do Catálogo (**RD-0498**
 - **Grade:** o "Equivale a Freiomax CB 3401" (`04`) aparece uma vez por cartão, só na busca que achou pela referência.
 - **Observação sem RD (layout que não mudou neste lote):** na Performance, cada cartão traz o valor, a barra e "54% da meta de …". São 3 representações do mesmo número, e o checklist pede no máximo 2. A tela não mudou nesta simulação; registro para o próximo lote da Performance.
 - **Encaminhado ao testes, sem RD:** na Rota filtrada (`01`), a etiqueta "3 feitas" conta a rota inteira, enquanto a lista e o subtítulo contam as 4 visitas do filtro, das quais 2 estão feitas. O rótulo e o número não batem com o que a tela mostra.
+
+## 4. Reteste (15/11/2026, commits 860b064 e a4b88ed do designer-ux)
+**Veredito: COM ACHADO.** Os 6 RD pedidos estão corrigidos. O RD-0498 foi **encerrado** porque a decisão mudou. Há **1 achado novo** de gravidade baixa, o RD-0504, que segura o lote.
+
+Conferi as specs (`catalogo-campo-v2/spec.md`, `filtro-padrao-campo/spec.md`) e abri os 12 PNGs regerados como imagem, entre eles o novo `06-clientes-carteira-vazia.png`. As decisões são do dono do produto: R-20261115-073000 e R-20261115-074500.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0496 | **corrigido** | No `05-busca-dica.png`, a dica agora é "Também acha por aplicação e referência cruzada." e não repete o placeholder. |
+| RD-0497 | **corrigido** | No `03-ficha-…png`, há uma linha por filial ("Boa Vista [0 em estoque]", "Manaus 12") e "Atualizado às 07:28". O rótulo "Estoque na filial…" saiu, e "estoque" aparece uma vez só. |
+| RD-0498 | **encerrado** (não vale mais) | A folha do Catálogo ganhou o grupo "Itens sem estoque" (Mostrar/Ocultar), por decisão do dono do produto. Agora "Limpar" desfaz 2 escolhas e não repete nenhuma opção (`06-folha-filtro.png`). Confirmado. |
+| RD-0499 | **corrigido** | O subtítulo da Rota ficou "4 de 12 visitas · 38 km", e a cidade está só no chip. A spec §1 ganhou a regra "o que já está num chip não se repete no subtítulo". |
+| RD-0500 | **corrigido** | No `03-clientes.png`, com `Devendo ✕`, as linhas trazem só o nome, "Visitado há…" e o ›. A spec §3 tem a regra. |
+| RD-0501 | **corrigido** | No `06-clientes-carteira-vazia.png`, aparece uma frase só, "Sua carteira está vazia.", com o ícone. O subtítulo "0 na carteira" saiu, porque dizia o mesmo (ajuste extra, conferido). |
+| RD-0502 | **corrigido** | No `05-performance.png`, a linha mostra "Não é dia útil · 11 restantes". |
+
+### Mudanças novas (decisões do dono do produto e ajustes do designer)
+- **Cartão foto → nome → códigos** (`01`, `02`, `04`, `05`): "980 · Travex" fica em cima, e embaixo vem "PAF.1434" com o copiar. Cada código aparece uma vez no cartão, e o copiar fica ao lado do código que ele copia. A ficha repete a mesma linha numa linha só, mas é outra tela. **Sem achado.**
+- **"Só com estoque"**: está descrito na spec §4 (o chip entra com `Ocultar`, e o selo soma 1), mas não há PNG desse estado. O chip e a opção da folha seguem o padrão (selo + chip). **Sem achado.** Confiro no print do aparelho na implementação.
+- **"Ver 1.284 produtos"** na folha e "1.284 produtos" no cabeçalho: é o padrão das folhas de vários grupos, em que a contagem muda com a escolha antes de fechar. **Sem achado.**
+- **Chips de Clientes dentro da folha** (decidido): a tela mostra só a etiqueta do que está marcado. **Sem achado.**
+- **"Rota de ter, 18/11"**: o título troca "de hoje" pela data, e o chip `Ter, 18/11 ✕` continua. Título e chip dizem a mesma data, mas o título só muda quando ela não é hoje. Aceito como "manter?": o título diz de que dia é a rota, e o chip é o controle para voltar a hoje. **Sem achado.**
+- **"2 feitas" na Rota filtrada**: a etiqueta conta as visitas do filtro (2 de 4), como o subtítulo, e não contradiz mais a lista. O encaminhamento ao testes do §3 fica resolvido na simulação.
+
+### RD-0504 · baixa · layout · designer-ux (simulação) · modulo-core (tela)
+- **Onde:** `06-clientes-carteira-vazia.png` (e a spec §3, carteira vazia): com a carteira vazia, a tela ainda mostra o `CampoBusca` "Nome, código, bairro ou CNPJ" e o `BotaoFiltro`.
+- **O que sobra:** numa carteira vazia não há o que buscar nem filtrar. Os 2 controles não levam a nenhuma ação, e quem tocar só vai cair num 2º vazio ("Nenhum cliente com esses filtros").
+- **Proposta:** com a carteira vazia, a tela fica só com a faixa ("Clientes" e a sincronização) e o `EstadoVazio` "Sua carteira está vazia.". A busca e o filtro aparecem quando houver ao menos um cliente. Na spec §3, acrescentar: "sem clientes na carteira, a linha da busca e do filtro não aparece".
