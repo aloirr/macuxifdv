@@ -1,4 +1,4 @@
-import { criarPermissoes, matrizDeFabrica, perfilDeFabrica, resolverPerfil, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { CriarUsuarioRespostaSchema, RedefinirSenhaRespostaSchema, UsuarioItemSchema } from '../contracts';
 import type { MensagemEmail, ServicoEmail } from './email';
@@ -458,46 +458,10 @@ describe('RN-CORE-34: redefinir senha (BKO)', () => {
     for (const x of [proprio, outroAdmin]) expect(x.chamadas.some((c) => /update core.usuario/.test(c.sql))).toBe(false);
   });
 
-  const REFS = /p\.codigo, p\.base from plataforma\.usuario_perfil/;
-  const ref = (p: string) => ({ codigo: p, base: p });
-  it('T-0111 / RN-CORE-34: alvo [analista, admin] (principal analista) NÃO tem a senha redefinida, nem com senha informada pelo admin', async () => {
-    const { db, chamadas } = fakeDb([[REFS, [ref('analista'), ref('admin')]], ...base(alvo({ perfil: 'analista' }))]);
-    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_DE_ADMIN' });
-    expect(chamadas.some((c) => /update core\.(usuario|sessao)/.test(c.sql))).toBe(false);
-  });
-  it('T-0111 / RN-CORE-35: alvo [vendedor, supervisor]: o admin redefine; quem só tem a lista de vendedor é recusado', async () => {
-    const ok = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
-    await expect(executar(ROTA(), contexto(ok.db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).resolves.toMatchObject({ ok: true });
-    const coord = (alvos: string[]) => ({
-      ...ADMIN,
-      id: '0b000000-0000-4000-8000-0000000000c0',
-      perfil: 'gerente' as never,
-      perfis: [resolverPerfil({ ...perfilDeFabrica('gerente'), codigo: 'coord', fabrica: false, sobreposicoes: [{ chave: 'senha.redefinir', concedida: true, alvos }] }, matrizDeFabrica([]))],
-    });
-    const so = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
-    await expect(executar(ROTA(), contexto(so.db, { usuario: coord(['vendedor']), email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SEM_PERMISSAO' });
-    expect(so.chamadas.some((c) => /update core\.(usuario|sessao)/.test(c.sql))).toBe(false);
-    const ambos = fakeDb([[REFS, [ref('vendedor'), ref('supervisor')]], ...base(alvo({ perfil: 'vendedor' }))]);
-    await expect(executar(ROTA(), contexto(ambos.db, { usuario: coord(['vendedor', 'supervisor']), email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).resolves.toMatchObject({ ok: true });
-  });
-  it('T-0111 / RN-CORE-34: a própria conta com vários perfis continua recusada', async () => {
-    const { db } = fakeDb([[REFS, [ref('admin'), ref('analista')]], ...base(alvo({ id: ADMIN.id, perfil: 'admin' }))]);
-    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ADMIN.id }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 422, codigo: 'SENHA_PROPRIA' });
-  });
   it('T-0111 / RN-CORE-05: alvo de outro tenant (o RLS esconde a linha) responde 404 e nada é gravado', async () => {
     const { db, chamadas } = fakeDb([]);
     await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: SENHA } })).rejects.toMatchObject({ status: 404, codigo: 'USUARIO_NAO_ENCONTRADO' });
     expect(chamadas.some((c) => /update core\./.test(c.sql))).toBe(false);
-  });
-  it('T-0111 / RN-CORE-33: os apps do e-mail vêm de todos os perfis: [vendedor, analista] não entra no BKO', async () => {
-    const { db } = fakeDb([
-      [/perfis_do_usuario/, [{ codigo: 'vendedor', base: 'vendedor', fabrica: true, sobreposicoes: [] }, { codigo: 'analista', base: 'analista', fabrica: true, sobreposicoes: [] }]],
-      [REFS, [ref('vendedor'), ref('analista')]],
-      ...base(alvo({ perfil: 'analista' })),
-    ]);
-    const mail = emailFalso();
-    await executar(ROTA(), contexto(db, { email: mail.servico }), { params: { id: ALVO }, corpo: { senha: SENHA } });
-    expect(mail.enviados[0]!.dados.apps).not.toContain('web');
   });
   it('RN-CORE-34: usuário inativo não tem a senha redefinida', async () => {
     const { db } = fakeDb(base(alvo({ ativo: false })));

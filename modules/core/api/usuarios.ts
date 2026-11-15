@@ -199,7 +199,7 @@ async function usuariosDoEstado(db: ClienteBanco, atorId: string, alvoId: string
 async function conferirAlteracao(ctx: ContextoBase, db: ClienteBanco, alvo: UsuarioBruto, depois: { perfil: Perfil; ativo: boolean; perfis?: readonly string[] }): Promise<void> {
   const motor = ctx.permissoes ?? { catalogo: [], matriz: matrizDeFabrica([]) };
   const usuarios = await usuariosDoEstado(db, ctx.usuario.id, alvo.id); // trava os admins, o ator e o alvo
-  // T-0111: o estado real do tenant (perfis personalizados, sobreposições, multiperfil), não só o principal e o padrão de fábrica
+  // T-0111: o estado real do tenant (perfis personalizados, sobreposições), não só o principal e o padrão de fábrica
   const estado = await carregar(db, true);
   const r = avaliarAlteracaoDeUsuario({
     ator: { id: ctx.usuario.id, perfis: ctx.usuario.perfis ?? [] },

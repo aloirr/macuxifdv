@@ -22,7 +22,7 @@ const Texto = (max: number) => z.string().trim().max(max);
 /** Código de perfil do tenant (os 7 de fábrica têm o código da base). */
 const CodigoPerfil = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/);
 
-/** Perfil de acesso do usuário (RN-CORE-01: um ou mais; o primeiro é o principal, o que vai no token). */
+/** Perfil de acesso do usuário (RN-CORE-54: um só; a base dele vai no token). */
 export const PerfilDoUsuarioSchema = z.object({ codigo: CodigoPerfil, nome: z.string(), base: PerfilSchema }).strict();
 export type PerfilDoUsuario = z.infer<typeof PerfilDoUsuarioSchema>;
 

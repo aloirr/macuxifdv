@@ -13,7 +13,7 @@ export interface FormularioUsuario {
   nome_curto: string;
   email: string;
   perfil: Perfil;
-  /** T-0111: códigos dos perfis do usuário (um ou mais; o primeiro é o principal). */
+  /** Código do perfil do usuário (RN-CORE-54: um só; a API recebe a lista de um item). */
   perfis: string[];
   equipe_id: string;
   external_id: string;
@@ -192,10 +192,3 @@ export function resultadoDeRedefinir(email: EmailAcesso, destino: string, senha:
 export const textoAcessoEnviado = (destino: string): string => `Acesso enviado para ${destino}.`;
 export const TEXTO_ENVIAR_ACESSO_SEM_EMAIL = 'Não conseguimos enviar o e-mail. Use "Redefinir senha" para definir uma senha e passá-la à pessoa.';
 export const TEXTO_SENHA_NAO_REDEFINIVEL = 'Esta senha não pode ser redefinida aqui. O administrador usa "Esqueci a senha".';
-
-/** Onde a pessoa entra com os perfis escolhidos: apps = qualquer perfil; BKO e portal = todos (regra mais restritiva, RN-CORE-35). */
-export function ondeEntraDosPerfis(escolhidos: readonly { onde_entra: readonly ('campo' | 'gestao' | 'bko' | 'portal')[] }[]): ('campo' | 'gestao' | 'bko' | 'portal')[] {
-  if (escolhidos.length === 0) return [];
-  const ok = (l: 'campo' | 'gestao' | 'bko' | 'portal') => (l === 'bko' || l === 'portal' ? escolhidos.every((p) => p.onde_entra.includes(l)) : escolhidos.some((p) => p.onde_entra.includes(l)));
-  return (['campo', 'gestao', 'bko', 'portal'] as const).filter(ok);
-}
