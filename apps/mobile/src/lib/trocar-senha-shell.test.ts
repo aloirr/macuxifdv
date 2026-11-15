@@ -69,4 +69,7 @@ describe('ligação nas rotas: a senha só vive na memória da tela', () => {
     expect(trocar).toMatch(/router\.push\('\/esqueci-senha'\)/);
     expect(esqueci).toMatch(/dentroDoApp=\{conta\}/);
   });
+  it('a TelaTrocarSenha do Core não recebe a sessão (Revisão 4 do core)', () => {
+    expect(trocar).not.toMatch(/\bsessao=/);
+  });
 });

@@ -14,12 +14,10 @@ import { usePlataforma } from '@/state/plataforma';
 
 export default function TrocarSenhaScreen() {
   const { sessao, offline, trocarMinhaSenhaNoApp } = usePlataforma();
-  const conta = contaDaSessao(sessao);
-  if (!conta) return <Redirect href={sessao ? '/profile' : '/login'} />;
+  if (!contaDaSessao(sessao)) return <Redirect href={sessao ? '/profile' : '/login'} />;
   return (
     <AcimaDoTeclado>
       <TelaTrocarSenha
-        sessao={conta}
         online={!offline}
         trocar={trocarMinhaSenhaNoApp}
         aoConcluir={() => {
