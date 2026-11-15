@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Simulação · portal config. · Frases da carga</title>
+<style>
+/* Tokens de apps/web/app/globals.css e componentes de @macuxi/ui/web (PageHeader, Panel, th/td, Badge, Button, Dialog). */
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf'); }
+@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf'); }
+@font-face { font-family: 'Archivo'; font-weight: 700; src: url('../../../apps/web/app/fonts/Archivo_700Bold.ttf'); }
+@font-face { font-family: 'Archivo'; font-weight: 800; src: url('../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf'); }
+:root { --ground:#F8F6F1; --surface:#FFFFFF; --ink:#16202A; --ink2:#4A5562; --ink3:#34404D; --line:#DFE2E6; --line2:#ECEEF1; --field:#C9CED5;
+  --accent:#1E3350; --faixa:#1E3350; --faixaTexto:#C9CED5; --success:#1D6B4F; --successSoft:#E2F1EA; --neutralSoft:#ECEEF1; }
+* { box-sizing: border-box; margin: 0; }
+body { background: var(--ground); color: var(--ink); font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; min-height: 100vh; }
+header { background: var(--surface); border-bottom: 1px solid var(--line); }
+.hwrap { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.esq { display: flex; align-items: center; gap: 24px; align-self: stretch; }
+.marca { display: flex; align-items: center; gap: 12px; background: var(--faixa); border-radius: 12px; padding: 10px 14px; }
+.marca img { width: 130px; display: block; }
+.marca .sep { width: 1px; height: 24px; background: rgba(201,206,213,.4); }
+.marca span { font-family: Archivo; font-weight: 700; font-size: 14px; color: var(--faixaTexto); }
+nav { display: flex; gap: 4px; align-self: stretch; }
+nav a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; margin-bottom: -12px; padding-bottom: 0; border-bottom: 2px solid transparent; font-weight: 600; color: var(--ink2); text-decoration: none; }
+nav a.ativo { border-color: var(--accent); color: var(--ink); }
+.dir { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 14px 'IBM Plex Sans'; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn.sm { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 13px; }
+.btn.prim { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.link { border: 0; background: none; height: auto; padding: 0 4px; min-height: 44px; font-size: 13px; color: var(--accent); }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
+.ph { display: flex; justify-content: space-between; align-items: center; min-height: 42px; }
+h1 { font-family: Archivo; font-weight: 800; font-size: 24px; line-height: 1.2; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.filtros { display: flex; gap: 8px; align-items: center; }
+.chip { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--field); background: var(--surface); font: 600 13px 'IBM Plex Sans'; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip small { font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+td { border-bottom: 1px solid var(--line2); padding: 6px 10px; vertical-align: middle; }
+td.n { width: 44px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+td.t { font-size: 14px; }
+tr.inativa td.t { color: var(--ink2); }
+td.acoes { text-align: right; white-space: nowrap; width: 1%; }
+.badge { display: inline-block; border-radius: 8px; padding: 3px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.badge.ok { color: var(--success); background: var(--successSoft); }
+.badge.neu { color: var(--ink3); background: var(--neutralSoft); }
+.cont { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+/* Dialog do kit */
+.veu { position: fixed; inset: 0; background: rgba(22,32,42,.45); display: none; align-items: center; justify-content: center; }
+.editar .veu { display: flex; }
+.dialog { width: 520px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); display: flex; flex-direction: column; }
+.dialog h2 { font-family: Archivo; font-weight: 700; font-size: 18px; padding: 18px 20px 0; }
+.dcorpo { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+.dpe { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; }
+label.rot { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+textarea, select { font: 400 15px/21px 'IBM Plex Sans'; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+textarea { height: 68px; resize: none; border: 2px solid var(--accent); padding: 9px 11px; }
+select { height: 44px; padding: 0 12px; }
+.ajuda { display: flex; justify-content: flex-end; font-size: 12px; font-weight: 400; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.sw { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; font-weight: 600; }
+.sw i { width: 40px; height: 24px; border-radius: 12px; background: var(--accent); position: relative; }
+.sw i::after { content: ''; position: absolute; top: 3px; left: 19px; width: 18px; height: 18px; border-radius: 9px; background: #fff; }
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="esq">
+    <div class="marca"><img src="../../marca/ativos/2026-11-12-v1/macuxi-logo-negativo-azul-noite.svg" alt="Macuxi Força de Vendas"><span class="sep"></span><span>Portal de implantação</span></div>
+    <nav aria-label="Portal"><a href="#">Empresas</a><a href="#">Diagnósticos</a><a href="#" class="ativo" aria-current="page">Frases da carga</a></nav>
+  </div>
+  <div class="dir"><span>Sessão até 07:52 · encerra após 15 min sem uso</span><button class="btn sm">Sair</button></div>
+</div></header>
+<main>
+  <div class="ph"><h1>Frases da carga</h1><button class="btn prim">Incluir frase</button></div>
+  <section class="panel">
+    <div class="filtros" role="group" aria-label="Situação">
+      <button class="chip on">Todas <small>30</small></button><button class="chip">Ativas <small>27</small></button><button class="chip">Inativas <small>3</small></button>
+    </div>
+    <table>
+      <thead><tr><th>Nº</th><th>Frase</th><th>Para</th><th>Situação</th><th></th></tr></thead>
+      <tbody id="linhas"></tbody>
+    </table>
+  </section>
+</main>
+<div class="veu"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dt">
+  <h2 id="dt">Editar frase 7</h2>
+  <div class="dcorpo">
+    <label class="rot">Frase<textarea>Anote a objeção do cliente e volte com a resposta na próxima visita.</textarea><span class="ajuda">68 de 90</span></label>
+    <label class="rot">Para<select><option>Vendedor</option></select></label>
+    <div class="sw" role="switch" aria-checked="true"><i></i>Ativa</div>
+  </div>
+  <div class="dpe"><button class="btn">Cancelar</button><button class="btn prim">Salvar</button></div>
+</div></div>
+<script>
+const FRASES = [{"n":1,"p":"Vendedor","t":"Chegue ao cliente sabendo o que ele comprou na última visita.","ativa":true},
+{"n":2,"p":"Vendedor","t":"Antes de oferecer, pergunte como o produto girou desde a última visita.","ativa":true},
+{"n":3,"p":"Vendedor","t":"Ofereça o que gira no ponto. Pedido bom é o que se repete.","ativa":true},
+{"n":4,"p":"Vendedor","t":"Um item a mais por pedido faz diferença no fim do mês.","ativa":true},
+{"n":5,"p":"Vendedor","t":"Mostre ao cliente quanto ele ganha, não só o preço.","ativa":true},
+{"n":6,"p":"Vendedor","t":"Lançamento se vende com o produto na mão, já na primeira visita.","ativa":true},
+{"n":7,"p":"Vendedor","t":"Anote a objeção do cliente e volte com a resposta na próxima visita.","ativa":true},
+{"n":8,"p":"Vendedor","t":"Cliente que não comprou hoje é visita marcada, não visita perdida.","ativa":true},
+{"n":9,"p":"Vendedor","t":"Confira o pedido no resumo antes de enviar.","ativa":true},
+{"n":10,"p":"Vendedor","t":"Visita sem pedido também se registra, com o motivo.","ativa":true},
+{"n":11,"p":"Promotor","t":"Olhe a gôndola antes de falar com o encarregado da loja.","ativa":true},
+{"n":12,"p":"Promotor","t":"Produto sem preço na gôndola vende menos. Avise a loja.","ativa":true},
+{"n":13,"p":"Promotor","t":"Validade perto do fim? Avise a loja antes que vire perda.","ativa":true},
+{"n":14,"p":"Promotor","t":"Ruptura é venda perdida. Registre e avise a loja na hora.","ativa":true},
+{"n":15,"p":"Promotor","t":"Foto nítida, de frente e com luz boa mostra a gôndola como ela está.","ativa":true},
+{"n":16,"p":"Promotor","t":"Produto na altura dos olhos vende mais. Cuide da frente da gôndola.","ativa":true},
+{"n":17,"p":"Gestão","t":"Uma visita junto com o vendedor ensina mais que uma reunião.","ativa":true},
+{"n":18,"p":"Gestão","t":"Elogie em público, corrija em particular.","ativa":true},
+{"n":19,"p":"Gestão","t":"Pedido parado na aprovação é cliente esperando. Decida cedo.","ativa":true},
+{"n":20,"p":"Gestão","t":"Meta clara para a equipe vale mais que meta alta.","ativa":true},
+{"n":21,"p":"Todos","t":"Escute primeiro. O cliente diz o que precisa quando tem espaço.","ativa":true},
+{"n":22,"p":"Todos","t":"Cumprimente o balconista e o repositor. Eles fazem parte da venda.","ativa":true},
+{"n":23,"p":"Todos","t":"Combine a próxima visita antes de sair do cliente.","ativa":true},
+{"n":24,"p":"Todos","t":"Cada visita conta. A meta do mês se faz um cliente por vez.","ativa":true},
+{"n":25,"p":"Todos","t":"Sol, chuva ou poeira do lavrado: quem está na rua faz a venda acontecer.","ativa":true},
+{"n":26,"p":"Todos","t":"Constância vence pressa. Visite, ouça e volte.","ativa":false},
+{"n":27,"p":"Todos","t":"O cliente lembra de quem aparece. Apareça.","ativa":false},
+{"n":28,"p":"Todos","t":"Beba água e proteja-se do sol. Cuidar de si também é trabalho.","ativa":true},
+{"n":29,"p":"Todos","t":"Sincronize no fim do dia, com sinal bom, antes de guardar o celular.","ativa":true},
+{"n":30,"p":"Todos","t":"Senha é pessoal. Não empreste o seu acesso.","ativa":false}];
+if (location.hash === '#editar') document.body.classList.add('editar');
+document.getElementById('linhas').innerHTML = FRASES.map(f => '<tr class="' + (f.ativa ? '' : 'inativa') + '">' +
+  '<td class="n">' + f.n + '</td><td class="t">' + f.t + '</td><td>' + f.p + '</td>' +
+  '<td><span class="badge ' + (f.ativa ? 'ok">Ativa' : 'neu">Inativa') + '</span></td>' +
+  '<td class="acoes"><button class="btn link">Editar</button><button class="btn link">' + (f.ativa ? 'Desativar' : 'Ativar') + '</button></td></tr>').join('');
+</script>
+</body>
+</html>
