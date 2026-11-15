@@ -207,7 +207,7 @@ const s = StyleSheet.create({
   passo: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 6 },
   // accentInk (Azul noite): 11,82:1 no fundo Pérola (T-0172)
   link: { ...fonte.medium, fontSize: 14, color: colors.accentInk },
-  atual: { ...fonte.bold, fontSize: 14, color: colors.ink },
+  atual: { ...fonte.semibold, fontSize: 14, color: colors.ink },
   // nível pulado (T-0142): ink2 7,6:1 no branco, 6,9:1 no fundo; sem toque
   pulado: { ...fonte.medium, fontSize: 14, color: colors.ink2 },
   // .crumb / .crumb b da referência do Novo pedido
@@ -229,5 +229,5 @@ const s = StyleSheet.create({
   nivelTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },
   nivelNome: { flex: 1, minWidth: 0, ...fonte.semibold, fontSize: 16, color: colors.ink },
   nivelNomeSecundario: { color: colors.ink2 },
-  nivelContagem: { ...fonte.displayBold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
+  nivelContagem: { ...fonte.semibold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'] },
 });

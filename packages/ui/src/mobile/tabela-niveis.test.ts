@@ -19,10 +19,10 @@ describe('TabelaValores (T-0141, crédito do cliente em tabela): parte pura', ()
     expect(leituraDaLinhaDeValor('Disponível', '—')).toBe('Disponível: sem dado');
   });
 
-  it('desenho da spec: linha de 48 dp, valor em negrito 18 tabular, travessão em ink3', () => {
+  it('desenho da spec: linha de 48 dp, valor em 600 (manual §5.2) 18 tabular, travessão em ink3', () => {
     const src = ler('./valores.tsx');
     expect(src).toMatch(/tabelaLinha: \{[^}]*minHeight: 48/);
-    expect(src).toMatch(/tabelaValor: \{[^}]*\.\.\.fonte\.displayBold, fontSize: 18, fontVariant: \['tabular-nums'\]/);
+    expect(src).toMatch(/tabelaValor: \{[^}]*\.\.\.fonte\.semibold, fontSize: 18, fontVariant: \['tabular-nums'\]/);
     expect(src).toMatch(/semDado \? colors\.ink3/);
   });
 });
@@ -42,10 +42,10 @@ describe('ListaNiveis e Trilha (T-0142, catálogo pela hierarquia): parte pura',
     expect(leituraDoNivel(' Bebidas ', 1240)).toBe('Bebidas, 1.240 produtos');
   });
 
-  it('desenho da spec: linha de 56 dp, contagem em negrito tabular; nível pulado da trilha sem toque', () => {
+  it('desenho da spec: linha de 56 dp, contagem em 600 tabular; nível pulado da trilha sem toque', () => {
     const src = ler('./navegacao.tsx');
     expect(src).toMatch(/nivel: \{[^}]*minHeight: 56/);
-    expect(src).toMatch(/nivelContagem: \{[^}]*\.\.\.fonte\.displayBold/);
+    expect(src).toMatch(/nivelContagem: \{[^}]*\.\.\.fonte\.semibold/);
     expect(src).toMatch(/const desligado = atual \|\| pulado;/);
   });
 });
