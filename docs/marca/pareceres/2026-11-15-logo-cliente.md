@@ -168,3 +168,63 @@ modulo-vendedor) segue aberta, fora deste lote, como já estava.
 
 ## Recados
 O `coord.mjs` segue com HTTP 403 nesta sessão. A coordenação fica no relatório da sessão ao gerente-projetos.
+
+---
+
+# Parte 4 · Reteste final (T-0182, número provisório; corte da v1.0.13)
+
+> 2026-11-15, ~15h10 (Manaus) · design-de-marca. Sobre: `nuvem/logo-cliente-modulo-vendedor` (26f3ca5d e c0d5d7ae:
+> `domain/empresa-pdf.ts`, com `logoParaPdf` e `nomeDaEmpresaParaPdf`), `nuvem/logo-cliente-designer-ux-ui` (2d5526e3:
+> `proporcao` obrigatória e `nomeEmpresa`) e `nuvem/logo-cliente-engenheiro-apps` (606c61fb e dbc4c56c: a proporção vem do
+> SDK na carga e no Mais, e o portal falso usa as frases do SDK). O SDK (`empresaDosParametros` e `proporcaoDaLogo`) vem de
+> `nuvem/logo-cliente-engenheiro-software`.
+
+## Veredito
+**Liberado.** Nenhum achado da marca aberto neste lote. A MC-0068 (neutros do PDF, baixa, modulo-vendedor) segue aberta, fora
+do lote, como já estava.
+
+## PDF: HTML gerado com o código do branch
+Gerei o HTML com o `buildOrderPdfHtml`, o `logoParaPdf` e o `nomeDaEmpresaParaPdf` do branch e o SDK do engenheiro-software,
+usando a logo fictícia "Exemplo Norte". Foram 5 casos × pedido e orçamento × cliente e uso interno, ou seja, 20 HTML.
+Renderizei no Chrome e medi no DOM.
+
+| Caso | Logo no cabeçalho | Nome (`div.empresa`) | "Macuxi" no corpo | Resultado |
+|---|---|---|---|---|
+| Com logo e com nome | a do cliente, 181 × 60 px (48 × 16 mm), `contain`, à esquerda, raio 0 | "Exemplo Norte", 800/20 px, `#16202A` | 0 | **conforme** (§7, igual à simulação) |
+| Com logo e sem nome | a do cliente, 181 × 60 px | sem a div e sem texto no lugar | 0 | **conforme**: o cabeçalho fica só com a marca do cliente |
+| Sem logo e com nome | `logo-padrao-pdf-256.png`, 60 × 60 px (16 × 16 mm) | "Exemplo Norte" | 0 | **conforme** (§7) |
+| Erro na leitura da logo e nome em branco | a padrão, 16 × 16 mm | sem a div | 0 | **conforme** |
+| Ambiente sem `logoDaEmpresa` e sem parâmetros | a padrão | sem a div | 0 | **conforme** |
+
+- "PEDIDO" e "ORÇAMENTO" saem em `#1E3350` (Azul noite) e o cabeçalho da tabela em `#00843D`, como na §7. A altura do bloco da
+  marca fica em 60 px nos quatro casos, então o cabeçalho não pula quando falta o nome.
+- **O que melhorou para a marca:** antes, sem o nome, o cabeçalho escrevia "Macuxi" (`nomeDaDistribuidora`). Isso punha a
+  nossa marca no documento do cliente, contra a §7. Agora o cabeçalho sai vazio. Como app e BKO chamam as mesmas duas funções
+  (`order-detail-screen.tsx`, `order-drawer.tsx` e `orders-page.tsx`), o mesmo pedido sai com o mesmo cabeçalho nos dois.
+- O nome é o nome fantasia e, se ele estiver vazio, a razão social (`parametrosDaEmpresa` → `nomeDaEmpresa` no SDK). É a mesma
+  regra do "Licenciado para" do Mais.
+
+## Placa na carga e no Mais (pelo código)
+
+| Item | O que vi | Resultado |
+|---|---|---|
+| `PlacaLogoCliente` (2d5526e3) | Medidas iguais: carga 64/48 (até 112 × 96, folga 8) e Mais 52/36 (até 176 × 152, folgas 8/12). Fundo `colors.surface`, borda `colors.line` de 1 dp, raio `radius.md`, imagem em `contain`, sem tint, sombra ou filtro. A `proporcao` agora é obrigatória e vem do SDK (`largura_px ÷ altura_px` gravados pela API, ambos validados como px positivos). Isso tira o primeiro quadro com a largura errada, que o `onLoad` podia causar. A placa nunca fica mais estreita que alta | **conforme** |
+| Carga (`tela-entrada.tsx`, `entrada.ts`) | Macuxi com 124 dp, filete de 1 × 64 dp em `tema.trilho`, 24 dp de cada lado, e placa `carga` com `proporcao={cliente.proporcao}`, `nomeEmpresa={cliente.nome}`, sem borda no Campo e com borda no Gestão | **conforme** (variação A) |
+| Mais (`mais.tsx`) | "Licenciado para {empresa.nome}" e, abaixo, a placa `mais` com `proporcao={empresa.logo.proporcao}`, com borda e decorativa (sem `nomeEmpresa`, porque a frase acima já diz o nome). Sem logo, fica só a frase | **conforme** |
+| Login e telas de senha | Nenhum uso da placa fora da carga e do Mais | **conforme** |
+| Portal falso (dbc4c56c) | Só troca o texto do 403 pela constante do SDK. Não muda cor nem logo | fora da marca (texto de interface) |
+
+## Fora do escopo da marca (só encaminho)
+- O ID **"MC-0404"** citado em `pdf-pedido.ts:117`, `pdf-pedido.test.ts:420` e `empresa-pdf.test.ts:16/20` não existe no
+  catálogo da marca: o maior número é o MC-0134, e eu não abri esse achado. O conteúdo está certo. O ID pode confundir quem
+  for procurar no `catalogo.md`, então fica com o corretor-redundancias e o modulo-vendedor. Por estar só em comentário e em
+  título de teste, não segura o lote (R-20261111-190159).
+- **Ordem do merge:** o `empresa-pdf.ts` importa o `empresaDosParametros` do SDK (engenheiro-software), e o BKO depende do
+  `logoDaEmpresa` do ambiente web (engenheiro-apps). O gerente-projetos deve fazer o merge dos três no mesmo lote.
+
+## Reteste que falta (depois do build)
+- Carga e Mais no print do aparelho (Campo e Gestão), com e sem logo.
+- PDF do BKO no navegador, com a logo cadastrada no stack isolado.
+
+## Recados
+O `coord.mjs` segue com HTTP 403. A coordenação fica no relatório ao gerente-projetos.
