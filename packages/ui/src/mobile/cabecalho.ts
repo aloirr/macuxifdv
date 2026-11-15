@@ -14,11 +14,11 @@ export const CABECALHO = {
   /** respiro abaixo do título (ou do subtítulo de baixo) */
   respiroBaixo: 16,
   lateral: layout.telaLateral,
-  /** título: Archivo 800, 24/28 (o h1Small de hoje) */
-  tamanhoTitulo: 24,
+  /** título: fonte do sistema 700, 22/28 (o h1Small) */
+  tamanhoTitulo: 22,
   alturaLinhaTitulo: 28,
-  /** subtítulo: IBM Plex Sans 13 */
-  tamanhoSubtitulo: 13,
+  /** subtítulo: fonte do sistema 400, 14 */
+  tamanhoSubtitulo: 14,
   /** respiro entre a faixa e o primeiro bloco do corpo (no lugar dos 28 do `Screen` sem faixa) */
   respiroCorpo: 16,
   cores: {

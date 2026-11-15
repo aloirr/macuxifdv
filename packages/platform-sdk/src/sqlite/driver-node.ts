@@ -4,12 +4,23 @@
  * (desenho T-0008 §3.2). Exportado SÓ pelo subcaminho `@macuxi/platform-sdk/sqlite-node`: o app Android nunca o importa.
  * API síncrona embrulhada em promessas (o contrato `DriverSqlite` é assíncrono por causa do expo-sqlite).
  */
+import { isAbsolute, join } from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 
 import type { ComandoPreparado, DriverSqlite, ValorSql } from './driver';
 
+const APELIDO_RE = /^[a-z_]+$/;
+
+export interface OpcoesDriverNode {
+  /**
+   * ADR 0054: diretório que faz o papel dos documentos do app para `anexar` (caminho relativo = relativo a ele, como no
+   * shell). Sem ele, relativo ao diretório atual do processo.
+   */
+  diretorioArquivos?: string;
+}
+
 /** Abre (ou cria) o banco. `':memory:'` = banco temporário (um por chamada). */
-export function criarDriverNode(caminho = ':memory:'): DriverSqlite {
+export function criarDriverNode(caminho = ':memory:', opcoes: OpcoesDriverNode = {}): DriverSqlite {
   const db = new DatabaseSync(caminho);
   let emTransacao = false;
   const p = (params?: readonly ValorSql[]) => (params ?? []) as ValorSql[];
@@ -65,6 +76,18 @@ export function criarDriverNode(caminho = ':memory:'): DriverSqlite {
       } finally {
         emTransacao = false;
       }
+    },
+    async anexar(arquivo, apelido) {
+      if (!APELIDO_RE.test(apelido)) throw new Error(`Apelido inválido para ATTACH: ${apelido}`);
+      const alvo = isAbsolute(arquivo) || !opcoes.diretorioArquivos ? arquivo : join(opcoes.diretorioArquivos, arquivo);
+      // caminho por parâmetro (nunca concatenado); o apelido vem de lista fixa
+      db.prepare(`ATTACH DATABASE ? AS ${apelido}`).run(alvo);
+    },
+    async desanexar(apelido) {
+      if (!APELIDO_RE.test(apelido)) throw new Error(`Apelido inválido para DETACH: ${apelido}`);
+      db.exec(`DETACH DATABASE ${apelido}`);
+      // comandos guardados podem citar o banco anexado
+      cache.clear();
     },
     async fechar() {
       db.close();

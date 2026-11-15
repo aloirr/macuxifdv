@@ -195,3 +195,14 @@ export const FinanceiroClienteSaidaSchema = z.object({
 });
 export type FinanceiroClienteSaida = z.infer<typeof FinanceiroClienteSaidaSchema>;
 export const CONSULTA_FINANCEIRO_CLIENTE = definirConsulta({ nome: 'core.financeiro_cliente@1', entrada: FinanceiroClienteEntradaSchema, saida: FinanceiroClienteSaidaSchema });
+
+/**
+ * `core.produtos_por_sku@1` (T-0174, R-20261115-074500): o Catálogo casa o nome do arquivo de foto com o produto. Devolve os produtos
+ * do tenant não removidos (ativos ou não) cujo `sku` bate exato, sem diferença de maiúsculas, ou cujo `ean` bate exato com algum código.
+ * O desempate (exato → sem maiúsculas → EAN → ambíguo) é do Catálogo. Leitura apenas.
+ */
+export const ProdutosPorSkuEntradaSchema = z.object({ codigos: z.array(z.string().min(1).max(100)).min(1).max(500) }).strict();
+export type ProdutosPorSkuEntrada = z.infer<typeof ProdutosPorSkuEntradaSchema>;
+export const ProdutosPorSkuSaidaSchema = z.object({ produtos: z.array(z.object({ id: z.string().uuid(), sku: z.string(), ean: z.string().nullable(), ativo: z.boolean() })) });
+export type ProdutosPorSkuSaida = z.infer<typeof ProdutosPorSkuSaidaSchema>;
+export const CONSULTA_PRODUTOS_POR_SKU = definirConsulta({ nome: 'core.produtos_por_sku@1', entrada: ProdutosPorSkuEntradaSchema, saida: ProdutosPorSkuSaidaSchema });

@@ -4,7 +4,7 @@
  * Visual T-0072: Cartao por pergunta, chip "Obrigatória", opções com Pressionavel, foto com Botao secundário e
  * remoção com Desfazer (AvisoRodape do ResponderScreen via `avisar`).
  */
-import { BotaoIcone, Botao, Cartao, ChipEstado, colors, fonts, Icon, Pressionavel, radius, type EstadoAviso, type as t } from '@macuxi/ui/mobile';
+import { BotaoIcone, Botao, Cartao, ChipEstado, colors, fonte, Icon, Pressionavel, radius, type EstadoAviso, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { FotoResposta, ItemResposta, Pergunta } from '../../contracts';
@@ -215,7 +215,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
 
   return (
     <Cartao testID={`pesquisa.pergunta-${ordem}`} gap={10} style={erro ? { borderColor: colors.danger } : undefined}>
-      <Text style={t.title16}>
+      <Text style={t.bodyStrong}>
         {ordem}. {p.enunciado}
       </Text>
       {p.obrigatoria ? <ChipEstado pequeno tom="neutro" texto="Obrigatória" /> : null}
@@ -242,5 +242,5 @@ const estilos = StyleSheet.create({
   marcaAtiva: { borderColor: colors.accent, backgroundColor: colors.accent },
   botaoMetade: { flex: 1, minHeight: ALVO, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md },
   ponto: { width: ALVO, height: ALVO, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md },
-  entrada: { minHeight: ALVO, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
+  entrada: { minHeight: ALVO, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, ...fonte.body, fontSize: 16, color: colors.ink },
 });

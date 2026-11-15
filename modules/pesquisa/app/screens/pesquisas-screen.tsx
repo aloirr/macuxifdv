@@ -109,7 +109,7 @@ export default function PesquisasScreen() {
 
 const estilos = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  titulo: { ...t.bodyStrong, fontSize: 15 },
+  titulo: { ...t.bodyStrong, fontSize: 16 },
   item: { gap: 4, paddingVertical: 12, paddingHorizontal: 14 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

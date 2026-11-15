@@ -36,7 +36,7 @@ import {
   type EstadoFolhaPeriodo,
   type EventoFolhaPeriodo,
 } from './periodo';
-import { colors, fonts, radius } from './theme';
+import { colors, fonte, radius } from './theme';
 
 // ---------- BotaoFiltro ----------
 export function BotaoFiltro({ contagem, onPress, rotulo, testID = 'filtro' }: { contagem: number; onPress: () => void; /** "Filtrar" (o leitor lê "Filtrar, 1 filtro ativo"). */ rotulo: string; testID?: string }) {
@@ -403,40 +403,40 @@ const s = StyleSheet.create({
   botao: { width: ALVO_TOQUE, height: ALVO_TOQUE, borderRadius: 11, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   botaoAtivo: { borderColor: colors.ink, borderWidth: 1.5 },
   selo: { position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.grafico, borderWidth: 2, borderColor: colors.ground, alignItems: 'center', justifyContent: 'center' },
-  seloTexto: { fontFamily: fonts.bold, fontSize: 11, color: colors.onAccent, fontVariant: ['tabular-nums'] },
+  seloTexto: { ...fonte.semibold, fontSize: 12, color: colors.onAccent, fontVariant: ['tabular-nums'] },
   // .tag
   etiquetaAlvo: { alignSelf: 'flex-start', minHeight: ALVO_ETIQUETA, justifyContent: 'center' },
   etiqueta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: ALTURA_ETIQUETA, paddingHorizontal: 12, borderRadius: radius.pilula, backgroundColor: colors.accentSoft },
-  etiquetaTexto: { fontFamily: fonts.bold, fontSize: 13, color: colors.accentInk },
+  etiquetaTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // .opt
   atalho: { minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 2 },
   divisor: { borderTopWidth: 1, borderTopColor: colors.line },
-  atalhoTexto: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  atalhoTextoOn: { fontFamily: fonts.bold },
-  escolherTexto: { fontFamily: fonts.bold, fontSize: 15, color: colors.accentInk },
+  atalhoTexto: { ...fonte.body, fontSize: 16, color: colors.ink },
+  atalhoTextoOn: { ...fonte.semibold },
+  escolherTexto: { ...fonte.semibold, fontSize: 16, color: colors.accentInk },
   extra: { marginTop: 8, gap: 8 },
   // Dia / Mês / Ano
   escolher: { gap: 10 },
   voltar: { alignSelf: 'flex-start', minHeight: ALVO_TOQUE, paddingRight: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  voltarTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  voltarTexto: { ...fonte.semibold, fontSize: 14, color: colors.ink2 },
   bloco: { gap: 4 },
   navegador: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  navegadorTitulo: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.ink },
+  navegadorTitulo: { ...fonte.bold, fontSize: 18, color: colors.ink },
   seta: { width: ALVO_TOQUE, height: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center' },
   semana: { flexDirection: 'row', justifyContent: 'space-between' },
-  semanaTexto: { flex: 1, textAlign: 'center', fontFamily: fonts.semibold, fontSize: 11, color: colors.ink3 },
+  semanaTexto: { flex: 1, textAlign: 'center', ...fonte.semibold, fontSize: 12, color: colors.ink3 },
   diaVazio: { flex: 1, height: 44 },
   dia: { flex: 1, height: 44, marginHorizontal: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   diaHoje: { borderWidth: 1.5, borderColor: colors.accent },
-  diaTexto: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
+  diaTexto: { ...fonte.medium, fontSize: 14, color: colors.ink, fontVariant: ['tabular-nums'] },
   ponto: { position: 'absolute', bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent },
   pontoOn: { backgroundColor: colors.surface },
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   celula: { width: '23.5%', height: ALVO_TOQUE, borderRadius: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   celulaOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   celulaOff: { backgroundColor: colors.ground, borderColor: colors.lineSoft },
-  celulaTexto: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink },
-  celulaTextoOn: { fontFamily: fonts.bold, color: colors.surface },
+  celulaTexto: { ...fonte.medium, fontSize: 14, color: colors.ink },
+  celulaTextoOn: { ...fonte.semibold, color: colors.surface },
   celulaTextoOff: { color: colors.inkDisabled },
-  ajuda: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: colors.ink2 },
+  ajuda: { ...fonte.body, fontSize: 12, lineHeight: 18, color: colors.ink2 },
 });

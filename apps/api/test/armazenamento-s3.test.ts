@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { assinarSigV4, codificarCaminhoS3, criarArmazenamentoS3, ErroArmazenamentoS3, lerArmazenamentoDoAmbiente } from '../src/armazenamento-s3';
-import { chaveDoArquivo } from '../src/arquivos';
+import { chaveDaParte, chaveDaParte1, chaveDoArquivo } from '../src/arquivos';
 import { CRED_TESTE, subirS3Falso, type S3Falso } from './s3-falso';
 
 const QUANDO = new Date('2026-11-04T05:00:00Z');
@@ -75,6 +75,34 @@ describe('criarArmazenamentoS3 × S3 falso', () => {
       await expect(a.ler(ruim)).rejects.toThrow('chave de arquivo inválida');
     }
     expect(s3.pedidos).toBe(antes);
+  });
+
+  it('ADR 0058: tamanho por HEAD (sem baixar); ausente = null; content-type do PUT pela extensão', async () => {
+    const a = adaptador();
+    const tenant = randomUUID();
+    const id = randomUUID();
+    const png = chaveDoArquivo({ tenant_id: tenant, modulo: 'catalogo', id }, QUANDO, 'image/png');
+    await a.gravar(png, new Uint8Array(37));
+    expect(await a.tamanho(png)).toBe(37);
+    expect(s3.tipos.get(`/${s3.bucket}/arquivos/${png}`)).toBe('image/png');
+    const parte = chaveDaParte1({ tenant_id: tenant, modulo: 'catalogo', id }, QUANDO);
+    await a.gravar(parte, new Uint8Array(5));
+    expect(s3.tipos.get(`/${s3.bucket}/arquivos/${parte}`)).toBe('application/octet-stream');
+    expect(await a.tamanho(chaveDaParte(parte, 2))).toBeNull();
+  });
+
+  it('ADR 0058: URL de envio = PUT pré-assinado só da chave de PARTE; o S3 aceita o corpo dentro da validade', async () => {
+    const a = adaptador();
+    const id = randomUUID();
+    const parte = chaveDaParte(chaveDaParte1({ tenant_id: randomUUID(), modulo: 'catalogo', id }, QUANDO), 3);
+    const u = a.urlEnvio!(parte, 900);
+    expect(u.url).toContain('X-Amz-Expires=900');
+    const r = await fetch(u.url, { method: 'PUT', body: Buffer.from([1, 2, 3]) });
+    expect(r.status).toBe(200);
+    expect(await a.tamanho(parte)).toBe(3);
+    // GET com a URL de PUT: a assinatura não vale para outro método
+    expect((await fetch(u.url)).status).toBe(403);
+    expect(() => a.urlEnvio!(chave(), 900)).toThrow('chave de arquivo inválida');
   });
 
   it('configuração inválida falha na criação', () => {
