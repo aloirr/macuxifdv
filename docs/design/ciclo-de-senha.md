@@ -204,6 +204,8 @@ const repeticao = repetida === '' ? 'vazia' : repetida === senhaNova ? 'igual' :
   `tela-crie-sua-senha.tsx`) e o `login.tsx` do shell ainda escrevem `colors.accent` em texto: lista entregue ao gerente-projetos para despacho aos donos.
 
 ## 8. E-mails (modelos da N5, `packages/platform-sdk/src/email/**`)
+> **Revisto em 14/11/2026:** textos e layout dos e-mails passam a valer pelo `docs/design/emails/redefinir-senha.md` (layout-base de marca para `acesso_inicial` e `nova_senha`). Onde conflitar, vale aquele.
+
 Texto puro obrigatório; HTML opcional com **o mesmo texto**, uma coluna de até 560 px, fundo branco, Archivo no título e
 IBM Plex Sans (com Arial de reserva) no corpo, a senha em monoespaçada 18 px num quadro `#F3F4F1` (fácil de copiar, sem espaço
 antes ou depois). Sem imagem obrigatória, sem botão que dependa de imagem. Remetente: **"Macuxi FDV"**.
