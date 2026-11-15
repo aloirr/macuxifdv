@@ -3,11 +3,12 @@
 /**
  * Resultados da pesquisa no BKO (RF-PES-06): filtros na URL (período, versão, equipes), indicadores, gráfico por
  * pergunta (consolidado entre versões pelo id estável, RN-PES-01, ou de uma versão), respostas suspeitas (RN-PES-04),
- * respostas em texto, galeria de fotos e exportação CSV (Excel). Escopo do perfil aplicado pela API (RN-CORE-04).
+ * respostas em texto, galeria de fotos e exportação CSV (Excel), no "⋯" da página (revisão do BKO §P1). Sem resposta no
+ * filtro, a página mostra o vazio uma vez (§P6). Escopo do perfil aplicado pela API (RN-CORE-04).
  */
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Bar, Button, ErrorBlock, FilterBar, formatDateTime, KpiCard, KpiGrid, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
+import { Bar, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, TabelaDados, type ColunaDaTabela } from '@macuxi/ui/web';
 import { useCallback, useEffect, useState } from 'react';
 import type { ResultadoPergunta } from '../../contracts';
 import { lerFiltrosResultado, paraBusca, type FiltrosResultado } from '../lib/filtros-url';
@@ -54,6 +55,13 @@ function GraficoPergunta({ p, indice }: { p: ResultadoPergunta; indice: number }
   );
 }
 
+interface TextoRespondido {
+  id: string;
+  pergunta: string;
+  texto: string;
+  em: string;
+}
+
 function Foto({ id }: { id: string }) {
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -69,7 +77,7 @@ function Foto({ id }: { id: string }) {
     };
   }, [id]);
   if (url === undefined) return <div className="h-[140px] w-[140px] animate-pulse rounded-xl bg-line-2" />;
-  if (url === null) return <div className="flex h-[140px] w-[140px] items-center justify-center rounded-xl bg-ground p-2 text-center text-[12px] text-ink-3">Foto ainda não enviada pelo aparelho</div>;
+  if (url === null) return <div className="flex h-[140px] w-[140px] items-center justify-center rounded-xl bg-ground p-2 text-center text-[12px] text-ink-3">Foto não enviada</div>;
   return <img src={url} alt="Foto da resposta" className="h-[140px] w-[140px] rounded-xl object-cover" />;
 }
 
@@ -105,19 +113,28 @@ export function ResultadosPage() {
   const total = dados ? (dados.tipo === 'versao' ? dados.resultado.total_respostas : dados.resultado.versoes.reduce((n, v) => n + v.respostas, 0)) : 0;
   const suspeitas = dados ? (dados.tipo === 'versao' ? dados.resultado.respostas_suspeitas : dados.resultado.respostas_suspeitas) : 0;
   const perguntas: ResultadoPergunta[] = dados ? (dados.tipo === 'versao' ? dados.resultado.por_pergunta : [...dados.resultado.consolidadas.map((c) => c.pergunta), ...dados.resultado.por_versao.flatMap((v) => v.perguntas)]) : [];
-  const textos = (respostas.data?.itens ?? []).flatMap((x) => x.itens.flatMap((i) => (i.tipo === 'texto' && i.texto.trim() ? [{ id: `${x.id}:${i.pergunta_id}`, pergunta: enunciados.get(i.pergunta_id) ?? '', texto: i.texto, em: x.respondida_em }] : [])));
+  const textos: TextoRespondido[] = (respostas.data?.itens ?? []).flatMap((x) => x.itens.flatMap((i) => (i.tipo === 'texto' && i.texto.trim() ? [{ id: `${x.id}:${i.pergunta_id}`, pergunta: enunciados.get(i.pergunta_id) ?? '', texto: i.texto, em: x.respondida_em }] : [])));
+
+  const comTextos = respostas.data !== undefined && textos.length > 0;
+  const fotos = galeria.data?.itens ?? [];
+  const colunasTexto: ColunaDaTabela<TextoRespondido>[] = [
+    { id: 'resposta', titulo: 'Resposta', celula: (x) => x.texto, texto: (x) => x.texto },
+    { id: 'pergunta', titulo: 'Pergunta', prioridade: 2, largura: '36%', celula: (x) => x.pergunta, texto: (x) => x.pergunta },
+    { id: 'quando', titulo: 'Quando', prioridade: 2, numero: true, largura: '150px', celula: (x) => formatDateTime(x.em, fuso) },
+  ];
 
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="resultado.tela">
       <PageHeader
-        eyebrow={<a href="/pesquisas" className="text-accent-ink">← Pesquisas</a>}
+        eyebrow={<a href="/pesquisas" className="text-accent-ink">‹ Pesquisas</a>}
         title={`Resultados · ${titulo}`}
-        subtitle="Respostas no seu escopo: supervisor e gerente veem a equipe; analista e admin, a empresa."
         actions={
           podeExportar ? (
-            <Button variant="primary" onClick={() => void exportar()} disabled={exportando} data-testid="resultado.exportar">
-              {exportando ? 'Gerando…' : 'Exportar Excel (CSV)'}
-            </Button>
+            <MenuAcoes
+              rotulo="Mais ações"
+              testId="resultado.mais-acoes"
+              acoes={[{ id: 'exportar', rotulo: exportando ? 'Exportando…' : 'Exportar CSV', desligada: exportando, aoEscolher: () => void exportar(), testId: 'resultado.exportar' }]}
+            />
           ) : null
         }
       />
@@ -144,68 +161,47 @@ export function ResultadosPage() {
 
       {r.isError ? <ErrorBlock message={errorMessage(r.error)} onRetry={() => void r.refetch()} /> : null}
       {r.isPending ? <LoadingBlock label="Apurando os resultados…" /> : null}
-      {dados ? (
+      {dados && total === 0 ? <EstadoVazio titulo="Nenhuma resposta com esses filtros." testId="resultado.vazio" /> : null}
+      {dados && total > 0 ? (
         <>
           <KpiGrid>
-            <KpiCard label="Respostas" value={total} />
-            <KpiCard label="Respondentes" value={dados.tipo === 'versao' ? dados.resultado.respondentes_distintos : '—'} sub={dados.tipo === 'versao' ? 'usuários distintos' : 'escolha uma versão'} />
-            <KpiCard label="Taxa de resposta" value={dados.tipo === 'versao' ? textoTaxa(dados.resultado.taxa_resposta_pct) : '—'} sub="depende do público informado pelo Core" />
-            <KpiCard label="Suspeitas" value={suspeitas} sub="relógio adiantado ou fora da vigência" />
+            <KpiCard label="Respostas" value={total.toLocaleString('pt-BR')} />
+            <KpiCard label="Respondentes" value={dados.tipo === 'versao' ? dados.resultado.respondentes_distintos.toLocaleString('pt-BR') : '—'} sub={dados.tipo === 'versao' ? undefined : 'Escolha uma versão'} />
+            <KpiCard label="Taxa de resposta" value={dados.tipo === 'versao' ? textoTaxa(dados.resultado.taxa_resposta_pct) : '—'} sub={dados.tipo === 'versao' ? undefined : 'Escolha uma versão'} />
+            <KpiCard label="Suspeitas" value={suspeitas.toLocaleString('pt-BR')} sub="Relógio adiantado ou fora da vigência" valueClass={suspeitas > 0 ? 'text-warning' : undefined} />
           </KpiGrid>
-          {suspeitas > 0 ? <Notice tone="warning">{suspeitas} resposta(s) chegaram com relógio do aparelho adiantado ou fora da vigência. Foram aceitas e estão marcadas no CSV (RN-PES-04).</Notice> : null}
           <Panel label="Perguntas" title="Por pergunta">
-            {perguntas.length === 0 ? <Notice tone="info">Sem respostas no período.</Notice> : null}
             <div className="flex flex-col gap-4">
               {perguntas.map((p, i) => (
                 <GraficoPergunta key={`${p.pergunta_id}:${i}`} p={p} indice={i} />
               ))}
             </div>
           </Panel>
+
+          {respostas.isError ? <ErrorBlock message={errorMessage(respostas.error)} /> : null}
+          {comTextos ? (
+            <Panel label="Textos" title={rotuloComContagem('Respostas em texto', Math.min(textos.length, 200), textos.length > 200 || (respostas.data?.total ?? 0) > (respostas.data?.itens.length ?? 0))}>
+              <TabelaDados rotulo="Respostas em texto" colunas={colunasTexto} linhas={textos.slice(0, 200)} chave={(x) => x.id} testId="resultado.textos" />
+            </Panel>
+          ) : null}
+
+          {galeria.isError ? <ErrorBlock message={errorMessage(galeria.error)} /> : null}
+          {fotos.length > 0 ? (
+            <Panel label="Galeria" title={rotuloComContagem('Galeria de fotos', fotos.length)}>
+              <div className="flex flex-wrap gap-3" data-testid="resultado.galeria">
+                {fotos.slice(0, 60).map((g) => (
+                  <figure key={g.foto_id} className="flex w-[140px] flex-col gap-1">
+                    <Foto id={g.foto_id} />
+                    <figcaption className="text-[11px] text-ink-3">
+                      {g.enunciado} · {formatDateTime(g.capturada_em, fuso)}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </Panel>
+          ) : null}
         </>
       ) : null}
-
-      <Panel label="Textos" title="Respostas em texto">
-        {respostas.isError ? <ErrorBlock message={errorMessage(respostas.error)} /> : null}
-        {textos.length === 0 ? (
-          <span className="text-[13px] text-ink-3">Nenhuma resposta em texto.</span>
-        ) : (
-          <TableScroll minWidth={720}>
-            <table className="w-full border-collapse text-[14px]" data-testid="resultado.textos">
-              <thead>
-                <tr>
-                  <th scope="col" className={th}>Quando</th>
-                  <th scope="col" className={th}>Pergunta</th>
-                  <th scope="col" className={th}>Resposta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {textos.slice(0, 200).map((x) => (
-                  <tr key={x.id}>
-                    <td className={td}>{formatDateTime(x.em, fuso)}</td>
-                    <td className={td}>{x.pergunta}</td>
-                    <td className={td}>{x.texto}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-      </Panel>
-
-      <Panel label="Galeria" title={`Galeria de fotos (${galeria.data?.itens.length ?? 0})`}>
-        {galeria.isError ? <ErrorBlock message={errorMessage(galeria.error)} /> : null}
-        {(galeria.data?.itens.length ?? 0) === 0 ? <span className="text-[13px] text-ink-3">Nenhuma foto.</span> : null}
-        <div className="flex flex-wrap gap-3" data-testid="resultado.galeria">
-          {galeria.data?.itens.slice(0, 60).map((g) => (
-            <figure key={g.foto_id} className="flex w-[140px] flex-col gap-1">
-              <Foto id={g.foto_id} />
-              <figcaption className="text-[11px] text-ink-3">
-                {g.enunciado} · {formatDateTime(g.capturada_em, fuso)}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </Panel>
     </div>
   );
 }
