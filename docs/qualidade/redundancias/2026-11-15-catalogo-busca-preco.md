@@ -54,3 +54,13 @@ Ficou também a regra "a filial escolhida manda no estoque", repetida nos 2 repo
 - **Contrato:** `filial` aparece uma vez em `ConsultaBuscaQuery`, e a documentação dela não repete a da rota.
 - **Testes** (`codigo-busca.test.ts`, `preco-filial.test.ts`, `rotas.test.ts`): cada um cobre uma camada, e nenhum caso se repete com outro nome.
 - **Observação sem RD:** a frase "pf 0503", com espaço, não é código para `textoPareceCodigo` e vai para a IA. A busca exata (`codigoCompacto`) tira o espaço e acharia o produto mesmo assim. Não é redundância; é uma escolha de comportamento, que deixo para o modulo-catalogo e o testes decidirem.
+
+## 4. Reteste (15/11/2026, PR #327, commit ae560f2 do modulo-catalogo)
+**Veredito: LIMPO.** Os 4 achados estão corrigidos e não há achado novo.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0492 | **corrigido** | `filialDaBuscaSemCliente` saiu do domain. Na rota, `filialDaBusca` chama `filialDaTela(repo, pedida)`, que tem o único 422 `FILIAL_INEXISTENTE`, e só acrescenta o 403 da carteira pela função pura nova `filialNaCarteira` (RN-CORE-04). O texto do 422 está agora num lugar só (`rotas.ts:131`). |
+| RD-0493 | **corrigido** | O domain ganhou `precosDaTabelaSemCliente(tabelaId, itens)`, que só filtra e converte. `precosDaFilialSemCliente` agora é escolher a tabela e chamar essa função. O Postgres chama `tabelaPorContagem` e depois `precosDaTabelaSemCliente`, sem a tabela inventada `{ codigo: '', ativo: true }`. |
+| RD-0494 | **corrigido** | O parâmetro `filialEscolhida` saiu da interface e dos 2 repositórios. A regra fica no `contextoVitrine`: `filial?.escolhida ? [filial.escolhida] : await repo.filiaisDoUsuario(clienteId)`. A expressão aparece nas 2 chamadas da mesma função (com e sem `soEstoque`), como eu tinha proposto, num arquivo só. |
+| RD-0495 | **corrigido** | `const semIa = q.mode === 'basica' \|\| textoPareceCodigo(q.q)` é calculado uma vez na rota e passado para a leitura da cota e para `interpretar`. |

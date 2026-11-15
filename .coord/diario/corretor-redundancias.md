@@ -68,3 +68,4 @@
 - 2026-11-14 — Oficial final — NÃO LIBERADO: 20 RD fechados, 5 novos seguram (RD-0254 a 0258), 1 comentário (RD-0259). `main` 2fdad4d; relatório `2026-11-14-oficial-final.md`.
 2026-11-14 — v1.0.8 — relatório 2026-11-14-v1.0.8 (COM ACHADO: RD-0319 segura; RD-0320..0322 e RD-0316 não seguram; herdados RD-0263/0266/0268/0269 abertos); catálogo com os provisórios de 14/11 renumerados (v1.0.7 RD-0260..0270, portal RD-0271..0306, pareceres RD-0307..0318)
 - 2026-11-15 · Catálogo, busca e preço sem cliente (modulo-catalogo e7dc7d8) · **COM ACHADO**: RD-0492 a RD-0495, todos de gravidade baixa e em código. Há uma lista só de "o que é código" (`textoPareceCodigo`). Relatório `2026-11-15-catalogo-busca-preco.md`.
+- 2026-11-15 · reteste do PR #327, busca e preço do Catálogo (modulo-catalogo ae560f2): **LIMPO**. RD-0492 a RD-0495 corrigidos. Relatório `2026-11-15-catalogo-busca-preco.md` §4.
