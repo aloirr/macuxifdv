@@ -243,7 +243,7 @@ describe.skipIf(semBanco())('0047 suporte pelos perfis de base admin (banco, fix
         `select count(*)::int as n from pg_proc p join pg_namespace s on s.oid = p.pronamespace
           where s.nspname = 'plataforma' and p.proname like 'sa\\_%' and has_function_privilege('macuxi_portal', p.oid, 'execute')`,
       );
-      expect(n).toEqual([{ n: FUNCOES_SA_ATUAIS.length }]); // banco na última: 14 da 0047 + 2 da 0058 (T-0158) + 1 da 0070 (ADR 0047) + 8 da 0072 (ADR 0052) + 2 da 0073 (rodapé legal)
+      expect(n).toEqual([{ n: FUNCOES_SA_ATUAIS.length }]); // banco na última: 14 da 0047 + 2 da 0058 (T-0158) + 1 da 0070 (ADR 0047) + 8 da 0072 (ADR 0052) + 2 da 0073 (rodapé legal) + 3 da 0081 (planos)
       // o retorno da lista: as 9 colunas da 0042 + entra_no_portal no fim
       const res = await q<{ r: string }>('select pg_get_function_result($1::regprocedure) as r', [LISTA]);
       expect(res[0]!.r).toBe(
