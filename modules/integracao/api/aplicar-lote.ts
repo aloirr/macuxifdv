@@ -29,6 +29,7 @@ import {
   anotarLinhaDoArquivo,
   avisosCadastroIncompleto,
   avisosReferenciaFraca,
+  contarDuplicadasNoLote,
   siglasParaConferir,
   verificarMedidas,
   dadosParaConsultaCadastro,
@@ -286,7 +287,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // ---- resultado do lote e cursor (RN-INT-03, RN-INT-05)
   const resultado = calcularResultadoLote({
     recebidas: registros.length,
-    duplicadas_no_lote: v.avisos.length,
+    duplicadas_no_lote: contarDuplicadasNoLote(v.avisos),
     erros: errosHub,
     novas: cls.novas.length,
     atualizadas: cls.atualizadas.length,
