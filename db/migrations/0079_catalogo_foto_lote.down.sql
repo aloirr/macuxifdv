@@ -6,8 +6,9 @@
 -- plataforma.arquivo volta aos CHECKs da 0005 (só image/jpeg, até 2 MiB, sha256 obrigatório no recebido): o down FALHA (55000)
 -- antes de mudar qualquer coisa se houver arquivo PNG, WEBP, ZIP ou acima de 2 MiB, e diz quantos são. Nada é apagado sozinho: apague antes as linhas (e os
 -- bytes pela chave_armazenamento) ou as referências que as usam, e rode de novo.
+-- macuxi_leitura (0078): as políticas leitura e os grants das 3 tabelas saem com elas; em produto_midia volta o SELECT de tabela.
 -- Volte antes a API, o worker e o Catálogo que usam as tabelas e as funções (senão 42P01/42883). Idempotente. Pré-condição:
--- 0071+ desfeitas.
+-- 0080+ desfeitas.
 
 do $$
 declare
@@ -31,9 +32,12 @@ alter table catalogo.produto_midia alter column ordem set default 0;
 drop index if exists catalogo.produto_midia_hash_uk;
 alter table catalogo.produto_midia drop constraint if exists produto_midia_hash_hex;
 alter table catalogo.produto_midia drop column if exists hash_conteudo;
+-- sem a coluna sensível, o macuxi_leitura volta ao SELECT de tabela da 0078 (revoke de tabela leva o por coluna)
+revoke select on catalogo.produto_midia from macuxi_leitura;
+grant select on catalogo.produto_midia to macuxi_leitura;
 
 drop table if exists catalogo.foto_lote_item;
-drop table if exists catalogo.foto_lote; -- leva junto índices, gatilho, políticas e grants
+drop table if exists catalogo.foto_lote; -- leva junto índices, gatilho, políticas (inclusive a leitura) e grants
 
 drop function if exists plataforma.trabalho_renovar(uuid, text, integer);
 drop function if exists plataforma.trabalho_devolver(uuid, text, text, text, integer);
