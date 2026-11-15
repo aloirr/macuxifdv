@@ -3,32 +3,16 @@
  * sincronizações. Parte PURA do shell (roda em Node nos testes); `state/plataforma.tsx` e `components/sincronizacao-do-shell.tsx`
  * só ligam isto ao motor, ao relógio e às telas.
  *
- * - PARCIAL (toque, puxar para baixo e selo ↻ das listas: o motivo `manual` do agendador): envia a fila, com os itens que
- *   falharam, e puxa só as entidades de pedidos e clientes (`ENTIDADES_SYNC_PARCIAL`), pelo `sincronizarNovidades` com a lista
- *   (puxa essas entidades do cursor delas, sem consultar as novidades e sem trocar os módulos efetivos).
+ * - PARCIAL (toque, puxar para baixo e selo ↻ das listas: o motivo `manual` do agendador): envio com os itens que falharam e
+ *   `motor.sincronizar({ modo: 'parcial' })` (ADR 0057: o motor envia a fila e puxa só as entidades marcadas `parcial`).
  * - COMPLETA (segurar 10 s, tela de carga, "Tentar de novo", desligar o modo sem sinal): envio com os falhos, módulos
- *   efetivos e `motor.sincronizar()` (tudo, inclusive estoque e catálogo).
+ *   efetivos e `motor.sincronizar({ modo: 'completa' })` (tudo do zero; o motor espera a sincronização em curso).
  * - LEVE (automática e aviso do servidor): `sincronizarNovidades` (só o que mudou), como antes.
  * Demonstração (sem novidades) e modo sem sinal: o comportamento de antes (manual = completa; sem sinal = `sincronizar`).
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
 
 import { ESPERA_PRONTO_MS, rotuloDaBarra, textoDoErro } from './entrada';
-
-/**
- * Entidades da parcial, na ordem do pull (a carteira e o cliente antes do pedido). Clientes = `core` (carteira, cliente,
- * endereços e contatos); pedidos = `vendedor` (pedido, itens e eventos/situação). Entidade de módulo que o usuário não tem
- * (ex.: Gestão sem o vendedor) o motor ignora (`entidadesAtivas`).
- */
-export const ENTIDADES_SYNC_PARCIAL = [
-  'carteira',
-  'cliente',
-  'cliente_endereco',
-  'cliente_contato',
-  'pedido',
-  'pedido_item',
-  'pedido_evento',
-] as const;
 
 export type TipoSync = 'parcial' | 'completa' | 'leve';
 
@@ -44,7 +28,7 @@ export function pedidoDoAgendador(motivo: string, entidades?: readonly string[])
 /** O que o shell usa do motor (o `MotorSync` do platform-sdk atende). */
 export interface MotorDoSync {
   enviar(opcoes?: { incluirFalhos?: boolean }): Promise<unknown>;
-  sincronizar(): Promise<boolean>;
+  sincronizar(opcoes?: { modo?: 'parcial' | 'completa' }): Promise<boolean>;
   sincronizarNovidades(opcoes?: { entidades?: readonly string[] }): Promise<boolean>;
 }
 
@@ -55,37 +39,31 @@ export interface ContextoDoSync {
   atualizarModulos: () => Promise<void>;
 }
 
-/** Os passos de cada sincronização no motor (a trava, a permissão e "uma por vez" ficam no shell). */
+/** Os passos de cada sincronização no motor (a trava única e a permissão ficam no shell; "uma por vez", no motor). */
 export async function rodarSync(pedido: PedidoSync, m: MotorDoSync, c: ContextoDoSync): Promise<boolean> {
   if (c.offline) return m.sincronizar();
   if (c.modo === 'v1' && pedido.tipo === 'leve')
     return m.sincronizarNovidades(pedido.entidades ? { entidades: pedido.entidades } : {});
-  if (c.modo === 'v1' && pedido.tipo === 'parcial') {
-    await m.enviar({ incluirFalhos: true });
-    return m.sincronizarNovidades({ entidades: ENTIDADES_SYNC_PARCIAL });
-  }
-  // completa (e, na demonstração, também a parcial e a leve: a Fase M não tem novidades)
+  // spec rota-catalogo-perfil §4: a parcial e a completa reenviam também os itens que falharam (o motor só envia os pendentes)
   await m.enviar({ incluirFalhos: true });
+  if (c.modo === 'v1' && pedido.tipo === 'parcial') return m.sincronizar({ modo: 'parcial' });
+  // completa (e, na demonstração, também a parcial e a leve: a Fase M não tem novidades)
   try {
     await c.atualizarModulos();
   } catch {
     // sem rede: o motor registra o erro na sincronização abaixo
   }
-  return m.sincronizar();
+  return c.modo === 'v1' ? m.sincronizar({ modo: 'completa' }) : m.sincronizar();
 }
 
 /**
- * Uma sincronização por vez (T-0059). Com outra em curso:
- * - completa pedida durante uma parcial ou leve → `esperar`: espera a atual terminar e roda a completa (o usuário segurou
- *   10 s: a completa não pode virar a parcial que já estava rodando);
- * - qualquer outra → `juntar`: recebe a mesma promessa da que está rodando.
+ * Uma sincronização do shell por vez (T-0059): o pedido junta-se à que está rodando (mesma promessa), menos a completa
+ * pedida durante uma parcial ou leve, que roda (o usuário segurou 10 s: não pode virar a parcial em curso). A espera fica
+ * no motor: `sincronizar({ modo: 'completa' })` espera a sincronização em curso terminar e roda depois.
  */
-export function decidirPedidoSync(
-  pedido: TipoSync,
-  emCurso: TipoSync | null,
-): 'rodar' | 'juntar' | 'esperar' {
+export function decidirPedidoSync(pedido: TipoSync, emCurso: TipoSync | null): 'rodar' | 'juntar' {
   if (emCurso === null) return 'rodar';
-  if (pedido === 'completa' && emCurso !== 'completa') return 'esperar';
+  if (pedido === 'completa' && emCurso !== 'completa') return 'rodar';
   return 'juntar';
 }
 
