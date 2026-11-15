@@ -837,6 +837,13 @@ export interface ModuloApi {
    * Só módulo com `apps.conector` no manifesto (hoje a Integração).
    */
   conector?: ApiConector;
+  /**
+   * T-0180 (ADR 0059): "último contato do aparelho". Só core. A API chama depois de cada `GET /v1/sync/novidades` e
+   * `POST /v1/sync/push` autenticados, com o contexto do core do usuário da requisição. O core grava o instante no próprio
+   * schema (com trava de frequência no SQL) e o publica por consulta (ADR 0012) ao Gestor. Melhor esforço: erro vira log
+   * `warn` sem dado pessoal e a sincronização responde normalmente.
+   */
+  contatoDoAparelho?: (ctx: ContextoBase) => Promise<void>;
 }
 
 /**
@@ -1066,6 +1073,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     tarefas.add(t.nome);
   }
   if (id !== 'core' && m.servicos) problemas.push('só o core declara serviços de plataforma');
+  if (id !== 'core' && m.contatoDoAparelho) problemas.push('só o core registra o contato do aparelho (ADR 0059)');
   const publicas = new Set<string>();
   for (const r of m.rotasPublicas ?? []) {
     const rotulo = `${r.metodo} ${caminhoDaRotaPublica(id, r.caminho)}`;

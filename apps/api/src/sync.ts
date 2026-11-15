@@ -66,6 +66,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp, semBanco } from './erros';
+import { mensagemSegura } from './log-seguro';
 import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 
@@ -116,6 +117,17 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       provedores.set(prov.entidade.nome, prov);
     }
   }
+  // T-0180 (ADR 0059): "último contato do aparelho" = novidades ou push autenticados; quem grava é o core (melhor esforço)
+  const contato = p.modulos.find((m) => m.manifesto.id === 'core')?.contatoDoAparelho;
+  const registrarContato = async (doModulo: (m: 'core') => ContextoBase): Promise<void> => {
+    if (!contato) return;
+    const ctxCore = doModulo('core');
+    try {
+      await contato(ctxCore);
+    } catch (e) {
+      ctxCore.log.warn({ erro: mensagemSegura(e) }, 'contato do aparelho não registrado');
+    }
+  };
 
   app.get('/v1/sync/pull', async (req): Promise<PaginaSync<LinhaSync>> => {
     const q = PullQuerySchema.safeParse(req.query);
@@ -221,6 +233,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       }
     }
     const geracao = await p.banco.geracaoBase?.(u.tenant_id);
+    await registrarContato(doModulo);
     return {
       entidades,
       cursor: codificarCursorNovidades({ horizonte: ate, licencas: modulos.versao_licencas, escopo }),
@@ -276,6 +289,7 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
     const algumAceito = [...porId.values()].some((r) => r.status === 'aceito');
     const em = p.banco && algumAceito ? (await p.banco.instanteSync()).toISOString() : undefined;
     if (em) for (const [id, r] of porId) if (r.status === 'aceito') porId.set(id, { ...r, em });
+    await registrarContato(doModulo);
     const resultados = corpo.data.itens.map(
       (i) =>
         porId.get(i.id) ?? {
