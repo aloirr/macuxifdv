@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0085: almoço do usuário), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente; 0039 (seção T-0095): erp_alterado_em em cliente, usuario e produto e usuario.desligado_no_bko_em; 0040: estado da senha e sessao_versao do usuário; 0053: canal do cliente; 0056: filial e cliente.filial_id; 0057: foto_tipo, cliente_foto e cliente.inativado_em; 0059: dados fiscais da filial; 0062: erp_alterado_em em cliente_endereco, produto_unidade, titulo, nota_erp, rota e filial e filial.desligado_no_bko_em; 0063: limite de desconto do usuário; 0064: tarefa, tarefa_destinatario e notificacao.tarefa_id; 0065: frase_dia e usuario_avatar; 0066: meta_produtividade, deslocamento_dia e itens_por_pedido no CHECK de meta.indicador; 0085: almoço do usuário e usuario_contato), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -770,4 +770,15 @@ export const deslocamentoDia = core.table('deslocamento_dia', {
   primeiro_ponto_em: timestamp('primeiro_ponto_em', { withTimezone: true }),
   ultimo_ponto_em: timestamp('ultimo_ponto_em', { withTimezone: true }),
   origem: text('origem', { enum: ['rastreamento'] }).notNull().default('rastreamento'),
+});
+
+/**
+ * Último contato do aparelho (0085, T-0180, ADR 0059 §5): uma linha por usuário — usuario_contato_usuario_uk UNIQUE
+ * (tenant_id, usuario_id), não parcial, alvo do `on conflict` do contatoDoAparelho (trava de 1 min no SQL). contato_em = instante
+ * da última GET /v1/sync/novidades ou POST /v1/sync/push. Fora do sync; lida só por core.produtividade_equipe@1.
+ */
+export const usuarioContato = core.table('usuario_contato', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  contato_em: timestamp('contato_em', { withTimezone: true }).notNull(),
 });

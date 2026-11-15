@@ -88,6 +88,8 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
+  /** Último contato do aparelho (0085, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
+  'core.usuario_contato',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */

@@ -3,7 +3,9 @@
  * Dicionário: docs/banco/core.md e docs/banco/gestor.md, "0085".
  * - core.usuario ganha almoco_inicio_min e almoco_fim_min (smallint, minutos do dia; as duas nulas = padrão da empresa);
  *   CHECKs: as duas ou nenhuma, 0..1439, fim > início com duração de 15 a 180 min;
- * - gestor.alerta aceita parado_entre_visitas e sem_checkin_inicio; gestor.alerta_regra não.
+ * - gestor.alerta aceita parado_entre_visitas e sem_checkin_inicio; gestor.alerta_regra não;
+ * - core.usuario_contato (ADR 0059 §5): último contato do aparelho, um por usuário (unique NÃO parcial, alvo do on conflict do
+ *   contatoDoAparelho do Core com trava de 1 min), RLS por tenant, select/insert/update ao macuxi_app, fora do sync.
  * Estático no PC; banco (papel de aplicação sobre a fixture, ROLLBACK) e up/down num banco efêmero no CI.
  */
 import pg from 'pg';
@@ -13,6 +15,7 @@ import * as nuvemCore from '../../modules/core/db/nuvem';
 import { TIPOS_ALERTA } from '../../modules/gestor/contracts/base';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
+import { TABELAS_FORA_DO_SYNC } from '../src/excecoes';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { emTransacao, erroDe, retratoDoCatalogo } from './util';
@@ -23,12 +26,21 @@ const migracoes = lerMigracoes();
 const m85 = migracoes.find((m) => m.versao === '0085')!;
 const m14 = migracoes.find((m) => m.versao === '0014')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
-const up = semComentarios(m85.up);
+const upInteira = semComentarios(m85.up);
+const INICIO_CONTATO = upInteira.indexOf('create table core.usuario_contato');
+/** Parte 1 e 2 (core.usuario e gestor.alerta), sem a tabela nova. */
+const up = upInteira.slice(0, INICIO_CONTATO);
+const upContato = upInteira.slice(INICIO_CONTATO);
 const down = semComentarios(m85.down);
 const NOVOS = ['parado_entre_visitas', 'sem_checkin_inicio'] as const;
 const PAR = 'usuario_almoco_par';
 const FAIXA = 'usuario_almoco_faixa';
 const DURACAO = 'usuario_almoco_duracao';
+/** O mesmo SQL de SQL_CONTATO_DO_APARELHO (modules/core/api/produtividade-equipe.ts, T-0180). */
+const SQL_CONTATO = `insert into core.usuario_contato (tenant_id, usuario_id, contato_em)
+  values (plataforma.tenant_atual(), $1, $2::timestamptz)
+  on conflict (tenant_id, usuario_id) do update set contato_em = excluded.contato_em, updated_at = now()
+    where core.usuario_contato.contato_em < excluded.contato_em - interval '1 minute'`;
 
 /** Valores do `check (tipo in (...))` de alerta_tipo_valido / alerta_regra_tipo_valido num SQL. */
 function listaDoCheck(sql: string, nome: string): string[] {
@@ -70,12 +82,35 @@ describe('0085 almoço do usuário e alertas de produtividade (estático)', () =
     expect(down.indexOf('delete from gestor.alerta')).toBeLessThan(down.indexOf('add constraint alerta_tipo_valido'));
   });
 
+  it('core.usuario_contato: colunas obrigatórias, unique NÃO parcial (tenant_id, usuario_id), FK composta, RLS forçado, políticas e grant', () => {
+    expect(INICIO_CONTATO).toBeGreaterThan(0);
+    const umaLinha = upContato.replace(/\s+/g, ' ');
+    for (const c of ['id uuid primary key default gen_random_uuid()', 'tenant_id uuid not null references plataforma.tenant (id)', 'usuario_id uuid not null', 'contato_em timestamptz not null', 'created_at timestamptz not null default now()', 'updated_at timestamptz not null default now()', 'deleted_at timestamptz', 'external_id text']) {
+      expect(umaLinha, c).toContain(c);
+    }
+    expect(umaLinha).toContain('constraint usuario_contato_usuario_uk unique (tenant_id, usuario_id),');
+    expect(umaLinha).toContain('constraint usuario_contato_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id)');
+    expect(umaLinha).not.toMatch(/on core\.usuario_contato \(tenant_id, usuario_id\) where/);
+    expect(umaLinha).toContain('alter table core.usuario_contato enable row level security;');
+    expect(umaLinha).toContain('alter table core.usuario_contato force row level security;');
+    expect(umaLinha).toContain('create policy isolamento_tenant on core.usuario_contato for all to macuxi_app using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual());');
+    expect(umaLinha).toContain('create policy manutencao on core.usuario_contato for all to macuxi_manutencao using (true) with check (true);');
+    expect(umaLinha).toContain('grant select, insert, update on core.usuario_contato to macuxi_app;');
+    expect(umaLinha).not.toMatch(/grant [a-z, ]*delete[a-z, ]* on core\.usuario_contato/);
+    expect(TABELAS_FORA_DO_SYNC).toContain('core.usuario_contato');
+    expect(down).toContain('drop table if exists core.usuario_contato;');
+  });
+
   it('espelho Drizzle: smallint, nulas, sem padrão', () => {
     const cols = getTableConfig(nuvemCore.usuario).columns;
     for (const n of ['almoco_inicio_min', 'almoco_fim_min']) {
       const c = cols.find((x) => x.name === n);
       expect([c?.getSQLType(), c?.notNull, c?.default], n).toEqual(['smallint', false, undefined]);
     }
+    const contato = getTableConfig(nuvemCore.usuarioContato);
+    expect(`${contato.schema}.${contato.name}`).toBe('core.usuario_contato');
+    const tipos = Object.fromEntries(contato.columns.map((c) => [c.name, [c.getSQLType(), c.notNull]]));
+    expect(tipos).toMatchObject({ usuario_id: ['uuid', true], contato_em: ['timestamp with time zone', true] });
   });
 });
 
@@ -149,6 +184,39 @@ describe.skipIf(semBanco())('0085 almoço do usuário e alertas de produtividade
     });
   });
 
+  it('core.usuario_contato: upsert com trava de 1 min, sem andar o updated_at do usuário', async () => {
+    await emTransacao(app, A.tenantId, async () => {
+      const u = A.usuarios.vendedor1;
+      const [T0, T0_59, ANTES, T1] = ['2026-11-15T12:00:00Z', '2026-11-15T12:00:59Z', '2026-11-15T11:00:00Z', '2026-11-15T12:01:01Z']; // hora-fixa-ok: só comparados entre si (trava de 1 min); o now() do SQL não entra
+      const lerContato = async () => (await q("select to_char(contato_em at time zone 'UTC', 'HH24:MI:SS') as h from core.usuario_contato where usuario_id = $1", [u])).rows;
+      const uAntes = (await q('select updated_at from core.usuario where id = $1', [u])).rows[0];
+      expect((await q(SQL_CONTATO, [u, T0])).rowCount).toBe(1);
+      expect(await lerContato()).toEqual([{ h: '12:00:00' }]);
+      expect((await q(SQL_CONTATO, [u, T0_59])).rowCount).toBe(0); // dentro do minuto: não grava
+      expect((await q(SQL_CONTATO, [u, ANTES])).rowCount).toBe(0); // mais antigo: não volta
+      expect(await lerContato()).toEqual([{ h: '12:00:00' }]);
+      expect((await q(SQL_CONTATO, [u, T1])).rowCount).toBe(1);
+      expect(await lerContato()).toEqual([{ h: '12:01:01' }]);
+      expect((await q('select count(*)::int as n from core.usuario_contato where usuario_id = $1', [u])).rows).toEqual([{ n: 1 }]);
+      expect((await q('select updated_at from core.usuario where id = $1', [u])).rows[0]).toEqual(uAntes);
+      await q('savepoint s');
+      expect(await erroDe(q('delete from core.usuario_contato where usuario_id = $1', [u]))).toMatchObject({ code: '42501' });
+      await q('rollback to savepoint s');
+    });
+  });
+
+  it('core.usuario_contato: B não vê nem altera o contato de A; não grava para usuário de A nem com o tenant de A', async () => {
+    await emTransacao(app, B.tenantId, async () => {
+      expect((await q('select 1 from core.usuario_contato where usuario_id = $1', [A.usuarios.vendedor2])).rowCount).toBe(0);
+      expect((await q("update core.usuario_contato set contato_em = now() where usuario_id = $1", [A.usuarios.vendedor2])).rowCount).toBe(0);
+      expect((await q('select count(*)::int as n from core.usuario_contato')).rows).toEqual([{ n: 1 }]); // só o da fixture de B
+      await q('savepoint s');
+      expect(await erroDe(q(SQL_CONTATO, [A.usuarios.promotor, '2026-11-15T12:00:00Z']))).toMatchObject({ code: '23503' }); // hora-fixa-ok: a FK recusa antes de comparar instantes
+      await q('rollback to savepoint s');
+      expect(await erroDe(q('insert into core.usuario_contato (tenant_id, usuario_id, contato_em) values ($1, $2, now())', [A.tenantId, A.usuarios.promotor]))).toMatchObject({ code: '42501' });
+    });
+  });
+
   it('RLS de sempre: B não vê nem altera o almoço de A', async () => {
     await emTransacao(app, B.tenantId, async () => {
       expect((await q(`select ${ALMOCO} from core.usuario where id = $1`, [A.usuarios.vendedor1])).rowCount).toBe(0);
@@ -179,6 +247,8 @@ describe.skipIf(semBanco())('0085 up/down (banco efêmero)', () => {
       const depois = await retratoDoCatalogo(c);
       expect(depois).toContain('col core.usuario.almoco_inicio_min smallint nn=false');
       expect(depois).toContain('col core.usuario.almoco_fim_min smallint nn=false');
+      expect(depois).toContain('col core.usuario_contato.contato_em timestamp with time zone nn=true');
+      await c.query("insert into core.usuario_contato (tenant_id, usuario_id, contato_em) values ($1, $2, now())", [T, U]);
       const u1 = (await c.query('select updated_at, almoco_inicio_min, almoco_fim_min from core.usuario where id = $1', [U])).rows[0];
       expect(u1).toEqual({ updated_at: u0.updated_at, almoco_inicio_min: null, almoco_fim_min: null });
       await c.query('update core.usuario set almoco_inicio_min = 720, almoco_fim_min = 780 where id = $1', [U]);

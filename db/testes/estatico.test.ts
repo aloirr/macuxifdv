@@ -122,6 +122,8 @@ const TABELAS_0072 = ['plataforma.backup_empresa', 'plataforma.backup_empresa_pa
 const TABELAS_0073 = ['plataforma.dados_legais'] as const;
 /** Tabelas novas da 0074 (ADR 0054: pacote da primeira carga e pedido de geração; fora do sync; sync-pacote.db.test.ts). */
 const TABELAS_0074 = ['plataforma.sync_pacote', 'plataforma.sync_pacote_pedido'] as const;
+/** Tabela nova da 0085 (T-0180, ADR 0059 §5: último contato do aparelho por usuário; fora do sync; almoco-alerta-produtividade.db.test.ts). */
+const TABELAS_0085 = ['core.usuario_contato'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -261,6 +263,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0072,
         ...TABELAS_0073,
         ...TABELAS_0074,
+        ...TABELAS_0085,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
