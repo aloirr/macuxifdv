@@ -77,51 +77,12 @@ export const colors = {
 } as const;
 
 /**
- * Escala de fonte do app (R-20261115-110600): 12 · 14 · 16 (base) · 18 · 22 · 28, na fonte do sistema. Nada abaixo de 12.
- * Os estilos de texto (`type` em theme.ts) e os componentes usam só estes tamanhos.
+ * Escala de fonte do app por papel (R-20261115-110600; manual da marca §5.3): 12 legenda e rótulo pequeno · 14 secundário ·
+ * 16 texto, campo e botão · 18 título de seção e valor · 22 título de tela, folha e diálogo · 28 número grande e saudação.
+ * Nada abaixo de 12. Os estilos de texto (`type` em theme.ts) e os componentes usam só estes tamanhos.
  */
 export const ESCALA_FONTE = { minimo: 12, apoio: 14, base: 16, secao: 18, titulo: 22, destaque: 28 } as const;
 export const TAMANHOS_FONTE: readonly number[] = Object.values(ESCALA_FONTE);
-
-/** Pilha da fonte do sistema fora do Android (Expo web): nunca cai em serifa. */
-export const PILHA_SISTEMA = 'system-ui, "Segoe UI", Roboto, -apple-system, sans-serif';
-/** Pilha monoespaçada fora do Android (Expo web). */
-export const PILHA_MONO = 'ui-monospace, "Cascadia Mono", "Roboto Mono", monospace';
-
-/**
- * Famílias por nome do Android (400 e 500 por nome); `sans-serif-medium` não existe no navegador. A Roboto Black
- * (família de peso 900) não aparece em lugar nenhum (rodada 2 da R-20261115-110600): o display fica no 500.
- */
-const FAMILIAS_ANDROID = {
-  display: 'sans-serif-medium',
-  displayBold: 'sans-serif-medium',
-  displaySemi: 'sans-serif-medium',
-  body: 'sans-serif',
-  medium: 'sans-serif-medium',
-  semibold: 'sans-serif-medium',
-  bold: 'sans-serif-medium',
-  mono: 'monospace',
-} as const;
-
-export type FamiliasFonte = Record<keyof typeof FAMILIAS_ANDROID, string>;
-
-/**
- * Famílias de `fonts` por plataforma (R-20261115-110600): Android usa os nomes do sistema; web e o resto, a pilha
- * `PILHA_SISTEMA` (e `PILHA_MONO` no mono), para as telas que ainda usam `fonts.x` como família não caírem em serifa no Expo web.
- */
-export function familiasFonte(os: string): FamiliasFonte {
-  if (os === 'android') return { ...FAMILIAS_ANDROID };
-  return {
-    display: PILHA_SISTEMA,
-    displayBold: PILHA_SISTEMA,
-    displaySemi: PILHA_SISTEMA,
-    body: PILHA_SISTEMA,
-    medium: PILHA_SISTEMA,
-    semibold: PILHA_SISTEMA,
-    bold: PILHA_SISTEMA,
-    mono: PILHA_MONO,
-  };
-}
 
 /** Escala de espaçamento (dp). Use estes valores em gap, padding e margin. */
 export const space = { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 } as const;
