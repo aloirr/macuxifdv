@@ -42,8 +42,8 @@ no copiar só copia (`Código copiado`).
   opcional (R-20261115-073000): sem ela, a linha mostra só o código. Sem referência, a seção não aparece.
 
 ## 3. Estoque: sem saldo ou sem informação = 0
-Rótulo `Estoque: N` em todo o Catálogo: cartão, ficha (filial do vendedor) e busca; sem saldo ou sem informação = `Estoque: 0`,
-vermelho (R-20261115-082500). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
+Rótulo `Estoque: N` em todo o Catálogo: cartão, ficha (filial do vendedor) e busca; o zero fica vermelho
+(R-20261115-082500). Faixas e tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem
 informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)

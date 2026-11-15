@@ -73,7 +73,7 @@ Nada na tela explica de qual tabela é o preço: com cliente, o voltar na faixa 
 | de 1 a 9 | `Estoque: 6` | `aviso`, o laranja da simulação (`warning` #7A4F00 sobre `warningBg` #FFF1D6, 6,4:1) |
 | 0, ou nenhum saldo recebido | `Estoque: 0` | `erro` (`danger` sobre `dangerBg`, 6,0:1) |
 
-Sem saldo recebido conta como 0; acaba o `Estoque sem informação` (R-20261115-082500).
+Acaba o `Estoque sem informação` (R-20261115-082500).
 
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): `Em estoque`, `Pouco estoque`, `Sem estoque`.
 - O número é inteiro, na unidade base, das filiais que valem para o estoque (RN-CAT-07; com cliente, a filial dele,
