@@ -43,7 +43,7 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
 | 1 | foto | 112 dp de altura, raio 12, `cover`. Sem foto: a caixa `neutralBg` vazia, do mesmo tamanho (sem a inicial, que repetia a 1ª letra do nome; RD-0242) |
 | 2 | nome | 15/600, até 2 linhas com reticências |
 | 3 | marca | 13 `ink2`, 1 linha. Sem marca no cadastro, a linha fica vazia |
-| 4 | preço | Archivo 700 18, números tabulares (§3) |
+| 4 | preço | `t.number` (18/600), números tabulares (§3) |
 | 5 | estoque | `ChipEstado pequeno` (24 dp), §4 |
 
 - Uma informação por linha (RD-0207): sem código, sem hora do estoque e sem etiquetas no cartão. Código, etiquetas e

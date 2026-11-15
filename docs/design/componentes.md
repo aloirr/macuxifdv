@@ -19,12 +19,23 @@
 | `colors.surface` | `#FFFFFF` | cartões, folha, barra de abas |
 | `colors.ink2` / `ink3` | `#4A5562` / `#5B6673` | texto secundário / terciário (≥ 4,5:1 no branco e no Pérola) |
 
-Fontes (já carregadas no shell por `@expo-google-fonts/*`; nenhuma dependência nova): **Archivo** nos títulos e números
-(`fonts.display` 800, `displayBold` 700), **IBM Plex Sans** no texto (`body` 400, `medium` 500, `semibold` 600, `bold` 700).
-Uma família por peso: não use `fontWeight`.
+**Fonte do sistema** (R-20261115-110600, v1.0.13): famílias, pesos e escala estão no **[manual da marca §5](../marca/manual.md#5-tipografia)**,
+que é a fonte da verdade (aqui não se repete a tabela). Este guia só diz qual token do kit cumpre cada papel.
 
-Tipografia (`type`): `saudacao` 26/800 · `titulo` 19/800 (folha, diálogo) · `secao` 17/700 · `numeroGrande` 19/700 tabular ·
-`body` 14 · `sub` 13 · `small` 12 · `rotulo` 12/600 maiúsculas. Os nomes antigos (`h1`, `h2`, `number`…) continuam.
+- **App (`packages/ui/src/mobile`):** `fonte` dá só o peso, sem `fontFamily`: `body` (texto) · `medium` (rótulo, meta) ·
+  `semibold` (ênfase, rótulo de campo, botão, valor, aba ativa) · `bold` (título) · `mono` (código). Estilos de texto `type`,
+  por papel: `h1` número grande · `h1Small` título de tela, folha e diálogo · `saudacao` "Bom dia, Lucas" no Início do Campo
+  e do Gestão (22/700, o mesmo de `h1Small`) · `h2` título de seção · `number` valor em destaque · `body` texto ·
+  `bodyStrong` ênfase e título de linha · `sub` secundário · `small` legenda · `label` rótulo pequeno · `rotulo` rótulo em
+  maiúsculas (quem precisa de largura ou linha própria usa `{ ...t.rotulo, <só o que muda> }`). Tamanhos: `ESCALA_FONTE`.
+- **Rótulo de campo do app:** `RotuloCampo` (14/600 `ink`), e o campo inteiro (rótulo, entrada de 52 dp, erro) `CampoTexto`;
+  o `CampoSenha`, a `ListaSuspensa` e o `Desconto` usam o mesmo `RotuloCampo`. Nenhuma tela monta rótulo de campo próprio.
+- **Web (`packages/ui/src/web`):** `PageHeader` título de página · `Dialog`/`Drawer` título de diálogo · `Panel` título de
+  seção · `KpiCard` valor · `CLASSE_CAMPO`/`CLASSE_CAMPO_BASE` campo · `Button` botão · `td`/`tdNum` célula ·
+  `th`/`thNum` cabeçalho de tabela · `Badge` chip · `CampoFormulario` rótulo de campo. As pilhas ficam em `--font-sans` e
+  `--font-mono` do `apps/web/app/globals.css` (o kit não usa `font-display`).
+- O teste `packages/ui/src/mobile/fonte-sistema.test.ts` segura a regra no kit (só tamanhos da escala, nada em 800/900, sem
+  família de fonte).
 
 ### 1.1 Contraste da marca (vale para o app e para o BKO/portal)
 Código: `packages/ui/src/comum/contraste.ts` (`MARCA`, `DESTAQUE`, `GRAFICO`, `FAIXA`, `FUNDOS`, `PARES_DA_MARCA`,
@@ -128,7 +139,7 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
 - `ChipEstado`: **sempre com texto** (o componente não desenha nada sem texto). 28 dp; `pequeno` 24 dp dentro de cartão de lista.
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento (o tom `roxo` saiu do kit, RD-0235). `Badge` antigo virou pílula de 24 dp.
-- Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
+- Linha de lista: título 16/600, linha de apoio 14 `ink2`, valor 16/700 tabular à direita, chip no alto à direita.
 - `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Rascunhos (2)" em Pedidos, T-0141). Fundo
   `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres), apoio 13 `ink2` (até 36);
   48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em `docs/design/pedido-v3.md`
@@ -202,14 +213,14 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 - `Faixa` ganhou `apoio` (2ª linha); alertas da aba Venda com `alertaInadimplencia` e `TEXTO_CLIENTE_LIBERADO`.
 
 ### 4.7 Novo pedido v3: crédito em tabela, Rascunhos, "preço de" (T-0141; spec `docs/design/pedido-v3.md`)
-- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor Archivo 700 17 tabular, linhas de 48 dp com traço);
+- `TabelaValores`: valor de consulta em tabela (rótulo 14 `ink2` ··· valor 18/700 tabular, linhas de 48 dp com traço);
   sem dado = `VALOR_SEM_DADO` ("—", em `ink3`); `carregando` desenha barras cinza; `rodape` com a atualização. Nunca frase
   corrida para Limite, Disponível ou Prazo médio.
 - Entrada **Rascunhos (n)** em Pedidos com o `LinhaAtalho`; selo "Some em 2 h" (aviso) nas últimas 3 h; selo do orçamento
   "Orçamento · preço de 09/11" (`destaque`, não vence).
 
 ### 4.8 Catálogo pela hierarquia (T-0142; spec `docs/design/catalogo-por-linha.md`)
-- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em Archivo negrito à direita
+- `ListaNiveis`: cabeçalho "Sistemas · Produtos", um cartão com linhas de 56 dp, contagem em negrito (700) à direita
   (`textoDaContagem`, "1.240"), seta; TalkBack `leituraDoNivel` ("Alimentos, 16 produtos").
 - `Trilha`: item com `desligado` = nível pulado (um item só), em `ink2` e sem toque.
 - Último nível: o `CartaoProduto` do módulo (o mesmo da busca), com "Serve em:" em até 2 linhas, "Equivale a:" e etiquetas em
@@ -303,7 +314,7 @@ RF-VEN-11, RF-VEN-05, RN-VEN-30, RN-VEN-18. Vale no Campo, no Gestão (pedido em
 ### 5.2 Cabeçalho na faixa Azul noite (`CabecalhoTela`, `<Screen cabecalho>`; T-0172, manual da marca §4)
 - **Faixa:** Azul noite, começa na barra de status (soma a área segura) e fica parada em cima; o corpo rola embaixo, no Pérola,
   com os cartões brancos. Sem logo.
-- **Textos:** título branco, Archivo 24/28; subtítulo de uma linha em `#C9CED5`, Plex Sans 13. O subtítulo fica abaixo do título ou
+- **Textos:** título branco, 22/28 em 700; subtítulo de uma linha em `#C9CED5`, 14. O subtítulo fica abaixo do título ou
   acima dele (`posicaoSubtitulo="acima"`, como a data acima de "Bom dia, Lucas" no Início).
 - **Voltar:** dentro da faixa ("‹ Pedidos"), em `#C9CED5`, com as regras do `BackLink` (§6.1).
 - **Direita:** uma ação curta de 48 dp (ícone, `SeloAtualizacao`). O botão principal fica no corpo, nunca na faixa. Nada
@@ -326,7 +337,7 @@ Spec das telas: `docs/design/telas/portal-config-enxuto.md` §0. Simulação: `t
 - **Marca:** variante da `MarcaNaFaixa` **sem** fundo e sem arredondado próprios (`<MarcaNaFaixa solta={false}>` ou
   `MarcaNaBarra`; o nome fica com o engenheiro-apps). Logo negativo a **104 px** de largura (22 px de altura, acima do mínimo
   de 20 px) e **14 px de folga** em volta (`gap-3.5 p-3.5`; área de proteção = altura do "M", manual §2.3). Ao lado, o filete
-  (`bg-faixa-texto/40`) e o nome da área em `text-faixa-texto` (`#C9CED5`, 8,07:1), Archivo 14/700.
+  (`bg-faixa-texto/40`) e o nome da área em `text-faixa-texto` (`#C9CED5`, 8,07:1), 15/700 na fonte do sistema.
 - **Marca solta** (Entrar, Escolha a empresa, login do BKO, sem barra): a mesma peça dentro de uma faixa arredondada
   (`rounded-xl bg-faixa p-3.5`), com o logo a 104 px.
 - **Abas do menu:** ativa `text-white border-b-2 border-white`; inativa `text-faixa-texto border-transparent hover:text-white`.

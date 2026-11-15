@@ -110,7 +110,7 @@ describe('0033 aplicação e referência cruzada (estático)', () => {
     expect(nuvemCatalogo.produtoConteudo.etiquetas.notNull).toBe(true);
     expect(nuvemCatalogo.produtoBusca.aplicacao.notNull).toBe(false);
     expect(nuvemCatalogo.produtoBusca.referencias.notNull).toBe(false);
-    for (const c of ['produto_id', 'marca_id', 'codigo', 'codigo_compacto', 'ordem'] as const) expect(nuvemCatalogo.produtoReferencia[c].notNull, c).toBe(true);
+    for (const c of ['produto_id', 'codigo', 'codigo_compacto', 'ordem'] as const) expect(nuvemCatalogo.produtoReferencia[c].notNull, c).toBe(true);
     expect(nuvemVendedor.pedidoItem.aplicacao.notNull).toBe(false);
   });
 
@@ -232,7 +232,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await achar(A.tenantId, 'cb3401')).rows).toEqual([{ produto_id: A.produtos.p1 }]);
   });
 
-  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir marca+compacto, FK só da marca (0045), updated_at', async () => {
+  it('produto_referencia — checks (ordem 1..3, código 1..30 não vazio, compacto), até 3 vivas, sem repetir o compacto no produto (0075), FK só da marca (0045), updated_at', async () => {
     const inserir = (o: { produto?: string; marca?: string; codigo?: string; compacto?: string; ordem?: number | null; external?: string | null }) =>
       q('insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, external_id) values ($1, $2, $3, $4, $5, $6, $7)', [
         A.tenantId,
@@ -260,8 +260,7 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'ZZ 2', compacto: 'zz2', ordem: 1 })))?.code).toBe('23505');
     // mesma marca e mesmo compacto com outra grafia ("cb-3401" x "CB 3401") no mesmo produto: recusado
     expect((await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'cb-3401', compacto: 'cb3401', ordem: 3 })))?.code).toBe('23505');
-    // outra marca com o mesmo código passa; o compacto da apagada (cb3400) volta a valer
-    expect(await erroEmA(() => inserir({ produto: A.produtos.p1, marca: MARCAS_FIXTURE.A.inativa, codigo: 'CB 3401', compacto: 'cb3401', ordem: 3 }))).toBeNull();
+    // a apagada (cb3400) não conta: o mesmo código volta a valer
     expect(await erroEmA(() => inserir({ produto: A.produtos.p1, codigo: 'CB-3400', compacto: 'cb3400', ordem: 3 }))).toBeNull();
     // external_id único vivo por tenant
     expect((await erroEmA(() => inserir({ external: 'REF-A-1' })))?.code).toBe('23505');
@@ -278,15 +277,21 @@ describe.skipIf(semBanco())('0033 aplicação e referência cruzada (banco, pape
     });
   });
 
-  it('busca pelo código normalizado usa o índice produto_referencia_codigo_compacto_ix (igualdade e prefixo)', async () => {
+  it('busca pelo código normalizado usa índice: igualdade e prefixo no codigo_compacto_ix ou no produto_codigo_uk (0075)', async () => {
     const plano = (sql: string, params: unknown[]) =>
       emTransacao(app, A.tenantId, async () => {
         await q('set local enable_seqscan = off');
         return (await q<{ 'QUERY PLAN': string }>(`explain ${sql}`, params)).rows.map((x) => x['QUERY PLAN']).join('\n');
       });
     const filtro = 'from catalogo.produto_referencia where tenant_id = $1 and deleted_at is null';
-    expect(await plano(`select produto_id ${filtro} and codigo_compacto = $2`, [A.tenantId, 'cb3401'])).toContain('produto_referencia_codigo_compacto_ix');
-    expect(await plano(`select produto_id ${filtro} and codigo_compacto like $2`, [A.tenantId, 'cb34%'])).toContain('produto_referencia_codigo_compacto_ix');
+    // 0075: o único (tenant_id, produto_id, codigo_compacto) também atende a igualdade (Index Only Scan, já traz o produto_id)
+    const igual = await plano(`select produto_id ${filtro} and codigo_compacto = $2`, [A.tenantId, 'cb3401']);
+    expect(igual).toMatch(/produto_referencia_(codigo_compacto_ix|produto_codigo_uk)/);
+    expect(igual).not.toContain('Seq Scan');
+    // com tabela pequena o planejador também prefere o único da 0075 para o prefixo (filtro dentro do Index Only Scan)
+    const prefixo = await plano(`select produto_id ${filtro} and codigo_compacto like $2`, [A.tenantId, 'cb34%']);
+    expect(prefixo).toMatch(/produto_referencia_(codigo_compacto_ix|produto_codigo_uk)/);
+    expect(prefixo).not.toContain('Seq Scan');
   });
 });
 

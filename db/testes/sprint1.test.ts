@@ -280,12 +280,14 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
       });
     });
 
-    it('arquivo "recebido" exige sha256, tamanho, chave e recebido_em (23514); só image/jpeg até 2 MB', async () => {
+    // Faixas e tipos da 0079 (ADR 0058, R-20261115-074500): imagem (JPEG, PNG, WEBP) até 8 MiB, ZIP até 500 MiB; o teto de 2 MB da
+    // rota antiga de foto ficou na API.
+    it('arquivo "recebido" exige sha256, tamanho, chave e recebido_em (23514); imagem até 8 MiB, tipo fora da lista recusado', async () => {
       for (const sql of [
         'update plataforma.arquivo set sha256 = null where id = $1',
         'update plataforma.arquivo set chave_armazenamento = null where id = $1',
-        'update plataforma.arquivo set tamanho_bytes = 2097153 where id = $1',
-        "update plataforma.arquivo set tipo = 'image/png' where id = $1",
+        'update plataforma.arquivo set tamanho_bytes = 8388609 where id = $1',
+        "update plataforma.arquivo set tipo = 'application/pdf' where id = $1",
       ]) {
         const e = await erroDe(comA(() => app.query(sql, [A.arquivos.fachadaV1])));
         expect(e?.code, sql).toBe('23514');
