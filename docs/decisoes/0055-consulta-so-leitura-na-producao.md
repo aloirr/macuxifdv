@@ -26,8 +26,14 @@
    `select`/`with` por bloco; sem palavra de escrita, de transação ou de sessão; sem função com schema, `set_config`,
    `pg_sleep`, meta-comando ou `$`; filtro `tenant_id = :'tenant_id'` obrigatório; colunas declaradas em `@colunas` sem
    nome, e-mail, CPF/CNPJ, telefone, endereço ou segredo (só flags `sem_*`/`tem_*`/`com_*`/`*_vazio`/`*_preenchido`); coluna
-   pessoal no SQL só dentro de um teste que vira flag.
-4. **Execução só leitura em três camadas**: papel `macuxi_leitura` (só SELECT, sem BYPASSRLS, RLS pelo `app.tenant_id`);
+   pessoal no SQL só dentro de um teste que vira flag; coluna sensível (hash, token, senha, segredo, chave, carga, cifrad)
+   recusada em qualquer uso, até como flag (senha: `core.v_leitura_usuario_senha.tem_senha`); sem asterisco (`select *`,
+   `x.*`), só `count(*)`.
+4. **Execução só leitura em três camadas**: papel `macuxi_leitura` (só SELECT, sem BYPASSRLS, RLS pelo `app.tenant_id`;
+   nas tabelas com coluna sensível — hash, token, senha, segredo, chave, carga ou cifrad no nome, exceto boolean — o
+   SELECT é por coluna, sem elas, para nenhum segredo nem hash chegar ao log do Actions; se o usuário tem senha, só pela
+   view `core.v_leitura_usuario_senha (id, tenant_id, tem_senha)`; migração 0078, `docs/banco/rls.md`; o `banco-dbaas.sh`
+   para a publicação se o papel ou a seção dele no `conferir-rls.sql` sair do padrão);
    serviço `pgleitura` do compose com `default_transaction_read_only=on`, `statement_timeout=15s`, `lock_timeout=2s`;
    script com `begin ... read only`, conferência do modo, tenant por `plataforma.tenant_por_codigo` e `rollback` no fim.
 5. **Saída conferida antes de publicar**: cabeçalho igual a `@colunas`, flag pessoal só booleana, valores só com forma de

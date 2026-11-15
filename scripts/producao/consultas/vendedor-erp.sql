@@ -6,21 +6,23 @@
 
 -- @consulta usuario_pelo_codigo
 -- @colunas id, perfil, ativo, desligado_no_bko, sem_senha, provisorio, tem_equipe, apagado, ja_entrou, carteira_ativa
-select u.id, u.perfil, u.ativo, (u.desligado_no_bko_em is not null) as desligado_no_bko, (u.senha_hash is null) as sem_senha,
+select u.id, u.perfil, u.ativo, (u.desligado_no_bko_em is not null) as desligado_no_bko, (not s.tem_senha) as sem_senha,
        (u.email like '%@sem-email.invalid') as provisorio, (u.equipe_id is not null) as tem_equipe,
        (u.deleted_at is not null) as apagado, (u.ultimo_login_em is not null) as ja_entrou,
        (select count(*) from core.carteira c
          where c.tenant_id = u.tenant_id and c.usuario_id = u.id and c.deleted_at is null) as carteira_ativa
   from core.usuario u
+  join core.v_leitura_usuario_senha s on s.id = u.id
  where u.tenant_id = :'tenant_id' and u.external_id = :'external_id';
 
 -- @consulta usuarios_de_campo_por_tipo
 -- @colunas perfil, ativo, tem_external_id, provisorio, sem_senha, apagado, usuarios, com_carteira
 select u.perfil, u.ativo, (u.external_id is not null) as tem_external_id, (u.email like '%@sem-email.invalid') as provisorio,
-       (u.senha_hash is null) as sem_senha, (u.deleted_at is not null) as apagado, count(*) as usuarios,
+       (not s.tem_senha) as sem_senha, (u.deleted_at is not null) as apagado, count(*) as usuarios,
        count(*) filter (where exists (select 1 from core.carteira c
                                        where c.tenant_id = u.tenant_id and c.usuario_id = u.id and c.deleted_at is null)) as com_carteira
   from core.usuario u
+  join core.v_leitura_usuario_senha s on s.id = u.id
  where u.tenant_id = :'tenant_id' and u.perfil in ('vendedor', 'promotor')
  group by 1, 2, 3, 4, 5, 6
  order by 1, 2, 3, 4, 5, 6;
@@ -41,8 +43,9 @@ select u.id as usuario_id, u.external_id as codigo_erp, u.ativo, (u.deleted_at i
 select u.id as usuario_id, u.ativo, (u.ultimo_login_em is not null) as ja_entrou, count(c.id) as carteira_ativa,
        u.created_at as criado_em
   from core.usuario u
+  join core.v_leitura_usuario_senha s on s.id = u.id
   left join core.carteira c on c.tenant_id = u.tenant_id and c.usuario_id = u.id and c.deleted_at is null
- where u.tenant_id = :'tenant_id' and u.perfil = 'vendedor' and u.external_id is null and u.senha_hash is not null
+ where u.tenant_id = :'tenant_id' and u.perfil = 'vendedor' and u.external_id is null and s.tem_senha
    and u.deleted_at is null
  group by u.id, u.ativo, u.ultimo_login_em, u.created_at
  order by criado_em desc

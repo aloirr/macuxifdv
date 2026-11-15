@@ -108,11 +108,26 @@ test('coluna pessoal no SQL só como flag (is null, like no e-mail, coalesce(tri
   assert.match(problemas("select r.payload as x from integracao.registro_atual r where r.tenant_id = :'tenant_id';", 'x').join(), /payload/);
   assert.match(problemas(sql("(u.nome like '%a%')"), 'x').join(), /coluna pessoal "nome"/);
   assert.match(problemas(sql("(u.email like :'external_id')"), 'x').join(), /email/);
-  for (const ok of ['(u.email is null)', "(u.email like '%@sem-email.invalid')", '(u.senha_hash is not null)',
+  for (const ok of ['(u.email is null)', "(u.email like '%@sem-email.invalid')",
     "(coalesce(trim(u.nome), '') = '')", "(u.nome = 'x')", "(u.nome in ('a', 'b'))"]) {
     assert.deepEqual(problemas(sql(ok), 'x'), [], ok);
   }
   assert.deepEqual(problemas("select (coalesce(trim(r.payload->>'nome'), '') = '') as x from integracao.registro_atual r where r.tenant_id = :'tenant_id' and r.payload->>'vendedor_external_id' = 'V';", 'x'), []);
+});
+
+test('coluna sensível (hash, token, senha, segredo, chave, carga, cifrad) é recusada até como flag; a view da senha passa', () => {
+  const sql = (expr) => `select ${expr} as x from core.usuario u where u.tenant_id = :'tenant_id';`;
+  for (const ruim of ['(u.senha_hash is null)', '(u.senha_temporaria_hash is not null)', '(t.token_hash is null)', '(c.chave is null)',
+    '(x.segredo_cifrado is null)', "(r.payload->>'token' is null)", '(l.carga is null)']) {
+    assert.match(problemas(sql(ruim), 'x').join(), /coluna sensível/, ruim);
+  }
+  assert.deepEqual(problemas("select (not s.tem_senha) as sem_senha from core.usuario u join core.v_leitura_usuario_senha s on s.id = u.id where u.tenant_id = :'tenant_id';", 'sem_senha'), []);
+});
+
+test('asterisco é recusado (select *, x.*); count(*) passa', () => {
+  assert.match(problemas("select * from core.usuario u where u.tenant_id = :'tenant_id';").join(), /asterisco/);
+  assert.match(problemas("select u.* from core.usuario u where u.tenant_id = :'tenant_id';").join(), /asterisco/);
+  assert.deepEqual(problemas("select count(*) as id from core.usuario u where u.tenant_id = :'tenant_id';"), []);
 });
 
 test('valores da saída: contagem, id, flag, data e código passam; e-mail, documento, telefone e texto com espaço não', () => {

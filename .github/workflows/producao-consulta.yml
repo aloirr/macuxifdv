@@ -7,7 +7,9 @@ name: producao — consulta só leitura
 #   - parâmetros simples validados: tenant pelo código (AM2808, thathyany) e external_id (VEN-000034), quando a consulta
 #     declara; viram variáveis do psql (-v), nunca texto do SQL;
 #   - mesmo caminho dos outros workflows de produção: ssh na VM (o DBaaS só tem IP privado) e o psql 16 do compose, no
-#     serviço pgleitura: papel macuxi_leitura (só SELECT, sem BYPASSRLS; senha do leitura.env gerada NA VM, sem secret novo),
+#     serviço pgleitura: papel macuxi_leitura (só SELECT, sem BYPASSRLS, sem as colunas sensíveis — hash, token, senha,
+#     segredo, chave, carga, cifrad; senha do usuário só por core.v_leitura_usuario_senha.tem_senha —; senha do
+#     leitura.env gerada NA VM, sem secret novo),
 #     sessão com default_transaction_read_only=on e statement_timeout=15s, transação READ ONLY desfeita no fim;
 #   - saída conferida antes de publicar (colunas declaradas, só contagens, ids, flags, datas e códigos): no
 #     GITHUB_STEP_SUMMARY e no artifact. Qualquer desvio = nada publicado. Nenhum segredo nem o CSV bruto vão ao log.

@@ -60,6 +60,12 @@ const PESSOAIS_SET = new Set(PESSOAIS);
 /** No SQL, o identificador inteiro (não o pedaço): lote_linha_erro é tabela, ultimo_erro é coluna com texto livre. */
 const PESSOAIS_SQL = new Set([...PESSOAIS, 'nome_curto', 'nome_fantasia', 'razao_social', 'senha_hash', 'senha_temporaria_hash',
   'ultimo_erro', 'cpf_cnpj', 'inscricao_estadual']);
+/**
+ * Coluna sensível (regra do conferir-rls.sql, 0078/ADR 0055): o macuxi_leitura não tem SELECT nela, nem como flag; recusada
+ * em qualquer uso. Para saber se o usuário tem senha: join core.v_leitura_usuario_senha s on s.id = u.id (s.tem_senha).
+ */
+const RE_SENSIVEL = /hash|token|segredo|chave|carga|cifrad|(?:^|_)senha(?:_|$)/i;
+const SENSIVEIS_PERMITIDAS = new Set(['tem_senha']);
 /** Colunas pessoais só como flag (valor booleano conferido na saída). */
 const RE_FLAG = /^(?:sem|tem|com)_|_(?:vazio|preenchido)$/;
 
@@ -148,8 +154,14 @@ function usosPessoaisIndevidos(sql) {
     const chave = m[1] ?? m[2];
     // identificador dentro de literal (que não seja a chave do json) não conta
     if (m[2] !== undefined && mascara.slice(m.index, m.index + m[0].length).trim() !== m[0].trim()) continue;
-    if (!PESSOAIS_SQL.has(chave.toLowerCase())) continue;
     const antes = semComentario.slice(0, m.index);
+    // nome de tabela/view (depois de from/join) e apelido de saída (depois de as) não são coluna
+    const ehColuna = m[1] !== undefined || !/\b(?:from|join|as)\s+$/i.test(antes);
+    if (ehColuna && RE_SENSIVEL.test(chave) && !SENSIVEIS_PERMITIDAS.has(chave.toLowerCase())) {
+      problemas.push(`coluna sensível "${chave}" (o macuxi_leitura não lê; senha: core.v_leitura_usuario_senha.tem_senha)`);
+      continue;
+    }
+    if (!PESSOAIS_SQL.has(chave.toLowerCase())) continue;
     const depois = semComentario.slice(m.index + m[0].length);
     const ehNulo = /^\s*is\s+(?:not\s+)?null\b/i.test(depois);
     const ehLike = /^email$/i.test(chave) && /^\s*(?:not\s+)?i?like\s+'[^':]*'/i.test(depois);
@@ -169,6 +181,7 @@ function verificarBloco(sql, parametrosDeclarados = []) {
   if (/[\\]/.test(mascara)) problemas.push('meta-comando do psql (barra invertida) é proibido');
   if (/\$/.test(mascara)) problemas.push('cifrão (dollar quoting ou $n) é proibido');
   if (/"/.test(mascara)) problemas.push('identificador entre aspas duplas é proibido');
+  if (/\*/.test(mascara.replace(/\bcount\s*\(\s*\*\s*\)/gi, ''))) problemas.push('asterisco (select *, x.* ou multiplicação) é proibido: liste as colunas');
   const corpo = mascara.trim();
   if (!corpo) return ['bloco vazio'];
   if (!/^(?:select|with)\b/i.test(corpo)) problemas.push('o comando tem de começar por select ou with');
