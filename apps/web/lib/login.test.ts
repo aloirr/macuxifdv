@@ -1,6 +1,6 @@
 import { ApiRequestError } from '@macuxi/platform-sdk/web';
 import { describe, expect, it } from 'vitest';
-import { validarLogin as validarCampos } from '@macuxi/core/contracts';
+import { validarLoginNovo as validarCampos } from '@macuxi/core/contracts';
 import { mensagemDoLogin } from './login';
 
 describe('login do BKO (T-0003 F2)', () => {
@@ -10,8 +10,10 @@ describe('login do BKO (T-0003 F2)', () => {
       email: 'Informe o seu e-mail.',
       senha: 'Informe a sua senha.',
     });
-    expect(validarCampos({ codigo_empresa: 'alfa', email: 'a@b.com', senha: 'x' })).toEqual({});
-    expect(validarCampos({ codigo_empresa: 'al fa', email: 'ab.com', senha: 'x' })).toMatchObject({ codigo_empresa: expect.any(String), email: expect.any(String) });
+    expect(validarCampos({ codigo_empresa: 'AM1234', email: 'a@b.com', senha: 'x' })).toEqual({});
+    // R-20261114-222000: o campo só aceita UF + 4 dígitos; o código antigo é recusado na tela
+    expect(validarCampos({ codigo_empresa: 'alfa', email: 'a@b.com', senha: 'x' })).toEqual({ codigo_empresa: expect.stringMatching(/código da empresa/) });
+    expect(validarCampos({ codigo_empresa: 'AM 1234', email: 'ab.com', senha: 'x' })).toMatchObject({ codigo_empresa: expect.any(String), email: expect.any(String) });
   });
 
   it('mensagens por código da API e sem rede; nunca revela qual dado está errado', () => {

@@ -189,7 +189,7 @@ PORTAL_ENV="$PASTA/portal.env"
 grep -q '^MACUXI_PG_PORTAL_SENHA=' "$PORTAL_ENV" || { printf 'MACUXI_PG_PORTAL_SENHA=%s\n' "$(openssl rand -hex 32)" >> "$PORTAL_ENV"; log "gerado MACUXI_PG_PORTAL_SENHA (portal.env)"; }
 chown "$USUARIO:$USUARIO" "$PORTAL_ENV"
 chmod 600 "$PORTAL_ENV"
-for f in banco.env admin.env segredos.env email.env tunel.env alerta.env recados.env; do
+for f in banco.env admin.env segredos.env email.env tunel.env alerta.env recados.env push.env; do
   [ -f "$PASTA/$f" ] && { chown "$USUARIO:$USUARIO" "$PASTA/$f"; chmod 600 "$PASTA/$f"; }
 done
 

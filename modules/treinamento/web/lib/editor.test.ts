@@ -6,6 +6,7 @@ import {
   alternarQuiz,
   deTrilha,
   editavel,
+  errosDoFormulario,
   lerListaDeIds,
   marcarCorreta,
   minutosParaSegundos,
@@ -144,5 +145,24 @@ describe('editor de trilha do BKO (RF-TRE-01)', () => {
     expect(editavel('rascunho')).toBe(true);
     expect(editavel('publicada')).toBe(false);
     expect(editavel('arquivada')).toBe(false);
+  });
+
+  it('RF-TRE-01: sem erro, o formulário não tem mensagem por campo nem avisos gerais', () => {
+    expect(errosDoFormulario(deTrilha(gravada))).toEqual({ campos: {}, outros: [] });
+  });
+
+  it('RF-TRE-01: erro de campo vai embaixo do campo, pelo caminho do contrato (trilha e lição 1 do módulo 2)', () => {
+    let e = alterarLicao(deTrilha(gravada), 1, 0, (l) => ({ ...l, titulo: ' ' }));
+    e = { ...e, titulo: '' };
+    const r = errosDoFormulario(e);
+    expect(r.campos['titulo']).toBe('Informe o título.');
+    expect(r.campos['modulos.1.licoes.0.titulo']).toBe('Informe o título.');
+    expect(r.outros).toEqual([]);
+  });
+
+  it('RN-TRE-07: equipes inválidas não são de um campo só e vão na lista geral, com o lugar', () => {
+    const r = errosDoFormulario({ ...deTrilha(gravada), equipes: 'norte' });
+    expect(r.campos).toEqual({});
+    expect(r.outros.join(' ')).toMatch(/Equipes do público/);
   });
 });
