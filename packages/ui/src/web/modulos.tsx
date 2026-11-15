@@ -100,7 +100,7 @@ export function CartaoDeModulo({
         <IconeModulo id={id} size={22} />
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span id={rotuloId} className="font-display text-[15px] font-bold text-ink">
+        <span id={rotuloId} className="text-[15px] font-semibold text-ink">
           {m.nome}
         </span>
         {m.valor && (

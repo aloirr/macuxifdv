@@ -4,7 +4,7 @@
  *   TRANSPORTADORA
  *   [ Rápido Norte                    ˅ ]      vazio: "Escolher" em ink3
  *   ⚠ Obrigatório                              só com `falta` (borda danger 2)
- * Folha: título (Archivo 18/800) com ✕, `CampoBusca`, linhas de 52 dp (a escolhida com ✓ `accentInk` sobre `accentSoft`) e a
+ * Folha: título (sistema 18/700) com ✕, `CampoBusca`, linhas de 52 dp (a escolhida com ✓ `accentInk` sobre `accentSoft`) e a
  * opção final por último (15/600 `accentInk`), também quando a busca não acha nada. Tocar numa linha escolhe e fecha.
  * Nenhum texto fixo: tudo por props. Sem regra de negócio: o módulo diz as opções, a escolhida e a falta (já resolvida com
  * `faltaVisivel`). Alvos ≥ 48 dp.
@@ -19,7 +19,7 @@ import { Folha } from './folha';
 import { CampoBusca, RotuloSecao } from './formulario';
 import { Icon } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 export function CampoEscolha<T extends OpcaoEscolha>({
   rotulo,
@@ -155,14 +155,14 @@ const s = StyleSheet.create({
     gap: 8,
   },
   campoDesligado: { backgroundColor: colors.ground },
-  campoTexto: { flex: 1, fontFamily: fonts.body, fontSize: CAMPO_ESCOLHA.fonte, color: colors.ink },
+  campoTexto: { flex: 1, ...fonte.body, fontSize: CAMPO_ESCOLHA.fonte, color: colors.ink },
   campoVazio: { color: colors.ink3 },
   // o chevron do kit aponta para a direita: virado para baixo, é a seta do campo que abre
   seta: { transform: [{ rotate: '90deg' }] },
   folha: { gap: 4 },
   linha: { minHeight: CAMPO_ESCOLHA.linha, borderRadius: 10, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   linhaOn: { backgroundColor: colors.accentSoft },
-  linhaTexto: { flex: 1, fontFamily: fonts.body, fontSize: CAMPO_ESCOLHA.fonte, color: colors.ink },
-  linhaTextoOn: { fontFamily: fonts.semibold },
-  final: { flex: 1, fontFamily: fonts.semibold, fontSize: CAMPO_ESCOLHA.fonte, color: colors.accentInk },
+  linhaTexto: { flex: 1, ...fonte.body, fontSize: CAMPO_ESCOLHA.fonte, color: colors.ink },
+  linhaTextoOn: { ...fonte.semibold },
+  final: { flex: 1, ...fonte.semibold, fontSize: CAMPO_ESCOLHA.fonte, color: colors.accentInk },
 });
