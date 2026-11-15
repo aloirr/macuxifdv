@@ -224,3 +224,14 @@ Conferi `frases.md`, `spec.md` §2 a §4 e §6, `config-frases.html` e os PNGs (
   - §2, antes: "o app usa as ativas das 30 iniciais que vão no bundle (`frases.md`; hoje 18)."
   - §2, depois: "o app usa as ativas das 30 iniciais que vão no bundle (`frases.md`, coluna Situação inicial)."
   - §4, depois: "**Validação indígena (recomendação do parecer da marca de 15/11):** as frases de paisagem, natureza e história documentada entram ativas. As que falam do povo e das narrativas entram inativas (coluna Situação inicial do `frases.md`) e só são ativadas depois da validação de pessoa ou organização indígena que o dono do produto escolher (…). As frases 7 (Carmézia Emiliano) e 8 (Jaider Esbell) pedem também a concordância da artista ou de quem responde pela obra; sem ela, são trocadas." A frase "O app sorteia entre as 18 ativas" sai, porque a §2 já diz isso.
+
+## 7. Reteste final das frases (15/11/2026, commit 9164c13 do designer-ux)
+**Veredito: LIMPO.** O RD-0485 está corrigido e não há achado novo.
+
+| RD | Situação | Evidência |
+|---|---|---|
+| RD-0485 | **corrigido** | Na `spec.md` §2, o trecho virou "(`frases.md`, coluna Situação inicial)". A §4 traz só o critério (paisagem, natureza e história documentada entram ativas; povo e narrativas entram inativas) e remete à coluna do `frases.md`, sem números. O "sorteia entre as 18 ativas" saiu. No cabeçalho do `frases.md`, "As 12 inativas" virou "As inativas". Agora quais frases são ativas e quantas está num lugar só. |
+
+**Frase 4:** "Os Macuxi chamam de tuma a damurida, caldo de pimenta com peixe ou carne." É o texto proposto na §6. Tem 73 caracteres e ocupa 2 linhas a 270 dp: a linha mais larga mede 255 dp. Não repete outra frase.
+
+Com isso, a simulação da carga não tem mais achado aberto de redundância. Os RD-0468 a RD-0472 e de RD-0476 a RD-0485 estão corrigidos. Os RD-0473 a RD-0475 foram encerrados por substituição.
