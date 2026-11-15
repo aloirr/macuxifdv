@@ -3,7 +3,7 @@
  *
  * Monta, para cada módulo instalado (`MODULOS_API`), as rotas declaradas em `definirModuloApi` sob
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
- * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
+ * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `GET /v1/sync/pacotes` (ADR 0054), `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
  * Toda rota autenticada passa por `prepararRequisicao` (401 → sem a filial de cadastro 403 USUARIO_SEM_FILIAL, RN-CORE-39 e ADR 0056,
  * salvo rota do Core `liberadaSemFilial` e o sync restrito → licença 403 MODULO_INATIVO → perfil/ação
@@ -116,6 +116,7 @@ import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
 import { registrarSync } from './sync';
+import { registrarSyncPacotes, syncPacotesDoAmbiente, type OpcoesSyncPacotes } from './sync-pacotes';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
@@ -222,6 +223,11 @@ export interface OpcoesApp {
   backupEmpresaDisponivel?: boolean;
   /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
   fonteDadosLegais?: FonteDadosLegais;
+  /**
+   * ADR 0054: pacote pronto da primeira carga (`GET /v1/sync/pacotes` e, no disco, `/:id/arquivo`; `sync-pacotes.ts`). `null` =
+   * desligado (manifesto vazio). Ausente = pelo ambiente (`MACUXI_SYNC_PACOTES=1` liga; padrão DESLIGADO; `syncPacotesDoAmbiente`).
+   */
+  syncPacotes?: OpcoesSyncPacotes | null;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -605,6 +611,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   registrarSync(app, plataforma);
+  const syncPacotes = op.syncPacotes !== undefined ? op.syncPacotes : syncPacotesDoAmbiente(process.env);
+  registrarSyncPacotes(app, plataforma, syncPacotes);
+  if (syncPacotes) app.log.info({ sync_pacotes: syncPacotes.armazenamento.driver }, 'pacote da primeira carga ligado (ADR 0054)');
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
   // T-0158 (ADR 0043): diagnóstico do aparelho (sessão do app, sem licença de módulo)

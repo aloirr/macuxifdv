@@ -48,6 +48,7 @@ import {
   type LinhaSync,
   type ResultadoItemPush,
 } from './sync';
+import { TIPOS_PARTICAO_PACOTE, type ParticaoPacote, type TipoParticaoPacote } from './pacotes-sync';
 import { problemasLiberadoSemFilial } from './sem-filial';
 
 /** Usuário do token (o `tenant_id` vem SÓ do token; nunca do corpo ou da query). */
@@ -497,6 +498,57 @@ export interface ProvedorSync {
    * vazia e equipe = só ele, para o app mostrar o bloqueio e saber quando acaba. Só o Core declara (a linha do próprio `usuario`).
    */
   liberadoSemFilial?: true;
+  /**
+   * ADR 0054 (opcional): a entidade entra no pacote pronto da primeira carga. Só provedor com `puxar` e escopo `tenant` (o
+   * arquivo é o mesmo para todos os usuários da partição; o incremental continua pelo `puxar`). Partição `filial` exige
+   * `ModuloApi.particoesPacote`.
+   */
+  pacote?: PacoteProvedorSync;
+}
+
+/** Como o provedor entra no pacote da primeira carga (ADR 0054 §1.2). */
+export interface PacoteProvedorSync {
+  /** `tenant` = um arquivo por tenant; `filial` = um por filial (`filial:<uuid>`). */
+  particao: TipoParticaoPacote;
+  /**
+   * O usuário da sessão pode receber o arquivo (ex.: RN-CAT-05, promotor sem preço não recebe a partição de filial).
+   * Ausente = todos os que têm o módulo efetivo.
+   */
+  permitido?(ctx: ContextoBase): boolean | Promise<boolean>;
+  /**
+   * Página do pacote: só linhas VIVAS (`deleted_at is null`), em ordem `(updated_at, id)`, `updated_at < ate`, da `filial`
+   * (`null` na partição `tenant`), cada linha igual à do `puxar` (o `dados` do arquivo é o JSON dela).
+   */
+  puxar(ctx: ContextoPacote, pedido: PedidoPull & { filial: string | null }): Promise<LinhaSync[]>;
+}
+
+/**
+ * Contexto do gerador de pacotes no worker (ADR 0054 §1.4): não há pessoa, o pacote é do tenant e da partição. Mesma forma
+ * de `ContextoTarefa`, com `comTenant` (uma transação curta por página, macuxi_app, RLS; `tx.consultar` com o usuário de
+ * sistema, ADR 0012).
+ */
+export interface ContextoPacote {
+  tenantId: string;
+  modulo: ModuloId;
+  /** Partição em geração (`tenant` ou `filial:<uuid>`). */
+  particao: ParticaoPacote;
+  comTenant<T>(fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>): Promise<T>;
+  /** Parâmetros do tenant para o módulo. */
+  parametros(): Readonly<Record<string, unknown>>;
+  /** Fuso IANA do tenant (RN-CORE-11); ausente ou inválido = `America/Manaus`. */
+  fuso(): string;
+  agora(): Date;
+  requestId: string;
+  /** Logger com tenant_id, modulo e particao (nunca dado pessoal nem URL assinada). */
+  log: LogRota;
+}
+
+/** Filiais das partições `filial` do módulo (ADR 0054 §1.2; RN-CORE-39). */
+export interface ParticoesPacote {
+  /** Filiais da carteira do usuário + a padrão (as mesmas do pull); `null` = todas (o módulo segue no pull paginado). */
+  filiaisDoUsuario(ctx: ContextoBase): Promise<readonly string[] | null>;
+  /** Filiais do tenant com pacote a gerar (worker). */
+  filiaisDoTenant(ctx: ContextoPacote): Promise<readonly string[]>;
 }
 
 /**
@@ -819,6 +871,8 @@ export interface ModuloApi {
   manifesto: Manifesto;
   rotas?: readonly RotaModulo[];
   sync?: readonly ProvedorSync[];
+  /** ADR 0054: filiais das partições `filial` do pacote da primeira carga; obrigatório se algum `sync[].pacote` for `filial`. */
+  particoesPacote?: ParticoesPacote;
   /**
    * Rotas sem token (`RotaPublica`): no core, em `/v1/<caminho>`; nos outros módulos, só documento público com `cache`, em
    * `/<modulo>/v1/<caminho>` (T-0092).
@@ -1043,6 +1097,14 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (p.liberadoSemFilial && !p.puxar) problemas.push(`sync ${e.nome}: liberadoSemFilial só vale para provedor com puxar`);
     if (e.schemaLinha && e.direcao === 'push')
       problemas.push(`sync ${e.nome}: schemaLinha só vale para entidade com pull`);
+    if (p.pacote) {
+      if (!(TIPOS_PARTICAO_PACOTE as readonly unknown[]).includes(p.pacote.particao))
+        problemas.push(`sync ${e.nome}: partição de pacote ${String(p.pacote.particao)} inválida (${TIPOS_PARTICAO_PACOTE.join(', ')})`);
+      if (!p.puxar) problemas.push(`sync ${e.nome}: pacote exige puxar (o incremental continua pelo pull)`);
+      if (p.escopo !== 'tenant') problemas.push(`sync ${e.nome}: pacote só em provedor de escopo tenant (ADR 0054)`);
+      if (p.pacote.particao === 'filial' && !m.particoesPacote)
+        problemas.push(`sync ${e.nome}: pacote por filial exige particoesPacote no módulo ${id}`);
+    }
   }
   const assinados = new Set<string>();
   for (const c of m.consumidores ?? []) {
