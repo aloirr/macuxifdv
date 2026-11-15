@@ -10,6 +10,7 @@ const TENANT = '0a000000-0000-4000-8000-0000000000aa';
 const ADMIN = { id: '0b000000-0000-4000-8000-0000000000ad', tenant_id: TENANT, perfil: 'admin' as const, modulos: ['core' as const], perfis: perfisDeFabrica('admin') };
 const ALVO = '0b000000-0000-4000-8000-000000000001';
 const EQUIPE = '0c000000-0000-4000-8000-000000000001';
+const FIL = '0f000000-0000-4000-8000-0000000000a1';
 const SENHA = 'Senha@Forte123';
 
 type Resposta = [RegExp, unknown[] | ((valores: readonly unknown[]) => unknown[])];
@@ -111,10 +112,11 @@ export const respostasDoTenant = (): Resposta[] => [
   [/from plataforma.perfil_permissao/, []],
   [/coalesce\(array_agg/, [{ id: ADMIN.id, ativo: true, perfis: ['admin'] }]],
   [/select codigo, nome, base from plataforma.perfil where deleted_at is null and ativo/, [{ codigo: 'vendedor', nome: 'Vendedor', base: 'vendedor' }]],
+  [/from core\.filial where id = any/, [{ id: FIL }]], // RN-CORE-39: a filial de cadastro do corpo existe
 ];
 
 describe('RF-CORE-02: criar usuário', () => {
-  const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
+  const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
   const respostas: Resposta[] = [
     ...respostasDoTenant(),
     [/select 1 from core.equipe where id/, [{ '?column?': 1 }]],
@@ -122,6 +124,13 @@ describe('RF-CORE-02: criar usuário', () => {
     [/from core.usuario u left join/, [linhaItem({ equipe_id: EQUIPE, equipe_nome: 'Equipe 1', external_id: 'V-100' })]],
   ];
 
+  it('RN-CORE-39: criar sem filial de cadastro dá 422 e não grava; quem não é admin nem analista leva 403', async () => {
+    const { db, chamadas } = fakeDb(respostas);
+    const { filial_cadastro_id: _f, ...semFilial } = { ...corpo, filial_cadastro_id: FIL };
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: semFilial })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_FILIAL_CADASTRO_OBRIGATORIA' });
+    expect(chamadas.some((c) => /insert into core.usuario/.test(c.sql))).toBe(false);
+    await expect(executar(rota('POST', 'usuarios'), contexto(db, { usuario: { ...ADMIN, perfil: 'gerente' } as unknown as typeof ADMIN }), { corpo: { ...corpo, filial_cadastro_id: FIL } })).rejects.toMatchObject({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' });
+  });
   it('RF-CORE-01: grava hash argon2id (nunca a senha), e-mail em minúsculas e audita sem senha, hash, nome nem e-mail (RN-AUD-01)', async () => {
     const { db, chamadas } = fakeDb(respostas);
     const r = CriarUsuarioRespostaSchema.parse(await executar(rota('POST', 'usuarios'), contexto(db), { corpo }));
@@ -213,7 +222,7 @@ describe('RN-CORE-54/55/56/57: um perfil, hierarquia pelo cargo e código no ERP
   const SUP = '0b000000-0000-4000-8000-0000000000e3';
   const EQ_SUP = '0c000000-0000-4000-8000-0000000000e3';
   const EQ_GER = '0c000000-0000-4000-8000-0000000000e1';
-  const corpo = { nome: 'Nova Pessoa', email: 'nova@exemplo.com.br', external_id: 'V-100', senha: SENHA };
+  const corpo = { nome: 'Nova Pessoa', email: 'nova@exemplo.com.br', external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
   const pessoas = [
     { id: GER, cargo: 'gerente', gerente_id: null, ativo: true },
     { id: GER2, cargo: 'gerente', gerente_id: null, ativo: true },
@@ -327,7 +336,7 @@ describe('RN-VEN-11a: limite de desconto do usuário (T-0168)', () => {
     expect(a).toContain('desconto_maximo_pedido_permil');
   });
   it('RN-VEN-11a: criar com "por pedido" sem o número é recusado; sem os campos nasce no padrão', async () => {
-    const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA };
+    const corpo = { nome: 'Nova Pessoa', email: 'Nova@Exemplo.com.br', perfil: 'vendedor', equipe_id: EQUIPE, external_id: 'V-100', senha: SENHA, filial_cadastro_id: FIL };
     const { db } = fakeDb([...respostasDoTenant(), [/select 1 from core.equipe where id/, [{ '?column?': 1 }]]]);
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, desconto_limita_pedido: true } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS' });
     const ok = rota('POST', 'usuarios').corpo!.parse(corpo) as unknown as Record<string, unknown>;
