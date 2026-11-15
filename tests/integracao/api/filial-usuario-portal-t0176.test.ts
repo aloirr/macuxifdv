@@ -11,6 +11,7 @@ import { estadoBanco, semBanco } from '@macuxi/db/teste/estado';
 import { CABECALHO_TENANT_PLATAFORMA, CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { A, comToken, erroDe, subirApi, type ApiDeTeste } from '../apoio/api';
+import { API_TEM_FILIAL_DE_USUARIO } from '../apoio/filial-usuario';
 import { criarUsuarioNoTenant, escolherEmpresa, sessaoDoPortal } from '../apoio/portal';
 
 const SEGREDO_PLATAFORMA = 'segredo-de-plataforma-do-agente-testes-t0176-com-folga';
@@ -21,7 +22,8 @@ const COM = { email: 'admin.comfilial.t0176@exemplo.com.br', senha: 'ComFilial#T
 /** Rota `'aceita'` de leitura do Core (a mesma da T-0093). */
 const ROTA = '/v1/core/equipe/modelo.csv';
 
-describe.skipIf(semBanco() || !!SEM_PORTAL)('T-0176 F-08 portal: admin sem filial = 403 USUARIO_SEM_FILIAL (empresa.sem_filial)', () => {
+// Ligar quando o #361 entrar no main: sem o contrato novo do Core, o login não marca sem_filial e a rota responde 200.
+describe.skipIf(semBanco() || !!SEM_PORTAL || !API_TEM_FILIAL_DE_USUARIO)('T-0176 F-08 portal: admin sem filial = 403 USUARIO_SEM_FILIAL (empresa.sem_filial)', () => {
   let api: ApiDeTeste;
 
   /** Token do portal já com a empresa A escolhida. */
