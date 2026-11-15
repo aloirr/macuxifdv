@@ -210,22 +210,6 @@ class TestRegrasDoHub(unittest.TestCase):
         for ruim in ("11222333000180", "00000000000000", "1122233300018", "abc"):
             self.assertFalse(cc.cnpj_valido(ruim), ruim)
 
-    def test_cpf_valido_e_invalido(self):
-        for ok in ("52998224725", "529.982.247-25"):
-            self.assertTrue(cc.cpf_valido(ok), ok)
-        for ruim in ("52998224724", "11111111111", "5299822472"):
-            self.assertFalse(cc.cpf_valido(ruim), ruim)
-
-    def test_regras_cpf_e_cpf_cnpj_na_celula(self):
-        cpf = {"campo": "d", "tipo": "texto", "regra": {"cpf": True}, "obrigatorio": False}
-        misto = {"campo": "d", "tipo": "texto", "regra": {"cpf_cnpj": True}, "obrigatorio": False}
-        self.assertEqual(cc.converter_celula("52998224725", cpf), "52998224725")
-        with self.assertRaises(ValueError):
-            cc.converter_celula("52998224724", cpf)
-        self.assertEqual(cc.converter_celula("11222333000181", misto), "11222333000181")
-        with self.assertRaises(ValueError):
-            cc.converter_celula("11222333000180", misto)
-
     def test_filial_do_modelo_passa(self):
         res = self.validar("filial", {})
         self.assertEqual(res.recusadas, [])

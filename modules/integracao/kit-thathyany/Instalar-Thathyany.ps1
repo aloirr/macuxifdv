@@ -404,8 +404,7 @@ function Passo-Api {
 
     New-Item -ItemType Directory -Force -Path $PASTA_API | Out-Null
     Copy-Item -Path (Join-Path $kit 'erp-via-api\*') -Destination $PASTA_API -Recurse -Force
-    $npm = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
-    if (-not (Test-Path $npm)) { $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source }
+    $npm = Achar-Node
     if (-not $npm) { Falha 'Nao achei o Node.js (npm.cmd). Feche e abra o PowerShell como administrador e rode de novo.' }
     Push-Location $PASTA_API
     try {

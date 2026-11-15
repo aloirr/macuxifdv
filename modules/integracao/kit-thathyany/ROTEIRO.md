@@ -8,13 +8,13 @@ Cada fase vai do pedido no app até o número do ERP voltar ao app.
 
 ## O que ter em mãos
 - Notebook com Windows 10 ou 11, internet e a sua senha do Windows (o serviço do Conector roda na sua conta).
-- **SQL Server Express:** o instalador usa o que já está instalado. Se não houver, ele mostra o link para instalar o SQL Server 2022 Express (instalação Básica) no idioma do Windows. Se houver mais de uma instância, rode com `-Instancia <nome>`. O banco é o `ERP_THATHYANY`.
+- **SQL Server Express instalado no notebook:** se ainda não houver, instale o SQL Server 2022 Express (instalação Básica) no idioma do Windows. O banco é o `ERP_THATHYANY`.
 - **Os dados da thathyany em CSV:** um arquivo por cadastro, no formato da pasta `modelos` (os nomes das colunas não mudam).
 - **O código novo da thathyany:** sai depois do deploy da v1.0.9. Você usa no portal e no login do app.
 - Um vendedor da thathyany com o app Macuxi Campo instalado.
 
 ## Preparar (uma vez)
-1. Baixe `macuxi-kit-thathyany-1.0.3.zip`, clique com o botão direito e escolha **Extrair tudo** (por exemplo, para `C:\MacuxiKit`).
+1. Baixe `macuxi-kit-thathyany-1.0.4.zip`, clique com o botão direito e escolha **Extrair tudo** (por exemplo, para `C:\MacuxiKit`).
 2. Abra o **Windows PowerShell** (o azul) **como administrador**.
 
 ## Fase 1 — Conector 1.4.0

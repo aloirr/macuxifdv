@@ -50,14 +50,17 @@ class ErroArquivo(Exception):
 # ---------------------------------------------------------------------------------------------------------------- contrato
 
 
+SERVIDOR_PADRAO = r".\SQLEXPRESS"
+
+
 def servidor_padrao(pasta: Path | None = None) -> str:
     """Servidor SQL padrão: o servidor.txt gravado pelo instalador ao lado deste arquivo; senão .\\SQLEXPRESS."""
     arq = (pasta or PASTA_KIT) / "servidor.txt"
     try:
         texto = arq.read_text(encoding="utf-8-sig").strip()
     except OSError:
-        return r".\SQLEXPRESS"
-    return texto.splitlines()[0].strip() if texto else r".\SQLEXPRESS"
+        return SERVIDOR_PADRAO
+    return texto.splitlines()[0].strip() if texto else SERVIDOR_PADRAO
 
 
 def carregar_contrato(caminho: Path | None = None) -> dict[str, Any]:
@@ -85,25 +88,10 @@ def _dv_cnpj(base: str) -> str:
     return f"{d1}{calc(base + str(d1))}"
 
 
-def _dv_cpf(base: str) -> str:
-    def calc(s: str) -> int:
-        r = (sum(int(c) * (len(s) + 1 - i) for i, c in enumerate(s)) * 10) % 11
-        return 0 if r == 10 else r
-
-    d1 = calc(base)
-    return f"{d1}{calc(base + str(d1))}"
-
-
 def cnpj_valido(texto: str) -> bool:
     """CNPJ de 14 dígitos (com ou sem máscara), não repetido, com os dois dígitos verificadores (módulo 11): a mesma regra do Hub."""
     d = _so_digitos(texto)
     return len(d) == 14 and len(set(d)) > 1 and _dv_cnpj(d[:12]) == d[12:]
-
-
-def cpf_valido(texto: str) -> bool:
-    """CPF de 11 dígitos (com ou sem máscara), não repetido, com os dois dígitos verificadores (módulo 11)."""
-    d = _so_digitos(texto)
-    return len(d) == 11 and len(set(d)) > 1 and _dv_cpf(d[:9]) == d[9:]
 
 
 # ---------------------------------------------------------------------------------------------------------------- leitura
@@ -233,16 +221,12 @@ def converter_celula(texto: str, campo: dict[str, Any]) -> Any:
             raise ValueError(f"deve ter de {lo} a {hi} letras")
         return texto.upper()
     if regra.get("digitos"):
-        so_digitos = re.sub(r"\D", "", texto) if campo["campo"] != "ean" else texto
+        so_digitos = _so_digitos(texto) if campo["campo"] != "ean" else texto
         if not so_digitos.isdigit() or len(so_digitos) not in regra["digitos"]:
             raise ValueError("deve ter " + " ou ".join(str(d) for d in regra["digitos"]) + " dígitos")
         return so_digitos
     if regra.get("cnpj") and not cnpj_valido(texto):
         raise ValueError("CNPJ inválido (dígito verificador); confira os 14 dígitos")
-    if regra.get("cpf") and not cpf_valido(texto):
-        raise ValueError("CPF inválido (dígito verificador); confira os 11 dígitos")
-    if regra.get("cpf_cnpj") and not (cpf_valido(texto) or cnpj_valido(texto)):
-        raise ValueError("documento inválido (dígito verificador do CPF ou do CNPJ)")
     if regra.get("uuid") and not RE_UUID.match(texto):
         raise ValueError("deve ser um UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
     return texto
@@ -545,7 +529,7 @@ def abrir_conexao(servidor: str, banco: str, usuario: str | None, senha: str | N
 def principal(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Carrega os CSVs do contrato no banco local ERP_THATHYANY (idempotente por external_id).")
     p.add_argument("--pasta", required=True, type=Path, help="pasta com um CSV por entidade (vendedor.csv, cliente.csv...)")
-    p.add_argument("--servidor", default=servidor_padrao(), help=r"padrão: o servidor.txt ao lado deste arquivo; senão .\SQLEXPRESS")
+    p.add_argument("--servidor", default=servidor_padrao(), help=f"padrão: o servidor.txt ao lado deste arquivo; senão {SERVIDOR_PADRAO}")
     p.add_argument("--banco", default=None, help="padrão: o do contrato.json (ERP_THATHYANY)")
     p.add_argument("--usuario", default=None, help="login SQL; sem ele usa a autenticação do Windows")
     p.add_argument("--validar", action="store_true", help="só valida; não abre o banco nem grava")

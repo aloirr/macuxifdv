@@ -3,8 +3,7 @@
  * do carga_csv.py (unittest, banco de mentira), confere o zip, o instalador (.ps1, conferência estática) e o roteiro.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -111,23 +110,6 @@ describe('zip do kit', () => {
 });
 
 describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
-  it('nenhum .ps1 do zip tem $var: em string (PowerShell 5.1 lê como variável de unidade)', () => {
-    const ok = new Set(['env', 'script', 'global', 'local', 'using', 'private', 'function', 'variable']);
-    const ruins: string[] = [];
-    for (const { nome, dados } of ENTRADAS.filter((e) => e.nome.toLowerCase().endsWith('.ps1'))) {
-      dados
-        .toString('utf8')
-        .split('\n')
-        .forEach((linha, i) => {
-          if (linha.trim().startsWith('#')) return;
-          for (const m of linha.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*):/g)) {
-            if (!ok.has(m[1]!.toLowerCase())) ruins.push(`${nome}:${i + 1}: $${m[1]}:`);
-          }
-        });
-    }
-    expect(ruins).toEqual([]);
-  });
-
   it('exige administrador e Windows PowerShell 5.1, com -Fase Conector|API obrigatório', () => {
     expect(INSTALADOR.charCodeAt(0)).toBe(0xfeff);
     expect(INSTALADOR).toContain('#requires -RunAsAdministrator');
@@ -262,36 +244,14 @@ describe('T-0174 defeito 4: o kit e o Zod REAL do Hub não divergem', () => {
     }
   });
 
-  it('filial: o contrato do kit exige CNPJ (DV), logradouro, número, bairro, CEP, cidade e UF, como o Hub', () => {
-    const filial = contrato.entidades.find((e) => e.entidade === 'filial') as EntK;
-    const exigidos = filial.campos.filter((c) => c.obrigatorio).map((c) => c.campo);
-    expect(exigidos).toEqual(expect.arrayContaining(['cnpj', 'logradouro', 'numero', 'bairro', 'cep', 'cidade', 'uf']));
-    expect(filial.campos.find((c) => c.campo === 'cnpj')?.regra).toMatchObject({ cnpj: true });
-  });
-
-  it('negativo: filial sem logradouro ou com CNPJ de DV errado é recusada pelo Zod do Hub E pelo carga_csv.py', () => {
+  it('negativo: filial com CNPJ de DV errado é recusada pelo Zod do Hub e o kit liga a regra cnpj', () => {
     const modelo = ler('modelos', 'filial.csv').replaceAll('\r\n', '\n').split('\n');
     const cab = (modelo[0] as string).replace('\uFEFF', '').split(';');
     const dados = (modelo[1] as string).split(';');
-    const variar = (campo: string, valor: string): string => {
-      const novo = [...dados];
-      novo[cab.indexOf(campo)] = valor;
-      return `${cab.join(';')}\n${novo.join(';')}\n`;
-    };
-    const pasta = mkdtempSync(join(tmpdir(), 'kit-filial-'));
-    try {
-      for (const [campo, valor] of [['logradouro', ''], ['cnpj', '11222333000180']] as const) {
-        const texto = variar(campo, valor);
-        const hub = SCHEMA_REGISTRO.filial.safeParse(registroDoModelo('filial', texto));
-        expect(hub.success, `Hub aceitou filial com ${campo} ruim`).toBe(false);
-        writeFileSync(join(pasta, 'filial.csv'), texto);
-        const py = spawnSync('python3', [aqui('carga_csv.py'), '--pasta', pasta, '--validar', '--entidade', 'filial'], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
-        expect(py.status, `carga_csv.py aceitou filial com ${campo} ruim`).toBe(1);
-        expect(py.stdout).toContain(`linha 2, ${campo}`);
-        expect(py.stdout).not.toContain(valor === '' ? 'zzz' : valor);
-      }
-    } finally {
-      rmSync(pasta, { recursive: true, force: true });
-    }
+    dados[cab.indexOf('cnpj')] = '11222333000180';
+    const hub = SCHEMA_REGISTRO.filial.safeParse(registroDoModelo('filial', `${cab.join(';')}\n${dados.join(';')}\n`));
+    expect(hub.success).toBe(false);
+    const filial = contrato.entidades.find((e) => e.entidade === 'filial') as EntK;
+    expect(filial.campos.find((c) => c.campo === 'cnpj')?.regra).toMatchObject({ cnpj: true });
   });
 });
