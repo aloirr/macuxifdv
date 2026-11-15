@@ -82,3 +82,4 @@
 2026-11-12 — T-0167 — Catálogo do app: MostrarMais (página de 20, contagem do topo só o total) e NadaEncontrado com 'Você quis dizer' (sugestaoDaBuscaLocal) do kit; sai textosMostrarMais/PASSO_MOSTRAR_MAIS; aplicação já vem em busca_produtos@1 (recado ao vendedor)
 2026-11-12 — T-0167 — RD-0194: contagem do Catálogo num lugar só (topo só quando tudo está à vista; com mais de 20, só 'Mostrando N de M' no fim); T-0166 sem RD do Catálogo
 2026-11-13 — T-0173 — Catálogo em grade no app (cartões 2 colunas, chips sistema/categoria, preço da filial padrão sem cliente, tag de estoque 1-9 laranja)
+2026-11-15 — catálogo onda 1 (#387) — RD-1238 (MENSAGEM_SEM_PRECO_CLIENTE), RD-1239 (modoCarga === 'sem_sinal'), RD-0697 (tipo ModoDaCarga), RD-1241 (regras.md remete à RN-CAT-05 do doc 03; sai a proposta antiga da §9)

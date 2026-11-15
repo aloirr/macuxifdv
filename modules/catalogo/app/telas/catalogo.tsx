@@ -62,7 +62,8 @@ export default function TelaCatalogo() {
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
   // ADR 0054: catálogo ainda carregando na primeira carga = busca e preço pela API; os filtros da árvore ficam desligados
-  const naCarga = modoDaCarga(sync, ambiente.online()) !== 'local';
+  const modoCarga = modoDaCarga(sync, ambiente.online());
+  const naCarga = modoCarga !== 'local';
   const noInicial = params.no ? String(params.no) : null;
 
   useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
@@ -137,7 +138,7 @@ export default function TelaCatalogo() {
       setLista((l) => ({ ...l, carregando: true }));
       let r: Omit<EstadoLista, 'carregando'>;
       if (naCarga) {
-        if (!ambiente.online()) r = { itens: [], total: 0, aviso: TEXTO_CATALOGO_CARREGANDO };
+        if (modoCarga === 'sem_sinal') r = { itens: [], total: 0, aviso: TEXTO_CATALOGO_CARREGANDO };
         else {
           try {
             r = await online();
@@ -161,7 +162,7 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, naCarga]);
+  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em, modoCarga]);
 
   const chips = useMemo(() => chipsDaGrade(naCarga ? ARVORE_VAZIA : (arvore?.arvore ?? ARVORE_VAZIA), filtro), [arvore, filtro, naCarga]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);

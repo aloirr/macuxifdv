@@ -4,6 +4,7 @@
  */
 import { caminhoCatalogo, type BuscaProdutosEntrada, type BuscaProdutosSaida, type ItemVitrine, type PrecosClienteEntrada, type PrecosClienteSaida, type TextosProdutoEntrada, type TextosProdutoSaida } from '../../contracts';
 import { TETO_RANKING_BUSCA } from '../../domain/busca-consulta';
+import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { consultaIndisponivel, fichasDaApi, paginasDaApi, soVendaveisNaCarga, usarApiNaCarga, type PortaCargaOnline } from './carga-online';
 
 /** `null` = responder no aparelho (como hoje); `sem_sinal` já vira `ConsultaIndisponivel` com o texto de carregando. */
@@ -56,7 +57,7 @@ export async function precosClienteOnline(p: PortaCargaOnline, e: PrecosClienteE
     return {
       produto_id: ids[i]!,
       preco_cents: preco?.price_cents ?? null,
-      motivo_sem_preco: preco && preco.price_cents === null ? (preco.notice ?? 'Sem preço para este cliente.') : null,
+      motivo_sem_preco: preco && preco.price_cents === null ? (preco.notice ?? MENSAGEM_SEM_PRECO_CLIENTE) : null,
     };
   });
   return { tabela_preco_id: tabela, itens };
