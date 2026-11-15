@@ -106,3 +106,26 @@ O pedido é a R-20261115-070000-alexandre. Para comparar, li a `docs/design/entr
 - A 4 ("fim do mês") e a 24 ("meta do mês") pedem ações diferentes: um item a mais no pedido e mais visitas.
 - A coluna Nº é o número do título "Editar frase 7" e a referência na conversa. Ela fica.
 - O "Incluir frase" é a única ação primária da tela. "Editar" e "Ativar"/"Desativar" ficam na linha, sem repetir nada.
+
+## 4. Reteste (15/11/2026, commit ed7b6bc do designer-ux)
+**Veredito: LIMPO.** Os 9 RD (RD-0468 a RD-0476) estão fechados como `corrigido`, e não há achado novo. Conferi o branch `nuvem/carga-frases-designer-ux`, commit **ed7b6bc**: o `spec.md`, o `frases.md`, os `.html`, o `app.css` e os 5 PNGs, abertos como imagem. Entre eles está o novo `carga-campo-640.png`.
+
+| RD | Evidência do fechamento |
+|---|---|
+| RD-0468 | Os `.html` não têm mais o `svg` do aviso, e o `app.css` perdeu a regra `.aviso svg`. A `spec.md` §1 item 4 diz "Sem ícone". Os PNGs mostram só a caixa e o negrito. |
+| RD-0469 | O `config-frases.html` perdeu a regra `tr.inativa td.t`. No PNG, as linhas 26, 27 e 30 têm o texto na cor normal; a situação fica no selo e o link faz a ação. |
+| RD-0470 | Os chips saíram do `.html`, do PNG e da spec §3. As inativas vão para o fim da lista (`ORDEM`): no PNG, a ordem é 1–25, 28, 29, depois 26, 27 e 30. |
+| RD-0471 | A chave "Ativa" saiu do diálogo (`config-editar.png`). A spec §3 diz: "A frase incluída nasce ativa" e "a situação muda só por esse link". |
+| RD-0472 | A spec §3 tem só os erros "Escreva a frase." e "Essa frase já está na lista."; o contador "68 de 90" fica. |
+| RD-0473 | A frase 2 virou "Confira o limite de crédito do cliente antes de montar o pedido.", e "última visita" ficou só na 1. |
+| RD-0474 | A 26 virou "Organize a rota do dia antes de sair de casa." e a 27 virou "Chegue no horário combinado. Pontualidade também vende.". O sentido de voltar ao cliente ficou só na 8 e na 23. |
+| RD-0475 | A 12 virou "Confira se a etiqueta de preço bate com o produto da frente.", e "avise a loja" ficou na 13 e na 14 (2 de 6), com assuntos diferentes. |
+| RD-0476 | O cabeçalho da spec diz que a `entrada-sync.md` "continua a fonte da verdade", e a spec descreve só o que entra. A mudança do "Fora da tela" está na §5 "Na aprovação". A `entrada-sync.md` não mudou neste commit, como combinado. |
+
+**O que entrou de novo, sem redundância:**
+- **Spec §1.1, aviso sem caixa quando não há 16 dp abaixo do "Olá":** no `carga-campo-640.png`, o aviso aparece uma vez só, como texto, com o negrito do dono do produto. Nada mais na tela repete o aviso: a linha da barra diz a etapa, e a frase saiu.
+- **Spec §1.1, frase em 1 linha na tela de 800 dp com navegação:** a frase continua aparecendo uma vez só, e a regra não cria texto substituto nem reticências. Se a frase não cabe, sai. Esse caso não tem print e eu conferi pela spec; o print do aparelho volta ao corretor na implementação (spec §5).
+- **Frase 20 nova** (marca, MC-0079): "Meta clara: cada vendedor sabe quanto falta e onde buscar." Ela não repete a 24 ("A meta do mês se faz um cliente por vez."): a 20 é para o supervisor e trata de deixar a meta clara; a 24 é para todos e trata de visitas.
+- **Frase 25 em A/B** (MC-0080): é decisão do dono do produto e não repete outra frase.
+- "Confira" abre a 2, a 9 e a 12 com assuntos diferentes (crédito, resumo do pedido e etiqueta). O sorteio mostra uma frase por carga, então não conto como achado.
+- **Observação sem RD:** na linha 25 do `frases.md`, a coluna Frase leva a anotação "(A/B a decidir)", que só remete à spec §4. A spec §2 diz que o bundle usa o `frases.md`. Na implementação, a anotação não pode entrar no texto da frase: o portal da simulação já a mostra sem a anotação.
