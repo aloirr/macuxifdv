@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Logo do cliente · fim do Mais</title>
+<link rel="stylesheet" href="logo-cliente.css">
+<!--
+  Simulação da spec docs/design/telas/logo-cliente.md §5. PNG (Playwright, deviceScaleFactor 2): mais.png.
+  Empresa e logo FICTÍCIAS: razão social "Distribuidora Exemplo Norte Ltda", nome fantasia "Exemplo Norte" (a frase usa o nome fantasia, R-20261114-223500-alexandre), logo-ficticia-exemplo-norte.svg.
+-->
+<style>
+  .cab{background:var(--noite);color:#fff;padding:0 20px 18px;flex:none}
+  .cab .st{padding:0;margin:0 0 14px}
+  .cab h1{font:700 22px/28px system-ui,"Segoe UI",Roboto,-apple-system,sans-serif}
+  .corpo{flex:1;padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px}
+  .sec{font:600 12px system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-bottom:2px}
+  .item{background:#fff;border:1px solid var(--line);border-radius:14px;min-height:52px;padding:0 14px;display:flex;align-items:center;gap:12px;font-weight:600;font-size:16px}
+  .item .ic{width:20px;height:20px;border:2px solid var(--ink2);border-radius:5px}
+  .item .ch{margin-left:auto;color:var(--ink3);font-size:18px}
+  .lic{margin-top:auto;padding-top:24px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .lic p{font-size:14px;line-height:18px;color:var(--ink2);text-align:center}
+  /* placa do Mais (MC-0067): 52 × até 176, logo 36 × até 152 */
+  .lic .placa{height:52px;max-width:176px;padding:8px 12px;border:1px solid var(--line)}
+  .lic .placa img{height:36px;max-width:152px}
+  .abas{height:64px;flex:none;background:#fff;border-top:1px solid var(--line);display:flex}
+  .aba{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--ink2)}
+  .aba i{width:20px;height:20px;border:2px solid currentColor;border-radius:5px}
+  .aba.on{color:var(--noite);font-weight:700}
+</style>
+</head>
+<body>
+<div class="board" id="board"></div>
+<script>
+const LOGO_CLI = 'logo-ficticia-exemplo-norte.svg';
+const st = '<div class="st"><span>10:12</span><span>4G ▮▮▮ 90%</span></div>';
+const abas = ['Início','Rota','Clientes','Performance','Mais'].map((a, i) => `<div class="aba${i === 4 ? ' on' : ''}"><i></i>${a}</div>`).join('');
+function mais(comLogo) {
+  return `<div class="phone"><div class="cab">${st}<h1>Mais</h1></div>
+  <div class="corpo">
+    <div class="sec">Outras telas</div>
+    <div class="item"><span class="ic"></span>Catálogo<span class="ch">›</span></div>
+    <div class="item"><span class="ic"></span>Pedidos<span class="ch">›</span></div>
+    <div class="lic"><p>Licenciado para Exemplo Norte</p>
+      ${comLogo ? `<span class="placa"><img src="${LOGO_CLI}" alt=""></span>` : ''}</div>
+  </div><div class="abas">${abas}</div></div>`;
+}
+document.getElementById('board').innerHTML = [['1 · Fim do Mais, com logo', mais(true)], ['2 · Fim do Mais, sem logo', mais(false)]]
+  .map(([l, h]) => `<div class="tela"><div class="leg">Macuxi Campo · ${l}</div>${h}</div>`).join('');
+</script>
+</body>
+</html>

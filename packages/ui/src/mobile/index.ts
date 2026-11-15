@@ -62,3 +62,6 @@ export * from './campo-senha';
 export * from './campo-senha-rn';
 // RD-0951: CampoTexto (rótulo, entrada e erro) e RotuloCampo, o mesmo rótulo e a mesma entrada do CampoSenha
 export * from './campo-texto-rn';
+// T-0182: PlacaLogoCliente, a logo da empresa numa placa branca (carga 64/48 e fim do Mais 52/36)
+export * from './placa-logo';
+export * from './placa-logo-rn';
