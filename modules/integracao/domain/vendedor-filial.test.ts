@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ordenarCarga, referenciasDoRegistro } from './ordem';
-import { avisoVendedorSemFilial, verificarFilialDoVendedor } from './vendedor-filial';
+import { avisoVendedorSemFilial } from './vendedor-filial';
 import { contarDuplicadasNoLote, validarLinhas } from './idempotencia';
 import { VendedorPayload } from '../contracts';
 
@@ -28,12 +28,5 @@ describe('vendedor com uma filial obrigatória (RN-CORE-39)', () => {
     const o = ordenarCarga(['vendedor', 'cliente', 'filial'] as const);
     expect(o.ok && o.ordem).toEqual(['filial', 'vendedor', 'cliente']);
     expect(referenciasDoRegistro('vendedor', { filial_external_id: 'FIL-1' })).toEqual([{ entidade: 'filial', campo: 'filial_external_id', external_id: 'FIL-1' }]);
-  });
-  it('RN-CORE-39: filial_external_id inexistente vira referencia_ausente reprocessável com o campo; existente, vazio ou sem conferência entra', () => {
-    const l = (indice: number, f: string | null) => ({ indice, external_id: `V${indice}`, registro: { filial_external_id: f } });
-    const r = verificarFilialDoVendedor([l(1, 'FIL-1'), l(2, 'FIL-X'), l(3, null)], new Set(['FIL-1']));
-    expect(r.aceitas.map((x) => x.indice)).toEqual([1, 3]);
-    expect(r.erros).toEqual([expect.objectContaining({ indice: 2, external_id: 'V2', codigo: 'referencia_ausente', campo: 'filial_external_id', reprocessavel: true })]);
-    expect(verificarFilialDoVendedor([l(2, 'FIL-X')], null).aceitas).toHaveLength(1);
   });
 });

@@ -87,4 +87,22 @@ describe('RN-INT-04: referências entre entidades', () => {
     expect(r.erros.map((e) => e.campo)).toEqual(['paradas[0].cliente_external_id', 'paradas[1].cliente_external_id']);
     expect(r.aceitas).toEqual([]);
   });
+
+  it('RN-CORE-39 e RN-INT-04: filial só no Core não é recusada; filial em lugar nenhum vira referencia_ausente reprocessável com texto único', () => {
+    const noHub = new Set(['FIL-HUB']);
+    const noCore = new Set(['FIL-CORE']);
+    const uniao = new Set([...noHub, ...noCore]);
+    const l = (indice: number, f: string) => ({ indice, external_id: `V${indice}`, registro: { filial_external_id: f } });
+    const r = verificarReferencias('vendedor', [l(1, 'FIL-HUB'), l(2, 'FIL-CORE'), l(3, 'FIL-X')], { filial: uniao });
+    expect(r.aceitas.map((x) => x.indice)).toEqual([1, 2]);
+    expect(r.erros).toEqual([
+      expect.objectContaining({
+        indice: 3,
+        codigo: 'referencia_ausente',
+        campo: 'filial_external_id',
+        reprocessavel: true,
+        mensagem: "Filial 'FIL-X' não cadastrada (campo filial_external_id). Envie a filial na carga e reprocesse.",
+      }),
+    ]);
+  });
 });
