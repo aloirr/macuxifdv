@@ -1,8 +1,9 @@
 # Revisão do BKO — especificação visual (designer-ux)
 
 Origem: pedidos do Alexandre de 14/11/2026 (R-20261114-142000, R-20261114-143000, R-20261114-143500).
-Situação: **§M (menu da esquerda) especificada**, com a cor do título do grupo decidida (MC-0054, opção A, R-20261114-184400; ver M4); falta a implementação.
-As seções §P1 a §P10 (kit já no branch `nuvem/bko-revisao-designer-ux`) ganham o texto completo no próximo lote; a lista no fim deste doc diz onde cada uma está no kit.
+Situação (14/11/2026, horário de Manaus):
+- **§M (menu da esquerda): feito.** SDK com os 9 grupos (#271, ADR 0050) e shell com sanfona, Sol claro e logo A (#280). A §M fica como registro do que foi decidido e entregue.
+- **§P1 a §P10 (páginas): especificadas**, com o kit em `packages/ui/src/web/` e as simulações da §P12. **Aguardam a aprovação do Alexandre** (decisões em aberto na §P13); depois, cada dono aplica nas próprias páginas pela lista da §P11.
 
 ---
 
@@ -134,13 +135,212 @@ Os `data-testid` (`nav-<modulo>-<id>`) e as rotas não mudam.
 
 ---
 
-## §P1–§P10 — kit da revisão (no branch, texto completo no próximo lote)
-| Seção | Assunto | Onde está no kit (`packages/ui/src/web/`) |
+## §P — Revisão das páginas (R-20261114-142000, R-20261114-143500)
+
+Vale para toda página do BKO (`modules/*/web` e `apps/web`). Regras transversais: só o texto que o usuário usa para agir (R-20261110-192153) e uma informação num lugar só (R-20261110-093124, RN-VEN-42). Medidas em 1366×768 (área útil da página: 1366 − 240 do menu − 64 de margem = **1062 px**).
+
+| Seção | Assunto | Kit (`packages/ui/src/web/`) |
 |---|---|---|
-| §P1 | Cabeçalho da página: título e ações na mesma linha, sem frase sob o título | `ui.tsx` (`PageHeader`, `subtitle` obsoleto) |
-| §P2 | Tabela sem rolagem lateral (colunas por prioridade) | `tabela-dados.ts`, `tabela-dados-componente.tsx` |
-| §P3 | Menu "⋯" de ações da linha | `menu-acoes.tsx` |
-| §P4 | Busca da lista com lupa e campo de texto dos filtros | `ui.tsx` (`CampoBusca`, `TextField`), `icons.tsx` (`IconBusca`) |
-| §P5 | Situação com um selo só | `ui.tsx` (`SeloSituacao`) |
-| §P7 | Lista vazia: frase do que falta e ação que resolve | `ui.tsx` (`EstadoVazio`) |
-| §P10 | Mapa único dos módulos (id → nome → ícone); nativos fora das listas | `modulos.tsx` |
+| §P1 | Cabeçalho: título e ações na mesma linha, sem frase sob o título | `ui.tsx` (`PageHeader`, `subtitle` obsoleto) |
+| §P2 | Tabela sem rolagem lateral | `tabela-dados.ts`, `tabela-dados-componente.tsx` (`TabelaDados`) |
+| §P3 | Menu "⋯" de ações (da linha e da página) | `menu-acoes.tsx` (`MenuAcoes`) |
+| §P4 | Busca com lupa e filtros na mesma altura | `ui.tsx` (`CampoBusca`, `TextField`, `SelectField`), `icons.tsx` (`IconBusca`) |
+| §P5 | Situação com um selo só | `ui.tsx` (`SeloSituacao`, `seloPrincipal`) |
+| §P6 | Contagem e totais num lugar só (o zero aparece uma vez) | `ui.tsx` (`rotuloComContagem`) |
+| §P7 | Estado vazio: o que falta e a ação que resolve | `ui.tsx` (`EstadoVazio`) |
+| §P8 | Formulário na gaveta, com rodapé fixo | `overlay.tsx` (`Drawer` com `rodape`), `ui.tsx` (`CampoFormulario`, `CLASSE_CAMPO`) |
+| §P9 | Sem texto de explicação, de garantia ou de funcionamento | (regra de texto; sem componente) |
+| §P10 | Mapa único dos módulos (id → nome → ícone); nativos fora das listas | `modulos.tsx` (`nomeDoModulo`, `IconeModulo`, `CartaoDeModulo`, `modulosContrataveis`) |
+
+### §P1. Cabeçalho da página
+**Hoje.** 47 telas passam `subtitle` ao `PageHeader` (lista na §P11). Exemplos:
+- `modules/core/web/components/farol/farol-page.tsx:125`: "Quem está comprando e quem esfriou: dias sem compra de cada cliente (contados até hoje) e positivação do mês por vendedor.";
+- `modules/vendedor/web/pages/transportadoras-page.tsx:96`: "Lista do frete FOB, em que o cliente paga a transportadora direto.";
+- `modules/vendedor/web/components/orders/orders-page.tsx:65`: o subtítulo vira contador ("0 pedidos · R$ 0,00 · atualizando…"; ver §P6).
+
+As ações também se espalham: Pedidos tem dois links (Atualizar, Exportar CSV, `orders-page.tsx:68-74`); o Farol tem três botões iguais (Parâmetros do farol, Atualizar, Exportar CSV, `farol-page.tsx:128-157`), sem um principal.
+
+**Regra.**
+1. Título à esquerda (Archivo 800, 24 px) e ações à direita, **na mesma linha**. Nada embaixo do título: `subtitle` sai (está `@deprecated` no kit).
+2. No máximo **um botão principal** (o que cria: "Novo usuário", "Nova transportadora") e **um secundário** visíveis. O resto (Exportar CSV, Atualizar, Parâmetros, Importar) vai no **"⋯" da página** (`MenuAcoes` com `rotulo="Mais ações"`), à direita do principal.
+3. **Atualizar** vai para o "⋯": a lista já se atualiza ao abrir, ao voltar à janela e depois de cada ação (RN-CORE-23); o botão fica para quem quer forçar. "atualizando…" não aparece em texto: o "⋯" mostra "Atualizando…" no próprio item enquanto carrega.
+4. O `badge` do cabeçalho (ex.: situação da trilha) continua aceito; o `eyebrow` só para o caminho de volta ("‹ Trilhas").
+
+**Texto final.** Título = o `titulo` da página no `modules/<m>/web/index.ts` (sem mudança). Itens do "⋯" da página: "Exportar CSV", "Atualizar", "Parâmetros do <assunto>", nessa ordem; perigo (ex.: "Excluir todos") por último, em vermelho.
+
+**Mudam:** todas as telas da coluna "subtitle" da §P11.
+
+### §P2. Tabela sem rolagem lateral
+**Hoje.** 48 arquivos usam `TableScroll` com `minWidth` (rolagem lateral dentro do quadro). Em 1366×768:
+- Pedidos (`orders-page.tsx:140`, `minWidth={760}`) divide a linha com o painel "Aguardando aprovação" (340 px): a tabela fica com ~700 px e rola para o lado; a coluna "Recebido" some da vista.
+- Farol (`farol-page.tsx:291` e `:356`, `minWidth` 760 e 860): 9 colunas na tabela de vendedores; a de clientes rola.
+- Nomes do ERP em caixa alta ("AUTO PEÇAS BOA VISTA LTDA") ocupam mais largura.
+
+**Regra.**
+1. Lista usa `TabelaDados`: `table-fixed`, largura do quadro, texto longo com reticências e o texto inteiro no `title`.
+2. Cada coluna tem **prioridade**: 1 = sempre; 2 = a partir de 672 px de quadro; 3 = a partir de 1024 px (consulta de contêiner, não da janela). No máximo **6 colunas** de prioridade 1 e 2 juntas.
+3. A primeira coluna é o nome do item e abre o detalhe (clique na linha ou Enter no nome). Ações ficam no "⋯" da última coluna (52 px, §P3).
+4. Número, dinheiro e data à direita, com algarismos de mesma largura. Dinheiro de centavos (`formatBRL`), data no fuso do tenant.
+5. Nome todo em maiúsculas vira nome próprio com `nomeLegivel` (siglas LTDA, ME, EPP ficam).
+6. `TableScroll` fica só para tabela que é grade de números (matriz de metas, calendário), onde cortar coluna esconde dado.
+
+**Texto final (Pedidos).** Colunas: Cliente (1, 34%) · Nº (2, 92 px) · Vendedor (2) · Recebido (3, número, 116 px) · Valor (1, número, 116 px) · Situação (1, 164 px) · ⋯ ("PDF do cliente", "PDF interno", os do `order-drawer.tsx:79-84`). "Desc." sai da lista (está no detalhe e na aprovação).
+**Texto final (Clientes/Farol).** Cliente (1, 34%) · Vendedor (2) · Última compra (2) · Dias sem compra (1, número) · Positivado (3) · Farol (1, selo) · ⋯. "Documento" sai da lista (busca por CNPJ continua; o documento aparece no Cliente 360).
+
+**Mudam:** todas as telas da coluna "tabela" da §P11 (exceto as grades citadas no item 6).
+
+### §P3. Menu "⋯" de ações
+**Hoje.** Ações em botões soltos na linha, que cortam ou quebram em duas linhas: `usuarios-page.tsx:316-345` (Editar, Desativar, Redefinir senha em `BOTAO_LINHA`), `transportadoras-page.tsx:206-211` (Editar, Inativar), `catalogo/web/pages/marcas-page.tsx:152-167` (Editar, Inativar/Reativar), `catalogo-page.tsx:245-249` (Editar, Ver).
+
+**Regra.**
+1. Na linha, **um botão "⋯"** de 36 px (alvo de 44 px com a célula) com `aria-label="Ações de <nome da linha>"`. Abre um menu com o rótulo inteiro de cada ação.
+2. Ação de perigo (Inativar, Excluir, Cancelar) por último, em vermelho, depois de um traço; pede confirmação no `Dialog` como hoje.
+3. Ação que o perfil não pode fazer **não aparece** (a API revalida). Linha sem nenhuma ação: sem "⋯".
+4. Teclado: Enter/Espaço abre, setas andam, Home/End, Esc fecha e volta o foco ao botão.
+5. Abrir o item **não** vai no "⋯": é o clique no nome.
+
+**Texto final.** Verbo no infinitivo, sem objeto quando a linha já diz qual é: "Editar", "Redefinir senha", "Inativar", "Reativar", "Abrir no Cliente 360", "Ver só deste vendedor".
+
+**Mudam:** usuários, transportadoras, formas de pagamento, filiais, motivos, fotos do PDV, aparelhos, marcas, catálogo, tabelas de preço, regras de alerta, questionários, cadastros de trade, trilhas (§P11).
+
+### §P4. Busca com lupa e filtros
+**Hoje.** A busca é um `<input type="search">` com classe local e rótulo em cima, em posições diferentes:
+- Pedidos: última, rótulo "Cliente ou número", exemplo "Ex.: Auto Peças ou 000012" (`orders-page.tsx:112-115`), classe `campo` de 40 px, ao lado de selects de 38 px;
+- Farol: última, "Cliente ou CNPJ" com "Nome ou CNPJ e Enter" (`farol-page.tsx:215-228`), só busca com Enter ou ao sair do campo;
+- Transportadoras e Formas de pagamento: primeira, "Nome ou CNPJ" / exemplo (`transportadoras-page.tsx:129-132`, `formas-pagamento-page.tsx:156`);
+- datas com `<input type="date">` de classe local (`orders-page.tsx:104-111`).
+
+**Regra.**
+1. A busca é o **primeiro** item da barra de filtros, com `CampoBusca` (lupa, 280 px, sem rótulo visível; o `placeholder` diz o que procura e o `aria-label` repete).
+2. Busca ao digitar (espera de 300 ms) e Enter; sem "e Enter" no texto.
+3. Filtros de escolha com `SelectField`; texto e data com `TextField`. Todos com **38 px** de altura e o mesmo traço. "De" e "Até" viram um campo só, **"Período"** ("01/11 a 14/11/2026"), para a barra caber numa linha em 1062 px.
+4. "Limpar filtros" (botão secundário pequeno) só aparece com algum filtro ligado, no fim da barra. É o único lugar do botão: o estado vazio não repete (§P7).
+5. Filtro "Todos" é o padrão e não se repete no rótulo ("Situação: Todas", não "Todas as situações").
+
+**Texto final (placeholder).** Pedidos: "Buscar cliente ou nº do pedido". Clientes: "Buscar cliente ou CNPJ". Transportadoras: "Buscar nome ou CNPJ". Padrão: "Buscar <o que a lista mostra>".
+
+**Mudam:** Pedidos, Farol, Transportadoras, Formas de pagamento, Trilhas (`trilhas-page.tsx:234`), Diagnósticos do portal (`tela-diagnosticos.tsx:236`) e toda lista com filtro de texto (§P11).
+
+### §P5. Situação com um selo só
+**Hoje.** Mais de um selo na mesma célula: `usuarios-page.tsx:300-311` mostra "Ativo" e a etiqueta da senha lado a lado; `orders-page.tsx:173-179` põe o selo do status e, embaixo, a situação de faturamento em texto ("Faturado parcial · NF 123").
+
+**Regra.**
+1. A coluna **Situação** mostra **um selo**: o mais importante para agir. A tela monta a lista em ordem de importância e o `SeloSituacao` mostra o primeiro.
+2. Ordem: o que pede ação (Aguardando aprovação, Senha expirada, Erro) > o que bloqueia (Inativo, Rejeitado, Cancelado) > o estado normal (Ativo, Integrado, Faturado).
+3. O resto da situação vai ao detalhe (gaveta), não à lista.
+4. Selo sempre com texto (cor nunca sozinha); tons do kit (`pending`, `success`, `danger`, `warning`, `neutral`).
+
+**Mudam:** Usuários (ativo + senha), Pedidos (status + faturamento), Aparelhos, Integração (lotes), Alertas.
+
+### §P6. Contagem e totais num lugar só (o zero aparece uma vez)
+**Hoje (achado do corretor, Pedidos sem nenhum pedido).** O mesmo zero aparece **3 vezes**: "0 pedidos · R$ 0,00" no subtítulo (`orders-page.tsx:65`), "Pedidos · 0" no título do quadro (`:135`) e "Nenhum pedido com esses filtros." (`:186`). E o painel ao lado diz "Aguardando aprovação · 0" junto de "Nada pendente." (`approvals-panel.tsx:226` e `:230`). O Farol repete o tamanho da carteira em "Clientes na carteira" (KPI, `farol-page.tsx:246`) e em "Clientes (N)" (`:337`); Transportadoras faz o mesmo em `:175`.
+
+**Regra.**
+1. A **contagem** fica num lugar só: o **título do quadro da lista**, com `rotuloComContagem` ("Pedidos · 12"; com mais páginas, "Pedidos · 50+").
+2. **Com zero**, o título fica só com o rótulo ("Pedidos") e quem diz que está vazio é o `EstadoVazio`, **uma vez**.
+3. O **total em dinheiro** da lista vai à direita do título do quadro (`aside` do `Panel`), em Archivo 700; com zero pedidos, não aparece.
+4. Quadro de pendências (Aguardando aprovação, Coordenadas sugeridas, Digitadas pelos vendedores) **só aparece com pelo menos um item**. Sem pendência, o quadro some e a lista ocupa a largura toda.
+5. KPI não repete número que já está no título de um quadro da mesma tela.
+
+**Texto final (Pedidos).** Com pedidos: título do quadro "Pedidos · 12", à direita "R$ 18.430,50". Pendências: "Aguardando aprovação · 3". Sem pedidos: título "Pedidos", vazio "Nenhum pedido com esses filtros." (o "Limpar filtros" fica na barra); sem o quadro de pendências.
+
+**Mudam:** Pedidos, Aprovações (gestor), Farol, Transportadoras, Coordenadas sugeridas, Alertas, Lotes da integração e toda lista com "· N" ou "(N)" no título (§P11).
+
+### §P7. Estado vazio
+**Hoje.** Cada tela escreve o vazio de um jeito: `<span>` cinza solto embaixo do cabeçalho da tabela (`orders-page.tsx:186`, `transportadoras-page.tsx:177-179`), `Notice` azul de informação (`farol-page.tsx:288-290`, `:338-343`), "Nada pendente." (`approvals-panel.tsx:230`), "Nada aguardando aprovação." (`gestor/web/pages/aprovacoes-page.tsx:63`), "Nenhum alerta." (`alertas-page.tsx:77`). A tabela vazia ainda desenha o cabeçalho das colunas.
+
+**Regra.**
+1. Lista sem linha: o `TabelaDados` não desenha a tabela e mostra o `EstadoVazio` (quadro tracejado, frase centralizada).
+2. Duas frases só: **com filtro** "Nenhum <item> com esses filtros." (sem botão: o "Limpar filtros" já está na barra de filtros, §P4); **sem filtro** "Nenhum <item> cadastrado." (ou "ainda") + o botão de criar, se o perfil pode.
+3. Sem ilustração, sem explicação de como o sistema funciona, sem `Notice`.
+
+**Texto final.** "Nenhum pedido com esses filtros." · "Nenhum cliente com esses filtros." · "Nenhuma transportadora cadastrada." + "Nova transportadora" · "Nenhum alerta." (sem filtro e sem ação).
+
+**Mudam:** todas as listas (§P11).
+
+### §P8. Formulário na gaveta
+**Hoje.** O formulário de transportadora abre como **quadro no meio da página**, entre os filtros e a lista (`transportadoras-page.tsx:144-170`): a lista desce, o "Salvar" fica longe do título e quem estava no fim da lista perde o lugar. Quatro telas têm um `Campo` local, cada um com a sua classe (`transportadoras-page.tsx:262`, `formas-pagamento-page.tsx`, `core/web/components/usuarios/usuarios-page.tsx`, `treinamento/web/pages/trilha-editar-page.tsx`), e os erros aparecem só como texto vermelho.
+
+**Regra.**
+1. Criar e editar um item de cadastro abre a **gaveta da direita** (`Drawer`, 560 px), com a lista atrás, escurecida. Título: "Nova <item>" ou "Editar <item>"; sem subtítulo.
+2. Botões no **rodapé fixo** da gaveta (`rodape`): "Cancelar" (secundário) e **"Salvar"** (principal) à direita. Um principal só. Enquanto salva: "Salvando…" e o botão desligado.
+3. Campos com `CampoFormulario` e `CLASSE_CAMPO` (42 px): rótulo em cima, "(opcional)" só no que não é obrigatório, erro embaixo com o ícone de alerta e `aria-invalid` no controle. Uma coluna; duas só para pares curtos (Inscrição estadual e Telefone).
+4. Erro de campo aparece depois da primeira tentativa de salvar (como hoje) e some ao corrigir. Erro da API vai num `Notice` de perigo no topo do corpo da gaveta.
+5. Depois de salvar: a gaveta fecha, a linha aparece na lista e o aviso no rodapé da tela diz "Transportadora salva.".
+6. Formulário grande (Plano de RV, Construtor de pesquisa, Editar trilha) continua em página própria, com o mesmo `CampoFormulario` e a barra de botões fixa embaixo.
+
+**Texto final (Nova transportadora).** Campos: "Nome", "CNPJ", "Inscrição estadual (opcional)", "Telefone (opcional)". Erros (os de `validarForm`, sem mudança): "Informe o CNPJ com 14 dígitos.", "CNPJ inválido: confira os dígitos.". Botões: "Cancelar", "Salvar".
+
+**Mudam:** Transportadoras, Formas de pagamento, Filiais, Motivos, Fotos do PDV, Marcas, Usuários (gaveta já existe; trocar o `Campo` local), Regras de alerta, Cadastros de trade.
+
+### §P9. Sem texto de explicação, de garantia ou de funcionamento
+**Hoje.**
+- Transportadoras, quadro "Padrão do frete da empresa" (`transportadoras-page.tsx:112-126`): "CIF: a empresa paga e o frete está no preço (sem transportadora). FOB: o cliente paga e o vendedor informa a transportadora. O pedido nunca tem valor de frete." e "Para mudar o padrão, fale com o suporte: a edição de parâmetros pelo BKO chega em uma próxima atualização.".
+- Farol: a legenda das faixas e "Positivação pelos pedidos do Vendedor." (`farol-page.tsx:272-284`, `lib/farol.ts:74-78`), entre os KPIs e a tabela.
+- Licenças: "Vale para os aparelhos no próximo sync." (`licencas-page.tsx:60`).
+- Toast "Transportadora inativada: não aparece mais para o vendedor escolher." (`transportadoras-page.tsx:70`).
+
+**Regra.** Sai todo texto que o usuário não usa para decidir ou agir agora: como o sistema funciona, o que acontece por trás, promessa de versão futura, garantia. Fica: rótulo, valor, erro com a ação que resolve, confirmação curta.
+
+**Texto final.** Frete: o quadro vira uma linha no topo da lista, "Frete padrão: CIF" (selo), sem a explicação e sem o "fale com o suporte". Farol: as faixas ficam na gaveta "Parâmetros do farol" (onde se mudam). Licenças: "Promotor ativado." Toast: "Transportadora inativada.".
+
+**Mudam:** Transportadoras, Farol, Licenças e os subtítulos da §P1 (a maioria deles é texto de explicação).
+
+### §P10. Mapa único dos módulos
+**Hoje.** Três mapas de nome de módulo e telas que mostram o id:
+- `licencas-page.tsx:167` mostra o id na tabela ("vendedor", "integracao") e no diálogo "Ativar vendedor?" (`:212`);
+- `apps/web/components/portal/passo-empresa.tsx:34` tem o próprio `ROTULO_MODULO` (nome e frase), usado em `tela-empresa.tsx:167`, `tela-empresas.tsx` e `cartao-equipe.tsx`;
+- `packages/ui/src/web/adicionais.tsx` (MC-0042) tem nome e ícone dos adicionais, com "Promotor Avulso".
+
+**Regra.**
+1. Uma fonte só: `modulos.tsx` (id → nome → ícone → frase de valor). Ícones de Promotor, Pesquisa e Treinamento já são os mesmos de `icons.tsx` (MC-0042), um desenho por módulo.
+2. Nenhuma tela mostra o id. Core, Catálogo e Integração são **nativos**: entram em toda empresa e **não aparecem** em lista de módulos (licenças, perfis, portal); `modulosContrataveis()` já filtra e ordena.
+3. Ligar e desligar módulo usa o `CartaoDeModulo` (ícone, nome, frase de valor e interruptor Sim/Não).
+
+**Texto final.** Nomes: Gestor, Pesquisa, Promotor, Treinamento, Vendedor (nativos: Catálogo, Core, Integração com o ERP). Frases de valor: as de `modulos.tsx` (`INFO`). "Promotor" × "Promotor Avulso": decisão em aberto (§P13).
+
+**Mudam:** Licenças, Perfis (módulos do perfil), gaveta de Novo usuário, portal (`passo-empresa.tsx`, `tela-empresa.tsx`, `tela-empresas.tsx`, `cartao-equipe.tsx`).
+
+### §P11. Quem aplica (depois da aprovação do Alexandre)
+Cada dono aplica nas próprias páginas, **um PR por dono**, com print 1366×768 antes/depois de cada tela para o corretor e a validação da marca. O kit não muda o comportamento de quem ainda não usa (o `subtitle` continua aceito até a tela sair dele). Legenda: S = §P1 (subtitle e ações), T = §P2/§P3 (tabela e "⋯"), B = §P4, Z = §P5, C = §P6/§P7 (contagem e vazio), F = §P8, X = §P9, M = §P10.
+
+| Dono | Arquivos (`.../web/`) | O que muda |
+|---|---|---|
+| modulo-vendedor | `components/orders/orders-page.tsx`, `approvals-panel.tsx`, `order-drawer.tsx`, `status.tsx` | S, T, B, Z, C (Pedidos é o piloto: simulação da §P12) |
+| modulo-vendedor | `pages/transportadoras-page.tsx`, `pages/formas-pagamento-page.tsx`, `pages/alcadas-page.tsx` | S, T, B, C, F, X (Transportadoras: simulação da §P12) |
+| modulo-core | `components/farol/farol-page.tsx` (+ `farol-parametros-panel.tsx`, `curvas-abc-parametros-panel.tsx` na gaveta "Parâmetros do farol") | S, T, B, C, X (simulação da §P12) |
+| modulo-core | `components/usuarios/usuarios-page.tsx`, `perfis/perfis-page.tsx`, `licencas/licencas-page.tsx`, `aparelhos/aparelhos-page.tsx` | S, T, Z, C, F, M |
+| modulo-core | `carteira`, `produtos` (+ `medidas-panel.tsx`), `cliente360`, `coordenadas`, `recados`, `visitas` (+ `etapas-dialog.tsx`), `motivos`, `fotos-pdv`, `metas`, `metas-produtividade`, `plano-rv` (+ `plano-rv-editor.tsx`), `indicadores`, `routes`, `filiais`, `tarefas`, `calendario` | S, T, B, C, F (metas, calendário e editor do Plano de RV ficam com `TableScroll`: grade de números) |
+| modulo-gestor | `pages/alertas-page.tsx`, `ranking-page.tsx`, `painel-page.tsx`, `regras-page.tsx`, `aprovacoes-page.tsx` | S, T, Z, C |
+| modulo-catalogo | `pages/catalogo-page.tsx`, `marcas-page.tsx`, `tabelas-preco-page.tsx` | S, T, B, C, F |
+| modulo-integracao | `components/monitor-page.tsx`, `lote-drawer.tsx`, `carga-arquivo-page.tsx`, `mapeamento-panel.tsx`, `conectores-panel.tsx`, `lotes-panel.tsx`, `inativacoes-panel.tsx` | S, T, Z, C |
+| modulo-pesquisa | `pages/construtor-page.tsx`, `resultados-page.tsx`, `questionarios-page.tsx` | S, T, C, F |
+| modulo-promotor | `pages/cadastros-page.tsx`, `trade-page.tsx` | S, T, C, F |
+| modulo-treinamento | `pages/trilhas-page.tsx`, `trilha-editar-page.tsx` | S, T, B, C, F |
+| engenheiro-apps | `apps/web/components/audit/audit-page.tsx`, `later-page.tsx`, `app/(bko)/page.tsx` | S, T, B, C |
+| engenheiro-apps | `apps/web/components/portal/passo-empresa.tsx` (`ROTULO_MODULO` sai), `tela-empresa.tsx`, `tela-empresas.tsx`, `tela-diagnosticos.tsx`, `aba-integracao.tsx`, `cartao-equipe.tsx` | S, T, B, M |
+| testes | e2e do BKO (`tests/e2e/bko/`) | trocar as asserções de texto que saem (subtítulos, "Nada pendente.", "Pedidos · 0", rótulos acima da busca) pelos novos; os `data-testid` das telas ficam |
+| design-de-marca | — | validar os ícones dos módulos (§P10) e as simulações da §P12 antes do lote |
+
+### §P12. Simulações (1366×768, escala 2, Archivo e IBM Plex de `apps/web/app/fonts/`)
+Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dados fictícios.
+
+| Arquivo (`docs/design/telas/bko-revisao/`) | O que mostra |
+|---|---|
+| `pedidos-vazio-antes-1366x768.png` | Pedidos hoje, sem pedidos no filtro: o zero 3 vezes e "Aguardando aprovação · 0" com "Nada pendente." |
+| `pedidos-vazio-depois-1366x768.png` | O mesmo filtro depois: busca com lupa, ações no "⋯", sem quadro de pendências, "Nenhum pedido com esses filtros." uma vez |
+| `pedidos-lista-antes-1366x768.png` | Pedidos hoje com dados: subtítulo-contador, tabela com rolagem lateral ao lado das pendências, status + faturamento |
+| `pedidos-lista-depois-1366x768.png` | Depois: pendências em cima (só com pedido pendente), tabela na largura toda, contagem e total no título do quadro, selo único, "⋯" |
+| `clientes-antes-1366x768.png` | Farol de clientes hoje: subtítulo, 3 botões, 6 KPIs, legenda; a lista de clientes não aparece na primeira tela |
+| `clientes-depois-1366x768.png` | Depois: busca primeiro, KPIs que filtram, abas Clientes e Vendedores com a contagem, tabela sem rolagem e "⋯" |
+| `transportadora-form-antes-1366x768.png` | Nova transportadora hoje: quadro do frete com explicação, formulário no meio da página |
+| `transportadora-form-depois-1366x768.png` | Depois: gaveta da direita com rodapé fixo (Cancelar, Salvar), erro de CNPJ embaixo do campo, linha "Frete padrão: CIF" |
+
+### §P13. Decisões em aberto (Alexandre)
+1. **Atualizar e Exportar CSV no "⋯" da página** (§P1): a página fica só com o botão de criar à vista.
+2. **Pendências só com item** (§P6): "Aguardando aprovação" some quando não há pedido pendente.
+3. **Farol** (§P2, §P6, §P9): abas Clientes e Vendedores no lugar de dois quadros; legenda das faixas e parâmetros vão para a gaveta "Parâmetros do farol"; sai o KPI "Clientes na carteira" (o número está na aba).
+4. **Formulário na gaveta** (§P8) em vez do quadro no meio da página.
+5. **Nome do adicional**: "Promotor" (`modulos.tsx`, §P10) ou "Promotor Avulso" (`adicionais.tsx`, MC-0042). Depois da decisão, `adicionais.tsx` passa a ler o nome de `modulos.tsx` (um mapa só).
+6. **"Período" num campo só** (§P4) no lugar de "De" e "Até": pede um seletor de intervalo de datas no kit (`packages/ui`), feito depois da aprovação.
+7. **"Desc." sai da lista de Pedidos** (§P2): o desconto fica no detalhe do pedido e no cartão da aprovação.

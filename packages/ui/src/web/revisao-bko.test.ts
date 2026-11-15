@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { colunasVisiveis, classeDaPrioridade, indiceNoMenu, nomeLegivel, posicaoDoMenu, LARGURA_MINIMA_DA_PRIORIDADE } from './tabela-dados';
 import { ordenarAcoes } from './menu-acoes';
 import { infoDoModulo, modulosContrataveis, nomeDoModulo, IDS_DOS_MODULOS } from './modulos';
-import { seloPrincipal } from './ui';
+import { rotuloComContagem, seloPrincipal } from './ui';
 
 describe('Revisão do BKO §P2: tabela sem rolagem lateral', () => {
   const cols = [{ id: 'nome' }, { id: 'perfil', prioridade: 2 as const }, { id: 'erp', prioridade: 3 as const }];
@@ -89,5 +89,17 @@ describe('Mapa único dos módulos (R-20261114-143500)', () => {
     expect(nomeDoModulo('catalogo')).toBe('Catálogo');
     expect(nomeDoModulo('integracao')).toBe('Integração com o ERP');
     expect(nomeDoModulo('novo_modulo')).toBe('novo_modulo');
+  });
+});
+
+describe('Revisão do BKO §P6: a contagem aparece num lugar só', () => {
+  it('com itens, rótulo e número; com mais páginas, o "+"', () => {
+    expect(rotuloComContagem('Pedidos', 12)).toBe('Pedidos · 12');
+    expect(rotuloComContagem('Pedidos', 50, true)).toBe('Pedidos · 50+');
+    expect(rotuloComContagem('Clientes', 1234)).toBe('Clientes · 1.234');
+  });
+  it('com zero, só o rótulo: o vazio quem diz é o EstadoVazio', () => {
+    expect(rotuloComContagem('Pedidos', 0)).toBe('Pedidos');
+    expect(rotuloComContagem('Pedidos', 0, true)).toBe('Pedidos');
   });
 });

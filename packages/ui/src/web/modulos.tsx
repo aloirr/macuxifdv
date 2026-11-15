@@ -6,6 +6,7 @@
  * Os contratáveis são Vendedor, Gestor, Promotor, Pesquisa e Treinamento, em ordem alfabética.
  */
 import type { ReactElement, SVGProps } from 'react';
+import { IconPesquisa, IconPromotor, IconTreinamento } from './icons';
 import { Interruptor } from './permissoes';
 import { cx } from './ui';
 
@@ -45,30 +46,10 @@ const ICONES: Record<IdDoModulo, (p: PropsIcone) => ReactElement> = {
       <path d="M17 16.5V4.5" />
     </Traco>
   ),
-  // gôndola: prateleiras com produtos
-  promotor: (p) => (
-    <Traco {...p}>
-      <path d="M4 3.5v17M20 3.5v17" />
-      <path d="M4 10h16M4 16.5h16" />
-      <path d="M7.5 10V7h3v3M13 10V6h3.5v4M8 16.5v-3h4v3" />
-    </Traco>
-  ),
-  // questionário: prancheta com visto
-  pesquisa: (p) => (
-    <Traco {...p}>
-      <rect x="5" y="4.5" width="14" height="16.5" rx="2" />
-      <path d="M9 4.5V3h6v1.5" />
-      <path d="m9 13 2.2 2.2L15.5 11" />
-    </Traco>
-  ),
-  // trilhas: capelo
-  treinamento: (p) => (
-    <Traco {...p}>
-      <path d="m2.5 9 9.5-4.5L21.5 9 12 13.5z" />
-      <path d="M6.5 11v4.5c0 1.4 2.5 3 5.5 3s5.5-1.6 5.5-3V11" />
-      <path d="M21.5 9v5.5" />
-    </Traco>
-  ),
+  // promotor, pesquisa e treinamento: os mesmos ícones do MC-0042 (`./icons`), um desenho por módulo
+  promotor: (p) => <IconPromotor strokeWidth={1.9} {...p} />,
+  pesquisa: (p) => <IconPesquisa strokeWidth={1.9} {...p} />,
+  treinamento: (p) => <IconTreinamento strokeWidth={1.9} {...p} />,
   // base: quatro blocos
   core: (p) => (
     <Traco {...p}>

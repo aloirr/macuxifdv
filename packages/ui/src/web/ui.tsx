@@ -71,7 +71,7 @@ export function TextField({ label, className, ...rest }: InputHTMLAttributes<HTM
     <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
       {label}
       <input
-        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60', className)}
+        className={cx('h-[38px] min-w-[120px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60', CLASSES_DESTAQUE.foco, className)}
         {...rest}
       />
     </label>
@@ -90,11 +90,49 @@ export function CampoBusca({ rotulo, className, ...rest }: Omit<InputHTMLAttribu
         type="search"
         aria-label={rotulo}
         placeholder={rotulo}
-        className="h-[38px] w-full rounded-[10px] border border-field bg-surface pr-2.5 pl-9 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2"
+        className={cx('h-[38px] w-full rounded-[10px] border border-field bg-surface pr-2.5 pl-9 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2', CLASSES_DESTAQUE.foco)}
         {...rest}
       />
     </div>
   );
+}
+
+/**
+ * Campo de formulário (revisão do BKO §P8): rótulo em cima, "(opcional)" só no que não é obrigatório, erro embaixo, em
+ * vermelho e com o ícone (cor nunca sozinha). Substitui os `Campo` locais das telas. O controle (`input`, `select`,
+ * `textarea`) vem como filho, com a classe `CLASSE_CAMPO`.
+ */
+export function CampoFormulario({ rotulo, opcional, erro, children, className }: { rotulo: string; opcional?: boolean; erro?: string; children: ReactNode; className?: string }) {
+  return (
+    <label className={cx('flex min-w-0 flex-col gap-1 text-[13px] font-semibold text-ink', className)}>
+      <span>
+        {rotulo}
+        {opcional && <span className="font-normal text-ink-2"> (opcional)</span>}
+      </span>
+      {children}
+      {erro && (
+        <span className="flex items-start gap-1 text-[12px] font-normal text-danger">
+          <IconAlert size={13} className="mt-[2px] shrink-0" />
+          {erro}
+        </span>
+      )}
+    </label>
+  );
+}
+
+/** Classe do controle dentro do `CampoFormulario`: 42 px, a mesma altura do botão `md`. */
+export const CLASSE_CAMPO = cx(
+  'h-[42px] w-full rounded-[10px] border border-field bg-surface px-3 text-[14px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2 disabled:opacity-60 aria-[invalid=true]:border-danger',
+  CLASSES_DESTAQUE.foco,
+);
+
+/**
+ * Título de quadro com a contagem (revisão do BKO §P6: o número aparece num lugar só). "Pedidos · 12", "Pedidos · 50+"
+ * quando há mais páginas. Com zero, só o rótulo: quem diz que está vazio é o `EstadoVazio`, uma vez.
+ */
+export function rotuloComContagem(rotulo: string, quantidade: number, haMais = false): string {
+  if (quantidade <= 0) return rotulo;
+  return `${rotulo} · ${quantidade.toLocaleString('pt-BR')}${haMais ? '+' : ''}`;
 }
 
 /* ---------- cartões ---------- */
@@ -193,7 +231,7 @@ export function SeloSituacao({ selos }: { selos: ReadonlyArray<Selo | null | und
 /**
  * Lista vazia (revisão do BKO §P7): uma frase do que falta e, quando o perfil pode, a ação que resolve. Sem ilustração,
  * sem explicação do sistema. Mesmo nome e mesma regra do `EstadoVazio` do app. Filtro sem resultado: "Nenhum <item> com esses
- * filtros." com o botão "Limpar filtros".
+ * filtros.", sem botão (o "Limpar filtros" fica só na barra de filtros, §P4).
  */
 export function EstadoVazio({ titulo, acao, testId }: { titulo: string; acao?: ReactNode; testId?: string }) {
   return (
