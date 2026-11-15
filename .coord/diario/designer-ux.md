@@ -129,3 +129,4 @@
 2026-11-15 — T-0181 — kit3: aviso da carga nunca cortado (1 linha na escala 1,0, pode quebrar em 2 com fonte grande); `aviso.linhas` mantido porque o shell (linhasDoAviso) ainda lê; teste novo; T-0174 renomeado para T-0181
 2026-11-15 — T-0181 (#367) — pareceres: RD-1219 (saem os testes 2 a 4 de MEDIDAS_FRASE_CARGA), RD-1220 (sai a §5 'Na aprovação'; Fontes vira §5), RD-1221 e MC-0136 a MC-0139 (simulação na fonte do sistema, 14/20 e 16 no app, web 15, h1 24/700, selo 12, PNGs regerados); manter? do aviso: mantido (texto aprovado pelo dono do produto)
 2026-11-15 — T-0181 (#367) — MC-0151 (nome do módulo na faixa em 15) e RD-1270 (pilha da fonte só no body; botões e campos herdam); PNGs do portal regerados
+2026-11-15 — v1.0.14 catalogo — ícone pacote (caixa) no kit mobile e web (R-20261115-084600) e spec do Catálogo v2 com Estoque: N e a folha Estoque por filial (nuvem/catalogo-campo-designer-ux); pranchas na fonte do sistema.

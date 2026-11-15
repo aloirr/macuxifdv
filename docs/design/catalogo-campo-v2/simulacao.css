@@ -1,0 +1,127 @@
+  /* Simulação do designer-ux, 15/11/2026. Tokens iguais a packages/ui/src/mobile/tokens.ts (marca v1). Spec: spec.md desta pasta. */
+  :root {
+    --ground: #F8F6F1; --surface: #FFFFFF; --ink: #16202A; --ink2: #4A5562; --ink3: #5B6673;
+    --line: #DFE2E6; --lineSoft: #ECEEF1; --lineStrong: #C9CED5;
+    --accent: #1E3350; --accentInk: #1E3350; --accentSoft: #DFE2E6; --grafico: #C2540A;
+    --faixa: #1E3350; --faixaSub: #C9CED5;
+    --success: #1D6B4F; --successBg: #E2F1EA; --warning: #7A4F00; --warningBg: #FFF1D6;
+    --danger: #A8261B; --dangerBg: #FDE8E6; --neutralBg: #ECEEF1; --neutralInk: #34404D;
+    --scrim: rgba(15, 20, 25, 0.45);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #DADDD6; font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; color: var(--ink); padding: 24px; }
+  .board { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .tela { display: flex; flex-direction: column; gap: 8px; width: 360px; }
+  .legenda { font-size:14px; font-weight: 600; min-height: 36px; }
+  .legenda span { display: block; font-weight: 400; color: var(--ink2); font-size:12px; }
+  .phone { width: 360px; height: 800px; background: var(--ground); overflow: hidden; position: relative; display: flex; flex-direction: column; border: 1px solid #BFC4BC; }
+  .status { height: 24px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; font-size:12px; font-weight: 600; background: var(--faixa); color: #fff; }
+
+  /* CabecalhoTela (faixa Azul noite) */
+  .fx { background: var(--faixa); padding: 6px 16px 14px; flex: none; display: flex; flex-direction: column; gap: 2px; }
+  .fx .lin { display: flex; align-items: center; gap: 8px; }
+  .fx .lin > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .fx .t { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight:700; font-size:22px; line-height: 28px; color: #fff; }
+  .fx .s { font-size:14px; color: var(--faixaSub); }
+  .fx .v { display: flex; align-items: center; gap: 4px; height: 40px; color: var(--faixaSub); font-size:14px; font-weight: 500; }
+  .selo-fx { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #3A4D68; color: var(--faixaSub); font-size:14px; display: flex; align-items: center; gap: 6px; flex: none; }
+
+  .corpo { flex: 1; overflow: hidden; padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  /* linha de busca de Pedidos: CampoBusca + BotaoFiltro (packages/ui/src/mobile/filtro.tsx) */
+  .lbusca { display: flex; gap: 8px; flex: none; }
+  .busca { flex: 1; min-width: 0; height: 48px; border: 1px solid var(--lineStrong); border-radius: 12px; background: #fff; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size:16px; color: var(--ink3); white-space: nowrap; overflow: hidden; }
+  .busca.foco { border: 2px solid var(--accent); padding: 0 11px; }
+  .busca .q { color: var(--ink); flex: 1; }
+  .busca .cursor { display: inline-block; width: 1.5px; height: 20px; background: var(--accent); margin-right: -6px; }
+  .fbtn { width: 48px; height: 48px; flex: none; border-radius: 11px; border: 1px solid var(--line); background: #fff; display: flex; align-items: center; justify-content: center; position: relative; }
+  .fbtn.ativo { border: 1.5px solid var(--ink); }
+  .fbtn .selo { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--grafico); border: 2px solid var(--ground); color: #fff; font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 700; font-size:12px; display: flex; align-items: center; justify-content: center; }
+  .dica { font-size:14px; line-height: 18px; color: var(--ink2); margin-top: -2px; }
+  /* EtiquetaFiltro: pílula 32 dp num alvo de 44 */
+  .etqs { display: flex; gap: 8px; flex: none; height: 32px; }
+  .etq { height: 32px; padding: 0 12px; border-radius: 999px; background: var(--accentSoft); color: var(--accentInk); font-weight: 700; font-size:14px; display: flex; align-items: center; gap: 6px; }
+  .fil { display: flex; gap: 8px; overflow: hidden; margin-right: -16px; flex: none; }
+  .chip { white-space: nowrap; flex: none; height: 36px; border-radius: 18px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; padding: 0 14px; font-size:14px; font-weight: 600; }
+  .chip.on { background: var(--accentSoft); border-color: var(--accentSoft); color: var(--accentInk); }
+
+  /* grade de 2 colunas e o cartão novo */
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
+  .card .n { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 700; font-size:16px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 60px; margin-top: 8px; }
+  .foto { height: 96px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .foto.img { background: var(--neutralBg); }
+  /* linha "código da marca · marca · código do produto [copiar]" logo embaixo da foto (R-20261115-073000) */
+  .cods { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; margin-top: 6px; font-size:14px; line-height: 18px; color: var(--ink2); }
+  .cods .c { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .copiar { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); background: #fff; margin: 0 2px 0 0; outline: 8px solid transparent; }
+  .cods .r { white-space: nowrap; }
+  /* no cartão, duas linhas (R-20261115-082500): "código da marca · marca" e "código do produto [copiar]" */
+  .cods + .cods { margin-top: 0; }
+  .eq { margin-top: 4px; font-size:14px; line-height: 18px; color: var(--ink2); }
+  .eq mark { background: var(--accentSoft); color: var(--accentInk); font-weight: 700; border-radius: 4px; padding: 0 3px; white-space: nowrap; }
+  .card .p { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 700; font-size:18px; line-height: 24px; font-variant-numeric: tabular-nums; margin-top: auto; padding-top: 8px; }
+  .card .p.sem { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 600; font-size:16px; color: var(--ink3); }
+  /* "Estoque: N" e, à direita, o botão só com ícone (32 dp visível, alvo de 48 com hitSlop 8) que abre "Estoque por filial" */
+  .card .est { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .card .est .ce { padding: 0 8px; }
+  .bf { width: 32px; height: 32px; flex: none; border-radius: 10px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; color: var(--ink); outline: 8px solid transparent; }
+  .ce { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size:12px; font-weight: 600; white-space: nowrap; }
+  .ce.suc { background: var(--successBg); color: var(--success); }
+  .ce.erro { background: var(--dangerBg); color: var(--danger); }
+  .ce.m { height: 28px; font-size:14px; padding: 0 12px; }
+
+  /* ficha */
+  .fx .cods { margin-top: 6px; font-size:14px; color: var(--faixaSub); }
+  .fx .cods .c { color: #fff; font-size:16px; }
+  .fx .copiar { background: transparent; border-color: #3A4D68; color: #fff; width: 32px; height: 32px; }
+  .fx .un { font-size:14px; color: var(--faixaSub); margin-top: 2px; }
+  .cx { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; flex: none; }
+  .cx h4 { margin: 0; font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 700; font-size:16px; }
+  .rot { font-size:14px; font-weight: 600; color: var(--ink2); }
+  .preco { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight:700; font-size:22px; font-variant-numeric: tabular-nums; }
+  .ref { display: flex; justify-content: space-between; align-items: center; min-height: 40px; border-top: 1px solid var(--lineSoft); font-size:16px; }
+  .ref:first-of-type { border-top: 0; }
+  .ref .mc { color: var(--ink2); }
+  .ref .cd { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .btn { height: 52px; border-radius: 14px; background: var(--accent); color: #fff; font-weight: 700; font-size:16px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .txt { font-size:16px; line-height: 22px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .mais { font-weight: 600; font-size:14px; color: var(--accentInk); }
+
+  /* folha de filtro */
+  .scrim { position: absolute; inset: 0; background: var(--scrim); }
+  .folha { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 22px 22px 0 0; padding: 10px 20px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .folha .pega { width: 40px; height: 4px; border-radius: 2px; background: var(--lineStrong); align-self: center; }
+  .folha .tit { display: flex; justify-content: space-between; align-items: center; font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight:700; font-size:18px; height: 48px; }
+  .folha .grp { font-size:14px; font-weight: 600; color: var(--ink2); margin-top: 2px; }
+  .opt { min-height: 48px; display: flex; align-items: center; justify-content: space-between; font-size:16px; border-top: 1px solid var(--line); }
+  .opt:first-of-type { border-top: 0; }
+  .opt.on { font-weight: 700; }
+  .opt small { font-weight: 400; color: var(--ink2); font-size:14px; margin-left: 6px; }
+  .rodape { display: flex; gap: 10px; margin-top: 10px; }
+  .rodape .neutro { flex: 1; margin-top: 0; height: 52px; }
+  .rodape .btn { flex: 1.6; }
+  .neutro { height: 44px; border-radius: 12px; border: 1px solid var(--lineStrong); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size:16px; margin-top: 8px; }
+
+  .barra-abas { flex: none; height: 64px; background: #fff; border-top: 1px solid var(--line); display: flex; position: relative; }
+  .barra-abas div { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size:12px; font-weight: 500; padding: 0 2px; color: var(--ink2); white-space: nowrap; }
+  .barra-abas div.ativa { color: var(--accentInk); font-weight: 600; }
+
+  /* ?v=<id>: só aquele aparelho, sem moldura (PNG 360 × 800) */
+  body.so { padding: 0; background: var(--ground); }
+  body.so .legenda { display: none; }
+  body.so .tela { display: none; }
+  body.so .tela.mostrar { display: flex; }
+  body.so .phone { border: 0; }
+
+  /* ficha: "Estoque: N" e o botão secundário "Por filial" (Button variant="outline", 48 dp) e a folha com a tabela (R-20261115-083000) */
+  .est-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--lineSoft); padding-top: 10px; }
+  .sec { height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--lineStrong); background: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; font-size:16px; color: var(--ink); flex: none; }
+  .folha .sub { font-size:14px; color: var(--ink2); margin-top: -6px; }
+  .tab-est { display: flex; flex-direction: column; margin-top: 8px; }
+  .tab-est .cab { display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; background: var(--neutralBg); font-size:14px; font-weight: 600; color: var(--ink2); }
+  .tab-est .lin { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 0 12px; font-size:16px; border-top: 1px solid var(--lineSoft); }
+  .tab-est .cab + .lin { border-top: 0; }
+  .tab-est .lin small { font-weight: 400; color: var(--ink2); font-size:14px; margin-left: 6px; }
+  .tab-est .lin b { font-family:system-ui,'Segoe UI',Roboto,-apple-system,sans-serif; font-weight: 700; font-size:16px; font-variant-numeric: tabular-nums; }
+  .tab-est .pos { color: var(--success); }
+  .tab-est .neg { color: var(--danger); }

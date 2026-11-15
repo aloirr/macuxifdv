@@ -40,6 +40,15 @@ export const IconClock = (p: IconProps) => (
     <path d="M12 7v5l3 2" />
   </Svg>
 );
+/** Caixa de papelão com a fita: estoque (o mesmo desenho do `pacote` do kit mobile, R-20261115-084600). */
+export const IconPacote = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" />
+    <path d="M4 7.5 12 12l8-4.5" />
+    <path d="M12 12v9" />
+    <path d="M8 5.25l8 4.5" />
+  </Svg>
+);
 export const IconX = (p: IconProps) => (
   <Svg {...p}>
     <path d="M18 6 6 18" />
