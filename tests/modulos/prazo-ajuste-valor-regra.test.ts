@@ -7,8 +7,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { alertasDoPedido } from '../../modules/vendedor/domain/alertas-pedido';
+import { alertasDaVenda, tomDoAlerta } from '../../modules/vendedor/domain/alertas-venda';
 import { politicaDosParametros, revalidarPedido, type RevalidarEntrada } from '../../modules/vendedor/domain/aprovacao';
-import { revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
+import { creditoDoCartao, revalidarPercentualDoPrazo } from '../../modules/vendedor/domain/pagamento';
 import { buildOrderPdfHtml } from '../../modules/vendedor/domain/pdf-pedido';
 import { precoMinimoBaseCents, tabelaAjustadaCents } from '../../modules/vendedor/domain/preco-pedido';
 
@@ -107,11 +109,27 @@ describe('Ensaio valor × regra: pedido de exemplo de ponta a ponta no domain (c
     expect(precoMinimoBaseCents({ preco_venda_cents: 10_000, desconto_maximo_pct: 10, percentual_ajuste_bp: 250 })).toBe(9_225);
   });
 
-  it('RN-VEN-43: o crédito usa o total já ajustado (o total revalidado é o que o pedido vale)', () => {
-    const sem = revalidarPedido(entrada(0));
-    const com = revalidarPedido(entrada(-171));
-    expect(sem.ok && sem.total_cents).toBe(12_350 + 290 + 20_000);
-    expect(com.ok && com.total_cents).toBe(12_140 + 290 + 19_658);
+  it('RN-VEN-43/12: o crédito mede o total já ajustado (disponível = total pela tabela pura: à vista cabe, +2,50% estoura)', () => {
+    // RN-VEN-12: disponível = limite − saldo em aberto − pedidos aprovados não faturados (creditoDoCartao); 500,00 − 150,00 − 23,60 = 326,40
+    const { disponivel_cents } = creditoDoCartao({ limite_cents: 50_000, saldo_aberto_cents: 15_000, credito_disponivel_erp_cents: null }, [{ total_cents: 2_360, integrado: false }]);
+    const pura = revalidarPedido(entrada(0));
+    const vista = revalidarPedido(entrada(-171));
+    const acrescimo = revalidarPedido(entrada(250));
+    if (!pura.ok || !vista.ok || !acrescimo.ok) return expect.fail('pedidos do ensaio deveriam passar');
+    expect(disponivel_cents).toBe(esperado(0, {}).total); // 326,40 = total pela tabela pura
+    expect(vista.total_cents).toBe(esperado(-171, {}).total); // 320,88 < 326,40
+    expect(acrescimo.total_cents).toBe(esperado(250, {}).total); // 334,60 > 326,40
+    const cliente = { bloqueado: false, ativo: true, cadastro_incompleto: false, campos_faltantes: [] };
+    const credito = (total_cents: number) =>
+      alertasDoPedido({ cliente, vencidos: null, disponivel_cents, total_cents }).filter((a) => a.tipo === 'credito');
+    expect(credito(pura.total_cents)).toEqual([]); // limite exato: cabe
+    expect(credito(vista.total_cents)).toEqual([]);
+    expect(alertasDaVenda({ cliente, vencidos: null, disponivel_cents, total_cents: acrescimo.total_cents })).toEqual([
+      { tipo: 'credito_excedido', disponivel_cents: 32_640 },
+    ]);
+    // RN-VEN-12: crédito excedido é aviso (vai para aprovação), não bloqueia nem vira só orçamento
+    expect(tomDoAlerta({ tipo: 'credito_excedido', disponivel_cents })).toBe('aviso');
+    expect(credito(acrescimo.total_cents)).toMatchObject([{ texto: 'Limite de crédito excedido', so_orcamento: false, impede_enviar: false }]);
   });
 });
 
