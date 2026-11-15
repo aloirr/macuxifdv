@@ -341,7 +341,7 @@ Mesmo shell das simulações da §M (menu de 240 px, grupo da tela aberto). Dado
 | `pedidos-lista-antes-1366x768.png` | Pedidos hoje com dados: subtítulo-contador, tabela com rolagem lateral ao lado das pendências, status + faturamento |
 | `pedidos-lista-depois-1366x768.png` | Depois (opção a da decisão h): pendências em cima, a lista sem os pendentes e sem título, "Pedidos · 137" e o total do filtro no `h1`, selo único, "⋯" aberto com o foco do teclado no primeiro item |
 | `clientes-antes-1366x768.png` | Farol de clientes hoje: subtítulo, 3 botões, 6 KPIs, legenda; a lista de clientes não aparece na primeira tela |
-| `clientes-depois-1366x768.png` | Depois: busca primeiro, sem o select "Farol", KPI "Vermelhos" marcado filtrando a lista, "Positivação 62%" na cor da faixa, aba "Clientes" sem contagem (o KPI marcado é a contagem), "Vendedores · 8" com a contagem, colunas Cliente · Vendedor · Dias sem compra · Farol · ⋯ e a data da última compra no `title` |
+| `clientes-depois-1366x768.png` | Depois: busca primeiro, sem o select "Farol", KPI "Vermelhos" marcado filtrando a lista, "Positivação 62%" na cor da faixa, aba "Clientes" sem contagem, "Vendedores · 8", colunas Cliente · Vendedor · Dias sem compra · Farol · ⋯ e a data da última compra no `title` |
 | `transportadora-form-antes-1366x768.png` | Nova transportadora hoje: quadro do frete com explicação, formulário no meio da página |
 | `transportadora-form-depois-1366x768.png` | Depois: gaveta da direita com rodapé fixo (Cancelar, Salvar), erro de CNPJ embaixo do campo, "Transportadoras e frete · 5" no `h1` com o selo `neutral` "Frete padrão: CIF", lista sem título |
 
