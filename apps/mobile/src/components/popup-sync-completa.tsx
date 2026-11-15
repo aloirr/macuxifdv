@@ -19,7 +19,7 @@ import { useState } from 'react';
 
 import { ErroEntrada } from '@/components/tela-entrada';
 import { percentualDaCarga } from '@/lib/carga';
-import { criarMemoriaDaEntrada, erroDeSinal, ROTULO_BARRA_ENTRADA } from '@/lib/entrada';
+import { criarMemoriaDaEntrada, erroDeSinal, ROTULO_BARRA_ENTRADA, ROTULO_TENTAR_DE_NOVO } from '@/lib/entrada';
 import {
   desenhoPopupCompleta,
   entradaDoProgressoCompleta,
@@ -66,7 +66,7 @@ export function PopupSyncCompleta({
         }
         confirmar={
           d.botoes
-            ? { rotulo: 'Tentar de novo', onPress: aoTentarDeNovo, testID: 'sync-completa-tentar' }
+            ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: aoTentarDeNovo, testID: 'sync-completa-tentar' }
             : undefined
         }
         testID="sync-completa"
