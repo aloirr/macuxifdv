@@ -8,7 +8,7 @@
  * (pg_read_all_data, pg_write_all_data); depois a suíte roda com ele como admin e MACUXI_PG_ADMIN_SEM_SUPER=1 (o globalSetup
  * recusa admin que ignora RLS: o modo não passa calado com superusuário). Assim a regressão aparece no CI, sem o DBaaS.
  *
- * Também apaga macuxi_app, macuxi_worker, macuxi_portal (0038) e macuxi_manutencao, se existirem: no DBaaS quem os cria é o próprio admin (ganha
+ * Também apaga macuxi_app, macuxi_worker, macuxi_portal (0038), macuxi_leitura (0078) e macuxi_manutencao, se existirem: no DBaaS quem os cria é o próprio admin (ganha
  * ADMIN OPTION e, pelo B0, SET); criados por superusuário, o admin simulado não teria esses direitos (o X7 da VM faz o mesmo).
  * Se algum deles tiver dependências (base antiga), o script para com erro: use um servidor novo.
  *
@@ -31,8 +31,8 @@ const SENHA_ADMIN_SEM_SUPER = 'macuxi_admin_sem_super_ci';
 const ATRIBUTOS_ADMIN_SEM_SUPER = 'login nosuperuser nobypassrls createdb createrole noreplication';
 /** Filiações do admin do DBaaS que mudam o que ele pode fazer em tabela (o mgc_superuser é do provedor e fica de fora). */
 const FILIACOES_ADMIN_SEM_SUPER = ['pg_read_all_data', 'pg_write_all_data'] as const;
-/** Papéis que o admin do DBaaS cria ele mesmo (migração 0001/0003/0031/0038 e db/src/papeis.ts). */
-const PAPEIS_DO_ADMIN = ['macuxi_app', 'macuxi_worker', 'macuxi_portal', PAPEL_MANUTENCAO] as const;
+/** Papéis que o admin do DBaaS cria ele mesmo (migração 0001/0003/0031/0038/0078 e db/src/papeis.ts). */
+const PAPEIS_DO_ADMIN = ['macuxi_app', 'macuxi_worker', 'macuxi_portal', 'macuxi_leitura', PAPEL_MANUTENCAO] as const;
 
 async function principal(): Promise<void> {
   const cfg = lerConfigTestes();
