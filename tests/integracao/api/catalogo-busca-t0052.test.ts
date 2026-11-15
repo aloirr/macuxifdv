@@ -310,15 +310,10 @@ describe.skipIf(semBanco())('T-0052 — busca do Catálogo na API real (Postgres
   );
 
   describe('B-A9 filiais de venda (RN-CAT-05 revista, RN-CORE-39, R-20261115-104500 item 4)', () => {
-    it('vendedor: filial fora das de venda no filtro = 403 FILIAL_FORA_DAS_SUAS; a de venda = 200 com o N da regra (15)', async () => {
-      const fora = await buscar(token.vA, 'pastilha', `&filial=${FILIAIS_FIXTURE.A.boaVista}`);
-      expect([fora.statusCode, erroDe(fora).codigo], fora.body).toEqual([403, 'FILIAL_FORA_DAS_SUAS']);
-      // filial de outro tenant nem existe para A (RLS): 422 FILIAL_INEXISTENTE, sem estoque de B
+    it('vendedor: filial de outro tenant no filtro = 422 FILIAL_INEXISTENTE, sem estoque de B', async () => {
+      // o 403 FILIAL_FORA_DAS_SUAS e a padrão = 200 com N 15 estão no B-A4 (filialDaBusca não olha o perfil)
       const deB = await buscar(token.vA, 'pastilha', `&filial=${FILIAIS_FIXTURE.B.padrao}`);
       expect([deB.statusCode, erroDe(deB).codigo], deB.body).toEqual([422, 'FILIAL_INEXISTENTE']);
-      const r = await buscar(token.vA, 'pastilha', `&filial=${FILIAIS_FIXTURE.A.padrao}`);
-      expect(r.statusCode, r.body).toBe(200);
-      expect(RespostaBusca.parse(r.json()).items.find((i) => i.erp_code === SKU.a1)?.availability?.quantity).toBe(15);
     });
 
     it('supervisor (venda: padrão e Boa Vista): a Boa Vista é dele (200, N 0, sem saldo nela); sem filtro o N soma as duas (15) e a folha só traz filiais de venda', async () => {

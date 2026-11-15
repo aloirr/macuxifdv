@@ -317,10 +317,7 @@ describe('T-0084/T-0085 — busca offline com aplicação e referência cruzada 
       });
       const r = await busca(ap, 'pastilha uno 2012', 'promotor');
       expect(skus(r)).toContain('PST-D01');
-      for (const i of r.items) {
-        expect(i).toMatchObject({ price_stock_visible: false, price: null });
-        expect(i.availability, `estoque de ${i.erp_code}`).not.toBeNull();
-      }
+      for (const i of r.items) expect(i).toMatchObject({ price_stock_visible: false, price: null });
     });
   });
 

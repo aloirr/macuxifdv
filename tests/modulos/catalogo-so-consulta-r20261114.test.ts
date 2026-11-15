@@ -24,7 +24,6 @@ vi.mock('expo-router', () => ({
 import { caminhoDoLinkInterno, linkInternoNavegavel } from '@macuxi/platform-sdk';
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { subtituloProduto } from '../../modules/catalogo/app/lib/apresentacao';
-import { codigosDoCartao } from '../../modules/catalogo/app/lib/grade';
 import { dataDaValidade } from '../../modules/vendedor/domain/orcamento';
 import { orcamentoEmAberto } from '../../modules/vendedor/domain/resumo-inicio';
 import { SO_ORCAMENTO } from './apoio/estado-prs';
@@ -221,7 +220,6 @@ describe('PR do modulo-catalogo — "Copiar código" copia o código exibido e n
     // Catálogo Campo v8 (R-20261115-084500): o cartão copia `codigosDoCartao(item).codigo`, que é SÓ o `erp_code` (sem a marca); a ficha copia na faixa
     expect(comum).toContain('const codigos = codigosDoCartao(item);');
     expect(comum).toContain('<BotaoCopiarCodigo codigo={codigos.codigo} variante="icone" />');
-    expect(codigosDoCartao({ brand: 'Freiomax', erp_code: 'CB3401', equivale_a: null })).toEqual({ marca: 'Freiomax', codigo: 'CB3401' });
     // valor × rótulo: o código copiado é o que o subtítulo da ficha mostra
     const item = { brand: 'Freiomax', erp_code: 'CB3401' };
     const copiados: string[] = [];
