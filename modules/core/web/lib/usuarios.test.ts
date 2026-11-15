@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EquipeOpcao, UsuarioItem } from '../../contracts';
-import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, csvDeUsuarios, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, resultadoDeCriar, resultadoDeRedefinir, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
+import { permilDoTexto, textoDoPermil, acaoDeSenha, corpoDeCriacao, corpoDeEdicao, corpoDeRedefinicao, errosDoFormulario, etiquetaDeSenha, FORMULARIO_VAZIO, formularioDoUsuario, gerarSenhaNoNavegador, opcoesDeChefia, pessoasDaLista, resultadoDeCriar, resultadoDeRedefinir, seloDoUsuario, textoAcessoEnviado, textoDoSuperiorDaEquipe } from './usuarios';
 import { senhaServe } from '../../domain';
 
 const u = (extra: Partial<UsuarioItem> = {}): UsuarioItem => ({
@@ -68,13 +68,6 @@ describe('RF-CORE-02: tela Usuários do BKO', () => {
     expect(textoDoSuperiorDaEquipe([eq({ superior_nome: 'Sérgio' })], 'e1')).toContain('Sérgio');
     expect(textoDoSuperiorDaEquipe([eq({})], 'e1')).toContain('sem superior');
   });
-  it('CSV: cabeçalho em português, aspas escapadas, BOM e nada de senha', () => {
-    const csv = csvDeUsuarios([u(), u({ ativo: false, equipe_nome: null })]);
-    expect(csv.startsWith('﻿"Nome";"E-mail"')).toBe(true);
-    expect(csv).toContain('"Vera ""Vendedora"""');
-    expect(csv).toContain('"Inativo"');
-    expect(csv.toLowerCase()).not.toContain('senha');
-  });
 });
 
 describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
@@ -105,13 +98,87 @@ describe('RN-CORE-34: senha por e-mail no BKO (T-0094)', () => {
     expect(corpoDeRedefinicao('Abcdef1!')).toEqual({ senha: 'Abcdef1!' });
   });
   it('RN-CORE-34: os avisos dependem do resultado do e-mail; a senha só aparece quando o e-mail não saiu', () => {
-    expect(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Usuário criado. O acesso vai para ana@x.com em alguns minutos.' });
+    expect(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Usuário criado. O acesso vai para ana@x.com.' });
     const sem = resultadoDeCriar('indisponivel', 'ana@x.com', 'Abcdef1!');
     expect(sem).toMatchObject({ tipo: 'sem_email', senha: 'Abcdef1!' });
-    expect(sem.tipo === 'sem_email' && sem.antes + sem.senha + sem.depois).toBe('Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: Abcdef1!. Ela cria a dela no primeiro acesso.');
-    expect(resultadoDeRedefinir('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Senha redefinida. A senha nova vai para ana@x.com em alguns minutos.' });
+    expect(sem.tipo === 'sem_email' && sem.antes + sem.senha + sem.depois).toBe('Usuário criado, mas não conseguimos enviar o e-mail. Passe a senha à pessoa: Abcdef1!.');
+    expect(resultadoDeRedefinir('enfileirado', 'ana@x.com', 'Abcdef1!')).toEqual({ tipo: 'enviado', texto: 'Senha redefinida e enviada para ana@x.com.' });
     expect(resultadoDeRedefinir('indisponivel', 'ana@x.com', 'Abcdef1!')).toMatchObject({ tipo: 'sem_email' });
     expect(JSON.stringify(resultadoDeCriar('enfileirado', 'ana@x.com', 'Abcdef1!'))).not.toContain('Abcdef1!');
     expect(textoAcessoEnviado('ana@x.com')).toBe('Acesso enviado para ana@x.com.');
+  });
+});
+
+describe('RN-CORE-55/56/57 (0069): hierarquia e código no ERP na gaveta Novo usuário (R-20261114-153500/153800/154000)', () => {
+  const G1 = '5d000000-0000-4000-8000-0000000000a1';
+  const G2 = '5d000000-0000-4000-8000-0000000000a2';
+  const S1 = '5d000000-0000-4000-8000-0000000000b1';
+  const S2 = '5d000000-0000-4000-8000-0000000000b2';
+  const lista = [
+    u({ id: G1, nome: 'Gil', cargo: 'gerente' }),
+    u({ id: G2, nome: 'Gabi', cargo: 'gerente', ativo: false }),
+    u({ id: S2, nome: 'Sara', cargo: 'supervisor', gerente_id: G1 }),
+    u({ id: S1, nome: 'Rui', cargo: 'supervisor', gerente_id: G2 }),
+  ];
+  const ok = { ...FORMULARIO_VAZIO, nome: 'Ana', email: 'ana@exemplo.com.br', senha: 'Abcdef1!', perfis: ['vendedor'], external_id: 'V-10' };
+
+  it('RN-CORE-57: sem código no ERP a gaveta para no campo, para todos os cargos', () => {
+    expect(errosDoFormulario({ ...ok, external_id: ' ' }, 'editar', { cargo: 'administrativo', pessoas: [] })).toEqual([{ campo: 'external_id', mensagem: 'Informe o código no ERP.' }]);
+  });
+
+  it('supervisores e gerentes ativos, por nome; o supervisor do promotor só entre os do gerente escolhido', () => {
+    expect(opcoesDeChefia(lista, 'gerente').map((x) => x.nome)).toEqual(['Gil']);
+    expect(opcoesDeChefia(lista, 'supervisor').map((x) => x.nome)).toEqual(['Rui', 'Sara']);
+    expect(opcoesDeChefia(lista, 'supervisor', G1).map((x) => x.nome)).toEqual(['Sara']);
+  });
+
+  it('a tela confere a mesma regra da API: vendedor sem supervisor e promotor sem gerente param no campo', () => {
+    const pessoas = pessoasDaLista(lista);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'vendedor', pessoas }).map((e) => e.campo)).toEqual(['supervisor_id']);
+    expect(errosDoFormulario({ ...ok, supervisor_id: S2 }, 'criar', { cargo: 'vendedor', pessoas })).toEqual([]);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'promotor', pessoas }).map((e) => e.mensagem)).toEqual(['Escolha o gerente.']);
+    expect(errosDoFormulario({ ...ok, gerente_id: G1, supervisor_id: S1 }, 'criar', { cargo: 'promotor', pessoas }).map((e) => e.campo)).toEqual(['gerente_id']);
+    expect(errosDoFormulario({ ...ok, gerente_id: G1 }, 'criar', { cargo: 'supervisor', pessoas }).map((e) => e.campo)).toEqual(['equipe_nome']);
+    expect(errosDoFormulario(ok, 'criar', { cargo: 'administrativo', pessoas })).toEqual([]);
+  });
+
+  it('o corpo leva só a hierarquia do cargo; sem cargo, nada de hierarquia (como antes)', () => {
+    const f = { ...ok, supervisor_id: S2, gerente_id: G1, equipe_nome: 'Norte' };
+    expect(corpoDeCriacao(f, 'vendedor')).toMatchObject({ supervisor_id: S2, gerente_id: null, equipe_nome: null });
+    expect(corpoDeCriacao(f, 'supervisor')).toMatchObject({ supervisor_id: null, gerente_id: G1, equipe_nome: 'Norte' });
+    expect(corpoDeEdicao(f, 'administrativo')).toMatchObject({ supervisor_id: null, gerente_id: null, equipe_nome: null });
+    expect(corpoDeEdicao(f, 'gerente')).toMatchObject({ supervisor_id: null, gerente_id: null, equipe_nome: 'Norte' });
+    expect(corpoDeEdicao(f)).not.toHaveProperty('supervisor_id');
+  });
+
+  it('editar abre com a hierarquia gravada; o nome da equipe só para o supervisor', () => {
+    expect(formularioDoUsuario(u({ cargo: 'vendedor', supervisor_id: S2, gerente_id: G1 }))).toMatchObject({ supervisor_id: S2, gerente_id: G1, equipe_nome: '' });
+    expect(formularioDoUsuario(u({ cargo: 'supervisor', gerente_id: G1, equipe_nome: 'Norte' })).equipe_nome).toBe('Norte');
+  });
+});
+
+describe('usuario-bloqueio §2: seloDoUsuario (um selo por linha, hora no fuso do tenant)', () => {
+  const AGORA = new Date('2026-11-15T00:30:00Z'); // 20h30 em Manaus (UTC-4), dia 14
+  const M = 'America/Manaus';
+  it('inativo vale mais que o bloqueio (quem resolve é o Reativar)', () => {
+    expect(seloDoUsuario(u({ ativo: false, bloqueio: 'admin' }), AGORA, M)).toEqual({ tom: 'neutral', texto: 'Inativo', bloqueado: false });
+  });
+  it('bloqueio do admin: "Bloqueado", danger', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'admin', bloqueio_ate: null }), AGORA, M)).toEqual({ tom: 'danger', texto: 'Bloqueado', bloqueado: true });
+  });
+  it('bloqueio por tentativas: "Bloqueado até HHhMM" no fuso do tenant, warning', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T00:55:00.000Z' }), AGORA, M)).toEqual({ tom: 'warning', texto: 'Bloqueado até 20h55', bloqueado: true });
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T13:05:00.000Z' }), new Date('2026-11-15T13:00:00Z'), M)?.texto).toBe('Bloqueado até 09h05');
+  });
+  it('virada da meia-noite em Manaus: 03h59 UTC vira 23h59 do dia anterior; 04h10 UTC vira 00h10', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T03:59:00.000Z' }), new Date('2026-11-15T03:50:00Z'), M)?.texto).toBe('Bloqueado até 23h59');
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T04:10:00.000Z' }), new Date('2026-11-15T03:58:00Z'), M)?.texto).toBe('Bloqueado até 00h10');
+  });
+  it('bloqueio por tentativas vencido: sem selo', () => {
+    expect(seloDoUsuario(u({ bloqueio: 'tentativas', bloqueio_ate: '2026-11-15T00:30:00.000Z' }), AGORA, M)).toBeNull();
+  });
+  it('sem bloqueio (0 a 4 senhas erradas não aparecem): sem selo', () => {
+    expect(seloDoUsuario(u({ bloqueio: null, bloqueio_ate: null }), AGORA, M)).toBeNull();
+    expect(seloDoUsuario(u({}), AGORA, M)).toBeNull();
   });
 });

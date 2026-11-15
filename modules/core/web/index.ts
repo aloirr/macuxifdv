@@ -1,6 +1,7 @@
 import { createElement, Suspense, type ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
-export { entrarComSenha, mensagemDeErroDeLogin, validarLogin } from '../app/lib/login';
+export { entrarComSenha, mensagemDeErroDeLogin } from '../app/lib/login';
+export { validarLogin } from '../contracts';
 import { manifest } from '../manifest';
 import { CarteiraPage } from './components/carteira/carteira-page';
 import { Cliente360Page } from './components/cliente360/cliente360-page';
@@ -33,27 +34,27 @@ const RotasPagina: ComponentType = () => createElement(Suspense, null, createEle
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'clientes', caminho: 'clientes', titulo: 'Farol de clientes', navegacao: 'Clientes', grupo: 'operacao', ordem: 10, acao: 'farol.ver', componente: FarolPage },
+    { id: 'clientes', caminho: 'clientes', titulo: 'Farol de clientes', navegacao: 'Clientes', grupo: 'cadastros', ordem: 10, acao: 'farol.ver', componente: FarolPage },
     { id: 'rotas', caminho: 'rotas', titulo: 'Rotas', navegacao: 'Rotas', grupo: 'operacao', ordem: 20, componente: RotasPagina },
     { id: 'visitas', caminho: 'visitas', titulo: 'Visitas', navegacao: 'Visitas', grupo: 'operacao', ordem: 30, componente: VisitasPage },
-    { id: 'recados', caminho: 'recados', titulo: 'Recados', navegacao: 'Recados', grupo: 'operacao', ordem: 40, acao: 'notificacao.enviar', componente: RecadosPage },
+    { id: 'recados', caminho: 'recados', titulo: 'Recados', navegacao: 'Recados', grupo: 'comunicacao', ordem: 40, acao: 'notificacao.enviar', componente: RecadosPage },
     { id: 'carteira', caminho: 'carteira', titulo: 'Carteira', navegacao: 'Carteira', grupo: 'cadastros', ordem: 5, componente: CarteiraPage },
     // Cliente 360 (T-0017): abre da Carteira (`/cliente?id=…`); sem item de menu
     { id: 'cliente', caminho: 'cliente', titulo: 'Cliente 360', componente: Cliente360Page },
     { id: 'coordenadas-sugeridas', caminho: 'coordenadas-sugeridas', titulo: 'Coordenadas sugeridas', navegacao: 'Coordenadas sugeridas', grupo: 'cadastros', ordem: 6, acao: 'cliente.aprovar_coordenada', componente: CoordenadasPage },
     { id: 'motivos', caminho: 'motivos', titulo: 'Motivos de não venda', navegacao: 'Motivos', grupo: 'cadastros', ordem: 7, acao: 'motivo.editar', componente: MotivosPage },
-    { id: 'produtos', caminho: 'produtos', titulo: 'Preço e custo dos produtos', navegacao: 'Produtos', grupo: 'cadastros', ordem: 8, acao: 'produto.editar_preco', componente: ProdutosPage },
+    { id: 'produtos', caminho: 'produtos', titulo: 'Preço e custo dos produtos', navegacao: 'Preço e custo', grupo: 'produtos', ordem: 8, acao: 'produto.editar_preco', componente: ProdutosPage },
     { id: 'filiais', caminho: 'filiais', titulo: 'Filiais', navegacao: 'Filiais', grupo: 'cadastros', ordem: 9, acao: 'filial.ver', componente: FiliaisPage },
     { id: 'fotos-pdv', caminho: 'fotos-pdv', titulo: 'Fotos do PDV', navegacao: 'Fotos do PDV', grupo: 'cadastros', ordem: 9, acao: 'foto_tipo.editar', componente: FotosPdvPage },
     { id: 'metas', caminho: 'metas', titulo: 'Metas e RV', navegacao: 'Metas', grupo: 'analise', ordem: 10, componente: MetasPage },
     { id: 'indicadores', caminho: 'indicadores', titulo: 'Indicadores', navegacao: 'Indicadores', grupo: 'analise', ordem: 20, componente: IndicadoresPage },
-    { id: 'plano-rv', caminho: 'plano-rv', titulo: 'Plano de RV', navegacao: 'Plano de RV', grupo: 'cadastros', ordem: 10, acao: 'plano_rv.ver', componente: PlanoRvPage },
+    { id: 'plano-rv', caminho: 'plano-rv', titulo: 'Plano de RV', navegacao: 'Plano de RV', grupo: 'comercial', ordem: 10, acao: 'plano_rv.ver', componente: PlanoRvPage },
     {
       id: 'usuarios-e-modulos',
       caminho: 'usuarios-e-modulos',
       titulo: 'Usuários e módulos',
-      navegacao: 'Usuários e módulos',
-      grupo: 'administracao',
+      // sem `navegacao`: fora do menu (spec bko-revisao §M7, R-20261114-144500); a página segue valendo por URL
+      grupo: 'acesso',
       ordem: 10,
       acao: 'modulo.gerir_licencas',
       componente: LicencasPage,
@@ -63,19 +64,19 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       caminho: 'usuarios',
       titulo: 'Usuários',
       navegacao: 'Usuários',
-      grupo: 'administracao',
-      ordem: 15,
+      grupo: 'acesso',
+      ordem: 17,
       acao: 'usuario.ver',
       componente: UsuariosPage,
     },
     // T-0111 (desenho docs/design/perfis-de-acesso.md): lista em /core/perfis e edição em /core/perfis?perfil=<codigo> (o shell não tem rota dinâmica)
-    { id: 'perfis', caminho: 'perfis', titulo: 'Perfis de acesso', navegacao: 'Perfis de acesso', grupo: 'administracao', ordem: 16, acao: 'perfil.gerir', componente: PerfisPage },
+    { id: 'perfis', caminho: 'perfis', titulo: 'Perfis de acesso', navegacao: 'Perfis de acesso', grupo: 'acesso', ordem: 16, acao: 'perfil.gerir', componente: PerfisPage },
     {
       id: 'aparelhos',
       caminho: 'aparelhos',
       titulo: 'Aparelhos',
       navegacao: 'Aparelhos',
-      grupo: 'administracao',
+      grupo: 'acesso',
       ordem: 20,
       acao: 'dispositivo.bloquear',
       componente: AparelhosPage,

@@ -25,6 +25,38 @@ import { FILTROS_VAZIOS, lerFiltros, paraBusca, paraQuery } from '../../modules/
 const RAIZ = join(__dirname, '..', '..');
 const ler = (rel: string) => readFileSync(join(RAIZ, rel), 'utf8');
 
+/**
+ * Lê a consulta da lista de pedidos (a que termina em `limit $9`) e devolve a coluna comparada com o $16 e o 16º parâmetro.
+ * Aceita o SQL e os parâmetros escritos na chamada ou em constantes (`${filtro}`, `valores`): confere a regra, não a forma.
+ */
+function filtroDeFilialDaLista(fonte: string): { coluna: string | null; param: string | null } {
+  const m = /db\.query<LinhaPedido>\(\s*`((?:(?!db\.query)[\s\S])*?order by p\.created_at desc, p\.id desc\s+limit \$9)`,\s*(\[|[A-Za-z_$][\w$]*)/.exec(fonte);
+  if (!m) return { coluna: null, param: null };
+  const constante = (nome: string, abre: string) => {
+    const ini = new RegExp(`const ${nome.replace(/\$/g, '\\$')} = \\${abre}`).exec(fonte);
+    return ini ? fonte.slice(ini.index + ini[0].length - 1) : null;
+  };
+  const sql = m[1]!.replace(/\$\{([A-Za-z_$][\w$]*)\}/g, (todo, nome: string) => {
+    const corpo = constante(nome, '`');
+    return corpo ? corpo.slice(1, corpo.indexOf('`', 1)) : todo;
+  });
+  const usos = [...sql.matchAll(/([\w.]+) = \$16\b/g)].map((u) => u[1]!);
+  const coluna = usos.length === 1 && /\(\$16::uuid is null or [\w.]+ = \$16\)/.test(sql) ? usos[0]! : null;
+  const ini = m[2] === '[' ? fonte.slice(m.index + m[0].length - 1) : constante(m[2]!, '[');
+  if (!ini) return { coluna, param: null };
+  let nivel = 0;
+  let fim = 0;
+  for (let i = 0; i < ini.length; i++) {
+    if ('[('.includes(ini[i]!)) nivel++;
+    else if ('])'.includes(ini[i]!) && --nivel === 0) {
+      fim = i;
+      break;
+    }
+  }
+  const lista = ini.slice(1, fim).split(/,\s*(?![^(]*\))/).map((x) => x.trim());
+  return { coluna, param: lista[15] ?? null };
+}
+
 const F_MAO = 'a1000000-0000-4000-8000-000000000001';
 const F_BVB = 'a1000000-0000-4000-8000-000000000002';
 const FILIAL_BV = FilialSchema.parse({
@@ -61,13 +93,28 @@ describe('T-0149 FB-1 — filtro "Filial" da lista de Pedidos do BKO', () => {
   it('FB-1: o contrato da lista aceita branch_id (UUID) e a API filtra pela filial GRAVADA no pedido (p.filial_id), não pela do vendedor', () => {
     expect(OrderListQuery.parse({ branch_id: F_BVB }).branch_id).toBe(F_BVB);
     const api = ler('modules/vendedor/api/pedidos.ts');
-    expect(api).toMatch(/and \(\$16::uuid is null or p\.filial_id = \$16\)/);
-    // o 16º parâmetro da consulta da lista é a filial do filtro
-    const params = /order by p\.created_at desc, p\.id desc\s+limit \$9`,\s+\[([^\]]+)\]/.exec(api)?.[1] ?? '';
-    const lista = params.split(/,\s*(?![^(]*\))/).map((s) => s.trim());
-    expect(lista[15]).toBe('q.branch_id ?? null');
+    // confere a REGRA (o filtro da lista usa a filial do pedido), aceitando SQL e parâmetros inline ou em constante (RD-0441)
+    expect(filtroDeFilialDaLista(api)).toEqual({ coluna: 'p.filial_id', param: 'q.branch_id ?? null' });
     // UUID inválido na query = lista vazia (não 500 nem "todas")
     expect(api).toMatch(/q\.branch_id && !UUID\.test\(q\.branch_id\)\)[^\n]*return \{ itens: \[\], proximo_cursor: null \}/);
+  });
+
+  it('FB-1: a leitura do filtro recusa filtro por outra coluna (filial do vendedor ou do cliente), sem filtro e parâmetro trocado', () => {
+    const consulta = (sql: string, params: string) =>
+      `const { rows } = await db.query<LinhaPedido>(\n  \`select x from vendedor.pedido p\n    where p.deleted_at is null\n      ${sql}\n    order by p.created_at desc, p.id desc\n    limit $9\`,\n  ${params},\n);`;
+    const p16 = (v: string) => `[${Array.from({ length: 15 }, (_, i) => `a${i}`).join(', ')}, ${v}]`;
+    // as duas formas certas: inline (main até o #298) e em constantes (a7f25a42)
+    expect(filtroDeFilialDaLista(consulta('and ($16::uuid is null or p.filial_id = $16)', p16('q.branch_id ?? null')))).toEqual({ coluna: 'p.filial_id', param: 'q.branch_id ?? null' });
+    const emConstantes = `const valores = ${p16('q.branch_id ?? null')};\nconst filtro = \`and ($16::uuid is null or p.filial_id = $16)\`;\n${consulta('${filtro}', 'valores')}`;
+    expect(filtroDeFilialDaLista(emConstantes)).toEqual({ coluna: 'p.filial_id', param: 'q.branch_id ?? null' });
+    // as erradas
+    expect(filtroDeFilialDaLista(consulta('and ($16::uuid is null or v.filial_id = $16)', p16('q.branch_id ?? null'))).coluna).toBe('v.filial_id');
+    expect(filtroDeFilialDaLista(consulta('and ($16::uuid is null or p.cliente_filial_id = $16)', p16('q.branch_id ?? null'))).coluna).toBe('p.cliente_filial_id');
+    expect(filtroDeFilialDaLista(consulta('and ($5::uuid is null or p.cliente_id = $5)', p16('q.branch_id ?? null'))).coluna).toBeNull();
+    expect(filtroDeFilialDaLista(consulta('and ($16::uuid is null or p.filial_id = $16)', p16('q.seller_id ?? null'))).param).toBe('q.seller_id ?? null');
+    // filtro certo só numa constante que a lista não usa = sem filtro
+    const constanteSolta = `const filtro = \`and ($16::uuid is null or p.filial_id = $16)\`;\n${consulta('', p16('q.branch_id ?? null'))}`;
+    expect(filtroDeFilialDaLista(constanteSolta).coluna).toBeNull();
   });
 
   it('FB-1: a tela tem o seletor "Filial" com "Todas" e o "Limpar filtros" zera a filial', () => {

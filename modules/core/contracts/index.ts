@@ -508,4 +508,5 @@ export * from './entrada-sync';
 export * from './tarefa';
 export * from './frases';
 export * from './avatar';
+export * from './cargos';
 export * from './performance';

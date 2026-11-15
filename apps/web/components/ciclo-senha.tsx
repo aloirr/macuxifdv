@@ -9,8 +9,9 @@
  * Textos e regras puras da fonte única do Core (`@macuxi/core/contracts`, RD-0019); o mapa de erro do BKO em `lib/ciclo-senha.ts`.
  * testIDs: crie-senha.*, esqueci.*.
  */
-import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type Ref } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
+  CODIGO_EMPRESA_TAMANHO,
   faltasNaSenha,
   mensagemDaSenha,
   repeticaoDaSenha,
@@ -22,11 +23,13 @@ import {
   validarEsqueci,
   type DetalhesSenhaATrocar,
 } from '@macuxi/core/contracts';
-import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, ESCONDER_SENHA, IconEye, IconEyeOff, MOSTRAR_SENHA, Notice, RegrasDaSenha } from '@macuxi/ui/web';
+import { Button, CAMPO_REPITA_A_SENHA, CAMPO_SENHA_NOVA, CampoSenha, Notice, RegrasDaSenha } from '@macuxi/ui/web';
 
+import { Campo } from '@/components/campo-acesso';
 import { mensagemDoEsqueci, resultadoDoErroDaTroca } from '@/lib/ciclo-senha';
 
-const campoCss = 'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
+/** Id do campo "Senha nova" (foco depois de limpar). */
+const ID_SENHA_NOVA = 'crie-senha-nova';
 const linkCss = 'min-h-[44px] self-start text-[14px]';
 
 /** O navegador acha que está sem internet? (o aviso não trava o botão: se a detecção errar, a pessoa não fica presa). */
@@ -43,15 +46,6 @@ function useSemInternet(): boolean {
     };
   }, []);
   return sem;
-}
-
-function CampoDeSenha({ rotulo, testId, mostrar, campoRef, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { rotulo: string; testId: string; mostrar: boolean; campoRef?: Ref<HTMLInputElement> }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
-      <input ref={campoRef} data-testid={testId} type={mostrar ? 'text' : 'password'} autoComplete="new-password" spellCheck={false} autoCapitalize="none" className={`${campoCss} pr-12`} {...rest} />
-    </label>
-  );
 }
 
 export interface PropsCrieSuaSenha {
@@ -72,7 +66,6 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const semInternet = useSemInternet();
-  const novaRef = useRef<HTMLInputElement>(null);
 
   const salvar = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -95,7 +88,7 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
         setNova('');
         setRepetida('');
         setDestacar(false);
-        novaRef.current?.focus();
+        document.getElementById(ID_SENHA_NOVA)?.focus();
       }
     } finally {
       setSalvando(false);
@@ -121,38 +114,28 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
           <Notice tone="danger">{erro}</Notice>
         </div>
       )}
-      <div className="flex flex-col gap-1">
-        <div className="relative">
-          <CampoDeSenha
-            rotulo={CAMPO_SENHA_NOVA}
-            testId="crie-senha.nova"
-            mostrar={mostrar}
-            campoRef={novaRef}
-            autoFocus
-            value={nova}
-            onChange={(e) => setNova(e.target.value)}
-            aria-describedby="senha-regras"
-          />
-          {/* o olho mostra os dois campos (um só toque) */}
-          <button
-            type="button"
-            data-testid="crie-senha.olho"
-            aria-label={mostrar ? ESCONDER_SENHA : MOSTRAR_SENHA}
-            aria-pressed={mostrar}
-            onClick={() => setMostrar((m) => !m)}
-            className="absolute right-0 bottom-0 flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-          >
-            {mostrar ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-          </button>
-        </div>
-      </div>
-      <CampoDeSenha
+      {/* um olho só, no "Senha nova", mostra os dois campos (spec docs/design/campo-senha/spec.md §2) */}
+      <CampoSenha
+        id={ID_SENHA_NOVA}
+        rotulo={CAMPO_SENHA_NOVA}
+        testId="crie-senha.nova"
+        finalidade="criacao"
+        visivel={mostrar}
+        onAlternar={() => setMostrar((m) => !m)}
+        autoFocus
+        value={nova}
+        onChange={(e) => setNova(e.target.value)}
+        descrito="senha-regras"
+      />
+      <CampoSenha
+        id="crie-senha-repita"
         rotulo={CAMPO_REPITA_A_SENHA}
         testId="crie-senha.repita"
-        mostrar={mostrar}
+        finalidade="criacao"
+        visivel={mostrar}
         value={repetida}
         onChange={(e) => setRepetida(e.target.value)}
-        aria-describedby="senha-regras-repeticao"
+        descrito="senha-regras-repeticao"
       />
       <RegrasDaSenha
         id="senha-regras"
@@ -242,14 +225,8 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
         <h1 className="m-0 font-display text-[28px] font-extrabold">{TEXTOS_ESQUECI.titulo}</h1>
         <span className="text-[14px] text-ink-2">{TEXTOS_ESQUECI.instrucao}</span>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-[13px] font-semibold text-ink">Código da empresa</span>
-        <input ref={codigoRef} data-testid="esqueci.codigo-empresa" type="text" autoComplete="organization" value={codigo} onChange={(e) => setCodigo(e.target.value)} className={campoCss} />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-[13px] font-semibold text-ink">E-mail</span>
-        <input ref={emailRef} data-testid="esqueci.email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={campoCss} />
-      </label>
+      <Campo rotulo="Código da empresa" ref={codigoRef} testId="esqueci.codigo-empresa" type="text" autoComplete="organization" maxLength={CODIGO_EMPRESA_TAMANHO} value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+      <Campo rotulo="E-mail" ref={emailRef} testId="esqueci.email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Button data-testid="esqueci.enviar" type="submit" variant="primary" disabled={enviando}>
         {enviando ? TEXTOS_ESQUECI.enviando : TEXTOS_ESQUECI.enviar}
       </Button>

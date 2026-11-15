@@ -15,7 +15,7 @@
 export const ORIGEM = 'Piloto API';
 export const INTERVALO_CARGA_MS = 5 * 60 * 1000;
 /** Ordem de carga: o que é citado vem antes de quem cita (filial/vendedor -> cliente; produto -> preço/estoque). */
-export const ENTIDADES = ['vendedor', 'filial', 'forma_pagamento', 'prazo_pagamento', 'produto', 'cliente', 'preco', 'estoque', 'titulo'];
+export const ENTIDADES = ['filial', 'vendedor', 'forma_pagamento', 'prazo_pagamento', 'produto', 'preco', 'estoque', 'cliente', 'titulo'];
 
 const BOOLEANOS = new Set(['ativo', 'bloqueado']);
 const INTEIROS = new Set([

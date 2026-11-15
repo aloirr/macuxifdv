@@ -8,7 +8,7 @@ import { Suspense, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th, type BadgeTone } from '@macuxi/ui/web';
+import { ErrorBlock, EstadoVazio, FilterBar, formatDateTime, LoadingBlock, MenuAcoes, Notice, PageHeader, Panel, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, type BadgeTone, type Selo } from '@macuxi/ui/web';
 import { STATUS_ALERTA, type Severidade } from '../../contracts';
 import { TIPO_ALERTA_ROTULO } from '../../app/lib/apresentacao';
 import { lerFiltrosAlertas, paraQuery } from '../lib/filtros';
@@ -16,6 +16,12 @@ import { useAlertas, useDispensarAlerta, useFusoDoTenant, useVisaoEquipe } from 
 
 const TOM: Record<Severidade, BadgeTone> = { info: 'neutral', atencao: 'warning', critica: 'danger' };
 const STATUS_ROTULO = { aberto: 'Abertos', dispensado: 'Dispensados', encerrado: 'Encerrados' } as const;
+
+/** Um selo só (§P5): aberto leva a cor da severidade; dispensado e encerrado ficam neutros. */
+function selo(status: 'aberto' | 'dispensado' | 'encerrado', severidade: Severidade): Selo {
+  if (status === 'aberto') return { tom: TOM[severidade], texto: 'Aberto' };
+  return { tom: 'neutral', texto: status === 'dispensado' ? 'Dispensado' : 'Encerrado' };
+}
 
 function Conteudo() {
   const params = useSearchParams();
@@ -28,20 +34,16 @@ function Conteudo() {
   const dispensar = useDispensarAlerta();
   const [erro, setErro] = useState<string | null>(null);
   const nomes = new Map((useVisaoEquipe({ data: null }).data?.membros ?? []).map((m) => [m.membro.id, m.membro.nome]));
+  const responsavel = (id: string | null) => (id ? (nomes.get(id) ?? 'Equipe') : '—');
   return (
     <div className="flex flex-col gap-4" data-testid="gestor.alertas">
       <PageHeader
-        title="Alertas da equipe"
-        subtitle="Clientes sem visita, ritmo abaixo da meta, aprovações paradas e alertas de trade"
-        actions={
-          <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
-            Atualizar
-          </Button>
-        }
+        title={rotuloComContagem('Alertas da equipe', q.data?.itens.length ?? 0)}
+        actions={<MenuAcoes acoes={[{ id: 'atualizar', rotulo: q.isFetching ? 'Atualizando…' : 'Atualizar', desligada: q.isFetching, aoEscolher: () => void q.refetch() }]} />}
       />
       <FilterBar>
         <SelectField label="Situação" value={f.status ?? ''} onChange={(e) => router.replace(`${pathname}?${new URLSearchParams(paraQuery({ status: e.target.value || null }))}`)}>
-          <option value="">Ativos (abertos e dispensados)</option>
+          <option value="">Ativos</option>
           {STATUS_ALERTA.map((s) => (
             <option key={s} value={s}>
               {STATUS_ROTULO[s]}
@@ -57,49 +59,30 @@ function Conteudo() {
       {q.isLoading ? <LoadingBlock label="Carregando os alertas…" /> : null}
       {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} /> : null}
       {q.data ? (
-        <Panel title={`${q.data.itens.length} alertas`}>
-          <TableScroll minWidth={860}>
-            <table className="w-full border-collapse text-[13px]" data-testid="gestor.alertas.tabela">
-              <thead>
-                <tr>
-                  <th className={th}>Tipo</th>
-                  <th className={th}>Mensagem</th>
-                  <th className={th}>Responsável</th>
-                  <th className={th}>Desde</th>
-                  <th className={th}>Situação</th>
-                  <th className={th} />
-                </tr>
-              </thead>
-              <tbody>
-                {q.data.itens.length === 0 ? (
-                  <tr>
-                    <td className={td} colSpan={6}>
-                      Nenhum alerta.
-                    </td>
-                  </tr>
-                ) : null}
-                {q.data.itens.map((a) => (
-                  <tr key={a.id}>
-                    <td className={td}>{TIPO_ALERTA_ROTULO[a.tipo]}</td>
-                    <td className={td}>{a.mensagem}</td>
-                    <td className={td}>{a.responsavel_id ? (nomes.get(a.responsavel_id) ?? 'Equipe') : '—'}</td>
-                    <td className={td}>{formatDateTime(a.aberto_em, tz)}</td>
-                    <td className={td}>
-                      <Badge tone={a.status === 'aberto' ? TOM[a.severidade] : 'neutral'}>{a.status === 'aberto' ? 'Aberto' : a.status === 'dispensado' ? 'Dispensado' : 'Encerrado'}</Badge>
-                    </td>
-                    <td className={td}>
-                      {podeDispensar && a.status === 'aberto' ? (
-                        <Button size="sm" disabled={dispensar.isPending} onClick={() => dispensar.mutate(a.id, { onError: (e) => setErro(errorMessage(e)) })}>
-                          Dispensar
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Panel>
+        q.data.itens.length === 0 ? (
+          <EstadoVazio titulo={f.status ? 'Nenhum alerta com esses filtros.' : 'Nenhum alerta.'} testId="gestor.alertas.vazio" />
+        ) : (
+          <Panel>
+            <TabelaDados
+              rotulo="Alertas da equipe"
+              testId="gestor.alertas.tabela"
+              linhas={q.data.itens}
+              chave={(a) => a.id}
+              colunas={[
+                { id: 'tipo', titulo: 'Tipo', largura: '200px', celula: (a) => TIPO_ALERTA_ROTULO[a.tipo], texto: (a) => TIPO_ALERTA_ROTULO[a.tipo] },
+                { id: 'mensagem', titulo: 'Mensagem', celula: (a) => a.mensagem, texto: (a) => a.mensagem },
+                { id: 'responsavel', titulo: 'Responsável', prioridade: 2, largura: '160px', celula: (a) => responsavel(a.responsavel_id), texto: (a) => responsavel(a.responsavel_id) },
+                { id: 'desde', titulo: 'Desde', prioridade: 3, largura: '150px', celula: (a) => formatDateTime(a.aberto_em, tz), texto: (a) => formatDateTime(a.aberto_em, tz) },
+                { id: 'situacao', titulo: 'Situação', largura: '130px', celula: (a) => <SeloSituacao selos={[selo(a.status, a.severidade)]} /> },
+              ]}
+              acoes={(a) =>
+                podeDispensar && a.status === 'aberto'
+                  ? [{ id: 'dispensar', rotulo: 'Dispensar', desligada: dispensar.isPending, aoEscolher: () => dispensar.mutate(a.id, { onError: (e) => setErro(errorMessage(e)) }) }]
+                  : []
+              }
+            />
+          </Panel>
+        )
       ) : null}
     </div>
   );
