@@ -14,7 +14,8 @@
 | 2 | `nuvem/catalogo-onda1-modulo-catalogo-v3` | 88122be7 → **6b1f4815** | modulo-catalogo | **COM ACHADO** no re-parecer: RD-0675 reaberto (resto). RD-0670 e RD-0676 fechados |
 | 3 | `nuvem/catalogo-onda1-designer-ux` | b63e1e3b → **87943b16** | designer-ux | **COM ACHADO** no re-parecer: RD-0671 fechado; novo RD-0696 |
 | 4 | `nuvem/catalogo-onda1-engenheiro-apps` | e4636797 → **541522ce** | engenheiro-apps | **LIMPO** no re-parecer (RD-0673, RD-0674 e RD-0677 fechados) |
-| 5 | `nuvem/catalogo-campo-modulo-catalogo-v8` | d2d4660f → **e390219f** | modulo-catalogo | **COM ACHADO** no re-parecer v8: 8 fechados; RD-0691, RD-0692 e RD-0694 (restos) e o novo RD-0698 seguram; RD-0699 não segura |
+| 5 | `nuvem/catalogo-campo-modulo-catalogo-v8` | d2d4660f → e390219f → 49ed6250 → **1e0a2de0** | modulo-catalogo | **LIBERADO** no fechamento v8: RD-0700 a RD-0704 fechados; novo RD-0708 (só título de teste, não segura) |
+| 6 | `nuvem/catalogo-campo-testes` | 25a5d2a5 → **1adf5b21** | testes | **LIBERADO** no fechamento: RD-0705 a RD-0707 fechados, sem achado novo |
 
 ## 1. Reteste
 - **Branches 1 a 4:** os heads são **os mesmos** do parecer `2026-11-15-catalogo-onda1.md` (branch
@@ -335,3 +336,51 @@ repassa as tabelas ao modulo-catalogo e ao testes.
 **Veredito do parecer final v8: NÃO LIBERADO.** Fecharam os 5 do re-parecer (RD-0691, 0692, 0694, 0698 e 0699). O 57d651ef trouxe
 4 achados baixos que seguram e 1 só de título. O branch de testes tem 3 achados baixos no corpo dos testes. São correções de
 poucas linhas. O reteste vale para os próximos heads dos dois branches.
+
+## Fechamento v8 e testes (2026-11-15, Manaus) · branch 5 em 49ed6250 → **1e0a2de0** · testes em 25a5d2a5 → **1adf5b21**
+
+Li `git diff 49ed62502..1e0a2de01` (1 commit, 10 arquivos de `modules/catalogo`) e `git diff 25a5d2a59..1adf5b214` (1 commit,
+5 testes e o `docs/testes/T-0052.md`), só pelo worktree do corretor, sem checkout no diretório principal. Caixa e recados: HTTP 403.
+
+### Fechados no v8 (5)
+- **RD-0700 fechado.** O `ordemPorNome` passou para `domain/estoque.ts:38` e é o comparador de `estoqueVisivel` (`:68`, com o id
+  só como desempate). `linhasDaFolhaEstoque` mantém a ordem recebida e marca `propria = branch_id === filialCadastro`; saíram
+  `proprias`, `marcarPropria` e o reordenamento. `opcoesDoFiltroFilial` importa o mesmo `ordemPorNome`. Nenhuma referência
+  sobrou em `modules`, `apps` ou `tests`.
+- **RD-0701 fechado.** Um estado só, `cadastro: { id; nome | null }`, vindo de `filialDeCadastroLocal` (que agora devolve o id
+  sem o nome). A faixa usa `cadastro?.nome`, e a folha usa `cadastro?.id`. A releitura da linha `usuario` passa pelo
+  `lembrar('usuarioFiliais')`, sem ida nova ao banco local.
+- **RD-0702 fechado.** `umaLeituraPorRequisicao` (`rotas.ts:128-132`) guarda a promessa de `filiaisDaTela()` e de
+  `filiaisDeVenda()`, e o `comRepo` a aplica: a busca (`filialDaBusca` e os 2 `contextoVitrine`) fica com uma leitura de cada.
+  O repositório Postgres é objeto literal, sem `this`, e o spread não perde método.
+- **RD-0703 fechado.** A linha `.not.toContain(FILIAL_DEMO)` saiu de `rotas.test.ts`.
+- **RD-0704 fechado.** Os 2 títulos estão como propostos.
+
+### Fechados no branch de testes (3)
+- **RD-0705 fechado.** Saíram a asserção `not.toBeNull` e o comentário repetido dos t0084 de integração e demo. O laço FO-1 voltou
+  a um `toMatchObject` só. As fontes ficam B-A4, B-O4 e a ficha do FO-1.
+- **RD-0706 fechado.** O caso do vendedor no B-A9 ficou só com o 422 `FILIAL_INEXISTENTE`. A linha B-A9 do `T-0052.md` aponta o
+  403 e o N 15 para o B-A4, e o B-A4 traz os dois.
+- **RD-0707 fechado.** Saíram a linha e o import de `codigosDoCartao` em `catalogo-so-consulta-r20261114.test.ts`. A ligação
+  `codigosDoCartao` × `linhaDaMarca` segue só em `desvios-spec-v106.test.ts`.
+
+### Novo (não segura)
+
+| RD | Onde (1e0a2de0) | Gravidade | Segura? | O que se repete · proposta |
+|---|---|---|---|---|
+| **RD-0708** | `modules/catalogo/app/lib/estoque-folha.test.ts:18` | baixa | **não** (só título de teste, exceção R-20261111-190159) | Com o RD-0700, `dadosDaFolha` deixou de ordenar: a entrada do caso já vem na ordem final, e o título ainda promete "a filial de cadastro primeiro, … as outras em ordem alfabética", que é o caso `estoque.test.ts:71`. O título que o RD-0704 propôs ficou velho com a correção do RD-0700. **Depois:** `'spec §2.1: linha "código · Atualizado às hh:mm" no fuso do tenant; mantém a ordem recebida e só a de cadastro leva "sua filial"'`. Vai no lote seguinte |
+
+### Conferido sem achado
+- `estoque-campo.test.ts`: os 2 casos da folha mudaram de título e de entrada junto com a assinatura nova, sem caso a mais.
+- O branch de testes não usa `linhasDaFolhaEstoque`, `ordemPorNome`, `marcarPropria` nem `filialDeCadastroLocal`. A junção com o
+  1e0a2de0 não deixa referência velha.
+- O nome reserva "Filial <8 do id>" (`estoque.ts:60`) segue no v8 por decisão do modulo-catalogo (RN-CORE-39: a filial de venda
+  sem saldo aparece com 0). É decisão de produto, não é redundância, e já está com o testes (item 1 do encaminhamento acima).
+
+| Branch | Head | Resultado |
+|---|---|---|
+| 5 `nuvem/catalogo-campo-modulo-catalogo-v8` | **1e0a2de0** | **LIBERADO**: RD-0700 a RD-0704 fechados; RD-0708 (só título) vai no lote seguinte |
+| `nuvem/catalogo-campo-testes` | **1adf5b21** | **LIBERADO**: RD-0705 a RD-0707 fechados |
+
+**Veredito do fechamento v8: LIBERADO** para o v8 e para o branch de testes. Não há achado que segure; fica aberto só o RD-0708,
+de título de teste.
