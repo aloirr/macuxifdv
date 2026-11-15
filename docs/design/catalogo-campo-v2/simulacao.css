@@ -54,8 +54,8 @@
   /* grade de 2 colunas e o cartão novo */
   .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; display: flex; flex-direction: column; min-width: 0; }
-  .card .n { font-family: Archivo; font-weight: 700; font-size: 16px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 60px; }
-  .foto { height: 96px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; margin-top: 8px; overflow: hidden; flex: none; }
+  .card .n { font-family: Archivo; font-weight: 700; font-size: 16px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 60px; margin-top: 8px; }
+  .foto { height: 96px; border-radius: 12px; background: var(--neutralBg); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: none; }
   .foto.img { background: var(--neutralBg); }
   /* linha "código da marca · marca · código do produto [copiar]" logo embaixo da foto (R-20261115-073000) */
   .cods { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; margin-top: 6px; font-size: 13px; line-height: 18px; color: var(--ink2); }
@@ -105,6 +105,9 @@
   .opt:first-of-type { border-top: 0; }
   .opt.on { font-weight: 700; }
   .opt small { font-weight: 400; color: var(--ink2); font-size: 13px; margin-left: 6px; }
+  .rodape { display: flex; gap: 10px; margin-top: 10px; }
+  .rodape .neutro { flex: 1; margin-top: 0; height: 52px; }
+  .rodape .btn { flex: 1.6; }
   .neutro { height: 44px; border-radius: 12px; border: 1px solid var(--lineStrong); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px; margin-top: 8px; }
 
   .barra-abas { flex: none; height: 64px; background: #fff; border-top: 1px solid var(--line); display: flex; position: relative; }

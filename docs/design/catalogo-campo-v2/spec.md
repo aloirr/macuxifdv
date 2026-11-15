@@ -1,9 +1,9 @@
 # Catálogo do Campo v2: cartão, ficha, estoque zero, filtro de filial e busca (simulação)
 
 > 2026-11-15 · designer-ux · origem: R-20261115-071600-alexandre (teste de campo, 15/11 ~7h de Manaus) e as decisões de
-> R-20261115-073000-alexandre. **Simulação para aprovação**: nada muda no código antes do "aprovado" do dono do produto. Fonte:
+> R-20261115-073000-alexandre e R-20261115-074500-alexandre. **Simulação para aprovação**: nada muda no código antes do "aprovado" do dono do produto. Fonte:
 > `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
-> Pareceres: corretor (RD-0496 a RD-0498) e marca (MC-0086) atendidos. Altera `catalogo-grade.md` §1, §2 e §4 quando aprovada.
+> Pareceres: corretor (RD-0496 e RD-0497) e marca (MC-0086) atendidos; o RD-0498 deixou de valer (§4). Altera `catalogo-grade.md` §1, §2 e §4 quando aprovada.
 > Tela: `modules/catalogo/app/telas/catalogo.tsx`, `comum.tsx` e `produto.tsx` (modulo-catalogo). Dados de exemplo fictícios.
 
 | PNG | O que mostra |
@@ -13,12 +13,14 @@
 | `03-ficha-referencia-cruzada.png` | ficha: copiar ao lado do código do produto; uma linha por filial; "Referência cruzada" |
 | `04-busca-referencia-cruzada.png` | "cb3401" acha a pastilha pelo código do concorrente |
 | `05-busca-dica.png` | a dica da busca, com o campo em foco e vazio |
-| `06-folha-filtro.png` | a folha "Filtrar" (a mesma das outras telas, `../filtro-padrao-campo/spec.md`) |
+| `06-folha-filtro.png` | a folha "Filtrar": filial e itens sem estoque (a mesma das outras telas, `../filtro-padrao-campo/spec.md`) |
 
 ## 1. Cartão da grade (de cima para baixo)
-1. **Nome grande**: Archivo 700 16/20, até 3 linhas (antes 15/600, 2 linhas, abaixo da foto).
-2. **Foto** 96 dp (antes 112, para o cartão não crescer).
-3. **Linha dos códigos, logo embaixo da foto**: `980 · Travex · PAF.1434 [copiar]` (código da marca · marca · código do
+A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
+1. **Foto** 96 dp (antes 112, para o cartão não crescer).
+2. **Nome grande**: Archivo 700 16/20, até 3 linhas (antes 15/600, 2 linhas). Os dois cartões de uma linha reservam a mesma
+   altura para o nome, para a linha dos códigos ficar alinhada.
+3. **Linha dos códigos, logo embaixo do nome**: `980 · Travex · PAF.1434 [copiar]` (código da marca · marca · código do
    produto). Na coluna de 360 dp ela quebra em dois pontos fixos: `980 · Travex` (13 `ink2`) e `PAF.1434 [copiar]` (13/700 `ink`;
    o botão é um quadro de 28 dp com o ícone `copiar`, alvo de 44 dp). Na ficha, uma linha só. Sem marca, a linha fica só com o código do produto e o copiar.
 4. Busca que achou pela referência cruzada: `Equivale a Freiomax CB 3401`, com o código destacado (`accentSoft`), como já previa o RN-CAT-09.
@@ -53,8 +55,13 @@ quantidade: `Sem estoque` (premissa; o número não aparece para ninguém nesse 
   o selo `1` e o chip `Filial Boa Vista ✕`. Diferente de Pedidos (o padrão "Este mês" não conta), aqui o padrão aparece, como o
   dono do produto pediu.
 - O ✕ do chip mostra **Todas as filiais**: estoque somado; o preço continua o da tabela da filial do vendedor (RN-VEN-01).
-- A folha "Filtrar" tem o grupo **Filial**: a do vendedor (`sua filial`), as outras e `Todas as filiais`. Um grupo só: tocar aplica e
-  fecha. Sem `Limpar` (RD-0498): a filial do vendedor já está na lista.
+- A folha "Filtrar" tem dois grupos (R-20261115-074500):
+  - **Filial**: a do vendedor (`sua filial`), as outras e `Todas as filiais`;
+  - **Itens sem estoque**: `Mostrar` (padrão) ou `Ocultar`. Com `Ocultar`, o selo soma 1 e entra o chip `Só com estoque ✕`.
+- Com dois grupos, a folha segue o padrão das folhas de vários grupos: rodapé com `Limpar` (neutro: volta para a filial do
+  vendedor e `Mostrar`) e `Ver 1.284 produtos` (principal, fecha). O RD-0498 (tirar o `Limpar`) deixa de valer, porque agora ele
+  desfaz duas escolhas de uma vez.
+- A filial muda o estoque (e o preço) mostrado e não esconde produtos; quem esconde os sem estoque é o `Ocultar`.
 - Os chips de sistema continuam na tela (navegação, como a situação em Pedidos).
 - Aberto pela ficha do cliente: a filial é a do cliente (RN-CORE-39), no mesmo chip.
 
@@ -75,7 +82,4 @@ quantidade: `Sem estoque` (premissa; o número não aparece para ninguém nesse 
 | referências | códigos da concorrência, marca opcional | `catalogo.referencias`; Hub `referencias` (até 3, RN-CAT-09) |
 
 ## 7. Perguntas ao dono do produto (abertas)
-1. **Ordem do cartão:** nome em cima da foto e a linha dos códigos logo embaixo dela, como na simulação? Ou a foto primeiro?
-2. **Filtro de filial:** a filial muda o estoque (e o preço) mostrado, sem esconder produtos, como na simulação? Ou esconde os
-   produtos sem estoque ou sem preço naquela filial?
-3. **Copiar:** a simulação copia o código do produto (`PAF.1434`), pela posição do botão. Confirma?
+1. **Copiar:** a simulação copia o código do produto (`PAF.1434`), pela posição do botão. Confirma?

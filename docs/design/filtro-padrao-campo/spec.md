@@ -1,6 +1,6 @@
 # Filtro padrão no Campo: Rota, Clientes e Performance (simulação)
 
-> 2026-11-15 · designer-ux · origem: R-20261115-072200-alexandre (com R-20261115-071600). **Simulação para aprovação**: nada
+> 2026-11-15 · designer-ux · origem: R-20261115-072200-alexandre (com R-20261115-071600 e as decisões de R-20261115-074500). **Simulação para aprovação**: nada
 > muda no código antes do "aprovado" do dono do produto. Fonte: `filtro-padrao-campo.html` (`?v=rota|rota-folha|clientes|clientes-folha|clientes-vazia|performance`),
 > com o CSS de `../catalogo-campo-v2/simulacao.css`. PNGs 360 × 800 (escala 2). Dados de exemplo fictícios.
 > Pareceres: corretor (RD-0499 a RD-0502) e marca (MC-0086) atendidos.
@@ -21,7 +21,7 @@
   exceto a filial do Catálogo (pedido do dono do produto).
 - **Uma folha só, "Filtrar"** (componente novo do kit, `FolhaFiltro`): título, ✕ e grupos com rótulo (13/600 `ink2`). Tipos de grupo:
   opções de 48 dp com ✓ (escolha única), chips de marcar (vários) e campo de escolha de 48 dp que abre a lista (ou a `FolhaPeriodo`, para data).
-- **Um grupo só** (Catálogo, Performance): tocar aplica e fecha; embaixo, `Limpar` (neutro). **Vários grupos** (Rota, Clientes):
+- **Um grupo só** (Performance): tocar aplica e fecha; embaixo, `Limpar` (neutro). **Vários grupos** (Catálogo, Rota, Clientes):
   rodapé com `Limpar` (neutro) e `Ver 4 visitas` / `Ver 5 clientes` (principal, 52 dp), que fecha; a contagem acompanha a escolha.
 - A contagem da lista vai para o subtítulo da faixa, como em Clientes: `4 de 12 visitas`, `5 de 86 na carteira`. O que já está num
   chip não se repete no subtítulo (RD-0499: `4 de 12 visitas · 38 km`, sem a cidade).
@@ -31,12 +31,13 @@
   conta as visitas filtradas (2 das 4), como o subtítulo.
 - Folha: **Cliente** (busca por nome ou código), **Cidade** e **Bairro** (listas tiradas das paradas da rota; o bairro segue a
   cidade escolhida) e **Data** (abre a `FolhaPeriodo` na aba Dia; padrão `Hoje`).
-- Chips: `Boa Vista ✕`, `Centro ✕`, `Oficina do Raimundo ✕`, `Ter, 18/11 ✕`. Com outra data, o título vira `Rota de ter, 18/11`.
+- Chips: `Boa Vista ✕`, `Centro ✕`, `Oficina do Raimundo ✕`, `Ter, 18/11 ✕`. Com outra data, a tela mostra a rota inteira daquele
+  dia (R-20261115-074500) e o título vira `Rota de ter, 18/11`.
 - Mapa e lista mostram só as paradas filtradas; a numeração continua a da rota (2, 5, 7, 9).
 
 ## 3. Clientes
 - `CampoBusca` + `BotaoFiltro` na mesma linha. A linha de chips (Curva A, Sem compra 45+, Devendo, Não positivados) sai da tela e
-  vira o grupo **Situação** da folha (chips de marcar). Cada chip marcado aparece como `EtiquetaFiltro` (`Devendo ✕`).
+  vira o grupo **Situação** da folha, em chips de marcar (decidido em R-20261115-074500). Cada chip marcado aparece como `EtiquetaFiltro` (`Devendo ✕`).
 - A etiqueta da situação marcada no filtro não se repete nas linhas (RD-0500): com `Devendo`, a linha mostra o nome, "Visitado
   há…" e o ›. Com 2 situações marcadas, a linha mostra a que a distingue.
 - **Carteira vazia** (RD-0501, modulo-core): `EstadoVazio` com o ícone `users` e uma frase só, `Sua carteira está vazia.`; o
@@ -46,7 +47,3 @@
 - A linha própria do filtro sai. `Segmentado` (Resultados · Produtividade, `flex: 1`) e `BotaoFiltro` na mesma linha, `gap: 8`.
 - O período continua na linha de baixo (`Novembro de 2026` · `DU 11 de 23 · 12 restantes`); fora do padrão, vira chip removível (`Outubro de 2026 ✕`).
 - Em dia que não é útil (RD-0502, modulo-core): `Não é dia útil · 11 restantes`, no lugar do "DU — de 23".
-
-## 5. Perguntas ao dono do produto
-1. **Clientes:** os chips de situação saem da tela e vão para a folha, como na simulação? Ou ficam na tela e o botão filtra outras coisas (cidade, bairro)?
-2. **Rota:** a data no filtro mostra a rota de outro dia (passado ou futuro) inteira, como na simulação?
