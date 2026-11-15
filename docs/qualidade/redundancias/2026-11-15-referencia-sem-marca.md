@@ -207,3 +207,15 @@ Conferi o commit **71b4c16e** em `origin/nuvem/referencia-sem-marca-modulo-catal
 
 ### Recado
 A CLI segue com 403 na escrita. A lista foi entregue ao gerente-projetos para repassar ao modulo-catalogo (RD-0544) e ao testes (conferir a exportação escondendo a referência).
+
+## 8. Quarto reteste (15/11/2026, ~08h Manaus)
+**Veredito: LIMPO no modulo-catalogo.** O RD-0544 foi corrigido e não há achado novo. Não há nenhum RD aberto neste tema. Resta uma pendência que não é redundância e fica com o testes: os testes de `tests/integracao` que ainda leem `e.marcas`.
+
+Conferi o commit **9edb3fd9** em `origin/nuvem/referencia-sem-marca-modulo-catalogo`. São 6 arquivos, com 5 linhas a mais e 17 a menos.
+
+| Ponto | Resultado |
+|---|---|
+| RD-0544 | **Corrigido.** O campo `marcas` saiu do `RespostaExportacao` (`contracts/rotas.ts`). A rota agora devolve `{ produtos, truncado }`, e o `marcas` do `Promise.all` continua, porque alimenta o `montarExportacao`. Saíram também os 3 asserts de `rotas.test.ts`, o `MARCAS_EXEMPLO` e os fixtures de `exportacao.test.ts`. No doc, `regras.md:165` diz `{ produtos, truncado }`, e a `:167` traz o texto proposto. |
+| Sobra no módulo | **Nenhuma.** `git grep` não acha mais `MARCAS_EXEMPLO`, `DADOS_EXEMPLO.marcas` nem `corpo.marcas` da exportação em `modules` e `apps`. Os `e.marcas` que sobram em `domain/exportacao.ts:59`, `api/ia` e `modules/integracao` são outros dados: a entrada do domain, o vocabulário da IA e o evento de marca desconhecida. |
+| Redundância nova | **Nenhuma.** A correção só tirou código. Os 2 testes do layout, "equivale a usa a marca ou só o código" e "usa o marca_nome que o domain já resolveu", cobrem casos diferentes. |
+| `tests/integracao` | **Fora do escopo do corretor.** `api/catalogo-aplicacao-t0084.test.ts:541,543` e `demo/catalogo-cadastro-demo-t0084.test.ts:154` ainda conferem `e.marcas`, que não existe mais. O testes vai ajustar num branch à parte, como o gerente informou. Não é RD. |
