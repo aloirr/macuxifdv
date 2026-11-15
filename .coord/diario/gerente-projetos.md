@@ -428,3 +428,4 @@
 ## 2026-11-15 16h25 (Manaus) — conta nova assume a v1.0.14
 - Ordem do Alexandre no chat (R-20261115-161600-gerente-projetos; confirmação R-20261115-161700-alexandre): conta nova toca os 7 itens da v1.0.14; conta antiga fecha a v1.0.12 e a v1.0.13.
 - Sessões por dono abertas (N1 banco, N2 engenheiro-software, N3 vendedor+integração, N4 core+gestor, N5 apps+designer, N6 catálogo+pesquisa+promotor+treinamento); N7 testes e N8 corretor+marca abrem quando houver PRs de código. Registro no quadro (Conta nova — v1.0.14).
+- 16h30: o Alexandre mandou tocar tudo pela conta nova (R-20261115-161800-alexandre; chat literal em R-20261115-163500-gerente-projetos). Sessões L1–L6 abertas para o lote v1.0.12/v1.0.13; quadro atualizado.
