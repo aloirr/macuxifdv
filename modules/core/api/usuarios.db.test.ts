@@ -15,6 +15,7 @@ import { criarAutenticacao } from './autenticacao';
 import { carteiraDoUsuario } from './carteira';
 import { assinarAcesso } from './seguranca';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
+import { filialPadraoDoTenant } from './apoio-teste-banco';
 import { rotasDeUsuarios } from './usuarios';
 
 const A = DOIS_TENANTS.A;
@@ -48,7 +49,7 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     const r = rota(metodo, caminho);
     return r.executar({ ...ctx(u), corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  /** Filial padrão de cada tenant (lida no beforeAll): a de cadastro é obrigatória ao criar (RN-CORE-39). */
+  /** Filial padrão de cada tenant (lida no beforeAll; ver `filialPadraoDoTenant`). */
   const filialPadrao = new Map<string, string>();
   const novo = (sufixo: string, extra: Record<string, unknown> = {}, tenant = A.tenantId) => ({
     nome: `Teste ${sufixo}`,
@@ -65,7 +66,7 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
     for (const t of [A.tenantId, B.tenantId]) {
-      filialPadrao.set(t, await comTenant(pool, t, async (c) => (await c.query<{ id: string }>('select id from core.filial where padrao and deleted_at is null')).rows[0]!.id));
+      filialPadrao.set(t, (await filialPadraoDoTenant(pool, t)).id);
     }
     acesso = {
       comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as unknown as ClienteBanco)),

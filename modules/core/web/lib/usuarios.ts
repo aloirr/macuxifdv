@@ -91,8 +91,8 @@ export const textoDaConfirmacaoDoVinculo = (provisorio: Pick<UsuarioItem, 'clien
   return `${n === 1 ? 'Recebe o 1 cliente' : `Recebe os ${n} clientes`} da carteira e o provisório sai da lista.`;
 };
 
-/** E-mail na lista: o do provisório (`@sem-email.invalid`) aparece como "—" (spec §6). */
-export const emailParaLista = (u: Pick<UsuarioItem, 'email'>): string => (u.email.endsWith('@sem-email.invalid') ? '—' : u.email);
+/** E-mail na lista: o do provisório (`provisorio` da API) aparece como "—" (spec §6). */
+export const emailParaLista = (u: Pick<UsuarioItem, 'email' | 'provisorio'>): string => (u.provisorio === true ? '—' : u.email);
 
 /** Código FDV na lista e na gaveta: sem o código (ainda não gerado) aparece "—". */
 export const codigoFdvParaLista = (u: Pick<UsuarioItem, 'codigo_fdv'>): string => u.codigo_fdv ?? '—';

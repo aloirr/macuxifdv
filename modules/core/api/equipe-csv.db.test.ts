@@ -11,11 +11,12 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { MensagemEmail, ServicoEmail } from './email';
 import { perfisDeFabrica } from '../domain';
+import { filialPadraoDoTenant } from './apoio-teste-banco';
 import { rotasDeEquipeCsv } from './equipe-csv';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
-/** Código da filial padrão do tenant A (lido no beforeAll): o A tem 2 filiais, então a coluna `filial` é obrigatória para quem é criado (RN-CORE-39). */
+/** Código da filial padrão do tenant A, para a coluna `filial` (lido no beforeAll; ver `filialPadraoDoTenant`). */
 let FIL = '';
 const CAB = 'nome,email,telefone,perfil,email_superior,codigo_erp,modulos,filial';
 let CSV = '';
@@ -54,7 +55,7 @@ describe.skipIf(semBanco())('Core T-0087 E × Postgres: Equipe por CSV com senha
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
-    FIL = (await linhas<{ codigo: string }>(A.tenantId, 'select codigo from core.filial where padrao and deleted_at is null'))[0]!.codigo;
+    FIL = (await filialPadraoDoTenant(pool, A.tenantId)).codigo;
     CSV = [
       CAB,
       `Vera Campo,vera.csv@exemplo.com.br,,vendedor,sandra.csv@exemplo.com.br,CSV-V1,,${FIL}`,

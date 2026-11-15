@@ -2,14 +2,13 @@
  * Filial do usuário no BKO (T-0176, RN-CORE-39; simulação aprovada R-20261115-104500, `docs/design/filial-cadastro-venda/spec.md` §2 e §3).
  * Funções puras da gaveta (filial de cadastro + filiais de venda) e da lista (coluna, filtro e aviso). Sem React e sem rede; a API revalida.
  */
-import type { UsuarioItem } from '../../contracts';
+import { MENSAGEM_FILIAL_CADASTRO_OBRIGATORIA, type UsuarioItem } from '../../contracts';
 
 export interface FilialOpcao {
   id: string;
   nome: string;
 }
 
-export const ERRO_FILIAL_CADASTRO = 'Escolha a filial de cadastro.';
 export const ROTULO_FILIAL_DE_CADASTRO = 'filial de cadastro';
 export const FILTRO_FILIAL_SEM = 'sem';
 export const SELO_SEM_FILIAL = 'Sem filial';
@@ -47,7 +46,7 @@ export function descricaoParaLeitor(nome: string, f: FiliaisDoForm, id: string):
 }
 
 /** O erro do campo "Filial de cadastro": obrigatória quando quem edita pode informá-la. */
-export const erroDaFilialCadastro = (f: Pick<FiliaisDoForm, 'filial_cadastro_id'>, aplica: boolean): string | undefined => (aplica && !f.filial_cadastro_id ? ERRO_FILIAL_CADASTRO : undefined);
+export const erroDaFilialCadastro = (f: Pick<FiliaisDoForm, 'filial_cadastro_id'>, aplica: boolean): string | undefined => (aplica && !f.filial_cadastro_id ? MENSAGEM_FILIAL_CADASTRO_OBRIGATORIA : undefined);
 
 /** Corpo da API: só quem tem `usuario.filial_editar` envia os dois campos (a API inclui a de cadastro na lista de venda). */
 export function corpoDaFilial(f: FiliaisDoForm, aplica: boolean): { filial_cadastro_id?: string; filial_venda_ids?: string[] } {

@@ -25,7 +25,7 @@ export const CODIGOS_FILIAL_USUARIO = {
   cadastroObrigatoria: 'USUARIO_FILIAL_CADASTRO_OBRIGATORIA',
   /** 422 — lista de venda vazia (a API já inclui a de cadastro; só aparece sem cadastro). */
   vendaVazia: 'USUARIO_FILIAL_VENDA_VAZIA',
-  /** 422 — a lista de venda não contém a de cadastro (banco: 23514 `usuario_filial_inclui_cadastro`, checado no COMMIT). */
+  /** 422 — a lista de venda não contém a de cadastro (banco: 23514 `usuario_filial_inclui_cadastro`; a API a antecipa com `set constraints … immediate`). */
   vendaSemCadastro: 'USUARIO_FILIAL_VENDA_SEM_CADASTRO',
   /** 422 — filial inexistente, excluída ou de outro tenant. */
   invalida: 'USUARIO_FILIAL_INVALIDA',
@@ -39,9 +39,9 @@ export const CODIGOS_FILIAL_USUARIO = {
   inexistenteNaCarga: 'FILIAL_INEXISTENTE',
 } as const;
 
-/** Perfis (base) que editam a filial do usuário. */
 /** Ação do catálogo (manifesto do Core; ADR 0033): informar/trocar a filial de cadastro e de venda, a própria (destravamento) ou a de outro usuário. */
 export const ACAO_FILIAL_USUARIO_EDITAR = 'usuario.filial_editar';
+/** Perfis (base) que editam a filial do usuário. */
 export const PERFIS_QUE_EDITAM_FILIAL = ['admin', 'analista'] as const;
 
 const Id = z.string().uuid();

@@ -6,6 +6,7 @@
  */
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { FilialDoUsuarioSchema } from './filial-usuario';
 
 /** Códigos de erro 422 da filial (a API devolve `ErroRegraNegocio`). */
 export const ERROS_FILIAL = {
@@ -141,6 +142,7 @@ export const CONSULTA_FILIAIS = definirConsulta({ nome: 'core.filiais@1', entrad
  */
 export const FiliaisDoUsuarioEntradaSchema = z.object({ usuario_id: Id }).strict();
 export type FiliaisDoUsuarioEntrada = z.infer<typeof FiliaisDoUsuarioEntradaSchema>;
-export const FiliaisDoUsuarioSaidaSchema = z.object({ filial_cadastro_id: Id.nullable(), filial_venda_ids: z.array(Id), sem_filial: z.boolean() });
+/** RD-1211: a mesma forma da leitura da filial do usuário (um schema só). */
+export const FiliaisDoUsuarioSaidaSchema = FilialDoUsuarioSchema;
 export type FiliaisDoUsuarioSaida = z.infer<typeof FiliaisDoUsuarioSaidaSchema>;
 export const CONSULTA_FILIAIS_DO_USUARIO = definirConsulta({ nome: 'core.filiais_do_usuario@1', entrada: FiliaisDoUsuarioEntradaSchema, saida: FiliaisDoUsuarioSaidaSchema });

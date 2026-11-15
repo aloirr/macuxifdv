@@ -53,6 +53,7 @@ import {
   type UsuarioAuditavel,
   ERRO_SEM_PERFIL,
   ehUsuarioProvisorio,
+  SUFIXO_EMAIL_PROVISORIO,
 } from '../domain';
 import { auditar } from './auditoria';
 import { codigosDoUsuario, conferirPerfisDoUsuario, gravarPerfisDoUsuario, perfisEscolhidos, principalDe, refsDoUsuario } from './usuario-perfis';
@@ -124,7 +125,7 @@ interface LinhaUsuario {
   bloqueio_ate_login?: string | null;
 }
 
-const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id, ${sqlCodigoFdv()} as codigo_fdv, (lower(u.email) like '%@sem-email.invalid') as provisorio,
+const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id, ${sqlCodigoFdv()} as codigo_fdv, (lower(u.email) like '%${SUFIXO_EMAIL_PROVISORIO}') as provisorio,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
          u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
@@ -278,7 +279,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       if (perfil) onde.push(`exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil pf on pf.id = up.perfil_id where up.usuario_id = u.id and up.deleted_at is null and pf.codigo = ${param(perfil)})`);
       if (equipe_id) onde.push(`u.equipe_id = ${param(equipe_id)}`);
       if (ativo) onde.push(`u.ativo = ${param(ativo === 'true')}`);
-      if (provisorio) onde.push("lower(u.email) like '%@sem-email.invalid'");
+      if (provisorio) onde.push(`lower(u.email) like '%${SUFIXO_EMAIL_PROVISORIO}'`);
       return ctx.comTenant(async (db) => {
         const r = await db.query<LinhaUsuario>(`${SELECT_USUARIO} where ${onde.join(' and ')} order by u.nome, u.id limit ${LIMITE}`, valores);
         // o filtro SQL já recortou; `recortarUsuarios` é a mesma regra do domínio, aplicada de novo como cinto de segurança
