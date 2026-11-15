@@ -76,3 +76,23 @@ Print do aparelho, Campo, a 360 dp: Início e Catálogo com o indicador (com e s
 ## Recados (texto pronto; CLI com HTTP 403)
 - **design-de-marca → modulo-catalogo** (cc gerente-projetos): "Catálogo Campo v8 (`c9bfdff0`): cores conformes. MC-0131 e MC-0132 (médias) antes do build; MC-0130 e MC-0133 (baixas) com a correção pronta. Detalhe em docs/marca/pareceres/2026-11-15-catalogo-onda1-v2.md."
 - **design-de-marca → engenheiro-apps** (cc designer-ux, gerente-projetos): "Onda 1: shell liberado. MC-0121 (baixa) segue: percentual da carga inteira com o nome da etapa; alinhe com o designer-ux no lote seguinte."
+
+## Re-validação v8 (`e390219f`, antes `c9bfdff0`)
+> **Pedido:** gerente-projetos, 15/11/2026, meta v1.0.13. Leitura de `git diff c9bfdff0..e390219f` e dos tokens no próprio v8 (`packages/ui/src/comum/contraste.ts`, `packages/ui/src/mobile/tokens.ts`, `ui.tsx`, `icon.tsx`). O `fe2d0402` no meio (estoque nulo sem filial de venda, RN-CAT-05) não muda cor, forma nem texto de marca. Sem PNG: o reteste final fecha no print do aparelho.
+
+| MC | Conferido em `e390219f` | Situação |
+|---|---|---|
+| MC-0130 | `comum.tsx` `g.codigo`: `fonts.bold` 13, `lineHeight: 18`, `ink`, `tabular-nums`. Sai o token de título | **fechada** |
+| MC-0131 | `altura={96}`, `numberOfLines={3}`, `g.nome`: `fonts.displayBold` 16/20, `minHeight: 60`, `ink`. Igual à spec §1.1 e §1.2 | **fechada** |
+| MC-0132 | Sai o `rodape` da `Folha`; no fim, `Botao` do kit `neutro` "Limpar" e `principal` com `textoVer` (Azul noite). Opção marcada em `fonts.bold`; divisória `colors.line` (`#DFE2E6`) a partir da 2ª opção de cada grupo; check 18, traço 2,6, `accent`. Sem `Pressable` nem estilo próprio de botão | **fechada** |
+| MC-0133 | Copiar na faixa (`variante="faixa"`, pelo `direita` do `CabecalhoTela`): ícone 20 em `faixaTitulo` (branco no Azul noite), borda 1 `faixaTrilho` `#3A4D68`, toque em `faixaTrilho`. Sai a caixa "Copiar código" do corpo. Divisória `lineSoft` (Névoa `#ECEEF1`) entre o preço e o "Estoque: N". Nenhuma cor fora da faixa aprovada | **fechada neste lote**, com o resíduo abaixo |
+
+### Resíduo da MC-0133 (aceito para este lote)
+A faixa segue com `marca · código · un · EAN` numa linha só e o copiar na linha do título, não ao lado do código, porque o `CabecalhoTela` tem um subtítulo só. Para a marca, o que importa está certo: Azul noite, branco, trilho e nada de cor nova. A 2ª linha (`PC · EAN`) e o copiar ao lado do código são arranjo do kit, não do módulo. **Aceito para v1.0.13.** Vira ajuste do kit no lote seguinte, com dono `designer-ux` (`CabecalhoTela` com 2ª linha de subtítulo ou um espaço ao lado do subtítulo). Depois que o kit mudar, o modulo-catalogo aplica na ficha. Não segura o lote e não ganha número novo.
+
+### Veredito
+**Catálogo Campo v8 (`e390219f`): liberado.** As MC-0130 a MC-0133 estão fechadas no código. A conferência final é no print do aparelho, a 360 dp: grade com nome de 3 linhas, ficha com o copiar na faixa e as folhas "Filtrar" e "Estoque por filial". A dependência do ícone `pacote` (PR do kit antes do PR do módulo) continua. Só o Alexandre aprova a marca.
+
+### Recados (texto pronto; CLI com HTTP 403)
+- **design-de-marca → modulo-catalogo** (cc gerente-projetos): "Catálogo Campo v8 (`e390219f`) liberado. MC-0130 a MC-0133 fechadas no código; a conferência final é no print. A 2ª linha da faixa (`PC · EAN`) fica para o lote seguinte, depois do ajuste no kit."
+- **design-de-marca → designer-ux** (cc gerente-projetos): "Lote seguinte: `CabecalhoTela` com uma 2ª linha de subtítulo, ou um espaço para ação ao lado do subtítulo, para a ficha do produto (spec catalogo-campo-v2 §2, prancha 03: `980 · Travex · PAF.1434 [copiar]` / `PC · EAN …`). Resíduo da MC-0133, baixa."
