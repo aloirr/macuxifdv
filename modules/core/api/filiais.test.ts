@@ -46,14 +46,22 @@ describe('core.filiais@1 (RN-CORE-39)', () => {
 
 describe('core.filiais_do_usuario@1 (T-0176, RN-CORE-39)', () => {
   const U = '0a100000-0000-4000-8000-000000000001';
-  const ctxU = (filiais: string[]) => ({ db: { query: async () => ({ rows: filiais.map((filial_id) => ({ filial_id })), rowCount: filiais.length }) } as unknown as ClienteBanco }) as unknown as ContextoConsulta;
-  it('RN-CORE-39: devolve todas as filiais vivas do usuário (supervisor com várias)', async () => {
-    const r = FiliaisDoUsuarioSaidaSchema.parse(await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU([MANAUS, BV])));
-    expect(r).toEqual({ filial_ids: [MANAUS, BV], sem_filial: false });
+  const ctxU = (cadastro: string | null, venda: string[]) =>
+    ({
+      db: {
+        query: async (sql: string) => {
+          const rows = /from core\.usuario where/.test(sql) ? (cadastro || venda.length ? [{ id: U, filial_cadastro_id: cadastro }] : []) : venda.map((filial_id) => ({ usuario_id: U, filial_id }));
+          return { rows, rowCount: rows.length };
+        },
+      } as unknown as ClienteBanco,
+    }) as unknown as ContextoConsulta;
+  it('RN-CORE-39: devolve a filial de cadastro e todas as de venda (supervisor com várias)', async () => {
+    const r = FiliaisDoUsuarioSaidaSchema.parse(await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU(MANAUS, [MANAUS, BV])));
+    expect(r).toEqual({ filial_cadastro_id: MANAUS, filial_venda_ids: [MANAUS, BV], sem_filial: false });
   });
-  it('RN-CORE-39: sem nenhuma filial viva (ou usuário que o tenant não enxerga) volta vazio e sem_filial', async () => {
-    const r = await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU([]));
-    expect(r).toEqual({ filial_ids: [], sem_filial: true });
+  it('RN-CORE-39: sem filial de cadastro (ou usuário que o tenant não enxerga) volta sem_filial', async () => {
+    const r = await consultaFiliaisDoUsuario.executar(FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: U }), ctxU(null, []));
+    expect(r).toEqual({ filial_cadastro_id: null, filial_venda_ids: [], sem_filial: true });
   });
   it('RN-CORE-39: a entrada exige usuario_id uuid', () => {
     expect(() => FiliaisDoUsuarioEntradaSchema.parse({ usuario_id: 'x' })).toThrow();

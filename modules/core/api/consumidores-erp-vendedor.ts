@@ -5,7 +5,7 @@
  * recebe e-mail provisório estável (`emailDoVendedorErp`). Usuário já existente com o mesmo e-mail e sem `external_id`
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
- * T-0176 (RN-CORE-39): `filial_external_id` opcional grava a filial do vendedor (`aplicarFilialDoErp`); ausente não altera; filial inexistente não grava e registra o erro; vendedor sem filial segue bloqueado no app.
+ * T-0176 (RN-CORE-39): `filial_external_id` opcional grava a filial de CADASTRO do vendedor e a inclui nas de venda (`aplicarFilialDoErp`); ausente não altera; inexistente deixa o vendedor sem filial (bloqueado) e registra FILIAL_INEXISTENTE.
  * T-0095: versão com `alterado_em` menor que `core.usuario.erp_alterado_em` (reentrega fora de ordem) é ignorada; vendedor
  * desligado pelo admin no BKO (`desligado_no_bko_em`) não é reativado pela carga: segue inativo e o admin recebe aviso UMA vez por
  * versão do registro (só quando o `alterado_em` avança; a carga completa repetida não reavisa). A adoção por e-mail e o upsert

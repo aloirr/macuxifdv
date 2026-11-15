@@ -77,7 +77,7 @@ Desenho: `docs/desenho/T-0094.md`; textos e telas: `docs/design/ciclo-de-senha.m
 - Uma tag (Bloqueado > Devendo > Pré-Cadastro > Em dia) e só a última visita ("Visitado hoje/ontem/há N dias", "Nunca visitado"). Pré-Cadastro = cliente sem código do ERP (`external_id` vazio).
 - Última visita: `ultima_visita_em` do `cliente_visita_resumo@1` (id = cliente; último check-in concluído de qualquer vendedor, data no fuso do tenant; ver `performance-cliente.md`) somada aos check-ins feitos no aparelho. Funções puras em `domain/lista-clientes.ts`.
 
-## Filial do usuário (T-0176, RN-CORE-39 revista)
-- Vendedor (cargo): exatamente 1 filial. Supervisor, promotor e gerente: 1 ou mais. Admin e analista: 0 ou mais. Só admin e analista informam `filial_ids` (403 `USUARIO_FILIAL_SEM_PERMISSAO` para os demais); quantidade errada ou filial inexistente dá 422 (`USUARIO_FILIAL_QUANTIDADE`, `USUARIO_FILIAL_INVALIDA`).
-- Vendedor sem filial (carga ou cadastro antigo) existe e fica bloqueado no app: `sem_filial` na sessão do login e no sync `usuario` (junto com `filial_id`). Textos e telas aguardam a simulação.
-- Carga do ERP: `filial_external_id` opcional em `integracao.vendedor.atualizado@1`; ausente não altera; presente troca a filial; filial inexistente não grava e vai ao log sem dado pessoal.
+## Filial do usuário (T-0176, RN-CORE-39 revista; detalhe em `filial-cadastro-venda.md`)
+- Todo usuário tem UMA filial de cadastro (`filial_cadastro_id`) e UMA OU MAIS filiais de venda que a incluem, sem limite por cargo. Só admin e analista informam (403 `USUARIO_FILIAL_SEM_PERMISSAO`); sem cadastro ao criar dá 422.
+- Sem filial de cadastro o usuário, de qualquer perfil, fica bloqueado: `sem_filial` na sessão e no sync `usuario`, 403 `USUARIO_SEM_FILIAL` nas rotas do Core. Admin e analista se destravam com `PUT /v1/core/eu/filial-cadastro`.
+- Carga do ERP: `filial_external_id` grava a de cadastro e a inclui na de venda; ausente não altera; inexistente deixa o vendedor sem filial e registra `FILIAL_INEXISTENTE`.

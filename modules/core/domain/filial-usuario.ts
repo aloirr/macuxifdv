@@ -1,22 +1,26 @@
 /**
- * Filial do usuário (T-0176; RN-CORE-39 revista). Funções puras. O "vendedor" é o CARGO do perfil (a régua da migração 0069),
- * não `core.usuario.perfil`. O máximo de 1 filial do vendedor também é do banco (0077); o mínimo é só daqui e da API.
+ * Filial do usuário (T-0176; RN-CORE-39 revista, R-20261115-093000/094500). Funções puras.
+ * Filial de CADASTRO: obrigatória em qualquer perfil (nula = bloqueado). Filiais de VENDA: no mínimo 1, sempre com a de cadastro,
+ * sem limite por cargo.
  */
-import type { Cargo } from '@macuxi/platform-sdk';
-import { CODIGOS_FILIAL_USUARIO, MENSAGEM_AO_MENOS_UMA_FILIAL, MENSAGEM_FILIAL_DO_VENDEDOR, PERFIS_QUE_EDITAM_FILIAL } from '../contracts/filial-usuario';
+import { CODIGOS_FILIAL_USUARIO, MENSAGEM_FILIAL_CADASTRO_OBRIGATORIA, MENSAGEM_FILIAL_VENDA_SEM_CADASTRO, MENSAGEM_FILIAL_VENDA_VAZIA, PERFIS_QUE_EDITAM_FILIAL } from '../contracts/filial-usuario';
 
 export interface ErroFilialUsuario {
-  codigo: typeof CODIGOS_FILIAL_USUARIO.quantidade;
+  codigo: (typeof CODIGOS_FILIAL_USUARIO)['cadastroObrigatoria' | 'vendaVazia' | 'vendaSemCadastro'];
   mensagem: string;
 }
 
-/** RN-CORE-39: vendedor exatamente 1; supervisor, promotor e gerente 1 ou mais; administrativo (admin, analista) 0 ou mais. Repetidas contam uma vez. */
-export function validarFiliaisDoUsuario(cargo: Cargo | null | undefined, filiais: readonly string[]): ErroFilialUsuario | null {
-  const n = new Set(filiais).size;
-  const erro = (mensagem: string): ErroFilialUsuario => ({ codigo: CODIGOS_FILIAL_USUARIO.quantidade, mensagem });
-  if (cargo === 'vendedor') return n === 1 ? null : erro(MENSAGEM_FILIAL_DO_VENDEDOR);
-  if (cargo === 'supervisor' || cargo === 'promotor' || cargo === 'gerente') return n >= 1 ? null : erro(MENSAGEM_AO_MENOS_UMA_FILIAL);
+/** RN-CORE-39: cadastro obrigatória; venda com no mínimo 1 filial e contendo a de cadastro. Repetidas contam uma vez. */
+export function validarFiliaisDoUsuario(f: { cadastro: string | null | undefined; venda: readonly string[] }): ErroFilialUsuario | null {
+  if (!f.cadastro) return { codigo: CODIGOS_FILIAL_USUARIO.cadastroObrigatoria, mensagem: MENSAGEM_FILIAL_CADASTRO_OBRIGATORIA };
+  if (new Set(f.venda).size === 0) return { codigo: CODIGOS_FILIAL_USUARIO.vendaVazia, mensagem: MENSAGEM_FILIAL_VENDA_VAZIA };
+  if (!f.venda.includes(f.cadastro)) return { codigo: CODIGOS_FILIAL_USUARIO.vendaSemCadastro, mensagem: MENSAGEM_FILIAL_VENDA_SEM_CADASTRO };
   return null;
+}
+
+/** RN-CORE-39: a lista de venda da gravação = a de cadastro (primeiro) mais as pedidas, sem repetir. */
+export function filiaisDeVendaComCadastro(cadastro: string | null | undefined, venda: readonly string[]): string[] {
+  return [...new Set([...(cadastro ? [cadastro] : []), ...venda])];
 }
 
 /** Filiais pedidas que não estão entre as existentes (vivas e do tenant, lidas pela API sob RLS). */
@@ -25,10 +29,10 @@ export function filiaisInexistentes(pedidas: readonly string[], existentes: read
   return [...new Set(pedidas)].filter((id) => !vivas.has(id));
 }
 
-/** RN-CORE-39 (R-20261115-080000): o vendedor sem filial não usa o app até a carga do ERP ou o BKO informar a filial. */
-export function vendedorBloqueadoPorFilial(u: { cargo: Cargo | null | undefined; filiais: readonly string[] }): boolean {
-  return u.cargo === 'vendedor' && u.filiais.length === 0;
+/** RN-CORE-39: sem filial de cadastro o usuário (de qualquer perfil) não usa o app nem as rotas de dados. */
+export function usuarioBloqueadoPorFilial(u: { filial_cadastro_id: string | null | undefined }): boolean {
+  return !u.filial_cadastro_id;
 }
 
-/** Só admin e analista informam ou trocam a filial do usuário. */
+/** Só admin e analista informam ou trocam a filial do usuário (e a própria, se estiverem bloqueados). */
 export const perfilEditaFilial = (perfil: string): boolean => (PERFIS_QUE_EDITAM_FILIAL as readonly string[]).includes(perfil);

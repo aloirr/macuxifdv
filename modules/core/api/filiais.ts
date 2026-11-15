@@ -25,6 +25,7 @@ import {
 } from '../contracts';
 import { decidirApagarFilial, faltasNoCadastroDaFilial, filialEfetiva, podeEditarFilialDoCliente, validarFilial } from '../domain';
 import { auditar } from './auditoria';
+import { filiaisDoUsuario } from './filiais-usuario';
 import { carteiraNoBanco } from './carteira';
 
 const COLUNAS = 'f.id, f.codigo, f.nome, f.cidade, f.uf, f.padrao, f.ativo, f.external_id, f.cnpj, f.logradouro, f.numero, f.complemento, f.bairro, f.cep, f.telefone';
@@ -61,15 +62,9 @@ export const consultaFiliais = implementarConsulta(CONSULTA_FILIAIS, async (entr
   return { padrao_id: padrao.id, filiais, clientes, por_external_id, da_carteira };
 });
 
-/** `core.filiais_do_usuario@1` (T-0176): filiais vivas do usuário (RLS do tenant de quem chama; usuário apagado ou de outro tenant = vazio). */
+/** `core.filiais_do_usuario@1` (T-0176): filial de cadastro e filiais de venda do usuário (RLS do tenant de quem chama; usuário apagado ou de outro tenant = vazio). */
 export const consultaFiliaisDoUsuario = implementarConsulta(CONSULTA_FILIAIS_DO_USUARIO, async (entrada, ctx): Promise<FiliaisDoUsuarioSaida> => {
-  const r = await ctx.db.query<{ filial_id: string }>(
-    `select uf.filial_id from core.usuario_filial uf join core.usuario u on u.id = uf.usuario_id and u.deleted_at is null
-      where uf.usuario_id = $1 and uf.deleted_at is null order by uf.created_at, uf.filial_id`,
-    [entrada.usuario_id],
-  );
-  const filial_ids = r.rows.map((l) => l.filial_id);
-  return { filial_ids, sem_filial: filial_ids.length === 0 };
+  return filiaisDoUsuario(ctx.db, entrada.usuario_id);
 });
 
 const IdParam = FilialIdParamSchema;

@@ -57,7 +57,7 @@ import { auditar } from './auditoria';
 import { appsDosPerfis, emailDisponivel, empresaDoTenant, enviarEmail } from './email';
 import { erroHttp } from './erros';
 import { perfisDoUsuarioNoLogin } from './perfis-do-usuario';
-import { filiaisDoUsuario, vendedorSemFilial } from './filiais-usuario';
+import { filiaisDoUsuario } from './filiais-usuario';
 import { chaveDeLogin, criarLimiteDeFalhas, type LimiteDeFalhas } from './limite-login';
 import { fabricaSql, type FabricaRepositorios, type RepositorioTenant, type UsuarioLogin } from './repositorio';
 import { assinarAcesso, exigirSegredo, gastarTempoDeSenha, hashSenha, lerRefresh, novoRefresh, SegredoInvalido, tokenDoCabecalho, verificarJwtAcesso, verificarSenha } from './seguranca';
@@ -256,7 +256,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       if (u.senha_temporaria_hash) await r.descartarSenhaTemporaria(u.id);
       if (dispositivo_id) await r.upsertDispositivo(u.id, dispositivo_id, dispositivo_nome ?? null, agoraData);
       const tokens = await emitir(r, tid, u, randomUUID(), dispositivo_id ?? null, agoraData, u.sessao_versao);
-      return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await vendedorSemFilial(db, u.id) ? { sem_filial: true } : {}), filial_ids: await filiaisDoUsuario(db, u.id) } } };
+      return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await filiaisDoUsuario(db, u.id)) } } };
     });
     const { sessao } = lancarOuSessao(resultado);
     return comDadosDoTenant(ctx, codigo, tenantId, sessao);
@@ -287,7 +287,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
           antes: null,
           depois: { motivo: s.tipo === 'ok' ? 'voluntaria' : s.motivo, sessoes_revogadas: true },
         });
-        return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await vendedorSemFilial(db, u.id) ? { sem_filial: true } : {}), filial_ids: await filiaisDoUsuario(db, u.id) } } };
+        return { tipo: 'ok', tenantId: tid, sessao: { ...tokens, usuario: { id: u.id, nome: u.nome, nome_curto: u.nome_curto, email: u.email, perfil: u.perfil, ...(await filiaisDoUsuario(db, u.id)) } } };
       },
     );
     if (resultado.tipo === 'senha_nova') {
