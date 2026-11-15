@@ -2,7 +2,7 @@
 
 Pedido do Alexandre: R-20261115-111000, alvo **v1.0.13**. Modelo refeito pelas decisões de **R-20261115-121000**. **Só simulação**, sem código de produção.
 
-**Aprovado** (R-20261115-121500): a tabela única de prazos com as abas "Prazos" e "Formas" no BKO. **Menu** (R-20261115-122000): a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
+**Aprovado:** a tabela única de prazos com as abas "Prazos" e "Formas" no BKO. **Menu:** a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
 
 Nas imagens, o **contorno laranja tracejado só marca o que muda**. Ele não sai no app, no PDF nem no BKO.
 
@@ -37,12 +37,12 @@ Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `ca
 - Vale igual no detalhe do pedido e do orçamento (app e BKO).
 
 ### 1.3 Catálogo (`docs/design/catalogo-grade.md`, T-0173)
-- **Pela ficha do cliente:** o preço do cartão já sai no prazo padrão do cliente (na simulação, Boleto 60 dias, +2,50%: filtro R$ 102,50, café R$ 13,74, leite R$ 18,19, água R$ 3,27). O contorno marca só o preço.
+- **Pela ficha do cliente:** o preço do cartão já sai no prazo padrão do cliente (na simulação, os preços da linha 60 dias da tabela; água R$ 3,27). O contorno marca só o preço.
 - **Pelo menu, sem cliente:** a tabela pura, como hoje (`docs/design/telas/T-0173-catalogo-menu.png`); por isso não há imagem nova.
 
 ## 2. PDF do pedido
 `pdf-escritorio-60-dias.html` / `.png` (A4 paisagem, 2246 × 1588 px), versão do escritório do pedido em 60 dias, feita a partir do `buildOrderPdfHtml` atual (`modules/vendedor/domain/pdf-pedido.ts`):
-- A coluna **Tabela** sai com o preço já ajustado (contorno só na prancha); Líquido, Total e a caixa do Total seguem dela, com a mesma conta e os mesmos Totais do Resumo (seção 1.2).
+- A coluna **Tabela** sai com o preço já ajustado; Líquido, Total e a caixa do Total seguem dela, com a mesma conta e os mesmos Totais do Resumo (seção 1.2).
 - Ficha: "Pagamento: Boleto · 60 dias", sem %.
 - Vale igual para o PDF do cliente (só o Valor final, como hoje) e para o orçamento: nada a desenhar além do preço ajustado.
 
