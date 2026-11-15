@@ -33,6 +33,11 @@ export const VendedorPayload = RegistroBase.extend({
   nome: Texto(120),
   email: TextoOpcional(160),
   telefone: TextoOpcional(30),
+  /**
+   * Filial do vendedor, pela chave `external_id` da entidade `filial` (RN-CORE-39): o vendedor tem exatamente UMA, obrigatória.
+   * Aditivo e opcional no v1 (ausente = não altera). Vendedor sem filial entra, com o aviso `vendedor_sem_filial`; o bloqueio é do Core.
+   */
+  filial_external_id: ExternalId.nullish(),
 });
 export type VendedorPayload = z.infer<typeof VendedorPayload>;
 
