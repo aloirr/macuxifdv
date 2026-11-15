@@ -198,7 +198,7 @@ function Carteira<F extends string, T>({
           vazia ? (
             <EstadoVazio testID="clientes-carteira-vazia" icone="users" titulo="Sua carteira está vazia." />
           ) : (
-            <EstadoVazio testID="clientes-vazio" icone="search" titulo="Nenhum cliente com esses filtros." texto="Limpe a busca ou os filtros para ver a carteira toda." />
+            <EstadoVazio testID="clientes-vazio" icone="search" titulo="Nenhum cliente com esses filtros." />
           )
         }
         renderItem={({ item, index }) => linha(item, index === 0, index === itens.length - 1, garantidas)}

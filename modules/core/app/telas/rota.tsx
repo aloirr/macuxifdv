@@ -90,7 +90,10 @@ export function TelaRota() {
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [dataAberta, setDataAberta] = useState(false);
   const { rota: route } = useRotaDoDia(core, filtro.data);
-  const { rota: rotaDoRascunho } = useRotaDoDia(core, folhaAberta ? rascunho.data : filtro.data);
+  // RD-0508: a rota do rascunho só é lida de novo quando a folha está aberta com outra data; senão é a mesma `route`
+  const outraDataNoRascunho = folhaAberta && rascunho.data !== filtro.data;
+  const { rota: rotaDaOutraData } = useRotaDoDia(core, outraDataNoRascunho ? rascunho.data : null);
+  const rotaDoRascunho = outraDataNoRascunho ? rotaDaOutraData : route;
   const ehHoje = filtro.data === null;
   const titulo = tituloDaRota(filtro);
   const contagem = contarFiltrosRota(filtro);
@@ -200,11 +203,8 @@ export function TelaRota() {
     return (
       <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} cabecalho={{ titulo }}>
         {linhaDeCima(null)}
-        {ehHoje ? (
-          <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota para hoje" texto="O escritório define a rota do dia. Puxe a tela para atualizar quando tiver sinal" />
-        ) : (
-          <EstadoVazio testID="rota-vazia" icone="map" titulo={`Nenhuma rota para ${textoDaDataDaRota(dataDaRota(filtro, hoje))}`} />
-        )}
+        {/* RD-0506: um título só; a ação de puxar só vale para hoje (o dia vem no título da tela e na etiqueta) */}
+        <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota neste dia." texto={ehHoje ? 'Puxe a tela para atualizar quando tiver sinal.' : undefined} />
         {folhas}
       </Screen>
     );
