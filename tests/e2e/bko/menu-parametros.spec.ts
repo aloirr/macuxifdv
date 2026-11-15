@@ -23,6 +23,7 @@ interface Cenario {
 const PADRAO = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'integracao'];
 const TODOS = [...PADRAO, 'pesquisa', 'treinamento'];
 const TEXTO_SEM_LICENCA = 'Contrate o módulo para usar';
+const TODOS_INSTALADOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'];
 
 /** Dados mínimos das telas abertas aqui (o resto responde 404 e a tela mostra o erro dela, sem afetar o menu). */
 const DADOS: Readonly<Record<string, unknown>> = {
@@ -37,15 +38,73 @@ const DADOS: Readonly<Record<string, unknown>> = {
     volume: { a_min_pct: 20, b_min_pct: 0 },
     frequencia: { a_min_pct: 20, b_min_pct: 0 },
   },
-  '/core/perfis': { itens: [] },
+  '/core/perfis': {
+    itens: (
+      [
+        ['admin', 'Administrador', 'administrativo', 1],
+        ['promotor', 'Promotor', 'promotor', 3],
+        ['vendedor', 'Vendedor', 'vendedor', 8],
+      ] as const
+    ).map(([codigo, nome, cargo, usuarios]) => ({
+      codigo,
+      nome,
+      descricao: null,
+      base: codigo,
+      fabrica: true,
+      ativo: true,
+      usuarios,
+      onde_entra: codigo === 'admin' ? ['bko'] : ['campo'],
+      cargo,
+    })),
+  },
   '/core/usuarios': { itens: [] },
+  '/core/licencas': {
+    modulos: TODOS_INSTALADOS,
+    dependencias: { vendedor: ['catalogo'] },
+    tenant: Object.fromEntries(TODOS_INSTALADOS.map((m) => [m, !['pesquisa', 'treinamento'].includes(m)])),
+    perfis: {
+      admin: ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'integracao'],
+      promotor: ['core', 'catalogo', 'promotor'],
+      vendedor: ['core', 'catalogo', 'vendedor'],
+    },
+    usuarios: [],
+  },
+  '/core/medidas': {
+    itens: (
+      [
+        ['UN', 'Unidade', 12, true],
+        ['CX', 'Caixa', 0, false],
+      ] as const
+    ).map(([sigla, descricao, em_uso, ativo], i) => ({
+      id: `00000000-0000-4000-8000-00000000020${i}`,
+      sigla,
+      descricao,
+      ativo,
+      em_uso,
+    })),
+  },
   '/core/parametros/promotor-ve-pedidos': { ligado: true },
   '/core/parametros/inicio': { dias_uteis_semana: [1, 2, 3, 4, 5], parado_min: 60 },
   '/core/parametros/checkout-pendencia': { checkout_pendencia_alerta_h: 24 },
   '/core/parametros/calendario': { feriados: [], almoco_corte: 720, almoco_janela: [660, 900] },
   '/core/produtos': { padrao_desconto_pct: 10, itens: [] },
   '/core/motivos': { itens: [] },
-  '/core/fotos-tipos': { itens: [] },
+  '/core/fotos-tipos': {
+    itens: (
+      [
+        ['Fachada', true, false, true],
+        ['CNH do sócio', false, true, false],
+      ] as const
+    ).map(([nome, obrigatorio, sensivel, fachada], i) => ({
+      id: `00000000-0000-4000-8000-00000000070${i}`,
+      nome,
+      obrigatorio,
+      sensivel,
+      fachada,
+      ordem: i + 1,
+      ativo: true,
+    })),
+  },
   '/vendedor/alcadas': {
     seller_pct: 5,
     supervisor_pct: 10,
@@ -374,7 +433,7 @@ test.describe('ADR 0058 — menu do BKO (API simulada)', () => {
       ['inicio', 'inicio-params.salvar', 'Salvar dias úteis'],
       ['produtos', 'produtos.parametro-salvar', 'Salvar desconto'],
       ['visitas', 'checkout-pendencia.salvar', 'Salvar prazo'],
-      ['calendario', 'calendario.almoco.salvar', /^Salvar \S+/],
+      ['calendario', 'calendario.almoco.salvar', 'Salvar almoço'],
     ] as const) {
       await page.goto(`/parametros/${secao}`);
       const b = page.getByTestId(botao);
@@ -382,5 +441,82 @@ test.describe('ADR 0058 — menu do BKO (API simulada)', () => {
       await expect.soft(b, `${botao} sem alteração`).toBeDisabled();
       await expect.soft(b, botao).toHaveText(rotulo);
     }
+    // etapa pendente: o rótulo do campo diz o que o número é (horas até avisar)
+    await page.goto('/parametros/visitas');
+    await expect(page.getByTestId('parametros-core-etapa-pendente')).toContainText('Prazo para avisar', {
+      timeout: 30_000,
+    });
+  });
+
+  test('link antigo /usuarios-e-modulos?nivel=perfil&perfil=promotor: a query vai junto ao destino e não abre a edição em Perfis', async ({
+    page,
+  }) => {
+    await entrarSimulado(page);
+    await page.goto('/usuarios-e-modulos?nivel=perfil&perfil=promotor');
+    await expect(page).toHaveURL(/\/parametros\/acesso\?nivel=perfil&perfil=promotor#core-usuarios-e-modulos$/, {
+      timeout: 60_000,
+    });
+    const modulos = page.getByTestId('parametros-core-usuarios-e-modulos');
+    await expect(modulos.getByTestId('licencas.nivel.perfil')).toHaveAttribute('aria-selected', 'true', {
+      timeout: 30_000,
+    });
+    // `nivel` é do painel Módulos: o `perfil` do link antigo não vira edição de perfil
+    await expect(page.getByTestId('perfis.lista')).toBeVisible();
+    await expect(page.getByRole('button', { name: '‹ Perfis de acesso' })).toHaveCount(0);
+  });
+
+  // D-PAR-01 (modulo-core, aberto 15/11): o painel Módulos só lê `?modulos_perfil=`; o `perfil` do link antigo se perde e o
+  // filtro abre em Vendedor. `test.fail` marca o defeito conhecido: quando o core corrigir, este teste fica vermelho e vira `test`.
+  test('D-PAR-01: link antigo /usuarios-e-modulos?nivel=perfil&perfil=promotor abre Módulos filtrado em Promotor', async ({
+    page,
+  }) => {
+    test.fail(true, 'D-PAR-01 aberto (modulo-core): perfilDosModulos ignora o `perfil` do link antigo');
+    await entrarSimulado(page);
+    await page.goto('/usuarios-e-modulos?nivel=perfil&perfil=promotor');
+    const seletor = page.getByTestId('parametros-core-usuarios-e-modulos').getByTestId('licencas.seletor-perfil');
+    await expect(seletor).toBeVisible({ timeout: 60_000 });
+    await expect(seletor).toHaveValue('promotor', { timeout: 10_000 });
+  });
+
+  test('filtrar o perfil em Módulos (?modulos_perfil=) não abre a edição em Perfis; ?editar_perfil= abre só a edição', async ({
+    page,
+  }) => {
+    await entrarSimulado(page);
+    await page.goto('/parametros/acesso?nivel=perfil');
+    const seletor = page.getByTestId('licencas.seletor-perfil');
+    await expect(seletor).toBeVisible({ timeout: 60_000 });
+    await seletor.selectOption('promotor');
+    await expect(page).toHaveURL(/[?&]modulos_perfil=promotor/);
+    await expect(seletor).toHaveValue('promotor');
+    await expect(page.getByTestId('perfis.lista')).toBeVisible();
+    await expect(page.getByRole('button', { name: '‹ Perfis de acesso' })).toHaveCount(0);
+    expect(new URL(page.url()).searchParams.get('editar_perfil')).toBeNull();
+
+    // a edição (detalhe do perfil não simulado: basta o painel sair da lista para a edição)
+    await page.goto('/parametros/acesso?editar_perfil=promotor');
+    await expect(page.getByRole('button', { name: '‹ Perfis de acesso' })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('perfis.lista')).toHaveCount(0);
+    // o painel Módulos segue no nível da empresa (não herda o perfil em edição)
+    await expect(page.getByTestId('licencas.nivel.tenant')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('licencas.seletor-perfil')).toHaveCount(0);
+  });
+
+  test('Medidas sem coluna Situação (selo só para Inativa); Fotos do PDV: "Remover" só em tipo que não é a fachada', async ({
+    page,
+  }) => {
+    await entrarSimulado(page);
+    await page.goto('/parametros/produtos');
+    const medidas = page.getByTestId('medidas.tela');
+    await expect(medidas.getByTestId('medidas.linha.UN')).toBeVisible({ timeout: 60_000 });
+    await expect(medidas.locator('th')).toHaveText(['Sigla', 'Descrição', 'Produtos', 'Ações']);
+    await expect(medidas.getByTestId('medidas.linha.UN')).not.toContainText('Ativa');
+    await expect(medidas.getByTestId('medidas.linha.CX')).toContainText('Inativa');
+
+    await page.goto('/parametros/visitas');
+    const fachada = '00000000-0000-4000-8000-000000000700';
+    const cnh = '00000000-0000-4000-8000-000000000701';
+    await expect(page.getByTestId(`fotos-pdv.editar.${fachada}`)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId(`fotos-pdv.apagar.${fachada}`)).toHaveCount(0);
+    await expect(page.getByTestId(`fotos-pdv.apagar.${cnh}`)).toHaveText('Remover');
   });
 });

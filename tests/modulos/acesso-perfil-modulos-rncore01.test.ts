@@ -7,7 +7,7 @@
  *   core nunca sai.
  * - Contagem por perfil: oráculo que conta a lista da tela Usuários pelo `perfis[].codigo`. Com `modules/core/web/lib/acesso.ts`
  *   (estado novo), `contagemPorPerfil` tem de bater com o oráculo e as telas têm de usá-la (fonte).
- * - "Usuários e módulos": a página segue registrada (rota por URL); no estado novo, fora do menu.
+ * - "Usuários e módulos": painel Módulos de Parâmetros (ADR 0058), com o caminho antigo em `caminhosAntigos`.
  * Sem banco. A conferência pela API real fica em tests/integracao/demo/demo-matriz.test.ts (CI).
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -142,23 +142,25 @@ describe('Perfis de acesso — contagem de usuários por perfil × lista de Usu�
   });
 });
 
-// ------------------------------------------------------------------------------------------------ rota por URL
+// ------------------------------------------------------------------------------------------------ painel de Parâmetros
 
-describe('"Usuários e módulos" — a rota segue por URL; no estado novo, fora do menu', () => {
+describe('"Usuários e módulos" — painel Módulos de Parâmetros (ADR 0058); o link antigo segue valendo', () => {
   const web = ler('modules/core/web/index.ts');
-  const bloco = /\{\s*id: 'usuarios-e-modulos',[\s\S]*?componente: \w+,?\s*\}/.exec(web)?.[0] ?? '';
+  const painel = /\{\s*id: 'usuarios-e-modulos',[^}]*\}/.exec(web)?.[0] ?? '';
+  const paginas = /\bpaginas: \[[\s\S]*?\n {2}\],/.exec(web)?.[0] ?? '';
 
-  it('a página segue registrada (id e caminho `usuarios-e-modulos`, ação modulo.gerir_licencas)', () => {
-    expect(bloco, 'modules/core/web/index.ts: página usuarios-e-modulos').not.toBe('');
-    expect(bloco).toMatch(/caminho: 'usuarios-e-modulos'/);
-    expect(bloco).toMatch(/acao: 'modulo\.gerir_licencas'/);
+  it('o painel existe (seção acesso, ação modulo.gerir_licencas) e herda o caminho antigo `usuarios-e-modulos`', () => {
+    expect(painel, 'modules/core/web/index.ts: painel usuarios-e-modulos em paineisParametros').not.toBe('');
+    expect(painel).toMatch(/secao: 'acesso'/);
+    expect(painel).toMatch(/acao: 'modulo\.gerir_licencas'/);
+    expect(painel).toMatch(/caminhosAntigos: \[[^\]]*'usuarios-e-modulos'/);
   });
 
-  it('menu × manifesto: o item existe nos dois ou em nenhum; no estado novo, em nenhum', () => {
-    const noMenu = /^\s*navegacao: 'Usuários e módulos'/m.test(bloco);
-    const noManifesto = core.apps.web?.menus?.includes('Usuários e módulos') ?? false;
-    expect(noMenu).toBe(noManifesto);
-    if (ESTADO_NOVO) expect([noMenu, noManifesto]).toEqual([false, false]);
+  it('sem página paralela nem item de menu "Usuários e módulos" (uma informação, um lugar)', () => {
+    expect(paginas, 'modules/core/web/index.ts: bloco paginas').not.toBe('');
+    expect(paginas).not.toMatch(/caminho: 'usuarios-e-modulos'/);
+    expect(core.apps.web?.menus ?? []).not.toContain('Usuários e módulos');
+    if (ESTADO_NOVO) expect(web).not.toMatch(/navegacao: 'Usuários e módulos'/);
     // os itens que ficam no menu Acesso
     expect(core.apps.web?.menus).toEqual(expect.arrayContaining(['Usuários', 'Perfis de acesso']));
   });
