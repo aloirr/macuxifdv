@@ -9,7 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { alturaDoBotaoFolha, BOTAO_FOLHA, fonteDoBotaoFolha, LINHA_OPCAO_FOLHA, type TomBotaoFolha } from './botao-folha';
 import { Icon, type IconName } from './icon';
-import { colors, fonts, radius, type } from './theme';
+import { colors, fonte, radius, type } from './theme';
 
 export function BotaoFolha({
   rotulo,
@@ -85,7 +85,7 @@ export function LinhaOpcaoFolha({
 
 const styles = StyleSheet.create({
   botao: { borderRadius: BOTAO_FOLHA.raio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  rotulo: { fontFamily: fonts.semibold },
+  rotulo: { ...fonte.semibold },
   linha: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -107,5 +107,5 @@ const styles = StyleSheet.create({
     backgroundColor: LINHA_OPCAO_FOLHA.icone.fundo,
   },
   textos: { flex: 1, gap: 2 },
-  titulo: { fontFamily: fonts.semibold, fontSize: LINHA_OPCAO_FOLHA.tamanhoTitulo, color: colors.ink },
+  titulo: { ...fonte.semibold, fontSize: LINHA_OPCAO_FOLHA.tamanhoTitulo, color: colors.ink },
 });

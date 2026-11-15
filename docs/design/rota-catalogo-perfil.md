@@ -76,7 +76,7 @@ produtos ativos em X") ou chips + contagem + cartões.
 | Estoque no cartão | selo na cor da faixa: `24 JG` (neutro), `Baixo · 3 JG` (aviso), `Sem estoque` (erro); sem hora |
 | Adicionar | botão `+` 44 dp com borda, TalkBack `Adicionar <produto> ao pedido`; só com o slot `produto.acoes` |
 
-Ficha, em ordem: BackLink (nível de onde veio) · `código · marca` (mono) · nome (Archivo 22) · etiquetas · tabela `Preço`
+Ficha, em ordem: BackLink (nível de onde veio) · `código · marca` (mono) · nome (`t.h1Small`, 22/700) · etiquetas · tabela `Preço`
 (`R$ 89,90 / JG`, riscado quando promoção) e `Estoque` (selo + `24 JG na filial Centro`; uma linha por filial quando há mais de
 uma) · principal `Adicionar ao pedido` · seções: Aplicação (3 linhas + `Ver mais`), Equivale a (marca | código), Oferece junto
 (linhas com código; offline sem a ficha: uma linha `Ainda não está no aparelho` embaixo), Ficha técnica (`kv`, com Unidade e

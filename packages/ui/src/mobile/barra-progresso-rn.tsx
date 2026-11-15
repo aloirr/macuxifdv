@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 
 import { duracaoMovimento } from './movimento';
-import { fonts } from './theme';
+import { fonte } from './theme';
 
 /** Trecho da barra quando não há medida (`pct` nulo). */
 export const TRECHO_SEM_MEDIDA = 30;
@@ -94,8 +94,8 @@ export function BarraProgresso({
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  rotulo: { flex: 1, fontFamily: fonts.body, fontSize: 13 },
-  pct: { fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  rotulo: { flex: 1, ...fonte.body, fontSize: 14 },
+  pct: { ...fonte.semibold, fontSize: 14, fontVariant: ['tabular-nums'] },
   trilho: { height: 6, borderRadius: 3, overflow: 'hidden' },
   preenchimento: { height: 6, borderRadius: 3 },
 });

@@ -25,7 +25,7 @@ import {
   type ForcaVibracao,
   type ModoSegurar,
 } from './sincronizacao-completa';
-import { ALTURA, colors, fonts, type as t } from './theme';
+import { ALTURA, colors, fonte, type as t } from './theme';
 import { Button } from './ui';
 
 export interface ValorSincronizacao {
@@ -80,7 +80,7 @@ export function useSincronizacao(): ValorSincronizacao | null {
  *
  * R-20261115-130000: a completa dentro do intervalo mínimo (`agendador.liberarManual()` = false) não abre o popup nem vibra
  * média; mostra a linha `{testID}-aviso-intervalo` ("Dados atualizados agora há pouco…"), no mesmo padrão da linha
- * `{testID}-sem-sinal` (13, `warningInk`, centralizada, logo abaixo do botão), anunciada pelo leitor de tela e que some
+ * `{testID}-sem-sinal` (`t.small`, `warningInk`, centralizada, logo abaixo do botão), anunciada pelo leitor de tela e que some
  * sozinha em `AVISO_INTERVALO_MS` (5 s). O toque normal bloqueado segue em silêncio.
  */
 export function BotaoSincronizar({
@@ -160,7 +160,7 @@ export function BotaoSincronizar({
       {d.tom === 'atencao' ? (
         <View style={styles.linhaAviso} testID={`${testID}-situacao`} accessible accessibilityLabel={d.situacao} accessibilityLiveRegion="polite">
           <Icon name="sync" size={14} color={colors.warningInk} />
-          <Text style={[t.small, { color: colors.warningInk, fontFamily: fonts.semibold, flexShrink: 1, textAlign: 'center' }]} testID={`${testID}-aviso-dados`}>
+          <Text style={[t.small, { color: colors.warningInk, ...fonte.semibold, flexShrink: 1, textAlign: 'center' }]} testID={`${testID}-aviso-dados`}>
             {d.situacao}
           </Text>
         </View>
@@ -270,7 +270,7 @@ export function SeloAtualizacao({
       onPress={() => (acao === 'perfil' ? onAbrirPerfil?.() : onSincronizar())}
       style={[styles.selo, sobreFaixa && styles.seloFaixa, atencao && styles.seloAtencao]}>
       <Icon name={d.icone} size={14} color={cor} />
-      <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { fontFamily: fonts.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
+      <Text style={[t.small, styles.seloTexto, { color: cor }, atencao && { ...fonte.semibold }]} numberOfLines={1} testID={`${testID}-texto`}>
         {d.texto}
       </Text>
     </Pressionavel>

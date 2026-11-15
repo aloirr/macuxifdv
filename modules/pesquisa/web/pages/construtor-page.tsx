@@ -130,7 +130,7 @@ export function ConstrutorPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {podeResultados && vigente ? (
-              <a href={`/pesquisa-resultados?id=${id}`} className="inline-flex h-[42px] items-center rounded-xl border border-field px-4 text-[14px] font-semibold text-ink" data-testid="construtor.resultados">
+              <a href={`/pesquisa-resultados?id=${id}`} className="inline-flex h-[42px] items-center rounded-xl border border-field px-4 text-[15px] font-semibold text-ink" data-testid="construtor.resultados">
                 Resultados
               </a>
             ) : null}
@@ -162,7 +162,7 @@ export function ConstrutorPage() {
           </>
         }
       >
-        <p className="text-[14px] text-ink-2">Some do app.</p>
+        <p className="text-[15px] text-ink-2">Some do app.</p>
       </Dialog>
 
       {aviso ? (
@@ -224,7 +224,7 @@ export function ConstrutorPage() {
           <fieldset className="flex flex-wrap gap-4" disabled={ro}>
             <legend className="mb-1 text-[12px] font-semibold text-ink-2">Perfis (nenhum marcado: todos)</legend>
             {PERFIS_QUE_RESPONDEM.map((p) => (
-              <label key={p} className="flex items-center gap-2 text-[14px]">
+              <label key={p} className="flex items-center gap-2 text-[15px]">
                 <input type="checkbox" checked={form.perfis.includes(p)} onChange={(e) => mudar({ perfis: e.target.checked ? [...form.perfis, p] : form.perfis.filter((x) => x !== p) })} />
                 {ROTULO_PERFIL[p]}
               </label>

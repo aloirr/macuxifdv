@@ -1,5 +1,7 @@
 # Sincronizar: toque normal e sincronização completa ao segurar
 
+> **Tipografia substituída** pela fonte do sistema (R-20261115-110600, 15/11/2026): ver o [manual da marca §5](../../marca/manual.md#5-tipografia).
+
 > 2026-11-15 · designer-ux · origem: R-20261115-100000-alexandre. **Aprovado pelo dono do produto em R-20261115-104500 (simulação de 09:27); atualizado com R-20261115-125500 e R-20261115-130000. Os PNGs são os da aprovação.**
 > Fonte: `sync.html` (`?v=repouso|toque|segurando|completa`) e `sync.css`, com os tokens de `../catalogo-campo-v2/simulacao.css`.
 > PNGs 360 × 800 (escala 2). Dados fictícios; o Início está simplificado (o desenho dele é o de `../inicio.md`).
@@ -36,7 +38,7 @@
 
 ## 4. Popup da sincronização completa (`04`)
 - É o `Dialogo` do kit, sem botões e `bloqueado`, com a `BarraProgresso` nas cores `CORES_BARRA_DIALOGO` (tema pérola), RD-0635.
-  Título 19, mensagem 15 e raio 20: o padrão único de diálogo (parecer da marca).
+  Título 22/700, mensagem 16 e raio 20: o padrão único de diálogo (parecer da marca), na escala da fonte do sistema (manual da marca §5).
 - Janela no meio da tela, sobre o fundo escurecido (`scrim`), margem de 24 dp. A tela não apaga enquanto ele está aberto.
 - Texto (R-20261115-100000): título `Realizando a sincronização completa` e, embaixo,
   `Aguarde e não saia desta tela.`.

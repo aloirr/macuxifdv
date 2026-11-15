@@ -63,3 +63,5 @@ export * from './campo-senha-rn';
 // R-20261115-100000: segurar 10 s no Sincronizar = sincronização completa (parte pura); o popup é o `Dialogo` sem botões com a `BarraProgresso`
 export * from './sincronizacao-completa';
 export * from './barra-progresso-rn';
+// RD-0951: CampoTexto (rótulo, entrada e erro) e RotuloCampo, o mesmo rótulo e a mesma entrada do CampoSenha
+export * from './campo-texto-rn';
