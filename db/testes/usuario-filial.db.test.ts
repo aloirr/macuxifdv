@@ -409,18 +409,17 @@ describe.skipIf(semBanco())('0077 up/down e backfill (banco efêmero)', () => {
         await outra.query('begin');
         await outra.query(`update ${TABELA} set deleted_at = now() where usuario_id = $1 and filial_id = $2`, [U.t2, F2]);
         const segunda = outra.query('commit');
+        // marca já como tratada: a falha do COMMIT do 2º pode chegar antes de o `await` do 1º continuar
+        segunda.catch(() => undefined);
         await new Promise((r) => setTimeout(r, 300));
         await c.query('commit');
-        const erro = await segunda.then(
-          () => null,
-          (e: { code?: string; constraint?: string }) => ({ code: e.code, constraint: e.constraint }),
-        );
-        expect(erro).toEqual(ERRO);
+        await expect(segunda).rejects.toMatchObject({ ...ERRO, hint: expect.stringContaining('RN-CORE-39') });
         const vivas = await c.query(`select filial_id from ${TABELA} where usuario_id = $1 and deleted_at is null order by filial_id`, [U.t2]);
         expect(vivas.rows.map((r: { filial_id: string }) => r.filial_id).sort()).toEqual([idFilialPadrao(T2), F2].sort());
       } finally {
+        await c.query('rollback').catch(() => undefined);
         await outra.query('rollback').catch(() => undefined);
-        await outra.end();
+        await outra.end().catch(() => undefined);
       }
     });
   });
