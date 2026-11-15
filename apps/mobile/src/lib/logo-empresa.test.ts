@@ -62,6 +62,7 @@ function portaFalsa(inicial: LogoGuardada | null, resposta: Uint8Array | null | 
     apagarTudo: async () => {
       estado.apagouTudo++;
       estado.arquivos.clear();
+      estado.registro = null;
     },
     apagarArquivo: async (c) => {
       estado.arquivos.delete(c);

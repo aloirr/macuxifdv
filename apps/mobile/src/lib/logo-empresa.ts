@@ -59,10 +59,10 @@ export interface PortaLogoEmpresa {
   /** Bytes da rota do aparelho; `null` = vazio ou acima do limite. Lança sem sinal ou com erro do servidor. */
   baixar(rota: string): Promise<Uint8Array | null>;
   gravarArquivo(caminho: string, bytes: Uint8Array): Promise<void>;
-  /** Apaga a pasta das logos inteira (troca de empresa, logo removida). */
+  /** Apaga a pasta das logos inteira e o registro (troca de empresa, logo removida). */
   apagarTudo(): Promise<void>;
   apagarArquivo(caminho: string): Promise<void>;
-  /** O arquivo da cópia ainda está no disco? (a pasta pode ter saído por fora: aparelho bloqueado, RN-CORE-15). */
+  /** A cópia ainda está no disco e não está vazia? (a pasta pode ter saído por fora: aparelho bloqueado, RN-CORE-15). */
   existeArquivo(caminho: string): Promise<boolean>;
 }
 
@@ -85,13 +85,11 @@ export async function atualizarLogoDaEmpresa(
     const acao = acaoDaLogo(guardada, p.tenantId, p.empresa);
     if (acao.tipo === 'manter') return logoDoTenant(guardada, p.tenantId);
     if (acao.tipo === 'apagar') {
-      await porta.gravarRegistro(null);
       await porta.apagarTudo();
       return null;
     }
     // a de outro tenant sai antes de qualquer download (nunca fica à vista de quem entrou em outra empresa)
     if (guardada && guardada.tenant_id !== p.tenantId) {
-      await porta.gravarRegistro(null);
       await porta.apagarTudo();
       guardada = null;
     }

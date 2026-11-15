@@ -18,6 +18,17 @@ function arquivo(caminho: string): File {
   return new File(new Directory(Paths.document, ...partes), nome);
 }
 
+/** A cópia no disco, se está lá e não está vazia; `null` no navegador, sem o arquivo ou com 0 byte (vale como ausente). */
+function copiaGuardada(caminho: string): File | null {
+  if (Platform.OS === 'web') return null;
+  try {
+    const f = arquivo(caminho);
+    return f.exists && f.size > 0 ? f : null;
+  } catch {
+    return null;
+  }
+}
+
 export function portaLogoEmpresa(api: () => ApiClient): PortaLogoEmpresa {
   return {
     lerRegistro: () => readJson<LogoGuardada>(CHAVE_LOGO_EMPRESA),
@@ -33,14 +44,7 @@ export function portaLogoEmpresa(api: () => ApiClient): PortaLogoEmpresa {
       const f = arquivo(caminho);
       if (f.exists) f.delete();
     },
-    async existeArquivo(caminho) {
-      if (Platform.OS === 'web') return false;
-      try {
-        return arquivo(caminho).exists;
-      } catch {
-        return false;
-      }
-    },
+    existeArquivo: async (caminho) => copiaGuardada(caminho) !== null,
   };
 }
 
@@ -52,23 +56,17 @@ export async function apagarPastaDaEmpresa(): Promise<void> {
   if (pasta.exists) pasta.delete();
 }
 
-/** `file://` da cópia, se o arquivo ainda está lá; `null` no navegador ou sem o arquivo. */
+/** `file://` da cópia; `null` sem ela (`copiaGuardada`). */
 export function uriDaLogo(l: LogoGuardada): string | null {
-  if (Platform.OS === 'web') return null;
-  try {
-    const f = arquivo(l.caminho);
-    return f.exists && f.size > 0 ? f.uri : null;
-  } catch {
-    return null;
-  }
+  return copiaGuardada(l.caminho)?.uri ?? null;
 }
 
 /** A cópia como data URI, para o PDF (`AmbienteAparelho.logoDaEmpresa`); `null` sem a cópia. */
 export async function dataUriDaLogoGuardada(l: LogoGuardada | null): Promise<string | null> {
-  if (!l || Platform.OS === 'web') return null;
+  const f = l && copiaGuardada(l.caminho);
+  if (!l || !f) return null;
   try {
-    const f = arquivo(l.caminho);
-    return f.exists ? dataUriDaLogo(l.tipo, await f.base64()) : null;
+    return dataUriDaLogo(l.tipo, await f.base64());
   } catch {
     return null;
   }
