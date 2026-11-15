@@ -18,7 +18,7 @@ function PainelTrade({ id }: { id: PainelParametroTrade['id'] }) {
       {painel?.campos.map((c) => (
         <div key={c.chave} className="flex flex-col gap-1">
           <dt className="text-[14px] font-semibold">{c.rotulo}</dt>
-          <dd className="m-0 text-[13px] text-ink-2">{c.ajuda}</dd>
+          {c.ajuda && <dd className="m-0 text-[13px] text-ink-2">{c.ajuda}</dd>}
           <dd className="m-0 pt-1 text-[16px] font-semibold tabular-nums" data-testid={`promotor.parametro.${c.chave}`}>
             {c.valor}
             {c.padrao && <i className="ml-2 text-[13px] font-normal not-italic text-ink-2">{c.padrao}</i>}

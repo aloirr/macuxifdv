@@ -7,6 +7,7 @@ import { PARAMETROS_PADRAO, type ParametrosPromotor } from '../../domain/paramet
 export interface CampoParametroTrade {
   chave: keyof ParametrosPromotor;
   rotulo: string;
+  /** Vazia quando o rótulo basta. */
   ajuda: string;
   /** Valor atual formatado, ex.: "7 dias". */
   valor: string;
@@ -28,10 +29,10 @@ const pct: Formato = (n) => `${num(n)}%`;
 
 const DEFINICAO: readonly { painel: PainelParametroTrade['id']; titulo: string; chave: keyof ParametrosPromotor; rotulo: string; ajuda: string; formato: Formato }[] = [
   { painel: 'validade', titulo: 'Validade', chave: 'validade_critica_dias', rotulo: 'Crítica até', ajuda: 'Dias para vencer.', formato: dias },
-  { painel: 'validade', titulo: 'Validade', chave: 'validade_proxima_dias', rotulo: 'Em atenção até', ajuda: 'Acima disso, ok.', formato: dias },
-  { painel: 'visita-coleta', titulo: 'Visita e coleta', chave: 'permanencia_min_min', rotulo: 'Permanência mínima', ajuda: 'Para contar nos indicadores.', formato: min },
+  { painel: 'validade', titulo: 'Validade', chave: 'validade_proxima_dias', rotulo: 'Em atenção até', ajuda: '', formato: dias },
+  { painel: 'visita-coleta', titulo: 'Visita e coleta', chave: 'permanencia_min_min', rotulo: 'Permanência mínima', ajuda: '', formato: min },
   { painel: 'visita-coleta', titulo: 'Visita e coleta', chave: 'variacao_preco_max_pct', rotulo: 'Variação de preço sem confirmar', ajuda: 'Sobre a última coleta.', formato: pct },
-  { painel: 'gondola', titulo: 'Gôndola', chave: 'peso_parcial_conformidade', rotulo: 'Peso do parcial na conformidade', ajuda: 'De 0 a 1.', formato: num },
+  { painel: 'gondola', titulo: 'Gôndola', chave: 'peso_parcial_conformidade', rotulo: 'Peso do parcial na conformidade', ajuda: '', formato: num },
 ];
 
 /** Monta os painéis na ordem do desenho; `padrao` só aparece quando o valor do tenant difere do padrão (RN-PRO-04/07/08/11). */
