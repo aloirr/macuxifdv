@@ -27,6 +27,22 @@ describe('RN-CORE-58: vínculo do vendedor do ERP ao usuário do BKO pelo códig
     expect(r.referencias.map((x) => x.tabela)).toEqual(expect.arrayContaining(['core.carteira', 'core.nota_erp', 'core.rota', 'core.meta', 'core.indicador_diario']));
   });
 
+  it('RN-CORE-58: o vínculo move também meta_produtividade, tarefa_destinatario, visita, deslocamento_dia e equipe.responsavel_id', () => {
+    const r = planejarVinculoErp({ provisorio: prov, real, ...vazio });
+    if (!r.ok) throw new Error('esperava plano');
+    const refs = r.referencias.map((x) => `${x.tabela}.${x.coluna}`);
+    expect(refs).toEqual(expect.arrayContaining(['core.meta_produtividade.usuario_id', 'core.tarefa_destinatario.usuario_id', 'core.visita.usuario_id', 'core.deslocamento_dia.usuario_id', 'core.equipe.responsavel_id']));
+  });
+
+  it('RN-CORE-58: recusa quando o provisório tem visita aberta (check-in sem checkout)', () => {
+    expect(planejarVinculoErp({ provisorio: prov, real, ...vazio, visitaAbertaDoProvisorio: true })).toMatchObject({ ok: false, codigo: 'VINCULO_VISITA_ABERTA' });
+  });
+
+  it('RN-CORE-58: repetir com o provisório já sem código (liberado na transação) e o real com o código segue idempotente', () => {
+    const r = planejarVinculoErp({ provisorio: { ...prov, external_id: null, vinculado: true }, real: { ...real, external_id: 'VEN-9' }, ...vazio });
+    expect(r).toMatchObject({ ok: true, ja_vinculado: true, external_id: 'VEN-9', eventos_cliente: [] });
+  });
+
   it('RN-CORE-58: carteira sem duplicar: cliente que o real já tem no mesmo papel só sai do provisório, sem evento', () => {
     const r = planejarVinculoErp({ provisorio: prov, real, carteiraProvisorio: [cart('p1', c(1)), cart('p2', c(2)), cart('p3', c(3), 'promotor')], carteiraReal: [{ cliente_id: c(2), papel: 'vendedor' }, { cliente_id: c(3), papel: 'vendedor' }] });
     if (!r.ok) throw new Error('esperava plano');

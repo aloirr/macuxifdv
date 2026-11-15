@@ -1,8 +1,8 @@
 /**
  * RN-CORE-58 (T-0175): vínculo do vendedor do ERP ao usuário do BKO pelo código do ERP (`external_id`).
  * Regra: o vendedor que a carga do ERP criou como usuário PROVISÓRIO (e-mail `@sem-email.invalid`, carteira própria) é ligado
- * pelo admin a um usuário real do mesmo tenant e do mesmo perfil (vendedor com vendedor, promotor com promotor). O real
- * ganha o `external_id` do provisório, recebe a carteira (sem duplicar cliente e papel que já tenha) e as demais referências
+ * pelo admin a um usuário real do mesmo tenant e do mesmo perfil (vendedor com vendedor, promotor com promotor). O provisório
+ * é liberado primeiro (external_id nulo, inativo, apagado) e só então o real ganha o `external_id`, recebe a carteira (sem duplicar cliente e papel que já tenha) e as demais referências
  * a `core.usuario`; o provisório é desativado e sai da lista, e cada cliente movido publica `core.cliente.atualizado@1`.
  * Recusa (422): quem não é provisório, provisório sem código, real com outro código, perfis incompatíveis, mesmo usuário,
  * tenants diferentes ou real que também é provisório. Repetir é idempotente. A carga seguinte nunca desfaz o vínculo
@@ -37,6 +37,11 @@ export const REFERENCIAS_DO_VINCULO = [
   { tabela: 'core.rota', coluna: 'usuario_id' },
   { tabela: 'core.meta', coluna: 'usuario_id' },
   { tabela: 'core.indicador_diario', coluna: 'usuario_id' },
+  { tabela: 'core.meta_produtividade', coluna: 'usuario_id' },
+  { tabela: 'core.tarefa_destinatario', coluna: 'usuario_id' },
+  { tabela: 'core.visita', coluna: 'usuario_id' },
+  { tabela: 'core.deslocamento_dia', coluna: 'usuario_id' },
+  { tabela: 'core.equipe', coluna: 'responsavel_id' },
 ] as const;
 
 export const CODIGOS_VINCULO = {
@@ -47,6 +52,7 @@ export const CODIGOS_VINCULO = {
   mesmoUsuario: 'VINCULO_MESMO_USUARIO',
   outroTenant: 'VINCULO_OUTRO_TENANT',
   realProvisorio: 'VINCULO_REAL_PROVISORIO',
+  visitaAberta: 'VINCULO_VISITA_ABERTA',
 } as const;
 
 type CodigoVinculo = (typeof CODIGOS_VINCULO)[keyof typeof CODIGOS_VINCULO];
@@ -76,18 +82,25 @@ export function planejarVinculoErp(e: {
   real: UsuarioDoVinculo;
   carteiraProvisorio: readonly CarteiraDoVinculo[];
   carteiraReal: readonly Pick<CarteiraDoVinculo, 'cliente_id' | 'papel'>[];
+  /** Visita do provisório com check-in e sem checkout: não se move, o vínculo é recusado. */
+  visitaAbertaDoProvisorio?: boolean;
 }): PlanoDoVinculo {
   const { provisorio: p, real: r } = e;
   if (p.id === r.id) return recusa(CODIGOS_VINCULO.mesmoUsuario, 'Escolha um usuário diferente do vendedor provisório.');
   if (p.tenant_id !== r.tenant_id) return recusa(CODIGOS_VINCULO.outroTenant, 'Os dois usuários precisam ser da mesma empresa.');
   if (!ehUsuarioProvisorio(p.email)) return recusa(CODIGOS_VINCULO.naoProvisorio, 'Este usuário não é provisório. Só o vendedor criado pela carga do ERP sem e-mail pode ser vinculado.');
   if (ehUsuarioProvisorio(r.email)) return recusa(CODIGOS_VINCULO.realProvisorio, 'Escolha um usuário com e-mail real, não outro provisório.');
+  // repetição: o provisório já foi liberado (external_id nulo, apagado) e o real já tem o código
+  const jaCodigo = r.external_id?.trim() ?? '';
+  if (p.vinculado && jaCodigo !== '') {
+    return { ok: true, ja_vinculado: true, external_id: jaCodigo, provisorio_id: p.id, real_id: r.id, referencias: REFERENCIAS_DO_VINCULO, carteira_mover: [], carteira_descartar: [], desativar_provisorio: false, eventos_cliente: [] };
+  }
   const codigo = p.external_id?.trim() ?? '';
   if (codigo === '') return recusa(CODIGOS_VINCULO.semCodigoErp, 'O vendedor provisório não tem Código no ERP. Confira o cadastro.');
   if (p.perfil !== r.perfil || (r.perfil !== 'vendedor' && r.perfil !== 'promotor')) return recusa(CODIGOS_VINCULO.perfilIncompativel, 'Os perfis não combinam. Vincule vendedor com vendedor e promotor com promotor.');
+  if (e.visitaAbertaDoProvisorio) return recusa(CODIGOS_VINCULO.visitaAberta, 'O vendedor provisório tem uma visita aberta. Feche o check-in dele antes de vincular.');
   const base = { external_id: codigo, provisorio_id: p.id, real_id: r.id, referencias: REFERENCIAS_DO_VINCULO } as const;
   if (r.external_id !== null && r.external_id.trim() !== '') {
-    if (r.external_id.trim() === codigo && p.vinculado) return { ok: true, ja_vinculado: true, ...base, carteira_mover: [], carteira_descartar: [], desativar_provisorio: false, eventos_cliente: [] };
     return recusa(CODIGOS_VINCULO.realComOutroCodigo, 'O usuário escolhido já tem outro Código no ERP. Limpe o código dele em Editar antes de vincular.');
   }
   const ja = new Set(e.carteiraReal.map((x) => `${x.cliente_id}|${x.papel}`));

@@ -109,6 +109,49 @@ describe.skipIf(semBanco())('Core T-0175 × Postgres: vincular vendedor do ERP',
     });
   });
 
+  it('RN-CORE-58: o provisório é liberado primeiro (external_id nulo, inativo, apagado) e meta_produtividade, tarefa_destinatario, visita, deslocamento_dia e equipe.responsavel_id passam ao real; na colisão fica a linha do real', async () => {
+    await emTransacao(async (t) => {
+      const mp = (u: string, valor: number) => t.q("insert into core.meta_produtividade (tenant_id, escopo, usuario_id, indicador, valor, vigencia_inicio) values (plataforma.tenant_atual(), 'usuario', $1, 'tma', $2, '2026-11')", [u, valor]);
+      await mp(t.prov, 1); // colide com a do real
+      await mp(t.real, 2);
+      await t.q("insert into core.meta_produtividade (tenant_id, escopo, usuario_id, indicador, valor, vigencia_inicio) values (plataforma.tenant_atual(), 'usuario', $1, 'tmd', 3, '2026-11')", [t.prov]); // sem colisão
+      const tarefa = async () => (await t.q<{ id: string }>("insert into core.tarefa (tenant_id, autor_id, titulo, prazo, tipo, alvo) values (plataforma.tenant_atual(), $1, 'T', current_date, 'simples', 'usuarios') returning id", [A.usuarios.admin]))[0]!.id;
+      const t1 = await tarefa();
+      const t2 = await tarefa();
+      const dest = (tarefaId: string, u: string) => t.q('insert into core.tarefa_destinatario (tenant_id, tarefa_id, usuario_id) values (plataforma.tenant_atual(), $1, $2)', [tarefaId, u]);
+      await dest(t1, t.prov); // colide
+      await dest(t1, t.real);
+      await dest(t2, t.prov); // passa
+      const desl = (u: string, data: string) => t.q('insert into core.deslocamento_dia (tenant_id, usuario_id, data, metros, pontos) values (plataforma.tenant_atual(), $1, $2, 10, 2)', [u, data]);
+      await desl(t.prov, '2026-11-10'); // colide
+      await desl(t.real, '2026-11-10');
+      await desl(t.prov, '2026-11-11'); // passa
+      const equipe = (await t.q<{ id: string }>("insert into core.equipe (tenant_id, nome, responsavel_id) values (plataforma.tenant_atual(), 'Eq T175', $1) returning id", [t.prov]))[0]!.id;
+
+      await t.chamar('usuarios/:id/vincular-erp', A.usuarios.admin, 'admin', { usuario_id: t.real }, { id: t.prov });
+
+      const prov = (await t.q<{ external_id: string | null; ativo: boolean; deleted_at: string | null }>('select external_id, ativo, deleted_at::text from core.usuario where id = $1', [t.prov]))[0]!;
+      expect(prov).toMatchObject({ external_id: null, ativo: false });
+      expect(prov.deleted_at).not.toBeNull();
+      const vivas = (tabela: string, u: string) => t.q(`select 1 from ${tabela} where usuario_id = $1 and deleted_at is null`, [u]);
+      expect((await vivas('core.meta_produtividade', t.prov)).length).toBe(0);
+      expect((await t.q<{ valor: number }>("select valor from core.meta_produtividade where usuario_id = $1 and indicador = 'tma' and deleted_at is null", [t.real])).map((x) => x.valor)).toEqual([2]);
+      expect((await vivas('core.meta_produtividade', t.real)).length).toBe(2);
+      expect((await vivas('core.tarefa_destinatario', t.prov)).length).toBe(0);
+      expect((await vivas('core.tarefa_destinatario', t.real)).length).toBe(2);
+      expect((await vivas('core.deslocamento_dia', t.prov)).length).toBe(0);
+      expect((await vivas('core.deslocamento_dia', t.real)).length).toBe(2);
+      expect((await t.q<{ responsavel_id: string }>('select responsavel_id from core.equipe where id = $1', [equipe]))[0]?.responsavel_id).toBe(t.real);
+    });
+  });
+
+  it('RN-CORE-58: recusa (422) quando o provisório tem visita aberta', async () => {
+    await emTransacao(async (t) => {
+      await t.q("insert into core.visita (tenant_id, usuario_id, cliente_id, data_local, checkin_em) values (plataforma.tenant_atual(), $1, $2, current_date, now())", [t.prov, A.clientes.c1]);
+      await expect(t.chamar('usuarios/:id/vincular-erp', A.usuarios.admin, 'admin', { usuario_id: t.real }, { id: t.prov })).rejects.toMatchObject({ codigo: 'VINCULO_VISITA_ABERTA' });
+    });
+  });
+
   it('RN-CORE-58: repetir o vínculo é idempotente (nada duplica, nenhum evento novo)', async () => {
     await emTransacao(async (t) => {
       await t.chamar('usuarios/:id/vincular-erp', A.usuarios.admin, 'admin', { usuario_id: t.real }, { id: t.prov });
