@@ -4,9 +4,9 @@
 > ajuste R-20261115-080500) e **implementada na T-0181**.
 > Pareceres aplicados: corretor RD-0468 a RD-0476; marca MC-0077, MC-0079 e MC-0080 (a MC-0078, tokens da caixa do aviso, deixou de
 > existir: o aviso ficou sem caixa em R-20261115-080500-alexandre). Base: `docs/design/entrada-sync.md` (T-0172), que continua a fonte da verdade da tela de carga; esta spec
-> descreve só o que entra. Na aprovação, a §2 da `entrada-sync.md` recebe a mudança do "Fora da tela" (§5 abaixo).
+> descreve só o que entra. A §2 da `entrada-sync.md` já traz o aviso e a frase.
 > Simulação: `carga-campo.png`, `carga-gestao.png` (360 × 800), `carga-campo-640.png` (360 × 640 com 48 dp de navegação),
-> `config-frases.png`, `config-editar.png`. Frases: `frases.md` (tema de Roraima, com as fontes na §6). Fontes: os `.html` e o `app.css` desta pasta.
+> `config-frases.png`, `config-editar.png`. Frases: `frases.md` (tema de Roraima, com as fontes na §5). Fontes: os `.html` e o `app.css` desta pasta.
 
 ## 1. Tela de carga (Campo e Gestão, rota `/sync`, estados 4 e 5 da entrada-sync)
 Ajuste do dono do produto em R-20261115-080500-alexandre (referência `recados/anexos/R-20261115-080500-carga-ajuste.png` no
@@ -73,14 +73,7 @@ Sem cor nova (a lâmpada usa o `preenchimento` que já existe) e sem movimento n
 - **Situação inicial:** decisão do dono do produto em R-20261115-075500-alexandre (coluna Situação inicial do `frases.md`).
 - As frases valem para todas as empresas (cadastro do super-admin); frase por empresa não foi pedida.
 
-## 5. Na aprovação
-- `docs/design/entrada-sync.md` §2 (RD-0476): sai "dica" do "Fora da tela" e a lista da tela ganha "frase sorteada, uma por
-  carga, parada" e o aviso, com remissão a esta spec.
-- Implementação, sem segurar a v1.0.10: banco e API (modulo-core / banco-dados), portal e tela do app, `cabeLista` e
-  `cabeFrase` (engenheiro-apps), ícone `lampada` no kit (designer-ux), parecer da marca e
-  do corretor no print do aparelho.
-
-## 6. Fontes
+## 5. Fontes
 Cada fato foi conferido na fonte citada (pesquisa de 15/11/2026). Nº da pesquisa = número da candidata na lista de 40
 (R = reserva). A fonte não vai no texto da tela; quando o número depende do ano, a frase traz o ano (RD-0483, MC-0084).
 Nome de povo sempre com inicial maiúscula (MC-0081). Regras de redação (parecer da marca `docs/marca/pareceres/2026-11-15-carga-frases.md`): narrativa com

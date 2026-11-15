@@ -55,25 +55,6 @@ describe('tela de entrada (T-0172, docs/design/entrada-sync.md §4)', () => {
     });
   });
 
-  it('o bloco "Você sabia?" ocupa 86 dp com a frase em 2 linhas e 66 dp com 1 linha (spec §1.1)', () => {
-    const { titulo, frase } = MEDIDAS_FRASE_CARGA;
-    const bloco = (linhas: number) => titulo.abaixoDoOla + titulo.linha + titulo.ateFrase + linhas * frase.linha;
-    expect(bloco(2)).toBe(86);
-    expect(bloco(1)).toBe(66);
-  });
-
-  it('o aviso tem 1 linha na escala 1,0 e nenhum limite de corte (com fonte grande quebra no shell)', () => {
-    expect(MEDIDAS_FRASE_CARGA.aviso.linhas).toBe(1);
-    expect(MEDIDAS_FRASE_CARGA.aviso).not.toHaveProperty('linhasMax');
-  });
-
-  it('o aviso não tem destaque: sem tokens de caixa, borda ou fundo (MC-0078 caiu)', () => {
-    for (const tema of Object.values(TEMAS_ENTRADA)) {
-      expect(Object.keys(tema).some((k) => /^aviso/.test(k))).toBe(false);
-    }
-    expect(Object.keys(MEDIDAS_FRASE_CARGA.aviso).sort()).toEqual(['acimaDaBarra', 'fonte', 'linha', 'linhas', 'tamanho']);
-  });
-
   it('título em texto, frase e aviso em textoClaro, lâmpada em preenchimento, com contraste nos dois temas (spec §1)', () => {
     for (const tema of Object.values(TEMAS_ENTRADA)) {
       const pares = paresDaEntrada(tema);

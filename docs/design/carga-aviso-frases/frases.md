@@ -1,8 +1,8 @@
 # Frases da carga: as 30 iniciais (história e tradição de Roraima)
 
 > 2026-11-15 · designer-ux · tema pedido pelo dono do produto em R-20261115-071500-alexandre; pareceres do corretor (RD-0482 a
-> RD-0484) e da marca (MC-0081 a MC-0084) aplicados. Fonte de cada frase: `spec.md` §6. Todas cabem em 2 linhas de 280 dp
-> (IBM Plex Sans 14), com folga.
+> RD-0484) e da marca (MC-0081 a MC-0084) aplicados. Fonte de cada frase: `spec.md` §5. Todas cabem em 2 linhas de 280 dp
+> (fonte do sistema 14), com folga.
 
 | Nº | Tema | Situação inicial | Frase |
 |---|---|---|---|

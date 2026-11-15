@@ -5,41 +5,36 @@
 <title>Simulação · portal config. · Frases da carga</title>
 <style>
 /* Tokens de apps/web/app/globals.css e componentes de @macuxi/ui/web (PageHeader, Panel, th/td, Badge, Button, Dialog). */
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url('../../../apps/web/app/fonts/IBMPlexSans_400Regular.ttf'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 600; src: url('../../../apps/web/app/fonts/IBMPlexSans_600SemiBold.ttf'); }
-@font-face { font-family: 'IBM Plex Sans'; font-weight: 700; src: url('../../../apps/web/app/fonts/IBMPlexSans_700Bold.ttf'); }
-@font-face { font-family: 'Archivo'; font-weight: 700; src: url('../../../apps/web/app/fonts/Archivo_700Bold.ttf'); }
-@font-face { font-family: 'Archivo'; font-weight: 800; src: url('../../../apps/web/app/fonts/Archivo_800ExtraBold.ttf'); }
 :root { --ground:#F8F6F1; --surface:#FFFFFF; --ink:#16202A; --ink2:#4A5562; --ink3:#34404D; --line:#DFE2E6; --line2:#ECEEF1; --field:#C9CED5;
   --accent:#1E3350; --faixa:#1E3350; --faixaTexto:#C9CED5; --success:#1D6B4F; --successSoft:#E2F1EA; --neutralSoft:#ECEEF1; }
 * { box-sizing: border-box; margin: 0; }
-body { background: var(--ground); color: var(--ink); font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; min-height: 100vh; }
+body { background: var(--ground); color: var(--ink); font-family: system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; font-size: 15px; min-height: 100vh; }
 header { background: var(--surface); border-bottom: 1px solid var(--line); }
 .hwrap { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .esq { display: flex; align-items: center; gap: 24px; align-self: stretch; }
 .marca { display: flex; align-items: center; gap: 12px; background: var(--faixa); border-radius: 12px; padding: 10px 14px; }
 .marca img { width: 130px; display: block; }
 .marca .sep { width: 1px; height: 24px; background: rgba(201,206,213,.4); }
-.marca span { font-family: Archivo; font-weight: 700; font-size: 14px; color: var(--faixaTexto); }
+.marca span { font-weight: 600; font-size: 14px; color: var(--faixaTexto); }
 nav { display: flex; gap: 4px; align-self: stretch; }
 nav a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; margin-bottom: -12px; padding-bottom: 0; border-bottom: 2px solid transparent; font-weight: 600; color: var(--ink2); text-decoration: none; }
 nav a.ativo { border-color: var(--accent); color: var(--ink); }
 .dir { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 14px 'IBM Plex Sans'; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 15px system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; height: 42px; border-radius: 12px; padding: 0 16px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); white-space: nowrap; }
 .btn.sm { height: 38px; border-radius: 10px; padding: 0 12px; font-size: 13px; }
 .btn.prim { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn.link { border: 0; background: none; height: auto; padding: 0 4px; min-height: 44px; font-size: 13px; color: var(--accent); }
 main { max-width: 1120px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
 .ph { display: flex; justify-content: space-between; align-items: center; min-height: 42px; }
-h1 { font-family: Archivo; font-weight: 800; font-size: 24px; line-height: 1.2; }
+h1 { font-weight: 700; font-size: 24px; line-height: 1.2; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; font-weight: 600; color: var(--ink2); white-space: nowrap; }
 td { border-bottom: 1px solid var(--line2); padding: 6px 10px; vertical-align: middle; }
 td.n { width: 44px; color: var(--ink2); font-variant-numeric: tabular-nums; }
-td.t { font-size: 14px; }
+td.t { font-size: 15px; }
 td.acoes { text-align: right; white-space: nowrap; width: 1%; }
-.badge { display: inline-block; border-radius: 8px; padding: 3px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.badge { display: inline-block; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .badge.ok { color: var(--success); background: var(--successSoft); }
 .badge.neu { color: var(--ink3); background: var(--neutralSoft); }
 .cont { font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
@@ -47,11 +42,11 @@ td.acoes { text-align: right; white-space: nowrap; width: 1%; }
 .veu { position: fixed; inset: 0; background: rgba(22,32,42,.45); display: none; align-items: center; justify-content: center; }
 .editar .veu { display: flex; }
 .dialog { width: 520px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,42,.25); display: flex; flex-direction: column; }
-.dialog h2 { font-family: Archivo; font-weight: 700; font-size: 18px; padding: 18px 20px 0; }
+.dialog h2 { font-weight: 700; font-size: 20px; padding: 18px 20px 0; }
 .dcorpo { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
 .dpe { padding: 12px 20px 18px; display: flex; justify-content: flex-end; gap: 8px; }
 label.rot { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
-textarea, select { font: 400 15px/21px 'IBM Plex Sans'; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+textarea, select { font: 400 15px/21px system-ui, "Segoe UI", Roboto, -apple-system, sans-serif; color: var(--ink); border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
 textarea { height: 68px; resize: none; border: 2px solid var(--accent); padding: 9px 11px; }
 select { height: 44px; padding: 0 12px; }
 .ajuda { display: flex; justify-content: flex-end; font-size: 12px; font-weight: 400; color: var(--ink2); font-variant-numeric: tabular-nums; }
