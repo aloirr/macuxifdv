@@ -20,6 +20,9 @@
  * build e nunca repete por pacote. Nome do build (`Campo-Oficial-v1.0.0`) em `src/lib/nome-build.ts`.
  * Base copiada do app.json da Fase M.
  */
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
+
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // JSON e não import de src/: o Expo carrega este arquivo sem resolver import de .ts relativo
@@ -81,13 +84,30 @@ function versaoDoApp(): string {
   return v;
 }
 
+/** Caminho padrão do google-services.json, relativo a apps/mobile (o .gitignore o mantém fora do git). */
+export const GOOGLE_SERVICES_PADRAO = './google-services.json';
+
+/**
+ * `android.googleServicesFile` só quando o arquivo existe: o caminho de `GOOGLE_SERVICES_JSON` (Actions e EAS) ou o
+ * padrão. Sem o arquivo, nada (o dev local e o bundle seguem sem push, em vez de o prebuild falhar).
+ */
+export function arquivoGoogleServices(
+  raiz: string,
+  env: Readonly<Record<string, string | undefined>>,
+  existe: (caminho: string) => boolean,
+): { googleServicesFile?: string } {
+  const indicado = env.GOOGLE_SERVICES_JSON?.trim() || GOOGLE_SERVICES_PADRAO;
+  const caminho = isAbsolute(indicado) ? indicado : resolve(raiz, indicado);
+  return existe(caminho) ? { googleServicesFile: caminho } : {};
+}
+
 function variante(): Variante {
   const v = process.env.APP_VARIANT ?? 'campo';
   if (v !== 'campo' && v !== 'gestao') throw new Error(`APP_VARIANT inválida: ${v} (use campo ou gestao)`);
   return v;
 }
 
-export default ({ config }: ConfigContext): ExpoConfig => {
+export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   const id = variante();
   const v = VARIANTES[id];
   const versao = versaoDoApp();
@@ -110,10 +130,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
-      // RN-CORE-23 / T-0065: push pelo FCM. O arquivo vem da variável de arquivo GOOGLE_SERVICES_JSON do EAS (configurada
-      // pelo dono do produto); nenhum agente lê nem commita o google-services.json. Sem a variável (build de
-      // desenvolvimento), o app compila sem push e segue com o botão Sincronizar e a atualização automática.
-      ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
+      // RN-CORE-23 / T-0065: push pelo FCM direto (v1.0.10). O arquivo vem do caminho em GOOGLE_SERVICES_JSON (no Actions,
+      // o android-build.yml decodifica o secret GOOGLE_SERVICES_JSON_BASE64 e grava o caminho; no EAS, a variável de
+      // arquivo); sem a variável, ./google-services.json (fora do git). Nenhum agente lê nem commita o arquivo. Sem o
+      // arquivo (build de desenvolvimento), o app compila sem push e segue com o Sincronizar e a atualização automática.
+      // projectRoot vem do Expo; quem chama a config sem ele (testes de scripts/eas) usa a pasta atual
+      ...arquivoGoogleServices(projectRoot ?? process.cwd(), process.env, existsSync),
       // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
       softwareKeyboardLayoutMode: 'resize',

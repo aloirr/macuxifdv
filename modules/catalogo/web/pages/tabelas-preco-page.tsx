@@ -2,20 +2,21 @@
 
 /**
  * Tabelas de preço no BKO (T-0089): aba "Preço da UN" (só o preço da unidade base; não existe preço de caixa, RN-VEN-15) e aba
- * "Escalonada" (faixas por quantidade, RN-VEN-23). Filtros na URL, CSV, tabela densa. Só analista e admin
+ * "Escalonada" (faixas por quantidade, RN-VEN-23). Filtros na URL, CSV, tabela sem rolagem lateral e formulário da faixa na gaveta (revisão do BKO). Só analista e admin
  * (`tabela_preco.gerenciar`); a proteção real é na API. Faixa que veio do ERP é só leitura.
  */
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, TableScroll, td, th } from '@macuxi/ui/web';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
-import { ListaTabelasPreco, PaginaEscalonada, PaginaPrecosTabela, RespostaBusca, type FaixaCadastrada } from '../../contracts';
+import { formatBRL } from '@macuxi/comum';
+import { Button, CampoBusca, CampoFormulario, CLASSE_CAMPO, Dialog, Drawer, ErrorBlock, EstadoVazio, FilterBar, LoadingBlock, MenuAcoes, nomeLegivel, Notice, PageHeader, rotuloComContagem, SelectField, SeloSituacao, TabelaDados, useToast, type ColunaDaTabela } from '@macuxi/ui/web';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ListaTabelasPreco, PaginaEscalonada, PaginaPrecosTabela, RespostaBusca, type FaixaCadastrada, type PrecoUnidadeLinha } from '../../contracts';
 import { textoRemoverFaixa } from '../lib/formularios';
-import { buscaDosFiltrosTabelas, faixaDoForm, faixasParaCsv, FORM_FAIXA_VAZIO, formDaFaixa, lerFiltrosTabelas, precosParaCsv, textoDosCentavos, type FiltrosTabelas, type FormFaixa } from '../lib/tabelas-preco';
+import { LimparFiltros, useBuscaComEspera } from '../lib/lista';
+import { buscaDosFiltrosTabelas, faixaDoForm, faixasParaCsv, filtrosTabelasLigados, FORM_FAIXA_VAZIO, formDaFaixa, lerFiltrosTabelas, precosParaCsv, seloDaFaixa, textoVigencia, type FiltrosTabelas, type FormFaixa } from '../lib/tabelas-preco';
 
 const BASE = '/catalogo';
 const POR_PAGINA = 200;
-const CAMPO = 'h-[38px] rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink';
 
 function useFiltros(): [FiltrosTabelas, (p: Partial<FiltrosTabelas>) => void] {
   const [f, setF] = useState<FiltrosTabelas>(() => lerFiltrosTabelas(typeof window === 'undefined' ? '' : window.location.search));
@@ -34,7 +35,29 @@ function useFiltros(): [FiltrosTabelas, (p: Partial<FiltrosTabelas>) => void] {
   return [f, mudar];
 }
 
-const dia = (v: string | null) => (v ? v.slice(0, 10) : '—');
+type Tabelas = ListaTabelasPreco['items'];
+type Mudar = (p: Partial<FiltrosTabelas>) => void;
+
+const ABAS = [
+  ['precos', 'Preço da UN'],
+  ['escalonada', 'Escalonada'],
+] as const;
+
+/** Título da página e as abas, na mesma linha de ações da aba aberta (revisão do BKO §P1); a contagem vai no rótulo da aba ativa (§P6). */
+function Cabecalho({ filtros, mudar, total, actions }: { filtros: FiltrosTabelas; mudar: Mudar; total?: number; actions?: ReactNode }) {
+  return (
+    <>
+      <PageHeader title="Tabelas de preço" actions={actions} />
+      <nav className="flex gap-2" aria-label="Seções das tabelas de preço">
+        {ABAS.map(([id, rotulo]) => (
+          <Button key={id} size="sm" variant={id === filtros.aba ? 'primary' : 'secondary'} aria-current={id === filtros.aba ? 'page' : undefined} data-testid={`tabelas-preco.aba.${id}`} onClick={() => mudar({ aba: id })}>
+            {id === filtros.aba && total !== undefined ? rotuloComContagem(rotulo, total) : rotulo}
+          </Button>
+        ))}
+      </nav>
+    </>
+  );
+}
 
 export function TabelasPrecoPage() {
   const [filtros, mudar] = useFiltros();
@@ -44,20 +67,8 @@ export function TabelasPrecoPage() {
   });
   const tabelaId = filtros.tabela || tabelas.data?.items[0]?.id || '';
   return (
-    <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="tabelas-preco.tela">
-      <PageHeader title="Tabelas de preço" subtitle="O preço da unidade em cada tabela e as faixas de preço por quantidade. A caixa não tem preço próprio: vale a unidade vezes a quantidade da embalagem." />
-      <nav className="flex gap-2" aria-label="Seções das tabelas de preço">
-        {(
-          [
-            ['precos', 'Preço da UN'],
-            ['escalonada', 'Escalonada'],
-          ] as const
-        ).map(([id, rotulo]) => (
-          <Button key={id} size="sm" variant={id === filtros.aba ? 'primary' : 'secondary'} aria-current={id === filtros.aba ? 'page' : undefined} data-testid={`tabelas-preco.aba.${id}`} onClick={() => mudar({ aba: id })}>
-            {rotulo}
-          </Button>
-        ))}
-      </nav>
+    <div className="flex w-full max-w-[1062px] flex-col gap-5" data-testid="tabelas-preco.tela">
+      {!tabelas.data && <Cabecalho filtros={filtros} mudar={mudar} />}
       {tabelas.isError && <ErrorBlock message={errorMessage(tabelas.error)} onRetry={() => void tabelas.refetch()} />}
       {tabelas.isPending && <LoadingBlock label="Carregando as tabelas de preço…" />}
       {tabelas.data && filtros.aba === 'precos' && <PrecosUnidade filtros={filtros} mudar={mudar} tabelas={tabelas.data.items} filiais={tabelas.data.filiais} filialId={tabelas.data.filial_id} tabelaId={tabelaId} />}
@@ -66,116 +77,141 @@ export function TabelasPrecoPage() {
   );
 }
 
-type Tabelas = ListaTabelasPreco['items'];
-
-function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }: { filtros: FiltrosTabelas; mudar: (p: Partial<FiltrosTabelas>) => void; tabelas: Tabelas; filiais: ListaTabelasPreco['filiais']; filialId: string; tabelaId: string }) {
-  const lista = useQuery({
-    queryKey: ['catalogo', 'precos-tabela', tabelaId, filialId, filtros.q],
-    enabled: tabelaId !== '',
-    queryFn: async () => PaginaPrecosTabela.parse(await api<unknown>(`${BASE}/tabelas-preco/${tabelaId}/precos?limit=${POR_PAGINA}&filial=${encodeURIComponent(filialId)}${filtros.q ? `&q=${encodeURIComponent(filtros.q)}` : ''}`)),
-  });
+function BotaoCarregarMais({ tem, carregando, aoClicar }: { tem: boolean; carregando: boolean; aoClicar: () => void }) {
+  if (!tem) return null;
   return (
-    <Panel label="Preço da UN" title="Preço da unidade por tabela">
-      <FilterBar>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Tabela
-          <select className={CAMPO} value={tabelaId} onChange={(e) => mudar({ tabela: e.target.value })} data-testid="tabelas-preco.tabela">
-            {tabelas.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nome} ({t.itens})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Filial
-          <select className={CAMPO} value={filialId} onChange={(e) => mudar({ filial: e.target.value })} data-testid="tabelas-preco.filial">
-            {filiais.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-                {f.padrao ? ' (padrão)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Produto ou código
-          <input className={CAMPO} value={filtros.q} onChange={(e) => mudar({ q: e.target.value })} data-testid="tabelas-preco.q" />
-        </label>
-        <Button size="sm" disabled={!lista.data || lista.data.items.length === 0} data-testid="tabelas-preco.csv" onClick={() => lista.data && downloadBlob(new Blob([precosParaCsv(lista.data.items)], { type: 'text/csv;charset=utf-8' }), 'precos-da-unidade.csv')}>
-          Exportar CSV
-        </Button>
-      </FilterBar>
-      {tabelas.length === 0 && <span className="text-[13px] text-ink-2">Nenhuma tabela de preço ainda. Elas chegam do ERP na próxima carga.</span>}
-      {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
-      {lista.isPending && tabelaId !== '' && <LoadingBlock label="Carregando os preços…" />}
-      {lista.data && lista.data.items.length === 0 && <span className="text-[13px] text-ink-2">Nenhum preço de unidade nesta tabela{filtros.q ? ' para a busca feita' : ''}.</span>}
-      {lista.data && lista.data.items.length > 0 && (
-        <TableScroll minWidth={760}>
-          <table className="w-full border-collapse text-[13px]" data-testid="tabelas-preco.precos">
-            <thead>
-              <tr>
-                {['Código', 'Produto', 'Preço da unidade', 'Início', 'Fim'].map((c) => (
-                  <th key={c} scope="col" className={th}>
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {lista.data.items.map((p) => (
-                <tr key={p.produto_id}>
-                  <td className={td}>{p.sku}</td>
-                  <td className={td}>{p.nome}</td>
-                  <td className={`${td} text-right tabular-nums`}>R$ {textoDosCentavos(p.preco_cents)}</td>
-                  <td className={td}>{dia(p.vigencia_inicio)}</td>
-                  <td className={td}>{dia(p.vigencia_fim)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
-      )}
-      {lista.data && <span className="text-[12px] text-ink-2">{lista.data.items.length} de {lista.data.total} produtos{lista.data.next_offset !== null ? ' — refine a busca para ver os demais' : ''}.</span>}
-    </Panel>
+    <div className="flex justify-center">
+      <Button size="sm" onClick={aoClicar} disabled={carregando} data-testid="tabelas-preco.carregar-mais">
+        {carregando ? 'Carregando…' : 'Carregar mais'}
+      </Button>
+    </div>
   );
 }
 
-function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; mudar: (p: Partial<FiltrosTabelas>) => void; tabelas: Tabelas }) {
+function PrecosUnidade({ filtros, mudar, tabelas, filiais, filialId, tabelaId }: { filtros: FiltrosTabelas; mudar: Mudar; tabelas: Tabelas; filiais: ListaTabelasPreco['filiais']; filialId: string; tabelaId: string }) {
+  const busca = useBuscaComEspera(filtros.q, (q) => mudar({ q }));
+  const lista = useInfiniteQuery({
+    queryKey: ['catalogo', 'precos-tabela', tabelaId, filialId, filtros.q],
+    enabled: tabelaId !== '',
+    queryFn: async ({ pageParam }) => PaginaPrecosTabela.parse(await api<unknown>(`${BASE}/tabelas-preco/${tabelaId}/precos?limit=${POR_PAGINA}&offset=${pageParam}&filial=${encodeURIComponent(filialId)}${filtros.q ? `&q=${encodeURIComponent(filtros.q)}` : ''}`)),
+    initialPageParam: 0,
+    getNextPageParam: (u) => u.next_offset ?? undefined,
+  });
+  const itens = useMemo(() => lista.data?.pages.flatMap((p) => p.items) ?? [], [lista.data]);
+  const total = lista.data?.pages[0]?.total ?? 0;
+  const ligados = filtrosTabelasLigados(filtros);
+  const colunas: ColunaDaTabela<PrecoUnidadeLinha>[] = [
+    { id: 'produto', titulo: 'Produto', celula: (p) => nomeLegivel(p.nome), texto: (p) => p.nome },
+    { id: 'codigo', titulo: 'Código', prioridade: 2, largura: '120px', celula: (p) => p.sku, texto: (p) => p.sku },
+    { id: 'preco', titulo: 'Preço da unidade', numero: true, largura: '140px', celula: (p) => formatBRL(p.preco_cents) },
+    { id: 'vigencia', titulo: 'Vigência', prioridade: 3, largura: '200px', celula: (p) => textoVigencia(p.vigencia_inicio?.slice(0, 10) ?? null, p.vigencia_fim?.slice(0, 10) ?? null) },
+  ];
+  return (
+    <>
+      <Cabecalho
+        filtros={filtros}
+        mudar={mudar}
+        total={tabelas.length === 0 ? undefined : total}
+        actions={
+          <MenuAcoes
+            acoes={[
+              { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([precosParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'precos-da-unidade.csv'), testId: 'tabelas-preco.csv' },
+              { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching || tabelaId === '', aoEscolher: () => void lista.refetch() },
+            ]}
+          />
+        }
+      />
+      {tabelas.length === 0 ? (
+        <EstadoVazio testId="tabelas-preco.vazio" titulo="Nenhuma tabela de preço cadastrada." />
+      ) : (
+        <>
+          <FilterBar>
+            <CampoBusca rotulo="Buscar produto ou código" {...busca} data-testid="tabelas-preco.q" />
+            <SelectField label="Tabela" value={tabelaId} onChange={(e) => mudar({ tabela: e.target.value })} data-testid="tabelas-preco.tabela">
+              {tabelas.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Filial" value={filialId} onChange={(e) => mudar({ filial: e.target.value })} data-testid="tabelas-preco.filial">
+              {filiais.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                  {f.padrao ? ' (padrão)' : ''}
+                </option>
+              ))}
+            </SelectField>
+            <LimparFiltros ligado={ligados} onLimpar={() => mudar({ q: '' })} testId="tabelas-preco.limpar" />
+          </FilterBar>
+          {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
+          {lista.isPending && tabelaId !== '' && <LoadingBlock label="Carregando os preços…" />}
+          {lista.data && (
+            <TabelaDados
+              rotulo="Preço da unidade por tabela"
+              testId="tabelas-preco.precos"
+              linhas={itens}
+              chave={(p) => p.produto_id}
+              colunas={colunas}
+              vazio={<EstadoVazio testId="tabelas-preco.precos.vazio" titulo={ligados ? 'Nenhum preço com esses filtros.' : 'Nenhum preço nesta tabela.'} />}
+            />
+          )}
+          <BotaoCarregarMais tem={!!lista.hasNextPage} carregando={lista.isFetchingNextPage} aoClicar={() => void lista.fetchNextPage()} />
+        </>
+      )}
+    </>
+  );
+}
+
+function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; mudar: Mudar; tabelas: Tabelas }) {
   const qc = useQueryClient();
-  const lista = useQuery({
+  const toast = useToast();
+  const busca = useBuscaComEspera(filtros.q, (q) => mudar({ q }));
+  const lista = useInfiniteQuery({
     queryKey: ['catalogo', 'escalonada', filtros.tabela, filtros.q, filtros.vigente],
-    queryFn: async () => {
-      const p = new URLSearchParams({ limit: String(POR_PAGINA) });
+    queryFn: async ({ pageParam }) => {
+      const p = new URLSearchParams({ limit: String(POR_PAGINA), offset: String(pageParam) });
       if (filtros.tabela) p.set('tabela_preco_id', filtros.tabela);
       if (filtros.q) p.set('q', filtros.q);
       if (filtros.vigente) p.set('vigente', 'true');
       return PaginaEscalonada.parse(await api<unknown>(`${BASE}/escalonada?${p.toString()}`));
     },
+    initialPageParam: 0,
+    getNextPageParam: (u) => u.next_offset ?? undefined,
   });
+  const itens = useMemo(() => lista.data?.pages.flatMap((p) => p.items) ?? [], [lista.data]);
+  const total = lista.data?.pages[0]?.total ?? 0;
+  const ligados = filtrosTabelasLigados(filtros);
+
+  const [aberta, setAberta] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [form, setForm] = useState<FormFaixa>(FORM_FAIXA_VAZIO);
   const [produtoRotulo, setProdutoRotulo] = useState('');
   const [id, setId] = useState<string>(() => crypto.randomUUID());
   const [erro, setErro] = useState<string | null>(null);
-  const [busca, setBusca] = useState('');
+  const [buscaProduto, setBuscaProduto] = useState('');
   const achados = useQuery({
-    queryKey: ['catalogo', 'escalonada-produto', busca],
-    enabled: busca.trim().length >= 2,
-    queryFn: async () => RespostaBusca.parse(await api<unknown>(`${BASE}/busca?q=${encodeURIComponent(busca.trim())}&mode=basica&limit=8`)).items,
+    queryKey: ['catalogo', 'escalonada-produto', buscaProduto],
+    enabled: aberta && buscaProduto.trim().length >= 2,
+    queryFn: async () => RespostaBusca.parse(await api<unknown>(`${BASE}/busca?q=${encodeURIComponent(buscaProduto.trim())}&mode=basica&limit=8`)).items,
   });
-  const limpar = () => {
-    setForm(FORM_FAIXA_VAZIO);
-    setProdutoRotulo('');
-    setBusca('');
-    setId(crypto.randomUUID());
+  const abrir = (f: FaixaCadastrada | null) => {
+    salvar.reset();
+    setForm(f ? formDaFaixa(f) : FORM_FAIXA_VAZIO);
+    setProdutoRotulo(f ? `${f.sku} · ${f.nome}` : '');
+    setBuscaProduto('');
+    setId(f ? f.id : crypto.randomUUID());
     setErro(null);
+    setEditando(f !== null);
+    setAberta(true);
   };
   const invalidar = () => void qc.invalidateQueries({ queryKey: ['catalogo', 'escalonada'] });
   const salvar = useMutation({
     mutationFn: (corpo: unknown) => api(`${BASE}/escalonada/${id}`, { method: 'PUT', body: corpo }),
     onSuccess: () => {
       invalidar();
-      limpar();
+      setAberta(false);
+      toast('success', 'Faixa salva.');
     },
   });
   const [aRemover, setARemover] = useState<FaixaCadastrada | null>(null);
@@ -184,190 +220,183 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
     onSuccess: () => {
       invalidar();
       setARemover(null);
+      toast('success', 'Faixa removida.');
+    },
+    onError: (e) => {
+      setARemover(null);
+      toast('danger', errorMessage(e));
     },
   });
-  const editar = (f: FaixaCadastrada) => {
-    setForm(formDaFaixa(f));
-    setProdutoRotulo(`${f.sku} · ${f.nome}`);
-    setId(f.id);
-    setErro(null);
+
+  const colunas: ColunaDaTabela<FaixaCadastrada>[] = [
+    { id: 'produto', titulo: 'Produto', celula: (f) => nomeLegivel(f.nome), texto: (f) => f.nome },
+    { id: 'codigo', titulo: 'Código', prioridade: 2, largura: '100px', celula: (f) => f.sku, texto: (f) => f.sku },
+    { id: 'qtd', titulo: 'Qtd. mínima', numero: true, largura: '100px', celula: (f) => `${f.quantidade_minima} ${f.medida ?? 'UN'}` },
+    { id: 'preco', titulo: 'Preço da unidade', numero: true, largura: '120px', celula: (f) => formatBRL(f.preco_unidade_cents) },
+    { id: 'tabela', titulo: 'Tabela', prioridade: 3, largura: '120px', celula: (f) => f.tabela_preco_nome ?? 'Todas', texto: (f) => f.tabela_preco_nome ?? 'Todas' },
+    { id: 'vigencia', titulo: 'Vigência', prioridade: 3, largura: '160px', celula: (f) => textoVigencia(f.vigencia_inicio, f.vigencia_fim) },
+    { id: 'situacao', titulo: 'Situação', largura: '150px', celula: (f) => <SeloSituacao selos={[seloDaFaixa(f)]} /> },
+  ];
+  const produtoDaFaixa = form.produto_id !== '';
+  const salvarFaixa = () => {
+    const r = faixaDoForm(form);
+    setErro(r.ok ? null : r.erro);
+    if (r.ok) salvar.mutate(r.valor);
   };
+  const erroTopo = erro ?? (salvar.isError ? errorMessage(salvar.error) : null);
 
   return (
-    <Panel label="Escalonada" title="Faixas de preço por quantidade">
-      <Notice tone="info">
-        A faixa vale quando o pedido chega à quantidade mínima e se desfaz se a quantidade cair. O preço é o da <strong>unidade</strong>; na caixa, o vendedor paga a unidade vezes a quantidade da caixa. Faixa mais cara que a tabela não sobe o preço.
-      </Notice>
-      <div className="flex flex-wrap items-end gap-3" data-testid="escalonada.form">
-        <div className="flex min-w-[260px] flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Produto
-          {form.produto_id ? (
-            <span className="flex h-[38px] items-center gap-2 text-[14px] font-normal text-ink" data-testid="escalonada.produto">
-              {produtoRotulo}
-              <Button size="sm" variant="link" onClick={() => setForm({ ...form, produto_id: '' })}>
-                Trocar
-              </Button>
-            </span>
-          ) : (
-            <>
-              <input className={CAMPO} placeholder="Nome ou código (2+ letras)" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="escalonada.busca" />
-              {achados.data && achados.data.length > 0 && (
-                <ul className="rounded-[10px] border border-field bg-surface text-[13px] font-normal text-ink">
-                  {achados.data.map((p) => (
-                    <li key={p.id}>
-                      <Button
-                        size="sm"
-                        variant="link"
-                        onClick={() => {
-                          setForm({ ...form, produto_id: p.id });
-                          setProdutoRotulo(`${p.erp_code} · ${p.description}`);
-                        }}>
-                        {p.erp_code} · {p.description}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {achados.data && achados.data.length === 0 && <span className="text-[12px] font-normal">Nenhum produto achado. Tente outro nome ou o código.</span>}
-            </>
-          )}
-        </div>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Medida (vazio = unidade)
-          <input className={`${CAMPO} w-[96px]`} value={form.medida} maxLength={4} onChange={(e) => setForm({ ...form, medida: e.target.value })} data-testid="escalonada.medida" />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Quantidade mínima
-          <input className={`${CAMPO} w-[110px]`} inputMode="numeric" value={form.quantidade_minima} onChange={(e) => setForm({ ...form, quantidade_minima: e.target.value })} data-testid="escalonada.quantidade" />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Preço da unidade (R$)
-          <input className={`${CAMPO} w-[120px]`} inputMode="decimal" value={form.preco} onChange={(e) => setForm({ ...form, preco: e.target.value })} data-testid="escalonada.preco" />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Início
-          <input className={CAMPO} type="date" value={form.vigencia_inicio} onChange={(e) => setForm({ ...form, vigencia_inicio: e.target.value })} data-testid="escalonada.inicio" />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Fim (vazio = sem fim)
-          <input className={CAMPO} type="date" value={form.vigencia_fim} onChange={(e) => setForm({ ...form, vigencia_fim: e.target.value })} data-testid="escalonada.fim" />
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Tabela
-          <select className={CAMPO} value={form.tabela_preco_id} onChange={(e) => setForm({ ...form, tabela_preco_id: e.target.value })} data-testid="escalonada.tabela">
-            <option value="">Todas as tabelas</option>
-            {tabelas.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inline-flex h-[38px] items-center gap-2 text-[13px]">
-          <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativa
-        </label>
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={salvar.isPending}
-          data-testid="escalonada.salvar"
-          onClick={() => {
-            const r = faixaDoForm(form);
-            setErro(r.ok ? null : r.erro);
-            if (r.ok) salvar.mutate(r.valor);
-          }}>
-          Salvar faixa
-        </Button>
-        {(form.produto_id || form.quantidade_minima || form.preco) && (
-          <Button size="sm" onClick={limpar}>
-            Nova faixa
-          </Button>
-        )}
-      </div>
-      {(erro || salvar.isError || remover.isError) && <Notice tone="danger">{erro ?? errorMessage(salvar.error ?? remover.error)}</Notice>}
-
+    <>
+      <Cabecalho
+        filtros={filtros}
+        mudar={mudar}
+        total={total}
+        actions={
+          <>
+            <Button variant="primary" onClick={() => abrir(null)} data-testid="escalonada.nova">
+              Nova faixa
+            </Button>
+            <MenuAcoes
+                acoes={[
+                { id: 'csv', rotulo: 'Exportar CSV', desligada: itens.length === 0, aoEscolher: () => downloadBlob(new Blob([faixasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'tabela-escalonada.csv'), testId: 'escalonada.csv' },
+                { id: 'atualizar', rotulo: lista.isFetching ? 'Atualizando…' : 'Atualizar', desligada: lista.isFetching, aoEscolher: () => void lista.refetch() },
+              ]}
+            />
+          </>
+        }
+      />
       <FilterBar>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Tabela
-          <select className={CAMPO} value={filtros.tabela} onChange={(e) => mudar({ tabela: e.target.value })} data-testid="escalonada.filtro-tabela">
-            <option value="">Todas</option>
-            {tabelas.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-          Produto ou código
-          <input className={CAMPO} value={filtros.q} onChange={(e) => mudar({ q: e.target.value })} data-testid="escalonada.filtro-q" />
-        </label>
-        <label className="inline-flex h-[38px] items-center gap-2 text-[13px]">
-          <input type="checkbox" checked={filtros.vigente} onChange={(e) => mudar({ vigente: e.target.checked })} data-testid="escalonada.filtro-vigente" /> Só vigentes hoje
-        </label>
-        <Button size="sm" disabled={!lista.data || lista.data.items.length === 0} data-testid="escalonada.csv" onClick={() => lista.data && downloadBlob(new Blob([faixasParaCsv(lista.data.items)], { type: 'text/csv;charset=utf-8' }), 'tabela-escalonada.csv')}>
-          Exportar CSV
-        </Button>
+        <CampoBusca rotulo="Buscar produto ou código" {...busca} data-testid="escalonada.filtro-q" />
+        <SelectField label="Tabela" value={filtros.tabela} onChange={(e) => mudar({ tabela: e.target.value })} data-testid="escalonada.filtro-tabela">
+          <option value="">Todas</option>
+          {tabelas.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.nome}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField label="Vigência" value={filtros.vigente ? 'hoje' : ''} onChange={(e) => mudar({ vigente: e.target.value === 'hoje' })} data-testid="escalonada.filtro-vigente">
+          <option value="">Todas</option>
+          <option value="hoje">Vigentes hoje</option>
+        </SelectField>
+        <LimparFiltros ligado={ligados} onLimpar={() => mudar({ q: '', tabela: '', vigente: false })} testId="escalonada.limpar" />
       </FilterBar>
       {lista.isError && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
       {lista.isPending && <LoadingBlock label="Carregando as faixas…" />}
-      {lista.data && lista.data.items.length === 0 && <span className="text-[13px] text-ink-2">Nenhuma faixa{filtros.q || filtros.tabela || filtros.vigente ? ' para os filtros escolhidos' : ' cadastrada ainda. Use o formulário acima ou aguarde a carga do ERP'}.</span>}
-      {lista.data && lista.data.items.length > 0 && (
-        <TableScroll minWidth={1100}>
-          <table className="w-full border-collapse text-[13px]" data-testid="escalonada.tabela-faixas">
-            <thead>
-              <tr>
-                {['Código', 'Produto', 'Medida', 'Qtd. mínima', 'Preço da unidade', 'Tabela', 'Início', 'Fim', 'Situação', 'Origem'].map((c) => (
-                  <th key={c} scope="col" className={th}>
-                    {c}
-                  </th>
-                ))}
-                <th scope="col" className={th}>
-                  <span className="sr-only">Ações</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.data.items.map((f) => (
-                <tr key={f.id}>
-                  <td className={td}>{f.sku}</td>
-                  <td className={td}>{f.nome}</td>
-                  <td className={td}>{f.medida ?? 'Unidade'}</td>
-                  <td className={`${td} text-right tabular-nums`}>{f.quantidade_minima}</td>
-                  <td className={`${td} text-right tabular-nums`}>
-                    R$ {textoDosCentavos(f.preco_unidade_cents)}
-                    {f.mais_cara_que_a_tabela && (
-                      <>
-                        {' '}
-                        <Badge tone="warning">Acima da tabela</Badge>
-                      </>
-                    )}
-                  </td>
-                  <td className={td}>{f.tabela_preco_nome ?? 'Todas'}</td>
-                  <td className={td}>{f.vigencia_inicio}</td>
-                  <td className={td}>{f.vigencia_fim ?? '—'}</td>
-                  <td className={td}>{!f.ativo ? <Badge tone="neutral">Inativa</Badge> : f.vigente ? <Badge tone="success">Vigente</Badge> : <Badge tone="neutral">Fora da vigência</Badge>}</td>
-                  <td className={td}>{f.origem === 'erp' ? 'ERP' : 'Cadastrada aqui'}</td>
-                  <td className={`${td} whitespace-nowrap text-right`}>
-                    {f.origem === 'manual' ? (
-                      <>
-                        <Button size="sm" variant="link" onClick={() => editar(f)}>
-                          Editar
-                        </Button>{' '}
-                        <Button size="sm" variant="link" disabled={remover.isPending} onClick={() => setARemover(f)}>
-                          Remover
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="text-[12px] text-ink-2">Alterada no ERP</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
+      {lista.data && (
+        <TabelaDados
+          rotulo="Faixas de preço por quantidade"
+          testId="escalonada.tabela-faixas"
+          linhas={itens}
+          chave={(f) => f.id}
+          colunas={colunas}
+          esmaecida={(f) => !f.ativo}
+          acoes={(f) =>
+            f.origem === 'manual'
+              ? [
+                  { id: 'editar', rotulo: 'Editar', aoEscolher: () => abrir(f), testId: `escalonada.editar.${f.id}` },
+                  { id: 'remover', rotulo: 'Remover', perigo: true, aoEscolher: () => setARemover(f), testId: `escalonada.remover.${f.id}` },
+                ]
+              : []
+          }
+          vazio={
+            <EstadoVazio
+              testId="escalonada.vazio"
+              titulo={ligados ? 'Nenhuma faixa com esses filtros.' : 'Nenhuma faixa cadastrada.'}
+              acao={
+                !ligados ? (
+                  <Button variant="primary" onClick={() => abrir(null)}>
+                    Nova faixa
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+        />
       )}
+      <BotaoCarregarMais tem={!!lista.hasNextPage} carregando={lista.isFetchingNextPage} aoClicar={() => void lista.fetchNextPage()} />
+
+      <Drawer
+        open={aberta}
+        title={editando ? 'Editar faixa' : 'Nova faixa'}
+        onClose={() => setAberta(false)}
+        rodape={
+          <>
+            <Button onClick={() => setAberta(false)}>Cancelar</Button>
+            <Button variant="primary" disabled={salvar.isPending} onClick={salvarFaixa} data-testid="escalonada.salvar">
+              {salvar.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </>
+        }>
+        <div className="flex flex-col gap-4" data-testid="escalonada.form">
+          {erroTopo && <Notice tone="danger">{erroTopo}</Notice>}
+          <CampoFormulario rotulo="Produto">
+            {produtoDaFaixa ? (
+              <span className="flex min-h-[42px] items-center gap-2 text-[14px] font-normal text-ink" data-testid="escalonada.produto">
+                {produtoRotulo}
+                <Button size="sm" variant="link" onClick={() => setForm({ ...form, produto_id: '' })}>
+                  Trocar
+                </Button>
+              </span>
+            ) : (
+              <>
+                <input className={CLASSE_CAMPO} placeholder="Nome ou código (2+ letras)" value={buscaProduto} onChange={(e) => setBuscaProduto(e.target.value)} data-testid="escalonada.busca" />
+                {achados.data && achados.data.length > 0 && (
+                  <ul className="m-0 flex list-none flex-col rounded-[10px] border border-field bg-surface p-0 text-[13px] font-normal text-ink">
+                    {achados.data.map((p) => (
+                      <li key={p.id}>
+                        <Button
+                          size="sm"
+                          variant="link"
+                          onClick={() => {
+                            setForm({ ...form, produto_id: p.id });
+                            setProdutoRotulo(`${p.erp_code} · ${p.description}`);
+                          }}>
+                          {p.erp_code} · {p.description}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {achados.data && achados.data.length === 0 && <span className="text-[12px] font-normal text-ink-2">Nenhum produto achado.</span>}
+              </>
+            )}
+          </CampoFormulario>
+          <div className="grid grid-cols-2 gap-4">
+            <CampoFormulario rotulo="Quantidade mínima">
+              <input className={CLASSE_CAMPO} inputMode="numeric" value={form.quantidade_minima} onChange={(e) => setForm({ ...form, quantidade_minima: e.target.value })} data-testid="escalonada.quantidade" />
+            </CampoFormulario>
+            <CampoFormulario rotulo="Medida" opcional>
+              <input className={CLASSE_CAMPO} placeholder="UN" value={form.medida} maxLength={4} onChange={(e) => setForm({ ...form, medida: e.target.value })} data-testid="escalonada.medida" />
+            </CampoFormulario>
+          </div>
+          <CampoFormulario rotulo="Preço da unidade (R$)">
+            <input className={CLASSE_CAMPO} inputMode="decimal" value={form.preco} onChange={(e) => setForm({ ...form, preco: e.target.value })} data-testid="escalonada.preco" />
+          </CampoFormulario>
+          <div className="grid grid-cols-2 gap-4">
+            <CampoFormulario rotulo="Início">
+              <input className={CLASSE_CAMPO} type="date" value={form.vigencia_inicio} onChange={(e) => setForm({ ...form, vigencia_inicio: e.target.value })} data-testid="escalonada.inicio" />
+            </CampoFormulario>
+            <CampoFormulario rotulo="Fim" opcional>
+              <input className={CLASSE_CAMPO} type="date" value={form.vigencia_fim} onChange={(e) => setForm({ ...form, vigencia_fim: e.target.value })} data-testid="escalonada.fim" />
+            </CampoFormulario>
+          </div>
+          <CampoFormulario rotulo="Tabela">
+            <select className={CLASSE_CAMPO} value={form.tabela_preco_id} onChange={(e) => setForm({ ...form, tabela_preco_id: e.target.value })} data-testid="escalonada.tabela">
+              <option value="">Todas as tabelas</option>
+              {tabelas.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome}
+                </option>
+              ))}
+            </select>
+          </CampoFormulario>
+          <label className="inline-flex min-h-[42px] items-center gap-2 text-[14px] font-semibold">
+            <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} /> Ativa
+          </label>
+        </div>
+      </Drawer>
+
       <Dialog
         open={aRemover !== null}
         title={aRemover ? textoRemoverFaixa(aRemover.quantidade_minima, aRemover.nome).titulo : ''}
@@ -384,7 +413,6 @@ function Escalonada({ filtros, mudar, tabelas }: { filtros: FiltrosTabelas; muda
         }>
         {aRemover ? <p className="m-0">{textoRemoverFaixa(aRemover.quantidade_minima, aRemover.nome).corpo}</p> : null}
       </Dialog>
-      {lista.data && <span className="text-[12px] text-ink-2">{lista.data.items.length} de {lista.data.total} faixas{lista.data.next_offset !== null ? ' — refine os filtros para ver as demais' : ''}.</span>}
-    </Panel>
+    </>
   );
 }

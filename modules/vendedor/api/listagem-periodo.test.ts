@@ -67,6 +67,32 @@ describe('RF-VEN-05: consulta ao servidor por período (fora da janela de 90 dia
     expect(sql).not.toMatch(/p\.updated_at >= /);
   });
 
+  it('§P6: sem totais=1 a rota não faz a consulta de soma e não devolve total_filtro', async () => {
+    const { ctx, consultas } = contexto('vendedor', {});
+    expect(await rotaListarPedidos.executar(ctx as never)).toEqual({ itens: [], proximo_cursor: null });
+    expect(consultas).toHaveLength(1);
+  });
+
+  it('RN-VEN-05 §P6: totais=1 devolve quantidade e soma do filtro inteiro (mesmo filtro, sem cancelados e rejeitados na soma)', async () => {
+    const { ctx, consultas } = contexto('vendedor', { totais: '1', sem_pendentes: '1' });
+    const r = (await rotaListarPedidos.executar(ctx as never)) as { total_filtro?: { quantidade: number; soma_cents: number } };
+    expect(r.total_filtro).toEqual({ quantidade: 0, soma_cents: 0 });
+    expect(consultas).toHaveLength(2);
+    const soma = consultas[1]!;
+    expect(soma.sql).toMatch(/count\(\*\)/);
+    expect(soma.sql).not.toMatch(/limit \$9/);
+    expect(soma.valores[16]).toBe(true);
+    expect(soma.valores[17]).toEqual(['cancelled', 'rejected']);
+    expect(consultas[0]!.sql).toMatch(/p\.status <> 'pending_approval'/);
+  });
+
+  it('§P6: a página seguinte (com cursor) só traz linhas, sem recalcular o total', async () => {
+    const cursor = Buffer.from('2026-11-01T00:00:00.000Z|0c100000-0000-4000-8000-000000000001', 'utf8').toString('base64url');
+    const { ctx, consultas } = contexto('vendedor', { totais: '1', cursor });
+    await rotaListarPedidos.executar(ctx as never);
+    expect(consultas).toHaveLength(1);
+  });
+
   it('sem por_status só vale a data de emissão', async () => {
     const { ctx, consultas } = contexto('vendedor', { from: '2025-01-01', to: '2025-12-31' });
     await rotaListarPedidos.executar(ctx as never);

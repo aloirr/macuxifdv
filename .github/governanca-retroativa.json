@@ -12,6 +12,12 @@
       "pr": 237,
       "recado": "R-20261114-112000-alexandre",
       "motivo": "squash da ponte com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/eas-build.yml) autorizado pelo Alexandre em 14/11/2026 8h13"
+    },
+    {
+      "sha": "14abe273973c309b8c10ebf988d1d4011bbe0df6",
+      "pr": 325,
+      "recado": "R-20261115-083500-alexandre",
+      "motivo": "squash do gerente com \"Agente: engenheiro-software\" em vez do rito; conteúdo (.github/workflows/android-build.yml) autorizado pelo Alexandre em 15/11/2026"
     }
   ]
 }

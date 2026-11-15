@@ -1,25 +1,32 @@
 name: CI
 
-# T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main).
-# 5 jobs (antes 12): cada job paga a preparação (checkout + pnpm install) e o minuto arredondado para cima. Sem fail-fast;
-# dentro de cada job todos os passos rodam mesmo depois de uma falha (R-20261101-014652).
-#   governanca          coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas do guardião v5 (T-0049),
-#                       guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045);
-#                       e DECIDE o escopo (scripts/ci/escopo.mjs):
+# T-0005 → T-0033 (ADR 0014) → T-0160 (ADR 0044: −70% de minutos do Actions, o mesmo nível de verificação antes do main)
+# → R-20261114-221000-alexandre (CI de ~13 para 8–10 min de relógio: governança em paralelo, shards e estático em 2 partes).
+# 5 jobs + o ci-ok (antes 12), 3 deles em matriz: cada job/shard paga a preparação (checkout + pnpm install) e o minuto
+# arredondado para cima, em troca de relógio. Sem fail-fast; dentro de cada job todos os passos rodam mesmo depois de uma
+# falha (R-20261101-014652).
+#   escopo              ~30 s, sem pnpm install: economia (um rerun só) e DECIDE o escopo (scripts/ci/escopo.mjs). É o
+#                       único job de que os testes dependem (needs: escopo):
 #                         documentacao  → só .coord/**, docs/** e *.md da raiz (menos a docs/modulos/, que o código lê):
-#                                         só ela e o ci-ok (a guarda R4 prova que nenhum código lê documentação);
-#                         reaproveitado → push ao main de uma árvore que já passou verde (ensaio ou PR): só ela e o ci-ok;
+#                                         só escopo, governança e ci-ok (a guarda R4 prova que nenhum código lê documentação);
+#                         reaproveitado → push ao main de uma árvore que já passou verde (ensaio ou PR): idem;
 #                         codigo        → pacotes AFETADOS (alterados + dependentes) em PR, ensaio e push; TODOS no
 #                                         noturno (dias úteis), na sexta (véspera da produção) e no manual com "completo".
-#   estatico            lint, fronteiras, timers, typecheck e, se web ou mobile foram afetados, build do BKO e bundle do app
-#   testes-pacotes      testes dos pacotes afetados (Postgres) e, se o @macuxi/db foi afetado, a suíte dele com admin sem
-#                       superusuário (simula o DBaaS, T-0075) num segundo Postgres do mesmo job
-#   testes-integracao   tests/ inteiro (Postgres) sempre que há código
+#   governanca          EM PARALELO (sem needs): coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas
+#                       do guardião v5 (T-0049), guardião ligado, agente do branch da nuvem e economia do Actions (ADR 0045).
+#                       No push, calcula a base sozinha (o mesmo escopo.mjs, segundos) para os donos por commit e o trailer.
+#   estatico            matriz parte: verificar (lint, fronteiras, timers, typecheck) | build (se web ou mobile foram
+#                       afetados: build do BKO e bundle do app, com cache do .next e do Metro; senão termina em segundos)
+#   testes-pacotes      matriz shard 1..3 (scripts/ci/shards.mjs, divisão por peso dos pacotes afetados): testes (Postgres)
+#                       e, no shard que recebe o item, a suíte do @macuxi/db com admin sem superusuário (simula o DBaaS,
+#                       T-0075) num segundo Postgres do mesmo job
+#   testes-integracao   matriz shard 1..3 (vitest --shard): tests/ inteiro (Postgres) sempre que há código
 #   ci-ok               agrega: é o check a olhar. Verde com código grava o artefato ci-verde-<matriz>-<árvore> (item 2).
 # Cache do Turborepo (.turbo/cache): no PR lê o do main; fora do PR (push, ensaio, agendado) não lê (TURBO_FORCE) e grava.
 
 on:
-  # PR em rascunho não roda (o job governanca pula e o resto vai junto); ao sair do rascunho (ready_for_review), roda.
+  # PR em rascunho não roda (os jobs escopo e governanca pulam e o resto vai junto); ao sair do rascunho
+  # (ready_for_review), roda.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
@@ -63,11 +70,11 @@ env:
   TURBO_FORCE: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
 
 jobs:
-  governanca:
-    name: governança (escopo, coord, guardiões, cache do turbo, donos)
+  escopo:
+    name: escopo (economia e pacotes afetados)
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     outputs:
       escopo: ${{ steps.escopo.outputs.escopo }}
       matriz: ${{ steps.escopo.outputs.matriz }}
@@ -79,12 +86,12 @@ jobs:
       build: ${{ steps.escopo.outputs.build }}
       db_sem_super: ${{ steps.escopo.outputs.db_sem_super }}
     steps:
-      # Histórico completo: o escopo e o verificar precisam de origin/main, do merge-base e da base do push.
+      # Histórico completo: o escopo precisa de origin/main, do merge-base e da base do push.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Sem pnpm install: tudo aqui é node puro (node:test, sem dependência).
+      # Sem pnpm install: tudo aqui é node puro (sem dependência).
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -94,9 +101,42 @@ jobs:
       - name: economia — um rerun só
         run: node scripts/ci/economia-actions.mjs tentativa
 
-      # PRIMEIRO passo útil: os outros jobs esperam por este (needs). Erro ou dúvida = código com todos os pacotes.
+      # PRIMEIRO passo útil: os jobs de verificação esperam por este (needs). Erro ou dúvida = código com todos os pacotes.
       - name: escopo
         id: escopo
+        env:
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+          COMPLETO: ${{ inputs.completo }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/escopo.mjs
+
+  # Em paralelo com o escopo e os testes (sem needs): ninguém espera por ela; o ci-ok exige o success dela.
+  governanca:
+    name: governança (coord, guardiões, cache do turbo, donos)
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Histórico completo: o verificar precisa de origin/main, do merge-base e da base do push.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Sem pnpm install: tudo aqui é node puro (node:test, sem dependência).
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # ADR 0045: a 3ª tentativa fica vermelha também aqui (o "Re-run all jobs" roda a governança de novo).
+      - name: economia — um rerun só
+        run: node scripts/ci/economia-actions.mjs tentativa
+
+      # Só no push: a base (último push VERDE do main) dos donos por commit e do trailer, calculada aqui mesmo (o mesmo
+      # escopo.mjs do job escopo, segundos) para a governança não esperar pelo outro job.
+      - name: escopo (base do push)
+        id: escopo
+        if: ${{ github.event_name == 'push' }}
         env:
           ANTES: ${{ github.event.before }}
           DEPOIS: ${{ github.sha }}
@@ -120,7 +160,8 @@ jobs:
         run: node scripts/ci/guardiao-ligado.mjs
 
       # Cache do turbo só é seguro se toda dependência fora do grafo declarado estiver nos inputs; e pular os testes em
-      # commit só de documentação só é seguro se nenhum código a ler (R4). Testes do escopo também (ADR 0014, ADR 0044).
+      # commit só de documentação só é seguro se nenhum código a ler (R4). Testes do escopo e dos shards também (ADR 0014,
+      # ADR 0044).
       - name: guardas do CI (scripts/ci)
         if: ${{ !cancelled() }}
         run: |
@@ -178,43 +219,59 @@ jobs:
         run: node scripts/ci/brechas-governanca.mjs recados
 
   estatico:
-    name: lint, fronteiras, typecheck e build
-    needs: governanca
-    if: ${{ !cancelled() && contains(needs.governanca.outputs.jobs, '"estatico"') }}
+    name: estático (${{ matrix.parte }})
+    needs: escopo
+    if: ${{ !cancelled() && contains(needs.escopo.outputs.jobs, '"estatico"') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # verificar = lint, fronteiras, timers e typecheck; build = BKO e bundle do app, só se web ou mobile foram afetados
+    # (senão nenhum passo roda e a parte termina verde em segundos). Em paralelo: o relógio é o da parte mais lenta.
+    strategy:
+      fail-fast: false
+      matrix:
+        parte: [verificar, build]
     steps:
       - uses: actions/checkout@v4
+        if: ${{ matrix.parte == 'verificar' || needs.escopo.outputs.build == 'true' }}
+
+      # Cache do turbo só na parte verificar (o build chama o next e o expo direto, fora do turbo).
       - uses: ./.github/actions/preparar
+        if: ${{ matrix.parte == 'verificar' || needs.escopo.outputs.build == 'true' }}
         with:
-          cache-turbo: estatico
+          cache-turbo: ${{ matrix.parte == 'verificar' && 'estatico' || '' }}
 
       # lint da raiz inclui tests/ (//#lint:tests); --continue: todos os pacotes rodam e todas as falhas aparecem.
       # FILTRO vazio = todos os pacotes; senão os afetados e o tests/ da raiz (--filter=//).
       - name: lint
+        if: ${{ matrix.parte == 'verificar' }}
         env:
-          FILTRO: ${{ needs.governanca.outputs.filtro_lint }}
+          FILTRO: ${{ needs.escopo.outputs.filtro_lint }}
         run: pnpm exec turbo run lint lint:tests --continue $FILTRO
 
       # fronteiras (dependency-cruiser): módulo só importa packages/*, modules/core/contracts e modules/<outro>/contracts
       - name: fronteiras
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.parte == 'verificar' }}
         run: pnpm fronteiras
 
       # RN-CORE-23 (ADR 0018): nenhum timer automático < 15 min no app e no BKO (exceções com "timer-permitido:")
       - name: timers de sincronização
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.parte == 'verificar' }}
         run: node --test scripts/ci/timers-sync.test.mjs && pnpm timers
 
       - name: typecheck
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.parte == 'verificar' }}
         env:
-          FILTRO: ${{ needs.governanca.outputs.filtro_typecheck }}
+          FILTRO: ${{ needs.escopo.outputs.filtro_typecheck }}
         run: pnpm exec turbo run typecheck typecheck:tests --continue $FILTRO
+
+      - uses: ./.github/actions/salvar-turbo
+        if: ${{ !cancelled() && matrix.parte == 'verificar' }}
+        with:
+          cache-turbo: estatico
 
       # Cache incremental do next build (o próprio Next valida cada entrada).
       - uses: actions/cache@v4
-        if: ${{ !cancelled() && needs.governanca.outputs.build == 'true' }}
+        if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
         with:
           path: apps/web/.next/cache
           key: next-v1-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
@@ -223,34 +280,48 @@ jobs:
             next-v1-
 
       - name: build do Backoffice Web (next build)
-        if: ${{ !cancelled() && needs.governanca.outputs.build == 'true' }}
+        if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
         run: pnpm --filter web build
+
+      # Cache de transformação do Metro: o @expo/metro-config grava em os.tmpdir()/metro-cache (FileStore); o TMPDIR dos
+      # bundles aponta para o runner.temp. A chave de cada entrada é o hash do arquivo + a configuração do transformador:
+      # entrada velha nunca é usada por engano, só deixa de ser aproveitada.
+      - uses: actions/cache@v4
+        if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
+        with:
+          path: ${{ runner.temp }}/metro-cache
+          key: metro-v1-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            metro-v1-${{ hashFiles('pnpm-lock.yaml') }}-
+            metro-v1-
 
       # T-0004 §7: o mesmo bundle que o EAS roda na fase EAGER_BUNDLE (Metro + babel-preset-expo), nas duas variantes.
       # Erro de sintaxe que o tsc aceita e o Babel não fica vermelho aqui, antes de gastar build da Expo.
       - name: bundle do app (Metro) — variante campo
-        if: ${{ !cancelled() && needs.governanca.outputs.build == 'true' }}
+        if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
         env:
           APP_VARIANT: campo
+          TMPDIR: ${{ runner.temp }}
         run: pnpm --filter mobile bundle:android
 
       - name: bundle do app (Metro) — variante gestao
-        if: ${{ !cancelled() && needs.governanca.outputs.build == 'true' }}
+        if: ${{ !cancelled() && matrix.parte == 'build' && needs.escopo.outputs.build == 'true' }}
         env:
           APP_VARIANT: gestao
+          TMPDIR: ${{ runner.temp }}
         run: pnpm --filter mobile bundle:android
 
-      - uses: ./.github/actions/salvar-turbo
-        if: ${{ !cancelled() }}
-        with:
-          cache-turbo: estatico
-
   testes-pacotes:
-    name: testes dos pacotes
-    needs: governanca
-    if: ${{ !cancelled() && contains(needs.governanca.outputs.jobs, '"testes-pacotes"') }}
+    name: testes dos pacotes (${{ matrix.shard }}/3)
+    needs: escopo
+    if: ${{ !cancelled() && contains(needs.escopo.outputs.jobs, '"testes-pacotes"') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # 3 shards por peso (scripts/ci/shards.mjs): os pacotes do filtro_test e o item "admin sem superusuário" num só shard.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     # Mesma imagem do db/docker-compose.yml (T-0002). Os testes de banco criam bancos efêmeros macuxi_teste_*.
     # O segundo (5433) é o do admin sem superusuário: o script exige servidor limpo e apaga os papéis da aplicação.
@@ -292,30 +363,45 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Node do runner basta (node puro, sem dependência). vazio=true: nenhum pacote turbo neste shard.
+      - name: shards
+        id: shards
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: '3'
+          FILTRO: ${{ needs.escopo.outputs.filtro_test }}
+          DB_SEM_SUPER: ${{ needs.escopo.outputs.db_sem_super }}
+        run: node scripts/ci/shards.mjs
+
+      # Shard sem nada (sem pacote e sem o admin sem superusuário): sem preparação, verde em segundos.
       - uses: ./.github/actions/preparar
+        if: ${{ steps.shards.outputs.vazio == 'false' || steps.shards.outputs.db_sem_super == 'true' }}
         with:
-          cache-turbo: testes
+          cache-turbo: testes-${{ matrix.shard }}
 
       # db#test e api#test têm cache false no turbo.json: sempre rodam quando selecionados.
+      # CRÍTICO: só com vazio == 'false' (nunca "!= 'true'"): turbo run test sem filtro rodaria TODOS os pacotes.
       - name: testes
+        if: ${{ steps.shards.outputs.vazio == 'false' }}
         env:
-          FILTRO: ${{ needs.governanca.outputs.filtro_test }}
+          FILTRO: ${{ steps.shards.outputs.filtro }}
         run: pnpm exec turbo run test --continue $FILTRO
 
       # T-0075 (R-20261105-111837, autorizado pelo Alexandre em R-20261105-191229): a suíte do @macuxi/db com um admin SEM
       # superusuário, como o do DBaaS da Magalu (LOGIN, CREATEDB, CREATEROLE, sem SUPERUSER/BYPASSRLS/REPLICATION, membro
       # de pg_read_all_data e pg_write_all_data), no Postgres próprio (5433). MACUXI_PG_ADMIN_SEM_SUPER=1 faz o globalSetup
       # falhar se o admin ignorar RLS. Os casos de up/down com dados antes da 0031 pulam neste modo; o passo "testes" cobre
-      # esses casos com superusuário. Só quando o @macuxi/db foi afetado (ou todos os pacotes).
+      # esses casos com superusuário. Só quando o @macuxi/db foi afetado (ou todos os pacotes), no shard que recebe o item.
       - name: admin sem superusuário (como o do DBaaS)
-        if: ${{ !cancelled() && needs.governanca.outputs.db_sem_super == 'true' }}
+        if: ${{ !cancelled() && steps.shards.outputs.db_sem_super == 'true' }}
         env:
           MACUXI_PG_PORTA: '5433'
         run: pnpm --filter @macuxi/db admin-sem-superusuario
 
       # Senha pública do modo (db/scripts/admin-sem-superusuario.ts): só existe no Postgres descartável deste job.
       - name: testes do @macuxi/db sem superusuário
-        if: ${{ !cancelled() && needs.governanca.outputs.db_sem_super == 'true' }}
+        if: ${{ !cancelled() && steps.shards.outputs.db_sem_super == 'true' }}
         env:
           MACUXI_PG_PORTA: '5433'
           MACUXI_PG_ADMIN_USUARIO: macuxi_admin_sem_super
@@ -324,16 +410,20 @@ jobs:
         run: pnpm --filter @macuxi/db test
 
       - uses: ./.github/actions/salvar-turbo
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.shards.outputs.vazio == 'false' }}
         with:
-          cache-turbo: testes
+          cache-turbo: testes-${{ matrix.shard }}
 
   testes-integracao:
-    name: testes de integração (tests/)
-    needs: governanca
-    if: ${{ !cancelled() && contains(needs.governanca.outputs.jobs, '"testes-integracao"') }}
+    name: testes de integração (tests/, ${{ matrix.shard }}/3)
+    needs: escopo
+    if: ${{ !cancelled() && contains(needs.escopo.outputs.jobs, '"testes-integracao"') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     services:
       postgres:
@@ -358,37 +448,39 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/preparar
 
-      # //#test:tests (agente testes): a suíte inteira numa execução (antes 2 ou 3 jobs com --shard; cada job pagava a
-      # preparação). Sem cache (cache false no turbo.json). Sem a Fase M no runner, S0-006/007 pulam sozinhos.
+      # //#test:tests (agente testes): a suíte em 3 shards do vitest (por arquivo), um Postgres por shard; cada shard paga
+      # a preparação, em troca de relógio (R-20261114-221000-alexandre; antes um job só). Sem cache (cache false no
+      # turbo.json). O pnpm repassa o --shard ao vitest sem "--". Sem a Fase M no runner, S0-006/007 pulam sozinhos.
       - name: testes de tests/
-        run: pnpm test:tests
+        run: pnpm test:tests --shard=${{ matrix.shard }}/3
 
-  # Check obrigatório (ADR 0014). Verde só se a governança passar, TODO job da lista do escopo terminar em success e TODO
-  # job fora dela ficar "skipped". Qualquer outra combinação (falha, cancelado, pulado sem motivo, escopo vazio) =
-  # vermelho. Roda sempre (if: always()), menos no PR em rascunho, para nunca ficar "pulado".
+  # Check obrigatório (ADR 0014). Verde só se o escopo e a governança passarem, TODO job da lista do escopo terminar em
+  # success (job em matriz: success só com todas as partes/shards verdes) e TODO job fora dela ficar "skipped". Qualquer
+  # outra combinação (falha, cancelado, pulado sem motivo, escopo vazio) = vermelho. Roda sempre (if: always()), menos no
+  # PR em rascunho, para nunca ficar "pulado".
   ci-ok:
     name: ci-ok
     if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
-    needs: [governanca, estatico, testes-pacotes, testes-integracao]
+    needs: [escopo, governanca, estatico, testes-pacotes, testes-integracao]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: todos os jobs como o escopo pediu
         env:
           RESULTADOS: ${{ toJSON(needs) }}
-          ESCOPO: ${{ needs.governanca.outputs.escopo }}
-          JOBS: ${{ needs.governanca.outputs.jobs }}
+          ESCOPO: ${{ needs.escopo.outputs.escopo }}
+          JOBS: ${{ needs.escopo.outputs.jobs }}
         run: |
           echo "escopo: ${ESCOPO:-?} · jobs: ${JOBS:-?}"
           echo "$RESULTADOS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           if [ -z "$ESCOPO" ] || ! echo "$JOBS" | jq -e 'type == "array"' > /dev/null; then
-            echo "::error::CI vermelho: a governança não decidiu o escopo"
+            echo "::error::CI vermelho: o job escopo não decidiu o escopo"
             exit 1
           fi
           ruins=$(echo "$RESULTADOS" | jq -r --argjson jobs "$JOBS" '[to_entries[] | select(
-            (.key == "governanca" and .value.result != "success") or
-            (.key != "governanca" and (.key as $k | $jobs | index($k)) != null and .value.result != "success") or
-            (.key != "governanca" and (.key as $k | $jobs | index($k)) == null and .value.result != "skipped")
+            ((.key == "escopo" or .key == "governanca") and .value.result != "success") or
+            ((.key == "escopo" or .key == "governanca" | not) and (.key as $k | $jobs | index($k)) != null and .value.result != "success") or
+            ((.key == "escopo" or .key == "governanca" | not) and (.key as $k | $jobs | index($k)) == null and .value.result != "skipped")
           ) | .key] | join(", ")')
           if [ -n "$ruins" ]; then
             echo "::error::CI vermelho (escopo $ESCOPO) — jobs fora do esperado: $ruins"
@@ -399,12 +491,12 @@ jobs:
       # Item 2 da T-0160: a árvore testada fica registrada; o push ao main da MESMA árvore (o ensaio que sobe em
       # fast-forward, ou o PR em dia com o main) não repete os testes. O escopo.mjs confere o run e a árvore do commit dele.
       - name: registro da árvore verde
-        if: ${{ success() && needs.governanca.outputs.escopo == 'codigo' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' }}
         run: echo "${{ github.run_id }}" > ci-verde.txt
 
       - uses: actions/upload-artifact@v4
-        if: ${{ success() && needs.governanca.outputs.escopo == 'codigo' }}
+        if: ${{ success() && needs.escopo.outputs.escopo == 'codigo' }}
         with:
-          name: ci-verde-${{ needs.governanca.outputs.matriz }}-${{ needs.governanca.outputs.arvore }}
+          name: ci-verde-${{ needs.escopo.outputs.matriz }}-${{ needs.escopo.outputs.arvore }}
           path: ci-verde.txt
           retention-days: 14

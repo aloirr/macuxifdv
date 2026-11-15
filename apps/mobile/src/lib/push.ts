@@ -8,7 +8,9 @@
  * - `data.link`: rota do app (`/m/pedido?id=...`, `/m/core/notificacoes`). Só caminhos internos começando por `/`.
  * - `data.pedido_id`: atalho para o detalhe do pedido quando não vem `link`.
  * Push SILENCIOSO = sem título e sem corpo: só dispara o motor, nada aparece na bandeja.
+ * FCM direto (v1.0.10): `data` chega como mapa de textos; `entidades` vem como texto JSON ou separado por vírgula.
  */
+import { PushTokenSchema } from '@macuxi/core/contracts';
 
 /** Nome de entidade do sync: letras minúsculas, dígitos e `_` (ex.: `pedido`, `cliente_condicao`). */
 const NOME_ENTIDADE = /^[a-z][a-z0-9_]{0,62}$/;
@@ -53,9 +55,47 @@ export function pushSilencioso(conteudo: { title?: string | null; body?: string 
   return !conteudo?.title && !conteudo?.body;
 }
 
-/** Token do Expo aceito pelo servidor (`montarMensagemExpo` em modules/core/api/push.ts). */
-export function tokenExpoValido(token: unknown): token is string {
-  return typeof token === 'string' && token.length <= 300 && /^Expo(nent)?PushToken\[.+\]$/.test(token);
+/**
+ * Token do aparelho para o registro do push: vale o que o contrato `PushTokenSchema` aceita (ADR 0053 §1: tokens Expo
+ * e FCM convivem; o servidor tira o tipo do formato). O app não tem regra própria de formato.
+ */
+export function tokenPushValido(token: unknown): token is string {
+  return PushTokenSchema.shape.token.safeParse(token).success;
+}
+
+type Mapa = Record<string, unknown>;
+
+function mapa(v: unknown): Mapa | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Mapa) : null;
+}
+
+/**
+ * `data` do push como mapa. FCM direto: mapa de textos (`{ link, entidades }`). Formato Expo: os dados vêm em
+ * `dataString` (texto JSON), que é aberto e prevalece sobre as chaves soltas.
+ */
+export function dadosDoPush(data: unknown): Mapa {
+  const d = mapa(data);
+  if (!d) return {};
+  const texto = d.dataString;
+  if (typeof texto === 'string' && texto.trim().startsWith('{')) {
+    try {
+      const aberto = mapa(JSON.parse(texto));
+      if (aberto) return { ...d, ...aberto };
+    } catch {
+      // texto ilegível: fica com as chaves soltas
+    }
+  }
+  return d;
+}
+
+/**
+ * Mensagem entregue à tarefa `macuxi-push-sync` (o expo-notifications roda a tarefa a cada mensagem do FCM, com o app
+ * aberto ou não): `{ data: { ...dados }, notification: { title, body } | null }`. `soDados` = sem o bloco `notification`:
+ * com o app aberto, o expo-notifications não entrega essa mensagem ao ouvinte do primeiro plano, só à tarefa.
+ */
+export function mensagemDaTarefaPush(payload: unknown): { dados: Mapa; soDados: boolean } {
+  const p = mapa(payload) ?? {};
+  return { dados: dadosDoPush(p.data), soDados: mapa(p.notification) === null };
 }
 
 /** Registro do token no servidor: chave local por usuário e aparelho, para não repetir o PUT a cada abertura. */

@@ -48,12 +48,18 @@ import {
   type LinhaSync,
   type ResultadoItemPush,
 } from './sync';
+import { problemasLiberadoSemFilial } from './sem-filial';
 
 /** Usuário do token (o `tenant_id` vem SÓ do token; nunca do corpo ou da query). */
 export interface UsuarioAutenticado {
   id: string;
   tenant_id: string;
   perfil: Perfil;
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): usuário sem filial de cadastro = BLOQUEADO. O `autenticar` do Core informa a cada requisição
+   * (mesma leitura do usuário); a API responde 403 `USUARIO_SEM_FILIAL` fora das exceções (`acessoSemFilial`). Ausente = não informado (livre).
+   */
+  sem_filial?: boolean;
 }
 
 /** Usuário da requisição: o do token mais os módulos efetivos calculados AGORA (RN-CORE-01/03). */
@@ -360,6 +366,11 @@ export interface RotaModulo<
    * A recusa na API entra na fatia S da T-0094; até lá a marca só documenta.
    */
   superficie?: SuperficieRota;
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): a rota atende também o usuário sem filial de cadastro (bloqueado). Só o Core declara, e só no
+   * destravamento (`eu/filial-cadastro`); as demais respondem 403 `USUARIO_SEM_FILIAL` a ele.
+   */
+  liberadaSemFilial?: true;
   executar(ctx: ContextoRota<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
 }
 
@@ -481,6 +492,11 @@ export interface ProvedorSync {
   puxar?(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]>;
   /** Push: itens já validados pelo schema; idempotente pelo `id` (UUID do aparelho). */
   receber?(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]>;
+  /**
+   * T-0176 (RN-CORE-39; ADR 0056): o usuário sem filial de cadastro ainda puxa esta entidade (e a vê nas novidades), com carteira
+   * vazia e equipe = só ele, para o app mostrar o bloqueio e saber quando acaba. Só o Core declara (a linha do próprio `usuario`).
+   */
+  liberadoSemFilial?: true;
 }
 
 /**
@@ -999,6 +1015,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (r.carteira === undefined) problemas.push(`${rotulo}: declare o escopo de carteira (RN-CORE-04)`);
     problemas.push(...problemasLimiteCorpo(rotulo, r));
     problemas.push(...problemasConteudoRota(rotulo, r));
+    problemas.push(...problemasLiberadoSemFilial(id, rotulo, r.liberadaSemFilial));
     if (r.superAdmin !== undefined && !(MODOS_SUPER_ADMIN as readonly string[]).includes(r.superAdmin))
       problemas.push(`${rotulo}: superAdmin ${String(r.superAdmin)} inválido (${MODOS_SUPER_ADMIN.join(', ')})`);
   }
@@ -1022,6 +1039,8 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
       problemas.push(`sync ${e.nome}: lista de escopo vazia`);
     if (p.escopo !== undefined && !p.puxar)
       problemas.push(`sync ${e.nome}: escopo só vale para provedor com puxar`);
+    problemas.push(...problemasLiberadoSemFilial(id, `sync ${e.nome}`, p.liberadoSemFilial));
+    if (p.liberadoSemFilial && !p.puxar) problemas.push(`sync ${e.nome}: liberadoSemFilial só vale para provedor com puxar`);
     if (e.schemaLinha && e.direcao === 'push')
       problemas.push(`sync ${e.nome}: schemaLinha só vale para entidade com pull`);
   }
