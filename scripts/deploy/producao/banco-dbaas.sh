@@ -112,7 +112,11 @@ SA_PORTAL="'plataforma.sa_tentativa_estado(text)', 'plataforma.sa_tentativa_falh
   'plataforma.sa_listar_tenants(uuid)', 'plataforma.sa_tenant_ativo(uuid, uuid)', 'plataforma.sa_provisionar_tenant(uuid, jsonb)',
   'plataforma.sa_admins_da_empresa(uuid, uuid)', 'plataforma.sa_redefinir_senha_admin(uuid, uuid, uuid, text, text, uuid, bytea)',
   'plataforma.sa_listar_diagnosticos(uuid, jsonb)', 'plataforma.sa_diagnostico(uuid, uuid)',
-  'plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)'"
+  'plataforma.sa_gravar_assinatura(uuid, uuid, jsonb)',
+  'plataforma.sa_inativar_tenant(uuid, uuid, text)', 'plataforma.sa_reativar_tenant(uuid, uuid)',
+  'plataforma.sa_pedir_backup(uuid, uuid, uuid)', 'plataforma.sa_listar_backups(uuid, uuid, uuid)',
+  'plataforma.sa_pedir_exclusao(uuid, uuid, uuid, uuid, text)', 'plataforma.sa_ler_exclusao(uuid, uuid)',
+  'plataforma.sa_reautenticar(uuid)', 'plataforma.sa_acoes_das_empresas(uuid)'"
 SA_INTERNAS="'plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'"
 sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
     select n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f,
