@@ -5,7 +5,7 @@ Fonte: desenho do engenheiro-software (docs/desenho/T-0078.md §3), criado pelo 
 Legenda: ✅ feito, com prova · 🟡 parcial ou pendente (com o que falta).
 
 ### Segredos
-- ✅ S1 — Segredos só em `.env` fora do git: `.gitignore` (`.env`, `.env.*`, exceto `.env.example`); VM em `/opt/macuxi/*.env` (chmod 600, `preparar-vm.sh`); CI em secrets do GitHub (`DEMO_SSH_KEY`, environment da demo). Prova: `git ls-files | grep -E '(^|/)\.env'` devolve só `db/.env.example` (conferido em 05/11).
+- ✅ S1 — Segredos só em `.env` fora do git: `.gitignore` (`.env`, `.env.*`, exceto `.env.example`); VM em `/opt/macuxi/*.env` (chmod 600, `preparar-vm.sh`); CI em secrets do GitHub (environments `PRODUCAO` e afins; o `DEMO_SSH_KEY` da demo, desligada em 14/11/2026 pela ADR 0051, pode ser apagado). Prova: `git ls-files | grep -E '(^|/)\.env'` devolve só `db/.env.example` (conferido em 05/11).
 - ✅ S2 — Falha fechada sem segredo: API não sobe fora do local sem `MACUXI_JWT_SEGREDO` ≥ 32 caracteres (`apps/api/src/config.ts`, `conferirSegredoJwt`); Hub sem `MACUXI_HUB_CHAVE_PEPPER` responde 503 (ADR 0013).
 - 🟡 S3 — Varredura automática de segredo no CI (gitleaks ou equivalente): não existe; pede ADR (dependência no CI).
 
