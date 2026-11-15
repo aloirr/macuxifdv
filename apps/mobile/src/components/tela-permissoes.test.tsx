@@ -34,6 +34,7 @@ vi.mock('@macuxi/ui/mobile', () => ({
   // `bold` marca o trecho forte do passo 2 (o host vira <b>)
   fonte: new Proxy({}, { get: (_t, k) => (k === 'bold' ? { fontFamily: 'forte' } : {}) }),
   TOUCH: 48,
+  type: new Proxy({}, { get: () => ({}) }),
   Card: host('section'),
   Icon: ({ name }: { name: string }) => createElement('i', { 'data-icone': name }),
   Button: ({ label, testID, icon }: { label: string; testID: string; icon?: string }) =>

@@ -223,5 +223,5 @@ const styles = StyleSheet.create({
   miniatura: { width: 36, height: 64, borderRadius: 4, backgroundColor: colors.lineSoft },
   confirmacao: { alignItems: 'center', gap: 8, paddingTop: 16, paddingBottom: 16 },
   selo: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  tituloConfirmacao: { ...fonte.bold, fontSize: 22, color: colors.ink, textAlign: 'center' },
+  tituloConfirmacao: { ...t.h1Small, textAlign: 'center' },
 });

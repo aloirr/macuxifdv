@@ -5,7 +5,7 @@
  * situação), o cartão dos 2 passos da localização, o link "Como usamos a localização" (só no Campo) e UM botão no pé.
  * Regras e textos em `lib/permissoes.ts`. O Voltar do Android fecha o app (não há "Agora não").
  */
-import { Button, Card, colors, Folha, fonte, Icon, TOUCH, type IconName } from '@macuxi/ui/mobile';
+import { Button, Card, colors, Folha, fonte, Icon, TOUCH, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   root: { backgroundColor: colors.ground, zIndex: 11 },
   conteudo: { flexGrow: 1, paddingHorizontal: 20, gap: 18, paddingBottom: 24 },
   marca: { ...fonte.bold, fontSize: 14, color: colors.accentInk },
-  titulo: { ...fonte.bold, fontSize: 28, letterSpacing: -0.3, color: colors.ink },
+  titulo: t.h1,
   subtitulo: { ...fonte.body, fontSize: 16, color: colors.ink2 },
   cartao: { padding: 0 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, minHeight: 68, paddingVertical: 10 },
