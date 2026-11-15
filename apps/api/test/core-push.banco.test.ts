@@ -162,8 +162,8 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
       fetchFalso.mockClear();
     }
     TOKEN = temFcm ? `fcm-t0022-${DISPOSITIVO}` : `ExponentPushToken[t0022-${DISPOSITIVO}]`;
-    // no Expo o aparelho com token Expo entraria no mesmo lote do aparelho do teste: sai do envio
-    if (!temFcm) await admin.query('update core.dispositivo set push_token = null where id = $1', [DISPOSITIVO_EXPO]);
+    // no Expo o aparelho com token Expo entraria no mesmo lote do aparelho do teste: sai do envio (token e plataforma juntos, CHECK dispositivo_push_completo)
+    if (!temFcm) await admin.query('update core.dispositivo set push_token = null, push_plataforma = null where id = $1', [DISPOSITIVO_EXPO]);
     await app.comTenant(A, (db) =>
       db.query(
         `insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma, push_token, push_plataforma)
@@ -247,7 +247,7 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     ligarPush();
     vi.stubGlobal('fetch', fetchFalso);
     // só o aparelho com token Expo fica com push_token; o token FCM volta no fim
-    await admin.query('update core.dispositivo set push_token = null where id = $1', [DISPOSITIVO]);
+    await admin.query('update core.dispositivo set push_token = null, push_plataforma = null where id = $1', [DISPOSITIVO]);
     try {
       const { id, eventoId } = await notificar();
       await ate(despachante());
@@ -257,7 +257,7 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
       expect(envios(TOKEN_EXPO)).toHaveLength(0);
       expect(foiAoExpo(fetchFalso.mock.calls)).toBe(false);
     } finally {
-      await admin.query('update core.dispositivo set push_token = $2 where id = $1', [DISPOSITIVO, TOKEN]);
+      await admin.query('update core.dispositivo set push_token = $2, push_plataforma = $3 where id = $1', [DISPOSITIVO, TOKEN, 'android']);
     }
   });
 
