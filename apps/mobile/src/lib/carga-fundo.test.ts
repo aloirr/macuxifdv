@@ -5,9 +5,16 @@
  */
 import type { EtapaEntrada, ProgressoEntrada } from '@macuxi/core/contracts';
 import { CARGA_VAZIA, criarArmazenamentoEmMemoria, criarMotorSync, criarRegistroSync, type TransporteSync } from '@macuxi/platform-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { cargaEmFundo, deveRetomarCarga, entradaLiberadaPeloMotor, indicadorDaCargaFundo, type EstadoComCarga } from './carga-fundo';
+
+// o índice de `@macuxi/core/app` (API pública do Core) puxa telas: os módulos nativos viram vazios e a regra pura é a real
+vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-safe-area-context', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
+vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 
 type Estado = Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga' | 'liberado_em'>;
 const LIBERADO = '2026-11-15T11:00:00.000Z';
@@ -46,18 +53,18 @@ describe('entrada liberada pelo motor (ADR 0054)', () => {
 
 describe('indicador da carga em fundo (docs/design/carga-em-segundo-plano.md)', () => {
   it('sem pendentes não monta', () => {
-    expect(indicadorDaCargaFundo({ ...BASE, pendentes: [] }, progresso(4), false)).toBeNull();
-    expect(indicadorDaCargaFundo({ ...BASE, pendentes: undefined }, progresso(4), false)).toBeNull();
+    expect(indicadorDaCargaFundo({ ...BASE, pendentes: [] }, progresso(4), 'vendedor', false)).toBeNull();
+    expect(indicadorDaCargaFundo({ ...BASE, pendentes: undefined }, progresso(4), 'vendedor', false)).toBeNull();
   });
 
   it('Campo: "Catálogo" com o percentual da carga (o mesmo da tela de carga)', () => {
-    expect(indicadorDaCargaFundo(BASE, progresso(4), false)).toEqual({ etapa: 'Catálogo', percentual: 60, semSinal: false });
+    expect(indicadorDaCargaFundo(BASE, progresso(4), 'vendedor', false)).toEqual({ etapa: 'Catálogo', percentual: 60, semSinal: false });
   });
 
   it('etapa em curso depois da liberação aparece pelo nome; a de liberação (ou o envio, parado) dá a última etapa', () => {
-    expect(indicadorDaCargaFundo(BASE, progresso(2), false)?.etapa).toBe('Pedidos e metas');
-    expect(indicadorDaCargaFundo(BASE, progresso(1), false)?.etapa).toBe('Catálogo');
-    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false }, progresso(0), false)?.etapa).toBe('Catálogo');
+    expect(indicadorDaCargaFundo(BASE, progresso(2), 'vendedor', false)?.etapa).toBe('Pedidos e metas');
+    expect(indicadorDaCargaFundo(BASE, progresso(1), 'vendedor', false)?.etapa).toBe('Catálogo');
+    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false }, progresso(0), 'vendedor', false)?.etapa).toBe('Catálogo');
   });
 
   it('Gestão: "Aprovações"', () => {
@@ -68,18 +75,18 @@ describe('indicador da carga em fundo (docs/design/carga-em-segundo-plano.md)', 
       { id: 'alertas', nome: 'Alertas', numero: 4, situacao: 'feita' },
       { id: 'aprovacoes', nome: 'Aprovações', numero: 5, situacao: 'atual' },
     ];
-    expect(indicadorDaCargaFundo(BASE, progresso(1, gestao), false)?.etapa).toBe('Aprovações');
-    expect(indicadorDaCargaFundo(BASE, progresso(4, gestao), false)?.etapa).toBe('Aprovações');
+    expect(indicadorDaCargaFundo(BASE, progresso(1, gestao), 'supervisor', false)?.etapa).toBe('Aprovações');
+    expect(indicadorDaCargaFundo(BASE, progresso(4, gestao), 'supervisor', false)?.etapa).toBe('Aprovações');
   });
 
   it('percentual no máximo 99 enquanto há pendentes', () => {
-    expect(indicadorDaCargaFundo({ ...BASE, progresso: 1 }, progresso(4), false)?.percentual).toBe(99);
+    expect(indicadorDaCargaFundo({ ...BASE, progresso: 1 }, progresso(4), 'vendedor', false)?.percentual).toBe(99);
   });
 
   it('sem sinal: modo sem sinal ligado ou a passada parou por falta de conexão', () => {
-    expect(indicadorDaCargaFundo(BASE, progresso(4), true)?.semSinal).toBe(true);
-    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'Sem conexão com https://api.exemplo.' }, progresso(4), false)?.semSinal).toBe(true);
-    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'HTTP 500' }, progresso(4), false)?.semSinal).toBe(false);
+    expect(indicadorDaCargaFundo(BASE, progresso(4), 'vendedor', true)?.semSinal).toBe(true);
+    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'Sem conexão com https://api.exemplo.' }, progresso(4), 'vendedor', false)?.semSinal).toBe(true);
+    expect(indicadorDaCargaFundo({ ...BASE, sincronizando: false, erro: 'HTTP 500' }, progresso(4), 'vendedor', false)?.semSinal).toBe(false);
   });
 });
 
@@ -95,6 +102,6 @@ describe('fallback: motor do SDK sem a peça da entrada enquanto carrega (ADR 00
     expect(entradaLiberadaPeloMotor(estado)).toBe(Boolean(estado.sincronizado_em));
     expect(cargaEmFundo(estado)).toBe(false);
     expect(deveRetomarCarga(estado)).toBe(false);
-    expect(indicadorDaCargaFundo(estado, progresso(4), false)).toBeNull();
+    expect(indicadorDaCargaFundo(estado, progresso(4), 'vendedor', false)).toBeNull();
   });
 });

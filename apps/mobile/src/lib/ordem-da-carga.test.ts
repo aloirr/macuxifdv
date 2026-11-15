@@ -18,6 +18,8 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { essencialDaEntrada } from '@macuxi/core/app';
+
 import { criarMemoriaDaEntrada } from './entrada';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 import { essenciaisDoUsuario, ordemDaCargaDoUsuario } from './ordem-da-carga';
@@ -179,30 +181,19 @@ describe('ordemDaCargaDoUsuario', () => {
 });
 
 describe('essenciaisDoUsuario (ADR 0054, entrada enquanto carrega)', () => {
-  const item = (chave: string, modulo: ModuloId | null, tipo: ItemDaCarga['tipo'] = 'entidade'): ItemDaCarga => ({ chave, modulo, tipo });
-
-  it('Campo: libera com "Clientes e rota"; pedidos, fotos e catálogo seguem depois', () => {
-    const essencial = essenciaisDoUsuario(
-      () => 'vendedor',
-      () => ['core', 'catalogo', 'vendedor', 'promotor'],
-    );
-    expect(essencial(item('cliente', 'core'))).toBe(true);
-    expect(essencial(item('cliente_visita_resumo', 'core'))).toBe(true);
-    expect(essencial(item('pedido', 'vendedor'))).toBe(false);
-    expect(essencial(item('produto', 'catalogo'))).toBe(false);
-    expect(essencial(item('core-inicio', 'core', 'etapa'))).toBe(false);
-  });
-
-  it('Gestão: libera com "Equipe"; lê perfil e módulos a cada chamada', () => {
+  // a regra (o que é essencial por perfil) é testada no Core (`entrada-sync.test.ts`); aqui só o repasse
+  it('repassa ao Core o perfil e os módulos lidos a cada chamada, com a chave do item como entidade', () => {
     let perfil: string | null = 'vendedor';
+    const modulos = ['core', 'catalogo', 'vendedor', 'gestor'];
     const essencial = essenciaisDoUsuario(
       () => perfil,
-      () => ['core', 'catalogo', 'vendedor', 'gestor'],
+      () => modulos,
     );
-    expect(essencial(item('cliente', 'core'))).toBe(true);
+    const item: ItemDaCarga = { chave: 'painel_vendedor_dia', modulo: 'gestor', tipo: 'entidade' };
+    const doCore = () => essencialDaEntrada(perfil, modulos)({ entidade: item.chave, modulo: item.modulo });
+    expect(essencial(item)).toBe(doCore());
     perfil = 'supervisor';
-    expect(essencial(item('painel_vendedor_dia', 'gestor'))).toBe(true);
-    expect(essencial(item('alerta', 'gestor'))).toBe(false);
-    expect(essencial(item('pedido', 'vendedor'))).toBe(false);
+    expect(essencial(item)).toBe(doCore());
+    expect(essencial(item)).not.toBe(essencialDaEntrada('vendedor', modulos)({ entidade: item.chave, modulo: item.modulo }));
   });
 });

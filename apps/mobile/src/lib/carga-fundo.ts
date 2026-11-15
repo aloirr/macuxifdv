@@ -8,6 +8,7 @@
  *   sem sinal;
  * - retomada: app reaberto no meio (liberado, sem carga completa e nada rodando) volta a puxar o que falta.
  */
+import { etapaQueLibera } from '@macuxi/core/app';
 import type { EtapaEntrada, EtapaEntradaId, ProgressoEntrada } from '@macuxi/core/contracts';
 import type { EstadoMotorSync } from '@macuxi/platform-sdk';
 
@@ -40,8 +41,6 @@ export function deveRetomarCarga(estado: Pick<EstadoComCarga, 'sincronizado_em' 
   return Boolean(estado.liberado_em) && !estado.sincronizado_em && !estado.sincronizando;
 }
 
-/** Etapas que já estão feitas quando a entrada libera (envio e a etapa que libera): o indicador não as nomeia. */
-const ETAPAS_DA_LIBERACAO: ReadonlySet<EtapaEntradaId> = new Set<EtapaEntradaId>(['envio', 'clientes_rota', 'equipe']);
 /** Nome curto na linha do indicador (spec: "Catálogo 63%"); as demais etapas já têm nome curto. */
 const NOME_CURTO: Partial<Record<EtapaEntradaId, string>> = { catalogo_precos: 'Catálogo' };
 
@@ -59,11 +58,14 @@ export interface IndicadorDaCarga {
 export function indicadorDaCargaFundo(
   estado: Pick<EstadoComCarga, 'pendentes' | 'sincronizando' | 'erro' | 'sincronizado_em' | 'progresso' | 'carga'>,
   progresso: Pick<ProgressoEntrada, 'atual' | 'etapas'>,
+  perfil: string | null | undefined,
   offline: boolean,
 ): IndicadorDaCarga | null {
   if (!cargaEmFundo(estado)) return null;
   const ultima: EtapaEntrada | undefined = progresso.etapas.at(-1);
-  const etapa = ETAPAS_DA_LIBERACAO.has(progresso.atual.id) && ultima ? ultima : progresso.atual;
+  // O envio e a etapa que libera (regra do Core) já estão feitos quando a entrada libera: o indicador não os nomeia.
+  const jaFeita = progresso.atual.id === 'envio' || progresso.atual.id === etapaQueLibera(perfil);
+  const etapa = jaFeita && ultima ? ultima : progresso.atual;
   return {
     etapa: NOME_CURTO[etapa.id] ?? etapa.nome,
     percentual: percentualDaCarga(estado, 'carregando'),

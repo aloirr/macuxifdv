@@ -3,7 +3,7 @@
  * "Clientes e rota"/"Equipe") e liga a busca online do Catálogo (`definirCargaOnline`) a ele; a tarefa em segundo plano
  * (`cargaOnline: false`) não troca a porta do app.
  */
-import { criarArmazenamentoEmMemoria, criarRegistroSync, type AmbienteAparelho, type ItemDaCarga, type MotorSync } from '@macuxi/platform-sdk';
+import { criarArmazenamentoEmMemoria, criarRegistroSync, type AmbienteAparelho, type MotorSync } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OpcoesComEssenciais } from './motor-do-usuario';
@@ -12,6 +12,8 @@ const sim = vi.hoisted(() => ({
   opcoes: null as unknown as OpcoesComEssenciais,
   definir: [] as unknown[],
   pendentes: undefined as readonly string[] | undefined,
+  essenciais: () => false,
+  perfilDosEssenciais: null as (() => string | null | undefined) | null,
 }));
 
 vi.mock('react-native', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
@@ -20,6 +22,10 @@ vi.mock('react-native-svg', () => import('@/teste/nativo-vazio').then((m) => m.m
 vi.mock('expo-router', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 vi.mock('@macuxi/ui/mobile', () => import('@/teste/nativo-vazio').then((m) => m.moduloVazio()));
 vi.mock('@macuxi/catalogo/app', () => ({ definirCargaOnline: (p: unknown) => sim.definir.push(p) }));
+vi.mock('@/lib/ordem-da-carga', () => ({
+  ordemDaCargaDoUsuario: () => () => 0,
+  essenciaisDoUsuario: (perfil: () => string | null | undefined) => ((sim.perfilDosEssenciais = perfil), sim.essenciais),
+}));
 vi.mock('./arquivos', () => ({ arquivosLocais: () => undefined }));
 vi.mock('./credenciais', () => ({ gravarTokens: async () => undefined, lerTokens: async () => null }));
 vi.mock('./device', () => ({ uuid: () => '00000000-0000-4000-8000-000000000000' }));
@@ -57,8 +63,6 @@ function montar(o: { perfil?: string; cargaOnline?: boolean } = {}) {
   });
 }
 
-const item = (chave: string, modulo: ItemDaCarga['modulo']): ItemDaCarga => ({ chave, modulo, tipo: 'entidade' });
-
 beforeEach(() => {
   sim.definir = [];
   sim.pendentes = undefined;
@@ -66,18 +70,10 @@ beforeEach(() => {
 });
 
 describe('motor do usuário — entrada enquanto carrega (ADR 0054)', () => {
-  it('passa os essenciais do Core: envio e "Clientes e rota" liberam; pedidos e catálogo não', () => {
-    montar();
-    const essencial = sim.opcoes.essenciais!;
-    expect(essencial(item('cliente', 'core'))).toBe(true);
-    expect(essencial(item('pedido', 'vendedor'))).toBe(false);
-    expect(essencial(item('produto', 'catalogo'))).toBe(false);
-  });
-
-  it('Gestão: "Equipe" libera', () => {
+  it('passa ao motor os essenciais do usuário, com o perfil da sessão (a regra é testada no Core)', () => {
     montar({ perfil: 'supervisor' });
-    expect(sim.opcoes.essenciais!(item('cliente', 'core'))).toBe(true);
-    expect(sim.opcoes.essenciais!(item('pedido', 'vendedor'))).toBe(false);
+    expect(sim.opcoes.essenciais).toBe(sim.essenciais);
+    expect(sim.perfilDosEssenciais?.()).toBe('supervisor');
   });
 
   it('liga a busca online do Catálogo ao motor do app; a tarefa em segundo plano não troca a porta', () => {

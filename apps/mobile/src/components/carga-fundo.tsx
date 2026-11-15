@@ -39,7 +39,7 @@ export function CargaEmFundo() {
       anterior,
     }),
   );
-  const indicador = indicadorDaCargaFundo(estado, progresso, offline);
+  const indicador = indicadorDaCargaFundo(estado, progresso, perfil, offline);
   if (!indicador) return null;
   return <IndicadorCargaFundo {...indicador} aoTocar={() => router.push(ROTA_DETALHE_CARGA as never)} />;
 }
