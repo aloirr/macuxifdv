@@ -103,7 +103,7 @@ export function CrieSuaSenha({ codigoEmpresa, email, motivo, onSalvar, onVoltarA
         </div>
       )}
       <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_CRIE_SENHA.titulo}</h1>
+        <h1 className="m-0 text-[24px] font-bold">{TEXTOS_CRIE_SENHA.titulo}</h1>
         <span className="text-[13px] text-ink-2">{subtituloDaTroca(motivo)}</span>
         <span data-testid="crie-senha.quem" className="text-[13px] text-ink-2">
           {email} · {codigoEmpresa}
@@ -206,7 +206,7 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
   if (pedido) {
     return (
       <div data-testid="esqueci.tela" className="flex flex-col gap-4">
-        <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_ESQUECI.titulo}</h1>
+        <h1 className="m-0 text-[24px] font-bold">{TEXTOS_ESQUECI.titulo}</h1>
         <div id="esqueci-confirmacao" data-testid="esqueci.confirmacao" aria-live="polite">
           <Notice tone="info">{TEXTOS_ESQUECI.confirmacao}</Notice>
         </div>
@@ -222,7 +222,7 @@ export function EsqueciSenha({ codigoEmpresa, email: emailInicial, onPedir, onVo
   return (
     <form data-testid="esqueci.tela" onSubmit={(e) => void enviar(e)} noValidate className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_ESQUECI.titulo}</h1>
+        <h1 className="m-0 text-[24px] font-bold">{TEXTOS_ESQUECI.titulo}</h1>
         <span className="text-[13px] text-ink-2">{TEXTOS_ESQUECI.instrucao}</span>
       </div>
       <Campo rotulo="Código da empresa" ref={codigoRef} testId="esqueci.codigo-empresa" type="text" autoComplete="organization" maxLength={CODIGO_EMPRESA_TAMANHO} value={codigo} onChange={(e) => setCodigo(e.target.value)} />

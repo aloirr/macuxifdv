@@ -111,7 +111,7 @@ export function CartaoEquipe({ tenant }: { tenant: string }) {
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white tabular-nums">0</span>
-          <h3 className="m-0 font-display text-[17px] font-bold">Equipe</h3>
+          <h3 className="m-0 text-[17px] font-bold">Equipe</h3>
           {resposta?.gravado && <Badge tone="success">gravada</Badge>}
         </div>
         <span className="text-[13px] text-ink-2">

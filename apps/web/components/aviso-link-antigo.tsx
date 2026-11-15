@@ -25,7 +25,7 @@ export function AvisoLinkAntigo() {
   return (
     <div data-testid="link-antigo.tela" className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
       <div className="flex w-full max-w-[400px] flex-col gap-4">
-        <h1 className="m-0 font-display text-[24px] font-bold">{TEXTOS_LINK_ANTIGO.titulo}</h1>
+        <h1 className="m-0 text-[24px] font-bold">{TEXTOS_LINK_ANTIGO.titulo}</h1>
         <Notice tone="info">{TEXTOS_LINK_ANTIGO.texto}</Notice>
         <Button data-testid="link-antigo.ir-login" variant="primary" onClick={() => router.replace('/login')}>
           {TEXTOS_LINK_ANTIGO.irParaEntrada}

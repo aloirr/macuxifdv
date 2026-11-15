@@ -211,7 +211,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white tabular-nums">{item.posicao}</span>
-            <h3 className="m-0 font-display text-[17px] font-bold">{cartao.titulo}</h3>
+            <h3 className="m-0 text-[17px] font-bold">{cartao.titulo}</h3>
             {item.opcional && <Badge tone="neutral">opcional</Badge>}
             {statusFinal && <Badge tone={statusFinal === 'concluido' ? 'success' : statusFinal === 'falhou' ? 'danger' : statusFinal === 'concluido_com_erros' ? 'warning' : 'pending'}>{ROTULO_STATUS_LOTE[statusFinal]}</Badge>}
           </div>

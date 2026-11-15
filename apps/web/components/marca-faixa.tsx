@@ -19,7 +19,7 @@ export function MarcaNaFaixa({ area }: { area: string }) {
         className="block h-auto w-[130px]"
       />
       <span aria-hidden="true" className="h-6 w-px bg-faixa-texto/40" />
-      <span className="font-display text-[15px] font-bold text-faixa-texto">{area}</span>
+      <span className="text-[15px] font-bold text-faixa-texto">{area}</span>
     </div>
   );
 }
