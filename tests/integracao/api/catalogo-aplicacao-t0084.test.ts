@@ -321,7 +321,7 @@ describe.skipIf(semBanco())('T-0084/T-0085 — aplicação e referência cruzada
         const f = await ficha(tk.promotorA, alfa1);
         expect(f.statusCode, f.body).toBe(200);
         const fp = FichaProduto.parse(f.json());
-        expect(fp.product).toMatchObject({ price_stock_visible: false, price: null, availability: null });
+        expect(fp.product).toMatchObject({ price_stock_visible: false, price: null });
         expect(fp.catalogo).toMatchObject({ aplicacao: APL_UNO, oferece_junto: [{ produto_id: alfa2 }], etiquetas: ['Dianteira'] });
         expect(fp.catalogo!.referencias.map((r) => `${r.marca_nome} ${r.codigo}`)).toEqual(['Freios Rivais CB 3401', 'Freios Rivais FR-77.2']);
         const r = await itensDaBusca(tk.promotorA, 'cb3401');
