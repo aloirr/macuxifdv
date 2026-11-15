@@ -5,6 +5,79 @@
 > **Como:** leitura dos quatro PNGs, da spec, das 30 frases (todas) e dos hex do `app.css` e do `config-frases.html`; contas de altura da tela de carga com as medidas do `app.css` e o `posicaoDoLogo` (logo empilhado de 126 dp no centro).
 > **Numeração:** MC-0077 a MC-0080 (a última em uso nos branches da marca é MC-0076). O `catalogo.md` recebe estas linhas na consolidação do catálogo, junto com os branches de reteste ainda abertos, para não gerar conflito.
 
+## Lista nova das 30 frases: tom e regras culturais (commit `ca9827287c3804c5bfaee2737a6c947766a251d1`)
+> Tema do Alexandre (R-20261115-071500-alexandre): história e tradição de Roraima, com 8 frases sobre os Macuxi, 8 sobre o Monte Roraima, 8 sobre Makunaimã e 6 sobre outros temas de Roraima. Li as 30 frases do `frases.md` e as 30 fontes da `spec.md` §6. A marca não refez a pesquisa: a exatidão dos fatos fica com quem pesquisou, e a fonte de cada um está registrada.
+
+### Veredito: **liberado com ajustes e com a validação macuxi pendente nas frases 1, 2, 4, 7, 8 e 16 a 22**
+- **A marca libera já 18 frases** (paisagem, natureza e história documentada em registro público): 3, 5, 6, 9 a 15 e 23 a 30. As frases 3 e 6 entram com o texto corrigido da MC-0082 e da MC-0081.
+- **12 frases esperam a validação** de pessoa ou organização indígena (regra 4): 1, 2, 4, 7, 8, 16, 17, 18, 19, 20, 21 e 22. O Alexandre escolhe quem valida. Uma opção é uma organização que reúna os povos citados (Macuxi, Ingarikó, Taurepang e Wapichana), como o Conselho Indígena de Roraima. Enquanto a validação não sai, essas 12 entram no `config.` como **inativas**, e o app sorteia entre as 18 liberadas.
+- Os ajustes MC-0081 a MC-0084 são baixos e de texto, e valem para as duas listas.
+
+### Regras conferidas
+| Regra | Resultado |
+|---|---|
+| 1. Fonte em cada frase | **ok.** As 30 têm fonte na §6, quase todas de primeira mão (ISA, IBGE, Iphan, ICMBio, Embrapa, periódicos). Ficaram fora o pajé, o parixara e as grafias não conferidas: decisão certa |
+| 2. Narrativa com "Segundo a tradição {povo}" | **ok** nas frases 18 a 22. A 17 descreve a figura sem a fórmula e vai para a MC-0083 |
+| 3. Sem "mito" como mentira, sem "índio", sem passado para povo vivo | **ok nas frases.** Não há "índio", e o povo aparece no presente (1, 2, 3, 16). O passado só aparece em fato datado (5, 6, 7, 11) e dentro da narrativa (20). Na **spec**, a fonte da 22 diz "mito da agricultura" (MC-0084) |
+| 4. Nada sagrado ou ritual como curiosidade | **ok**, com cuidado. Não há ritual nem xamanismo. As frases 19 (Monte Roraima como tronco da árvore Wazacá) e 22 (as sementes da Wayaka) são cosmologia: é o tipo de frase que só o povo pode dizer se pode ir para a tela de um produto. Por isso estão na lista da validação |
+| 5. Nenhuma ligação com venda | **ok.** Nenhuma frase liga povo, narrativa ou monte a venda, meta, pedido ou produto. A cultura não vira enfeite (§1) |
+| 6. Grafias | "Makunaimã" numa grafia só e "Macunaíma" só para o livro: **ok**. Nome de povo em minúscula como adjetivo: **MC-0081** |
+
+### Frases que esperam a validação (regra 4) e o porquê
+| Nº | Assunto | Por que valida |
+|---|---|---|
+| 1 | autodenominação Pemon e língua | identidade do povo, dita por terceiros |
+| 2 | território do lavrado às serras | como o povo descreve a própria terra |
+| 4 | damurida, "tuma" | costume e língua do povo |
+| 7 | Carmézia Emiliano | artista viva, citada pelo nome numa tela de produto comercial. Além da validação, pedir a concordância dela ou de quem a representa. Sem ela, trocar a frase |
+| 8 | Jaider Esbell | artista que já morreu (2021), citado pelo nome. O mesmo cuidado: consultar quem responde pela obra dele. Sem resposta, trocar a frase |
+| 16 | Ingarikó e Pemon, um mundo cultural | leitura antropológica sobre os povos |
+| 17 | Makunaimã, o herói | figura central das narrativas (e MC-0083) |
+| 18 a 22 | narrativas macuxi, taurepang e ingarikó | cosmologia e origem: só o povo diz se pode ir para a tela |
+
+As frases 23 (registro de Koch-Grünberg, 1911-1913) e 24 (a peça de 2019 com autores indígenas) falam de Makunaimã, mas são **fato documentado sobre obras**, e não a narrativa: estão liberadas. A 15 (ICMBio e Ingarikó catalogam espécies) e a 26 (Pedra Pintada, Iphan) também são registro público.
+
+### Ajustes
+#### MC-0081 · nome de povo em minúscula · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `frases.md` 2, 6, 7, 8, 17, 18, 20, 21 e 24 |
+| Tipo | voz (grafia) |
+| Fere | regra 5 do parecer (o nome do povo, sempre com inicial maiúscula) e o espírito do §2.4 do manual. A Convenção da ABA (1953) aceita a minúscula no uso adjetivo, mas a marca usa uma grafia só: a maiúscula, em todos os povos, para o leitor não confundir o povo com a palavra comum |
+| Correção | "território macuxi" → "território Macuxi"; "pintora macuxi" → "pintora Macuxi"; "artista macuxi" → "artista Macuxi"; "tradição macuxi/taurepang/ingarikó" → "tradição Macuxi/Taurepang/Ingarikó"; "autores macuxi, taurepang e wapichana" → "autores Macuxi, Taurepang e Wapichana". Na 6: "Em Bonfim, a Lei 211/2014 tornou o macuxi e o wapichana línguas cooficiais." → **"Em Bonfim, a Lei 211/2014 tornou cooficiais as línguas Macuxi e Wapichana."** (75 caracteres) |
+| Dono | designer-ux |
+
+#### MC-0082 · sigla técnica na frase 3 · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `frases.md` 3: "Pelo Siasi/Sesai (2020), o povo Macuxi tem 37.250 pessoas em Roraima." |
+| Tipo | voz |
+| Fere | §9 (sem jargão técnico). "Siasi/Sesai" é sigla de sistema, que o vendedor não conhece |
+| Correção | → **"Em 2020, a saúde indígena (Sesai) contava 37.250 Macuxi em Roraima."** (69 caracteres; o passado é do dado, não do povo) |
+| Dono | designer-ux |
+
+#### MC-0083 · Makunaimã descrito como fato, sem a narrativa · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `frases.md` 17: "Makunaimã é o herói macuxi e pemon; Macunaíma é o livro de Mário de Andrade." |
+| Tipo | voz (cultura) |
+| Fere | regra 2: a figura aparece fora da narrativa ("é o herói"), sem dizer de onde vem |
+| Correção | → **"Makunaimã, das narrativas Macuxi e Pemon, inspirou o Macunaíma de Mário de Andrade."** (85 caracteres; a fonte da §6 já cobre a inspiração). Confirmar que cabe em 2 linhas de 280 dp. A frase continua na lista da validação |
+| Dono | designer-ux |
+
+#### MC-0084 · "mito" e fonte na tela sem padrão · baixa
+| Campo | Conteúdo |
+|---|---|
+| Onde | `spec.md` §6, linha 22 ("mito da agricultura"); `frases.md` 3, 9, 28, 29 e 30 (fonte entre parênteses só em algumas) |
+| Tipo | voz |
+| Fere | regra 3 (a marca não chama narrativa de "mito", nem no doc que vai virar o cadastro) e consistência: cinco frases trazem a fonte na tela, as outras 25 não |
+| Correção | (a) Na §6: "mito da agricultura (narrativa de 2017)" → "narrativa da agricultura (registrada em 2017)". (b) Fonte na tela **só quando o número depende do ano**, no formato "(fonte, ano)": a 9 fica "(IBGE, 2024)" e a 30 fica "(Censo 2022)". Saem o "(Embrapa)" da 28 e o "(IBGE)" da 29, porque a fonte fica no cadastro. A 29 fica: "O ponto mais ao norte do Brasil é a nascente do rio Ailã, em Uiramutã, Roraima." (82 caracteres) |
+| Dono | designer-ux |
+
+### Para o Alexandre
+- A marca recomenda aprovar já as 18 liberadas e as frases com os ajustes, deixando as outras 12 inativas até a validação. A tela de carga funciona com 18 frases e com qualquer número delas.
+- A validação indígena é a garantia de que o nome Macuxi, que a marca usa, é tratado com respeito pelo próprio povo: é ela que segura a confiança, e não o texto bonito.
+
 ## Reteste (2026-11-15, commit `ed7b6bc7e2cd092384c27ff03e561f9db97c575c`): **liberado**
 **Escopo deste reteste: só o layout e a regra de respiro.** O Alexandre mudou o tema das 30 frases (aviso do gerente-projetos, 15/11): agora são sobre a história e o folclore de Roraima, com pelo menos 24 sobre o povo Macuxi, o Monte Roraima e Makunaimã, e 6 sobre outros aspectos de Roraima. O tom da lista nova vem para a marca depois, junto com as fontes. O layout da tela de carga, o aviso e o portal estão liberados para ir ao Alexandre. Só ele aprova a marca.
 
