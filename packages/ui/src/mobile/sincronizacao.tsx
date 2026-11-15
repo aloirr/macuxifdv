@@ -71,7 +71,7 @@ export function useSincronizacao(): ValorSincronizacao | null {
  * 14, mesma linha, centralizada), testID `{testID}-aviso-dados` no texto; a linha continua `{testID}-situacao`. Sem ele
  * (null/undefined/vazio), nada muda. O Perfil não passa.
  *
- * R-20261115-100000 (docs/design/sync-completa/spec.md): toque = rápida (`agendador.puxar()`, fila + pedidos e clientes).
+ * R-20261115-100000 (docs/design/sync-completa/spec.md): toque = parcial (`agendador.puxar()`, fila + pedidos e clientes).
  * Com `sincronizarCompleta` no provider, segurar 10 s = completa: depois de 500 ms o anel de 22 dp toma o lugar do ícone e o
  * rótulo conta "Continue segurando · N s"; vibra leve no início do anel e média aos 10 s, quando a completa dispara na hora
  * (mesmo com o dedo no botão). Soltar antes = toque normal. A linha `{testID}-dica` (abaixo da situação) diz que dá para
@@ -99,7 +99,7 @@ export function BotaoSincronizar({
     () =>
       criarControleSegurar({
         modo: () => atual.current.modo,
-        rapida: () => void atual.current.s?.agendador.puxar(),
+        parcial: () => void atual.current.s?.agendador.puxar(),
         completa: () => atual.current.s?.sincronizarCompleta?.(),
         vibrar: (forca) => atual.current.s?.vibrar?.(forca),
         aoMudar: setSegurandoMs,
