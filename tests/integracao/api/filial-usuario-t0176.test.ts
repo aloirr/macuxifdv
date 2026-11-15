@@ -4,7 +4,7 @@
  *
  * `createApp` + os 8 módulos + Postgres efêmero do arquivo (dois-tenants + 0077) pelo `macuxi_app` (RLS). O `subirApi` dá a filial
  * padrão a todo usuário da fixture (tests/integracao/apoio/filial-usuario.ts); cada caso trava quem precisa (`deixarSemFilial`) e
- * destrava no fim. Roda só com banco (CI) e com o contrato do Core que aceita a filial do usuário (`API_TEM_FILIAL_DE_USUARIO`,
+ * destrava no fim, de volta ao retrato tirado no `beforeAll` (`restaurarFiliais`). Roda só com banco (CI) e com o contrato do Core que aceita a filial do usuário (`API_TEM_FILIAL_DE_USUARIO`,
  * lido em tempo de execução). Ligar quando o #361 (core, RN-CORE-39) entrar no main: o skip se desliga sozinho; depois do merge,
  * tirar o `!API_TEM_FILIAL_DE_USUARIO` do `describe.skipIf`. Até lá, os campos (`filial_cadastro_id`, `filial_venda_ids`,
  * `sem_filial`) são tipados aqui (`FiliaisDoUsuario`), sem importar símbolo que só existe no contrato novo: o typecheck:tests
@@ -22,7 +22,17 @@ import { CODIGO_USUARIO_SEM_FILIAL, MENSAGEM_USUARIO_SEM_FILIAL, type ContextoCo
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { A, B, erroDe, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
-import { API_TEM_FILIAL_DE_USUARIO, deixarSemFilial, filiaisDoTenant, filiaisNoBanco, filialPadrao, garantirFilialDosUsuarios } from '../apoio/filial-usuario';
+import { esperarHorizonte } from '../apoio/campo';
+import {
+  API_TEM_FILIAL_DE_USUARIO,
+  deixarSemFilial,
+  filiaisDoTenant,
+  filiaisNoBanco,
+  filialPadrao,
+  garantirFilialDosUsuarios,
+  restaurarFiliais,
+  type RetratoFiliais,
+} from '../apoio/filial-usuario';
 
 const SEM_FILIAL = CODIGO_USUARIO_SEM_FILIAL;
 /** Campos da filial do usuário (aditivos no contrato do #361); tipados aqui para o typecheck passar também no main sem ele. */
@@ -75,8 +85,14 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
     expect(r.statusCode, `${url}: ${r.body}`).toBe(403);
     expect(erroDe(r), url).toMatchObject({ codigo: CODIGO_USUARIO_SEM_FILIAL, mensagem: MENSAGEM_USUARIO_SEM_FILIAL });
   };
-  /** Volta o usuário ao estado da fixture (filial padrão). */
-  const destravar = (id: string) => garantirFilialDosUsuarios(api.admin, [id]);
+  /** Filiais de cada usuário da fixture antes dos casos (o supervisor de A tem a padrão + a Boa Vista de venda). */
+  const retrato = new Map<string, RetratoFiliais>();
+  /** Volta o usuário ao estado da fixture: o retrato (cadastro + todas as de venda) ou, sem ele, a filial padrão. */
+  const destravar = async (id: string) => {
+    const r = retrato.get(id);
+    if (r?.cadastro) await restaurarFiliais(api.admin, id, r);
+    else await garantirFilialDosUsuarios(api.admin, [id]);
+  };
 
   beforeAll(async () => {
     api = await subirApi();
@@ -87,6 +103,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
     padraoB = await filialPadrao(api.admin, B.tenantId);
     campinasB = (await filiaisDoTenant(api.admin, B.tenantId)).find((f) => !f.padrao)!.id;
     tokenAdminA = (await sessao('admin@exemplo.com.br', 'web')).access_token;
+    for (const id of [...PERFIS_A.map((p) => p[2]), A.usuarios.vendedor2]) retrato.set(id, await filiaisNoBanco(api.admin, id));
   }, 180_000);
   afterAll(async () => {
     await api?.fechar();
@@ -232,6 +249,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       expect(s.usuario.filial_cadastro_id).toBe(padraoA);
       expect([...(s.usuario.filial_venda_ids ?? [])].sort()).toEqual([padraoA, boaVistaA.id].sort());
       const v = await sessao('vendedor@exemplo.com.br', 'campo');
+      await esperarHorizonte(); // o destravar do caso anterior tocou o updated_at; o pull só entrega o que é anterior ao horizonte
       const pull = await api.chamar(v.access_token, { method: 'GET', url: '/v1/sync/pull?entidade=usuario' });
       expect(pull.statusCode, pull.body).toBe(200);
       const minha = (pull.json() as { itens: (UsuarioSync & FiliaisDoUsuario)[] }).itens.find((l) => l.id === A.usuarios.vendedor1);
@@ -356,17 +374,17 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
   // ------------------------------------------------------------------------------------------------------------------ F-06
   describe('F-06 bloqueio fora do Core (guarda global, ADR 0056)', () => {
     // D-T0176-3 corrigido na v1.0.12 (#339): a guarda está no `preparar` da API, vale para toda rota autenticada
-    it('vendedor sem filial: rota de dados do Vendedor (/v1/vendedor/formas-pagamento) = 403 USUARIO_SEM_FILIAL', async () => {
+    it('vendedor sem filial: rota de dados do Vendedor (/v1/vendedor/pedidos) = 403 USUARIO_SEM_FILIAL', async () => {
       const id = A.usuarios.vendedor1;
       const antes = (await sessao('vendedor@exemplo.com.br', 'campo')).access_token;
-      expect(await status(antes, 'GET', '/v1/vendedor/formas-pagamento')).toBe('200');
+      expect(await status(antes, 'GET', '/v1/vendedor/pedidos')).toBe('200');
       await deixarSemFilial(api.admin, id);
       try {
-        await esperarSemFilial(antes, 'GET', '/v1/vendedor/formas-pagamento');
+        await esperarSemFilial(antes, 'GET', '/v1/vendedor/pedidos');
       } finally {
         await destravar(id);
       }
-      expect(await status(antes, 'GET', '/v1/vendedor/formas-pagamento')).toBe('200');
+      expect(await status(antes, 'GET', '/v1/vendedor/pedidos')).toBe('200');
     });
 
     it('vendedor sem filial: rota do Catálogo (/v1/catalogo/produtos) = 403 com o código e a mensagem do SDK; destravado, volta 200', async () => {
@@ -397,6 +415,7 @@ describe.skipIf(semBanco() || !API_TEM_FILIAL_DE_USUARIO)('T-0176 filial de cada
       expect(outra, 'com filial: alguma entidade além de usuario').toBeDefined();
 
       await deixarSemFilial(api.admin, id);
+      await esperarHorizonte(); // o deixarSemFilial tocou o updated_at; o pull só entrega o que é anterior ao horizonte (agora − 2 s)
       try {
         const nov = await api.chamar(t, { method: 'GET', url: '/v1/sync/novidades' });
         expect(nov.statusCode, nov.body).toBe(200);
