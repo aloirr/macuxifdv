@@ -3,13 +3,13 @@
  * Nada aqui guarda o conteúdo do arquivo; as mensagens de erro já nascem sem o valor digitado (dado pessoal).
  */
 import { BOM_CSV, protegerFormula } from '@macuxi/comum/csv';
-import { ENTIDADES, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type LinhaInvalidaConector } from '../contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type LinhaInvalidaConector } from '../contracts';
 import { anotarLinhaDoArquivo } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
 import { DEPENDENCIAS, ordenarCarga } from './ordem';
 
-/** Ordem dos cartões do portal (RN-INT-04): filiais (T-0149), árvore, formas, prazos, produtos, unidades, preços, faixas escalonadas, estoque, clientes, endereços, transportadoras, rotas, títulos, notas. */
-const ORDEM_PORTAL: readonly Entidade[] = ['vendedor', 'filial', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
+/** Ordem dos cartões do portal (RN-INT-04): a lista única do contrato, `ORDEM_CARGA_ENTIDADES`. */
+const ORDEM_PORTAL: readonly Entidade[] = ORDEM_CARGA_ENTIDADES;
 
 /** Podem ficar para depois: a operação do vendedor não depende delas. */
 export const ENTIDADES_OPCIONAIS_CARGA: readonly Entidade[] = ['titulo', 'nota'];

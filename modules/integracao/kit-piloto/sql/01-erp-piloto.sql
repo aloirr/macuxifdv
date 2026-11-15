@@ -78,7 +78,7 @@ GO
 -- ---------------------------------------------------------------------------------------------------------------------
 CREATE OR ALTER VIEW dbo.vw_macuxi_vendedor AS
 SELECT CAST(v.codigo AS VARCHAR(200)) AS external_id, v.alterado_em, CASE WHEN v.ativo = 'S' THEN 1 ELSE 0 END AS ativo,
-       v.nome, v.email, v.telefone
+       v.nome, v.email, v.telefone, CAST(NULL AS VARCHAR(200)) AS filial_external_id
 FROM dbo.piloto_vendedor v;
 GO
 
@@ -105,7 +105,7 @@ GO
 
 CREATE OR ALTER VIEW dbo.vw_macuxi_produto AS
 SELECT CAST(p.codigo AS VARCHAR(200)) AS external_id, p.alterado_em, CASE WHEN p.ativo = 'S' THEN 1 ELSE 0 END AS ativo,
-       p.sku, p.ean, p.nome, p.marca, p.categoria, UPPER(p.unidade) AS unidade, UPPER(p.embalagem_medida) AS embalagem_medida,
+       p.sku, p.ean, p.nome, p.marca, CAST(NULL AS VARCHAR(30)) AS marca_codigo, p.categoria, UPPER(p.unidade) AS unidade, UPPER(p.embalagem_medida) AS embalagem_medida,
        p.embalagem_quantidade, CAST(NULL AS VARCHAR(200)) AS catalogo_no_external_id,
        CAST(ROUND(p.custo * 100, 0) AS DECIMAL(19, 0)) AS custo_cents,
        CAST(ROUND(p.preco_venda * 100, 0) AS DECIMAL(19, 0)) AS preco_venda_cents,

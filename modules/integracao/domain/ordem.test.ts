@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENTIDADES, type Entidade } from '../contracts';
+import { ENTIDADES, ORDEM_CARGA_ENTIDADES, type Entidade } from '../contracts';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
 
 describe('RN-INT-04: ordem topológica de carga', () => {
@@ -40,6 +40,16 @@ describe('RN-INT-04: ordem topológica de carga', () => {
   });
 });
 
+describe('RN-INT-04: lista única da ordem de carga (ORDEM_CARGA_ENTIDADES)', () => {
+  it('RN-INT-04: cobre as 16 entidades uma vez e cada uma vem depois de tudo de que depende (DEPENDENCIAS)', () => {
+    expect([...ORDEM_CARGA_ENTIDADES].sort()).toEqual([...ENTIDADES].sort());
+    ORDEM_CARGA_ENTIDADES.forEach((e, i) => {
+      for (const d of DEPENDENCIAS[e]) expect(ORDEM_CARGA_ENTIDADES.indexOf(d), `${e} depende de ${d}`).toBeLessThan(i);
+    });
+    expect(ORDEM_CARGA_ENTIDADES.slice(0, 2)).toEqual(['filial', 'vendedor']);
+  });
+});
+
 describe('RN-INT-04: referências entre entidades', () => {
   it('RN-INT-04: extrai as referências de cada entidade', () => {
     expect(referenciasDoRegistro('cliente', { vendedor_external_id: 'V1' })).toEqual([{ entidade: 'vendedor', campo: 'vendedor_external_id', external_id: 'V1' }]);
@@ -76,5 +86,23 @@ describe('RN-INT-04: referências entre entidades', () => {
     const r = verificarReferencias('rota', [{ indice: 5, external_id: 'R1', registro }], { vendedor: new Set(['V1']), cliente: new Set() });
     expect(r.erros.map((e) => e.campo)).toEqual(['paradas[0].cliente_external_id', 'paradas[1].cliente_external_id']);
     expect(r.aceitas).toEqual([]);
+  });
+
+  it('RN-CORE-39 e RN-INT-04: filial só no Core não é recusada; filial em lugar nenhum vira referencia_ausente reprocessável com texto único', () => {
+    const noHub = new Set(['FIL-HUB']);
+    const noCore = new Set(['FIL-CORE']);
+    const uniao = new Set([...noHub, ...noCore]);
+    const l = (indice: number, f: string) => ({ indice, external_id: `V${indice}`, registro: { filial_external_id: f } });
+    const r = verificarReferencias('vendedor', [l(1, 'FIL-HUB'), l(2, 'FIL-CORE'), l(3, 'FIL-X')], { filial: uniao });
+    expect(r.aceitas.map((x) => x.indice)).toEqual([1, 2]);
+    expect(r.erros).toEqual([
+      expect.objectContaining({
+        indice: 3,
+        codigo: 'referencia_ausente',
+        campo: 'filial_external_id',
+        reprocessavel: true,
+        mensagem: "Filial 'FIL-X' não cadastrada (campo filial_external_id). Envie a filial na carga e reprocesse.",
+      }),
+    ]);
   });
 });

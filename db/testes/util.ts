@@ -51,6 +51,39 @@ export async function erroDe(p: Promise<unknown>): Promise<{ code: string; messa
   }
 }
 
+/**
+ * Roda `sql` como o papel dado, dentro da transação aberta no `admin`, num savepoint: um erro desfaz só o comando (não aborta
+ * o caso com 25P02) e sobe para quem chamou. `tenant` (opcional) vira o app.tenant_id local da transação.
+ */
+export async function comoPapel<T extends pg.QueryResultRow = Record<string, unknown>>(
+  admin: pg.ClientBase,
+  papel: string,
+  sql: string,
+  params: unknown[] = [],
+  tenant?: string,
+): Promise<pg.QueryResult<T>> {
+  await admin.query('savepoint como_papel');
+  try {
+    await admin.query(`set local role ${papel}`);
+    if (tenant !== undefined) await admin.query("select set_config('app.tenant_id', $1, true)", [tenant]);
+    const r = await admin.query<T>(sql, params);
+    await admin.query('reset role');
+    await admin.query('release savepoint como_papel');
+    return r;
+  } catch (e) {
+    await admin.query('rollback to savepoint como_papel');
+    throw e;
+  }
+}
+
+/** Erro (como o erroDe) de um comando do próprio `admin` num savepoint: o erro esperado (CHECK, único) não aborta o caso. */
+export async function erroNoSavepoint(admin: pg.ClientBase, sql: string, params: unknown[] = []): Promise<{ code: string; message: string } | null> {
+  await admin.query('savepoint erro');
+  const e = await erroDe(admin.query(sql, params));
+  await admin.query(e ? 'rollback to savepoint erro' : 'release savepoint erro');
+  return e;
+}
+
 export interface TabelaInfo {
   schema: string;
   tabela: string;

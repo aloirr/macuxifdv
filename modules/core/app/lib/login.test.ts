@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, rotuloOlhoSenha, validarLogin } from './login';
+import { camposIniciaisDoLogin, entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin } from './login';
 import { MENSAGEM_SENHA_ESPACO_NAS_PONTAS } from '../../contracts';
 
 const U = '0b000000-0000-4000-8000-000000000001';
@@ -55,7 +55,7 @@ describe('RF-CORE-01: login do app', () => {
       { codigo_empresa: ' am4821 ', email: 'v@x.com', senha: 'segredo' },
       { id: U, nome: 'Moto G' },
     );
-    expect(enviado).toEqual({ codigo_empresa: 'am4821', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
+    expect(enviado).toEqual({ codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
     expect(r.tenant.fuso).toBe('America/Manaus');
     await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'AM4821', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
   });
@@ -72,11 +72,6 @@ describe('RF-CORE-01: login do app', () => {
     expect(mensagemDeErroDeLogin({ status: 404 })).toBe(invalido);
     expect(ehServidorInvalido({ status: 401, codigo: 'CREDENCIAIS_INVALIDAS' })).toBe(false);
     expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Não foi possível entrar agora');
-  });
-
-  it('RF-CORE-01: rótulo do botão de olho alterna entre mostrar e ocultar', () => {
-    expect(rotuloOlhoSenha(false)).toBe('Mostrar senha');
-    expect(rotuloOlhoSenha(true)).toBe('Esconder senha');
   });
 });
 
