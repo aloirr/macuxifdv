@@ -1,25 +1,25 @@
 /**
- * T-0038: o BKO aceita rodar atrás de `bko-demo.macuxifdv.com.br` (host e origem permitidos no Next) e, no modo de
- * reserva do túnel, da origem informada em `MACUXI_BKO_ORIGEM` pelo scripts/demo.
- * T-0086: produção em `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (fixos); `MACUXI_BKO_ORIGEM` aceita lista.
+ * T-0038: o BKO aceita rodar atrás de proxy/túnel, com a origem informada em `MACUXI_BKO_ORIGEM` (host e origem
+ * permitidos no Next). T-0086: produção em `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (fixos); a variável aceita
+ * lista. Sem os hosts da demo (desligada, ADR 0051).
  */
 import { describe, expect, it } from 'vitest';
 
 import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_OPENAPI_HUB } from '../next.config';
 import { OPENAPI_HUB } from './portal-rotas';
 
-const FIXOS = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br', 'config-demo.macuxifdv.com.br'];
+const FIXOS = ['bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
 
 describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
-  it('demo e produção (bko. e config.) sempre permitidos', () => {
+  it('produção (bko. e config.) sempre permitida; os hosts da demo não entram', () => {
     expect(hostsDoBko(undefined)).toEqual(FIXOS);
-    expect(hostsDoBko('https://bko-demo.macuxifdv.com.br')).toEqual(FIXOS);
+    expect(hostsDoBko(undefined).some((h) => h.includes('-demo.'))).toBe(false);
     // build arg do workflow "producao — publicar"
     expect(hostsDoBko('https://bko.macuxifdv.com.br')).toEqual(FIXOS);
   });
   it('MACUXI_BKO_ORIGEM acrescenta o host da origem (ex.: túnel rápido de reserva)', () => {
     expect(hostsDoBko('https://abc-def.trycloudflare.com/')).toEqual([...FIXOS, 'abc-def.trycloudflare.com']);
-    expect(hostDaOrigem(' HTTPS://Bko-Demo.MacuxiFDV.com.br:443/login ')).toBe('bko-demo.macuxifdv.com.br');
+    expect(hostDaOrigem(' HTTPS://Bko.MacuxiFDV.com.br:443/login ')).toBe('bko.macuxifdv.com.br');
     expect(hostDaOrigem('http://192.168.0.10:3100')).toBe('192.168.0.10:3100');
     expect(hostDaOrigem('')).toBeNull();
     expect(hostDaOrigem('https://x .com')).toBeNull();
@@ -28,7 +28,7 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
     expect(hostsDoBko('https://bko.macuxifdv.com.br, https://config.macuxifdv.com.br')).toEqual(FIXOS);
     expect(hostsDoBko('https://a.trycloudflare.com,, https://x .com ,http://192.168.0.10:3100')).toEqual([...FIXOS, 'a.trycloudflare.com', '192.168.0.10:3100']);
   });
-  it('next.config: allowedDevOrigins e serverActions.allowedOrigins com demo e produção; /api-proxy segue para a API', async () => {
+  it('next.config: allowedDevOrigins e serverActions.allowedOrigins com produção; /api-proxy segue para a API', async () => {
     for (const h of FIXOS) {
       expect(nextConfig.allowedDevOrigins).toContain(h);
       expect(nextConfig.experimental?.serverActions?.allowedOrigins).toContain(h);

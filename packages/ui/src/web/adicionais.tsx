@@ -1,21 +1,17 @@
 /**
- * MC-0042 (pedido do dono do produto, 14/11/2026: "VALORIZE-OS"): mapa único dos módulos adicionais do plano, do id do
- * contrato (`ADICIONAIS` de `planos.ts` no platform-sdk) ao nome na tela e ao ícone. Usado no portal `config.` (caixa do
- * adicional e linha da tabela de licenças) e no BKO. Spec: docs/design/telas/portal-config-enxuto.md §11.10.
+ * MC-0042 (pedido do dono do produto, 14/11/2026: "VALORIZE-OS"): os módulos adicionais do plano, do id do contrato
+ * (`ADICIONAIS` de `planos.ts` no platform-sdk) ao nome na tela e ao ícone. Usado no portal `config.` e no BKO.
+ * Spec: docs/design/telas/portal-config-enxuto.md §11.10. Nome e ícone vêm do mapa único dos módulos (`./modulos`,
+ * RD-0366): "Promotor" em todo lugar ("avulso" só na linha do preço; decisão (e) da bko-revisao.md §P13).
  * Só rótulo e ícone: preço, quantidade e regra vêm do contrato.
  */
-import type { ComponentType, SVGProps } from 'react';
-import { IconPesquisa, IconPromotor, IconTreinamento } from './icons';
+import { iconeDoModulo, infoDoModulo } from './modulos';
 
 export type AdicionalDoPlano = 'promotor' | 'pesquisa' | 'treinamento';
 
-type IconeDoAdicional = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
+const IDS: readonly AdicionalDoPlano[] = ['promotor', 'pesquisa', 'treinamento'];
 
-export const ADICIONAIS_DO_PLANO: readonly { id: AdicionalDoPlano; nome: string; Icone: IconeDoAdicional }[] = [
-  { id: 'promotor', nome: 'Promotor Avulso', Icone: IconPromotor },
-  { id: 'pesquisa', nome: 'Pesquisa', Icone: IconPesquisa },
-  { id: 'treinamento', nome: 'Treinamento', Icone: IconTreinamento },
-];
+export const ADICIONAIS_DO_PLANO = IDS.map((id) => ({ id, nome: infoDoModulo(id).nome, Icone: iconeDoModulo(id) }));
 
 const PorId = new Map(ADICIONAIS_DO_PLANO.map((a) => [a.id, a]));
 
@@ -23,4 +19,4 @@ const PorId = new Map(ADICIONAIS_DO_PLANO.map((a) => [a.id, a]));
 export const nomeDoAdicional = (id: string): string => PorId.get(id as AdicionalDoPlano)?.nome ?? id;
 
 /** Ícone do adicional, ou `undefined` para id desconhecido (a tela mostra só o nome). */
-export const iconeDoAdicional = (id: string): IconeDoAdicional | undefined => PorId.get(id as AdicionalDoPlano)?.Icone;
+export const iconeDoAdicional = (id: string) => PorId.get(id as AdicionalDoPlano)?.Icone;
