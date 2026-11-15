@@ -4,6 +4,7 @@
  * instante da atualização para a tela mostrar "atualizado às hh:mm" (`rotuloAtualizacaoEstoque`).
  * O saldo é o do ERP; reservas de pedido são descontadas pelo Vendedor (RN-VEN-20), não aqui.
  */
+import { cargaDeHoje } from '@macuxi/core/contracts';
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
 import { localDate } from '@macuxi/comum';
 import type { ParametrosCatalogo } from './parametros';
@@ -101,4 +102,51 @@ export interface EntradaFiliaisDoEstoque {
 export function filiaisDoEstoque(e: EntradaFiliaisDoEstoque): readonly string[] | null {
   if (e.filialDoCliente !== null) return [e.filialDoCliente];
   return e.escopo === 'tenant' ? null : e.filiaisDaCarteira;
+}
+
+// ---------- carga diária do estoque no aparelho (ADR 0057, RN-CORE-61, RN-CAT-07) ----------
+export interface EntradaCargaEstoque {
+  /** Instante (ISO UTC) da última carga diária (`carga_diaria_em` do motor). */
+  carga_diaria_em: string;
+  agora: string;
+  fuso: string;
+  /** `estoque_carga_hora` do tenant (HH:MM). */
+  hora: string;
+}
+
+export interface RotuloCargaEstoque {
+  /** "às 06:12", "ontem às 06:12", "em 13/11 às 06:12" (outro ano: "em 13/11/2025 às 06:12"). */
+  quando: string;
+  /** RN-CAT-07: a carga de hoje (a partir de `estoque_carga_hora`) ainda não veio. */
+  desatualizado: boolean;
+}
+
+/** RN-CAT-07: hora da carga diária no fuso do tenant; "hoje" e "ontem" são dias do calendário do tenant. */
+export function rotuloCargaEstoque(e: EntradaCargaEstoque): RotuloCargaEstoque {
+  const t = new Date(e.carga_diaria_em);
+  const a = new Date(e.agora);
+  if (Number.isNaN(t.getTime()) || Number.isNaN(a.getTime())) throw new RangeError('Informe os instantes em ISO 8601 UTC.');
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: e.fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+  const diaT = localDate(t, e.fuso);
+  const diaA = localDate(a, e.fuso);
+  const ontem = localDate(new Date(a.getTime() - 86_400_000), e.fuso);
+  const desatualizado = !cargaDeHoje({ ultima: e.carga_diaria_em, agora: a, fuso: e.fuso, hora: e.hora });
+  if (diaT === diaA) return { quando: `às ${hora}`, desatualizado };
+  if (diaT === ontem) return { quando: `ontem às ${hora}`, desatualizado };
+  const mesmoAno = diaT.slice(0, 4) === diaA.slice(0, 4);
+  const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: e.fuso, day: '2-digit', month: '2-digit', ...(mesmoAno ? {} : { year: 'numeric' as const }) }).format(t);
+  return { quando: `em ${dia} às ${hora}`, desatualizado };
+}
+
+/**
+ * RN-CAT-07: na busca online, com a carga diária feita a disponibilidade exibida é a do aparelho (a mesma de todas as
+ * telas); só com o catálogo pendente da 1ª carga (`carga_diaria_em` nulo) vale a da API.
+ */
+export function disponibilidadeDaBuscaOnline<T extends { id: string; availability: EstoqueVisivel | null }>(
+  itensApi: readonly T[],
+  locais: ReadonlyMap<string, EstoqueVisivel | null>,
+  cargaDiariaEm: string | null | undefined,
+): T[] {
+  if (!cargaDiariaEm) return [...itensApi];
+  return itensApi.map((i) => (locais.has(i.id) ? { ...i, availability: locais.get(i.id) ?? null } : i));
 }

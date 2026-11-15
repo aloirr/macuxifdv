@@ -4,7 +4,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import type { ItemVitrine } from '../../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE, rotuloAtualizacaoEstoque } from '../../domain/estoque';
+import { AVISO_ESTOQUE_DESATUALIZADO, ROTULO_FAIXA_ESTOQUE, rotuloAtualizacaoEstoque, rotuloCargaEstoque } from '../../domain/estoque';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
 
 export type TomCatalogo = 'success' | 'warning' | 'danger' | 'neutral';
@@ -50,14 +50,37 @@ export function rotuloEstoqueFilial(b: { branch_name: string; band: keyof typeof
 }
 
 /** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
-export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: { filialDoCliente?: boolean } = {}): RotuloEstoque | null {
+export interface OpcoesRotuloEstoque {
+  filialDoCliente?: boolean;
+  /**
+   * ADR 0057: `carga_diaria_em` do motor e `estoque_carga_hora` do tenant. Com a carga preenchida, a hora e o "desatualizado" vêm
+   * dela; sem ela vale a regra das [24] h. `ficha` = tela com o título "Estoque · filial X" (a hora aparece uma vez, sem repetir
+   * "Estoque"); `lista` = cartão ou aviso de lista (sem hora).
+   */
+  carga?: { carga_diaria_em: string | null; hora: string };
+  onde?: 'ficha' | 'lista';
+}
+
+/** Título do bloco de estoque da ficha e do popup do item: "Estoque · filial X". */
+export function tituloEstoque(filial: string | null): string {
+  return filial ? `Estoque · filial ${filial}` : 'Estoque';
+}
+
+export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string, opcoes: OpcoesRotuloEstoque = {}): RotuloEstoque | null {
   const a = item.availability;
   if (!item.price_stock_visible || !a) return null;
+  const ficha = opcoes.onde === 'ficha';
   // RN-CORE-39: com cliente no contexto o estoque é o da filial dele; sem registro nela é 0, não "sem informação"
   if (a.by_branch.length === 0 && opcoes.filialDoCliente) return { texto: FAIXA.sem_estoque.texto, tom: FAIXA.sem_estoque.tom, detalhe: '', desatualizado: false };
-  if (a.by_branch.length === 0) return { texto: 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
+  if (a.by_branch.length === 0) return { texto: ficha ? 'Sem informação' : 'Estoque sem informação', tom: 'neutral', detalhe: '', desatualizado: true };
   const f = FAIXA[a.band];
   const texto = a.quantity !== null && a.band !== 'sem_estoque' ? `${f.texto} · ${a.quantity} ${item.unit.toLowerCase()}` : f.texto;
+  // RN-CAT-07 (ADR 0057): a hora é a da carga diária do aparelho, dada uma vez por tela (nunca em cada cartão de lista)
+  if (opcoes.carga?.carga_diaria_em) {
+    const c = rotuloCargaEstoque({ carga_diaria_em: opcoes.carga.carga_diaria_em, agora, fuso, hora: opcoes.carga.hora });
+    const detalhe = !ficha ? (c.desatualizado ? AVISO_ESTOQUE_DESATUALIZADO : '') : c.desatualizado ? `Desatualizado · ${c.quando.replace(/^em /, '')}` : `Atualizado ${c.quando}`;
+    return { texto, tom: f.tom, detalhe, desatualizado: c.desatualizado };
+  }
   const hora = rotuloAtualizacaoEstoque(a, agora, fuso);
   return { texto, tom: f.tom, detalhe: a.stale ? `${AVISO_ESTOQUE_DESATUALIZADO} · ${hora}` : hora, desatualizado: a.stale };
 }

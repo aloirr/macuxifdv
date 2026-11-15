@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EstoqueVisivel } from '../contracts';
-import { AVISO_ESTOQUE_DESATUALIZADO, faixaDeEstoque, estoqueVisivel, filiaisDoEstoque, rotuloAtualizacaoEstoque } from './estoque';
+import { entidadeDeposito, entidadeEstoqueSaldo, entidadeTabelaPreco } from '../contracts/entidades';
+import { AVISO_ESTOQUE_DESATUALIZADO, disponibilidadeDaBuscaOnline, faixaDeEstoque, estoqueVisivel, filiaisDoEstoque, rotuloAtualizacaoEstoque, rotuloCargaEstoque } from './estoque';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const AGORA = '2026-10-31T15:00:00Z';
@@ -156,5 +157,56 @@ describe('RN-CORE-39: estoque da filial do cliente (T-0149)', () => {
   it('RN-CORE-39: sem cliente, vendedor e supervisor veem as filiais da carteira; analista, assistente e admin veem todas', () => {
     expect(filiaisDoEstoque({ filialDoCliente: null, escopo: 'carteira', filiaisDaCarteira: ['f1', 'f2'] })).toEqual(['f1', 'f2']);
     expect(filiaisDoEstoque({ filialDoCliente: null, escopo: 'tenant', filiaisDaCarteira: null })).toBeNull();
+  });
+});
+
+describe('RN-CAT-07: hora da carga diária do estoque (ADR 0057)', () => {
+  const MANAUS = 'America/Manaus';
+  const rot = (carga: string, agora: string, hora = '06:00') => rotuloCargaEstoque({ carga_diaria_em: carga, agora, fuso: MANAUS, hora });
+
+  it('RN-CAT-07: carga de hoje = "às 06:12" e não está desatualizado', () => {
+    expect(rot('2026-11-15T10:12:00Z', '2026-11-15T14:00:00Z')).toEqual({ quando: 'às 06:12', desatualizado: false });
+  });
+  it('RN-CAT-07: carga de ontem, ainda antes das 06:00 de hoje = "ontem às 06:12", não desatualizado', () => {
+    expect(rot('2026-11-14T10:12:00Z', '2026-11-15T08:00:00Z')).toEqual({ quando: 'ontem às 06:12', desatualizado: false });
+  });
+  it('RN-CAT-07: carga de ontem depois das 06:00 de hoje = desatualizado', () => {
+    expect(rot('2026-11-14T10:12:00Z', '2026-11-15T10:01:00Z')).toEqual({ quando: 'ontem às 06:12', desatualizado: true });
+  });
+  it('RN-CAT-07: carga de outra data = "em 13/11 às 06:12" (outro ano inclui o ano)', () => {
+    expect(rot('2026-11-13T10:12:00Z', '2026-11-15T08:00:00Z').quando).toBe('em 13/11 às 06:12');
+    expect(rot('2025-11-13T10:12:00Z', '2026-01-02T14:00:00Z')).toEqual({ quando: 'em 13/11/2025 às 06:12', desatualizado: true });
+  });
+  it('RN-CAT-07: o dia é o do fuso do tenant (carga 02:30 UTC de 15/11 ainda é 14/11 em Manaus = ontem)', () => {
+    expect(rot('2026-11-15T02:30:00Z', '2026-11-15T14:00:00Z').quando).toBe('ontem às 22:30');
+  });
+  it('RN-CAT-07: a hora da carga do tenant manda no "desatualizado" (07:00: às 06:30 a carga de ontem das 07:30 ainda vale)', () => {
+    expect(rot('2026-11-14T11:30:00Z', '2026-11-15T10:30:00Z', '07:00').desatualizado).toBe(false);
+    expect(rot('2026-11-14T10:12:00Z', '2026-11-15T11:30:00Z', '07:00').desatualizado).toBe(true);
+  });
+  it('RN-CAT-07: estoque_carga_hora é HH:MM, padrão 06:00', () => {
+    expect(PARAMETROS_PADRAO.estoque_carga_hora).toBe('06:00');
+    expect(() => resolverParametros({ estoque_carga_hora: '25:00' })).toThrow(RangeError);
+  });
+  it('RN-CAT-07: deposito e estoque_saldo são de cadência diária; o resto do catálogo segue contínuo', () => {
+    expect(entidadeDeposito.cadencia).toBe('diaria');
+    expect(entidadeEstoqueSaldo.cadencia).toBe('diaria');
+    expect(entidadeTabelaPreco.cadencia).toBeUndefined();
+  });
+});
+
+describe('RN-CAT-07: busca online usa o estoque do aparelho depois da 1ª carga', () => {
+  const local = estoqueVisivel('a', [saldo('f1', 5)], { filiais: null, agora: AGORA, parametros: PARAMETROS_PADRAO });
+  const api = { ...local, quantity: 99 };
+  const itens = [{ id: 'a', availability: api }, { id: 'b', availability: api }];
+  const locais = new Map([['a', local]]);
+
+  it('RN-CAT-07: com carga_diaria_em a disponibilidade exibida é a local', () => {
+    const r = disponibilidadeDaBuscaOnline(itens, locais, '2026-10-31T10:00:00Z');
+    expect(r[0]!.availability?.quantity).toBe(5);
+    expect(r[1]!.availability?.quantity).toBe(99);
+  });
+  it('RN-CAT-07: sem carga (catálogo pendente da 1ª carga) vale a da API', () => {
+    expect(disponibilidadeDaBuscaOnline(itens, locais, null)[0]!.availability?.quantity).toBe(99);
   });
 });

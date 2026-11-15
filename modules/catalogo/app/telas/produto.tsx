@@ -5,13 +5,14 @@
  * (o promotor nunca vê as de pedido).
  */
 import { relogioReal } from '@macuxi/comum/relogio';
+import { HORA_CARGA_DIARIA_PADRAO } from '@macuxi/core/contracts';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
 import { Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { aplicacaoPrecisaRecolher, estadoOfereceJunto, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto, tituloEstoque } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotaoCopiarCodigo, BotoesAcao } from './comum';
@@ -70,7 +71,8 @@ export default function TelaProduto() {
   const aplicacao = catalogo?.aplicacao ?? null;
   const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
-  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null });
+  const horaCarga = (parametros as { estoque_carga_hora?: string } | null | undefined)?.estoque_carga_hora ?? HORA_CARGA_DIARIA_PADRAO;
+  const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso, { filialDoCliente: clienteId !== null, onde: 'ficha', carga: { carga_diaria_em: sync.carga_diaria_em ?? null, hora: horaCarga } });
   return (
     <Screen testID="pagina-catalogo-produto" cabecalho={{ titulo: item.description, subtitulo: `${subtituloProduto(item)} · ${item.unit}${item.ean ? ` · EAN ${item.ean}` : ''}`, voltar }}>
       {item.is_campaign || (catalogo && catalogo.etiquetas.length > 0) ? (
@@ -101,7 +103,7 @@ export default function TelaProduto() {
           ) : null}
           {estoque ? (
             <View style={{ gap: 6 }}>
-              <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? `Estoque na filial ${item.availability.by_branch[0]!.branch_name}` : clienteId ? 'Estoque na filial do cliente' : 'Estoque'}</Text>
+              <Text style={t.label}>{clienteId && item.availability?.by_branch.length === 1 ? tituloEstoque(item.availability.by_branch[0]!.branch_name) : clienteId ? 'Estoque · filial do cliente' : tituloEstoque(null)}</Text>
               <Badge label={estoque.texto} tone={estoque.tom} style={{ alignSelf: 'flex-start' }} />
               {estoque.detalhe ? <Text style={[t.small, estoque.desatualizado && { color: colors.warning }]}>{estoque.detalhe}</Text> : null}
               {item.availability && item.availability.by_branch.length > 1

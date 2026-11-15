@@ -24,6 +24,8 @@ export const ParametrosCatalogo = z
     estoque_mostrar_quantidade: z.boolean().default(true),
     /** RN-CAT-07: horas sem atualização para marcar "estoque desatualizado" ([24]). */
     estoque_defasado_horas: z.number().int().min(1).default(24),
+    /** RN-CAT-07 / RN-CORE-61: hora (HH:MM, fuso do tenant) da carga diária do estoque no aparelho ([06:00]). */
+    estoque_carga_hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Informe a hora da carga do estoque no formato HH:MM (ex.: 06:00).').default('06:00'),
     /** RN-CAT-08: validade do cache de consultas frequentes, em segundos ([600]; 0 desliga). */
     cache_ttl_s: z.number().int().min(0).default(600),
     /** RN-CAT-08: a consulta só entra no cache a partir da N-ésima ocorrência ([2]). */
