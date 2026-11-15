@@ -37,7 +37,6 @@ import {
   fusoDoTenantOuPadrao,
   linhasDosParametrosIniciais,
   ListaEmpresasDoBancoSchema,
-  ListaEmpresasSchema,
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
   type AcessoPortalAutenticado,
@@ -142,7 +141,7 @@ export const senhaDoCore: SenhaDoPortal = {
 export interface FontePlataforma {
   /** Tenant existe, está ativo e a sessão está viva (`sa_tenant_ativo`; só o super-admin chega aqui). */
   tenantAtivo(quem: AcessoPortalAutenticado, tenantId: string, banco: AcessoBanco): Promise<boolean>;
-  /** Empresas para o portal (`sa_listar_tenants`: super-admin = todas; admin do cliente = as da sessão); conferida por `ListaEmpresasSchema`. */
+  /** Empresas para o portal (`sa_listar_tenants`: super-admin = todas; admin do cliente = as da sessão); conferida por `ListaEmpresasDoBancoSchema`. */
   listarEmpresas(quem: AcessoPortalAutenticado, banco: AcessoBanco): Promise<unknown>;
   /** `sa_provisionar_tenant` (só super-admin); `simular` = mesma chamada numa transação desfeita. */
   provisionar(quem: AcessoPortalAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown>;
@@ -485,7 +484,7 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
     }
     const alvo = (await listarAdmins(quem, tenant_id)).itens.find((a) => a.usuario_id === usuario_id);
     if (!alvo || !alvo.ativo || alvo.bloqueado) throw new ErroHttp(404, 'USUARIO_NAO_ENCONTRADO', 'Administrador não encontrado nesta empresa.');
-    const empresas = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
+    const empresas = ListaEmpresasDoBancoSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     const empresa = empresas.success ? empresas.data.itens.find((x) => x.id === tenant_id) : undefined;
     if (!empresa) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
     // a senha temporária só vive aqui e, cifrada, na carga do e-mail (RN-CORE-34); ao banco vai o hash

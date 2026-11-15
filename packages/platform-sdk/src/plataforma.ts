@@ -68,7 +68,8 @@ export const MAX_EMPRESAS_LOGIN_PORTAL = 20;
 
 const Uuid = z.string().uuid();
 const Instante = z.string().datetime({ offset: true });
-const Dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD.');
+/** Data civil `AAAA-MM-DD` (sem hora). */
+export const Dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use AAAA-MM-DD.');
 const Email = z.string().trim().toLowerCase().email().max(254);
 // ---------- acesso ao portal só com e-mail e senha (T-0093; ADR 0031) ----------
 /** `POST /v1/plataforma/auth/login`. Senha só `min(1)`: senhas já gravadas continuam valendo (RN-CORE-32 vale na criação e na troca). */

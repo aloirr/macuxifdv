@@ -169,7 +169,7 @@ describe('RN-PLA-04 trava do cadastro de usuários', () => {
       pode: false,
       codigo: 'LICENCAS_ESGOTADAS',
       item: 'vendedor',
-      mensagem: 'As 5 licenças de vendedor do plano estão em uso. Inative um usuário ou troque de plano.',
+      mensagem: 'Vendedores: 5 em uso, o limite do plano. Inative um usuário ou troque de plano.',
     });
   });
 
