@@ -11,6 +11,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ManifestoBackupEmpresaSchema,
+  MENSAGENS_ACOES_EMPRESA,
   parteDaTabela,
   PRAZO_BACKUP_PARA_EXCLUIR_DIAS,
   prefixoDoBackupEmpresa,
@@ -313,5 +314,19 @@ describe('contratos da lista e eventos', () => {
         email: 'a@b.c',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('RD-0407: uma frase por código de recusa', () => {
+  it('todo código de CODIGOS_ACOES_EMPRESA tem frase, e só eles', () => {
+    expect(Object.keys(MENSAGENS_ACOES_EMPRESA).sort()).toEqual(Object.values(C).sort());
+    for (const frase of Object.values(MENSAGENS_ACOES_EMPRESA)) expect(frase).toMatch(/^\S.*\.$/);
+    expect(Object.isFrozen(MENSAGENS_ACOES_EMPRESA)).toBe(true);
+  });
+
+  it('o texto da tela (spec §15.2)', () => {
+    expect(MENSAGENS_ACOES_EMPRESA[C.exclusaoBackupVencido]).toBe('Faça o backup antes de excluir.');
+    expect(MENSAGENS_ACOES_EMPRESA[C.exclusaoCodigoNaoConfere]).toBe('Código não confere.');
+    expect(MENSAGENS_ACOES_EMPRESA[C.reautenticacaoFalhou]).toBe('Senha incorreta.');
   });
 });

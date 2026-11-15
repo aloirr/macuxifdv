@@ -4,7 +4,6 @@
  * com a senha do super-admin conferida de novo no limite de falhas do login do portal, a tradução dos SQLSTATE das `sa_*` e o
  * bloco `acoes` da lista de empresas. As funções `sa_*` de verdade são testadas no CI (`*.db.test.ts` do banco-dados).
  */
-import { createHmac } from 'node:crypto';
 import {
   BackupEmpresaSchema,
   ExclusaoEmpresaSchema,
@@ -15,10 +14,11 @@ import {
   type BackupEmpresa,
   type ExclusaoEmpresa,
 } from '@macuxi/platform-sdk';
+import { chaveDeTentativaDoPortal } from '@macuxi/platform-sdk/tentativas-portal';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app';
 import { backupEmpresaDisponivel, empresaAcoesLigadas } from '../src/config';
-import { chaveDeTentativaDoPortal, type EstadoTentativaPortal, type FonteAcoesEmpresa } from '../src/empresa-acoes-portal';
+import type { EstadoTentativaPortal, FonteAcoesEmpresa } from '../src/empresa-acoes-portal';
 import { fontePlataformaNoBanco, type FontePlataforma } from '../src/plataforma';
 import { bancoFalso, bancoPortalFalso, opcoesDeTeste } from './apoio';
 
@@ -280,12 +280,6 @@ describe('Portal › Ações da empresa (ADR 0052)', () => {
     expect([r.statusCode, ExclusaoEmpresaSchema.parse(r.json()).situacao]).toEqual([200, 'em_andamento']);
     const nada = await app.inject({ method: 'GET', url: url('exclusao', OUTRA), headers: sa });
     expect([nada.statusCode, nada.json().codigo]).toEqual([404, 'EXCLUSAO_NAO_ENCONTRADA']);
-  });
-
-  it('chaveDeTentativaDoPortal = HMAC-SHA256 do login do portal (portal.login:<e-mail normalizado>)', () => {
-    const esperado = createHmac('sha256', SEGREDO).update('portal.login:equipe@macuxi.com.br').digest('hex');
-    expect(chaveDeTentativaDoPortal(SEGREDO, EMAIL)).toBe(esperado);
-    expect(chaveDeTentativaDoPortal(SEGREDO, 'equipe@macuxi.com.br')).toBe(esperado);
   });
 
   it('RN-PLA-07/08/09: a lista de empresas ganha `acoes` só para o super-admin e só na empresa com bloco', async () => {
