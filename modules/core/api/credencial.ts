@@ -4,7 +4,7 @@
  * A senha nunca é gravada, logada nem devolvida. Não conta tentativas: o limite é de quem chama.
  */
 import { estadoDoLogin } from '../domain/auth';
-import { implementarConsulta, matrizDeFabrica, pode, type ContextoConsulta, type MatrizFabrica, type MotorPermissoes, type Perfil } from '@macuxi/platform-sdk';
+import { implementarConsulta, matrizDeFabrica, pode, type ContextoConsulta, type MatrizFabrica, type Perfil } from '@macuxi/platform-sdk';
 import { CONSULTA_CREDENCIAL_CONFERIR, CONSULTA_USUARIOS_COM_ACAO, type CredencialConferirSaida, type UsuariosComAcaoSaida } from '../contracts';
 import { decidirCredencial } from '../domain/credencial';
 import { resolverLinhasDePerfil, perfisEfetivosDoUsuario } from './perfis-do-usuario';
@@ -16,7 +16,7 @@ const data = (v: unknown): Date | null => (v === null || v === undefined ? null 
  * Matriz de fábrica com as ações dos módulos (a mesma da API, `ContextoBase.permissoes`). Sem ela, só as chaves da plataforma e as
  * sobreposições concedidas valem: falha fechada (`sem_permissao`), nunca aberta.
  */
-const matrizDe = (ctx: ContextoConsulta): MatrizFabrica => (ctx as ContextoConsulta & { permissoes?: MotorPermissoes }).permissoes?.matriz ?? matrizDeFabrica([]);
+const matrizDe = (ctx: ContextoConsulta): MatrizFabrica => ctx.permissoes?.matriz ?? matrizDeFabrica([]);
 
 export const consultaCredencialConferir = implementarConsulta(CONSULTA_CREDENCIAL_CONFERIR, async (entrada, ctx): Promise<CredencialConferirSaida> => {
   // tenant explícito além da RLS (defesa em profundidade)
