@@ -8,13 +8,22 @@
  * - Erros: a frase exata da spec por código (`MENSAGENS_LOGO`); rota ausente = "Ainda não disponível neste servidor."; o resto
  *   (rede, 5xx, 503) = "Não foi possível salvar. Tente de novo." Nunca o texto do servidor em inglês.
  */
-import { CODIGOS_LOGO, conferirLogo, MENSAGENS_LOGO, nomeDaEmpresa, type CodigoLogo, type MarcaEmpresa } from '@macuxi/platform-sdk';
+import {
+  CODIGOS_LOGO,
+  conferirLogo,
+  MENSAGENS_LOGO,
+  nomeDaEmpresa,
+  rotuloDaLogo,
+  TEXTO_LIMITES_LOGO,
+  type CodigoLogo,
+  type MarcaEmpresa,
+} from '@macuxi/platform-sdk';
 
 import { ehRotaAusente, ErroPortal } from './portal-api';
 
 export const TEXTOS_LOGO = {
   titulo: 'Logo',
-  limites: 'PNG ou JPG · até 1 MB · pelo menos 200 px de altura',
+  limites: TEXTO_LIMITES_LOGO,
   enviar: 'Enviar logo',
   salvar: 'Salvar',
   salvando: 'Salvando…',
@@ -34,7 +43,7 @@ export const ACEITA_LOGO = 'image/png,image/jpeg';
 
 /** "Logo da <nome fantasia>" (spec §1, acessibilidade); sem nome fantasia, vale a razão social. */
 export function altDaLogo(m: Pick<MarcaEmpresa, 'nome_fantasia' | 'razao_social'>): string {
-  return `Logo da ${nomeDaEmpresa(m.nome_fantasia, m.razao_social)}`;
+  return rotuloDaLogo(nomeDaEmpresa(m.nome_fantasia, m.razao_social));
 }
 
 const CODIGOS = new Set<string>(Object.values(CODIGOS_LOGO));

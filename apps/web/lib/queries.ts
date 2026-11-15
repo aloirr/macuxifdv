@@ -5,9 +5,17 @@
  * (faróis de pedidos e clientes, metas, planos, alçadas, rotas…) vão para `modules/<m>/web` na B2
  * (desenho T-0001 §5 e §14).
  */
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
-import { AuditoriaRespostaSchema, modulosEfetivos, ROTA_AUDITORIA, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
+import {
+  AuditoriaRespostaSchema,
+  empresaDosParametros,
+  modulosEfetivos,
+  ROTA_AUDITORIA,
+  type LogoDoAparelho,
+  type ModuloId,
+  type Perfil,
+} from '@macuxi/platform-sdk';
 import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
 import { intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { MANIFESTOS_WEB } from './modulos';
@@ -41,24 +49,27 @@ export function useMe() {
   return useQuery({ queryKey: qk.me, queryFn: () => api<Me>('/me'), enabled, staleTime: 60_000 });
 }
 
-interface ModulosDoUsuario {
+export interface ModulosDoUsuario {
   ids: ModuloId[];
   /** `parametros.core.sync_auto_min` do tenant (RN-CORE-23), ou `undefined` (vale o padrão de 30 min). */
   syncAutoMin: unknown;
+  /** `empresa_logo` dos parâmetros do Core (T-0182), ou `null` (sem logo ou servidor anterior: o PDF usa a padrão). */
+  logo: LogoDoAparelho | null;
 }
 
-/** Uma consulta só a `GET /v1/me/modulos` (cache do React Query): os efetivos e o `sync_auto_min` saem dela. */
-function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) => T) {
-  const enabled = useAuthed() && !!perfil;
-  return useQuery({
+/**
+ * Uma consulta só a `GET /v1/me/modulos` (cache do React Query, chave `qk.modulos`): os efetivos, o `sync_auto_min` e a
+ * logo da empresa saem dela. O ambiente das páginas (`lib/ambiente.ts`, PDF) lê a logo pela mesma chave (`fetchQuery`).
+ */
+export function consultaMeusModulos(perfil: Perfil | null) {
+  return queryOptions({
     queryKey: [...qk.modulos, perfil],
-    enabled,
     staleTime: 60_000,
-    select,
     queryFn: async (): Promise<ModulosDoUsuario> => {
       try {
         const r = MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos'));
-        return { ids: r.modulos.map((m) => m.id), syncAutoMin: r.modulos.find((m) => m.id === 'core')?.parametros?.[PARAMETRO_SYNC_AUTO] };
+        const core = r.modulos.find((m) => m.id === 'core')?.parametros;
+        return { ids: r.modulos.map((m) => m.id), syncAutoMin: core?.[PARAMETRO_SYNC_AUTO], logo: empresaDosParametros(core)?.logo ?? null };
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
         return {
@@ -68,10 +79,15 @@ function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) 
             doPerfil: MANIFESTOS_WEB.filter((m) => m.perfis.includes(perfil)).map((m) => m.id),
           }),
           syncAutoMin: undefined,
+          logo: null,
         };
       }
     },
   });
+}
+
+function useMeusModulos<T>(perfil: Perfil | null, select: (d: ModulosDoUsuario) => T) {
+  return useQuery({ ...consultaMeusModulos(perfil), enabled: useAuthed() && !!perfil, select });
 }
 
 const soIds = (d: ModulosDoUsuario) => d.ids;

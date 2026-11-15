@@ -5,16 +5,16 @@
  * `useHttp()`/`useAmbiente()` usam o `api()` do platform-sdk/web (token da sessão, proxy, 401 encerra a sessão).
  * As páginas web podem continuar usando `api()` direto; isto dá o mesmo contrato das telas do app.
  * T-0182: `logoDaEmpresa` (PDF de pedido e orçamento) busca a logo da empresa da sessão pela rota do aparelho (o BKO é sempre
- * online), a partir do `empresa_logo` dos parâmetros do Core em `/v1/me/modulos`.
+ * online). O `empresa_logo` vem de quem chama (`lerLogo`): o shell lê o cache da consulta `qk.modulos` (`lib/queries.ts`), sem
+ * um segundo `GET /v1/me/modulos` (RD-0700).
  */
-import { MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import {
   criarClienteHttp,
-  empresaDosParametros,
   ErroHttp,
   ErroSemConexao,
   rotaLogoDoAparelho,
   type AmbienteAparelho,
+  type LogoDoAparelho,
   type UsuarioAmbiente,
 } from '@macuxi/platform-sdk';
 import { api, apiFetch, ApiRequestError } from '@macuxi/platform-sdk/web';
@@ -32,10 +32,9 @@ function dataUriDoBlob(blob: Blob): Promise<string> {
 }
 
 /** Logo da empresa da sessão como data URI; sem logo, sem rede ou servidor anterior à T-0182 = `null` (o PDF usa a padrão). */
-export async function logoDaEmpresaWeb(): Promise<string | null> {
+export async function logoDaEmpresaWeb(lerLogo: () => Promise<LogoDoAparelho | null>): Promise<string | null> {
   try {
-    const r = MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos'));
-    const logo = empresaDosParametros(r.modulos.find((m) => m.id === 'core')?.parametros)?.logo;
+    const logo = await lerLogo();
     if (!logo) return null;
     const res = await apiFetch(semV1(rotaLogoDoAparelho(logo.sha256)));
     return await dataUriDoBlob(await res.blob());
@@ -44,7 +43,7 @@ export async function logoDaEmpresaWeb(): Promise<string | null> {
   }
 }
 
-export function criarAmbienteWeb(usuario: () => UsuarioAmbiente | null): AmbienteAparelho {
+export function criarAmbienteWeb(usuario: () => UsuarioAmbiente | null, lerLogo: () => Promise<LogoDoAparelho | null>): AmbienteAparelho {
   const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
   const http = criarClienteHttp(
     async <T,>(metodo: string, caminho: string, opcoes: { query?: Record<string, string | number | boolean | undefined | null>; body?: unknown }) => {
@@ -61,5 +60,5 @@ export function criarAmbienteWeb(usuario: () => UsuarioAmbiente | null): Ambient
     },
     { online },
   );
-  return { http, online, novoId: () => crypto.randomUUID(), usuario, logoDaEmpresa: logoDaEmpresaWeb };
+  return { http, online, novoId: () => crypto.randomUUID(), usuario, logoDaEmpresa: () => logoDaEmpresaWeb(lerLogo) };
 }

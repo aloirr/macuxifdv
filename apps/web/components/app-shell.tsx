@@ -29,7 +29,7 @@ import { estadoDaSessao, estadoDoConteudo } from '@/lib/estado-shell';
 import { PROPORCAO_LOGO_HORIZONTAL, SRC_LOGO_NEGATIVO_GRAFITE } from '@/lib/logo-marca';
 import { ALTURA_ITEM, grupoDaTela, cabeTudoAberto, hrefAtivo, montarGruposMenu, type GrupoMenuBko, type ItemMenuBko } from '@/lib/menu-bko';
 import { SHELL_WEB } from '@/lib/modulos';
-import { useMe, useModulosEfetivos } from '@/lib/queries';
+import { consultaMeusModulos, useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
 import { SessaoSemConexao } from './sessao-sem-conexao';
 
@@ -277,7 +277,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
   const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
   const usuario = session.user;
-  const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);
+  // RD-0700: a logo do PDF sai do cache de `/v1/me/modulos` (a mesma consulta do menu), sem nova chamada
+  const ambiente = useMemo(
+    () =>
+      criarAmbienteWeb(
+        () => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null),
+        async () => (perfil ? (await qc.fetchQuery(consultaMeusModulos(perfil))).logo : null),
+      ),
+    [usuario, perfil, qc],
+  );
 
   const switchProfile = () => {
     void encerrarSessao();
