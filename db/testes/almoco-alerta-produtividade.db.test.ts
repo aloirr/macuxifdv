@@ -148,7 +148,7 @@ describe.skipIf(semBanco())('0081 almoço do usuário e alertas de produtividade
         [720, null, PAR],
         [null, 780, PAR],
         [-1, 30, FAIXA],
-        [1430, 1440, FAIXA],
+        [1300, 1440, FAIXA], // duração 140 cabe: só a faixa recusa (o PG confere os CHECKs em ordem de nome; duracao vem antes)
         [780, 720, DURACAO],
         [720, 720, DURACAO],
         [720, 734, DURACAO],
