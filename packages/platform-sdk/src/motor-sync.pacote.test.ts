@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { definirIndiceBusca, type ConsultaTexto } from './busca';
 import { defineModule } from './manifesto';
@@ -33,6 +33,9 @@ import type { DriverSqlite } from './sqlite/driver';
 import type { MigracaoAparelho } from './sqlite/esquema';
 import { conteudoDoPacoteSimulado, criarServidorSyncSimulado, ErroRedeSimulada, type ServidorSyncSimulado } from './sync-simulado';
 import { criarRegistroSync, definirEntidadeSync, type LinhaSync } from './sync';
+
+// Cada cenário roda nos 3 armazenamentos com SQLite e gzip; o runner do CI é bem mais lento que a máquina local.
+vi.setConfig({ testTimeout: 30_000 });
 
 // ---------- módulos, entidades e índice de teste ----------
 
@@ -375,8 +378,7 @@ describe('ADR 0054: equivalência pacote + incremental = pull paginado', () => {
     expect(motor.estado().carga.bytes).toBeUndefined();
     expect(temporarios()).toEqual([]);
     expect(s.chamadas.pacotes).toBe(1);
-    // Timeout explícito: a equivalência roda o volume nos 3 armazenamentos e o runner do CI é mais lento (7,8 s).
-  }, 30_000);
+  });
 
   it('sem as peças opcionais (sem arquivos de pacote), a carga é a de hoje: nem pede o manifesto', async () => {
     const s = servidor();

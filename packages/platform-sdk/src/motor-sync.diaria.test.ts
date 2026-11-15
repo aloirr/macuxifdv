@@ -6,12 +6,15 @@
  * Sem as peças novas, o motor faz o de sempre.
  */
 import { z } from 'zod';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineModule } from './manifesto';
 import { criarMotorSync, type EtapaSync, type OpcoesMotorSync } from './motor-sync';
 import { FABRICAS_ARMAZENAMENTO } from './motor-sync.fabricas';
 import { criarServidorSyncSimulado } from './sync-simulado';
 import { criarRegistroSync, definirEntidadeSync, type DefinicaoEntidadeSync } from './sync';
+
+// Cada cenário roda nos 3 armazenamentos com SQLite; o runner do CI é bem mais lento que a máquina local.
+vi.setConfig({ testTimeout: 30_000 });
 
 const manifestos = [
   defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], sync: ['cliente', 'visita'] }),

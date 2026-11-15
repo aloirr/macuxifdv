@@ -4,12 +4,15 @@
  * nada muda no aparelho, nenhum erro, e a `completa` segurada não deixa ressincronização pendente.
  */
 import { z } from 'zod';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineModule } from './manifesto';
 import { criarMotorSync, type ModoSincronizacao } from './motor-sync';
 import { FABRICAS_ARMAZENAMENTO } from './motor-sync.fabricas';
 import { criarServidorSyncSimulado } from './sync-simulado';
 import { criarRegistroSync, definirEntidadeSync, type DefinicaoEntidadeSync, type LinhaSync, type PaginaSync } from './sync';
+
+// Cada cenário roda nos 3 armazenamentos com SQLite; o runner do CI é bem mais lento que a máquina local.
+vi.setConfig({ testTimeout: 30_000 });
 
 const manifestos = [defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor'], sync: ['cliente', 'visita'] })];
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
