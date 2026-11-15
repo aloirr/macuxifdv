@@ -257,7 +257,7 @@ Tabela **Empresa · Código · CNPJ · Plano · Situação · Criada em**. A col
 
 ### 11.8 Para o engenheiro-apps
 - **testIDs (alinhados ao `planos.ts`):** `empresa.cnpj` (com `data-estado` = `vazio|buscando|encontrado|invalido|nao-encontrado|receita-fora|nao-ativa`), `empresa.cnpj-tentar`, `empresa.nome-fantasia`, `empresa.endereco`, `empresa.municipio`, `empresa.telefone`, `empresa.email`, `empresa.cnae`, `empresa.plano-<codigo>` (`light|pme|enterprise|corporate`, o `codigo` do catálogo), `empresa.adicional-<adicional>` (`promotor|pesquisa|treinamento`, os valores de `ADICIONAIS`; antes `promotor-avulso`), `empresa.adicional-<adicional>-qtd` (antes só `empresa.adicional-promotor-avulso-qtd`), `empresa.ciclo-<mensal|anual>` (`CICLOS`), `empresa.teste` (`com_teste`), `empresa.total`; na aba Empresa `empresa-plano.cartao`, `empresa-plano.nome`, `empresa-plano.teste-ate`, `empresa-plano.valor`, `empresa-plano.uso-<item>` (`vendedor|gestor|bko|promotor|pesquisa|treinamento`, os valores de `ITENS_CONTADOS`), `empresa-plano.trocar`, `empresa-plano.dialogo`, `empresa-plano.confirmar`, `empresa-plano.cancelar`, `empresa-plano.erro`, `empresa-plano.total`.
-- **Rótulos na tela por item:** `vendedor` = "Vendedor", `gestor` = "Gestor", `bko` = "BKO", `promotor` = "Promotor Avulso", `pesquisa` = "Pesquisa", `treinamento` = "Treinamento" — os três adicionais pelo mapa `ADICIONAIS_DO_PLANO` de `@macuxi/ui/web` (§11.10), nunca rótulo solto na tela.
+- **Rótulos na tela por item:** `vendedor` = "Vendedor", `gestor` = "Gestor", `bko` = "BKO", `promotor`, `pesquisa` e `treinamento`: nome e ícone vêm de `modulos.tsx` (bko-revisao §P10, decisão e da §P13); nunca rótulo solto na tela.
 - **Saem:** `empresa.situacao` (o campo Situação) e `empresa-plano.ciclo` (o selo Mensal/Anual).
 - **Saem:** os testIDs e o código do cartão "Módulos e licenças" no Criar empresa e na aba Empresa (`empresa.modulo-*`, `empresa.licencas-*`, `empresa.acrescentar-modulos` ou equivalentes) e `ROTULO_MODULO` no portal, se não for usado em outro lugar (confirmar com o corretor-redundancias).
 - O seletor de planos é **um componente só**, usado no Criar empresa e no "Trocar de plano" (prop `atual`).
@@ -271,7 +271,7 @@ Os números batem: Light 10 × 50 + 1 × 70 + 1 × 40 = R$ 610,00; PME (1.000 + 
 | Quantidade dos adicionais | só o Promotor avulso tem "Quantidade" | `AdicionalContratadoSchema.quantidade` (≥ 1) nos três; Pesquisa e Treinamento contam usuários liberados (RN-PLA-03) e a trava usa esse número | campo **Quantidade** nos três (§11.3, 2) |
 | Desconto por licença (−5%, −10%, −15%) | coluna própria | não existe campo: só `preco_mensal_centavos`, já com o desconto | a tela não mostra o desconto |
 | Preço anual | coluna própria | calculado: mensal × (12 − `meses_gratis_anual`), `valorDaAssinatura` | a tela calcula; não há campo |
-| Código do adicional | "Promotor avulso" | `promotor` | rótulo "Promotor Avulso", id `promotor` |
+| Código do adicional | "Promotor avulso" | id `promotor`; nome e ícone vêm de `modulos.tsx` (bko-revisao §P10, decisão e da §P13) |
 | Código dos planos | só o nome | `codigo` do catálogo (seed do banco-dados) | `light`, `pme`, `enterprise`, `corporate` (premissa; confirmar no seed) |
 | Ficha | vendedor, gestor, BKO, promotor avulso | 6 itens (`ITENS_CONTADOS`), com Pesquisa e Treinamento | 3 linhas sempre + as dos adicionais contratados (§11.4) |
 | Teste | — | `dias_teste` (14) e `com_teste`; fim = hoje + 14 − 1 | "Teste até 27/11/2026" (antes 28/11 na simulação) |
@@ -279,7 +279,7 @@ Os números batem: Light 10 × 50 + 1 × 70 + 1 × 40 = R$ 610,00; PME (1.000 + 
 
 ### 11.10 Nome e ícone dos módulos adicionais (MC-0042)
 Pedido do dono do produto (14/11): "Deixe mais bonito os nomes do módulo com a letra maiúscula, talvez um ícone, tanto no config quanto no BKO. VALORIZE-OS."
-- **Mapa único** em `packages/ui/src/web/adicionais.tsx` (exportado por `@macuxi/ui/web`): `ADICIONAIS_DO_PLANO` (id do contrato → nome → ícone), `nomeDoAdicional(id)` e `iconeDoAdicional(id)`. Ids = `ADICIONAIS` de `planos.ts`: `promotor` → **"Promotor Avulso"** (`IconPromotor`, gôndola com produtos), `pesquisa` → **"Pesquisa"** (`IconPesquisa`, prancheta com respostas), `treinamento` → **"Treinamento"** (`IconTreinamento`, capelo).
+- **Mapa único:** nome e ícone vêm de `modulos.tsx` (bko-revisao §P10, decisão e da §P13). Ids = `ADICIONAIS` de `planos.ts`: `promotor` (`IconPromotor`, gôndola com produtos), `pesquisa` (`IconPesquisa`, prancheta com respostas), `treinamento` (`IconTreinamento`, capelo).
 - Ícones em `icons.tsx`: traço único de 2 px, grade 24 × 24, sem preenchimento, cor herdada (Azul noite `#1E3350`); sem laranja, sem cor de situação, sem grafismo. Tamanho na tela: **22 px** (legível de 20 a 24 px).
 - **Onde aparecem:** na caixa do adicional (Criar empresa) e na linha do adicional (diálogo "Trocar de plano"), entre a caixa de marcar e o nome; no bloco de licenças da aba Empresa, antes do nome. O nome vai em Archivo 700, Azul noite. No BKO, onde o módulo adicional aparecer pelo nome (licenças, perfis, menus), usar o mesmo mapa.
 - Prancha para a marca conferir: `portal-config-enxuto/prancha-icones-adicionais.png` (48, 24 e 20 px, na caixa e na linha da tabela).
