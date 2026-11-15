@@ -5,7 +5,25 @@
  * memória do shell durante a tela: nunca em storage, URL ou log. Nada aqui registra senha ou e-mail.
  */
 import { ehSemConexao, type AppComLogin } from '@macuxi/platform-sdk';
-import { acaoDoErroDaTroca, SessaoRespostaSchema, TrocarSenhaRequestSchema, EsqueciSenhaRequestSchema, TEXTOS_CRIE_SENHA, TEXTOS_ESQUECI, codigoDoErro, faltasNaSenha, textoDoErroDaSenha, repeticaoDaSenha, textoDeMuitosPedidos, type FaltaNaSenha, type CamposEsqueci, type RepeticaoDaSenha, type AcaoAposErroDaTroca, type SessaoResposta } from '../../contracts';
+import {
+  acaoDoErroDaTroca,
+  SessaoRespostaSchema,
+  TrocarSenhaRequestSchema,
+  EsqueciSenhaRequestSchema,
+  TEXTOS_CRIE_SENHA,
+  TEXTOS_ESQUECI,
+  TEXTOS_TROCAR_SENHA,
+  codigoDoErro,
+  faltasNaSenha,
+  textoDoErroDaSenha,
+  repeticaoDaSenha,
+  textoDeMuitosPedidos,
+  type FaltaNaSenha,
+  type CamposEsqueci,
+  type RepeticaoDaSenha,
+  type AcaoAposErroDaTroca,
+  type SessaoResposta,
+} from '../../contracts';
 import { ehServidorInvalido, mensagemDeErroDeLogin, type PostSemSessao } from './login';
 import { tolerante } from './leitor-tolerante';
 
@@ -15,10 +33,21 @@ export const TEXTO_SEM_INTERNET_ESQUECI = TEXTOS_ESQUECI.semInternet;
 export const TEXTO_ESQUECI_CONFIRMACAO = TEXTOS_ESQUECI.confirmacao;
 export const TEXTO_ESQUECI_NAO_CHEGOU = TEXTOS_ESQUECI.naoChegou;
 export const TEXTO_ESQUECI_INSTRUCAO = TEXTOS_ESQUECI.instrucao;
+export const AVISO_SENHA_TROCADA = TEXTOS_TROCAR_SENHA.trocada;
 export const AVISO_SENHA_CRIADA = TEXTOS_CRIE_SENHA.criada;
 
 // Funções puras do ciclo (detalhes da troca, subtítulo, repetição, espera, validação do Esqueci) vêm de `contracts/ciclo-senha.ts` (RD-0019).
-export { detalhesDaTroca, ehSenhaATrocar, repeticaoDaSenha, subtituloDaTroca, textoDeEspera, validarEsqueci, type CamposEsqueci, type ErrosEsqueci, type RepeticaoDaSenha } from '../../contracts';
+export {
+  detalhesDaTroca,
+  ehSenhaATrocar,
+  repeticaoDaSenha,
+  subtituloDaTroca,
+  textoDeEspera,
+  validarEsqueci,
+  type CamposEsqueci,
+  type ErrosEsqueci,
+  type RepeticaoDaSenha,
+} from '../../contracts';
 
 export interface ResultadoDaValidacaoDaTroca {
   ok: boolean;
@@ -66,7 +95,12 @@ export interface DadosDaTroca {
 }
 
 /** Troca a senha e já devolve a sessão (a pessoa entra direto). Valida a resposta antes de entregar ao shell. */
-export async function trocarSenhaPeloApp(post: PostSemSessao, d: DadosDaTroca, app: AppComLogin, aparelho: { id?: string; nome?: string } = {}): Promise<SessaoResposta> {
+export async function trocarSenhaPeloApp(
+  post: PostSemSessao,
+  d: DadosDaTroca,
+  app: AppComLogin,
+  aparelho: { id?: string; nome?: string } = {},
+): Promise<SessaoResposta> {
   const corpo = TrocarSenhaRequestSchema.parse({
     codigo_empresa: d.codigo_empresa.trim(),
     email: d.email.trim(),
@@ -82,7 +116,8 @@ export async function trocarSenhaPeloApp(post: PostSemSessao, d: DadosDaTroca, a
 // ---------- Esqueci a senha ----------
 export function erroDoEsqueci(e: unknown): string {
   if (ehSemConexao(e)) return TEXTO_SEM_INTERNET_ESQUECI;
-  if (ehServidorInvalido(e)) return 'Este endereço não é um servidor Macuxi. Confira o endereço em Servidor, teste de novo e só então peça a senha.';
+  if (ehServidorInvalido(e))
+    return 'Este endereço não é um servidor Macuxi. Confira o endereço em Servidor, teste de novo e só então peça a senha.';
   if (codigoDoErro(e) === 'MUITAS_TENTATIVAS') {
     const d = (e as { detalhes?: { retry_after_s?: unknown } } | null)?.detalhes;
     return textoDeMuitosPedidos(d?.retry_after_s);
@@ -93,7 +128,10 @@ export function erroDoEsqueci(e: unknown): string {
 /** Pede a senha temporária. A resposta é sempre a mesma (202): a tela mostra `TEXTO_ESQUECI_CONFIRMACAO` em qualquer sucesso. */
 export async function pedirSenhaTemporaria(post: PostSemSessao, c: CamposEsqueci): Promise<void> {
   // Formato fora do contrato ou 400 da API: a resposta nunca revela cadastro, então a tela mostra a confirmação de sempre.
-  const corpo = EsqueciSenhaRequestSchema.safeParse({ codigo_empresa: c.codigo_empresa.trim(), email: c.email.trim() });
+  const corpo = EsqueciSenhaRequestSchema.safeParse({
+    codigo_empresa: c.codigo_empresa.trim(),
+    email: c.email.trim(),
+  });
   if (!corpo.success) return;
   try {
     await post('/auth/senha/esqueci', corpo.data);
@@ -102,3 +140,57 @@ export async function pedirSenhaTemporaria(post: PostSemSessao, c: CamposEsqueci
     throw e;
   }
 }
+
+// ---------- Trocar senha no Perfil (T-0178; RN-CORE-32/34; docs/design/trocar-senha/spec.md) ----------
+/** O que a tela faz com os campos depois do erro da troca voluntária. */
+export type EfeitoNosCampos = 'nenhum' | 'limpar_atual' | 'limpar_novas' | 'destacar';
+export interface AvisoDaTrocaVoluntaria {
+  /** `null` = sem Banner (a lista de regras já diz o que fazer). */
+  texto: string | null;
+  tom: 'danger' | 'warning';
+  efeito: EfeitoNosCampos;
+}
+
+/** Respostas da API na "Trocar senha" (spec §5). Um aviso por vez; nunca repassa a mensagem da API. */
+export function erroDaTrocaVoluntaria(e: unknown, senhaNova?: string): AvisoDaTrocaVoluntaria {
+  if (ehSemConexao(e) || (e as { status?: unknown } | null)?.status === 0)
+    return { texto: TEXTOS_TROCAR_SENHA.semInternet, tom: 'warning', efeito: 'nenhum' };
+  switch (codigoDoErro(e)) {
+    case 'CREDENCIAIS_INVALIDAS':
+      return { texto: TEXTOS_TROCAR_SENHA.atualErrada, tom: 'danger', efeito: 'limpar_atual' };
+    case 'RN-CORE-32': {
+      const texto = textoDoErroDaSenha(e, senhaNova);
+      // com faltas, a lista mostra; só "igual ao e-mail" ganha Banner
+      return {
+        texto: texto === TEXTOS_CRIE_SENHA.igualAoEmail ? texto : null,
+        tom: 'danger',
+        efeito: 'destacar',
+      };
+    }
+    case 'RN-CORE-34':
+      return { texto: TEXTOS_TROCAR_SENHA.igualAAtual, tom: 'danger', efeito: 'limpar_novas' };
+    case 'USUARIO_BLOQUEADO':
+    case 'MUITAS_TENTATIVAS':
+      return { texto: mensagemDeErroDeLogin(e), tom: 'danger', efeito: 'nenhum' };
+    default:
+      return { texto: TEXTOS_TROCAR_SENHA.outro, tom: 'danger', efeito: 'nenhum' };
+  }
+}
+
+export interface DadosDaTrocaVoluntaria {
+  codigo_empresa: string;
+  email: string;
+  senha_atual: string;
+  senha_nova: string;
+}
+
+/**
+ * Troca a senha de quem já está logado: `POST /v1/auth/senha/trocar`, só online (sem fila offline) e devolve a sessão nova, que o shell
+ * passa a usar. Os refresh dos outros aparelhos ficam revogados pela API. A senha só existe na memória da tela.
+ */
+export const trocarSenhaDoPerfil = (
+  post: PostSemSessao,
+  d: DadosDaTrocaVoluntaria,
+  app: AppComLogin,
+  aparelho: { id?: string; nome?: string } = {},
+): Promise<SessaoResposta> => trocarSenhaPeloApp(post, d, app, aparelho);

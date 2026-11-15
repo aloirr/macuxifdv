@@ -59,7 +59,7 @@ export type RecusaSenhaNova = { codigo: 'RN-CORE-32'; mensagem: string; faltas: 
 export function validarSenhaNova(nova: string, email: string, igualAUsada: boolean): RecusaSenhaNova | null {
   const fraca = validarSenhaInicial(nova, email);
   if (fraca) return { codigo: 'RN-CORE-32', mensagem: fraca, faltas: faltasNaSenha(nova) };
-  if (igualAUsada) return { codigo: 'RN-CORE-34', mensagem: 'A senha nova não pode ser igual à senha temporária.' };
+  if (igualAUsada) return { codigo: 'RN-CORE-34', mensagem: 'A senha nova precisa ser diferente da atual.' };
   return null;
 }
 

@@ -200,7 +200,7 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
     const erro = await falha(trocar({ senha_nova: SENHA }));
     expect(erro.status).toBe(422);
     expect(erro.codigo).toBe('RN-CORE-34');
-    expect(erro.message).toBe('A senha nova não pode ser igual à senha temporária.');
+    expect(erro.message).toBe('A senha nova precisa ser diferente da atual.');
   });
 
   it('RN-CORE-34: a troca com senha vencida é 410 e a de perfil fora do app é 403', async () => {
@@ -220,6 +220,20 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
     const antigas = e.sessoes.filter((s) => s.usuario_id === vend().id && s.revogado_em !== null);
     expect(antigas).toHaveLength(1);
     await expect(auth.refresh(contextoPublico({ refresh_token: antes.refresh_token }, banco, relogio))).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('RN-CORE-34: a troca voluntária (T-0178) revoga os refresh dos outros aparelhos e devolve uma sessão nova', async () => {
+    const aparelhoA = await login({ dispositivo_id: '0d000000-0000-4000-8000-00000000000a' });
+    const aparelhoB = await login({ dispositivo_id: '0d000000-0000-4000-8000-00000000000b' });
+    const nova = await trocar({ senha_atual: SENHA, senha_nova: NOVA, dispositivo_id: '0d000000-0000-4000-8000-00000000000a' });
+    expect(nova.access_token).not.toBe(aparelhoA.access_token);
+    expect(nova.refresh_token).not.toBe(aparelhoA.refresh_token);
+    for (const antiga of [aparelhoA, aparelhoB]) {
+      expect(await auth.autenticar({ authorization: `Bearer ${antiga.access_token}` }, banco, t0)).toBeNull();
+      await expect(auth.refresh(contextoPublico({ refresh_token: antiga.refresh_token }, banco, relogio))).rejects.toMatchObject({ status: 401 });
+    }
+    expect(await auth.autenticar({ authorization: `Bearer ${nova.access_token}` }, banco, t0)).not.toBeNull();
+    expect(e.sessoes.filter((s) => s.usuario_id === vend().id && s.revogado_em !== null)).toHaveLength(2);
   });
 
   it('RN-CORE-34: nada de senha, e-mail ou token no log nem na auditoria da troca', async () => {

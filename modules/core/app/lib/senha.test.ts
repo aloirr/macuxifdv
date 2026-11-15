@@ -6,11 +6,13 @@ import {
   detalhesDaTroca,
   ehSenhaATrocar,
   erroDaTroca,
+  erroDaTrocaVoluntaria,
   erroDoEsqueci,
   pedirSenhaTemporaria,
   repeticaoDaSenha,
   subtituloDaTroca,
   textoDeEspera,
+  trocarSenhaDoPerfil,
   trocarSenhaPeloApp,
   validarEsqueci,
   validarTroca,
@@ -100,5 +102,34 @@ describe('RN-CORE-34: Esqueci a senha no app', () => {
     const chamadas: Array<{ caminho: string; corpo: unknown }> = [];
     await pedirSenhaTemporaria(async (caminho, corpo) => void chamadas.push({ caminho, corpo }), { codigo_empresa: ' am4821 ', email: ' v@x.com ' });
     expect(chamadas).toEqual([{ caminho: '/auth/senha/esqueci', corpo: { codigo_empresa: 'AM4821', email: 'v@x.com' } }]);
+  });
+});
+
+describe('T-0178: Trocar senha no Perfil', () => {
+  it('RN-CORE-34: senha atual errada (401) → Banner vermelho e limpa só a atual', () => {
+    expect(erroDaTrocaVoluntaria(erroApi('CREDENCIAIS_INVALIDAS'))).toEqual({ texto: 'A senha atual está errada. Digite de novo.', tom: 'danger', efeito: 'limpar_atual' });
+  });
+  it('RN-CORE-34: senha nova igual à atual (422) → texto único e limpa as duas novas', () => {
+    expect(erroDaTrocaVoluntaria(erroApi('RN-CORE-34', undefined, 'A senha nova precisa ser diferente da atual.'))).toEqual({ texto: 'A senha nova precisa ser diferente da atual.', tom: 'danger', efeito: 'limpar_novas' });
+  });
+  it('RN-CORE-32: 422 com faltas fica sem Banner (a lista mostra); igual ao e-mail ganha Banner', () => {
+    expect(erroDaTrocaVoluntaria(erroApi('RN-CORE-32', { faltas: ['caracteres'] }), 'abc')).toEqual({ texto: null, tom: 'danger', efeito: 'destacar' });
+    expect(erroDaTrocaVoluntaria(erroApi('RN-CORE-32', { faltas: [] }))).toEqual({ texto: 'A senha não pode ser igual ao e-mail.', tom: 'danger', efeito: 'destacar' });
+  });
+  it('RN-CORE-34: sem internet → aviso amarelo; 423/429 usam o texto do login; o resto, a frase de tentar de novo', () => {
+    expect(erroDaTrocaVoluntaria(new ErroSemConexao('x'))).toMatchObject({ texto: 'Conecte-se à internet para trocar a senha.', tom: 'warning', efeito: 'nenhum' });
+    expect(erroDaTrocaVoluntaria(erroApi('USUARIO_BLOQUEADO')).texto).toBe(mensagemDeErroDeLogin(erroApi('USUARIO_BLOQUEADO')));
+    expect(erroDaTrocaVoluntaria(erroApi('MUITAS_TENTATIVAS')).texto).toBe(mensagemDeErroDeLogin(erroApi('MUITAS_TENTATIVAS')));
+    expect(erroDaTrocaVoluntaria(erroApi('X'))).toMatchObject({ texto: 'Não foi possível trocar agora. Tente de novo em alguns minutos.', tom: 'danger' });
+  });
+  it('RN-CORE-34: chama POST /auth/senha/trocar com código e e-mail da sessão e devolve a sessão nova', async () => {
+    let chamada: { caminho: string; corpo: Record<string, unknown> } | null = null;
+    const post = async (caminho: string, corpo: unknown) => {
+      chamada = { caminho, corpo: corpo as Record<string, unknown> };
+      return sessao;
+    };
+    const r = await trocarSenhaDoPerfil(post, { codigo_empresa: 'AM4821', email: 'v@x.com', senha_atual: 'Atual#123', senha_nova: 'Nova#Senha1' }, 'campo', { id: '0d000000-0000-4000-8000-000000000001' });
+    expect(chamada).toMatchObject({ caminho: '/auth/senha/trocar', corpo: { codigo_empresa: 'AM4821', email: 'v@x.com', senha_atual: 'Atual#123', senha_nova: 'Nova#Senha1', app: 'campo', dispositivo_id: '0d000000-0000-4000-8000-000000000001' } });
+    expect(r.usuario.email).toBe('v@x.com');
   });
 });
