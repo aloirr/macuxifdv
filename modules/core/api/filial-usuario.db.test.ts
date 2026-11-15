@@ -121,7 +121,7 @@ describe.skipIf(semBanco())('Core T-0176 × Postgres: filial do usuário', () =>
     await emTransacao(A.tenantId, async ({ c, q, padrao, segunda }) => {
       await gravarFiliaisDoUsuario(c, A.usuarios.supervisor, padrao, [padrao]);
       await q('update core.usuario set filial_cadastro_id = $2 where id = $1', [A.usuarios.supervisor, segunda]);
-      await expect(c.query('set constraints usuario_filial_inclui_cadastro immediate')).rejects.toMatchObject({ code: '23514' });
+      await expect(c.query('set constraints core.usuario_filial_inclui_cadastro immediate')).rejects.toMatchObject({ code: '23514' });
     });
   });
 

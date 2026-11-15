@@ -37,6 +37,8 @@ export const CODIGOS_FILIAL_USUARIO = {
 } as const;
 
 /** Perfis (base) que editam a filial do usuário. */
+/** Ação do catálogo (manifesto do Core; ADR 0033): informar/trocar a filial de cadastro e de venda, a própria (destravamento) ou a de outro usuário. */
+export const ACAO_FILIAL_USUARIO_EDITAR = 'usuario.filial_editar';
 export const PERFIS_QUE_EDITAM_FILIAL = ['admin', 'analista'] as const;
 
 const Id = z.string().uuid();

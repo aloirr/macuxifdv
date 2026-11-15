@@ -335,7 +335,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           const cargo = await cargoDoPerfil(db, escolhidos[0]!.codigo);
           const hierarquia = comHierarquia ? await conferirHierarquia(db, cargo, c, externalId) : null;
           // T-0176 / RN-CORE-39: cadastro obrigatória em qualquer perfil (422); só admin e analista informam (403); a de cadastro entra na de venda
-          exigirQuemEditaFilial(ctx.usuario.perfil);
+          exigirQuemEditaFilial(ctx.usuario.perfis);
           const filiais = await conferirFiliaisDoUsuario(db, { cadastro: c.filial_cadastro_id, venda: c.filial_venda_ids ?? [] });
           const r = await db.query<{ id: string }>(
             `insert into core.usuario (tenant_id, nome, nome_curto, email, perfil, equipe_id, senha_hash, trocar_senha, senha_expira_em, ativo, external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil)
@@ -415,7 +415,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
           const filiaisAntes = await filiaisDoUsuario(db, antes.id);
           let filiaisDepois: { cadastro: string; venda: string[] } | null = null;
           if (c.filial_cadastro_id !== undefined || c.filial_venda_ids !== undefined) {
-            exigirQuemEditaFilial(ctx.usuario.perfil);
+            exigirQuemEditaFilial(ctx.usuario.perfis);
             filiaisDepois = await conferirFiliaisDoUsuario(db, { cadastro: c.filial_cadastro_id ?? filiaisAntes.filial_cadastro_id, venda: c.filial_venda_ids ?? filiaisAntes.filial_venda_ids });
           }
           const filiaisMudaram = !!filiaisDepois && (filiaisDepois.cadastro !== filiaisAntes.filial_cadastro_id || [...filiaisDepois.venda].sort().join(',') !== [...filiaisAntes.filial_venda_ids].sort().join(','));

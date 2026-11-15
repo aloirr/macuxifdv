@@ -3,8 +3,12 @@ import type { ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { CONSULTA_FILIAIS_DO_USUARIO, CriarUsuarioRequestSchema, EditarUsuarioRequestSchema, SessaoRespostaSchema, UsuarioSyncSchema } from '../contracts';
 import { aplicarFilialDoErp, comGuardaDeFilial, conferirFiliaisDoUsuario, exigirQuemEditaFilial, filiaisDoUsuario, gravarFiliaisDoUsuario, usuarioSemFilial } from './filiais-usuario';
+import { matrizDeFabrica, perfilDeFabrica, resolverPerfil, type Perfil } from '@macuxi/platform-sdk';
+import { manifest } from '../manifest';
 import { rotasDeFilialDoProprioUsuario } from './filiais-usuario-rotas';
 
+/** Perfil de fábrica com as ações do manifesto do Core (a matriz do domain não leva as ações dos módulos). */
+const perfisDoTeste = (perfil: string) => [resolverPerfil(perfilDeFabrica(perfil as Perfil), matrizDeFabrica([manifest]))];
 const U = '0b000000-0000-4000-8000-000000000001';
 const F1 = '0f000000-0000-4000-8000-000000000001';
 const F2 = '0f000000-0000-4000-8000-000000000002';
@@ -45,9 +49,9 @@ describe('RN-CORE-39: API revalida a filial do usuário', () => {
     await expect(conferirFiliaisDoUsuario(db, { cadastro: F2, venda: [] })).rejects.toMatchObject({ codigo: 'USUARIO_FILIAL_INVALIDA', detalhes: { campo: 'filial_cadastro_id' } });
   });
   it('RN-CORE-39: só admin e analista editam a filial; os demais perfis recebem 403', () => {
-    expect(() => exigirQuemEditaFilial('admin')).not.toThrow();
-    expect(() => exigirQuemEditaFilial('analista')).not.toThrow();
-    for (const p of ['vendedor', 'promotor', 'supervisor', 'gerente']) expect(() => exigirQuemEditaFilial(p), p).toThrow(expect.objectContaining({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' }));
+    expect(() => exigirQuemEditaFilial(perfisDoTeste('admin'))).not.toThrow();
+    expect(() => exigirQuemEditaFilial(perfisDoTeste('analista'))).not.toThrow();
+    for (const p of ['vendedor', 'promotor', 'supervisor', 'gerente']) expect(() => exigirQuemEditaFilial(perfisDoTeste(p)), p).toThrow(expect.objectContaining({ status: 403, codigo: 'USUARIO_FILIAL_SEM_PERMISSAO' }));
   });
   it('RN-CORE-39: gravar põe a de cadastro na coluna e na venda, tira as que saíram, e a mesma entrada não grava nada', async () => {
     const lido: Resp[] = [[SEL_USUARIO, [{ id: U, filial_cadastro_id: F1 }]], [SEL_VENDA, [{ usuario_id: U, filial_id: F1 }]]];
@@ -55,7 +59,7 @@ describe('RN-CORE-39: API revalida a filial do usuário', () => {
     expect(await gravarFiliaisDoUsuario(db, U, F2, [F1])).toBe(true);
     expect(chamadas.some((c) => /update core\.usuario set filial_cadastro_id/.test(c.sql) && c.valores[1] === F2)).toBe(true);
     expect(chamadas.some((c) => /insert into core\.usuario_filial/.test(c.sql) && c.valores[1] === F2)).toBe(true);
-    expect(chamadas.some((c) => /set constraints usuario_filial_inclui_cadastro immediate/.test(c.sql))).toBe(true);
+    expect(chamadas.some((c) => /set constraints core\.usuario_filial_inclui_cadastro immediate/.test(c.sql))).toBe(true);
     const igual = fakeDb(lido);
     expect(await gravarFiliaisDoUsuario(igual.db, U, F1, [F1])).toBe(false);
     expect(escritas(igual.chamadas)).toEqual([]);
@@ -81,7 +85,7 @@ describe('RN-CORE-39: API revalida a filial do usuário', () => {
 
 type CtxFalso = Parameters<ReturnType<typeof comGuardaDeFilial>[number]['executar']>[0];
 const ctxDeRota = (db: ClienteBanco, perfil: string, corpo?: unknown) =>
-  ({ usuario: { id: U, perfil, tenant_id: 't' }, requestId: 'r', corpo, comTenant: async (fn: (d: ClienteBanco) => unknown) => fn(db) }) as unknown as CtxFalso;
+  ({ usuario: { id: U, perfil, perfis: perfisDoTeste(perfil), tenant_id: 't' }, requestId: 'r', corpo, comTenant: async (fn: (d: ClienteBanco) => unknown) => fn(db) }) as unknown as CtxFalso;
 
 describe('RN-CORE-39: bloqueio USUARIO_SEM_FILIAL e destravamento do admin', () => {
   const rota = (metodo: 'GET' | 'PUT', caminho: string) => ({ metodo, caminho, carteira: 'nao_se_aplica' as const, executar: vi.fn(async () => 'ok') });
@@ -131,6 +135,7 @@ describe('RN-CORE-39: bloqueio USUARIO_SEM_FILIAL e destravamento do admin', () 
     const get = rotasDeFilialDoProprioUsuario.find((r) => r.metodo === 'GET')!;
     const resp: Resp[] = [[SEL_USUARIO, [{ id: U, filial_cadastro_id: null }]], [/from core\.filial where deleted_at/, [{ id: F1, codigo: '0001', nome: 'Matriz' }]]];
     expect(await get.executar(ctxDeRota(fakeDb(resp).db, 'admin'))).toMatchObject({ sem_filial: true, pode_informar: true, filiais: [{ id: F1 }] });
+    expect(await get.executar(ctxDeRota(fakeDb(resp).db, 'analista'))).toMatchObject({ pode_informar: true, filiais: [{ id: F1 }] });
     expect(await get.executar(ctxDeRota(fakeDb(resp).db, 'vendedor'))).toMatchObject({ sem_filial: true, pode_informar: false, filiais: [] });
   });
 });

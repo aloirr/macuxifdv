@@ -37,6 +37,7 @@ export const manifest = defineModule({
     'filial.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Ver as filiais do tenant e a filial do cliente (RN-CORE-39); o promotor só lê' },
     'filial.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar, editar, inativar e apagar filiais e marcar a filial padrão, em Cadastros › Filiais; auditado (RN-CORE-39)' },
     'cliente.filial_editar': { perfis: ['analista', 'admin'], descricao: 'Trocar no BKO a filial de cliente que não veio do ERP; cliente do ERP recusa com 422 (RN-CORE-39); auditado' },
+    'usuario.filial_editar': { perfis: ['admin', 'analista'], descricao: 'Informar ou trocar a filial de cadastro e as filiais de venda de um usuário e destravar a própria filial quando estiver sem ela (RN-CORE-39); auditado' },
     'medida.gerenciar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar, editar, inativar e apagar (só sem uso) medidas do tenant e definir a medida da unidade e a embalagem do produto, em Parâmetros → Produtos (RN-CORE-19)' },
     'parametro.promotor_ve_pedidos': { perfis: ['admin'], descricao: 'Ligar/desligar a leitura de pedidos pelo perfil Promotor no tenant, parâmetro promotor_ve_pedidos (padrão ligado; RN-CORE-01, RN-PRO-01). A escrita de pedido pelo promotor segue sempre negada' },
     'cliente.aprovar_coordenada': { perfis: ['analista', 'admin'], descricao: 'Aprovar a coordenada sugerida no 1º check-in de cliente sem coordenada (RN-CORE-10)' },

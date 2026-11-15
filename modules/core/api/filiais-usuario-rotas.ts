@@ -5,15 +5,15 @@
  * O PUT só serve a quem está bloqueado (409 se já tem filial: a troca é do cadastro de usuários). A de cadastro entra na lista de venda
  * e as outras de venda ficam. Auditado.
  */
-import { ErroHttpModulo, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, pode, type RotaModulo } from '@macuxi/platform-sdk';
 import {
+  ACAO_FILIAL_USUARIO_EDITAR,
   CODIGOS_FILIAL_USUARIO,
   InformarFilialCadastroRequestSchema,
   MENSAGEM_FILIAL_JA_INFORMADA,
   MinhaFilialCadastroSchema,
   type InformarFilialCadastroRequest,
 } from '../contracts';
-import { perfilEditaFilial } from '../domain';
 import { auditar } from './auditoria';
 import { conferirFiliaisDoUsuario, exigirQuemEditaFilial, filiaisDoUsuario, gravarFiliaisDoUsuario } from './filiais-usuario';
 
@@ -26,21 +26,21 @@ export const rotasDeFilialDoProprioUsuario: RotaModulo[] = [
     executar: (ctx) =>
       ctx.comTenant(async (db) => {
         const f = await filiaisDoUsuario(db, ctx.usuario.id);
-        const pode = perfilEditaFilial(ctx.usuario.perfil);
-        const filiais = pode && f.sem_filial ? (await db.query<{ id: string; codigo: string; nome: string }>('select id, codigo, nome from core.filial where deleted_at is null and ativo order by padrao desc, codigo, id')).rows : [];
-        return MinhaFilialCadastroSchema.parse({ ...f, pode_informar: pode, filiais });
+        const podeInformar = pode(ctx.usuario.perfis, ACAO_FILIAL_USUARIO_EDITAR);
+        const filiais = podeInformar && f.sem_filial ? (await db.query<{ id: string; codigo: string; nome: string }>('select id, codigo, nome from core.filial where deleted_at is null and ativo order by padrao desc, codigo, id')).rows : [];
+        return MinhaFilialCadastroSchema.parse({ ...f, pode_informar: podeInformar, filiais });
       }),
   },
   {
     metodo: 'PUT',
     caminho: 'eu/filial-cadastro',
     superficie: 'bko',
-    acao: 'usuario.editar',
+    acao: ACAO_FILIAL_USUARIO_EDITAR,
     carteira: 'nao_se_aplica',
     corpo: InformarFilialCadastroRequestSchema,
     executar: (ctx) =>
       ctx.comTenant(async (db) => {
-        exigirQuemEditaFilial(ctx.usuario.perfil);
+        exigirQuemEditaFilial(ctx.usuario.perfis);
         const c = ctx.corpo as InformarFilialCadastroRequest;
         const antes = await filiaisDoUsuario(db, ctx.usuario.id);
         if (!antes.sem_filial) throw new ErroHttpModulo(409, CODIGOS_FILIAL_USUARIO.jaInformada, MENSAGEM_FILIAL_JA_INFORMADA);

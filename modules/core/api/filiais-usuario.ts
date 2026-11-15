@@ -5,8 +5,9 @@
  * adiável `usuario_filial_inclui_cadastro`, 23514, checado no COMMIT; aqui antecipado com `set constraints ... immediate`).
  * O bloqueio `USUARIO_SEM_FILIAL` vale para qualquer perfil (`comGuardaDeFilial`). Sem dado pessoal em log.
  */
-import { ErroHttpModulo, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroRegraNegocio, pode, type ClienteBanco, type PerfilDaRequisicao, type RotaModulo } from '@macuxi/platform-sdk';
 import {
+  ACAO_FILIAL_USUARIO_EDITAR,
   CODIGOS_FILIAL_USUARIO,
   MENSAGEM_FILIAL_INVALIDA,
   MENSAGEM_FILIAL_VENDA_SEM_CADASTRO,
@@ -14,7 +15,7 @@ import {
   MENSAGEM_USUARIO_SEM_FILIAL,
   type FilialDoUsuario,
 } from '../contracts';
-import { filiaisDeVendaComCadastro, filiaisInexistentes, perfilEditaFilial, usuarioBloqueadoPorFilial, validarFiliaisDoUsuario } from '../domain';
+import { filiaisDeVendaComCadastro, filiaisInexistentes, usuarioBloqueadoPorFilial, validarFiliaisDoUsuario } from '../domain';
 
 const SEM_FILIAL: FilialDoUsuario = { filial_cadastro_id: null, filial_venda_ids: [], sem_filial: true };
 
@@ -44,9 +45,9 @@ export async function usuarioSemFilial(db: ClienteBanco, usuarioId: string): Pro
   return r.rows[0] ? usuarioBloqueadoPorFilial(r.rows[0]) : false;
 }
 
-/** Só admin e analista informam filial (a rota já checou a ação `usuario.criar|editar`): 403 para os demais. */
-export function exigirQuemEditaFilial(perfil: string): void {
-  if (!perfilEditaFilial(perfil)) throw new ErroHttpModulo(403, CODIGOS_FILIAL_USUARIO.semPermissao, MENSAGEM_SEM_PERMISSAO_FILIAL);
+/** ADR 0033: quem informa ou troca filial é quem tem a ação `usuario.filial_editar` (de fábrica admin e analista): 403 para os demais. */
+export function exigirQuemEditaFilial(perfis: readonly PerfilDaRequisicao[] | undefined): void {
+  if (!pode(perfis, ACAO_FILIAL_USUARIO_EDITAR)) throw new ErroHttpModulo(403, CODIGOS_FILIAL_USUARIO.semPermissao, MENSAGEM_SEM_PERMISSAO_FILIAL);
 }
 
 /**
@@ -80,7 +81,7 @@ export async function gravarFiliaisDoUsuario(db: ClienteBanco, usuarioId: string
       await db.query('insert into core.usuario_filial (tenant_id, usuario_id, filial_id) values (plataforma.tenant_atual(), $1, $2)', [usuarioId, f]);
     }
     if (cadastroMudou) await db.query('update core.usuario set filial_cadastro_id = $2 where id = $1', [usuarioId, cadastro]);
-    await db.query('set constraints usuario_filial_inclui_cadastro immediate');
+    await db.query('set constraints core.usuario_filial_inclui_cadastro immediate');
   } catch (e) {
     if ((e as { code?: string })?.code === '23514' && (e as { constraint?: string }).constraint === 'usuario_filial_inclui_cadastro') {
       throw new ErroRegraNegocio(CODIGOS_FILIAL_USUARIO.vendaSemCadastro, MENSAGEM_FILIAL_VENDA_SEM_CADASTRO, { campo: 'filial_venda_ids' });
