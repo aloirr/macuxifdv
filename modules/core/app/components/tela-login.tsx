@@ -11,7 +11,6 @@ import { Banner, Button, CampoSenha, colors, Screen, type as t } from '@macuxi/u
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { normalizarCodigoEmpresa } from '../../contracts';
 import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
@@ -42,14 +41,13 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
 
   const entrar = async () => {
     if (entrando) return;
-    const enviar = { ...campos, codigo_empresa: normalizarCodigoEmpresa(campos.codigo_empresa) };
-    const e = validarLogin(enviar);
+    const e = validarLogin(campos);
     setErros(e);
     setErro(null);
     if (Object.keys(e).length > 0) return;
     setEntrando(true);
     try {
-      await onEntrar(enviar);
+      await onEntrar(campos);
     } catch (x) {
       setErro(mensagemDeErroDeLogin(x));
       setCampos((c) => ({ ...c, senha: '' }));

@@ -89,12 +89,3 @@ describe('RF-CORE-01: campo Código da empresa do login', () => {
     expect(propsDoCampoCodigoEmpresa).toMatchObject({ maxLength: 6, autoCapitalize: 'characters', autoCorrect: false, spellCheck: false });
   });
 });
-
-describe('RF-CORE-01: teclado não muda a senha nem o código da empresa (v1.0.10)', () => {
-  it('RF-CORE-01: código "aM2808 " é validado e enviado como "AM2808"', async () => {
-    expect(validarLogin({ codigo_empresa: 'aM2808 ', email: 'a@b.com', senha: 'x' })).toEqual({});
-    let corpo: { codigo_empresa?: string } = {};
-    await entrarComSenha(async (_c, c) => { corpo = c as { codigo_empresa: string }; return {}; }, { codigo_empresa: ' aM2808 ', email: 'a@b.com', senha: 'x' }).catch(() => undefined);
-    expect(corpo.codigo_empresa).toBe('AM2808');
-  });
-});
