@@ -70,3 +70,4 @@
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 1 (tarde, Manaus) — COM ACHADO em todos os PRs: novos RD-1211 a RD-1241; fechados RD-1009, RD-0952, RD-0675; reabertos RD-0957, RD-0697. Relatório 2026-11-15-v1013-pareceres.md. Caixa 403: recados via comentário nos PRs e gerente.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 2 (fim da tarde, Manaus) — COM ACHADO: reconferidos #361 da842202, #382 ed02ef3d, #383 4bb9b75a (RD anteriores abertos); novos RD-1242 a RD-1258 em #361, #382, #383, #397, #400, #402, #404, #422, #423, #427. Caixa 403.
 2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 3 (~17h10 Manaus) — #428 c4cc20d9 COM ACHADO (RD-1249..1252 abertos; novos RD-1260..1265); #361 03b5339c COM ACHADO (RD-1259 novo, não segura); #367/#397 sem head novo; #369 mergeado com RD-1225..1228 abertos. Caixa 403.
+2026-11-15 — v1.0.12/v1.0.13 pareceres, rodada 3 (cont.) — #429 707fae54 LIBERADO (RD-1266 baixa, só comentário de teste).
