@@ -30,7 +30,7 @@ import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, RESPIRO_ABA_ROLA
 import { Icon, type IconName } from './icon';
 import { useReduzirMovimento } from './movimento-rn';
 import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
-import { colors, fonte, radius } from './theme';
+import { colors, fonte, radius, type as t } from './theme';
 
 function folga(visual: number) {
   const f = folgaDeToque(visual);
@@ -593,7 +593,7 @@ const s = StyleSheet.create({
   buscaLimpar: { width: ALVO_TOQUE, height: ALVO_TOQUE - 2, alignItems: 'center', justifyContent: 'center' },
   // .lbl (+ link "Trocar")
   rotuloLinha: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
-  rotulo: { flexShrink: 1, ...fonte.semibold, fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.ink2 },
+  rotulo: { ...t.rotulo, flexShrink: 1 },
   rotuloAcao: { minHeight: 24, justifyContent: 'center' },
   rotuloAcaoTexto: { ...fonte.semibold, fontSize: 14, color: colors.accentInk },
   // .chip (medida)

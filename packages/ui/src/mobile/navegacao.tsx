@@ -14,7 +14,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { leituraDoAtalho, leituraDoNivel, textoDaContagem } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
-import { colors, fonte, radius } from './theme';
+import { colors, fonte, radius, type as t } from './theme';
 
 /** Alvo de toque mínimo destas peças (48 dp, Material). */
 const ALVO = 48;
@@ -223,7 +223,7 @@ const s = StyleSheet.create({
   // ListaNiveis (T-0142): ink 16,5:1, ink2 7,6:1 e ink3 5,8:1 no branco
   niveis: { gap: 8 },
   niveisCabecalho: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2 },
-  niveisRotulo: { ...fonte.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
+  niveisRotulo: t.rotulo,
   niveisCartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
   nivel: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingHorizontal: 14, paddingVertical: 8 },
   nivelTraco: { borderTopWidth: 1, borderTopColor: colors.lineSoft },

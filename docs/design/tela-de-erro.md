@@ -18,12 +18,12 @@ prevê: falha de rede, recusa do servidor ou dado inválido continuam no `Banner
 ## 2. Ordem e hierarquia (de cima para baixo, centralizado, fundo `ground`)
 1. **Ícone** `alert` 26 dp em `warning` (#7A4F00), num círculo de 56 dp em `warningBg`. Ele é decorativo e fica fora do leitor de tela.
    O vermelho fica reservado para a ação que destrói. Aqui nada foi perdido, e o tom é de aviso.
-2. **Título**: Archivo 700, 20/26, `ink`, cabeçalho para o leitor de tela. Diz o que houve.
-3. **Texto**: Plex 15/22, `ink2`. Diz o que continua guardado e o que fazer.
+2. **Título**: 22/28, 700, `ink`, cabeçalho para o leitor de tela. Diz o que houve.
+3. **Texto**: 16/22, 400, `ink2`. Diz o que continua guardado e o que fazer.
 4. **Tentar de novo**: `Botao` principal de 52 dp, o único da tela. Chama o `retry` do ErrorBoundary.
 5. **Ir para o Início**: secundário de 44 dp. Aparece só no alcance `tela`.
 6. **Enviar o detalhe ao suporte**: neutro de 44 dp, com o ícone `send`. Abre o compartilhar do sistema com o detalhe técnico.
-7. **Nota**: Plex 13/18, `ink2`. Diz onde o detalhe fica depois.
+7. **Nota**: 14/18, 400, `ink2`. Diz onde o detalhe fica depois.
 
 O conteúdo rola quando a fonte do sistema está grande. O respiro vertical de 48 dp evita a câmera e a barra do sistema, sem
 depender da área segura.
