@@ -1003,6 +1003,10 @@ select plataforma.pegar_backup() as r;                            -- worker (mac
 select * from plataforma.exportar_backup_pagina($1, $2, $3::jsonb, 5000);
 ```
 
+### 0074 — pacote pronto da primeira carga (`0074_plataforma_sync_pacote`; ADR 0054)
+`plataforma.sync_pacote` e `plataforma.sync_pacote_pedido`: dicionário completo, RLS, grants, índices e ciclo de vida em
+[sync-pacote.md](sync-pacote.md).
+
 ## Logo e nome fantasia da empresa (0081, T-0182) — colunas em `tenant`. Fora do sync
 Migração `0081_plataforma_tenant_logo` (aditiva; volta: `.down.sql`, que APAGA o nome fantasia e os metadados das logos — os
 objetos ficam órfãos no armazenamento, apagáveis pela chave `<tenant_id>/plataforma/...`; antes do down, volte a API sem as
