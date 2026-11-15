@@ -210,7 +210,7 @@ export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined,
  * Disponível por produto na filial (saldo − reservas dos pedidos já aceitos no aparelho, RN-VEN-20). Produto não controlado
  * não entra no mapa. Sem filial, só o saldo (comportamento anterior).
  */
-export function disponivelPorProduto(l: LinhasVendedor, filialId: string | null | undefined): Map<string, number> {
+export function disponivelPorProduto(l: LinhasVendedor, filialId: string | null | undefined, cargaDiariaEm?: string | null): Map<string, number> {
   const saldo = saldoPorProduto(l.saldos, l.depositos, filialId);
   if (!filialId) return saldo;
   const itensDe = new Map<string, PedidoItemSync[]>();
@@ -220,18 +220,20 @@ export function disponivelPorProduto(l: LinhasVendedor, filialId: string | null 
       filial_id: p.filial_id ?? null,
       tipo: p.tipo ?? 'pedido',
       status: p.status,
+      faturado_em: p.faturado_em ?? null,
       itens: (itensDe.get(p.id) ?? []).map((i) => ({ produto_id: i.produto_id, quantidade_base: i.quantidade_base ?? i.quantidade, quantidade_faturada: i.quantidade_faturada ?? 0 })),
     })),
     filialId,
+    cargaDiariaEm,
   );
   for (const [pid, q] of saldo) saldo.set(pid, disponivel(q, reservado.get(pid) ?? 0));
   return saldo;
 }
 
 /** Estoque mostrado e validado offline: troca o `stock_total` pelo disponível da filial do cliente (sem filial, mantém). */
-export function comEstoqueDaFilial<T extends Product>(items: readonly T[], l: LinhasVendedor, filialId: string | null | undefined): T[] {
+export function comEstoqueDaFilial<T extends Product>(items: readonly T[], l: LinhasVendedor, filialId: string | null | undefined, cargaDiariaEm?: string | null): T[] {
   if (!filialId) return [...items];
-  const disp = disponivelPorProduto(l, filialId);
+  const disp = disponivelPorProduto(l, filialId, cargaDiariaEm);
   return items.map((p) => (disp.has(p.id) ? { ...p, stock_total: disp.get(p.id)! } : p));
 }
 

@@ -45,4 +45,33 @@ describe('RN-VEN-20: estoque pela filial do pedido', () => {
     expect(reservadoLocalNaFilial(pedidos, MAO).get('p1')).toBe(30);
     expect(reservadoLocalNaFilial(pedidos, BVB).get('p1')).toBe(7);
   });
+
+  describe('RN-VEN-20: opção (b) do estoque diário (reserva do faturado até a próxima carga)', () => {
+    const CARGA = '2026-11-15T10:00:00.000Z';
+    const fat = (status: string, faturado_em: string | null, faturada = 0) => ({
+      filial_id: MAO,
+      tipo: 'pedido',
+      status,
+      faturado_em,
+      itens: [{ produto_id: 'p1', quantidade_base: 10, quantidade_faturada: faturada }],
+    });
+    it('RN-VEN-20: faturado depois da carga continua reservando a quantidade inteira', () => {
+      expect(reservadoLocalNaFilial([fat('invoiced', '2026-11-15T14:00:00.000Z', 10)], MAO, CARGA).get('p1')).toBe(10);
+      expect(reservadoLocalNaFilial([fat('invoiced_partial', '2026-11-15T14:00:00.000Z', 4)], MAO, CARGA).get('p1')).toBe(10);
+    });
+    it('RN-VEN-20: faturado antes da carga não reserva (o saldo da carga já o descontou)', () => {
+      expect(reservadoLocalNaFilial([fat('invoiced', '2026-11-15T09:00:00.000Z', 10)], MAO, CARGA).get('p1')).toBeUndefined();
+      expect(reservadoLocalNaFilial([fat('invoiced_partial', '2026-11-15T09:00:00.000Z', 4)], MAO, CARGA).get('p1')).toBe(6);
+    });
+    it('RN-VEN-20: sem carga_diaria_em (nulo) vale a regra de sempre', () => {
+      expect(reservadoLocalNaFilial([fat('invoiced', '2026-11-15T14:00:00.000Z', 10)], MAO, null).get('p1')).toBeUndefined();
+      expect(reservadoLocalNaFilial([fat('invoiced', '2026-11-15T14:00:00.000Z', 10)], MAO).get('p1')).toBeUndefined();
+      expect(reservadoLocalNaFilial([fat('invoiced_partial', '2026-11-15T14:00:00.000Z', 4)], MAO, null).get('p1')).toBe(6);
+    });
+    it('RN-VEN-20: faturado sem data, de outra filial ou orçamento não entra', () => {
+      expect(reservadoLocalNaFilial([fat('invoiced', null, 10)], MAO, CARGA).get('p1')).toBeUndefined();
+      expect(reservadoLocalNaFilial([fat('invoiced', '2026-11-15T14:00:00.000Z', 10)], BVB, CARGA).get('p1')).toBeUndefined();
+      expect(reservadoLocalNaFilial([{ ...fat('invoiced', '2026-11-15T14:00:00.000Z', 10), tipo: 'orcamento' }], MAO, CARGA).get('p1')).toBeUndefined();
+    });
+  });
 });

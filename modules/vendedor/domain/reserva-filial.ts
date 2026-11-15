@@ -44,16 +44,33 @@ export interface ReservaLocal {
   filial_id?: string | null;
   tipo?: string | null;
   status: string;
+  /** retorno do ERP: quando o faturamento foi registrado (ISO); usado pela opção (b) do estoque diário */
+  faturado_em?: string | null;
   itens: ReadonlyArray<{ produto_id: string; quantidade_base: number; quantidade_faturada?: number }>;
 }
 
+/**
+ * Opção (b) do estoque diário (ADR 0057, RN-VEN-20): o saldo do aparelho é o da carga das 06:00; pedido faturado (parcial ou total) depois
+ * dela já saiu do ERP, mas o saldo local ainda o contém. Por isso continua reservando a quantidade inteira até a próxima carga.
+ * Sem `cargaDiariaEm` (nunca houve carga), vale a regra de sempre.
+ */
+export function faturadoDepoisDaCarga(p: Pick<ReservaLocal, 'tipo' | 'status' | 'faturado_em'>, cargaDiariaEm: string | null | undefined): boolean {
+  if (!cargaDiariaEm || !p.faturado_em || (p.tipo ?? 'pedido') !== 'pedido') return false;
+  if (p.status !== 'invoiced' && p.status !== 'invoiced_partial') return false;
+  const carga = Date.parse(cargaDiariaEm);
+  const fat = Date.parse(p.faturado_em);
+  return Number.isFinite(carga) && Number.isFinite(fat) && fat > carga;
+}
+
 /** Reservas conhecidas no aparelho (pedidos já aceitos pela API) na filial: produto → quantidade base. Pedido sem filial não reserva em filial nenhuma. */
-export function reservadoLocalNaFilial(pedidos: readonly ReservaLocal[], filialId: string): Map<string, number> {
+export function reservadoLocalNaFilial(pedidos: readonly ReservaLocal[], filialId: string, cargaDiariaEm?: string | null): Map<string, number> {
   const alvo = filialId.toLowerCase();
   const m = new Map<string, number>();
   for (const p of pedidos) {
-    if (!reservaEstoque(p.tipo, p.status) || p.filial_id?.toLowerCase() !== alvo) continue;
-    for (const i of p.itens) m.set(i.produto_id, (m.get(i.produto_id) ?? 0) + Math.max(0, i.quantidade_base - (i.quantidade_faturada ?? 0)));
+    if (p.filial_id?.toLowerCase() !== alvo) continue;
+    const cheia = faturadoDepoisDaCarga(p, cargaDiariaEm);
+    if (!cheia && !reservaEstoque(p.tipo, p.status)) continue;
+    for (const i of p.itens) m.set(i.produto_id, (m.get(i.produto_id) ?? 0) + (cheia ? Math.max(0, i.quantidade_base) : Math.max(0, i.quantidade_base - (i.quantidade_faturada ?? 0))));
   }
   return m;
 }

@@ -299,12 +299,15 @@ export function useVendedor() {
     [v1, repo, recarregar, ambiente],
   );
 
+  /** ADR 0057 (RN-VEN-20, opção b): última carga diária do estoque, lida do estado do motor; sem ela, regra de sempre */
+  const cargaDiariaRef = useRef<string | null>(null);
+  cargaDiariaRef.current = estado.carga_diaria_em ?? null;
   /** T-0149 (RN-VEN-20): filial do cliente no aparelho; sem filial conhecida, vale o estoque de antes */
   const filialDoCliente = useCallback((clienteId: string): string | null => linhasRef.current.clientes.find((c) => c.id === clienteId)?.filial_id ?? null, []);
   /** O estoque mostrado e validado offline é o disponível da filial do cliente (saldo da filial − reservas dela). */
   const tabelaDe = useCallback(
-    (cliente: CustomerSummary): Product[] => comEstoqueDaFilial(dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.items ?? [], linhasRef.current, filialDoCliente(cliente.id)),
-    [filialDoCliente],
+    (cliente: CustomerSummary): Product[] => comEstoqueDaFilial(dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.items ?? [], linhasRef.current, filialDoCliente(cliente.id), cargaDiariaRef.current),
+    [filialDoCliente, estado.carga_diaria_em],
   );
 
   /** Garante a tabela do cliente no aparelho: v1 calcula pela consulta do Catálogo (offline); demonstração baixa com sinal. */

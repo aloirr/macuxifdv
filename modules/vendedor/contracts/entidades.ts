@@ -22,9 +22,11 @@ export const entidadePedido = definirEntidadeSync({
   conflito: 'app_edita_ate_status',
   schema: PedidoPush,
   schemaLinha: PedidoSyncSchema,
+  /** ADR 0057: entra na sincronização parcial (toque em Sincronizar) */
+  parcial: true,
 });
-export const entidadePedidoItem = definirEntidadeSync({ nome: 'pedido_item', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoItemSyncSchema });
-export const entidadePedidoEvento = definirEntidadeSync({ nome: 'pedido_evento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoEventoSyncSchema });
+export const entidadePedidoItem = definirEntidadeSync({ nome: 'pedido_item', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoItemSyncSchema, parcial: true });
+export const entidadePedidoEvento = definirEntidadeSync({ nome: 'pedido_evento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoEventoSyncSchema, parcial: true });
 export const entidadeCondicaoPagamento = definirEntidadeSync({ nome: 'condicao_pagamento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: CondicaoPagamentoSyncSchema });
 export const entidadeClienteCondicao = definirEntidadeSync({ nome: 'cliente_condicao', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteCondicaoSyncSchema });
 /** T-0061 (RN-VEN-16): lista de transportadoras do tenant; o app lista só as ativas. */
