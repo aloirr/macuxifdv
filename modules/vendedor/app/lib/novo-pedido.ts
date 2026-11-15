@@ -25,6 +25,7 @@ import {
   MSG_RECUSA_FRETE,
   nivelDeAprovacao,
   precoDoItem,
+  precoMinimoBaseCents,
   totaisDoPedido,
   validarAcrescimoOuDesconto,
   validarFrete,
@@ -122,7 +123,14 @@ export function ajusteDoRascunho(aj: Ajuste): { ajuste: AjusteItem; erro: 'desco
 }
 
 /** RN-VEN-11: o produto do aparelho pode trazer o preço mínimo por unidade base (preço de venda × (1 − desconto máximo)); ausente = sem trava. */
-export type ProdutoComMinimo = Product & { preco_minimo_base_cents?: number | null };
+/** RN-VEN-43: `preco_venda_cents` e `desconto_maximo_pct` ficam no produto para o mínimo ser refeito sobre a tabela ajustada quando o prazo muda. */
+export type ProdutoComMinimo = Product & { preco_minimo_base_cents?: number | null; preco_venda_cents?: number | null; desconto_maximo_pct?: number | null };
+
+/** RN-VEN-43: mínimo por unidade base sobre a tabela ajustada (refeito do preço de venda); sem o dado do produto ou sem percentual, o mínimo do aparelho. */
+export function minimoDoProdutoNoPrazo(p: ProdutoComMinimo, bp: number): number | null {
+  if (bp !== 0 && p.preco_venda_cents != null && p.desconto_maximo_pct != null) return precoMinimoBaseCents({ preco_venda_cents: p.preco_venda_cents, desconto_maximo_pct: p.desconto_maximo_pct, percentual_ajuste_bp: bp });
+  return p.preco_minimo_base_cents ?? null;
+}
 
 export interface EntradaCalculo {
   /** chave da linha → quantidade na medida vendida */
@@ -147,6 +155,8 @@ export interface EntradaCalculo {
   congelados?: Record<string, number>;
   /** T-0084 (RN-VEN-19): parâmetros do tenant; ausente = a linha não leva aplicação */
   aplicacao?: { padrao: boolean; max: number };
+  /** RN-VEN-43/44: % do prazo do rascunho em bp; a tabela de cada item é ajustada por ele, sempre a partir da tabela original. Ausente = 0. */
+  percentual_ajuste_bp?: number;
 }
 
 export interface LinhaDoPedido {
@@ -240,6 +250,8 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     const nome = `${produto.erp_code} ${produto.description}`.trim();
     // T-0134 (RN-VEN-18): item salvo no orçamento mantém o preço salvo; só o item novo entra pelo preço de hoje
     const escolhido = precoDoItemNaEdicao({ congelado_cents: e.congelados?.[product_id], hoje_cents: produto.price_cents, faixas_hoje: e.faixas?.[product_id] });
+    // RN-VEN-43: o preço congelado do orçamento (RN-VEN-18) já está gravado ajustado e não ajusta de novo
+    const bp = e.congelados?.[product_id] !== undefined ? 0 : (e.percentual_ajuste_bp ?? 0);
     if (escolhido.preco_unidade_cents === null) {
       pendencias.push({ codigo: 'sem_preco', alvo: { item: nome }, mensagem: `${nome}: sem preço na tabela deste cliente. Remova o item ou peça a atualização da tabela.` });
       continue;
@@ -262,14 +274,16 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     const base = precoBaseDoItem({ preco_tabela_unidade_cents: escolhido.preco_unidade_cents, faixas: escolhido.faixas, medida: medidaDaFaixa(medida.unidade, medida.fator), fator: medida.fator, quantidade: quantity });
     let preco;
     try {
-      preco = precoDoItem({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste });
+      preco = precoDoItem({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, percentual_ajuste_bp: bp });
     } catch {
       pendencias.push({ codigo: 'desconto_acima_tabela', alvo: { item: nome }, mensagem: `${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.` });
       continue;
     }
     // RN-VEN-11 (T-0151): desconto que leva o preço final abaixo do mínimo do produto bloqueia o envio do pedido
-    const minimo = minimoDoItem((produto as ProdutoComMinimo).preco_minimo_base_cents ?? null, limite);
-    if (!itemRespeitaPrecoMinimo({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, preco_minimo_base_cents: minimo }) && !acimaDoMaximo.includes(produto.erp_code)) acimaDoMaximo.push(produto.erp_code);
+    // RN-VEN-43: o mínimo parte da tabela ajustada pelo prazo
+    const minimoBase = minimoDoProdutoNoPrazo(produto as ProdutoComMinimo, bp);
+    const minimo = minimoDoItem(minimoBase, limite);
+    if (!itemRespeitaPrecoMinimo({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, preco_minimo_base_cents: minimo, percentual_ajuste_bp: bp }) && !acimaDoMaximo.includes(produto.erp_code)) acimaDoMaximo.push(produto.erp_code);
     // T-0084 (RN-VEN-19): retrato no momento do pedido; o retrato já gravado (edição) vale até a caixa ser refeita
     const aplicacaoDaLinha = e.aplicacao ? retratoAplicacao(aj.aplicacao_retrato ?? produto.applications, aplicacaoMarcada(aj, e.aplicacao.padrao), e.aplicacao.max) : null;
     const eq = r.ajuste ? equivalenteDoAjuste(preco.preco_tabela_cents, r.ajuste) : null;

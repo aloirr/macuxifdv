@@ -22,6 +22,7 @@ import {
 } from '../contracts/entidades';
 import { dependeDoAceiteDoErp, ORDER_STATUSES_FINAIS } from '../domain/order';
 import { leituraDePedidosLiberada } from './opcao-promotor';
+import { COLUNA_PERCENTUAL_AJUSTE } from './pagamento';
 import { receberPedidos } from './receber';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
 
@@ -222,7 +223,7 @@ export function sqlFormaPagamento(pedido: PedidoPull): { sql: string; valores: u
 
 /** T-0089 (RN-VEN-24, 0037): prazos do tenant, com `parcelas_dias` e o prazo médio já calculado. */
 export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
-  const sql = `select ${BASE}, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem
+  const sql = `select ${BASE}, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ${COLUNA_PERCENTUAL_AJUSTE}, ativo, ordem
     from vendedor.prazo_pagamento
    where updated_at < $1::timestamptz
      and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))

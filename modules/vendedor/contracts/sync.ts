@@ -173,6 +173,13 @@ export const FormaPagamentoSyncSchema = z
   .strict();
 export type FormaPagamentoSync = z.infer<typeof FormaPagamentoSyncSchema>;
 
+/** RN-VEN-43: percentual do prazo em pontos percentuais, de -99,99 a +99,99, com no máximo 2 casas. */
+export const PercentualAjusteBase = z
+  .number()
+  .min(-99.99)
+  .max(99.99)
+  .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, 'No máximo 2 casas decimais.');
+
 /** T-0089 (RN-VEN-24, 0037): linha do pull de prazo_pagamento (escopo tenant). `prazo_medio_dias` é calculado e gravado pela API. */
 export const PrazoPagamentoSyncSchema = z
   .object({
@@ -184,6 +191,11 @@ export const PrazoPagamentoSyncSchema = z
     prazo_medio_dias: z.number().int().min(0).max(365),
     ativo: z.boolean(),
     ordem: z.number().int(),
+    /**
+     * RN-VEN-43 (v1.0.13): "Desc./Acrésc. (%)" do prazo (-99,99 a +99,99; negativo = desconto), vindo do ERP; ausente = 0.
+     * Mantém o `.strict()` (desenho 7a8e57d): o campo entra explícito; o app antigo ignora a chave nova.
+     */
+    percentual_ajuste: PercentualAjusteBase.default(0),
   })
   .strict();
 export type PrazoPagamentoSync = z.infer<typeof PrazoPagamentoSyncSchema>;

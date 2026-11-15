@@ -17,7 +17,7 @@ import type { AjusteGeral } from '../../domain/desconto-geral';
 import { descontoMaximoDoItemPct, rotuloMedida } from '../../domain/preco-pedido';
 import { nomeComMarca } from '../lib/detalhe-pedido';
 import { alertasDoItem, chavesDoProduto, estadoInicialDoItem, estoqueNaEmbalagem, numeroDoEstoque, riscoDeRuptura, ROTULOS_DO_POPUP, TEXTO_RISCO_DE_RUPTURA, type EstadoDoItem } from '../lib/item-popup';
-import { alternarAplicacao, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
+import { alternarAplicacao, minimoDoProdutoNoPrazo, type Ajuste, type CalculoPedido, type ProdutoComMinimo, type UnidadeDaTela } from '../lib/novo-pedido';
 import { AreaAlertas } from './area-alertas';
 import { AjusteDoItem } from './novo-pedido-itens';
 import { CaixaAplicacao } from './novo-pedido';
@@ -31,12 +31,14 @@ export interface PropsFolhaDoItem {
   previa: (lines: Record<string, number>, ajustes: Record<string, Ajuste>) => CalculoPedido | null;
   /** o último Desc./Acrésc. geral aplicado: o item novo entra com ele */
   geral?: AjusteGeral | null;
+  /** RN-VEN-43: % do prazo do pedido em bp (o máximo do item parte da tabela ajustada); ausente = 0 */
+  percentualAjusteBp?: number;
   onConfirmar: (estado: Pick<EstadoDoItem, 'idx' | 'qtd' | 'ajuste'>) => void;
   onRemover: () => void;
   onFechar: () => void;
 }
 
-export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral = null, onConfirmar, onRemover, onFechar }: PropsFolhaDoItem) {
+export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral = null, percentualAjusteBp = 0, onConfirmar, onRemover, onFechar }: PropsFolhaDoItem) {
   const inicial = estadoInicialDoItem(p.id, medidas, lines, ajustes, geral);
   const [idx, setIdx] = useState(inicial.idx);
   const [qtd, setQtd] = useState(inicial.qtd);
@@ -46,7 +48,7 @@ export function FolhaDoItem({ produto: p, medidas, lines, ajustes, previa, geral
   const chave = chavesDoProduto(p.id, medidas)[idx] ?? p.id;
   const calc = qtd > 0 ? previa({ [chave]: qtd }, { [chave]: ajuste }) : null;
   const linha = calc?.linhas[0] ?? null;
-  const minimo = (p as ProdutoComMinimo).preco_minimo_base_cents ?? null;
+  const minimo = minimoDoProdutoNoPrazo(p as ProdutoComMinimo, percentualAjusteBp);
   const maximoPct = linha && minimo !== null ? descontoMaximoDoItemPct(linha.preco_tabela_cents, minimo * medida.fator) : null;
   const alertas = alertasDoItem({ erp_code: p.erp_code, unidade_base: p.unit, estoque_base: p.stock_total, quantidade_base: qtd * medida.fator, acima_do_maximo: (calc?.acima_do_maximo.length ?? 0) > 0, maximo_pct: maximoPct });
   const acima = alertas.some((a) => a.tipo === 'maximo');

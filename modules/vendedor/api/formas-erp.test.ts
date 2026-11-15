@@ -1,6 +1,6 @@
 import type { ClienteBanco } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { aplicarFormaDoErp, aplicarPrazoDoErp, ReferenciaAusente } from './formas-erp';
+import { aplicarFormaDoErp, aplicarPrazoDoErp, percentualDoRegistro, ReferenciaAusente } from './formas-erp';
 
 interface Linha {
   id: string;
@@ -71,5 +71,29 @@ describe('P7 (T-0089): o consumidor adota pelo código a AVISTA semeada', () => 
   it('RN-INT-04: prazo cuja forma ainda não chegou fica para reprocessar (referencia_ausente)', async () => {
     const { db } = banco({ forma_pagamento: [], prazo_pagamento: [] });
     await expect(aplicarPrazoDoErp(db, { external_id: 'PZ-1', forma_external_id: 'FP-X', codigo: 'X', parcelas_dias: [10] })).rejects.toBeInstanceOf(ReferenciaAusente);
+  });
+  it('RN-VEN-46: o percentual do ERP é gravado no prazo (insert) e ausente vale 0', async () => {
+    const mk = () => banco({ forma_pagamento: [{ id: 'f2', codigo: 'BOLETO', external_id: 'FP-BOL', deleted_at: null }], prazo_pagamento: [] });
+    const a = mk();
+    await aplicarPrazoDoErp(a.db, { external_id: 'PZ-1', forma_external_id: 'FP-BOL', codigo: 'A', parcelas_dias: [0], percentual_ajuste: -1.71 });
+    expect(a.gravado[0]!.sql).toBe('insert');
+    expect(a.gravado[0]!.params).toContain(-1.71);
+    const b = mk();
+    await aplicarPrazoDoErp(b.db, { external_id: 'PZ-2', forma_external_id: 'FP-BOL', codigo: 'B', parcelas_dias: [0] });
+    expect(b.gravado[0]!.params).toContain(0);
+  });
+  it('RN-VEN-46: na atualização o percentual do ERP também é gravado', async () => {
+    const { db, gravado } = banco({ forma_pagamento: [{ id: 'f2', codigo: 'BOLETO', external_id: 'FP-BOL', deleted_at: null }], prazo_pagamento: [{ id: 'p1', codigo: 'A', external_id: 'PZ-1', deleted_at: null }] });
+    await aplicarPrazoDoErp(db, { external_id: 'PZ-1', forma_external_id: 'FP-BOL', codigo: 'A', parcelas_dias: [0], percentual_ajuste: 3.5 });
+    expect(gravado[0]!.sql).toBe('update');
+    expect(gravado[0]!.params).toContain(3.5);
+  });
+  it('RN-VEN-46: leitura tolerante do registro: número válido passa; texto, fora da faixa ou ausente viram 0', () => {
+    expect(percentualDoRegistro({ percentual_ajuste: -2.5 })).toBe(-2.5);
+    expect(percentualDoRegistro({ percentual_ajuste: '1.5' })).toBe(1.5);
+    expect(percentualDoRegistro({ percentual_ajuste: 'x' })).toBe(0);
+    expect(percentualDoRegistro({ percentual_ajuste: 120 })).toBe(0);
+    expect(percentualDoRegistro({})).toBe(0);
+    expect(percentualDoRegistro(undefined)).toBe(0);
   });
 });
