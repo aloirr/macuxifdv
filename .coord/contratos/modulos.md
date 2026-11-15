@@ -161,3 +161,17 @@ Comportamento do `MotorSync` para quem enfileira (assinaturas sem mudança). Tes
 |---|---|---|---|---|---|
 | `pesquisa.questionarios_para_tarefa@1` | pesquisa | sim (`modules/pesquisa/api/consulta-questionarios-para-tarefa.ts`, lê só o schema da Pesquisa pelo repositório, RLS do tenant; regra em `domain/tarefa-pesquisa.ts`) | não | core: `GET /v1/core/tarefas/questionarios` e `POST /v1/core/tarefas` do tipo `pesquisa` (`modules/core/api/tarefas.ts`), em `usaConsultasOpcionais` (sem a Pesquisa = lista vazia e tipo `pesquisa` indisponível) | **implementada (T-0170)**, contrato `CONSULTA_QUESTIONARIOS_PARA_TAREFA` em `modules/pesquisa/contracts/consulta-tarefa.ts`. Entrada `{ usuario_ids: UUID[1..500] }` strict; saída `[{ questionario_id, titulo, vigente_ate (nulo), fora_do_publico: UUID[] }]` strict. Sem a licença da Pesquisa = `ConsultaIndisponivel`. Limite conhecido: só o perfil do próprio usuário da requisição é conhecido; atributo desconhecido não põe ninguém fora do público. Pendente na costura: `ofereceConsultas` da Pesquisa, `usaConsultasOpcionais` do Core e reexportar `consulta-tarefa` no `contracts/index.ts` da Pesquisa |
 | `pesquisa.resposta_local@1` | pesquisa | não | sim (`modules/pesquisa/app/lib/consulta-resposta-local.ts`, fonte injetada: pull + fila do motor) | core (aparelho: mostrar "Respondida" na tarefa de pesquisa antes de sincronizar) | **implementada (T-0170)**, contrato `CONSULTA_RESPOSTA_LOCAL` no mesmo arquivo. Entrada `{ questionario_id, cliente_id (nulo), desde: instante UTC }` strict; saída `{ resposta_id (nulo) }` strict = a resposta local mais recente desde `desde` (RN-PES-02), inclusive a ainda não sincronizada. Só leitura; a baixa oficial da tarefa continua no servidor (`pesquisa.resposta.registrada@1` → `concluirTarefaPorResposta` do Core) |
+
+## Pacote da primeira carga por módulo (ADR 0054, 15/11, desenho `docs/desenho/T-catalogo-pacote.md`), tudo aditivo
+
+Contrato no SDK (`packages/platform-sdk/src/pacotes-sync.ts` e `api.ts`): o provedor declara `pacote: { particao, permitido?, puxar }`
+(só com `puxar` e escopo `tenant`; `definirModuloApi` recusa o resto); partição `filial` exige `ModuloApi.particoesPacote`
+(`filiaisDoUsuario`, `filiaisDoTenant`). Nenhum evento novo; o gerador do worker lê `integracao.lote.concluido@1` (já existe).
+
+| Módulo · partição | Entidades | Quem recebe | Tarefa |
+|---|---|---|---|
+| `core` · `tenant` | `produto`, `produto_unidade`, `medida` | todo usuário com o Core | D (modulo-core) |
+| `catalogo` · `tenant` | `catalogo_no`, `produto_no`, `produto_relacao`, `produto_atributo`, `produto_conteudo`, `produto_referencia`, `sinonimo`, `marca_concorrente` | licença do Catálogo | C (modulo-catalogo) |
+| `catalogo` · `filial:<uuid>` | `tabela_preco_item`, `tabela_escalonada` (inclui a de filial nula), `deposito`, `estoque_saldo` | licença do Catálogo e `permitido` = direito a preço (RN-CAT-05); filiais de `filiaisDoUsuario` (RN-CORE-39, `core.filiais@1`), no máximo `MAX_PARTICOES_PACOTE` = 8 | C (modulo-catalogo) |
+
+Fora do pacote (pull paginado de sempre): `tabela_preco`, `cliente_tabela_preco` e tudo de escopo `carteira`/`usuarios`/`proprio`.

@@ -55,6 +55,7 @@ import {
 import type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
 import type { NovidadesResposta } from './novidades';
+import type { EntidadePacoteSync, PacotesSyncResposta } from './pacotes-sync';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
   codificarCursor,
@@ -106,6 +107,14 @@ export interface LinhasSync {
   contar(entidade: string): Promise<number>;
   /** Apaga as linhas e o cursor da entidade. */
   limpar(entidade: string): Promise<void>;
+  /**
+   * ADR 0054 (opcional; SQLite): importa o pacote da primeira carga já descompactado em `caminho` (relativo aos documentos do
+   * app). Numa transação exclusiva (tudo ou nada): `ATTACH`, upsert de cada `ent_<nome>` (só substitui com `updated_at`
+   * maior), contagem conferida com `linhas` e com `_pacote.entidades`, grava `cursor` e `versao_escopo` de cada entidade,
+   * `DETACH`; marca o FTS das entidades para reconstruir no `busca.finalizar`. Arquivo recusado = `ErroPacoteSync`.
+   * Sem ela, o motor não usa pacote (pull paginado).
+   */
+  importarPacote?(caminho: string, entidades: readonly EntidadePacoteSync[]): Promise<void>;
 }
 
 /** Valor aceito em `linhasPorCampo` (ids, códigos, números). `null`, booleano e objeto ficam de fora. */
@@ -151,6 +160,11 @@ export interface TransporteSync {
    * efetivos, se mudaram. Exceção = falha de transporte. Sem ele, `sincronizarNovidades` vira a sincronização completa.
    */
   novidades?(desde: string | null): Promise<NovidadesResposta>;
+  /**
+   * ADR 0054: `GET /v1/sync/pacotes`, resposta já validada por `PacotesSyncRespostaSchema`. 404/501 = lista vazia (servidor
+   * antigo ou desligado). Exceção = falha de transporte. Sem ele, a primeira carga é só pelo pull paginado.
+   */
+  pacotes?(): Promise<PacotesSyncResposta>;
 }
 
 /** Acesso do motor aos arquivos locais (shell: `expo-file-system`; testes: memória). Caminho relativo aos documentos do app. */
@@ -159,6 +173,22 @@ export interface ArquivosLocais {
   ler(caminho: string): Promise<Uint8Array | null>;
   /** Apaga o arquivo local (aceito há 7 dias, descartado ou de módulo desativado). Ausente = não apaga nada. */
   remover?(caminho: string): Promise<void>;
+  /**
+   * ADR 0054: baixa `url` (GET, aceita `Range`) para `destino`, continuando do byte `deBytes` (`.part` já no disco; 0 =
+   * do início). `md5` do arquivo inteiro quando o shell sabe calcular (`null` = o motor confere só bytes e `quick_check`).
+   * Exceção = falha de rede (a passada para e a próxima retoma). Sem ela, não há pacote.
+   */
+  baixarPacote?(
+    url: string,
+    destino: string,
+    opcoes: { deBytes: number; aoProgredir?: (feitos: number) => void },
+  ): Promise<{ bytes: number; md5: string | null }>;
+  /** ADR 0054: até `tamanho` bytes a partir de `inicio` (vazio = fim do arquivo). Descompactação em blocos. */
+  lerBloco?(caminho: string, inicio: number, tamanho: number): Promise<Uint8Array>;
+  /** ADR 0054: grava `bytes` no fim do arquivo (`acrescentar`) ou cria/substitui o arquivo. */
+  gravarBloco?(caminho: string, bytes: Uint8Array, opcoes: { acrescentar: boolean }): Promise<void>;
+  /** ADR 0054: bytes livres no disco do app; `null` = desconhecido. Sem espaço para ~3× o pacote, pull paginado. */
+  espacoLivre?(): Promise<number | null>;
 }
 
 /** Armazenamento em memória (testes e navegador sem storage). */
@@ -404,6 +434,16 @@ export interface EstadoMotorSync {
    * sincronização interrompida (o app foi encerrado no meio) e pulou o que já estava gravado.
    */
   carga: ProgressoCarga;
+  /**
+   * ADR 0054 (solução 5): quando os itens `essenciais` da carga inicial terminaram (ISO UTC; persistido). O shell libera a
+   * entrada com `sincronizado_em || liberado_em`. Ausente = motor sem a peça (só `sincronizado_em` libera).
+   */
+  liberado_em?: string | null;
+  /**
+   * ADR 0054: chaves (entidades e etapas) da carga inicial ainda não concluídas; vazio depois dela. Com o Catálogo pendente,
+   * busca e preço vão à API.
+   */
+  pendentes?: readonly string[];
 }
 
 export interface ProgressoCarga {
@@ -413,6 +453,8 @@ export interface ProgressoCarga {
   total: number;
   paginas: number;
   retomada: boolean;
+  /** ADR 0054: download do pacote em andamento (o percentual da etapa anda por ele). */
+  bytes?: { feitos: number; total: number };
 }
 
 /**
@@ -491,6 +533,11 @@ export interface OpcoesMotorSync {
    * consulta dá `ConsultaIndisponivel`.
    */
   consultas?: RegistroConsultasAparelho;
+  /**
+   * ADR 0054 (solução 5): itens da carga inicial que liberam a entrada (Core: `essencialDaEntrada`). Quando todos concluem,
+   * o motor grava `liberado_em`. Sem ela, só `sincronizado_em` libera.
+   */
+  essenciais?: (item: ItemDaCarga) => boolean;
 }
 
 /** Parâmetros do tenant por módulo (`GET /v1/me/modulos`), guardados para valer offline (T-0029 E3). */

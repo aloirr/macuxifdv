@@ -36,6 +36,18 @@
 9. Tudo **aditivo e opcional**: servidor sem a rota ou desligado devolve lista vazia e o app faz o pull de hoje; nenhum evento novo,
    nenhuma versão nova de contrato existente.
 
+## Contratos (A1, `packages/platform-sdk`)
+- `pacotes-sync.ts`: `PacoteSyncSchema`, `PacotesSyncRespostaSchema` (tolerante a campos novos), `MetaPacoteSchema` (tabela
+  `_pacote` lida como `{ chave: valor }` em texto), `FORMATO_PACOTE_SYNC = 1`, `MAX_PARTICOES_PACOTE = 8`, `ROTA_SYNC_PACOTES`,
+  `particaoDeFilial`/`filialDaParticao`, `CODIGOS_FALHA_PACOTE` e `ErroPacoteSync` (código do aviso `pacote_falhou`).
+- `api.ts`: `ProvedorSync.pacote?: PacoteProvedorSync`, `ContextoPacote` (worker, sem pessoa, como `ContextoTarefa` com
+  `comTenant`) e `ModuloApi.particoesPacote?`. `definirModuloApi` recusa pacote sem `puxar`, com escopo diferente de `tenant`
+  (o arquivo é igual para todos da partição), partição fora de `tenant`/`filial`, e partição `filial` sem `particoesPacote`.
+- `motor-sync.ts` (só tipos): `TransporteSync.pacotes?`, `ArquivosLocais.baixarPacote?/lerBloco?/gravarBloco?/espacoLivre?`,
+  `LinhasSync.importarPacote?`, `EstadoMotorSync.liberado_em?`/`pendentes?`, `ProgressoCarga.bytes?`,
+  `OpcoesMotorSync.essenciais?`. `sqlite/driver.ts`: `DriverSqlite.anexar?/desanexar?`. Todos opcionais: quem monta um
+  `EstadoMotorSync` hoje (shells, testes) continua compilando.
+
 ## Alternativas
 - **NDJSON.gz por entidade**: mais simples de gerar, mas no aparelho são 150 mil `JSON.parse` e 150 mil chamadas pela ponte
   JS↔nativo. Descartado pelo tempo.
