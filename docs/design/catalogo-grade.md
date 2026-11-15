@@ -53,10 +53,8 @@ embaixo, alinhados. O cartão inteiro é o alvo e abre a ficha.
   destacado.
 - Com o slot `produto.acoes` (dentro do pedido): botão `+` 44 dp com borda à direita do preço, TalkBack `Adicionar <produto>
   ao pedido`. Fora do pedido não aparece.
-- TalkBack do cartão: `"<nome>, <marca>, <preço>, <estoque>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, 6 em
-  estoque").
-- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço. A tag e o botão de estoque aparecem, das filiais dele
-  (R-20261115-090000, `catalogo-campo-v2/spec.md` §3).
+- TalkBack do cartão: `"<nome>, <marca>, <preço>, estoque <N>"` (ex.: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, estoque 6"); depois, o botão `Estoque por filial`.
+- Promotor (RN-CAT-05, `promotor_ve_preco_estoque` = não): sem preço; a tag e o botão de estoque aparecem (`catalogo-campo-v2/spec.md` §3).
 
 ## 3. Preço (RN-VEN-01)
 | Como abriu | Preço do cartão |

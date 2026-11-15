@@ -61,9 +61,7 @@ O toque no botão abre a **`Folha`** do kit, que sobe de baixo (decisão do dono
   - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 13/600 `ink2` sobre `neutralBg`, 36 dp. Fica por pedido do dono do
     produto ("tabelado: Coluna Filial… Coluna Estoque", R-20261115-083000), que fecha o RD-0574 por decisão;
   - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade Archivo 700 16, alinhada à direita, números tabulares;
-  - **quais filiais e em que ordem** (R-20261115-083600 e R-20261115-090000): o vendedor vê a dele primeiro, com a marca
-    `sua filial` (13 `ink2`, como no `Filtrar`), e depois todas as outras; promotor, supervisor e gerente veem **só as filiais
-    deles**, sem marca (todas seriam "sua"). Cada grupo em ordem alfabética;
+  - **ordem** (R-20261115-083600): as filiais que o usuário vê (§4), as dele primeiro; o vendedor vê a dele com a marca `sua filial` (13 `ink2`, como no `Filtrar`); quem vê só as dele fica sem marca. Cada grupo em ordem alfabética;
   - **cor da quantidade**: a do §3, só no texto, sobre branco (`success` #1D6B4F, 6,4:1; `danger` #A8261B, 7,1:1). O número
     sempre aparece, e a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): a coluna `Estoque` mostra `Em estoque` (verde) ou
@@ -77,18 +75,16 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 - **Valor de N:**
   - vendedor: o estoque da filial dele;
   - com cliente: a filial do cliente (RN-CORE-39);
-  - promotor, supervisor e gerente: a **soma** das filiais ligadas a ele (com uma só, a dela; o `modulo-core` expõe a lista).
-    Eles veem só as filiais deles (R-20261115-090000);
-  - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600); `Todas as filiais`, que só o vendedor tem: a soma de todas.
+  - promotor, supervisor e gerente: a **soma** das filiais ligadas a ele (com uma só, a dela; o `modulo-core` expõe a lista);
+  - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600); `Todas as filiais` (§4): a soma de todas.
 - **Cor:** a do `../catalogo-grade.md` §4, no chip e na tabela da folha (§2.1). O "Risco de ruptura" da folha do item do pedido não muda.
 - **Botão no cartão** (grade e busca), à direita do chip, na mesma linha: só ícone `pacote` 18 em grafite (`ink`, a cor do secundário no kit; validação da marca), quadro de 32 dp (borda
   `lineStrong`, raio 10), `hitSlop` 8 (alvo de 48 dp, dentro do respiro do cartão); `accessibilityLabel="Estoque por filial"`.
-  O toque abre a folha (§2.1) e não abre a ficha. TalkBack do cartão: `…, R$ 86,40, estoque 0`; depois, o botão.
+  O toque abre a folha (§2.1) e não abre a ficha.
 - **Cabe no aparelho de 360 dp** (medido na simulação): o cartão tem 136 dp por dentro; chip (respiro 8) + 6 + botão 32.
   Cabe até `Estoque: 999` e `Estoque: −999`. **Acima de 999, o cartão mostra `Estoque: 999+`**, obrigatório (com `Estoque: 999` sobra 1 dp; validação da marca). O
   número exato fica na ficha e na folha. Abaixo de −999 não cabe: **a confirmar** com o modulo-catalogo se o ERP manda saldo assim.
-- **Promotor** (R-20261115-090000): vê `Estoque: N`, o botão e a folha, das filiais dele. O preço segue a RN-CAT-05 de hoje
-  (`promotor_ve_preco_estoque`); o modulo-catalogo ajusta a regra só para o estoque.
+- **Promotor** (R-20261115-090000): vê `Estoque: N`, o botão e a folha. O preço segue a RN-CAT-05 de hoje (`promotor_ve_preco_estoque`); o modulo-catalogo ajusta a regra só para o estoque.
 - Tenant que esconde a quantidade: `../catalogo-grade.md` §4. Acaba o `Estoque sem informação` (`modules/catalogo/app/lib/grade.ts:47` e `apresentacao.ts`, `rotuloEstoque`).
 
 ## 4. Filtro no topo (padrão de Pedidos)
@@ -103,7 +99,7 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
     fora delas não há nada para abrir;
   - escolhida uma (R-20261115-084600): chip `Filial Manaus ✕`; o ✕ volta para `Suas filiais (3)`;
   - com uma só: o chip `Filial Boa Vista` sem ✕, e o grupo Filial não aparece na folha "Filtrar".
-- **Vendedor: decisão do designer, continua vendo todas as filiais** (filtro e folha "Estoque por filial"), como nas telas
+- **Vendedor (em aberto, R-20261115-090000): decisão do designer, continua vendo todas as filiais** (filtro e folha "Estoque por filial"), como nas telas
   aprovadas A e D (R-20261115-090000 restringe só promotor e supervisor; ver o estoque das outras filiais é o que o vendedor usa
   para vender). Se o dono do produto quiser o vendedor também restrito, ele segue a regra do item acima, com uma filial.
 - A folha "Filtrar" tem dois grupos (R-20261115-074500):
