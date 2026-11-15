@@ -23,6 +23,7 @@ import {
   ExclusaoEmpresaSchema,
   InativarEmpresaSchema,
   ListaBackupsEmpresaSchema,
+  MENSAGEM_SO_SUPER_ADMIN_ACOES,
   MENSAGENS_ACOES_EMPRESA,
   PedirBackupEmpresaSchema,
   ReativarEmpresaSchema,
@@ -103,10 +104,9 @@ export const fonteAcoesEmpresaNoBanco: FonteAcoesEmpresa = {
 };
 
 export interface DepsAcoesEmpresa {
+  autenticar: AutenticarPortal;
   acesso: AcessoBanco;
   fonte?: FonteAcoesEmpresa;
-  /** Quem entrou pelo portal; `null` = 401. */
-  autenticar: AutenticarPortal;
   validar(schema: z.ZodTypeAny, valor: unknown, onde: string): unknown;
   /** Bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL` no pedido de backup). */
   backupDisponivel: boolean;
@@ -132,13 +132,12 @@ const CODIGOS_422 = new Set<string>([
 /** A frase de cada recusa vem do SDK (`MENSAGENS_ACOES_EMPRESA`, spec §15.2): a mesma da tela. */
 const erroDaAcao = (status: number, codigo: CodigoAcaoEmpresa) => new ErroHttp(status, codigo, M[codigo]);
 
-/** SQLSTATE próprios das `sa_*` da 0072 → HTTP, com o código do contrato no `hint` (os comuns ficam no `traduzirErroSa`). */
+/** SQLSTATE próprios das `sa_*` da 0072 → HTTP, com o código do contrato no `hint` (os comuns, inclusive o 22023 sem hint, ficam no `traduzirErroSa`). */
 function traduzir(e: unknown): never {
   return traduzirErroSa(e, (code, hint) => {
     if (code === 'P0002') throw erroDaAcao(404, C.naoEncontrada);
-    if (code === '55000' && CODIGOS_409.has(hint)) throw erroDaAcao(409, hint as CodigoAcaoEmpresa);
-    if (code === '22023' && CODIGOS_422.has(hint)) throw erroDaAcao(422, hint as CodigoAcaoEmpresa);
-    if (code === '22023') throw new ErroHttp(400, 'VALIDACAO', 'Pedido inválido.');
+    if (code === '55000' && hint && CODIGOS_409.has(hint)) throw erroDaAcao(409, hint as CodigoAcaoEmpresa);
+    if (code === '22023' && hint && CODIGOS_422.has(hint)) throw erroDaAcao(422, hint as CodigoAcaoEmpresa);
     // o mesmo id já usado em backup ou exclusão de OUTRA empresa
     if (code === '23505') throw new ErroHttp(409, 'ID_EM_USO', 'Identificador já usado. Tente de novo.');
   });
@@ -172,7 +171,7 @@ export function registrarRotasAcoesEmpresa(app: FastifyInstance, dep: DepsAcoesE
   const relogio = dep.relogio ?? (() => new Date());
 
   /** Só super-admin (RN-PLA-07); o admin do cliente recebe 403 `PERFIL_SEM_ACESSO`. */
-  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, 'Só o time da Macuxi faz esta ação.');
+  const exigir = (req: FastifyRequest, tenantId: string) => exigirSuperAdmin(dep.autenticar, req, tenantId, MENSAGEM_SO_SUPER_ADMIN_ACOES);
   const empresa = (req: FastifyRequest) => (dep.validar(ParamsEmpresa, req.params, 'params') as z.output<typeof ParamsEmpresa>).tenant_id;
 
   /**

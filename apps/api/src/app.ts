@@ -97,7 +97,7 @@ import { ZodError, type ZodTypeAny } from 'zod';
 import { esperaDoPoolEsgotada, RETRY_AFTER_BANCO_OCUPADO_S, type BancoApp, type BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
-import { criarLimitador } from './limitador';
+import { criarLimitador, recusarPorLimite } from './limitador';
 import { prepararSessaoWeb, SESSAO_WEB_PADRAO, type OpcoesSessaoWeb } from './sessao-web';
 import { registrarConector, ehRotaConector } from './conector';
 import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
@@ -107,6 +107,7 @@ import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarDiagnosticos } from './diagnosticos';
 import { registrarRotasDiagnosticosPortal, type FonteDiagnosticosPortal } from './diagnosticos-portal';
+import { registrarRotasDadosLegais, type FonteDadosLegais } from './dados-legais';
 import { consultaCnpjPadrao, registrarRotaConsultaCnpj, type ConsultaCnpj } from './consulta-cnpj';
 import { registrarRotasPlanosPortal, type FontePlanosPortal } from './planos-portal';
 import { acoesDasEmpresas, registrarRotasAcoesEmpresa, type FonteAcoesEmpresa } from './empresa-acoes-portal';
@@ -215,6 +216,8 @@ export interface OpcoesApp {
   fonteAcoesEmpresa?: FonteAcoesEmpresa;
   /** ADR 0052: bucket S3 e `MACUXI_BACKUP_EMPRESA_CHAVE` configurados (falso = 503 `BACKUP_INDISPONIVEL`). Padrão: falso. */
   backupEmpresaDisponivel?: boolean;
+  /** Rodapé legal (docs/design/telas/rodape-legal.md §3.4): fonte das funções dos dados legais (padrão: `fonteDadosLegaisNoBanco`). Testes injetam a sua. */
+  fonteDadosLegais?: FonteDadosLegais;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -636,6 +639,17 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     });
   }
 
+  // Rodapé legal (rodape-legal.md §3.4): sempre ligado; a pública no macuxi_app (sem login), as do portal só super-admin.
+  // Antes da migração do banco-dados, respondem 503 e o cliente usa o próprio cache.
+  registrarRotasDadosLegais(app, {
+    banco,
+    acessoPortal,
+    ...(op.fonteDadosLegais ? { fonte: op.fonteDadosLegais } : {}),
+    autenticar: autenticarDoPortal,
+    validar,
+    relogio,
+  });
+
   // ADR 0048: consulta de CNPJ na base pública da Receita (passo Empresa do portal), super-admin ou admin do cliente
   registrarRotaConsultaCnpj(app, {
     autenticar: autenticarDoPortal,
@@ -816,10 +830,7 @@ function montarRotaPublica(
     const corpo = validar(rota.corpo, corpoBruto, 'corpo');
     const extra = rota.limite.chave?.({ corpo, query, params }) ?? '';
     const chave = `${req.ip}|${String(extra).toLowerCase()}`;
-    if (!limitador.tentar(chave)) {
-      reply.header('retry-after', String(limitador.esperaSegundos(chave)));
-      throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
-    }
+    if (!limitador.tentar(chave)) recusarPorLimite(reply, limitador.esperaSegundos(chave));
     const log = req.log.child({ modulo, request_id: req.id });
     // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum
     const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);

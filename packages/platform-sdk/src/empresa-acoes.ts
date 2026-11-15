@@ -40,6 +40,9 @@ export const CODIGO_EMPRESA_INATIVA_CONECTOR = 'empresa_inativa';
 export const MENSAGEM_EMPRESA_INATIVA =
   'Sua empresa está inativa no Macuxi. Fale com o administrador da empresa.';
 
+/** 403 `PERFIL_SEM_ACESSO` das rotas de ações da empresa quando quem pede é o admin do cliente (só super-admin). */
+export const MENSAGEM_SO_SUPER_ADMIN_ACOES = 'Só o time da Macuxi faz esta ação.';
+
 /** Códigos de erro das rotas de ações da empresa no portal (status HTTP no comentário). */
 export const CODIGOS_ACOES_EMPRESA = {
   /** 404 — empresa inexistente ou já excluída (o mesmo código das outras rotas do portal). */

@@ -5,6 +5,7 @@
  * catálogo do Postgres no CI).
  * T-0093 (0039): as migrações são aplicadas EM ORDEM, com os `drop function` e os `revoke ... from macuxi_portal`: a 0039 apaga
  * 14 sa_* da 0035 e troca a assinatura da interna sa_registrar_auditoria.
+ * ADR 0047 (0070) e ADR 0052 (0072): mais 1 e mais 8 com grant ao portal = 25.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -37,10 +38,10 @@ const eventos: Evento[] = ups.flatMap(({ arquivo, sql }) => {
 });
 
 describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
-  it('as listas não se cruzam nem repetem; 12 com grant e a interna sa_registrar_auditoria de 7 argumentos', () => {
+  it('as listas não se cruzam nem repetem; 25 com grant e a interna sa_registrar_auditoria de 7 argumentos', () => {
     const todas = [...SA_PORTAL, ...SA_INTERNAS];
     expect(new Set(todas).size).toBe(todas.length);
-    expect(SA_PORTAL).toHaveLength(16);
+    expect(SA_PORTAL).toHaveLength(25);
     expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
   });
 

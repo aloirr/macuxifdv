@@ -8,6 +8,7 @@ import {
   BackupEmpresaSchema,
   ExclusaoEmpresaSchema,
   ListaEmpresasSchema,
+  MENSAGEM_SO_SUPER_ADMIN_ACOES,
   SituacaoEmpresaRespostaSchema,
   type AcessoPortalAutenticado,
   type AcoesDaEmpresa,
@@ -167,7 +168,7 @@ describe('Portal › Ações da empresa (ADR 0052)', () => {
   it('RN-PLA-07: só super-admin; admin do cliente = 403 PERFIL_SEM_ACESSO e sem sessão = 401, sem chamar o banco', async () => {
     const { app, chamadas } = montar();
     const negado = await app.inject({ method: 'POST', url: url('inativar'), headers: cli, payload: {} });
-    expect([negado.statusCode, negado.json().codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
+    expect([negado.statusCode, negado.json().codigo, negado.json().mensagem]).toEqual([403, 'PERFIL_SEM_ACESSO', MENSAGEM_SO_SUPER_ADMIN_ACOES]);
     const exclusao = await app.inject({ method: 'POST', url: url('exclusao'), headers: cli, payload: corpoExclusao() });
     expect(exclusao.statusCode).toBe(403);
     const anonimo = await app.inject({ method: 'POST', url: url('reativar'), payload: {} });

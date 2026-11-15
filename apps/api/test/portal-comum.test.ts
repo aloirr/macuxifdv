@@ -1,58 +1,97 @@
-/** RD-0405: encanamento comum das rotas do portal (exigir, traduzir SQLSTATE das `sa_*`, conferir retorno). */
+/**
+ * Encanamento comum do portal (RD-0405) e 429 das rotas públicas (RD-0404), sem banco. Dados fictícios.
+ */
 import type { AcessoPortalAutenticado } from '@macuxi/platform-sdk';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { ErroHttp } from '../src/erros';
+import { recusarPorLimite } from '../src/limitador';
 import { marcaPortal } from '../src/plataforma';
 import { conferirRetorno, exigirPortal, exigirSuperAdmin, traduzirErroSa } from '../src/portal-comum';
 
 const SA: AcessoPortalAutenticado = { tipo: 'super_admin', id: '5a000000-0000-4000-8000-000000000001', sessao_id: '5e000000-0000-4000-8000-000000000001' };
-const CLI = { tipo: 'admin_cliente', sessao_id: '5e000000-0000-4000-8000-000000000002' } as unknown as AcessoPortalAutenticado;
-const T = '0a000000-0000-4000-8000-000000000001';
+const CLI: AcessoPortalAutenticado = {
+  tipo: 'admin_cliente',
+  sessao_id: '5e000000-0000-4000-8000-000000000002',
+  empresa: { tenant_id: '0a000000-0000-4000-8000-000000000001', usuario_id: '0b000000-0000-4000-8000-000000000001' },
+};
 const req = () => ({}) as FastifyRequest;
-const erro = (f: () => unknown) => {
+const pg = (code: string, hint?: string) => Object.assign(new Error('pg'), { code, ...(hint ? { hint } : {}) });
+const capturar = (f: () => unknown): ErroHttp => {
   try {
     f();
   } catch (e) {
-    return e as { status?: number; codigo?: string; message: string };
+    return e as ErroHttp;
   }
   throw new Error('não lançou');
 };
+const resumo = (e: ErroHttp) => [e.status, e.codigo, e.message];
 
-describe('portal-comum', () => {
-  it('sem token = 401; com token marca a requisição para a auditoria', async () => {
-    await expect(exigirPortal(async () => null, req(), T)).rejects.toMatchObject({ status: 401, codigo: 'NAO_AUTENTICADO' });
-    const r = req();
-    expect(await exigirPortal(async () => CLI, r, T)).toBe(CLI);
-    expect(marcaPortal(r)).toEqual({ quem: CLI, tenantId: T });
+describe('exigirPortal', () => {
+  it('sem sessão = 401 sem marca; admin do cliente passa e é marcado para a auditoria', async () => {
+    const r0 = req();
+    await expect(exigirPortal(async () => null, r0, 't1')).rejects.toMatchObject({ status: 401, codigo: 'NAO_AUTENTICADO', message: 'Entre no portal para continuar.' });
+    expect(marcaPortal(r0)).toBeUndefined();
+    const r1 = req();
+    expect(await exigirPortal(async () => CLI, r1, 't1')).toBe(CLI);
+    expect(marcaPortal(r1)).toEqual({ quem: CLI, tenantId: 't1' });
   });
+});
 
-  it('exigirSuperAdmin: admin do cliente = 403 com a frase da rota (marcado mesmo assim)', async () => {
-    const r = req();
-    await expect(exigirSuperAdmin(async () => CLI, r, T, 'Só o time da Macuxi.')).rejects.toMatchObject({
-      status: 403,
-      codigo: 'PERFIL_SEM_ACESSO',
-      message: 'Só o time da Macuxi.',
-    });
-    expect(marcaPortal(r)?.quem).toBe(CLI);
-    expect(await exigirSuperAdmin(async () => SA, req(), null, 'x')).toBe(SA);
+describe('exigirSuperAdmin', () => {
+  it('sem sessão = 401 sem marca; admin do cliente = 403 com a frase da rota, marcado; super-admin passa', async () => {
+    const r0 = req();
+    await expect(exigirSuperAdmin(async () => null, r0, null, 'Só a Macuxi.')).rejects.toMatchObject({ status: 401, codigo: 'NAO_AUTENTICADO', message: 'Entre no portal para continuar.' });
+    expect(marcaPortal(r0)).toBeUndefined();
+    const r1 = req();
+    await expect(exigirSuperAdmin(async () => CLI, r1, 't1', 'Só a Macuxi.')).rejects.toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO', message: 'Só a Macuxi.' });
+    expect(marcaPortal(r1)).toEqual({ quem: CLI, tenantId: 't1' });
+    const r2 = req();
+    expect(await exigirSuperAdmin(async () => SA, r2, null, 'x')).toBe(SA);
+    expect(marcaPortal(r2)).toEqual({ quem: SA, tenantId: null });
   });
+});
 
-  it('traduzirErroSa: 28000 = 401, 42501 = 403, extras antes dos comuns, o resto relança', () => {
-    expect(erro(() => traduzirErroSa({ code: '28000' }))).toMatchObject({ status: 401, codigo: 'NAO_AUTENTICADO' });
-    expect(erro(() => traduzirErroSa({ code: '42501' }))).toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
-    const proprio = new Error('próprio');
-    const extras = (code: string, hint: string) => {
-      if (code === '28000' && hint === 'X') throw proprio;
+describe('traduzirErroSa', () => {
+  it('comuns: 28000 = 401, 42501 = 403, 22023 = 400; sem caso relança o original', () => {
+    expect(resumo(capturar(() => traduzirErroSa(pg('28000'))))).toEqual([401, 'NAO_AUTENTICADO', 'Sua sessão do portal expirou. Entre de novo.']);
+    expect(resumo(capturar(() => traduzirErroSa(pg('42501'))))).toEqual([403, 'PERFIL_SEM_ACESSO', 'Seu acesso não permite esta ação.']);
+    expect(resumo(capturar(() => traduzirErroSa(pg('22023'))))).toEqual([400, 'VALIDACAO', 'Dados inválidos.']);
+    const outro = pg('40001');
+    expect(capturar(() => traduzirErroSa(outro))).toBe(outro);
+    const semCodigo = new Error('rede');
+    expect(capturar(() => traduzirErroSa(semCodigo))).toBe(semCodigo);
+  });
+  it('extras recebe code e hint (ausentes = vazio), vem antes dos comuns e, sem lançar, cai neles', () => {
+    const vistos: unknown[] = [];
+    const extras = (c: string, h: string) => {
+      vistos.push([c, h]);
+      if (c === '22023' && h === 'RN-X') throw new ErroHttp(422, 'RN_X', 'Própria.');
     };
-    expect(erro(() => traduzirErroSa({ code: '28000', hint: 'X' }, extras))).toBe(proprio);
-    expect(erro(() => traduzirErroSa({ code: '28000', hint: 'Y' }, extras))).toMatchObject({ status: 401 });
-    const outro = { code: '57014' };
-    expect(erro(() => traduzirErroSa(outro))).toBe(outro);
+    expect(resumo(capturar(() => traduzirErroSa(pg('22023', 'RN-X'), extras)))).toEqual([422, 'RN_X', 'Própria.']);
+    expect(resumo(capturar(() => traduzirErroSa(pg('22023', 'RN-Y'), extras)))).toEqual([400, 'VALIDACAO', 'Dados inválidos.']);
+    expect(resumo(capturar(() => traduzirErroSa(pg('28000'), extras)))[0]).toBe(401);
+    const semCodigo = new Error('rede');
+    expect(capturar(() => traduzirErroSa(semCodigo, extras))).toBe(semCodigo);
+    expect(vistos).toEqual([['22023', 'RN-X'], ['22023', 'RN-Y'], ['28000', ''], ['', '']]);
   });
+});
 
-  it('conferirRetorno devolve o dado do contrato ou lança com o nome da função', () => {
-    expect(conferirRetorno(z.object({ a: z.number() }), { a: 1 }, 'sa_x')).toEqual({ a: 1 });
-    expect(erro(() => conferirRetorno(z.object({ a: z.number() }), { a: '1' }, 'sa_x')).message).toBe('sa_x devolveu formato diferente do combinado');
+describe('conferirRetorno', () => {
+  it('devolve o dado conferido; formato errado = Error com o nome da função', () => {
+    const S = z.object({ a: z.number() });
+    expect(conferirRetorno(S, { a: 1 }, 'sa_x')).toEqual({ a: 1 });
+    expect(() => conferirRetorno(S, { a: '1' }, 'sa_x')).toThrow('sa_x devolveu formato diferente do combinado');
+  });
+});
+
+describe('recusarPorLimite (RD-0404)', () => {
+  it('Retry-After no cabeçalho e detalhes.retry_after_s no corpo do 429', () => {
+    const cab: Record<string, string> = {};
+    const reply = { header: (k: string, v: string) => void (cab[k] = v) } as unknown as FastifyReply;
+    const e = capturar(() => recusarPorLimite(reply, 42));
+    expect(cab).toEqual({ 'retry-after': '42' });
+    expect([e.status, e.corpo()]).toEqual([429, { codigo: 'MUITAS_TENTATIVAS', mensagem: 'Muitas tentativas. Aguarde um pouco e tente de novo.', detalhes: { retry_after_s: 42 } }]);
   });
 });
