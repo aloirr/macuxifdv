@@ -235,3 +235,4 @@
 2026-11-15 — PR #313 — RD-0447: android-build.yml lê o NDK do react-native instalado (sed no libs.versions.toml, erro se faltar), limpeza do disco depois do install; teste confere o sed e a ordem, sem try/catch.
 2026-11-15 — T-0176 — guarda global RN-CORE-39 (ADR 0056): UsuarioAutenticado.sem_filial (estado da sessão, custo zero), 403 USUARIO_SEM_FILIAL no preparar; exceções públicas, liberadaSemFilial (só core) e sync restrito (pull/novidades só liberadoSemFilial, push 403); testes sdk e api; recados ao modulo-core/engenheiro-apps não gravados (coord 403 na nuvem).
 2026-11-15 — T-0176 — RD-0881/0882/0942: mensagem aprovada, CODIGO_USUARIO_SEM_FILIAL, codigoDoErroHttp e ehUsuarioSemFilial só no SDK (sem-filial.ts), exportados pelo index; API usa as constantes.
+2026-11-15 — FCM — teste de banco do push migrado ao FCM HTTP v1, depende do #349
