@@ -141,7 +141,6 @@ export function LotesPanel({
           <EstadoVazio semBorda
             titulo={filtrado ? 'Nenhum lote com esses filtros.' : 'Nenhum lote recebido ainda.'}
             testId="integracao.lotes.vazio"
-            acao={filtrado ? <Button onClick={() => mudar({ ...FILTROS_VAZIOS, lote: filtros.lote })}>Limpar filtros</Button> : undefined}
           />
         }
       />
