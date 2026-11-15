@@ -8,7 +8,10 @@
  * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, proteção de 30 s) e puxar para baixo.
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
+ * T-0178 (spec docs/design/trocar-senha/spec.md §2 e §7): seção "Conta" com a linha "Trocar senha" (só na API real) e, na
+ * volta da troca, "Senha trocada." no rodapé.
  */
+import { TEXTOS_TROCAR_SENHA } from '@macuxi/core/contracts';
 import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
@@ -21,6 +24,7 @@ import {
   fonts,
   Icon,
   initials,
+  Pressionavel,
   ProgressBar,
   radius,
   rotuloDoPerfil,
@@ -33,7 +37,9 @@ import Constants from 'expo-constants';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AvisoAoVoltar } from '@/components/aviso-pos-login';
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
@@ -44,6 +50,7 @@ import { linhasDasSaidas, type SaidaAndroid } from '@/lib/saida-android';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
+import { contaDaSessao } from '@/lib/trocar-senha-shell';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
 import { useDiagnosticoNuvem } from '@/services/diagnostico';
@@ -59,6 +66,17 @@ function SeloDaFila({ situacao }: { situacao: SituacaoArquivo }) {
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1 }}>
+      <Perfil />
+      {/* T-0178: "Senha trocada." na volta da "Trocar senha" */}
+      <AvisoAoVoltar respiroInferior={insets.bottom} />
+    </View>
+  );
+}
+
+function Perfil() {
   const app = usePlataforma();
   const { sessao, me, offline, apiUrl, apiOverride, defaultApiUrl, perfil } = app;
   const { motor, estado } = useMotorSync();
@@ -129,6 +147,25 @@ export default function ProfileScreen() {
           </Text>
         </View>
       </View>
+
+      {contaDaSessao(sessao) ? (
+        <View style={{ gap: 8 }}>
+          <SectionHeader title="Conta" />
+          <Card>
+            <Pressionavel
+              testID="perfil.trocar-senha"
+              accessibilityRole="button"
+              escala={false}
+              onPress={() => router.push('/trocar-senha')}
+              style={styles.linhaConta}
+            >
+              <Icon name="lock" size={20} color={colors.accent} />
+              <Text style={[t.bodyStrong, { flex: 1 }]}>{TEXTOS_TROCAR_SENHA.titulo}</Text>
+              <Icon name="chevron" size={16} color={colors.ink2} />
+            </Pressionavel>
+          </Card>
+        </View>
+      ) : null}
 
       <View style={{ gap: 8 }}>
         <SectionHeader title="Sincronização" />
@@ -370,6 +407,7 @@ const styles = StyleSheet.create({
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
   versao: { alignSelf: 'center', paddingVertical: 8 },
+  linhaConta: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14 },
   mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
   input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });
