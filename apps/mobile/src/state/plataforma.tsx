@@ -40,6 +40,7 @@ import {
   type AmbienteAparelho,
   type ArmazenamentoSync,
   type EtapaSync,
+  type ModoSincronizacao,
   type ModuloId,
   type MotorSync,
   type Perfil,
@@ -78,6 +79,7 @@ import {
 } from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
+import { criarLimiteManual } from '@/lib/sincronizacao-manual';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import {
   mesmoEstadoDePermissoes,
@@ -406,6 +408,8 @@ function usePlataformaValor() {
         etapasExtras: modo === 'demo' ? [etapaMe] : [],
         // RN-CORE-48: ordem da carga pelo perfil de quem está logado agora
         perfil: () => sessaoRef.current?.user.perfil ?? s.user.perfil,
+        // ADR 0057 (RN-CORE-61): carga diária do estoque no fuso do tenant
+        fuso: () => sessaoRef.current?.tenant?.fuso ?? s.tenant?.fuso ?? null,
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
@@ -515,7 +519,7 @@ function usePlataformaValor() {
    * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
    */
   const executarSync = useCallback(
-    (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
+    (leve: { entidades?: readonly string[] } | null, modoManual?: ModoSincronizacao): Promise<boolean> => {
       const m = motorRef.current;
       // T-0145: sem as permissões obrigatórias nada sincroniza (nem a carga, nem o agendador, nem o botão)
       if (!m || !permissoesOkRef.current) return Promise.resolve(false);
@@ -532,7 +536,9 @@ function usePlataformaValor() {
           if (motorRef.current !== m) return false;
           await m.carregar();
         }
-        if (offlineRef.current) return m.sincronizar();
+        // ADR 0057: o botão Sincronizar escolhe o modo (toque = parcial, segurar 10 s = completa); os outros, o de sempre
+        const opcoesModo = modoManual ? { modo: modoManual } : {};
+        if (offlineRef.current) return m.sincronizar(opcoesModo);
         // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
         // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
         if (leve && modo === 'v1')
@@ -545,7 +551,7 @@ function usePlataformaValor() {
         } catch {
           // sem rede: o motor registra o erro na sincronização abaixo
         }
-        return m.sincronizar();
+        return m.sincronizar(opcoesModo);
       })().finally(() => {
         travaSync.sair('sincronizacao');
         if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
@@ -556,8 +562,23 @@ function usePlataformaValor() {
     [atualizarModulos, modo],
   );
 
-  /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
+  /** Sincronização de sempre (puxar para baixo, tela de carga): envia a fila e puxa na hora. */
   const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
+
+  /**
+   * Botão "Sincronizar" (ADR 0057; o limite de 30 s fica em `lib/sincronizacao-manual`): `parcial` (toque) segue a regra de
+   * uma por vez; `completa` (segurar 10 s) espera a sincronização em curso terminar e roda depois.
+   */
+  // limite da sincronização manual: a mesma janela de 30 s para o Início e o Perfil
+  const [limiteManual] = useState(criarLimiteManual);
+  const sincronizarManual = useCallback(
+    async (modoManual: ModoSincronizacao): Promise<boolean> => {
+      if (modoManual === 'completa')
+        while (syncEmCursoRef.current) await syncEmCursoRef.current.catch(() => false);
+      return executarSync(null, modoManual);
+    },
+    [executarSync],
+  );
 
   /** Sincroniza só se faz sentido agora (`deveSincronizar`): não reinicia a carga em andamento nem a que acabou de terminar. */
   const sincronizarSeNecessario = useCallback(
@@ -1119,6 +1140,8 @@ function usePlataformaValor() {
     testApiUrl,
     setOffline,
     sincronizar,
+    sincronizarManual,
+    limiteManual,
     sincronizarSeNecessario,
     agendador,
     estadoAgendador,

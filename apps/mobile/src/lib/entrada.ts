@@ -20,9 +20,6 @@ export const LARGURA_LOGO_ENTRADA = 136;
 /** Margem lateral e de baixo da área de sincronização (spec §2 e §5), em dp. */
 export const MARGEM_ENTRADA = 32;
 
-/** Nome da barra para o leitor de tela (spec §6). */
-export const ROTULO_BARRA_ENTRADA = 'Sincronização';
-
 /** Logo no centro da tela (onde a splash nativa o desenha): altura e distância do topo, em dp. */
 export function posicaoDoLogo(alturaTela: number): { altura: number; topo: number } {
   const altura = Math.round(LARGURA_LOGO_ENTRADA / PROPORCAO_LOGO_EMPILHADO);

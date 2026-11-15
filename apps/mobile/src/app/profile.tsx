@@ -13,7 +13,6 @@ import type { SituacaoArquivo } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import {
   Badge,
-  BotaoSincronizar,
   Button,
   Card,
   colors,
@@ -36,6 +35,7 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-nati
 
 import { EnviarDiagnostico } from '@/components/enviar-diagnostico';
 import { ItensDoMenu } from '@/components/extensoes-shell';
+import { SincronizarDoShell } from '@/components/sincronizar-do-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
@@ -152,7 +152,7 @@ export default function ProfileScreen() {
               {mensagemDeErroDaCarga(offline)}
             </Text>
           ) : null}
-          <BotaoSincronizar testID="sync-now" />
+          <SincronizarDoShell testID="sync-now" />
         </Card>
       </View>
 

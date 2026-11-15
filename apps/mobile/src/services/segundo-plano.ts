@@ -203,6 +203,8 @@ async function abrirMotorSemInterface(
     online,
     ambiente,
     perfil: () => s?.user?.perfil ?? null,
+    // ADR 0057: a carga diária do estoque também pode rodar com o app fechado (mesmo fuso da sessão)
+    fuso: () => s?.tenant?.fuso ?? null,
   });
   motorRef.m = m;
   await m.carregar();

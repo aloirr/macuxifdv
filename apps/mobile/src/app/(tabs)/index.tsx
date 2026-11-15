@@ -10,7 +10,7 @@
  */
 import { TelaInicioCampo, useInicio } from '@macuxi/core/app';
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, BotaoSincronizar, colors, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, colors, firstName, Loading, Screen, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
@@ -18,6 +18,7 @@ import { useCorDaFaixaNoFoco } from '@/components/area-segura';
 import { AvisoPosLogin } from '@/components/aviso-pos-login';
 import { CardsDoInicio } from '@/components/extensoes-shell';
 import { BoasVindas, EquipeAgora, MetaDoMes } from '@/components/inicio';
+import { SincronizarDoShell } from '@/components/sincronizar-do-shell';
 import { Sino } from '@/components/sino';
 import { avisoDosDados, dataDoCabecalho, textoVisitasHoje, visitasDaEquipe } from '@/lib/inicio';
 import { varianteAtual } from '@/lib/variante';
@@ -104,7 +105,7 @@ function InicioGestao() {
       {/* o Sincronizar fica no pé da tela quando sobra espaço (referência), e logo depois dos blocos quando rola */}
       <View style={{ flex: 1, minHeight: 4 }} />
       {/* RD-0008: aviso único de dado antigo, na linha de situação do Sincronizar (kit, docs/design/inicio.md §1.5) */}
-      <BotaoSincronizar testID="inicio-sincronizar" avisoDados={avisoDosDados(inicio, tz)} />
+      <SincronizarDoShell testID="inicio-sincronizar" avisoDados={avisoDosDados(inicio, tz)} />
     </Screen>
   );
 }

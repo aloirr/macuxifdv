@@ -5,7 +5,7 @@
  *   Android acorda o app fechado.
  * Ficam aqui para os dois montarem o motor e conferirem módulos e sessão do mesmo jeito.
  */
-import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
+import { cargaDiariaDevida, HORA_CARGA_DIARIA_PADRAO, MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
 import { criarMotorSync, type AmbienteAparelho, type ArmazenamentoSync, type EtapaSync, type ModuloId, type MotorSync, type ParametrosModulos, type Perfil } from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
@@ -65,6 +65,30 @@ export interface OpcoesMotorDoUsuario {
   etapasExtras?: readonly EtapaSync[];
   /** Perfil do usuário logado, lido a cada carga (RN-CORE-48: ordem das etapas da entrada). Sem ele, a ordem do Campo. */
   perfil?: () => string | null | undefined;
+  /** Fuso IANA do tenant (login v1), lido a cada consulta; sem ele (ou inválido), `America/Manaus` (RN-CORE-61). */
+  fuso?: () => string | null | undefined;
+}
+
+/** Parâmetro do Catálogo com a hora da carga diária do estoque (`HH:MM`, no fuso do tenant; ADR 0057). */
+export const PARAMETRO_CARGA_ESTOQUE = 'estoque_carga_hora';
+
+/**
+ * ADR 0057 (RN-CORE-61): a carga diária do estoque está devida? Fuso do tenant e hora do parâmetro
+ * `catalogo.estoque_carga_hora` lidos a cada consulta (o parâmetro chega com os módulos efetivos); sem parâmetro, 06:00.
+ */
+export function cargaDiariaDoUsuario(
+  fuso: () => string | null | undefined,
+  parametrosCatalogo: () => Readonly<Record<string, unknown>> | null | undefined,
+): (ultima: string | null, agora: Date) => boolean {
+  return (ultima, agora) => {
+    const hora = parametrosCatalogo()?.[PARAMETRO_CARGA_ESTOQUE];
+    return cargaDiariaDevida({
+      ultima,
+      agora,
+      fuso: fuso() ?? '',
+      hora: typeof hora === 'string' ? hora : HORA_CARGA_DIARIA_PADRAO,
+    });
+  };
 }
 
 /** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
@@ -83,6 +107,8 @@ export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
     // ADR 0012: `ambiente.consultar` (ex.: preço do Catálogo para o Vendedor, offline) sobre as linhas locais do dono
     consultas: o.shell.consultas,
     ordemDaCarga: ordemDaCargaDoUsuario(o.perfil ?? (() => null), () => ref.m?.estado().modulosAtivos ?? []),
+    // ADR 0057: estoque 1x por dia (o motor grava `estado.carga_diaria_em`, que os módulos leem pelo estado)
+    cargaDiariaDevida: cargaDiariaDoUsuario(o.fuso ?? (() => null), () => ref.m?.parametros('catalogo')),
   });
   return ref.m;
 }

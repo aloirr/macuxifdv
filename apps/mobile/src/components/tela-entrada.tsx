@@ -7,7 +7,7 @@
  * Cores do kit (`temaDaEntrada`, designer-ux); posição do logo e textos em `lib/entrada.ts`.
  */
 import type { EtapaEntrada } from '@macuxi/core/contracts';
-import { Botao, fonts, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
+import { BarraProgresso, Botao, fonts, Icon, temaDaEntrada, useReduzirMovimento, type TemaEntrada } from '@macuxi/ui/mobile';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -20,7 +20,6 @@ import {
   LARGURA_LOGO_ENTRADA,
   MARGEM_ENTRADA,
   posicaoDoLogo,
-  ROTULO_BARRA_ENTRADA,
 } from '@/lib/entrada';
 import { LOGO_EMPILHADO_NEGATIVO, LOGO_EMPILHADO_POSITIVO } from '@/lib/logo-marca';
 import type { Variante } from '@/lib/variante-tipo';
@@ -120,7 +119,9 @@ export function TelaEntrada({
           ) : null
         ) : (
           <Animated.View style={{ gap: 18, opacity: opacidade }}>
-            {barra ? <Barra tema={tema} barra={barra} reduzir={reduzir} comLista={mostrarEtapas} /> : null}
+            {barra ? (
+              <BarraProgresso tema={tema} rotulo={barra.rotulo} pct={barra.pct} reduzir={reduzir} comLista={mostrarEtapas} />
+            ) : null}
             {mostrarEtapas && etapas ? <ListaEtapas tema={tema} etapas={etapas} /> : null}
             {typeof children === 'function' ? children(mostrarEtapas) : children}
           </Animated.View>
@@ -142,76 +143,6 @@ function useEsmaecer(visivel: boolean, reduzir: boolean): Animated.Value {
   }, [visivel, reduzir, opacidade]);
   return opacidade;
 }
-
-/**
- * Barra do total. Com a lista de etapas na tela, a linha mostra só o percentual e o rótulo ("Etapa n de N · nome") fica só
- * para o leitor de tela, na região viva (RD-0239); sem a lista (tela baixa), o rótulo aparece.
- */
-function Barra({
-  tema,
-  barra,
-  reduzir,
-  comLista,
-}: {
-  tema: TemaEntrada;
-  barra: BarraEntrada;
-  reduzir: boolean;
-  comLista: boolean;
-}) {
-  const pct = barra.pct === null ? null : Math.max(0, Math.min(100, barra.pct));
-  const largura = pct ?? TRECHO_SEM_MEDIDA;
-  const anim = useRef(new Animated.Value(largura)).current;
-  useEffect(() => {
-    if (reduzir) anim.setValue(largura);
-    else Animated.timing(anim, { toValue: largura, duration: DURACAO_MS, useNativeDriver: false }).start();
-  }, [largura, reduzir, anim]);
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={styles.linha}>
-        {/* o leitor anuncia só a troca de etapa (o percentual não é lido a cada passo) */}
-        <Text
-          testID="entrada-etapa"
-          style={[styles.rotulo, { color: tema.texto }]}
-          accessibilityLiveRegion="polite"
-          accessibilityLabel={barra.rotulo}
-          numberOfLines={1}
-        >
-          {comLista ? '' : barra.rotulo}
-        </Text>
-        {pct === null ? null : (
-          <Text
-            testID="entrada-pct"
-            style={[styles.pct, { color: tema.texto }]}
-            importantForAccessibility="no"
-            accessibilityElementsHidden
-          >
-            {pct}%
-          </Text>
-        )}
-      </View>
-      <View
-        style={[styles.trilho, { backgroundColor: tema.trilho }]}
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={ROTULO_BARRA_ENTRADA}
-        accessibilityValue={pct === null ? undefined : { min: 0, max: 100, now: pct }}
-      >
-        <Animated.View
-          style={[
-            styles.preenchimento,
-            {
-              backgroundColor: tema.preenchimento,
-              width: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
-/** Trecho da barra quando não há medida (o teste do servidor dura no máximo `TEMPO_SERVIDOR_ABERTURA_MS`). */
-const TRECHO_SEM_MEDIDA = 30;
 
 const ROTULO_SITUACAO: Record<EtapaEntrada['situacao'], string> = {
   feita: 'feita',
@@ -328,11 +259,6 @@ const styles = StyleSheet.create({
   saudacao: { fontFamily: fonts.body, fontSize: 15, marginTop: 28, textAlign: 'center' },
   baixo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: MARGEM_ENTRADA },
   nomeDoApp: { fontFamily: fonts.body, fontSize: 13, textAlign: 'center' },
-  linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  rotulo: { flex: 1, fontFamily: fonts.body, fontSize: 13 },
-  pct: { fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
-  trilho: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  preenchimento: { height: 6, borderRadius: 3 },
   etapa: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 32 },
   marcador: {
     width: 20,

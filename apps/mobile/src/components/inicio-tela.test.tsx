@@ -74,6 +74,8 @@ vi.mock('@macuxi/core/app', () => ({
   TelaInicioCampo: ({ sino, avisos }: { sino: (n: number) => ReactNode; avisos?: ReactNode }) =>
     createElement('main', { 'data-testid': 'inicio' }, createElement('section', { 'data-testid': 'inicio-campo.metas' }, sino(sim.novos)), avisos),
 }));
+// o botão do shell (toque/segurar e popup, testado em sincronizar-do-shell.test) desenha o `BotaoSincronizar` do kit simulado
+vi.mock('@/components/sincronizar-do-shell', async () => ({ SincronizarDoShell: (await import('@macuxi/ui/mobile')).BotaoSincronizar }));
 vi.mock('@/lib/variante', () => ({ varianteAtual: () => sim.variante }));
 vi.mock('@/components/sino', () => ({ Sino: ({ testID = 'sino' }: { testID?: string }) => createElement('button', { 'data-testid': testID }) }));
 vi.mock('@/components/aviso-pos-login', () => ({ AvisoPosLogin: () => null }));
