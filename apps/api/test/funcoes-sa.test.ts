@@ -1,12 +1,14 @@
 /**
- * T-0091 (condição da ADR 0029), sem banco: as listas de funcoes-sa.ts batem com as migrações e com o espelho do
- * scripts/deploy/producao/banco-dbaas.sh. Uma sa_* nova criada numa migração sem entrar numa das duas listas, um grant
- * do portal fora da SA_PORTAL ou o script divergindo deixam este teste vermelho (o portal.banco.test.ts confere o
- * catálogo do Postgres no CI).
+ * T-0091 (condição da ADR 0029), sem banco: a lista das sa_* (db/testes/funcoes-sa.ts, via funcoes-sa.ts) bate com as
+ * migrações, e o scripts/deploy/producao/banco-dbaas.sh lê essa mesma lista (RD-0910: uma fonte só). Uma sa_* nova criada
+ * numa migração sem entrar na lista ou um grant do portal fora da SA_PORTAL deixam este teste vermelho (o
+ * portal.banco.test.ts confere o catálogo do Postgres no CI).
  * T-0093 (0039): as migrações são aplicadas EM ORDEM, com os `drop function` e os `revoke ... from macuxi_portal`: a 0039 apaga
  * 14 sa_* da 0035 e troca a assinatura da interna sa_registrar_auditoria.
  */
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SA_INTERNAS, SA_PORTAL } from './funcoes-sa';
 
@@ -37,11 +39,9 @@ const eventos: Evento[] = ups.flatMap(({ arquivo, sql }) => {
 });
 
 describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
-  it('as listas não se cruzam nem repetem; 27 com grant e a interna sa_registrar_auditoria de 7 argumentos', () => {
+  it('as listas não se cruzam nem repetem', () => {
     const todas = [...SA_PORTAL, ...SA_INTERNAS];
     expect(new Set(todas).size).toBe(todas.length);
-    expect(SA_PORTAL).toHaveLength(27);
-    expect(SA_INTERNAS).toEqual(['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)']);
   });
 
   it('as sa_* que existem depois de todas as migrações (criadas menos apagadas) são exatamente as das duas listas', () => {
@@ -70,14 +70,14 @@ describe('plataforma.sa_*: SA_PORTAL e SA_INTERNAS (T-0091; T-0093)', () => {
     expect(nasInternas).toEqual([]);
   });
 
-  it('o espelho do banco-dbaas.sh (passo 6) tem as mesmas listas', () => {
+  it('o banco-dbaas.sh (passo 6) lê a mesma lista, sem cópia: o LISTAS_SA_JS dele devolve SA_PORTAL e SA_INTERNAS', () => {
     const sh = ler(new URL('scripts/deploy/producao/banco-dbaas.sh', RAIZ));
-    const lista = (variavel: string): string[] => {
-      const m = new RegExp(`^${variavel}="([^"]*)"`, 'm').exec(sh);
-      expect(m, `${variavel}= no banco-dbaas.sh`).not.toBeNull();
-      return [...m![1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!);
-    };
-    expect(lista('SA_PORTAL')).toEqual([...SA_PORTAL]);
-    expect(lista('SA_INTERNAS')).toEqual([...SA_INTERNAS]);
+    expect(sh).not.toMatch(/'plataforma\.sa_\w+\(/);
+    const js = /^LISTAS_SA_JS='([^']*)'$/m.exec(sh)?.[1];
+    expect(js, 'LISTAS_SA_JS= no banco-dbaas.sh').toBeDefined();
+    // como na imagem: node --import tsx na raiz do repositório
+    const saida = execFileSync(process.execPath, ['--import', 'tsx', '-e', js!], { cwd: fileURLToPath(RAIZ), encoding: 'utf8' });
+    const aspas = (xs: readonly string[]) => xs.map((f) => `'${f}'`).join(', ');
+    expect(saida.trimEnd().split('\n')).toEqual([aspas(SA_PORTAL), aspas(SA_INTERNAS)]);
   });
 });
