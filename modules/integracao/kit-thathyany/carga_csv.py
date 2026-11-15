@@ -50,6 +50,16 @@ class ErroArquivo(Exception):
 # ---------------------------------------------------------------------------------------------------------------- contrato
 
 
+def servidor_padrao(pasta: Path | None = None) -> str:
+    """Servidor SQL padrão: o servidor.txt gravado pelo instalador ao lado deste arquivo; senão .\\SQLEXPRESS."""
+    arq = (pasta or PASTA_KIT) / "servidor.txt"
+    try:
+        texto = arq.read_text(encoding="utf-8-sig").strip()
+    except OSError:
+        return r".\SQLEXPRESS"
+    return texto.splitlines()[0].strip() if texto else r".\SQLEXPRESS"
+
+
 def carregar_contrato(caminho: Path | None = None) -> dict[str, Any]:
     return json.loads((caminho or PASTA_KIT / "contrato.json").read_text(encoding="utf-8"))
 
@@ -472,7 +482,7 @@ def abrir_conexao(servidor: str, banco: str, usuario: str | None, senha: str | N
 def principal(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Carrega os CSVs do contrato no banco local ERP_THATHYANY (idempotente por external_id).")
     p.add_argument("--pasta", required=True, type=Path, help="pasta com um CSV por entidade (vendedor.csv, cliente.csv...)")
-    p.add_argument("--servidor", default=r".\SQLEXPRESS", help=r"padrão .\SQLEXPRESS")
+    p.add_argument("--servidor", default=servidor_padrao(), help=r"padrão: o servidor.txt ao lado deste arquivo; senão .\SQLEXPRESS")
     p.add_argument("--banco", default=None, help="padrão: o do contrato.json (ERP_THATHYANY)")
     p.add_argument("--usuario", default=None, help="login SQL; sem ele usa a autenticação do Windows")
     p.add_argument("--validar", action="store_true", help="só valida; não abre o banco nem grava")

@@ -320,5 +320,24 @@ class TestLinhaDeComando(unittest.TestCase):
             self.assertEqual(cc.principal(["--pasta", str(MODELOS / "nao-existe"), "--validar"]), 2)
 
 
+class ServidorPadrao(unittest.TestCase):
+    def test_sem_servidor_txt_usa_sqlexpress(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(cc.servidor_padrao(Path(d)), r".\SQLEXPRESS")
+
+    def test_servidor_txt_ao_lado_do_script_vira_o_padrao(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "servidor.txt").write_text(".\\OUTRA\n", encoding="utf-8")
+            self.assertEqual(cc.servidor_padrao(Path(d)), ".\\OUTRA")
+
+    def test_servidor_txt_vazio_ou_com_bom(self):
+        with tempfile.TemporaryDirectory() as d:
+            arq = Path(d) / "servidor.txt"
+            arq.write_text("  \n", encoding="utf-8")
+            self.assertEqual(cc.servidor_padrao(Path(d)), r".\SQLEXPRESS")
+            arq.write_bytes(b"\xef\xbb\xbf.")
+            self.assertEqual(cc.servidor_padrao(Path(d)), ".")
+
+
 if __name__ == "__main__":
     unittest.main()

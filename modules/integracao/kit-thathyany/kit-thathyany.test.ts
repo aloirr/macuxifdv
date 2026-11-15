@@ -132,8 +132,15 @@ describe('Instalar-Thathyany.ps1 (conferência estática)', () => {
     expect([...INSTALADOR.slice(1)].every((ch) => ch.charCodeAt(0) < 0x80)).toBe(true);
   });
 
-  it('instala SQL Server Express, ODBC 18 e Python com pyodbc; roda o criar-banco.sql e os usuários que existem no kit', () => {
-    expect(INSTALADOR).toContain('Microsoft.SQLServer.2022.Express');
+  it('não instala SQL Server pelo winget: detecta a instância (-Instancia) e orienta o link oficial; ODBC 18 e Python com pyodbc; roda o criar-banco.sql e os usuários que existem no kit', () => {
+    expect(INSTALADOR).not.toMatch(/Microsoft\.SQLServer\.20\d\d/);
+    expect(INSTALADOR).toContain('[string]$Instancia');
+    expect(INSTALADOR).toContain('Instance Names\\SQL');
+    expect(INSTALADOR).toContain("'MSSQL$*'");
+    expect(INSTALADOR).toContain('https://www.microsoft.com/pt-br/sql-server/sql-server-downloads');
+    expect(INSTALADOR).toContain('(Get-UICulture).Name');
+    const semComentarios = INSTALADOR.split('\n').filter((l) => !l.trimStart().startsWith('#') && !/^\s+\(ex\.:/.test(l));
+    expect(semComentarios.join('\n')).not.toContain('.\\SQLEXPRESS');
     expect(INSTALADOR).toContain('Microsoft.msodbcsql.18');
     expect(INSTALADOR).toMatch(/pip install[^\n]*pyodbc/);
     for (const m of INSTALADOR.matchAll(/'sql\\([\w-]+\.sql)'|Trocar-Senha-Login '([\w-]+\.sql)'/g)) {

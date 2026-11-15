@@ -15,6 +15,9 @@
   Pacote baixado em "Baixar o Conector" do portal (conector-1.4.0.zip). Padrao: o conector-*.zip mais novo ao lado deste
   script ou na pasta Downloads.
 
+.PARAMETER Instancia
+  Nome da instancia do SQL Server (ex.: SQLEXPRESS; MSSQLSERVER para a padrao). Vazio = detectar. So e preciso informar se houver mais de uma.
+
 .PARAMETER TrocarChave
   Pede de novo a chave da fase, mesmo que ja exista.
 #>
@@ -25,6 +28,7 @@ param(
     [Parameter(Mandatory = $true)][ValidateSet('Conector', 'API')][string]$Fase,
     [string]$ConectorZip,
     [switch]$TrocarChave,
+    [string]$Instancia = '',
     [string]$Pasta = 'C:\MacuxiThathyany'
 )
 
@@ -32,7 +36,9 @@ $ErrorActionPreference = 'Stop'
 $kit = $PSScriptRoot
 Get-ChildItem -LiteralPath $kit -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 $BANCO = 'ERP_THATHYANY'
-$INSTANCIA = '.\SQLEXPRESS'
+$SERVIDOR_SQL = ''
+$SERVICO_SQL = ''
+$ID_REGISTRO_SQL = ''
 $PASTA_CSV = Join-Path $Pasta 'csv'
 $PASTA_API = Join-Path $Pasta 'erp-via-api'
 $PASTA_CONECTOR = 'C:\ProgramData\Macuxi\Conector'
@@ -70,7 +76,7 @@ function PedirChave($identificador) {
 }
 
 function Abrir-Sql([string]$banco = 'master') {
-    $c = New-Object System.Data.SqlClient.SqlConnection("Server=$INSTANCIA;Database=$banco;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=15")
+    $c = New-Object System.Data.SqlClient.SqlConnection("Server=$SERVIDOR_SQL;Database=$banco;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=15")
     $c.Open()
     $c
 }
@@ -112,12 +118,59 @@ function Atualizar-Path {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
+# 0. Instancia do SQL Server ja instalada (o instalador nao instala SQL Server)
+# ---------------------------------------------------------------------------------------------------------------------
+function Detectar-Instancia {
+    Titulo '0. Instancia do SQL Server'
+    $achadas = @{}
+    $chaveNomes = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL'
+    if (Test-Path $chaveNomes) {
+        $mapa = Get-ItemProperty $chaveNomes
+        foreach ($prop in $mapa.PSObject.Properties) {
+            if ($prop.Name -notlike 'PS*') { $achadas[$prop.Name.ToUpper()] = [string]$prop.Value }
+        }
+    }
+    foreach ($svc in @(Get-Service -Name 'MSSQL$*' -ErrorAction SilentlyContinue)) {
+        $n = $svc.Name.Substring(6).ToUpper()
+        if (-not $achadas.ContainsKey($n)) { $achadas[$n] = '' }
+    }
+    if (Get-Service -Name 'MSSQLSERVER' -ErrorAction SilentlyContinue) {
+        if (-not $achadas.ContainsKey('MSSQLSERVER')) { $achadas['MSSQLSERVER'] = '' }
+    }
+    $nomes = @($achadas.Keys | Sort-Object)
+    if ($nomes.Count -eq 0) {
+        Falha ("Nao encontrei o SQL Server neste notebook. Instale a mao o SQL Server 2022 Express (instalacao Basica) no idioma do Windows, pelo link oficial https://www.microsoft.com/pt-br/sql-server/sql-server-downloads (Express), e rode este instalador de novo. Idioma deste Windows: $((Get-Culture).Name) / $((Get-UICulture).Name).")
+    }
+    $escolhida = $null
+    if ($Instancia.Trim() -ne '') {
+        $pedida = $Instancia.Trim().ToUpper()
+        if ($pedida -like '.\*') { $pedida = $pedida.Substring(2) }
+        if (-not $achadas.ContainsKey($pedida)) { Falha "A instancia '$Instancia' nao existe neste notebook. Instancias encontradas: $($nomes -join ', '). Rode de novo com -Instancia <nome>." }
+        $escolhida = $pedida
+    }
+    elseif ($nomes.Count -gt 1) {
+        Falha "Ha mais de uma instancia do SQL Server neste notebook: $($nomes -join ', '). Rode de novo com -Instancia <nome>."
+    }
+    else { $escolhida = $nomes[0] }
+    $script:ID_REGISTRO_SQL = $achadas[$escolhida]
+    if ($escolhida -eq 'MSSQLSERVER') {
+        $script:SERVIDOR_SQL = '.'
+        $script:SERVICO_SQL = 'MSSQLSERVER'
+    }
+    else {
+        $script:SERVIDOR_SQL = ".\$escolhida"
+        $script:SERVICO_SQL = 'MSSQL$' + $escolhida
+    }
+    if (-not $script:ID_REGISTRO_SQL) { Falha "Nao achei o registro da instancia $escolhida. Confira a instalacao do SQL Server e rode de novo." }
+    Ok "usando a instancia $escolhida (servidor $SERVIDOR_SQL)"
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
 # 1. Programas
 # ---------------------------------------------------------------------------------------------------------------------
 function Passo-Programas {
-    Titulo '1. Programas (winget)'
+    Titulo '1. Programas (winget; o SQL Server Express nao entra)'
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Falha 'O winget nao esta instalado. Atualize o "Instalador de Aplicativo" na Microsoft Store e rode de novo.' }
-    Winget-Instalar @('Microsoft.SQLServer.2022.Express') 'SQL Server 2022 Express'
     Winget-Instalar @('Microsoft.SQLServerManagementStudio.22', 'Microsoft.SQLServerManagementStudio.21', 'Microsoft.SQLServerManagementStudio') 'SQL Server Management Studio (SSMS)'
     Winget-Instalar @('Microsoft.msodbcsql.18') 'ODBC Driver 18 for SQL Server'
     Winget-Instalar @('Python.Python.3.12', 'Python.Python.3.13') 'Python 3'
@@ -134,21 +187,18 @@ function Passo-Programas {
 # 2. SQL Server: TCP 1433 so nesta maquina e autenticacao mista (o Conector e o ERP via API entram com login SQL)
 # ---------------------------------------------------------------------------------------------------------------------
 function Passo-Sql {
-    Titulo '2. SQL Server Express: TCP 1433 e autenticacao mista'
-    $mapa = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction Stop
-    $idInstancia = $mapa.SQLEXPRESS
-    if (-not $idInstancia) { Falha 'A instancia SQLEXPRESS nao foi encontrada. A instalacao do SQL Server Express nao terminou; rode de novo.' }
-    $raiz = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$idInstancia\MSSQLServer"
+    Titulo '2. SQL Server: TCP 1433 e autenticacao mista'
+    $raiz = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$ID_REGISTRO_SQL\MSSQLServer"
     $tcp = "$raiz\SuperSocketNetLib\Tcp"
     $mudou = $false
     if ((Get-ItemProperty $raiz).LoginMode -ne 2) { Set-ItemProperty $raiz -Name LoginMode -Value 2; $mudou = $true }
     if ((Get-ItemProperty $tcp).Enabled -ne 1) { Set-ItemProperty $tcp -Name Enabled -Value 1; $mudou = $true }
     $p = Get-ItemProperty "$tcp\IPAll"
     if ($p.TcpPort -ne '1433' -or $p.TcpDynamicPorts -ne '') { Set-ItemProperty "$tcp\IPAll" -Name TcpPort -Value '1433'; Set-ItemProperty "$tcp\IPAll" -Name TcpDynamicPorts -Value ''; $mudou = $true }
-    if ($mudou) { Restart-Service -Name 'MSSQL$SQLEXPRESS' -Force; Ok 'TCP 1433 e autenticacao mista ligados (servico reiniciado)' }
+    if ($mudou) { Restart-Service -Name $SERVICO_SQL -Force; Ok 'TCP 1433 e autenticacao mista ligados (servico reiniciado)' }
     else { Ok 'TCP 1433 e autenticacao mista ja estavam ligados' }
-    if ((Get-Service 'MSSQL$SQLEXPRESS').StartType -ne 'Automatic') { Set-Service 'MSSQL$SQLEXPRESS' -StartupType Automatic }
-    if ((Get-Service 'MSSQL$SQLEXPRESS').Status -ne 'Running') { Start-Service 'MSSQL$SQLEXPRESS' }
+    if ((Get-Service $SERVICO_SQL).StartType -ne 'Automatic') { Set-Service $SERVICO_SQL -StartupType Automatic }
+    if ((Get-Service $SERVICO_SQL).Status -ne 'Running') { Start-Service $SERVICO_SQL }
     for ($i = 0; $i -lt 30; $i++) {
         try { $c = Abrir-Sql; $c.Close(); break } catch { Start-Sleep -Seconds 2; if ($i -eq 29) { Falha "Nao consegui conectar no SQL Server: $($_.Exception.Message)" } }
     }
@@ -169,6 +219,8 @@ function Passo-Banco {
         if (-not (Test-Path $destino)) { Copy-Item -LiteralPath $modelo.FullName -Destination $destino }
     }
     Copy-Item -LiteralPath (Join-Path $kit 'carga_csv.py'), (Join-Path $kit 'contrato.json') -Destination $Pasta -Force
+    [IO.File]::WriteAllText((Join-Path $Pasta 'servidor.txt'), $SERVIDOR_SQL, (New-Object System.Text.UTF8Encoding($false)))
+    Ok "servidor.txt grava o servidor $SERVIDOR_SQL para o carga_csv.py"
     Ok "CSVs em $PASTA_CSV (modelo novo so entra onde ainda nao havia arquivo; o seu nao e trocado)"
 }
 
@@ -324,6 +376,7 @@ function Passo-Api {
 # Principal
 # ---------------------------------------------------------------------------------------------------------------------
 Write-Host "Kit da thathyany - fase $Fase" -ForegroundColor Cyan
+Detectar-Instancia
 Passo-Programas
 Passo-Sql
 Passo-Banco
