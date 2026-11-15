@@ -30,6 +30,7 @@ import type { ServicoEmail } from './email/porta';
 import type { ServicoPacotes } from './pacotes';
 import { problemasCookieSessao, type CookieSessaoRota } from './cookie-sessao';
 import type { SuperficieRota } from './perfis';
+import type { OpcoesGravarParametros } from './parametros';
 import { ehChavePlataforma, pode, type AlvoPermissao, type DefinicaoChave, type MatrizFabrica, type PerfilDaRequisicao } from './permissoes-perfil';
 import { MODOS_SUPER_ADMIN, type AcessoPortalAutenticado, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
 import {
@@ -219,6 +220,20 @@ export interface ContextoBase {
    * licenças; doc 03 "Parâmetros do tenant"). Ex.: alçadas do Vendedor. Rota da plataforma = `{}`.
    */
   parametros(): Readonly<Record<string, unknown>>;
+  /**
+   * T-0180 (ADR 0059 §8): grava parâmetros do tenant DO MÓDULO DA ROTA em `plataforma.parametro` (o módulo nunca escreve SQL
+   * em `plataforma.*`, regra 1). Chave sem o nome do módulo (ex.: `prazo_aprovacao_dias_uteis`); valor JSON.
+   * - Só o módulo dono da rota (`modulo` = o da rota), no tenant do token (RLS). Dentro de `ctx.comTenant` grava NA MESMA
+   *   transação (desfaz junto); fora dela abre a sua.
+   * - Idempotente: só grava e audita a chave cujo valor mudou (comparação em `jsonb`); nada mudou = nenhuma escrita.
+   * - Auditada (RN-AUD-01): uma linha `entidade: 'parametro'` com `antes`/`depois` só das chaves que mudaram; ação
+   *   `opcoes.acao` ou `parametro.gravar`. Não audite de novo na rota.
+   * - Depois de gravar, `ctx.parametros()` desta requisição já devolve os valores novos.
+   * - Recusa (erro de programação, 500): rota da plataforma, chave fora do formato ou com prefixo de outro módulo, valor que
+   *   não é JSON (`problemasGravarParametros`). A regra de negócio do valor (faixa, coerência) é do `domain` do módulo, antes.
+   * A API sempre preenche; é opcional só para os contextos falsos dos testes dos módulos.
+   */
+  gravarParametros?(valores: Readonly<Record<string, unknown>>, opcoes?: OpcoesGravarParametros): Promise<void>;
   /**
    * Fuso IANA do tenant (`plataforma.tenant.fuso`, lido pela API junto com as licenças, por requisição; RN-CORE-11).
    * Use para a virada do dia e para datas civis (ex.: `localIsoDate(ctx.agora(), ctx.fuso())` de `@macuxi/comum/fuso`).

@@ -76,6 +76,7 @@ import {
   verificarAcesso,
   verificarCarteira,
   type AcessoBanco,
+  type ClienteBanco,
   type ContextoBase,
   type EntradaRota,
   type ErroApi,
@@ -124,6 +125,7 @@ import type { Plataforma } from './tipos';
 import { ErroHttp, semBanco } from './erros';
 import { SERVICO_EMAIL_DESLIGADO } from './email/servico';
 import { dentroDaTransacao, transacaoAberta } from './transacao-corrente';
+import { exigirParametrosValidos, gravarParametrosDoModulo } from './parametros-modulo';
 
 export { ErroHttp } from './erros';
 
@@ -494,10 +496,31 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const modulosDoTenant = modulosEfetivos({ manifestos, ativosNoTenant: licencas.ativosNoTenant, doPerfil: manifestos.map((x) => x.id) });
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
-    // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3)
-    const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => licencas.parametros[m] ?? {};
+    // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3); o que a rota gravou
+    // nesta requisição (`ctx.gravarParametros`, T-0180) vale por cima, sem mexer no objeto da fonte de licenças
+    const gravadosNaRequisicao: Partial<Record<ModuloId, Record<string, unknown>>> = {};
+    const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => {
+      const g = gravadosNaRequisicao[m];
+      return g ? { ...(licencas.parametros[m] ?? {}), ...g } : (licencas.parametros[m] ?? {});
+    };
     // fuso do tenant (RN-CORE-11; T-0035): lido com as licenças; ausente ou inválido = America/Manaus
     const fuso = fusoDoTenantOuPadrao(licencas.fuso);
+    const txDe = (m: ModuloId | null, db: ClienteBanco) =>
+      transacaoTenant(db, {
+        manifestos,
+        modulo: m,
+        tenantId: usuario.tenant_id,
+        usuarioId: usuario.id,
+        requestId: req.id,
+        agora: relogio,
+        usuario,
+        modulosDoTenant,
+        escrita,
+        consultas,
+        parametros,
+        fuso: () => fuso,
+        log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
+      });
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
@@ -505,26 +528,16 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       requestId: req.id,
       agora: relogio,
       comTenant: (fn) =>
-        acesso.comTenant(usuario.tenant_id, (db) =>
-          dentroDaTransacao(acesso, db, usuario.tenant_id, () => fn(
-            db,
-            transacaoTenant(db, {
-              manifestos,
-              modulo: m,
-              tenantId: usuario.tenant_id,
-              usuarioId: usuario.id,
-              requestId: req.id,
-              agora: relogio,
-              usuario,
-              modulosDoTenant,
-              escrita,
-              consultas,
-              parametros,
-              fuso: () => fuso,
-              log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
-            }),
-          )),
-        ),
+        acesso.comTenant(usuario.tenant_id, (db) => dentroDaTransacao(acesso, db, usuario.tenant_id, () => fn(db, txDe(m, db)))),
+      // T-0180 (ADR 0059 §8): só o módulo da rota; dentro do comTenant, na mesma transação (acessoDaRequisicao); depois, o
+      // ctx.parametros() desta requisição já enxerga o valor novo
+      gravarParametros: async (valores, opcoes) => {
+        exigirParametrosValidos(m, valores);
+        const { alteradas } = await acessoDaRequisicao.comTenant(usuario.tenant_id, (db) =>
+          gravarParametrosDoModulo(db, m, valores, (r) => txDe(m, db).auditar(r), opcoes),
+        );
+        if (m && alteradas.length > 0) gravadosNaRequisicao[m] = { ...gravadosNaRequisicao[m], ...Object.fromEntries(alteradas.map((c) => [c, valores[c]])) };
+      },
       // memo por requisição; rejeitada (ex.: transação abortada) não fica guardada
       // T-0176: o usuário sem filial (restrito) não vê cliente nem equipe; só o próprio
       carteira: () =>
