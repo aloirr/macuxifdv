@@ -95,7 +95,9 @@ export function AutorizarReprocessamento({ loteId, onClose, onAutorizado }: { lo
           </div>
           <CampoSenha
             id="integracao-autorizar-senha"
-            rotulo="Senha"
+            rotulo=""
+            className="[&>label]:hidden"
+            aria-label={`Senha de ${itens.find((a) => a.id === quem)?.nome ?? 'quem autoriza'}`}
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             visivel={visivel}

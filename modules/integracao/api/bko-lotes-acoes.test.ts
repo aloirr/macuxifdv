@@ -137,7 +137,7 @@ describe('RN-INT-15/16: reprocessar lote', () => {
     expect(f.status).toBe(403);
   });
 
-  it('RN-INT-16: senha errada responde 422 e depois de 5 erros o solicitante é bloqueado por 15 minutos (429)', async () => {
+  it('RN-INT-16: senha errada responde 422 e depois de 5 erros o autorizador é bloqueado por 15 minutos (429)', async () => {
     const limite = criarLimiteTentativas();
     const rota = criarRotaReprocessarLote({ verificarSenha: async () => 'incorreta', limite });
     for (let i = 0; i < 5; i++) {
@@ -146,6 +146,9 @@ describe('RN-INT-15/16: reprocessar lote', () => {
     }
     const e = await erroDe(executar(rota, montar({ status: 'falhou' }).ctx, { corpo: { autorizador_id: ADMIN, senha: 'x' } }));
     expect([e.status, e.codigo]).toEqual([429, 'muitas_tentativas']);
+    // outro autorizador não é afetado pelo bloqueio
+    const outro = await erroDe(executar(rota, montar({ status: 'falhou' }).ctx, { corpo: { autorizador_id: '00000000-0000-4000-8000-0000000000aa', senha: 'x' } }));
+    expect(outro.codigo).not.toBe('muitas_tentativas');
     const depois = montar({ status: 'falhou' });
     depois.ctx.agora = () => new Date('2026-11-15T18:16:00Z');
     expect((await erroDe(executar(rota, depois.ctx, { corpo: { autorizador_id: ADMIN, senha: 'x' } }))).codigo).toBe('senha_incorreta');

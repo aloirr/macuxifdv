@@ -38,7 +38,7 @@ export type ResultadoSenha = 'ok' | 'incorreta' | 'indisponivel';
 export type VerificadorSenha = (entrada: { tenant_id: string; usuario_id: string; senha: string }, tx: TransacaoTenant) => Promise<ResultadoSenha>;
 export const verificadorSenhaIndisponivel: VerificadorSenha = async () => 'indisponivel';
 
-/** Falhas de senha por solicitante na janela (RN-INT-16), em memória do processo; a cota durável fica como pendência do banco-dados. */
+/** Falhas de senha por autorizador na janela (RN-INT-16), em memória do processo; a cota durável fica como pendência do banco-dados. */
 export interface LimiteTentativas {
   falhas(chave: string, agora: number): number;
   registrarFalha(chave: string, agora: number): void;
@@ -131,8 +131,7 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
     corpo: ReprocessarLoteEntrada,
     executar: async (ctx: ContextoRota<ReprocessarLoteEntrada, unknown, z.infer<typeof Params>>): Promise<ReprocessarLoteResposta> => {
       const tenantId = ctx.usuario.tenant_id;
-      const chaveLimite = `${tenantId}:${ctx.usuario.id}`;
-      const solicitantePode = pode(ctx.usuario.perfis, 'lote.reprocessar');
+            const solicitantePode = pode(ctx.usuario.perfis, 'lote.reprocessar');
       const { autorizador_id, senha } = ctx.corpo;
       return ctx.comTenant(async (db, tx) => {
         const l = await lerLoteTravado(db, tenantId, ctx.params.id);
@@ -146,6 +145,8 @@ export function criarRotaReprocessarLote(o: { verificarSenha: VerificadorSenha; 
             throw new ErroHttpModulo(403, 'autorizador_necessario', 'Escolha quem autoriza o reprocessamento e digite a senha dessa pessoa.');
           }
           const agora = ctx.agora().getTime();
+          // RN-INT-16: o limite é por autorizador (tenant + autorizador_id), não por quem pede
+          const chaveLimite = `${tenantId}:${autorizador_id}`;
           const bloqueio = limiteTentativasAutorizacao(o.limite.falhas(chaveLimite, agora));
           if (bloqueio.bloqueado) throw new ErroHttpModulo(429, 'muitas_tentativas', bloqueio.mensagem);
           const alvo = (await lerAutorizadores(tx)).find((a) => a.id === autorizador_id);
