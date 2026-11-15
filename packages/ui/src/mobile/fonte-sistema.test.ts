@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ESCALA_FONTE, familiasFonte, PILHA_MONO, PILHA_SISTEMA, TAMANHOS_FONTE } from './tokens';
 
-/** Fonte do sistema e escala (R-20261115-110600, v1.0.13): saem Archivo e IBM Plex; nada abaixo de 12. */
+/** Fonte do sistema e escala (R-20261115-110600, v1.0.13): nenhuma fonte carregada; nada abaixo de 12. */
 const pasta = (rel: string) => new URL(rel, import.meta.url);
 const fontes = (rel: string) =>
   readdirSync(pasta(rel))
@@ -19,9 +19,9 @@ describe('fonte do sistema (R-20261115-110600)', () => {
     expect(ESCALA_FONTE.base).toBe(16);
   });
 
-  it('nenhum arquivo de packages/ui cita Archivo nem IBM Plex como família', () => {
+  it('nenhum arquivo de packages/ui usa família de fonte carregada (nome com peso, ex.: `X_700Bold`)', () => {
     for (const { arq, src } of [...app, ...web]) {
-      expect(src, arq).not.toMatch(/'(Archivo|IBMPlex)[A-Za-z]*_\d{3}/);
+      expect(src, arq).not.toMatch(/'[A-Za-z]+_\d{3}[A-Za-z]*'/);
     }
   });
 
@@ -51,7 +51,8 @@ describe('fonte do sistema (R-20261115-110600)', () => {
     const android = familiasFonte('android');
     expect(android.body).toBe('sans-serif');
     expect(android.semibold).toBe('sans-serif-medium');
-    expect(android.display).toBe('sans-serif-black');
+    expect(android.display).toBe('sans-serif-medium');
+    for (const [nome, familia] of Object.entries(android)) expect(familia, `android.${nome}`).not.toMatch(/black/);
     expect(android.mono).toBe('monospace');
     expect(PILHA_SISTEMA).toBe('system-ui, "Segoe UI", Roboto, -apple-system, sans-serif');
     expect(PILHA_MONO).toBe('ui-monospace, "Cascadia Mono", "Roboto Mono", monospace');
@@ -69,5 +70,10 @@ describe('fonte do sistema (R-20261115-110600)', () => {
     expect(tema).toMatch(/export const fonts = Platform\.select\(\{ android: familiasFonte\('android'\), web: familiasFonte\('web'\)/);
     expect(tema).toMatch(/fontFamily: familiasFonte\(Platform\.OS\)\.mono/);
     expect(tema).not.toMatch(/'sans-serif-(medium|black)'/);
+    expect(tema).toMatch(/@deprecated Use `\.\.\.fonte\.x`/);
+  });
+
+  it('a Roboto Black não aparece no kit (nem `sans-serif-black`, nem peso 800/900)', () => {
+    for (const { arq, src } of app) expect(src, arq).not.toMatch(/sans-serif-black|fontWeight: '(800|900)'/);
   });
 });

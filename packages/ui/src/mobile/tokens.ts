@@ -88,9 +88,12 @@ export const PILHA_SISTEMA = 'system-ui, "Segoe UI", Roboto, -apple-system, sans
 /** Pilha monoespaçada fora do Android (Expo web). */
 export const PILHA_MONO = 'ui-monospace, "Cascadia Mono", "Roboto Mono", monospace';
 
-/** Famílias por nome do Android (só há 400, 500 e 900 por nome); `sans-serif-medium`/`-black` não existem no navegador. */
+/**
+ * Famílias por nome do Android (400 e 500 por nome); `sans-serif-medium` não existe no navegador. A Roboto Black
+ * (família de peso 900) não aparece em lugar nenhum (rodada 2 da R-20261115-110600): o display fica no 500.
+ */
 const FAMILIAS_ANDROID = {
-  display: 'sans-serif-black',
+  display: 'sans-serif-medium',
   displayBold: 'sans-serif-medium',
   displaySemi: 'sans-serif-medium',
   body: 'sans-serif',
