@@ -33,6 +33,8 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.empresa_excluida': 'registro da empresa excluída, código nunca reaproveitado (ADR 0052, RN-PLA-10); só por função',
   /** Dados legais da Macuxi (0073, rodapé legal): dado da PLATAFORMA, uma linha só; só pelas funções plataforma.sa_* e dados_legais_publicos. */
   'plataforma.dados_legais': 'razão social, CNPJ e site da Macuxi, fora dos tenants (rodape-legal.md §3.2); só por função',
+  /** Frases da tela de carga (0081, T-0181): cadastro GLOBAL do super-admin, vale para todas as empresas; só por função. */
+  'plataforma.frase_carga': 'frases da tela de carga, globais (T-0181); portal pelas sa_*_frase_carga, app pela frases_carga_ativas()',
 } as const;
 
 /**
@@ -58,6 +60,8 @@ export const TABELAS_SO_POR_FUNCAO = [
   'plataforma.empresa_excluida',
   /** 0073 (rodapé legal): lida pela dados_legais_publicos (app) e pelas sa_* do portal; gravada só pela sa_gravar_dados_legais. */
   'plataforma.dados_legais',
+  /** 0081 (T-0181): frases da tela de carga; o app lê pela plataforma.frases_carga_ativas(), o portal pelas sa_*_frase_carga. */
+  'plataforma.frase_carga',
 ] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
