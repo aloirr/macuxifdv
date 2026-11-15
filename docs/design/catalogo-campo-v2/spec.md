@@ -1,7 +1,7 @@
 # Catálogo do Campo v2: cartão, ficha, estoque zero, filtro de filial e busca (simulação)
 
 > 2026-11-15 · designer-ux · origem: R-20261115-071600-alexandre (teste de campo, 15/11 ~7h de Manaus) e as decisões de
-> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre, R-20261115-083000-alexandre, R-20261115-083600-alexandre, R-20261115-084600-alexandre, R-20261115-085500-alexandre e R-20261115-090000-alexandre (estoque na hora e por filial, telas aprovadas, ícone `pacote`, folha; promotor e supervisor só com as filiais deles). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
+> R-20261115-073000-alexandre, R-20261115-074500-alexandre, R-20261115-084500-alexandre, R-20261115-083000-alexandre, R-20261115-083600-alexandre, R-20261115-084600-alexandre, R-20261115-085500-alexandre e R-20261115-090000-alexandre (estoque na hora e por filial, telas aprovadas, ícone `pacote`, folha) e R-20261115-093000-alexandre (regra definitiva de filial, §4, em simulação). **Aprovada** pelo dono do produto, com os códigos em duas linhas e o rótulo `Estoque: 28` (R-20261115-082500-alexandre). Fonte:
 > `catalogo-campo-v2.html` (`?v=grade|filtrada|ficha|busca|dica|folha|filiais|multi`) e `simulacao.css`. PNGs 360 × 800 (escala 2).
 > Barra de baixo: a real do Campo, `Início · Rota · Clientes · Pedidos · Performance · Mais` (`apps/mobile/src/lib/abas.ts`, 6 posições;
 > a Performance fica na barra, R-20261115-084500). O Catálogo está no `Mais`, que fica aceso.
@@ -19,6 +19,9 @@
 | `07-estoque-por-filial.png` | a folha "Estoque por filial": tabela Filial \| Estoque, sua filial primeiro, uma filial em 0 e uma negativa |
 | `08-grade-multi-filial.png` | **como abre para o multi-filial** (supervisor com 3 filiais): chip `Suas filiais (3)` sem ✕, `Estoque: 17` (0 + 12 + 5). A barra de baixo é a do Campo só para comparar; no Gestão vale a barra dele |
 
+
+As 01, 02, 06 e 08 são de antes da regra de filial de R-20261115-093000. A simulação nova está em `../filial-cadastro-venda/`
+(09 a 15), e elas são refeitas depois da escolha entre as opções A e B do §3.
 ## 1. Cartão da grade (de cima para baixo)
 A ordem continua a de hoje, foto e depois nome (R-20261115-074500).
 1. **Foto** 96 dp (antes 112, para o cartão não crescer).
@@ -61,7 +64,9 @@ O toque no botão abre a **`Folha`** do kit, que sobe de baixo (decisão do dono
   - cabeçalho `Filial` (à esquerda) e `Estoque` (à direita), 13/600 `ink2` sobre `neutralBg`, 36 dp. Fica por pedido do dono do
     produto ("tabelado: Coluna Filial… Coluna Estoque", R-20261115-083000), que fecha o RD-0574 por decisão;
   - uma linha por filial, 48 dp, divisória `lineSoft`: nome 15 `ink`; quantidade Archivo 700 16, alinhada à direita, números tabulares;
-  - **ordem** (R-20261115-083600): as filiais que o usuário vê (§4), as dele primeiro; o vendedor vê a dele com a marca `sua filial` (13 `ink2`, como no `Filtrar`); quem vê só as dele fica sem marca. Cada grupo em ordem alfabética;
+  - **quais e em que ordem** (R-20261115-093000): só as filiais de venda do usuário (§4); a de cadastro primeiro, com a marca
+    `sua filial` (13 `ink2`, como no `Filtrar`), e as outras em ordem alfabética. Na opção B do §3, uma última linha `Total`
+    (700, divisória `lineStrong`) com a soma;
   - **cor da quantidade**: a do §3, só no texto, sobre branco (`success` #1D6B4F, 6,4:1; `danger` #A8261B, 7,1:1). O número
     sempre aparece, e a cor nunca está sozinha. Negativo com o sinal de menos (`−2`).
 - Tenant que não mostra a quantidade (`estoque_mostrar_quantidade` = não): a coluna `Estoque` mostra `Em estoque` (verde) ou
@@ -73,10 +78,12 @@ O toque no botão abre a **`Folha`** do kit, que sobe de baixo (decisão do dono
 ## 3. Estoque na hora: `Estoque: N` e o botão à direita (R-20261115-083600)
 Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum. Sem saldo ou sem informação = 0.
 - **Valor de N:**
-  - vendedor: o estoque da filial dele;
   - com cliente: a filial do cliente (RN-CORE-39);
-  - promotor, supervisor e gerente: a **soma** das filiais ligadas a ele (com uma só, a dela; o `modulo-core` expõe a lista);
-  - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600); `Todas as filiais` (§4): a soma de todas.
+  - filial escolhida no filtro (§4): só a daquela filial (R-20261115-084600);
+  - sem filial escolhida, para todo perfil: **opção A ou B, em aberto** (R-20261115-093000):
+    - **A)** a soma das filiais de venda (`../filial-cadastro-venda/09-grade-opcao-a.png`);
+    - **B)** a filial de cadastro, com a soma e o detalhe só na folha (§2.1; `10-grade-opcao-b.png`).
+    Com uma filial de venda só, A e B dão o mesmo número.
 - **Cor:** a do `../catalogo-grade.md` §4, no chip e na tabela da folha (§2.1). O "Risco de ruptura" da folha do item do pedido não muda.
 - **Botão no cartão** (grade e busca), à direita do chip, na mesma linha: só ícone `pacote` 18 em grafite (`ink`, a cor do secundário no kit; validação da marca), quadro de 32 dp (borda
   `lineStrong`, raio 10), `hitSlop` 8 (alvo de 48 dp, dentro do respiro do cartão); `accessibilityLabel="Estoque por filial"`.
@@ -90,22 +97,21 @@ Rótulo `Estoque: N` no cartão da grade, na busca e na ficha, sem toque nenhum.
 ## 4. Filtro no topo (padrão de Pedidos)
 - Linha de busca de Pedidos: `CampoBusca` + `BotaoFiltro` (48 dp, selo com a contagem) e `EtiquetaFiltro` embaixo
   (`packages/ui/src/mobile/filtro.tsx`, `pedidos-filtro-periodo.md`).
-- **O vendedor tem uma filial, obrigatória** (R-20261115-073000): ela é a referência de preço e estoque, e o filtro abre nela, com
-  o selo `1` e o chip `Filial Boa Vista ✕`. Diferente de Pedidos (o padrão "Este mês" não conta), aqui o padrão aparece, como o
-  dono do produto pediu.
-  O ✕ do chip mostra **Todas as filiais** (N no §3); o preço continua o da tabela da filial do vendedor (RN-VEN-01).
-- **Promotor, supervisor e gerente veem só as filiais deles** (R-20261115-090000):
-  - com várias: abrem nelas, com o selo `1` e o chip **`Suas filiais (3)` sem ✕** (`EtiquetaFiltro` sem `onRemover`, só leitura):
-    fora delas não há nada para abrir;
-  - escolhida uma (R-20261115-084600): chip `Filial Manaus ✕`; o ✕ volta para `Suas filiais (3)`;
-  - com uma só: o chip `Filial Boa Vista` sem ✕, e o grupo Filial não aparece na folha "Filtrar".
-- **Vendedor vê todas as filiais da empresa** na folha "Estoque por filial"; o N do cartão e da ficha continua o da filial dele
-  (§3). Decisão do dono do produto, R-20261115-092000.
+- **Regra de filial** (R-20261115-093000, para todo perfil; substitui a regra por perfil de R-20261115-073000, R-20261115-090000
+  e R-20261115-092000; cadastro no BKO e bloqueio: `../filial-cadastro-venda/spec.md`):
+  - **filial de cadastro**, uma e obrigatória: aparece **sempre na faixa**, no subtítulo `Filial Boa Vista · 1.284 produtos`. Não é
+    filtro e não tem ✕;
+  - **filiais de venda**, uma ou várias: o Catálogo usa só elas no preço, no `Estoque: N` (§3), no filtro e na folha (§2.1).
+- **Filtro de filial**, só com mais de uma filial de venda (com uma só, não há chip, e o grupo Filial não aparece na folha "Filtrar"):
+  - opção A: abre em `Suas filiais (3)`, com o selo `1` e o chip sem ✕ (`EtiquetaFiltro` sem `onRemover`);
+  - opção B: abre na filial de cadastro, sem selo e sem chip, porque a faixa já diz a filial;
+  - escolhida uma filial (R-20261115-084600): chip `Filial Manaus ✕` e o selo `1`; o ✕ volta ao padrão.
+- Preço: o da tabela da filial escolhida; sem escolha, o da filial de cadastro (RN-VEN-01).
 - A folha "Filtrar" tem dois grupos (R-20261115-074500):
-  - **Filial**: para o vendedor, a dele (`sua filial`), as outras e `Todas as filiais`; para os outros, `Suas filiais (3)` (padrão) e cada uma delas;
+  - **Filial**: as filiais de venda, a de cadastro primeiro (`sua filial`); na opção A, antes delas, `Suas filiais (3)` (padrão);
   - **Itens sem estoque**: `Mostrar` (padrão) ou `Ocultar`. Com `Ocultar`, o selo soma 1 e entra o chip `Só com estoque ✕`.
-- Com dois grupos, a folha segue o padrão das folhas de vários grupos: rodapé com `Limpar` (neutro: volta para o padrão, a filial do
-  vendedor ou `Suas filiais`, e `Mostrar`) e `Ver 1.284 produtos` (principal, fecha). O RD-0498 (tirar o `Limpar`) deixa de valer, porque agora ele
+- Com dois grupos, a folha segue o padrão das folhas de vários grupos: rodapé com `Limpar` (neutro: volta para o padrão do filtro de
+  filial e `Mostrar`) e `Ver 1.284 produtos` (principal, fecha). O RD-0498 (tirar o `Limpar`) deixa de valer, porque agora ele
   desfaz duas escolhas de uma vez.
 - A filial muda o estoque (e o preço) mostrado e não esconde produtos; quem esconde os sem estoque é o `Ocultar`.
 - Os chips de sistema continuam na tela (navegação, como a situação em Pedidos).
