@@ -18,7 +18,7 @@ Donos: modulo-gestor (regras da equipe e alertas ao gestor), modulo-core (almoç
 
 ## 2. O que o servidor avalia (alerta ao gestor)
 Só dois tipos, no escopo do supervisor ou gerente, sem push (D3):
-- **`parado_entre_visitas`:** em rota, sem visita aberta, com paradas pendentes e `parado_min` + `gestor_depois_min` desde o último checkout. O alerta ao gestor exige paradas pendentes na rota; o lembrete do Campo vale com ou sem rota.
+- **`parado_entre_visitas`:** sem visita aberta e `parado_min` + `gestor_depois_min` desde o último checkout. O Parado ao gestor vale com ou sem rota.
 - **`sem_checkin_inicio`:** dia útil, depois do horário `ate_min`, sem nenhum check-in.
 - Só em dia útil, dentro do horário comercial do tenant, para vendedor e promotor ativos, com a regra e o destino Gestor ligados.
 - **Último contato do aparelho (ADR 0059 §5):** a API chama `core.produtividade_equipe@1` e só abre o alerta se o último contato for posterior ao início da parada (último checkout, ou o horário `ate_min`). Sem contato, não abre: não acusa quem trabalhou sem sinal.
@@ -46,4 +46,3 @@ Rota incompleta, visita aberta, envio pendente e fim do almoço são lembretes d
 ## 5. Pendências
 - Menu "Parâmetros" e redirecionamento de `/regras-alerta` para `/parametros/alertas`: engenheiro-apps.
 - Permanência mínima no Promotor (consulta `promotor.parametros_trade@1` e rota de escrita) e sua volta à regra "Visita curta": modulo-promotor, com o Gestor depois.
-- Leitura de hora (`minutoDoTextoHora`, `textoDoMinuto`) existe no domain do Core e aqui em `domain/numeros.ts`: levar para `packages/comum` (RD-0335).
