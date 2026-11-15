@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * BKO de trade (T-0056, RF-PRO-12): share × meta por loja/categoria e ruptura do mix por loja, no escopo de quem lê
- * (a API filtra equipe e carteira, RN-CORE-04). Filtros na URL e exportação CSV. Só leitura: a proteção real é na API;
- * a página só aparece para supervisor, gerente, analista e admin (shell). RN-PRO-01: nada de pedido.
- * Só entram coletas de visitas que contam (permanência mínima, RN-PRO-07).
+ * BKO de trade (T-0056, RF-PRO-12; revisão do BKO T-0173, §P1 a §P9): share × meta por loja/categoria e ruptura do mix por
+ * loja, no escopo de quem lê (a API filtra equipe e carteira, RN-CORE-04) e só com visitas que contam (permanência mínima,
+ * RN-PRO-07). Período e loja na URL; "Mais ações" exporta CSV e atualiza. Só leitura: a proteção real é na API; a página
+ * só aparece para supervisor, gerente, analista e admin (shell). RN-PRO-01: nada de pedido.
  */
 import { api, downloadBlob, errorMessage, useSession } from '@macuxi/platform-sdk/web';
-import { Badge, Button, DEFAULT_TZ, ErrorBlock, formatDateTime, KpiCard, KpiGrid, LoadingBlock, Notice, PageHeader, Panel, td, tdNum, th, thNum } from '@macuxi/ui/web';
+import { Button, DEFAULT_TZ, ErrorBlock, EstadoVazio, FilterBar, formatDateTime, KpiCard, KpiGrid, LoadingBlock, MenuAcoes, PageHeader, Panel, rotuloComContagem, SeloSituacao, TabelaDados, TextField, type AcaoDoMenu, type ColunaDaTabela } from '@macuxi/ui/web';
 import { useCallback, useEffect, useState } from 'react';
-import { RelatorioRupturaApi, RelatorioShareApi } from '../../contracts';
+import { RelatorioRupturaApi, RelatorioShareApi, type RelatorioRupturaApi as RelatorioRuptura, type RelatorioShareApi as RelatorioShare } from '../../contracts';
 import { ROTULO_SITUACAO_SHARE, rupturaCsv, shareCsv } from '../lib/csv';
 import { lerFiltrosTrade, paraBuscaTrade, paraQueryTrade, type FiltrosTrade } from '../lib/filtros';
 
@@ -51,46 +51,63 @@ function useFiltrosNaUrl(): [FiltrosTrade, (f: FiltrosTrade) => void] {
   return [filtros, mudar];
 }
 
+type LinhaShare = RelatorioShare['linhas'][number];
+type LinhaRuptura = RelatorioRuptura['linhas'][number];
+
 export function TradePage() {
   const fuso = useSession<{ fuso?: string }>().user?.fuso ?? DEFAULT_TZ;
   const [filtros, setFiltros] = useFiltrosNaUrl();
   const [share, recarregarShare] = useRelatorio('/promotor/relatorios/share', parseShare, filtros);
   const [ruptura, recarregarRuptura] = useRelatorio('/promotor/relatorios/ruptura', parseRuptura, filtros);
-  const periodo = share.situacao === 'ok' ? `${share.dados.de.split('-').reverse().join('/')} a ${share.dados.ate.split('-').reverse().join('/')}` : '';
+  const comFiltro = !!(filtros.de || filtros.ate || filtros.cliente_id);
+  const linhasShare = share.situacao === 'ok' ? share.dados.linhas : [];
+  const linhasRuptura = ruptura.situacao === 'ok' ? ruptura.dados.linhas : [];
+  const loja = (nome: string | null) => nome ?? 'Loja sem cadastro';
+  const dataHora = (iso: string) => formatDateTime(iso, fuso);
+
+  const maisAcoes: AcaoDoMenu[] = [
+    ...(share.situacao === 'ok' && linhasShare.length > 0
+      ? [{ id: 'csv-share', rotulo: 'Exportar CSV do share', testId: 'trade.share.csv', aoEscolher: () => downloadBlob(new Blob([shareCsv(share.dados)], { type: 'text/csv;charset=utf-8' }), 'share-x-meta.csv') }]
+      : []),
+    ...(ruptura.situacao === 'ok' && linhasRuptura.length > 0
+      ? [{ id: 'csv-ruptura', rotulo: 'Exportar CSV da ruptura', testId: 'trade.ruptura.csv', aoEscolher: () => downloadBlob(new Blob([rupturaCsv(ruptura.dados)], { type: 'text/csv;charset=utf-8' }), 'ruptura-por-loja.csv') }]
+      : []),
+    { id: 'atualizar', rotulo: 'Atualizar', aoEscolher: () => { recarregarShare(); recarregarRuptura(); } },
+  ];
+
+  const colunasShare: ColunaDaTabela<LinhaShare>[] = [
+    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome) },
+    { id: 'categoria', titulo: 'Categoria', celula: (l) => l.categoria_nome ?? 'Categoria sem cadastro', texto: (l) => l.categoria_nome ?? 'Categoria sem cadastro' },
+    { id: 'share', titulo: 'Share', numero: true, prioridade: 2, celula: (l) => pct(l.share_pct) },
+    { id: 'meta', titulo: 'Meta', numero: true, prioridade: 2, celula: (l) => pct(l.meta_pct) },
+    { id: 'atingimento', titulo: 'Atingimento', numero: true, celula: (l) => pct(l.atingimento_pct) },
+    { id: 'situacao', titulo: 'Situação', celula: (l) => <SeloSituacao selos={[{ tom: l.situacao === 'atingiu' ? 'success' : l.situacao === 'abaixo' ? 'danger' : 'neutral', texto: ROTULO_SITUACAO_SHARE[l.situacao] }]} /> },
+    { id: 'medido', titulo: 'Medido em', prioridade: 3, celula: (l) => dataHora(l.medido_em), texto: (l) => dataHora(l.medido_em), largura: '150px' },
+  ];
+  const colunasRuptura: ColunaDaTabela<LinhaRuptura>[] = [
+    { id: 'loja', titulo: 'Loja', celula: (l) => loja(l.cliente_nome), texto: (l) => loja(l.cliente_nome) },
+    { id: 'total', titulo: 'Itens do mix', numero: true, prioridade: 2, celula: (l) => l.total },
+    { id: 'ruptura', titulo: 'Ruptura', numero: true, celula: (l) => pct(l.ruptura_pct) },
+    { id: 'falha', titulo: 'Falha de reposição', numero: true, prioridade: 2, celula: (l) => pct(l.falha_reposicao_pct) },
+    { id: 'total_pct', titulo: 'Ruptura total', numero: true, celula: (l) => pct(l.ruptura_total_pct) },
+    { id: 'repostos', titulo: 'Repostos (un.)', numero: true, prioridade: 3, celula: (l) => l.quantidade_reposta },
+    { id: 'visita', titulo: 'Última visita', prioridade: 3, celula: (l) => dataHora(l.checkin_em), texto: (l) => dataHora(l.checkin_em), largura: '150px' },
+  ];
 
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="trade.tela">
-      <PageHeader title="Trade marketing" subtitle={`Share de gôndola × meta e ruptura do mix por loja${periodo ? ` · ${periodo}` : ''}.`} />
-      <Panel label="Filtros">
-        <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => e.preventDefault()}>
-          <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
-            De
-            <input type="date" data-testid="trade.filtro.de" className="h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px]" value={filtros.de ?? ''} onChange={(e) => setFiltros({ ...filtros, de: e.target.value || undefined })} />
-          </label>
-          <label className="flex flex-col gap-[3px] text-[12px] font-semibold text-ink-2">
-            Até
-            <input type="date" data-testid="trade.filtro.ate" className="h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px]" value={filtros.ate ?? ''} onChange={(e) => setFiltros({ ...filtros, ate: e.target.value || undefined })} />
-          </label>
-          {(filtros.de || filtros.ate || filtros.cliente_id) && (
-            <Button type="button" size="sm" onClick={() => setFiltros({})}>
-              Últimos 30 dias
-            </Button>
-          )}
-        </form>
-        <span className="text-[12px] text-ink-2">Só entram as visitas com a permanência mínima na loja; visitas curtas e abertas ficam de fora.</span>
-      </Panel>
+      <PageHeader title="Trade marketing" actions={<MenuAcoes rotulo="Mais ações" acoes={maisAcoes} testId="trade.mais-acoes" />} />
+      <FilterBar>
+        <TextField label="De" type="date" data-testid="trade.filtro.de" value={filtros.de ?? ''} onChange={(e) => setFiltros({ ...filtros, de: e.target.value || undefined })} />
+        <TextField label="Até" type="date" data-testid="trade.filtro.ate" value={filtros.ate ?? ''} onChange={(e) => setFiltros({ ...filtros, ate: e.target.value || undefined })} />
+        {comFiltro && (
+          <Button type="button" size="sm" onClick={() => setFiltros({})}>
+            Limpar filtros
+          </Button>
+        )}
+      </FilterBar>
 
-      <Panel
-        label="Share × meta"
-        title="Share de gôndola × meta"
-        aside={
-          share.situacao === 'ok' && share.dados.linhas.length > 0 ? (
-            <Button size="sm" data-testid="trade.share.csv" onClick={() => downloadBlob(new Blob([shareCsv(share.dados)], { type: 'text/csv;charset=utf-8' }), 'share-x-meta.csv')}>
-              Exportar CSV
-            </Button>
-          ) : undefined
-        }
-      >
+      <Panel label="Share × meta" title={rotuloComContagem('Share de gôndola × meta', linhasShare.length)}>
         {share.situacao === 'carregando' && <LoadingBlock label="Carregando o share…" />}
         {share.situacao === 'erro' && <ErrorBlock message={share.mensagem} onRetry={recarregarShare} />}
         {share.situacao === 'ok' && (
@@ -100,90 +117,32 @@ export function TradePage() {
               <KpiCard label="Meta média" value={pct(share.dados.resumo.meta_media_pct)} />
               <KpiCard label="Atingimento" value={pct(share.dados.resumo.atingimento_pct)} dark />
             </KpiGrid>
-            {share.dados.linhas.length === 0 ? (
-              <Notice tone="info">Nenhuma medição de share no período.</Notice>
-            ) : (
-              <table className="w-full border-collapse text-[13px]" data-testid="trade.share.tabela">
-                <thead>
-                  <tr>
-                    <th scope="col" className={th}>Loja</th>
-                    <th scope="col" className={th}>Categoria</th>
-                    <th scope="col" className={thNum}>Share</th>
-                    <th scope="col" className={thNum}>Meta</th>
-                    <th scope="col" className={thNum}>Atingimento</th>
-                    <th scope="col" className={th}>Situação</th>
-                    <th scope="col" className={th}>Medido em</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {share.dados.linhas.map((l) => (
-                    <tr key={`${l.cliente_id}-${l.categoria_gondola_id}`}>
-                      <td className={td}>
-                        <button type="button" className="text-left font-semibold text-accent-ink underline-offset-2 hover:underline" onClick={() => setFiltros({ ...filtros, cliente_id: l.cliente_id })}>
-                          {l.cliente_nome ?? 'Loja sem cadastro'}
-                        </button>
-                      </td>
-                      <td className={td}>{l.categoria_nome ?? 'Categoria sem cadastro'}</td>
-                      <td className={tdNum}>{pct(l.share_pct)}</td>
-                      <td className={tdNum}>{pct(l.meta_pct)}</td>
-                      <td className={tdNum}>{pct(l.atingimento_pct)}</td>
-                      <td className={td}>
-                        <Badge tone={l.situacao === 'atingiu' ? 'success' : l.situacao === 'abaixo' ? 'danger' : 'neutral'}>{ROTULO_SITUACAO_SHARE[l.situacao]}</Badge>
-                      </td>
-                      <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(l.medido_em, fuso)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <TabelaDados
+              rotulo="Share de gôndola × meta"
+              testId="trade.share.tabela"
+              colunas={colunasShare}
+              linhas={linhasShare}
+              chave={(l) => `${l.cliente_id}-${l.categoria_gondola_id}`}
+              aoAbrir={(l) => setFiltros({ ...filtros, cliente_id: l.cliente_id })}
+              vazio={<EstadoVazio titulo="Nenhuma medição de share no período." />}
+            />
           </>
         )}
       </Panel>
 
-      <Panel
-        label="Ruptura por loja"
-        title="Ruptura do mix por loja"
-        aside={
-          ruptura.situacao === 'ok' && ruptura.dados.linhas.length > 0 ? (
-            <Button size="sm" data-testid="trade.ruptura.csv" onClick={() => downloadBlob(new Blob([rupturaCsv(ruptura.dados)], { type: 'text/csv;charset=utf-8' }), 'ruptura-por-loja.csv')}>
-              Exportar CSV
-            </Button>
-          ) : undefined
-        }
-      >
+      <Panel label="Ruptura por loja" title={rotuloComContagem('Ruptura do mix por loja', linhasRuptura.length)}>
         {ruptura.situacao === 'carregando' && <LoadingBlock label="Carregando a ruptura…" />}
         {ruptura.situacao === 'erro' && <ErrorBlock message={ruptura.mensagem} onRetry={recarregarRuptura} />}
-        {ruptura.situacao === 'ok' &&
-          (ruptura.dados.linhas.length === 0 ? (
-            <Notice tone="info">Nenhuma conferência do mix no período.</Notice>
-          ) : (
-            <table className="w-full border-collapse text-[13px]" data-testid="trade.ruptura.tabela">
-              <thead>
-                <tr>
-                  <th scope="col" className={th}>Loja</th>
-                  <th scope="col" className={thNum}>Itens do mix</th>
-                  <th scope="col" className={thNum}>Ruptura</th>
-                  <th scope="col" className={thNum}>Falha de reposição</th>
-                  <th scope="col" className={thNum}>Ruptura total</th>
-                  <th scope="col" className={thNum}>Repostos (un.)</th>
-                  <th scope="col" className={th}>Última visita</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ruptura.dados.linhas.map((l) => (
-                  <tr key={l.cliente_id}>
-                    <td className={td}>{l.cliente_nome ?? 'Loja sem cadastro'}</td>
-                    <td className={tdNum}>{l.total}</td>
-                    <td className={tdNum}>{pct(l.ruptura_pct)}</td>
-                    <td className={tdNum}>{pct(l.falha_reposicao_pct)}</td>
-                    <td className={tdNum}>{pct(l.ruptura_total_pct)}</td>
-                    <td className={tdNum}>{l.quantidade_reposta}</td>
-                    <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(l.checkin_em, fuso)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ))}
+        {ruptura.situacao === 'ok' && (
+          <TabelaDados
+            rotulo="Ruptura do mix por loja"
+            testId="trade.ruptura.tabela"
+            colunas={colunasRuptura}
+            linhas={linhasRuptura}
+            chave={(l) => l.cliente_id}
+            vazio={<EstadoVazio titulo="Nenhuma conferência do mix no período." />}
+          />
+        )}
       </Panel>
     </div>
   );
