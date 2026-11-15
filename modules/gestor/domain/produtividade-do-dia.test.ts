@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CHAVES_REGRA_PRODUTIVIDADE, FAIXAS_ALERTAS_PRODUTIVIDADE, PARADO_MIN_PADRAO, PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, ParametrosAlertasProdutividadeSchema } from '@macuxi/core/contracts';
-import { CAMPOS_PRODUTIVIDADE, FRASE_PRODUTIVIDADE, montarSalvamentoProdutividade, montarSalvamentoTeto, NOME_PRODUTIVIDADE, REGRAS_COM_DESTINOS } from './produtividade-do-dia';
+import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, FAIXAS_ALERTAS_PRODUTIVIDADE, PARADO_MIN_PADRAO, PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, ParametrosAlertasProdutividadeSchema } from '@macuxi/core/contracts';
+import { CAMPOS_PRODUTIVIDADE, FRASE_PRODUTIVIDADE, montarSalvamentoProdutividade, montarSalvamentoTeto, REGRAS_COM_DESTINOS } from './produtividade-do-dia';
 import { minutoDoTextoHora, textoDoMinuto } from './numeros';
 
 const atual = { parametros: PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO, paradoMin: PARADO_MIN_PADRAO };
@@ -24,7 +24,7 @@ describe('Parâmetros › Alertas › Produtividade do dia (T-0180, D1 e D6): o 
   });
 
   it('RN-VEN-42: nome e frase de cada regra são os da spec final, sem número nem horário', () => {
-    expect(CHAVES_REGRA_PRODUTIVIDADE.map((k) => [NOME_PRODUTIVIDADE[k], FRASE_PRODUTIVIDADE[k]])).toEqual([
+    expect(CHAVES_REGRA_PRODUTIVIDADE.map((k) => [NOME_REGRA_PRODUTIVIDADE[k], FRASE_PRODUTIVIDADE[k]])).toEqual([
       ['Fim do almoço', 'Lembra a volta do almoço.'],
       ['Parado entre visitas', 'Avisa quando passa do tempo sem check-in.'],
       ['Sem check-in no início do dia', 'Avisa quem não fez check-in até o horário.'],

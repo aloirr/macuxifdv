@@ -47,16 +47,6 @@ export const CAMPOS_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, read
   envio_pendente: [num('apos_h', 'Depois de', 'h', FAIXAS.envio_pendente_h, PADRAO.envio_pendente.apos_h)],
 };
 
-/** Nome da regra na tela (spec final): sem horário nem número. */
-export const NOME_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, string>> = {
-  fim_almoco: 'Fim do almoço',
-  parado_entre_visitas: 'Parado entre visitas',
-  sem_checkin_inicio: 'Sem check-in no início do dia',
-  rota_incompleta: 'Rota do dia incompleta',
-  visita_aberta: 'Visita aberta',
-  envio_pendente: 'Envio pendente',
-};
-
 /** Frase curta: só o problema (R-20261110-192153). */
 export const FRASE_PRODUTIVIDADE: Readonly<Record<ChaveRegraProdutividade, string>> = {
   fim_almoco: 'Lembra a volta do almoço.',

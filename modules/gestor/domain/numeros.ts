@@ -27,8 +27,8 @@ export function compararTexto(a: string, b: string): number {
   return a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }) || (a < b ? -1 : a > b ? 1 : 0);
 }
 
-/** Minuto do dia (0 a 1439) escrito como `HH:MM`. */
-export const textoDoMinuto = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+/** Minuto do dia como `HH:MM` (uma cópia só, em `contracts/parametros`; RD-0335 entre módulos fica para o engenheiro-software, pois o Core não exporta). */
+export { textoDoMinuto } from '../contracts/parametros';
 
 /** `HH:MM` (ou `H:MM`) como minuto do dia; texto fora de 00:00 a 23:59 devolve `null`. */
 export function minutoDoTextoHora(texto: string): number | null {

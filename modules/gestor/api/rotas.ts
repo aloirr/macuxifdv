@@ -5,7 +5,7 @@
  * domain em toda resposta; fora do escopo = 404 sem revelar existência. Leitura do tenant (analista/admin) é só
  * leitura (RN-GES-07). Nenhuma rota de pedido aqui (RN-PRO-01): aprovar/rejeitar e o pedido em nome são do Vendedor.
  */
-import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS, CONSULTA_PRODUTIVIDADE_EQUIPE, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_CALENDARIO_METAS, CONSULTA_PRODUTIVIDADE_EQUIPE, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { exigirDataCivil } from '@macuxi/comum';
 import type { z } from 'zod';
@@ -138,16 +138,20 @@ const LOTE_PRODUTIVIDADE = 500;
  * T-0180, ADR 0059 §4: o que o Core sabe da produtividade da equipe de campo (`core.produtividade_equipe@1`): o limite do "parado"
  * (`inicio.parado_min`), o parâmetro `alertas.produtividade` e o último contato do aparelho de cada pessoa. Sem gente de campo, `undefined`.
  */
-async function produtividadeDaEquipe(g: ContextoGestor): Promise<{ parado_min: number; alertas: ParametrosAlertasProdutividade; ultimo_contato_em: Record<string, string | null> } | undefined> {
+async function produtividadeDaEquipe(g: ContextoGestor): Promise<{ parado_min: number; alertas: ParametrosAlertasProdutividade; ultimo_contato_em: Record<string, string | null>; almoco: Record<string, HorarioAlmoco> } | undefined> {
   const ids = g.membros.filter((m) => (m.perfil === 'vendedor' || m.perfil === 'promotor') && m.ativo).map((m) => m.id);
   let base: { parado_min: number; alertas: ParametrosAlertasProdutividade } | undefined;
   const ultimo_contato_em: Record<string, string | null> = {};
+  const almoco: Record<string, HorarioAlmoco> = {};
   for (let i = 0; i < ids.length; i += LOTE_PRODUTIVIDADE) {
     const r = await g.tx.consultar(CONSULTA_PRODUTIVIDADE_EQUIPE, { usuario_ids: ids.slice(i, i + LOTE_PRODUTIVIDADE) });
     base ??= { parado_min: r.parado_min, alertas: r.alertas };
-    for (const u of r.usuarios) ultimo_contato_em[u.id] = u.ultimo_contato_em;
+    for (const u of r.usuarios) {
+      ultimo_contato_em[u.id] = u.ultimo_contato_em;
+      almoco[u.id] = { inicio_min: u.almoco_inicio_min, fim_min: u.almoco_fim_min };
+    }
   }
-  return base && { ...base, ultimo_contato_em };
+  return base && { ...base, ultimo_contato_em, almoco };
 }
 
 /** Reconcilia os alertas (tipos do viewer) e devolve a lista atualizada do tenant. */
@@ -164,6 +168,7 @@ async function alertasAtualizados(g: ContextoGestor, repo: RepositorioGestor) {
     params: prod ? { ...g.params, parado_min: prod.parado_min } : g.params,
     produtividade: prod?.alertas,
     ultimo_contato_em: prod?.ultimo_contato_em,
+    almoco: prod?.almoco,
   });
   if (ops.abrir.length + ops.atualizar.length + ops.encerrar.length === 0) return existentes;
   await repo.aplicarOperacoesAlerta(g.acesso, ops, { agora: g.agora, novoId: uuidPadrao });

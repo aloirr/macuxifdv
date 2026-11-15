@@ -1,4 +1,5 @@
 /** Parâmetros do tenant do Gestor (padrões = doc 03, tabela de parâmetros; ver docs/modulos/gestor/regras.md). */
+import { HORARIO_COMERCIAL_PADRAO as HORARIO_COMERCIAL_CORE } from '@macuxi/core/contracts';
 import { z } from 'zod';
 import { IsoDate } from './base';
 
@@ -24,6 +25,9 @@ export function minutosDaHora(h: string): number {
   return Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 }
 
+/** Minuto do dia (0 a 1439) escrito como `HH:MM`. */
+export const textoDoMinuto = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
 /** Dia da semana ISO: 1 = segunda … 7 = domingo. */
 export const DiaSemana = z.number().int().min(1).max(7);
 
@@ -47,7 +51,7 @@ export function jornadaHoras(h: Pick<HorarioComercial, 'inicio' | 'fim'>): numbe
   return (minutosDaHora(h.fim) - minutosDaHora(h.inicio)) / 60;
 }
 
-export const HORARIO_COMERCIAL_PADRAO: Readonly<HorarioComercial> = { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '18:00' };
+export const HORARIO_COMERCIAL_PADRAO: Readonly<HorarioComercial> = { dias_semana: [1, 2, 3, 4, 5], inicio: textoDoMinuto(HORARIO_COMERCIAL_CORE.inicio_min), fim: textoDoMinuto(HORARIO_COMERCIAL_CORE.fim_min) }; // horas do Core (RD-0338)
 
 export const ParametrosGestorSchema = z
   .object({

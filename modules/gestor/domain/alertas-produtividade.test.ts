@@ -16,7 +16,7 @@ const TODOS = new Set(['core', 'vendedor', 'promotor']);
 const PADRAO = PARAMETROS_ALERTAS_PRODUTIVIDADE_PADRAO;
 /** Por padrão o aparelho sincronizou às 23:59 UTC do dia (depois de qualquer início de parada); `contato: null` = nunca sincronizou. */
 const SINCRONIZOU = '2026-10-30T23:59:00Z';
-const avaliar = (eventos: EventoRecebido[], agora: string, o: { produtividade?: ParametrosAlertasProdutividade; membros?: MembroEquipe[]; contato?: string | null; parado_min?: number } = {}) =>
+const avaliar = (eventos: EventoRecebido[], agora: string, o: { produtividade?: ParametrosAlertasProdutividade; membros?: MembroEquipe[]; contato?: string | null; parado_min?: number; almoco?: Record<string, { inicio_min: number; fim_min: number }> } = {}) =>
   avaliarAlertas({
     estado: montar(eventos),
     membros: o.membros ?? MEMBROS,
@@ -26,6 +26,7 @@ const avaliar = (eventos: EventoRecebido[], agora: string, o: { produtividade?: 
     params: o.parado_min === undefined ? undefined : { parado_min: o.parado_min },
     produtividade: 'produtividade' in o ? o.produtividade : PADRAO,
     ultimo_contato_em: { [VENDEDOR]: 'contato' in o ? (o.contato ?? null) : SINCRONIZOU },
+    almoco: o.almoco,
   });
 const doTipo = (cs: ReturnType<typeof avaliar>, tipo: string) => cs.filter((c) => c.tipo === tipo);
 const comRegra = <K extends keyof Omit<ParametrosAlertasProdutividade, 'teto_lembretes_dia'>>(k: K, parcial: Partial<ParametrosAlertasProdutividade[K]>): ParametrosAlertasProdutividade => ({
@@ -35,6 +36,31 @@ const comRegra = <K extends keyof Omit<ParametrosAlertasProdutividade, 'teto_lem
 
 const visita = [rota([CLIENTE_A, CLIENTE_B, CLIENTE_C]), checkin({ visita: V1, cliente: CLIENTE_A, em: T0 }), checkout({ visita: V1, cliente: CLIENTE_A, em: maisMin(T0, 30) })];
 const CO = maisMin(T0, 30); // último checkout: 09:30 em Manaus
+
+describe('RN-CORE-26, RN-CORE-44: o "Parado" do gestor não conta o horário de almoço', () => {
+  const T1 = '2026-10-30T15:00:00Z'; // 11:00 em Manaus
+  const CO1 = maisMin(T1, 30); // checkout 11:30
+  const dia = [rota([CLIENTE_A, CLIENTE_B]), checkin({ visita: V1, cliente: CLIENTE_A, em: T1 }), checkout({ visita: V1, cliente: CLIENTE_A, em: CO1 })];
+  const ALM = { [VENDEDOR]: { inicio_min: 720, fim_min: 780 } }; // 12:00 às 13:00 em Manaus
+  it('RN-CORE-44: com almoço dentro da espera, o limite (60 + 30 min) só vale 1 h depois', () => {
+    expect(doTipo(avaliar(dia, maisMin(CO1, 120), { almoco: ALM }), 'parado_entre_visitas')).toEqual([]); // 13:30: 120 min corridos, 60 sem almoço
+    const [c] = doTipo(avaliar(dia, maisMin(CO1, 150), { almoco: ALM }), 'parado_entre_visitas'); // 14:00: 90 min sem almoço
+    expect(c?.valor).toBe(90);
+  });
+  it('RN-CORE-26: almoço fora da espera (ou sem horário informado e fora de 12h-13h) não muda nada', () => {
+    expect(doTipo(avaliar(dia, maisMin(CO1, 90), { almoco: { [VENDEDOR]: { inicio_min: 15 * 60, fim_min: 16 * 60 } } }), 'parado_entre_visitas')).toHaveLength(1);
+    expect(doTipo(avaliar(dia, maisMin(CO1, 90), { almoco: ALM }), 'parado_entre_visitas')).toEqual([]);
+  });
+  it('RN-CORE-44: sem o horário da pessoa vale o padrão da empresa (12:00 às 13:00)', () => {
+    expect(doTipo(avaliar(dia, maisMin(CO1, 120)), 'parado_entre_visitas')).toEqual([]);
+    expect(doTipo(avaliar(dia, maisMin(CO1, 150)), 'parado_entre_visitas')).toHaveLength(1);
+  });
+  it('RN-CORE-26: checkout no meio do almoço conta só o que passou do fim do almoço', () => {
+    const meio = [rota([CLIENTE_A, CLIENTE_B]), checkin({ visita: V1, cliente: CLIENTE_A, em: '2026-10-30T15:40:00Z' }), checkout({ visita: V1, cliente: CLIENTE_A, em: '2026-10-30T16:30:00Z' })]; // checkout 12:30
+    expect(doTipo(avaliar(meio, '2026-10-30T18:00:00Z', { almoco: ALM }), 'parado_entre_visitas')).toEqual([]); // 14:00: 60 min sem almoço
+    expect(doTipo(avaliar(meio, '2026-10-30T19:00:00Z', { almoco: ALM }), 'parado_entre_visitas')).toHaveLength(1); // 15:00: 150 min, 120 sem almoço
+  });
+});
 
 describe('D4 / RN-CORE-26: alerta "Parado" ao gestor (parado_min + 30 min, um por pessoa, sem push)', () => {
   it('RN-CORE-26: abre quando passam parado_min (60) + 30 min do último checkout, com paradas pendentes', () => {

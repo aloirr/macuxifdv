@@ -10,7 +10,7 @@
  * (`campos-regra`, `produtividade-do-dia`); a API revalida.
  */
 import { useState, type ReactNode } from 'react';
-import { CHAVES_REGRA_PRODUTIVIDADE, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { CHAVES_REGRA_PRODUTIVIDADE, NOME_REGRA_PRODUTIVIDADE, type ChaveRegraProdutividade, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { Button, CLASSE_CAMPO_BASE, ErrorBlock, Interruptor, LoadingBlock, Notice, PageHeader, Panel, cx, type NoticeTone } from '@macuxi/ui/web';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { SEVERIDADES, type ParametrosAlertasEquipe, type RegraAlerta, type Severidade, type TipoRegraEquipe } from '../../contracts';
@@ -22,7 +22,6 @@ import {
   montarSalvamento,
   montarSalvamentoProdutividade,
   montarSalvamentoTeto,
-  NOME_PRODUTIVIDADE,
   REGRAS_COM_DESTINOS,
   regrasVisiveis,
   textoDoMinuto,
@@ -220,15 +219,15 @@ function CartaoProdutividade({ chave, parametros, paradoMin, aoSalvar }: { chave
     }
   };
   return (
-    <CartaoRegra id={chave} nome={NOME_PRODUTIVIDADE[chave]} frase={FRASE_PRODUTIVIDADE[chave]} ativa={e.ativa} aoLigar={(v) => setE({ ...e, ativa: v })} alterado={alterado} salvando={salvando} aoSalvar={() => void salvar()}>
+    <CartaoRegra id={chave} nome={NOME_REGRA_PRODUTIVIDADE[chave]} frase={FRASE_PRODUTIVIDADE[chave]} ativa={e.ativa} aoLigar={(v) => setE({ ...e, ativa: v })} alterado={alterado} salvando={salvando} aoSalvar={() => void salvar()}>
       <div className="flex flex-wrap items-end gap-3">
         {/* Destinos em duas colunas só onde há dois; nas outras o espaço fica vazio e os campos alinham na mesma coluna */}
         {comDestinos ? (
-          <div className="flex w-[300px] shrink-0 gap-3" role="group" aria-label={`Quem recebe: ${NOME_PRODUTIVIDADE[chave]}`}>
+          <div className="flex w-[300px] shrink-0 gap-3" role="group" aria-label={`Quem recebe: ${NOME_REGRA_PRODUTIVIDADE[chave]}`}>
             {(['vendedor', 'gestor'] as const).map((d) => (
               <div key={d} className="flex flex-1 flex-col gap-1">
                 <span className="text-[13px] font-semibold text-ink">{d === 'vendedor' ? 'Vendedor' : 'Gestor'}</span>
-                <Interruptor ligado={e[d]} onChange={(v) => setE({ ...e, [d]: v })} rotulo={`${d === 'vendedor' ? 'Vendedor' : 'Gestor'} recebe: ${NOME_PRODUTIVIDADE[chave]}`} desabilitado={!e.ativa} testId={`gestor.parametros-alertas.${chave}.destino-${d}`} />
+                <Interruptor ligado={e[d]} onChange={(v) => setE({ ...e, [d]: v })} rotulo={`${d === 'vendedor' ? 'Vendedor' : 'Gestor'} recebe: ${NOME_REGRA_PRODUTIVIDADE[chave]}`} desabilitado={!e.ativa} testId={`gestor.parametros-alertas.${chave}.destino-${d}`} />
               </div>
             ))}
           </div>
@@ -298,7 +297,7 @@ function SecaoProdutividade({ aviso }: { aviso: (a: Aviso) => void }) {
           <CartaoTeto key={prod.data.teto_lembretes_dia} parametros={prod.data} aoSalvar={(r) => gravar('Lembretes por pessoa', r)} />
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {CHAVES_REGRA_PRODUTIVIDADE.map((chave) => (
-              <CartaoProdutividade key={`${chave}:${JSON.stringify(prod.data[chave])}:${parado.data}`} chave={chave} parametros={prod.data} paradoMin={parado.data} aoSalvar={(r) => gravar(NOME_PRODUTIVIDADE[chave], r)} />
+              <CartaoProdutividade key={`${chave}:${JSON.stringify(prod.data[chave])}:${parado.data}`} chave={chave} parametros={prod.data} paradoMin={parado.data} aoSalvar={(r) => gravar(NOME_REGRA_PRODUTIVIDADE[chave], r)} />
             ))}
           </ul>
         </>

@@ -7,7 +7,7 @@
  *      · alerta dispensado pelo gestor não reabre enquanto a condição persiste; se sumir e voltar, abre outro.
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
-import type { ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
+import { ALMOCO_PADRAO_EMPRESA, type HorarioAlmoco, type ParametrosAlertasProdutividade } from '@macuxi/core/contracts';
 import { diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, TIPOS_ALERTA_PRODUTIVIDADE, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
@@ -123,6 +123,17 @@ export interface EntradaAvaliacao {
    * só abre com contato POSTERIOR ao início da parada (não acusa quem trabalhou sem sinal e ainda não sincronizou); sem contato, não abre.
    */
   ultimo_contato_em?: Readonly<Record<string, string | null>>;
+  /** T-0180 / RN-CORE-44: horário de almoço já resolvido de cada usuário (`core.produtividade_equipe@1`); sem o dado vale o padrão da empresa. */
+  almoco?: Readonly<Record<string, HorarioAlmoco>>;
+}
+
+/**
+ * RN-CORE-26, RN-CORE-44: minutos entre `deMs` e `ateMs` sem o tempo de almoço (a mesma conta do Campo, `somarSemAlmoco`).
+ * `almocoMs` é a janela do almoço do dia, em milissegundos UTC.
+ */
+export function minutosSemAlmoco(deMs: number, ateMs: number, almocoMs: { inicio: number; fim: number }): number {
+  const sobreposto = Math.max(0, Math.min(ateMs, almocoMs.fim) - Math.max(deMs, almocoMs.inicio));
+  return Math.max(0, Math.floor((ateMs - deMs - sobreposto) / 60_000));
 }
 
 const chaveDe = (tipo: TipoAlerta, alvo: string) => `${tipo}:${alvo}`;
@@ -330,7 +341,11 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
       // RN-CORE-26: parado = sem check-in aberto, paradas pendentes e `parado_min` desde o último checkout; o gestor só vê `gestor_depois_min` depois
       if (ativos.has('parado_entre_visitas') && dia === 'em_rota') {
         const rota = situacaoDaRota(e.estado, m.id, hoje, params.fuso);
-        const parado = rota.ultimo_checkout_em ? Math.floor((agoraMs - instanteMs(rota.ultimo_checkout_em)) / 60_000) : null;
+        const almoco = e.almoco?.[m.id] ?? ALMOCO_PADRAO_EMPRESA;
+        const inicioDoDia = instanteDoHorarioLocal(hoje, '00:00', params.fuso);
+        const parado = rota.ultimo_checkout_em
+          ? minutosSemAlmoco(instanteMs(rota.ultimo_checkout_em), agoraMs, { inicio: inicioDoDia + almoco.inicio_min * 60_000, fim: inicioDoDia + almoco.fim_min * 60_000 })
+          : null;
         const contato = e.ultimo_contato_em?.[m.id] ?? null;
         const comSinal = rota.ultimo_checkout_em !== null && contato !== null && instanteMs(contato) > instanteMs(rota.ultimo_checkout_em);
         if (rota.paradas_pendentes > 0 && rota.ultimo_checkout_em && comSinal && parado !== null && parado >= params.parado_min + prod.parado_entre_visitas.gestor_depois_min) {
