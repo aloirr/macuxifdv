@@ -1,40 +1,52 @@
-# Tela de carga: aviso acima da barra e frase sorteada; cadastro das frases no portal `config.`
+# Tela de carga: aviso acima da barra e "Você sabia?" com frase sorteada; cadastro das frases no portal `config.`
 
 > 2026-11-15 · designer-ux · **simulação, sem implementação** até a aprovação do dono do produto (R-20261115-070000-alexandre).
-> Pareceres aplicados: corretor RD-0468 a RD-0476; marca MC-0077, MC-0079 e MC-0080 (a MC-0078, tokens do aviso, fica para a
-> implementação). Base: `docs/design/entrada-sync.md` (T-0172), que continua a fonte da verdade da tela de carga; esta spec
+> Pareceres aplicados: corretor RD-0468 a RD-0476; marca MC-0077, MC-0079 e MC-0080 (a MC-0078, tokens da caixa do aviso, deixou de
+> existir: o aviso ficou sem caixa em R-20261115-080500-alexandre). Base: `docs/design/entrada-sync.md` (T-0172), que continua a fonte da verdade da tela de carga; esta spec
 > descreve só o que entra. Na aprovação, a §2 da `entrada-sync.md` recebe a mudança do "Fora da tela" (§5 abaixo).
 > Simulação: `carga-campo.png`, `carga-gestao.png` (360 × 800), `carga-campo-640.png` (360 × 640 com 48 dp de navegação),
 > `config-frases.png`, `config-editar.png`. Frases: `frases.md` (tema de Roraima, com as fontes na §6). Fontes: os `.html` e o `app.css` desta pasta.
 
 ## 1. Tela de carga (Campo e Gestão, rota `/sync`, estados 4 e 5 da entrada-sync)
-De cima para baixo:
+Ajuste do dono do produto em R-20261115-080500-alexandre (referência `recados/anexos/R-20261115-080500-carga-ajuste.png` no
+repositório de recados). De cima para baixo:
 1. **Logo** empilhado, parado no centro (sem mudança).
 2. **"Olá, {primeiro nome}"** (sem mudança).
-3. **Frase sorteada (nova):** 12 dp abaixo do "Olá"; IBM Plex Sans 14/20, `textoClaro` (Campo `#C9CED5` 8,07:1; Gestão `#4A5562`
-   7,03:1), centralizada, largura máxima 280 dp, até 2 linhas. Sem aspas, sem rótulo, sem ícone.
-4. **Aviso (novo)**, na área de baixo, 18 dp acima da linha da barra, texto do dono do produto:
-   "Baixando os dados do servidor. Isso pode demorar alguns minutos. **Não saia desta tela!**"
-   - Plex Sans 14/20 em `texto`; a última frase em SemiBold e sem quebra no meio. Sem ícone.
-   - Caixa com raio 12, borda 1 dp `#C9CED5`, 12 × 14 dp de respiro. Campo: sem fundo. Gestão: fundo branco.
+3. **"Você sabia?" (novo):** 20 dp abaixo do "Olá", centralizado: ícone de lâmpada de 16 dp e, 6 dp depois, "Você sabia?" em
+   IBM Plex Sans SemiBold 13/18, cor `texto` (Campo branco 12,77:1; Gestão Azul noite 11,82:1). A lâmpada usa a cor
+   `preenchimento` da barra (Campo sol claro `#F59A52`, 5,85:1; Gestão sol laranja `#C2540A`, 4,26:1): é gráfico, não texto, e
+   fica dentro da regra do manual §3. A referência do dono do produto pinta também o texto de laranja; isso pede exceção da marca
+   (sol como texto) e fica para o design-de-marca decidir.
+   - **Lâmpada:** não existe no kit (`packages/ui/src/mobile/icon.tsx`). Desenhada no traço da família (grade 24, traço 2, pontas
+     redondas, sem preenchimento): `M9 18h6` · `M10 21h4` · `M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6
+     1.1-2.1A6 6 0 0 0 12 3z`. Entra no kit como `lampada` na implementação (designer-ux), com o teste do `icon.test.ts`.
+   - Decorativa para o leitor de tela; o rótulo e a frase são lidos juntos: "Você sabia? {frase}".
+4. **Frase sorteada:** 6 dp abaixo do "Você sabia?"; IBM Plex Sans 14/20, `textoClaro` (Campo `#C9CED5` 8,07:1; Gestão `#4A5562`
+   7,03:1), centralizada, largura máxima 280 dp, até 2 linhas. Sem aspas e sem itálico.
+5. **Aviso**, na área de baixo, 10 dp acima da linha da barra: "Baixando os dados do servidor. Não desligue."
+   - Sem destaque: IBM Plex Sans Regular 13/18, `textoClaro`, alinhado à esquerda como a linha da barra. Sem caixa, sem borda,
+     sem negrito, sem ícone. Uma linha.
    - Só durante a carga (estados 4 e 5). No erro (estado 6) sai: no lugar entram a linha do erro e as ações.
    - Leitor de tela: lido uma vez, na ordem da tela, antes da barra; não é região viva.
-5. **Linha da barra e barra** (sem mudança).
+6. **Linha da barra e barra** (sem mudança).
 
 ### 1.1 Respiro (MC-0077)
-- **Prioridade:** logo, "Olá", aviso e barra. Depois a frase; por último a lista de etapas. O logo nunca se move, e nada entra na
-  área de proteção dele (a altura do "M" em volta).
-- **Frase:** precisa de 24 dp livres entre o pé dela e o topo do aviso. Sem isso, cai para 1 linha (só se a frase couber inteira
-  em 1 linha); se ainda não couber, não aparece naquela carga. Sem reticências.
-- **Aviso:** precisa de 16 dp livres abaixo do "Olá". Sem isso, perde a caixa (sem borda, sem fundo e sem respiro interno) e fica
-  só o texto, com a mesma tipografia.
-- **Lista de etapas:** sai antes da frase (`cabeLista` passa a contar o aviso e a frase). Uma função `cabeFrase(janela, inset)` ao
-  lado do `cabeLista` decide 2 linhas, 1 linha ou nada.
-- **Conferência na simulação:** 360 × 800 sem navegação: 71 dp entre a frase e o aviso, tudo aparece. 360 × 800 com 48 dp de
-  navegação: 23 dp, a frase cai para 1 linha. 360 × 640 com 48 dp de navegação (`carga-campo-640.png`): a frase sai e o aviso
-  fica sem a caixa, a 41 dp do "Olá".
+- **Prioridade:** logo, "Olá", aviso e barra. Depois o bloco "Você sabia?" com a frase; por último a lista de etapas. O logo nunca
+  se move, e nada entra na área de proteção dele (a altura do "M" em volta).
+- **Bloco "Você sabia?":** precisa de 24 dp livres entre o pé da frase e o topo do aviso. Sem isso, a frase cai para 1 linha (só
+  se couber inteira em 1 linha); se ainda não couber, o bloco inteiro (lâmpada, rótulo e frase) não aparece naquela carga. O
+  rótulo nunca aparece sozinho. Sem reticências.
+- **Aviso:** sempre em 1 linha e sem caixa; não muda com a altura da tela.
+- **Lista de etapas:** sai antes do bloco (`cabeLista` passa a contar o aviso e o bloco). Uma função `cabeFrase(janela, inset)`
+  ao lado do `cabeLista` decide 2 linhas, 1 linha ou nada.
+- **Conferência na simulação:** o bloco ocupa 84 dp com a frase em 2 linhas (20 + 18 + 6 + 40) e 64 dp com 1 linha.
+  - 360 × 800 sem navegação: 115 dp entre a frase e o aviso, tudo aparece (`carga-campo.png`, `carga-gestao.png`).
+  - 360 × 800 com 48 dp de navegação: 67 dp, tudo aparece.
+  - 360 × 640 com 48 dp de navegação (`carga-campo-640.png`): 71 dp livres entre o "Olá" e o aviso, menos que os 88 dp do bloco
+    com 1 linha e o respiro; o bloco sai e ficam o logo, o "Olá", o aviso e a barra.
 
-Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "reduzir movimento", nada anima).
+Sem cor nova (a lâmpada usa o `preenchimento` que já existe) e sem movimento novo (a área de baixo já esmaece em 240 ms; com
+"reduzir movimento", nada anima).
 
 ## 2. Sorteio (offline)
 - Uma frase por carga, sorteada quando a tela monta, entre as **ativas**. Não troca durante a carga.
@@ -64,7 +76,7 @@ Sem cor nova e sem movimento novo (a área de baixo já esmaece em 240 ms; com "
 - `docs/design/entrada-sync.md` §2 (RD-0476): sai "dica" do "Fora da tela" e a lista da tela ganha "frase sorteada, uma por
   carga, parada" e o aviso, com remissão a esta spec.
 - Implementação, sem segurar a v1.0.10: banco e API (modulo-core / banco-dados), portal e tela do app, `cabeLista` e
-  `cabeFrase` (engenheiro-apps), tokens `avisoBorda` e `avisoFundo` no `TemaEntrada` (designer-ux, MC-0078), parecer da marca e
+  `cabeFrase` (engenheiro-apps), ícone `lampada` no kit (designer-ux), parecer da marca e
   do corretor no print do aparelho.
 
 ## 6. Fontes
