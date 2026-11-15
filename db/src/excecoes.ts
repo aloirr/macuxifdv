@@ -88,10 +88,17 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Pacote da primeira carga (0074, ADR 0054): o aparelho baixa o arquivo pelo manifesto GET /v1/sync/pacotes; as linhas nunca são puxadas. */
   'plataforma.sync_pacote',
   'plataforma.sync_pacote_pedido',
+  /** Trabalho sob demanda (0079, T-0174, ADR 0054): só a API e o worker usam. */
+  'plataforma.trabalho',
+  /** Lote de fotos por ZIP e o relatório por arquivo (0079, T-0174, RN-CAT-14): só o BKO lê; a foto ligada vai ao aparelho pela produto_midia. */
+  'catalogo.foto_lote',
+  'catalogo.foto_lote_item',
   /** Último contato do aparelho (0085, T-0180, ADR 0059 §5): o Core grava no sync e só a consulta core.produtividade_equipe@1 lê. */
   'core.usuario_contato',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
+  /** Contador do Código FDV (0080, T-0175, RN-CORE-59): uma linha por tenant, só o gatilho de core.usuario grava; o código vai no usuário. */
+  'core.usuario_codigo_fdv_contador',
   /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
   'catalogo.uso_ia',
   /** Log de busca (0013, RF-CAT-07): só o BKO lê (termos sem resultado). */

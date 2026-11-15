@@ -11,6 +11,9 @@
  * O papel do portal do super-admin (macuxi_portal, 0038, T-0091, ADR 0029) usa MACUXI_PG_PORTAL_SENHA com a mesma regra do
  * worker: opcional fora do local (sem ela, NOLOGIN e portalSenha = ''; urlPortal lança e a API responde 503 no portal), senha
  * pública local recusada. Só a API e o passo de papéis recebem essa senha (portal.env da VM), nunca o worker.
+ * O papel da consulta só leitura na produção (macuxi_leitura, 0078, ADR 0055) usa MACUXI_PG_LEITURA_SENHA com a mesma regra:
+ * opcional fora do local (sem ela, NOLOGIN e leituraSenha = ''), senha pública local recusada. Só o passo de papéis (serviço
+ * banco) e o serviço pgleitura do compose recebem essa senha (leitura.env da VM), nunca a API nem o worker.
  * API e worker usam lerConfigApp: fora do local não exigem MACUXI_PG_ADMIN_SENHA (o contêiner não recebe a senha do
  * admin; urlAdmin falha se for chamada). Migrações, papéis e seeds seguem com lerConfig (admin obrigatório).
  * Seed da base de DEMONSTRAÇÃO num servidor (VM da demo, ADR 0020 §5): só com MACUXI_AMBIENTE=demo (exigirBancoDemo).
@@ -35,6 +38,13 @@ export const PAPEL_WORKER = 'macuxi_worker';
  */
 export const PAPEL_PORTAL = 'macuxi_portal';
 
+/**
+ * Papel da consulta só leitura na produção (0078, ADR 0055, R-20261115-073000-alexandre item 5): SELECT nas tabelas de tenant
+ * com a política `leitura` (só o tenant de app.tenant_id), EXECUTE só em plataforma.tenant_por_codigo(text); nenhuma escrita,
+ * nenhuma filiação, sem SUPERUSER/BYPASSRLS. A sessão nasce só leitura e com timeouts curtos (ALTER ROLE ... SET da 0078).
+ */
+export const PAPEL_LEITURA = 'macuxi_leitura';
+
 export interface ConfigBanco {
   host: string;
   porta: number;
@@ -49,6 +59,8 @@ export interface ConfigBanco {
   workerSenha: string;
   /** Senha do papel macuxi_portal ('' = não configurada; o papel fica NOLOGIN e urlPortal lança). */
   portalSenha: string;
+  /** Senha do papel macuxi_leitura ('' = não configurada; o papel fica NOLOGIN e urlLeitura lança). */
+  leituraSenha: string;
   /**
    * Serviço do db/docker-compose.yml que atende este endereço (o globalSetup sobe só ele se estiver parado):
    * 'postgres' (demo/dev, 5432) ou 'postgres-testes' (testes, 5434). Ausente = não subir nada pelo compose.
@@ -66,6 +78,7 @@ export const SENHA_ADMIN_LOCAL = 'postgres';
 export const SENHA_APP_LOCAL = 'macuxi_app_local';
 export const SENHA_WORKER_LOCAL = 'macuxi_worker_local';
 export const SENHA_PORTAL_LOCAL = 'macuxi_portal_local';
+export const SENHA_LEITURA_LOCAL = 'macuxi_leitura_local';
 
 /**
  * Hosts do Postgres local de desenvolvimento: a máquina do dev e o nome do container do
@@ -156,7 +169,8 @@ function lerConfigInterno(env: NodeJS.ProcessEnv, exigirAdmin: boolean): ConfigB
       env.MACUXI_PG_ADMIN_SENHA === SENHA_ADMIN_LOCAL ||
       env.MACUXI_PG_APP_SENHA === SENHA_APP_LOCAL ||
       env.MACUXI_PG_WORKER_SENHA === SENHA_WORKER_LOCAL ||
-      env.MACUXI_PG_PORTAL_SENHA === SENHA_PORTAL_LOCAL
+      env.MACUXI_PG_PORTAL_SENHA === SENHA_PORTAL_LOCAL ||
+      env.MACUXI_PG_LEITURA_SENHA === SENHA_LEITURA_LOCAL
     ) {
       throw new Error(`[db] Banco fora do ambiente local (${onde}): a senha pública do Postgres local não pode ser usada.`);
     }
@@ -170,6 +184,7 @@ function lerConfigInterno(env: NodeJS.ProcessEnv, exigirAdmin: boolean): ConfigB
     appSenha: env.MACUXI_PG_APP_SENHA || SENHA_APP_LOCAL,
     workerSenha: env.MACUXI_PG_WORKER_SENHA || (local ? SENHA_WORKER_LOCAL : ''),
     portalSenha: env.MACUXI_PG_PORTAL_SENHA || (local ? SENHA_PORTAL_LOCAL : ''),
+    leituraSenha: env.MACUXI_PG_LEITURA_SENHA || (local ? SENHA_LEITURA_LOCAL : ''),
   };
 }
 
@@ -250,6 +265,15 @@ export function urlPortal(cfg: ConfigBanco, banco = cfg.banco): string {
     throw new Error('[db] MACUXI_PG_PORTAL_SENHA não definida: o papel macuxi_portal não tem login neste ambiente (portal do super-admin indisponível).');
   }
   return url(PAPEL_PORTAL, cfg.portalSenha, cfg, banco);
+}
+
+/**
+ * URL do papel da consulta só leitura (macuxi_leitura, 0078, ADR 0055). Exige MACUXI_PG_LEITURA_SENHA fora do local; sem ela
+ * lança (o papel não tem login neste ambiente).
+ */
+export function urlLeitura(cfg: ConfigBanco, banco = cfg.banco): string {
+  if (!cfg.leituraSenha) throw new Error('[db] MACUXI_PG_LEITURA_SENHA não definida: o papel macuxi_leitura não tem login neste ambiente.');
+  return url(PAPEL_LEITURA, cfg.leituraSenha, cfg, banco);
 }
 
 /** Nome de banco válido e seguro para interpolar em DDL (CREATE/DROP DATABASE). */

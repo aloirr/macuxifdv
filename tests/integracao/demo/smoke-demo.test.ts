@@ -1,13 +1,14 @@
 /**
  * Smoke da DEMO de 03/11 (roteiro do dono do produto) — `createApp` REAL (8 módulos, JWT, Postgres como `macuxi_app`,
  * RLS) sobre a base `demo` recarregada (com a 0013), o motor de sync real do app e o DESPACHANTE real da outbox
- * (papel `macuxi_worker`) para o push. Nada simulado além do `fetch` do Expo (rede) e do relógio do sistema.
+ * (papel `macuxi_worker`) para o push. Nada simulado além do `fetch` do provedor de push (Expo ou FCM HTTP v1 + OAuth do
+ * Google, conforme o `modules/core/api/push.ts` em vigor; ADR 0053) e do relógio do sistema.
  *
  * Itens (um `it` por passo do roteiro; o nome diz o que a demo vai mostrar):
  *  S1 carteira com a etiqueta "Cadastro incompleto" no Atacado Boto Rosa (sem CEP; RN-CORE-16/17);
  *  S2 busca "óleo para moto 150 cilindradas" acha o OLE-4T-1L (API online e busca local offline; RF-CAT-01/02);
  *  S3 novo pedido → envio (Sincronizar) → aprovação pela supervisora (RN-VEN-10);
- *  S4 o push de "pedido aprovado" é gerado (core.notificacao + mensagem ao Expo com data.link/data.entidades; RN-CORE-23);
+ *  S4 o push de "pedido aprovado" é gerado (core.notificacao + mensagem ao provedor com data.link/data.entidades; RN-CORE-23);
  *  S5 GET /v1/sync/novidades depois da aprovação devolve só as entidades do pedido e a notificação (ADR 0018);
  *  S6 detalhe do pedido 000010 no BKO com itens, histórico e CNPJ;
  *  S7 promotor nunca cria pedido (regra 7; RN-PRO-01; MODULO_INATIVO na licença da demo);
@@ -25,7 +26,7 @@
  * Mais o sync completo do aparelho com TODAS as entidades que o APK registra (inclui as de conteúdo do Catálogo).
  * Matriz: tests/plano/demo-matriz.md (M-D00..M-D16 e S1..S7).
  */
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONSULTA_PRECOS_CLIENTE, ENTIDADES_CONTEUDO, RespostaBusca } from '@macuxi/catalogo/contracts';
@@ -40,6 +41,7 @@ import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
+import * as pushCore from '../../../modules/core/api/push';
 import { buscarLocal } from '../../../modules/catalogo/app/lib/local';
 import { listarClientesLocais } from '../../../modules/core/app/lib/cliente360-local';
 import { abrirVisitaLoja, checkinAberto, montarFoto, montarGondola, montarShare } from '../../../modules/promotor/app/lib/loja';
@@ -52,7 +54,45 @@ import { blindarPool, DEMO, disponivelNaFilial, encerrarPool, FOLGA_ESTOQUE, lis
 import { casosCadastrosTrade, casosUsuarios, type CtxTelasNovas } from './telas-novas.casos';
 
 const BUSCA = 'óleo para moto 150 cilindradas';
-const TOKEN_LUCAS = `ExponentPushToken[smoke-demo-${randomUUID()}]`;
+/**
+ * Tolerante aos dois envios do core (transição Expo → FCM HTTP v1, ADR 0053): o FCM exporta `montarMensagemFcm`.
+ * Sem referência estática a export que só existe num dos lados, para o typecheck passar nos dois.
+ */
+const temFcm = 'montarMensagemFcm' in pushCore;
+/** Token FCM é opaco (o formato Expo é ignorado pelo envio FCM); o envio Expo só aceita `ExponentPushToken[...]`. */
+const TOKEN_LUCAS = temFcm ? `fcm-smoke-demo-${randomUUID()}` : `ExponentPushToken[smoke-demo-${randomUUID()}]`;
+const URL_EXPO = 'https://exp.host/--/api/v2/push/send';
+const PROJETO_FCM = 'macuxi-smoke-demo';
+const URL_FCM = `https://fcm.googleapis.com/v1/projects/${PROJETO_FCM}/messages:send`;
+const URL_OAUTH = 'https://oauth2.googleapis.com/token';
+/** Conta de serviço de teste com chave RSA real (o JWT é assinado de verdade; o fetch falso não o confere). Só no FCM. */
+const contaServico = (): string =>
+  Buffer.from(
+    JSON.stringify({
+      client_email: 'push@macuxi-smoke-demo.iam.gserviceaccount.com',
+      private_key: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    }),
+  ).toString('base64');
+/** Mensagem enviada, no formato comum aos dois provedores. */
+interface MensagemEnviada {
+  token: string;
+  titulo: string;
+  link: string | null;
+  entidades: string[] | undefined;
+  bruta: unknown;
+}
+const lerEnviadas = (calls: ReadonlyArray<[string | URL | Request, RequestInit?]>): MensagemEnviada[] =>
+  temFcm
+    ? calls
+        .filter(([url]) => String(url) === URL_FCM)
+        .map(([, init]) => {
+          const m = (JSON.parse(String(init?.body ?? '{}')) as { message: { token: string; notification?: { title: string }; data: { link?: string; entidades?: string } } }).message;
+          return { token: m.token, titulo: m.notification?.title ?? '', link: m.data.link ?? null, entidades: m.data.entidades === undefined ? undefined : (JSON.parse(m.data.entidades) as string[]), bruta: m };
+        })
+    : calls
+        .filter(([url]) => String(url) === URL_EXPO)
+        .flatMap(([, init]) => JSON.parse(String(init?.body ?? '[]')) as Array<{ to: string; title?: string; data: { link: string | null; entidades?: string[] } }>)
+        .map((m) => ({ token: m.to, titulo: m.title ?? '', link: m.data.link, entidades: m.data.entidades, bruta: m }));
 /** Entidades que mudam com a aprovação (pedido + linha do tempo) e a notificação do push. */
 const ENTIDADES_DA_APROVACAO = ['notificacao', 'pedido', 'pedido_evento', 'pedido_item'];
 
@@ -95,7 +135,13 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
   let lucas: AparelhoCampo;
   let pedidoId = '';
   let numero = '';
-  const fetchFalso = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response('{"data":[]}', { status: 200 }));
+  /** Fetch falso: no FCM o OAuth devolve o token de acesso e o messages:send aceita; no Expo o lote é aceito. */
+  const fetchFalso = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+    if (!temFcm) return new Response('{"data":[]}', { status: 200 });
+    return String(url) === URL_OAUTH
+      ? new Response(JSON.stringify({ access_token: 'acesso-smoke', expires_in: 3600 }), { status: 200 })
+      : new Response(`{"name":"projects/${PROJETO_FCM}/messages/1"}`, { status: 200 });
+  });
 
   const linhas = async <T extends Record<string, unknown>>(sql: string, p: unknown[] = []) => (await api.admin.query<T>(sql, p)).rows;
   const despachar = async () => {
@@ -240,13 +286,17 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(OrderDetail.parse(a.json()).status).toBe('approved');
   }, 180_000);
 
-  it('S4. Push de "pedido aprovado": notificação do Lucas com o link do pedido e mensagem ao Expo com data.link/data.entidades (despachante real)', async () => {
+  it('S4. Push de "pedido aprovado": notificação do Lucas com o link do pedido e mensagem ao provedor (Expo ou FCM) com data.link/data.entidades (despachante real)', async () => {
     expect(pedidoId, 'depende do S3').not.toBe('');
     await api.admin.query(
       `insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma, push_token, push_plataforma) values ($1, $2, $3, 'aparelho smoke demo', 'android', $4, 'android')`,
       [randomUUID(), TENANT_DEMO, usuarioId.vendedor, TOKEN_LUCAS],
     );
     vi.stubEnv('MACUXI_PUSH_ATIVO', '1');
+    if (temFcm) {
+      vi.stubEnv('FCM_PROJECT_ID', PROJETO_FCM);
+      vi.stubEnv('FCM_SERVICE_ACCOUNT_JSON', contaServico());
+    }
     vi.stubGlobal('fetch', fetchFalso);
     await despachar();
     const link = `/m/pedido?id=${pedidoId}`;
@@ -258,12 +308,14 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     // o título sai "Pedido aprovado" (sem o número): o vendedor.pedido.status_alterado@1 não leva pedido_numero — melhoria pedida ao modulo-vendedor, não bloqueia a demo
     expect(notif[0]!.titulo).toMatch(/^Pedido (\d{6} )?aprovado$/);
     expect(notif[0]!.push_enviado_em).not.toBeNull();
-    const mensagens = fetchFalso.mock.calls.flatMap(([, init]) => JSON.parse(String(init?.body ?? '[]')) as Array<{ to: string; title: string; data: { link: string | null; entidades?: string[] } }>);
-    const aoLucas = mensagens.filter((m) => m.to === TOKEN_LUCAS && m.data.link === link && /aprovado/i.test(m.title));
-    expect(aoLucas, JSON.stringify(mensagens.filter((m) => m.to === TOKEN_LUCAS))).toHaveLength(1);
-    expect(aoLucas[0]!.data.entidades).toEqual(['pedido', 'pedido_evento', 'notificacao']);
+    const mensagens = lerEnviadas(fetchFalso.mock.calls);
+    // exatamente um envio ao token do Lucas (nem duplicado, nem outro push com o mesmo token)
+    expect(mensagens.filter((m) => m.token === TOKEN_LUCAS), JSON.stringify(mensagens.filter((m) => m.token === TOKEN_LUCAS).map((m) => m.bruta))).toHaveLength(1);
+    const aoLucas = mensagens.filter((m) => m.token === TOKEN_LUCAS && m.link === link && /aprovado/i.test(m.titulo));
+    expect(aoLucas).toHaveLength(1);
+    expect(aoLucas[0]!.entidades).toEqual(['pedido', 'pedido_evento', 'notificacao']);
     // nenhum dado pessoal no push (título/corpo só com o número)
-    expect(JSON.stringify(aoLucas[0])).not.toContain('Comércio de Alimentos');
+    expect(JSON.stringify(aoLucas[0]!.bruta)).not.toContain('Comércio de Alimentos');
   });
 
   it('S5. GET /v1/sync/novidades: em dia = []; depois da aprovação (+ despachante) = só pedido/pedido_evento/notificacao; o Sincronizar traz approved', async () => {

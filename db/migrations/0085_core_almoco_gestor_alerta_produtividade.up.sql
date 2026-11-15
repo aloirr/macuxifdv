@@ -1,11 +1,12 @@
 -- 0085_core_almoco_gestor_alerta_produtividade (up) — T-0180 (alertas de produtividade e Parâmetros › Alertas, v1.0.13).
 -- Decisões D3, D4 e D5 da T-0180 (R-20261115-123000 item 1 e R-20261115-120632; gerente-projetos por delegação escrita do
--- dono do produto). Desenho: docs/modulos/gestor/alertas-produtividade.md. Migração em cima da 0084 (números 0075 a 0084
--- reservados para os lotes em andamento). Dicionário: docs/banco/core.md e docs/banco/gestor.md ("0085"). Teste:
+-- dono do produto). Desenho: docs/modulos/gestor/alertas-produtividade.md. Migração em cima da 0084 (0075 a 0080 no main;
+-- 0081 a 0084 reservados para os lotes em andamento). Dicionário: docs/banco/core.md e docs/banco/gestor.md ("0085"). Teste:
 -- db/testes/almoco-alerta-produtividade.db.test.ts (estático sempre; banco e up/down no CI).
 --
 -- Migração ADITIVA, sem backfill e sem andar o updated_at (nenhum aparelho puxa de novo por causa da 0085). Nenhum contrato
--- muda de versão; RLS, políticas e grants de core.usuario e gestor.alerta não mudam (as colunas herdam os da tabela).
+-- muda de versão; RLS, políticas e grants de core.usuario e gestor.alerta não mudam (as colunas herdam os da tabela), exceto o
+-- macuxi_leitura (0078, ADR 0055): SELECT por coluna em core.usuario, então as 2 colunas novas recebem grant próprio.
 --
 -- 1. core.usuario (dono: Core) — almoço por pessoa (D5, RN-CORE-44):
 --      almoco_inicio_min  smallint null  início do almoço em minutos do dia (0..1439, hora LOCAL do tenant: 12:00 = 720)
@@ -32,7 +33,8 @@
 --    cada sincronização. Fora do sync (nunca vai ao aparelho): sem índice (tenant_id, updated_at, id); a leitura da consulta
 --    core.produtividade_equipe@1 é por (tenant_id, usuario_id), coberta pelo unique. Volume: uma linha por usuário (dezenas a
 --    centenas por tenant); escrita no máximo 1 por minuto por usuário. RLS ligado e forçado, isolamento_tenant e manutencao
---    como as do core; grant select, insert, update ao macuxi_app (sem delete).
+--    como as do core; grant select, insert, update ao macuxi_app (sem delete). macuxi_leitura (0078): select e política leitura
+--    (nenhuma coluna sensível).
 --
 -- Caminho de volta: 0085_core_almoco_gestor_alerta_produtividade.down.sql (APAGA os alertas dos 2 tipos novos, as 2 colunas e
 -- core.usuario_contato; o almoço próprio gravado se perde e todos voltam ao padrão; o último contato some e volta no próximo
@@ -41,6 +43,8 @@
 alter table core.usuario add column almoco_inicio_min smallint;
 alter table core.usuario add column almoco_fim_min smallint;
 
+-- consulta só leitura (0078): a 0078 deu SELECT por coluna em core.usuario; coluna nova não herda
+grant select (almoco_inicio_min, almoco_fim_min) on core.usuario to macuxi_leitura;
 alter table core.usuario add constraint usuario_almoco_par
   check ((almoco_inicio_min is null) = (almoco_fim_min is null));
 alter table core.usuario add constraint usuario_almoco_faixa
@@ -75,3 +79,5 @@ create policy isolamento_tenant on core.usuario_contato for all to macuxi_app
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on core.usuario_contato for all to macuxi_manutencao using (true) with check (true);
 grant select, insert, update on core.usuario_contato to macuxi_app;
+grant select on core.usuario_contato to macuxi_leitura;
+create policy leitura on core.usuario_contato for select to macuxi_leitura using (tenant_id = plataforma.tenant_atual());

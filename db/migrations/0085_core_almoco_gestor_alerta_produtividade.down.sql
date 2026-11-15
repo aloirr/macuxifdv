@@ -4,7 +4,7 @@
 -- almoco_inicio_min e almoco_fim_min (o almoço próprio gravado no BKO se perde; reaplicar a 0085 volta todos ao padrão
 -- da empresa). APAGA core.usuario_contato (o último contato de cada usuário volta no próximo sync do aparelho; até lá o Gestor
 -- não abre alerta de produtividade). Volte antes o Core (BKO, sync `usuario`, Produtividade) e o Gestor (avaliação dos alertas de produtividade),
--- senão 42703 / 23514 / 42P01. Idempotente. Pré-condição: 0086+ desfeitas.
+-- senão 42703 / 23514 / 42P01. Os grants e a política leitura do macuxi_leitura (0078) saem com a tabela e as colunas. Idempotente. Pré-condição: 0086+ desfeitas.
 
 drop table if exists core.usuario_contato;
 
