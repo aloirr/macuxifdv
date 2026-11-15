@@ -1,0 +1,54 @@
+# ADR 0061 — Rastreamento contínuo de localização no expediente
+
+- **Status**: proposta em 2026-11-15 (branch `nuvem/T-0156-tracking-lgpd-engenheiro-software`).
+- **Data**: 2026-11-15 (Manaus)
+- **Autor**: engenheiro-software
+- **Origem**: T-0156 (R-20261110-085951-alexandre, item 5); RF-CORE-17, RN-CORE-13, RN-CORE-37, RN-CORE-46.
+- **Desenho**: [`docs/desenho/tracking.md`](../desenho/tracking.md). **Base LGPD**: [`docs/desenho/tracking-legal/`](../desenho/tracking-legal/) (rascunho para revisão de advogado).
+- **Quem implementa**: banco-dados, modulo-core, engenheiro-apps e modulo-gestor (desenho §11).
+
+## Contexto
+- Desde 10/11/2026 o Campo exige a localização "o tempo todo" (RN-CORE-37), mas não grava trajeto: só o GPS do check-in e do
+  checkout (RN-CORE-13). A RN-CORE-13 diz que o tracking só liga com finalidade, aviso e termo aceito.
+- A Performance já espera o resumo `core.deslocamento_dia` e a função `metrosDoTrajeto` (T-0170); sem o tracking, os 2 cards de km
+  ficam "sem dado".
+- Localização contínua de quem trabalha é dado pessoal com alto risco de abuso (não é "dado sensível" no sentido do art. 5º, II,
+  da LGPD): o desenho precisa provar minimização, limite de horário, retenção curta e acesso só da cadeia de gestão.
+
+## Decisão
+1. **Dono**: o módulo Core (rotas e visitas, carteira, km). O Gestor lê pelo contrato `core.trajeto_do_dia@1`; nenhum outro módulo
+   lê as tabelas do trajeto.
+2. **Portão de seis condições** (desenho §2) avaliado pela mesma função pura `podeRastrear` no app e na API: empresa ligou
+   (padrão desligado), usuário de campo no Campo, aceite da versão vigente do termo, dentro do expediente do tenant e fora de
+   feriado e ausência, sem pausa, permissão concedida. Fora do portão o app não grava nem guarda ponto, e a API descarta o que chegar.
+3. **Captura no Android** por `expo-location` com serviço em primeiro plano e notificação fixa "localização ativa no expediente",
+   [200 m] ou [5 min], entrega em lote; a tarefa `macuxi-trajeto` só grava no SQLite, sem rede e sem derrubar o processo.
+   Liga ao abrir, ao voltar ao primeiro plano e na `macuxi-sync-delta` (ADR 0017); desliga sozinha quando o portão fecha.
+4. **Envio pelo motor de sync** como entidades só de envio (`ponto_trajeto`, `pausa_trajeto`, `aceite_termo_rastreamento`), em
+   lotes, idempotentes pelo UUID do aparelho; o aceite vai antes dos pontos. Descarte de ponto não trava a fila.
+5. **Resumo diário** recalculado do dia inteiro a cada push em `core.deslocamento_dia` (upsert idempotente). Os pontos ficam
+   [90] dias e saem por `delete` físico num expurgo diário (exceção consciente ao `deleted_at`: a eliminação é obrigação da LGPD);
+   o resumo fica [5] anos.
+6. **Termo versionado por tenant** (`core.termo_rastreamento`) e aceite por usuário e versão; versão nova suspende o tracking até
+   o novo aceite. O app segue usável sem o aceite.
+7. **Acesso** pelo motor de permissões (ADR 0033): `core.trajeto.ver_proprio`, `core.trajeto.ver_equipe`,
+   `core.rastreamento.configurar` e `core.ausencia.cadastrar`. Nenhuma exportação de pontos brutos; sem grant ao `macuxi_leitura`.
+8. **Nenhuma coordenada em log**, erro, Diagnóstico ou telemetria, com prova por teste no CI.
+
+## Alternativas descartadas
+- **Gravar o tempo todo e filtrar no servidor**: coleta além da finalidade e notificação fixa fora do expediente. Descartada.
+- **Consentimento como base legal**: na relação de trabalho não é livre e a revogação desligaria a comprovação de visita. O termo
+  é de ciência (detalhes em `docs/desenho/tracking-legal/finalidade.md`).
+- **Só a tarefa periódica (WorkManager) lendo a posição a cada 15 min**: não mede km nem permanência e o Android adia a tarefa.
+- **Km estimado em linha reta entre check-ins**: rejeitado na T-0170 (fica de 20% a 40% abaixo do real).
+- **Biblioteca paga de rastreamento** (ex.: transistorsoft): dependência pesada e licença por aparelho; o `expo-location` já
+  instalado cobre a v1. Reavaliar se o ensaio de bateria falhar.
+- **Mapa no servidor com provedor externo**: o trajeto sairia para um suboperador novo. O mapa desenha no aparelho.
+
+## Consequências
+- Tabelas novas no Core (desenho §5.1), 4 chaves de permissão novas, 3 entidades de sync só de envio, 1 contrato de consulta e
+  1 job de expurgo; tudo aditivo, sem versão nova de contrato existente.
+- Os cards de km da Performance passam a ter dado para quem aceitou o termo.
+- O tracking **não liga em produção** antes da revisão de advogado, das decisões do Alexandre (desenho §12) e do cadastro de
+  ausências (desenho §10).
+- Custo de bateria a medir no ensaio; ajuste por parâmetro, sem build.
