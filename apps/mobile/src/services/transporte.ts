@@ -12,6 +12,7 @@
  *   e não tem pull genérico (as cargas vêm das `etapasSync` REST dos módulos, B2).
  */
 import {
+  CABECALHO_MODO_SYNC,
   NovidadesRespostaSchema,
   type ItemPush,
   type LinhaSync,
@@ -57,9 +58,13 @@ export function transporteV1(api: () => ApiClient, ceder: () => Promise<void> = 
         return rejeitarLote(itens, e);
       }
     },
-    async pull(entidade, cursor) {
+    // Modo (parcial|completa) no cabeçalho: o servidor aplica o limite silencioso (ADR 0057). Sem modo (automática),
+    // sem cabeçalho. A página volta como veio, inclusive `limitado` (o motor trata).
+    async pull(entidade, cursor, opcoes) {
       await ceder();
-      return (await api().request<PaginaSync<LinhaSync>>('GET', '/sync/pull', { query: { entidade, cursor } })).data;
+      const query = { entidade, cursor };
+      const pedido = opcoes?.modo ? { query, headers: { [CABECALHO_MODO_SYNC]: opcoes.modo } } : { query };
+      return (await api().request<PaginaSync<LinhaSync>>('GET', '/sync/pull', pedido)).data;
     },
     async novidades(desde) {
       const r = await api().request<unknown>('GET', '/sync/novidades', { query: desde ? { desde } : {} });

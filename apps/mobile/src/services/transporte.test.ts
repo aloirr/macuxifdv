@@ -89,3 +89,27 @@ describe('transporteV1.pull — carga inicial em páginas (T-0140, relato 6)', (
     expect(ordem).toEqual(['ceder', 'GET /sync/pull', 'ceder', 'GET /sync/pull']);
   });
 });
+
+describe('transporteV1.pull — modo da sincronização no cabeçalho (ADR 0057)', () => {
+  const semCeder = () => Promise.resolve();
+
+  it.each(['parcial', 'completa'] as const)('modo %s: manda o cabeçalho x-macuxi-sync-modo', async (modo) => {
+    const { api, chamadas } = apiFalsa(() => ({ itens: [], proximo_cursor: null }));
+    await transporteV1(api, semCeder).pull('cliente', 'c1', { modo });
+    expect(chamadas).toEqual([
+      { metodo: 'GET', caminho: '/sync/pull', opts: { query: { entidade: 'cliente', cursor: 'c1' }, headers: { 'x-macuxi-sync-modo': modo } } },
+    ]);
+  });
+
+  it('sem modo (automática): sem cabeçalho', async () => {
+    const { api, chamadas } = apiFalsa(() => ({ itens: [], proximo_cursor: null }));
+    await transporteV1(api, semCeder).pull('cliente', null);
+    expect(chamadas).toEqual([{ metodo: 'GET', caminho: '/sync/pull', opts: { query: { entidade: 'cliente', cursor: null } } }]);
+  });
+
+  it('a página limitada passa adiante como veio', async () => {
+    const pagina = { itens: [], proximo_cursor: null, limitado: true };
+    const { api } = apiFalsa(() => pagina);
+    expect(await transporteV1(api, semCeder).pull('cliente', 'c1', { modo: 'parcial' })).toEqual(pagina);
+  });
+});
