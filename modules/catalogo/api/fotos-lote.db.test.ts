@@ -253,7 +253,7 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
   });
 
   it('RN-CAT-14: dois POST simultâneos com o mesmo id (reenvio do BKO): os dois devolvem o mesmo lote, sem ID_EM_USO (trava por tenant)', async () => {
-    const ids = [id(33)];
+    const LOTE = id(33);
     const tentar = async (lote: string, arquivo: string) => {
       const c = await pool.connect();
       try {
@@ -280,17 +280,17 @@ describe.skipIf(semBanco())('Catálogo T-0174 × Postgres: fotos em lote por ZIP
     };
     try {
       // sem a trava, os dois não acham o lote, os dois gravam e o segundo cai no único do id (409 ID_EM_USO)
-      const r = await Promise.allSettled([tentar(ids[0]!, id(34)), tentar(ids[0]!, id(34))]);
+      const r = await Promise.allSettled([tentar(LOTE, id(34)), tentar(LOTE, id(34))]);
       expect(r.map((x) => x.status)).toEqual(['fulfilled', 'fulfilled']);
       const lotes = r.map((x) => (x as PromiseFulfilledResult<{ lote: FotoLote }>).value.lote.id);
-      expect(lotes).toEqual([ids[0], ids[0]]);
+      expect(lotes).toEqual([LOTE, LOTE]);
     } finally {
       const limpeza = await pool.connect();
       try {
         await limpeza.query('begin');
         await definirTenant(limpeza, A.tenantId);
         // hora-fixa-ok: limpeza do teste, o instante nunca é comparado
-        await limpeza.query(`update catalogo.foto_lote set deleted_at = now() where id = any($1::uuid[])`, [ids]);
+        await limpeza.query(`update catalogo.foto_lote set deleted_at = now() where id = $1::uuid`, [LOTE]);
         await limpeza.query('commit');
       } finally {
         limpeza.release();

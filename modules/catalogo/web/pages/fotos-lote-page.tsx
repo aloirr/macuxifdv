@@ -122,6 +122,9 @@ export function FotosLotePage() {
   return tela.lote ? <PaginaDoLote id={tela.lote} /> : <PaginaDeEnvio />;
 }
 
+/** Item que chegou a um produto (ligado ou repetido): só ele mostra produto e ordem. */
+const comProduto = (i: FotoLoteItem): boolean => i.situacao === 'ligado' || i.situacao === 'repetido';
+
 // ---------- /catalogo/fotos-lote ----------
 function PaginaDeEnvio() {
   const [, ir] = useTela();
@@ -132,7 +135,7 @@ function PaginaDeEnvio() {
   const lista = useQuery({
     queryKey: ['catalogo', 'fotos-lote'],
     queryFn: async () => FotoLoteListaSchema.parse(await api<unknown>(BASE)).lotes,
-    // timer-permitido: progresso do lote no BKO (RN-CAT-14), a cada 2 s só enquanto o lote anda; não sincroniza
+    // timer-permitido: progresso do lote (RN-CAT-14), só enquanto o lote anda
     refetchInterval: (q) => (q.state.data?.some((l) => consultaViva(faseDoLote(l, false))) ? INTERVALO_CONSULTA_MS : false),
   });
   const { limites, conferencia } = useLimites();
@@ -259,7 +262,7 @@ function PaginaDoLote({ id }: { id: string }) {
   const consulta = useQuery({
     queryKey: ['catalogo', 'fotos-lote', id],
     queryFn: async () => FotoLoteSchema.parse(await api<unknown>(`${BASE}/${id}`)),
-    // timer-permitido: progresso do lote no BKO (RN-CAT-14), a cada 2 s só enquanto o lote anda; não sincroniza
+    // timer-permitido: progresso do lote (RN-CAT-14), só enquanto o lote anda
     refetchInterval: (q) => (q.state.data && consultaViva(faseDoLote(q.state.data, false)) ? INTERVALO_CONSULTA_MS : false),
   });
   const lote = consulta.data;
@@ -449,8 +452,8 @@ function Relatorio({ lote }: { lote: FotoLote }) {
   const colunas: ColunaDaTabela<FotoLoteItem>[] = [
     { id: 'arquivo', titulo: 'Arquivo', largura: '30%', celula: (i) => i.arquivo, texto: (i) => i.arquivo },
     { id: 'situacao', titulo: 'Situação', largura: '130px', celula: (i) => <SeloSituacao selos={[seloDoItem(i.situacao)]} /> },
-    { id: 'produto', titulo: 'Produto', prioridade: 2, largura: '22%', celula: (i) => (i.situacao === 'ligado' || i.situacao === 'repetido' ? (i.produto_codigo ?? '—') : '—'), texto: (i) => i.produto_codigo ?? '' },
-    { id: 'ordem', titulo: 'Ordem', prioridade: 2, numero: true, largura: '72px', celula: (i) => (i.situacao === 'ligado' || i.situacao === 'repetido' ? (i.ordem ?? '—') : '—') },
+    { id: 'produto', titulo: 'Produto', prioridade: 2, largura: '22%', celula: (i) => (comProduto(i) ? (i.produto_codigo ?? '—') : '—'), texto: (i) => i.produto_codigo ?? '' },
+    { id: 'ordem', titulo: 'Ordem', prioridade: 2, numero: true, largura: '72px', celula: (i) => (comProduto(i) ? (i.ordem ?? '—') : '—') },
     { id: 'motivo', titulo: 'Motivo', celula: (i) => textoMotivoItem(i, limites ?? {}), texto: (i) => textoMotivoItem(i, limites ?? {}) },
   ];
   const marcar = (c: CartaoFoto | null) => ir({ cartao: c }, 'replace');

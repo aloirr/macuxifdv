@@ -87,3 +87,4 @@
 2026-11-15 — T-0174 — TEXTO_LOTE_DIVERGENTE em contracts (texto da spec §6.1), usado pela API; a tela já mostra a mensagem da API
 2026-11-15 — T-0174 — fotos-lote-page: linha principal da área de envio em 15/600 (MC-1201)
 2026-11-15 — T-0174 — merge do main; testes de banco alinhados ao desenho §180 (a trava do POST protege o reenvio com o mesmo id; o lote novo aguardando_envio não ocupa vaga) e ao SDK (o tipo da imagem é lido ao ligar ao produto: o falso PNG vira A1_5.png); timer-permitido nas consultas de 2 s do lote; o resto do vermelho (Progresso e KpiCard com onClick) depende do #366
+2026-11-15 — T-0174 (#382) — RD-1223 (comProduto), RD-1243 (timer-permitido sem o valor do intervalo), RD-1244 (LOTE no teste da trava)
