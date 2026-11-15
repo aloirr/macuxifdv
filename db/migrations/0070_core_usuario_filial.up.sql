@@ -1,8 +1,9 @@
 -- 0070_core_usuario_filial (up) — T-0176: filial do usuário (vendedor com UMA filial; supervisor, promotor e gerente com
 -- várias). Decisão do dono do produto R-20261115-073000, item 1 (muda a RN-CORE-39, que dizia que o vendedor não tem filial
--- própria). Migração em cima da 0069 (core_cargo_hierarquia). Dicionário: docs/banco/core.md ("0070"). Teste:
+-- própria), e R-20261115-080000 (o vendedor sem filial fica BLOQUEADO no app; a migração não dá filial provisória nem a
+-- padrão). Migração em cima da 0069 (core_cargo_hierarquia). Dicionário: docs/banco/core.md ("0070"). Teste:
 -- db/testes/usuario-filial.db.test.ts (estático sempre; banco e up/down no CI).
--- Migração ADITIVA: 1 tabela nova, 3 funções, 6 gatilhos e o backfill. Nenhuma coluna nova em tabela existente; nenhum
+-- Migração ADITIVA: 1 tabela nova (vazia), 3 funções e 6 gatilhos; SEM backfill. Nenhuma coluna nova em tabela existente; nenhum
 -- contrato muda de versão (o filial_ids do usuário é do modulo-core, aditivo).
 --
 -- core.usuario_filial (dono: Core): uma linha viva por (usuário, filial) — único parcial usuario_filial_uk (tenant_id,
@@ -24,19 +25,19 @@
 --   Concorrência: o gatilho usuario_filial_travar (BEFORE, imediato) e a conferência pegam pg_advisory_xact_lock por (tenant,
 --   usuário); duas transações que dão filial ao mesmo vendedor ficam em fila e a segunda vê a primeira no COMMIT.
 --   O MÍNIMO (exatamente 1 para o vendedor; 1+ para supervisor, promotor e gerente) NÃO é do banco: é do domain/API do Core
---   (validarFiliaisDoUsuario, RN-CORE-39, 422). Vendedor sem filial passa no banco (carga do ERP, cadastro antigo) e vira aviso
---   ao admin (consulta: vendedor vivo e ativo sem linha viva aqui).
+--   (validarFiliaisDoUsuario, RN-CORE-39, 422). Vendedor sem filial PASSA no banco (carga do ERP, cadastro antigo): nenhum
+--   gatilho recusa o zero; ele fica BLOQUEADO no app até a carga do ERP ou o BKO informar a filial, e vira aviso ao admin
+--   (consulta: vendedor vivo e ativo sem linha viva aqui).
 --   core.filial_vendedor_conferir() é SECURITY DEFINER (como a core.promotor_conferir da 0069): gatilho adiado dispara no
 --   COMMIT com o papel da sessão, e o COMMIT de uma sa_* do macuxi_portal não tem acesso a core. Roda como o dono, só LÊ, só o
 --   tenant da linha; nenhum EXECUTE a ninguém.
--- BACKFILL: todo vendedor vivo e ativo (cargo vendedor) sem vínculo vivo recebe a filial PADRÃO do tenant (core.filial_padrao_id,
---   0056). id = plataforma.uuid_de_chave('<tenant>:core.usuario_filial:<usuario>:<filial>') (determinístico). Roda antes dos
---   gatilhos. Vendedor inativo fica sem filial (o cadastro pede ao reativar).
+-- SEM BACKFILL (R-20261115-080000): a tabela nasce vazia; todo vendedor existente fica sem filial (bloqueado no app) até a
+--   carga do ERP ou o BKO gravar a filial dele.
 --
 -- RLS: core.usuario_filial com enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app: select, insert,
 -- update. macuxi_worker e macuxi_portal: nada.
 -- Caminho de volta: 0070_core_usuario_filial.down.sql — apaga os 6 gatilhos, as 3 funções e a tabela (os vínculos de filial dos
--- usuários se perdem; reaplicar a 0070 refaz só o backfill do vendedor). Volte antes o código do Core que lê/grava a tabela.
+-- usuários se perdem; reaplicar a 0070 recria a tabela vazia). Volte antes o código do Core que lê/grava a tabela.
 
 -- =============================================================================================
 -- core.usuario_filial — filiais do usuário (RN-CORE-39)
@@ -66,20 +67,6 @@ create policy isolamento_tenant on core.usuario_filial for all to macuxi_app
   with check (tenant_id = plataforma.tenant_atual());
 create policy manutencao on core.usuario_filial for all to macuxi_manutencao using (true) with check (true);
 grant select, insert, update on core.usuario_filial to macuxi_app;
-
--- =============================================================================================
--- Backfill: vendedor vivo e ativo sem filial -> a filial padrão do tenant (antes dos gatilhos)
--- =============================================================================================
-insert into core.usuario_filial (id, tenant_id, usuario_id, filial_id)
-select plataforma.uuid_de_chave(h.tenant_id::text || ':core.usuario_filial:' || h.usuario_id::text || ':' || f.id::text),
-       h.tenant_id, h.usuario_id, f.id
-  from core.v_usuario_hierarquia h
-  join core.usuario u on u.tenant_id = h.tenant_id and u.id = h.usuario_id
-  join core.filial f on f.tenant_id = h.tenant_id and f.padrao and f.deleted_at is null
- where h.cargo = 'vendedor' and u.ativo and u.deleted_at is null
-   and not exists (select 1 from core.usuario_filial uf
-                    where uf.tenant_id = h.tenant_id and uf.usuario_id = h.usuario_id and uf.deleted_at is null)
-on conflict do nothing;
 
 -- =============================================================================================
 -- Vendedor: no máximo 1 filial viva (R-20261115-073000, RN-CORE-39)

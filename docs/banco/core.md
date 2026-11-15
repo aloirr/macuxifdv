@@ -1014,9 +1014,9 @@ no banco (usuários antigos e o admin inicial do provisionamento não têm códi
 
 Volta: `0069_core_cargo_hierarquia.down.sql` (saem os 4 gatilhos do promotor, as 2 funções e a view; ver plataforma.md). Teste: `db/testes/cargo-hierarquia.db.test.ts`.
 
-## 0070 — filiais do usuário (`0070_core_usuario_filial`; T-0176, RN-CORE-39, decisão R-20261115-073000 item 1)
+## 0070 — filiais do usuário (`0070_core_usuario_filial`; T-0176, RN-CORE-39, decisões R-20261115-073000 item 1 e R-20261115-080000)
 Muda a RN-CORE-39: o **vendedor** tem **uma** filial (a referência de preço, estoque e filtro do Catálogo); **supervisor,
-promotor e gerente** têm várias. O banco garante só o **máximo de 1** do vendedor e o backfill; o mínimo (exatamente 1 do
+promotor e gerente** têm várias. O banco garante só o **máximo de 1** do vendedor; o mínimo (exatamente 1 do
 vendedor; 1+ dos outros três; 0+ de admin e analista) é do domain/API do Core (`validarFiliaisDoUsuario`, 422).
 
 ### usuario_filial — filiais do usuário. Índice de sync; o pull é decisão do modulo-core
@@ -1042,10 +1042,13 @@ vendedor; 1+ dos outros três; 0+ de admin e analista) é do domain/API do Core 
   - para o erro sair no comando, a API pode rodar `set constraints usuario_filial_conferir_vendedor immediate` antes de terminar;
   - concorrência: `usuario_filial_travar` (BEFORE, imediato) e a conferência pegam `pg_advisory_xact_lock` por (tenant, usuário):
     a 2ª transação espera a 1ª e falha no COMMIT.
-- **Backfill** (na 0070, antes dos gatilhos): todo vendedor vivo e ativo sem vínculo vivo recebe a filial **padrão**
-  (`id = uuid_de_chave('<tenant>:core.usuario_filial:<usuario>:<filial>')`). Vendedor criado depois (carga do ERP, CSV) sem
-  filial passa no banco e vira aviso ao admin; consulta: vendedor vivo e ativo sem linha viva aqui (`usuario_filial_uk`).
+- **Sem backfill** (R-20261115-080000): a 0070 cria a tabela vazia; não dá filial provisória nem a padrão a ninguém.
+- **Vendedor sem filial passa no banco** (nenhum gatilho recusa o zero): vem da carga do ERP ou de cadastro antigo e fica
+  **bloqueado no app** até a carga do ERP ou o BKO informar a filial; vira aviso ao admin no BKO. Consulta: vendedor vivo e
+  ativo sem linha viva aqui (`usuario_filial_uk`). A recusa do cadastro sem filial no BKO é da API do Core (422).
 
-Volume: 1 linha por vendedor; poucas por supervisor, promotor e gerente. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x67).
-Volta: `0070_core_usuario_filial.down.sql` (saem os gatilhos, a tabela e as 3 funções; os vínculos se perdem). Teste:
+Volume: 1 linha por vendedor; poucas por supervisor, promotor e gerente. Fixture: `USUARIO_FILIAL_FIXTURE` (grupo 0x67; o
+vendedor-2 de A fica sem filial).
+Volta: `0070_core_usuario_filial.down.sql` (saem os gatilhos, a tabela e as 3 funções; os vínculos se perdem; reaplicar
+recria a tabela vazia). Teste:
 `db/testes/usuario-filial.db.test.ts`.

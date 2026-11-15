@@ -1,7 +1,8 @@
 -- 0070_core_usuario_filial (down) — desfaz a 0070 (filial do usuário) e volta ao catálogo da 0069. Ordem: os 4 gatilhos de
 -- restrição nas tabelas que continuam (core.usuario, plataforma.usuario_perfil, plataforma.perfil) e a função deles; a
 -- tabela core.usuario_filial (leva os 2 gatilhos dela, os índices e as políticas); por fim as 2 funções que sobram.
--- Limites: os vínculos de filial dos usuários se perdem (o backfill da 0070, reaplicada, refaz só o do vendedor com a padrão).
+-- Limites: os vínculos de filial dos usuários se perdem (a 0070, reaplicada, recria a tabela vazia: sem backfill,
+-- R-20261115-080000; a carga do ERP ou o BKO regrava as filiais).
 -- Idempotente. Pré-condição: 0071+ desfeitas e o código do Core que lê/grava core.usuario_filial já desfeito.
 
 drop trigger if exists usuario_conferir_filial_vendedor on core.usuario;

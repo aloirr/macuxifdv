@@ -66,7 +66,7 @@
  *   fixture não informam a filial: o gatilho grava a padrão (a regra "ausente = padrão" do Hub). Os testes que precisam de
  *   cliente, depósito ou preço na 0002 gravam em transação desfeita.
  * - T-0176 (0070, RN-CORE-39; USUARIO_FILIAL_FIXTURE, grupo 0x67): filiais do usuário — A: vendedor-1 na padrão e o supervisor
- *   na padrão e na Boa Vista (várias); o vendedor-2 fica SEM filial (o caso do aviso ao admin); B: vendedor-B na Campinas.
+ *   na padrão e na Boa Vista (várias); o vendedor-2 fica SEM filial (bloqueado no app e aviso ao admin, R-20261115-080000); B: vendedor-B na Campinas.
  * - T-0147 (0057, RN-CORE-38; FOTOS_PDV_FIXTURE): o gatilho tenant_semear_foto_tipo cria a "Fachada" (obrigatória) em A e em B
  *   (fora das listas, id idFotoTipoFachada); nas listas (grupo 0x0b) A tem "CNH do sócio" (sensível, obrigatória) e B
  *   "Contrato social" (sensível). Fotos (grupo 0x0c): A com a fachada e a CNH de c1 (arquivo da CNH com perfis_leitura

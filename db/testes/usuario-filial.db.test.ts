@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import { dadosDoisTenants, DOIS_TENANTS, FILIAIS_FIXTURE, ORDEM_TABELAS, USUARIO_FILIAL_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
-import { idDeChave, idFilialPadrao, idPerfilFabrica } from '../src/ids';
+import { idFilialPadrao, idPerfilFabrica } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { emTransacao, HASH_TESTE, retratoDoCatalogo } from './util';
@@ -46,13 +46,12 @@ describe('0070 filiais do usuário (estático)', () => {
     expect(up).not.toMatch(/to macuxi_(worker|portal)/);
   });
 
-  it('backfill: vendedor (cargo) vivo e ativo sem vínculo vivo -> filial padrão, id determinístico, ANTES dos gatilhos', () => {
-    const u = umaLinha(up);
-    expect(u).toContain("plataforma.uuid_de_chave(h.tenant_id::text || ':core.usuario_filial:' || h.usuario_id::text || ':' || f.id::text)");
-    expect(u).toContain("join core.filial f on f.tenant_id = h.tenant_id and f.padrao and f.deleted_at is null");
-    expect(u).toContain("where h.cargo = 'vendedor' and u.ativo and u.deleted_at is null");
-    expect(up.indexOf(`insert into ${TABELA}`)).toBeLessThan(up.indexOf('create trigger usuario_filial_travar'));
-    expect(up.indexOf(`insert into ${TABELA}`)).toBeLessThan(up.indexOf('create constraint trigger'));
+  it('SEM backfill (R-20261115-080000): a 0070 não grava vínculo nenhum (nem a padrão, nem provisória); o zero não é recusado', () => {
+    expect(up).not.toMatch(/insert\s+into\s+core\.usuario_filial/i);
+    expect(up).not.toMatch(/f\.padrao|filial_padrao/);
+    // o único limite do banco é o máximo (> 1); nenhum "= 0" / "< 1" / "not exists" na conferência
+    expect(up).not.toMatch(/count\([^)]*\)\s*(=\s*0|<\s*1)/);
+    expect(umaLinha(up)).not.toContain('not exists (select 1 from core.usuario_filial');
   });
 
   it('máximo de 1: 4 gatilhos ADIADOS na mesma função (DEFINER, sem EXECUTE a ninguém), erro nomeado com hint RN-CORE-39; trava por usuário', () => {
@@ -152,7 +151,11 @@ describe.skipIf(semBanco())('0070 filiais do usuário (banco, fixture dois-tenan
       expect(await app([desvincular(V1, FILIAIS_FIXTURE.A.padrao), vincular(V1, FILIAIS_FIXTURE.A.boaVista)])).toBeNull();
       // trocar a filial da linha (update de filial_id) também passa
       expect(await app([[`update ${TABELA} set filial_id = $2 where id = $1`, [USUARIO_FILIAL_FIXTURE.A.vendedor1Padrao, FILIAIS_FIXTURE.A.boaVista]]])).toBeNull();
-      // vendedor sem filial passa no banco (o mínimo é do domain/API do Core); a 1ª passa
+      // vendedor sem filial passa no banco (fica bloqueado no app, R-20261115-080000; o mínimo é do domain/API do Core):
+      // tirar a única filial do vendedor-1 passa no COMMIT; o vendedor-2 da fixture segue sem; a 1ª filial dele passa
+      expect(await app([desvincular(V1, FILIAIS_FIXTURE.A.padrao)])).toBeNull();
+      const doV2 = await admin.query(`select 1 from ${TABELA} where usuario_id = $1 and deleted_at is null`, [A.usuarios.vendedor2]);
+      expect(doV2.rowCount).toBe(0);
       expect(await app([vincular(A.usuarios.vendedor2, FILIAIS_FIXTURE.A.boaVista)])).toBeNull();
       // a mesma filial viva duas vezes = 23505 na hora (único parcial)
       expect(curto(await app([vincular(V1, FILIAIS_FIXTURE.A.padrao)]))).toEqual({ code: '23505', constraint: 'usuario_filial_uk' });
@@ -214,7 +217,7 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000070';
   const U = {
-    vendedor: 'cccccccc-0070-4000-8000-000000000101', // vivo e ativo -> recebe a padrão
+    vendedor: 'cccccccc-0070-4000-8000-000000000101', // vivo e ativo -> fica SEM (R-20261115-080000: bloqueado no app)
     inativo: 'cccccccc-0070-4000-8000-000000000102', // inativo -> fica sem
     apagado: 'cccccccc-0070-4000-8000-000000000103', // apagado -> fica sem
     supervisor: 'cccccccc-0070-4000-8000-000000000104', // não é vendedor -> fica sem
@@ -226,7 +229,7 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
     await b?.apagar();
   });
 
-  it('backfill só do vendedor vivo e ativo, na padrão; down volta ao catálogo da 0069; idempotente; up de novo igual', async () => {
+  it('sem backfill: nenhum usuário (nem o vendedor vivo e ativo) ganha filial; down volta ao catálogo da 0069; idempotente; up de novo igual', async () => {
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: '0069' });
       const antes = await retratoDoCatalogo(c);
@@ -243,9 +246,10 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
 
       expect((await migrarUp(c, { ate: '0070' })).aplicadas).toEqual(['0070_core_usuario_filial']);
       const depois = await retratoDoCatalogo(c);
-      const padrao = idFilialPadrao(T);
-      const linhas = async () => (await c.query(`select id, usuario_id, filial_id from ${TABELA} where tenant_id = $1 and deleted_at is null order by usuario_id`, [T])).rows;
-      expect(await linhas()).toEqual([{ id: idDeChave(`${T}:core.usuario_filial:${U.vendedor}:${padrao}`), usuario_id: U.vendedor, filial_id: padrao }]);
+      const linhas = async () => (await c.query(`select id, usuario_id, filial_id from ${TABELA} where tenant_id = $1 order by usuario_id`, [T])).rows;
+      expect(await linhas()).toEqual([]);
+      // o vendedor vivo e ativo sem filial existe no banco depois da 0070 (o zero não é recusado)
+      expect((await c.query('select 1 from core.usuario where id = $1 and ativo and deleted_at is null', [U.vendedor])).rowCount).toBe(1);
 
       expect((await migrarDown(c, { passos: 1 })).aplicadas).toEqual(['0070_core_usuario_filial']);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
@@ -254,7 +258,7 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
 
       await migrarUp(c, { ate: '0070' });
       expect(await retratoDoCatalogo(c)).toEqual(depois);
-      expect(await linhas()).toHaveLength(1);
+      expect(await linhas()).toEqual([]);
     });
   });
 
@@ -262,7 +266,6 @@ describe.skipIf(semBanco())('0070 up/down (banco efêmero)', () => {
     const OUTRA_FILIAL = 'cccccccc-0070-4000-8000-000000000201';
     await comAdmin(b.nome, async (c) => {
       await c.query("insert into core.filial (id, tenant_id, codigo, nome) values ($1, $2, '0002', 'Filial 70')", [OUTRA_FILIAL, T]);
-      await c.query(`update ${TABELA} set deleted_at = now() where usuario_id = $1`, [U.vendedor]);
       const outra = new pg.Client({ connectionString: b.urlAdmin });
       await outra.connect();
       try {
