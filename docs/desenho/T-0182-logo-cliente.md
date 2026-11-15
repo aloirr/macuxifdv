@@ -1,6 +1,11 @@
 # T-0182 — Logo do cliente e nome fantasia: desenho técnico
 
-> 2026-11-15 · engenheiro-software · tarefa `.coord/tarefas/T-0182.md` (número provisório; migração provisória 0082).
+> 2026-11-15 · engenheiro-software · tarefa `.coord/tarefas/T-0182.md` (número provisório; migração **0081**).
+>
+> **Decisões do gerente-projetos (2026-11-15), já aplicadas abaixo:** (1) migração **0081** (a 0082 está reservada pela
+> sessão fixa); (2) **só o super-admin grava** logo e nome fantasia (RN-CORE-33: empresa é cadastrada só no portal, pela
+> Macuxi) — o admin do cliente só lê a da própria empresa; (3) o teto de 4096 px fica, com a frase proposta em §2.3, que o
+> designer-ux confirma.
 > Spec aprovada: `docs/design/telas/logo-cliente.md` (branch `nuvem/logo-cliente-designer-ux`, d832bc4a). Decisões do dono
 > do produto R-20261114-223500 e R-20261114-234500. Este desenho decide onde os dados ficam, as rotas, como o app recebe e
 > quem faz o quê. Nada de armazenamento novo, nada de dependência nova.
@@ -18,7 +23,7 @@
   empresa); o `macuxi_app` já tem `select` em `plataforma.tenant` com RLS (`isolamento_tenant`, 0001), então a API lê junto
   com o fuso (`lerTenant`, `apps/api/src/licencas.ts`) sem função nem grant novo.
 
-### 1.2 Migração 0082 (banco-dados) — `0082_plataforma_tenant_logo`
+### 1.2 Migração 0081 (banco-dados) — `0081_plataforma_tenant_logo`
 Aditiva; nenhuma coluna existente muda.
 
 | Coluna | Tipo | Regra (CHECK) |
@@ -38,8 +43,8 @@ Aditiva; nenhuma coluna existente muda.
 
 **Funções do portal** (SECURITY DEFINER, `search_path = pg_catalog, plataforma, pg_temp`, EXECUTE só ao `macuxi_portal`;
 mesmo molde da 0073 `sa_dados_legais`/`sa_gravar_dados_legais`). Acesso: `sa_sessao_valida(p_sid)`; sem sessão = 28000;
-**super-admin** em qualquer tenant; **admin do cliente** só quando `tenant_id` da sessão = `p_tenant` (a spec §2: "quem já
-entra na aba Empresa"); senão 42501. Tenant inexistente ou apagado = P0002.
+**leitura** (`sa_marca_da_empresa`): super-admin em qualquer tenant, admin do cliente só quando `tenant_id` da sessão =
+`p_tenant`; **escrita** (as outras 3): **só super-admin** (RN-CORE-33); fora disso 42501. Tenant inexistente ou apagado = P0002.
 
 1. `plataforma.sa_marca_da_empresa(p_sid uuid, p_tenant uuid) -> jsonb` — devolve `MarcaEmpresa` (§2.1) **mais**
    `logo.chave` (só a API usa; a rota tira antes de responder).
@@ -56,8 +61,8 @@ entra na aba Empresa"); senão 42501. Tenant inexistente ou apagado = P0002.
 
 - **Listagem do portal (`sa_listar_tenants`) não muda.** O nome fantasia e a logo vêm da rota da marca (§2), lida só pelo
   cartão da aba Empresa. Uma informação, um lugar; e a 0071 fica como está.
-- A conferência de catálogo das migrações do portal (contagem das `sa_*` executáveis pelo `macuxi_portal`, hoje 17 na 0070)
-  passa a 21. Atenção (lição da 0070): `apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (meus), `db/testes/funcoes-sa.ts` e
+- A conferência de catálogo das migrações do portal (contagem das `sa_*` executáveis pelo `macuxi_portal`, hoje 27 depois da 0073)
+  passa a **31**. Atenção (lição da 0070): `apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (meus), `db/testes/funcoes-sa.ts` e
   `db/src/excecoes.ts` (banco-dados) leem a
   lista; a migração e esses dois arquivos vão **no mesmo lote** (PR único autorizado pelo dono do produto), senão o CI cai.
 - Teste `db/testes/tenant-logo.db.test.ts`: CHECKs, tudo-ou-nada, idempotência, auditoria, admin do cliente de outro
@@ -82,8 +87,9 @@ nomeDaEmpresa(nomeFantasia, razaoSocial)  // "Licenciado para <x>": fantasia; va
 ```
 
 ### 2.2 Rotas
-Todas com `exigirPortal` (`portal-comum.ts`), `tenant_id` da URL validado (UUID), admin do cliente só o da sessão (403
-`PERFIL_SEM_ACESSO` antes de chamar o banco; a função confere de novo) e `traduzirErroSa`.
+Todas com `tenant_id` da URL validado (UUID) e `traduzirErroSa`. Leitura (`GET`) com `exigirPortal`: super-admin ou admin do
+cliente só na empresa da sessão. Escrita (`PUT`/`DELETE`) com `exigirSuperAdmin`: o admin do cliente recebe 403
+`PERFIL_SEM_ACESSO` antes de chamar o banco (no PUT da logo, antes de receber o corpo); a função confere de novo.
 
 | Método e caminho | Corpo | Resposta |
 |---|---|---|
@@ -99,8 +105,8 @@ Todas com `exigirPortal` (`portal-comum.ts`), `tenant_id` da URL validado (UUID)
   1. `Content-Type` fora de png/jpeg → **415 `LOGO_FORMATO`**;
   2. corpo acima de 1 MiB (`bodyLimit`) → **413 `LOGO_GRANDE_DEMAIS`**;
   3. assinatura (`detectarTipoImagem`, `packages/platform-sdk/src/imagens.ts` da T-0174) diferente do `Content-Type`, ou
-     ilegível no decodificador (`apps/api/src/decodificadores.ts` da T-0174, que já confere o teto de megapixels antes de
-     alocar) → **422 `LOGO_FORMATO`**;
+     cabeçalho ilegível (`dimensoesImagem`) → **422 `LOGO_FORMATO`**. Só o cabeçalho é lido: a conferência inteira é
+     `conferirLogo` do SDK, pura, a mesma no portal e na API;
   4. altura < 200 px (`dimensoesImagem`) → **422 `LOGO_ALTURA_MINIMA`**; maior lado > 4096 px → **422 `LOGO_LADO_MAXIMO`**
      (protege o aparelho e o PDF de imagem gigante: 1 MB de PNG pode declarar 20.000 px);
   5. grava o objeto novo → `sa_gravar_logo` → apaga `chave_anterior` (melhor esforço; falha só vai a log). Se o banco falhar,
@@ -158,7 +164,7 @@ devolve os bytes se `:sha256` for o atual do tenant; senão 404 `LOGO_NAO_ENCONT
 ## 4. Quem faz, em ordem
 
 **Etapa 1 (em paralelo, depois deste desenho):**
-- **banco-dados** — `db/migrations/0082_plataforma_tenant_logo.{up,down}.sql`, `db/esquema/plataforma.ts`,
+- **banco-dados** — `db/migrations/0081_plataforma_tenant_logo.{up,down}.sql`, `db/esquema/plataforma.ts`,
   `db/testes/tenant-logo.db.test.ts`, `db/testes/funcoes-sa.ts`, `db/src/excecoes.ts`, `db/testes/estatico.test.ts` (se listar funções), `docs/banco/plataforma.md`,
   `docs/banco/rls.md`. Down: apaga as 4 funções e as 9 colunas (perde as logos: os objetos ficam órfãos no armazenamento).
 - **engenheiro-software** — `packages/platform-sdk/src/empresa-logo.ts` (+ teste), `src/index.ts`, `src/ambiente.ts`
@@ -173,8 +179,8 @@ devolve os bytes se `:sha256` for o atual do tenant; senão 404 `LOGO_NAO_ENCONT
 **Etapa 2 (depende do SDK; a migração pode estar só no branch):**
 - **engenheiro-software** — `apps/api/src/empresa-logo.ts` (rotas §2.2 e §3.2), registro em `apps/api/src/app.ts`,
   `apps/api/src/licencas.ts` e `me-modulos.ts` (§3.1), `apps/api/test/empresa-logo.test.ts` (validações, idempotência,
-  admin do cliente de outro tenant = 403, tenant A × B), `apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (21
-  funções). Vai no mesmo PR único da 0082 (lição da 0070).
+  admin do cliente = 403 na escrita, tenant A × B), `apps/api/test/funcoes-sa.ts` e `scripts/deploy/producao/banco-dbaas.sh` (31
+  funções). Vai no mesmo PR único da 0081 (lição da 0070).
 - **modulo-vendedor** — `modules/vendedor/app/screens/order-detail-screen.tsx`: `logo_src: await ambiente.logoDaEmpresa?.()`;
   `modules/vendedor/web/components/orders/exportar-pdf.ts`: `ctx.logo_src` (quem chama passa o valor do ambiente web).
 
@@ -191,10 +197,11 @@ de Campo, Gestão, portal e PDF) · engenheiro-software (revisão final).
 **modulo-core:** nada nesta tarefa (o contrato dele não muda, §3.1).
 
 ## 5. Premissas
-1. Admin do cliente grava a logo e o nome fantasia da própria empresa (spec §2, aprovada). A RN-CORE-33 diz que alterar
-   empresa é do time da Macuxi; marca não é dado cadastral (CNPJ, código, módulos) — o gerente confirma com o dono do
-   produto; se ele disser "só a Macuxi", basta trocar o teste de acesso nas 3 funções de escrita.
-2. O teto de 4096 px de lado é meu (não está na spec); a frase dele precisa do designer-ux.
-3. Depende da T-0174 (`imagens.ts`, `decodificadores.ts` e o `CHAVE_ARQUIVO_RE` com `.png`). Se a T-0174 atrasar, as rotas
-   trazem só o reconhecimento de PNG que faltar, sem duplicar o que vem lá.
+1. **Decidido pelo gerente:** só o super-admin grava (RN-CORE-33); o admin do cliente só lê a da própria empresa. O cartão do
+   portal para o admin do cliente fica só de leitura (engenheiro-apps).
+2. **Decidido pelo gerente:** o teto de 4096 px de lado fica; a frase de §2.3 é proposta minha e o designer-ux confirma.
+3. A T-0174 não está no `main`: este lote traz o `packages/platform-sdk/src/imagens.ts` (e o teste) **idênticos** ao do
+   branch da T-0174 (o merge dos dois não conflita no arquivo), o `CHAVE_ARQUIVO_RE` com `.png` e o parâmetro `tipo` de
+   `chaveDoArquivo` com a mesma assinatura da T-0174. Os decodificadores (`image-in-browser`) não vêm: a logo não gera
+   miniatura, e um PNG com cabeçalho válido e dados corrompidos só não aparece (sem risco ao servidor).
 4. Sem evento novo (nenhum módulo reage à troca da logo) e sem entidade de sync nova.

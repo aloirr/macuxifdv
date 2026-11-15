@@ -42,6 +42,11 @@ export const SA_PORTAL: readonly string[] = [
   // 0073: os dados legais do rodapé (razão social, CNPJ e site), lidos e gravados só pelo super-admin
   'plataforma.sa_dados_legais(uuid)',
   'plataforma.sa_gravar_dados_legais(uuid, jsonb)',
+  // 0081 (T-0182): logo do cliente e nome fantasia; lê o super-admin e o admin do cliente da própria empresa, grava só o super-admin
+  'plataforma.sa_marca_da_empresa(uuid, uuid)',
+  'plataforma.sa_gravar_nome_fantasia(uuid, uuid, text)',
+  'plataforma.sa_gravar_logo(uuid, uuid, jsonb)',
+  'plataforma.sa_remover_logo(uuid, uuid)',
 ];
 
 export const SA_INTERNAS: readonly string[] = ['plataforma.sa_registrar_auditoria(text, uuid, uuid, uuid, uuid, text, jsonb)'];

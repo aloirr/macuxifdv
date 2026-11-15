@@ -26,12 +26,14 @@ import {
   CODIGOS_ARQUIVO,
   dimensoesJpeg,
   ehJpeg,
+  EXTENSAO_POR_TIPO,
   LIMITE_ARQUIVO_BYTES,
   perfilLeArquivo,
   ROTA_ARQUIVOS,
   verificarAcao,
   verificarAcesso,
   verificarCarteira,
+  type TipoImagem,
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ehPrintDeDiagnostico } from './diagnosticos';
@@ -41,7 +43,7 @@ import type { Plataforma, RequisicaoPreparada } from './tipos';
 
 // ---------- porta e adaptador de disco ----------
 
-/** Porta dos bytes (ADR 0010 §3). A chave é `<tenant_id>/<modulo>/<aaaa-mm>/<id>.jpg`. */
+/** Porta dos bytes (ADR 0010 §3). A chave é `<tenant_id>/<modulo>/<aaaa-mm>/<id>.jpg` (`.png` só a logo do cliente, T-0182). */
 export interface ArmazenamentoArquivos {
   gravar(chave: string, bytes: Uint8Array): Promise<void>;
   /** `null` = não existe. */
@@ -52,12 +54,13 @@ export interface ArmazenamentoArquivos {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 /** Formato fechado da chave: nada de `..`, barra invertida ou caminho absoluto chega ao disco. */
-export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320)?\\.jpg$`);
+export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}(\\.m320\\.jpg|\\.jpg|\\.png)$`);
 const CHAVE_RE = CHAVE_ARQUIVO_RE;
 
-export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date): string {
+/** Chave do original (`.jpg` por padrão; a logo do cliente em PNG guarda `.png`, T-0182). */
+export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date, tipo: TipoImagem = 'image/jpeg'): string {
   const mes = quando.toISOString().slice(0, 7);
-  const chave = `${a.tenant_id.toLowerCase()}/${a.modulo}/${mes}/${a.id.toLowerCase()}.jpg`;
+  const chave = `${a.tenant_id.toLowerCase()}/${a.modulo}/${mes}/${a.id.toLowerCase()}.${EXTENSAO_POR_TIPO[tipo]}`;
   if (!CHAVE_RE.test(chave)) throw new Error('chave de arquivo inválida');
   return chave;
 }
