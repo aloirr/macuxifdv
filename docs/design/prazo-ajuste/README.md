@@ -2,19 +2,13 @@
 
 Pedido do Alexandre: R-20261115-111000, alvo **v1.0.13**. Modelo refeito pelas decisões de **R-20261115-121000**. **Só simulação**, sem código de produção.
 
-**Aprovado** (R-20261115-121500): a tabela única de prazos com as abas "Prazos" e "Formas" no BKO. **Menu** (R-20261115-122000): a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As demais decisões da seção 4 seguem para aprovação.
+**Aprovado** (R-20261115-121500): a tabela única de prazos com as abas "Prazos" e "Formas" no BKO. **Menu** (R-20261115-122000): a tela fica em **Cadastros › Formas de pagamento e prazos**, e não em Financeiro. As decisões da seção 4 seguem para aprovação.
 
 Nas imagens, o **contorno laranja tracejado só marca o que muda**. Ele não sai no app, no PDF nem no BKO.
 
-## Modelo (R-20261115-121000)
-1. O % do prazo **muda o valor de tabela de cada produto** quando o prazo é escolhido: nos itens do pedido e no Catálogo.
-2. O % **não aparece em lugar nenhum**: sem linha nos Totais, sem % na lista de prazos do app, nada no PDF.
-3. Desconto, alçada e crédito valem sobre a tabela já ajustada.
-4. O % vem do ERP. No BKO o campo é só leitura.
-5. BKO: **tabela única de prazos**, sem sub-tópicos por forma, com as abas "Prazos" e "Formas".
-6. Catálogo: antes de escolher o prazo, o preço é o do **prazo padrão do cliente**; sem cliente, a tabela pura.
+Modelo e conta: docs/modulos/vendedor/prazo-desconto-acrescimo.md §1–2 (fonte da verdade).
 
-**Referência inacessível:** a simulação que o Alexandre fez na ponte (`recados/anexos/R-20261115-121000-prazos-tabela.png`, no repositório de recados) não abriu nesta sessão (403). O BKO foi desenhado só a partir da descrição acima; ao comparar com a imagem dele, a diferença ganha da imagem.
+**Referência inacessível:** a simulação que o Alexandre fez na ponte (`recados/anexos/R-20261115-121000-prazos-tabela.png`, no repositório de recados) não abriu nesta sessão (403). O BKO foi desenhado só a partir da descrição do recado; ao comparar com a imagem dele, a diferença ganha da imagem.
 
 ## Exemplo usado (os mesmos números em todas as superfícies)
 Padaria Trigo Fino, Boleto. Preço de tabela do cliente (sem prazo): filtro FIL-5548 **R$ 100,00**, leite LPO-400 R$ 17,75, café CAF-500 R$ 13,40, detergente DET-500 R$ 4,30. Desconto do vendedor de −5% só no leite.
@@ -24,8 +18,6 @@ Padaria Trigo Fino, Boleto. Preço de tabela do cliente (sem prazo): filtro FIL-
 | À vista, −1,71% | 98,29 | 349,00 (17,45 un.) | 395,10 (13,17) | 42,30 (4,23) | R$ 884,69 | − R$ 17,40 | **R$ 867,29** |
 | 60 dias, +2,50% | 102,50 | 363,80 (18,19 un.) | 412,20 (13,74) | 44,10 (4,41) | R$ 922,60 | − R$ 18,20 | **R$ 904,40** |
 
-Regra da conta, **confirmada (dd023d2)** pelo `modulo-vendedor` (RN-VEN-02 v2, `precoUnitarioFinal` e `precoDoItem` em `modules/vendedor/domain/preco-pedido.ts`): o % do prazo é aplicado ao **preço unitário** e arredondado ao centavo; o desconto em % do vendedor incide sobre esse unitário, arredondado meia para cima ao centavo; o total da linha é **unitário × quantidade**. No leite em 60 dias: 18,19 × 0,95 = 17,28 e 17,28 × 20 = **345,60**; o Desconto (R$) é a diferença para o valor de tabela (363,80 − 345,60 = 18,20). À vista: 17,45 × 0,95 = 16,58 e 16,58 × 20 = 331,60 (349,00 − 331,60 = 17,40). Campo, PDF e esta tabela usam a mesma conta.
-
 ## 1. App Campo
 Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `campo.css`:
 - `campo-1-venda-lista-de-prazos.png`: aba Venda com a lista do Prazo aberta (360 × 740);
@@ -34,11 +26,11 @@ Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `ca
 - `campo-4-catalogo-prazo-padrao.png`: Catálogo aberto pela ficha do cliente (360 × 740).
 
 ### 1.1 Lista do Prazo (`ListaSuspensa`, `packages/ui/src/mobile/suspensa.tsx`)
-**Não muda.** Cada opção mostra só o prazo; o menu tem a largura do campo; a opção desabilitada segue com o motivo e o cadeado. Sem contorno, porque nada muda em relação ao app de hoje. O `OpcaoLista` **não** ganha o campo `detalhe` da proposta anterior.
+**Não muda.** Cada opção mostra só o prazo; o menu tem a largura do campo; a opção desabilitada segue com o motivo e o cadeado. Sem contorno, porque nada muda em relação ao app de hoje.
 
 ### 1.2 Pedido: Itens, Resumo e Totais (`CartaoDeTotais`, `linhasDosTotais`)
 - Ao escolher ou trocar o prazo, o **Valor tabela de cada item é refeito** com o % do prazo; o Total do item, os Totais e a folha do item seguem daí, sem nenhuma marca do prazo. É a única coluna com contorno nas telas 2 e 3.
-- O desconto do vendedor (−5% no leite) vale sobre o unitário da tabela ajustada: leite a 331,60 e Desconto R$ 17,40 à vista; 345,60 e R$ 18,20 em 60 dias.
+- O desconto do vendedor (−5% no leite) vale sobre o unitário da tabela ajustada: o leite fecha em 331,60 à vista e 345,60 em 60 dias (o Desconto (R$) está na tabela do exemplo).
 - **Totais iguais aos de hoje**: Valor de tabela, Desconto (%), Desconto (R$) e Valor final. Sem linha de prazo.
 - "Condição de pagamento" continua "Forma: Boleto" e "Prazo: À vista" (ou "60 dias"), sem %.
 - Nada novo em Alertas. Trocar o prazo não mostra aviso: os números novos já estão na tela (RN-VEN-42, regras de excesso).
@@ -47,12 +39,10 @@ Imagens de 360 dp de largura (PNG em 2×), feitas a partir de `campo.html` e `ca
 ### 1.3 Catálogo (`docs/design/catalogo-grade.md`, T-0173)
 - **Pela ficha do cliente:** o preço do cartão já sai no prazo padrão do cliente (na simulação, Boleto 60 dias, +2,50%: filtro R$ 102,50, café R$ 13,74, leite R$ 18,19, água R$ 3,27). O contorno marca só o preço.
 - **Pelo menu, sem cliente:** a tabela pura, como hoje (`docs/design/telas/T-0173-catalogo-menu.png`); por isso não há imagem nova.
-- Nenhum texto explica o ajuste: o vendedor usa o preço, não a conta.
 
 ## 2. PDF do pedido
 `pdf-escritorio-60-dias.html` / `.png` (A4 paisagem, 2246 × 1588 px), versão do escritório do pedido em 60 dias, feita a partir do `buildOrderPdfHtml` atual (`modules/vendedor/domain/pdf-pedido.ts`):
-- A coluna **Tabela** sai com o preço já ajustado (contorno só na prancha); Líquido e Total seguem dela. Total = Líquido arredondado × quantidade: leite 17,28 × 20 = 345,60; Desconto (R$) 18,20; Valor final R$ 904,40.
-- Caixa do Total **igual à de hoje**: Valor de tabela, Desconto (%), Desconto (R$) e Valor final. **Sem linha de prazo.**
+- A coluna **Tabela** sai com o preço já ajustado (contorno só na prancha); Líquido, Total e a caixa do Total seguem dela, com a mesma conta e os mesmos Totais do Resumo (seção 1.2).
 - Ficha: "Pagamento: Boleto · 60 dias", sem %.
 - Vale igual para o PDF do cliente (só o Valor final, como hoje) e para o orçamento: nada a desenhar além do preço ajustado.
 
@@ -77,16 +67,12 @@ Imagens de 1366 × 768 (PNG em 2×), com Cadastros aberto no menu lateral e o it
 
 ### 3.2 Editar prazo
 - Campo **"Desc./Acrésc. (%) · Vem do ERP"** depois da prévia, na metade esquerda da grade, **só leitura** (`readOnly` + `aria-readonly`), no mesmo padrão do "Código · Vem do ERP" e "Dias das parcelas · Vem do ERP" de hoje. Sem ajuda e sem validação: não há o que digitar.
-- **Novo prazo** (criado no BKO): o campo não aparece; o prazo entra com `0,00` na lista até o ERP mandar o valor. Premissa a confirmar com o Alexandre e o `modulo-vendedor`.
+- Novo prazo: o campo não aparece; entra com 0,00 (proposta §7).
 
 ## 4. Decisões para o Alexandre aprovar
-1. **Coluna "Valor tabela" refeita** ao escolher ou trocar o prazo, sem aviso, sem selo e sem linha nos Totais.
-2. **Resumo e PDF com os Totais de hoje**; o desconto do vendedor sobre a tabela ajustada.
-3. **Catálogo** com o preço no prazo padrão do cliente, sem texto de explicação; pelo menu, a tabela pura.
-4. **BKO (aprovada, R-20261115-121500; menu em Cadastros, R-20261115-122000):** abas "Prazos (n)" e "Formas (n)", tabela única com as colunas Forma e "Desc./Acrésc. (%)" (valor sem `%`, `0,00` em cinza), filtro de Forma; campo só leitura "Vem do ERP" na gaveta; no Novo prazo, o campo não aparece.
+1. **Coluna "Valor tabela" refeita** ao escolher ou trocar o prazo, sem aviso e sem selo.
+2. **Resumo e PDF** com os Totais e o desconto do vendedor da seção 1.2.
+3. **Catálogo** com o preço no prazo padrão do cliente; pelo menu, a tabela pura.
 
-## 5. Saíram nesta revisão (modelo anterior)
-O % na lista de prazos do app, a linha "Desconto/Acréscimo do prazo" nos Totais do app e do PDF, os PDFs do cliente, a versão à vista do PDF do escritório, o campo editável com ajuda e o erro de validação do limite no BKO, e a lista com sub-tópicos por forma.
-
-## 6. Arquivos
+## 5. Arquivos
 `campo.html` + `campo.css` (app), `pdf-escritorio-60-dias.html` (PDF; HTML do `buildOrderPdfHtml` com os números do exemplo e a marcação da prancha), `bko-1-lista.html` e `bko-2-edicao.html` (BKO). Fontes locais de `apps/web/app/fonts`; tokens de `packages/ui` (via `docs/design/telas/telas.css`) e marca v1. PNG com Playwright (Chromium, `deviceScaleFactor` 2).
