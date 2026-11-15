@@ -18,7 +18,7 @@ export const manifest = defineModule({
   depende: ['core'],
   opcionais: ['catalogo', 'pesquisa', 'vendedor'],
   perfis: ['promotor', 'supervisor', 'gerente', 'analista', 'admin'],
-  apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Trade marketing', 'Trade'] } },
+  apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Indicadores', 'Cadastros'] } },
   // T-0056: cadastros de trade (pull, servidor vence) + coletas (push, offline-first); definições em contracts/entidades.ts
   sync: [
     'categoria_gondola',
