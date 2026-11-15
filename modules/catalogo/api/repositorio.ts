@@ -49,6 +49,8 @@ export interface RepositorioCatalogo {
    * sem cliente: as da carteira (vendedor, supervisor) ou `null` = todas (analista, assistente, admin).
    */
   filiaisDoUsuario(clienteId?: string | null): Promise<string[] | null>;
+  /** Filiais do PRÓPRIO usuário (`core.filiais_do_usuario@1`, T-0176): base do estoque de promotor, supervisor e gerente e da filial do vendedor. */
+  filiaisProprias(): Promise<string[]>;
   conteudo(produtoId: string): Promise<{ conteudo: ConteudoGuardado | null; midias: MidiaProduto[] }>;
   /** RN-CAT-03: uso de IA do usuário no dia do tenant; `'indisponivel'` = sem onde guardar a cota (IA não é chamada). */
   usoIa(dia: string): Promise<UsoIa | null | 'indisponivel'>;
@@ -162,6 +164,8 @@ export interface DadosTenantMemoria {
   saldos?: Map<string, StockByBranch[]>;
   /** usuario_id → filiais (ausente = todas). */
   filiaisDoUsuario?: Record<string, string[]>;
+  /** usuario_id → filiais do próprio usuário (`core.filiais_do_usuario@1`); ausente = nenhuma. */
+  filiaisProprias?: Record<string, string[]>;
   conteudos?: Map<string, ConteudoGuardado>;
   midias?: Map<string, MidiaProduto[]>;
   /** Sem onde guardar a cota (simula banco sem a 0013). */
@@ -225,6 +229,9 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       },
       async filiaisDoUsuario() {
         return d.filiaisDoUsuario?.[usuario] ? [...d.filiaisDoUsuario[usuario]] : null;
+      },
+      async filiaisProprias() {
+        return [...(d.filiaisProprias?.[usuario] ?? [])];
       },
       async conteudo(produtoId) {
         return { conteudo: copia(d.conteudos?.get(produtoId) ?? null), midias: copia(d.midias?.get(produtoId) ?? []) };

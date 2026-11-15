@@ -1,16 +1,16 @@
 /**
  * Aba Catálogo em grade (T-0173, docs/design/catalogo-grade.md; RF-CAT-01/02/09): duas colunas de cartões (foto, nome, marca,
- * preço e tag de estoque), busca no topo, sistema e categoria em chips e a contagem na faixa. OFFLINE-FIRST: tudo vem do aparelho;
+ * preço e "Estoque: N" com o botão do estoque por filial), busca e filtro no topo, sistema e categoria em chips e a contagem na faixa. OFFLINE-FIRST: tudo vem do aparelho;
  * a busca com texto usa a API (busca inteligente) quando há sinal e sem filtro de árvore, e cai para a busca local (FTS5 + sinônimos
  * + ranking do domain) sem sinal, em falha ou com sistema/categoria escolhidos.
  * Preço (RN-VEN-01, RN-CAT-06): pela ficha do cliente (`?cliente=`) vale a tabela dele; pelo menu, a da filial padrão do vendedor;
- * produto sem preço mostra "Sem preço". Preço e estoque somem para quem não vê (RN-CAT-05). Copiar o código é a única ação própria;
+ * produto sem preço mostra "Sem preço". O preço some para quem não o vê (promotor); o estoque é de todos, das filiais de cada perfil (RN-CAT-05 revista, catalogo-campo-v2). Copiar o código é a única ação própria;
  * ações de outros módulos só pela extensão `produto.acoes` (RN-PRO-01). Com `?pedido=1` só entram os produtos da tabela do cliente. `?no=` abre com o filtro já marcado.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, CampoBusca, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, BotaoFiltro, CampoBusca, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, EtiquetaFiltro, LinhaChips, MostrarMais, NadaEncontrado, PAGINA_DA_BUSCA, proximaPaginaDaBusca, Screen, SeloAtualizacao, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -19,12 +19,15 @@ import { montarArvore, type Arvore, type VinculoProdutoNo } from '../../domain/a
 import { idsAtivos } from '../../domain/hierarquia';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { textoPareceCodigo } from '../../domain/codigo-busca';
+import { rotuloChipFiliais } from '../../domain/estoque-campo';
+import { dadosDaFolha, opcoesDoFiltroFilial, type DadosDaFolha } from '../lib/estoque-folha';
 import { chipsDaGrade, emLinhas, escolherCategoria, escolherSistema, filtroDoNo, produtosDoFiltro, SEM_FILTRO, subtituloDaGrade, type FiltroDaGrade } from '../lib/grade';
 import { vazioDaBusca } from '../lib/vazio-busca';
-import { arvoreLocal, buscarLocal, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
+import { arvoreLocal, buscarLocal, filiaisDoUsuarioLocal, filiaisLocais, nomeDoClienteLocal, produtosDaNavegacao, produtosLocais, vitrineLocal } from '../lib/local';
 import { sugestaoDaBuscaLocal } from '../texto-consultas';
 import { irParaProduto } from '../rotas';
 import { CartaoGrade } from './comum';
+import { FolhaEstoquePorFilial, FolhaFiltroCatalogo, type EscolhaFiltro } from './estoque-filial';
 import { useMiniaturasDosItens } from './miniatura';
 
 const POR_PAGINA = PAGINA_DA_BUSCA;
@@ -57,12 +60,30 @@ export default function TelaCatalogo() {
   const [limite, setLimite] = useState(POR_PAGINA); // "Mostrar mais" soma 20 (kit); ao trocar de filtro ou de busca volta ao inicial
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null });
   const [sugestao, setSugestao] = useState<string | null>(null);
+  // catalogo-campo-v2 §3 e §4: filtro de filial e de itens sem estoque; folha "Filtrar" e folha "Estoque por filial"
+  const [escolha, setEscolha] = useState<EscolhaFiltro>({ filial: null, soComEstoque: false });
+  const [folhaFiltro, setFolhaFiltro] = useState(false);
+  const [dadosDaFolhaEstoque, setDadosDaFolhaEstoque] = useState<DadosDaFolha | null>(null);
+  const [filiais, setFiliais] = useState<{ proprias: readonly string[]; todas: { id: string; nome: string }[] }>({ proprias: [], todas: [] });
+  const usuarioId = usuario?.id ?? null;
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const idsExibidos = useMemo(() => lista.itens.map((i) => i.id), [lista.itens]);
   const miniaturas = useMiniaturasDosItens(motor, idsExibidos, sync.sincronizado_em);
   const noInicial = params.no ? String(params.no) : null;
 
-  useEffect(() => setLimite(POR_PAGINA), [filtro, consulta]);
+  useEffect(() => setLimite(POR_PAGINA), [filtro, consulta, escolha]);
+
+  // filiais do usuário (`filial_ids` do sync) e nomes das filiais, do aparelho
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    void Promise.all([filiaisDoUsuarioLocal(motor, usuarioId), filiaisLocais(motor)])
+      .then(([proprias, todas]) => vivo && setFiliais({ proprias: proprias ?? [], todas }))
+      .catch(() => vivo && setFiliais({ proprias: [], todas: [] }));
+    return () => {
+      vivo = false;
+    };
+  }, [motor, usuarioId, sync.sincronizado_em]);
 
   // "Você quis dizer…": só quando a busca não achou nada, do vocabulário do índice no aparelho
   const semResultado = Boolean(consulta) && !lista.carregando && lista.itens.length === 0;
@@ -110,13 +131,13 @@ export default function TelaCatalogo() {
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
-    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
+    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId, usuarioId, filtroFilial: escolha.filial };
     const local = async (aviso: string | null) => {
       const doFiltro = arvore ? produtosDoFiltro(arvore.arvore, arvore.vinculos, filtro) : undefined;
       const permitidos = dentroDoPedido ? await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: true }) : undefined;
       const ativos = idsAtivos(await produtosLocais(motor));
       const ids = doFiltro || permitidos ? new Set([...(doFiltro ?? ativos)].filter((id) => ativos.has(id) && (!permitidos || permitidos.has(id)))) : undefined;
-      const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}) };
+      const chips = { ...(ids ? { only_product_ids: ids } : {}), ...(dentroDoPedido ? { only_sellable: true } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) };
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: limite, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: limite, offset: 0 });
       // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal/falha numa frase só (some quando o índice fica pronto)
       const organizando = 'indexando' in r && r.indexando === true;
@@ -129,7 +150,7 @@ export default function TelaCatalogo() {
       else if (!ambiente.online() || filtroLigado(filtro) || textoPareceCodigo(consulta)) r = await local(ambiente.online() ? null : AVISO_BUSCA_OFFLINE);
       else {
         try {
-          const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite });
+          const api = await ambiente.http.get<RespostaBusca>(caminhoCatalogo('busca'), { q: consulta, customer_id: clienteId, limit: limite, ...(clienteId === null && escolha.filial ? { filial: escolha.filial } : {}), ...(escolha.soComEstoque ? { only_in_stock: true } : {}) });
           r = { itens: api.items, total: api.total, aviso: api.notice };
         } catch (e) {
           r = await local(ehSemConexao(e) ? AVISO_BUSCA_OFFLINE : AVISO_BUSCA_FALHOU);
@@ -141,11 +162,21 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, arvore, filtro, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em]);
+  }, [motor, arvore, filtro, escolha, usuarioId, consulta, limite, dentroDoPedido, clienteId, perfil, parametrosCrus, ambiente, fuso, sync.sincronizado_em]);
 
   const chips = useMemo(() => chipsDaGrade(arvore?.arvore ?? ARVORE_VAZIA, filtro), [arvore, filtro]);
   const linhas = useMemo(() => emLinhas(lista.itens), [lista.itens]);
   const comFiltro = filtroLigado(filtro);
+  // spec §4: chip da filial ("Filial Boa Vista ✕" do vendedor; "Suas filiais (3)" sem ✕) e o selo do botão Filtrar
+  const nomesProprias = filiais.todas.filter((f) => filiais.proprias.includes(f.id)).map((f) => f.nome);
+  const nomeEscolhida = escolha.filial === 'todas' ? 'todas' : (filiais.todas.find((f) => f.id === escolha.filial)?.nome ?? null);
+  const chipFilial = perfil && nomesProprias.length > 0 ? rotuloChipFiliais({ perfil, nomesProprias, escolhida: nomeEscolhida }) : null;
+  const opcoesFilial = perfil ? opcoesDoFiltroFilial({ perfil, proprias: filiais.proprias, filiais: filiais.todas }) : [];
+  const selos = (chipFilial ? 1 : 0) + (escolha.soComEstoque ? 1 : 0);
+  const abrirEstoque = (item: ItemVitrine) => {
+    if (!item.availability || !perfil) return;
+    setDadosDaFolhaEstoque(dadosDaFolha({ codigo: item.erp_code, availability: item.availability, proprias: filiais.proprias, perfil, agora: relogioReal().agora().toISOString(), fuso }));
+  };
   const nomeDoFiltro = arvore?.arvore.nos.get(filtro.categoriaId ?? filtro.sistemaId ?? '')?.nome ?? '';
   const cabecalho = {
     titulo: 'Catálogo',
@@ -167,19 +198,36 @@ export default function TelaCatalogo() {
 
   return (
     <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar} cabecalho={cabecalho}>
-      <CampoBusca
-        testID="catalogo-busca"
-        valor={texto}
-        onChange={setTexto}
-        placeholder="Produto, código ou aplicação"
-        rotuloAcessivel="Buscar produto"
-        onEnviar={() => setConsulta(texto.trim())}
-        onLimpar={() => {
-          setTexto('');
-          setConsulta('');
-        }}
-        rotuloLimpar="Limpar a busca"
-      />
+      <View style={s.buscaLinha}>
+        <View style={{ flex: 1 }}>
+          <CampoBusca
+            testID="catalogo-busca"
+            valor={texto}
+            onChange={setTexto}
+            placeholder="Produto, código ou aplicação"
+            rotuloAcessivel="Buscar produto"
+            onEnviar={() => setConsulta(texto.trim())}
+            onLimpar={() => {
+              setTexto('');
+              setConsulta('');
+            }}
+            rotuloLimpar="Limpar a busca"
+          />
+        </View>
+        <BotaoFiltro testID="catalogo-filtro-botao" contagem={selos} rotulo="Filtrar" onPress={() => setFolhaFiltro(true)} />
+      </View>
+      {chipFilial || escolha.soComEstoque ? (
+        <View style={s.etiquetas} testID="catalogo-etiquetas">
+          {chipFilial ? (
+            <EtiquetaFiltro
+              testID="catalogo-etiqueta-filial"
+              texto={chipFilial.texto}
+              {...(chipFilial.removivel ? { onRemover: () => setEscolha((e) => ({ ...e, filial: perfil === 'vendedor' ? 'todas' : null })), rotuloRemover: `Remover filtro ${chipFilial.texto}` } : {})}
+            />
+          ) : null}
+          {escolha.soComEstoque ? <EtiquetaFiltro testID="catalogo-etiqueta-estoque" texto="Só com estoque" rotuloRemover="Remover filtro Só com estoque" onRemover={() => setEscolha((e) => ({ ...e, soComEstoque: false }))} /> : null}
+        </View>
+      ) : null}
 
       {chips.sistemas.length > 0 ? (
         <LinhaChips testID="catalogo-chips-sistema">
@@ -233,7 +281,7 @@ export default function TelaCatalogo() {
       {linhas.map((par) => (
         <View key={par[0]!.id} style={s.linha}>
           {par.map((item) => (
-            <CartaoGrade key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} />
+            <CartaoGrade key={item.id} item={item} clienteId={clienteId} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} onEstoque={() => abrirEstoque(item)} />
           ))}
           {par.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
@@ -247,6 +295,17 @@ export default function TelaCatalogo() {
           onPress={() => !lista.carregando && setLimite(proximaPaginaDaBusca(lista.itens.length, lista.total))}
         />
       ) : null}
+      <FolhaEstoquePorFilial visivel={dadosDaFolhaEstoque !== null} onFechar={() => setDadosDaFolhaEstoque(null)} dados={dadosDaFolhaEstoque} />
+      <FolhaFiltroCatalogo
+        visivel={folhaFiltro}
+        onFechar={() => setFolhaFiltro(false)}
+        opcoes={opcoesFilial}
+        escolha={escolha}
+        filialMarcada={escolha.filial ?? (perfil === 'vendedor' ? (filiais.proprias[0] ?? null) : 'todas')}
+        onEscolher={setEscolha}
+        onLimpar={() => setEscolha({ filial: null, soComEstoque: false })}
+        textoVer={`Ver ${subtituloDaGrade(lista.total)}`}
+      />
     </Screen>
   );
 }
@@ -255,6 +314,8 @@ const filtroLigado = (f: FiltroDaGrade) => f.sistemaId !== null || f.categoriaId
 
 const s = StyleSheet.create({
   linha: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  buscaLinha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
 });
 
 function VazioDaBusca({

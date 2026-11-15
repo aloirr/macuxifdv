@@ -70,11 +70,13 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
     expect(semCliente.items[0]!.price).toMatchObject({ sellable: false, notice: MENSAGEM_SEM_PRECO_CATALOGO });
   });
 
-  it('RN-CAT-05: o promotor (e o aparelho sem usuário) não lê preço nem estoque', async () => {
-    for (const perfil of ['promotor', null] as const) {
-      const r = await buscarLocal(leitor(), { ...entrada, perfil, q: 'café', limit: 20, offset: 0, offline: true });
-      expect(r.items[0], String(perfil)).toMatchObject({ price: null, availability: null, price_stock_visible: false });
-    }
+  it('RN-CAT-05 (revista): o promotor lê o ESTOQUE e não o preço; o aparelho sem usuário não lê nada (estoque 0, sem preço)', async () => {
+    const sem = await buscarLocal(leitor(), { ...entrada, perfil: null, q: 'café', limit: 20, offset: 0, offline: true });
+    expect(sem.items[0]).toMatchObject({ price: null, price_stock_visible: false });
+    expect(sem.items[0]!.availability?.quantity ?? 0).toBe(0);
+    const promotor = await buscarLocal(leitor(), { ...entrada, perfil: 'promotor', q: 'café', limit: 20, offset: 0, offline: true });
+    expect(promotor.items[0]).toMatchObject({ price: null, price_stock_visible: false });
+    expect(promotor.items[0]!.availability).toMatchObject({ band: 'disponivel', quantity: 50 });
     const ligado = await buscarLocal(leitor(), { ...entrada, perfil: 'promotor', parametros: { promotor_ve_preco_estoque: true }, q: 'café', limit: 20, offset: 0, offline: true });
     expect(ligado.items[0]!.price?.price_cents).toBe(1890);
   });
@@ -91,6 +93,63 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
     const r = await buscarLocal(leitor(linhas, fts), { ...entrada, q: 'café', limit: 20, offset: 0, offline: true });
     expect(chamadas).toEqual([`${ID_INDICE_BUSCA}:[["cafe"]]`]);
     expect(r.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+});
+
+describe('estoque por filial no aparelho (catalogo-campo-v2 §3 e §4; RN-CAT-05, RN-CORE-39)', () => {
+  const F1 = idDemo('filial:um');
+  const F2 = idDemo('filial:dois');
+  const U = idDemo('usuario:u');
+  const comFiliais = (filialIds: string[] | undefined) => {
+    const l = linhasDemo();
+    l.deposito = [base(idDemo('dep:1'), { codigo: 'D1', nome: 'D1', ativo: true, filial_id: F1 }), base(idDemo('dep:2'), { codigo: 'D2', nome: 'D2', ativo: true, filial_id: F2 })];
+    l.filial = [base(F1, { codigo: '01', nome: 'Boa Vista', padrao: true, ativo: true }), base(F2, { codigo: '02', nome: 'Manaus', padrao: false, ativo: true })];
+    l.estoque_saldo = [
+      base(idDemo('s:1'), { produto_id: idProdutoDemo('CAF-500'), deposito_id: idDemo('dep:1'), quantidade: 10, atualizado_em: QUANDO }),
+      base(idDemo('s:2'), { produto_id: idProdutoDemo('CAF-500'), deposito_id: idDemo('dep:2'), quantidade: 7, atualizado_em: QUANDO }),
+    ];
+    l.usuario = [base(U, { ...(filialIds ? { filial_ids: filialIds } : {}) })];
+    return l;
+  };
+  const cafe = async (perfil: 'vendedor' | 'promotor' | 'supervisor', filialIds: string[] | undefined, extra: Record<string, unknown> = {}) => {
+    const r = await buscarLocal(leitor(comFiliais(filialIds)), { ...entrada, perfil, usuarioId: U, clienteId: null, q: 'café', limit: 20, offset: 0, offline: true, ...extra });
+    return r.items[0]!.availability!;
+  };
+
+  it('spec §3: o vendedor vê N da filial dele e a folha lista todas as filiais', async () => {
+    const a = await cafe('vendedor', [F1]);
+    expect(a.quantity).toBe(10);
+    expect(a.by_branch.map((b) => [b.branch_name, b.quantity]).sort()).toEqual([['Boa Vista', 10], ['Manaus', 7]]);
+  });
+
+  it('spec §3: filtro com uma filial mostra só aquela; "todas" soma todas', async () => {
+    expect((await cafe('vendedor', [F1], { filtroFilial: F2 })).quantity).toBe(7);
+    expect((await cafe('vendedor', [F1], { filtroFilial: 'todas' })).quantity).toBe(17);
+  });
+
+  it('spec §4: promotor e supervisor somam as filiais deles e a folha só lista as deles', async () => {
+    for (const perfil of ['promotor', 'supervisor'] as const) {
+      const a = await cafe(perfil, [F1, F2]);
+      expect(a.quantity, perfil).toBe(17);
+      const so = await cafe(perfil, [F2]);
+      expect(so.quantity, perfil).toBe(7);
+      expect(so.by_branch.map((b) => b.branch_name), perfil).toEqual(['Manaus']);
+    }
+  });
+
+  it('RN-CAT-05 / spec §4: quem só vê as suas filiais não escolhe outra, nem pelo filtro', async () => {
+    expect((await cafe('promotor', [F1], { filtroFilial: F2 })).quantity).toBe(0);
+  });
+
+  it('RN-CORE-39: com cliente vale a filial do cliente (o filtro não vale)', async () => {
+    const l = comFiliais([F1]);
+    l.cliente = [base(CLIENTE_VAREJO, { filial_id: F2 })];
+    const r = await buscarLocal(leitor(l), { ...entrada, perfil: 'vendedor', usuarioId: U, q: 'café', limit: 20, offset: 0, offline: true, filtroFilial: F1 });
+    expect(r.items[0]!.availability!.quantity).toBe(7);
+  });
+
+  it('emissor antigo (sem filial_ids no sync): mantém o que o aparelho recebeu, sem esconder nada', async () => {
+    expect((await cafe('promotor', undefined)).quantity).toBe(17);
   });
 });
 
@@ -292,11 +351,11 @@ describe('árvore do catálogo offline (RF-CAT-04)', () => {
     expect(semTabela!.size).toBe(0);
   });
 
-  it('RN-CAT-05 / regra 7: o promotor navega a árvore só para leitura, sem preço nem estoque nos cartões', async () => {
+  it('RN-CAT-05 / regra 7: o promotor navega a árvore só para leitura, sem preço nos cartões (o estoque aparece)', async () => {
     const ids = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, perfil: 'promotor', noId: NO_REFRI, soDaTabelaDoCliente: false });
     const r = await vitrineLocal(leitor(comArvore()), { ...entrada, perfil: 'promotor', chips: { only_product_ids: ids! }, limit: 50, offset: 0 });
     expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['REF-2L', 'REF-350']);
-    expect(r.items.every((i) => i.price === null && i.availability === null)).toBe(true);
+    expect(r.items.every((i) => i.price === null && i.availability !== null)).toBe(true);
   });
 });
 

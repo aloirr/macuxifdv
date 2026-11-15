@@ -1,10 +1,11 @@
 /**
  * Catálogo em grade (T-0173, docs/design/catalogo-grade.md): chips de sistema e de categoria sobre a árvore do ERP e a tag de
- * estoque do cartão. Puro, testável em Node; a decisão de preço e de faixa é do domain.
+ * "Estoque: N" do cartão. Puro, testável em Node; a decisão de preço e de faixa é do domain.
  */
 import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { ItemVitrine } from '../../contracts';
 import { MENSAGEM_SEM_PRECO_CATALOGO } from '../../domain/vitrine';
+import { corDoEstoque, textoEstoqueCartao } from '../../domain/estoque-campo';
 import { textoEquivaleA, type RotuloPreco } from './apresentacao';
 import { filhosDe, produtosDoNo, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 
@@ -40,15 +41,28 @@ export interface TagEstoque {
   tom: TomEstado;
 }
 
-/** Tag única de estoque do cartão (spec §4); `null` = o perfil não vê estoque (RN-CAT-05). */
-export function tagDeEstoque(item: Pick<ItemVitrine, 'availability' | 'price_stock_visible'>, opcoes: { filialDoCliente?: boolean } = {}): TagEstoque | null {
+/**
+ * "Estoque: N" do cartão, da busca e da ficha (catalogo-campo-v2 §3): verde acima de 0, vermelho em 0 ou menos, sem saldo = 0. No
+ * cartão acima de 999 vira "999+" (`noCartao`, padrão); a ficha traz o exato. `null` = sem o dado de estoque (o promotor também o recebe,
+ * RN-CAT-05 revista).
+ */
+export function tagDeEstoque(item: Pick<ItemVitrine, 'availability'>, opcoes: { noCartao?: boolean } = {}): TagEstoque | null {
   const a = item.availability;
-  if (!item.price_stock_visible || !a) return null;
-  if (a.by_branch.length === 0) return opcoes.filialDoCliente ? { texto: 'Sem estoque', tom: 'erro' } : { texto: 'Estoque sem informação', tom: 'neutro' };
-  if (a.band === 'sem_estoque') return { texto: 'Sem estoque', tom: 'erro' };
-  const baixo = a.band === 'baixo';
-  if (a.quantity === null) return { texto: baixo ? 'Pouco estoque' : 'Em estoque', tom: baixo ? 'aviso' : 'sucesso' };
-  return { texto: `${a.quantity.toLocaleString('pt-BR')} em estoque`, tom: baixo ? 'aviso' : 'sucesso' };
+  if (!a) return null;
+  const noCartao = opcoes.noCartao ?? true;
+  if (a.quantity === null) {
+    const tem = a.band !== 'sem_estoque';
+    return { texto: textoEstoqueCartao(tem ? 1 : 0, noCartao, false), tom: corDoEstoque(tem ? 1 : 0) };
+  }
+  return { texto: textoEstoqueCartao(a.quantity, noCartao), tom: corDoEstoque(a.quantity) };
+}
+
+/** Leitura do chip para o TalkBack: "Estoque 0", "Estoque menos 2" (catalogo-campo-v2 §2.1). */
+export function leituraDoEstoque(item: Pick<ItemVitrine, 'availability'>): string | null {
+  const a = item.availability;
+  if (!a) return null;
+  if (a.quantity === null) return a.band === 'sem_estoque' ? 'Sem estoque' : 'Em estoque';
+  return a.quantity < 0 ? `Estoque menos ${Math.abs(a.quantity).toLocaleString('pt-BR')}` : `Estoque ${a.quantity.toLocaleString('pt-BR')}`;
 }
 
 /** Contagem do cabeçalho: "40 produtos", "1 produto". */
@@ -69,13 +83,21 @@ export function linhaDaMarca(item: Pick<ItemVitrine, 'brand' | 'equivale_a'>): s
   return equivale ? `Equivale a ${equivale}` : item.brand ?? '';
 }
 
+/**
+ * Códigos do cartão em duas linhas (catalogo-grade §2): em cima a marca (ou "Equivale a ..."), embaixo o código do produto com o
+ * copiar. O copiar leva SÓ o código do produto (`erp_code`), sem marca (R-20261115-084500).
+ */
+export function codigosDoCartao(item: Pick<ItemVitrine, 'brand' | 'equivale_a' | 'erp_code'>): { marca: string; produto: string; copiar: string } {
+  return { marca: linhaDaMarca(item), produto: item.erp_code, copiar: item.erp_code };
+}
+
 /** Preço do cartão: o valor quando vendável; senão a mensagem única do domain (RN-CAT-05); `null` = o perfil não vê preço. */
 export function precoDoCartao(preco: RotuloPreco | null): string | null {
   if (!preco) return null;
   return preco.vendavel ? preco.texto : MENSAGEM_SEM_PRECO_CATALOGO;
 }
 
-/** TalkBack do cartão: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, 6 em estoque". */
+/** TalkBack do cartão: "Açúcar cristal 1 kg, Doce Vale, R$ 4,95, Estoque 6". */
 export function rotuloAcessivelDoCartao(partes: readonly (string | null | undefined)[]): string {
   return partes.filter((p): p is string => Boolean(p && p.trim())).join(', ');
 }

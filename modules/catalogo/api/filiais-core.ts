@@ -4,7 +4,7 @@
  * depósitos e nos itens de preço (sem FK, fronteira de schema).
  */
 import type { ClienteBanco, ContextoConsulta, TransacaoTenant } from '@macuxi/platform-sdk';
-import { CONSULTA_FILIAIS, type Filial } from '@macuxi/core/contracts';
+import { CONSULTA_FILIAIS, CONSULTA_FILIAIS_DO_USUARIO, type Filial } from '@macuxi/core/contracts';
 import { filialDoPreco, type FilialDoPreco } from '../domain/preco-filial';
 
 type Consultar = TransacaoTenant['consultar'];
@@ -46,6 +46,11 @@ export interface FiliaisDaCarteira {
 export async function filiaisDaCarteiraNoCore(consultar: Consultar): Promise<FiliaisDaCarteira> {
   const r = await consultar(CONSULTA_FILIAIS, { cliente_ids: [], external_ids: [], escopo: 'carteira' });
   return { filialPadrao: r.padrao_id, daCarteira: r.da_carteira === null ? null : [...r.da_carteira].sort(), filiais: new Map(r.filiais.map((f) => [f.id, f])) };
+}
+
+/** Filiais vivas do próprio usuário (`core.filiais_do_usuario@1`, T-0176, RN-CORE-39): promotor, supervisor e gerente veem estoque só delas. */
+export async function filiaisDoProprioUsuario(consultar: Consultar, usuarioId: string): Promise<string[]> {
+  return [...(await consultar(CONSULTA_FILIAIS_DO_USUARIO, { usuario_id: usuarioId })).filial_ids];
 }
 
 /** Nome da filial no estoque (`branch_name`): "Boa Vista"; filial desconhecida cai no código curto do id. */

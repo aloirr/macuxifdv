@@ -5,11 +5,12 @@ import { provedoresSyncCatalogo, sqlPullPreco, versaoDasFiliais } from './sync';
 const MAO = '0f000000-0000-4000-8000-000000000001';
 const BVB = '0f000000-0000-4000-8000-000000000002';
 /** `core.filiais@1` simulada: `daCarteira` é o que o Core devolve para o usuário (T-0149). */
-const ctxDe = (perfil: string, parametros: Record<string, unknown>, daCarteira: string[] | null = [MAO]) =>
+const ctxDe = (perfil: string, parametros: Record<string, unknown>, daCarteira: string[] | null = [MAO], proprias: string[] = [MAO]) =>
   ({
-    usuario: { perfil },
+    usuario: { perfil, id: 'u1' },
     parametros: () => parametros,
-    comTenant: async (fn: (db: unknown, tx: unknown) => unknown) => fn({}, { consultar: async () => ({ padrao_id: MAO, filiais: [], clientes: [], por_external_id: [], da_carteira: daCarteira }) }),
+    comTenant: async (fn: (db: unknown, tx: unknown) => unknown) =>
+      fn({}, { consultar: async (def: { nome: string }) => (def.nome === 'core.filiais_do_usuario@1' ? { filial_ids: proprias, sem_filial: proprias.length === 0 } : { padrao_id: MAO, filiais: [], clientes: [], por_external_id: [], da_carteira: daCarteira }) }),
   }) as unknown as ContextoBase;
 const PRECO_ESTOQUE = ['tabela_preco', 'tabela_preco_item', 'tabela_escalonada', 'cliente_tabela_preco', 'deposito', 'estoque_saldo'];
 const nome = (p: (typeof provedoresSyncCatalogo)[number]) => p.entidade.nome.replace(/^catalogo\./, '');
@@ -61,8 +62,19 @@ describe('RN-CORE-39: pull de preço e estoque só das filiais da carteira (T-01
     expect(await tabela.variacaoEscopo!(ctxDe('vendedor', {}))).not.toContain('filiais');
   });
 
-  it('RN-CAT-05: perfil sem direito a preço não consulta filiais e continua com a variação oculta', async () => {
-    expect(await provedores[0]!.variacaoEscopo!(ctxDe('promotor', { promotor_ve_preco_estoque: false }))).toBe('preco-estoque:oculto');
+  it('RN-CAT-05 (revista): perfil sem direito a preço continua sem lista nas entidades de preço (variação oculta)', async () => {
+    for (const p of provedores.filter((x) => !['deposito', 'estoque_saldo'].includes(nome(x)))) {
+      expect(await p.variacaoEscopo!(ctxDe('promotor', { promotor_ve_preco_estoque: false })), nome(p)).toBe('preco-estoque:oculto');
+    }
+  });
+
+  it('RN-CAT-05 (revista) / catalogo-campo-v2 §4: o estoque do promotor vai com a lista das filiais DELE, mesmo sem direito a preço; muda quando elas mudam', async () => {
+    for (const p of provedores.filter((x) => ['deposito', 'estoque_saldo'].includes(nome(x)))) {
+      const uma = await p.variacaoEscopo!(ctxDe('promotor', { promotor_ve_preco_estoque: false }, [MAO, BVB], [MAO]));
+      const duas = await p.variacaoEscopo!(ctxDe('promotor', { promotor_ve_preco_estoque: false }, [MAO, BVB], [MAO, BVB]));
+      expect(uma, nome(p)).toMatch(/^preco-estoque:oculto;filiais=/);
+      expect(uma, nome(p)).not.toBe(duas);
+    }
   });
 
   it('RN-CORE-39: o SQL do item, da escalonada, do depósito e do saldo filtra pelas filiais (escalonada: nula = todas)', () => {
