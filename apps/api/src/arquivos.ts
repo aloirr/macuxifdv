@@ -219,7 +219,7 @@ const MB_ENVIO_EM_PARTES = megabytesParaMensagem(TETO_ENVIO_EM_PARTES_PADRAO);
 
 /**
  * ADR 0054: teto do arquivo enviado em partes por `<modulo>/<finalidade>`, conferido no `concluir` (413 com o código da RN).
- * `catalogo/foto_lote` = `FOTO_LOTE_ZIP_MAX_BYTES` do contrato do Catálogo (RN-CAT-14).
+ * `catalogo/foto_lote` = `LIMITES_ZIP_TETO.bytesZipMax` do SDK (RN-CAT-14).
  */
 export const TETO_ENVIO_EM_PARTES: ReadonlyMap<string, { bytes: number; codigo: string; mensagem: string }> = new Map([
   [
