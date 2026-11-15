@@ -5,7 +5,20 @@
 > **Como:** li os 11 PNGs e as duas specs, levantei todos os hex do CSS e dos HTML e calculei o contraste dos pares novos (WCAG).
 > **Numeração:** MC-0086 (a última em uso nos branches da marca é MC-0085).
 
-## Veredito: **liberado com ajustes**
+## Reteste (commits `860b064` e `a4b88ed1af7e837f2e0cf73d4e8a9b9122307bef`, 12 PNGs gerados de novo): **liberado**
+| Item | Situação | Conferido |
+|---|---|---|
+| MC-0086 (neutros esverdeados) | **fechado** | O fundo do mapa está na Névoa e a borda em `#C9CED5` (`01-rota.png`). O fundo da foto usa `var(--neutralBg)`. Não sobra nenhum `#E6E9E1`, `#D3D8CC` ou `#F1F2EE` no CSS e nos HTML. Os cinzas que restam são o desenho fictício das peças (conteúdo da foto) e o fundo da prancha, fora do aparelho |
+| Hierarquia nova do cartão (R-20261115-074500) | **ok** | A ordem fica foto, nome em Archivo Bold 16/20, `980 · Travex` em Plex 13 `ink2` e `PAF.1434 [copiar]` em Plex Bold 13 `ink`, depois o preço e o estoque. A quebra em 2 linhas a 360 dp é limpa e cai em pontos fixos. O negrito fica no código que se copia, então o olho vai direto ao que o vendedor usa. Na ficha a linha cabe inteira na faixa, com o código do produto em branco e o resto em `#C9CED5` (8,07:1) |
+| Grupo "Itens sem estoque" e chip "Só com estoque" | **ok** | A folha segue o padrão de vários grupos: rótulos 13/600 `ink2`, opções de 48 dp com ✓, "Limpar" neutro e "Ver 1.284 produtos" Azul noite de 52 dp (`06-folha-filtro.png`). O chip `Só com estoque ✕` é uma `EtiquetaFiltro` comum. Está só na spec, não há PNG, mas não traz cor nem forma nova |
+| Título "Rota de ter, 18/11" | **ok** | Está na spec, sem PNG. É o mesmo `CabecalhoTela` (Archivo ExtraBold 24, branco no Azul noite) e cabe numa linha. O "ter" vai em minúscula no meio do título, e o chip `Ter, 18/11 ✕` começa com maiúscula: os dois estão corretos |
+| Clientes com a carteira vazia | **ok** | `06-clientes-carteira-vazia.png`: `EstadoVazio` com o ícone `users` em `#4A5562` sobre a Névoa e a frase "Sua carteira está vazia." em grafite. Uma frase direta, no tom da marca, sem cor nova |
+| Ficha: uma linha por filial | **ok** | A filial do vendedor aparece com a tag colorida e as outras com o número. Mesmos pares de contraste da primeira análise |
+
+Não há achado em aberto. As duas simulações seguem para o Alexandre sem ressalva de marca, e só ele aprova.
+
+## Primeira análise (commit `4cecf05e`)
+### Veredito: liberado com ajustes
 Nada fere a identidade nas telas propostas: cor, tipografia, hierarquia e o padrão do filtro estão de acordo. Falta um ajuste baixo **na própria simulação** (MC-0086): o mapa da Rota e o fundo da foto do produto usam neutros esverdeados, que o Alexandre tirou da marca em 14/11. Como os PNGs vão para ele aprovar, a imagem precisa mostrar a cor certa. Basta corrigir o CSS e gerar de novo os PNGs; a spec não muda.
 
 ## O que está conforme
