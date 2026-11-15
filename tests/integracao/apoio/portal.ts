@@ -15,6 +15,7 @@ import { SessaoPortalSchema, type SessaoPortal } from '@macuxi/core/contracts';
 import type { LightMyRequestResponse } from 'fastify';
 import type pg from 'pg';
 import { novoIp, type ApiDeTeste } from './api';
+import { garantirFilialDosUsuarios } from './filial-usuario';
 
 /** Nomes das `plataforma.sa_*` citadas num trecho de SQL registrado (`espiarSql`). */
 const SA_FN = /plataforma\.(sa_[a-z_]+)\s*\(/g;
@@ -30,10 +31,10 @@ export async function criarSuperAdmin(admin: pg.Pool, sa: { email: string; nome:
   return saida.super_admin_id;
 }
 
-/** Usuário de um tenant gravado pela administração (sem RLS no caminho), com a senha em argon2id. Devolve o id. */
+/** Usuário de um tenant gravado pela administração (sem RLS no caminho), com a senha em argon2id e (T-0176) a filial padrão; `semFilial` o deixa travado. Devolve o id. */
 export async function criarUsuarioNoTenant(
   admin: pg.Pool,
-  u: { tenantId: string; email: string; nome: string; senha: string; perfil?: string },
+  u: { tenantId: string; email: string; nome: string; senha: string; perfil?: string; semFilial?: boolean },
 ): Promise<string> {
   const id = crypto.randomUUID();
   await admin.query('insert into core.usuario (id, tenant_id, nome, email, perfil, senha_hash) values ($1, $2, $3, $4, $5, $6)', [
@@ -44,6 +45,8 @@ export async function criarUsuarioNoTenant(
     u.perfil ?? 'admin',
     hashSenha(u.senha),
   ]);
+  // T-0176 (RN-CORE-39): com a 0077, a filial padrão do tenant como cadastro e venda (sem ela, 403 USUARIO_SEM_FILIAL no Core)
+  if (!u.semFilial) await garantirFilialDosUsuarios(admin, [id]);
   return id;
 }
 

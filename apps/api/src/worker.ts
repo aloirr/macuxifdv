@@ -17,6 +17,15 @@
  * alerta (recado automático do remetente `diagnostico`, só com `MACUXI_RECADOS_TOKEN_SERVIDOR`; sem ele as linhas viram
  * `desligado`) e o expurgo de 90 dias rodam aqui também. `MACUXI_DIAGNOSTICOS_INTERVALO_MS` (padrão 60000) e
  * `MACUXI_DIAGNOSTICOS_PORTAL_URL` (link do recado; padrão https://config.macuxifdv.com.br).
+ * ADR 0054 (`sync-pacotes-gerador.ts`): com `MACUXI_SYNC_PACOTES=1` (padrão DESLIGADO) e a migração 0074 no banco, o gerador do
+ * pacote pronto da primeira carga roda aqui também, a cada `MACUXI_SYNC_PACOTES_INTERVALO_MS` (padrão 60000), num pool próprio do
+ * `macuxi_worker` (2 conexões: a trava de sessão da partição segura uma durante a geração). Arquivos no mesmo armazenamento das
+ * fotos (`MACUXI_ARQUIVOS_DRIVER`; no disco, o mesmo `MACUXI_ARQUIVOS_DIR` da API), montados em `MACUXI_SYNC_PACOTES_DIR_TEMP`
+ * (padrão: a pasta temporária do sistema). Variável inválida = o worker não sobe (falha fechada).
+ * T-0174 (ADR 0058; `trabalhos.ts`): o laço dos trabalhos sob demanda dos módulos (`ModuloApi.trabalhos`, ex.: o lote de fotos do
+ * Catálogo) roda aqui também, com o mesmo armazenamento de arquivos da API. Liga só com trabalho instalado e a função
+ * `plataforma.trabalho_reservar` no banco (migração 0079). Variáveis: `MACUXI_TRABALHOS_INTERVALO_MS` (padrão 2000) e
+ * `MACUXI_TRABALHOS_TMP` (pasta dos temporários do ZIP; padrão o temporário do sistema; precisa de ~600 MB livres por lote).
  */
 import { lerConfigApp, urlApp, urlWorker } from '@macuxi/db';
 import pg from 'pg';
@@ -24,7 +33,7 @@ import pino from 'pino';
 import { criarAgendador } from './agendador';
 import type { ArmazenamentoArquivos } from './arquivos';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
-import { diagnosticosLigados } from './config';
+import { diagnosticosLigados, lerConfigSyncPacotes, syncPacotesLigados } from './config';
 import { criarWorkerDiagnosticos, SQL_EXISTE_0058, URL_PORTAL_PADRAO } from './diagnosticos-worker';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
@@ -33,12 +42,16 @@ import { MODULOS_API } from './modulos';
 import { mensagemSegura, serializarErro } from './log-seguro';
 import { registrarMetricasWorker, SQL_RESUMO_OUTBOX } from './observabilidade';
 import { criarClienteRecadosGithub } from './recados-github';
+import { armazenamentoPacotesSyncDoAmbiente } from './sync-pacotes';
+import { criarGeradorPacotes, criarRepositorioPacotesSql } from './sync-pacotes-gerador';
+import { criarLacoTrabalhos } from './trabalhos';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
 const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' }, serializers: { err: serializarErro } });
 
 // o lote fica travado no worker enquanto os handlers rodam: sem idle_in_transaction curto aqui
-const poolWorker = new pg.Pool({ connectionString: urlWorker(cfg), max: 2, options: '-c statement_timeout=30000' });
+// 3 conexões: o lote travado do despachante, o e-mail/diagnósticos e o laço dos trabalhos (ADR 0058)
+const poolWorker = new pg.Pool({ connectionString: urlWorker(cfg), max: 3, options: '-c statement_timeout=30000' });
 const poolApp = new pg.Pool({
   connectionString: urlApp(cfg),
   max: Number(process.env.MACUXI_DESPACHANTE_POOL ?? 4),
@@ -70,11 +83,15 @@ async function principal(): Promise<void> {
   const agendamento = await iniciarAgendador();
   const envioEmail = iniciarEmail();
   const diagnosticos = await iniciarDiagnosticos();
+  const pacotesSync = await iniciarPacotesSync();
+  const trabalhos = await iniciarTrabalhos();
   const encerrar = async () => {
     if (timerMetricas) clearInterval(timerMetricas);
+    await trabalhos?.parar();
     await agendamento?.parar();
     await envioEmail?.parar();
     await diagnosticos?.parar();
+    await pacotesSync?.parar();
     await execucao.parar();
     await Promise.all([poolWorker.end(), poolApp.end()]);
     process.exit(0);
@@ -131,6 +148,72 @@ async function iniciarDiagnosticos(): Promise<{ parar(): Promise<void> } | undef
   });
   log.info({ tipo: 'diagnostico', alerta: token ? 'ligado' : 'desligado' }, 'diagnósticos no ar (alerta e expurgo)');
   return w.iniciar({ intervaloMs: Number(process.env.MACUXI_DIAGNOSTICOS_INTERVALO_MS ?? 60_000) });
+}
+
+/**
+ * ADR 0054: gerador do pacote pronto da primeira carga. Desligado sem `MACUXI_SYNC_PACOTES=1`, sem a 0074 no banco ou sem módulo
+ * com entidade no pacote (o despachante segue). Configuração inválida derruba o worker na subida (falha fechada).
+ */
+async function iniciarPacotesSync(): Promise<{ parar(): Promise<void> } | undefined> {
+  if (!syncPacotesLigados(process.env)) return undefined;
+  const config = lerConfigSyncPacotes(process.env);
+  const { armazenamento, descricao } = armazenamentoPacotesSyncDoAmbiente(process.env);
+  const existe = await poolWorker.query<{ ok: boolean }>("select to_regclass('plataforma.sync_pacote_pedido') is not null as ok");
+  if (!existe.rows[0]?.ok) {
+    log.warn({ tipo: 'sync_pacotes' }, 'pacotes da primeira carga desligados: falta a migração 0074 no banco');
+    return undefined;
+  }
+  const poolPacotes = new pg.Pool({ connectionString: urlWorker(cfg), max: 2, options: '-c statement_timeout=30000' });
+  const gerador = criarGeradorPacotes({
+    app,
+    repositorio: criarRepositorioPacotesSql(poolPacotes),
+    modulos: MODULOS_API,
+    armazenamento,
+    ...(config.dirTemp ? { dirTemp: config.dirTemp } : {}),
+    log: {
+      info: (o, msg) => log.info({ tipo: 'sync_pacotes', ...o }, msg),
+      warn: (o, msg) => log.warn({ tipo: 'sync_pacotes', ...o }, msg),
+      error: (o, msg) => log.error({ tipo: 'sync_pacotes', ...o }, msg),
+    },
+  });
+  if (gerador.modulos().length === 0) {
+    await poolPacotes.end();
+    log.info({ tipo: 'sync_pacotes' }, 'pacotes da primeira carga: nenhum módulo com entidade no pacote');
+    return undefined;
+  }
+  log.info({ tipo: 'sync_pacotes', armazenamento: descricao, modulos: gerador.modulos() }, 'gerador de pacotes no ar');
+  const execucao = gerador.iniciar({ intervaloMs: config.intervaloMs });
+  return {
+    async parar() {
+      await execucao.parar();
+      await poolPacotes.end();
+    },
+  };
+}
+
+/** ADR 0058: liga o laço dos trabalhos sob demanda se houver trabalho instalado e a migração 0079 no banco. */
+async function iniciarTrabalhos(): Promise<{ parar(): Promise<void> } | undefined> {
+  const logTrab = {
+    info: (o: Record<string, unknown>, msg?: string) => log.info({ tipo: 'trabalho', ...o }, msg),
+    warn: (o: Record<string, unknown>, msg?: string) => log.warn({ tipo: 'trabalho', ...o }, msg),
+    error: (o: Record<string, unknown>, msg?: string) => log.error({ tipo: 'trabalho', ...o }, msg),
+  };
+  let armazenamento: ArmazenamentoArquivos | null = null;
+  try {
+    armazenamento = lerArmazenamentoDoAmbiente(process.env).armazenamento;
+  } catch (e) {
+    // sem armazenamento a fatia falha e volta com espera (o despachante não cai por isso)
+    logTrab.warn({ erro: mensagemSegura(e) }, 'trabalhos sem armazenamento de arquivos');
+  }
+  const laco = criarLacoTrabalhos({ worker: poolWorker, app, modulos: MODULOS_API, armazenamento, log: logTrab });
+  if (laco.trabalhos().length === 0) return undefined;
+  const existe = await poolWorker.query<{ ok: boolean }>("select to_regprocedure('plataforma.trabalho_reservar(text,integer)') is not null as ok");
+  if (!existe.rows[0]?.ok) {
+    logTrab.warn({ trabalhos: laco.trabalhos() }, 'trabalhos desligados: falta a migração 0079 no banco');
+    return undefined;
+  }
+  logTrab.info({ trabalhos: laco.trabalhos(), processo: laco.processo }, 'trabalhos no ar');
+  return laco.iniciar();
 }
 
 /** ADR 0022: liga o agendador se houver tarefa instalada e a função de tenants ativos existir no banco. */

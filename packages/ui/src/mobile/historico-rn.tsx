@@ -11,7 +11,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 
 import { leituraDoHistorico, type TagDoHistorico } from '../comum/historico';
 import { ChipEstado } from './base';
-import { colors, fonts } from './theme';
+import { colors, fonte } from './theme';
 
 export function TagHistorico({ tag, testID }: { tag: TagDoHistorico; testID?: string }) {
   const id = testID ?? `historico-${tag.id}`;
@@ -57,5 +57,5 @@ const s = StyleSheet.create({
   comMotivo: { width: '100%', gap: 3 },
   chip: { alignSelf: 'flex-start', maxWidth: '100%' },
   // 13/18 ink2 (6,9:1 no fundo): o motivo é lido, não é decoração
-  motivo: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.ink2, paddingLeft: 2 },
+  motivo: { ...fonte.body, fontSize: 14, lineHeight: 18, color: colors.ink2, paddingLeft: 2 },
 });
