@@ -47,7 +47,22 @@ export interface DefinicaoEntidadeSync<S extends z.ZodTypeAny = z.ZodTypeAny> {
    * desconhecido), devolva `true` — a linha fica. Lançar também mantém a linha.
    */
   naJanela?(linha: Readonly<Record<string, unknown>>, hoje: string): boolean;
+  /**
+   * ADR 0056 (RN-CORE-59): `diaria` = a entidade vem ao aparelho uma vez por dia (estoque: `deposito`, `estoque_saldo`), na
+   * carga diária (`OpcoesMotorSync.cargaDiariaDevida`) e na sincronização `completa`; novidades, push silencioso, a
+   * sincronização padrão e a parcial a pulam. Ausente = `continua` (como sempre). Sem `cargaDiariaDevida` no motor, a
+   * marca não muda nada.
+   */
+  cadencia?: CadenciaSync;
+  /**
+   * ADR 0056 (RN-CORE-23 item 1): a entidade entra na sincronização `parcial` (toque no botão "Sincronizar": pedidos e
+   * clientes). Ausente = só nas outras sincronizações.
+   */
+  parcial?: boolean;
 }
+
+/** ADR 0056: de quanto em quanto tempo a entidade vem ao aparelho (`DefinicaoEntidadeSync.cadencia`). */
+export type CadenciaSync = 'continua' | 'diaria';
 
 const DATA_ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 

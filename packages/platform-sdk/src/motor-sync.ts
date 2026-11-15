@@ -44,6 +44,10 @@
  *   ou restaurada. Troca de geração: aceitos sobrepostos voltam para a fila, a fila é enviada, linhas/cursores/escopos são
  *   apagados (a fila de itens e a de arquivos ficam), cada etapa limpa o próprio cache (`aoTrocarGeracao`) e o pull completo
  *   roda de novo na mesma sincronização. Sem o campo, nada muda; a primeira geração vista é adotada sem apagar nada.
+ * - ADR 0056: entidades de cadência `diaria` (estoque) só vêm na CARGA DIÁRIA (`cargaDiariaDevida` injetada pelo shell;
+ *   a primeira sincronização que a encontra devida a inclui e grava `carga_diaria_em`), na carga inicial e na `completa`.
+ *   `sincronizar({ modo: 'parcial' })` = envio + pull só das entidades `parcial` (pedidos e clientes); `{ modo: 'completa' }`
+ *   = tudo do zero (ressincronização forçada de cada entidade, retomável), diárias inclusive. Sem modo = a de sempre.
  */
 import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo } from './ambiente';
 import { completarAmbiente, type RegistroConsultasAparelho } from './consultas';
@@ -533,7 +537,18 @@ export interface EstadoMotorSync {
    * busca e preço vão à API.
    */
   pendentes?: readonly string[];
+  /**
+   * ADR 0056: fim da última carga diária (ISO UTC, relógio do aparelho; persistido): a passada que trouxe todas as entidades
+   * `diaria` terminou. Nulo = nunca houve (ou a geração trocou). Ausente/nulo sempre sem `cargaDiariaDevida` no motor.
+   */
+  carga_diaria_em?: string | null;
 }
+
+/**
+ * ADR 0056: modo de `motor.sincronizar`. `parcial` = toque no "Sincronizar" (envio + entidades `parcial`); `completa` =
+ * segurar 10 s (tudo do zero, diárias inclusive). Sem modo = a sincronização de sempre (diárias só com a carga devida).
+ */
+export type ModoSincronizacao = 'parcial' | 'completa';
 
 export interface ProgressoCarga {
   entidade: string | null;
@@ -583,8 +598,15 @@ export const VALIDADE_RETOMADA_MS = 6 * 60 * 60_000;
  * recebidos nesta passada (para apagar no fim o que saiu do escopo); `null` = carga inicial (nada local para apagar).
  */
 interface RegistroRessinc {
-  versao: string;
+  /** `null` só no `refazer` de entidade sem `versao_escopo` (tenant/próprio). */
+  versao: string | null;
   vistos: string[] | null;
+  /**
+   * ADR 0056: ressincronização forçada pela sincronização `completa` (tudo do zero). Qualquer passada que puxar a entidade
+   * a retoma de `desde` (o cursor da página em curso, gravado ANTES de aplicá-la: a página volta, nunca falta).
+   */
+  refazer?: true;
+  desde?: string | null;
 }
 
 /** Item da sincronização completa entregue a `OpcoesMotorSync.ordemDaCarga`. */
@@ -644,6 +666,12 @@ export interface OpcoesMotorSync {
    * o motor grava `liberado_em`. Sem ela, só `sincronizado_em` libera.
    */
   essenciais?: (item: ItemDaCarga) => boolean;
+  /**
+   * ADR 0056 (RN-CORE-59): a carga diária está devida? Recebe a última (`carga_diaria_em`, ISO ou `null`) e o `agora`; o
+   * shell injeta a função pura do Core com o fuso do tenant e `estoque_carga_hora`. Sem ela, as entidades `diaria` são
+   * contínuas e `carga_diaria_em` não é gravado (o de sempre). Se lançar, vale "devida" (na dúvida, carrega).
+   */
+  cargaDiariaDevida?: (ultima: string | null, agora: Date) => boolean;
 }
 
 /** Parâmetros do tenant por módulo (`GET /v1/me/modulos`), guardados para valer offline (T-0029 E3). */
@@ -662,6 +690,8 @@ const CHAVE = {
   sincronizadoEm: 'sync:sincronizado_em',
   /** ADR 0054 (solução 5): quando os itens essenciais da carga inicial terminaram (entrada liberada). */
   liberadoEm: 'sync:liberado_em',
+  /** ADR 0056: fim da última carga diária (entidades `diaria`). */
+  cargaDiaria: 'sync:carga_diaria_em',
   cursor: (e: string) => `sync:cursor:${e}`,
   /** Última `versao_escopo` recebida da entidade (ADR 0009 §4). */
   escopo: (e: string) => `sync:escopo:${e}`,
@@ -769,12 +799,23 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     carga: CARGA_VAZIA,
     liberado_em: null,
     pendentes: [],
+    carga_diaria_em: null,
   };
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
   /** Passada pedida com um envio em curso: roda depois dele (uma só para todos os pedidos que chegaram no meio). */
   let proximoEnvio: Promise<ResultadoItemPush[]> | null = null;
   let proximoIncluiFalhos = false;
   let syncEmCurso: Promise<boolean> | null = null;
+  /** ADR 0056: a `completa` pedida (talvez esperando outra terminar); um segundo pedido recebe a mesma. */
+  let completaEmCurso: Promise<boolean> | null = null;
+  /** Roda a sincronização como a única em curso; ao terminar, solta a vaga se ela ainda for desta. */
+  const emCurso = (fazer: () => Promise<boolean>): Promise<boolean> => {
+    const p: Promise<boolean> = fazer().finally(() => {
+      if (syncEmCurso === p) syncEmCurso = null;
+    });
+    syncEmCurso = p;
+    return p;
+  };
 
   // ---------- versão das linhas (T-0052-B4) ----------
   /** Entidade → versão das linhas locais; ausente = ainda não perguntada desde a última mudança (ganha número novo). */
@@ -1005,7 +1046,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       }
       await a.remover(CHAVE.carga);
       await a.remover(CHAVE.novidades);
+      // ADR 0056: a carga diária da base antiga não vale; a próxima passada traz as diárias de novo
+      await a.remover(CHAVE.cargaDiaria);
     }));
+    mudar({ carga_diaria_em: null });
     // 4. cache próprio de cada módulo (só ele sabe o que é cópia do servidor e o que é rascunho)
     for (const e of op.etapas ?? []) if (e.aoTrocarGeracao) await e.aoTrocarGeracao(contextoDaEtapa(e));
     // 5. só agora: a geração nova vale
@@ -1276,6 +1320,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     entidade: string,
     coberturas?: Map<string, Cobertura>,
     aoGravarPagina?: () => void,
+    /** ADR 0056: `completa` = tudo do zero (ressincronização forçada; no fim apaga o que não veio). */
+    refazer = false,
   ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
     // T-0084: o fuso do tenant vale para os documentos de busca montados nesta página (e a versão é conferida)
@@ -1292,25 +1338,55 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     // caminho chave→JSON: o mapa é lido uma vez e regravado por página (com `linhas`, o adaptador grava por linha)
     const mapa: Linhas = a.linhas ? {} : ((await a.ler<Linhas>(CHAVE.entidade(entidade))) ?? {});
     /** `vistos` nulo = carga inicial (nada a apagar no fim). */
-    let ressinc: { versao: string; vistos: Set<string> | null } | null = null;
-    const gravarRessinc = (r: { versao: string; vistos: Set<string> | null }) =>
-      a.gravar(CHAVE.ressinc(entidade), { versao: r.versao, vistos: r.vistos ? [...r.vistos] : null } satisfies RegistroRessinc);
+    type Ressinc = { versao: string | null; vistos: Set<string> | null; refazer?: true };
+    let ressinc: Ressinc | null = null;
+    const gravarRessinc = (r: Ressinc, desde: string | null = null) =>
+      a.gravar(CHAVE.ressinc(entidade), {
+        versao: r.versao,
+        vistos: r.vistos ? [...r.vistos] : null,
+        ...(r.refazer ? { refazer: true as const, desde } : {}),
+      } satisfies RegistroRessinc);
+    if (ressincGuardada?.refazer && !cargaInicial) {
+      // ADR 0056: `completa` interrompida (app encerrado, queda): qualquer passada continua da página em curso dela
+      ressinc = { versao: ressincGuardada.versao, vistos: new Set(ressincGuardada.vistos ?? []), refazer: true };
+      cursor = ressincGuardada.desde ?? null;
+    } else if (refazer && !cargaInicial) {
+      // ADR 0056: tudo do zero; as linhas locais ficam até o fim e só sai o que não veio
+      ressinc = { versao: versaoGuardada, vistos: new Set(), refazer: true };
+      cursor = null;
+      await gravarRessinc(ressinc);
+    }
+    /** Páginas recebidas nesta chamada (501 na primeira = entidade sem provedor, também no `refazer`). */
+    let recebidas = 0;
     for (;;) {
       let pagina: PaginaSync<LinhaSync>;
       try {
         pagina = await op.transporte.pull(entidade, cursor);
       } catch (e) {
-        if (ehSyncNaoImplementado(e) && !ressinc) {
+        if (ehSyncNaoImplementado(e) && (!ressinc || (ressinc.refazer && recebidas === 0))) {
+          // `refazer` sem provedor: nada foi pedido de novo; o registro sai (nada local é apagado)
+          if (ressinc?.refazer) await a.remover(CHAVE.ressinc(entidade));
           coberturas?.set(entidade, 'indisponivel');
           return 'indisponivel';
         }
         throw e;
       }
+      recebidas++;
       // ADR 0021: outra geração = a base foi recriada; nada desta página é aplicado sobre a cópia antiga
       await conferirGeracao(pagina.geracao_base);
       if (!pagina.horizonte) semHorizonte = true;
       else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
+      if (ressinc?.refazer && versao !== undefined && versao !== ressinc.versao) {
+        // ADR 0056: o conjunto visível mudou no meio do `refazer`: recomeça do zero com a versão nova (no 1º pedido, só adota)
+        const recomecar = cursor !== null;
+        ressinc = { versao, vistos: new Set(), refazer: true };
+        await gravarRessinc(ressinc);
+        if (recomecar) {
+          cursor = null;
+          continue;
+        }
+      }
       if (!ressinc && versao !== undefined && versao !== versaoGuardada) {
         if (cursor !== null && ressincGuardada?.versao === versao) {
           // T-0059: a passada desta mesma versão foi interrompida (app encerrado): continua do cursor gravado, sem recomeçar
@@ -1328,7 +1404,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       if (ressinc?.vistos) {
         for (const l of pagina.itens) ressinc.vistos.add(l.id);
         // antes de aplicar: se o app cair entre as duas gravações, `vistos` sobra (nunca falta) e nada visível é apagado
-        await gravarRessinc(ressinc);
+        // (no `refazer`, `desde` = o cursor desta página: a retomada a pede de novo)
+        await gravarRessinc(ressinc, cursor);
       }
       const ultimo = pagina.itens[pagina.itens.length - 1];
       const proximo = pagina.proximo_cursor ?? (ultimo ? codificarCursor(ultimo) : cursor);
@@ -1376,7 +1453,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         if (sobra.length > 0) linhasMudaram(entidade);
       }
       // só agora: se o app cair no meio, a próxima passada vê a versão antiga e RETOMA pela `sync:ressinc` (T-0059)
-      await a.gravar(CHAVE.escopo(entidade), versao);
+      if (versao !== null) await a.gravar(CHAVE.escopo(entidade), versao);
       await a.remover(CHAVE.ressinc(entidade));
     }
     await podarJanela(entidade, mapa);
@@ -1627,23 +1704,54 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     ];
   };
 
+  // ---------- carga diária (ADR 0056) ----------
+  /** Entidades `diaria` ativas; vazio sem `cargaDiariaDevida` (aí elas são contínuas, como sempre). */
+  const entidadesDiarias = (): Set<string> =>
+    op.cargaDiariaDevida
+      ? new Set(
+          op.registro
+            .entidadesAtivas(estado.modulosAtivos, 'pull')
+            .filter((d) => d.cadencia === 'diaria')
+            .map((d) => d.nome),
+        )
+      : new Set();
+  /** A função do shell decide; se ela lançar, carrega (na dúvida, o estoque vem). */
+  const cargaDiariaDevida = (): boolean => {
+    try {
+      return op.cargaDiariaDevida?.(estado.carga_diaria_em ?? null, agora()) ?? false;
+    } catch {
+      return true;
+    }
+  };
+  /** Só depois de a passada inteira terminar (queda no meio = a próxima refaz do cursor de cada diária). */
+  const gravarCargaDiaria = async (quando: string): Promise<void> => {
+    await op.armazenamento.gravar(CHAVE.cargaDiaria, quando);
+    mudar({ carga_diaria_em: quando });
+  };
+
   /**
    * Sincronização completa (corpo de `motor.sincronizar`, sem o controle de uma-por-vez). `podeTrocar` = pode fazer a troca de
-   * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro.
+   * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro. `completa` (ADR 0056) = tudo do
+   * zero (ressincronização forçada de cada entidade), diárias inclusive.
    */
-  const passadaCompleta = async (podeTrocar: boolean): Promise<boolean> => {
+  const passadaCompleta = async (podeTrocar: boolean, completa = false): Promise<boolean> => {
     if (!online()) {
       mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
       return false;
     }
-    const defs = op.registro.entidadesAtivas(estado.modulosAtivos, 'pull');
+    // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
+    // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
+    const cargaInicial = estado.sincronizado_em === null;
+    // ADR 0056: as diárias entram na carga inicial, na `completa` e quando a carga do dia está devida
+    const diarias = entidadesDiarias();
+    const comDiarias = diarias.size > 0 && (cargaInicial || completa || cargaDiariaDevida());
+    const defs = op.registro
+      .entidadesAtivas(estado.modulosAtivos, 'pull')
+      .filter((d) => comDiarias || !diarias.has(d.nome));
     const entidades = defs.map((e) => e.nome);
     const moduloDe = new Map(defs.map((d) => [d.nome, d.modulo] as const));
     const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
     const total = 1 + entidades.length + etapas.length;
-    // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
-    // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
-    const cargaInicial = estado.sincronizado_em === null;
     const anterior = cargaInicial ? await op.armazenamento.ler<RegistroCarga>(CHAVE.carga) : null;
     const retomar =
       anterior !== null && agora().getTime() - Date.parse(anterior.iniciada_em) < VALIDADE_RETOMADA_MS;
@@ -1750,7 +1858,12 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           const e = item.chave;
           if (jaFeitas.has(e)) continue;
           mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: item.modulo, paginas: 0 }) });
-          const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
+          const resultado = await puxarEntidade(
+            e,
+            coberturas,
+            () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }),
+            completa,
+          );
           if (resultado === 'indisponivel') {
             avisos.push({
               entidade: e,
@@ -1787,6 +1900,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         await op.armazenamento.gravar(CHAVE.liberadoEm, quando);
         mudar({ liberado_em: quando });
       }
+      if (comDiarias) await gravarCargaDiaria(quando);
       mudar({
         sincronizando: false,
         etapa: 'Pronto',
@@ -1797,7 +1911,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       });
       return true;
     } catch (e) {
-      if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, podeTrocar);
+      if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, podeTrocar, completa);
       // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
       await liberarAceitos(coberturas).catch(() => undefined);
       mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
@@ -1806,7 +1920,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   };
 
   /** ADR 0021: troca a geração e faz a passada completa de novo (uma vez); falha na troca = erro, a próxima repete. */
-  const depoisDaGeracaoTrocada = async (e: GeracaoTrocada, podeTrocar: boolean): Promise<boolean> => {
+  const depoisDaGeracaoTrocada = async (e: GeracaoTrocada, podeTrocar: boolean, completa = false): Promise<boolean> => {
     if (!podeTrocar) {
       mudar({ sincronizando: false, etapa: '', progresso: 0, erro: MENSAGEM_GERACAO_INSTAVEL });
       return false;
@@ -1817,7 +1931,59 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(erro) });
       return false;
     }
-    return passadaCompleta(false);
+    return passadaCompleta(false, completa);
+  };
+
+  /** ADR 0056: entidades da sincronização `parcial` (ativas, de pull, `parcial` e não diárias), na ordem da carga. */
+  const entidadesParciais = (): string[] => {
+    const diarias = entidadesDiarias();
+    const defs = op.registro
+      .entidadesAtivas(estado.modulosAtivos, 'pull')
+      .filter((d) => d.parcial === true && !diarias.has(d.nome));
+    return ordenarCarga(defs, (d): ItemDaCarga => ({ chave: d.nome, modulo: d.modulo, tipo: 'entidade' })).map((d) => d.nome);
+  };
+
+  /**
+   * Passada LEVE (novidades, push silencioso e `parcial`): envia a fila, `escolher` diz o que puxar (cada entidade do seu
+   * cursor), sem etapas. `cursorNovo` = cursor de novidades a gravar no fim; `comDiarias` = grava `carga_diaria_em` no fim.
+   */
+  const passadaLeve = async (
+    etapa: string,
+    escolher: () => Promise<{ alvo: string[]; cursorNovo: string | null; comDiarias: boolean }>,
+  ): Promise<boolean> => {
+    if (!online()) {
+      mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
+      return false;
+    }
+    mudar({ sincronizando: true, erro: null, etapa, progresso: 0, avisos: [] });
+    const coberturas = new Map<string, Cobertura>();
+    try {
+      await motor.enviar();
+      const { alvo, cursorNovo, comDiarias } = await escolher();
+      const avisos: AvisoSync[] = [];
+      for (const [i, e] of alvo.entries()) {
+        mudar({ etapa: e, progresso: (i + 1) / (alvo.length + 1) });
+        if ((await puxarEntidade(e, coberturas)) === 'indisponivel')
+          avisos.push({ entidade: e, codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
+      }
+      if (alvo.length > 0) {
+        await conferirVersoesBusca();
+        await op.armazenamento.busca?.finalizar?.();
+      }
+      await liberarAceitos(coberturas);
+      // só agora: se um pull falhar, a próxima consulta repete as mesmas entidades (nada se perde)
+      if (cursorNovo) await op.armazenamento.gravar(CHAVE.novidades, cursorNovo);
+      const quando = agora().toISOString();
+      await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
+      if (comDiarias) await gravarCargaDiaria(quando);
+      mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando, avisos });
+      return true;
+    } catch (e) {
+      if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, true);
+      await liberarAceitos(coberturas).catch(() => undefined);
+      mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
+      return false;
+    }
   };
 
   const motor = {
@@ -1830,7 +1996,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     async carregar(): Promise<void> {
       // na vez das gravações: nunca lê o disco antes de uma gravação em curso e sobrescreve a memória depois dela
       await emSerie(async () => {
-        const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao, liberadoEm, cargaGuardada] = await Promise.all([
+        const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao, liberadoEm, cargaGuardada, cargaDiaria] = await Promise.all([
           op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
           op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
           op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
@@ -1841,6 +2007,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           op.armazenamento.ler<string>(CHAVE.geracao),
           op.armazenamento.ler<string>(CHAVE.liberadoEm),
           op.armazenamento.ler<RegistroCarga>(CHAVE.carga),
+          op.armazenamento.ler<string>(CHAVE.cargaDiaria),
         ]);
         geracaoGuardada = geracao;
         parametros = filtrarParametros(params ?? {}, modulos ?? []);
@@ -1854,6 +2021,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           // ADR 0054: app reaberto no meio da carga inicial entra direto (liberado) e sabe o que ainda falta
           liberado_em: liberadoEm,
           pendentes: sincronizadoEm === null ? pendentesDaCarga(modulos ?? [], cargaGuardada?.concluidas ?? []) : [],
+          carga_diaria_em: cargaDiaria,
           erro: null,
         });
       });
@@ -2030,19 +2198,44 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       return proximoEnvio;
     },
 
-    /** Sincronização completa: envia a fila, puxa as entidades dos módulos efetivos e roda as etapas extras. */
-    sincronizar(): Promise<boolean> {
+    /**
+     * Sincronização (uma por vez, junto com `sincronizarNovidades`: quem chama durante uma em curso recebe a mesma promessa).
+     * - Sem `modo`: a de sempre — envia a fila, puxa as entidades dos módulos efetivos (cada uma do seu cursor) e roda as
+     *   etapas extras. As entidades `diaria` só entram na carga inicial ou com a carga diária devida (ADR 0056).
+     * - `parcial` (toque no "Sincronizar", ADR 0056): envia a fila e puxa só as entidades `parcial` (pedidos e clientes), sem
+     *   etapas, sem novidades e sem mexer no cursor delas. Antes da 1ª sincronização, ou sem entidade `parcial`, faz a de sempre.
+     * - `completa` (segurar 10 s, ADR 0056): tudo do zero — cada entidade é ressincronizada desde o cursor nulo (no fim sai do
+     *   aparelho o que não veio), diárias inclusive, com as etapas e o progresso da carga (`estado.carga`); no fim grava
+     *   `carga_diaria_em`. Com outra sincronização em curso, espera ela terminar e roda depois.
+     */
+    sincronizar(opcoes: { modo?: ModoSincronizacao } = {}): Promise<boolean> {
+      if (opcoes.modo === 'completa') {
+        if (completaEmCurso) return completaEmCurso;
+        const antes = syncEmCurso;
+        const p = emCurso(async () => {
+          if (antes) await antes.catch(() => false);
+          return passadaCompleta(true, true);
+        });
+        completaEmCurso = p;
+        void p.finally(() => {
+          if (completaEmCurso === p) completaEmCurso = null;
+        }).catch(() => undefined);
+        return p;
+      }
       if (syncEmCurso) return syncEmCurso;
-      syncEmCurso = passadaCompleta(true).finally(() => {
-        syncEmCurso = null;
-      });
-      return syncEmCurso;
+      if (opcoes.modo === 'parcial' && estado.sincronizado_em !== null && entidadesParciais().length > 0)
+        return emCurso(() =>
+          passadaLeve('Enviando a fila', async () => ({ alvo: entidadesParciais(), cursorNovo: null, comDiarias: false })),
+        );
+      return emCurso(() => passadaCompleta(true));
     },
 
     /**
      * Atualização LEVE (RN-CORE-23, ADR 0018): envia a fila (só se houver pendente), consulta `GET /v1/sync/novidades`
      * com o cursor guardado, aplica os módulos efetivos se mudaram e puxa só as entidades que mudaram. Com
      * `opcoes.entidades` (lista do push silencioso), puxa só essas, sem consultar novidades (o cursor não anda).
+     * ADR 0056: as entidades `diaria` ficam de fora; com a carga diária devida, entram todas (cada uma do seu cursor) e o
+     * fim grava `carga_diaria_em`.
      * Sem `transporte.novidades` ou antes da primeira sincronização completa, faz a completa (`sincronizar`).
      * Uma por vez, junto com `sincronizar` (quem chama durante uma em curso recebe a mesma promessa).
      */
@@ -2050,16 +2243,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       const consultar = op.transporte.novidades?.bind(op.transporte);
       if (!consultar || estado.sincronizado_em === null) return motor.sincronizar();
       if (syncEmCurso) return syncEmCurso;
-      syncEmCurso = (async () => {
-        if (!online()) {
-          mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
-          return false;
-        }
-        mudar({ sincronizando: true, erro: null, etapa: 'Verificando novidades', progresso: 0, avisos: [] });
-        const coberturas = new Map<string, Cobertura>();
-        const ativasPull = () => new Set(op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((e) => e.nome));
-        try {
-          await motor.enviar();
+      return emCurso(() =>
+        passadaLeve('Verificando novidades', async () => {
+          const ativasPull = () => new Set(op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((e) => e.nome));
+          const itemDe = (e: string): ItemDaCarga => ({ chave: e, modulo: op.registro.entidade(e)?.modulo ?? null, tipo: 'entidade' });
           let alvo: string[];
           let cursorNovo: string | null = null;
           if (opcoes.entidades) {
@@ -2074,43 +2261,20 @@ export function criarMotorSync(op: OpcoesMotorSync) {
                 Object.fromEntries(lista.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos,
               );
             }
-            // ADR 0021: base recriada → troca de geração e passada completa (o `catch` abaixo)
+            // ADR 0021: base recriada → troca de geração e passada completa (o `catch` da passada leve)
             await conferirGeracao(r.geracao_base);
             const ativas = ativasPull();
-            const defsPull = new Map(op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((d) => [d.nome, d.modulo] as const));
-            alvo = ordenarCarga(
-              [...new Set(r.entidades)].filter((e) => ativas.has(e)).sort(),
-              (e): ItemDaCarga => ({ chave: e, modulo: defsPull.get(e) ?? null, tipo: 'entidade' }),
-            );
+            alvo = ordenarCarga([...new Set(r.entidades)].filter((e) => ativas.has(e)).sort(), itemDe);
             cursorNovo = r.cursor;
           }
-          const avisos: AvisoSync[] = [];
-          for (const [i, e] of alvo.entries()) {
-            mudar({ etapa: e, progresso: (i + 1) / (alvo.length + 1) });
-            if ((await puxarEntidade(e, coberturas)) === 'indisponivel')
-              avisos.push({ entidade: e, codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
-          }
-          if (alvo.length > 0) {
-            await conferirVersoesBusca();
-            await op.armazenamento.busca?.finalizar?.();
-          }
-          await liberarAceitos(coberturas);
-          // só agora: se um pull falhar, a próxima consulta repete as mesmas entidades (nada se perde)
-          if (cursorNovo) await op.armazenamento.gravar(CHAVE.novidades, cursorNovo);
-          const quando = agora().toISOString();
-          await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
-          mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando, avisos });
-          return true;
-        } catch (e) {
-          if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, true);
-          await liberarAceitos(coberturas).catch(() => undefined);
-          mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
-          return false;
-        }
-      })().finally(() => {
-        syncEmCurso = null;
-      });
-      return syncEmCurso;
+          // ADR 0056: diárias só na carga do dia (o cursor de novidades anda; cada diária continua do seu cursor)
+          const diarias = entidadesDiarias();
+          const comDiarias = diarias.size > 0 && cargaDiariaDevida();
+          alvo = alvo.filter((e) => !diarias.has(e));
+          if (comDiarias) alvo.push(...ordenarCarga([...diarias].sort(), itemDe));
+          return { alvo, cursorNovo, comDiarias };
+        }),
+      );
     },
 
     /**
@@ -2196,7 +2360,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         );
         parametros = {};
         geracaoGuardada = null;
-        mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, liberado_em: null, pendentes: [], avisos: [], erro: null, carga: CARGA_VAZIA });
+        mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, liberado_em: null, pendentes: [], carga_diaria_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
         return conhecidos;
       });
       for (const x of arquivos) await removerLocal(x.caminho);
