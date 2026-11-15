@@ -5,8 +5,8 @@
  */
 import { ehEmail } from '@macuxi/comum/email';
 import { ehSemConexao, VALIDADE_SENHA_PROVISORIA_HORAS } from '@macuxi/platform-sdk';
-import { CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, textoEmMinutos, type DetalhesSenhaATrocar } from './auth';
-import { faltasNaSenha, mensagemDaSenha, type FaltaNaSenha } from './senha';
+import { CODIGO_EMPRESA_TAMANHO, CodigoEmpresaSchema, DetalhesSenhaATrocarSchema, textoEmMinutos, type DetalhesSenhaATrocar } from './auth';
+import { faltasNaSenha, mensagemDaSenha, MENSAGEM_SENHA_ESPACO_NAS_PONTAS, type FaltaNaSenha } from './senha';
 
 /** Formato do e-mail: `ehEmail` de `@macuxi/comum` (RD-0020), já sem os espaços das pontas. */
 export const ehEmailValido = (email: string): boolean => ehEmail(email.trim());
@@ -91,7 +91,7 @@ export function acaoDoErroDaTroca(e: unknown): AcaoAposErroDaTroca {
       return 'ficar';
   }
 }
-const FALTAS_VALIDAS: readonly string[] = ['caracteres', 'letra', 'numero', 'especial'];
+const FALTAS_VALIDAS: readonly string[] = ['caracteres', 'letra', 'numero', 'especial', 'espaco'];
 /**
  * RN-CORE-32 (T-0140): FONTE ÚNICA do texto do 422 da senha, para app, BKO e portal (spec §2): a frase das faltas válidas
  * (`mensagemDaSenha(faltas, senhaNova)`) ou, sem faltas, "A senha não pode ser igual ao e-mail.". Nunca repassa a mensagem
@@ -143,9 +143,9 @@ export function validarEsqueci(c: CamposEsqueci): ErrosEsqueci {
 export function erroDoCodigoEmpresa(valor: string): string | null {
   const v = valor.trim();
   if (CodigoEmpresaSchema.safeParse(v).success) return null;
-  if (v.length < 2) return 'O código da empresa tem no mínimo 2 caracteres. Confira no e-mail e digite de novo.';
-  if (v.length > 40) return 'O código da empresa tem no máximo 40 caracteres. Confira no e-mail e digite de novo.';
-  return 'O código da empresa tem só letras, números e hífen, sem espaços. Confira no e-mail e digite de novo.';
+  if (v.length < CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
+  if (v.length > CODIGO_EMPRESA_TAMANHO) return `O código da empresa tem no máximo ${CODIGO_EMPRESA_TAMANHO} caracteres. Confira no e-mail e digite de novo.`;
+  return 'O código da empresa tem duas letras da UF e quatro números, como AM4821. Confira no e-mail e digite de novo.';
 }
 
 export interface CamposLogin {
@@ -166,5 +166,6 @@ export function validarLogin(c: CamposLogin): ErrosLogin {
   if (!c.email.trim()) erros.email = 'Informe o seu e-mail.';
   else if (!ehEmailValido(c.email)) erros.email = 'Esse e-mail não parece certo. Confira e digite de novo.';
   if (!c.senha) erros.senha = 'Informe a sua senha.';
+  else if (c.senha !== c.senha.trim()) erros.senha = MENSAGEM_SENHA_ESPACO_NAS_PONTAS;
   return erros;
 }

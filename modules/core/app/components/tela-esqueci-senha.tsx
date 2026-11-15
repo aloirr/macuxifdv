@@ -10,6 +10,7 @@ import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { erroDoEsqueci, TEXTO_ESQUECI_CONFIRMACAO, TEXTO_ESQUECI_INSTRUCAO, TEXTO_ESQUECI_NAO_CHEGOU, TEXTO_SEM_INTERNET_ESQUECI, validarEsqueci, type CamposEsqueci, type ErrosEsqueci } from '../lib/senha';
+import { propsDoCampoCodigoEmpresa } from '../lib/login';
 
 export interface PropsTelaEsqueciSenha {
   /** Valores que vieram do login. */
@@ -88,7 +89,7 @@ export function TelaEsqueciSenha({ inicial, semInternet = false, onPedir, onVolt
         erro={erros.codigo_empresa}
         testID="esqueci.codigo-empresa"
         onChangeText={(v) => setCampos((c) => ({ ...c, codigo_empresa: v }))}
-        autoCapitalize="none"
+        {...propsDoCampoCodigoEmpresa}
         autoFocus={!campos.codigo_empresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}

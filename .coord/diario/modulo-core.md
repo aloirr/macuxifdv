@@ -165,3 +165,4 @@
 2026-11-15 — login — bloqueio por tentativas (LOGIN_BLOQUEADO_TENTATIVAS, 15 min na mensagem) separado do bloqueio do administrador; 429 com tempo; auditoria bloqueio_tentativas/bloqueio_admin
 2026-11-15 — T-login-senha (etapa 3) — mensagens do código da empresa por motivo (curto, longo, caractere) em validarLogin; avaliação do corte em 40 no código sugerido
 2026-11-15 — T-0094 (PR #285) — corretor RD-0375..0379: textoEmMinutos único, MENSAGEM_SESSAO/CREDENCIAIS reaproveitadas, 423 do portal com minutos_restantes, JSDoc de entrar, teste duplicado removido.
+2026-11-15 — PR #285 (R-20261114-204500) — código da empresa só UF+4 dígitos (6 caracteres, maxLength 6), senha sem espaço nas pontas (criação, troca, redefinição, aviso no login); recados ao engenheiro-apps/testes bloqueados pelo GitHub (403), pendentes

@@ -185,6 +185,7 @@ describe('RF-CORE-02: criar usuário', () => {
   it('RF-CORE-01: senha fraca e dados inválidos são 422 antes de tocar o banco', async () => {
     const { db, chamadas } = fakeDb(respostas);
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, senha: 'curta' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SENHA_FRACA' });
+    await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, senha: 'Abcdef1! ' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SENHA_FRACA', message: 'A senha não pode começar nem terminar com espaço.' });
     await expect(executar(rota('POST', 'usuarios'), contexto(db), { corpo: { ...corpo, email: 'sem-arroba' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_DADOS_INVALIDOS' });
     expect(chamadas).toEqual([]);
   });
@@ -356,6 +357,12 @@ describe('RN-CORE-34: redefinir senha (BKO)', () => {
     [/select \(senha_hash is null\) as sem_senha/, [{ sem_senha: false }]],
     [/returning sessao_versao/, [{ sessao_versao: 4 }]],
   ];
+
+  it('RN-CORE-32: redefinir com espaço no começo ou no fim é 422 antes de tocar a senha', async () => {
+    const { db, chamadas } = fakeDb(base());
+    await expect(executar(ROTA(), contexto(db, { email: emailFalso().servico }), { params: { id: ALVO }, corpo: { senha: ' Abcdef1!' } })).rejects.toMatchObject({ status: 422, codigo: 'USUARIO_SENHA_FRACA', message: 'A senha não pode começar nem terminar com espaço.' });
+    expect(chamadas.some((c) => /update core.usuario\s+set senha_hash/.test(c.sql))).toBe(false);
+  });
 
   it('RN-CORE-34: com a senha informada grava o hash, marca trocar_senha (72 h), sobe a sessao_versao, revoga as sessões e audita sem senha', async () => {
     const { db, chamadas } = fakeDb(base());

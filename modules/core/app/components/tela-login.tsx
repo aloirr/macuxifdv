@@ -11,7 +11,7 @@ import { Banner, Button, colors, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoSenhaDoLogin, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
+import { camposIniciaisDoLogin, mensagemDeErroDeLogin, propsDoCampoCodigoEmpresa, propsDoCampoSenhaDoLogin, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
   /** Código da empresa lembrado do último login neste aparelho. */
@@ -72,7 +72,7 @@ export function TelaLogin({ codigoSalvo, emailInicial, onEntrar, rodape, onEsque
         erro={erros.codigo_empresa}
         testID="login.codigo-empresa"
         onChangeText={mudar('codigo_empresa')}
-        autoCapitalize="none"
+        {...propsDoCampoCodigoEmpresa}
         returnKeyType="next"
         onSubmitEditing={() => email.current?.focus()}
       />

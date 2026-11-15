@@ -58,3 +58,7 @@ Testes: `api/autenticacao.test.ts` (login e refresh), `api/carteira.db.test.ts` 
 | `GET /v1/core/equipe/hierarquia` | supervisor, gerente, analista, assistente, admin | `HierarquiaEquipeSchema` (contrato para o Gestor): `superior_id` derivado de `core.equipe`; recortada pelos usuários visíveis, sem revelar quem está acima |
 | sync pull | token | `cliente`, `carteira`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra` com `escopo: 'carteira'`; `produto` com `'tenant'`. Janelas: carteira vigente ou encerrada há ≤ 40 dias; títulos abertos ou vencimento ≥ hoje − 90; histórico dos últimos 12 meses. Linhas removidas passam sempre (o aparelho apaga) |
 | `servicos.usuariosVisiveis` | plataforma | próprio; supervisor + equipe; gerente + equipes abaixo (recursivo); analista/assistente/admin = tenant |
+
+## Código da empresa e senha (login por senha)
+- **Código da empresa** = código da licença (migração 0068): sigla da UF + 4 dígitos, 6 caracteres (ex.: AM4821), sem diferenciar maiúsculas (índice `lower(codigo)`). Fonte única: `CodigoEmpresaSchema` e `erroDoCodigoEmpresa` em `contracts`; o campo do app tem `maxLength` 6 (`propsDoCampoCodigoEmpresa`). Os códigos antigos (até 40 caracteres) deixam de caber no login.
+- **Senha** (RN-CORE-32): espaço no começo ou no fim invalida a senha na criação e na troca (falta `espaco`; frase única `MENSAGEM_SENHA_ESPACO_NAS_PONTAS`). O login avisa do mesmo jeito no cliente; a API do login segue aceitando qualquer senha já gravada.

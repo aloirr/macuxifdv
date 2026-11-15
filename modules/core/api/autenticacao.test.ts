@@ -16,7 +16,7 @@ let auth: ReturnType<typeof criarAutenticacao>;
 const { banco } = bancoDeTeste();
 
 const login = (corpo: Partial<{ codigo_empresa: string; email: string; senha: string; dispositivo_id: string }> = {}) =>
-  auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'vendedor@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio));
+  auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'vendedor@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio));
 
 async function falha(p: Promise<unknown>): Promise<ErroHttpModulo> {
   try {
@@ -38,7 +38,7 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
   it('RF-CORE-01: login certo devolve JWT de 15 min, refresh e, só então, o nome e o fuso da empresa', async () => {
     const r = SessaoRespostaSchema.parse(await login());
     expect(r.expires_in).toBe(900);
-    expect(r.tenant).toMatchObject({ codigo: 'alfa', nome: 'Distribuidora Alfa', fuso: 'America/Manaus' });
+    expect(r.tenant).toMatchObject({ codigo: 'am4821', nome: 'Distribuidora Alfa', fuso: 'America/Manaus' });
     expect(r.usuario).toMatchObject({ perfil: 'vendedor', email: 'vendedor@exemplo.com.br' });
     const claims = verificarJwtAcesso(r.access_token, t0, SEGREDO)!;
     expect(claims).toMatchObject({ sub: r.usuario.id, tid: TENANT_A, perfil: 'vendedor' });
@@ -51,14 +51,14 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
 
   it('RF-CORE-01: e-mail repetido em outro tenant (Q3) — o código da empresa decide quem entra', async () => {
     const a = await login();
-    const b = await login({ codigo_empresa: 'BETA' });
+    const b = await login({ codigo_empresa: 'SP1234' });
     expect(a.usuario.id).not.toBe(b.usuario.id);
-    expect(b.tenant.codigo).toBe('beta');
+    expect(b.tenant.codigo).toBe('sp1234');
   });
 
   it('T-0002 §6 item 4: código, e-mail ou senha errados dão a MESMA resposta e o tenant não vaza antes da senha', async () => {
     const respostas = [
-      await falha(login({ codigo_empresa: 'naoexiste' })),
+      await falha(login({ codigo_empresa: 'am9999' })),
       await falha(login({ email: 'ninguem@exemplo.com.br' })),
       await falha(login({ senha: 'errada' })),
     ];
@@ -71,18 +71,18 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
     // o nome/fuso do tenant nunca foi nem lido nas falhas
     expect(e.leituraDeExibicao).toEqual([]);
     await login();
-    expect(e.leituraDeExibicao).toEqual(['alfa']);
+    expect(e.leituraDeExibicao).toEqual(['am4821']);
   }, 30_000);
 
   it('RF-CORE-01: tenant suspenso responde como credencial inválida', async () => {
-    e.tenants.get('alfa')!.status = 'suspenso';
+    e.tenants.get('am4821')!.status = 'suspenso';
     expect((await falha(login())).codigo).toBe(CODIGOS_AUTH.credenciais);
   });
 
   it('RF-CORE-01: sem segredo do JWT configurado o login responde 503 (falha fechada) e não toca o banco', async () => {
     const semSegredo = criarAutenticacao({ segredo: () => undefined, repos: fabricaEmMemoria(e) });
     const { banco: b2, tenantsUsados } = bancoDeTeste();
-    const erro = await falha(semSegredo.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'a@b.com', senha: 'x' }), b2, relogio)));
+    const erro = await falha(semSegredo.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'a@b.com', senha: 'x' }), b2, relogio)));
     expect(erro.status).toBe(503);
     expect(tenantsUsados).toEqual([]);
   });
@@ -298,7 +298,7 @@ describe('RN-CORE-15: aparelho bloqueado vale para o tenant inteiro', () => {
 
 describe('RF-CORE-01 (T-0026): limite de falhas de login por IP real', () => {
   const de = (ip: string, corpo: Partial<{ email: string; senha: string }> = {}) =>
-    auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'ninguem@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio, ip));
+    auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'ninguem@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio, ip));
 
   it('RF-CORE-01: 10 logins certos seguidos do mesmo IP não dão 429', async () => {
     for (let i = 0; i < 10; i++) await expect(de('203.0.113.1', { email: 'vendedor@exemplo.com.br' })).resolves.toBeTruthy();

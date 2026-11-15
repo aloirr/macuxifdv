@@ -3,13 +3,16 @@
  * inicial da empresa, super-admin). Regra pura, sem dependência: a API revalida sempre.
  * - de 8 a 200 caracteres, contados em pontos de código (um emoji conta como 1);
  * - pelo menos uma letra (`\p{L}`, acentuada vale), um número (`\p{Nd}`) e um caractere especial (`[^\p{L}\p{N}\s]`);
- * - espaço é permitido e não conta como especial; a senha nunca passa por `trim`.
+ * - espaço no meio é permitido e não conta como especial; espaço no começo ou no fim invalida a senha; ela nunca passa por `trim`.
  * O login aceita qualquer senha já gravada: a regra não vale na conferência.
  */
 export const SENHA_MIN_CARACTERES = 8;
 export const SENHA_MAX_CARACTERES = 200;
 
-export type FaltaNaSenha = 'caracteres' | 'letra' | 'numero' | 'especial';
+export type FaltaNaSenha = 'caracteres' | 'letra' | 'numero' | 'especial' | 'espaco';
+
+/** Única frase do espaço no começo ou no fim da senha (criação, troca e aviso do login). */
+export const MENSAGEM_SENHA_ESPACO_NAS_PONTAS = 'A senha não pode começar nem terminar com espaço.';
 
 /** Texto aprovado para a ajuda do campo (telas do BKO, do portal e do convite). */
 export const REGRA_DA_SENHA = 'Pelo menos 8 caracteres, com letra, número e caractere especial.';
@@ -21,6 +24,7 @@ const tamanho = (s: string): number => [...s].length;
 export function faltasNaSenha(senha: string): FaltaNaSenha[] {
   const n = tamanho(senha);
   const faltas: FaltaNaSenha[] = [];
+  if (senha !== senha.trim()) faltas.push('espaco');
   if (n < SENHA_MIN_CARACTERES || n > SENHA_MAX_CARACTERES) faltas.push('caracteres');
   if (!/\p{L}/u.test(senha)) faltas.push('letra');
   if (!/\p{Nd}/u.test(senha)) faltas.push('numero');
@@ -30,7 +34,7 @@ export function faltasNaSenha(senha: string): FaltaNaSenha[] {
 
 export const senhaServe = (senha: string): boolean => faltasNaSenha(senha).length === 0;
 
-const ITEM: Record<Exclude<FaltaNaSenha, 'caracteres'>, string> = {
+const ITEM: Record<Exclude<FaltaNaSenha, 'caracteres' | 'espaco'>, string> = {
   letra: 'uma letra',
   numero: 'um número',
   especial: 'um caractere especial',
@@ -39,12 +43,13 @@ const ITEM: Record<Exclude<FaltaNaSenha, 'caracteres'>, string> = {
 /** Mensagem em português que diz o que falta; `null` se não falta nada. Passe a `senha` para distinguir "curta" de "longa demais". */
 export function mensagemDaSenha(faltas: readonly FaltaNaSenha[], senha?: string): string | null {
   if (faltas.length === 0) return null;
+  if (faltas.includes('espaco')) return MENSAGEM_SENHA_ESPACO_NAS_PONTAS;
   if (faltas.includes('caracteres') && senha !== undefined && tamanho(senha) > SENHA_MAX_CARACTERES) {
     return `A senha pode ter até ${SENHA_MAX_CARACTERES} caracteres.`;
   }
   const partes: string[] = [];
   if (faltas.includes('caracteres')) partes.push(`A senha precisa ter pelo menos ${SENHA_MIN_CARACTERES} caracteres.`);
-  const itens = faltas.filter((f): f is Exclude<FaltaNaSenha, 'caracteres'> => f !== 'caracteres').map((f) => ITEM[f]);
+  const itens = faltas.filter((f): f is Exclude<FaltaNaSenha, 'caracteres' | 'espaco'> => f !== 'caracteres' && f !== 'espaco').map((f) => ITEM[f]);
   if (itens.length === 1) partes.push(`Falta ${itens[0]}.`);
   else if (itens.length > 1) partes.push(`Faltam ${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}.`);
   return partes.join(' ');

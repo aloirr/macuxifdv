@@ -57,8 +57,8 @@ export function senhasDeTeste(): ServicoDeSenhas & { contagem: { verificar: numb
 
 export async function estadoInicial(): Promise<EstadoMemoria> {
   const e: EstadoMemoria = { tenants: new Map(), usuarios: new Map(), sessoes: [], dispositivos: new Map(), leituraDeExibicao: [] };
-  e.tenants.set('alfa', { id: TENANT_A, codigo: 'alfa', nome: 'Distribuidora Alfa', fuso: 'America/Manaus', status: 'ativo' });
-  e.tenants.set('beta', { id: TENANT_B, codigo: 'beta', nome: 'Comercial Beta', fuso: 'America/Sao_Paulo', status: 'ativo' });
+  e.tenants.set('am4821', { id: TENANT_A, codigo: 'am4821', nome: 'Distribuidora Alfa', fuso: 'America/Manaus', status: 'ativo' });
+  e.tenants.set('sp1234', { id: TENANT_B, codigo: 'sp1234', nome: 'Comercial Beta', fuso: 'America/Sao_Paulo', status: 'ativo' });
   const hash = await hashBarato('Teste@1234');
   const base = {
     nome_curto: null,

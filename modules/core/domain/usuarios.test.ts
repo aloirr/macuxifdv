@@ -44,6 +44,7 @@ describe('validação de entrada (RF-CORE-02)', () => {
   });
   it('RN-CORE-32: senha inicial exige 8+ caracteres com letra, número e especial, e não pode ser o e-mail', () => {
     expect(validarSenhaInicial('Abcdef1!', 'a@b.co')).toBeNull();
+    expect(validarSenhaInicial('Abcdef1! ', 'a@b.co')).toBe('A senha não pode começar nem terminar com espaço.');
     expect(validarSenhaInicial('Abcdef12', 'a@b.co')).toBe('Falta um caractere especial.');
     expect(validarSenhaInicial('curta1!', 'a@b.co')).toContain('pelo menos 8 caracteres');
     expect(validarSenhaInicial('somenteletras', 'a@b.co')).toBe('Faltam um número e um caractere especial.');

@@ -9,6 +9,7 @@
  *   (RN-CORE-01: calculados a cada requisição — use `GET /v1/me/modulos`).
  * - Refresh: opaco, rotativo (cada um vale uma vez), 30 dias; formato `<tenant_id>.<segredo>`.
  */
+import { UFS_BRASIL } from '@macuxi/comum/endereco';
 import { APPS_COM_LOGIN, CODIGO_PERFIL_FORA_DO_APP, PERFIS } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 
@@ -21,13 +22,14 @@ export const ROTA_LOGOUT = '/v1/auth/logout';
 export const ROTA_TROCAR_SENHA = '/v1/auth/senha/trocar';
 export const ROTA_ESQUECI_SENHA = '/v1/auth/senha/esqueci';
 
-/** Código da empresa: letras, dígitos e hífen (igual a `plataforma.tenant.codigo`, sem diferenciar maiúsculas). */
+/** Código da empresa = código da licença (migração 0068): sigla da UF + 4 dígitos, ex.: AM4821. Sem diferenciar maiúsculas (índice `lower(codigo)`). */
+export const CODIGO_EMPRESA_TAMANHO = 6;
+export const CODIGO_EMPRESA_REGEX = new RegExp(`^(${UFS_BRASIL.join('|')})[0-9]{4}$`, 'i');
 export const CodigoEmpresaSchema = z
   .string()
   .trim()
-  .min(2)
-  .max(40)
-  .regex(/^[A-Za-z0-9][A-Za-z0-9-]*$/, 'Use só letras, números e hífen.');
+  .length(CODIGO_EMPRESA_TAMANHO)
+  .regex(CODIGO_EMPRESA_REGEX, 'Use duas letras da UF e quatro números, como AM4821.');
 
 export const LoginSenhaRequestSchema = z
   .object({

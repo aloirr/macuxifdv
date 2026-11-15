@@ -38,12 +38,12 @@ const novoMail = () => {
   return m;
 };
 
-const dados = (o: Record<string, unknown> = {}) => ({ codigo_empresa: 'alfa', email: 'vendedor@exemplo.com.br', senha: SENHA, ...o });
+const dados = (o: Record<string, unknown> = {}) => ({ codigo_empresa: 'am4821', email: 'vendedor@exemplo.com.br', senha: SENHA, ...o });
 const login = (o: Record<string, unknown> = {}, ip = '127.0.0.1') => auth.login(contextoPublico(LoginSenhaRequestSchema.parse(dados(o)), banco, relogio, ip));
 const trocar = (o: Record<string, unknown> = {}) =>
-  auth.trocarSenha(contextoPublico(TrocarSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'vendedor@exemplo.com.br', senha_atual: SENHA, senha_nova: NOVA, ...o }), banco, relogio));
+  auth.trocarSenha(contextoPublico(TrocarSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'vendedor@exemplo.com.br', senha_atual: SENHA, senha_nova: NOVA, ...o }), banco, relogio));
 const esqueci = (o: Record<string, unknown> = {}, ip = '127.0.0.1') => {
-  const ctx = { ...contextoPublico(EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'vendedor@exemplo.com.br', ...o }), banco, relogio, ip), email: mail.servico };
+  const ctx = { ...contextoPublico(EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'vendedor@exemplo.com.br', ...o }), banco, relogio, ip), email: mail.servico };
   return auth.esqueciSenha(ctx as never);
 };
 
@@ -133,7 +133,7 @@ describe('RN-CORE-34: login com senha temporária (SENHA_A_TROCAR e SENHA_TEMPOR
     expect(await medir(login())).toBe(2); // com temporária
     expect(await medir(login({ senha: 'errada' }))).toBe(2);
     expect(await medir(login({ email: 'ninguem@exemplo.com.br' }))).toBe(2);
-    expect(await medir(login({ codigo_empresa: 'naoexiste' }))).toBe(2);
+    expect(await medir(login({ codigo_empresa: 'am9999' }))).toBe(2);
   });
 });
 
@@ -164,7 +164,7 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
     await comTemporaria(10);
     const r = await trocar();
     expect(r.usuario.email).toBe('vendedor@exemplo.com.br');
-    expect(r.tenant.codigo).toBe('alfa');
+    expect(r.tenant.codigo).toBe('am4821');
     const u = vend();
     expect(u.trocar_senha).toBe(false);
     expect(u.senha_expira_em).toBeNull();
@@ -184,6 +184,14 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
     expect(erro.codigo).toBe(CODIGOS_AUTH.credenciais);
     expect(vend().trocar_senha).toBe(true);
     expect(vend().sessao_versao).toBe(0);
+  });
+
+  it('RN-CORE-32: senha nova com espaço no começo ou no fim é 422 com a falta "espaco" e nada é gravado', async () => {
+    await comTemporaria(10);
+    const erro = await falha(trocar({ senha_nova: 'Boa#Senha1 ' }));
+    expect([erro.status, erro.codigo]).toEqual([422, 'RN-CORE-32']);
+    expect(erro.detalhes).toMatchObject({ faltas: ['espaco'] });
+    expect(vend().trocar_senha).toBe(true);
   });
 
   it('RN-CORE-32: senha nova fraca é 422 RN-CORE-32 com a lista do que falta', async () => {
@@ -235,8 +243,8 @@ describe('RN-CORE-34: Crie sua senha (senha/trocar)', () => {
   });
 
   it('RN-CORE-34: o contrato exige senha_atual e senha_nova e recusa campo desconhecido', () => {
-    expect(() => TrocarSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'a@b.com', senha_nova: NOVA })).toThrow();
-    expect(() => TrocarSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'a@b.com', senha_atual: 'x', senha_nova: NOVA, extra: 1 })).toThrow();
+    expect(() => TrocarSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'a@b.com', senha_nova: NOVA })).toThrow();
+    expect(() => TrocarSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'a@b.com', senha_atual: 'x', senha_nova: NOVA, extra: 1 })).toThrow();
   });
 });
 
@@ -267,11 +275,11 @@ describe('RN-CORE-34: Esqueci a senha (senha/esqueci)', () => {
       {},
       { email: 'ninguem@exemplo.com.br' },
       { email: 'promotor@exemplo.com.br' }, // inativo
-      { codigo_empresa: 'naoexiste' },
-      { codigo_empresa: 'beta', email: 'promotor@exemplo.com.br' }, // existe só na outra empresa
+      { codigo_empresa: 'am9999' },
+      { codigo_empresa: 'sp1234', email: 'promotor@exemplo.com.br' }, // existe só na outra empresa
     ];
     e.usuarios.get('u-beta')!.bloqueado_em = t0;
-    casos.push({ codigo_empresa: 'beta', email: 'vendedor@exemplo.com.br' }); // bloqueado
+    casos.push({ codigo_empresa: 'sp1234', email: 'vendedor@exemplo.com.br' }); // bloqueado
     for (const [i, c] of casos.entries()) expect(await esqueci(c, `10.0.0.${i}`), JSON.stringify(c)).toEqual({});
     expect(mail.enviados).toHaveLength(1); // só o primeiro caso era elegível
     expect(e.usuarios.get('u-beta')!.senha_temporaria_hash).toBeNull(); // esqueci em A não toca B
@@ -282,7 +290,7 @@ describe('RN-CORE-34: Esqueci a senha (senha/esqueci)', () => {
     await esqueci();
     const comUsuario = senhas.contagem.hash;
     await esqueci({ email: 'ninguem@exemplo.com.br' }, '10.0.0.9');
-    await esqueci({ codigo_empresa: 'naoexiste' }, '10.0.0.10');
+    await esqueci({ codigo_empresa: 'am9999' }, '10.0.0.10');
     expect(senhas.contagem.hash).toBe(comUsuario * 3);
   });
 
@@ -353,7 +361,7 @@ describe('RN-CORE-34: Esqueci a senha (senha/esqueci)', () => {
   });
 
   it('RN-CORE-34: o contrato é estrito (só codigo_empresa e email)', () => {
-    expect(() => EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'a@b.com', senha: 'x' })).toThrow();
+    expect(() => EsqueciSenhaRequestSchema.parse({ codigo_empresa: 'am4821', email: 'a@b.com', senha: 'x' })).toThrow();
   });
 });
 
@@ -388,7 +396,7 @@ describe('RN-CORE-34: a troca só vale se o login der certo, e a falha de login 
   it('RN-CORE-34: se os dados da empresa não saem (401 no fim), a senha nova NÃO é gravada e a temporária continua valendo', async () => {
     await comTemporaria(10);
     const hashAntes = vend().senha_hash;
-    e.exibicaoVazia = new Set(['alfa']);
+    e.exibicaoVazia = new Set(['am4821']);
     const erro = await falha(trocar());
     expect(erro.status).toBe(401);
     expect(vend().senha_hash).toBe(hashAntes);
@@ -425,9 +433,9 @@ describe('RN-CORE-34: a troca só vale se o login der certo, e a falha de login 
   });
 
   it('RN-CORE-34: empresa não encontrada ou inativa fica só no log (sem tenant não há auditoria), sem e-mail nem senha', async () => {
-    await falha(login({ codigo_empresa: 'naoexiste' }));
+    await falha(login({ codigo_empresa: 'am9999' }));
     let log = logSilencioso.linhas.join('\n'); // cada contexto zera o log: lê entre as chamadas
-    e.tenants.get('alfa')!.status = 'suspenso';
+    e.tenants.get('am4821')!.status = 'suspenso';
     await falha(login());
     log += logSilencioso.linhas.join('\n');
     expect(log).toContain('empresa_nao_encontrada');
