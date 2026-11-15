@@ -37,9 +37,22 @@ export const ESTADO_FALADO_REGRA = { ok: 'ok', falta: 'falta' } as const;
 /** Mensagem quando nada falta (região viva do leitor de tela). */
 export const SENHA_ATENDE_AS_REGRAS = 'A senha atende às regras.';
 
-/** Botão do olho no campo de senha. */
+/**
+ * Botão do olho no campo de senha (R-20261115-071000: o padrão é o ícone de olho, sem texto visível): rótulo do leitor de tela.
+ * Olho aberto com a senha oculta ("Mostrar senha"); olho riscado com a senha visível ("Ocultar senha").
+ */
 export const MOSTRAR_SENHA = 'Mostrar senha';
+export const OCULTAR_SENHA = 'Ocultar senha';
+/**
+ * @deprecated Use `OCULTAR_SENHA` (ou `rotuloDoOlhoDaSenha`) e o `CampoSenha` do kit. Fica só até as telas atuais migrarem
+ * (inventário em docs/design/campo-senha/inventario.md); sai no lote seguinte.
+ */
 export const ESCONDER_SENHA = 'Esconder senha';
+
+/** Rótulo do botão do olho: o que o toque faz. `visivel` = a senha está à mostra agora. */
+export function rotuloDoOlhoDaSenha(visivel: boolean): string {
+  return visivel ? OCULTAR_SENHA : MOSTRAR_SENHA;
+}
 
 /** Faltas conhecidas, sem repetição, na ordem da tela (valores estranhos são ignorados). */
 export function faltasEmOrdem(faltas: readonly string[]): RegraSenha[] {

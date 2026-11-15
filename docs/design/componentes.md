@@ -166,8 +166,9 @@ de cor (altura, raio, fonte e regras iguais). O Azul noite some no grafite (1,29
   especial, ao vivo pelas `faltas` do Core (`faltasNaSenha`); ✓ verde cumprida, círculo vazio neutro faltando, ✕ vermelho com
   `destacar` (depois de tentar salvar). Leitor de tela: "ok"/"falta" por regra (web) e resumo em região viva ("Falta um número.").
   Nunca no login; o kit não recebe a senha. Textos e frases em `comum/senha.ts`.
-- Olho do campo de senha (web): `IconEye` no botão "Mostrar senha" (senha escondida) e `IconEyeOff` no "Esconder senha"
-  (`MOSTRAR_SENHA`/`ESCONDER_SENHA`), 18 px, `text-ink-2`, botão de 44 × 44 dentro do campo, à direita. Vale no login (o olho
+- `CampoSenha` (web `@macuxi/ui/web` e mobile `@macuxi/ui/mobile`; R-20261115-071000; spec `campo-senha/spec.md`): o campo
+  de senha único. Olho só em ícone (sem texto "Mostrar"/"Esconder"): `IconEye`/ícone `olho` no botão "Mostrar senha" (senha
+  oculta) e `IconEyeOff`/`olhoRiscado` no "Ocultar senha" (`MOSTRAR_SENHA`/`OCULTAR_SENHA`), 18 px na web e 22 no app, `text-ink-2`, botão de 44 × 44 dentro do campo, à direita. Vale no login (o olho
   ajuda a conferir o que digitou; a lista de regras é que não entra no login).
 
 ### 4.4 Permissões e perfis (BKO; T-0111; spec `docs/design/perfis-de-acesso.md` §12)
