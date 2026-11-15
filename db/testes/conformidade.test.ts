@@ -110,7 +110,15 @@ describe.skipIf(semBanco())('conformidade do banco migrado', () => {
         await admin.query(`create policy isolamento_tenant on plataforma.b1_sem_manutencao for all to macuxi_app
           using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual())`);
         const antes = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
-        expect(antes.rows).toEqual([{ tabela: 'plataforma.b1_sem_manutencao', problema: 'sem política de manutenção' }]);
+        expect(antes.rows).toEqual([
+          { tabela: 'plataforma.b1_sem_manutencao', problema: 'sem a política leitura ou o SELECT do macuxi_leitura (0078)' },
+          { tabela: 'plataforma.b1_sem_manutencao', problema: 'sem política de manutenção' },
+        ]);
+        // 0078: a leitura (só select, só o tenant da sessão) e o SELECT tiram a 1ª linha
+        await admin.query('grant select on plataforma.b1_sem_manutencao to macuxi_leitura');
+        await admin.query(`create policy leitura on plataforma.b1_sem_manutencao for select to macuxi_leitura
+          using (tenant_id = plataforma.tenant_atual())`);
+        expect((await admin.query(SQL_CONFERIR_RLS)).rows).toEqual([{ tabela: 'plataforma.b1_sem_manutencao', problema: 'sem política de manutenção' }]);
         // política com outro nome, outro comando ou que não é "true" não vale
         await admin.query('create policy manutencao on plataforma.b1_sem_manutencao for select to macuxi_manutencao using (true)');
         expect((await admin.query(SQL_CONFERIR_RLS)).rows).toHaveLength(1);
