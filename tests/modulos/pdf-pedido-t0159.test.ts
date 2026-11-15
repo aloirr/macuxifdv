@@ -414,12 +414,34 @@ describe('T-0159 PDF-8 — visual horizontal e observações (R-20261111-084832 
   const OBS_PEDIDO = 'Entregar pela manhã; portão lateral';
   const comObs = (d: DetalheParaPdf, obs: string | null) => ({ ...d, observacao: obs }) as DetalheParaPdf;
 
-  it('PDF-8: A4 horizontal nas 4 versões; itens 15 px, rótulos 10,5 px, total 26 px', () => {
+  /**
+   * Transição da fonte do sistema (v1.0.13): enquanto o PDF do vendedor ainda carrega a IBM Plex, vale o PDF-8 antigo
+   * (rótulos 10,5 px); com a fonte do sistema, rótulos 12 px (mínimo, R-20261115-110600) e o caso da pilha passa a valer.
+   */
+  const PDF_FONTE_SISTEMA = !/Plex|Archivo/.test(css(QUATRO()[0]!));
+
+  it('PDF-8: A4 horizontal nas 4 versões; itens 15 px, rótulos 12 px (10,5 px antes da fonte do sistema), total 26 px', () => {
     for (const h of QUATRO()) {
       expect(css(h)).toMatch(/@page\s*\{[^}]*size:\s*A4 landscape/);
       expect(css(h)).toMatch(/td\s*\{[^}]*font-size:\s*15px/);
-      expect(css(h)).toMatch(/th\s*\{[^}]*font-size:\s*10\.5px/);
+      expect(css(h)).toMatch(PDF_FONTE_SISTEMA ? /th\s*\{[^}]*font-size:\s*12px/ : /th\s*\{[^}]*font-size:\s*10\.5px/);
       expect(css(h)).toMatch(/\.vt\s*\{[^}]*font-size:\s*26px/);
+    }
+  });
+
+  it.skipIf(!PDF_FONTE_SISTEMA)('Fonte do sistema (R-20261115-110600): pilha do aparelho, pesos até 700, mono só no código com tabular-nums e nada abaixo de 12 px, nas 4 versões', () => {
+    for (const h of QUATRO()) {
+      const c = css(h);
+      expect(c.match(/(^|\n)body\s*\{[^}]*font-family:\s*([^;]+);/)?.[2]).toMatch(/^system-ui,.*sans-serif$/);
+      expect(c).not.toMatch(/Plex|Archivo/);
+      expect([...c.matchAll(/font-weight:\s*(\d+)/g)].map((m) => Number(m[1])).filter((p) => p > 700)).toEqual([]);
+      expect(c.match(/\.empresa\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*700/);
+      expect(c.match(/\.doc \.t\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*700/);
+      expect(c.match(/\.totalbox \.lin \.vt\s*\{[^}]*\}/)?.[0]).toMatch(/font-weight:\s*600/);
+      const regrasMono = [...c.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => /font-family:[^;]*monospace/.test(m[2]!)).map((m) => m[1]!.trim());
+      expect(regrasMono).toEqual(['td.cod']);
+      expect(c.match(/td\.cod\s*\{[^}]*\}/)?.[0]).toMatch(/font-variant-numeric:\s*tabular-nums/);
+      expect([...c.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => Number(m[1])).filter((t) => t < 12)).toEqual([]);
     }
   });
 
