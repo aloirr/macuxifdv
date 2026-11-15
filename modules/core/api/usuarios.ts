@@ -10,6 +10,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, matrizDeFabrica, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { COLUNA_CODIGO_FDV_PRONTA, sqlCodigoFdv } from './codigo-fdv';
 import {
   AtivarUsuarioRequestSchema,
   CODIGOS_USUARIO,
@@ -30,6 +31,7 @@ import {
   type UsuarioItem,
 } from '../contracts';
 import {
+  recusarCodigoFdvNoCorpo,
   SENHA_TEMPORARIA_HORAS,
   avaliarAlteracaoDeUsuario,
   type UsuarioDoEstado,
@@ -67,6 +69,10 @@ const LIMITE = 1000;
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
 const descontoPedidoObrigatorio = () => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, MENSAGEM_DESCONTO_PEDIDO_OBRIGATORIO, { campo: 'desconto_maximo_pedido_permil' });
+const recusarCodigoFdv = (corpo: Record<string, unknown>): void => {
+  const e = recusarCodigoFdvNoCorpo(corpo);
+  if (e) throw new ErroRegraNegocio(e.codigo, e.mensagem, { campos: [{ campo: e.campo, mensagem: e.mensagem }] });
+};
 const dadosInvalidos = (erros: ErroDeCampo[]) => new ErroRegraNegocio(CODIGOS_USUARIO.dadosInvalidos, erros[0]!.mensagem, { campos: erros });
 const emailDuplicado = () => new ErroHttpModulo(409, CODIGOS_USUARIO.emailDuplicado, 'Já existe um usuário com este e-mail nesta empresa. Use outro e-mail ou edite o usuário existente.');
 const externalDuplicado = (provisorio = false) =>
@@ -100,6 +106,7 @@ interface LinhaUsuario {
   equipe_nome: string | null;
   ativo: boolean;
   external_id: string | null;
+  codigo_fdv?: string | null;
   provisorio?: boolean;
   ultimo_login_em: string | null;
   trocar_senha: boolean;
@@ -116,7 +123,7 @@ interface LinhaUsuario {
   bloqueio_ate_login?: string | null;
 }
 
-const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id, (lower(u.email) like '%@sem-email.invalid') as provisorio,
+const SELECT_USUARIO = `select u.id, u.nome, u.nome_curto, u.email, u.perfil, u.equipe_id, e.nome as equipe_nome, u.ativo, u.external_id, ${sqlCodigoFdv()} as codigo_fdv, (lower(u.email) like '%@sem-email.invalid') as provisorio,
          to_char(u.ultimo_login_em at time zone 'UTC', ${ISO}) as ultimo_login_em,
          u.trocar_senha, to_char(u.senha_expira_em at time zone 'UTC', ${ISO}) as senha_expira_em, (u.senha_hash is null) as sem_senha,
          u.desconto_limita_item, u.desconto_limita_pedido, u.desconto_maximo_pedido_permil, h.cargo, h.supervisor_id, h.gerente_id,
@@ -257,7 +264,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
       if (visiveis !== 'tenant') onde.push(`u.id = any(${param([...visiveis])}::uuid[])`);
       if (q) {
         const p = param(`%${q.replace(/[\\%_]/g, (m: string) => `\\${m}`)}%`);
-        onde.push(`(u.nome ilike ${p} or u.email ilike ${p} or u.external_id ilike ${p})`);
+        onde.push(`(u.nome ilike ${p} or u.email ilike ${p} or u.external_id ilike ${p}${COLUNA_CODIGO_FDV_PRONTA ? ` or u.codigo_fdv ilike ${p}` : ''})`);
       }
       if (perfil) onde.push(`exists (select 1 from plataforma.usuario_perfil up join plataforma.perfil pf on pf.id = up.perfil_id where up.usuario_id = u.id and up.deleted_at is null and pf.codigo = ${param(perfil)})`);
       if (equipe_id) onde.push(`u.equipe_id = ${param(equipe_id)}`);
@@ -319,6 +326,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
     corpo: CriarUsuarioRequestSchema,
     executar: async (ctx): Promise<CriarUsuarioResposta> => {
       const c = ctx.corpo;
+      recusarCodigoFdv(c);
       const email = normalizarEmail(c.email);
       const nome = c.nome.trim();
       const externalId = c.external_id?.trim() ?? null;
@@ -376,6 +384,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
     corpo: EditarUsuarioRequestSchema,
     executar: async (ctx) => {
       const c = ctx.corpo;
+      recusarCodigoFdv(c);
       try {
         return await ctx.comTenant(async (db) => {
           const antes = await buscarParaAlterar(db, ctx.params.id);

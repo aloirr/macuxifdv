@@ -66,6 +66,8 @@ export const UsuarioItemSchema = z
     superior_nome: z.string().nullable(),
     ativo: z.boolean(),
     external_id: z.string().nullable(),
+    /** RN-CORE-59: Código FDV (`FDV-0001`), gerado pelo sistema e só de leitura; `null` ou ausente até a migração entrar. */
+    codigo_fdv: z.string().nullable().optional(),
     /** RN-CORE-58: criado pela carga do ERP sem e-mail (`@sem-email.invalid`); candidato a "Vincular vendedor do ERP". */
     provisorio: z.boolean().optional(),
     ultimo_login_em: z.string().datetime().nullable(),
@@ -153,6 +155,8 @@ export const CriarUsuarioRequestSchema = z
     /** Supervisor (obrigatório) e gerente (opcional): nome da equipe que ele chefia. */
     equipe_nome: Texto(80).nullable().default(null),
     external_id: CamposEditaveis.external_id.default(null),
+    /** RN-CORE-59: só de leitura. Aceito no schema só para a API recusar com 422 `CODIGO_FDV_SOMENTE_LEITURA` (o `.strict()` daria 400). */
+    codigo_fdv: z.unknown().optional(),
     ativo: z.boolean().default(true),
     /** RN-VEN-11a (T-0168): ausente = padrão. */
     desconto_limita_item: z.boolean().default(true),
@@ -181,6 +185,8 @@ export const EditarUsuarioRequestSchema = z
     gerente_id: Uuid.nullable().optional(),
     equipe_nome: Texto(80).nullable().optional(),
     external_id: CamposEditaveis.external_id.optional(),
+    /** RN-CORE-59: só de leitura; a API recusa com 422 `CODIGO_FDV_SOMENTE_LEITURA`. */
+    codigo_fdv: z.unknown().optional(),
     /** RN-VEN-11a (T-0168): ausente = mantém. O servidor junta com o gravado e confere `limiteDescontoCompleto`. */
     desconto_limita_item: z.boolean().optional(),
     desconto_limita_pedido: z.boolean().optional(),
@@ -218,6 +224,8 @@ export const CODIGOS_USUARIO = {
   emailDuplicado: 'USUARIO_EMAIL_DUPLICADO',
   externalIdDuplicado: 'USUARIO_EXTERNAL_ID_DUPLICADO',
   dadosInvalidos: 'USUARIO_DADOS_INVALIDOS',
+  /** 422 — `codigo_fdv` no corpo de criar/editar (RN-CORE-59). */
+  codigoFdvSomenteLeitura: 'CODIGO_FDV_SOMENTE_LEITURA',
   senhaFraca: 'USUARIO_SENHA_FRACA',
   equipeInvalida: 'EQUIPE_INVALIDA',
   /** 422 — redefinição recusada (própria conta, admin, usuário inativo; `podeRedefinirSenha`). */

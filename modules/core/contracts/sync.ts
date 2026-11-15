@@ -61,6 +61,8 @@ export type ClienteSync = z.infer<typeof ClienteSyncSchema>;
 export const UsuarioSyncSchema = z
   .object({
     ...Base,
+    /** RN-CORE-59: Código FDV, só de leitura; nulo até a migração entrar. */
+    codigo_fdv: z.string().nullable().default(null),
     desconto_limita_item: z.boolean().default(true),
     desconto_limita_pedido: z.boolean().default(false),
     desconto_maximo_pedido_permil: z.number().int().min(0).max(1000).nullable().default(null),

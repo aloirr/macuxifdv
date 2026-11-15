@@ -9,6 +9,7 @@
  * aparelho apagar. Valores em centavos saem como número (`::float8`, exato até 2^53), datas como texto.
  * Somente pull: cadastro vem do ERP/BKO (`servidor_vence`).
  */
+import { sqlCodigoFdv } from './codigo-fdv';
 import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
 import {
   CarteiraSyncSchema,
@@ -88,8 +89,8 @@ export const TABELAS_SYNC = {
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct, ativo', colunaCliente: null },
   // RN-VEN-11a (T-0168): a linha do próprio usuário (e da equipe visível) com só as 3 colunas de limite de desconto; sem e-mail, nome nem código do ERP
   usuario: {
-    tabela: '(select id as usuario_id, id, updated_at, deleted_at, null::text as external_id, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario) as usuario',
-    colunas: 'desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil',
+    tabela: `(select id as usuario_id, id, updated_at, deleted_at, null::text as external_id, ${sqlCodigoFdv('core.usuario')} as codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil from core.usuario) as usuario`,
+    colunas: 'codigo_fdv, desconto_limita_item, desconto_limita_pedido, desconto_maximo_pedido_permil',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
   },
