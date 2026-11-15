@@ -28,10 +28,10 @@ function lote(p: Partial<LoteListagemItem>): LoteListagemItem {
 
 describe('filtros do monitor na URL (link compartilhável)', () => {
   it('lê o que é válido e ignora o que não faz sentido', () => {
-    expect(lerFiltros('?conector=erp-matriz&entidade=cliente&status=falhou&com_erro=1&lote=' + LOTE)).toEqual({
+    expect(lerFiltros('?conector=erp-matriz&entidade=cliente&status=com_falha&com_erro=1&lote=' + LOTE)).toEqual({
       conector: 'erp-matriz',
       entidade: 'cliente',
-      status: 'falhou',
+      status: 'com_falha',
       com_erro: '1',
       lote: LOTE,
     });
@@ -48,7 +48,12 @@ describe('filtros do monitor na URL (link compartilhável)', () => {
 
   it('temFiltro ignora o lote aberto (gaveta não é filtro)', () => {
     expect(temFiltro({ ...FILTROS_VAZIOS, lote: LOTE })).toBe(false);
-    expect(temFiltro({ ...FILTROS_VAZIOS, status: 'falhou' })).toBe(true);
+    expect(temFiltro({ ...FILTROS_VAZIOS, status: 'com_falha' })).toBe(true);
+  });
+
+  it('RN-INT-15: status com um estado só vai para a API; Em andamento (dois estados) fica no filtro local', () => {
+    expect(paraQueryLotes({ ...FILTROS_VAZIOS, status: 'com_falha' })).toEqual({ status: 'falhou' });
+    expect(paraQueryLotes({ ...FILTROS_VAZIOS, status: 'em_andamento' })).toEqual({});
   });
 
   it('query de LoteListagemQuery (GET /v1/integracao/lotes) usa os nomes do contrato', () => {
@@ -67,7 +72,8 @@ describe('filtros do monitor na URL (link compartilhável)', () => {
     ];
     expect(filtrarLotes(lotes, FILTROS_VAZIOS)).toHaveLength(3);
     expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, conector: 'erp-matriz' })).toHaveLength(2);
-    expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, entidade: 'produto', status: 'falhou' })).toHaveLength(1);
+    expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, entidade: 'produto', status: 'com_falha' })).toHaveLength(1);
+    expect(filtrarLotes([...lotes, lote({ status: 'recebido' }), lote({ status: 'processando' })], { ...FILTROS_VAZIOS, status: 'em_andamento' })).toHaveLength(2);
     expect(filtrarLotes(lotes, { ...FILTROS_VAZIOS, com_erro: '1' }).map((l) => l.conector_id)).toEqual(['erp-filial']);
   });
 });

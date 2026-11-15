@@ -45,7 +45,7 @@ describe('exportações do monitor', () => {
     };
     const l = linhas(lotesParaCsv([lote], relogio.fuso));
     expect(l[0]).toMatch(/^Lote;Conector;Entidade;Modo;Status;Recebidas/);
-    expect(l[1]).toContain('erp-matriz;Clientes;Carga completa;Aplicado com erros;10;3;4;1;0;2;0;');
+    expect(l[1]).toContain('erp-matriz;Clientes;Carga completa;Concluído com avisos;10;3;4;1;0;2;0;');
     expect(l).toHaveLength(2);
   });
 

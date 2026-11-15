@@ -74,3 +74,4 @@
 2026-11-13 — T-0162 — RD-0219 a RD-0233 aplicados (roteiro enxuto, instalador sem excesso, paridade kit x Conector com teste), defeitos 1 a 6 corrigidos, doc corrigido; kit remontado com o Conector 1.4.0 (C:\Users\domon\Downloads\macuxi-kit-piloto-1.0.0.zip); reteste pedido a testes e corretor
 2026-11-13 — T-0162 — RD-0226/0233/0237 aplicados, zip remontado (SHA-256 496471ba…ede8), reteste pedido ao corretor
 2026-11-13 — T-0162 — D-T0162-7: passos do instalador numerados 1 a 6; zip do kit remontado com --conector (SHA-256 5a406faec8418f0aa6fd55be4c0dd4ac4a0fa1201cbf1347e86ae96a3763dcb7)
+2026-11-15 — T-0173 — Integração ERP simples: 5 status, cancelar/reprocessar com autorização por senha, autorizadores, códigos do Macuxi, tabela de lotes e página De-para; pendências: CHECK 'cancelado' (banco-dados), core.credencial_conferir@1 (modulo-core), recados não enviados (GitHub 403)

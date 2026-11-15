@@ -78,7 +78,7 @@ export type LoteEnvelope = z.infer<typeof LoteEnvelope>;
 /** Envelope já validado: entidade conhecida e versão suportada. */
 export type LoteEnvelopeValido = Omit<LoteEnvelope, 'entidade'> & { entidade: Entidade };
 
-export const ESTADOS_LOTE = ['recebido', 'processando', 'concluido', 'concluido_com_erros', 'falhou'] as const;
+export const ESTADOS_LOTE = ['recebido', 'processando', 'concluido', 'concluido_com_erros', 'falhou', 'cancelado'] as const;
 export const EstadoLote = z.enum(ESTADOS_LOTE);
 export type EstadoLote = z.infer<typeof EstadoLote>;
 

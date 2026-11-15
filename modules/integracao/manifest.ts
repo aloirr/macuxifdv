@@ -2,10 +2,10 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 export const manifest = defineModule({
   id: 'integracao',
-  versao: '0.7.0',
+  versao: '0.8.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
-  apps: { web: { menus: ['Integração ERP', 'Carga por arquivo'] }, conector: {} },
+  apps: { web: { menus: ['Integração ERP', 'Carga por arquivo', 'Integração'] }, conector: {} },
   publica: [
     'integracao.cliente.atualizado@1',
     'integracao.produto.atualizado@1',
@@ -37,7 +37,10 @@ export const manifest = defineModule({
   // RN-INT-14: o Hub pergunta ao Core se o cadastro do cliente do lote está completo (aviso `cadastro_incompleto`, nunca erro de linha);
   // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
   // RN-CORE-39: core.filiais@1 confere o filial_external_id do vendedor (inexistente = referencia_ausente reprocessável)
-  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1'],
+  // T-0173 (RN-INT-16): core.usuarios_resumo@1 lista quem pode autorizar o reprocessamento (admin/analista ativos, sem e-mail)
+  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1', 'core.filiais@1', 'core.usuarios_resumo@1'],
+  // T-0173: vendedor.formas_pagamento@1 traz os códigos de condição de pagamento do Macuxi para o De-para (Vendedor desligado = lista indisponível)
+  usaConsultasOpcionais: ['vendedor.formas_pagamento@1'],
   // T-0114: o Vendedor pergunta se o ERP aceita o cancelamento de pedido já enviado (saída { aceita })
   ofereceConsultas: ['integracao.cancelamento_erp@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
@@ -48,6 +51,7 @@ export const manifest = defineModule({
   acoes: {
     'monitor.ver': { perfis: ['admin', 'analista'], descricao: 'Ver conectores, lotes, erros por linha, reconciliações e a fila de pedidos do ERP' },
     'lote.reprocessar': { perfis: ['admin', 'analista'], descricao: 'Reprocessar as linhas reprocessáveis de um lote (referencia_ausente, falha_processamento)' },
+    'lote.cancelar': { perfis: ['admin', 'analista'], descricao: 'Cancelar um lote em andamento (RN-INT-15)' },
     'mapeamento.editar': { perfis: ['admin', 'analista'], descricao: 'Editar o de-para de códigos (condição de pagamento, depósito, status)' },
     'conector.gerenciar': { perfis: ['admin'], descricao: 'Cadastrar Conector, gerar/rotacionar/revogar a chave de API e definir a política de versão' },
     'inativacao.decidir': { perfis: ['admin', 'analista'], descricao: 'Confirmar ou recusar a inativação em massa de uma carga completa, com auditoria (RN-INT-06, P-3)' },

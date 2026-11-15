@@ -53,13 +53,13 @@ export const rotaMonitor: RotaModulo = {
 
       const { rows: recentes } = await db.query<LinhaLote>(
         `select ${COLUNAS_LOTE} from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
-          where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 20`,
+          where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 100`,
         [tenantId],
       );
       // carga por entidade: os 1.000 lotes mais recentes bastam para o estado de cada entidade
       const { rows: paraCarga } = await db.query<LinhaLote>(
         `select ${COLUNAS_LOTE} from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
-          where l.tenant_id = $1 and l.deleted_at is null order by l.recebido_em desc limit 1000`,
+          where l.tenant_id = $1 and l.deleted_at is null and l.status <> 'cancelado' order by l.recebido_em desc limit 1000`,
         [tenantId],
       );
       const cargas = resumirCargaPorEntidade(paraCarga.map((l) => ({ entidade: l.entidade, status: l.status, contagens: { recebidas: l.recebidas, com_erro: l.com_erro, novas: l.novas, atualizadas: l.atualizadas, inalteradas: l.inalteradas } })));

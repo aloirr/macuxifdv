@@ -16,7 +16,7 @@ import type {
   SaudeConector,
   SITUACOES_VERSAO_CONECTOR,
 } from '../../contracts';
-import { autorizarAcaoIntegracao, situacaoPendencia, type AcaoIntegracao } from '../../domain';
+import { autorizarAcaoIntegracao, situacaoPendencia, type AcaoIntegracao, type StatusLote } from '../../domain';
 
 type SituacaoVersao = (typeof SITUACOES_VERSAO_CONECTOR)[number];
 type EstadoCarga = MonitorResumo['cargas'][number]['estado'];
@@ -55,21 +55,52 @@ export const TOM_SITUACAO_VERSAO: Record<SituacaoVersao, BadgeTone> = {
   abaixo_da_minima: 'danger',
 };
 
+/** RN-INT-15: os 5 status que a pessoa vê; o estado técnico do lote vira um deles em `statusDoLote` (domain). */
+export const ROTULO_STATUS: Record<StatusLote, string> = {
+  em_andamento: 'Em andamento',
+  concluido: 'Concluído',
+  concluido_com_avisos: 'Concluído com avisos',
+  com_falha: 'Com falha',
+  cancelado: 'Cancelado',
+};
+
+export const TOM_STATUS: Record<StatusLote, BadgeTone> = {
+  em_andamento: 'pending',
+  concluido: 'success',
+  concluido_com_avisos: 'warning',
+  com_falha: 'danger',
+  cancelado: 'neutral',
+};
+
 export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
-  recebido: 'Recebido',
-  processando: 'Processando',
-  concluido: 'Aplicado',
-  concluido_com_erros: 'Aplicado com erros',
-  falhou: 'Falhou',
+  recebido: ROTULO_STATUS.em_andamento,
+  processando: ROTULO_STATUS.em_andamento,
+  concluido: ROTULO_STATUS.concluido,
+  concluido_com_erros: ROTULO_STATUS.concluido_com_avisos,
+  falhou: ROTULO_STATUS.com_falha,
+  cancelado: ROTULO_STATUS.cancelado,
 };
 
 export const TOM_STATUS_LOTE: Record<EstadoLote, BadgeTone> = {
-  recebido: 'pending',
-  processando: 'pending',
-  concluido: 'success',
-  concluido_com_erros: 'warning',
-  falhou: 'danger',
+  recebido: TOM_STATUS.em_andamento,
+  processando: TOM_STATUS.em_andamento,
+  concluido: TOM_STATUS.concluido,
+  concluido_com_erros: TOM_STATUS.concluido_com_avisos,
+  falhou: TOM_STATUS.com_falha,
+  cancelado: TOM_STATUS.cancelado,
 };
+
+/**
+ * `15/11 14:31` (24 h, fuso do tenant, sem ano). Provisório: `formatDataHoraCurta` de `packages/ui/src/web/format.ts` (designer-ux,
+ * T-0173) substitui esta função quando chegar; o módulo não deve manter cópia.
+ */
+export function dataHoraCurta(iso: string | null | undefined, tz: string): string {
+  if (!iso) return '';
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]),
+  );
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`;
+}
 
 export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   vendedor: 'Vendedores',
