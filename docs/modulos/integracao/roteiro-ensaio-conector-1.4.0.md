@@ -3,10 +3,10 @@
 > T-0149/T-0098 · módulo `integracao` · para o `testes` e o `gerente-projetos`. Tempo previsto: 60 a 90 min. Referências: `conector.md` (§3 instalação, §7 operação, "Filial e Conector 1.4.0"), `db/conector/views-modelo.sql`, `db/conector/entrada-pedido-modelo.sql`.
 
 ## 0. Pré-requisitos (antes de começar)
-- Windows 10/11 ou Server, PowerShell **como administrador**, saída HTTPS liberada para o Hub (demo). Não precisa instalar Node.
+- Windows 10/11 ou Server, PowerShell **como administrador**, saída HTTPS liberada para o Hub. Não precisa instalar Node.
 - SQL Server do ERP-modelo (Express serve) com as views `vw_macuxi_*` (`views-modelo.sql`) e a tabela/procedures de entrada (`entrada-pedido-modelo.sql`) criadas, mais dados: 2 filiais (uma marcada como padrão no Macuxi), clientes com `filial_external_id`, produtos, preços e estoque.
 - Usuário SQL do Conector só com SELECT nas views e EXECUTE nas duas procedures.
-- Chave de API do Conector gerada no BKO (escopo `integracao.v1`) e o pacote `conector-1.4.0.zip` com `.sha256` (e `.sig`, se assinado) — gerado por `apps/conector/scripts/pacote.mjs` ou pelo workflow `conector-publicar.yml`.
+- Chave de API do Conector gerada no portal (escopo `integracao.v1`) e o pacote `conector-1.4.0.zip` com `.sha256` (e `.sig`, se assinado) — gerado por `apps/conector/scripts/pacote.mjs` ou pelo workflow `conector-publicar.yml`.
 - Pedido de filial **não padrão** só chega a Conector 1.4.0+; o de filial padrão vai a qualquer versão.
 
 ## 1. Instalar (conector.md §3)
@@ -33,7 +33,7 @@
 | 2.6 | Parar o serviço no meio de uma carga e iniciar de novo | retoma do cursor confirmado, sem duplicar (`status`) |
 
 ## 3. Pedido até o SQL do ERP-modelo
-Preparar no app (ou na demo) dois pedidos aprovados:
+Preparar no app  dois pedidos aprovados:
 - **A**: cliente da filial **não padrão**, frete **FOB** com transportadora cadastrada, endereço de entrega **do cadastro** (com `external_id`), pagamento a prazo 30/60/90.
 - **B**: cliente da filial **padrão**, frete **CIF**, endereço **editado** no pedido (RN-VEN-17), pagamento à vista.
 
@@ -53,7 +53,7 @@ Preparar no app (ou na demo) dois pedidos aprovados:
 |---|---|---|
 | 4.1 | Derrubar a rede do servidor por 3 min com um pedido na fila | fila local guarda; ao voltar, envia sem perda; backoff nos logs |
 | 4.2 | Fazer a procedure do ERP falhar (ex.: tirar o EXECUTE) | pedido fica com erro legível no BKO (sem dado pessoal em log); corrigir e `retomar` reenvia |
-| 4.3 | `trocar-chave` com chave nova gerada no BKO | envio continua sem reinstalar; chave antiga revogada deixa de valer |
+| 4.3 | `trocar-chave` com chave nova gerada no portal | envio continua sem reinstalar; chave antiga revogada deixa de valer |
 | 4.4 | (opcional) Instalar um 1.3.x em outra máquina com pedido da filial B na fila | pedido **espera** (não grava na padrão); ao atualizar para 1.4.0, é entregue |
 | 4.5 | Logs em `dados\logs\conector-AAAA-MM-DD.log` | JSON por linha, sem CPF, telefone, e-mail ou chave |
 

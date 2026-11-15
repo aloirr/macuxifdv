@@ -50,7 +50,7 @@ Pontos que importam:
 
 ## 3. Convenções
 
-- Base: `https://<servidor>/integracao/v1` (demonstração: `api-demo.macuxifdv.com.br`; a produção será informada na contratação).
+- Base: `https://<servidor>/integracao/v1` (produção: `api.macuxifdv.com.br`).
 - Corpo JSON em UTF-8. **Dinheiro em centavos inteiros** (`_cents`). **Datas-hora em UTC com `Z`** (`2026-11-05T13:45:10Z`; deslocamento como `-03:00` é recusado). Datas civis `AAAA-MM-DD`.
 - **Todo registro tem `external_id`** (a chave do registro no seu ERP, até 200 caracteres; chaves compostas como `TAB01:P000045` valem) e `alterado_em` (instante da última alteração no ERP). `ativo: false` inativa o registro no Macuxi (nunca apaga).
 - Campos desconhecidos são **ignorados** (compatibilidade para frente). Campo novo opcional é compatível com `v1`; qualquer outra mudança vira `/v2`.
@@ -576,7 +576,7 @@ Regras do retorno:
 Variáveis usadas (bash; o `jq` é opcional). A chave é a que o administrador gerou no BKO:
 
 ```bash
-export HUB="https://api-demo.macuxifdv.com.br/integracao/v1"
+export HUB="https://api.macuxifdv.com.br/integracao/v1"
 export MACUXI_CHAVE="<chave de API do Conector>"
 export MACUXI_CONECTOR="erp-matriz"
 H_AUTH=(-H "Authorization: Bearer $MACUXI_CHAVE" -H "X-Macuxi-Conector-Id: $MACUXI_CONECTOR" -H "X-Macuxi-Conector-Versao: 1.2.1")
