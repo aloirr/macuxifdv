@@ -116,14 +116,19 @@ describe('RN-PLA-01 licenças contratadas e módulos', () => {
 
 describe('RN-PLA-05 troca de plano', () => {
   it('abaixo do uso = PLANO_ABAIXO_DO_USO por item, com a mensagem', () => {
-    const uso = { ...zero(), vendedor: 6, pesquisa: 1 };
+    const uso = { ...zero(), vendedor: 14, gestor: 2, pesquisa: 1 };
     const r = conferirTrocaDePlano(plano(), [], uso);
     expect(r.map((x) => [x.codigo, x.item])).toEqual([
       ['PLANO_ABAIXO_DO_USO', 'vendedor'],
+      ['PLANO_ABAIXO_DO_USO', 'gestor'],
       ['PLANO_ABAIXO_DO_USO', 'pesquisa'],
     ]);
-    expect(r[0]?.mensagem).toBe('O plano PME tem 5 licenças de vendedor e a empresa usa 6.');
-    expect(r[1]?.mensagem).toBe('O plano PME tem 0 licenças de Pesquisa e a empresa usa 1.');
+    // rótulo no plural (ROTULO_ITEM), quanto está em uso e quantos inativar
+    expect(r.map((x) => x.mensagem)).toEqual([
+      'Vendedores: 14 em uso. Inative 9 antes de trocar.',
+      'Gestores: 2 em uso. Inative 1 antes de trocar.',
+      'Pesquisa: 1 em uso. Inative 1 antes de trocar.',
+    ]);
   });
 
   it('o adicional cobre o uso; uso igual ao limite passa; sem limite passa', () => {

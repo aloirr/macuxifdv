@@ -260,6 +260,19 @@ const NOME_ITEM: Readonly<Record<ItemContado, string>> = {
 };
 const licencasEm = (n: number): string => (n === 1 ? 'licença' : 'licenças');
 
+/**
+ * Rótulo de cada item contado, como o portal mostra na ficha e na troca de plano (plural; mapa único: a mensagem da RN-PLA-05
+ * e a tela leem daqui). Pesquisa e Treinamento são o nome do adicional (contam usuários com o módulo).
+ */
+export const ROTULO_ITEM: Readonly<Record<ItemContado, string>> = Object.freeze({
+  vendedor: 'Vendedores',
+  gestor: 'Gestores',
+  bko: 'BKO',
+  promotor: 'Promotores',
+  pesquisa: 'Pesquisa',
+  treinamento: 'Treinamento',
+});
+
 /** RN-PLA-01: o plano está ativo e vende cada adicional pedido. Vale na criação e na troca. */
 export function conferirEscolhaDePlano(plano: Plano, adicionais: readonly AdicionalContratado[]): ProblemaDePlano[] {
   const problemas: ProblemaDePlano[] = [];
@@ -274,6 +287,8 @@ export function conferirEscolhaDePlano(plano: Plano, adicionais: readonly Adicio
 /**
  * RN-PLA-05: troca de plano (para cima ou para baixo) só se o novo cobre o que está em uso, item a item. Abaixo do uso, a
  * troca é recusada: primeiro inativa os usuários ou tira o módulo deles. A troca nunca desativa usuário sozinha.
+ * Mensagem: `<Rótulo>: <em uso> em uso. Inative <excesso> antes de trocar.` (ex.: "Vendedores: 14 em uso. Inative 4 antes de
+ * trocar."; mesmo formato para Pesquisa e Treinamento).
  */
 export function conferirTrocaDePlano(
   novo: Plano,
@@ -288,7 +303,7 @@ export function conferirTrocaDePlano(
       problemas.push({
         codigo: 'PLANO_ABAIXO_DO_USO',
         item,
-        mensagem: `O plano ${novo.nome} tem ${limite} ${licencasEm(limite)} de ${NOME_ITEM[item]} e a empresa usa ${emUso[item]}.`,
+        mensagem: `${ROTULO_ITEM[item]}: ${emUso[item]} em uso. Inative ${emUso[item] - limite} antes de trocar.`,
       });
   }
   return problemas;

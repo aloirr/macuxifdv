@@ -33,7 +33,10 @@ import {
   type CriarEmpresa,
   CriarEmpresaRespostaSchema,
   CriarEmpresaSchema,
+  empresaEmTeste,
+  fusoDoTenantOuPadrao,
   linhasDosParametrosIniciais,
+  ListaEmpresasDoBancoSchema,
   ListaEmpresasSchema,
   planoDeOnboardingSemAdmin,
   type AcessoBanco,
@@ -45,6 +48,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { localIsoDate } from '@macuxi/comum/fuso';
 import { PRAZO_PROVISIONAR_PORTAL_MS } from './banco';
 import type { ConsultaCnpj } from './consulta-cnpj';
 import { ErroHttp } from './erros';
@@ -300,6 +304,8 @@ export interface DepsRotasPlataforma {
    * Vazio para o admin do cliente (só o super-admin vê as ações). Ausente = a lista sai sem `acoes`.
    */
   acoesDasEmpresas?: (quem: AcessoPortalAutenticado) => Promise<Map<string, AcoesDaEmpresa>>;
+  /** Relógio do `em_teste` da lista de empresas (padrão: agora). */
+  agora?: () => Date;
 }
 
 /** O que a rota do portal precisa do e-mail: saber se há adaptador e cifrar a carga com o AAD da linha da outbox. */
@@ -418,12 +424,17 @@ export function registrarRotasPlataforma(app: FastifyInstance, dep: DepsRotasPla
   // os dois tipos (T-0093 §4): a função filtra; o admin do cliente vê só as empresas da sessão, também antes de escolher
   app.get('/v1/plataforma/empresas', async (req) => {
     const quem = await exigir(req);
-    const r = ListaEmpresasSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
+    const r = ListaEmpresasDoBancoSchema.safeParse(await dep.fonte.listarEmpresas(quem, dep.acesso));
     if (!r.success) throw new Error('sa_listar_tenants devolveu formato diferente do combinado (desenho T-0087 §4)');
-    if (!dep.acoesDasEmpresas || quem.tipo !== 'super_admin') return r.data;
+    // 0071: `em_teste` no fuso de cada empresa; o `paga` fica aqui (a tela não usa). Banco sem a 0071 = itens sem os 3 campos.
+    const agora = (dep.agora ?? (() => new Date()))();
+    const itens = r.data.itens.map(({ paga, ...e }) =>
+      e.teste_ate === undefined ? e : { ...e, em_teste: empresaEmTeste({ teste_ate: e.teste_ate, paga }, localIsoDate(agora, fusoDoTenantOuPadrao(e.fuso))) },
+    );
+    if (!dep.acoesDasEmpresas || quem.tipo !== 'super_admin') return { itens };
     // ADR 0052: junta o bloco `acoes` pelo id da empresa (aditivo; empresa sem bloco sai sem `acoes`)
     const acoes = await dep.acoesDasEmpresas(quem);
-    return { itens: r.data.itens.map((e) => { const a = acoes.get(e.id); return a ? { ...e, acoes: a } : e; }) };
+    return { itens: itens.map((e) => { const a = acoes.get(e.id); return a ? { ...e, acoes: a } : e; }) };
   });
 
   app.post('/v1/plataforma/empresas', async (req, reply) => {
